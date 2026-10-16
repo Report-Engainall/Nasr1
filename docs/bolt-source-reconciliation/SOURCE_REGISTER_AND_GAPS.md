@@ -1,0 +1,81 @@
+# سجل مصادر متجر الأغبري والفجوات — 2026-10-16
+
+## A. الهدف المعتمد
+
+| العنصر | القيمة |
+|---|---|
+| المستودع المستهدف | https://github.com/Report-Engainall/Nasr1 |
+| الفرع | main |
+| HEAD المثبت قبل إعداد هذا المجلد | ed609c01b8bde47b34df57d389dfc25f4ae89bbf |
+| الصلاحيات عند التحقق | وصول قراءة وكتابة من اتصال GitHub المرتبط |
+| إطار التطبيق كما في package.json | React 18، TypeScript، Vite، React Router، Zustand، Supabase JS، Lucide |
+| أسلوب الدمج | إضافات تزايدية إلى Nasr1؛ لا إعادة بناء ولا استبدال قاعدة البيانات |
+
+قد يتغير HEAD بعد إعداد هذا الملف. افحص ref الحالي داخل Bolt قبل أي تطبيق.
+
+## B. مصادر GitHub التي ظهرت في قوائم الحسابات المتصلة
+
+### حساب Report-Engainall
+- [Nasr1](https://github.com/Report-Engainall/Nasr1) — الهدف المرجعي.
+- [aghbari-commerce](https://github.com/Report-Engainall/aghbari-commerce) — مصدر مانح محتمل.
+- [aghbari-store](https://github.com/Report-Engainall/aghbari-store) — مصدر متباين؛ لا تفترض أنه نسخة مطابقة.
+- [report-insight-engine](https://github.com/Report-Engainall/report-insight-engine) — مستودع استقبال الأرشيفات والجرد والتقارير؛ يحوي وثائق فحص سابقة، لا شجرة الكود الموحّدة كاملة.
+- [Report-Advisor](https://github.com/Report-Engainall/Report-Advisor) — مستودع منتج تقارير منفصل؛ لا تدمجه بالمتجر لمجرد أنه في الحساب نفسه.
+- [nasr2026](https://github.com/Report-Engainall/nasr2026) — افحصه إن ظهر فيه محتوى متعلق بالمتجر؛ كان حجمه صفراً في قائمة المستودعات عند التحقق.
+
+### منظمة Aghbari-Technologies
+- [aghbari-commerce-evolved](https://github.com/Aghbari-Technologies/aghbari-commerce-evolved) — مصدر مرشح غني بميزات وتغييرات تاريخية؛ لا يستبدل Nasr1 تلقائيًا.
+- [aghbari-commerce-evolved-algaradi](https://github.com/Aghbari-Technologies/aghbari-commerce-evolved-algaradi) — نسخة أخرى يلزم فحصها على كل refs.
+
+### حساب adnanabderab2016-sys
+- [aghbari-store](https://github.com/adnanabderab2016-sys/aghbari-store)
+- [aghbari-commerce-evolved-algaradi](https://github.com/adnanabderab2016-sys/aghbari-commerce-evolved-algaradi)
+- [aghbari-commerce-evolved-algaradi1](https://github.com/adnanabderab2016-sys/aghbari-commerce-evolved-algaradi1)
+- [aladnan-electronics](https://github.com/adnanabderab2016-sys/aladnan-electronics)
+- [Gradi1](https://github.com/adnanabderab2016-sys/Gradi1) — خاص؛ تحقّق من إمكان قراءة شجرته ومحتواها الفعلي.
+- [المستودع -7- الذي يحمل أرشيف المشاريع السبعة](https://github.com/adnanabderab2016-sys/-7-).
+
+هذه هي المستودعات المرصودة من قوائم حسابات GitHub المتاحة في هذا الفحص؛ على Bolt مواصلة البحث في بقية الصفحات والفروع وPRs ووسوم الإصدارات وأي حساب/مستودع متصل بمساحة عمله، وعدم اعتبار هذه القائمة حصرًا نهائيًا لجميع نسخ المستخدم.
+
+## C. الأرشيفات ونتائج التحقق المتاحة
+
+| العنصر | الدليل الحالي | القرار |
+|---|---|---|
+| AGHBARI_COMMERCE_UNIFIED_SOURCE_PACKAGE.zip، الحجم المذكور من المالك 95,377,100 بايت | لا يظهر كملف ZIP بهذا الحجم ضمن مجلد الاستقبال الحالي. هناك مجلد Git عادي بهذا الاسم يحتوي أقسام جرد ووثائق، وليس أرشيفًا ثنائيًا كاملاً. سجل الاستقبال السابق يشير إلى رابط أقدم انتهى بـ 410 Gone. | يجب استرجاع الملف الأصلي من مصدره أو من مرفق صالح؛ لا تعتبر مجلد الوثائق بديلاً عنه. |
+| AGHBARI_COMMERCE_UNIFIED_SOURCE_PACKAGE (1).zip، حجمه 34,644 بايت | موجود في [مجلد استقبال الأرشيفات](https://github.com/Report-Engainall/report-insight-engine/tree/main/incoming-archives/commerce-source-reconciliation) باسم يتضمن (1). هذا الحجم صغير جدًا مقارنة بالحزمة الشاملة المتوقعة. | افتحه واختبر سلامته ومحتواه؛ لا تعتبره المصدر الكامل قبل جرد ما بداخله. |
+| ملف RAR الذي يحتوي على 7 مشاريع | موجود في [adnanabderab2016-sys/-7-](https://github.com/adnanabderab2016-sys/-7-/blob/main/%D8%A7%D8%B3%D8%AA%D8%AE%D8%B1%D8%AC%20%D9%85%D9%86%20%D9%83%D9%84%20%D8%A7%D9%84%D9%85%D8%B4%D8%A7%D8%B1%D9%8A%D8%B9%20%D9%85%D8%A7%20%D9%8A%D9%86%D8%AA%D8%AC%20%D9%85%D8%B4%D8%B1%D9%88%D8%B9%20%D9%85%D9%83%D8%AA%D9%85%D9%84%20%D9%84%D9%84%D9%85%D8%AA%D8%AC%D8%B1%20%D8%A7%D9%84%D8%A7%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A%20.rar): 25,811,682 بايت وفق GitHub؛ Git blob ID هو dd96610641b7f0a7af765b72d406b1553f67f89e، وهو ليس SHA-256 للملف. | متاح في المستودع، لكن تقرير الاستقبال السابق يقول إنه لم يُنزّل أو يُستخرج في بيئة التدقيق. يجب تنزيله واختبار سلامته واستخراجه فعليًا في Bolt أو بيئة قادرة. |
+| الأرشيف الآخر الذي يحتوي على عدة مشاريع | لا يظهر رابط أو ملف صالح له ضمن مجلد الاستقبال الذي جرى فحصه. | مفقود/لم يُرفق بعد؛ لا تدّع فحص محتوياته. |
+| نسخ Bolt المسماة project-bolt-github-xgpah6kz وproject-bolt-github-xgpah6kz (1) | التقرير الذي قدمه المالك سابقًا قال إن 249/249 ملفًا تطابق Nasr1 بالمسار وبصمة Git بعد استبعاد الاعتماديات والبناء والملفات الحساسة. | تعامل معها كدليل مطابقة تاريخي؛ أعد فحص المصادر الحالية فقط إذا تغيّرت الـSHA أو ظهر مصدر أحدث. |
+| Nasr1 مقابل aghbari-commerce-evolved | تقرير المطابقة السابق المقدم هنا قال: 213 ملفًا مطابقًا بالمسار والمحتوى، و5 مسارات مشتركة مختلفة، و31 ملفًا خاصًا بـNasr1، و9 ملفات خاصة بـevolved. | لا تستبدل أي جانب بالآخر؛ اجعل الـ31 والـ9 والاختلافات الخمسة عناصر مراجعة، ثم راجع تغيّرات الفروع والتاريخ أيضًا. |
+
+## D. نتائج شجرة سابقة ينبغي استخدامها كمؤشرات لا كقرار نهائي
+
+وثائق مستودع الاستقبال تسجل مقارنة لشجرات Git عند لقطة سابقة:
+
+- Aghbari-Technologies/aghbari-commerce-evolved@main مقابل adnanabderab2016-sys/aghbari-commerce-evolved-algaradi1@main: تطابق تام 227/227 مسارًا وبصمة Git في تلك اللقطة.
+- المصدر السابق نفسه مقابل Report-Engainall/aghbari-store@main: مساران متطابقان، 22 مسارًا بنفس الاسم ومحتوى مختلفًا، 203 مسارات فقط في الطرف الأول و165 فقط في الطرف الثاني.
+- المصدر السابق نفسه مقابل adnanabderab2016-sys/aladnan-electronics@main: لا تطابق كامل؛ 7 مسارات مشتركة بمحتوى مختلف، و220 مسارًا مقابل 62 مسارًا فريدًا.
+- هذه الأعداد هي معرّفات Git blob عند لقطة التدقيق، وليست إثباتًا للتكافؤ الوظيفي أو لاجتياز البناء. حدّث المقارنة إن تغيّر HEAD.
+
+## E. ما تحتويه حزمة التدقيق السابقة فعلًا
+
+في [مجلد الحزمة السابقة](https://github.com/Report-Engainall/report-insight-engine/tree/main/incoming-archives/commerce-source-reconciliation/AGHBARI_COMMERCE_UNIFIED_SOURCE_PACKAGE) توجد وثائق قراءة مفيدة، منها:
+- جرد المصدر والـ refs والـ PRs والـ branches.
+- شجرة مقارنة ومرشحات الميزات الإضافية.
+- تقرير حالة RAR الذي يؤكد أن الاستخراج لم يتم في تشغيل ذلك التقرير.
+- نسخة من المواصفة الأصلية وملخص لمكونات قاعدة البيانات والتكاملات.
+- ملف NOT_MATERIALIZED.txt الذي يقول إن شجرة التطبيق الكاملة لم تُنسخ إلى حزمة التدقيق.
+
+الحزمة السابقة إذًا دليل استكشاف ومصالحة جزئي، وليس مجلدًا يحوي جميع الأكواد القابلة للنسخ بالفعل.
+
+## F. إجراء Bolt المطلوب عند استلام كل مصدر
+
+1. سجل SHA والرابط والفرع/الوسم/PR.
+2. نزّل ملفات المصدر فعليًا؛ لا تعتمد على أسماء المسارات أو صفحة GitHub وحدها.
+3. اختبر الأرشيف قبل الاستخراج، واحسب SHA-256 للبايتات الأصلية. لا تستخدم Git blob SHA بدل SHA-256.
+4. استخرج كل مشروع إلى مسار معزول باسمه، وسجّل فشل كل ملف بدل تجاهله.
+5. أدرج كل ملفات TypeScript/TSX/CSS/SQL/migrations/tests/assets/config/documentation القابلة للتوزيع، مع استثناء الأسرار وملفات البيئة والاعتماديات المولدة.
+6. قارن المحتوى مع Nasr1؛ انقل الملفات والميزات النافعة فقط دون استبدال مشروع أو قاعدة بيانات.
+7. ضع المصادر التي لم يمكن تنزيلها في قائمة BLOCKED مع السبب، واستمر في بقية المصادر.
+
+**لا يوجد في هذا السجل ادعاء بأن ملفات الأرشيف المفقودة قد استُخرجت أو فُحصت.**
