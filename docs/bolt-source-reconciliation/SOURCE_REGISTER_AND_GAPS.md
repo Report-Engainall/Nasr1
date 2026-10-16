@@ -106,3 +106,19 @@
 [`docs/canonical/AGHBARI-MASTER-PROJECT-SPECIFICATION.md`](https://github.com/Report-Engainall/Nasr1/blob/main/docs/canonical/AGHBARI-MASTER-PROJECT-SPECIFICATION.md)
 
 طول النص المقروء من GitHub في فحص هذه الجلسة 54,657 حرفًا، وتبدأ بعبارة «مـتـجـر الأغـبـري / AGHBARI COMMERCE — وثيقة المواصفات الهندسية والتنفيذية الشاملة» وتحتوي الأقسام الـ22 التي عرضها المالك. لا حاجة لإعادة إنشاء نص مواصفات مكرر. أما ملف `MASTER_EXECUTION_SPEC_ORIGINAL.txt` الذي نُقل سابقًا من حزمة التدقيق فكان تكليف جمع/مصالحة مصادر، وليس مواصفة المنتج؛ تم حفظ محتواه القديم دون تعديل في `SOURCE_AUDIT_ORIGINAL_COLLECTION_MANDATE.txt` وتصحيح ملف الاسم المضلل إلى إحالة.
+
+
+## J. Release assets rechecked on 2026-10-16
+
+The GitHub Releases API currently lists these archive assets:
+
+| Release/tag | Asset | GitHub-reported size | SHA-256 recorded by Release | Classification |
+|---|---|---:|---|---|
+| `commerce-source-intake-2026-10-16` (draft) | [AGHBARI_COMMERCE_UNIFIED_SOURCE_PACKAGE.1.zip](https://github.com/Report-Engainall/report-insight-engine/releases/download/untagged-fc5f1d1c7c6e5ec135f0/AGHBARI_COMMERCE_UNIFIED_SOURCE_PACKAGE.1.zip) | 34,644 bytes | `b5c70093fe28e46b3ebee8394c7bd6bdddf5aef33eb95331e086de4db0790323` | Small intake ZIP. Not proven to contain the full source project. |
+| `commerce-source-reconciliation-20261016-181307` | [AGHBARI_COMMERCE_GITHUB_BASELINE_SNAPSHOT.zip](https://github.com/Report-Engainall/report-insight-engine/releases/download/commerce-source-reconciliation-20261016-181307/AGHBARI_COMMERCE_GITHUB_BASELINE_SNAPSHOT.zip) | 118,952,752 bytes | `28704bf7d32b7f759802682b7873f4b370fc073c54c0fbcb4268f39e37c83499` | Audit/inventory baseline snapshot, not a complete checkout of the seven-project RAR or every donor source tree. Its attached release notes explicitly state that source code and the RAR were not materialized. |
+| `commerce-source-reconciliation-20261016-180756` | [AGHBARI_COMMERCE_GITHUB_BASELINE_SNAPSHOT.zip](https://github.com/Report-Engainall/report-insight-engine/releases/download/commerce-source-reconciliation-20261016-180756/AGHBARI_COMMERCE_GITHUB_BASELINE_SNAPSHOT.zip) | 56,543,928 bytes | `87ad9f91dfea9aee617649888af6aa6e1d8e02b08e5c18824cbae9fd9bdaee21` | Older baseline snapshot; not proven to be the 95,377,100-byte original ZIP. |
+| `commerce-source-reconciliation-20261016-180443` | [AGHBARI_COMMERCE_GITHUB_BASELINE_SNAPSHOT.zip](https://github.com/Report-Engainall/report-insight-engine/releases/download/commerce-source-reconciliation-20261016-180443/AGHBARI_COMMERCE_GITHUB_BASELINE_SNAPSHOT.zip) | 55,677,109 bytes | `06b575c4a6c5d54a7084162d5416a97a1a5a750c1c51431019c68830afda85ad` | Earlier baseline snapshot; inventory/audit output, not an identified source archive. |
+
+The original `AGHBARI_COMMERCE_UNIFIED_SOURCE_PACKAGE.zip` reportedly sized 95,377,100 bytes is still **not present as a confirmed asset** in these Releases. Do not rename one of the baseline snapshots to that filename or claim their payload is identical.
+
+The seven-project RAR remains at [adnanabderab2016-sys/-7-](https://github.com/adnanabderab2016-sys/-7-/blob/main/%D8%A7%D8%B3%D8%AA%D8%AE%D8%B1%D8%AC%20%D9%85%D9%86%20%D9%83%D9%84%20%D8%A7%D9%84%D9%85%D8%B4%D8%A7%D8%B1%D9%8A%D8%B9%20%D9%85%D8%A7%20%D9%8A%D9%86%D8%AA%D8%AC%20%D9%85%D8%B4%D8%B1%D9%88%D8%B9%20%D9%85%D9%83%D8%AA%D9%85%D9%84%20%D9%84%D9%84%D9%85%D8%AA%D8%AC%D8%B1%20%D8%A7%D9%84%D8%A7%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A%20.rar), size 25,811,682 bytes and Git blob ID `dd96610641b7f0a7af765b72d406b1553f67f89e`. The current execution host could read its metadata but could not resolve the external download host for the binary; **no archive bytes, SHA-256, integrity check or extraction result were obtained here**. Bolt should run the supplied collector in its connected workspace, acquire the RAR, compute a real SHA-256, test and extract it, then reconcile any resulting files with the 69 verified source snapshots already in this folder.
