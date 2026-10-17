@@ -1,0 +1,121 @@
+{
+  "target_branch": "recovery/bolt-snapshot-2026-10-17",
+  "source_archive_sha256": {
+    "restored_current": "9e012da1795cb9549413f78366c3bd6885c593e5a56e2fea10d4cf3fe810b214",
+    "before_failure": "d59b3084a0b51e26646cf08ffc9239d2ee440298e9799f079827a4939d31b365"
+  },
+  "source_file_counts": {
+    "restored_current": 358,
+    "before_failure": 359
+  },
+  "restored_current_files_copied": 315,
+  "pre_failure_ui_files_restored": [
+    {
+      "path": "src/components/store/BannerSlider.tsx",
+      "bytes": 1621,
+      "sha256": "f6daa6979bcfad5904cee04939cde0f79472eba15bddd85fe926541612c331b5"
+    },
+    {
+      "path": "src/components/store/ProductCard.tsx",
+      "bytes": 2522,
+      "sha256": "71685c4ca5b93555e764e0d15b050c4f8934ccab59293700d3f27393028a3858"
+    },
+    {
+      "path": "src/components/store/StoreFooter.tsx",
+      "bytes": 3998,
+      "sha256": "d705d3f8aeefd90583a4d81761b7f3f85823707fc3177d98adf0e327d812901d"
+    },
+    {
+      "path": "src/components/store/StoreHeader.tsx",
+      "bytes": 4153,
+      "sha256": "ed0ce07697dd6394255db2b3175b29dcf78528ed29666a423c792d34542c8b9b"
+    },
+    {
+      "path": "src/pages/store/HomePage.tsx",
+      "bytes": 7302,
+      "sha256": "1f357a5daa06e153f3298acdb80fbde7f342aaca9906498b245dfe00e13a6207"
+    },
+    {
+      "path": "src/pages/admin/AdminLayout.tsx",
+      "bytes": 3748,
+      "sha256": "6bf2bd4a6469bbdc43d7c5408927eb47dcf4097be5f5171a665c9c39c087dd3d"
+    },
+    {
+      "path": "src/styles.css",
+      "bytes": 2191,
+      "sha256": "2ed9d8a05c1e842a53928f98145f9835843ff89449fd9f004a5cf533c693717b"
+    },
+    {
+      "path": "src/styles/premium-ui.css",
+      "bytes": 40052,
+      "sha256": "c51a60bc517760c4706c2050b7b8df70e64efeaa5e13c3b9ffa441d39dd6dd9b"
+    },
+    {
+      "path": "package.json",
+      "bytes": 643,
+      "sha256": "06e643337977273a564d22f207443e3c25d7dbefd47373df48a1b48737bb49ba"
+    },
+    {
+      "path": "package-lock.json",
+      "bytes": 66536,
+      "sha256": "993e51711497ca0ede338398393ff3f90d1b069b31fdf495b2e4f6afc7e40f50"
+    }
+  ],
+  "environment_files_excluded": [
+    {
+      "snapshot": "restored_current",
+      "path": ".env",
+      "bytes": 291,
+      "sha256": "a2a6f362c3c0e02afb8cc362194f11d4a9a4e3a0e5bad84c97ec44aa8cb4f551",
+      "contents_copied": false
+    },
+    {
+      "snapshot": "before_failure",
+      "path": ".env",
+      "bytes": 291,
+      "sha256": "a2a6f362c3c0e02afb8cc362194f11d4a9a4e3a0e5bad84c97ec44aa8cb4f551",
+      "contents_copied": false
+    }
+  ],
+  "database_migrations": [
+    {
+      "path": "supabase/migrations/20261017003140_grant_admin_role_777530851.sql.sql",
+      "source_snapshot": "restored_current",
+      "bytes": 983,
+      "sha256": "020e33ec53010a83bf5b7055337071b46eabd3a68c0da3e2be11c9fcdc9ddd9a",
+      "status": "quarantined_not_applied",
+      "content": "not copied pending explicit security review"
+    },
+    {
+      "path": "supabase/migrations/20261017003200_set_admin_password_777530851.sql.sql",
+      "source_snapshot": "restored_current",
+      "bytes": 244,
+      "sha256": "9c1aa10e7178db0909b428e60580dd9b984b3e87860198fcb19cebffd13e9c3b",
+      "status": "quarantined_not_applied",
+      "content": "not copied pending explicit security review"
+    },
+    {
+      "path": "supabase/migrations/20261017003522_executive_analytics_and_customer_360.sql.sql",
+      "source_snapshot": "restored_current",
+      "bytes": 18105,
+      "sha256": "e4ae70f59b56802e4faf23dea3fa861dde2e4ac9d724c6a1ee3727d73c93df1c",
+      "status": "quarantined_not_applied",
+      "quarantine_path": "docs/recovery-quarantine/supabase-migrations/20261017003522_executive_analytics_and_customer_360.sql.sql.txt"
+    },
+    {
+      "path": "supabase/migrations/20261017012307_20261017040000_fix_missing_rpcs_and_analytics.sql",
+      "source_snapshot": "before_failure",
+      "bytes": 10730,
+      "sha256": "7eb7fd644371ad206aded1b8ef4f13c4181979cb774520ebe0ec5b7c095dc693",
+      "status": "quarantined_not_applied",
+      "quarantine_path": "docs/recovery-quarantine/supabase-migrations/20261017012307_20261017040000_fix_missing_rpcs_and_analytics.sql.txt"
+    }
+  ],
+  "safety": [
+    "main not changed",
+    "no .env copied",
+    "no generated tsbuildinfo copied",
+    "no supabase/migrations file overwritten or activated",
+    "no SQL executed"
+  ]
+}

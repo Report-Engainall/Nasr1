@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { AlertTriangle, Brain, CheckCircle2, FileText, RefreshCw, Send, ShieldCheck, Sparkles } from 'lucide-react'
+import { TriangleAlert as AlertTriangle, Brain, CircleCheck as CheckCircle2, FileText, RefreshCw, Send, ShieldCheck, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
 

@@ -2,19 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { EmptyState, LoadingState, Badge } from '@/components/ui';
 import { formatCurrency, formatDateTime, generateIdempotencyKey } from '@/lib/utils';
-import {
-  ShoppingCart,
-  Plus,
-  X,
-  Loader2,
-  Search,
-  ArrowLeft,
-  Check,
-  Package,
-  Truck,
-  Clock,
-  RotateCcw,
-} from 'lucide-react';
+import { ShoppingCart, Plus, X, Loader as Loader2, Search, ArrowLeft, Check, Package, Truck, Clock, RotateCcw } from 'lucide-react';
 import { useRouter } from '@/context/RouterContext';
 import type { Order, OrderItem, Customer, Product } from '@/types';
 

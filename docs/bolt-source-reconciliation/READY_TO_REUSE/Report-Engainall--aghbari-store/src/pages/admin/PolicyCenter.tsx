@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, LockKeyhole, PackageCheck, Palette, ReceiptText, Save, Settings2, ShieldCheck } from 'lucide-react'
+import { CircleCheck as CheckCircle2, LockKeyhole, PackageCheck, Palette, ReceiptText, Save, Settings2, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/components/ui/Toast'
 import { useCommercePolicies, type CommercePolicies, type QuantityInputTone } from '@/lib/useCommercePolicies'

@@ -1,10 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  Activity, AlertTriangle, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft,
-  CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package,
-  Pencil, Plus, RefreshCw, Search, Settings, ShoppingCart, SlidersHorizontal,
-  Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
-} from 'lucide-react';
+import { Activity, TriangleAlert as AlertTriangle, ChartBar as BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft, CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package, Pencil, Plus, RefreshCw, Search, Settings, ShoppingCart, SlidersHorizontal, Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap } from 'lucide-react';
 import {
   createCategory, createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
   fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,

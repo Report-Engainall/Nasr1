@@ -1,25 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import {
-  ArrowRight,
-  FileText,
-  Printer,
-  RefreshCw,
-  Save,
-  Search,
-  ShoppingCart,
-  ScanLine,
-  Send,
-  CheckCircle2,
-  Bot,
-  Banknote,
-  Wifi,
-  WifiOff,
-  MapPin,
-  Plus,
-  Pencil,
-  Trash2,
-} from "lucide-react";
+import { ArrowRight, FileText, Printer, RefreshCw, Save, Search, ShoppingCart, ScanLine, Send, CircleCheck as CheckCircle2, Bot, Banknote, Wifi, WifiOff, MapPin, Plus, Pencil, Trash2 } from "lucide-react";
 import { Login } from "@/components/Login";
 import { useAuth } from "@/lib/auth";
 import { getCurrentTenantScope, supabase } from "@/lib/supabase";

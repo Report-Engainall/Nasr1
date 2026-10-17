@@ -2,15 +2,7 @@ import { useEffect, useState, useCallback, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { EmptyState, LoadingState, Badge } from '@/components/ui';
 import { formatCurrency } from '@/lib/utils';
-import {
-  Tag,
-  Plus,
-  Search,
-  Pencil,
-  Trash2,
-  X,
-  Loader2,
-} from 'lucide-react';
+import { Tag, Plus, Search, Pencil, Trash2, X, Loader as Loader2 } from 'lucide-react';
 import type { PriceRule, Product, PricingFormula, PriceLevel, Customer } from '@/types';
 
 const LEVEL_LABELS: Record<PriceLevel, string> = {

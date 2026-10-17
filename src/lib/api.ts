@@ -1,4 +1,5 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
+export { getCurrentTenantScope, getStorefrontDataScope };
 import type {
   Product, Category, Customer, Supplier, Order, OrderItem,
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
