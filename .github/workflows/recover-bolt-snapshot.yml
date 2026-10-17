@@ -157,6 +157,7 @@ jobs:
             "database_migrations":migration_meta,
             "safety":["main not changed","no .env copied","no generated tsbuildinfo copied","no supabase/migrations file overwritten or activated","no SQL executed"],
           }
+          (root/"docs/recovery").mkdir(parents=True,exist_ok=True)
           (root/"docs/recovery/RECOVERY_FROM_BOLT_SNAPSHOTS_2026-10-17.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding="utf-8")
           (root/"docs/recovery/RECOVERY_FROM_BOLT_SNAPSHOTS_2026-10-17.md").write_text(
             "# استعادة آمنة لنسختي Bolt — 17 أكتوبر 2026\n\n"
