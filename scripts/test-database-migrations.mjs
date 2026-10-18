@@ -1059,9 +1059,12 @@ async function main() {
        SELECT $1,$2,o.id,
               'CI-CAP-INVOICE-'||right(o.order_number,4),
               'issued',o.created_at,
-              CASE WHEN right(o.order_number,4)::integer=205
-                   THEN statement_timestamp()-interval '2 days'
-                   ELSE statement_timestamp()+interval '30 days' END,
+              CASE
+                   WHEN right(o.order_number,4)::integer=205 THEN statement_timestamp()-interval '2 days'
+                   WHEN right(o.order_number,4)::integer=204 THEN
+                     (date_trunc('day', statement_timestamp() AT TIME ZONE 'UTC') + interval '12 hours') AT TIME ZONE 'UTC'
+                   ELSE statement_timestamp()+interval '30 days'
+              END,
               'YER',o.total_amount,0,o.total_amount
          FROM seeded_orders o
        RETURNING id,invoice_number,total_amount
@@ -1140,6 +1143,7 @@ async function main() {
   assert.equal(toMinorUnits(cappedSummary.paid)-toMinorUnits(baselineYER.paid),505n,"full summary must include all 505 payments despite the 500-row detail cap");
   assert.equal(toMinorUnits(cappedSummary.outstanding)-toMinorUnits(baselineYER.outstanding),20895n,"full summary must reconcile all capped-out invoice/payment amounts");
   assert.equal(toMinorUnits(cappedSummary.overdue_outstanding)-toMinorUnits(baselineYER.overdue_outstanding),495n,"only the past-due boundary invoice should add overdue receivables");
+  assert.equal(Number(cappedSummary.overdue_invoice_count)-Number(baselineYER.overdue_invoice_count),1,"due later today is not overdue; only an invoice from an earlier UTC date increments the overdue count");
   assert.equal(toMinorUnits(cappedSummary.unknown_due_date_outstanding),toMinorUnits(baselineYER.unknown_due_date_outstanding),"explicit test due dates must not change the missing-due-date bucket");
 
   const paidCapInvoiceDetail = capStatement.invoices.find((row) => row.id === paidCapInvoice.id);

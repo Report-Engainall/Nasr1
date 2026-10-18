@@ -268,6 +268,11 @@ describe("Arabic customer finance PDFs", () => {
       generatedAt,
     )).toBe("مستحقة");
     expect(resolveCustomerStatementInvoiceStatus(
+      { ...invoice, due_at: "2026-10-18T00:00:00.000Z" },
+      0n,
+      generatedAt,
+    )).toBe("مستحقة"); // Due earlier today is still due today, not overdue.
+    expect(resolveCustomerStatementInvoiceStatus(
       { ...invoice, due_at: null },
       0n,
       generatedAt,

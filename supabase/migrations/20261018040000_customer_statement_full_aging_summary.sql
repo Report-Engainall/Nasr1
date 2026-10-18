@@ -111,10 +111,10 @@ BEGIN
       COALESCE(SUM(ib.paid_amount),0) AS paid,
       COALESCE(SUM(ib.outstanding_amount),0) AS outstanding,
       COUNT(*) FILTER (
-        WHERE ib.outstanding_amount > 0 AND ib.due_at IS NOT NULL AND ib.due_at < v_summary_as_of_utc
+        WHERE ib.outstanding_amount > 0 AND ib.due_at IS NOT NULL AND (ib.due_at AT TIME ZONE 'UTC')::date < (v_summary_as_of_utc AT TIME ZONE 'UTC')::date
       )::integer AS overdue_invoice_count,
       COALESCE(SUM(ib.outstanding_amount) FILTER (
-        WHERE ib.outstanding_amount > 0 AND ib.due_at IS NOT NULL AND ib.due_at < v_summary_as_of_utc
+        WHERE ib.outstanding_amount > 0 AND ib.due_at IS NOT NULL AND (ib.due_at AT TIME ZONE 'UTC')::date < (v_summary_as_of_utc AT TIME ZONE 'UTC')::date
       ),0) AS overdue_outstanding,
       COUNT(*) FILTER (
         WHERE ib.outstanding_amount > 0 AND ib.due_at IS NULL

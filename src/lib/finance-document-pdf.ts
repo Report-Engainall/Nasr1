@@ -130,11 +130,13 @@ export function resolveCustomerStatementInvoiceStatus(
 
   const dueAtMs = invoice.due_at ? Date.parse(invoice.due_at) : Number.NaN;
   const generatedAtMs = generatedAt.getTime();
+  const dueUtcDate = Number.isFinite(dueAtMs) ? new Date(dueAtMs).toISOString().slice(0, 10) : "";
+  const generatedUtcDate = Number.isFinite(generatedAtMs) ? new Date(generatedAtMs).toISOString().slice(0, 10) : "";
   const isOverdue =
     total > paidAmount &&
-    Number.isFinite(dueAtMs) &&
-    Number.isFinite(generatedAtMs) &&
-    dueAtMs < generatedAtMs;
+    dueUtcDate !== "" &&
+    generatedUtcDate !== "" &&
+    dueUtcDate < generatedUtcDate;
 
   if (isOverdue) {
     return paidAmount > 0n ? "متأخرة جزئيًا" : "متأخرة";
