@@ -1,8 +1,8 @@
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
 **الهدف الوحيد:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / main.
-**آخر SHA كود اجتاز CI كاملًا:** `89fe8089aa2fd7d4f1b5130c8af85dc1171b4185` — [commit](https://github.com/Report-Engainall/Nasr1/commit/89fe8089aa2fd7d4f1b5130c8af85dc1171b4185).
-**CI المطابق للكود:** [Actions 39159745907 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39159745907), SHA `89fe8089aa2fd7d4f1b5130c8af85dc1171b4185`; frozen Bun lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke وdev smoke PASS. تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
+**آخر SHA كود اجتاز CI كاملًا:** `591dce4e59383e7a568c9a19c7f7e823fe5aa7f3` — [commit](https://github.com/Report-Engainall/Nasr1/commit/591dce4e59383e7a568c9a19c7f7e823fe5aa7f3).
+**CI المطابق للكود:** [Actions 39160377663 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39160377663), SHA `591dce4e59383e7a568c9a19c7f7e823fe5aa7f3`; frozen Bun lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke وdev smoke PASS. تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
 **نقطة الإقلاع:** [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md). أعد قراءة HEAD وCI بعد كل commit.
 **فجوة المصادر:** تم تنزيل وفحص وفك أرشيفي Bolt، وسجل 717 عضوًا فعليًا. مسار/blob audit لجميع 69 صف READY_TO_REUSE مسجل؛ المراجعة الدلالية لعقود/imports/routes/RLS لكل صف لم تكتمل.
 **النزاهة المالية:** لا توجد فواتير تاريخية سابقة مطلوب اختلاقها؛ لا تنشئ أرقامًا تجريبية.
@@ -49,7 +49,7 @@
 
 ## نقطة الاستئناف الوحيدة
 
-- next_task_id = NASR1-INVENTORY-REORDER-POINT-COMMAND-001
+- next_task_id = NASR1-INVENTORY-STOCK-COUNT-001
 - Review each of 69 READY_TO_REUSE candidates against live app contracts and implement useful missing behavior only. Prioritize security/data correctness, commerce/inventory/import/Onyx, then finance/admin/analytics.
 - Do not blind-copy old React Router screens or apply legacy SQL with DROP FUNCTION ... CASCADE. Do not invent historical invoices or demo data. No paid services.
 
@@ -98,4 +98,15 @@
 - اختبارات PostgreSQL 17 تغطي النقل، ثبات الحجوزات، رصيد الوجهة، قيدي دفتر الحركة، إعادة المحاولة دون تكرار، اختلاف الحمولة، نقص المتاح، منع نقل مخزون مؤسسة أخرى، ومنع تعديل دفتر النقل مباشرة.
 - [Exact-SHA CI 39159745907 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39159745907) على `89fe8089aa2fd7d4f1b5130c8af85dc1171b4185`: unit tests، PostgreSQL 17، lint، build، preview/dev smoke PASS.
 - ما لم يُنجز: جلسات الجرد الفعلي (start/count/complete) من خدمة المانح لم تُنقل؛ كانت تعتمد مخططًا غير موجود في الهدف. لم تُطبق migrations على Supabase الإنتاجية ولم يُثبت تشغيل المتصفح/الإنتاج.
+- IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migration=NOT RUN.
+
+## حماية الكتابة المباشرة وحد إعادة الطلب
+
+- أضيفت migration `supabase/migrations/20261018080000_inventory_write_boundary_and_reorder_point.sql`: أُلغيت صلاحيات INSERT/UPDATE/DELETE وغيرها على `inventory_balances` و`inventory_movements` من `PUBLIC/anon/authenticated` مع إبقاء القراءة المطلوبة؛ التغيير في الرصيد ودفتر الحركات يمر عبر أوامر خادمية موثوقة.
+- أضيف RPC `set_inventory_reorder_point`: صلاحية admin/manager فقط، هوية المؤسسة من الملف الشخصي المصادق عليه، تحقق من الصنف والمستودع داخل المؤسسة، حد صحيح بين صفر ومليار، سبب إلزامي، وقفل صف الرصيد القائم. لا ينشئ رصيدًا صفريًا عند غياب الرصيد المثبت.
+- كل تغيير فعلي يُسجل في `audit_logs` مع القيمة السابقة والجديدة والسبب والفاعل؛ القيمة نفسها no-op لا تُنتج حدث تدقيق مضلل. مشغّل `operational_tasks_from_inventory` يعيد تقييم مهمة الشراء عند عبور حد إعادة الطلب.
+- رُبط الأمر بنموذج إدارة المنتجات ويعرض الحد الحالي والمتاح المثبت لكل مستودع؛ حُجب عن الأدوار غير الإدارية في الواجهة ويظل التفويض النهائي في قاعدة البيانات.
+- أضيفت اختبارات قبول لـPostgreSQL 17 تمنع DML المباشر على الأرصدة ودفتر الحركات، وتختبر تعديل الحد والتدقيق وno-op ودورة مهمة الشراء ورفض الحد السالب والمستودع من مؤسسة أخرى ورفض المحاسب.
+- [Exact-SHA CI 39160377663 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39160377663) على `591dce4e59383e7a568c9a19c7f7e823fe5aa7f3`: unit tests، PostgreSQL 17 migrations/RLS، lint، build، preview/dev smoke PASS.
+- هذا تكامل هدف أصلي متوافق مع مخطط Nasr1؛ لا يدمج الحدود القديمة المنفصلة min/reorder/max حرفيًا لأن الهدف يحتوي `reorder_point` فقط. جلسات الجرد ما زالت المهمة التالية. الإنتاج/browser لم يُثبتا، ولم تُطبق migration على Supabase الإنتاجية.
 - IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migration=NOT RUN.
