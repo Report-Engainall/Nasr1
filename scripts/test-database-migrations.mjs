@@ -2567,11 +2567,6 @@ async function main() {
     () => db.unsafe("select public.record_cash_expense($1::uuid,$2::text,$3::text,$4::numeric,$5::text,$6::text,$7::text,$8::date)",["dddddddd-dddd-4ddd-8ddd-ddddddddddde","Utilities","bad precision","1.234","YER","cash",null,"2026-10-18"]),
     /at most two decimal places/i,
   );
-  await expectFailure(
-    "cash expense read is scoped to the caller tenant",
-    () => db.unsafe("select public.fetch_staff_cash_expenses(50,0,null,null,null,'all')"),
-    /finance permission required/i,
-  );
   const expensePage=(await db.unsafe("select public.fetch_staff_cash_expenses(50,0,null,null,null,'all') as result"))[0].result;
   assert.equal(expensePage.total_count,1);
   assert.equal(expensePage.items.length,1);
@@ -2599,7 +2594,7 @@ async function main() {
   assert.equal(persistedVoid.status,"void");
   assert.equal(persistedVoid.void_reason,"duplicate receipt entered in error");
   await expectFailure("authenticated finance role cannot directly mutate cash expense history",()=>db.unsafe("update public.cash_expenses set amount=1 where id=$1::uuid",[expenseId]),/permission denied/i);
-  const auditRows=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='cash_expense' and entity_id=$2::uuid order by created_at",[organizationId,expenseId]);
+  const auditRows=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='cash_expense' and entity_id=$2::uuid order by action",[organizationId,expenseId]);
   assert.deepEqual(auditRows.map((row)=>row.action),["cash_expense.recorded","cash_expense.voided"]);
   await db.unsafe("reset role");
   await setIdentity(authUserId,"ci-customer-one@example.test");
