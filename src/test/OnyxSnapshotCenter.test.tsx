@@ -81,7 +81,7 @@ describe("Onyx snapshot center", () => {
     render(<OnyxSnapshotCenter />);
     expect(await screen.findByText("أونكس برو — اللقطات والتحليلات")).toBeInTheDocument();
     expect(await screen.findByText("onyx-october.csv")).toBeInTheDocument();
-    expect(screen.getByText("درجة الجودة المحسوبة").parentElement?.textContent).toContain("/100");
+    expect((await screen.findByText("درجة الجودة المحسوبة")).parentElement?.textContent).toContain("/100");
     expect(screen.getByText("SKU-001")).toBeInTheDocument();
     expect(screen.getByText("تنفيذ المطابقة مع المخزون الحالي")).toBeInTheDocument();
     expect(mocks.fetchOnyxSnapshotAnalytics).toHaveBeenCalledWith("snapshot-1");
