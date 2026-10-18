@@ -13,7 +13,8 @@
 - CI للنسخة الأساسية: [run 38971144752](https://github.com/Report-Engainall/Nasr1/actions/runs/38971144752) = `failure`. سجل الوظيفة `117209539056` يثبت فشل `bun install --frozen-lockfile --dry-run` برسالة اختلاف overrides بين `package.json` و`bun.lock` قبل تشغيل الاختبارات.
 
 ## المهمة النشطة
-- `next_task_id = NASR1-BOOT-001`
+- `last_tested_application_sha = 790afce1aa2a78a4692d6f990599ed99a495515b` — [Actions run 39139420150](https://github.com/Report-Engainall/Nasr1/actions/runs/39139420150) = FAIL عند unit tests.
+- `next_task_id = NASR1-MISSING-MODULES-001`
 - إصلاح توافق package manager ومدخل التطبيق ثم اجتياز CI على SHA التغيير نفسه.
 - السبب الجذري المثبت: manifest وnpm lock يصفان تطبيق React 18 / React Router / Vite 5، في حين أن `bun.lock` و`src/routes` و`src/router.tsx` و`src/start.ts` و`src/server.ts` و`src/test/app-routing.test.tsx` وworkflow تصف تطبيق TanStack Start / React 19 / Vite 8 / Vitest.
 
@@ -23,6 +24,10 @@
 - `IMPLEMENTED`: مواءمة اسم workspace في Bun lock دون تغيير graph الاعتماديات أو إصداراتها.
 - `PRESERVED`: نقل HTML القديم وnpm lock القديم إلى `docs/bolt-source-reconciliation/REFERENCE_ONLY/` بدل ضياع محتواهما؛ ملفات `src/App.tsx` و`src/main.tsx` القديمة لم تُحذف.
 - `IMPLEMENTED`: إنشاء سجل الحالة، سجل التنفيذ، سجل قرارات المصادر، وmanifest للأرشيفات.
+
+## نتيجة CI الدقيقة للدفعة السابقة
+- على SHA `790afce1aa2a78a4692d6f990599ed99a495515b`: frozen-lockfile verification والتثبيت = PASS؛ unit tests = FAIL، 9 ملفات فاشلة و6 ناجحة و48 اختبارًا ناجحًا ضمن الملفات التي شغلتها Vitest. التفاصيل في [run 39139420150](https://github.com/Report-Engainall/Nasr1/actions/runs/39139420150).
+- السبب المثبت: خمس وحدات/مسارات موجودة في `READY_TO_REUSE` وسجل المنشأ لكنها لم تكن في مواضع التشغيل. استعادتها إلى مسارات `src/` قيد التنفيذ.
 
 ## الاختبارات والحالة
 - baseline: `FAIL` على `41b8757183db97990f0c1f78f8ea6e45cf7d0201`؛ راجع run أعلاه.
