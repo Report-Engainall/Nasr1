@@ -73,12 +73,12 @@ HEAD المصدر المسجل: `99eb3fa452eb3344c4c1fd625209e20d2f7169ed`.
 الأرشيفات الأصلية والفروع والمستودعات الكاملة لم تتحول كلها إلى ملفات تحت هذا المجلد. لتجميع كل ما يمكن الوصول إليه، شغّل `tools/collect-source-inputs.mjs` وفق `SOURCE_COLLECTOR_GUIDE.md`، ثم افحص `COLLECTION_MANIFEST.json`. أي أرشيف مفقود أو مستودع خاص غير متاح يجب أن يبقى معلّمًا BLOCKED؛ لا تخترع ملفات مفقودة ولا تزعم فحصها.
 
 
-## 5. مرآة الكود الحالي من تطبيق Nasr1 — تحديث 2026-10-18
+## 5. مرآة الكود الحالي من تطبيق Nasr1 — تحديث بعد ملخص دفتر العميل الكامل
 
-المجلد `Nasr1--verified-current-implementation/` يحتوي 9 ملفات حديثة من التطبيق نفسه، تتضمن ملخص أعمار الذمم حسب العملة داخل كشف PDF.
+المجلد `Nasr1--verified-current-implementation/` يحتوي 10 ملفات حديثة من التطبيق، بما فيها migration جديدة تحدّث RPC حساب العميل لإرجاع ملخص كامل من دفتر الفواتير والمدفوعات، مع استمرار حد التفاصيل 200 فاتورة/500 دفعة.
 
-- كود المصدر المختبر: [`f830678ea99f4bb2318305a5f2e70ee761dbea1e`](https://github.com/Report-Engainall/Nasr1/commit/f830678ea99f4bb2318305a5f2e70ee761dbea1e).
-- نتيجة CI المطابقة: [39147039166 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39147039166); unit tests وPostgreSQL 17 وlint وbuild وpreview/dev smoke اجتازت.
-- اقرأ README و`CURRENT_NASR1_IMPLEMENTED_FILES.csv` داخل المجلد لمعرفة المسارات وبصمات Git blob.
-- كل ملف مرآة مطابق للمسار الحالي في التطبيق؛ النسخ للتوثيق والمصالحة وتسريع الاستئناف وليست نسخ runtime إضافية.
-- `PROVENANCE_MANIFEST.csv` لملفات المشاريع المانحة لم يُعدّل، وتبقى provenance منفصلة عن نسخة Nasr1.
+- كود المصدر: [`98a80df80b366e811923b80d53fe06a519e754d0`](https://github.com/Report-Engainall/Nasr1/commit/98a80df80b366e811923b80d53fe06a519e754d0).
+- CI الدقيق: [39148856503 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39148856503): unit tests وPostgreSQL 17 acceptance وlint وbuild وpreview/dev smoke.
+- اقرأ `Nasr1--verified-current-implementation/README.md` و`CURRENT_NASR1_IMPLEMENTED_FILES.csv` لمعرفة المسارات والبصمات.
+- كل مرآة مطابقة لمسار الهدف ببصمة Git blob؛ المرآة لا تُستورد ثانية إلى runtime.
+- `PROVENANCE_MANIFEST.csv` للمانحين لم يتغير.

@@ -238,3 +238,17 @@
 - [Actions 39147434273 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39147434273): Bun lock/install، unit tests، PostgreSQL 17 acceptance، lint، build، preview smoke وdev smoke كلها ناجحة.
 - Readback للمجلد: manifest يحمل 9 صفوف، كل صف `git_blob_identical=YES`; `src/lib/finance-document-pdf.ts` و`.test.ts` داخل المرآة لهما بصمتا المصدر الأحدث `66ed7294...` و`07d3fc96...`. `PROVENANCE_MANIFEST.csv` الخاص بالمانحين لم يُعدّل.
 - تم إغلاق `NASR1-CURRENT-IMPLEMENTATION-SNAPSHOT-VERIFY-CI`; next task هو `NASR1-FINANCE-STATEMENT-AGING-SUMMARY-RECONCILE`.
+
+
+## 2026-10-18 — NASR1-CUSTOMER-STATEMENT-FULL-AGING-SUMMARY-001 — مجاميع كاملة خادمية لكشف العميل
+
+- الفجوة: `get_customer_account_statement()` كان يعيد حتى 200 فاتورة و500 دفعة، وكان PDF يحسب أعمار الذمم من السجلات العائدة فقط؛ هذا قد يقلل المدفوع أو الرصيد المتأخر في عميل كثير الحركات.
+- migration جديدة `supabase/migrations/20261018040000_customer_statement_full_aging_summary.sql` تستبدل جسم الـRPC الحالي نفسه (ليس RPC موازٍ)، وتضيف `summary_as_of_utc` و`summary` حسب العملة من كل الفواتير والمدفوعات للمؤسسة/العميل المصدق عليه. تبقى قوائم التفاصيل محدودة بـ200/500.
+- تُضاف إلى كل فاتورة في التفاصيل قيم `paid_amount` و`outstanding_amount` من دفترها الكامل، لتظل صفوف الفاتورة صحيحة حتى لو كانت بعض المدفوعات أقدم من أحدث 500 دفعة المعروضة.
+- `src/lib/finance-document-pdf.ts` يفضّل الملخص الخادمي إذا وُجد ويطابق cut-off الخادمي عند حساب حالة التأخر، ويتحقق من مبالغ وقيم الملخص وازدواج العملات وبقاء بنود التأخر داخل المتبقي باستخدام bigint. إذا لم يكن الملخص موجودًا في نسخة backend أقدم، يحتفظ بfallback واضح أنه للسجلات المعادة فقط.
+- `src/lib/finance-document-pdf.test.ts` يختبر دقة bigint للأرقام الكبيرة، المجاميع ذات العملة المتعددة، المدخل الخادمي الموثوق والـfallback، والبيانات غير الصحيحة.
+- `scripts/test-database-migrations.mjs` يتحقق من summary cutoff ومجاميع الفاتورة/الدفع/المتبقي والـbuckets وعزل ملخص العميل عن العميل الآخر، بالإضافة إلى الحقول لكل فاتورة.
+- عالجنا أخطاء اختبار حقيقية خلال التنفيذ: [39148570829](https://github.com/Report-Engainall/Nasr1/actions/runs/39148570829) و[39148691924](https://github.com/Report-Engainall/Nasr1/actions/runs/39148691924) كشفتا أخطاء تثبيت assertion/توقع bigint وإعادة تطبيع الملخص. لم تُخفف الاختبارات. الإصلاح النهائي [`98a80df80b366e811923b80d53fe06a519e754d0`](https://github.com/Report-Engainall/Nasr1/commit/98a80df80b366e811923b80d53fe06a519e754d0) اجتاز [Actions 39148856503 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39148856503) بجميع المراحل.
+- الحالة: `IMPLEMENTED + TESTED` على `98a80df80b366e811923b80d53fe06a519e754d0`. لا يوجد ادعاء بتطبيق migration في قاعدة الإنتاج أو اختبار متصفح مباشر.
+- المرآة `docs/bolt-source-reconciliation/READY_TO_REUSE/Nasr1--verified-current-implementation/` تُزامن إلى نفس الكود المختبر؛ donor `PROVENANCE_MANIFEST.csv` يبقى دون تغيير.
+- next_task_id: `NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI` ثم `NASR1-CUSTOMER-STATEMENT-SUMMARY-CAP-BOUNDARY-001`.
