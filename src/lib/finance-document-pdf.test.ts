@@ -64,6 +64,28 @@ describe("Arabic customer finance PDFs", () => {
     expect(document.getTitle()).toContain("كشف الحساب");
   });
 
+  it("paginates a statement with due-date rows without dropping invoices", async () => {
+    const invoices = Array.from({ length: 45 }, (_, index) => ({
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-" + String(index + 1).padStart(12, "0"),
+      invoice_number: "INV-PAGE-" + String(index + 1).padStart(3, "0"),
+      status: "issued",
+      issued_at: "2026-10-01T00:00:00.000Z",
+      due_at: index % 4 === 0 ? null : "2026-10-30T00:00:00.000Z",
+      currency: "YER",
+      total_amount: "1.00",
+    }));
+    const bytes = await buildCustomerStatementPdf(
+      { invoices, payments: [] },
+      fontBytes(),
+      generatedAt,
+    );
+    const document = await PDFDocument.load(bytes);
+
+    expect(document.getPageCount()).toBeGreaterThan(1);
+    expect(document.getTitle()).toContain("كشف الحساب");
+    expect(bytes.byteLength).toBeGreaterThan(5_000);
+  });
+
   it("formats invoice issue and due dates without inventing missing dates", () => {
     expect(formatFinanceDocumentDate("2026-10-30T00:00:00.000Z")).toBe("2026-10-30");
     expect(formatFinanceDocumentDate(null)).toBe("—");
