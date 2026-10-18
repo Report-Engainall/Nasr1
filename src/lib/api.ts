@@ -3,6 +3,7 @@ import type {
   Product, Category, Customer, Supplier, Order, OrderItem,
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
   ProductWithInventory, OrderWithCustomer, AdminSetting, ImportJob, ImportJobRow,
+  AiTask, OperationalTask, OperationalTaskRole, OperationalTaskStatus,
 } from './types';
 
 // Fetch unit prices using the server-derived customer/company tier. The client never
@@ -636,10 +637,62 @@ export async function fetchAiTasks(): Promise<AiTask[]> {
 }
 
 export async function toggleAiTaskStatus(id: string, status: string): Promise<void> {
-  const updates: Record<string, unknown> = { status };
-  if (status === 'completed') updates.completed_at = new Date().toISOString();
-  const { error } = await supabase.from('ai_tasks').update(updates).eq('id', id);
+  if (!['pending', 'in_progress', 'completed', 'cancelled'].includes(status)) {
+    throw new Error('حالة المهمة غير صالحة.');
+  }
+  await setOperationalTaskStatus(id, status as OperationalTaskStatus);
+}
+
+
+// ─── Operational Task Center ───
+export async function fetchOperationalTasks(): Promise<OperationalTask[]> {
+  const { organizationId } = await getCurrentTenantScope();
+  const { data, error } = await supabase.from('ai_tasks').select('*')
+    .eq('organization_id', organizationId).order('created_at', { ascending: false });
   if (error) throw error;
+  return (data ?? []) as OperationalTask[];
+}
+
+export async function createOperationalTask(input: {
+  title: string; description?: string; taskRole: OperationalTaskRole;
+  priority: 'low' | 'medium' | 'high' | 'critical'; dueAt?: string | null;
+}): Promise<string> {
+  if (!input.title.trim() || input.title.trim().length > 240) {
+    throw new Error('اكتب عنوانًا للمهمة بين حرف واحد و240 حرفًا.');
+  }
+  const { data, error } = await supabase.rpc('create_operational_task', {
+    p_title: input.title.trim(), p_description: input.description?.trim() || null,
+    p_task_role: input.taskRole, p_priority: input.priority, p_due_at: input.dueAt || null, p_assigned_to: null,
+  });
+  if (error) throw new Error(error.message || 'تعذر إنشاء المهمة.');
+  if (typeof data !== 'string') throw new Error('لم يرجع الخادم معرّف المهمة.');
+  return data;
+}
+
+export async function setOperationalTaskStatus(
+  taskId: string, status: OperationalTaskStatus, resolutionNote?: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('update_operational_task_status', {
+    p_task_id: taskId, p_status: status, p_resolution_note: resolutionNote?.trim() || null,
+  });
+  if (error) throw new Error(error.message || 'تعذر تحديث حالة المهمة.');
+}
+
+export async function refreshOperationalTasks(): Promise<{
+  organization_id: string; source_records_refreshed: number; refreshed_at: string;
+}> {
+  const { data, error } = await supabase.rpc('refresh_operational_tasks');
+  if (error) throw new Error(error.message || 'تعذر مزامنة المهام مع سجلات التشغيل.');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('أعاد الخادم نتيجة مزامنة غير صالحة.');
+  const result = data as Record<string, unknown>;
+  if (typeof result.organization_id !== 'string' || typeof result.source_records_refreshed !== 'number' || typeof result.refreshed_at !== 'string') {
+    throw new Error('نتيجة مزامنة المهام غير مكتملة.');
+  }
+  return {
+    organization_id: result.organization_id,
+    source_records_refreshed: result.source_records_refreshed,
+    refreshed_at: result.refreshed_at,
+  };
 }
 
 // ─── Notifications ───

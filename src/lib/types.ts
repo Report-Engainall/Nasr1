@@ -33,3 +33,27 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
 export const CUSTOMER_STATUS_LABELS: Record<string, string> = {
   pending: 'بانتظار الموافقة', approved: 'معتمد', frozen: 'مجمّد', blocked: 'محظور', archived: 'مؤرشف',
 }
+
+export type OperationalTaskRole = 'sales' | 'accountant' | 'warehouse' | 'purchasing' | 'management' | 'operations';
+export type OperationalTaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface AiTask {
+  id: string; organization_id: string; title: string; description: string | null; task_type: string | null;
+  priority: 'low' | 'medium' | 'high' | 'critical' | string; status: OperationalTaskStatus | string;
+  assigned_to: string | null; created_at: string; completed_at: string | null;
+  task_role?: OperationalTaskRole; source_event_key?: string | null; source_entity_type?: string | null;
+  source_entity_id?: string | null; due_at?: string | null; created_by?: string | null; completed_by?: string | null;
+  resolution_note?: string | null; task_payload?: Record<string, unknown>; updated_at?: string;
+}
+export type OperationalTask = AiTask & {
+  task_role: OperationalTaskRole; source_event_key: string | null; source_entity_type: string | null;
+  source_entity_id: string | null; due_at: string | null; task_payload: Record<string, unknown>; updated_at: string;
+};
+export interface AiAlert {
+  id: string; organization_id: string; alert_type: string; severity: string; title: string;
+  body: string | null; entity_type?: string | null; entity_id?: string | null; is_resolved: boolean; created_at: string;
+}
+export interface Notification {
+  id: string; organization_id: string | null; profile_id: string | null; title: string;
+  body: string | null; type: string; is_read: boolean; created_at: string;
+}

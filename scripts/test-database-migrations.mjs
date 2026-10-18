@@ -1820,6 +1820,143 @@ async function main() {
   await db.unsafe("reset role");
   process.stdout.write("PASS AI gateway: admin-owned settings, HTTPS validation, atomic budget caps, usage ledger replay, service-only RPCs and customer denial\n");
 
+
+  // AGH-OPS-TASK-CENTER-001: source-driven, idempotent tasks and role-isolated status transitions.
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const taskRefresh = await db.unsafe("select public.refresh_operational_tasks() as result");
+  assert.equal(taskRefresh[0].result.organization_id, organizationId, "task refresh derives tenant from the authenticated administrator");
+  assert.ok(Number(taskRefresh[0].result.source_records_refreshed) >= 1, "task refresh scans persisted source records");
+
+  const reviewKey = "order-review:" + staffCreatedOrder.id;
+  const reviewBefore = await db.unsafe(
+    "select id,task_role,status from public.ai_tasks where organization_id=$1 and source_event_key=$2",
+    [organizationId, reviewKey],
+  );
+  assert.equal(reviewBefore.length, 1, "a real pending order creates one sales review task");
+  assert.equal(reviewBefore[0].task_role, "sales");
+  await db.unsafe("select public.refresh_operational_tasks()");
+  const reviewAfter = await db.unsafe(
+    "select id from public.ai_tasks where organization_id=$1 and source_event_key=$2",
+    [organizationId, reviewKey],
+  );
+  assert.equal(reviewAfter.length, 1, "reconciling the same source order cannot duplicate its task");
+
+  const manualTaskRows = await db.unsafe(
+    "select public.create_operational_task($1::text,$2::text,$3::text,$4::text,$5::timestamptz,$6::uuid) as id",
+    ["CI task-center manual task", "Database acceptance test", "sales", "high", null, null],
+  );
+  const manualTaskId = manualTaskRows[0].id;
+  await expectFailure(
+    "authenticated role cannot directly update ai_tasks",
+    () => db.unsafe("update public.ai_tasks set status='completed' where id=$1", [manualTaskId]),
+    /permission denied/i,
+  );
+  const taskComplete = await db.unsafe(
+    "select public.update_operational_task_status($1::uuid,$2::text,$3::text) as result",
+    [manualTaskId, "completed", "CI acceptance completion"],
+  );
+  assert.equal(taskComplete[0].result.status, "completed", "status changes run through the audited RPC");
+  const manualTaskState = await db.unsafe(
+    "select status,completed_by,resolution_note from public.ai_tasks where id=$1",
+    [manualTaskId],
+  );
+  assert.equal(manualTaskState[0].status, "completed");
+  assert.equal(manualTaskState[0].completed_by, staffProfileId, "completion records the authenticated actor");
+  assert.equal(manualTaskState[0].resolution_note, "CI acceptance completion");
+
+  // Force an actual crossing into and out of the persisted reorder threshold.
+  await db.unsafe("reset role");
+  const testWarehouseId = "d0000000-0000-0000-0000-000000000001";
+  await db.unsafe(
+    "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) " +
+    "values($1,$2,100,0,20) on conflict(product_id,warehouse_id) do update " +
+    "set quantity_on_hand=100,quantity_reserved=0,reorder_point=20",
+    [productId, testWarehouseId],
+  );
+  await db.unsafe(
+    "update public.inventory_balances set quantity_on_hand=10 where product_id=$1 and warehouse_id=$2",
+    [productId, testWarehouseId],
+  );
+  const stockBalance = await db.unsafe(
+    "select id from public.inventory_balances where product_id=$1 and warehouse_id=$2",
+    [productId, testWarehouseId],
+  );
+  const stockKey = "low-stock:" + stockBalance[0].id;
+  const lowStockTask = await db.unsafe(
+    "select id,status,task_role from public.ai_tasks where organization_id=$1 and source_event_key=$2",
+    [organizationId, stockKey],
+  );
+  assert.equal(lowStockTask.length, 1, "crossing below the recorded reorder threshold creates a purchasing task");
+  assert.equal(lowStockTask[0].task_role, "purchasing");
+  await db.unsafe(
+    "update public.inventory_balances set quantity_on_hand=7 where product_id=$1 and warehouse_id=$2",
+    [productId, testWarehouseId],
+  );
+  assert.equal((await db.unsafe("select id from public.ai_tasks where organization_id=$1 and source_event_key=$2", [organizationId, stockKey])).length, 1,
+    "continued low stock must not duplicate the active task");
+  await db.unsafe(
+    "update public.inventory_balances set quantity_on_hand=25 where product_id=$1 and warehouse_id=$2",
+    [productId, testWarehouseId],
+  );
+  const restoredTask = await db.unsafe("select status from public.ai_tasks where organization_id=$1 and source_event_key=$2", [organizationId, stockKey]);
+  assert.equal(restoredTask[0].status, "completed", "restocking above the threshold auto-closes the purchasing task");
+  await db.unsafe(
+    "update public.inventory_balances set quantity_on_hand=8 where product_id=$1 and warehouse_id=$2",
+    [productId, testWarehouseId],
+  );
+  const reenteredTask = await db.unsafe("select id,status from public.ai_tasks where organization_id=$1 and source_event_key=$2", [organizationId, stockKey]);
+  assert.equal(reenteredTask.length, 1, "a new low-stock episode reuses the same unique task");
+  assert.equal(reenteredTask[0].status, "pending", "only a real new threshold crossing reopens the closed task");
+
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const invoiceTask = await db.unsafe(
+    "select id,task_role,status from public.ai_tasks where organization_id=$1 and source_event_key=$2",
+    [organizationId, "invoice-collection:" + invoice.id],
+  );
+  assert.equal(invoiceTask.length, 1, "the persisted partially-paid invoice creates one accounting collection task");
+  assert.equal(invoiceTask[0].task_role, "accountant");
+
+  const accountantManual = await db.unsafe(
+    "select public.create_operational_task($1::text,$2::text,$3::text,$4::text,$5::timestamptz,$6::uuid) as id",
+    ["CI accounting task", "Must be visible to the accountant lane only", "accountant", "medium", null, null],
+  );
+  const accountantTaskId = accountantManual[0].id;
+
+  await db.unsafe("reset role");
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const accountantVisibleTasks = await db.unsafe(
+    "select id,task_role from public.ai_tasks where organization_id=$1",
+    [organizationId],
+  );
+  assert.ok(accountantVisibleTasks.length >= 1, "accountant can read relevant operational work");
+  assert.ok(accountantVisibleTasks.every((row) => row.task_role === "accountant"), "accountant cannot read sales, stock, purchasing or general tasks");
+  assert.ok(accountantVisibleTasks.some((row) => row.id === accountantTaskId), "accountant can see an accounting-lane task");
+  await db.unsafe(
+    "select public.update_operational_task_status($1::uuid,$2::text,$3::text)",
+    [accountantTaskId, "in_progress", null],
+  );
+  const accountantClaim = await db.unsafe("select status,assigned_to from public.ai_tasks where id=$1", [accountantTaskId]);
+  assert.equal(accountantClaim[0].status, "in_progress");
+  assert.equal(accountantClaim[0].assigned_to, accountantProfileId, "starting an unassigned task claims it for the current profile");
+
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  const customerTasks = await db.unsafe("select id from public.ai_tasks where organization_id=$1", [organizationId]);
+  assert.equal(customerTasks.length, 0, "customers cannot enumerate internal operational tasks");
+  await expectFailure(
+    "customer cannot change an operational task",
+    () => db.unsafe("select public.update_operational_task_status($1::uuid,$2::text,$3::text)", [manualTaskId,"completed",null]),
+    /task is unavailable|authenticated operational profile/i,
+  );
+  await db.unsafe("reset role");
+  process.stdout.write("PASS operational task center: source-event idempotency, stock threshold lifecycle, audited RPC writes, accountant-only lane and customer isolation\n");
+
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }
 

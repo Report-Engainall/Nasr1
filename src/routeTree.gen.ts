@@ -41,6 +41,7 @@ import { Route as AdminQuotesRouteImport } from './routes/admin_.quotes'
 import { Route as AdminReportsRouteImport } from './routes/admin_.reports'
 import { Route as AdminSettingsRouteImport } from './routes/admin_.settings'
 import { Route as AdminSuppliersRouteImport } from './routes/admin_.suppliers'
+import { Route as AdminTasksRouteImport } from './routes/admin_.tasks'
 import { Route as ApiStatementPdfRouteImport } from './routes/api.statement-pdf'
 import { Route as CompanyAcceptInvitationRouteImport } from './routes/company.accept-invitation'
 import { Route as CompanyContactsRouteImport } from './routes/company.contacts'
@@ -210,6 +211,12 @@ const AdminSuppliersRoute = AdminSuppliersRouteImport.update({
   path: '/admin/suppliers',
   getParentRoute: () => rootRouteImport,
 } as any)
+ 
+const AdminTasksRoute = AdminTasksRouteImport.update({
+  id: '/admin_/tasks',
+  path: '/admin/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStatementPdfRoute = ApiStatementPdfRouteImport.update({
   id: '/api/statement-pdf',
   path: '/api/statement-pdf',
@@ -284,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/suppliers': typeof AdminSuppliersRoute
+  '/admin/tasks': typeof AdminTasksRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
   '/company/contacts': typeof CompanyContactsRoute
@@ -325,6 +333,7 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/suppliers': typeof AdminSuppliersRoute
+  '/admin/tasks': typeof AdminTasksRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
   '/company/contacts': typeof CompanyContactsRoute
@@ -368,6 +377,7 @@ export interface FileRoutesById {
   '/admin_/reports': typeof AdminReportsRoute
   '/admin_/settings': typeof AdminSettingsRoute
   '/admin_/suppliers': typeof AdminSuppliersRoute
+  '/admin_/tasks': typeof AdminTasksRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
   '/company/contacts': typeof CompanyContactsRoute
@@ -538,6 +548,7 @@ export interface RootRouteChildren {
   AdminReportsRoute: typeof AdminReportsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminSuppliersRoute: typeof AdminSuppliersRoute
+  AdminTasksRoute: typeof AdminTasksRoute
   ApiStatementPdfRoute: typeof ApiStatementPdfRoute
   CompanyAcceptInvitationRoute: typeof CompanyAcceptInvitationRoute
   CompanyContactsRoute: typeof CompanyContactsRoute
@@ -772,6 +783,14 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSuppliersRouteImport
       parentRoute: typeof rootRouteImport
     }
+ 
+    '/admin_/tasks': {
+      id: '/admin_/tasks'
+      path: '/admin/tasks'
+      fullPath: '/admin/tasks'
+      preLoaderRoute: typeof AdminTasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/statement-pdf': {
       id: '/api/statement-pdf'
       path: '/api/statement-pdf'
@@ -877,6 +896,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminReportsRoute: AdminReportsRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminSuppliersRoute: AdminSuppliersRoute,
+  AdminTasksRoute: AdminTasksRoute,
   ApiStatementPdfRoute: ApiStatementPdfRoute,
   CompanyAcceptInvitationRoute: CompanyAcceptInvitationRoute,
   CompanyContactsRoute: CompanyContactsRoute,

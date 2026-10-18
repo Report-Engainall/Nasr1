@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Activity, AlertTriangle, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft,
+  Activity, AlertTriangle, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft, ClipboardList,
   CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package,
   Pencil, Plus, RefreshCw, Search, Settings, ShoppingCart, SlidersHorizontal,
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
@@ -25,13 +25,14 @@ import {
   TableWrap, Modal, Notifications, OrderDetail, SettingsPage, Suppliers,
 } from '@/components/AdminPages';
 import { OperationsCenter } from '@/components/OperationsCenter';
+import { TaskCenter } from '@/components/TaskCenter';
 import { StaffQuotesPage, StaffFinancePage } from '@/components/CustomerWorkflows';
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem,
 } from '@/components/ui/command';
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
-type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance';
+type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks';
 type IconType = typeof LayoutDashboard;
 
 const nav: { id: View; label: string; icon: IconType }[] = [
@@ -51,6 +52,7 @@ const nav: { id: View; label: string; icon: IconType }[] = [
   { id: 'settings', label: 'الإعدادات', icon: Settings },
   { id: 'quotes', label: 'عروض الأسعار', icon: FileText },
   { id: 'finance', label: 'الفواتير والتحصيل', icon: CircleDollarSign },
+  { id: 'tasks', label: 'المهام التشغيلية والطباعة', icon: ClipboardList },
 ];
 
 const adminPaths: Record<View, string> = {
@@ -58,7 +60,7 @@ const adminPaths: Record<View, string> = {
   pricing: '/admin/pricing', offers: '/admin/offers', reports: '/admin/reports', data: '/admin/data',
   operations: '/admin/operations', notifications: '/admin/notifications', ai: '/admin/ai',
   suppliers: '/admin/suppliers', devices: '/admin/devices', settings: '/admin/settings',
-  quotes: '/admin/quotes', finance: '/admin/finance',
+  quotes: '/admin/quotes', finance: '/admin/finance', tasks: '/admin/tasks',
 };
 
 function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
@@ -66,7 +68,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const canOperateAdmin = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff'));
   const canManageFinance = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'accountant'));
   const isFinanceOnly = canManageFinance && !canOperateAdmin;
-  const visibleNav = nav.filter(({ id }) => isFinanceOnly ? id === 'finance' : id !== 'finance' || canManageFinance);
+  const visibleNav = nav.filter(({ id }) => isFinanceOnly ? id === 'finance' || id === 'tasks' : id !== 'finance' || canManageFinance);
   const navigate = useNavigate();
   const [view, setView] = useState<View>(initialView);
   const [mobileNav, setMobileNav] = useState(false);
@@ -93,7 +95,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
 
   const runAdminCommand = (id: View) => {
     setCommandOpen(false);
-    if (isFinanceOnly && id !== 'finance') {
+    if (isFinanceOnly && id !== 'finance' && id !== 'tasks') {
       showNotice('حساب المحاسب مخصص للفواتير والتحصيل فقط.');
       return;
     }
@@ -133,7 +135,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
       <main className="main">
         <header className="topbar"><button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)}><Menu size={20} /></button><div className="topbar-title"><span className="live" /> {isFinanceOnly ? 'المحاسبة — الأغبري' : 'مركز تشغيل الأغبري'} <small>{isFinanceOnly ? 'الفواتير والتحصيل وكشف الحساب' : 'الطلبات والمخزون والأسعار والعملاء'}</small></div><div className="top-actions"><button type="button" className="search-button" aria-haspopup="dialog" aria-label="بحث سريع (Ctrl K)" onClick={() => setCommandOpen(true)}><Search size={16} /> بحث سريع <kbd>Ctrl K</kbd></button><button className="notification" aria-label="فتح التنبيهات" onClick={() => runAdminCommand('notifications')}><Bell size={18} /></button></div></header>
         <div className="page-wrap">
-          {isFinanceOnly && view !== 'finance' ? (
+          {isFinanceOnly && view !== 'finance' && view !== 'tasks' ? (
             <section className="panel" role="status" style={{ padding: 24 }}>
               <h1 style={{ marginTop: 0 }}>بوابة المحاسبة</h1>
               <p>هذا الحساب مخصص للفواتير والتحصيل فقط، ولا يملك صلاحيات إدارة الطلبات أو المنتجات أو النظام.</p>
@@ -158,6 +160,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
           {view === 'settings' && <SettingsPage onNotice={showNotice} />}
           {view === 'quotes' && <StaffQuotesPage />}
           {view === 'finance' && <StaffFinancePage />}
+          {view === 'tasks' && <TaskCenter onNotice={showNotice} />}
             </>
           )}
         </div>

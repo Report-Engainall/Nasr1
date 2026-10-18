@@ -43,6 +43,7 @@ describe("App routing", () => {
     "/admin/reports",
     "/admin/settings",
     "/admin/suppliers",
+    "/admin/tasks",
     "/orders",
     "/orders/route-smoke-test",
   ])("registers the route %s", (path) => {
