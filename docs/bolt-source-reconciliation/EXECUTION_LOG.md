@@ -418,3 +418,13 @@
 - سجل GitHub الحقيقي: الاختباران في src/test/storefront-discovery.test.tsx دخلا ErrorBoundary لأن vi.mock الخاص بـ @/lib/api لا يصدّر fetchStorefrontAnnouncements بعد أن أصبح Storefront يستدعيه.
 - أضفت mock صريحًا للدالة، وأرجع useFetch قائمة فارغة للاختبارات التي لا تختبر إعلانات المتجر؛ هذا يزيل الاعتماد العرضي على mock ناقص دون تغيير سلوك الإنتاج.
 - إعادة الاختبارات على الرأس النهائي لا تزال PENDING؛ فشل التشغيل السابق ليس نتيجة اختبار للترحيل أو المكوّن الجديد.
+
+
+## 2026-10-19 — NASR1-ORIGINAL-SPEC-ANNOUNCEMENTS-002: exact-SHA tests passed
+
+- Implemented the active TanStack storefront slider and admin manager; no legacy React Router component copied into the active tree.
+- CI 39174470933 passed on exact code SHA 5308c3f917852cf3a2474a0ac0201bee8c8f32be. Success covers unit tests, the isolated PostgreSQL 17 migration/authorization suite, lint, build, preview smoke and dev smoke.
+- Failure addressed: CI 39174326823 on f4a84e6ac6cf85966a918ca3bfa1cd0f81c28975 failed two storefront discovery tests because the API mock omitted fetchStorefrontAnnouncements. The test mock and empty-list return were corrected; exact-SHA CI passed afterwards.
+- Code status: IMPLEMENTED and INTEGRATED; TESTED=PASS (exact-SHA CI). Browser screenshot/interactive verification=NOT RUN. Production deployment/migration=NOT RUN. No production data was created.
+- Source intake: 69 rows appear in both READY_TO_REUSE/PROVENANCE_MANIFEST.csv and READY_TO_REUSE_FILE_AUDIT.csv; the audit records per-file decisions. Source ZIP re-download, refreshed SHA-256/CRC and extraction remain NOT RUN in this environment due raw.githubusercontent.com DNS failure; previously recorded hashes are historical only.
+- Overall current task remains NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002. This closes only the storefront announcements gap; remaining specification gaps must not be labeled complete.
