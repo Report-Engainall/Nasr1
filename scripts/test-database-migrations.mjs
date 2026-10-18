@@ -954,6 +954,40 @@ async function main() {
   );
   const invoiceAfterPayment = await db.unsafe("select status from public.customer_invoices where id=$1", [invoice.id]);
   assert.equal(invoiceAfterPayment[0].status, "partially_paid");
+
+  // Receivables aging is computed from the full tenant-scoped invoice/payment ledger, not browser totals.
+  const agingSnapshot = await db.unsafe(
+    "select public.fetch_staff_receivables_aging($1::integer,$2::integer) as result",
+    [200, 0],
+  );
+  const agingReport = agingSnapshot[0].result;
+  assert.equal(typeof agingReport.as_of_utc, "string");
+  assert.ok(Array.isArray(agingReport.summary), "aging report should return currency-separated bucket summaries");
+  assert.ok(Array.isArray(agingReport.items), "aging report should return paged open invoice rows");
+  const agingInvoice = agingReport.items.find((row) => row.id === invoice.id);
+  assert.ok(agingInvoice, "authorized receivables aging should include the partially paid invoice");
+  assert.equal(Number(agingInvoice.total_amount), 370000);
+  assert.equal(Number(agingInvoice.paid_amount), 100000);
+  assert.equal(Number(agingInvoice.outstanding_amount), 270000);
+  assert.ok(
+    ["current", "days_1_30", "days_31_60", "days_61_90", "over_90", "unknown_due_date"].includes(agingInvoice.aging_bucket),
+    "aging bucket must be explicit, including missing due dates",
+  );
+  assert.ok(
+    agingReport.summary.some((row) => row.currency === agingInvoice.currency && Number(row.total_outstanding_amount) >= 270000),
+    "currency summary must reconcile with the source invoice balance",
+  );
+  const oneRowPage = await db.unsafe(
+    "select public.fetch_staff_receivables_aging($1::integer,$2::integer) as result",
+    [1, 0],
+  );
+  assert.ok(oneRowPage[0].result.items.length <= 1, "aging pagination must enforce the requested page size");
+  await expectFailure(
+    "invalid receivables aging page size",
+    () => db.unsafe("select public.fetch_staff_receivables_aging($1::integer,$2::integer)", [0, 0]),
+    /limit must be 1-500/i,
+  );
+
   const customerBalance = await db.unsafe("select current_balance from public.customers where id=(select customer_id from public.orders where id=$1)", [order.id]);
   assert.equal(Number(customerBalance[0].current_balance), 270000, "customer balance must reflect invoice minus payment");
 
@@ -961,6 +995,11 @@ async function main() {
   await db.unsafe("reset role");
   await setIdentity(authUserId, "ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customer cannot read staff receivables aging",
+    () => db.unsafe("select public.fetch_staff_receivables_aging($1::integer,$2::integer)", [200, 0]),
+    /finance permission required/i,
+  );
   const statementSnapshot = await db.unsafe("select public.get_customer_account_statement() as result");
   const statement = statementSnapshot[0].result;
   const statementInvoice = statement.invoices.find((row) => row.id === invoice.id);
