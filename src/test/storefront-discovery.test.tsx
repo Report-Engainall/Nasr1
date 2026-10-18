@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   fetchCategories: vi.fn(),
   fetchPromotions: vi.fn(),
   fetchSettingsMap: vi.fn(),
+  fetchStorefrontAnnouncements: vi.fn(),
   products: [
     { id: "product-1", name: "Rice", item_code: "SKU-001", barcode: null, description: null, unit: "carton", base_price: 1000, cost_price: 600, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1000, wholesale_price: 900, inventory: { id: "inv-1", product_id: "product-1", warehouse_id: "warehouse-1", quantity_on_hand: 20, quantity_reserved: 0, quantity_available: 20, reorder_point: 0 } },
     { id: "product-2", name: "Sugar", item_code: "SKU-002", barcode: null, description: null, unit: "carton", base_price: 1200, cost_price: 800, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1200, wholesale_price: 1100, inventory: { id: "inv-2", product_id: "product-2", warehouse_id: "warehouse-1", quantity_on_hand: 15, quantity_reserved: 0, quantity_available: 15, reorder_point: 0 } },
@@ -24,6 +25,7 @@ vi.mock("@/lib/api", () => ({
   fetchCategories: mocks.fetchCategories,
   fetchPromotions: mocks.fetchPromotions,
   fetchSettingsMap: mocks.fetchSettingsMap,
+  fetchStorefrontAnnouncements: mocks.fetchStorefrontAnnouncements,
 }));
 
 vi.mock("@/lib/useFetch", () => ({
@@ -32,6 +34,7 @@ vi.mock("@/lib/useFetch", () => ({
     if (fetcher === mocks.fetchCategories) return { data: [], loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchPromotions) return { data: [], loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchSettingsMap) return { data: {}, loading: false, error: null, refetch: vi.fn() };
+    if (fetcher === mocks.fetchStorefrontAnnouncements) return { data: [], loading: false, error: null, refetch: vi.fn() };
     return { data: null, loading: false, error: null, refetch: vi.fn() };
   },
 }));

@@ -410,3 +410,11 @@
 - Task Center printing uses src/lib/task-print.ts to restrict print scope to the authenticated account allowedRoles. All-allowed or one allowed role may be printed while shared status/priority/assignee/date/search filters remain applied; unauthorized or empty scopes return no rows. Unit tests and current task-event/idempotency PostgreSQL acceptance passed.
 - IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA a38e43f4da656da6cc10abdb476b0023dd029440; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; PRODUCTION_MIGRATION=NOT RUN. Next task: NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002; all original-spec interfaces are not yet complete.
 - Archive fetch caveat unchanged: current-session binary GitHub fetch returned HTTP 400 (connector only supports UTF-8 text); runner fetch returned DNS error [Errno -3] Temporary failure in name resolution. The earlier SHA256/CRC/safe-extraction result is historical Actions 39157355307, not a fresh download in this session.
+
+
+## 2026-10-19 — إصلاح فشل CI المرصود أثناء الدمج
+
+- فشل تشغيل CI رقم 39174326823 على SHA f4a84e6ac6cf85966a918ca3bfa1cd0f81c28975 في Unit tests فقط؛ المرحلتان PostgreSQL/Lint/Build تم تخطيهما بسبب ذلك الفشل.
+- سجل GitHub الحقيقي: الاختباران في src/test/storefront-discovery.test.tsx دخلا ErrorBoundary لأن vi.mock الخاص بـ @/lib/api لا يصدّر fetchStorefrontAnnouncements بعد أن أصبح Storefront يستدعيه.
+- أضفت mock صريحًا للدالة، وأرجع useFetch قائمة فارغة للاختبارات التي لا تختبر إعلانات المتجر؛ هذا يزيل الاعتماد العرضي على mock ناقص دون تغيير سلوك الإنتاج.
+- إعادة الاختبارات على الرأس النهائي لا تزال PENDING؛ فشل التشغيل السابق ليس نتيجة اختبار للترحيل أو المكوّن الجديد.
