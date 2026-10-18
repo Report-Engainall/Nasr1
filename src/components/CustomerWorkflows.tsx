@@ -38,6 +38,7 @@ import {
   type PaymentAmount,
 } from "@/lib/commerce-utils";
 import { fetchProducts, fetchResolvedProductPrices } from "@/lib/api";
+import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { fetchCustomerAddresses, saveCustomerAddress, deleteCustomerAddress, type CustomerAddress, type CustomerAddressInput } from "@/lib/customer-addresses";
 import { fetchCustomerCompanyContacts, saveCustomerCompanyContact, deleteCustomerCompanyContact, type CustomerCompanyContact, type CustomerCompanyContactInput } from "@/lib/customer-company-contacts";
 
@@ -2280,10 +2281,16 @@ export function StaffFinancePage() {
         );
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const i = invoices.find((x) => x.id === invoiceId),
-      n = Number(amount);
-    if (!i || !Number.isFinite(n) || n <= 0) {
-      setError("اختر فاتورة وأدخل مبلغًا أكبر من صفر.");
+    const i = invoices.find((x) => x.id === invoiceId);
+    if (!i) {
+      setError("اختر فاتورة صحيحة قبل تسجيل الدفعة.");
+      return;
+    }
+    let n: number;
+    try {
+      n = validateCustomerPaymentInput(amount, method, reference, notes);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "بيانات الدفعة غير صالحة.");
       return;
     }
     if (n > outstanding(i)) {
