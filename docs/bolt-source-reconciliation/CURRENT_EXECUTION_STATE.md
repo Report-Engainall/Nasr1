@@ -157,3 +157,14 @@
 - مركز المهام: نطاق طباعة كل الأدوار المسموحة أو دور واحد ضمن صلاحيات الحساب، مع فلاتر الحالة/الأولوية/المسؤول/الفترة/البحث نفسها. حالات الدور غير المصرح به والنتيجة الفارغة مغطاة بالاختبارات.
 - الحالة: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA a38e43f4da656da6cc10abdb476b0023dd029440; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migration=NOT RUN.
 - next_task_id يظل NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002؛ إكمال جميع واجهات المواصفة لم يثبت بعد.
+
+
+## 2026-10-19 — تنفيذ واجهة إعلانات المتجر: بانتظار CI المطابق
+
+- الرأس الذي بدأ منه التنفيذ: 6ba074858b683dc6214039112e6c9cb147eabf2d. تشغيل CI السابق 39173352654 نجح على كود SHA a38e43f4da656da6cc10abdb476b0023dd029440 فقط، ولا يثبت التغييرات الحالية.
+- أضيف ترحيل قاعدة البيانات 20261019110000_storefront_announcements.sql مع قراءة عامة مرتبطة بمؤسسة المتجر المنشورة، وتصفية خادمية بحسب وقت النشر والجمهور، ومنع الوصول المباشر للجدول، وحفظ مقيد بمدير النظام/المدير، وتسجيل التدقيق.
+- رُبط المكون StorefrontAnnouncementSlider بمسار Storefront النشط، وأضيف تبويب إعلانات المتجر إلى SettingsPage مع تحرير التوقيت والأولوية والرابط واللون والجمهور والتفعيل. احترام prefers-reduced-motion يوقف الدوران التلقائي ويلغي حركة شريط الأخبار.
+- حالات التغيير قبل اختبار Actions المطابق: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=NOT RUN; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; نشر الترحيل في الإنتاج NOT RUN.
+- فرع الاستعادة recovery/bolt-snapshot-2026-10-17 وDraft PR #1 تمت معاينتهما. شاشات AdminBanners/BannerSlider ضمن الشجرة القديمة React Router ولا تكفي لربطها وحدها بالتطبيق الحي الذي يستخدم TanStack Start. تمت تهيئة الدمج باستخدام عقد التطبيق الحالي.
+- إعادة تنزيل ZIPين في الجلسة الحالية NOT RUN. رابط Before Failure المحاول: https://raw.githubusercontent.com/Report-Engainall/report-insight-engine/main/incoming-archives/nasr1-bolt-recovery-2026-10-17/Nasr1_Bolt_Before_Failure.zip؛ الخطأ الحقيقي: curl exit 6: curl: (6) Could not resolve host: raw.githubusercontent.com. ملف Restored Current لم يُعد تنزيله كذلك بسبب عائق DNS. نتائج SHA-256/CRC في Actions 39157355307 دليل تاريخي من تشغيل سابق، وليست إعادة تحقق حالية.
+- next_task_id يبقى NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002 إلى أن يثبت CI المطابق هذا الدمج؛ لا يغلق بناءً على الكود وحده.
