@@ -208,6 +208,13 @@ export function validateQuickOrderLines(lines: QuickOrderLineInput[]): QuickOrde
 const ARABIC_DIACRITICS = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g;
 
 /** Normalize Arabic and Latin text consistently for storefront and customer-workspace search. */
+export const MAX_CATALOG_SEARCH_LENGTH = 120;
+
+/** Bound untrusted user input before local catalog filtering. */
+export function normalizeCatalogSearchQuery(value: unknown): string {
+  return String(value ?? '').normalize('NFKC').slice(0, MAX_CATALOG_SEARCH_LENGTH);
+}
+
 export function normalizeArabicSearchText(value: unknown): string {
   return String(value ?? '')
     .normalize('NFKC')
