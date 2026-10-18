@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Activity, AlertTriangle, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft, ClipboardList,
   CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package,
-  Pencil, Plus, Printer, RefreshCw, ScrollText, Search, Settings, ShoppingCart, SlidersHorizontal,
+  Pencil, Plus, RefreshCw, ScrollText, Search, Settings, ShoppingCart, SlidersHorizontal,
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
 } from 'lucide-react';
 import {
@@ -167,7 +167,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
           {view === 'quotes' && <StaffQuotesPage />}
           {view === 'finance' && <StaffFinancePage />}
           {view === 'tasks' && <TaskCenter onNotice={showNotice} />}
-          {view === 'audit' && <AdminAuditLog />
+          {view === 'audit' && <AdminAuditLog />}
             </>
           )}
         </div>
