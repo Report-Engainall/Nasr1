@@ -1031,6 +1031,86 @@ async function main() {
   assert.equal(Number(statementInvoice.paid_amount), 100000, "each detail invoice must include its full-ledger paid amount");
   assert.equal(Number(statementInvoice.outstanding_amount), 270000, "each detail invoice must include its full-ledger outstanding amount");
 
+  // CAP BOUNDARY: customer statement details remain limited, but full-ledger
+  // currency summary and each returned invoice balance must include capped-out entries.
+  const baselineYER = statement.summary.find((row) => row.currency === "YER");
+  assert.ok(baselineYER, "baseline statement must include the invoice currency");
+  await db.unsafe("reset role");
+
+  const cappedInvoiceRows = await db.unsafe(
+    `WITH seeded_orders AS (
+       INSERT INTO public.orders(
+         organization_id,customer_id,order_number,status,total_amount,total_items,created_by,created_at,updated_at
+       )
+       SELECT $1,$2,
+              'CI-CAP-ORDER-'||lpad(g.n::text,4,'0'),
+              'draft',
+              CASE WHEN g.n=205 THEN 10.00 ELSE 1.00 END,
+              1,$3,
+              statement_timestamp() + (g.n * interval '1 second'),
+              statement_timestamp() + (g.n * interval '1 second')
+         FROM generate_series(1,205) AS g(n)
+       RETURNING id,order_number,total_amount,created_at
+     ),
+     seeded_invoices AS (
+       INSERT INTO public.customer_invoices(
+         organization_id,customer_id,order_id,invoice_number,status,issued_at,due_at,currency,subtotal,tax_amount,total_amount
+       )
+       SELECT $1,$2,o.id,
+              'CI-CAP-INVOICE-'||right(o.order_number,4),
+              'issued',o.created_at,
+              CASE WHEN right(o.order_number,4)::integer=205
+                   THEN statement_timestamp()-interval '2 days'
+                   ELSE statement_timestamp()+interval '30 days' END,
+              'YER',o.total_amount,0,o.total_amount
+         FROM seeded_orders o
+       RETURNING id,invoice_number,total_amount
+     )
+     SELECT id,invoice_number,total_amount FROM seeded_invoices ORDER BY invoice_number`,
+    [organizationId, customerOneId, profileId],
+  );
+  assert.equal(cappedInvoiceRows.length,205,"cap fixture must create more than 200 invoices");
+  const oldestCapInvoice = cappedInvoiceRows.find((row) => row.invoice_number === "CI-CAP-INVOICE-0001");
+  const paidCapInvoice = cappedInvoiceRows.find((row) => row.invoice_number === "CI-CAP-INVOICE-0205");
+  assert.ok(oldestCapInvoice && paidCapInvoice,"cap fixture should include oldest and fully reconciled boundary invoices");
+
+  const cappedPayments = await db.unsafe(
+    `INSERT INTO public.customer_payments(
+       organization_id,customer_id,invoice_id,amount,payment_method,reference,paid_at
+     )
+     SELECT $1,$2,$3,0.01,'transfer',
+            'CI-CAP-PAY-'||lpad(g.n::text,4,'0'),
+            statement_timestamp()-((506-g.n)*interval '1 second')
+       FROM generate_series(1,505) AS g(n)
+     RETURNING id,reference,invoice_id,amount,paid_at`,
+    [organizationId, customerOneId, paidCapInvoice.id],
+  );
+  assert.equal(cappedPayments.length,505,"cap fixture must create more than 500 payments");
+  const firstCappedPayment = cappedPayments.find((row) => row.reference === "CI-CAP-PAY-0001");
+  assert.ok(firstCappedPayment,"oldest capped-out payment should be identifiable");
+
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  const capStatementSnapshot = await db.unsafe("select public.get_customer_account_statement() as result");
+  const capStatement = capStatementSnapshot[0].result;
+  assert.equal(capStatement.invoices.length,200,"customer-facing invoice detail must remain capped at 200");
+  assert.equal(capStatement.payments.length,500,"customer-facing payment detail must remain capped at 500");
+  assert.equal(capStatement.invoices.some((row) => row.id === oldestCapInvoice.id),false,"oldest invoice should fall outside the bounded detail page");
+  assert.equal(capStatement.payments.some((row) => row.id === firstCappedPayment.id),false,"oldest payment should fall outside the bounded detail page");
+
+  const cappedSummary = capStatement.summary.find((row) => row.currency === "YER");
+  assert.ok(cappedSummary,"full-ledger summary must include the YER currency");
+  assert.equal(Number(cappedSummary.invoiced)-Number(baselineYER.invoiced),214,"full summary must include all 205 added invoices despite the 200-row detail cap");
+  assert.equal(Number(cappedSummary.paid)-Number(baselineYER.paid),5.05,"full summary must include all 505 payments despite the 500-row detail cap");
+  assert.equal(Number(cappedSummary.outstanding)-Number(baselineYER.outstanding),208.95,"full summary must reconcile all capped-out invoice/payment amounts");
+  assert.equal(Number(cappedSummary.overdue_outstanding)-Number(baselineYER.overdue_outstanding),4.95,"only the past-due boundary invoice should add overdue receivables");
+  assert.equal(Number(cappedSummary.unknown_due_date_outstanding),Number(baselineYER.unknown_due_date_outstanding),"explicit test due dates must not change the missing-due-date bucket");
+
+  const paidCapInvoiceDetail = capStatement.invoices.find((row) => row.id === paidCapInvoice.id);
+  assert.ok(paidCapInvoiceDetail,"newest boundary invoice should remain in bounded invoice details");
+  assert.equal(Number(paidCapInvoiceDetail.paid_amount),5.05,"invoice paid total must include the 5 payments omitted from the capped detail list");
+  assert.equal(Number(paidCapInvoiceDetail.outstanding_amount),4.95,"invoice balance must use the full 505-payment ledger rather than only 500 displayed rows");
+
   // The invoice PDF RPC returns amounts only for the signed-in customer's own invoice.
   const ownInvoicePdfResult = await db.unsafe(
     "select public.get_customer_invoice_pdf($1::uuid) as result",
