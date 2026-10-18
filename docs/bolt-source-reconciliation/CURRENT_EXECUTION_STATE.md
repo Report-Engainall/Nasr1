@@ -177,3 +177,14 @@
 - كُشف وأُصلح فشل سابق في تشغيل 39174326823 على SHA f4a84e6ac6cf85966a918ca3bfa1cd0f81c28975: ملف storefront-discovery.test.tsx لم يكن يضيف fetchStorefrontAnnouncements إلى mock واجهة API. بعد الإصلاح، التشغيل المطابق 39174470933 نجح.
 - حالة هذه الفجوة: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS على exact SHA؛ BROWSER-PROVEN=NOT RUN؛ PRODUCTION-PROVEN=NOT RUN؛ نشر الترحيل في بيئة الإنتاج=NOT RUN.
 - هذه نتيجة جزئية ضمن المهمة النشطة NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002، وليست إقرارًا باكتمال كل الواجهات. ستبقى المهمة نشطة حتى حسم بقية بنود المواصفة مثل شبكة الأسعار الشاملة وتحريرها المجمع.
+
+
+## 2026-10-19 — شبكة أسعار التحرير المجمع (تنفيذ جزئي؛ المتابعة مستمرة)
+
+- أضيفت شبكة داخل واجهة الإدارة النشطة لحقول السعر الأساسي وجملة الجملة والجملة والتجزئة؛ تتنقل Enter بين الخلايا، تعرض قبل/بعد، ولا تحفظ قبل تأكيد المستخدم، وتحد الدفعة إلى 200 منتج.
+- أصلحت مشكلة مخطط قاعدة البيانات: أعمدة المنتجات الفعلية هي \`base_price\`, \`wholesale_price\`, \`retail_price\`؛ شرائح السعر الإضافية محفوظة في \`product_prices\` ذات \`tier/min_quantity/is_active\`. لا تُستخدم أعمدة وهمية على \`products\`. أضيفت دوال RPC لقراءة شبكة المؤسسة والكتابة مع role check وstale-value guard وrollback ذرّي وaudit.
+- يختبر سكربت PostgreSQL الآن قيم الشرائح الفعلية، سجل التدقيق، منع الكتابة المتزامنة القديمة، rollback إذا احتوت الدفعة منتجًا من مؤسسة أخرى، ومنع المحاسب من القراءة/الكتابة.
+- CI لهذا التغيير: TESTED=NOT RUN / CI PENDING for final price-grid code. Latest observed matching status: in_progress.
+- IMPLEMENTED=YES; INTEGRATED=YES; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN.
+- فشل سابق مرصود في CI كشف الافتراض غير الصحيح بوجود \`price_wholesale_of_wholesale/price_wholesale/price_retail\` كأعمدة فعلية. أضيفت migration تصحيحية \`20261019130000_product_price_grid_actual_price_tables.sql\` حتى يعمل الأمر فوق جداول النظام الحقيقية. لا تعتبر الشبكة مكتملة حتى نجاح exact-SHA CI.
+- المهمة \`NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002\` تظل نشطة؛ هذه ليست علامة اكتمال جميع واجهات المواصفة.
