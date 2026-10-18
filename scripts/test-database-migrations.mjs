@@ -1642,6 +1642,76 @@ async function main() {
     /تعارض|chunk|شريحة/i,
   );
 
+  // The database must enforce a contiguous chunk prefix even for callers that bypass the UI.
+  const uploadChunkBytes = 4 * 1024 * 1024;
+  const uploadFinalChunkBytes = 7;
+  const multiChunkFileSize = uploadChunkBytes * 2 + uploadFinalChunkBytes;
+  const multiChunkJobResult = await db.unsafe(
+    "select public.create_import_job($1,$2,$3,$4,null,$5,$6) as result",
+    ["CI import contiguous chunks.csv", "b".repeat(64), multiChunkFileSize, "unified_import", "2026-02", "ci"],
+  );
+  const multiChunkJob = multiChunkJobResult[0].result;
+  const multiChunkSessionResult = await db.unsafe(
+    "select public.create_import_upload_session($1::uuid) as result",
+    [multiChunkJob.id],
+  );
+  const multiChunkSession = multiChunkSessionResult[0].result;
+  assert.equal(multiChunkSession.total_chunks, 3, "the fixture should require three upload chunks");
+
+  await expectFailure(
+    "reject an out-of-order chunk before the first chunk",
+    () => db.unsafe(
+      "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5)",
+      [multiChunkSession.id, 1, uploadChunkBytes, uploadChunkBytes, "1".repeat(64)],
+    ),
+    /التتابع|تخطي|متصل/i,
+  );
+  let multiChunkState = await db.unsafe(
+    "select verified_chunks,status from public.import_upload_sessions where id=$1::uuid",
+    [multiChunkSession.id],
+  );
+  assert.equal(multiChunkState[0].verified_chunks, 0, "rejected out-of-order calls must not persist chunk metadata");
+  
+  const firstMultiChunk = await db.unsafe(
+    "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
+    [multiChunkSession.id, 0, 0, uploadChunkBytes, "a".repeat(64)],
+  );
+  assert.equal(firstMultiChunk[0].result.verified_chunks, 1);
+  assert.equal(firstMultiChunk[0].result.complete, false);
+  const repeatedFirstMultiChunk = await db.unsafe(
+    "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
+    [multiChunkSession.id, 0, 0, uploadChunkBytes, "a".repeat(64)],
+  );
+  assert.equal(repeatedFirstMultiChunk[0].result.verified_chunks, 1, "a lost-response retry must remain idempotent");
+
+  await expectFailure(
+    "reject a chunk that skips the next expected sequence number",
+    () => db.unsafe(
+      "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5)",
+      [multiChunkSession.id, 2, uploadChunkBytes * 2, uploadFinalChunkBytes, "3".repeat(64)],
+    ),
+    /التتابع|تخطي|متصل/i,
+  );
+
+  const secondMultiChunk = await db.unsafe(
+    "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
+    [multiChunkSession.id, 1, uploadChunkBytes, uploadChunkBytes, "2".repeat(64)],
+  );
+  assert.equal(secondMultiChunk[0].result.verified_chunks, 2);
+  assert.equal(secondMultiChunk[0].result.complete, false);
+  const finalMultiChunk = await db.unsafe(
+    "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
+    [multiChunkSession.id, 2, uploadChunkBytes * 2, uploadFinalChunkBytes, "3".repeat(64)],
+  );
+  assert.equal(finalMultiChunk[0].result.verified_chunks, 3);
+  assert.equal(finalMultiChunk[0].result.complete, true, "only a contiguous manifest covering every chunk is complete");
+  multiChunkState = await db.unsafe(
+    "select verified_chunks,status from public.import_upload_sessions where id=$1::uuid",
+    [multiChunkSession.id],
+  );
+  assert.equal(multiChunkState[0].verified_chunks, 3);
+  assert.equal(multiChunkState[0].status, "uploaded");
+
   const duplicateProbe = await db.unsafe(
     "select public.find_import_duplicate($1,$2::uuid,$3) as result",
     ["a".repeat(64), importJob.profile_id, "2026-01"],
