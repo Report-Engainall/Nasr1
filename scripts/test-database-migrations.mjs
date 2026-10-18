@@ -1905,7 +1905,7 @@ async function main() {
   assert.ok(approvalAuditRows.some((row) => row.action === 'pricing_rule.updated' && row.new_value?.approval_note === "CI: approved after reviewing scope, margin and tier impact"),
     "approval decision and rationale must be auditable");
 
-  // AGH-PRODUCT-IMAGE-001: storage bucket limits and RLS bind uploads to a same-tenant product.
+  // AGH-PRODUCT-IMAGE-001: browser writes are denied; the authenticated Edge Function owns scoped storage writes.
   const imageBucketRows = await db.unsafe(
     "select id,public,file_size_limit,allowed_mime_types from storage.buckets where id='product-images'",
   );
@@ -1914,71 +1914,35 @@ async function main() {
   assert.equal(Number(imageBucketRows[0].file_size_limit), 8 * 1024 * 1024);
   assert.deepEqual(imageBucketRows[0].allowed_mime_types, ["image/webp"]);
 
-  const imageTestPath = organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp";
-  const imageScopeDiagnostic = await db.unsafe(
-    `select current_user as current_database_role, public.is_staff() as is_staff,
-            public.current_profile_id()::text as current_profile_id,
-            (select p.organization_id::text from public.profiles p where p.id=public.current_profile_id()) as visible_organization_id,
-            (select p.is_active from public.profiles p where p.id=public.current_profile_id()) as profile_is_active,
-            public.can_manage_product_image($1::text) as image_helper_allows,
-            split_part($1::text,'/',1) as path_organization_id,
-            split_part($1::text,'/',2) as path_product_id,
-            cardinality(string_to_array($1::text,'/')) as path_parts,
-            exists(select 1 from public.products p where p.id::text=split_part($1::text,'/',2)
-              and p.organization_id=(select p2.organization_id from public.profiles p2 where p2.id=public.current_profile_id())) as product_matches_tenant,
-            (select count(*)::int from pg_policies where schemaname='storage' and tablename='objects' and policyname='product_images_tenant_insert') as insert_policy_count`,
-    [imageTestPath],
-  );
-  process.stderr.write("PRODUCT_IMAGE_POLICIES " + JSON.stringify(await db.unsafe("select policyname, permissive, roles, cmd, qual, with_check from pg_policies where schemaname = 'storage' and tablename = 'objects'")) + "\\n");
-  process.stderr.write("PRODUCT_IMAGE_SCOPE_DIAGNOSTIC " + JSON.stringify(imageScopeDiagnostic[0]) + "\\n");
-  const policyExpressionDiagnostic = await db.unsafe(
-    `select ('product-images'::text = 'product-images'::text and public.can_manage_product_image($1::text)) as expected_policy_true,
-            has_table_privilege('authenticated','storage.objects','INSERT') as has_insert_grant,
-            (select relrowsecurity from pg_class where oid='storage.objects'::regclass) as row_security_enabled,
-            (select relforcerowsecurity from pg_class where oid='storage.objects'::regclass) as force_row_security,
-            (select count(*)::int from pg_policy where polrelid='storage.objects'::regclass and polcmd='a') as insert_policy_count`,
-    [imageTestPath],
-  );
-  process.stderr.write("PRODUCT_IMAGE_POLICY_EXPRESSION " + JSON.stringify(policyExpressionDiagnostic[0]) + "\\n");
-  process.stderr.write("PRODUCT_IMAGE_STEP valid-insert-start\\n");
-  const ownedImageRows = await db.unsafe(
-    "insert into storage.objects(bucket_id,name,metadata) values('product-images',$1,'{\"mimetype\":\"image/webp\"}'::jsonb) returning id",
-    [imageTestPath],
-  );
-  assert.equal(ownedImageRows.length, 1, "staff can upload for a real same-tenant product");
-  process.stderr.write("PRODUCT_IMAGE_STEP valid-insert-success\\n");
-  process.stderr.write("PRODUCT_IMAGE_STEP cross-tenant-start\\n");
-  await expectFailure("staff cannot upload under a different tenant prefix",
-    () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
-      ["product-images", otherOrganizationId + "/" + productId + "/b2000000-0000-4000-8000-000000000001.webp"]),
-    /row-level security/i);
-  process.stderr.write("PRODUCT_IMAGE_STEP wrong-product-start\\n");
-  await expectFailure("staff cannot attach images to a product from another tenant",
-    () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
-      ["product-images", organizationId + "/" + otherProductId + "/b3000000-0000-4000-8000-000000000001.webp"]),
-    /row-level security/i);
-  await db.unsafe("reset role");
-  await db.unsafe("set role anon");
-  process.stderr.write("PRODUCT_IMAGE_STEP anon-start\\n");
-  await expectFailure("anonymous users cannot upload product images",
-    () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
-      ["product-images", organizationId + "/" + productId + "/b4000000-0000-4000-8000-000000000001.webp"]),
-    /row-level security/i);
-  await db.unsafe("reset role");
-  await setIdentity(authUserId, "ci-customer-one@example.test");
-  await db.unsafe("set role authenticated");
-  process.stderr.write("PRODUCT_IMAGE_STEP customer-start\\n");
-  await expectFailure("customers cannot upload images even inside their organization",
-    () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
-      ["product-images", organizationId + "/" + productId + "/b5000000-0000-4000-8000-000000000001.webp"]),
-    /row-level security/i);
   await db.unsafe("reset role");
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   await db.unsafe("set role authenticated");
-  await db.unsafe("delete from storage.objects where bucket_id='product-images' and name=$1",
-    [organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp"]);
+  await expectFailure(
+    "staff cannot bypass the authenticated product-image Edge Function with a direct Storage insert",
+    () => db.unsafe("insert into storage.objects(bucket_id,name,metadata) values('product-images',$1,'{}'::jsonb)",
+      [organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp"]),
+    /permission denied|row-level security/i,
+  );
   await db.unsafe("reset role");
-  process.stdout.write("PASS product image storage: WebP/8 MiB bucket limits, staff-only insert/delete and tenant/product/customer/anon isolation\\n");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customers cannot bypass the product-image Edge Function",
+    () => db.unsafe("insert into storage.objects(bucket_id,name) values('product-images',$1)",
+      [organizationId + "/" + productId + "/b5000000-0000-4000-8000-000000000001.webp"]),
+    /permission denied|row-level security/i,
+  );
+  await db.unsafe("reset role");
+  await db.unsafe("set role anon");
+  await expectFailure(
+    "anonymous users cannot write catalog images",
+    () => db.unsafe("insert into storage.objects(bucket_id,name) values('product-images',$1)",
+      [organizationId + "/" + productId + "/b4000000-0000-4000-8000-000000000001.webp"]),
+    /permission denied|row-level security/i,
+  );
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  process.stdout.write("PASS product image storage boundary: public WebP catalog bucket, 8 MiB limit, direct browser writes denied; server Edge Function enforces tenant/product/role and WebP signature\\n");
 
   await db.unsafe("reset role");
   await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
