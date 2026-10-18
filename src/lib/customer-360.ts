@@ -146,8 +146,6 @@ export function projectCustomer360(
       !amountValid || totalMinor === null || paidMinor === null || !Number.isSafeInteger(paidMinor) ? null :
       Math.max(0, totalMinor - paidMinor) / 100;
     // Keep these values as presentation fields; do not infer or mutate invoice status.
-    const overdue = invoice.status !== 'paid' && invoice.status !== 'void' &&
-      invoice.dueAt !== null && Number.isFinite(asOfTime) && Date.parse(invoice.dueAt) < asOfTime;
     return {
       id: invoice.id,
       invoice_number: invoice.invoiceNumber,
