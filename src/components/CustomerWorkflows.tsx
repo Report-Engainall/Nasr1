@@ -2439,13 +2439,21 @@ export function StaffFinancePage() {
           </table>
         </section>
       )}
-      <section style={{ ...card, display: "grid", gap: 12 }}>
+      <section className="receivables-aging-report" style={{ ...card, display: "grid", gap: 12 }}>
         <header>
           <h2 style={{ margin: 0, fontSize: 20 }}>تقرير أعمار الذمم المدينة</h2>
           <p style={quiet}>
             يعتمد التقرير على الفواتير والدفعات المحفوظة في الخادم، ويحسب المتبقي لكل فاتورة قبل تجميعه حسب العملة وفترة التأخر.
             الفواتير الملغاة مستبعدة، وتواريخ الاستحقاق المفقودة تبقى ضمن بند مستقل ولا تُصنف على أنها متأخرة أو صفرية.
           </p>
+          <div className="receivables-aging-print-controls" style={{ display: "flex", justifyContent: "flex-start", marginTop: 10 }}>
+            <button
+              type="button"
+              style={secondary}
+              disabled={agingLoading || !agingReport || Boolean(agingError)}
+              onClick={() => window.print()}
+            >طباعة كشف أعمار الذمم (الملخص والصفحة المعروضة)</button>
+          </div>
           {agingReport && (
             <p style={{ ...quiet, marginTop: 8 }}>
               مرجع التاريخ: {agingReport.as_of_utc} UTC — إجمالي الفواتير ذات الرصيد المستحق: {agingReport.total_open_invoices.toLocaleString("ar-YE")}
