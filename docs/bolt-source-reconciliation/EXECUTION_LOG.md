@@ -118,3 +118,11 @@
 - حالة الإثبات: `IMPLEMENTED` و`TESTED` على SHA `6a6a89a0d1d8ed5f228fddcdf3b6c1f3f003a81b`. لا يوجد `BROWSER-PROVEN` أو `PRODUCTION-PROVEN`؛ لا تفترض تشغيل نافذة طباعة فعلية لمجرد نجاح smoke/build.
 - بعد هذا الإدخال توجد تحديثات توثيقية أحدث في `main`؛ نتيجة CI الخاصة بأحدث SHA التوثيقي مطلوبة قبل إغلاق جلسة الاستئناف.
 - next_task_id: `NASR1-FINANCE-AGING-PRINT-002-TESTS` — أضف اختبار واجهة مستهدفًا للطباعة ضمن بيئة الاختبار القائمة إن أمكن دون إدخال مكتبات جديدة، وأثبت حالات الملخص/الصفحة المعروضة وحدود التقرير المطبوع.
+
+## 2026-10-18 — NASR1-FINANCE-AGING-UI-TEST-001 — اختبار واجهة الطباعة والصلاحيات
+
+- أضيف الملف `src/components/CustomerWorkflows.finance-aging.test.tsx` لاختبار إظهار فاتورة ذات رصيد محسوب من مصدر الاختبار، والتصنيف عند غياب تاريخ الاستحقاق، واستدعاء `window.print`، وعدم تنفيذ RPC المالية لمستخدم بلا دور مالي.
+- أول تشغيل على SHA `356c4fcf3ec002fccd3dea5e5c2698465d9b38e4` أخفق في assertion نصي ثابت لترقيم الصفحات؛ run [39145139101](https://github.com/Report-Engainall/Nasr1/actions/runs/39145139101): 15 ملف اختبار ناجح وملف واحد فاشل، بإجمالي 166 اختبارًا ناجحًا وواحدًا فاشلًا. السبب هو اختلاف تنسيق الأرقام بحسب locale العربية، لا فشل شاشة التقرير.
+- تم إصلاح المطابقة لتستخدم regex مرنًا في commit [cf2b5893e20b5a9d500249ba215feab5c67b6c21](https://github.com/Report-Engainall/Nasr1/commit/cf2b5893e20b5a9d500249ba215feab5c67b6c21). نتيجة CI لهذا الإصلاح **PENDING** عند كتابة السجل؛ لا يجوز تسجيل نجاح الاختبار قبل قراءة run المطابق.
+- لا اعتماديات جديدة. يبقى اختبار نافذة الطباعة الفعلية في متصفح حقيقي غير مثبت.
+- next_task_id: `NASR1-FINANCE-AGING-UI-TEST-VERIFY-CI` — اقرأ CI على commit `cf2b5893e20b5a9d500249ba215feab5c67b6c21`؛ أصلح أي فشل فعلي ثم حدّث الحالة والـrequirement registry.
