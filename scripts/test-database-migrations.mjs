@@ -1941,8 +1941,10 @@ async function main() {
   );
   process.stderr.write("PRODUCT_IMAGE_POLICY_EXPRESSION " + JSON.stringify(policyExpressionDiagnostic[0]) + "\\n");
   process.stderr.write("PRODUCT_IMAGE_STEP valid-insert-start\\n");
-  const ownedImageRows = await db.unsafe("insert into storage.objects(bucket_id,name,metadata) values($1,$2,$3) returning id",
-    ["product-images", organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp", db.json({ mimetype: "image/webp" })]);
+  const ownedImageRows = await db.unsafe(
+    "insert into storage.objects(bucket_id,name,metadata) values('product-images',$1,'{\"mimetype\":\"image/webp\"}'::jsonb) returning id",
+    [imageTestPath],
+  );
   assert.equal(ownedImageRows.length, 1, "staff can upload for a real same-tenant product");
   process.stderr.write("PRODUCT_IMAGE_STEP valid-insert-success\\n");
   process.stderr.write("PRODUCT_IMAGE_STEP cross-tenant-start\\n");
