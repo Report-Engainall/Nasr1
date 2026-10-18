@@ -136,7 +136,7 @@ def summary_md(obj, pair_rows, ready_rows, member_rows):
         "## Archive downloads and integrity",
     ]
     for a in obj["archives"]:
-        lines.append("- {}: {}".format(a["name"], a["status"]))
+        lines.append("- {}: {}".format(a["observed_name"], a["status"]))
         for key in ("actual_bytes", "sha256", "git_blob_sha1", "members", "exact_error"):
             if a.get(key): lines.append("  - {}: {}".format(key, a[key]))
     lines.extend(["", "## Archive pair comparison"])
@@ -259,6 +259,7 @@ def main():
                 print("ZIP_VALIDATION_ERROR name={} error={}".format(name, row["exact_error"]), flush=True)
             archive_rows.append(row)
     pair_map = {}
+    common_archive_root = ""
     if len(content_by_archive) == 2:
         root_prefixes = []
         for archive_id, _, _, _ in ARCHIVES:
@@ -268,6 +269,7 @@ def main():
             if prefix and all(len(q) > 1 and q[0] == prefix for q in parts):
                 root_prefixes.append(prefix)
             else: root_prefixes.append("")
+        common_archive_root = root_prefixes[0] if root_prefixes[0] == root_prefixes[1] else ""
         normalized = []
         for index, (archive_id, _, _, _) in enumerate(ARCHIVES):
             prefix = root_prefixes[index]
@@ -329,16 +331,18 @@ def main():
             row["target_decision"] = "EXCLUDED_SECURITY"
             row["notes"] = "Hash only; do not commit secrets or credentials."
             continue
-        data = current_map.get(path)
+        parts = PurePosixPath(path).parts
+        target_path = PurePosixPath(*parts[1:]).as_posix() if common_archive_root and parts and parts[0] == common_archive_root and len(parts) > 1 else path
+        data = current_map.get(target_path)
         if data is None:
             row["target_decision"] = "MISSING_TARGET_CANDIDATE"
-            row["notes"] = "target path absent in checkout; review imports/contracts before integration"
+            row["notes"] = "normalized_target_path=" + target_path + "; review imports/contracts before integration"
         elif sha256(data) == row["sha256"]:
             row["target_decision"] = "ALREADY_PRESENT_EXACT"
-            row["notes"] = "byte-identical target at " + path
+            row["notes"] = "byte-identical target at " + target_path
         else:
             row["target_decision"] = "TARGET_PRESENT_DIFFERENT_CONTENT_REVIEW"
-            row["notes"] = "target path exists with different bytes at " + path
+            row["notes"] = "target path exists with different bytes at " + target_path
     OUT.mkdir(parents=True, exist_ok=True)
     write_csv(OUT / "ARCHIVE_MANIFEST.csv",
         ["archive_id","observed_name","reported_bytes","reported_source","git_blob_sha1","sha256","status","extraction_directory","notes","actual_bytes","actual_blob_sha1","members","exact_error"], archive_rows)
