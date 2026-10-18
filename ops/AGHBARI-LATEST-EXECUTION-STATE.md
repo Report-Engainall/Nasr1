@@ -1,3 +1,7 @@
+> **تجاوز هذه الحالة التاريخية لهذه المهمة — 18 أكتوبر 2026:** هذا الملف يخص مشروعًا سابقًا ومؤشره لا يصلح لاستئناف Nasr1. الهدف الحالي الوحيد Report-Engainall/Nasr1 على main. نقطة الإقلاع: ../docs/bolt-source-reconciliation/BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md، ومؤشر الاستئناف الوحيد: ../docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md. لا تتبع أي AGH-* task id هنا.
+
+---
+
 # Aghbari Commerce — Latest Execution State
 
 ## Current implementation pointer — 2026-10-15 (storefront empty-catalog truth state)

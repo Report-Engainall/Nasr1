@@ -1,9 +1,13 @@
+> **تنبيه تصحيح جهة التشغيل الحالي — 18 أكتوبر 2026:** هذا الملف يحتوي ذاكرة قديمة تشير إلى Aghbari-Technologies/aghbari-commerce-evolved. ليست وجهة الكود الحالية. الهدف الوحيد الآن هو Report-Engainall/Nasr1 على main. اقرأ docs/bolt-source-reconciliation/BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md وdocs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md؛ لا تستخدم أي task cursor أو حالة قديمة أدناه لهذه المهمة.
+
+---
+
 # PROJECT MEMORY — متجر الأغبري | Aghbari Commerce
 
-**Canonical repository:** https://github.com/Aghbari-Technologies/aghbari-commerce-evolved  
+**Historical repository reference (not current target):** https://github.com/Aghbari-Technologies/aghbari-commerce-evolved  
 **Canonical branch:** `main`  
 **Lovable editor listed in README:** https://lovable.dev/projects/851f6f5c-d23d-45a6-9568-1452d5cfdd73  
-**Public preview:** https://aghbari-commerce-evolved.lovable.app  
+**Historical preview (not current target):** https://aghbari-commerce-evolved.lovable.app  
 **Canonical product name:** متجر الأغبري | Aghbari Commerce
 
 ## Read these first at the start of every session

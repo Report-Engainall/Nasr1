@@ -1,3 +1,7 @@
+> **الهدف الحالي للتنفيذ (18 أكتوبر 2026):** جميع تعديلات الكود تتم فقط في [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) على main. أي روابط أدناه إلى مشروع Aghbari-Technologies/Lovable سياق تاريخي وليست هدفًا حاليًا ولا دليل نشر. ابدأ من [ملف الإقلاع التنفيذي](./docs/bolt-source-reconciliation/BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md).
+
+---
+
 # Aghbari Commerce Elevated
 
 اشتي اقوم باكمالة عندكم وعرض الواجهات وكل شئ وتطويرة الى اعلى مستوى. الملف المضغوط project-bolt-sb1-b5g7dtki.zip يحتوي مشروع Aghbari Commerce | الأغبري الحالي (كود Vite + React + TypeScript + Supabase migrations) — استخدمه كأساس كامل دون حذف أو إعادة بناء من الصفر. الملف النصي المرفق هو وثيقة المواصفات الرئيسية (MASTER SPEC) الملزمة التي يجب اتباعها حرفياً: استراتيجية INSPECT → UNDERSTAND → PRESERVE → COMPLETE → CONNECT → IMPROVE → TEST → FIX → POLISH، الهوية الأغبري فقط، العربية RTL كلغة افتراضية، منع الـ placeholders والبيانات الوهمية، الربط الحقيقي بـ Supabase، وإكمال شجرة المنتج الكاملة (متجر العميل التجاري B2B + لوحة تحكم الإدارة + قدرات المؤسسة المتقدمة) بأفضل التقنيات الممكنة. بعد التنفيذ أعرض الواجهات وأنشر المشروع مباشرة.
