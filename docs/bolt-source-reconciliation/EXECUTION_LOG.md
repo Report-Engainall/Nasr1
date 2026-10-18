@@ -109,3 +109,12 @@
 - لا اعتماديات جديدة، ولا تعديل لقاعدة الإنتاج. دليل DB في هذا المسار هو PostgreSQL 17 المعزول ضمن CI فقط.
 - إضافة طباعة مجانية لكشف أعمار الذمم: [commit 393ca96b73c3b0d642bc5fc9b05681e84c6611d6](https://github.com/Report-Engainall/Nasr1/commit/393ca96b73c3b0d642bc5fc9b05681e84c6611d6) أضاف زر الطباعة، و[commit 6a6a89a0d1d8ed5f228fddcdf3b6c1f3f003a81b](https://github.com/Report-Engainall/Nasr1/commit/6a6a89a0d1d8ed5f228fddcdf3b6c1f3f003a81b) أضاف CSS للطباعة RTL/A4 بإخفاء زر الطباعة، وطباعة الملخص والصفحة التفصيلية المعروضة فقط. نتيجة CI الخاصة بدفعة الطباعة **PENDING** حتى قراءة run مطابق للـSHA الحالي؛ لا يُنقل PASS من `437527f` إليها.
 - next_task_id: `NASR1-FINANCE-AGING-PRINT-001-VERIFY-CI`; بعد نجاحه انتقل إلى مراجعة اختبارات ودقة تصدير/طباعة المالية، مع إبقاء ملخص إجمالي الفواتير الكامل منفصلًا عن صفحة التفاصيل المعروضة.
+
+## 2026-10-18 — إغلاق بوابة CI لدفعة طباعة أعمار الذمم
+
+- طباعة الواجهة: [Actions 39144916657](https://github.com/Report-Engainall/Nasr1/actions/runs/39144916657) على commit `393ca96b73c3b0d642bc5fc9b05681e84c6611d6` = **SUCCESS**.
+- CSS/RTL/A4: [Actions 39144928394](https://github.com/Report-Engainall/Nasr1/actions/runs/39144928394) على commit `6a6a89a0d1d8ed5f228fddcdf3b6c1f3f003a81b` = **SUCCESS**؛ unit tests وPostgreSQL 17 acceptance وlint وbuild وpreview smoke وdev smoke كلها SUCCESS.
+- يطبع التقرير المالي الملخص حسب العملة وتفاصيل الصفحة المحمّلة فقط. زر الطباعة مخفي في نسخة الورق، وتطبق قواعد CSS إعداد الطباعة RTL/أبيض وأسود/A4 من المتصفح؛ لم تُضف مكتبة أو خدمة مدفوعة.
+- حالة الإثبات: `IMPLEMENTED` و`TESTED` على SHA `6a6a89a0d1d8ed5f228fddcdf3b6c1f3f003a81b`. لا يوجد `BROWSER-PROVEN` أو `PRODUCTION-PROVEN`؛ لا تفترض تشغيل نافذة طباعة فعلية لمجرد نجاح smoke/build.
+- بعد هذا الإدخال توجد تحديثات توثيقية أحدث في `main`؛ نتيجة CI الخاصة بأحدث SHA التوثيقي مطلوبة قبل إغلاق جلسة الاستئناف.
+- next_task_id: `NASR1-FINANCE-AGING-PRINT-002-TESTS` — أضف اختبار واجهة مستهدفًا للطباعة ضمن بيئة الاختبار القائمة إن أمكن دون إدخال مكتبات جديدة، وأثبت حالات الملخص/الصفحة المعروضة وحدود التقرير المطبوع.
