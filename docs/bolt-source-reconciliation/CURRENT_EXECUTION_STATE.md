@@ -180,13 +180,13 @@
 
 
 
-## 2026-10-19 — شبكة أسعار التحرير المجمع (تنفيذ جزئي؛ المتابعة مستمرة)
 
-- Code SHA submitted for exact-SHA CI: `7e3bdbee89def1e7c4396235a87618c357858fac`.
-- The active admin grid supports inline editing for base price, wholesale-of-wholesale (VIP tier), wholesale tier and retail tier; Enter advances between cells; changes must be previewed and then explicitly confirmed; batch limit 200.
-- Schema correction: `products` stores `base_price`, `wholesale_price`, and `retail_price`; tier values are held in `product_prices(tier, min_quantity, is_active)`. The corrective migration `20261019130000_product_price_grid_actual_price_tables.sql` replaces the first implementation that assumed non-existent product columns.
-- Read/write RPC is restricted to active admin/manager within the current organization; writes validate old values, update tiers without dropping their existing `min_quantity`, use one transaction and record an audit event.
-- TESTED=FAIL — GitHub Actions 39175623592 failed on exact code SHA 7e3bdbee89def1e7c4396235a87618c357858fac (https://github.com/Report-Engainall/Nasr1/actions/runs/39175623592); continue by the failing job logs.
+## 2026-10-19 — شبكة أسعار التحرير المجمع
+
+- Code SHA under verification: `7e3bdbee89def1e7c4396235a87618c357858fac`.
+- Active Admin UI integrated: editable base price + VIP/wholesale/retail tiers; keyboard Enter navigation; before/after preview; explicit commit; batch cap 200.
+- Backend: the corrective migration uses the real `products.base_price/wholesale_price/retail_price` and `product_prices(tier,min_quantity,is_active)` schema, instead of non-existent `price_wholesale_of_wholesale` columns. Reads and writes require an active admin/manager in the current organization; writes are atomic, stale-value guarded, and audit logged.
+- Exact-SHA CI: FAIL (failure) — GitHub Actions 39175623592 on exact code SHA 7e3bdbee89def1e7c4396235a87618c357858fac; inspect this run before proceeding: https://github.com/Report-Engainall/Nasr1/actions/runs/39175623592
 - IMPLEMENTED=YES; INTEGRATED=YES; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN.
-- The original ZIP archives could not be freshly downloaded in the earlier attempt: `curl: (6) Could not resolve host: raw.githubusercontent.com`. Previously recorded hashes are historical evidence only, not fresh validation.
-- `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains active. Announcement slider passed exact-SHA CI previously; this price grid is a separate partial gap and does not imply all spec interfaces are complete.
+- Archive downloads/updated SHA256/CRC/safe extraction remain NOT PROVEN in this session; the logged direct-download DNS error is `curl: (6) Could not resolve host: raw.githubusercontent.com`. Historical ZIP hashes are not fresh validation.
+- The next task remains `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`; this is one additional specification gap closed/under test, not full-spec completion.
