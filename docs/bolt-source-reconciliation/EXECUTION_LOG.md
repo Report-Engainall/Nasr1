@@ -428,3 +428,14 @@
 - Code status: IMPLEMENTED and INTEGRATED; TESTED=PASS (exact-SHA CI). Browser screenshot/interactive verification=NOT RUN. Production deployment/migration=NOT RUN. No production data was created.
 - Source intake: 69 rows appear in both READY_TO_REUSE/PROVENANCE_MANIFEST.csv and READY_TO_REUSE_FILE_AUDIT.csv; the audit records per-file decisions. Source ZIP re-download, refreshed SHA-256/CRC and extraction remain NOT RUN in this environment due raw.githubusercontent.com DNS failure; previously recorded hashes are historical only.
 - Overall current task remains NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002. This closes only the storefront announcements gap; remaining specification gaps must not be labeled complete.
+
+## 2026-10-19 — شبكة أسعار التحرير المجمع
+
+- Code SHA: `7e3bdbee89def1e7c4396235a87618c357858fac`.
+- Integrated the active admin price grid with explicit, authorized read RPC `get_admin_product_price_grid`, corrected write RPC `save_product_price_grid`, keyboard movement, pre-save diff preview and one-transaction batches.
+- The real database model is `products.base_price/wholesale_price/retail_price` plus `product_prices` rows for `vip/wholesale/retail`; the first implementation’s nonexistent columns were corrected by `20261019130000_product_price_grid_actual_price_tables.sql`.
+- PostgreSQL acceptance checks cover read model values, tier persistence, admin/manager access, accountant denial, stale-value detection, audit and rollback when a cross-tenant product appears in a batch.
+- Exact-SHA CI outcome: FAIL (failure): exact-SHA GitHub Actions 39175623592 for 7e3bdbee89def1e7c4396235a87618c357858fac (https://github.com/Report-Engainall/Nasr1/actions/runs/39175623592); must fix before closure.
+- IMPLEMENTED=YES; INTEGRATED=YES; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN.
+- Archive pair re-download, fresh SHA256/CRC and safe extraction remain NOT PROVEN; the direct download blocker previously returned `curl: (6) Could not resolve host: raw.githubusercontent.com`.
+- `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains open; do not infer full-spec completion from this gap alone.
