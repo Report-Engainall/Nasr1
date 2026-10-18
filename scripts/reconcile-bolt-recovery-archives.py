@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Audit the published Bolt recovery ZIPs in an isolated GitHub Actions runner."""
 from __future__ import annotations
-import argparse, csv, hashlib, io, json, os, re, stat, tempfile, time, urllib.request
+import argparse, csv, difflib, hashlib, io, json, os, re, stat, tempfile, time, urllib.request
 import zipfile
 from collections import Counter
 from pathlib import Path, PurePosixPath
@@ -31,7 +31,7 @@ def sensitive(name):
     low = {part.lower() for part in p.parts}
     return (bool(low & SECRET_NAMES) or p.name.lower().startswith(".env.") or
             p.suffix.lower() in {".pem", ".p12", ".pfx", ".key"} or
-            any(x in p.name.lower() for x in ("service-account", "private-key", "access-token")))
+            any(x in p.name.lower() for x in ("service-account", "private-key", "access-token", "password", "set_admin", "grant_admin_role")))
 
 def safe_name(name):
     if not name or "\x00" in name or "\\" in name:
@@ -187,7 +187,7 @@ def main():
         return 0
     OUT.mkdir(parents=True, exist_ok=True)
     archive_rows, member_rows, pair_rows, errors = [], [], [], []
-    content_by_archive, extracted_by_archive = {}, {}
+    content_by_archive, extracted_by_archive, review_text_by_archive = {}, {}, {}
     with tempfile.TemporaryDirectory(prefix="nasr1-bolt-recovery-", dir=os.environ.get("RUNNER_TEMP")) as tmp:
         temp = Path(tmp)
         for spec in ARCHIVES:
@@ -220,6 +220,7 @@ def main():
                     infos = validate_zip(zf)
                     safe_extract(zf, infos, target_dir)
                     file_map, member_count = {}, 0
+                    review_text_by_archive[archive_id] = {}
                     for info in infos:
                         raw = safe_name(info.filename).as_posix()
                         if info.is_dir() or raw.endswith("/"):
@@ -240,6 +241,8 @@ def main():
                             "target_decision": "PENDING", "notes": "Member not executed; payload not committed."
                         })
                         member_count += 1
+                        if kind == "SOURCE_OR_TEXT" and len(payload) <= 300000:
+                            review_text_by_archive[archive_id][raw] = payload.decode("utf-8", errors="replace")
                     content_by_archive[archive_id] = file_map
                     extracted_by_archive[archive_id] = target_dir
                     row["status"] = "DOWNLOADED_SHA256_CRC_AND_SAFE_EXTRACTION_PASS"
@@ -343,6 +346,88 @@ def main():
         else:
             row["target_decision"] = "TARGET_PRESENT_DIFFERENT_CONTENT_REVIEW"
             row["notes"] = "target path exists with different bytes at " + target_path
+    # Review-only, redacted diffs for non-sensitive text/source members.
+    normalized_review = {}
+    for archive_id, texts in review_text_by_archive.items():
+        normalized_review[archive_id] = {}
+        for raw_path, source_text in texts.items():
+            parts = PurePosixPath(raw_path).parts
+            normalized_path = PurePosixPath(*parts[1:]).as_posix() if (
+                common_archive_root and parts and parts[0] == common_archive_root and len(parts) > 1
+            ) else PurePosixPath(raw_path).as_posix()
+            normalized_review[archive_id][normalized_path] = source_text
+    secret_pattern = re.compile(
+        r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|"
+        r"\b(?:gh[pousr]_[A-Za-z0-9]{25,}|github_pat_[A-Za-z0-9_]{25,}|"
+        r"sb_secret_[A-Za-z0-9_=-]{20,}|sk-[A-Za-z0-9_-]{25,})\b|"
+        r"\beyJ[A-Za-z0-9_-]{15,}\.eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{10,}\b"
+    )
+    redact_pattern = re.compile(
+        r"(?im)^(\s*(?:SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|"
+        r"DATABASE_URL|PRIVATE_KEY|ACCESS_TOKEN|API_SECRET|ADMIN_PASSWORD)"
+        r"\s*[:=]\s*)\S.*$"
+    )
+    def review_safe(value):
+        if secret_pattern.search(value): return None
+        return redact_pattern.sub(r"\1[REDACTED]", value)
+    source_paths = sorted(set().union(*(set(m) for m in normalized_review.values()))) if normalized_review else []
+    review_lines = [
+        "# Bolt archive source review (redacted, review only)", "",
+        "Target: Report-Engainall/Nasr1/main at " + os.environ.get("GITHUB_SHA", "unknown"),
+        "Source: " + SOURCE_REPO + "@" + SOURCE_COMMIT,
+        "The archived source below is inspection evidence only; it has not been copied into runtime code.",
+        "Credential-bearing files are omitted. Archived SQL is not executed or treated as a production migration.", ""
+    ]
+    max_review_lines = 14000
+    for path in source_paths:
+        if sensitive(path) or path.endswith((".lock", ".tsbuildinfo")) or path == "package-lock.json":
+            continue
+        snippets = []
+        for archive_id, _, _, _ in ARCHIVES:
+            archive_text = normalized_review.get(archive_id, {}).get(path)
+            if archive_text is None: continue
+            archive_safe = review_safe(archive_text)
+            if archive_safe is None:
+                snippets.append((archive_id + " content", None)); continue
+            target_bytes = current_map.get(path)
+            target_text = target_bytes.decode("utf-8", errors="replace") if target_bytes is not None else None
+            target_safe = review_safe(target_text) if target_text is not None else None
+            if target_text is not None and target_safe is None:
+                snippets.append((archive_id + " vs target", None)); continue
+            if target_safe is None:
+                lines = list(difflib.unified_diff([], archive_safe.splitlines(),
+                    fromfile="Nasr1/main: absent", tofile=archive_id + ": " + path, lineterm=""))
+            elif target_safe != archive_safe:
+                lines = list(difflib.unified_diff(target_safe.splitlines(), archive_safe.splitlines(),
+                    fromfile="Nasr1/main: " + path, tofile=archive_id + ": " + path, lineterm=""))
+            else: lines = []
+            if lines: snippets.append((archive_id + " vs Nasr1/main", lines))
+        before = normalized_review.get(ARCHIVES[0][0], {}).get(path)
+        restored = normalized_review.get(ARCHIVES[1][0], {}).get(path)
+        if before is not None and restored is not None:
+            before_safe, restored_safe = review_safe(before), review_safe(restored)
+            if before_safe is None or restored_safe is None:
+                snippets.append(("Before vs Restored", None))
+            elif before_safe != restored_safe:
+                lines = list(difflib.unified_diff(before_safe.splitlines(), restored_safe.splitlines(),
+                    fromfile="Before Failure: " + path, tofile="Restored Current: " + path, lineterm=""))
+                if lines: snippets.append(("Before vs Restored", lines))
+        if not snippets: continue
+        review_lines.extend(["## " + path, ""])
+        for label, lines in snippets:
+            review_lines.append("### " + label)
+            if lines is None:
+                review_lines.append("[OMITTED: credential-like content detected; not emitted.]")
+            else:
+                review_lines.extend(lines[:220])
+                if len(lines) > 220: review_lines.append("[TRUNCATED: additional lines omitted.]")
+            review_lines.append("")
+        if len(review_lines) >= max_review_lines:
+            review_lines.append("[REPORT TRUNCATED at " + str(max_review_lines) + " lines.]")
+            break
+    (OUT / "ARCHIVE_SOURCE_REVIEW.md").write_text("\n".join(review_lines) + "\n", encoding="utf-8")
+    print("SOURCE_REVIEW_SECTIONS=" + str(sum(1 for line in review_lines if line.startswith("## "))), flush=True)
+
     OUT.mkdir(parents=True, exist_ok=True)
     write_csv(OUT / "ARCHIVE_MANIFEST.csv",
         ["archive_id","observed_name","reported_bytes","reported_source","git_blob_sha1","sha256","status","extraction_directory","notes","actual_bytes","actual_blob_sha1","members","exact_error"], archive_rows)
