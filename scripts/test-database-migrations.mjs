@@ -2230,6 +2230,102 @@ async function main() {
     /operational tasks require an active staff assignee/i,
   );
 
+  // AGH-INVENTORY-TRANSFER-001: server-authoritative, idempotent and tenant-bound stock transfer.
+  await db.unsafe("reset role");
+  const transferDestinationRows = await db.unsafe(
+    "select id from public.warehouses where organization_id=$1 and is_active and id<>$2 order by id limit 1",
+    [organizationId, testWarehouseId],
+  );
+  assert.equal(transferDestinationRows.length, 1, "the test organization needs a second active warehouse");
+  const transferDestinationId = transferDestinationRows[0].id;
+  await db.unsafe(
+    "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) values($1,$2,40,10,20) on conflict(product_id,warehouse_id) do update set quantity_on_hand=40,quantity_reserved=10,reorder_point=20",
+    [productId, testWarehouseId],
+  );
+  await db.unsafe(
+    "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) values($1,$2,5,2,1) on conflict(product_id,warehouse_id) do update set quantity_on_hand=5,quantity_reserved=2,reorder_point=1",
+    [productId, transferDestinationId],
+  );
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const transferKey = "ci-inventory-transfer-key-000001";
+  const transferArguments = [
+    productId, testWarehouseId, transferDestinationId, "7.000",
+    "CI atomic stock transfer", transferKey,
+  ];
+  const stockTransfer = await db.unsafe(
+    "select public.transfer_inventory($1::uuid,$2::uuid,$3::uuid,$4::numeric,$5::text,$6::text) as result",
+    transferArguments,
+  );
+  const transferResult = stockTransfer[0].result;
+  assert.equal(transferResult.idempotent_replay, false, "first stock transfer executes a new movement");
+  assert.equal(Number(transferResult.quantity), 7);
+  assert.ok(transferResult.transfer_id);
+  const transferBalances = await db.unsafe(
+    "select warehouse_id,quantity_on_hand,quantity_reserved,quantity_available from public.inventory_balances where product_id=$1 and warehouse_id in ($2::uuid,$3::uuid) order by warehouse_id",
+    [productId, testWarehouseId, transferDestinationId],
+  );
+  const sourceAfterTransfer = transferBalances.find((row) => row.warehouse_id === testWarehouseId);
+  const destinationAfterTransfer = transferBalances.find((row) => row.warehouse_id === transferDestinationId);
+  assert.equal(Number(sourceAfterTransfer.quantity_on_hand), 33, "source on-hand decreases atomically");
+  assert.equal(Number(sourceAfterTransfer.quantity_reserved), 10, "source reservations are not transferred");
+  assert.equal(Number(sourceAfterTransfer.quantity_available), 23);
+  assert.equal(Number(destinationAfterTransfer.quantity_on_hand), 12, "destination on-hand increases atomically");
+  assert.equal(Number(destinationAfterTransfer.quantity_reserved), 2, "destination reservations remain unchanged");
+  assert.equal(Number(destinationAfterTransfer.quantity_available), 10);
+  const linkedTransferMovements = await db.unsafe(
+    "select movement_type,quantity,warehouse_id from public.inventory_movements where reference_type='inventory_transfer' and reference_id=$1::uuid order by movement_type",
+    [transferResult.transfer_id],
+  );
+  assert.equal(linkedTransferMovements.length, 2, "the transfer writes exactly two linked movement ledger rows");
+  assert.deepEqual(linkedTransferMovements.map((row) => Number(row.quantity)).sort((a,b)=>a-b), [-7,7]);
+  const replayedTransfer = await db.unsafe(
+    "select public.transfer_inventory($1::uuid,$2::uuid,$3::uuid,$4::numeric,$5::text,$6::text) as result",
+    transferArguments,
+  );
+  assert.equal(replayedTransfer[0].result.transfer_id, transferResult.transfer_id);
+  assert.equal(replayedTransfer[0].result.idempotent_replay, true, "a timeout retry with the same payload cannot move stock twice");
+  await expectFailure(
+    "inventory transfer key cannot be reused for a different quantity",
+    () => db.unsafe(
+      "select public.transfer_inventory($1::uuid,$2::uuid,$3::uuid,$4::numeric,$5::text,$6::text)",
+      [productId, testWarehouseId, transferDestinationId, "8.000", "CI atomic stock transfer", transferKey],
+    ),
+    /idempotency key payload conflict/i,
+  );
+  await expectFailure(
+    "inventory transfer cannot use reserved stock or move more than available quantity",
+    () => db.unsafe(
+      "select public.transfer_inventory($1::uuid,$2::uuid,$3::uuid,$4::numeric,$5::text,$6::text)",
+      [productId, testWarehouseId, transferDestinationId, "24.000", "CI insufficient availability", "ci-inventory-transfer-insufficient-0001"],
+    ),
+    /insufficient available stock/i,
+  );
+  const afterRejectedTransfer = await db.unsafe(
+    "select quantity_on_hand,quantity_reserved from public.inventory_balances where product_id=$1 and warehouse_id=$2",
+    [productId, testWarehouseId],
+  );
+  assert.equal(Number(afterRejectedTransfer[0].quantity_on_hand), 33, "a rejected transfer must roll back without changing source stock");
+  const foreignTransferWarehouseRows = await db.unsafe(
+    "select id from public.warehouses where organization_id<>$1 and is_active order by id limit 1",
+    [organizationId],
+  );
+  assert.equal(foreignTransferWarehouseRows.length, 1, "the fixture needs an active warehouse in another organization");
+  await expectFailure(
+    "inventory transfer cannot target a foreign-tenant warehouse",
+    () => db.unsafe(
+      "select public.transfer_inventory($1::uuid,$2::uuid,$3::uuid,$4::numeric,$5::text,$6::text)",
+      [productId, testWarehouseId, foreignTransferWarehouseRows[0].id, "1.000", "CI cross-tenant denial", "ci-inventory-transfer-foreign-0001"],
+    ),
+    /warehouse|مستودع|organization/i,
+  );
+  await expectFailure(
+    "authenticated staff cannot modify transfer ledger rows directly",
+    () => db.unsafe("update public.inventory_transfers set reason='forged' where id=$1::uuid", [transferResult.transfer_id]),
+    /permission denied/i,
+  );
+  process.stdout.write("PASS inventory transfer: tenant-bound RPC, reserved-stock guard, deterministic row locking, atomic paired movements, idempotent replay and immutable transfer ledger\\n");
+
   await db.unsafe("reset role");
   await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
   await db.unsafe("set role authenticated");

@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, AlertTriangle, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft, ClipboardList,
+  Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft, ClipboardList,
   CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package,
   Pencil, Plus, RefreshCw, ScrollText, Search, Settings, ShoppingCart, SlidersHorizontal,
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
 } from 'lucide-react';
 import {
   createCategory, createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
-  fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
-  fetchProducts, fetchPromotions, togglePricingRule, togglePromotion,
+  fetchActiveInventoryWarehouses, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
+  fetchProducts, fetchPromotions, togglePricingRule, togglePromotion, transferInventory,
   updateCustomerStatus, updatePricingRule, updateProduct,
   approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
@@ -236,10 +236,128 @@ function Heading({ eyebrow, title, description, icon: Icon }: { eyebrow: string;
 
 function Products({ onNotice }: { onNotice: (m: string) => void }) {
   const { data, loading, error, refetch } = useFetch(fetchProducts);
-  const [query, setQuery] = useState(''); const [modal, setModal] = useState(false); const [editing, setEditing] = useState<ProductWithInventory | null>(null);
+  const { data: warehouses, loading: warehousesLoading, error: warehousesError } = useFetch(fetchActiveInventoryWarehouses);
+  const [query, setQuery] = useState('');
+  const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState<ProductWithInventory | null>(null);
+  const [transferProduct, setTransferProduct] = useState<ProductWithInventory | null>(null);
+  const [transferSource, setTransferSource] = useState('');
+  const [transferDestination, setTransferDestination] = useState('');
+  const [transferQuantity, setTransferQuantity] = useState('1');
+  const [transferReason, setTransferReason] = useState('نقل مخزون بين المستودعات');
+  const [transferKey, setTransferKey] = useState('');
+  const [transferSaving, setTransferSaving] = useState(false);
+  const [transferError, setTransferError] = useState('');
   const rows = (data ?? []).filter((p) => `${p.name} ${p.item_code} ${p.barcode ?? ''}`.toLowerCase().includes(query.toLowerCase()));
-  async function remove(product: ProductWithInventory) { if (!window.confirm(`حذف ${product.name}؟`)) return; try { await deleteProduct(product.id); onNotice('تم حذف المنتج'); refetch(); } catch (e) { onNotice(e instanceof Error ? e.message : 'تعذر حذف المنتج'); } }
-  return <><Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} /><div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} منتج في الكتالوج</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button></div></div><section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز..." /></label></div>{loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table><thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>السعر</th><th>المتاح</th><th>الحالة</th><th /></tr></thead><tbody>{rows.map((p) => { const qty = p.inventory?.quantity_available ?? 0; const low = qty <= (p.inventory?.reorder_point ?? p.min_stock); return <tr key={p.id}><td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td>{formatCurrency(p.base_price)}</td><td>{formatNumber(qty)} {p.unit}</td><td><span className={`badge ${low ? 'warning' : 'success'}`}>{low ? 'منخفض' : 'متوفر'}</span></td><td><div className="row-actions"><button onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button><button onClick={() => remove(p)}><Trash2 size={15} /></button></div></td></tr>; })}</tbody></table>{!rows.length && <Empty text="لا توجد منتجات مطابقة" />}</TableWrap>}</section>{modal && <ProductModal product={editing} onClose={() => setModal(false)} onSaved={() => { setModal(false); refetch(); onNotice(editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج'); }} />}</>;
+  async function remove(product: ProductWithInventory) {
+    if (!window.confirm(`حذف ${product.name}؟`)) return;
+    try { await deleteProduct(product.id); onNotice('تم حذف المنتج'); refetch(); }
+    catch (e) { onNotice(e instanceof Error ? e.message : 'تعذر حذف المنتج'); }
+  }
+  function openTransfer(product: ProductWithInventory) {
+    setTransferProduct(product);
+    setTransferSource(product.inventory?.warehouse_id ?? warehouses?.[0]?.id ?? '');
+    setTransferDestination('');
+    setTransferQuantity('1');
+    setTransferReason('نقل مخزون بين المستودعات');
+    setTransferKey(crypto.randomUUID());
+    setTransferError('');
+  }
+  async function submitTransfer() {
+    if (!transferProduct) return;
+    setTransferSaving(true);
+    setTransferError('');
+    try {
+      const result = await transferInventory({
+        productId: transferProduct.id,
+        sourceWarehouseId: transferSource,
+        destinationWarehouseId: transferDestination,
+        quantity: Number(transferQuantity),
+        reason: transferReason,
+        idempotencyKey: transferKey,
+      });
+      setTransferProduct(null);
+      setTransferKey('');
+      refetch();
+      onNotice(result.idempotent_replay ? 'النقل السابق مؤكد؛ لم تُكرر الحركة.' : 'تم نقل المخزون وحفظ حركتي المستودعين.');
+    } catch (e) {
+      setTransferError(e instanceof Error ? e.message : 'تعذر نقل المخزون.');
+    } finally {
+      setTransferSaving(false);
+    }
+  }
+  return <>
+    <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
+    <div className="toolbar">
+      <span className="toolbar-note">{data?.length ?? 0} منتج في الكتالوج</span>
+      <div className="toolbar-actions">
+        <Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button>
+        <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>
+      </div>
+    </div>
+    <section className="panel table-panel">
+      <div className="table-head">
+        <h2>كتالوج المنتجات</h2>
+        <label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز..." /></label>
+      </div>
+      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap>
+        <table>
+          <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>السعر</th><th>المتاح</th><th>الحالة</th><th>إجراء المخزون</th><th /></tr></thead>
+          <tbody>{rows.map((p) => {
+            const qty = p.inventory?.quantity_available ?? 0;
+            const low = qty <= (p.inventory?.reorder_point ?? p.min_stock);
+            return <tr key={p.id}>
+              <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small></td>
+              <td><code>{p.item_code}</code></td>
+              <td>{p.category?.name ?? 'غير مصنف'}</td>
+              <td>{formatCurrency(p.base_price)}</td>
+              <td>{formatNumber(qty)} {p.unit}</td>
+              <td><span className={`badge ${low ? 'warning' : 'success'}`}>{low ? 'منخفض' : 'متوفر'}</span></td>
+              <td><Button variant="outline" size="sm" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button></td>
+              <td><div className="row-actions">
+                <button aria-label={`تعديل ${p.name}`} onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button>
+                <button aria-label={`حذف ${p.name}`} onClick={() => remove(p)}><Trash2 size={15} /></button>
+              </div></td>
+            </tr>;
+          })}</tbody>
+        </table>
+        {!rows.length && <Empty text="لا توجد منتجات مطابقة" />}
+      </TableWrap>}
+    </section>
+    {modal && <ProductModal product={editing} onClose={() => setModal(false)} onSaved={() => { setModal(false); refetch(); onNotice(editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج'); }} />}
+    {transferProduct && <Modal title={`نقل مخزون — ${transferProduct.name}`} onClose={() => { if (!transferSaving) setTransferProduct(null); }}>
+      <p style={{ marginTop: 0, color: 'var(--muted-foreground, #64748b)' }}>يُنفَّذ النقل بمعاملة واحدة، ولا تُنقل الكميات المحجوزة للطلبات. إعادة المحاولة بنفس المفتاح لا تكرر الحركة.</p>
+      {warehousesLoading ? <Loading /> : warehousesError ? <ErrorBox message={warehousesError.message} /> : (warehouses ?? []).length < 2 ? <ErrorBox message="يلزم وجود مستودعين نشطين على الأقل داخل المؤسسة لإجراء النقل." /> : <>
+        <Field label="مستودع المصدر">
+          <select value={transferSource} onChange={(e) => setTransferSource(e.target.value)}>
+            <option value="">اختر المستودع المصدر</option>
+            {(warehouses ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ` — ${w.code}` : ''}</option>)}
+          </select>
+        </Field>
+        <Field label="المستودع المستلم">
+          <select value={transferDestination} onChange={(e) => setTransferDestination(e.target.value)}>
+            <option value="">اختر المستودع المستلم</option>
+            {(warehouses ?? []).filter((w) => w.id !== transferSource).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ` — ${w.code}` : ''}</option>)}
+          </select>
+        </Field>
+        <div className="form-grid">
+          <Field label={`الكمية (المتاح الحالي: ${formatNumber(transferProduct.inventory?.quantity_available ?? 0)})`}>
+            <input type="number" min="0.001" max="999999999999.999" step="0.001" value={transferQuantity} onChange={(e) => setTransferQuantity(e.target.value)} />
+          </Field>
+          <Field label="سبب النقل">
+            <input maxLength={1000} value={transferReason} onChange={(e) => setTransferReason(e.target.value)} />
+          </Field>
+        </div>
+        {transferError && <div className="form-error" role="alert">{transferError}</div>}
+        <div className="modal-actions">
+          <Button variant="outline" onClick={() => setTransferProduct(null)} disabled={transferSaving}>إلغاء</Button>
+          <Button onClick={submitTransfer} disabled={transferSaving || !transferSource || !transferDestination || transferSource === transferDestination || !transferQuantity || !transferReason.trim()}>
+            {transferSaving ? 'جارٍ تسجيل حركة النقل...' : 'تنفيذ النقل'}
+          </Button>
+        </div>
+      </>}
+    </Modal>}
+  </>;
 }
 function ProductModal({ product, onClose, onSaved }: { product: ProductWithInventory | null; onClose: () => void; onSaved: () => void }) {
   const { data: categories } = useFetch(fetchCategories); const [name, setName] = useState(product?.name ?? ''); const [code, setCode] = useState(product?.item_code ?? ''); const [price, setPrice] = useState(String(product?.base_price ?? '')); const [category, setCategory] = useState(product?.category_id ?? ''); const [saving, setSaving] = useState(false); const [error, setError] = useState('');

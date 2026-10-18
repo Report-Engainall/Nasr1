@@ -862,6 +862,72 @@ export async function findImportDuplicate(fileHash: string, profileId: string | 
   return data as { duplicate: boolean; jobs: ImportJob[]; snapshots: unknown[] };
 }
 
+export type ActiveInventoryWarehouse = { id: string; name: string; code: string | null };
+
+export async function fetchActiveInventoryWarehouses(): Promise<ActiveInventoryWarehouse[]> {
+  const { organizationId } = await getCurrentTenantScope();
+  const { data, error } = await supabase
+    .from('warehouses')
+    .select('id,name,code')
+    .eq('organization_id', organizationId)
+    .eq('is_active', true)
+    .order('name');
+  if (error) throw error;
+  return (data ?? []) as ActiveInventoryWarehouse[];
+}
+
+export type InventoryTransferResult = {
+  transfer_id: string;
+  product_id: string;
+  source_warehouse_id: string;
+  destination_warehouse_id: string;
+  quantity: number;
+  idempotent_replay: boolean;
+  source_quantity_available_after?: number;
+  destination_quantity_available_after?: number;
+};
+
+export async function transferInventory(input: {
+  productId: string;
+  sourceWarehouseId: string;
+  destinationWarehouseId: string;
+  quantity: number;
+  reason: string;
+  idempotencyKey: string;
+}): Promise<InventoryTransferResult> {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (![input.productId, input.sourceWarehouseId, input.destinationWarehouseId].every((id) => uuid.test(id))) {
+    throw new Error('معرّف الصنف أو المستودع غير صالح.');
+  }
+  if (input.sourceWarehouseId === input.destinationWarehouseId) {
+    throw new Error('اختر مستودعين مختلفين.');
+  }
+  if (!Number.isFinite(input.quantity) || input.quantity <= 0 ||
+      input.quantity > 999999999999.999 ||
+      !Number.isSafeInteger(Math.round(input.quantity * 1000)) ||
+      Math.round(input.quantity * 1000) !== input.quantity * 1000) {
+    throw new Error('كمية النقل يجب أن تكون موجبة وبحد أقصى ثلاث منازل عشرية.');
+  }
+  const reason = input.reason.trim();
+  if (!reason || reason.length > 1000) throw new Error('سبب النقل مطلوب ولا يتجاوز 1000 حرف.');
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(input.idempotencyKey)) {
+    throw new Error('مفتاح منع التكرار غير صالح.');
+  }
+  const { data, error } = await supabase.rpc('transfer_inventory', {
+    p_product_id: input.productId,
+    p_source_warehouse_id: input.sourceWarehouseId,
+    p_destination_warehouse_id: input.destinationWarehouseId,
+    p_quantity: input.quantity,
+    p_reason: reason,
+    p_idempotency_key: input.idempotencyKey,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('لم يؤكد الخادم نتيجة نقل المخزون.');
+  }
+  return data as InventoryTransferResult;
+}
+
 export async function fetchInventoryReconciliationRuns() {
   const { data, error } = await supabase.from('inventory_reconciliation_runs').select('*').order('created_at', { ascending: false }).limit(50);
   if (error) throw error;
