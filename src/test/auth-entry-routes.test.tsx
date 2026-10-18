@@ -22,7 +22,7 @@ describe("direct authentication entry modes", () => {
 
     expect(screen.getByRole("heading", { name: "إنشاء حساب تجاري" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "إنشاء الحساب" })).toBeTruthy();
-    expect(screen.getByText("إنشاء حساب جديد" )).toBeTruthy();
+    expect(screen.getByText("أنشئ حسابك للطلب من متجر الأغبري")).toBeTruthy();
   });
 
   it("opens the existing password recovery workflow directly", () => {
