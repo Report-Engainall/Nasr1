@@ -179,12 +179,14 @@
 - هذه نتيجة جزئية ضمن المهمة النشطة NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002، وليست إقرارًا باكتمال كل الواجهات. ستبقى المهمة نشطة حتى حسم بقية بنود المواصفة مثل شبكة الأسعار الشاملة وتحريرها المجمع.
 
 
+
 ## 2026-10-19 — شبكة أسعار التحرير المجمع (تنفيذ جزئي؛ المتابعة مستمرة)
 
-- أضيفت شبكة داخل واجهة الإدارة النشطة لحقول السعر الأساسي وجملة الجملة والجملة والتجزئة؛ تتنقل Enter بين الخلايا، تعرض قبل/بعد، ولا تحفظ قبل تأكيد المستخدم، وتحد الدفعة إلى 200 منتج.
-- أصلحت مشكلة مخطط قاعدة البيانات: أعمدة المنتجات الفعلية هي \`base_price\`, \`wholesale_price\`, \`retail_price\`؛ شرائح السعر الإضافية محفوظة في \`product_prices\` ذات \`tier/min_quantity/is_active\`. لا تُستخدم أعمدة وهمية على \`products\`. أضيفت دوال RPC لقراءة شبكة المؤسسة والكتابة مع role check وstale-value guard وrollback ذرّي وaudit.
-- يختبر سكربت PostgreSQL الآن قيم الشرائح الفعلية، سجل التدقيق، منع الكتابة المتزامنة القديمة، rollback إذا احتوت الدفعة منتجًا من مؤسسة أخرى، ومنع المحاسب من القراءة/الكتابة.
-- CI لهذا التغيير: TESTED=NOT RUN / CI PENDING for final price-grid code. Latest observed matching status: in_progress.
+- Code SHA submitted for exact-SHA CI: `7e3bdbee89def1e7c4396235a87618c357858fac`.
+- The active admin grid supports inline editing for base price, wholesale-of-wholesale (VIP tier), wholesale tier and retail tier; Enter advances between cells; changes must be previewed and then explicitly confirmed; batch limit 200.
+- Schema correction: `products` stores `base_price`, `wholesale_price`, and `retail_price`; tier values are held in `product_prices(tier, min_quantity, is_active)`. The corrective migration `20261019130000_product_price_grid_actual_price_tables.sql` replaces the first implementation that assumed non-existent product columns.
+- Read/write RPC is restricted to active admin/manager within the current organization; writes validate old values, update tiers without dropping their existing `min_quantity`, use one transaction and record an audit event.
+- TESTED=FAIL — GitHub Actions 39175623592 failed on exact code SHA 7e3bdbee89def1e7c4396235a87618c357858fac (https://github.com/Report-Engainall/Nasr1/actions/runs/39175623592); continue by the failing job logs.
 - IMPLEMENTED=YES; INTEGRATED=YES; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN.
-- فشل سابق مرصود في CI كشف الافتراض غير الصحيح بوجود \`price_wholesale_of_wholesale/price_wholesale/price_retail\` كأعمدة فعلية. أضيفت migration تصحيحية \`20261019130000_product_price_grid_actual_price_tables.sql\` حتى يعمل الأمر فوق جداول النظام الحقيقية. لا تعتبر الشبكة مكتملة حتى نجاح exact-SHA CI.
-- المهمة \`NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002\` تظل نشطة؛ هذه ليست علامة اكتمال جميع واجهات المواصفة.
+- The original ZIP archives could not be freshly downloaded in the earlier attempt: `curl: (6) Could not resolve host: raw.githubusercontent.com`. Previously recorded hashes are historical evidence only, not fresh validation.
+- `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains active. Announcement slider passed exact-SHA CI previously; this price grid is a separate partial gap and does not imply all spec interfaces are complete.
