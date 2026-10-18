@@ -97,5 +97,4 @@ describe('live-commerce business intelligence', () => {
   it('does not present totals as complete when any amount is invalid or arithmetic overflows', () => {
     expect(buildBusinessSnapshot([order({ total_amount: 'unknown' as unknown as number })])).toMatchObject({ invalidAmountCount: 1, grossValue: null });
     expect(buildBusinessSnapshot([order({ total_amount: Number.MAX_SAFE_INTEGER }), order({ id: 'overflow', customer_id: 'other', total_amount: 1 })])).toMatchObject({ invalidAmountCount: 0, grossValue: null });
-  });
-}
+  });});
