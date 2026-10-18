@@ -1,3 +1,11 @@
+> # نقطة الدخول الوحيدة الحالية — 18 أكتوبر 2026
+>
+> اقرأ [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md) كاملًا. رسالة النسخ: [BOLT_BOOT_MESSAGE_2026-10-18.txt](./BOLT_BOOT_MESSAGE_2026-10-18.txt).
+>
+> هدف التعديل الوحيد [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / main. report-insight-engine للقراءة فقط. أرشيفا Bolt: https://github.com/Report-Engainall/report-insight-engine/tree/main/incoming-archives/nasr1-bolt-recovery-2026-10-17. metadata لا تعني تنزيلًا أو فكًا أو دمجًا.
+>
+> ---
+>
 > # نقطة الدخول الوحيدة لـ Bolt — 17 أكتوبر 2026
 >
 > **لا تبدأ من أي وثيقة قديمة أو رسالة منفصلة. ابدأ من وثيقة الترتيب الموحدة ثم نفّذ مراحلها، بهذا الترتيب:**

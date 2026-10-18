@@ -1,8 +1,11 @@
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
-**المستودع والفرع الهدف الوحيدان:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / `main`  
-**آخر كود اجتاز جميع بوابات CI:** [`618e3d3c019ecd7d05ca0462ca954f908178b814`](https://github.com/Report-Engainall/Nasr1/commit/618e3d3c019ecd7d05ca0462ca954f908178b814)  
-**CI المطابق:** [Actions 39150380395 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395) — unit tests، PostgreSQL 17 acceptance، lint، build، preview smoke، dev smoke.
+**الهدف الوحيد:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / main.
+**آخر SHA حي فُحص قبل دفعة الإقلاع:** 154ec48397164473010d40bd3b509c24f188030e — [commit](https://github.com/Report-Engainall/Nasr1/commit/154ec48397164473010d40bd3b509c24f188030e).
+**CI المطابق:** [Actions 39150932901 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150932901). يخص SHA المذكور فقط ويتضمن إصلاح أعمار الذمم بحسب يوم UTC واختبار استحقاق اليوم.
+**نقطة الإقلاع:** [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md). أعد قراءة HEAD وCI بعد كل commit.
+**فجوة المصادر:** READY_TO_REUSE/PROVENANCE_MANIFEST.csv فيه 69 صفًا. سجل الدمج السابق لا يثبت قرارًا لكل ملف. ARCHIVE_MEMBERS.csv لم يكن يحوي أعضاء مستخرجة. تنزيل أرشيفي Bolt وSHA-256 واختبار ZIP والاستخراج = NOT RUN في آخر تحقق.
+**النزاهة المالية:** لا توجد فواتير تاريخية سابقة مطلوب اختلاقها؛ لا تنشئ أرقامًا تجريبية.
 
 ## آخر إنجاز برمجي حقيقي
 - أضيف اختبار حدّ قاعدة بيانات حقيقي لكشف العميل: ينشئ 205 فواتير و505 دفعات، ثم يثبت بقاء قوائم التفاصيل محدودة إلى 200/500 بينما الملخص المالي يظل شاملاً للسجل كله.
@@ -26,9 +29,12 @@
 - حدّ 200/500، exact-minor arithmetic، واستبعاد الفاتورة الملغاة مع دفعتها: [39150380395 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395).
 
 ## نقطة الاستئناف الوحيدة
-- `next_task_id = NASR1-CUSTOMER-STATEMENT-AGING-CUTOFF-ALIGNMENT-001`
-- تم إغلاق `NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`: [commit `c1d9d04ea969ba12f8cd748a3d06d6c9f40a303a`](https://github.com/Report-Engainall/Nasr1/commit/c1d9d04ea969ba12f8cd748a3d06d6c9f40a303a) اجتاز [Actions 39150638459 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150638459). المهمة الجديدة `NASR1-CUSTOMER-STATEMENT-AGING-CUTOFF-ALIGNMENT-001`: وحّد مقارنة تاريخ الاستحقاق مع `fetch_staff_receivables_aging` على مستوى يوم UTC، وأضف اختبارًا يثبت أن فاتورة تاريخ استحقاقها اليوم ليست متأخرة حتى اليوم التالي. لا تعِد اختبار الحد 200/500؛ لقد اجتاز CI أعلاه.
-- لا تكرر أي فحص من المهام أو الفلاتر أو RPC الأعمار أو طباعة التقرير أو مبالغ PDF أو حالة التأخر أو تاريخ الاستحقاق إلا بتغير المصدر أو فشل جديد.
+
+- next_task_id = NASR1-BOLT-RECOVERY-ARCHIVE-RECONCILIATION-001
+- نزّل البايتات الحقيقية للأرشيفين من https://github.com/Report-Engainall/report-insight-engine/tree/main/incoming-archives/nasr1-bolt-recovery-2026-10-17، احسب SHA-256، افحص سلامة ZIP، استخرج بأمان، ثم قارن Before_Failure وRestored_Current وNasr1/main وREADY_TO_REUSE ملفًا بملف.
+- أضف في SOURCE_INTEGRATION_LEDGER.csv قرارًا مستقلًا ومسار هدف واختبارًا ودليلًا لكل مادة فُحصت. حدّث ARCHIVE_MEMBERS.csv بالأعضاء الفعلية بعد الاستخراج فقط.
+- افحص الفروع وPRs ولقطات Bolt والأرشيفات الأخرى. إذا تعذر binary، سجّل المحاولة ورسالة الخطأ الحقيقية وواصل أقرب مهمة كود مستقلة فورًا.
+- تم إغلاق NASR1-CUSTOMER-STATEMENT-AGING-CUTOFF-ALIGNMENT-001 على SHA 154ec48397164473010d40bd3b509c24f188030e وActions 39150932901 SUCCESS؛ لا تكررها دون تغير مؤثر أو فشل جديد.
 
 ## حدود الإثبات
 - لا يوجد متصفح تفاعلي أو إثبات إنتاج مباشر؛ preview/dev smoke ليس إثبات نشر.

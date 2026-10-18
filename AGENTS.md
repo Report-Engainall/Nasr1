@@ -39,3 +39,12 @@ Every new execution/session MUST deliver a real, repository-backed increment bef
 3. If the recorded task is blocked by a concrete external dependency, record the blocker with evidence and immediately implement/test the highest-priority independent task that is not blocked. Never invent a passing test or claim execution that did not occur.
 4. Before finishing, update the single canonical `CURRENT_EXECUTION_STATE.md` with the real code commit, actual check status (PASS/FAIL/PENDING/BLOCKED), exact tested SHA, and one next task ID. Append details to `EXECUTION_LOG.md`. Keep `AGENTS.md` as this permanent rule source; do not create competing resume cursors.
 5. The completion response must lead with the code change and links/evidence, then clearly distinguish IMPLEMENTED, TESTED, BROWSER-PROVEN, and PRODUCTION-PROVEN. If no code change could be safely completed, explain the evidence-backed blocker and the independent work performed; never present documentation-only work as a code-delivery session.
+
+
+---
+
+# CURRENT TARGET OVERRIDE — 18 OCTOBER 2026
+
+For the active task, the only code target is Report-Engainall/Nasr1 on main. Disregard older instructions in this file that point to Aghbari-Technologies/aghbari-commerce-evolved or old AGH-* checkpoints. Active entry point: docs/bolt-source-reconciliation/BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md. Sole task cursor: docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md. report-insight-engine is a read-only source/archive repository.
+
+Inspect every READY_TO_REUSE file and the two Bolt recovery ZIPs by actual download, SHA-256, integrity test, safe extraction and file-by-file comparison with Nasr1. Metadata is not extraction; reference copies are not integration. Preserve unsaved work; no force-push, paid services or fictional financial data. Update state/log/ledger and verify exact-SHA CI for each new commit.

@@ -1,3 +1,16 @@
+# ملحق جرد — أرشيفات استعادة Bolt الجديدة (18 أكتوبر 2026)
+
+المعلومات التالية metadata في GitHub فقط؛ لا تدّعي تنزيل البايتات أو فك ZIP.
+
+| الاسم | الحجم | Git blob SHA-1 | SHA-256 | حالة التنزيل/الاستخراج |
+|---|---:|---|---|---|
+| Nasr1_Bolt_Before_Failure.zip | 1,003,172 | 7c35f3ecde19dc5596fd22053be61924ef3d5318 | NOT RUN | bytes / SHA-256 / ZIP integrity / extraction = NOT RUN |
+| Nasr1_Bolt_Restored_Current.zip | 997,589 | f01684a56e093a33a173b0965d1d7239c48f0936 | NOT RUN | bytes / SHA-256 / ZIP integrity / extraction = NOT RUN |
+
+المصدر: https://github.com/Report-Engainall/report-insight-engine/tree/main/incoming-archives/nasr1-bolt-recovery-2026-10-17. Git blob SHA-1 ليس SHA-256 للأرشيف. لا توجد أعضاء مستخرجة موثقة في ARCHIVE_MEMBERS.csv.
+
+---
+
 # تدقيق مدخلات أرشيفات متجر الأغبري — 17 أكتوبر 2026
 
 ## 1. نطاق التحقق وحدوده

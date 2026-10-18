@@ -279,3 +279,14 @@
 - تحديث المرآة والوثائق [`c1d9d04ea969ba12f8cd748a3d06d6c9f40a303a`](https://github.com/Report-Engainall/Nasr1/commit/c1d9d04ea969ba12f8cd748a3d06d6c9f40a303a) اجتاز [Actions 39150638459 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150638459).
 - تم إغلاق `NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`. لا تكرر التحقق أو إعادة نسخ الملفات العشرة ما لم تتغير المصادر.
 - next_task_id: `NASR1-CUSTOMER-STATEMENT-AGING-CUTOFF-ALIGNMENT-001`.
+
+## 2026-10-18 — NASR1-BOOT-RECOVERY-SOURCE-MANDATE-001
+- الهدف: Report-Engainall/Nasr1/main فقط. هذه الدفعة تحدث ملفات الإقلاع والجرد ولا تدعي دمج ميزة من ZIP.
+- SHA الأساس: 154ec48397164473010d40bd3b509c24f188030e؛ [Actions 39150932901 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150932901). هذه النتيجة للأساس فقط ولا تنتقل إلى commit الوثائق.
+- أُغلقت NASR1-CUSTOMER-STATEMENT-AGING-CUTOFF-ALIGNMENT-001 على SHA الأساس مع CI مطابق.
+- READY_TO_REUSE/PROVENANCE_MANIFEST.csv فيه 69 صفًا؛ سجل الدمج السابق لا يثبت قرارًا منفصلًا لكل عنصر، لذا المصالحة مفتوحة.
+- https://github.com/Report-Engainall/report-insight-engine/tree/main/incoming-archives/nasr1-bolt-recovery-2026-10-17 يعرض Nasr1_Bolt_Before_Failure.zip (1,003,172 بايت؛ Git blob SHA-1 7c35f3ecde19dc5596fd22053be61924ef3d5318) وNasr1_Bolt_Restored_Current.zip (997,589 بايت؛ Git blob SHA-1 f01684a56e093a33a173b0965d1d7239c48f0936). لم تُنزّل البايتات ولم يُحسب SHA-256 أو يُختبر ZIP ولم يحدث استخراج؛ عدد الأعضاء مجهول.
+- أضيف الملفان إلى ARCHIVE_MANIFEST.csv وSOURCE_INTEGRATION_LEDGER.csv بصفة metadata متاحة وغير مستخرجة؛ لم تُختلق صفوف أعضاء في ARCHIVE_MEMBERS.csv.
+- لا تغييرات runtime/DB/dependencies. الاختبارات المحلية NOT RUN إن لم تتوفر workspace؛ يلزم CI exact-SHA للـcommit الجديد.
+- next_task_id: NASR1-BOLT-RECOVERY-ARCHIVE-RECONCILIATION-001.
+

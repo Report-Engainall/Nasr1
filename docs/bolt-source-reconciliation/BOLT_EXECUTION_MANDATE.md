@@ -1,3 +1,7 @@
+> **أولوية تشغيل محدّثة — 18 أكتوبر 2026:** اقرأ بالكامل [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md) قبل هذا المرجع. نقطة الإقلاع الوحيدة هي البديل. أرشيفات Bolt: https://github.com/Report-Engainall/report-insight-engine/tree/main/incoming-archives/nasr1-bolt-recovery-2026-10-17. metadata أو Git blob SHA لا يثبت تنزيلًا أو اختبار سلامة أو فكًا أو دمجًا. أي next-task أقدم تاريخي إذا تعارض مع CURRENT_EXECUTION_STATE.md الحي.
+
+---
+
 > ## ملحق أولوية حديث — 17 أكتوبر 2026
 >
 > قبل البدء، اقرأ ونفّذ أيضًا [BOLT_CONTINUATION_AND_COMPLETION_ORDER_2026-10-17.md](./BOLT_CONTINUATION_AND_COMPLETION_ORDER_2026-10-17.md) وتقرير [ARCHIVE_INTAKE_RECONCILIATION_2026-10-17.md](./ARCHIVE_INTAKE_RECONCILIATION_2026-10-17.md). هذا الملحق يُكمل هذا الأمر ولا يلغي متطلباته السابقة.
