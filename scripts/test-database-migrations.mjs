@@ -1931,19 +1931,24 @@ async function main() {
   );
   process.stderr.write("PRODUCT_IMAGE_POLICIES " + JSON.stringify(await db.unsafe("select policyname, permissive, roles, cmd, qual, with_check from pg_policies where schemaname = 'storage' and tablename = 'objects'")) + "\\n");
   process.stderr.write("PRODUCT_IMAGE_SCOPE_DIAGNOSTIC " + JSON.stringify(imageScopeDiagnostic[0]) + "\\n");
+  process.stderr.write("PRODUCT_IMAGE_STEP valid-insert-start\\n");
   const ownedImageRows = await db.unsafe("insert into storage.objects(bucket_id,name,metadata) values($1,$2,$3) returning id",
     ["product-images", organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp", db.json({ mimetype: "image/webp" })]);
   assert.equal(ownedImageRows.length, 1, "staff can upload for a real same-tenant product");
+  process.stderr.write("PRODUCT_IMAGE_STEP valid-insert-success\\n");
+  process.stderr.write("PRODUCT_IMAGE_STEP cross-tenant-start\\n");
   await expectFailure("staff cannot upload under a different tenant prefix",
     () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
       ["product-images", otherOrganizationId + "/" + productId + "/b2000000-0000-4000-8000-000000000001.webp"]),
     /row-level security/i);
+  process.stderr.write("PRODUCT_IMAGE_STEP wrong-product-start\\n");
   await expectFailure("staff cannot attach images to a product from another tenant",
     () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
       ["product-images", organizationId + "/" + otherProductId + "/b3000000-0000-4000-8000-000000000001.webp"]),
     /row-level security/i);
   await db.unsafe("reset role");
   await db.unsafe("set role anon");
+  process.stderr.write("PRODUCT_IMAGE_STEP anon-start\\n");
   await expectFailure("anonymous users cannot upload product images",
     () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
       ["product-images", organizationId + "/" + productId + "/b4000000-0000-4000-8000-000000000001.webp"]),
@@ -1951,6 +1956,7 @@ async function main() {
   await db.unsafe("reset role");
   await setIdentity(authUserId, "ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
+  process.stderr.write("PRODUCT_IMAGE_STEP customer-start\\n");
   await expectFailure("customers cannot upload images even inside their organization",
     () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
       ["product-images", organizationId + "/" + productId + "/b5000000-0000-4000-8000-000000000001.webp"]),
