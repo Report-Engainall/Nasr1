@@ -126,3 +126,10 @@
 - تم إصلاح المطابقة لتستخدم regex مرنًا في commit [cf2b5893e20b5a9d500249ba215feab5c67b6c21](https://github.com/Report-Engainall/Nasr1/commit/cf2b5893e20b5a9d500249ba215feab5c67b6c21). نتيجة CI لهذا الإصلاح **PENDING** عند كتابة السجل؛ لا يجوز تسجيل نجاح الاختبار قبل قراءة run المطابق.
 - لا اعتماديات جديدة. يبقى اختبار نافذة الطباعة الفعلية في متصفح حقيقي غير مثبت.
 - next_task_id: `NASR1-FINANCE-AGING-UI-TEST-VERIFY-CI` — اقرأ CI على commit `cf2b5893e20b5a9d500249ba215feab5c67b6c21`؛ أصلح أي فشل فعلي ثم حدّث الحالة والـrequirement registry.
+
+### نتيجة إصلاح اختبار أعمار الذمم — SUCCESS
+
+- الإصلاح: `cf2b5893e20b5a9d500249ba215feab5c67b6c21`، واختبار exact-SHA: [Actions 39145164044](https://github.com/Report-Engainall/Nasr1/actions/runs/39145164044) = **SUCCESS**.
+- نجحت جميع المراحل: frozen Bun lock/install، unit tests، PostgreSQL 17 acceptance، lint، build، preview smoke وdev smoke. اختبار الواجهة وتصحيح المطابقة locale-safe اجتازا ضمن هذا التشغيل.
+- تبقى حدود الإثبات: نجاح اختبار UI لا يساوي اختبار متصفح تفاعلي لميزة الطباعة ولا إثبات النشر الإنتاجي.
+- next_task_id: `NASR1-FINANCE-AGING-PRINT-002-TESTS` — يظل اختبار واجهة التقرير والطباعة موجودًا ومغطى؛ الخطوة التالية فحص مسار PDF المالي/التصدير الحالي وتحديد فجوة واحدة قابلة للإغلاق دون إنشاء نظام موازٍ أو إضافة اعتماديات.
