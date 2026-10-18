@@ -1914,6 +1914,20 @@ async function main() {
   assert.equal(Number(imageBucketRows[0].file_size_limit), 8 * 1024 * 1024);
   assert.deepEqual(imageBucketRows[0].allowed_mime_types, ["image/webp"]);
 
+  const imageTestPath = organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp";
+  const imageScopeDiagnostic = await db.unsafe(
+    `select public.is_staff() as is_staff,
+            public.current_profile_id()::text as current_profile_id,
+            (select p.organization_id::text from public.profiles p where p.id=public.current_profile_id()) as visible_organization_id,
+            split_part($1::text,'/',1) as path_organization_id,
+            split_part($1::text,'/',2) as path_product_id,
+            cardinality(string_to_array($1::text,'/')) as path_parts,
+            exists(select 1 from public.products p where p.id::text=split_part($1::text,'/',2)
+              and p.organization_id=(select p2.organization_id from public.profiles p2 where p2.id=public.current_profile_id())) as product_matches_tenant,
+            (select count(*)::int from pg_policies where schemaname='storage' and tablename='objects' and policyname='product_images_tenant_insert') as insert_policy_count`,
+    [imageTestPath],
+  );
+  process.stderr.write("PRODUCT_IMAGE_SCOPE_DIAGNOSTIC " + JSON.stringify(imageScopeDiagnostic[0]) + "\\n");
   const ownedImageRows = await db.unsafe("insert into storage.objects(bucket_id,name,metadata) values($1,$2,$3) returning id",
     ["product-images", organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp", db.json({ mimetype: "image/webp" })]);
   assert.equal(ownedImageRows.length, 1, "staff can upload for a real same-tenant product");
