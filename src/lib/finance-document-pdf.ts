@@ -124,6 +124,22 @@ export function resolveCustomerStatementInvoiceStatus(
   return "مستحقة";
 }
 
+/** Preserve source-status rendering for the standalone invoice document. */
+function statusLabel(status: string): string {
+  switch (status) {
+    case "paid":
+      return "مدفوعة";
+    case "partially_paid":
+      return "مدفوعة جزئيًا";
+    case "void":
+      return "ملغاة";
+    case "overdue":
+      return "متأخرة";
+    default:
+      return "مستحقة";
+  }
+}
+
 function drawArabic(
   page: PDFPage,
   font: PDFFont,
