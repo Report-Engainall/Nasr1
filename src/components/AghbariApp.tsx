@@ -26,6 +26,7 @@ import {
 } from '@/components/AdminPages';
 import { OperationsCenter } from '@/components/OperationsCenter';
 import { buildBusinessSignals, buildBusinessStatusBreakdown } from '@/lib/business-intelligence';
+import { PricingGrid } from '@/components/PricingGrid';
 import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
 import { TaskCenter } from '@/components/TaskCenter';
@@ -590,6 +591,7 @@ function Pricing({ onNotice }: { onNotice: (m: string) => void }) {
       </div>
     </section>
     <PricingPreviewPanel />
+    {canApprovePricing && <PricingGrid onNotice={onNotice} />}
     {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !data?.length ? <Empty text="لا توجد قواعد تسعير. أضف أول قاعدة لتحديد أسعار الشرائح." /> : <div className="rule-grid">
       {data.map((rule) => {
         const unsupported = !PRICING_SCOPES.has(rule.scope_type);
