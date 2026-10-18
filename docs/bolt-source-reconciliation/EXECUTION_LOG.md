@@ -230,3 +230,11 @@
 - المرآة `docs/bolt-source-reconciliation/READY_TO_REUSE/Nasr1--verified-current-implementation/` تُحدّث في نفس دفعة التوثيق مع manifest منفصل عن provenance المشاريع المانحة.
 - الحالة: `IMPLEMENTED` + `TESTED` على SHA `f830678ea99f4bb2318305a5f2e70ee761dbea1e`. لا يثبت هذا اختبار متصفح أو نشرًا إنتاجيًا.
 - next_task_id: `NASR1-CURRENT-IMPLEMENTATION-SNAPSHOT-VERIFY-CI` ثم `NASR1-FINANCE-STATEMENT-AGING-SUMMARY-RECONCILE`.
+
+
+### إغلاق تحديث مرآة الكود الحالية — SUCCESS
+
+- Commit المرآة والوثائق: [`1039b9424be66ea4feabb003096c3bfd3fff5319`](https://github.com/Report-Engainall/Nasr1/commit/1039b9424be66ea4feabb003096c3bfd3fff5319).
+- [Actions 39147434273 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39147434273): Bun lock/install، unit tests، PostgreSQL 17 acceptance، lint، build، preview smoke وdev smoke كلها ناجحة.
+- Readback للمجلد: manifest يحمل 9 صفوف، كل صف `git_blob_identical=YES`; `src/lib/finance-document-pdf.ts` و`.test.ts` داخل المرآة لهما بصمتا المصدر الأحدث `66ed7294...` و`07d3fc96...`. `PROVENANCE_MANIFEST.csv` الخاص بالمانحين لم يُعدّل.
+- تم إغلاق `NASR1-CURRENT-IMPLEMENTATION-SNAPSHOT-VERIFY-CI`; next task هو `NASR1-FINANCE-STATEMENT-AGING-SUMMARY-RECONCILE`.

@@ -28,8 +28,8 @@
 - قاعدة الإنجاز الحقيقي في كل انطلاقة محفوظة في [AGENTS.md](../../AGENTS.md).
 
 ## نقطة الاستئناف الوحيدة
-- `next_task_id = NASR1-CURRENT-IMPLEMENTATION-SNAPSHOT-VERIFY-CI`
-- تحقّق مرة واحدة من CI للcommit الذي يحدث مرآة `READY_TO_REUSE` والوثائق. بعد نجاحه انتقل إلى `NASR1-FINANCE-STATEMENT-AGING-SUMMARY-RECONCILE`: اختبر تطابق ملخص PDF حسب العملة مع عقد RPC الحالي إن كان يدعم المقارنة المباشرة، دون إعادة تنفيذ أو إعادة فحص RPC أعمار الذمم الذي اجتاز الاختبار.
+- `next_task_id = NASR1-FINANCE-STATEMENT-AGING-SUMMARY-RECONCILE`
+- تم إغلاق بوابة تحديث المرآة: [Actions 39147434273 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39147434273)، والملفات التسعة والـmanifest قُرئت مجددًا وتطابقت. واصل الآن `NASR1-FINANCE-STATEMENT-AGING-SUMMARY-RECONCILE`: افحص عقد RPC الحالي مرة واحدة، وأضف اختبارًا محددًا للمطابقة إذا كانت البيانات المعادة متوافقة مباشرة. لا تعِد تنفيذ أو فحص RPC أعمار الذمم السابق.
 - لا تعِد فحص مركز المهام أو فلاتره أو تقرير أعمار الذمم السابق أو الطباعة أو مبالغ PDF السالبة أو حالة التأخر أو تاريخ الاستحقاق، إلا إذا تغيّر مصدرها أو ظهر فشل جديد.
 
 ## حدود الإثبات
