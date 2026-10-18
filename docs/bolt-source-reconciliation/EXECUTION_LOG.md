@@ -143,3 +143,11 @@
 - حالة CI أثناء التحديث: run [39145321118](https://github.com/Report-Engainall/Nasr1/actions/runs/39145321118) للتنفيذ الأساسي، وrun [39145334417](https://github.com/Report-Engainall/Nasr1/actions/runs/39145334417) لنسخة الاختبار؛ كلاهما كان قيد التشغيل عند كتابة هذا السجل. **لا تُسجّل PASS حتى التحقق من النتيجة النهائية للمطابقة الصحيحة.**
 - اختبار واجهة أعمار الذمم والطباعة اجتاز: [Actions 39145164044](https://github.com/Report-Engainall/Nasr1/actions/runs/39145164044) على `cf2b5893e20b5a9d500249ba215feab5c67b6c21` = SUCCESS لجميع الخطوات.
 - next_task_id: `NASR1-FINANCE-PDF-VALIDATION-VERIFY-CI` — اقرأ نتائج التشغيلين أعلاه، أصلح أي فشل، ثم حدّث سجل المتطلبات ونقطة الاستئناف.
+
+### إغلاق بوابة تشديد تحقق PDF المالي — SUCCESS
+
+- النسخة التي تضم المنطق والاختبارات: [commit `4e8e8a70f8d987585e436f1c8e6877dbb9276e58`](https://github.com/Report-Engainall/Nasr1/commit/4e8e8a70f8d987585e436f1c8e6877dbb9276e58).
+- [Actions 39145334417 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39145334417): نجحت unit tests وPostgreSQL 17 acceptance وlint وbuild وpreview smoke وdev smoke.
+- النتيجة: الحالات المستحيلة (إجمالي فاتورة سالب، دفعة صفرية أو سالبة) مرفوضة قبل إنشاء كشف الحساب PDF، مع اختبارات رجعية مضافة.
+- الحالة: `IMPLEMENTED` + `TESTED` على SHA أعلاه. لا يُدّعى اختبار متصفح أو إنتاج مباشر.
+- next_task_id: `NASR1-FINANCE-STATEMENT-OVERDUE-LABEL-001` — مراجعة عرض حالة الفاتورة في PDF مقابل due_at/الرصيد الفعلي، وإضافة اختبار حتمي إن كانت الفجوة مؤكدة.
