@@ -2,19 +2,21 @@
 
 **المستودع الهدف الوحيد:** https://github.com/Report-Engainall/Nasr1  
 **الفرع:** `main`  
-**آخر إثبات كامل:** [CI 39142794601](https://github.com/Report-Engainall/Nasr1/actions/runs/39142794601) على `283d2def75e2608e0aac1d2d16aabf81e7842347` = SUCCESS؛ 15 ملفات اختبار و165 اختبارًا اجتازت، ونجاح PostgreSQL 17 acceptance وESLint/build/preview/dev smoke.
+**آخر كود مختبر:** `ae13810429cd4923108da4d840d187ff5590b489`  
+**بوابة القبول:** [GitHub Actions 39143265290](https://github.com/Report-Engainall/Nasr1/actions/runs/39143265290) = **SUCCESS**؛ اجتازت الخطوات كلها: frozen Bun lock/install، unit tests، PostgreSQL 17 migrations/workflow acceptance، ESLint، build، production preview smoke، وdev-server smoke.
 
-## منجز ومختبر
-- `NASR1-OPS-TASK-CENTER-001`: مركز واحد فوق `ai_tasks` مع مهام من سجلات محفوظة، idempotency، صلاحيات tenant/role، RPCs مدققة، route `/admin/tasks`، فلاتر RTL وطباعة A4.
-- سجل CI: `PASS operational task center: source-event idempotency, stock threshold lifecycle, audited RPC writes, accountant-only lane and customer isolation`.
+## المنجز المثبت في هذا المسار
+- `NASR1-OPS-TASK-CENTER-001`: تمديد `ai_tasks` الموجود دون إنشاء محرك ثانٍ؛ توليد مهام من الطلبات، انخفاض المخزون، الفواتير غير المسددة، عروض الأسعار، والاستيراد الفاشل. منع التكرار بمفتاح مصدر فريد؛ المصالحة لا تكرر الأحداث. RLS لدور/مؤسسة الحساب، RPCs للتغيير مع audit، route `/admin/tasks`، فلاتر RTL وطباعة A4.
+- `NASR1-TASK-ASSIGNMENT-001`: دليل موظفين جديد على الخادم لا يعرض إلا الحسابات النشطة ذات الأدوار داخل مؤسسة المسؤول/المدير. الواجهة تختار موظفًا بالاسم وتعرض المرشحين المتوافقين مع دور المهمة؛ إنشاء المهمة يعيد التحقق من المؤسسة والدور داخل الخادم. RPC دليل الإسناد منفصل عن قائمة إدارة الأدوار الأشد تقييدًا.
+- اختبارات PostgreSQL أضافت تأكيدات لعدم تسرب موظفين بين المؤسسات، منع المحاسب من تعداد دليل الإسناد، نجاح إسناد صالح، ورفض إسناد مهمة مبيعات إلى مستخدم محاسبة فقط. نجاح بوابة DB على `39143265290` يثبت اجتياز هذه التأكيدات.
+- النتيجة من run `39142794601` قبل إضافة إسناد الأسماء: 15 ملف اختبار و165 اختبارًا نجحوا، مع DB/lint/build/preview/dev كلها PASS. ثم run `39143265290` اجتاز البوابة الكاملة بعد إضافة الإسناد.
 
-## الإضافة الحالية — تنتظر CI
-- `NASR1-TASK-ASSIGNMENT-001`: إضافة دليل موظفين `list_operational_task_assignees()` مقيد بالمؤسسة ولا يسمح به إلا admin/manager؛ اختيار موظف محدد في إنشاء المهمة وتصفية المرشحين حسب الدور؛ اختبار يمنع رؤية موظف من مؤسسة أخرى، ويمنع المحاسب من تعداد الدليل، ويتحقق من رفض إسناد دور مبيعات إلى مستخدم مالي فقط.
-- قاعدة البيانات تظل مرجع صلاحية الإسناد، حتى لو تغيرت الواجهة أو استدعيت RPC مباشرة. إذا فشل تحميل الدليل، يمكن حفظ المهمة غير مسندة بدل الإسناد التخمينـي.
+## نقطة الاستئناف الوحيدة
+- `next_task_id = NASR1-FINANCE-COLLECTION-AGING-001`
+- فحص دورة التحصيل المحاسبي من الفاتورة والمدفوعات المسجلة، ثم توفير تقرير أعمار الذمم حسب الاستحقاق مع حواجز دور المحاسب وعدم حساب مبالغ غير مشتقة من المصدر.
 
-## ما لا يزال غير مثبت
-- نتيجة CI للميزة الجديدة حتى تمر الاختبارات والهجرات وlint/build/preview/dev smoke على نفس SHA.
-- تحقق متصفح تفاعلي مباشر أو نشر Production جديد.
-- فك الأرشيفات الثنائية ومراجعة كل READY_TO_REUSE.
+## الحدود
+- لا يوجد تحقق متصفح تفاعلي مباشر ولا نشر Production جديد؛ CI تحقق من production preview smoke ومن dev server smoke فقط.
+- لا يوجد ادعاء بفك الأرشيفات الثنائية أو المراجعة الكاملة لكل محتويات `READY_TO_REUSE`.
 
-**next_task_id:** `NASR1-TASK-ASSIGNMENT-001` حتى إثبات CI.
+حالات الإثبات لا تختلط: `IMPLEMENTED` تغيير كود؛ `TESTED` نتيجة اختبار SHA محدد؛ `BROWSER-PROVEN` تحقق متصفح؛ `PRODUCTION-PROVEN` تحقق إنتاج مباشر.
