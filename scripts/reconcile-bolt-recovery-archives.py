@@ -370,7 +370,7 @@ def main():
     def review_safe(value):
         if secret_pattern.search(value): return None
         return redact_pattern.sub(r"\1[REDACTED]", value)
-    source_paths = sorted(set().union(*(set(m) for m in normalized_review.values()))) if normalized_review else []
+    source_paths = sorted(set().union(*(set(m) for m in normalized_review.values())), key=lambda p: (0 if p.startswith("src/") or p.startswith("supabase/migrations/") else 1, p)) if normalized_review else []
     review_lines = [
         "# Bolt archive source review (redacted, review only)", "",
         "Target: Report-Engainall/Nasr1/main at " + os.environ.get("GITHUB_SHA", "unknown"),
@@ -378,7 +378,7 @@ def main():
         "The archived source below is inspection evidence only; it has not been copied into runtime code.",
         "Credential-bearing files are omitted. Archived SQL is not executed or treated as a production migration.", ""
     ]
-    max_review_lines = 14000
+    max_review_lines = 25000
     for path in source_paths:
         if sensitive(path) or path.endswith((".lock", ".tsbuildinfo")) or path == "package-lock.json":
             continue
