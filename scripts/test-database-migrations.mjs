@@ -275,6 +275,30 @@ async function main() {
     [otherProductId, otherOrganizationId],
   );
 
+  // Audit history is same-tenant admin/manager read-only for browser sessions.
+  const auditOwnId = "e7777777-7777-4777-8777-777777777771";
+  const auditForeignId = "e7777777-7777-4777-8777-777777777772";
+  await db.unsafe(
+    "insert into public.audit_logs(id,organization_id,actor_id,action,entity_type,entity_id) values($1,$2,$3,'ci.audit.scope.test','product',$4),($5,$6,$7,'ci.audit.foreign.test','product',$8)",
+    [auditOwnId, organizationId, staffProfileId, productId, auditForeignId, otherOrganizationId, foreignProfileId, otherProductId],
+  );
+  await db.unsafe("reset role");
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  assert.equal((await db.unsafe("select id from public.audit_logs where id=$1", [auditOwnId])).length, 0, "ordinary staff must not read audit events");
+  assert.equal((await db.unsafe("select id from public.audit_logs where organization_id=$1", [otherOrganizationId])).length, 0, "ordinary staff must not read foreign-tenant audit events");
+  await expectFailure("authenticated staff cannot insert audit events directly", () => db.unsafe("insert into public.audit_logs(organization_id,action) values($1,'forged')", [organizationId]), /permission denied/i);
+  await expectFailure("authenticated staff cannot update audit events directly", () => db.unsafe("update public.audit_logs set action='forged' where id=$1", [auditOwnId]), /permission denied/i);
+  await expectFailure("authenticated staff cannot delete audit events directly", () => db.unsafe("delete from public.audit_logs where id=$1", [auditOwnId]), /permission denied/i);
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "ci-audit-admin@example.test");
+  await db.unsafe("set role authenticated");
+  assert.equal((await db.unsafe("select id from public.audit_logs where id=$1", [auditOwnId])).length, 1, "same-tenant admin can read audit events");
+  assert.equal((await db.unsafe("select id from public.audit_logs where id=$1", [auditForeignId])).length, 0, "admin cannot read foreign-tenant audit events");
+  await expectFailure("admin browser sessions cannot modify audit events", () => db.unsafe("update public.audit_logs set action='forged' where id=$1", [auditOwnId]), /permission denied/i);
+  await db.unsafe("reset role");
+  process.stdout.write("PASS audit log boundary: same-tenant admin read, staff/foreign-tenant denial and append-only writes\\n");
+
   // The original schema seeded one wholesale price break at 10; migration 600 adds a second break.
   await db.unsafe(
     `insert into public.product_prices(product_id,tier,price,min_quantity,is_active)

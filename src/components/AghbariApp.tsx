@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Activity, AlertTriangle, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft, ClipboardList,
   CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package,
-  Pencil, Plus, RefreshCw, Search, Settings, ShoppingCart, SlidersHorizontal,
+  Pencil, Plus, Printer, RefreshCw, ScrollText, Search, Settings, ShoppingCart, SlidersHorizontal,
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
 } from 'lucide-react';
 import {
@@ -25,6 +25,7 @@ import {
   TableWrap, Modal, Notifications, OrderDetail, SettingsPage, Suppliers,
 } from '@/components/AdminPages';
 import { OperationsCenter } from '@/components/OperationsCenter';
+import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { TaskCenter } from '@/components/TaskCenter';
 import { StaffQuotesPage, StaffFinancePage } from '@/components/CustomerWorkflows';
 import {
@@ -32,7 +33,7 @@ import {
 } from '@/components/ui/command';
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
-type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks';
+type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit';
 type IconType = typeof LayoutDashboard;
 
 const nav: { id: View; label: string; icon: IconType }[] = [
@@ -53,6 +54,7 @@ const nav: { id: View; label: string; icon: IconType }[] = [
   { id: 'quotes', label: 'عروض الأسعار', icon: FileText },
   { id: 'finance', label: 'الفواتير والتحصيل', icon: CircleDollarSign },
   { id: 'tasks', label: 'المهام التشغيلية والطباعة', icon: ClipboardList },
+  { id: 'audit', label: 'سجل التدقيق', icon: ScrollText },
 ];
 
 const adminPaths: Record<View, string> = {
@@ -60,7 +62,7 @@ const adminPaths: Record<View, string> = {
   pricing: '/admin/pricing', offers: '/admin/offers', reports: '/admin/reports', data: '/admin/data',
   operations: '/admin/operations', notifications: '/admin/notifications', ai: '/admin/ai',
   suppliers: '/admin/suppliers', devices: '/admin/devices', settings: '/admin/settings',
-  quotes: '/admin/quotes', finance: '/admin/finance', tasks: '/admin/tasks',
+  quotes: '/admin/quotes', finance: '/admin/finance', tasks: '/admin/tasks', audit: '/admin/audit',
 };
 
 function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
@@ -68,7 +70,11 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const canOperateAdmin = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff'));
   const canManageFinance = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'accountant'));
   const isFinanceOnly = canManageFinance && !canOperateAdmin;
-  const visibleNav = nav.filter(({ id }) => isFinanceOnly ? id === 'finance' || id === 'tasks' : id !== 'finance' || canManageFinance);
+  const canManageAudit = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const visibleNav = nav.filter(({ id }) =>
+    (isFinanceOnly ? id === 'finance' || id === 'tasks' : id !== 'finance' || canManageFinance) &&
+    (id !== 'audit' || canManageAudit)
+  );
   const navigate = useNavigate();
   const [view, setView] = useState<View>(initialView);
   const [mobileNav, setMobileNav] = useState(false);
@@ -161,6 +167,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
           {view === 'quotes' && <StaffQuotesPage />}
           {view === 'finance' && <StaffFinancePage />}
           {view === 'tasks' && <TaskCenter onNotice={showNotice} />}
+          {view === 'audit' && <AdminAuditLog />
             </>
           )}
         </div>
