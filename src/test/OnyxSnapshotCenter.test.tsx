@@ -82,7 +82,7 @@ describe("Onyx snapshot center", () => {
     expect(await screen.findByText("أونكس برو — اللقطات والتحليلات")).toBeInTheDocument();
     expect(await screen.findByText("onyx-october.csv")).toBeInTheDocument();
     expect((await screen.findByText("درجة الجودة المحسوبة")).parentElement?.textContent).toContain("/100");
-    expect(screen.getByText("SKU-001")).toBeInTheDocument();
+    expect((await screen.findAllByText("SKU-001")).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("تنفيذ المطابقة مع المخزون الحالي")).toBeInTheDocument();
     expect(mocks.fetchOnyxSnapshotAnalytics).toHaveBeenCalledWith("snapshot-1");
     expect(mocks.fetchOnyxSnapshotRows).toHaveBeenCalledWith("snapshot-1");
