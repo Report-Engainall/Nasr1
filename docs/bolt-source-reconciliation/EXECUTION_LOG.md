@@ -368,6 +368,6 @@
 - الأساس الحي: `4ef323db2aa7b3ea9e11e1bb362fc37e7994221a`؛ schema/RPC/API للجرد الفعلي موجودة واختباراتها اجتازت [Actions 39161411949 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39161411949).
 - أضيفت `src/components/InventoryStockCountPage.tsx` و`src/routes/admin_.stock-count.tsx` وربط التنقل في `src/components/AghbariApp.tsx`، وتحديث routeTree المولّد وقائمتي preview/dev smoke في workflow.
 - الواجهة تعرض فقط بيانات المستودع الفعلية؛ بدء الجلسة idempotent، كل كمية تُحفظ عبر RPC، الاعتماد/الإلغاء إداريان، سبب الإلغاء مطلوب، والطباعة محصورة في منطقة ورقة الجرد. لا dependency أو خدمة مدفوعة أو سجل وهمي.
-- backend tests المثبتة: snapshot، منع الجلسات المكررة، movement+audit، stale-snapshot denial، ورفض الأدوار غير الإدارية؛ CI الواجهة exact-SHA: NOT RUN حتى عودة workflow.
-- الحالة الحالية: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=NOT RUN (UI exact-SHA pending); BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN.
-- next_task_id = `NASR1-INVENTORY-STOCK-COUNT-UI-ACCEPTANCE-001`.
+- backend tests المثبتة: snapshot، منع الجلسات المكررة، movement+audit، stale-snapshot denial، ورفض الأدوار غير الإدارية. Exact-SHA UI/code CI [39165071610 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39165071610) على `94c0f92eea5fe8d2add289106c3f76d884460d4d`: frozen Bun lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke `/admin/stock-count` وdev smoke PASS.
+- الحالة الحالية: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migration=NOT RUN.
+- next_task_id = `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001`.

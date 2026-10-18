@@ -1,8 +1,8 @@
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
 **الهدف الوحيد:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / main.
-**آخر SHA كود اجتاز CI كاملًا:** `591dce4e59383e7a568c9a19c7f7e823fe5aa7f3` — [commit](https://github.com/Report-Engainall/Nasr1/commit/591dce4e59383e7a568c9a19c7f7e823fe5aa7f3).
-**CI المطابق للكود:** [Actions 39160377663 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39160377663), SHA `591dce4e59383e7a568c9a19c7f7e823fe5aa7f3`; frozen Bun lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke وdev smoke PASS. تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
+**آخر SHA كود اجتاز CI كاملًا:** `94c0f92eea5fe8d2add289106c3f76d884460d4d` — [commit](https://github.com/Report-Engainall/Nasr1/commit/94c0f92eea5fe8d2add289106c3f76d884460d4d).
+**CI المطابق للكود:** [Actions 39165071610 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39165071610), SHA `94c0f92eea5fe8d2add289106c3f76d884460d4d`; frozen Bun lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke وdev smoke PASS. backend الجرد اجتاز [Actions 39161411949 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39161411949). تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
 **نقطة الإقلاع:** [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md). أعد قراءة HEAD وCI بعد كل commit.
 **فجوة المصادر:** تم تنزيل وفحص وفك أرشيفي Bolt، وسجل 717 عضوًا فعليًا. مسار/blob audit لجميع 69 صف READY_TO_REUSE مسجل؛ المراجعة الدلالية لعقود/imports/routes/RLS لكل صف لم تكتمل.
 **النزاهة المالية:** لا توجد فواتير تاريخية سابقة مطلوب اختلاقها؛ لا تنشئ أرقامًا تجريبية.
@@ -49,7 +49,7 @@
 
 ## نقطة الاستئناف الوحيدة
 
-- next_task_id = NASR1-INVENTORY-STOCK-COUNT-UI-ACCEPTANCE-001
+- next_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001
 - Review each of 69 READY_TO_REUSE candidates against live app contracts and implement useful missing behavior only. Prioritize security/data correctness, commerce/inventory/import/Onyx, then finance/admin/analytics.
 - Do not blind-copy old React Router screens or apply legacy SQL with DROP FUNCTION ... CASCADE. Do not invent historical invoices or demo data. No paid services.
 
@@ -117,5 +117,5 @@
 - تستخدم الواجهة المستودعات النشطة والجلسة المفتوحة والـRPCs الحالية: بدء الجلسة بمفتاح idempotency، عرض لقطة الأصناف الموجودة، حفظ العد لكل صنف، الطباعة، واعتماد/إلغاء بصلاحية المدير. لا توجد بيانات demo.
 - الخادم هو المرجع النهائي: لا تُطبّق الفروقات إلا مع تطابق لقطة الرصيد والحجوزات؛ الرفض لا يمحو حركات أحدث. التسوية تكتب حركات مخزون وسجل تدقيق.
 - backend exact-SHA `4ef323db2aa7b3ea9e11e1bb362fc37e7994221a`: [Actions 39161411949 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39161411949) (frozen lock، unit، PostgreSQL 17 migrations/RLS/الجرد، lint، build، preview/dev smoke).
-- واجهة الجرد ومسارها أُضيفا في هذا commit؛ exact-SHA CI للواجهة: NOT RUN حتى قراءة Actions المطابقة.
-- IMPLEMENTED=YES; INTEGRATED=YES; TESTED=NOT RUN (UI commit pending CI); BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN.
+- واجهة الجرد ومسارها أُضيفا واختُبرا على exact SHA `94c0f92eea5fe8d2add289106c3f76d884460d4d`; [Actions 39165071610 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39165071610) اجتاز frozen lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، production-preview smoke وdev smoke، بما في ذلك `/admin/stock-count`.
+- IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migration=NOT RUN.
