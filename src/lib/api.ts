@@ -901,6 +901,41 @@ export async function saveStorefrontAnnouncement(input: StorefrontAnnouncementIn
 }
 
 
+// ─── Server-resolved, role-authorized price grid read model ───
+export interface ProductPriceGridRow {
+  id: string; name: string; item_code: string; unit: string; is_active: boolean;
+  base_price: number; price_wholesale_of_wholesale: number; price_wholesale: number; price_retail: number;
+}
+export async function fetchAdminProductPriceGrid(): Promise<ProductPriceGridRow[]> {
+  const { data, error } = await supabase.rpc('get_admin_product_price_grid');
+  if (error) throw new Error('تعذر تحميل شبكة الأسعار: ' + error.message);
+  if (!Array.isArray(data)) throw new Error('أعاد الخادم شبكة أسعار غير صالحة.');
+  return data.map((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('أعاد الخادم صف سعر غير صالح.');
+    const row = value as Record<string, unknown>;
+    const money = (key: string): number => {
+      const value = row[key];
+      if (!(typeof value === 'number' || (typeof value === 'string' && value.trim() !== ''))) {
+        throw new Error('السعر ' + key + ' غير متاح في بيانات الخادم؛ لم يُستبدل بصفر.');
+      }
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 0 || Math.round(n * 100) !== n * 100) throw new Error('أعاد الخادم قيمة سعر غير صالحة: ' + key);
+      return n;
+    };
+    if (typeof row.id !== 'string' || typeof row.name !== 'string' ||
+      typeof row.item_code !== 'string' || typeof row.unit !== 'string' || typeof row.is_active !== 'boolean') {
+      throw new Error('أعاد الخادم هوية منتج غير صالحة لشبكة الأسعار.');
+    }
+    return {
+      id: row.id, name: row.name, item_code: row.item_code, unit: row.unit, is_active: row.is_active,
+      base_price: money('base_price'),
+      price_wholesale_of_wholesale: money('price_wholesale_of_wholesale'),
+      price_wholesale: money('price_wholesale'),
+      price_retail: money('price_retail'),
+    };
+  });
+}
+
 // ─── Atomic, stale-safe price grid command ───
 export interface ProductPriceGridChange {
   id: string;

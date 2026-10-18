@@ -1,8 +1,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { ChevronRight, Eye, RotateCcw, Save, X } from 'lucide-react';
-import { fetchProducts, saveProductPriceGrid, type ProductPriceGridChange } from '@/lib/api';
+import { fetchAdminProductPriceGrid, saveProductPriceGrid, type ProductPriceGridChange, type ProductPriceGridRow } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
-import type { Product } from '@/lib/types';
 
 type PriceKey = 'base_price' | 'price_wholesale_of_wholesale' | 'price_wholesale' | 'price_retail';
 type DraftKey = 'basePrice' | 'wholesaleOfWholesale' | 'wholesale' | 'retail';
@@ -20,20 +19,20 @@ function formatPrice(value: number): string {
 }
 
 export function PricingGrid({ onNotice }: { onNotice: (message: string) => void }) {
-  const { data: products, loading, error, refetch } = useFetch(fetchProducts);
+  const { data: products, loading, error, refetch } = useFetch(fetchAdminProductPriceGrid);
   const [drafts, setDrafts] = useState<Record<string, PriceDraft>>({});
   const [preview, setPreview] = useState<ReviewRow[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
   const cells = useRef<Map<string, HTMLInputElement>>(new Map());
-  const rows = (products ?? []) as Product[];
+  const rows: ProductPriceGridRow[] = products ?? [];
 
   const changedCount = useMemo(() => rows.filter((row) => PRICE_FIELDS.some((field) => {
     const raw = drafts[row.id]?.[field.draft];
     return raw !== undefined && (raw.trim() === '' || !Number.isFinite(Number(raw)) || Number(raw) !== Number(row[field.source]));
   })).length, [rows, drafts]);
 
-  function rawValue(row: Product, field: { source: PriceKey; draft: DraftKey }): string {
+  function rawValue(row: ProductPriceGridRow, field: { source: PriceKey; draft: DraftKey }): string {
     return drafts[row.id]?.[field.draft] ?? String(Number(row[field.source] ?? 0));
   }
   function updateCell(productId: string, field: DraftKey, value: string) {
@@ -141,10 +140,10 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
     </div>}
     {loading ? <p className="price-grid-muted">جارٍ تحميل أسعار المنتجات بصلاحية الموظف المخوّل...</p> : error ? <p className="price-grid-error" role="alert">{error}</p> : !rows.length ? <p className="price-grid-muted">لا توجد أصناف لعرضها.</p> : <>
       <div className="price-grid-table-scroll"><table className="price-grid-table">
-        <thead><tr><th>الصنف</th><th>الوحدة</th><th>المخزون</th>{PRICE_FIELDS.map((field) => <th key={field.source}>{field.label}</th>)}<th>الحالة</th></tr></thead>
+        <thead><tr><th>الصنف</th><th>الوحدة</th>{PRICE_FIELDS.map((field) => <th key={field.source}>{field.label}</th>)}<th>الحالة</th></tr></thead>
         <tbody>{rows.map((row, productIndex) => <tr key={row.id}>
           <th scope="row">{row.name}<small>{row.item_code}</small></th>
-          <td>{row.unit}</td><td className="price-grid-stock">{Number(row.stock_quantity ?? 0).toLocaleString('ar-YE')}</td>
+          <td>{row.unit}</td>
           {PRICE_FIELDS.map((field, fieldIndex) => <td key={field.source}>
             <input type="number" min="0" step="0.01" inputMode="decimal" value={rawValue(row, field)}
               aria-label={row.name + ' — ' + field.label}
