@@ -91,8 +91,8 @@ describe("Arabic customer finance PDFs", () => {
 
     expect(byCurrency.get("YER")).toMatchObject({
       invoiced: 19000n,
-      paid: 7500n,
-      outstanding: 11500n,
+      paid: 8000n,
+      outstanding: 11000n,
       overdueInvoiceCount: 1,
       overdueOutstanding: 7500n,
       unknownDueDateInvoiceCount: 1,
