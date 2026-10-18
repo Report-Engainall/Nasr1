@@ -73,12 +73,11 @@ HEAD المصدر المسجل: `99eb3fa452eb3344c4c1fd625209e20d2f7169ed`.
 الأرشيفات الأصلية والفروع والمستودعات الكاملة لم تتحول كلها إلى ملفات تحت هذا المجلد. لتجميع كل ما يمكن الوصول إليه، شغّل `tools/collect-source-inputs.mjs` وفق `SOURCE_COLLECTOR_GUIDE.md`، ثم افحص `COLLECTION_MANIFEST.json`. أي أرشيف مفقود أو مستودع خاص غير متاح يجب أن يبقى معلّمًا BLOCKED؛ لا تخترع ملفات مفقودة ولا تزعم فحصها.
 
 
-## 5. مرآة الكود الحالي من تطبيق Nasr1 — تحديث بعد ملخص دفتر العميل الكامل
+## 5. مرآة الكود الحالي من تطبيق Nasr1 — تحديث اختبار الحدّ 200/500 واستبعاد الملغاة
 
-المجلد `Nasr1--verified-current-implementation/` يحتوي 10 ملفات حديثة من التطبيق، بما فيها migration جديدة تحدّث RPC حساب العميل لإرجاع ملخص كامل من دفتر الفواتير والمدفوعات، مع استمرار حد التفاصيل 200 فاتورة/500 دفعة.
+المجلد `Nasr1--verified-current-implementation/` يحتوي أحدث نسخة من 10 ملفات، بما فيها اختبار حدّ التفاصيل الذي ينشئ 205 فواتير و505 دفعات ويثبت أن الفاتورة الملغاة ومدفوعاتها لا تغيّر الملخص الكامل.
 
-- كود المصدر: [`98a80df80b366e811923b80d53fe06a519e754d0`](https://github.com/Report-Engainall/Nasr1/commit/98a80df80b366e811923b80d53fe06a519e754d0).
-- CI الدقيق: [39148856503 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39148856503): unit tests وPostgreSQL 17 acceptance وlint وbuild وpreview/dev smoke.
-- اقرأ `Nasr1--verified-current-implementation/README.md` و`CURRENT_NASR1_IMPLEMENTED_FILES.csv` لمعرفة المسارات والبصمات.
-- كل مرآة مطابقة لمسار الهدف ببصمة Git blob؛ المرآة لا تُستورد ثانية إلى runtime.
+- المصدر المختبر [`618e3d3c019ecd7d05ca0462ca954f908178b814`](https://github.com/Report-Engainall/Nasr1/commit/618e3d3c019ecd7d05ca0462ca954f908178b814)؛ CI [39150380395 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395).
+- اقرأ README والـmanifest داخل المجلد؛ تطابقت بصمات الملفات العشرة مع ملفات التطبيق.
+- النسخ تحت `docs/` للتسليم والاستئناف، وليست وحدات runtime إضافية.
 - `PROVENANCE_MANIFEST.csv` للمانحين لم يتغير.

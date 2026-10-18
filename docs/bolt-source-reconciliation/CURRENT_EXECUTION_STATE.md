@@ -1,45 +1,39 @@
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
 **المستودع والفرع الهدف الوحيدان:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / `main`  
-**آخر كود اجتاز جميع بوابات CI:** [`98a80df80b366e811923b80d53fe06a519e754d0`](https://github.com/Report-Engainall/Nasr1/commit/98a80df80b366e811923b80d53fe06a519e754d0)  
-**CI المطابق:** [Actions 39148856503 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39148856503) — unit tests، PostgreSQL 17 acceptance، lint، build، preview smoke، dev smoke.
+**آخر كود اجتاز جميع بوابات CI:** [`618e3d3c019ecd7d05ca0462ca954f908178b814`](https://github.com/Report-Engainall/Nasr1/commit/618e3d3c019ecd7d05ca0462ca954f908178b814)  
+**CI المطابق:** [Actions 39150380395 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395) — unit tests، PostgreSQL 17 acceptance، lint، build، preview smoke، dev smoke.
 
 ## آخر إنجاز برمجي حقيقي
+- أضيف اختبار حدّ قاعدة بيانات حقيقي لكشف العميل: ينشئ 205 فواتير و505 دفعات، ثم يثبت بقاء قوائم التفاصيل محدودة إلى 200/500 بينما الملخص المالي يظل شاملاً للسجل كله.
+- أضيفت فاتورة ملغاة بقيمة 900.00 ودفعة مرتبطة بها بقيمة 500.00 إلى الاختبار؛ المجموعات الكاملة لا تتغير بسبب الفاتورة الملغاة أو دفعتها، ولا تدخل في رصيد المتأخر.
+- تصحيحات الاختبار: المقارنات المالية تستخدم `BigInt` بوحدات نقدية صغرى، لتجنب أخطاء floating-point؛ وتم إصلاح regex إدخال الكسور العشرية. لا تخفيف للاختبار.
+- [Exact-SHA CI 39150380395 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395) اجتاز unit tests، PostgreSQL 17، lint، build، preview smoke وdev smoke.
 
-- استُبدل الاكتفاء بحساب أعمار الذمم من صفحات التفاصيل المحدودة بملخص كامل من الخادم داخل `get_customer_account_statement()`.
-- RPC يعيد `summary_as_of_utc` وملخصًا منفصلًا لكل عملة من دفتر الفواتير والمدفوعات الكامل: إجمالي الفواتير، المدفوع، المتبقي، المتأخر وعدده، والرصيد الذي لا يملك تاريخ استحقاق صالحًا وعدده.
-- تفاصيل أول 200 فاتورة تحمل `paid_amount` و`outstanding_amount` محسوبين على كل مدفوعات تلك الفاتورة، حتى لو لم تقع بعض الدفعات ضمن قائمة أحدث 500 دفعة المعروضة.
-- PDF يفضّل ملخص RPC الموثوق، ويستخدم وقت الخادم ذاته لوسم التأخر؛ إذا كان backend قديمًا لا يرسل الملخص، يعود للحساب من السجلات المعادة ويضع تنبيهًا واضحًا. لم تتم إضافة RPC موازٍ أو اعتماديات جديدة.
-- اختبارات الملخص تشمل دقة bigint للأرقام الكبيرة، المجاميع المختلطة، التحقق من الحقول، عزل عميل عن الآخر، المطابقة للمجاميع المسجلة في PostgreSQL، والحدود القائمة. [CI 39148856503 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39148856503).
+## تحديث READY_TO_REUSE
+- المرآة: `docs/bolt-source-reconciliation/READY_TO_REUSE/Nasr1--verified-current-implementation/` تتضمن 10 ملفات؛ تم تحديث `scripts/test-database-migrations.mjs` في المرآة إلى blob `08193e20f311e82d87a3873ef4cf40ee800dc11a` والـmanifest يشير إلى commit المختبر `618e3d3c019ecd7d05ca0462ca954f908178b814`.
+- مصدر الكود اجتاز [Actions 39150380395 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395). **CI الخاص بcommit تحديث المرآة والوثائق نفسها PENDING** حتى فحص التشغيل المطابق.
+- `READY_TO_REUSE/PROVENANCE_MANIFEST.csv` الخاص بالمانحين لم يُعدّل.
 
-## تحديث مرآة READY_TO_REUSE
-
-- المسار: `docs/bolt-source-reconciliation/READY_TO_REUSE/Nasr1--verified-current-implementation/`
-- تُحدّث المرآة الآن إلى نفس SHA المختبر `98a80df80b366e811923b80d53fe06a519e754d0` وتشمل 10 ملفات؛ manifest منفصل محدث بالبصمات.
-- دليل اختبار المصدر: [Actions 39148856503 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39148856503). نتيجة CI للـcommit الذي يحدّث المرآة والوثائق نفسها **PENDING** حتى التحقق من تشغيله المطابق.
-- ملف `READY_TO_REUSE/PROVENANCE_MANIFEST.csv` الأصلي للمصادر المانحة محفوظ بدون تعديل.
-
-## أعمال مغلقة — لا تُعد فحصها دون سبب جديد
-
+## أعمال مكتملة — لا تعِد فحصها دون سبب جديد
 - مركز المهام والأحداث ومنع التكرار والإسناد: [39143265290 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39143265290).
 - فلاتر الأولوية والمسؤول والتاريخ: [39144118407 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144118407).
-- RPC أعمار الذمم للمؤسسة وفصل العملات والتفويض: [39144691226 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144691226).
-- طباعة RTL/A4 واختبارات واجهة التقرير: [39144916657](https://github.com/Report-Engainall/Nasr1/actions/runs/39144916657)، [39144928394](https://github.com/Report-Engainall/Nasr1/actions/runs/39144928394)، [39145164044](https://github.com/Report-Engainall/Nasr1/actions/runs/39145164044) — SUCCESS.
-- رفض مبالغ PDF غير الصحيحة: [39145334417 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39145334417).
-- وسم التأخر وتاريخ الاستحقاق في PDF: [39145659217](https://github.com/Report-Engainall/Nasr1/actions/runs/39145659217)، [39146074209](https://github.com/Report-Engainall/Nasr1/actions/runs/39146074209) — SUCCESS.
-- ملخص الأعمار حسب العملة والحساب الخادمي الكامل: [39148856503 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39148856503).
+- RPC أعمار الذمم للمؤسسة والتفويض: [39144691226 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144691226).
+- طباعة RTL/A4 واختبار UI: [39144916657](https://github.com/Report-Engainall/Nasr1/actions/runs/39144916657)، [39144928394](https://github.com/Report-Engainall/Nasr1/actions/runs/39144928394)، [39145164044](https://github.com/Report-Engainall/Nasr1/actions/runs/39145164044) — SUCCESS.
+- مبالغ PDF غير الممكنة: [39145334417 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39145334417).
+- حالة التأخر وتاريخ الاستحقاق في PDF: [39145659217](https://github.com/Report-Engainall/Nasr1/actions/runs/39145659217)، [39146074209](https://github.com/Report-Engainall/Nasr1/actions/runs/39146074209) — SUCCESS.
+- ملخص كشف العميل الكامل واختبارات العملات/الملخص: [39148856503 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39148856503).
+- حدّ 200/500، exact-minor arithmetic، واستبعاد الفاتورة الملغاة مع دفعتها: [39150380395 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395).
 
 ## نقطة الاستئناف الوحيدة
-
-- `next_task_id = NASR1-CUSTOMER-STATEMENT-SUMMARY-CAP-BOUNDARY-001`
-- تم إغلاق `NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`: [commit `cbbcce4b1db64530f8234e82523e2b2aebbe6f53`](https://github.com/Report-Engainall/Nasr1/commit/cbbcce4b1db64530f8234e82523e2b2aebbe6f53) و[Actions 39149188875 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39149188875). المهمة الحالية `NASR1-CUSTOMER-STATEMENT-SUMMARY-CAP-BOUNDARY-001`: اختبر أن ملخص العميل يظل كاملًا عندما يتجاوز دفتره 200 فاتورة أو 500 دفعة، بينما قوائم التفاصيل تظل مقيدة. لا تعِد الاختبارات السابقة المغلقة.
-- لا تعُد تدقيق مركز المهام أو فلاتره أو RPC أعمار الذمم للمؤسسة أو طباعة التقرير أو المبالغ السالبة أو حالات التأخر/الاستحقاق، ما لم يتغير كودها أو يظهر فشل جديد.
+- `next_task_id = NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`
+- تحقق مرة واحدة من CI الخاص بالcommit الذي يحدث مرآة `READY_TO_REUSE` والوثائق؛ بعد النجاح انتقل إلى `NASR1-CUSTOMER-STATEMENT-VOID-EXCLUSION-BOUNDARY-001` فقط إذا ظهر فشل جديد، وإلا ابدأ بفجوة مستقلة في دورة التحصيل/التسويات. لا تعِد اختبار الحد 200/500؛ لقد اجتاز CI أعلاه.
+- لا تكرر أي فحص من المهام أو الفلاتر أو RPC الأعمار أو طباعة التقرير أو مبالغ PDF أو حالة التأخر أو تاريخ الاستحقاق إلا بتغير المصدر أو فشل جديد.
 
 ## حدود الإثبات
-
-- لا يوجد اختبار متصفح تفاعلي مباشر أو إثبات نشر إنتاجي؛ preview/dev smoke داخل CI لا يثبت النشر.
-- ترحيلات قاعدة البيانات اختُبرت في PostgreSQL 17 معزول ضمن CI، ولم تُطبق على Supabase الإنتاجية.
-- لم يثبت فك جميع الأرشيفات الثنائية أو مراجعة كامل مواد المانحين.
+- لا يوجد متصفح تفاعلي أو إثبات إنتاج مباشر؛ preview/dev smoke ليس إثبات نشر.
+- PostgreSQL 17 معزول في Actions فقط؛ لم تُطبق migrations على Supabase الإنتاجية.
+- لم يثبت فك جميع الأرشيفات الثنائية أو تدقيق كل مواد المانحين.
 - لا اعتماديات أو خدمات مدفوعة أضيفت.
 
 التصنيفات منفصلة: `IMPLEMENTED`، `TESTED` على SHA محدد، `BROWSER-PROVEN`، `PRODUCTION-PROVEN`.

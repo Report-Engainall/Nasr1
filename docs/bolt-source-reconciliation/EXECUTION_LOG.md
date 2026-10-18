@@ -261,3 +261,13 @@
 - readback للمجلد `READY_TO_REUSE/Nasr1--verified-current-implementation`: manifest يحتوي 10 صفوف، وكلها موسومة `git_blob_identical=YES`؛ تم التحقق من مرآة `src/lib/finance-document-pdf.ts` على blob `8729c401397a4c9000ab8714bfeb0a193f1dc2ab` وmigration ملخص الدفتر الكامل على blob `2734f6d88ba85d9556d7bbee5d142dce5c7556d9`. `PROVENANCE_MANIFEST.csv` للمانحين لم يُعدّل.
 - تم إغلاق `NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`. لا تُعد مزامنة أو تدقيق المجلد في الانطلاقة التالية ما لم يتغير أحد الملفات أو يفشل CI.
 - next_task_id: `NASR1-CUSTOMER-STATEMENT-SUMMARY-CAP-BOUNDARY-001` — إثبات حدود التفاصيل 200/500 مع بقاء الملخص كاملًا.
+
+
+## 2026-10-18 — NASR1-CUSTOMER-STATEMENT-VOID-EXCLUSION-001 — إغلاق اختبار الحدّ 200/500 مع فاتورة ملغاة
+
+- تحديث اختبار القبول في `scripts/test-database-migrations.mjs`: أنشأ 205 فواتير و505 دفعات، كما أضاف فاتورة ملغاة بقيمة 900.00 ودفعة 500.00، ثم قارن ملخص العميل الكامل قبل/بعد fixture باستخدام `BigInt` في الوحدات النقدية الصغرى.
+- أثبت الاختبار أن تفاصيل RPC لا تتجاوز 200 فاتورة و500 دفعة؛ الفواتير/الدفعات الخارجـة عن قوائم التفاصيل لا تضيع من الملخص الكامل؛ الفاتورة الملغاة ومدفوعاتها لا تدخل الإجمالي أو المدفوع أو المتبقي أو المتأخر؛ ورصيد الفاتورة المعروضة يحسب الدفعات الـ505 كلها.
+- سبب إخفاق سابق: تعبير regex للمال كان مفرط الهروب، ثم assertions طرحت مبالغ عبر JavaScript `Number`. أصلحنا regex واستخدمنا `BigInt`; الاختبارات لم تُخفف.
+- الكود [`618e3d3c019ecd7d05ca0462ca954f908178b814`](https://github.com/Report-Engainall/Nasr1/commit/618e3d3c019ecd7d05ca0462ca954f908178b814) اجتاز [Actions 39150380395 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395): unit tests، PostgreSQL 17 acceptance، lint، build، preview smoke وdev smoke.
+- تحديث مرآة `READY_TO_REUSE` والـmanifest قيد الإضافة في commit منفصل؛ CI الخاص بالمرآة مطلوب قبل إغلاق مزامنتها.
+- next_task_id: `NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`.
