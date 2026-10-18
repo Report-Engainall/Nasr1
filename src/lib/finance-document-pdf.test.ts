@@ -185,7 +185,7 @@ describe("Arabic customer finance PDFs", () => {
     });
 
     const bytes = await buildCustomerStatementPdf(response, fontBytes(), generatedAt);
-    expect(new TextDecoder().decode(bytes.slice(0, 8))).toMatch(/^%PDF-1\\./);
+    expect(new TextDecoder().decode(bytes.slice(0, 8)).startsWith("%PDF-1.")).toBe(true);
     expect((await PDFDocument.load(bytes)).getTitle()).toContain("كشف الحساب");
   });
 
