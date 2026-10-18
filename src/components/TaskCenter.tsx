@@ -6,6 +6,7 @@ import {
 import { createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
+import { filterTasksForPrint } from '@/lib/task-print';
 
 const roleLabels: Record<OperationalTaskRole, string> = {
   sales: 'المبيعات', accountant: 'المحاسبة والتحصيل', warehouse: 'أمين المخزن',
@@ -105,8 +106,10 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   }
 
 
-  const filtered = useMemo(() => tasks.filter((task) => {
-    if (roleFilter !== 'all' && task.task_role !== roleFilter) return false;
+  const [printScope, setPrintScope] = useState<OperationalTaskRole | 'all'>('all');
+
+  // One shared predicate applies all non-role filters to both screen and print output.
+  const matchesNonRoleFilters = useCallback((task: OperationalTask) => {
     if (statusFilter === 'open' && ['completed','cancelled'].includes(task.status)) return false;
     if (statusFilter !== 'all' && statusFilter !== 'open' && task.status !== statusFilter) return false;
     if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
@@ -119,7 +122,20 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     if (needle && ![task.title,task.description ?? '',task.source_entity_id ?? '',task.resolution_note ?? '']
       .some((value) => value.toLocaleLowerCase().includes(needle))) return false;
     return true;
-  }), [tasks,roleFilter,statusFilter,priorityFilter,assigneeFilter,createdFrom,createdTo,search]);
+  }, [statusFilter,priorityFilter,assigneeFilter,createdFrom,createdTo,search]);
+
+  const filteredWithoutRole = useMemo(
+    () => tasks.filter(matchesNonRoleFilters),
+    [tasks,matchesNonRoleFilters],
+  );
+  const filtered = useMemo(
+    () => filteredWithoutRole.filter((task) => roleFilter === 'all' || task.task_role === roleFilter),
+    [filteredWithoutRole,roleFilter],
+  );
+  const printable = useMemo(
+    () => filterTasksForPrint(filteredWithoutRole,printScope,allowedRoles),
+    [filteredWithoutRole,printScope,allowedRoles],
+  );
 
   const openCount = tasks.filter((task) => !['completed','cancelled'].includes(task.status)).length;
   const lateCount = tasks.filter(isLate).length;
@@ -171,7 +187,16 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
         <button className="btn secondary" type="button" onClick={() => void loadTasks()} disabled={busy}><RefreshCw size={16} /> تحديث</button>
         {canManage && <button className="btn secondary" type="button" onClick={() => void refreshFromSources()} disabled={busy}><RefreshCw size={16} /> مصالحة مع حركة النظام</button>}
         {canManage && <button className="btn primary" type="button" onClick={() => setShowCreate((visible) => !visible)}><Plus size={16} /> مهمة يدوية</button>}
-        <button className="btn primary" type="button" onClick={() => window.print()} disabled={filtered.length===0}><Printer size={16} /> طباعة المهام المعروضة</button>
+        <label className="task-print-scope">
+          <span>نطاق الطباعة</span>
+          <select value={printScope} onChange={(event) => setPrintScope(event.target.value as OperationalTaskRole | 'all')}>
+            <option value="all">الكل — الأدوار المسموحة</option>
+            {allowedRoles.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}
+          </select>
+        </label>
+        <button className="btn primary" type="button" onClick={() => window.print()} disabled={printable.length===0}>
+          <Printer size={16} /> طباعة {printScope === 'all' ? 'كل المهام المسموحة' : roleLabels[printScope]}
+        </button>
       </div>
     </div>
     <div className="task-center-metrics">
@@ -249,11 +274,11 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     <div className="operational-task-print" dir="rtl" aria-hidden="true">
       <header><h1>متجر الأغبري — كشف المهام التشغيلية</h1>
         <p>تاريخ الطباعة: {new Date().toLocaleString('ar-YE')}</p>
-        <p>الدور: {roleFilter==='all'?'كل الأدوار المسموح بها للحساب':roleLabels[roleFilter]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {filtered.length}</p>
+        <p>نطاق الطباعة: {printScope==='all'?'كل الأدوار المسموحة للحساب':roleLabels[printScope]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {printable.length}</p>
         <p>المسؤول: {assigneeFilter==='all'?'كل المسؤولين':assigneeFilter==='unassigned'?'غير مسندة':assigneeById.get(assigneeFilter)?.full_name??'الموظف المحدد'} — فترة الإنشاء: {createdFrom||'بلا بداية'} إلى {createdTo||'بلا نهاية'}</p>
         {search.trim()&&<p>بحث: {search.trim()}</p>}</header>
       <table><thead><tr><th>#</th><th>المهمة والإجراء</th><th>الدور</th><th>الأولوية</th><th>الحالة</th><th>الموعد المسجل</th><th>المصدر</th><th>المسؤول</th></tr></thead>
-        <tbody>{filtered.map((task,index) => <tr key={task.id}><td>{index+1}</td><td><strong>{task.title}</strong><br/>{task.description??'—'}{task.resolution_note?<><br/>النتيجة: {task.resolution_note}</>:null}</td>
+        <tbody>{printable.map((task,index) => <tr key={task.id}><td>{index+1}</td><td><strong>{task.title}</strong><br/>{task.description??'—'}{task.resolution_note?<><br/>النتيجة: {task.resolution_note}</>:null}</td>
           <td>{roleLabels[task.task_role]}</td><td>{priorityLabels[task.priority]??task.priority}</td><td>{statusLabels[task.status]??task.status}</td><td>{dateText(task.due_at)}</td>
           <td>{task.source_entity_type?entityLabels[task.source_entity_type]??task.source_entity_type:'يدوية'} {task.source_entity_id?'#'+task.source_entity_id:''}</td><td>{assignedLabel(task)}</td></tr>)}</tbody>
       </table>
