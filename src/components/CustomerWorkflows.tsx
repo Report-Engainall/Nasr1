@@ -54,6 +54,75 @@ type Invoice = {
   tax_amount?: number | string;
   total_amount?: number | string;
 };
+
+type ReceivablesAgingBucket = "current" | "days_1_30" | "days_31_60" | "days_61_90" | "over_90" | "unknown_due_date";
+type ReceivablesAgingItem = {
+  id: string;
+  invoice_number: string;
+  customer_id: string;
+  customer_name: string;
+  issued_at: string;
+  due_at: string | null;
+  currency: string;
+  total_amount: number | string;
+  paid_amount: number | string;
+  outstanding_amount: number | string;
+  days_overdue: number | null;
+  aging_bucket: ReceivablesAgingBucket;
+};
+type ReceivablesAgingSummary = {
+  currency: string;
+  open_invoice_count: number;
+  overdue_invoice_count: number;
+  unknown_due_date_count: number;
+  current_amount: number | string;
+  days_1_30_amount: number | string;
+  days_31_60_amount: number | string;
+  days_61_90_amount: number | string;
+  over_90_amount: number | string;
+  unknown_due_date_amount: number | string;
+  total_outstanding_amount: number | string;
+};
+type ReceivablesAgingReport = {
+  as_of_utc: string;
+  limit: number;
+  offset: number;
+  total_open_invoices: number;
+  has_more: boolean;
+  summary: ReceivablesAgingSummary[];
+  items: ReceivablesAgingItem[];
+};
+const RECEIVABLES_AGING_PAGE_SIZE = 200;
+const RECEIVABLES_AGING_BUCKET_LABELS: Record<ReceivablesAgingBucket, string> = {
+  current: "غير متأخرة / مستحقة حاليًا",
+  days_1_30: "1–30 يومًا",
+  days_31_60: "31–60 يومًا",
+  days_61_90: "61–90 يومًا",
+  over_90: "أكثر من 90 يومًا",
+  unknown_due_date: "تاريخ استحقاق غير محدد",
+};
+function formatAgingMoney(value: number | string, currency: string): string {
+  const amount = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(amount) || amount < 0) return "غير متاح";
+  try {
+    return new Intl.NumberFormat("ar-YE", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return new Intl.NumberFormat("ar-YE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + " " + currency;
+  }
+}
+function formatAgingDate(value: string | null): string {
+  if (!value) return "غير محدد";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "تاريخ غير صالح"
+    : new Intl.DateTimeFormat("ar-YE", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }).format(date);
+}
+
 type InvoiceLine = {
   id: string;
   item_code: string | null;
@@ -2149,6 +2218,10 @@ export function StaffFinancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [agingReport, setAgingReport] = useState<ReceivablesAgingReport | null>(null);
+  const [agingOffset, setAgingOffset] = useState(0);
+  const [agingLoading, setAgingLoading] = useState(false);
+  const [agingError, setAgingError] = useState("");
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -2164,9 +2237,39 @@ export function StaffFinancePage() {
     }
     setLoading(false);
   }, []);
+  const loadAging = useCallback(async (offset: number) => {
+    setAgingLoading(true);
+    setAgingError("");
+    try {
+      const result = await supabase.rpc("fetch_staff_receivables_aging", {
+        p_limit: RECEIVABLES_AGING_PAGE_SIZE,
+        p_offset: offset,
+      });
+      if (result.error) throw new Error(result.error.message || "تعذر تحميل تقرير أعمار الذمم.");
+      const report = result.data as ReceivablesAgingReport | null;
+      if (
+        !report || typeof report.as_of_utc !== "string" ||
+        !Number.isSafeInteger(report.total_open_invoices) || report.total_open_invoices < 0 ||
+        !Array.isArray(report.summary) || !Array.isArray(report.items) ||
+        typeof report.has_more !== "boolean"
+      ) {
+        throw new Error("أعاد الخادم تقرير أعمار ذمم غير مكتمل؛ لم تُعرض مبالغ بديلة.");
+      }
+      setAgingReport(report);
+      setAgingOffset(offset);
+    } catch (cause) {
+      setAgingError(cause instanceof Error ? cause.message : "تعذر تحميل تقرير أعمار الذمم.");
+      setAgingReport(null);
+    } finally {
+      setAgingLoading(false);
+    }
+  }, []);
   useEffect(() => {
-    if (canManageFinance) void load();
-  }, [load, canManageFinance]);
+    if (canManageFinance) {
+      void load();
+      void loadAging(0);
+    }
+  }, [load, loadAging, canManageFinance]);
   const outstanding = (i: Invoice) =>
     i.status === "void"
       ? 0
@@ -2202,7 +2305,7 @@ export function StaffFinancePage() {
       setAmount("");
       setReference("");
       setNotes("");
-      await load();
+      await Promise.all([load(), loadAging(0)]);
     }
     setBusy(false);
   }
@@ -2336,6 +2439,116 @@ export function StaffFinancePage() {
           </table>
         </section>
       )}
+      <section style={{ ...card, display: "grid", gap: 12 }}>
+        <header>
+          <h2 style={{ margin: 0, fontSize: 20 }}>تقرير أعمار الذمم المدينة</h2>
+          <p style={quiet}>
+            يعتمد التقرير على الفواتير والدفعات المحفوظة في الخادم، ويحسب المتبقي لكل فاتورة قبل تجميعه حسب العملة وفترة التأخر.
+            الفواتير الملغاة مستبعدة، وتواريخ الاستحقاق المفقودة تبقى ضمن بند مستقل ولا تُصنف على أنها متأخرة أو صفرية.
+          </p>
+          {agingReport && (
+            <p style={{ ...quiet, marginTop: 8 }}>
+              مرجع التاريخ: {agingReport.as_of_utc} UTC — إجمالي الفواتير ذات الرصيد المستحق: {agingReport.total_open_invoices.toLocaleString("ar-YE")}
+            </p>
+          )}
+        </header>
+        {agingError && <ErrorBox message={agingError} retry={() => void loadAging(agingOffset)} />}
+        {agingLoading && <p role="status">جارٍ تحميل تقرير الذمم من الخادم...</p>}
+        {!agingLoading && !agingError && agingReport && (
+          <>
+            <div style={{ overflowX: "auto" }}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr style={{ textAlign: "right", background: "#f4f8f9" }}>
+                    <th style={{ padding: 10 }}>العملة</th>
+                    <th>غير متأخر</th>
+                    <th>1–30 يومًا</th>
+                    <th>31–60 يومًا</th>
+                    <th>61–90 يومًا</th>
+                    <th>أكثر من 90</th>
+                    <th>استحقاق غير محدد</th>
+                    <th>إجمالي المتبقي</th>
+                    <th>فواتير متأخرة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agingReport.summary.map((summary) => (
+                    <tr key={summary.currency} style={{ borderTop: "1px solid #edf2f3" }}>
+                      <td style={{ padding: 10, fontWeight: 800 }}>{summary.currency}</td>
+                      <td>{formatAgingMoney(summary.current_amount, summary.currency)}</td>
+                      <td>{formatAgingMoney(summary.days_1_30_amount, summary.currency)}</td>
+                      <td>{formatAgingMoney(summary.days_31_60_amount, summary.currency)}</td>
+                      <td>{formatAgingMoney(summary.days_61_90_amount, summary.currency)}</td>
+                      <td>{formatAgingMoney(summary.over_90_amount, summary.currency)}</td>
+                      <td>{formatAgingMoney(summary.unknown_due_date_amount, summary.currency)}</td>
+                      <td style={{ fontWeight: 800 }}>{formatAgingMoney(summary.total_outstanding_amount, summary.currency)}</td>
+                      <td>{summary.overdue_invoice_count.toLocaleString("ar-YE")}</td>
+                    </tr>
+                  ))}
+                  {agingReport.summary.length === 0 && (
+                    <tr><td colSpan={9} style={{ padding: 14 }}>لا توجد أرصدة مستحقة مسجلة ضمن نطاق المؤسسة.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 17 }}>تفاصيل الفواتير المستحقة</h3>
+              <span style={quiet}>
+                عرض {agingReport.items.length ? agingOffset + 1 : 0}–{agingOffset + agingReport.items.length} من {agingReport.total_open_invoices.toLocaleString("ar-YE")}
+              </span>
+            </div>
+            {agingReport.items.length === 0 ? (
+              <p role="status" style={quiet}>لا توجد فواتير مستحقة في هذه الصفحة.</p>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr style={{ textAlign: "right", background: "#f4f8f9" }}>
+                      <th style={{ padding: 10 }}>الفاتورة / العميل</th>
+                      <th>الاستحقاق</th>
+                      <th>التأخر بالأيام</th>
+                      <th>تصنيف العمر</th>
+                      <th>الإجمالي</th>
+                      <th>المدفوع</th>
+                      <th>المتبقي</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {agingReport.items.map((item) => (
+                      <tr key={item.id} style={{ borderTop: "1px solid #edf2f3" }}>
+                        <td style={{ padding: 10 }}>
+                          <strong>{item.invoice_number}</strong>
+                          <div style={quiet}>{item.customer_name || "عميل غير محدد"}</div>
+                        </td>
+                        <td>{formatAgingDate(item.due_at)}</td>
+                        <td>{item.days_overdue === null ? "غير محدد" : item.days_overdue.toLocaleString("ar-YE")}</td>
+                        <td>{RECEIVABLES_AGING_BUCKET_LABELS[item.aging_bucket] ?? "غير مصنف"}</td>
+                        <td>{formatAgingMoney(item.total_amount, item.currency)}</td>
+                        <td>{formatAgingMoney(item.paid_amount, item.currency)}</td>
+                        <td style={{ fontWeight: 800 }}>{formatAgingMoney(item.outstanding_amount, item.currency)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <footer style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <button
+                type="button"
+                style={secondary}
+                disabled={agingLoading || agingOffset === 0}
+                onClick={() => void loadAging(Math.max(0, agingOffset - RECEIVABLES_AGING_PAGE_SIZE))}
+              >السابق</button>
+              <button
+                type="button"
+                style={secondary}
+                disabled={agingLoading || !agingReport.has_more}
+                onClick={() => void loadAging(agingOffset + RECEIVABLES_AGING_PAGE_SIZE)}
+              >التالي</button>
+            </footer>
+          </>
+        )}
+      </section>
     </section>
   );
 }
