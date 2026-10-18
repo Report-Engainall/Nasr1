@@ -99,3 +99,12 @@ This supplemental evidence records work actually committed in `Report-Engainall/
 | `NASR1-OPS-EVERY-SESSION-DELIVERY-001` | `IMPLEMENTED / CI SUCCESS` | Permanent rule appended to root `AGENTS.md`; [commit f575fbac840f490781da3c1f7e32041ab60062c8](https://github.com/Report-Engainall/Nasr1/commit/f575fbac840f490781da3c1f7e32041ab60062c8); [Actions 39144280302](https://github.com/Report-Engainall/Nasr1/actions/runs/39144280302). It requires a real code/test increment every session and updated single-point resume evidence. | This rule does not excuse claims of unrun tests; current print batch remains separately pending until exact-SHA CI is read. |
 
 These rows are acceptance evidence only. The one dynamic `next_task_id` remains exclusively in `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`.
+
+## Additional finance evidence — 2026-10-18
+
+| Requirement ID | Status | Evidence | Next action |
+|---|---|---|---|
+| `NASR1-FINANCE-PDF-VALIDATION-001` | `TESTED / CI SUCCESS` | `src/lib/finance-document-pdf.ts` rejects negative invoice totals and zero/negative payment rows; regression tests in `src/lib/finance-document-pdf.test.ts`. [CI 39145334417](https://github.com/Report-Engainall/Nasr1/actions/runs/39145334417) passed unit, PostgreSQL 17, lint, build and smoke gates. | Completed. Do not repeat without a new regression. |
+| `NASR1-FINANCE-STATEMENT-OVERDUE-LABEL-001` | `IMPLEMENTED / CI PENDING` | `resolveCustomerStatementInvoiceStatus()` derives PDF collection status from persisted status, due date and ledger-paid amount. [Implementation](https://github.com/Report-Engainall/Nasr1/commit/3c1bee5dea79cd055b3ac8d402adfbf7cf904f15); deterministic tests [commit](https://github.com/Report-Engainall/Nasr1/commit/9b10d34b4b61c92871b8cc6d3874909d34f79e0a). A regression in the standalone invoice PDF's old status renderer was corrected in [commit `ba9523fdbe643d7a6503dce54f6d1b740f3f06ca`](https://github.com/Report-Engainall/Nasr1/commit/ba9523fdbe643d7a6503dce54f6d1b740f3f06ca). | Verify [Actions 39145659217](https://github.com/Report-Engainall/Nasr1/actions/runs/39145659217) once. Never claim TESTED before final success. |
+
+Canonical resumption pointer remains only in `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` as `NASR1-FINANCE-STATEMENT-OVERDUE-LABEL-VERIFY-CI`. Completed task-center, task-filter, receivables-aging and aging-print CI records are already linked in `docs/bolt-source-reconciliation/EXECUTION_LOG.md`; do not re-run those validations without a code change or new failure.
