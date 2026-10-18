@@ -133,3 +133,13 @@
 - نجحت جميع المراحل: frozen Bun lock/install، unit tests، PostgreSQL 17 acceptance، lint، build، preview smoke وdev smoke. اختبار الواجهة وتصحيح المطابقة locale-safe اجتازا ضمن هذا التشغيل.
 - تبقى حدود الإثبات: نجاح اختبار UI لا يساوي اختبار متصفح تفاعلي لميزة الطباعة ولا إثبات النشر الإنتاجي.
 - next_task_id: `NASR1-FINANCE-AGING-PRINT-002-TESTS` — يظل اختبار واجهة التقرير والطباعة موجودًا ومغطى؛ الخطوة التالية فحص مسار PDF المالي/التصدير الحالي وتحديد فجوة واحدة قابلة للإغلاق دون إنشاء نظام موازٍ أو إضافة اعتماديات.
+
+## 2026-10-18 — NASR1-FINANCE-PDF-VALIDATION-001 — رفض المبالغ المالية غير الممكنة
+
+- المراجعة وجدت أن `validatePayload()` في `src/lib/finance-document-pdf.ts` كان يقبل قيمة فاتورة سالبة أو مبلغ دفعة صفريًا/سالبًا، رغم أن عقد قاعدة البيانات يفرض `customer_invoices.total_amount >= 0` و`customer_payments.amount > 0`.
+- التنفيذ: رفض إجمالي الفاتورة السالب، ورفض دفعات الحساب الصفريّة أو السالبة قبل إنشاء PDF. لم يتم تغيير احتساب الرصيد أو حدود الخصوصية.
+- الاختبارات: `src/lib/finance-document-pdf.test.ts` يضيف تأكيدات رفض إجمالي فاتورة `-1.00` ودفعة `0.00` ودفعة `-0.01`.
+- commit التنفيذ [c6f67a8ee45ee6da04a1760d663a32d1cf697b06](https://github.com/Report-Engainall/Nasr1/commit/c6f67a8ee45ee6da04a1760d663a32d1cf697b06); commit الاختبار [4e8e8a70f8d987585e436f1c8e6877dbb9276e58](https://github.com/Report-Engainall/Nasr1/commit/4e8e8a70f8d987585e436f1c8e6877dbb9276e58).
+- حالة CI أثناء التحديث: run [39145321118](https://github.com/Report-Engainall/Nasr1/actions/runs/39145321118) للتنفيذ الأساسي، وrun [39145334417](https://github.com/Report-Engainall/Nasr1/actions/runs/39145334417) لنسخة الاختبار؛ كلاهما كان قيد التشغيل عند كتابة هذا السجل. **لا تُسجّل PASS حتى التحقق من النتيجة النهائية للمطابقة الصحيحة.**
+- اختبار واجهة أعمار الذمم والطباعة اجتاز: [Actions 39145164044](https://github.com/Report-Engainall/Nasr1/actions/runs/39145164044) على `cf2b5893e20b5a9d500249ba215feab5c67b6c21` = SUCCESS لجميع الخطوات.
+- next_task_id: `NASR1-FINANCE-PDF-VALIDATION-VERIFY-CI` — اقرأ نتائج التشغيلين أعلاه، أصلح أي فشل، ثم حدّث سجل المتطلبات ونقطة الاستئناف.
