@@ -51,6 +51,10 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const [error, setError] = useState('');
   const [roleFilter, setRoleFilter] = useState<OperationalTaskRole | 'all'>(financeOnly ? 'accountant' : 'all');
   const [statusFilter, setStatusFilter] = useState<'open' | 'all' | OperationalTaskStatus>('open');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState<'all' | 'unassigned' | string>('all');
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState('');
@@ -105,11 +109,17 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     if (roleFilter !== 'all' && task.task_role !== roleFilter) return false;
     if (statusFilter === 'open' && ['completed','cancelled'].includes(task.status)) return false;
     if (statusFilter !== 'all' && statusFilter !== 'open' && task.status !== statusFilter) return false;
+    if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
+    if (assigneeFilter === 'unassigned' && task.assigned_to) return false;
+    if (assigneeFilter !== 'all' && assigneeFilter !== 'unassigned' && task.assigned_to !== assigneeFilter) return false;
+    const createdAt = new Date(task.created_at).getTime();
+    if (createdFrom && createdAt < new Date(`${createdFrom}T00:00:00`).getTime()) return false;
+    if (createdTo && createdAt >= new Date(`${createdTo}T23:59:59.999`).getTime() + 1) return false;
     const needle = search.trim().toLocaleLowerCase();
     if (needle && ![task.title,task.description ?? '',task.source_entity_id ?? '',task.resolution_note ?? '']
       .some((value) => value.toLocaleLowerCase().includes(needle))) return false;
     return true;
-  }), [tasks,roleFilter,statusFilter,search]);
+  }), [tasks,roleFilter,statusFilter,priorityFilter,assigneeFilter,createdFrom,createdTo,search]);
 
   const openCount = tasks.filter((task) => !['completed','cancelled'].includes(task.status)).length;
   const lateCount = tasks.filter(isLate).length;
@@ -198,6 +208,10 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       <label className="task-search"><span><Search size={16} /> بحث</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="عنوان المهمة أو التفاصيل أو مرجع المصدر" /></label>
       <label><span><Filter size={16} /> الدور</span><select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as typeof roleFilter)}><option value="all">كل الأدوار المتاحة للحساب</option>{allowedRoles.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select></label>
       <label><span><ListTodo size={16} /> الحالة</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}><option value="open">المفتوحة فقط</option><option value="pending">بانتظار التنفيذ</option><option value="in_progress">قيد التنفيذ</option><option value="completed">مكتملة</option><option value="cancelled">ملغاة</option><option value="all">كل الحالات</option></select></label>
+      <label><span>الأولوية</span><select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value as typeof priorityFilter)}><option value="all">كل الأولويات</option><option value="critical">حرجة</option><option value="high">مرتفعة</option><option value="medium">متوسطة</option><option value="low">منخفضة</option></select></label>
+      <label><span><UserCheck size={16} /> المسؤول</span><select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value="all">كل المسؤولين</option><option value="unassigned">غير مسندة</option>{assignees.filter((assignee) => assignee.profile_id && tasks.some((task) => task.assigned_to === assignee.profile_id)).map((assignee) => <option key={assignee.profile_id} value={assignee.profile_id}>{assignee.full_name}</option>)}</select></label>
+      <label><span>من تاريخ الإنشاء</span><input type="date" value={createdFrom} max={createdTo || undefined} onChange={(event) => setCreatedFrom(event.target.value)} /></label>
+      <label><span>إلى تاريخ الإنشاء</span><input type="date" value={createdTo} min={createdFrom || undefined} onChange={(event) => setCreatedTo(event.target.value)} /></label>
     </section>
     {error && <div className="task-center-error" role="alert"><AlertTriangle size={17} /> {error}</div>}
     {loading ? <div className="panel task-center-empty">جارٍ تحميل المهام المقيّدة بصلاحيات حسابك…</div> : filtered.length===0 ? (
@@ -235,7 +249,8 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     <div className="operational-task-print" dir="rtl" aria-hidden="true">
       <header><h1>متجر الأغبري — كشف المهام التشغيلية</h1>
         <p>تاريخ الطباعة: {new Date().toLocaleString('ar-YE')}</p>
-        <p>الدور: {roleFilter==='all'?'كل الأدوار المسموح بها للحساب':roleLabels[roleFilter]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — العدد: {filtered.length}</p>
+        <p>الدور: {roleFilter==='all'?'كل الأدوار المسموح بها للحساب':roleLabels[roleFilter]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {filtered.length}</p>
+        <p>المسؤول: {assigneeFilter==='all'?'كل المسؤولين':assigneeFilter==='unassigned'?'غير مسندة':assigneeById.get(assigneeFilter)?.full_name??'الموظف المحدد'} — فترة الإنشاء: {createdFrom||'بلا بداية'} إلى {createdTo||'بلا نهاية'}</p>
         {search.trim()&&<p>بحث: {search.trim()}</p>}</header>
       <table><thead><tr><th>#</th><th>المهمة والإجراء</th><th>الدور</th><th>الأولوية</th><th>الحالة</th><th>الموعد المسجل</th><th>المصدر</th><th>المسؤول</th></tr></thead>
         <tbody>{filtered.map((task,index) => <tr key={task.id}><td>{index+1}</td><td><strong>{task.title}</strong><br/>{task.description??'—'}{task.resolution_note?<><br/>النتيجة: {task.resolution_note}</>:null}</td>
