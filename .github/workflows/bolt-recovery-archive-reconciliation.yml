@@ -1,0 +1,38 @@
+name: Nasr1 Bolt recovery archive reconciliation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/bolt-recovery-archive-reconciliation.yml"
+      - "scripts/reconcile-bolt-recovery-archives.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile-recovery-sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v6
+      - name: Check script safety invariants
+        run: python3 scripts/reconcile-bolt-recovery-archives.py --self-test
+      - name: Download, verify, extract, and compare the two ZIPs
+        id: reconciliation
+        continue-on-error: true
+        run: python3 scripts/reconcile-bolt-recovery-archives.py
+      - name: Upload generated evidence reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nasr1-bolt-recovery-reconciliation
+          path: artifacts/bolt-recovery-reconciliation/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Fail if source integrity or comparison failed
+        if: steps.reconciliation.outcome == 'failure'
+        run: exit 1
