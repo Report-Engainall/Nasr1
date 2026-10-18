@@ -31,8 +31,8 @@
 
 ## نقطة الاستئناف الوحيدة
 
-- `next_task_id = NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`
-- تحقق مرة واحدة من CI الخاص بعملية تحديث المرآة/الوثائق. إن نجح، انتقل إلى `NASR1-CUSTOMER-STATEMENT-SUMMARY-CAP-BOUNDARY-001`: أضف اختبارًا محددًا يثبت أن ملخص العميل يظل كاملًا إذا تجاوز دفتره 200 فاتورة أو 500 دفعة بينما التفاصيل تظل محدودة؛ لا تعِد اختبارات الأعمال المكتملة السابقة.
+- `next_task_id = NASR1-CUSTOMER-STATEMENT-SUMMARY-CAP-BOUNDARY-001`
+- تم إغلاق `NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`: [commit `cbbcce4b1db64530f8234e82523e2b2aebbe6f53`](https://github.com/Report-Engainall/Nasr1/commit/cbbcce4b1db64530f8234e82523e2b2aebbe6f53) و[Actions 39149188875 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39149188875). المهمة الحالية `NASR1-CUSTOMER-STATEMENT-SUMMARY-CAP-BOUNDARY-001`: اختبر أن ملخص العميل يظل كاملًا عندما يتجاوز دفتره 200 فاتورة أو 500 دفعة، بينما قوائم التفاصيل تظل مقيدة. لا تعِد الاختبارات السابقة المغلقة.
 - لا تعُد تدقيق مركز المهام أو فلاتره أو RPC أعمار الذمم للمؤسسة أو طباعة التقرير أو المبالغ السالبة أو حالات التأخر/الاستحقاق، ما لم يتغير كودها أو يظهر فشل جديد.
 
 ## حدود الإثبات

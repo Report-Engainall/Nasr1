@@ -252,3 +252,12 @@
 - الحالة: `IMPLEMENTED + TESTED` على `98a80df80b366e811923b80d53fe06a519e754d0`. لا يوجد ادعاء بتطبيق migration في قاعدة الإنتاج أو اختبار متصفح مباشر.
 - المرآة `docs/bolt-source-reconciliation/READY_TO_REUSE/Nasr1--verified-current-implementation/` تُزامن إلى نفس الكود المختبر؛ donor `PROVENANCE_MANIFEST.csv` يبقى دون تغيير.
 - next_task_id: `NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI` ثم `NASR1-CUSTOMER-STATEMENT-SUMMARY-CAP-BOUNDARY-001`.
+
+
+## 2026-10-18 — إغلاق مرآة الكود بعد ملخص دفتر العميل الكامل
+
+- commit المرآة/الوثائق: [`cbbcce4b1db64530f8234e82523e2b2aebbe6f53`](https://github.com/Report-Engainall/Nasr1/commit/cbbcce4b1db64530f8234e82523e2b2aebbe6f53).
+- [Actions 39149188875 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39149188875): unit tests، PostgreSQL 17 acceptance، lint، build، preview smoke وdev smoke اجتازت.
+- readback للمجلد `READY_TO_REUSE/Nasr1--verified-current-implementation`: manifest يحتوي 10 صفوف، وكلها موسومة `git_blob_identical=YES`؛ تم التحقق من مرآة `src/lib/finance-document-pdf.ts` على blob `8729c401397a4c9000ab8714bfeb0a193f1dc2ab` وmigration ملخص الدفتر الكامل على blob `2734f6d88ba85d9556d7bbee5d142dce5c7556d9`. `PROVENANCE_MANIFEST.csv` للمانحين لم يُعدّل.
+- تم إغلاق `NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`. لا تُعد مزامنة أو تدقيق المجلد في الانطلاقة التالية ما لم يتغير أحد الملفات أو يفشل CI.
+- next_task_id: `NASR1-CUSTOMER-STATEMENT-SUMMARY-CAP-BOUNDARY-001` — إثبات حدود التفاصيل 200/500 مع بقاء الملخص كاملًا.
