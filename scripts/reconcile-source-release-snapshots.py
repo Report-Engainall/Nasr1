@@ -12,6 +12,8 @@ SNAPSHOTS = [
     {"id":"SOURCE-BASELINE-20261016-180443","tag":"commerce-source-reconciliation-20261016-180443","name":"AGHBARI_COMMERCE_GITHUB_BASELINE_SNAPSHOT.zip","bytes":55677109,"sha256":"06b575c4a6c5d54a7084162d5416a97a1a5a750c1c51431019c68830afda85ad","tag_commit":"3fadc2b842a89b97bd1798c1cc7985ad256fb498"},
     {"id":"SOURCE-BASELINE-20261016-180756","tag":"commerce-source-reconciliation-20261016-180756","name":"AGHBARI_COMMERCE_GITHUB_BASELINE_SNAPSHOT.zip","bytes":56543928,"sha256":"87ad9f91dfea9aee617649888af6aa6e1d8e02b08e5c18824cbae9fd9bdaee21","tag_commit":"5065b51a96abf154d23161e045c450a2583ad97f"},
     {"id":"SOURCE-BASELINE-20261016-181307","tag":"commerce-source-reconciliation-20261016-181307","name":"AGHBARI_COMMERCE_GITHUB_BASELINE_SNAPSHOT.zip","bytes":118952752,"sha256":"28704bf7d32b7f759802682b7873f4b370fc073c54c0fbcb4268f39e37c83499","tag_commit":"dffe66e7e4c7bd1f1ecda9ace8acb83c97f2d8ec"},
+    {"id":"NASR1-BOLT-BEFORE-FAILURE-20261017","tag":"incoming-archives/nasr1-bolt-recovery-2026-10-17","name":"Nasr1_Bolt_Before_Failure.zip","bytes":1003172,"sha256":"d59b3084a0b51e26646cf08ffc9239d2ee440298e9799f079827a4939d31b365","tag_commit":"b1ca62ec277ff9f55c8e850e0470d61d81aaa138","url":"https://raw.githubusercontent.com/Report-Engainall/report-insight-engine/b1ca62ec277ff9f55c8e850e0470d61d81aaa138/incoming-archives/nasr1-bolt-recovery-2026-10-17/Nasr1_Bolt_Before_Failure.zip"},
+    {"id":"NASR1-BOLT-RESTORED-CURRENT-20261017","tag":"incoming-archives/nasr1-bolt-recovery-2026-10-17","name":"Nasr1_Bolt_Restored_Current.zip","bytes":997589,"sha256":"9e012da1795cb9549413f78366c3bd6885c593e5a56e2fea10d4cf3fe810b214","tag_commit":"b1ca62ec277ff9f55c8e850e0470d61d81aaa138","url":"https://raw.githubusercontent.com/Report-Engainall/report-insight-engine/b1ca62ec277ff9f55c8e850e0470d61d81aaa138/incoming-archives/nasr1-bolt-recovery-2026-10-17/Nasr1_Bolt_Restored_Current.zip"},
 ]
 MAX_ENTRIES=75000
 MAX_MEMBER_BYTES=250*1024*1024
@@ -59,7 +61,7 @@ def inspect_headers(zf):
     return infos,total
 
 def download(spec):
-    url=f"https://github.com/{SOURCE}/releases/download/{spec['tag']}/{spec['name']}"
+    url=spec.get("url") or f"https://github.com/{SOURCE}/releases/download/{spec['tag']}/{spec['name']}"
     last=""
     for attempt in range(1,4):
         print(f"DOWNLOAD_ATTEMPT id={spec['id']} attempt={attempt} url={url}",flush=True)
@@ -136,7 +138,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="nasr1-source-release-",dir=os.environ.get("RUNNER_TEMP")) as temp_name:
         temp_root=Path(temp_name)
         for spec in SNAPSHOTS:
-            url=f"https://github.com/{SOURCE}/releases/download/{spec['tag']}/{spec['name']}"
+            url=spec.get("url") or f"https://github.com/{SOURCE}/releases/download/{spec['tag']}/{spec['name']}"
             row={"snapshot_id":spec["id"],"tag":spec["tag"],"tag_commit":spec["tag_commit"],"asset_name":spec["name"],"expected_bytes":spec["bytes"],"actual_bytes":"","expected_sha256":spec["sha256"],"actual_sha256":"","source_url":url,"download_status":"NOT RUN","integrity_status":"NOT RUN","member_count":"","uncompressed_bytes":"","selected_source_extract_count":"","status":"","exact_error":""}
             try:
                 data,final_url=download(spec); row["source_url"]=final_url
