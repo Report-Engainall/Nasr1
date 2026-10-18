@@ -2,39 +2,37 @@
 
 **المستودع الهدف الوحيد:** https://github.com/Report-Engainall/Nasr1  
 **الفرع:** `main`  
-**SHA قبل هذه الدفعة:** `2f523b729c6ed28aff06fbeddabd18cd79a25131`  
-**Git tree قبل هذه الدفعة:** `03fc9c7a488d5d5ebd3cd7d294563a1923909103`  
-**آخر CI على SHA الأساس:** [run 39139802558](https://github.com/Report-Engainall/Nasr1/actions/runs/39139802558) = **FAIL عند Unit tests** بعد نجاح frozen-lockfile والتحقق من تثبيت Bun.
+**SHA قبل الدفعة الحالية:** `63ab9fc050d165c1a088112979ab7a9fefbb2767`  
+**CI على SHA الأساس:** [run 39140257185](https://github.com/Report-Engainall/Nasr1/actions/runs/39140257185) = FAIL في isolated PostgreSQL migration suite بعد نجاح تثبيت Bun واختبارات الوحدة.
 
 ## نقطة الاستئناف الوحيدة
-- `next_task_id = NASR1-SUPABASE-CLIENT-001`
-- المهمة: إزالة تضارب عميل Supabase القديم داخل `src/lib/supabase.ts` ومواءمته مع عميل Lovable Cloud الموجود فعلًا، مع الحفاظ على دوال نطاق المؤسسة التي تعتمد عليها `src/lib/api.ts`.
+- `next_task_id = NASR1-DB-MIGRATION-ORDER-001`
+- المهمة الحالية: إصلاح تضارب migration قديم دون حذف مرجع المصدر أو تشغيل بيانات تجريبية في التطبيق.
 
-## السبب الجذري الحالي المثبت
-- CI السابق: 14 ملف اختبار اجتاز، وملف واحد فشل؛ 133 اختبارًا نجح. الفشل المحدد: `src/test/app-routing.test.tsx` → `supabaseUrl is required`.
-- السبب: `src/lib/supabase.ts` القديم ينشئ عميل Supabase فور الاستيراد من `VITE_SUPABASE_ANON_KEY`، بينما إعداد المشروع الحالي يستخدم `src/integrations/supabase/client.ts` الذي يقرأ `VITE_SUPABASE_PUBLISHABLE_KEY` ويهيّئ العميل عند أول استعمال. كما أن الملف القديم لا يصدّر `getCurrentTenantScope` و`getStorefrontDataScope` اللتين تستوردهما طبقة API.
-- الأدلة: [CI 39139802558](https://github.com/Report-Engainall/Nasr1/actions/runs/39139802558)، والملفات الحية `src/lib/supabase.ts`, `src/integrations/supabase/client.ts`, `src/lib/api.ts`.
+## السبب الجذري المثبت
+- فشل exact-SHA run في `supabase/migrations/20261016074744_001_initial_schema.sql`:
+  `PostgresError: column "is_active" does not exist` (`42703`).
+- `20261006063522_d656e1d4-1ca3-4cd7-8542-504968bc356c.sql` أنشأ بالفعل `public.products` بعقد `status` (قيمته الافتراضية `active`) وليس `is_active`.
+- ملف `20261016074744_001_initial_schema.sql` هو baseline قديم آخر في نهاية تسلسل الهجرات؛ `CREATE TABLE IF NOT EXISTS products` لا يوسّع الجدول القائم، ثم السياسة القديمة تشير إلى `is_active` وتضيف seed products. هذا يخلط مخططين ويخاطر بإدخال بيانات عرض تجريبية.
+- نتيجة CI وتفاصيل قاعدة البيانات محفوظة في [run 39140257185](https://github.com/Report-Engainall/Nasr1/actions/runs/39140257185). لم تُجر كتابة إلى قاعدة إنتاج.
 
-## نتيجة الدفعات السابقة المثبتة
-- `NASR1-BOOT-001`: تمت مواءمة `package.json` مع dependency graph الموجود في `bun.lock` وإعداد TanStack Start. لم تضاف حزم جديدة.
-- `NASR1-MISSING-MODULES-001`: أُعيدت الملفات الخمسة التي كانت مفقودة من مسارات التشغيل: `customer-addresses.ts`, `customer-company-members.ts`, `finance-document-pdf.ts`, `unified-import.ts`, و`routes/api.invoice-pdf.$invoiceId.ts`. ثبوت وجود الملفات لا يعدّ اجتيازًا للاختبار؛ نتيجة CI الأخيرة ما زالت FAIL بسبب التهيئة أعلاه.
+## ما تم تنفيذه
+- `IMPLEMENTED`: حفظ الملف الأصلي حرفيًا تحت `docs/bolt-source-reconciliation/REFERENCE_ONLY/migrations/20261016074744_001_initial_schema.legacy.sql` للمراجعة؛ بصمة Git blob الأصلية `baf5744a4a7cf3f2d2077460f9c5517318dad2f8`.
+- `IMPLEMENTED`: استبدال تنفيذ baseline المتعارض بحاجز SQL يثبت وجود المخطط canonical وعقد `products.status` قبل المتابعة. لا يضيف جداول أو منتجات أو بيانات تشغيلية؛ لا يغير migration order ولا يحذف version path.
+- `IMPLEMENTED`: إضافة قرار المصدر والسبب إلى `SOURCE_INTEGRATION_LEDGER.csv`، وتوثيق السبب والخطوة التالية في هذا الملف وسجل التنفيذ.
+- `INTEGRATED`: لا يُمنح تكامل وظيفي لهذه المعالجة إلا بعد اجتياز isolated migration suite على SHA الناتج، ثم بقية CI.
+- `TESTED`: التعديل الجديد بانتظار نتيجة GitHub Actions الخاصة بـSHA الذي يحتويه؛ لا توجد اختبارات محلية لأن checkout غير متصل.
 
-## تنفيذ الدفعة الحالية
-- `IMPLEMENTED_PENDING_CI`: مواءمة `src/lib/supabase.ts` مع عميل Lovable Cloud الحالي، وإضافة تحقق UUID واشتقاق نطاق المؤسسة عبر RPCs الخادمية `get_current_tenant_context` و`get_public_storefront_context` مع cache محدود بمستخدم الجلسة. مصدر الملف وبصمته مدرجان في `SOURCE_INTEGRATION_LEDGER.csv`.
-- `TESTED`: لا يُسجّل اختبار ناجح جديد حتى تظهر نتيجة Actions على SHA الناتج عن هذه الدفعة.
-- لا توجد كتابة على قاعدة إنتاج، ولا تطبيق migrations، ولا اعتماديات جديدة في هذه الدفعة.
-- لا يوجد checkout محلي موصول؛ لم تنفّذ أوامر `git status` أو اختبارات محلية. الاعتماد على GitHub API وActions فقط موثق صراحة.
+## حالة الاختبارات
+- على SHA الأساس `63ab9fc050d165c1a088112979ab7a9fefbb2767`: frozen Bun lock/install = PASS، unit tests = PASS، database migration suite = FAIL بسبب العمود أعلاه، lint/build/preview/dev smoke = SKIPPED نتيجة التوقف عند فشل قاعدة البيانات.
+- على SHA التغيير: `PENDING_REMOTE_CI` إلى أن يظهر run مرتبط بنفس SHA.
+- لا يوجد إثبات متصفح، إنتاج، Lovable sync، أو Onyx live ناشئ عن هذه الدفعة.
 
-## مصالحة المصادر والأرشيفات
-- `ARCHIVE_MANIFEST.csv` يسجل بيانات intake تاريخية، ولا يدّعي إعادة تنزيل الأرشيفات أو إعادة حساب بصماتها في هذه الجلسة.
-- `ARCHIVE_MEMBERS.csv` لا يزال دون أعضاء مستخرجين فعلًا؛ لا يوجد ادعاء فك أرشيف.
-- مراجعة كامل `READY_TO_REUSE/PROVENANCE_MANIFEST.csv` ما زالت غير مكتملة، فلا تُصنّف كل المواد كمراجعة.
-- حالة Lovable sync والمتصفح والإنتاج وOnyx live لا تزال **غير مثبتة**.
+## التالي
+1. اقرأ Actions للـSHA الناتج من هذه الدفعة.
+2. أصلح كل أول فشل حقيقي متتالٍ في migration/workflow suite دون تبديل قاعدة الإنتاج أو إدخال بيانات seed وهمية.
+3. بعد نجاح migrations، أكمل lint/build/preview/dev route smoke على exact SHA.
+4. بعدها استأنف `NASR1-OPS-TASK-CENTER-001`: افحص `ai_tasks` ونموذج الإشعارات الحاليين، ثم وحّد مركز المهام operational واحدًا باستخدام أحداث حقيقية، منع تكرار ثابت، أدوار وصلاحيات خادمية، وطباعة RTL مطابقة للفلاتر. لا تنشئ محركًا ثانيًا.
+5. متابعة جرد الأرشيفات وREADY_TO_REUSE تظل مستقلة؛ لا تُدّعى أي عملية تنزيل أو استخراج لم تثبت.
 
-## الخطوة التالية
-1. قراءة CI المرتبط بالـSHA الجديد لهذه الدفعة تحديدًا.
-2. إصلاح أول فشل حقيقي يظهر بعد تجاوز الاختبارات، ثم تكرار CI حتى يمر اختبار migrations وlint وbuild وroute smoke.
-3. بعد استقرار بوابة البناء والاختبار: `NASR1-OPS-TASK-CENTER-001` — ربط مركز المهام بأحداث التشغيل الفعلية مع منع التكرار وصلاحيات خادمية وطباعة RTL مطابقة للفلاتر.
-4. واصل المصالحة التأسيسية للأرشيفات دون تعطيل أي إصلاح مستقل.
-
-تعريف الحالات: `IMPLEMENTED` تغيير كود؛ `INTEGRATED` اتصال فعلي بالخدمات والبيانات والصلاحيات؛ `TESTED` اختبار شُغّل ونتيجته محفوظة؛ `BROWSER-PROVEN` تحقق متصفح مباشر؛ `PRODUCTION-PROVEN` تحقق إنتاجي مباشر. لا تُستنتج حالة من الأخرى.
+تعريف الحالات: `IMPLEMENTED` تغيير كود؛ `INTEGRATED` ارتباط فعلي بعقود الخدمة/البيانات/الصلاحيات؛ `TESTED` اختبار شُغل ودليله محفوظ؛ `BROWSER-PROVEN` تحقق متصفح؛ `PRODUCTION-PROVEN` تحقق مباشر من الإنتاج.
