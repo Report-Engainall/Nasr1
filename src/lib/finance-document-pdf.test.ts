@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCustomerInvoicePdf,
   buildCustomerStatementPdf,
+  resolveCustomerStatementInvoiceStatus,
 } from "./finance-document-pdf";
 import { loadArabicDocumentFont, getFinanceDocumentClient } from "./finance-pdf-server";
 
@@ -60,6 +61,48 @@ describe("Arabic customer finance PDFs", () => {
     const document = await PDFDocument.load(bytes);
     expect(document.getPageCount()).toBeGreaterThanOrEqual(1);
     expect(document.getTitle()).toContain("كشف الحساب");
+  });
+
+  it("derives overdue statement labels from due date and outstanding ledger balance", () => {
+    const generatedAt = new Date("2026-10-18T12:00:00.000Z");
+    const invoice = {
+      status: "issued",
+      due_at: "2026-10-10T00:00:00.000Z",
+      total_amount: "100.00",
+    };
+
+    expect(resolveCustomerStatementInvoiceStatus(invoice, 0n, generatedAt)).toBe("متأخرة");
+    expect(resolveCustomerStatementInvoiceStatus(
+      { ...invoice, status: "partially_paid" },
+      2500n,
+      generatedAt,
+    )).toBe("متأخرة جزئيًا");
+
+    expect(resolveCustomerStatementInvoiceStatus(
+      { ...invoice, due_at: "2026-10-20T00:00:00.000Z" },
+      0n,
+      generatedAt,
+    )).toBe("مستحقة");
+    expect(resolveCustomerStatementInvoiceStatus(
+      { ...invoice, due_at: null },
+      0n,
+      generatedAt,
+    )).toBe("مستحقة");
+    expect(resolveCustomerStatementInvoiceStatus(
+      { ...invoice, status: "paid" },
+      10000n,
+      generatedAt,
+    )).toBe("مدفوعة");
+    expect(resolveCustomerStatementInvoiceStatus(
+      { ...invoice, status: "issued" },
+      10000n,
+      generatedAt,
+    )).toBe("مدفوعة");
+    expect(resolveCustomerStatementInvoiceStatus(
+      { ...invoice, status: "void" },
+      0n,
+      generatedAt,
+    )).toBe("ملغاة");
   });
 
   it("creates a customer invoice PDF with financial amounts from the scoped RPC payload", async () => {
