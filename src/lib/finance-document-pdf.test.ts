@@ -4,6 +4,8 @@ import {
   buildCustomerInvoicePdf,
   buildCustomerStatementPdf,
   buildCustomerStatementCurrencySummary,
+  normalizeCustomerStatementCurrencySummary,
+  resolveCustomerStatementCurrencySummary,
   formatFinanceDocumentDate,
   resolveCustomerStatementInvoiceStatus,
 } from "./finance-document-pdf";
@@ -118,6 +120,28 @@ describe("Arabic customer finance PDFs", () => {
     });
   });
 
+  it("validates and resolves authoritative full-ledger summaries without numeric precision loss", () => {
+    const source = [
+      { currency: "YER", invoiced: "150000000000.25", paid: "50000000000.25", outstanding: "100000000000.00", overdue_invoice_count: 7, overdue_outstanding: "80000000000.00", unknown_due_date_invoice_count: 2, unknown_due_date_outstanding: "10000000000.00" },
+      { currency: "USD", invoiced: "40.00", paid: "0.00", outstanding: "40.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 1, unknown_due_date_outstanding: "40.00" },
+    ];
+    const expected = [
+      { currency: "USD", invoiced: 4000n, paid: 0n, outstanding: 4000n, overdueInvoiceCount: 0, overdueOutstanding: 0n, unknownDueDateInvoiceCount: 1, unknownDueDateOutstanding: 4000n },
+      { currency: "YER", invoiced: 15000000000025n, paid: 50000000000025n, outstanding: 10000000000000n, overdueInvoiceCount: 7, overdueOutstanding: 8000000000000n, unknownDueDateInvoiceCount: 2, unknownDueDateOutstanding: 1000000000000n },
+    ];
+    expect(normalizeCustomerStatementCurrencySummary(source)).toEqual(expected);
+    expect(resolveCustomerStatementCurrencySummary(
+      source,
+      [{ id: "dddddddd-dddd-4ddd-8ddd-000000000001", invoice_number: "INV-DETAIL-PAGE", status: "issued", issued_at: "2026-10-01T00:00:00.000Z", due_at: "2026-10-10T00:00:00.000Z", currency: "YER", total_amount: "100.00" }],
+      [],
+      new Date("2026-10-18T12:00:00.000Z"),
+    )).toEqual(expected);
+    expect(() => normalizeCustomerStatementCurrencySummary([{ ...source[0], overdue_outstanding: "100000000001.00" }])).toThrow("aging buckets exceed");
+    expect(() => normalizeCustomerStatementCurrencySummary([source[0], source[0])).toThrow("duplicate currency");
+    expect(() => normalizeCustomerStatementCurrencySummary([{ ...source[0], overdue_invoice_count: -1 }])).toThrow("invalid overdue invoice count");
+    expect(resolveCustomerStatementCurrencySummary(undefined, [{ id: "eeeeeeee-eeee-4eee-8eee-000000000001", invoice_number: "INV-FALLBACK", status: "issued", issued_at: "2026-10-01T00:00:00.000Z", due_at: "2026-10-10T00:00:00.000Z", currency: "YER", total_amount: "100.00" }], [], new Date("2026-10-18T12:00:00.000Z"))[0].overdueOutstanding).toBe(10000n);
+  });
+
   it("reconciles per-currency aging against the customer-statement RPC payload shape", async () => {
     // Field names match get_customer_account_statement() JSON projections.
     const response = {
@@ -156,6 +180,11 @@ describe("Arabic customer finance PDFs", () => {
           amount: "25.00",
           paid_at: "2026-10-12T00:00:00.000Z",
         },
+      ],
+      summary_as_of_utc: "2026-10-18T12:00:00.000Z",
+      summary: [
+        { currency: "YER", invoiced: "150.00", paid: "50.00", outstanding: "100.00", overdue_invoice_count: 2, overdue_outstanding: "80.00", unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: "0.00" },
+        { currency: "USD", invoiced: "40.00", paid: "0.00", outstanding: "40.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 1, unknown_due_date_outstanding: "40.00" },
       ],
     };
 

@@ -16,6 +16,9 @@ export type CustomerStatementInvoice = {
   due_at?: string | null;
   currency: string;
   total_amount: number | string;
+  /** Full-ledger payment aggregates returned by the authorized statement RPC. */
+  paid_amount?: number | string;
+  outstanding_amount?: number | string;
 };
 
 export type CustomerStatementPayment = {
@@ -25,9 +28,22 @@ export type CustomerStatementPayment = {
   paid_at: string;
 };
 
+export type CustomerStatementCurrencySummaryPayload = {
+  currency: string;
+  invoiced: string | number;
+  paid: string | number;
+  outstanding: string | number;
+  overdue_invoice_count: number;
+  overdue_outstanding: string | number;
+  unknown_due_date_invoice_count: number;
+  unknown_due_date_outstanding: string | number;
+};
+
 export type CustomerStatementPayload = {
   invoices?: CustomerStatementInvoice[];
   payments?: CustomerStatementPayment[];
+  summary?: unknown;
+  summary_as_of_utc?: unknown;
 };
 
 export type CustomerStatementCurrencySummary = {
@@ -241,52 +257,86 @@ function appendPageNumber(page: PDFPage, index: number, count: number, font: PDF
   });
 }
 
+function parseNonNegativeCount(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error("Statement summary contains an invalid " + field + ".");
+  }
+  return value;
+}
+
+/** Validate authoritative JSON summaries without floating-point monetary arithmetic. */
+export function normalizeCustomerStatementCurrencySummary(input: unknown): CustomerStatementCurrencySummary[] {
+  if (!Array.isArray(input)) throw new Error("Statement summary is not an array.");
+  const seenCurrencies = new Set<string>();
+  const rows = input.map((value) => {
+    if (!value || typeof value !== "object") throw new Error("Statement summary contains an invalid currency row.");
+    const row = value as Record<string, unknown>;
+    const currency = normalizeCurrency(row.currency);
+    if (seenCurrencies.has(currency)) throw new Error("Statement summary contains a duplicate currency.");
+    seenCurrencies.add(currency);
+    const invoiced = moneyToMinorUnits(row.invoiced);
+    const paid = moneyToMinorUnits(row.paid);
+    const outstanding = moneyToMinorUnits(row.outstanding);
+    const overdueOutstanding = moneyToMinorUnits(row.overdue_outstanding);
+    const unknownDueDateOutstanding = moneyToMinorUnits(row.unknown_due_date_outstanding);
+    if ([invoiced, paid, outstanding, overdueOutstanding, unknownDueDateOutstanding].some((n) => n < 0n)) {
+      throw new Error("Statement summary contains a negative monetary balance.");
+    }
+    if (overdueOutstanding + unknownDueDateOutstanding > outstanding) {
+      throw new Error("Statement summary aging buckets exceed the outstanding balance.");
+    }
+    return {
+      currency,
+      invoiced,
+      paid,
+      outstanding,
+      overdueInvoiceCount: parseNonNegativeCount(row.overdue_invoice_count, "overdue invoice count"),
+      overdueOutstanding,
+      unknownDueDateInvoiceCount: parseNonNegativeCount(row.unknown_due_date_invoice_count, "unknown due-date count"),
+      unknownDueDateOutstanding,
+    } satisfies CustomerStatementCurrencySummary;
+  });
+  return rows.sort((a, b) => a.currency.localeCompare(b.currency));
+}
+
 function validatePayload(payload: unknown): {
   invoices: CustomerStatementInvoice[];
   payments: CustomerStatementPayment[];
+  summary?: CustomerStatementCurrencySummary[];
+  summaryAsOf?: Date;
 } {
-  if (!payload || typeof payload !== "object") {
-    throw new Error("Statement response is not an object.");
-  }
-
+  if (!payload || typeof payload !== "object") throw new Error("Statement response is not an object.");
   const candidate = payload as CustomerStatementPayload;
   const invoices = Array.isArray(candidate.invoices) ? candidate.invoices : [];
   const payments = Array.isArray(candidate.payments) ? candidate.payments : [];
-  if (invoices.length > 200 || payments.length > 500) {
-    throw new Error("Statement exceeded the configured document size limit.");
-  }
+  if (invoices.length > 200 || payments.length > 500) throw new Error("Statement exceeded the configured document size limit.");
 
   for (const invoice of invoices) {
-    if (
-      !invoice ||
-      typeof invoice.id !== "string" ||
-      typeof invoice.invoice_number !== "string" ||
-      typeof invoice.status !== "string" ||
-      typeof invoice.issued_at !== "string"
-    ) {
+    if (!invoice || typeof invoice.id !== "string" || typeof invoice.invoice_number !== "string" ||
+        typeof invoice.status !== "string" || typeof invoice.issued_at !== "string") {
       throw new Error("Statement contains an incomplete invoice record.");
     }
     normalizeCurrency(invoice.currency);
-    const invoiceTotal = moneyToMinorUnits(invoice.total_amount);
-    if (invoiceTotal < 0n) {
-      throw new Error("Statement contains a negative invoice total.");
+    if (moneyToMinorUnits(invoice.total_amount) < 0n) throw new Error("Statement contains a negative invoice total.");
+    if (invoice.paid_amount !== undefined && moneyToMinorUnits(invoice.paid_amount) < 0n) {
+      throw new Error("Statement contains a negative recorded payment total.");
+    }
+    if (invoice.outstanding_amount !== undefined && moneyToMinorUnits(invoice.outstanding_amount) < 0n) {
+      throw new Error("Statement contains a negative outstanding amount.");
     }
   }
   for (const payment of payments) {
-    if (
-      !payment ||
-      typeof payment.invoice_id !== "string" ||
-      typeof payment.paid_at !== "string"
-    ) {
+    if (!payment || typeof payment.invoice_id !== "string" || typeof payment.paid_at !== "string") {
       throw new Error("Statement contains an incomplete payment record.");
     }
-    const paymentAmount = moneyToMinorUnits(payment.amount);
-    if (paymentAmount <= 0n) {
-      throw new Error("Statement contains a non-positive payment amount.");
-    }
+    if (moneyToMinorUnits(payment.amount) <= 0n) throw new Error("Statement contains a non-positive payment amount.");
   }
-
-  return { invoices, payments };
+  if (candidate.summary === undefined) return { invoices, payments };
+  const summary = normalizeCustomerStatementCurrencySummary(candidate.summary);
+  if (typeof candidate.summary_as_of_utc !== "string" || !Number.isFinite(Date.parse(candidate.summary_as_of_utc))) {
+    throw new Error("Statement summary is missing its valid as-of timestamp.");
+  }
+  return { invoices, payments, summary, summaryAsOf: new Date(candidate.summary_as_of_utc) };
 }
 
 export function buildCustomerStatementCurrencySummary(
@@ -355,16 +405,28 @@ export function buildCustomerStatementCurrencySummary(
   return [...totals.values()].sort((a, b) => a.currency.localeCompare(b.currency));
 }
 
+export function resolveCustomerStatementCurrencySummary(
+  authoritativeSummary: unknown,
+  invoices: CustomerStatementInvoice[],
+  payments: CustomerStatementPayment[],
+  asOf: Date,
+): CustomerStatementCurrencySummary[] {
+  return authoritativeSummary === undefined
+    ? buildCustomerStatementCurrencySummary(invoices, payments, asOf)
+    : normalizeCustomerStatementCurrencySummary(authoritativeSummary);
+}
+
 export async function buildCustomerStatementPdf(
   response: unknown,
   fontBytes: Uint8Array,
   generatedAt = new Date(),
 ): Promise<Uint8Array> {
-  const { invoices, payments } = validatePayload(response);
+  const { invoices, payments, summary: authoritativeSummary, summaryAsOf } = validatePayload(response);
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   const font = await pdf.embedFont(fontBytes, { subset: false });
-  const totalsByCurrency = buildCustomerStatementCurrencySummary(invoices, payments, generatedAt);
+  const agingAsOf = summaryAsOf ?? generatedAt;
+  const totalsByCurrency = resolveCustomerStatementCurrencySummary(authoritativeSummary, invoices, payments, agingAsOf);
   pdf.setTitle("كشف الحساب | متجر الأغبري");
   pdf.setAuthor("Aghbari Commerce");
   pdf.setSubject("Customer account statement");
@@ -406,7 +468,18 @@ export async function buildCustomerStatementPdf(
     drawLtr(page, font, minorUnitsToText(totals.unknownDueDateOutstanding), 55, summaryY - 15, 7.2, INK, 70);
     summaryY -= 44;
   }
-  drawArabic(page, font, "الملخص للسجلات المعادة فقط (حد RPC: 200 فاتورة/500 دفعة). العملات منفصلة؛ الملغاة والمدفوعة بالكامل ليست متأخرة.", PAGE_WIDTH - 40, summaryY - 2, 7.2, MUTED, 390);
+  drawArabic(
+    page,
+    font,
+    authoritativeSummary
+      ? "ملخص الأرصدة من دفتر العميل الكامل؛ التفاصيل المعروضة بحد 200 فاتورة/500 دفعة."
+      : "الملخص للسجلات المعادة فقط؛ الحد 200 فاتورة/500 دفعة. العملات منفصلة.",
+    PAGE_WIDTH - 40,
+    summaryY - 2,
+    7.2,
+    MUTED,
+    390,
+  );
   summaryY -= 30;
 
   if (summaryY < 535) {
@@ -424,9 +497,15 @@ export async function buildCustomerStatementPdf(
     const currency = normalizeCurrency(invoice.currency);
     const total = moneyToMinorUnits(invoice.total_amount);
     const paid = paidByInvoice.get(invoice.id) ?? 0n;
-    const outstanding = invoice.status === "void" || total <= paid ? 0n : total - paid;
+    const invoicePaid = invoice.paid_amount !== undefined ? moneyToMinorUnits(invoice.paid_amount) : paid;
+    const outstanding = invoice.status === "void"
+      ? 0n
+      : invoice.outstanding_amount !== undefined
+        ? moneyToMinorUnits(invoice.outstanding_amount)
+        : total > invoicePaid ? total - invoicePaid : 0n;
 
-    drawArabic(page, font, resolveCustomerStatementInvoiceStatus(invoice, paid, generatedAt), PAGE_WIDTH - 43, y, 8, INK, 65);
+    const invoicePaid = invoice.paid_amount !== undefined ? moneyToMinorUnits(invoice.paid_amount) : paid;
+    drawArabic(page, font, resolveCustomerStatementInvoiceStatus(invoice, invoicePaid, agingAsOf), PAGE_WIDTH - 43, y, 8, INK, 65);
     drawLtr(page, font, minorUnitsToText(outstanding), 420, y, 8, INK, 65);
     drawLtr(page, font, `${currency} ${minorUnitsToText(paid)}`, 323, y, 7.5, INK, 85);
     drawLtr(page, font, `${currency} ${minorUnitsToText(total)}`, 230, y, 7.5, INK, 82);

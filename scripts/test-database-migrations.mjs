@@ -1013,6 +1013,23 @@ async function main() {
   assert.ok(Object.hasOwn(statement.payments[0], "paid_at"), "payment rows must include paid_at for statement history");
   assert.equal(Number(statement.payments[0].amount), 100000);
   assert.ok(statement.payments.length <= 500, "statement RPC payment list must honor its 500-row cap");
+  assert.equal(typeof statement.summary_as_of_utc, "string", "statement RPC must return the full-ledger summary cutoff");
+  assert.ok(Number.isFinite(Date.parse(statement.summary_as_of_utc)), "statement summary cutoff must be a valid timestamp");
+  assert.ok(Array.isArray(statement.summary), "statement RPC must return full-ledger currency summaries");
+  const customerCurrencySummary = statement.summary.find((row) => row.currency === statementInvoice.currency);
+  assert.ok(customerCurrencySummary, "summary must include the customer's invoice currency");
+  assert.equal(Number(customerCurrencySummary.invoiced), 370000, "full-ledger invoiced amount must reconcile to the invoice");
+  assert.equal(Number(customerCurrencySummary.paid), 100000, "full-ledger paid amount must reconcile to the payment ledger");
+  assert.equal(Number(customerCurrencySummary.outstanding), 270000, "full-ledger outstanding amount must reconcile invoice minus payments");
+  const statementAsOf = Date.parse(statement.summary_as_of_utc);
+  const statementDueAt = statementInvoice.due_at ? Date.parse(statementInvoice.due_at) : Number.NaN;
+  const overdueAtCutoff = Number.isFinite(statementDueAt) && statementDueAt < statementAsOf;
+  assert.equal(Number(customerCurrencySummary.overdue_invoice_count), overdueAtCutoff ? 1 : 0);
+  assert.equal(Number(customerCurrencySummary.overdue_outstanding), overdueAtCutoff ? 270000 : 0);
+  assert.equal(Number(customerCurrencySummary.unknown_due_date_invoice_count), Number.isFinite(statementDueAt) ? 0 : 1);
+  assert.equal(Number(customerCurrencySummary.unknown_due_date_outstanding), Number.isFinite(statementDueAt) ? 0 : 270000);
+  assert.equal(Number(statementInvoice.paid_amount), 100000, "each detail invoice must include its full-ledger paid amount");
+  assert.equal(Number(statementInvoice.outstanding_amount), 270000, "each detail invoice must include its full-ledger outstanding amount");
 
   // The invoice PDF RPC returns amounts only for the signed-in customer's own invoice.
   const ownInvoicePdfResult = await db.unsafe(
@@ -1034,6 +1051,7 @@ async function main() {
   const otherStatementResult = await db.unsafe("select public.get_customer_account_statement() as result");
   assert.deepEqual(otherStatementResult[0].result.invoices, [], "customer two must not see customer one's invoice");
   assert.deepEqual(otherStatementResult[0].result.payments, [], "customer two must not see customer one's payments");
+  assert.deepEqual(otherStatementResult[0].result.summary, [], "customer two must not see customer one's financial summary");
   await expectFailure(
     "customer two cannot read customer one's invoice PDF",
     () => db.unsafe("select public.get_customer_invoice_pdf($1::uuid)", [invoice.id]),
