@@ -1149,10 +1149,70 @@ export async function fetchImportProfiles() {
   return data;
 }
 
-export async function fetchOnyxSnapshots() {
-  const { data, error } = await supabase.from('onyx_snapshots').select('*').eq('status', 'ready').order('created_at', { ascending: false }).limit(50);
+export type OnyxSnapshotSummary = {
+  id: string;
+  snapshot_version: number;
+  period_key: string | null;
+  source_file_hash: string;
+  source_file_name: string | null;
+  report_type: string;
+  row_count: number;
+  data_quality_score: number;
+  quality_breakdown: Record<string, number>;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type OnyxSnapshotRow = {
+  id: string;
+  snapshot_id: string;
+  row_number: number;
+  canonical_key: string | null;
+  row_hash: string;
+  status: string;
+  data: Record<string, unknown>;
+  errors: unknown;
+  created_at: string;
+};
+
+export async function fetchOnyxSnapshots(): Promise<OnyxSnapshotSummary[]> {
+  const { data, error } = await supabase
+    .from('onyx_snapshots')
+    .select('id,snapshot_version,period_key,source_file_hash,source_file_name,report_type,row_count,data_quality_score,quality_breakdown,created_by,created_at')
+    .eq('status', 'ready')
+    .order('created_at', { ascending: false })
+    .limit(50);
   if (error) throw error;
-  return data;
+  const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+  return rows.map((row) => {
+    const score = row.data_quality_score;
+    const rowCount = row.row_count;
+    const version = row.snapshot_version;
+    if (
+      typeof row.id !== 'string' || typeof row.source_file_hash !== 'string' ||
+      typeof row.report_type !== 'string' || typeof row.created_at !== 'string' ||
+      typeof score !== 'number' || !Number.isInteger(score) || score < 0 || score > 100 ||
+      typeof rowCount !== 'number' || !Number.isInteger(rowCount) || rowCount < 0 ||
+      typeof version !== 'number' || !Number.isInteger(version) || version < 1
+    ) {
+      throw new Error('أعاد الخادم بيانات لقطة أونكس غير مكتملة؛ لم تُعرض أرقام بديلة.');
+    }
+    const breakdown = row.quality_breakdown;
+    return {
+      id: row.id,
+      snapshot_version: version,
+      period_key: typeof row.period_key === 'string' ? row.period_key : null,
+      source_file_hash: row.source_file_hash,
+      source_file_name: typeof row.source_file_name === 'string' ? row.source_file_name : null,
+      report_type: row.report_type,
+      row_count: rowCount,
+      data_quality_score: score,
+      quality_breakdown: breakdown && typeof breakdown === 'object' && !Array.isArray(breakdown)
+        ? breakdown as Record<string, number> : {},
+      created_by: typeof row.created_by === 'string' ? row.created_by : null,
+      created_at: row.created_at,
+    };
+  });
 }
 
 export type OnyxSnapshotAnalytics = {

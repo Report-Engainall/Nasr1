@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { OnyxSnapshotCenter } from "@/components/OnyxSnapshotCenter";
 
 const mocks = vi.hoisted(() => ({
@@ -81,8 +81,8 @@ describe("Onyx snapshot center", () => {
     render(<OnyxSnapshotCenter />);
     expect(await screen.findByText("أونكس برو — اللقطات والتحليلات")).toBeInTheDocument();
     expect(await screen.findByText("onyx-october.csv")).toBeInTheDocument();
-    expect(await screen.findByText("94/100")).toBeInTheDocument();
-    expect(screen.getByText("SKU-001")).toBeInTheDocument();
+    expect(await screen.findAllByText("94/100")).toHaveLength(2);
+    expect(screen.getAllByText("SKU-001")).toHaveLength(2);
     expect(screen.getByText("تنفيذ المطابقة مع المخزون الحالي")).toBeInTheDocument();
     expect(mocks.fetchOnyxSnapshotAnalytics).toHaveBeenCalledWith("snapshot-1");
     expect(mocks.fetchOnyxSnapshotRows).toHaveBeenCalledWith("snapshot-1");
