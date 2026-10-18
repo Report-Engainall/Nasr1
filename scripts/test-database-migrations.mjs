@@ -1919,6 +1919,8 @@ async function main() {
     `select public.is_staff() as is_staff,
             public.current_profile_id()::text as current_profile_id,
             (select p.organization_id::text from public.profiles p where p.id=public.current_profile_id()) as visible_organization_id,
+            (select p.is_active from public.profiles p where p.id=public.current_profile_id()) as profile_is_active,
+            public.can_manage_product_image($1::text) as image_helper_allows,
             split_part($1::text,'/',1) as path_organization_id,
             split_part($1::text,'/',2) as path_product_id,
             cardinality(string_to_array($1::text,'/')) as path_parts,
