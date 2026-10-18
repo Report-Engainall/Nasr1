@@ -63,3 +63,12 @@
 - DB, lint, build, smoke ما زالت pending على SHA الإصلاح التالي.
 - next_task_id: `NASR1-OPS-TASK-CENTER-001`.
 
+## 2026-10-18 — إثبات نجاح NASR1-OPS-TASK-CENTER-001
+- Code SHA: `283d2def75e2608e0aac1d2d16aabf81e7842347`.
+- [GitHub Actions 39142794601](https://github.com/Report-Engainall/Nasr1/actions/runs/39142794601) = SUCCESS.
+- Unit tests: 15 test files passed; 165 tests passed.
+- PostgreSQL 17: migrations and commerce acceptance PASS. Task-specific proof: `PASS operational task center: source-event idempotency, stock threshold lifecycle, audited RPC writes, accountant-only lane and customer isolation`.
+- ESLint PASS; Build PASS; production preview smoke PASS; dev-server smoke PASS.
+- Route test includes `/admin/tasks`; migration extends `ai_tasks` and uses audited RPC writes, tenant and role policy, and unique source-event idempotency.
+- Next task: `NASR1-TASK-ASSIGNMENT-001` — secure admin-only named assignee selection and role validation in the task UI.
+
