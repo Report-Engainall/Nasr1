@@ -2532,6 +2532,83 @@ async function main() {
   await db.unsafe("reset role");
   process.stdout.write("PASS operational task center: source-event idempotency, stock threshold lifecycle, audited RPC writes, accountant-only lane and customer isolation\n");
 
+  // AGH-FINANCE-CASH-EXPENSES-001: role boundaries, tenant isolation, exact money, audit, replay and non-destructive void.
+  const foreignExpenseFixture = (await db.unsafe(
+    "insert into public.cash_expenses(organization_id,category,description,amount,currency,payment_method,idempotency_key,created_by_profile_id) values($1,'CI fixture','isolated tenant row',9.75,'YER','cash',$2::uuid,$3) returning id",
+    [otherOrganizationId,"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",foreignProfileId],
+  ))[0].id;
+  await db.unsafe("reset role");
+  await setIdentity(accountantAuthUserId,"ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const expenseKey="dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  const expenseInput=["Utilities","CI-only warehouse electricity expense","125.50","YER","cash","CI-EXP-REF-01","2026-10-18"];
+  const createdExpense=(await db.unsafe(
+    "select public.record_cash_expense($1::uuid,$2::text,$3::text,$4::numeric,$5::text,$6::text,$7::text,$8::date) as result",
+    [expenseKey,...expenseInput],
+  ))[0].result;
+  assert.equal(createdExpense.replayed,false);
+  assert.equal(createdExpense.status,"posted");
+  const expenseId=createdExpense.expense_id;
+  const expenseCount=(await db.unsafe("select count(*)::integer as count from public.cash_expenses where organization_id=$1 and id=$2::uuid",[organizationId,expenseId]))[0].count;
+  assert.equal(expenseCount,1,"expense creation persists exactly one tenant-owned row");
+  const replayedExpense=(await db.unsafe(
+    "select public.record_cash_expense($1::uuid,$2::text,$3::text,$4::numeric,$5::text,$6::text,$7::text,$8::date) as result",
+    [expenseKey,...expenseInput],
+  ))[0].result;
+  assert.equal(replayedExpense.expense_id,expenseId);
+  assert.equal(replayedExpense.replayed,true,"same expense request is idempotent");
+  await expectFailure(
+    "expense idempotency keys cannot be reused for a different amount",
+    () => db.unsafe("select public.record_cash_expense($1::uuid,$2::text,$3::text,$4::numeric,$5::text,$6::text,$7::text,$8::date)",[expenseKey,...["Utilities","CI-only warehouse electricity expense","126.50","YER","cash","CI-EXP-REF-01","2026-10-18"]]),
+    /idempotency key payload conflict/i,
+  );
+  await expectFailure(
+    "cash expense amount rejects precision beyond two decimals",
+    () => db.unsafe("select public.record_cash_expense($1::uuid,$2::text,$3::text,$4::numeric,$5::text,$6::text,$7::text,$8::date)",["dddddddd-dddd-4ddd-8ddd-ddddddddddde","Utilities","bad precision","1.234","YER","cash",null,"2026-10-18"]),
+    /at most two decimal places/i,
+  );
+  await expectFailure(
+    "cash expense read is scoped to the caller tenant",
+    () => db.unsafe("select public.fetch_staff_cash_expenses(50,0,null,null,null,'all')"),
+    /finance permission required/i,
+  );
+  const expensePage=(await db.unsafe("select public.fetch_staff_cash_expenses(50,0,null,null,null,'all') as result"))[0].result;
+  assert.equal(expensePage.total_count,1);
+  assert.equal(expensePage.items.length,1);
+  assert.equal(expensePage.items[0].id,expenseId);
+  assert.equal(expensePage.items[0].amount,"125.50");
+  assert.equal(expensePage.summary_by_currency[0].posted_amount,"125.50");
+  const foreignRead=await db.unsafe("select id from public.cash_expenses where id=$1::uuid",[foreignExpenseFixture]);
+  assert.equal(foreignRead.length,0,"finance user cannot read the same table in another organization");
+  await expectFailure(
+    "finance client cannot insert directly into expense ledger",
+    () => db.unsafe("insert into public.cash_expenses(organization_id,category,description,amount,currency,payment_method,idempotency_key,created_by_profile_id) values($1,'fake','fake',1,'YER','cash',$2::uuid,$3)",[organizationId,"cccccccc-cccc-4ccc-8ccc-cccccccccccc",accountantProfileId]),
+    /permission denied/i,
+  );
+  await expectFailure("accountant cannot void a posted cash expense",()=>db.unsafe("select public.void_cash_expense($1::uuid,$2::text)",[expenseId,"accountant cannot approve reversal"]),/administrator or manager permission required/i);
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const voidResult=(await db.unsafe("select public.void_cash_expense($1::uuid,$2::text) as result",[expenseId,"duplicate receipt entered in error"]))[0].result;
+  assert.equal(voidResult.status,"void");
+  assert.equal(voidResult.replayed,false);
+  const voidReplay=(await db.unsafe("select public.void_cash_expense($1::uuid,$2::text) as result",[expenseId,"duplicate receipt entered in error"]))[0].result;
+  assert.equal(voidReplay.replayed,true,"repeating the same void reason is a no-op");
+  await expectFailure("voided cash expense keeps its original reversal reason",()=>db.unsafe("select public.void_cash_expense($1::uuid,$2::text)",[expenseId,"different replacement reason"]),/original reversal reason is retained/i);
+  const persistedVoid=(await db.unsafe("select status,void_reason from public.cash_expenses where id=$1::uuid",[expenseId]))[0];
+  assert.equal(persistedVoid.status,"void");
+  assert.equal(persistedVoid.void_reason,"duplicate receipt entered in error");
+  await expectFailure("authenticated finance role cannot directly mutate cash expense history",()=>db.unsafe("update public.cash_expenses set amount=1 where id=$1::uuid",[expenseId]),/permission denied/i);
+  const auditRows=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='cash_expense' and entity_id=$2::uuid order by created_at",[organizationId,expenseId]);
+  assert.deepEqual(auditRows.map((row)=>row.action),["cash_expense.recorded","cash_expense.voided"]);
+  await db.unsafe("reset role");
+  await setIdentity(authUserId,"ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  assert.equal((await db.unsafe("select id from public.cash_expenses where id=$1::uuid",[expenseId])).length,0,"customer cannot read finance expenses");
+  await expectFailure("customer cannot record a cash expense",()=>db.unsafe("select public.record_cash_expense($1::uuid,$2::text,$3::text,$4::numeric,$5::text,$6::text,$7::text,$8::date)",["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","Utilities","customer attempt","1.00","YER","cash",null,"2026-10-18"]),/finance permission|required/i);
+  await db.unsafe("reset role");
+  process.stdout.write("PASS cash expenses: exact decimal amount, idempotent command, tenant/RLS isolation, accountant/admin permission split, append-preserving void and two audit events\\n");
+
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }
 
