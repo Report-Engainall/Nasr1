@@ -55,8 +55,10 @@ async function main() {
     );
     create or replace function storage.foldername(name text)
       returns text[] language sql immutable parallel safe
-      as $ select case when position('/' in name)=0 then array[]::text[]
-        else (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] end $;
+      AS $folder_fn$
+        SELECT CASE WHEN position('/' in name)=0 THEN ARRAY[]::text[]
+        ELSE (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] END
+      $folder_fn$;
     grant usage on schema storage to anon, authenticated, service_role;
     grant select, insert, delete on storage.objects to anon, authenticated;
     grant select on storage.buckets to anon, authenticated;
