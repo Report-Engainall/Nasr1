@@ -371,3 +371,15 @@
 - backend tests المثبتة: snapshot، منع الجلسات المكررة، movement+audit، stale-snapshot denial، ورفض الأدوار غير الإدارية. Exact-SHA UI/code CI [39165071610 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39165071610) على `94c0f92eea5fe8d2add289106c3f76d884460d4d`: frozen Bun lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke `/admin/stock-count` وdev smoke PASS.
 - الحالة الحالية: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migration=NOT RUN.
 - next_task_id = `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001`.
+
+
+
+## 2026-10-19 — NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001 — تكامل محاسبي ومسارات الدخول
+
+- العمل استهدف `Report-Engainall/Nasr1` / `main` فقط؛ لا force-push ولا حذف لعمل قائم.
+- Commit `5c36f1c0baf57a9b908b7d65d2dbe4d78aef5dca` أضاف مساري التسجيل واستعادة كلمة المرور، وتوسيع اختبار المسارات. فشل الاختبار الأول لأن النص المفترض لتسجيل الدخول لم يطابق النص الفعلي؛ صُحح الاختبار في `d94d642cdeab74ed2437407049434dd59466adf4`. [Actions 39171368206 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39171368206) اجتاز unit/build/preview/dev smoke على SHA المصحح.
+- تمت قراءة المرشح `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1/supabase/migrations/0032_finance_invoices_cash_expenses.sql`؛ نموذج المصدر يستخدم جداول `branches/cash_accounts/operational_invoices/public.payments/public.expenses` ودورًا مختلفًا. تم تكييف وظيفة المصروفات فقط إلى مخطط Nasr1 بدلاً من تطبيق migration المصدر.
+- أضيفت `supabase/migrations/20261019100000_finance_cash_expenses.sql`، و`src/components/CashExpenseLedger.tsx`، و`src/lib/cash-expense-input.ts`، واختبارات الوحدة وقبول PostgreSQL، وربطها بـ`StaffFinancePage`. ميزات الاختبار: المبلغ الدقيق، idempotency/replay/conflict، عزل المؤسسة وRLS، دور المحاسب مقابل إلغاء المدير، منع DML المباشر، الحفظ غير الهدام للسجل الأصلي وحدثا تدقيق.
+- فشل DB acceptance الأول على SHA `65ad6347aaf4938b24bf66577f6d1c82e51de778` لأنه توقع خطأً أن قراءة المصروفات يجب أن تفشل للمحاسب المصرّح به. أزيل التوقع الخاطئ؛ لا تغيير على صلاحيات الخادم. [Actions 39171703391 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39171703391) يطابق SHA `c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25` ويؤكد unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، production-preview smoke وdev smoke PASS.
+- أرشيفا Bolt: محاولتا raw download خلال هذه الجلسة انتهتا برسالة أداة GitHub الفعلية `HTTP 400: GitHub Fetch supports UTF-8 text files; this file appears to be binary or encoded differently (Response: None)`، بينما محاولة بيئة التنفيذ أعادت `URLError [Errno -3] Temporary failure in name resolution`. بصمات SHA-256 وCRC وفك المسارات مثبتة تاريخيًا في Actions 39157355307 على SHA 92a948e... فقط؛ إعادة التنزيل/إعادة التحقق الحالية `NOT RUN`.
+- تم تحديث source integration ledger وaudit row لترحيل المصروفات. المراجعة الدلالية لجميع 69 مرشحًا لم تكتمل، لذلك يظل `next_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001` مفتوحًا. Production migration NOT RUN; BROWSER-PROVEN NOT PROVEN; PRODUCTION-PROVEN NOT PROVEN.

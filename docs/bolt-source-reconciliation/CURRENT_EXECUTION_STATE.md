@@ -1,11 +1,21 @@
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
 **الهدف الوحيد:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / main.
-**آخر SHA كود اجتاز CI كاملًا:** `94c0f92eea5fe8d2add289106c3f76d884460d4d` — [commit](https://github.com/Report-Engainall/Nasr1/commit/94c0f92eea5fe8d2add289106c3f76d884460d4d).
-**CI المطابق للكود:** [Actions 39165071610 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39165071610), SHA `94c0f92eea5fe8d2add289106c3f76d884460d4d`; frozen Bun lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke وdev smoke PASS. backend الجرد اجتاز [Actions 39161411949 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39161411949). تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
+**آخر SHA كود اجتاز CI كاملًا:** `c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25` — [commit](https://github.com/Report-Engainall/Nasr1/commit/c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25).
+**CI المطابق للكود:** [Actions 39171703391 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39171703391), exact SHA `c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25`; unit, PostgreSQL 17 migrations/RLS acceptance, lint, build, preview smoke وdev smoke جميعها PASS. فشل سابق على `65ad6347aaf4938b24bf66577f6d1c82e51de778` في اختبار DB توقع خطأً رفض قراءة المصروفات للمحاسب المخوّل؛ صُحّح التوقع، لا تم إضعاف صلاحية الخادم. backend الجرد السابق اجتاز [Actions 39161411949 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39161411949). تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
 **نقطة الإقلاع:** [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md). أعد قراءة HEAD وCI بعد كل commit.
 **فجوة المصادر:** تم تنزيل وفحص وفك أرشيفي Bolt، وسجل 717 عضوًا فعليًا. مسار/blob audit لجميع 69 صف READY_TO_REUSE مسجل؛ المراجعة الدلالية لعقود/imports/routes/RLS لكل صف لم تكتمل.
 **النزاهة المالية:** لا توجد فواتير تاريخية سابقة مطلوب اختلاقها؛ لا تنشئ أرقامًا تجريبية.
+
+
+## تنفيذ مباشر 2026-10-19 — مسارات المصادقة وسجل المصروفات
+
+- `/register` و`/forgot-password` أصبحا مسارين TanStack فعليين، ويعيدان استخدام تدفق `Login` الموجود بدل إنشاء مخزن مصادقة آخر. أُضيف اختبار UI لكل مسار، وأُدرج التحقق من العنوان في production-preview وdev smoke.
+- سجل المصروفات النقدية `cash_expenses` تكامل مكيّف من المرشح القديم `0032_finance_invoices_cash_expenses.sql`؛ لم يُنسخ عقد `branches/cash_accounts/operational_invoices` غير المتوافق. الجديد مربوط بـ`StaffFinancePage`، مع صلاحية مالية خادمية، عزل المؤسسة، إدخال مبلغ دقيق بمنزلتين عشريتين، مفتاح منع تكرار مربوط بالحمولة، تدقيق، إلغاء غير هدّام، حظر DML المباشر، بحث/تاريخ/حالة/ترقيم صفحات وطباعة الصفحة المفلترة.
+- ترحيل الاختبار المعزول `20261019100000_finance_cash_expenses.sql` واختبارات الوحدة/قبول قاعدة البيانات اجتازت CI المطابق أعلاه. هذا إثبات CI على PostgreSQL 17؛ ترحيل الإنتاج وفتح المتصفح الفعلي والإنتاج الحي `NOT RUN / NOT PROVEN`.
+- محاولات إعادة تنزيل أرشيفي Bolt في جلسة 2026-10-19 فشلت: GitHub fetch أعاد HTTP 400 بنص “GitHub Fetch supports UTF-8 text files; this file appears to be binary or encoded differently (Response: None)” لكل رابط raw ZIP؛ وجلب الشبكة من بيئة التشغيل أعاد `URLError <urlopen error [Errno -3] Temporary failure in name resolution>`. أدلة SHA-256/CRC والاستخراج الآمن السابقة تخص Actions `39157355307` فقط، ولا تدّعي نجاح إعادة التنزيل الآن.
+- لا يزال `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001` مفتوحًا: الجرد المساري/البصمي 69/69 ليس مراجعة دلالية كاملة لـ69 ملفًا. مرشح المحاسبة المذكور تمت مواءمته واختباره؛ يلزم مواصلة باقي المرشحين دون نسخ أعمى.
+- حالة الإثبات: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA `c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25`; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; PRODUCTION-MIGRATION=NOT RUN.
 
 ## آخر إنجاز برمجي حقيقي
 - أضيف اختبار حدّ قاعدة بيانات حقيقي لكشف العميل: ينشئ 205 فواتير و505 دفعات، ثم يثبت بقاء قوائم التفاصيل محدودة إلى 200/500 بينما الملخص المالي يظل شاملاً للسجل كله.
@@ -35,7 +45,7 @@
 - Restored_Current.zip: 997,589 bytes; Git blob SHA-1 f01684a56e093a33a173b0965d1d7239c48f0936; SHA-256 9e012da1795cb9549413f78366c3bd6885c593e5a56e2fea10d4cf3fe810b214; 358 members; CRC/decompression/safe extraction PASS.
 - Pair comparison: 340 identical, 18 changed, 1 before-only. Member inventory 717 rows. Archive content was not executed; no archived SQL applied.
 - Evidence: ARCHIVE_MANIFEST.csv, ARCHIVE_MEMBERS.csv, ARCHIVE_PAIR_DIFF.csv, READY_TO_REUSE_FILE_AUDIT.csv, SOURCE_INTEGRATION_LEDGER.csv.
-- READY_TO_REUSE path/blob audit: 4 exact, 2 differing target contents, 63 target paths missing. This does NOT mean every donor feature is absent; semantic review of all 69 rows remains incomplete.
+- READY_TO_REUSE path/blob audit: 4 exact, 2 differing target contents, 63 target paths missing at the audited SHA. This does NOT mean every donor feature is absent; semantic review of all 69 rows remains incomplete. On 2026-10-19 the donor cash-expense SQL was semantically reviewed and adapted into target-native migration `supabase/migrations/20261019100000_finance_cash_expenses.sql`; exact-SHA test evidence is Actions 39171703391.
 - The legacy audit screen was adapted to active route /admin/audit with actual columns, same-tenant admin/manager SELECT RLS, no direct authenticated DML, search and filtered printing. Code SHA bb08320b690203f7f9b1ce65287e389e847c2dea passed Actions run 39154450426.
 - IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS on that exact code SHA. BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN. Production migrations=NOT RUN; Onyx vendor round-trip=NOT RUN.
 
