@@ -1,8 +1,8 @@
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
 **الهدف الوحيد:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / main.
-**آخر SHA كود اجتاز CI كاملًا:** `a02ad4682ed1e18a10811040ae20134875031de7` — [commit](https://github.com/Report-Engainall/Nasr1/commit/a02ad4682ed1e18a10811040ae20134875031de7).
-**CI المطابق للكود:** [Actions 39159034597 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39159034597), SHA `a02ad4682ed1e18a10811040ae20134875031de7`; frozen Bun lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke وdev smoke PASS. تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
+**آخر SHA كود اجتاز CI كاملًا:** `89fe8089aa2fd7d4f1b5130c8af85dc1171b4185` — [commit](https://github.com/Report-Engainall/Nasr1/commit/89fe8089aa2fd7d4f1b5130c8af85dc1171b4185).
+**CI المطابق للكود:** [Actions 39159745907 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39159745907), SHA `89fe8089aa2fd7d4f1b5130c8af85dc1171b4185`; frozen Bun lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke وdev smoke PASS. تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
 **نقطة الإقلاع:** [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md). أعد قراءة HEAD وCI بعد كل commit.
 **فجوة المصادر:** تم تنزيل وفحص وفك أرشيفي Bolt، وسجل 717 عضوًا فعليًا. مسار/blob audit لجميع 69 صف READY_TO_REUSE مسجل؛ المراجعة الدلالية لعقود/imports/routes/RLS لكل صف لم تكتمل.
 **النزاهة المالية:** لا توجد فواتير تاريخية سابقة مطلوب اختلاقها؛ لا تنشئ أرقامًا تجريبية.
@@ -49,7 +49,7 @@
 
 ## نقطة الاستئناف الوحيدة
 
-- next_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001
+- next_task_id = NASR1-INVENTORY-REORDER-POINT-COMMAND-001
 - Review each of 69 READY_TO_REUSE candidates against live app contracts and implement useful missing behavior only. Prioritize security/data correctness, commerce/inventory/import/Onyx, then finance/admin/analytics.
 - Do not blind-copy old React Router screens or apply legacy SQL with DROP FUNCTION ... CASCADE. Do not invent historical invoices or demo data. No paid services.
 
@@ -88,3 +88,14 @@
 - هذا اختبار على قاعدة PostgreSQL معزولة في CI، وليس تطبيقًا على Supabase الإنتاجية. لا يدعي إنجاز الاستيراد بالكامل أو استبدال ملفات المانحين القديمة.
 - IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN.
 
+
+## تكامل تحويل المخزون بين المستودعات
+
+- تمت مواءمة الفائدة الأساسية من مرشح `src/services/inventory.ts` القديم على عقد Nasr1 الحقيقي بدل نسخه حرفيًا؛ الخدمة القديمة تفترض RPCs وأعمدة وجداول مختلفة. المسار الجديد يستخدم `inventory_balances.quantity_on_hand/quantity_reserved/quantity_available` الحالية.
+- أضيفت `supabase/migrations/20261018070000_inventory_transfer_command.sql`: جدول `inventory_transfers` بعزل مؤسسي، قراءة فقط لموظفي المؤسسة، ومنع DML مباشر من المتصفح؛ وRPC `transfer_inventory` بصلاحية خادمية.
+- ينفذ RPC النقل في معاملة واحدة، يتحقق من المؤسسة والمنتج والمستودعين وحالة نشاطهما، ويرفض الكمية غير الصالحة أو التي تتجاوز المتاح بعد الحجوزات. يقفل أرصدة المصدر والوجهة بطريقة حتمية، يكتب حركتي `transfer_out/transfer_in` بالمرجع نفسه ويسجل سجل التدقيق. مفتاح منع التكرار يعيد النتيجة السابقة لنفس الحمولة ويرفض إعادة استعماله بحمولة مختلفة.
+- رُبطت الوظيفة بنموذج فعلي في إدارة المنتجات: اختيار مستودع المصدر/الوجهة والكمية والسبب؛ قرار الخادم هو المرجع المتحكم بكمية المتاح، لا قيمة عرض قديمة في النموذج.
+- اختبارات PostgreSQL 17 تغطي النقل، ثبات الحجوزات، رصيد الوجهة، قيدي دفتر الحركة، إعادة المحاولة دون تكرار، اختلاف الحمولة، نقص المتاح، منع نقل مخزون مؤسسة أخرى، ومنع تعديل دفتر النقل مباشرة.
+- [Exact-SHA CI 39159745907 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39159745907) على `89fe8089aa2fd7d4f1b5130c8af85dc1171b4185`: unit tests، PostgreSQL 17، lint، build، preview/dev smoke PASS.
+- ما لم يُنجز: جلسات الجرد الفعلي (start/count/complete) من خدمة المانح لم تُنقل؛ كانت تعتمد مخططًا غير موجود في الهدف. لم تُطبق migrations على Supabase الإنتاجية ولم يُثبت تشغيل المتصفح/الإنتاج.
+- IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migration=NOT RUN.

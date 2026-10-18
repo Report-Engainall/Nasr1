@@ -345,3 +345,12 @@
 - Exact-SHA CI [39159034597 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39159034597), code SHA `a02ad4682ed1e18a10811040ae20134875031de7`: lockfile, unit tests, PostgreSQL 17 migrations/RLS acceptance, lint, build and preview/dev smoke all PASS.
 - Status: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS on exact SHA; production migrations=NOT RUN; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN. This is an import-integrity hardening, not full semantic integration of all donor candidates.
 - next_task_id = `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001`.
+
+## 2026-10-18 — NASR1-INVENTORY-TRANSFER-001
+
+- Source reviewed: `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1/src/services/inventory.ts`, blob `3506707a656e0db491b860d5e11ad28daeded5cf`. Old service uses distinct RPC parameters and assumptions about schema; no wholesale copy.
+- Target-native integration: migration `supabase/migrations/20261018070000_inventory_transfer_command.sql`; API `fetchActiveInventoryWarehouses` + `transferInventory` in `src/lib/api.ts`; transfer modal and control in `src/components/AghbariApp.tsx`; PostgreSQL acceptance cases in `scripts/test-database-migrations.mjs`.
+- Transaction invariants: active same-tenant product and warehouses; source available quantity (not gross on-hand) must cover transfer; row locking in deterministic order; source and destination balances change atomically; paired immutable movement rows and audit; exact-payload idempotent replay returns the same transfer without duplicate movement; payload mismatch rejected.
+- Test correction history: first run [39159581588](https://github.com/Report-Engainall/Nasr1/actions/runs/39159581588) failed on invalid schema qualification of SQL COALESCE; corrected. [39159657535 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39159657535) validated transfer logic and all project checks. The latest UI quantity-label correction then passed exact-SHA CI [39159745907 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39159745907) at `89fe8089aa2fd7d4f1b5130c8af85dc1171b4185`.
+- State: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migration=NOT RUN. Stock-count session/line feature remains open.
+- next_task_id = `NASR1-INVENTORY-REORDER-POINT-COMMAND-001`.
