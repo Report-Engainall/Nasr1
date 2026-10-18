@@ -151,3 +151,25 @@
 - النتيجة: الحالات المستحيلة (إجمالي فاتورة سالب، دفعة صفرية أو سالبة) مرفوضة قبل إنشاء كشف الحساب PDF، مع اختبارات رجعية مضافة.
 - الحالة: `IMPLEMENTED` + `TESTED` على SHA أعلاه. لا يُدّعى اختبار متصفح أو إنتاج مباشر.
 - next_task_id: `NASR1-FINANCE-STATEMENT-OVERDUE-LABEL-001` — مراجعة عرض حالة الفاتورة في PDF مقابل due_at/الرصيد الفعلي، وإضافة اختبار حتمي إن كانت الفجوة مؤكدة.
+
+## 2026-10-18 — NASR1-FINANCE-STATEMENT-OVERDUE-LABEL-001 — تحديث حالة الفاتورة في كشف PDF
+
+- الفجوة المؤكدة: `statusLabel()` في كشف الحساب كان يعتمد على `status` فقط، بينما قيم المخطط الفعلي لا تشمل حالة `overdue`؛ لذلك الفاتورة غير المسددة التي تجاوزت `due_at` قد تظهر «مستحقة» بدل «متأخرة».
+- أضيف `resolveCustomerStatementInvoiceStatus()` لتحديد الحالة باستخدام `due_at` مقابل وقت ثابت لتوليد المستند، ورصيد الفاتورة بعد الدفعات؛ يعرض «متأخرة» و«متأخرة جزئيًا» عند ثبوت التأخر، ويحافظ على «مدفوعة» و«ملغاة»، ويعامل التاريخ المفقود/غير الصالح كغير محدد بدل اختلاق تأخر. الكود: [3c1bee5dea79cd055b3ac8d402adfbf7cf904f15](https://github.com/Report-Engainall/Nasr1/commit/3c1bee5dea79cd055b3ac8d402adfbf7cf904f15).
+- أضيفت اختبارات حتمية: فاتورة مستحقة ومتأخرة، متأخرة جزئيًا، استحقاق مستقبلي، تاريخ مفقود، مدفوعة بحسب حالة المصدر، مدفوعة بحسب الرصيد المسدد، وملغاة. [Commit الاختبار 9b10d34b4b61c92871b8cc6d3874909d34f79e0a](https://github.com/Report-Engainall/Nasr1/commit/9b10d34b4b61c92871b8cc6d3874909d34f79e0a).
+- فشل CI كشف اعتماد الفاتورة PDF الفردية على دالة `statusLabel()` نفسها التي استبدلناها لكشف الحساب؛ run [39145577858](https://github.com/Report-Engainall/Nasr1/actions/runs/39145577858) فشل اختبارين من هذه العلة المحددة، وrun [39145591658](https://github.com/Report-Engainall/Nasr1/actions/runs/39145591658) يماثل SHA الاختبارات. تمت المعالجة بإعادة دالة المصدر-status المستقلة للفاتورة الفردية مع إبقاء دالة الحساب مشتقة من الدفعات/الاستحقاق: [fix commit ba9523fdbe643d7a6503dce54f6d1b740f3f06ca](https://github.com/Report-Engainall/Nasr1/commit/ba9523fdbe643d7a6503dce54f6d1b740f3f06ca).
+- نتيجة CI لإصلاح `ba9523f` كانت **PENDING** عند كتابة هذا الإدخال؛ run المطابق [39145659217](https://github.com/Report-Engainall/Nasr1/actions/runs/39145659217). لا تُسجل نجاحًا قبل قراءة النتيجة النهائية.
+- فشل منفصل في run [39145507514](https://github.com/Report-Engainall/Nasr1/actions/runs/39145507514) توقف عند تنزيل Bun بسبب `Unexpected HTTP response: 403`، دون تشغيل الاختبارات. كان ذلك عطل تنزيل خارجي عابرًا؛ تنزيل Bun نجح لاحقًا في [39145577858](https://github.com/Report-Engainall/Nasr1/actions/runs/39145577858)، وسبب فشله كان اختبار التطبيق المذكور أعلاه لا Bun.
+
+## سجل الفحوص المكتملة — لا تُعد من البداية
+
+هذه الموضوعات مكتملة في هذه الجلسة بأدلة SHA/Actions؛ لا تُكرر فحصها في الانطلاقة التالية إلا إذا تغيّر الكود المعني أو أظهر CI فشلًا جديدًا:
+
+- مركز المهام، مولد الأحداث/منع التكرار، صلاحيات المؤسسة/الدور، ودليل الإسناد: [39143265290 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39143265290).
+- فلاتر الأولوية والمسؤول والتاريخ التي تطابق القائمة والطباعة: [39144118407 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144118407).
+- تقرير أعمار الذمم من الفواتير/الدفعات، فصل العملات، الفئات والترقيم والتفويض: [39144691226 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144691226).
+- طباعة التقرير RTL/A4، ثم اختبار واجهته ومنع الدور غير المالي: [39144916657 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144916657)، [39144928394 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144928394)، [39145164044 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39145164044).
+- رفض إجمالي فاتورة PDF السالب والدفعة الصفرية/السالبة: [39145334417 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39145334417).
+- قاعدة العمل الدائمة «إنجاز برمجي/اختباري حقيقي في كل انطلاقة» في `AGENTS.md`: [39144280302 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144280302).
+
+- next_task_id: `NASR1-FINANCE-STATEMENT-OVERDUE-LABEL-VERIFY-CI` — اقرأ run `39145659217` فقط لهذا التغيير. إذا نجح، حدّث نقطة الاستئناف وسجل المتطلبات ثم انتقل إلى فجوة جديدة دون إعادة الفحوص المكتملة أعلاه.
