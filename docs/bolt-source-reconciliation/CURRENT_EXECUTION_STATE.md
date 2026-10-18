@@ -2,23 +2,19 @@
 
 **المستودع الهدف الوحيد:** https://github.com/Report-Engainall/Nasr1  
 **الفرع:** `main`  
-**آخر كود مختبر:** `283d2def75e2608e0aac1d2d16aabf81e7842347`  
-**بوابة القبول:** [CI run 39142794601](https://github.com/Report-Engainall/Nasr1/actions/runs/39142794601) = **SUCCESS** على هذا الـSHA. كل المراحل المكتملة نجحت: frozen Bun lock/install، 15/15 test files، 165/165 unit tests، isolated PostgreSQL 17 migration/workflow acceptance، ESLint، Build، production preview smoke، وdev-server smoke.
+**آخر إثبات كامل:** [CI 39142794601](https://github.com/Report-Engainall/Nasr1/actions/runs/39142794601) على `283d2def75e2608e0aac1d2d16aabf81e7842347` = SUCCESS؛ 15 ملفات اختبار و165 اختبارًا اجتازت، ونجاح PostgreSQL 17 acceptance وESLint/build/preview/dev smoke.
 
-## إنجاز مثبت — NASR1-OPS-TASK-CENTER-001
-- تمديد الجدول الموجود `ai_tasks`؛ لم يُنشأ محرك مهام ثانٍ.
-- مهام آلية مستندة إلى سجلات محفوظة: الطلبات، انخفاض المخزون، الفواتير المفتوحة/الجزئية، عروض الأسعار المطلوبة، وعمليات الاستيراد ذات الصفوف الفاشلة.
-- منع التكرار بمفتاح مصدر فريد؛ إعادة المصالحة تدمج نفس الحدث، وإعادة الفتح تتطلب عودة فعلية لحالة العمل.
-- صلاحيات القراءة tenant/role داخل SQL؛ المحاسب يرى lane التحصيل فقط، والعميل لا يستطيع تعداد المهام الداخلية. الكتابة المباشرة إلى `ai_tasks` مقفلة؛ الإنشاء وتغيير الحالة يمران عبر RPC مع سجل تدقيق.
-- مسار `/admin/tasks` مسجل في TanStack Router ومغطى باختبار route. واجهة RTL تشمل البحث والفلاتر ومؤشرات المهام، الإنشاء اليدوي للمسؤولين، استلام/إنجاز، وطباعة A4 landscape للنتائج المعروضة.
-- اختبار قاعدة البيانات المضاف ظهر في سجل CI: `PASS operational task center: source-event idempotency, stock threshold lifecycle, audited RPC writes, accountant-only lane and customer isolation`.
+## منجز ومختبر
+- `NASR1-OPS-TASK-CENTER-001`: مركز واحد فوق `ai_tasks` مع مهام من سجلات محفوظة، idempotency، صلاحيات tenant/role، RPCs مدققة، route `/admin/tasks`، فلاتر RTL وطباعة A4.
+- سجل CI: `PASS operational task center: source-event idempotency, stock threshold lifecycle, audited RPC writes, accountant-only lane and customer isolation`.
 
-## نقطة الاستئناف الوحيدة
-- `next_task_id = NASR1-TASK-ASSIGNMENT-001`
-- استكمال الإسناد إلى موظف محدد بالاسم/الحساب، باستخدام قائمة مستخدمين من RPC إداري مقيد بالمؤسسة؛ عدم قراءة profiles مباشرة أو كشف قائمة الحسابات لغير الإدارة.
+## الإضافة الحالية — تنتظر CI
+- `NASR1-TASK-ASSIGNMENT-001`: إضافة دليل موظفين `list_operational_task_assignees()` مقيد بالمؤسسة ولا يسمح به إلا admin/manager؛ اختيار موظف محدد في إنشاء المهمة وتصفية المرشحين حسب الدور؛ اختبار يمنع رؤية موظف من مؤسسة أخرى، ويمنع المحاسب من تعداد الدليل، ويتحقق من رفض إسناد دور مبيعات إلى مستخدم مالي فقط.
+- قاعدة البيانات تظل مرجع صلاحية الإسناد، حتى لو تغيرت الواجهة أو استدعيت RPC مباشرة. إذا فشل تحميل الدليل، يمكن حفظ المهمة غير مسندة بدل الإسناد التخمينـي.
 
-## خارج نطاق الإثبات الحالي
-- لا يوجد تحقق متصفح تفاعلي مباشر ولا نشر Production جديد؛ CI شغّل preview/dev smoke فقط.
-- لا يوجد ادعاء بفك الأرشيفات الثنائية أو إكمال مراجعة كل ملفات READY_TO_REUSE.
+## ما لا يزال غير مثبت
+- نتيجة CI للميزة الجديدة حتى تمر الاختبارات والهجرات وlint/build/preview/dev smoke على نفس SHA.
+- تحقق متصفح تفاعلي مباشر أو نشر Production جديد.
+- فك الأرشيفات الثنائية ومراجعة كل READY_TO_REUSE.
 
-تعريف الحالات: `IMPLEMENTED` تغيير كود؛ `TESTED` اختبار ناجح على SHA محدد؛ `INTEGRATED` ربط بالخدمة/البيانات والصلاحيات؛ `BROWSER-PROVEN` تحقق متصفح مباشر؛ `PRODUCTION-PROVEN` تحقق مباشر من الإنتاج.
+**next_task_id:** `NASR1-TASK-ASSIGNMENT-001` حتى إثبات CI.

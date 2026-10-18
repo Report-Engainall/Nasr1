@@ -57,3 +57,9 @@ export interface Notification {
   id: string; organization_id: string | null; profile_id: string | null; title: string;
   body: string | null; type: string; is_read: boolean; created_at: string;
 }
+export interface OperationalTaskAssignee {
+  profile_id: string;
+  full_name: string;
+  email: string | null;
+  roles: string[];
+}

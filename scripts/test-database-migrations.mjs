@@ -1821,6 +1821,17 @@ async function main() {
   process.stdout.write("PASS AI gateway: admin-owned settings, HTTPS validation, atomic budget caps, usage ledger replay, service-only RPCs and customer denial\n");
 
 
+  // AGH-TASK-ASSIGNEE-001: admin/manager assignment directory is active and organization-scoped.
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const assignableDirectoryRows = await db.unsafe("select public.list_operational_task_assignees() as result");
+  const assignableDirectory = assignableDirectoryRows[0].result;
+  assert.ok(Array.isArray(assignableDirectory), "task assignment directory returns a JSON array");
+  assert.ok(assignableDirectory.some((row) => row.profile_id === staffProfileId), "active administrator appears in its organization directory");
+  assert.ok(!assignableDirectory.some((row) => row.profile_id === foreignProfileId), "foreign-organization user is never visible for assignment");
+  assert.ok(assignableDirectory.every((row) => typeof row.full_name === "string" && Array.isArray(row.roles)), "assignment list contains validated display and role data");
+
   // AGH-OPS-TASK-CENTER-001: source-driven, idempotent tasks and role-isolated status transitions.
   await db.unsafe("reset role");
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
@@ -1926,9 +1937,30 @@ async function main() {
   );
   const accountantTaskId = accountantManual[0].id;
 
+  const assignedManualRows = await db.unsafe(
+    "select public.create_operational_task($1::text,$2::text,$3::text,$4::text,$5::timestamptz,$6::uuid) as id",
+    ["CI explicitly assigned sales task", "Assignee persistence verification", "sales", "high", null, staffProfileId],
+  );
+  const assignedManualId = assignedManualRows[0].id;
+  const persistedAssignee = await db.unsafe("select assigned_to from public.ai_tasks where id=$1", [assignedManualId]);
+  assert.equal(persistedAssignee[0].assigned_to, staffProfileId, "valid same-organization role-compatible assignee persists");
+  await expectFailure(
+    "sales tasks cannot be assigned to a finance-only user",
+    () => db.unsafe(
+      "select public.create_operational_task($1::text,$2::text,$3::text,$4::text,$5::timestamptz,$6::uuid)",
+      ["CI incompatible assignee", "Should reject", "sales", "high", null, accountantProfileId],
+    ),
+    /operational tasks require an active staff assignee/i,
+  );
+
   await db.unsafe("reset role");
   await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
   await db.unsafe("set role authenticated");
+  await expectFailure(
+    "accountants cannot enumerate the full organization task-assignment directory",
+    () => db.unsafe("select public.list_operational_task_assignees()"),
+    /administrator or manager permission required/i,
+  );
   const accountantVisibleTasks = await db.unsafe(
     "select id,task_role from public.ai_tasks where organization_id=$1",
     [organizationId],

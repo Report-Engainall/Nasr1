@@ -3,9 +3,9 @@ import {
   AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Clock3, Filter,
   ListTodo, Play, Plus, Printer, RefreshCw, Search, UserCheck, X,
 } from 'lucide-react';
-import { createOperationalTask, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus } from '@/lib/api';
+import { createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import type { OperationalTask, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
+import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
 
 const roleLabels: Record<OperationalTaskRole, string> = {
   sales: 'المبيعات', accountant: 'المحاسبة والتحصيل', warehouse: 'أمين المخزن',
@@ -33,6 +33,12 @@ function roleOptionsFor(roles: string[]): OperationalTaskRole[] {
   return ['sales','warehouse','purchasing','operations'];
 }
 
+function canAssignToRole(userRoles: string[], taskRole: OperationalTaskRole): boolean {
+  if (taskRole === 'accountant') return userRoles.some((role) => ['admin','manager','accountant'].includes(role));
+  if (taskRole === 'management') return userRoles.some((role) => ['admin','manager'].includes(role));
+  return userRoles.some((role) => ['admin','manager','staff'].includes(role));
+}
+
 export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }) {
   const { user } = useAuth();
   const roles = user?.roles ?? [];
@@ -52,6 +58,10 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const [newRole, setNewRole] = useState<OperationalTaskRole>(canManage ? 'sales' : (allowedRoles[0] ?? 'operations'));
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'critical'>('medium');
   const [dueAt, setDueAt] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
+  const [assignees, setAssignees] = useState<OperationalTaskAssignee[]>([]);
+  const [assigneesLoading, setAssigneesLoading] = useState(false);
+  const [assigneesError, setAssigneesError] = useState('');
 
   const loadTasks = useCallback(async () => {
     setLoading(true); setError('');
@@ -60,6 +70,36 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void loadTasks(); }, [loadTasks]);
+  useEffect(() => {
+    if (!canManage) return;
+    let active = true;
+    setAssigneesLoading(true);
+    setAssigneesError('');
+    void fetchOperationalTaskAssignees()
+      .then((rows) => { if (active) setAssignees(rows); })
+      .catch((cause: unknown) => {
+        if (active) setAssigneesError(cause instanceof Error ? cause.message : 'تعذر تحميل موظفي المؤسسة.');
+      })
+      .finally(() => { if (active) setAssigneesLoading(false); });
+    return () => { active = false; };
+  }, [canManage]);
+
+  const eligibleAssignees = useMemo(
+    () => assignees.filter((assignee) => canAssignToRole(assignee.roles, newRole)),
+    [assignees, newRole],
+  );
+  const assigneeById = useMemo(
+    () => new Map(assignees.map((assignee) => [assignee.profile_id, assignee])),
+    [assignees],
+  );
+  function assignedLabel(task: OperationalTask): string {
+    if (!task.assigned_to) return 'حسب الدور — غير مستلمة';
+    if (task.assigned_to === user?.profileId) return 'أنت';
+    const assignee = assigneeById.get(task.assigned_to);
+    if (assignee) return assignee.full_name;
+    return 'مسند لموظف آخر';
+  }
+
 
   const filtered = useMemo(() => tasks.filter((task) => {
     if (roleFilter !== 'all' && task.task_role !== roleFilter) return false;
@@ -102,8 +142,8 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     event.preventDefault(); if (!title.trim()) return;
     setBusy(true); setError('');
     try {
-      await createOperationalTask({ title,description,taskRole:newRole,priority,dueAt:dueAt?new Date(dueAt).toISOString():null });
-      setTitle(''); setDescription(''); setDueAt(''); setShowCreate(false);
+      await createOperationalTask({ title,description,taskRole:newRole,priority,dueAt:dueAt?new Date(dueAt).toISOString():null,assignedTo:assignedTo || null });
+      setTitle(''); setDescription(''); setDueAt(''); setAssignedTo(''); setShowCreate(false);
       await loadTasks(); onNotice('حُفظت المهمة الجديدة مع سجل تدقيق.');
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'تعذر إنشاء المهمة.';
@@ -135,7 +175,20 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       <label>عنوان المهمة<input required maxLength={240} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="اكتب الإجراء المطلوب" /></label>
       <label>التفاصيل<textarea maxLength={2000} rows={3} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="الإجراء أو المرجع التشغيلي" /></label>
       <div className="task-create-grid">
-        <label>الدور المستهدف<select value={newRole} onChange={(event) => setNewRole(event.target.value as OperationalTaskRole)}>{allowedRoles.map((role) => <option value={role} key={role}>{roleLabels[role]}</option>)}</select></label>
+        <label>الدور المستهدف<select value={newRole} onChange={(event) => {
+          const role = event.target.value as OperationalTaskRole;
+          setNewRole(role);
+          if (assignedTo && !assignees.some((assignee) => assignee.profile_id === assignedTo && canAssignToRole(assignee.roles, role))) setAssignedTo('');
+        }}>{allowedRoles.map((role) => <option value={role} key={role}>{roleLabels[role]}</option>)}</select></label>
+        <label>الموظف المسؤول
+          <select value={assignedTo} onChange={(event) => setAssignedTo(event.target.value)} disabled={assigneesLoading || Boolean(assigneesError)}>
+            <option value="">تبقى في قائمة الدور حتى يستلمها موظف</option>
+            {eligibleAssignees.map((assignee) => <option key={assignee.profile_id} value={assignee.profile_id}>{assignee.full_name}{assignee.email ? ' — '+assignee.email : ''}</option>)}
+          </select>
+          {assigneesLoading && <small>جارٍ تحميل موظفي المؤسسة المصرح لهم…</small>}
+          {assigneesError && <small role="status">{assigneesError} يمكنك حفظ المهمة غير مسندة؛ يتحقق الخادم من أي إسناد لاحق.</small>}
+          {!assigneesLoading && !assigneesError && eligibleAssignees.length===0 && <small>لا يوجد موظف نشط بدور متوافق؛ ستبقى المهمة في قائمة الدور.</small>}
+        </label>
         <label>الأولوية<select value={priority} onChange={(event) => setPriority(event.target.value as typeof priority)}><option value="low">منخفضة</option><option value="medium">متوسطة</option><option value="high">مرتفعة</option><option value="critical">حرجة</option></select></label>
         <label>الموعد (اختياري)<input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label>
       </div>
@@ -153,7 +206,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       const late=isLate(task);
       const source=task.source_entity_type?(entityLabels[task.source_entity_type]??task.source_entity_type):'مهمة يدوية';
       const sourceId=task.source_entity_id?task.source_entity_id.slice(0,8):'—';
-      const assigned=task.assigned_to?task.assigned_to.slice(0,8):'حسب الدور — غير مستلمة';
+      const assigned=assignedLabel(task);
       return <article className="panel task-card" key={task.id}>
         <div className={'task-priority-line '+task.priority} />
         <div className="task-card-main">
@@ -187,7 +240,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       <table><thead><tr><th>#</th><th>المهمة والإجراء</th><th>الدور</th><th>الأولوية</th><th>الحالة</th><th>الموعد المسجل</th><th>المصدر</th><th>المسؤول</th></tr></thead>
         <tbody>{filtered.map((task,index) => <tr key={task.id}><td>{index+1}</td><td><strong>{task.title}</strong><br/>{task.description??'—'}{task.resolution_note?<><br/>النتيجة: {task.resolution_note}</>:null}</td>
           <td>{roleLabels[task.task_role]}</td><td>{priorityLabels[task.priority]??task.priority}</td><td>{statusLabels[task.status]??task.status}</td><td>{dateText(task.due_at)}</td>
-          <td>{task.source_entity_type?entityLabels[task.source_entity_type]??task.source_entity_type:'يدوية'} {task.source_entity_id?'#'+task.source_entity_id:''}</td><td>{task.assigned_to??'غير مستلمة'}</td></tr>)}</tbody>
+          <td>{task.source_entity_type?entityLabels[task.source_entity_type]??task.source_entity_type:'يدوية'} {task.source_entity_id?'#'+task.source_entity_id:''}</td><td>{assignedLabel(task)}</td></tr>)}</tbody>
       </table>
       <footer>تعرض هذه القائمة سجلات التشغيل الحالية؛ لا تُنشأ مواعيد غير مسجلة في المصدر.</footer>
     </div>

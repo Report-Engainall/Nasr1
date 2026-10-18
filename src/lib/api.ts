@@ -3,7 +3,7 @@ import type {
   Product, Category, Customer, Supplier, Order, OrderItem,
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
   ProductWithInventory, OrderWithCustomer, AdminSetting, ImportJob, ImportJobRow,
-  OperationalTask, OperationalTaskRole, OperationalTaskStatus,
+  OperationalTask, OperationalTaskRole, OperationalTaskStatus, OperationalTaskAssignee,
 } from './types';
 
 // Fetch unit prices using the server-derived customer/company tier. The client never
@@ -653,16 +653,40 @@ export async function fetchOperationalTasks(): Promise<OperationalTask[]> {
   return (data ?? []) as OperationalTask[];
 }
 
+
+export async function fetchOperationalTaskAssignees(): Promise<OperationalTaskAssignee[]> {
+  const { data, error } = await supabase.rpc('list_operational_task_assignees');
+  if (error) throw new Error(error.message || 'تعذر تحميل قائمة الموظفين المسموح إسناد المهام إليهم.');
+  if (!Array.isArray(data)) throw new Error('أعاد الخادم قائمة إسناد غير صالحة.');
+  return data.map((value: unknown) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('يوجد سجل موظف غير صالح في نتيجة الإسناد.');
+    }
+    const row = value as Record<string, unknown>;
+    if (typeof row.profile_id !== 'string' || typeof row.full_name !== 'string' ||
+        !(typeof row.email === 'string' || row.email === null) ||
+        !Array.isArray(row.roles) || !row.roles.every((role) => typeof role === 'string')) {
+      throw new Error('بيانات الموظف غير مكتملة؛ لم تُستخدم قائمة إسناد غير موثوقة.');
+    }
+    return {
+      profile_id: row.profile_id,
+      full_name: row.full_name,
+      email: row.email,
+      roles: row.roles as string[],
+    };
+  });
+}
+
 export async function createOperationalTask(input: {
   title: string; description?: string; taskRole: OperationalTaskRole;
-  priority: 'low' | 'medium' | 'high' | 'critical'; dueAt?: string | null;
+  priority: 'low' | 'medium' | 'high' | 'critical'; dueAt?: string | null; assignedTo?: string | null;
 }): Promise<string> {
   if (!input.title.trim() || input.title.trim().length > 240) {
     throw new Error('اكتب عنوانًا للمهمة بين حرف واحد و240 حرفًا.');
   }
   const { data, error } = await supabase.rpc('create_operational_task', {
     p_title: input.title.trim(), p_description: input.description?.trim() || null,
-    p_task_role: input.taskRole, p_priority: input.priority, p_due_at: input.dueAt || null, p_assigned_to: null,
+    p_task_role: input.taskRole, p_priority: input.priority, p_due_at: input.dueAt || null, p_assigned_to: input.assignedTo || null,
   });
   if (error) throw new Error(error.message || 'تعذر إنشاء المهمة.');
   if (typeof data !== 'string') throw new Error('لم يرجع الخادم معرّف المهمة.');
