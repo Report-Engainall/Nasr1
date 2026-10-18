@@ -229,7 +229,10 @@ function validatePayload(payload: unknown): {
       throw new Error("Statement contains an incomplete invoice record.");
     }
     normalizeCurrency(invoice.currency);
-    moneyToMinorUnits(invoice.total_amount);
+    const invoiceTotal = moneyToMinorUnits(invoice.total_amount);
+    if (invoiceTotal < 0n) {
+      throw new Error("Statement contains a negative invoice total.");
+    }
   }
   for (const payment of payments) {
     if (
@@ -239,7 +242,10 @@ function validatePayload(payload: unknown): {
     ) {
       throw new Error("Statement contains an incomplete payment record.");
     }
-    moneyToMinorUnits(payment.amount);
+    const paymentAmount = moneyToMinorUnits(payment.amount);
+    if (paymentAmount <= 0n) {
+      throw new Error("Statement contains a non-positive payment amount.");
+    }
   }
 
   return { invoices, payments };
