@@ -50,17 +50,17 @@ BEGIN
       ci.id,
       ci.invoice_number,
       ci.customer_id,
-      pg_catalog.coalesce(
-        pg_catalog.nullif(pg_catalog.btrim(c.company_name), ''),
-        pg_catalog.nullif(pg_catalog.btrim(c.full_name), ''),
+      COALESCE(
+        NULLIF(pg_catalog.btrim(c.company_name), ''),
+        NULLIF(pg_catalog.btrim(c.full_name), ''),
         ci.customer_id::text
       ) AS customer_name,
       ci.issued_at,
       ci.due_at,
-      pg_catalog.coalesce(pg_catalog.nullif(pg_catalog.upper(pg_catalog.btrim(ci.currency)), ''), 'UNSPECIFIED') AS currency,
+      COALESCE(NULLIF(pg_catalog.upper(pg_catalog.btrim(ci.currency)), ''), 'UNSPECIFIED') AS currency,
       ci.total_amount::numeric(15,2) AS total_amount,
-      pg_catalog.coalesce(pbi.paid_amount, 0)::numeric(15,2) AS paid_amount,
-      pg_catalog.greatest(ci.total_amount - pg_catalog.coalesce(pbi.paid_amount, 0), 0)::numeric(15,2) AS outstanding_amount,
+      COALESCE(pbi.paid_amount, 0)::numeric(15,2) AS paid_amount,
+      GREATEST(ci.total_amount - COALESCE(pbi.paid_amount, 0), 0)::numeric(15,2) AS outstanding_amount,
       CASE WHEN ci.due_at IS NULL THEN NULL
            ELSE (ci.due_at AT TIME ZONE 'UTC')::date
       END AS due_date_utc
@@ -100,12 +100,12 @@ BEGIN
       pg_catalog.count(*)::integer AS open_invoice_count,
       pg_catalog.count(*) FILTER (WHERE b.aging_bucket NOT IN ('current','unknown_due_date'))::integer AS overdue_invoice_count,
       pg_catalog.count(*) FILTER (WHERE b.aging_bucket='unknown_due_date')::integer AS unknown_due_date_count,
-      pg_catalog.coalesce(pg_catalog.sum(b.outstanding_amount) FILTER (WHERE b.aging_bucket='current'),0)::numeric(15,2) AS current_amount,
-      pg_catalog.coalesce(pg_catalog.sum(b.outstanding_amount) FILTER (WHERE b.aging_bucket='days_1_30'),0)::numeric(15,2) AS days_1_30_amount,
-      pg_catalog.coalesce(pg_catalog.sum(b.outstanding_amount) FILTER (WHERE b.aging_bucket='days_31_60'),0)::numeric(15,2) AS days_31_60_amount,
-      pg_catalog.coalesce(pg_catalog.sum(b.outstanding_amount) FILTER (WHERE b.aging_bucket='days_61_90'),0)::numeric(15,2) AS days_61_90_amount,
-      pg_catalog.coalesce(pg_catalog.sum(b.outstanding_amount) FILTER (WHERE b.aging_bucket='over_90'),0)::numeric(15,2) AS over_90_amount,
-      pg_catalog.coalesce(pg_catalog.sum(b.outstanding_amount) FILTER (WHERE b.aging_bucket='unknown_due_date'),0)::numeric(15,2) AS unknown_due_date_amount,
+      COALESCE(pg_catalog.sum(b.outstanding_amount) FILTER (WHERE b.aging_bucket='current'),0)::numeric(15,2) AS current_amount,
+      COALESCE(pg_catalog.sum(b.outstanding_amount) FILTER (WHERE b.aging_bucket='days_1_30'),0)::numeric(15,2) AS days_1_30_amount,
+      COALESCE(pg_catalog.sum(b.outstanding_amount) FILTER (WHERE b.aging_bucket='days_31_60'),0)::numeric(15,2) AS days_31_60_amount,
+      COALESCE(pg_catalog.sum(b.outstanding_amount) FILTER (WHERE b.aging_bucket='days_61_90'),0)::numeric(15,2) AS days_61_90_amount,
+      COALESCE(pg_catalog.sum(b.outstanding_amount) FILTER (WHERE b.aging_bucket='over_90'),0)::numeric(15,2) AS over_90_amount,
+      COALESCE(pg_catalog.sum(b.outstanding_amount) FILTER (WHERE b.aging_bucket='unknown_due_date'),0)::numeric(15,2) AS unknown_due_date_amount,
       pg_catalog.sum(b.outstanding_amount)::numeric(15,2) AS total_outstanding_amount
     FROM bucketed b
     GROUP BY b.currency
@@ -117,7 +117,7 @@ BEGIN
   )
   SELECT
     (SELECT pg_catalog.count(*) FROM bucketed),
-    (SELECT pg_catalog.coalesce(
+    (SELECT COALESCE(
       pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
         'currency',s.currency,
         'open_invoice_count',s.open_invoice_count,
@@ -133,7 +133,7 @@ BEGIN
       ) ORDER BY s.currency),
       '[]'::jsonb
     ) FROM summary_by_currency s),
-    (SELECT pg_catalog.coalesce(
+    (SELECT COALESCE(
       pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
         'id',p.id,
         'invoice_number',p.invoice_number,
