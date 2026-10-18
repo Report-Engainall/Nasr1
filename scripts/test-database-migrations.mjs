@@ -1100,7 +1100,7 @@ async function main() {
 
   // Avoid subtracting large floating-point totals: reconcile all money in minor-unit BigInts.
   const toMinorUnits = (value) => {
-    const match = /^(-?)(\\d+)(?:\\.(\\d{1,2}))?$/.exec(String(value).trim());
+    const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(String(value).trim());
     assert.ok(match, "currency amount should be a decimal with at most two fractional digits");
     const whole = BigInt(match[2]);
     const fractional = BigInt((match[3] ?? "").padEnd(2, "0"));
