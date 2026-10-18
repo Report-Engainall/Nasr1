@@ -17,12 +17,14 @@ import { Route as BarcodeRouteImport } from './routes/barcode'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as CompareRouteImport } from './routes/compare'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as QuotesRouteImport } from './routes/quotes'
 import { Route as ReorderRouteImport } from './routes/reorder'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as StatementRouteImport } from './routes/statement'
 import { Route as WishlistRouteImport } from './routes/wishlist'
@@ -92,6 +94,11 @@ const CompareRoute = CompareRouteImport.update({
   path: '/compare',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InvoicesRoute = InvoicesRouteImport.update({
   id: '/invoices',
   path: '/invoices',
@@ -120,6 +127,11 @@ const QuotesRoute = QuotesRouteImport.update({
 const ReorderRoute = ReorderRouteImport.update({
   id: '/reorder',
   path: '/reorder',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -273,12 +285,14 @@ export interface FileRoutesByFullPath {
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/compare': typeof CompareRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
   '/offline': typeof OfflineRoute
   '/orders': typeof OrdersRouteWithChildren
   '/quotes': typeof QuotesRoute
   '/reorder': typeof ReorderRoute
+  '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/statement': typeof StatementRoute
   '/wishlist': typeof WishlistRoute
@@ -317,11 +331,13 @@ export interface FileRoutesByTo {
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/compare': typeof CompareRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
   '/offline': typeof OfflineRoute
   '/quotes': typeof QuotesRoute
   '/reorder': typeof ReorderRoute
+  '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/statement': typeof StatementRoute
   '/wishlist': typeof WishlistRoute
@@ -361,12 +377,14 @@ export interface FileRoutesById {
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/compare': typeof CompareRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
   '/offline': typeof OfflineRoute
   '/orders': typeof OrdersRouteWithChildren
   '/quotes': typeof QuotesRoute
   '/reorder': typeof ReorderRoute
+  '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/statement': typeof StatementRoute
   '/wishlist': typeof WishlistRoute
@@ -536,12 +554,14 @@ export interface RootRouteChildren {
   CartRoute: typeof CartRoute
   CheckoutRoute: typeof CheckoutRoute
   CompareRoute: typeof CompareRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   InvoicesRoute: typeof InvoicesRoute
   LoginRoute: typeof LoginRoute
   OfflineRoute: typeof OfflineRoute
   OrdersRoute: typeof OrdersRouteWithChildren
   QuotesRoute: typeof QuotesRoute
   ReorderRoute: typeof ReorderRoute
+  RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   StatementRoute: typeof StatementRoute
   WishlistRoute: typeof WishlistRoute
@@ -682,6 +702,20 @@ declare module '@tanstack/react-router' {
       path: '/statement'
       fullPath: '/statement'
       preLoaderRoute: typeof StatementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/wishlist': {
@@ -892,12 +926,14 @@ const rootRouteChildren: RootRouteChildren = {
   CartRoute: CartRoute,
   CheckoutRoute: CheckoutRoute,
   CompareRoute: CompareRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   InvoicesRoute: InvoicesRoute,
   LoginRoute: LoginRoute,
   OfflineRoute: OfflineRoute,
   OrdersRoute: OrdersRouteWithChildren,
   QuotesRoute: QuotesRoute,
   ReorderRoute: ReorderRoute,
+  RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   StatementRoute: StatementRoute,
   WishlistRoute: WishlistRoute,

@@ -111,7 +111,7 @@ jobs:
             exit 1
           fi
           for route in \
-            /login /cart /checkout /orders /invoices /statement /quotes /assistant \
+            /login /register /forgot-password /cart /checkout /orders /register /forgot-password /invoices /statement /quotes /assistant \
             /admin /admin/orders /admin/products /admin/stock-count /admin/finance /admin/data /manifest.webmanifest /sw.js; do
             status=$(curl --silent --connect-timeout 2 --max-time 5 --output /tmp/aghbari-preview-route.html --write-out "%{http_code}" "http://127.0.0.1:4173$route" || true)
             if [ "$status" != "200" ]; then
@@ -124,7 +124,9 @@ jobs:
           # customer route to render its own title in the built production artifact.
           for route_spec in \
             "/invoices|الفواتير" \
-            "/statement|كشف الحساب"; do
+            "/statement|كشف الحساب" \
+            "/register|إنشاء حساب تجاري" \
+            "/forgot-password|استعادة كلمة المرور"; do
             route="${route_spec%%|*}"
             expected_title="${route_spec#*|}"
             curl --fail --silent --show-error "http://127.0.0.1:4173$route" -o /tmp/aghbari-preview-route-contract.html
@@ -193,7 +195,7 @@ jobs:
           # don't prove the dev server can serve each URL.
           for route in \
             /cart /checkout /compare /wishlist /addresses /company/contacts /company/members /company/accept-invitation /product/ci-route-smoke-test \
-            /orders /invoices /statement /quotes /reorder /assistant /barcode /offline \
+            /orders /register /forgot-password /invoices /statement /quotes /reorder /assistant /barcode /offline \
             /admin /admin/orders /admin/products /admin/customers /admin/pricing /admin/stock-count /admin/data \
             /admin/operations /admin/finance /admin/reports /admin/settings \
             /manifest.webmanifest /sw.js; do
@@ -208,7 +210,9 @@ jobs:
           # SSR document metadata so a missing file-based route cannot silently pass this probe.
           for route_spec in \
             "/invoices|الفواتير" \
-            "/statement|كشف الحساب"; do
+            "/statement|كشف الحساب" \
+            "/register|إنشاء حساب تجاري" \
+            "/forgot-password|استعادة كلمة المرور"; do
             route="${route_spec%%|*}"
             expected_title="${route_spec#*|}"
             curl --fail --silent --show-error "http://127.0.0.1:5173$route" -o /tmp/aghbari-route-contract.html

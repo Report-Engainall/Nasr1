@@ -4,9 +4,9 @@ import { useAuth } from '@/lib/auth';
 
 type Mode = 'login' | 'register' | 'forgot';
 
-export function Login({ onDone }: { onDone?: () => void }) {
+export function Login({ onDone, initialMode = 'login' }: { onDone?: () => void; initialMode?: Mode }) {
   const { signIn, signUp, resetPassword, loading } = useAuth();
-  const [mode, setMode] = useState<Mode>('login');
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
