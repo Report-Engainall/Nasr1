@@ -2677,9 +2677,12 @@ async function main() {
   // AGH-PRICE-GRID-001: correct physical schema, atomic tier writes, stale guard and tenant isolation.
   await db.unsafe("reset role");
   await db.unsafe("update public.products set base_price=100,wholesale_price=95,retail_price=110 where id=$1 and organization_id=$2",[productId,organizationId]);
-  await db.unsafe("insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values($1,'vip',90,1,true) on conflict (product_id,tier,min_quantity) do update set price=excluded.price,is_active=true",[productId]);
-  await db.unsafe("insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values($1,'wholesale',95,1,true) on conflict (product_id,tier,min_quantity) do update set price=excluded.price,is_active=true",[productId]);
-  await db.unsafe("insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values($1,'retail',110,1,true) on conflict (product_id,tier,min_quantity) do update set price=excluded.price,is_active=true",[productId]);
+  await db.unsafe("update public.product_prices set price=90,is_active=true where product_id=$1 and tier='vip' and min_quantity=1",[productId]);
+  await db.unsafe("insert into public.product_prices(product_id,tier,price,min_quantity,is_active) select $1,'vip',90,1,true where not exists(select 1 from public.product_prices where product_id=$1 and tier='vip' and min_quantity=1)",[productId]);
+  await db.unsafe("update public.product_prices set price=95,is_active=true where product_id=$1 and tier='wholesale' and min_quantity=1",[productId]);
+  await db.unsafe("insert into public.product_prices(product_id,tier,price,min_quantity,is_active) select $1,'wholesale',95,1,true where not exists(select 1 from public.product_prices where product_id=$1 and tier='wholesale' and min_quantity=1)",[productId]);
+  await db.unsafe("update public.product_prices set price=110,is_active=true where product_id=$1 and tier='retail' and min_quantity=1",[productId]);
+  await db.unsafe("insert into public.product_prices(product_id,tier,price,min_quantity,is_active) select $1,'retail',110,1,true where not exists(select 1 from public.product_prices where product_id=$1 and tier='retail' and min_quantity=1)",[productId]);
   const priceGridPayload = [{
     id: productId, expected_base_price: 100, expected_price_wholesale_of_wholesale: 90,
     expected_price_wholesale: 95, expected_price_retail: 110,
