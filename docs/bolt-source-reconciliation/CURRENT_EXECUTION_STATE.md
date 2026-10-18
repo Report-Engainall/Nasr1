@@ -12,7 +12,7 @@
 
 ## تحديث READY_TO_REUSE
 - المرآة: `docs/bolt-source-reconciliation/READY_TO_REUSE/Nasr1--verified-current-implementation/` تتضمن 10 ملفات؛ تم تحديث `scripts/test-database-migrations.mjs` في المرآة إلى blob `08193e20f311e82d87a3873ef4cf40ee800dc11a` والـmanifest يشير إلى commit المختبر `618e3d3c019ecd7d05ca0462ca954f908178b814`.
-- مصدر الكود اجتاز [Actions 39150380395 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395). **CI الخاص بcommit تحديث المرآة والوثائق نفسها PENDING** حتى فحص التشغيل المطابق.
+- مصدر الكود اجتاز [Actions 39150380395 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395). تحديث المرآة اجتاز CI المطابق: [Actions 39150638459 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150638459).
 - `READY_TO_REUSE/PROVENANCE_MANIFEST.csv` الخاص بالمانحين لم يُعدّل.
 
 ## أعمال مكتملة — لا تعِد فحصها دون سبب جديد
@@ -26,8 +26,8 @@
 - حدّ 200/500، exact-minor arithmetic، واستبعاد الفاتورة الملغاة مع دفعتها: [39150380395 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395).
 
 ## نقطة الاستئناف الوحيدة
-- `next_task_id = NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`
-- تحقق مرة واحدة من CI الخاص بالcommit الذي يحدث مرآة `READY_TO_REUSE` والوثائق؛ بعد النجاح انتقل إلى `NASR1-CUSTOMER-STATEMENT-VOID-EXCLUSION-BOUNDARY-001` فقط إذا ظهر فشل جديد، وإلا ابدأ بفجوة مستقلة في دورة التحصيل/التسويات. لا تعِد اختبار الحد 200/500؛ لقد اجتاز CI أعلاه.
+- `next_task_id = NASR1-CUSTOMER-STATEMENT-AGING-CUTOFF-ALIGNMENT-001`
+- تم إغلاق `NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`: [commit `c1d9d04ea969ba12f8cd748a3d06d6c9f40a303a`](https://github.com/Report-Engainall/Nasr1/commit/c1d9d04ea969ba12f8cd748a3d06d6c9f40a303a) اجتاز [Actions 39150638459 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150638459). المهمة الجديدة `NASR1-CUSTOMER-STATEMENT-AGING-CUTOFF-ALIGNMENT-001`: وحّد مقارنة تاريخ الاستحقاق مع `fetch_staff_receivables_aging` على مستوى يوم UTC، وأضف اختبارًا يثبت أن فاتورة تاريخ استحقاقها اليوم ليست متأخرة حتى اليوم التالي. لا تعِد اختبار الحد 200/500؛ لقد اجتاز CI أعلاه.
 - لا تكرر أي فحص من المهام أو الفلاتر أو RPC الأعمار أو طباعة التقرير أو مبالغ PDF أو حالة التأخر أو تاريخ الاستحقاق إلا بتغير المصدر أو فشل جديد.
 
 ## حدود الإثبات

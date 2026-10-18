@@ -271,3 +271,11 @@
 - الكود [`618e3d3c019ecd7d05ca0462ca954f908178b814`](https://github.com/Report-Engainall/Nasr1/commit/618e3d3c019ecd7d05ca0462ca954f908178b814) اجتاز [Actions 39150380395 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395): unit tests، PostgreSQL 17 acceptance، lint، build، preview smoke وdev smoke.
 - تحديث مرآة `READY_TO_REUSE` والـmanifest قيد الإضافة في commit منفصل؛ CI الخاص بالمرآة مطلوب قبل إغلاق مزامنتها.
 - next_task_id: `NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`.
+
+
+## إغلاق مزامنة مرآة أحدث كود — SUCCESS
+- كود الاختبار [`618e3d3c019ecd7d05ca0462ca954f908178b814`](https://github.com/Report-Engainall/Nasr1/commit/618e3d3c019ecd7d05ca0462ca954f908178b814) اجتاز [Actions 39150380395 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150380395): اختبار 205 فواتير و505 دفعات، استبعاد الفاتورة الملغاة ومدفوعاتها، مجاميع دقيقة بـBigInt، وحدود التفاصيل، وجميع مراحل CI.
+- تمت مزامنة نسخة `scripts/test-database-migrations.mjs` إلى `READY_TO_REUSE/Nasr1--verified-current-implementation/` مع manifest من 10 ملفات؛ blob المصدر والنسخة `08193e20f311e82d87a3873ef4cf40ee800dc11a` متطابق.
+- تحديث المرآة والوثائق [`c1d9d04ea969ba12f8cd748a3d06d6c9f40a303a`](https://github.com/Report-Engainall/Nasr1/commit/c1d9d04ea969ba12f8cd748a3d06d6c9f40a303a) اجتاز [Actions 39150638459 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39150638459).
+- تم إغلاق `NASR1-CUSTOMER-STATEMENT-SUMMARY-SNAPSHOT-VERIFY-CI`. لا تكرر التحقق أو إعادة نسخ الملفات العشرة ما لم تتغير المصادر.
+- next_task_id: `NASR1-CUSTOMER-STATEMENT-AGING-CUTOFF-ALIGNMENT-001`.
