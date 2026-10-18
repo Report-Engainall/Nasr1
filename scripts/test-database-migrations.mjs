@@ -1005,8 +1005,14 @@ async function main() {
   const statementInvoice = statement.invoices.find((row) => row.id === invoice.id);
   assert.ok(statementInvoice, "customer statement should include the customer's own invoice");
   assert.equal(Number(statementInvoice.total_amount), 370000, "statement RPC may expose invoice totals on the authorized account-statement surface");
+  assert.ok(Object.hasOwn(statementInvoice, "due_at"), "statement RPC must return due_at for accurate aging labels");
+  assert.match(String(statementInvoice.currency), /^[A-Za-z]{3}$/, "statement RPC must return a valid currency code");
+  assert.ok(statement.invoices.length <= 200, "statement RPC invoice list must honor its 200-row cap");
   assert.equal(statement.payments.length, 1, "customer statement should include the payment ledger");
+  assert.equal(statement.payments[0].invoice_id, invoice.id, "payment rows must carry the invoice ID used by PDF reconciliation");
+  assert.ok(Object.hasOwn(statement.payments[0], "paid_at"), "payment rows must include paid_at for statement history");
   assert.equal(Number(statement.payments[0].amount), 100000);
+  assert.ok(statement.payments.length <= 500, "statement RPC payment list must honor its 500-row cap");
 
   // The invoice PDF RPC returns amounts only for the signed-in customer's own invoice.
   const ownInvoicePdfResult = await db.unsafe(

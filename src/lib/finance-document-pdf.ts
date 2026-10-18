@@ -406,7 +406,7 @@ export async function buildCustomerStatementPdf(
     drawLtr(page, font, minorUnitsToText(totals.unknownDueDateOutstanding), 55, summaryY - 15, 7.2, INK, 70);
     summaryY -= 44;
   }
-  drawArabic(page, font, "المبالغ لا تُجمع بين عملات مختلفة. «المتأخر» يستبعد الفواتير الملغاة والمدفوعة بالكامل.", PAGE_WIDTH - 40, summaryY - 2, 7.2, MUTED, 320);
+  drawArabic(page, font, "الملخص للسجلات المعادة فقط (حد RPC: 200 فاتورة/500 دفعة). العملات منفصلة؛ الملغاة والمدفوعة بالكامل ليست متأخرة.", PAGE_WIDTH - 40, summaryY - 2, 7.2, MUTED, 390);
   summaryY -= 30;
 
   if (summaryY < 535) {

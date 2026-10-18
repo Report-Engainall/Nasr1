@@ -118,6 +118,77 @@ describe("Arabic customer finance PDFs", () => {
     });
   });
 
+  it("reconciles per-currency aging against the customer-statement RPC payload shape", async () => {
+    // Field names match get_customer_account_statement() JSON projections.
+    const response = {
+      invoices: [
+        {
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001",
+          invoice_number: "INV-RPC-YER-01",
+          order_id: "11111111-1111-4111-8111-111111111111",
+          customer_id: "22222222-2222-4222-8222-222222222222",
+          status: "issued",
+          issued_at: "2026-10-01T00:00:00.000Z",
+          due_at: "2026-10-10T00:00:00.000Z",
+          currency: "YER",
+          subtotal: "100.00",
+          tax_amount: "0.00",
+          total_amount: "100.00",
+        },
+        {
+          id: "bbbbbbbb-bbbb-4bbb-8bbb-000000000001",
+          invoice_number: "INV-RPC-USD-01",
+          order_id: "33333333-3333-4333-8333-333333333333",
+          customer_id: "22222222-2222-4222-8222-222222222222",
+          status: "issued",
+          issued_at: "2026-10-02T00:00:00.000Z",
+          due_at: null,
+          currency: "USD",
+          subtotal: "40.00",
+          tax_amount: "0.00",
+          total_amount: "40.00",
+        },
+      ],
+      payments: [
+        {
+          id: "cccccccc-cccc-4ccc-8ccc-000000000001",
+          invoice_id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001",
+          amount: "25.00",
+          paid_at: "2026-10-12T00:00:00.000Z",
+        },
+      ],
+    };
+
+    const summary = buildCustomerStatementCurrencySummary(
+      response.invoices,
+      response.payments,
+      new Date("2026-10-18T12:00:00.000Z"),
+    );
+    const byCurrency = new Map(summary.map((row) => [row.currency, row]));
+    expect(byCurrency.get("YER")).toMatchObject({
+      invoiced: 10000n,
+      paid: 2500n,
+      outstanding: 7500n,
+      overdueInvoiceCount: 1,
+      overdueOutstanding: 7500n,
+      unknownDueDateInvoiceCount: 0,
+      unknownDueDateOutstanding: 0n,
+    });
+    expect(byCurrency.get("USD")).toMatchObject({
+      invoiced: 4000n,
+      paid: 0n,
+      outstanding: 4000n,
+      overdueInvoiceCount: 0,
+      overdueOutstanding: 0n,
+      unknownDueDateInvoiceCount: 1,
+      unknownDueDateOutstanding: 4000n,
+    });
+
+    const bytes = await buildCustomerStatementPdf(response, fontBytes(), generatedAt);
+    expect(new TextDecoder().decode(bytes.slice(0, 8))).toMatch(/^%PDF-1\\./);
+    expect((await PDFDocument.load(bytes)).getTitle()).toContain("كشف الحساب");
+  });
+
   it("paginates a statement with due-date rows without dropping invoices", async () => {
     const invoices = Array.from({ length: 45 }, (_, index) => ({
       id: "aaaaaaaa-aaaa-4aaa-8aaa-" + String(index + 1).padStart(12, "0"),
