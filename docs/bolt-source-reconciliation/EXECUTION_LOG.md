@@ -173,3 +173,17 @@
 - قاعدة العمل الدائمة «إنجاز برمجي/اختباري حقيقي في كل انطلاقة» في `AGENTS.md`: [39144280302 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144280302).
 
 - next_task_id: `NASR1-FINANCE-STATEMENT-OVERDUE-LABEL-VERIFY-CI` — اقرأ run `39145659217` فقط لهذا التغيير. إذا نجح، حدّث نقطة الاستئناف وسجل المتطلبات ثم انتقل إلى فجوة جديدة دون إعادة الفحوص المكتملة أعلاه.
+
+### إغلاق تنفيذ وسم التأخر في كشف الحساب PDF — SUCCESS
+
+- SHA المختبر: [commit `ba9523fdbe643d7a6503dce54f6d1b740f3f06ca`](https://github.com/Report-Engainall/Nasr1/commit/ba9523fdbe643d7a6503dce54f6d1b740f3f06ca).
+- [Actions 39145659217 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39145659217): frozen Bun lock/install، unit tests، PostgreSQL 17 acceptance، lint، build، production-preview smoke، وdev-server smoke جميعها نجحت.
+- الاختبارات الجديدة لاختلاف الحالة حسب تاريخ الاستحقاق والمدفوعات اجتازت؛ كما نجحت اختبارات PDF الفاتورة الفردية بعد إعادة فصل `statusLabel()` الخاص بها عن `resolveCustomerStatementInvoiceStatus()` الخاص بكشف الحساب.
+- المحاولات التي فشلت في `39145577858` و`39145591658` انتهت بمعالجة مرجعية: `statusLabel is not defined` لأن محرر كشف الحساب أزال دالة كانت تستخدمها الفاتورة الفردية. `ba9523f` يعيد تلك الدالة بشكل مستقل؛ لا حاجة لإعادة تحليل هذا السبب.
+- الحالة النهائية: `IMPLEMENTED` + `TESTED` على SHA أعلاه. لا `BROWSER-PROVEN` ولا `PRODUCTION-PROVEN`.
+- next_task_id: `NASR1-FINANCE-STATEMENT-DUE-DATE-DISPLAY-001` — اجعل تاريخ الاستحقاق ظاهرًا في كشف PDF بجوار تاريخ الإصدار، مع اختبار pagination وتنسيق RTL، دون تغيير مصادر الأرصدة أو صلاحياتها.
+
+## تعليمات عدم تكرار العمل المكتمل
+
+- نقطة التوقف لا تعني الرجوع لجرد المشروع أو مراجعة مكونات سبق اختبارها. ابدأ من `CURRENT_EXECUTION_STATE.md`، اقرأ فقط حالة SHA الحالي ونتيجة البوابة ذات الصلة بالدفعة النشطة، ثم نفّذ `NASR1-FINANCE-STATEMENT-DUE-DATE-DISPLAY-001` مباشرة.
+- لا تعِد فحص مركز المهام، دليل إسناد الموظفين، فلاتر المهام، تقرير أعمار الذمم، طباعة تقرير الأعمار، أو التحقق من المبالغ السالبة في PDF؛ نتائجها وSHAs وروابط CI موثقة في هذا السجل أعلاه. أعد تلك الاختبارات فقط إذا تغير الكود المعني أو كشف CI عن regression.
