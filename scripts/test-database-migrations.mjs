@@ -2604,6 +2604,75 @@ async function main() {
   await db.unsafe("reset role");
   process.stdout.write("PASS cash expenses: exact decimal amount, idempotent command, tenant/RLS isolation, accountant/admin permission split, append-preserving void and two audit events\\n");
 
+
+  // AGH-STOREFRONT-ANNOUNCEMENTS-001: date/audience filtering, tenant scope, command auth, audit and no direct table grants.
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  async function addAnnouncement(title, audience, href, startsAt = null, endsAt = null) {
+    const rows = await db.unsafe(
+      "select public.save_storefront_announcement($1::uuid,$2::text,$3::text,$4::text,$5::text,$6::integer,$7::boolean,$8::timestamptz,$9::timestamptz,$10::text) as id",
+      [null, title, "CI-only content", href, "#B99347", 50, true, startsAt, endsAt, audience],
+    );
+    return rows[0].id;
+  }
+  const announcementAllId = await addAnnouncement("CI banner all", "all", "/products");
+  const announcementCustomersId = await addAnnouncement("CI banner customers", "customers", "/orders");
+  const announcementStaffId = await addAnnouncement("CI banner staff", "staff", "https://example.test/notice");
+  const announcementFutureId = await addAnnouncement("CI banner future", "all", "/products", "2099-01-01T00:00:00Z", null);
+  assert.match(announcementAllId, /^[0-9a-f-]{36}$/i);
+  const adminAnnouncements = await db.unsafe("select id,title,audience from public.get_admin_storefront_announcements()");
+  assert.ok(adminAnnouncements.some((row) => row.id === announcementAllId && row.title === "CI banner all"));
+  assert.ok(adminAnnouncements.some((row) => row.id === announcementFutureId), "admin can manage scheduled records");
+  await expectFailure("announcement mutation rejects javascript URLs",
+    () => db.unsafe("select public.save_storefront_announcement($1::uuid,$2::text,$3::text,$4::text,$5::text,$6::integer,$7::boolean,$8::timestamptz,$9::timestamptz,$10::text)",
+      [null, "CI invalid URL", null, "javascript:alert(1)", "#B99347", 50, true, null, null, "all"]),
+    /link must be an internal path or HTTPS URL/i);
+  await expectFailure("authenticated users cannot read announcement storage directly",
+    () => db.unsafe("select id from public.storefront_announcements"), /permission denied/i);
+  assert.equal((await db.unsafe("select public.public_storefront_organization_id() as id"))[0].id, organizationId);
+  const staffPublicRows = await db.unsafe("select id,audience from public.get_storefront_announcements()");
+  assert.ok(staffPublicRows.some((row) => row.id === announcementAllId));
+  assert.ok(staffPublicRows.some((row) => row.id === announcementStaffId));
+  assert.ok(!staffPublicRows.some((row) => row.id === announcementCustomersId));
+  await db.unsafe("reset role");
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("accountants cannot manage storefront announcements",
+    () => db.unsafe("select public.get_admin_storefront_announcements()"), /active admin or manager/i);
+  await expectFailure("accountants cannot save storefront announcements",
+    () => db.unsafe("select public.save_storefront_announcement($1::uuid,$2::text,$3::text,$4::text,$5::text,$6::integer,$7::boolean,$8::timestamptz,$9::timestamptz,$10::text)",
+      [null, "CI accountant denied", null, "/products", "#B99347", 50, true, null, null, "all"]),
+    /active admin or manager/i);
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  const customerRows = await db.unsafe("select id,audience from public.get_storefront_announcements()");
+  assert.ok(customerRows.some((row) => row.id === announcementAllId));
+  assert.ok(customerRows.some((row) => row.id === announcementCustomersId));
+  assert.ok(!customerRows.some((row) => row.id === announcementStaffId));
+  await expectFailure("customers cannot save storefront announcements",
+    () => db.unsafe("select public.save_storefront_announcement($1::uuid,$2::text,$3::text,$4::text,$5::text,$6::integer,$7::boolean,$8::timestamptz,$9::timestamptz,$10::text)",
+      [null, "CI customer denied", null, "/products", "#B99347", 50, true, null, null, "all"]),
+    /active admin or manager/i);
+  await db.unsafe("reset role");
+  await db.unsafe("select set_config('request.jwt.claim.sub', '', false)");
+  await db.unsafe("select set_config('request.jwt.claims', '', false)");
+  await db.unsafe("set role anon");
+  const anonymousRows = await db.unsafe("select id,audience from public.get_storefront_announcements()");
+  assert.ok(anonymousRows.some((row) => row.id === announcementAllId));
+  assert.ok(!anonymousRows.some((row) => row.id === announcementCustomersId));
+  assert.ok(!anonymousRows.some((row) => row.id === announcementStaffId));
+  await expectFailure("anonymous users cannot read announcement storage directly",
+    () => db.unsafe("select id from public.storefront_announcements"), /permission denied/i);
+  await db.unsafe("reset role");
+  const announcementAudit = await db.unsafe(
+    "select action from public.audit_logs where organization_id=$1 and entity_type='storefront_announcement' and entity_id=any($2::uuid[])",
+    [organizationId, [announcementAllId, announcementCustomersId, announcementStaffId, announcementFutureId]],
+  );
+  assert.ok(announcementAudit.filter((row) => row.action === "storefront_announcement.created").length >= 4);
+  process.stdout.write("PASS storefront announcements: role authorization, public tenant scope, safe URLs, audience/date filtering, audit and no direct table grants\n");
+
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }
 
