@@ -343,7 +343,7 @@
 .price-grid-head p { margin: 0; max-width: 820px; line-height: 1.8; color: var(--muted-foreground, #64748b); font-size: 12px; }
 .price-grid-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .price-grid-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 8px 12px; border: 1px solid #b9c9c1; border-radius: 9px; background: #fff; color: #224e3b; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
-.price-grid-actions button.btn-primary { border-color: #1d6048; background: #1d6048; color: #fff; }
+.price-grid-actions button.primary { border-color: #1d6048; background: #1d6048; color: #fff; }
 .price-grid-actions button:disabled { cursor: not-allowed; opacity: .48; }
 .price-grid-table-scroll { max-width: 100%; overflow-x: auto; margin-top: 14px; border: 1px solid var(--border, #dce5e0); border-radius: 11px; }
 .price-grid-table { width: 100%; min-width: 980px; border-collapse: separate; border-spacing: 0; font-size: 12px; }
