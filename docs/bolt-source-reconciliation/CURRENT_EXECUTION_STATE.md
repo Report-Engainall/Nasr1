@@ -1,8 +1,8 @@
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
 **الهدف الوحيد:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / main.
-**آخر SHA كود اجتاز CI كاملًا:** `dd6bdaac8225be3bc0c0bc8d266b5e13aaab6c75` — [commit](https://github.com/Report-Engainall/Nasr1/commit/dd6bdaac8225be3bc0c0bc8d266b5e13aaab6c75).
-**CI المطابق للكود:** [Actions 39157780840 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157780840), SHA `dd6bdaac8225be3bc0c0bc8d266b5e13aaab6c75`; frozen Bun lock, unit tests, PostgreSQL 17 migrations/RLS acceptance, lint, build, preview smoke and dev smoke PASS. تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
+**آخر SHA كود اجتاز CI كاملًا:** `6e746a7684f4cf8696c3b2c2bbfdd8f410cd364f` — [commit](https://github.com/Report-Engainall/Nasr1/commit/6e746a7684f4cf8696c3b2c2bbfdd8f410cd364f).
+**CI المطابق للكود:** [Actions 39158519832 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39158519832), SHA `6e746a7684f4cf8696c3b2c2bbfdd8f410cd364f`; frozen Bun lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke وdev smoke PASS. تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
 **نقطة الإقلاع:** [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md). أعد قراءة HEAD وCI بعد كل commit.
 **فجوة المصادر:** تم تنزيل وفحص وفك أرشيفي Bolt، وسجل 717 عضوًا فعليًا. مسار/blob audit لجميع 69 صف READY_TO_REUSE مسجل؛ المراجعة الدلالية لعقود/imports/routes/RLS لكل صف لم تكتمل.
 **النزاهة المالية:** لا توجد فواتير تاريخية سابقة مطلوب اختلاقها؛ لا تنشئ أرقامًا تجريبية.
@@ -67,3 +67,13 @@
 - لا اعتماديات أو خدمات مدفوعة أضيفت.
 
 التصنيفات منفصلة: `IMPLEMENTED`، `TESTED` على SHA محدد، `BROWSER-PROVEN`، `PRODUCTION-PROVEN`.
+
+## تكامل المخزون: احتساب المتاح للبيع
+
+- أُصلح عدّ المخزون المنخفض في `fetchDashboardStats`: أصبح يعتمد على `inventory_balances.quantity_available <= reorder_point` بدل `quantity_on_hand`، حتى لا تخفي الحجوزات نقص الكمية القابلة للبيع.
+- إذا فشل استعلام المخزون، يعيد المسار خطأً بدل احتساب صفر أصناف منخفضة وعرض حالة آمنة غير صحيحة. الصف العددي غير المكتمل يُتجاهل بدل تحويل قيمة مجهولة إلى صفر؛ الحد الفارغ `reorder_point` يُعامل كصفر وفق قاعدة الدالة الجديدة.
+- الملفات: `src/lib/inventory-metrics.ts`, `src/lib/api.ts`, `src/test/inventory-metrics.test.ts`.
+- [Actions 39158519832 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39158519832) على SHA `6e746a7684f4cf8696c3b2c2bbfdd8f410cd364f`: lock verification، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke وdev smoke جميعها PASS.
+- حدود الدمج: هذا إصلاح metric في لوحة التشغيل فقط، وليس تنفيذ تحويلات بين المخازن أو جلسات جرد. فُحص مرشح `src/services/inventory.ts` وتبين أنه يتطلب RPCs وجداول لا توجد في migrations الـ42 الفعالة عند رأس المراجعة؛ لذلك لم يُنسخ عقد الخدمة القديمة ولم تُنشأ RPCs غير مدعومة.
+- IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA. BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migrations=NOT RUN.
+

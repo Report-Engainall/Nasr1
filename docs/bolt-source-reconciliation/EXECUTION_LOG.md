@@ -324,3 +324,14 @@
 - التغيير لا يستبدل تحقق قاعدة البيانات؛ لا فاتورة تاريخية أو بيانات demo أو خدمة مدفوعة أضيفت.
 - الحالة: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN.
 - مراجعة بقية صفوف READY_TO_REUSE مستمرة؛ next_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001.
+
+
+## 2026-10-18 — NASR1-INVENTORY-AVAILABLE-STOCK-METRIC-001
+
+- Target: `Report-Engainall/Nasr1` / `main`. Donor candidate: `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`, `src/services/inventory.ts` blob `3506707a656e0db491b860d5e11ad28daeded5cf`; paired donor test blob `04d706d4f2f68f30743911b2f3dd3e824a0dd18c`.
+- Corrected the active dashboard low-stock calculation to use `quantity_available`, not gross `quantity_on_hand`; made the dashboard surface inventory-read failure instead of silently calculating zero alerts. Added `countLowStockBalances` and unit coverage for reservations, threshold equality, zero/null threshold policy, invalid snapshots and empty sets.
+- Semantic decision on donor service: its contract calls `transfer_inventory`, `set_stock_threshold`, `get_low_stock`, `start_stock_count`, `set_stock_count_line`, `complete_stock_count` and reads `stock_count_sessions/stock_count_lines`. Those names were absent from all 42 active target migration SQL files at code SHA `6e746a7684f4cf8696c3b2c2bbfdd8f410cd364f`. The donor test imports its legacy `./inventory` module, so it is not a drop-in target test. Rejected wholesale copy; no unsupported RPC or SQL was added.
+- Code files: `src/lib/inventory-metrics.ts`, `src/lib/api.ts`, `src/test/inventory-metrics.test.ts`.
+- Exact-SHA CI [39158519832 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39158519832), code SHA `6e746a7684f4cf8696c3b2c2bbfdd8f410cd364f`: frozen lock verification, unit tests, PostgreSQL 17 migrations/RLS acceptance, lint, build, preview smoke and dev smoke all successful.
+- State: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production Supabase migrations=NOT RUN. This is only a target-native low-stock-metric correction, not inventory transfer/count feature completion.
+- next_task_id remains `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001`.
