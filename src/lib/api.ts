@@ -3,7 +3,7 @@ import type {
   Product, Category, Customer, Supplier, Order, OrderItem,
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
   ProductWithInventory, OrderWithCustomer, AdminSetting, ImportJob, ImportJobRow,
-  AiTask, OperationalTask, OperationalTaskRole, OperationalTaskStatus,
+  OperationalTask, OperationalTaskRole, OperationalTaskStatus,
 } from './types';
 
 // Fetch unit prices using the server-derived customer/company tier. The client never
