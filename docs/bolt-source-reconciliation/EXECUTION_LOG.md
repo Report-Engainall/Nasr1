@@ -315,3 +315,12 @@
 - Archive integrity is not semantic integration. READY_TO_REUSE/PROVENANCE_MANIFEST.csv has 69 data rows; per-file contract/import/route/RLS review and useful missing feature integration remain open.
 - IMPLEMENTED: explicit raw-source support in audit tooling. INTEGRATED: CI workflow. TESTED: full checks and ZIP audit on exact code SHA above. BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migrations=NOT RUN; Onyx vendor round-trip=NOT RUN.
 - next_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001.
+
+ 
+## 2026-10-18 — NASR1-READY-FINANCE-INPUT-001
+- المصدر المراجع: `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1/src/services/finance.ts` (blob `d9c2131b2d582b5b5baa20e3b497cd272c3b31e9`).
+- لم تُنسخ الخدمة القديمة بسبب اختلاف عقد Supabase وبنية الواجهة؛ كُيّفت حدود إدخال التحصيل إلى `src/lib/finance-input.ts` ووُصلت بالنموذج الفعلي في `src/components/CustomerWorkflows.tsx`. أضيف `src/test/finance-input.test.ts`.
+- التحقق: [Actions 39157780840 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157780840), exact code SHA `dd6bdaac8225be3bc0c0bc8d266b5e13aaab6c75`: frozen lock, unit tests, PostgreSQL 17 migrations/RLS, lint, build, preview/dev smoke PASS.
+- التغيير لا يستبدل تحقق قاعدة البيانات؛ لا فاتورة تاريخية أو بيانات demo أو خدمة مدفوعة أضيفت.
+- الحالة: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN.
+- مراجعة بقية صفوف READY_TO_REUSE مستمرة؛ next_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001.
