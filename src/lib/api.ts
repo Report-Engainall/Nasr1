@@ -8,6 +8,7 @@ import type {
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
   ProductWithInventory, OrderWithCustomer, AdminSetting, ImportJob, ImportJobRow,
   OperationalTask, OperationalTaskRole, OperationalTaskStatus, OperationalTaskAssignee,
+  StorefrontAnnouncement, StorefrontAnnouncementInput,
 } from './types';
 
 type SupabaseReadOutcome<T> = { data: T | null; error: unknown | null };
@@ -838,6 +839,65 @@ export async function fetchSettingsMap(): Promise<Record<string, unknown>> {
     throw new Error('أعاد الخادم إعدادات عرض عام غير صالحة.');
   }
   return data as Record<string, unknown>;
+}
+
+
+// ─── Server-authorized storefront announcements ───
+function parseStorefrontAnnouncementRows(data: unknown, management: boolean): StorefrontAnnouncement[] {
+  if (!Array.isArray(data)) throw new Error('أعاد الخادم قائمة إعلانات غير صالحة.');
+  return data.map((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('أعاد الخادم سجل إعلان غير صالح.');
+    const row = value as Record<string, unknown>;
+    const audience = row.audience, content = row.content, href = row.href;
+    const timestamp = (value: unknown): string | null => {
+      if (value == null) return null;
+      if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) throw new Error('تاريخ إعلان غير صالح.');
+      return value;
+    };
+    const safeHref = (value: string) => (value.startsWith('/') && !value.startsWith('//')) || /^https:\/\/[^\s]+$/i.test(value);
+    if (typeof row.id !== 'string' || !row.id ||
+      typeof row.title !== 'string' || !row.title.trim() || row.title.length > 120 ||
+      !(content == null || typeof content === 'string') ||
+      !(href == null || typeof href === 'string') ||
+      (typeof href === 'string' && (!safeHref(href) || href.length > 500)) ||
+      typeof row.color !== 'string' || !/^#[0-9a-f]{6}$/i.test(row.color) ||
+      typeof row.priority !== 'number' || !Number.isInteger(row.priority) ||
+      !['all', 'customers', 'staff'].includes(String(audience)) ||
+      (management && typeof row.is_active !== 'boolean')) {
+      throw new Error('أعاد الخادم بيانات إعلان لا تطابق العقد؛ تم إيقاف العملية.');
+    }
+    return {
+      id: row.id, title: row.title, content: content as string | null, href: (href ?? null) as string | null,
+      color: row.color, priority: row.priority, starts_at: timestamp(row.starts_at), ends_at: timestamp(row.ends_at),
+      audience: audience as StorefrontAnnouncement['audience'],
+      is_active: management ? row.is_active as boolean : true,
+      created_at: typeof row.created_at === 'string' ? row.created_at : undefined,
+      updated_at: typeof row.updated_at === 'string' ? row.updated_at : undefined,
+    };
+  });
+}
+
+export async function fetchStorefrontAnnouncements(): Promise<StorefrontAnnouncement[]> {
+  const { data, error } = await supabase.rpc('get_storefront_announcements');
+  if (error) throw new Error('تعذر تحميل إعلانات المتجر: ' + error.message);
+  return parseStorefrontAnnouncementRows(data, false);
+}
+export async function fetchAdminStorefrontAnnouncements(): Promise<StorefrontAnnouncement[]> {
+  const { data, error } = await supabase.rpc('get_admin_storefront_announcements');
+  if (error) throw new Error('تعذر تحميل إعلانات الإدارة: ' + error.message);
+  return parseStorefrontAnnouncementRows(data, true);
+}
+export async function saveStorefrontAnnouncement(input: StorefrontAnnouncementInput): Promise<string> {
+  const result = await supabase.rpc('save_storefront_announcement', {
+    p_announcement_id: input.id, p_title: input.title, p_content: input.content, p_href: input.href,
+    p_color: input.color, p_priority: input.priority, p_is_active: input.is_active,
+    p_starts_at: input.starts_at, p_ends_at: input.ends_at, p_audience: input.audience,
+  });
+  if (result.error) throw new Error('تعذر حفظ إعلان المتجر: ' + result.error.message);
+  if (typeof result.data !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(result.data)) {
+    throw new Error('لم يُعِد الخادم معرّف إعلان صالحًا.');
+  }
+  return result.data;
 }
 
 // ─── Unified import engine ───
