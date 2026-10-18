@@ -303,3 +303,15 @@
 - Failures retained truthfully: Actions run 39154189270 found JSX parse error; run 39154309412 found invalid template-literal escapes; corrected build passed run 39154450426.
 - BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production Supabase migration=NOT RUN; Onyx live vendor round-trip=NOT RUN.
 - next_task_id = NASR1-READY-TO_REUSE-SEMANTIC-INTEGRATION-001
+
+ 
+## 2026-10-18 — NASR1-BOLT-RECOVERY-CI-REVALIDATION-001
+- Target: Report-Engainall/Nasr1/main only.
+- Added both immutable raw Bolt ZIP URLs to `scripts/reconcile-source-release-snapshots.py`, preserving the previously recorded expected byte counts and SHA-256 values. The downloader supports explicit raw URLs as well as release assets.
+- Code commit: `92a948e83ebc05278b09d50aec410da490c76f7c`.
+- Full checks exact-SHA: [Actions 39157355224 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355224): frozen Bun lock, unit tests, PostgreSQL 17 migrations/RLS acceptance, lint, build, preview smoke and dev smoke.
+- Archive audit exact-SHA: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307). Both Bolt snapshots passed expected byte-count/SHA-256 checks, ZIP path/size/ratio checks, full member decompression/CRC traversal, and bounded non-sensitive source/text extraction to temporary CI storage. No archived code was executed and no SQL applied.
+- Refreshed SOURCE_INTEGRATION_LEDGER.csv and ARCHIVE_MANIFEST.csv to remove stale NOT DOWNLOADED claims and record the actual validation evidence.
+- Archive integrity is not semantic integration. READY_TO_REUSE/PROVENANCE_MANIFEST.csv has 69 data rows; per-file contract/import/route/RLS review and useful missing feature integration remain open.
+- IMPLEMENTED: explicit raw-source support in audit tooling. INTEGRATED: CI workflow. TESTED: full checks and ZIP audit on exact code SHA above. BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migrations=NOT RUN; Onyx vendor round-trip=NOT RUN.
+- next_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001.
