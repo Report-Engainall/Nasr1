@@ -206,3 +206,15 @@
 ## قاعدة الاستئناف
 
 ابدأ دائمًا من `CURRENT_EXECUTION_STATE.md`، واعمل على `next_task_id` فقط. القائمة أعلاه توثيق نهائي للفحوص المكتملة؛ لا تُعد التحليل أو الفحص أو الاختبار السابق إلا إذا تغير الكود المعني أو أظهر CI عن خطأ جديد.
+
+
+## 2026-10-18 — NASR1-CURRENT-IMPLEMENTATION-SNAPSHOT-001 — نسخ أحدث كود إلى مجلد المصالحة
+
+- الطلب: حفظ أحدث الأكواد الفعلية المختبرة في المجلد التجميعي لتسريع التنفيذ التالي، دون خلط ملفات المصدر القديمة مع كود Nasr1 أو إعادة فحص الأعمال المغلقة.
+- المجلد الجديد: `docs/bolt-source-reconciliation/READY_TO_REUSE/Nasr1--verified-current-implementation/`.
+- أضيفت 9 نسخ مطابقة للمسارات الحالية: `src/components/TaskCenter.tsx`، `src/components/CustomerWorkflows.tsx`، `src/components/CustomerWorkflows.finance-aging.test.tsx`، `src/lib/finance-document-pdf.ts`، `src/lib/finance-document-pdf.test.ts`، `src/styles.css`، `supabase/migrations/20261018030000_staff_receivables_aging.sql`، `scripts/test-database-migrations.mjs`، `AGENTS.md`.
+- لكل ملف: المصدر المباشر على `main` قورن بالملف نفسه في commit الكود المختبر `84e0f424351bd22a9f5fc468852a8fe07b5596a2`; تطابقت بصمات Git blob، ثم أُنشئت نسخة Git blob أخرى بنفس SHA. التفاصيل في `CURRENT_NASR1_IMPLEMENTED_FILES.csv`.
+- دليل اختبار المصدر: [Actions 39146074209 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39146074209). نتيجة CI لعملية إضافة المرآة إلى `docs/READY_TO_REUSE` ما تزال PENDING حتى فحص تشغيل الـcommit الجديد؛ هذه فئة تحقق منفصلة عن اختبار المصدر.
+- `READY_TO_REUSE/PROVENANCE_MANIFEST.csv` الأصلي لم يُعدّل، وهو لا يزال خاصًا بالمصادر المانحة. أضيف شرح منفصل إلى README لتحديد الفرق.
+- تم تحديث `CURRENT_EXECUTION_STATE.md` وملف المتطلبات مع توثيق عدم تكرار العمل المكتمل.
+- `next_task_id = NASR1-CURRENT-IMPLEMENTATION-SNAPSHOT-VERIFY-CI`.

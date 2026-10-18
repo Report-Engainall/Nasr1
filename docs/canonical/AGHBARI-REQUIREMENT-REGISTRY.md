@@ -108,3 +108,11 @@ These rows are acceptance evidence only. The one dynamic `next_task_id` remains 
 | `NASR1-FINANCE-STATEMENT-OVERDUE-LABEL-001` | `TESTED / CI SUCCESS` | `resolveCustomerStatementInvoiceStatus()` derives PDF collection status from persisted status, due date and ledger-paid amount. [Implementation/test source commit](https://github.com/Report-Engainall/Nasr1/commit/ba9523fdbe643d7a6503dce54f6d1b740f3f06ca) includes the standalone invoice status renderer regression fix. [Exact-SHA Actions 39145659217](https://github.com/Report-Engainall/Nasr1/actions/runs/39145659217) passed unit tests, PostgreSQL 17 acceptance, lint, build, preview smoke and dev smoke. | Completed. Do not repeat without a new regression. |
 
 Canonical resumption pointer remains only in `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` as `NASR1-FINANCE-STATEMENT-OVERDUE-LABEL-VERIFY-CI`. Completed task-center, task-filter, receivables-aging and aging-print CI records are already linked in `docs/bolt-source-reconciliation/EXECUTION_LOG.md`; do not re-run those validations without a code change or new failure.
+
+## Nasr1 implementation snapshot evidence — 2026-10-18
+
+| Requirement ID | Status | Evidence | Next action |
+|---|---|---|---|
+| `NASR1-CURRENT-IMPLEMENTATION-SNAPSHOT-001` | `SNAPSHOT CREATED / CI PENDING` | `docs/bolt-source-reconciliation/READY_TO_REUSE/Nasr1--verified-current-implementation/` contains a separate mirror of 9 active Nasr1 code/test/SQL/mandate files with `CURRENT_NASR1_IMPLEMENTED_FILES.csv`. Every snapshot Git blob SHA was checked against the live target and exact tested commit `84e0f424351bd22a9f5fc468852a8fe07b5596a2`; source CI [39146074209 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39146074209). Donor-only `PROVENANCE_MANIFEST.csv` remains unchanged. | Verify the exact CI run for the one commit that adds the snapshot, then continue to finance statement aging summary. |
+
+Canonical resumption is tracked only in `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`; do not restart the completed audits unless relevant code changes or a new failing check provides evidence.
