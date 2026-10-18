@@ -4,7 +4,7 @@
 **آخر SHA كود اجتاز CI كاملًا:** `c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25` — [commit](https://github.com/Report-Engainall/Nasr1/commit/c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25).
 **CI المطابق للكود:** [Actions 39171703391 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39171703391), exact SHA `c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25`; unit, PostgreSQL 17 migrations/RLS acceptance, lint, build, preview smoke وdev smoke جميعها PASS. فشل سابق على `65ad6347aaf4938b24bf66577f6d1c82e51de778` في اختبار DB توقع خطأً رفض قراءة المصروفات للمحاسب المخوّل؛ صُحّح التوقع، لا تم إضعاف صلاحية الخادم. backend الجرد السابق اجتاز [Actions 39161411949 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39161411949). تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
 **نقطة الإقلاع:** [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md). أعد قراءة HEAD وCI بعد كل commit.
-**فجوة المصادر:** تم تنزيل وفحص وفك أرشيفي Bolt، وسجل 717 عضوًا فعليًا. مسار/blob audit لجميع 69 صف READY_TO_REUSE مسجل؛ المراجعة الدلالية لعقود/imports/routes/RLS لكل صف لم تكتمل.
+**فجوة المصادر:** أدلة فحص ZIP/CRC والاستخراج الآمن تاريخية على Actions 39157355307، بينما إعادة التنزيل في جلسة 2026-10-19 لم تكتمل (أخطاء موثقة في ARCHIVE_MANIFEST.csv). تمت مراجعة المحتوى والعقود ومخاطر التوافق للصفوف الـ69 وتوثيق قرار كل صف في READY_TO_REUSE_FILE_AUDIT.csv؛ لا يعني ذلك تشغيل كود كل مانح.
 **النزاهة المالية:** لا توجد فواتير تاريخية سابقة مطلوب اختلاقها؛ لا تنشئ أرقامًا تجريبية.
 
 
@@ -59,7 +59,8 @@
 
 ## نقطة الاستئناف الوحيدة
 
-- next_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001
+- completed_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001 (all 69 candidate rows classified; cash expenses adapted and exact-SHA tested).
+- next_task_id = NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002
 - Review each of 69 READY_TO_REUSE candidates against live app contracts and implement useful missing behavior only. Prioritize security/data correctness, commerce/inventory/import/Onyx, then finance/admin/analytics.
 - Do not blind-copy old React Router screens or apply legacy SQL with DROP FUNCTION ... CASCADE. Do not invent historical invoices or demo data. No paid services.
 
@@ -129,3 +130,12 @@
 - backend exact-SHA `4ef323db2aa7b3ea9e11e1bb362fc37e7994221a`: [Actions 39161411949 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39161411949) (frozen lock، unit، PostgreSQL 17 migrations/RLS/الجرد، lint، build، preview/dev smoke).
 - واجهة الجرد ومسارها أُضيفا واختُبرا على exact SHA `94c0f92eea5fe8d2add289106c3f76d884460d4d`; [Actions 39165071610 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39165071610) اجتاز frozen lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، production-preview smoke وdev smoke، بما في ذلك `/admin/stock-count`.
 - IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migration=NOT RUN.
+
+
+## 2026-10-19 — إغلاق مراجعة المرشحين الـ69 وتحديد التنفيذ التالي
+
+- تمت مطابقة جميع صفوف `READY_TO_REUSE/PROVENANCE_MANIFEST.csv` (69/69) مع الجرد، ومراجعة المحتوى المست staged من حيث الواردات/التعريفات/نقاط الاستدعاء/عقود البيانات وأدوار الصلاحيات/اعتماديات المخطط/اختبارات المانح. أُسند قرار مستقل لكل صف في `READY_TO_REUSE_FILE_AUDIT.csv` وأُدرجت قرارات الملفات الفردية في `SOURCE_INTEGRATION_LEDGER.csv`. ذلك لا يعني تشغيل كل كود مانح: أي كود لم يدمج لم يُشغّل، ومخرجات الاختبارات تشير إلى ذلك صراحة.
+- خلاصة القرارات للصفوف الـ69: {"ALREADY_PRESENT_EXACT_SEMANTIC_REVIEWED":4,"KEEP_TARGET_PDF_IMPLEMENTATION":1,"KEEP_TARGET_TENANT_TEST_SUITE":1,"REFERENCE_ONLY_NO_CODE_MERGE":2,"KEEP_TARGET_BUSINESS_INTELLIGENCE":2,"KEEP_TARGET_CATALOG_API":2,"KEEP_TARGET_PRODUCT_IMAGE_PIPELINE":1,"DO_NOT_DUPLICATE_UNIFIED_IMPORT_ENGINE":5,"KEEP_TARGET_SERVER_AUTHORITATIVE_COMMERCE":10,"KEEP_TARGET_OUTBOX_RUNTIME":4,"KEEP_TARGET_SERVER_PRICE_AUTHORITY":2,"KEEP_TARGET_RETRY_HELPER":2,"DEFER_LEGACY_OFFLINE_CART_ADAPTATION":2,"KEEP_TARGET_SERVICE_AND_RESPONSE_CONTRACTS":3,"PARTIALLY_ADAPTED_CASH_EXPENSE_ONLY":2,"DO_NOT_DUPLICATE_XLSX_IMPORT_PIPELINE":2,"KEEP_TARGET_INVENTORY_COMMANDS":3,"DO_NOT_APPLY_LEGACY_SCHEMA_MIGRATION_OR_TEST":5,"ADAPTED_TARGET_NATIVE_CASH_EXPENSE_LEDGER":1,"REJECT_LEGACY_PRODUCT_CARD":1,"DO_NOT_ADD_SECOND_CSV_PIPELINE":1,"RETAIN_CUSTOMER_PRICE_PRIVACY_CONTRACT":1,"REJECT_LEGACY_ORDER_FROM_CART":1,"ALREADY_IMPLEMENTED_STREAMING_SHA256":1,"REJECT_LEGACY_POLICY_CENTER":2,"KEEP_TARGET_OPERATIONS_AND_AI_UI":1,"REFERENCE_ONLY_GENERIC_UI_PRIMITIVES":1,"REJECT_UNBOUNDED_LEGACY_ANALYTICS":1,"REJECT_UNSUPPORTED_LEGACY_CONTROL_TOWER":1,"REJECT_LEGACY_DATA_QUALITY_PAGE":1,"REJECT_LEGACY_IMPORT_PAGE":1,"REJECT_LEGACY_DIRECT_ORDER_EDITOR":1,"REJECT_LEGACY_DIRECT_PRICING_PAGE":1}. لا تُنسخ migrations قديمة مرتبطة بـ`current_organization_id/current_role/branches/price_lists/import_rows` على مخطط Nasr1، ولا واجهات React Router التي تكتب أسعار/طلبات العميل من المتصفح. الأفكار المتوافقة الموجودة أصلًا (العناوين/عضوية الشركات/PDF/المحرك الموحد/التجزئة/Onyx/الاستيراد والمخزون) احتفظنا بالتنفيذ الفعلي الحالي بدل إنشاء ازدواج.
+- أغلق `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001` بعد توثيق كل 69 قرارًا وتكامل سجل المصروفات المكيّف. **المهمة التالية الوحيدة:** `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` — مطابقة كل قسم واجهات في المواصفة الأصلية مع المسارات/components الفعلية، ثم تنفيذ أول فجوة قابلة للإثبات مع tests وroute/smoke verification؛ دون إنشاء شاشة شكلية أو بيانات demo.
+- إثبات CI الجاري للوثائق قبل هذا التحديث: [Actions 39172097300 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39172097300) على SHA `2dc06d4bf7b586d698747dff2d66fb3c29c24578`. سيصبح أي commit توثيق جديد بحاجة إلى CI مطابق خاص به.
+- حالات الإثبات غير المتاحة ما زالت واضحة: أرشيفا ZIP لم يُعاد تنزيلهما في هذه الجلسة بسبب أخطاء UTF-8/DNS المسجلة في `ARCHIVE_MANIFEST.csv`؛ production migration `NOT RUN`؛ browser run `NOT RUN`؛ production proof `NOT PROVEN`.

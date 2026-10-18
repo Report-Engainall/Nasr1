@@ -383,3 +383,12 @@
 - فشل DB acceptance الأول على SHA `65ad6347aaf4938b24bf66577f6d1c82e51de778` لأنه توقع خطأً أن قراءة المصروفات يجب أن تفشل للمحاسب المصرّح به. أزيل التوقع الخاطئ؛ لا تغيير على صلاحيات الخادم. [Actions 39171703391 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39171703391) يطابق SHA `c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25` ويؤكد unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، production-preview smoke وdev smoke PASS.
 - أرشيفا Bolt: محاولتا raw download خلال هذه الجلسة انتهتا برسالة أداة GitHub الفعلية `HTTP 400: GitHub Fetch supports UTF-8 text files; this file appears to be binary or encoded differently (Response: None)`، بينما محاولة بيئة التنفيذ أعادت `URLError [Errno -3] Temporary failure in name resolution`. بصمات SHA-256 وCRC وفك المسارات مثبتة تاريخيًا في Actions 39157355307 على SHA 92a948e... فقط؛ إعادة التنزيل/إعادة التحقق الحالية `NOT RUN`.
 - تم تحديث source integration ledger وaudit row لترحيل المصروفات. المراجعة الدلالية لجميع 69 مرشحًا لم تكتمل، لذلك يظل `next_task_id = NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001` مفتوحًا. Production migration NOT RUN; BROWSER-PROVEN NOT PROVEN; PRODUCTION-PROVEN NOT PROVEN.
+
+
+
+## 2026-10-19 — مراجعة دلالية لكل مرشح وإغلاق NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001
+
+- أعيدت مطابقة 69 صفًا من `PROVENANCE_MANIFEST.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` صفًا بصف (source path + donor blob SHA)، وأُسند لكل واحد قرارًا محددًا وسببًا وعقدًا واختبار إثبات/حالة اختبار واضحة. لم يُزعم أن كود المانحين الذي رُفض/لم يُدمج قد تم اختباره؛ جميع نتائج تلك الصفوف تذكر بوضوح أن donor code NOT RUN.
+- أضيفت قرارات المرشحين الفردية إلى `SOURCE_INTEGRATION_LEDGER.csv` دون حذف السجل التاريخي أو تكرار التكامل القانوني لسجل المصروفات. يحتفظ تنفيذ PDF/import/addresses/company-members/retry/current analytics بواجهاته الموجودة إذا كانت أحدث أو مدمجة بالفعل؛ ترفض شاشات وSQL القديمة عندما تختلف مخططات الجداول/الأدوار أو تتجاوز الخادم، خصوصًا التحليلات المباشرة بلا حدود، وإنشاء أرقام الطلب من العميل وكتابة السعر/الطلب مباشرة.
+- `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001` مغلقة؛ التالية الوحيدة `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` للبدء بمطابقة واجهات المواصفة الأصلية وإكمال أول فجوة حقيقية واختبارها.
+- current-session archive re-download/extract remains NOT RUN because the two binary requests failed HTTP 400 through GitHub fetch and DNS resolution failed in runner; prior Actions SHA256/CRC/safe-path test remains historical evidence only. Browser proof and production deployment remain NOT PROVEN/NOT RUN.
