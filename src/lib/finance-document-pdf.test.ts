@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCustomerInvoicePdf,
   buildCustomerStatementPdf,
+  formatFinanceDocumentDate,
   resolveCustomerStatementInvoiceStatus,
 } from "./finance-document-pdf";
 import { loadArabicDocumentFont, getFinanceDocumentClient } from "./finance-pdf-server";
@@ -61,6 +62,13 @@ describe("Arabic customer finance PDFs", () => {
     const document = await PDFDocument.load(bytes);
     expect(document.getPageCount()).toBeGreaterThanOrEqual(1);
     expect(document.getTitle()).toContain("كشف الحساب");
+  });
+
+  it("formats invoice issue and due dates without inventing missing dates", () => {
+    expect(formatFinanceDocumentDate("2026-10-30T00:00:00.000Z")).toBe("2026-10-30");
+    expect(formatFinanceDocumentDate(null)).toBe("—");
+    expect(formatFinanceDocumentDate(undefined)).toBe("—");
+    expect(formatFinanceDocumentDate("not-a-date")).toBe("—");
   });
 
   it("derives overdue statement labels from due date and outstanding ledger balance", () => {
