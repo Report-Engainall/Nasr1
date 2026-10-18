@@ -1916,7 +1916,7 @@ async function main() {
 
   const imageTestPath = organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp";
   const imageScopeDiagnostic = await db.unsafe(
-    `select public.is_staff() as is_staff,
+    `select current_user as current_database_role, public.is_staff() as is_staff,
             public.current_profile_id()::text as current_profile_id,
             (select p.organization_id::text from public.profiles p where p.id=public.current_profile_id()) as visible_organization_id,
             (select p.is_active from public.profiles p where p.id=public.current_profile_id()) as profile_is_active,
