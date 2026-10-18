@@ -362,3 +362,12 @@
 - Added migration acceptance for direct write denials, changing and repeating a threshold, audit old/new values, task reopen/complete lifecycle, invalid threshold, cross-tenant warehouse and accountant denial. Corrected the error-match regex in follow-up test commit `591dce4e59383e7a568c9a19c7f7e823fe5aa7f3`.
 - Exact-SHA CI [39160377663 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39160377663), code SHA `591dce4e59383e7a568c9a19c7f7e823fe5aa7f3`: frozen lock, unit tests, PostgreSQL 17 migrations/RLS acceptance, lint, build, preview/dev smoke PASS.
 - Production Supabase migrations=NOT RUN; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN. next_task_id = `NASR1-INVENTORY-STOCK-COUNT-001`.
+
+## 2026-10-18 — NASR1-INVENTORY-STOCK-COUNT-001 — ربط واجهة الجرد الفعلي
+
+- الأساس الحي: `4ef323db2aa7b3ea9e11e1bb362fc37e7994221a`؛ schema/RPC/API للجرد الفعلي موجودة واختباراتها اجتازت [Actions 39161411949 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39161411949).
+- أضيفت `src/components/InventoryStockCountPage.tsx` و`src/routes/admin_.stock-count.tsx` وربط التنقل في `src/components/AghbariApp.tsx`، وتحديث routeTree المولّد وقائمتي preview/dev smoke في workflow.
+- الواجهة تعرض فقط بيانات المستودع الفعلية؛ بدء الجلسة idempotent، كل كمية تُحفظ عبر RPC، الاعتماد/الإلغاء إداريان، سبب الإلغاء مطلوب، والطباعة محصورة في منطقة ورقة الجرد. لا dependency أو خدمة مدفوعة أو سجل وهمي.
+- backend tests المثبتة: snapshot، منع الجلسات المكررة، movement+audit، stale-snapshot denial، ورفض الأدوار غير الإدارية؛ CI الواجهة exact-SHA: NOT RUN حتى عودة workflow.
+- الحالة الحالية: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=NOT RUN (UI exact-SHA pending); BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN.
+- next_task_id = `NASR1-INVENTORY-STOCK-COUNT-UI-ACCEPTANCE-001`.

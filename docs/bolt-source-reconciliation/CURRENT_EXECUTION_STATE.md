@@ -49,7 +49,7 @@
 
 ## نقطة الاستئناف الوحيدة
 
-- next_task_id = NASR1-INVENTORY-STOCK-COUNT-001
+- next_task_id = NASR1-INVENTORY-STOCK-COUNT-UI-ACCEPTANCE-001
 - Review each of 69 READY_TO_REUSE candidates against live app contracts and implement useful missing behavior only. Prioritize security/data correctness, commerce/inventory/import/Onyx, then finance/admin/analytics.
 - Do not blind-copy old React Router screens or apply legacy SQL with DROP FUNCTION ... CASCADE. Do not invent historical invoices or demo data. No paid services.
 
@@ -110,3 +110,12 @@
 - [Exact-SHA CI 39160377663 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39160377663) على `591dce4e59383e7a568c9a19c7f7e823fe5aa7f3`: unit tests، PostgreSQL 17 migrations/RLS، lint، build، preview/dev smoke PASS.
 - هذا تكامل هدف أصلي متوافق مع مخطط Nasr1؛ لا يدمج الحدود القديمة المنفصلة min/reorder/max حرفيًا لأن الهدف يحتوي `reorder_point` فقط. جلسات الجرد ما زالت المهمة التالية. الإنتاج/browser لم يُثبتا، ولم تُطبق migration على Supabase الإنتاجية.
 - IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migration=NOT RUN.
+
+## الجرد الفعلي — ربط واجهة الإدارة
+
+- تمت إضافة شاشة RTL فعلية `src/components/InventoryStockCountPage.tsx` وربطها بالمسار `/admin/stock-count` والتنقل والبحث السريع وملف routeTree.
+- تستخدم الواجهة المستودعات النشطة والجلسة المفتوحة والـRPCs الحالية: بدء الجلسة بمفتاح idempotency، عرض لقطة الأصناف الموجودة، حفظ العد لكل صنف، الطباعة، واعتماد/إلغاء بصلاحية المدير. لا توجد بيانات demo.
+- الخادم هو المرجع النهائي: لا تُطبّق الفروقات إلا مع تطابق لقطة الرصيد والحجوزات؛ الرفض لا يمحو حركات أحدث. التسوية تكتب حركات مخزون وسجل تدقيق.
+- backend exact-SHA `4ef323db2aa7b3ea9e11e1bb362fc37e7994221a`: [Actions 39161411949 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39161411949) (frozen lock، unit، PostgreSQL 17 migrations/RLS/الجرد، lint، build، preview/dev smoke).
+- واجهة الجرد ومسارها أُضيفا في هذا commit؛ exact-SHA CI للواجهة: NOT RUN حتى قراءة Actions المطابقة.
+- IMPLEMENTED=YES; INTEGRATED=YES; TESTED=NOT RUN (UI commit pending CI); BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN.

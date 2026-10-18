@@ -112,7 +112,7 @@ jobs:
           fi
           for route in \
             /login /cart /checkout /orders /invoices /statement /quotes /assistant \
-            /admin /admin/orders /admin/products /admin/finance /manifest.webmanifest /sw.js; do
+            /admin /admin/orders /admin/products /admin/stock-count /admin/finance /manifest.webmanifest /sw.js; do
             status=$(curl --silent --connect-timeout 2 --max-time 5 --output /tmp/aghbari-preview-route.html --write-out "%{http_code}" "http://127.0.0.1:4173$route" || true)
             if [ "$status" != "200" ]; then
               echo "Production preview expected HTTP 200 from $route, received $status"
@@ -194,7 +194,7 @@ jobs:
           for route in \
             /cart /checkout /compare /wishlist /addresses /company/contacts /company/members /company/accept-invitation /product/ci-route-smoke-test \
             /orders /invoices /statement /quotes /reorder /assistant /barcode /offline \
-            /admin /admin/orders /admin/products /admin/customers /admin/pricing \
+            /admin /admin/orders /admin/products /admin/customers /admin/pricing /admin/stock-count \
             /admin/operations /admin/finance /admin/reports /admin/settings \
             /manifest.webmanifest /sw.js; do
             status=$(curl --silent --output /dev/null --write-out "%{http_code}" "http://127.0.0.1:5173$route")

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft, ClipboardList,
+  Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft, ClipboardList, PackageCheck,
   CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package,
   Pencil, Plus, RefreshCw, ScrollText, Search, Settings, ShoppingCart, SlidersHorizontal,
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
@@ -29,13 +29,14 @@ import { buildBusinessSignals } from '@/lib/business-intelligence';
 import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
 import { TaskCenter } from '@/components/TaskCenter';
+import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
 import { StaffQuotesPage, StaffFinancePage } from '@/components/CustomerWorkflows';
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem,
 } from '@/components/ui/command';
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
-type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit';
+type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count';
 type IconType = typeof LayoutDashboard;
 
 const nav: { id: View; label: string; icon: IconType }[] = [
@@ -44,6 +45,7 @@ const nav: { id: View; label: string; icon: IconType }[] = [
   { id: 'customers', label: 'العملاء', icon: Users },
   { id: 'orders', label: 'الطلبات', icon: ShoppingCart },
   { id: 'pricing', label: 'التسعير والمخزون', icon: SlidersHorizontal },
+  { id: 'stock-count', label: 'الجرد الفعلي', icon: PackageCheck },
   { id: 'offers', label: 'العروض', icon: Tag },
   { id: 'suppliers', label: 'الموردون', icon: Package },
   { id: 'devices', label: 'أجهزة العملاء', icon: Smartphone },
@@ -65,6 +67,7 @@ const adminPaths: Record<View, string> = {
   operations: '/admin/operations', notifications: '/admin/notifications', ai: '/admin/ai',
   suppliers: '/admin/suppliers', devices: '/admin/devices', settings: '/admin/settings',
   quotes: '/admin/quotes', finance: '/admin/finance', tasks: '/admin/tasks', audit: '/admin/audit',
+  'stock-count': '/admin/stock-count',
 };
 
 function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
@@ -170,6 +173,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
           {view === 'finance' && <StaffFinancePage />}
           {view === 'tasks' && <TaskCenter onNotice={showNotice} />}
           {view === 'audit' && <AdminAuditLog />}
+          {view === 'stock-count' && <InventoryStockCountPage />}
             </>
           )}
         </div>
