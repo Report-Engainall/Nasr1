@@ -1931,6 +1931,15 @@ async function main() {
   );
   process.stderr.write("PRODUCT_IMAGE_POLICIES " + JSON.stringify(await db.unsafe("select policyname, permissive, roles, cmd, qual, with_check from pg_policies where schemaname = 'storage' and tablename = 'objects'")) + "\\n");
   process.stderr.write("PRODUCT_IMAGE_SCOPE_DIAGNOSTIC " + JSON.stringify(imageScopeDiagnostic[0]) + "\\n");
+  const policyExpressionDiagnostic = await db.unsafe(
+    `select ('product-images'::text = 'product-images'::text and public.can_manage_product_image($1::text)) as expected_policy_true,
+            has_table_privilege('authenticated','storage.objects','INSERT') as has_insert_grant,
+            (select relrowsecurity from pg_class where oid='storage.objects'::regclass) as row_security_enabled,
+            (select relforcerowsecurity from pg_class where oid='storage.objects'::regclass) as force_row_security,
+            (select count(*)::int from pg_policy where polrelid='storage.objects'::regclass and polcmd='a') as insert_policy_count`,
+    [imageTestPath],
+  );
+  process.stderr.write("PRODUCT_IMAGE_POLICY_EXPRESSION " + JSON.stringify(policyExpressionDiagnostic[0]) + "\\n");
   process.stderr.write("PRODUCT_IMAGE_STEP valid-insert-start\\n");
   const ownedImageRows = await db.unsafe("insert into storage.objects(bucket_id,name,metadata) values($1,$2,$3) returning id",
     ["product-images", organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp", db.json({ mimetype: "image/webp" })]);
