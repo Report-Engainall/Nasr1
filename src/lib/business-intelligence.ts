@@ -143,6 +143,16 @@ export function buildBusinessSignals(input: BusinessIntelligenceOrder[] | null |
  * data is invalid, but monetary totals fail closed for that status instead of treating
  * unknown values as zero. The input is the current tenant-scoped result set, not a forecast.
  */
+const MAX_STATUS_TOTAL_MINOR_UNITS = 4_000_000_000_000_000n;
+
+function statusMoneyToMinorUnits(value: unknown): bigint | null {
+  const raw = typeof value === "number" ? String(value) : typeof value === "string" ? value.trim() : "";
+  if (!/^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$/.test(raw)) return null;
+  const [whole = "0", fraction = ""] = raw.split(".");
+  const minor = BigInt(whole) * 100n + BigInt((fraction + "00").slice(0, 2));
+  return minor <= MAX_STATUS_TOTAL_MINOR_UNITS ? minor : null;
+}
+
 export function buildBusinessStatusBreakdown(
   input: BusinessIntelligenceOrder[] | null | undefined,
 ): BusinessStatusBreakdown[] {
@@ -151,7 +161,7 @@ export function buildBusinessStatusBreakdown(
 
   const grouped = new Map<string, {
     count: number;
-    sum: number;
+    sumMinorUnits: bigint;
     invalidAmountCount: number;
     overflow: boolean;
   }>();
@@ -160,19 +170,17 @@ export function buildBusinessStatusBreakdown(
     const status = order.status.trim() || "unknown";
     const current = grouped.get(status) ?? {
       count: 0,
-      sum: 0,
+      sumMinorUnits: 0n,
       invalidAmountCount: 0,
       overflow: false,
     };
     current.count += 1;
-    const amount = finiteMoney(order.total_amount);
+    const amount = statusMoneyToMinorUnits(order.total_amount);
     if (amount === null) {
       current.invalidAmountCount += 1;
     } else {
-      current.sum += amount;
-      if (!Number.isFinite(current.sum) || current.sum > Number.MAX_SAFE_INTEGER) {
-        current.overflow = true;
-      }
+      current.sumMinorUnits += amount;
+      if (current.sumMinorUnits > MAX_STATUS_TOTAL_MINOR_UNITS) current.overflow = true;
     }
     grouped.set(status, current);
   }
@@ -182,7 +190,7 @@ export function buildBusinessStatusBreakdown(
       status,
       count: row.count,
       share: row.count / orders.length,
-      value: row.invalidAmountCount === 0 && !row.overflow ? row.sum : null,
+      value: row.invalidAmountCount === 0 && !row.overflow ? Number(row.sumMinorUnits) / 100 : null,
       invalidAmountCount: row.invalidAmountCount,
     }))
     .sort((a, b) => b.count - a.count || a.status.localeCompare(b.status));

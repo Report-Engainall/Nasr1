@@ -75,6 +75,16 @@ describe('live-commerce business intelligence', () => {
     expect(buildBusinessStatusBreakdown(null)).toEqual([]);
   });
 
+  it('sums status amounts in integer minor units rather than binary floating point', () => {
+    expect(buildBusinessStatusBreakdown([
+      order({ id: 'a', status: 'delivered', total_amount: '0.10' as unknown as number }),
+      order({ id: 'b', customer_id: 'other', status: 'delivered', total_amount: '0.20' as unknown as number }),
+    ])).toMatchObject([{ status: 'delivered', count: 2, value: 0.3, invalidAmountCount: 0 }]);
+    expect(buildBusinessStatusBreakdown([
+      order({ id: 'bad-decimals', status: 'delivered', total_amount: '12.345' as unknown as number }),
+    ])).toMatchObject([{ status: 'delivered', count: 1, value: null, invalidAmountCount: 1 }]);
+  });
+
   it('keeps counts but withholds status value if any recorded amount is invalid or overflows', () => {
     const rows = buildBusinessStatusBreakdown([
       order({ id: 'a', status: 'delivered', total_amount: 100 }),
