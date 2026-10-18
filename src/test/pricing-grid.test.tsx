@@ -3,14 +3,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { PricingGrid } from '@/components/PricingGrid';
 
 const mocks = vi.hoisted(() => ({
-  fetchProducts: vi.fn(),
+  fetchAdminProductPriceGrid: vi.fn(),
   saveProductPriceGrid: vi.fn(),
   refetch: vi.fn(),
   rows: [] as unknown[],
 }));
 
 vi.mock('@/lib/api', () => ({
-  fetchProducts: mocks.fetchProducts,
+  fetchAdminProductPriceGrid: mocks.fetchAdminProductPriceGrid,
   saveProductPriceGrid: mocks.saveProductPriceGrid,
 }));
 
