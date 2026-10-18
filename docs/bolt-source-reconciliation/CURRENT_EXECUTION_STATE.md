@@ -1,36 +1,36 @@
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
-**المستودع والفرع الوحيد:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / `main`  
-**آخر HEAD مرصود قبل تحديث هذا الملف:** `dcb1993e2f51126cc303b2856ffff21b0e1a38e2`  
-**آخر دفعة كاملة اجتازت CI:** اختبارات UI أعمار الذمم/الطباعة على [SHA `cf2b5893e20b5a9d500249ba215feab5c67b6c21`](https://github.com/Report-Engainall/Nasr1/commit/cf2b5893e20b5a9d500249ba215feab5c67b6c21)، [Actions 39145164044 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39145164044).
+**المستودع والفرع الوحيدان:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / `main`  
+**آخر نقطة كود:** [commit `ba9523fdbe643d7a6503dce54f6d1b740f3f06ca`](https://github.com/Report-Engainall/Nasr1/commit/ba9523fdbe643d7a6503dce54f6d1b740f3f06ca).  
+**CI للكود الحالي:** [Actions 39145659217](https://github.com/Report-Engainall/Nasr1/actions/runs/39145659217) — `PENDING` عند آخر قراءة: Bun والـlockfile نجحا، والتثبيت جارٍ؛ اختبارات الوحدة وPostgreSQL 17 وlint وbuild وpreview/dev smoke لم تُثبت بعد على هذا SHA.
 
-## منجز ومثبت بالاختبار
+## دفعة التنفيذ الحالية
 
-- `NASR1-OPS-TASK-CENTER-001`: مركز تشغيل موحد فوق `ai_tasks` الحالية، منشّط بالأحداث الحقيقية، مع idempotency وصلاحيات مؤسسة/دور وRPCs مدققة ومسار `/admin/tasks` وطباعة RTL/A4.
-- `NASR1-TASK-ASSIGNMENT-001`: دليل موظفين خادمي مقيد بالمؤسسة والمسؤول/المدير؛ الخادم يتحقق من توافق دور الموظف عند الإسناد. [Actions 39143265290 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39143265290).
-- `NASR1-OPS-TASK-FILTERS-001`: فلاتر الأولوية، المسؤول/غير المسندة، وتاريخ الإنشاء مطبقة على نفس مجموعة النتائج المعروضة والمطبوعة. [Actions 39144118407 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144118407).
-- `NASR1-FINANCE-COLLECTION-AGING-001`: تقرير أعمار الذمم يحسب الرصيد من الفواتير والدفعات المسجلة خادميًا، يستبعد الفواتير الملغاة، يفصل العملات، يصنف فترات التأخر، ويعرض غياب تاريخ الاستحقاق كفئة مستقلة. اختبارات القبول تؤكد إجمالي 370000 والمدفوع 100000 والمتبقي 270000 وحدود الصفحات ورفض عميل غير مخول. [SHA `437527ff30bc44ce9a1cdf170c89edd5fc5b3104`](https://github.com/Report-Engainall/Nasr1/commit/437527ff30bc44ce9a1cdf170c89edd5fc5b3104) — [Actions 39144691226 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144691226).
-- طباعة التقرير RTL/A4 عبر المتصفح دون مكتبة جديدة؛ CI للزر وCSS نجح في [Actions 39144916657](https://github.com/Report-Engainall/Nasr1/actions/runs/39144916657) و[39144928394](https://github.com/Report-Engainall/Nasr1/actions/runs/39144928394).
-- اختبار الواجهة `src/components/CustomerWorkflows.finance-aging.test.tsx` غطى عرض فاتورة بمبلغ مستحق وتاريخ استحقاق مفقود، استدعاء الطباعة، ومنع مستخدم بلا دور مالي من استدعاء RPC. عولجت حساسية تنسيق الأرقام بحسب اللغة في commit `cf2b5893e20b5a9d500249ba215feab5c67b6c21`; [Actions 39145164044 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39145164044).
-- قاعدة «إنجاز حقيقي في كل انطلاقة» موجودة دائمًا في [AGENTS.md](https://github.com/Report-Engainall/Nasr1/blob/main/AGENTS.md) وتتطلب تعديلًا برمجيًا/اختباريًا مفيدًا في كل جلسة، اختبارًا حقيقيًا، وسجل SHA ونتيجة وخطوة تالية. [Commit `f575fbac840f490781da3c1f7e32041ab60062c8`](https://github.com/Report-Engainall/Nasr1/commit/f575fbac840f490781da3c1f7e32041ab60062c8) — [Actions 39144280302 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144280302).
+- كشف الحساب PDF: `resolveCustomerStatementInvoiceStatus()` يستخدم حالة الفاتورة، وتاريخ الاستحقاق، والمبالغ المسددة لتحديد «متأخرة» و«متأخرة جزئيًا»، ويقيّم التاريخ على وقت توليد ثابت؛ يحتفظ بالتاريخ المفقود كحالة مستحقة غير مؤكدة، ولا يتجاوز حالة «ملغاة». [تنفيذ الدالة](https://github.com/Report-Engainall/Nasr1/commit/3c1bee5dea79cd055b3ac8d402adfbf7cf904f15).
+- اختبارات القواعد: [commit `9b10d34b4b61c92871b8cc6d3874909d34f79e0a`](https://github.com/Report-Engainall/Nasr1/commit/9b10d34b4b61c92871b8cc6d3874909d34f79e0a) يختبر: متأخرة، متأخرة جزئيًا، استحقاق مستقبلي، تاريخ غير موجود، مدفوعة وفق الحالة، مدفوعة وفق الرصيد، وملغاة.
+- فشل حقيقي ظهر في اختبار PDF الفردي لأن الدالة القديمة `statusLabel()` ما زالت مطلوبة من ذلك المستند. أعدنا رندر حالة الفاتورة الفردية كمكوّن مستقل مع إبقاء منطق كشف الحساب المشتق من الدفعات والاستحقاق. [تصحيح السبب](https://github.com/Report-Engainall/Nasr1/commit/ba9523fdbe643d7a6503dce54f6d1b740f3f06ca).
+- لا تسجّل نجاح هذا التغيير قبل نتيجة Actions النهائية على `ba9523f`؛ لا حاجة لإعادة قراءة أو إعادة فحص الميزات التي اجتازت بواباتها أدناه ما لم يتغير كودها.
 
-## دفعة نشطة — تشديد تحقق PDF المالي
+## منجزات تم إثباتها — لا تُعد فحصها من البداية
 
-- `src/lib/finance-document-pdf.ts`: رفض إجمالي فاتورة سالب ورفض دفعات كشف الحساب التي قيمتها صفر أو سالبة قبل إنشاء PDF؛ المخطط القائم يفرض أصلًا إجماليًا غير سالب ودفعة موجبة.
-- `src/lib/finance-document-pdf.test.ts`: اختبارات رجعية لهذه الحالات.
-- التنفيذ محفوظ في [commit `c6f67a8ee45ee6da04a1760d663a32d1cf697b06`](https://github.com/Report-Engainall/Nasr1/commit/c6f67a8ee45ee6da04a1760d663a32d1cf697b06)، والاختبارات في [commit `4e8e8a70f8d987585e436f1c8e6877dbb9276e58`](https://github.com/Report-Engainall/Nasr1/commit/4e8e8a70f8d987585e436f1c8e6877dbb9276e58).
-- CI للتغيير ولنسخة الاختبار كان **PENDING عند آخر قراءة**: [39145321118](https://github.com/Report-Engainall/Nasr1/actions/runs/39145321118) و[39145334417](https://github.com/Report-Engainall/Nasr1/actions/runs/39145334417). لا يُسجل PASS قبل التحقق من النتائج النهائية.
+- مركز المهام، توليد الأحداث ومنع تكرارها، حدود المؤسسة/الدور والإسناد: [Actions 39143265290 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39143265290).
+- فلاتر الأولوية والمسؤول والتاريخ المشتركة بين القائمة والطباعة: [Actions 39144118407 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144118407).
+- أعمار الذمم: حساب الإجمالي والمدفوع والمتبقي من الفواتير والدفعات، فصل العملات، نطاقات التأخر، غياب due date، pagination والتحقق من الدور: [Actions 39144691226 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144691226).
+- طباعة أعمار الذمم RTL/A4 واختبار UI للعرض والطباعة/حجب RPC المالي عن غير المحاسب: [39144916657 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144916657)، [39144928394 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144928394)، [39145164044 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39145164044).
+- رفض إجمالي فاتورة PDF السالب والدفعات الصفرية/السالبة: [Actions 39145334417 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39145334417).
+- قاعدة كل انطلاقة تتطلب إنجازًا برمجيًا/اختباريًا في `AGENTS.md`: [Actions 39144280302 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39144280302).
+- سجل تفاصيل الأدلة والأسباب المكتشفة: [EXECUTION_LOG.md](./EXECUTION_LOG.md).
 
 ## نقطة الاستئناف الوحيدة
 
-- `next_task_id = NASR1-FINANCE-PDF-VALIDATION-VERIFY-CI`
-- الخطوة العملية التالية: اقرأ نتائج التشغيلين المذكورين؛ إن فشل اختبار أو build، استخرج سبب الفشل الحقيقي وأصلحه، ثم أعد التحقق من SHA النهائي. عند النجاح، حدّث سجل المتطلبات و`EXECUTION_LOG.md`، ثم انتقل إلى فجوة مالية أو تشغيلية مستقلة غير محجوبة.
+- `next_task_id = NASR1-FINANCE-STATEMENT-OVERDUE-LABEL-VERIFY-CI`
+- اقرأ نتيجة `39145659217` فقط لهذا التغيير. إذا نجحت: حدّث حالتي `TESTED` ونقطة الاستئناف وسجل المتطلبات، ثم ابدأ بفجوة مستقلة. إذا فشلت: أصلح خطأ الاختبار/البناء المحدد، ولا تعد تحليل الأجزاء المكتملة أعلاه.
 
 ## حدود الإثبات
 
-- لا يوجد تحقق متصفح تفاعلي مباشر أو تحقق إنتاجي مباشر؛ preview/dev smoke داخل CI ليس دليل إنتاج.
-- اختبارات قاعدة البيانات جرت في PostgreSQL 17 معزول ضمن Actions؛ لم تُطبق migration على قاعدة إنتاج.
-- لم يثبت فك الأرشيفات الثنائية كاملة أو المراجعة الكاملة لكل مواد `READY_TO_REUSE`.
-- لا اعتماديات أو خدمات مدفوعة أضيفت في هذه الدفعات.
+- لم يجر تحقق متصفح تفاعلي مباشر أو إثبات إنتاج مباشر. CI preview/dev smoke لا يثبت النشر الإنتاجي.
+- قواعد البيانات المختبرة PostgreSQL 17 معزول في Actions؛ لم تُطبق migrations على Supabase الإنتاجية.
+- لا يوجد ادعاء بأن الأرشيفات الثنائية فُكت بالكامل أو أن كل محتويات `READY_TO_REUSE` دُققت.
+- لا اعتماديات أو خدمات مدفوعة جديدة.
 
-حالات الإثبات منفصلة: `IMPLEMENTED`، `TESTED` على SHA محدد، `BROWSER-PROVEN`، `PRODUCTION-PROVEN`.
+حالات الإثبات مفصولة دائمًا: `IMPLEMENTED`، `TESTED` على SHA محدد، `BROWSER-PROVEN`، `PRODUCTION-PROVEN`.
