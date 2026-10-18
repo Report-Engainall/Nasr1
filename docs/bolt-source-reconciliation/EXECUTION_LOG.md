@@ -41,3 +41,10 @@
 - اختبار SHA الجديد: PENDING exact-SHA GitHub Actions.
 - لا تغييرات بقاعدة إنتاج أو اعتماديات أو secrets.
 - next_task_id: `NASR1-DB-MIGRATION-ORDER-001` حتى مرور CI.
+
+## 2026-10-18 — NASR1-LINT-BASELINE-001 — إصلاح ESLint بعد نجاح DB acceptance
+- SHA الأساس: `7df4b5a48d52b71933d2c90885b600e61f1caf81`; [Actions 39140570076](https://github.com/Report-Engainall/Nasr1/actions/runs/39140570076).
+- النتائج المثبتة: Bun install PASS؛ unit tests PASS؛ isolated PostgreSQL migrations/business acceptance PASS؛ ESLint FAIL (8 errors / 9 warnings)؛ build وpreview/dev smoke لم يبدأا.
+- تغييرات المصدر: تجاهل مرجع READY_TO_REUSE وREFERENCE_ONLY من lint فقط؛ إزالة explicit-any من الصفحات القديمة باستخدام أنواع ثابتة أو unknown+error narrowing؛ تثبيت timer holder دون تغيير timeout.
+- لا اعتماديات جديدة ولا تعطيل لقواعد lint. الاختبار على SHA الناتج: pending exact-SHA CI.
+- next_task_id: `NASR1-LINT-BASELINE-001` حتى اجتياز lint/build/routes.

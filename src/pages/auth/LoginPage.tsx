@@ -18,7 +18,7 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
       navigate('/')
-    } catch (err: any) { setError(err.message || 'فشل تسجيل الدخول.') } finally { setLoading(false) }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : 'فشل تسجيل الدخول.') } finally { setLoading(false) }
   }
 
   return (

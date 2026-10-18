@@ -2,37 +2,43 @@
 
 **المستودع الهدف الوحيد:** https://github.com/Report-Engainall/Nasr1  
 **الفرع:** `main`  
-**SHA قبل الدفعة الحالية:** `63ab9fc050d165c1a088112979ab7a9fefbb2767`  
-**CI على SHA الأساس:** [run 39140257185](https://github.com/Report-Engainall/Nasr1/actions/runs/39140257185) = FAIL في isolated PostgreSQL migration suite بعد نجاح تثبيت Bun واختبارات الوحدة.
+**SHA قبل دفعة lint:** `7df4b5a48d52b71933d2c90885b600e61f1caf81`  
+**CI:** [run 39140570076](https://github.com/Report-Engainall/Nasr1/actions/runs/39140570076) = FAIL عند ESLint. على هذا الـSHA، Bun install، unit tests وisolated PostgreSQL 17 migration/commerce acceptance اجتازت؛ lint وحده فشل وتخطى build وpreview/dev smoke.
 
 ## نقطة الاستئناف الوحيدة
-- `next_task_id = NASR1-DB-MIGRATION-ORDER-001`
-- المهمة الحالية: إصلاح تضارب migration قديم دون حذف مرجع المصدر أو تشغيل بيانات تجريبية في التطبيق.
+- `next_task_id = NASR1-LINT-BASELINE-001`
+- المهمة: قصر lint على كود التطبيق النشط، وإصلاح الأخطاء الصريحة في الصفحات القديمة دون تعطيل قواعد ESLint.
 
 ## السبب الجذري المثبت
-- فشل exact-SHA run في `supabase/migrations/20261016074744_001_initial_schema.sql`:
-  `PostgresError: column "is_active" does not exist` (`42703`).
-- `20261006063522_d656e1d4-1ca3-4cd7-8542-504968bc356c.sql` أنشأ بالفعل `public.products` بعقد `status` (قيمته الافتراضية `active`) وليس `is_active`.
-- ملف `20261016074744_001_initial_schema.sql` هو baseline قديم آخر في نهاية تسلسل الهجرات؛ `CREATE TABLE IF NOT EXISTS products` لا يوسّع الجدول القائم، ثم السياسة القديمة تشير إلى `is_active` وتضيف seed products. هذا يخلط مخططين ويخاطر بإدخال بيانات عرض تجريبية.
-- نتيجة CI وتفاصيل قاعدة البيانات محفوظة في [run 39140257185](https://github.com/Report-Engainall/Nasr1/actions/runs/39140257185). لم تُجر كتابة إلى قاعدة إنتاج.
+أخرج lint 8 أخطاء:
+- ملف مصدر مرجعي تحت `READY_TO_REUSE` فشل قاعدة `prefer-const`.
+- `previewAuthStorage.ts` به timer لا يعاد تعيينه.
+- `AdminDashboard.tsx` فيه استعمالان لـ`any`.
+- `AdminOrders.tsx`, `LoginPage.tsx`, `RegisterPage.tsx`, و`CartPage.tsx` فيها استعمالات `any`.
+التسع تحذيرات الأخرى من Fast Refresh وليست أخطاء قاتلة.
 
-## ما تم تنفيذه
-- `IMPLEMENTED`: حفظ الملف الأصلي حرفيًا تحت `docs/bolt-source-reconciliation/REFERENCE_ONLY/migrations/20261016074744_001_initial_schema.legacy.sql` للمراجعة؛ بصمة Git blob الأصلية `baf5744a4a7cf3f2d2077460f9c5517318dad2f8`.
-- `IMPLEMENTED`: استبدال تنفيذ baseline المتعارض بحاجز SQL يثبت وجود المخطط canonical وعقد `products.status` قبل المتابعة. لا يضيف جداول أو منتجات أو بيانات تشغيلية؛ لا يغير migration order ولا يحذف version path.
-- `IMPLEMENTED`: إضافة قرار المصدر والسبب إلى `SOURCE_INTEGRATION_LEDGER.csv`، وتوثيق السبب والخطوة التالية في هذا الملف وسجل التنفيذ.
-- `INTEGRATED`: لا يُمنح تكامل وظيفي لهذه المعالجة إلا بعد اجتياز isolated migration suite على SHA الناتج، ثم بقية CI.
-- `TESTED`: التعديل الجديد بانتظار نتيجة GitHub Actions الخاصة بـSHA الذي يحتويه؛ لا توجد اختبارات محلية لأن checkout غير متصل.
+## النتائج المثبتة قبل هذا التغيير
+- `NASR1-BOOT-001`: عولج تضارب manifest/lock بالاعتماد على Bun lock القائم؛ لا حزم جديدة.
+- `NASR1-MISSING-MODULES-001`: أُعيدت خمس وحدات مرجعية مطلوبة في الشفرة والاختبارات.
+- `NASR1-SUPABASE-CLIENT-001`: عميل Supabase أصبح lazy ويتوافق مع عقد tenant-scope الذي تستخدمه API.
+- `NASR1-DB-MIGRATION-ORDER-001`: على SHA `7df4b5a48d52b71933d2c90885b600e61f1caf81` وصلت الهجرات إلى `APPLIED 20261016074744_001_initial_schema.sql` و`APPLIED 20261016074758_002_order_code_function.sql` ثم ظهر تأكيد PASS لسير العمل التجاري والعزل والتسعير والمخزون والفواتير والاستيراد وOnyx وAI. الملف القديم المتعارض حفظ حرفيًا في `REFERENCE_ONLY/migrations`، والمسار التنفيذي أصبح schema guard.
 
-## حالة الاختبارات
-- على SHA الأساس `63ab9fc050d165c1a088112979ab7a9fefbb2767`: frozen Bun lock/install = PASS، unit tests = PASS، database migration suite = FAIL بسبب العمود أعلاه، lint/build/preview/dev smoke = SKIPPED نتيجة التوقف عند فشل قاعدة البيانات.
-- على SHA التغيير: `PENDING_REMOTE_CI` إلى أن يظهر run مرتبط بنفس SHA.
-- لا يوجد إثبات متصفح، إنتاج، Lovable sync، أو Onyx live ناشئ عن هذه الدفعة.
+## التغيير الجاري
+- استبعاد `READY_TO_REUSE/**` و`REFERENCE_ONLY/**` من ESLint لأنها أصول مراجعة وليست كود التطبيق الفعال.
+- استعمال `Order` و`CustomerSummary` كأنواع واضحة بدل `any`.
+- تحويل أخطاء الدوال إلى `unknown` ثم narrowing عبر `instanceof Error`.
+- استبدال متغير timer القابل للتغيير بحامل ثابت.
+- لا اعتماديات جديدة؛ لم تتغير قواعد الأمان ولا سلوك المصادقة عمدًا.
 
-## التالي
-1. اقرأ Actions للـSHA الناتج من هذه الدفعة.
-2. أصلح كل أول فشل حقيقي متتالٍ في migration/workflow suite دون تبديل قاعدة الإنتاج أو إدخال بيانات seed وهمية.
-3. بعد نجاح migrations، أكمل lint/build/preview/dev route smoke على exact SHA.
-4. بعدها استأنف `NASR1-OPS-TASK-CENTER-001`: افحص `ai_tasks` ونموذج الإشعارات الحاليين، ثم وحّد مركز المهام operational واحدًا باستخدام أحداث حقيقية، منع تكرار ثابت، أدوار وصلاحيات خادمية، وطباعة RTL مطابقة للفلاتر. لا تنشئ محركًا ثانيًا.
-5. متابعة جرد الأرشيفات وREADY_TO_REUSE تظل مستقلة؛ لا تُدّعى أي عملية تنزيل أو استخراج لم تثبت.
+## الاختبارات
+- SHA الأساس `7df4b5a48d52b71933d2c90885b600e61f1caf81`: Bun lock/install PASS؛ unit tests PASS؛ PostgreSQL migrations/business acceptance PASS؛ ESLint FAIL (8 errors)؛ build/preview/dev smoke SKIPPED.
+- SHA الدفعة الجديدة: `PENDING_REMOTE_CI`. لم تتوفر مساحة checkout محلية ولم تُدّعَ اختبارات محلية.
+- لا يوجد إثبات متصفح أو إنتاج أو Lovable sync أو Onyx live.
 
-تعريف الحالات: `IMPLEMENTED` تغيير كود؛ `INTEGRATED` ارتباط فعلي بعقود الخدمة/البيانات/الصلاحيات؛ `TESTED` اختبار شُغل ودليله محفوظ؛ `BROWSER-PROVEN` تحقق متصفح؛ `PRODUCTION-PROVEN` تحقق مباشر من الإنتاج.
+## الخطوة التالية
+1. افحص Actions المرتبط بالـSHA الجديد ذاته.
+2. أصلح الفشل التالي بالرسالة الفعلية من CI ثم أعد التحقق من build وroute smoke.
+3. بعد استقرار CI، ابدأ `NASR1-OPS-TASK-CENTER-001`: وسّع `ai_tasks` القائمة بدل بناء محرك مكرر، مع مصدر حدث حقيقي، idempotency، أدوار وصلاحيات مناسبة، وتصفية وطباعة RTL مطابقة للفلاتر.
+4. مراجعة المصادر والأرشيفات مستمرة من السجلات: لم يتم تنزيل/استخراج أي أرشيف جديد في هذه الدفعات.
+
+تعريف الحالات: `IMPLEMENTED` تغيّر الكود؛ `INTEGRATED` ربط الخدمة/البيانات/الصلاحيات؛ `TESTED` اختبار نجح على SHA محدد؛ `BROWSER-PROVEN` تحقق مباشر بالمتصفح؛ `PRODUCTION-PROVEN` تحقق مباشر بالإنتاج.

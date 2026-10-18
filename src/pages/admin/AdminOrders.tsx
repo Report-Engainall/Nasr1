@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import type { Order, OrderItem, Customer } from '../../lib/types'
+import type { Order, OrderItem } from '../../lib/types'
 import { ORDER_STATUS_LABELS } from '../../lib/types'
 import { formatPrice } from '../../lib/pricing'
+
+type CustomerSummary = { id: string; full_name: string }
 
 const STATUS_OPTIONS = ['new', 'received', 'reviewing', 'returned', 'approved', 'preparing', 'prepared', 'dispatched', 'delivered', 'cancelled', 'rejected', 'invoiced']
 
@@ -22,7 +24,7 @@ export default function AdminOrders() {
         const ordersData = data as Order[]
         supabase.from('customers').select('id, full_name').then(({ data: custData }) => {
           const custMap: Record<string, string> = {}
-          ;(custData || []).forEach((c: any) => { custMap[c.id] = c.full_name })
+          ;((custData || []) as CustomerSummary[]).forEach((customer) => { custMap[customer.id] = customer.full_name })
           setOrders(ordersData.map(o => ({ ...o, customer_name: custMap[o.customer_id] || '—' })))
           setLoading(false)
         })

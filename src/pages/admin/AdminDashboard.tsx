@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { ShoppingCart, Package, Users, TriangleAlert as AlertTriangle, Clock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { ORDER_STATUS_LABELS } from '../../lib/types'
+import { ORDER_STATUS_LABELS, type Order } from '../../lib/types'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ totalOrders: 0, newOrders: 0, totalProducts: 0, totalCustomers: 0, pendingCustomers: 0 })
-  const [recentOrders, setRecentOrders] = useState<any[]>([])
+  const [recentOrders, setRecentOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -18,12 +18,12 @@ export default function AdminDashboard() {
     ]).then(([orders, newOrders, products, customers, pending]) => {
       setStats({
         totalOrders: orders.count || 0,
-        newOrders: newOrders.data?.filter((o: any) => o.status === 'new').length || 0,
+        newOrders: newOrders.data?.filter((order: Order) => order.status === 'new').length || 0,
         totalProducts: products.count || 0,
         totalCustomers: customers.count || 0,
         pendingCustomers: pending.count || 0,
       })
-      setRecentOrders(newOrders.data || [])
+      setRecentOrders((newOrders.data || []) as Order[])
       setLoading(false)
     })
   }, [])

@@ -35,7 +35,7 @@ export default function CartPage() {
       const { error: itemsError } = await supabase.from('order_items').insert(orderItemsData)
       if (itemsError) throw itemsError
       clearCart(); navigate(`/orders/${order.id}`)
-    } catch (err: any) { setError(err.message || 'فشل إرسال الطلب.') } finally { setSubmitting(false) }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : 'فشل إرسال الطلب.') } finally { setSubmitting(false) }
   }
 
   if (items.length === 0) {

@@ -27,7 +27,7 @@ export default function RegisterPage() {
         await supabase.from('customers').insert({ user_id: data.user.id, full_name: fullName, company_name: companyName || null, phone, email, status: 'pending', customer_tier: 3 })
         navigate('/pending-approval')
       }
-    } catch (err: any) { setError(err.message || 'فشل إنشاء الحساب') } finally { setLoading(false) }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : 'فشل إنشاء الحساب') } finally { setLoading(false) }
   }
 
   return (
