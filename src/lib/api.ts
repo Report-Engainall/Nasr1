@@ -1,4 +1,5 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
+import { countLowStockBalances } from './inventory-metrics';
 import { retryRead } from './retry';
 import type {
   Product, Category, Customer, Supplier, Order, OrderItem,
@@ -993,13 +994,14 @@ export async function fetchDashboardStats() {
     supabase.rpc('fetch_staff_orders'),
     supabase.from('ai_alerts').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('is_resolved', false),
     warehouseId
-      ? supabase.from('inventory_balances').select('quantity_on_hand, reorder_point, product_id').eq('warehouse_id', warehouseId)
+      ? supabase.from('inventory_balances').select('quantity_available, reorder_point, product_id').eq('warehouse_id', warehouseId)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
-  const lowStockCount = (lowStock.data || []).filter(
-    (inv: { quantity_on_hand: number; reorder_point: number }) => inv.quantity_on_hand <= inv.reorder_point
-  ).length;
+  if (lowStock.error) throw lowStock.error;
+  const lowStockCount = countLowStockBalances(
+    (lowStock.data ?? []) as Array<{ quantity_available: unknown; reorder_point: unknown }>
+  );
 
   if (orders.error) throw orders.error;
   const ordersData = (orders.data || []) as Array<{ id: string; status: string; total_amount: number }>;
