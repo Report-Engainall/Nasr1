@@ -43,6 +43,7 @@ describe("App routing", () => {
     "/admin/reports",
     "/admin/settings",
     "/admin/suppliers",
+    "/admin/stock-count",
     "/admin/tasks",
     "/orders",
     "/orders/route-smoke-test",

@@ -30,6 +30,7 @@ import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
 import { TaskCenter } from '@/components/TaskCenter';
 import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
+import { UnifiedImportEngine } from '@/components/UnifiedImportEngine';
 import { StaffQuotesPage, StaffFinancePage } from '@/components/CustomerWorkflows';
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem,
@@ -775,6 +776,72 @@ function Reports() {
 }
 function ReportMetric({ label, value, icon: Icon }: { label: string; value: string; icon: IconType }) { return <article className="report-metric"><Icon size={23} /><span>{label}</span><strong>{value}</strong></article>; }
 
-function DataCenter({ onNotice }: { onNotice: (m: string) => void }) { const { data: categories, loading, error, refetch } = useFetch(fetchCategories); const [name, setName] = useState(''); async function add() { if (!name.trim()) return; try { await createCategory({ name, is_active: true, sort_order: (categories?.length ?? 0) + 1 }); setName(''); refetch(); onNotice('تمت إضافة التصنيف'); } catch (e) { onNotice(e instanceof Error ? e.message : 'تعذر إضافة التصنيف'); } } return <><Heading eyebrow="إدارة البيانات" title="مركز البيانات الموحد" description="تنظيم التصنيفات ومراجعة البيانات الأساسية من مكان واحد" icon={Database} /><div className="data-layout"><section className="panel"><div className="panel-head"><div><h2>التصنيفات</h2><p>تستخدم لتنظيم المنتجات والتقارير</p></div></div><div className="inline-form"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم التصنيف الجديد" /><Button onClick={add}><Plus size={16} /> إضافة</Button></div>{loading ? <Loading /> : <div className="category-list">{categories?.map((c: Category) => <div key={c.id}><span>{c.name}</span><small>{c.code ?? 'بدون رمز'}</small></div>)}</div>}</section><section className="panel data-info"><Database size={28} /><h2>بيانات موحدة وآمنة</h2><p>تعمل المنتجات والعملاء والطلبات والمخزون من مصدر بيانات واحد، لتقليل التعارض ورفع دقة القرارات.</p><div className={'data-status ' + (loading ? 'pending' : error ? 'error' : 'success')}>{loading ? <RefreshCw size={16} className="spin" /> : error ? <AlertTriangle size={16} /> : <Check size={16} />}{loading ? 'جار التحقق من بيانات التصنيفات…' : error ? 'تعذر تأكيد الاتصال ببيانات المتجر: ' + error : 'تم تحميل التصنيفات بنجاح من قاعدة البيانات.'}</div></section></div></>; }
+function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
+  const { user } = useAuth();
+  const canManageImports = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const [section, setSection] = useState<'categories' | 'import'>('categories');
+  const { data: categories, loading, error, refetch } = useFetch(fetchCategories);
+  const [name, setName] = useState('');
 
+  async function add() {
+    if (!name.trim()) return;
+    try {
+      await createCategory({ name, is_active: true, sort_order: (categories?.length ?? 0) + 1 });
+      setName('');
+      await refetch();
+      onNotice('تمت إضافة التصنيف');
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذر إضافة التصنيف');
+    }
+  }
+
+  if (section === 'import' && canManageImports) {
+    return <>
+      <div className="toolbar">
+        <span className="toolbar-note">الاستيراد الموحد — صلاحية المدير أو مدير النظام</span>
+        <div className="toolbar-actions">
+          <Button variant="outline" onClick={() => setSection('categories')}>
+            <Database size={16} /> العودة إلى التصنيفات
+          </Button>
+        </div>
+      </div>
+      <UnifiedImportEngine onNotice={onNotice} />
+    </>;
+  }
+
+  return <>
+    <Heading eyebrow="إدارة البيانات" title="مركز البيانات الموحد" description="تنظيم التصنيفات واستيراد البيانات مع التحقق من الجودة والبصمة ومنع التكرار" icon={Database} />
+    <div className="toolbar">
+      <span className="toolbar-note">المصدر المعتمد هو قاعدة بيانات المؤسسة الحالية؛ لا تُنشأ بيانات تجريبية.</span>
+      <div className="toolbar-actions">
+        {canManageImports && <Button onClick={() => setSection('import')}><FileText size={16} /> فتح محرك الاستيراد الموحد</Button>}
+        <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث التصنيفات</Button>
+      </div>
+    </div>
+    <div className="data-layout">
+      <section className="panel">
+        <div className="panel-head"><div><h2>التصنيفات</h2><p>تستخدم لتنظيم المنتجات والتقارير</p></div></div>
+        <div className="inline-form">
+          <input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} placeholder="اسم التصنيف الجديد" />
+          <Button onClick={() => void add()} disabled={!name.trim()}><Plus size={16} /> إضافة</Button>
+        </div>
+        {loading ? <Loading /> : error ? <ErrorBox message={error} /> : categories?.length
+          ? <div className="category-list">{categories.map((category: Category) =>
+              <div key={category.id}><span>{category.name}</span><small>{category.code ?? 'بدون رمز'}</small></div>
+            )}</div>
+          : <Empty text="لا توجد تصنيفات محفوظة لهذه المؤسسة بعد." />}
+      </section>
+      <section className="panel data-info">
+        <Database size={28} />
+        <h2>استيراد مضبوط وقابل للاستئناف</h2>
+        <p>محرك الاستيراد يعمل على الملفات الفعلية بحدود معلنة، وبصمة SHA-256، وملفات تعريف وقواعد تحقق، ويوقف التعارض الذي يحتاج قرارًا بشريًا. لا يخزن الملف الخام ولا يمحو سجلات لم تظهر في المصدر.</p>
+        <div className={'data-status ' + (loading ? 'pending' : error ? 'error' : 'success')}>
+          {loading ? <RefreshCw size={16} className="spin" /> : error ? <AlertTriangle size={16} /> : <Check size={16} />}
+          {loading ? 'جار التحقق من بيانات التصنيفات…' : error ? 'تعذر تحميل التصنيفات: ' + error : 'اتصال التصنيفات ناجح'}
+        </div>
+        {!canManageImports && <p className="text-muted">استيراد البيانات متاح لمدير النظام أو المدير فقط. تظل صلاحيات الخادم وسياسات قاعدة البيانات هي المرجع الحاكم.</p>}
+      </section>
+    </div>
+  </>;
+}
 
