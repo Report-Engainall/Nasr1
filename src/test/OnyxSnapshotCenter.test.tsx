@@ -80,9 +80,9 @@ describe("Onyx snapshot center", () => {
   it("loads a real saved snapshot, displays its analytics and bounded source rows", async () => {
     render(<OnyxSnapshotCenter />);
     expect(await screen.findByText("أونكس برو — اللقطات والتحليلات")).toBeInTheDocument();
-    expect((await screen.findAllByText("onyx-october.csv")).length).toBeGreaterThanOrEqual(2);
+    expect(await screen.findByText("onyx-october.csv")).toBeInTheDocument();
     expect(screen.getByText("درجة الجودة المحسوبة").parentElement?.textContent).toContain("/100");
-    expect(screen.getAllByText("SKU-001").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("SKU-001")).toBeInTheDocument();
     expect(screen.getByText("تنفيذ المطابقة مع المخزون الحالي")).toBeInTheDocument();
     expect(mocks.fetchOnyxSnapshotAnalytics).toHaveBeenCalledWith("snapshot-1");
     expect(mocks.fetchOnyxSnapshotRows).toHaveBeenCalledWith("snapshot-1");
