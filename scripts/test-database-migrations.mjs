@@ -2399,10 +2399,50 @@ async function main() {
     /warehouse|مستودع|organization/i,
   );
   process.stdout.write("PASS inventory write boundary and reorder point: direct balance/ledger DML denied, manager RPC audited, no-op idempotent, purchasing threshold task lifecycle correct, invalid/cross-tenant requests rejected\\n");
+  // AGH-STOCK-COUNT-001: idempotent sessions, snapshot variance, audit and stale-balance protection.
+  const countSession=(await db.unsafe("select public.start_stock_count($1::uuid,$2::text,$3::text) as result",[testWarehouseId,"ci-stock-count-key-000001","CI physical count snapshot"]))[0].result;
+  assert.equal(countSession.organization_id,organizationId);assert.equal(countSession.warehouse_id,testWarehouseId);assert.equal(countSession.status,"open");assert.ok(Number(countSession.total_lines)>0);
+  const countReplay=(await db.unsafe("select public.start_stock_count($1::uuid,$2::text,$3::text) as result",[testWarehouseId,"ci-stock-count-key-000001","CI physical count snapshot"]))[0].result;
+  assert.equal(countReplay.id,countSession.id);assert.equal(countReplay.replayed,true);
+  await expectFailure("warehouse cannot have two simultaneous open stock counts",()=>db.unsafe("select public.start_stock_count($1::uuid,$2::text,$3::text)",[testWarehouseId,"ci-stock-count-key-000002","conflicting session"]),/an open stock count already exists for this warehouse/i);
+  const countLines=await db.unsafe("select product_id,expected_quantity from public.stock_count_lines where session_id=$1::uuid order by product_id",[countSession.id]);
+  assert.equal(countLines.length,Number(countSession.total_lines));
+  for(const line of countLines){const expected=Number(line.expected_quantity),counted=line.product_id===productId?expected+2:expected;await db.unsafe("select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",[countSession.id,line.product_id,counted.toFixed(3)]);}
+  const countPersisted=(await db.unsafe("select count(*)::integer as total,count(counted_quantity)::integer as counted from public.stock_count_lines where session_id=$1::uuid",[countSession.id]))[0];
+  assert.equal(countPersisted.total,countLines.length);assert.equal(countPersisted.counted,countLines.length);
+  const completeResult=(await db.unsafe("select public.complete_stock_count($1::uuid) as result",[countSession.id]))[0].result;
+  assert.equal(completeResult.status,"completed");assert.equal(Number(completeResult.total_lines),countLines.length);assert.equal(Number(completeResult.adjusted_lines),1);assert.equal(Number(completeResult.positive_adjustment),2);
+  const countedBalance=(await db.unsafe("select quantity_on_hand,quantity_reserved,quantity_available from public.inventory_balances where product_id=$1 and warehouse_id=$2",[productId,testWarehouseId]))[0];
+  assert.equal(Number(countedBalance.quantity_on_hand),35);assert.equal(Number(countedBalance.quantity_reserved),10);assert.equal(Number(countedBalance.quantity_available),25);
+  const adjustments=await db.unsafe("select quantity,movement_type from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",[countSession.id]);
+  assert.equal(adjustments.length,1);assert.equal(adjustments[0].movement_type,"stock_count_adjustment");assert.equal(Number(adjustments[0].quantity),2);
+  const completedLine=(await db.unsafe("select completed_quantity,variance from public.stock_count_lines where session_id=$1::uuid and product_id=$2::uuid",[countSession.id,productId]))[0];
+  assert.equal(Number(completedLine.completed_quantity),35);assert.equal(Number(completedLine.variance),2);
+  assert.equal((await db.unsafe("select id from public.audit_logs where organization_id=$1 and action='inventory.stock_count.completed' and entity_id=$2::uuid",[organizationId,countSession.id])).length,1);
+  await expectFailure("completed stock count cannot be modified",()=>db.unsafe("select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",[countSession.id,productId,"36.000"]),/stock count is not open/i);
+  const staleSession=(await db.unsafe("select public.start_stock_count($1::uuid,$2::text,$3::text) as result",[testWarehouseId,"ci-stock-count-stale-key-0001","CI stale count snapshot"]))[0].result;
+  const staleLines=await db.unsafe("select product_id,expected_quantity from public.stock_count_lines where session_id=$1::uuid order by product_id",[staleSession.id]);
+  for(const line of staleLines)await db.unsafe("select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",[staleSession.id,line.product_id,Number(line.expected_quantity).toFixed(3)]);
+  await db.unsafe("select public.transfer_inventory($1::uuid,$2::uuid,$3::uuid,$4::numeric,$5::text,$6::text)",[productId,testWarehouseId,transferDestinationId,"1.000","CI movement after stock-count snapshot","ci-stock-count-stale-movement-0001"]);
+  await expectFailure("stale stock-count snapshot cannot overwrite stock moved during counting",()=>db.unsafe("select public.complete_stock_count($1::uuid)",[staleSession.id]),/stock balance changed after the count snapshot/i);
+  assert.equal((await db.unsafe("select status from public.stock_count_sessions where id=$1::uuid",[staleSession.id]))[0].status,"open");
+  const cancelled=(await db.unsafe("select public.cancel_stock_count($1::uuid,$2::text) as result",[staleSession.id,"CI snapshot invalidated by a later movement"]))[0].result;
+  assert.equal(cancelled.status,"cancelled");assert.equal((await db.unsafe("select id from public.audit_logs where organization_id=$1 and action='inventory.stock_count.cancelled' and entity_id=$2::uuid",[organizationId,staleSession.id])).length,1);
+  process.stdout.write("PASS physical stock count: idempotent session, snapshot lines, audited variance adjustment and stale-balance rejection\\n");
 
   await db.unsafe("reset role");
   await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
   await db.unsafe("set role authenticated");
+  await expectFailure(
+    "accountants cannot finalize stock counts",
+    () => db.unsafe("select public.complete_stock_count($1::uuid)", ["00000000-0000-4000-8000-000000000000"]),
+    /administrator or manager permission required/i,
+  );
+  await expectFailure(
+    "accountants cannot cancel stock counts",
+    () => db.unsafe("select public.cancel_stock_count($1::uuid,$2::text)", ["00000000-0000-4000-8000-000000000000","not allowed"]),
+    /administrator or manager permission required/i,
+  );
   await expectFailure(
     "accountants cannot change inventory reorder points",
     () => db.unsafe("select public.set_inventory_reorder_point($1::uuid,$2::uuid,$3::integer,$4::text)", [productId,testWarehouseId,30,"accountant must not alter purchasing policy"]),

@@ -876,6 +876,72 @@ export async function fetchActiveInventoryWarehouses(): Promise<ActiveInventoryW
   return (data ?? []) as ActiveInventoryWarehouse[];
 }
 
+export type InventoryStockCountSession = {
+  id: string; organization_id: string; warehouse_id: string; status: 'open' | 'completed' | 'cancelled';
+  idempotency_key: string; notes: string | null; started_by: string; started_at: string; total_lines: number; counted_lines: number;
+  completed_by: string | null; completed_at: string | null; cancelled_by: string | null; cancelled_at: string | null; cancellation_reason: string | null;
+};
+export type InventoryStockCountLine = {
+  id: string; organization_id: string; session_id: string; product_id: string; product_code: string; product_name: string; unit: string | null;
+  expected_quantity: number; expected_reserved_quantity: number; expected_last_movement_at: string | null;
+  counted_quantity: number | null; counted_at: string | null; completed_quantity: number | null; variance: number | null; completed_at: string | null;
+};
+export type InventoryStockCountCompletion = {
+  session_id: string; status: string; total_lines: number; adjusted_lines: number; positive_adjustment: number; negative_adjustment: number;
+};
+const stockCountUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function assertStockCountId(value: string, label: string): void { if (!stockCountUuid.test(value)) throw new Error(label + ' غير صالح.'); }
+export async function fetchOpenStockCountForWarehouse(warehouseId: string): Promise<InventoryStockCountSession | null> {
+  assertStockCountId(warehouseId, 'معرّف المستودع');
+  const { data, error } = await supabase.from('stock_count_sessions')
+    .select('id,organization_id,warehouse_id,status,idempotency_key,notes,started_by,started_at,total_lines,counted_lines,completed_by,completed_at,cancelled_by,cancelled_at,cancellation_reason')
+    .eq('warehouse_id', warehouseId).eq('status', 'open').maybeSingle();
+  if (error) throw error; return data as InventoryStockCountSession | null;
+}
+export async function fetchStockCountLines(sessionId: string): Promise<InventoryStockCountLine[]> {
+  assertStockCountId(sessionId, 'معرّف جلسة الجرد');
+  const { data, error } = await supabase.from('stock_count_lines')
+    .select('id,organization_id,session_id,product_id,product_code,product_name,unit,expected_quantity,expected_reserved_quantity,expected_last_movement_at,counted_quantity,counted_at,completed_quantity,variance,completed_at')
+    .eq('session_id', sessionId).order('product_code').limit(100000);
+  if (error) throw error; return (data ?? []) as InventoryStockCountLine[];
+}
+export async function startStockCount(warehouseId: string, idempotencyKey: string, notes: string): Promise<InventoryStockCountSession & { replayed?: boolean }> {
+  assertStockCountId(warehouseId, 'معرّف المستودع');
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(idempotencyKey)) throw new Error('مفتاح جلسة الجرد غير صالح.');
+  if (notes.trim().length > 1000) throw new Error('ملاحظات الجرد لا تتجاوز 1000 حرف.');
+  const { data, error } = await supabase.rpc('start_stock_count', { p_warehouse_id: warehouseId, p_idempotency_key: idempotencyKey, p_notes: notes.trim() || null });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('لم يؤكد الخادم إنشاء جلسة الجرد.');
+  return data as InventoryStockCountSession & { replayed?: boolean };
+}
+export async function setStockCountLine(sessionId: string, productId: string, countedQuantity: number): Promise<InventoryStockCountLine> {
+  assertStockCountId(sessionId, 'معرّف جلسة الجرد'); assertStockCountId(productId, 'معرّف المنتج');
+  if (!Number.isFinite(countedQuantity) || countedQuantity < 0 || countedQuantity > 999999999999.999 ||
+      !Number.isSafeInteger(Math.round(countedQuantity * 1000)) || Math.round(countedQuantity * 1000) !== countedQuantity * 1000) {
+    throw new Error('الكمية المعدودة يجب أن تكون غير سالبة وبحد أقصى ثلاث منازل عشرية.');
+  }
+  const { data, error } = await supabase.rpc('set_stock_count_line', { p_session_id: sessionId, p_product_id: productId, p_counted_quantity: countedQuantity });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('لم يؤكد الخادم حفظ الكمية المعدودة.');
+  return data as InventoryStockCountLine;
+}
+export async function completeStockCount(sessionId: string): Promise<InventoryStockCountCompletion> {
+  assertStockCountId(sessionId, 'معرّف جلسة الجرد');
+  const { data, error } = await supabase.rpc('complete_stock_count', { p_session_id: sessionId });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('لم يؤكد الخادم إتمام الجرد.');
+  return data as InventoryStockCountCompletion;
+}
+export async function cancelStockCount(sessionId: string, reason: string): Promise<{ session_id: string; status: string; reason: string }> {
+  assertStockCountId(sessionId, 'معرّف جلسة الجرد');
+  const normalizedReason = reason.trim();
+  if (!normalizedReason || normalizedReason.length > 1000) throw new Error('سبب إلغاء الجرد مطلوب ولا يتجاوز 1000 حرف.');
+  const { data, error } = await supabase.rpc('cancel_stock_count', { p_session_id: sessionId, p_reason: normalizedReason });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('لم يؤكد الخادم إلغاء جلسة الجرد.');
+  return data as { session_id: string; status: string; reason: string };
+}
+
 export type InventoryReorderPointSnapshot = {
   reorder_point: number | null;
   quantity_available: number;
