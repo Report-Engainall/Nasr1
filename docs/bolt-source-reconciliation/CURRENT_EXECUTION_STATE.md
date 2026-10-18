@@ -168,3 +168,12 @@
 - فرع الاستعادة recovery/bolt-snapshot-2026-10-17 وDraft PR #1 تمت معاينتهما. شاشات AdminBanners/BannerSlider ضمن الشجرة القديمة React Router ولا تكفي لربطها وحدها بالتطبيق الحي الذي يستخدم TanStack Start. تمت تهيئة الدمج باستخدام عقد التطبيق الحالي.
 - إعادة تنزيل ZIPين في الجلسة الحالية NOT RUN. رابط Before Failure المحاول: https://raw.githubusercontent.com/Report-Engainall/report-insight-engine/main/incoming-archives/nasr1-bolt-recovery-2026-10-17/Nasr1_Bolt_Before_Failure.zip؛ الخطأ الحقيقي: curl exit 6: curl: (6) Could not resolve host: raw.githubusercontent.com. ملف Restored Current لم يُعد تنزيله كذلك بسبب عائق DNS. نتائج SHA-256/CRC في Actions 39157355307 دليل تاريخي من تشغيل سابق، وليست إعادة تحقق حالية.
 - next_task_id يبقى NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002 إلى أن يثبت CI المطابق هذا الدمج؛ لا يغلق بناءً على الكود وحده.
+
+
+## 2026-10-19 — نتيجة تحقق exact-SHA لإعلانات المتجر
+
+- الكود الجاري اختباره: 5308c3f917852cf3a2474a0ac0201bee8c8f32be؛ تشغيل GitHub Actions المطابق: 39174470933 — SUCCESS.
+- مرّت مراحل Unit tests وPostgreSQL 17 migrations/RLS acceptance وLint وBuild وProduction-preview smoke (port 4173) وDev smoke (port 5173).
+- كُشف وأُصلح فشل سابق في تشغيل 39174326823 على SHA f4a84e6ac6cf85966a918ca3bfa1cd0f81c28975: ملف storefront-discovery.test.tsx لم يكن يضيف fetchStorefrontAnnouncements إلى mock واجهة API. بعد الإصلاح، التشغيل المطابق 39174470933 نجح.
+- حالة هذه الفجوة: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS على exact SHA؛ BROWSER-PROVEN=NOT RUN؛ PRODUCTION-PROVEN=NOT RUN؛ نشر الترحيل في بيئة الإنتاج=NOT RUN.
+- هذه نتيجة جزئية ضمن المهمة النشطة NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002، وليست إقرارًا باكتمال كل الواجهات. ستبقى المهمة نشطة حتى حسم بقية بنود المواصفة مثل شبكة الأسعار الشاملة وتحريرها المجمع.
