@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, type FormEvent } from 'react';
 import { useBlocker } from '@tanstack/react-router';
 import type { CSSProperties } from 'react';
 
@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import {
   fetchAiAlerts, fetchAiTasks, fetchNotifications, fetchOrders, fetchOrderItems,
-  fetchSettings, fetchSuppliers,
+  fetchSettings, fetchSuppliers, fetchAdminStorefrontAnnouncements, saveStorefrontAnnouncement,
   markAllNotificationsRead, markNotificationRead, resolveAiAlert, toggleAiTaskStatus,
   updateOrderStatus, reviewOrderLines, updateSetting, createSupplier,
   fetchAiGatewayBudget, configureAiGatewayBudget, testAiGatewayConnection,
@@ -20,7 +20,7 @@ import {
 } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { formatCurrency, formatDateShort, formatNumber, timeAgo } from '@/lib/format';
-import type { AiAlert, AiTask, Notification, Supplier, AdminSetting, OrderItem } from '@/lib/types';
+import type { AiAlert, AiTask, Notification, Supplier, AdminSetting, OrderItem, StorefrontAnnouncement, StorefrontAnnouncementAudience, StorefrontAnnouncementInput } from '@/lib/types';
 import { buildOnyxOrderWorkbook, onyxOrderWorkbookFilename } from '@/lib/onyx-export';
 
 import type { LucideIcon } from 'lucide-react';
@@ -608,8 +608,9 @@ export function Devices({ onNotice }: { onNotice: (m: string) => void }) {
 export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
   const { user } = useAuth();
   const canManageRoles = Boolean(user?.roles.includes('admin'));
+  const canManageStorefrontContent = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const { data: settings, loading, refetch } = useFetch(fetchSettings);
-  const [tab, setTab] = useState<'general' | 'storefront' | 'appearance' | 'access'>('general');
+  const [tab, setTab] = useState<'general' | 'storefront' | 'appearance' | 'access' | 'announcements'>('general');
   const [saving, setSaving] = useState(false);
   const map = useMemo(() => { const m: Record<string, unknown> = {}; settings?.forEach((s: AdminSetting) => m[s.key] = s.value); return m; }, [settings]);
 
@@ -617,15 +618,137 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
 
   return <AdminPage eyebrow="النظام" title="الإعدادات العامة" description="تحكم كامل في إعدادات المتجر والمظهر" icon={Settings} note="" toolbar={<Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button>}>
     {loading ? <Loading /> : <>
-      <div className="settings-tabs"><button className={tab === 'general' ? 'active' : ''} onClick={() => setTab('general')}>عام</button><button className={tab === 'storefront' ? 'active' : ''} onClick={() => setTab('storefront')}>المتجر</button><button className={tab === 'appearance' ? 'active' : ''} onClick={() => setTab('appearance')}>المظهر</button>{canManageRoles && <button className={tab === 'access' ? 'active' : ''} onClick={() => setTab('access')}>المستخدمون والصلاحيات</button>}</div>
+      <div className="settings-tabs"><button className={tab === 'general' ? 'active' : ''} onClick={() => setTab('general')}>عام</button><button className={tab === 'storefront' ? 'active' : ''} onClick={() => setTab('storefront')}>المتجر</button><button className={tab === 'appearance' ? 'active' : ''} onClick={() => setTab('appearance')}>المظهر</button>{canManageStorefrontContent && <button className={tab === 'announcements' ? 'active' : ''} onClick={() => setTab('announcements')}>إعلانات المتجر</button>}{canManageRoles && <button className={tab === 'access' ? 'active' : ''} onClick={() => setTab('access')}>المستخدمون والصلاحيات</button>}</div>
       {tab === 'general' && <SettingsPanel title="معلومات المتجر"><SettingInput label="اسم المتجر" value={(map.store_name as string) ?? ''} onSave={(v) => save('store_name', v, 'general')} saving={saving} /><SettingInput label="الوصف المختصر" value={(map.store_tagline as string) ?? ''} onSave={(v) => save('store_tagline', v, 'general')} saving={saving} /><SettingInput label="الهاتف" value={(map.store_phone as string) ?? ''} onSave={(v) => save('store_phone', v, 'general')} saving={saving} /><SettingInput label="البريد" value={(map.store_email as string) ?? ''} onSave={(v) => save('store_email', v, 'general')} saving={saving} /><SettingInput label="العنوان" value={(map.store_address as string) ?? ''} onSave={(v) => save('store_address', v, 'general')} saving={saving} /></SettingsPanel>}
       {tab === 'storefront' && <SettingsPanel title="إعدادات المتجر"><SettingInput label="عنوان البانر" value={(map.hero_title as string) ?? ''} onSave={(v) => save('hero_title', v, 'storefront')} saving={saving} /><SettingInput label="نص البانر الفرعي" value={(map.hero_subtitle as string) ?? ''} onSave={(v) => save('hero_subtitle', v, 'storefront')} saving={saving} /><SettingToggle label="شريط العرض المتحرك" value={(map.ticker_enabled as boolean) ?? true} onSave={(v) => save('ticker_enabled', v, 'storefront')} saving={saving} /><SettingToggle label="إظهار المنتجات النافدة" value={(map.show_out_of_stock as boolean) ?? true} onSave={(v) => save('show_out_of_stock', v, 'storefront')} saving={saving} /></SettingsPanel>}
       {tab === 'appearance' && <SettingsPanel title="ألوان النظام"><SettingColor label="اللون الأساسي" value={(map.theme_primary as string) ?? '#087f8d'} onSave={(v) => save('theme_primary', v, 'appearance')} saving={saving} /><SettingColor label="لون التمييز" value={(map.theme_accent as string) ?? '#0eaa97'} onSave={(v) => save('theme_accent', v, 'appearance')} saving={saving} /></SettingsPanel>}
+      {tab === 'announcements' && canManageStorefrontContent && <StorefrontAnnouncementManager onNotice={onNotice} />}
       {tab === 'access' && canManageRoles && user && <OrganizationRoleManagement currentProfileId={user.profileId} onNotice={onNotice} />}
     </>}
   </AdminPage>;
 }
 
+
+
+type AnnouncementDraft = {
+  id: string | null; title: string; content: string; href: string; color: string; priority: string;
+  isActive: boolean; startsAt: string; endsAt: string; audience: StorefrontAnnouncementAudience;
+};
+function newAnnouncementDraft(): AnnouncementDraft {
+  return { id: null, title: '', content: '', href: '', color: '#B99347', priority: '100', isActive: true, startsAt: '', endsAt: '', audience: 'all' };
+}
+function announcementDateInput(value: string | null | undefined): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+function announcementDateISO(value: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error('تاريخ الإعلان غير صالح.');
+  return date.toISOString();
+}
+function StorefrontAnnouncementManager({ onNotice }: { onNotice: (message: string) => void }) {
+  const { data: announcements, loading, error, refetch } = useFetch(fetchAdminStorefrontAnnouncements);
+  const [draft, setDraft] = useState<AnnouncementDraft>(() => newAnnouncementDraft());
+  const [formOpen, setFormOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [formError, setFormError] = useState('');
+
+  function editAnnouncement(row: StorefrontAnnouncement) {
+    setDraft({ id: row.id, title: row.title, content: row.content ?? '', href: row.href ?? '', color: row.color,
+      priority: String(row.priority), isActive: row.is_active, startsAt: announcementDateInput(row.starts_at),
+      endsAt: announcementDateInput(row.ends_at), audience: row.audience });
+    setFormError('');
+    setFormOpen(true);
+  }
+  function cancelForm() { setDraft(newAnnouncementDraft()); setFormError(''); setFormOpen(false); }
+  async function persist(input: StorefrontAnnouncementInput) {
+    await saveStorefrontAnnouncement(input);
+    await refetch();
+  }
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError('');
+    const priority = Number(draft.priority);
+    if (!draft.title.trim() || draft.title.trim().length > 120) { setFormError('اسم الإعلان مطلوب وبحد أقصى 120 حرفًا.'); return; }
+    if (!Number.isInteger(priority) || priority < 0 || priority > 10000) { setFormError('الأولوية يجب أن تكون عددًا صحيحًا من 0 إلى 10000.'); return; }
+    try {
+      const startsAt = announcementDateISO(draft.startsAt), endsAt = announcementDateISO(draft.endsAt);
+      if (startsAt && endsAt && Date.parse(endsAt) <= Date.parse(startsAt)) { setFormError('وقت النهاية يجب أن يكون بعد وقت البداية.'); return; }
+      setSaving(true);
+      await persist({ id: draft.id, title: draft.title.trim(), content: draft.content.trim() || null,
+        href: draft.href.trim() || null, color: draft.color, priority, is_active: draft.isActive,
+        starts_at: startsAt, ends_at: endsAt, audience: draft.audience });
+      cancelForm(); onNotice('تم حفظ الإعلان وتسجيل التغيير في سجل التدقيق.');
+    } catch (cause) {
+      setFormError(cause instanceof Error ? cause.message : 'تعذر حفظ الإعلان.');
+    } finally { setSaving(false); }
+  }
+  async function changeActive(row: StorefrontAnnouncement) {
+    setBusyId(row.id);
+    try {
+      await persist({ id: row.id, title: row.title, content: row.content, href: row.href, color: row.color,
+        priority: row.priority, is_active: !row.is_active, starts_at: row.starts_at, ends_at: row.ends_at, audience: row.audience });
+      onNotice(row.is_active ? 'تم تعطيل الإعلان.' : 'تم تفعيل الإعلان وفق فترة النشر المحددة.');
+    } catch (cause) { onNotice(cause instanceof Error ? cause.message : 'تعذر تغيير حالة الإعلان.'); }
+    finally { setBusyId(null); }
+  }
+  return (
+    <section className="sf-announcement-manager" aria-labelledby="sf-announcement-manager-title">
+      <div className="sf-announcement-manager-head">
+        <div><h2 id="sf-announcement-manager-title">إعلانات المتجر</h2><p>تحرير الإعلانات وفترة النشر والجمهور. تغييراتك محفوظة في سجل التدقيق.</p></div>
+        <div className="sf-announcement-manager-actions">
+          <Button variant="secondary" onClick={() => void refetch()} disabled={loading}><RefreshCw size={16} /> تحديث القائمة</Button>
+          <Button onClick={() => { setDraft(newAnnouncementDraft()); setFormError(''); setFormOpen(true); }}><Plus size={16} /> إعلان جديد</Button>
+        </div>
+      </div>
+      {formOpen && <form className="sf-announcement-form" onSubmit={(event) => void submit(event)}>
+        <div className="sf-announcement-form-heading"><h3>{draft.id ? 'تعديل إعلان' : 'إنشاء إعلان'}</h3>
+          <button type="button" className="btn btn-ghost" onClick={cancelForm} disabled={saving}>إلغاء</button></div>
+        <label>عنوان الإعلان <input required maxLength={120} value={draft.title} onChange={(event) => setDraft((p) => ({ ...p, title: event.target.value }))} /></label>
+        <label>النص المختصر <textarea maxLength={600} rows={3} value={draft.content} onChange={(event) => setDraft((p) => ({ ...p, content: event.target.value }))} /></label>
+        <label>الرابط الداخلي أو HTTPS <input maxLength={500} placeholder="/products أو https://example.com" value={draft.href} onChange={(event) => setDraft((p) => ({ ...p, href: event.target.value }))} /></label>
+        <div className="sf-announcement-form-grid">
+          <label>لون التمييز <input type="color" value={draft.color} onChange={(event) => setDraft((p) => ({ ...p, color: event.target.value }))} /></label>
+          <label>الأولوية <input type="number" min={0} max={10000} step={1} required value={draft.priority} onChange={(event) => setDraft((p) => ({ ...p, priority: event.target.value }))} /></label>
+          <label>بدء النشر <input type="datetime-local" value={draft.startsAt} onChange={(event) => setDraft((p) => ({ ...p, startsAt: event.target.value }))} /></label>
+          <label>انتهاء النشر <input type="datetime-local" value={draft.endsAt} onChange={(event) => setDraft((p) => ({ ...p, endsAt: event.target.value }))} /></label>
+          <label>الجمهور <select value={draft.audience} onChange={(event) => setDraft((p) => ({ ...p, audience: event.target.value as StorefrontAnnouncementAudience }))}>
+            <option value="all">جميع الزوار</option><option value="customers">العملاء المسجلون</option><option value="staff">الموظفون المخولون</option>
+          </select></label>
+          <label className="sf-announcement-active-control"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft((p) => ({ ...p, isActive: event.target.checked }))} /> منشور</label>
+        </div>
+        {formError && <p role="alert" className="sf-announcement-form-error">{formError}</p>}
+        <div className="sf-announcement-form-actions">
+          <Button type="submit" disabled={saving}>{saving ? 'جارٍ الحفظ...' : <><Save size={16} /> حفظ الإعلان</>}</Button>
+          <Button type="button" variant="secondary" disabled={saving} onClick={cancelForm}>إلغاء</Button>
+        </div>
+      </form>}
+      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !announcements?.length ? (
+        <div className="sf-announcement-empty" role="status">لا توجد إعلانات محفوظة لهذه المؤسسة. أنشئ إعلانًا عند وجود محتوى حقيقي للنشر.</div>
+      ) : <div className="sf-announcement-admin-list">{announcements.map((row) => (
+        <article key={row.id} className="sf-announcement-admin-card">
+          <div className="sf-announcement-admin-title"><span style={{ borderColor: row.color }} className="sf-announcement-color-mark" />
+            <div><h3>{row.title}</h3><p>{row.content || 'بدون نص إضافي'}</p></div>
+            <span className={row.is_active ? 'badge success' : 'badge warning'}>{row.is_active ? 'نشط' : 'متوقف'}</span>
+          </div>
+          <dl className="sf-announcement-metadata">
+            <div><dt>الأولوية</dt><dd>{row.priority}</dd></div>
+            <div><dt>الجمهور</dt><dd>{row.audience === 'all' ? 'الجميع' : row.audience === 'customers' ? 'العملاء' : 'الموظفون'}</dd></div>
+            <div><dt>بداية النشر</dt><dd>{row.starts_at ? new Date(row.starts_at).toLocaleString('ar') : 'دون بداية'}</dd></div>
+            <div><dt>نهاية النشر</dt><dd>{row.ends_at ? new Date(row.ends_at).toLocaleString('ar') : 'دون نهاية'}</dd></div>
+            <div><dt>الرابط</dt><dd>{row.href || 'بدون رابط'}</dd></div>
+          </dl>
+          <div className="sf-announcement-card-actions"><Button variant="secondary" onClick={() => editAnnouncement(row)}>تعديل</Button>
+            <Button variant="secondary" disabled={busyId === row.id} onClick={() => void changeActive(row)}>{busyId === row.id ? 'جارٍ التحديث...' : row.is_active ? 'تعطيل' : 'تفعيل'}</Button></div>
+        </article>
+      ))}</div>}
+    </section>
+  );
+}
 
 type ManagedOrganizationProfile = {
   profile_id: string;

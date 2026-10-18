@@ -4,11 +4,12 @@ import {
   Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList,
   Heart, GitCompare, ArrowRight,
 } from 'lucide-react';
-import { fetchProducts, fetchCategories, fetchPromotions, fetchSettingsMap } from '@/lib/api';
+import { fetchProducts, fetchCategories, fetchPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { formatCurrency, formatNumber } from '@/lib/format';
 import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, MAX_CATALOG_SEARCH_LENGTH, normalizeCartDraft, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
 import type { ProductWithInventory, Category, Promotion } from '@/lib/types';
+import { StorefrontAnnouncementSlider } from '@/components/StorefrontAnnouncementSlider';
 import { useAuth } from '@/lib/auth';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { FileText } from 'lucide-react';
@@ -50,6 +51,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId }: {
   const { data: categories, error: categoriesError } = useFetch(fetchCategories);
   const { data: promotions } = useFetch(fetchPromotions);
   const { data: settings } = useFetch(fetchSettingsMap);
+  const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const [view, setView] = useState<StoreView>(initialView);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartRestored, setCartRestored] = useState(false);
@@ -206,6 +208,9 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId }: {
           <button className="sf-mobile-toggle" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={22} /></button>
         </div>
       </header>
+
+      {storefrontAnnouncementsError && <div className="sf-announcement-error" role="status">تعذر تحميل إعلانات المتجر الحالية؛ بقية الكتالوج متاحة.</div>}
+      <StorefrontAnnouncementSlider announcements={storefrontAnnouncements ?? []} />
 
       {tickerEnabled && tickerMessages.length > 0 && (
         <div className="sf-ticker"><div className="sf-ticker-track">{tickerMessages.map((msg, i) => <span key={i}>{msg}</span>)}</div></div>
