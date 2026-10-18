@@ -53,12 +53,6 @@ async function main() {
       id uuid primary key default gen_random_uuid(), bucket_id text not null, name text not null,
       metadata jsonb not null default '{}'::jsonb, unique(bucket_id,name)
     );
-    create or replace function storage.foldername(name text)
-      returns text[] language sql immutable parallel safe
-      AS $folder_fn$
-        SELECT CASE WHEN position('/' in name)=0 THEN ARRAY[]::text[]
-        ELSE (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] END
-      $folder_fn$;
     grant usage on schema storage to anon, authenticated, service_role;
     grant select, insert, delete on storage.objects to anon, authenticated;
     grant select on storage.buckets to anon, authenticated;
