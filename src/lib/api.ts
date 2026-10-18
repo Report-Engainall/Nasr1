@@ -2,6 +2,7 @@ import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supab
 import { countLowStockBalances } from './inventory-metrics';
 import { retryRead } from './retry';
 import { buildProductImageObjectPath, PRODUCT_IMAGE_BUCKET, PRODUCT_IMAGE_MAX_BYTES } from './product-image';
+import { validateCustomerInput } from './customer-input';
 import type {
   Product, Category, Customer, Supplier, Order, OrderItem,
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
@@ -238,10 +239,27 @@ export async function fetchCustomers(): Promise<Customer[]> {
 }
 
 export async function createCustomer(c: Partial<Customer>): Promise<Customer> {
-  const { organizationId: orgId } = await getCurrentTenantScope();
+  const input = validateCustomerInput({
+    business_name: c.business_name,
+    contact_name: c.contact_name,
+    phone: c.phone,
+    tier: c.tier,
+  });
+  const scope = await getCurrentTenantScope();
+  if (!scope.isStaff) throw new Error('صلاحية إدارة العملاء مطلوبة.');
+  // Never spread browser-provided customer fields into the table (balance, status, limits, etc.).
+  const customerCode = 'CUST-' + crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase();
   const { data, error } = await supabase
     .from('customers')
-    .insert({ ...c, organization_id: orgId })
+    .insert({
+      organization_id: scope.organizationId,
+      business_name: input.business_name,
+      contact_name: input.contact_name,
+      phone: input.phone,
+      tier: input.tier,
+      customer_code: customerCode,
+      status: 'pending',
+    })
     .select()
     .single();
   if (error) throw error;
