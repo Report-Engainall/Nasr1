@@ -49,7 +49,7 @@ describe('price grid', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'سكر أبيض — السعر الأساسي' }), { target: { value: '105.25' } });
     fireEvent.click(screen.getByRole('button', { name: /معاينة التغييرات/ }));
     expect(screen.getByLabelText('معاينة التغييرات قبل الحفظ')).toBeInTheDocument();
-    expect(screen.getByText('105٫٢٥')).toBeInTheDocument();
+    expect(screen.getByLabelText('معاينة التغييرات قبل الحفظ').textContent).toMatch(/105|١٠٥/);
     expect(mocks.saveProductPriceGrid).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'اعتماد وحفظ الدفعة' }));

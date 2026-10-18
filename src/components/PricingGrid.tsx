@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { Check, ChevronRight, Eye, RotateCcw, Save, X } from 'lucide-react';
+import { ChevronRight, Eye, RotateCcw, Save, X } from 'lucide-react';
 import { fetchProducts, saveProductPriceGrid, type ProductPriceGridChange } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import type { Product } from '@/lib/types';
@@ -30,7 +30,7 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
 
   const changedCount = useMemo(() => rows.filter((row) => PRICE_FIELDS.some((field) => {
     const raw = drafts[row.id]?.[field.draft];
-    return raw !== undefined && raw.trim() !== '' && Number.isFinite(Number(raw)) && Number(raw) !== Number(row[field.source]);
+    return raw !== undefined && (raw.trim() === '' || !Number.isFinite(Number(raw)) || Number(raw) !== Number(row[field.source]));
   })).length, [rows, drafts]);
 
   function rawValue(row: Product, field: { source: PriceKey; draft: DraftKey }): string {
