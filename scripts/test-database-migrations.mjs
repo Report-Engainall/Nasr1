@@ -2674,82 +2674,47 @@ async function main() {
   process.stdout.write("PASS storefront announcements: role authorization, public tenant scope, safe URLs, audience/date filtering, audit and no direct table grants\n");
 
 
-  // AGH-PRICE-GRID-001: tenant authorization, one-transaction bulk updates, stale-write rejection and audit.
+  // AGH-PRICE-GRID-001: correct physical schema, atomic tier writes, stale guard and tenant isolation.
   await db.unsafe("reset role");
-  await db.unsafe(
-    "update public.products set base_price=100,price_wholesale_of_wholesale=90,price_wholesale=95,price_retail=110 where id=$1 and organization_id=$2",
-    [productId,organizationId],
-  );
+  await db.unsafe("update public.products set base_price=100,wholesale_price=95,retail_price=110 where id=$1 and organization_id=$2",[productId,organizationId]);
+  await db.unsafe("insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values($1,'vip',90,1,true) on conflict (product_id,tier,min_quantity) do update set price=excluded.price,is_active=true",[productId]);
+  await db.unsafe("insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values($1,'wholesale',95,1,true) on conflict (product_id,tier,min_quantity) do update set price=excluded.price,is_active=true",[productId]);
+  await db.unsafe("insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values($1,'retail',110,1,true) on conflict (product_id,tier,min_quantity) do update set price=excluded.price,is_active=true",[productId]);
   const priceGridPayload = [{
-    id: productId,
-    expected_base_price: 100,
-    expected_price_wholesale_of_wholesale: 90,
-    expected_price_wholesale: 95,
-    expected_price_retail: 110,
-    base_price: 101,
-    price_wholesale_of_wholesale: 91,
-    price_wholesale: 96,
-    price_retail: 111,
+    id: productId, expected_base_price: 100, expected_price_wholesale_of_wholesale: 90,
+    expected_price_wholesale: 95, expected_price_retail: 110,
+    base_price: 101, price_wholesale_of_wholesale: 91, price_wholesale: 96, price_retail: 111,
   }];
   await setIdentity(staffAuthUserId,"admin@aghbari.ye");
   await db.unsafe("set role authenticated");
-  const priceGridResult = (await db.unsafe(
-    "select public.save_product_price_grid($1::jsonb) as result",
-    [JSON.stringify(priceGridPayload)],
-  ))[0].result;
-  assert.equal(Number(priceGridResult.updated_count),1,"one price-grid row is saved atomically");
+  const priceGridResult=(await db.unsafe("select public.save_product_price_grid($1::jsonb) as result",[JSON.stringify(priceGridPayload)]))[0].result;
+  assert.equal(Number(priceGridResult.updated_count),1);
   assert.deepEqual(priceGridResult.product_ids,[productId]);
   await db.unsafe("reset role");
-  const updatedPrices=(await db.unsafe(
-    "select base_price,price_wholesale_of_wholesale,price_wholesale,price_retail from public.products where id=$1",
+  const savedGrid=(await db.unsafe(
+    "select p.base_price,(select pp.price from public.product_prices pp where pp.product_id=p.id and pp.tier='vip' and pp.is_active order by pp.min_quantity asc limit 1) as vip_price,(select pp.price from public.product_prices pp where pp.product_id=p.id and pp.tier='wholesale' and pp.is_active order by pp.min_quantity asc limit 1) as wholesale_price,(select pp.price from public.product_prices pp where pp.product_id=p.id and pp.tier='retail' and pp.is_active order by pp.min_quantity asc limit 1) as retail_price from public.products p where p.id=$1",
     [productId],
   ))[0];
-  assert.deepEqual(
-    [Number(updatedPrices.base_price),Number(updatedPrices.price_wholesale_of_wholesale),Number(updatedPrices.price_wholesale),Number(updatedPrices.price_retail)],
-    [101,91,96,111],
-    "all four tier values persist together",
-  );
-  const gridAudit=await db.unsafe(
-    "select action,old_value,new_value from public.audit_logs where organization_id=$1 and entity_type='product' and entity_id=$2::uuid and action='product.price_grid_updated'",
-    [organizationId,productId],
-  );
-  assert.equal(gridAudit.length,1,"the change to the product is audited once");
+  assert.deepEqual([Number(savedGrid.base_price),Number(savedGrid.vip_price),Number(savedGrid.wholesale_price),Number(savedGrid.retail_price)],[101,91,96,111],
+    "base and all three product-price tiers persist together");
+  const gridAudit=await db.unsafe("select action,old_value,new_value from public.audit_logs where organization_id=$1 and entity_type='product' and entity_id=$2::uuid and action='product.price_grid_updated'",[organizationId,productId]);
+  assert.equal(gridAudit.length,1,"the product tier grid change is audited");
   await setIdentity(staffAuthUserId,"admin@aghbari.ye");
   await db.unsafe("set role authenticated");
-  const stalePayload=[{...priceGridPayload[0],base_price:102}];
-  await expectFailure(
-    "price grid rejects stale expected values",
-    () => db.unsafe("select public.save_product_price_grid($1::jsonb)",[JSON.stringify(stalePayload)]),
-    /changed after the grid was loaded/i,
-  );
+  await expectFailure("price grid rejects stale expected values",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[JSON.stringify([{...priceGridPayload[0],base_price:102}])]),/changed after the grid was loaded/i);
   const crossTenantPayload=[
-    {
-      id:productId,expected_base_price:101,expected_price_wholesale_of_wholesale:91,expected_price_wholesale:96,expected_price_retail:111,
-      base_price:102,price_wholesale_of_wholesale:92,price_wholesale:97,price_retail:112,
-    },
-    {
-      id:otherProductId,expected_base_price:1,expected_price_wholesale_of_wholesale:0,expected_price_wholesale:0,expected_price_retail:0,
-      base_price:2,price_wholesale_of_wholesale:2,price_wholesale:2,price_retail:2,
-    },
+    {id:productId,expected_base_price:101,expected_price_wholesale_of_wholesale:91,expected_price_wholesale:96,expected_price_retail:111,base_price:102,price_wholesale_of_wholesale:92,price_wholesale:97,price_retail:112},
+    {id:otherProductId,expected_base_price:1,expected_price_wholesale_of_wholesale:0,expected_price_wholesale:0,expected_price_retail:0,base_price:2,price_wholesale_of_wholesale:2,price_wholesale:2,price_retail:2},
   ];
-  await expectFailure(
-    "price grid rejects a foreign tenant product and rolls back earlier batch rows",
-    () => db.unsafe("select public.save_product_price_grid($1::jsonb)",[JSON.stringify(crossTenantPayload)]),
-    /Product not found in current organization/i,
-  );
+  await expectFailure("price grid rejects another tenant and rolls back its earlier row",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[JSON.stringify(crossTenantPayload)]),/Product not found in current organization/i);
   await db.unsafe("reset role");
-  const afterRollback=(await db.unsafe("select base_price,price_wholesale_of_wholesale,price_wholesale,price_retail from public.products where id=$1",[productId]))[0];
-  assert.deepEqual([Number(afterRollback.base_price),Number(afterRollback.price_wholesale_of_wholesale),Number(afterRollback.price_wholesale),Number(afterRollback.price_retail)],[101,91,96,111],
-    "foreign-tenant rejection rolls back the prior row in the same price batch");
+  const afterRollback=(await db.unsafe("select p.base_price,(select pp.price from public.product_prices pp where pp.product_id=p.id and pp.tier='vip' and pp.is_active order by pp.min_quantity asc limit 1) as vip_price,(select pp.price from public.product_prices pp where pp.product_id=p.id and pp.tier='wholesale' and pp.is_active order by pp.min_quantity asc limit 1) as wholesale_price,(select pp.price from public.product_prices pp where pp.product_id=p.id and pp.tier='retail' and pp.is_active order by pp.min_quantity asc limit 1) as retail_price from public.products p where p.id=$1",[productId]))[0];
+  assert.deepEqual([Number(afterRollback.base_price),Number(afterRollback.vip_price),Number(afterRollback.wholesale_price),Number(afterRollback.retail_price)],[101,91,96,111],"foreign-tenant rejection rolls back the entire batch");
   await setIdentity(accountantAuthUserId,"ci-accountant@example.test");
   await db.unsafe("set role authenticated");
-  await expectFailure(
-    "accountants cannot invoke manager-only price grid writes",
-    () => db.unsafe("select public.save_product_price_grid($1::jsonb)",[JSON.stringify([{...priceGridPayload[0],expected_base_price:101,expected_price_wholesale_of_wholesale:91,expected_price_wholesale:96,expected_price_retail:111,base_price:103}])]),
-    /active admin or manager/i,
-  );
+  await expectFailure("accountant cannot write the price grid",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[JSON.stringify([{...priceGridPayload[0],expected_base_price:101,expected_price_wholesale_of_wholesale:91,expected_price_wholesale:96,expected_price_retail:111,base_price:103}])]),/active admin or manager/i);
   await db.unsafe("reset role");
-  process.stdout.write("PASS price grid: admin/manager command, atomic tier update, audit, stale-value guard, cross-tenant rejection/rollback and accountant denial\n");
+  process.stdout.write("PASS price grid: admin/manager auth, base+three tier values, atomic writes, audit, stale-value guard, tenant rollback and accountant denial\n");
 
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }
