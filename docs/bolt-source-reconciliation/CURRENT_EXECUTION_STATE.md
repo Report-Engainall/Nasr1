@@ -2,7 +2,7 @@
 
 **الهدف الوحيد:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / main.
 **آخر SHA كود اجتاز CI كاملًا:** `bb08320b690203f7f9b1ce65287e389e847c2dea` — [commit](https://github.com/Report-Engainall/Nasr1/commit/bb08320b690203f7f9b1ce65287e389e847c2dea).
-**CI المطابق للكود:** [Actions 39154450426 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39154450426), SHA `bb08320b690203f7f9b1ce65287e389e847c2dea`; unit, PostgreSQL 17 RLS acceptance, lint, build, preview/dev smoke PASS.
+**CI المطابق للكود:** [Actions 39157355224 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355224), SHA `92a948e83ebc05278b09d50aec410da490c76f7c`; frozen Bun lock, unit tests, PostgreSQL 17 migrations/RLS acceptance, lint, build, preview smoke and dev smoke PASS. تدقيق ZIP المستقل: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA نفسه.
 **نقطة الإقلاع:** [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md). أعد قراءة HEAD وCI بعد كل commit.
 **فجوة المصادر:** تم تنزيل وفحص وفك أرشيفي Bolt، وسجل 717 عضوًا فعليًا. مسار/blob audit لجميع 69 صف READY_TO_REUSE مسجل؛ المراجعة الدلالية لعقود/imports/routes/RLS لكل صف لم تكتمل.
 **النزاهة المالية:** لا توجد فواتير تاريخية سابقة مطلوب اختلاقها؛ لا تنشئ أرقامًا تجريبية.
@@ -45,10 +45,17 @@
 - Review each of 69 READY_TO_REUSE candidates against live app contracts and implement useful missing behavior only. Prioritize security/data correctness, commerce/inventory/import/Onyx, then finance/admin/analytics.
 - Do not blind-copy old React Router screens or apply legacy SQL with DROP FUNCTION ... CASCADE. Do not invent historical invoices or demo data. No paid services.
 
+## إعادة تحقق أرشيفات Bolt
+
+- أضيفت روابط raw immutable للأرشيفين إلى `scripts/reconcile-source-release-snapshots.py` مع التحقق من الحجم وSHA-256 المنشورين.
+- `NASR1-BOLT-RECOVERY-01`: 1,003,172 bytes; SHA-256 `d59b3084a0b51e26646cf08ffc9239d2ee440298e9799f079827a4939d31b365`; 359 عضوًا. `NASR1-BOLT-RECOVERY-02`: 997,589 bytes; SHA-256 `9e012da1795cb9549413f78366c3bd6885c593e5a56e2fea10d4cf3fe810b214`; 358 عضوًا.
+- [Archive audit 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`. تم التحقق من أعضاء ZIP حتى EOF، CRC، المسارات الآمنة وحدود الحجم/نسبة الضغط، واستخراج ملفات مصدر/نصوص محددة مؤقتًا خارج التطبيق. هذا إثبات سلامة أرشيف، لا إثبات دمج جميع وظائفه.
+- ملفات الحالة والسجل والجرد تُحدّث في commits توثيقية تالية؛ يجب التحقق من CI المطابق للرأس النهائي قبل إعلان الإقفال.
+
 ## حدود الإثبات
 - لا يوجد متصفح تفاعلي أو إثبات إنتاج مباشر؛ preview/dev smoke ليس إثبات نشر.
 - PostgreSQL 17 معزول في Actions فقط؛ لم تُطبق migrations على Supabase الإنتاجية.
-- لم يثبت فك جميع الأرشيفات الثنائية أو تدقيق كل مواد المانحين.
+- أرشيفا Bolt اجتازا إعادة تحقق آلية على SHA `92a948e83ebc05278b09d50aec410da490c76f7c` في Actions 39157355307: الحجم وSHA-256 وممر CRC/فك الضغط لكل عضو وفحوص المسارات وحدود التوسع والاستخراج المؤقت المحدود PASS. لم تُشغّل ملفات الأرشيف ولم تُطبق SQL. التدقيق الدلالي لكل مواد المانحين ما زال مفتوحًا.
 - لا اعتماديات أو خدمات مدفوعة أضيفت.
 
 التصنيفات منفصلة: `IMPLEMENTED`، `TESTED` على SHA محدد، `BROWSER-PROVEN`، `PRODUCTION-PROVEN`.
