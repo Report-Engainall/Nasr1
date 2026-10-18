@@ -9,7 +9,7 @@ import {
   createCategory, createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
   fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
   fetchProducts, fetchPromotions, setInventoryReorderPoint, togglePricingRule, togglePromotion, transferInventory,
-  updateCustomerStatus, updatePricingRule, updateProduct,
+  updateCustomerStatus, updatePricingRule, updateProduct, uploadProductImage,
   approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
@@ -31,6 +31,7 @@ import { AdminCustomer360 } from '@/components/AdminCustomer360';
 import { TaskCenter } from '@/components/TaskCenter';
 import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
 import { UnifiedImportEngine } from '@/components/UnifiedImportEngine';
+import { toWebp, validateProductImageFile } from '@/lib/product-image';
 import { StaffQuotesPage, StaffFinancePage } from '@/components/CustomerWorkflows';
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem,
@@ -360,7 +361,7 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
         })}</tbody>
       </table>{!rows.length && <Empty text="لا توجد منتجات مطابقة" />}</TableWrap>}
     </section>
-    {modal && <ProductModal product={editing} onClose={() => setModal(false)} onSaved={() => { setModal(false); refetch(); onNotice(editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج'); }} />}
+    {modal && <ProductModal product={editing} onClose={() => setModal(false)} onSaved={(message) => { setModal(false); refetch(); onNotice(message ?? (editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج')); }} />}
     {transferProduct && <Modal title={'نقل مخزون — ' + transferProduct.name} onClose={() => { if (!transferSaving) setTransferProduct(null); }}>
       <p style={{ marginTop: 0, color: 'var(--muted-foreground, #64748b)' }}>يُنفَّذ النقل بمعاملة واحدة، ولا تُنقل الكميات المحجوزة للطلبات. إعادة المحاولة بنفس المفتاح لا تكرر الحركة.</p>
       {warehousesLoading ? <Loading /> : warehousesError ? <ErrorBox message={warehousesError} /> : (warehouses ?? []).length < 2 ? <ErrorBox message="يلزم وجود مستودعين نشطين على الأقل داخل المؤسسة لإجراء النقل." /> : <>
@@ -384,10 +385,69 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
     </Modal>}
   </>;
 }
-function ProductModal({ product, onClose, onSaved }: { product: ProductWithInventory | null; onClose: () => void; onSaved: () => void }) {
-  const { data: categories } = useFetch(fetchCategories); const [name, setName] = useState(product?.name ?? ''); const [code, setCode] = useState(product?.item_code ?? ''); const [price, setPrice] = useState(String(product?.base_price ?? '')); const [category, setCategory] = useState(product?.category_id ?? ''); const [saving, setSaving] = useState(false); const [error, setError] = useState('');
-  async function save() { if (!name.trim() || !code.trim() || !price) { setError('أكمل الحقول المطلوبة'); return; } setSaving(true); setError(''); try { const payload = { name, item_code: code, base_price: Number(price), category_id: category || null, unit: product?.unit ?? 'كرتون', status: product?.status ?? 'active' }; if (product) await updateProduct(product.id, payload); else await createProduct(payload); onSaved(); } catch (e) { setError(e instanceof Error ? e.message : 'تعذر الحفظ'); } finally { setSaving(false); } }
-  return <Modal title={product ? 'تعديل المنتج' : 'إضافة منتج'} onClose={onClose}><Field label="اسم المنتج"><input value={name} onChange={(e) => setName(e.target.value)} /></Field><div className="form-grid"><Field label="رمز المنتج"><input value={code} onChange={(e) => setCode(e.target.value)} /></Field><Field label="السعر الأساسي"><input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} /></Field></div><Field label="التصنيف"><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="">غير مصنف</option>{categories?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>{error && <div className="form-error">{error}</div>}<div className="modal-actions"><Button variant="outline" onClick={onClose}>إلغاء</Button><Button onClick={save} disabled={saving}>{saving ? 'جار الحفظ...' : 'حفظ المنتج'}</Button></div></Modal>;
+function ProductModal({ product, onClose, onSaved }: { product: ProductWithInventory | null; onClose: () => void; onSaved: (message?: string) => void }) {
+  const { data: categories } = useFetch(fetchCategories);
+  const [name, setName] = useState(product?.name ?? '');
+  const [code, setCode] = useState(product?.item_code ?? '');
+  const [price, setPrice] = useState(String(product?.base_price ?? ''));
+  const [category, setCategory] = useState(product?.category_id ?? '');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url ?? null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!imageFile) { setImagePreview(product?.image_url ?? null); return; }
+    const preview = URL.createObjectURL(imageFile);
+    setImagePreview(preview);
+    return () => URL.revokeObjectURL(preview);
+  }, [imageFile, product?.image_url]);
+
+  function chooseImage(file: File | null) {
+    setError('');
+    if (!file) { setImageFile(null); return; }
+    const issue = validateProductImageFile(file);
+    if (issue) { setImageFile(null); setError(issue); return; }
+    setImageFile(file);
+  }
+
+  async function save() {
+    if (!name.trim() || !code.trim() || !price) { setError('أكمل الحقول المطلوبة'); return; }
+    const priceValue = Number(price);
+    if (!Number.isFinite(priceValue) || priceValue < 0 || priceValue > 999999999999.99) { setError('السعر الأساسي غير صالح.'); return; }
+    setSaving(true); setError('');
+    let productSaved = false;
+    try {
+      const payload = { name: name.trim(), item_code: code.trim(), base_price: priceValue, category_id: category || null, unit: product?.unit ?? 'كرتون', status: product?.status ?? 'active' };
+      const saved = product ? await updateProduct(product.id, payload) : await createProduct(payload);
+      productSaved = true;
+      if (imageFile) {
+        try {
+          const webp = await toWebp(imageFile);
+          await uploadProductImage(saved.id, webp);
+        } catch (imageCause) {
+          const detail = imageCause instanceof Error ? imageCause.message : 'خطأ غير معروف أثناء رفع الصورة.';
+          onSaved('تم حفظ بيانات المنتج، لكن لم تُربط الصورة: ' + detail);
+          return;
+        }
+      }
+      onSaved();
+    } catch (cause) {
+      if (productSaved) onSaved('تم حفظ بيانات المنتج؛ تعذر تأكيد اكتمال العملية. أعد تحديث القائمة قبل التكرار.');
+      else setError(cause instanceof Error ? cause.message : 'تعذر حفظ المنتج.');
+    } finally { setSaving(false); }
+  }
+
+  return <Modal title={product ? 'تعديل المنتج' : 'إضافة منتج'} onClose={() => { if (!saving) onClose(); }}>
+    <Field label="اسم المنتج"><input value={name} onChange={(e) => setName(e.target.value)} maxLength={240} disabled={saving} /></Field>
+    <div className="form-grid"><Field label="رمز المنتج"><input value={code} onChange={(e) => setCode(e.target.value)} maxLength={80} disabled={saving} /></Field><Field label="السعر الأساسي"><input type="number" min="0" max="999999999999.99" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} disabled={saving} /></Field></div>
+    <Field label="التصنيف"><select value={category} onChange={(e) => setCategory(e.target.value)} disabled={saving}><option value="">غير مصنف</option>{categories?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+    <Field label="صورة المنتج (JPG / PNG / WebP، بحد أقصى 8 ميغابايت)"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { chooseImage(e.currentTarget.files?.[0] ?? null); e.currentTarget.value = ''; }} disabled={saving} /></Field>
+    {imagePreview && <div style={{ display: 'flex', justifyContent: 'center', padding: 8, border: '1px solid var(--border, #e2e8f0)', borderRadius: 12 }}><img src={imagePreview} alt={'معاينة صورة ' + name} style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8 }} /></div>}
+    {imageFile && <p className="text-muted">ستُضغط الصورة إلى WebP بحد أقصى 1600×1600 وتُرفع إلى مساحة صور الكتالوج للمؤسسة.</p>}
+    {error && <div className="form-error" role="alert">{error}</div>}
+    <div className="modal-actions"><Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button><Button onClick={() => void save()} disabled={saving}>{saving ? 'جار الحفظ والرفع...' : 'حفظ المنتج'}</Button></div>
+  </Modal>;
 }
 
 function Customers({ onNotice }: { onNotice: (m: string) => void }) {

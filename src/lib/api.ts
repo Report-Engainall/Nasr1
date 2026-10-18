@@ -1,6 +1,7 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
 import { countLowStockBalances } from './inventory-metrics';
 import { retryRead } from './retry';
+import { buildProductImageObjectPath, PRODUCT_IMAGE_BUCKET, PRODUCT_IMAGE_MAX_BYTES } from './product-image';
 import type {
   Product, Category, Customer, Supplier, Order, OrderItem,
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
@@ -158,6 +159,34 @@ export async function updateProduct(id: string, updates: Partial<Product>): Prom
     .eq('organization_id', orgId);
   if (error) throw error;
   return fetchStaffProductById(id);
+}
+
+export async function uploadProductImage(productId: string, image: Blob): Promise<string> {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (typeof productId !== 'string' || !uuidPattern.test(productId)) throw new Error('معرّف المنتج غير صالح؛ لم تُرفع الصورة.');
+  if (!(image instanceof Blob) || image.type !== 'image/webp' || image.size < 1 || image.size > PRODUCT_IMAGE_MAX_BYTES) {
+    throw new Error('الصورة المحوّلة ليست WebP صالحًا أو تجاوزت حد 8 ميغابايت.');
+  }
+  const scope = await getCurrentTenantScope();
+  if (!scope.isStaff) throw new Error('صلاحية إدارة المنتجات مطلوبة لرفع الصورة.');
+  const objectPath = buildProductImageObjectPath(scope.organizationId, productId, crypto.randomUUID());
+  const bucket = supabase.storage.from(PRODUCT_IMAGE_BUCKET);
+  const { error: uploadError } = await bucket.upload(objectPath, image, {
+    cacheControl: '31536000', contentType: 'image/webp', upsert: false,
+  });
+  if (uploadError) throw new Error('تعذر رفع الصورة إلى مساحة المؤسسة. تحقق من إعداد مساحة product-images وسياسة التخزين.');
+  const publicUrl = bucket.getPublicUrl(objectPath).data.publicUrl;
+  if (!publicUrl || !/^https:\/\//i.test(publicUrl)) {
+    try { await bucket.remove([objectPath]); } catch { /* preserve the URL validation failure */ }
+    throw new Error('لم يرجع مخزن الصور رابطًا عامًا صالحًا؛ لم يُربط المنتج بالصورة.');
+  }
+  try {
+    await updateProduct(productId, { image_url: publicUrl });
+  } catch {
+    try { await bucket.remove([objectPath]); } catch { /* best-effort cleanup */ }
+    throw new Error('رُفعت الصورة لكن تعذر ربطها بسجل المنتج؛ أُلغيت عملية الربط.');
+  }
+  return publicUrl;
 }
 
 export async function deleteProduct(id: string): Promise<void> {

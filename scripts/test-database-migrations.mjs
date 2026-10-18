@@ -44,6 +44,22 @@ async function main() {
       as $$ select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb) $$;
     grant usage on schema auth to anon, authenticated, service_role;
     grant execute on all functions in schema auth to anon, authenticated, service_role;
+    create schema if not exists storage;
+    create table if not exists storage.buckets(
+      id text primary key, name text not null, public boolean not null default false,
+      file_size_limit bigint, allowed_mime_types text[]
+    );
+    create table if not exists storage.objects(
+      id uuid primary key default gen_random_uuid(), bucket_id text not null, name text not null,
+      metadata jsonb not null default '{}'::jsonb, unique(bucket_id,name)
+    );
+    create or replace function storage.foldername(name text)
+      returns text[] language sql immutable parallel safe
+      as $ select case when position('/' in name)=0 then array[]::text[]
+        else (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] end $;
+    grant usage on schema storage to anon, authenticated, service_role;
+    grant select, insert, delete on storage.objects to anon, authenticated;
+    grant select on storage.buckets to anon, authenticated;
   `);
 
   const migrationDir = resolve(process.cwd(), "supabase/migrations");
@@ -1892,6 +1908,48 @@ async function main() {
   );
   assert.ok(approvalAuditRows.some((row) => row.action === 'pricing_rule.updated' && row.new_value?.approval_note === "CI: approved after reviewing scope, margin and tier impact"),
     "approval decision and rationale must be auditable");
+
+  // AGH-PRODUCT-IMAGE-001: storage bucket limits and RLS bind uploads to a same-tenant product.
+  const imageBucketRows = await db.unsafe(
+    "select id,public,file_size_limit,allowed_mime_types from storage.buckets where id='product-images'",
+  );
+  assert.equal(imageBucketRows.length, 1, "product-images bucket is configured by the migration");
+  assert.equal(imageBucketRows[0].public, true);
+  assert.equal(Number(imageBucketRows[0].file_size_limit), 8 * 1024 * 1024);
+  assert.deepEqual(imageBucketRows[0].allowed_mime_types, ["image/webp"]);
+
+  await db.unsafe("insert into storage.objects(bucket_id,name,metadata) values($1,$2,$3)",
+    ["product-images", organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp", db.json({ mimetype: "image/webp" })]);
+  assert.equal((await db.unsafe("select id from storage.objects where bucket_id='product-images' and name like $1",
+    [organizationId + "/" + productId + "/%"])).length, 1, "staff can upload for a real same-tenant product");
+  await expectFailure("staff cannot upload under a different tenant prefix",
+    () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
+      ["product-images", otherOrganizationId + "/" + productId + "/b2000000-0000-4000-8000-000000000001.webp"]),
+    /row-level security/i);
+  await expectFailure("staff cannot attach images to a product from another tenant",
+    () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
+      ["product-images", organizationId + "/" + otherProductId + "/b3000000-0000-4000-8000-000000000001.webp"]),
+    /row-level security/i);
+  await db.unsafe("reset role");
+  await db.unsafe("set role anon");
+  await expectFailure("anonymous users cannot upload product images",
+    () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
+      ["product-images", organizationId + "/" + productId + "/b4000000-0000-4000-8000-000000000001.webp"]),
+    /row-level security/i);
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("customers cannot upload images even inside their organization",
+    () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
+      ["product-images", organizationId + "/" + productId + "/b5000000-0000-4000-8000-000000000001.webp"]),
+    /row-level security/i);
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await db.unsafe("delete from storage.objects where bucket_id='product-images' and name=$1",
+    [organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp"]);
+  await db.unsafe("reset role");
+  process.stdout.write("PASS product image storage: WebP/8 MiB bucket limits, staff-only insert/delete and tenant/product/customer/anon isolation\\n");
 
   await db.unsafe("reset role");
   await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
