@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCustomerInvoicePdf,
   buildCustomerStatementPdf,
+  buildCustomerStatementCurrencySummary,
   formatFinanceDocumentDate,
   resolveCustomerStatementInvoiceStatus,
 } from "./finance-document-pdf";
@@ -62,6 +63,59 @@ describe("Arabic customer finance PDFs", () => {
     const document = await PDFDocument.load(bytes);
     expect(document.getPageCount()).toBeGreaterThanOrEqual(1);
     expect(document.getTitle()).toContain("كشف الحساب");
+  });
+
+  it("summarizes overdue and unknown-due balances per currency from invoice payments", () => {
+    const invoices = [
+      { id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001", invoice_number: "INV-YER-OVERDUE", status: "issued", issued_at: "2026-10-01T00:00:00.000Z", due_at: "2026-10-10T00:00:00.000Z", currency: "YER", total_amount: "100.00" },
+      { id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000002", invoice_number: "INV-YER-NO-DUE", status: "issued", issued_at: "2026-10-01T00:00:00.000Z", due_at: null, currency: "YER", total_amount: "40.00" },
+      { id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000003", invoice_number: "INV-YER-PAID", status: "paid", issued_at: "2026-10-01T00:00:00.000Z", due_at: "2026-10-01T00:00:00.000Z", currency: "YER", total_amount: "50.00" },
+      { id: "bbbbbbbb-bbbb-4bbb-8bbb-000000000001", invoice_number: "INV-USD-OVERDUE", status: "partially_paid", issued_at: "2026-10-01T00:00:00.000Z", due_at: "2026-10-11T00:00:00.000Z", currency: "USD", total_amount: "80.00" },
+      { id: "bbbbbbbb-bbbb-4bbb-8bbb-000000000002", invoice_number: "INV-USD-VOID", status: "void", issued_at: "2026-10-01T00:00:00.000Z", due_at: "2026-10-01T00:00:00.000Z", currency: "USD", total_amount: "900.00" },
+      { id: "cccccccc-cccc-4ccc-8ccc-000000000001", invoice_number: "INV-EUR-FUTURE", status: "issued", issued_at: "2026-10-01T00:00:00.000Z", due_at: "2026-10-20T00:00:00.000Z", currency: "EUR", total_amount: "60.00" },
+    ];
+    const payments = [
+      { invoice_id: invoices[0].id, amount: "25.00", paid_at: "2026-10-12T00:00:00.000Z" },
+      { invoice_id: invoices[1].id, amount: "5.00", paid_at: "2026-10-12T00:00:00.000Z" },
+      { invoice_id: invoices[2].id, amount: "50.00", paid_at: "2026-10-12T00:00:00.000Z" },
+      { invoice_id: invoices[3].id, amount: "10.00", paid_at: "2026-10-12T00:00:00.000Z" },
+      { invoice_id: invoices[4].id, amount: "500.00", paid_at: "2026-10-12T00:00:00.000Z" },
+    ];
+
+    const summary = buildCustomerStatementCurrencySummary(
+      invoices,
+      payments,
+      new Date("2026-10-18T12:00:00.000Z"),
+    );
+    const byCurrency = new Map(summary.map((row) => [row.currency, row]));
+
+    expect(byCurrency.get("YER")).toMatchObject({
+      invoiced: 19000n,
+      paid: 8000n,
+      outstanding: 11000n,
+      overdueInvoiceCount: 1,
+      overdueOutstanding: 7500n,
+      unknownDueDateInvoiceCount: 1,
+      unknownDueDateOutstanding: 3500n,
+    });
+    expect(byCurrency.get("USD")).toMatchObject({
+      invoiced: 8000n,
+      paid: 1000n,
+      outstanding: 7000n,
+      overdueInvoiceCount: 1,
+      overdueOutstanding: 7000n,
+      unknownDueDateInvoiceCount: 0,
+      unknownDueDateOutstanding: 0n,
+    });
+    expect(byCurrency.get("EUR")).toMatchObject({
+      invoiced: 6000n,
+      paid: 0n,
+      outstanding: 6000n,
+      overdueInvoiceCount: 0,
+      overdueOutstanding: 0n,
+      unknownDueDateInvoiceCount: 0,
+      unknownDueDateOutstanding: 0n,
+    });
   });
 
   it("paginates a statement with due-date rows without dropping invoices", async () => {

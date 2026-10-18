@@ -1,21 +1,20 @@
-# Nasr1 — نسخة مرجعية للكود الحالي المُدمج والمختبر
+# Nasr1 — مرآة النسخة الحالية المُدمجة والمختبرة
 
-**المصدر:** `Report-Engainall/Nasr1`، الفرع `main`.  
-**Commit الكود المختبر:** `84e0f424351bd22a9f5fc468852a8fe07b5596a2`.  
-**CI المطابق:** [39146074209 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39146074209).  
-**الملف المرجعي:** `CURRENT_NASR1_IMPLEMENTED_FILES.csv`.
+**المستودع:** `Report-Engainall/Nasr1` / `main`  
+**Commit الكود المختبر:** [`f830678ea99f4bb2318305a5f2e70ee761dbea1e`](https://github.com/Report-Engainall/Nasr1/commit/f830678ea99f4bb2318305a5f2e70ee761dbea1e)  
+**CI المطابق:** [Actions 39147039166 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39147039166)  
+**Manifest:** `CURRENT_NASR1_IMPLEMENTED_FILES.csv`
 
-## ما هذا المجلد؟
+## الغرض والمحتويات
+مرآة من 9 ملفات فعلية من التطبيق الحالي، لا أمثلة مولدة: مركز المهام وفلاتره؛ شاشة تقرير أعمار الذمم؛ اختبار واجهته؛ مولد PDF المالي واختباراته؛ CSS الطباعة؛ migration أعمار الذمم؛ اختبارات قبول PostgreSQL؛ وقاعدة الإنجاز في كل انطلاقة.
 
-هذه نسخة مطابقة حرفيًا لأحدث الملفات ذات الصلة التي أُنجزت واختُبرت في Nasr1؛ أُضيفت هنا لتسريع الاستئناف والمصالحة، حتى لا يبدأ المبرمج من الصفر أو يعيد فحص أعمال مغلقة. عدد النسخ: 9 ملفات.
+## إثبات التطابق والاختبار
+- كل Git blob في العمودين target/snapshot متطابق (`git_blob_identical=YES`) مع الكود في commit `f830678ea99f4bb2318305a5f2e70ee761dbea1e`.
+- أُضيف إلى PDF ملخص المتأخر حسب العملة، محسوبًا من الفواتير والدفعات وتاريخ توليد المستند، مع استبعاد الملغاة والمدفوعة بالكامل، وفصل المستحق ذي التاريخ المفقود.
+- الاختبارات تغطي YER/USD/EUR، دفعات جزئية وكاملة، فاتورة ملغاة ومدفوعاتها، تاريخ مستقبلي ومفقود.
+- [CI 39147039166 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39147039166) اجتاز unit tests وPostgreSQL 17 acceptance وlint وbuild وpreview/dev smoke.
+- Git blob SHA ليست SHA-256 لأرشيف ثنائي. الملفات تحت `docs/` نسخ مرجعية لا تُستورد مجددًا إلى runtime.
+- `PROVENANCE_MANIFEST.csv` الأصلي يظل منفصلًا عن مرآة Nasr1 ولم يتم تعديله.
 
-## سلامة المصدر
-
-- لكل ملف: أُنشئت النسخة من كود commit المختبر 84e0f424351bd22a9f5fc468852a8fe07b5596a2 بعد التحقق من Git blob SHA.
-- في manifest، بصمة Git blob للمسار الفعلي وبصمة النسخة متطابقتان (`git_blob_identical=YES`). هذه بصمة Git للمحتوى، وليست SHA-256 لأرشيف ثنائي.
-- ملفات المصدر الحية داخل التطبيق تظل في المسارات المكتوبة في عمود `target_path`. لا تستورد ملفات `docs/` من التطبيق ولا تنقل migration ثانية إلى قاعدة البيانات بسبب وجود النسخة هنا.
-- مجلد المانحين و`PROVENANCE_MANIFEST.csv` الأصلي لم يتغيرا؛ لا تخلط نسخة Nasr1 الحالية مع provenance المشاريع الأربعة.
-
-## قاعدة الاستئناف
-
-ابدأ من `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`. لا تعِد فحص مركز المهام أو فلاتره، أعمار الذمم، طباعة أعمار الذمم، تحقق المبالغ السالبة، أو وسم حالة التأخر بعد إغلاق CI، إلا إذا تغير كود المصدر الحي أو ظهر فشل جديد.
+## الاستئناف
+ابدأ من `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`. لا تُعد فحص وظيفة مكتملة إلا إذا تغيّر مصدرها أو كشف CI عن regression.

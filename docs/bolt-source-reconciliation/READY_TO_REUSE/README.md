@@ -73,10 +73,12 @@ HEAD المصدر المسجل: `99eb3fa452eb3344c4c1fd625209e20d2f7169ed`.
 الأرشيفات الأصلية والفروع والمستودعات الكاملة لم تتحول كلها إلى ملفات تحت هذا المجلد. لتجميع كل ما يمكن الوصول إليه، شغّل `tools/collect-source-inputs.mjs` وفق `SOURCE_COLLECTOR_GUIDE.md`، ثم افحص `COLLECTION_MANIFEST.json`. أي أرشيف مفقود أو مستودع خاص غير متاح يجب أن يبقى معلّمًا BLOCKED؛ لا تخترع ملفات مفقودة ولا تزعم فحصها.
 
 
-## 5. نسخ الكود الأحدث من تطبيق Nasr1 نفسه — مجموعة منفصلة
+## 5. مرآة الكود الحالي من تطبيق Nasr1 — تحديث 2026-10-18
 
-المجلد `Nasr1--verified-current-implementation/` يحوي نسخة حرفية من 9 ملفات حديثة ومتكاملة من التطبيق الهدف، مع اختبارات الواجهة والـPDF وSQL وقاعدة العمل الدائمة. أضيف هذا الجزء لتسريع استئناف المبرمج ومنع تكرار التنفيذ.
+المجلد `Nasr1--verified-current-implementation/` يحتوي 9 ملفات حديثة من التطبيق نفسه، تتضمن ملخص أعمار الذمم حسب العملة داخل كشف PDF.
 
-- اقرأ `Nasr1--verified-current-implementation/README.md` ثم `CURRENT_NASR1_IMPLEMENTED_FILES.csv` قبل استخدام أي نسخة.
-- كل بصمة Git blob في المرآة تطابق الملف الحي ونفس الملف عند commit الكود المختبر `84e0f424351bd22a9f5fc468852a8fe07b5596a2`؛ [Actions 39146074209 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39146074209).
-- **لا تخلط** النسخة المرآة بمواد المانحين: `PROVENANCE_MANIFEST.csv` الأصلي بقي كما هو. النسخ هنا snapshots لكود Nasr1 المدمج أصلًا، وليست وحدات جديدة يُعاد استيرادها إلى الإنتاج.
+- كود المصدر المختبر: [`f830678ea99f4bb2318305a5f2e70ee761dbea1e`](https://github.com/Report-Engainall/Nasr1/commit/f830678ea99f4bb2318305a5f2e70ee761dbea1e).
+- نتيجة CI المطابقة: [39147039166 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39147039166); unit tests وPostgreSQL 17 وlint وbuild وpreview/dev smoke اجتازت.
+- اقرأ README و`CURRENT_NASR1_IMPLEMENTED_FILES.csv` داخل المجلد لمعرفة المسارات وبصمات Git blob.
+- كل ملف مرآة مطابق للمسار الحالي في التطبيق؛ النسخ للتوثيق والمصالحة وتسريع الاستئناف وليست نسخ runtime إضافية.
+- `PROVENANCE_MANIFEST.csv` لملفات المشاريع المانحة لم يُعدّل، وتبقى provenance منفصلة عن نسخة Nasr1.

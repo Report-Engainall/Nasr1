@@ -214,7 +214,19 @@
 - المجلد الجديد: `docs/bolt-source-reconciliation/READY_TO_REUSE/Nasr1--verified-current-implementation/`.
 - أضيفت 9 نسخ مطابقة للمسارات الحالية: `src/components/TaskCenter.tsx`، `src/components/CustomerWorkflows.tsx`، `src/components/CustomerWorkflows.finance-aging.test.tsx`، `src/lib/finance-document-pdf.ts`، `src/lib/finance-document-pdf.test.ts`، `src/styles.css`، `supabase/migrations/20261018030000_staff_receivables_aging.sql`، `scripts/test-database-migrations.mjs`، `AGENTS.md`.
 - لكل ملف: المصدر المباشر على `main` قورن بالملف نفسه في commit الكود المختبر `84e0f424351bd22a9f5fc468852a8fe07b5596a2`; تطابقت بصمات Git blob، ثم أُنشئت نسخة Git blob أخرى بنفس SHA. التفاصيل في `CURRENT_NASR1_IMPLEMENTED_FILES.csv`.
-- دليل اختبار المصدر: [Actions 39146074209 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39146074209). نتيجة CI لعملية إضافة المرآة إلى `docs/READY_TO_REUSE` ما تزال PENDING حتى فحص تشغيل الـcommit الجديد؛ هذه فئة تحقق منفصلة عن اختبار المصدر.
+- إصدار المرآة الأول اجتاز [Actions 39146625789 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39146625789).
+- المرآة الحالية تحدث إلى مصدر الكود `f830678ea99f4bb2318305a5f2e70ee761dbea1e` بعد ملخص أعمار الذمم؛ مصدر الكود اجتاز [Actions 39147039166 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39147039166). CI للcommit التوثيقي/المرآة الحالية ما يزال PENDING عند كتابة الحالة.
 - `READY_TO_REUSE/PROVENANCE_MANIFEST.csv` الأصلي لم يُعدّل، وهو لا يزال خاصًا بالمصادر المانحة. أضيف شرح منفصل إلى README لتحديد الفرق.
 - تم تحديث `CURRENT_EXECUTION_STATE.md` وملف المتطلبات مع توثيق عدم تكرار العمل المكتمل.
 - `next_task_id = NASR1-CURRENT-IMPLEMENTATION-SNAPSHOT-VERIFY-CI`.
+
+
+## 2026-10-18 — NASR1-FINANCE-STATEMENT-AGING-SUMMARY-001 — ملخص المتأخر حسب العملة داخل PDF
+
+- التنفيذ: `src/lib/finance-document-pdf.ts` يضيف `buildCustomerStatementCurrencySummary()` لحساب الإجمالي والمدفوع والمتبقي والمتأخر والرصيد الذي لا يملك تاريخ استحقاق صالحًا لكل عملة.
+- المنطق يستخدم bigint بوحدات النقد الصغرى ووقت إصدار التقرير الثابت؛ يستبعد الفواتير الملغاة والمدفوعة بالكامل من المتأخر، ولا يصنف الاستحقاق المستقبلي على أنه متأخر.
+- `src/lib/finance-document-pdf.test.ts` يختبر YER/USD/EUR والدفعات الجزئية والكاملة وفاتورة ملغاة ومدفوعاتها وموعدًا مستقبليًا وموعدًا مفقودًا. التشغيل الأول [39147011014](https://github.com/Report-Engainall/Nasr1/actions/runs/39147011014) أخفق في التوقع العددي للاختبار فقط؛ تم التصحيح وفق Vitest إلى YER مدفوع 8000 ومتَبقٍ 11000 minor units في commit [`f830678ea99f4bb2318305a5f2e70ee761dbea1e`](https://github.com/Report-Engainall/Nasr1/commit/f830678ea99f4bb2318305a5f2e70ee761dbea1e).
+- [Exact-SHA CI 39147039166 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39147039166): unit tests وPostgreSQL 17 acceptance وlint وbuild وpreview/dev smoke جميعها اجتازت.
+- المرآة `docs/bolt-source-reconciliation/READY_TO_REUSE/Nasr1--verified-current-implementation/` تُحدّث في نفس دفعة التوثيق مع manifest منفصل عن provenance المشاريع المانحة.
+- الحالة: `IMPLEMENTED` + `TESTED` على SHA `f830678ea99f4bb2318305a5f2e70ee761dbea1e`. لا يثبت هذا اختبار متصفح أو نشرًا إنتاجيًا.
+- next_task_id: `NASR1-CURRENT-IMPLEMENTATION-SNAPSHOT-VERIFY-CI` ثم `NASR1-FINANCE-STATEMENT-AGING-SUMMARY-RECONCILE`.

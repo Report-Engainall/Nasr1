@@ -30,11 +30,15 @@ export type CustomerStatementPayload = {
   payments?: CustomerStatementPayment[];
 };
 
-type CurrencyTotals = {
+export type CustomerStatementCurrencySummary = {
   currency: string;
   invoiced: bigint;
   paid: bigint;
   outstanding: bigint;
+  overdueInvoiceCount: number;
+  overdueOutstanding: bigint;
+  unknownDueDateInvoiceCount: number;
+  unknownDueDateOutstanding: bigint;
 };
 
 const PAGE_WIDTH = 595.28;
@@ -285,10 +289,15 @@ function validatePayload(payload: unknown): {
   return { invoices, payments };
 }
 
-function buildCurrencyTotals(
+export function buildCustomerStatementCurrencySummary(
   invoices: CustomerStatementInvoice[],
   payments: CustomerStatementPayment[],
-): CurrencyTotals[] {
+  asOf: Date,
+): CustomerStatementCurrencySummary[] {
+  const asOfMs = asOf.getTime();
+  if (!Number.isFinite(asOfMs)) {
+    throw new Error("Statement aging requires a valid report generation date.");
+  }
   const invoiceById = new Map(invoices.map((invoice) => [invoice.id, invoice]));
   const paidByInvoice = new Map<string, bigint>();
   for (const payment of payments) {
@@ -303,7 +312,16 @@ function buildCurrencyTotals(
   const getTotals = (currency: string) => {
     const existing = totals.get(currency);
     if (existing) return existing;
-    const next: CurrencyTotals = { currency, invoiced: 0n, paid: 0n, outstanding: 0n };
+    const next: CustomerStatementCurrencySummary = {
+      currency,
+      invoiced: 0n,
+      paid: 0n,
+      outstanding: 0n,
+      overdueInvoiceCount: 0,
+      overdueOutstanding: 0n,
+      unknownDueDateInvoiceCount: 0,
+      unknownDueDateOutstanding: 0n,
+    };
     totals.set(currency, next);
     return next;
   };
@@ -313,10 +331,25 @@ function buildCurrencyTotals(
     const total = moneyToMinorUnits(invoice.total_amount);
     const paid = paidByInvoice.get(invoice.id) ?? 0n;
     const current = getTotals(currency);
-    if (invoice.status !== "void") {
-      current.invoiced += total;
-      current.paid += paid;
-      current.outstanding += total > paid ? total - paid : 0n;
+    if (invoice.status === "void") continue;
+
+    current.invoiced += total;
+    current.paid += paid;
+    const outstanding = total > paid ? total - paid : 0n;
+    current.outstanding += outstanding;
+    if (outstanding === 0n) continue;
+
+    const rawDueAt = invoice.due_at;
+    const dueAtMs =
+      typeof rawDueAt === "string" && rawDueAt.trim()
+        ? Date.parse(rawDueAt)
+        : Number.NaN;
+    if (!Number.isFinite(dueAtMs)) {
+      current.unknownDueDateInvoiceCount += 1;
+      current.unknownDueDateOutstanding += outstanding;
+    } else if (dueAtMs < asOfMs) {
+      current.overdueInvoiceCount += 1;
+      current.overdueOutstanding += outstanding;
     }
   }
   return [...totals.values()].sort((a, b) => a.currency.localeCompare(b.currency));
@@ -331,7 +364,7 @@ export async function buildCustomerStatementPdf(
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   const font = await pdf.embedFont(fontBytes, { subset: false });
-  const totalsByCurrency = buildCurrencyTotals(invoices, payments);
+  const totalsByCurrency = buildCustomerStatementCurrencySummary(invoices, payments, generatedAt);
   pdf.setTitle("كشف الحساب | متجر الأغبري");
   pdf.setAuthor("Aghbari Commerce");
   pdf.setSubject("Customer account statement");
@@ -355,10 +388,10 @@ export async function buildCustomerStatementPdf(
   drawDocumentHeader(page, font, generatedAt);
 
   let summaryY = PAGE_HEIGHT - 132;
-  drawArabic(page, font, "ملخص الأرصدة حسب العملة", PAGE_WIDTH - 40, summaryY, 10, BRAND, 180);
+  drawArabic(page, font, "ملخص الأرصدة والأعمار حسب العملة", PAGE_WIDTH - 40, summaryY, 10, BRAND, 220);
   summaryY -= 25;
   for (const totals of totalsByCurrency) {
-    page.drawRectangle({ x: 40, y: summaryY - 10, width: PAGE_WIDTH - 80, height: 24, color: TINT });
+    page.drawRectangle({ x: 40, y: summaryY - 20, width: PAGE_WIDTH - 80, height: 40, color: TINT });
     drawLtr(page, font, totals.currency, 48, summaryY - 2, 8, BRAND, 50);
     drawArabic(page, font, "الفواتير", 235, summaryY - 2, 8, MUTED, 70);
     drawLtr(page, font, minorUnitsToText(totals.invoiced), 175, summaryY - 2, 8, INK, 72);
@@ -366,9 +399,14 @@ export async function buildCustomerStatementPdf(
     drawLtr(page, font, minorUnitsToText(totals.paid), 285, summaryY - 2, 8, INK, 72);
     drawArabic(page, font, "المتبقي", 520, summaryY - 2, 8, MUTED, 55);
     drawLtr(page, font, minorUnitsToText(totals.outstanding), 438, summaryY - 2, 8, INK, 75);
-    summaryY -= 28;
+
+    drawArabic(page, font, `المتأخر (${totals.overdueInvoiceCount})`, 520, summaryY - 15, 7.2, MUTED, 78);
+    drawLtr(page, font, minorUnitsToText(totals.overdueOutstanding), 438, summaryY - 15, 7.2, INK, 75);
+    drawArabic(page, font, `بدون استحقاق (${totals.unknownDueDateInvoiceCount})`, 260, summaryY - 15, 7.2, MUTED, 125);
+    drawLtr(page, font, minorUnitsToText(totals.unknownDueDateOutstanding), 55, summaryY - 15, 7.2, INK, 70);
+    summaryY -= 44;
   }
-  drawArabic(page, font, "المبالغ لا تُجمع بين عملات مختلفة.", PAGE_WIDTH - 40, summaryY - 2, 8, MUTED, 190);
+  drawArabic(page, font, "المبالغ لا تُجمع بين عملات مختلفة. «المتأخر» يستبعد الفواتير الملغاة والمدفوعة بالكامل.", PAGE_WIDTH - 40, summaryY - 2, 7.2, MUTED, 320);
   summaryY -= 30;
 
   if (summaryY < 535) {
