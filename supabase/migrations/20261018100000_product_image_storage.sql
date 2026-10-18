@@ -18,11 +18,11 @@ BEGIN
       WITH CHECK (
         bucket_id = 'product-images'
         AND public.is_staff()
-        AND (storage.foldername(name))[1] = public.current_organization_id()::text
+        AND (storage.foldername(name))[1] = (SELECT p.organization_id FROM public.profiles p WHERE p.id = public.current_profile_id())::text
         AND cardinality(storage.foldername(name)) = 2
         AND EXISTS (SELECT 1 FROM public.products p
           WHERE p.id::text = (storage.foldername(name))[2]
-            AND p.organization_id = public.current_organization_id())
+            AND p.organization_id = (SELECT p.organization_id FROM public.profiles p WHERE p.id = public.current_profile_id()))
       )
     $policy$;
     EXECUTE $policy$
@@ -30,11 +30,11 @@ BEGIN
       USING (
         bucket_id = 'product-images'
         AND public.is_staff()
-        AND (storage.foldername(name))[1] = public.current_organization_id()::text
+        AND (storage.foldername(name))[1] = (SELECT p.organization_id FROM public.profiles p WHERE p.id = public.current_profile_id())::text
         AND cardinality(storage.foldername(name)) = 2
         AND EXISTS (SELECT 1 FROM public.products p
           WHERE p.id::text = (storage.foldername(name))[2]
-            AND p.organization_id = public.current_organization_id())
+            AND p.organization_id = (SELECT p.organization_id FROM public.profiles p WHERE p.id = public.current_profile_id()))
       )
     $policy$;
   END IF;
