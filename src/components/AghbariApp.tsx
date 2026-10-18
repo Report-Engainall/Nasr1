@@ -341,7 +341,7 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
           </select>
         </Field>
         <div className="form-grid">
-          <Field label={`الكمية (المتاح الحالي: ${formatNumber(transferProduct.inventory?.quantity_available ?? 0)})`}>
+          <Field label="الكمية المراد نقلها (يُتحقق الخادم من المتاح بعد الحجوزات)">
             <input type="number" min="0.001" max="999999999999.999" step="0.001" value={transferQuantity} onChange={(e) => setTransferQuantity(e.target.value)} />
           </Field>
           <Field label="سبب النقل">
