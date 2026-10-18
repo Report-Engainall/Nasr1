@@ -1089,6 +1089,33 @@ async function main() {
   const firstCappedPayment = cappedPayments.find((row) => row.reference === "CI-CAP-PAY-0001");
   assert.ok(firstCappedPayment,"oldest capped-out payment should be identifiable");
 
+  // A void invoice and its recorded payment must not enter the active-ledger totals.
+  const voidOrderResult = await db.unsafe(
+    `INSERT INTO public.orders(
+       organization_id,customer_id,order_number,status,total_amount,total_items,created_by,created_at,updated_at
+     ) VALUES ($1,$2,'CI-CAP-VOID-ORDER','draft',900.00,1,$3,statement_timestamp(),statement_timestamp())
+     RETURNING id`,
+    [organizationId, customerOneId, profileId],
+  );
+  const voidInvoiceResult = await db.unsafe(
+    `INSERT INTO public.customer_invoices(
+       organization_id,customer_id,order_id,invoice_number,status,issued_at,due_at,currency,subtotal,tax_amount,total_amount
+     ) VALUES ($1,$2,$3,'CI-CAP-VOID-INVOICE','void',
+       statement_timestamp()-interval '3 days',statement_timestamp()-interval '2 days',
+       'YER',900.00,0.00,900.00)
+     RETURNING id,invoice_number,total_amount`,
+    [organizationId, customerOneId, voidOrderResult[0].id],
+  );
+  const voidPaymentResult = await db.unsafe(
+    `INSERT INTO public.customer_payments(
+       organization_id,customer_id,invoice_id,amount,payment_method,reference,paid_at
+     ) VALUES ($1,$2,$3,500.00,'transfer','CI-CAP-VOID-PAYMENT',statement_timestamp())
+     RETURNING id,amount,invoice_id`,
+    [organizationId, customerOneId, voidInvoiceResult[0].id],
+  );
+  assert.equal(Number(voidInvoiceResult[0].total_amount),900,"void invoice fixture should carry a large amount that would be visible if incorrectly included");
+  assert.equal(Number(voidPaymentResult[0].amount),500,"void invoice fixture should carry a recorded payment that must also be excluded");
+
   await setIdentity(authUserId, "ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
   const capStatementSnapshot = await db.unsafe("select public.get_customer_account_statement() as result");
