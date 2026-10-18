@@ -138,7 +138,7 @@ export function projectCustomer360(
   const asOfTime = Date.parse(asOf);
   const invoices: Customer360Invoice[] = invoicesRaw.map((invoice) => {
     const paid = paymentsByInvoice.get(invoice.id);
-    const paidMinor = paid && !paid.invalid && !paymentRowsPossiblyPartial ? paid.sumMinor : paymentRowsPossiblyPartial ? null : paid?.sumMinor ?? 0;
+    const paidMinor = paymentRowsPossiblyPartial || (paid?.invalid ?? false) ? null : paid?.sumMinor ?? 0;
     const totalMinor = invoice.totalAmount === null ? null : Math.round(invoice.totalAmount * 100);
     const amountValid = totalMinor === null || Number.isSafeInteger(totalMinor);
     const paidAmount = paidMinor === null || !Number.isSafeInteger(paidMinor) ? null : paidMinor / 100;
