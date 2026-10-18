@@ -137,7 +137,7 @@ describe("Arabic customer finance PDFs", () => {
       new Date("2026-10-18T12:00:00.000Z"),
     )).toEqual(expected);
     expect(() => normalizeCustomerStatementCurrencySummary([{ ...source[0], overdue_outstanding: "100000000001.00" }])).toThrow("aging buckets exceed");
-    expect(() => normalizeCustomerStatementCurrencySummary([source[0], source[0])).toThrow("duplicate currency");
+    expect(() => normalizeCustomerStatementCurrencySummary([source[0], source[0]])).toThrow("duplicate currency");
     expect(() => normalizeCustomerStatementCurrencySummary([{ ...source[0], overdue_invoice_count: -1 }])).toThrow("invalid overdue invoice count");
     expect(resolveCustomerStatementCurrencySummary(undefined, [{ id: "eeeeeeee-eeee-4eee-8eee-000000000001", invoice_number: "INV-FALLBACK", status: "issued", issued_at: "2026-10-01T00:00:00.000Z", due_at: "2026-10-10T00:00:00.000Z", currency: "YER", total_amount: "100.00" }], [], new Date("2026-10-18T12:00:00.000Z"))[0].overdueOutstanding).toBe(10000n);
   });

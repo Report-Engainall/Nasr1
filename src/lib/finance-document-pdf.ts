@@ -504,10 +504,9 @@ export async function buildCustomerStatementPdf(
         ? moneyToMinorUnits(invoice.outstanding_amount)
         : total > invoicePaid ? total - invoicePaid : 0n;
 
-    const invoicePaid = invoice.paid_amount !== undefined ? moneyToMinorUnits(invoice.paid_amount) : paid;
     drawArabic(page, font, resolveCustomerStatementInvoiceStatus(invoice, invoicePaid, agingAsOf), PAGE_WIDTH - 43, y, 8, INK, 65);
     drawLtr(page, font, minorUnitsToText(outstanding), 420, y, 8, INK, 65);
-    drawLtr(page, font, `${currency} ${minorUnitsToText(paid)}`, 323, y, 7.5, INK, 85);
+    drawLtr(page, font, `${currency} ${minorUnitsToText(invoicePaid)}`, 323, y, 7.5, INK, 85);
     drawLtr(page, font, `${currency} ${minorUnitsToText(total)}`, 230, y, 7.5, INK, 82);
     drawLtr(page, font, cleanLabel(invoice.invoice_number, 32), 143, y, 7.5, INK, 82);
     drawLtr(page, font, formatFinanceDocumentDate(invoice.issued_at), 43, y + 4, 7.1, INK, 82);
