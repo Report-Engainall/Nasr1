@@ -335,3 +335,13 @@
 - Exact-SHA CI [39158519832 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39158519832), code SHA `6e746a7684f4cf8696c3b2c2bbfdd8f410cd364f`: frozen lock verification, unit tests, PostgreSQL 17 migrations/RLS acceptance, lint, build, preview smoke and dev smoke all successful.
 - State: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production Supabase migrations=NOT RUN. This is only a target-native low-stock-metric correction, not inventory transfer/count feature completion.
 - next_task_id remains `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001`.
+
+
+## 2026-10-18 — NASR1-IMPORT-CHUNK-CONTIGUITY-001
+
+- Source candidate reviewed: `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`, `supabase/migrations/0021_import_server_boundary_hardening.sql` source blob `16f9091fe712f947a4f4dfc6c06b38773273967f`; older `0008_atomic_import_commit.sql` blob `74372746bbbe7f000c42f24688e74542cab91448` uses a different products/import_rows/price_lists schema and was not copied.
+- In the live target, `record_import_upload_chunk` previously validated offset/size/hash and idempotent duplicate rows but accepted out-of-order new chunk numbers. Added `supabase/migrations/20261018060000_import_upload_chunk_contiguity.sql` to enforce sequential chunk-prefix writes under a row lock and preserve identical retries.
+- Extended `scripts/test-database-migrations.mjs` with multi-chunk acceptance: reject chunk 1 before 0; reject chunk 2 before 1; no failed write persists; accept idempotent retry; accept full ordered sequence with a smaller final chunk.
+- Exact-SHA CI [39159034597 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39159034597), code SHA `a02ad4682ed1e18a10811040ae20134875031de7`: lockfile, unit tests, PostgreSQL 17 migrations/RLS acceptance, lint, build and preview/dev smoke all PASS.
+- Status: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS on exact SHA; production migrations=NOT RUN; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN. This is an import-integrity hardening, not full semantic integration of all donor candidates.
+- next_task_id = `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001`.

@@ -1,8 +1,8 @@
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
 **الهدف الوحيد:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / main.
-**آخر SHA كود اجتاز CI كاملًا:** `6e746a7684f4cf8696c3b2c2bbfdd8f410cd364f` — [commit](https://github.com/Report-Engainall/Nasr1/commit/6e746a7684f4cf8696c3b2c2bbfdd8f410cd364f).
-**CI المطابق للكود:** [Actions 39158519832 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39158519832), SHA `6e746a7684f4cf8696c3b2c2bbfdd8f410cd364f`; frozen Bun lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke وdev smoke PASS. تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
+**آخر SHA كود اجتاز CI كاملًا:** `a02ad4682ed1e18a10811040ae20134875031de7` — [commit](https://github.com/Report-Engainall/Nasr1/commit/a02ad4682ed1e18a10811040ae20134875031de7).
+**CI المطابق للكود:** [Actions 39159034597 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39159034597), SHA `a02ad4682ed1e18a10811040ae20134875031de7`; frozen Bun lock، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke وdev smoke PASS. تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
 **نقطة الإقلاع:** [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md). أعد قراءة HEAD وCI بعد كل commit.
 **فجوة المصادر:** تم تنزيل وفحص وفك أرشيفي Bolt، وسجل 717 عضوًا فعليًا. مسار/blob audit لجميع 69 صف READY_TO_REUSE مسجل؛ المراجعة الدلالية لعقود/imports/routes/RLS لكل صف لم تكتمل.
 **النزاهة المالية:** لا توجد فواتير تاريخية سابقة مطلوب اختلاقها؛ لا تنشئ أرقامًا تجريبية.
@@ -76,4 +76,15 @@
 - [Actions 39158519832 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39158519832) على SHA `6e746a7684f4cf8696c3b2c2bbfdd8f410cd364f`: lock verification، unit tests، PostgreSQL 17 migrations/RLS acceptance، lint، build، preview smoke وdev smoke جميعها PASS.
 - حدود الدمج: هذا إصلاح metric في لوحة التشغيل فقط، وليس تنفيذ تحويلات بين المخازن أو جلسات جرد. فُحص مرشح `src/services/inventory.ts` وتبين أنه يتطلب RPCs وجداول لا توجد في migrations الـ42 الفعالة عند رأس المراجعة؛ لذلك لم يُنسخ عقد الخدمة القديمة ولم تُنشأ RPCs غير مدعومة.
 - IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA. BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migrations=NOT RUN.
+
+
+
+## أمان الاستيراد — فرض تتابع الشرائح على الخادم
+
+- أضيفت migration جديدة `supabase/migrations/20261018060000_import_upload_chunk_contiguity.sql` تستبدل تنفيذ `record_import_upload_chunk` دون تغيير توقيع RPC العام.
+- أصبحت دالة قاعدة البيانات تشترط تسجيل شرائح الرفع كبادئة متصلة بدءًا من 0؛ لا تقبل تخطي الشريحة الأولى أو الشريحة التالية، ولا تُعلن اكتمال manifest إلا بعد تسجيل العدد المتصل الكامل. يبقى تكرار طلب الشريحة نفسها ببصمة وموضع وحجم مطابقين idempotent.
+- أضيفت اختبارات قبول PostgreSQL 17 لتجاوز رقم الشريحة، والفجوة المتوسطة، وإعادة المحاولة، والتتابع الصحيح حتى الاكتمال.
+- [Exact-SHA CI 39159034597 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39159034597) على `a02ad4682ed1e18a10811040ae20134875031de7`: frozen lock، unit tests، PostgreSQL 17 migrations/RLS، lint، build، preview/dev smoke PASS.
+- هذا اختبار على قاعدة PostgreSQL معزولة في CI، وليس تطبيقًا على Supabase الإنتاجية. لا يدعي إنجاز الاستيراد بالكامل أو استبدال ملفات المانحين القديمة.
+- IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN.
 
