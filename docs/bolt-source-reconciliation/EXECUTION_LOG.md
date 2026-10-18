@@ -290,3 +290,16 @@
 - لا تغييرات runtime/DB/dependencies. الاختبارات المحلية NOT RUN إن لم تتوفر workspace؛ يلزم CI exact-SHA للـcommit الجديد.
 - next_task_id: NASR1-BOLT-RECOVERY-ARCHIVE-RECONCILIATION-001.
 
+## 2026-10-18 — NASR1-BOLT-RECOVERY-ARCHIVE-RECONCILIATION-001 — evidence persisted
+
+- Target: Report-Engainall/Nasr1 / main; immutable source: Report-Engainall/report-insight-engine@b1ca62ec277ff9f55c8e850e0470d61d81aaa138.
+- Before_Failure: 1,003,172 bytes; SHA-256 d59b3084a0b51e26646cf08ffc9239d2ee440298e9799f079827a4939d31b365; Git blob SHA-1 7c35f3ecde19dc5596fd22053be61924ef3d5318; 359 members; ZIP integrity/safe extraction PASS.
+- Restored_Current: 997,589 bytes; SHA-256 9e012da1795cb9549413f78366c3bd6885c593e5a56e2fea10d4cf3fe810b214; Git blob SHA-1 f01684a56e093a33a173b0965d1d7239c48f0936; 358 members; ZIP integrity/safe extraction PASS.
+- Pair diff: {"IDENTICAL_CONTENT": 340, "CHANGED_CONTENT": 18, "BEFORE_ONLY": 1}; 717 member rows. Member decisions: {"EXCLUDED_SECURITY": 8, "TARGET_PRESENT_DIFFERENT_CONTENT_REVIEW": 108, "ALREADY_PRESENT_EXACT": 562, "MISSING_TARGET_CANDIDATE": 39}.
+- READY_TO_REUSE path/hash audit: {"ALREADY_PRESENT_EXACT": 4, "TARGET_PATH_DIFFERS_REVIEW_CONTENT": 2, "TARGET_PATH_MISSING_REVIEW_CONTENT": 63} across 69 rows; semantic contract/API/RLS review is NOT COMPLETE.
+- Security decision: archived code not executed; sensitive/password/grant content not copied; legacy SQL with DROP FUNCTION ... CASCADE not applied.
+- Archive workflow run: https://github.com/Report-Engainall/Nasr1/actions/runs/39154736119.
+- Source integration: legacy React Router AdminAuditLog adapted into src/components/AdminAuditLog.tsx and src/routes/admin_.audit.tsx; RLS hardening migration and real PostgreSQL boundary assertions added. Exact code SHA bb08320b690203f7f9b1ce65287e389e847c2dea / Actions run 39154450426 SUCCESS (unit, PostgreSQL 17/RLS, lint, build, preview and dev smoke).
+- Failures retained truthfully: Actions run 39154189270 found JSX parse error; run 39154309412 found invalid template-literal escapes; corrected build passed run 39154450426.
+- BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production Supabase migration=NOT RUN; Onyx live vendor round-trip=NOT RUN.
+- next_task_id = NASR1-READY-TO_REUSE-SEMANTIC-INTEGRATION-001
