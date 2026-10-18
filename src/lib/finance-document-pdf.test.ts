@@ -202,6 +202,41 @@ describe("Arabic customer finance PDFs", () => {
     )).resolves.toBeInstanceOf(Uint8Array);
   });
 
+  it("rejects negative invoice totals and non-positive statement payments", async () => {
+    const invoice = {
+      id: invoiceId,
+      invoice_number: "INV-STATEMENT-INVALID-AMOUNT",
+      status: "issued",
+      issued_at: "2026-10-15T09:00:00.000Z",
+      currency: "YER",
+      total_amount: "10.00",
+    };
+
+    await expect(buildCustomerStatementPdf(
+      { invoices: [{ ...invoice, total_amount: "-1.00" }], payments: [] },
+      fontBytes(),
+      generatedAt,
+    )).rejects.toThrow("negative invoice total");
+
+    await expect(buildCustomerStatementPdf(
+      {
+        invoices: [invoice],
+        payments: [{ invoice_id: invoiceId, amount: "0.00", paid_at: "2026-10-15T10:00:00.000Z" }],
+      },
+      fontBytes(),
+      generatedAt,
+    )).rejects.toThrow("non-positive payment amount");
+
+    await expect(buildCustomerStatementPdf(
+      {
+        invoices: [invoice],
+        payments: [{ invoice_id: invoiceId, amount: "-0.01", paid_at: "2026-10-15T10:00:00.000Z" }],
+      },
+      fontBytes(),
+      generatedAt,
+    )).rejects.toThrow("non-positive payment amount");
+  });
+
   it("rejects malformed financial amounts rather than issuing a misleading statement", async () => {
     await expect(
       buildCustomerStatementPdf(
