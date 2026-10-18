@@ -313,7 +313,7 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
               <td>{formatCurrency(p.base_price)}</td>
               <td>{formatNumber(qty)} {p.unit}</td>
               <td><span className={`badge ${low ? 'warning' : 'success'}`}>{low ? 'منخفض' : 'متوفر'}</span></td>
-              <td><Button variant="outline" size="sm" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button></td>
+              <td><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button></td>
               <td><div className="row-actions">
                 <button aria-label={`تعديل ${p.name}`} onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button>
                 <button aria-label={`حذف ${p.name}`} onClick={() => remove(p)}><Trash2 size={15} /></button>
@@ -327,7 +327,7 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
     {modal && <ProductModal product={editing} onClose={() => setModal(false)} onSaved={() => { setModal(false); refetch(); onNotice(editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج'); }} />}
     {transferProduct && <Modal title={`نقل مخزون — ${transferProduct.name}`} onClose={() => { if (!transferSaving) setTransferProduct(null); }}>
       <p style={{ marginTop: 0, color: 'var(--muted-foreground, #64748b)' }}>يُنفَّذ النقل بمعاملة واحدة، ولا تُنقل الكميات المحجوزة للطلبات. إعادة المحاولة بنفس المفتاح لا تكرر الحركة.</p>
-      {warehousesLoading ? <Loading /> : warehousesError ? <ErrorBox message={warehousesError.message} /> : (warehouses ?? []).length < 2 ? <ErrorBox message="يلزم وجود مستودعين نشطين على الأقل داخل المؤسسة لإجراء النقل." /> : <>
+      {warehousesLoading ? <Loading /> : warehousesError ? <ErrorBox message={warehousesError} /> : (warehouses ?? []).length < 2 ? <ErrorBox message="يلزم وجود مستودعين نشطين على الأقل داخل المؤسسة لإجراء النقل." /> : <>
         <Field label="مستودع المصدر">
           <select value={transferSource} onChange={(e) => setTransferSource(e.target.value)}>
             <option value="">اختر المستودع المصدر</option>

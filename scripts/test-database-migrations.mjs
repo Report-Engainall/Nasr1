@@ -2306,11 +2306,14 @@ async function main() {
     [productId, testWarehouseId],
   );
   assert.equal(Number(afterRejectedTransfer[0].quantity_on_hand), 33, "a rejected transfer must roll back without changing source stock");
+  await db.unsafe("reset role");
   const foreignTransferWarehouseRows = await db.unsafe(
     "select id from public.warehouses where organization_id<>$1 and is_active order by id limit 1",
     [organizationId],
   );
   assert.equal(foreignTransferWarehouseRows.length, 1, "the fixture needs an active warehouse in another organization");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
   await expectFailure(
     "inventory transfer cannot target a foreign-tenant warehouse",
     () => db.unsafe(

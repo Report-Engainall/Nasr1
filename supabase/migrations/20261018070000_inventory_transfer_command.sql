@@ -51,7 +51,7 @@ DECLARE
   v_destination_reserved numeric(15,3);
   v_source_available_after numeric(15,3);
   v_destination_available_after numeric(15,3);
-  v_reason text := nullif(pg_catalog.left(pg_catalog.btrim(coalesce(p_reason,'')),1000),'');
+  v_reason text := nullif(pg_catalog.btrim(coalesce(p_reason,'')),'');
   v_key text := pg_catalog.btrim(coalesce(p_idempotency_key,''));
   v_source_found boolean := false;
   v_destination_found boolean := false;
@@ -76,8 +76,8 @@ BEGIN
      OR pg_catalog.round(p_quantity,3)<>p_quantity THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='transfer quantity must be positive with at most three decimals';
   END IF;
-  IF v_reason IS NULL THEN
-    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='transfer reason is required';
+  IF v_reason IS NULL OR pg_catalog.char_length(v_reason)>1000 THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='transfer reason must contain between 1 and 1000 characters';
   END IF;
 
   -- Serialize retries with the same key. A reused key with a changed payload is rejected.
@@ -141,7 +141,7 @@ BEGIN
     )
   );
   INSERT INTO public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point)
-  VALUES(p_product_id,p_destination_warehouse_id,0,0,pg_catalog.coalesce(v_product.min_stock,0))
+  VALUES(p_product_id,p_destination_warehouse_id,0,0,coalesce(v_product.min_stock,0))
   ON CONFLICT(product_id,warehouse_id) DO NOTHING;
 
   FOR v_balance IN
