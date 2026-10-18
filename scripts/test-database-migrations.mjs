@@ -1098,18 +1098,27 @@ async function main() {
   assert.equal(capStatement.invoices.some((row) => row.id === oldestCapInvoice.id),false,"oldest invoice should fall outside the bounded detail page");
   assert.equal(capStatement.payments.some((row) => row.id === firstCappedPayment.id),false,"oldest payment should fall outside the bounded detail page");
 
+  // Avoid subtracting large floating-point totals: reconcile all money in minor-unit BigInts.
+  const toMinorUnits = (value) => {
+    const match = /^(-?)(\\d+)(?:\\.(\\d{1,2}))?$/.exec(String(value).trim());
+    assert.ok(match, "currency amount should be a decimal with at most two fractional digits");
+    const whole = BigInt(match[2]);
+    const fractional = BigInt((match[3] ?? "").padEnd(2, "0"));
+    const unsigned = whole * 100n + fractional;
+    return match[1] === "-" ? -unsigned : unsigned;
+  };
   const cappedSummary = capStatement.summary.find((row) => row.currency === "YER");
   assert.ok(cappedSummary,"full-ledger summary must include the YER currency");
-  assert.equal(Number(cappedSummary.invoiced)-Number(baselineYER.invoiced),214,"full summary must include all 205 added invoices despite the 200-row detail cap");
-  assert.equal(Number(cappedSummary.paid)-Number(baselineYER.paid),5.05,"full summary must include all 505 payments despite the 500-row detail cap");
-  assert.equal(Number(cappedSummary.outstanding)-Number(baselineYER.outstanding),208.95,"full summary must reconcile all capped-out invoice/payment amounts");
-  assert.equal(Number(cappedSummary.overdue_outstanding)-Number(baselineYER.overdue_outstanding),4.95,"only the past-due boundary invoice should add overdue receivables");
-  assert.equal(Number(cappedSummary.unknown_due_date_outstanding),Number(baselineYER.unknown_due_date_outstanding),"explicit test due dates must not change the missing-due-date bucket");
+  assert.equal(toMinorUnits(cappedSummary.invoiced)-toMinorUnits(baselineYER.invoiced),21400n,"full summary must include all 205 added invoices despite the 200-row detail cap");
+  assert.equal(toMinorUnits(cappedSummary.paid)-toMinorUnits(baselineYER.paid),505n,"full summary must include all 505 payments despite the 500-row detail cap");
+  assert.equal(toMinorUnits(cappedSummary.outstanding)-toMinorUnits(baselineYER.outstanding),20895n,"full summary must reconcile all capped-out invoice/payment amounts");
+  assert.equal(toMinorUnits(cappedSummary.overdue_outstanding)-toMinorUnits(baselineYER.overdue_outstanding),495n,"only the past-due boundary invoice should add overdue receivables");
+  assert.equal(toMinorUnits(cappedSummary.unknown_due_date_outstanding),toMinorUnits(baselineYER.unknown_due_date_outstanding),"explicit test due dates must not change the missing-due-date bucket");
 
   const paidCapInvoiceDetail = capStatement.invoices.find((row) => row.id === paidCapInvoice.id);
   assert.ok(paidCapInvoiceDetail,"newest boundary invoice should remain in bounded invoice details");
-  assert.equal(Number(paidCapInvoiceDetail.paid_amount),5.05,"invoice paid total must include the 5 payments omitted from the capped detail list");
-  assert.equal(Number(paidCapInvoiceDetail.outstanding_amount),4.95,"invoice balance must use the full 505-payment ledger rather than only 500 displayed rows");
+  assert.equal(toMinorUnits(paidCapInvoiceDetail.paid_amount),505n,"invoice paid total must include the 5 payments omitted from the capped detail list");
+  assert.equal(toMinorUnits(paidCapInvoiceDetail.outstanding_amount),495n,"invoice balance must use the full 505-payment ledger rather than only 500 displayed rows");
 
   // The invoice PDF RPC returns amounts only for the signed-in customer's own invoice.
   const ownInvoicePdfResult = await db.unsafe(
