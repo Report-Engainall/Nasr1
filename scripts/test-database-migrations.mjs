@@ -2687,6 +2687,9 @@ async function main() {
   }];
   await setIdentity(staffAuthUserId,"admin@aghbari.ye");
   await db.unsafe("set role authenticated");
+  const gridRead=(await db.unsafe("select id,base_price,price_wholesale_of_wholesale,price_wholesale,price_retail from public.get_admin_product_price_grid() where id=$1",[productId]))[0];
+  assert.deepEqual([Number(gridRead.base_price),Number(gridRead.price_wholesale_of_wholesale),Number(gridRead.price_wholesale),Number(gridRead.price_retail)],[100,90,95,110],
+    "the authorized grid read model resolves the stored base and the three tier price rows");
   const priceGridResult=(await db.unsafe("select public.save_product_price_grid($1::jsonb) as result",[JSON.stringify(priceGridPayload)]))[0].result;
   assert.equal(Number(priceGridResult.updated_count),1);
   assert.deepEqual(priceGridResult.product_ids,[productId]);
@@ -2712,6 +2715,7 @@ async function main() {
   assert.deepEqual([Number(afterRollback.base_price),Number(afterRollback.vip_price),Number(afterRollback.wholesale_price),Number(afterRollback.retail_price)],[101,91,96,111],"foreign-tenant rejection rolls back the entire batch");
   await setIdentity(accountantAuthUserId,"ci-accountant@example.test");
   await db.unsafe("set role authenticated");
+  await expectFailure("accountant cannot read the price grid",()=>db.unsafe("select public.get_admin_product_price_grid()"),/active admin or manager/i);
   await expectFailure("accountant cannot write the price grid",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[JSON.stringify([{...priceGridPayload[0],expected_base_price:101,expected_price_wholesale_of_wholesale:91,expected_price_wholesale:96,expected_price_retail:111,base_price:103}])]),/active admin or manager/i);
   await db.unsafe("reset role");
   process.stdout.write("PASS price grid: admin/manager auth, base+three tier values, atomic writes, audit, stale-value guard, tenant rollback and accountant denial\n");
