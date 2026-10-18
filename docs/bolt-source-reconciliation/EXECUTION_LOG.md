@@ -400,3 +400,13 @@
 - أُضيفت عقود/تحقق typed إلى دوال قراءة اللقطات وصفوفها في `src/lib/api.ts`، ومعاينة 100 صف فقط، ومؤشرات جودة وتوزيع حالات وترتيب أصناف وتحليل تنبؤي بحالة صريحة، ومطابقة مخزون خادمية غير هدّامة مع رقم تشغيل وسجل تدقيق، وطباعة خاصة بالتقرير.
 - أُضيف `src/test/OnyxSnapshotCenter.test.tsx` لأربع حالات (عرض مصدر حقيقي، المطابقة، رفض غير الموظف، فشل قاعدة البيانات). أُصلحت كذلك حقول `test_command/test_result` التي كانت فارغة عن طريق نسخ إثبات كل صف من سجل الجرد إلى دفتر الدمج.
 - هذه الواجهة لا تنشئ اتصال Onyx خارجيًا ولا تدعي قبول Workbook في Onyx. دوال الخادم الحاليَّة وRLS هي حد المؤسسة؛ تشغيل الإنتاج/المتصفح الخارجي لم ينفذ.
+
+
+## 2026-10-19 — Onyx UI + طباعة مركز المهام — exact-SHA CI PASS
+
+- HEAD الكود: a38e43f4da656da6cc10abdb476b0023dd029440. CI مطابق: [Actions 39173352654 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39173352654). PASS: frozen lockfile, unit tests, PostgreSQL 17 migrations/RLS/business acceptance, lint, build, production-preview smoke 4173, dev-server smoke 5173.
+- Added and mounted OnyxSnapshotCenter within the existing admin data center. It presents stored source snapshots and SHA256 evidence, quality/status metrics, top items, forecast state, the first 100 source rows, server-side inventory reconciliation results and a printable evidence report. No external Onyx connection/round-trip is claimed.
+- Snapshot APIs validate required fields and selected snapshot ID; malformed data fails closed. UI tests cover snapshot loading, reconciliation, non-staff denial and service error.
+- Task Center printing uses src/lib/task-print.ts to restrict print scope to the authenticated account allowedRoles. All-allowed or one allowed role may be printed while shared status/priority/assignee/date/search filters remain applied; unauthorized or empty scopes return no rows. Unit tests and current task-event/idempotency PostgreSQL acceptance passed.
+- IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA a38e43f4da656da6cc10abdb476b0023dd029440; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; PRODUCTION_MIGRATION=NOT RUN. Next task: NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002; all original-spec interfaces are not yet complete.
+- Archive fetch caveat unchanged: current-session binary GitHub fetch returned HTTP 400 (connector only supports UTF-8 text); runner fetch returned DNS error [Errno -3] Temporary failure in name resolution. The earlier SHA256/CRC/safe-extraction result is historical Actions 39157355307, not a fresh download in this session.

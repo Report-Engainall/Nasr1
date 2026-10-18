@@ -1,8 +1,8 @@
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
 **الهدف الوحيد:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / main.
-**آخر SHA كود اجتاز CI كاملًا:** `c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25` — [commit](https://github.com/Report-Engainall/Nasr1/commit/c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25).
-**CI المطابق للكود:** [Actions 39171703391 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39171703391), exact SHA `c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25`; unit, PostgreSQL 17 migrations/RLS acceptance, lint, build, preview smoke وdev smoke جميعها PASS. فشل سابق على `65ad6347aaf4938b24bf66577f6d1c82e51de778` في اختبار DB توقع خطأً رفض قراءة المصروفات للمحاسب المخوّل؛ صُحّح التوقع، لا تم إضعاف صلاحية الخادم. backend الجرد السابق اجتاز [Actions 39161411949 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39161411949). تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
+**آخر SHA كود اجتاز CI كاملًا:** `a38e43f4da656da6cc10abdb476b0023dd029440` — [commit](https://github.com/Report-Engainall/Nasr1/commit/a38e43f4da656da6cc10abdb476b0023dd029440).
+**CI المطابق للكود:** [Actions 39173352654 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39173352654), exact SHA `a38e43f4da656da6cc10abdb476b0023dd029440`; frozen Bun lock، unit tests، isolated PostgreSQL 17 migrations/RLS acceptance، lint، build، production-preview smoke (4173) وdev smoke (5173) كلها PASS. هذا إثبات CI فقط؛ لا يثبت متصفحًا تفاعليًا أو نشر الإنتاج. تدقيق الأرشيفات: [Actions 39157355307 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39157355307) على SHA `92a948e83ebc05278b09d50aec410da490c76f7c`.
 **نقطة الإقلاع:** [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md). أعد قراءة HEAD وCI بعد كل commit.
 **فجوة المصادر:** أدلة فحص ZIP/CRC والاستخراج الآمن تاريخية على Actions 39157355307، بينما إعادة التنزيل في جلسة 2026-10-19 لم تكتمل (أخطاء موثقة في ARCHIVE_MANIFEST.csv). تمت مراجعة المحتوى والعقود ومخاطر التوافق للصفوف الـ69 وتوثيق قرار كل صف في READY_TO_REUSE_FILE_AUDIT.csv؛ لا يعني ذلك تشغيل كود كل مانح.
 **النزاهة المالية:** لا توجد فواتير تاريخية سابقة مطلوب اختلاقها؛ لا تنشئ أرقامًا تجريبية.
@@ -14,8 +14,8 @@
 - سجل المصروفات النقدية `cash_expenses` تكامل مكيّف من المرشح القديم `0032_finance_invoices_cash_expenses.sql`؛ لم يُنسخ عقد `branches/cash_accounts/operational_invoices` غير المتوافق. الجديد مربوط بـ`StaffFinancePage`، مع صلاحية مالية خادمية، عزل المؤسسة، إدخال مبلغ دقيق بمنزلتين عشريتين، مفتاح منع تكرار مربوط بالحمولة، تدقيق، إلغاء غير هدّام، حظر DML المباشر، بحث/تاريخ/حالة/ترقيم صفحات وطباعة الصفحة المفلترة.
 - ترحيل الاختبار المعزول `20261019100000_finance_cash_expenses.sql` واختبارات الوحدة/قبول قاعدة البيانات اجتازت CI المطابق أعلاه. هذا إثبات CI على PostgreSQL 17؛ ترحيل الإنتاج وفتح المتصفح الفعلي والإنتاج الحي `NOT RUN / NOT PROVEN`.
 - محاولات إعادة تنزيل أرشيفي Bolt في جلسة 2026-10-19 فشلت: GitHub fetch أعاد HTTP 400 بنص “GitHub Fetch supports UTF-8 text files; this file appears to be binary or encoded differently (Response: None)” لكل رابط raw ZIP؛ وجلب الشبكة من بيئة التشغيل أعاد `URLError <urlopen error [Errno -3] Temporary failure in name resolution>`. أدلة SHA-256/CRC والاستخراج الآمن السابقة تخص Actions `39157355307` فقط، ولا تدّعي نجاح إعادة التنزيل الآن.
-- لا يزال `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001` مفتوحًا: الجرد المساري/البصمي 69/69 ليس مراجعة دلالية كاملة لـ69 ملفًا. مرشح المحاسبة المذكور تمت مواءمته واختباره؛ يلزم مواصلة باقي المرشحين دون نسخ أعمى.
-- حالة الإثبات: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA `c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25`; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; PRODUCTION-MIGRATION=NOT RUN.
+- أُغلقت `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001`: تمت مراجعة عقود وقرارات الصفوف الـ69 وتسجيل كل قرار في الجرد والدفتر. هذا لا يعني تنفيذ أو تشغيل كل كود مانح؛ كل اختبار مانح لم يُشغّل موصوف بأنه NOT RUN.
+- حالة إثبات المصروفات: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA c3e4e3da71bedd9c8495fd5bd8cf901c6aee5d25; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; PRODUCTION-MIGRATION=NOT RUN.
 
 ## آخر إنجاز برمجي حقيقي
 - أضيف اختبار حدّ قاعدة بيانات حقيقي لكشف العميل: ينشئ 205 فواتير و505 دفعات، ثم يثبت بقاء قوائم التفاصيل محدودة إلى 200/500 بينما الملخص المالي يظل شاملاً للسجل كله.
@@ -45,7 +45,7 @@
 - Restored_Current.zip: 997,589 bytes; Git blob SHA-1 f01684a56e093a33a173b0965d1d7239c48f0936; SHA-256 9e012da1795cb9549413f78366c3bd6885c593e5a56e2fea10d4cf3fe810b214; 358 members; CRC/decompression/safe extraction PASS.
 - Pair comparison: 340 identical, 18 changed, 1 before-only. Member inventory 717 rows. Archive content was not executed; no archived SQL applied.
 - Evidence: ARCHIVE_MANIFEST.csv, ARCHIVE_MEMBERS.csv, ARCHIVE_PAIR_DIFF.csv, READY_TO_REUSE_FILE_AUDIT.csv, SOURCE_INTEGRATION_LEDGER.csv.
-- READY_TO_REUSE path/blob audit: 4 exact, 2 differing target contents, 63 target paths missing at the audited SHA. This does NOT mean every donor feature is absent; semantic review of all 69 rows remains incomplete. On 2026-10-19 the donor cash-expense SQL was semantically reviewed and adapted into target-native migration `supabase/migrations/20261019100000_finance_cash_expenses.sql`; exact-SHA test evidence is Actions 39171703391.
+- READY_TO_REUSE path/blob audit: 4 exact, 2 differing target contents, 63 target paths missing at the audited SHA. This does NOT mean every donor feature was missing. All 69 candidates have documented per-row decisions in READY_TO_REUSE_FILE_AUDIT.csv and SOURCE_INTEGRATION_LEDGER.csv. Cash expenses were adapted and tested through target-native migration supabase/migrations/20261019100000_finance_cash_expenses.sql (Actions 39171703391); Onyx UI/analytics and role-scoped Task Center print were integrated and tested on current code SHA (Actions 39173352654). Donor modules not integrated were not run.
 - The legacy audit screen was adapted to active route /admin/audit with actual columns, same-tenant admin/manager SELECT RLS, no direct authenticated DML, search and filtered printing. Code SHA bb08320b690203f7f9b1ce65287e389e847c2dea passed Actions run 39154450426.
 - IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS on that exact code SHA. BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN. Production migrations=NOT RUN; Onyx vendor round-trip=NOT RUN.
 
@@ -74,7 +74,7 @@
 ## حدود الإثبات
 - لا يوجد متصفح تفاعلي أو إثبات إنتاج مباشر؛ preview/dev smoke ليس إثبات نشر.
 - PostgreSQL 17 معزول في Actions فقط؛ لم تُطبق migrations على Supabase الإنتاجية.
-- أرشيفا Bolt اجتازا إعادة تحقق آلية على SHA `92a948e83ebc05278b09d50aec410da490c76f7c` في Actions 39157355307: الحجم وSHA-256 وممر CRC/فك الضغط لكل عضو وفحوص المسارات وحدود التوسع والاستخراج المؤقت المحدود PASS. لم تُشغّل ملفات الأرشيف ولم تُطبق SQL. التدقيق الدلالي لكل مواد المانحين ما زال مفتوحًا.
+- أرشيفا Bolt اجتازا إعادة تحقق آلية على SHA `92a948e83ebc05278b09d50aec410da490c76f7c` في Actions 39157355307: الحجم وSHA-256 وممر CRC/فك الضغط لكل عضو وفحوص المسارات وحدود التوسع والاستخراج المؤقت المحدود PASS. لم تُشغّل ملفات الأرشيف ولم تُطبق SQL. تم تصنيف جميع مرشحي READY_TO_REUSE الـ69 في سجل القرارات، بينما تستمر المهمة NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002 لاستكمال الواجهات الناقصة المثبتة من المواصفة الأصلية.
 - لا اعتماديات أو خدمات مدفوعة أضيفت.
 
 التصنيفات منفصلة: `IMPLEMENTED`، `TESTED` على SHA محدد، `BROWSER-PROVEN`، `PRODUCTION-PROVEN`.
@@ -146,5 +146,14 @@
 - فُعّل مسار الوصول الحالي عبر «مركز البيانات الموحد» إلى شاشة حقيقية `OnyxSnapshotCenter` لعرض اللقطات الجاهزة من `onyx_snapshots`، تحليلات `get_onyx_snapshot_analytics`، ومعاينة محدودة لأول 100 صف، وتاريخ/نوع التقرير/الفترة/بصمة الملف.
 - زر المطابقة يستدعي `run_inventory_reconciliation` الخادمي ويعرض عدد الصفوف المتطابقة والمتغيرة والجديدة وغير الصالحة ورقم التشغيل. هذه العملية تنشئ سجلات مطابقة وتدقيق فقط؛ لا تغيّر أرصدة المخزون ولا تدعي اتصالاً مباشرًا ببرنامج Onyx الخارجي.
 - أُضيفت حالات تحميل/فراغ/خطأ/عدم صلاحية، تحقق صارم من الحقول الأساسية بدل تحويل القيم المفقودة إلى صفر، وطباعة تقرير يذكر مصدر اللقطة وحدود المعاينة، واختبارات UI للقراءة/المطابقة/الرفض عند غياب صلاحية الموظف/فشل الاستعلام.
-- IMPLEMENTED=YES; INTEGRATED=YES; TESTED=NOT RUN (CI pending for this commit); BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN.
+- IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact code SHA a38e43f4da656da6cc10abdb476b0023dd029440; matching Actions 39173352654 — SUCCESS (https://github.com/Report-Engainall/Nasr1/actions/runs/39173352654); BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migration=NOT RUN.
 - next_task_id يظل `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`، وسيستمر بعد إثبات هذا الدمج في مطابقة بقية أقسام المواصفة بدل اعتبار شاشة واحدة اكتمالًا شاملاً.
+
+
+## 2026-10-19 — إثبات الرأس الحي a38e43f4da656da6cc10abdb476b0023dd029440
+
+- CI المطابق للرأس نفسه: [Actions 39173352654 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39173352654); unit tests، ترحيلات وقبول PostgreSQL 17/RLS، lint، build، production preview smoke وdev smoke PASS.
+- Onyx: تمت إضافة وربط src/components/OnyxSnapshotCenter.tsx من مركز البيانات لعرض اللقطات والتحليلات والصفوف المصدرية المحدودة والمطابقة الخادمية والطباعة. لا يدعي ذلك اتصالًا خارجيًا أو round-trip مع برنامج Onyx.
+- مركز المهام: نطاق طباعة كل الأدوار المسموحة أو دور واحد ضمن صلاحيات الحساب، مع فلاتر الحالة/الأولوية/المسؤول/الفترة/البحث نفسها. حالات الدور غير المصرح به والنتيجة الفارغة مغطاة بالاختبارات.
+- الحالة: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA a38e43f4da656da6cc10abdb476b0023dd029440; BROWSER-PROVEN=NOT PROVEN; PRODUCTION-PROVEN=NOT PROVEN; production migration=NOT RUN.
+- next_task_id يظل NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002؛ إكمال جميع واجهات المواصفة لم يثبت بعد.
