@@ -1927,6 +1927,7 @@ async function main() {
             (select count(*)::int from pg_policies where schemaname='storage' and tablename='objects' and policyname='product_images_tenant_insert') as insert_policy_count`,
     [imageTestPath],
   );
+  process.stderr.write("PRODUCT_IMAGE_POLICIES " + JSON.stringify(await db.unsafe("select policyname, permissive, roles, cmd, qual, with_check from pg_policies where schemaname = 'storage' and tablename = 'objects'")) + "\\n");
   process.stderr.write("PRODUCT_IMAGE_SCOPE_DIAGNOSTIC " + JSON.stringify(imageScopeDiagnostic[0]) + "\\n");
   const ownedImageRows = await db.unsafe("insert into storage.objects(bucket_id,name,metadata) values($1,$2,$3) returning id",
     ["product-images", organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp", db.json({ mimetype: "image/webp" })]);
