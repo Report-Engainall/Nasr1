@@ -406,14 +406,12 @@ export function buildCustomerStatementCurrencySummary(
 }
 
 export function resolveCustomerStatementCurrencySummary(
-  authoritativeSummary: unknown,
+  authoritativeSummary: CustomerStatementCurrencySummary[] | undefined,
   invoices: CustomerStatementInvoice[],
   payments: CustomerStatementPayment[],
   asOf: Date,
 ): CustomerStatementCurrencySummary[] {
-  return authoritativeSummary === undefined
-    ? buildCustomerStatementCurrencySummary(invoices, payments, asOf)
-    : normalizeCustomerStatementCurrencySummary(authoritativeSummary);
+  return authoritativeSummary ?? buildCustomerStatementCurrencySummary(invoices, payments, asOf);
 }
 
 export async function buildCustomerStatementPdf(

@@ -127,11 +127,11 @@ describe("Arabic customer finance PDFs", () => {
     ];
     const expected = [
       { currency: "USD", invoiced: 4000n, paid: 0n, outstanding: 4000n, overdueInvoiceCount: 0, overdueOutstanding: 0n, unknownDueDateInvoiceCount: 1, unknownDueDateOutstanding: 4000n },
-      { currency: "YER", invoiced: 15000000000025n, paid: 50000000000025n, outstanding: 10000000000000n, overdueInvoiceCount: 7, overdueOutstanding: 8000000000000n, unknownDueDateInvoiceCount: 2, unknownDueDateOutstanding: 1000000000000n },
+      { currency: "YER", invoiced: 15000000000025n, paid: 5000000000025n, outstanding: 10000000000000n, overdueInvoiceCount: 7, overdueOutstanding: 8000000000000n, unknownDueDateInvoiceCount: 2, unknownDueDateOutstanding: 1000000000000n },
     ];
     expect(normalizeCustomerStatementCurrencySummary(source)).toEqual(expected);
     expect(resolveCustomerStatementCurrencySummary(
-      source,
+      normalizeCustomerStatementCurrencySummary(source),
       [{ id: "dddddddd-dddd-4ddd-8ddd-000000000001", invoice_number: "INV-DETAIL-PAGE", status: "issued", issued_at: "2026-10-01T00:00:00.000Z", due_at: "2026-10-10T00:00:00.000Z", currency: "YER", total_amount: "100.00" }],
       [],
       new Date("2026-10-18T12:00:00.000Z"),
