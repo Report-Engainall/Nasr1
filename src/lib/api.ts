@@ -900,6 +900,54 @@ export async function saveStorefrontAnnouncement(input: StorefrontAnnouncementIn
   return result.data;
 }
 
+
+// ─── Atomic, stale-safe price grid command ───
+export interface ProductPriceGridChange {
+  id: string;
+  expectedBasePrice: number;
+  expectedPriceWholesaleOfWholesale: number;
+  expectedPriceWholesale: number;
+  expectedPriceRetail: number;
+  basePrice: number;
+  priceWholesaleOfWholesale: number;
+  priceWholesale: number;
+  priceRetail: number;
+}
+
+export async function saveProductPriceGrid(changes: ProductPriceGridChange[]): Promise<number> {
+  if (!Array.isArray(changes) || changes.length < 1 || changes.length > 200) {
+    throw new Error('يجب حفظ من 1 إلى 200 تعديل سعر في الدفعة الواحدة.');
+  }
+  const seen = new Set<string>();
+  for (const item of changes) {
+    if (!item || typeof item.id !== 'string' || seen.has(item.id)) throw new Error('تحتوي دفعة الأسعار على معرّف منتج مكرر أو غير صالح.');
+    seen.add(item.id);
+    const values = [item.expectedBasePrice,item.expectedPriceWholesaleOfWholesale,item.expectedPriceWholesale,item.expectedPriceRetail,
+      item.basePrice,item.priceWholesaleOfWholesale,item.priceWholesale,item.priceRetail];
+    if (values.some((value) => !Number.isFinite(value) || value < 0 || Math.round(value * 100) !== value * 100)) {
+      throw new Error('الأسعار يجب أن تكون أرقامًا غير سالبة وبحد أقصى منزلتين عشريتين.');
+    }
+  }
+  const payload = changes.map((item) => ({
+    id: item.id,
+    expected_base_price: item.expectedBasePrice,
+    expected_price_wholesale_of_wholesale: item.expectedPriceWholesaleOfWholesale,
+    expected_price_wholesale: item.expectedPriceWholesale,
+    expected_price_retail: item.expectedPriceRetail,
+    base_price: item.basePrice,
+    price_wholesale_of_wholesale: item.priceWholesaleOfWholesale,
+    price_wholesale: item.priceWholesale,
+    price_retail: item.priceRetail,
+  }));
+  const { data, error } = await supabase.rpc('save_product_price_grid', { p_changes: payload });
+  if (error) throw new Error('لم تُحفظ شبكة الأسعار: ' + error.message);
+  const count = data && typeof data === 'object' ? Number((data as Record<string, unknown>).updated_count) : NaN;
+  if (!Number.isInteger(count) || count !== changes.length) {
+    throw new Error('نتيجة حفظ الأسعار غير مطابقة للدفعة؛ حدّث الصفحة وتحقق من الأسعار المحفوظة قبل إعادة المحاولة.');
+  }
+  return count;
+}
+
 // ─── Unified import engine ───
 export async function createImportJob(input: {
   fileName: string;
