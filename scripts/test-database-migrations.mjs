@@ -1918,10 +1918,9 @@ async function main() {
   assert.equal(Number(imageBucketRows[0].file_size_limit), 8 * 1024 * 1024);
   assert.deepEqual(imageBucketRows[0].allowed_mime_types, ["image/webp"]);
 
-  await db.unsafe("insert into storage.objects(bucket_id,name,metadata) values($1,$2,$3)",
+  const ownedImageRows = await db.unsafe("insert into storage.objects(bucket_id,name,metadata) values($1,$2,$3) returning id",
     ["product-images", organizationId + "/" + productId + "/b1000000-0000-4000-8000-000000000001.webp", db.json({ mimetype: "image/webp" })]);
-  assert.equal((await db.unsafe("select id from storage.objects where bucket_id='product-images' and name like $1",
-    [organizationId + "/" + productId + "/%"])).length, 1, "staff can upload for a real same-tenant product");
+  assert.equal(ownedImageRows.length, 1, "staff can upload for a real same-tenant product");
   await expectFailure("staff cannot upload under a different tenant prefix",
     () => db.unsafe("insert into storage.objects(bucket_id,name) values($1,$2)",
       ["product-images", otherOrganizationId + "/" + productId + "/b2000000-0000-4000-8000-000000000001.webp"]),

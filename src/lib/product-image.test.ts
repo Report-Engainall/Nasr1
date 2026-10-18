@@ -23,8 +23,8 @@ describe("product image handling adapted from the donor image policy", () => {
   it("downscales without upscaling and rejects corrupt/oversized raster dimensions", () => {
     expect(fitProductImageDimensions(3200, 1600)).toEqual({ width: 1600, height: 800 });
     expect(fitProductImageDimensions(800, 1200)).toEqual({ width: 800, height: 1200 });
-    expect(fitProductImageDimensions(12001, 600)).toThrow("الحد الآمن");
-    expect(fitProductImageDimensions(Number.NaN, 600)).toThrow("الحد الآمن");
+    expect(() => fitProductImageDimensions(12001, 600)).toThrow("الحد الآمن");
+    expect(() => fitProductImageDimensions(Number.NaN, 600)).toThrow("الحد الآمن");
     expect(PRODUCT_IMAGE_QUALITY).toBe(0.82);
   });
   it("uses opaque institution/product/object UUID path segments only", () => {
