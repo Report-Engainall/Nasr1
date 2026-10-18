@@ -2327,11 +2327,87 @@ async function main() {
     () => db.unsafe("update public.inventory_transfers set reason='forged' where id=$1::uuid", [transferResult.transfer_id]),
     /permission denied/i,
   );
-  process.stdout.write("PASS inventory transfer: tenant-bound RPC, reserved-stock guard, deterministic row locking, atomic paired movements, idempotent replay and immutable transfer ledger\\n");
+  await expectFailure(
+    "authenticated staff cannot write inventory balances directly",
+    () => db.unsafe("update public.inventory_balances set reorder_point=999 where id=$1::uuid", [stockBalance[0].id]),
+    /permission denied/i,
+  );
+  await expectFailure(
+    "authenticated staff cannot append inventory movement rows directly",
+    () => db.unsafe(
+      "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,reference_type,reason,created_by) values($1,$2,'manual',1,'test','forged movement',$3)",
+      [productId, testWarehouseId, staffProfileId],
+    ),
+    /permission denied/i,
+  );
+
+  const thresholdChange = await db.unsafe(
+    "select public.set_inventory_reorder_point($1::uuid,$2::uuid,$3::integer,$4::text) as result",
+    [productId, testWarehouseId, 25, "CI: increase reorder point to cross available-stock threshold"],
+  );
+  assert.equal(thresholdChange[0].result.previous_reorder_point, 20);
+  assert.equal(thresholdChange[0].result.reorder_point, 25);
+  assert.equal(thresholdChange[0].result.unchanged, false);
+  assert.equal(Number(thresholdChange[0].result.quantity_available), 23);
+  const raisedThresholdTask = await db.unsafe(
+    "select id,status,task_role from public.ai_tasks where organization_id=$1 and source_event_key=$2",
+    [organizationId, stockKey],
+  );
+  assert.equal(raisedThresholdTask.length, 1, "changing the reorder point must reuse the unique stock task");
+  assert.equal(raisedThresholdTask[0].task_role, "purchasing");
+  assert.equal(raisedThresholdTask[0].status, "pending", "crossing into low stock by threshold change reopens the purchasing task");
+  const thresholdAuditOne = await db.unsafe(
+    "select id,old_value,new_value from public.audit_logs where organization_id=$1 and action='inventory.reorder_point.updated' and entity_id=$2::uuid order by created_at",
+    [organizationId, stockBalance[0].id],
+  );
+  assert.equal(thresholdAuditOne.length, 1, "threshold change writes one audit record");
+  assert.equal(Number(thresholdAuditOne[0].old_value.reorder_point), 20);
+  assert.equal(Number(thresholdAuditOne[0].new_value.reorder_point), 25);
+  assert.equal(thresholdAuditOne[0].new_value.reason, "CI: increase reorder point to cross available-stock threshold");
+
+  const unchangedThreshold = await db.unsafe(
+    "select public.set_inventory_reorder_point($1::uuid,$2::uuid,$3::integer,$4::text) as result",
+    [productId, testWarehouseId, 25, "Same value is intentionally a no-op"],
+  );
+  assert.equal(unchangedThreshold[0].result.unchanged, true, "setting the same threshold is a no-op");
+  const thresholdAuditAfterNoop = await db.unsafe(
+    "select id from public.audit_logs where organization_id=$1 and action='inventory.reorder_point.updated' and entity_id=$2::uuid",
+    [organizationId, stockBalance[0].id],
+  );
+  assert.equal(thresholdAuditAfterNoop.length, 1, "a no-op threshold change does not generate a misleading audit event");
+
+  const loweredThreshold = await db.unsafe(
+    "select public.set_inventory_reorder_point($1::uuid,$2::uuid,$3::integer,$4::text) as result",
+    [productId, testWarehouseId, 20, "CI: lower threshold back under the available balance"],
+  );
+  assert.equal(loweredThreshold[0].result.unchanged, false);
+  const completedThresholdTask = await db.unsafe("select status from public.ai_tasks where organization_id=$1 and source_event_key=$2", [organizationId, stockKey]);
+  assert.equal(completedThresholdTask[0].status, "completed", "moving the threshold above low-stock state closes the purchasing task through the database trigger");
+  const thresholdAuditAfterLowering = await db.unsafe(
+    "select id from public.audit_logs where organization_id=$1 and action='inventory.reorder_point.updated' and entity_id=$2::uuid",
+    [organizationId, stockBalance[0].id],
+  );
+  assert.equal(thresholdAuditAfterLowering.length, 2, "each actual threshold value change gets its own audit record");
+  await expectFailure(
+    "negative reorder points are rejected by the server",
+    () => db.unsafe("select public.set_inventory_reorder_point($1::uuid,$2::uuid,$3::integer,$4::text)", [productId,testWarehouseId,-1,"invalid negative threshold"]),
+    /reorder point|حد إعادة الطلب|حد/.i,
+  );
+  await expectFailure(
+    "threshold changes cannot target a foreign-tenant warehouse",
+    () => db.unsafe("select public.set_inventory_reorder_point($1::uuid,$2::uuid,$3::integer,$4::text)", [productId,foreignTransferWarehouseRows[0].id,25,"cross tenant threshold"]),
+    /warehouse|مستودع|organization/i,
+  );
+  process.stdout.write("PASS inventory write boundary and reorder point: direct balance/ledger DML denied, manager RPC audited, no-op idempotent, purchasing threshold task lifecycle correct, invalid/cross-tenant requests rejected\\n");
 
   await db.unsafe("reset role");
   await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
   await db.unsafe("set role authenticated");
+  await expectFailure(
+    "accountants cannot change inventory reorder points",
+    () => db.unsafe("select public.set_inventory_reorder_point($1::uuid,$2::uuid,$3::integer,$4::text)", [productId,testWarehouseId,30,"accountant must not alter purchasing policy"]),
+    /administrator or manager permission required/i,
+  );
   await expectFailure(
     "accountants cannot enumerate the full organization task-assignment directory",
     () => db.unsafe("select public.list_operational_task_assignees()"),

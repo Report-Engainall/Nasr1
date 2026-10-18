@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft, ClipboardList,
   CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package,
@@ -7,8 +7,8 @@ import {
 } from 'lucide-react';
 import {
   createCategory, createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
-  fetchActiveInventoryWarehouses, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
-  fetchProducts, fetchPromotions, togglePricingRule, togglePromotion, transferInventory,
+  fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
+  fetchProducts, fetchPromotions, setInventoryReorderPoint, togglePricingRule, togglePromotion, transferInventory,
   updateCustomerStatus, updatePricingRule, updateProduct,
   approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
@@ -235,6 +235,8 @@ function Heading({ eyebrow, title, description, icon: Icon }: { eyebrow: string;
 }
 
 function Products({ onNotice }: { onNotice: (m: string) => void }) {
+  const { user } = useAuth();
+  const canManageReorderPoint = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const { data, loading, error, refetch } = useFetch(fetchProducts);
   const { data: warehouses, loading: warehousesLoading, error: warehousesError } = useFetch(fetchActiveInventoryWarehouses);
   const [query, setQuery] = useState('');
@@ -248,9 +250,18 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
   const [transferKey, setTransferKey] = useState('');
   const [transferSaving, setTransferSaving] = useState(false);
   const [transferError, setTransferError] = useState('');
-  const rows = (data ?? []).filter((p) => `${p.name} ${p.item_code} ${p.barcode ?? ''}`.toLowerCase().includes(query.toLowerCase()));
+  const [thresholdProduct, setThresholdProduct] = useState<ProductWithInventory | null>(null);
+  const [thresholdWarehouse, setThresholdWarehouse] = useState('');
+  const [thresholdValue, setThresholdValue] = useState('');
+  const [thresholdReason, setThresholdReason] = useState('مراجعة حد إعادة الطلب');
+  const [thresholdCurrent, setThresholdCurrent] = useState<{ reorder_point: number | null; quantity_available: number } | null>(null);
+  const [thresholdLoading, setThresholdLoading] = useState(false);
+  const [thresholdSaving, setThresholdSaving] = useState(false);
+  const [thresholdError, setThresholdError] = useState('');
+  const thresholdRequestSequence = useRef(0);
+  const rows = (data ?? []).filter((p) => (p.name + ' ' + p.item_code + ' ' + (p.barcode ?? '')).toLowerCase().includes(query.toLowerCase()));
   async function remove(product: ProductWithInventory) {
-    if (!window.confirm(`حذف ${product.name}؟`)) return;
+    if (!window.confirm('حذف ' + product.name + '؟')) return;
     try { await deleteProduct(product.id); onNotice('تم حذف المنتج'); refetch(); }
     catch (e) { onNotice(e instanceof Error ? e.message : 'تعذر حذف المنتج'); }
   }
@@ -268,93 +279,102 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
     setTransferSaving(true);
     setTransferError('');
     try {
-      const result = await transferInventory({
-        productId: transferProduct.id,
-        sourceWarehouseId: transferSource,
-        destinationWarehouseId: transferDestination,
-        quantity: Number(transferQuantity),
-        reason: transferReason,
-        idempotencyKey: transferKey,
-      });
+      const result = await transferInventory({ productId: transferProduct.id, sourceWarehouseId: transferSource, destinationWarehouseId: transferDestination, quantity: Number(transferQuantity), reason: transferReason, idempotencyKey: transferKey });
       setTransferProduct(null);
       setTransferKey('');
       refetch();
       onNotice(result.idempotent_replay ? 'النقل السابق مؤكد؛ لم تُكرر الحركة.' : 'تم نقل المخزون وحفظ حركتي المستودعين.');
+    } catch (e) { setTransferError(e instanceof Error ? e.message : 'تعذر نقل المخزون.'); }
+    finally { setTransferSaving(false); }
+  }
+  async function loadThresholdSnapshot(productId: string, warehouseId: string) {
+    const requestId = ++thresholdRequestSequence.current;
+    setThresholdLoading(true);
+    setThresholdCurrent(null);
+    setThresholdValue('');
+    setThresholdError('');
+    try {
+      const current = await fetchInventoryReorderPoint(productId, warehouseId);
+      if (requestId !== thresholdRequestSequence.current) return;
+      setThresholdCurrent(current);
+      if (current) setThresholdValue(current.reorder_point === null ? '' : String(current.reorder_point));
+      else setThresholdError('لا يوجد رصيد مخزون مثبت لهذا الصنف في المستودع. لن ننشئ كمية صفرية افتراضية؛ سجّل رصيدًا موثوقًا أولًا.');
     } catch (e) {
-      setTransferError(e instanceof Error ? e.message : 'تعذر نقل المخزون.');
+      if (requestId === thresholdRequestSequence.current) setThresholdError(e instanceof Error ? e.message : 'تعذر قراءة حد إعادة الطلب الحالي.');
     } finally {
-      setTransferSaving(false);
+      if (requestId === thresholdRequestSequence.current) setThresholdLoading(false);
     }
+  }
+  function openThreshold(product: ProductWithInventory) {
+    if (!canManageReorderPoint) return;
+    setThresholdProduct(product);
+    const warehouseId = product.inventory?.warehouse_id ?? warehouses?.[0]?.id ?? '';
+    setThresholdWarehouse(warehouseId);
+    setThresholdReason('مراجعة حد إعادة الطلب');
+    setThresholdCurrent(null);
+    setThresholdValue('');
+    setThresholdError('');
+    if (warehouseId) void loadThresholdSnapshot(product.id, warehouseId);
+    else setThresholdError('لا يوجد مستودع نشط محدد لهذه المؤسسة.');
+  }
+  function closeThreshold() {
+    thresholdRequestSequence.current += 1;
+    if (!thresholdSaving) setThresholdProduct(null);
+  }
+  async function submitThreshold() {
+    if (!thresholdProduct || !thresholdWarehouse) return;
+    const threshold = Number(thresholdValue);
+    if (!Number.isSafeInteger(threshold) || threshold < 0 || threshold > 1000000000) { setThresholdError('أدخل حدًا صحيحًا بين صفر ومليار.'); return; }
+    if (!thresholdReason.trim() || thresholdReason.trim().length > 1000) { setThresholdError('سبب التعديل مطلوب ولا يتجاوز 1000 حرف.'); return; }
+    if (!thresholdCurrent) { setThresholdError('لا يمكن تعديل الحد دون رصيد مخزون مثبت في المستودع المحدد.'); return; }
+    setThresholdSaving(true);
+    setThresholdError('');
+    try {
+      const result = await setInventoryReorderPoint({ productId: thresholdProduct.id, warehouseId: thresholdWarehouse, reorderPoint: threshold, reason: thresholdReason });
+      setThresholdProduct(null);
+      await refetch();
+      onNotice(result.unchanged ? 'حد إعادة الطلب مضبوط بالفعل على القيمة نفسها.' : 'تم تحديث حد إعادة الطلب وسجل التعديل؛ أعيد تقييم مهمة الشراء تلقائيًا.');
+    } catch (e) { setThresholdError(e instanceof Error ? e.message : 'تعذر حفظ حد إعادة الطلب.'); }
+    finally { setThresholdSaving(false); }
   }
   return <>
     <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
-    <div className="toolbar">
-      <span className="toolbar-note">{data?.length ?? 0} منتج في الكتالوج</span>
-      <div className="toolbar-actions">
-        <Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button>
-        <Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button>
-      </div>
-    </div>
-    <section className="panel table-panel">
-      <div className="table-head">
-        <h2>كتالوج المنتجات</h2>
-        <label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز..." /></label>
-      </div>
-      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap>
-        <table>
-          <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>السعر</th><th>المتاح</th><th>الحالة</th><th>إجراء المخزون</th><th /></tr></thead>
-          <tbody>{rows.map((p) => {
-            const qty = p.inventory?.quantity_available ?? 0;
-            const low = qty <= (p.inventory?.reorder_point ?? p.min_stock);
-            return <tr key={p.id}>
-              <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small></td>
-              <td><code>{p.item_code}</code></td>
-              <td>{p.category?.name ?? 'غير مصنف'}</td>
-              <td>{formatCurrency(p.base_price)}</td>
-              <td>{formatNumber(qty)} {p.unit}</td>
-              <td><span className={`badge ${low ? 'warning' : 'success'}`}>{low ? 'منخفض' : 'متوفر'}</span></td>
-              <td><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button></td>
-              <td><div className="row-actions">
-                <button aria-label={`تعديل ${p.name}`} onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button>
-                <button aria-label={`حذف ${p.name}`} onClick={() => remove(p)}><Trash2 size={15} /></button>
-              </div></td>
-            </tr>;
-          })}</tbody>
-        </table>
-        {!rows.length && <Empty text="لا توجد منتجات مطابقة" />}
-      </TableWrap>}
+    <div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} منتج في الكتالوج</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button></div></div>
+    <section className="panel table-panel"><div className="table-head"><h2>كتالوج المنتجات</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الرمز..." /></label></div>
+      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table>
+        <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>السعر</th><th>المتاح</th><th>الحالة</th><th>إجراء المخزون</th><th /></tr></thead>
+        <tbody>{rows.map((p) => {
+          const qty = p.inventory?.quantity_available ?? 0;
+          const low = qty <= (p.inventory?.reorder_point ?? p.min_stock);
+          return <tr key={p.id}>
+            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td>{formatCurrency(p.base_price)}</td><td>{formatNumber(qty)} {p.unit}</td>
+            <td><span className={'badge ' + (low ? 'warning' : 'success')}>{low ? 'منخفض' : 'متوفر'}</span></td>
+            <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button>{canManageReorderPoint && <Button variant="outline" onClick={() => openThreshold(p)}>حد إعادة الطلب</Button>}</div></td>
+            <td><div className="row-actions"><button aria-label={'تعديل ' + p.name} onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button><button aria-label={'حذف ' + p.name} onClick={() => remove(p)}><Trash2 size={15} /></button></div></td>
+          </tr>;
+        })}</tbody>
+      </table>{!rows.length && <Empty text="لا توجد منتجات مطابقة" />}</TableWrap>}
     </section>
     {modal && <ProductModal product={editing} onClose={() => setModal(false)} onSaved={() => { setModal(false); refetch(); onNotice(editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج'); }} />}
-    {transferProduct && <Modal title={`نقل مخزون — ${transferProduct.name}`} onClose={() => { if (!transferSaving) setTransferProduct(null); }}>
+    {transferProduct && <Modal title={'نقل مخزون — ' + transferProduct.name} onClose={() => { if (!transferSaving) setTransferProduct(null); }}>
       <p style={{ marginTop: 0, color: 'var(--muted-foreground, #64748b)' }}>يُنفَّذ النقل بمعاملة واحدة، ولا تُنقل الكميات المحجوزة للطلبات. إعادة المحاولة بنفس المفتاح لا تكرر الحركة.</p>
       {warehousesLoading ? <Loading /> : warehousesError ? <ErrorBox message={warehousesError} /> : (warehouses ?? []).length < 2 ? <ErrorBox message="يلزم وجود مستودعين نشطين على الأقل داخل المؤسسة لإجراء النقل." /> : <>
-        <Field label="مستودع المصدر">
-          <select value={transferSource} onChange={(e) => setTransferSource(e.target.value)}>
-            <option value="">اختر المستودع المصدر</option>
-            {(warehouses ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ` — ${w.code}` : ''}</option>)}
-          </select>
-        </Field>
-        <Field label="المستودع المستلم">
-          <select value={transferDestination} onChange={(e) => setTransferDestination(e.target.value)}>
-            <option value="">اختر المستودع المستلم</option>
-            {(warehouses ?? []).filter((w) => w.id !== transferSource).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ` — ${w.code}` : ''}</option>)}
-          </select>
-        </Field>
-        <div className="form-grid">
-          <Field label="الكمية المراد نقلها (يُتحقق الخادم من المتاح بعد الحجوزات)">
-            <input type="number" min="0.001" max="999999999999.999" step="0.001" value={transferQuantity} onChange={(e) => setTransferQuantity(e.target.value)} />
-          </Field>
-          <Field label="سبب النقل">
-            <input maxLength={1000} value={transferReason} onChange={(e) => setTransferReason(e.target.value)} />
-          </Field>
-        </div>
+        <Field label="مستودع المصدر"><select value={transferSource} onChange={(e) => setTransferSource(e.target.value)}><option value="">اختر المستودع المصدر</option>{(warehouses ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ' — ' + w.code : ''}</option>)}</select></Field>
+        <Field label="المستودع المستلم"><select value={transferDestination} onChange={(e) => setTransferDestination(e.target.value)}><option value="">اختر المستودع المستلم</option>{(warehouses ?? []).filter((w) => w.id !== transferSource).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ' — ' + w.code : ''}</option>)}</select></Field>
+        <div className="form-grid"><Field label="الكمية المراد نقلها (يُتحقق الخادم من المتاح بعد الحجوزات)"><input type="number" min="0.001" max="999999999999.999" step="0.001" value={transferQuantity} onChange={(e) => setTransferQuantity(e.target.value)} /></Field><Field label="سبب النقل"><input maxLength={1000} value={transferReason} onChange={(e) => setTransferReason(e.target.value)} /></Field></div>
         {transferError && <div className="form-error" role="alert">{transferError}</div>}
-        <div className="modal-actions">
-          <Button variant="outline" onClick={() => setTransferProduct(null)} disabled={transferSaving}>إلغاء</Button>
-          <Button onClick={submitTransfer} disabled={transferSaving || !transferSource || !transferDestination || transferSource === transferDestination || !transferQuantity || !transferReason.trim()}>
-            {transferSaving ? 'جارٍ تسجيل حركة النقل...' : 'تنفيذ النقل'}
-          </Button>
-        </div>
+        <div className="modal-actions"><Button variant="outline" onClick={() => setTransferProduct(null)} disabled={transferSaving}>إلغاء</Button><Button onClick={submitTransfer} disabled={transferSaving || !transferSource || !transferDestination || transferSource === transferDestination || !transferQuantity || !transferReason.trim()}>{transferSaving ? 'جارٍ تسجيل حركة النقل...' : 'تنفيذ النقل'}</Button></div>
+      </>}
+    </Modal>}
+    {thresholdProduct && <Modal title={'حد إعادة الطلب — ' + thresholdProduct.name} onClose={closeThreshold}>
+      <p style={{ marginTop: 0, color: 'var(--muted-foreground, #64748b)' }}>يُحفظ الحد حسب الصنف والمستودع. تغيير الحد يحدّث مهمة إعادة الطلب تلقائيًا ويسجل السبب والمستخدم؛ لا يُنشأ رصيد مفقود افتراضيًا.</p>
+      {warehousesLoading ? <Loading /> : warehousesError ? <ErrorBox message={warehousesError} /> : (warehouses ?? []).length === 0 ? <ErrorBox message="لا يوجد مستودع نشط داخل المؤسسة." /> : <>
+        <Field label="المستودع"><select value={thresholdWarehouse} onChange={(e) => { const id = e.target.value; setThresholdWarehouse(id); if (id) void loadThresholdSnapshot(thresholdProduct.id, id); }}>{(warehouses ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ' — ' + w.code : ''}</option>)}</select></Field>
+        {thresholdLoading ? <Loading /> : thresholdCurrent ? <p style={{ margin: 0, color: 'var(--muted-foreground, #64748b)' }}>المتاح المسجل: {formatNumber(thresholdCurrent.quantity_available)} — الحد الحالي: {thresholdCurrent.reorder_point === null ? 'غير مضبوط' : formatNumber(thresholdCurrent.reorder_point)}</p> : null}
+        <Field label="حد إعادة الطلب بوحدات الصنف"><input type="number" min="0" max="1000000000" step="1" value={thresholdValue} onChange={(e) => setThresholdValue(e.target.value)} placeholder="أدخل عددًا صحيحًا" /></Field>
+        <Field label="سبب تغيير الحد"><input maxLength={1000} value={thresholdReason} onChange={(e) => setThresholdReason(e.target.value)} /></Field>
+        {thresholdError && <div className="form-error" role="alert">{thresholdError}</div>}
+        <div className="modal-actions"><Button variant="outline" onClick={closeThreshold} disabled={thresholdSaving}>إلغاء</Button><Button onClick={submitThreshold} disabled={thresholdSaving || thresholdLoading || !thresholdCurrent || thresholdValue.trim() === '' || !Number.isSafeInteger(Number(thresholdValue)) || Number(thresholdValue) < 0 || Number(thresholdValue) > 1000000000 || !thresholdReason.trim()}>{thresholdSaving ? 'جارٍ حفظ الحد...' : 'حفظ حد إعادة الطلب'}</Button></div>
       </>}
     </Modal>}
   </>;

@@ -876,6 +876,58 @@ export async function fetchActiveInventoryWarehouses(): Promise<ActiveInventoryW
   return (data ?? []) as ActiveInventoryWarehouse[];
 }
 
+export type InventoryReorderPointSnapshot = {
+  reorder_point: number | null;
+  quantity_available: number;
+};
+
+export async function fetchInventoryReorderPoint(productId: string, warehouseId: string): Promise<InventoryReorderPointSnapshot | null> {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuid.test(productId) || !uuid.test(warehouseId)) throw new Error('معرّف الصنف أو المستودع غير صالح.');
+  const { data, error } = await supabase
+    .from('inventory_balances')
+    .select('reorder_point,quantity_available')
+    .eq('product_id', productId)
+    .eq('warehouse_id', warehouseId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const available = Number(data.quantity_available);
+  if (!Number.isFinite(available)) throw new Error('رصيد المخزون المسترجع غير صالح.');
+  return {
+    reorder_point: data.reorder_point === null ? null : Number(data.reorder_point),
+    quantity_available: available,
+  };
+}
+
+export type InventoryReorderPointResult = {
+  balance_id: string;
+  product_id: string;
+  warehouse_id: string;
+  previous_reorder_point: number | null;
+  reorder_point: number;
+  quantity_available: number;
+  unchanged: boolean;
+};
+
+export async function setInventoryReorderPoint(input: { productId: string; warehouseId: string; reorderPoint: number; reason: string }): Promise<InventoryReorderPointResult> {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuid.test(input.productId) || !uuid.test(input.warehouseId)) throw new Error('معرّف الصنف أو المستودع غير صالح.');
+  if (!Number.isSafeInteger(input.reorderPoint) || input.reorderPoint < 0 || input.reorderPoint > 1000000000) {
+    throw new Error('حد إعادة الطلب يجب أن يكون عددًا صحيحًا بين صفر ومليار.');
+  }
+  const reason = input.reason.trim();
+  if (!reason || reason.length > 1000) throw new Error('سبب التعديل مطلوب ولا يتجاوز 1000 حرف.');
+  const { data, error } = await supabase.rpc('set_inventory_reorder_point', {
+    p_product_id: input.productId,
+    p_warehouse_id: input.warehouseId,
+    p_reorder_point: input.reorderPoint,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('لم يؤكد الخادم نتيجة تعديل حد إعادة الطلب.');
+  return data as InventoryReorderPointResult;
+}
 export type InventoryTransferResult = {
   transfer_id: string;
   product_id: string;
