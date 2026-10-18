@@ -51,8 +51,8 @@ BEGIN
       ci.invoice_number,
       ci.customer_id,
       COALESCE(
-        NULLIF(pg_catalog.btrim(c.company_name), ''),
-        NULLIF(pg_catalog.btrim(c.full_name), ''),
+        NULLIF(pg_catalog.btrim(c.business_name), ''),
+        NULLIF(pg_catalog.btrim(c.contact_name), ''),
         ci.customer_id::text
       ) AS customer_name,
       ci.issued_at,
