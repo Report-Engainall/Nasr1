@@ -21,6 +21,33 @@ const CORS = {
 function reply(value: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(value), { status, headers: CORS });
 }
+async function readBoundedBody(request: Request, limit: number): Promise<Uint8Array | null> {
+  const contentLength = Number(request.headers.get("content-length") ?? "");
+  if (Number.isFinite(contentLength) && contentLength > limit) return null;
+  if (!request.body) return new Uint8Array();
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const result = await reader.read();
+      if (result.done) break;
+      total += result.value.byteLength;
+      if (total > limit) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(result.value);
+    }
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.byteLength; }
+    return merged;
+  } catch {
+    try { await reader.cancel(); } catch { /* keep failure bounded */ }
+    return null;
+  }
+}
 function uuid(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
@@ -81,10 +108,10 @@ if (runtime) runtime.serve(async (request) => {
       .eq("organization_id", profile.organization_id)
       .maybeSingle();
     if (productError || !product) return reply({ error: "product_not_in_organization" }, 404);
-    let buffer: ArrayBuffer;
-    try { buffer = await request.arrayBuffer(); } catch { return reply({ error: "invalid_image" }, 400); }
-    if (buffer.byteLength < 1 || buffer.byteLength > PRODUCT_IMAGE_MAX_BYTES) return reply({ error: "invalid_image_size" }, 413);
-    bytes = new Uint8Array(buffer);
+    const boundedBytes = await readBoundedBody(request, PRODUCT_IMAGE_MAX_BYTES);
+    if (!boundedBytes) return reply({ error: "invalid_image_size" }, 413);
+    if (boundedBytes.byteLength < 1) return reply({ error: "invalid_image" }, 400);
+    bytes = boundedBytes;
     if (!isWebpPayload(bytes)) return reply({ error: "webp_signature_required" }, 415);
   }
 

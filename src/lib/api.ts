@@ -1,7 +1,7 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
 import { countLowStockBalances } from './inventory-metrics';
 import { retryRead } from './retry';
-import { buildProductImageObjectPath, PRODUCT_IMAGE_BUCKET, PRODUCT_IMAGE_MAX_BYTES } from './product-image';
+import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
 import { validateCustomerInput } from './customer-input';
 import type {
   Product, Category, Customer, Supplier, Order, OrderItem,

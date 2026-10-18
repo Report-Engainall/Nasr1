@@ -18,8 +18,10 @@ export function isValidProductImageObjectPath(path: unknown, organizationId: str
 
 export function isWebpPayload(bytes: Uint8Array): boolean {
   if (bytes.byteLength < 12) return false;
+  const riffSize = (bytes[4] | (bytes[5] << 8) | (bytes[6] << 16) | (bytes[7] << 24)) >>> 0;
   return bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
-    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50 &&
+    riffSize + 8 === bytes.byteLength;
 }
 
 export function hasAllowedProductImageRole(roles: readonly unknown[]): boolean {

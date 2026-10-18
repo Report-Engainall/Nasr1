@@ -24,7 +24,7 @@ describe("server-authoritative product image security contract", () => {
   });
   it("checks actual WebP RIFF/WEBP signature and explicit byte ceiling", () => {
     const valid = new Uint8Array(12);
-    valid.set([0x52,0x49,0x46,0x46], 0); valid.set([0x57,0x45,0x42,0x50], 8);
+    valid.set([0x52,0x49,0x46,0x46], 0); valid.set([4,0,0,0], 4); valid.set([0x57,0x45,0x42,0x50], 8);
     expect(isWebpPayload(valid)).toBe(true);
     expect(isWebpPayload(new Uint8Array([0x52,0x49,0x46,0x46]))).toBe(false);
     expect(isWebpPayload(new TextEncoder().encode("<html>"))).toBe(false);
