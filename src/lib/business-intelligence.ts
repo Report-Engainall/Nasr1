@@ -13,6 +13,15 @@ export interface BusinessSnapshot {
   completionRate: number;
   cancellationRate: number;
 }
+export interface BusinessStatusBreakdown {
+  status: string;
+  count: number;
+  share: number;
+  /** Null when this status includes an invalid amount or its sum is unsafe. */
+  value: number | null;
+  invalidAmountCount: number;
+}
+
 export interface BusinessSignal {
   kind: BusinessSignalKind;
   severity: 'info' | 'warning' | 'critical';
@@ -127,4 +136,54 @@ export function buildBusinessSignals(input: BusinessIntelligenceOrder[] | null |
     }
   }
   return signals;
+}
+
+/**
+ * Build a status breakdown from observed orders. Counts remain usable when monetary
+ * data is invalid, but monetary totals fail closed for that status instead of treating
+ * unknown values as zero. The input is the current tenant-scoped result set, not a forecast.
+ */
+export function buildBusinessStatusBreakdown(
+  input: BusinessIntelligenceOrder[] | null | undefined,
+): BusinessStatusBreakdown[] {
+  const orders = safeOrders(input);
+  if (orders.length === 0) return [];
+
+  const grouped = new Map<string, {
+    count: number;
+    sum: number;
+    invalidAmountCount: number;
+    overflow: boolean;
+  }>();
+
+  for (const order of orders) {
+    const status = order.status.trim() || "unknown";
+    const current = grouped.get(status) ?? {
+      count: 0,
+      sum: 0,
+      invalidAmountCount: 0,
+      overflow: false,
+    };
+    current.count += 1;
+    const amount = finiteMoney(order.total_amount);
+    if (amount === null) {
+      current.invalidAmountCount += 1;
+    } else {
+      current.sum += amount;
+      if (!Number.isFinite(current.sum) || current.sum > Number.MAX_SAFE_INTEGER) {
+        current.overflow = true;
+      }
+    }
+    grouped.set(status, current);
+  }
+
+  return [...grouped.entries()]
+    .map(([status, row]) => ({
+      status,
+      count: row.count,
+      share: row.count / orders.length,
+      value: row.invalidAmountCount === 0 && !row.overflow ? row.sum : null,
+      invalidAmountCount: row.invalidAmountCount,
+    }))
+    .sort((a, b) => b.count - a.count || a.status.localeCompare(b.status));
 }

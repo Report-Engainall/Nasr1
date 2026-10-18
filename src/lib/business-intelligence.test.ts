@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBusinessSignals, buildBusinessSnapshot, type BusinessIntelligenceOrder } from './business-intelligence';
+import { buildBusinessSignals, buildBusinessSnapshot, buildBusinessStatusBreakdown, type BusinessIntelligenceOrder } from './business-intelligence';
 
 const order = (overrides: Partial<BusinessIntelligenceOrder> = {}): BusinessIntelligenceOrder => ({
   id: 'order-1', customer_id: 'customer-1', status: 'pending', total_amount: 100, ...overrides,
@@ -61,8 +61,41 @@ describe('live-commerce business intelligence', () => {
     expect(missingCustomer.find((signal) => signal.kind === 'customer_concentration')).toBeUndefined();
   });
 
+  it('builds a deterministic status breakdown from observed orders', () => {
+    const rows = buildBusinessStatusBreakdown([
+      order({ id: 'a', customer_id: 'one', status: 'delivered', total_amount: 120 }),
+      order({ id: 'b', customer_id: 'two', status: 'pending', total_amount: 30 }),
+      order({ id: 'c', customer_id: 'one', status: 'delivered', total_amount: 80 }),
+    ]);
+    expect(rows).toEqual([
+      { status: 'delivered', count: 2, share: 2 / 3, value: 200, invalidAmountCount: 0 },
+      { status: 'pending', count: 1, share: 1 / 3, value: 30, invalidAmountCount: 0 },
+    ]);
+    expect(buildBusinessStatusBreakdown([])).toEqual([]);
+    expect(buildBusinessStatusBreakdown(null)).toEqual([]);
+  });
+
+  it('keeps counts but withholds status value if any recorded amount is invalid or overflows', () => {
+    const rows = buildBusinessStatusBreakdown([
+      order({ id: 'a', status: 'delivered', total_amount: 100 }),
+      order({ id: 'b', status: 'delivered', total_amount: Number.NaN }),
+      order({ id: 'c', status: 'pending', total_amount: 20 }),
+      order({ id: 'd', status: 'pending', customer_id: 'another', total_amount: 30 }),
+    ]);
+    expect(rows.find((row) => row.status === 'delivered')).toMatchObject({
+      count: 2, value: null, invalidAmountCount: 1,
+    });
+    expect(rows.find((row) => row.status === 'pending')).toMatchObject({
+      count: 2, value: 50, invalidAmountCount: 0,
+    });
+    expect(buildBusinessStatusBreakdown([
+      order({ id: 'max', status: 'delivered', total_amount: Number.MAX_SAFE_INTEGER }),
+      order({ id: 'overflow', customer_id: 'other', status: 'delivered', total_amount: 1 }),
+    ])).toMatchObject([{ status: 'delivered', count: 2, value: null }]);
+  });
+
   it('does not present totals as complete when any amount is invalid or arithmetic overflows', () => {
     expect(buildBusinessSnapshot([order({ total_amount: 'unknown' as unknown as number })])).toMatchObject({ invalidAmountCount: 1, grossValue: null });
     expect(buildBusinessSnapshot([order({ total_amount: Number.MAX_SAFE_INTEGER }), order({ id: 'overflow', customer_id: 'other', total_amount: 1 })])).toMatchObject({ invalidAmountCount: 0, grossValue: null });
   });
-});
+}

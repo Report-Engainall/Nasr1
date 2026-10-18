@@ -15,7 +15,7 @@ import {
 import type { CustomerTierPricePreview } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
-import type { Category, CreatePricingRuleInput, Customer, PricingRule, ProductWithInventory, Promotion } from '@/lib/types';
+import { ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory, type Promotion } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { useNavigate } from '@tanstack/react-router';
 import { Login } from '@/components/Login';
@@ -25,7 +25,7 @@ import {
   TableWrap, Modal, Notifications, OrderDetail, SettingsPage, Suppliers,
 } from '@/components/AdminPages';
 import { OperationsCenter } from '@/components/OperationsCenter';
-import { buildBusinessSignals } from '@/lib/business-intelligence';
+import { buildBusinessSignals, buildBusinessStatusBreakdown } from '@/lib/business-intelligence';
 import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
 import { TaskCenter } from '@/components/TaskCenter';
@@ -852,6 +852,7 @@ function Reports() {
   const { data: products } = useFetch(fetchProducts);
   const { data: orders, loading: ordersLoading, error: ordersError } = useFetch(fetchOrders);
   const signals = useMemo(() => buildBusinessSignals(orders ?? []), [orders]);
+  const statusBreakdown = useMemo(() => buildBusinessStatusBreakdown(orders ?? []), [orders]);
   return <>
     <Heading eyebrow="التحليل التنفيذي" title="التقارير الذكية" description="مؤشرات قابلة للتنفيذ مبنية على البيانات التشغيلية الحالية" icon={BarChart3} />
     <div className="report-hero"><div><span>ملخص الأداء</span><h2>الأغبري في أرقام</h2><p>تتحدث المؤشرات من قاعدة البيانات مباشرة.</p></div><TrendingUp size={50} /></div>
@@ -871,6 +872,19 @@ function Reports() {
             <small>الدليل: {formatNumber(signal.evidence.orderCount)} طلب، {formatNumber(signal.evidence.customerCount)} عميل معروف</small>
           </article>)}</div>}
       <p className="report-note" style={{ marginTop: 12 }}>لا تُستنتج أسباب الإلغاء أو أثرها المالي. ويُحجب تنبيه تركّز قيمة المبيعات عند وجود مبلغ أو معرّف عميل غير صالح.</p>
+    </section>
+    <section className="panel" style={{ marginTop: 16 }}>
+      <div className="panel-head"><div><h2>توزيع الطلبات حسب الحالة</h2><p>عدّ ومبالغ من الطلبات الفعلية التي أعادها الخادم للمؤسسة الحالية؛ لا يتم تقدير القيم المفقودة.</p></div><ShoppingCart size={22} /></div>
+      {ordersLoading ? <Loading /> : ordersError ? <ErrorBox message={ordersError} /> : statusBreakdown.length === 0 ? <Empty text="لا توجد طلبات مسجلة لعرض توزيع الحالات." /> :
+        <TableWrap><table><thead><tr><th>الحالة</th><th>عدد الطلبات</th><th>النسبة</th><th>قيمة الطلبات</th></tr></thead><tbody>
+          {statusBreakdown.map((row) => <tr key={row.status}>
+            <td>{ORDER_STATUS_LABELS[row.status] ?? row.status}</td>
+            <td>{formatNumber(row.count)}</td>
+            <td>{formatNumber(Math.round(row.share * 100))}%</td>
+            <td>{row.value === null ? <span title={row.invalidAmountCount + ' مبالغ غير صالحة'}>غير مكتمل — {formatNumber(row.invalidAmountCount)} مبلغ غير صالح</span> : formatCurrency(row.value)}</td>
+          </tr>)}
+        </tbody></table></TableWrap>}
+      <p className="report-note" style={{ marginTop: 10 }}>النسب من مجموعة الطلبات المحمّلة فقط. إذا احتوى وضعٌ ما على مبلغ غير صالح، يبقى عدد الطلبات ظاهرًا وتُحجب القيمة المالية لذلك الوضع.</p>
     </section>
     <section className="panel report-note"><FileText size={21} /><div><h2>قرار اليوم</h2><p>{(stats?.lowStockCount ?? 0) > 0 ? 'ابدأ بمراجعة الأصناف منخفضة المخزون قبل استقبال الطلبات الجديدة.' : 'المخزون ضمن الحدود الآمنة. ركّز على نمو المبيعات والعملاء الجدد.'}</p></div></section>
   </>;
