@@ -28,3 +28,14 @@ This project must resume from repository evidence; the owner must not be asked t
 6. `AGENTS.md` is the shared agent-instruction source; `.github/copilot-instructions.md` provides GitHub Copilot's repository-wide entry point. Lovable's official Knowledge documentation explicitly says a root-level `AGENTS.md` is always read by its agent regardless of session length: https://docs.lovable.dev/features/knowledge. This root file is therefore the free persistent-instruction fallback; do not duplicate the full specification in Project Knowledge merely to persist resume rules. Still distinguish that documented loader behavior from proof that a particular new Git SHA has synchronized into the live Lovable project/editor. Never claim the latter without direct evidence.
 
 Execution order: `INSPECT CURRENT STATE → RESUME NEXT OPEN TASK → IMPLEMENT → TEST → FIX → VERIFY → COMMIT → PUSH MAIN → SYNC LOVABLE`.
+
+
+## Mandatory every-session delivery rule — no zero-progress launches
+
+Every new execution/session MUST deliver a real, repository-backed increment before stopping. This is an execution requirement, not a request to produce another plan or status-only report.
+
+1. Resume from `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`; verify live `main` HEAD and exact-SHA CI once, then perform the recorded next task.
+2. In each session, implement at least one small but meaningful end-to-end code/test improvement in Nasr1, attempt the relevant real checks, fix any discovered regression, and commit the code plus evidence/state updates. Do not count reading files, writing a plan, changing status text alone, or creating an unconnected UI as the required implementation increment.
+3. If the recorded task is blocked by a concrete external dependency, record the blocker with evidence and immediately implement/test the highest-priority independent task that is not blocked. Never invent a passing test or claim execution that did not occur.
+4. Before finishing, update the single canonical `CURRENT_EXECUTION_STATE.md` with the real code commit, actual check status (PASS/FAIL/PENDING/BLOCKED), exact tested SHA, and one next task ID. Append details to `EXECUTION_LOG.md`. Keep `AGENTS.md` as this permanent rule source; do not create competing resume cursors.
+5. The completion response must lead with the code change and links/evidence, then clearly distinguish IMPLEMENTED, TESTED, BROWSER-PROVEN, and PRODUCTION-PROVEN. If no code change could be safely completed, explain the evidence-backed blocker and the independent work performed; never present documentation-only work as a code-delivery session.
