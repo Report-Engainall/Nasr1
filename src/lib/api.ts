@@ -1,10 +1,22 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
+import { retryRead } from './retry';
 import type {
   Product, Category, Customer, Supplier, Order, OrderItem,
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
   ProductWithInventory, OrderWithCustomer, AdminSetting, ImportJob, ImportJobRow,
   OperationalTask, OperationalTaskRole, OperationalTaskStatus, OperationalTaskAssignee,
 } from './types';
+
+type SupabaseReadOutcome<T> = { data: T | null; error: unknown | null };
+
+/** Retries transient READ failures only. Never use this helper for writes, RPC commands, or finance mutations. */
+async function readWithRetry<T>(operation: () => PromiseLike<SupabaseReadOutcome<T>>): Promise<T | null> {
+  return retryRead(async () => {
+    const { data, error } = await operation();
+    if (error) throw error;
+    return data;
+  });
+}
 
 // Fetch unit prices using the server-derived customer/company tier. The client never
 // supplies a tier, customer id, or organization id, and must fail closed if any price is missing.
@@ -23,11 +35,16 @@ export async function fetchResolvedProductPrices(
   const prices = new Map<string, number>();
   for (let offset = 0; offset < uniqueIds.length; offset += 500) {
     const chunk = uniqueIds.slice(offset, offset + 500);
-    const { data, error } = await supabase.rpc("get_storefront_product_prices", {
-      p_product_ids: chunk,
-      p_quantity: quantity,
-    });
-    if (error || !Array.isArray(data)) {
+    let data: unknown;
+    try {
+      data = await readWithRetry(() => supabase.rpc("get_storefront_product_prices", {
+        p_product_ids: chunk,
+        p_quantity: quantity,
+      }));
+    } catch {
+      throw new Error("تعذر تحميل أسعار فئة حسابك من الخادم؛ أُخفيت الأسعار حتى اكتمال التحقق.");
+    }
+    if (!Array.isArray(data)) {
       throw new Error("تعذر تحميل أسعار فئة حسابك من الخادم؛ أُخفيت الأسعار حتى اكتمال التحقق.");
     }
     for (const row of data as Array<{ product_id?: unknown; unit_price?: unknown }>) {
@@ -56,17 +73,15 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
   if (isStaff) {
     // Sensitive product columns are not directly SELECTable by browser roles.
     // Staff reads cross this tenant-bound, role-checked RPC instead of table-wide SELECT.
-    const { data, error } = await supabase.rpc('fetch_staff_products', { p_product_id: null });
-    if (error) throw error;
+    const data = await readWithRetry(() => supabase.rpc('fetch_staff_products', { p_product_id: null }));
     products = ((data ?? []) as Product[]).sort((a, b) => a.name.localeCompare(b.name));
   } else {
-    const { data, error } = await supabase
+    const data = await readWithRetry(() => supabase
       .from('products')
       .select(publicProductColumns)
       .eq('organization_id', orgId)
       .eq('status', 'active')
-      .order('name');
-    if (error) throw error;
+      .order('name'));
     products = (data ?? []) as unknown as Product[];
   }
 
@@ -74,27 +89,28 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
     ? null
     : await fetchResolvedProductPrices(((products ?? []) as Array<{ id: string }>).map((product) => product.id));
 
-  const inventoryResult = warehouseId
-    ? await supabase
+  const inventory = warehouseId
+    ? await readWithRetry(() => supabase
         .from('inventory_balances')
         .select(isStaff ? '*' : 'id,product_id,warehouse_id,quantity_on_hand,quantity_available')
-        .eq('warehouse_id', warehouseId)
-    : { data: [] as InventoryBalance[], error: null };
-  const { data: inventory, error: inventoryError } = inventoryResult;
-  if (inventoryError) throw inventoryError;
+        .eq('warehouse_id', warehouseId))
+    : [];
 
   const invMap = new Map<string, InventoryBalance>();
   (inventory as unknown as InventoryBalance[] | null)?.forEach((inv) => invMap.set(inv.product_id, inv));
 
-  let categoriesQuery = supabase
-    .from('categories')
-    .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active')
-    .eq('organization_id', orgId);
-  // Categories can contain internal descriptions; expose only storefront fields and active
-  // categories to non-staff clients. Keep the full scoped projection for staff maintenance.
-  if (!isStaff) categoriesQuery = categoriesQuery.eq('is_active', true);
-  const { data: categories, error: categoryError } = await categoriesQuery;
-  if (categoryError) throw categoryError;
+  const categories = await retryRead(async () => {
+    let query = supabase
+      .from('categories')
+      .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active')
+      .eq('organization_id', orgId);
+    // Categories can contain internal descriptions; expose only storefront fields and active
+    // categories to non-staff clients. Keep the full scoped projection for staff maintenance.
+    if (!isStaff) query = query.eq('is_active', true);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data ?? [];
+  });
   const catMap = new Map<string, Category>();
   (categories as unknown as Category[] | null)?.forEach((cat) => catMap.set(cat.id, cat));
 
@@ -151,13 +167,16 @@ export async function deleteProduct(id: string): Promise<void> {
 // ─── Categories ───
 export async function fetchCategories(): Promise<Category[]> {
   const { organizationId: orgId, isStaff } = await getStorefrontDataScope();
-  let query = supabase
-    .from('categories')
-    .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active')
-    .eq('organization_id', orgId);
-  if (!isStaff) query = query.eq('is_active', true);
-  const { data, error } = await query.order('sort_order');
-  if (error) throw error;
+  const data = await retryRead(async () => {
+    let query = supabase
+      .from('categories')
+      .select(isStaff ? '*' : 'id,name,code,parent_id,sort_order,is_active')
+      .eq('organization_id', orgId);
+    if (!isStaff) query = query.eq('is_active', true);
+    const { data, error } = await query.order('sort_order');
+    if (error) throw error;
+    return data ?? [];
+  });
   return data as unknown as Category[];
 }
 
@@ -180,13 +199,12 @@ export async function deleteCategory(id: string): Promise<void> {
 // ─── Customers ───
 export async function fetchCustomers(): Promise<Customer[]> {
   const { organizationId: orgId } = await getCurrentTenantScope();
-  const { data, error } = await supabase
+  const data = await readWithRetry(() => supabase
     .from('customers')
     .select('*')
     .eq('organization_id', orgId)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data as Customer[];
+    .order('created_at', { ascending: false }));
+  return (data ?? []) as Customer[];
 }
 
 export async function createCustomer(c: Partial<Customer>): Promise<Customer> {
@@ -211,13 +229,12 @@ export async function updateCustomerStatus(id: string, status: string): Promise<
 // ─── Suppliers ───
 export async function fetchSuppliers(): Promise<Supplier[]> {
   const { organizationId: orgId } = await getCurrentTenantScope();
-  const { data, error } = await supabase
+  const data = await readWithRetry(() => supabase
     .from('suppliers')
     .select('*')
     .eq('organization_id', orgId)
-    .order('name');
-  if (error) throw error;
-  return data as Supplier[];
+    .order('name'));
+  return (data ?? []) as Supplier[];
 }
 
 export async function createSupplier(s: Partial<Supplier>): Promise<Supplier> {
@@ -236,14 +253,11 @@ export async function fetchOrders(): Promise<OrderWithCustomer[]> {
   const { organizationId: orgId } = await getCurrentTenantScope();
   // The staff-only SECURITY DEFINER RPC derives the tenant from the signed-in profile.
   // The client can no longer SELECT financial order columns directly.
-  const { data: orders, error } = await supabase.rpc('fetch_staff_orders');
-  if (error) throw error;
-
-  const { data: customers, error: customersError } = await supabase
+  const orders = await readWithRetry(() => supabase.rpc('fetch_staff_orders'));
+  const customers = await readWithRetry(() => supabase
     .from('customers')
     .select('*')
-    .eq('organization_id', orgId);
-  if (customersError) throw customersError;
+    .eq('organization_id', orgId));
   const custMap = new Map<string, Customer>();
   customers?.forEach((c: Customer) => custMap.set(c.id, c));
 
@@ -256,10 +270,9 @@ export async function fetchOrders(): Promise<OrderWithCustomer[]> {
 export async function fetchOrderItems(orderId: string): Promise<OrderItem[]> {
   // Financial item columns are intentionally not selectable by authenticated users.
   // The RPC checks staff status, active profile and tenant ownership before returning the full row.
-  const { data, error } = await supabase.rpc('fetch_staff_order_items', {
+  const data = await readWithRetry(() => supabase.rpc('fetch_staff_order_items', {
     p_order_id: orderId,
-  });
-  if (error) throw error;
+  }));
   return (data ?? []) as OrderItem[];
 }
 
@@ -338,13 +351,12 @@ export async function createOrder(order: {
 // ─── Pricing rules ───
 export async function fetchPricingRules(): Promise<PricingRule[]> {
   const { organizationId: orgId } = await getCurrentTenantScope();
-  const { data, error } = await supabase
+  const data = await readWithRetry(() => supabase
     .from('pricing_rules')
     .select('*')
     .eq('organization_id', orgId)
-    .order('priority');
-  if (error) throw error;
-  return data as PricingRule[];
+    .order('priority'));
+  return (data ?? []) as PricingRule[];
 }
 
 const SUPPORTED_PRICING_SCOPES = new Set(['default', 'all', 'product', 'category']);
@@ -609,14 +621,13 @@ export async function testAiGatewayConnection(): Promise<{ status: string; provi
 // ─── AI Alerts ───
 export async function fetchAiAlerts(): Promise<AiAlert[]> {
   const { organizationId: orgId } = await getCurrentTenantScope();
-  const { data, error } = await supabase
+  const data = await readWithRetry(() => supabase
     .from('ai_alerts')
     .select('*')
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false })
-    .limit(20);
-  if (error) throw error;
-  return data as AiAlert[];
+    .limit(20));
+  return (data ?? []) as AiAlert[];
 }
 
 export async function resolveAiAlert(id: string): Promise<void> {
@@ -627,13 +638,12 @@ export async function resolveAiAlert(id: string): Promise<void> {
 // ─── AI Tasks ───
 export async function fetchAiTasks(): Promise<AiTask[]> {
   const { organizationId: orgId } = await getCurrentTenantScope();
-  const { data, error } = await supabase
+  const data = await readWithRetry(() => supabase
     .from('ai_tasks')
     .select('*')
     .eq('organization_id', orgId)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data as AiTask[];
+    .order('created_at', { ascending: false }));
+  return (data ?? []) as AiTask[];
 }
 
 export async function toggleAiTaskStatus(id: string, status: string): Promise<void> {
@@ -647,9 +657,8 @@ export async function toggleAiTaskStatus(id: string, status: string): Promise<vo
 // ─── Operational Task Center ───
 export async function fetchOperationalTasks(): Promise<OperationalTask[]> {
   const { organizationId } = await getCurrentTenantScope();
-  const { data, error } = await supabase.from('ai_tasks').select('*')
-    .eq('organization_id', organizationId).order('created_at', { ascending: false });
-  if (error) throw error;
+  const data = await readWithRetry(() => supabase.from('ai_tasks').select('*')
+    .eq('organization_id', organizationId).order('created_at', { ascending: false }));
   return (data ?? []) as OperationalTask[];
 }
 
@@ -722,14 +731,13 @@ export async function refreshOperationalTasks(): Promise<{
 // ─── Notifications ───
 export async function fetchNotifications(): Promise<Notification[]> {
   const { organizationId: orgId } = await getCurrentTenantScope();
-  const { data, error } = await supabase
+  const data = await readWithRetry(() => supabase
     .from('notifications')
     .select('*')
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false })
-    .limit(30);
-  if (error) throw error;
-  return data as Notification[];
+    .limit(30));
+  return (data ?? []) as Notification[];
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
@@ -750,12 +758,11 @@ export async function markAllNotificationsRead(): Promise<void> {
 // ─── Admin Settings ───
 export async function fetchSettings(): Promise<AdminSetting[]> {
   const { organizationId: orgId } = await getCurrentTenantScope();
-  const { data, error } = await supabase
+  const data = await readWithRetry(() => supabase
     .from('admin_settings')
     .select('*')
-    .eq('organization_id', orgId);
-  if (error) throw error;
-  return data as AdminSetting[];
+    .eq('organization_id', orgId));
+  return (data ?? []) as AdminSetting[];
 }
 
 export async function updateSetting(key: string, value: unknown, category: string): Promise<void> {
