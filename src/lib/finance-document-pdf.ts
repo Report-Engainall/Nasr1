@@ -91,19 +91,37 @@ function isoDate(value: unknown): string {
   return date.toISOString().slice(0, 10);
 }
 
-function statusLabel(status: string): string {
-  switch (status) {
-    case "paid":
-      return "مدفوعة";
-    case "partially_paid":
-      return "مدفوعة جزئيًا";
-    case "void":
-      return "ملغاة";
-    case "overdue":
-      return "متأخرة";
-    default:
-      return "مستحقة";
+/**
+ * Derive the displayed collection state from the persisted status and ledger facts.
+ * Due dates are evaluated against the document's fixed generation timestamp, not the
+ * viewer's locale or the time at which a later PDF page happens to be rendered.
+ */
+export function resolveCustomerStatementInvoiceStatus(
+  invoice: Pick<CustomerStatementInvoice, "status" | "due_at" | "total_amount">,
+  paidAmount: bigint,
+  generatedAt: Date,
+): string {
+  if (invoice.status === "void") return "ملغاة";
+
+  const total = moneyToMinorUnits(invoice.total_amount);
+  if (invoice.status === "paid" || (total > 0n && paidAmount >= total)) {
+    return "مدفوعة";
   }
+
+  const dueAtMs = invoice.due_at ? Date.parse(invoice.due_at) : Number.NaN;
+  const generatedAtMs = generatedAt.getTime();
+  const isOverdue =
+    total > paidAmount &&
+    Number.isFinite(dueAtMs) &&
+    Number.isFinite(generatedAtMs) &&
+    dueAtMs < generatedAtMs;
+
+  if (isOverdue) {
+    return paidAmount > 0n ? "متأخرة جزئيًا" : "متأخرة";
+  }
+  if (invoice.status === "partially_paid") return "مدفوعة جزئيًا";
+  if (invoice.status === "overdue") return paidAmount > 0n ? "متأخرة جزئيًا" : "متأخرة";
+  return "مستحقة";
 }
 
 function drawArabic(
@@ -354,7 +372,7 @@ export async function buildCustomerStatementPdf(
     const paid = paidByInvoice.get(invoice.id) ?? 0n;
     const outstanding = invoice.status === "void" || total <= paid ? 0n : total - paid;
 
-    drawArabic(page, font, statusLabel(invoice.status), PAGE_WIDTH - 43, y, 8, INK, 65);
+    drawArabic(page, font, resolveCustomerStatementInvoiceStatus(invoice, paid, generatedAt), PAGE_WIDTH - 43, y, 8, INK, 65);
     drawLtr(page, font, minorUnitsToText(outstanding), 420, y, 8, INK, 65);
     drawLtr(page, font, `${currency} ${minorUnitsToText(paid)}`, 323, y, 7.5, INK, 85);
     drawLtr(page, font, `${currency} ${minorUnitsToText(total)}`, 230, y, 7.5, INK, 82);
