@@ -84,7 +84,7 @@ function cleanLabel(value: unknown, maxLength = 70): string {
   return cleaned ? cleaned.slice(0, maxLength) : "—";
 }
 
-function isoDate(value: unknown): string {
+export function formatFinanceDocumentDate(value: unknown): string {
   if (typeof value !== "string") return "—";
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "—";
@@ -222,7 +222,7 @@ function drawTableHeader(page: PDFPage, font: PDFFont, y: number) {
   drawArabic(page, font, "المدفوع", 366, y, 8, BRAND, 70);
   drawArabic(page, font, "الإجمالي", 275, y, 8, BRAND, 70);
   drawArabic(page, font, "رقم الفاتورة", 183, y, 8, BRAND, 85);
-  drawArabic(page, font, "تاريخ الإصدار", 91, y, 8, BRAND, 75);
+  drawArabic(page, font, "الإصدار / الاستحقاق", 91, y, 7, BRAND, 90);
   drawRule(page, y - 8);
 }
 
@@ -393,9 +393,10 @@ export async function buildCustomerStatementPdf(
     drawLtr(page, font, `${currency} ${minorUnitsToText(paid)}`, 323, y, 7.5, INK, 85);
     drawLtr(page, font, `${currency} ${minorUnitsToText(total)}`, 230, y, 7.5, INK, 82);
     drawLtr(page, font, cleanLabel(invoice.invoice_number, 32), 143, y, 7.5, INK, 82);
-    drawLtr(page, font, isoDate(invoice.issued_at), 43, y, 7.5, INK, 82);
-    drawRule(page, y - 7);
-    y -= 22;
+    drawLtr(page, font, formatFinanceDocumentDate(invoice.issued_at), 43, y + 4, 7.1, INK, 82);
+    drawLtr(page, font, formatFinanceDocumentDate(invoice.due_at), 43, y - 7, 6.8, MUTED, 82);
+    drawRule(page, y - 13);
+    y -= 32;
   };
 
   for (const invoice of invoices) {
@@ -448,7 +449,7 @@ export async function buildCustomerStatementPdf(
     const currency = invoice ? normalizeCurrency(invoice.currency) : "";
     drawLtr(page, font, invoice ? cleanLabel(invoice.invoice_number, 32) : "—", 400, y, 8, INK, 110);
     drawLtr(page, font, `${currency} ${minorUnitsToText(moneyToMinorUnits(payment.amount))}`, 255, y, 8, INK, 120);
-    drawLtr(page, font, isoDate(payment.paid_at), 110, y, 8, INK, 90);
+    drawLtr(page, font, formatFinanceDocumentDate(payment.paid_at), 110, y, 8, INK, 90);
     drawRule(page, y - 7);
     y -= 22;
   }
@@ -611,9 +612,9 @@ export async function buildCustomerInvoicePdf(
   drawArabic(page, font, "رقم الفاتورة", PAGE_WIDTH - 40, PAGE_HEIGHT - 128, 8, MUTED, 90);
   drawLtr(page, font, cleanLabel(invoice.invoice_number, 40), PAGE_WIDTH - 170, PAGE_HEIGHT - 128, 10, INK, 120);
   drawArabic(page, font, "تاريخ الإصدار", PAGE_WIDTH - 40, PAGE_HEIGHT - 150, 8, MUTED, 90);
-  drawLtr(page, font, isoDate(invoice.issued_at), PAGE_WIDTH - 170, PAGE_HEIGHT - 150, 9, INK, 120);
+  drawLtr(page, font, formatFinanceDocumentDate(invoice.issued_at), PAGE_WIDTH - 170, PAGE_HEIGHT - 150, 9, INK, 120);
   drawArabic(page, font, "تاريخ الاستحقاق", 300, PAGE_HEIGHT - 150, 8, MUTED, 90);
-  drawLtr(page, font, isoDate(invoice.due_at), 165, PAGE_HEIGHT - 150, 9, INK, 100);
+  drawLtr(page, font, formatFinanceDocumentDate(invoice.due_at), 165, PAGE_HEIGHT - 150, 9, INK, 100);
   drawArabic(page, font, "العملة", PAGE_WIDTH - 40, PAGE_HEIGHT - 172, 8, MUTED, 60);
   drawLtr(page, font, normalizeCurrency(invoice.currency), PAGE_WIDTH - 120, PAGE_HEIGHT - 172, 9, INK, 60);
   drawArabic(page, font, "الحالة", 300, PAGE_HEIGHT - 172, 8, MUTED, 60);
