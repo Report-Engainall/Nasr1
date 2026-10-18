@@ -2391,7 +2391,7 @@ async function main() {
   await expectFailure(
     "negative reorder points are rejected by the server",
     () => db.unsafe("select public.set_inventory_reorder_point($1::uuid,$2::uuid,$3::integer,$4::text)", [productId,testWarehouseId,-1,"invalid negative threshold"]),
-    /reorder point|حد إعادة الطلب|حد/.i,
+    /reorder point|حد إعادة الطلب|حد/i,
   );
   await expectFailure(
     "threshold changes cannot target a foreign-tenant warehouse",
