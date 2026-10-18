@@ -1178,10 +1178,38 @@ export async function fetchOnyxSnapshotAnalytics(snapshotId: string): Promise<On
   return data as OnyxSnapshotAnalytics;
 }
 
-export async function fetchOnyxSnapshotRows(snapshotId: string) {
-  const { data, error } = await supabase.from('onyx_snapshot_rows').select('*').eq('snapshot_id', snapshotId).order('row_number').limit(100);
+export async function fetchOnyxSnapshotRows(snapshotId: string): Promise<OnyxSnapshotRow[]> {
+  if (!snapshotId.trim()) throw new Error('معرّف لقطة أونكس مطلوب.');
+  const { data, error } = await supabase
+    .from('onyx_snapshot_rows')
+    .select('id,snapshot_id,row_number,canonical_key,row_hash,status,data,errors,created_at')
+    .eq('snapshot_id', snapshotId)
+    .order('row_number')
+    .limit(100);
   if (error) throw error;
-  return data;
+  const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+  return rows.map((row) => {
+    if (
+      typeof row.id !== 'string' || row.snapshot_id !== snapshotId ||
+      typeof row.row_number !== 'number' || !Number.isInteger(row.row_number) || row.row_number < 1 ||
+      typeof row.row_hash !== 'string' || typeof row.status !== 'string' ||
+      typeof row.created_at !== 'string' ||
+      !row.data || typeof row.data !== 'object' || Array.isArray(row.data)
+    ) {
+      throw new Error('أعاد الخادم صفًا غير مكتمل من لقطة أونكس؛ أوقف عرض الصفوف.');
+    }
+    return {
+      id: row.id,
+      snapshot_id: snapshotId,
+      row_number: row.row_number,
+      canonical_key: typeof row.canonical_key === 'string' ? row.canonical_key : null,
+      row_hash: row.row_hash,
+      status: row.status,
+      data: row.data as Record<string, unknown>,
+      errors: row.errors,
+      created_at: row.created_at,
+    };
+  });
 }
 
 export async function runInventoryReconciliation(snapshotId: string) {

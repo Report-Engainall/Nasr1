@@ -139,3 +139,12 @@
 - أغلق `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001` بعد توثيق كل 69 قرارًا وتكامل سجل المصروفات المكيّف. **المهمة التالية الوحيدة:** `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` — مطابقة كل قسم واجهات في المواصفة الأصلية مع المسارات/components الفعلية، ثم تنفيذ أول فجوة قابلة للإثبات مع tests وroute/smoke verification؛ دون إنشاء شاشة شكلية أو بيانات demo.
 - إثبات CI الجاري للوثائق قبل هذا التحديث: [Actions 39172097300 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39172097300) على SHA `2dc06d4bf7b586d698747dff2d66fb3c29c24578`. سيصبح أي commit توثيق جديد بحاجة إلى CI مطابق خاص به.
 - حالات الإثبات غير المتاحة ما زالت واضحة: أرشيفا ZIP لم يُعاد تنزيلهما في هذه الجلسة بسبب أخطاء UTF-8/DNS المسجلة في `ARCHIVE_MANIFEST.csv`؛ production migration `NOT RUN`؛ browser run `NOT RUN`؛ production proof `NOT PROVEN`.
+
+
+## 2026-10-19 — دمج واجهة لقطات أونكس والتحليلات والمطابقة
+
+- فُعّل مسار الوصول الحالي عبر «مركز البيانات الموحد» إلى شاشة حقيقية `OnyxSnapshotCenter` لعرض اللقطات الجاهزة من `onyx_snapshots`، تحليلات `get_onyx_snapshot_analytics`، ومعاينة محدودة لأول 100 صف، وتاريخ/نوع التقرير/الفترة/بصمة الملف.
+- زر المطابقة يستدعي `run_inventory_reconciliation` الخادمي ويعرض عدد الصفوف المتطابقة والمتغيرة والجديدة وغير الصالحة ورقم التشغيل. هذه العملية تنشئ سجلات مطابقة وتدقيق فقط؛ لا تغيّر أرصدة المخزون ولا تدعي اتصالاً مباشرًا ببرنامج Onyx الخارجي.
+- أُضيفت حالات تحميل/فراغ/خطأ/عدم صلاحية، تحقق صارم من الحقول الأساسية بدل تحويل القيم المفقودة إلى صفر، وطباعة تقرير يذكر مصدر اللقطة وحدود المعاينة، واختبارات UI للقراءة/المطابقة/الرفض عند غياب صلاحية الموظف/فشل الاستعلام.
+- IMPLEMENTED=YES; INTEGRATED=YES; TESTED=NOT RUN (CI pending for this commit); BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN.
+- next_task_id يظل `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`، وسيستمر بعد إثبات هذا الدمج في مطابقة بقية أقسام المواصفة بدل اعتبار شاشة واحدة اكتمالًا شاملاً.

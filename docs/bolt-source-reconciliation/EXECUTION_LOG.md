@@ -392,3 +392,11 @@
 - أضيفت قرارات المرشحين الفردية إلى `SOURCE_INTEGRATION_LEDGER.csv` دون حذف السجل التاريخي أو تكرار التكامل القانوني لسجل المصروفات. يحتفظ تنفيذ PDF/import/addresses/company-members/retry/current analytics بواجهاته الموجودة إذا كانت أحدث أو مدمجة بالفعل؛ ترفض شاشات وSQL القديمة عندما تختلف مخططات الجداول/الأدوار أو تتجاوز الخادم، خصوصًا التحليلات المباشرة بلا حدود، وإنشاء أرقام الطلب من العميل وكتابة السعر/الطلب مباشرة.
 - `NASR1-READY-TO-REUSE-SEMANTIC-INTEGRATION-001` مغلقة؛ التالية الوحيدة `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` للبدء بمطابقة واجهات المواصفة الأصلية وإكمال أول فجوة حقيقية واختبارها.
 - current-session archive re-download/extract remains NOT RUN because the two binary requests failed HTTP 400 through GitHub fetch and DNS resolution failed in runner; prior Actions SHA256/CRC/safe-path test remains historical evidence only. Browser proof and production deployment remain NOT PROVEN/NOT RUN.
+
+
+## 2026-10-19 — تكامل واجهة بيانات Onyx الفعلية (pending CI)
+
+- فجوة مؤكدة بالبحث عن مراجع المستهلك: دوال `fetchOnyxSnapshots` و`fetchOnyxSnapshotAnalytics` و`runInventoryReconciliation` كانت موجودة في API، لكن لوحة الإدارة كانت لا تعرض شاشة مرتبطة بها. أضيفت `src/components/OnyxSnapshotCenter.tsx` وربطت داخل `src/components/AghbariApp.tsx` في مركز البيانات.
+- أُضيفت عقود/تحقق typed إلى دوال قراءة اللقطات وصفوفها في `src/lib/api.ts`، ومعاينة 100 صف فقط، ومؤشرات جودة وتوزيع حالات وترتيب أصناف وتحليل تنبؤي بحالة صريحة، ومطابقة مخزون خادمية غير هدّامة مع رقم تشغيل وسجل تدقيق، وطباعة خاصة بالتقرير.
+- أُضيف `src/test/OnyxSnapshotCenter.test.tsx` لأربع حالات (عرض مصدر حقيقي، المطابقة، رفض غير الموظف، فشل قاعدة البيانات). أُصلحت كذلك حقول `test_command/test_result` التي كانت فارغة عن طريق نسخ إثبات كل صف من سجل الجرد إلى دفتر الدمج.
+- هذه الواجهة لا تنشئ اتصال Onyx خارجيًا ولا تدعي قبول Workbook في Onyx. دوال الخادم الحاليَّة وRLS هي حد المؤسسة؛ تشغيل الإنتاج/المتصفح الخارجي لم ينفذ.

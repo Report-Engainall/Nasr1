@@ -31,6 +31,7 @@ import { AdminCustomer360 } from '@/components/AdminCustomer360';
 import { TaskCenter } from '@/components/TaskCenter';
 import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
 import { UnifiedImportEngine } from '@/components/UnifiedImportEngine';
+import { OnyxSnapshotCenter } from '@/components/OnyxSnapshotCenter';
 import { toWebp, validateProductImageFile } from '@/lib/product-image';
 import { validateCustomerInput } from '@/lib/customer-input';
 import { StaffQuotesPage, StaffFinancePage } from '@/components/CustomerWorkflows';
@@ -894,7 +895,7 @@ function ReportMetric({ label, value, icon: Icon }: { label: string; value: stri
 function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
   const { user } = useAuth();
   const canManageImports = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const [section, setSection] = useState<'categories' | 'import'>('categories');
+  const [section, setSection] = useState<'categories' | 'import' | 'onyx'>('categories');
   const { data: categories, loading, error, refetch } = useFetch(fetchCategories);
   const [name, setName] = useState('');
 
@@ -924,12 +925,17 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
     </>;
   }
 
+  if (section === 'onyx' && user?.isStaff) {
+    return <OnyxSnapshotCenter onBack={() => setSection('categories')} />;
+  }
+
   return <>
     <Heading eyebrow="إدارة البيانات" title="مركز البيانات الموحد" description="تنظيم التصنيفات واستيراد البيانات مع التحقق من الجودة والبصمة ومنع التكرار" icon={Database} />
     <div className="toolbar">
       <span className="toolbar-note">المصدر المعتمد هو قاعدة بيانات المؤسسة الحالية؛ لا تُنشأ بيانات تجريبية.</span>
       <div className="toolbar-actions">
         {canManageImports && <Button onClick={() => setSection('import')}><FileText size={16} /> فتح محرك الاستيراد الموحد</Button>}
+        {user?.isStaff && <Button variant="outline" onClick={() => setSection('onyx')}><PackageCheck size={16} /> تحليلات أونكس ومطابقة المخزون</Button>}
         <Button variant="secondary" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث التصنيفات</Button>
       </div>
     </div>
