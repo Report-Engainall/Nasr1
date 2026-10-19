@@ -465,3 +465,37 @@
 - Corrective iterations are retained honestly in Actions: #287 and #288 caught CSV escaping expectations; #289 caught `no-control-regex` in lint. Assertions and regex were fixed (not waived); #290 on the export-only commit succeeded; #291 on the combined import/export commit succeeded.
 - Status: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact-SHA CI; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; XLSX=NOT IMPLEMENTED; INVENTORY QUANTITY COLUMNS=NOT IMPLEMENTED.
 - Active task `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains open; next step is continued clause-by-clause spec gap closure. Archive binary fresh download / SHA-256 / CRC / safe extraction remains NOT RUN due recorded blockers.
+
+
+## 2026-10-19 — إثبات أرشيفات Bolt من GitHub Actions، لا من المحاولة المحلية
+
+- شُغّل `scripts/reconcile-bolt-recovery-archives.py` في [Action 39294387493](https://github.com/Report-Engainall/Nasr1/actions/runs/39294387493) على SHA الهدف `d20c1aced5f6595b1b2a81bb017c153a260c5a0d`، مع source commit ثابت `b1ca62ec277ff9f55c8e850e0470d61d81aaa138`.
+- `Nasr1_Bolt_Before_Failure.zip`: HTTP 200؛ 1,003,172 bytes؛ SHA-256 `d59b3084a0b51e26646cf08ffc9239d2ee440298e9799f079827a4939d31b365`؛ Git blob SHA-1 `7c35f3ecde19dc5596fd22053be61924ef3d5318`؛ 359 عضوًا؛ CRC/decompression/safe extraction PASS.
+- `Nasr1_Bolt_Restored_Current.zip`: HTTP 200؛ 997,589 bytes؛ SHA-256 `9e012da1795cb9549413f78366c3bd6885c593e5a56e2fea10d4cf3fe810b214`؛ Git blob SHA-1 `f01684a56e093a33a173b0965d1d7239c48f0936`؛ 358 عضوًا؛ CRC/decompression/safe extraction PASS.
+- مقارنة الملفين: 340 محتوى مطابقًا، 18 متغيرًا، عنصر واحد موجود في نسخة Before فقط؛ الإجمالي 717 عنصرًا. تدقيق `READY_TO_REUSE/PROVENANCE_MANIFEST.csv` عدد 69 صفًا: 7 مطابقات بالبصمة، 2 اختلاف مسار/محتوى، 60 مسارًا مفقودًا وقت التدقيق. ثمانية أعضاء صنفت أمنيًا للاستبعاد. لم تُشغّل الملفات المستخرجة ولم تُطبّق SQL.
+- المحاولات المباشرة في هذه المحادثة بقيت فاشلة (HTTP 400 binary / DisabledError / فشل تنزيل محلي)، ولا تستبدل هذه الأدلة بنتيجة مختلفة. تم تعديل `ARCHIVE_MANIFEST.csv` لعرض النتيجة الناجحة المنفصلة في عمود `fresh_sha256_crc_safe_extraction` مع إبقاء أخطاء المحاولة المباشرة محفوظة.
+
+## 2026-10-19 — إكمال ربط تحليل أونكس في التقارير التنفيذية
+
+- أضيفت `src/components/UnifiedOnyxAnalysisPanel.tsx` وربطت داخل `Reports` في `src/components/AghbariApp.tsx`؛ تعتمد على `fetchOnyxSnapshots` و`fetchOnyxSnapshotAnalytics`، مع tenant/RBAC القائمين، والتحقق من مطابقة معرّف اللقطة والقيم غير السالبة وإغلاق العرض عند خطأ المصدر.
+- تعرض أثر المصدر: اسم الملف، نوع التقرير، الفترة إذا كانت مسجلة، تاريخ اللقطة، عدد الصفوف، درجة الجودة، وSHA-256، ثم إحصاءات المصدر المحفوظة. تبقى مؤشرات اللقطة مفصولة عن أرقام المبيعات الحالية للمتجر، ولا تدّعي اتصالًا حيًا بنظام Onyx أو مزامنة تلقائية.
+- الاختبار المطابق [Actions 39295541831 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39295541831), SHA `58cd1f8acd627c7cb2a00e81a29b3c46581cd490`: 37/37 ملف اختبار، 300/300 اختبار؛ PostgreSQL 17/RLS، lint، build، preview وdev smoke PASS. الاختبار هنا ليس إثبات متصفح تفاعلي أو إنتاج.
+- الحالة: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN.
+
+## 2026-10-19 — شبكة الأسعار: XLSX وملخصات مخزون حقيقية للقراءة فقط
+
+- ربطت `src/components/PricingGrid.tsx` `price-grid-xlsx.ts` للاستيراد إلى مسودة قبل الاعتماد والتصدير من صفوف الخادم المحفوظة، مع أكواد أصناف نصية للحفاظ على الأصفار البادئة. لم يُضف اعتماد مدفوع.
+- يعيد `get_admin_product_price_grid_with_inventory()` مجاميع الرصيد المسجل والمحجوز والمتاح ونقطة إعادة الطلب وعدد المخازن النشطة ضمن المؤسسة المخولة؛ القراءة منفصلة عن مسار كتابة الأسعار. إذا لم توجد أرصدة مسجلة، تبقى الخانات فارغة بدل تحويل UNKNOWN إلى ZERO.
+- تغطية اختبارية موجودة في `src/test/price-grid-xlsx.test.ts` و`src/test/pricing-grid.test.tsx` واختبارات PostgreSQL 17 لقبول صلاحيات القراءة/الكتابة ورفض المحاسب والكتابة العابرة للمؤسسات. CI المطابق `39295541831`، 37/37 files و300/300 tests، PASS.
+- الحالة: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN.
+
+## 2026-10-19 — المتجر: مسارات الكتالوج والتصنيفات والعروض
+
+- أضيفت واجهات TanStack نشطة `/store`, `/catalog` (بحث/تصنيف)، `/collections` و`/offers`، مع عناوين عربية خاصة بكل مسار، وربط بياناتها إلى Storefront وتصنيفات المتجر والحملات المنشورة. لا تستخدم mock catalog أو بيانات demo.
+- سجل CI قبل الإصلاح فشلًا بسبب محارف استمرار سطر shell مضاعفة حول عقود `/store`, `/catalog`, `/collections`, `/offers`; أصلحت الفواصل في `.github/workflows/commerce-checks.yml` دون حذف عقد المسارات. [Actions 39295541831](https://github.com/Report-Engainall/Nasr1/actions/runs/39295541831) على SHA `58cd1f8acd627c7cb2a00e81a29b3c46581cd490` اجتاز بعدها 37/37 files و300/300 tests وقبول قاعدة البيانات والـlint/build وpreview/dev smoke.
+- الحالة: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN.
+
+## 2026-10-19 — تصحيح سجل خصومات الحملات
+
+- لم يعد صحيحًا اعتبار خصم Checkout غير منفّذ على HEAD الحالي. ترحيل `20261019150000_checkout_promotion_pricing_snapshots.sql` يعرّف `resolve_active_promotion_price`؛ يحدد الحملة الفعالة ضمن المؤسسة، يحسب النسبة/المبلغ، ويحد الخصم إلى الهامش فوق تكلفة الصنف. `place_order` و`preview_order_pricing` و`get_storefront_product_prices` و`review_order_lines` تستخدم السعر الفعال وتحفظ لقطات الحملة/الخصم في بنود الطلب، ويُنسخ snapshot إلى بنود الفاتورة.
+- اختبار قبول قاعدة البيانات في `scripts/test-database-migrations.mjs` يتحقق من انخفاض السعر عند حملة فعالة، ثبات السعر الخام في snapshot، مطابقة الخصم والإجمالي وحظر وصول العميل إلى جدول الحملات مباشرة. هذا متحقق ضمن CI المطابق `58cd1f8acd627c7cb2a00e81a29b3c46581cd490`; لا يثبت ترحيل/نشر الإنتاج.

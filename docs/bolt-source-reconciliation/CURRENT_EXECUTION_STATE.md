@@ -1,11 +1,18 @@
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
-**الهدف الوحيد:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / main.
-**آخر SHA كود اجتاز CI كاملًا:** `b0fedcbec9a445aa2eef96eb2686a59a9ab14768` — [commit](https://github.com/Report-Engainall/Nasr1/commit/b0fedcbec9a445aa2eef96eb2686a59a9ab14768).
-**CI المطابق للكود:** [Actions 39186174524 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39186174524), exact SHA `b0fedcbec9a445aa2eef96eb2686a59a9ab14768`; frozen Bun lock، 35/35 test files (285/285 tests)، PostgreSQL 17 migration/RLS acceptance، lint، build، production-preview smoke (4173) وdev smoke (5173) كلها PASS. هذا إثبات CI فقط؛ لا يثبت متصفحًا تفاعليًا أو نشر الإنتاج. فحص الأرشيفات الجديد ما يزال NOT RUN لأخطاء نقل الملفات الثنائية الموثقة أدناه.
-**نقطة الإقلاع:** [BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md](./BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md). أعد قراءة HEAD وCI بعد كل commit.
-**فجوة المصادر:** تم تنزيل وفحص وفك أرشيفي Bolt، وسجل 717 عضوًا فعليًا. مسار/blob audit لجميع 69 صف READY_TO_REUSE مسجل؛ المراجعة الدلالية لعقود/imports/routes/RLS لكل صف لم تكتمل.
-**النزاهة المالية:** لا توجد فواتير تاريخية سابقة مطلوب اختلاقها؛ لا تنشئ أرقامًا تجريبية.
+**المستودع المستهدف الوحيد:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / فرع `main`.
+**آخر SHA للكود اجتاز CI الكامل:** `58cd1f8acd627c7cb2a00e81a29b3c46581cd490` — [commit](https://github.com/Report-Engainall/Nasr1/commit/58cd1f8acd627c7cb2a00e81a29b3c46581cd490).
+**الدليل المطابق:** [GitHub Actions 39295541831 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39295541831). النتائج المقروءة من سجل التشغيل المطابق: **37/37 ملف اختبار و300/300 اختبار**؛ قبول PostgreSQL 17/migrations/RLS؛ ESLint؛ إنتاج العميل وSSR/Nitro build؛ فحص preview على 4173؛ فحص dev على 5173؛ وعقود المسارات الجديدة `/store`, `/catalog`, `/collections`, `/offers`. هذا يثبت CI فقط، وليس اختبار متصفح تفاعليًا بحساب فعلي أو نشر/ترحيل إنتاج.
+**تكامل واجهة التقرير:** أضيفت لوحة تحليل لقطة أونكس في التقارير التنفيذية، مع hash واسم الملف والفترة والجودة، ومؤشرات مأخوذة من RPC المصدر المحفوظ. تُعرض مؤشرات أونكس منفصلة عن إجماليات متجر الأغبري؛ لا يُفترض تطابق الفترات أو اتصال حي بمورد أونكس.
+**شبكة أسعار الإدارة:** تحتوي على CSV/XLSX المستند إلى البيانات المحفوظة، معاينة قبل الحفظ، وملخص مخزون للقراءة فقط من RPC مخول على مستوى المؤسسة. الأرصدة غير الموجودة تظهر فارغة ولا تُعامل على أنها صفر.
+**العروض والطلب:** يوجد تنفيذ خادمي لحساب خصم الحملة النشطة، تطبيق حد تكلفة الصنف، وحفظ لقطات الخصم/الحملة في بنود الطلب والفاتورة؛ لا تعُد استخدام وصف قديم يقول إن خصم checkout غير منفّذ دون مراجعة ترحيل `20261019150000_checkout_promotion_pricing_snapshots.sql`.
+**أرشيفا Bolt — تحقق مستقل ناجح:** [Action 39294387493 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39294387493) على SHA المصدر المستهدف وقت التشغيل `d20c1aced5f6595b1b2a81bb017c153a260c5a0d`، مع تثبيت مصدر الأرشيفين على commit `b1ca62ec277ff9f55c8e850e0470d61d81aaa138`. نزّل runner الأرشيفين فعليًا (HTTP 200)، وطابق الحجم وGit blob SHA-1 وSHA-256، واجتاز CRC/فك الضغط والمسارات الآمنة وحدود التوسع ثم استخرج الملفات في مجلد مؤقت خارج التطبيق. المقارنة: **717 عضوًا، 340 متطابقًا، 18 متغيرًا، وعضو واحد قبل فقط**. لم تُشغّل ملفات الأرشيف ولم تُطبّق SQL منها.
+**محاولات التنزيل المباشر في جلسة الدردشة:** فشلت برسالة GitHub Fetch HTTP 400 للملفات الثنائية، و`web.open` أعاد `DisabledError`، والتنزيل المحلي لم ينجح بسبب قيد النقل. هذه الإخفاقات موثقة في أعمدة `current_session_attempt_result`؛ لا تلغي نجاح التشغيل المستقل اللاحق `39294387493`.
+**مراجعة مصادر الدمج:** `READY_TO_REUSE/PROVENANCE_MANIFEST.csv` يحوي 69 مرشحًا، وسجل القرارات المناظر يسجل كل صف: 7 مطابقات تامة، صفّان يحتاجان مراجعة اختلاف المسار/المحتوى، و60 مسارًا غير موجود في الشجرة المستهدفة عند SHA التدقيق. هذا تدقيق مسار/بصمة وقرار كل صف، وليس ادعاء أن كل ملف مانح نُسخ أو شُغّل.
+**الفروع وPRs التي تمت قراءتها:** `main` و`recovery/bolt-snapshot-2026-10-17`؛ PR #1 ما يزال Draft وغير مدمج. لم يحدث force-push أو استبدال عمل محفوظ.
+**النزاهة المالية:** لا توجد فواتير تاريخية سابقة مطلوب اختلاقها؛ لا بيانات demo ولا خدمات مدفوعة مطلوبة لهذا الإنجاز.
+**التصنيفات:** IMPLEMENTED / INTEGRATED / TESTED (على SHA موضح) / BROWSER-PROVEN / PRODUCTION-PROVEN منفصلة. ‏BROWSER-PROVEN=NOT RUN؛ PRODUCTION-PROVEN=NOT RUN؛ نشر ترحيلات الإنتاج=NOT RUN.
+**المهمة النشطة التالية:** `next_task_id = NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`. العمل لم يكتمل على كل أقسام المواصفة؛ استمر بإغلاق فجوة محددة كل مرة، شغّل اختبارات الفشل والنجاح، ثم حدّث الأدلة. لا تعلن اكتمال المتجر كله.
 
 
 ## تنفيذ مباشر 2026-10-19 — مسارات المصادقة وسجل المصروفات
