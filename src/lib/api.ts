@@ -1,4 +1,5 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
+import { parseStoreExecutiveAnalytics, type StoreExecutiveAnalytics } from './executive-analytics';
 import { countLowStockBalances } from './inventory-metrics';
 import { retryRead } from './retry';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
@@ -1556,4 +1557,14 @@ export async function fetchDashboardStats() {
     alertCount: alerts.count || 0,
     lowStockCount,
   };
+}
+
+
+// ─── Tenant-scoped store executive analytics ───
+// Aggregates the full authorized dataset in PostgreSQL; never derive company-wide trends
+// from a truncated browser page or a caller-supplied organization id.
+export async function fetchStoreExecutiveAnalytics(): Promise<StoreExecutiveAnalytics> {
+  const { data, error } = await supabase.rpc('get_store_executive_analytics');
+  if (error) throw error;
+  return parseStoreExecutiveAnalytics(data);
 }

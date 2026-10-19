@@ -34,6 +34,7 @@ import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
 import { UnifiedImportEngine } from '@/components/UnifiedImportEngine';
 import { OnyxSnapshotCenter } from '@/components/OnyxSnapshotCenter';
 import { UnifiedOnyxAnalysisPanel } from '@/components/UnifiedOnyxAnalysisPanel';
+import { ExecutiveStoreAnalytics } from '@/components/ExecutiveStoreAnalytics';
 import { PromotionManager } from '@/components/PromotionManager';
 import { toWebp, validateProductImageFile } from '@/lib/product-image';
 import { validateCustomerInput } from '@/lib/customer-input';
@@ -868,6 +869,7 @@ function Reports() {
       <ReportMetric label="الأصناف منخفضة المخزون" value={formatNumber(stats?.lowStockCount ?? 0)} icon={AlertTriangle} />
     </div>}
     <div style={{ marginTop: 16 }}><UnifiedOnyxAnalysisPanel /></div>
+    <ExecutiveStoreAnalytics />
     <section className="panel" style={{ marginTop: 16 }}>
       <div className="panel-head"><div><h2>إشارات تشغيلية مدعومة بالأدلة</h2><p>تحليل حتمي لنتائج الطلبات الفعلية في نطاق المؤسسة، دون اختلاق أسباب أو توقعات.</p></div><Activity size={22} /></div>
       {ordersLoading ? <Loading /> : ordersError ? <ErrorBox message={ordersError} /> : signals.length === 0
