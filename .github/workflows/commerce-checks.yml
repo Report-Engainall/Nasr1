@@ -129,6 +129,7 @@ jobs:
             "/register|إنشاء حساب تجاري" \
             "/forgot-password|استعادة كلمة المرور" \
             "/admin/audit|سجل التدقيق" \
+            "/admin/purchase-orders|أوامر الشراء | متجر الأغبري" \
             "/store|المتجر" \
             "/catalog|الكتالوج" \
             "/collections|التصنيفات" \

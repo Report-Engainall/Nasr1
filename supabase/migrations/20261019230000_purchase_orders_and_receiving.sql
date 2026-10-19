@@ -489,7 +489,7 @@ BEGIN
   IF TG_OP='UPDATE' AND OLD.status IS NOT DISTINCT FROM NEW.status THEN RETURN NEW; END IF;
   IF NEW.status IN ('submitted','partially_received') THEN
     PERFORM public.upsert_operational_task(NEW.organization_id,'استلام أمر الشراء '||v_label,
-      'أمر شراء مرسل للمورد وبانتظار الاستلام. راجع الكميات المستلمة والمتبقية في وحدة أوامر الشراء.',
+      'أمر شراء معتمد للتوريد وبانتظار الاستلام؛ لم يُرسل بريد أو رسالة للمورد تلقائيًا. راجع الكميات المستلمة والمتبقية في وحدة أوامر الشراء.',
       'warehouse','high','purchase_order_receiving','purchase-order-receiving:'||NEW.id::text,'purchase_orders',NEW.id,NULL,
       pg_catalog.jsonb_build_object('purchase_order_number',v_label,'status',NEW.status,'warehouse_id',NEW.warehouse_id),true);
   ELSIF NEW.status IN ('received','cancelled') THEN

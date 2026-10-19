@@ -8,6 +8,7 @@ import {
   fetchPurchaseOrders, fetchSuppliers, receivePurchaseOrder, submitPurchaseOrder,
 } from '@/lib/api';
 import type { PurchaseOrderLineCommand, PurchaseReceiptLineCommand } from '@/lib/api';
+import type { PurchaseOrder } from '@/lib/purchase-orders';
 import type { ProductWithInventory, Supplier } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
@@ -16,7 +17,7 @@ type WarehouseOption = { id: string; name: string; code: string | null };
 type DraftLine = { productId: string; quantity: string; unitCost: string };
 
 const statusLabel: Record<string,string> = {
-  draft: 'مسودة', submitted: 'مرسل للمورد', partially_received: 'استلام جزئي',
+  draft: 'مسودة', submitted: 'معتمد للتوريد', partially_received: 'استلام جزئي',
   received: 'مستلم بالكامل', cancelled: 'ملغى',
 };
 const statusClass: Record<string,string> = {
@@ -136,7 +137,7 @@ export function PurchaseOrdersPage() {
     try {
       await submitPurchaseOrder(selectedOrder.id);
       await load();
-      setNotice('تم تسجيل إرسال أمر الشراء. أُنشئت مهمة استلام واحدة في مركز المهام من الحدث المحفوظ.');
+      setNotice('تم اعتماد أمر الشراء داخل النظام؛ لم يُرسل بريد أو رسالة للمورد تلقائيًا. أُنشئت مهمة استلام واحدة في مركز المهام من الحدث المحفوظ.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'تعذر إرسال أمر الشراء.');
     } finally { setBusy(false); }
@@ -230,7 +231,7 @@ export function PurchaseOrdersPage() {
     <header className="heading">
       <div className="heading-icon"><PackageCheck size={24}/></div>
       <div><span>التوريد والمخزون</span><h1>أوامر الشراء والاستلام</h1>
-        <p>مسودة توريد، إرسال، استلام جزئي أو كامل، وحركات مخزون قابلة للتدقيق. لا يُزاد الرصيد إلا بعد ترحيل إيصال فعلي.</p>
+        <p>مسودة شراء، اعتماد داخلي، استلام جزئي أو كامل، وحركات مخزون قابلة للتدقيق. لا يُزاد الرصيد إلا بعد ترحيل إيصال فعلي؛ لا يُرسل بريد أو رسالة للمورد تلقائيًا.</p>
       </div>
     </header>
     <section className="panel no-print">
@@ -266,7 +267,7 @@ export function PurchaseOrdersPage() {
           <button className="btn outline" type="button" aria-label={'حذف سطر الصنف '+(index+1)} onClick={()=>setDraftLines((old)=>old.length<=1?old.filter((_,i)=>i!==index):old.filter((_,i)=>i!==index))} disabled={busy||draftLines.length===1}><Trash2 size={15}/> حذف</button>
         </div>)}
       </div>
-      <label className="po-field" style={{marginTop:12}}>ملاحظات للمورد/المخزن<textarea value={notes} onChange={(e)=>setNotes(e.target.value)} maxLength={2000} disabled={busy}/></label>
+      <label className="po-field" style={{marginTop:12}}>ملاحظات داخلية للشراء/المخزن<textarea value={notes} onChange={(e)=>setNotes(e.target.value)} maxLength={2000} disabled={busy}/></label>
       <div className="po-actions" style={{marginTop:12}}>
         <button className="btn outline" type="button" onClick={()=>setDraftLines((old)=>old.length>=100?old:[...old,newLine()])} disabled={busy||draftLines.length>=100}><Plus size={15}/> إضافة صنف</button>
         <button className="btn primary" type="button" onClick={()=>void createDraft()} disabled={busy||!activeSuppliers.length||!warehouses.length||!products.length}>{busy?'جار الحفظ…':'حفظ مسودة أمر الشراء'}</button>
@@ -296,11 +297,12 @@ export function PurchaseOrdersPage() {
                 <p><strong>المخزن:</strong> {selectedOrder.warehouse_name}</p>
                 <p><strong>الإجمالي:</strong> {moneyText(selectedOrder.total_cost)} <span className="po-muted">| لا يُحول الإجمالي المجهول إلى صفر.</span></p>
                 {selectedOrder.notes&&<p><strong>ملاحظات:</strong> {selectedOrder.notes}</p>}
+                {['draft','submitted'].includes(selectedOrder.status)&&<label className="po-field no-print" style={{marginBlock:10}}>سبب الإلغاء (مطلوب عند الإلغاء)<input value={cancelReason} onChange={(e)=>setCancelReason(e.target.value)} maxLength={1000} placeholder="اكتب السبب الداخلي للإلغاء" disabled={busy}/></label>}
                 <div className="po-table-wrap"><table><thead><tr><th>رمز الصنف</th><th>الصنف</th><th>المطلوب</th><th>المستلم</th><th>المتبقي</th><th>تكلفة الوحدة</th><th>قيمة البند</th></tr></thead><tbody>
                   {selectedOrder.items.map((item)=><tr key={item.id}><td>{item.item_code}</td><td>{item.product_name}</td><td>{numberText(item.quantity_ordered)}</td><td>{numberText(item.quantity_received)}</td><td>{numberText(item.remaining_quantity)}</td><td>{moneyText(item.unit_cost)}</td><td>{moneyText(item.line_total)}</td></tr>)}
                 </tbody></table></div>
                 <div className="po-actions no-print" style={{marginTop:14}}>
-                  {selectedOrder.status==='draft'&&<button className="btn primary" type="button" onClick={()=>void submitSelected()} disabled={busy}><Send size={15}/> تسجيل الإرسال للمورد</button>}
+                  {selectedOrder.status==='draft'&&<button className="btn primary" type="button" onClick={()=>void submitSelected()} disabled={busy}><Send size={15}/> اعتماد أمر الشراء للتوريد</button>}
                   {['submitted','partially_received'].includes(selectedOrder.status)&&<button className="btn primary" type="button" onClick={()=>void postReceipt()} disabled={busy}><PackageCheck size={15}/> ترحيل إيصال الاستلام</button>}
                   {['draft','submitted'].includes(selectedOrder.status)&&<button className="btn outline" type="button" onClick={()=>void cancelSelected()} disabled={busy}><Trash2 size={15}/> إلغاء أمر الشراء</button>}
                   <button className="btn outline" type="button" onClick={()=>window.print()} disabled={busy}><Printer size={15}/> طباعة الأمر</button>
