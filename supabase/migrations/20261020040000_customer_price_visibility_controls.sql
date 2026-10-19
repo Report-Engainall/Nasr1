@@ -138,7 +138,7 @@ BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'authenticated customer required';
   END IF;
-  IF p_surface NOT IN ('cart', 'orders') THEN
+  IF p_surface IS NULL OR p_surface NOT IN ('cart', 'orders') THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'pricing preview surface must be cart or orders';
   END IF;
   IF p_items IS NULL OR pg_catalog.jsonb_typeof(p_items) <> 'array'
