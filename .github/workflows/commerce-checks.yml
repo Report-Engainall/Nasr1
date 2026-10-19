@@ -131,6 +131,7 @@ jobs:
             "/admin/audit|سجل التدقيق" \
             "/products|متجر الأغبري" \
             "/invite/ci-token|قبول دعوة الشركة"; do
+            route="${route_spec%%|*}"
             expected_title="${route_spec#*|}"
             curl --fail --silent --show-error "http://127.0.0.1:4173$route" -o /tmp/aghbari-preview-route-contract.html
             if ! grep -Fq "$expected_title" /tmp/aghbari-preview-route-contract.html; then
