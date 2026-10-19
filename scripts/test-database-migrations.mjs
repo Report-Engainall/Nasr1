@@ -3288,12 +3288,12 @@ async function main() {
   await expectFailure(
     "invoice amount cannot change while an accounting draft is linked",
     () => db.unsafe("update public.customer_invoices set total_amount=total_amount+1 where id=$1::uuid", [invoice.id]),
-    /invoice has an active accounting journal/i,
+    /invoice has accounting history; source amounts and identity cannot be changed/i,
   );
   await expectFailure(
     "invoice cannot be voided while an accounting draft is linked",
     () => db.unsafe("update public.customer_invoices set status='void' where id=$1::uuid", [invoice.id]),
-    /invoice has an active accounting journal/i,
+    /invoice has a draft accounting journal; cancel the draft before voiding the invoice/i,
   );
   await db.unsafe(
     "update public.accounting_journal_lines set debit=debit+1 where organization_id=$1 and journal_entry_id=$2::uuid and line_number=1",
@@ -3337,7 +3337,7 @@ async function main() {
   await expectFailure(
     "posted invoice source cannot be voided without an approved reversal",
     () => db.unsafe("update public.customer_invoices set status='void' where id=$1::uuid", [invoice.id]),
-    /invoice has an active accounting journal/i,
+    /invoice has a posted accounting journal; post its approved reversal before voiding the invoice/i,
   );
 
   const paymentJournalKey = "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdc1";
@@ -3398,6 +3398,100 @@ async function main() {
   await db.unsafe("set role authenticated");
   const paymentInbox = (await db.unsafe("select public.fetch_customer_payment_accounting_inbox(50,0,'posted') as result"))[0].result;
   assert.ok(paymentInbox.items.some((item) => item.id === paymentSource.id && item.journal_status === "posted"));
+
+  // Reversal acceptance: manager-only, reason-required, idempotent, exact mirror and source-void safety.
+  await db.unsafe("reset role");
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "accountant cannot create a customer-source reversal without manager authority",
+    () => db.unsafe("select public.create_customer_source_reversal_draft($1::text,$2::uuid,$3::text,$4::uuid)",
+      ["customer_invoice", invoice.id, "Valid reason from accountant", "f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f101"]),
+    /administrator or manager permission required/i,
+  );
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "source reversal rejects an empty or too-short reason",
+    () => db.unsafe("select public.create_customer_source_reversal_draft($1::text,$2::uuid,$3::text,$4::uuid)",
+      ["customer_invoice", invoice.id, "bad", "f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f102"]),
+    /reason between 5 and 500 characters are required/i,
+  );
+  const invoiceReversal = (await db.unsafe(
+    "select public.create_customer_source_reversal_draft($1::text,$2::uuid,$3::text,$4::uuid) as result",
+    ["customer_invoice", invoice.id, "CI-approved invoice accounting reversal", "f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f103"],
+  ))[0].result;
+  assert.equal(invoiceReversal.status, "draft");
+  assert.equal(invoiceReversal.replayed, false);
+  const invoiceReversalReplay = (await db.unsafe(
+    "select public.create_customer_source_reversal_draft($1::text,$2::uuid,$3::text,$4::uuid) as result",
+    ["customer_invoice", invoice.id, "CI-approved invoice accounting reversal", "f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f203"],
+  ))[0].result;
+  assert.equal(invoiceReversalReplay.journal_entry_id, invoiceReversal.journal_entry_id);
+  assert.equal(invoiceReversalReplay.replayed, true, "same reversal reason and source snapshot must replay without another journal");
+  const invoiceReversalPosted = (await db.unsafe(
+    "select public.post_general_journal_entry($1::uuid) as result", [invoiceReversal.journal_entry_id],
+  ))[0].result;
+  assert.equal(invoiceReversalPosted.status, "posted");
+  async function assertExactMirror(originalId, reversalId, label) {
+    const originalLines = await db.unsafe(
+      "select line_number,account_id,debit::text,credit::text from public.accounting_journal_lines where organization_id=$1 and journal_entry_id=$2::uuid order by line_number",
+      [organizationId, originalId],
+    );
+    const reversedLines = await db.unsafe(
+      "select line_number,account_id,debit::text,credit::text from public.accounting_journal_lines where organization_id=$1 and journal_entry_id=$2::uuid order by line_number",
+      [organizationId, reversalId],
+    );
+    assert.ok(originalLines.length >= 2, label + ": original journal must have lines");
+    assert.equal(reversedLines.length, originalLines.length, label + ": reversal must preserve every original line");
+    for (let index = 0; index < originalLines.length; index += 1) {
+      assert.equal(reversedLines[index].line_number, originalLines[index].line_number, label + ": line numbers must match");
+      assert.equal(reversedLines[index].account_id, originalLines[index].account_id, label + ": reversal cannot remap accounts");
+      assert.equal(Number(reversedLines[index].debit), Number(originalLines[index].credit), label + ": debit must mirror original credit");
+      assert.equal(Number(reversedLines[index].credit), Number(originalLines[index].debit), label + ": credit must mirror original debit");
+    }
+  }
+  await assertExactMirror(invoiceJournalId, invoiceReversal.journal_entry_id, "invoice reversal");
+  await db.unsafe("reset role");
+  await expectFailure(
+    "invoice cannot be voided while a posted customer payment has not been reversed",
+    () => db.unsafe("update public.customer_invoices set status='void' where id=$1::uuid", [invoice.id]),
+    /invoice has posted customer payments; post each payment reversal before voiding the invoice/i,
+  );
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const paymentReversal = (await db.unsafe(
+    "select public.create_customer_source_reversal_draft($1::text,$2::uuid,$3::text,$4::uuid) as result",
+    ["customer_payment", paymentSource.id, "CI-approved payment accounting reversal", "f3f3f3f3-f3f3-43f3-83f3-f3f3f3f3f303"],
+  ))[0].result;
+  assert.equal(paymentReversal.status, "draft");
+  assert.equal(Number(paymentReversal.amount), Number(paymentSource.amount));
+  const paymentReversalReplay = (await db.unsafe(
+    "select public.create_customer_source_reversal_draft($1::text,$2::uuid,$3::text,$4::uuid) as result",
+    ["customer_payment", paymentSource.id, "CI-approved payment accounting reversal", "f4f4f4f4-f4f4-44f4-84f4-f4f4f4f4f404"],
+  ))[0].result;
+  assert.equal(paymentReversalReplay.journal_entry_id, paymentReversal.journal_entry_id);
+  assert.equal(paymentReversalReplay.replayed, true);
+  const paymentReversalPosted = (await db.unsafe(
+    "select public.post_general_journal_entry($1::uuid) as result", [paymentReversal.journal_entry_id],
+  ))[0].result;
+  assert.equal(paymentReversalPosted.status, "posted");
+  await assertExactMirror(paymentJournalId, paymentReversal.journal_entry_id, "payment reversal");
+  await db.unsafe("reset role");
+  await db.unsafe("update public.customer_invoices set status='void' where id=$1::uuid", [invoice.id]);
+  const invoiceGuardResult = await db.unsafe("select status from public.customer_invoices where id=$1::uuid", [invoice.id]);
+  assert.equal(invoiceGuardResult[0].status, "void", "void is allowed only after all posted invoice and payment source journals are reversed");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const reversedInvoiceInbox = (await db.unsafe("select public.fetch_customer_invoice_accounting_inbox(50,0,'all') as result"))[0].result;
+  const reversedInvoiceRow = reversedInvoiceInbox.items.find((item) => item.id === invoice.id);
+  assert.equal(reversedInvoiceRow?.journal_reversal_status, "posted");
+  assert.equal(reversedInvoiceRow?.journal_reversal_entry_id, invoiceReversal.journal_entry_id);
+  const reversedPaymentInbox = (await db.unsafe("select public.fetch_customer_payment_accounting_inbox(50,0,'all') as result"))[0].result;
+  const reversedPaymentRow = reversedPaymentInbox.items.find((item) => item.id === paymentSource.id);
+  assert.equal(reversedPaymentRow?.journal_reversal_status, "posted");
+  assert.equal(reversedPaymentRow?.journal_reversal_entry_id, paymentReversal.journal_entry_id);
 
   // Tax fixture: a real persisted invoice source with a reconciled subtotal + recorded tax + total.
   await db.unsafe("reset role");
