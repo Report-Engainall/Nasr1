@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Layers3, RefreshCw, Tags } from "lucide-react";
 import { fetchCategories, fetchProducts } from "@/lib/api";
+import { storefrontCategorySlug } from "@/lib/storefront-slugs";
 import { useFetch } from "@/lib/useFetch";
 
 export function StorefrontCollectionsPage() {
@@ -31,7 +32,7 @@ export function StorefrontCollectionsPage() {
             <p style={{ margin: 0, color: "#526b70" }}>{category.description || "تصنيف منظم لأصناف الكتالوج المنشور."}</p>
             <strong>{count.toLocaleString("ar-YE")} صنف</strong>
             {count > 0
-              ? <Link to="/catalog" search={{ category: category.id }} style={{ marginTop: "auto", textDecoration: "none", color: "#087f8d", fontWeight: 800, display: "inline-flex", gap: 7, alignItems: "center" }}>تصفح التصنيف <ArrowLeft size={15}/></Link>
+              ? <Link to={"/category/" + storefrontCategorySlug(category)} style={{ marginTop: "auto", textDecoration: "none", color: "#087f8d", fontWeight: 800, display: "inline-flex", gap: 7, alignItems: "center" }}>تصفح التصنيف <ArrowLeft size={15}/></Link>
               : <span style={{ marginTop: "auto", color: "#71868a", fontSize: 13 }}>لا توجد أصناف منشورة ضمن هذا التصنيف.</span>}
           </article>;
         })}

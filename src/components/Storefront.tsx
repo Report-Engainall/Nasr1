@@ -29,12 +29,13 @@ function readSavedProductIds(key: string, maxItems: number): string[] {
   }
 }
 
-export function Storefront({ onExit, initialView = 'shop', initialProductId, initialQuery, initialCategoryId }: {
+export function Storefront({ onExit, initialView = 'shop', initialProductId, initialQuery, initialCategoryId, initialAvailableOnly }: {
   onExit: () => void;
   initialView?: StorefrontInitialView;
   initialProductId?: string;
   initialQuery?: string;
   initialCategoryId?: string;
+  initialAvailableOnly?: boolean;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -59,6 +60,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const [cartRestored, setCartRestored] = useState(false);
   const [query, setQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
   const [activeCat, setActiveCat] = useState<string>(initialCategoryId ?? '');
+  const [availableOnly, setAvailableOnly] = useState<boolean>(initialAvailableOnly ?? false);
   const [matrixQuantities, setMatrixQuantities] = useState<Record<string, string>>({});
   const [matrixFeedback, setMatrixFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -77,6 +79,10 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   useEffect(() => {
     setActiveCat(initialCategoryId ?? '');
   }, [initialCategoryId]);
+
+  useEffect(() => {
+    setAvailableOnly(initialAvailableOnly ?? false);
+  }, [initialAvailableOnly]);
 
   useEffect(() => {
     const online = () => setIsOnline(true);
@@ -200,8 +206,9 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
     let list = products ?? [];
     if (activeCat) list = list.filter((p) => p.category_id === activeCat);
     if (query.trim()) list = list.filter((p) => matchesArabicCatalogSearch(p, query));
+    if (availableOnly) list = list.filter((p) => typeof p.inventory?.quantity_available === 'number' && Number.isFinite(p.inventory.quantity_available) && p.inventory.quantity_available > 0);
     return list;
-  }, [products, activeCat, query]);
+  }, [products, activeCat, query, availableOnly]);
 
   const tickerMessages = (settings?.ticker_messages as string[]) ?? [];
   const tickerEnabled = settings?.ticker_enabled as boolean ?? true;
