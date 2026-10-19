@@ -29,10 +29,11 @@ function readSavedProductIds(key: string, maxItems: number): string[] {
   }
 }
 
-export function Storefront({ onExit, initialView = 'shop', initialProductId }: {
+export function Storefront({ onExit, initialView = 'shop', initialProductId, initialQuery }: {
   onExit: () => void;
   initialView?: StorefrontInitialView;
   initialProductId?: string;
+  initialQuery?: string;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -55,7 +56,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId }: {
   const [view, setView] = useState<StoreView>(initialView);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartRestored, setCartRestored] = useState(false);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
   const [activeCat, setActiveCat] = useState<string>('');
   const [matrixQuantities, setMatrixQuantities] = useState<Record<string, string>>({});
   const [matrixFeedback, setMatrixFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
@@ -67,6 +68,10 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId }: {
   const [compare, setCompare] = useState<string[]>(() => readSavedProductIds('aghbari:compare:v1', 3));
   const [savedListNotice, setSavedListNotice] = useState('');
   const [isOnline, setIsOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+
+  useEffect(() => {
+    setQuery(normalizeCatalogSearchQuery(initialQuery ?? ''));
+  }, [initialQuery]);
 
   useEffect(() => {
     const online = () => setIsOnline(true);

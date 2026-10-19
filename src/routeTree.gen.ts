@@ -53,6 +53,7 @@ import { Route as CompanyMembersRouteImport } from './routes/company.members'
 import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 import { Route as OrdersIdRouteImport } from './routes/orders.$id'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
+import { Route as ProductsRouteImport } from './routes/products'
 import { Route as ApiInvoicePdfInvoiceIdRouteImport } from './routes/api.invoice-pdf.$invoiceId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -276,6 +277,11 @@ const ProductIdRoute = ProductIdRouteImport.update({
   path: '/product/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductsRoute = ProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInvoicePdfInvoiceIdRoute = ApiInvoicePdfInvoiceIdRouteImport.update({
   id: '/api/invoice-pdf/$invoiceId',
   path: '/api/invoice-pdf/$invoiceId',
@@ -326,6 +332,9 @@ export interface FileRoutesByFullPath {
   '/company/members': typeof CompanyMembersRoute
   '/orders/$id': typeof OrdersIdRoute
   '/product/$id': typeof ProductIdRoute
+  '/products': typeof ProductsRoute
+  '/products': typeof ProductsRoute
+  '/products': typeof ProductsRoute
   '/orders/': typeof OrdersIndexRoute
   '/api/invoice-pdf/$invoiceId': typeof ApiInvoicePdfInvoiceIdRoute
 }
@@ -465,6 +474,9 @@ export interface FileRouteTypes {
     | '/company/members'
     | '/orders/$id'
     | '/product/$id'
+    | '/products'
+    | '/products'
+    | '/products'
     | '/orders/'
     | '/api/invoice-pdf/$invoiceId'
   fileRoutesByTo: FileRoutesByTo
@@ -598,6 +610,7 @@ export interface RootRouteChildren {
   CompanyContactsRoute: typeof CompanyContactsRoute
   CompanyMembersRoute: typeof CompanyMembersRoute
   ProductIdRoute: typeof ProductIdRoute
+  ProductsRoute: typeof ProductsRoute
   ApiInvoicePdfInvoiceIdRoute: typeof ApiInvoicePdfInvoiceIdRoute
 }
 
@@ -971,6 +984,7 @@ const rootRouteChildren: RootRouteChildren = {
   CompanyContactsRoute: CompanyContactsRoute,
   CompanyMembersRoute: CompanyMembersRoute,
   ProductIdRoute: ProductIdRoute,
+  ProductsRoute: ProductsRoute,
   ApiInvoicePdfInvoiceIdRoute: ApiInvoicePdfInvoiceIdRoute,
 }
 export const routeTree = rootRouteImport

@@ -116,6 +116,15 @@ describe("customer storefront saved discovery", () => {
     expect(empty.host.textContent).not.toContain("جرّب تغيير البحث أو التصنيف");
   });
 
+  it("opens the catalog route directly and applies a URL search query to live products", async () => {
+    const catalog = await mountAt("/products?q=Sugar");
+    expect(catalog.host.textContent).toContain("المنتجات");
+    expect(catalog.host.textContent).toContain("Sugar");
+    expect(catalog.host.textContent).not.toContain("Beans");
+    const search = catalog.host.querySelector<HTMLInputElement>(".sf-search input");
+    expect(search?.value).toBe("Sugar");
+  });
+
   it("persists wishlist and caps comparison at three across direct route loads", async () => {
     const first = await mountAt("/");
     expect(first.host.textContent).toContain("المنتجات");
