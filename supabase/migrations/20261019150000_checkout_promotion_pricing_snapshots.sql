@@ -48,7 +48,7 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Product is unavailable in the current organization';
   END IF;
-  v_floor := pg_catalog.greatest(pg_catalog.coalesce(v_product.cost_price,0),0);
+  v_floor := GREATEST(coalesce(v_product.cost_price,0),0);
   IF v_gross <= v_floor THEN
     RETURN QUERY SELECT v_gross,0::numeric(15,2),NULL::uuid,NULL::text,NULL::text,NULL::numeric(15,2);
     RETURN;
@@ -68,15 +68,15 @@ BEGIN
        AND pr.start_date<=CURRENT_DATE
        AND pr.end_date>=CURRENT_DATE
        AND (
-         (pg_catalog.coalesce(pg_catalog.cardinality(pr.product_ids),0)=0
-          AND pg_catalog.coalesce(pg_catalog.cardinality(pr.category_ids),0)=0)
-         OR p_product_id=ANY(pg_catalog.coalesce(pr.product_ids,ARRAY[]::uuid[]))
+         (coalesce(pg_catalog.cardinality(pr.product_ids),0)=0
+          AND coalesce(pg_catalog.cardinality(pr.category_ids),0)=0)
+         OR p_product_id=ANY(coalesce(pr.product_ids,ARRAY[]::uuid[]))
          OR (v_product.category_id IS NOT NULL
-             AND v_product.category_id=ANY(pg_catalog.coalesce(pr.category_ids,ARRAY[]::uuid[])))
+             AND v_product.category_id=ANY(coalesce(pr.category_ids,ARRAY[]::uuid[])))
        )
   ), allowed AS (
     SELECT c.*,
-           pg_catalog.least(c.requested_discount,pg_catalog.greatest(v_gross-v_floor,0))::numeric(15,2) AS actual_discount
+           LEAST(c.requested_discount,GREATEST(v_gross-v_floor,0))::numeric(15,2) AS actual_discount
       FROM candidates c
      WHERE c.requested_discount>0
   )
@@ -113,7 +113,7 @@ BEGIN
   END IF;
   IF p_discount_type IS NULL OR p_discount_value IS NULL OR p_discount_value<=0
      OR p_discount_type NOT IN ('percentage','fixed') THEN RETURN 0; END IF;
-  SELECT pg_catalog.greatest(pg_catalog.coalesce(p.cost_price,0),0)::numeric(15,2)
+  SELECT GREATEST(coalesce(p.cost_price,0),0)::numeric(15,2)
     INTO v_cost FROM public.products p WHERE p.id=p_product_id AND p.status='active';
   IF NOT FOUND OR v_gross<=v_cost THEN RETURN 0; END IF;
   IF p_discount_type='percentage' THEN
@@ -121,13 +121,12 @@ BEGIN
   ELSE
     v_requested:=pg_catalog.round(p_discount_value,2);
   END IF;
-  RETURN pg_catalog.least(pg_catalog.greatest(v_requested,0),pg_catalog.greatest(v_gross-v_cost,0))::numeric(15,2);
+  RETURN LEAST(GREATEST(v_requested,0),GREATEST(v_gross-v_cost,0))::numeric(15,2);
 END
 $function$;
 
 REVOKE ALL ON FUNCTION public.resolve_active_promotion_price(uuid,uuid,numeric) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.resolve_promotion_snapshot_discount(uuid,numeric,text,numeric) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.resolve_active_promotion_price(uuid,uuid,numeric) TO authenticated,anon;
 -- Internal order review helper remains uncallable from browser roles.
 
 CREATE OR REPLACE FUNCTION public.place_order(
