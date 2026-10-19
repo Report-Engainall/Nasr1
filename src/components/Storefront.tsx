@@ -102,11 +102,15 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   }, [initialAvailableOnly]);
 
   useEffect(() => {
-    const refreshSettingsOnFocus = () => { if (document.visibilityState === 'visible') void refetchSettings(); };
+    const refreshSettingsOnFocus = () => {
+      if (document.visibilityState !== 'visible') return;
+      void refetchSettings();
+      void refetchProducts();
+    };
     window.addEventListener('focus', refreshSettingsOnFocus);
     document.addEventListener('visibilitychange', refreshSettingsOnFocus);
     return () => { window.removeEventListener('focus', refreshSettingsOnFocus); document.removeEventListener('visibilitychange', refreshSettingsOnFocus); };
-  }, [refetchSettings]);
+  }, [refetchSettings, refetchProducts]);
 
   useEffect(() => {
     const online = () => setIsOnline(true);
