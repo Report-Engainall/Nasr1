@@ -71,7 +71,7 @@ describe("unified Onyx analysis panel", () => {
   it("loads saved source metrics with lineage without mixing them with store totals", async () => {
     render(<UnifiedOnyxAnalysisPanel />);
     expect(await screen.findByText("تحليل مصدر أونكس ضمن التقارير")).toBeInTheDocument();
-    expect(await screen.findByText("inventory-october.csv")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /inventory-october\.csv/ })).toBeInTheDocument();
     expect(await screen.findByText("قيمة المبيعات داخل اللقطة")).toBeInTheDocument();
     expect(screen.getByText(/مستقلة عن إجماليات مبيعات متجر الأغبري/)).toBeInTheDocument();
     expect(screen.getByText("4200")).toBeInTheDocument();
@@ -84,7 +84,7 @@ describe("unified Onyx analysis panel", () => {
     await screen.findByText("قيمة المبيعات داخل اللقطة");
     fireEvent.change(screen.getByLabelText("لقطة المصدر"), { target: { value: "snapshot-2" } });
     await waitFor(() => expect(mocks.fetchOnyxSnapshotAnalytics).toHaveBeenLastCalledWith("snapshot-2"));
-    expect(await screen.findByText("inventory-september.csv")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /inventory-september\.csv/ })).toBeInTheDocument();
   });
 
   it("shows a truthful empty state instead of invented zero-valued metrics", async () => {
