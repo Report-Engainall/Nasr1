@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatLedgerMoney, parseLedgerMoneyCents, validateJournalDraft, type JournalDraftLine } from "@/lib/general-ledger";
+import { formatLedgerBalance, formatLedgerMoney, parseLedgerMoneyCents, validateJournalDraft, type JournalDraftLine } from "@/lib/general-ledger";
 
 const accountDebit = "a1000000-0000-4000-8000-000000000001";
 const accountCredit = "a1000000-0000-4000-8000-000000000002";
@@ -11,6 +11,7 @@ const balancedLines: JournalDraftLine[] = [
 
 describe("general ledger deterministic money validation", () => {
   it("uses integer minor units and formats exact amounts", () => {
+    expect(formatLedgerBalance("0.00", "1.25", "YER")).toBe("−1.25 YER");
     expect(parseLedgerMoneyCents("125.50")).toBe(12550n);
     expect(parseLedgerMoneyCents("0.1")).toBe(10n);
     expect(parseLedgerMoneyCents("9999999999999999.99")).toBe(999999999999999999n);

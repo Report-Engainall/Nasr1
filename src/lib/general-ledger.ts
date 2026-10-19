@@ -93,6 +93,16 @@ export function validateJournalDraft(
   return { ok: true, lines, debitCents, creditCents };
 }
 
+export function formatLedgerBalance(debit: string, credit: string, currency = "ر.ي"): string {
+  const debitCents = parseLedgerMoneyCents(debit);
+  const creditCents = parseLedgerMoneyCents(credit);
+  if (debitCents === null || creditCents === null) return "غير متاح";
+  const net = debitCents - creditCents;
+  const magnitude = net < 0n ? -net : net;
+  const prefix = net < 0n ? "−" : "";
+  return prefix + formatLedgerMoney(centsToMoney(magnitude), currency);
+}
+
 export function formatLedgerMoney(value: string, currency = "ر.ي"): string {
   const cents = parseLedgerMoneyCents(value);
   if (cents === null) return "غير متاح";

@@ -31,19 +31,25 @@ CREATE TABLE public.accounting_journal_entries (
   description text NOT NULL CHECK (char_length(btrim(description)) BETWEEN 3 AND 240),
   source_type text NOT NULL DEFAULT 'manual' CHECK (source_type IN ('manual','adjustment','invoice','payment','cash_expense','purchase_receipt','onyx_import')),
   source_reference text CHECK (source_reference IS NULL OR char_length(source_reference) <= 200),
-  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','posted')),
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','posted','void')),
   idempotency_key uuid NOT NULL,
   payload_fingerprint text NOT NULL CHECK (payload_fingerprint ~ '^[0-9a-f]{32}$'),
   created_by_profile_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   posted_by_profile_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   posted_at timestamptz,
+  voided_by_profile_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  voided_at timestamptz,
+  void_reason text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (organization_id, entry_number),
   UNIQUE (organization_id, idempotency_key),
   UNIQUE (organization_id, id),
-  CHECK ((status = 'draft' AND posted_by_profile_id IS NULL AND posted_at IS NULL)
-      OR (status = 'posted' AND posted_by_profile_id IS NOT NULL AND posted_at IS NOT NULL))
+  CHECK (
+    (status = 'draft' AND posted_by_profile_id IS NULL AND posted_at IS NULL AND voided_by_profile_id IS NULL AND voided_at IS NULL AND void_reason IS NULL)
+    OR (status = 'posted' AND posted_by_profile_id IS NOT NULL AND posted_at IS NOT NULL AND voided_by_profile_id IS NULL AND voided_at IS NULL AND void_reason IS NULL)
+    OR (status = 'void' AND posted_by_profile_id IS NULL AND posted_at IS NULL AND voided_by_profile_id IS NOT NULL AND voided_at IS NOT NULL AND char_length(btrim(coalesce(void_reason,''))) BETWEEN 5 AND 500)
+  )
 );
 CREATE INDEX accounting_journal_entries_org_date_idx
   ON public.accounting_journal_entries(organization_id, entry_date DESC, entry_number DESC);
@@ -384,6 +390,57 @@ $$;
 REVOKE ALL ON FUNCTION public.post_general_journal_entry(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.post_general_journal_entry(uuid) TO authenticated;
 
+
+CREATE OR REPLACE FUNCTION public.void_general_journal_draft(p_entry_id uuid,p_reason text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $
+DECLARE
+  v_actor uuid := public.current_profile_id();
+  v_org uuid;
+  v_reason text := pg_catalog.btrim(coalesce(p_reason,''));
+  v_entry public.accounting_journal_entries%ROWTYPE;
+BEGIN
+  SELECT p.organization_id INTO v_org
+    FROM public.profiles p
+   WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true;
+  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.operational_tasks_can_manage() THEN
+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='administrator or manager permission required to void a journal draft';
+  END IF;
+  IF p_entry_id IS NULL OR pg_catalog.char_length(v_reason) NOT BETWEEN 5 AND 500 THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='journal identifier and a reason between 5 and 500 characters are required';
+  END IF;
+  SELECT e.* INTO v_entry FROM public.accounting_journal_entries e
+   WHERE e.id=p_entry_id AND e.organization_id=v_org FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='journal entry not found in this organization';
+  END IF;
+  IF v_entry.status='void' THEN
+    IF v_entry.void_reason IS DISTINCT FROM v_reason THEN
+      RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='voided journal draft keeps its original reason';
+    END IF;
+    RETURN pg_catalog.jsonb_build_object('id',v_entry.id,'status',v_entry.status,'replayed',true);
+  END IF;
+  IF v_entry.status<>'draft' THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='posted journal entries cannot be voided through the draft cancellation operation';
+  END IF;
+  UPDATE public.accounting_journal_entries
+     SET status='void',voided_by_profile_id=v_actor,voided_at=pg_catalog.now(),
+         void_reason=v_reason,updated_at=pg_catalog.now()
+   WHERE id=v_entry.id AND organization_id=v_org
+   RETURNING * INTO v_entry;
+  INSERT INTO public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value)
+  VALUES (v_org,v_actor,'accounting.journal_draft_voided','accounting_journal_entry',v_entry.id,
+    pg_catalog.jsonb_build_object('status','draft'),
+    pg_catalog.jsonb_build_object('status','void','entry_number',v_entry.entry_number::text,'reason',v_reason));
+  RETURN pg_catalog.jsonb_build_object('id',v_entry.id,'status',v_entry.status,'replayed',false);
+END;
+$;
+REVOKE ALL ON FUNCTION public.void_general_journal_draft(uuid,text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.void_general_journal_draft(uuid,text) TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.fetch_general_ledger(
   p_from date DEFAULT NULL,
   p_to date DEFAULT NULL,
@@ -437,12 +494,13 @@ BEGIN
     'id',q.id,'entry_number',q.entry_number::text,'entry_date',q.entry_date::text,
     'description',q.description,'source_type',q.source_type,'source_reference',q.source_reference,
     'status',q.status,'created_at',q.created_at,'posted_at',q.posted_at,
+    'voided_at',q.voided_at,'void_reason',q.void_reason,
     'debit_total',q.debit_total::text,'credit_total',q.credit_total::text,'lines',q.lines
   ) ORDER BY q.entry_date DESC,q.entry_number DESC),'[]'::jsonb)
     INTO v_entries
     FROM (
       SELECT e.id,e.entry_number,e.entry_date,e.description,e.source_type,e.source_reference,
-             e.status,e.created_at,e.posted_at,
+             e.status,e.created_at,e.posted_at,e.voided_at,e.void_reason,
              coalesce((SELECT pg_catalog.sum(l.debit) FROM public.accounting_journal_lines l
                 WHERE l.organization_id=v_org AND l.journal_entry_id=e.id),0)::numeric(18,2) AS debit_total,
              coalesce((SELECT pg_catalog.sum(l.credit) FROM public.accounting_journal_lines l
@@ -485,7 +543,7 @@ BEGIN
     ) b ON true
    WHERE a.organization_id=v_org;
 
-  SELECT pg_catalog.count(*)::integer,
+  SELECT pg_catalog.count(DISTINCT e.id)::integer,
          coalesce(pg_catalog.sum(l.debit),0),
          coalesce(pg_catalog.sum(l.credit),0)
     INTO v_posted_count,v_debit_total,v_credit_total

@@ -2933,6 +2933,41 @@ async function main() {
   assert.equal(debitTB.credit_total,"0.00");
   assert.equal(creditTB.debit_total,"0.00");
   assert.equal(creditTB.credit_total,"125.50");
+
+  const voidDraftEntry=(await db.unsafe(
+    "select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text) as result",
+    ["abababab-abab-4bab-8bab-abababababac","2026-10-18","CI-only voidable journal",ledgerLines,"CI-GL-VOID-01"],
+  ))[0].result;
+  assert.equal(voidDraftEntry.status,"draft");
+  await expectFailure(
+    "accountant cannot void a draft journal",
+    () => db.unsafe("select public.void_general_journal_draft($1::uuid,$2::text)",[voidDraftEntry.id,"manager-only cancellation"]),
+    /administrator or manager permission required/i,
+  );
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const voidedDraft=(await db.unsafe("select public.void_general_journal_draft($1::uuid,$2::text) as result",[voidDraftEntry.id,"duplicate draft created in error"]))[0].result;
+  assert.equal(voidedDraft.status,"void");
+  assert.equal(voidedDraft.replayed,false);
+  const replayVoided=(await db.unsafe("select public.void_general_journal_draft($1::uuid,$2::text) as result",[voidDraftEntry.id,"duplicate draft created in error"]))[0].result;
+  assert.equal(replayVoided.replayed,true);
+  await expectFailure(
+    "voided journal draft reason is immutable",
+    () => db.unsafe("select public.void_general_journal_draft($1::uuid,$2::text)",[voidDraftEntry.id,"changed reason"]),
+    /original reason/i,
+  );
+  const voidAudit=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='accounting_journal_entry' and entity_id=$2::uuid",[organizationId,voidDraftEntry.id]);
+  assert.deepEqual(voidAudit.map((row)=>row.action),["accounting.journal_draft_created","accounting.journal_draft_voided"]);
+  await expectFailure(
+    "posted journal entries cannot be voided through the draft operation",
+    () => db.unsafe("select public.void_general_journal_draft($1::uuid,$2::text)",[journalId,"posted entries cannot be cancelled"]),
+    /posted journal entries cannot be voided/i,
+  );
+  await db.unsafe("reset role");
+  await setIdentity(accountantAuthUserId,"ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+
   const ledgerAudit=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='accounting_journal_entry' and entity_id=$2::uuid order by action",[organizationId,journalId]);
   assert.deepEqual(ledgerAudit.map((row)=>row.action),["accounting.journal_draft_created","accounting.journal_posted"]);
   await db.unsafe("reset role");
@@ -2950,7 +2985,7 @@ async function main() {
     /finance permission required/i,
   );
   await db.unsafe("reset role");
-  process.stdout.write("PASS general ledger: chart idempotency, exact two-decimal amounts, balanced draft/post, replay safety, audit events, trial balance and tenant/role isolation\\n");
+  process.stdout.write("PASS general ledger: chart idempotency, exact two-decimal amounts, balanced draft/post, replay safety, audited draft cancellation, trial balance and tenant/role isolation\\n");
 
   // AGH-STOREFRONT-ANNOUNCEMENTS-001: date/audience filtering, tenant scope, command auth, audit and no direct table grants.
   await db.unsafe("reset role");

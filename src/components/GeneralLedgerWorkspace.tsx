@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { BookOpenCheck, Plus, RefreshCw, Printer, Send, Trash2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-import { formatLedgerMoney, validateJournalDraft, type JournalDraftLine, type LedgerAccountType } from "@/lib/general-ledger";
+import { formatLedgerBalance, formatLedgerMoney, validateJournalDraft, type JournalDraftLine, type LedgerAccountType } from "@/lib/general-ledger";
 
 type Account = { id: string; code: string; name: string; account_type: LedgerAccountType; is_active: boolean; debit_total: string; credit_total: string };
 type JournalLine = { line_number: number; account_id: string; account_code: string; account_name: string; debit: string; credit: string; memo: string | null };
-type JournalEntry = { id: string; entry_number: string; entry_date: string; description: string; source_type: string; source_reference: string | null; status: "draft" | "posted"; created_at: string; posted_at: string | null; debit_total: string; credit_total: string; lines: JournalLine[] };
+type JournalEntry = { id: string; entry_number: string; entry_date: string; description: string; source_type: string; source_reference: string | null; status: "draft" | "posted" | "void"; created_at: string; posted_at: string | null; voided_at?: string | null; void_reason?: string | null; debit_total: string; credit_total: string; lines: JournalLine[] };
 type LedgerPayload = { accounts: Account[]; entries: JournalEntry[]; entry_count: number; has_more: boolean; summary: { posted_entry_count: number; debit_total: string; credit_total: string }; };
 type Filters = { from: string; to: string; accountId: string };
 const ACCOUNT_TYPES: { value: LedgerAccountType; label: string }[] = [
@@ -40,7 +40,7 @@ function readLedgerPayload(value: unknown): LedgerPayload {
   const entries = value.entries.map((e): JournalEntry => {
     if (!isRecord(e) || typeof e.id !== "string" || typeof e.entry_number !== "string" ||
         typeof e.entry_date !== "string" || typeof e.description !== "string" ||
-        (e.status !== "draft" && e.status !== "posted") || !Array.isArray(e.lines) ||
+        (e.status !== "draft" && e.status !== "posted" && e.status !== "void") || !Array.isArray(e.lines) ||
         typeof e.debit_total !== "string" || typeof e.credit_total !== "string") {
       throw new Error("تعذر التحقق من قيود اليومية.");
     }
@@ -256,7 +256,7 @@ export function GeneralLedgerWorkspace() {
                   <tr key={account.id} style={{ borderTop: "1px solid var(--border, #e3e9ec)" }}>
                     <td style={{ padding: 9, whiteSpace: "nowrap" }}>{account.code}</td><td>{account.name}</td><td>{roleLabel(account.account_type)}</td>
                     <td>{formatLedgerMoney(account.debit_total)}</td><td>{formatLedgerMoney(account.credit_total)}</td>
-                    <td>{formatLedgerMoney((() => { const centsDebit = BigInt(account.debit_total.split(".")[0]) * 100n + BigInt((account.debit_total.split(".")[1] ?? "00").padEnd(2,"0")); const centsCredit = BigInt(account.credit_total.split(".")[0]) * 100n + BigInt((account.credit_total.split(".")[1] ?? "00").padEnd(2,"0")); const n = centsDebit - centsCredit; return (n < 0n ? "-" : "") + (n < 0n ? -n : n) / 100n + "." + ((n < 0n ? -n : n) % 100n).toString().padStart(2,"0"); })())}</td>
+                    <td>{formatLedgerBalance(account.debit_total, account.credit_total)}</td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -313,7 +313,7 @@ export function GeneralLedgerWorkspace() {
               <article key={entry.id} style={{ border: "1px solid var(--border, #e3e9ec)", borderRadius: 10, padding: 12, breakInside: "avoid" }}>
                 <header style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                   <div><strong>قيد #{entry.entry_number}</strong><div style={muted}>{entry.entry_date} · {entry.description}</div>{entry.source_reference && <div style={muted}>المرجع: {entry.source_reference}</div>}</div>
-                  <div><strong>{entry.status === "posted" ? "مرحّل" : "مسودة"}</strong><div style={muted}>مدين {formatLedgerMoney(entry.debit_total)} · دائن {formatLedgerMoney(entry.credit_total)}</div></div>
+                  <div><strong>{entry.status === "posted" ? "مرحّل" : entry.status === "void" ? "ملغاة" : "مسودة"}</strong><div style={muted}>مدين {formatLedgerMoney(entry.debit_total)} · دائن {formatLedgerMoney(entry.credit_total)}</div>{entry.void_reason && <div style={muted}>سبب الإلغاء: {entry.void_reason}</div>}</div>
                 </header>
                 <div style={{ overflowX: "auto", marginTop: 8 }}><table style={table}><thead><tr style={{ background: "var(--muted, #f4f7f8)" }}><th style={{ padding: 7 }}>الحساب</th><th>البيان</th><th>مدين</th><th>دائن</th></tr></thead><tbody>
                   {entry.lines.map((line) => <tr key={line.line_number} style={{ borderTop: "1px solid var(--border, #e3e9ec)" }}><td style={{ padding: 7 }}>{line.account_code} — {line.account_name}</td><td>{line.memo || "—"}</td><td>{formatLedgerMoney(line.debit)}</td><td>{formatLedgerMoney(line.credit)}</td></tr>)}
