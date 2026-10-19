@@ -101,7 +101,7 @@ export function UnifiedOnyxAnalysisPanel() {
     </section>;
   }
 
-  return <section className="panel onyx-unified-analysis" dir="rtl" aria-label="تحليل أونكس ضمن التقارير التنفيذية">
+  return <section className="panel onyx-center onyx-unified-analysis" dir="rtl" aria-label="تحليل أونكس ضمن التقارير التنفيذية">
     <header className="panel-head">
       <div>
         <h2><FileSpreadsheet size={20} /> تحليل مصدر أونكس ضمن التقارير</h2>
@@ -118,7 +118,7 @@ export function UnifiedOnyxAnalysisPanel() {
         <Database size={25} /><strong>لا توجد لقطات مصدر جاهزة</strong>
         <p>أنشئ لقطة معتمدة من محرك الاستيراد الموحد. لن تُعرض أرقام تجريبية أو أصفار بديلة.</p>
       </div> : <>
-        <div className="onyx-source-selector">
+        <div className="onyx-snapshot-picker">
           <label htmlFor="executive-onyx-source">لقطة المصدر</label>
           <select id="executive-onyx-source" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
             {snapshots.map((snapshot) => <option key={snapshot.id} value={snapshot.id}>
@@ -143,21 +143,21 @@ export function UnifiedOnyxAnalysisPanel() {
         {analyticsLoading ? <div role="status" className="onyx-empty">جار حساب مؤشرات اللقطة المحددة…</div>
           : analyticsError ? <div role="alert" className="onyx-alert"><AlertTriangle size={18} /> {analyticsError}</div>
           : analytics ? <>
-            <div className="onyx-unified-metric-grid" aria-label="مؤشرات المصدر المحدد">
-              <article><span>صفوف المصدر</span><strong>{countText(analytics.metrics.row_count)}</strong></article>
-              <article><span>صفوف صالحة</span><strong>{countText(analytics.metrics.valid_rows)}</strong></article>
-              <article><span>صفوف مرفوضة</span><strong>{countText(analytics.metrics.rejected_rows)}</strong></article>
-              <article><span>تحذيرات</span><strong>{countText(analytics.metrics.warning_rows)}</strong></article>
-              <article><span>الأصناف في المصدر</span><strong>{countText(analytics.metrics.item_count)}</strong></article>
-              <article><span>العملاء في المصدر</span><strong>{countText(analytics.metrics.customer_count)}</strong></article>
-              <article><span>الموردون في المصدر</span><strong>{countText(analytics.metrics.supplier_count)}</strong></article>
-              <article><span>كمية المصدر الإجمالية</span><strong>{amountText(analytics.metrics.quantity_total)}</strong></article>
-              <article><span>قيمة المصدر المحللة</span><strong>{amountText(analytics.metrics.revenue_total)}</strong></article>
-              <article><span>قيمة المبيعات داخل اللقطة</span><strong>{amountText(analytics.metrics.sales_total)}</strong></article>
-              <article><span>المفاتيح المميزة</span><strong>{countText(analytics.metrics.unique_keys)}</strong></article>
-              <article><span>جودة التحليل</span><strong>{countText(analytics.metrics.dqs)}/100</strong></article>
+            <div className="report-grid" aria-label="مؤشرات المصدر المحدد">
+              <article className="report-metric"><span>صفوف المصدر</span><strong>{countText(analytics.metrics.row_count)}</strong></article>
+              <article className="report-metric"><span>صفوف صالحة</span><strong>{countText(analytics.metrics.valid_rows)}</strong></article>
+              <article className="report-metric"><span>صفوف مرفوضة</span><strong>{countText(analytics.metrics.rejected_rows)}</strong></article>
+              <article className="report-metric"><span>تحذيرات</span><strong>{countText(analytics.metrics.warning_rows)}</strong></article>
+              <article className="report-metric"><span>الأصناف في المصدر</span><strong>{countText(analytics.metrics.item_count)}</strong></article>
+              <article className="report-metric"><span>العملاء في المصدر</span><strong>{countText(analytics.metrics.customer_count)}</strong></article>
+              <article className="report-metric"><span>الموردون في المصدر</span><strong>{countText(analytics.metrics.supplier_count)}</strong></article>
+              <article className="report-metric"><span>كمية المصدر الإجمالية</span><strong>{amountText(analytics.metrics.quantity_total)}</strong></article>
+              <article className="report-metric"><span>قيمة المصدر المحللة</span><strong>{amountText(analytics.metrics.revenue_total)}</strong></article>
+              <article className="report-metric"><span>قيمة المبيعات داخل اللقطة</span><strong>{amountText(analytics.metrics.sales_total)}</strong></article>
+              <article className="report-metric"><span>المفاتيح المميزة</span><strong>{countText(analytics.metrics.unique_keys)}</strong></article>
+              <article className="report-metric"><span>جودة التحليل</span><strong>{countText(analytics.metrics.dqs)}/100</strong></article>
             </div>
-            <div className="onyx-forecast-note">
+            <div className="onyx-forecast report-note">
               <strong>حدود التحليل:</strong> {analytics.forecast_reason || "لا يوجد تفسير إضافي محفوظ لحالة التنبؤ."}
               {analytics.forecast_status === "insufficient_history" && " لم يُنشأ تنبؤ لأن التاريخ المصدر لا يكفي."}
               <span> الأرقام تخص اللقطة المحفوظة فقط ولا تعني ترحيلًا إلى الدفاتر أو تحديثًا للمخزون.</span>
