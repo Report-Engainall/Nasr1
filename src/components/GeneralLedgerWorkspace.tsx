@@ -3,6 +3,7 @@ import { BookOpenCheck, Plus, RefreshCw, Printer, Send, Trash2, X } from "lucide
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { formatLedgerBalance, formatLedgerMoney, validateJournalDraft, type JournalDraftLine, type LedgerAccountType } from "@/lib/general-ledger";
+import { buildFinancialStatements, formatStatementCents, type FinancialStatementsReport } from "@/lib/financial-statements";
 
 type Account = { id: string; code: string; name: string; account_type: LedgerAccountType; is_active: boolean; debit_total: string; credit_total: string };
 type JournalLine = { line_number: number; account_id: string; account_code: string; account_name: string; debit: string; credit: string; memo: string | null };
@@ -80,6 +81,11 @@ export function GeneralLedgerWorkspace() {
   const [draftLines, setDraftLines] = useState<JournalDraftLine[]>([emptyLine(), emptyLine()]);
   const [showAccountForm, setShowAccountForm] = useState(false);
   const pendingKey = useRef<{ fingerprint: string; key: string } | null>(null);
+  const [statementRangeDraft, setStatementRangeDraft] = useState({ from: new Date().getFullYear() + "-01-01", to: today() });
+  const [statementRange, setStatementRange] = useState({ from: new Date().getFullYear() + "-01-01", to: today() });
+  const [statements, setStatements] = useState<FinancialStatementsReport | null>(null);
+  const [statementsLoading, setStatementsLoading] = useState(false);
+  const [statementsError, setStatementsError] = useState("");
 
   const refresh = useCallback(async () => {
     if (!ready || !canUseFinance) return;
@@ -103,6 +109,34 @@ export function GeneralLedgerWorkspace() {
     }
   }, [ready, canUseFinance, filters, page]);
   useEffect(() => { void refresh(); }, [refresh]);
+
+  const refreshStatements = useCallback(async () => {
+    if (!ready || !canUseFinance) return;
+    if (!statementRange.from || !statementRange.to || statementRange.from > statementRange.to) {
+      setStatementsError("حدد فترة صحيحة؛ يجب ألا يتجاوز تاريخ البداية تاريخ النهاية.");
+      setStatements(null);
+      return;
+    }
+    setStatementsLoading(true);
+    setStatementsError("");
+    try {
+      // Reuse the tenant-scoped, finance-authorized RPC. Account totals are complete even though journal detail is paginated.
+      const [periodResult, cumulativeResult] = await Promise.all([
+        supabase.rpc("fetch_general_ledger", { p_from: statementRange.from, p_to: statementRange.to, p_account_id: null, p_limit: 1, p_offset: 0 }),
+        supabase.rpc("fetch_general_ledger", { p_from: null, p_to: statementRange.to, p_account_id: null, p_limit: 1, p_offset: 0 }),
+      ]);
+      if (periodResult.error || cumulativeResult.error) throw new Error("تعذر تحميل القوائم من الأستاذ العام. تحقق من ترحيل المحاسبة وصلاحية الحساب.");
+      const periodPayload = readLedgerPayload(periodResult.data);
+      const cumulativePayload = readLedgerPayload(cumulativeResult.data);
+      setStatements(buildFinancialStatements(periodPayload.accounts, cumulativePayload.accounts, statementRange.from, statementRange.to, periodPayload.summary.posted_entry_count));
+    } catch (cause) {
+      setStatements(null);
+      setStatementsError(cause instanceof Error ? cause.message : "تعذر احتساب القوائم المالية.");
+    } finally {
+      setStatementsLoading(false);
+    }
+  }, [ready, canUseFinance, statementRange]);
+  useEffect(() => { void refreshStatements(); }, [refreshStatements]);
 
   const activeAccounts = useMemo(() => payload?.accounts.filter((account) => account.is_active) ?? [], [payload]);
   const accountIds = useMemo(() => new Set(activeAccounts.map((account) => account.id)), [activeAccounts]);
@@ -264,6 +298,57 @@ export function GeneralLedgerWorkspace() {
             </div>
           </>
         )}
+      </section>
+
+      <section style={card} aria-label="القوائم المالية المبسطة">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+          <div><h3 style={{ margin: 0 }}>قائمة الدخل والمركز المالي</h3><p style={muted}>تجميع من القيود المرحلة في الأستاذ؛ مستقل عن عدد القيود المعروضة في الصفحة.</p></div>
+          <button className="no-print" type="button" style={button} onClick={() => void refreshStatements()} disabled={statementsLoading}><RefreshCw size={14} /> تحديث القوائم</button>
+        </div>
+        <form className="no-print" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }} onSubmit={(event) => {
+          event.preventDefault();
+          if (!statementRangeDraft.from || !statementRangeDraft.to || statementRangeDraft.from > statementRangeDraft.to) {
+            setStatementsError("حدد فترة صحيحة؛ يجب ألا يتجاوز تاريخ البداية تاريخ النهاية.");
+            return;
+          }
+          setStatementRange({ ...statementRangeDraft });
+        }}>
+          <label>من تاريخ القائمة<input aria-label="من تاريخ القائمة المالية" type="date" required style={{ ...field, display: "block", marginTop: 5 }} value={statementRangeDraft.from} onChange={(event) => setStatementRangeDraft((v) => ({ ...v, from: event.target.value }))} /></label>
+          <label>إلى تاريخ القائمة<input aria-label="إلى تاريخ القائمة المالية" type="date" required style={{ ...field, display: "block", marginTop: 5 }} value={statementRangeDraft.to} onChange={(event) => setStatementRangeDraft((v) => ({ ...v, to: event.target.value }))} /></label>
+          <div style={{ display: "flex", alignItems: "end" }}><button type="submit" style={primary}>تطبيق الفترة</button></div>
+        </form>
+        {statementsLoading ? <p role="status" style={muted}>جارٍ احتساب القوائم من دفتر الأستاذ...</p> : statementsError ? <p role="alert" style={{ ...muted, color: "#9b2828" }}>{statementsError}</p> : statements ? (
+          <>
+            <p style={muted}>فترة الدخل: {statements.periodFrom} إلى {statements.periodTo} · القيود المرحلة في الفترة: {statements.postedEntryCount}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+              <article style={{ ...card, boxShadow: "none" }}><span style={muted}>الإيرادات</span><strong>{formatStatementCents(statements.revenueCents)}</strong></article>
+              <article style={{ ...card, boxShadow: "none" }}><span style={muted}>المصروفات</span><strong>{formatStatementCents(statements.expenseCents)}</strong></article>
+              <article style={{ ...card, boxShadow: "none" }}><span style={muted}>نتيجة الفترة</span><strong>{formatStatementCents(statements.netIncomeCents)}</strong></article>
+              <article style={{ ...card, boxShadow: "none" }}><span style={muted}>الأصول حتى تاريخ النهاية</span><strong>{formatStatementCents(statements.assetsCents)}</strong></article>
+              <article style={{ ...card, boxShadow: "none" }}><span style={muted}>الالتزامات</span><strong>{formatStatementCents(statements.liabilitiesCents)}</strong></article>
+              <article style={{ ...card, boxShadow: "none" }}><span style={muted}>حقوق الملكية</span><strong>{formatStatementCents(statements.equityCents)}</strong></article>
+              <article style={{ ...card, boxShadow: "none" }}><span style={muted}>الأرباح/الخسائر المتراكمة غير المقفلة</span><strong>{formatStatementCents(statements.cumulativeEarningsCents)}</strong></article>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <h4 style={{ marginBottom: 8 }}>تفصيل قائمة الدخل حسب الحساب</h4>
+              <table style={table}>
+                <thead><tr style={{ background: "var(--muted, #f4f7f8)" }}><th style={{ padding: 9 }}>رمز الحساب</th><th>الحساب</th><th>نوع الحساب</th><th>صافي الفترة</th></tr></thead>
+                <tbody>{statements.incomeLines.map((line) => <tr key={line.id} style={{ borderTop: "1px solid var(--border, #e3e9ec)" }}><td style={{ padding: 9 }}>{line.code}</td><td>{line.name}</td><td>{line.accountType === "revenue" ? "إيراد" : "مصروف"}</td><td>{formatStatementCents(line.amountCents)}</td></tr>)}</tbody>
+              </table>
+              {!statements.incomeLines.length && <p style={muted}>لا توجد حركة إيراد أو مصروف مرحلة في هذه الفترة.</p>}
+              <h4 style={{ marginBottom: 8 }}>تفصيل المركز المالي حتى {statements.periodTo}</h4>
+              <table style={table}>
+                <thead><tr style={{ background: "var(--muted, #f4f7f8)" }}><th style={{ padding: 9 }}>رمز الحساب</th><th>الحساب</th><th>التصنيف</th><th>الرصيد الطبيعي</th></tr></thead>
+                <tbody>{statements.balanceLines.map((line) => <tr key={line.id} style={{ borderTop: "1px solid var(--border, #e3e9ec)" }}><td style={{ padding: 9 }}>{line.code}</td><td>{line.name}</td><td>{line.accountType === "asset" ? "أصل" : line.accountType === "liability" ? "التزام" : "حقوق ملكية"}</td><td>{formatStatementCents(line.amountCents)}</td></tr>)}</tbody>
+              </table>
+              {!statements.balanceLines.length && <p style={muted}>لا توجد حسابات أصول أو التزامات أو حقوق ملكية في دليل الحسابات.</p>}
+            </div>
+            <p role="status" style={{ ...muted, color: statements.balanceDifferenceCents === 0n ? "#17684d" : "#9b2828" }}>
+              {statements.balanceDifferenceCents === 0n ? "معادلة الميزانية متوازنة ضمن القيود المرحلة." : "تحذير: فرق معادلة الميزانية " + formatStatementCents(statements.balanceDifferenceCents) + "؛ راجع القيود والحسابات."}
+            </p>
+          </>
+        ) : <p style={muted}>لا توجد نتيجة قابلة للعرض من المصدر حتى الآن.</p>}
+        <p style={{ ...muted, fontSize: 12 }}>حدود القراءة: القوائم مشتقة حصريًا من قيود اليومية المرحلة في الأستاذ. الفواتير والتحصيلات والمصروفات والاستلامات التي لم تربط بقيود محاسبية لا تدخل فيها. الأرباح المتراكمة محسوبة من قيود الإيراد والمصروف حتى تاريخ نهاية التقرير؛ لم تُنشأ أرصدة افتتاحية أو معاملات تاريخية افتراضية.</p>
       </section>
 
       <form style={card} onSubmit={(event) => { event.preventDefault(); setFilters(filtersDraft); setPage(0); }}>
