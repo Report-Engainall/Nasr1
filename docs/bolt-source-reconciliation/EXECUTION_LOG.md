@@ -499,3 +499,15 @@
 
 - لم يعد صحيحًا اعتبار خصم Checkout غير منفّذ على HEAD الحالي. ترحيل `20261019150000_checkout_promotion_pricing_snapshots.sql` يعرّف `resolve_active_promotion_price`؛ يحدد الحملة الفعالة ضمن المؤسسة، يحسب النسبة/المبلغ، ويحد الخصم إلى الهامش فوق تكلفة الصنف. `place_order` و`preview_order_pricing` و`get_storefront_product_prices` و`review_order_lines` تستخدم السعر الفعال وتحفظ لقطات الحملة/الخصم في بنود الطلب، ويُنسخ snapshot إلى بنود الفاتورة.
 - اختبار قبول قاعدة البيانات في `scripts/test-database-migrations.mjs` يتحقق من انخفاض السعر عند حملة فعالة، ثبات السعر الخام في snapshot، مطابقة الخصم والإجمالي وحظر وصول العميل إلى جدول الحملات مباشرة. هذا متحقق ضمن CI المطابق `58cd1f8acd627c7cb2a00e81a29b3c46581cd490`; لا يثبت ترحيل/نشر الإنتاج.
+
+
+## 2026-10-19 — تسجيل صفحات التصنيف والبحث المتقدم وإصلاح المطابقة
+
+- فشل CI [39297551448](https://github.com/Report-Engainall/Nasr1/actions/runs/39297551448) بعد 36/37 suites لأن اختبارين أثبتا أن شجرة TanStack لا تصل إلى صفحة البحث المتقدم ولا إلى حالة رفض التصنيف الفرعي. لم يتم إسقاط الاختبارين أو تخفيض التوقعات.
+- تم تصحيح `src/routeTree.gen.ts`: صفحات التصنيف الفرعي `/category/$slug/subcategory/$subcategorySlug` والبحث المتقدم `/search/advanced` تسجلان الآن كمسارين مباشرين جذريين؛ أُزيل الاعتماد على المطابقة المتداخلة التي كانت تعرض مكوّن المسار الأب.
+- رُبط رابط «بحث متقدم» في `src/components/Storefront.tsx`; رُبط المحدد `#advanced-storefront-category` في `AdvancedStorefrontSearchPage.tsx`; أضيفت اختبارات سلوك لفتح تصنيف حقيقي، رفض child لا يتبع parent، وفتح البحث المتقدم ثم تطبيق تصنيف من بيانات الاختبار إلى `/catalog`.
+- أضيفت عقود HTTP/العناوين في `.github/workflows/commerce-checks.yml` للـpreview 4173 والـdev 5173؛ تم إصلاح indentation وshell continuations بعد أن فشل تشغيل سابق قبل إنشاء أي job.
+- CI النهائي المطابق [39297924768 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39297924768), SHA `5c30bafe9bc5076a3acb6ca3335679462d290eb6`: **37/37 ملفات اختبار و302/302 اختبار**؛ PostgreSQL 17/migrations/RLS؛ lint؛ build؛ preview smoke؛ dev smoke PASS.
+- الحالة: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS (exact SHA 5c30bafe9bc5076a3acb6ca3335679462d290eb6); BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN.
+- تبقى المهمة الأشمل `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` مفتوحة. هذا السجل يغلق جزء اكتشاف الكتالوج فقط.
+
