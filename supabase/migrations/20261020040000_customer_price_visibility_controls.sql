@@ -125,6 +125,7 @@ DECLARE
   v_show_tier boolean := false;
   v_setting_key text;
   v_line jsonb;
+  v_item record;
   v_product_id uuid;
   v_quantity numeric(15,3);
   v_product record;
@@ -214,7 +215,7 @@ BEGIN
     END IF;
   END LOOP;
 
-  FOR v_product IN
+  FOR v_item IN
     SELECT (e.value->>'product_id')::uuid AS product_id,
            pg_catalog.sum((e.value->>'quantity')::numeric)::numeric(15,3) AS quantity
     FROM pg_catalog.jsonb_array_elements(p_items) AS e(value)
@@ -227,21 +228,21 @@ BEGIN
     SELECT p.id, p.name, p.item_code, p.unit
       INTO v_product
     FROM public.products AS p
-    WHERE p.id = v_product.product_id
+    WHERE p.id = v_item.product_id
       AND p.organization_id = v_org
       AND p.status = 'active';
     IF NOT FOUND THEN
       RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'product unavailable in this organization';
     END IF;
 
-    v_unit_price := public.customer_product_unit_price(v_product.product_id, v_org, v_tier, v_product.quantity);
-    v_line_total := pg_catalog.round(v_unit_price * v_product.quantity, 2);
+    v_unit_price := public.customer_product_unit_price(v_item.product_id, v_org, v_tier, v_item.quantity);
+    v_line_total := pg_catalog.round(v_unit_price * v_item.quantity, 2);
     v_items := v_items || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
-      'product_id', v_product.product_id,
+      'product_id', v_item.product_id,
       'name', v_product.name,
       'item_code', v_product.item_code,
       'unit', v_product.unit,
-      'quantity', v_product.quantity,
+      'quantity', v_item.quantity,
       'unit_price', v_unit_price,
       'line_total', v_line_total
     ));
