@@ -108,11 +108,24 @@ export function saveOfflineCartDraft(
   storage: OfflineCartStorage,
   profileId: string | null | undefined,
   lines: unknown,
-): void {
+): boolean {
   const normalized = normalizeCartDraft(lines);
   try {
     storage.setItem(offlineCartStorageKey(profileId), JSON.stringify(normalized));
+    return true;
   } catch {
     // Offline persistence is best-effort; server validation remains mandatory for checkout.
+    return false;
   }
+}
+
+/** Merge explicit reorder/barcode additions into the current profile's cart without using global restore keys. */
+export function mergeOfflineCartDraft(
+  storage: OfflineCartStorage,
+  profileId: string | null | undefined,
+  additions: unknown,
+): CartLineDraft[] | null {
+  const existing = loadOfflineCartDraft(storage, profileId);
+  const merged = mergeDrafts(existing, normalizeCartDraft(additions));
+  return saveOfflineCartDraft(storage, profileId, merged) ? merged : null;
 }
