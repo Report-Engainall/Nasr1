@@ -33,6 +33,7 @@ import { TaskCenter } from '@/components/TaskCenter';
 import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
 import { UnifiedImportEngine } from '@/components/UnifiedImportEngine';
 import { OnyxSnapshotCenter } from '@/components/OnyxSnapshotCenter';
+import { UnifiedOnyxAnalysisPanel } from '@/components/UnifiedOnyxAnalysisPanel';
 import { PromotionManager } from '@/components/PromotionManager';
 import { toWebp, validateProductImageFile } from '@/lib/product-image';
 import { validateCustomerInput } from '@/lib/customer-input';
@@ -866,6 +867,7 @@ function Reports() {
       <ReportMetric label="قيمة المخزون المعروضة" value={formatCurrency((products ?? []).reduce((sum, p) => sum + p.base_price * (p.inventory?.quantity_available ?? 0), 0))} icon={Package} />
       <ReportMetric label="الأصناف منخفضة المخزون" value={formatNumber(stats?.lowStockCount ?? 0)} icon={AlertTriangle} />
     </div>}
+    <div style={{ marginTop: 16 }}><UnifiedOnyxAnalysisPanel /></div>
     <section className="panel" style={{ marginTop: 16 }}>
       <div className="panel-head"><div><h2>إشارات تشغيلية مدعومة بالأدلة</h2><p>تحليل حتمي لنتائج الطلبات الفعلية في نطاق المؤسسة، دون اختلاق أسباب أو توقعات.</p></div><Activity size={22} /></div>
       {ordersLoading ? <Loading /> : ordersError ? <ErrorBox message={ordersError} /> : signals.length === 0
