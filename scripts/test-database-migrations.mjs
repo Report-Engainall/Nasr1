@@ -2729,11 +2729,6 @@ async function main() {
   const promotionOrderId = placedResponse?.id ?? placedResponse?.order_id;
   assert.match(String(promotionOrderId ?? ""), /^[0-9a-f-]{36}$/i);
   await db.unsafe("reset role");
-  const grossCustomerRows = await db.unsafe(
-    "select public.customer_product_unit_price($1::uuid,$2::uuid,'retail',1) as gross_price",
-    [productId, organizationId],
-  );
-  const grossCustomerPrice = Number(grossCustomerRows[0].gross_price);
   assert.ok(grossCustomerPrice > effectiveCustomerPrice, "active campaign lowers the price while respecting the cost floor");
   const campaignOrderItems = await db.unsafe(
     "select product_id,unit_price_snapshot,discount_snapshot,promotion_discount_per_unit_snapshot,promotion_id_snapshot,promotion_title_snapshot,promotion_discount_type_snapshot,promotion_discount_value_snapshot,line_total from public.order_items where order_id=$1::uuid",
