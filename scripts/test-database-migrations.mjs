@@ -2661,6 +2661,11 @@ async function main() {
   assert.equal(batchHeader.length, 1);
   assert.equal(Number(batchHeader[0].line_count), 2);
   assert.equal(batchHeader[0].organization_id, organizationId);
+  await expectFailure(
+    "authenticated staff cannot directly select batch headers",
+    () => db.unsafe("select id from public.inventory_transfer_batches where organization_id=$1", [organizationId]),
+    /permission denied/i,
+  );
   const storedBatchPayload = typeof batchHeader[0].payload === "string" ? JSON.parse(batchHeader[0].payload) : batchHeader[0].payload;
   assert.equal(storedBatchPayload.length, 2, "batch stores its canonical item/quantity payload");
   const batchTransferRows = await db.unsafe(

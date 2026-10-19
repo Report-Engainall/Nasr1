@@ -28,13 +28,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS inventory_transfers_batch_product_unique
 
 ALTER TABLE public.inventory_transfer_batches ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.inventory_transfer_batches FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON TABLE public.inventory_transfer_batches TO authenticated;
 GRANT ALL ON TABLE public.inventory_transfer_batches TO service_role;
-DROP POLICY IF EXISTS inventory_transfer_batches_tenant_read ON public.inventory_transfer_batches;
-CREATE POLICY inventory_transfer_batches_tenant_read
-  ON public.inventory_transfer_batches FOR SELECT TO authenticated
-  USING (public.is_staff() AND organization_id = public.current_organization_id());
-
 CREATE OR REPLACE FUNCTION public.transfer_inventory_batch(
   p_source_warehouse_id uuid,
   p_destination_warehouse_id uuid,
@@ -436,3 +430,62 @@ COMMENT ON FUNCTION public.transfer_inventory_batch(uuid, uuid, text, jsonb, tex
   'Atomic multi-product stock transfer with target-tenant authorization, sorted locking, reserved-stock protection, idempotent replay, per-product movements and one batch audit event.';
 COMMENT ON TABLE public.inventory_transfer_batches IS
   'Audited multi-product transfer envelopes; each product transfer remains in inventory_transfers and its paired movement ledger.';
+-- Read transfer history only through a bounded tenant-aware RPC; the base tables remain non-readable to clients.
+CREATE OR REPLACE FUNCTION public.list_inventory_transfer_history(p_limit integer DEFAULT 500)
+RETURNS TABLE (
+  id uuid,
+  organization_id uuid,
+  product_id uuid,
+  source_warehouse_id uuid,
+  destination_warehouse_id uuid,
+  quantity numeric,
+  reason text,
+  created_by uuid,
+  created_at timestamptz,
+  batch_id uuid,
+  product_name text,
+  item_code text,
+  unit text,
+  source_warehouse_name text,
+  destination_warehouse_name text,
+  batch_line_count integer
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_actor uuid := public.current_profile_id();
+  v_org uuid;
+BEGIN
+  SELECT p.organization_id INTO v_org
+    FROM public.profiles p
+   WHERE p.id = v_actor AND p.auth_user_id = auth.uid() AND p.is_active;
+  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.is_staff() THEN
+    RAISE EXCEPTION USING ERRCODE = '42501',
+      MESSAGE = 'active staff organization required to read inventory transfer history';
+  END IF;
+
+  RETURN QUERY
+  SELECT t.id, t.organization_id, t.product_id, t.source_warehouse_id, t.destination_warehouse_id,
+         t.quantity::numeric, t.reason, t.created_by, t.created_at, t.batch_id,
+         p.name::text, p.item_code::text, p.unit::text,
+         sw.name::text, dw.name::text, b.line_count
+    FROM public.inventory_transfers t
+    LEFT JOIN public.products p
+      ON p.id = t.product_id AND p.organization_id = t.organization_id
+    LEFT JOIN public.warehouses sw
+      ON sw.id = t.source_warehouse_id AND sw.organization_id = t.organization_id
+    LEFT JOIN public.warehouses dw
+      ON dw.id = t.destination_warehouse_id AND dw.organization_id = t.organization_id
+    LEFT JOIN public.inventory_transfer_batches b
+      ON b.id = t.batch_id AND b.organization_id = t.organization_id
+   WHERE t.organization_id = v_org
+   ORDER BY t.created_at DESC, t.id DESC
+   LIMIT least(greatest(coalesce(p_limit, 500), 1), 500);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.list_inventory_transfer_history(integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.list_inventory_transfer_history(integer) TO authenticated;
+COMMENT ON FUNCTION public.list_inventory_transfer_history(integer) IS
+  'Bounded read-only inventory transfer history for the authenticated active staff member and current organization; no client table SELECT is required.';

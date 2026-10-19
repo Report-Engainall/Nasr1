@@ -1385,44 +1385,42 @@ export async function transferInventoryBatch(input: InventoryTransferBatchInput)
 }
 
 export async function fetchInventoryTransferHistory(): Promise<InventoryTransferHistoryRow[]> {
-  const { organizationId } = await getCurrentTenantScope();
-  const { data, error } = await supabase
-    .from('inventory_transfers')
-    .select('id,organization_id,product_id,source_warehouse_id,destination_warehouse_id,quantity,reason,created_by,created_at,batch_id')
-    .eq('organization_id', organizationId)
-    .order('created_at', { ascending: false })
-    .limit(500);
+  const { data, error } = await supabase.rpc('list_inventory_transfer_history', { p_limit: 500 });
   if (error) throw error;
-  const rows = (data ?? []) as Array<{
-    id: string; organization_id: string; product_id: string; source_warehouse_id: string; destination_warehouse_id: string;
-    quantity: number | string; reason: string; created_by: string | null; created_at: string; batch_id: string | null;
-  }>;
-  if (!rows.length) return [];
-
-  const warehouseIds = [...new Set(rows.flatMap((row) => [row.source_warehouse_id, row.destination_warehouse_id]))];
-  const batchIds = [...new Set(rows.map((row) => row.batch_id).filter((id): id is string => Boolean(id)))];
-  const [products, warehouseResult, batchResult] = await Promise.all([
-    fetchInventoryTransferProducts(),
-    supabase.from('warehouses').select('id,name,code').eq('organization_id', organizationId).in('id', warehouseIds),
-    batchIds.length
-      ? supabase.from('inventory_transfer_batches').select('id,line_count').eq('organization_id', organizationId).in('id', batchIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-  if (warehouseResult.error) throw warehouseResult.error;
-  if (batchResult.error) throw batchResult.error;
-
-  const productMap = new Map(products.map((product) => [product.id, product]));
-  const warehouseMap = new Map(((warehouseResult.data ?? []) as Array<{ id: string; name: string; code: string | null }>).map((row) => [row.id, row]));
-  const batchMap = new Map(((batchResult.data ?? []) as Array<{ id: string; line_count: number }>).map((row) => [row.id, row]));
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
   return rows.map((row) => {
-    const product = productMap.get(row.product_id);
-    const source = warehouseMap.get(row.source_warehouse_id);
-    const destination = warehouseMap.get(row.destination_warehouse_id);
+    const validString = (value: unknown): value is string => typeof value === 'string';
+    const nullableString = (value: unknown): value is string | null => value === null || typeof value === 'string';
+    const quantity = typeof row.quantity === 'number' || typeof row.quantity === 'string'
+      ? Number(row.quantity) : Number.NaN;
+    if (
+      !validString(row.id) || !validString(row.organization_id) || !validString(row.product_id) ||
+      !validString(row.source_warehouse_id) || !validString(row.destination_warehouse_id) ||
+      !Number.isFinite(quantity) || !validString(row.reason) || !nullableString(row.created_by) ||
+      !validString(row.created_at) || !nullableString(row.batch_id) ||
+      !nullableString(row.product_name) || !nullableString(row.item_code) || !nullableString(row.unit) ||
+      !nullableString(row.source_warehouse_name) || !nullableString(row.destination_warehouse_name) ||
+      !(row.batch_line_count === null || (typeof row.batch_line_count === 'number' && Number.isInteger(row.batch_line_count)))
+    ) {
+      throw new Error('أعاد الخادم حركة مخزون غير مكتملة؛ أوقف عرض سجل التحويلات.');
+    }
     return {
-      ...row, quantity: Number(row.quantity),
-      product_name: product?.name ?? null, item_code: product?.item_code ?? null, unit: product?.unit ?? null,
-      source_warehouse_name: source?.name ?? null, destination_warehouse_name: destination?.name ?? null,
-      batch_line_count: row.batch_id ? batchMap.get(row.batch_id)?.line_count ?? null : null,
+      id: row.id,
+      organization_id: row.organization_id,
+      product_id: row.product_id,
+      source_warehouse_id: row.source_warehouse_id,
+      destination_warehouse_id: row.destination_warehouse_id,
+      quantity,
+      reason: row.reason,
+      created_by: row.created_by,
+      created_at: row.created_at,
+      batch_id: row.batch_id,
+      product_name: row.product_name,
+      item_code: row.item_code,
+      unit: row.unit,
+      source_warehouse_name: row.source_warehouse_name,
+      destination_warehouse_name: row.destination_warehouse_name,
+      batch_line_count: row.batch_line_count as number | null,
     };
   });
 }
