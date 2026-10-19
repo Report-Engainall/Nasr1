@@ -954,6 +954,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInvoicePdfInvoiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1015,13 +1022,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInvoicePdfInvoiceIdRoute: ApiInvoicePdfInvoiceIdRoute,
   AdminAuditRoute: AdminAuditRoute,
   ProductsRoute: ProductsRoute,
-    '/invite/$token': {
-      id: '/invite/$token'
-      path: '/invite/$token'
-      fullPath: '/invite/$token'
-      preLoaderRoute: typeof InviteTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   InviteTokenRoute: InviteTokenRoute,
 }
 export const routeTree = rootRouteImport
