@@ -444,7 +444,7 @@ type CheckoutValidation = {
   pricing_verified: true;
 };
 
-function Checkout({ cart, onBack, onComplete }: { cart: CartItem[]; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
+function Checkout({ cart, showPriceInOrders, showCustomerTier, onBack, onComplete }: { cart: CartItem[]; showPriceInOrders: boolean; showCustomerTier: boolean; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
   const { user } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
   const [phone, setPhone] = useState('');
@@ -461,6 +461,7 @@ function Checkout({ cart, onBack, onComplete }: { cart: CartItem[]; onBack: () =
     [deliveryAddresses, deliveryAddressId],
   );
   const [cartValidation, setCartValidation] = useState<CheckoutValidation | null>(null);
+  const [orderPricePreview, setOrderPricePreview] = useState<CustomerPricingPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(true);
   const [previewError, setPreviewError] = useState('');
   const [previewRetry, setPreviewRetry] = useState(0);
@@ -540,6 +541,21 @@ function Checkout({ cart, onBack, onComplete }: { cart: CartItem[]; onBack: () =
     })();
     return () => { active = false; };
   }, [checkoutItems, user?.profileId, previewRetry]);
+
+  useEffect(() => {
+    let active = true;
+    setOrderPricePreview(null);
+    if (!showPriceInOrders || !user?.profileId || checkoutItems.length === 0) return () => { active = false; };
+    void supabase.rpc('preview_customer_order_pricing', { p_items: checkoutItems, p_surface: 'orders' }).then(({ data, error }) => {
+      if (!active || error) return;
+      const payload = data as CustomerPricingPreview | null;
+      if (!payload || typeof payload.visible !== 'boolean') return;
+      if (!payload.visible) { setOrderPricePreview({ visible: false, customer_tier_visible: payload.customer_tier_visible === true, customer_tier_label: typeof payload.customer_tier_label === 'string' ? payload.customer_tier_label : null }); return; }
+      if (!Array.isArray(payload.items) || payload.items.length !== checkoutItems.length || !payload.items.every((line) => typeof line.product_id === 'string' && Number.isFinite(Number(line.unit_price)) && Number(line.unit_price) >= 0 && Number.isFinite(Number(line.line_total)) && Number(line.line_total) >= 0) || !Number.isFinite(Number(payload.total_amount))) return;
+      setOrderPricePreview({ ...payload, visible: true, customer_tier_visible: payload.customer_tier_visible === true, customer_tier_label: typeof payload.customer_tier_label === 'string' ? payload.customer_tier_label : null });
+    }).catch(() => { /* price fields remain hidden unless server preview is valid */ });
+    return () => { active = false; };
+  }, [checkoutItems, user?.profileId, showPriceInOrders, previewRetry]);
 
   function getIdempotencyKey() {
     const items = cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity })).sort((a, b) => a.product_id.localeCompare(b.product_id));
@@ -646,12 +662,16 @@ function Checkout({ cart, onBack, onComplete }: { cart: CartItem[]; onBack: () =
         <aside className="sf-checkout-summary">
           <h3>ملخص الطلب</h3>
           {previewLoading && <p role="status">جارٍ التحقق من الأصناف وسياسة التسعير من الخادم...</p>}
-          {cartValidation ? cartValidation.items.map((line) => <div className="sf-summary-row" key={line.product_id}><span>{line.name}</span><small>الكمية: {formatNumber(Number(line.quantity))} {line.unit}</small></div>)
-            : !previewLoading && cart.map((i) => <div className="sf-summary-row" key={i.product.id}><span>{i.product.name}</span><small>الكمية: {formatNumber(i.quantity)} {i.product.unit}</small></div>)}
+          {cartValidation ? cartValidation.items.map((line) => {
+            const priceLine = orderPricePreview?.visible ? orderPricePreview.items?.find((price) => price.product_id === line.product_id) : undefined;
+            return <div className="sf-summary-row" key={line.product_id}><span>{line.name}{showPriceInOrders && priceLine ? <small style={{ display: 'block' }}>سعر الوحدة: {formatCurrency(Number(priceLine.unit_price))} · إجمالي البند: {formatCurrency(Number(priceLine.line_total))}</small> : null}</span><small>الكمية: {formatNumber(Number(line.quantity))} {line.unit}</small></div>;
+          }) : !previewLoading && cart.map((i) => <div className="sf-summary-row" key={i.product.id}><span>{i.product.name}</span><small>الكمية: {formatNumber(i.quantity)} {i.product.unit}</small></div>)}
+          {showCustomerTier && orderPricePreview?.customer_tier_visible && orderPricePreview.customer_tier_label && <p role="status" style={{ fontWeight: 800 }}>فئة العميل: {orderPricePreview.customer_tier_label}</p>}
+          {showPriceInOrders && orderPricePreview?.visible && <div role="group" aria-label="إجمالي مراجعة الطلب" style={{ padding: 12, borderRadius: 10, background: '#f2f7f8', color: '#536b70', lineHeight: 1.8, display: 'flex', justifyContent: 'space-between', gap: 10 }}><strong>إجمالي الطلب التقديري</strong><strong>{formatCurrency(Number(orderPricePreview.total_amount))}</strong></div>}
           <div role="note" style={{ padding: 12, borderRadius: 10, background: '#f2f7f8', color: '#536b70', lineHeight: 1.8 }}>
-            الأسعار والإجماليات مخفية في مستندات الطلب للعميل. بعد مراجعة الإدارة سيظهر إشعار حالة الطلب وتعليمات السداد عند الحاجة.
+            {showPriceInOrders ? (orderPricePreview?.visible ? 'هذه معاينة محسوبة من الخادم حسب فئة حسابك؛ يعيد الخادم احتساب المبلغ والمخزون داخل معاملة إنشاء الطلب.' : 'تعذر تأكيد عرض الأسعار من الخادم؛ تبقى جميع المبالغ مخفية حتى يصل تحقق حالي صالح.') : 'الأسعار والإجماليات مخفية في مراجعة الطلب وفق إعدادات المتجر. بعد مراجعة الإدارة سيظهر إشعار حالة الطلب وتعليمات السداد عند الحاجة.'}
           </div>
-          {cartValidation && <small style={{ color: '#71868a', lineHeight: 1.7 }}>تحقق الخادم من الأصناف وصلاحية سياسة التسعير دون إرسال أي أسعار أو إجماليات للمتصفح. يعيد الخادم حساب المبلغ داخل معاملة إنشاء الطلب.</small>}
+          {cartValidation && <small style={{ color: '#71868a', lineHeight: 1.7 }}>التحقق من صلاحية السلة مستقل عن العرض المالي؛ لا يرسل هذا الملخص سعرًا إلى دالة إنشاء الطلب، وتبقى المعاملة في الخادم مصدر الحقيقة.</small>}
           {!cartValidation && !previewLoading && <small style={{ color: '#9b2626', lineHeight: 1.7 }}>لن يُرسل الطلب حتى ينجح التحقق من السلة وسياسة التسعير في الخادم.</small>}
         </aside>
       </div>
