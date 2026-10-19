@@ -2713,6 +2713,45 @@ async function main() {
   await db.unsafe("set role authenticated");
   const customerPublished = await db.unsafe("select id from public.get_storefront_promotions()");
   assert.ok(customerPublished.some((row) => row.id === promotionId));
+  const customerPriceRows = await db.unsafe(
+    "select * from public.get_storefront_product_prices($1::uuid[],1)",
+    [[productId]],
+  );
+  assert.equal(customerPriceRows.length, 1, "storefront returns the tenant-scoped product price");
+  const effectiveCustomerPrice = Number(customerPriceRows[0].unit_price ?? customerPriceRows[0].price);
+  assert.ok(Number.isFinite(effectiveCustomerPrice) && effectiveCustomerPrice > 0);
+  const promotionOrderKey = "ci-promotion-priced-order-" + promotionId;
+  const placedRows = await db.unsafe(
+    "select public.place_order($1::jsonb,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text) as result",
+    [db.json([{ product_id: productId, quantity: 1 }]), "campaign pricing acceptance", "CI Campaign Buyer", "CI Test Contact", "771234567", "cash_on_delivery", promotionOrderKey],
+  );
+  const placedResponse = typeof placedRows[0].result === "string" ? JSON.parse(placedRows[0].result) : placedRows[0].result;
+  const promotionOrderId = placedResponse?.id ?? placedResponse?.order_id;
+  assert.match(String(promotionOrderId ?? ""), /^[0-9a-f-]{36}$/i);
+  await db.unsafe("reset role");
+  const grossCustomerRows = await db.unsafe(
+    "select public.customer_product_unit_price($1::uuid,$2::uuid,'retail',1) as gross_price",
+    [productId, organizationId],
+  );
+  const grossCustomerPrice = Number(grossCustomerRows[0].gross_price);
+  assert.ok(grossCustomerPrice > effectiveCustomerPrice, "active campaign lowers the price while respecting the cost floor");
+  const campaignOrderItems = await db.unsafe(
+    "select product_id,unit_price_snapshot,discount_snapshot,promotion_discount_per_unit_snapshot,promotion_id_snapshot,promotion_title_snapshot,promotion_discount_type_snapshot,promotion_discount_value_snapshot,line_total from public.order_items where order_id=$1::uuid",
+    [promotionOrderId],
+  );
+  assert.equal(campaignOrderItems.length, 1);
+  const campaignLine = campaignOrderItems[0];
+  assert.equal(campaignLine.promotion_id_snapshot, promotionId);
+  assert.equal(campaignLine.promotion_title_snapshot, "CI active campaign");
+  assert.equal(campaignLine.promotion_discount_type_snapshot, "percentage");
+  assert.equal(Number(campaignLine.unit_price_snapshot), grossCustomerPrice);
+  assert.ok(Number(campaignLine.discount_snapshot) > 0);
+  assert.equal(Number(campaignLine.discount_snapshot), Number(campaignLine.promotion_discount_per_unit_snapshot));
+  assert.equal(Number(campaignLine.line_total), effectiveCustomerPrice);
+  const campaignOrder = await db.unsafe("select total_amount from public.orders where id=$1::uuid", [promotionOrderId]);
+  assert.equal(Number(campaignOrder[0].total_amount), Number(campaignLine.line_total));
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
   await expectFailure("customer cannot select promotion storage directly",
     () => db.unsafe("select id from public.promotions"), /permission denied/i);
   await expectFailure("customer cannot save promotions",
