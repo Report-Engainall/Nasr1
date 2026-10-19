@@ -169,8 +169,9 @@ describe("customer storefront saved discovery", () => {
     expect(collections.host.textContent).toContain("تصنيفات المنتجات");
     expect(collections.host.textContent).toContain("مواد غذائية");
     expect(collections.host.textContent).toMatch(/١ صنف|1 صنف/);
-    const link = collections.host.querySelector<HTMLAnchorElement>('a[href*="/catalog?category="]');
-    expect(link?.getAttribute("href")).toContain("category-food");
+    const link = collections.host.querySelector<HTMLAnchorElement>('a[href^="/category/"]');
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute("href")).toContain("--category-food");
   });
 
   it("shows real published promotions and discloses server-side final pricing", async () => {
