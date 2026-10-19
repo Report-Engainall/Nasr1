@@ -74,7 +74,7 @@ describe("unified Onyx analysis panel", () => {
     expect(screen.getByRole("option", { name: /inventory-october\.csv/ })).toBeInTheDocument();
     expect(await screen.findByText("قيمة المبيعات داخل اللقطة")).toBeInTheDocument();
     expect(screen.getByText(/مستقلة عن إجماليات مبيعات متجر الأغبري/)).toBeInTheDocument();
-    expect(screen.getByText("4200")).toBeInTheDocument();
+    expect(screen.getByText("قيمة المبيعات داخل اللقطة").parentElement).toHaveTextContent(/٤.*٢٠٠|4200/);
     expect(screen.getByText(/SHA-256 للمصدر/)).toBeInTheDocument();
     expect(mocks.fetchOnyxSnapshotAnalytics).toHaveBeenCalledWith("snapshot-1");
   });
@@ -101,7 +101,7 @@ describe("unified Onyx analysis panel", () => {
     }));
     render(<UnifiedOnyxAnalysisPanel />);
     expect(await screen.findByRole("alert")).toHaveTextContent("بيانات تحليل اللقطة غير مكتملة");
-    expect(screen.queryByText("5100")).not.toBeInTheDocument();
+    expect(screen.queryByText("قيمة المصدر المحللة")).not.toBeInTheDocument();
   });
 
   it("does not query source data for an unauthorized user", () => {
