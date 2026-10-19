@@ -238,6 +238,21 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
         {categories?.map((c: Category) => <button key={c.id} className={activeCat === c.id ? 'active' : ''} onClick={() => { setActiveCat(c.id); setMobileMenu(false); }}>{c.name}</button>)}
       </nav>
 
+      {availableOnly && (
+        <div role="status" className="sf-catalog-filter-notice" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, padding: '9px 16px', color: '#174b50', background: '#eaf6f4', borderBottom: '1px solid #c8e5e0', fontSize: 12 }}>
+          <span>الفلتر الفعّال: أصناف ذات رصيد متاح معروف أكبر من صفر.</span>
+          <button type="button" aria-label="إلغاء فلتر المتوفر فقط" onClick={() => {
+            setAvailableOnly(false);
+            void navigate({ to: '/catalog', search: {
+              ...(query.trim() ? { q: query.trim() } : {}),
+              ...(activeCat ? { category: activeCat } : {}),
+            } });
+          }} style={{ border: '1px solid #83bdb4', borderRadius: 16, padding: '4px 10px', background: '#fff', color: '#174b50', fontWeight: 800 }}>
+            إظهار كل الأصناف المطابقة
+          </button>
+        </div>
+      )}
+
       <div aria-label="أدوات الحساب التجاري" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', padding: '10px 16px', borderBottom: '1px solid #e4eeee', background: '#fff' }}>
         {[['/invoices', 'الفواتير'], ['/statement', 'كشف الحساب'], ['/quotes', 'عروض الأسعار'], ['/reorder', 'إعادة الطلب'], ['/barcode', 'ماسح الباركود'], ['/assistant', 'المساعد الذكي'], ['/offline', 'دون اتصال']].map(([to, label]) => <Link key={to} to={to as never} style={{ textDecoration: 'none', color: '#0b7b89', border: '1px solid #d8e9e9', borderRadius: 18, padding: '6px 12px', fontSize: 11, fontWeight: 800 }}>{label}</Link>)}
       </div>

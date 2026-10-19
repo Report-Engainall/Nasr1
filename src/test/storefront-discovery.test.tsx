@@ -211,6 +211,45 @@ describe("customer storefront saved discovery", () => {
     expect(advanced.host.textContent).not.toContain("Beans");
   });
 
+
+  it("keeps only products with known positive availability and lets the user clear that filter", async () => {
+    mocks.products.splice(0, mocks.products.length, ...initialProducts.map((product) =>
+      product.id === "product-4"
+        ? { ...product, inventory: { ...product.inventory, quantity_available: Number.NaN } }
+        : product
+    ));
+
+    const advanced = await mountAt("/search/advanced");
+    const availableCheckbox = advanced.host.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    expect(availableCheckbox).not.toBeNull();
+    if (!availableCheckbox) throw new Error("known-availability filter checkbox missing");
+    const setChecked = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked")?.set;
+    setChecked?.call(availableCheckbox, true);
+    act(() => availableCheckbox.dispatchEvent(new Event("change", { bubbles: true })));
+
+    const form = advanced.host.querySelector<HTMLFormElement>("form");
+    expect(form).not.toBeNull();
+    if (!form) throw new Error("advanced search form missing");
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(advanced.host.textContent).toContain("فلتر فعّال");
+    expect(advanced.host.textContent).toContain("Rice");
+    expect(advanced.host.textContent).toContain("Sugar");
+    expect(advanced.host.textContent).toContain("Oil");
+    expect(advanced.host.textContent).not.toContain("Beans");
+
+    const clearButton = advanced.host.querySelector<HTMLButtonElement>('button[aria-label="إلغاء فلتر المتوفر فقط"]');
+    expect(clearButton).not.toBeNull();
+    if (!clearButton) throw new Error("clear available-only filter button missing");
+    act(() => clearButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(advanced.host.textContent).not.toContain("فلتر فعّال");
+    expect(advanced.host.textContent).toContain("Beans");
+  });
+
   it("shows real published promotions and discloses server-side final pricing", async () => {
     const offers = await mountAt("/offers");
     expect(offers.host.textContent).toContain("العروض المنشورة");
