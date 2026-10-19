@@ -1330,7 +1330,7 @@ async function main() {
     [previewItems],
   ))[0].result;
   assert.equal(visibleOrdersPreview.visible, true);
-  assert.equal(Number(visibleOrdersPreview.total_amount), 74000);
+  assert.equal(Number(visibleOrdersPreview.total_amount), Number(expectedWholesalePreview) * 2);
 
   // Disabling catalog prices changes the customer RPC payload itself, while staff pricing remains separate.
   await db.unsafe("reset role");
