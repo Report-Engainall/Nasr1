@@ -99,8 +99,8 @@ describe('price grid', () => {
     render(<PricingGrid onNotice={vi.fn()} />);
     const productRow = screen.getByRole('row', { name: /سكر أبيض/ });
     expect(productRow.textContent).toMatch(/12[.,٫]125|١٢٫١٢٥/);
-    expect(productRow.textContent).toContain('الرصيد الفعلي');
-    expect(productRow.textContent).toContain('المتاح للبيع');
+    expect(screen.getByRole('columnheader', { name: 'الرصيد الفعلي' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'المتاح للبيع' })).toBeInTheDocument();
     cleanup();
     mocks.rows = [{
       ...product,
