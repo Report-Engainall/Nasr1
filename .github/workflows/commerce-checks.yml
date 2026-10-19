@@ -129,10 +129,10 @@ jobs:
             "/register|إنشاء حساب تجاري" \
             "/forgot-password|استعادة كلمة المرور" \
             "/admin/audit|سجل التدقيق" \
-            "/store|المتجر" \\
-            "/catalog|الكتالوج" \\
-            "/collections|التصنيفات" \\
-            "/offers|العروض" \\
+            "/store|المتجر" \
+            "/catalog|الكتالوج" \
+            "/collections|التصنيفات" \
+            "/offers|العروض" \
             "/products|متجر الأغبري" \
             "/invite/ci-token|قبول دعوة الشركة"; do
             route="${route_spec%%|*}"
