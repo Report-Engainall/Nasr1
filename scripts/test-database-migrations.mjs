@@ -1647,7 +1647,7 @@ async function main() {
     "select quantity_on_hand,quantity_reserved,quantity_available from public.inventory_balances where product_id=$1 and warehouse_id='d0000000-0000-0000-0000-000000000001'",
     [productId],
   );
-  assert.equal(Number(stockAfterShipment[0].quantity_on_hand), 538, "shipping should consume on-hand stock");
+  assert.equal(Number(stockAfterShipment[0].quantity_on_hand), openingOnHand + 2 - 10, "shipping consumes the original ten ordered units while preserving the two units physically received from the purchase order");
   assert.equal(Number(stockAfterShipment[0].quantity_reserved), 0, "shipping should clear the stock reservation");
   await expectFailure(
     "cancelling a shipped order",
