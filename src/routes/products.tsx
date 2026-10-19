@@ -1,7 +1,11 @@
 import { ClientOnly, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Storefront } from "@/components/Storefront";
+import { MAX_CATALOG_SEARCH_LENGTH } from "@/lib/commerce-utils";
 
 export const Route = createFileRoute("/products")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === "string" ? search.q.slice(0, MAX_CATALOG_SEARCH_LENGTH) : "",
+  }),
   head: () => ({
     meta: [
       { title: "المنتجات | متجر الأغبري" },
@@ -13,14 +17,10 @@ export const Route = createFileRoute("/products")({
 
 function ProductsPage() {
   const navigate = useNavigate();
+  const { q } = Route.useSearch();
   return (
     <ClientOnly fallback={<div className="storefront" dir="rtl" role="status">جار تحميل كتالوج المنتجات...</div>}>
-      <ProductsClient onExit={() => void navigate({ to: "/admin" })} />
+      <Storefront initialQuery={q} onExit={() => void navigate({ to: "/admin" })} />
     </ClientOnly>
   );
-}
-
-function ProductsClient({ onExit }: { onExit: () => void }) {
-  const query = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("q") ?? "";
-  return <Storefront initialQuery={query} onExit={onExit} />;
 }
