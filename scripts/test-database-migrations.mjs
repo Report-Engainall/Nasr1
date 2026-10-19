@@ -2824,6 +2824,8 @@ async function main() {
       );
     }
   }
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
   process.stdout.write("PASS batch inventory transfer: tenant scope, atomic quantity bounds, reserved-stock protection, linked movement ledger, canonical idempotency, rollback and write-denial\n");
 
   const thresholdChange = await db.unsafe(
