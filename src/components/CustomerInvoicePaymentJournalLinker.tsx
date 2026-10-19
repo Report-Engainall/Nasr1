@@ -162,7 +162,6 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
   }catch(cause){setError(cause instanceof Error?cause.message:"تعذر إنشاء مسودة قيد التحصيل.");}
   finally{setBusyId("");}
  }
- async function postDraft(id:string,label:string){
  async function createSourceReversal(sourceType:"customer_invoice"|"customer_payment",sourceId:string,reason:string,label:string){
   const normalizedReason=reason.trim();
   if(!canManageReversal){setError("إعداد العكس المحاسبي يتطلب صلاحية مدير أو مسؤول.");return;}
@@ -257,6 +256,8 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
     </div>
    )
   }
+
+ async function postDraft(id:string,label:string){
   <footer className="no-print" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
    <button type="button" style={button} disabled={page===0||loading||Boolean(busyId)} onClick={()=>setPage(p=>Math.max(0,p-1))}>السابق</button><span style={muted}>صفحة {page+1} · 50 مصدرًا في الصفحة</span><button type="button" style={button} disabled={!hasMore||loading||Boolean(busyId)} onClick={()=>setPage(p=>p+1)}>التالي</button>
   </footer>
