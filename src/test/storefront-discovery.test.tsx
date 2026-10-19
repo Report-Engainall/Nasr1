@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   fetchStorefrontPromotions: vi.fn(),
   fetchSettingsMap: vi.fn(),
   fetchStorefrontAnnouncements: vi.fn(),
+  user: null as null | { isStaff: boolean },
+  acceptCompanyInvitation: vi.fn(async (_token: string) => ({ company_name: 'شركة الاختبار', member_role: 'buyer' as const })),
   products: [
     { id: "product-1", name: "Rice", item_code: "SKU-001", barcode: null, description: null, unit: "carton", base_price: 1000, cost_price: 600, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1000, wholesale_price: 900, inventory: { id: "inv-1", product_id: "product-1", warehouse_id: "warehouse-1", quantity_on_hand: 20, quantity_reserved: 0, quantity_available: 20, reorder_point: 0 } },
     { id: "product-2", name: "Sugar", item_code: "SKU-002", barcode: null, description: null, unit: "carton", base_price: 1200, cost_price: 800, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1200, wholesale_price: 1100, inventory: { id: "inv-2", product_id: "product-2", warehouse_id: "warehouse-1", quantity_on_hand: 15, quantity_reserved: 0, quantity_available: 15, reorder_point: 0 } },
@@ -42,10 +44,17 @@ vi.mock("@/lib/useFetch", () => ({
 }));
 
 vi.mock("@/lib/auth", () => ({
-  useAuth: () => ({ user: null, configurationError: null, ready: true }),
+  useAuth: () => ({ user: mocks.user, configurationError: null, ready: true }),
   AuthProvider: ({ children }: { children: unknown }) => children,
 }));
 
+vi.mock("@/lib/customer-company-members", () => ({
+  acceptCompanyInvitation: mocks.acceptCompanyInvitation,
+  createCompanyInvitation: vi.fn(),
+  fetchCompanyMembershipWorkspace: vi.fn(),
+  revokeCompanyInvitation: vi.fn(),
+  revokeCompanyMember: vi.fn(),
+}));
 vi.mock("@/lib/supabase", () => ({
   supabase: { rpc: vi.fn(async () => ({ data: null, error: null })) },
   ORG_ID: "test-organization",
@@ -114,6 +123,22 @@ describe("customer storefront saved discovery", () => {
     expect(empty.host.textContent).toContain("لا توجد أصناف منشورة حالياً");
     expect(empty.host.textContent).toContain("لا توجد أصناف نشطة متاحة للعرض في المتجر حالياً");
     expect(empty.host.textContent).not.toContain("جرّب تغيير البحث أو التصنيف");
+  });
+
+  it("accepts a company invitation from the path token and removes the secret from the address bar", async () => {
+    mocks.user = { isStaff: false };
+    const invite = await mountAt("/invite/route-token-secret");
+    expect(invite.host.textContent).toContain("قبول دعوة الشركة");
+    clickButton(invite.host, "button", 0);
+    await act(async () => {
+      for (let attempt = 0; attempt < 10 && mocks.acceptCompanyInvitation.mock.calls.length === 0; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    });
+    expect(mocks.acceptCompanyInvitation).toHaveBeenCalledWith("route-token-secret");
+    expect(invite.host.textContent).toContain("تم تفعيل العضوية");
+    expect(window.location.pathname).toBe("/company/accept-invitation");
+    mocks.user = null;
   });
 
   it("opens the catalog route directly and applies a URL search query to live products", async () => {

@@ -50,6 +50,7 @@ import { Route as ApiStatementPdfRouteImport } from './routes/api.statement-pdf'
 import { Route as CompanyAcceptInvitationRouteImport } from './routes/company.accept-invitation'
 import { Route as CompanyContactsRouteImport } from './routes/company.contacts'
 import { Route as CompanyMembersRouteImport } from './routes/company.members'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 import { Route as OrdersIdRouteImport } from './routes/orders.$id'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
@@ -262,6 +263,11 @@ const CompanyMembersRoute = CompanyMembersRouteImport.update({
   path: '/company/members',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrdersIndexRoute = OrdersIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -335,6 +341,7 @@ export interface FileRoutesByFullPath {
   '/api/invoice-pdf/$invoiceId': typeof ApiInvoicePdfInvoiceIdRoute
   '/admin/audit': typeof AdminAuditRoute
   '/products': typeof ProductsRoute
+  '/invite/$token': typeof InviteTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -382,6 +389,7 @@ export interface FileRoutesByTo {
   '/api/invoice-pdf/$invoiceId': typeof ApiInvoicePdfInvoiceIdRoute
   '/admin/audit': typeof AdminAuditRoute
   '/products': typeof ProductsRoute
+  '/invite/$token': typeof InviteTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -431,6 +439,7 @@ export interface FileRoutesById {
   '/api/invoice-pdf/$invoiceId': typeof ApiInvoicePdfInvoiceIdRoute
   '/admin_/audit': typeof AdminAuditRoute
   '/products': typeof ProductsRoute
+  '/invite/$token': typeof InviteTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -478,6 +487,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/orders/'
     | '/api/invoice-pdf/$invoiceId'
+    | '/invite/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -568,6 +578,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/orders/'
     | '/api/invoice-pdf/$invoiceId'
+    | '/invite/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -615,6 +626,7 @@ export interface RootRouteChildren {
   ApiInvoicePdfInvoiceIdRoute: typeof ApiInvoicePdfInvoiceIdRoute
   AdminAuditRoute: typeof AdminAuditRoute
   ProductsRoute: typeof ProductsRoute
+  InviteTokenRoute: typeof InviteTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1003,6 +1015,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInvoicePdfInvoiceIdRoute: ApiInvoicePdfInvoiceIdRoute,
   AdminAuditRoute: AdminAuditRoute,
   ProductsRoute: ProductsRoute,
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+  InviteTokenRoute: InviteTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
