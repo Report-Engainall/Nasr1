@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { ChevronRight, Download, Eye, RotateCcw, Save, Upload, X } from 'lucide-react';
-import { downloadPriceGridCsv, parsePriceGridCsv } from '@/lib/price-grid-csv';
+import { downloadPriceGridCsv, parsePriceGridCsv, parsePriceGridRecords } from '@/lib/price-grid-csv';
+import { downloadPriceGridXlsx } from '@/lib/price-grid-xlsx';
+import { parseXlsxFirstWorksheet } from '@/lib/unified-import';
 import { fetchAdminProductPriceGrid, saveProductPriceGrid, type ProductPriceGridChange, type ProductPriceGridRow } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 
@@ -92,17 +94,20 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
     return result;
   }
 
-  async function importCsvFile(event: ChangeEvent<HTMLInputElement>) {
+  async function importPriceFile(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget;
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.csv') && file.type !== 'text/csv') {
-      setFormError('اختر ملف CSV فقط.');
+    const isXlsx = file.name.toLowerCase().endsWith('.xlsx') || file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const isCsv = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv';
+    if (!isCsv && !isXlsx) {
+      setFormError('اختر ملف CSV أو XLSX فقط.');
       return;
     }
-    if (file.size > 2_000_000) {
-      setFormError('حجم ملف CSV يتجاوز الحد المسموح به (2 ميجابايت).');
+    const maxSize = isXlsx ? 10_000_000 : 2_000_000;
+    if (file.size > maxSize) {
+      setFormError(isXlsx ? 'حجم ملف XLSX يتجاوز الحد المسموح به (10 ميجابايت).' : 'حجم ملف CSV يتجاوز الحد المسموح به (2 ميجابايت).');
       return;
     }
     if (busy || preview !== null) return;
@@ -115,10 +120,26 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
         reader.onerror = () => reject(new Error('تعذر قراءة ملف CSV.'));
         reader.readAsText(file, 'utf-8');
       });
-      const imported = parsePriceGridCsv(text, rows);
+      let imported: ReturnType<typeof parsePriceGridCsv>;
+      if (isCsv) {
+        const text = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('تعذر قراءة محتوى CSV كنص UTF-8.'));
+          reader.onerror = () => reject(new Error('تعذر قراءة ملف CSV.'));
+          reader.readAsText(file, 'utf-8');
+        });
+        imported = parsePriceGridCsv(text, rows);
+      } else {
+        const records: string[][] = [];
+        await parseXlsxFirstWorksheet(file, (values) => {
+          if (records.length >= 201) throw new Error('الاستيراد يدعم 200 صنف في الدفعة الواحدة؛ قسّم ورقة XLSX إلى دفعات أصغر.');
+          records.push(values);
+        });
+        imported = parsePriceGridRecords(records, rows);
+      }
       setDrafts(imported.drafts);
       setPreview(null);
-      onNotice('تمت مطابقة ' + imported.itemCount + ' صنفًا من CSV. راجع المعاينة ثم اعتمد الحفظ يدويًا؛ لم تُحفظ أي أسعار بعد.');
+      onNotice('تمت مطابقة ' + imported.itemCount + ' صنفًا من ' + (isXlsx ? 'XLSX' : 'CSV') + '. راجع المعاينة ثم اعتمد الحفظ يدويًا؛ لم تُحفظ أي أسعار بعد.');
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : 'تعذر استيراد شبكة الأسعار.');
     } finally {
@@ -149,12 +170,15 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
       <div><h2 id="price-grid-heading">شبكة الأسعار — تحرير مجمّع</h2>
         <p>السعر الأساسي والجملة الجملة والجملة والتجزئة. لا تحفظ التعديلات قبل المعاينة؛ تعتمد الدفعة ذريًا مع فحص تعارض الأسعار وسجل التدقيق.</p></div>
       <div className="price-grid-actions">
-        <input ref={importInput} className="price-grid-file-input" type="file" accept=".csv,text/csv" aria-label="استيراد ملف أسعار CSV" onChange={(event) => void importCsvFile(event)} />
+        <input ref={importInput} className="price-grid-file-input" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="استيراد ملف أسعار CSV أو XLSX" onChange={(event) => void importPriceFile(event)} />
         <button type="button" className="btn outline" onClick={() => importInput.current?.click()} disabled={loading || Boolean(error) || !rows.length || busy || preview !== null} title="استيراد قالب CSV إلى مسودة معاينة؛ لا يحفظ دون اعتماد صريح">
-          <Upload size={15} /> استيراد CSV إلى معاينة
+          <Upload size={15} /> استيراد CSV/XLSX إلى معاينة
         </button>
         <button type="button" className="btn outline" onClick={() => downloadPriceGridCsv(rows)} disabled={loading || Boolean(error) || !rows.length || busy} title="تصدير آخر أسعار محفوظة من الخادم، لا التعديلات غير المعتمدة">
-          <Download size={15} /> تصدير الأسعار المحفوظة CSV
+          <Download size={15} /> تصدير CSV
+        </button>
+        <button type="button" className="btn outline" onClick={() => downloadPriceGridXlsx(rows)} disabled={loading || Boolean(error) || !rows.length || busy} title="تصدير مصنف XLSX من الأسعار المحفوظة، مع أكواد أصناف نصية">
+          <Download size={15} /> تصدير Excel XLSX
         </button>
         <button type="button" className="btn outline" onClick={() => { setDrafts({}); setPreview(null); setFormError(''); }} disabled={busy || (!Object.keys(drafts).length && !preview)}>
           <RotateCcw size={15} /> إلغاء التعديلات
@@ -200,7 +224,7 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
           <td><span className={row.is_active ? 'price-grid-status active' : 'price-grid-status inactive'}>{row.is_active ? 'نشط' : 'موقوف'}</span></td>
         </tr>)}</tbody>
       </table></div>
-      <p className="price-grid-muted">Enter ينقل إلى الخلية التالية ثم السطر التالي. الحد الأقصى 200 صنف؛ يتحقق الخادم من القيم الأصلية لمنع الكتابة فوق تغيير متزامن. تصدير CSV يعكس الأسعار المحفوظة فقط؛ عند فتحه في Excel استورد عمود الكود بنوع «نص» للمحافظة على الأصفار البادئة.</p>
+      <p className="price-grid-muted">Enter ينقل إلى الخلية التالية ثم السطر التالي. الحد الأقصى 200 صنف؛ يتحقق الخادم من القيم الأصلية لمنع الكتابة فوق تغيير متزامن. تصديرا CSV وXLSX يعكسان الأسعار المحفوظة فقط؛ أعمدة المعرفات نصية، والأسعار الرقمية محفوظة بدقتين عشريتين.</p>
     </>}
   </section>;
 }
