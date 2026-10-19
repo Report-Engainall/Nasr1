@@ -55,6 +55,7 @@ import { Route as AdminSettingsRouteImport } from './routes/admin_.settings'
 import { Route as AdminSuppliersRouteImport } from './routes/admin_.suppliers'
 import { Route as AdminStockCountRouteImport } from './routes/admin_.stock-count'
 import { Route as AdminPurchaseOrdersRouteImport } from './routes/admin_.purchase-orders'
+import { Route as AdminInventoryTransfersRouteImport } from './routes/admin_.inventory-transfers'
 import { Route as AdminTasksRouteImport } from './routes/admin_.tasks'
 import { Route as ApiStatementPdfRouteImport } from './routes/api.statement-pdf'
 import { Route as CompanyAcceptInvitationRouteImport } from './routes/company.accept-invitation'
@@ -253,6 +254,11 @@ const AdminPurchaseOrdersRoute = AdminPurchaseOrdersRouteImport.update({
   path: '/admin/purchase-orders',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminInventoryTransfersRoute = AdminInventoryTransfersRouteImport.update({
+  id: '/admin_/inventory-transfers',
+  path: '/admin/inventory-transfers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminTasksRoute = AdminTasksRouteImport.update({
   id: '/admin_/tasks',
   path: '/admin/tasks',
@@ -391,6 +397,7 @@ export interface FileRoutesByFullPath {
   '/admin/suppliers': typeof AdminSuppliersRoute
   '/admin/stock-count': typeof AdminStockCountRoute
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
+  '/admin/inventory-transfers': typeof AdminInventoryTransfersRoute
   '/admin/tasks': typeof AdminTasksRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
@@ -448,6 +455,8 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/suppliers': typeof AdminSuppliersRoute
   '/admin/stock-count': typeof AdminStockCountRoute
+  '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
+  '/admin/inventory-transfers': typeof AdminInventoryTransfersRoute
   '/admin/tasks': typeof AdminTasksRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
@@ -508,6 +517,7 @@ export interface FileRoutesById {
   '/admin_/suppliers': typeof AdminSuppliersRoute
   '/admin_/stock-count': typeof AdminStockCountRoute
   '/admin_/purchase-orders': typeof AdminPurchaseOrdersRoute
+  '/admin_/inventory-transfers': typeof AdminInventoryTransfersRoute
   '/admin_/tasks': typeof AdminTasksRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
@@ -568,6 +578,7 @@ export interface FileRouteTypes {
     | '/admin/suppliers'
     | '/admin/stock-count'
     | '/admin/purchase-orders'
+    | '/admin/inventory-transfers'
     | '/api/statement-pdf'
     | '/company/accept-invitation'
     | '/company/contacts'
@@ -622,6 +633,8 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/suppliers'
     | '/admin/stock-count'
+    | '/admin/purchase-orders'
+    | '/admin/inventory-transfers'
     | '/api/statement-pdf'
     | '/company/accept-invitation'
     | '/company/contacts'
@@ -678,6 +691,7 @@ export interface FileRouteTypes {
     | '/admin_/suppliers'
     | '/admin_/stock-count'
     | '/admin_/purchase-orders'
+    | '/admin_/inventory-transfers'
     | '/api/statement-pdf'
     | '/company/accept-invitation'
     | '/company/contacts'
@@ -736,6 +750,7 @@ export interface RootRouteChildren {
   AdminSuppliersRoute: typeof AdminSuppliersRoute
   AdminStockCountRoute: typeof AdminStockCountRoute
   AdminPurchaseOrdersRoute: typeof AdminPurchaseOrdersRoute
+  AdminInventoryTransfersRoute: typeof AdminInventoryTransfersRoute
   AdminTasksRoute: typeof AdminTasksRoute
   ApiStatementPdfRoute: typeof ApiStatementPdfRoute
   CompanyAcceptInvitationRoute: typeof CompanyAcceptInvitationRoute
@@ -1019,6 +1034,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPurchaseOrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/inventory-transfers': {
+      id: '/admin_/inventory-transfers'
+      path: '/admin/inventory-transfers'
+      fullPath: '/admin/inventory-transfers'
+      preLoaderRoute: typeof AdminInventoryTransfersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/tasks': {
       id: '/admin_/tasks'
       path: '/admin/tasks'
@@ -1217,6 +1239,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminSuppliersRoute: AdminSuppliersRoute,
   AdminStockCountRoute: AdminStockCountRoute,
   AdminPurchaseOrdersRoute: AdminPurchaseOrdersRoute,
+  AdminInventoryTransfersRoute: AdminInventoryTransfersRoute,
   AdminTasksRoute: AdminTasksRoute,
   ApiStatementPdfRoute: ApiStatementPdfRoute,
   CompanyAcceptInvitationRoute: CompanyAcceptInvitationRoute,

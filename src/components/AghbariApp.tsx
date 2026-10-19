@@ -31,6 +31,7 @@ import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
 import { TaskCenter } from '@/components/TaskCenter';
 import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
+import { InventoryTransferHistoryPage } from '@/components/InventoryTransferHistoryPage';
 import { PurchaseOrdersPage } from '@/components/PurchaseOrdersPage';
 import { UnifiedImportEngine } from '@/components/UnifiedImportEngine';
 import { OnyxSnapshotCenter } from '@/components/OnyxSnapshotCenter';
@@ -45,7 +46,7 @@ import {
 } from '@/components/ui/command';
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
-type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'purchase-orders';
+type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders';
 type IconType = typeof LayoutDashboard;
 
 const nav: { id: View; label: string; icon: IconType }[] = [
@@ -55,6 +56,7 @@ const nav: { id: View; label: string; icon: IconType }[] = [
   { id: 'orders', label: 'الطلبات', icon: ShoppingCart },
   { id: 'pricing', label: 'التسعير والمخزون', icon: SlidersHorizontal },
   { id: 'stock-count', label: 'الجرد الفعلي', icon: PackageCheck },
+  { id: 'inventory-transfers', label: 'سجل تحويلات المخزون', icon: PackageCheck },
   { id: 'offers', label: 'العروض', icon: Tag },
   { id: 'suppliers', label: 'الموردون', icon: Package },
   { id: 'purchase-orders', label: 'أوامر الشراء والاستلام', icon: PackageCheck },
@@ -78,6 +80,7 @@ const adminPaths: Record<View, string> = {
   suppliers: '/admin/suppliers', devices: '/admin/devices', settings: '/admin/settings',
   quotes: '/admin/quotes', finance: '/admin/finance', tasks: '/admin/tasks', audit: '/admin/audit',
   'stock-count': '/admin/stock-count',
+  'inventory-transfers': '/admin/inventory-transfers',
   'purchase-orders': '/admin/purchase-orders',
 };
 
@@ -187,6 +190,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
           {view === 'tasks' && <TaskCenter onNotice={showNotice} />}
           {view === 'audit' && <AdminAuditLog />}
           {view === 'stock-count' && <InventoryStockCountPage />}
+          {view === 'inventory-transfers' && <InventoryTransferHistoryPage />}
             </>
           )}
         </div>

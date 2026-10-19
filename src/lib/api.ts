@@ -6,6 +6,7 @@ import { countLowStockBalances } from './inventory-metrics';
 import { retryRead } from './retry';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
 import { validateCustomerInput } from './customer-input';
+import { validateInventoryTransferBatchInput, type InventoryTransferBatchInput } from './inventory-transfer-batch';
 import type {
   Product, Category, Customer, Supplier, Order, OrderItem,
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
@@ -1314,6 +1315,114 @@ export async function transferInventory(input: {
     throw new Error('لم يؤكد الخادم نتيجة نقل المخزون.');
   }
   return data as InventoryTransferResult;
+}
+
+
+
+export type InventoryTransferProduct = {
+  id: string;
+  name: string;
+  item_code: string | null;
+  unit: string | null;
+  status: string;
+};
+export type InventoryTransferHistoryRow = {
+  id: string;
+  organization_id: string;
+  product_id: string;
+  source_warehouse_id: string;
+  destination_warehouse_id: string;
+  quantity: number;
+  reason: string;
+  created_by: string | null;
+  created_at: string;
+  batch_id: string | null;
+  product_name: string | null;
+  item_code: string | null;
+  unit: string | null;
+  source_warehouse_name: string | null;
+  destination_warehouse_name: string | null;
+  batch_line_count: number | null;
+};
+export type InventoryTransferBatchResult = {
+  batch_id: string;
+  line_count: number;
+  idempotent_replay: boolean;
+  transfer_ids: string[];
+};
+
+export async function fetchInventoryTransferProducts(): Promise<InventoryTransferProduct[]> {
+  const { data, error } = await supabase.rpc('fetch_staff_products', { p_product_id: null });
+  if (error) throw error;
+  return ((data ?? []) as Array<Partial<InventoryTransferProduct>>)
+    .filter((row): row is InventoryTransferProduct =>
+      typeof row.id === 'string' && typeof row.name === 'string' &&
+      typeof row.status === 'string' &&
+      (row.item_code == null || typeof row.item_code === 'string') &&
+      (row.unit == null || typeof row.unit === 'string'))
+    .map((row) => ({
+      id: row.id, name: row.name, item_code: row.item_code ?? null,
+      unit: row.unit ?? null, status: row.status,
+    }));
+}
+
+export async function transferInventoryBatch(input: InventoryTransferBatchInput): Promise<InventoryTransferBatchResult> {
+  const normalized = validateInventoryTransferBatchInput(input);
+  const { data, error } = await supabase.rpc('transfer_inventory_batch', {
+    p_source_warehouse_id: normalized.sourceWarehouseId,
+    p_destination_warehouse_id: normalized.destinationWarehouseId,
+    p_idempotency_key: normalized.idempotencyKey,
+    p_lines: normalized.lines.map((line) => ({ product_id: line.productId, quantity: line.quantity })),
+    p_reason: normalized.reason,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data) ||
+      typeof (data as Record<string, unknown>).batch_id !== 'string' ||
+      typeof (data as Record<string, unknown>).idempotent_replay !== 'boolean') {
+    throw new Error('لم يؤكد الخادم نتيجة دفعة تحويل المخزون.');
+  }
+  return data as InventoryTransferBatchResult;
+}
+
+export async function fetchInventoryTransferHistory(): Promise<InventoryTransferHistoryRow[]> {
+  const { data, error } = await supabase.rpc('list_inventory_transfer_history', { p_limit: 500 });
+  if (error) throw error;
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  return rows.map((row) => {
+    const validString = (value: unknown): value is string => typeof value === 'string';
+    const nullableString = (value: unknown): value is string | null => value === null || typeof value === 'string';
+    const quantity = typeof row.quantity === 'number' || typeof row.quantity === 'string'
+      ? Number(row.quantity) : Number.NaN;
+    if (
+      !validString(row.id) || !validString(row.organization_id) || !validString(row.product_id) ||
+      !validString(row.source_warehouse_id) || !validString(row.destination_warehouse_id) ||
+      !Number.isFinite(quantity) || !validString(row.reason) || !nullableString(row.created_by) ||
+      !validString(row.created_at) || !nullableString(row.batch_id) ||
+      !nullableString(row.product_name) || !nullableString(row.item_code) || !nullableString(row.unit) ||
+      !nullableString(row.source_warehouse_name) || !nullableString(row.destination_warehouse_name) ||
+      !(row.batch_line_count === null || (typeof row.batch_line_count === 'number' && Number.isInteger(row.batch_line_count)))
+    ) {
+      throw new Error('أعاد الخادم حركة مخزون غير مكتملة؛ أوقف عرض سجل التحويلات.');
+    }
+    return {
+      id: row.id,
+      organization_id: row.organization_id,
+      product_id: row.product_id,
+      source_warehouse_id: row.source_warehouse_id,
+      destination_warehouse_id: row.destination_warehouse_id,
+      quantity,
+      reason: row.reason,
+      created_by: row.created_by,
+      created_at: row.created_at,
+      batch_id: row.batch_id,
+      product_name: row.product_name,
+      item_code: row.item_code,
+      unit: row.unit,
+      source_warehouse_name: row.source_warehouse_name,
+      destination_warehouse_name: row.destination_warehouse_name,
+      batch_line_count: row.batch_line_count as number | null,
+    };
+  });
 }
 
 export async function fetchInventoryReconciliationRuns() {

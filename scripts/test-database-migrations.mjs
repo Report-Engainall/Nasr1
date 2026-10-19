@@ -2616,6 +2616,218 @@ async function main() {
     /permission denied/i,
   );
 
+  // ADAPTED SOURCE FEATURE: atomic multi-product transfer batch, distinct from one-product transfer_inventory.
+  await db.unsafe("reset role");
+  const batchProductRows = await db.unsafe(
+    "select id from public.products where organization_id=$1 and status='active' and id<>$2 order by id limit 1",
+    [organizationId, productId],
+  );
+  assert.equal(batchProductRows.length, 1, "batch transfer acceptance needs two active same-tenant products");
+  const batchProductId = batchProductRows[0].id;
+  const batchProductOriginalBalances = await db.unsafe(
+    "select warehouse_id,quantity_on_hand,quantity_reserved,reorder_point from public.inventory_balances " +
+    "where product_id=$1 and warehouse_id=any($2::uuid[])",
+    [batchProductId, [testWarehouseId, transferDestinationId]],
+  );
+  const batchSeedRows = [
+    [productId, testWarehouseId, 50, 5, 20], [productId, transferDestinationId, 2, 1, 1],
+    [batchProductId, testWarehouseId, 30, 3, 10], [batchProductId, transferDestinationId, 4, 1, 1],
+  ];
+  for (const [batchSeedProduct, batchSeedWarehouse, onHand, reserved, reorder] of batchSeedRows) {
+    await db.unsafe(
+      "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) " +
+      "values($1,$2,$3,$4,$5) on conflict(product_id,warehouse_id) do update " +
+      "set quantity_on_hand=excluded.quantity_on_hand,quantity_reserved=excluded.quantity_reserved,reorder_point=excluded.reorder_point",
+      [batchSeedProduct, batchSeedWarehouse, onHand, reserved, reorder],
+    );
+  }
+  const batchKey = "ci-inventory-batch-key-000001";
+  const batchReason = "CI multi-product atomic transfer";
+  const batchLines = [{ product_id: productId, quantity: 3.000 }, { product_id: batchProductId, quantity: 2.125 }];
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const batchReply = await db.unsafe(
+    "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text) as result",
+    [testWarehouseId, transferDestinationId, batchKey, db.json(batchLines), batchReason],
+  );
+  const batchResult = batchReply[0].result;
+  assert.equal(batchResult.idempotent_replay, false, "first batch transfer commits");
+  assert.equal(Number(batchResult.line_count), 2);
+  assert.ok(batchResult.batch_id);
+  await db.unsafe("reset role");
+  const batchHeader = await db.unsafe(
+    "select line_count,payload,organization_id from public.inventory_transfer_batches where id=$1::uuid",
+    [batchResult.batch_id],
+  );
+  assert.equal(batchHeader.length, 1);
+  assert.equal(Number(batchHeader[0].line_count), 2);
+  assert.equal(batchHeader[0].organization_id, organizationId);
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "authenticated staff cannot directly select batch headers",
+    () => db.unsafe("select id from public.inventory_transfer_batches where organization_id=$1", [organizationId]),
+    /permission denied/i,
+  );
+  const storedBatchPayload = typeof batchHeader[0].payload === "string" ? JSON.parse(batchHeader[0].payload) : batchHeader[0].payload;
+  assert.equal(storedBatchPayload.length, 2, "batch stores its canonical item/quantity payload");
+  const batchTransferRows = await db.unsafe(
+    "select id,product_id,quantity,batch_id from public.inventory_transfers where batch_id=$1::uuid order by product_id",
+    [batchResult.batch_id],
+  );
+  assert.equal(batchTransferRows.length, 2, "every batch line has a normal transfer ledger row");
+  assert.ok(batchTransferRows.every((row) => row.batch_id === batchResult.batch_id));
+  const batchBalanceRows = await db.unsafe(
+    "select product_id,warehouse_id,quantity_on_hand,quantity_reserved,quantity_available from public.inventory_balances " +
+    "where product_id in ($1::uuid,$2::uuid) and warehouse_id in ($3::uuid,$4::uuid) order by product_id,warehouse_id",
+    [productId, batchProductId, testWarehouseId, transferDestinationId],
+  );
+  const balanceFor = (pid, wid) => batchBalanceRows.find((row) => row.product_id === pid && row.warehouse_id === wid);
+  assert.equal(Number(balanceFor(productId, testWarehouseId).quantity_on_hand), 47);
+  assert.equal(Number(balanceFor(productId, testWarehouseId).quantity_reserved), 5);
+  assert.equal(Number(balanceFor(productId, transferDestinationId).quantity_on_hand), 5);
+  assert.equal(Number(balanceFor(productId, transferDestinationId).quantity_reserved), 1);
+  assert.equal(Number(balanceFor(batchProductId, testWarehouseId).quantity_on_hand), 27.875);
+  assert.equal(Number(balanceFor(batchProductId, testWarehouseId).quantity_reserved), 3);
+  assert.equal(Number(balanceFor(batchProductId, transferDestinationId).quantity_on_hand), 6.125);
+  assert.equal(Number(balanceFor(batchProductId, transferDestinationId).quantity_reserved), 1);
+  const batchMovementRows = await db.unsafe(
+    "select m.product_id,m.movement_type,m.quantity,m.reference_id " +
+    "from public.inventory_movements m join public.inventory_transfers t on t.id=m.reference_id " +
+    "where t.batch_id=$1::uuid and m.reference_type='inventory_transfer' order by m.product_id,m.movement_type",
+    [batchResult.batch_id],
+  );
+  assert.equal(batchMovementRows.length, 4, "each product transfer writes a linked in/out movement pair");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const scopedHistory = await db.unsafe(
+    "select organization_id,id from public.list_inventory_transfer_history($1)",
+    [500],
+  );
+  assert.ok(scopedHistory.length >= 2, "tenant history RPC returns persisted batch movement rows");
+  assert.ok(scopedHistory.every((row) => row.organization_id === organizationId),
+    "tenant history RPC never returns transfer rows from another organization");
+  await db.unsafe("reset role");
+
+  assert.deepEqual(batchMovementRows.map((row) => Number(row.quantity)).sort((a,b)=>a-b), [-3,-2.125,2.125,3]);
+  const replayBatch = await db.unsafe(
+    "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text) as result",
+    [testWarehouseId, transferDestinationId, batchKey, db.json([...batchLines].reverse()), batchReason],
+  );
+  assert.equal(replayBatch[0].result.batch_id, batchResult.batch_id);
+  assert.equal(replayBatch[0].result.idempotent_replay, true, "reordered retry cannot duplicate a transfer");
+  await expectFailure(
+    "batch transfer idempotency key cannot be reused with changed quantity",
+    () => db.unsafe(
+      "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text)",
+      [testWarehouseId, transferDestinationId, batchKey, db.json([{ product_id: productId, quantity: 4 }, { product_id: batchProductId, quantity: 2.125 }]), batchReason],
+    ),
+    /payload conflict/i,
+  );
+
+  // A rejected line must leave no header, item transfer, movement or quantity mutation.
+  await db.unsafe("reset role");
+  for (const batchSeedProduct of [productId, batchProductId]) {
+    await db.unsafe(
+      "update public.inventory_balances set quantity_on_hand=10,quantity_reserved=2 where product_id=$1 and warehouse_id=$2",
+      [batchSeedProduct, testWarehouseId],
+    );
+  }
+  const sortedProducts = [productId, batchProductId].sort();
+  const rollbackLines = [
+    { product_id: sortedProducts[0], quantity: 1 },
+    { product_id: sortedProducts[1], quantity: 9 },
+  ];
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "insufficient stock in one batch line rejects the complete batch",
+    () => db.unsafe(
+      "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text)",
+      [testWarehouseId, transferDestinationId, "ci-inventory-batch-rollback-0001", db.json(rollbackLines), batchReason],
+    ),
+    /insufficient available stock/i,
+  );
+  await db.unsafe("reset role");
+  const rollbackBalances = await db.unsafe(
+    "select product_id,quantity_on_hand from public.inventory_balances where product_id in ($1::uuid,$2::uuid) and warehouse_id=$3::uuid",
+    [productId, batchProductId, testWarehouseId],
+  );
+  assert.ok(rollbackBalances.every((row) => Number(row.quantity_on_hand) === 10), "rejected batch leaves all source balances unchanged");
+  const rollbackTransfers = await db.unsafe(
+    "select id from public.inventory_transfer_batches where organization_id=$1 and idempotency_key=$2",
+    [organizationId, "ci-inventory-batch-rollback-0001"],
+  );
+  assert.equal(rollbackTransfers.length, 0, "rejected batch leaves no persisted header");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "authenticated staff cannot directly update a batch-transfer header",
+    () => db.unsafe("update public.inventory_transfer_batches set reason='forged' where id=$1::uuid", [batchResult.batch_id]),
+    /permission denied/i,
+  );
+  await db.unsafe("reset role");
+  const batchForeignWarehouse = await db.unsafe(
+    "select id from public.warehouses where organization_id<>$1 and is_active order by id limit 1",
+    [organizationId],
+  );
+  assert.equal(batchForeignWarehouse.length, 1, "batch transfer security test needs a foreign-organization warehouse");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "batch transfer cannot target a warehouse in another tenant",
+    () => db.unsafe(
+      "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text)",
+      [testWarehouseId, batchForeignWarehouse[0].id, "ci-inventory-batch-foreign-0001", db.json([{ product_id: productId, quantity: 1 }]), batchReason],
+    ),
+    /warehouse|organization/i,
+  );
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customers cannot use the batch-transfer command",
+    () => db.unsafe(
+      "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text)",
+      [testWarehouseId, transferDestinationId, "ci-inventory-batch-customer-001", db.json([{ product_id: productId, quantity: 1 }]), batchReason],
+    ),
+    /active staff organization|required|staff/i,
+  );
+  await expectFailure(
+    "customers cannot read inventory transfer history",
+    () => db.unsafe("select * from public.list_inventory_transfer_history(100)"),
+    /active staff organization|required|staff/i,
+  );
+  await db.unsafe("reset role");
+  // Restore the original single-transfer acceptance fixture before the reorder-point assertions below.
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "update public.inventory_balances set quantity_on_hand=33,quantity_reserved=10 where product_id=$1 and warehouse_id=$2",
+    [productId, testWarehouseId],
+  );
+  await db.unsafe(
+    "update public.inventory_balances set quantity_on_hand=12,quantity_reserved=2 where product_id=$1 and warehouse_id=$2",
+    [productId, transferDestinationId],
+  );
+  for (const batchWarehouseId of [testWarehouseId, transferDestinationId]) {
+    const originalBalance = batchProductOriginalBalances.find((row) => row.warehouse_id === batchWarehouseId);
+    if (originalBalance) {
+      await db.unsafe(
+        "update public.inventory_balances set quantity_on_hand=$3,quantity_reserved=$4,reorder_point=$5 " +
+        "where product_id=$1 and warehouse_id=$2",
+        [batchProductId, batchWarehouseId, originalBalance.quantity_on_hand, originalBalance.quantity_reserved, originalBalance.reorder_point],
+      );
+    } else {
+      await db.unsafe(
+        "delete from public.inventory_balances where product_id=$1 and warehouse_id=$2",
+        [batchProductId, batchWarehouseId],
+      );
+    }
+  }
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  process.stdout.write("PASS batch inventory transfer: tenant scope, atomic quantity bounds, reserved-stock protection, linked movement ledger, canonical idempotency, rollback and write-denial\n");
+
   const thresholdChange = await db.unsafe(
     "select public.set_inventory_reorder_point($1::uuid,$2::uuid,$3::integer,$4::text) as result",
     [productId, testWarehouseId, 25, "CI: increase reorder point to cross available-stock threshold"],

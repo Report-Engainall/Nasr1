@@ -1851,6 +1851,39 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+
+      transfer_inventory_batch: {
+        Args: {
+          p_destination_warehouse_id: string;
+          p_idempotency_key: string;
+          p_lines: Json;
+          p_reason: string;
+          p_source_warehouse_id: string;
+        };
+        Returns: Json;
+      };
+      list_inventory_transfer_history: {
+        Args: { p_limit?: number };
+        Returns: Array<{
+          id: string;
+          organization_id: string;
+          product_id: string;
+          source_warehouse_id: string;
+          destination_warehouse_id: string;
+          quantity: number;
+          reason: string;
+          created_by: string;
+          created_at: string;
+          batch_id: string | null;
+          product_name: string | null;
+          item_code: string | null;
+          unit: string | null;
+          source_warehouse_name: string | null;
+          destination_warehouse_name: string | null;
+          batch_line_count: number | null;
+        }>;
+      };
+
       get_admin_promotions: { Args: never; Returns: {
         category_ids: string[] | null; created_at: string; description: string | null;
         discount_type: string; discount_value: number; end_date: string; id: string;
