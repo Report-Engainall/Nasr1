@@ -20,6 +20,10 @@ const PRICE_FIELDS: { source: PriceKey; draft: DraftKey; label: string }[] = [
 function formatPrice(value: number): string {
   return value.toLocaleString('ar-YE', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
+function formatQuantity(value: number | null, decimals: 0 | 3 = 3): string {
+  if (value === null) return 'غير مسجل';
+  return value.toLocaleString('ar-YE', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
+}
 
 export function PricingGrid({ onNotice }: { onNotice: (message: string) => void }) {
   const { data: products, loading, error, refetch } = useFetch(fetchAdminProductPriceGrid);
@@ -162,7 +166,7 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
   return <section className="panel price-grid-panel" aria-labelledby="price-grid-heading">
     <div className="panel-head price-grid-head">
       <div><h2 id="price-grid-heading">شبكة الأسعار — تحرير مجمّع</h2>
-        <p>السعر الأساسي والجملة الجملة والجملة والتجزئة. لا تحفظ التعديلات قبل المعاينة؛ تعتمد الدفعة ذريًا مع فحص تعارض الأسعار وسجل التدقيق.</p></div>
+        <p>السعر الأساسي وشرائح الأسعار مع ملخص قراءة فقط للمخزون عبر المخازن النشطة. لا تُعدّل الكميات من شبكة الأسعار؛ يحفظ محرك الأسعار الدفعة ذريًا مع فحص التعارض والتدقيق.</p></div>
       <div className="price-grid-actions">
         <input ref={importInput} className="price-grid-file-input" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="استيراد ملف أسعار CSV أو XLSX" onChange={(event) => void importPriceFile(event)} />
         <button type="button" className="btn outline" onClick={() => importInput.current?.click()} disabled={loading || Boolean(error) || !rows.length || busy || preview !== null} title="استيراد قالب CSV إلى مسودة معاينة؛ لا يحفظ دون اعتماد صريح">
@@ -201,7 +205,7 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
     </div>}
     {loading ? <p className="price-grid-muted">جارٍ تحميل أسعار المنتجات بصلاحية الموظف المخوّل...</p> : error ? <p className="price-grid-error" role="alert">{error}</p> : !rows.length ? <p className="price-grid-muted">لا توجد أصناف لعرضها.</p> : <>
       <div className="price-grid-table-scroll"><table className="price-grid-table">
-        <thead><tr><th>الصنف</th><th>الوحدة</th>{PRICE_FIELDS.map((field) => <th key={field.source}>{field.label}</th>)}<th>الحالة</th></tr></thead>
+        <thead><tr><th>الصنف</th><th>الوحدة</th>{PRICE_FIELDS.map((field) => <th key={field.source}>{field.label}</th>)}<th>الرصيد الفعلي</th><th>المحجوز</th><th>المتاح للبيع</th><th>حد إعادة الطلب الإجمالي</th><th>مخازن بها رصيد</th><th>الحالة</th></tr></thead>
         <tbody>{rows.map((row, productIndex) => <tr key={row.id}>
           <th scope="row">{row.name}<small>{row.item_code}</small></th>
           <td>{row.unit}</td>
@@ -215,10 +219,15 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
               className={drafts[row.id]?.[field.draft] !== undefined && Number(drafts[row.id]?.[field.draft]) !== Number(row[field.source]) ? 'price-grid-input is-dirty' : 'price-grid-input'}
             />
           </td>)}
+          <td title="مجموع الأرصدة المسجلة في مخازن المؤسسة النشطة">{formatQuantity(row.quantity_on_hand_total)}</td>
+          <td>{formatQuantity(row.quantity_reserved_total)}</td>
+          <td>{formatQuantity(row.quantity_available_total)}</td>
+          <td>{formatQuantity(row.reorder_point_total, 0)}</td>
+          <td>{formatQuantity(row.inventory_warehouse_count, 0)}</td>
           <td><span className={row.is_active ? 'price-grid-status active' : 'price-grid-status inactive'}>{row.is_active ? 'نشط' : 'موقوف'}</span></td>
         </tr>)}</tbody>
       </table></div>
-      <p className="price-grid-muted">Enter ينقل إلى الخلية التالية ثم السطر التالي. الحد الأقصى 200 صنف؛ يتحقق الخادم من القيم الأصلية لمنع الكتابة فوق تغيير متزامن. تصديرا CSV وXLSX يعكسان الأسعار المحفوظة فقط؛ أعمدة المعرفات نصية، والأسعار الرقمية محفوظة بدقتين عشريتين.</p>
+      <p className="price-grid-muted">Enter ينقل إلى الخلية التالية ثم السطر التالي. الحد الأقصى 200 صنف؛ يتحقق الخادم من القيم الأصلية لمنع الكتابة فوق تغيير متزامن. تصديرا CSV وXLSX يعكسان الأسعار المحفوظة وملخص المخزون للقراءة فقط؛ الأرصدة غير المسجلة تُترك فارغة ولا تُحوّل إلى صفر.</p>
     </>}
   </section>;
 }
