@@ -11,6 +11,11 @@ const row = {
   price_wholesale_of_wholesale: 90.5,
   price_wholesale: 95,
   price_retail: 110.25,
+  quantity_on_hand_total: 12.125,
+  quantity_reserved_total: 1.125,
+  quantity_available_total: 11,
+  reorder_point_total: 4,
+  inventory_warehouse_count: 2,
 };
 
 describe('price grid CSV export', () => {
@@ -20,6 +25,7 @@ describe('price grid CSV export', () => {
     expect(csv).toContain('"00001234"');
     expect(csv).toContain('"100.00","90.50","95.00","110.25"');
     expect(csv).toContain('"سكر أبيض، فاخر"');
+    expect(csv).toContain('"12.125","1.125","11.000","4","2"');
     expect(csv).toContain('\r\n');
   });
 
