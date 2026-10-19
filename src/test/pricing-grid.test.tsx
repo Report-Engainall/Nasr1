@@ -73,7 +73,7 @@ describe('price grid', () => {
   it('exports only saved server rows, not uncommitted drafts', () => {
     render(<PricingGrid onNotice={vi.fn()} />);
     fireEvent.change(screen.getByRole('spinbutton', { name: 'سكر أبيض — السعر الأساسي' }), { target: { value: '101' } });
-    fireEvent.click(screen.getByRole('button', { name: 'تصدير الأسعار المحفوظة CSV' }));
+    fireEvent.click(screen.getByRole('button', { name: 'تصدير CSV' }));
     expect(mocks.downloadPriceGridCsv).toHaveBeenCalledWith([product]);
     expect(mocks.saveProductPriceGrid).not.toHaveBeenCalled();
   });
@@ -82,7 +82,7 @@ describe('price grid', () => {
     const notice = vi.fn();
     render(<PricingGrid onNotice={notice} />);
     const file = new File(['csv text'], 'prices.csv', { type: 'text/csv' });
-    fireEvent.change(screen.getByLabelText('استيراد ملف أسعار CSV'), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText('استيراد ملف أسعار CSV أو XLSX'), { target: { files: [file] } });
     await waitFor(() => expect(mocks.parsePriceGridCsv).toHaveBeenCalledWith('csv text', [product]));
     await waitFor(() => expect(notice).toHaveBeenCalledWith(expect.stringContaining('لم تُحفظ أي أسعار بعد')));
     expect(mocks.saveProductPriceGrid).not.toHaveBeenCalled();

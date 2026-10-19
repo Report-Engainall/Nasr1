@@ -3,6 +3,16 @@ import { buildPriceGridXlsx } from '@/lib/price-grid-xlsx';
 import { parsePriceGridRecords } from '@/lib/price-grid-csv';
 import { parseXlsxFirstWorksheet } from '@/lib/unified-import';
 
+async function blobBytes(blob: Blob): Promise<Uint8Array> {
+  const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => reader.result instanceof ArrayBuffer ? resolve(reader.result) : reject(new Error('Failed to read Blob bytes'));
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read Blob bytes'));
+    reader.readAsArrayBuffer(blob);
+  });
+  return new Uint8Array(buffer);
+}
+
 const row = {
   id: 'aef00000-0000-4000-8000-000000000001',
   item_code: '00001234',
@@ -32,7 +42,7 @@ describe('price grid XLSX workbook', () => {
 
   it('writes hostile identifiers and labels as inline text, never formula cells', async () => {
     const hostile = { ...row, item_code: '=HYPERLINK("https://invalid.example","x")', name: '+SUM(1,1)' };
-    const bytes = new Uint8Array(await buildPriceGridXlsx([hostile]).arrayBuffer());
+    const bytes = await blobBytes(buildPriceGridXlsx([hostile]));
     const text = new TextDecoder().decode(bytes);
     expect(text).toContain('t="inlineStr"');
     expect(text).not.toContain('<f>');
