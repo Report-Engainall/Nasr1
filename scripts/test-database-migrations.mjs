@@ -1317,8 +1317,8 @@ async function main() {
   assert.equal(visibleCartPreview.visible, true);
   assert.equal(visibleCartPreview.items.length, 1);
   const expectedWholesalePreview = (await db.unsafe(
-    "select public.customer_product_unit_price($1::uuid,$2::uuid,'wholesale',2) as price",
-    [productId, organizationId],
+    "select unit_price as price from public.get_storefront_product_prices($1::uuid[],2)",
+    [[productId]],
   ))[0].price;
   assert.equal(Number(visibleCartPreview.items[0].unit_price), Number(expectedWholesalePreview));
   assert.equal(Number(visibleCartPreview.items[0].line_total), Number(expectedWholesalePreview) * 2);
