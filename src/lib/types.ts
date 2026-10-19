@@ -20,6 +20,11 @@ export interface Order {
 export interface OrderItem {
   id: string; order_id: string; product_id: string | null; product_name: string; product_code: string;
   unit: string; quantity: number; unit_price: number; line_total: number;
+  promotion_discount_per_unit_snapshot?: number;
+  promotion_id_snapshot?: string | null;
+  promotion_title_snapshot?: string | null;
+  promotion_discount_type_snapshot?: string | null;
+  promotion_discount_value_snapshot?: number | null;
 }
 export type PromotionDiscountType = 'percentage' | 'fixed';
 export interface Promotion {
