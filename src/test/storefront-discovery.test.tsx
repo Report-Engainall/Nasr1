@@ -113,6 +113,8 @@ describe("customer storefront saved discovery", () => {
 
   afterEach(async () => {
     for (const mount of mounts.splice(0)) await unmount(mount);
+    mocks.user = null;
+    mocks.acceptCompanyInvitation.mockClear();
     window.localStorage.clear();
   });
 

@@ -532,7 +532,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/orders'
     | '/api/invoice-pdf/$invoiceId'
-
+    | '/invite/$token'
   id:
     | '__root__'
     | '/'
