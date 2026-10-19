@@ -31,6 +31,7 @@ import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
 import { TaskCenter } from '@/components/TaskCenter';
 import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
+import { PurchaseOrdersPage } from '@/components/PurchaseOrdersPage';
 import { UnifiedImportEngine } from '@/components/UnifiedImportEngine';
 import { OnyxSnapshotCenter } from '@/components/OnyxSnapshotCenter';
 import { UnifiedOnyxAnalysisPanel } from '@/components/UnifiedOnyxAnalysisPanel';
@@ -44,7 +45,7 @@ import {
 } from '@/components/ui/command';
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
-type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count';
+type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'purchase-orders';
 type IconType = typeof LayoutDashboard;
 
 const nav: { id: View; label: string; icon: IconType }[] = [
@@ -56,6 +57,7 @@ const nav: { id: View; label: string; icon: IconType }[] = [
   { id: 'stock-count', label: 'الجرد الفعلي', icon: PackageCheck },
   { id: 'offers', label: 'العروض', icon: Tag },
   { id: 'suppliers', label: 'الموردون', icon: Package },
+  { id: 'purchase-orders', label: 'أوامر الشراء والاستلام', icon: PackageCheck },
   { id: 'devices', label: 'أجهزة العملاء', icon: Smartphone },
   { id: 'reports', label: 'التقارير الذكية', icon: BarChart3 },
   { id: 'ai', label: 'مركز الذكاء', icon: Bot },
@@ -76,6 +78,7 @@ const adminPaths: Record<View, string> = {
   suppliers: '/admin/suppliers', devices: '/admin/devices', settings: '/admin/settings',
   quotes: '/admin/quotes', finance: '/admin/finance', tasks: '/admin/tasks', audit: '/admin/audit',
   'stock-count': '/admin/stock-count',
+  'purchase-orders': '/admin/purchase-orders',
 };
 
 function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
@@ -86,7 +89,8 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const canManageAudit = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const visibleNav = nav.filter(({ id }) =>
     (isFinanceOnly ? id === 'finance' || id === 'tasks' : id !== 'finance' || canManageFinance) &&
-    (id !== 'audit' || canManageAudit)
+    (id !== 'audit' || canManageAudit) &&
+    (id !== 'purchase-orders' || user?.roles.some((role) => role === 'admin' || role === 'manager'))
   );
   const navigate = useNavigate();
   const [view, setView] = useState<View>(initialView);
@@ -170,6 +174,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
           {view === 'pricing' && <Pricing onNotice={showNotice} />}
           {view === 'offers' && <Offers onNotice={showNotice} />}
           {view === 'suppliers' && <Suppliers onNotice={showNotice} />}
+          {view === 'purchase-orders' && <PurchaseOrdersPage />}
           {view === 'devices' && <Devices onNotice={showNotice} />}
           {view === 'reports' && <Reports />}
           {view === 'ai' && <AiCenter onNotice={showNotice} />}
