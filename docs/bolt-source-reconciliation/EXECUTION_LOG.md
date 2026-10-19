@@ -541,3 +541,11 @@
 - Earlier failures were retained and fixed, not bypassed: outdated UI copy assertion; unauthorized direct-table check accidentally executed under authenticated role after customer-denial test; then stock-shipment expected quantity was updated to account for the newly committed physical receipt. Latest exact SHA is green.
 - Evidence levels: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN (no live authenticated browser session; CI smoke only); PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN. No new dependency or paid service. Details: `ORIGINAL_SPEC_FEATURE_INTEGRATION_2026-10-19.md`.
 - Parent task `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains OPEN; the purchase workflow is one concrete gap closed, not full project completion.
+
+### 2026-10-19 — Atomic multi-item inventory transfer
+
+- Donor: `Report-Engainall/aghbari-commerce`, source `src/services/inventory.ts`, source commit `00d7446bba9652ea40178a08b00c9da9a2bba8a1`, source blob `3506707a656e0db491b860d5e11ad28daeded5cf`.
+- Decision: ADAPT_IN_PLACE. Nasr1 already uses `transfer_inventory` for single-product operations; donor's multi-line contract was implemented as a separate RPC to avoid changing the existing contract.
+- Target files include `supabase/migrations/20261019240000_inventory_transfer_batches.sql`, `src/lib/inventory-transfer-batch.ts`, `src/lib/api.ts`, `src/components/InventoryTransferHistoryPage.tsx`, `src/routes/admin_.inventory-transfers.tsx`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, the new batch/history tests, DB acceptance script, workflow smoke assertions, and integration ledger.
+- Added explicit server-side history RPC; removed direct authenticated table reads for batch headers; defined typed contracts for both new RPCs.
+- Verification: not yet PASS. CI attempts uncovered and led to fixes for migration version uniqueness, UUID-format overconstraint, malformed duplicated SQL fragment, and the DB harness's role boundary during inspection. Current record remains pending exact-SHA CI.

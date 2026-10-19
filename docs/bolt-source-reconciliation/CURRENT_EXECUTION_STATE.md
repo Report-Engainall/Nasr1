@@ -227,3 +227,13 @@
 - الحدود المفتوحة في المواصفة: لم ينفذ XLSX workbook؛ لم تُضف حقول الكمية/المخزون إلى شبكة/قالب الأسعار لأن عقد `ProductPriceGridRow` والـRPC الحالي لا يعيدان كمية مخزون. ملف CSV يحمل الأكواد في نصه مع الأصفار البادئة، ويطلب من المستخدم استيراد عمود الكود بنوع Text في Excel كي لا يحوله Excel تلقائيًا إلى رقم. لا تدّعِ أن القسم 6.2 مكتمل بالكامل.
 - في المحاولات الوسيطة أظهرت CI إخفاقي assertion في توقعات الاختبار ثم إخفاق lint بسبب `no-control-regex`; تم إصلاح التوقعات وتبسيط تعبير الحماية دون إسقاط اختبارات الأمان. التشغيل النهائي المذكور أعلاه نجح بعد الإصلاحات.
 - المهمة الأشمل ما زالت مفتوحة: `next_task_id = NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`. هذا تنفيذ CSV في شبكة الأسعار وليس إكمالًا لكل الواجهات.
+
+## 2026-10-19 — Atomic multi-item inventory transfer (implementation complete; exact-SHA CI pending)
+
+- Scope: adapt the proven multi-line transfer capability from `Report-Engainall/aghbari-commerce/src/services/inventory.ts` into `Report-Engainall/Nasr1`; donor repository remains read-only/source-only.
+- Implementation branch: `integration/inventory-transfer-batches-20261019-rebased`; implementation commit before this state update: `45236d21131e91304e14d478244009dc84599801`; tracking PR: [#3](https://github.com/Report-Engainall/Nasr1/pull/3).
+- Added a distinct `transfer_inventory_batch` command; the existing one-product `transfer_inventory` contract is not replaced. Batch commits are atomic, tenant-authorized, idempotent, reservation-aware, and emit transfer rows, paired movement entries, and an audit event.
+- Added an RTL history/transfer screen at `/admin/inventory-transfers`, registered it in application navigation and the TanStack route tree, and added the matching route smoke assertions.
+- History reads go through bounded `list_inventory_transfer_history` server RPC. Client roles have no direct SELECT grant on the new batch-header table.
+- Added unit, UI, and PostgreSQL acceptance coverage for validation, batch replay/conflict, insufficient-stock rollback, stock reservations, cross-tenant protection, and table-write/read denial.
+- Status: IMPLEMENTED_PENDING_CI. Earlier attempts exposed migration-version collision, overly strict UUID version matching, a duplicated SQL fragment, and test inspection under the authenticated DB role; fixes were committed. Do not mark PASS until all checks pass for the exact final PR head and post-merge main SHA.
