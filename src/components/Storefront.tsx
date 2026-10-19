@@ -18,6 +18,8 @@ import { supabase } from '@/lib/supabase';
 import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-addresses';
 
 type CartItem = { product: ProductWithInventory; quantity: number };
+type CustomerPricingPreviewLine = { product_id: string; name: string; item_code: string; unit: string; quantity: number | string; unit_price: number | string; line_total: number | string };
+type CustomerPricingPreview = { visible: boolean; surface?: string; items?: CustomerPricingPreviewLine[]; item_count?: number; currency?: string; total_amount?: number | string; customer_tier_visible?: boolean; customer_tier_label?: string | null };
 type StoreView = 'shop' | 'product' | 'wishlist' | 'compare' | 'matrix' | 'cart' | 'checkout' | 'confirm';
 export type StorefrontInitialView = 'shop' | 'product' | 'wishlist' | 'compare' | 'cart' | 'checkout';
 
@@ -54,7 +56,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const products = liveProducts ?? cachedProducts;
   const { data: categories, error: categoriesError } = useFetch(fetchCategories);
   const { data: promotions } = useFetch(fetchStorefrontPromotions);
-  const { data: settings } = useFetch(fetchSettingsMap);
+  const { data: settings, refetch: refetchSettings } = useFetch(fetchSettingsMap);
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const [view, setView] = useState<StoreView>(initialView);
   const cartStorageKey = offlineCartStorageKey(user?.profileId);
@@ -81,6 +83,11 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const [compare, setCompare] = useState<string[]>(() => readSavedProductIds('aghbari:compare:v1', 3));
   const [savedListNotice, setSavedListNotice] = useState('');
   const [isOnline, setIsOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+  const [cartPricingPreview, setCartPricingPreview] = useState<CustomerPricingPreview | null>(null);
+  const showPriceOnCards = settings?.show_price_on_cards !== false;
+  const showPriceInCart = settings?.show_price_in_cart === true;
+  const showPriceInOrders = settings?.show_price_in_orders === true;
+  const showCustomerTierInCustomerViews = settings?.show_customer_tier_in_customer_views === true;
 
   useEffect(() => {
     setQuery(normalizeCatalogSearchQuery(initialQuery ?? ''));
@@ -93,6 +100,13 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   useEffect(() => {
     setAvailableOnly(initialAvailableOnly ?? false);
   }, [initialAvailableOnly]);
+
+  useEffect(() => {
+    const refreshSettingsOnFocus = () => { if (document.visibilityState === 'visible') void refetchSettings(); };
+    window.addEventListener('focus', refreshSettingsOnFocus);
+    document.addEventListener('visibilitychange', refreshSettingsOnFocus);
+    return () => { window.removeEventListener('focus', refreshSettingsOnFocus); document.removeEventListener('visibilitychange', refreshSettingsOnFocus); };
+  }, [refetchSettings]);
 
   useEffect(() => {
     const online = () => setIsOnline(true);
@@ -145,6 +159,21 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   }, [cart, cartRestored, cartStorageKey, user?.profileId]);
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
+  const cartPriceItems = useMemo(() => cart.map((item) => ({ product_id: item.product.id, quantity: item.quantity })).sort((a, b) => a.product_id.localeCompare(b.product_id)), [cart]);
+  useEffect(() => {
+    let active = true;
+    setCartPricingPreview(null);
+    if (view !== 'cart' || !cartRestored || !cartPriceItems.length || !showPriceInCart || !user?.profileId || !isOnline) return () => { active = false; };
+    void supabase.rpc('preview_customer_order_pricing', { p_items: cartPriceItems, p_surface: 'cart' }).then(({ data, error }) => {
+      if (!active || error) return;
+      const payload = data as CustomerPricingPreview | null;
+      if (!payload || typeof payload.visible !== 'boolean') return;
+      if (!payload.visible) { setCartPricingPreview({ visible: false, customer_tier_visible: payload.customer_tier_visible === true, customer_tier_label: typeof payload.customer_tier_label === 'string' ? payload.customer_tier_label : null }); return; }
+      if (!Array.isArray(payload.items) || payload.items.length !== cartPriceItems.length || !payload.items.every((line) => typeof line.product_id === 'string' && Number.isFinite(Number(line.unit_price)) && Number(line.unit_price) >= 0 && Number.isFinite(Number(line.line_total)) && Number(line.line_total) >= 0) || !Number.isFinite(Number(payload.total_amount))) return;
+      setCartPricingPreview({ ...payload, visible: true, customer_tier_visible: payload.customer_tier_visible === true, customer_tier_label: typeof payload.customer_tier_label === 'string' ? payload.customer_tier_label : null });
+    }).catch(() => { /* keep amounts hidden if server preview is unavailable */ });
+    return () => { active = false; };
+  }, [view, cartRestored, cartPriceItems, showPriceInCart, user?.profileId, isOnline]);
 
   function addToCart(product: ProductWithInventory) {
     setCart((prev) => {
@@ -294,6 +323,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
                   ? <div className="sf-empty" role="alert"><Package size={30} /><strong>تعذر تحميل الكتالوج</strong><small>{productsError}</small><button type="button" className="sf-btn-secondary" onClick={() => void refetchProducts()}>إعادة المحاولة</button></div>
                   : <ProductGrid
                     products={filtered}
+                    showPrice={showPriceOnCards}
                     wishlist={wishlist}
                     compare={compare}
                     emptyTitle={products.length === 0 ? 'لا توجد أصناف منشورة حالياً' : 'لا توجد منتجات مطابقة'}
@@ -311,12 +341,12 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
 
         {savedListNotice && <div role="status" className="sf-form-error" style={{ marginBottom: 12 }}>{savedListNotice}</div>}
         {view === 'product' && (selectedProduct
-          ? <ProductDetail product={selectedProduct} inWishlist={wishlist.includes(selectedProduct.id)} inCompare={compare.includes(selectedProduct.id)} onBack={() => void navigate({ to: '/' })} onAdd={() => addToCart(selectedProduct)} onWishlist={() => toggleWishlist(selectedProduct.id)} onCompare={() => toggleCompare(selectedProduct.id)} />
+          ? <ProductDetail product={selectedProduct} showPrice={showPriceOnCards} inWishlist={wishlist.includes(selectedProduct.id)} inCompare={compare.includes(selectedProduct.id)} onBack={() => void navigate({ to: '/' })} onAdd={() => addToCart(selectedProduct)} onWishlist={() => toggleWishlist(selectedProduct.id)} onCompare={() => toggleCompare(selectedProduct.id)} />
           : productsLoading ? <div className="sf-empty" role="status">جار تحميل تفاصيل المنتج...</div>
             : productsError ? <div className="sf-empty" role="alert"><strong>تعذر تحميل تفاصيل المنتج</strong><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></div>
               : <div className="sf-empty" role="alert"><strong>المنتج غير متاح</strong><small>تعذر العثور على المنتج ضمن الكتالوج الحالي.</small><button type="button" onClick={() => void navigate({ to: '/' })}>العودة للمتجر</button></div>)}
-        {view === 'wishlist' && <CollectionView title="المفضلة" icon={Heart} products={products.filter((p) => wishlist.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="لا توجد منتجات محفوظة في المفضلة ضمن الكتالوج الحالي" />}
-        {view === 'compare' && <CollectionView title="مقارنة المنتجات" icon={GitCompare} products={products.filter((p) => compare.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="اختر حتى ثلاثة منتجات من الكتالوج للمقارنة" />}
+        {view === 'wishlist' && <CollectionView title="المفضلة" icon={Heart} products={products.filter((p) => wishlist.includes(p.id))} wishlist={wishlist} compare={compare} showPrice={showPriceOnCards} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="لا توجد منتجات محفوظة في المفضلة ضمن الكتالوج الحالي" />}
+        {view === 'compare' && <CollectionView title="مقارنة المنتجات" icon={GitCompare} products={products.filter((p) => compare.includes(p.id))} wishlist={wishlist} compare={compare} showPrice={showPriceOnCards} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="اختر حتى ثلاثة منتجات من الكتالوج للمقارنة" />}
         {view === 'matrix' && <QuickOrderMatrix products={filtered} quantities={matrixQuantities} feedback={matrixFeedback} onQuantityChange={(id, value) => { setMatrixQuantities((previous) => ({ ...previous, [id]: value })); setMatrixFeedback(null); }} onAddSelected={addMatrixSelection} onBack={() => setView('shop')} onCart={() => void navigate({ to: '/cart' })} />}
 
         {view === 'cart' && (!cartRestored ? (
@@ -352,7 +382,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
           <section className="sf-checkout"><div className="sf-empty" role={productsError ? 'alert' : 'status'}><span>{productsLoading ? 'جار استعادة سلة الطلب...' : productsError ? 'تعذر استعادة السلة.' : 'جار استعادة سلة الطلب...'}</span>{productsError && <><small>{productsError}</small><button type="button" onClick={() => void refetchProducts()}>إعادة المحاولة</button></>}</div></section>
         ) : !cart.length ? (
           <section className="sf-checkout"><h2>لا توجد أصناف لإتمام الطلب</h2><p>أضف الأصناف إلى السلة أولاً. لن يتم إنشاء طلب فارغ.</p><button className="sf-btn-primary" onClick={() => void navigate({ to: '/' })}>العودة إلى المتجر</button></section>
-        ) : <Checkout cart={cart} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => { setLastOrderNo(order.order_number); setLastOrderId(order.id); setView('confirm'); setCart([]); }} />)}
+        ) : <Checkout cart={cart} showPriceInOrders={showPriceInOrders} showCustomerTier={showCustomerTierInCustomerViews} onBack={() => void navigate({ to: '/cart' })} onComplete={(order) => { setLastOrderNo(order.order_number); setLastOrderId(order.id); setView('confirm'); setCart([]); }} />)}
         {view === 'confirm' && <OrderConfirm orderNo={lastOrderNo} orderId={lastOrderId} onContinue={() => void navigate({ to: '/' })} />}
       </main>
 
@@ -368,24 +398,24 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   );
 }
 
-function ProductGrid({ products, wishlist, compare, emptyTitle, emptyDescription, onOpen, onAdd, onWishlist, onCompare }: { products: ProductWithInventory[]; wishlist: string[]; compare: string[]; emptyTitle: string; emptyDescription: string; onOpen: (product: ProductWithInventory) => void; onAdd: (product: ProductWithInventory) => void; onWishlist: (id: string) => void; onCompare: (id: string) => void }) {
+function ProductGrid({ products, showPrice, wishlist, compare, emptyTitle, emptyDescription, onOpen, onAdd, onWishlist, onCompare }: { products: ProductWithInventory[]; showPrice: boolean; wishlist: string[]; compare: string[]; emptyTitle: string; emptyDescription: string; onOpen: (product: ProductWithInventory) => void; onAdd: (product: ProductWithInventory) => void; onWishlist: (id: string) => void; onCompare: (id: string) => void }) {
   if (!products.length) return <div className="sf-empty" role="status"><Package size={30} /><strong>{emptyTitle}</strong><small>{emptyDescription}</small></div>;
-  return <div className="sf-product-grid">{products.map((product) => { const qty = product.inventory?.quantity_available ?? 0; const out = qty <= 0; const liked = wishlist.includes(product.id); const compared = compare.includes(product.id); return <article className="sf-product-card" key={product.id}><div className="sf-product-img" onClick={() => onOpen(product)}>{product.image_url ? <img src={product.image_url} alt={product.name} /> : <Package size={36} />}<div className="sf-card-actions"><button aria-label="إضافة للمفضلة" className={liked ? 'active' : ''} onClick={(event) => { event.stopPropagation(); onWishlist(product.id); }}><Heart size={16} fill={liked ? 'currentColor' : 'none'} /></button><button aria-label="إضافة للمقارنة" className={compared ? 'active' : ''} onClick={(event) => { event.stopPropagation(); onCompare(product.id); }}><GitCompare size={16} /></button></div></div><button className="sf-product-body sf-product-open" onClick={() => onOpen(product)}><h3>{product.name}</h3><p>{product.category?.name ?? 'غير مصنف'} · {product.item_code}</p><div className="sf-product-price"><strong>{typeof product.display_price === 'number' ? formatCurrency(product.display_price) : 'اتصل بالإنترنت لعرض سعر فئتك'}</strong><span>{product.unit}</span></div><div className="sf-product-stock">{out ? <span className="sf-out">نفد المخزون</span> : <span className="sf-in">{formatNumber(qty)} متوفر</span>}</div></button><button className="sf-add-btn" disabled={out} onClick={() => onAdd(product)}>{out ? 'غير متوفر' : <><Plus size={16} /> أضف للسلة</>}</button></article>; })}</div>;
+  return <div className="sf-product-grid">{products.map((product) => { const qty = product.inventory?.quantity_available ?? 0; const out = qty <= 0; const liked = wishlist.includes(product.id); const compared = compare.includes(product.id); return <article className="sf-product-card" key={product.id}><div className="sf-product-img" onClick={() => onOpen(product)}>{product.image_url ? <img src={product.image_url} alt={product.name} /> : <Package size={36} />}<div className="sf-card-actions"><button aria-label="إضافة للمفضلة" className={liked ? 'active' : ''} onClick={(event) => { event.stopPropagation(); onWishlist(product.id); }}><Heart size={16} fill={liked ? 'currentColor' : 'none'} /></button><button aria-label="إضافة للمقارنة" className={compared ? 'active' : ''} onClick={(event) => { event.stopPropagation(); onCompare(product.id); }}><GitCompare size={16} /></button></div></div><button className="sf-product-body sf-product-open" onClick={() => onOpen(product)}><h3>{product.name}</h3><p>{product.category?.name ?? 'غير مصنف'} · {product.item_code}</p>{showPrice ? <div className="sf-product-price"><strong>{typeof product.display_price === 'number' ? formatCurrency(product.display_price) : 'اتصل بالإنترنت لعرض سعر فئتك'}</strong><span>{product.unit}</span></div> : <div className="sf-product-price"><strong>السعر حسب سياسة حسابك</strong></div>}<div className="sf-product-stock">{out ? <span className="sf-out">نفد المخزون</span> : <span className="sf-in">{formatNumber(qty)} متوفر</span>}</div></button><button className="sf-add-btn" disabled={out} onClick={() => onAdd(product)}>{out ? 'غير متوفر' : <><Plus size={16} /> أضف للسلة</>}</button></article>; })}</div>;
 }
 
-function ProductDetail({ product, inWishlist, inCompare, onBack, onAdd, onWishlist, onCompare }: { product: ProductWithInventory; inWishlist: boolean; inCompare: boolean; onBack: () => void; onAdd: () => void; onWishlist: () => void; onCompare: () => void }) {
+function ProductDetail({ product, showPrice, inWishlist, inCompare, onBack, onAdd, onWishlist, onCompare }: { product: ProductWithInventory; showPrice: boolean; inWishlist: boolean; inCompare: boolean; onBack: () => void; onAdd: () => void; onWishlist: () => void; onCompare: () => void }) {
   const quantity = product.inventory?.quantity_available ?? 0;
-  return <section className="sf-product-detail"><button className="sf-back-link" onClick={onBack}><ArrowRight size={16} /> العودة للكتالوج</button><div className="sf-detail-layout"><div className="sf-detail-image">{product.image_url ? <img src={product.image_url} alt={product.name} /> : <Package size={72} />}<span className="sf-detail-code">SKU: {product.item_code}</span></div><div className="sf-detail-content"><span className="sf-detail-category">{product.category?.name ?? 'غير مصنف'}</span><h2>{product.name}</h2><p className="sf-detail-description">{product.description || 'منتج متوفر للطلب بالجملة من متجر الأغبري.'}</p><div className="sf-detail-price"><strong>{typeof product.display_price === 'number' ? formatCurrency(product.display_price) : 'اتصل بالإنترنت لعرض سعر فئتك'}</strong><span>لكل {product.unit}</span></div><div className={`sf-detail-stock ${quantity > 0 ? 'available' : 'unavailable'}`}>{quantity > 0 ? `متوفر حالياً: ${formatNumber(quantity)} ${product.unit}` : 'هذا المنتج غير متوفر حالياً'}</div><div className="sf-detail-actions"><button className="sf-btn-primary" disabled={quantity <= 0} onClick={onAdd}><ShoppingCart size={17} /> إضافة إلى السلة</button><button className={`sf-icon-action ${inWishlist ? 'active' : ''}`} onClick={onWishlist}><Heart size={18} fill={inWishlist ? 'currentColor' : 'none'} /> {inWishlist ? 'في المفضلة' : 'أضف للمفضلة'}</button><button className={`sf-icon-action ${inCompare ? 'active' : ''}`} onClick={onCompare}><GitCompare size={18} /> مقارنة</button></div><div className="sf-detail-facts"><div><strong>الوحدة</strong><span>{product.unit}</span></div><div><strong>الحد الأدنى</strong><span>حسب اتفاق العميل</span></div><div><strong>السعر</strong><span>السعر الظاهر قبل تأكيد الطلب</span></div></div></div></div></section>;
+  return <section className="sf-product-detail"><button className="sf-back-link" onClick={onBack}><ArrowRight size={16} /> العودة للكتالوج</button><div className="sf-detail-layout"><div className="sf-detail-image">{product.image_url ? <img src={product.image_url} alt={product.name} /> : <Package size={72} />}<span className="sf-detail-code">SKU: {product.item_code}</span></div><div className="sf-detail-content"><span className="sf-detail-category">{product.category?.name ?? 'غير مصنف'}</span><h2>{product.name}</h2><p className="sf-detail-description">{product.description || 'منتج متوفر للطلب بالجملة من متجر الأغبري.'}</p>{showPrice ? <div className="sf-detail-price"><strong>{typeof product.display_price === 'number' ? formatCurrency(product.display_price) : 'اتصل بالإنترنت لعرض سعر فئتك'}</strong><span>لكل {product.unit}</span></div> : <div className="sf-detail-price"><strong>السعر حسب سياسة حسابك</strong></div>}<div className={`sf-detail-stock ${quantity > 0 ? 'available' : 'unavailable'}`}>{quantity > 0 ? `متوفر حالياً: ${formatNumber(quantity)} ${product.unit}` : 'هذا المنتج غير متوفر حالياً'}</div><div className="sf-detail-actions"><button className="sf-btn-primary" disabled={quantity <= 0} onClick={onAdd}><ShoppingCart size={17} /> إضافة إلى السلة</button><button className={`sf-icon-action ${inWishlist ? 'active' : ''}`} onClick={onWishlist}><Heart size={18} fill={inWishlist ? 'currentColor' : 'none'} /> {inWishlist ? 'في المفضلة' : 'أضف للمفضلة'}</button><button className={`sf-icon-action ${inCompare ? 'active' : ''}`} onClick={onCompare}><GitCompare size={18} /> مقارنة</button></div><div className="sf-detail-facts"><div><strong>الوحدة</strong><span>{product.unit}</span></div><div><strong>الحد الأدنى</strong><span>حسب اتفاق العميل</span></div><div><strong>السعر</strong><span>السعر الظاهر قبل تأكيد الطلب</span></div></div></div></div></section>;
 }
 
-function CollectionView({ title, icon: Icon, products, wishlist, compare, loading, error, onRetry, onOpen, onAdd, onWishlist, onCompare, onBack, empty }: {
-  title: string; icon: typeof Heart; products: ProductWithInventory[]; wishlist: string[]; compare: string[];
+function CollectionView({ title, icon: Icon, products, wishlist, compare, showPrice, loading, error, onRetry, onOpen, onAdd, onWishlist, onCompare, onBack, empty }: {
+  title: string; icon: typeof Heart; products: ProductWithInventory[]; wishlist: string[]; compare: string[]; showPrice: boolean;
   loading: boolean; error: string | null; onRetry: () => void;
   onOpen: (product: ProductWithInventory) => void; onAdd: (product: ProductWithInventory) => void;
   onWishlist: (id: string) => void; onCompare: (id: string) => void; onBack: () => void; empty: string;
 }) {
   return <section className="sf-collection"><button className="sf-back-link" onClick={onBack}><ArrowRight size={16} /> العودة للمتجر</button><div className="sf-products-head"><div><h2><Icon size={21} /> {title}</h2><span>{products.length} منتجات</span></div></div>
-    {products.length ? <ProductGrid products={products} wishlist={wishlist} compare={compare} emptyTitle={empty} emptyDescription="" onOpen={onOpen} onAdd={onAdd} onWishlist={onWishlist} onCompare={onCompare} /> :
+    {products.length ? <ProductGrid products={products} showPrice={showPrice} wishlist={wishlist} compare={compare} emptyTitle={empty} emptyDescription="" onOpen={onOpen} onAdd={onAdd} onWishlist={onWishlist} onCompare={onCompare} /> :
       loading ? <div className="sf-empty" role="status">جار تحميل قائمة المنتجات...</div> :
       error ? <div className="sf-empty" role="alert"><strong>تعذر تحميل قائمة المنتجات</strong><small>{error}</small><button type="button" className="sf-btn-secondary" onClick={onRetry}>إعادة المحاولة</button></div> :
       <div className="sf-empty"><Icon size={32} /><span>{empty}</span><button className="sf-link" onClick={onBack}>تصفح الكتالوج</button></div>}
