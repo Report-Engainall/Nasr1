@@ -29,6 +29,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as StatementRouteImport } from './routes/statement'
 import { Route as WishlistRouteImport } from './routes/wishlist'
 import { Route as AdminAiRouteImport } from './routes/admin_.ai'
+import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
 import { Route as AdminCustomersRouteImport } from './routes/admin_.customers'
 import { Route as AdminDataRouteImport } from './routes/admin_.data'
 import { Route as AdminDevicesRouteImport } from './routes/admin_.devices'
@@ -152,6 +153,11 @@ const WishlistRoute = WishlistRouteImport.update({
 const AdminAiRoute = AdminAiRouteImport.update({
   id: '/admin_/ai',
   path: '/admin/ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminAuditRoute = AdminAuditRouteImport.update({
+  id: '/admin_/audit',
+  path: '/admin/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminCustomersRoute = AdminCustomersRouteImport.update({
@@ -297,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/statement': typeof StatementRoute
   '/wishlist': typeof WishlistRoute
   '/admin/ai': typeof AdminAiRoute
+  '/admin/audit': typeof AdminAuditRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/data': typeof AdminDataRoute
   '/admin/devices': typeof AdminDevicesRoute
@@ -389,6 +396,7 @@ export interface FileRoutesById {
   '/statement': typeof StatementRoute
   '/wishlist': typeof WishlistRoute
   '/admin_/ai': typeof AdminAiRoute
+  '/admin_/audit': typeof AdminAuditRoute
   '/admin_/customers': typeof AdminCustomersRoute
   '/admin_/data': typeof AdminDataRoute
   '/admin_/devices': typeof AdminDevicesRoute
@@ -435,6 +443,7 @@ export interface FileRouteTypes {
     | '/statement'
     | '/wishlist'
     | '/admin/ai'
+    | '/admin/audit'
     | '/admin/customers'
     | '/admin/data'
     | '/admin/devices'
@@ -520,6 +529,7 @@ export interface FileRouteTypes {
     | '/statement'
     | '/wishlist'
     | '/admin_/ai'
+    | '/admin_/audit'
     | '/admin_/customers'
     | '/admin_/data'
     | '/admin_/devices'
@@ -566,6 +576,7 @@ export interface RootRouteChildren {
   StatementRoute: typeof StatementRoute
   WishlistRoute: typeof WishlistRoute
   AdminAiRoute: typeof AdminAiRoute
+  AdminAuditRoute: typeof AdminAuditRoute
   AdminCustomersRoute: typeof AdminCustomersRoute
   AdminDataRoute: typeof AdminDataRoute
   AdminDevicesRoute: typeof AdminDevicesRoute
@@ -938,6 +949,7 @@ const rootRouteChildren: RootRouteChildren = {
   StatementRoute: StatementRoute,
   WishlistRoute: WishlistRoute,
   AdminAiRoute: AdminAiRoute,
+  AdminAuditRoute: AdminAuditRoute,
   AdminCustomersRoute: AdminCustomersRoute,
   AdminDataRoute: AdminDataRoute,
   AdminDevicesRoute: AdminDevicesRoute,
