@@ -227,11 +227,11 @@ jobs:
             "/statement|كشف الحساب" \
             "/register|إنشاء حساب تجاري" \
             "/forgot-password|استعادة كلمة المرور" \
-"/admin/audit|سجل التدقيق" \\
-            "/categories|تصنيفات المنتجات" \\
-            "/search|البحث" \\
-            "/search/advanced|البحث المتقدم" \\
-            "/category/ci-missing--not-found|التصنيف" \\
+            "/admin/audit|سجل التدقيق" \
+            "/categories|تصنيفات المنتجات" \
+            "/search|البحث" \
+            "/search/advanced|البحث المتقدم" \
+            "/category/ci-missing--not-found|التصنيف" \
             "/category/ci-missing--not-found/subcategory/ci-child--not-found|التصنيف الفرعي"; do
             route="${route_spec%%|*}"
             expected_title="${route_spec#*|}"
