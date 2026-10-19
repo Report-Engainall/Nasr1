@@ -511,3 +511,14 @@
 - الحالة: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS (exact SHA 5c30bafe9bc5076a3acb6ca3335679462d290eb6); BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN.
 - تبقى المهمة الأشمل `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` مفتوحة. هذا السجل يغلق جزء اكتشاف الكتالوج فقط.
 
+
+
+## 2026-10-19 — فلتر المخزون المعروف في البحث المتقدم
+
+- أضيف إلى `src/components/Storefront.tsx` بيان مرئي عند تفعيل `available=1` وإجراء «إظهار كل الأصناف المطابقة» الذي يزيل هذا الشرط مع إبقاء نص البحث والتصنيف المحددين.
+- أضيف اختبار تكاملي في `src/test/storefront-discovery.test.tsx`: يضع كمية مخزون غير صالحة/غير معروفة للصنف «Beans»، يفعّل فلتر المتوفر من صفحة البحث المتقدم، يرسل النموذج إلى الكتالوج، ويثبت أن Rice/Sugar/Oil معروضة وأن Beans محجوب؛ ثم يزيل الفلتر ويتحقق من عودة Beans.
+- سجل التشغيل [39298563390](https://github.com/Report-Engainall/Nasr1/actions/runs/39298563390) كشف فشل اختبار بسبب محاكاة `change` غير كافية لمربع الاختيار؛ تم تغيير التفاعل إلى نقر checkbox الأصلي. [Actions 39298690000](https://github.com/Report-Engainall/Nasr1/actions/runs/39298690000) اختبر تعديل التسمية، ثم أثبت [Actions 39298789592 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39298789592) الإصلاح الكامل على SHA `2a002fa9062c3f4bd28c6b5c7bfcb35ba80b7926`.
+- النتيجة النهائية: 37/37 test files و303/303 tests؛ PostgreSQL 17 migrations/RLS، lint، build، preview 4173 وdev 5173 PASS.
+- الحالة: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN.
+- حالة المهمة الأشمل: `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` OPEN.
+
