@@ -3384,10 +3384,18 @@ async function main() {
   assert.equal(paymentPostedLines[1].account_id, debitAccountId, "payment uses the same AR account as the posted invoice");
   assert.equal(Number(paymentPostedLines[1].credit), Number(paymentSource.amount));
   await expectFailure(
-    "authenticated finance users cannot delete a payment after posting",
+    "authenticated finance users cannot directly delete a payment after posting",
     () => db.unsafe("delete from public.customer_payments where id=$1::uuid", [paymentSource.id]),
-    /payment has accounting history|payment is linked to an active accounting journal/i,
+    /permission denied/i,
   );
+  await db.unsafe("reset role");
+  await expectFailure(
+    "payment with accounting history cannot be deleted through a privileged maintenance path",
+    () => db.unsafe("delete from public.customer_payments where id=$1::uuid", [paymentSource.id]),
+    /payment has accounting history/i,
+  );
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
   const paymentInbox = (await db.unsafe("select public.fetch_customer_payment_accounting_inbox(50,0,'posted') as result"))[0].result;
   assert.ok(paymentInbox.items.some((item) => item.id === paymentSource.id && item.journal_status === "posted"));
 
@@ -3439,7 +3447,13 @@ async function main() {
   const taxPosted = (await db.unsafe("select public.post_general_journal_entry($1::uuid) as result", [taxJournalId]))[0].result;
   assert.equal(taxPosted.status, "posted");
   await expectFailure(
-    "an invoice with accounting history cannot be deleted",
+    "authenticated finance users cannot directly delete an invoice",
+    () => db.unsafe("delete from public.customer_invoices where id=$1::uuid", [taxInvoiceId]),
+    /permission denied/i,
+  );
+  await db.unsafe("reset role");
+  await expectFailure(
+    "an invoice with accounting history cannot be deleted through a privileged maintenance path",
     () => db.unsafe("delete from public.customer_invoices where id=$1::uuid", [taxInvoiceId]),
     /invoice has accounting history/i,
   );
