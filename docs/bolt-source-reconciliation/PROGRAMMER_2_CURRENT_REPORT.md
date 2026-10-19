@@ -44,3 +44,16 @@ task التالي بعده مباشرة: NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETIO
 - Exact CI proves migration application and full existing acceptance, but new-flow-specific DB behavior assertions are `NOT RUN`: `scripts/test-database-migrations.mjs` is currently P1-locked. A coordination request is recorded. Browser and production proof `NOT RUN`.
 - Branch `feature/accounting-general-ledger-20261019`; PR #4 open. Main has not been modified. Archive task remains closed, original spec parent remains OPEN.
 - `next_task_id = NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006` under `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`.
+
+
+## Latest execution — 2026-10-20 (P2; source-linked customer accounting)
+
+- Closed `NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006` in code and acceptance tests.
+- Migration: `supabase/migrations/20261020030000_accounting_customer_source_posting.sql`.
+- UI: `src/components/CustomerInvoicePaymentJournalLinker.tsx`, registered in `GeneralLedgerWorkspace`; unit tests are in `src/test/customer-invoice-payment-journal-linker.test.tsx`; PostgreSQL acceptance is in `scripts/test-database-migrations.mjs`.
+- Safety: invoice totals/tax derive from saved source; payment AR is inherited from the posted invoice journal; FX is rejected until policy exists; source edits/deletes are guarded; manager/admin reversal requires an audit reason, generates exact opposite debit/credit lines, and posts separately. It does not issue a cash refund.
+- Feature SHA `f7526eeb075ba95fe8cd1455d25b48d76b3cafe7` passed [Action 39335571027](https://github.com/Report-Engainall/Nasr1/actions/runs/39335571027).
+- Forward-merge commit `dec9026ef5c1f2c894774f8b68933df5e2dfe01b` has parents P2 `f7526eeb...` and main `f7cffd41...`; it passed [Action 39336158916](https://github.com/Report-Engainall/Nasr1/actions/runs/39336158916).
+- Failures retained: Action 39326813015 (stale error-message expectations) and 39335294442 (inbox page-one assumption). Corrections target the tests/readback only; guards and permission checks were not weakened.
+- PR #6 is the delivery route; no direct write to main. Browser/live tenant/production proof: **NOT RUN**.
+- `next_task_id = NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-VISIBILITY-007`.

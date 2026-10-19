@@ -266,3 +266,20 @@
 - الحدود المفتوحة في المواصفة: لم ينفذ XLSX workbook؛ لم تُضف حقول الكمية/المخزون إلى شبكة/قالب الأسعار لأن عقد `ProductPriceGridRow` والـRPC الحالي لا يعيدان كمية مخزون. ملف CSV يحمل الأكواد في نصه مع الأصفار البادئة، ويطلب من المستخدم استيراد عمود الكود بنوع Text في Excel كي لا يحوله Excel تلقائيًا إلى رقم. لا تدّعِ أن القسم 6.2 مكتمل بالكامل.
 - في المحاولات الوسيطة أظهرت CI إخفاقي assertion في توقعات الاختبار ثم إخفاق lint بسبب `no-control-regex`; تم إصلاح التوقعات وتبسيط تعبير الحماية دون إسقاط اختبارات الأمان. التشغيل النهائي المذكور أعلاه نجح بعد الإصلاحات.
 - المهمة الأشمل ما زالت مفتوحة: `next_task_id = NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`. هذا تنفيذ CSV في شبكة الأسعار وليس إكمالًا لكل الواجهات.
+
+
+## 2026-10-20 — P2 task 006: source-linked customer invoice/payment journals
+
+- P2 PR: https://github.com/Report-Engainall/Nasr1/pull/6
+- Forward-integrated head before this documentation commit: `dec9026ef5c1f2c894774f8b68933df5e2dfe01b`; parents are prior P2 head `f7526eeb075ba95fe8cd1455d25b48d76b3cafe7` and current main `f7cffd41cd63e16c6020fe379edf27416c5e0ce8`. The merged tree retains main's changes and contains only the five intended PR files beyond current main.
+- Exact-head CI: [Action 39336158916](https://github.com/Report-Engainall/Nasr1/actions/runs/39336158916) **SUCCESS** on `dec9026ef5c1f2c894774f8b68933df5e2dfe01b`: unit tests, PostgreSQL 17 migration/acceptance, lint, build, preview smoke and dev smoke.
+- Earlier feature head `f7526eeb075ba95fe8cd1455d25b48d76b3cafe7` also passed Action 39335571027.
+- Retained failure: Action 39335294442 on `fc62a8bb0f38e0eb6ec97c3ae878fec69635f17b` exposed that readback searched only page one. P2 fixed the acceptance helper to page until the exact seeded source is found; no SQL/RLS guard was loosened.
+- Accounting behavior: source-derived invoice totals/tax, idempotent invoice/payment drafts, server-derived payment AR mapping, unconfigured FX rejection, source/line edit guards, tenant/role boundaries, reasoned manager/admin reversal drafts, exact inverse debit/credit lines and reversal-before-void enforcement.
+- Production migration, live-tenant and browser/manual proof: **NOT RUN**.
+
+## Current active continuation
+
+`next_task_id = NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-VISIBILITY-007`
+
+Objective: wire visibility controls to the actually routed catalog/cart/order-review/invoice/PDF surfaces, enforce settings authority and tier-price isolation at DB/RPC boundaries (not just CSS), and prove admin changes become effective without stale client settings. Inspect existing privacy migrations first; extend only demonstrated gaps and do not duplicate existing protections.
