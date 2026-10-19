@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { formatLedgerBalance, formatLedgerMoney, validateJournalDraft, type JournalDraftLine, type LedgerAccountType } from "@/lib/general-ledger";
 import { buildFinancialStatements, formatStatementCents, type FinancialStatementsReport } from "@/lib/financial-statements";
+import { CashExpenseJournalLinker } from "@/components/CashExpenseJournalLinker";
 
 type Account = { id: string; code: string; name: string; account_type: LedgerAccountType; is_active: boolean; debit_total: string; credit_total: string };
 type JournalLine = { line_number: number; account_id: string; account_code: string; account_name: string; debit: string; credit: string; memo: string | null };
@@ -233,6 +234,11 @@ export function GeneralLedgerWorkspace() {
     setDraftLines((current) => current.map((line, i) => i === index ? { ...line, ...patch } : line));
   }
 
+  const refreshAccountingViews = useCallback(async () => {
+    await refresh();
+    await refreshStatements();
+  }, [refresh, refreshStatements]);
+
   if (!ready) return <section style={card}><p role="status">جارٍ التحقق من جلسة الحساب...</p></section>;
   if (!canUseFinance) return <section style={card}><h3 style={{ margin: 0 }}>دفتر الأستاذ العام</h3><p style={muted}>هذه المساحة متاحة للمحاسب والمسؤول والمدير المخوّلين فقط.</p></section>;
 
@@ -351,6 +357,8 @@ export function GeneralLedgerWorkspace() {
         <p style={{ ...muted, fontSize: 12 }}>حدود القراءة: القوائم مشتقة حصريًا من قيود اليومية المرحلة في الأستاذ. الفواتير والتحصيلات والمصروفات والاستلامات التي لم تربط بقيود محاسبية لا تدخل فيها. الأرباح المتراكمة محسوبة من قيود الإيراد والمصروف حتى تاريخ نهاية التقرير؛ لم تُنشأ أرصدة افتتاحية أو معاملات تاريخية افتراضية.</p>
       </section>
 
+      <CashExpenseJournalLinker accounts={payload?.accounts ?? []} onRefresh={refreshAccountingViews} />
+
       <form style={card} onSubmit={(event) => { event.preventDefault(); setFilters(filtersDraft); setPage(0); }}>
         <h3 style={{ margin: 0 }}>تصفية دفتر القيود</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
@@ -403,7 +411,7 @@ export function GeneralLedgerWorkspace() {
                 <div style={{ overflowX: "auto", marginTop: 8 }}><table style={table}><thead><tr style={{ background: "var(--muted, #f4f7f8)" }}><th style={{ padding: 7 }}>الحساب</th><th>البيان</th><th>مدين</th><th>دائن</th></tr></thead><tbody>
                   {entry.lines.map((line) => <tr key={line.line_number} style={{ borderTop: "1px solid var(--border, #e3e9ec)" }}><td style={{ padding: 7 }}>{line.account_code} — {line.account_name}</td><td>{line.memo || "—"}</td><td>{formatLedgerMoney(line.debit)}</td><td>{formatLedgerMoney(line.credit)}</td></tr>)}
                 </tbody></table></div>
-                {entry.status === "draft" && <div className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><button type="button" style={primary} onClick={() => void postEntry(entry.id)} disabled={saving}><Send size={14} /> ترحيل القيد</button>{canVoidDraft && <button type="button" style={button} onClick={() => void voidDraft(entry.id)} disabled={saving}><X size={14} /> إلغاء المسودة</button>}</div>}
+                {entry.status === "draft" && entry.source_type !== "cash_expense" && <div className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><button type="button" style={primary} onClick={() => void postEntry(entry.id)} disabled={saving}><Send size={14} /> ترحيل القيد</button>{canVoidDraft && <button type="button" style={button} onClick={() => void voidDraft(entry.id)} disabled={saving}><X size={14} /> إلغاء المسودة</button>}</div>}
               </article>
             ))}
           </div>}

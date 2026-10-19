@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), roles: ["accountant"] as string[] }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: mocks.rpc } }));
@@ -14,7 +14,7 @@ const payload = {
   entries:[],entry_count:0,has_more:false,summary:{posted_entry_count:2,debit_total:"1100.00",credit_total:"1100.00"},
 };
 describe("general ledger financial-statement UI", () => {
-  beforeEach(() => { mocks.roles=["accountant"]; mocks.rpc.mockReset().mockResolvedValue({data:payload,error:null}); });
+  beforeEach(() => { mocks.roles=["accountant"]; mocks.rpc.mockReset().mockImplementation((name: string) => Promise.resolve({data:name==="fetch_cash_expense_accounting_inbox"?{items:[],total_count:0,has_more:false,limit:50,offset:0}:payload,error:null})); });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
   it("uses the authorized ledger RPC and renders reconciled totals", async () => {
     render(<GeneralLedgerWorkspace />);
