@@ -59,3 +59,11 @@
 - CI: [Actions 39314610222 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39314610222), exact SHA `190497591d6451ca69d26da41034a3e5558fd58f`; 42/42 ملفات و330/330 اختبار؛ PostgreSQL 17، lint، build، preview 4173، dev 5173 PASS.
 - الإثبات: IMPLEMENTED=YES; INTEGRATED=YES على فرع PR؛ TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN.
 - غير مشمول: إنشاء قيود تلقائية مستقبلية من الفواتير والدفعات والمصروفات والاستلام وOnyx أو إجراء مطابقة مصدرية. لا توجد أرصدة أو فواتير تاريخية مصطنعة. المهمة الأشمل `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` ما تزال مفتوحة.
+
+
+## Income statement and balance sheet — exact-SHA CI PASS
+
+- Added a finance-role and tenant-scoped read path to the current GeneralLedgerWorkspace, reusing fetch_general_ledger for the date range and cumulative as-of cutoff. Period revenue/expense and cumulative assets/liabilities/equity remain distinct; calculations use BigInt minor units and visibly report a balance-equation difference.
+- Unit tests cover monetary accuracy, invalid dates/money, duplicates, imbalance, empty data and role-aware UI access. No historical transactions were synthesized.
+- Exact code SHA 869f0909bda0524275834952f64e1ce1609e79c0 passed Action 39320266809: 44/44 test files, 336/336 tests, PostgreSQL 17 migrations/acceptance, lint, build, preview smoke 4173 and dev smoke 5173.
+- IMPLEMENTED=YES; INTEGRATED=YES in PR #4; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; PRODUCTION_MIGRATION=NOT RUN. Reports include posted ledger entries only; source-document posting is next, not yet implemented.

@@ -1,3 +1,17 @@
+
+
+## Latest execution state — 2026-10-19 — P2 archive closure and financial statements
+
+- Target repository: Report-Engainall/Nasr1. Main remains at 0c089585d27665680dcc4ad2520dd4affc875804. Work is only on feature/accounting-general-ledger-20261019 / PR #4: https://github.com/Report-Engainall/Nasr1/pull/4.
+- Archive task NASR1-BOLT-ARCHIVE-DELTA-001 is CLOSED. All 160 formerly pending member decisions are recorded: 122 changed-content rows / 64 unique paths, plus 38 missing-candidate rows / 19 unique paths. Final 717-row counts: 548 exact, 8 security excluded, 1 previously adapted, 87 target already better, 33 reference-only, 40 incompatible with evidence. Pending review statuses = 0. Reused original ZIP verification Action 39294387493; no redownload, rehash, CRC, extraction, or re-enumeration was repeated.
+- Saved the unified Arabic master specification verbatim at docs/canonical/AGHBARI_COMMERCE_UNIFIED_MERCHANT_INTELLIGENCE_AND_EXECUTION_MASTER_AR_2026-10-17.txt. Saving the document is not a claim that all of its requirements are implemented.
+- Implemented an income statement and cumulative balance sheet in the existing GeneralLedgerWorkspace, using the authorized fetch_general_ledger RPC for both period and as-of aggregates. Arithmetic uses BigInt minor units; balancing differences remain visible. Only posted ledger entries are included; no historical ledger entries or opening balances are fabricated.
+- CI record: SHA 78cd809a4ce1d6486dfc2ea48219dc435bb3346d failed three test assertions in Action 39319700563: stale Arabic date-error regex, duplicate correct amount text, and a brittle role-denial matcher. Failures remain documented. Tests were corrected and exact SHA 869f0909bda0524275834952f64e1ce1609e79c0 passed Action 39320266809: 44/44 test files, 336/336 tests; frozen Bun lock verification; PostgreSQL 17 migrations/acceptance; lint; build; preview smoke port 4173; dev smoke port 5173.
+- P1 coordination: PR #3 is open at bf31eea06d020955b0912d252087c72f98e023f5. P2 did not edit P1-owned code paths or reports/ledgers. Browser proof with a real authenticated user and production migration/deployment proof remain NOT RUN.
+- Current next_task_id = NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004 under parent NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002. Build explicit, tenant-scoped, source-amount-derived cash-expense journal drafts with idempotent source linkage and guards against voiding a source after journal posting. The parent specification task remains OPEN.
+
+---
+
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
 ## تحديث تنفيذي 2026-10-19 — NASR1-ORIGINAL-SPEC-ACCOUNTING-GENERAL-LEDGER-003

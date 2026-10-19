@@ -552,3 +552,17 @@
 - Safety: no historical balances/entries were generated. Automatic ledger posting from future invoices, payments, cash expenses, purchase receipts or Onyx data was not claimed; source-event integration/reconciliation is a follow-up.
 - Status: IMPLEMENTED=YES; INTEGRATED=YES on PR branch; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN. Parent task `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains OPEN.
 
+
+
+## 2026-10-19 — NASR1-BOLT-ARCHIVE-DELTA-001 — CLOSED
+
+- Reused original ZIP integrity evidence in Action 39294387493; archive bytes were not downloaded, rehashed, CRC-checked, extracted, or re-enumerated again.
+- Resolved the 160 pending decision rows (122 changed-content / 64 unique paths and 38 missing-candidate / 19 unique paths). All 717 rows now have target decisions: 548 ALREADY_PRESENT_EXACT, 8 EXCLUDED_SECURITY, 1 prior ADAPT_AND_INTEGRATE, 87 ALREADY_PRESENT_BETTER, 33 KEEP_AS_REFERENCE, 40 INCOMPATIBLE_WITH_EVIDENCE. Pending review count is 0. See ARCHIVE_FEATURE_INTEGRATION_2026-10-19.md and ARCHIVE_MEMBERS.csv.
+- Saved the restored master Arabic requirement specification at docs/canonical/AGHBARI_COMMERCE_UNIFIED_MERCHANT_INTELLIGENCE_AND_EXECUTION_MASTER_AR_2026-10-17.txt. Legacy archive tests/execution are NOT RUN; no legacy SQL applied; browser and production proof NOT RUN.
+
+## 2026-10-19 — NASR1-ORIGINAL-SPEC-FINANCIAL-STATEMENTS-003 — PASS exact SHA
+
+- Initial implementation SHA 78cd809a4ce1d6486dfc2ea48219dc435bb3346d failed Action 39319700563: 3 test assertions failed (date error-message regex, duplicate correct amount, brittle access-denial assertion). This failure remains recorded.
+- Intermediate commit 436806f9b221f884af859f0c37c6268494e462fe failed Action 39320053536 while those test-only assertion fixes had not yet been added.
+- Test corrections landed in 869f0909bda0524275834952f64e1ce1609e79c0. Exact-SHA Action 39320266809 passed: 44/44 files, 336/336 tests; frozen Bun lock verification; PostgreSQL 17 migration/acceptance; lint; build; preview 4173 and dev 5173 smoke.
+- Code: src/lib/financial-statements.ts and src/components/GeneralLedgerWorkspace.tsx. Tests: src/test/financial-statements.test.ts and src/test/general-ledger-statements-ui.test.tsx. Tests not run locally; browser/prod checks NOT RUN. main is still 0c089585d27665680dcc4ad2520dd4affc875804; PR #4 only. Next task NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004.

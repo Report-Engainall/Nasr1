@@ -158,3 +158,11 @@
 - عدم تنفيذ SQL Bolt القديم أو إنشاء قفل NPM ثانٍ أو ملف cache للمترجم. Customer 360 الشامل وسجل التدقيق الإداري وCRUD التصنيفات تبقى فجوات مواصفة تحتاج تنفيذًا عبر عقود Nasr1، لا تنقلًا حرفيًا.
 - اختبارات كل ملف أرشيفي منفرد: **NOT RUN**. لا تساوي قرارات المصدر إثبات تشغيله.
 - Browser proof، production migration وproduction proof: **NOT RUN**.
+
+
+## Final CI proof for decision closure and financial statement implementation
+
+- Archive decision matrix complete: all 717 rows resolved; former pending-review statuses now 0. Archive integrity evidence reused from Action 39294387493; no ZIP re-validation was repeated.
+- Exact code SHA 869f0909bda0524275834952f64e1ce1609e79c0 passed Action 39320266809: 44/44 test files, 336/336 tests; PostgreSQL 17 migrations/acceptance, lint, build, preview 4173 and dev 5173 smoke all PASS.
+- Previous test failure remains recorded; later test-only assertions were corrected without removing coverage. Legacy archive member tests, browser proof and production migration/proof remain NOT RUN.
+- Archive decision closure does not close parent specification task. Next task is NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004.
