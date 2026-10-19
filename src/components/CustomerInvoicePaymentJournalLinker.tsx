@@ -11,6 +11,7 @@ type InvoiceRow = {
   subtotal:string; tax_amount:string; total_amount:string; source_date:string;
   journal_entry_id:string|null; journal_entry_number:string|null; journal_status:JournalStatus;
   receivable_account_id:string|null; revenue_account_id:string|null; tax_account_id:string|null;
+  journal_reversal_entry_id:string|null; journal_reversal_entry_number:string|null; journal_reversal_status:JournalStatus; journal_reversal_reason:string|null;
 };
 type PaymentRow = {
   id:string; invoice_id:string; invoice_number:string; customer_name:string; source_status:string;
@@ -18,6 +19,7 @@ type PaymentRow = {
   invoice_status:string; invoice_journal_status:JournalStatus; invoice_receivable_account_id:string|null;
   journal_entry_id:string|null; journal_entry_number:string|null; journal_status:JournalStatus;
   receivable_account_id:string|null; settlement_account_id:string|null;
+  journal_reversal_entry_id:string|null; journal_reversal_entry_number:string|null; journal_reversal_status:JournalStatus; journal_reversal_reason:string|null;
 };
 type Page<T> = {items:T[];total_count:number;has_more:boolean;limit:number;offset:number};
 type Props = {accounts:readonly AccountOption[];onRefresh:()=>Promise<void>};
@@ -55,7 +57,7 @@ function parseInvoice(value:unknown):InvoiceRow{
   currency:value.currency,subtotal:value.subtotal,tax_amount:value.tax_amount,total_amount:value.total_amount,source_date:value.source_date,
   journal_entry_id:nullableText(value.journal_entry_id),journal_entry_number:nullableText(value.journal_entry_number),
   journal_status:journalStatus(value.journal_status),receivable_account_id:nullableText(value.receivable_account_id),
-  revenue_account_id:nullableText(value.revenue_account_id),tax_account_id:nullableText(value.tax_account_id)};
+  revenue_account_id:nullableText(value.revenue_account_id),tax_account_id:nullableText(value.tax_account_id),journal_reversal_entry_id:nullableText(value.journal_reversal_entry_id),journal_reversal_entry_number:nullableText(value.journal_reversal_entry_number),journal_reversal_status:journalStatus(value.journal_reversal_status),journal_reversal_reason:nullableText(value.journal_reversal_reason)};
 }
 function parsePayment(value:unknown):PaymentRow{
  if(!isRecord(value)||typeof value.id!=="string"||typeof value.invoice_id!=="string"||typeof value.invoice_number!=="string"||
@@ -70,7 +72,7 @@ function parsePayment(value:unknown):PaymentRow{
   invoice_journal_status:journalStatus(value.invoice_journal_status),invoice_receivable_account_id:nullableText(value.invoice_receivable_account_id),
   journal_entry_id:nullableText(value.journal_entry_id),journal_entry_number:nullableText(value.journal_entry_number),
   journal_status:journalStatus(value.journal_status),receivable_account_id:nullableText(value.receivable_account_id),
-  settlement_account_id:nullableText(value.settlement_account_id)};
+  settlement_account_id:nullableText(value.settlement_account_id),journal_reversal_entry_id:nullableText(value.journal_reversal_entry_id),journal_reversal_entry_number:nullableText(value.journal_reversal_entry_number),journal_reversal_status:journalStatus(value.journal_reversal_status),journal_reversal_reason:nullableText(value.journal_reversal_reason)};
 }
 function sourceJournalLabel(status:JournalStatus,number:string|null):string{
  if(status==="posted")return "قيد مرحّل رقم "+(number??"—");
@@ -81,6 +83,7 @@ function sourceJournalLabel(status:JournalStatus,number:string|null):string{
 export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
  const {user,ready}=useAuth();
  const canUseFinance=Boolean(user?.roles.some(r=>["admin","manager","accountant"].includes(r)));
+ const canManageReversal=Boolean(user?.roles.some(r=>["admin","manager"].includes(r)));
  const [tab,setTab]=useState<SourceTab>("invoice");
  const [status,setStatus]=useState<StatusFilter>("unposted");
  const [page,setPage]=useState(0);
@@ -96,6 +99,7 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
  const [revenueSelection,setRevenueSelection]=useState<Record<string,string>>({});
  const [taxSelection,setTaxSelection]=useState<Record<string,string>>({});
  const [settlementSelection,setSettlementSelection]=useState<Record<string,string>>({});
+ const [reversalReasonSelection,setReversalReasonSelection]=useState<Record<string,string>>({});
  const receivables=useMemo(()=>accounts.filter(a=>a.is_active&&a.account_type==="asset"),[accounts]);
  const revenues=useMemo(()=>accounts.filter(a=>a.is_active&&a.account_type==="revenue"),[accounts]);
  const taxLiabilities=useMemo(()=>accounts.filter(a=>a.is_active&&a.account_type==="liability"),[accounts]);
@@ -159,6 +163,19 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
   finally{setBusyId("");}
  }
  async function postDraft(id:string,label:string){
+ async function createSourceReversal(sourceType:"customer_invoice"|"customer_payment",sourceId:string,reason:string,label:string){
+  const normalizedReason=reason.trim();
+  if(!canManageReversal){setError("إعداد العكس المحاسبي يتطلب صلاحية مدير أو مسؤول.");return;}
+  if(normalizedReason.length<5||normalizedReason.length>500){setError("أدخل سببًا موثقًا للعكس المحاسبي من 5 إلى 500 حرف.");return;}
+  setBusyId(sourceType+":"+sourceId);setError("");setNotice("");
+  try{
+   const result=await supabase.rpc("create_customer_source_reversal_draft",{p_source_type:sourceType,p_source_id:sourceId,p_reason:normalizedReason,p_idempotency_key:idempotencyKey()});
+   if(result.error)throw new Error("رفض الخادم إعداد مسودة العكس؛ تحقق من صلاحية المدير، وقيد المصدر المرحّل، وسبب العكس.");
+   setNotice("أُنشئت مسودة عكس محاسبي لـ"+label+". لم تُرحّل؛ راجعها ثم نفّذ الترحيل صراحةً.");
+   await refreshInbox();await onRefresh();
+  }catch(cause){setError(cause instanceof Error?cause.message:"تعذر إعداد مسودة العكس المحاسبي.");}
+  finally{setBusyId("");}
+ }
   setBusyId(id);setError("");setNotice("");
   try{
    const result=await supabase.rpc("post_general_journal_entry",{p_entry_id:id});
@@ -201,6 +218,9 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
        {item.currency!=="YER"&&<p style={{...muted,color:"#8b5a18"}}>الترحيل متوقف لهذه العملة حتى تعريف سياسة صرف معتمدة؛ لم يُحوّل المبلغ تلقائيًا.</p>}
        {item.source_status==="void"&&<p style={{...muted,color:"#8b5a18"}}>فاتورة ملغاة في المصدر؛ لا يمكن ترحيلها.</p>}
        {canPost&&<button type="button" style={primary} disabled={Boolean(busyId)} onClick={()=>void postDraft(item.journal_entry_id!,"الفاتورة "+item.invoice_number)}><Send size={14}/> ترحيل قيد الفاتورة {item.invoice_number}</button>}
+       {item.journal_reversal_status==="draft"&&item.journal_reversal_entry_id&&canManageReversal&&<div className="no-print" style={{display:"grid",gap:6}}><p style={muted}>عكس الفاتورة: {sourceJournalLabel(item.journal_reversal_status,item.journal_reversal_entry_number)} · السبب: {item.journal_reversal_reason??"—"}</p><button type="button" style={primary} disabled={Boolean(busyId)} onClick={()=>void postDraft(item.journal_reversal_entry_id!,"عكس الفاتورة "+item.invoice_number)}>ترحيل قيد العكس للفاتورة {item.invoice_number}</button></div>}
+       {canManageReversal&&item.journal_status==="posted"&&item.journal_reversal_status!=="draft"&&item.journal_reversal_status!=="posted"&&<div className="no-print" style={{display:"grid",gridTemplateColumns:"minmax(200px,1fr) auto",gap:10,alignItems:"end"}}><label>سبب عكس الفاتورة {item.invoice_number}<input aria-label={"سبب عكس الفاتورة "+item.invoice_number} maxLength={500} style={{...field,display:"block",marginTop:5}} value={reversalReasonSelection["invoice:"+item.id]??""} onChange={e=>setReversalReasonSelection(s=>({...s,["invoice:"+item.id]:e.target.value}))}/></label><button type="button" style={primary} disabled={Boolean(busyId)} onClick={()=>void createSourceReversal("customer_invoice",item.id,reversalReasonSelection["invoice:"+item.id]??"","الفاتورة "+item.invoice_number)}>إعداد مسودة عكس الفاتورة {item.invoice_number}</button></div>}
+       {item.journal_reversal_status==="posted"&&<p style={{...muted,color:"#17684d"}}>العكس المحاسبي مرحّل رقم {item.journal_reversal_entry_number??"—"} · السبب: {item.journal_reversal_reason??"—"}</p>}
        {canCreate&&<div className="no-print" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10,alignItems:"end"}}>
         <label>حساب الذمم (أصل)<select aria-label={"حساب الذمم للفاتورة "+item.invoice_number} style={{...field,display:"block",marginTop:5}} value={ar} onChange={e=>setReceivableSelection(s=>({...s,[item.id]:e.target.value}))}><option value="">اختر حساب الذمم</option>{receivables.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>
         <label>حساب الإيراد<select aria-label={"حساب الإيراد للفاتورة "+item.invoice_number} style={{...field,display:"block",marginTop:5}} value={rev} onChange={e=>setRevenueSelection(s=>({...s,[item.id]:e.target.value}))}><option value="">اختر حساب الإيراد</option>{revenues.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>
@@ -225,6 +245,9 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
        {item.invoice_status==="void"&&<p style={{...muted,color:"#8b5a18"}}>الفاتورة ملغاة في المصدر؛ راجع التحصيل قبل أي ترحيل.</p>}
        {item.invoice_journal_status!=="posted"&&item.invoice_status!=="void"&&<p style={{...muted,color:"#8b5a18"}}>يلزم ترحيل قيد الفاتورة أولًا. حساب الذمم للتحصيل يُشتق خادميًا من قيد الفاتورة المرحّل.</p>}
        {canPost&&<button type="button" style={primary} disabled={Boolean(busyId)} onClick={()=>void postDraft(item.journal_entry_id!,"التحصيل "+item.id.slice(0,8))}><Send size={14}/> ترحيل قيد التحصيل</button>}
+       {item.journal_reversal_status==="draft"&&item.journal_reversal_entry_id&&canManageReversal&&<div className="no-print" style={{display:"grid",gap:6}}><p style={muted}>عكس التحصيل: {sourceJournalLabel(item.journal_reversal_status,item.journal_reversal_entry_number)} · السبب: {item.journal_reversal_reason??"—"}</p><button type="button" style={primary} disabled={Boolean(busyId)} onClick={()=>void postDraft(item.journal_reversal_entry_id!,"عكس التحصيل "+item.invoice_number)}>ترحيل قيد عكس التحصيل {item.invoice_number}</button></div>}
+       {canManageReversal&&item.journal_status==="posted"&&item.journal_reversal_status!=="draft"&&item.journal_reversal_status!=="posted"&&<div className="no-print" style={{display:"grid",gridTemplateColumns:"minmax(200px,1fr) auto",gap:10,alignItems:"end"}}><label>سبب عكس التحصيل {item.invoice_number}<input aria-label={"سبب عكس التحصيل "+item.invoice_number} maxLength={500} style={{...field,display:"block",marginTop:5}} value={reversalReasonSelection["payment:"+item.id]??""} onChange={e=>setReversalReasonSelection(s=>({...s,["payment:"+item.id]:e.target.value}))}/></label><button type="button" style={primary} disabled={Boolean(busyId)} onClick={()=>void createSourceReversal("customer_payment",item.id,reversalReasonSelection["payment:"+item.id]??"","التحصيل للفاتورة "+item.invoice_number)}>إعداد مسودة عكس التحصيل {item.invoice_number}</button></div>}
+       {item.journal_reversal_status==="posted"&&<p style={{...muted,color:"#17684d"}}>عكس التحصيل مرحّل رقم {item.journal_reversal_entry_number??"—"} · السبب: {item.journal_reversal_reason??"—"}</p>}
        {canCreate&&<div className="no-print" style={{display:"grid",gridTemplateColumns:"minmax(200px,1fr) auto",gap:10,alignItems:"end"}}>
         <label>حساب التسوية (نقدية/بنك)<select aria-label={"حساب التسوية للتحصيل "+item.invoice_number} style={{...field,display:"block",marginTop:5}} value={settlement} onChange={e=>setSettlementSelection(s=>({...s,[item.id]:e.target.value}))}><option value="">اختر حساب النقدية/البنك</option>{settlements.map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>
         <button type="button" style={primary} disabled={Boolean(busyId)} onClick={()=>void createPaymentDraft(item)}>إنشاء مسودة قيد للتحصيل</button>
@@ -237,6 +260,6 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
   <footer className="no-print" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
    <button type="button" style={button} disabled={page===0||loading||Boolean(busyId)} onClick={()=>setPage(p=>Math.max(0,p-1))}>السابق</button><span style={muted}>صفحة {page+1} · 50 مصدرًا في الصفحة</span><button type="button" style={button} disabled={!hasMore||loading||Boolean(busyId)} onClick={()=>setPage(p=>p+1)}>التالي</button>
   </footer>
-  <p style={{...muted,fontSize:12}}>حماية مصدر مالي: لا يُسمح بتعديل أو إلغاء فاتورة/تحصيل مرتبط بقيد مسودة أو مرحّل؛ يتطلب ذلك مسار عكس محاسبي معتمد. إلغاء مسودة القيد يتم من دفتر الأستاذ مع سبب وتدقيق. تشمل هذه الشاشة إنشاء القيود ومراجعتها وترحيلها فقط؛ لا تنفذ استردادًا ماليًا أو قيد عكس تلقائيًا.</p>
+  <p style={{...muted,fontSize:12}}>عكس قيد فاتورة/تحصيل مرحّل يتطلب صلاحية مدير أو مسؤول وسببًا موثقًا. ينشئ النظام مسودة تعكس سطور القيد الأصلي دون تعديل الأصل؛ الترحيل إجراء منفصل. لا تنفذ هذه الشاشة تحويلًا نقديًا لاسترداد الأموال.</p>
  </section>;
 }
