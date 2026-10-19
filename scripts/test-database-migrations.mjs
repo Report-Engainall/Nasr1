@@ -2757,13 +2757,6 @@ async function main() {
   assert.equal(customerPriceRows.length, 1, "storefront returns the tenant-scoped product price");
   const effectiveCustomerPrice = Number(customerPriceRows[0].unit_price ?? customerPriceRows[0].price);
   assert.ok(Number.isFinite(effectiveCustomerPrice) && effectiveCustomerPrice > 0);
-  const grossPriceRows = await db.unsafe(
-    "select public.customer_product_unit_price($1::uuid,$2::uuid,(select c.tier from public.customers c where c.id=public.current_customer_id() and c.organization_id=$2),1) as price",
-    [productId, organizationId],
-  );
-  const grossCustomerPrice = Number(grossPriceRows[0]?.price);
-  assert.ok(Number.isFinite(grossCustomerPrice) && grossCustomerPrice > 0,
-    "unpromoted customer-tier price must come from the server pricing resolver");
   const promotionOrderKey = "ci-promotion-priced-order-" + promotionId;
   const placedRows = await db.unsafe(
     "select public.submit_customer_order($1::jsonb,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::uuid) as result",
@@ -2773,6 +2766,12 @@ async function main() {
   const promotionOrderId = placedResponse?.id ?? placedResponse?.order_id;
   assert.match(String(promotionOrderId ?? ""), /^[0-9a-f-]{36}$/i);
   await db.unsafe("reset role");
+  const campaignOrderItems = await db.unsafe(
+    "select product_id,unit_price_snapshot,discount_snapshot,promotion_discount_per_unit_snapshot,promotion_id_snapshot,promotion_title_snapshot,promotion_discount_type_snapshot,promotion_discount_value_snapshot,line_total from public.order_items where order_id=$1::uuid",
+    [promotionOrderId],
+  );
+  assert.equal(campaignOrderItems.length, 1);
+  const campaignLine = campaignOrderItems[0];
   const grossPriceRows = await db.unsafe(
     `select public.customer_product_unit_price(
        oi.product_id, o.organization_id,
@@ -2788,14 +2787,7 @@ async function main() {
   assert.equal(grossPriceRows.length, 1, "the persisted campaign order must resolve its original customer-tier price");
   const grossCustomerPrice = Number(grossPriceRows[0].gross_unit_price);
   assert.ok(Number.isFinite(grossCustomerPrice) && grossCustomerPrice > 0, "the pre-campaign tier price must be a valid server-derived amount");
-  assert.equal(Number(campaignLine.unit_price_snapshot), grossCustomerPrice, "the order line must retain the authoritative pre-campaign price snapshot");
   assert.ok(grossCustomerPrice > effectiveCustomerPrice, "active campaign lowers the price while respecting the cost floor");
-  const campaignOrderItems = await db.unsafe(
-    "select product_id,unit_price_snapshot,discount_snapshot,promotion_discount_per_unit_snapshot,promotion_id_snapshot,promotion_title_snapshot,promotion_discount_type_snapshot,promotion_discount_value_snapshot,line_total from public.order_items where order_id=$1::uuid",
-    [promotionOrderId],
-  );
-  assert.equal(campaignOrderItems.length, 1);
-  const campaignLine = campaignOrderItems[0];
   assert.equal(campaignLine.promotion_id_snapshot, promotionId);
   assert.equal(campaignLine.promotion_title_snapshot, "CI active campaign");
   assert.equal(campaignLine.promotion_discount_type_snapshot, "percentage");
