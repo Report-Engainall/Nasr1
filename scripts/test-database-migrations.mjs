@@ -440,6 +440,11 @@ async function main() {
     () => db.unsafe("select * from public.fetch_staff_products(null::uuid)"),
     /active staff role and organization required|active staff role required/i,
   );
+  await expectFailure(
+    "authenticated customers cannot use the staff customer 360 RPC",
+    () => db.unsafe("select public.get_staff_customer_360($1::uuid)", [customerOneId]),
+    /active staff role required|staff role required|42501/i,
+  );
 
   // Authenticated customers may submit a cart, but must not enumerate the
   // organization-wide pricing-tier table directly. A denied SELECT or an RLS
@@ -1453,6 +1458,25 @@ async function main() {
   const staffPayment = authorizedFinance[0].result.payments.find((row) => row.invoice_id === invoice.id);
   assert.equal(Number(staffInvoice.total_amount), 370000, "staff finance RPC retains invoice totals");
   assert.equal(Number(staffPayment.amount), 100000, "staff finance RPC retains payment amounts");
+
+  const customer360Result = await db.unsafe("select public.get_staff_customer_360($1::uuid) as result", [invoice.customer_id]);
+  const customer360 = customer360Result[0].result;
+  assert.equal(customer360.customer.id, invoice.customer_id, "staff 360 returns only the customer requested within the active tenant");
+  assert.ok(customer360.order_summary.order_count >= 1, "customer 360 counts all orders server-side");
+  assert.ok(customer360.recent_orders.some((row) => row.id === order.id), "customer 360 includes the current customer's recent order history");
+  assert.ok(customer360.finance_by_currency.some((row) => row.currency === "YER" && Number(row.invoiced_total) >= 370000),
+    "customer 360 full-ledger invoice summary includes the generated invoice");
+  assert.ok(customer360.recent_invoices.some((row) => row.id === invoice.id), "customer 360 returns bounded recent invoice details");
+  assert.ok(customer360.recent_payments.some((row) => row.invoice_id === invoice.id), "customer 360 returns bounded recent payment details");
+  assert.ok(customer360.top_products.some((row) => row.item_code === "CI-ITEM-01" || row.quantity >= 1),
+    "customer 360 derives a most-purchased product from persisted order lines");
+  assert.ok(Array.isArray(customer360.recommendations), "customer 360 returns deterministic recommendation list");
+  await expectFailure(
+    "staff customer 360 rejects customers outside the active tenant",
+    () => db.unsafe("select public.get_staff_customer_360($1::uuid)", ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]),
+    /العميل غير موجود ضمن المؤسسة الحالية|42501/i,
+  );
+  process.stdout.write("PASS staff customer 360: tenant-bound full ledger aggregates, bounded recent history, top products and deterministic follow-up signals\\n");
 
   await db.unsafe("update public.orders set status='processing' where id=$1", [order.id]);
   await db.unsafe("update public.orders set status='shipped' where id=$1", [order.id]);

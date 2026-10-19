@@ -1,5 +1,6 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
 import { parseStoreExecutiveAnalytics, type StoreExecutiveAnalytics } from './executive-analytics';
+import { parseStaffCustomer360Summary, type StaffCustomer360Summary } from './customer-360-summary';
 import { countLowStockBalances } from './inventory-metrics';
 import { retryRead } from './retry';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
@@ -1567,4 +1568,19 @@ export async function fetchStoreExecutiveAnalytics(): Promise<StoreExecutiveAnal
   const { data, error } = await supabase.rpc('get_store_executive_analytics');
   if (error) throw error;
   return parseStoreExecutiveAnalytics(data);
+}
+
+
+// Complete ledger-backed customer 360 aggregates with bounded recent detail rows.
+export async function fetchStaffCustomer360Summary(customerId: string): Promise<StaffCustomer360Summary> {
+  if (typeof customerId !== 'string' || !/^[0-9a-f-]{36}$/i.test(customerId)) {
+    throw new Error('معرّف العميل غير صالح لطلب ملخص 360.');
+  }
+  const { data, error } = await supabase.rpc('get_staff_customer_360', { p_customer_id: customerId });
+  if (error) throw error;
+  const summary = parseStaffCustomer360Summary(data);
+  if (summary.customer.id !== customerId) {
+    throw new Error('معرّف العميل في استجابة الخادم لا يطابق الطلب.');
+  }
+  return summary;
 }
