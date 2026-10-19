@@ -67,14 +67,14 @@ AS $function$
 DECLARE
   v_organization_id uuid := public.current_organization_id();
   v_profile_id uuid := public.current_profile_id();
-  v_title text := pg_catalog.btrim(pg_catalog.coalesce(p_title, ''));
-  v_description text := pg_catalog.nullif(pg_catalog.btrim(pg_catalog.coalesce(p_description, '')), '');
+  v_title text := pg_catalog.btrim(coalesce(p_title, ''));
+  v_description text := nullif(pg_catalog.btrim(coalesce(p_description, '')), '');
   v_row public.promotions%ROWTYPE;
   v_old jsonb;
   v_action text;
   v_id uuid := p_promotion_id;
-  v_products uuid[] := pg_catalog.coalesce(p_product_ids, ARRAY[]::uuid[]);
-  v_categories uuid[] := pg_catalog.coalesce(p_category_ids, ARRAY[]::uuid[]);
+  v_products uuid[] := coalesce(p_product_ids, ARRAY[]::uuid[]);
+  v_categories uuid[] := coalesce(p_category_ids, ARRAY[]::uuid[]);
 BEGIN
   IF auth.uid() IS NULL OR v_organization_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM public.profiles AS p
@@ -127,7 +127,7 @@ BEGIN
     )
     VALUES (
       v_organization_id, v_title, v_description, p_discount_type, p_discount_value,
-      v_products, v_categories, p_start_date, p_end_date, pg_catalog.coalesce(p_is_active, false)
+      v_products, v_categories, p_start_date, p_end_date, coalesce(p_is_active, false)
     )
     RETURNING * INTO v_row;
     v_id := v_row.id;
@@ -144,7 +144,7 @@ BEGIN
     SET title = v_title, description = v_description, discount_type = p_discount_type,
         discount_value = p_discount_value, product_ids = v_products, category_ids = v_categories,
         start_date = p_start_date, end_date = p_end_date,
-        is_active = pg_catalog.coalesce(p_is_active, false)
+        is_active = coalesce(p_is_active, false)
     WHERE p.id = v_id AND p.organization_id = v_organization_id
     RETURNING p.* INTO v_row;
     v_action := 'promotion.updated';
@@ -165,7 +165,7 @@ DECLARE
   v_profile_id uuid := public.current_profile_id();
   v_row public.promotions%ROWTYPE;
   v_old jsonb;
-  v_active boolean := pg_catalog.coalesce(p_is_active, false);
+  v_active boolean := coalesce(p_is_active, false);
 BEGIN
   IF auth.uid() IS NULL OR v_organization_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM public.profiles AS p
