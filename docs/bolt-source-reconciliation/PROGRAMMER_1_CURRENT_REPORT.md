@@ -3,7 +3,7 @@
 - **المستودع الوحيد المستهدف:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **الملكية:** هذا التقرير و`SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` فقط.
-- **المهمة الحالية:** `NASR1-SOURCE-IMAGE-PIXEL-GUARD-001` — اجتاز كود الميزة CI على الرأس `b22e3880031feae66acb7f23f165e47178cde553`؛ يجري حفظ إثبات CI في السجلين والتقرير، ثم يلزم CI أخير على رأس التوثيق الجديد قبل الدمج.
+- **المهمة الحالية / next_source_task_id:** `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001` — مقارنة مكونات عضوية الشركات بين المصدر والهدف، وتتبع UI/service/DB/RLS/RPC/route/tests قبل تقرير الدمج.
 - **المهمة التالية بعد إغلاق المهمة الحالية:** `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001` — مقارنة عقد المكونات/الخدمات/RPC/RLS/المسارات والاختبارات للعضويات بين المصدر والهدف قبل أي قرار دمج.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
@@ -15,7 +15,7 @@
 - **الأمان:** لم تُضف أي grants أو سياسات توسّع الوصول المباشر. لم يتغير RLS لإصلاح الاختبار.
 - **المصدر:** `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`, `src/services/inventory.ts`, source blob `3506707a656e0db491b860d5e11ad28daeded5cf`. بصمة المصدر وقرار التكييف موثقان بالفعل في ledger؛ لم يُعد جلب الملف المانح.
 
-## 2. المهمة الحالية — حد إجمالي بكسلات صورة المنتج
+## 2. المهمة المغلقة — حد إجمالي بكسلات صورة المنتج
 
 ### التشخيص والتغيير
 - **المصدر الجديد:** `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`.
@@ -24,8 +24,8 @@
 - **التكييف المنفذ:** أضيف `MAX_SOURCE_PIXELS = 25_000_000` داخل `src/lib/product-image.ts`؛ يُرفض الحجم الإجمالي الزائد داخل `fitProductImageDimensions` قبل تخصيص canvas. أبقينا التنفيذ الهدف الحالي: 8 MiB كحد لملف الإدخال، 1600 بكسل للإخراج، WebP، التحقق من المؤسسة/المنتج/الدور في Edge Function، ومسار رفع الخادم. لم ننسخ تدفق المصادقة/التخزين القديم ولا نضيف أي حزمة.
 - **اختبارات الانحدار المضافة:** 25,005,000 بكسل مرفوضة، و25,000,000 حد صالح، وإثبات أن canvas لا يُنشأ عند الرفض وإغلاق `ImageBitmap`.
 - ملفات التغيير: `src/lib/product-image.ts` blob الحالي `8fce9c518a5ee3e4bc4a74db844e67942ac07e40`؛ `src/lib/product-image.test.ts` blob الحالي `c753e417c8d3afd38f1acf80d5c3a1411bfeec8f`.
-- **CI على رأس الكود المطابق:** [Actions 39332901589](https://github.com/Report-Engainall/Nasr1/actions/runs/39332901589) على `b22e3880031feae66acb7f23f165e47178cde553` انتهى **SUCCESS**. ثبتت الخطوات: تثبيت Bun والتحقق من lockfile، unit tests، تطبيق migrations وقبول PostgreSQL 17/RLS، lint، build، production-preview smoke وdev-server smoke، وتنظيف الحاويات. هذا دليل لاختبار كود الصورة على الرأس نفسه؛ browser/manual وproduction deployment غير مثبتين.
-- **خطوة الإغلاق:** سيغيّر هذا الحفظ التوثيقي SHA دون تغيير كود التطبيق، ويطلق CI جديدًا. لا تدمج PR #11 حتى ينجح التشغيل على ذلك الرأس النهائي أيضًا.
+- **CI المطابق لرأس PR النهائي:** [Actions 39333274431](https://github.com/Report-Engainall/Nasr1/actions/runs/39333274431) على `f3c2a6c002e37b3adeef7028163a176717e7ff6c` انتهى **SUCCESS**: frozen lockfile، unit tests، PostgreSQL 17 migration/RLS acceptance، lint، build، production-preview smoke، dev-server smoke وتنظيف الحاويات.
+- **الدمج والتحقق بعده:** [PR #11](https://github.com/Report-Engainall/Nasr1/pull/11) مغلق بالدمج إلى `main`؛ merge commit `f7cffd41cd63e16c6020fe379edf27416c5e0ce8`. أُعيدت قراءة ملفات التنفيذ من `main` وتأكد وجود حد `25_000_000` واختبار الانحدار وسجلات البصمات. browser/manual وproduction deployment غير مثبتين.
 - **سجل المصدر:** ledger يحتوي `NASR1-SOURCE-IMAGE-PIXEL-GUARD-001` و`NASR1-SOURCE-IMAGE-PIXEL-GUARD-TEST-001` بحالة `IMPLEMENTED_PENDING_EXACT_SHA_CI`. audit سجل البصمات والقرار وعدم نسخ الملفات الخام.
 
 ## 3. قرار مصدر طابور العمليات غير المتصلة
@@ -48,7 +48,7 @@
 - `READY_TO_REUSE_FILE_AUDIT.csv`: 73 صف بيانات بعد إضافة 4 صفوف موثقة لهذه الجلسة.
 - الصفوف المضافة تغطي مصدر معالج الصور واختباره، وقرار تكرار طابور offline واختباره. جميع البصمات المنقولة من الشجرة المانحة مسجلة؛ لم نعد فتح أي source blob كان له قرار مسجل.
 - المراجعة السابقة لجرد الملفات على main أظهرت 69 صفًا في audit، 62 منها تعود للمصادر الثلاثة المحددة، وصفر صفوف بقيت بتسميات المراجعة العامة القديمة. بعد الصفوف الأربعة الحالية صار عدد audit 73 إجمالًا.
-- لا يوجد مصدر مفتوح آخر بحالة pending في ledger قبل إضافة صفوف حماية الصور الجديدة. إغلاق المهمة الحالية يتوقف على دليل CI exact-head؛ بعدها تتقدم المهمة تلقائيًا إلى `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001`.
+- مهمة حماية الصور مغلقة بعد CI PASS على رأس PR المطابق والدمج إلى main. المهمة التالية الآن `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001`: المصدر المرشح `Aghbari-Technologies/aghbari-commerce-evolved@d24695209b45f2352e0ba994e1f5109d7e2afc9d`, `src/components/CustomerCompanyMembers.tsx`, blob `259caa2d675cd49d12864fa600b321ea73dcaae4`. مسار هدف بالاسم نفسه موجود، لكن مجرد وجود component لا يثبت اكتمال مسار العضويات؛ يجب مقارنة service/DB-RLS/RPC/route/tests. لم يُفتح محتوى ملف المانح بعد ولم تُسجل له بصمة قرار في السجلات.
 
 ## 6. حدود الدور
 
