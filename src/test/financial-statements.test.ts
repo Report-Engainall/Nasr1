@@ -16,8 +16,8 @@ describe("ledger-backed financial statements", () => {
     expect(formatStatementCents(-123456n)).toBe("−1,234.56 ر.ي");
   });
   it("rejects invalid dates, ambiguous money and duplicate accounts", () => {
-    expect(() => buildFinancialStatements(accounts, accounts, "2026-12-31", "2026-01-01", 0)).toThrow(/الفترة/);
-    expect(() => buildFinancialStatements(accounts, accounts, "2026-02-30", "2026-03-01", 0)).toThrow(/الفترة/);
+    expect(() => buildFinancialStatements(accounts, accounts, "2026-12-31", "2026-01-01", 0)).toThrow(/فترة القوائم المالية/);
+    expect(() => buildFinancialStatements(accounts, accounts, "2026-02-30", "2026-03-01", 0)).toThrow(/فترة القوائم المالية/);
     expect(() => buildFinancialStatements([{...accounts[0],debit_total:"1.234"}], accounts, "2026-01-01", "2026-12-31", 1)).toThrow(/مبلغًا صحيحًا/);
     expect(() => buildFinancialStatements([...accounts,accounts[0]], accounts, "2026-01-01", "2026-12-31", 1)).toThrow(/مكررة/);
   });
