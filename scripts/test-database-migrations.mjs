@@ -2043,8 +2043,16 @@ async function main() {
     [db.json([{product_id:productId,quantity:1}]),"Member checkout test","CI Company One","Invited buyer","7771113333","cash_on_delivery","member-checkout-key-000001",null],
   );
   const memberOrderId=memberOrderRows[0].result.id;
+  assert.match(String(memberOrderId), /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    "company-member checkout returns the persisted order identifier");
+  // Verify the tenant/customer association from the isolated database owner context.
+  // The authenticated customer role intentionally cannot SELECT arbitrary financial/order
+  // columns or rows directly; that is a separate RLS boundary, not evidence that insertion failed.
+  await db.unsafe("reset role");
   const linkedOrder=await db.unsafe("select customer_id from public.orders where id=$1",[memberOrderId]);
+  assert.equal(linkedOrder.length,1,"company-member checkout persists exactly one order");
   assert.equal(linkedOrder[0].customer_id,customerOneId,"member checkout creates an order for the linked company");
+  await db.unsafe("set role authenticated");
   await expectFailure("accepted invitation tokens cannot be replayed",
     ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[invite.invitation_token]),/استُخدمت|الدعوة غير موجودة/i);
 
