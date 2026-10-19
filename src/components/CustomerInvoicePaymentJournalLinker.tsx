@@ -27,7 +27,7 @@ const panel:React.CSSProperties={border:"1px solid var(--border, #d6dfe4)",borde
 const muted:React.CSSProperties={color:"var(--muted-foreground, #66757b)",margin:0,lineHeight:1.7};
 const field:React.CSSProperties={width:"100%",boxSizing:"border-box",padding:"9px 10px",border:"1px solid var(--border, #d6dfe4)",borderRadius:8,background:"var(--card, #fff)",color:"var(--foreground, #17242a)",font:"inherit"};
 const button:React.CSSProperties={border:"1px solid var(--border, #d6dfe4)",borderRadius:8,padding:"8px 11px",cursor:"pointer",font:"inherit",background:"var(--card, #fff)",color:"var(--foreground, #17242a)",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7};
-const primary:React.CSSProperties={...button,background:"var(--primary, #155e4a)",color:"#fff",borderColor:"transparent",fontWeight:700};
+const primary:React.CSSProperties={...button,background:"var(--primary, #155e4a)",color:"#fff",border:"1px solid transparent"};
 const FILTERS:{value:StatusFilter;label:string}[]=[
  {value:"unposted",label:"غير مربوط بقيد"},{value:"draft",label:"مسودات القيود"},
  {value:"posted",label:"قيود مرحلة"},{value:"void",label:"قيود ملغاة"},{value:"all",label:"الكل"},

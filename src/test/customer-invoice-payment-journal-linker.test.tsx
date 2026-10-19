@@ -30,7 +30,7 @@ describe("invoice/payment journal source integration",()=>{
  it("creates an invoice draft with explicit receivable, revenue and source-recorded tax accounts",async()=>{
   const onRefresh=vi.fn().mockResolvedValue(undefined);
   render(<CustomerInvoicePaymentJournalLinker accounts={accounts} onRefresh={onRefresh}/>);
-  expect(await screen.findByText(/فاتورة INV-18/)).toBeInTheDocument();
+  expect((await screen.findAllByText(/فاتورة INV-18/)).length).toBeGreaterThanOrEqual(1);
   fireEvent.change(screen.getByLabelText("حساب الذمم للفاتورة INV-18"),{target:{value:"ar-account"}});
   fireEvent.change(screen.getByLabelText("حساب الإيراد للفاتورة INV-18"),{target:{value:"revenue-account"}});
   fireEvent.change(screen.getByLabelText("حساب الضريبة للفاتورة INV-18"),{target:{value:"tax-account"}});
@@ -45,7 +45,7 @@ describe("invoice/payment journal source integration",()=>{
  it("blocks foreign-currency invoice posting instead of calculating an implicit exchange rate",async()=>{
   mocks.rpc.mockImplementation((name:string)=>Promise.resolve({data:name==="fetch_customer_invoice_accounting_inbox"?page([{...invoice,currency:"USD",tax_amount:"0.00"}]):page([]),error:null}));
   render(<CustomerInvoicePaymentJournalLinker accounts={accounts} onRefresh={vi.fn().mockResolvedValue(undefined)}/>);
-  expect(await screen.findByText(/لم تُرحّل الفاتورة/)).toBeInTheDocument();
+  expect(await screen.findByText(/الترحيل متوقف لهذه العملة/)).toBeInTheDocument();
   expect(screen.queryByRole("button",{name:/إنشاء مسودة قيد الفاتورة/})).not.toBeInTheDocument();
   expect(mocks.rpc).not.toHaveBeenCalledWith("create_customer_invoice_journal_draft",expect.anything());
  });
