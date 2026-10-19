@@ -363,15 +363,22 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
             {!cart.length ? <div className="sf-empty"><ShoppingCart size={30} /><span>سلتك فارغة</span><button className="sf-link" onClick={() => void navigate({ to: '/' })}>تصفح المنتجات</button></div> :
             <>
               <div className="sf-cart-list">
-                {cart.map((item) => (
-                  <div className="sf-cart-row" key={item.product.id}>
-                    <div className="sf-cart-info"><div className="sf-cart-img"><Package size={20} /></div><div><strong>{item.product.name}</strong><span>الوحدة: {item.product.unit}</span></div></div>
+                {cart.map((item) => {
+                  const priceLine = cartPricingPreview?.visible ? cartPricingPreview.items?.find((line) => line.product_id === item.product.id) : undefined;
+                  return <div className="sf-cart-row" key={item.product.id}>
+                    <div className="sf-cart-info"><div className="sf-cart-img"><Package size={20} /></div><div><strong>{item.product.name}</strong><span>الوحدة: {item.product.unit}</span>
+                      {showPriceInCart && cartPricingPreview?.visible && priceLine && <span>سعر الوحدة: {formatCurrency(Number(priceLine.unit_price))} · إجمالي البند: {formatCurrency(Number(priceLine.line_total))}</span>}
+                    </div></div>
                     <div className="sf-cart-qty"><button aria-label={`تقليل كمية ${item.product.name}`} onClick={() => updateQty(item.product.id, -1)}><Minus size={14} /></button><span>{item.quantity}</span><button aria-label={`زيادة كمية ${item.product.name}`} onClick={() => updateQty(item.product.id, 1)}><Plus size={14} /></button></div>
                     <button className="sf-cart-remove" aria-label={`حذف ${item.product.name} من السلة`} onClick={() => removeFromCart(item.product.id)}><Trash2 size={16} /></button>
-                  </div>
-                ))}
+                  </div>;
+                })}
               </div>
-              <div role="note" style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#f2f7f8', color: '#536b70' }}>سيُراجع الطلب ويُعتمد من جهة الإدارة. الأسعار والإجماليات لا تظهر في شاشة الطلب للعميل.</div>
+              {cartPricingPreview?.customer_tier_visible && cartPricingPreview.customer_tier_label && <p role="status" style={{ marginTop: 12, fontWeight: 800 }}>فئة العميل: {cartPricingPreview.customer_tier_label}</p>}
+              {showPriceInCart && cartPricingPreview?.visible && <div role="group" aria-label="إجمالي السلة" style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#f2f7f8', color: '#536b70' }}>
+                <p style={{ display: 'flex', justifyContent: 'space-between', gap: 12, margin: 0 }}><strong>الإجمالي المحسوب من الخادم</strong><strong>{formatCurrency(Number(cartPricingPreview.total_amount))}</strong></p>
+              </div>}
+              <div role="note" style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#f2f7f8', color: '#536b70' }}>{showPriceInCart ? (cartPricingPreview?.visible ? 'السعر المعروض محسوب من الخادم حسب فئة حسابك؛ سيتم إعادة احتساب الأسعار والمخزون عند اعتماد الطلب.' : 'تعذر تأكيد عرض الأسعار من الخادم؛ تبقى المبالغ مخفية حتى يصل تحقق حالي صالح.') : 'سيُراجع الطلب ويُعتمد من جهة الإدارة. الأسعار والإجماليات مخفية في شاشة السلة وفق إعدادات المتجر.'}</div>
               <div className="sf-cart-actions"><button className="sf-btn-secondary" onClick={() => void navigate({ to: '/' })}>متابعة التسوق</button><button className="sf-btn-primary" onClick={() => void navigate({ to: '/checkout' })}>إتمام الطلب <ChevronLeft size={16} /></button></div>
             </>
             }
