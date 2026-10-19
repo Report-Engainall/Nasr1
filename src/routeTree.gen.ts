@@ -303,9 +303,9 @@ const CategorySlugRoute = CategorySlugRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const CategorySlugSubcategorySlugRoute = CategorySlugSubcategorySlugRouteImport.update({
-  id: '/subcategory/$subcategorySlug',
-  path: '/subcategory/$subcategorySlug',
-  getParentRoute: () => CategorySlugRoute,
+  id: '/category/$slug/subcategory/$subcategorySlug',
+  path: '/category/$slug/subcategory/$subcategorySlug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
@@ -313,9 +313,9 @@ const SearchRoute = SearchRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchAdvancedRoute = SearchAdvancedRouteImport.update({
-  id: '/advanced',
-  path: '/advanced',
-  getParentRoute: () => SearchRoute,
+  id: '/search/advanced',
+  path: '/search/advanced',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const CatalogRoute = CatalogRouteImport.update({
   id: '/catalog',
@@ -401,9 +401,9 @@ export interface FileRoutesByFullPath {
   '/offers': typeof OffersRoute
   '/store': typeof StoreRoute
   '/categories': typeof CategoriesRoute
-  '/category/$slug': typeof CategorySlugRouteWithChildren
+  '/category/$slug': typeof CategorySlugRoute
   '/category/$slug/subcategory/$subcategorySlug': typeof CategorySlugSubcategorySlugRoute
-  '/search': typeof SearchRouteWithChildren
+  '/search': typeof SearchRoute
   '/search/advanced': typeof SearchAdvancedRoute
 }
 export interface FileRoutesByTo {
@@ -458,9 +458,9 @@ export interface FileRoutesByTo {
   '/offers': typeof OffersRoute
   '/store': typeof StoreRoute
   '/categories': typeof CategoriesRoute
-  '/category/$slug': typeof CategorySlugRouteWithChildren
+  '/category/$slug': typeof CategorySlugRoute
   '/category/$slug/subcategory/$subcategorySlug': typeof CategorySlugSubcategorySlugRoute
-  '/search': typeof SearchRouteWithChildren
+  '/search': typeof SearchRoute
   '/search/advanced': typeof SearchAdvancedRoute
 }
 export interface FileRoutesById {
@@ -517,9 +517,9 @@ export interface FileRoutesById {
   '/offers': typeof OffersRoute
   '/store': typeof StoreRoute
   '/categories': typeof CategoriesRoute
-  '/category/$slug': typeof CategorySlugRouteWithChildren
+  '/category/$slug': typeof CategorySlugRoute
   '/category/$slug/subcategory/$subcategorySlug': typeof CategorySlugSubcategorySlugRoute
-  '/search': typeof SearchRouteWithChildren
+  '/search': typeof SearchRoute
   '/search/advanced': typeof SearchAdvancedRoute
 }
 export interface FileRouteTypes {
@@ -740,8 +740,10 @@ export interface RootRouteChildren {
   OffersRoute: typeof OffersRoute
   StoreRoute: typeof StoreRoute
   CategoriesRoute: typeof CategoriesRoute
-  CategorySlugRoute: typeof CategorySlugRouteWithChildren
-  SearchRoute: typeof SearchRouteWithChildren
+  CategorySlugRoute: typeof CategorySlugRoute
+  CategorySlugSubcategorySlugRoute: typeof CategorySlugSubcategorySlugRoute
+  SearchRoute: typeof SearchRoute
+  SearchAdvancedRoute: typeof SearchAdvancedRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1109,7 +1111,7 @@ declare module '@tanstack/react-router' {
       path: '/subcategory/$subcategorySlug'
       fullPath: '/category/$slug/subcategory/$subcategorySlug'
       preLoaderRoute: typeof CategorySlugSubcategorySlugRouteImport
-      parentRoute: typeof CategorySlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/search': {
       id: '/search'
@@ -1123,7 +1125,7 @@ declare module '@tanstack/react-router' {
       path: '/advanced'
       fullPath: '/search/advanced'
       preLoaderRoute: typeof SearchAdvancedRouteImport
-      parentRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/invoice-pdf/$invoiceId': {
       id: '/api/invoice-pdf/$invoiceId'
@@ -1142,28 +1144,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface CategorySlugRouteChildren {
-  CategorySlugSubcategorySlugRoute: typeof CategorySlugSubcategorySlugRoute
-}
-
-const CategorySlugRouteChildren: CategorySlugRouteChildren = {
-  CategorySlugSubcategorySlugRoute: CategorySlugSubcategorySlugRoute,
-}
-
-const CategorySlugRouteWithChildren =
-  CategorySlugRoute._addFileChildren(CategorySlugRouteChildren)
-
-interface SearchRouteChildren {
-  SearchAdvancedRoute: typeof SearchAdvancedRoute
-}
-
-const SearchRouteChildren: SearchRouteChildren = {
-  SearchAdvancedRoute: SearchAdvancedRoute,
-}
-
-const SearchRouteWithChildren =
-  SearchRoute._addFileChildren(SearchRouteChildren)
-
 interface OrdersRouteChildren {
   OrdersIdRoute: typeof OrdersIdRoute
   OrdersIndexRoute: typeof OrdersIndexRoute
@@ -1179,8 +1159,10 @@ const OrdersRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   CategoriesRoute: CategoriesRoute,
-  CategorySlugRoute: CategorySlugRouteWithChildren,
-  SearchRoute: SearchRouteWithChildren,
+  CategorySlugRoute: CategorySlugRoute,
+  CategorySlugSubcategorySlugRoute: CategorySlugSubcategorySlugRoute,
+  SearchRoute: SearchRoute,
+  SearchAdvancedRoute: SearchAdvancedRoute,
   IndexRoute: IndexRoute,
   AddressesRoute: AddressesRoute,
   AdminRoute: AdminRoute,
