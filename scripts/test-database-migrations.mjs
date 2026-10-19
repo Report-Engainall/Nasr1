@@ -2829,6 +2829,129 @@ async function main() {
   process.stdout.write("PASS cash expenses: exact decimal amount, idempotent command, tenant/RLS isolation, accountant/admin permission split, append-preserving void and two audit events\\n");
 
 
+
+  // NASR1-GENERAL-LEDGER-001: target-native tenant-bound chart, balanced journals, replay-safe posting and trial balance.
+  await db.unsafe("reset role");
+  const foreignLedgerAccount = (await db.unsafe(
+    "insert into public.accounting_accounts(organization_id,code,name,account_type,created_by_profile_id) values($1,'CI-FOR-9000','Foreign ledger account','revenue',$2) returning id",
+    [otherOrganizationId, foreignProfileId],
+  ))[0].id;
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const debitAccountResult=(await db.unsafe(
+    "select public.create_accounting_account($1,$2,$3,null,$4) as result",
+    ["CI-GL-1000","CI cash ledger","asset","CI acceptance fixture only"],
+  ))[0].result;
+  const creditAccountResult=(await db.unsafe(
+    "select public.create_accounting_account($1,$2,$3,null,$4) as result",
+    ["CI-GL-4000","CI adjustment revenue","revenue","CI acceptance fixture only"],
+  ))[0].result;
+  assert.equal(debitAccountResult.replayed,false);
+  assert.equal(creditAccountResult.replayed,false);
+  const debitAccountId=debitAccountResult.id;
+  const creditAccountId=creditAccountResult.id;
+  const duplicateAccount=(await db.unsafe(
+    "select public.create_accounting_account($1,$2,$3,null,$4) as result",
+    ["CI-GL-1000","CI cash ledger","asset","CI acceptance fixture only"],
+  ))[0].result;
+  assert.equal(duplicateAccount.id,debitAccountId);
+  assert.equal(duplicateAccount.replayed,true,"identical account code payload replays safely");
+  await expectFailure(
+    "account code cannot be reused for changed metadata",
+    () => db.unsafe("select public.create_accounting_account($1,$2,$3,null,$4)",["CI-GL-1000","changed chart account","asset","different payload"]),
+    /account code payload conflict/i,
+  );
+  const ledgerKey="abababab-abab-4bab-8bab-abababababab";
+  const ledgerLines=db.json([
+    {account_id:debitAccountId,debit:"125.50",credit:"0.00",memo:"CI balanced debit"},
+    {account_id:creditAccountId,debit:"0.00",credit:"125.50",memo:"CI balanced credit"},
+  ]);
+  const draftEntry=(await db.unsafe(
+    "select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text) as result",
+    [ledgerKey,"2026-10-18","CI-only balanced journal",ledgerLines,"CI-GL-REF-01"],
+  ))[0].result;
+  assert.equal(draftEntry.status,"draft");
+  assert.equal(draftEntry.replayed,false);
+  const journalId=draftEntry.id;
+  const replayEntry=(await db.unsafe(
+    "select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text) as result",
+    [ledgerKey,"2026-10-18","CI-only balanced journal",ledgerLines,"CI-GL-REF-01"],
+  ))[0].result;
+  assert.equal(replayEntry.id,journalId);
+  assert.equal(replayEntry.replayed,true,"exact journal payload replay does not duplicate entry or lines");
+  await expectFailure(
+    "journal idempotency key rejects a changed header",
+    () => db.unsafe("select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text)",[ledgerKey,"2026-10-18","altered journal description",ledgerLines,"CI-GL-REF-01"]),
+    /idempotency key payload conflict/i,
+  );
+  await expectFailure(
+    "journal rejects an unbalanced payload",
+    () => db.unsafe("select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text)",["abababab-abab-4bab-8bab-abababababac","2026-10-18","CI unbalanced journal",db.json([
+      {account_id:debitAccountId,debit:"125.50",credit:"0.00",memo:null},
+      {account_id:creditAccountId,debit:"0.00",credit:"125.49",memo:null},
+    ]),null]),
+    /journal lines must balance/i,
+  );
+  await expectFailure(
+    "journal rejects amounts with more than two decimal places",
+    () => db.unsafe("select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text)",["abababab-abab-4bab-8bab-abababababad","2026-10-18","CI precision journal",db.json([
+      {account_id:debitAccountId,debit:"125.501",credit:"0",memo:null},
+      {account_id:creditAccountId,debit:"0",credit:"125.501",memo:null},
+    ]),null]),
+    /at most two decimal places/i,
+  );
+  assert.equal((await db.unsafe("select id from public.accounting_accounts where id=$1::uuid",[foreignLedgerAccount])).length,0,"accountant cannot read another organization's chart row");
+  await expectFailure(
+    "finance client cannot write chart accounts directly",
+    () => db.unsafe("insert into public.accounting_accounts(organization_id,code,name,account_type) values($1,'CI-GL-9999','invalid direct insert','asset')",[organizationId]),
+    /permission denied/i,
+  );
+  await expectFailure(
+    "finance client cannot mutate journal entry state directly",
+    () => db.unsafe("update public.accounting_journal_entries set status='posted' where id=$1::uuid",[journalId]),
+    /permission denied/i,
+  );
+  const postedEntry=(await db.unsafe("select public.post_general_journal_entry($1::uuid) as result",[journalId]))[0].result;
+  assert.equal(postedEntry.status,"posted");
+  assert.equal(postedEntry.replayed,false);
+  const postedReplay=(await db.unsafe("select public.post_general_journal_entry($1::uuid) as result",[journalId]))[0].result;
+  assert.equal(postedReplay.status,"posted");
+  assert.equal(postedReplay.replayed,true,"posting an already posted entry is idempotent");
+  const ledgerPayload=(await db.unsafe("select public.fetch_general_ledger(null,null,null,50,0) as result"))[0].result;
+  assert.equal(ledgerPayload.entry_count,1,"fresh CI database contains only the explicitly-created ledger entry");
+  assert.equal(ledgerPayload.entries.length,1);
+  assert.equal(ledgerPayload.entries[0].id,journalId);
+  assert.equal(ledgerPayload.entries[0].status,"posted");
+  assert.equal(ledgerPayload.entries[0].debit_total,"125.50");
+  assert.equal(ledgerPayload.entries[0].credit_total,"125.50");
+  assert.equal(ledgerPayload.summary.posted_entry_count,1);
+  assert.equal(ledgerPayload.summary.debit_total,"125.50");
+  assert.equal(ledgerPayload.summary.credit_total,"125.50");
+  const debitTB=ledgerPayload.accounts.find((row)=>row.id===debitAccountId);
+  const creditTB=ledgerPayload.accounts.find((row)=>row.id===creditAccountId);
+  assert.equal(debitTB.debit_total,"125.50");
+  assert.equal(debitTB.credit_total,"0.00");
+  assert.equal(creditTB.debit_total,"0.00");
+  assert.equal(creditTB.credit_total,"125.50");
+  const ledgerAudit=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='accounting_journal_entry' and entity_id=$2::uuid order by action",[organizationId,journalId]);
+  assert.deepEqual(ledgerAudit.map((row)=>row.action),["accounting.journal_draft_created","accounting.journal_posted"]);
+  await db.unsafe("reset role");
+  await setIdentity(authUserId,"ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  assert.equal((await db.unsafe("select id from public.accounting_accounts where id=$1::uuid",[debitAccountId])).length,0,"customer cannot read the accounting chart");
+  await expectFailure(
+    "customer cannot call the general-ledger RPC",
+    () => db.unsafe("select public.fetch_general_ledger(null,null,null,50,0)"),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "customer cannot create a journal",
+    () => db.unsafe("select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text)",["abababab-abab-4bab-8bab-abababababaf","2026-10-18","Customer prohibited journal",ledgerLines,null]),
+    /finance permission required/i,
+  );
+  await db.unsafe("reset role");
+  process.stdout.write("PASS general ledger: chart idempotency, exact two-decimal amounts, balanced draft/post, replay safety, audit events, trial balance and tenant/role isolation\\n");
+
   // AGH-STOREFRONT-ANNOUNCEMENTS-001: date/audience filtering, tenant scope, command auth, audit and no direct table grants.
   await db.unsafe("reset role");
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
