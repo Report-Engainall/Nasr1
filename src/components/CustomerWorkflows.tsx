@@ -653,6 +653,7 @@ function Invoices() {
                   {chosenCustomer?.business_name ?? chosenCustomer?.contact_name ?? "—"}
                 </strong>
               </div>
+              {chosenCustomer?.tier_label && <div>فئة العميل: <strong>{chosenCustomer.tier_label}</strong></div>}
             </div>
             <div>
               <strong>{chosen.invoice_number}</strong>
