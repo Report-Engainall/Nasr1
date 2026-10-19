@@ -979,6 +979,15 @@ async function main() {
   assert.ok(invoice, "confirming the order should issue exactly one invoice visible to authorized staff");
   assert.equal(invoice.status, "issued");
   assert.equal(Number(invoice.total_amount), 370000);
+  const customerBalanceAfterInvoice = await db.unsafe(
+    "select current_balance from public.customers where id=$1",
+    [invoice.customer_id],
+  );
+  assert.equal(
+    Number(customerBalanceAfterInvoice[0].current_balance),
+    370000,
+    "issuing a new invoice must increase customer balance by its amount exactly once",
+  );
   const stockAfterConfirm = await db.unsafe(
     "select quantity_on_hand,quantity_reserved,quantity_available from public.inventory_balances where product_id=$1 and warehouse_id='d0000000-0000-0000-0000-000000000001'",
     [productId],
