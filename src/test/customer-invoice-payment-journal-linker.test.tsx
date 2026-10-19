@@ -74,4 +74,51 @@ describe("invoice/payment journal source integration",()=>{
   expect(screen.getByRole("heading",{name:"ربط فواتير العملاء والتحصيلات"})).toBeInTheDocument();
   expect(mocks.rpc).not.toHaveBeenCalled();
  });
+ it("allows a manager to create a reasoned invoice reversal draft but does not auto-post it",async()=>{
+  mocks.roles=["manager"];
+  const postedInvoice={...invoice,journal_entry_id:"entry-id",journal_entry_number:"35",journal_status:"posted" as const,
+   journal_reversal_entry_id:null,journal_reversal_entry_number:null,journal_reversal_status:null,journal_reversal_reason:null};
+  mocks.rpc.mockImplementation((name:string)=>Promise.resolve({
+   data:name==="fetch_customer_invoice_accounting_inbox"?page([postedInvoice]):name==="fetch_customer_payment_accounting_inbox"?page([]):
+    {journal_entry_id:"reversal-entry",journal_entry_number:"37",status:"draft",source_id:"invoice-id",amount:"115.00",currency:"YER",replayed:false},
+   error:null,
+  }));
+  render(<CustomerInvoicePaymentJournalLinker accounts={accounts} onRefresh={vi.fn().mockResolvedValue(undefined)}/>);
+  fireEvent.change(await screen.findByLabelText("سبب عكس الفاتورة INV-18"),{target:{value:"مراجعة محاسبية للفاتورة المرتجعة"}});
+  fireEvent.click(screen.getByRole("button",{name:"إعداد مسودة عكس الفاتورة INV-18"}));
+  expect(await screen.findByText(/أُنشئت مسودة عكس محاسبي.*لم تُرحّل/)).toBeInTheDocument();
+  expect(mocks.rpc).toHaveBeenCalledWith("create_customer_source_reversal_draft",{
+   p_source_type:"customer_invoice",p_source_id:"invoice-id",p_reason:"مراجعة محاسبية للفاتورة المرتجعة",
+   p_idempotency_key:"11111111-1111-4111-8111-111111111111",
+  });
+  expect(mocks.rpc).not.toHaveBeenCalledWith("post_general_journal_entry",{p_entry_id:"reversal-entry"});
+ });
+ it("requires manager/admin for source reversals",async()=>{
+  mocks.roles=["accountant"];
+  const postedInvoice={...invoice,journal_entry_id:"entry-id",journal_entry_number:"35",journal_status:"posted" as const};
+  mocks.rpc.mockImplementation((name:string)=>Promise.resolve({
+   data:name==="fetch_customer_invoice_accounting_inbox"?page([postedInvoice]):page([]),error:null,
+  }));
+  render(<CustomerInvoicePaymentJournalLinker accounts={accounts} onRefresh={vi.fn().mockResolvedValue(undefined)}/>);
+  await screen.findByText(/فاتورة INV-18/);
+  expect(screen.queryByLabelText("سبب عكس الفاتورة INV-18")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button",{name:"إعداد مسودة عكس الفاتورة INV-18"})).not.toBeInTheDocument();
+  expect(mocks.rpc).not.toHaveBeenCalledWith("create_customer_source_reversal_draft",expect.anything());
+ });
+ it("lets a manager explicitly post a saved source reversal draft",async()=>{
+  mocks.roles=["manager"];
+  const postedInvoice={...invoice,journal_entry_id:"entry-id",journal_entry_number:"35",journal_status:"posted" as const,
+   journal_reversal_entry_id:"reversal-entry",journal_reversal_entry_number:"37",journal_reversal_status:"draft" as const,
+   journal_reversal_reason:"مراجعة معتمدة"};
+  mocks.rpc.mockImplementation((name:string)=>Promise.resolve({
+   data:name==="fetch_customer_invoice_accounting_inbox"?page([postedInvoice]):name==="fetch_customer_payment_accounting_inbox"?page([]):
+    {id:"reversal-entry",status:"posted",replayed:false},
+   error:null,
+  }));
+  render(<CustomerInvoicePaymentJournalLinker accounts={accounts} onRefresh={vi.fn().mockResolvedValue(undefined)}/>);
+  fireEvent.click(await screen.findByRole("button",{name:"ترحيل قيد العكس للفاتورة INV-18"}));
+  expect(await screen.findByText(/رُحّل قيد عكس الفاتورة INV-18/)).toBeInTheDocument();
+  expect(mocks.rpc).toHaveBeenCalledWith("post_general_journal_entry",{p_entry_id:"reversal-entry"});
+ });
+
 });
