@@ -439,3 +439,17 @@
 - IMPLEMENTED=YES; INTEGRATED=YES; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN.
 - Archive pair re-download, fresh SHA256/CRC and safe extraction remain NOT PROVEN; the direct download blocker previously returned `curl: (6) Could not resolve host: raw.githubusercontent.com`.
 - `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains open; do not infer full-spec completion from this gap alone.
+
+
+## 2026-10-19 — NASR1-ORIGINAL-SPEC-PROMOTIONS-003: إدارة الحملات الآمنة
+
+- فحص الرأس المباشر قبل التعديل: `46b957fd3e490f32071f90b0b9e2f76a7712602f`; شُغلت التعديلات على `main` بعمليات fast-forward فقط، بلا force-push.
+- أصلحت regressions ظهرت من سجلات CI الفعلية: عند فصل قراءة المتجر العام عن الإدارة، فشل اختبار المتجر لأن mock لم يصدّر `fetchStorefrontPromotions`; أُضيفت الدالة إلى mock. على HEAD النهائي، لا يبقى هذا الفشل.
+- أضيفت migration `20261019140000_promotion_management_commands.sql`؛ فصلت RPCs العامة والإدارية، فرضت المؤسسة الحالية والـadmin/manager النشط، سحبت direct table DML/SELECT من أدوار المتصفح، وتحققت من تواريخ الحملة ونوع/قيمة الخصم وانتماء الأصناف والتصنيفات وسجل التدقيق.
+- أضيفت `PromotionManager.tsx` وربطها من لوحة الإدارة بدل الزر المعطّل. اختبارات UI: `src/test/PromotionManager.test.tsx`; اختبارات DB: `scripts/test-database-migrations.mjs`. عدد الاختبارات المرئي في سجل CI: 34/34 ملفات و279/279 اختبارًا ناجحًا.
+- CI المطابق النهائي: [39185199950 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39185199950), exact code SHA `ddd99501594fca3d622555e3868159e65c987952`. Unit tests, PostgreSQL 17 migration/RLS acceptance, lint, build, preview smoke 4173 and dev smoke 5173: PASS. ثبت سجل قاعدة البيانات `PASS promotion management...`.
+- تصنيف الإثبات: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS (exact SHA); BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; PRODUCTION_MIGRATION=NOT RUN.
+- حد موثق: سجل الحملة لا يغير إجمالي الطلب؛ ربط النسبة بمحرك التسعير/الفاتورة NOT IMPLEMENTED. إخفاء قيمة الخصم من العرض العام مؤقتًا مقصود لمنع الادعاء بخصم غير مطبق.
+- ZIP attempts (fresh): `https://raw.githubusercontent.com/Report-Engainall/report-insight-engine/main/incoming-archives/nasr1-bolt-recovery-2026-10-17/Nasr1_Bolt_Before_Failure.zip` و`https://raw.githubusercontent.com/Report-Engainall/report-insight-engine/main/incoming-archives/nasr1-bolt-recovery-2026-10-17/Nasr1_Bolt_Restored_Current.zip`. GitHub Fetch أعاد HTTP 400 `GitHub Fetch supports UTF-8 text files; this file appears to be binary or encoded differently (Response: None)`; Web fetch كان DisabledError؛ تنزيل الحاوية مُنع برسالة URL not viewed in conversation; رابط GitHub raw البديل `github.com/.../raw/refs/heads/main/...` أعاد 404 `No commit found for the ref refs`. fresh download/hash/CRC/safe extraction/content comparison: NOT RUN. لا تخلط ذلك مع SHA/CRC التاريخي في Actions 39157355307.
+- فرع recovery وPR #1 تم الاطلاع عليهما؛ PR #1 Draft وغير مدمج، ولا SQL من quarantined/PR تم تفعيله. الـmanifest الدلالي يبقى كما هو؛ قراراته الـ69 لا تثبت تشغيل كود المصدر.
+- المهمة النشطة تبقى `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`; تغطية المواصفة الأصلية بالكامل غير مكتملة.
