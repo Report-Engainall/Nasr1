@@ -1,6 +1,6 @@
 -- Accountant is a finance-only role, not an operational staff role.
 -- If a profile is explicitly assigned the accountant role as well as ordinary staff,
--- fail closed for base-price visibility. Only admin/manager roles override this restriction.
+-- fail closed for base-price visibility. An accountant assignment therefore fails closed for catalog pricing even if legacy role rows overlap.
 -- Do not let the storefront pricing RPC return products.base_price to accountants.
 -- Accountants still resolve the safe default retail/customer price and active campaign price.
 CREATE OR REPLACE FUNCTION public.get_storefront_product_prices(
@@ -46,21 +46,13 @@ BEGIN
                SELECT 1
                  FROM public.user_roles r
                 WHERE r.profile_id = p.id
-                  AND r.role IN ('admin','manager')
+                  AND r.role IN ('admin','manager','staff')
              )
-             OR (
-               EXISTS (
-                 SELECT 1
-                   FROM public.user_roles r
-                  WHERE r.profile_id = p.id
-                    AND r.role = 'staff'
-               )
-               AND NOT EXISTS (
-                 SELECT 1
-                   FROM public.user_roles r
-                  WHERE r.profile_id = p.id
-                    AND r.role = 'accountant'
-               )
+             AND NOT EXISTS (
+               SELECT 1
+                 FROM public.user_roles r
+                WHERE r.profile_id = p.id
+                  AND r.role = 'accountant'
              )
            )
       INTO v_profile_id, v_organization_id, v_is_staff
