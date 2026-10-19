@@ -41,7 +41,7 @@ describe('inventory transfer batch validation', () => {
   it('rejects identical warehouses, empty reasons and batches over 200 lines', () => {
     const base = { sourceWarehouseId: source, destinationWarehouseId: destination, reason: 'test', lines: [{ productId: productA, quantity: 1 }] };
     expect(() => normalizeInventoryTransferBatchDraft({ ...base, destinationWarehouseId: source })).toThrow(/مستودعين/);
-    expect(() => normalizeInventoryTransferBatchDraft({ ...base, reason: '  ' })).toThrow(/السبب/);
+    expect(() => normalizeInventoryTransferBatchDraft({ ...base, reason: '  ' })).toThrow(/سبب التحويل/);
     expect(() => normalizeInventoryTransferBatchDraft({ ...base, lines: Array.from({ length: 201 }, (_, index) => ({
       productId: '30000000-0000-4000-8000-' + String(index + 1).padStart(12, '0'), quantity: 1,
     })) })).toThrow(/200/);
