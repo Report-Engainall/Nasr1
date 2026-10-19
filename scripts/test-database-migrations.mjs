@@ -1241,6 +1241,7 @@ async function main() {
   assert.equal(ownInvoicePdf.financial_details_visible, true, "invoice prices default to visible only through the scoped RPC");
   assert.equal(ownInvoicePdf.customer_tier_visible, false, "customer tier labels are hidden by default");
 
+  {
   // Visibility settings are server-enforced and cannot be changed by an accountant.
   await db.unsafe("reset role");
   await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
@@ -1270,6 +1271,7 @@ async function main() {
   await db.unsafe("reset role");
   await setIdentity(authUserId, "ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
+  }
   const maskedInvoiceResult = await db.unsafe(
     "select public.get_customer_invoice_pdf($1::uuid) as result",
     [invoice.id],
