@@ -7,7 +7,7 @@ import {
   cancelPurchaseOrder, createPurchaseOrder, fetchActiveInventoryWarehouses, fetchProducts,
   fetchPurchaseOrders, fetchSuppliers, receivePurchaseOrder, submitPurchaseOrder,
 } from '@/lib/api';
-import type { PurchaseOrder, PurchaseOrderLineCommand, PurchaseReceiptLineCommand } from '@/lib/api';
+import type { PurchaseOrderLineCommand, PurchaseReceiptLineCommand } from '@/lib/api';
 import type { ProductWithInventory, Supplier } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';

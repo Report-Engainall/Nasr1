@@ -1503,8 +1503,8 @@ async function main() {
   assert.equal(purchaseOrder.status,"draft");
   assert.equal(Number(purchaseOrder.total_cost),25);
   assert.equal(purchaseOrder.items.length,1);
-  assert.equal(purchaseOrder.items[0].item_code, purchaseOrder.items[0].item_code,
-    "purchase order keeps the authoritative product-code snapshot");
+  assert.equal(purchaseOrder.items[0].item_code, "CI-ITEM-01",
+    "purchase order keeps the authoritative product-code snapshot from the canonical product row");
   const replayPo = await db.unsafe(
     "select public.create_purchase_order($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
     [purchaseSupplier[0].id,receivingWarehouseId,purchaseLines,"CI purchase receiving lifecycle","ci-purchase-order-key-000001"],
@@ -1594,12 +1594,22 @@ async function main() {
   );
   assert.equal(finalReceiptResult[0].result.purchase_order.status,"received");
   assert.equal(Number(finalReceiptResult[0].result.purchase_order.items[0].quantity_received),2);
+  await db.unsafe("reset role");
+  await setIdentity(authUserId,"ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
   await expectFailure(
     "ordinary customer cannot read the purchase-order inbox",
     () => db.unsafe("select public.fetch_purchase_orders()"),
     /admin or manager role required/i,
   );
+  await expectFailure(
+    "ordinary customer cannot read purchase order records directly",
+    () => db.unsafe("select id from public.purchase_orders"),
+    /permission denied/i,
+  );
   await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
   const finalStock = await db.unsafe(
     "select quantity_on_hand from public.inventory_balances where product_id=$1 and warehouse_id=$2",
     [productId,receivingWarehouseId],

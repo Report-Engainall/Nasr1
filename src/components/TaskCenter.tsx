@@ -16,7 +16,7 @@ const statusLabels: Record<string, string> = { pending: 'بانتظار التن
 const priorityLabels: Record<string, string> = { low: 'منخفضة', medium: 'متوسطة', high: 'مرتفعة', critical: 'حرجة' };
 const entityLabels: Record<string, string> = {
   orders: 'طلب', customer_invoices: 'فاتورة', inventory_balances: 'رصيد مخزون',
-  sales_quotes: 'عرض سعر', import_jobs: 'عملية استيراد',
+  sales_quotes: 'عرض سعر', import_jobs: 'عملية استيراد', purchase_orders: 'أمر شراء',
 };
 
 function dateText(value: string | null | undefined): string {
