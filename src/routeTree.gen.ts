@@ -309,7 +309,6 @@ export interface FileRoutesByFullPath {
   '/statement': typeof StatementRoute
   '/wishlist': typeof WishlistRoute
   '/admin/ai': typeof AdminAiRoute
-  '/admin/audit': typeof AdminAuditRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/data': typeof AdminDataRoute
   '/admin/devices': typeof AdminDevicesRoute
@@ -332,11 +331,10 @@ export interface FileRoutesByFullPath {
   '/company/members': typeof CompanyMembersRoute
   '/orders/$id': typeof OrdersIdRoute
   '/product/$id': typeof ProductIdRoute
-  '/products': typeof ProductsRoute
-  '/products': typeof ProductsRoute
-  '/products': typeof ProductsRoute
   '/orders/': typeof OrdersIndexRoute
   '/api/invoice-pdf/$invoiceId': typeof ApiInvoicePdfInvoiceIdRoute
+  '/admin/audit': typeof AdminAuditRoute
+  '/products': typeof ProductsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -382,6 +380,8 @@ export interface FileRoutesByTo {
   '/product/$id': typeof ProductIdRoute
   '/orders': typeof OrdersIndexRoute
   '/api/invoice-pdf/$invoiceId': typeof ApiInvoicePdfInvoiceIdRoute
+  '/admin/audit': typeof AdminAuditRoute
+  '/products': typeof ProductsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -405,7 +405,6 @@ export interface FileRoutesById {
   '/statement': typeof StatementRoute
   '/wishlist': typeof WishlistRoute
   '/admin_/ai': typeof AdminAiRoute
-  '/admin_/audit': typeof AdminAuditRoute
   '/admin_/customers': typeof AdminCustomersRoute
   '/admin_/data': typeof AdminDataRoute
   '/admin_/devices': typeof AdminDevicesRoute
@@ -430,6 +429,8 @@ export interface FileRoutesById {
   '/product/$id': typeof ProductIdRoute
   '/orders/': typeof OrdersIndexRoute
   '/api/invoice-pdf/$invoiceId': typeof ApiInvoicePdfInvoiceIdRoute
+  '/admin_/audit': typeof AdminAuditRoute
+  '/products': typeof ProductsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -475,8 +476,6 @@ export interface FileRouteTypes {
     | '/orders/$id'
     | '/product/$id'
     | '/products'
-    | '/products'
-    | '/products'
     | '/orders/'
     | '/api/invoice-pdf/$invoiceId'
   fileRoutesByTo: FileRoutesByTo
@@ -498,6 +497,7 @@ export interface FileRouteTypes {
     | '/statement'
     | '/wishlist'
     | '/admin/ai'
+    | '/admin/audit'
     | '/admin/customers'
     | '/admin/data'
     | '/admin/devices'
@@ -519,8 +519,10 @@ export interface FileRouteTypes {
     | '/company/members'
     | '/orders/$id'
     | '/product/$id'
+    | '/products'
     | '/orders'
     | '/api/invoice-pdf/$invoiceId'
+
   id:
     | '__root__'
     | '/'
@@ -563,6 +565,7 @@ export interface FileRouteTypes {
     | '/company/members'
     | '/orders/$id'
     | '/product/$id'
+    | '/products'
     | '/orders/'
     | '/api/invoice-pdf/$invoiceId'
   fileRoutesById: FileRoutesById
@@ -588,7 +591,6 @@ export interface RootRouteChildren {
   StatementRoute: typeof StatementRoute
   WishlistRoute: typeof WishlistRoute
   AdminAiRoute: typeof AdminAiRoute
-  AdminAuditRoute: typeof AdminAuditRoute
   AdminCustomersRoute: typeof AdminCustomersRoute
   AdminDataRoute: typeof AdminDataRoute
   AdminDevicesRoute: typeof AdminDevicesRoute
@@ -610,8 +612,9 @@ export interface RootRouteChildren {
   CompanyContactsRoute: typeof CompanyContactsRoute
   CompanyMembersRoute: typeof CompanyMembersRoute
   ProductIdRoute: typeof ProductIdRoute
-  ProductsRoute: typeof ProductsRoute
   ApiInvoicePdfInvoiceIdRoute: typeof ApiInvoicePdfInvoiceIdRoute
+  AdminAuditRoute: typeof AdminAuditRoute
+  ProductsRoute: typeof ProductsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -754,6 +757,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/ai'
       fullPath: '/admin/ai'
       preLoaderRoute: typeof AdminAiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/audit': {
+      id: '/admin_/audit'
+      path: '/admin/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AdminAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin_/customers': {
@@ -918,6 +928,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/products': {
+      id: '/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof ProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/invoice-pdf/$invoiceId': {
       id: '/api/invoice-pdf/$invoiceId'
       path: '/api/invoice-pdf/$invoiceId'
@@ -962,7 +979,6 @@ const rootRouteChildren: RootRouteChildren = {
   StatementRoute: StatementRoute,
   WishlistRoute: WishlistRoute,
   AdminAiRoute: AdminAiRoute,
-  AdminAuditRoute: AdminAuditRoute,
   AdminCustomersRoute: AdminCustomersRoute,
   AdminDataRoute: AdminDataRoute,
   AdminDevicesRoute: AdminDevicesRoute,
@@ -984,8 +1000,9 @@ const rootRouteChildren: RootRouteChildren = {
   CompanyContactsRoute: CompanyContactsRoute,
   CompanyMembersRoute: CompanyMembersRoute,
   ProductIdRoute: ProductIdRoute,
-  ProductsRoute: ProductsRoute,
   ApiInvoicePdfInvoiceIdRoute: ApiInvoicePdfInvoiceIdRoute,
+  AdminAuditRoute: AdminAuditRoute,
+  ProductsRoute: ProductsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
