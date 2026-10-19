@@ -94,8 +94,11 @@ export function loadOfflineCartDraft(storage: OfflineCartStorage, profileId?: st
 
   const needsPersist = currentRaw === null || restoreRaw !== null;
   if (needsPersist && writeQuietly(storage, key, merged)) {
-    if (legacyRaw !== null) removeQuietly(storage, LEGACY_CART_STORAGE_KEY);
+    if (legacyRaw !== null || currentRaw !== null) removeQuietly(storage, LEGACY_CART_STORAGE_KEY);
     if (restoreRaw !== null) removeQuietly(storage, LEGACY_CART_RESTORE_KEY);
+  } else if (currentRaw !== null) {
+    // Once a scoped draft exists, never let an older global draft reappear on a later logout.
+    removeQuietly(storage, LEGACY_CART_STORAGE_KEY);
   }
   return merged;
 }
