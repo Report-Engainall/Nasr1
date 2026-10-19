@@ -949,10 +949,13 @@ export async function saveStorefrontAnnouncement(input: StorefrontAnnouncementIn
 export interface ProductPriceGridRow {
   id: string; name: string; item_code: string; unit: string; is_active: boolean;
   base_price: number; price_wholesale_of_wholesale: number; price_wholesale: number; price_retail: number;
+  quantity_on_hand_total: number | null; quantity_reserved_total: number | null;
+  quantity_available_total: number | null; reorder_point_total: number | null;
+  inventory_warehouse_count: number;
 }
 export async function fetchAdminProductPriceGrid(): Promise<ProductPriceGridRow[]> {
-  const { data, error } = await supabase.rpc('get_admin_product_price_grid');
-  if (error) throw new Error('تعذر تحميل شبكة الأسعار: ' + error.message);
+  const { data, error } = await supabase.rpc('get_admin_product_price_grid_with_inventory');
+  if (error) throw new Error('تعذر تحميل شبكة الأسعار والمخزون: ' + error.message);
   if (!Array.isArray(data)) throw new Error('أعاد الخادم شبكة أسعار غير صالحة.');
   return data.map((value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('أعاد الخادم صف سعر غير صالح.');
@@ -966,6 +969,25 @@ export async function fetchAdminProductPriceGrid(): Promise<ProductPriceGridRow[
       if (!Number.isFinite(n) || n < 0 || Math.round(n * 100) !== n * 100) throw new Error('أعاد الخادم قيمة سعر غير صالحة: ' + key);
       return n;
     };
+    const quantity = (key: string): number | null => {
+      const value = row[key];
+      if (value === null) return null;
+      if (!(typeof value === 'number' || (typeof value === 'string' && value.trim() !== ''))) {
+        throw new Error('كمية المخزون ' + key + ' غير متاحة في بيانات الخادم؛ تُركت مفقودة بدل تحويلها إلى صفر.');
+      }
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 0 || n > 999999999999 || Math.round(n * 1000) !== n * 1000) {
+        throw new Error('أعاد الخادم كمية مخزون غير صالحة: ' + key);
+      }
+      return n;
+    };
+    const warehouseCountValue = row.inventory_warehouse_count;
+    const warehouseCount = typeof warehouseCountValue === 'number' || (typeof warehouseCountValue === 'string' && warehouseCountValue.trim() !== '')
+      ? Number(warehouseCountValue)
+      : Number.NaN;
+    if (!Number.isInteger(warehouseCount) || warehouseCount < 0 || warehouseCount > 100000) {
+      throw new Error('أعاد الخادم عدد مخازن غير صالح لشبكة الأسعار.');
+    };
     if (typeof row.id !== 'string' || typeof row.name !== 'string' ||
       typeof row.item_code !== 'string' || typeof row.unit !== 'string' || typeof row.is_active !== 'boolean') {
       throw new Error('أعاد الخادم هوية منتج غير صالحة لشبكة الأسعار.');
@@ -976,6 +998,11 @@ export async function fetchAdminProductPriceGrid(): Promise<ProductPriceGridRow[
       price_wholesale_of_wholesale: money('price_wholesale_of_wholesale'),
       price_wholesale: money('price_wholesale'),
       price_retail: money('price_retail'),
+      quantity_on_hand_total: quantity('quantity_on_hand_total'),
+      quantity_reserved_total: quantity('quantity_reserved_total'),
+      quantity_available_total: quantity('quantity_available_total'),
+      reorder_point_total: quantity('reorder_point_total'),
+      inventory_warehouse_count: warehouseCount,
     };
   });
 }
