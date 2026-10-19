@@ -104,7 +104,7 @@ BEGIN
       RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'each transfer line must contain only product_id and numeric quantity';
     END IF;
     v_product_text := v_line ->> 'product_id';
-    IF v_product_text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} THEN
+    IF v_product_text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
       RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'invalid product UUID in batch transfer';
     END IF;
     v_product_id := v_product_text::uuid;
