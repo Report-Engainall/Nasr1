@@ -9,7 +9,7 @@
 
 - `main` آخر رأس معروف: `0c089585d27665680dcc4ad2520dd4affc875804`; CI الأساس التاريخي: [39311791227](https://github.com/Report-Engainall/Nasr1/actions/runs/39311791227).
 - PR #3: [feat(inventory): integrate atomic multi-product transfers and history](https://github.com/Report-Engainall/Nasr1/pull/3).
-- رأس PR #3 الحي بعد تحديث تدقيق الملفات: `0bd0aaeba2e581e938bbb8fd6d1a14ac2893c33c`; فحصه المطابق [Actions 39321850629](https://github.com/Report-Engainall/Nasr1/actions/runs/39321850629) كان `in_progress` عند آخر تحقق. لا توجد نتيجة نهائية يمكن اعتبارها PASS.
+- الرأس الحي لـPR #3: `19ffe4e2062f860bef63af9064fb5f15d226d76c` (تحديث تقرير فقط). آخر رأس يغيّر كود/سجل الجرد هو `0bd0aaeba2e581e938bbb8fd6d1a14ac2893c33c`; فحصه المطابق [Actions 39321850629](https://github.com/Report-Engainall/Nasr1/actions/runs/39321850629) انتهى FAILURE: Unit tests SUCCESS، PostgreSQL 17 FAILURE عند الاستعلام المباشر تحت authenticated على `inventory_transfer_batches`. لا يجوز وصف هذا الرأس أو PR بأنه PASS.
 - CI على الرأس السابق `b715d67d4e7f30a8e874465bf963ca6580c298d0`, [Actions 39321185653](https://github.com/Report-Engainall/Nasr1/actions/runs/39321185653): خطوة Unit tests = SUCCESS، **44/44 test files و332/332 tests PASS**؛ خطوة PostgreSQL 17 فشلت عند اختبار دفعة التحويل. لذلك لا يوجد CI PASS كامل على PR #3.
 - PR #2 المكررة [مغلقة دون دمج](https://github.com/Report-Engainall/Nasr1/pull/2) بعد مقارنة الملفّات والفروق. PR #3 هي PR الدمج الوحيدة المستمرة للتحويل متعدد الأصناف.
 
