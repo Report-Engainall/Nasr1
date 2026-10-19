@@ -9,9 +9,17 @@
 
 - `main` آخر رأس معروف: `0c089585d27665680dcc4ad2520dd4affc875804`; CI الأساس التاريخي: [39311791227](https://github.com/Report-Engainall/Nasr1/actions/runs/39311791227).
 - PR #3: [feat(inventory): integrate atomic multi-product transfers and history](https://github.com/Report-Engainall/Nasr1/pull/3).
-- رأس PR #3 بعد التعديلات الأخيرة: `38ab9d4f573a5d2efb13a38976542e03800de15b`; فحصه المطابق [Actions 39321418656](https://github.com/Report-Engainall/Nasr1/actions/runs/39321418656) كان `in_progress` عند آخر تحقق.
+- رأس PR #3 الحي بعد تحديث تدقيق الملفات: `0bd0aaeba2e581e938bbb8fd6d1a14ac2893c33c`; فحصه المطابق [Actions 39321850629](https://github.com/Report-Engainall/Nasr1/actions/runs/39321850629) كان `in_progress` عند آخر تحقق. لا توجد نتيجة نهائية يمكن اعتبارها PASS.
 - CI على الرأس السابق `b715d67d4e7f30a8e874465bf963ca6580c298d0`, [Actions 39321185653](https://github.com/Report-Engainall/Nasr1/actions/runs/39321185653): خطوة Unit tests = SUCCESS، **44/44 test files و332/332 tests PASS**؛ خطوة PostgreSQL 17 فشلت عند اختبار دفعة التحويل. لذلك لا يوجد CI PASS كامل على PR #3.
 - PR #2 المكررة [مغلقة دون دمج](https://github.com/Report-Engainall/Nasr1/pull/2) بعد مقارنة الملفّات والفروق. PR #3 هي PR الدمج الوحيدة المستمرة للتحويل متعدد الأصناف.
+
+
+## تحديث جرد READY_TO_REUSE — 19 أكتوبر 2026
+
+- أُعيد استخدام قرارات `SOURCE_INTEGRATION_LEDGER.csv` وبصمات المصدر الموجودة لتسوية جميع صفوف `READY_TO_REUSE_FILE_AUDIT.csv` التي كانت تستخدم تسميات عامة `TARGET_PATH_MISSING_REVIEW_CONTENT` أو `TARGET_PATH_DIFFERS_REVIEW_CONTENT`. لم تُفتح مجددًا ملفات مانحة ذات blob مسجل، ولم يُعاد جلب أي مصدر مطابق.
+- تدقيق الجرد قبل هذا التحديث: 69 صفًا. تم تحديث 60 صفًا، منها 7 صفوف من مستودع رابع غير داخل نطاق المصادر الثلاثة الحالية؛ وُسمت `KEEP_AS_REFERENCE` مع سبب صريح يمنع دمجها أو إعادة قراءة محتواها. بقية الصفوف استندت إلى القرار الموثق مسبقًا في ledger: إبقاء أفضل تنفيذ مستهدف، تكرار مثبت، مرجع فقط، تكييف ودمج، أو استبعاد لتعارض schema/أمان.
+- البصمات: audit قبل التحديث `afbfeafd19c0e28b1448346daa43745ac15121f0`; commit التحديث `0bd0aaeba2e581e938bbb8fd6d1a14ac2893c33c`; blob النهائي `7e9b23bf15409324a742763426fdfd598d1dcd26`. التحقق المباشر بعد الكتابة أكد 69 صف بيانات و0 صفوف بقيت بتسميتي المراجعة العامتين.
+- لم يُعدّل `SOURCE_INTEGRATION_LEDGER.csv`: ما زال PR #4 يتضمن تغييرات هذا الملف المملوك لـP1؛ الطلب إلى P2 بإزالة هذا التعارض موثق في [PR #4](https://github.com/Report-Engainall/Nasr1/pull/4). لا تحفظ فوق عمل متزامن.
 
 ## مصدر التحويل متعدد الأصناف — المهمة الحالية غير مغلقة
 
