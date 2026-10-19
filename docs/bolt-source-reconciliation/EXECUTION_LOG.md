@@ -453,3 +453,15 @@
 - ZIP attempts (fresh): `https://raw.githubusercontent.com/Report-Engainall/report-insight-engine/main/incoming-archives/nasr1-bolt-recovery-2026-10-17/Nasr1_Bolt_Before_Failure.zip` و`https://raw.githubusercontent.com/Report-Engainall/report-insight-engine/main/incoming-archives/nasr1-bolt-recovery-2026-10-17/Nasr1_Bolt_Restored_Current.zip`. GitHub Fetch أعاد HTTP 400 `GitHub Fetch supports UTF-8 text files; this file appears to be binary or encoded differently (Response: None)`; Web fetch كان DisabledError؛ تنزيل الحاوية مُنع برسالة URL not viewed in conversation; رابط GitHub raw البديل `github.com/.../raw/refs/heads/main/...` أعاد 404 `No commit found for the ref refs`. fresh download/hash/CRC/safe extraction/content comparison: NOT RUN. لا تخلط ذلك مع SHA/CRC التاريخي في Actions 39157355307.
 - فرع recovery وPR #1 تم الاطلاع عليهما؛ PR #1 Draft وغير مدمج، ولا SQL من quarantined/PR تم تفعيله. الـmanifest الدلالي يبقى كما هو؛ قراراته الـ69 لا تثبت تشغيل كود المصدر.
 - المهمة النشطة تبقى `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`; تغطية المواصفة الأصلية بالكامل غير مكتملة.
+
+
+## 2026-10-19 — NASR1-ORIGINAL-SPEC-PRICE-GRID-CSV-001
+
+- Implemented `src/lib/price-grid-csv.ts` and connected both import and export controls inside `src/components/PricingGrid.tsx`.
+- Export writes saved server rows only, uses UTF-8 BOM, fixed Arabic headers, quoted cells/escaped quotes, two-decimal price values, and spreadsheet-formula prefixing for untrusted text. No price draft is exported as if committed.
+- Import parses the fixed CSV format, resolves exact `item_code` identifiers (leading-zero bytes retained), rejects malformed headers/rows, duplicated/unknown item codes and invalid/negative/>2dp amounts, with a 2MB file cap and 200-row limit. Imported values become drafts only; preview and the existing atomic server save command are still required.
+- Added helper coverage in `src/test/price-grid-csv.test.ts` and UI coverage in `src/test/pricing-grid.test.tsx`.
+- Exact-SHA CI [39186174524 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39186174524), SHA `b0fedcbec9a445aa2eef96eb2686a59a9ab14768`: 35/35 test files and 285/285 tests; PostgreSQL 17 migration/RLS acceptance; lint; build; production preview smoke 4173; dev smoke 5173 all PASS.
+- Corrective iterations are retained honestly in Actions: #287 and #288 caught CSV escaping expectations; #289 caught `no-control-regex` in lint. Assertions and regex were fixed (not waived); #290 on the export-only commit succeeded; #291 on the combined import/export commit succeeded.
+- Status: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact-SHA CI; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; XLSX=NOT IMPLEMENTED; INVENTORY QUANTITY COLUMNS=NOT IMPLEMENTED.
+- Active task `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains open; next step is continued clause-by-clause spec gap closure. Archive binary fresh download / SHA-256 / CRC / safe extraction remains NOT RUN due recorded blockers.
