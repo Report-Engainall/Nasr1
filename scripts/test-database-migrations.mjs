@@ -2693,7 +2693,7 @@ async function main() {
   const gridRead=(await db.unsafe("select id,base_price,price_wholesale_of_wholesale,price_wholesale,price_retail from public.get_admin_product_price_grid() where id=$1",[productId]))[0];
   assert.deepEqual([Number(gridRead.base_price),Number(gridRead.price_wholesale_of_wholesale),Number(gridRead.price_wholesale),Number(gridRead.price_retail)],[100,90,95,110],
     "the authorized grid read model resolves the stored base and the three tier price rows");
-  const priceGridResult=(await db.unsafe("select public.save_product_price_grid($1::jsonb) as result",[JSON.stringify(priceGridPayload)]))[0].result;
+  const priceGridResult=(await db.unsafe("select public.save_product_price_grid($1::jsonb) as result",[db.json(priceGridPayload)]))[0].result;
   assert.equal(Number(priceGridResult.updated_count),1);
   assert.deepEqual(priceGridResult.product_ids,[productId]);
   await db.unsafe("reset role");
