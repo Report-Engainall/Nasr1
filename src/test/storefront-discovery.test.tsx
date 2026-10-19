@@ -223,9 +223,7 @@ describe("customer storefront saved discovery", () => {
     const availableCheckbox = advanced.host.querySelector<HTMLInputElement>('input[type="checkbox"]');
     expect(availableCheckbox).not.toBeNull();
     if (!availableCheckbox) throw new Error("known-availability filter checkbox missing");
-    const setChecked = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked")?.set;
-    setChecked?.call(availableCheckbox, true);
-    act(() => availableCheckbox.dispatchEvent(new Event("change", { bubbles: true })));
+    act(() => availableCheckbox.click());
 
     const form = advanced.host.querySelector<HTMLFormElement>("form");
     expect(form).not.toBeNull();
