@@ -1622,8 +1622,10 @@ async function main() {
     [[partialReceipt.receipt.id,finalReceiptResult[0].result.receipt.id]],
   );
   assert.equal(purchaseMovements[0].count,2,"each persisted receipt line must create one auditable inventory movement");
-  const purchaseState = await db.unsafe("select status from public.purchase_orders where id=$1",[purchaseOrder.id]);
-  assert.equal(purchaseState[0].status,"received");
+  const listedPurchases = await db.unsafe("select public.fetch_purchase_orders() as result");
+  assert.ok(listedPurchases[0].result.some((row) => row.id === purchaseOrder.id && row.status === "received"),
+    "manager retrieves the final purchase status through the authorized RPC, not direct table SELECT");
+  await db.unsafe("reset role");
   const completedReceivingTask = await db.unsafe(
     "select id,status,resolution_note from public.ai_tasks where organization_id=$1 and source_event_key=$2",
     [organizationId,"purchase-order-receiving:"+purchaseOrder.id],
