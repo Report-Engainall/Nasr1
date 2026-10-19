@@ -3,9 +3,10 @@ import { Storefront } from "@/components/Storefront";
 import { MAX_CATALOG_SEARCH_LENGTH } from "@/lib/commerce-utils";
 
 export const Route = createFileRoute("/products")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    q: typeof search.q === "string" ? search.q.slice(0, MAX_CATALOG_SEARCH_LENGTH) : "",
-  }),
+  validateSearch: (search: Record<string, unknown>) =>
+    typeof search.q === "string"
+      ? { q: search.q.slice(0, MAX_CATALOG_SEARCH_LENGTH) }
+      : {},
   head: () => ({
     meta: [
       { title: "المنتجات | متجر الأغبري" },
@@ -20,7 +21,7 @@ function ProductsPage() {
   const { q } = Route.useSearch();
   return (
     <ClientOnly fallback={<div className="storefront" dir="rtl" role="status">جار تحميل كتالوج المنتجات...</div>}>
-      <Storefront initialQuery={q} onExit={() => void navigate({ to: "/admin" })} />
+      <Storefront initialQuery={q ?? ""} onExit={() => void navigate({ to: "/admin" })} />
     </ClientOnly>
   );
 }
