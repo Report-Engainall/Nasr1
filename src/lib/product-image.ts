@@ -3,6 +3,7 @@ export const PRODUCT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 export const PRODUCT_IMAGE_MAX_DIMENSION = 1600;
 export const PRODUCT_IMAGE_QUALITY = 0.82;
 const MAX_SOURCE_DIMENSION = 12_000;
+const MAX_SOURCE_PIXELS = 25_000_000;
 const SAFE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -20,7 +21,7 @@ export function validateProductImageFile(value: unknown): string | undefined {
 
 export function fitProductImageDimensions(width: number, height: number): { width: number; height: number } {
   if (![width, height].every(Number.isSafeInteger) || width <= 0 || height <= 0 ||
-      width > MAX_SOURCE_DIMENSION || height > MAX_SOURCE_DIMENSION) {
+      width > MAX_SOURCE_DIMENSION || height > MAX_SOURCE_DIMENSION || width * height > MAX_SOURCE_PIXELS) {
     throw new Error("أبعاد الصورة غير صالحة أو أكبر من الحد الآمن.");
   }
   const ratio = Math.min(1, PRODUCT_IMAGE_MAX_DIMENSION / width, PRODUCT_IMAGE_MAX_DIMENSION / height);
