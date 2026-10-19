@@ -2695,6 +2695,17 @@ async function main() {
     [batchResult.batch_id],
   );
   assert.equal(batchMovementRows.length, 4, "each product transfer writes a linked in/out movement pair");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const scopedHistory = await db.unsafe(
+    "select organization_id,id from public.list_inventory_transfer_history($1)",
+    [500],
+  );
+  assert.ok(scopedHistory.length >= 2, "tenant history RPC returns persisted batch movement rows");
+  assert.ok(scopedHistory.every((row) => row.organization_id === organizationId),
+    "tenant history RPC never returns transfer rows from another organization");
+  await db.unsafe("reset role");
+
   assert.deepEqual(batchMovementRows.map((row) => Number(row.quantity)).sort((a,b)=>a-b), [-3,-2.125,2.125,3]);
   const replayBatch = await db.unsafe(
     "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text) as result",
@@ -2777,6 +2788,11 @@ async function main() {
       "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text)",
       [testWarehouseId, transferDestinationId, "ci-inventory-batch-customer-001", db.json([{ product_id: productId, quantity: 1 }]), batchReason],
     ),
+    /active staff organization|required|staff/i,
+  );
+  await expectFailure(
+    "customers cannot read inventory transfer history",
+    () => db.unsafe("select * from public.list_inventory_transfer_history(100)"),
     /active staff organization|required|staff/i,
   );
   await db.unsafe("reset role");
