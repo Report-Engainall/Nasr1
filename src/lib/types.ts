@@ -21,6 +21,33 @@ export interface OrderItem {
   id: string; order_id: string; product_id: string | null; product_name: string; product_code: string;
   unit: string; quantity: number; unit_price: number; line_total: number;
 }
+export type PromotionDiscountType = 'percentage' | 'fixed';
+export interface Promotion {
+  id: string;
+  organization_id?: string;
+  title: string;
+  description: string | null;
+  discount_type: PromotionDiscountType | string;
+  discount_value: number;
+  product_ids?: string[] | null;
+  category_ids?: string[] | null;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
+}
+export interface PromotionInput {
+  id: string | null;
+  title: string;
+  description: string | null;
+  discount_type: PromotionDiscountType;
+  discount_value: number;
+  product_ids: string[];
+  category_ids: string[];
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+}
 export interface Banner { id: string; title: string; content: string | null; link: string | null; color: string; priority: number; is_active: boolean; start_date: string | null; end_date: string | null; audience: string }
 export type StorefrontAnnouncementAudience = 'all' | 'customers' | 'staff'
 export interface StorefrontAnnouncement { id: string; title: string; content: string | null; href: string | null; color: string; priority: number; starts_at: string | null; ends_at: string | null; audience: StorefrontAnnouncementAudience; is_active: boolean; created_at?: string; updated_at?: string }

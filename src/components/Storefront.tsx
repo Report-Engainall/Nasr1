@@ -4,7 +4,7 @@ import {
   Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList,
   Heart, GitCompare, ArrowRight,
 } from 'lucide-react';
-import { fetchProducts, fetchCategories, fetchPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
+import { fetchProducts, fetchCategories, fetchStorefrontPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { formatCurrency, formatNumber } from '@/lib/format';
 import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, MAX_CATALOG_SEARCH_LENGTH, normalizeCartDraft, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
@@ -49,7 +49,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId }: {
   });
   const products = liveProducts ?? cachedProducts;
   const { data: categories, error: categoriesError } = useFetch(fetchCategories);
-  const { data: promotions } = useFetch(fetchPromotions);
+  const { data: promotions } = useFetch(fetchStorefrontPromotions);
   const { data: settings } = useFetch(fetchSettingsMap);
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const [view, setView] = useState<StoreView>(initialView);
@@ -242,7 +242,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId }: {
             </section>
 
             {promotions && promotions.filter((p: Promotion) => p.is_active).length > 0 && (
-              <section className="sf-promos">{promotions.filter((p) => p.is_active).map((p: Promotion) => <div className="sf-promo" key={p.id}><Tag size={16} /> <strong>{p.title}</strong> <span>{p.discount_value}% خصم</span></div>)}</section>
+              <section className="sf-promos">{promotions.filter((p) => p.is_active).map((p: Promotion) => <div className="sf-promo" key={p.id}><Tag size={16} /> <strong>{p.title}</strong> <span>حملة ترويجية</span></div>)}</section>
             )}
 
             <section className="sf-products">

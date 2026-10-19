@@ -8,7 +8,7 @@ import type {
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
   ProductWithInventory, OrderWithCustomer, AdminSetting, ImportJob, ImportJobRow,
   OperationalTask, OperationalTaskRole, OperationalTaskStatus, OperationalTaskAssignee,
-  StorefrontAnnouncement, StorefrontAnnouncementInput,
+  StorefrontAnnouncement, StorefrontAnnouncementInput, PromotionInput,
 } from './types';
 
 type SupabaseReadOutcome<T> = { data: T | null; error: unknown | null };
@@ -594,20 +594,64 @@ export async function approvePricingRule(id: string, approvalNote: string): Prom
 }
 
 // ─── Promotions ───
+// Customer/storefront reads expose only currently published campaigns. The admin view
+// uses a separate SECURITY DEFINER RPC; browser table DML is deliberately revoked.
+export async function fetchStorefrontPromotions(): Promise<Promotion[]> {
+  const { data, error } = await supabase.rpc('get_storefront_promotions');
+  if (error) throw new Error('تعذر تحميل الحملات المنشورة: ' + error.message);
+  return (data ?? []) as unknown as Promotion[];
+}
+
 export async function fetchPromotions(): Promise<Promotion[]> {
-  const { organizationId: orgId } = await getStorefrontDataScope();
-  const { data, error } = await supabase
-    .from('promotions')
-    .select('*')
-    .eq('organization_id', orgId)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data as Promotion[];
+  const { data, error } = await supabase.rpc('get_admin_promotions');
+  if (error) throw new Error('تعذر تحميل حملات الإدارة: ' + error.message);
+  return (data ?? []) as unknown as Promotion[];
+}
+
+export async function savePromotion(input: PromotionInput): Promise<string> {
+  const title = input.title.trim();
+  const description = input.description?.trim() || null;
+  if (!title || title.length > 120) throw new Error('اسم الحملة مطلوب وبحد أقصى 120 حرفًا.');
+  if (description && description.length > 600) throw new Error('وصف الحملة لا يتجاوز 600 حرف.');
+  if (input.discount_type !== 'percentage' && input.discount_type !== 'fixed') throw new Error('نوع الخصم غير صالح.');
+  if (!Number.isFinite(input.discount_value) || input.discount_value <= 0 ||
+      input.discount_value > 99999999.99 || Math.round(input.discount_value * 100) !== input.discount_value * 100 ||
+      (input.discount_type === 'percentage' && input.discount_value > 100)) {
+    throw new Error('قيمة الحملة يجب أن تكون موجبة حتى منزلتين عشريتين؛ والنسبة لا تتجاوز 100%.');
+  }
+  const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    !Number.isNaN(Date.parse(value + 'T00:00:00.000Z')) &&
+    new Date(value + 'T00:00:00.000Z').toISOString().slice(0, 10) === value;
+  if (!validDate(input.start_date) || !validDate(input.end_date) || input.end_date < input.start_date) {
+    throw new Error('تحقق من تاريخ البداية والنهاية؛ يجب ألا تنتهي الحملة قبل بدايتها.');
+  }
+  if (input.product_ids.length > 500 || input.category_ids.length > 500) throw new Error('اختر 500 صنف أو تصنيف كحد أقصى للحملة.');
+  const { data, error } = await supabase.rpc('save_promotion', {
+    p_promotion_id: input.id,
+    p_title: title,
+    p_description: description,
+    p_discount_type: input.discount_type,
+    p_discount_value: input.discount_value,
+    p_product_ids: input.product_ids,
+    p_category_ids: input.category_ids,
+    p_start_date: input.start_date,
+    p_end_date: input.end_date,
+    p_is_active: input.is_active,
+  });
+  if (error) throw new Error('تعذر حفظ الحملة: ' + error.message);
+  if (!data) throw new Error('لم يُرجع الخادم معرّف الحملة المحفوظة.');
+  return data;
 }
 
 export async function togglePromotion(id: string, isActive: boolean): Promise<void> {
-  const { error } = await supabase.from('promotions').update({ is_active: isActive }).eq('id', id);
-  if (error) throw error;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error('معرّف الحملة غير صالح.');
+  }
+  const { error } = await supabase.rpc('set_promotion_active', {
+    p_promotion_id: id,
+    p_is_active: isActive,
+  });
+  if (error) throw new Error('تعذر تغيير حالة الحملة: ' + error.message);
 }
 
 // ─── Budgeted AI Gateway ───

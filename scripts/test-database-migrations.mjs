@@ -2674,6 +2674,77 @@ async function main() {
   process.stdout.write("PASS storefront announcements: role authorization, public tenant scope, safe URLs, audience/date filtering, audit and no direct table grants\n");
 
 
+  // NASR1-ORIGINAL-SPEC-PROMOTIONS-003: secure campaign management over real promotion records.
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  async function saveCiPromotion({ title, startDate = "2026-01-01", endDate = "2099-12-31", productIds = [productId] } = {}) {
+    const rows = await db.unsafe(
+      "select public.save_promotion($1::uuid,$2::text,$3::text,$4::text,$5::numeric,$6::uuid[],$7::uuid[],$8::date,$9::date,$10::boolean) as id",
+      [null, title, "CI campaign only; not a production discount", "percentage", 10, productIds, [], startDate, endDate, true],
+    );
+    return rows[0].id;
+  }
+  const promotionId = await saveCiPromotion({ title: "CI active campaign" });
+  const futurePromotionId = await saveCiPromotion({ title: "CI scheduled campaign", startDate: "2099-01-01" });
+  assert.match(promotionId, /^[0-9a-f-]{36}$/i);
+  const adminPromotions = await db.unsafe("select id,title from public.get_admin_promotions()");
+  assert.ok(adminPromotions.some((row) => row.id === promotionId && row.title === "CI active campaign"));
+  assert.ok(adminPromotions.some((row) => row.id === futurePromotionId), "admin sees scheduled campaigns");
+  const adminPublished = await db.unsafe("select id from public.get_storefront_promotions()");
+  assert.ok(adminPublished.some((row) => row.id === promotionId));
+  assert.ok(!adminPublished.some((row) => row.id === futurePromotionId), "scheduled campaign stays unpublished");
+  await expectFailure("admin browser role cannot select promotion storage directly",
+    () => db.unsafe("select id from public.promotions"), /permission denied/i);
+  await expectFailure("promotion rejects a product from another tenant",
+    () => saveCiPromotion({ title: "CI invalid cross-tenant campaign", productIds: [otherProductId] }),
+    /product not found in current organization/i);
+  await db.unsafe("reset role");
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("accountant cannot list admin promotions",
+    () => db.unsafe("select * from public.get_admin_promotions()"), /active admin or manager/i);
+  await expectFailure("accountant cannot save promotions",
+    () => db.unsafe("select public.save_promotion($1::uuid,$2::text,$3::text,$4::text,$5::numeric,$6::uuid[],$7::uuid[],$8::date,$9::date,$10::boolean)",
+      [null,"CI accountant denied",null,"percentage",10,[productId],[],"2026-01-01","2099-12-31",true]),
+    /active admin or manager/i);
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  const customerPublished = await db.unsafe("select id from public.get_storefront_promotions()");
+  assert.ok(customerPublished.some((row) => row.id === promotionId));
+  await expectFailure("customer cannot select promotion storage directly",
+    () => db.unsafe("select id from public.promotions"), /permission denied/i);
+  await expectFailure("customer cannot save promotions",
+    () => db.unsafe("select public.save_promotion($1::uuid,$2::text,$3::text,$4::text,$5::numeric,$6::uuid[],$7::uuid[],$8::date,$9::date,$10::boolean)",
+      [null,"CI customer denied",null,"percentage",10,[productId],[],"2026-01-01","2099-12-31",true]),
+    /active admin or manager/i);
+  await db.unsafe("reset role");
+  await db.unsafe("select set_config('request.jwt.claim.sub', '', false)");
+  await db.unsafe("select set_config('request.jwt.claims', '', false)");
+  await db.unsafe("set role anon");
+  const anonymousPublished = await db.unsafe("select id from public.get_storefront_promotions()");
+  assert.ok(anonymousPublished.some((row) => row.id === promotionId));
+  assert.ok(!anonymousPublished.some((row) => row.id === futurePromotionId));
+  await expectFailure("anonymous users cannot select promotion storage directly",
+    () => db.unsafe("select id from public.promotions"), /permission denied/i);
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await db.unsafe("select public.set_promotion_active($1::uuid,$2::boolean)", [promotionId, false]);
+  await db.unsafe("select public.set_promotion_active($1::uuid,$2::boolean)", [promotionId, false]);
+  const hiddenAfterDisable = await db.unsafe("select id from public.get_storefront_promotions()");
+  assert.ok(!hiddenAfterDisable.some((row) => row.id === promotionId));
+  const promotionAudit = await db.unsafe(
+    "select action from public.audit_logs where organization_id=$1 and entity_type='promotion' and entity_id=$2::uuid order by action",
+    [organizationId, promotionId],
+  );
+  assert.deepEqual(promotionAudit.map((row) => row.action), ["promotion.created", "promotion.deactivated"],
+    "promotion status replay is a no-op and every state change is audited");
+  await db.unsafe("reset role");
+  process.stdout.write("PASS promotion management: admin-only tenant-scoped RPCs, public active/schedule filter, no direct table access, cross-tenant rejection and audit idempotency\\n");
+
+
   // AGH-PRICE-GRID-001: correct physical schema, atomic tier writes, stale guard and tenant isolation.
   await db.unsafe("reset role");
   await db.unsafe("update public.products set base_price=100,wholesale_price=95,retail_price=110 where id=$1 and organization_id=$2",[productId,organizationId]);

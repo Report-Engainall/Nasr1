@@ -8,14 +8,14 @@ import {
 import {
   createCategory, createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
   fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
-  fetchProducts, fetchPromotions, setInventoryReorderPoint, togglePricingRule, togglePromotion, transferInventory,
+  fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updatePricingRule, updateProduct, uploadProductImage,
   approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
-import { ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory, type Promotion } from '@/lib/types';
+import { ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { useNavigate } from '@tanstack/react-router';
 import { Login } from '@/components/Login';
@@ -33,6 +33,7 @@ import { TaskCenter } from '@/components/TaskCenter';
 import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
 import { UnifiedImportEngine } from '@/components/UnifiedImportEngine';
 import { OnyxSnapshotCenter } from '@/components/OnyxSnapshotCenter';
+import { PromotionManager } from '@/components/PromotionManager';
 import { toWebp, validateProductImageFile } from '@/lib/product-image';
 import { validateCustomerInput } from '@/lib/customer-input';
 import { StaffQuotesPage, StaffFinancePage } from '@/components/CustomerWorkflows';
@@ -848,7 +849,7 @@ function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onCl
   </Modal>;
 }
 
-function Offers({ onNotice }: { onNotice: (m: string) => void }) { const { data, loading, error, refetch } = useFetch(fetchPromotions); async function toggle(p: Promotion) { try { await togglePromotion(p.id, !p.is_active); refetch(); onNotice(p.is_active ? 'تم إيقاف العرض' : 'تم تفعيل العرض'); } catch (e) { onNotice(e instanceof Error ? e.message : 'تعذر تحديث العرض'); } } return <><Heading eyebrow="الأصناف والمخزون" title="العروض وشريط اليوم" description="إدارة العروض التي تظهر للعملاء وتحريك المبيعات" icon={Tag} /><div className="toolbar"><span className="toolbar-note">{data?.filter((p) => p.is_active).length ?? 0} عروض نشطة</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button disabled><Plus size={17} /> إضافة عرض (غير متاحة بعد)</Button><span className="toolbar-note">إنشاء العرض غير متاح حتى توصيل عملية الحفظ الخلفية.</span></div></div><div className="offer-grid">{loading ? <Loading /> : error ? <ErrorBox message={error} /> : data?.map((p) => <article className="offer-card" key={p.id}><div className="offer-top"><span className="discount">{p.discount_value}%</span><label className="switch"><input type="checkbox" checked={p.is_active} onChange={() => toggle(p)} /><span /></label></div><h2>{p.title}</h2><p>{p.description ?? 'عرض ترويجي لعملاء الأغبري'}</p><div className="offer-date"><span>من {p.start_date}</span><span>إلى {p.end_date}</span></div></article>)}</div></>; }
+function Offers({ onNotice }: { onNotice: (m: string) => void }) { return <PromotionManager onNotice={onNotice} />; }
 
 function Reports() {
   const { data: stats, loading, error } = useFetch(fetchDashboardStats);

@@ -1851,6 +1851,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_admin_promotions: { Args: never; Returns: {
+        category_ids: string[] | null; created_at: string; description: string | null;
+        discount_type: string; discount_value: number; end_date: string; id: string;
+        is_active: boolean; organization_id: string; product_ids: string[] | null;
+        start_date: string; title: string
+      }[] }
+      get_storefront_promotions: { Args: never; Returns: {
+        created_at: string; description: string | null; discount_type: string;
+        discount_value: number; end_date: string; id: string; is_active: boolean;
+        start_date: string; title: string
+      }[] }
+      save_promotion: { Args: {
+        p_category_ids: string[]; p_description: string | null; p_discount_type: string;
+        p_discount_value: number; p_end_date: string; p_is_active: boolean;
+        p_product_ids: string[]; p_promotion_id: string | null; p_start_date: string; p_title: string
+      }; Returns: string }
+      set_promotion_active: { Args: { p_is_active: boolean; p_promotion_id: string }; Returns: string }
       current_profile_id: { Args: never; Returns: string }
       customer_respond_to_quote: {
         Args: { p_accept: boolean; p_quote_id: string }
