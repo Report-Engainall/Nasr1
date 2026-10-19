@@ -3199,7 +3199,6 @@ async function main() {
   await db.unsafe("reset role");
   process.stdout.write("PASS general ledger: chart idempotency, exact two-decimal amounts, balanced draft/post, replay safety, audited draft cancellation, trial balance and tenant/role isolation\\n");
 
-
   // NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006:
   // Verify source-driven journals, replay safety, balanced-line/source guards, tenant role boundaries and recorded tax.
   await db.unsafe("reset role");
