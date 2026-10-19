@@ -26,7 +26,7 @@ describe('price grid CSV export', () => {
   it('quotes delimiters and blocks spreadsheet formula execution in untrusted text fields', () => {
     const csv = buildPriceGridCsv([{ ...row, item_code: '=HYPERLINK("https://evil.invalid","open")', name: '+CMD|payload' }]);
     expect(csv).toContain("\"'=HYPERLINK(\"\"https://evil.invalid\"\",\"\"open\"\")\"");
-    expect(csv).toContain('"+CMD|payload"');
+    expect(csv).toContain("\"'+CMD|payload\"");
     expect(csv).toContain("'=HYPERLINK");
   });
 });
