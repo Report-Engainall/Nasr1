@@ -3,7 +3,7 @@
 - **المستودع الوحيد المستهدف:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **الملكية:** هذا التقرير و`SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` فقط.
-- **المهمة الحالية:** `NASR1-SOURCE-IMAGE-PIXEL-GUARD-001` — تكيف أمني صغير بانتظار CI على رأس PR الخاص بهذه الجلسة.
+- **المهمة الحالية:** `NASR1-SOURCE-IMAGE-PIXEL-GUARD-001` — اجتاز كود الميزة CI على الرأس `b22e3880031feae66acb7f23f165e47178cde553`؛ يجري حفظ إثبات CI في السجلين والتقرير، ثم يلزم CI أخير على رأس التوثيق الجديد قبل الدمج.
 - **المهمة التالية بعد إغلاق المهمة الحالية:** `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001` — مقارنة عقد المكونات/الخدمات/RPC/RLS/المسارات والاختبارات للعضويات بين المصدر والهدف قبل أي قرار دمج.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
@@ -24,7 +24,8 @@
 - **التكييف المنفذ:** أضيف `MAX_SOURCE_PIXELS = 25_000_000` داخل `src/lib/product-image.ts`؛ يُرفض الحجم الإجمالي الزائد داخل `fitProductImageDimensions` قبل تخصيص canvas. أبقينا التنفيذ الهدف الحالي: 8 MiB كحد لملف الإدخال، 1600 بكسل للإخراج، WebP، التحقق من المؤسسة/المنتج/الدور في Edge Function، ومسار رفع الخادم. لم ننسخ تدفق المصادقة/التخزين القديم ولا نضيف أي حزمة.
 - **اختبارات الانحدار المضافة:** 25,005,000 بكسل مرفوضة، و25,000,000 حد صالح، وإثبات أن canvas لا يُنشأ عند الرفض وإغلاق `ImageBitmap`.
 - ملفات التغيير: `src/lib/product-image.ts` blob الحالي `8fce9c518a5ee3e4bc4a74db844e67942ac07e40`؛ `src/lib/product-image.test.ts` blob الحالي `c753e417c8d3afd38f1acf80d5c3a1411bfeec8f`.
-- **CI:** لم يُشغّل بعد على الرأس الحاوي للتغيير؛ الحالة الصحيحة هي **PENDING — لا يوجد ادعاء PASS**. يجب تشغيل `npm test -- src/lib/product-image.test.ts` ثم CI الكامل `commerce-checks.yml` على رأس PR مطابق، بما يشمل PostgreSQL 17 وlint/build وسموك preview/dev.
+- **CI على رأس الكود المطابق:** [Actions 39332901589](https://github.com/Report-Engainall/Nasr1/actions/runs/39332901589) على `b22e3880031feae66acb7f23f165e47178cde553` انتهى **SUCCESS**. ثبتت الخطوات: تثبيت Bun والتحقق من lockfile، unit tests، تطبيق migrations وقبول PostgreSQL 17/RLS، lint، build، production-preview smoke وdev-server smoke، وتنظيف الحاويات. هذا دليل لاختبار كود الصورة على الرأس نفسه؛ browser/manual وproduction deployment غير مثبتين.
+- **خطوة الإغلاق:** سيغيّر هذا الحفظ التوثيقي SHA دون تغيير كود التطبيق، ويطلق CI جديدًا. لا تدمج PR #11 حتى ينجح التشغيل على ذلك الرأس النهائي أيضًا.
 - **سجل المصدر:** ledger يحتوي `NASR1-SOURCE-IMAGE-PIXEL-GUARD-001` و`NASR1-SOURCE-IMAGE-PIXEL-GUARD-TEST-001` بحالة `IMPLEMENTED_PENDING_EXACT_SHA_CI`. audit سجل البصمات والقرار وعدم نسخ الملفات الخام.
 
 ## 3. قرار مصدر طابور العمليات غير المتصلة
