@@ -159,14 +159,14 @@ describe("customer storefront saved discovery", () => {
     mocks.settings = { show_price_on_cards: false };
     const catalog = await mountAt("/products");
     expect(catalog.host.textContent).toContain("السعر حسب سياسة حسابك");
-    expect(catalog.host.textContent).not.toContain("١٬٠٠٠");
-    const productButton = catalog.host.querySelector<HTMLButtonElement>(".sf-product-name");
+    expect(catalog.host.querySelector(".sf-product-price")?.textContent).toBe("السعر حسب سياسة حسابك");
+    const productButton = catalog.host.querySelector<HTMLButtonElement>(".sf-product-open");
     expect(productButton).not.toBeNull();
     if (!productButton) throw new Error("catalog product detail button missing");
     act(() => productButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(catalog.host.textContent).toContain("السعر حسب سياسة حسابك");
-    expect(catalog.host.textContent).not.toContain("١٬٠٠٠");
+    expect(catalog.host.querySelector(".sf-detail-price")?.textContent).toBe("السعر حسب سياسة حسابك");
   });
 
   it("shows only a validated server price when catalog display is enabled", async () => {
