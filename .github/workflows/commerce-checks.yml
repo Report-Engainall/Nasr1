@@ -127,9 +127,9 @@ jobs:
             "/invoices|الفواتير" \
             "/statement|كشف الحساب" \
             "/register|إنشاء حساب تجاري" \
-            "/forgot-password|استعادة كلمة المرور" \\
-            "/admin/audit|سجل التدقيق" \\
-            "/products|متجر الأغبري" \\
+            "/forgot-password|استعادة كلمة المرور" \
+            "/admin/audit|سجل التدقيق" \
+            "/products|متجر الأغبري" \
             "/invite/ci-token|قبول دعوة الشركة"; do
             route="${route_spec%%|*}"
             expected_title="${route_spec#*|}"
@@ -216,7 +216,7 @@ jobs:
             "/invoices|الفواتير" \
             "/statement|كشف الحساب" \
             "/register|إنشاء حساب تجاري" \
-            "/forgot-password|استعادة كلمة المرور" \\
+            "/forgot-password|استعادة كلمة المرور" \
             "/admin/audit|سجل التدقيق"; do
             route="${route_spec%%|*}"
             expected_title="${route_spec#*|}"
