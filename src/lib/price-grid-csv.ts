@@ -10,6 +10,11 @@ export const PRICE_GRID_EXPORT_HEADERS = [
   'جملة الجملة',
   'الجملة',
   'التجزئة',
+  'إجمالي الرصيد الفعلي',
+  'إجمالي الكمية المحجوزة',
+  'إجمالي المتاح',
+  'إجمالي حد إعادة الطلب',
+  'عدد المخازن ذات الرصيد',
 ] as const;
 
 function spreadsheetSafeText(value: string): string {
@@ -17,13 +22,13 @@ function spreadsheetSafeText(value: string): string {
   return /^\s*[=+\-@]/.test(value) ? "'" + value : value;
 }
 
-function csvCell(value: string | number | boolean): string {
-  const normalized = typeof value === 'string' ? spreadsheetSafeText(value) : String(value);
+function csvCell(value: string | number | boolean | null): string {
+  const normalized = value === null ? '' : typeof value === 'string' ? spreadsheetSafeText(value) : String(value);
   return '"' + normalized.replace(/"/g, '""') + '"';
 }
 
 /**
- * Export only the server-read, saved grid. Do not read pending UI drafts into financial exports.
+ * Export server-read prices and the read-only stock summary. Missing stock stays blank, never zero.
  * String identifiers are preserved in the CSV byte content; import code columns as Text in Excel.
  */
 export function buildPriceGridCsv(rows: readonly ProductPriceGridRow[]): string {
@@ -39,6 +44,11 @@ export function buildPriceGridCsv(rows: readonly ProductPriceGridRow[]): string 
       Number(row.price_wholesale_of_wholesale).toFixed(2),
       Number(row.price_wholesale).toFixed(2),
       Number(row.price_retail).toFixed(2),
+      row.quantity_on_hand_total === null ? null : Number(row.quantity_on_hand_total).toFixed(3),
+      row.quantity_reserved_total === null ? null : Number(row.quantity_reserved_total).toFixed(3),
+      row.quantity_available_total === null ? null : Number(row.quantity_available_total).toFixed(3),
+      row.reorder_point_total === null ? null : Number(row.reorder_point_total).toFixed(0),
+      row.inventory_warehouse_count,
     ];
     output.push(values.map(csvCell).join(','));
   }
