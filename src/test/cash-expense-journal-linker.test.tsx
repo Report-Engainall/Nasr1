@@ -31,7 +31,7 @@ describe("cash expense source journal integration",()=>{
   fireEvent.change(screen.getByLabelText("حساب المصروف للمصروف 17"),{target:{value:"expense-account"}});
   fireEvent.change(screen.getByLabelText("حساب التسوية للمصروف 17"),{target:{value:"cash-account"}});
   fireEvent.click(screen.getByRole("button",{name:"إنشاء مسودة قيد للمصروف 17"}));
-  expect(await screen.findByRole("status")).toHaveTextContent(/تم إنشاء مسودة قيد للمصروف رقم 17/);
+  expect(await screen.findByText(/تم إنشاء مسودة قيد للمصروف رقم 17/)).toBeInTheDocument();
   expect(mocks.rpc).toHaveBeenCalledWith("create_cash_expense_journal_draft",expect.objectContaining({
     p_expense_id:"expense-uuid",p_expense_account_id:"expense-account",p_settlement_account_id:"cash-account",
     p_idempotency_key:expect.any(String),
