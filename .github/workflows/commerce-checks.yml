@@ -45,6 +45,8 @@ jobs:
           node-version: 22
       - name: Install dependencies from verified Bun lockfile
         run: bun install --frozen-lockfile
+      - name: TypeScript typecheck
+        run: npm run typecheck
       - name: Unit tests
         run: npm test
       - name: Apply all migrations to isolated PostgreSQL 17 and verify core workflows
