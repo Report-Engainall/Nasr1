@@ -2819,6 +2819,29 @@ async function main() {
   // AGH-PRICE-GRID-001: correct physical schema, atomic tier writes, stale guard and tenant isolation.
   await db.unsafe("reset role");
   await db.unsafe("update public.products set base_price=100,wholesale_price=95,retail_price=110 where id=$1 and organization_id=$2",[productId,organizationId]);
+  const gridMissingStockProductId = "e7777777-7777-4777-8777-777777777777";
+  await db.unsafe(
+    "insert into public.products(id,organization_id,name,item_code,unit,base_price,wholesale_price,retail_price,status) values($1,$2,'CI Grid No Stock Balance','CI-GRID-NO-STOCK','unit',10,9,11,'active') on conflict(id) do update set organization_id=excluded.organization_id,name=excluded.name,item_code=excluded.item_code,status='active'",
+    [gridMissingStockProductId, organizationId],
+  );
+  const activeGridWarehouses = await db.unsafe(
+    "select id from public.warehouses where organization_id=$1 and is_active=true order by id limit 2",
+    [organizationId],
+  );
+  assert.ok(activeGridWarehouses.length >= 2, "inventory-summary acceptance needs two active tenant warehouses");
+  await db.unsafe(
+    "update public.inventory_balances ib set quantity_on_hand=0,quantity_reserved=0,reorder_point=0 from public.warehouses w where ib.product_id=$1 and ib.warehouse_id=w.id and w.organization_id=$2 and w.is_active=true",
+    [productId, organizationId],
+  );
+  for (const [index, warehouse] of activeGridWarehouses.entries()) {
+    const onHand = index === 0 ? 20.125 : 5.5;
+    const reserved = index === 0 ? 1.125 : 0.5;
+    const reorderPoint = index === 0 ? 3 : 2;
+    await db.unsafe(
+      "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) values($1,$2,$3,$4,$5) on conflict(product_id,warehouse_id) do update set quantity_on_hand=excluded.quantity_on_hand,quantity_reserved=excluded.quantity_reserved,reorder_point=excluded.reorder_point",
+      [productId, warehouse.id, onHand, reserved, reorderPoint],
+    );
+  }
   await db.unsafe("update public.product_prices set price=90,is_active=true where product_id=$1 and tier='vip' and min_quantity=1",[productId]);
   await db.unsafe("insert into public.product_prices(product_id,tier,price,min_quantity,is_active) select $1,'vip',90,1,true where not exists(select 1 from public.product_prices where product_id=$1 and tier='vip' and min_quantity=1)",[productId]);
   await db.unsafe("update public.product_prices set price=95,is_active=true where product_id=$1 and tier='wholesale' and min_quantity=1",[productId]);
@@ -2835,6 +2858,26 @@ async function main() {
   const gridRead=(await db.unsafe("select id,base_price,price_wholesale_of_wholesale,price_wholesale,price_retail from public.get_admin_product_price_grid() where id=$1",[productId]))[0];
   assert.deepEqual([Number(gridRead.base_price),Number(gridRead.price_wholesale_of_wholesale),Number(gridRead.price_wholesale),Number(gridRead.price_retail)],[100,90,95,110],
     "the authorized grid read model resolves the stored base and the three tier price rows");
+  const inventoryGridRead = (await db.unsafe(
+    "select quantity_on_hand_total,quantity_reserved_total,quantity_available_total,reorder_point_total,inventory_warehouse_count from public.get_admin_product_price_grid_with_inventory() where id=$1",
+    [productId],
+  ))[0];
+  assert.deepEqual([
+    Number(inventoryGridRead.quantity_on_hand_total),
+    Number(inventoryGridRead.quantity_reserved_total),
+    Number(inventoryGridRead.quantity_available_total),
+    Number(inventoryGridRead.reorder_point_total),
+  ], [25.625, 1.625, 24, 5], "inventory summary aggregates stock, reservations and reorder points over active tenant warehouses without losing millesimal quantities");
+  assert.ok(Number(inventoryGridRead.inventory_warehouse_count) >= 2, "inventory summary reports recorded warehouse balances");
+  const missingInventoryGridRead = (await db.unsafe(
+    "select quantity_on_hand_total,quantity_reserved_total,quantity_available_total,reorder_point_total,inventory_warehouse_count from public.get_admin_product_price_grid_with_inventory() where id=$1",
+    [gridMissingStockProductId],
+  ))[0];
+  assert.equal(missingInventoryGridRead.quantity_on_hand_total, null, "missing inventory records remain NULL rather than becoming fake zero stock");
+  assert.equal(missingInventoryGridRead.quantity_reserved_total, null);
+  assert.equal(missingInventoryGridRead.quantity_available_total, null);
+  assert.equal(missingInventoryGridRead.reorder_point_total, null);
+  assert.equal(Number(missingInventoryGridRead.inventory_warehouse_count), 0);
   const priceGridResult=(await db.unsafe("select public.save_product_price_grid($1::jsonb) as result",[db.json(priceGridPayload)]))[0].result;
   assert.equal(Number(priceGridResult.updated_count),1);
   assert.deepEqual(priceGridResult.product_ids,[productId]);
@@ -2861,6 +2904,7 @@ async function main() {
   await setIdentity(accountantAuthUserId,"ci-accountant@example.test");
   await db.unsafe("set role authenticated");
   await expectFailure("accountant cannot read the price grid",()=>db.unsafe("select public.get_admin_product_price_grid()"),/active admin or manager/i);
+  await expectFailure("accountant cannot read price-grid inventory summaries",()=>db.unsafe("select public.get_admin_product_price_grid_with_inventory()"),/active admin or manager/i);
   await expectFailure("accountant cannot write the price grid",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[db.json([{...priceGridPayload[0],expected_base_price:101,expected_price_wholesale_of_wholesale:91,expected_price_wholesale:96,expected_price_retail:111,base_price:103}])]),/active admin or manager/i);
   await db.unsafe("reset role");
   process.stdout.write("PASS price grid: admin/manager auth, base+three tier values, atomic writes, audit, stale-value guard, tenant rollback and accountant denial\n");
