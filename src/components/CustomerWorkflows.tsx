@@ -1972,6 +1972,11 @@ function Offline() {
       }
       setDraftLines(validLines);
       setCartCount(validLines.reduce((sum, line) => sum + line.quantity, 0));
+      if (validLines.length !== saved.length) {
+        setMessage("حُذفت من المسودة الأصناف التي لم تعد تظهر في الكتالوج الحالي. راجع القائمة المحدّثة ثم اضغط «التحقق واستعادة السلة» مرة أخرى للمتابعة.");
+        return;
+      }
+      setMessage("تم التحقق من وجود الأصناف في كتالوج هذا الحساب. ستُعاد مراجعة الأسعار والمخزون عند فتح السلة.");
       void navigate({ to: "/cart" });
     } catch (error) {
       setMessage(error instanceof Error
