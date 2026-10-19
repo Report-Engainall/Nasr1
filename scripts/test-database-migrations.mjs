@@ -3484,14 +3484,28 @@ async function main() {
   assert.equal(invoiceGuardResult[0].status, "void", "void is allowed only after all posted invoice and payment source journals are reversed");
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   await db.unsafe("set role authenticated");
-  const reversedInvoiceInbox = (await db.unsafe("select public.fetch_customer_invoice_accounting_inbox(50,0,'all') as result"))[0].result;
-  const reversedInvoiceRow = reversedInvoiceInbox.items.find((item) => item.id === invoice.id);
-  assert.equal(reversedInvoiceRow?.journal_reversal_status, "posted");
-  assert.equal(reversedInvoiceRow?.journal_reversal_entry_id, invoiceReversal.journal_entry_id);
-  const reversedPaymentInbox = (await db.unsafe("select public.fetch_customer_payment_accounting_inbox(50,0,'all') as result"))[0].result;
-  const reversedPaymentRow = reversedPaymentInbox.items.find((item) => item.id === paymentSource.id);
-  assert.equal(reversedPaymentRow?.journal_reversal_status, "posted");
-  assert.equal(reversedPaymentRow?.journal_reversal_entry_id, paymentReversal.journal_entry_id);
+  async function findSourceInAccountingInbox(functionName, sourceId) {
+    let offset = 0;
+    for (let pageNumber = 0; pageNumber < 100; pageNumber += 1) {
+      const pageResult = (await db.unsafe(
+        `select public.${functionName}($1::integer,$2::integer,$3::text) as result`,
+        [100, offset, "all"],
+      ))[0].result;
+      const found = pageResult.items.find((item) => item.id === sourceId);
+      if (found) return found;
+      if (!pageResult.has_more) break;
+      offset += pageResult.limit;
+    }
+    return null;
+  }
+  const reversedInvoiceRow = await findSourceInAccountingInbox("fetch_customer_invoice_accounting_inbox", invoice.id);
+  assert.ok(reversedInvoiceRow, "reversed invoice remains discoverable across accounting inbox pages");
+  assert.equal(reversedInvoiceRow.journal_reversal_status, "posted");
+  assert.equal(reversedInvoiceRow.journal_reversal_entry_id, invoiceReversal.journal_entry_id);
+  const reversedPaymentRow = await findSourceInAccountingInbox("fetch_customer_payment_accounting_inbox", paymentSource.id);
+  assert.ok(reversedPaymentRow, "reversed payment remains discoverable across accounting inbox pages");
+  assert.equal(reversedPaymentRow.journal_reversal_status, "posted");
+  assert.equal(reversedPaymentRow.journal_reversal_entry_id, paymentReversal.journal_entry_id);
 
   // Tax fixture: a real persisted invoice source with a reconciled subtotal + recorded tax + total.
   await db.unsafe("reset role");
