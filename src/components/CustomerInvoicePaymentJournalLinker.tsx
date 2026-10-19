@@ -175,6 +175,8 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
   }catch(cause){setError(cause instanceof Error?cause.message:"تعذر إعداد مسودة العكس المحاسبي.");}
   finally{setBusyId("");}
  }
+
+ async function postDraft(id:string,label:string){
   setBusyId(id);setError("");setNotice("");
   try{
    const result=await supabase.rpc("post_general_journal_entry",{p_entry_id:id});
@@ -256,11 +258,9 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
     </div>
    )
   }
-
- async function postDraft(id:string,label:string){
   <footer className="no-print" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
    <button type="button" style={button} disabled={page===0||loading||Boolean(busyId)} onClick={()=>setPage(p=>Math.max(0,p-1))}>السابق</button><span style={muted}>صفحة {page+1} · 50 مصدرًا في الصفحة</span><button type="button" style={button} disabled={!hasMore||loading||Boolean(busyId)} onClick={()=>setPage(p=>p+1)}>التالي</button>
   </footer>
-  <p style={{...muted,fontSize:12}}>عكس قيد فاتورة/تحصيل مرحّل يتطلب صلاحية مدير أو مسؤول وسببًا موثقًا. ينشئ النظام مسودة تعكس سطور القيد الأصلي دون تعديل الأصل؛ الترحيل إجراء منفصل. لا تنفذ هذه الشاشة تحويلًا نقديًا لاسترداد الأموال.</p>
+  <p style={{...muted,fontSize:12}}>حماية مصدر مالي: لا يُسمح بتعديل أو إلغاء فاتورة/تحصيل مرتبط بقيد مسودة أو مرحّل؛ يتطلب ذلك مسار عكس محاسبي معتمد. إلغاء مسودة القيد يتم من دفتر الأستاذ مع سبب وتدقيق. تشمل هذه الشاشة إنشاء القيود ومراجعتها وترحيلها فقط؛ لا تنفذ هذه الشاشة تحويلًا نقديًا لاسترداد الأموال.</p>
  </section>;
 }
