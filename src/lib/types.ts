@@ -89,6 +89,8 @@ export type OrderWithCustomer = Order & { customer?: Customer };
 export interface Supplier {
   id: string;
   organization_id?: string;
+  supplier_code?: string;
+  status?: 'active' | 'inactive' | string;
   name: string;
   contact_name?: string | null;
   phone?: string | null;

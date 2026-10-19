@@ -1478,6 +1478,156 @@ async function main() {
   );
   process.stdout.write("PASS staff customer 360: tenant-bound full ledger aggregates, bounded recent history, top products and deterministic follow-up signals\\n");
 
+  // AGH-PURCHASE-RECEIVING-001: server-only purchase lifecycle, stock ledger atomicity and idempotent source task.
+  await db.unsafe("reset role");
+  const purchaseSupplier = await db.unsafe(
+    "insert into public.suppliers(organization_id,supplier_code,name,status) values($1,'CI-PO-001','CI Purchase Supplier','active') on conflict(organization_id,supplier_code) do update set status='active' returning id",
+    [organizationId],
+  );
+  assert.equal(purchaseSupplier.length,1,"CI supplier fixture must exist only inside the isolated test database");
+  const receivingWarehouseId = "d0000000-0000-0000-0000-000000000001";
+  const stockBeforePurchase = await db.unsafe(
+    "select quantity_on_hand from public.inventory_balances where product_id=$1 and warehouse_id=$2",
+    [productId,receivingWarehouseId],
+  );
+  assert.equal(stockBeforePurchase.length,1,"CI receiving fixture must use a persisted warehouse balance");
+  const openingOnHand = Number(stockBeforePurchase[0].quantity_on_hand);
+  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const purchaseLines = db.json([{product_id:productId,quantity:2,unit_cost:12.5}]);
+  const createPoResult = await db.unsafe(
+    "select public.create_purchase_order($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
+    [purchaseSupplier[0].id,receivingWarehouseId,purchaseLines,"CI purchase receiving lifecycle","ci-purchase-order-key-000001"],
+  );
+  const purchaseOrder = createPoResult[0].result.purchase_order;
+  assert.equal(purchaseOrder.status,"draft");
+  assert.equal(Number(purchaseOrder.total_cost),25);
+  assert.equal(purchaseOrder.items.length,1);
+  assert.equal(purchaseOrder.items[0].item_code, purchaseOrder.items[0].item_code,
+    "purchase order keeps the authoritative product-code snapshot");
+  const replayPo = await db.unsafe(
+    "select public.create_purchase_order($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
+    [purchaseSupplier[0].id,receivingWarehouseId,purchaseLines,"CI purchase receiving lifecycle","ci-purchase-order-key-000001"],
+  );
+  assert.equal(replayPo[0].result.idempotent_replay,true,"repeated draft submission with the same key must return the original order");
+  assert.equal(replayPo[0].result.purchase_order.id,purchaseOrder.id);
+  await expectFailure(
+    "purchase order idempotency key cannot be reused for a changed payload",
+    () => db.unsafe(
+      "select public.create_purchase_order($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text)",
+      [purchaseSupplier[0].id,receivingWarehouseId,db.json([{product_id:productId,quantity:3,unit_cost:12.5}]),"CI purchase receiving lifecycle","ci-purchase-order-key-000001"],
+    ),
+    /purchase order idempotency key payload conflict/i,
+  );
+  const unknownCostPoResult = await db.unsafe(
+    "select public.create_purchase_order($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
+    [purchaseSupplier[0].id,receivingWarehouseId,db.json([{product_id:productId,quantity:1,unit_cost:null}]),"Cost not supplied by source","ci-purchase-order-key-000002"],
+  );
+  assert.equal(unknownCostPoResult[0].result.purchase_order.total_cost,null,"missing supplier cost must not be treated as zero");
+  assert.equal(unknownCostPoResult[0].result.purchase_order.items[0].unit_cost,null);
+  const cancelledUnknownCost = await db.unsafe(
+    "select public.cancel_purchase_order($1::uuid,$2::text) as result",
+    [unknownCostPoResult[0].result.purchase_order.id,"CI cancel unused unknown-cost draft"],
+  );
+  assert.equal(cancelledUnknownCost[0].result.purchase_order.status,"cancelled");
+  const submittedPoResult = await db.unsafe(
+    "select public.submit_purchase_order($1::uuid) as result",
+    [purchaseOrder.id],
+  );
+  assert.equal(submittedPoResult[0].result.purchase_order.status,"submitted");
+  const poItemId = purchaseOrder.items[0].id;
+  const overReceipt = db.json([{item_id:poItemId,quantity:2.01}]);
+  await expectFailure(
+    "purchase receiving must not exceed the outstanding ordered quantity",
+    () => db.unsafe("select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text)",
+      [purchaseOrder.id,overReceipt,"CI over-receipt must roll back","ci-purchase-receipt-over-0001"]),
+    /receipt quantity exceeds outstanding ordered quantity/i,
+  );
+  await db.unsafe("reset role");
+  const stockBeforePosting = await db.unsafe(
+    "select quantity_on_hand from public.inventory_balances where product_id=$1 and warehouse_id=$2",
+    [productId,receivingWarehouseId],
+  );
+  assert.equal(Number(stockBeforePosting[0].quantity_on_hand),openingOnHand,
+    "purchase draft/submission and rejected over-receipt must not change on-hand inventory");
+  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const partialLines = db.json([{item_id:poItemId,quantity:1.25}]);
+  const partialReceiptResult = await db.unsafe(
+    "select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text) as result",
+    [purchaseOrder.id,partialLines,"CI partial physical receipt","ci-purchase-receipt-key-000001"],
+  );
+  const partialReceipt = partialReceiptResult[0].result;
+  assert.equal(partialReceipt.purchase_order.status,"partially_received");
+  assert.equal(partialReceipt.idempotent_replay,false);
+  assert.equal(Number(partialReceipt.purchase_order.items[0].quantity_received),1.25);
+  const partialReplay = await db.unsafe(
+    "select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text) as result",
+    [purchaseOrder.id,partialLines,"CI partial physical receipt","ci-purchase-receipt-key-000001"],
+  );
+  assert.equal(partialReplay[0].result.idempotent_replay,true);
+  assert.equal(partialReplay[0].result.receipt.id,partialReceipt.receipt.id);
+  await expectFailure(
+    "purchase receipt idempotency key cannot be reused for a changed payload",
+    () => db.unsafe("select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text)",
+      [purchaseOrder.id,db.json([{item_id:poItemId,quantity:1}]),"CI changed receipt payload","ci-purchase-receipt-key-000001"]),
+    /purchase receipt idempotency key payload conflict/i,
+  );
+  await db.unsafe("reset role");
+  const stockAfterPartial = await db.unsafe(
+    "select quantity_on_hand from public.inventory_balances where product_id=$1 and warehouse_id=$2",
+    [productId,receivingWarehouseId],
+  );
+  assert.equal(Number(stockAfterPartial[0].quantity_on_hand),openingOnHand+1.25,
+    "a repeated partial receipt must not double-post the quantity");
+  const receivingTaskRows = await db.unsafe(
+    "select id,status from public.ai_tasks where organization_id=$1 and source_event_key=$2",
+    [organizationId,"purchase-order-receiving:"+purchaseOrder.id],
+  );
+  assert.equal(receivingTaskRows.length,1,"submitted purchase order must produce one idempotent warehouse task");
+  assert.ok(["pending","in_progress"].includes(receivingTaskRows[0].status),"partial receipt must leave the receiving task open");
+  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const finalReceiptResult = await db.unsafe(
+    "select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text) as result",
+    [purchaseOrder.id,db.json([{item_id:poItemId,quantity:0.75}]),"CI final physical receipt","ci-purchase-receipt-key-000002"],
+  );
+  assert.equal(finalReceiptResult[0].result.purchase_order.status,"received");
+  assert.equal(Number(finalReceiptResult[0].result.purchase_order.items[0].quantity_received),2);
+  await expectFailure(
+    "ordinary customer cannot read the purchase-order inbox",
+    () => db.unsafe("select public.fetch_purchase_orders()"),
+    /admin or manager role required/i,
+  );
+  await db.unsafe("reset role");
+  const finalStock = await db.unsafe(
+    "select quantity_on_hand from public.inventory_balances where product_id=$1 and warehouse_id=$2",
+    [productId,receivingWarehouseId],
+  );
+  assert.equal(Number(finalStock[0].quantity_on_hand),openingOnHand+2,
+    "partial and final receipt quantities must each post exactly once to inventory");
+  const purchaseMovements = await db.unsafe(
+    "select count(*)::int as count from public.inventory_movements where reference_type='purchase_receipt' and reference_id=any($1::uuid[])",
+    [[partialReceipt.receipt.id,finalReceiptResult[0].result.receipt.id]],
+  );
+  assert.equal(purchaseMovements[0].count,2,"each persisted receipt line must create one auditable inventory movement");
+  const purchaseState = await db.unsafe("select status from public.purchase_orders where id=$1",[purchaseOrder.id]);
+  assert.equal(purchaseState[0].status,"received");
+  const completedReceivingTask = await db.unsafe(
+    "select id,status,resolution_note from public.ai_tasks where organization_id=$1 and source_event_key=$2",
+    [organizationId,"purchase-order-receiving:"+purchaseOrder.id],
+  );
+  assert.equal(completedReceivingTask.length,1,"receipt lifecycle must not duplicate its task");
+  assert.equal(completedReceivingTask[0].status,"completed","full receipt should close the associated warehouse task");
+  const purchaseAudit = await db.unsafe(
+    "select action from public.audit_logs where organization_id=$1 and entity_type='purchase_order' and entity_id=$2",
+    [organizationId,purchaseOrder.id],
+  );
+  assert.ok(purchaseAudit.some((row) => row.action==="purchase_order.created"));
+  assert.ok(purchaseAudit.some((row) => row.action==="purchase_order.submitted"));
+  process.stdout.write("PASS purchase orders: tenant-scoped commands, idempotent create/receipt, unknown-cost handling, partial/full stock posting, task-center integration and audit evidence\\n");
+
+
   await db.unsafe("update public.orders set status='processing' where id=$1", [order.id]);
   await db.unsafe("update public.orders set status='shipped' where id=$1", [order.id]);
   const stockAfterShipment = await db.unsafe(

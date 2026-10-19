@@ -361,7 +361,7 @@ DECLARE
   v_line jsonb; v_item public.purchase_order_items%ROWTYPE;
   v_item_id uuid; v_qty numeric(15,3); v_seen uuid[]:=ARRAY[]::uuid[];
   v_receipt_id uuid; v_receipt_number text; v_existing public.purchase_receipts%ROWTYPE;
-  v_fingerprint text; v_total numeric(15,2):=0; v_costs_complete boolean:=true;
+  v_fingerprint text; v_total numeric(15,2):=0; v_line_total numeric(15,2); v_costs_complete boolean:=true;
   v_balance public.inventory_balances%ROWTYPE; v_new_available numeric(15,3);
 BEGIN
   IF auth.uid() IS NULL OR NOT public.purchase_orders_can_manage() THEN
@@ -503,7 +503,7 @@ BEGIN
 END;
 $function$;
 DROP TRIGGER IF EXISTS operational_tasks_purchase_order_event ON public.purchase_orders;
-CREATE TRIGGER operational_tasks_purchase_order_event AFTER INSERT OR UPDATE OF status ON public.purchase_orders
+CREATE TRIGGER operational_tasks_purchase_order_event AFTER INSERT OR UPDATE ON public.purchase_orders
 FOR EACH ROW EXECUTE FUNCTION public.operational_tasks_from_purchase_order();
 
 REVOKE ALL ON FUNCTION public.create_purchase_order(uuid,uuid,jsonb,text,text) FROM PUBLIC,anon;

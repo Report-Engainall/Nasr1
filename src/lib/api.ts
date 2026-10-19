@@ -1,6 +1,7 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
 import { parseStoreExecutiveAnalytics, type StoreExecutiveAnalytics } from './executive-analytics';
 import { parseStaffCustomer360Summary, type StaffCustomer360Summary } from './customer-360-summary';
+import { parsePurchaseOrder, parsePurchaseOrders, type PurchaseOrder } from './purchase-orders';
 import { countLowStockBalances } from './inventory-metrics';
 import { retryRead } from './retry';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
@@ -1583,4 +1584,115 @@ export async function fetchStaffCustomer360Summary(customerId: string): Promise<
     throw new Error('معرّف العميل في استجابة الخادم لا يطابق الطلب.');
   }
   return summary;
+}
+
+
+// ─── Purchase orders and atomic inventory receiving ───
+const purchaseOrderUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const purchaseIdempotencyKey = /^[A-Za-z0-9_-]{16,128}$/;
+export type PurchaseOrderLineCommand = { product_id: string; quantity: number; unit_cost: number | null };
+export type PurchaseReceiptLineCommand = { item_id: string; quantity: number };
+export type PurchaseOrderCommandResult = { purchase_order: PurchaseOrder; idempotent_replay: boolean };
+export type PurchaseReceiptCommandResult = {
+  purchase_order: PurchaseOrder;
+  receipt: { id: string; receipt_number: string; purchase_order_id: string; received_at: string };
+  idempotent_replay: boolean;
+};
+
+function assertPurchaseUuid(value: string, label: string): void {
+  if (!purchaseOrderUuid.test(value)) throw new Error(label + ' غير صالح.');
+}
+function assertPurchaseKey(value: string, label: string): void {
+  if (!purchaseIdempotencyKey.test(value)) throw new Error(label + ' غير صالح.');
+}
+function parsePurchaseCommand(value: unknown): PurchaseOrderCommandResult {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('لم يؤكد الخادم نتيجة أمر الشراء.');
+  const row=value as Record<string,unknown>;
+  return {
+    purchase_order: parsePurchaseOrder(row.purchase_order),
+    idempotent_replay: row.idempotent_replay === true,
+  };
+}
+export async function fetchPurchaseOrders(): Promise<PurchaseOrder[]> {
+  const { data, error } = await supabase.rpc('fetch_purchase_orders');
+  if (error) throw error;
+  return parsePurchaseOrders(data);
+}
+export async function createPurchaseOrder(input: {
+  supplierId: string; warehouseId: string; lines: PurchaseOrderLineCommand[]; notes: string; idempotencyKey: string;
+}): Promise<PurchaseOrderCommandResult> {
+  assertPurchaseUuid(input.supplierId,'معرّف المورد');
+  assertPurchaseUuid(input.warehouseId,'معرّف المخزن');
+  assertPurchaseKey(input.idempotencyKey,'مفتاح منع تكرار أمر الشراء');
+  if (!input.lines.length || input.lines.length>100) throw new Error('أمر الشراء يجب أن يحتوي من صنف واحد إلى 100 صنف.');
+  if (input.notes.trim().length>2000) throw new Error('ملاحظات أمر الشراء لا تتجاوز 2000 حرف.');
+  const seen=new Set<string>();
+  for (const line of input.lines) {
+    assertPurchaseUuid(line.product_id,'معرّف الصنف');
+    if (seen.has(line.product_id)) throw new Error('لا تكرر الصنف نفسه؛ ادمج كميته في سطر واحد.');
+    seen.add(line.product_id);
+    if (!Number.isFinite(line.quantity) || line.quantity<=0 || line.quantity>999999999999.999 ||
+        !Number.isSafeInteger(Math.round(line.quantity*1000)) || Math.round(line.quantity*1000)!==line.quantity*1000) {
+      throw new Error('كمية الشراء يجب أن تكون موجبة وبحد أقصى ثلاث منازل عشرية.');
+    }
+    if (line.unit_cost!==null && (!Number.isFinite(line.unit_cost) || line.unit_cost<0 || line.unit_cost>9999999999999.99 ||
+        !Number.isSafeInteger(Math.round(line.unit_cost*100)) || Math.round(line.unit_cost*100)!==line.unit_cost*100)) {
+      throw new Error('تكلفة الوحدة يجب أن تكون غير سالبة وبحد أقصى منزلتين عشريتين، أو اتركها غير مسجلة.');
+    }
+  }
+  const {data,error}=await supabase.rpc('create_purchase_order',{
+    p_supplier_id:input.supplierId,p_warehouse_id:input.warehouseId,
+    p_lines:input.lines,p_notes:input.notes.trim()||null,p_idempotency_key:input.idempotencyKey,
+  });
+  if(error) throw error;
+  return parsePurchaseCommand(data);
+}
+export async function submitPurchaseOrder(purchaseOrderId:string):Promise<PurchaseOrderCommandResult> {
+  assertPurchaseUuid(purchaseOrderId,'معرّف أمر الشراء');
+  const {data,error}=await supabase.rpc('submit_purchase_order',{p_purchase_order_id:purchaseOrderId});
+  if(error) throw error;
+  return parsePurchaseCommand(data);
+}
+export async function cancelPurchaseOrder(purchaseOrderId:string,reason:string):Promise<PurchaseOrderCommandResult> {
+  assertPurchaseUuid(purchaseOrderId,'معرّف أمر الشراء');
+  const note=reason.trim();
+  if(note.length<3||note.length>1000) throw new Error('سبب الإلغاء مطلوب (3 إلى 1000 حرف).');
+  const {data,error}=await supabase.rpc('cancel_purchase_order',{p_purchase_order_id:purchaseOrderId,p_reason:note});
+  if(error) throw error;
+  return parsePurchaseCommand(data);
+}
+export async function receivePurchaseOrder(input:{
+  purchaseOrderId:string;lines:PurchaseReceiptLineCommand[];notes:string;idempotencyKey:string;
+}):Promise<PurchaseReceiptCommandResult>{
+  assertPurchaseUuid(input.purchaseOrderId,'معرّف أمر الشراء');
+  assertPurchaseKey(input.idempotencyKey,'مفتاح منع تكرار الاستلام');
+  if(!input.lines.length||input.lines.length>100) throw new Error('اختر من بند واحد إلى 100 بند للاستلام.');
+  if(input.notes.trim().length>2000) throw new Error('ملاحظات الاستلام لا تتجاوز 2000 حرف.');
+  const seen=new Set<string>();
+  for(const line of input.lines){
+    assertPurchaseUuid(line.item_id,'معرّف بند أمر الشراء');
+    if(seen.has(line.item_id)) throw new Error('لا تكرر بند أمر الشراء داخل إيصال واحد.');
+    seen.add(line.item_id);
+    if(!Number.isFinite(line.quantity)||line.quantity<=0||line.quantity>999999999999.999||
+       !Number.isSafeInteger(Math.round(line.quantity*1000))||Math.round(line.quantity*1000)!==line.quantity*1000) {
+      throw new Error('كمية الاستلام يجب أن تكون موجبة وبحد أقصى ثلاث منازل عشرية.');
+    }
+  }
+  const {data,error}=await supabase.rpc('receive_purchase_order',{
+    p_purchase_order_id:input.purchaseOrderId,p_lines:input.lines,
+    p_notes:input.notes.trim()||null,p_idempotency_key:input.idempotencyKey,
+  });
+  if(error) throw error;
+  if(data===null||typeof data!=='object'||Array.isArray(data)) throw new Error('لم يؤكد الخادم نتيجة الاستلام.');
+  const row=data as Record<string,unknown>;
+  const receipt=row.receipt;
+  if(receipt===null||typeof receipt!=='object'||Array.isArray(receipt)) throw new Error('بيانات إيصال الاستلام غير صالحة.');
+  const raw=receipt as Record<string,unknown>;
+  if(typeof raw.id!=='string'||typeof raw.receipt_number!=='string'||typeof raw.purchase_order_id!=='string'||
+     typeof raw.received_at!=='string'||!Number.isFinite(Date.parse(raw.received_at))) throw new Error('بيانات إيصال الاستلام غير صالحة.');
+  return {
+    purchase_order:parsePurchaseOrder(row.purchase_order),
+    receipt:{id:raw.id,receipt_number:raw.receipt_number,purchase_order_id:raw.purchase_order_id,received_at:raw.received_at},
+    idempotent_replay:row.idempotent_replay===true,
+  };
 }
