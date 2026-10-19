@@ -1372,6 +1372,19 @@ async function main() {
   assert.equal(Number(expectedAccountantRetailRows[0].price), 1234, "accountant fixture's authoritative retail price is distinct from base_price");
   await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
   await db.unsafe("set role authenticated");
+  const accountantRoleContext = await db.unsafe(`
+    select p.id, p.auth_user_id, p.is_active, p.organization_id,
+           coalesce(array_agg(r.role order by r.role) filter (where r.role is not null), ARRAY[]::text[]) as roles
+      from public.profiles p
+      left join public.user_roles r on r.profile_id=p.id
+     where p.auth_user_id=auth.uid()
+     group by p.id,p.auth_user_id,p.is_active,p.organization_id
+  `);
+  assert.equal(accountantRoleContext.length, 1, "accountant JWT must resolve to exactly one profile");
+  assert.equal(accountantRoleContext[0].id, accountantProfileId, "accountant JWT resolves to the intended accountant profile");
+  assert.ok(accountantRoleContext[0].roles.includes("accountant"), "accountant profile must carry the accountant role");
+  assert.ok(!accountantRoleContext[0].roles.some((role) => ["admin","manager","staff"].includes(role)),
+    "finance-only accountant fixture must not inherit operational roles");
   const accountantResolvedPrices = await db.unsafe(
     "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],$2::numeric)",
     [[accountantPriceProductId], 1],
