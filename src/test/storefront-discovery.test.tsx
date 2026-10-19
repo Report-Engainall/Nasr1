@@ -162,7 +162,7 @@ describe("customer storefront saved discovery", () => {
     expect(catalog.host.querySelector(".sf-product-price")?.textContent).toBe("السعر حسب سياسة حسابك");
   });
 
-  it("shows only a validated server price when catalog display is enabled", async () => {
+  it("shows catalog amounts when the organization display setting is enabled", async () => {
     mocks.settings = { show_price_on_cards: true };
     const catalog = await mountAt("/products");
     expect(catalog.host.textContent).not.toContain("السعر حسب سياسة حسابك");
