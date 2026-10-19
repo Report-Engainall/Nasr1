@@ -113,7 +113,7 @@ jobs:
           fi
           for route in \
             /login /register /forgot-password /cart /checkout /orders /register /forgot-password /invoices /statement /quotes /assistant \
-            /products /invite/ci-token /admin /admin/orders /admin/products /admin/audit /admin/stock-count /admin/finance /admin/data /manifest.webmanifest /sw.js; do
+            /store /catalog /collections /offers /products /invite/ci-token /admin /admin/orders /admin/products /admin/audit /admin/stock-count /admin/finance /admin/data /manifest.webmanifest /sw.js; do
             status=$(curl --silent --connect-timeout 2 --max-time 5 --output /tmp/aghbari-preview-route.html --write-out "%{http_code}" "http://127.0.0.1:4173$route" || true)
             if [ "$status" != "200" ]; then
               echo "Production preview expected HTTP 200 from $route, received $status"
@@ -129,6 +129,10 @@ jobs:
             "/register|إنشاء حساب تجاري" \
             "/forgot-password|استعادة كلمة المرور" \
             "/admin/audit|سجل التدقيق" \
+            "/store|المتجر" \\
+            "/catalog|الكتالوج" \\
+            "/collections|التصنيفات" \\
+            "/offers|العروض" \\
             "/products|متجر الأغبري" \
             "/invite/ci-token|قبول دعوة الشركة"; do
             route="${route_spec%%|*}"

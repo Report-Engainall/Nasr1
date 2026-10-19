@@ -11,11 +11,13 @@ const mocks = vi.hoisted(() => ({
   fetchStorefrontPromotions: vi.fn(),
   fetchSettingsMap: vi.fn(),
   fetchStorefrontAnnouncements: vi.fn(),
+  categories: [{ id: "category-food", name: "مواد غذائية", description: "مواد غذائية أساسية", sort_order: 1, is_active: true }],
+  promotions: [{ id: "promotion-1", title: "حملة السكر", description: "عرض منشور", discount_type: "percentage", discount_value: 10, product_ids: ["product-2"], category_ids: [], start_date: "2026-10-01", end_date: "2026-10-31", is_active: true, created_at: "2026-10-01T00:00:00Z" }],
   user: null as null | { isStaff: boolean },
   acceptCompanyInvitation: vi.fn(async (_token: string) => ({ company_name: 'شركة الاختبار', member_role: 'buyer' as const })),
   products: [
     { id: "product-1", name: "Rice", item_code: "SKU-001", barcode: null, description: null, unit: "carton", base_price: 1000, cost_price: 600, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1000, wholesale_price: 900, inventory: { id: "inv-1", product_id: "product-1", warehouse_id: "warehouse-1", quantity_on_hand: 20, quantity_reserved: 0, quantity_available: 20, reorder_point: 0 } },
-    { id: "product-2", name: "Sugar", item_code: "SKU-002", barcode: null, description: null, unit: "carton", base_price: 1200, cost_price: 800, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1200, wholesale_price: 1100, inventory: { id: "inv-2", product_id: "product-2", warehouse_id: "warehouse-1", quantity_on_hand: 15, quantity_reserved: 0, quantity_available: 15, reorder_point: 0 } },
+    { id: "product-2", name: "Sugar", item_code: "SKU-002", barcode: null, description: null, unit: "carton", base_price: 1200, cost_price: 800, min_stock: 0, status: "active", category_id: "category-food", category: { id: "category-food", name: "مواد غذائية" }, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1200, wholesale_price: 1100, inventory: { id: "inv-2", product_id: "product-2", warehouse_id: "warehouse-1", quantity_on_hand: 15, quantity_reserved: 0, quantity_available: 15, reorder_point: 0 } },
     { id: "product-3", name: "Oil", item_code: "SKU-003", barcode: null, description: null, unit: "carton", base_price: 1500, cost_price: 1000, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1500, wholesale_price: 1400, inventory: { id: "inv-3", product_id: "product-3", warehouse_id: "warehouse-1", quantity_on_hand: 12, quantity_reserved: 0, quantity_available: 12, reorder_point: 0 } },
     { id: "product-4", name: "Beans", item_code: "SKU-004", barcode: null, description: null, unit: "carton", base_price: 900, cost_price: 500, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 900, wholesale_price: 850, inventory: { id: "inv-4", product_id: "product-4", warehouse_id: "warehouse-1", quantity_on_hand: 9, quantity_reserved: 0, quantity_available: 9, reorder_point: 0 } },
   ],
@@ -35,8 +37,9 @@ vi.mock("@/lib/api", () => ({
 vi.mock("@/lib/useFetch", () => ({
   useFetch: (fetcher: unknown) => {
     if (fetcher === mocks.fetchProducts) return { data: mocks.products, loading: false, error: null, refetch: vi.fn() };
-    if (fetcher === mocks.fetchCategories) return { data: [], loading: false, error: null, refetch: vi.fn() };
-    if (fetcher === mocks.fetchPromotions || fetcher === mocks.fetchStorefrontPromotions) return { data: [], loading: false, error: null, refetch: vi.fn() };
+    if (fetcher === mocks.fetchCategories) return { data: mocks.categories, loading: false, error: null, refetch: vi.fn() };
+    if (fetcher === mocks.fetchPromotions) return { data: [], loading: false, error: null, refetch: vi.fn() };
+    if (fetcher === mocks.fetchStorefrontPromotions) return { data: mocks.promotions, loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchSettingsMap) return { data: {}, loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchStorefrontAnnouncements) return { data: [], loading: false, error: null, refetch: vi.fn() };
     return { data: null, loading: false, error: null, refetch: vi.fn() };
@@ -150,6 +153,37 @@ describe("customer storefront saved discovery", () => {
     expect(catalog.host.textContent).not.toContain("Beans");
     const search = catalog.host.querySelector<HTMLInputElement>(".sf-search input");
     expect(search?.value).toBe("Sugar");
+  });
+
+  it("opens the catalog alias with query and category filters from the URL", async () => {
+    const catalog = await mountAt("/catalog?q=Sugar&category=category-food");
+    expect(catalog.host.textContent).toContain("المنتجات");
+    expect(catalog.host.textContent).toContain("Sugar");
+    expect(catalog.host.textContent).not.toContain("Beans");
+    const search = catalog.host.querySelector<HTMLInputElement>(".sf-search input");
+    expect(search?.value).toBe("Sugar");
+  });
+
+  it("uses published category data to link directly to a filtered catalog", async () => {
+    const collections = await mountAt("/collections");
+    expect(collections.host.textContent).toContain("تصنيفات المنتجات");
+    expect(collections.host.textContent).toContain("مواد غذائية");
+    expect(collections.host.textContent).toContain("1 صنف");
+    const link = collections.host.querySelector<HTMLAnchorElement>('a[href*="/catalog?category="]');
+    expect(link?.getAttribute("href")).toContain("category-food");
+  });
+
+  it("shows real published promotions and discloses server-side final pricing", async () => {
+    const offers = await mountAt("/offers");
+    expect(offers.host.textContent).toContain("العروض المنشورة");
+    expect(offers.host.textContent).toContain("حملة السكر");
+    expect(offers.host.textContent).toContain("Sugar · SKU-002");
+    expect(offers.host.textContent).toContain("الخصم الفعلي وسعر الفئة يُحسبان على الخادم");
+  });
+
+  it("opens the canonical store alias", async () => {
+    const store = await mountAt("/store");
+    expect(store.host.textContent).toContain("المنتجات");
   });
 
   it("persists wishlist and caps comparison at three across direct route loads", async () => {

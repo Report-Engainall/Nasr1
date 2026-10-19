@@ -34,6 +34,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   initialView?: StorefrontInitialView;
   initialProductId?: string;
   initialQuery?: string;
+  initialCategoryId?: string;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -57,7 +58,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartRestored, setCartRestored] = useState(false);
   const [query, setQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
-  const [activeCat, setActiveCat] = useState<string>('');
+  const [activeCat, setActiveCat] = useState<string>(initialCategoryId ?? '');
   const [matrixQuantities, setMatrixQuantities] = useState<Record<string, string>>({});
   const [matrixFeedback, setMatrixFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -72,6 +73,10 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   useEffect(() => {
     setQuery(normalizeCatalogSearchQuery(initialQuery ?? ''));
   }, [initialQuery]);
+
+  useEffect(() => {
+    setActiveCat(initialCategoryId ?? '');
+  }, [initialCategoryId]);
 
   useEffect(() => {
     const online = () => setIsOnline(true);
