@@ -542,10 +542,37 @@
 - Evidence levels: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN (no live authenticated browser session; CI smoke only); PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN. No new dependency or paid service. Details: `ORIGINAL_SPEC_FEATURE_INTEGRATION_2026-10-19.md`.
 - Parent task `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains OPEN; the purchase workflow is one concrete gap closed, not full project completion.
 
-### 2026-10-19 — Atomic multi-item inventory transfer
+## 2026-10-19 — NASR1-ORIGINAL-SPEC-ACCOUNTING-GENERAL-LEDGER-003 — CI PASS exact SHA
 
-- Donor: `Report-Engainall/aghbari-commerce`, source `src/services/inventory.ts`, source commit `00d7446bba9652ea40178a08b00c9da9a2bba8a1`, source blob `3506707a656e0db491b860d5e11ad28daeded5cf`.
-- Decision: ADAPT_IN_PLACE. Nasr1 already uses `transfer_inventory` for single-product operations; donor's multi-line contract was implemented as a separate RPC to avoid changing the existing contract.
-- Target files include `supabase/migrations/20261019240000_inventory_transfer_batches.sql`, `src/lib/inventory-transfer-batch.ts`, `src/lib/api.ts`, `src/components/InventoryTransferHistoryPage.tsx`, `src/routes/admin_.inventory-transfers.tsx`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, the new batch/history tests, DB acceptance script, workflow smoke assertions, and integration ledger.
-- Added explicit server-side history RPC; removed direct authenticated table reads for batch headers; defined typed contracts for both new RPCs.
-- Verification: not yet PASS. CI attempts uncovered and led to fixes for migration version uniqueness, UUID-format overconstraint, malformed duplicated SQL fragment, and the DB harness's role boundary during inspection. Current record remains pending exact-SHA CI.
+- Main remained unchanged at `0c089585d27665680dcc4ad2520dd4affc875804`; isolated branch `feature/accounting-general-ledger-20261019`, PR [#4](https://github.com/Report-Engainall/Nasr1/pull/4).
+- Code SHA [`190497591d6451ca69d26da41034a3e5558fd58f`](https://github.com/Report-Engainall/Nasr1/commit/190497591d6451ca69d26da41034a3e5558fd58f) passed exact-SHA CI [39314610222](https://github.com/Report-Engainall/Nasr1/actions/runs/39314610222).
+- Results: 42/42 test files, 330/330 tests; PostgreSQL 17 migration and acceptance suite; lint; build; production preview smoke (4173); dev smoke (5173). The new DB acceptance printed PASS for chart idempotency, two-decimal money, balanced draft/post, replay safety, manager-only draft cancellation, audit events, trial-balance totals, tenant scoping and role/customer denials.
+- Earlier CI failures were diagnosed from their actual logs and fixed: (1) summary counted journal lines, not distinct entries; changed to count distinct entry IDs. (2) missing closing `$$` in the void function, caused by a JS replacement string treating `$$` as `$`; corrected the terminator and re-ran PostgreSQL 17. (3) audit assertion ran under accountant role; test now queries audit events while the manager identity is active, keeping RLS narrow.
+- Active implementation comprises `supabase/migrations/20261020010000_accounting_general_ledger.sql`, `src/lib/general-ledger.ts`, `src/components/GeneralLedgerWorkspace.tsx`, the active finance workspace integration, Vitest tests and database acceptance. The unit is target-native; no donor React Router screens or legacy SQL were copied.
+- Safety: no historical balances/entries were generated. Automatic ledger posting from future invoices, payments, cash expenses, purchase receipts or Onyx data was not claimed; source-event integration/reconciliation is a follow-up.
+- Status: IMPLEMENTED=YES; INTEGRATED=YES on PR branch; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN. Parent task `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains OPEN.
+
+
+
+## 2026-10-19 — NASR1-BOLT-ARCHIVE-DELTA-001 — CLOSED
+
+- Reused original ZIP integrity evidence in Action 39294387493; archive bytes were not downloaded, rehashed, CRC-checked, extracted, or re-enumerated again.
+- Resolved the 160 pending decision rows (122 changed-content / 64 unique paths and 38 missing-candidate / 19 unique paths). All 717 rows now have target decisions: 548 ALREADY_PRESENT_EXACT, 8 EXCLUDED_SECURITY, 1 prior ADAPT_AND_INTEGRATE, 87 ALREADY_PRESENT_BETTER, 33 KEEP_AS_REFERENCE, 40 INCOMPATIBLE_WITH_EVIDENCE. Pending review count is 0. See ARCHIVE_FEATURE_INTEGRATION_2026-10-19.md and ARCHIVE_MEMBERS.csv.
+- Saved the restored master Arabic requirement specification at docs/canonical/AGHBARI_COMMERCE_UNIFIED_MERCHANT_INTELLIGENCE_AND_EXECUTION_MASTER_AR_2026-10-17.txt. Legacy archive tests/execution are NOT RUN; no legacy SQL applied; browser and production proof NOT RUN.
+
+## 2026-10-19 — NASR1-ORIGINAL-SPEC-FINANCIAL-STATEMENTS-003 — PASS exact SHA
+
+- Initial implementation SHA 78cd809a4ce1d6486dfc2ea48219dc435bb3346d failed Action 39319700563: 3 test assertions failed (date error-message regex, duplicate correct amount, brittle access-denial assertion). This failure remains recorded.
+- Intermediate commit 436806f9b221f884af859f0c37c6268494e462fe failed Action 39320053536 while those test-only assertion fixes had not yet been added.
+- Test corrections landed in 869f0909bda0524275834952f64e1ce1609e79c0. Exact-SHA Action 39320266809 passed: 44/44 files, 336/336 tests; frozen Bun lock verification; PostgreSQL 17 migration/acceptance; lint; build; preview 4173 and dev 5173 smoke.
+- Code: src/lib/financial-statements.ts and src/components/GeneralLedgerWorkspace.tsx. Tests: src/test/financial-statements.test.ts and src/test/general-ledger-statements-ui.test.tsx. Tests not run locally; browser/prod checks NOT RUN. main is still 0c089585d27665680dcc4ad2520dd4affc875804; PR #4 only. Next task NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004.
+
+
+## 2026-10-19 — NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004 — cash expense journals integrated
+
+- Code SHA `df43fb05e9e8a31a8b45e40d38a94f85ff12691b` passed [Actions 39321543032](https://github.com/Report-Engainall/Nasr1/actions/runs/39321543032): 45/45 Vitest files, 339/339 tests, frozen Bun lock, migration + repo-level DB acceptance on PostgreSQL 17, lint, build, production-preview smoke 4173 and dev smoke 5173.
+- This current exact commit adds the target-native migration `20261020020000_accounting_source_posting.sql`, UI component `CashExpenseJournalLinker.tsx`, integration into `GeneralLedgerWorkspace.tsx`, and UI tests. Source amount/date/currency are read from a real source row under tenant/finance-role authorization. Explicit active same-org expense and asset accounts are required. New journal is draft-only until a user explicitly posts; repeats resolve to the existing equivalent source journal or reject mapping conflict. FX currencies are blocked until a documented policy exists.
+- Trigger guard rejects posting if the linked source is void/changed or journal lines mismatch. Voiding source with a linked draft voids that draft; voiding source with a posted source journal writes a balanced reversal transaction, preserves history and audits the action. Concurrency patch removes source-row lock from a journal-first posting trigger; it was included in the exact SHA above.
+- The first execution SHA `191290f8aaebf60715d1bb42c8b9eda394145b0a` was run as Action 39321342608 — SUCCESS. A test-selector refinement was added at `cfc374eb00c481657ab959df8a3a1097d9036caf`, Action 39321447496 — SUCCESS. The lock-order hardening was added at final tested SHA `df43fb05e9e8a31a8b45e40d38a94f85ff12691b`, Action 39321543032 — SUCCESS. No prior failure is erased; financial-statement assertion failures on earlier SHAs are separately documented above.
+- Important test boundary: new UI path has Vitest coverage; migration applies and overall Postgres 17 acceptance passed. A dedicated database workflow test of the new create/post/reversal triggers has NOT RUN because `scripts/test-database-migrations.mjs` is protected and currently owned by P1's PR #3. Record a coordination request before touching it; do not imply it was covered by generic migration acceptance.
+- Browser, production migration/deployment and real authenticated finance-account proof: NOT RUN. Main remains unchanged. Next ID `NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006`.

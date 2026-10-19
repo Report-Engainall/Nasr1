@@ -40,6 +40,7 @@ import {
 import { fetchProducts, fetchResolvedProductPrices } from "@/lib/api";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
+import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
 import { fetchCustomerAddresses, saveCustomerAddress, deleteCustomerAddress, type CustomerAddress, type CustomerAddressInput } from "@/lib/customer-addresses";
 import { fetchCustomerCompanyContacts, saveCustomerCompanyContact, deleteCustomerCompanyContact, type CustomerCompanyContact, type CustomerCompanyContactInput } from "@/lib/customer-company-contacts";
 
@@ -2566,6 +2567,7 @@ export function StaffFinancePage() {
         )}
       </section>
       <CashExpenseLedger />
+      <GeneralLedgerWorkspace />
     </section>
   );
 }
