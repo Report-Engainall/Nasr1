@@ -106,6 +106,20 @@ describe('customer-scoped offline cart drafts', () => {
     expect(window.localStorage.getItem(LEGACY_RESTORE)).toBeNull();
   });
 
+  it('reports persistence failure so callers do not claim a cart was queued', () => {
+    const failingStorage = {
+      getItem: () => null,
+      setItem: () => { throw new Error('storage unavailable'); },
+      removeItem: () => undefined,
+    };
+    expect(saveOfflineCartDraft(failingStorage, 'customer-a', [
+      { product_id: 'rice', quantity: 2 },
+    ])).toBe(false);
+    expect(mergeOfflineCartDraft(failingStorage, 'customer-a', [
+      { product_id: 'rice', quantity: 1 },
+    ])).toBeNull();
+  });
+
   it('persists only normalized product IDs and quantities, never price, total, tenant or customer data', () => {
     saveOfflineCartDraft(window.localStorage, 'customer-b', [
       { product_id: 'rice', quantity: 2, unit_price: 1200, line_total: 2400, organization_id: 'another-org', customer_id: 'other-customer' },
