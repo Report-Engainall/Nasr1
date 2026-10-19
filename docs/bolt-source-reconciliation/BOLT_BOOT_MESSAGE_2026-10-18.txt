@@ -1,11 +1,8 @@
-هذه الوثيقة القديمة أصبحت مُوجّهًا فقط. لا تبدأ التنفيذ منها منفردة ولا تنفّذ نطاق المبرمجين معًا.
+هذه الرسالة القديمة أصبحت نقطة إحالة فقط. لا تبدأ منها عملًا شاملاً ولا تنفذ النطاقين.
 
-1) اقرأ `DUAL_PROGRAMMER_OPERATING_PROTOCOL.md`.
-2) اختر رسالة الإقلاع حسب دورك المعيّن فقط:
-- المبرمج 1: `docs/bolt-source-reconciliation/PROGRAMMER_1_BOOT_MESSAGE_2026-10-19.txt`
-- المبرمج 2: `docs/bolt-source-reconciliation/PROGRAMMER_2_BOOT_MESSAGE_2026-10-19.txt`
-3) اقرأ تقرير دورك ثم `WORK_COORDINATION.md`. لا تعِد عملًا موثقًا ما لم يتغير المصدر أو SHA أو يظهر فشل/تراجع.
-4) لا تعدّل `main` مباشرة. استخدم فرع دورك وPR، وأعد التحقق على SHA المطابق.
-5) لا تسأل المالك إعادة شرح المهمة. واصل من `next_task_id` أو `next_source_task_id` في تقرير دورك. لا ترسل خطة بدل تغيير برمجي موصول واختبارات وأدلة.
+اقرأ docs/bolt-source-reconciliation/DUAL_PROGRAMMER_OPERATING_PROTOCOL.md ثم رسالة دورك فقط:
+- المبرمج 1: docs/bolt-source-reconciliation/PROGRAMMER_1_BOOT_MESSAGE_2026-10-19.txt
+- المبرمج 2 (ChatGPT): docs/bolt-source-reconciliation/PROGRAMMER_2_BOOT_MESSAGE_2026-10-19.txt
 
-المشروع الهدف الوحيد: https://github.com/Report-Engainall/Nasr1
+استخدم تقرير دورك وWORK_COORDINATION.md. لا تعِد فحص/جلب/تصفح موثق بنفس SHA، ولا تعدل main مباشرة. نفّذ كودًا موصولًا واختبره، ثم حدّث تقريرك وسجل دليلك.
+المستودع الهدف الوحيد: https://github.com/Report-Engainall/Nasr1

@@ -1,27 +1,21 @@
-# تقرير الاستئناف — المبرمج 1 (المواصفة والتنفيذ العام)
+# تقرير الاستئناف — المبرمج 1 / دمج مصادر المشاريع الثلاثة
 
-**آخر تحديث موثق:** 2026-10-19  
-**الهدف:** Report-Engainall/Nasr1 — التسليم إلى main عبر PR فقط.
+المستودع الهدف: Report-Engainall/Nasr1  
+ملكية التقرير: المبرمج 1 فقط.  
+task الحالي: NASR1-SOURCE-INTEGRATION-INV-TRANSFER-001.
 
-## خط الأساس المثبت
-- main HEAD: 0c089585d27665680dcc4ad2520dd4affc875804.
-- CI مطابق: [39311791227 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39311791227)، على SHA نفسه.
-- PR #4: [General Ledger](https://github.com/Report-Engainall/Nasr1/pull/4)، فرع feature/accounting-general-ledger-20261019، head a1ff5fc9a4c2486bc9cb51e8370d3bde35eccccd.
-- CI مطابق لـPR #4: [39315048042 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39315048042)، على head SHA نفسه. هذا دليل للفرع فقط، وليس دليل دمج إلى main.
-- المهمة الأم: NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002 لا تزال مفتوحة؛ تنفيذ دفتر الأستاذ لا يعني إكمال المواصفة.
+## نقطة الاستئناف المسجلة
+- main آخر رأس موثق: 0c089585d27665680dcc4ad2520dd4affc875804؛ CI [39311791227 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39311791227) كان مطابقًا لذلك الرأس وقت التسجيل. تحقق من metadata فقط لأن الرأس قد يتقدم.
+- PR #3 تحويل الدفعات: https://github.com/Report-Engainall/Nasr1/pull/3، فرع integration/inventory-transfer-batches-20261019-rebased، آخر head موثق bf31eea06d020955b0912d252087c72f98e023f5؛ CI [39314953094 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/39314953094). الدليل: `permission denied for table inventory_transfer_batches` أثناء فحص قاعدة البيانات. لا تغير grants/RLS لتجاوز الاختبار؛ افصل قراءة الاختبار المميزة عن negative test الذي يثبت منع authenticated من SELECT مباشر.
+- PR #2 نسخة قديمة مكررة: https://github.com/Report-Engainall/Nasr1/pull/2، ولا تدمجها. قارن فرقها الفريد مرة واحدة مع PR #3؛ احتفظ بالتغييرات الفريدة الصحيحة فقط ثم أغلق القديم بعد إثبات عدم فقد شيء.
+- فحص المصدر المسجل: Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1، src/services/inventory.ts، blob 3506707a656e0db491b860d5e11ad28daeded5cf، ونسخة READY_TO_REUSE لها blob مطابق. لا تعِد جلبها.
 
-## ما لا يعاد
-- لا تعِد تنفيذ دفتر الأستاذ أو إعادة كتابة ميزته، ولا تعِد الاختبارات نفسها ما دام head SHA وCI بلا تغيير.
-- لا تفحص المستودعات المانحة أو ملفات READY_TO_REUSE أو ZIPs؛ المبرمج 2 مسؤول عنها. قراراته تحفظ في تقريره والـledger.
-- لا تعِد الجرد الكامل للمسارات؛ استخدم CURRENT_EXECUTION_STATE والـCI المسجل، وافحص فقط أي مسار تغير أو فشل جديد.
+## المطلوب بعد إصلاح PR #3
+- أكمل عناصر SOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv للمصادر الثلاثة، بالترتيب من أول حالة PENDING/غير محسومة فقط.
+- لا تعِد قراءة blob له قرار موثق. لا تعِد فحص كل الفروع أو الجرد الكامل إذا لم تتغير قائمة المصدر/head. اقرأ اختلافات blobs الجديدة فقط.
+- أنت وحدك تعدل سجل دمج المصادر، جرد READY_TO_REUSE، وهذا التقرير. لا تعدل سجل الأرشيف أو الحالة التنفيذية أو تقرير المبرمج 2.
+- افحص ملفات PRs للمعرفة بالتداخل فقط؛ لا تدخل على نطاق Bolt archive ولا تنفذ بنود المواصفة التي لا ترتبط بميزة من مصدر مانح.
+- نفذ الميزة إلى حد route/service/schema/RLS/RPC/tests متصلة، وشغّل CI على SHA نفسه.
 
-## العمل التالي
-1. تحقق metadata فقط من حالة PR #4 وmain لأنهما قد يتغيران بعد هذا التقرير.
-2. عالج تنسيق تداخل الملفات المشتركة في WORK_COORDINATION، ثم ادمج PR واحدًا فقط بعد CI أخضر وحل أي تعارض؛ أعد تأسيس الفرع التالي على main الجديد.
-3. خذ next_task_id = NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002 من الحالة الحية، واختر فجوة غير مكتملة فعلًا في المواصفة وابدأ بتغيير برمجي ذي معنى لا تقرير.
-4. شغّل اختبار الفجوة، أصلح regression، ثم CI على SHA المطابق.
-
-## مطلوب عند كل حفظ
-- branch/base/head SHA، files changed، task ID، الاختبار والأمر والنتيجة، CI url المطابق، ما لم يكتمل، وnext_task_id واحد.
-- حدّث هذا التقرير وWORK_COORDINATION.md وCURRENT_EXECUTION_STATE.md وEXECUTION_LOG.md. لا تعدل سجل المصادر المملوك للمبرمج 2.
-- browser/production proof تبقى NOT RUN ما لم تشغّل فعليًا؛ لا تستنتجها من smoke.
+## ما يكتب في كل حفظ
+task ID، repo/ref/commit/blob/path، قرار، تبعيات، مسارات Nasr1 المتأثرة، أمر اختبار ونتيجة، رابط CI المطابق، الفشل وإصلاحه، next_source_task_id واحد.

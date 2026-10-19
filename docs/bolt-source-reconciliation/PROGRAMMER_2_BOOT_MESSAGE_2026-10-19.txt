@@ -1,24 +1,23 @@
-الدور: المبرمج 2 — مهندس دمج الميزات الناقصة من المصادر الثلاثة. لا تستولِ على عمل المبرمج 1 الخاص بالمواصفة الأصلية.
+أنت المبرمج 2 (ChatGPT): مسؤول عن فروقات أرشيفي Bolt أولًا، ثم تستكمل فورًا بقية المواصفة الأصلية. المبرمج 1 يعمل بالتوازي على دمج ميزات المستودعات الثلاثة؛ لا تكرر بحثه ولا تتعارض معه.
 
-الهدف الوحيد: https://github.com/Report-Engainall/Nasr1 . لا تعدل أي مصدر مانح ولا تستبدل المشروع.
+المشروع الوحيد: https://github.com/Report-Engainall/Nasr1 على main. لا تعدل المستودعات المانحة.
 
-ابدأ بقراءة:
+اقرأ:
 1. docs/bolt-source-reconciliation/DUAL_PROGRAMMER_OPERATING_PROTOCOL.md
 2. docs/bolt-source-reconciliation/WORK_COORDINATION.md
 3. docs/bolt-source-reconciliation/PROGRAMMER_2_CURRENT_REPORT.md
-4. SOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv (استهلك الصفوف والقرارات؛ لا تعِد التعداد/الجلب إذا كانت SHA نفسها).
+4. docs/bolt-source-reconciliation/BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md
+5. CURRENT_EXECUTION_STATE.md وEXECUTION_LOG.md
+6. ARCHIVE_MANIFEST.csv وARCHIVE_MEMBERS.csv وARCHIVE_FEATURE_INTEGRATION_2026-10-19.md
 
-التنفيذ المباشر من نقطة التوقف:
-- واصل PR #3 على الفرع integration/inventory-transfer-batches-20261019-rebased؛ آخر head موثق bf31eea06d020955b0912d252087c72f98e023f5، وCI رقم 39314953094 فشل بدليل permission denied للجدول inventory_transfer_batches خلال فحص test harness. لا تعِد بحث source transfer ولا إعادة كتابة شاشة السجل. أصلح طريقة الاختبار: reset role قبل قراءة البيانات كاختبار privileged، ثم set role authenticated فقط لاختبار أن القراءة المباشرة ممنوعة، ثم reset role. لا تمنح authenticated صلاحية SELECT على الجدول ولا تخفف RLS؛ المسار الصحيح للواجهة هو RPC list_inventory_transfer_history ذات حدود 500 وسياق المؤسسة الحالي.
-- افحص CI الفاشل المحدد في تقريرك ثم أصلح الملف المتسبب فقط. لا تنسخ migration أو API من المصدر؛ تكييف Nasr1 الحالي هو المقصود. اختبر الوحدة وقبول PostgreSQL ثم CI كامل على head SHA الجديد.
-- عالج PR #2 القديم المتداخل مع PR #3: قارن تغييرات الملفات مرة واحدة، احفظ فقط أي فرق فريد صالح لم يدمج، ثم أغلق PR #2 بعد إثبات أن PR #3 يغطيه أو تم نقل الفروق الفريدة. لا تدمج PR #2 القديم.
-- بعد نجاح ميزة النقل ودمجها، انتقل إلى أول عنصر غير محسوم في READY_TO_REUSE_FILE_AUDIT.csv/PROVENANCE_MANIFEST.csv. إذا كان القرار الحالي موثقًا لنفس source blob، لا تعِد قراءة محتواه. افحص فقط الأدلة الناقصة أو blob المتغير، وادمج/كيّف كل فائدة مثبتة غير موجودة في Nasr1.
-- المصادر المسموحة للمقارنة فقط: Aghbari-Technologies/aghbari-commerce-evolved، Report-Engainall/aghbari-commerce، Report-Engainall/aghbari-store.
-- لا تعدل CURRENT_EXECUTION_STATE.md أو EXECUTION_LOG.md أو WORK_COORDINATION.md. أعطِ المبرمج 1 خلاصة evidence قصيرة لتحديثها. أنت المالك الوحيد لـSOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv وPROGRAMMER_2_CURRENT_REPORT.md.
-- لا تعدل ملفًا مشتركًا يظهر في PR المبرمج 1 بالتزامن. سجّل patch واضحًا وانتظر دمج/تحرير المسار أو اعمل في ملفات مستقلة. لا تكرر استكشاف الملفات العامة.
-- لا تكتب مباشرة إلى main؛ لا reset/clean/force push؛ افتح PR صغيرًا قابلًا للاختبار وحدث الفرع نفسه بدل إنشاء فروع كل جلسة.
+ابدأ من next_task_id في تقريرك، لا من الصفر:
+- ZIPs تحققت سابقًا في Action 39294387493: Before_Failure 1,003,172 bytes, SHA-256 d59b3084a0b51e26646cf08ffc9239d2ee440298e9799f079827a4939d31b365؛ Restored_Current 997,589 bytes, SHA-256 9e012da1795cb9549413f78366c3bd6885c593e5a56e2fea10d4cf3fe810b214؛ مجموع 717 عضوًا، 340 مطابقًا، 18 متغيرًا، و1 Before-only. CRC/استخراج آمن اجتازا في action نفسه. لا تعِد تنزيل/حساب SHA/CRC/استخراج/تعداد الزوج ما لم يتغير مصدره أو يظهر نقص محدد في دليل سابق.
+- تحليل مبيعات المتجر الناقص في Bolt عُدّل مسبقًا داخل Nasr1 في commit 55c1d970496c69db36d01197a109a5afd7c6aa04، CI 39303848194 PASS على ذلك SHA. لا تكرر هذا الكود أو اختباره بلا defect جديد.
+- أكمل فقط الفروقات/الأعضاء الموسومة CHANGED أو BEFORE_ONLY أو PENDING في ARCHIVE_MEMBERS.csv التي لم يسجل لها قرار مكتمل وأثر هدف حقيقي. اربط كل عنصر بالملف الوظيفي المقابل في Nasr1؛ ادمج المفيد الغائب، وكيّف/ارفض غير الآمن أو المتكرر مع سبب ودليل. إذا انتهت المصفوفة، وثق اكتمالها بالدليل ثم انتقل مباشرة للمواصفة.
+- لا تعِد جلب أو تصفح أي مصدر من المستودعات الثلاثة التي يفحصها المبرمج 1؛ راجع تقريره وسجله فقط. لا تحرر مسار كود ظاهرًا في PRه؛ سجل lock/patch في WORK_COORDINATION واستخدم ملفات مستقلة.
+- بعد إكمال الأرشيف مباشرة، انتقل إلى المتطلبات المفتوحة في الوثيقة الأصلية باستخدام next_task_id الحي. المهمة الأم NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002. نفّذ واجهة/خدمة/DB/صلاحية/اختبارًا مترابطًا في كل دفعة، ثم استمر دون انتظار رسالة جديدة حتى تنتهي المتطلبات القابلة للتنفيذ.
+- يملك هذا الدور WORK_COORDINATION.md وCURRENT_EXECUTION_STATE.md وEXECUTION_LOG.md وARCHIVE_MANIFEST.csv وARCHIVE_MEMBERS.csv وARCHIVE_FEATURE_INTEGRATION_2026-10-19.md وPROGRAMMER_2_CURRENT_REPORT.md. لا تعدل SOURCE_INTEGRATION_LEDGER.csv أو READY_TO_REUSE_FILE_AUDIT.csv أو تقرير المبرمج 1.
+- لا تعمل مباشرة على main. استخدم فرعًا مستمرًا وPR؛ لا reset/clean/force-push. افحص HEAD/PR/CI metadata فقط لإثبات الحالة الحية، ولا تعيد أي فحص ساكن موثق.
+- الاختبارات غير المشغلة = NOT RUN. النجاح يجب أن يطابق SHA نفسه. حافظ على فشل الاختبار في السجل ثم أضف إصلاحه ونتيجته.
 
-بعد كل تغيير:
-- أضف قرار المصدر والبصمة والهدف والتبعيات والاختبار والنتيجة في ledger.
-- حدّث تقرير المبرمج 2 بما فُحص فعلًا، الروابط والبصمات، الأخطاء المعروفة، والـnext_source_task_id الوحيد.
-- شغّل الاختبارات ذات الصلة وCI الكامل؛ كل SHA جديد يتطلب دليلًا جديدًا. لا تقل إن الميزة مدمجة في main قبل إثبات merge ثم التحقق من main.
+سلّم كل دفعة بكود فعلي وربط واختبارات ودليل SHA+CI، ثم حدّث تقريرك والسجل واختر next_task_id واحدًا تلقائيًا. لا تطلب من المستخدم إعادة وصف المهمة.

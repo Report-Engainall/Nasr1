@@ -227,3 +227,13 @@
 - الحدود المفتوحة في المواصفة: لم ينفذ XLSX workbook؛ لم تُضف حقول الكمية/المخزون إلى شبكة/قالب الأسعار لأن عقد `ProductPriceGridRow` والـRPC الحالي لا يعيدان كمية مخزون. ملف CSV يحمل الأكواد في نصه مع الأصفار البادئة، ويطلب من المستخدم استيراد عمود الكود بنوع Text في Excel كي لا يحوله Excel تلقائيًا إلى رقم. لا تدّعِ أن القسم 6.2 مكتمل بالكامل.
 - في المحاولات الوسيطة أظهرت CI إخفاقي assertion في توقعات الاختبار ثم إخفاق lint بسبب `no-control-regex`; تم إصلاح التوقعات وتبسيط تعبير الحماية دون إسقاط اختبارات الأمان. التشغيل النهائي المذكور أعلاه نجح بعد الإصلاحات.
 - المهمة الأشمل ما زالت مفتوحة: `next_task_id = NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`. هذا تنفيذ CSV في شبكة الأسعار وليس إكمالًا لكل الواجهات.
+
+
+## 2026-10-19 — تشغيل دورين ومنع إعادة الاستكشاف
+- البروتوكول الوحيد: docs/bolt-source-reconciliation/DUAL_PROGRAMMER_OPERATING_PROTOCOL.md.
+- المبرمج 1 يدمج مصادر Aghbari-Technologies/aghbari-commerce-evolved وReport-Engainall/aghbari-commerce وReport-Engainall/aghbari-store، ويملك SOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv وPROGRAMMER_1_CURRENT_REPORT.md.
+- المبرمج 2 (ChatGPT) يحسم فروقات أرشيفي Bolt المثبتين أولًا، ثم يعود تلقائيًا إلى NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002؛ ويملك سجلات الأرشيف والحالة المشتركة وWORK_COORDINATION.md وPROGRAMMER_2_CURRENT_REPORT.md.
+- عدم إعادة الفحص: ZIPs سبق إثباتها في Action 39294387493 (717 عضوًا؛ 340 مطابقًا، 18 متغيرًا، 1 Before-only). ميزة get_store_executive_analytics سبق دمجها في 55c1d970496c69db36d01197a109a5afd7c6aa04 مع CI 39303848194. يستخدم المبرمج 2 السجلات ويراجع غير المحسوم فقط.
+- آخر main HEAD مؤكد في تحديث هذا الملف: 0c089585d27665680dcc4ad2520dd4affc875804؛ CI المطابق حينئذ 39311791227 SUCCESS. يفحص metadata فقط عند الجلسة التالية؛ لا يعيد استكشاف الملفات.
+- next_task_id للمبرمج 2: NASR1-BOLT-ARCHIVE-DELTA-001. بعد إثبات إغلاق الأرشيف، next_task_id يعود إلى NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002.
+- next_source_task_id للمبرمج 1: NASR1-SOURCE-INTEGRATION-INV-TRANSFER-001.

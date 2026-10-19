@@ -541,3 +541,10 @@
 - Earlier failures were retained and fixed, not bypassed: outdated UI copy assertion; unauthorized direct-table check accidentally executed under authenticated role after customer-denial test; then stock-shipment expected quantity was updated to account for the newly committed physical receipt. Latest exact SHA is green.
 - Evidence levels: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN (no live authenticated browser session; CI smoke only); PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN. No new dependency or paid service. Details: `ORIGINAL_SPEC_FEATURE_INTEGRATION_2026-10-19.md`.
 - Parent task `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains OPEN; the purchase workflow is one concrete gap closed, not full project completion.
+
+
+## 2026-10-19 — فصل مساري التنفيذ وتقليل الاستكشاف المكرر
+- اعتمد DUAL_PROGRAMMER_OPERATING_PROTOCOL.md ورسالتا الإقلاع المنفصلتان. المبرمج 1 مسؤول عن مصادر المشاريع الثلاثة؛ المبرمج 2 مسؤول عن فروقات أرشيف Bolt ثم استكمال المواصفة.
+- لا يعاد تنزيل/فك/حساب سلامة ZIP ما دام source SHA نفسه ودليل Action 39294387493 موجودًا. تتابع الصفوف غير المحسومة من ARCHIVE_MEMBERS.csv فقط.
+- ملكية الملفات والتعارضات محددة في WORK_COORDINATION.md. لا تحديث مباشر إلى main، ولا دمج متزامن. الاختبارات غير المشغلة NOT RUN والنجاح يطابق SHA نفسه.
+- لا يعني هذا السجل أن فروقات أرشيف Bolt المتبقية أُغلقت؛ إغلاقها يحتاج قرارات لكل عنصر غير محسوم وكود واختبار أو سبب موثق للاستبعاد.
