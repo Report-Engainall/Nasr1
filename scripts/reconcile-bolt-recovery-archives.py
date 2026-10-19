@@ -95,6 +95,35 @@ def safe_extract(zf, infos, destination):
         if count != info.file_size:
             raise ValueError("extracted size mismatch: " + info.filename)
 
+def read_bounded_response(response, expected_size):
+    """Read at most expected_size + 1 bytes and require the pinned ZIP size."""
+    if not isinstance(expected_size, int) or expected_size <= 0:
+        raise ValueError("invalid pinned archive size")
+    header = response.headers.get("Content-Length")
+    if header:
+        try:
+            advertised = int(header)
+        except (TypeError, ValueError):
+            raise ValueError("invalid Content-Length header: " + repr(header))
+        if advertised != expected_size:
+            raise ValueError("Content-Length mismatch: {} != pinned {}".format(advertised, expected_size))
+    parts = []
+    total = 0
+    while total <= expected_size:
+        chunk = response.read(min(64 * 1024, expected_size + 1 - total))
+        if not chunk:
+            break
+        if not isinstance(chunk, bytes):
+            raise ValueError("archive response returned non-byte content")
+        parts.append(chunk)
+        total += len(chunk)
+        if total > expected_size:
+            raise ValueError("download exceeded pinned archive size: >{}".format(expected_size))
+    if total != expected_size:
+        raise ValueError("download size mismatch: {} != pinned {}".format(total, expected_size))
+    return b"".join(parts)
+
+
 def download(spec):
     archive_id, name, size, expected_blob = spec
     url = "https://raw.githubusercontent.com/{}/{}/{}/{}".format(
@@ -107,7 +136,7 @@ def download(spec):
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Nasr1-Bolt-Reconciliation/1.0"})
             with urllib.request.urlopen(req, timeout=45) as response:
-                data = response.read()
+                data = read_bounded_response(response, size)
                 print("DOWNLOAD_RESPONSE archive={} status={} bytes={} content_type={}".format(
                     name, response.status, len(data), response.headers.get("Content-Type", "")), flush=True)
             return data, url, ""
@@ -170,6 +199,33 @@ def self_test():
         try: safe_name(candidate)
         except ValueError: continue
         raise AssertionError("unsafe member accepted: " + repr(candidate))
+    class FakeResponse:
+        def __init__(self, payload, headers=None):
+            self.payload = payload
+            self.offset = 0
+            self.headers = headers or {}
+            self.read_sizes = []
+        def read(self, size=-1):
+            assert size >= 0, "bounded reader must never request an unbounded read"
+            self.read_sizes.append(size)
+            chunk = self.payload[self.offset:self.offset + size]
+            self.offset += len(chunk)
+            return chunk
+
+    exact = FakeResponse(b"abcdef", {"Content-Length": "6"})
+    assert read_bounded_response(exact, 6) == b"abcdef"
+    assert all(size > 0 for size in exact.read_sizes)
+    for response, expected in (
+        (FakeResponse(b"abcdefg", {"Content-Length": "7"}), 6),
+        (FakeResponse(b"abc", {}), 6),
+        (FakeResponse(b"abcdef", {"Content-Length": "not-a-number"}), 6),
+    ):
+        try:
+            read_bounded_response(response, expected)
+        except ValueError:
+            continue
+        raise AssertionError("bounded archive reader accepted size/header mismatch")
+
     b = io.BytesIO()
     with zipfile.ZipFile(b, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("project/src/ok.ts", "export const ok = true;\n")
