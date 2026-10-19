@@ -674,9 +674,9 @@ export async function buildCustomerInvoicePdf(
     throw new Error("Invoice record is incomplete.");
   }
   const currency = normalizeCurrency(invoice.currency);
-  const subtotal = financialDetailsVisible ? normalizeInvoiceMoney(invoice.subtotal) : 0n;
-  const taxAmount = financialDetailsVisible ? normalizeInvoiceMoney(invoice.tax_amount) : 0n;
-  const totalAmount = financialDetailsVisible ? normalizeInvoiceMoney(invoice.total_amount) : 0n;
+  const subtotal = financialDetailsVisible ? normalizeInvoiceMoney(invoice.subtotal!) : 0n;
+  const taxAmount = financialDetailsVisible ? normalizeInvoiceMoney(invoice.tax_amount!) : 0n;
+  const totalAmount = financialDetailsVisible ? normalizeInvoiceMoney(invoice.total_amount!) : 0n;
   if (financialDetailsVisible && subtotal + taxAmount !== totalAmount) {
     throw new Error("Invoice subtotal plus tax does not equal the invoice total.");
   }
@@ -692,12 +692,12 @@ export async function buildCustomerInvoicePdf(
     }
     normalizeQuantity(line.quantity);
     if (financialDetailsVisible) {
-      normalizeInvoiceMoney(line.unit_price);
-      normalizeInvoiceMoney(line.line_total);
+      normalizeInvoiceMoney(line.unit_price!);
+      normalizeInvoiceMoney(line.line_total!);
     }
   }
   const lineTotal = financialDetailsVisible ? lines.reduce(
-    (sum, line) => sum + normalizeInvoiceMoney(line.line_total),
+    (sum, line) => sum + normalizeInvoiceMoney(line.line_total!),
     0n,
   ) : 0n;
   if (financialDetailsVisible && lineTotal !== subtotal) {
@@ -707,8 +707,8 @@ export async function buildCustomerInvoicePdf(
     throw new Error("Invoice subtotal plus tax does not equal the invoice total.");
   }
   const lineAmounts = financialDetailsVisible ? lines.map((line) => ({
-    unitPrice: minorUnitsToText(normalizeInvoiceMoney(line.unit_price)),
-    lineTotal: minorUnitsToText(normalizeInvoiceMoney(line.line_total)),
+    unitPrice: minorUnitsToText(normalizeInvoiceMoney(line.unit_price!)),
+    lineTotal: minorUnitsToText(normalizeInvoiceMoney(line.line_total!)),
   })) : [];
   const customer =
     customerInput && typeof customerInput === "object"
