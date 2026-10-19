@@ -1221,6 +1221,126 @@ async function main() {
   assert.equal(Number(ownInvoicePdf.lines[0].line_total), 370000);
   assert.equal(ownInvoicePdf.customer.id, undefined, "PDF customer projection should not return an internal customer primary key");
 
+  assert.equal(ownInvoicePdf.financial_details_visible, true, "invoice prices default to visible only through the scoped RPC");
+  assert.equal(ownInvoicePdf.customer_tier_visible, false, "customer tier labels are hidden by default");
+
+  // Visibility settings are server-enforced and cannot be changed by an accountant.
+  await db.unsafe("reset role");
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  try {
+    await db.unsafe(
+      "update public.admin_settings set value='false'::jsonb, updated_at=statement_timestamp() where organization_id=$1 and key='show_price_in_invoice'",
+      [organizationId],
+    );
+  } catch (error) {
+    if (!/administrator or manager permission required|row-level security|permission denied/i.test(String(error))) throw error;
+  }
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "ci-audit-admin@example.test");
+  await db.unsafe("set role authenticated");
+  const unauthorizedVisibilityWrite = await db.unsafe(
+    "select value from public.admin_settings where organization_id=$1 and key='show_price_in_invoice'",
+    [organizationId],
+  );
+  assert.equal(unauthorizedVisibilityWrite[0]?.value, true, "an accountant cannot disable customer invoice prices");
+
+  // Disable invoice amounts at the organization setting: the scoped RPC must omit them, not return hidden JSON values.
+  await db.unsafe(
+    "insert into public.admin_settings(organization_id,key,value,category,updated_at) values($1,'show_price_in_invoice','false'::jsonb,'storefront',statement_timestamp()) on conflict(organization_id,key) do update set value=excluded.value,updated_at=statement_timestamp()",
+    [organizationId],
+  );
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  const maskedInvoiceResult = await db.unsafe(
+    "select public.get_customer_invoice_pdf($1::uuid) as result",
+    [invoice.id],
+  );
+  const maskedInvoice = maskedInvoiceResult[0].result;
+  assert.equal(maskedInvoice.financial_details_visible, false);
+  assert.equal(maskedInvoice.invoice.id, invoice.id, "invoice identity remains available when amounts are hidden");
+  assert.equal(maskedInvoice.invoice.total_amount, undefined, "RPC JSON must not contain a hidden invoice total");
+  assert.equal(maskedInvoice.invoice.subtotal, undefined, "RPC JSON must not contain a hidden subtotal");
+  assert.equal(maskedInvoice.lines[0].unit_price, undefined, "RPC JSON must not contain a hidden unit price");
+  assert.equal(maskedInvoice.lines[0].line_total, undefined, "RPC JSON must not contain a hidden line total");
+  assert.equal(Number(maskedInvoice.lines[0].quantity), 10, "non-financial quantities remain available");
+
+  // Default-denied cart/order previews return no monetary fields; enabled previews use the caller's current server-resolved tier.
+  const previewItems = JSON.stringify([{ product_id: productId, quantity: 2 }]);
+  const hiddenCartPreview = (await db.unsafe(
+    "select public.preview_customer_order_pricing($1::jsonb,'cart') as result",
+    [previewItems],
+  ))[0].result;
+  assert.equal(hiddenCartPreview.visible, false);
+  assert.equal(Object.prototype.hasOwnProperty.call(hiddenCartPreview, "items"), false, "disabled cart preview cannot return unit/line amounts");
+  assert.equal(Object.prototype.hasOwnProperty.call(hiddenCartPreview, "total_amount"), false, "disabled cart preview cannot return order total");
+  const hiddenOrdersPreview = (await db.unsafe(
+    "select public.preview_customer_order_pricing($1::jsonb,'orders') as result",
+    [previewItems],
+  ))[0].result;
+  assert.equal(hiddenOrdersPreview.visible, false);
+  assert.equal(Object.prototype.hasOwnProperty.call(hiddenOrdersPreview, "total_amount"), false);
+
+  // Admin controls can enable server-calculated cart/order amounts; no client-supplied price is accepted.
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "ci-audit-admin@example.test");
+  await db.unsafe("set role authenticated");
+  await db.unsafe(
+    "insert into public.admin_settings(organization_id,key,value,category,updated_at) values($1,'show_price_in_cart','true'::jsonb,'storefront',statement_timestamp()),($1,'show_price_in_orders','true'::jsonb,'storefront',statement_timestamp()),($1,'show_customer_tier_in_customer_views','true'::jsonb,'storefront',statement_timestamp()) on conflict(organization_id,key) do update set value=excluded.value,updated_at=statement_timestamp()",
+    [organizationId],
+  );
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  const visibleCartPreview = (await db.unsafe(
+    "select public.preview_customer_order_pricing($1::jsonb,'cart') as result",
+    [previewItems],
+  ))[0].result;
+  assert.equal(visibleCartPreview.visible, true);
+  assert.equal(visibleCartPreview.items.length, 1);
+  assert.equal(Number(visibleCartPreview.items[0].unit_price), 37000);
+  assert.equal(Number(visibleCartPreview.items[0].line_total), 74000);
+  assert.equal(Number(visibleCartPreview.total_amount), 74000);
+  assert.equal(visibleCartPreview.customer_tier_visible, true);
+  assert.equal(visibleCartPreview.customer_tier_label, "التجزئة");
+  const visibleOrdersPreview = (await db.unsafe(
+    "select public.preview_customer_order_pricing($1::jsonb,'orders') as result",
+    [previewItems],
+  ))[0].result;
+  assert.equal(visibleOrdersPreview.visible, true);
+  assert.equal(Number(visibleOrdersPreview.total_amount), 74000);
+
+  // Disabling catalog prices changes the customer RPC payload itself, while staff pricing remains separate.
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "ci-audit-admin@example.test");
+  await db.unsafe("set role authenticated");
+  await db.unsafe(
+    "update public.admin_settings set value='false'::jsonb, updated_at=statement_timestamp() where organization_id=$1 and key='show_price_on_cards'",
+    [organizationId],
+  );
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  const hiddenCatalogPrice = await db.unsafe(
+    "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],1)",
+    [[productId]],
+  );
+  assert.equal(hiddenCatalogPrice.length, 1);
+  assert.equal(Number(hiddenCatalogPrice[0].unit_price), 0, "catalog price RPC returns no actual amount when catalog prices are disabled");
+
+  // Restore all altered organization settings so subsequent acceptance assertions run under defaults.
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "ci-audit-admin@example.test");
+  await db.unsafe("set role authenticated");
+  await db.unsafe(
+    "insert into public.admin_settings(organization_id,key,value,category,updated_at) values($1,'show_price_on_cards','true'::jsonb,'storefront',statement_timestamp()),($1,'show_price_in_cart','false'::jsonb,'storefront',statement_timestamp()),($1,'show_price_in_orders','false'::jsonb,'storefront',statement_timestamp()),($1,'show_price_in_invoice','true'::jsonb,'storefront',statement_timestamp()),($1,'show_customer_tier_in_customer_views','false'::jsonb,'storefront',statement_timestamp()) on conflict(organization_id,key) do update set value=excluded.value,updated_at=statement_timestamp()",
+    [organizationId],
+  );
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+
   // A second customer in the same organization must never receive the first customer's statement.
   await db.unsafe("reset role");
   await setIdentity(secondAuthUserId, "ci-customer-two@example.test");
