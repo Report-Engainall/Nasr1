@@ -2707,19 +2707,19 @@ async function main() {
   assert.equal(gridAudit.length,1,"the product tier grid change is audited");
   await setIdentity(staffAuthUserId,"admin@aghbari.ye");
   await db.unsafe("set role authenticated");
-  await expectFailure("price grid rejects stale expected values",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[JSON.stringify([{...priceGridPayload[0],base_price:102}])]),/changed after the grid was loaded/i);
+  await expectFailure("price grid rejects stale expected values",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[db.json([{...priceGridPayload[0],base_price:102}])]),/changed after the grid was loaded/i);
   const crossTenantPayload=[
     {id:productId,expected_base_price:101,expected_price_wholesale_of_wholesale:91,expected_price_wholesale:96,expected_price_retail:111,base_price:102,price_wholesale_of_wholesale:92,price_wholesale:97,price_retail:112},
     {id:otherProductId,expected_base_price:1,expected_price_wholesale_of_wholesale:0,expected_price_wholesale:0,expected_price_retail:0,base_price:2,price_wholesale_of_wholesale:2,price_wholesale:2,price_retail:2},
   ];
-  await expectFailure("price grid rejects another tenant and rolls back its earlier row",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[JSON.stringify(crossTenantPayload)]),/Product not found in current organization/i);
+  await expectFailure("price grid rejects another tenant and rolls back its earlier row",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[db.json(crossTenantPayload)]),/Product not found in current organization/i);
   await db.unsafe("reset role");
   const afterRollback=(await db.unsafe("select p.base_price,(select pp.price from public.product_prices pp where pp.product_id=p.id and pp.tier='vip' and pp.is_active order by pp.min_quantity asc limit 1) as vip_price,(select pp.price from public.product_prices pp where pp.product_id=p.id and pp.tier='wholesale' and pp.is_active order by pp.min_quantity asc limit 1) as wholesale_price,(select pp.price from public.product_prices pp where pp.product_id=p.id and pp.tier='retail' and pp.is_active order by pp.min_quantity asc limit 1) as retail_price from public.products p where p.id=$1",[productId]))[0];
   assert.deepEqual([Number(afterRollback.base_price),Number(afterRollback.vip_price),Number(afterRollback.wholesale_price),Number(afterRollback.retail_price)],[101,91,96,111],"foreign-tenant rejection rolls back the entire batch");
   await setIdentity(accountantAuthUserId,"ci-accountant@example.test");
   await db.unsafe("set role authenticated");
   await expectFailure("accountant cannot read the price grid",()=>db.unsafe("select public.get_admin_product_price_grid()"),/active admin or manager/i);
-  await expectFailure("accountant cannot write the price grid",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[JSON.stringify([{...priceGridPayload[0],expected_base_price:101,expected_price_wholesale_of_wholesale:91,expected_price_wholesale:96,expected_price_retail:111,base_price:103}])]),/active admin or manager/i);
+  await expectFailure("accountant cannot write the price grid",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[db.json([{...priceGridPayload[0],expected_base_price:101,expected_price_wholesale_of_wholesale:91,expected_price_wholesale:96,expected_price_retail:111,base_price:103}])]),/active admin or manager/i);
   await db.unsafe("reset role");
   process.stdout.write("PASS price grid: admin/manager auth, base+three tier values, atomic writes, audit, stale-value guard, tenant rollback and accountant denial\n");
 
