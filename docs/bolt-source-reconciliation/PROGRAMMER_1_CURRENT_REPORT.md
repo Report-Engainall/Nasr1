@@ -1,46 +1,57 @@
-# تقرير الاستئناف — المبرمج 1 / دمج ميزات المصادر الثلاثة
+# تقرير الحالة التنفيذي — المبرمج 1 / دمج ميزات المصادر الثلاثة
 
-المستودع الهدف الوحيد: `Report-Engainall/Nasr1`
-فرع المبرمج 1 المستمر: `integration/inventory-transfer-batches-20261019-rebased`
-ملكية التقرير: المبرمج 1 فقط.
-**task الحالي / next_source_task_id:** `NASR1-SOURCE-INTEGRATION-INV-TRANSFER-001` — لا تنتقل إلى مهمة مصدر أخرى حتى ينجح CI على رأس PR #3 نفسه ويُغلق هذا المصدر.
+- **المستودع الوحيد المستهدف:** `Report-Engainall/Nasr1`
+- **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
+- **الملكية:** هذا التقرير و`SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` فقط.
+- **المهمة الحالية:** `NASR1-SOURCE-IMAGE-PIXEL-GUARD-001` — تكيف أمني صغير بانتظار CI على رأس PR الخاص بهذه الجلسة.
+- **المهمة التالية بعد إغلاق المهمة الحالية:** `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001` — مقارنة عقد المكونات/الخدمات/RPC/RLS/المسارات والاختبارات للعضويات بين المصدر والهدف قبل أي قرار دمج.
 
-## الحالة الحية — تحقق بالـmetadata فقط
+## 1. إغلاق تحويل المخزون متعدد الأصناف
 
-- `main` آخر رأس معروف: `0c089585d27665680dcc4ad2520dd4affc875804`; CI الأساس التاريخي: [39311791227](https://github.com/Report-Engainall/Nasr1/actions/runs/39311791227).
-- PR #3: [feat(inventory): integrate atomic multi-product transfers and history](https://github.com/Report-Engainall/Nasr1/pull/3).
-- الرأس الحي لـPR #3: `19ffe4e2062f860bef63af9064fb5f15d226d76c` (تحديث تقرير فقط). آخر رأس يغيّر كود/سجل الجرد هو `0bd0aaeba2e581e938bbb8fd6d1a14ac2893c33c`; فحصه المطابق [Actions 39321850629](https://github.com/Report-Engainall/Nasr1/actions/runs/39321850629) انتهى FAILURE: Unit tests SUCCESS، PostgreSQL 17 FAILURE عند الاستعلام المباشر تحت authenticated على `inventory_transfer_batches`. لا يجوز وصف هذا الرأس أو PR بأنه PASS.
-- CI على الرأس السابق `b715d67d4e7f30a8e874465bf963ca6580c298d0`, [Actions 39321185653](https://github.com/Report-Engainall/Nasr1/actions/runs/39321185653): خطوة Unit tests = SUCCESS، **44/44 test files و332/332 tests PASS**؛ خطوة PostgreSQL 17 فشلت عند اختبار دفعة التحويل. لذلك لا يوجد CI PASS كامل على PR #3.
-- PR #2 المكررة [مغلقة دون دمج](https://github.com/Report-Engainall/Nasr1/pull/2) بعد مقارنة الملفّات والفروق. PR #3 هي PR الدمج الوحيدة المستمرة للتحويل متعدد الأصناف.
+- **الحالة:** مندمج ومختبر. [PR #3](https://github.com/Report-Engainall/Nasr1/pull/3) أُغلق بالدمج؛ [PR #2](https://github.com/Report-Engainall/Nasr1/pull/2) المكرر بقي مغلقًا دون دمج.
+- **الرأس الذي اختُبر:** `01ef17b05c2bf507003efccbb897f76318e0df02`.
+- **دليل CI المطابق:** [Actions 39323966139](https://github.com/Report-Engainall/Nasr1/actions/runs/39323966139) — SUCCESS على SHA المطابق؛ نجحت اختبارات الوحدة، وقبول PostgreSQL 17/RLS، وlint/build، وسموك preview/dev.
+- **تغطية التحويل المثبتة:** عزل المؤسسة، التحويل الذري متعدد المنتجات، حماية المحجوز، دفتر حركات المخزون، idempotency وإعادة التشغيل/تعارض الحمولة، rollback، ورفض القراءة/الكتابة المباشرتين لجدول رؤوس الدفعات.
+- **الأمان:** لم تُضف أي grants أو سياسات توسّع الوصول المباشر. لم يتغير RLS لإصلاح الاختبار.
+- **المصدر:** `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`, `src/services/inventory.ts`, source blob `3506707a656e0db491b860d5e11ad28daeded5cf`. بصمة المصدر وقرار التكييف موثقان بالفعل في ledger؛ لم يُعد جلب الملف المانح.
 
+## 2. المهمة الحالية — حد إجمالي بكسلات صورة المنتج
 
-## تحديث جرد READY_TO_REUSE — 19 أكتوبر 2026
+### التشخيص والتغيير
+- **المصدر الجديد:** `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`.
+- **بصمات المصدر المسجلة:** `src/services/imagePipeline.ts` = `cbdc91a0444ea35ac949bd00f0eefe388700880d`؛ `src/services/imagePipeline.test.ts` = `839e6327d35718ca8d00392e090cce5d3133482a`.
+- كان Nasr1 يحدد أقصى عرض/ارتفاع بـ12,000، لكنه لا يضع حدًا لمساحة الصورة المفكوكة قبل تخصيص canvas؛ يمكن لصورة حتى 12,000×12,000 أن تتجاوز حد الذاكرة المعقول. يطبق المصدر حدًا إجماليًا قدره 25,000,000 بكسل.
+- **التكييف المنفذ:** أضيف `MAX_SOURCE_PIXELS = 25_000_000` داخل `src/lib/product-image.ts`؛ يُرفض الحجم الإجمالي الزائد داخل `fitProductImageDimensions` قبل تخصيص canvas. أبقينا التنفيذ الهدف الحالي: 8 MiB كحد لملف الإدخال، 1600 بكسل للإخراج، WebP، التحقق من المؤسسة/المنتج/الدور في Edge Function، ومسار رفع الخادم. لم ننسخ تدفق المصادقة/التخزين القديم ولا نضيف أي حزمة.
+- **اختبارات الانحدار المضافة:** 25,005,000 بكسل مرفوضة، و25,000,000 حد صالح، وإثبات أن canvas لا يُنشأ عند الرفض وإغلاق `ImageBitmap`.
+- ملفات التغيير: `src/lib/product-image.ts` blob الحالي `8fce9c518a5ee3e4bc4a74db844e67942ac07e40`؛ `src/lib/product-image.test.ts` blob الحالي `c753e417c8d3afd38f1acf80d5c3a1411bfeec8f`.
+- **CI:** لم يُشغّل بعد على الرأس الحاوي للتغيير؛ الحالة الصحيحة هي **PENDING — لا يوجد ادعاء PASS**. يجب تشغيل `npm test -- src/lib/product-image.test.ts` ثم CI الكامل `commerce-checks.yml` على رأس PR مطابق، بما يشمل PostgreSQL 17 وlint/build وسموك preview/dev.
+- **سجل المصدر:** ledger يحتوي `NASR1-SOURCE-IMAGE-PIXEL-GUARD-001` و`NASR1-SOURCE-IMAGE-PIXEL-GUARD-TEST-001` بحالة `IMPLEMENTED_PENDING_EXACT_SHA_CI`. audit سجل البصمات والقرار وعدم نسخ الملفات الخام.
 
-- أُعيد استخدام قرارات `SOURCE_INTEGRATION_LEDGER.csv` وبصمات المصدر الموجودة لتسوية جميع صفوف `READY_TO_REUSE_FILE_AUDIT.csv` التي كانت تستخدم تسميات عامة `TARGET_PATH_MISSING_REVIEW_CONTENT` أو `TARGET_PATH_DIFFERS_REVIEW_CONTENT`. لم تُفتح مجددًا ملفات مانحة ذات blob مسجل، ولم يُعاد جلب أي مصدر مطابق.
-- تدقيق الجرد قبل هذا التحديث: 69 صفًا. تم تحديث 60 صفًا، منها 7 صفوف من مستودع رابع غير داخل نطاق المصادر الثلاثة الحالية؛ وُسمت `KEEP_AS_REFERENCE` مع سبب صريح يمنع دمجها أو إعادة قراءة محتواها. بقية الصفوف استندت إلى القرار الموثق مسبقًا في ledger: إبقاء أفضل تنفيذ مستهدف، تكرار مثبت، مرجع فقط، تكييف ودمج، أو استبعاد لتعارض schema/أمان.
-- البصمات: audit قبل التحديث `afbfeafd19c0e28b1448346daa43745ac15121f0`; commit التحديث `0bd0aaeba2e581e938bbb8fd6d1a14ac2893c33c`; blob النهائي `7e9b23bf15409324a742763426fdfd598d1dcd26`. التحقق المباشر بعد الكتابة أكد 69 صف بيانات و0 صفوف بقيت بتسميتي المراجعة العامتين.
-- لم يُعدّل `SOURCE_INTEGRATION_LEDGER.csv`: ما زال PR #4 يتضمن تغييرات هذا الملف المملوك لـP1؛ الطلب إلى P2 بإزالة هذا التعارض موثق في [PR #4](https://github.com/Report-Engainall/Nasr1/pull/4). لا تحفظ فوق عمل متزامن.
+## 3. قرار مصدر طابور العمليات غير المتصلة
 
-## مصدر التحويل متعدد الأصناف — المهمة الحالية غير مغلقة
+- **المصدر:** `src/services/offlineQueue.ts` blob `7d68cdb19bd15056f58a5d92527dda78346f9209`؛ اختبار المصدر `src/services/offlineQueue.test.ts` blob `df7d5c4ec370652841b89d07b255a1d4dbd468b3`.
+- طابور المانح يقبل فقط وضع/حذف عنصر سلة محلي؛ لا يقبل إنشاء الطلب ولا تحديث المخزون.
+- Nasr1 يملك بالفعل `src/lib/offline-cart.ts` بمسودة سلة مرتبطة بملف العميل، وادعاء ضيف لمرة واحدة، وإزالة مفاتيح legacy غير المقيدة. يُخزن المنتج والكمية فقط؛ السعر والمخزون وتأكيد الطلب تظل خادمية. اختبارات الهدف الحالية تخص هذا العقد.
+- **القرار:** `DUPLICATE_PROVEN`، لا استيراد طابور ثانٍ ولا نسخ اختبارات المانح. يسجل ledger/audit القرار وبصمات المصدر ودليل الاختبارات الحالي [Actions 39329226396](https://github.com/Report-Engainall/Nasr1/actions/runs/39329226396) على `b4d1f2e9cbe1db4e34c7d82b5ca6e1880b3fe43b`. لم تُشغّل اختبارات المانح ولم يُنسخ ملفه.
 
-- المصدر: `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`, `src/services/inventory.ts`, source blob `3506707a656e0db491b860d5e11ad28daeded5cf`. بصمة المصدر موثقة سابقًا؛ لم يُعد فتح الملف المانح.
-- الميزة المتكاملة في فرع PR #3: `supabase/migrations/20261019240000_inventory_transfer_batches.sql`, `src/lib/inventory-transfer-batch.ts`, `src/components/InventoryTransferHistoryPage.tsx`, `src/routes/admin_.inventory-transfers.tsx`, `src/routeTree.gen.ts`, `src/test/inventory-transfer-batch.test.ts`, `src/test/inventory-transfer-history.test.tsx`, وأجزاء API/navigation/CI.
-- العقد: RPC منفصل `transfer_inventory_batch` دون تغيير توقيع `transfer_inventory` الأحادي؛ تحقق مؤسسة/موظف نشط من الخادم، مخازن/منتجات فعّالة، row locks حتمية، حماية الكمية المحجوزة، idempotency مرتبط بحمولة الطلب، حركات مخزون مزدوجة وسجل تدقيق، وRPC سجل تحويلات محدود ومقيد بالمؤسسة.
-- فشل قاعدة البيانات المثبت في [Actions 39314953094](https://github.com/Report-Engainall/Nasr1/actions/runs/39314953094): سكربت القبول يستدعي `select line_count,payload,organization_id from public.inventory_transfer_batches where id=$1::uuid` بينما `SET ROLE authenticated` ما يزال فعالًا. القراءة مقصودة لفحص fixture المميّز، لكنها في الدور الخطأ. اختبار الرفض اللاحق الذي يتوقع `permission denied` يجب أن يبقى.
-- الإصلاح الدقيق سُلّم لمالك المسار المشترك P2 في [تعليق PR #4](https://github.com/Report-Engainall/Nasr1/pull/4#issuecomment-6276449060) و[تعليق التسلسل](https://github.com/Report-Engainall/Nasr1/pull/4#issuecomment-6276488796): reset role قبل القراءة المميزة، ثم إعادة هوية admin ودور authenticated قبل negative test. لا تُضاف grants أو policies ولا يسمح SELECT مباشر.
-- `scripts/test-database-migrations.mjs` مسار محمي ومتعارض مع PR #4 حاليًا؛ لم أكتب فوقه. يملك P2 قفل التنسيق الحالي، ويجب أن يحرره بتغيير آمن ودمج متسلسل. بعد تحريره، أعيد تقديم فرع PR #3 للأمام دون force-push وأعيد CI على الرأس الجديد. لا دمج قبل CI PASS الكامل على head SHA نفسه.
+## 4. عطل CI منفصل يملكه P2 — PR #6
 
-## مراجعة مصدر PDF المالي الجاهز — حُسم قرار الملف
+- [PR #6](https://github.com/Report-Engainall/Nasr1/pull/6) يعمل على ربط الفواتير/المدفوعات بقيود الأستاذ، ويملك P2 التعديل على `scripts/test-database-migrations.mjs`.
+- [Actions 39326813015](https://github.com/Report-Engainall/Nasr1/actions/runs/39326813015) فشل عند اختبار قيد الفاتورة في السطر 3288: الاختبار ينتظر رسالة `invoice has an active accounting journal` بينما الحارس الفعلي يعيد `invoice has accounting history; source amounts and identity cannot be changed`. هذا mismatch في توقع الاختبار؛ لا يعني فشل قاعدة المنع.
+- تم إرسال تعليق على PR #6 بطلب تعديل regex الخاص بالاختبار فقط ومراجعة assertion التالي، مع إبقاء الحارس ومنع القراءة المباشرة دون تغيير. **لم أحرر ملف الاختبار المشترك أو أكتب فوق عمل P2.**
+- لا تدمج PR أخرى قبل CI PASS على رأسها نفسه.
 
-- المصدر المعروف: `Aghbari-Technologies/aghbari-commerce-evolved@d24695209b45f2352e0ba994e1f5109d7e2afc9d`, `src/lib/finance-document-pdf.ts`, source blob `ba1a74b4a50b4bedb0f6ae8c509de339dfe3223d`. لم يُعد جلب المصدر؛ استُخدمت البصمة والنسخة المرجعية المسجلة.
-- ملف الهدف `src/lib/finance-document-pdf.ts` blob `5128fabce8b7a6c0b56433020b3f83f329165a24` مصنّف `ALREADY_PRESENT_BETTER` في `READY_TO_REUSE_FILE_AUDIT.csv`: تطبيق Nasr1 الحالي يضيف تحققًا ماليًا وتقارير كامل دفتر العميل، أموالًا بوحدات صحيحة، ملخص عملات، فئات متأخرات/استحقاق مجهول، وتسوية حالة الفاتورة على زمن إنشاء ثابت.
-- تتبع المسار: `CustomerWorkflows.tsx` → `/api/invoice-pdf/$invoiceId` → `finance-pdf-server.ts` → RPC `get_customer_invoice_pdf` في `20261015230000_scoped_customer_invoice_pdf.sql`. الـRPC اشتقاقه من auth.uid() وprofile/customer/organization النشطين وصلاحية `invoices.read`؛ لا يمنح قراءة مباشرة للحقول المالية.
-- أضيفت اختبارات `src/test/finance-document-pdf-source-reconciliation.test.ts` (6 tests): ملخصات عملات/مبالغ صحيحة، استبعاد الفواتير الملغاة، حماية aging buckets، حالة الفاتورة، إنشاء PDF عربي صالح، ورفض الإجماليات غير المتطابقة أو ملخص بلا timestamp.
-- دليل الاختبارات: [Actions 39321185653](https://github.com/Report-Engainall/Nasr1/actions/runs/39321185653) على `b715d67d4e7f30a8e874465bf963ca6580c298d0` سجّل Unit tests SUCCESS، 44/44 ملفات و332/332 اختبارًا. الفشل الإجمالي لهذا التشغيل ظل في اختبار تحويل المخزون وليس في اختبارات PDF. الرأس اللاحق `38ab9d4f573a5d2efb13a38976542e03800de15b` له CI جديد مستقل؛ لا يوصف PASS قبل اكتماله.
+## 5. الحالة الفعلية لسجلات المصدر
 
-## تعارضات ومسؤوليات
+- `SOURCE_INTEGRATION_LEDGER.csv`: 109 صفوف بيانات بعد إضافة 4 صفوف موثقة لهذه الجلسة (سجل الجلب أعطى 105 صفوف سابقًا؛ أعيد التحقق قبل أي تعديل آخر).
+- `READY_TO_REUSE_FILE_AUDIT.csv`: 73 صف بيانات بعد إضافة 4 صفوف موثقة لهذه الجلسة.
+- الصفوف المضافة تغطي مصدر معالج الصور واختباره، وقرار تكرار طابور offline واختباره. جميع البصمات المنقولة من الشجرة المانحة مسجلة؛ لم نعد فتح أي source blob كان له قرار مسجل.
+- المراجعة السابقة لجرد الملفات على main أظهرت 69 صفًا في audit، 62 منها تعود للمصادر الثلاثة المحددة، وصفر صفوف بقيت بتسميات المراجعة العامة القديمة. بعد الصفوف الأربعة الحالية صار عدد audit 73 إجمالًا.
+- لا يوجد مصدر مفتوح آخر بحالة pending في ledger قبل إضافة صفوف حماية الصور الجديدة. إغلاق المهمة الحالية يتوقف على دليل CI exact-head؛ بعدها تتقدم المهمة تلقائيًا إلى `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001`.
 
-- P1 يملك `SOURCE_INTEGRATION_LEDGER.csv`, `READY_TO_REUSE_FILE_AUDIT.csv` وهذا التقرير. PR #4 ما زال يغيّر سجل المصادر؛ طلبت من مالكه إزالة التغيير لتفادي التعديل المتزامن. لا أحفظ فوق نسخته/قفل المسار.
-- `WORK_COORDINATION.md`, `CURRENT_EXECUTION_STATE.md`, `EXECUTION_LOG.md`, وملفات الأرشيف/المواصفة ملكية P2؛ لا أعدلها ولا أنفذ مهام الأرشيف أو المواصفة المنفصلة.
-- [PR #5](https://github.com/Report-Engainall/Nasr1/pull/5) يحتوي تقرير P1 في تغييراته رغم ملكيته الحصرية لـP1؛ طلبت إخراجه من PR #5 لتجنب add/add عندما تُدمج الفروع بالتتابع. هذا التقرير هو نسخة P1 الحية على فرعي.
-- ممنوع: تعديل main مباشرة، تخفيف RLS، force-push/reset/clean، إنشاء فروع جلسات جديدة، أو وصف CI بأنه PASS دون نتيجة مطابقة للرأس.
+## 6. حدود الدور
+
+- الهدف الوحيد `Report-Engainall/Nasr1`. المستودعات الثلاثة للقراءة والمقارنة فقط.
+- لا أتعامل مع ZIPs/الأرشيف أو استكمال المواصفة الأصلية المستقل.
+- لا أعدّل `WORK_COORDINATION.md` أو `CURRENT_EXECUTION_STATE.md` أو `EXECUTION_LOG.md` أو بيانات الأرشيف.
+- لا كتابة مباشرة على main، لا force-push/reset/clean، لا إنشاء فرع لكل جلسة، لا أسرار أو خدمات مدفوعة، ولا ادعاء PASS بلا رابط ورأس مطابق.
