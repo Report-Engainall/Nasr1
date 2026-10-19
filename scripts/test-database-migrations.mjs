@@ -2759,8 +2759,8 @@ async function main() {
   assert.ok(Number.isFinite(effectiveCustomerPrice) && effectiveCustomerPrice > 0);
   const promotionOrderKey = "ci-promotion-priced-order-" + promotionId;
   const placedRows = await db.unsafe(
-    "select public.place_order($1::jsonb,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text) as result",
-    [db.json([{ product_id: productId, quantity: 1 }]), "campaign pricing acceptance", "CI Campaign Buyer", "CI Test Contact", "771234567", "cash_on_delivery", promotionOrderKey],
+    "select public.submit_customer_order($1::jsonb,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::uuid) as result",
+    [db.json([{ product_id: productId, quantity: 1 }]), "campaign pricing acceptance", "CI Company One", "CI Campaign Buyer", "771234567", "cash_on_delivery", promotionOrderKey, firstId],
   );
   const placedResponse = typeof placedRows[0].result === "string" ? JSON.parse(placedRows[0].result) : placedRows[0].result;
   const promotionOrderId = placedResponse?.id ?? placedResponse?.order_id;
