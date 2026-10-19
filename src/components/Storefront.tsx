@@ -240,7 +240,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
 
       {availableOnly && (
         <div role="status" className="sf-catalog-filter-notice" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, padding: '9px 16px', color: '#174b50', background: '#eaf6f4', borderBottom: '1px solid #c8e5e0', fontSize: 12 }}>
-          <span>الفلتر الفعّال: أصناف ذات رصيد متاح معروف أكبر من صفر.</span>
+          <span>فلتر فعّال: أصناف ذات رصيد متاح معروف أكبر من صفر.</span>
           <button type="button" aria-label="إلغاء فلتر المتوفر فقط" onClick={() => {
             setAvailableOnly(false);
             void navigate({ to: '/catalog', search: {
