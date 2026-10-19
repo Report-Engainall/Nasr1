@@ -2757,6 +2757,13 @@ async function main() {
   assert.equal(customerPriceRows.length, 1, "storefront returns the tenant-scoped product price");
   const effectiveCustomerPrice = Number(customerPriceRows[0].unit_price ?? customerPriceRows[0].price);
   assert.ok(Number.isFinite(effectiveCustomerPrice) && effectiveCustomerPrice > 0);
+  const grossPriceRows = await db.unsafe(
+    "select public.customer_product_unit_price($1::uuid,$2::uuid,(select c.tier from public.customers c where c.id=public.current_customer_id() and c.organization_id=$2),1) as price",
+    [productId, organizationId],
+  );
+  const grossCustomerPrice = Number(grossPriceRows[0]?.price);
+  assert.ok(Number.isFinite(grossCustomerPrice) && grossCustomerPrice > 0,
+    "unpromoted customer-tier price must come from the server pricing resolver");
   const promotionOrderKey = "ci-promotion-priced-order-" + promotionId;
   const placedRows = await db.unsafe(
     "select public.submit_customer_order($1::jsonb,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::uuid) as result",
