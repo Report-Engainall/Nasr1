@@ -1,5 +1,19 @@
 
 
+## آخر تنفيذ P2 — NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004 (PASS)
+
+- Branch/PR: `feature/accounting-general-ledger-20261019`, [PR #4](https://github.com/Report-Engainall/Nasr1/pull/4). Main remains `0c089585d27665680dcc4ad2520dd4affc875804`; no direct main changes.
+- Exact code SHA `df43fb05e9e8a31a8b45e40d38a94f85ff12691b` passed [Actions 39321543032 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39321543032): 45/45 test files, 339/339 tests, frozen Bun lock check, all migrations + current database acceptance on PostgreSQL 17, lint, build, preview smoke 4173, dev smoke 5173.
+- New DB migration `supabase/migrations/20261020020000_accounting_source_posting.sql` creates immutable tenant-scoped source/journal links, an authorized paginated expense-to-ledger inbox, explicit account-mapped journal draft creation, repeat-safe source linking, a pre-post guard against source/mapping changes, and same-transaction void handling (void linked draft or write a balanced reversal when original entry is posted). The posting guard reads the source without locking it to avoid journal-first/source-first deadlock; creation/void preserve source-first lock order.
+- UI `src/components/CashExpenseJournalLinker.tsx` is integrated into the live `GeneralLedgerWorkspace`. Accountant/manager/admin picks an active expense account and asset settlement account; server uses the source amount/date, creates a draft only, and requires a separate post action. YER only until documented FX policy exists. Tests cover source-ID and account selection, explicit draft RPC, foreign-currency rejection and customer-role denial. Source-specific DB workflow assertions were not added to the P1-owned migration harness; CI proves migrations apply and all preexisting DB acceptance passes, but dedicated DB assertions for this new source-posting flow are still **NOT RUN**.
+- Concurrency correction at the same tested SHA: posting trigger no longer row-locks the source expense after locking its journal entry, preventing lock-order inversion against source-void. No old financial transactions were invented, no service/dependency with new cost was added.
+- Status: IMPLEMENTED=YES (cash-expense source posting path); INTEGRATED=YES on PR branch; TESTED=PASS exact SHA for unit suite/build/migration application and repo-level acceptance; source-flow-specific DB integration test=NOT RUN; browser-authenticated proof=NOT RUN; production migration/deployment=NOT RUN.
+- **next_task_id = `NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006`**, parent `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`. Next extend source mapping to actual customer invoices and payments as separate source kinds with invoice/payment-specific accounting rules, source event idempotency, tenant/account guard, no double-counting and explicit treatment of refund/void. Do not mark cash posting's flow-specific DB assertions as proven until they run in a future acceptance harness update approved by P1.
+
+---
+
+
+
 ## Latest execution state — 2026-10-19 — P2 archive closure and financial statements
 
 - Target repository: Report-Engainall/Nasr1. Main remains at 0c089585d27665680dcc4ad2520dd4affc875804. Work is only on feature/accounting-general-ledger-20261019 / PR #4: https://github.com/Report-Engainall/Nasr1/pull/4.

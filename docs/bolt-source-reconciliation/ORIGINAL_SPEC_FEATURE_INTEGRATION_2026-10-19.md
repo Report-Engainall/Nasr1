@@ -67,3 +67,11 @@
 - Unit tests cover monetary accuracy, invalid dates/money, duplicates, imbalance, empty data and role-aware UI access. No historical transactions were synthesized.
 - Exact code SHA 869f0909bda0524275834952f64e1ce1609e79c0 passed Action 39320266809: 44/44 test files, 336/336 tests, PostgreSQL 17 migrations/acceptance, lint, build, preview smoke 4173 and dev smoke 5173.
 - IMPLEMENTED=YES; INTEGRATED=YES in PR #4; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; PRODUCTION_MIGRATION=NOT RUN. Reports include posted ledger entries only; source-document posting is next, not yet implemented.
+
+
+## Cash-expense source posting — 19 October 2026, exact-SHA PASS
+
+- Added tenant-scoped links between real `cash_expenses` and original/reversal journal entries; an authorized queue; source-amount/date-derived draft generation; explicit account selection; source/event idempotency; and auditing. No legacy SQL from Bolt was used.
+- A source posting remains a draft until explicitly posted. Non-YER sources are rejected instead of silently converted. Source void is consistent with ledger state: void draft, or post a counter-entry for an already posted source journal.
+- Exact SHA `df43fb05e9e8a31a8b45e40d38a94f85ff12691b` passed Action 39321543032 (45/45 test files, 339/339 tests, PostgreSQL 17 migration/acceptance, lint, build, preview/dev smoke). Flow-specific DB trigger tests remain NOT RUN due the harness ownership lock; overall migration application is not the same as a direct behavior test.
+- Browser/live tenant and production proofs remain NOT RUN. Next `NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006`.

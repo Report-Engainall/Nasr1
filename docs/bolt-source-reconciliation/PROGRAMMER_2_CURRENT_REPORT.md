@@ -35,3 +35,12 @@ task التالي بعده مباشرة: NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETIO
 - Initial tests failed with 3 assertions on SHA 78cd809a4ce1d6486dfc2ea48219dc435bb3346d; failures are retained in EXECUTION_LOG. Test-only corrections passed exact-SHA Action 39320266809 on 869f0909bda0524275834952f64e1ce1609e79c0: 44/44 test files, 336/336 tests, PostgreSQL 17 migrations/acceptance, lint, build, preview/dev smoke PASS.
 - Main remains at 0c089585d27665680dcc4ad2520dd4affc875804; PR #4 remains open; P1 PR #3 and owned files untouched. Browser proof and production migration/deployment proof NOT RUN.
 - Parent task NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002 remains open. Current next_task_id = NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004. Next: create target-native, idempotent cash-expense source journal drafts with explicit expense/settlement account selection and source-void/posting consistency guards.
+
+
+## Latest task outcome — 2026-10-19
+
+- `NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004`: target-native cash-expense source linkage added in P2 PR #4. Code SHA `df43fb05e9e8a31a8b45e40d38a94f85ff12691b`, Action 39321543032 PASS: 45/45 tests files, 339/339 tests, PostgreSQL 17 migrations/repo-level DB acceptance, lint, build, preview/dev smoke.
+- The linker reads real tenant-scoped expenses, demands explicit active expense + asset mapping, derives monetary value/date from source, creates only a draft until explicit posting, rejects unconfigured FX, protects against source modification and atomically handles source void via draft void or reversal journal.
+- Exact CI proves migration application and full existing acceptance, but new-flow-specific DB behavior assertions are `NOT RUN`: `scripts/test-database-migrations.mjs` is currently P1-locked. A coordination request is recorded. Browser and production proof `NOT RUN`.
+- Branch `feature/accounting-general-ledger-20261019`; PR #4 open. Main has not been modified. Archive task remains closed, original spec parent remains OPEN.
+- `next_task_id = NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006` under `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`.

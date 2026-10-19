@@ -166,3 +166,10 @@
 - Exact code SHA 869f0909bda0524275834952f64e1ce1609e79c0 passed Action 39320266809: 44/44 test files, 336/336 tests; PostgreSQL 17 migrations/acceptance, lint, build, preview 4173 and dev 5173 smoke all PASS.
 - Previous test failure remains recorded; later test-only assertions were corrected without removing coverage. Legacy archive member tests, browser proof and production migration/proof remain NOT RUN.
 - Archive decision closure does not close parent specification task. Next task is NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004.
+
+
+## P2 original-spec execution continuation — cash-expense posting
+
+- Archive work remains closed with 0 pending matrix review rows, based on the original successful verification Action 39294387493. No ZIP source operations were repeated.
+- Subsequent target-native source posting SHA `df43fb05e9e8a31a8b45e40d38a94f85ff12691b` passed Action 39321543032 (45/45 test files and 339/339 tests plus PostgreSQL 17 migration/acceptance, lint/build and smoke). Archive member code/SQL was not executed.
+- Flow-specific DB trigger assertions for cash expense posting are NOT RUN because P1 currently owns the migration test harness. Request an acceptance-test patch via WORK_COORDINATION; do not change P1-owned files until released.
