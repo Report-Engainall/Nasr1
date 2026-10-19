@@ -7,7 +7,8 @@ import {
 import { fetchProducts, fetchCategories, fetchStorefrontPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 import { formatCurrency, formatNumber } from '@/lib/format';
-import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, MAX_CATALOG_SEARCH_LENGTH, normalizeCartDraft, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
+import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, MAX_CATALOG_SEARCH_LENGTH, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
+import { loadOfflineCartDraft, offlineCartStorageKey, saveOfflineCartDraft } from '@/lib/offline-cart';
 import type { ProductWithInventory, Category, Promotion } from '@/lib/types';
 import { StorefrontAnnouncementSlider } from '@/components/StorefrontAnnouncementSlider';
 import { useAuth } from '@/lib/auth';
@@ -56,8 +57,17 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const { data: settings } = useFetch(fetchSettingsMap);
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const [view, setView] = useState<StoreView>(initialView);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [cartRestored, setCartRestored] = useState(false);
+  const cartStorageKey = offlineCartStorageKey(user?.profileId);
+  const [cartState, setCartState] = useState<{ storageKey: string; items: CartItem[] }>({ storageKey: '', items: [] });
+  const cartRestored = cartState.storageKey === cartStorageKey;
+  const cart = cartRestored ? cartState.items : [];
+  function setCart(next: CartItem[] | ((previous: CartItem[]) => CartItem[])) {
+    setCartState((current) => {
+      const previous = current.storageKey === cartStorageKey ? current.items : [];
+      const items = typeof next === 'function' ? next(previous) : next;
+      return { storageKey: cartStorageKey, items };
+    });
+  }
   const [query, setQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
   const [activeCat, setActiveCat] = useState<string>(initialCategoryId ?? '');
   const [availableOnly, setAvailableOnly] = useState<boolean>(initialAvailableOnly ?? false);
@@ -118,22 +128,21 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   useEffect(() => {
     if (cartRestored || typeof window === 'undefined') return;
     if (!products.length && (productsLoading || productsError)) return;
-    try {
-      const normal = (value: string | null) => normalizeCartDraft(value ? JSON.parse(value) as unknown : []);
-      const base = normal(window.localStorage.getItem('aghbari:cart:v1'));
-      const restore = normal(window.localStorage.getItem('aghbari:cart-restore:v1'));
-      const merged = new Map<string, number>();
-      for (const line of [...base, ...restore]) merged.set(line.product_id, Math.min(10000, (merged.get(line.product_id) ?? 0) + line.quantity));
-      setCart([...merged.entries()].map(([product_id, quantity]) => ({ product: products.find(p => p.id === product_id), quantity })).filter((line): line is CartItem => Boolean(line.product)));
-      window.localStorage.removeItem('aghbari:cart-restore:v1');
-    } catch { /* ignore malformed local drafts; never block online checkout */ }
-    setCartRestored(true);
-  }, [products, cartRestored, productsLoading, productsError]);
+    const draft = loadOfflineCartDraft(window.localStorage, user?.profileId);
+    const restored = draft
+      .map(({ product_id, quantity }) => ({ product: products.find((product) => product.id === product_id), quantity }))
+      .filter((line): line is CartItem => Boolean(line.product));
+    setCart(restored);
+  }, [products, cartStorageKey, cartRestored, productsLoading, productsError, user?.profileId]);
 
   useEffect(() => {
-    if (!cartRestored) return;
-    try { window.localStorage.setItem('aghbari:cart:v1', JSON.stringify(cart.map(item => ({ product_id: item.product.id, quantity: item.quantity })))); } catch { /* the online shop still works without storage */ }
-  }, [cart, cartRestored]);
+    if (!cartRestored || typeof window === 'undefined') return;
+    saveOfflineCartDraft(
+      window.localStorage,
+      user?.profileId,
+      cart.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
+    );
+  }, [cart, cartRestored, cartStorageKey, user?.profileId]);
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
