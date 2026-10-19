@@ -354,16 +354,20 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $function$
 DECLARE
   v_post record; v_invoice public.customer_invoices%ROWTYPE; v_payment public.customer_payments%ROWTYPE;
-  v_invoice_post record; v_count integer;
+  v_invoice_post record; v_count integer; v_expected_source_date date;
 BEGIN
   IF NEW.status<>'posted' OR OLD.status IS NOT DISTINCT FROM 'posted' OR NEW.source_type NOT IN ('invoice','payment') THEN RETURN NEW; END IF;
   SELECT sp.* INTO v_post FROM public.accounting_customer_source_postings sp
    WHERE sp.organization_id=NEW.organization_id AND sp.journal_entry_id=NEW.id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='customer invoice/payment journal cannot post without an immutable source link'; END IF;
-  IF NEW.source_reference IS DISTINCT FROM v_post.source_id::text OR NEW.entry_date IS DISTINCT FROM CASE
-      WHEN v_post.source_type='customer_invoice' THEN (SELECT i.issued_at::date FROM public.customer_invoices i WHERE i.id=v_post.source_id AND i.organization_id=v_post.organization_id)
-      ELSE (SELECT p.paid_at::date FROM public.customer_payments p WHERE p.id=v_post.source_id AND p.organization_id=v_post.organization_id)
-    END THEN
+  IF v_post.source_type='customer_invoice' THEN
+    SELECT i.issued_at::date INTO v_expected_source_date
+      FROM public.customer_invoices i WHERE i.id=v_post.source_id AND i.organization_id=v_post.organization_id;
+  ELSE
+    SELECT p.paid_at::date INTO v_expected_source_date
+      FROM public.customer_payments p WHERE p.id=v_post.source_id AND p.organization_id=v_post.organization_id;
+  END IF;
+  IF NEW.source_reference IS DISTINCT FROM v_post.source_id::text OR NEW.entry_date IS DISTINCT FROM v_expected_source_date THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='journal source reference/date no longer matches the source record';
   END IF;
   IF v_post.source_type='customer_invoice' THEN
