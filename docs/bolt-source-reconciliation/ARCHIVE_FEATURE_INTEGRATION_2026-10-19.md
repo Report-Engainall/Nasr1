@@ -47,3 +47,15 @@
 `archive integrity = PASS`; `archive comparison = PASS`; `missing executive analytics capability = IMPLEMENTED + INTEGRATED + TESTED`; `old archive SQL copied/applied = NO`; `browser proof = NOT RUN`; `production migration = NOT RUN`.
 
 المصالحة هنا انتقائية ومبنية على المصدر: لم يُدّعَ دمج كل ملف وكل شاشة من الأرشيفين. العناصر غير المنقولة محفوظة كقرارات مراجعة مع السبب؛ استمر تنفيذ بقية المواصفة الأصلية بشكل مستقل.
+
+## متابعة تنفيذ المواصفة الأصلية — المشتريات والاستلام (منفصل عن استعادة ZIP)
+
+الميزة التالية لا تُنسب إلى الأرشيفين؛ مصدرها فجوة مواصفة Aghbari Commerce في دورة الشراء والاستلام، وتم تنفيذها فوق مخطط Nasr1 الحالي.
+
+- المسار: `/admin/purchase-orders`.
+- الترحيل: `supabase/migrations/20261019230000_purchase_orders_and_receiving.sql`.
+- دورة التشغيل: مسودة → اعتماد داخلي → استلام جزئي/كامل، أو إلغاء مع سبب. لا يفترض النظام أن الاعتماد أرسل البريد للمورد.
+- مخزون صحيح: المسودة والاعتماد لا يغيران الرصيد؛ إيصال الاستلام الفعلي يحدّث الرصيد ويسجل حركة داخل معاملة واحدة. الكمية لا تتجاوز المتبقي، replay بالمفتاح والحمولة نفسيهما لا يكرر الحركة، ومفتاح مستعمل لحمولة مختلفة يُرفض. التكلفة غير المتاحة NULL وليست صفرًا.
+- المهام: انتقال أمر الشراء إلى حالة بانتظار الاستلام يُنشئ/يحدّث مهمة مخزن idempotent من حدث ثابت؛ الاستلام الكامل أو الإلغاء يغلق المهمة.
+- الدليل: [Actions 39309895500 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39309895500), SHA `2986f59c3350f313eaa53b529a7507da47192773`, 41/41 suites and 317/317 tests; migrations/RLS PostgreSQL 17; lint/build; preview/dev smoke.
+- لا يوجد دليل متصفح تفاعلي بجلسة مستخدم حقيقية أو نشر ترحيل الإنتاج: `BROWSER-PROVEN=NOT RUN`, `PRODUCTION_MIGRATION=NOT RUN`.
