@@ -1,4 +1,4 @@
-import { BarChart3, Package, RefreshCw, TrendingUp, Users } from 'lucide-react';
+import { BarChart3, Package, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
 import { Empty, ErrorBox, Loading } from '@/components/AdminPages';
 import { fetchStoreExecutiveAnalytics } from '@/lib/api';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
@@ -49,7 +49,7 @@ export function ExecutiveStoreAnalytics() {
               <small>بحسب حالات سير العمل الحالية</small>
             </article>
             <article className="report-metric">
-              <ShoppingCartFallback />
+              <ShoppingCart size={20} />
               <span>إجمالي الطلبات</span>
               <strong>{formatNumber(data.kpis.total_orders)}</strong>
               <small>يتضمن جميع الحالات</small>
@@ -116,6 +116,3 @@ export function ExecutiveStoreAnalytics() {
   );
 }
 
-function ShoppingCartFallback() {
-  return <span aria-hidden="true" style={{ display: 'inline-block', width: 20, textAlign: 'center' }}>#</span>;
-}
