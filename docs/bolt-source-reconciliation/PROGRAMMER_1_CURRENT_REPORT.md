@@ -3,8 +3,8 @@
 - **المستودع الوحيد المستهدف:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **الملكية:** هذا التقرير و`SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` فقط.
-- **المهمة الحالية / next_source_task_id:** `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001` — مقارنة مكونات عضوية الشركات بين المصدر والهدف، وتتبع UI/service/DB/RLS/RPC/route/tests قبل تقرير الدمج.
-- **المهمة التالية بعد إغلاق المهمة الحالية:** `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001` — مقارنة عقد المكونات/الخدمات/RPC/RLS/المسارات والاختبارات للعضويات بين المصدر والهدف قبل أي قرار دمج.
+- **المهمة المغلقة:** `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001` — ثبت أن مكوّن الهدف أفضل من المانح وأن الخدمات/المسارات/الاختبارات/مهاجرات SQL مطابقة ببصمات blob؛ لم يكن هناك نقص يستدعي نسخ ملفات أو تعديل RLS.
+- **المهمة الحالية / next_source_task_id:** `NASR1-SOURCE-FINANCE-PDF-TEST-RECONCILIATION-001` — مقارنة اختبار المصدر `src/lib/finance-document-pdf.test.ts` من `Aghbari-Technologies/aghbari-commerce-evolved@d24695209b45f2352e0ba994e1f5109d7e2afc9d`, blob `24c9ee11b081d1645faf08dd1fe2f723936bc656`. مسار الهدف نفسه مختلف البصمة (`f66fb316924da4843fe67ea0234e20873c6fae54`)؛ افحص التغطية الجديدة فقط، ولا تعِد فتح PDF helper الذي سُجل سابقًا.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 
@@ -28,29 +28,39 @@
 - **الدمج والتحقق بعده:** [PR #11](https://github.com/Report-Engainall/Nasr1/pull/11) مغلق بالدمج إلى `main`؛ merge commit `f7cffd41cd63e16c6020fe379edf27416c5e0ce8`. أُعيدت قراءة ملفات التنفيذ من `main` وتأكد وجود حد `25_000_000` واختبار الانحدار وسجلات البصمات. browser/manual وproduction deployment غير مثبتين.
 - **سجل المصدر:** ledger يحتوي `NASR1-SOURCE-IMAGE-PIXEL-GUARD-001` و`NASR1-SOURCE-IMAGE-PIXEL-GUARD-TEST-001` بحالة `IMPLEMENTED_PENDING_EXACT_SHA_CI`. audit سجل البصمات والقرار وعدم نسخ الملفات الخام.
 
-## 3. قرار مصدر طابور العمليات غير المتصلة
+## 3. مصالحة عضويات الشركة وجهات الاتصال — مغلق كميزة موجودة أصلًا
+
+- **المصدر:** `Aghbari-Technologies/aghbari-commerce-evolved@d24695209b45f2352e0ba994e1f5109d7e2afc9d`. لم تُنسخ ملفات إلى Nasr1 لأن مسارات التنفيذ كانت مطابقة للبصمة أو أن تنفيذ الهدف أفضل.
+- **مكوّن الواجهة:** `src/components/CustomerCompanyMembers.tsx`, donor blob `259caa2d675cd49d12864fa600b321ea73dcaae4`; target blob `d000b2526228e476586d0e0cd2873d48c259f045`. أبقينا نسخة الهدف؛ `CompanyInvitationAcceptancePage` تقبل `initialToken` اختياريًا، وبعد القبول تستبدل التاريخ بمسار ثابت يخلو من token. المانح أقدم ويقرأ query مرة واحدة ثم يكتب `pathname`.
+- **الخدمة:** `src/lib/customer-company-members.ts` blob `8578774e4074cf726ecf46d9ab3b92e48045b85d` سبق توثيقها في `NASR1-REUSE-MEMBERS-001` ولا أعيد فتح ملف المصدر. خدمة جهات الاتصال `src/lib/customer-company-contacts.ts` blob `12ff3c0de70dc8e8bcc1b49e4896aad46d1b8a35` مطابقة حرفيًا للمصدر.
+- **المسارات:** `/company/members` و`/company/accept-invitation` مطابقان للمانح وموجودان في `src/routeTree.gen.ts` مع تسجيل الأنواع وخريطة المسارات. `src/components/CustomerWorkflows.tsx` يعرض رابط `/company/members`.
+- **البيانات والأمان:** `20261015150000_customer_company_contacts.sql` blob `2d18cee559a7d382530ffc666dc6f9798066790e` و`20261015160000_customer_company_memberships.sql` blob `81e0bfc50b2d8cd29fe96af7a7fd9b0f93a99a65` كلاهما مطابق تمامًا. يتضمنان RLS وتقييد grants على الجداول، ووظائف SECURITY DEFINER مع `search_path=''`، تحقق مالك العميل والمؤسسة والبريد/الدور، دعوة أحادية الاستخدام محددة الصلاحية، قبولًا بقفل الصف والتحقق من البريد، إلغاء العضوية/الدعوة وسجلات التدقيق. لا كتابة مباشرة إلى جداول العضويات ولا تخفيف RLS. أبقينا أيضًا migration الهدف الأحدث `20261019180000_company_member_promotion_checkout.sql`.
+- **الاختبارات:** `src/test/customer-company-members.test.ts` blob `39a6b81982d22e312dcc023dccfcbc0b27b8eaf3` و`src/test/customer-company-contacts.test.ts` blob `9e4337c538e68e74ec06a4fca271e4358bd154d6` متطابقان مع المصدر. [Actions 39333274431](https://github.com/Report-Engainall/Nasr1/actions/runs/39333274431) على الرأس `f3c2a6c002e37b3adeef7028163a176717e7ff6c` نجحت في مجموعة الوحدة وPostgreSQL 17/RLS وlint/build/preview/dev. هذا دليل CI على شجرة الهدف المختبرة، وليس اختبارًا مستقلًا للمصدر المانح أو إثباتًا يدويًا في المتصفح/الإنتاج.
+- **السجلات:** أضيفت 8 عناصر إلى ledger و8 عناصر إلى audit لمسارات جديدة غير مسجلة. لم يتكرر صف خدمة العضويات الذي كان مسجلًا مسبقًا، ولم تُنسخ ملفات المصدر المرجعية.
+
+## 4. قرار مصدر طابور العمليات غير المتصلة
 
 - **المصدر:** `src/services/offlineQueue.ts` blob `7d68cdb19bd15056f58a5d92527dda78346f9209`؛ اختبار المصدر `src/services/offlineQueue.test.ts` blob `df7d5c4ec370652841b89d07b255a1d4dbd468b3`.
 - طابور المانح يقبل فقط وضع/حذف عنصر سلة محلي؛ لا يقبل إنشاء الطلب ولا تحديث المخزون.
 - Nasr1 يملك بالفعل `src/lib/offline-cart.ts` بمسودة سلة مرتبطة بملف العميل، وادعاء ضيف لمرة واحدة، وإزالة مفاتيح legacy غير المقيدة. يُخزن المنتج والكمية فقط؛ السعر والمخزون وتأكيد الطلب تظل خادمية. اختبارات الهدف الحالية تخص هذا العقد.
 - **القرار:** `DUPLICATE_PROVEN`، لا استيراد طابور ثانٍ ولا نسخ اختبارات المانح. يسجل ledger/audit القرار وبصمات المصدر ودليل الاختبارات الحالي [Actions 39329226396](https://github.com/Report-Engainall/Nasr1/actions/runs/39329226396) على `b4d1f2e9cbe1db4e34c7d82b5ca6e1880b3fe43b`. لم تُشغّل اختبارات المانح ولم يُنسخ ملفه.
 
-## 4. عطل CI منفصل يملكه P2 — PR #6
+## 5. عطل CI منفصل يملكه P2 — PR #6
 
 - [PR #6](https://github.com/Report-Engainall/Nasr1/pull/6) يعمل على ربط الفواتير/المدفوعات بقيود الأستاذ، ويملك P2 التعديل على `scripts/test-database-migrations.mjs`.
 - [Actions 39326813015](https://github.com/Report-Engainall/Nasr1/actions/runs/39326813015) فشل عند اختبار قيد الفاتورة في السطر 3288: الاختبار ينتظر رسالة `invoice has an active accounting journal` بينما الحارس الفعلي يعيد `invoice has accounting history; source amounts and identity cannot be changed`. هذا mismatch في توقع الاختبار؛ لا يعني فشل قاعدة المنع.
 - تم إرسال تعليق على PR #6 بطلب تعديل regex الخاص بالاختبار فقط ومراجعة assertion التالي، مع إبقاء الحارس ومنع القراءة المباشرة دون تغيير. **لم أحرر ملف الاختبار المشترك أو أكتب فوق عمل P2.**
 - لا تدمج PR أخرى قبل CI PASS على رأسها نفسه.
 
-## 5. الحالة الفعلية لسجلات المصدر
+## 6. الحالة الفعلية لسجلات المصدر
 
-- `SOURCE_INTEGRATION_LEDGER.csv`: 109 صفوف بيانات بعد إضافة 4 صفوف موثقة لهذه الجلسة (سجل الجلب أعطى 105 صفوف سابقًا؛ أعيد التحقق قبل أي تعديل آخر).
-- `READY_TO_REUSE_FILE_AUDIT.csv`: 73 صف بيانات بعد إضافة 4 صفوف موثقة لهذه الجلسة.
+- `SOURCE_INTEGRATION_LEDGER.csv`: 117 صف بيانات بعد إضافة 8 قرارات جديدة لعضويات الشركة إلى الـ109 الموجودة.
+- `READY_TO_REUSE_FILE_AUDIT.csv`: 81 صف بيانات بعد إضافة 8 صفوف جديدة إلى الـ73 الموجودة.
 - الصفوف المضافة تغطي مصدر معالج الصور واختباره، وقرار تكرار طابور offline واختباره. جميع البصمات المنقولة من الشجرة المانحة مسجلة؛ لم نعد فتح أي source blob كان له قرار مسجل.
 - المراجعة السابقة لجرد الملفات على main أظهرت 69 صفًا في audit، 62 منها تعود للمصادر الثلاثة المحددة، وصفر صفوف بقيت بتسميات المراجعة العامة القديمة. بعد الصفوف الأربعة الحالية صار عدد audit 73 إجمالًا.
 - مهمة حماية الصور مغلقة بعد CI PASS على رأس PR المطابق والدمج إلى main. المهمة التالية الآن `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001`: المصدر المرشح `Aghbari-Technologies/aghbari-commerce-evolved@d24695209b45f2352e0ba994e1f5109d7e2afc9d`, `src/components/CustomerCompanyMembers.tsx`, blob `259caa2d675cd49d12864fa600b321ea73dcaae4`. مسار هدف بالاسم نفسه موجود، لكن مجرد وجود component لا يثبت اكتمال مسار العضويات؛ يجب مقارنة service/DB-RLS/RPC/route/tests. لم يُفتح محتوى ملف المانح بعد ولم تُسجل له بصمة قرار في السجلات.
 
-## 6. حدود الدور
+## 7. حدود الدور
 
 - الهدف الوحيد `Report-Engainall/Nasr1`. المستودعات الثلاثة للقراءة والمقارنة فقط.
 - لا أتعامل مع ZIPs/الأرشيف أو استكمال المواصفة الأصلية المستقل.
