@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { ChevronRight, Eye, RotateCcw, Save, X } from 'lucide-react';
+import { ChevronRight, Download, Eye, RotateCcw, Save, X } from 'lucide-react';
+import { downloadPriceGridCsv } from '@/lib/price-grid-csv';
 import { fetchAdminProductPriceGrid, saveProductPriceGrid, type ProductPriceGridChange, type ProductPriceGridRow } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 
@@ -113,6 +114,9 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
       <div><h2 id="price-grid-heading">شبكة الأسعار — تحرير مجمّع</h2>
         <p>السعر الأساسي والجملة الجملة والجملة والتجزئة. لا تحفظ التعديلات قبل المعاينة؛ تعتمد الدفعة ذريًا مع فحص تعارض الأسعار وسجل التدقيق.</p></div>
       <div className="price-grid-actions">
+        <button type="button" className="btn outline" onClick={() => downloadPriceGridCsv(rows)} disabled={loading || Boolean(error) || !rows.length || busy} title="تصدير آخر أسعار محفوظة من الخادم، لا التعديلات غير المعتمدة">
+          <Download size={15} /> تصدير الأسعار المحفوظة CSV
+        </button>
         <button type="button" className="btn outline" onClick={() => { setDrafts({}); setPreview(null); setFormError(''); }} disabled={busy || (!Object.keys(drafts).length && !preview)}>
           <RotateCcw size={15} /> إلغاء التعديلات
         </button>
@@ -157,7 +161,7 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
           <td><span className={row.is_active ? 'price-grid-status active' : 'price-grid-status inactive'}>{row.is_active ? 'نشط' : 'موقوف'}</span></td>
         </tr>)}</tbody>
       </table></div>
-      <p className="price-grid-muted">Enter ينقل إلى الخلية التالية ثم السطر التالي. الحد الأقصى 200 صنف؛ يتحقق الخادم من القيم الأصلية لمنع الكتابة فوق تغيير متزامن.</p>
+      <p className="price-grid-muted">Enter ينقل إلى الخلية التالية ثم السطر التالي. الحد الأقصى 200 صنف؛ يتحقق الخادم من القيم الأصلية لمنع الكتابة فوق تغيير متزامن. تصدير CSV يعكس الأسعار المحفوظة فقط؛ عند فتحه في Excel استورد عمود الكود بنوع «نص» للمحافظة على الأصفار البادئة.</p>
     </>}
   </section>;
 }

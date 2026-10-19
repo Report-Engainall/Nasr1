@@ -7,12 +7,15 @@ const mocks = vi.hoisted(() => ({
   saveProductPriceGrid: vi.fn(),
   refetch: vi.fn(),
   rows: [] as unknown[],
+  downloadPriceGridCsv: vi.fn(),
 }));
 
 vi.mock('@/lib/api', () => ({
   fetchAdminProductPriceGrid: mocks.fetchAdminProductPriceGrid,
   saveProductPriceGrid: mocks.saveProductPriceGrid,
 }));
+
+vi.mock('@/lib/price-grid-csv', () => ({ downloadPriceGridCsv: mocks.downloadPriceGridCsv }));
 
 vi.mock('@/lib/useFetch', () => ({
   useFetch: () => ({ data: mocks.rows, loading: false, error: null, refetch: mocks.refetch }),
@@ -31,6 +34,7 @@ describe('price grid', () => {
     mocks.rows = [product];
     mocks.refetch.mockReset().mockResolvedValue(undefined);
     mocks.saveProductPriceGrid.mockReset().mockResolvedValue(1);
+    mocks.downloadPriceGridCsv.mockReset();
   });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
@@ -62,6 +66,14 @@ describe('price grid', () => {
       priceRetail: 110,
     })]));
     await waitFor(() => expect(notice).toHaveBeenCalledWith(expect.stringContaining('1 صنفًا')));
+  });
+
+  it('exports only saved server rows, not uncommitted drafts', () => {
+    render(<PricingGrid onNotice={vi.fn()} />);
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'سكر أبيض — السعر الأساسي' }), { target: { value: '101' } });
+    fireEvent.click(screen.getByRole('button', { name: 'تصدير الأسعار المحفوظة CSV' }));
+    expect(mocks.downloadPriceGridCsv).toHaveBeenCalledWith([product]);
+    expect(mocks.saveProductPriceGrid).not.toHaveBeenCalled();
   });
 
   it('does not render data when no products exist', () => {
