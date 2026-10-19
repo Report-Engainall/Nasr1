@@ -103,4 +103,35 @@ describe('inventory transfer history and batch workflow', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/تكرار/);
     expect(mocks.transferInventoryBatch).not.toHaveBeenCalled();
   });
+
+  it('retries an uncertain submission with the exact same idempotency key', async () => {
+    mocks.transferInventoryBatch
+      .mockRejectedValueOnce(new Error('network interrupted after submission'))
+      .mockResolvedValueOnce({ batch_id: '30000000-0000-4000-8000-000000000002', line_count: 1, idempotent_replay: true, transfer_ids: ['transfer-replayed'] });
+
+    render(<InventoryTransferHistoryPage />);
+    fireEvent.change(screen.getByLabelText('سبب التحويل'), { target: { value: 'تغذية فرع' } });
+    fireEvent.change(screen.getByLabelText('الصنف في الدفعة 1'), { target: { value: productA } });
+    fireEvent.change(screen.getByLabelText('الكمية في الدفعة 1'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'معاينة التحويل' }));
+    fireEvent.click(screen.getByRole('button', { name: 'اعتماد التحويل وتنفيذه' }));
+
+    await waitFor(() => expect(mocks.transferInventoryBatch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('network interrupted after submission'));
+    const firstPayload = mocks.transferInventoryBatch.mock.calls[0][0];
+
+    fireEvent.click(screen.getByRole('button', { name: 'اعتماد التحويل وتنفيذه' }));
+    await waitFor(() => expect(mocks.transferInventoryBatch).toHaveBeenCalledTimes(2));
+    const retryPayload = mocks.transferInventoryBatch.mock.calls[1][0];
+
+    expect(retryPayload.idempotencyKey).toBe(firstPayload.idempotencyKey);
+    expect(retryPayload).toMatchObject({
+      sourceWarehouseId: firstPayload.sourceWarehouseId,
+      destinationWarehouseId: firstPayload.destinationWarehouseId,
+      reason: firstPayload.reason,
+      lines: firstPayload.lines,
+    });
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/التحويل السابق/));
+  });
+
 });
