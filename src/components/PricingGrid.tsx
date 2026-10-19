@@ -114,12 +114,6 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
     setBusy(true);
     setFormError('');
     try {
-      const text = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('تعذر قراءة محتوى CSV كنص UTF-8.'));
-        reader.onerror = () => reject(new Error('تعذر قراءة ملف CSV.'));
-        reader.readAsText(file, 'utf-8');
-      });
       let imported: ReturnType<typeof parsePriceGridCsv>;
       if (isCsv) {
         const text = await new Promise<string>((resolve, reject) => {
