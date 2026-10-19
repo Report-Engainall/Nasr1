@@ -14,7 +14,9 @@ const mocks = vi.hoisted(() => ({
   fetchStorefrontAnnouncements: vi.fn(),
   categories: [{ id: "category-food", name: "مواد غذائية", description: "مواد غذائية أساسية", sort_order: 1, is_active: true }],
   promotions: [{ id: "promotion-1", title: "حملة السكر", description: "عرض منشور", discount_type: "percentage", discount_value: 10, product_ids: ["product-2"], category_ids: [], start_date: "2026-10-01", end_date: "2026-10-31", is_active: true, created_at: "2026-10-01T00:00:00Z" }],
-  user: null as null | { isStaff: boolean },
+  user: null as null | { isStaff: boolean; profileId?: string; name?: string },
+  rpc: vi.fn(async (_name: string, _args?: unknown) => ({ data: null, error: null })),
+  fetchCustomerAddresses: vi.fn(async () => []),
   acceptCompanyInvitation: vi.fn(async (_token: string) => ({ company_name: 'شركة الاختبار', member_role: 'buyer' as const })),
   products: [
     { id: "product-1", name: "Rice", item_code: "SKU-001", barcode: null, description: null, unit: "carton", base_price: 1000, cost_price: 600, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1000, wholesale_price: 900, inventory: { id: "inv-1", product_id: "product-1", warehouse_id: "warehouse-1", quantity_on_hand: 20, quantity_reserved: 0, quantity_available: 20, reorder_point: 0 } },
@@ -60,11 +62,13 @@ vi.mock("@/lib/customer-company-members", () => ({
   revokeCompanyMember: vi.fn(),
 }));
 vi.mock("@/lib/supabase", () => ({
-  supabase: { rpc: vi.fn(async () => ({ data: null, error: null })) },
+  supabase: { rpc: mocks.rpc },
   ORG_ID: "test-organization",
   ADMIN_PROFILE_ID: "test-admin-profile",
   WAREHOUSE_ID: "test-warehouse",
 }));
+
+vi.mock("@/lib/customer-addresses", () => ({ fetchCustomerAddresses: mocks.fetchCustomerAddresses }));
 
 import { routeTree } from "@/routeTree.gen";
 
@@ -113,6 +117,8 @@ describe("customer storefront saved discovery", () => {
   beforeEach(() => {
     window.localStorage.clear();
     mocks.products.splice(0, mocks.products.length, ...initialProducts);
+    mocks.rpc.mockReset().mockImplementation(async () => ({ data: null, error: null }));
+    mocks.fetchCustomerAddresses.mockReset().mockResolvedValue([]);
   });
 
   afterEach(async () => {
@@ -289,6 +295,53 @@ describe("customer storefront saved discovery", () => {
     expect(compare.host.textContent).toContain("Oil");
     expect(compare.host.textContent).not.toContain("Beans");
   });
+ 
+  it("keeps the offline cart scoped to the signed-in customer and blocks order submission until server validation succeeds", async () => {
+    const onlineDescriptor = Object.getOwnPropertyDescriptor(window.navigator, "onLine");
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: false });
+    try {
+      mocks.user = { isStaff: false, profileId: "customer-b", name: "Buyer B" };
+      window.localStorage.setItem("aghbari:cart:v2:customer:customer-a", JSON.stringify([
+        { product_id: "product-1", quantity: 2, unit_price: 1000 },
+      ]));
+      window.localStorage.setItem("aghbari:cart:v2:customer:customer-b", JSON.stringify([
+        { product_id: "product-2", quantity: 1, line_total: 1200 },
+      ]));
+      mocks.rpc.mockImplementation(async (name: string) => {
+        if (name === "validate_checkout_cart") return { data: null, error: { message: "offline" } };
+        return { data: null, error: null };
+      });
+
+      const cart = await mountAt("/cart");
+      expect(cart.host.textContent).toContain("أنت غير متصل حاليًا");
+      expect(cart.host.textContent).toContain("Sugar");
+      expect(cart.host.textContent).not.toContain("Rice");
+      expect(JSON.parse(window.localStorage.getItem("aghbari:cart:v2:customer:customer-b") || "[]")).toEqual([
+        { product_id: "product-2", quantity: 1 },
+      ]);
+
+      clickButton(cart.host, "button.sf-btn-primary", 0);
+      await act(async () => {
+        for (let attempt = 0; attempt < 12 && !mocks.rpc.mock.calls.some(([name]) => name === "validate_checkout_cart"); attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      });
+      expect(mocks.rpc).toHaveBeenCalledWith("validate_checkout_cart", {
+        p_items: [{ product_id: "product-2", quantity: 1 }],
+      });
+      expect(cart.host.textContent).toContain("offline");
+      const submit = Array.from(cart.host.querySelectorAll<HTMLButtonElement>("button")).find((button) => button.textContent?.trim() === "تأكيد الطلب");
+      expect(submit).toBeDefined();
+      expect(submit?.disabled).toBe(true);
+      if (submit) act(() => submit.click());
+      expect(mocks.rpc.mock.calls.some(([name]) => name === "submit_customer_order")).toBe(false);
+    } finally {
+      if (onlineDescriptor) Object.defineProperty(window.navigator, "onLine", onlineDescriptor);
+      else Object.defineProperty(window.navigator, "onLine", { configurable: true, value: true });
+      mocks.user = null;
+    }
+  });
+
 });
 
 async function waitForStorage(key: string, expected: string[]) {
