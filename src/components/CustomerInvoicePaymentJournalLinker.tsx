@@ -261,6 +261,6 @@ export function CustomerInvoicePaymentJournalLinker({accounts,onRefresh}:Props){
   <footer className="no-print" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
    <button type="button" style={button} disabled={page===0||loading||Boolean(busyId)} onClick={()=>setPage(p=>Math.max(0,p-1))}>السابق</button><span style={muted}>صفحة {page+1} · 50 مصدرًا في الصفحة</span><button type="button" style={button} disabled={!hasMore||loading||Boolean(busyId)} onClick={()=>setPage(p=>p+1)}>التالي</button>
   </footer>
-  <p style={{...muted,fontSize:12}}>حماية مصدر مالي: لا يُسمح بتعديل أو إلغاء فاتورة/تحصيل مرتبط بقيد مسودة أو مرحّل؛ يتطلب ذلك مسار عكس محاسبي معتمد. إلغاء مسودة القيد يتم من دفتر الأستاذ مع سبب وتدقيق. تشمل هذه الشاشة إنشاء القيود ومراجعتها وترحيلها فقط؛ لا تنفذ هذه الشاشة تحويلًا نقديًا لاسترداد الأموال.</p>
+  <p style={{...muted,fontSize:12}}>القيود الأصلية لا تُعدّل ولا تُحذف. عكس قيد فاتورة أو تحصيل مرحّل يتطلب صلاحية مدير أو مسؤول وسببًا موثقًا؛ ينشئ النظام مسودة تعكس سطور القيد الأصلي دون تعديل الأصل، ثم يتطلب ترحيلًا منفصلًا. هذا الإجراء محاسبي فقط ولا ينفّذ تحويلًا نقديًا لاسترداد الأموال.</p>
  </section>;
 }
