@@ -33,14 +33,14 @@
 
 ## دليل الاختبار
 
-الالتزام المطابق للميزة الأساسية كان في commit [`2367b7c28e3eab5563be3129383c954c7c5eb831`](https://github.com/Report-Engainall/Nasr1/commit/2367b7c28e3eab5563be3129383c954c7c5eb831)، واجتاز [Actions 39303287438 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39303287438):
-- اختبارات الوحدات.
+التكامل النهائي للكود والواجهة في commit [`55c1d970496c69db36d01197a109a5afd7c6aa04`](https://github.com/Report-Engainall/Nasr1/commit/55c1d970496c69db36d01197a109a5afd7c6aa04)، واجتاز [Actions 39303848194 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39303848194):
+- اختبارات الوحدات: **38/38 ملفات و307/307 اختبارات**.
 - تطبيق migrations وفحوص RLS وسير العمل على PostgreSQL 17 معزول.
 - Lint.
 - Build.
 - Production preview smoke على 4173 وdev smoke على 5173.
 
-هذا إثبات CI على SHA المحدد، وليس إثبات متصفح تفاعلي بحساب حي أو تطبيق migrations على قاعدة الإنتاج. تُسجّل التعديلات المرئية اللاحقة ونتائج CI الخاصة بها في سجل التنفيذ بعد اكتمالها.
+هذا إثبات CI على SHA المحدد، وليس إثبات متصفح تفاعلي بحساب حي أو تطبيق migrations على قاعدة الإنتاج.
 
 ## حالة الإكمال
 
