@@ -2964,12 +2964,12 @@ async function main() {
     () => db.unsafe("select public.void_general_journal_draft($1::uuid,$2::text)",[journalId,"posted entries cannot be cancelled"]),
     /posted journal entries cannot be voided/i,
   );
+  // Read audit entries while the privileged manager identity is still active.
+  const ledgerAudit=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='accounting_journal_entry' and entity_id=$2::uuid order by action",[organizationId,journalId]);
+  assert.deepEqual(ledgerAudit.map((row)=>row.action),["accounting.journal_draft_created","accounting.journal_posted"]);
   await db.unsafe("reset role");
   await setIdentity(accountantAuthUserId,"ci-accountant@example.test");
   await db.unsafe("set role authenticated");
-
-  const ledgerAudit=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='accounting_journal_entry' and entity_id=$2::uuid order by action",[organizationId,journalId]);
-  assert.deepEqual(ledgerAudit.map((row)=>row.action),["accounting.journal_draft_created","accounting.journal_posted"]);
   await db.unsafe("reset role");
   await setIdentity(authUserId,"ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
