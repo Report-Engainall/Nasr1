@@ -417,6 +417,15 @@ CREATE OR REPLACE FUNCTION public.accounting_guard_customer_invoice_source_chang
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $function$
 BEGIN
+  IF TG_OP='DELETE' THEN
+    IF EXISTS (
+      SELECT 1 FROM public.accounting_customer_source_postings sp
+      WHERE sp.organization_id=OLD.organization_id AND sp.source_type='customer_invoice' AND sp.source_id=OLD.id
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice has accounting history; reverse or reconcile its linked journals before deleting the source';
+    END IF;
+    RETURN OLD;
+  END IF;
   IF (NEW.status='void' OR NEW.organization_id IS DISTINCT FROM OLD.organization_id OR NEW.currency IS DISTINCT FROM OLD.currency
       OR NEW.issued_at IS DISTINCT FROM OLD.issued_at OR NEW.subtotal IS DISTINCT FROM OLD.subtotal
       OR NEW.tax_amount IS DISTINCT FROM OLD.tax_amount OR NEW.total_amount IS DISTINCT FROM OLD.total_amount
@@ -436,6 +445,8 @@ REVOKE ALL ON FUNCTION public.accounting_guard_customer_invoice_source_change() 
 CREATE TRIGGER accounting_customer_invoice_source_guard
   BEFORE UPDATE OF status,organization_id,currency,issued_at,subtotal,tax_amount,total_amount,customer_id,order_id
   ON public.customer_invoices FOR EACH ROW EXECUTE FUNCTION public.accounting_guard_customer_invoice_source_change();
+CREATE TRIGGER accounting_customer_invoice_source_delete_guard
+  BEFORE DELETE ON public.customer_invoices FOR EACH ROW EXECUTE FUNCTION public.accounting_guard_customer_invoice_source_change();
 
 CREATE OR REPLACE FUNCTION public.accounting_guard_customer_payment_source_change()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
@@ -444,6 +455,12 @@ DECLARE v_id uuid; v_org uuid;
 BEGIN
   v_id:=CASE WHEN TG_OP='DELETE' THEN OLD.id ELSE NEW.id END;
   v_org:=CASE WHEN TG_OP='DELETE' THEN OLD.organization_id ELSE NEW.organization_id END;
+  IF TG_OP='DELETE' AND EXISTS (
+    SELECT 1 FROM public.accounting_customer_source_postings sp
+    WHERE sp.organization_id=v_org AND sp.source_type='customer_payment' AND sp.source_id=v_id
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='payment has accounting history; reverse or reconcile its linked journal before deleting the source';
+  END IF;
   IF EXISTS (
     SELECT 1 FROM public.accounting_customer_source_postings sp JOIN public.accounting_journal_entries je
       ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
