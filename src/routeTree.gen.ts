@@ -17,9 +17,14 @@ import { Route as BarcodeRouteImport } from './routes/barcode'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as CatalogRouteImport } from './routes/catalog'
+import { Route as CategoriesRouteImport } from './routes/categories'
+import { Route as CategorySlugRouteImport } from './routes/category.$slug'
+import { Route as CategorySlugSubcategorySlugRouteImport } from './routes/category.$slug.subcategory.$subcategorySlug'
 import { Route as CollectionsRouteImport } from './routes/collections'
 import { Route as OffersRouteImport } from './routes/offers'
 import { Route as StoreRouteImport } from './routes/store'
+import { Route as SearchAdvancedRouteImport } from './routes/search.advanced'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as InvoicesRouteImport } from './routes/invoices'
@@ -287,6 +292,31 @@ const ProductIdRoute = ProductIdRouteImport.update({
   path: '/product/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CategoriesRoute = CategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CategorySlugRoute = CategorySlugRouteImport.update({
+  id: '/category/$slug',
+  path: '/category/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CategorySlugSubcategorySlugRoute = CategorySlugSubcategorySlugRouteImport.update({
+  id: '/subcategory/$subcategorySlug',
+  path: '/subcategory/$subcategorySlug',
+  getParentRoute: () => CategorySlugRoute,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchAdvancedRoute = SearchAdvancedRouteImport.update({
+  id: '/advanced',
+  path: '/advanced',
+  getParentRoute: () => SearchRoute,
+} as any)
 const CatalogRoute = CatalogRouteImport.update({
   id: '/catalog',
   path: '/catalog',
@@ -370,6 +400,11 @@ export interface FileRoutesByFullPath {
   '/collections': typeof CollectionsRoute
   '/offers': typeof OffersRoute
   '/store': typeof StoreRoute
+  '/categories': typeof CategoriesRoute
+  '/category/$slug': typeof CategorySlugRouteWithChildren
+  '/category/$slug/subcategory/$subcategorySlug': typeof CategorySlugSubcategorySlugRoute
+  '/search': typeof SearchRouteWithChildren
+  '/search/advanced': typeof SearchAdvancedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -422,6 +457,11 @@ export interface FileRoutesByTo {
   '/collections': typeof CollectionsRoute
   '/offers': typeof OffersRoute
   '/store': typeof StoreRoute
+  '/categories': typeof CategoriesRoute
+  '/category/$slug': typeof CategorySlugRouteWithChildren
+  '/category/$slug/subcategory/$subcategorySlug': typeof CategorySlugSubcategorySlugRoute
+  '/search': typeof SearchRouteWithChildren
+  '/search/advanced': typeof SearchAdvancedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -476,6 +516,11 @@ export interface FileRoutesById {
   '/collections': typeof CollectionsRoute
   '/offers': typeof OffersRoute
   '/store': typeof StoreRoute
+  '/categories': typeof CategoriesRoute
+  '/category/$slug': typeof CategorySlugRouteWithChildren
+  '/category/$slug/subcategory/$subcategorySlug': typeof CategorySlugSubcategorySlugRoute
+  '/search': typeof SearchRouteWithChildren
+  '/search/advanced': typeof SearchAdvancedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -528,6 +573,11 @@ export interface FileRouteTypes {
     | '/collections'
     | '/offers'
     | '/store'
+    | '/categories'
+    | '/category/$slug'
+    | '/category/$slug/subcategory/$subcategorySlug'
+    | '/search'
+    | '/search/advanced'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -577,6 +627,11 @@ export interface FileRouteTypes {
     | '/collections'
     | '/offers'
     | '/store'
+    | '/categories'
+    | '/category/$slug'
+    | '/category/$slug/subcategory/$subcategorySlug'
+    | '/search'
+    | '/search/advanced'
   id:
     | '__root__'
     | '/'
@@ -627,6 +682,11 @@ export interface FileRouteTypes {
     | '/collections'
     | '/offers'
     | '/store'
+    | '/categories'
+    | '/category/$slug'
+    | '/category/$slug/subcategory/$subcategorySlug'
+    | '/search'
+    | '/search/advanced'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -679,6 +739,9 @@ export interface RootRouteChildren {
   CollectionsRoute: typeof CollectionsRoute
   OffersRoute: typeof OffersRoute
   StoreRoute: typeof StoreRoute
+  CategoriesRoute: typeof CategoriesRoute
+  CategorySlugRoute: typeof CategorySlugRouteWithChildren
+  SearchRoute: typeof SearchRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -1027,6 +1090,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StoreRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/categories': {
+      id: '/categories'
+      path: '/categories'
+      fullPath: '/categories'
+      preLoaderRoute: typeof CategoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/category/$slug': {
+      id: '/category/$slug'
+      path: '/category/$slug'
+      fullPath: '/category/$slug'
+      preLoaderRoute: typeof CategorySlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/category/$slug/subcategory/$subcategorySlug': {
+      id: '/category/$slug/subcategory/$subcategorySlug'
+      path: '/subcategory/$subcategorySlug'
+      fullPath: '/category/$slug/subcategory/$subcategorySlug'
+      preLoaderRoute: typeof CategorySlugSubcategorySlugRouteImport
+      parentRoute: typeof CategorySlugRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search/advanced': {
+      id: '/search/advanced'
+      path: '/advanced'
+      fullPath: '/search/advanced'
+      preLoaderRoute: typeof SearchAdvancedRouteImport
+      parentRoute: typeof SearchRouteImport
+    }
     '/api/invoice-pdf/$invoiceId': {
       id: '/api/invoice-pdf/$invoiceId'
       path: '/api/invoice-pdf/$invoiceId'
@@ -1044,6 +1142,28 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface CategorySlugRouteChildren {
+  CategorySlugSubcategorySlugRoute: typeof CategorySlugSubcategorySlugRoute
+}
+
+const CategorySlugRouteChildren: CategorySlugRouteChildren = {
+  CategorySlugSubcategorySlugRoute: CategorySlugSubcategorySlugRoute,
+}
+
+const CategorySlugRouteWithChildren =
+  CategorySlugRoute._addFileChildren(CategorySlugRouteChildren)
+
+interface SearchRouteChildren {
+  SearchAdvancedRoute: typeof SearchAdvancedRoute
+}
+
+const SearchRouteChildren: SearchRouteChildren = {
+  SearchAdvancedRoute: SearchAdvancedRoute,
+}
+
+const SearchRouteWithChildren =
+  SearchRoute._addFileChildren(SearchRouteChildren)
+
 interface OrdersRouteChildren {
   OrdersIdRoute: typeof OrdersIdRoute
   OrdersIndexRoute: typeof OrdersIndexRoute
@@ -1058,6 +1178,9 @@ const OrdersRouteWithChildren =
   OrdersRoute._addFileChildren(OrdersRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
+  CategoriesRoute: CategoriesRoute,
+  CategorySlugRoute: CategorySlugRouteWithChildren,
+  SearchRoute: SearchRouteWithChildren,
   IndexRoute: IndexRoute,
   AddressesRoute: AddressesRoute,
   AdminRoute: AdminRoute,
