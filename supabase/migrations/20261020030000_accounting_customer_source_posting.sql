@@ -5,7 +5,7 @@ CREATE TABLE public.accounting_customer_source_postings (
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
   source_type text NOT NULL CHECK (source_type IN ('customer_invoice','customer_payment')),
   source_id uuid NOT NULL,
-  posting_kind text NOT NULL DEFAULT 'original' CHECK (posting_kind='original'),
+  posting_kind text NOT NULL DEFAULT 'original' CHECK (posting_kind IN ('original','reversal')),
   journal_entry_id uuid NOT NULL,
   source_amount numeric(18,2) NOT NULL CHECK (source_amount > 0 AND source_amount < 10000000000000000),
   source_currency text NOT NULL CHECK (source_currency ~ '^[A-Z]{3}$'),
@@ -15,6 +15,7 @@ CREATE TABLE public.accounting_customer_source_postings (
   settlement_account_id uuid,
   idempotency_key uuid NOT NULL,
   payload_fingerprint text NOT NULL CHECK (payload_fingerprint ~ '^[0-9a-f]{32}$'),
+  reversal_reason text,
   created_by_profile_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (organization_id,journal_entry_id)
@@ -29,6 +30,7 @@ CREATE TABLE public.accounting_customer_source_postings (
     REFERENCES public.accounting_accounts(organization_id,id) ON DELETE RESTRICT,
   UNIQUE (organization_id,journal_entry_id),
   UNIQUE (organization_id,idempotency_key),
+  CHECK ((posting_kind='original' AND reversal_reason IS NULL) OR (posting_kind='reversal' AND char_length(btrim(coalesce(reversal_reason,''))) BETWEEN 5 AND 500)),
   CHECK (
     (source_type='customer_invoice' AND revenue_account_id IS NOT NULL AND settlement_account_id IS NULL)
     OR
@@ -74,7 +76,7 @@ BEGIN
       je.status AS journal_status,je.entry_number
     FROM public.accounting_customer_source_postings sp
     JOIN public.accounting_journal_entries je ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
-    WHERE sp.organization_id=v_org AND sp.source_type='customer_invoice'
+    WHERE sp.organization_id=v_org AND sp.source_type='customer_invoice' AND sp.posting_kind='original'
     ORDER BY sp.source_id,sp.created_at DESC,sp.id DESC
   )
   SELECT count(*)::integer INTO v_count
@@ -89,7 +91,7 @@ BEGIN
       je.status AS journal_status,je.entry_number
     FROM public.accounting_customer_source_postings sp
     JOIN public.accounting_journal_entries je ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
-    WHERE sp.organization_id=v_org AND sp.source_type='customer_invoice'
+    WHERE sp.organization_id=v_org AND sp.source_type='customer_invoice' AND sp.posting_kind='original'
     ORDER BY sp.source_id,sp.created_at DESC,sp.id DESC
   )
   SELECT coalesce(jsonb_agg(jsonb_build_object(
@@ -97,7 +99,11 @@ BEGIN
     'source_status',q.source_status,'currency',q.currency,'subtotal',q.subtotal::text,
     'tax_amount',q.tax_amount::text,'total_amount',q.total_amount::text,'source_date',q.issued_at::date::text,
     'journal_entry_id',q.journal_entry_id::text,'journal_entry_number',q.entry_number::text,'journal_status',q.journal_status,
-    'receivable_account_id',q.receivable_account_id::text,'revenue_account_id',q.revenue_account_id::text,'tax_account_id',q.tax_account_id::text
+    'receivable_account_id',q.receivable_account_id::text,'revenue_account_id',q.revenue_account_id::text,'tax_account_id',q.tax_account_id::text,
+    'journal_reversal_entry_id',(SELECT rsp.journal_entry_id::text FROM public.accounting_customer_source_postings rsp JOIN public.accounting_journal_entries rje ON rje.id=rsp.journal_entry_id AND rje.organization_id=rsp.organization_id WHERE rsp.organization_id=v_org AND rsp.source_type='customer_invoice' AND rsp.source_id=q.id AND rsp.posting_kind='reversal' ORDER BY rsp.created_at DESC,rsp.id DESC LIMIT 1),
+    'journal_reversal_status',(SELECT rje.status FROM public.accounting_customer_source_postings rsp JOIN public.accounting_journal_entries rje ON rje.id=rsp.journal_entry_id AND rje.organization_id=rsp.organization_id WHERE rsp.organization_id=v_org AND rsp.source_type='customer_invoice' AND rsp.source_id=q.id AND rsp.posting_kind='reversal' ORDER BY rsp.created_at DESC,rsp.id DESC LIMIT 1),
+    'journal_reversal_entry_number',(SELECT rje.entry_number::text FROM public.accounting_customer_source_postings rsp JOIN public.accounting_journal_entries rje ON rje.id=rsp.journal_entry_id AND rje.organization_id=rsp.organization_id WHERE rsp.organization_id=v_org AND rsp.source_type='customer_invoice' AND rsp.source_id=q.id AND rsp.posting_kind='reversal' ORDER BY rsp.created_at DESC,rsp.id DESC LIMIT 1),
+    'journal_reversal_reason',(SELECT rsp.reversal_reason FROM public.accounting_customer_source_postings rsp WHERE rsp.organization_id=v_org AND rsp.source_type='customer_invoice' AND rsp.source_id=q.id AND rsp.posting_kind='reversal' ORDER BY rsp.created_at DESC,rsp.id DESC LIMIT 1)
   ) ORDER BY q.issued_at DESC,q.id DESC),'[]'::jsonb) INTO v_items
   FROM (
     SELECT i.id,i.invoice_number,i.status AS source_status,i.currency,i.subtotal,i.tax_amount,i.total_amount,i.issued_at,
@@ -141,7 +147,7 @@ BEGIN
       je.status AS journal_status,je.entry_number
     FROM public.accounting_customer_source_postings sp JOIN public.accounting_journal_entries je
       ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
-    WHERE sp.organization_id=v_org AND sp.source_type='customer_payment'
+    WHERE sp.organization_id=v_org AND sp.source_type='customer_payment' AND sp.posting_kind='original'
     ORDER BY sp.source_id,sp.created_at DESC,sp.id DESC
   )
   SELECT count(*)::integer INTO v_count
@@ -157,13 +163,13 @@ BEGIN
       je.status AS journal_status,je.entry_number
     FROM public.accounting_customer_source_postings sp JOIN public.accounting_journal_entries je
       ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
-    WHERE sp.organization_id=v_org AND sp.source_type='customer_payment'
+    WHERE sp.organization_id=v_org AND sp.source_type='customer_payment' AND sp.posting_kind='original'
     ORDER BY sp.source_id,sp.created_at DESC,sp.id DESC
   ), last_invoice AS (
     SELECT DISTINCT ON (sp.source_id) sp.source_id,sp.journal_entry_id,sp.receivable_account_id,je.status AS journal_status
     FROM public.accounting_customer_source_postings sp JOIN public.accounting_journal_entries je
       ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
-    WHERE sp.organization_id=v_org AND sp.source_type='customer_invoice'
+    WHERE sp.organization_id=v_org AND sp.source_type='customer_invoice' AND sp.posting_kind='original'
     ORDER BY sp.source_id,sp.created_at DESC,sp.id DESC
   )
   SELECT coalesce(jsonb_agg(jsonb_build_object(
@@ -172,7 +178,11 @@ BEGIN
     'payment_method',q.payment_method,'reference',q.reference,'invoice_status',q.invoice_status,
     'invoice_journal_status',q.invoice_journal_status,'invoice_receivable_account_id',q.invoice_receivable_account_id::text,
     'journal_entry_id',q.journal_entry_id::text,'journal_entry_number',q.entry_number::text,'journal_status',q.journal_status,
-    'receivable_account_id',q.receivable_account_id::text,'settlement_account_id',q.settlement_account_id::text
+    'receivable_account_id',q.receivable_account_id::text,'settlement_account_id',q.settlement_account_id::text,
+    'journal_reversal_entry_id',(SELECT rsp.journal_entry_id::text FROM public.accounting_customer_source_postings rsp JOIN public.accounting_journal_entries rje ON rje.id=rsp.journal_entry_id AND rje.organization_id=rsp.organization_id WHERE rsp.organization_id=v_org AND rsp.source_type='customer_payment' AND rsp.source_id=q.id AND rsp.posting_kind='reversal' ORDER BY rsp.created_at DESC,rsp.id DESC LIMIT 1),
+    'journal_reversal_status',(SELECT rje.status FROM public.accounting_customer_source_postings rsp JOIN public.accounting_journal_entries rje ON rje.id=rsp.journal_entry_id AND rje.organization_id=rsp.organization_id WHERE rsp.organization_id=v_org AND rsp.source_type='customer_payment' AND rsp.source_id=q.id AND rsp.posting_kind='reversal' ORDER BY rsp.created_at DESC,rsp.id DESC LIMIT 1),
+    'journal_reversal_entry_number',(SELECT rje.entry_number::text FROM public.accounting_customer_source_postings rsp JOIN public.accounting_journal_entries rje ON rje.id=rsp.journal_entry_id AND rje.organization_id=rsp.organization_id WHERE rsp.organization_id=v_org AND rsp.source_type='customer_payment' AND rsp.source_id=q.id AND rsp.posting_kind='reversal' ORDER BY rsp.created_at DESC,rsp.id DESC LIMIT 1),
+    'journal_reversal_reason',(SELECT rsp.reversal_reason FROM public.accounting_customer_source_postings rsp WHERE rsp.organization_id=v_org AND rsp.source_type='customer_payment' AND rsp.source_id=q.id AND rsp.posting_kind='reversal' ORDER BY rsp.created_at DESC,rsp.id DESC LIMIT 1)
   ) ORDER BY q.paid_at DESC,q.id DESC),'[]'::jsonb) INTO v_items
   FROM (
     SELECT p.id,p.invoice_id,p.amount,p.payment_method,p.reference,p.paid_at,i.invoice_number,i.currency,i.status AS invoice_status,
@@ -244,7 +254,7 @@ BEGIN
   SELECT sp.payload_fingerprint,je.id,je.entry_number,je.status INTO v_existing
     FROM public.accounting_customer_source_postings sp JOIN public.accounting_journal_entries je
       ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
-   WHERE sp.organization_id=v_org AND sp.source_type='customer_invoice' AND sp.source_id=v_invoice.id
+   WHERE sp.organization_id=v_org AND sp.source_type='customer_invoice' AND sp.source_id=v_invoice.id AND sp.posting_kind='original'
      AND je.status IN ('draft','posted') ORDER BY sp.created_at DESC,sp.id DESC LIMIT 1 FOR UPDATE OF je;
   IF FOUND THEN
     IF v_existing.payload_fingerprint IS DISTINCT FROM v_fingerprint THEN
@@ -304,7 +314,7 @@ BEGIN
     INTO v_invoice_post
     FROM public.accounting_customer_source_postings sp
     JOIN public.accounting_journal_entries je ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
-   WHERE sp.organization_id=v_org AND sp.source_type='customer_invoice' AND sp.source_id=v_invoice.id AND je.status='posted'
+   WHERE sp.organization_id=v_org AND sp.source_type='customer_invoice' AND sp.source_id=v_invoice.id AND sp.posting_kind='original' AND je.status='posted'
    ORDER BY sp.created_at DESC,sp.id DESC LIMIT 1;
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='customer invoice must have a posted journal before allocating a payment to the ledger'; END IF;
   IF NOT EXISTS(SELECT 1 FROM public.accounting_accounts a WHERE a.id=p_settlement_account_id AND a.organization_id=v_org AND a.is_active AND a.account_type='asset') THEN
@@ -321,7 +331,7 @@ BEGIN
   SELECT sp.payload_fingerprint,je.id,je.entry_number,je.status INTO v_existing
     FROM public.accounting_customer_source_postings sp JOIN public.accounting_journal_entries je
       ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
-   WHERE sp.organization_id=v_org AND sp.source_type='customer_payment' AND sp.source_id=v_payment.id
+   WHERE sp.organization_id=v_org AND sp.source_type='customer_payment' AND sp.source_id=v_payment.id AND sp.posting_kind='original'
      AND je.status IN ('draft','posted') ORDER BY sp.created_at DESC,sp.id DESC LIMIT 1 FOR UPDATE OF je;
   IF FOUND THEN
     IF v_existing.payload_fingerprint IS DISTINCT FROM v_fingerprint THEN
@@ -349,26 +359,167 @@ $function$;
 REVOKE ALL ON FUNCTION public.create_customer_payment_journal_draft(uuid,uuid,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.create_customer_payment_journal_draft(uuid,uuid,uuid) TO authenticated;
 
+
+CREATE OR REPLACE FUNCTION public.create_customer_source_reversal_draft(
+  p_source_type text,p_source_id uuid,p_reason text,p_idempotency_key uuid
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $function$
+DECLARE
+  v_actor uuid:=public.current_profile_id(); v_org uuid; v_source_type text:=lower(btrim(coalesce(p_source_type,'')));
+  v_reason text:=btrim(coalesce(p_reason,'')); v_original record; v_existing record;
+  v_invoice public.customer_invoices%ROWTYPE; v_payment public.customer_payments%ROWTYPE;
+  v_invoice_for_payment public.customer_invoices%ROWTYPE; v_entry public.accounting_journal_entries%ROWTYPE;
+  v_fingerprint text; v_source_amount numeric(18,2); v_source_currency text; v_source_label text;
+  v_original_line_count integer;
+BEGIN
+  SELECT p.organization_id INTO v_org FROM public.profiles p WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true;
+  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.operational_tasks_can_manage() THEN
+    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='administrator or manager permission required to prepare a source reversal';
+  END IF;
+  IF v_source_type NOT IN ('customer_invoice','customer_payment') OR p_source_id IS NULL OR p_idempotency_key IS NULL
+     OR char_length(v_reason) NOT BETWEEN 5 AND 500 THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='source type, identifier, idempotency key and a reason between 5 and 500 characters are required';
+  END IF;
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_org::text||':customer-source-reversal:'||v_source_type||':'||p_source_id::text,0));
+  SELECT sp.*,je.id AS original_entry_id,je.entry_number AS original_entry_number,je.status AS original_entry_status,je.source_type AS original_journal_type
+    INTO v_original FROM public.accounting_customer_source_postings sp
+    JOIN public.accounting_journal_entries je ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
+   WHERE sp.organization_id=v_org AND sp.source_type=v_source_type AND sp.source_id=p_source_id
+     AND sp.posting_kind='original' AND je.status='posted'
+   ORDER BY sp.created_at DESC,sp.id DESC LIMIT 1 FOR UPDATE OF je;
+  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='a posted original source journal is required before a reversal can be prepared'; END IF;
+  IF (v_source_type='customer_invoice' AND v_original.original_journal_type<>'invoice')
+     OR (v_source_type='customer_payment' AND v_original.original_journal_type<>'payment') THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='source journal type does not match the original financial source';
+  END IF;
+  IF v_source_type='customer_invoice' THEN
+    SELECT i.* INTO v_invoice FROM public.customer_invoices i WHERE i.id=p_source_id AND i.organization_id=v_org FOR UPDATE;
+    IF NOT FOUND OR v_invoice.status='void' OR v_invoice.currency<>'YER'
+      OR v_invoice.total_amount IS DISTINCT FROM v_original.source_amount OR v_invoice.currency IS DISTINCT FROM v_original.source_currency
+      OR round(v_invoice.subtotal+v_invoice.tax_amount,2) IS DISTINCT FROM v_invoice.total_amount THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice source is missing, void, non-YER or differs from its original posted journal';
+    END IF;
+    v_source_amount:=v_invoice.total_amount; v_source_currency:=v_invoice.currency; v_source_label:='فاتورة عميل #'||v_invoice.invoice_number;
+  ELSE
+    SELECT p.* INTO v_payment FROM public.customer_payments p WHERE p.id=p_source_id AND p.organization_id=v_org FOR UPDATE;
+    IF NOT FOUND OR v_payment.amount IS DISTINCT FROM v_original.source_amount THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='payment source is missing or its amount differs from the original posted journal';
+    END IF;
+    SELECT i.* INTO v_invoice_for_payment FROM public.customer_invoices i WHERE i.id=v_payment.invoice_id AND i.organization_id=v_org;
+    IF NOT FOUND OR v_invoice_for_payment.currency<>'YER' OR v_invoice_for_payment.currency IS DISTINCT FROM v_original.source_currency THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='payment source has no matching YER invoice; manual reconciliation required';
+    END IF;
+    v_source_amount:=v_payment.amount; v_source_currency:=v_invoice_for_payment.currency; v_source_label:='تحصيل فاتورة #'||v_invoice_for_payment.invoice_number;
+  END IF;
+  v_fingerprint:=pg_catalog.md5(pg_catalog.jsonb_build_object('source_type',v_source_type,'source_id',p_source_id,
+    'original_entry_id',v_original.original_entry_id,'source_amount',v_source_amount::text,'source_currency',v_source_currency,
+    'reason',v_reason,'receivable_account_id',v_original.receivable_account_id,'revenue_account_id',v_original.revenue_account_id,
+    'tax_account_id',v_original.tax_account_id,'settlement_account_id',v_original.settlement_account_id)::text);
+  SELECT sp.payload_fingerprint,je.id,je.entry_number,je.status INTO v_existing
+    FROM public.accounting_customer_source_postings sp JOIN public.accounting_journal_entries je
+      ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
+   WHERE sp.organization_id=v_org AND sp.source_type=v_source_type AND sp.source_id=p_source_id
+     AND sp.posting_kind='reversal' AND je.status IN ('draft','posted')
+   ORDER BY sp.created_at DESC,sp.id DESC LIMIT 1 FOR UPDATE OF je;
+  IF FOUND THEN
+    IF v_existing.payload_fingerprint IS DISTINCT FROM v_fingerprint THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='source already has an active or posted reversal with a different reason or source snapshot';
+    END IF;
+    RETURN pg_catalog.jsonb_build_object('journal_entry_id',v_existing.id,'journal_entry_number',v_existing.entry_number::text,
+      'status',v_existing.status,'source_id',p_source_id::text,'amount',v_source_amount::text,'currency',v_source_currency,'replayed',true);
+  END IF;
+  IF EXISTS(SELECT 1 FROM public.accounting_journal_entries je WHERE je.organization_id=v_org AND je.idempotency_key=p_idempotency_key) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='journal idempotency key has already been used for another entry';
+  END IF;
+  SELECT count(*)::integer INTO v_original_line_count FROM public.accounting_journal_lines l
+   WHERE l.organization_id=v_org AND l.journal_entry_id=v_original.original_entry_id;
+  IF v_original_line_count<2 THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='original posted source journal has no complete line set to reverse'; END IF;
+  INSERT INTO public.accounting_journal_entries(organization_id,entry_date,description,source_type,source_reference,status,idempotency_key,payload_fingerprint,created_by_profile_id)
+  VALUES(v_org,current_date,'عكس محاسبي: '||v_source_label,CASE WHEN v_source_type='customer_invoice' THEN 'invoice' ELSE 'payment' END,
+    p_source_id::text,'draft',p_idempotency_key,v_fingerprint,v_actor) RETURNING * INTO v_entry;
+  INSERT INTO public.accounting_journal_lines(organization_id,journal_entry_id,line_number,account_id,debit,credit,memo)
+    SELECT l.organization_id,v_entry.id,l.line_number,l.account_id,l.credit,l.debit,pg_catalog.left('عكس: '||coalesce(l.memo,''),300)
+      FROM public.accounting_journal_lines l WHERE l.organization_id=v_org AND l.journal_entry_id=v_original.original_entry_id ORDER BY l.line_number;
+  INSERT INTO public.accounting_customer_source_postings(organization_id,source_type,source_id,posting_kind,journal_entry_id,source_amount,source_currency,
+    receivable_account_id,revenue_account_id,tax_account_id,settlement_account_id,idempotency_key,payload_fingerprint,reversal_reason,created_by_profile_id)
+  VALUES(v_org,v_source_type,p_source_id,'reversal',v_entry.id,v_source_amount,v_source_currency,
+    v_original.receivable_account_id,v_original.revenue_account_id,v_original.tax_account_id,v_original.settlement_account_id,
+    p_idempotency_key,v_fingerprint,v_reason,v_actor);
+  INSERT INTO public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value)
+  VALUES(v_org,v_actor,'accounting.customer_source_reversal_draft_created',v_source_type,p_source_id,
+    pg_catalog.jsonb_build_object('original_journal_entry_id',v_original.original_entry_id,'original_status','posted','amount',v_source_amount::text,'currency',v_source_currency),
+    pg_catalog.jsonb_build_object('reversal_journal_entry_id',v_entry.id,'entry_number',v_entry.entry_number::text,'status','draft','reason',v_reason));
+  RETURN pg_catalog.jsonb_build_object('journal_entry_id',v_entry.id,'journal_entry_number',v_entry.entry_number::text,'status',v_entry.status,
+    'source_id',p_source_id::text,'amount',v_source_amount::text,'currency',v_source_currency,'replayed',false);
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.create_customer_source_reversal_draft(text,uuid,text,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.create_customer_source_reversal_draft(text,uuid,text,uuid) TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.accounting_validate_customer_source_journal_post()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $function$
 DECLARE
   v_post record; v_invoice public.customer_invoices%ROWTYPE; v_payment public.customer_payments%ROWTYPE;
-  v_invoice_post record; v_count integer; v_expected_source_date date;
+  v_invoice_post record; v_count integer; v_expected_source_date date; v_original_entry_id uuid; v_original_line_count integer;
 BEGIN
   IF NEW.status<>'posted' OR OLD.status IS NOT DISTINCT FROM 'posted' OR NEW.source_type NOT IN ('invoice','payment') THEN RETURN NEW; END IF;
   SELECT sp.* INTO v_post FROM public.accounting_customer_source_postings sp
    WHERE sp.organization_id=NEW.organization_id AND sp.journal_entry_id=NEW.id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='customer invoice/payment journal cannot post without an immutable source link'; END IF;
-  IF v_post.source_type='customer_invoice' THEN
-    SELECT i.issued_at::date INTO v_expected_source_date
-      FROM public.customer_invoices i WHERE i.id=v_post.source_id AND i.organization_id=v_post.organization_id;
-  ELSE
-    SELECT p.paid_at::date INTO v_expected_source_date
-      FROM public.customer_payments p WHERE p.id=v_post.source_id AND p.organization_id=v_post.organization_id;
+  IF (v_post.source_type='customer_invoice' AND NEW.source_type<>'invoice')
+     OR (v_post.source_type='customer_payment' AND NEW.source_type<>'payment')
+     OR NEW.source_reference IS DISTINCT FROM v_post.source_id::text THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='journal source reference/type no longer matches the immutable source link';
   END IF;
-  IF NEW.source_reference IS DISTINCT FROM v_post.source_id::text OR NEW.entry_date IS DISTINCT FROM v_expected_source_date THEN
-    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='journal source reference/date no longer matches the source record';
+  IF v_post.posting_kind='reversal' THEN
+    IF v_post.source_type='customer_invoice' THEN
+      SELECT i.* INTO v_invoice FROM public.customer_invoices i WHERE i.id=v_post.source_id AND i.organization_id=v_post.organization_id;
+      IF NOT FOUND OR v_invoice.status='void' OR v_invoice.currency IS DISTINCT FROM v_post.source_currency
+        OR v_invoice.total_amount IS DISTINCT FROM v_post.source_amount
+        OR round(v_invoice.subtotal+v_invoice.tax_amount,2) IS DISTINCT FROM v_invoice.total_amount THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice source changed or was void before its reversal could post';
+      END IF;
+    ELSE
+      SELECT p.* INTO v_payment FROM public.customer_payments p WHERE p.id=v_post.source_id AND p.organization_id=v_post.organization_id;
+      IF NOT FOUND OR v_payment.amount IS DISTINCT FROM v_post.source_amount THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='payment source changed before its reversal could post';
+      END IF;
+      SELECT i.* INTO v_invoice FROM public.customer_invoices i WHERE i.id=v_payment.invoice_id AND i.organization_id=v_post.organization_id;
+      IF NOT FOUND OR v_invoice.currency IS DISTINCT FROM v_post.source_currency THEN
+        RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='payment source currency no longer matches its invoice';
+      END IF;
+    END IF;
+    SELECT sp.journal_entry_id INTO v_original_entry_id
+      FROM public.accounting_customer_source_postings sp JOIN public.accounting_journal_entries je
+        ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
+     WHERE sp.organization_id=v_post.organization_id AND sp.source_type=v_post.source_type AND sp.source_id=v_post.source_id
+       AND sp.posting_kind='original' AND je.status='posted'
+     ORDER BY sp.created_at DESC,sp.id DESC LIMIT 1;
+    IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='reversal requires a still-posted original source journal'; END IF;
+    SELECT count(*)::integer INTO v_original_line_count FROM public.accounting_journal_lines l
+     WHERE l.organization_id=NEW.organization_id AND l.journal_entry_id=v_original_entry_id;
+    SELECT count(*)::integer INTO v_count FROM public.accounting_journal_lines l
+     WHERE l.organization_id=NEW.organization_id AND l.journal_entry_id=NEW.id;
+    IF v_original_line_count<2 OR v_count<>v_original_line_count OR EXISTS (
+      SELECT 1 FROM public.accounting_journal_lines original_line
+       WHERE original_line.organization_id=NEW.organization_id AND original_line.journal_entry_id=v_original_entry_id
+         AND NOT EXISTS (SELECT 1 FROM public.accounting_journal_lines reverse_line
+           WHERE reverse_line.organization_id=NEW.organization_id AND reverse_line.journal_entry_id=NEW.id
+             AND reverse_line.line_number=original_line.line_number AND reverse_line.account_id=original_line.account_id
+             AND reverse_line.debit=original_line.credit AND reverse_line.credit=original_line.debit)
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='reversal journal lines must be the exact debit/credit mirror of the posted original';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF v_post.source_type='customer_invoice' THEN
+    SELECT i.issued_at::date INTO v_expected_source_date FROM public.customer_invoices i WHERE i.id=v_post.source_id AND i.organization_id=v_post.organization_id;
+  ELSE
+    SELECT p.paid_at::date INTO v_expected_source_date FROM public.customer_payments p WHERE p.id=v_post.source_id AND p.organization_id=v_post.organization_id;
+  END IF;
+  IF NEW.entry_date IS DISTINCT FROM v_expected_source_date THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='journal date no longer matches the original source record';
   END IF;
   IF v_post.source_type='customer_invoice' THEN
     SELECT i.* INTO v_invoice FROM public.customer_invoices i WHERE i.id=v_post.source_id AND i.organization_id=v_post.organization_id;
@@ -418,25 +569,50 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $function$
 BEGIN
   IF TG_OP='DELETE' THEN
-    IF EXISTS (
-      SELECT 1 FROM public.accounting_customer_source_postings sp
-      WHERE sp.organization_id=OLD.organization_id AND sp.source_type='customer_invoice' AND sp.source_id=OLD.id
-    ) THEN
+    IF EXISTS(SELECT 1 FROM public.accounting_customer_source_postings sp WHERE sp.organization_id=OLD.organization_id AND sp.source_type='customer_invoice' AND sp.source_id=OLD.id) THEN
       RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice has accounting history; reverse or reconcile its linked journals before deleting the source';
     END IF;
     RETURN OLD;
   END IF;
-  IF (NEW.status='void' OR NEW.organization_id IS DISTINCT FROM OLD.organization_id OR NEW.currency IS DISTINCT FROM OLD.currency
-      OR NEW.issued_at IS DISTINCT FROM OLD.issued_at OR NEW.subtotal IS DISTINCT FROM OLD.subtotal
-      OR NEW.tax_amount IS DISTINCT FROM OLD.tax_amount OR NEW.total_amount IS DISTINCT FROM OLD.total_amount
+  IF (NEW.organization_id IS DISTINCT FROM OLD.organization_id OR NEW.currency IS DISTINCT FROM OLD.currency OR NEW.issued_at IS DISTINCT FROM OLD.issued_at
+      OR NEW.subtotal IS DISTINCT FROM OLD.subtotal OR NEW.tax_amount IS DISTINCT FROM OLD.tax_amount OR NEW.total_amount IS DISTINCT FROM OLD.total_amount
       OR NEW.customer_id IS DISTINCT FROM OLD.customer_id OR NEW.order_id IS DISTINCT FROM OLD.order_id)
-    AND EXISTS (
-      SELECT 1 FROM public.accounting_customer_source_postings sp JOIN public.accounting_journal_entries je
-        ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
+    AND EXISTS(SELECT 1 FROM public.accounting_customer_source_postings sp JOIN public.accounting_journal_entries je
+      ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
       WHERE sp.organization_id=OLD.organization_id AND sp.source_type='customer_invoice' AND sp.source_id=OLD.id
-        AND je.status IN ('draft','posted')
-    ) THEN
-    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice has an active accounting journal; void its draft or complete an approved reversal before changing source values';
+        AND sp.posting_kind='original' AND je.status IN ('draft','posted')) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice has accounting history; source amounts and identity cannot be changed';
+  END IF;
+  IF NEW.status='void' AND OLD.status IS DISTINCT FROM 'void' AND EXISTS(
+    SELECT 1 FROM public.accounting_customer_source_postings sp JOIN public.accounting_journal_entries je
+      ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
+      WHERE sp.organization_id=OLD.organization_id AND sp.source_type='customer_invoice' AND sp.source_id=OLD.id
+        AND sp.posting_kind='original' AND je.status IN ('draft','posted')) THEN
+    IF EXISTS(SELECT 1 FROM public.accounting_customer_source_postings sp JOIN public.accounting_journal_entries je
+      ON je.id=sp.journal_entry_id AND je.organization_id=sp.organization_id
+      WHERE sp.organization_id=OLD.organization_id AND sp.source_type='customer_invoice' AND sp.source_id=OLD.id
+        AND sp.posting_kind='original' AND je.status='draft') THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice has a draft accounting journal; cancel the draft before voiding the invoice';
+    END IF;
+    IF NOT EXISTS(SELECT 1 FROM public.accounting_customer_source_postings reversal JOIN public.accounting_journal_entries rje
+      ON rje.id=reversal.journal_entry_id AND rje.organization_id=reversal.organization_id
+      WHERE reversal.organization_id=OLD.organization_id AND reversal.source_type='customer_invoice'
+        AND reversal.source_id=OLD.id AND reversal.posting_kind='reversal' AND rje.status='posted') THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice has a posted accounting journal; post its approved reversal before voiding the invoice';
+    END IF;
+    IF EXISTS(SELECT 1 FROM public.customer_payments payment
+      JOIN public.accounting_customer_source_postings original_payment ON original_payment.organization_id=payment.organization_id
+        AND original_payment.source_type='customer_payment' AND original_payment.source_id=payment.id AND original_payment.posting_kind='original'
+      JOIN public.accounting_journal_entries original_payment_entry ON original_payment_entry.id=original_payment.journal_entry_id
+        AND original_payment_entry.organization_id=original_payment.organization_id
+      WHERE payment.organization_id=OLD.organization_id AND payment.invoice_id=OLD.id AND original_payment_entry.status='posted'
+        AND NOT EXISTS(SELECT 1 FROM public.accounting_customer_source_postings reversal_payment
+          JOIN public.accounting_journal_entries reversal_payment_entry ON reversal_payment_entry.id=reversal_payment.journal_entry_id
+            AND reversal_payment_entry.organization_id=reversal_payment.organization_id
+          WHERE reversal_payment.organization_id=payment.organization_id AND reversal_payment.source_type='customer_payment'
+            AND reversal_payment.source_id=payment.id AND reversal_payment.posting_kind='reversal' AND reversal_payment_entry.status='posted')) THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice has posted customer payments; post each payment reversal before voiding the invoice';
+    END IF;
   END IF;
   RETURN NEW;
 END;
