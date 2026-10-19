@@ -67,7 +67,7 @@ BEGIN
 
   FOR v_item IN SELECT value FROM jsonb_array_elements(p_changes)
   LOOP
-    IF jsonb_typeof(v_item)<>'object' OR jsonb_object_length(v_item)<>9
+    IF jsonb_typeof(v_item)<>'object' OR (SELECT pg_catalog.count(*) FROM pg_catalog.jsonb_object_keys(v_item))<>9
       OR NOT (v_item ?& ARRAY['id','expected_base_price','expected_price_wholesale_of_wholesale','expected_price_wholesale','expected_price_retail','base_price','price_wholesale_of_wholesale','price_wholesale','price_retail'])
       OR jsonb_typeof(v_item->'id')<>'string'
       OR jsonb_typeof(v_item->'expected_base_price')<>'number'
