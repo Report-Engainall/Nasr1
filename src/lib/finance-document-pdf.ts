@@ -659,6 +659,7 @@ export async function buildCustomerInvoicePdf(
   customerInput: unknown,
   fontBytes: Uint8Array,
   generatedAt = new Date(),
+  financialDetailsVisible = true,
 ): Promise<Uint8Array> {
   if (!invoiceInput || typeof invoiceInput !== "object") {
     throw new Error("Invoice record is not an object.");
