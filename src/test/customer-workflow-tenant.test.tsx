@@ -465,6 +465,8 @@ describe("customer quote workspace tenant boundary", () => {
             business_name: "متجر الاختبار",
             contact_name: null,
           },
+          financial_details_visible: true,
+          customer_tier_visible: false,
         },
         error: null,
       };
