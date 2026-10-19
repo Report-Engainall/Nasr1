@@ -25,6 +25,7 @@ vi.mock('@/lib/useFetch', () => ({
 const product = {
   id: 'product-1', name: 'سكر أبيض', item_code: 'SKU-001', unit: 'كرتون', is_active: true,
   base_price: 100, price_wholesale_of_wholesale: 90, price_wholesale: 95, price_retail: 110,
+  quantity_on_hand_total: 12.125, quantity_reserved_total: 1.125, quantity_available_total: 11, reorder_point_total: 4, inventory_warehouse_count: 2,
   stock_quantity: 12, reserved_quantity: 0, min_stock_level: 2,
   name_en: null, sku: null, barcode: null, category_id: null, brand_id: null,
   description: null, image_url: null, is_featured: false, sort_order: 1,
@@ -92,6 +93,25 @@ describe('price grid', () => {
     await waitFor(() => expect(mocks.saveProductPriceGrid).toHaveBeenCalledWith([expect.objectContaining({
       id: 'product-1', basePrice: 125, priceWholesaleOfWholesale: 90, priceWholesale: 95, priceRetail: 110,
     })]));
+  });
+
+  it('shows read-only inventory totals and distinguishes missing balances from zero', () => {
+    render(<PricingGrid onNotice={vi.fn()} />);
+    const productRow = screen.getByRole('row', { name: /سكر أبيض/ });
+    expect(productRow.textContent).toMatch(/12[.,٫]125|١٢٫١٢٥/);
+    expect(productRow.textContent).toContain('الرصيد الفعلي');
+    expect(productRow.textContent).toContain('المتاح للبيع');
+    cleanup();
+    mocks.rows = [{
+      ...product,
+      quantity_on_hand_total: null,
+      quantity_reserved_total: null,
+      quantity_available_total: null,
+      reorder_point_total: null,
+      inventory_warehouse_count: 0,
+    }];
+    render(<PricingGrid onNotice={vi.fn()} />);
+    expect(screen.getAllByText('غير مسجل').length).toBeGreaterThanOrEqual(4);
   });
 
   it('does not render data when no products exist', () => {
