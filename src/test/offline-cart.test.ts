@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   GUEST_CART_STORAGE_KEY,
   loadOfflineCartDraft,
+  mergeOfflineCartDraft,
   offlineCartStorageKey,
   saveOfflineCartDraft,
 } from '@/lib/offline-cart';
@@ -81,6 +82,28 @@ describe('customer-scoped offline cart drafts', () => {
 
     expect(loadOfflineCartDraft(window.localStorage, 'customer-b')).toEqual([]);
     expect(window.localStorage.getItem(GUEST_CART_STORAGE_KEY)).not.toBeNull();
+  });
+
+  it('merges reorder and barcode additions into the active profile cart without using the global restore key', () => {
+    window.localStorage.setItem(offlineCartStorageKey('customer-a'), JSON.stringify([
+      { product_id: 'rice', quantity: 2 },
+    ]));
+    window.localStorage.setItem(LEGACY_RESTORE, JSON.stringify([
+      { product_id: 'another-profile-product', quantity: 99 },
+    ]));
+
+    expect(mergeOfflineCartDraft(window.localStorage, 'customer-a', [
+      { product_id: 'rice', quantity: 3 },
+      { product_id: 'sugar', quantity: 1 },
+    ])).toEqual([
+      { product_id: 'rice', quantity: 5 },
+      { product_id: 'sugar', quantity: 1 },
+    ]);
+    expect(JSON.parse(window.localStorage.getItem(offlineCartStorageKey('customer-a')) || '[]')).toEqual([
+      { product_id: 'rice', quantity: 5 },
+      { product_id: 'sugar', quantity: 1 },
+    ]);
+    expect(window.localStorage.getItem(LEGACY_RESTORE)).toBeNull();
   });
 
   it('persists only normalized product IDs and quantities, never price, total, tenant or customer data', () => {
