@@ -1208,6 +1208,23 @@ async function main() {
   assert.equal(toMinorUnits(paidCapInvoiceDetail.paid_amount),505n,"invoice paid total must include the 5 payments omitted from the capped detail list");
   assert.equal(toMinorUnits(paidCapInvoiceDetail.outstanding_amount),495n,"invoice balance must use the full 505-payment ledger rather than only 500 displayed rows");
 
+  // Invoice amounts are hidden by default; an administrator may explicitly enable them for the own-invoice RPC test.
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "ci-audit-admin@example.test");
+  await db.unsafe("set role authenticated");
+  const defaultInvoiceVisibility = await db.unsafe(
+    "select value from public.admin_settings where organization_id=$1 and key='show_price_in_invoice'",
+    [organizationId],
+  );
+  assert.equal(defaultInvoiceVisibility[0]?.value, false, "new organization invoice amounts must default to hidden");
+  await db.unsafe(
+    "update public.admin_settings set value='true'::jsonb, updated_at=statement_timestamp() where organization_id=$1 and key='show_price_in_invoice'",
+    [organizationId],
+  );
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+
   // The invoice PDF RPC returns amounts only for the signed-in customer's own invoice.
   const ownInvoicePdfResult = await db.unsafe(
     "select public.get_customer_invoice_pdf($1::uuid) as result",
@@ -1299,11 +1316,15 @@ async function main() {
   ))[0].result;
   assert.equal(visibleCartPreview.visible, true);
   assert.equal(visibleCartPreview.items.length, 1);
-  assert.equal(Number(visibleCartPreview.items[0].unit_price), 37000);
-  assert.equal(Number(visibleCartPreview.items[0].line_total), 74000);
-  assert.equal(Number(visibleCartPreview.total_amount), 74000);
+  const expectedWholesalePreview = (await db.unsafe(
+    "select public.customer_product_unit_price($1::uuid,$2::uuid,'wholesale',2) as price",
+    [productId, organizationId],
+  ))[0].price;
+  assert.equal(Number(visibleCartPreview.items[0].unit_price), Number(expectedWholesalePreview));
+  assert.equal(Number(visibleCartPreview.items[0].line_total), Number(expectedWholesalePreview) * 2);
+  assert.equal(Number(visibleCartPreview.total_amount), Number(expectedWholesalePreview) * 2);
   assert.equal(visibleCartPreview.customer_tier_visible, true);
-  assert.equal(visibleCartPreview.customer_tier_label, "التجزئة");
+  assert.equal(visibleCartPreview.customer_tier_label, "الجملة");
   const visibleOrdersPreview = (await db.unsafe(
     "select public.preview_customer_order_pricing($1::jsonb,'orders') as result",
     [previewItems],
@@ -1334,7 +1355,7 @@ async function main() {
   await setIdentity(staffAuthUserId, "ci-audit-admin@example.test");
   await db.unsafe("set role authenticated");
   await db.unsafe(
-    "insert into public.admin_settings(organization_id,key,value,category,updated_at) values($1,'show_price_on_cards','true'::jsonb,'storefront',statement_timestamp()),($1,'show_price_in_cart','false'::jsonb,'storefront',statement_timestamp()),($1,'show_price_in_orders','false'::jsonb,'storefront',statement_timestamp()),($1,'show_price_in_invoice','true'::jsonb,'storefront',statement_timestamp()),($1,'show_customer_tier_in_customer_views','false'::jsonb,'storefront',statement_timestamp()) on conflict(organization_id,key) do update set value=excluded.value,updated_at=statement_timestamp()",
+    "insert into public.admin_settings(organization_id,key,value,category,updated_at) values($1,'show_price_on_cards','true'::jsonb,'storefront',statement_timestamp()),($1,'show_price_in_cart','false'::jsonb,'storefront',statement_timestamp()),($1,'show_price_in_orders','false'::jsonb,'storefront',statement_timestamp()),($1,'show_price_in_invoice','false'::jsonb,'storefront',statement_timestamp()),($1,'show_customer_tier_in_customer_views','false'::jsonb,'storefront',statement_timestamp()) on conflict(organization_id,key) do update set value=excluded.value,updated_at=statement_timestamp()",
     [organizationId],
   );
   await db.unsafe("reset role");
