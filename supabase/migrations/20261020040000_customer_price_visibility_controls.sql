@@ -7,7 +7,7 @@ CROSS JOIN (VALUES
   ('show_price_on_cards', true),
   ('show_price_in_cart', false),
   ('show_price_in_orders', false),
-  ('show_price_in_invoice', true),
+  ('show_price_in_invoice', false),
   ('show_customer_tier_in_customer_views', false)
 ) AS d(key, default_value)
 ON CONFLICT (organization_id, key) DO NOTHING;
@@ -282,7 +282,7 @@ DECLARE
   v_lines jsonb;
   v_customer_document jsonb;
   v_line_count integer;
-  v_show_financial boolean := true;
+  v_show_financial boolean := false;
   v_show_tier boolean := false;
   v_customer_tier text := 'retail';
   v_customer_status text;
@@ -303,11 +303,11 @@ BEGIN
   END IF;
 
   SELECT CASE WHEN pg_catalog.jsonb_typeof(s.value) = 'boolean'
-              THEN (s.value #>> '{}')::boolean ELSE true END
+              THEN (s.value #>> '{}')::boolean ELSE false END
     INTO v_show_financial
   FROM public.admin_settings AS s
   WHERE s.organization_id = v_org AND s.key = 'show_price_in_invoice';
-  v_show_financial := COALESCE(v_show_financial, true);
+  v_show_financial := COALESCE(v_show_financial, false);
 
   SELECT CASE WHEN pg_catalog.jsonb_typeof(s.value) = 'boolean'
               THEN (s.value #>> '{}')::boolean ELSE false END
