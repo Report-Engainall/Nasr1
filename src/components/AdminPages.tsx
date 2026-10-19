@@ -627,7 +627,7 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
           <SettingToggle label="إظهار السعر في بطاقات الكتالوج وتفاصيل المنتج" value={(map.show_price_on_cards as boolean) ?? true} onSave={(v) => save('show_price_on_cards', v, 'storefront')} saving={saving} />
           <SettingToggle label="إظهار أسعار بنود السلة وإجماليها" value={(map.show_price_in_cart as boolean) ?? false} onSave={(v) => save('show_price_in_cart', v, 'storefront')} saving={saving} />
           <SettingToggle label="إظهار الأسعار والإجمالي في مراجعة الطلب قبل الإرسال" value={(map.show_price_in_orders as boolean) ?? false} onSave={(v) => save('show_price_in_orders', v, 'storefront')} saving={saving} />
-          <SettingToggle label="إظهار أسعار البنود وإجماليات الفاتورة وملف PDF" value={(map.show_price_in_invoice as boolean) ?? true} onSave={(v) => save('show_price_in_invoice', v, 'storefront')} saving={saving} />
+          <SettingToggle label="إظهار أسعار البنود وإجماليات الفاتورة وملف PDF" value={(map.show_price_in_invoice as boolean) ?? false} onSave={(v) => save('show_price_in_invoice', v, 'storefront')} saving={saving} />
           <SettingToggle label="إظهار فئة العميل المسجلة في واجهات العميل" value={(map.show_customer_tier_in_customer_views as boolean) ?? false} onSave={(v) => save('show_customer_tier_in_customer_views', v, 'storefront')} saving={saving} />
         </SettingsPanel>}
       </div>}
