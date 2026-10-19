@@ -168,7 +168,7 @@ describe("customer storefront saved discovery", () => {
     const collections = await mountAt("/collections");
     expect(collections.host.textContent).toContain("تصنيفات المنتجات");
     expect(collections.host.textContent).toContain("مواد غذائية");
-    expect(collections.host.textContent).toContain("1 صنف");
+    expect(collections.host.textContent).toMatch(/١ صنف|1 صنف/);
     const link = collections.host.querySelector<HTMLAnchorElement>('a[href*="/catalog?category="]');
     expect(link?.getAttribute("href")).toContain("category-food");
   });

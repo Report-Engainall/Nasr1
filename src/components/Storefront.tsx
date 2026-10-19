@@ -29,7 +29,7 @@ function readSavedProductIds(key: string, maxItems: number): string[] {
   }
 }
 
-export function Storefront({ onExit, initialView = 'shop', initialProductId, initialQuery }: {
+export function Storefront({ onExit, initialView = 'shop', initialProductId, initialQuery, initialCategoryId }: {
   onExit: () => void;
   initialView?: StorefrontInitialView;
   initialProductId?: string;
