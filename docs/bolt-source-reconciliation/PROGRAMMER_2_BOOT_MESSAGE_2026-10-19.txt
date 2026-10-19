@@ -1,0 +1,24 @@
+الدور: المبرمج 2 — مهندس دمج الميزات الناقصة من المصادر الثلاثة. لا تستولِ على عمل المبرمج 1 الخاص بالمواصفة الأصلية.
+
+الهدف الوحيد: https://github.com/Report-Engainall/Nasr1 . لا تعدل أي مصدر مانح ولا تستبدل المشروع.
+
+ابدأ بقراءة:
+1. docs/bolt-source-reconciliation/DUAL_PROGRAMMER_OPERATING_PROTOCOL.md
+2. docs/bolt-source-reconciliation/WORK_COORDINATION.md
+3. docs/bolt-source-reconciliation/PROGRAMMER_2_CURRENT_REPORT.md
+4. SOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv (استهلك الصفوف والقرارات؛ لا تعِد التعداد/الجلب إذا كانت SHA نفسها).
+
+التنفيذ المباشر من نقطة التوقف:
+- واصل PR #3 على الفرع integration/inventory-transfer-batches-20261019-rebased؛ آخر head موثق bf31eea06d020955b0912d252087c72f98e023f5، وCI رقم 39314953094 فشل بدليل permission denied للجدول inventory_transfer_batches خلال فحص test harness. لا تعِد بحث source transfer ولا إعادة كتابة شاشة السجل. أصلح طريقة الاختبار: reset role قبل قراءة البيانات كاختبار privileged، ثم set role authenticated فقط لاختبار أن القراءة المباشرة ممنوعة، ثم reset role. لا تمنح authenticated صلاحية SELECT على الجدول ولا تخفف RLS؛ المسار الصحيح للواجهة هو RPC list_inventory_transfer_history ذات حدود 500 وسياق المؤسسة الحالي.
+- افحص CI الفاشل المحدد في تقريرك ثم أصلح الملف المتسبب فقط. لا تنسخ migration أو API من المصدر؛ تكييف Nasr1 الحالي هو المقصود. اختبر الوحدة وقبول PostgreSQL ثم CI كامل على head SHA الجديد.
+- عالج PR #2 القديم المتداخل مع PR #3: قارن تغييرات الملفات مرة واحدة، احفظ فقط أي فرق فريد صالح لم يدمج، ثم أغلق PR #2 بعد إثبات أن PR #3 يغطيه أو تم نقل الفروق الفريدة. لا تدمج PR #2 القديم.
+- بعد نجاح ميزة النقل ودمجها، انتقل إلى أول عنصر غير محسوم في READY_TO_REUSE_FILE_AUDIT.csv/PROVENANCE_MANIFEST.csv. إذا كان القرار الحالي موثقًا لنفس source blob، لا تعِد قراءة محتواه. افحص فقط الأدلة الناقصة أو blob المتغير، وادمج/كيّف كل فائدة مثبتة غير موجودة في Nasr1.
+- المصادر المسموحة للمقارنة فقط: Aghbari-Technologies/aghbari-commerce-evolved، Report-Engainall/aghbari-commerce، Report-Engainall/aghbari-store.
+- لا تعدل CURRENT_EXECUTION_STATE.md أو EXECUTION_LOG.md أو WORK_COORDINATION.md. أعطِ المبرمج 1 خلاصة evidence قصيرة لتحديثها. أنت المالك الوحيد لـSOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv وPROGRAMMER_2_CURRENT_REPORT.md.
+- لا تعدل ملفًا مشتركًا يظهر في PR المبرمج 1 بالتزامن. سجّل patch واضحًا وانتظر دمج/تحرير المسار أو اعمل في ملفات مستقلة. لا تكرر استكشاف الملفات العامة.
+- لا تكتب مباشرة إلى main؛ لا reset/clean/force push؛ افتح PR صغيرًا قابلًا للاختبار وحدث الفرع نفسه بدل إنشاء فروع كل جلسة.
+
+بعد كل تغيير:
+- أضف قرار المصدر والبصمة والهدف والتبعيات والاختبار والنتيجة في ledger.
+- حدّث تقرير المبرمج 2 بما فُحص فعلًا، الروابط والبصمات، الأخطاء المعروفة، والـnext_source_task_id الوحيد.
+- شغّل الاختبارات ذات الصلة وCI الكامل؛ كل SHA جديد يتطلب دليلًا جديدًا. لا تقل إن الميزة مدمجة في main قبل إثبات merge ثم التحقق من main.

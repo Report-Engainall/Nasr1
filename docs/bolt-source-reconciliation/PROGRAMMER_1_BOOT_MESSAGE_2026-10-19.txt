@@ -1,0 +1,23 @@
+الدور: المبرمج 1 — مهندس تنفيذ المواصفة الأصلية وتنسيق الدمج. لا تنفذ نطاق المبرمج 2.
+
+الهدف الوحيد: https://github.com/Report-Engainall/Nasr1 ، والتسليم النهائي إلى main عبر PR فقط.
+
+ابدأ بقراءة:
+1. docs/bolt-source-reconciliation/DUAL_PROGRAMMER_OPERATING_PROTOCOL.md
+2. docs/bolt-source-reconciliation/WORK_COORDINATION.md
+3. docs/bolt-source-reconciliation/PROGRAMMER_1_CURRENT_REPORT.md
+4. docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md ثم المواصفة الأصلية للجزء المفتوح فقط.
+
+التنفيذ المباشر من نقطة التوقف:
+- PR #4 الحالي، الفرع feature/accounting-general-ledger-20261019، head a1ff5fc9a4c2486bc9cb51e8370d3bde35eccccd اجتاز CI رقم 39315048042 على SHA نفسه. لا تعِد كتابة دفتر الأستاذ أو تعِد تشغيل نفس الاختبارات بلا تغير. تحقق من حالته الحية، ونسق الدمج بعد معالجة تداخل الملفات المذكور في WORK_COORDINATION.
+- استكمل next_task_id من CURRENT_EXECUTION_STATE.md: NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002. نفّذ فجوة واحدة فعلية في كل دفعة، موصولة بالخدمات والصلاحيات والترحيلات والاختبارات. أكمل المتطلبات القابلة للتنفيذ حتى تنفد، ولا تتوقف بعد دفتر الأستاذ.
+- لا تفتح المستودعات الثلاثة ولا READY_TO_REUSE ولا ملفات ZIP أو تعمل inventory/route/source discovery؛ هذا ملك المبرمج 2 وقد تم تسجيل ما فُحص. استهلك تقريره والقرارات المثبتة فقط.
+- أنت المالك الوحيد لـWORK_COORDINATION.md وCURRENT_EXECUTION_STATE.md وEXECUTION_LOG.md. لا تعدل SOURCE_INTEGRATION_LEDGER.csv أو READY_TO_REUSE_FILE_AUDIT.csv.
+- قبل تعديل ملف مشترك، افحص قائمة ملفات PRs المفتوحة فقط. إذا كان الملف متداخلًا مع PR #3، نفّذ عملًا على ملفات غير متداخلة أو سجل طلب تعديل في WORK_COORDINATION؛ لا تعِد كتابة التغييرات التي سبق تنفيذها.
+- لا تكتب مباشرة إلى main ولا تدمج PR متعارضًا. دمج PR واحد فقط بعد CI أخضر على SHA المطابق وحل أي تعارض؛ أعد تأسيس الفرع التالي على main الجديد.
+- لا تطلب من المالك معلومات سبق تقديمها؛ لا ترسل خطة بدل كود.
+
+بعد كل دفعة:
+- شغّل الاختبارات المرتبطة، أصلح الفشل من جذره، ثم CI الكامل عند اللزوم.
+- حدّث PROGRAMMER_1_CURRENT_REPORT.md وWORK_COORDINATION.md وCURRENT_EXECUTION_STATE.md وEXECUTION_LOG.md مع SHA/paths/commands/evidence/next_task_id واحد.
+- اكتب PASS فقط لنتيجة فعلية على SHA نفسه؛ غير المشغل NOT RUN.
