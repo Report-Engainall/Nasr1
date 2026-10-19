@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Check, ClipboardCheck, Printer, RefreshCw, ShieldCheck } from 'lucide-react';
 import { cancelStockCount, completeStockCount, fetchActiveInventoryWarehouses, fetchOpenStockCountForWarehouse, fetchStockCountLines, setStockCountLine, startStockCount } from '@/lib/api';
 import type { ActiveInventoryWarehouse, InventoryStockCountLine, InventoryStockCountSession } from '@/lib/api';
@@ -21,6 +21,7 @@ export function InventoryStockCountPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const beginRequestRef = useRef<{ signature: string; key: string } | null>(null);
   useEffect(() => {
     let active = true;
     fetchActiveInventoryWarehouses().then((items) => {
@@ -48,11 +49,20 @@ export function InventoryStockCountPage() {
   const netVariance = useMemo(() => lines.reduce((sum, line) => sum + (line.variance ?? 0), 0), [lines]);
   async function begin() {
     if (!warehouseId || busy) return;
+    const signature = JSON.stringify([warehouseId, notes.trim() || null]);
+    let request = beginRequestRef.current;
+    if (!request || request.signature !== signature) {
+      request = { signature, key: idempotencyKey() };
+      beginRequestRef.current = request;
+    }
     setBusy(true); setError(''); setNotice('');
     try {
-      const created = await startStockCount(warehouseId, idempotencyKey(), notes);
+      // Keep the key until the command and session readback both succeed.
+      // If the server committed but the response/readback was interrupted, retry the same payload.
+      const created = await startStockCount(warehouseId, request.key, notes);
       const rows = await fetchStockCountLines(created.id);
       setSession(created); setLines(rows); setDrafts({}); setCancelReason('');
+      beginRequestRef.current = null;
       setNotice(created.replayed ? 'استُعيدت الجلسة نفسها دون تكرارها.' : 'بدأت جلسة جرد فعلية من أرصدة المستودع المثبتة.');
     } catch (e) { setError(e instanceof Error ? e.message : 'تعذر بدء الجرد؛ تحقق من وجود أرصدة مثبتة.'); }
     finally { setBusy(false); }
