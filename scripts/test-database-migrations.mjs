@@ -88,6 +88,13 @@ async function main() {
     process.stdout.write("APPLIED " + name + "\n");
   }
 
+  // Isolate quantity-break assertions from the example promotions inserted by
+  // the historical baseline migration. Those rows are not the campaign fixture
+  // under test and otherwise reduce the tested gross price (sometimes to cost).
+  // Dedicated campaign acceptance below creates its own active promotion and
+  // verifies discounts, snapshots, and order totals end to end.
+  await db.unsafe("update public.promotions set is_active = false");
+
   const productId = "a1000000-0000-0000-0000-000000000001";
   const organizationId = "a0000000-0000-0000-0000-000000000001";
   const profileId = "f1111111-1111-4111-8111-111111111111";
