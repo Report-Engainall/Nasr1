@@ -24,8 +24,20 @@ describe("product image handling adapted from the donor image policy", () => {
     expect(fitProductImageDimensions(3200, 1600)).toEqual({ width: 1600, height: 800 });
     expect(fitProductImageDimensions(800, 1200)).toEqual({ width: 800, height: 1200 });
     expect(() => fitProductImageDimensions(12001, 600)).toThrow("الحد الآمن");
+    expect(() => fitProductImageDimensions(5001, 5000)).toThrow("الحد الآمن");
+    expect(fitProductImageDimensions(5000, 5000)).toEqual({ width: 1600, height: 1600 });
     expect(() => fitProductImageDimensions(Number.NaN, 600)).toThrow("الحد الآمن");
     expect(PRODUCT_IMAGE_QUALITY).toBe(0.82);
+  });
+  it("rejects excessive source pixels before canvas allocation and closes the bitmap", async () => {
+    const close = vi.fn();
+    const bitmap = { width: 5001, height: 5000, close } as unknown as ImageBitmap;
+    vi.stubGlobal("createImageBitmap", vi.fn(async () => bitmap));
+    const createElement = vi.spyOn(document, "createElement");
+    await expect(toWebp(new File(["image"], "large.png", { type: "image/png" })))
+      .rejects.toThrow("الحد الآمن");
+    expect(createElement).not.toHaveBeenCalledWith("canvas");
+    expect(close).toHaveBeenCalledTimes(1);
   });
   it("uses opaque institution/product/object UUID path segments only", () => {
     expect(buildProductImageObjectPath(ORG, PRODUCT, OBJECT)).toBe(ORG + "/" + PRODUCT + "/" + OBJECT + ".webp");
