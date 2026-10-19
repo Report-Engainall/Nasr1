@@ -14,7 +14,7 @@ const CSV_HEADERS = [
 
 function spreadsheetSafeText(value: string): string {
   // Prefix only formula-shaped text; quote escaping alone does not prevent Excel formula injection.
-  return /^[\u0000-\u0020]*[=+\-@\t\r]/.test(value) ? "'" + value : value;
+  return /^\s*[=+\-@]/.test(value) ? "'" + value : value;
 }
 
 function csvCell(value: string | number | boolean): string {
