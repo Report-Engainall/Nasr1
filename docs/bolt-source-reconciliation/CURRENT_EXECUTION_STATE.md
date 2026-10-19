@@ -1,5 +1,16 @@
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
 
+## تحديث تنفيذي 2026-10-19 — NASR1-ORIGINAL-SPEC-ACCOUNTING-GENERAL-LEDGER-003
+
+- آخر HEAD حي لفرع `main` عند التحقق: `0c089585d27665680dcc4ad2520dd4affc875804`؛ CI مطابق [39311791227 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39311791227). لم يُغيَّر main أثناء إعداد هذه الوحدة.
+- التنفيذ على الفرع المعزول `feature/accounting-general-ledger-20261019` ضمن [PR #4](https://github.com/Report-Engainall/Nasr1/pull/4)، رأس الاختبار النهائي `190497591d6451ca69d26da41034a3e5558fd58f`.
+- CI مطابق للرأس: [Actions 39314610222 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39314610222): 42/42 ملفات اختبار و330/330 اختبار؛ frozen Bun lockfile check؛ وحدات Vitest؛ جميع migrations وقبول سير العمل على PostgreSQL 17؛ lint؛ build؛ production-preview smoke على 4173؛ dev smoke على 5173. قبول قاعدة البيانات طبع `PASS general ledger: chart idempotency, exact two-decimal amounts, balanced draft/post, replay safety, audited draft cancellation, trial balance and tenant/role isolation`.
+- التنفيذ: دليل حسابات مرتبط بالمؤسسة (asset/liability/equity/revenue/expense)، قيود مزدوجة draft/post/void، تحقق نقدي خادمي بمنزلتين عشريتين، منع تكرار مع تعارض الحمولة، صلاحيات/RLS ومنع DML المباشر، سجل تدقيق، دفتر قيود وميزان مراجعة من قيود حقيقية مرحّلة فقط، وواجهة مربوطة بصفحة المالية الحالية.
+- لا أرصدة افتتاحية أو قيود تاريخية أو فواتير demo. الربط التلقائي المستقبلي بإنشاء الفواتير/الدفعات/المصروفات/استلام المشتريات/Onyx ومطابقة المصدر المحاسبي **لم يُنفّذ في هذه الوحدة**، ويظل عملًا لاحقًا مستقلًا.
+- الأدلة: `IMPLEMENTED=YES`; `INTEGRATED=YES (PR branch only)`; `TESTED=PASS exact SHA`; `BROWSER-PROVEN=NOT RUN`; `PRODUCTION-PROVEN=NOT RUN`; `PRODUCTION_MIGRATION=NOT RUN`. نجاح CI لا يثبت نشر ترحيل الإنتاج أو اختبار متصفح بحساب حقيقي.
+- عولجت إخفاقات الوسيط دون حذف اختبارات: عدّ القيود كان يحسب السطور بدل القيود، ثم تم إصلاح محدد SQL لدالة الإلغاء، ثم وُضع فحص audit_logs في سياق مدير مخوّل بدل توسيع صلاحيات الجدول. التشغيل النهائي المشار إليه أعلاه نجح.
+- `next_task_id = NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` ما زال مفتوحًا؛ هذه وحدة محاسبة أساسية مكتملة الاختبار، وليست إكمالًا شاملًا لكل واجهات المواصفة.
+
 **المستودع والفرع:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / `main` فقط.
 **آخر SHA يحوي الكود الوظيفي واجتاز CI الكامل:** `2986f59c3350f313eaa53b529a7507da47192773` — [commit](https://github.com/Report-Engainall/Nasr1/commit/2986f59c3350f313eaa53b529a7507da47192773).
 **CI المطابق لآخر كود وظيفي:** [GitHub Actions 39309895500 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39309895500) على SHA `2986f59c3350f313eaa53b529a7507da47192773`: **41/41 ملف اختبار و317/317 اختبار**؛ migrations وRLS وقبول سير العمل على PostgreSQL 17؛ lint؛ build؛ production preview smoke على 4173؛ dev smoke على 5173. هذا إثبات CI وليس اختبار متصفح تفاعليًا بحساب فعلي أو نشرًا إنتاجيًا.

@@ -541,3 +541,14 @@
 - Earlier failures were retained and fixed, not bypassed: outdated UI copy assertion; unauthorized direct-table check accidentally executed under authenticated role after customer-denial test; then stock-shipment expected quantity was updated to account for the newly committed physical receipt. Latest exact SHA is green.
 - Evidence levels: IMPLEMENTED=YES; INTEGRATED=YES; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN (no live authenticated browser session; CI smoke only); PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN. No new dependency or paid service. Details: `ORIGINAL_SPEC_FEATURE_INTEGRATION_2026-10-19.md`.
 - Parent task `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains OPEN; the purchase workflow is one concrete gap closed, not full project completion.
+
+## 2026-10-19 — NASR1-ORIGINAL-SPEC-ACCOUNTING-GENERAL-LEDGER-003 — CI PASS exact SHA
+
+- Main remained unchanged at `0c089585d27665680dcc4ad2520dd4affc875804`; isolated branch `feature/accounting-general-ledger-20261019`, PR [#4](https://github.com/Report-Engainall/Nasr1/pull/4).
+- Code SHA [`190497591d6451ca69d26da41034a3e5558fd58f`](https://github.com/Report-Engainall/Nasr1/commit/190497591d6451ca69d26da41034a3e5558fd58f) passed exact-SHA CI [39314610222](https://github.com/Report-Engainall/Nasr1/actions/runs/39314610222).
+- Results: 42/42 test files, 330/330 tests; PostgreSQL 17 migration and acceptance suite; lint; build; production preview smoke (4173); dev smoke (5173). The new DB acceptance printed PASS for chart idempotency, two-decimal money, balanced draft/post, replay safety, manager-only draft cancellation, audit events, trial-balance totals, tenant scoping and role/customer denials.
+- Earlier CI failures were diagnosed from their actual logs and fixed: (1) summary counted journal lines, not distinct entries; changed to count distinct entry IDs. (2) missing closing `$$` in the void function, caused by a JS replacement string treating `$$` as `$`; corrected the terminator and re-ran PostgreSQL 17. (3) audit assertion ran under accountant role; test now queries audit events while the manager identity is active, keeping RLS narrow.
+- Active implementation comprises `supabase/migrations/20261020010000_accounting_general_ledger.sql`, `src/lib/general-ledger.ts`, `src/components/GeneralLedgerWorkspace.tsx`, the active finance workspace integration, Vitest tests and database acceptance. The unit is target-native; no donor React Router screens or legacy SQL were copied.
+- Safety: no historical balances/entries were generated. Automatic ledger posting from future invoices, payments, cash expenses, purchase receipts or Onyx data was not claimed; source-event integration/reconciliation is a follow-up.
+- Status: IMPLEMENTED=YES; INTEGRATED=YES on PR branch; TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN. Parent task `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` remains OPEN.
+

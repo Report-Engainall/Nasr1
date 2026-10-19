@@ -49,3 +49,13 @@
 - الاعتماد داخلي، لا يوجد اتصال رسمي لإرسال بريد/رسالة إلى المورد؛ الواجهة تعرض ذلك صراحة.
 - دورة أمر الشراء لا تضيف موردين أو أصنافًا وهمية ولا تولد فواتير تاريخية.
 - `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` ما زالت مفتوحة لاستكمال الواجهات الأخرى في المواصفة.
+
+
+## دفتر الأستاذ العام والقيود المزدوجة — 19 أكتوبر 2026
+
+- التنفيذ على الفرع المعزول ضمن PR #4: دليل حسابات للمؤسسة، وقيود مزدوجة draft/post/void، وترحيل صريح، وإلغاء مسبب للمسودة فقط مع احتفاظ السجل.
+- الترحيل: `supabase/migrations/20261020010000_accounting_general_ledger.sql`; الواجهة: `src/components/GeneralLedgerWorkspace.tsx`; تحقق الأموال/القيود: `src/lib/general-ledger.ts`.
+- ضمانات: المبالغ تُتحقق على الخادم بدقتين عشريتين، كل سطر إما مدين أو دائن، مجموعا القيد متساويان وموجبان، الحسابات نشطة وضمن المؤسسة؛ مفاتيح idempotency تمنع التكرار وتكشف تعارض الحمولة. منع DML المباشر للعميل، وتدقيق الإنشاء والترحيل والإلغاء، ودفتر وميزان مراجعة من القيود المرحلة الفعلية فقط.
+- CI: [Actions 39314610222 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39314610222), exact SHA `190497591d6451ca69d26da41034a3e5558fd58f`; 42/42 ملفات و330/330 اختبار؛ PostgreSQL 17، lint، build، preview 4173، dev 5173 PASS.
+- الإثبات: IMPLEMENTED=YES; INTEGRATED=YES على فرع PR؛ TESTED=PASS exact SHA; BROWSER-PROVEN=NOT RUN; PRODUCTION-PROVEN=NOT RUN; production migration=NOT RUN.
+- غير مشمول: إنشاء قيود تلقائية مستقبلية من الفواتير والدفعات والمصروفات والاستلام وOnyx أو إجراء مطابقة مصدرية. لا توجد أرصدة أو فواتير تاريخية مصطنعة. المهمة الأشمل `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` ما تزال مفتوحة.
