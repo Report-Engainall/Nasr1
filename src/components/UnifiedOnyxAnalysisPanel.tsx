@@ -130,6 +130,7 @@ export function UnifiedOnyxAnalysisPanel() {
           const selected = snapshots.find((row) => row.id === selectedId);
           if (!selected) return <div role="alert" className="onyx-alert">لا تطابق اللقطة المحددة قائمة مصادر المؤسسة الحالية.</div>;
           return <div className="onyx-source-metadata" aria-label="بيانات تتبع المصدر">
+            <span><strong>ملف المصدر:</strong> {selected.source_file_name || "اسم الملف غير متوفر"}</span>
             <span><strong>نوع التقرير:</strong> {selected.report_type}</span>
             <span><strong>الفترة:</strong> {selected.period_key || "غير محددة في المصدر"}</span>
             <span><strong>تاريخ اللقطة:</strong> {new Date(selected.created_at).toLocaleString("ar-YE")}</span>
