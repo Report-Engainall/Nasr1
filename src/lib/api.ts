@@ -6,6 +6,7 @@ import { countLowStockBalances } from './inventory-metrics';
 import { retryRead } from './retry';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
 import { validateCustomerInput } from './customer-input';
+import { validateInventoryTransferBatchInput, type InventoryTransferBatchInput } from './inventory-transfer-batch';
 import type {
   Product, Category, Customer, Supplier, Order, OrderItem,
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
@@ -1314,6 +1315,116 @@ export async function transferInventory(input: {
     throw new Error('لم يؤكد الخادم نتيجة نقل المخزون.');
   }
   return data as InventoryTransferResult;
+}
+
+
+
+export type InventoryTransferProduct = {
+  id: string;
+  name: string;
+  item_code: string | null;
+  unit: string | null;
+  status: string;
+};
+export type InventoryTransferHistoryRow = {
+  id: string;
+  organization_id: string;
+  product_id: string;
+  source_warehouse_id: string;
+  destination_warehouse_id: string;
+  quantity: number;
+  reason: string;
+  created_by: string | null;
+  created_at: string;
+  batch_id: string | null;
+  product_name: string | null;
+  item_code: string | null;
+  unit: string | null;
+  source_warehouse_name: string | null;
+  destination_warehouse_name: string | null;
+  batch_line_count: number | null;
+};
+export type InventoryTransferBatchResult = {
+  batch_id: string;
+  line_count: number;
+  idempotent_replay: boolean;
+  transfer_ids: string[];
+};
+
+export async function fetchInventoryTransferProducts(): Promise<InventoryTransferProduct[]> {
+  const { data, error } = await supabase.rpc('fetch_staff_products', { p_product_id: null });
+  if (error) throw error;
+  return ((data ?? []) as Array<Partial<InventoryTransferProduct>>)
+    .filter((row): row is InventoryTransferProduct =>
+      typeof row.id === 'string' && typeof row.name === 'string' &&
+      typeof row.status === 'string' &&
+      (row.item_code == null || typeof row.item_code === 'string') &&
+      (row.unit == null || typeof row.unit === 'string'))
+    .map((row) => ({
+      id: row.id, name: row.name, item_code: row.item_code ?? null,
+      unit: row.unit ?? null, status: row.status,
+    }));
+}
+
+export async function transferInventoryBatch(input: InventoryTransferBatchInput): Promise<InventoryTransferBatchResult> {
+  const normalized = validateInventoryTransferBatchInput(input);
+  const { data, error } = await supabase.rpc('transfer_inventory_batch', {
+    p_source_warehouse_id: normalized.sourceWarehouseId,
+    p_destination_warehouse_id: normalized.destinationWarehouseId,
+    p_idempotency_key: normalized.idempotencyKey,
+    p_lines: normalized.lines.map((line) => ({ product_id: line.productId, quantity: line.quantity })),
+    p_reason: normalized.reason,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data) ||
+      typeof (data as Record<string, unknown>).batch_id !== 'string' ||
+      typeof (data as Record<string, unknown>).idempotent_replay !== 'boolean') {
+    throw new Error('لم يؤكد الخادم نتيجة دفعة تحويل المخزون.');
+  }
+  return data as InventoryTransferBatchResult;
+}
+
+export async function fetchInventoryTransferHistory(): Promise<InventoryTransferHistoryRow[]> {
+  const { organizationId } = await getCurrentTenantScope();
+  const { data, error } = await supabase
+    .from('inventory_transfers')
+    .select('id,organization_id,product_id,source_warehouse_id,destination_warehouse_id,quantity,reason,created_by,created_at,batch_id')
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false })
+    .limit(500);
+  if (error) throw error;
+  const rows = (data ?? []) as Array<{
+    id: string; organization_id: string; product_id: string; source_warehouse_id: string; destination_warehouse_id: string;
+    quantity: number | string; reason: string; created_by: string | null; created_at: string; batch_id: string | null;
+  }>;
+  if (!rows.length) return [];
+
+  const warehouseIds = [...new Set(rows.flatMap((row) => [row.source_warehouse_id, row.destination_warehouse_id]))];
+  const batchIds = [...new Set(rows.map((row) => row.batch_id).filter((id): id is string => Boolean(id)))];
+  const [products, warehouseResult, batchResult] = await Promise.all([
+    fetchInventoryTransferProducts(),
+    supabase.from('warehouses').select('id,name,code').eq('organization_id', organizationId).in('id', warehouseIds),
+    batchIds.length
+      ? supabase.from('inventory_transfer_batches').select('id,line_count').eq('organization_id', organizationId).in('id', batchIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (warehouseResult.error) throw warehouseResult.error;
+  if (batchResult.error) throw batchResult.error;
+
+  const productMap = new Map(products.map((product) => [product.id, product]));
+  const warehouseMap = new Map(((warehouseResult.data ?? []) as Array<{ id: string; name: string; code: string | null }>).map((row) => [row.id, row]));
+  const batchMap = new Map(((batchResult.data ?? []) as Array<{ id: string; line_count: number }>).map((row) => [row.id, row]));
+  return rows.map((row) => {
+    const product = productMap.get(row.product_id);
+    const source = warehouseMap.get(row.source_warehouse_id);
+    const destination = warehouseMap.get(row.destination_warehouse_id);
+    return {
+      ...row, quantity: Number(row.quantity),
+      product_name: product?.name ?? null, item_code: product?.item_code ?? null, unit: product?.unit ?? null,
+      source_warehouse_name: source?.name ?? null, destination_warehouse_name: destination?.name ?? null,
+      batch_line_count: row.batch_id ? batchMap.get(row.batch_id)?.line_count ?? null : null,
+    };
+  });
 }
 
 export async function fetchInventoryReconciliationRuns() {
