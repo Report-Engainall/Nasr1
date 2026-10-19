@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
+import { storefrontCategorySlug } from "@/lib/storefront-slugs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -174,6 +175,42 @@ describe("customer storefront saved discovery", () => {
     expect(link?.getAttribute("href")).toContain("--category-food");
   });
 
+
+  it("opens the canonical category landing from published category data and rejects a mismatched child", async () => {
+    const slug = storefrontCategorySlug({ id: "category-food", name: "مواد غذائية", name_en: null });
+    const category = await mountAt(`/category/${slug}`);
+    expect(category.host.textContent).toContain("مواد غذائية");
+    expect(category.host.textContent).toContain("Sugar");
+    expect(category.host.textContent).not.toContain("Rice");
+
+    await unmount(category);
+    const wrongChild = await mountAt(`/category/${slug}/subcategory/not-a-child--missing`);
+    expect(wrongChild.host.textContent).toContain("التصنيف غير موجود");
+  });
+
+  it("opens advanced search and applies the selected category to the canonical catalog", async () => {
+    const advanced = await mountAt("/search/advanced");
+    expect(advanced.host.textContent).toContain("البحث المتقدم");
+    expect(advanced.host.textContent).toContain("عرض الأصناف ذات الرصيد المتاح المعروف فقط");
+
+    const categorySelect = advanced.host.querySelector<HTMLSelectElement>("#advanced-storefront-category");
+    expect(categorySelect).not.toBeNull();
+    if (!categorySelect) throw new Error("advanced search category selector missing");
+    const setValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
+    setValue?.call(categorySelect, "category-food");
+    act(() => categorySelect.dispatchEvent(new Event("change", { bubbles: true })));
+
+    const form = advanced.host.querySelector<HTMLFormElement>("form");
+    expect(form).not.toBeNull();
+    if (!form) throw new Error("advanced search form missing");
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(advanced.host.textContent).toContain("Sugar");
+    expect(advanced.host.textContent).not.toContain("Beans");
+  });
+
   it("shows real published promotions and discloses server-side final pricing", async () => {
     const offers = await mountAt("/offers");
     expect(offers.host.textContent).toContain("العروض المنشورة");
@@ -182,9 +219,10 @@ describe("customer storefront saved discovery", () => {
     expect(offers.host.textContent).toContain("الخصم الفعلي وسعر الفئة يُحسبان على الخادم");
   });
 
-  it("opens the canonical store alias", async () => {
+  it("opens the canonical store alias and exposes advanced search", async () => {
     const store = await mountAt("/store");
     expect(store.host.textContent).toContain("المنتجات");
+    expect(store.host.querySelector('a[href="/search/advanced"]')?.textContent).toContain("بحث متقدم");
   });
 
   it("persists wishlist and caps comparison at three across direct route loads", async () => {

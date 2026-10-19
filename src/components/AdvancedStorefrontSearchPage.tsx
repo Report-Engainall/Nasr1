@@ -38,7 +38,7 @@ export function AdvancedStorefrontSearchPage() {
         <input value={query} onChange={(e) => setQuery(normalizeCatalogSearchQuery(e.target.value))} maxLength={MAX_CATALOG_SEARCH_LENGTH} autoComplete="off" placeholder="مثال: سكر أو SKU-002" style={{ width: "100%", boxSizing: "border-box", padding: 12, border: "1px solid #cbdad9", borderRadius: 9 }} />
       </label>
       <label style={{ display: "grid", gap: 6 }}>التصنيف
-        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={categoryQuery.loading || Boolean(categoryQuery.error)} style={{ width: "100%", padding: 12, border: "1px solid #cbdad9", borderRadius: 9 }}>
+        <select id="advanced-storefront-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={categoryQuery.loading || Boolean(categoryQuery.error)} style={{ width: "100%", padding: 12, border: "1px solid #cbdad9", borderRadius: 9 }}>
           <option value="">كل التصنيفات</option>
           {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
         </select>

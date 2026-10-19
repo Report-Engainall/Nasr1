@@ -113,7 +113,7 @@ jobs:
           fi
           for route in \
             /login /register /forgot-password /cart /checkout /orders /register /forgot-password /invoices /statement /quotes /assistant \
-            /store /catalog /collections /offers /products /invite/ci-token /admin /admin/orders /admin/products /admin/audit /admin/stock-count /admin/finance /admin/data /manifest.webmanifest /sw.js; do
+            /store /catalog /collections /offers /categories /search /search/advanced /category/ci-missing--not-found /category/ci-missing--not-found/subcategory/ci-child--not-found /products /invite/ci-token /admin /admin/orders /admin/products /admin/audit /admin/stock-count /admin/finance /admin/data /manifest.webmanifest /sw.js; do
             status=$(curl --silent --connect-timeout 2 --max-time 5 --output /tmp/aghbari-preview-route.html --write-out "%{http_code}" "http://127.0.0.1:4173$route" || true)
             if [ "$status" != "200" ]; then
               echo "Production preview expected HTTP 200 from $route, received $status"
@@ -133,6 +133,11 @@ jobs:
             "/catalog|الكتالوج" \
             "/collections|التصنيفات" \
             "/offers|العروض" \
+            "/categories|تصنيفات المنتجات" \
+            "/search|البحث" \
+            "/search/advanced|البحث المتقدم" \
+            "/category/ci-missing--not-found|التصنيف" \
+            "/category/ci-missing--not-found/subcategory/ci-child--not-found|التصنيف الفرعي" \
             "/products|متجر الأغبري" \
             "/invite/ci-token|قبول دعوة الشركة"; do
             route="${route_spec%%|*}"
@@ -205,6 +210,7 @@ jobs:
             /cart /checkout /compare /wishlist /addresses /company/contacts /company/members /company/accept-invitation /product/ci-route-smoke-test \
             /orders /register /forgot-password /invoices /statement /quotes /reorder /assistant /barcode /offline \
             /admin /admin/orders /admin/products /admin/customers /admin/pricing /admin/stock-count /admin/data \
+            /store /catalog /collections /offers /categories /search /search/advanced /category/ci-missing--not-found /category/ci-missing--not-found/subcategory/ci-child--not-found \
             /admin/operations /admin/finance /admin/reports /admin/settings \
             /manifest.webmanifest /sw.js; do
             status=$(curl --silent --output /dev/null --write-out "%{http_code}" "http://127.0.0.1:5173$route")
@@ -221,7 +227,12 @@ jobs:
             "/statement|كشف الحساب" \
             "/register|إنشاء حساب تجاري" \
             "/forgot-password|استعادة كلمة المرور" \
-            "/admin/audit|سجل التدقيق"; do
+"/admin/audit|سجل التدقيق" \\
+            "/categories|تصنيفات المنتجات" \\
+            "/search|البحث" \\
+            "/search/advanced|البحث المتقدم" \\
+            "/category/ci-missing--not-found|التصنيف" \\
+            "/category/ci-missing--not-found/subcategory/ci-child--not-found|التصنيف الفرعي"; do
             route="${route_spec%%|*}"
             expected_title="${route_spec#*|}"
             curl --fail --silent --show-error "http://127.0.0.1:5173$route" -o /tmp/aghbari-route-contract.html
