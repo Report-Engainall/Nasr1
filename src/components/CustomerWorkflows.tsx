@@ -43,6 +43,7 @@ import { CashExpenseLedger } from "@/components/CashExpenseLedger";
 import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
 import { fetchCustomerAddresses, saveCustomerAddress, deleteCustomerAddress, type CustomerAddress, type CustomerAddressInput } from "@/lib/customer-addresses";
 import { fetchCustomerCompanyContacts, saveCustomerCompanyContact, deleteCustomerCompanyContact, type CustomerCompanyContact, type CustomerCompanyContactInput } from "@/lib/customer-company-contacts";
+import { loadOfflineCartDraft, mergeOfflineCartDraft, saveOfflineCartDraft } from "@/lib/offline-cart";
 
 type Invoice = {
   id: string;
@@ -1232,6 +1233,7 @@ export function ReorderWorkspacePage() {
 }
 function Reorder() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [templates, setTemplates] = useState<ReorderTemplate[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -1330,7 +1332,12 @@ function Reorder() {
       return;
     }
     try {
-      localStorage.setItem("aghbari:cart-restore:v1", JSON.stringify(draft));
+      const merged = mergeOfflineCartDraft(window.localStorage, user?.profileId, draft);
+      if (!merged) {
+        setError("تعذر حفظ السلة المعزولة لهذا الحساب على الجهاز.");
+        setBusy(false);
+        return;
+      }
       void navigate({ to: "/" });
     } catch {
       setError("تعذر حفظ السلة على هذا الجهاز.");
@@ -1458,6 +1465,7 @@ export function BarcodeWorkspacePage() {
   );
 }
 function Barcode() {
+  const { user } = useAuth();
   const [value, setValue] = useState("");
   const [product, setProduct] = useState<Product | null>(null);
   const [error, setError] = useState("");
@@ -1579,10 +1587,13 @@ function Barcode() {
   async function add() {
     if (!product) return;
     try {
-      localStorage.setItem(
-        "aghbari:cart-restore:v1",
-        JSON.stringify([{ product_id: product.id, quantity: 1 }]),
-      );
+      const merged = mergeOfflineCartDraft(window.localStorage, user?.profileId, [
+        { product_id: product.id, quantity: 1 },
+      ]);
+      if (!merged) {
+        setError("تعذر حفظ الصنف في السلة المعزولة لهذا الحساب.");
+        return;
+      }
       void navigate({ to: "/" });
     } catch {
       setError("تعذر حفظ الصنف في السلة على هذا الجهاز.");
@@ -1842,8 +1853,12 @@ export function OfflineWorkspacePage() {
   );
 }
 function Offline() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
   const [cached, setCached] = useState(0);
+  const [cachedProducts, setCachedProducts] = useState<ReturnType<typeof sanitizePublicCatalogCache>>([]);
+  const [draftLines, setDraftLines] = useState<ReturnType<typeof loadOfflineCartDraft>>([]);
   const [cartCount, setCartCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
@@ -1857,20 +1872,20 @@ function Offline() {
       } catch {
         localStorage.removeItem("aghbari:catalog:v1");
       }
-      // Rewrite legacy caches through the allowlist so private staff fields never linger in storage.
+      // Rewrite cached products through the allowlist so staff-only pricing fields are purged.
       localStorage.setItem("aghbari:catalog:v1", JSON.stringify(safeCatalog));
+      setCachedProducts(safeCatalog);
       setCached(safeCatalog.length);
-      setCartCount(
-        normalizeCartDraft(JSON.parse(localStorage.getItem("aghbari:cart:v1") || "[]")).reduce(
-          (s, l) => s + l.quantity,
-          0,
-        ),
-      );
+      const lines = loadOfflineCartDraft(window.localStorage, user?.profileId);
+      setDraftLines(lines);
+      setCartCount(lines.reduce((sum, line) => sum + line.quantity, 0));
     } catch {
+      setCachedProducts([]);
       setCached(0);
+      setDraftLines([]);
       setCartCount(0);
     }
-  }, []);
+  }, [user?.profileId]);
   useEffect(() => {
     const on = () => setOnline(true),
       off = () => setOnline(false);
@@ -1906,19 +1921,64 @@ function Offline() {
   }
   function queue() {
     try {
-      const lines = normalizeCartDraft(JSON.parse(localStorage.getItem("aghbari:cart:v1") || "[]"));
+      const lines = loadOfflineCartDraft(window.localStorage, user?.profileId);
       if (!lines.length) {
         setMessage("السلة فارغة.");
         return;
       }
-      localStorage.setItem("aghbari:cart:v1", JSON.stringify(lines));
+      if (!saveOfflineCartDraft(window.localStorage, user?.profileId, lines)) {
+        setMessage("تعذر حفظ المسودة على هذا الجهاز؛ لم نغيّر حالة الطلب.");
+        return;
+      }
+      setDraftLines(lines);
+      setCartCount(lines.reduce((sum, line) => sum + line.quantity, 0));
       setMessage(
-        "تم حفظ مسودة السلة على هذا الجهاز (" +
+        "حُفظت مسودة هذا الحساب (" +
           lines.length +
-          " صنف). لن يُرسل الطلب أو يؤكد السعر قبل عودة الاتصال.",
+          " صنف). لن يُرسل أي طلب ولن يُعتمد سعر أو مخزون قبل التحقق من الخادم.",
       );
     } catch {
       setMessage("تعذر حفظ مسودة السلة المحلية.");
+    }
+  }
+  async function restoreDraft() {
+    if (!online || !user?.profileId) {
+      setMessage("استعادة المسودة تتطلب اتصالًا والتحقق من الحساب الحالي.");
+      return;
+    }
+    setSyncing(true);
+    setMessage("");
+    try {
+      const scope = await getCurrentTenantScope();
+      if (scope.profileId !== user.profileId) {
+        throw new Error("تغير نطاق الحساب؛ لم نستعد المسودة.");
+      }
+      const currentProducts = sanitizePublicCatalogCache(await fetchProducts());
+      const allowedIds = new Set(currentProducts.map((product) => product.id));
+      const saved = loadOfflineCartDraft(window.localStorage, user.profileId);
+      if (!saved.length) {
+        setDraftLines([]);
+        setCartCount(0);
+        setMessage("لا توجد مسودة محفوظة لهذا الحساب.");
+        return;
+      }
+      const validLines = saved.filter((line) => allowedIds.has(line.product_id));
+      if (!validLines.length) {
+        setMessage("لا توجد أصناف في المسودة متاحة في الكتالوج الحالي. بقيت المسودة محفوظة للمراجعة.");
+        return;
+      }
+      if (!saveOfflineCartDraft(window.localStorage, user.profileId, validLines)) {
+        throw new Error("تعذر حفظ المسودة بعد مراجعتها.");
+      }
+      setDraftLines(validLines);
+      setCartCount(validLines.reduce((sum, line) => sum + line.quantity, 0));
+      void navigate({ to: "/cart" });
+    } catch (error) {
+      setMessage(error instanceof Error
+        ? "لم تُستعد المسودة: " + error.message + ". بقيت محفوظة ولم يُرسل طلب."
+        : "تعذر التحقق من المسودة؛ بقيت محفوظة ولم يُرسل طلب.");
+    } finally {
+      setSyncing(false);
     }
   }
   return (
@@ -1954,13 +2014,35 @@ function Offline() {
           </strong>
         </article>
       </div>
+      <section style={{ ...card, marginBottom: 14 }}>
+        <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>مسودة السلة لهذا الحساب</h2>
+        {draftLines.length ? (
+          <ul style={{ margin: 0, paddingInlineStart: 24, lineHeight: 1.9 }}>
+            {draftLines.map((line) => {
+              const product = cachedProducts.find((item) => item.id === line.product_id);
+              return (
+                <li key={line.product_id}>
+                  {product?.name ?? "صنف غير موجود في النسخة المحلية"} — {formatNumber(line.quantity)}
+                  {product?.unit ? " " + product.unit : ""}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p style={{ ...quiet, margin: 0 }}>لا توجد مسودة محفوظة لهذا الحساب على هذا الجهاز.</p>
+        )}
+        <p style={{ ...quiet, marginBottom: 0 }}>تُحفظ معرّفات الأصناف والكميات فقط؛ الأسعار والمخزون والاعتماد النهائي يعاد التحقق منها عبر الخادم.</p>
+      </section>
       <section style={{ ...card, display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button style={primary} onClick={() => void sync()} disabled={syncing || !online}>
           <RefreshCw size={16} />
           {syncing ? "جارٍ التحديث..." : "تحديث الكتالوج المحلي"}
         </button>
-        <button style={secondary} onClick={queue}>
-          <Save size={16} /> حفظ السلة كمسودة
+        <button style={secondary} onClick={queue} disabled={syncing || draftLines.length === 0}>
+          <Save size={16} /> حفظ مسودة السلة
+        </button>
+        <button style={primary} onClick={() => void restoreDraft()} disabled={syncing || !online || draftLines.length === 0}>
+          <ShoppingCart size={16} /> التحقق واستعادة السلة
         </button>
         <Link to="/" style={secondary as React.CSSProperties}>
           فتح المتجر
