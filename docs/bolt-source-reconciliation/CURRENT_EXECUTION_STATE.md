@@ -1,4 +1,43 @@
+
+
+## آخر تنفيذ P2 — NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004 (PASS)
+
+- Branch/PR: `feature/accounting-general-ledger-20261019`, [PR #4](https://github.com/Report-Engainall/Nasr1/pull/4). Main remains `0c089585d27665680dcc4ad2520dd4affc875804`; no direct main changes.
+- Exact code SHA `df43fb05e9e8a31a8b45e40d38a94f85ff12691b` passed [Actions 39321543032 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39321543032): 45/45 test files, 339/339 tests, frozen Bun lock check, all migrations + current database acceptance on PostgreSQL 17, lint, build, preview smoke 4173, dev smoke 5173.
+- New DB migration `supabase/migrations/20261020020000_accounting_source_posting.sql` creates immutable tenant-scoped source/journal links, an authorized paginated expense-to-ledger inbox, explicit account-mapped journal draft creation, repeat-safe source linking, a pre-post guard against source/mapping changes, and same-transaction void handling (void linked draft or write a balanced reversal when original entry is posted). The posting guard reads the source without locking it to avoid journal-first/source-first deadlock; creation/void preserve source-first lock order.
+- UI `src/components/CashExpenseJournalLinker.tsx` is integrated into the live `GeneralLedgerWorkspace`. Accountant/manager/admin picks an active expense account and asset settlement account; server uses the source amount/date, creates a draft only, and requires a separate post action. YER only until documented FX policy exists. Tests cover source-ID and account selection, explicit draft RPC, foreign-currency rejection and customer-role denial. Source-specific DB workflow assertions were not added to the P1-owned migration harness; CI proves migrations apply and all preexisting DB acceptance passes, but dedicated DB assertions for this new source-posting flow are still **NOT RUN**.
+- Concurrency correction at the same tested SHA: posting trigger no longer row-locks the source expense after locking its journal entry, preventing lock-order inversion against source-void. No old financial transactions were invented, no service/dependency with new cost was added.
+- Status: IMPLEMENTED=YES (cash-expense source posting path); INTEGRATED=YES on PR branch; TESTED=PASS exact SHA for unit suite/build/migration application and repo-level acceptance; source-flow-specific DB integration test=NOT RUN; browser-authenticated proof=NOT RUN; production migration/deployment=NOT RUN.
+- **next_task_id = `NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006`**, parent `NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002`. Next extend source mapping to actual customer invoices and payments as separate source kinds with invoice/payment-specific accounting rules, source event idempotency, tenant/account guard, no double-counting and explicit treatment of refund/void. Do not mark cash posting's flow-specific DB assertions as proven until they run in a future acceptance harness update approved by P1.
+
+---
+
+
+
+## Latest execution state — 2026-10-19 — P2 archive closure and financial statements
+
+- Target repository: Report-Engainall/Nasr1. Main remains at 0c089585d27665680dcc4ad2520dd4affc875804. Work is only on feature/accounting-general-ledger-20261019 / PR #4: https://github.com/Report-Engainall/Nasr1/pull/4.
+- Archive task NASR1-BOLT-ARCHIVE-DELTA-001 is CLOSED. All 160 formerly pending member decisions are recorded: 122 changed-content rows / 64 unique paths, plus 38 missing-candidate rows / 19 unique paths. Final 717-row counts: 548 exact, 8 security excluded, 1 previously adapted, 87 target already better, 33 reference-only, 40 incompatible with evidence. Pending review statuses = 0. Reused original ZIP verification Action 39294387493; no redownload, rehash, CRC, extraction, or re-enumeration was repeated.
+- Saved the unified Arabic master specification verbatim at docs/canonical/AGHBARI_COMMERCE_UNIFIED_MERCHANT_INTELLIGENCE_AND_EXECUTION_MASTER_AR_2026-10-17.txt. Saving the document is not a claim that all of its requirements are implemented.
+- Implemented an income statement and cumulative balance sheet in the existing GeneralLedgerWorkspace, using the authorized fetch_general_ledger RPC for both period and as-of aggregates. Arithmetic uses BigInt minor units; balancing differences remain visible. Only posted ledger entries are included; no historical ledger entries or opening balances are fabricated.
+- CI record: SHA 78cd809a4ce1d6486dfc2ea48219dc435bb3346d failed three test assertions in Action 39319700563: stale Arabic date-error regex, duplicate correct amount text, and a brittle role-denial matcher. Failures remain documented. Tests were corrected and exact SHA 869f0909bda0524275834952f64e1ce1609e79c0 passed Action 39320266809: 44/44 test files, 336/336 tests; frozen Bun lock verification; PostgreSQL 17 migrations/acceptance; lint; build; preview smoke port 4173; dev smoke port 5173.
+- P1 coordination: PR #3 is open at bf31eea06d020955b0912d252087c72f98e023f5. P2 did not edit P1-owned code paths or reports/ledgers. Browser proof with a real authenticated user and production migration/deployment proof remain NOT RUN.
+- Current next_task_id = NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004 under parent NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002. Build explicit, tenant-scoped, source-amount-derived cash-expense journal drafts with idempotent source linkage and guards against voiding a source after journal posting. The parent specification task remains OPEN.
+
+---
+
 # الحالة التنفيذية الحالية — متجر الأغبري | Nasr1
+
+## تحديث تنفيذي 2026-10-19 — NASR1-ORIGINAL-SPEC-ACCOUNTING-GENERAL-LEDGER-003
+
+- آخر HEAD حي لفرع `main` عند التحقق: `0c089585d27665680dcc4ad2520dd4affc875804`؛ CI مطابق [39311791227 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39311791227). لم يُغيَّر main أثناء إعداد هذه الوحدة.
+- التنفيذ على الفرع المعزول `feature/accounting-general-ledger-20261019` ضمن [PR #4](https://github.com/Report-Engainall/Nasr1/pull/4)، رأس الاختبار النهائي `190497591d6451ca69d26da41034a3e5558fd58f`.
+- CI مطابق للرأس: [Actions 39314610222 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39314610222): 42/42 ملفات اختبار و330/330 اختبار؛ frozen Bun lockfile check؛ وحدات Vitest؛ جميع migrations وقبول سير العمل على PostgreSQL 17؛ lint؛ build؛ production-preview smoke على 4173؛ dev smoke على 5173. قبول قاعدة البيانات طبع `PASS general ledger: chart idempotency, exact two-decimal amounts, balanced draft/post, replay safety, audited draft cancellation, trial balance and tenant/role isolation`.
+- التنفيذ: دليل حسابات مرتبط بالمؤسسة (asset/liability/equity/revenue/expense)، قيود مزدوجة draft/post/void، تحقق نقدي خادمي بمنزلتين عشريتين، منع تكرار مع تعارض الحمولة، صلاحيات/RLS ومنع DML المباشر، سجل تدقيق، دفتر قيود وميزان مراجعة من قيود حقيقية مرحّلة فقط، وواجهة مربوطة بصفحة المالية الحالية.
+- لا أرصدة افتتاحية أو قيود تاريخية أو فواتير demo. الربط التلقائي المستقبلي بإنشاء الفواتير/الدفعات/المصروفات/استلام المشتريات/Onyx ومطابقة المصدر المحاسبي **لم يُنفّذ في هذه الوحدة**، ويظل عملًا لاحقًا مستقلًا.
+- الأدلة: `IMPLEMENTED=YES`; `INTEGRATED=YES (PR branch only)`; `TESTED=PASS exact SHA`; `BROWSER-PROVEN=NOT RUN`; `PRODUCTION-PROVEN=NOT RUN`; `PRODUCTION_MIGRATION=NOT RUN`. نجاح CI لا يثبت نشر ترحيل الإنتاج أو اختبار متصفح بحساب حقيقي.
+- عولجت إخفاقات الوسيط دون حذف اختبارات: عدّ القيود كان يحسب السطور بدل القيود، ثم تم إصلاح محدد SQL لدالة الإلغاء، ثم وُضع فحص audit_logs في سياق مدير مخوّل بدل توسيع صلاحيات الجدول. التشغيل النهائي المشار إليه أعلاه نجح.
+- `next_task_id = NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002` ما زال مفتوحًا؛ هذه وحدة محاسبة أساسية مكتملة الاختبار، وليست إكمالًا شاملًا لكل واجهات المواصفة.
 
 **المستودع والفرع:** [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) / `main` فقط.
 **آخر SHA يحوي الكود الوظيفي واجتاز CI الكامل:** `2986f59c3350f313eaa53b529a7507da47192773` — [commit](https://github.com/Report-Engainall/Nasr1/commit/2986f59c3350f313eaa53b529a7507da47192773).
