@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { ChevronRight, Download, Eye, RotateCcw, Save, X } from 'lucide-react';
-import { downloadPriceGridCsv } from '@/lib/price-grid-csv';
+import { useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { ChevronRight, Download, Eye, RotateCcw, Save, Upload, X } from 'lucide-react';
+import { downloadPriceGridCsv, parsePriceGridCsv } from '@/lib/price-grid-csv';
 import { fetchAdminProductPriceGrid, saveProductPriceGrid, type ProductPriceGridChange, type ProductPriceGridRow } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
 
@@ -26,6 +26,7 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
   const cells = useRef<Map<string, HTMLInputElement>>(new Map());
+  const importInput = useRef<HTMLInputElement>(null);
   const rows: ProductPriceGridRow[] = products ?? [];
 
   const changedCount = useMemo(() => rows.filter((row) => PRICE_FIELDS.some((field) => {
@@ -91,6 +92,40 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
     return result;
   }
 
+  async function importCsvFile(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.csv') && file.type !== 'text/csv') {
+      setFormError('اختر ملف CSV فقط.');
+      return;
+    }
+    if (file.size > 2_000_000) {
+      setFormError('حجم ملف CSV يتجاوز الحد المسموح به (2 ميجابايت).');
+      return;
+    }
+    if (busy || preview !== null) return;
+    setBusy(true);
+    setFormError('');
+    try {
+      const text = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('تعذر قراءة محتوى CSV كنص UTF-8.'));
+        reader.onerror = () => reject(new Error('تعذر قراءة ملف CSV.'));
+        reader.readAsText(file, 'utf-8');
+      });
+      const imported = parsePriceGridCsv(text, rows);
+      setDrafts(imported.drafts);
+      setPreview(null);
+      onNotice('تمت مطابقة ' + imported.itemCount + ' صنفًا من CSV. راجع المعاينة ثم اعتمد الحفظ يدويًا؛ لم تُحفظ أي أسعار بعد.');
+    } catch (cause) {
+      setFormError(cause instanceof Error ? cause.message : 'تعذر استيراد شبكة الأسعار.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function commitPreview() {
     if (!preview || !preview.length || busy) return;
     setBusy(true); setFormError('');
@@ -114,6 +149,10 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
       <div><h2 id="price-grid-heading">شبكة الأسعار — تحرير مجمّع</h2>
         <p>السعر الأساسي والجملة الجملة والجملة والتجزئة. لا تحفظ التعديلات قبل المعاينة؛ تعتمد الدفعة ذريًا مع فحص تعارض الأسعار وسجل التدقيق.</p></div>
       <div className="price-grid-actions">
+        <input ref={importInput} className="price-grid-file-input" type="file" accept=".csv,text/csv" aria-label="استيراد ملف أسعار CSV" onChange={(event) => void importCsvFile(event)} />
+        <button type="button" className="btn outline" onClick={() => importInput.current?.click()} disabled={loading || Boolean(error) || !rows.length || busy || preview !== null} title="استيراد قالب CSV إلى مسودة معاينة؛ لا يحفظ دون اعتماد صريح">
+          <Upload size={15} /> استيراد CSV إلى معاينة
+        </button>
         <button type="button" className="btn outline" onClick={() => downloadPriceGridCsv(rows)} disabled={loading || Boolean(error) || !rows.length || busy} title="تصدير آخر أسعار محفوظة من الخادم، لا التعديلات غير المعتمدة">
           <Download size={15} /> تصدير الأسعار المحفوظة CSV
         </button>

@@ -378,3 +378,4 @@
   .price-grid-table-scroll { margin-inline: -2px; }
   .price-grid-table th, .price-grid-table td { padding: 8px; }
 }
+.price-grid-file-input { display: none; }

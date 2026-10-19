@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPriceGridCsv } from '@/lib/price-grid-csv';
+import { buildPriceGridCsv, parsePriceGridCsv } from '@/lib/price-grid-csv';
 
 const row = {
   id: 'aef00000-0000-4000-8000-000000000001',
@@ -21,6 +21,21 @@ describe('price grid CSV export', () => {
     expect(csv).toContain('"100.00","90.50","95.00","110.25"');
     expect(csv).toContain('"سكر أبيض، فاخر"');
     expect(csv).toContain('\r\n');
+  });
+
+  it('imports by exact item code and preserves leading-zero identifiers while producing drafts only', () => {
+    const csv = buildPriceGridCsv([row]);
+    const result = parsePriceGridCsv(csv, [row]);
+    expect(result.itemCount).toBe(1);
+    expect(result.drafts[row.id]).toEqual({ basePrice: '100', wholesaleOfWholesale: '90.5', wholesale: '95', retail: '110.25' });
+  });
+
+  it('rejects unknown or duplicate product codes and invalid precision without partial import', () => {
+    const csv = buildPriceGridCsv([row]);
+    expect(() => parsePriceGridCsv(csv.replace('"00001234"', '"00009999"'), [row])).toThrow(/أكواد غير موجودة/);
+    const records = csv.split('\r\n');
+    expect(() => parsePriceGridCsv(records[0] + '\r\n' + records[1] + '\r\n' + records[1] + '\r\n', [row])).toThrow(/مكرر/);
+    expect(() => parsePriceGridCsv(csv.replace('"90.50"', '"90.505"'), [row])).toThrow(/قيمة سعر غير صالحة/);
   });
 
   it('quotes delimiters and blocks spreadsheet formula execution in untrusted text fields', () => {
