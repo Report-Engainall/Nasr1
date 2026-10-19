@@ -23,6 +23,11 @@ const row = {
   price_wholesale_of_wholesale: 90.5,
   price_wholesale: 95,
   price_retail: 110.25,
+  quantity_on_hand_total: 12.125,
+  quantity_reserved_total: 1.125,
+  quantity_available_total: 11,
+  reorder_point_total: 4,
+  inventory_warehouse_count: 2,
 };
 
 describe('price grid XLSX workbook', () => {
@@ -34,10 +39,11 @@ describe('price grid XLSX workbook', () => {
     expect(parsed.worksheetName).toBe('شبكة الأسعار');
     expect(records).toHaveLength(2);
     expect(records[1][1]).toBe('00001234');
-    expect(records[1].slice(5)).toEqual(['100.00', '90.50', '95.00', '110.25']);
+    expect(records[1].slice(5)).toEqual(['100.00', '90.50', '95.00', '110.25', '12.125', '1.125', '11.000', '4', '2']);
     const imported = parsePriceGridRecords(records, [row]);
     expect(imported.itemCount).toBe(1);
     expect(imported.drafts[row.id]).toEqual({ basePrice: '100', wholesaleOfWholesale: '90.5', wholesale: '95', retail: '110.25' });
+    expect(Object.values(imported.drafts[row.id]).length).toBe(4); // Stock columns are export-only and never become stock update drafts.
   });
 
   it('writes hostile identifiers and labels as inline text, never formula cells', async () => {
