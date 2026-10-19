@@ -6,7 +6,8 @@
 - **المهمة المغلقة:** `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001` — ثبت أن مكوّن الهدف أفضل من المانح وأن الخدمات/المسارات/الاختبارات/مهاجرات SQL مطابقة ببصمات blob؛ لم يكن هناك نقص يستدعي نسخ ملفات أو تعديل RLS.
 - **المهمة المغلقة:** `NASR1-SOURCE-FINANCE-PDF-TEST-RECONCILIATION-001` — اختبار الهدف أقوى ويحتوي جميع سلوكيات اختبار المصدر مع تغطية إضافية للمجاميع والأعمار والعملات والتقسيم إلى صفحات؛ لم تُفقد حالة اختبار من المصدر.
 - **المهمة المغلقة:** `NASR1-SOURCE-CUSTOMER-WORKFLOWS-RECONCILIATION-001` — الهدف يحتفظ بالصفحات المصدرة ويضيف كفاءة وسلامة أكبر في السلة حسب الملف وأعمار الذمم؛ لم يُنسخ المكوّن القديم.
-- **المهمة الحالية / next_source_task_id:** `NASR1-SOURCE-ADMIN-PAGES-RECONCILIATION-001` — مراجعة `src/components/AdminPages.tsx` من `Aghbari-Technologies/aghbari-commerce-evolved@d24695209b45f2352e0ba994e1f5109d7e2afc9d`, blob `0106d26a15a9eedbbf7b4c149eb535a8e408c71c`, مقابل هدف مختلف البصمة `977b578a4740f468fe1ae47764c29399c47feaac`. لا تستبدل الملف كاملًا؛ حدد فقط أي وظيفة مانحة قابلة للفصل ليست موجودة بالهدف. لم يظهر هذا الملف ضمن قائمة ملفات PR #6 المفتوح.
+- **المهمة المغلقة:** `NASR1-SOURCE-ADMIN-PAGES-RECONCILIATION-001` — الهدف يحتفظ بلوحات الإدارة المصدرية ويضيف إدارة إعلانات المتجر على RPCs آمنة وقاعدة بيانات معزولة بالمؤسسة؛ لا ميزة مانحة مفقودة تستحق النقل.
+- **المهمة الحالية / next_source_task_id:** `NASR1-SOURCE-STOREFRONT-RECONCILIATION-001` — مراجعة `src/components/Storefront.tsx` من `Aghbari-Technologies/aghbari-commerce-evolved@d24695209b45f2352e0ba994e1f5109d7e2afc9d`, blob `3455340cac95a1ad656729296b3ea8a67eb492f3`, مقابل هدف مختلف البصمة `062dc33f1c971d0900808783aaa506296dab0d2f`. افحص الوظائف الغائبة فعليًا قبل أي تعديل؛ لا تستبدل المكوّن كاملًا.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 
@@ -55,29 +56,36 @@
 - **الاختبارات:** `CustomerWorkflows.finance.test.tsx` blob `ed41c7e1f681d58a97031d4f7e514a22f2729e3c` مطابق للمصدر والهدف ويختبر رفض الدفع الزائد قبل RPC. `CustomerWorkflows.finance-aging.test.tsx` blob `51959b0a0eb98d1a06ddbd3d6952434ea31093a7` يثبت عرض تقرير الذمم والطباعة مع منع RPC/العرض للمستخدم غير المصرح له. routes مسجلة في شجرة الهدف واختبارات CI/route smoke نجحت. [Actions 39333274431](https://github.com/Report-Engainall/Nasr1/actions/runs/39333274431) نجح على الرأس `f3c2a6c002e37b3adeef7028163a176717e7ff6c` بكل مراحل unit/PostgreSQL 17/RLS/lint/build/preview/dev.
 - **القرار:** `ALREADY_PRESENT_BETTER`؛ لا تستبدل ملفًا أكثر تقدمًا بنسخة مانحة قديمة. أضيف صفان إلى ledger وصفان إلى audit.
 
-## 6. قرار مصدر طابور العمليات غير المتصلة
+## 6. مصالحة AdminPages — مغلقة: الهدف أوسع
+
+- **البصمات:** المانح `src/components/AdminPages.tsx` blob `0106d26a15a9eedbbf7b4c149eb535a8e408c71c`; هدف Nasr1 blob `977b578a4740f468fe1ae47764c29399c47feaac`. واجهات Notifications وAiCenter وOrderDetail وSuppliers وDevices وSettingsPage وأدوات الإدارة المصدرية باقية؛ الهدف يضيف إدارة إعلانات الواجهة ويتيح تبويبها للإداري/المدير دون توسيع إدارة الأدوار التي تبقى للإداري.
+- **التتبّع التشغيلي:** `SettingsPage` يستدعي `fetchAdminStorefrontAnnouncements` و`saveStorefrontAnnouncement` في target API؛ migration `20261019110000_storefront_announcements.sql` blob `a9ae2a33a844064acfea60da96f387e9bdd546ea` ينشئ `storefront_announcements` مع RLS، ويسحب صلاحيات الجدول من `PUBLIC/anon/authenticated` ويمنح الجدول لـ`service_role` فقط. وظائف القراءة العامة تصفي بحسب المؤسسة والجمهور في الخادم، وقراءة/كتابة الإدارة تتطلب ملفًا نشطًا بدور admin/manager ونفس المؤسسة؛ دوال SECURITY DEFINER تستخدم `search_path=''`، والتحقق يشمل النص والرابط واللون والأولوية والجمهور والفترة، مع audit log.
+- **واجهة العرض/الاختبار:** `StorefrontAnnouncementSlider.tsx` blob `0502aadfa8188517f85eb2ce5e0d929a9534cd1b` يحجب الروابط غير الآمنة ويستجيب إلى reduced motion؛ اختبار `storefront-announcement-slider.test.tsx` blob `c9f6c100d725a77aaba3869ce447d555c4bd88ca` يغطي العرض/التنقل/الرابط الآمن/عدم التدوير للحركة المخففة/الحالة الفارغة. [Actions 39333274431](https://github.com/Report-Engainall/Nasr1/actions/runs/39333274431) اجتاز كامل CI على الرأس `f3c2a6c002e37b3adeef7028163a176717e7ff6c`, بما فيه PostgreSQL 17/RLS والوحدة وlint/build/preview/dev. لا نسخ من المانح، ولا تغيير RLS.
+- **القرار:** `ALREADY_PRESENT_BETTER`; أضيف صف واحد في ledger وصف واحد في audit.
+
+## 7. قرار مصدر طابور العمليات غير المتصلة
 
 - **المصدر:** `src/services/offlineQueue.ts` blob `7d68cdb19bd15056f58a5d92527dda78346f9209`؛ اختبار المصدر `src/services/offlineQueue.test.ts` blob `df7d5c4ec370652841b89d07b255a1d4dbd468b3`.
 - طابور المانح يقبل فقط وضع/حذف عنصر سلة محلي؛ لا يقبل إنشاء الطلب ولا تحديث المخزون.
 - Nasr1 يملك بالفعل `src/lib/offline-cart.ts` بمسودة سلة مرتبطة بملف العميل، وادعاء ضيف لمرة واحدة، وإزالة مفاتيح legacy غير المقيدة. يُخزن المنتج والكمية فقط؛ السعر والمخزون وتأكيد الطلب تظل خادمية. اختبارات الهدف الحالية تخص هذا العقد.
 - **القرار:** `DUPLICATE_PROVEN`، لا استيراد طابور ثانٍ ولا نسخ اختبارات المانح. يسجل ledger/audit القرار وبصمات المصدر ودليل الاختبارات الحالي [Actions 39329226396](https://github.com/Report-Engainall/Nasr1/actions/runs/39329226396) على `b4d1f2e9cbe1db4e34c7d82b5ca6e1880b3fe43b`. لم تُشغّل اختبارات المانح ولم يُنسخ ملفه.
 
-## 7. عطل CI منفصل يملكه P2 — PR #6
+## 8. عطل CI منفصل يملكه P2 — PR #6
 
 - [PR #6](https://github.com/Report-Engainall/Nasr1/pull/6) يعمل على ربط الفواتير/المدفوعات بقيود الأستاذ، ويملك P2 التعديل على `scripts/test-database-migrations.mjs`.
 - [Actions 39326813015](https://github.com/Report-Engainall/Nasr1/actions/runs/39326813015) فشل عند اختبار قيد الفاتورة في السطر 3288: الاختبار ينتظر رسالة `invoice has an active accounting journal` بينما الحارس الفعلي يعيد `invoice has accounting history; source amounts and identity cannot be changed`. هذا mismatch في توقع الاختبار؛ لا يعني فشل قاعدة المنع.
 - تم إرسال تعليق على PR #6 بطلب تعديل regex الخاص بالاختبار فقط ومراجعة assertion التالي، مع إبقاء الحارس ومنع القراءة المباشرة دون تغيير. **لم أحرر ملف الاختبار المشترك أو أكتب فوق عمل P2.**
 - لا تدمج PR أخرى قبل CI PASS على رأسها نفسه.
 
-## 8. الحالة الفعلية لسجلات المصدر
+## 9. الحالة الفعلية لسجلات المصدر
 
-- `SOURCE_INTEGRATION_LEDGER.csv`: 120 صف بيانات بعد إضافة قرارات العضويات وPDF والـCustomerWorkflows إلى الصفوف الـ109 الأصلية.
-- `READY_TO_REUSE_FILE_AUDIT.csv`: 84 صف بيانات بعد إضافة قرارات العضويات وPDF والـCustomerWorkflows إلى الـ73 الأصلية.
+- `SOURCE_INTEGRATION_LEDGER.csv`: 121 صف بيانات بعد توثيق قرارات العضويات وPDF وCustomerWorkflows وإدارة AdminPages.
+- `READY_TO_REUSE_FILE_AUDIT.csv`: 85 صف بيانات بعد توثيق قرارات العضويات وPDF وCustomerWorkflows وإدارة AdminPages.
 - الصفوف المضافة تغطي مصدر معالج الصور واختباره، وقرار تكرار طابور offline واختباره. جميع البصمات المنقولة من الشجرة المانحة مسجلة؛ لم نعد فتح أي source blob كان له قرار مسجل.
 - المراجعة السابقة لجرد الملفات على main أظهرت 69 صفًا في audit، 62 منها تعود للمصادر الثلاثة المحددة، وصفر صفوف بقيت بتسميات المراجعة العامة القديمة. بعد الصفوف الأربعة الحالية صار عدد audit 73 إجمالًا.
 - مهمة حماية الصور مغلقة بعد CI PASS على رأس PR المطابق والدمج إلى main. المهمة التالية الآن `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001`: المصدر المرشح `Aghbari-Technologies/aghbari-commerce-evolved@d24695209b45f2352e0ba994e1f5109d7e2afc9d`, `src/components/CustomerCompanyMembers.tsx`, blob `259caa2d675cd49d12864fa600b321ea73dcaae4`. مسار هدف بالاسم نفسه موجود، لكن مجرد وجود component لا يثبت اكتمال مسار العضويات؛ يجب مقارنة service/DB-RLS/RPC/route/tests. لم يُفتح محتوى ملف المانح بعد ولم تُسجل له بصمة قرار في السجلات.
 
-## 9. حدود الدور
+## 10. حدود الدور
 
 - الهدف الوحيد `Report-Engainall/Nasr1`. المستودعات الثلاثة للقراءة والمقارنة فقط.
 - لا أتعامل مع ZIPs/الأرشيف أو استكمال المواصفة الأصلية المستقل.
