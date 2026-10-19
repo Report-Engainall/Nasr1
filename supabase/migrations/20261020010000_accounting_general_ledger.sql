@@ -396,7 +396,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $$
 DECLARE
   v_actor uuid := public.current_profile_id();
   v_org uuid;

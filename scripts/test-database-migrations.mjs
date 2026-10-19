@@ -2957,7 +2957,7 @@ async function main() {
     () => db.unsafe("select public.void_general_journal_draft($1::uuid,$2::text)",[voidDraftEntry.id,"changed reason"]),
     /original reason/i,
   );
-  const voidAudit=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='accounting_journal_entry' and entity_id=$2::uuid",[organizationId,voidDraftEntry.id]);
+  const voidAudit=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='accounting_journal_entry' and entity_id=$2::uuid order by action",[organizationId,voidDraftEntry.id]);
   assert.deepEqual(voidAudit.map((row)=>row.action),["accounting.journal_draft_created","accounting.journal_draft_voided"]);
   await expectFailure(
     "posted journal entries cannot be voided through the draft operation",
