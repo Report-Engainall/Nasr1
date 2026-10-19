@@ -270,7 +270,7 @@ BEGIN
       RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='cash expense journal cannot post without its source link';
     END IF;
     SELECT ce.* INTO v_expense FROM public.cash_expenses ce
-     WHERE ce.id=v_posting.source_id AND ce.organization_id=v_posting.organization_id FOR UPDATE;
+     WHERE ce.id=v_posting.source_id AND ce.organization_id=v_posting.organization_id;
     IF NOT FOUND OR v_expense.status<>'posted' OR v_expense.currency<>'YER'
        OR v_expense.amount IS DISTINCT FROM v_posting.source_amount
        OR v_expense.currency IS DISTINCT FROM v_posting.source_currency
