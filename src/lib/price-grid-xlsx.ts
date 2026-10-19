@@ -62,23 +62,27 @@ function zipStored(parts: Array<{name:string; text:string}>): Uint8Array {
 function textCell(ref:string,value:string):string {
   return '<c r="'+ref+'" t="inlineStr"><is><t xml:space="preserve">'+xmlEscape(value)+'</t></is></c>';
 }
-function numberCell(ref:string,value:number):string {
-  if(!Number.isFinite(value)||value<0||value>999999999999) throw new Error('لا يمكن تصدير سعر خارج النطاق.');
-  return '<c r="'+ref+'" t="n"><v>'+value.toFixed(2)+'</v></c>';
+function numberCell(ref:string,value:number,decimals=2):string {
+  if(!Number.isFinite(value)||value<0||value>999999999999) throw new Error('لا يمكن تصدير قيمة سعر/مخزون خارج النطاق.');
+  return '<c r="'+ref+'" t="n"><v>'+value.toFixed(decimals)+'</v></c>';
 }
 /** Export only persisted server rows. Untrusted identifiers and labels are inline strings, never formula cells. */
 export function buildPriceGridXlsx(rows: readonly ProductPriceGridRow[]): Blob {
   if(rows.length>100000) throw new Error('عدد الأصناف أكبر من حد ملف Excel الآمن.');
   const headers=[...PRICE_GRID_EXPORT_HEADERS];
-  const table:(string|number)[][]=[headers];
+  const table:(string|number|null)[][]=[headers];
   for(const row of rows) table.push([
     row.id,row.item_code,row.name,row.unit,row.is_active?'نشط':'موقوف',
     Number(row.base_price),Number(row.price_wholesale_of_wholesale),Number(row.price_wholesale),Number(row.price_retail),
+    row.quantity_on_hand_total,row.quantity_reserved_total,row.quantity_available_total,row.reorder_point_total,row.inventory_warehouse_count,
   ]);
   const sheetRows=table.map((values,rowIndex)=>{
     const cells=values.map((value,colIndex)=>{
       const ref=columnName(colIndex)+(rowIndex+1);
-      return typeof value==='number' ? numberCell(ref,value) : textCell(ref,value);
+      if (value === null) return textCell(ref,'');
+      if (typeof value !== 'number') return textCell(ref,value);
+      const decimals = colIndex >= 9 && colIndex <= 11 ? 3 : colIndex >= 12 ? 0 : 2;
+      return numberCell(ref,value,decimals);
     }).join('');
     return '<row r="'+(rowIndex+1)+'">'+cells+'</row>';
   }).join('');
