@@ -95,10 +95,10 @@ BEGIN
     'last_order_at', pg_catalog.max(o.created_at),
     'days_since_last_order', CASE
       WHEN pg_catalog.max(o.created_at) IS NULL THEN NULL
-      ELSE GREATEST(pg_catalog.floor(pg_catalog.extract(epoch FROM (v_now - pg_catalog.max(o.created_at))) / 86400)::integer, 0)
+      ELSE GREATEST(pg_catalog.floor(EXTRACT(epoch FROM (v_now - pg_catalog.max(o.created_at))) / 86400)::integer, 0)
     END,
     'average_days_between_orders', (
-      SELECT pg_catalog.round(pg_catalog.avg(pg_catalog.extract(epoch FROM (ordered.created_at - ordered.previous_at)) / 86400)::numeric, 1)
+      SELECT pg_catalog.round(pg_catalog.avg(EXTRACT(epoch FROM (ordered.created_at - ordered.previous_at)) / 86400)::numeric, 1)
         FROM (
           SELECT o2.created_at,
                  pg_catalog.lag(o2.created_at) OVER (ORDER BY o2.created_at, o2.id) AS previous_at
