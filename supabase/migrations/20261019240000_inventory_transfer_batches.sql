@@ -110,7 +110,170 @@ BEGIN
       RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'each transfer line must contain only product_id and numeric quantity';
     END IF;
     v_product_text := v_line ->> 'product_id';
-    IF v_product_text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
+    IF v_product_text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'invalid product UUID in batch transfer';
+    END IF;
+    v_product_id := v_product_text::uuid;
+    IF v_product_id = ANY(v_product_ids) THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'a product may appear only once in a batch transfer';
+    END IF;
+    v_quantity := (v_line ->> 'quantity')::numeric;
+    IF v_quantity::text IN ('NaN', 'Infinity', '-Infinity')
+       OR v_quantity <= 0 OR v_quantity > 999999999999.999
+       OR pg_catalog.round(v_quantity, 3) <> v_quantity THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'transfer quantity must be positive with at most three decimals';
+    END IF;
+    v_product_ids := pg_catalog.array_append(v_product_ids, v_product_id);
+    v_quantities := pg_catalog.array_append(v_quantities, v_quantity);
+    v_canonical_lines := v_canonical_lines || pg_catalog.jsonb_build_array(
+      pg_catalog.jsonb_build_object('product_id', v_product_id, 'quantity', v_quantity)
+    );
+  END LOOP;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(v_org::text || ':inventory-transfer-batch:' || v_key, 0)
+  );
+  SELECT b.* INTO v_existing
+    FROM public.inventory_transfer_batches b
+   WHERE b.organization_id = v_org AND b.idempotency_key = v_key
+   FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.source_warehouse_id IS DISTINCT FROM p_source_warehouse_id
+       OR v_existing.destination_warehouse_id IS DISTINCT FROM p_destination_warehouse_id
+       OR v_existing.reason IS DISTINCT FROM v_reason
+       OR v_existing.payload IS DISTINCT FROM v_canonical_lines THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'batch-transfer idempotency key payload conflict';
+    END IF;
+    SELECT coalesce(pg_catalog.jsonb_agg(t.id ORDER BY t.product_id), '[]'::jsonb)
+      INTO v_transfer_ids
+      FROM public.inventory_transfers t
+     WHERE t.organization_id = v_org AND t.batch_id = v_existing.id;
+    RETURN pg_catalog.jsonb_build_object(
+      'batch_id', v_existing.id, 'line_count', v_existing.line_count,
+      'idempotent_replay', true, 'transfer_ids', v_transfer_ids
+    );
+  END IF;
+
+  FOR v_warehouse IN
+    SELECT w.id FROM public.warehouses w
+     WHERE w.id IN (p_source_warehouse_id, p_destination_warehouse_id)
+       AND w.organization_id = v_org AND w.is_active
+     ORDER BY w.id
+     FOR SHARE
+  LOOP
+    v_warehouse_count := v_warehouse_count + 1;
+  END LOOP;
+  IF v_warehouse_count <> 2 THEN
+    RAISE EXCEPTION USING ERRCODE = '42501',
+      MESSAGE = 'source and destination warehouses must be active in the current organization';
+  END IF;
+
+  -- Product locks precede the same pair lock used by transfer_inventory, preventing
+  -- overselling when a single-line transfer and a batch race for the same stock.
+  FOR v_index IN 1..v_line_count LOOP
+    v_product_id := v_product_ids[v_index];
+    v_quantity := v_quantities[v_index];
+    SELECT p.* INTO v_product
+      FROM public.products p
+     WHERE p.id = v_product_id AND p.organization_id = v_org AND p.status = 'active'
+     FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'a batch product is unavailable in this organization';
+    END IF;
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        v_org::text || ':inventory-transfer-balance:' || v_product_id::text || ':' ||
+        LEAST(p_source_warehouse_id::text, p_destination_warehouse_id::text) || ':' ||
+        GREATEST(p_source_warehouse_id::text, p_destination_warehouse_id::text), 1
+      )
+    );
+    SELECT ib.quantity_on_hand, ib.quantity_reserved
+      INTO v_source_on_hand, v_source_reserved
+      FROM public.inventory_balances ib
+     WHERE ib.product_id = v_product_id AND ib.warehouse_id = p_source_warehouse_id
+     FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'source warehouse has no verified stock balance for a batch product';
+    END IF;
+    IF v_source_reserved < 0 OR v_source_on_hand < v_source_reserved
+       OR v_source_on_hand - v_source_reserved < v_quantity THEN
+      RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'insufficient available stock for a batch product';
+    END IF;
+    INSERT INTO public.inventory_balances(product_id, warehouse_id, quantity_on_hand, quantity_reserved, reorder_point)
+    VALUES (v_product_id, p_destination_warehouse_id, 0, 0, coalesce(v_product.min_stock, 0))
+    ON CONFLICT (product_id, warehouse_id) DO NOTHING;
+    PERFORM 1 FROM public.inventory_balances ib
+     WHERE ib.product_id = v_product_id AND ib.warehouse_id = p_destination_warehouse_id
+     FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'destination stock balance could not be locked';
+    END IF;
+  END LOOP;
+
+  INSERT INTO public.inventory_transfer_batches(
+    organization_id, source_warehouse_id, destination_warehouse_id,
+    reason, idempotency_key, payload, line_count, created_by
+  ) VALUES (v_org, p_source_warehouse_id, p_destination_warehouse_id, v_reason, v_key, v_canonical_lines, v_line_count, v_actor)
+  RETURNING * INTO v_batch;
+
+  FOR v_index IN 1..v_line_count LOOP
+    v_product_id := v_product_ids[v_index];
+    v_quantity := v_quantities[v_index];
+    INSERT INTO public.inventory_transfers(
+      organization_id, product_id, source_warehouse_id, destination_warehouse_id,
+      quantity, reason, idempotency_key, created_by, batch_id
+    ) VALUES (
+      v_org, v_product_id, p_source_warehouse_id, p_destination_warehouse_id,
+      v_quantity, v_reason,
+      'batch-line-' || pg_catalog.replace(v_batch.id::text, '-', '') || '-' ||
+        pg_catalog.replace(v_product_id::text, '-', ''),
+      v_actor, v_batch.id
+    ) RETURNING id INTO v_transfer_id;
+
+    UPDATE public.inventory_balances
+       SET quantity_on_hand = quantity_on_hand - v_quantity,
+           last_movement_at = pg_catalog.now(), updated_at = pg_catalog.now()
+     WHERE product_id = v_product_id AND warehouse_id = p_source_warehouse_id
+     RETURNING quantity_available INTO v_source_available_after;
+    UPDATE public.inventory_balances
+       SET quantity_on_hand = quantity_on_hand + v_quantity,
+           last_movement_at = pg_catalog.now(), updated_at = pg_catalog.now()
+     WHERE product_id = v_product_id AND warehouse_id = p_destination_warehouse_id
+     RETURNING quantity_available INTO v_destination_available_after;
+
+    INSERT INTO public.inventory_movements(
+      product_id, warehouse_id, movement_type, quantity, balance_after,
+      reference_type, reference_id, reason, created_by
+    ) VALUES
+      (v_product_id, p_source_warehouse_id, 'transfer_out', -v_quantity, v_source_available_after,
+       'inventory_transfer', v_transfer_id, v_reason, v_actor),
+      (v_product_id, p_destination_warehouse_id, 'transfer_in', v_quantity, v_destination_available_after,
+       'inventory_transfer', v_transfer_id, v_reason, v_actor);
+  END LOOP;
+
+  INSERT INTO public.audit_logs(organization_id, actor_id, action, entity_type, entity_id, old_value, new_value)
+  VALUES (
+    v_org, v_actor, 'inventory.transfer.batch', 'inventory_transfer_batch', v_batch.id,
+    pg_catalog.jsonb_build_object('source_warehouse_id', p_source_warehouse_id, 'destination_warehouse_id', p_destination_warehouse_id),
+    pg_catalog.jsonb_build_object('line_count', v_line_count, 'reason', v_reason, 'idempotency_key', v_key, 'lines', v_canonical_lines)
+  );
+  SELECT coalesce(pg_catalog.jsonb_agg(t.id ORDER BY t.product_id), '[]'::jsonb)
+    INTO v_transfer_ids
+    FROM public.inventory_transfers t
+   WHERE t.organization_id = v_org AND t.batch_id = v_batch.id;
+  RETURN pg_catalog.jsonb_build_object(
+    'batch_id', v_batch.id, 'line_count', v_line_count,
+    'idempotent_replay', false, 'transfer_ids', v_transfer_ids
+  );
+END;
+$$;
+REVOKE ALL ON FUNCTION public.transfer_inventory_batch(uuid, uuid, text, jsonb, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.transfer_inventory_batch(uuid, uuid, text, jsonb, text) TO authenticated;
+COMMENT ON FUNCTION public.transfer_inventory_batch(uuid, uuid, text, jsonb, text) IS
+  'Atomic multi-product stock transfer with target-tenant authorization, sorted locking, reserved-stock protection, idempotent replay, per-product movements and one batch audit event.';
+COMMENT ON TABLE public.inventory_transfer_batches IS
+  'Audited multi-product transfer envelopes; each product transfer remains in inventory_transfers and its paired movement ledger.';
+ THEN
       RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'invalid product UUID in batch transfer';
     END IF;
     v_product_id := v_product_text::uuid;

@@ -20,6 +20,14 @@ describe('inventory transfer batch validation', () => {
     expect(draft.lines.map((line) => line.quantity)).toEqual([3, 2.125]);
   });
 
+  it('accepts database UUIDs without assuming RFC variant/version bits', () => {
+    const legacyProductId = 'd0000000-0000-0000-0000-000000000001';
+    expect(normalizeInventoryTransferBatchDraft({
+      sourceWarehouseId: source, destinationWarehouseId: destination, reason: 'test',
+      lines: [{ productId: legacyProductId, quantity: 1 }],
+    }).lines[0].productId).toBe(legacyProductId);
+  });
+
   it('treats reordered copies of the same payload as one retry identity', () => {
     const first = { sourceWarehouseId: source, destinationWarehouseId: destination, reason: 'test',
       lines: [{ productId: productA, quantity: 1 }, { productId: productB, quantity: 2.5 }] };

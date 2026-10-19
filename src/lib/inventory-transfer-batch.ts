@@ -23,7 +23,7 @@ export type NormalizedInventoryTransferBatchDraft = {
 
 export const MAX_INVENTORY_TRANSFER_BATCH_LINES = 200;
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
 
 export function normalizeInventoryTransferBatchDraft(
