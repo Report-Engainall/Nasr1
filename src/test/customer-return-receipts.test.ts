@@ -67,7 +67,7 @@ describe("customer return receipt validation", () => {
     }, items)).toThrow(/ثلاث منازل/);
     expect(() => buildCustomerReturnReceiptLines({
       [items[0].request_item_id]: { received_quantity: "1", restockable_quantity: "1.001" },
-    }, items)).toThrow(/ثلاث منازل/);
+    }, items)).toThrow(/لا يمكن أن تتجاوز/);
     expect(() => buildCustomerReturnReceiptLines({
       [items[1].request_item_id]: { received_quantity: "1", restockable_quantity: "0.1" },
     }, items)).toThrow(/منتج فعلي/);
