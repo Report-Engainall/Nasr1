@@ -50,7 +50,7 @@
 - الهدف الأصلي قبل التعديل: src/lib/unified-import.ts blob 7fa69c332256e1c6a3c40a14303964404324a586 (901 سطرًا)؛ التنفيذ الهدف أكثر تحفظًا في حد الأعمدة/حجم الرفع، حجم chunks، التحقق من تسلسل/حجوم/hash شرائح الاستئناف، streaming SHA-256، وحد توسّع XLSX. لذلك لم يُستبدل الملف القديم بالنسخة الأقصر.
 - فائدة محددة تم تكييفها في الهدف: تطبيع Unicode NFKC، إزالة التشكيل والتطويل، توحيد أشكال الألف/الألف المقصورة، وتوسعة الأسماء القياسية للباركود والوحدة والفئة والوصف والاسم؛ كما أصبح تطبيع مفاتيح قاموس synonyms المخصص يعمل حتى لو كان المفتاح مكتوبًا بتشكيل/ألف بديلة.
 - ملفات الهدف المحفوظة على فرع P2: src/lib/unified-import.ts (تعديل؛ commit 477217f7131fbe015212a800273d36f142f05cc4) وsrc/test/unified-import-safety.test.ts (اختبارات جديدة؛ آخر تعديل test commit 49fa336b6a04db3d3272ac78d78cc17b89bc7a89). حالات الاختبار تشمل Unicode fullwidth وArabic diacritics/tatweel وaliases للباركود والوحدة والفئة والإيراد وقاموس synonyms مخصص.
-- الحالة الحالية: IMPLEMENTED على فرع P2؛ TESTED_EXACT_SHA = PENDING/NOT RUN حتى اكتمال CI على رأس الفرع النهائي؛ لا يُنقل نجاح CI أقدم إلى هذه التغييرات.
+- الحالة الحالية: IMPLEMENTED، وTESTED_EXACT_SHA = PASS لشفرة الاستيراد والاختبارات على SHA 49fa336b6a04db3d3272ac78d78cc17b89bc7a89 عبر [GitHub Actions 39437730603](https://github.com/Report-Engainall/Nasr1/actions/runs/39437730603) — conclusion SUCCESS. هذا الإثبات يخص ذلك SHA؛ Browser/Production proof = NOT RUN. رأس الوثائق e7867d548bea5ee8529cdb8001f290b79da6c939 كان له workflow 39438007926 قيد التنفيذ عند التحقق، ويجب إعادة التحقق من رأس الفرع النهائي بعد هذه التحديثات.
 
 ### ADAPT_AND_INTEGRATE — مصالحة المخزون المقيدة، غير منفذة بعد
 - المرشح: EXTRACTED_PROJECTS/project-bolt-github-gcrrtnzl/project/supabase/migrations/20260909005534_inventory_reconciliation_controlled_apply_rollback.sql.
@@ -68,13 +68,13 @@
 2. دورة تطبيق مصالحة Onyx والتراجع التعويضي الآمن مع PostgreSQL concurrency/RLS acceptance.
 3. تكييف Playwright، وإثبات المسارات الفعلية ببيئة حسابات E2E مناسبة.
 4. استكمال طباعة الفواتير وكشوف الحساب والإشعارات الدائنة حسب المؤسسة/الدور؛ ومتطلبات طباعة كل المهام بفلاتر الشاشة.
-5. تأكيد إعدادات عرض السعر عبر مسار PR #12 بعد إصلاح/تفسير CI: Action 39339667293 فشل على SHA b3daf67de14c935fdafb0c2bf06c2f02e6be6ec5. لا تستخدمه دليل PASS، ولا تكرر ميزة الخصوصية قبل قراءة سبب الفشل.
+5. إعدادات عرض السعر ضمن PR #12: الفشل السابق [Action 39339667293](https://github.com/Report-Engainall/Nasr1/actions/runs/39339667293) سببه syntax error في تعليق SQL داخل 20261020040000_customer_price_visibility_controls.sql: escaped apostrophe customer\\'s غير صالحة مع PostgreSQL standard_conforming_strings. صُحح إلى SQL quote doubling customer''s في commit 6417e723a532b4bfd2c1a81c59ff6a78722ed721؛ [Action 39438180471](https://github.com/Report-Engainall/Nasr1/actions/runs/39438180471) كان IN_PROGRESS عند آخر قراءة. لا تستخدم PR #12 كدليل PASS حتى يكتمل هذا الرأس.
 6. مراجعة هوية العلامة في الشاشات/metadata/PWA/PDF/Excel والإشعارات، والتحقق من ربط آخر حالة/وقت مزامنة Onyx بدليل حقيقي؛ لم يثبت ذلك بالكامل في هذا الفحص.
 7. إكمال التحقق السلوكي من AI provider fallback وUsage Ledger؛ blobs المتطابقة وحدها لا تثبت التشغيل/configuration.
 
 ## 5. الحالة والخطوة التالية
 هذه الجولة حسمت بعض قرارات المصدر وربطت تحسينًا صغيرًا في normalization، لكنها لا تعني اكتمال فحص كل ميزة في جميع المشاريع ولا اكتمال المواصفة.
 - الحالة: source tree reviewed; selected contracts checked by blob and file content; one target-native import enhancement IMPLEMENTED on P2 PR branch.
-- Build/tests/CI after import changes: PENDING؛ لا local checkout أو runner مستخدم في هذه الجولة.
+- Import code + unit/DB/build pipeline: PASS على SHA 49fa336b6a04db3d3272ac78d78cc17b89bc7a89 عبر Action 39437730603؛ لم يتم local checkout، واختبارات المتصفح/الإنتاج NOT RUN. CI رأس الوثائق الأحدث كان IN_PROGRESS ويحتاج readback نهائيًا.
 - main لم يُعدل؛ جميع التعديلات على فرع PR #18 الحالي.
 - next_task_id remains NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004. لا تغيّر مؤشر الاستئناف بسبب هذا الجرد وحده.
