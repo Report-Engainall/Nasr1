@@ -74,6 +74,13 @@
 - هذا دليل عام على الرأس المذكور فقط. يلزم تشغيل CI على الرأس التوثيقي النهائي الناتج عن تحديث هذا التقرير والسجلين، ولا يجوز نقل نتيجة 39451534079 إلى رأس لاحق.
 - لا يغلق هذا دورة دعوة تفعيل العميل: PR #26 ما زال Draft وغير مدمج، وربط `AghbariApp.tsx` وتوليد `routeTree.gen.ts` وقبول RLS/RPC المتخصص في `scripts/test-database-migrations.mjs` لا تزال تبعيات P2. لا تغييرات في grants أو سياسات RLS.
 
+## 6.2. اختبار انحدار ثابت لعقد أمان migration لدعوات التفعيل — 2026-10-20
+
+- **الملف الجديد:** `src/test/customer-activation-invitations-migration.test.ts`; Git blob الهدف `9457bbd61e506b76d2a34ee57914bb0f5fb4f591`. يراجع migration `supabase/migrations/20261020110000_customer_activation_invitations.sql` blob `cef9cb41c88620114af4c37761515a1b177538b5`.
+- **دليل الكود والاختبار على الرأس المطابق:** [Actions 39454365456](https://github.com/Report-Engainall/Nasr1/actions/runs/39454365456) على `a45cdd1963137c01e30188d83ba14d8a4888cccf` انتهى **SUCCESS**؛ 60/60 test files، PostgreSQL 17 migration/core-workflow acceptance، lint، build، preview smoke 4173، dev smoke 5173، والتنظيف.
+- تغطية الانحدار الثابت: RLS مفعّل؛ سحب صلاحيات الجدول المباشرة من `PUBLIC`, `anon`, و`authenticated`؛ أربع دوال `SECURITY DEFINER` مع `search_path` فارغ؛ تنفيذ RPC مسموح لـ`authenticated` فقط؛ تجزئة الرموز بـSHA-256؛ انتهاء الصلاحية؛ حواجز المؤسسة والبريد ودور الموظف وتأهيل العميل والاستخدام لمرة واحدة؛ وأحداث التدقيق.
+- **دليل توثيقي منفصل:** الرأس السابق `0e393fbff8981847490d7fb04db82fc26a7e16ed` اجتاز [Actions 39454952142](https://github.com/Report-Engainall/Nasr1/actions/runs/39454952142) على SHA نفسه. يخص ذلك الحالة التوثيقية السابقة فقط؛ التعديل الحالي يضيف هذا القسم ويحتاج تشغيل CI جديد على الرأس النهائي.
+- **حدود الإثبات:** اختبار Vitest يفحص نص migration فقط؛ لا يثبت منع الأدوار الفعلية من الاستعلام ولا يجري دورة RPC كاملة. تبقى اختبارات القبول PostgreSQL/RLS الخاصة بدعوات التفعيل على مسؤولية P2.  P2 acceptance fixture requirement: the current harness places email_confirmed_at in JWT claims but does not create/seed auth.users; because accept_customer_activation_invitation checks auth.users.email_confirmed_at, the P2-owned isolated test must provide an auth.users fixture. No production migration or RLS policy was changed.
 ## 7. حدود الدور
 
 - الهدف الوحيد `Report-Engainall/Nasr1`. المستودعات الثلاثة للقراءة والمقارنة فقط.
