@@ -27,6 +27,9 @@ function asJson(value) {
 
 async function main() {
   const organizationId = "a0000000-0000-0000-0000-000000000001";
+  const otherOrganizationId = "a1111111-1111-4111-8111-111111111111";
+  const foreignCustomerProfileId = "f6666666-6666-4666-8666-666666666666";
+  const foreignCustomerAuthId = "66666666-6666-4666-8666-666666666666";
   const customerOneProfileId = "f1111111-1111-4111-8111-111111111111";
   const customerOneAuthId = "11111111-1111-4111-8111-111111111111";
   const customerTwoProfileId = "f2222222-2222-4222-8222-222222222222";
@@ -55,6 +58,45 @@ async function main() {
   const customerTwo = customerRows.find((row) => row.profile_id === customerTwoProfileId);
   assert.ok(customerOne, "first approved customer fixture must exist from migration acceptance");
   assert.ok(customerTwo, "second approved customer fixture must exist from migration acceptance");
+
+  const foreignProductRows = await db.unsafe(
+    "select id from public.products where organization_id=$1 order by id limit 1",
+    [otherOrganizationId],
+  );
+  assert.equal(foreignProductRows.length, 1, "foreign-organization product fixture must exist from migration acceptance");
+  const foreignProductId = foreignProductRows[0].id;
+  const foreignCustomerRows = await db.unsafe(
+    "insert into public.customers(organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier,credit_limit,current_balance,status,approved_at) " +
+    "values($1,$2,'CI-FINANCE-PRINT-FOREIGN','Foreign print fixture','Foreign contact','7779999999','foreign-finance-print@example.test','retail',0,0,'approved',pg_catalog.now()) " +
+    "on conflict(organization_id,customer_code) do update set profile_id=excluded.profile_id,status='approved',approved_at=pg_catalog.now() returning id",
+    [otherOrganizationId, foreignCustomerProfileId],
+  );
+  assert.equal(foreignCustomerRows.length, 1, "foreign-organization customer print fixture must exist");
+  const foreignCustomerId = foreignCustomerRows[0].id;
+  const foreignOrderRows = await db.unsafe(
+    "insert into public.orders(organization_id,customer_id,order_number,status,total_amount,total_items,notes,created_by) " +
+    "values($1,$2,$3,'delivered',100,1,'CI foreign finance print',$4) returning id",
+    [otherOrganizationId,foreignCustomerId,"CI-FIN-PRINT-"+suffix,foreignCustomerProfileId],
+  );
+  const foreignOrderItemRows = await db.unsafe(
+    "insert into public.order_items(order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity,unit_price_snapshot,discount_snapshot,line_total) " +
+    "values($1,$2,'CI-FIN-FOREIGN-01','Foreign print item','piece',1,1,1,100,0,100) returning id",
+    [foreignOrderRows[0].id,foreignProductId],
+  );
+  const foreignInvoiceRows = await db.unsafe(
+    "insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,issued_at,currency,subtotal,tax_amount,total_amount) " +
+    "values($1,$2,$3,$4,'issued',pg_catalog.now(),'YER',100,0,100) returning id",
+    [otherOrganizationId,foreignCustomerId,foreignOrderRows[0].id,"INV-CI-FIN-FOREIGN-"+suffix],
+  );
+  const foreignInvoiceId = foreignInvoiceRows[0].id;
+  await db.unsafe(
+    "insert into public.customer_invoice_items(organization_id,invoice_id,order_item_id,product_id,item_code,description,unit,quantity,unit_price," +
+    "discount_snapshot,promotion_discount_per_unit_snapshot,promotion_id_snapshot,promotion_title_snapshot,promotion_discount_type_snapshot,promotion_discount_value_snapshot,line_total) " +
+    "select $1,$2,oi.id,oi.product_id,oi.item_code,oi.product_name_snapshot,oi.unit_snapshot,oi.quantity,oi.unit_price_snapshot," +
+    "oi.discount_snapshot,oi.promotion_discount_per_unit_snapshot,oi.promotion_id_snapshot,oi.promotion_title_snapshot," +
+    "oi.promotion_discount_type_snapshot,oi.promotion_discount_value_snapshot,oi.line_total from public.order_items oi where oi.id=$3::uuid",
+    [otherOrganizationId,foreignInvoiceId,foreignOrderItemRows[0].id],
+  );
 
   const orderOneRows = await db.unsafe(
     "insert into public.orders(organization_id,customer_id,order_number,status,total_amount,total_items,notes,created_by) values($1,$2,$3,'delivered',500,5,'CI return request', $4) returning id",
@@ -319,6 +361,21 @@ async function main() {
     () => db.unsafe("select public.fetch_customer_return_credit_memo_queue(50)"),
     /finance permission required/i,
   );
+  await expectFailure(
+    "customers cannot enumerate staff financial print sources",
+    () => db.unsafe("select public.get_finance_document_print_options(500)"),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "customers cannot print staff-scoped invoices",
+    () => db.unsafe("select public.get_staff_customer_invoice_print_data($1::uuid)",[sourceInvoiceId]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "customers cannot print staff-scoped account statements",
+    () => db.unsafe("select public.get_staff_customer_account_statement($1::uuid)",[customerOne.id]),
+    /finance permission required/i,
+  );
   await db.unsafe("reset role");
 
   await setIdentity(managerAuthId,"ci-return-manager@example.test");
@@ -385,6 +442,41 @@ async function main() {
   const postedPrint = asJson(postedPrintRows[0].result);
   assert.equal(postedPrint.memo.status,"posted");
   assert.equal(postedPrint.journal.status,"posted");
+
+  const printOptionsRaw = await db.unsafe("select public.get_finance_document_print_options(500) as result");
+  const printOptions = asJson(printOptionsRaw[0].result);
+  assert.ok(printOptions.customers.some((row) => row.id === customerOne.id),"finance print options include an own-organization customer");
+  assert.ok(printOptions.invoices.some((row) => row.id === sourceInvoiceId),"finance print options include the source invoice");
+  assert.ok(printOptions.credit_memos.some((row) => row.id === preparedCredit.credit_memo_id),"finance print options include the posted credit memo");
+  assert.ok(!printOptions.customers.some((row) => row.id === foreignCustomerId),"finance print options exclude foreign-organization customers");
+  assert.ok(!printOptions.invoices.some((row) => row.id === foreignInvoiceId),"finance print options exclude foreign-organization invoices");
+
+  const staffInvoiceRaw = await db.unsafe(
+    "select public.get_staff_customer_invoice_print_data($1::uuid) as result",[sourceInvoiceId],
+  );
+  const staffInvoice = asJson(staffInvoiceRaw[0].result);
+  assert.equal(staffInvoice.invoice.id,sourceInvoiceId);
+  assert.equal(staffInvoice.customer.id,customerOne.id);
+  assert.equal(staffInvoice.lines[0].item_code,"000125","invoice print keeps leading-zero item codes");
+  assert.equal(Number(staffInvoice.invoice.total_amount),500,"invoice print reconciles the immutable financial source");
+  await expectFailure("staff cannot print an invoice from another organization",
+    () => db.unsafe("select public.get_staff_customer_invoice_print_data($1::uuid)",[foreignInvoiceId]),
+    /invoice was not found in the active organization/i);
+  await expectFailure("staff cannot print a statement from another organization",
+    () => db.unsafe("select public.get_staff_customer_account_statement($1::uuid)",[foreignCustomerId]),
+    /customer was not found in the active organization/i);
+
+  const staffStatementRaw = await db.unsafe(
+    "select public.get_staff_customer_account_statement($1::uuid) as result",[customerOne.id],
+  );
+  const staffStatement = asJson(staffStatementRaw[0].result);
+  assert.equal(staffStatement.customer.id,customerOne.id);
+  assert.ok(staffStatement.credits.some((row) => row.id === preparedCredit.credit_memo_id),"staff statement includes posted source credit memos");
+  const staffYER = staffStatement.summary.find((row) => row.currency === "YER");
+  assert.ok(staffYER,"staff statement summarizes YER receivables");
+  assert.equal(Number(staffYER.credited),125,"staff statement reduces receivables by posted source credit memo");
+  assert.equal(Number(staffYER.outstanding),375,"staff statement reconciles invoice less posted credit memo");
+
   await db.unsafe("reset role");
 
   const creditRows = await db.unsafe(
