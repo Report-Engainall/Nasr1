@@ -237,7 +237,7 @@ BEGIN
   IF coalesce(p_token,'') !~ '^[0-9a-fA-F]{64}$' THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='رابط تفعيل الحساب غير صالح.';
   END IF;
-  IF pg_catalog.nullif(auth.jwt()->>'email_confirmed_at','') IS NULL THEN
+  IF NULLIF(auth.jwt()->>'email_confirmed_at','') IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='أكّد البريد الإلكتروني قبل قبول دعوة التفعيل.';
   END IF;
   IF v_auth_email !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$' THEN
