@@ -1,7 +1,18 @@
-نفّذ في المتجر الحالي فقط: https://github.com/Report-Engainall/Nasr1 على main. اقرأ بالكامل docs/bolt-source-reconciliation/BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md ثم CURRENT_EXECUTION_STATE.md وEXECUTION_LOG.md وسجل المصادر والجرد.
+نفّذ في المشروع الحالي فقط: https://github.com/Report-Engainall/Nasr1. لا تنشئ مشروعًا أو قاعدة بيانات بديلة ولا تكتب مباشرة إلى main.
 
-تحقق من HEAD الحي وCI المطابق له، ثم نفّذ next_task_id الوحيد. افحص كل ملف من READY_TO_REUSE/PROVENANCE_MANIFEST.csv، وكل الفروع وPRs واللقطات المتاحة. نزّل وفك وقارن فعليًا ZIPين من https://github.com/Report-Engainall/report-insight-engine/tree/main/incoming-archives/nasr1-bolt-recovery-2026-10-17: Nasr1_Bolt_Before_Failure.zip وNasr1_Bolt_Restored_Current.zip. احسب SHA-256 واختبر سلامة ZIP قبل الاستخراج الآمن. ادمج أو كيّف كل فائدة غير موجودة في Nasr1 ووصلها بالكود الفعلي واختبرها؛ metadata أو نسخ الملف لمجلد مرجعي ليس استخراجًا أو دمجًا. عند تعذر مصدر، سجّل رابط المحاولة ورسالة الخطأ الحقيقية وواصل عملًا مستقلًا فورًا.
+اقرأ بالترتيب:
+1. docs/bolt-source-reconciliation/BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md
+2. docs/bolt-source-reconciliation/P2_ADDITIONAL_ACCEPTANCE_MANDATE_2026-10-20.md
+3. docs/bolt-source-reconciliation/PROGRAMMER_2_CURRENT_REPORT.md
+4. docs/bolt-source-reconciliation/WORK_COORDINATION.md
+5. CURRENT_EXECUTION_STATE.md وEXECUTION_LOG.md والسجلات التي يملكها P2.
 
-أكمل النسخة الشاملة فوق القائم: الأمان وصحة البيانات أولًا، ثم التجارة والمخزون والاستيراد وOnyx، ثم المحاسبة ولوحة الإدارة والتحليلات. لا توجد فواتير تاريخية سابقة مطلوب اختلاقها. لا بيانات demo أو أزرار شكلية أو خدمات مدفوعة. مركز المهام من أحداث فعلية مع منع التكرار، والطباعة بالكل/المبيعات/المحاسبة/المخزن/المشتريات/الإدارة بنفس الفلاتر والصلاحيات.
+عند الإقلاع، تحقق من HEAD وbranch وPR والـCI الحيّ، ولا تعتمد على لقطة أو تقرير قديم إذا تعارض مع metadata الحالي. نفّذ next_task_id الحي الوحيد ثم انتقل تلقائيًا بعد إثبات الإغلاق. المهمة الإضافية الملزمة تشمل مراجعة EXTRACTED_PROJECTS تكراريًا في https://github.com/Report-Engainall/NASR-MULTI-PROJECTS-TRANSFER/tree/main/EXTRACTED_PROJECTS (المصدر للقراءة فقط) ودمج ما ينقص فعلًا في Nasr1، إضافة إلى معايير قبول الهوية والأسعار والمخزون والطلبات وOnyx والاستيراد/DQS/CSV والذكاء الاصطناعي والطباعة المفصلة في التكليف الإضافي.
 
-لا force-push ولا محو عمل غير محفوظ. شغّل الاختبارات وأصلح الفشل. حدّث CURRENT_EXECUTION_STATE.md وEXECUTION_LOG.md وSOURCE_INTEGRATION_LEDGER.csv والجرد. سلّم commit وSHA وCI المطابق ونتائج حقيقية؛ افصل IMPLEMENTED/INTEGRATED/TESTED/BROWSER-PROVEN/PRODUCTION-PROVEN. أي اختبار لم يُشغّل يوسم NOT RUN. لا تدّعِ اكتمالًا دون دليل.
+لا تكرر فحصًا موثقًا أو إعادة استخراج ZIPs، ولا تفتح الأرشيفات القديمة المستبعدة. استخدم البصمات والتقارير الموجودة، واكتشف تكرار المحتوى قبل أي دمج. افحص الوظيفة المكافئة في Nasr1 أولًا، ووصل أي ميزة معتمدة بواجهتها وخدماتها وDB/RLS/RPC/route/tests؛ تكيّف المخططات القديمة ولا تنقل SQL أو صفحات متعارضة كما هي.
+
+المبرمج 1 يواصل حصريًا دمج ميزات المستودعات الثلاثة وسجلاته. لا تعدل SOURCE_INTEGRATION_LEDGER.csv أو READY_TO_REUSE_FILE_AUDIT.csv أو PROGRAMMER_1_CURRENT_REPORT.md، ولا تعدل مسار كود مقفولًا له. نسّق عبر WORK_COORDINATION.md عند الحاجة.
+
+لا تضف خدمات مدفوعة أو أسرارًا أو بيانات demo. لا تضعف RLS أو حراس الأسعار والمخزون لإرضاء الاختبارات. لا تدّعِ مزامنة Onyx مباشرة أو نجاحًا في الإنتاج دون اختبار فعلي. اختبر unit/DB/RLS/build/preview والمتصفح عند الإمكان، وسجّل ما لم يُشغّل NOT RUN. حافظ على الفرع/PR المستمر، ولا تدمج إلا بعد CI PASS على الرأس نفسه.
+
+التزم بسجل صريح للحالات: IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA / BROWSER_PROVEN / PRODUCTION_PROVEN / BLOCKED_EXTERNAL. سلّم SHA وCI والمسارات المتغيرة ونتيجة الاختبارات والفجوات المتبقية؛ لا تعلن الاكتمال من نجاح البناء وحده.
