@@ -3,8 +3,8 @@
 - **المستودع الوحيد المستهدف:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **الملكية:** هذا التقرير و`SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` فقط.
-- **المهمة الحالية:** `NASR1-SOURCE-IMAGE-PIXEL-GUARD-001` — اجتاز كود الميزة CI على الرأس `b22e3880031feae66acb7f23f165e47178cde553`؛ يجري حفظ إثبات CI في السجلين والتقرير، ثم يلزم CI أخير على رأس التوثيق الجديد قبل الدمج.
-- **المهمة التالية بعد إغلاق المهمة الحالية:** `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001` — مقارنة عقد المكونات/الخدمات/RPC/RLS/المسارات والاختبارات للعضويات بين المصدر والهدف قبل أي قرار دمج.
+- **المهمة الحالية:** NASR1-SOURCE-SERVICE-WORKER-CACHE-BOUNDARY-001 — أضيف اختبار انحدار لحدود التخزين المؤقت في PWA؛ GitHub Actions 39444658074 (https://github.com/Report-Engainall/Nasr1/actions/runs/39444658074) passed on exact implementation/test SHA 93f6d6b3f19f4d94e075b8b6bd0ea8892dbe06b0: frozen Bun lock verification, unit tests, PostgreSQL 17/RLS acceptance, lint/build, preview 4173, dev 5173, and cleanup. الكود والاختبار اجتازا CI على SHA المذكور، لكن تم بعدها تحديث سجلات التوثيق فقط، لذلك يلزم تشغيل CI جديد على الرأس الأحدث قبل الدمج. browser/production NOT RUN.
+- **المهمة التالية بعد إغلاق المهمة الحالية:** `NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001` — مقارنة تفعيل حساب العميل ودورة دعواته في `src/CustomerActivation.tsx` و`src/CustomerPanel.tsx` و`src/services/customerInvitations.ts` مع مسارات Nasr1 الحالية؛ تكييف النقص المثبت فقط دون استيراد عقد الجداول القديمة.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 
@@ -15,7 +15,7 @@
 - **الأمان:** لم تُضف أي grants أو سياسات توسّع الوصول المباشر. لم يتغير RLS لإصلاح الاختبار.
 - **المصدر:** `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`, `src/services/inventory.ts`, source blob `3506707a656e0db491b860d5e11ad28daeded5cf`. بصمة المصدر وقرار التكييف موثقان بالفعل في ledger؛ لم يُعد جلب الملف المانح.
 
-## 2. المهمة الحالية — حد إجمالي بكسلات صورة المنتج
+## 2. حد إجمالي بكسلات صورة المنتج — مغلق ومندمج
 
 ### التشخيص والتغيير
 - **المصدر الجديد:** `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`.
@@ -25,7 +25,7 @@
 - **اختبارات الانحدار المضافة:** 25,005,000 بكسل مرفوضة، و25,000,000 حد صالح، وإثبات أن canvas لا يُنشأ عند الرفض وإغلاق `ImageBitmap`.
 - ملفات التغيير: `src/lib/product-image.ts` blob الحالي `8fce9c518a5ee3e4bc4a74db844e67942ac07e40`؛ `src/lib/product-image.test.ts` blob الحالي `c753e417c8d3afd38f1acf80d5c3a1411bfeec8f`.
 - **CI على رأس الكود المطابق:** [Actions 39332901589](https://github.com/Report-Engainall/Nasr1/actions/runs/39332901589) على `b22e3880031feae66acb7f23f165e47178cde553` انتهى **SUCCESS**. ثبتت الخطوات: تثبيت Bun والتحقق من lockfile، unit tests، تطبيق migrations وقبول PostgreSQL 17/RLS، lint، build، production-preview smoke وdev-server smoke، وتنظيف الحاويات. هذا دليل لاختبار كود الصورة على الرأس نفسه؛ browser/manual وproduction deployment غير مثبتين.
-- **خطوة الإغلاق:** سيغيّر هذا الحفظ التوثيقي SHA دون تغيير كود التطبيق، ويطلق CI جديدًا. لا تدمج PR #11 حتى ينجح التشغيل على ذلك الرأس النهائي أيضًا.
+- **الإغلاق النهائي:** دُمج PR #11 إلى `main` عند `f7cffd41cd63e16c6020fe379edf27416c5e0ce8`. اجتاز تشغيل `39366594237` CI على الرأس `25bc0c969cfe8740860b19518caf21135caf67ad` لاحقًا، شاملًا 54/54 ملف اختبار و395/395 اختبارًا وقبول PostgreSQL 17/RLS وlint/build/preview/dev smoke. لا تعِد فتح المهمة ما لم يظهر فشل أو مصدر جديد أو regression.
 - **سجل المصدر:** ledger يحتوي `NASR1-SOURCE-IMAGE-PIXEL-GUARD-001` و`NASR1-SOURCE-IMAGE-PIXEL-GUARD-TEST-001` بحالة `IMPLEMENTED_PENDING_EXACT_SHA_CI`. audit سجل البصمات والقرار وعدم نسخ الملفات الخام.
 
 ## 3. قرار مصدر طابور العمليات غير المتصلة
@@ -44,11 +44,19 @@
 
 ## 5. الحالة الفعلية لسجلات المصدر
 
-- `SOURCE_INTEGRATION_LEDGER.csv`: 109 صفوف بيانات بعد إضافة 4 صفوف موثقة لهذه الجلسة (سجل الجلب أعطى 105 صفوف سابقًا؛ أعيد التحقق قبل أي تعديل آخر).
-- `READY_TO_REUSE_FILE_AUDIT.csv`: 73 صف بيانات بعد إضافة 4 صفوف موثقة لهذه الجلسة.
+- `SOURCE_INTEGRATION_LEDGER.csv`: **116 صف بيانات** على فرع P1 بعد توثيق قرارات الدمج لهذه الجولة.
+- `READY_TO_REUSE_FILE_AUDIT.csv`: **78 صف تدقيق** على فرع P1؛ أضيف قرار صريح لملف تصدير الكتالوج المانح.
 - الصفوف المضافة تغطي مصدر معالج الصور واختباره، وقرار تكرار طابور offline واختباره. جميع البصمات المنقولة من الشجرة المانحة مسجلة؛ لم نعد فتح أي source blob كان له قرار مسجل.
-- المراجعة السابقة لجرد الملفات على main أظهرت 69 صفًا في audit، 62 منها تعود للمصادر الثلاثة المحددة، وصفر صفوف بقيت بتسميات المراجعة العامة القديمة. بعد الصفوف الأربعة الحالية صار عدد audit 73 إجمالًا.
-- لا يوجد مصدر مفتوح آخر بحالة pending في ledger قبل إضافة صفوف حماية الصور الجديدة. إغلاق المهمة الحالية يتوقف على دليل CI exact-head؛ بعدها تتقدم المهمة تلقائيًا إلى `NASR1-SOURCE-CUSTOMER-COMPANY-MEMBERS-001`.
+- المراجعة الحالية سجلت 78 صفًا في audit؛ لا يعني ذلك إغلاق جميع ملفات المستودعات المانحة، بل تُواصل مراجعة العناصر المتبقية.
+- مهمة حماية Service Worker: IMPLEMENTED وTESTED على SHA 93f6d6b3f19f4d94e075b8b6bd0ea8892dbe06b0؛ أحدث حالة CI للاختبار PASS كما في الرابط أعلاه. تحديثات السجلات بعد الاختبار توثيقية فقط لكن رأس PR تغيّر، لذا يلزم CI نهائي على الرأس الأحدث قبل الدمج. المهمة التالية: NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001.
+
+## 5.1. مراجعة حدود PWA وتكافؤ تصدير الكتالوج — 2026-10-20
+
+- **حدود Service Worker:** مصدر المانح Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1، public/sw.js، blob 53936f83f2340c0e2d450edaa20db85619e8cf01. استُخدم كمرجع مقارنة فقط؛ عامل المانح يسمح بتخزين استجابات تنقل أوسع، لذا لم يُنسخ.
+- **تنفيذ Nasr1 المحتفظ به:** public/sw.js blob 166e449316349394e8870cb14f90067893a0dd24 لا يخزّن التنقلات العميقة، ويستبعد مسارات auth/rest/api/rpc/storage/functions، ولا يقبل إلا GET من نفس الأصل للتخزين، مع قصر التنقل على shell الجذر وقائمة موارد ثابتة واضحة.
+- **اختبار جديد:** src/test/service-worker-cache-boundary.test.ts يثبت تلك الحدود بالإضافة إلى تنظيف cache الخاص بنطاق التطبيق فقط. لا تغييرات schema/RPC/RLS ولا dependency جديدة. الحالة: IMPLEMENTED + TESTED؛ ${ci} أحدث commits بعد هذا الاختبار حدّثت توثيق P1 فقط وتحتاج إعادة CI على الرأس الجديد قبل الدمج. browser/production لم يُشغّلا.
+- **تكافؤ تصدير الكتالوج:** Report-Engainall/aghbari-commerce/src/ExportPanel.tsx blob 3526a3232cce9159ab6554797e7afa8f49f7129e يستخدم مخطط SKU/tiers قديمًا. Nasr1 يملك PricingGrid وprice-grid-csv.ts وprice-grid-xlsx.ts على المخطط الحالي، ويصدّر أربع شرائح أسعار وملخص المخزون مع تهريب حقن الصيغ وحدود للحجم؛ لذلك سُجّل القرار ALREADY_PRESENT_BETTER دون نسخ مكوّن مانح.
+- **المراجع الحية بعد إكمال توثيق P1:** ledger = 116 صف بيانات، audit = 78 صفًا. لا يثبت هذا حصر كل ملفات المستودعات المانحة؛ تُستكمل مراجعة النواقص حسب next task أعلاه.
 
 ## 6. حدود الدور
 
