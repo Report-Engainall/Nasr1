@@ -466,9 +466,17 @@ BEGIN
     v_organization_id := public.public_storefront_organization_id();
   ELSE
     SELECT p.id, p.organization_id,
-           EXISTS (
-             SELECT 1 FROM public.user_roles r
-              WHERE r.profile_id = p.id AND r.role IN ('admin','manager','staff')
+           (
+             EXISTS (
+               SELECT 1 FROM public.user_roles r
+                WHERE r.profile_id = p.id
+                  AND r.role IN ('admin','manager','staff')
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM public.user_roles r
+                WHERE r.profile_id = p.id
+                  AND r.role = 'accountant'
+             )
            )
       INTO v_profile_id, v_organization_id, v_is_staff
       FROM public.profiles p
@@ -521,7 +529,14 @@ BEGIN
   RETURN QUERY
     SELECT p.id,
            CASE WHEN v_is_staff THEN pg_catalog.round(p.base_price,2)
-                ELSE public.customer_product_unit_price(p.id, v_organization_id, v_tier, p_quantity)
+                ELSE (
+                  SELECT resolved.net_unit_price
+                    FROM public.resolve_active_promotion_price(
+                      p.id,
+                      v_organization_id,
+                      public.customer_product_unit_price(p.id, v_organization_id, v_tier, p_quantity)
+                    ) AS resolved
+                )
            END::numeric(15,2)
       FROM public.products p
      WHERE p.id = ANY(p_product_ids)
