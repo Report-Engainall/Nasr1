@@ -3,7 +3,7 @@ import { readPrintableReturnCreditMemo } from "@/lib/customer-return-credit-memo
 type UnknownRecord = Record<string, unknown>;
 type Money = string;
 const CURRENCY_CODE = /^[A-Z]{3}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface FinancePrintCustomer {
   id: string;
@@ -81,6 +81,8 @@ export interface StaffStatementInvoice {
 export interface StaffStatementPayment {
   id: string;
   invoice_id: string;
+  invoice_number: string;
+  currency: string;
   amount: Money;
   paid_at: string;
   payment_method: string;
@@ -298,6 +300,8 @@ export function readStaffStatementPrintPayload(value: unknown): StaffStatementPr
     return {
       id: requiredText(raw.id, "payment.id"),
       invoice_id: assertUUID(requiredText(raw.invoice_id, "payment.invoice_id"), "payment.invoice_id"),
+      invoice_number: requiredText(raw.invoice_number, "payment.invoice_number"),
+      currency: readCurrency(raw.currency),
       amount: normalizedMoney(raw.amount, "payment.amount"),
       paid_at: isoDate(raw.paid_at, "payment.paid_at"),
       payment_method: requiredText(raw.payment_method, "payment.payment_method"),
@@ -475,8 +479,7 @@ export function renderStaffStatementDocument(doc: Document, payload: StaffStatem
     fmtMoney(row.credit_memo_amount, row.currency), fmtMoney(row.outstanding_amount, row.currency),
   ]));
   addTable(doc, main, "الدفعات المسجلة", ["التاريخ", "مرجع الفاتورة", "طريقة الدفع", "المرجع", "المبلغ"], payload.payments.map((row) => [
-    fmtDate(row.paid_at), payload.invoices.find((invoice) => invoice.id === row.invoice_id)?.invoice_number || row.invoice_id,
-    row.payment_method, row.reference || "—", fmtMoney(row.amount, payload.invoices.find((invoice) => invoice.id === row.invoice_id)?.currency || "YER"),
+    fmtDate(row.paid_at), row.invoice_number, row.payment_method, row.reference || "—", fmtMoney(row.amount, row.currency),
   ]));
   addTable(doc, main, "الإشعارات الدائنة المرحلة", ["الإشعار", "الفاتورة", "الإنشاء", "الترحيل", "الإجمالي"], payload.credits.map((row) => [
     row.memo_number, row.invoice_number, fmtDate(row.created_at), fmtDate(row.posted_at), fmtMoney(row.total_amount, row.currency),
