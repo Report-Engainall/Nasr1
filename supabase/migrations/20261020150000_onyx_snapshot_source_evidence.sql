@@ -17,6 +17,7 @@ DECLARE
   v_source_row_count bigint := 0;
   v_external_id_rows bigint := 0;
   v_external_fields jsonb := '[]'::jsonb;
+  v_external_id_examples jsonb := '[]'::jsonb;
   v_job_error jsonb;
 BEGIN
   SELECT p.organization_id INTO v_org
@@ -78,6 +79,50 @@ BEGIN
       AND NULLIF(pg_catalog.btrim(coalesce(r.data->>candidate.key,'')),'') IS NOT NULL
   );
 
+  SELECT coalesce(pg_catalog.jsonb_agg(example_row.payload ORDER BY example_row.row_number),'[]'::jsonb)
+  INTO v_external_id_examples
+  FROM (
+    SELECT r.row_number,
+      pg_catalog.jsonb_build_object(
+        'row_number',r.row_number,
+        'canonical_key',pg_catalog.left(r.canonical_key,256),
+        'canonical_key_truncated',pg_catalog.char_length(r.canonical_key)>256,
+        'external_ids',(
+          SELECT coalesce(pg_catalog.jsonb_object_agg(candidate.key,pg_catalog.left(pg_catalog.btrim(r.data->>candidate.key),256) ORDER BY candidate.key),'{}'::jsonb)
+          FROM (VALUES
+            ('external_id'),('externalId'),('source_id'),('sourceId'),
+            ('onyx_id'),('onyx_code'),('external_code')
+          ) AS candidate(key)
+          WHERE r.data ? candidate.key
+            AND NULLIF(pg_catalog.btrim(coalesce(r.data->>candidate.key,'')),'') IS NOT NULL
+        ),
+        'value_truncated',EXISTS (
+          SELECT 1
+          FROM (VALUES
+            ('external_id'),('externalId'),('source_id'),('sourceId'),
+            ('onyx_id'),('onyx_code'),('external_code')
+          ) AS candidate(key)
+          WHERE r.data ? candidate.key
+            AND NULLIF(pg_catalog.btrim(coalesce(r.data->>candidate.key,'')),'') IS NOT NULL
+            AND pg_catalog.char_length(pg_catalog.btrim(r.data->>candidate.key))>256
+        )
+      ) AS payload
+    FROM public.onyx_snapshot_rows r
+    WHERE r.snapshot_id=v_snapshot.id
+      AND r.organization_id=v_org
+      AND (
+        NULLIF(pg_catalog.btrim(coalesce(r.data->>'external_id','')),'') IS NOT NULL OR
+        NULLIF(pg_catalog.btrim(coalesce(r.data->>'externalId','')),'') IS NOT NULL OR
+        NULLIF(pg_catalog.btrim(coalesce(r.data->>'source_id','')),'') IS NOT NULL OR
+        NULLIF(pg_catalog.btrim(coalesce(r.data->>'sourceId','')),'') IS NOT NULL OR
+        NULLIF(pg_catalog.btrim(coalesce(r.data->>'onyx_id','')),'') IS NOT NULL OR
+        NULLIF(pg_catalog.btrim(coalesce(r.data->>'onyx_code','')),'') IS NOT NULL OR
+        NULLIF(pg_catalog.btrim(coalesce(r.data->>'external_code','')),'') IS NOT NULL
+      )
+    ORDER BY r.row_number
+    LIMIT 20
+  ) AS example_row;
+
   IF v_job_found THEN
     v_job_error := to_jsonb(v_job.error_summary);
   ELSE
@@ -123,6 +168,8 @@ BEGIN
       'source_record_id',NULL,
       'source_row_count',v_source_row_count,
       'external_id_fields_found',v_external_fields,
+      'external_id_examples',v_external_id_examples,
+      'external_id_examples_truncated',v_external_id_rows>20,
       'rows_with_external_id',v_external_id_rows
     ),
     'live_sync_evidence',pg_catalog.jsonb_build_object(
