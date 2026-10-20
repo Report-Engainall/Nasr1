@@ -29,14 +29,14 @@ const evidenceFixture = {
     file_hash: "a".repeat(64),
     period_key: "2026-10",
     created_at: "2026-10-20T11:59:00.000Z",
-    updated_at: "2026-10-20T12:00:00.000Z",
+    updated_at: null,
     error_code: null,
     file_hash_matches_snapshot: true,
   },
   source_identity: {
     provenance_status: "linked_import_job_hash_match",
     source_system: "manual",
-    source_record_id: jobId,
+    source_record_id: null,
     source_row_count: 3,
     external_id_fields_found: ["external_id", "onyx_code"],
     rows_with_external_id: 2,
@@ -56,10 +56,11 @@ describe("tenant-scoped Onyx source evidence contract", () => {
     const result = await fetchOnyxSnapshotSourceEvidence(snapshotId);
     expect(rpc).toHaveBeenCalledWith("get_onyx_snapshot_source_evidence", { p_snapshot_id: snapshotId });
     expect(result.organization).toEqual({ id: "99999999-9999-4999-8999-999999999999", name: "مؤسسة الاختبار" });
+    expect(result.import_job).toMatchObject({ updated_at: null });
     expect(result.source_identity).toMatchObject({
       provenance_status: "linked_import_job_hash_match",
       source_system: "manual",
-      source_record_id: jobId,
+      source_record_id: null,
       external_id_fields_found: ["external_id", "onyx_code"],
       rows_with_external_id: 2,
     });
