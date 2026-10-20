@@ -3,8 +3,8 @@
 - **المستودع المستهدف الوحيد:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **PR:** [#26 — مفتوح / Draft / غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/26)
-- **آخر رأس كود مختبر:** `884d856330da8ec7c0eea71e10c16605dd4c7605` — [Actions 39495133683: SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39495133683)؛ اختبارات الوحدة، PostgreSQL 17، lint/build، preview/dev smoke على SHA نفسه.
-- **المهمة النشطة الوحيدة / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-001-AGHBCOM-CATALOG-0002` — استكمال فجوة pagination الخادمية للكتالوج دون استبدال RPC أو حدود أسعار Nasr1.
+- **آخر رأس كود مختبر ومثبت بالـCI:** `83a0b11edafb83f8552a063b9c4643956f899a6b` — [Actions 39495527676: SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39495527676)؛ 71/71 test files و474/474 اختبارًا، PostgreSQL 17، قبول الترقيم الخادمي للكتالوج، price grid، import idempotency concurrency، saved products، lint/build وسموك preview/dev.
+- **المهمة النشطة الوحيدة / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-004-AGHBCOM-EXPORT-JOBS-0004` — تنفيذ دورة تصدير كبيرة غير متزامنة وآمنة على مخطط Nasr1 بدل نسخ scaffold المانح الخام؛ لا تعدّل ملفات P2 المشتركة.
 - **أُغلقت دفعة سلة العميل:** اختبار الوحدة 67/67 ملفًا، وقبول PostgreSQL 17 الفعلي للسلة، وCI الكامل نجح على SHA المذكور. تفاصيل الفشل والإصلاح وبصمات الملفات في القسم 6.15.1.
 - **حد Service Worker مغلق:** لا تعِد تنفيذه أو مراجعة أرشيفه ما لم يظهر regression جديد. اختبار متصفح/إنتاج لهذا الحد: NOT RUN.
 - **حد دورة تفعيل العميل:** مقارنة المصدر انتهت؛ الدمج المشترك ما يزال محجوبًا بتعارض migration بين P1 وP2. لا تعدّل ملفات المبرمج 2 أو تحذف migration مملوكة له بلا تنسيق صريح.
@@ -233,9 +233,9 @@
 - المصدر التالي الوحيد بعد هذا القرار: `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-002` — `supabase/migrations/0003_command_hardening.sql`، blob `f8de4174145f9145e801ef0bbc1e2afb8debe591`. لا يُعاد فحص ملفات دعوة العميل أو الأرشيفات ما دامت بصماتها المسجلة ثابتة.
 
 
-### 6.14.1. دقة قرار get_catalog — لا ادعاء بتكافؤ pagination
-- ملف المصدر نفسه `0002_server_authoritative_commands.sql` يتضمن `get_catalog(p_limit,p_offset)`. Nasr1 حاليًا يعتمد جلب الكتالوج النشط ضمن نطاق المؤسسة ثم بحثًا عربيًا محليًا معياريًا يدعم المطابقة المتحملة لأخطاء الكتابة؛ **pagination الخادمي غير مدمج**. لم أنقل function المصدر لأنها تعتمد schema legacy ولا تكمل واجهة/خدمة/RLS/اختبارات قبول في Nasr1. سجل التدقيق يقرر `KEEP_AS_REFERENCE` لهذا الجزء بالذات، ولا يضعه في خانة `INTEGRATED`. تحسين pagination واسع الكتالوج يظل تحسينًا مستقلًا وليس نجاحًا مزعومًا.
+### 6.14.1. قرار المصدر وقت المراجعة — محدث بالقسم 6.17
 
+- قرار عدم نسخ `0002_server_authoritative_commands.sql` الخام ما زال صحيحًا لأن مخطط المصدر مختلف؛ في وقت كتابة هذا القسم لم يكن الترقيم الخادمي مدمجًا. اكتملت الفجوة لاحقًا بتنفيذ Nasr1-native، ودليله التفصيلي في القسم 6.17. يحتفظ ملف المانح بتصنيف `KEEP_AS_REFERENCE`.
 
 ## 6.15. دفعة تنفيذ وظيفي: سلة عميل محفوظة على الخادم عبر الأجهزة — 2026-10-20
 
@@ -297,18 +297,25 @@
 ### الاستئناف التالي من السجل الحي
 - `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-001-AGHBCOM-CATALOG-0002`: تحقيق pagination الكتالوج الخادمية على عقود Nasr1 الحالية؛ لا نقل `0002_server_authoritative_commands.sql` خامًا، ولا تعديل `src/lib/api.ts` دون تنسيق مع P2.
 
-## 6.17. إغلاق فجوة Pagination الكتالوج — اختبار مطابق
+## 6.17. إغلاق ترقيم الكتالوج الخادمي — سبب الجذر والبصمات وقبول SHA النهائي
 
-- السبب: واجهة المتجر كانت تحمّل كل المنتجات وتنفذ البحث والتصنيف وتصفية التوفر محليًا، بلا ترقيم صفحات أو إجمالي خادمي بعد تطبيق مرشحات المؤسسة.
-- الحل: `get_storefront_catalog_page` يشتق المؤسسة من سياق الخادم، يطبق البحث العربي والتصنيف والتوفر قبل `OFFSET/LIMIT`، ويحد حجم الصفحة إلى 100 مع ترتيب ثابت.
-- سلامة المخزون: ربط الرصيد عبر المستودع النشط المملوك للمؤسسة؛ لا افتراض بوجود `organization_id` داخل `inventory_balances`.
-- التسعير: يعيد استخدام `get_storefront_product_prices(product_ids, 1)` لإرجاع سعر العرض المخول، بلا أعمدة أسعار شرائح خام ولا RPC تسعير موازية.
-- الكاش: نتائج الصفحات المؤسسية لا تُدمج في الكاش العام `aghbari:catalog:v1`، كما أن عرض المتجر المرقّم لا يعود إلى كاش عام عند فشل الطلب، منعًا لتسرب أصناف مستأجر آخر.
-- الملفات:
-  - `supabase/migrations/20261020230000_storefront_catalog_pagination.sql` — `19179c346848a8991d71cb1897d80e61732d4501`
-  - `src/lib/storefront-catalog.ts` — `5ca04b24ddea87c1d89c136b3c3524d823c9c670`
-  - `src/test/storefront-catalog-pagination.test.ts` — `27cfed01146e29a8feec9c62772e72ce6e27b685`
-  - `src/components/Storefront.tsx` — `905825d6df7dabaaf5ed8c08c39c45dc9cdeffd8`
-  - `scripts/test-admin-catalog-commands.mjs` — `f5bab2c46e4bb7a0915bb5bda3ecff69cacf9501`
-- الاختبار: [Actions 39495133683 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39495133683) على الرأس `884d856330da8ec7c0eea71e10c16605dd4c7605`. `IMPLEMENTED=YES`; `INTEGRATED=YES`; `TESTED_EXACT_SHA=PASS`; `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
-- لم تتغير ملفات P2 المحمية: `src/lib/api.ts`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, `package.json`, `scripts/test-database-migrations.mjs` أو workflows المملوكة له.
+### السبب الجذري والتصحيح
+- فشل PostgreSQL 17 الأول على SHA `e4d1fb33dc3a43b800c67b8f1c98d3d45d400c0b` لأن الترحيل أشار إلى `inventory_balances.organization_id`، وهو عمود غير موجود في مخطط Nasr1.
+- الإصلاح لا يغيّر المخطط ولا يضيف حقلًا وهميًا: ربط الأرصدة يستعمل `inventory_balances.product_id` و`warehouse_id`، مع `EXISTS` يتحقق من `warehouses.organization_id` و`is_active`. تقييد المنتج نفسه إلى المؤسسة يتم عبر `products.organization_id` المستخرج من سياق الخادم.
+- لم يُنسخ donor SQL `0002_server_authoritative_commands.sql`; توافق مخططه أقدم. استُخدم RPC `get_storefront_catalog_page` لخدمة بحث/تصنيف/availability/count و`OFFSET/LIMIT`، مع ترتيب ثابت وحد صفحة أقصى 100.
+- التسعير يستعمل RPC الحالي `get_storefront_product_prices`؛ لم تُكشف مفاتيح أسعار الشرائح ولم يُنشأ مسار تسعير ثانٍ. الكتالوج المرقّم لا يسقط على cache عام عند فشل طلب مقيّد بالمؤسسة.
+
+### الملفات وبصمات Git blob
+- `supabase/migrations/20261020230000_storefront_catalog_pagination.sql`: `19179c346848a8991d71cb1897d80e61732d4501`.
+- `src/lib/storefront-catalog.ts`: `5ca04b24ddea87c1d89c136b3c3524d823c9c670`.
+- `src/components/Storefront.tsx`: `905825d6df7dabaaf5ed8c08c39c45dc9cdeffd8`.
+- `src/test/storefront-catalog-pagination.test.ts`: `27cfed01146e29a8feec9c62772e72ce6e27b685` — 6 unit tests.
+- `scripts/test-admin-catalog-commands.mjs`: `f5bab2c46e4bb7a0915bb5bda3ecff69cacf9501` — PostgreSQL acceptance of category/search paging, total count, no duplicates/missing rows, authorized display-price boundary and availability filter.
+
+### النتيجة المثبتة
+- كود الرأس المختبر: [`83a0b11edafb83f8552a063b9c4643956f899a6b`](https://github.com/Report-Engainall/Nasr1/commit/83a0b11edafb83f8552a063b9c4643956f899a6b).
+- [Actions 39495527676 — SUCCESS على SHA نفسه](https://github.com/Report-Engainall/Nasr1/actions/runs/39495527676): 71/71 test files؛ 474/474 tests؛ PostgreSQL 17 migrations and core acceptance؛ import-idempotency concurrency؛ saved-products acceptance؛ lint/build؛ production-preview smoke 4173؛ dev smoke 5173.
+- الحالة: `IMPLEMENTED=YES`; `INTEGRATED=YES`; `TESTED_EXACT_SHA=PASS`; `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`. سموك المعاينة ليس إثبات نشر إنتاج أو جلسة متصفح مصادق عليها.
+
+### المهمة التالية
+`NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-004-AGHBCOM-EXPORT-JOBS-0004` — دورة تصدير غير متزامن تشمل ملكية المؤسسة والمنفّذ، مفاتيح idempotency، worker lease/retry، ملفات خاصة ذات انتهاء، وتنزيلًا قصير العمر. لا تنقل scaffold المانح وحده.

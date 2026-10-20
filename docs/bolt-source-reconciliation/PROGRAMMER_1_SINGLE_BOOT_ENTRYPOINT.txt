@@ -1,24 +1,27 @@
 # P1 — رسالة إقلاع واحدة مختصرة
 التاريخ: 2026-10-20
-المستودع الوحيد القابل للتعديل: https://github.com/Report-Engainall/Nasr1
+المستودع المستهدف الوحيد: https://github.com/Report-Engainall/Nasr1
 الفرع المستمر: integration/inventory-transfer-batches-20261019-rebased
-PR: https://github.com/Report-Engainall/Nasr1/pull/26 (OPEN / DRAFT / NOT MERGED)
-
-ابدأ من docs/bolt-source-reconciliation/PROGRAMMER_1_CURRENT_REPORT.md، ثم اقرأ صف المهمة المحددة فقط من SOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv. لا تعِد تشغيل استكشاف الأرشيفات أو مراجعة العناصر المحسومة.
+PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (OPEN / DRAFT / NOT MERGED)
 
 آخر رأس كود/اختبارات ناجح:
-884d856330da8ec7c0eea71e10c16605dd4c7605
-CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39495133683 — SUCCESS على SHA نفسه؛ PostgreSQL 17، الاختبارات، lint/build، preview/dev smoke.
+83a0b11edafb83f8552a063b9c4643956f899a6b
+CI exact-SHA: https://github.com/Report-Engainall/Nasr1/actions/runs/39495527676 — SUCCESS؛ 71/71 test files و474/474 tests، PostgreSQL 17، paging/catalog/price-grid acceptance، import idempotency concurrency، saved-products، lint/build، preview smoke 4173 وdev smoke 5173.
+BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 
-أُغلقت:
-- Service Worker cache boundary: سياسة Nasr1 الأشد محفوظة؛ لا cache لطلبات auth/API/RPC/storage/functions.
-- سلة العميل المحفوظة على الخادم: migration/RPC/service/Storefront متكاملة؛ فشل PostgreSQL السابق بسبب jsonb_object_length غير الموجودة أُصلح واختُبر على الرأس أعلاه.
-- مقارنة دورة دعوات العميل أُنجزت، لكن الدمج المشترك ما زال محجوبًا بتعارض migration بين P1 وP2.
+تم إغلاق:
+- كتالوج الموظفين 0007: PostgreSQL 17 قبول create/update/archive product/category، unsupported-key rejection، canonical pricing RPC/stale-write conflict، tenant isolation، audit identity، direct-DML denial.
+- Pagination الكتالوج: RPC هدفية مع schema الحقيقي؛ ربط أرصدة عبر product_id/warehouse_id ومستودع نشط تابع للمؤسسة؛ الأسعار من get_storefront_product_prices.
+- Price grid: فشل تاريخي على SHA قديم، لكن قبول PostgreSQL 17 الحالي سجّل PASS للمسؤول/المدير، القيم الأساسية وثلاث الشرائح، atomic writes، audit، stale-value، tenant rollback ورفض accountant.
+- Import storage: مسار Nasr1 الحالي أقوى من scaffold المانح، وCI الحالي شمل قبول PostgreSQL 17 واختبار idempotency المتزامن.
 
-أُغلقت مهمة كتالوج الموظفين 0007 على الرأس أعلاه: IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA=PASS. السبب الجذري كان تمرير JSON.stringify(payload) إلى $1::jsonb مما جعل Postgres.js يرسل JSON scalar، لا object. التفاصيل والبصمات في القسم 6.16 من التقرير وسطر المهمة في ledger.
+المهمة التالية الوحيدة حسب السجل:
+NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-004-AGHBCOM-EXPORT-JOBS-0004
+المصدر المسجل: Report-Engainall/aghbari-commerce/supabase/migrations/0004_import_storage.sql؛ blob 11f27be89c4f20963bfe69702f6683aa87fde82b. المصدر مرجع فقط؛ لا تنسخ scaffold خامًا.
+أنشئ lifecycle حقيقيًا: tenant/actor scope، idempotency، claim/lease/retry/dead-letter أو expiry، artifact خاص، وتنزيل مصرح قصير العمر. افحص الملكية وابق بعيدًا عن الملفات المشتركة في PR #18.
 
-المهمة الوحيدة التالية:
-NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-001-AGHBCOM-CORE-0001
-المصدر: supabase/migrations/0001_operational_core.sql
-أُغلقت مهمة Pagination 001 على الرأس 884d856330da8ec7c0eea71e10c16605dd4c7605 مع Actions 39495133683 SUCCESS.
-لا تنقل SQL المانح خامًا، ولا تعدّل ملفات P2 المحمية دون تنسيق صريح.
+القيود:
+- حدّث سجلات P1 الأربعة فقط: هذا الملف وPROGRAMMER_1_CURRENT_REPORT.md وSOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv.
+- ملفات P2 المحمية تشمل src/lib/api.ts وsrc/components/AghbariApp.tsx وsrc/routeTree.gen.ts وpackage.json وscripts/test-database-migrations.mjs وworkflow P2 وملفات Onyx/المرتجعات التي يملكها P2.
+- لا reset ولا clean ولا force-push ولا كتابة مباشرة على main. استخدم expected-head guard.
+- افصل IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA / BROWSER_PROVEN / PRODUCTION_PROVEN. ما لم يُشغّل يبقى NOT RUN.
