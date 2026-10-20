@@ -5,17 +5,18 @@
 PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (مفتوح؛ لا تدمج main مباشرة)
 
 آخر رأس كود واختبارات اجتاز CI على SHA المطابق:
-9e070285e3e001a8661fe5c297f19face97fdcf5
-CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39501610331 — SUCCESS على SHA نفسه.
+1b8b9be1fd7aca1e9fff20a0891c2db7d83ae6ff
+CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39502788878 — SUCCESS على SHA نفسه.
 شمل: 73/73 ملف اختبار و480/480 اختبارًا، PostgreSQL 17، كتالوج الموظفين (CRUD/allowlist/price-grid/audit/tenant isolation/direct-DML denial)، إثبات سجل بدء جرد المخزون مرة واحدة وidempotent replay، async export، import idempotency concurrency، saved-products، lint، build، preview smoke 4173، dev smoke 5173 والتنظيف.
 BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 
 المنجز وأدلته:
 1. Staff catalog 0007: root cause كان JSON.stringify payload الممرر كنص إلى $1::jsonb، وليس field صالحًا/غير صالح؛ الاختبار يستخدم admin.json، وتبقى allowlist صارمة. Prices عبر save_product_price_grid/product_prices، audit_logs، tenant isolation، منع DML المباشر. SQL donor لم يُطبق خامًا.
-2. Stock-count start audit: scripts/test-stock-count-start-audit.mjs (blob 631f14a483588bf5e76f50bd6b824cddf654781c) يثبت سجلًا واحدًا بفاعل/مؤسسة صحيحين وmetadata معتمد فقط، ثم يعيد نفس idempotency key دون سجل مكرر. Workflow blob ab6621945156a437e8bb29cd60708ea92230fe65.
-3. Server pagination: المخطط الفعلي يستخدم inventory_balances(product_id,warehouse_id)، لا organization_id على inventory_balances؛ الأسعار عبر get_storefront_product_prices.
-4. Async order export: idempotent tenant/actor request, role gating, lease/retry cap, CSV safe escaping/BOM, private storage, SHA-256, 7-day expiry cleanup, 60-second signed URL, audit, Arabic UI route /admin/exports.
-5. Donor migration 0004_import_storage.sql بقيت مرجعًا؛ لا تطبق SQL غير المتوافق خامًا.
+2. Import migration prefix collision: renamed to supabase/migrations/20261020180000_import_job_request_idempotency.sql (same SQL blob 9db693b4dbba4dcc397ba6b62800d4f2fa3aa246); contract test blob f8591475cceff314e4536b68bc4ff99c1c146311; exact-head Actions 39502788878 PASS. The P1/P2 import migration prefix collision is closed on the current branch pair.
+3. Stock-count start audit: scripts/test-stock-count-start-audit.mjs (blob 631f14a483588bf5e76f50bd6b824cddf654781c) يثبت سجلًا واحدًا بفاعل/مؤسسة صحيحين وmetadata معتمد فقط، ثم يعيد نفس idempotency key دون سجل مكرر. Workflow blob ab6621945156a437e8bb29cd60708ea92230fe65.
+4. Server pagination: المخطط الفعلي يستخدم inventory_balances(product_id,warehouse_id)، لا organization_id على inventory_balances؛ الأسعار عبر get_storefront_product_prices.
+5. Async order export: idempotent tenant/actor request, role gating, lease/retry cap, CSV safe escaping/BOM, private storage, SHA-256, 7-day expiry cleanup, 60-second signed URL, audit, Arabic UI route /admin/exports.
+6. Donor migration 0004_import_storage.sql بقيت مرجعًا؛ لا تطبق SQL غير المتوافق خامًا.
 
 المهمة المصدرية التالية المسجلة:
 NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001-ACTIVATION
