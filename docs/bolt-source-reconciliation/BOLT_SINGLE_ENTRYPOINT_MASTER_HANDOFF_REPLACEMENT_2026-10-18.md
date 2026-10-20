@@ -11,6 +11,11 @@
 **السجل:** EXECUTION_LOG.md وSOURCE_INTEGRATION_LEDGER.csv وARCHIVE_MANIFEST.csv وARCHIVE_MEMBERS.csv
 **المواد الجاهزة:** READY_TO_REUSE/PROVENANCE_MANIFEST.csv وجميع الملفات الفعلية تحت READY_TO_REUSE
 
+## تكليف P2 الإضافي — مصادر NASR المستخرجة وقبول المواصفة (20 أكتوبر 2026)
+
+اقرأ ونفّذ أيضًا ملف docs/bolt-source-reconciliation/P2_ADDITIONAL_ACCEPTANCE_MANDATE_2026-10-20.md. هذا نطاق إضافي لا يلغي next_task_id الحي ولا يكرر ملكية المبرمج 1. مصدر القراءة الإضافي هو Report-Engainall/NASR-MULTI-PROJECTS-TRANSFER/EXTRACTED_PROJECTS فقط؛ لا تعِد استخراج الملفات الموجودة ولا تعدّ الأرشيفين المتطابقين مرتين. يجب مراجعة الوظائف المرشحة مقابل Nasr1 الحالي ثم دمج الفجوات المثبتة فقط واختبارها.
+
+
 ## 1. حواجز إلزامية
 
 1. Nasr1/main هو الهدف الوحيد. لا تنشئ متجرًا أو مستودعًا أو قاعدة بيانات أو Supabase project بديلًا، ولا تنقل التنفيذ إلى Report-Advisor أو Aghbari-Technologies/aghbari-commerce-evolved. بقية المستودعات والفروع وPRs والأرشيفات مصادر للقراءة والمقارنة فقط.
