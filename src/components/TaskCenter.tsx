@@ -9,6 +9,7 @@ import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, Ope
 import { filterTasksForPrint } from '@/lib/task-print';
 import { CustomerReturnReviewQueue } from '@/components/CustomerReturnReviewQueue';
 import { CustomerReturnReceiptQueue } from '@/components/CustomerReturnReceiptQueue';
+import { CustomerReturnCreditMemoQueue } from '@/components/CustomerReturnCreditMemoQueue';
 
 const roleLabels: Record<OperationalTaskRole, string> = {
   sales: 'المبيعات', accountant: 'المحاسبة والتحصيل', warehouse: 'أمين المخزن',
@@ -287,5 +288,6 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       <footer>تعرض هذه القائمة سجلات التشغيل الحالية؛ لا تُنشأ مواعيد غير مسجلة في المصدر.</footer>
     </div>
     {canManage && <><CustomerReturnReviewQueue onNotice={onNotice} /><CustomerReturnReceiptQueue onNotice={onNotice} /></>}
+    {roles.some((role) => ['admin','manager','accountant'].includes(role)) && <CustomerReturnCreditMemoQueue onNotice={onNotice} />}
   </section>;
 }

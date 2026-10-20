@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -86,6 +87,32 @@ async function main() {
   const lineOneId = lineOneRows[0].id;
   const lineTwoId = lineTwoRows[0].id;
   const otherLineId = otherLineRows[0].id;
+
+  // Source invoice fixture for the fully received return: the credit must derive from this immutable YER invoice line.
+  const invoiceFixtureRows = await db.unsafe(
+    "insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,issued_at,currency,subtotal,tax_amount,total_amount) " +
+    "values($1,$2,$3,$4,'issued',pg_catalog.now(),'YER',500,0,500) returning id",
+    [organizationId,customerOne.id,orderOneId,"INV-CI-RET-"+suffix],
+  );
+  const sourceInvoiceId = invoiceFixtureRows[0].id;
+  await db.unsafe(
+    "insert into public.customer_invoice_items(organization_id,invoice_id,order_item_id,product_id,item_code,description,unit,quantity,unit_price," +
+    "discount_snapshot,promotion_discount_per_unit_snapshot,promotion_id_snapshot,promotion_title_snapshot,promotion_discount_type_snapshot,promotion_discount_value_snapshot,line_total) " +
+    "select $1,$2,oi.id,oi.product_id,oi.item_code,oi.product_name_snapshot,oi.unit_snapshot,oi.quantity,oi.unit_price_snapshot," +
+    "oi.discount_snapshot,oi.promotion_discount_per_unit_snapshot,oi.promotion_id_snapshot,oi.promotion_title_snapshot," +
+    "oi.promotion_discount_type_snapshot,oi.promotion_discount_value_snapshot,oi.line_total from public.order_items oi where oi.id=$3::uuid",
+    [organizationId,sourceInvoiceId,lineOneId],
+  );
+  const receivableAccountRows = await db.unsafe(
+    "insert into public.accounting_accounts(organization_id,code,name,account_type,is_active) values($1,$2,'CI Test Receivables','asset',true) returning id",
+    [organizationId,"CI-AR-"+suffix.toUpperCase()],
+  );
+  const revenueAccountRows = await db.unsafe(
+    "insert into public.accounting_accounts(organization_id,code,name,account_type,is_active) values($1,$2,'CI Test Sales Returns','revenue',true) returning id",
+    [organizationId,"CI-RET-REV-"+suffix.toUpperCase()],
+  );
+  const receivableAccountId = receivableAccountRows[0].id;
+  const revenueAccountId = revenueAccountRows[0].id;
 
   await db.unsafe("reset role");
   await setIdentity(customerOneAuthId,"ci-customer-one@example.test");
@@ -282,6 +309,88 @@ async function main() {
   const queueAfterReceiptRaw = await db.unsafe("select public.list_customer_return_receipt_queue(50) as result");
   const queueAfterReceipt = asJson(queueAfterReceiptRaw[0].result);
   assert.ok(!queueAfterReceipt.requests.some((row) => row.id === firstRequest.request_id),"fully received return leaves pending queue");
+  await db.unsafe("reset role");
+
+  // Finance authorization, source-derived credit calculation, replay, balanced journal posting and statement balance.
+  await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customers cannot access the finance return-credit queue",
+    () => db.unsafe("select public.fetch_customer_return_credit_memo_queue(50)"),
+    /finance permission required/i,
+  );
+  await db.unsafe("reset role");
+
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
+  await db.unsafe("set role authenticated");
+  const creditQueueRaw = await db.unsafe("select public.fetch_customer_return_credit_memo_queue(50) as result");
+  const creditQueue = asJson(creditQueueRaw[0].result);
+  const creditRequest = creditQueue.requests.find((row) => row.request_id === firstRequest.request_id);
+  assert.ok(creditRequest,"fully received return should appear in finance credit queue");
+  assert.equal(creditRequest.invoice_id,sourceInvoiceId,"credit memo binds the original invoice");
+  assert.equal(creditRequest.mapping_ready,true,"credit memo requires an unambiguous source invoice line");
+  assert.ok(creditQueue.accounts.some((row) => row.id === receivableAccountId && row.account_type === "asset"));
+  assert.ok(creditQueue.accounts.some((row) => row.id === revenueAccountId && row.account_type === "revenue"));
+
+  const creditIdempotencyKey = randomUUID();
+  const preparedCreditRaw = await db.unsafe(
+    "select public.prepare_customer_return_credit_memo($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
+    [firstRequest.request_id,receivableAccountId,revenueAccountId,null,creditIdempotencyKey],
+  );
+  const preparedCredit = asJson(preparedCreditRaw[0].result);
+  assert.equal(preparedCredit.status,"draft","credit memo starts as a draft");
+  assert.equal(preparedCredit.journal_status,"draft","linked ledger entry starts as a draft");
+  assert.equal(Number(preparedCredit.subtotal_amount),125,"returned 1.25 of 5 invoice units credits 125.00 of a 500.00 line");
+  assert.equal(Number(preparedCredit.tax_amount),0);
+  assert.equal(Number(preparedCredit.total_amount),125);
+  assert.equal(preparedCredit.replayed,false);
+
+  const replayCreditRaw = await db.unsafe(
+    "select public.prepare_customer_return_credit_memo($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
+    [firstRequest.request_id,receivableAccountId,revenueAccountId,null,creditIdempotencyKey],
+  );
+  const replayCredit = asJson(replayCreditRaw[0].result);
+  assert.equal(replayCredit.credit_memo_id,preparedCredit.credit_memo_id,"retry returns the original credit memo");
+  assert.equal(replayCredit.journal_entry_id,preparedCredit.journal_entry_id,"retry returns the original journal");
+  assert.equal(replayCredit.replayed,true,"credit memo retry is marked as replay");
+
+  const postCreditRaw = await db.unsafe(
+    "select public.post_general_journal_entry($1::uuid) as result",
+    [preparedCredit.journal_entry_id],
+  );
+  const postedCreditJournal = asJson(postCreditRaw[0].result);
+  assert.equal(postedCreditJournal.status,"posted","source guard permits the balanced credit memo posting");
+  await db.unsafe("reset role");
+
+  const creditRows = await db.unsafe(
+    "select m.status as memo_status,je.status as journal_status,m.subtotal_amount::text as subtotal," +
+    "m.tax_amount::text as tax,m.total_amount::text as total,sp.source_amount::text as linked_amount " +
+    "from public.customer_return_credit_memos m " +
+    "join public.accounting_return_credit_memo_postings sp on sp.organization_id=m.organization_id and sp.credit_memo_id=m.id " +
+    "join public.accounting_journal_entries je on je.organization_id=sp.organization_id and je.id=sp.journal_entry_id " +
+    "where m.id=$1::uuid and m.organization_id=$2",
+    [preparedCredit.credit_memo_id,organizationId],
+  );
+  assert.equal(creditRows.length,1);
+  assert.equal(creditRows[0].memo_status,"posted");
+  assert.equal(creditRows[0].journal_status,"posted");
+  assert.equal(Number(creditRows[0].linked_amount),125);
+  const journalTotals = await db.unsafe(
+    "select coalesce(sum(debit),0)::numeric(15,2)::text as debit,coalesce(sum(credit),0)::numeric(15,2)::text as credit " +
+    "from public.accounting_journal_lines where organization_id=$1 and journal_entry_id=$2::uuid",
+    [organizationId,preparedCredit.journal_entry_id],
+  );
+  assert.equal(Number(journalTotals[0].debit),125);
+  assert.equal(Number(journalTotals[0].credit),125,"the posted credit memo journal must balance exactly");
+
+  await setIdentity(customerOneAuthId,"ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  const statementRaw = await db.unsafe("select public.get_customer_account_statement() as result");
+  const customerStatement = asJson(statementRaw[0].result);
+  const creditedInvoice = customerStatement.invoices.find((row) => row.id === sourceInvoiceId);
+  assert.ok(creditedInvoice,"customer statement contains the source invoice");
+  assert.equal(Number(creditedInvoice.credit_memo_amount),125,"customer statement includes posted credit memo");
+  assert.equal(Number(creditedInvoice.outstanding_amount),375,"source invoice receivable is reduced by the posted credit");
   await db.unsafe("reset role");
 
   await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
