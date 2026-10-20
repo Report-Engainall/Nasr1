@@ -124,6 +124,35 @@ describe("finance PDF source integration — authoritative financial rendering",
     expect(pdf.getTitle()).toContain("INV-TEST-001");
   });
 
+  it("builds a customer invoice PDF when the server deliberately omits all financial fields", async () => {
+    const bytes = await buildCustomerInvoicePdf(
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        invoice_number: "INV-HIDDEN-001",
+        customer_id: "22222222-2222-4222-8222-222222222222",
+        status: "issued",
+        issued_at: "2026-10-01T00:00:00.000Z",
+        due_at: "2026-10-31T00:00:00.000Z",
+        currency: "YER",
+      },
+      [{
+        id: "33333333-3333-4333-8333-333333333333",
+        item_code: "SKU-HIDDEN-01",
+        description: "صنف بدون عرض مالي",
+        unit: "قطعة",
+        quantity: "2",
+      }],
+      { customer_code: "C-HIDDEN", business_name: "عميل الاختبار", tier_label: "الجملة" },
+      loadArabicDocumentFont(),
+      new Date("2026-10-20T00:00:00.000Z"),
+      false,
+    );
+    const pdf = await PDFDocument.load(bytes);
+    expect(bytes.byteLength).toBeGreaterThan(1000);
+    expect(pdf.getPageCount()).toBeGreaterThan(0);
+  });
+
+  it("refuses to represent mismatched invoice totals as a successful PDF", async () => {
   it("refuses to represent mismatched invoice totals as a successful PDF", async () => {
     await expect(buildCustomerInvoicePdf(
       {
