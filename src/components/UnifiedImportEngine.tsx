@@ -4,6 +4,7 @@ import {
   cancelImportUploadSession, createImportJob, createImportUploadSession, fetchCentralSynonyms, fetchImportJobs, fetchImportProfiles,
   fetchImportUploadChunks, findImportDuplicate, finalizeImportJob, insertImportRows, recordImportUploadChunk, updateImportJob,
 } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { completeImportRequestKey, getOrCreateImportRequestKey } from "@/lib/import-request-key";
 import { useFetch } from "@/lib/useFetch";
 import { formatNumber } from "@/lib/format";
@@ -115,7 +116,13 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
 
     try {
       if (!job) {
+        const { data: authSessionData, error: authSessionError } = await supabase.auth.getSession();
+        if (authSessionError) throw authSessionError;
+        const authUserId = authSessionData.session?.user.id;
+        if (!authUserId) throw new Error("انتهت جلسة الدخول؛ سجّل الدخول مجددًا قبل بدء الاستيراد.");
+
         const requestAttempt = await getOrCreateImportRequestKey({
+          actorId: authUserId,
           fileName: file.name,
           fileHash,
           fileSize: file.size,
