@@ -116,3 +116,12 @@ P2 owns WORK_COORDINATION.md, CURRENT_EXECUTION_STATE.md, EXECUTION_LOG.md, ARCH
 - فشل PR #12 السابق [39339667293](https://github.com/Report-Engainall/Nasr1/actions/runs/39339667293) تشخّص من log: خطأ SQL syntax في customer apostrophe ضمن COMMENT بالمهاجرة 20261020040000_customer_price_visibility_controls.sql. أصلحنا customer\\'s إلى customer''s بالـcommit 6417e723a532b4bfd2c1a81c59ff6a78722ed721. CI المخصص لهذا الرأس [39438180471](https://github.com/Report-Engainall/Nasr1/actions/runs/39438180471) كان IN_PROGRESS عند آخر قراءة؛ لا merge أو PASS قبل نتيجته.
 - أحدث رأس وثائق P2 سابقًا e7867d548bea5ee8529cdb8001f290b79da6c939 كان له Action 39438007926 IN_PROGRESS؛ تُعاد قراءة HEAD/CI بعد هذا التحديث.
 - الملكية لا تتغير: P2 يملك PR #18/12 وملفاته المحددة، P1 يملك donor integration ledgers. next_task_id الوحيد يظل NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004 إلى أن يُغلق بأدلة.
+
+
+## P2 current lock / acceptance — role-based finance printing (2026-10-20)
+
+- P2 changed only `supabase/migrations/20261020100000_staff_finance_document_print.sql`, `src/lib/finance-document-print.ts`, `src/components/FinanceDocumentPrintActions.tsx`, related new tests, `src/components/GeneralLedgerWorkspace.tsx`, and P2-owned `scripts/test-customer-returns.mjs` / P2 execution records.
+- The P2 UI integration is in GeneralLedgerWorkspace. P1 customer-facing components and APIs remain unmodified: `src/components/CustomerWorkflows.tsx`, `src/lib/finance-document-pdf.ts`, `src/routes/api.invoice-pdf.$invoiceId.ts`, `src/routes/api.statement-pdf.ts`, `src/lib/api.ts`, `src/routeTree.gen.ts`, and P1 ledgers/report.
+- Exact code head `fb8390e9a4693f1d28247bab8fcb308408845284`; [Action 39443178771 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39443178771). Unit, isolated PostgreSQL 17 migrations/acceptance, lint, build, preview and dev smoke passed on that SHA.
+- `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`. No permissions were weakened; financial role is required on the same active profile and organization is server-derived.
+- Continue with the only live `next_task_id`: `NASR1-ORIGINAL-SPEC-ONYX-INVENTORY-RECONCILIATION-005`. The next P2 area is Onyx inventory reconciliation apply/rollback; P1 donor source integrations and their ledgers remain read-only/owned by P1.

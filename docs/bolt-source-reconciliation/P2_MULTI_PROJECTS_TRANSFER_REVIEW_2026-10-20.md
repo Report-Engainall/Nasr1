@@ -67,7 +67,7 @@
 1. تسوية تباين 33 ملفًا بين تقرير الاستخراج وشجرة المستودع. لا تعتبره نقص ZIP مؤكّدًا حتى يتضح أصل العدد.
 2. دورة تطبيق مصالحة Onyx والتراجع التعويضي الآمن مع PostgreSQL concurrency/RLS acceptance.
 3. تكييف Playwright، وإثبات المسارات الفعلية ببيئة حسابات E2E مناسبة.
-4. استكمال طباعة الفواتير وكشوف الحساب والإشعارات الدائنة حسب المؤسسة/الدور؛ ومتطلبات طباعة كل المهام بفلاتر الشاشة.
+4. **أُغلق الجزء الخاص بطباعة الفواتير وكشوف الحساب والإشعارات الدائنة حسب الدور/المؤسسة** في P2 task `NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004`: migrations/RPCs + واجهة مدمجة واختبارات الوحدة/قاعدة البيانات على SHA `fb8390e9a4693f1d28247bab8fcb308408845284`، [Action 39443178771 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/39443178771). **لا تزال** متطلبات طباعة كل المهام بفلاتر الشاشة غير مغلقة، وكذلك Browser E2E الحقيقي وProduction proof (NOT RUN).
 5. إعدادات عرض السعر ضمن PR #12: الفشل السابق [Action 39339667293](https://github.com/Report-Engainall/Nasr1/actions/runs/39339667293) سببه syntax error في تعليق SQL داخل 20261020040000_customer_price_visibility_controls.sql: escaped apostrophe customer\\'s غير صالحة مع PostgreSQL standard_conforming_strings. صُحح إلى SQL quote doubling customer''s في commit 6417e723a532b4bfd2c1a81c59ff6a78722ed721؛ [Action 39438180471](https://github.com/Report-Engainall/Nasr1/actions/runs/39438180471) كان IN_PROGRESS عند آخر قراءة. لا تستخدم PR #12 كدليل PASS حتى يكتمل هذا الرأس.
 6. مراجعة هوية العلامة في الشاشات/metadata/PWA/PDF/Excel والإشعارات، والتحقق من ربط آخر حالة/وقت مزامنة Onyx بدليل حقيقي؛ لم يثبت ذلك بالكامل في هذا الفحص.
 7. إكمال التحقق السلوكي من AI provider fallback وUsage Ledger؛ blobs المتطابقة وحدها لا تثبت التشغيل/configuration.
@@ -78,3 +78,11 @@
 - Import code + unit/DB/build pipeline: PASS على SHA 49fa336b6a04db3d3272ac78d78cc17b89bc7a89 عبر Action 39437730603؛ لم يتم local checkout، واختبارات المتصفح/الإنتاج NOT RUN. CI رأس الوثائق الأحدث كان IN_PROGRESS ويحتاج readback نهائيًا.
 - main لم يُعدل؛ جميع التعديلات على فرع PR #18 الحالي.
 - next_task_id remains NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004. لا تغيّر مؤشر الاستئناف بسبب هذا الجرد وحده.
+
+
+## 6. نتيجة P2 بعد طباعة المستندات المالية ومؤشر التنفيذ الحي
+
+- طباعة مستندات مالية حسب الصلاحية: `IMPLEMENTED`, `INTEGRATED`, `TESTED_EXACT_SHA` على `fb8390e9a4693f1d28247bab8fcb308408845284`، [Action 39443178771 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39443178771). `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
+- حدود القائمة: لا يمكن اعتبار ظهور الملفات/الواجهات وحده قبولًا؛ القبول نُفذ باستخدام PostgreSQL 17 وعقود RPC. اختبارات الفشل السابقة محفوظة في EXECUTION_LOG مع SHA/Action وسبب كل فشل وتصحيحه.
+- لا تزال مصالحة Onyx في قاعدة Nasr1 عملية تحليل فقط؛ جدول المصدر `onyx_snapshots/onyx_snapshot_rows` ومخرجات `inventory_reconciliation_runs/items` لا تطابق مخطط المشروع المانح حرفيًا، لذا لا تُنسخ SQL القديمة مباشرة. يلزم تصميم تطبيق مضبوط بالمخزن، معاينة، قفل وتحقق من تغير المخزون، وتراجع تعويضي آمن.
+- `next_task_id` الوحيد الآن: `NASR1-ORIGINAL-SPEC-ONYX-INVENTORY-RECONCILIATION-005`. لم تُنزّل أو تُستخرج أو تُعاد بصمات ZIPs، ولم تُعدّل `main` أو ملفات P1.

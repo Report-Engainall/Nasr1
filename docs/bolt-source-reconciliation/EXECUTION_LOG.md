@@ -623,3 +623,21 @@
 - No direct `main` writes. P1 protected files unchanged. Local npm/git checks not run because no local checkout; browser authenticated E2E, live/production migration and deployment not run.
 - Archive evidence remains the single approved `project-bolt-github-7sl6ykzz (2).zip`, recorded SHA-256 `1a692b013da35b4cb034f5b18f8160ec66bca778bc4649bd5128abc7fccb9be1`; older Bolt archives were not opened or compared.
 - Next: `NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004`, then verify remaining integrations, reporting, inventory, purchasing and role-based UI requirements.
+
+
+## 2026-10-20 — NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004 — TESTED_EXACT_SHA PASS
+
+## أحدث حالة تنفيذ P2 — 20 أكتوبر 2026 — طباعة مالية حسب الصلاحية
+
+- المستودع: `Report-Engainall/Nasr1`؛ الفرع `feat/p2-customer-return-intake-20261020`؛ PR [#18](https://github.com/Report-Engainall/Nasr1/pull/18) لا يزال OPEN؛ لا كتابة مباشرة إلى `main`.
+- رأس الكود المثبت: `fb8390e9a4693f1d28247bab8fcb308408845284`.
+- **اختبار SHA مطابق:** [GitHub Actions 39443178771](https://github.com/Report-Engainall/Nasr1/actions/runs/39443178771) — SUCCESS على SHA نفسه. نجحت خطوات frozen lockfile، Unit tests، migrations واختبارات القبول على PostgreSQL 17 المعزول، lint وفق إعداد workflow (باستثناء قاعدة Prettier الشاملة)، build، وproduction-preview smoke على 4173 وdev smoke على 5173.
+- `IMPLEMENTED`: migration للطباعة المالية المحددة بالمؤسسة؛ RPCs لقوائم الفواتير/العملاء/الإشعارات الدائنة، وبيانات الفاتورة، وكشف الحساب؛ تحقق من مجاميع الفاتورة وبنودها؛ ملخص كشف الحساب محسوب من كامل دفتر العميل حسب العملة مع حدود واضحة لتفاصيل 200 فاتورة و500 دفعة و500 إشعار دائن؛ إظهار الإشعارات الدائنة المرحلة فقط في تخفيض الذمم.
+- `INTEGRATED`: واجهة `FinanceDocumentPrintActions` ضمن مساحة الأستاذ العام `GeneralLedgerWorkspace`؛ أنماط RTL وطباعة المتصفح/حفظ PDF؛ تحقق payload آمن وDOM يعتمد `textContent` بدل تفسير بيانات المصدر HTML. مصدر طباعة الإشعار الدائن الموجود مسبقًا يعاد استخدامه بدل إنشاء مسار موازٍ.
+- `TESTED_EXACT_SHA`: CI المذكور أعلاه غطى اختبار الوحدة والواجهة وقبول PostgreSQL للمحاسب/المدير والعميل العادي وعزل المؤسسة. RPCs الثلاثة تتحقق من الدور المالي على **الملف النشط نفسه**، وتستمد المؤسسة من ملف المستخدم الخادمي، ولا تقبل tenant ID من المتصفح. اختبار قاعدة البيانات يرفض العميل العادي والمستند الأجنبي، ويثبت أن إشعارًا دائنًا مرحّلًا يقلل إجمالي الذمم حسب العملة بالمبلغ نفسه قبل/بعد الترحيل.
+- الملفات الجديدة: `supabase/migrations/20261020100000_staff_finance_document_print.sql`, `src/lib/finance-document-print.ts`, `src/components/FinanceDocumentPrintActions.tsx`, `src/test/finance-document-print.test.ts`, `src/test/finance-document-print-ui.test.tsx`. ملفات معدلة: `src/components/GeneralLedgerWorkspace.tsx`, `scripts/test-customer-returns.mjs`.
+- فشل محفوظ لا يُحذف: Actions [39441610024](https://github.com/Report-Engainall/Nasr1/actions/runs/39441610024), [39442612711](https://github.com/Report-Engainall/Nasr1/actions/runs/39442612711), [39442912689](https://github.com/Report-Engainall/Nasr1/actions/runs/39442912689). الأولى كانت مقارنة صيغة مبلغ عربية محلية بنص رقمي لاتيني؛ الثانية افترضت خطأ أن كامل رصيد العميل يساوي فاتورة المصدر رغم وجود فواتير أخرى؛ الثالثة افترضت خطأ أن فاتورة المصدر تظهر ضمن أحدث 200 سجل. عولجت الاختبارات إلى فحص دلتا دفتر العميل قبل/بعد إشعار الائتمان وفحص علاقة الإشعار بالفاتورة، من دون توسيع حدود كشف التفاصيل أو تغيير الصلاحيات.
+- `BROWSER_PROVEN = NOT RUN`: لم تُشغّل جلسة Playwright بمستخدم حقيقي على متصفح مستقل. `PRODUCTION_PROVEN = NOT RUN`: لم يتم ترحيل migration أو نشر/اختبار على قاعدة إنتاج. لا يُنقل PASS إلى أي رأس لاحق.
+- الأرشيف المعتمد فقط هو `project-bolt-github-7sl6ykzz (2).zip` مع البصمات المحفوظة في سجل المصالحة؛ لم يُعد تنزيله أو استخراجه أو حساب بصماته. لا تعديلات على سجلات P1 أو ملفاته المقفلة أو harness الخاص به.
+- **next_task_id الوحيد:** `NASR1-ORIGINAL-SPEC-ONYX-INVENTORY-RECONCILIATION-005` — تصميم وتنفيذ دورة مصالحة مخزون Onyx من معاينة محفوظة إلى تطبيق صريح قابل للتدقيق، مع منع تسوية خاطئة بين إجمالي المصدر ومخازن متعددة، ورفض التطبيق عند تغيّر المخزون بعد المعاينة، وتراجع تعويضي لا يمحو حركات أحدث. تبقى المهمة الأم للمواصفة مفتوحة؛ لا يُدّعى اكتمال المنتج كليًا.
+
