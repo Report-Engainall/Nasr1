@@ -875,3 +875,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - P1 head advanced to `20822761dfdd5a6bd331ea1f172d8c7dcad2cad6`; [CI 39491944048](https://github.com/Report-Engainall/Nasr1/actions/runs/39491944048) is SUCCESS. The preceding lint failure on `3c215994...` remains in history.
 - Storefront UI is still unintegrated: blob `f3fe744f1cef6a7a9f093f4794e01d46f7e65518` has no guard/policy integration. Do not mark privacy work done from green CI alone.
 - Keep `next_task_id=NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010`; actual Playwright/browser and production proof remain NOT RUN.
+
+
+### P2 final price-sentinel hardening checkpoint — 2026-10-20
+
+- Exact code/test SHA `b9cd77e09d650484d33540c9b99d4c943531c750`; [CI 39492486420](https://github.com/Report-Engainall/Nasr1/actions/runs/39492486420) SUCCESS. 71/71 Vitest files passed, including 16 guard tests; PostgreSQL 17 migration/core acceptance, lint, build, preview smoke 4173 and dev smoke 5173 passed.
+- The card guard now suppresses a server price of zero unconditionally, including when a stale setting read says true, and has a dedicated regression test. Cart/order preview still requires policy true and server `visible=true` plus complete server-priced lines/total.
+- Playwright workflow [39492486345](https://github.com/Report-Engainall/Nasr1/actions/runs/39492486345) reported workflow success but skipped app build/launch and actual browser tests due external-infrastructure gate; browser and production proof remain NOT RUN.
+- Latest known P1 head `20822761dfdd5a6bd331ea1f172d8c7dcad2cad6` passed [CI 39491944048](https://github.com/Report-Engainall/Nasr1/actions/runs/39491944048), but Storefront is still not wired to the helper. Single active `next_task_id=NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010` remains open.
