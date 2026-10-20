@@ -4,7 +4,9 @@
 **Branch:** `integration/purchasing-input-boundaries-20261020`  
 **Base SHA:** `26ad448bced4c23a23545df160698ac9a19b003e`  
 **Task:** `NASR1-SOURCE-PURCHASING-SERVICE-RECONCILIATION-001`  
-**CI status in this report version:** PENDING exact PR-head verification; do not treat this report as a PASS claim.
+**Code-bearing SHA tested:** `791f0589b272f826ecd13954b0530cfc54a769f5`  
+**Exact-head CI:** [Actions 39363180342 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39363180342)  
+**Status after this evidence update:** the pass below covers the code-bearing SHA; because this commit records the evidence, final-head CI must also pass on the newly created documentation/evidence SHA before the PR is merge-ready.
 
 ## Decision
 Reconciled the recorded donor service `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1` without restarting the repository audit.
@@ -36,11 +38,12 @@ The existing manager/staff authorization UI test cases remain intact. The new ca
 No runtime service, SQL migration, RPC, route, grant, RLS policy, dependency, credential, historical transaction or production data was changed. No currency conversion is inferred. The donor repositories remain read-only. No Bolt archive was inspected or merged. `main` was not edited directly.
 
 ## Validation and evidence
-- The current test file change is committed on the P1 branch, not on `main`.
-- Targeted command for CI: `npm test -- src/test/purchase-orders-page.test.tsx` (CI runner uses the repository's locked test command).
-- Required final validation: `.github/workflows/commerce-checks.yml` on the exact PR head, including unit tests, PostgreSQL 17 migrations/RLS/core-workflow acceptance, lint, build, preview smoke and dev smoke.
-- **At report creation:** exact-head run URL, final head SHA and results are **PENDING**. Any local execution not performed in this session is **NOT RUN**. Update the evidence after GitHub Actions reports the result; no PASS is claimed here.
-- Browser-authenticated and production deployment/database-migration proof: **NOT RUN**.
+- Targeted behavior coverage: five new cases in `src/test/purchase-orders-page.test.tsx`; all are included in the full unit suite.
+- **Exact code-bearing SHA:** `791f0589b272f826ecd13954b0530cfc54a769f5`.
+- **GitHub Actions:** [39363180342 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39363180342) on that exact SHA.
+- Result: 54/54 test files and 392/392 tests passed; frozen Bun lockfile verification; PostgreSQL 17 migrations/RLS/core-workflow acceptance; lint; build; production-preview smoke on port 4173; dev-server smoke on port 5173; container cleanup — all succeeded.
+- This exact-head run is the proven code-bearing revision. The following evidence-only commit changes the source ledger, provenance audit and this report; wait for a full CI success on that final commit SHA before treating PR #21 as merge-ready.
+- No local command was run in this session. The donor test/service were not copied or executed. Browser-authenticated and production deployment/database-migration proof: **NOT RUN**.
 
 ## Next task
 After the final candidate SHA is verified, continue with the next incomplete source-ledger candidate `NASR1-MANIFEST-036` (`src/services/finance.input.test.ts`) only after checking its overlap with the existing cash-expense and P2 invoice/payment accounting work. Reuse the logged partial decision; do not add a legacy second ledger, and do not edit P2-owned files or `scripts/test-database-migrations.mjs` without coordination.
