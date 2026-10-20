@@ -24,7 +24,9 @@ const fixture = {
   source_identity: {
     provenance_status: "linked_import_job_hash_match", source_system: "manual",
     source_record_id: null, source_row_count: 3,
-    external_id_fields_found: ["external_id"], rows_with_external_id: 2,
+    external_id_fields_found: ["external_id"],
+    external_id_examples: [{ row_number: 1, canonical_key: "SKU-101", canonical_key_truncated: false, external_ids: { external_id: "ONYX-101" }, value_truncated: false }],
+    external_id_examples_truncated: false, rows_with_external_id: 2,
   },
   live_sync_evidence: {
     status: "not_proven", live_connection_proven: false,
@@ -44,6 +46,8 @@ describe("Onyx source evidence panel", () => {
     expect(screen.getByText(/معرّف سجل المصدر الخارجي/).parentElement?.textContent).toContain("غير متاح");
     expect(screen.getByText("استيراد ملف يدوي")).toBeTruthy();
     expect(screen.getByText("external_id")).toBeTruthy();
+    expect(screen.getByText("ONYX-101")).toBeTruthy();
+    expect(screen.getByText(/صف المصدر 1/)).toBeTruthy();
     expect(screen.getByText(/غير مثبتة بأدلة هذا السجل/)).toBeTruthy();
     expect(screen.getByText(/لا يثبت اتصالًا حيًا أو اكتمال مزامنة/)).toBeTruthy();
     expect(fetchEvidence).toHaveBeenCalledWith(snapshotId);
