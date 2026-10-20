@@ -1,9 +1,14 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const workerSourcePath = fileURLToPath(
-  new URL("../../supabase/functions/outbox-worker/index.ts", import.meta.url),
+// Vitest's transformed import.meta.url is not guaranteed to be a file: URL.
+const workerSourcePath = join(
+  process.cwd(),
+  "supabase",
+  "functions",
+  "outbox-worker",
+  "index.ts",
 );
 const workerSource = readFileSync(workerSourcePath, "utf8");
 
