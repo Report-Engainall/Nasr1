@@ -123,7 +123,7 @@ export async function getOrCreateImportRequestKey(
         && now - saved.createdAt < IMPORT_REQUEST_KEY_TTL_MS;
 
       if (isFresh) {
-        return { requestKey: saved.requestKey!, storageKey, reused: true };
+        return { requestKey: String(saved.requestKey), storageKey, reused: true };
       }
       storage.removeItem(storageKey);
     }
