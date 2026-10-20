@@ -13,12 +13,12 @@ SET search_path = ''
 AS $function$
 DECLARE
   v_actor uuid := public.current_profile_id();
-  v_org uuid := public.current_organization_id();
+  o uuid := public.current_organization_id();
   v_name text := pg_catalog.btrim(coalesce(p_name, ''));
   v_code text := NULLIF(pg_catalog.btrim(coalesce(p_code, '')), '');
   v_id uuid;
 BEGIN
-  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
+  IF auth.uid() IS NULL OR v_actor IS NULL OR o IS NULL
      OR NOT EXISTS (
        SELECT 1 FROM public.user_roles AS r
        WHERE r.profile_id = v_actor AND r.role IN('admin','manager')
@@ -26,7 +26,7 @@ BEGIN
      OR NOT EXISTS (
        SELECT 1 FROM public.profiles AS p
        WHERE p.id = v_actor AND p.auth_user_id=auth.uid()
-         AND p.organization_id = v_org AND p.is_active = true
+         AND p.organization_id=o AND p.is_active
      ) THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
       MESSAGE = 'active admin or manager profile required for catalog commands';
@@ -40,7 +40,7 @@ BEGIN
 
   IF p_parent_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM public.categories AS parent
-    WHERE parent.id = p_parent_id AND parent.organization_id = v_org
+    WHERE parent.id = p_parent_id AND parent.organization_id = o
       AND parent.is_active = true
   ) THEN
     RAISE EXCEPTION USING ERRCODE = 'P0002',
@@ -48,14 +48,14 @@ BEGIN
   END IF;
 
   PERFORM pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended(v_org::text || ':cat:' ||
+    pg_catalog.hashtextextended(o::text || ':cat:' ||
       coalesce(p_parent_id::text, 'root') || ':' ||
       pg_catalog.lower(v_name), 0)
   );
 
   SELECT c.id INTO v_id
   FROM public.categories AS c
-  WHERE c.organization_id = v_org
+  WHERE c.organization_id = o
     AND c.parent_id IS NOT DISTINCT FROM p_parent_id
     AND pg_catalog.lower(pg_catalog.btrim(c.name)) = pg_catalog.lower(v_name)
     AND c.is_active = true
@@ -68,13 +68,13 @@ BEGIN
   END IF;
 
   INSERT INTO public.categories(organization_id, parent_id, name, code, is_active)
-  VALUES (v_org, p_parent_id, v_name, v_code, true)
+  VALUES (o, p_parent_id, v_name, v_code, true)
   RETURNING id INTO v_id;
 
   INSERT INTO public.audit_logs(
     organization_id,actor_id,action,entity_type,entity_id,old_value,new_value
   ) VALUES (
-    v_org, v_actor, 'catalog.category_created', 'category', v_id,
+    o, v_actor, 'catalog.category_created', 'category', v_id,
     '{}'::jsonb,
     pg_catalog.jsonb_build_object('name', v_name, 'parent_id', p_parent_id, 'code', v_code)
   );
@@ -94,7 +94,7 @@ SET search_path = ''
 AS $function$
 DECLARE
   v_actor uuid := public.current_profile_id();
-  v_org uuid := public.current_organization_id();
+  o uuid := public.current_organization_id();
   v_allowed_fields text[] := ARRAY[
     'name', 'item_code', 'barcode', 'unit', 'description', 'category_id',
     'base_price', 'price_wholesale_of_wholesale', 'price_wholesale', 'price_retail',
@@ -123,7 +123,7 @@ DECLARE
   v_before jsonb;
   v_after jsonb;
 BEGIN
-  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
+  IF auth.uid() IS NULL OR v_actor IS NULL OR o IS NULL
      OR NOT EXISTS (
        SELECT 1 FROM public.user_roles AS r
        WHERE r.profile_id = v_actor AND r.role IN('admin','manager')
@@ -131,7 +131,7 @@ BEGIN
      OR NOT EXISTS (
        SELECT 1 FROM public.profiles AS p
        WHERE p.id = v_actor AND p.auth_user_id=auth.uid()
-         AND p.organization_id = v_org AND p.is_active = true
+         AND p.organization_id=o AND p.is_active
      ) THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
       MESSAGE = 'active admin or manager profile required for catalog commands';
@@ -245,7 +245,7 @@ BEGIN
 
   IF v_category_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM public.categories AS c
-    WHERE c.id = v_category_id AND c.organization_id = v_org AND c.is_active = true
+    WHERE c.id = v_category_id AND c.organization_id = o AND c.is_active = true
   ) THEN
     RAISE EXCEPTION USING ERRCODE = 'P0002',
       MESSAGE = 'active category not found in organization';
@@ -254,7 +254,7 @@ BEGIN
   IF NOT v_created THEN
     SELECT p.* INTO v_old
     FROM public.products AS p
-    WHERE p.id = p_product_id AND p.organization_id = v_org
+    WHERE p.id = p_product_id AND p.organization_id = o
     FOR UPDATE;
 
     IF NOT FOUND THEN
@@ -277,7 +277,7 @@ BEGIN
            category_id = v_category_id,
            status = v_status,
            updated_at = pg_catalog.now()
-     WHERE id = p_product_id AND organization_id = v_org;
+     WHERE id = p_product_id AND organization_id = o;
 
     v_product_id := p_product_id;
   ELSE
@@ -285,7 +285,7 @@ BEGIN
       organization_id, category_id, name, item_code, barcode, description, unit, status
     )
     VALUES (
-      v_org, v_category_id, v_name, v_item_code, v_barcode, v_description, v_unit, v_status
+      o, v_category_id, v_name, v_item_code, v_barcode, v_description, v_unit, v_status
     )
     RETURNING id INTO v_product_id;
 
@@ -337,7 +337,7 @@ BEGIN
   INSERT INTO public.audit_logs(
     organization_id,actor_id,action,entity_type,entity_id,old_value,new_value
   ) VALUES (
-    v_org, v_actor,
+    o, v_actor,
     CASE WHEN v_created THEN 'catalog.product_created' ELSE 'catalog.product_updated' END,
     'product', v_product_id, v_before, v_after
   );
@@ -356,10 +356,10 @@ SET search_path = ''
 AS $function$
 DECLARE
   v_actor uuid := public.current_profile_id();
-  v_org uuid := public.current_organization_id();
+  o uuid := public.current_organization_id();
   v_old public.products%ROWTYPE;
 BEGIN
-  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
+  IF auth.uid() IS NULL OR v_actor IS NULL OR o IS NULL
      OR NOT EXISTS (
        SELECT 1 FROM public.user_roles AS r
        WHERE r.profile_id = v_actor AND r.role IN('admin','manager')
@@ -367,7 +367,7 @@ BEGIN
      OR NOT EXISTS (
        SELECT 1 FROM public.profiles AS p
        WHERE p.id = v_actor AND p.auth_user_id=auth.uid()
-         AND p.organization_id = v_org AND p.is_active = true
+         AND p.organization_id=o AND p.is_active
      ) THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
       MESSAGE = 'active admin or manager profile required for catalog commands';
@@ -375,7 +375,7 @@ BEGIN
 
   SELECT p.* INTO v_old
   FROM public.products AS p
-  WHERE p.id = p_product_id AND p.organization_id = v_org
+  WHERE p.id = p_product_id AND p.organization_id = o
   FOR UPDATE;
 
   IF NOT FOUND THEN
@@ -386,12 +386,12 @@ BEGIN
   IF v_old.status <> 'inactive' THEN
     UPDATE public.products
        SET status='inactive', updated_at = pg_catalog.now()
-     WHERE id = p_product_id AND organization_id = v_org;
+     WHERE id = p_product_id AND organization_id = o;
 
     INSERT INTO public.audit_logs(
       organization_id,actor_id,action,entity_type,entity_id,old_value,new_value
     ) VALUES (
-      v_org, v_actor, 'catalog.product_archived', 'product', p_product_id,
+      o, v_actor, 'catalog.product_archived', 'product', p_product_id,
       pg_catalog.jsonb_build_object('status', v_old.status),
       pg_catalog.jsonb_build_object('status', 'inactive')
     );
@@ -409,10 +409,10 @@ SET search_path = ''
 AS $function$
 DECLARE
   v_actor uuid := public.current_profile_id();
-  v_org uuid := public.current_organization_id();
+  o uuid := public.current_organization_id();
   v_old public.categories%ROWTYPE;
 BEGIN
-  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
+  IF auth.uid() IS NULL OR v_actor IS NULL OR o IS NULL
      OR NOT EXISTS (
        SELECT 1 FROM public.user_roles AS r
        WHERE r.profile_id = v_actor AND r.role IN('admin','manager')
@@ -420,7 +420,7 @@ BEGIN
      OR NOT EXISTS (
        SELECT 1 FROM public.profiles AS p
        WHERE p.id = v_actor AND p.auth_user_id=auth.uid()
-         AND p.organization_id = v_org AND p.is_active = true
+         AND p.organization_id=o AND p.is_active
      ) THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
       MESSAGE = 'active admin or manager profile required for catalog commands';
@@ -428,7 +428,7 @@ BEGIN
 
   SELECT c.* INTO v_old
   FROM public.categories AS c
-  WHERE c.id = p_category_id AND c.organization_id = v_org
+  WHERE c.id = p_category_id AND c.organization_id = o
   FOR UPDATE;
 
   IF NOT FOUND THEN
@@ -438,11 +438,11 @@ BEGIN
 
   IF EXISTS (
        SELECT 1 FROM public.products AS p
-       WHERE p.organization_id = v_org AND p.category_id = p_category_id AND p.status = 'active'
+       WHERE p.organization_id = o AND p.category_id = p_category_id AND p.status = 'active'
      )
      OR EXISTS (
        SELECT 1 FROM public.categories AS child
-       WHERE child.organization_id = v_org AND child.parent_id = p_category_id AND child.is_active = true
+       WHERE child.organization_id = o AND child.parent_id = p_category_id AND child.is_active = true
      ) THEN
     RAISE EXCEPTION USING ERRCODE = '23503',
       MESSAGE = 'category has active products or child categories; reassign or archive them first';
@@ -450,12 +450,12 @@ BEGIN
 
   IF v_old.is_active THEN
     UPDATE public.categories SET is_active = false
-    WHERE id = p_category_id AND organization_id = v_org;
+    WHERE id = p_category_id AND organization_id = o;
 
     INSERT INTO public.audit_logs(
       organization_id,actor_id,action,entity_type,entity_id,old_value,new_value
     ) VALUES (
-      v_org, v_actor, 'catalog.category_archived', 'category', p_category_id,
+      o, v_actor, 'catalog.category_archived', 'category', p_category_id,
       pg_catalog.jsonb_build_object('name', v_old.name, 'code', v_old.code, 'is_active', true),
       pg_catalog.jsonb_build_object('name', v_old.name, 'code', v_old.code, 'is_active', false)
     );
