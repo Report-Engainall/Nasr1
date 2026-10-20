@@ -73,9 +73,10 @@ export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: st
                     <span>صف المصدر {row.row_number} · المفتاح: <code dir="ltr">{row.canonical_key}</code>{row.canonical_key_truncated ? " (المفتاح معروض بشكل مقتطع)" : ""}</span>
                     <ul style={{ marginBlock: 4 }}>
                       {Object.entries(row.external_ids).map(([field, value]) => (
-                        <li key={field}><code dir="ltr">{field}</code>: <code dir="ltr">{value}</code>{row.value_truncated ? " (القيمة معروضة بشكل مقتطع)" : ""}</li>
+                        <li key={field}><code dir="ltr">{field}</code>: <code dir="ltr">{value}</code></li>
                       ))}
                     </ul>
+                    {row.value_truncated ? <p style={{ margin: 0 }}>قيمة معرّف واحدة أو أكثر في هذا الصف مقتطعة إلى 256 محرفًا.</p> : null}
                   </li>
                 ))}
               </ol>
