@@ -66,9 +66,9 @@ jobs:
             {
               echo "## Playwright acceptance: NOT RUN / BLOCKED_EXTERNAL"
               echo
-              echo "No browser test is claimed. Missing or unconfirmed settings: ${missing[*]}."
-              echo "Configure repository Actions secrets listed in docs/bolt-source-reconciliation/P2_PLAYWRIGHT_E2E_SETUP.md, then rerun this workflow."
-              echo "This is not a Playwright pass. No synthetic credentials, production writes, or privilege bypasses are used."
+              echo "Authenticated order creation and cross-organization denial are NOT RUN / BLOCKED_EXTERNAL. Missing or unconfirmed settings: ${missing[*]}."
+              echo "A separate read-only public UI smoke may run without these credentials; it does not prove authentication, pricing backend behavior, or tenant isolation."
+              echo "This gate is not a pass for the authenticated critical path. No synthetic credentials, production writes, or privilege bypasses are used."
             } >> "$GITHUB_STEP_SUMMARY"
           else
             node -e "const u=new URL(process.env.E2E_SUPABASE_URL);if(!['https:','http:'].includes(u.protocol))throw new Error('Invalid test Supabase URL');if(u.username||u.password)throw new Error('Supabase URL must not embed credentials')"
@@ -158,4 +158,89 @@ jobs:
             playwright-report/
             test-results/
             ${{ runner.temp }}/p2-e2e-preview.log
+          if-no-files-found: ignore
+
+  public-ui-smoke:
+    name: Playwright public UI smoke (no external backend writes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout the exact tested source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Setup Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install app dependencies from the verified Bun lockfile
+        run: bun install --frozen-lockfile
+      - name: Install pinned Playwright runner outside the project lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/pw-public" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
+          mkdir -p node_modules/@playwright
+          ln -s "$RUNNER_TEMP/pw-public/node_modules/@playwright/test" node_modules/@playwright/test
+      - name: Install Chromium
+        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright install --with-deps chromium"
+      - name: Build exact source with isolated non-routable placeholder configuration
+        env:
+          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+          SUPABASE_URL: https://ci-placeholder.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+        run: npm run build
+      - name: Launch local build for no-write browser smoke
+        shell: bash
+        env:
+          SUPABASE_URL: https://ci-placeholder.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+          PORT: "4173"
+        run: |
+          set -euo pipefail
+          npx wrangler dev --config .output/server/wrangler.json --local --ip 127.0.0.1 --port 4173 > "$RUNNER_TEMP/p2-public-ui-preview.log" 2>&1 &
+          server_pid=$!
+          echo "$server_pid" > "$RUNNER_TEMP/p2-public-ui-preview.pid"
+          ready=0
+          for attempt in $(seq 1 45); do
+            status="$(curl --silent --connect-timeout 2 --max-time 5 --output "$RUNNER_TEMP/p2-public-ui-home.html" --write-out '%{http_code}' http://127.0.0.1:4173/ || true)"
+            if [ "$status" = "200" ] && grep -q "الأغبري" "$RUNNER_TEMP/p2-public-ui-home.html"; then ready=1; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then cat "$RUNNER_TEMP/p2-public-ui-preview.log"; exit 1; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/p2-public-ui-preview.log"; exit 1; fi
+          echo "Exact source SHA: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - name: Run read-only public Storefront browser assertions
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/public-storefront-smoke.spec.ts"
+      - name: Record narrow proof boundary
+        if: always()
+        run: |
+          {
+            echo "## Public UI browser proof boundary"
+            echo
+            echo "- This job uses Chromium against a local build and aborts requests to the non-routable placeholder Supabase hostname."
+            echo "- It performs no login, database mutation, order submission, or cross-tenant assertion."
+            echo "- It cannot substitute for the separately gated authenticated customer-order and tenant-isolation workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Stop the local application
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/p2-public-ui-preview.pid" ]; then kill "$(cat "$RUNNER_TEMP/p2-public-ui-preview.pid")" >/dev/null 2>&1 || true; fi
+      - name: Upload public UI smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p2-public-ui-smoke-${{ github.run_id }}-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+            ${{ runner.temp }}/p2-public-ui-preview.log
           if-no-files-found: ignore
