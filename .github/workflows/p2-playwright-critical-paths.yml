@@ -287,7 +287,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase start
+          # Storage is out of scope for order/tenant acceptance; leaving its owner-managed tables absent avoids mutating a service-owned table during unrelated migrations.
+          supabase start --exclude storage-api,imgproxy
           supabase db reset --local
           supabase status -o env \
             --override-name api.url=SUPABASE_URL \
