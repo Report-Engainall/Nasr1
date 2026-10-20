@@ -74,15 +74,25 @@ async function rollback(commandId, idem, reason="CI compensating rollback accept
   );
   return asJson(rows[0].payload);
 }
+async function readAsTestOwner(query, params = []) {
+  const identity = await db.unsafe("select current_user::text as role");
+  const restoreAuthenticated = identity[0]?.role === "authenticated";
+  if (restoreAuthenticated) await db.unsafe("reset role");
+  try {
+    return await db.unsafe(query, params);
+  } finally {
+    if (restoreAuthenticated) await db.unsafe("set role authenticated");
+  }
+}
 async function balance(productId) {
-  const rows = await db.unsafe(
+  const rows = await readAsTestOwner(
     "select quantity_on_hand::text as on_hand,quantity_reserved::text as reserved,last_movement_at,updated_at from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
     [productId, warehouseId],
   );
   return rows[0] ?? null;
 }
 async function movementCount(productId) {
-  const rows = await db.unsafe(
+  const rows = await readAsTestOwner(
     "select count(*)::int as count from public.inventory_movements where product_id=$1::uuid and warehouse_id=$2::uuid",
     [productId, warehouseId],
   );
