@@ -586,3 +586,20 @@
 - Changed code: accounting migration, new source-linker component, General Ledger registration, component tests and PostgreSQL acceptance. No donor or P1-owned ledger/report modified.
 - Production migration, live tenant and browser/manual E2E: **NOT RUN**.
 - Next: `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-VISIBILITY-007`.
+
+## 2026-10-20 — NASR1-BOLT-APPROVED-ARCHIVE-RECONCILIATION-002 — single-source verification and decisions
+
+- Approved source only: report-insight-engine/main/incoming-archives/nasr1-bolt-recovery-2026-10-17/project-bolt-github-7sl6ykzz (2).zip.
+- Exact source bytes 1,009,556; Git Blob SHA-1 4835a0565f799a272dfca0ff49fbc3ce0d760474 matched the downloaded bytes; SHA-256 1a692b013da35b4cb034f5b18f8160ec66bca778bc4649bd5128abc7fccb9be1. ZIP: 421 entries, 359 files, 3,322,389 uncompressed bytes, CRC PASS. No duplicate paths or unsafe traversal/symlink paths found. No archive code executed and no secret values were emitted.
+- Compared only this archive against Nasr1 checkpoint e815d1e01e5190220083e0593b8b9d152fc3783a: 270 identical paths, 67 changed, 22 archive-only, 168 target-only. Evidence is in P2_SINGLE_ARCHIVE_MANIFEST_2026-10-20.csv, P2_SINGLE_ARCHIVE_DECISION_MATRIX_2026-10-20.csv and P2_SINGLE_ARCHIVE_RECONCILIATION_2026-10-20.md.
+- Decisions: reused target-native routed storefront assistant, wishlist/compare, pricing, inventory, audit, notification, supplier, reporting, AI and Customer 360 capabilities; did not copy legacy React Router pages. Excluded .env and admin-role/password SQL. Admin category CRUD remains a documented gap pending a safe target-native RPC/router implementation.
+- No target main/source writes and no changes to P1 ledgers/reports or locked shared app/router/workflow files.
+ 
+## 2026-10-20 — NASR1-ORIGINAL-SPEC-RETURNS-INTAKE-001 — implementation (CI_PENDING)
+
+- P2 branch: feat/p2-customer-return-intake-20261020; code checkpoint before reconciliation docs: 1ee787b27b536d3442bd49c69c5fbc6b166a95d.
+- Added tenant-scoped return request/request-line migration with owner/manager read policies, no browser write grants, delivered-order/line ownership guards, maximum quantity enforcement, idempotency, audit, manager review and warehouse receipt/inspection task creation.
+- Added customer RTL return form/history to existing order details and manager review queue in the existing task center. Approval/rejection changes request state only. No stock movement, credit memo, ledger posting or refund is generated before physical receipt.
+- Added unit tests for request payload limits and response validation plus scripts/test-customer-returns.mjs and appended it to npm run test:db. CI result for final PR head is not yet available at this log point; implementation is not marked PASS.
+- Next: NASR1-ORIGINAL-SPEC-RETURNS-RECEIPT-POSTING-002 after exact-head CI and review.
+
