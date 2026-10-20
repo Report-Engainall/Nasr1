@@ -57,6 +57,10 @@ async function createConfirmedUser(email, password, fullName) {
 }
 
 async function main() {
+  // Mask every ephemeral identity/credential before the next Actions step echoes inherited env.
+  for (const value of [emailA, passwordA, emailB, passwordB, apiUrl, publishableKey, serviceRoleKey, connectionString]) {
+    process.stdout.write("::add-mask::" + value + "\\n");
+  }
   const userAId = await createConfirmedUser(emailA, passwordA, "P2 Local E2E Customer A");
   const userBId = await createConfirmedUser(emailB, passwordB, "P2 Local E2E Customer B");
   let profileAId;
