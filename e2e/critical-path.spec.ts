@@ -33,7 +33,7 @@ async function signIn(page: Page, email: string, password: string) {
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
   await page.getByLabel("البريد الإلكتروني").fill(email);
-  await page.getByLabel("كلمة المرور").fill(password);
+  await page.locator('input[autocomplete="current-password"]').fill(password);
   await page.getByRole("button", { name: "دخول", exact: true }).click();
   await expect(page.locator(".sf-add-btn:not(:disabled)").first()).toBeVisible({ timeout: 45_000 });
 }
