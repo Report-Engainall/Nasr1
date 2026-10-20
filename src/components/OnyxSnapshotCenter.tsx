@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { OnyxInventoryReconciliationActions } from "@/components/OnyxInventoryReconciliationActions";
+import { OnyxSnapshotSourceEvidencePanel } from "@/components/OnyxSnapshotSourceEvidencePanel";
 
 type ReconciliationResult = {
   run_id: string;
@@ -196,6 +197,8 @@ export function OnyxSnapshotCenter({ onBack }: { onBack?: () => void }) {
               <span className="onyx-hash"><strong>SHA-256:</strong> <code title={selected.source_file_hash}>{selected.source_file_hash}</code></span>
             </div>}
           </section>
+
+          {selectedId && <OnyxSnapshotSourceEvidencePanel snapshotId={selectedId} />}
 
           {detailError && <div className="onyx-alert" role="alert"><AlertTriangle size={18} /> {detailError}</div>}
           {detailLoading ? <div className="panel onyx-empty" role="status">جارٍ تحليل اللقطة المحددة…</div> : analytics && metrics ? (
