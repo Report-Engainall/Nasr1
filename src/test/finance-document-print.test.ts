@@ -34,7 +34,10 @@ function statementFixture() {
       due_at: "2026-10-30T00:00:00.000Z", currency: "YER", subtotal: "500.00", tax_amount: "0.00",
       total_amount: "500.00", paid_amount: "0.00", credit_memo_amount: "125.00", outstanding_amount: "375.00",
     }],
-    payments: [],
+    payments: [{
+      id: "55555555-5555-4555-8555-555555555555", invoice_id: invoiceId, invoice_number: "INV-0009",
+      currency: "YER", amount: "25.00", paid_at: "2026-10-20T01:30:00.000Z", payment_method: "transfer", reference: "BANK-25",
+    }],
     credits: [{
       id: "44444444-4444-4444-8444-444444444444", memo_number: "CRM-0001", invoice_id: invoiceId,
       invoice_number: "INV-0009", currency: "YER", subtotal_amount: "125.00", tax_amount: "0.00",
@@ -87,6 +90,8 @@ describe("finance document print contracts", () => {
     expect(parsed.invoices[0].credit_memo_amount).toBe("125.00");
     expect(parsed.invoices[0].outstanding_amount).toBe("375.00");
     expect(parsed.credits[0].memo_number).toBe("CRM-0001");
+    expect(parsed.payments[0].invoice_number).toBe("INV-0009");
+    expect(parsed.payments[0].currency).toBe("YER");
     expect(() => readStaffStatementPrintPayload({
       ...statementFixture(),
       summary: [{ ...statementFixture().summary[0], overdue_outstanding: "376.00" }],
