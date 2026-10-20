@@ -68,7 +68,7 @@ async function main() {
     [foreignProfile],
   );
   await admin.unsafe(
-    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Async Export Customer','ci-async-export-customer@example.test',$3 is not null) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,is_active=true",
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Async Export Customer','ci-async-export-customer@example.test',true) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,is_active=true",
     [customerProfile, customerAuth, org],
   );
   await admin.unsafe(
