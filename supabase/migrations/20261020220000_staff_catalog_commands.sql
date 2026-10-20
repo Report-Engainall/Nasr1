@@ -477,3 +477,10 @@ GRANT EXECUTE ON FUNCTION public.create_admin_catalog_category(text, uuid, text)
 GRANT EXECUTE ON FUNCTION public.save_admin_catalog_product(uuid, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.archive_admin_catalog_product(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.archive_admin_catalog_category(uuid) TO authenticated;
+
+-- Staff catalog mutations must run through the audited SECURITY DEFINER commands.
+-- Keep SELECT policies intact; remove browser-role table DML to prevent bypasses.
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.categories FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.products FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.product_prices FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.audit_logs FROM authenticated;

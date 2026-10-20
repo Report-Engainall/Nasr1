@@ -59,4 +59,10 @@ describe("staff catalog commands migration contract", () => {
     expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.save_admin_catalog_product\(uuid,jsonb\) FROM authenticated;/i);
     expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.save_admin_catalog_product\(uuid, jsonb\) TO authenticated/i);
   });
+  
+  it("revokes direct authenticated DML on catalog, tier prices and audit records", () => {
+    for (const table of ["categories", "products", "product_prices", "audit_logs"]) {
+      expect(migration).toContain(`REVOKE INSERT, UPDATE, DELETE ON TABLE public.${table} FROM authenticated;`);
+    }
+  });
 });
