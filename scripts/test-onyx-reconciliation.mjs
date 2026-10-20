@@ -26,8 +26,6 @@ const importJobId = randomUUID();
 const snapshotId = randomUUID();
 const unscopedImportJobId = randomUUID();
 const unscopedSnapshotId = randomUUID();
-const reservedImportJobId = randomUUID();
-const reservedSnapshotId = randomUUID();
 const foreignImportJobId = randomUUID();
 const foreignSnapshotId = randomUUID();
 const key = () => randomUUID().replaceAll("-", "");
@@ -153,18 +151,6 @@ async function main() {
       [organizationId,unscopedSnapshotId,itemOne,JSON.stringify({ item_code: itemOne, quantity: 15 })],
     );
     await db.unsafe(
-      "insert into public.import_jobs(id,organization_id,job_type,file_name,file_hash,status,total_rows,created_by) values($1,$2,'inventory','reserved-ci.csv',$3,'completed',1,$4)",
-      [reservedImportJobId,organizationId,"d".repeat(64),managerProfileId],
-    );
-    await db.unsafe(
-      "insert into public.onyx_snapshots(id,organization_id,source_import_job_id,source_file_hash,source_file_name,report_type,row_count,data_quality_score,metrics,status,created_by) values($1,$2,$3,$4,'reserved-ci.csv','inventory_stock',1,100,$5::jsonb,'ready',$6)",
-      [reservedSnapshotId,organizationId,reservedImportJobId,"sha-reserved-"+suffix,JSON.stringify({ warehouse_code: warehouseCode, warehouse_name: warehouseName }),managerProfileId],
-    );
-    await db.unsafe(
-      "insert into public.onyx_snapshot_rows(organization_id,snapshot_id,row_number,canonical_key,row_hash,status,data,errors) values($1,$2,1,$3,md5($4::jsonb::text),'valid',$4::jsonb,'[]'::jsonb)",
-      [organizationId,reservedSnapshotId,itemOne,JSON.stringify({ item_code:itemOne,quantity:1,warehouse_code:warehouseCode,warehouse_name:warehouseName })],
-    );
-    await db.unsafe(
       "insert into public.import_jobs(id,organization_id,job_type,file_name,file_hash,status,total_rows) values($1,$2,'inventory','foreign-ci.csv',$3,'completed',1)",
       [foreignImportJobId,foreignOrganizationId,"c".repeat(64)],
     );
@@ -187,8 +173,21 @@ async function main() {
       () => preview(unscopedSnapshotId,warehouseId,key()),/not warehouse-scoped/i);
     await expectFailure("cross-organization Onyx snapshot is denied",
       () => preview(foreignSnapshotId,warehouseId,key()),/ready Onyx snapshot is unavailable/i);
+    await db.unsafe("reset role");
+
+    const sourceEvidence = await db.unsafe(
+      "select s.metrics->>'warehouse_code' as snapshot_warehouse_code, r.data->>'warehouse_code' as row_warehouse_code from public.onyx_snapshots s join public.onyx_snapshot_rows r on r.snapshot_id=s.id where s.id=$1 order by r.row_number limit 1",
+      [snapshotId],
+    );
+    assert.equal(sourceEvidence[0].snapshot_warehouse_code,warehouseCode,"snapshot metadata warehouse scope must be persisted");
+    assert.equal(sourceEvidence[0].row_warehouse_code,warehouseCode,"source row warehouse scope must be persisted");
+    await db.unsafe("update public.inventory_balances set quantity_reserved=20 where product_id=$1 and warehouse_id=$2",[productOneId,warehouseId]);
+    await db.unsafe("set role authenticated");
     await expectFailure("source quantity cannot fall below reserved stock",
-      () => preview(reservedSnapshotId,warehouseId,key()),/Onyx target stock is below currently reserved quantity/i);
+      () => preview(snapshotId,warehouseId,key()),/Onyx target stock is below currently reserved quantity/i);
+    await db.unsafe("reset role");
+    await db.unsafe("update public.inventory_balances set quantity_reserved=2 where product_id=$1 and warehouse_id=$2",[productOneId,warehouseId]);
+    await db.unsafe("set role authenticated");
 
     const previewKey = key();
     const command = await preview(snapshotId,warehouseId,previewKey);
@@ -224,6 +223,7 @@ async function main() {
     // Deliberately stale the second (lexically later) product after preview. No first-line update
     // may survive a multi-line failure, even though the first line sorts before the stale line.
     const staleCommand = await preview(snapshotId,warehouseId,key(),"Stale atomicity check");
+    await db.unsafe("reset role");
     const firstBefore = await balance(productOneId);
     await db.unsafe(
       "update public.inventory_balances set quantity_on_hand=1,last_movement_at=pg_catalog.clock_timestamp(),updated_at=pg_catalog.clock_timestamp() where product_id=$1 and warehouse_id=$2",
@@ -233,13 +233,16 @@ async function main() {
       "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,created_at) values($1,$2,'ci_concurrent_adjustment',1,1,'ci_onyx_test',$3,'Deliberate stale test',$4,pg_catalog.clock_timestamp())",
       [productTwoId,warehouseId,staleCommand.command_id,managerProfileId],
     );
+    await db.unsafe("set role authenticated");
     await expectFailure("stale apply is rejected and transactionally atomic",
       () => apply(staleCommand.command_id,key()),/changed after preview/i);
+    await db.unsafe("reset role");
     assert.equal((await balance(productOneId)).on_hand,firstBefore.on_hand,"no stock write survives a stale multi-row apply failure");
     assert.equal((await balance(productTwoId)).on_hand,"1.000","concurrent source change is preserved");
     assert.equal((await db.unsafe("select status from public.onyx_inventory_reconciliation_commands where id=$1",[staleCommand.command_id]))[0].status,"previewed");
 
     // Apply a fresh preview, then create a later movement; rollback must refuse to overwrite it.
+    await db.unsafe("set role authenticated");
     const finalCommand = await preview(snapshotId,warehouseId,key(),"Later-movement rollback guard");
     const finalApplied = await apply(finalCommand.command_id,key());
     assert.equal(finalApplied.status,"applied");
@@ -251,12 +254,15 @@ async function main() {
       "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,created_at) values($1,$2,'ci_later_adjustment',1,16,'ci_onyx_test',$3,'Deliberate post-apply movement',$4,pg_catalog.clock_timestamp())",
       [productOneId,warehouseId,finalCommand.command_id,managerProfileId],
     );
+    await db.unsafe("set role authenticated");
     await expectFailure("rollback refuses to overwrite later stock movement",
       () => rollback(finalCommand.command_id,key(),"Unsafe reversal should be denied"),/changed after Onyx apply|newer or altered stock movement history/i);
+    await db.unsafe("reset role");
     assert.equal((await balance(productOneId)).on_hand,"16.000","later stock movement is not overwritten");
     assert.equal((await balance(productTwoId)).on_hand,"4.000","rollback validation is atomic across all command lines");
     assert.equal((await db.unsafe("select status from public.onyx_inventory_reconciliation_commands where id=$1",[finalCommand.command_id]))[0].status,"applied");
 
+    await db.unsafe("set role authenticated");
     const history = asJson((await db.unsafe("select public.list_onyx_inventory_reconciliation_commands($1::uuid) as payload",[snapshotId]))[0].payload);
     assert.ok(history.some((item) => item.command_id === command.command_id && item.status === "rolled_back"));
     assert.ok(history.some((item) => item.command_id === finalCommand.command_id && item.status === "applied"));
