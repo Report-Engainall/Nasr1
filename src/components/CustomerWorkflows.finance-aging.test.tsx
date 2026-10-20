@@ -77,6 +77,16 @@ describe("finance receivables aging UI", () => {
       if (name === "fetch_staff_finance_data") {
         return Promise.resolve({ data: { invoices: [], payments: [] }, error: null });
       }
+      if (name === "get_finance_document_print_options") {
+        return Promise.resolve({
+          data: {
+            organization_name: "مؤسسة المالية الاختبارية",
+            customers: [], customers_has_more: false, invoices: [], invoices_has_more: false,
+            credit_memos: [], credit_memos_has_more: false, limit: 500,
+          },
+          error: null,
+        });
+      }
       if (name === "fetch_staff_receivables_aging") {
         return Promise.resolve({ data: agingReport, error: null });
       }
@@ -94,6 +104,9 @@ describe("finance receivables aging UI", () => {
     render(<StaffFinancePage />);
 
     expect(await screen.findByText("INV-AGING-001")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" })).toBeInTheDocument();
+    expect(await screen.findByText("مؤسسة المالية الاختبارية")).toBeInTheDocument();
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("get_finance_document_print_options", { p_limit: 500 }));
     expect(screen.getByText("تاريخ استحقاق غير محدد")).toBeInTheDocument();
     expect(screen.getByText(/عرض .* من /)).toBeInTheDocument();
 

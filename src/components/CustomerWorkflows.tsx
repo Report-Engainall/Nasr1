@@ -38,6 +38,7 @@ import {
   type PaymentAmount,
 } from "@/lib/commerce-utils";
 import { fetchProducts, fetchResolvedProductPrices } from "@/lib/api";
+import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
 import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
@@ -2418,6 +2419,7 @@ export function StaffFinancePage() {
         <h1 style={{ fontSize: 24, margin: 0 }}>الفواتير والتحصيل</h1>
         <p style={quiet}>تسجيل دفعة فعلية من خلال أمر خادمي يتحقق من المتبقي داخل معاملة واحدة.</p>
       </header>
+      <FinanceDocumentPrintActions />
       {message && (
         <div role="status" style={card}>
           {message}
