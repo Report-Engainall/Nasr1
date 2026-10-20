@@ -1,9 +1,6 @@
 name: P2 Playwright Critical Paths
 
 on:
-  push:
-    branches:
-      - "feat/p2-customer-return-intake-20261020"
   pull_request:
     branches:
       - main
@@ -13,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: p2-playwright-critical-paths-${{ github.head_ref || github.ref_name }}
+  group: p2-playwright-critical-paths-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
