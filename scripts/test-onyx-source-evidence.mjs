@@ -209,7 +209,18 @@ async function main() {
     assert.equal(privileges[0].authenticated_execute, true, "authenticated staff must be able to call the server evidence RPC");
     assert.equal(privileges[0].anonymous_execute, false, "anonymous users must not be able to call the server evidence RPC");
 
+    const ownerRows = await db.unsafe(
+      "select count(*)::integer as count from public.onyx_snapshot_rows where snapshot_id=$1::uuid and organization_id=$2::uuid",
+      [matchedSnapshotId, organizationId],
+    );
+    assert.equal(ownerRows[0].count, 21, "CI fixture must persist all 21 source rows before calling the evidence RPC");
+
     await setIdentity(managerAuthId, "onyx-evidence-manager-" + suffix + "@example.test");
+    const visibleRows = await db.unsafe(
+      "select count(*)::integer as count from public.onyx_snapshot_rows where snapshot_id=$1::uuid and organization_id=$2::uuid",
+      [matchedSnapshotId, organizationId],
+    );
+    assert.equal(visibleRows[0].count, 21, "authorized staff RLS must expose same-tenant snapshot rows");
     const matched = await readEvidence(matchedSnapshotId);
     assert.deepEqual(matched.organization, { id: organizationId, name: orgName });
     assert.equal(matched.snapshot.id, matchedSnapshotId);
