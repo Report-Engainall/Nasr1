@@ -71,3 +71,11 @@ task التالي بعده مباشرة: NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETIO
 - Failures retained: Action 39326813015 (stale error-message expectations) and 39335294442 (inbox page-one assumption). Corrections target the tests/readback only; guards and permission checks were not weakened.
 - PR #6 is the delivery route; no direct write to main. Browser/live tenant/production proof: **NOT RUN**.
 - `next_task_id = NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-VISIBILITY-007`.
+
+## 2026-10-20 — تكليف إضافي ملزم (غير منفذ بالكامل)
+
+- أضيف التكليف P2_ADDITIONAL_ACCEPTANCE_MANDATE_2026-10-20.md: مراجعة مجلد NASR-MULTI-PROJECTS-TRANSFER/EXTRACTED_PROJECTS تكراريًا، وفحص مرشحي مصالحة Onyx ذات التطبيق المحكوم، واختبارات Playwright، وتصدير CSV/XLSX، وطابور offline الآمن، بالإضافة إلى معايير الهوية، الخصوصية السعرية، شبكة الأسعار الذرية، مخزون/طلبات idempotent، Onyx الموحد، import/DQS/formula-injection وAI Gateway/Usage Ledger.
+- هذا البند مضاف للتكليف فقط؛ لم تُدّعَ مراجعة كاملة لكل الملفات المستخرجة أو تنفيذ أي وظيفة جديدة بسبب هذا التوثيق.
+- P1 يواصل المستودعات الثلاثة وسجلاته دون تغيير. يمنع P2 تغيير تقارير/دفاتر P1 أو إعادة فتح ما حُسم ببصمة واختبار موثق.
+- يجب تصنيف كل بند حسب التطبيق الفعلي، وحفظ حدود IMPLEMENTED/INTEGRATED/TESTED_EXACT_SHA/BROWSER_PROVEN/PRODUCTION_PROVEN. لا تُعد ميزة موجودة بالفعل ولا تعتبر migration أو شاشة دليلًا كافيًا.
+- المهمة الحالية ورقم next_task_id لا يتغيران بسبب هذا الملحق وحده. عند الإقلاع التالي، تحقق من metadata الحي لأن بعض المراجع/الرؤوس السابقة قديمة أو غير متطابقة؛ ثم أكمل مؤشر P2 الواحد الموثق في التنسيق بعد مطابقة PR وCI.
