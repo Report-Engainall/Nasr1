@@ -200,7 +200,7 @@ async function main() {
       "insert into public.products(organization_id,name,item_code,unit) values($1,'direct write forbidden','CI-DIRECT-001','piece')",
       [org],
     ),
-    /permission denied/i,
+    /permission denied|row-level security policy/i,
     "direct product writes are denied",
   );
   await assert.rejects(

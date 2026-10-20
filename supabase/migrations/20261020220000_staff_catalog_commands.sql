@@ -481,6 +481,8 @@ GRANT EXECUTE ON FUNCTION public.archive_admin_catalog_category(uuid) TO authent
 -- Staff catalog mutations must run through the audited SECURITY DEFINER commands.
 -- Keep SELECT policies intact; remove browser-role table DML to prevent bypasses.
 REVOKE INSERT, UPDATE, DELETE ON TABLE public.categories FROM authenticated;
-REVOKE INSERT, UPDATE, DELETE ON TABLE public.products FROM authenticated;
+REVOKE UPDATE, DELETE ON TABLE public.products FROM authenticated;
+-- Preserve the existing RLS rejection contract while preventing every direct INSERT.
+CREATE POLICY staff_catalog_products_insert_rpc_only ON public.products AS RESTRICTIVE FOR INSERT TO authenticated WITH CHECK (false);
 REVOKE INSERT, UPDATE, DELETE ON TABLE public.product_prices FROM authenticated;
 REVOKE INSERT, UPDATE, DELETE ON TABLE public.audit_logs FROM authenticated;
