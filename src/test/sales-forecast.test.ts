@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSalesForecast } from '@/lib/sales-forecast';
+import { buildSalesForecast, calculateWhatIfSales } from '@/lib/sales-forecast';
 
 function makeSeries(count: number, sales = 100) {
   const start = Date.parse('2026-09-01T00:00:00.000Z');
@@ -76,5 +76,20 @@ describe('evidence-gated sales forecast', () => {
     const unsafeAmount = makeSeries(21);
     unsafeAmount[2] = { ...unsafeAmount[2], sales: Number.MAX_SAFE_INTEGER };
     expect(buildSalesForecast(unsafeAmount)).toMatchObject({ ready: false, reason: 'invalid_data' });
+  });
+
+  it('calculates user-supplied what-if changes transparently and rounds to cents', () => {
+    expect(calculateWhatIfSales(700, 10)).toBe(770);
+    expect(calculateWhatIfSales(700, -25)).toBe(525);
+    expect(calculateWhatIfSales(700, -100)).toBe(0);
+    expect(calculateWhatIfSales(700, 0)).toBe(700);
+  });
+
+  it('rejects invalid what-if assumptions and unsafe results', () => {
+    expect(calculateWhatIfSales(700, -100.01)).toBeNull();
+    expect(calculateWhatIfSales(700, 500.01)).toBeNull();
+    expect(calculateWhatIfSales(700, Number.NaN)).toBeNull();
+    expect(calculateWhatIfSales(-1, 10)).toBeNull();
+    expect(calculateWhatIfSales(Number.MAX_SAFE_INTEGER, 500)).toBeNull();
   });
 });
