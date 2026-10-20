@@ -48,9 +48,28 @@ describe("customer activation invitation migration security contract", () => {
       expect(block, `missing function body for ${functionName}`).toBeTruthy();
       expect(block).toMatch(/SECURITY DEFINER/i);
       expect(block).toMatch(/SET search_path = ''/i);
-      expect(block).toMatch(/REVOKE ALL ON FUNCTION public\./i);
-      expect(block).toMatch(/GRANT EXECUTE ON FUNCTION public\.[\s\S]*? TO authenticated;/i);
-      expect(block).not.toMatch(/GRANT EXECUTE ON FUNCTION public\.[\s\S]*? TO\s+(?:PUBLIC|anon)\b/i);
+    }
+  });
+
+  it("revokes public/anonymous execution and grants only authenticated execution for each activation RPC", () => {
+    const signatures: Record<(typeof activationFunctions)[number], string> = {
+      create_customer_activation_invitation: "uuid,text,integer",
+      list_customer_activation_invitations: "uuid",
+      revoke_customer_activation_invitation: "uuid",
+      accept_customer_activation_invitation: "text",
+    };
+
+    for (const functionName of activationFunctions) {
+      const signature = signatures[functionName];
+      expect(migration).toContain(
+        `REVOKE ALL ON FUNCTION public.${functionName}(${signature}) FROM PUBLIC,anon;`,
+      );
+      expect(migration).toContain(
+        `GRANT EXECUTE ON FUNCTION public.${functionName}(${signature}) TO authenticated;`,
+      );
+      expect(migration).not.toContain(
+        `GRANT EXECUTE ON FUNCTION public.${functionName}(${signature}) TO anon;`,
+      );
     }
   });
 
