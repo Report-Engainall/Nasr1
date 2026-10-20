@@ -20,7 +20,7 @@ export function validateCustomerPaymentInput(
   const paymentReference = requireText(reference, "مرجع العملية");
   const paymentNotes = requireText(notes, "ملاحظات الدفعة");
 
-  if (!/^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$/.test(amount)) {
+  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amount)) {
     throw new Error("أدخل مبلغًا موجبًا وبحد أقصى منزلتين عشريتين.");
   }
   const value = Number(amount);
