@@ -112,7 +112,7 @@ describe("finance document print contracts", () => {
     payload.truncated.invoices = true;
     const doc = document.implementation.createHTMLDocument("");
     renderStaffStatementDocument(doc, readStaffStatementPrintPayload(payload));
-    expect(doc.body.textContent).toContain("375.00");
+    expect(doc.body.textContent).toContain("٣٧٥٫٠٠");
     expect(doc.body.textContent).toContain("الإشعارات الدائنة المرحلة");
     expect(doc.body.textContent).toContain("أحدث 200");
   });
