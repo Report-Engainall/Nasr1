@@ -9,7 +9,14 @@ const HEADERS = ["section", "record_index", "field", "value", "canonical_key"] a
  */
 function csvCell(value: unknown): string {
   let text = value == null ? "" : String(value);
-  if (/^[\u0000-\u0020\u007f-\u009f]*[=+\-@]/.test(text)) {
+  let firstNonControl: string | undefined;
+  for (const character of text) {
+    const code = character.charCodeAt(0);
+    if (code <= 0x20 || (code >= 0x7f && code <= 0x9f)) continue;
+    firstNonControl = character;
+    break;
+  }
+  if (firstNonControl && "=+-@".includes(firstNonControl)) {
     text = "'" + text;
   }
   return '"' + text.replace(/"/g, '""') + '"';
