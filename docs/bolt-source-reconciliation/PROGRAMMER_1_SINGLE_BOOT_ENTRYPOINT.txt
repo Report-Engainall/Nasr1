@@ -17,7 +17,7 @@ BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 4. donor migration 0004_import_storage.sql بقي مرجعًا ولم يُطبّق خامًا.
 
 المهمة التالية المسجلة:
-NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-003-AGHBCOM-CUSTOMER-LIFECYCLE-0003
+NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001-ACTIVATION
 ابدأ من رأس PR #18 وسجل الحالة الحي. هذه مهمة مشتركة/مملوكة جزئيًا لـP2: لا تعدّل src/lib/api.ts أو src/components/AghbariApp.tsx أو src/routeTree.gen.ts أو package.json أو scripts/test-database-migrations.mjs أو Onyx/returns files دون تنسيق. إن كانت محجوبة، انتقل إلى مهمة مستقلة غير متداخلة بدل إعادة فحص الأرشيفات.
 
 قيود:
