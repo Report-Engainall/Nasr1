@@ -175,13 +175,26 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
     let printWindow: Window | null = null;
     setBusyId(memo.id);
     try {
+      // Open the print window synchronously inside the click gesture; opening it after the RPC
+      // awaits can be blocked by browsers even when the caller is authorized.
+      const openedWindow = window.open("", "_blank", "width=1000,height=760");
+      if (!openedWindow) throw new Error("حُظر فتح نافذة الطباعة؛ اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة.");
+      printWindow = openedWindow;
+      openedWindow.opener = null;
+      const pendingDoc = openedWindow.document;
+      pendingDoc.title = "جارٍ تجهيز إشعار دائن";
+      pendingDoc.documentElement.lang = "ar";
+      pendingDoc.documentElement.dir = "rtl";
+      pendingDoc.body.replaceChildren();
+      const pendingMessage = pendingDoc.createElement("p");
+      pendingMessage.dir = "rtl";
+      pendingMessage.textContent = "جارٍ التحقق من صلاحية المحاسبة وتحميل المستند المعتمد…";
+      pendingDoc.body.appendChild(pendingMessage);
+
       const { data, error: rpcError } = await supabase.rpc("get_customer_return_credit_memo_pdf", { p_credit_memo_id: memo.id });
       if (rpcError) throw new Error(rpcError.message || "تعذر تحميل بيانات الطباعة؛ يلزم دور المحاسبة.");
       const payload = readPrintableReturnCreditMemo(data);
-      printWindow = window.open("", "_blank", "width=1000,height=760");
-      if (!printWindow) throw new Error("حُظر فتح نافذة الطباعة؛ اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة.");
-      printWindow.opener = null;
-      const doc = printWindow.document;
+      const doc = openedWindow.document;
       doc.title = payload.memo.memo_number;
       doc.documentElement.lang = "ar";
       doc.documentElement.dir = "rtl";
@@ -251,7 +264,7 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
         ?"هذه مسودة غير مُرحّلة ولا تغير ذمم العميل أو السجلات المحاسبية. لا يُعد هذا المستند إثبات استرداد نقدي."
         :"تم ترحيل الإشعار والقيد المزدوج المرتبط به. هذا المستند لا يمثل إثبات استرداد نقدي.";
       main.appendChild(footer);doc.body.appendChild(main);
-      printWindow.focus();printWindow.onafterprint=()=>printWindow?.close();window.setTimeout(()=>printWindow?.print(),200);
+      openedWindow.focus();openedWindow.onafterprint=()=>openedWindow.close();window.setTimeout(()=>openedWindow.print(),200);
       onNotice("تم تجهيز نسخة الطباعة من المصدر المحاسبي بعد تحقق صلاحية المحاسبة.");
     } catch(cause) {
       printWindow?.close();
