@@ -4,6 +4,7 @@ import {
   cancelImportUploadSession, createImportJob, createImportUploadSession, fetchCentralSynonyms, fetchImportJobs, fetchImportProfiles,
   fetchImportUploadChunks, findImportDuplicate, finalizeImportJob, insertImportRows, recordImportUploadChunk, updateImportJob,
 } from "@/lib/api";
+import { completeImportRequestKey, getOrCreateImportRequestKey } from "@/lib/import-request-key";
 import { useFetch } from "@/lib/useFetch";
 import { formatNumber } from "@/lib/format";
 import { AdminPage, Button, Empty, ErrorBox, Loading, TableWrap } from "@/components/AdminPages";
@@ -114,6 +115,16 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
 
     try {
       if (!job) {
+        const requestAttempt = await getOrCreateImportRequestKey({
+          fileName: file.name,
+          fileHash,
+          fileSize: file.size,
+          jobType: "unified_import",
+          profileId: selectedProfile,
+          periodKey: selectedPeriod,
+          sourceSystem: "manual",
+          intent: action,
+        });
         job = await createImportJob({
           fileName: file.name,
           fileHash,
@@ -122,9 +133,10 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           profileId: selectedProfile,
           periodKey: selectedPeriod,
           sourceSystem: "manual",
-          requestKey: crypto.randomUUID(),
+          requestKey: requestAttempt.requestKey,
           intent: action,
         });
+        completeImportRequestKey(requestAttempt.storageKey);
       }
       if (selectedProfile && job.profile_id && selectedProfile !== job.profile_id) {
         throw new Error("الملف التعريفي المختار لا يطابق الملف التعريفي المقيد بدفعة الاستيراد.");
