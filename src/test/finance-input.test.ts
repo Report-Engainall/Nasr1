@@ -21,4 +21,13 @@ describe("customer payment form boundary", () => {
   it("rejects amounts beyond safe minor-unit precision", () => {
     expect(() => validateCustomerPaymentInput("90071992547410.00", "cash", "", "")).toThrow();
   });
+
+  it("rejects non-string runtime arguments before using string methods", () => {
+    expect(() => validateCustomerPaymentInput(123 as unknown as string, "cash", "", "")).toThrow("مبلغ الدفعة يجب أن يكون نصًا صالحًا");
+    expect(() => validateCustomerPaymentInput("1", 123 as unknown as string, "", "")).toThrow("طريقة الدفع يجب أن يكون نصًا صالحًا");
+    expect(() => validateCustomerPaymentInput("1", "cash", 123 as unknown as string, "")).toThrow("مرجع العملية يجب أن يكون نصًا صالحًا");
+    expect(() => validateCustomerPaymentInput("1", "cash", "", 123 as unknown as string)).toThrow("ملاحظات الدفعة يجب أن يكون نصًا صالحًا");
+    expect(() => validateCustomerPaymentInput("1", "cash", null as unknown as string, "")).toThrow("مرجع العملية يجب أن يكون نصًا صالحًا");
+  });
+
 });

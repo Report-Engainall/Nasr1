@@ -576,3 +576,13 @@
 - The first execution SHA `191290f8aaebf60715d1bb42c8b9eda394145b0a` was run as Action 39321342608 — SUCCESS. A test-selector refinement was added at `cfc374eb00c481657ab959df8a3a1097d9036caf`, Action 39321447496 — SUCCESS. The lock-order hardening was added at final tested SHA `df43fb05e9e8a31a8b45e40d38a94f85ff12691b`, Action 39321543032 — SUCCESS. No prior failure is erased; financial-statement assertion failures on earlier SHAs are separately documented above.
 - Important test boundary: new UI path has Vitest coverage; migration applies and overall Postgres 17 acceptance passed. A dedicated database workflow test of the new create/post/reversal triggers has NOT RUN because `scripts/test-database-migrations.mjs` is protected and currently owned by P1's PR #3. Record a coordination request before touching it; do not imply it was covered by generic migration acceptance.
 - Browser, production migration/deployment and real authenticated finance-account proof: NOT RUN. Main remains unchanged. Next ID `NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006`.
+
+
+## 2026-10-20 — P2 task 006: invoice/payment source posting and reversal acceptance
+
+- Exact forward-integrated code SHA `dec9026ef5c1f2c894774f8b68933df5e2dfe01b` passed [Action 39336158916](https://github.com/Report-Engainall/Nasr1/actions/runs/39336158916): unit tests, PostgreSQL 17 migrations/acceptance, lint/build, preview 4173 and dev 5173 smoke.
+- Pre-forward feature SHA `f7526eeb075ba95fe8cd1455d25b48d76b3cafe7` passed Action 39335571027; that action did not include latest-main forward integration.
+- Retained failure: Action 39335294442 / SHA `fc62a8bb0f38e0eb6ec97c3ae878fec69635f17b`, acceptance readback expected `posted` but got `undefined` because it assumed the source was on the first 50-row page. Fixed using bounded pagination for invoice and payment inbox readback.
+- Changed code: accounting migration, new source-linker component, General Ledger registration, component tests and PostgreSQL acceptance. No donor or P1-owned ledger/report modified.
+- Production migration, live tenant and browser/manual E2E: **NOT RUN**.
+- Next: `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-VISIBILITY-007`.

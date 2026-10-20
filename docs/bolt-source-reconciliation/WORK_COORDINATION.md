@@ -47,7 +47,7 @@
 | Next P2 task | NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004 | Must be explicit, source amount derived, idempotent, tenant-scoped and audited; no unconfigured currency conversion |
 
 ### P2 file ownership / lock
-P2 owns WORK_COORDINATION.md, CURRENT_EXECUTION_STATE.md, EXECUTION_LOG.md, ARCHIVE_MANIFEST.csv, ARCHIVE_MEMBERS.csv, ARCHIVE_FEATURE_INTEGRATION_2026-10-19.md and PROGRAMMER_2_CURRENT_REPORT.md. P1/shared paths remain locked: src/lib/api.ts, src/components/AghbariApp.tsx, src/routeTree.gen.ts, .github/workflows/commerce-checks.yml, scripts/test-database-migrations.mjs, SOURCE_INTEGRATION_LEDGER.csv, READY_TO_REUSE_FILE_AUDIT.csv and P1 report. P2 can use a new migration and P2-owned component/helper/test files. If a locked path becomes necessary, record the request here and wait until its owner releases the lock.
+P2 owns WORK_COORDINATION.md, CURRENT_EXECUTION_STATE.md, EXECUTION_LOG.md, ARCHIVE_MANIFEST.csv, ARCHIVE_MEMBERS.csv, ARCHIVE_FEATURE_INTEGRATION_2026-10-19.md and PROGRAMMER_2_CURRENT_REPORT.md. P1/shared paths remain locked: src/lib/api.ts, src/components/AghbariApp.tsx, src/routeTree.gen.ts, .github/workflows/commerce-checks.yml, SOURCE_INTEGRATION_LEDGER.csv, READY_TO_REUSE_FILE_AUDIT.csv and P1 report. Historical mentions of the migration harness as P1-locked are superseded for PR #6: the latest P1 report says PR #3 is merged and P2 owns scripts/test-database-migrations.mjs for this source-posting batch.
 
 
 ## P2 live coordination update — cash-expense posting, 2026-10-19
@@ -56,6 +56,18 @@ P2 owns WORK_COORDINATION.md, CURRENT_EXECUTION_STATE.md, EXECUTION_LOG.md, ARCH
 |---|---|---|
 | Exact code SHA | `df43fb05e9e8a31a8b45e40d38a94f85ff12691b`; [Actions 39321543032 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39321543032) | P2 branch / PR #4 |
 | CI summary | 45/45 test files, 339/339 tests; PostgreSQL 17 migrations/repo acceptance; lint/build/preview/dev smoke | Code+CI proved; dedicated source-posting SQL flow coverage remains NOT RUN |
-| Protected DB harness | `scripts/test-database-migrations.mjs` is changed in open P1 PR #3 | P2 requests one coordinated patch to add create/post/replay/source-void/reversal/cross-tenant cases; P2 does NOT edit this path |
-| P1 paths and ledgers | `src/lib/api.ts`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, workflow, DB harness, `SOURCE_INTEGRATION_LEDGER.csv`, `READY_TO_REUSE_FILE_AUDIT.csv`, P1 report | Locked to P1 until explicit release |
+| Protected DB harness | P1 PR #3 is merged; the latest P1 report confirms P2 owns `scripts/test-database-migrations.mjs` for PR #6 | Released to P2 for PR #6; keep existing acceptance coverage and append focused source-posting cases |
+| P1 paths and ledgers | `src/lib/api.ts`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, workflow, `SOURCE_INTEGRATION_LEDGER.csv`, `READY_TO_REUSE_FILE_AUDIT.csv`, P1 report | Locked to P1; harness is excluded for PR #6 following P1's explicit ownership statement |
 | Next P2 task | `NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006` | Extend target-native mapping to customer invoices/payments; no double count or guessed VAT/FX |
+
+
+## P2 live update — source-linked invoice/payment accounting, 2026-10-20
+
+| Item | Current evidence | Status |
+|---|---|---|
+| Main forward integration | main `f7cffd41cd63e16c6020fe379edf27416c5e0ce8` is the second parent of merge commit `dec9026ef5c1f2c894774f8b68933df5e2dfe01b` | Preserved both lines of history; no force push |
+| Exact-head CI | [Action 39336158916](https://github.com/Report-Engainall/Nasr1/actions/runs/39336158916), SHA `dec9026ef5c1f2c894774f8b68933df5e2dfe01b` | PASS: unit, PostgreSQL 17 acceptance, lint, build, preview/dev smoke |
+| PR | https://github.com/Report-Engainall/Nasr1/pull/6 | Open; new documentation head must also pass before merge |
+| Harness ownership | P1 PR #3 merged; latest P1 report confirms P2 ownership in PR #6 | P2-owned for this task; P1 ledgers/report untouched |
+| Live tenant/browser/production | No authenticated live-tenant or production mutation was run | NOT RUN |
+| Next P2 task | `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-VISIBILITY-007` | Inspect current price privacy, connect admin display controls to routed customer screens and test the server boundary |

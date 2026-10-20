@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { classifyOutboxProcessResult, sanitizeOutboxErrorMessage } from "./logic.ts";
+import { classifyOutboxProcessResult, outboxFailureMessage } from "./logic.ts";
 
 type WorkerRuntime = {
   env: { get(name: string): string | undefined };
@@ -110,9 +110,7 @@ if (runtime) {
         p_event_id: event.id,
         p_worker: workerId,
         p_error_class: error?.code ?? "unexpected_process_result",
-        p_error_message: error
-          ? safeErrorMessage(error.message)
-          : "process_outbox_event returned no recognized status",
+        p_error_message: outboxFailureMessage(error),
       });
       if (failureError) {
         failures++;

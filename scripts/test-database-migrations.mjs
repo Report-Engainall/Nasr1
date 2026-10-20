@@ -3199,6 +3199,393 @@ async function main() {
   await db.unsafe("reset role");
   process.stdout.write("PASS general ledger: chart idempotency, exact two-decimal amounts, balanced draft/post, replay safety, audited draft cancellation, trial balance and tenant/role isolation\\n");
 
+  // NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006:
+  // Verify source-driven journals, replay safety, balanced-line/source guards, tenant role boundaries and recorded tax.
+  await db.unsafe("reset role");
+  const invoiceSourceRows = await db.unsafe(
+    "select id,organization_id,customer_id,status,currency,subtotal::text,tax_amount::text,total_amount::text,issued_at::date::text as source_date from public.customer_invoices where id=$1::uuid",
+    [invoice.id],
+  );
+  assert.equal(invoiceSourceRows.length, 1, "confirmed-order invoice is a persisted source");
+  const invoiceSource = invoiceSourceRows[0];
+  assert.equal(invoiceSource.currency, "YER");
+  assert.equal(Number(invoiceSource.subtotal) + Number(invoiceSource.tax_amount), Number(invoiceSource.total_amount));
+  const paymentSourceRows = await db.unsafe(
+    "select id,amount::text,reference from public.customer_payments where invoice_id=$1::uuid and reference='CI-PAY-001'",
+    [invoice.id],
+  );
+  assert.equal(paymentSourceRows.length, 1, "use the persisted partial-payment source, not a client-supplied amount");
+  const paymentSource = paymentSourceRows[0];
+
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const altRevenueResult = (await db.unsafe(
+    "select public.create_accounting_account($1,$2,$3,null,$4) as result",
+    ["CI-GL-4001", "CI alternate invoice revenue", "revenue", "CI acceptance fixture only"],
+  ))[0].result;
+  const altSettlementResult = (await db.unsafe(
+    "select public.create_accounting_account($1,$2,$3,null,$4) as result",
+    ["CI-GL-1001", "CI alternative settlement asset", "asset", "CI acceptance fixture only"],
+  ))[0].result;
+  const taxLiabilityResult = (await db.unsafe(
+    "select public.create_accounting_account($1,$2,$3,null,$4) as result",
+    ["CI-GL-2200", "CI invoice tax payable", "liability", "CI acceptance fixture only"],
+  ))[0].result;
+  const altRevenueAccountId = altRevenueResult.id;
+  const altSettlementAccountId = altSettlementResult.id;
+  const taxLiabilityAccountId = taxLiabilityResult.id;
+
+  await expectFailure(
+    "customer payment source cannot be journaled before the invoice journal is posted",
+    () => db.unsafe(
+      "select public.create_customer_payment_journal_draft($1::uuid,$2::uuid,$3::uuid)",
+      [paymentSource.id, altSettlementAccountId, "dddddddd-dddd-4ddd-8ddd-ddddddddddd1"],
+    ),
+    /customer invoice must have a posted journal before allocating a payment/i,
+  );
+
+  const invoiceJournalKey = "abababab-abab-4bab-8bab-abababababd0";
+  const invoiceDraft = (await db.unsafe(
+    "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
+    [invoice.id, debitAccountId, creditAccountId, null, invoiceJournalKey],
+  ))[0].result;
+  assert.equal(invoiceDraft.status, "draft");
+  assert.equal(invoiceDraft.replayed, false);
+  assert.equal(invoiceDraft.source_id, invoice.id);
+  assert.equal(Number(invoiceDraft.amount), Number(invoiceSource.total_amount));
+  const invoiceJournalId = invoiceDraft.journal_entry_id;
+  const invoiceReplay = (await db.unsafe(
+    "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
+    [invoice.id, debitAccountId, creditAccountId, null, "abababab-abab-4bab-8bab-abababababd1"],
+  ))[0].result;
+  assert.equal(invoiceReplay.journal_entry_id, invoiceJournalId);
+  assert.equal(invoiceReplay.replayed, true, "repeating a source with the same mapping must not duplicate the journal");
+  await expectFailure(
+    "invoice source cannot be silently remapped while its journal draft is active",
+    () => db.unsafe(
+      "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid)",
+      [invoice.id, debitAccountId, altRevenueAccountId, null, "abababab-abab-4bab-8bab-abababababd2"],
+    ),
+    /invoice already has an active journal with different mapping or source values/i,
+  );
+  const invoicePostingRows = await db.unsafe(
+    "select id,source_type,source_id,source_amount::text,source_currency from public.accounting_customer_source_postings where organization_id=$1 and source_type='customer_invoice' and source_id=$2::uuid",
+    [organizationId, invoice.id],
+  );
+  assert.equal(invoicePostingRows.length, 1);
+  assert.equal(invoicePostingRows[0].source_type, "customer_invoice");
+  assert.equal(Number(invoicePostingRows[0].source_amount), Number(invoiceSource.total_amount));
+  await expectFailure(
+    "authenticated finance roles cannot directly mutate immutable source-posting links",
+    () => db.unsafe("update public.accounting_customer_source_postings set payload_fingerprint=repeat('0',32) where journal_entry_id=$1::uuid", [invoiceJournalId]),
+    /permission denied/i,
+  );
+  const invoiceInbox = (await db.unsafe("select public.fetch_customer_invoice_accounting_inbox(50,0,'draft') as result"))[0].result;
+  assert.ok(invoiceInbox.items.some((item) => item.id === invoice.id && item.journal_status === "draft"));
+
+  await db.unsafe("reset role");
+  await expectFailure(
+    "invoice amount cannot change while an accounting draft is linked",
+    () => db.unsafe("update public.customer_invoices set total_amount=total_amount+1 where id=$1::uuid", [invoice.id]),
+    /invoice has accounting history; source amounts and identity cannot be changed/i,
+  );
+  await expectFailure(
+    "invoice cannot be voided while an accounting draft is linked",
+    () => db.unsafe("update public.customer_invoices set status='void' where id=$1::uuid", [invoice.id]),
+    /invoice has a draft accounting journal; cancel the draft before voiding the invoice/i,
+  );
+  await db.unsafe(
+    "update public.accounting_journal_lines set debit=debit+1 where organization_id=$1 and journal_entry_id=$2::uuid and line_number=1",
+    [organizationId, invoiceJournalId],
+  );
+  await db.unsafe(
+    "update public.accounting_journal_lines set credit=credit+1 where organization_id=$1 and journal_entry_id=$2::uuid and line_number=2",
+    [organizationId, invoiceJournalId],
+  );
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "invoice journal post rejects balanced lines that no longer match the source",
+    () => db.unsafe("select public.post_general_journal_entry($1::uuid)", [invoiceJournalId]),
+    /invoice journal lines no longer match source totals and account mapping/i,
+  );
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "update public.accounting_journal_lines set debit=debit-1 where organization_id=$1 and journal_entry_id=$2::uuid and line_number=1",
+    [organizationId, invoiceJournalId],
+  );
+  await db.unsafe(
+    "update public.accounting_journal_lines set credit=credit-1 where organization_id=$1 and journal_entry_id=$2::uuid and line_number=2",
+    [organizationId, invoiceJournalId],
+  );
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const invoicePosted = (await db.unsafe("select public.post_general_journal_entry($1::uuid) as result", [invoiceJournalId]))[0].result;
+  assert.equal(invoicePosted.status, "posted");
+  const postedInvoiceLines = await db.unsafe(
+    "select account_id,debit::text,credit::text,line_number from public.accounting_journal_lines where journal_entry_id=$1::uuid order by line_number",
+    [invoiceJournalId],
+  );
+  assert.equal(postedInvoiceLines.length, 2);
+  assert.equal(postedInvoiceLines[0].account_id, debitAccountId);
+  assert.equal(Number(postedInvoiceLines[0].debit), Number(invoiceSource.total_amount));
+  assert.equal(postedInvoiceLines[1].account_id, creditAccountId);
+  assert.equal(Number(postedInvoiceLines[1].credit), Number(invoiceSource.subtotal));
+
+  await db.unsafe("reset role");
+  await expectFailure(
+    "posted invoice source cannot be voided without an approved reversal",
+    () => db.unsafe("update public.customer_invoices set status='void' where id=$1::uuid", [invoice.id]),
+    /invoice has a posted accounting journal; post its approved reversal before voiding the invoice/i,
+  );
+
+  const paymentJournalKey = "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdc1";
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const paymentDraft = (await db.unsafe(
+    "select public.create_customer_payment_journal_draft($1::uuid,$2::uuid,$3::uuid) as result",
+    [paymentSource.id, altSettlementAccountId, paymentJournalKey],
+  ))[0].result;
+  assert.equal(paymentDraft.status, "draft");
+  assert.equal(Number(paymentDraft.amount), Number(paymentSource.amount));
+  const paymentJournalId = paymentDraft.journal_entry_id;
+  const paymentReplay = (await db.unsafe(
+    "select public.create_customer_payment_journal_draft($1::uuid,$2::uuid,$3::uuid) as result",
+    [paymentSource.id, altSettlementAccountId, "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdc2"],
+  ))[0].result;
+  assert.equal(paymentReplay.journal_entry_id, paymentJournalId);
+  assert.equal(paymentReplay.replayed, true);
+  await expectFailure(
+    "payment source cannot be remapped to a different settlement account after draft creation",
+    () => db.unsafe(
+      "select public.create_customer_payment_journal_draft($1::uuid,$2::uuid,$3::uuid)",
+      [paymentSource.id, debitAccountId, "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdc3"],
+    ),
+    /payment already has an active journal with a different mapping or source values/i,
+  );
+  await db.unsafe("reset role");
+  await expectFailure(
+    "payment amount cannot change while an accounting draft is linked",
+    () => db.unsafe("update public.customer_payments set amount=amount+1 where id=$1::uuid", [paymentSource.id]),
+    /payment is linked to an active accounting journal/i,
+  );
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const paymentPosted = (await db.unsafe("select public.post_general_journal_entry($1::uuid) as result", [paymentJournalId]))[0].result;
+  assert.equal(paymentPosted.status, "posted");
+  const paymentPostedLines = await db.unsafe(
+    "select account_id,debit::text,credit::text from public.accounting_journal_lines where journal_entry_id=$1::uuid order by line_number",
+    [paymentJournalId],
+  );
+  assert.equal(paymentPostedLines.length, 2);
+  assert.equal(paymentPostedLines[0].account_id, altSettlementAccountId);
+  assert.equal(Number(paymentPostedLines[0].debit), Number(paymentSource.amount));
+  assert.equal(paymentPostedLines[1].account_id, debitAccountId, "payment uses the same AR account as the posted invoice");
+  assert.equal(Number(paymentPostedLines[1].credit), Number(paymentSource.amount));
+  await expectFailure(
+    "authenticated finance users cannot directly delete a payment after posting",
+    () => db.unsafe("delete from public.customer_payments where id=$1::uuid", [paymentSource.id]),
+    /permission denied/i,
+  );
+  await db.unsafe("reset role");
+  await expectFailure(
+    "payment with accounting history cannot be deleted through a privileged maintenance path",
+    () => db.unsafe("delete from public.customer_payments where id=$1::uuid", [paymentSource.id]),
+    /payment has accounting history/i,
+  );
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const paymentInbox = (await db.unsafe("select public.fetch_customer_payment_accounting_inbox(50,0,'posted') as result"))[0].result;
+  assert.ok(paymentInbox.items.some((item) => item.id === paymentSource.id && item.journal_status === "posted"));
+
+  // Reversal acceptance: manager-only, reason-required, idempotent, exact mirror and source-void safety.
+  await db.unsafe("reset role");
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "accountant cannot create a customer-source reversal without manager authority",
+    () => db.unsafe("select public.create_customer_source_reversal_draft($1::text,$2::uuid,$3::text,$4::uuid)",
+      ["customer_invoice", invoice.id, "Valid reason from accountant", "f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f101"]),
+    /administrator or manager permission required/i,
+  );
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "source reversal rejects an empty or too-short reason",
+    () => db.unsafe("select public.create_customer_source_reversal_draft($1::text,$2::uuid,$3::text,$4::uuid)",
+      ["customer_invoice", invoice.id, "bad", "f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f102"]),
+    /reason between 5 and 500 characters are required/i,
+  );
+  const invoiceReversal = (await db.unsafe(
+    "select public.create_customer_source_reversal_draft($1::text,$2::uuid,$3::text,$4::uuid) as result",
+    ["customer_invoice", invoice.id, "CI-approved invoice accounting reversal", "f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f103"],
+  ))[0].result;
+  assert.equal(invoiceReversal.status, "draft");
+  assert.equal(invoiceReversal.replayed, false);
+  const invoiceReversalReplay = (await db.unsafe(
+    "select public.create_customer_source_reversal_draft($1::text,$2::uuid,$3::text,$4::uuid) as result",
+    ["customer_invoice", invoice.id, "CI-approved invoice accounting reversal", "f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f203"],
+  ))[0].result;
+  assert.equal(invoiceReversalReplay.journal_entry_id, invoiceReversal.journal_entry_id);
+  assert.equal(invoiceReversalReplay.replayed, true, "same reversal reason and source snapshot must replay without another journal");
+  const invoiceReversalPosted = (await db.unsafe(
+    "select public.post_general_journal_entry($1::uuid) as result", [invoiceReversal.journal_entry_id],
+  ))[0].result;
+  assert.equal(invoiceReversalPosted.status, "posted");
+  async function assertExactMirror(originalId, reversalId, label) {
+    const originalLines = await db.unsafe(
+      "select line_number,account_id,debit::text,credit::text from public.accounting_journal_lines where organization_id=$1 and journal_entry_id=$2::uuid order by line_number",
+      [organizationId, originalId],
+    );
+    const reversedLines = await db.unsafe(
+      "select line_number,account_id,debit::text,credit::text from public.accounting_journal_lines where organization_id=$1 and journal_entry_id=$2::uuid order by line_number",
+      [organizationId, reversalId],
+    );
+    assert.ok(originalLines.length >= 2, label + ": original journal must have lines");
+    assert.equal(reversedLines.length, originalLines.length, label + ": reversal must preserve every original line");
+    for (let index = 0; index < originalLines.length; index += 1) {
+      assert.equal(reversedLines[index].line_number, originalLines[index].line_number, label + ": line numbers must match");
+      assert.equal(reversedLines[index].account_id, originalLines[index].account_id, label + ": reversal cannot remap accounts");
+      assert.equal(Number(reversedLines[index].debit), Number(originalLines[index].credit), label + ": debit must mirror original credit");
+      assert.equal(Number(reversedLines[index].credit), Number(originalLines[index].debit), label + ": credit must mirror original debit");
+    }
+  }
+  await assertExactMirror(invoiceJournalId, invoiceReversal.journal_entry_id, "invoice reversal");
+  await db.unsafe("reset role");
+  await expectFailure(
+    "invoice cannot be voided while a posted customer payment has not been reversed",
+    () => db.unsafe("update public.customer_invoices set status='void' where id=$1::uuid", [invoice.id]),
+    /invoice has posted customer payments; post each payment reversal before voiding the invoice/i,
+  );
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const paymentReversal = (await db.unsafe(
+    "select public.create_customer_source_reversal_draft($1::text,$2::uuid,$3::text,$4::uuid) as result",
+    ["customer_payment", paymentSource.id, "CI-approved payment accounting reversal", "f3f3f3f3-f3f3-43f3-83f3-f3f3f3f3f303"],
+  ))[0].result;
+  assert.equal(paymentReversal.status, "draft");
+  assert.equal(Number(paymentReversal.amount), Number(paymentSource.amount));
+  const paymentReversalReplay = (await db.unsafe(
+    "select public.create_customer_source_reversal_draft($1::text,$2::uuid,$3::text,$4::uuid) as result",
+    ["customer_payment", paymentSource.id, "CI-approved payment accounting reversal", "f4f4f4f4-f4f4-44f4-84f4-f4f4f4f4f404"],
+  ))[0].result;
+  assert.equal(paymentReversalReplay.journal_entry_id, paymentReversal.journal_entry_id);
+  assert.equal(paymentReversalReplay.replayed, true);
+  const paymentReversalPosted = (await db.unsafe(
+    "select public.post_general_journal_entry($1::uuid) as result", [paymentReversal.journal_entry_id],
+  ))[0].result;
+  assert.equal(paymentReversalPosted.status, "posted");
+  await assertExactMirror(paymentJournalId, paymentReversal.journal_entry_id, "payment reversal");
+  await db.unsafe("reset role");
+  await db.unsafe("update public.customer_invoices set status='void' where id=$1::uuid", [invoice.id]);
+  const invoiceGuardResult = await db.unsafe("select status from public.customer_invoices where id=$1::uuid", [invoice.id]);
+  assert.equal(invoiceGuardResult[0].status, "void", "void is allowed only after all posted invoice and payment source journals are reversed");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  async function findSourceInAccountingInbox(functionName, sourceId) {
+    let offset = 0;
+    for (let pageNumber = 0; pageNumber < 100; pageNumber += 1) {
+      const pageResult = (await db.unsafe(
+        `select public.${functionName}($1::integer,$2::integer,$3::text) as result`,
+        [100, offset, "all"],
+      ))[0].result;
+      const found = pageResult.items.find((item) => item.id === sourceId);
+      if (found) return found;
+      if (!pageResult.has_more) break;
+      offset += pageResult.limit;
+    }
+    return null;
+  }
+  const reversedInvoiceRow = await findSourceInAccountingInbox("fetch_customer_invoice_accounting_inbox", invoice.id);
+  assert.ok(reversedInvoiceRow, "reversed invoice remains discoverable across accounting inbox pages");
+  assert.equal(reversedInvoiceRow.journal_reversal_status, "posted");
+  assert.equal(reversedInvoiceRow.journal_reversal_entry_id, invoiceReversal.journal_entry_id);
+  const reversedPaymentRow = await findSourceInAccountingInbox("fetch_customer_payment_accounting_inbox", paymentSource.id);
+  assert.ok(reversedPaymentRow, "reversed payment remains discoverable across accounting inbox pages");
+  assert.equal(reversedPaymentRow.journal_reversal_status, "posted");
+  assert.equal(reversedPaymentRow.journal_reversal_entry_id, paymentReversal.journal_entry_id);
+
+  // Tax fixture: a real persisted invoice source with a reconciled subtotal + recorded tax + total.
+  await db.unsafe("reset role");
+  const taxOrderId = (await db.unsafe(
+    "insert into public.orders(organization_id,customer_id,order_number,status,total_amount,total_items,notes,created_by) values($1,$2,$3,'draft',115.00,1,'CI source-posting tax fixture',$4) returning id",
+    [organizationId, customerOneId, "CI-SOURCE-TAX-ORDER", profileId],
+  ))[0].id;
+  const taxInvoiceId = (await db.unsafe(
+    "insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,issued_at,due_at,currency,subtotal,tax_amount,total_amount) values($1,$2,$3,$4,'issued',statement_timestamp(),statement_timestamp()+interval '30 days','YER',100.00,15.00,115.00) returning id",
+    [organizationId, customerOneId, taxOrderId, "CI-SOURCE-TAX-INVOICE"],
+  ))[0].id;
+  await db.unsafe(
+    "insert into public.customer_invoice_items(organization_id,invoice_id,product_id,item_code,description,unit,quantity,unit_price,line_total) values($1,$2,$3,'CI-TAX-LINE','CI source tax invoice line','unit',1,100.00,100.00)",
+    [organizationId, taxInvoiceId, productId],
+  );
+  await db.unsafe("update public.customer_invoices set currency='USD' where id=$1::uuid", [taxInvoiceId]);
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "foreign-currency invoice is not converted without an explicit FX policy",
+    () => db.unsafe(
+      "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid)",
+      [taxInvoiceId, debitAccountId, creditAccountId, taxLiabilityAccountId, "efefefef-efef-4fef-8fef-efefefefefe1"],
+    ),
+    /only active YER invoices can be journaled until a documented FX policy exists/i,
+  );
+  await db.unsafe("reset role");
+  await db.unsafe("update public.customer_invoices set currency='YER' where id=$1::uuid", [taxInvoiceId]);
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const taxDraft = (await db.unsafe(
+    "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
+    [taxInvoiceId, debitAccountId, creditAccountId, taxLiabilityAccountId, "efefefef-efef-4fef-8fef-efefefefefe2"],
+  ))[0].result;
+  const taxJournalId = taxDraft.journal_entry_id;
+  const taxDraftLines = await db.unsafe(
+    "select line_number,account_id,debit::text,credit::text from public.accounting_journal_lines where journal_entry_id=$1::uuid order by line_number",
+    [taxJournalId],
+  );
+  assert.equal(taxDraftLines.length, 3);
+  assert.equal(taxDraftLines[0].account_id, debitAccountId);
+  assert.equal(Number(taxDraftLines[0].debit), 115);
+  assert.equal(taxDraftLines[1].account_id, creditAccountId);
+  assert.equal(Number(taxDraftLines[1].credit), 100);
+  assert.equal(taxDraftLines[2].account_id, taxLiabilityAccountId);
+  assert.equal(Number(taxDraftLines[2].credit), 15);
+  const taxPosted = (await db.unsafe("select public.post_general_journal_entry($1::uuid) as result", [taxJournalId]))[0].result;
+  assert.equal(taxPosted.status, "posted");
+  await expectFailure(
+    "authenticated finance users cannot directly delete an invoice",
+    () => db.unsafe("delete from public.customer_invoices where id=$1::uuid", [taxInvoiceId]),
+    /permission denied/i,
+  );
+  await db.unsafe("reset role");
+  await expectFailure(
+    "an invoice with accounting history cannot be deleted through a privileged maintenance path",
+    () => db.unsafe("delete from public.customer_invoices where id=$1::uuid", [taxInvoiceId]),
+    /invoice has accounting history/i,
+  );
+
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customer cannot enumerate customer-invoice accounting sources",
+    () => db.unsafe("select public.fetch_customer_invoice_accounting_inbox(50,0,'all')"),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "customer cannot enumerate customer-payment accounting sources",
+    () => db.unsafe("select public.fetch_customer_payment_accounting_inbox(50,0,'all')"),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "customer cannot create a customer invoice journal",
+    () => db.unsafe("select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid)", [invoice.id,debitAccountId,creditAccountId,null,"efefefef-efef-4fef-8fef-efefefefefe3"]),
+    /finance permission required/i,
+  );
+  await db.unsafe("reset role");
+  process.stdout.write("PASS customer source accounting: invoice and payment source mapping, replay/mismatch, source/line guards, tax from source, explicit FX denial, role boundary and posted entries\n");
+
   // AGH-STOREFRONT-ANNOUNCEMENTS-001: date/audience filtering, tenant scope, command auth, audit and no direct table grants.
   await db.unsafe("reset role");
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
