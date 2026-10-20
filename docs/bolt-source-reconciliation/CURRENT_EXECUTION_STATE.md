@@ -1,3 +1,15 @@
+## آخر تنفيذ P2 — NASR1-ORIGINAL-SPEC-RETURNS-INTAKE-001 (CI_PENDING)
+
+- المستودع الهدف الوحيد: Report-Engainall/Nasr1. فرع P2: feat/p2-customer-return-intake-20261020. التعديلات محفوظة على الفرع؛ لا كتابة مباشرة على main.
+- أساس الكود الذي يحتوي تغييرات المرتجعات قبل توثيق الإقلاع: 1ee787b27b536d3442bd49c69c5fbc6b166a95d. الرأس الحالي للفرع يتقدم بملفات التقرير بعد هذا المعلم؛ رأس main الذي عوين لاحقًا هو 0303cff02ff548aad74e68372bf02991237603af مع Action 39361436541 SUCCESS (هذا PASS خاص بـ main وليس دليلًا على تغييرات P2).
+- PR P2: pending creation when this section was written; يجب تحديث رابط PR وقراءة Actions على الرأس النهائي نفسه بعد الإنشاء. لا يوجد ادعاء بأن اختبارات تغييرات المرتجعات نجحت قبل دليل CI.
+- الأرشيف المعتمد فقط: report-insight-engine/main/incoming-archives/nasr1-bolt-recovery-2026-10-17/project-bolt-github-7sl6ykzz (2).zip. الحجم 1,009,556؛ Git Blob SHA-1 4835a0565f799a272dfca0ff49fbc3ce0d760474؛ SHA-256 1a692b013da35b4cb034f5b18f8160ec66bca778bc4649bd5128abc7fccb9be1؛ 421 إدخالًا و359 ملفًا و3,322,389 بايت بعد فك الضغط؛ CRC PASS ولا توجد مسارات مكررة/اجتياز/روابط رمزية في الفحص. لم يُفتح أي أرشيف Bolt آخر.
+- مقارنة محتوى الأرشيف المسموح فقط بقاعدة Nasr1 على SHA e815d1e01e5190220083e0593b8b9d152fc3783a: 270 متطابقًا، 67 مختلفًا، 22 أرشيف-فقط، 168 هدف-فقط. القرارات الفردية في P2_SINGLE_ARCHIVE_DECISION_MATRIX_2026-10-20.csv، والبصمات/الحجوم في P2_SINGLE_ARCHIVE_MANIFEST_2026-10-20.csv. لا تُنسخ .env أو SQL منح دور admin/تعيين كلمة مرور؛ صفحات المقارنة والمفضلة والمساعد والتحليلات والعمليات التي لها مقابل حي تُترك للتنفيذ الحالي.
+- التغييرات: supabase/migrations/20261020050000_customer_return_requests.sql؛ src/lib/customer-returns.ts؛ src/components/CustomerReturnRequest.tsx؛ src/components/CustomerReturnReviewQueue.tsx؛ src/components/CustomerOrders.tsx؛ src/components/TaskCenter.tsx؛ src/test/customer-returns.test.ts؛ scripts/test-customer-returns.mjs؛ package.json؛ تقارير P2 الثلاثة وملفات التنسيق/السجل أدناه. لا تغييرات في ملفات P1 المقفلة أو src/lib/api.ts أو src/components/AghbariApp.tsx أو src/routeTree.gen.ts أو CI workflow.
+- سلوك المرتجعات: طلب عميل أصلي مؤهل وطلبه مسلّم فقط، تطابق المؤسسة والعميل والصنف، حد الكمية المتبقية، idempotency/conflict، RLS للمالك والمدير فقط، قرار مدير بمبرر ومراجعة مدققة، ومهمة استلام/فحص مخزنية بعد الموافقة. لا توجد حركة مخزون أو إشعار دائن/قيد أو رد مالي عند تقديم الطلب أو الموافقة. اختبارات unit وPostgreSQL أضيفت لكنها تنتظر Action على PR النهائي.
+- Live DB / authenticated browser E2E / production migration / deployment: NOT RUN.
+- next_task_id = NASR1-ORIGINAL-SPEC-RETURNS-RECEIPT-POSTING-002 بعد اجتياز قبول هذه المرحلة؛ ثم إغلاق فجوة إدارة التصنيفات الإدارية الأصلية مع عقد RPC ومسار تنقل محمي. تبقى مهمة P2 للخصوصية السعرية في PR #12 منفصلة ومفتوحة حتى إثباتها أو تعديل حالتها بدليل حي.
+
 
 
 ## آخر تنفيذ P2 — NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-004 (PASS)
