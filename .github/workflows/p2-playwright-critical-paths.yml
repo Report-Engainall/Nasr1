@@ -283,13 +283,31 @@ jobs:
           version: 2.84.2
       - name: Verify local-only container runtime
         run: docker info
+      - name: Prepare isolated migration copy for order and tenant acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_project="$RUNNER_TEMP/p2-local-supabase"
+          mkdir -p "$local_project"
+          cp -R supabase/. "$local_project/"
+          sed -i '1s/.*/project_id = "p2-local-e2e"/' "$local_project/config.toml"
+          if [ ! -f "$local_project/migrations/20261018100000_product_image_storage.sql" ]; then
+            echo "Expected Storage-only migration not found; refusing to claim the scoped migration set." >&2
+            exit 1
+          fi
+          rm "$local_project/migrations/20261018100000_product_image_storage.sql"
+          {
+            echo "## Local order/tenant E2E migration boundary"
+            echo "- Uses a temporary copy of repository migrations with only `20261018100000_product_image_storage.sql` omitted; this migration mutates Supabase-owned `storage.objects` and is unrelated to authentication, order creation, or tenant-read isolation."
+            echo "- The repository migration itself is unchanged. Storage/RLS for product images is not covered by this browser job."
+            echo "- This job uses a fresh local-only PostgreSQL 17/Supabase stack and does not connect to a hosted project."
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Start isolated local Supabase and apply PostgreSQL 17 migrations
         shell: bash
         run: |
           set -euo pipefail
-          # Storage is out of scope for order/tenant acceptance; leaving its owner-managed tables absent avoids mutating a service-owned table during unrelated migrations.
+          cd "$RUNNER_TEMP/p2-local-supabase"
           supabase start --exclude storage-api,imgproxy
-          supabase db reset --local
           supabase status -o env \
             --override-name api.url=SUPABASE_URL \
             --override-name auth.anon_key=SUPABASE_PUBLISHABLE_KEY \
@@ -358,7 +376,7 @@ jobs:
         shell: bash
         run: |
           if [ -f "$RUNNER_TEMP/p2-local-e2e-preview.pid" ]; then kill "$(cat "$RUNNER_TEMP/p2-local-e2e-preview.pid")" >/dev/null 2>&1 || true; fi
-          supabase stop --no-backup >/dev/null 2>&1 || true
+          if [ -d "$RUNNER_TEMP/p2-local-supabase" ]; then (cd "$RUNNER_TEMP/p2-local-supabase" && supabase stop --no-backup >/dev/null 2>&1) || true; fi
       - name: Upload authenticated E2E traces, report and server log
         if: always()
         uses: actions/upload-artifact@v4
