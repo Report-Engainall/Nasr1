@@ -327,7 +327,7 @@ export function readStaffStatementPrintPayload(value: unknown): StaffStatementPr
       paid: normalizedMoney(raw.paid, "summary.paid"),
       credited: normalizedMoney(raw.credited, "summary.credited"),
       outstanding: normalizedMoney(raw.outstanding, "summary.outstanding"),
-      overdue_invoice_count: itemCount(raw.overdue_invoice_count, "summary.overdue_invoice_count"),
+      overdue_invoice_count: nonNegativeCount(raw.overdue_invoice_count, "summary.overdue_invoice_count"),
       overdue_outstanding: normalizedMoney(raw.overdue_outstanding, "summary.overdue_outstanding"),
       unknown_due_date_invoice_count: nonNegativeCount(raw.unknown_due_date_invoice_count, "unknown_due_date_invoice_count"),
       unknown_due_date_outstanding: normalizedMoney(raw.unknown_due_date_outstanding, "summary.unknown_due_date_outstanding"),
