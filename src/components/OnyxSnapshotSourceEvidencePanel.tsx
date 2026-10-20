@@ -59,7 +59,7 @@ export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: st
             <span><strong>المؤسسة الفعالة من قاعدة البيانات:</strong> <span data-testid="onyx-evidence-organization-name">{evidence.organization.name}</span> · <code>{evidence.organization.id}</code></span>
             <span><strong>حالة إثبات المنشأ:</strong> {provenanceLabels[evidence.source_identity.provenance_status]}</span>
             <span><strong>نظام المصدر المسجل:</strong> {sourceSystemLabel(evidence.source_identity.source_system)}</span>
-            <span><strong>معرّف سجل المصدر:</strong> <code>{evidence.source_identity.source_record_id || "غير متاح"}</code></span>
+            <span><strong>معرّف سجل المصدر الخارجي:</strong> <code>{evidence.source_identity.source_record_id || "غير متاح"}</code></span>
             <span><strong>صفوف المصدر المقروءة:</strong> {evidence.source_identity.source_row_count}</span>
             <span><strong>صفوف بها حقول معرّف خارجي مرشحة:</strong> {evidence.source_identity.rows_with_external_id}</span>
             <span><strong>حقول المعرّف الخارجي المكتشفة:</strong> {evidence.source_identity.external_id_fields_found.length ? evidence.source_identity.external_id_fields_found.join("، ") : "لم يُكتشف حقل معرّف خارجي صريح"}</span>
