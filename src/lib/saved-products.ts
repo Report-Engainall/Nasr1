@@ -138,7 +138,11 @@ export function setStorefrontSavedProduct(
       return false;
     }
   });
-  queuedWrites.set(queueKey, pending.then(() => undefined));
+  const queued = pending.then(() => undefined);
+  queuedWrites.set(queueKey, queued);
+  void queued.finally(() => {
+    if (queuedWrites.get(queueKey) === queued) queuedWrites.delete(queueKey);
+  });
   return pending;
 }
 
