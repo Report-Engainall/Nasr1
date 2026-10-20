@@ -197,11 +197,11 @@ async function main() {
   );
   await assert.rejects(
     () => admin.unsafe(
-      "insert into public.products(organization_id,name,item_code,unit) values($1,'direct write forbidden','CI-DIRECT-001','piece')",
-      [org],
+      "update public.products set name='direct write forbidden' where id=$1",
+      [created.id],
     ),
-    /permission denied|row-level security policy/i,
-    "direct product writes are denied",
+    /permission denied/i,
+    "direct product updates are denied; use the catalog RPC",
   );
   await assert.rejects(
     () => admin.unsafe(

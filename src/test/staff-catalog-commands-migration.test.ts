@@ -65,6 +65,6 @@ describe("staff catalog commands migration contract", () => {
       expect(migration).toContain(`REVOKE INSERT, UPDATE, DELETE ON TABLE public.${table} FROM authenticated;`);
     }
     expect(migration).toContain("REVOKE UPDATE, DELETE ON TABLE public.products FROM authenticated;");
-    expect(migration).toContain("CREATE POLICY staff_catalog_products_insert_rpc_only ON public.products AS RESTRICTIVE FOR INSERT TO authenticated WITH CHECK (false);");
+    expect(migration).not.toContain("staff_catalog_products_insert_rpc_only");
   });
 });
