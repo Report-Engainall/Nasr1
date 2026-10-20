@@ -6,8 +6,18 @@ const migration = readFileSync(
   join(process.cwd(), "supabase/migrations/20261020220000_staff_catalog_commands.sql"),
   "utf8",
 );
+const runtimeTest = readFileSync(
+  join(process.cwd(), "scripts/test-admin-catalog-commands.mjs"),
+  "utf8",
+);
 
 describe("staff catalog commands migration contract", () => {
+  it("binds JSONB payload objects without double-serializing them into JSON strings", () => {
+    expect(runtimeTest).not.toMatch(/JSON\\.stringify\\(\\s*(?:payload|update|\\{\\s*\\.\\.\\.(?:payload|update))/i);
+    expect(runtimeTest).toMatch(/\\[payload\\]/);
+    expect(runtimeTest).toMatch(/\\[created\\.id, update\\]/);
+  });
+
   it("reports unsupported payload keys explicitly rather than relying on JSONB key subtraction", () => {
     expect(migration).toMatch(/jsonb_object_keys\(p_payload\)/i);
     expect(migration).toMatch(/catalog payload contains unsupported fields/i);

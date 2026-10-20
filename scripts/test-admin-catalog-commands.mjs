@@ -107,13 +107,13 @@ async function main() {
   const created = await rpc(
     admin,
     "select public.save_admin_catalog_product(null,$1::jsonb) result",
-    [JSON.stringify(payload)],
+    [payload],
   );
   assert.ok(created.id && created.created, "product create returns a new ID");
 
   await assert.rejects(
     () => rpc(admin, "select public.save_admin_catalog_product(null,$1::jsonb) result", [
-      JSON.stringify({ ...payload, shadow_tier_price: 999 }),
+      { ...payload, shadow_tier_price: 999 },
     ]),
     (error) =>
       /catalog payload contains unsupported fields/i.test(error.message) &&
@@ -133,7 +133,7 @@ async function main() {
   const updated = await rpc(
     admin,
     "select public.save_admin_catalog_product($1::uuid,$2::jsonb) result",
-    [created.id, JSON.stringify(update)],
+    [created.id, update],
   );
   assert.equal(updated.id, created.id);
   assert.equal(updated.created, false);
@@ -141,7 +141,7 @@ async function main() {
   await assert.rejects(
     () => rpc(admin, "select public.save_admin_catalog_product($1::uuid,$2::jsonb) result", [
       created.id,
-      JSON.stringify({ ...update, expected_base_price: 12, name: "stale form" }),
+      { ...update, expected_base_price: 12, name: "stale form" },
     ]),
     /product prices changed after the form opened/i,
     "stale price snapshot is rejected by the canonical price-grid command",
@@ -150,7 +150,7 @@ async function main() {
   await assert.rejects(
     () => rpc(admin, "select public.save_admin_catalog_product($1::uuid,$2::jsonb) result", [
       foreignProduct,
-      JSON.stringify({ ...update, category_id: category.id }),
+      { ...update, category_id: category.id },
     ]),
     /product not found in organization/i,
     "a product in a different tenant cannot be edited",
@@ -182,7 +182,7 @@ async function main() {
   );
   await assert.rejects(
     () => rpc(customer, "select public.save_admin_catalog_product(null,$1::jsonb) result", [
-      JSON.stringify(payload),
+      payload,
     ]),
     /active admin or manager profile required/i,
     "customer cannot run staff product commands",
