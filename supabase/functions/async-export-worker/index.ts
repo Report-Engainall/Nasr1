@@ -205,7 +205,7 @@ if (runtime) runtime.serve(async (request) => {
   if (request.method !== "POST") return reply({ error: "method_not_allowed" }, 405);
 
   const url = runtime.env.get("SUPABASE_URL");
-  const anonKey = runtime.env.get("SUPABASE_ANON_KEY") ?? runtime.env.get("SUPABASE_ANON_KEY");
+  const anonKey = runtime.env.get("SUPABASE_ANON_KEY");
   const serviceKey = runtime.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !anonKey || !serviceKey) return reply({ error: "worker_not_configured" }, 503);
 

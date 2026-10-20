@@ -28,18 +28,18 @@ describe("asynchronous order export contracts", () => {
 
   it("writes a UTF-8 CSV with Arabic headers, correctly escaped cells and formula-injection protection", () => {
     const csv = buildOrdersCsv([{
-      orderNumber: "=HYPERLINK(\\"https://bad.test\\")", createdAt: "2026-10-01T00:00:00Z",
-      status: "confirmed", customerCode: "000012", customerName: "شركة \\"الأغبري\\", فرع 2",
-      itemCode: "000125", itemName: "سكر\\nبرازيلي", unit: "كرتون",
+      orderNumber: "=HYPERLINK(\"https://bad.test\")", createdAt: "2026-10-01T00:00:00Z",
+      status: "confirmed", customerCode: "000012", customerName: "شركة \"الأغبري\", فرع 2",
+      itemCode: "000125", itemName: "سكر\nبرازيلي", unit: "كرتون",
       quantity: "2.5", unitPrice: "10.25", discount: "0", lineTotal: "25.625", orderTotal: "25.625",
     }]);
-    expect(csv.startsWith("\\uFEFF")).toBe(true);
+    expect(csv.startsWith("\uFEFF")).toBe(true);
     expect(csv).toContain("رقم الطلب");
     expect(csv).toContain("000012");
     expect(csv).toContain("'=HYPERLINK");
     expect(csv).toContain('""الأغبري""');
-    expect(csv).toContain("سكر\\nبرازيلي");
-    expect(csv.split("\\r\\n")).toHaveLength(3);
+    expect(csv).toContain("سكر\nبرازيلي");
+    expect(csv.split("\r\n")).toHaveLength(3);
   });
 
   it("rejects invalid numeric cells and produces a stable hexadecimal SHA-256 digest", async () => {
@@ -60,15 +60,15 @@ describe("asynchronous order export contracts", () => {
   });
 
   it("uses a private worker queue, per-actor tenant filters, retry leases and expiring one-minute signed links", () => {
-    expect(migration).toMatch(/ALTER TABLE public\\.async_export_jobs ENABLE ROW LEVEL SECURITY/i);
-    expect(migration).toMatch(/REVOKE ALL ON TABLE public\\.async_export_jobs FROM PUBLIC, anon, authenticated/i);
-    expect(migration).toMatch(/GRANT ALL ON TABLE public\\.async_export_jobs TO service_role/i);
-    expect(migration).toMatch(/UNIQUE \\(organization_id, requested_by, idempotency_key\\)/i);
+    expect(migration).toMatch(/ALTER TABLE public\.async_export_jobs ENABLE ROW LEVEL SECURITY/i);
+    expect(migration).toMatch(/REVOKE ALL ON TABLE public\.async_export_jobs FROM PUBLIC, anon, authenticated/i);
+    expect(migration).toMatch(/GRANT ALL ON TABLE public\.async_export_jobs TO service_role/i);
+    expect(migration).toMatch(/UNIQUE \(organization_id, requested_by, idempotency_key\)/i);
     expect(migration).toMatch(/FOR UPDATE SKIP LOCKED/i);
     expect(migration).toMatch(/lease_expires_at/i);
     expect(migration).toMatch(/status='expired'/i);
     expect(migration).toMatch(/get_my_async_export_download/i);
-    expect(migration).toMatch(/role IN \\('admin','manager','accountant'\\)/i);
+    expect(migration).toMatch(/role IN \('admin','manager','accountant'\)/i);
     expect(worker).toMatch(/constantTimeEqual/);
     expect(worker).toMatch(/claim_my_async_export_job/);
     expect(worker).toMatch(/claim_async_export_jobs/);
@@ -79,7 +79,7 @@ describe("asynchronous order export contracts", () => {
     expect(worker).toMatch(/ASYNC_EXPORT_MAX_ORDERS/);
     expect(worker).toMatch(/sha256Hex/);
     expect(download).toMatch(/get_my_async_export_download/);
-    expect(download).toMatch(/createSignedUrl\\(job\\.artifact_path, 60/);
+    expect(download).toMatch(/createSignedUrl\(job\.artifact_path, 60/);
     expect(download).toMatch(/ttl_seconds: 60/);
     expect(jobClient).toMatch(/request_async_export_job/);
     expect(jobClient).toMatch(/async-export-worker/);

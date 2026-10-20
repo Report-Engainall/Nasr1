@@ -102,8 +102,8 @@ BEGIN
   END IF;
   IF p_filters IS NULL OR pg_catalog.jsonb_typeof(p_filters) <> 'object'
      OR EXISTS (
-       SELECT 1 FROM pg_catalog.jsonb_object_keys(p_filters) AS keys
-        WHERE keys NOT IN ('date_from','date_to')
+       SELECT 1 FROM pg_catalog.jsonb_object_keys(p_filters) AS filter_key(key)
+        WHERE filter_key.key NOT IN ('date_from','date_to')
      )
      OR pg_catalog.jsonb_typeof(p_filters->'date_from') IS DISTINCT FROM 'string'
      OR pg_catalog.jsonb_typeof(p_filters->'date_to') IS DISTINCT FROM 'string'
@@ -501,7 +501,7 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='async export failure reporting requires trusted worker';
   END IF;
   IF p_job_id IS NULL OR coalesce(length(btrim(p_worker)),0) NOT BETWEEN 1 AND 120
-     OR p_error_code NOT IN (
+     OR p_error_code IS NULL OR p_error_code NOT IN (
        'SOURCE_READ_FAILED','TOO_MANY_ORDERS','TOO_MANY_ITEMS','CUSTOMER_SCOPE_FAILED',
        'NO_APPROVED_ORDERS','NO_ORDER_ITEMS','ARTIFACT_TOO_LARGE','ARTIFACT_UPLOAD_FAILED',
        'ARTIFACT_BUILD_FAILED','INVALID_JOB_FILTERS','MAX_ATTEMPTS'
