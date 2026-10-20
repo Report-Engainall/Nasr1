@@ -153,7 +153,6 @@ describe("finance PDF source integration — authoritative financial rendering",
   });
 
   it("refuses to represent mismatched invoice totals as a successful PDF", async () => {
-  it("refuses to represent mismatched invoice totals as a successful PDF", async () => {
     await expect(buildCustomerInvoicePdf(
       {
         id: "11111111-1111-4111-8111-111111111111",
