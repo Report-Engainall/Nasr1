@@ -108,6 +108,10 @@ export function setStorefrontSavedProduct(
   const previous = queuedWrites.get(queueKey) ?? Promise.resolve();
   const pending = previous.catch(() => undefined).then(async () => {
     try {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        writePendingSavedProductChange(profileId, productId, saved);
+        return false;
+      }
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || sessionData.session?.user.id !== authUserId) {
         writePendingSavedProductChange(profileId, productId, saved);
