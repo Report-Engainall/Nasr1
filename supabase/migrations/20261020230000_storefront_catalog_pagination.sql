@@ -187,9 +187,15 @@ BEGIN
     LEFT JOIN LATERAL (
       SELECT ib.id, ib.quantity_on_hand, ib.quantity_available
       FROM public.inventory_balances ib
-      WHERE ib.organization_id = v_organization_id
-        AND ib.product_id = p.id
+      WHERE ib.product_id = p.id
         AND ib.warehouse_id = v_warehouse_id
+        AND EXISTS (
+          SELECT 1
+          FROM public.warehouses w
+          WHERE w.id = ib.warehouse_id
+            AND w.organization_id = v_organization_id
+            AND w.is_active = true
+        )
       ORDER BY ib.id
       LIMIT 1
     ) inv ON true
