@@ -38,7 +38,8 @@ describe("staff catalog commands migration contract", () => {
     expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.archive_admin_catalog_category/i);
     expect(migration).toMatch(/category not found in organization/i);
     expect(migration).toMatch(/category has active products or child categories/i);
-    expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.save_admin_catalog_product\(uuid, jsonb\) FROM PUBLIC, anon, authenticated/i);
+    expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.save_admin_catalog_product\(uuid,jsonb\) FROM PUBLIC,anon;/i);
+    expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.save_admin_catalog_product\(uuid,jsonb\) FROM authenticated;/i);
     expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.save_admin_catalog_product\(uuid, jsonb\) TO authenticated/i);
   });
 });

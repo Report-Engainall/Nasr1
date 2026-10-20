@@ -25,7 +25,7 @@ BEGIN
      )
      OR NOT EXISTS (
        SELECT 1 FROM public.profiles AS p
-       WHERE p.id = v_actor AND p.auth_user_id = auth.uid()
+       WHERE p.id = v_actor AND p.auth_user_id=auth.uid()
          AND p.organization_id = v_org AND p.is_active = true
      ) THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
@@ -130,7 +130,7 @@ BEGIN
      )
      OR NOT EXISTS (
        SELECT 1 FROM public.profiles AS p
-       WHERE p.id = v_actor AND p.auth_user_id = auth.uid()
+       WHERE p.id = v_actor AND p.auth_user_id=auth.uid()
          AND p.organization_id = v_org AND p.is_active = true
      ) THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
@@ -366,7 +366,7 @@ BEGIN
      )
      OR NOT EXISTS (
        SELECT 1 FROM public.profiles AS p
-       WHERE p.id = v_actor AND p.auth_user_id = auth.uid()
+       WHERE p.id = v_actor AND p.auth_user_id=auth.uid()
          AND p.organization_id = v_org AND p.is_active = true
      ) THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
@@ -385,7 +385,7 @@ BEGIN
 
   IF v_old.status <> 'inactive' THEN
     UPDATE public.products
-       SET status = 'inactive', updated_at = pg_catalog.now()
+       SET status='inactive', updated_at = pg_catalog.now()
      WHERE id = p_product_id AND organization_id = v_org;
 
     INSERT INTO public.audit_logs(
@@ -419,7 +419,7 @@ BEGIN
      )
      OR NOT EXISTS (
        SELECT 1 FROM public.profiles AS p
-       WHERE p.id = v_actor AND p.auth_user_id = auth.uid()
+       WHERE p.id = v_actor AND p.auth_user_id=auth.uid()
          AND p.organization_id = v_org AND p.is_active = true
      ) THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
@@ -465,10 +465,14 @@ BEGIN
 END
 $function$;
 
-REVOKE ALL ON FUNCTION public.create_admin_catalog_category(text, uuid, text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.save_admin_catalog_product(uuid, jsonb) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.archive_admin_catalog_product(uuid) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.archive_admin_catalog_category(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.create_admin_catalog_category(text,uuid,text) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.create_admin_catalog_category(text,uuid,text) FROM authenticated;
+REVOKE ALL ON FUNCTION public.save_admin_catalog_product(uuid,jsonb) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.save_admin_catalog_product(uuid,jsonb) FROM authenticated;
+REVOKE ALL ON FUNCTION public.archive_admin_catalog_product(uuid) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.archive_admin_catalog_product(uuid) FROM authenticated;
+REVOKE ALL ON FUNCTION public.archive_admin_catalog_category(uuid) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.archive_admin_catalog_category(uuid) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.create_admin_catalog_category(text, uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.save_admin_catalog_product(uuid, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.archive_admin_catalog_product(uuid) TO authenticated;
