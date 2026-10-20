@@ -1,8 +1,10 @@
 project_id = "ffxxjaolfntzbapmfbuv"
 
+[db]
+major_version = 17
+
 [functions.outbox-worker]
 verify_jwt = false
-
 
 [functions.ai-gateway]
 verify_jwt = true
