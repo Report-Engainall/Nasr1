@@ -33,7 +33,7 @@ describe("unified import safety contracts", () => {
     expect(normalizeHeader("اَلْبَارْكود")).toBe("barcode");
     expect(normalizeHeader("الوَحْـدَة")).toBe("unit");
     expect(normalizeHeader("الفِئَة")).toBe("category_name");
-    expect(normalizeHeader("إيراد")).toBe("revenue");
+    expect(normalizeHeader("الإيراد")).toBe("revenue");
     expect(normalizeHeader("إسم الصّنف", { "اسم الصنف": "external_item_key" })).toBe("external_item_key");
   });
 
