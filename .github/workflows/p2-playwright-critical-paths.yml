@@ -1,0 +1,161 @@
+name: P2 Playwright Critical Paths
+
+on:
+  push:
+    branches:
+      - "feat/p2-customer-return-intake-20261020"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p2-playwright-critical-paths-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  browser-critical-paths:
+    name: Playwright customer order and tenant isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Select exact source SHA
+        id: source
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$PR_HEAD_SHA" ]; then source_sha="$PR_HEAD_SHA"; else source_sha="$EVENT_SHA"; fi
+          echo "$source_sha" | grep -Eq '^[0-9a-f]{40}$'
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "Source SHA selected for build/test: $source_sha" >> "$GITHUB_STEP_SUMMARY"
+      - name: Checkout the exact tested source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 1
+      - name: Explicitly gate external test infrastructure
+        id: e2e_gate
+        shell: bash
+        env:
+          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_EMAIL_B: ${{ secrets.E2E_EMAIL_B }}
+          E2E_PASSWORD_B: ${{ secrets.E2E_PASSWORD_B }}
+          E2E_PHONE: ${{ secrets.E2E_PHONE }}
+          E2E_ALLOW_TEST_WRITES: ${{ secrets.E2E_ALLOW_TEST_WRITES }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in E2E_SUPABASE_URL E2E_SUPABASE_PUBLISHABLE_KEY E2E_EMAIL E2E_PASSWORD E2E_EMAIL_B E2E_PASSWORD_B E2E_PHONE; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ "$E2E_ALLOW_TEST_WRITES" != "YES_I_CONFIRM_NON_PRODUCTION" ]; then
+            missing+=("E2E_ALLOW_TEST_WRITES (must explicitly confirm non-production writes)")
+          fi
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=NOT RUN / BLOCKED_EXTERNAL::Playwright needs a dedicated non-production Supabase project, two cross-organization test accounts, and explicit permission to create test orders."
+            {
+              echo "## Playwright acceptance: NOT RUN / BLOCKED_EXTERNAL"
+              echo
+              echo "No browser test is claimed. Missing or unconfirmed settings: ${missing[*]}."
+              echo "Configure repository Actions secrets listed in `docs/bolt-source-reconciliation/P2_PLAYWRIGHT_E2E_SETUP.md`, then rerun this workflow."
+              echo "This is not a Playwright pass. No synthetic credentials, production writes, or privilege bypasses are used."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            node -e "const u=new URL(process.env.E2E_SUPABASE_URL);if(!['https:','http:'].includes(u.protocol))throw new Error('Invalid test Supabase URL');if(u.username||u.password)throw new Error('Supabase URL must not embed credentials')"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Playwright acceptance: dedicated test settings confirmed"
+              echo
+              echo "Exact source SHA: ${{ steps.source.outputs.sha }}"
+              echo "The workflow will build this SHA and write only to the declared isolated E2E backend."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Setup Node 22
+        if: steps.e2e_gate.outputs.ready == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install Bun
+        if: steps.e2e_gate.outputs.ready == 'true'
+        uses: oven-sh/setup-bun@v2
+      - name: Install app dependencies from the verified Bun lockfile
+        if: steps.e2e_gate.outputs.ready == 'true'
+        run: bun install --frozen-lockfile
+      - name: Install pinned Playwright runner outside the project lockfile
+        if: steps.e2e_gate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
+          mkdir -p node_modules/@playwright
+          ln -s "$RUNNER_TEMP/pw/node_modules/@playwright/test" node_modules/@playwright/test
+      - name: Install Chromium
+        if: steps.e2e_gate.outputs.ready == 'true'
+        run: "$RUNNER_TEMP/pw/node_modules/.bin/playwright install --with-deps chromium"
+      - name: Build exact SHA against the isolated E2E backend
+        if: steps.e2e_gate.outputs.ready == 'true'
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run build
+      - name: Launch the exact built application
+        if: steps.e2e_gate.outputs.ready == 'true'
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+          PORT: "4173"
+        run: |
+          set -euo pipefail
+          npx wrangler dev --config .output/server/wrangler.json --local --ip 127.0.0.1 --port 4173 > "$RUNNER_TEMP/p2-e2e-preview.log" 2>&1 &
+          server_pid=$!
+          echo "$server_pid" > "$RUNNER_TEMP/p2-e2e-preview.pid"
+          ready=0
+          for attempt in $(seq 1 45); do
+            status="$(curl --silent --connect-timeout 2 --max-time 5 --output "$RUNNER_TEMP/p2-e2e-home.html" --write-out '%{http_code}' http://127.0.0.1:4173/ || true)"
+            if [ "$status" = "200" ] && grep -q "الأغبري" "$RUNNER_TEMP/p2-e2e-home.html"; then ready=1; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then cat "$RUNNER_TEMP/p2-e2e-preview.log"; exit 1; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/p2-e2e-preview.log"; exit 1; fi
+          echo "Built application is ready for source SHA ${{ steps.source.outputs.sha }}."
+      - name: Run Playwright critical paths and tenant isolation
+        if: steps.e2e_gate.outputs.ready == 'true'
+        shell: bash
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_EMAIL_B: ${{ secrets.E2E_EMAIL_B }}
+          E2E_PASSWORD_B: ${{ secrets.E2E_PASSWORD_B }}
+          E2E_PHONE: ${{ secrets.E2E_PHONE }}
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: "$RUNNER_TEMP/pw/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list"
+      - name: Stop the local application
+        if: always() && steps.e2e_gate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/p2-e2e-preview.pid" ]; then kill "$(cat "$RUNNER_TEMP/p2-e2e-preview.pid")" >/dev/null 2>&1 || true; fi
+      - name: Upload Playwright traces, report, screenshots and server logs
+        if: always() && steps.e2e_gate.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: p2-playwright-${{ github.run_id }}-${{ steps.source.outputs.sha }}
+          path: |
+            playwright-report/
+            test-results/
+            ${{ runner.temp }}/p2-e2e-preview.log
+          if-no-files-found: ignore
