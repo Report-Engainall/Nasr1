@@ -64,6 +64,24 @@ export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: st
             <span><strong>صفوف بها حقول معرّف خارجي مرشحة:</strong> {evidence.source_identity.rows_with_external_id}</span>
             <span><strong>حقول المعرّف الخارجي المكتشفة:</strong> {evidence.source_identity.external_id_fields_found.length ? evidence.source_identity.external_id_fields_found.join("، ") : "لم يُكتشف حقل معرّف خارجي صريح"}</span>
           </div>
+          <section aria-label="عينات معرّفات المصدر الخارجية" style={{ marginTop: 10, padding: 12, border: "1px solid var(--border, #d8e0e0)", borderRadius: 10 }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>قيم المعرّفات الخارجية المحفوظة في صفوف المصدر</h3>
+            {evidence.source_identity.external_id_examples.length ? (
+              <ol style={{ display: "grid", gap: 8, paddingInlineStart: 22, margin: 0 }}>
+                {evidence.source_identity.external_id_examples.map((row) => (
+                  <li key={row.row_number}>
+                    <span>صف المصدر {row.row_number} · المفتاح: <code dir="ltr">{row.canonical_key}</code>{row.canonical_key_truncated ? " (المفتاح معروض بشكل مقتطع)" : ""}</span>
+                    <ul style={{ marginBlock: 4 }}>
+                      {Object.entries(row.external_ids).map(([field, value]) => (
+                        <li key={field}><code dir="ltr">{field}</code>: <code dir="ltr">{value}</code>{row.value_truncated ? " (القيمة معروضة بشكل مقتطع)" : ""}</li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ol>
+            ) : <p style={{ margin: 0 }}>لم تُحفظ قيم معرّفات خارجية مع صفوف هذه اللقطة.</p>}
+            {evidence.source_identity.external_id_examples_truncated ? <p role="note" style={{ margin: "8px 0 0" }}>تُعرض أول 20 صفًا فقط؛ توجد صفوف إضافية بها معرّفات خارجية.</p> : null}
+          </section>
           {evidence.import_job ? (
             <div className="onyx-source-metadata" style={{ marginTop: 10 }}>
               <span><strong>دفعة الاستيراد:</strong> <code>{evidence.import_job.id}</code></span>
