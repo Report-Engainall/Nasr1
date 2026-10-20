@@ -8,6 +8,7 @@ const migration = readFileSync(
 );
 const api = readFileSync(join(process.cwd(), "src/lib/api.ts"), "utf8");
 const importer = readFileSync(join(process.cwd(), "src/components/UnifiedImportEngine.tsx"), "utf8");
+const requestKeyHelper = readFileSync(join(process.cwd(), "src/lib/import-request-key.ts"), "utf8");
 const functionBody = migration.match(
   /CREATE OR REPLACE FUNCTION public\.create_import_job_idempotent\([\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
@@ -65,7 +66,12 @@ describe("import request idempotency contract", () => {
     expect(api).toContain("'create_import_job_idempotent'");
     expect(api).toContain("p_request_key: input.requestKey ?? crypto.randomUUID()");
     expect(api).toContain("p_intent: input.intent ?? 'new_version'");
-    expect(importer).toMatch(/requestKey:\s*crypto\.randomUUID\(\)/);
+    expect(requestKeyHelper).toContain("sessionStorage");
+    expect(requestKeyHelper).toMatch(/IMPORT_REQUEST_KEY_TTL_MS = 60 \* 60 \* 1000/);
+    expect(importer).toContain("getOrCreateImportRequestKey");
+    expect(importer).toContain("requestKey: requestAttempt.requestKey");
+    expect(importer).toMatch(/completeImportRequestKey\(requestAttempt\.storageKey\)/);
+    expect(importer).not.toMatch(/requestKey:\s*crypto\.randomUUID\(\)/);
     expect(importer).toMatch(/intent:\s*action/);
   });
 
