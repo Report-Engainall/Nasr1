@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 
 const fetchEvidence = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/onyx-source-evidence", () => ({ fetchOnyxSnapshotSourceEvidence: fetchEvidence }));
@@ -45,7 +45,7 @@ describe("Onyx source evidence panel", () => {
     expect(screen.getByText(/آخر تحديث للدفعة:/).parentElement?.textContent).toContain("غير مسجل");
     expect(screen.getByText(/معرّف سجل المصدر الخارجي/).parentElement?.textContent).toContain("غير متاح");
     expect(screen.getByText("استيراد ملف يدوي")).toBeTruthy();
-    expect(screen.getByText("external_id")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "عينات معرّفات المصدر الخارجية" })).getByText("external_id")).toBeTruthy();
     expect(screen.getByText("ONYX-101")).toBeTruthy();
     expect(screen.getByText(/صف المصدر 1/)).toBeTruthy();
     expect(screen.getByText(/غير مثبتة بأدلة هذا السجل/)).toBeTruthy();
