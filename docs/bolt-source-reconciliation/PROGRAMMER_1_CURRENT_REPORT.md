@@ -3,8 +3,8 @@
 - **المستودع الوحيد المستهدف:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **الملكية:** هذا التقرير و`SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` فقط.
-- **حالة المهمة الحالية:** Service Worker cache boundary مُثبتة على آخر رأس ناجح؛ مراجعة P1 لدورة دعوات العملاء مكتملة من منظور المصدر. التكامل الموحد للدعوات ما زال `BLOCKED` بسبب تكرار migration بين PR #26 وPR #18.
-- **المهمة التالية الوحيدة / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-002` — تقييم `supabase/migrations/0003_command_hardening.sql` blob `f8de4174145f9145e801ef0bbc1e2afb8debe591` مقابل عقود Nasr1 الحالية.
+- **حالة المهمة الحالية:** `NASR1-SOURCE-CART-PERSISTENCE-001-AGHBCOM-CART-0006` — التنفيذ مكتوب على الفرع؛ إعادة التحقق وCI مطلوبة بعد معالجة فشل UUID validator في أول تشغيل.
+- **المهمة التالية الوحيدة بعد إغلاق الحالية / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-007-AGHBCOM-STAFF-CATALOG-0007` — قارن `supabase/migrations/0007_staff_catalog_commands.sql` مع أوامر الكتالوج/التسعير/المخزون في Nasr1، ثم احسم الفجوات المستقلة فقط. لا تنفذ قبل إغلاق CI للمهمة الحالية.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 
@@ -230,3 +230,25 @@
 
 ### 6.14.1. دقة قرار get_catalog — لا ادعاء بتكافؤ pagination
 - ملف المصدر نفسه `0002_server_authoritative_commands.sql` يتضمن `get_catalog(p_limit,p_offset)`. Nasr1 حاليًا يعتمد جلب الكتالوج النشط ضمن نطاق المؤسسة ثم بحثًا عربيًا محليًا معياريًا يدعم المطابقة المتحملة لأخطاء الكتابة؛ **pagination الخادمي غير مدمج**. لم أنقل function المصدر لأنها تعتمد schema legacy ولا تكمل واجهة/خدمة/RLS/اختبارات قبول في Nasr1. سجل التدقيق يقرر `KEEP_AS_REFERENCE` لهذا الجزء بالذات، ولا يضعه في خانة `INTEGRATED`. تحسين pagination واسع الكتالوج يظل تحسينًا مستقلًا وليس نجاحًا مزعومًا.
+
+
+## 6.15. دفعة تنفيذ وظيفي: سلة عميل محفوظة على الخادم عبر الأجهزة — 2026-10-20
+
+### الفجوة المثبتة والمصدر
+- المصدر للقراءة فقط: `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`, `supabase/migrations/0006_cart_and_cancellation_hardening.sql`, blob `04aaed5fd13911f882f80cf18fd6b45ea399f7d1`.
+- الهدف قبل الدفعة كان يحفظ مسودة السلة في `localStorage` فقط عبر `src/lib/offline-cart.ts`; لا توجد دالة قراءة/كتابة سلة عميل على الخادم. لذلك السلة لا تنتقل إلى جهاز آخر ولا تستعيد نفسها من الحساب بعد تبديل الجهاز. هذا نقص تشغيل فعلي وليس ملفًا ناقصًا فقط.
+- القرار: `ADAPT_AND_INTEGRATE` لوظيفة السلة وحدها. لم يُنقل مخطط المانح القديم أو عقود `customers.tier/is_active`، ولم يُنسخ `transition_order` القديم الذي يستخدم أدوار/status ومسميات جداول مختلفة. تبقى معالجة الإلغاء مع قيود Nasr1 الخاصة بالحجز وحركات المخزون.
+
+### ما نُفّذ فعليًا
+- أضيفت migration `supabase/migrations/20261020210000_customer_persistent_cart.sql` (blob الأولي `075efd8cedb4392434e8ad794c01e7f72913d870`) لجداول `customer_carts` و`customer_cart_items`، مع RLS مفعّل ومنع كل وصول مباشر من `PUBLIC/anon/authenticated`. واجهة العميل لا تستخدم إلا RPC.
+- أضيفت `public.get_customer_cart()` و`public.sync_customer_cart(jsonb)`؛ كلاهما `SECURITY DEFINER` مع `search_path = ''`، وهوية المؤسسة والملف من الجلسة الحالية، والرفض لحسابات الموظفين، وفحص الدور والملف النشط والمنتج النشط في المؤسسة نفسها. التحقق يتم بالكامل قبل استبدال السلة؛ الحد 100 صنف/10000 لكل كمية؛ رفض المعرّفات أو الكميات غير الصحيحة والأسطر المكررة وأي حقول زائدة مثل السعر؛ قفل صف السلة يمنع كتابة بنود مختلطة بالتزامن. لا تحفظ السلة سعرًا أو إجماليًا؛ التحقق المالي والمخزون يبقيان على الخادم عند إتمام الطلب.
+- أضيفت خدمة العميل `src/lib/customer-cart.ts`، واختبارات عقد الخدمة وقيود migration، واختبار PostgreSQL مستقل `scripts/test-customer-cart-persistence.mjs` يغطي عزل عميلين، عزل مؤسسة، رفض الموظفين، idempotency عند تكرار الحالة، الكتابة المتوازية، rollback على payload غير صحيح، ومنع القراءة/الكتابة المباشرة، وتفريغ السلة.
+- رُبطت `Storefront.tsx` بسحب السلة عند فتح حساب العميل وبمزامنة متأخرة قصيرة بعد تعديلها، مع حالة واضحة للاتصال/المزامنة وزر إعادة المحاولة. تظل المسودة المحلية متاحة عند انقطاع الإنترنت؛ لا يعتمد الطلب دون تحقق الخادم. لا تغيير في `src/lib/api.ts` أو `src/routeTree.gen.ts` أو ملفات P2.
+
+### الفشل السابق والسبب الجذري
+- [Actions 39483696866](https://github.com/Report-Engainall/Nasr1/actions/runs/39483696866) على SHA `1ff4a5076c0729945740ba4dd2ff50ff41a95f2c` فشل في Unit tests فقط: `src/test/customer-cart.test.ts` (5 اختبارات). السبب الجذري المثبت من سجل الاختبار أن regex التحقق من UUID اشترط version nibble من 1 إلى 8 وvariant محددًا، بينما UUIDs صحيحة نحويًا في PostgreSQL ومستخدمة للمعرفات الاختبارية تحتوي على مجموعات صفرية. خفّضت قيود العميل إلى شكل UUID عام؛ لم ألمس صلاحيات قاعدة البيانات أو أضعف التحقق من المؤسسة.
+- رأس الإصلاح الحالي بعد هذه الدفعة سيُختبر عبر Actions جديدة؛ حتى عودة النتيجة يبقى `CI=NOT VERIFIED FOR FIXED HEAD`. لا أدعي نجاح تشغيل PostgreSQL لميزة السلة بعد.
+- حالة الدليل: `IMPLEMENTED`; `INTEGRATED` على مسار Storefront/Service/RPC/Migration؛ `TESTED_EXACT_SHA=PENDING`; `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
+
+### قرار المصدر التالي الوحيد بعد الإغلاق
+- `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-007-AGHBCOM-STAFF-CATALOG-0007` — المصدر التالي `supabase/migrations/0007_staff_catalog_commands.sql`, blob `239789342a29a824852185cdbb95de7906900dbc`. لا تنقل العقود القديمة قبل مطابقتها مع واجهات وأوامر Nasr1 الحالية.
