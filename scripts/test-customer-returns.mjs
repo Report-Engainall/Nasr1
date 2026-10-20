@@ -206,11 +206,13 @@ async function main() {
   assert.ok(receiptQueue.warehouses.some((row) => row.id === receiptWarehouseId),"receipt queue only returns same-tenant active warehouses");
   assert.ok(receiptQueue.requests.some((row) => row.id === firstRequest.request_id),"approved return appears in physical receipt queue");
 
+  await db.unsafe("reset role");
   const foreignWarehouseRows = await db.unsafe(
     "select id from public.warehouses where organization_id<>$1 and is_active order by id limit 1",
     [organizationId],
   );
   assert.equal(foreignWarehouseRows.length,1,"receipt acceptance requires a foreign-tenant warehouse fixture");
+  await db.unsafe("set role authenticated");
   await expectFailure(
     "return receipt cannot target another tenant's warehouse",
     () => db.unsafe(
