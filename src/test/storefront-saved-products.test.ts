@@ -29,6 +29,7 @@ const SECOND_PRODUCT_ID = "a1000000-0000-0000-0000-000000000002";
 describe("storefront saved products client", () => {
   beforeEach(() => {
     localStorage.clear();
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
     mocks.rpc.mockReset();
     mocks.getSession.mockReset();
     mocks.getSession.mockResolvedValue({
