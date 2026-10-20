@@ -3989,6 +3989,20 @@ async function main() {
     /سجل العميل غير موجود ضمن المؤسسة الحالية|42501/i);
   await db.unsafe("reset role");
 
+  // Anonymous access is denied independently of authenticated staff, including direct DML.
+  await db.unsafe("select set_config('request.jwt.claim.sub','',false)");
+  await db.unsafe("select set_config('request.jwt.claims','{}',false)");
+  await db.unsafe("set role anon");
+  await expectFailure("anon cannot directly SELECT invitation storage",
+    () => db.unsafe("select id from public.customer_activation_invitations"), /permission denied/i);
+  await expectFailure("anon cannot directly INSERT invitation rows",
+    () => db.unsafe("insert into public.customer_activation_invitations(organization_id,customer_id,invited_email,token_hash,expires_at) values('a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','anon@example.test',repeat('b',64),now()+interval '1 hour')"), /permission denied/i);
+  await expectFailure("anon cannot directly UPDATE invitation rows",
+    () => db.unsafe("update public.customer_activation_invitations set status='revoked'"), /permission denied/i);
+  await expectFailure("anon cannot directly DELETE invitation rows",
+    () => db.unsafe("delete from public.customer_activation_invitations"), /permission denied/i);
+  await db.unsafe("reset role");
+
   const createdAudit = await db.unsafe(
     "select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=any($2::uuid[])",
     [organizationId, [validInvitation.invitation_id, unconfirmedInvitation.invitation_id, foreignScopeInvitation.invitation_id, staffRejectInvitation.invitation_id, expiredInvitation.invitation_id, revokedInvitation.invitation_id]],
