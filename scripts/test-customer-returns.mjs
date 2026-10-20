@@ -438,6 +438,13 @@ async function main() {
   await setIdentity(managerAuthId,"ci-return-manager@example.test");
   await db.unsafe("set role authenticated");
 
+  const beforeStatementRaw = await db.unsafe(
+    "select public.get_staff_customer_account_statement($1::uuid) as result",[customerOne.id],
+  );
+  const beforeStatement = asJson(beforeStatementRaw[0].result);
+  const beforeYER = beforeStatement.summary.find((row) => row.currency === "YER");
+  assert.ok(beforeYER,"YER customer ledger baseline exists before credit posting");
+
   const postCreditRaw = await db.unsafe(
     "select public.post_general_journal_entry($1::uuid) as result",
     [preparedCredit.journal_entry_id],
@@ -482,8 +489,13 @@ async function main() {
   assert.ok(staffStatement.credits.some((row) => row.id === preparedCredit.credit_memo_id),"staff statement includes posted source credit memos");
   const staffYER = staffStatement.summary.find((row) => row.currency === "YER");
   assert.ok(staffYER,"staff statement summarizes YER receivables");
-  assert.equal(Number(staffYER.credited),125,"staff statement reduces receivables by posted source credit memo");
-  assert.equal(Number(staffYER.outstanding),375,"staff statement reconciles invoice less posted credit memo");
+  const sourceStatementInvoice = staffStatement.invoices.find((row) => row.id === sourceInvoiceId);
+  assert.ok(sourceStatementInvoice,"staff statement includes the source invoice in its bounded recent details");
+  assert.equal(Number(sourceStatementInvoice.outstanding_amount),375,"source invoice balance is total less its posted return credit");
+  assert.equal(Number(staffYER.credited) - Number(beforeYER.credited),125,
+    "posting the source credit increases the full-ledger credited total by exactly the source amount");
+  assert.equal(Number(beforeYER.outstanding) - Number(staffYER.outstanding),125,
+    "posting the source credit reduces the full-ledger outstanding total by exactly the source amount");
 
   await db.unsafe("reset role");
   await setIdentity(accountantAuthId,"ci-accountant@example.test");
@@ -498,7 +510,10 @@ async function main() {
   const accountantStatement = asJson(accountantStatementRaw[0].result);
   const accountantYER = accountantStatement.summary.find((row) => row.currency === "YER");
   assert.ok(accountantYER,"accountant can print own-organization statement totals");
-  assert.equal(Number(accountantYER.outstanding),375,"accountant read access retains posted-credit balance accuracy");
+  assert.equal(Number(accountantYER.outstanding),Number(staffYER.outstanding),
+    "accountant read access returns the same authorized full-ledger total");
+  assert.equal(Number(accountantYER.credited),Number(staffYER.credited),
+    "accountant read access retains posted-credit balance accuracy");
   await expectFailure("accountant cannot print another organization's statement",
     () => db.unsafe("select public.get_staff_customer_account_statement($1::uuid)",[foreignCustomerId]),
     /customer was not found in the active organization/i);
