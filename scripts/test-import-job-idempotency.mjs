@@ -12,7 +12,6 @@ const staffProfileId = "f0000000-0000-0000-0000-000000000001";
 const staffAuthUserId = "33333333-3333-4333-8333-333333333333";
 const staffEmail = "admin@aghbari.ye";
 const directDmlKey = randomUUID();
-const requestKeys = [];
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const firstClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const secondClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
@@ -82,13 +81,16 @@ async function main() {
     sourceSystem: "ci-request-idempotency",
     intent: "new_version",
   };
-  requestKeys.push(base.requestKey);
 
   // Separate PostgreSQL sessions issue the exact same logical attempt concurrently.
-  const [first, replay] = await Promise.all([
+  const [firstResult, replayResult] = await Promise.allSettled([
     createJob(firstClient, base),
     createJob(secondClient, base),
   ]);
+  if (firstResult.status === "rejected") throw firstResult.reason;
+  if (replayResult.status === "rejected") throw replayResult.reason;
+  const first = firstResult.value;
+  const replay = replayResult.value;
   assert.equal(first.id, replay.id, "concurrent same-key calls must return the same job");
   const claimRows = await db.unsafe(
     "select count(*)::int as count, min(import_job_id::text) as job_id from public.import_job_request_keys where organization_id=$1 and actor_profile_id=$2 and request_key=$3",
@@ -107,7 +109,6 @@ async function main() {
   // The same file may be deliberately imported again only with a fresh key and explicit intent.
   const mergeAttempt = { ...base, requestKey: randomUUID(), intent: "merge" };
   const replaceAttempt = { ...base, requestKey: randomUUID(), intent: "replace" };
-  requestKeys.push(mergeAttempt.requestKey, replaceAttempt.requestKey);
   const merged = await createJob(firstClient, mergeAttempt);
   const replaced = await createJob(firstClient, replaceAttempt);
   assert.notEqual(merged.id, first.id, "a deliberate merge has its own import job");
