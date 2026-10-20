@@ -56,7 +56,7 @@ export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: st
       {!loading && !error && evidence ? (
         <>
           <div className="onyx-source-metadata">
-            <span><strong>المؤسسة الفعالة من قاعدة البيانات:</strong> {evidence.organization.name} · <code>{evidence.organization.id}</code></span>
+            <span><strong>المؤسسة الفعالة من قاعدة البيانات:</strong> <span data-testid="onyx-evidence-organization-name">{evidence.organization.name}</span> · <code>{evidence.organization.id}</code></span>
             <span><strong>حالة إثبات المنشأ:</strong> {provenanceLabels[evidence.source_identity.provenance_status]}</span>
             <span><strong>نظام المصدر المسجل:</strong> {sourceSystemLabel(evidence.source_identity.source_system)}</span>
             <span><strong>معرّف سجل المصدر:</strong> <code>{evidence.source_identity.source_record_id || "غير متاح"}</code></span>
