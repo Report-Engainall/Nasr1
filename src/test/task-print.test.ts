@@ -41,4 +41,17 @@ describe('role-scoped operational task printing', () => {
   it('returns no printable tasks rather than inventing content when there are no matches', () => {
     expect(filterTasksForPrint([], 'all', allRoles)).toEqual([]);
   });
+
+  it('does not broaden the current screen role filter when print scope is all', () => {
+    const screenVisibleRows = tasks.filter((task) => task.task_role === 'sales');
+    expect(filterTasksForPrint(screenVisibleRows, 'all', allRoles))
+      .toEqual([{ id: 'sales-1', task_role: 'sales' }]);
+  });
+
+  it('intersects the requested print role with the current screen role filter', () => {
+    const screenVisibleRows = tasks.filter((task) => task.task_role === 'sales');
+    expect(filterTasksForPrint(screenVisibleRows, 'accountant', allRoles)).toEqual([]);
+    expect(filterTasksForPrint(screenVisibleRows, 'sales', allRoles))
+      .toEqual([{ id: 'sales-1', task_role: 'sales' }]);
+  });
 });
