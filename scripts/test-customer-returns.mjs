@@ -1,0 +1,252 @@
+import assert from "node:assert/strict";
+import postgres from "postgres";
+
+const connectionString = process.env.TEST_DATABASE_URL;
+if (!connectionString) throw new Error("TEST_DATABASE_URL is required for customer return database acceptance.");
+const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+
+async function setIdentity(authUserId, email) {
+  await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [authUserId]);
+  await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
+    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
+  ]);
+}
+
+async function expectFailure(label, action, pattern) {
+  let caught;
+  try { await action(); } catch (error) { caught = error; }
+  assert.ok(caught, label + " should fail");
+  if (pattern) assert.match(String(caught.message), pattern, label + " should fail for the expected reason");
+}
+
+function asJson(value) {
+  if (typeof value === "string") return JSON.parse(value);
+  return value;
+}
+
+async function main() {
+  const organizationId = "a0000000-0000-0000-0000-000000000001";
+  const customerOneProfileId = "f1111111-1111-4111-8111-111111111111";
+  const customerOneAuthId = "11111111-1111-4111-8111-111111111111";
+  const customerTwoProfileId = "f2222222-2222-4222-8222-222222222222";
+  const customerTwoAuthId = "22222222-2222-4222-8222-222222222222";
+  const managerProfileId = "f7777777-7777-4777-8777-777777777777";
+  const managerAuthId = "77777777-7777-4777-8777-777777777777";
+  const accountantProfileId = "f5555555-5555-4555-8555-555555555555";
+  const accountantAuthId = "55555555-5555-4555-8555-555555555555";
+  const productId = "a1000000-0000-0000-0000-000000000001";
+  const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,8);
+
+  await db.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Return Manager','ci-return-manager@example.test',true) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,is_active=true",
+    [managerProfileId,managerAuthId,organizationId],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'manager') on conflict(profile_id,role) do nothing",
+    [managerProfileId],
+  );
+
+  const customerRows = await db.unsafe(
+    "select id,profile_id from public.customers where organization_id=$1 and profile_id in ($2::uuid,$3::uuid) and status='approved'",
+    [organizationId,customerOneProfileId,customerTwoProfileId],
+  );
+  const customerOne = customerRows.find((row) => row.profile_id === customerOneProfileId);
+  const customerTwo = customerRows.find((row) => row.profile_id === customerTwoProfileId);
+  assert.ok(customerOne, "first approved customer fixture must exist from migration acceptance");
+  assert.ok(customerTwo, "second approved customer fixture must exist from migration acceptance");
+
+  const orderOneRows = await db.unsafe(
+    "insert into public.orders(organization_id,customer_id,order_number,status,total_amount,total_items,notes,created_by) values($1,$2,$3,'delivered',500,5,'CI return request', $4) returning id",
+    [organizationId,customerOne.id,"CI-RET-A-"+suffix,customerOneProfileId],
+  );
+  const orderTwoRows = await db.unsafe(
+    "insert into public.orders(organization_id,customer_id,order_number,status,total_amount,total_items,notes,created_by) values($1,$2,$3,'delivered',200,2,'CI return rejection', $4) returning id",
+    [organizationId,customerOne.id,"CI-RET-B-"+suffix,customerOneProfileId],
+  );
+  const otherOrderRows = await db.unsafe(
+    "insert into public.orders(organization_id,customer_id,order_number,status,total_amount,total_items,notes,created_by) values($1,$2,$3,'delivered',400,4,'CI different customer', $4) returning id",
+    [organizationId,customerTwo.id,"CI-RET-C-"+suffix,customerTwoProfileId],
+  );
+  const orderOneId = orderOneRows[0].id;
+  const orderTwoId = orderTwoRows[0].id;
+  const otherOrderId = otherOrderRows[0].id;
+
+  const lineOneRows = await db.unsafe(
+    "insert into public.order_items(order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity,unit_price_snapshot,discount_snapshot,line_total) values($1,$2,'000125','CI Return Item One','carton',5,5,5,100,0,500) returning id",
+    [orderOneId,productId],
+  );
+  const lineTwoRows = await db.unsafe(
+    "insert into public.order_items(order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity,unit_price_snapshot,discount_snapshot,line_total) values($1,$2,'000126','CI Return Item Two','piece',2,2,2,100,0,200) returning id",
+    [orderTwoId,productId],
+  );
+  const otherLineRows = await db.unsafe(
+    "insert into public.order_items(order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity,unit_price_snapshot,discount_snapshot,line_total) values($1,$2,'000127','CI Private Item','piece',4,4,4,100,0,400) returning id",
+    [otherOrderId,productId],
+  );
+  const lineOneId = lineOneRows[0].id;
+  const lineTwoId = lineTwoRows[0].id;
+  const otherLineId = otherLineRows[0].id;
+
+  await db.unsafe("reset role");
+  await setIdentity(customerOneAuthId,"ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+
+  const firstRequestRaw = await db.unsafe(
+    "select public.request_customer_return($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) as result",
+    [orderOneId,db.json([{order_item_id:lineOneId,quantity:1.25}]),"damaged","Visible damage","ci-return-key-"+suffix],
+  );
+  const firstRequest = asJson(firstRequestRaw[0].result);
+  assert.equal(firstRequest.status,"submitted");
+  assert.equal(firstRequest.idempotent_replay,false);
+  assert.match(firstRequest.request_number,/^RET-/);
+
+  const replayRaw = await db.unsafe(
+    "select public.request_customer_return($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) as result",
+    [orderOneId,db.json([{order_item_id:lineOneId,quantity:1.25}]),"damaged","Visible damage","ci-return-key-"+suffix],
+  );
+  const replay = asJson(replayRaw[0].result);
+  assert.equal(replay.request_id,firstRequest.request_id,"same payload and key returns the original request");
+  assert.equal(replay.idempotent_replay,true,"same payload and key is marked as a replay");
+
+  await expectFailure(
+    "same idempotency key with changed payload is rejected",
+    () => db.unsafe(
+      "select public.request_customer_return($1::uuid,$2::jsonb,$3::text,$4::text,$5::text)",
+      [orderOneId,db.json([{order_item_id:lineOneId,quantity:1.5}]),"damaged","Visible damage","ci-return-key-"+suffix],
+    ),
+    /idempotency key payload conflict/i,
+  );
+  await expectFailure(
+    "request exceeding remaining returnable quantity is rejected",
+    () => db.unsafe(
+      "select public.request_customer_return($1::uuid,$2::jsonb,$3::text,$4::text,$5::text)",
+      [orderOneId,db.json([{order_item_id:lineOneId,quantity:4}]),"damaged","Excess quantity","ci-return-over-"+suffix],
+    ),
+    /exceeds the remaining returnable quantity/i,
+  );
+  await expectFailure(
+    "another customer's order cannot be targeted",
+    () => db.unsafe(
+      "select public.request_customer_return($1::uuid,$2::jsonb,$3::text,$4::text,$5::text)",
+      [otherOrderId,db.json([{order_item_id:otherLineId,quantity:1}]),"other","Other customer order","ci-return-other-"+suffix],
+    ),
+    /not found for the authenticated customer and organization/i,
+  );
+
+  const ownSummaryRaw = await db.unsafe(
+    "select public.list_my_customer_return_requests($1::uuid) as result",
+    [orderOneId],
+  );
+  const ownSummary = asJson(ownSummaryRaw[0].result);
+  assert.equal(ownSummary.requests.length,1);
+  assert.equal(ownSummary.returnable_items[0].remaining_quantity,3.75);
+  assert.equal(ownSummary.requests[0].items[0].item_code,"000125","business codes preserve leading zeroes");
+
+  await expectFailure(
+    "authenticated customers cannot directly insert return requests",
+    () => db.unsafe(
+      "insert into public.customer_return_requests(organization_id,customer_id,order_id,request_number,reason,requested_by,idempotency_key,payload_fingerprint) values($1,$2,$3,'FORGED','other',$4,'ci-direct-write-key','00000000000000000000000000000000')",
+      [organizationId,customerOne.id,orderOneId,customerOneProfileId],
+    ),
+    /permission denied/i,
+  );
+
+  const otherRows = await db.unsafe(
+    "select id from public.customer_return_requests where id=$1",
+    [firstRequest.request_id],
+  );
+  assert.equal(otherRows.length,1,"the request owner can read its own request");
+  await db.unsafe("reset role");
+
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
+  await db.unsafe("set role authenticated");
+  const queueRaw = await db.unsafe("select public.list_customer_return_review_queue(50) as result");
+  const queue = asJson(queueRaw[0].result);
+  assert.ok(queue.some((row) => row.id === firstRequest.request_id),"manager review queue returns this tenant's pending request");
+
+  const approvedRaw = await db.unsafe(
+    "select public.review_customer_return_request($1::uuid,'approved',$2::text) as result",
+    [firstRequest.request_id,"Approved after inspection review"],
+  );
+  const approved = asJson(approvedRaw[0].result);
+  assert.equal(approved.status,"approved");
+  assert.equal(approved.idempotent_replay,false);
+  await db.unsafe("reset role");
+
+  const receiptTask = await db.unsafe(
+    "select id,task_role,status from public.ai_tasks where organization_id=$1 and source_event_key=$2",
+    [organizationId,"customer-return-receipt:"+firstRequest.request_id],
+  );
+  assert.equal(receiptTask.length,1,"approval creates one warehouse inspection task");
+  assert.equal(receiptTask[0].task_role,"warehouse");
+  const reviewAudit = await db.unsafe(
+    "select action,new_value->>'status' as new_status from public.audit_logs where organization_id=$1 and entity_id=$2::uuid and action='customer_return.reviewed'",
+    [organizationId,firstRequest.request_id],
+  );
+  assert.equal(reviewAudit.length,1,"decision audit event is persisted");
+  assert.equal(reviewAudit[0].new_status,"approved");
+
+  await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
+  await db.unsafe("set role authenticated");
+  const secondRequestRaw = await db.unsafe(
+    "select public.request_customer_return($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) as result",
+    [otherOrderId,db.json([{order_item_id:otherLineId,quantity:1}]),"quality","Quality concern","ci-return-second-customer-"+suffix],
+  );
+  const secondRequest = asJson(secondRequestRaw[0].result);
+  await db.unsafe("reset role");
+
+  await setIdentity(customerOneAuthId,"ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  const hiddenForeignRows = await db.unsafe(
+    "select id from public.customer_return_requests where id=$1",
+    [secondRequest.request_id],
+  );
+  assert.equal(hiddenForeignRows.length,0,"customer cannot read another customer's return request");
+  await db.unsafe("reset role");
+
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
+  await db.unsafe("set role authenticated");
+  const rejectedRaw = await db.unsafe(
+    "select public.review_customer_return_request($1::uuid,'rejected',$2::text) as result",
+    [secondRequest.request_id,"Rejected after detailed review"],
+  );
+  const rejected = asJson(rejectedRaw[0].result);
+  assert.equal(rejected.status,"rejected");
+  await db.unsafe("reset role");
+
+  await setIdentity(accountantAuthId,"ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "accountants without manager/admin role cannot list returns for review",
+    () => db.unsafe("select public.list_customer_return_review_queue(50)"),
+    /administrator or manager permission required/i,
+  );
+  await expectFailure(
+    "accountants without manager/admin role cannot decide customer returns",
+    () => db.unsafe(
+      "select public.review_customer_return_request($1::uuid,'approved',$2::text)",
+      [secondRequest.request_id,"Attempted unauthorized decision"],
+    ),
+    /administrator or manager permission required/i,
+  );
+  await db.unsafe("reset role");
+
+  const forbiddenStockMutation = await db.unsafe(
+    "select count(*)::int as count from public.inventory_movements where reference_type='customer_return_request' and reference_id in ($1::uuid,$2::uuid)",
+    [firstRequest.request_id,secondRequest.request_id],
+  );
+  assert.equal(forbiddenStockMutation[0].count,0,"request/approval records no stock movement before receipt");
+  process.stdout.write("PASS customer returns: tenant ownership, delivered-order gate, line quantities, idempotent replay/conflict, direct-write denial, customer privacy, manager decisions/audit, warehouse inspection task, accountant denial, and no automatic stock movement.\n");
+}
+
+try {
+  await main();
+} catch (cause) {
+  const error = cause && typeof cause === "object" ? cause : { message: String(cause) };
+  process.stderr.write("CUSTOMER_RETURN_ACCEPTANCE_FAILED " + JSON.stringify({
+    name:error.name,message:error.message,code:error.code,detail:error.detail,hint:error.hint,where:error.where,table:error.table,constraint:error.constraint,stack:error.stack,
+  }) + "\n");
+  throw cause;
+} finally {
+  await db.end({ timeout: 5 });
+}
