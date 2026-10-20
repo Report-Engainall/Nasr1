@@ -44,7 +44,13 @@ export function resolveStorefrontPricePresentation(
   policyValue: unknown,
   serverUnitPrice: unknown,
 ): StorefrontPricePresentation {
-  if (policyValue !== true || !isFiniteNonNegativeAmount(serverUnitPrice)) {
+  // A catalog zero is the hidden-price sentinel. Suppress it unconditionally,
+  // including if a separately fetched policy setting is stale or disagrees.
+  if (
+    policyValue !== true
+    || !isFiniteNonNegativeAmount(serverUnitPrice)
+    || serverUnitPrice === 0
+  ) {
     return { visible: false };
   }
 

@@ -23,6 +23,10 @@ describe("storefront price visibility presentation guard", () => {
     },
   );
 
+  it("suppresses the catalog zero sentinel even if the separately fetched setting says enabled", () => {
+    expect(resolveStorefrontPricePresentation(true, 0)).toEqual({ visible: false });
+  });
+
   it("renders the exact server amount when the setting is explicitly enabled", () => {
     expect(resolveStorefrontPricePresentation(true, 1234.5)).toEqual({
       visible: true,
