@@ -246,7 +246,8 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='أكّد البريد الإلكتروني قبل قبول دعوة التفعيل.';
   END IF;
-  IF v_auth_email !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='لم يثبت الخادم بريدًا إلكترونيًا صالحًا للجلسة.';
+  IF v_auth_email !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$' THEN
+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='لم يثبت الخادم بريدًا إلكترونيًا صالحًا للجلسة.';
   END IF;
 
   -- Lock the identity row to serialize attempts to link one profile to multiple customer records.
