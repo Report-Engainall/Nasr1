@@ -53,6 +53,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
 }) {
   const { user, ready: authReady } = useAuth();
   const navigate = useNavigate();
+  const [view, setView] = useState<StoreView>(initialView);
   const [query, setQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
   const [activeCat, setActiveCat] = useState<string>(initialCategoryId ?? '');
   const [availableOnly, setAvailableOnly] = useState<boolean>(initialAvailableOnly ?? false);
@@ -93,7 +94,6 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const { data: promotions } = useFetch(fetchStorefrontPromotions);
   const { data: settings } = useFetch(fetchSettingsMap);
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
-  const [view, setView] = useState<StoreView>(initialView);
   const cartStorageKey = offlineCartStorageKey(user?.profileId);
   const wishlistStorageKey = user?.profileId ? savedProductCacheKey(user.profileId) : 'aghbari:wishlist:v1';
   const [cartState, setCartState] = useState<{ storageKey: string; items: CartItem[] }>({ storageKey: '', items: [] });
