@@ -1080,7 +1080,7 @@ async function main() {
   // the receipt line is defective (restockable_quantity=0) so this fixture does
   // not change saleable stock.
   const sourceInvoiceItem = (await db.unsafe(
-    `select id,order_item_id,product_id,item_code,description,unit,quantity
+    `select id,order_item_id,product_id,item_code,description,unit,quantity,unit_price
        from public.customer_invoice_items
       where organization_id=$1 and invoice_id=$2
       order by created_at,id limit 1`,
