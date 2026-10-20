@@ -53,11 +53,12 @@ describe("import request key persistence", () => {
     let generated = 0;
     const createRequestKey = () => {
       generated += 1;
-      return [
+      const keys = [
         "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-      ][generated - 1];
+      ];
+      return keys[generated - 1] ?? "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
     };
 
     const first = await getOrCreateImportRequestKey(identity, { storage, createRequestKey });
