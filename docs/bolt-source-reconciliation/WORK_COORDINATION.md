@@ -183,3 +183,12 @@ P2 owns WORK_COORDINATION.md, CURRENT_EXECUTION_STATE.md, EXECUTION_LOG.md, ARCH
 
 ### P2 coordination note
 The task-print patch touched only `src/components/TaskCenter.tsx`, `src/lib/task-print.ts`, and `src/test/task-print.test.ts`. P1-owned code and ledgers remain untouched: `src/lib/api.ts`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, `.github/workflows/commerce-checks.yml`, `SOURCE_INTEGRATION_LEDGER.csv`, `READY_TO_REUSE_FILE_AUDIT.csv`, and P1's report. The Playwright gate was added in separate new P2-owned files; its browser run remains explicitly blocked on external test credentials.
+
+
+## P2/P1 cross-PR handoff — price privacy accepted, protected harness review required — 20 October 2026
+
+- P2 price-privacy work has exact-SHA CI PASS on PR #12 head `be595fc74b8bbf64b308b84210d86a9aa1d464b8`, Action [39463202326](https://github.com/Report-Engainall/Nasr1/actions/runs/39463202326). That proves the current migration, stand-alone PostgreSQL acceptance, unit/lint/build and HTTP smoke only; Browser and Production remain NOT RUN.
+- P2 did not modify `scripts/test-database-migrations.mjs` in this reconciliation. A previous, already-existing PR #12 diff includes that file, which this coordination record lists as P1-owned/locked for the customer-price privacy task. **P1 action requested:** review the historical diff and either remove/restore it in a P1-controlled edit or explicitly release ownership of that path in WORK_COORDINATION before PR #12 is merged. P2 will not edit the protected harness, suppress its tests, or widen grants/RLS to make acceptance pass.
+- The dedicated P2 test `scripts/test-customer-price-visibility.mjs` is wired into `test:db` and prints a price-privacy PASS from isolated PostgreSQL 17. The run retains prior failed Actions as root-cause evidence. PR #12 remains OPEN and not merged.
+- Continue P2-only work on this PR #18 branch; do not write `main`, donor repositories, P1 ledgers, `src/lib/api.ts`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, or `.github/workflows/commerce-checks.yml`.
+- Single current task pointer after acceptance of task #010: `NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011`. Identity/sync inspection must distinguish saved snapshots from confirmed live Onyx API sync; no production or browser claim may be inferred from CI smoke tests.
