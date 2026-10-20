@@ -20,8 +20,9 @@
 
 ## Safety and validation
 - No runtime application logic, metadata, route behavior, authorization, database migration, secret or donor repository was changed.
-- Visual/pixel-level logo review was **NOT RUN**; this is a static asset from the same Aghbari Commerce donor and is copied without modification.
-- Local tests are **NOT RUN** in this session; CI must pass on the exact PR head before merge.
+- **PASS on exact PR head:** [GitHub Actions 39361936854](https://github.com/Report-Engainall/Nasr1/actions/runs/39361936854), SHA `e0b0640b4e073082a775c581bd5a9b2f147b6fc0`. The favicon integrity test passed; 54 test files and 387 tests passed; PostgreSQL 17 acceptance, lint, build, preview smoke 4173 and dev smoke 5173 passed.
+- PR #19 merged into `main` as `3a8b1261179aea8861a3d01b5a5232106b41409d`. Post-merge CI [39362159790](https://github.com/Report-Engainall/Nasr1/actions/runs/39362159790) also passed on that exact main SHA.
+- **NOT RUN:** local test execution, visual/pixel-level logo review, authenticated browser review, and production deployment. The static ICO structure was tested by CI; this is not a claim of visual asset approval.
 - No P2-owned report file or Bolt archive was touched.
 
 ## Next task
