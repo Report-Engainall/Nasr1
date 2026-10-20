@@ -102,3 +102,13 @@ task التالي بعده مباشرة: NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETIO
 - Failures retained: Action 39326813015 (stale error-message expectations) and 39335294442 (inbox page-one assumption). Corrections target the tests/readback only; guards and permission checks were not weakened.
 - PR #6 is the delivery route; no direct write to main. Browser/live tenant/production proof: **NOT RUN**.
 - `next_task_id = NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-VISIBILITY-007`.
+
+## 2026-10-20 — المراجعة الإضافية لمصادر NASR المستخرجة
+- تقرير الأدلة الجديد: docs/bolt-source-reconciliation/P2_MULTI_PROJECTS_TRANSFER_REVIEW_2026-10-20.md.
+- مصدر القراءة المتحقق: NASR-MULTI-PROJECTS-TRANSFER/main عند f7c0b8132f3e4bbe298c73d966ed6996b5cf989b؛ التقرير عند blob 1f5e589344251129e5d96ed2e0b4bf886c8222f1. تمت مقارنة شجرة المصدر مع Nasr1/main عند b54c87525d3b8c25c1d6ebf0c525636f82444ac1.
+- ظهرت مفارقة تعداد: التقرير 2,044 ملفًا، والشجرة الحالية تعرض 2,011 blob داخل مجلدات الأرشيف التسعة (فارق 33). لم نعد استخراج الملفات ولم نصنف الفارق كفقد مثبت.
+- ثبت تكرار الزوج 7wyze9ut: 35/35 ملفًا متتبعًا بنفس المسار وGit blob SHA، فوق تطابق SHA-256 للأرشيفين الذي يسجله التقرير.
+- قدرات Onyx/التحليل/TaskCenter/Onyx export/price-grid CSV-XLSX/AI gateway المختارة مطابقة بالمحتوى مع Nasr1؛ لا نسخ مكرر. نسخة unified-import المانحة أقدم وتفتقد حراسات هدفية؛ أُخذ منها تحسين Unicode/Arabic header normalization فقط في فرع PR #18، مع اختبارات انحدار جديدة.
+- التغييرات المستحدثة من هذه الجولة على فرع P2: src/lib/unified-import.ts وsrc/test/unified-import-safety.test.ts، مع تقرير المراجعة والتكليف الإضافي. CI النهائي الخاص بها PENDING حتى يجري على رأس الفرع بعد الحفظ الأخير؛ نجاح SHA سابق لا ينتقل إليها.
+- لم يُنفّذ بعد controlled inventory apply/rollback ولا browser E2E source test؛ كليهما مسجل بالحدود والمخاطر في تقرير المراجعة. PR #12 لا يستخدم كدليل نجاح للخصوصية السعرية: Action 39339667293 فشل على SHA b3daf67de14c935fdafb0c2bf06c2f02e6be6ec5 ويحتاج قراءة سبب الفشل قبل أي قرار.
+- لا يتغير مؤشر P2 التالي بهذه الإضافة: NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004. استكمال المراجعة الإضافية يستمر ضمن المهمة الأم ولا يبرر فتح next_task_id متوازٍ.
