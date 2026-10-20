@@ -8,6 +8,7 @@ import { fetchOnyxSnapshotSourceEvidence } from "@/lib/onyx-source-evidence";
 const snapshotId = "22222222-2222-4222-8222-222222222222";
 const jobId = "11111111-1111-4111-8111-111111111111";
 const evidenceFixture = {
+  organization: { id: "99999999-9999-4999-8999-999999999999", name: "مؤسسة الاختبار" },
   snapshot: {
     id: snapshotId,
     source_import_job_id: jobId,
@@ -54,6 +55,7 @@ describe("tenant-scoped Onyx source evidence contract", () => {
     rpc.mockResolvedValue({ data: evidenceFixture, error: null });
     const result = await fetchOnyxSnapshotSourceEvidence(snapshotId);
     expect(rpc).toHaveBeenCalledWith("get_onyx_snapshot_source_evidence", { p_snapshot_id: snapshotId });
+    expect(result.organization).toEqual({ id: "99999999-9999-4999-8999-999999999999", name: "مؤسسة الاختبار" });
     expect(result.source_identity).toMatchObject({
       provenance_status: "linked_import_job_hash_match",
       source_system: "manual",
