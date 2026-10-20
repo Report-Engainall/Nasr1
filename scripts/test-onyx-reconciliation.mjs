@@ -192,6 +192,10 @@ async function main() {
     assert.equal(provenance.source_identity.provenance_status, "linked_import_job_hash_match");
     assert.equal(provenance.source_identity.source_record_id, null, "an import-job ID must not be represented as an external source-record ID");
     assert.deepEqual(provenance.source_identity.external_id_fields_found.sort(), ["external_id", "onyx_code"]);
+    assert.equal(provenance.source_identity.external_id_examples.length, 2, "row-level external ID evidence is returned from the persisted source snapshot");
+    assert.equal(provenance.source_identity.external_id_examples[0].external_ids.external_id, "ONYX-" + itemOne, "row one retains its own external record ID");
+    assert.equal(provenance.source_identity.external_id_examples[1].external_ids.onyx_code, "REMOTE-" + itemTwo, "row two retains its own alternate external code");
+    assert.equal(provenance.source_identity.external_id_examples_truncated, false, "small source samples are not falsely marked as truncated");
     assert.equal(provenance.source_identity.rows_with_external_id, 2);
     assert.equal(provenance.live_sync_evidence.live_connection_proven, false, "saved snapshot provenance never implies a live Onyx connection");
     assert.equal(provenance.live_sync_evidence.status, "not_proven");
