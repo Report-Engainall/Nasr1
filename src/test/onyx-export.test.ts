@@ -68,6 +68,16 @@ describe('Onyx order workbook draft', () => {
     expect(archiveText).toContain('inlineStr');
   });
 
+  it('embeds the persisted central audit event ID in the final workbook header', () => {
+    const auditId = '9f4c1d25-7ab9-47e1-9ac8-67f0c15b4c20';
+    const bytes = buildOnyxOrderWorkbook({ ...order, exportAuditId: auditId });
+    const headerXml = storedZipEntry(bytes, 'xl/worksheets/sheet2.xml');
+    expect(headerXml).toContain('معرف سجل التدقيق المركزي');
+    expect(headerXml).toContain(auditId);
+    expect(headerXml).toContain('حالة توافق أونكس');
+    expect(headerXml).toContain('غير مثبت');
+  });
+
   it('removes XML 1.0-forbidden control characters from dirty imported cells', () => {
     const control1 = String.fromCharCode(1);
     const control2 = String.fromCharCode(2);
