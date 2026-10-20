@@ -31,13 +31,13 @@ The target UI intentionally differs from the donor variant: it accepts an option
 ## Validation status
 
 - Initial base SHA verified: `9c2251780fda8f3f1a7011ce65bc66f8a51d8c01`.
-- New UI test authored, but local execution is **NOT RUN** because no local checkout/test runtime is attached to this session.
-- Exact-head GitHub Actions for this PR: **PENDING** until run is observed.
-- PostgreSQL/RLS acceptance for this new UI test is not newly claimed; the migration and RPC contract were already covered by the existing target integration suite. No production migration or browser-authenticated session was run.
-- No PASS claim until the PR CI result and tested SHA are read back.
+- Code/test head `ae19ffc87000c6abcdfaa9a34de53c31d56fa110` passed GitHub Actions [39359934341](https://github.com/Report-Engainall/Nasr1/actions/runs/39359934341): frozen Bun lock verification, unit tests, PostgreSQL 17 migration/core-workflow acceptance, lint, build, production-preview smoke port 4173, dev-server smoke port 5173, and cleanup all succeeded on that exact SHA.
+- Local test command is **NOT RUN** because no local checkout/test runtime is attached to this session.
+- This evidence commit changes only this P1 ledger row and this supplementary report. Final-head CI for the resulting documentation SHA is **PENDING** and must pass before the PR is treated as merge-ready.
+- PostgreSQL/RLS acceptance for this new UI test is not newly claimed; the migration and RPC contract were already covered by the existing target integration suite. Browser-authenticated proof and production migration/deployment are **NOT RUN**.
 
 ## Ownership and continuation
 
 `PROGRAMMER_1_CURRENT_REPORT.md` is not modified in this change because it remains present in P2's open PR #5 changed-file set; its removal was already requested there. This supplementary P1 task report and the P1-owned source ledger retain the continuation evidence without overwriting P2's branch.
 
-**Next task after exact-head CI:** `NASR1-SOURCE-FINANCE-WORKFLOW-PARITY-001` — use the existing ledger/audit entry `NASR1-MANIFEST-036` (`src/services/finance.input.test.ts`, status `PARTIAL_FEATURE_ADAPTED_OTHER_LEGACY_DEFERRED`) as the entrypoint. Compare the already recorded source contract with current target finance/payment workflows, avoid duplicating the merged P2 invoice/payment accounting path, and implement only a concrete missing donor behavior if evidence confirms one. Do not re-fetch unchanged donor blobs.
+**Next task after final-head CI:** `NASR1-SOURCE-FINANCE-WORKFLOW-PARITY-001` — use the existing ledger/audit entry `NASR1-MANIFEST-036` (`src/services/finance.input.test.ts`, status `PARTIAL_FEATURE_ADAPTED_OTHER_LEGACY_DEFERRED`) as the entrypoint. Compare the already recorded source contract with current target finance/payment workflows, avoid duplicating the merged P2 invoice/payment accounting path, and implement only a concrete missing donor behavior if evidence confirms one. Do not re-fetch unchanged donor blobs.
