@@ -603,3 +603,12 @@
 - Added unit tests for request payload limits and response validation plus scripts/test-customer-returns.mjs and appended it to npm run test:db. CI result for final PR head is not yet available at this log point; implementation is not marked PASS.
 - Next: NASR1-ORIGINAL-SPEC-RETURNS-RECEIPT-POSTING-002 after exact-head CI and review.
 
+
+## 2026-10-20 — NASR1-ORIGINAL-SPEC-RETURNS-RECEIPT-POSTING-002 — implementation submitted for CI
+
+- Branch: `feat/p2-customer-return-intake-20261020`; parent code checkpoint `7244ad3ab9d37bf68a3ba2acd918455520798416`, PR #18. Action 39362085506 passed on that prior return-intake SHA only; not counted as a result for this new change.
+- Added migration `supabase/migrations/20261020060000_customer_return_receipts.sql`, typed validator `src/lib/customer-return-receipts.ts`, RTL operational UI `src/components/CustomerReturnReceiptQueue.tsx`, unit tests `src/test/customer-return-receipts.test.ts`; connected the new queue to the existing TaskCenter.
+- Extended `scripts/test-customer-returns.mjs` rather than P1-owned `scripts/test-database-migrations.mjs`: test wrong-tenant warehouse denial; partial then full receipt; replay; stock movement count; defective quarantine; task completion and queue removal.
+- No credit memo, journal posting, invoice change or refund is made in this stage. All remain a separate next task. No secrets or data from other archives were introduced.
+- Local npm/lint/build/PostgreSQL commands unavailable without a checkout: NOT RUN. Browser E2E and live/production DB/deployment: NOT RUN. Exact-head CI: PENDING.
+- Next task after acceptance: `NASR1-ORIGINAL-SPEC-RETURNS-CREDIT-MEMO-LEDGER-003`.

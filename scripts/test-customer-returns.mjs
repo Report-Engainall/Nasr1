@@ -186,6 +186,100 @@ async function main() {
   assert.equal(reviewAudit.length,1,"decision audit event is persisted");
   assert.equal(reviewAudit[0].new_status,"approved");
 
+  // The approved request moves through a real, idempotent receiving event. Only saleable units affect stock.
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
+  await db.unsafe("set role authenticated");
+  const warehouseRows = await db.unsafe(
+    "select id from public.warehouses where organization_id=$1 and is_active order by (id='d0000000-0000-0000-0000-000000000001'::uuid) desc,id limit 1",
+    [organizationId],
+  );
+  assert.equal(warehouseRows.length,1,"return receipt acceptance requires an active same-tenant warehouse");
+  const receiptWarehouseId = warehouseRows[0].id;
+  const requestItemRows = await db.unsafe(
+    "select id,product_id from public.customer_return_request_items where organization_id=$1 and return_request_id=$2::uuid and order_item_id=$3::uuid",
+    [organizationId,firstRequest.request_id,lineOneId],
+  );
+  assert.equal(requestItemRows.length,1,"approved return request must have its immutable request-line snapshot");
+  const requestItemId = requestItemRows[0].id;
+  const receiptQueueRaw = await db.unsafe("select public.list_customer_return_receipt_queue(50) as result");
+  const receiptQueue = asJson(receiptQueueRaw[0].result);
+  assert.ok(receiptQueue.warehouses.some((row) => row.id === receiptWarehouseId),"receipt queue only returns same-tenant active warehouses");
+  assert.ok(receiptQueue.requests.some((row) => row.id === firstRequest.request_id),"approved return appears in physical receipt queue");
+
+  const foreignWarehouseRows = await db.unsafe(
+    "select id from public.warehouses where organization_id<>$1 and is_active order by id limit 1",
+    [organizationId],
+  );
+  assert.equal(foreignWarehouseRows.length,1,"receipt acceptance requires a foreign-tenant warehouse fixture");
+  await expectFailure(
+    "return receipt cannot target another tenant's warehouse",
+    () => db.unsafe(
+      "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text)",
+      [firstRequest.request_id,foreignWarehouseRows[0].id,db.json([{request_item_id:requestItemId,received_quantity:0.25,restockable_quantity:0.25}]),"foreign warehouse denial","ci-return-foreign-warehouse-"+suffix],
+    ),
+    /warehouse.*current organization/i,
+  );
+
+  const firstReceiptLines = [{request_item_id:requestItemId,received_quantity:0.75,restockable_quantity:0.50}];
+  const firstReceiptRaw = await db.unsafe(
+    "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
+    [firstRequest.request_id,receiptWarehouseId,db.json(firstReceiptLines),"first physical inspection","ci-return-receipt-one-"+suffix],
+  );
+  const firstReceipt = asJson(firstReceiptRaw[0].result);
+  assert.equal(firstReceipt.request_status,"approved","partial receipt keeps the return open");
+  assert.equal(firstReceipt.idempotent_replay,false);
+  assert.equal(Number(firstReceipt.received_quantity),0.75);
+  assert.equal(Number(firstReceipt.restockable_quantity),0.50);
+  assert.equal(Number(firstReceipt.defective_quantity),0.25);
+
+  const replayReceiptRaw = await db.unsafe(
+    "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
+    [firstRequest.request_id,receiptWarehouseId,db.json(firstReceiptLines),"first physical inspection","ci-return-receipt-one-"+suffix],
+  );
+  const replayReceipt = asJson(replayReceiptRaw[0].result);
+  assert.equal(replayReceipt.receipt_id,firstReceipt.receipt_id,"idempotent replay returns the original receipt");
+  assert.equal(replayReceipt.idempotent_replay,true,"retry is explicitly marked replay");
+
+  const secondReceiptRaw = await db.unsafe(
+    "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
+    [firstRequest.request_id,receiptWarehouseId,db.json([{request_item_id:requestItemId,received_quantity:0.50,restockable_quantity:0.25}]),"final physical inspection","ci-return-receipt-two-"+suffix],
+  );
+  const secondReceipt = asJson(secondReceiptRaw[0].result);
+  assert.equal(secondReceipt.request_status,"received","request closes only after all approved quantity is received");
+  assert.equal(Number(secondReceipt.received_quantity),0.50);
+  assert.equal(Number(secondReceipt.restockable_quantity),0.25);
+  assert.equal(Number(secondReceipt.defective_quantity),0.25);
+
+  const finalReturnRows = await db.unsafe(
+    "select status from public.customer_return_requests where id=$1::uuid and organization_id=$2",
+    [firstRequest.request_id,organizationId],
+  );
+  assert.equal(finalReturnRows[0].status,"received");
+  const receiptStockRows = await db.unsafe(
+    "select count(*)::integer as movement_count,coalesce(sum(m.quantity),0)::numeric(15,3)::text as restocked " +
+    "from public.inventory_movements m join public.customer_return_receipts h on h.id=m.reference_id and h.organization_id=$2 " +
+    "where h.return_request_id=$1::uuid and m.reference_type='customer_return_receipt'",
+    [firstRequest.request_id,organizationId],
+  );
+  assert.equal(receiptStockRows[0].movement_count,2,"receipt replay must not create duplicate stock movement");
+  assert.equal(Number(receiptStockRows[0].restocked),0.75,"only saleable quantities enter stock");
+  const defectRows = await db.unsafe(
+    "select coalesce(sum(i.defective_quantity),0)::numeric(15,3)::text as defective " +
+    "from public.customer_return_receipt_items i join public.customer_return_receipts h on h.id=i.receipt_id and h.organization_id=$2 " +
+    "where h.return_request_id=$1::uuid",
+    [firstRequest.request_id,organizationId],
+  );
+  assert.equal(Number(defectRows[0].defective),0.50,"defective quantity is recorded but excluded from stock movements");
+  const completedReceiptTask = await db.unsafe(
+    "select status from public.ai_tasks where organization_id=$1 and source_event_key=$2",
+    [organizationId,"customer-return-receipt:"+firstRequest.request_id],
+  );
+  assert.equal(completedReceiptTask[0]?.status,"completed","full receipt closes the linked warehouse task");
+  const queueAfterReceiptRaw = await db.unsafe("select public.list_customer_return_receipt_queue(50) as result");
+  const queueAfterReceipt = asJson(queueAfterReceiptRaw[0].result);
+  assert.ok(!queueAfterReceipt.requests.some((row) => row.id === firstRequest.request_id),"fully received return leaves pending queue");
+  await db.unsafe("reset role");
+
   await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
   await db.unsafe("set role authenticated");
   const secondRequestRaw = await db.unsafe(

@@ -83,3 +83,11 @@ P2 owns WORK_COORDINATION.md, CURRENT_EXECUTION_STATE.md, EXECUTION_LOG.md, ARCH
 | Harness ownership | P1 PR #3 merged; latest P1 report confirms P2 ownership in PR #6 | P2-owned for this task; P1 ledgers/report untouched |
 | Live tenant/browser/production | No authenticated live-tenant or production mutation was run | NOT RUN |
 | Next P2 task | `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-VISIBILITY-007` | Inspect current price privacy, connect admin display controls to routed customer screens and test the server boundary |
+
+## قفل P2 — استلام وفحص المرتجعات بعد الموافقة (2026-10-20)
+
+- المالك P2؛ التنفيذ فوق رأس intake `7244ad3ab9d37bf68a3ba2acd918455520798416` في PR #18؛ نجاح CI لذلك الرأس لا يُنقل إلى الإضافة الحالية.
+- ملفات العمل: `supabase/migrations/20261020060000_customer_return_receipts.sql`, `src/lib/customer-return-receipts.ts`, `src/components/CustomerReturnReceiptQueue.tsx`, `src/test/customer-return-receipts.test.ts`, وتعديلات P2 في `scripts/test-customer-returns.mjs`, `src/components/TaskCenter.tsx`، وسجلات الاستئناف/التنفيذ المملوكة لـ P2.
+- حدود الملكية: لا تعديل `scripts/test-database-migrations.mjs` أو `src/lib/api.ts` أو `src/components/AghbariApp.tsx` أو `src/routeTree.gen.ts` أو workflow؛ لا تغيير لدفاتر P1 أو سجلات مصادرهم.
+- الحراسة: RPCs مؤسسية ومخولة، لا DML مباشر للعميل على جداول الاستلام؛ مخزن نشط في المؤسسة؛ تحقق من request/line ownership والكمية المتبقية؛ fingerprint + advisory lock يمنع تكرار الإيصال؛ فقط الكمية الصالحة تحرك الرصيد، والتالف محفوظ في سجل الاستلام.
+- CI لهذا الرأس: PENDING إلى أن تؤكد Actions على SHA النهائي. لا دمج قبل نجاح CI المطابق.

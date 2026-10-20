@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
 import { filterTasksForPrint } from '@/lib/task-print';
 import { CustomerReturnReviewQueue } from '@/components/CustomerReturnReviewQueue';
+import { CustomerReturnReceiptQueue } from '@/components/CustomerReturnReceiptQueue';
 
 const roleLabels: Record<OperationalTaskRole, string> = {
   sales: 'المبيعات', accountant: 'المحاسبة والتحصيل', warehouse: 'أمين المخزن',
@@ -285,6 +286,6 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       </table>
       <footer>تعرض هذه القائمة سجلات التشغيل الحالية؛ لا تُنشأ مواعيد غير مسجلة في المصدر.</footer>
     </div>
-    {canManage && <CustomerReturnReviewQueue onNotice={onNotice} />}
+    {canManage && <><CustomerReturnReviewQueue onNotice={onNotice} /><CustomerReturnReceiptQueue onNotice={onNotice} /></>}
   </section>;
 }

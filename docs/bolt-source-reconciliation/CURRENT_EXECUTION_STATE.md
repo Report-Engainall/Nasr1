@@ -1,3 +1,18 @@
+## آخر تنفيذ P2 — NASR1-ORIGINAL-SPEC-RETURNS-RECEIPT-POSTING-002 (CI_PENDING)
+
+- المرحلة السابقة لطلب المرتجع/قرار المراجعة اجتازت CI على الرأس الدقيق `7244ad3ab9d37bf68a3ba2acd918455520798416` — [Action 39362085506](https://github.com/Report-Engainall/Nasr1/actions/runs/39362085506). هذا الإثبات لا يغطي إضافة الاستلام الحالية.
+- الفرع: `feat/p2-customer-return-intake-20261020`؛ جميع التعديلات في PR #18 المفتوح ولا توجد كتابة مباشرة إلى `main`.
+- نُفّذت وحدة الاستلام الفيزيائي بعد موافقة المدير: قائمة المخازن النشطة وطلبات الموافقة ذات الكمية المتبقية؛ تسجيل المستلم والصالح للمخزون؛ احتساب التالف من الفرق؛ حركة مخزون للكمية الصالحة فقط؛ تحديث حالة الطلب وإغلاق مهمة المخزن عند إكمال كل الكميات؛ سجل تدقيق؛ idempotency/replay/conflict ومنع تجاوز الكمية المعتمدة.
+- الملفات الجديدة: `supabase/migrations/20261020060000_customer_return_receipts.sql`, `src/components/CustomerReturnReceiptQueue.tsx`, `src/lib/customer-return-receipts.ts`, `src/test/customer-return-receipts.test.ts`. عُدّل `src/components/TaskCenter.tsx` لدمج الوحدة في مركز المهام الحالي، وعُزّز `scripts/test-customer-returns.mjs` باختبارات PostgreSQL خاصة بالاستلام.
+- تحقق قبول قاعدة البيانات يتضمن الاستلام الجزئي ثم النهائي، المخزن الأجنبي، replay، عدم تكرار الحركات، عدم دخول التالف للمخزون، إكمال مهمة المخزن وخروج الطلب المكتمل من قائمة الانتظار.
+- لا ينشأ إشعار دائن أو قيد دفتر أستاذ أو ردّ مالي في هذه المرحلة؛ يلزم تنفيذ الربط المحاسبي بشكل منفصل من مصدر موثوق ومبالغ خادمية وموافقة واضحة.
+- أوامر الاختبار المحلية غير متاحة دون checkout: `npm/git/PostgreSQL local = NOT RUN`. CI الخاص بالإضافة الحالية `PENDING`; المتصفح بحساب فعلي، وترحيل قاعدة الإنتاج والنشر `NOT RUN`.
+- الخطوة التالية بعد قبول هذه المرحلة: `NASR1-ORIGINAL-SPEC-RETURNS-CREDIT-MEMO-LEDGER-003`، ثم فجوة إدارة التصنيفات الإدارية بعقد tenant/RPC.
+- مصدر Bolt الوحيد يظل `project-bolt-github-7sl6ykzz (2).zip`, 1,009,556 bytes, blob SHA-1 `4835a0565f799a272dfca0ff49fbc3ce0d760474`, SHA-256 `1a692b013da35b4cb034f5b18f8160ec66bca778bc4649bd5128abc7fccb9be1`. لا استخدام أو مقارنة لأي أرشيف Bolt قديم.
+- لم تُعدل ملفات P1 المحمية أو سجلاتهم: `SOURCE_INTEGRATION_LEDGER.csv`, `READY_TO_REUSE_FILE_AUDIT.csv`, `PROGRAMMER_1_CURRENT_REPORT.md`.
+
+---
+
 ## آخر تنفيذ P2 — NASR1-ORIGINAL-SPEC-RETURNS-INTAKE-001 (CI_PENDING)
 
 - المستودع الهدف الوحيد: Report-Engainall/Nasr1. فرع P2: feat/p2-customer-return-intake-20261020. التعديلات محفوظة على الفرع؛ لا كتابة مباشرة على main.
