@@ -80,6 +80,9 @@ function clearPendingSavedProductChange(
 }
 
 export async function fetchStorefrontSavedProductIds(): Promise<string[]> {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    throw new Error("لا توجد شبكة؛ ستبقى المفضلة المحفوظة لهذا الحساب محليًا حتى عودة الاتصال.");
+  }
   const { data, error } = await supabase.rpc("list_storefront_saved_products");
   if (error) throw new Error("تعذر تحميل المفضلة من الخادم: " + error.message);
   if (!Array.isArray(data) || data.some((id) => typeof id !== "string" || !UUID_PATTERN.test(id))) {
