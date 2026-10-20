@@ -37,7 +37,7 @@ function asJson(value) {
 async function setIdentity(authUserId, email) {
   await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [authUserId]);
   await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
-    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
+    JSON.stringify({ sub: authUserId, email, role: "authenticated" }),
   ]);
 }
 async function expectFailure(label, action, pattern) {
@@ -183,10 +183,14 @@ async function main() {
     ))[0].payload);
     assert.equal(provenance.organization.id, organizationId, "organization identity is derived from the active authenticated profile");
     assert.ok(provenance.organization.name.startsWith("CI Onyx "), "organization display name comes from the database");
+    assert.equal(provenance.organization.id, organizationId, "source evidence uses the active organization from the database");
+    assert.equal(provenance.organization.name, "CI Onyx " + suffix, "source evidence displays the persisted organization identity");
     assert.equal(provenance.snapshot.id, snapshotId, "source evidence identifies the selected saved snapshot");
     assert.equal(provenance.import_job.id, importJobId, "source evidence links to the real import job in this tenant");
+    assert.equal(provenance.import_job.updated_at, null, "the schema does not persist import-job updated_at; no timestamp is fabricated");
     assert.equal(provenance.import_job.file_hash_matches_snapshot, true, "snapshot and import hashes must match exactly");
     assert.equal(provenance.source_identity.provenance_status, "linked_import_job_hash_match");
+    assert.equal(provenance.source_identity.source_record_id, null, "an import-job ID must not be represented as an external source-record ID");
     assert.deepEqual(provenance.source_identity.external_id_fields_found.sort(), ["external_id", "onyx_code"]);
     assert.equal(provenance.source_identity.rows_with_external_id, 2);
     assert.equal(provenance.live_sync_evidence.live_connection_proven, false, "saved snapshot provenance never implies a live Onyx connection");
