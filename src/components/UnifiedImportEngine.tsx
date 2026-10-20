@@ -122,6 +122,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           profileId: selectedProfile,
           periodKey: selectedPeriod,
           sourceSystem: "manual",
+          requestKey: crypto.randomUUID(),
+          intent: action,
         });
       }
       if (selectedProfile && job.profile_id && selectedProfile !== job.profile_id) {
