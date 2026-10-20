@@ -319,6 +319,15 @@ async function main() {
   assert.equal(replayReceipt.receipt_id,firstReceipt.receipt_id,"idempotent replay returns the original receipt");
   assert.equal(replayReceipt.idempotent_replay,true,"retry is explicitly marked replay");
 
+  await expectFailure(
+    "same receipt idempotency key cannot be reused with changed payload",
+    () => db.unsafe(
+      "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text)",
+      [firstRequest.request_id,receiptWarehouseId,db.json(firstReceiptLines),"changed notes under the same receipt key","ci-return-receipt-one-"+suffix],
+    ),
+    /customer return receipt idempotency key payload conflict/i,
+  );
+
   const secondReceiptRaw = await db.unsafe(
     "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
     [firstRequest.request_id,receiptWarehouseId,db.json([{request_item_id:requestItemId,received_quantity:0.50,restockable_quantity:0.25}]),"final physical inspection","ci-return-receipt-two-"+suffix],
@@ -328,6 +337,15 @@ async function main() {
   assert.equal(Number(secondReceipt.received_quantity),0.50);
   assert.equal(Number(secondReceipt.restockable_quantity),0.25);
   assert.equal(Number(secondReceipt.defective_quantity),0.25);
+
+  await expectFailure(
+    "a fully received return cannot be received again with a fresh idempotency key",
+    () => db.unsafe(
+      "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text)",
+      [firstRequest.request_id,receiptWarehouseId,db.json([{request_item_id:requestItemId,received_quantity:0.1,restockable_quantity:0.1}]),"post-close duplicate receipt attempt","ci-return-receipt-after-close-"+suffix],
+    ),
+    /only an approved return request in the current organization can be received/i,
+  );
 
   // Inspect persisted tables as the privileged test runner; authenticated callers intentionally have no direct table SELECT.
   await db.unsafe("reset role");
@@ -344,6 +362,49 @@ async function main() {
   );
   assert.equal(receiptStockRows[0].movement_count,2,"receipt replay must not create duplicate stock movement");
   assert.equal(Number(receiptStockRows[0].restocked),0.75,"only saleable quantities enter stock");
+
+  const receiptIds = [firstReceipt.receipt_id, secondReceipt.receipt_id];
+  const receiptHeaders = await db.unsafe(
+    "select h.id::text as id,h.organization_id::text as organization_id," +
+    "h.return_request_id::text as return_request_id,h.receipt_number," +
+    "h.warehouse_id::text as warehouse_id,p.auth_user_id::text as received_by_auth_user_id " +
+    "from public.customer_return_receipts h join public.profiles p on p.id=h.received_by " +
+    "where h.organization_id=$1::uuid and h.id=any($2::uuid[]) order by h.id",
+    [organizationId,receiptIds],
+  );
+  assert.equal(receiptHeaders.length,2,"a replay must not persist a duplicate receipt header");
+  assert.equal(new Set(receiptHeaders.map((row) => row.receipt_number)).size,2,"each accepted physical receipt has its own document number");
+  for (const row of receiptHeaders) {
+    assert.ok(receiptIds.includes(row.id));
+    assert.equal(row.organization_id,organizationId,"receipt retains the source organization");
+    assert.equal(row.return_request_id,firstRequest.request_id,"receipt retains the approved return reference");
+    assert.equal(row.received_by_auth_user_id,managerAuthId,"receipt issuer resolves to the authenticated manager");
+    assert.equal(row.warehouse_id,receiptWarehouseId,"receipt stays bound to the inspected warehouse");
+    assert.match(row.receipt_number,/^RETREC-/,"receipt has a persistent document number");
+  }
+  const receiptAuditRows = await db.unsafe(
+    "select a.organization_id::text as organization_id,a.entity_type,a.entity_id::text as entity_id,a.action," +
+    "a.new_value->>'receipt_number' as receipt_number,a.new_value->>'request_number' as request_number," +
+    "a.new_value->>'warehouse_id' as warehouse_id,p.auth_user_id::text as actor_auth_user_id " +
+    "from public.audit_logs a left join public.profiles p on p.id=a.actor_id " +
+    "where a.organization_id=$1::uuid and a.action='customer_return.received' and a.entity_id=any($2::uuid[]) order by a.entity_id",
+    [organizationId,receiptIds],
+  );
+  assert.equal(receiptAuditRows.length,2,"idempotent retry must not duplicate receipt audit events");
+  assert.deepEqual(
+    receiptAuditRows.map((row) => row.entity_id).sort(),
+    receiptIds.slice().sort(),
+    "each receipt audit event references its persisted receipt document",
+  );
+  for (const row of receiptAuditRows) {
+    const header = receiptHeaders.find((candidate) => candidate.id === row.entity_id);
+    assert.equal(row.organization_id,organizationId,"receipt audit stays in the same organization");
+    assert.equal(row.actor_auth_user_id,managerAuthId,"receipt audit records the actual issuing user");
+    assert.equal(row.entity_type,"customer_return_receipt");
+    assert.equal(row.request_number,firstRequest.request_number);
+    assert.equal(row.warehouse_id,receiptWarehouseId);
+    assert.equal(row.receipt_number,header?.receipt_number,"audit receipt number matches persisted document");
+  }
   const defectRows = await db.unsafe(
     "select coalesce(sum(i.defective_quantity),0)::numeric(15,3)::text as defective " +
     "from public.customer_return_receipt_items i join public.customer_return_receipts h on h.id=i.receipt_id and h.organization_id=$2 " +
@@ -366,6 +427,14 @@ async function main() {
   await db.unsafe("set role authenticated");
   await expectFailure(
     "customers cannot access the finance return-credit queue",
+  await expectFailure(
+    "ordinary customers cannot execute the administrative physical-receipt RPC",
+    () => db.unsafe(
+      "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text)",
+      [firstRequest.request_id,receiptWarehouseId,db.json([{request_item_id:requestItemId,received_quantity:0.1,restockable_quantity:0.1}]),"customer attempted physical receipt","ci-return-customer-receipt-denial-"+suffix],
+    ),
+    /administrator or manager permission required to receive customer returns/i,
+  );
     () => db.unsafe("select public.fetch_customer_return_credit_memo_queue(50)"),
     /finance permission required/i,
   );
