@@ -3917,6 +3917,7 @@ async function main() {
     ["CI-ACT-03", "CI Foreign Scope Customer Record", "foreign-ci-profile@example.test"],
     ["CI-ACT-04", "CI Staff Rejection Customer Record", "admin@aghbari.ye"],
     ["CI-ACT-05", "CI Expired Customer Record", "expired-client@example.test"],
+    ["CI-ACT-06", "CI Revoked Customer Record", "revoked-client@example.test"],
   ];
   for (const [code, businessName, email] of activationCodes) {
     await db.unsafe(
@@ -3929,6 +3930,7 @@ async function main() {
   const foreignScopeCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-03'", [organizationId]))[0].id;
   const staffRejectCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-04'", [organizationId]))[0].id;
   const expiredCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-05'", [organizationId]))[0].id;
+  const revokedCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-06'", [organizationId]))[0].id;
 
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   await db.unsafe("set role authenticated");
@@ -3945,6 +3947,9 @@ async function main() {
   const foreignScopeInvitation = await createActivationInvite(foreignScopeCustomer, "foreign-ci-profile@example.test");
   const staffRejectInvitation = await createActivationInvite(staffRejectCustomer, "admin@aghbari.ye");
   const expiredInvitation = await createActivationInvite(expiredCustomer, "expired-client@example.test");
+  const revokedInvitation = await createActivationInvite(revokedCustomer, "revoked-client@example.test");
+  const revokedResult = await db.unsafe("select public.revoke_customer_activation_invitation($1::uuid) as revoked", [revokedInvitation.invitation_id]);
+  assert.equal(revokedResult[0].revoked, true, "staff can revoke a pending tenant-scoped activation invitation");
   await db.unsafe("reset role");
 
   const tokenHashRow = (await db.unsafe(
@@ -3976,7 +3981,7 @@ async function main() {
 
   const createdAudit = await db.unsafe(
     "select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=any($2::uuid[])",
-    [organizationId, [validInvitation.invitation_id, unconfirmedInvitation.invitation_id, foreignScopeInvitation.invitation_id, staffRejectInvitation.invitation_id, expiredInvitation.invitation_id]],
+    [organizationId, [validInvitation.invitation_id, unconfirmedInvitation.invitation_id, foreignScopeInvitation.invitation_id, staffRejectInvitation.invitation_id, expiredInvitation.invitation_id, revokedInvitation.invitation_id]],
   );
   assert.ok(createdAudit.filter(row => row.action === "customer_activation_invitation.created").length >= 5,
     "creation of each invitation is audited");
@@ -3991,6 +3996,9 @@ async function main() {
   assert.equal(accepted[0].result.customer_id, activationCustomer);
   await expectFailure("activation bearer token cannot be replayed",
     () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [validInvitation.token]),
+    /رابط التفعيل غير موجود|42501|expired|used/i);
+  await expectFailure("revoked activation invitation cannot be accepted",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [revokedInvitation.token]),
     /رابط التفعيل غير موجود|42501|expired|used/i);
   await db.unsafe("reset role");
   const linkedAfterAcceptance = await db.unsafe("select profile_id from public.customers where id=$1", [activationCustomer]);
@@ -4033,7 +4041,9 @@ async function main() {
   );
   assert.ok(activationAudit.some(row => row.action === "customer_activation_invitation.created"));
   assert.ok(activationAudit.some(row => row.action === "customer_activation_invitation.accepted"));
-  process.stdout.write("PASS customer activation invitations: auth.users confirmation/email, tenant and role guards, hash-only token, no direct table DML, one-use/replay, expiry and audit trail\n");
+  const revokeAudit = await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=$2", [organizationId, revokedInvitation.invitation_id]);
+  assert.ok(revokeAudit.some(row => row.action === "customer_activation_invitation.revoked"), "revocation is audited");
+  process.stdout.write("PASS customer activation invitations: auth.users confirmation/email, tenant and role guards, hash-only token, no direct table DML, one-use/replay, expiry/revoke and audit trail\n");
 
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }
