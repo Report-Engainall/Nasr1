@@ -455,6 +455,7 @@ DECLARE
   v_request public.customer_return_requests%ROWTYPE;
   v_decision text := pg_catalog.lower(pg_catalog.btrim(coalesce(p_decision,'')));
   v_note text := nullif(pg_catalog.btrim(coalesce(p_review_note,'')),'');
+  v_previous_status text;
 BEGIN
   IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.operational_tasks_can_manage() THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='administrator or manager permission required to decide a return request';
@@ -486,6 +487,7 @@ BEGIN
   IF v_request.status NOT IN ('submitted','under_review') THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='return request is not open for review';
   END IF;
+  v_previous_status := v_request.status;
 
   UPDATE public.customer_return_requests
      SET status = v_decision, reviewed_by = v_actor, reviewed_at = pg_catalog.now(),
@@ -504,7 +506,7 @@ BEGIN
   INSERT INTO public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value)
   VALUES (
     v_org,v_actor,'customer_return.reviewed','customer_return_request',v_request.id,
-    pg_catalog.jsonb_build_object('status','submitted'),
+    pg_catalog.jsonb_build_object('status',v_previous_status),
     pg_catalog.jsonb_build_object(
       'request_number',v_request.request_number,'status',v_request.status,
       'review_note',v_note,'order_id',v_request.order_id
