@@ -10,6 +10,7 @@ AS $function$
 DECLARE
   v_actor uuid := public.current_profile_id();
   v_org uuid;
+  v_org_name text;
   v_snapshot public.onyx_snapshots%ROWTYPE;
   v_job public.import_jobs%ROWTYPE;
   v_job_found boolean := false;
@@ -24,6 +25,13 @@ BEGIN
 
   IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.is_staff() THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='active staff organization required to read Onyx source evidence';
+  END IF;
+
+  SELECT o.name INTO v_org_name
+  FROM public.organizations o
+  WHERE o.id=v_org AND o.is_active;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='active organization identity is unavailable';
   END IF;
 
   SELECT s.* INTO v_snapshot
@@ -77,6 +85,7 @@ BEGIN
   END IF;
 
   RETURN pg_catalog.jsonb_build_object(
+    'organization', pg_catalog.jsonb_build_object('id',v_org,'name',v_org_name),
     'snapshot', pg_catalog.jsonb_build_object(
       'id',v_snapshot.id,
       'source_import_job_id',v_snapshot.source_import_job_id,
