@@ -8,7 +8,9 @@ DECLARE
 BEGIN
   SELECT p.organization_id INTO v_org FROM public.profiles p
    WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active;
-  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.can_manage_finance() THEN
+  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.can_manage_finance()
+     OR NOT EXISTS (SELECT 1 FROM public.user_roles r
+       WHERE r.profile_id=v_actor AND r.role IN ('admin','manager','accountant')) THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='finance permission required to list printable customer documents';
   END IF;
   IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 500 THEN
@@ -48,7 +50,9 @@ DECLARE
 BEGIN
   SELECT p.organization_id INTO v_org FROM public.profiles p
    WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active;
-  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.can_manage_finance() THEN
+  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.can_manage_finance()
+     OR NOT EXISTS (SELECT 1 FROM public.user_roles r
+       WHERE r.profile_id=v_actor AND r.role IN ('admin','manager','accountant')) THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='finance permission required to print a customer invoice';
   END IF;
   IF p_invoice_id IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice id is required'; END IF;
@@ -84,7 +88,9 @@ DECLARE
 BEGIN
   SELECT p.organization_id INTO v_org FROM public.profiles p
    WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active;
-  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.can_manage_finance() THEN
+  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.can_manage_finance()
+     OR NOT EXISTS (SELECT 1 FROM public.user_roles r
+       WHERE r.profile_id=v_actor AND r.role IN ('admin','manager','accountant')) THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='finance permission required to print a customer account statement';
   END IF;
   IF p_customer_id IS NULL THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='customer id is required'; END IF;
