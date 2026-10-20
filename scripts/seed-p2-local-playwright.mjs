@@ -165,6 +165,7 @@ async function main() {
     "E2E_EMAIL_B=" + emailB,
     "E2E_PASSWORD_B=" + passwordB,
     "E2E_PHONE=771234567",
+    "E2E_CUSTOMER_NAME=P2 Local E2E Customer A",
     "E2E_SUPABASE_URL=" + apiUrl,
     "E2E_SUPABASE_PUBLISHABLE_KEY=" + publishableKey,
     "E2E_ALLOW_TEST_WRITES=YES_I_CONFIRM_NON_PRODUCTION",
