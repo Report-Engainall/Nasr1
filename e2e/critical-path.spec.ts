@@ -35,7 +35,7 @@ async function signIn(page: Page, email: string, password: string) {
   await page.getByLabel("البريد الإلكتروني").fill(email);
   await page.locator('input[autocomplete="current-password"]').fill(password);
   await page.getByRole("button", { name: "دخول", exact: true }).click();
-  await expect(page.locator(".sf-add-btn:not(:disabled)").first()).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("link", { name: "دخول", exact: true })).toHaveCount(0, { timeout: 20_000 });
 }
 
 async function createPersistedOrder(page: Page): Promise<{ orderNumber: string; detailPath: string }> {
