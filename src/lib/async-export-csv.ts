@@ -53,7 +53,7 @@ export function validateOrdersExportFilters(value: unknown): OrdersExportFilters
 }
 
 function textCell(value: unknown): string {
-  let text = String(value ?? "").replace(/\u0000/g, "").replace(/\r\n?/g, "\n");
+  let text = String(value ?? "").split("\u0000").join("").replace(/\r\n?/g, "\n");
   // Prevent spreadsheet formula execution in user-controlled text cells.
   if (/^[\s]*[=+\-@]/.test(text)) text = "'" + text;
   return '"' + text.replace(/"/g, '""') + '"';
