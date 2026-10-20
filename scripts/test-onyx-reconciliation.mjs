@@ -251,6 +251,7 @@ async function main() {
     const finalCommand = await preview(snapshotId,warehouseId,key(),"Later-movement rollback guard");
     const finalApplied = await apply(finalCommand.command_id,key());
     assert.equal(finalApplied.status,"applied");
+    await db.unsafe("reset role");
     await db.unsafe(
       "update public.inventory_balances set quantity_on_hand=16,last_movement_at=pg_catalog.clock_timestamp(),updated_at=pg_catalog.clock_timestamp() where product_id=$1 and warehouse_id=$2",
       [productOneId,warehouseId],
