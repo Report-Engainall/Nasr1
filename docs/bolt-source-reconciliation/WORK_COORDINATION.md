@@ -109,3 +109,10 @@ P2 owns WORK_COORDINATION.md, CURRENT_EXECUTION_STATE.md, EXECUTION_LOG.md, ARCH
 - تعديل صغير تمت إضافته على فرع PR #18: src/lib/unified-import.ts وsrc/test/unified-import-safety.test.ts لتطبيع Unicode/التشكيل/التطويل وتعريف aliases إضافية. آخر اختبار/CI بعد الحفظ الأخير لم يثبت بعد؛ الحالة PENDING حتى ينجح workflow على HEAD نفسه.
 - PR #12 (خصوصية السعر) ما زال غير مدمج، وعليه Action 39339667293 failure على SHA b3daf67de14c935fdafb0c2bf06c2f02e6be6ec5. لا تعتبره مثبتًا ولا تكرر الميزة؛ افحص job logs وأصلح الاختبار/السبب الحقيقي.
 - لا تتغير ملكية P1 ولا ملفاته. لا تكتب إلى main. next_task_id الوحيد في P2 يبقى NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004 إلى أن يغلق بدليل.
+
+
+## تحديث P2 — نتائج CI وتثبيت سبب فشل PR #12 (20 أكتوبر 2026)
+- تحسين normalizeHeader في src/lib/unified-import.ts مع اختبارات src/test/unified-import-safety.test.ts: PASS على SHA 49fa336b6a04db3d3272ac78d78cc17b89bc7a89، [Action 39437730603](https://github.com/Report-Engainall/Nasr1/actions/runs/39437730603) SUCCESS. لا يثبت browser أو production.
+- فشل PR #12 السابق [39339667293](https://github.com/Report-Engainall/Nasr1/actions/runs/39339667293) تشخّص من log: خطأ SQL syntax في customer apostrophe ضمن COMMENT بالمهاجرة 20261020040000_customer_price_visibility_controls.sql. أصلحنا customer\\'s إلى customer''s بالـcommit 6417e723a532b4bfd2c1a81c59ff6a78722ed721. CI المخصص لهذا الرأس [39438180471](https://github.com/Report-Engainall/Nasr1/actions/runs/39438180471) كان IN_PROGRESS عند آخر قراءة؛ لا merge أو PASS قبل نتيجته.
+- أحدث رأس وثائق P2 سابقًا e7867d548bea5ee8529cdb8001f290b79da6c939 كان له Action 39438007926 IN_PROGRESS؛ تُعاد قراءة HEAD/CI بعد هذا التحديث.
+- الملكية لا تتغير: P2 يملك PR #18/12 وملفاته المحددة، P1 يملك donor integration ledgers. next_task_id الوحيد يظل NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004 إلى أن يُغلق بأدلة.
