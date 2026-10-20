@@ -181,6 +181,8 @@ async function main() {
       "select public.get_onyx_snapshot_source_evidence($1::uuid) as payload",
       [snapshotId],
     ))[0].payload);
+    assert.equal(provenance.organization.id, organizationId, "organization identity is derived from the active authenticated profile");
+    assert.ok(provenance.organization.name.startsWith("CI Onyx "), "organization display name comes from the database");
     assert.equal(provenance.snapshot.id, snapshotId, "source evidence identifies the selected saved snapshot");
     assert.equal(provenance.import_job.id, importJobId, "source evidence links to the real import job in this tenant");
     assert.equal(provenance.import_job.file_hash_matches_snapshot, true, "snapshot and import hashes must match exactly");
