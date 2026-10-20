@@ -1075,25 +1075,88 @@ async function main() {
     [managerPrintProfileId, foreignFinanceProfileId],
   );
 
-  // Seed an actual tenant-A credit memo ID so tenant-B denial is not a false
-  // positive caused by passing a nonexistent UUID. This draft is intentionally unposted.
+  // Build a source-linked, fully received return through the real receipt and
+  // accounting RPCs. This makes the positive credit-memo PDF test meaningful;
+  // the receipt line is defective (restockable_quantity=0) so this fixture does
+  // not change saleable stock.
+  const sourceInvoiceItem = (await db.unsafe(
+    `select id,order_item_id,product_id,item_code,description,unit,quantity
+       from public.customer_invoice_items
+      where organization_id=$1 and invoice_id=$2
+      order by created_at,id limit 1`,
+    [organizationId, invoice.id],
+  ))[0];
+  assert.ok(sourceInvoiceItem?.id && sourceInvoiceItem.order_item_id && sourceInvoiceItem.product_id,
+    "credit memo PDF fixture requires a real invoice line linked to an order item and product");
+  const printWarehouseId = (await db.unsafe(
+    "select id from public.warehouses where organization_id=$1 and is_active order by id limit 1",
+    [organizationId],
+  ))[0]?.id;
+  assert.ok(printWarehouseId, "credit memo PDF fixture requires an active warehouse in the source tenant");
   const printReturnRequestId = (await db.unsafe(
     `insert into public.customer_return_requests(
-       organization_id,customer_id,order_id,request_number,status,reason,notes,requested_by,idempotency_key,payload_fingerprint
-     ) values($1,$2,$3,'CI-PRINT-RETURN-REQUEST','received','other','Finance print tenant fixture',$4,
-       'CI-PRINT-RETURN-REQUEST-KEY','0123456789abcdef0123456789abcdef')
+       organization_id,customer_id,order_id,request_number,status,reason,notes,requested_by,
+       reviewed_by,reviewed_at,idempotency_key,payload_fingerprint
+     ) values($1,$2,$3,'CI-PRINT-RETURN-REQUEST','approved','other','Finance print tenant fixture',$4,
+       $5,statement_timestamp(),'CI-PRINT-RETURN-REQUEST-KEY','0123456789abcdef0123456789abcdef')
      returning id`,
-    [organizationId, customerOneId, order.id, profileId],
+    [organizationId, customerOneId, order.id, profileId, staffProfileId],
   ))[0].id;
-  const printCreditMemoId = (await db.unsafe(
-    `insert into public.customer_return_credit_memos(
-       organization_id,return_request_id,invoice_id,customer_id,memo_number,status,currency,
-       subtotal_amount,tax_amount,total_amount,idempotency_key,payload_fingerprint,created_by_profile_id
-     ) values($1,$2,$3,$4,'CI-PRINT-CREDIT-MEMO','draft','YER',100.00,0.00,100.00,
-       'f8888888-8888-4888-8888-888888888883','abcdef0123456789abcdef0123456789',$5)
-     returning id`,
-    [organizationId, printReturnRequestId, invoice.id, customerOneId, staffProfileId],
+  const printReturnRequestItemId = (await db.unsafe(
+    `insert into public.customer_return_request_items(
+       organization_id,return_request_id,order_item_id,product_id,item_code_snapshot,
+       product_name_snapshot,unit_snapshot,requested_quantity
+     ) values($1,$2,$3,$4,$5,$6,$7,1) returning id`,
+    [organizationId, printReturnRequestId, sourceInvoiceItem.order_item_id, sourceInvoiceItem.product_id,
+      sourceInvoiceItem.item_code, sourceInvoiceItem.description, sourceInvoiceItem.unit],
   ))[0].id;
+
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const printReceipt = (await db.unsafe(
+    "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
+    [printReturnRequestId, printWarehouseId,
+      db.json([{ request_item_id: printReturnRequestItemId, received_quantity: 1, restockable_quantity: 0 }]),
+      "CI source-backed finance print acceptance", "CI-PRINT-RETURN-RECEIPT-0001"],
+  ))[0].result;
+  assert.equal(printReceipt.request_status, "received", "source-linked return must be physically received before accounting credit");
+  assert.equal(Number(printReceipt.received_quantity), 1);
+
+  await db.unsafe("reset role");
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const printReceivable = (await db.unsafe(
+    "select public.create_accounting_account($1,$2,$3,null,$4) as result",
+    ["CI-RET-AR-0100", "CI return receivable", "asset", "Source-backed return credit memo PDF fixture"],
+  ))[0].result;
+  const printReturnsRevenue = (await db.unsafe(
+    "select public.create_accounting_account($1,$2,$3,null,$4) as result",
+    ["CI-RET-SALES-0100", "CI sales returns", "revenue", "Source-backed return credit memo PDF fixture"],
+  ))[0].result;
+  assert.equal(printReceivable.replayed, false);
+  assert.equal(printReturnsRevenue.replayed, false);
+  const preparedPrintCreditMemo = (await db.unsafe(
+    "select public.prepare_customer_return_credit_memo($1::uuid,$2::uuid,$3::uuid,null,$4::uuid) as result",
+    [printReturnRequestId, printReceivable.id, printReturnsRevenue.id, "f8888888-8888-4888-8888-888888888884"],
+  ))[0].result;
+  const printCreditMemoId = preparedPrintCreditMemo.credit_memo_id;
+  assert.ok(printCreditMemoId, "source-linked credit memo preparation must return a persisted ID");
+  assert.equal(preparedPrintCreditMemo.status, "draft");
+  assert.equal(preparedPrintCreditMemo.journal_status, "draft");
+  const sourceBackedCreditMemoPrint = (await db.unsafe(
+    "select public.get_customer_return_credit_memo_pdf($1::uuid) as result", [printCreditMemoId],
+  ))[0].result;
+  assert.equal(sourceBackedCreditMemoPrint.memo.id, printCreditMemoId);
+  assert.equal(sourceBackedCreditMemoPrint.memo.status, "draft");
+  assert.equal(sourceBackedCreditMemoPrint.return_request.id, printReturnRequestId);
+  assert.equal(sourceBackedCreditMemoPrint.invoice.id, invoice.id);
+  assert.equal(sourceBackedCreditMemoPrint.journal.id, preparedPrintCreditMemo.journal_entry_id);
+  assert.equal(sourceBackedCreditMemoPrint.lines.length, 1);
+  assert.equal(Number(sourceBackedCreditMemoPrint.lines[0].returned_quantity), 1);
+  assert.equal(Number(sourceBackedCreditMemoPrint.lines[0].invoice_quantity), Number(sourceInvoiceItem.quantity));
+  assert.equal(Number(sourceBackedCreditMemoPrint.lines[0].invoice_unit_price), Number(sourceInvoiceItem.unit_price));
+  assert.equal(Number(sourceBackedCreditMemoPrint.lines[0].credited_subtotal), Number(preparedPrintCreditMemo.subtotal_amount));
 
   for (const [actorId, email, roleLabel] of [
     [staffAuthUserId, "admin@aghbari.ye", "admin"],
@@ -1109,6 +1172,15 @@ async function main() {
     assert.equal(options.organization_name, issuerRows[0].name, roleLabel + " must receive issuer identity from the active organization");
     assert.ok(options.customers.some((row) => row.id === customerOneId), roleLabel + " must receive current-tenant customers");
     assert.ok(options.invoices.some((row) => row.id === invoice.id), roleLabel + " must receive the current-tenant invoice");
+    assert.ok(options.credit_memos.some((row) => row.id === printCreditMemoId), roleLabel + " must receive the source-linked credit memo print option");
+    const creditMemoPrint = (await db.unsafe(
+      "select public.get_customer_return_credit_memo_pdf($1::uuid) as result", [printCreditMemoId],
+    ))[0].result;
+    assert.equal(creditMemoPrint.memo.id, printCreditMemoId, roleLabel + " credit memo print must retain the persisted source ID");
+    assert.equal(creditMemoPrint.return_request.id, printReturnRequestId);
+    assert.equal(creditMemoPrint.invoice.id, invoice.id);
+    assert.equal(creditMemoPrint.journal.id, preparedPrintCreditMemo.journal_entry_id);
+    assert.equal(creditMemoPrint.lines.length, 1);
     const invoicePrint = (await db.unsafe(
       "select public.get_staff_customer_invoice_print_data($1::uuid) as result", [invoice.id],
     ))[0].result;
