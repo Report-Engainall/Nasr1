@@ -81,6 +81,13 @@ export async function cancelMyAsyncExportJob(jobId: string): Promise<{ status: s
   };
 }
 
+export async function triggerAsyncExportWorker(jobId: string): Promise<boolean> {
+  if (!uuid(jobId)) throw new Error("معرّف طلب التصدير غير صالح.");
+  const { data, error } = await supabase.functions.invoke("async-export-worker", { body: { job_id: jobId } });
+  if (error || !data || typeof data !== "object") return false;
+  return (data as Record<string, unknown>).accepted === true;
+}
+
 export async function getMyAsyncExportDownload(jobId: string): Promise<{
   url: string;
   expiresAt: string;
