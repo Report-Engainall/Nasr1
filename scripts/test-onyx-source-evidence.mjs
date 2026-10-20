@@ -169,7 +169,7 @@ async function main() {
           "(organization_id,snapshot_id,row_number,canonical_key,row_hash,status,data,errors) " +
           "values($1::uuid,$2::uuid,$3::integer,$4::text,pg_catalog.md5($5::jsonb::text)," +
           "'valid',$5::jsonb,'[]'::jsonb)",
-        [organizationId, matchedSnapshotId, rowNumber, canonicalKey, JSON.stringify(data)],
+        [organizationId, matchedSnapshotId, rowNumber, canonicalKey, db.json(data)],
       );
     }
 
