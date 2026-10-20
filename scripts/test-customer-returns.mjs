@@ -49,6 +49,14 @@ async function main() {
     "insert into public.user_roles(profile_id,role) values($1,'manager') on conflict(profile_id,role) do nothing",
     [managerProfileId],
   );
+  await db.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Return Accountant','ci-accountant@example.test',true) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,is_active=true",
+    [accountantProfileId,accountantAuthId,organizationId],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'accountant') on conflict(profile_id,role) do nothing",
+    [accountantProfileId],
+  );
 
   const customerRows = await db.unsafe(
     "select id,profile_id from public.customers where organization_id=$1 and profile_id in ($2::uuid,$3::uuid) and status='approved' order by created_at,id",
@@ -477,6 +485,23 @@ async function main() {
   assert.equal(Number(staffYER.credited),125,"staff statement reduces receivables by posted source credit memo");
   assert.equal(Number(staffYER.outstanding),375,"staff statement reconciles invoice less posted credit memo");
 
+  await db.unsafe("reset role");
+  await setIdentity(accountantAuthId,"ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const accountantOptionsRaw = await db.unsafe("select public.get_finance_document_print_options(500) as result");
+  const accountantOptions = asJson(accountantOptionsRaw[0].result);
+  assert.ok(accountantOptions.invoices.some((row) => row.id === sourceInvoiceId),
+    "an active accountant role on the current profile can use staff financial print options");
+  const accountantStatementRaw = await db.unsafe(
+    "select public.get_staff_customer_account_statement($1::uuid) as result",[customerOne.id],
+  );
+  const accountantStatement = asJson(accountantStatementRaw[0].result);
+  const accountantYER = accountantStatement.summary.find((row) => row.currency === "YER");
+  assert.ok(accountantYER,"accountant can print own-organization statement totals");
+  assert.equal(Number(accountantYER.outstanding),375,"accountant read access retains posted-credit balance accuracy");
+  await expectFailure("accountant cannot print another organization's statement",
+    () => db.unsafe("select public.get_staff_customer_account_statement($1::uuid)",[foreignCustomerId]),
+    /customer was not found in the active organization/i);
   await db.unsafe("reset role");
 
   const creditRows = await db.unsafe(
