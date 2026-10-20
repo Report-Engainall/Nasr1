@@ -106,7 +106,8 @@ BEGIN
       'file_hash',v_job.file_hash,
       'period_key',v_job.period_key,
       'created_at',v_job.created_at,
-      'updated_at',v_job.updated_at,
+      -- import_jobs has no updated_at column; do not infer a synchronization timestamp.
+      'updated_at',NULL,
       'error_code',CASE WHEN pg_catalog.jsonb_typeof(v_job_error)='object' THEN v_job_error->>'code' ELSE NULL END,
       'file_hash_matches_snapshot',v_job.file_hash IS NOT DISTINCT FROM v_snapshot.source_file_hash
     ) ELSE NULL END,
@@ -118,7 +119,8 @@ BEGIN
         ELSE 'linked_import_job_hash_match'
       END,
       'source_system',CASE WHEN v_job_found THEN v_job.source_system ELSE NULL END,
-      'source_record_id',v_snapshot.source_import_job_id,
+      -- The import-job UUID is provenance, not an external source-record identifier.
+      'source_record_id',NULL,
       'source_row_count',v_source_row_count,
       'external_id_fields_found',v_external_fields,
       'rows_with_external_id',v_external_id_rows
