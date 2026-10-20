@@ -18,6 +18,13 @@ const provenanceLabels: Record<OnyxSnapshotSourceEvidence["source_identity"]["pr
   linked_import_job_hash_match: "مرجع دفعة الاستيراد موجود والبصمة متطابقة",
 };
 
+function sourceSystemLabel(value: string | null): string {
+  if (!value) return "غير مسجل";
+  if (value === "manual") return "استيراد ملف يدوي";
+  if (value.toLocaleLowerCase("en") === "onyx") return "وسم المصدر Onyx (لا يثبت اتصالًا حيًا)";
+  return value;
+}
+
 export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: string }) {
   const [evidence, setEvidence] = useState<OnyxSnapshotSourceEvidence | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,7 +57,7 @@ export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: st
         <>
           <div className="onyx-source-metadata">
             <span><strong>حالة إثبات المنشأ:</strong> {provenanceLabels[evidence.source_identity.provenance_status]}</span>
-            <span><strong>نظام المصدر المسجل:</strong> {evidence.source_identity.source_system || "غير مسجل"}</span>
+            <span><strong>نظام المصدر المسجل:</strong> {sourceSystemLabel(evidence.source_identity.source_system)}</span>
             <span><strong>معرّف سجل المصدر:</strong> <code>{evidence.source_identity.source_record_id || "غير متاح"}</code></span>
             <span><strong>صفوف المصدر المقروءة:</strong> {evidence.source_identity.source_row_count}</span>
             <span><strong>صفوف بها حقول معرّف خارجي مرشحة:</strong> {evidence.source_identity.rows_with_external_id}</span>
@@ -73,7 +80,7 @@ export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: st
           <div style={{ display: "grid", gap: 6, marginTop: 12, padding: 12, border: "1px solid var(--border, #d8e0e0)", borderRadius: 10 }}>
             <strong><Database size={15} style={{ verticalAlign: "middle", marginInlineEnd: 5 }} />حالة الاتصال والمزامنة الحية</strong>
             <span><strong>الحالة:</strong> غير مثبتة بأدلة هذا السجل</span>
-            <span>{evidence.live_sync_evidence.message}</span>
+            <span>وجود لقطة أو دفعة استيراد محفوظة لا يثبت اتصالًا حيًا أو اكتمال مزامنة من واجهة Onyx API.</span>
             <span><Clock3 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />وقت آخر مزامنة حية: غير متاح في نموذج الأدلة الحالي</span>
             <span><Fingerprint size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />بصمة اللقطة: <code>{evidence.snapshot.source_file_hash}</code></span>
             <span><Link2 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />وقت حفظ اللقطة: {dateText(evidence.snapshot.created_at)} · الإصدار {evidence.snapshot.snapshot_version}</span>
