@@ -36,8 +36,26 @@ async function signIn(page: Page, email: string, password: string) {
   await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
   await page.getByLabel("البريد الإلكتروني").fill(email);
   await page.locator('input[autocomplete="current-password"]').fill(password);
+  // The login screen has a submit BUTTON, not the storefront's sign-in link.
+  // Wait for Login.onDone -> navigate("/") so we never start the next page while
+  // Supabase signInWithPassword / ensure_profile is still pending or failed.
   await page.getByRole("button", { name: "دخول", exact: true }).click();
-  await expect(page.getByRole("link", { name: "دخول", exact: true })).toHaveCount(0, { timeout: 20_000 });
+  await expect(page).toHaveURL((url) => new URL(url).pathname === "/", { timeout: 20_000 });
+
+  // Confirm this browser context really has a persisted Supabase access token.
+  // Do not log or return the token itself.
+  const hasSupabaseSession = await page.evaluate(() =>
+    Object.entries(window.localStorage).some(([key, value]) => {
+      if (!key.endsWith("-auth-token")) return false;
+      try {
+        const stored = JSON.parse(value) as { access_token?: unknown };
+        return typeof stored.access_token === "string" && stored.access_token.length > 20;
+      } catch {
+        return false;
+      }
+    }),
+  );
+  expect(hasSupabaseSession, "Successful sign-in must persist an authenticated Supabase session before checkout.").toBe(true);
 }
 
 async function createPersistedOrder(page: Page): Promise<{ orderNumber: string; detailPath: string }> {
