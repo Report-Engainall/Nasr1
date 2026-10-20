@@ -713,3 +713,13 @@ Next single live task: NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION
 - Governance: no edits made in this batch to P1-locked `scripts/test-database-migrations.mjs`, `.github/workflows/commerce-checks.yml`, customer API/route files, or P1 manifests/reports. However, prior existing PR #12 diff contains a change to `scripts/test-database-migrations.mjs`; P1 must resolve this historical diff before merge. Do not merge PR #12 until ownership review; P2 separate DB acceptance is the permitted path.
 - Source archive review remains unchanged: no ZIP re-download/re-extraction/re-hashing; 2,329 tree entries versus 2,044 reported files remains an open discrepancy, not reconciled.
 - The single active next task is `NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011`, tracked in the newest P2 report/state checkpoint. Continue only on the existing PR #18 branch and avoid P1-owned files.
+
+
+## 2026-10-20 20:42 +03 — P2 activation dependency checkpoint (no code pass claimed)
+- Read live PR #18 metadata: open, P2 branch `feat/p2-customer-return-intake-20261020`, observed head `f11f412afd6799aa1809deedcbe434abbcc598b0`, base `c3fa1c52bd9c34d111e484b407d5eea2c2cefc07`. Read PR #26 metadata and changed filenames; it is open/draft at head `2ced1b676c34cd750910bfce503abbaa78d598a8` and does not change the three shared P2-owned paths.
+- Observed exact pre-checkpoint SHA workflow records: [39463815150](https://github.com/Report-Engainall/Nasr1/actions/runs/39463815150) Aghbari Commerce checks SUCCESS; [39463815138](https://github.com/Report-Engainall/Nasr1/actions/runs/39463815138) Playwright workflow SUCCESS as a workflow result, not automatically browser proof.
+- Updated `WORK_COORDINATION.md` with explicit no-parallel-edit ownership for `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, `scripts/test-database-migrations.mjs`. Coordination commit: `6a48072e9a89dbf6591587381e90f6cbd163af94`.
+- Updated `PROGRAMMER_2_CURRENT_REPORT.md` with checkpoint and single active pointer in commit `75cc082d236a9cbdd7abe15c730b5dd7d9f09725`; readback verified blob SHA `6748b511ab0d9d712538c0e80504af886f997fee` and the active task/status text.
+- Root-cause item confirmed from harness read: `setIdentity()` writes `email_confirmed_at` into JWT claims. That is not acceptable proof of the authoritative `auth.users.email_confirmed_at` source. Fix fixture setup/role context; do not loosen RLS or direct table privileges.
+- No code implementation, route generation, PostgreSQL feature acceptance, or new exact-head CI has been completed in this checkpoint. Do not report activation as integrated/tested. Browser and production proof remain NOT RUN until evidenced.
+- next_task_id: `NASR1-P2-CUSTOMER-ACTIVATION-SHARED-PATH-INTEGRATION-012`.
