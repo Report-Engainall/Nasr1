@@ -1075,6 +1075,26 @@ async function main() {
     [managerPrintProfileId, foreignFinanceProfileId],
   );
 
+  // Seed an actual tenant-A credit memo ID so tenant-B denial is not a false
+  // positive caused by passing a nonexistent UUID. This draft is intentionally unposted.
+  const printReturnRequestId = (await db.unsafe(
+    `insert into public.customer_return_requests(
+       organization_id,customer_id,order_id,request_number,status,reason,notes,requested_by,idempotency_key,payload_fingerprint
+     ) values($1,$2,$3,'CI-PRINT-RETURN-REQUEST','received','other','Finance print tenant fixture',$4,
+       'CI-PRINT-RETURN-REQUEST-KEY','0123456789abcdef0123456789abcdef')
+     returning id`,
+    [organizationId, customerOneId, order.id, profileId],
+  ))[0].id;
+  const printCreditMemoId = (await db.unsafe(
+    `insert into public.customer_return_credit_memos(
+       organization_id,return_request_id,invoice_id,customer_id,memo_number,status,currency,
+       subtotal_amount,tax_amount,total_amount,idempotency_key,payload_fingerprint,created_by_profile_id
+     ) values($1,$2,$3,$4,'CI-PRINT-CREDIT-MEMO','draft','YER',100.00,0.00,100.00,
+       'f8888888-8888-4888-8888-888888888883','abcdef0123456789abcdef0123456789',$5)
+     returning id`,
+    [organizationId, printReturnRequestId, invoice.id, customerOneId, staffProfileId],
+  ))[0].id;
+
   for (const [actorId, email, roleLabel] of [
     [staffAuthUserId, "admin@aghbari.ye", "admin"],
     [accountantAuthUserId, "ci-accountant@example.test", "accountant"],
@@ -1126,7 +1146,7 @@ async function main() {
   );
   await expectFailure(
     "ordinary staff cannot print a return credit memo",
-    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [invoice.id]),
+    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [printCreditMemoId]),
     /finance permission required/i,
   );
 
@@ -1150,8 +1170,8 @@ async function main() {
     /customer was not found in the active organization/i,
   );
   await expectFailure(
-    "foreign-tenant accountant cannot treat an invoice UUID as a printable credit memo",
-    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [invoice.id]),
+    "foreign-tenant accountant cannot print another organization’s persisted credit memo",
+    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [printCreditMemoId]),
     /credit memo was not found in the active organization/i,
   );
   process.stdout.write("PASS finance document print: admin/manager/accountant access, issuer identity, persisted invoice/statement amounts, staff/customer denial, and foreign-tenant invoice/statement isolation\\n");
@@ -1177,7 +1197,7 @@ async function main() {
   );
   await expectFailure(
     "customer cannot use the staff credit-memo print RPC",
-    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [invoice.id]),
+    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [printCreditMemoId]),
     /finance permission required/i,
   );
   await expectFailure(
