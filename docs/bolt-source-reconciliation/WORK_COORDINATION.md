@@ -99,3 +99,13 @@ P2 owns WORK_COORDINATION.md, CURRENT_EXECUTION_STATE.md, EXECUTION_LOG.md, ARCH
 - This evidence applies only to this exact SHA and CI workflow. It does not prove browser E2E with a signed-in user, production DB migration, or deployment.
 - P2 ownership only. No main write and no edits to P1 protected evidence files. The test migration harness stays P1-owned; return acceptance additions remain in `scripts/test-customer-returns.mjs`.
 - Next lock/owner task: `NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004`. Review invoices/statements/credit memos against role/tenant permissions; then continue the remaining canonical spec gaps. Do not call the overall app complete.
+
+
+## تنسيق P2 — مراجعة NASR-MULTI-PROJECTS-TRANSFER (2026-10-20)
+- مالك النطاق: P2. الوثيقة التفصيلية: docs/bolt-source-reconciliation/P2_MULTI_PROJECTS_TRANSFER_REVIEW_2026-10-20.md؛ أمر القبول: docs/bolt-source-reconciliation/P2_ADDITIONAL_ACCEPTANCE_MANDATE_2026-10-20.md.
+- مصدر إضافي للقراءة فقط، مستقل عن أرشيف استعادة Bolt المعتمد: Report-Engainall/NASR-MULTI-PROJECTS-TRANSFER. لا تعدل المصدر ولا تعِد استخراج ZIPs. مبرمج 1 يظل مالك المستودعات الثلاثة وسجلاتها.
+- تباين الملفات: extraction report=2,044، tracked blobs داخل EXTRACTED_PROJECTS=2,011، الفرق=33 ويحتاج تسوية قبل الادعاء بأن كل عضو ظاهر؛ زوج 7wyze9ut لهما SHA256 متطابق و35/35 ملفًا متتبعًا متطابقًا.
+- قفل وظيفي: Nasr1/src/components/OnyxSnapshotCenter.tsx يعرض حاليًا مقارنة تحليلية فقط؛ SQL المانح 20260909005534_inventory_reconciliation_controlled_apply_rollback.sql يستخدم schema مختلفًا فلا ينسخ. لا تعدل مخزونًا حيًا دون preview freshness lock + reserved quantity guards + atomic movement/audit + compensating rollback checks.
+- تعديل صغير تمت إضافته على فرع PR #18: src/lib/unified-import.ts وsrc/test/unified-import-safety.test.ts لتطبيع Unicode/التشكيل/التطويل وتعريف aliases إضافية. آخر اختبار/CI بعد الحفظ الأخير لم يثبت بعد؛ الحالة PENDING حتى ينجح workflow على HEAD نفسه.
+- PR #12 (خصوصية السعر) ما زال غير مدمج، وعليه Action 39339667293 failure على SHA b3daf67de14c935fdafb0c2bf06c2f02e6be6ec5. لا تعتبره مثبتًا ولا تكرر الميزة؛ افحص job logs وأصلح الاختبار/السبب الحقيقي.
+- لا تتغير ملكية P1 ولا ملفاته. لا تكتب إلى main. next_task_id الوحيد في P2 يبقى NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004 إلى أن يغلق بدليل.
