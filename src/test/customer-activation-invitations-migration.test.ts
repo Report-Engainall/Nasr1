@@ -74,7 +74,7 @@ describe("customer activation invitation migration security contract", () => {
   });
 
   it("stores only a SHA-256 token hash and bounds invitation lifetime", () => {
-    expect(migration).toMatch(/token_hash text NOT NULL UNIQUE CHECK \(token_hash ~ '\^\[0-9a-f\]\{64\}\$'\)/i);
+    expect(migration).toMatch(/token_hash text NOT NULL UNIQUE CHECK\\s*\\(\\s*token_hash\\s*~\\s*'\\^\\[0-9a-f\\]\\{64\\}\\$'\\s*\\)/i);
     expect(migration).toMatch(/public\.digest\(v_token, 'sha256'\)/i);
     expect(migration).toMatch(
       /token_hash=pg_catalog\.encode\(public\.digest\(pg_catalog\.lower\(pg_catalog\.btrim\(p_token\)\), 'sha256'\), 'hex'\)/i,
