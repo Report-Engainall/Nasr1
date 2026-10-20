@@ -14,7 +14,7 @@ describe('tenant-scoped server storefront pagination', () => {
     expect(migration).toContain('public.get_public_storefront_context()');
     expect(migration).toContain('public.get_current_tenant_context()');
     expect(migration).toContain('p.organization_id = v_organization_id');
-    expect(migration).toContain('p.warehouse_id = v_warehouse_id');
+    expect(migration).toContain('ib.warehouse_id = v_warehouse_id');
     expect(migration).toContain('public.organizations o');
     expect(migration).toContain('o.is_active = true');
   });

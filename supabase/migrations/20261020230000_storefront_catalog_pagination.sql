@@ -12,7 +12,7 @@ AS $function$
       pg_catalog.replace(
         pg_catalog.regexp_replace(
           pg_catalog.regexp_replace(
-            pg_catalog.coalesce(p_value,''),
+            coalesce(p_value,''),
             '[ًٌٍَُِّْٰۣۖۗۘۙۚۛۜ۟۠ۡۢۤۥۦۧۨ۩۪ۭ۫۬]',
             '',
             'g'

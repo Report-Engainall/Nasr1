@@ -88,13 +88,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
     } catch { return []; }
   });
   const cachedProductsRef = useRef(cachedProducts);
-  const products = useMemo(() => {
-    const source = liveProducts ?? cachedProducts;
-    return source.map((product) => ({
-      ...product,
-      category: product.category ?? categories?.find((category) => category.id === product.category_id),
-    }));
-  }, [liveProducts, cachedProducts, categories]);
+  const products = liveProducts ?? cachedProducts;
   const { data: categories, error: categoriesError } = useFetch(fetchCategories);
   const { data: promotions } = useFetch(fetchStorefrontPromotions);
   const { data: settings } = useFetch(fetchSettingsMap);
