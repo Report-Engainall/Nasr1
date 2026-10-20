@@ -17,8 +17,8 @@ describe("staff catalog commands migration contract", () => {
   it("delegates all base and tier price writes to the canonical price-grid RPC", () => {
     expect(migration).toMatch(/public\.save_product_price_grid\(/i);
     expect(migration).toMatch(/public\.get_admin_product_price_grid\(\)/i);
-    expect(migration).not.toMatch(/UPDATE\s+public\.products[\s\S]{0,500}price_wholesale_of_wholesale\s*=/i);
-    expect(migration).not.toMatch(/INSERT\s+INTO\s+public\.products[\s\S]{0,500}price_wholesale_of_wholesale/i);
+    expect(migration).not.toMatch(/UPDATE\s+public\.products\s+SET[^;]*\bprice_wholesale_of_wholesale\s*=/i);
+    expect(migration).not.toMatch(/INSERT\s+INTO\s+public\.products\s*\([^)]*\bprice_wholesale_of_wholesale/i);
     expect(migration).toMatch(/public\.audit_logs/i);
     expect(migration).not.toMatch(/public\.audit_events/i);
   });

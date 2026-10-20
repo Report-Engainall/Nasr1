@@ -14,8 +14,8 @@ AS $function$
 DECLARE
   v_actor uuid := public.current_profile_id();
   v_org uuid := public.current_organization_id();
-  v_name text := pg_catalog.btrim(pg_catalog.coalesce(p_name, ''));
-  v_code text := NULLIF(pg_catalog.btrim(pg_catalog.coalesce(p_code, '')), '');
+  v_name text := pg_catalog.btrim(coalesce(p_name, ''));
+  v_code text := NULLIF(pg_catalog.btrim(coalesce(p_code, '')), '');
   v_id uuid;
 BEGIN
   IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
@@ -49,7 +49,7 @@ BEGIN
 
   PERFORM pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended(v_org::text || ':cat:' ||
-      pg_catalog.coalesce(p_parent_id::text, 'root') || ':' ||
+      coalesce(p_parent_id::text, 'root') || ':' ||
       pg_catalog.lower(v_name), 0)
   );
 
@@ -122,7 +122,6 @@ DECLARE
   v_product_id uuid;
   v_before jsonb;
   v_after jsonb;
-  v_price_snapshot record;
 BEGIN
   IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
      OR NOT EXISTS (
@@ -234,8 +233,8 @@ BEGIN
      OR v_vip_price::text IN ('NaN', 'Infinity', '-Infinity')
      OR v_wholesale_price::text IN ('NaN', 'Infinity', '-Infinity')
      OR v_retail_price::text IN ('NaN', 'Infinity', '-Infinity')
-     OR pg_catalog.least(v_base_price, v_vip_price, v_wholesale_price, v_retail_price) < 0
-     OR pg_catalog.greatest(v_base_price, v_vip_price, v_wholesale_price, v_retail_price) > 999999999999
+     OR least(v_base_price, v_vip_price, v_wholesale_price, v_retail_price) < 0
+     OR greatest(v_base_price, v_vip_price, v_wholesale_price, v_retail_price) > 999999999999
      OR v_base_price <> pg_catalog.round(v_base_price, 2)
      OR v_vip_price <> pg_catalog.round(v_vip_price, 2)
      OR v_wholesale_price <> pg_catalog.round(v_wholesale_price, 2)
