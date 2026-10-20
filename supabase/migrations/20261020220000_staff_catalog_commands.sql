@@ -14,7 +14,7 @@ BEGIN
  SELECT x.id INTO i FROM public.categories x WHERE x.organization_id=o AND x.parent_id IS NOT DISTINCT FROM p_parent_id AND lower(btrim(x.name))=lower(n) AND x.is_active ORDER BY x.id LIMIT 1 FOR UPDATE;
  IF i IS NOT NULL THEN RETURN jsonb_build_object('id',i,'name',n,'created',false); END IF;
  INSERT INTO public.categories(organization_id,parent_id,name,code,is_active) VALUES(o,p_parent_id,n,c,true) RETURNING id INTO i;
- INSERT INTO public.audit_events(organization_id,actor_id,action,target_type,target_id,old_value,new_value)
+ INSERT INTO public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value)
  VALUES(o,a,'catalog.category_created','category',i,'{}'::jsonb,jsonb_build_object('name',n,'parent_id',p_parent_id,'code',c));
  RETURN jsonb_build_object('id',i,'name',n,'created',true);
 END $$;
@@ -82,7 +82,7 @@ BEGIN
  END IF;
  after_json:=jsonb_build_object('name',n,'item_code',code,'barcode',bar,'unit',u,'description',descr,'category_id',cat,
   'base_price',b,'price_wholesale_of_wholesale',ww,'price_wholesale',wh,'price_retail',rt,'status',st);
- INSERT INTO public.audit_events(organization_id,actor_id,action,target_type,target_id,old_value,new_value)
+ INSERT INTO public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value)
  VALUES(o,a,CASE WHEN created THEN 'catalog.product_created' ELSE 'catalog.product_updated' END,'product',i,before_json,after_json);
  RETURN jsonb_build_object('id',i,'status',st,'created',created);
 END $$;
@@ -99,7 +99,7 @@ BEGIN
  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='product not found in organization'; END IF;
  IF old.status<>'inactive' THEN
   UPDATE public.products SET status='inactive',updated_at=pg_catalog.now() WHERE id=p_product_id AND organization_id=o;
-  INSERT INTO public.audit_events(organization_id,actor_id,action,target_type,target_id,old_value,new_value)
+  INSERT INTO public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value)
   VALUES(o,a,'catalog.product_archived','product',p_product_id,jsonb_build_object('status',old.status),jsonb_build_object('status','inactive'));
  END IF;
  RETURN jsonb_build_object('id',p_product_id,'status','inactive','archived',true);
