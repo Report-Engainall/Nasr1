@@ -3,8 +3,8 @@
 - **المستودع المستهدف الوحيد:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **PR:** [#26 — مفتوح / Draft / غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/26)
-- **آخر رأس كود مختبر ومثبت بالـCI:** `83a0b11edafb83f8552a063b9c4643956f899a6b` — [Actions 39495527676: SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39495527676)؛ 71/71 test files و474/474 اختبارًا، PostgreSQL 17، قبول الترقيم الخادمي للكتالوج، price grid، import idempotency concurrency، saved products، lint/build وسموك preview/dev.
-- **المهمة النشطة الوحيدة / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-004-AGHBCOM-EXPORT-JOBS-0004` — تنفيذ دورة تصدير كبيرة غير متزامنة وآمنة على مخطط Nasr1 بدل نسخ scaffold المانح الخام؛ لا تعدّل ملفات P2 المشتركة.
+- **آخر رأس كود مختبر ومثبت بالـCI:** `7a62ac5cf68b05db5e6f313cab84104cf49cf773` — [Actions 39498693983: SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39498693983)؛ اختبارات الوحدات، قبول PostgreSQL 17 لدورة التصدير والكتالوج والأسعار والاستيراد والمنتجات المحفوظة، lint/build، وسموك معاينة الإنتاج والتطوير.
+- **المهمة التالية / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-003-AGHBCOM-CUSTOMER-LIFECYCLE-0003` — دورة حياة العميل/التفعيل؛ لا تُعدّل الملفات المشتركة التي يملكها P2. تحقق من PR #18 والرأس الحي قبل أي تغيير، واعمل فقط على الجزء غير المملوك للمبرمج 2 إن وُجد.
 - **أُغلقت دفعة سلة العميل:** اختبار الوحدة 67/67 ملفًا، وقبول PostgreSQL 17 الفعلي للسلة، وCI الكامل نجح على SHA المذكور. تفاصيل الفشل والإصلاح وبصمات الملفات في القسم 6.15.1.
 - **حد Service Worker مغلق:** لا تعِد تنفيذه أو مراجعة أرشيفه ما لم يظهر regression جديد. اختبار متصفح/إنتاج لهذا الحد: NOT RUN.
 - **حد دورة تفعيل العميل:** مقارنة المصدر انتهت؛ الدمج المشترك ما يزال محجوبًا بتعارض migration بين P1 وP2. لا تعدّل ملفات المبرمج 2 أو تحذف migration مملوكة له بلا تنسيق صريح.
@@ -319,3 +319,38 @@
 
 ### المهمة التالية
 `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-004-AGHBCOM-EXPORT-JOBS-0004` — دورة تصدير غير متزامن تشمل ملكية المؤسسة والمنفّذ، مفاتيح idempotency، worker lease/retry، ملفات خاصة ذات انتهاء، وتنزيلًا قصير العمر. لا تنقل scaffold المانح وحده.
+ 
+## 6.18. تنفيذ دورة تصدير الطلبات غير المتزامن وربطها بالواجهة — 2026-10-20
+
+### نتيجة التكامل
+- المصدر `Report-Engainall/aghbari-commerce/supabase/migrations/0004_import_storage.sql` ظل مرجعًا للقراءة فقط؛ لم يُنسخ أو يُطبّق خامًا. نُفّذ بديل Nasr1-native يغطي دورة التصدير كاملة.
+- رأس الكود المختبر: [`7a62ac5cf68b05db5e6f313cab84104cf49cf773`](https://github.com/Report-Engainall/Nasr1/commit/7a62ac5cf68b05db5e6f313cab84104cf49cf773).
+- [Actions 39498693983 — SUCCESS على SHA المطابق](https://github.com/Report-Engainall/Nasr1/actions/runs/39498693983).
+- النتائج: unit tests، ترحيلات وقبول PostgreSQL 17، اختبار دورة التصدير، import idempotency concurrency، saved-products acceptance، lint، build، preview smoke 4173، dev smoke 5173 والتنظيف نجحت. لا يوجد إثبات جلسة متصفح يدوي مصادق عليها ولا نشر إنتاج فعلي؛ كلاهما `NOT RUN`.
+
+### حدود الأمان والتشغيل
+- الطلبات مربوطة بالمستخدم الفعال والمؤسسة ومفتاح idempotency مع hash للمرشحات؛ إعادة استخدام المفتاح بمرشحات مختلفة تُرفض.
+- صلاحيات الطلبات للمسؤول/المدير/المحاسب؛ جدول المهام بلا وصول مباشر للمستخدمين. الكتابة تمر عبر RPCs الخادمية، وسجل التدقيق يثبت الطلب والإكمال والفشل النهائي.
+- العامل يستخدم `FOR UPDATE SKIP LOCKED` وlease لمدة محدودة، حدًا أقصى خمسة محاولات وإعادة محاولة متدرجة، ومعالجة أخطاء منقحة بدل تخزين بيانات حساسة.
+- مصدر الطلبات يقتصر على الطلبات المعتمدة التي لا تتطلب مراجعة كمية؛ المرشحات مؤسسية. الحدود 1000 طلب و10000 بند و25 MiB.
+- ملفات CSV عربية بترميز UTF-8 BOM، تهريب للخلايا وحماية من CSV formula injection، SHA-256، تخزين خاص مع انتهاء بعد 7 أيام، وروابط تنزيل موقعة لمدة 60 ثانية فقط. التنظيف يحذف الملف الخاص بعد انتهاء صلاحيته.
+- واجهة RTL على `/admin/exports` تشمل تواريخ التصدير، سجل الحالة، التحديث كل 5 ثوانٍ، إلغاء الطلبات المعلقة، تنبيه العامل وتنزيل الرابط المؤقت. يوجد رابط من صفحة التقارير. لم تُمس `src/components/AghbariApp.tsx` أو `src/routeTree.gen.ts` أو `src/lib/api.ts` أو `package.json`.
+
+### الملفات وبصمات Git blob على رأس الكود المختبر
+- `supabase/migrations/20261020240000_async_export_jobs.sql` — `503f7832a90a2272af86f1b05f95d0d2a802c93f`.
+- `supabase/functions/async-export-worker/index.ts` — `e091a2a23fd6afd631e6d9b0d28aa6e0b1bc8bc4`.
+- `supabase/functions/async-export-download/index.ts` — `006bd9af09b53201c187d2e0649918bab4bc9bc8`.
+- `src/lib/async-export-csv.ts` — `f4423da23c2c0d850b770a7de4f4b80ac962e034`.
+- `src/lib/async-export-jobs.ts` — `f899ae1b85c88d605626f1d4f04f5c5298c94627`.
+- `src/test/async-export-job-contract.test.ts` — `6dee673db47877d5138dbdd936f32a3fc213c53e`.
+- `scripts/test-async-export-jobs.mjs` — `8bff84f46a3da04a9d3a5c4f2378bbd1b05c633b`.
+- `src/components/AsyncExportCenter.tsx` — `29ff7ba59d04dea40455dcbb8cbaf98ff862a97f`.
+- `src/routes/admin_.exports.tsx` — `d48af7450b5ab1bfb02e8c789f09412d44cdcf79`.
+- `src/test/async-export-route-contract.test.ts` — `209e282a76616b78ab879c04d6b0b74ec7fde5b0`.
+- `src/routes/admin_.reports.tsx` — `febf62ff1a178764a295416a2e31fc82c5bd3bb0`.
+
+### الحالة
+`IMPLEMENTED=YES`; `INTEGRATED=YES`; `TESTED_EXACT_SHA=PASS (7a62ac5cf68b05db5e6f313cab84104cf49cf773; Actions 39498693983)`; `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
+
+### الاستئناف
+المهمة التشغيلية التالية هي `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-003-AGHBCOM-CUSTOMER-LIFECYCLE-0003`، وهي مرتبطة بتغييرات دورة العميل التي يجريها P2. لا تُعدّل المسارات المملوكة له؛ افحص رأس PR #18 وسجله فقط للتمييز بين ما دُمج وما لا يزال بانتظاره، ثم انتقل إلى أقرب مهمة غير محجوبة لا تشترك في ملكية الملفات.

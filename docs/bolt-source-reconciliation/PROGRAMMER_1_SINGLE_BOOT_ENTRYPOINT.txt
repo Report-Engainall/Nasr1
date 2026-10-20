@@ -1,27 +1,27 @@
 # P1 — رسالة إقلاع واحدة مختصرة
 التاريخ: 2026-10-20
-المستودع المستهدف الوحيد: https://github.com/Report-Engainall/Nasr1
+المستودع الوحيد: https://github.com/Report-Engainall/Nasr1
 الفرع المستمر: integration/inventory-transfer-batches-20261019-rebased
-PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (OPEN / DRAFT / NOT MERGED)
+PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (لا تدمج main مباشرة)
 
-آخر رأس كود/اختبارات ناجح:
-83a0b11edafb83f8552a063b9c4643956f899a6b
-CI exact-SHA: https://github.com/Report-Engainall/Nasr1/actions/runs/39495527676 — SUCCESS؛ 71/71 test files و474/474 tests، PostgreSQL 17، paging/catalog/price-grid acceptance، import idempotency concurrency، saved-products، lint/build، preview smoke 4173 وdev smoke 5173.
+آخر رأس كود اجتاز CI:
+7a62ac5cf68b05db5e6f313cab84104cf49cf773
+CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39498693983 — SUCCESS على SHA نفسه.
+شمل: اختبارات الوحدة، PostgreSQL 17 ودورة التصدير async، price grid، staff catalog، server-side pagination، import idempotency concurrency، saved-products، lint، build، preview smoke 4173، dev smoke 5173 والتنظيف.
 BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 
-تم إغلاق:
-- كتالوج الموظفين 0007: PostgreSQL 17 قبول create/update/archive product/category، unsupported-key rejection، canonical pricing RPC/stale-write conflict، tenant isolation، audit identity، direct-DML denial.
-- Pagination الكتالوج: RPC هدفية مع schema الحقيقي؛ ربط أرصدة عبر product_id/warehouse_id ومستودع نشط تابع للمؤسسة؛ الأسعار من get_storefront_product_prices.
-- Price grid: فشل تاريخي على SHA قديم، لكن قبول PostgreSQL 17 الحالي سجّل PASS للمسؤول/المدير، القيم الأساسية وثلاث الشرائح، atomic writes، audit، stale-value، tenant rollback ورفض accountant.
-- Import storage: مسار Nasr1 الحالي أقوى من scaffold المانح، وCI الحالي شمل قبول PostgreSQL 17 واختبار idempotency المتزامن.
+المنجز:
+1. Staff catalog 0007: صلاحيات صارمة، canonical price RPC، audit_logs، tenant isolation ومنع DML المباشر.
+2. Server pagination: المخطط الفعلي يستخدم inventory_balances(product_id,warehouse_id)، لا organization_id على inventory_balances؛ prices عبر get_storefront_product_prices.
+3. Async order export: idempotent tenant/actor request, role gating, lease/retry cap, CSV safe escaping/BOM, private storage, SHA-256, 7-day expiry cleanup, 60-second signed URL, audit, Arabic UI route /admin/exports.
+4. donor migration 0004_import_storage.sql بقي مرجعًا ولم يُطبّق خامًا.
 
-المهمة التالية الوحيدة حسب السجل:
-NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-004-AGHBCOM-EXPORT-JOBS-0004
-المصدر المسجل: Report-Engainall/aghbari-commerce/supabase/migrations/0004_import_storage.sql؛ blob 11f27be89c4f20963bfe69702f6683aa87fde82b. المصدر مرجع فقط؛ لا تنسخ scaffold خامًا.
-أنشئ lifecycle حقيقيًا: tenant/actor scope، idempotency، claim/lease/retry/dead-letter أو expiry، artifact خاص، وتنزيل مصرح قصير العمر. افحص الملكية وابق بعيدًا عن الملفات المشتركة في PR #18.
+المهمة التالية المسجلة:
+NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-003-AGHBCOM-CUSTOMER-LIFECYCLE-0003
+ابدأ من رأس PR #18 وسجل الحالة الحي. هذه مهمة مشتركة/مملوكة جزئيًا لـP2: لا تعدّل src/lib/api.ts أو src/components/AghbariApp.tsx أو src/routeTree.gen.ts أو package.json أو scripts/test-database-migrations.mjs أو Onyx/returns files دون تنسيق. إن كانت محجوبة، انتقل إلى مهمة مستقلة غير متداخلة بدل إعادة فحص الأرشيفات.
 
-القيود:
-- حدّث سجلات P1 الأربعة فقط: هذا الملف وPROGRAMMER_1_CURRENT_REPORT.md وSOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv.
-- ملفات P2 المحمية تشمل src/lib/api.ts وsrc/components/AghbariApp.tsx وsrc/routeTree.gen.ts وpackage.json وscripts/test-database-migrations.mjs وworkflow P2 وملفات Onyx/المرتجعات التي يملكها P2.
-- لا reset ولا clean ولا force-push ولا كتابة مباشرة على main. استخدم expected-head guard.
-- افصل IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA / BROWSER_PROVEN / PRODUCTION_PROVEN. ما لم يُشغّل يبقى NOT RUN.
+قيود:
+- لا reset/clean/force-push ولا كتابة مباشرة على main.
+- اقرأ الرأس الحي قبل كل commit؛ push باستخدام expected-head.
+- سجلات P1 التي تحدّث: PROGRAMMER_1_CURRENT_REPORT.md, SOURCE_INTEGRATION_LEDGER.csv, READY_TO_REUSE_FILE_AUDIT.csv, PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt.
+- ميّز IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA / BROWSER_PROVEN / PRODUCTION_PROVEN. لا تُحوّل NOT RUN إلى PASS.
