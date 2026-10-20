@@ -298,7 +298,7 @@ jobs:
           rm "$local_project/migrations/20261018100000_product_image_storage.sql"
           {
             echo "## Local order/tenant E2E migration boundary"
-            echo "- Uses a temporary copy of repository migrations with only `20261018100000_product_image_storage.sql` omitted; this migration mutates Supabase-owned `storage.objects` and is unrelated to authentication, order creation, or tenant-read isolation."
+            echo '- Uses a temporary copy of repository migrations with only `20261018100000_product_image_storage.sql` omitted; this migration mutates Supabase-owned `storage.objects` and is unrelated to authentication, order creation, or tenant-read isolation.'
             echo "- The repository migration itself is unchanged. Storage/RLS for product images is not covered by this browser job."
             echo "- This job uses a fresh local-only PostgreSQL 17/Supabase stack and does not connect to a hosted project."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -312,7 +312,8 @@ jobs:
             --override-name api.url=SUPABASE_URL \
             --override-name auth.anon_key=SUPABASE_PUBLISHABLE_KEY \
             --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY \
-            --override-name db.url=TEST_DATABASE_URL >> "$GITHUB_ENV"
+            --override-name db.url=TEST_DATABASE_URL | \
+            sed -E 's/^([A-Za-z_][A-Za-z0-9_]*)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
       - name: Create ephemeral local users and tenant fixtures
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
