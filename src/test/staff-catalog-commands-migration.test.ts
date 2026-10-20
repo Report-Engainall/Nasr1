@@ -18,7 +18,7 @@ describe("staff catalog commands migration contract", () => {
     expect(runtimeTest).toContain("[created.id, admin.json(update)]");
     expect(runtimeTest).toContain('admin.json({ ...update, expected_base_price: 12, name: "stale form" })');
     expect(runtimeTest).toContain("admin.json({ ...update, category_id: category.id })");
-    expect(runtimeTest).toContain("[customer.json(payload)]");
+    expect(runtimeTest).toContain("customer.json(payload),");
   });
 
   it("reports unsupported payload keys explicitly rather than relying on JSONB key subtraction", () => {
