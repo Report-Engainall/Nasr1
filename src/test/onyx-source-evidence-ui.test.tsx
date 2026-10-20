@@ -9,6 +9,7 @@ import { OnyxSnapshotSourceEvidencePanel } from "@/components/OnyxSnapshotSource
 const snapshotId = "22222222-2222-4222-8222-222222222222";
 const jobId = "11111111-1111-4111-8111-111111111111";
 const fixture = {
+  organization: { id: "99999999-9999-4999-8999-999999999999", name: "مؤسسة الاختبار" },
   snapshot: {
     id: snapshotId, source_import_job_id: jobId, source_file_name: "stock.csv",
     source_file_hash: "a".repeat(64), report_type: "inventory_stock", period_key: "2026-10",
@@ -38,6 +39,7 @@ describe("Onyx source evidence panel", () => {
     fetchEvidence.mockResolvedValue(fixture);
     render(<OnyxSnapshotSourceEvidencePanel snapshotId={snapshotId} />);
     expect(await screen.findByText("مرجع دفعة الاستيراد موجود والبصمة متطابقة")).toBeTruthy();
+    expect(screen.getByText(/المؤسسة الفعالة من قاعدة البيانات:/).textContent).toContain("مؤسسة الاختبار");
     expect(screen.getByText("استيراد ملف يدوي")).toBeTruthy();
     expect(screen.getByText("external_id")).toBeTruthy();
     expect(screen.getByText(/غير مثبتة بأدلة هذا السجل/)).toBeTruthy();
