@@ -1,3 +1,24 @@
+# تقرير استئناف P2 — 20 أكتوبر 2026 — CI PASS / ليس إنهاء المواصفة
+
+## حالة استئناف P2 الحالية — PASS على SHA محدد، 2026-10-20
+
+- **Repository:** `Report-Engainall/Nasr1`
+- **Branch:** `feat/p2-customer-return-intake-20261020`
+- **PR:** [#18](https://github.com/Report-Engainall/Nasr1/pull/18) (OPEN؛ لم يُدمج)
+- **HEAD / CI SHA:** `9758e0b2961b1383b78f2ecf94f75e53e184e17f`
+- **Evidence:** [GitHub Actions Run 39366508410](https://github.com/Report-Engainall/Nasr1/actions/runs/39366508410) — conclusion `success`، انتهى 2026-10-20 03:53:27Z.
+- **خطوات CI التي نجحت على هذا الرأس:** frozen-lockfile verification؛ unit tests؛ migrations + acceptance على PostgreSQL 17 المعزول؛ lint (باستثناء قاعدة Prettier على مستوى المستودع كما هو معرف بالـworkflow)؛ build؛ production preview smoke على 4173؛ dev server smoke على 5173.
+- **الأرشيف المعتمد فقط:** `incoming-archives/nasr1-bolt-recovery-2026-10-17/project-bolt-github-7sl6ykzz (2).zip` في `Report-Engainall/report-insight-engine`، 1,009,556 bytes، Git blob SHA-1 `4835a0565f799a272dfca0ff49fbc3ce0d760474`، SHA-256 `1a692b013da35b4cb034f5b18f8160ec66bca778bc4649bd5128abc7fccb9be1` وفق سجل المصالحة المحفوظ؛ CRC ناجح و421 إدخالًا / 359 ملفًا. البصمة مأخوذة من سجل المصدر المعتمد ولم يُعاد حساب SHA-256 محليًا بهذه الجلسة.
+- **مصالحة المصدر المسجلة:** 270 مسارًا مطابقًا، 67 مختلفًا، 22 خاصة بالأرشيف، 168 خاصة بالمشروع الحالي. لم تُفتح أو تُقارن أو تُستخدم أي نسخة Bolt أقدم.
+- **الميزات التي اجتازت CI على HEAD أعلاه:** طلب مرتجع مقيّد بالمؤسسة + قرار المراجعة؛ استلام فعلي جزئي/كامل؛ التحقق من المستودع والكمية المتبقية؛ إعادة المحاولة دون مضاعفة المخزون؛ فصل التالف عن الرصيد المتاح؛ حركة مخزون مدققة وإغلاق مهمة الاستلام عند الاكتمال؛ إعداد إشعار دائن من مصدر الفاتورة المرتبط؛ إنشاء قيد مزدوج كمسودة؛ منع ترحيل غير متوازن؛ posting guard يتحقق من المصدر والحسابات؛ عكس الأثر في ذمم العميل وكشف الحساب وأعمار الذمم بعد الترحيل فقط.
+- **حدود محاسبية مقصودة:** لا استرداد نقدي تلقائي؛ لا ترحيل تلقائي للإشعار/القيد عند الاستلام؛ عملة YER فقط في هذه الدفعة إلى أن توجد سياسة FX معتمدة؛ يجب أن تكون بنود الفاتورة المصدر قابلة للربط بشكل غير ملتبس.
+- **الملفات المضافة أو المعدلة في العمل الحالي:** `supabase/migrations/20261020060000_customer_return_receipts.sql`; `supabase/migrations/20261020070000_customer_return_credit_memos.sql`; `src/components/CustomerReturnReceiptQueue.tsx`; `src/components/CustomerReturnCreditMemoQueue.tsx`; `src/lib/customer-return-receipts.ts`; `src/lib/customer-return-credit-memos.ts`; `src/test/customer-return-receipts.test.ts`; `src/test/customer-return-credit-memos.test.ts`; `src/components/TaskCenter.tsx`; `scripts/test-customer-returns.mjs`؛ إلى جانب الملفات الأساسية لطلب/مراجعة المرتجع في PR #18 وتحديث مستندات P2 هذه.
+- **لم يُنفّذ / غير مثبت:** local `git/npm` checks لأن checkout محليًا غير متاح في هذه البيئة؛ browser E2E مع جلسة حقيقية؛ ترحيل قاعدة إنتاج أو نشر إنتاج. نجاح CI ليس دليلًا على نشر أو ترحيل الإنتاج.
+- **الملكية:** لا كتابة إلى `main`. لم تُعدّل سجلات P1 المحمية `SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` و`PROGRAMMER_1_CURRENT_REPORT.md`، ولا harness المملوك لـP1 `scripts/test-database-migrations.mjs` أو المسارات المحمية المشار إليها في سجل العمل.
+- **الخطوة التالية:** `NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004` — مراجعة صلاحيات طباعة الفاتورة/كشف العميل/إشعار الدائن حسب الدور، وربطها بالمستند المصدر دون كشف مستندات مؤسسات أخرى. بعدها مواصلة تدقيق التكاملات والتقارير والمخزون/المشتريات حسب المواصفة الأصلية؛ لا تُعلن اكتمال المنتج الشامل.
+---
+
+
 # تحديث استئناف P2 — 20 أكتوبر 2026: استلام المرتجعات بعد الموافقة
 
 - المهمة الجديدة: `NASR1-ORIGINAL-SPEC-RETURNS-RECEIPT-POSTING-002`. التغييرات في الفرع `feat/p2-customer-return-intake-20261020` وPR #18؛ رأس intake السابق `7244ad3ab9d37bf68a3ba2acd918455520798416` اجتاز [Action 39362085506](https://github.com/Report-Engainall/Nasr1/actions/runs/39362085506)، لكن هذا لا يثبت اختبارات التعديل الجديد الذي ينتظر CI.

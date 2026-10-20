@@ -91,3 +91,11 @@ P2 owns WORK_COORDINATION.md, CURRENT_EXECUTION_STATE.md, EXECUTION_LOG.md, ARCH
 - حدود الملكية: لا تعديل `scripts/test-database-migrations.mjs` أو `src/lib/api.ts` أو `src/components/AghbariApp.tsx` أو `src/routeTree.gen.ts` أو workflow؛ لا تغيير لدفاتر P1 أو سجلات مصادرهم.
 - الحراسة: RPCs مؤسسية ومخولة، لا DML مباشر للعميل على جداول الاستلام؛ مخزن نشط في المؤسسة؛ تحقق من request/line ownership والكمية المتبقية؛ fingerprint + advisory lock يمنع تكرار الإيصال؛ فقط الكمية الصالحة تحرك الرصيد، والتالف محفوظ في سجل الاستلام.
 - CI لهذا الرأس: PENDING إلى أن تؤكد Actions على SHA النهائي. لا دمج قبل نجاح CI المطابق.
+
+## P2 work closure checkpoint — returns + credit memo (2026-10-20)
+
+- Evidence SHA: `9758e0b2961b1383b78f2ecf94f75e53e184e17f`; exact-head [CI Run 39366508410 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/39366508410). Branch `feat/p2-customer-return-intake-20261020`, PR #18 stays OPEN.
+- Receipt workflow and source-linked credit memo/ledger draft/post flow passed unit tests, isolated PostgreSQL 17 migration/acceptance, lint, build, preview smoke, and dev smoke.
+- This evidence applies only to this exact SHA and CI workflow. It does not prove browser E2E with a signed-in user, production DB migration, or deployment.
+- P2 ownership only. No main write and no edits to P1 protected evidence files. The test migration harness stays P1-owned; return acceptance additions remain in `scripts/test-customer-returns.mjs`.
+- Next lock/owner task: `NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004`. Review invoices/statements/credit memos against role/tenant permissions; then continue the remaining canonical spec gaps. Do not call the overall app complete.

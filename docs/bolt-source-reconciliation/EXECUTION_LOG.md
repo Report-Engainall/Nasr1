@@ -612,3 +612,14 @@
 - No credit memo, journal posting, invoice change or refund is made in this stage. All remain a separate next task. No secrets or data from other archives were introduced.
 - Local npm/lint/build/PostgreSQL commands unavailable without a checkout: NOT RUN. Browser E2E and live/production DB/deployment: NOT RUN. Exact-head CI: PENDING.
 - Next task after acceptance: `NASR1-ORIGINAL-SPEC-RETURNS-CREDIT-MEMO-LEDGER-003`.
+
+## 2026-10-20 — verified P2 return receipt + source-linked credit memo — PASS
+
+- Exact branch head: `9758e0b2961b1383b78f2ecf94f75e53e184e17f`; [CI Run 39366508410](https://github.com/Report-Engainall/Nasr1/actions/runs/39366508410), conclusion SUCCESS.
+- Verified CI steps: dependency lock verification, unit tests, all database migrations + customer-return/credit-memo acceptance in isolated PostgreSQL 17, lint, build, production preview smoke (4173), dev server smoke (5173).
+- Scope passed: tenant-guarded customer return request/review; physical partial/final receipt and idempotent replay; only saleable inspected quantity moves stock; defects are excluded; stock movement and audit logging; source-line-linked credit memo and balanced journal draft; source guard at posting; posted credit reflected in customer statement and staff receivables aging.
+- Failures seen and corrected before this PASS: test Arabic validation-message mismatch, foreign-tenant fixture query under the wrong DB role, protected-table inspection under authenticated role, and an acceptance assumption that a source invoice outside the newest-200 customer-statement list would appear on that page. Production's 200-row list cap was preserved; final acceptance checks the credit list/summary and the 500-row staff-aging view.
+- Changed implementation paths: `supabase/migrations/20261020060000_customer_return_receipts.sql`; `supabase/migrations/20261020070000_customer_return_credit_memos.sql`; `src/components/CustomerReturnReceiptQueue.tsx`; `src/components/CustomerReturnCreditMemoQueue.tsx`; `src/lib/customer-return-receipts.ts`; `src/lib/customer-return-credit-memos.ts`; `src/test/customer-return-receipts.test.ts`; `src/test/customer-return-credit-memos.test.ts`; `src/components/TaskCenter.tsx`; `scripts/test-customer-returns.mjs`; original intake/review additions in the same PR. P2 status/coordinator/report docs updated alongside this entry.
+- No direct `main` writes. P1 protected files unchanged. Local npm/git checks not run because no local checkout; browser authenticated E2E, live/production migration and deployment not run.
+- Archive evidence remains the single approved `project-bolt-github-7sl6ykzz (2).zip`, recorded SHA-256 `1a692b013da35b4cb034f5b18f8160ec66bca778bc4649bd5128abc7fccb9be1`; older Bolt archives were not opened or compared.
+- Next: `NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004`, then verify remaining integrations, reporting, inventory, purchasing and role-based UI requirements.
