@@ -192,3 +192,10 @@ The task-print patch touched only `src/components/TaskCenter.tsx`, `src/lib/task
 - The dedicated P2 test `scripts/test-customer-price-visibility.mjs` is wired into `test:db` and prints a price-privacy PASS from isolated PostgreSQL 17. The run retains prior failed Actions as root-cause evidence. PR #12 remains OPEN and not merged.
 - Continue P2-only work on this PR #18 branch; do not write `main`, donor repositories, P1 ledgers, `src/lib/api.ts`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, or `.github/workflows/commerce-checks.yml`.
 - Single current task pointer after acceptance of task #010: `NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011`. Identity/sync inspection must distinguish saved snapshots from confirmed live Onyx API sync; no production or browser claim may be inferred from CI smoke tests.
+
+
+## P2/P1 shared-path coordination — customer activation — 2026-10-20 20:42 +03
+
+- Live coordination check: P2 PR #18 is open on `feat/p2-customer-return-intake-20261020`, head `f11f412afd6799aa1809deedcbe434abbcc598b0`. P1 PR #26 is open/draft; its changed-file list includes the activation dialog/page/service/migration/tests and P1-owned report/ledger/audit, but does not include `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, or `scripts/test-database-migrations.mjs`. P1's PR description explicitly requests P2 integration of those three shared paths.
+- P2 will own edits to the three requested paths on PR #18 only; P1 must not edit them in parallel. P2 will not edit `PROGRAMMER_1_CURRENT_REPORT.md`, `SOURCE_INTEGRATION_LEDGER.csv`, or `READY_TO_REUSE_FILE_AUDIT.csv`. Keep RLS/direct-table revokes unchanged.
+- Current P2 blocker to clear first: dialog wiring, generator-backed route registration, and actual PostgreSQL/RLS acceptance must be integrated and tested on one exact final SHA before P1 can close PR #26. A green workflow status alone is not browser proof; missing external E2E secrets remain NOT RUN/BLOCKED_EXTERNAL.
