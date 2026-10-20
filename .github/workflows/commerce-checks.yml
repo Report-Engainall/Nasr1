@@ -64,6 +64,8 @@ jobs:
             done
           fi
           exit "$db_status"
+      - name: Verify tenant-scoped asynchronous export lifecycle under PostgreSQL 17
+        run: node scripts/test-async-export-jobs.mjs
       - name: Verify target-native import request idempotency under PostgreSQL concurrency
         run: node scripts/test-import-job-idempotency.mjs
       - name: Verify tenant-safe persistent storefront favourites under PostgreSQL 17
