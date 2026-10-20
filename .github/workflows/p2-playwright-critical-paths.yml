@@ -17,28 +17,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  browser-critical-paths:
-    name: Playwright customer order and tenant isolation
+  e2e-infrastructure-gate:
+    name: Authenticated E2E infrastructure gate
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    outputs:
+      ready: ${{ steps.e2e_gate.outputs.ready }}
     steps:
-      - name: Select exact source SHA
-        id: source
-        shell: bash
-        env:
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          EVENT_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          if [ -n "$PR_HEAD_SHA" ]; then source_sha="$PR_HEAD_SHA"; else source_sha="$EVENT_SHA"; fi
-          echo "$source_sha" | grep -Eq '^[0-9a-f]{40}$'
-          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
-          echo "Source SHA selected for build/test: $source_sha" >> "$GITHUB_STEP_SUMMARY"
-      - name: Checkout the exact tested source
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ steps.source.outputs.sha }}
-          fetch-depth: 1
       - name: Explicitly gate external test infrastructure
         id: e2e_gate
         shell: bash
@@ -76,23 +60,44 @@ jobs:
             {
               echo "## Playwright acceptance: dedicated test settings confirmed"
               echo
-              echo "Exact source SHA: ${{ steps.source.outputs.sha }}"
+              echo "The browser job checks out the exact pull-request head SHA before build and test."
               echo "The workflow will build this SHA and write only to the declared isolated E2E backend."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
+
+  browser-critical-paths:
+    name: Playwright customer order and tenant isolation
+    needs: e2e-infrastructure-gate
+    if: needs.e2e-infrastructure-gate.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Select exact source SHA
+        id: source
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$PR_HEAD_SHA" ]; then source_sha="$PR_HEAD_SHA"; else source_sha="$EVENT_SHA"; fi
+          echo "$source_sha" | grep -Eq '^[0-9a-f]{40}$'
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "Source SHA selected for build/test: $source_sha" >> "$GITHUB_STEP_SUMMARY"
+      - name: Checkout the exact tested source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 1
       - name: Setup Node 22
-        if: steps.e2e_gate.outputs.ready == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install Bun
-        if: steps.e2e_gate.outputs.ready == 'true'
         uses: oven-sh/setup-bun@v2
       - name: Install app dependencies from the verified Bun lockfile
-        if: steps.e2e_gate.outputs.ready == 'true'
         run: bun install --frozen-lockfile
       - name: Install pinned Playwright runner outside the project lockfile
-        if: steps.e2e_gate.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -100,10 +105,8 @@ jobs:
           mkdir -p node_modules/@playwright
           ln -s "$RUNNER_TEMP/pw/node_modules/@playwright/test" node_modules/@playwright/test
       - name: Install Chromium
-        if: steps.e2e_gate.outputs.ready == 'true'
         run: "$RUNNER_TEMP/pw/node_modules/.bin/playwright install --with-deps chromium"
       - name: Build exact SHA against the isolated E2E backend
-        if: steps.e2e_gate.outputs.ready == 'true'
         env:
           VITE_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
@@ -111,7 +114,6 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
         run: npm run build
       - name: Launch the exact built application
-        if: steps.e2e_gate.outputs.ready == 'true'
         shell: bash
         env:
           SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
@@ -132,7 +134,6 @@ jobs:
           if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/p2-e2e-preview.log"; exit 1; fi
           echo "Built application is ready for source SHA ${{ steps.source.outputs.sha }}."
       - name: Run Playwright critical paths and tenant isolation
-        if: steps.e2e_gate.outputs.ready == 'true'
         shell: bash
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
@@ -145,12 +146,12 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: "$RUNNER_TEMP/pw/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list"
       - name: Stop the local application
-        if: always() && steps.e2e_gate.outputs.ready == 'true'
+        if: always()
         shell: bash
         run: |
           if [ -f "$RUNNER_TEMP/p2-e2e-preview.pid" ]; then kill "$(cat "$RUNNER_TEMP/p2-e2e-preview.pid")" >/dev/null 2>&1 || true; fi
       - name: Upload Playwright traces, report, screenshots and server logs
-        if: always() && steps.e2e_gate.outputs.ready == 'true'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: p2-playwright-${{ github.run_id }}-${{ steps.source.outputs.sha }}
