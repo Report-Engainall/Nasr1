@@ -67,7 +67,7 @@ jobs:
               echo "## Playwright acceptance: NOT RUN / BLOCKED_EXTERNAL"
               echo
               echo "No browser test is claimed. Missing or unconfirmed settings: ${missing[*]}."
-              echo "Configure repository Actions secrets listed in `docs/bolt-source-reconciliation/P2_PLAYWRIGHT_E2E_SETUP.md`, then rerun this workflow."
+              echo "Configure repository Actions secrets listed in docs/bolt-source-reconciliation/P2_PLAYWRIGHT_E2E_SETUP.md, then rerun this workflow."
               echo "This is not a Playwright pass. No synthetic credentials, production writes, or privilege bypasses are used."
             } >> "$GITHUB_STEP_SUMMARY"
           else
