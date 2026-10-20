@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: p2-playwright-critical-paths-${{ github.ref }}
+  group: p2-playwright-critical-paths-${{ github.event.pull_request.head.ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
