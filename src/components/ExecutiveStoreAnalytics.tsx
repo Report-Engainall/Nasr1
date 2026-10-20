@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { BarChart3, Package, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
 import { Empty, ErrorBox, Loading } from '@/components/AdminPages';
 import { fetchStoreExecutiveAnalytics } from '@/lib/api';
-import { buildSalesForecast } from '@/lib/sales-forecast';
+import { buildSalesForecast, calculateWhatIfSales } from '@/lib/sales-forecast';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { useFetch } from '@/lib/useFetch';
 
 function SalesForecastPanel({ points }: { points: ReadonlyArray<{ day: string; orders: number; sales: number }> }) {
+  const [changePercent, setChangePercent] = useState('0');
   const forecast = buildSalesForecast(points);
 
   if (!forecast.ready) {
@@ -67,6 +69,29 @@ function SalesForecastPanel({ points }: { points: ReadonlyArray<{ day: string; o
           ))}</tbody>
         </table>
       </div>
+      <section aria-label="محاكاة سيناريو المبيعات" style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--border, #d6dfe4)' }}>
+        <h4>محاكاة «ماذا لو؟»</h4>
+        <p className="report-note">أدخل نسبة افتراضية من اختيارك لتوضيح أثرها الحسابي على خط الأساس. هذه ليست توقعًا إضافيًا ولا تغيّر بيانات المتجر.</p>
+        <label style={{ display: 'grid', gap: 6, maxWidth: 320, marginTop: 10 }}>
+          <span>التغير الافتراضي في المبيعات (%) — من ‎-100 إلى ‎500</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={-100}
+            max={500}
+            step={1}
+            value={changePercent}
+            onChange={(event) => setChangePercent(event.currentTarget.value)}
+            aria-describedby="sales-what-if-help"
+            style={{ minHeight: 40, padding: '8px 10px', border: '1px solid var(--border, #d6dfe4)', borderRadius: 8, maxWidth: 220 }}
+          />
+        </label>
+        <p id="sales-what-if-help" className="report-note" style={{ marginTop: 8 }}>
+          {calculateWhatIfSales(forecast.expectedTotal, changePercent.trim() === '' ? Number.NaN : Number(changePercent)) === null
+            ? 'أدخل نسبة رقمية ضمن الحدود المحددة. لم يتم حساب سيناريو غير صالح.'
+            : <>القيمة الحسابية الافتراضية للفترة: <strong>{formatCurrency(calculateWhatIfSales(forecast.expectedTotal, Number(changePercent)) as number)}</strong></>}
+        </p>
+      </section>
       <p className="report-note" style={{ marginTop: 12 }}>
         يغطي هذا التقدير الأيام السبعة التالية لآخر يوم متاح في المصدر ({formatDateShort(forecast.lastHistoricalDay)}).
         حُسب متوسط الخطأ بمقارنة كل يوم من آخر 7 أيام فعلية بمتوسط الأيام السبعة السابقة له.
