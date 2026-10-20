@@ -67,8 +67,10 @@ describe("import request idempotency contract", () => {
     expect(api).toContain("p_request_key: input.requestKey ?? crypto.randomUUID()");
     expect(api).toContain("p_intent: input.intent ?? 'new_version'");
     expect(requestKeyHelper).toContain("sessionStorage");
+    expect(requestKeyHelper).toContain("actorId: identity.actorId");
     expect(requestKeyHelper).toMatch(/IMPORT_REQUEST_KEY_TTL_MS = 60 \* 60 \* 1000/);
     expect(importer).toContain("getOrCreateImportRequestKey");
+    expect(importer).toContain("actorId: authUserId");
     expect(importer).toContain("requestKey: requestAttempt.requestKey");
     expect(importer).toMatch(/completeImportRequestKey\(requestAttempt\.storageKey\)/);
     expect(importer).not.toMatch(/requestKey:\s*crypto\.randomUUID\(\)/);
