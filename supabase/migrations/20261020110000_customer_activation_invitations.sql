@@ -275,6 +275,7 @@ BEGIN
        SELECT 1 FROM public.user_roles AS r
        WHERE r.profile_id=v_profile_id AND r.role='customer'
      )
+     OR public.is_staff()
      OR EXISTS (
        SELECT 1 FROM public.user_roles AS r
        WHERE r.profile_id=v_profile_id

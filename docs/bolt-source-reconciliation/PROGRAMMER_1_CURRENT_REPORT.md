@@ -3,8 +3,8 @@
 - **المستودع الوحيد المستهدف:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **الملكية:** هذا التقرير و`SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` فقط.
-- **المهمة الحالية:** NASR1-SOURCE-SERVICE-WORKER-CACHE-BOUNDARY-001 — أضيف اختبار انحدار لحدود التخزين المؤقت في PWA؛ GitHub Actions 39444658074 (https://github.com/Report-Engainall/Nasr1/actions/runs/39444658074) passed on exact implementation/test SHA 93f6d6b3f19f4d94e075b8b6bd0ea8892dbe06b0: frozen Bun lock verification, unit tests, PostgreSQL 17/RLS acceptance, lint/build, preview 4173, dev 5173, and cleanup. الكود والاختبار اجتازا CI على SHA المذكور، لكن تم بعدها تحديث سجلات التوثيق فقط، لذلك يلزم تشغيل CI جديد على الرأس الأحدث قبل الدمج. browser/production NOT RUN.
-- **المهمة التالية بعد إغلاق المهمة الحالية:** `NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001` — مقارنة تفعيل حساب العميل ودورة دعواته في `src/CustomerActivation.tsx` و`src/CustomerPanel.tsx` و`src/services/customerInvitations.ts` مع مسارات Nasr1 الحالية؛ تكييف النقص المثبت فقط دون استيراد عقد الجداول القديمة.
+- **المهمة الحالية / next_source_task_id:** `NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001` — تكييف دورة دعوة العميل من المصدر إلى عقود Nasr1 الحالية. وصل تنفيذ التهيئة إلى branch، لكن إغلاق المهمة يتوقف على ربط نافذة الدعوة بواجهة العملاء وتسجيل routeTree بواسطة P2، إضافة قبول PostgreSQL/RLS في harness المحمي، ثم CI كامل على رأس PR نفسه. لا يُدّعى PASS أو اكتمال تكامل الواجهة قبل هذه الشروط.
+- **المهمة التالية بعد إغلاقها:** اقرأ أول عنصر مصدر غير مغلق من ledger بعد تسوية دورة العميل؛ لا تقدّم أي مهمة على أنها مكتملة قبل تحقق الواجهة/الخدمة/قاعدة البيانات/RLS/المسار والاختبارات وCI المطابق.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 
@@ -42,23 +42,30 @@
 - تم إرسال تعليق على PR #6 بطلب تعديل regex الخاص بالاختبار فقط ومراجعة assertion التالي، مع إبقاء الحارس ومنع القراءة المباشرة دون تغيير. **لم أحرر ملف الاختبار المشترك أو أكتب فوق عمل P2.**
 - لا تدمج PR أخرى قبل CI PASS على رأسها نفسه.
 
-## 5. الحالة الفعلية لسجلات المصدر
+## 5. حالة سجلات المصدر والاختبارات
 
-- `SOURCE_INTEGRATION_LEDGER.csv`: **116 صف بيانات** على فرع P1 بعد توثيق قرارات الدمج لهذه الجولة.
-- `READY_TO_REUSE_FILE_AUDIT.csv`: **78 صف تدقيق** على فرع P1؛ أضيف قرار صريح لملف تصدير الكتالوج المانح.
-- الصفوف المضافة تغطي مصدر معالج الصور واختباره، وقرار تكرار طابور offline واختباره. جميع البصمات المنقولة من الشجرة المانحة مسجلة؛ لم نعد فتح أي source blob كان له قرار مسجل.
-- المراجعة الحالية سجلت 78 صفًا في audit؛ لا يعني ذلك إغلاق جميع ملفات المستودعات المانحة، بل تُواصل مراجعة العناصر المتبقية.
-- مهمة حماية Service Worker: IMPLEMENTED وTESTED على SHA 93f6d6b3f19f4d94e075b8b6bd0ea8892dbe06b0؛ أحدث حالة CI للاختبار PASS كما في الرابط أعلاه. تحديثات السجلات بعد الاختبار توثيقية فقط لكن رأس PR تغيّر، لذا يلزم CI نهائي على الرأس الأحدث قبل الدمج. المهمة التالية: NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001.
+- قبل توثيق دورة دعوة العميل: `SOURCE_INTEGRATION_LEDGER.csv` يحوي 116 صف بيانات و`READY_TO_REUSE_FILE_AUDIT.csv` يحوي 78 صف تدقيق. أضيفت 3 قرارات صريحة عن ملفات المانح الثلاثة لهذه المهمة؛ لم تُنسخ الملفات القديمة خامًا.
+- **Service Worker:** تم إثبات تنفيذ حد التخزين المؤقت واختباره على SHA `93f6d6b3f19f4d94e075b8b6bd0ea8892dbe06b0` في [Actions 39444658074](https://github.com/Report-Engainall/Nasr1/actions/runs/39444658074). وحدة الاختبار، PostgreSQL 17/RLS، lint/build، preview وdev smoke جميعها SUCCESS. لا يوجد دليل browser/production.
+- **تصدير الكتالوج:** القرار `ALREADY_PRESENT_BETTER` قائم؛ يستخدم Nasr1 التصدير الحالي CSV/XLSX وتهريب حقن الصيغ وحدود الصفوف، ولا يستورد مكون المانح القديم.
+- لا تعني هذه الصفوف أن كامل المستودعات المانحة قد أُغلق؛ تستمر مراجعة العناصر غير المغلقة حسب task IDs المسجلة.
 
 ## 5.1. مراجعة حدود PWA وتكافؤ تصدير الكتالوج — 2026-10-20
 
-- **حدود Service Worker:** مصدر المانح Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1، public/sw.js، blob 53936f83f2340c0e2d450edaa20db85619e8cf01. استُخدم كمرجع مقارنة فقط؛ عامل المانح يسمح بتخزين استجابات تنقل أوسع، لذا لم يُنسخ.
-- **تنفيذ Nasr1 المحتفظ به:** public/sw.js blob 166e449316349394e8870cb14f90067893a0dd24 لا يخزّن التنقلات العميقة، ويستبعد مسارات auth/rest/api/rpc/storage/functions، ولا يقبل إلا GET من نفس الأصل للتخزين، مع قصر التنقل على shell الجذر وقائمة موارد ثابتة واضحة.
-- **اختبار جديد:** src/test/service-worker-cache-boundary.test.ts يثبت تلك الحدود بالإضافة إلى تنظيف cache الخاص بنطاق التطبيق فقط. لا تغييرات schema/RPC/RLS ولا dependency جديدة. الحالة: IMPLEMENTED + TESTED؛ ${ci} أحدث commits بعد هذا الاختبار حدّثت توثيق P1 فقط وتحتاج إعادة CI على الرأس الجديد قبل الدمج. browser/production لم يُشغّلا.
-- **تكافؤ تصدير الكتالوج:** Report-Engainall/aghbari-commerce/src/ExportPanel.tsx blob 3526a3232cce9159ab6554797e7afa8f49f7129e يستخدم مخطط SKU/tiers قديمًا. Nasr1 يملك PricingGrid وprice-grid-csv.ts وprice-grid-xlsx.ts على المخطط الحالي، ويصدّر أربع شرائح أسعار وملخص المخزون مع تهريب حقن الصيغ وحدود للحجم؛ لذلك سُجّل القرار ALREADY_PRESENT_BETTER دون نسخ مكوّن مانح.
-- **المراجع الحية بعد إكمال توثيق P1:** ledger = 116 صف بيانات، audit = 78 صفًا. لا يثبت هذا حصر كل ملفات المستودعات المانحة؛ تُستكمل مراجعة النواقص حسب next task أعلاه.
+- مصدر Service Worker: `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`, `public/sw.js`, blob `53936f83f2340c0e2d450edaa20db85619e8cf01`. استُخدم كمرجع فقط لأن سياسة التخزين في المصدر أوسع من سياسة Nasr1.
+- `public/sw.js` في الهدف بقي بسياسة أشد تقييدًا: التنقلات المخبأة محدودة إلى shell الجذر، ومسارات المصادقة وREST/RPC والتخزين والدوال لا تُحفظ ضمن cache. الاختبار `src/test/service-worker-cache-boundary.test.ts` اجتاز CI المذكور أعلاه على SHA المطابق.
+- مصدر تصدير الكتالوج `Report-Engainall/aghbari-commerce/src/ExportPanel.tsx`, blob `3526a3232cce9159ab6554797e7afa8f49f7129e`، يستخدم عقد SKU/شرائح سعر قديمًا؛ هدف Nasr1 الحالي أشمل وفق schema الحالية. قرار `ALREADY_PRESENT_BETTER`، دون نسخ.
 
-## 6. حدود الدور
+## 6. دورة دعوة تفعيل العميل — تشخيص وتكييف جارٍ
+
+- المصادر الثلاثة الجديدة التي تمت قراءتها مرة واحدة بعد التحقق من غياب قرار blob مسجل: `src/CustomerActivation.tsx` = `a51b02c18a083ba53e87ce1c4d2865206d2d587b`؛ `src/CustomerPanel.tsx` = `48fd6183f5b318337336d6e5af3e371279ff0e3a`؛ `src/services/customerInvitations.ts` = `8daf05fbb2d65988f06cca0db3d8ede43c439cd8`، من `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`. لن يُعاد جلب هذه blobs ما دامت البصمات ثابتة.
+- قرار عدم النسخ: خدمة المانح تقرأ `customer_invitations` مباشرة وتتصل بـRPCs ومخطط شرائح قديم وبمسار `/?invite=`; لا يُنقل أي من ذلك. الهدف يستخدم جدولًا منفصلًا `customer_activation_invitations` مع إلغاء الوصول المباشر للجدول إلى `PUBLIC, anon, authenticated`، ويتيح العمليات عبر RPCs `SECURITY DEFINER` ذات تحقق المؤسسة/الموظف/العميل وتخزين hash للرمز وتدقيق.
+- تنفيذ الهدف الموجود جرى تحصينه في هذه التغييرات: الحفاظ على رمز العميل الصحيح فقط في مسار إعادة توجيه تأكيد البريد (ومن دون تمرير معاملات عامة)، إزالة رمز الحامل من عنوان المتصفح بعد قبول الدعوة، ورفض قبول الدعوة إذا كان الحساب موظفًا عبر `public.is_staff()` بالإضافة إلى فحوص الأدوار الموجودة.
+- أضيفت اختبارات وحدات لعقد خدمة الدعوات، صفحة التفعيل، نافذة الدعوة، ومنطق إعادة توجيه البريد. **لم تُشغَّل محليًا في هذه الجلسة** لعدم وجود runtime محلي للمستودع؛ CI exact-head ما زال PENDING حتى يُفتح PR.
+- **حظر الإغلاق الحالي:** `src/components/AghbariApp.tsx` و`src/routeTree.gen.ts` و`scripts/test-database-migrations.mjs` مسارات محمية/مشتركة يملك P2 تنسيقها. أُعد طلب patch محدد إلى P2 لربط نافذة الدعوة بصفوف العملاء، توليد الشجرة من route الملف الجديد، وإضافة اختبارات قبول PostgreSQL تُثبت منع SELECT المباشر وتحقق RPCs من المؤسسة/البريد/الرمز ودور الموظف. لم تُعدّل هذه المسارات، ولم تُخفف RLS.
+- البصمات الحالية للملفات المعدلة: `src/lib/auth.tsx` = `e35165446fce31d77718b66bbb3b07fd0506da1c`; `src/components/CustomerActivationInvitationPage.tsx` = `2afb92b62346c22315ce35577a933284e1c8b43a`; `supabase/migrations/20261020110000_customer_activation_invitations.sql` = `c04cf46b389a1c6668c17bc57c2a55b40917f905`; `src/lib/auth-redirect.ts` = `59f73ab50a940c5cf9bd79d142de522733c3252b`; الاختبارات الجديدة: `src/test/auth-redirect.test.ts` = `e4185e948bafac0be0de6af329edb60637b2c778`, `src/test/customer-activation-invitations.test.ts` = `e24df5d68c30fd03566f770e20192c6362a35faf`, `src/test/customer-activation-invitations-page.test.tsx` = `8d4378758855914c6de2c31192018d4e99afb08c`, `src/test/customer-activation-invitations-dialog.test.tsx` = `6de0954b2f0fdd19134db99f26b2f1ac03eb874d`.
+- النتائج الحالية: `NOT RUN` محليًا؛ full CI `PENDING`; PostgreSQL acceptance الخاص بدورة العميل `PENDING P2 harness patch`; browser/production `NOT RUN`. لا تدمج هذه المهمة حتى تُلبّى جميع التبعيات ويكون CI ناجحًا على الرأس النهائي نفسه.
+
+## 7. حدود الدور
 
 - الهدف الوحيد `Report-Engainall/Nasr1`. المستودعات الثلاثة للقراءة والمقارنة فقط.
 - لا أتعامل مع ZIPs/الأرشيف أو استكمال المواصفة الأصلية المستقل.
