@@ -68,6 +68,12 @@
 - **حالة التكامل:** PR [#26](https://github.com/Report-Engainall/Nasr1/pull/26) ما زال Draft وغير مدمج. `src/components/AghbariApp.tsx` و`src/routeTree.gen.ts` و`scripts/test-database-migrations.mjs` يملكها P2. أُرسلت طلبات محددة إلى [PR #18](https://github.com/Report-Engainall/Nasr1/pull/18) لإضافة زر/نافذة الدعوة، توليد المسار، واختبارات مباشرة تثبت رفض الوصول إلى الجدول والتحقق من RPCs. لم يرد P2 حتى آخر قراءة، ولم تُظهر قائمة ملفات PR #18 تعديل المسارات الثلاثة. أُرسل تحديث بالأدلة إلى PR #18 في التعليق 6294902282 بعد نجاح Actions 39451065591.
 - **التحصين الأمني:** فحص تأكيد البريد يعتمد على `auth.users.email_confirmed_at` الموثوق بدل claim غير مضمون في JWT ([Supabase JWT Claims Reference](https://supabase.com/docs/guides/auth/jwt-fields)). RLS مفعّل ولا توجد صلاحيات جدول مباشرة لـ`authenticated`؛ لا تدمج حتى تُنجز تبعيات P2 ويُشغّل CI على الرأس النهائي الناتج. تحديث التقرير وCSV بعد تشغيل CI سيغيّر الرأس التوثيقي، لذا يلزم CI آخر على رأس التوثيق الجديد قبل أي دمج.
 
+## 6.1. قراءة CI على الرأس الدقيق — 2026-10-20
+
+- القراءة الحية الأخيرة قبل تحديث سجلات P1: [Actions 39451534079](https://github.com/Report-Engainall/Nasr1/actions/runs/39451534079) انتهى **SUCCESS** على الرأس المطابق `1cb42c4416ecbeaeec55497adc0987224011f42f`. الخطوات التي تمت قراءتها من سجل الوظيفة: Bun frozen-lock verification، تثبيت الاعتماديات، Unit tests، PostgreSQL 17 migrations/core-workflow acceptance، lint، build، preview smoke على 4173، dev smoke على 5173، والتنظيف — كلها SUCCESS.
+- هذا دليل عام على الرأس المذكور فقط. يلزم تشغيل CI على الرأس التوثيقي النهائي الناتج عن تحديث هذا التقرير والسجلين، ولا يجوز نقل نتيجة 39451534079 إلى رأس لاحق.
+- لا يغلق هذا دورة دعوة تفعيل العميل: PR #26 ما زال Draft وغير مدمج، وربط `AghbariApp.tsx` وتوليد `routeTree.gen.ts` وقبول RLS/RPC المتخصص في `scripts/test-database-migrations.mjs` لا تزال تبعيات P2. لا تغييرات في grants أو سياسات RLS.
+
 ## 7. حدود الدور
 
 - الهدف الوحيد `Report-Engainall/Nasr1`. المستودعات الثلاثة للقراءة والمقارنة فقط.
