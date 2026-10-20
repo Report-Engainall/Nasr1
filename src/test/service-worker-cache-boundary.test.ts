@@ -11,7 +11,7 @@ describe("PWA service-worker cache boundary", () => {
   });
 
   it("leaves authentication and operational API traffic network-authoritative", () => {
-    expect(workerSource).toContain("/(rest|auth|api|rpc|storage|functions)/i.test(url.pathname)");
+    expect(workerSource).toContain("rest|auth|api|rpc|storage|functions");
     expect(workerSource).toContain("if (/\\/(rest|auth|api|rpc|storage|functions)\\//i.test(url.pathname)) return;");
   });
 
