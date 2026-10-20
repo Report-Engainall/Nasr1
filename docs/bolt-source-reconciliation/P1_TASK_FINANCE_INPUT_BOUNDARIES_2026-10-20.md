@@ -4,7 +4,9 @@
 **Branch:** `integration/finance-runtime-type-guards-20261020`  
 **Base SHA:** `ab218e88459c1278d25549f06f0c15f68c7988f6`  
 **Task:** `NASR1-MANIFEST-036`  
-**Current validation status:** code and regression tests are committed to this P1 branch; final exact-head CI is pending at report creation. No PASS is claimed until Actions confirms the exact candidate SHA.
+**Code-bearing SHA tested:** `5155f31168bab7e7e7c72224e2a1b775b4414d8c`  
+**Exact-head CI:** [Actions 39366199248 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39366199248)  
+**Current status:** the code-bearing SHA passed. This evidence-only commit changes the P1 ledger, audit and this report, so final-head CI must pass on the new evidence SHA before the PR is merge-ready.
 
 ## Donor evidence and scope decision
 - Read-only donor: `Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1`.
@@ -28,7 +30,9 @@
 ## Validation
 - Targeted unit files: `src/test/cash-expense-input.test.ts` and `src/test/finance-input.test.ts`.
 - Required full suite: `.github/workflows/commerce-checks.yml` on the exact PR head, including frozen Bun lock check, unit tests, PostgreSQL 17 migrations/RLS/core-workflow acceptance, lint/build, preview smoke 4173, dev smoke 5173 and cleanup.
-- At report creation: exact-head CI link/result **PENDING**. Browser-authenticated and production deployment/database-migration proof are **NOT RUN**.
+- **Exact code-bearing SHA:** `5155f31168bab7e7e7c72224e2a1b775b4414d8c`; [GitHub Actions 39366199248 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39366199248).
+- Result: 54/54 test files and 395/395 tests passed; frozen Bun lockfile verification; PostgreSQL 17 migrations/RLS/core-workflow acceptance; lint; build; production-preview smoke on port 4173; dev-server smoke on port 5173; cleanup all succeeded.
+- The evidence-only commit below must pass its own full CI on the final PR head. Browser-authenticated and production deployment/database-migration proof are **NOT RUN**.
 
 ## Next task
 After the exact-head result is verified, use the P1-owned live source ledger to select the next incomplete donor item only after reconfirming its current target-native equivalent and status. Do not treat legacy finance ledger/cash-account APIs as missing merely because the old donor test mentions them; do not revisit resolved donor blobs without changed evidence.
