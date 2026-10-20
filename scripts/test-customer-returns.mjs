@@ -387,10 +387,23 @@ async function main() {
   await db.unsafe("set role authenticated");
   const statementRaw = await db.unsafe("select public.get_customer_account_statement() as result");
   const customerStatement = asJson(statementRaw[0].result);
-  const creditedInvoice = customerStatement.invoices.find((row) => row.id === sourceInvoiceId);
-  assert.ok(creditedInvoice,"customer statement source invoice "+sourceInvoiceId+" missing; returned invoice IDs: "+JSON.stringify(customerStatement.invoices.map((row) => ({ id:row.id, invoice_number:row.invoice_number, customer_id:row.customer_id }))) );
-  assert.equal(Number(creditedInvoice.credit_memo_amount),125,"customer statement includes posted credit memo");
-  assert.equal(Number(creditedInvoice.outstanding_amount),375,"source invoice receivable is reduced by the posted credit");
+  assert.ok(
+    customerStatement.credits.some((row) => row.id === preparedCredit.credit_memo_id),
+    "customer statement must list the newly posted credit memo even when its invoice is outside the 200-invoice display window",
+  );
+  const statementYER = customerStatement.summary.find((row) => row.currency === "YER");
+  assert.ok(statementYER,"customer statement summarizes YER receivables");
+  assert.ok(Number(statementYER.credited) >= 125,"customer statement summary includes the posted credit amount");
+  await db.unsafe("reset role");
+
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
+  await db.unsafe("set role authenticated");
+  const agingRaw = await db.unsafe("select public.fetch_staff_receivables_aging(500,0) as result");
+  const aging = asJson(agingRaw[0].result);
+  const agedSourceInvoice = aging.items.find((row) => row.id === sourceInvoiceId);
+  assert.ok(agedSourceInvoice,"staff aging page includes the source invoice at limit 500");
+  assert.equal(Number(agedSourceInvoice.credit_memo_amount),125,"staff aging applies the posted source credit");
+  assert.equal(Number(agedSourceInvoice.outstanding_amount),375,"receivable aging is reduced by the posted credit");
   await db.unsafe("reset role");
 
   await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
