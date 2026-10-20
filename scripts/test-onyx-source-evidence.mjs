@@ -189,13 +189,17 @@ async function main() {
       createdBy: managerProfileId,
     });
 
-    await insertSnapshot({
-      id: snapshotWithoutJobId,
-      organizationId,
-      fileHash: validHash,
-      fileName: "onyx-evidence-unlinked-" + suffix + ".csv",
-      createdBy: managerProfileId,
-    });
+    await expectFailure(
+      "schema rejects a snapshot without its required import-job link",
+      () => insertSnapshot({
+        id: snapshotWithoutJobId,
+        organizationId,
+        fileHash: validHash,
+        fileName: "onyx-evidence-unlinked-" + suffix + ".csv",
+        createdBy: managerProfileId,
+      }),
+      /null value in column "source_import_job_id"/i,
+    );
 
     const privileges = await db.unsafe(
       "select " +
@@ -231,13 +235,6 @@ async function main() {
     const mismatch = await readEvidence(mismatchSnapshotId);
     assert.equal(mismatch.import_job.file_hash_matches_snapshot, false);
     assert.equal(mismatch.source_identity.provenance_status, "linked_hash_mismatch");
-
-    const unlinked = await readEvidence(snapshotWithoutJobId);
-    assert.equal(unlinked.snapshot.source_import_job_id, null);
-    assert.equal(unlinked.import_job, null);
-    assert.equal(unlinked.source_identity.provenance_status, "snapshot_without_import_job");
-    assert.equal(unlinked.source_identity.source_record_id, null);
-    assert.equal(unlinked.live_sync_evidence.live_connection_proven, false);
 
     await expectFailure(
       "manager cannot read a snapshot from another organization",
