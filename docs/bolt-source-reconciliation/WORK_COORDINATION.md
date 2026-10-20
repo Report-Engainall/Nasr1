@@ -2,6 +2,18 @@
 
 مالك الملف: المبرمج 2 فقط. هذا هو سجل التعارض الوحيد؛ كل قفل يضاف هنا ويغلق بعد تحرير المسار.
 
+## تحديث مالك P2 — مصدر Bolt الواحد ومهمة المرتجعات (2026-10-20)
+
+- مرجع مصدر Bolt لهذه المهمة فقط: incoming-archives/nasr1-bolt-recovery-2026-10-17/project-bolt-github-7sl6ykzz (2).zip، Git Blob SHA-1 4835a0565f799a272dfca0ff49fbc3ce0d760474، SHA-256 1a692b013da35b4cb034f5b18f8160ec66bca778bc4649bd5128abc7fccb9be1، 1,009,556 بايت؛ لا تنزيل/فتح/مقارنة أي نسخة Bolt أخرى.
+- مقارنة الأرشيف المثبت مع main checkpoint e815d1e01e5190220083e0593b8b9d152fc3783a: 270 مطابقًا، 67 مختلفًا، 22 archive-only، 168 target-only. تقرير القرارات في P2_SINGLE_ARCHIVE_RECONCILIATION_2026-10-20.md ومصفوفة المسارات في P2_SINGLE_ARCHIVE_DECISION_MATRIX_2026-10-20.csv.
+- فرع P2 الحالي: feat/p2-customer-return-intake-20261020. بدأت تغييرات التنفيذ من e815d1e01e5190220083e0593b8b9d152fc3783a. main الحالي عند القراءة 0303cff02ff548aad74e68372bf02991237603af؛ إضافات main الأحدث P1 منفصلة عن ملفات الكود المعدلة هنا.
+- ملفات P2 قيد العمل: customer return migration + validator + customer form/history + task-center review queue + tests + PostgreSQL acceptance script + package test:db + P2 report files. لم يتغير src/lib/api.ts أو src/components/AghbariApp.tsx أو src/routeTree.gen.ts أو workflow.
+- قفل تعارض PR #12: P1 يعدل scripts/test-database-migrations.mjs وAdminPages.tsx وCustomerWorkflows.tsx وStorefront.tsx وfinance-document-pdf.ts والـAPI PDF وبعض اختبارات المتجر ومهاجرة price visibility. لم تتغير هذه الملفات في فرع P2؛ أُضيفت scripts/test-customer-returns.mjs مستقلة لتجنب تعديل harness أثناء عمل P1.
+- ملفات P1 المحمية غير معدلة: SOURCE_INTEGRATION_LEDGER.csv، READY_TO_REUSE_FILE_AUDIT.csv، PROGRAMMER_1_CURRENT_REPORT.md. مصدر الأرشيف read-only؛ لم تحدث تغييرات على main.
+- القبول الحالي لا يزال CI_PENDING حتى تشغيل workflow على PR النهائي، ولا يُنقل PASS من SHA سابق. Live authenticated browser، production DB/migration، deployment proof غير منفذة.
+- المهام التالية: NASR1-ORIGINAL-SPEC-RETURNS-RECEIPT-POSTING-002 بعد قبول intake، ثم تنفيذ إدارة التصنيفات الإدارية بعقد tenant/RPC ومسار تنقل آمن بدل نسخ كود archive القديم.
+
+
 ## خط الأساس المثبت
 - main آخر رأس مؤكد عند إعداد البروتوكول: 0c089585d27665680dcc4ad2520dd4affc875804.
 - CI مطابق لذلك الرأس: [39311791227 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39311791227).
