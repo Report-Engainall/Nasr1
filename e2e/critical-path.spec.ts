@@ -1,5 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
+test.describe.configure({ retries: 0 });
+
 type BrowserDiagnostics = {
   pageErrors: string[];
   criticalHttpErrors: string[];
@@ -52,7 +54,12 @@ async function createPersistedOrder(page: Page): Promise<{ orderNumber: string; 
 
   await expect(page.getByRole("heading", { name: "إتمام الطلب" })).toBeVisible();
   const name = page.locator('input[placeholder="اسمك الكامل"]');
-  await expect(name).toHaveValue(/.{2,}/);
+  const customerName = process.env.E2E_CUSTOMER_NAME?.trim();
+  if (!customerName || customerName.length < 2) {
+    throw new Error("E2E_CUSTOMER_NAME must come from the seeded local customer fixture; checkout form values must be explicit.");
+  }
+  await name.fill(customerName);
+  await expect(name).toHaveValue(customerName);
   const phone = process.env.E2E_PHONE;
   if (!phone || phone.trim().length < 6) {
     throw new Error("E2E_PHONE must be configured for the isolated E2E customer; test orders must not invent contact details.");
