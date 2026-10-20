@@ -13,7 +13,14 @@ const runtimeTest = readFileSync(
 
 describe("staff catalog commands migration contract", () => {
   it("binds JSONB payload objects without double-serializing them into JSON strings", () => {
-    expect(runtimeTest).not.toMatch(/JSON\\.stringify\\(\\s*(?:payload|update|\\{\\s*\\.\\.\\.(?:payload|update))/i);
+    for (const forbidden of [
+      "JSON.stringify(payload)",
+      "JSON.stringify(update)",
+      "JSON.stringify({ ...payload",
+      "JSON.stringify({ ...update",
+    ]) {
+      expect(runtimeTest).not.toContain(forbidden);
+    }
     expect(runtimeTest).toMatch(/\\[payload\\]/);
     expect(runtimeTest).toMatch(/\\[created\\.id, update\\]/);
   });
