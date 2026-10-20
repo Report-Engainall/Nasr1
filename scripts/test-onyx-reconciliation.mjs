@@ -130,18 +130,19 @@ async function main() {
       "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) values($1,$2,10,2,0)",
       [productOneId,warehouseId],
     );
+    const onyxFileHash = "a".repeat(64);
     await db.unsafe(
-      "insert into public.import_jobs(id,organization_id,job_type,file_name,file_hash,status,total_rows,created_by) values($1,$2,'inventory','onyx-ci.csv',$3,'completed',2,$4)",
-      [importJobId,organizationId,"a".repeat(64),managerProfileId],
+      "insert into public.import_jobs(id,organization_id,job_type,source_system,file_name,file_hash,status,total_rows,created_by) values($1,$2,'inventory','manual','onyx-ci.csv',$3,'completed',2,$4)",
+      [importJobId,organizationId,onyxFileHash,managerProfileId],
     );
     await db.unsafe(
       "insert into public.onyx_snapshots(id,organization_id,source_import_job_id,source_file_hash,source_file_name,report_type,row_count,data_quality_score,metrics,status,created_by) values($1,$2,$3,$4,'onyx-ci.csv','inventory_stock',2,100,'{}'::jsonb,'ready',$5)",
-      [snapshotId,organizationId,importJobId,"sha-onyx-"+suffix,managerProfileId],
+      [snapshotId,organizationId,importJobId,onyxFileHash,managerProfileId],
     );
     await db.unsafe(
       "insert into public.onyx_snapshot_rows(organization_id,snapshot_id,row_number,canonical_key,row_hash,status,data,errors) values" +
-      "($1::uuid,$2::uuid,1,$3::text,md5(jsonb_build_object('item_code',$3::text,'quantity',15,'warehouse_code',$5::text,'warehouse_name',$6::text)::text),'valid',jsonb_build_object('item_code',$3::text,'quantity',15,'warehouse_code',$5::text,'warehouse_name',$6::text),'[]'::jsonb)," +
-      "($1::uuid,$2::uuid,2,$4::text,md5(jsonb_build_object('item_code',$4::text,'quantity',4,'warehouse_code',$5::text,'warehouse_name',$6::text)::text),'valid',jsonb_build_object('item_code',$4::text,'quantity',4,'warehouse_code',$5::text,'warehouse_name',$6::text),'[]'::jsonb)",
+      "($1::uuid,$2::uuid,1,$3::text,md5(jsonb_build_object('item_code',$3::text,'quantity',15,'warehouse_code',$5::text,'warehouse_name',$6::text,'external_id','ONYX-'||$3::text)::text),'valid',jsonb_build_object('item_code',$3::text,'quantity',15,'warehouse_code',$5::text,'warehouse_name',$6::text,'external_id','ONYX-'||$3::text),'[]'::jsonb)," +
+      "($1::uuid,$2::uuid,2,$4::text,md5(jsonb_build_object('item_code',$4::text,'quantity',4,'warehouse_code',$5::text,'warehouse_name',$6::text,'onyx_code','REMOTE-'||$4::text)::text),'valid',jsonb_build_object('item_code',$4::text,'quantity',4,'warehouse_code',$5::text,'warehouse_name',$6::text,'onyx_code','REMOTE-'||$4::text),'[]'::jsonb)",
       [organizationId,snapshotId,itemOne,itemTwo,warehouseCode,warehouseName],
     );
     await db.unsafe(
@@ -175,6 +176,22 @@ async function main() {
     await db.unsafe("set role authenticated");
     const warehouseOptions = asJson((await db.unsafe("select public.get_onyx_reconciliation_warehouses() as payload"))[0].payload);
     assert.ok(warehouseOptions.some((item) => item.id === warehouseId), "manager sees active warehouses only in their organization");
+
+    const provenance = asJson((await db.unsafe(
+      "select public.get_onyx_snapshot_source_evidence($1::uuid) as payload",
+      [snapshotId],
+    ))[0].payload);
+    assert.equal(provenance.snapshot.id, snapshotId, "source evidence identifies the selected saved snapshot");
+    assert.equal(provenance.import_job.id, importJobId, "source evidence links to the real import job in this tenant");
+    assert.equal(provenance.import_job.file_hash_matches_snapshot, true, "snapshot and import hashes must match exactly");
+    assert.equal(provenance.source_identity.provenance_status, "linked_import_job_hash_match");
+    assert.deepEqual(provenance.source_identity.external_id_fields_found.sort(), ["external_id", "onyx_code"]);
+    assert.equal(provenance.source_identity.rows_with_external_id, 2);
+    assert.equal(provenance.live_sync_evidence.live_connection_proven, false, "saved snapshot provenance never implies a live Onyx connection");
+    assert.equal(provenance.live_sync_evidence.status, "not_proven");
+    await expectFailure("Onyx source evidence cannot expose another organization's snapshot",
+      () => db.unsafe("select public.get_onyx_snapshot_source_evidence($1::uuid)", [foreignSnapshotId]),
+      /ready Onyx snapshot is unavailable/i);
     await expectFailure("unscoped/aggregate Onyx inventory is denied",
       () => preview(unscopedSnapshotId,warehouseId,key()),/not warehouse-scoped/i);
     await expectFailure("cross-organization Onyx snapshot is denied",
