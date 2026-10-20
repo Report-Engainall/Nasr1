@@ -1,5 +1,9 @@
-## P2 active ownership — AI Gateway usage audit (2026-10-20)
+## P2 ownership and current cross-PR coordination — 20 October 2026
 
+- PR #18 branch feat/p2-customer-return-intake-20261020; tested code SHA 05be5beb50c56e00ec9ee733b2089a259c3d0b3e. Exact-SHA CI run 39459540700: PASS (migration/DB acceptance including AI telemetry, unit tests, lint, build, preview smoke and dev smoke).
+- AI task NASR1-ORIGINAL-SPEC-AI-GATEWAY-USAGE-AUDIT-009 is TESTED_EXACT_SHA=PASS. Playwright job 39459540701 was green only because Playwright runner steps were skipped at the missing-credentials gate; BROWSER_PROVEN=NOT RUN and PRODUCTION_PROVEN=NOT RUN.
+- Next single live task: NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010. Existing PR #12 head 6417e723a532b4bfd2c1a81c59ff6a78722ed721 fails exact-head CI 39438180471 because the customer visibility trigger calls auth.role() in the isolated Postgres environment. Its diff includes the P1-locked migration test harness. Do not edit scripts/test-database-migrations.mjs or P1 paths; reconcile the trigger and add independent acceptance on the P2 branch instead of weakening roles/RLS.
+- No donor repository edits, archive redownload/extraction, or fingerprint recalculation. Existing P1 file ownership and branch lock remain in force.
 - Active single P2 task: NASR1-ORIGINAL-SPEC-AI-GATEWAY-USAGE-AUDIT-009 on feat/p2-customer-return-intake-20261020 / PR #18. Added a migration, patched Edge Gateway telemetry, added unit and standalone DB tests, and registered the separate DB acceptance.
 - P1 paths untouched: scripts/test-database-migrations.mjs, src/lib/api.ts, src/components/AghbariApp.tsx, src/routeTree.gen.ts, .github/workflows/commerce-checks.yml and P1 integration ledgers/report.
 - Failed provider usage remains NULL when unobserved; request state distinguishes measured/partial/unknown and conservative estimates still protect quotas. No-provider outcomes are tenant/actor bound and idempotent. No prompts/secrets stored.

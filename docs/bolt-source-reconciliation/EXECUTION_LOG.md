@@ -693,3 +693,10 @@
 - On branch feat/p2-customer-return-intake-20261020 / PR #18, added migration 20261020130000_ai_gateway_usage_measurement_basis.sql, provider attempt telemetry, unit tests and independent PostgreSQL acceptance in scripts/test-ai-gateway-telemetry.mjs; registered in package.json. P1 test harness unchanged.
 - Root cause: timeout/failure estimates had been presented in the usage fields as if observed, and no-provider outcomes could return without a ledger event. Now measured/partial/unknown/not_attempted are distinct while conservative estimates remain used for quotas.
 - Exact-SHA CI PENDING; browser E2E and production migration/deployment NOT RUN. No archive re-download/extraction/fingerprint changes. Extraction discrepancy 2,329 vs 2,044 remains unresolved. next_task_id remains NASR1-ORIGINAL-SPEC-AI-GATEWAY-USAGE-AUDIT-009 until acceptance.
+
+
+## Exact-SHA verification — AI Gateway audit — 20 October 2026
+
+Commit 05be5beb50c56e00ec9ee733b2089a259c3d0b3e was tested by Aghbari Commerce checks run 39459540700 (https://github.com/Report-Engainall/Nasr1/actions/runs/39459540700): frozen lockfile, unit tests, PostgreSQL 17 migrations/acceptance including the standalone AI telemetry acceptance, lint, build, preview smoke (4173), and dev smoke (5173) all passed. State for this code SHA: TESTED_EXACT_SHA=PASS. Playwright workflow 39459540701 skips browser execution at the environment credential gate (BROWSER_PROVEN=NOT RUN); production deployment/migration was not run (PRODUCTION_PROVEN=NOT RUN).
+
+Next single live task: NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010. Existing PR #12 at 6417e723a532b4bfd2c1a81c59ff6a78722ed721 fails run 39438180471 because enforce_customer_price_visibility_setting_authority() calls auth.role(), absent in isolated PostgreSQL 17. The diff modifies P1-owned scripts/test-database-migrations.mjs; do not copy that edit. Reconcile the gate in the permitted P2 workstream and add separate acceptance instead.
