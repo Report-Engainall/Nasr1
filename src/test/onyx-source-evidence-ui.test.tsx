@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const fetchEvidence = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/onyx-source-evidence", () => ({ fetchOnyxSnapshotSourceEvidence: fetchEvidence }));
@@ -70,4 +70,38 @@ describe("Onyx source evidence panel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل أدلة المصدر");
     expect(screen.queryByText("database internal detail")).toBeNull();
   });
+
+  it("exports the selected tenant-scoped evidence through a browser CSV download", async () => {
+    fetchEvidence.mockResolvedValue(fixture);
+    const createDescriptor = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
+    const revokeDescriptor = Object.getOwnPropertyDescriptor(URL, "revokeObjectURL");
+    const createObjectURL = vi.fn(() => "blob:onyx-source-evidence");
+    const revokeObjectURL = vi.fn();
+    const clickedAnchors: HTMLAnchorElement[] = [];
+    const originalAnchorClick = HTMLAnchorElement.prototype.click;
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: createObjectURL });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: revokeObjectURL });
+    HTMLAnchorElement.prototype.click = function () { clickedAnchors.push(this); };
+    try {
+      render(<OnyxSnapshotSourceEvidencePanel snapshotId={snapshotId} />);
+      const button = await screen.findByTestId("onyx-source-evidence-export");
+      fireEvent.click(button);
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      expect(createObjectURL.mock.calls[0][0]).toBeInstanceOf(Blob);
+      expect(clickedAnchors).toHaveLength(1);
+      expect(clickedAnchors[0].download).toBe(`aghbari-onyx-source-evidence-${snapshotId}.csv`);
+      expect(clickedAnchors[0].href).toBe("blob:onyx-source-evidence");
+      expect(await screen.findByRole("status")).toHaveTextContent("تم تجهيز ملف أدلة المصدر CSV");
+      expect(fetchEvidence).toHaveBeenCalledWith(snapshotId);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:onyx-source-evidence");
+    } finally {
+      HTMLAnchorElement.prototype.click = originalAnchorClick;
+      if (createDescriptor) Object.defineProperty(URL, "createObjectURL", createDescriptor);
+      else Reflect.deleteProperty(URL, "createObjectURL");
+      if (revokeDescriptor) Object.defineProperty(URL, "revokeObjectURL", revokeDescriptor);
+      else Reflect.deleteProperty(URL, "revokeObjectURL");
+    }
+  });
+
 });
