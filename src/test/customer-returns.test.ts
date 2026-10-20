@@ -64,7 +64,7 @@ describe("customer return payload validation", () => {
       remaining_quantity: 1,
     }));
     const drafts = Object.fromEntries(many.map((item) => [item.order_item_id,"1"]));
-    expect(() => buildCustomerReturnLines(drafts,many)).toThrow(/100 صنفًا/);
+    expect(() => buildCustomerReturnLines(drafts,many)).toThrow(/أكثر من 100 صنف/);
   });
 
   it("parses the server summary and return-history payload", () => {
