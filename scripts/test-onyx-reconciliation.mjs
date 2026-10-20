@@ -130,13 +130,9 @@ async function main() {
     );
     await db.unsafe(
       "insert into public.onyx_snapshot_rows(organization_id,snapshot_id,row_number,canonical_key,row_hash,status,data,errors) values" +
-      "($1,$2,1,$3,md5($4::jsonb::text),'valid',$4::jsonb,'[]'::jsonb),($1,$2,2,$5,md5($6::jsonb::text),'valid',$6::jsonb,'[]'::jsonb)",
-      [
-        organizationId,snapshotId,itemOne,
-        JSON.stringify({ item_code: itemOne, quantity: 15, warehouse_code: warehouseCode, warehouse_name: warehouseName }),
-        itemTwo,
-        JSON.stringify({ item_code: itemTwo, quantity: 4, warehouse_code: warehouseCode, warehouse_name: warehouseName }),
-      ],
+      "($1,$2,1,$3,md5(jsonb_build_object('item_code',$3,'quantity',15,'warehouse_code',$5,'warehouse_name',$6)::text),'valid',jsonb_build_object('item_code',$3,'quantity',15,'warehouse_code',$5,'warehouse_name',$6),'[]'::jsonb)," +
+      "($1,$2,2,$4,md5(jsonb_build_object('item_code',$4,'quantity',4,'warehouse_code',$5,'warehouse_name',$6)::text),'valid',jsonb_build_object('item_code',$4,'quantity',4,'warehouse_code',$5,'warehouse_name',$6),'[]'::jsonb)",
+      [organizationId,snapshotId,itemOne,itemTwo,warehouseCode,warehouseName],
     );
     await db.unsafe(
       "insert into public.import_jobs(id,organization_id,job_type,file_name,file_hash,status,total_rows,created_by) values($1,$2,'inventory','unscoped-ci.csv',$3,'completed',1,$4)",
