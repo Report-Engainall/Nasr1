@@ -9,6 +9,7 @@ import { useFetch } from '@/lib/useFetch';
 import { formatCurrency, formatNumber } from '@/lib/format';
 import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, MAX_CATALOG_SEARCH_LENGTH, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
 import { loadOfflineCartDraft, offlineCartStorageKey, saveOfflineCartDraft } from '@/lib/offline-cart';
+import { fetchCustomerCart, saveCustomerCart } from '@/lib/customer-cart';
 import type { ProductWithInventory, Category, Promotion } from '@/lib/types';
 import { StorefrontAnnouncementSlider } from '@/components/StorefrontAnnouncementSlider';
 import { useAuth } from '@/lib/auth';
@@ -61,9 +62,11 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const cartStorageKey = offlineCartStorageKey(user?.profileId);
   const wishlistStorageKey = user?.profileId ? savedProductCacheKey(user.profileId) : 'aghbari:wishlist:v1';
   const [cartState, setCartState] = useState<{ storageKey: string; items: CartItem[] }>({ storageKey: '', items: [] });
+  const cartMutationRevisionRef = useRef(0);
   const cartRestored = cartState.storageKey === cartStorageKey;
   const cart = cartRestored ? cartState.items : [];
   function setCart(next: CartItem[] | ((previous: CartItem[]) => CartItem[])) {
+    cartMutationRevisionRef.current += 1;
     setCartState((current) => {
       const previous = current.storageKey === cartStorageKey ? current.items : [];
       const items = typeof next === 'function' ? next(previous) : next;
@@ -95,6 +98,10 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const wishlistRevisionRef = useRef(0);
   const [isOnline, setIsOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
   const previousOnlineRef = useRef(isOnline);
+  const [customerCartHydratedFor, setCustomerCartHydratedFor] = useState('');
+  const [customerCartSyncState, setCustomerCartSyncState] = useState<'idle' | 'loading' | 'synced' | 'pending' | 'error'>('idle');
+  const [customerCartRetryCount, setCustomerCartRetryCount] = useState(0);
+  const persistentCartProfileId = user && !user.isStaff && Array.isArray(user.roles) && user.roles.includes('customer') ? user.profileId : '';
 
   useEffect(() => {
     setQuery(normalizeCatalogSearchQuery(initialQuery ?? ''));
@@ -208,6 +215,76 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
       cart.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
     );
   }, [cart, cartRestored, cartStorageKey, user?.profileId]);
+
+  useEffect(() => {
+    if (!authReady) return;
+    if (!persistentCartProfileId) {
+      setCustomerCartHydratedFor('');
+      setCustomerCartSyncState('idle');
+      return;
+    }
+    if (!cartRestored || productsLoading || productsError || !isOnline) {
+      if (!isOnline) setCustomerCartSyncState('pending');
+      return;
+    }
+    if (customerCartHydratedFor === persistentCartProfileId) return;
+
+    let cancelled = false;
+    const revisionAtStart = cartMutationRevisionRef.current;
+    setCustomerCartSyncState('loading');
+    void fetchCustomerCart().then((snapshot) => {
+      if (cancelled) return;
+      // If the customer edits while the remote read is in flight, keep their latest local state
+      // and let the write effect below persist it, rather than restoring an obsolete snapshot.
+      if (revisionAtStart !== cartMutationRevisionRef.current) {
+        setCustomerCartHydratedFor(persistentCartProfileId);
+        setCustomerCartSyncState('pending');
+        return;
+      }
+      const quantities = new Map<string, number>();
+      for (const line of snapshot.items) quantities.set(line.product_id, line.quantity);
+      // LocalStorage normally mirrors the last server state. max(), not sum(), avoids doubling it.
+      for (const item of cart) {
+        quantities.set(item.product.id, Math.max(quantities.get(item.product.id) ?? 0, item.quantity));
+      }
+      const merged = [...quantities.entries()]
+        .map(([productId, quantity]) => ({ product: products.find((product) => product.id === productId), quantity }))
+        .filter((line): line is CartItem => Boolean(line.product));
+      setCart(merged);
+      setCustomerCartHydratedFor(persistentCartProfileId);
+      setCustomerCartSyncState('pending');
+    }).catch(() => {
+      if (!cancelled) setCustomerCartSyncState('error');
+    });
+
+    return () => { cancelled = true; };
+  }, [
+    authReady, persistentCartProfileId, cartRestored, productsLoading, productsError,
+    isOnline, customerCartHydratedFor, customerCartRetryCount, products, cart,
+  ]);
+
+  useEffect(() => {
+    if (!authReady || !persistentCartProfileId || !cartRestored || !isOnline
+        || customerCartHydratedFor !== persistentCartProfileId) return;
+
+    const revisionAtStart = cartMutationRevisionRef.current;
+    const snapshot = cart.map((item) => ({ product_id: item.product.id, quantity: item.quantity }));
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setCustomerCartSyncState('loading');
+      void saveCustomerCart(snapshot).then(() => {
+        if (cancelled) return;
+        setCustomerCartSyncState(revisionAtStart === cartMutationRevisionRef.current ? 'synced' : 'pending');
+      }).catch(() => {
+        if (!cancelled) setCustomerCartSyncState('pending');
+      });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [authReady, persistentCartProfileId, cartRestored, isOnline, customerCartHydratedFor, cart]);
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
@@ -407,6 +484,26 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
         ) : (
           <section className="sf-cart-page">
             <h2>سلة المشتريات</h2>
+            {persistentCartProfileId && (
+              <div role="status" aria-live="polite" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', margin: '10px 0', padding: 12, borderRadius: 10, border: '1px solid #d8e6e8', background: '#f7fafb', color: '#344b52', fontSize: 12 }}>
+                <span>{customerCartSyncState === 'loading'
+                  ? 'جار مزامنة سلة حسابك الآمنة مع الخادم...'
+                  : customerCartSyncState === 'synced'
+                    ? 'تم حفظ سلتك في حسابك؛ ستظهر عند الدخول من جهاز آخر.'
+                    : customerCartSyncState === 'error'
+                      ? 'تعذر استرجاع السلة المحفوظة؛ بقيت مسودتك المحلية دون استبدال.'
+                      : customerCartSyncState === 'pending'
+                        ? (!isOnline ? 'أنت غير متصل؛ تُحفظ التغييرات محليًا وستُعاد المزامنة عند الاتصال.' : 'السلة المحلية محفوظة، لكن تأكيد المزامنة مع الخادم ما زال معلقًا.')
+                        : 'سلة الحساب تُزامن تلقائيًا عند فتحها أو تعديلها.'}</span>
+                {(customerCartSyncState === 'pending' || customerCartSyncState === 'error') && (
+                  <button type="button" className="sf-btn-secondary" disabled={!isOnline} onClick={() => {
+                    setCustomerCartHydratedFor('');
+                    setCustomerCartSyncState('idle');
+                    setCustomerCartRetryCount((current) => current + 1);
+                  }}>إعادة المزامنة</button>
+                )}
+              </div>
+            )}
             {!cart.length ? <div className="sf-empty"><ShoppingCart size={30} /><span>سلتك فارغة</span><button className="sf-link" onClick={() => void navigate({ to: '/' })}>تصفح المنتجات</button></div> :
             <>
               <div className="sf-cart-list">
