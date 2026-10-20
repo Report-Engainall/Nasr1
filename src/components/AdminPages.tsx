@@ -426,7 +426,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     }
     setExportBusy(true);
     try {
-      const bytes = buildOnyxOrderWorkbook({
+      const workbookInput = {
         orderId: order.id,
         orderNumber: order.order_number,
         orderStatus: order.status,
@@ -434,7 +434,9 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
         customerCode: order.customer?.customer_code ?? '',
         customerName: order.customer?.business_name ?? '',
         items,
-      });
+      };
+      // Validate the workbook before writing a durable audit event.
+      let bytes = buildOnyxOrderWorkbook(workbookInput);
 
       // The RPC rechecks active staff identity, tenant, order state and persisted item count.
       // An audit-write failure blocks the download instead of leaving an unrecorded export.
@@ -442,10 +444,13 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
         p_order_id: order.id,
         p_item_count: items.length,
       });
-      if (auditError || typeof auditId !== 'string' || !auditId) {
+      if (auditError || typeof auditId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(auditId)) {
         throw new Error('تعذر تسجيل حدث التصدير في سجل التدقيق المركزي؛ لم يبدأ تنزيل الملف.');
       }
 
+      // Bind the downloaded artifact to this durable, tenant-scoped audit record.
+      // The audit only proves preparation; browser download completion is not inferred.
+      bytes = buildOnyxOrderWorkbook({ ...workbookInput, exportAuditId: auditId });
       const blob = new Blob([new Uint8Array(bytes).buffer as ArrayBuffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
