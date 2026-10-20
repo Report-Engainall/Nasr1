@@ -307,7 +307,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/p2-local-supabase"
-          supabase start --exclude storage-api,imgproxy
+          supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta
           supabase status -o env \
             --override-name api.url=SUPABASE_URL \
             --override-name auth.anon_key=SUPABASE_PUBLISHABLE_KEY \
