@@ -40,8 +40,8 @@ describe("Onyx source evidence panel", () => {
     render(<OnyxSnapshotSourceEvidencePanel snapshotId={snapshotId} />);
     expect(await screen.findByText("مرجع دفعة الاستيراد موجود والبصمة متطابقة")).toBeTruthy();
     expect(screen.getByTestId("onyx-evidence-organization-name").textContent).toBe("مؤسسة الاختبار");
-    expect(screen.getByText(/آخر تحديث للدفعة:/).textContent).toContain("غير مسجل");
-    expect(screen.getByText(/معرّف سجل المصدر/).textContent).toContain("غير متاح");
+    expect(screen.getByText(/آخر تحديث للدفعة:/).parentElement?.textContent).toContain("غير مسجل");
+    expect(screen.getByText(/معرّف سجل المصدر الخارجي/).parentElement?.textContent).toContain("غير متاح");
     expect(screen.getByText("استيراد ملف يدوي")).toBeTruthy();
     expect(screen.getByText("external_id")).toBeTruthy();
     expect(screen.getByText(/غير مثبتة بأدلة هذا السجل/)).toBeTruthy();
