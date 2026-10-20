@@ -310,6 +310,8 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/p2-local-supabase"
           supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check
+          # Starting containers does not apply repository migrations; reset the isolated local DB before fixture setup.
+          supabase db reset --local
           supabase status -o env \
             --override-name api.url=SUPABASE_URL \
             --override-name auth.anon_key=SUPABASE_PUBLISHABLE_KEY \
