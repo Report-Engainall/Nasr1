@@ -354,3 +354,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **Single active `next_task_id`:** `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010`. Continue by coordinating helper adoption on P1's customer UI and adding real enabled/disabled Storefront UI acceptance; do not mark the task complete merely because server logic and the helper are green.
 - Existing migration-version collision and archive count discrepancy remain release/evidence blockers as previously recorded. No PR merge, production operation, archive re-extraction or archive rehash was performed.
 - **Status axes:** `IMPLEMENTED=GUARD+UNIT TESTS=YES`; `INTEGRATED=STOREFRONT UI=NO / P1 HANDOFF PENDING`; `TESTED_EXACT_SHA=PASS`; `BROWSER_PROVEN=NOT RUN / BLOCKED_EXTERNAL`; `PRODUCTION_PROVEN=NOT RUN`.
+
+
+## P2 exact-head closeout — customer return receipt and source-linked credit memo — P2 ownership and exact-head boundary (2026-10-20)
+
+- Exact current PR #18 head: `5ffab62b35640431d00515ede77373148b46bd7c`; exact-head checks #39492928362 passed all 71/71 unit files (498 tests), PostgreSQL 17 acceptance, lint, build and both smoke probes.
+- P2 returns receipt/credit ledger is integrated and DB-tested. Actual browser execution remains NOT RUN: Playwright run #39492928331 reported gate success with the runner/test steps skipped because dedicated non-production URL/key/accounts/write authorization were unavailable. Production migration/deployment remains NOT RUN.
+- Keep historical red CI #39487393265 and its EOF/parser cause visible; later source SHA changed the broken test and full current-head suite passes.
+- Next task pointer is only `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010`. Relevant open owner PR is #12 (`feature/customer-price-visibility-20261020`, head `be595fc74b8bbf64b308b84210d86a9aa1d464b8)). Its Storefront contains some pricing settings but does not import/use the P2 fail-closed presentation helpers `resolveStorefrontPricePresentation` / `resolveCustomerOrderPricingPresentation`; full customer-facing card/detail/order-review and enabled/disabled tests remain pending.
+- P2 must not edit P1-owned `src/components/Storefront.tsx`, `src/lib/api.ts`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, `.github/workflows/commerce-checks.yml`, P1 source integration ledgers or P1 report. Coordinate a path-level handoff in PR #12; keep PRs open and do not merge concurrently.
