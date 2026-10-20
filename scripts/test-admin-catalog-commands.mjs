@@ -9,6 +9,7 @@ const otherOrg = "e9999999-eeee-4eee-8eee-eeeeeeeeee99";
 const adminAuth = "33333333-3333-4333-8333-333333333333";
 const customerAuth = "11111111-1111-4111-8111-111111111111";
 const code = "CI-P1-CAT-001";
+const paginationCodes = ["CI-P1-PAGE-001", "CI-P1-PAGE-002", "CI-P1-PAGE-003"];
 const name = "CI P1 Category";
 const foreignCode = "CI-P1-CAT-FOREIGN-001";
 const foreignName = "CI P1 Foreign Category";
@@ -28,6 +29,16 @@ async function rpc(connection, query, args) {
   return (await connection.unsafe(query, args))[0]?.result;
 }
 async function cleanup() {
+  await root.unsafe(
+    "delete from public.audit_logs where organization_id=$1 and entity_id in " +
+      "(select id from public.products where organization_id=$1 and item_code = any($2::text[]))",
+    [org, paginationCodes],
+  ).catch(() => {});
+  await root.unsafe(
+    "delete from public.products where organization_id=$1 and item_code = any($2::text[])",
+    [org, paginationCodes],
+  ).catch(() => {});
+
   await root.unsafe(
     "delete from public.audit_logs where organization_id=$1 and entity_id in " +
       "(select id from public.products where organization_id=$1 and item_code=$2 " +
@@ -110,6 +121,65 @@ async function main() {
     [payload],
   );
   assert.ok(created.id && created.created, "product create returns a new ID");
+
+  const pageProducts = [];
+  const pageFixtures = [
+    { name: "P1 Pagination Fixture Alpha", item_code: paginationCodes[0] },
+    { name: "P1 Pagination Fixture Bravo", item_code: paginationCodes[1] },
+    { name: "P1 Pagination Fixture Charlie", item_code: paginationCodes[2] },
+  ];
+  for (const fixture of pageFixtures) {
+    const result = await rpc(
+      admin,
+      "select public.save_admin_catalog_product(null,$1::jsonb) result",
+      [{
+        ...payload,
+        name: fixture.name,
+        item_code: fixture.item_code,
+        base_price: 5,
+        price_wholesale_of_wholesale: 4,
+        price_wholesale: 4.5,
+        price_retail: 6,
+      }],
+    );
+    assert.ok(result.id && result.created, "pagination fixture product is created through the audited command");
+    pageProducts.push(result.id);
+  }
+
+  const firstPage = await rpc(
+    admin,
+    "select public.get_storefront_catalog_page($1,$2::uuid,$3,$4,$5) result",
+    ["P1 Pagination Fixture", category.id, 1, 2, false],
+  );
+  const secondPage = await rpc(
+    admin,
+    "select public.get_storefront_catalog_page($1,$2::uuid,$3,$4,$5) result",
+    ["P1 Pagination Fixture", category.id, 2, 2, false],
+  );
+  assert.equal(firstPage.total_count, 3, "server count applies search and category before pagination");
+  assert.equal(firstPage.total_pages, 2, "server computes page count");
+  assert.equal(firstPage.items.length, 2, "first page contains only the requested page size");
+  assert.equal(secondPage.items.length, 1, "second page contains the remaining matching row");
+  assert.deepEqual(
+    [...firstPage.items, ...secondPage.items].map((item) => item.item_code),
+    paginationCodes,
+    "ordered pages cover the set without duplicates or omissions",
+  );
+  assert.ok(firstPage.items.every((item) => typeof item.display_price === "number" && item.display_price === item.base_price),
+    "staff sees only the authorized base/display price resolved through the canonical pricing RPC");
+  assert.equal(Object.hasOwn(firstPage.items[0], "price_wholesale"), false,
+    "raw alternate tier price keys are absent from the customer catalog projection");
+
+  const noAvailability = await rpc(
+    admin,
+    "select public.get_storefront_catalog_page($1,$2::uuid,$3,$4,$5) result",
+    ["P1 Pagination Fixture", category.id, 1, 10, true],
+  );
+  assert.equal(noAvailability.total_count, 0, "availability filter excludes products without an inventory balance");
+  for (const id of pageProducts) {
+    await rpc(admin, "select public.archive_admin_catalog_product($1::uuid) result", [id]);
+  }
+
 
   await assert.rejects(
     () => rpc(admin, "select public.save_admin_catalog_product(null,$1::jsonb) result", [

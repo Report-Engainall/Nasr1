@@ -5,6 +5,7 @@ import {
   Heart, GitCompare, ArrowRight, SlidersHorizontal,
 } from 'lucide-react';
 import { fetchProducts, fetchCategories, fetchStorefrontPromotions, fetchSettingsMap, fetchStorefrontAnnouncements } from '@/lib/api';
+import { fetchStorefrontCatalogPage, type StorefrontCatalogPage } from '@/lib/storefront-catalog';
 import { useFetch } from '@/lib/useFetch';
 import { formatCurrency, formatNumber } from '@/lib/format';
 import { matchesArabicCatalogSearch, normalizeCatalogSearchQuery, MAX_CATALOG_SEARCH_LENGTH, normalizeSavedProductIds, sanitizePublicCatalogCache, validateQuickOrderLines } from '@/lib/commerce-utils';
@@ -20,6 +21,16 @@ import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-add
 import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSavedProduct, syncStorefrontSavedProducts } from '@/lib/saved-products';
 
 type CartItem = { product: ProductWithInventory; quantity: number };
+type StorefrontProductsSnapshot = ({ mode: 'paged' } & StorefrontCatalogPage) | { mode: 'full'; items: ProductWithInventory[] };
+
+function pendingCartProduct(productId: string): ProductWithInventory {
+  return {
+    id: productId, name: 'صنف محفوظ — جار تحديث بياناته', name_en: null, item_code: '', sku: null, barcode: null,
+    category_id: null, brand_id: null, unit: 'وحدة', description: null, image_url: null, is_active: false, is_featured: false,
+    sort_order: 0, price_wholesale_of_wholesale: 0, price_wholesale: 0, price_retail: 0, base_price: 0,
+    stock_quantity: 0, reserved_quantity: 0, min_stock_level: 0, status: 'pending', display_price: 0,
+  };
+}
 type StoreView = 'shop' | 'product' | 'wishlist' | 'compare' | 'matrix' | 'cart' | 'checkout' | 'confirm';
 export type StorefrontInitialView = 'shop' | 'product' | 'wishlist' | 'compare' | 'cart' | 'checkout';
 
@@ -42,7 +53,30 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
 }) {
   const { user, ready: authReady } = useAuth();
   const navigate = useNavigate();
-  const { data: liveProducts, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(fetchProducts);
+  const [query, setQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
+  const [activeCat, setActiveCat] = useState<string>(initialCategoryId ?? '');
+  const [availableOnly, setAvailableOnly] = useState<boolean>(initialAvailableOnly ?? false);
+  const [catalogPage, setCatalogPage] = useState(1);
+  const [debouncedQuery, setDebouncedQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
+  const isPagedView = initialView === 'shop' && view === 'shop';
+  const { data: productSnapshot, loading: productsLoading, error: productsError, refetch: refetchProducts } =
+    useFetch<StorefrontProductsSnapshot>(async () => {
+      if (isPagedView) {
+        return {
+          mode: 'paged',
+          ...await fetchStorefrontCatalogPage({
+            search: debouncedQuery,
+            categoryId: activeCat || null,
+            page: catalogPage,
+            pageSize: 24,
+            availableOnly,
+          }),
+        };
+      }
+      return { mode: 'full', items: await fetchProducts() };
+    }, [view, catalogPage, debouncedQuery, activeCat, availableOnly, initialView]);
+  const liveProducts = productSnapshot && !productsError ? productSnapshot.items : null;
+  const pageInfo = productSnapshot?.mode === 'paged' && !productsError ? productSnapshot : null;
   const [cachedProducts, setCachedProducts] = useState<ProductWithInventory[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -53,7 +87,14 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
       return safe;
     } catch { return []; }
   });
-  const products = liveProducts ?? cachedProducts;
+  const cachedProductsRef = useRef(cachedProducts);
+  const products = useMemo(() => {
+    const source = liveProducts ?? cachedProducts;
+    return source.map((product) => ({
+      ...product,
+      category: product.category ?? categories?.find((category) => category.id === product.category_id),
+    }));
+  }, [liveProducts, cachedProducts, categories]);
   const { data: categories, error: categoriesError } = useFetch(fetchCategories);
   const { data: promotions } = useFetch(fetchStorefrontPromotions);
   const { data: settings } = useFetch(fetchSettingsMap);
@@ -73,9 +114,6 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
       return { storageKey: cartStorageKey, items };
     });
   }
-  const [query, setQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
-  const [activeCat, setActiveCat] = useState<string>(initialCategoryId ?? '');
-  const [availableOnly, setAvailableOnly] = useState<boolean>(initialAvailableOnly ?? false);
   const [matrixQuantities, setMatrixQuantities] = useState<Record<string, string>>({});
   const [matrixFeedback, setMatrixFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -104,16 +142,32 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const persistentCartProfileId = user && !user.isStaff && Array.isArray(user.roles) && user.roles.includes('customer') ? user.profileId : '';
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
     setQuery(normalizeCatalogSearchQuery(initialQuery ?? ''));
+    setCatalogPage(1);
   }, [initialQuery]);
 
   useEffect(() => {
     setActiveCat(initialCategoryId ?? '');
+    setCatalogPage(1);
   }, [initialCategoryId]);
 
   useEffect(() => {
     setAvailableOnly(initialAvailableOnly ?? false);
+    setCatalogPage(1);
   }, [initialAvailableOnly]);
+
+  useEffect(() => {
+    setCatalogPage(1);
+  }, [debouncedQuery, activeCat, availableOnly]);
+
+  useEffect(() => {
+    cachedProductsRef.current = cachedProducts;
+  }, [cachedProducts]);
 
   useEffect(() => {
     const online = () => setIsOnline(true);
@@ -129,9 +183,16 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   useEffect(() => {
     if (!liveProducts) return;
     const safeCatalog = sanitizePublicCatalogCache(liveProducts);
-    setCachedProducts(safeCatalog);
-    try { window.localStorage.setItem('aghbari:catalog:v1', JSON.stringify(safeCatalog)); } catch { /* storage is optional */ }
-  }, [liveProducts]);
+    const previous = cachedProductsRef.current;
+    let next = safeCatalog;
+    if (productSnapshot?.mode === 'paged') {
+      const incomingIds = new Set(safeCatalog.map((product) => product.id));
+      next = sanitizePublicCatalogCache([...previous.filter((product) => !incomingIds.has(product.id)), ...safeCatalog]);
+    }
+    cachedProductsRef.current = next;
+    setCachedProducts(next);
+    try { window.localStorage.setItem('aghbari:catalog:v1', JSON.stringify(next)); } catch { /* storage is optional */ }
+  }, [liveProducts, productSnapshot?.mode]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -198,11 +259,28 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   }, [initialView, initialProductId, products]);
 
   useEffect(() => {
+    if (isPagedView || productsLoading || productsError || !cartRestored || !cart.length) return;
+    let changed = false;
+    const resolved = cart.map((item) => {
+      const product = products.find((candidate) => candidate.id === item.product.id);
+      if (product && product !== item.product) {
+        changed = true;
+        return { ...item, product };
+      }
+      return item;
+    });
+    if (changed) setCart(resolved);
+  }, [isPagedView, productsLoading, productsError, cartRestored, cart, products]);
+
+  useEffect(() => {
     if (cartRestored || typeof window === 'undefined') return;
     if (!products.length && (productsLoading || productsError)) return;
     const draft = loadOfflineCartDraft(window.localStorage, user?.profileId);
     const restored = draft
-      .map(({ product_id, quantity }) => ({ product: products.find((product) => product.id === product_id), quantity }))
+      .map(({ product_id, quantity }) => ({
+        product: products.find((product) => product.id === product_id) ?? (isPagedView ? pendingCartProduct(product_id) : null),
+        quantity,
+      }))
       .filter((line): line is CartItem => Boolean(line.product));
     setCart(restored);
   }, [products, cartStorageKey, cartRestored, productsLoading, productsError, user?.profileId]);
@@ -217,6 +295,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   }, [cart, cartRestored, cartStorageKey, user?.profileId]);
 
   useEffect(() => {
+    if (isPagedView) return;
     if (!authReady) return;
     if (!persistentCartProfileId) {
       setCustomerCartHydratedFor('');
@@ -364,13 +443,19 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
     void navigate({ to: '/product/$id', params: { id: product.id } });
   }
 
+  const serverPageActive = Boolean(
+    isPagedView && pageInfo && !productsLoading && !productsError && isOnline && query === debouncedQuery
+  );
   const filtered = useMemo(() => {
     let list = products ?? [];
-    if (activeCat) list = list.filter((p) => p.category_id === activeCat);
-    if (query.trim()) list = list.filter((p) => matchesArabicCatalogSearch(p, query));
-    if (availableOnly) list = list.filter((p) => typeof p.inventory?.quantity_available === 'number' && Number.isFinite(p.inventory.quantity_available) && p.inventory.quantity_available > 0);
+    if (!serverPageActive) {
+      if (activeCat) list = list.filter((p) => p.category_id === activeCat);
+      if (query.trim()) list = list.filter((p) => matchesArabicCatalogSearch(p, query));
+      if (availableOnly) list = list.filter((p) => typeof p.inventory?.quantity_available === 'number' && Number.isFinite(p.inventory.quantity_available) && p.inventory.quantity_available > 0);
+    }
     return list;
-  }, [products, activeCat, query, availableOnly]);
+  }, [products, activeCat, query, availableOnly, serverPageActive]);
+  const catalogCount = serverPageActive && pageInfo ? pageInfo.totalCount : products.length;
 
   const tickerMessages = (settings?.ticker_messages as string[]) ?? [];
   const tickerEnabled = settings?.ticker_enabled as boolean ?? true;
@@ -381,7 +466,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
         <div className="sf-header-inner">
           <div className="sf-brand"><div className="sf-brand-icon"><Activity size={22} /></div><div><strong>{(settings?.store_name as string) ?? 'الأغبري'}</strong><span>{(settings?.store_tagline as string) ?? 'مواد غذائية بالجملة'}</span></div></div>
           <button className="sf-admin-btn" onClick={onExit}><Activity size={16} /> لوحة التحكم</button>
-          <div className="sf-search"><Search size={17} /><input value={query} maxLength={MAX_CATALOG_SEARCH_LENGTH} onChange={(e) => setQuery(normalizeCatalogSearchQuery(e.target.value))} placeholder="ابحث عن منتج..." /></div>
+          <div className="sf-search"><Search size={17} /><input value={query} maxLength={MAX_CATALOG_SEARCH_LENGTH} onChange={(e) => { setQuery(normalizeCatalogSearchQuery(e.target.value)); setCatalogPage(1); }} placeholder="ابحث عن منتج..." /></div>
           <div className="sf-header-links"><Link to="/search/advanced" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'inherit', textDecoration: 'none', fontSize: 11, fontWeight: 700 }}><SlidersHorizontal size={15} /> بحث متقدم</Link><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={16} /> المفضلة <b>{wishlist.length}</b></button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={16} /> مقارنة</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={16} /> طلب سريع</button><Link to="/orders" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'inherit', textDecoration: 'none', fontSize: 11, fontWeight: 700 }}><FileText size={16} /> طلباتي</Link>{!user && <Link to="/login" style={{ color: '#0b97a5', fontWeight: 800, fontSize: 11 }}>دخول</Link>}</div>
           <button className="sf-cart-btn" onClick={() => void navigate({ to: '/cart' })}><ShoppingCart size={20} /> {cartCount > 0 && <b>{cartCount}</b>}</button>
           <button className="sf-mobile-toggle" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={22} /></button>
@@ -396,8 +481,8 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
       )}
 
       <nav className={`sf-cats ${mobileMenu ? 'open' : ''}`}>
-        <button className={activeCat === '' ? 'active' : ''} onClick={() => { setActiveCat(''); setMobileMenu(false); }}>كل المنتجات</button>
-        {categories?.map((c: Category) => <button key={c.id} className={activeCat === c.id ? 'active' : ''} onClick={() => { setActiveCat(c.id); setMobileMenu(false); }}>{c.name}</button>)}
+        <button className={activeCat === '' ? 'active' : ''} onClick={() => { setActiveCat(''); setCatalogPage(1); setMobileMenu(false); }}>كل المنتجات</button>
+        {categories?.map((c: Category) => <button key={c.id} className={activeCat === c.id ? 'active' : ''} onClick={() => { setActiveCat(c.id); setCatalogPage(1); setMobileMenu(false); }}>{c.name}</button>)}
       </nav>
 
       {availableOnly && (
@@ -432,7 +517,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
           <>
             <section className="sf-hero" style={{ background: `linear-gradient(120deg, ${(settings?.theme_primary as string) ?? '#087f8d'}, ${(settings?.theme_accent as string) ?? '#0eaa97'})` }}>
               <div><span className="sf-hero-kicker">عرض خاص</span><h1>{(settings?.hero_title as string) ?? 'الأغبري — موردك الموثوق'}</h1><p>{(settings?.hero_subtitle as string) ?? 'مواد غذائية بالجملة بأسعار تنافسية وتوصيل سريع'}</p></div>
-              <div className="sf-hero-badge"><Package size={28} /><div><strong>{productsLoading && !products.length ? '…' : formatNumber(products.length)}</strong><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج' : 'منتج في الكتالوج'}</span></div></div>
+              <div className="sf-hero-badge"><Package size={28} /><div><strong>{productsLoading && !products.length ? '…' : formatNumber(catalogCount)}</strong><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج' : 'منتج في الكتالوج'}</span></div></div>
             </section>
 
             {promotions && promotions.filter((p: Promotion) => p.is_active).length > 0 && (
@@ -440,7 +525,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
             )}
 
             <section className="sf-products">
-              <div className="sf-products-head"><div><h2>المنتجات</h2><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج...' : `${formatNumber(filtered.length)} صنف حسب بحثك وتصنيفك`}</span></div><div className="sf-discovery-links"><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button></div></div>
+              <div className="sf-products-head"><div><h2>المنتجات</h2><span>{productsLoading && !products.length ? 'جار تحميل الكتالوج...' : `${formatNumber(serverPageActive && pageInfo ? pageInfo.totalCount : filtered.length)} صنف حسب بحثك وتصنيفك`}</span></div><div className="sf-discovery-links"><button onClick={() => void navigate({ to: '/wishlist' })}><Heart size={15} /> المفضلة</button><button onClick={() => void navigate({ to: '/compare' })}><GitCompare size={15} /> المقارنة ({compare.length}/3)</button><button onClick={() => { setMatrixFeedback(null); setView('matrix'); }}><ClipboardList size={15} /> طلب سريع</button></div></div>
               {productsLoading && !products.length
                 ? <div className="sf-empty" role="status"><Package size={30} /><span>جار تحميل كتالوج المنتجات...</span></div>
                 : productsError && !products.length
@@ -449,8 +534,8 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
                     products={filtered}
                     wishlist={wishlist}
                     compare={compare}
-                    emptyTitle={products.length === 0 ? 'لا توجد أصناف منشورة حالياً' : 'لا توجد منتجات مطابقة'}
-                    emptyDescription={products.length === 0
+                    emptyTitle={(serverPageActive && pageInfo ? pageInfo.totalCount : products.length) === 0 ? 'لا توجد أصناف منشورة حالياً' : 'لا توجد منتجات مطابقة'}
+                    emptyDescription={(serverPageActive && pageInfo ? pageInfo.totalCount : products.length) === 0
                       ? 'لا توجد أصناف نشطة متاحة للعرض في المتجر حالياً. يُرجى التواصل مع إدارة المتجر إذا كنت تتوقع ظهور المنتجات.'
                       : 'جرّب تغيير البحث أو التصنيف'}
                     onOpen={openProduct}
@@ -458,6 +543,17 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
                     onWishlist={toggleWishlist}
                     onCompare={toggleCompare}
                   />}
+              {serverPageActive && pageInfo && pageInfo.totalPages > 1 && (
+                <nav aria-label="صفحات الكتالوج" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '18px 10px' }}>
+                  <button type="button" className="sf-btn-secondary" disabled={productsLoading || pageInfo.page <= 1} onClick={() => setCatalogPage((current) => Math.max(1, current - 1))}>
+                    <ChevronLeft size={15} /> السابقة
+                  </button>
+                  <span role="status" aria-live="polite">صفحة {pageInfo.page} من {pageInfo.totalPages} · {formatNumber(pageInfo.totalCount)} صنف</span>
+                  <button type="button" className="sf-btn-secondary" disabled={productsLoading || pageInfo.page >= pageInfo.totalPages} onClick={() => setCatalogPage((current) => Math.min(pageInfo.totalPages, current + 1))}>
+                    التالية <ChevronLeft size={15} style={{ transform: 'rotate(180deg)' }} />
+                  </button>
+                </nav>
+              )}
             </section>
           </>
         )}
