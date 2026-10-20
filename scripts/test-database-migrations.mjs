@@ -3905,6 +3905,12 @@ async function main() {
     [foreignAuthUserId, "foreign-ci-profile@example.test"],
   );
 
+  await db.unsafe(
+    "insert into public.customers(organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier,credit_limit,current_balance,status,approved_at) values($1,null,'CI-ACT-FOREIGN','CI Foreign Organization Customer','CI Activation Contact','7778000101','foreign-ci-profile@example.test','retail',0,0,'approved',now()) on conflict(organization_id,customer_code) do update set profile_id=null,email=excluded.email,status='approved',approved_at=now()",
+    [otherOrganizationId],
+  );
+  const foreignOrganizationCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-FOREIGN'", [otherOrganizationId]))[0].id;
+
   const activationCodes = [
     ["CI-ACT-01", "CI Activation Customer Record", "activation-client@example.test"],
     ["CI-ACT-02", "CI Unconfirmed Customer Record", "unconfirmed-client@example.test"],
@@ -3964,7 +3970,7 @@ async function main() {
     () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [staffRejectInvitation.token]),
     /دعوة تفعيل العميل لا تمنح|42501|staff|customer/i);
   await expectFailure("staff cannot create an activation invitation for a different organization",
-    () => db.unsafe("select public.create_customer_activation_invitation($1::uuid,$2::text,$3::integer)", [staffCustomers[0].id, "cross@example.test", 72]),
+    () => db.unsafe("select public.create_customer_activation_invitation($1::uuid,$2::text,$3::integer)", [foreignOrganizationCustomer, "cross@example.test", 72]),
     /سجل العميل غير موجود ضمن المؤسسة الحالية|42501/i);
   await db.unsafe("reset role");
 
@@ -4000,7 +4006,7 @@ async function main() {
     /أكّد البريد الإلكتروني|42501/i);
   await db.unsafe("reset role");
 
-  await setIdentity(mismatchAuthId, "activation-client@example.test");
+  await setIdentity(mismatchAuthId, "unconfirmed-client@example.test");
   await db.unsafe("set role authenticated");
   await expectFailure("verified Auth email mismatch is rejected",
     () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [unconfirmedInvitation.token]),
