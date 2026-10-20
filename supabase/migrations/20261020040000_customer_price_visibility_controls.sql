@@ -56,7 +56,20 @@ DECLARE
   v_org uuid;
   v_key text;
   v_value jsonb;
+  v_jwt_role text;
 BEGIN
+  -- Resolve the caller role from request claims without relying on optional auth.role() in PostgreSQL test databases.
+  v_jwt_role := NULLIF(current_setting('request.jwt.claim.role', true), '');
+  IF v_jwt_role IS NULL THEN
+    BEGIN
+      v_jwt_role := NULLIF(
+        NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role',
+        ''
+      );
+    EXCEPTION WHEN invalid_text_representation THEN
+      v_jwt_role := NULL;
+    END;
+  END IF;
   IF TG_OP = 'DELETE' THEN
     v_org := OLD.organization_id;
     v_key := OLD.key;
@@ -75,7 +88,7 @@ BEGIN
       RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'customer price visibility settings must be boolean';
     END IF;
 
-    IF COALESCE(auth.role(), '') <> 'service_role' AND NOT EXISTS (
+    IF COALESCE(v_jwt_role, '') <> 'service_role' AND NOT EXISTS (
       SELECT 1
       FROM public.profiles AS p
       JOIN public.user_roles AS ur ON ur.profile_id = p.id
