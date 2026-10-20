@@ -39,7 +39,7 @@ describe("Onyx source evidence panel", () => {
     fetchEvidence.mockResolvedValue(fixture);
     render(<OnyxSnapshotSourceEvidencePanel snapshotId={snapshotId} />);
     expect(await screen.findByText("مرجع دفعة الاستيراد موجود والبصمة متطابقة")).toBeTruthy();
-    expect(screen.getByText(/المؤسسة الفعالة من قاعدة البيانات:/).textContent).toContain("مؤسسة الاختبار");
+    expect(screen.getByTestId("onyx-evidence-organization-name").textContent).toBe("مؤسسة الاختبار");
     expect(screen.getByText("استيراد ملف يدوي")).toBeTruthy();
     expect(screen.getByText("external_id")).toBeTruthy();
     expect(screen.getByText(/غير مثبتة بأدلة هذا السجل/)).toBeTruthy();
