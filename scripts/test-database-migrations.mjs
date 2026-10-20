@@ -2278,6 +2278,7 @@ async function main() {
   const financeInvite=financeInviteRows[0].result;
   await db.unsafe("reset role");
   await setIdentity(financeAuthUserId,"ci-invited-finance@example.test");
+  await setCompanyInvitationConfirmedClaim(financeAuthUserId, "ci-invited-finance@example.test");
   await db.unsafe("set role authenticated");
   await db.unsafe("select public.accept_customer_company_invitation($1::text)",[financeInvite.invitation_token]);
   const financeScope=await db.unsafe("select public.current_customer_id() as customer_id,public.current_customer_can('orders.create') as can_order,public.current_customer_can('statement.read') as can_statement");
