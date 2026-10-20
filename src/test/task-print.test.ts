@@ -14,8 +14,24 @@ const tasks: Array<{ id: string; task_role: OperationalTaskRole }> = [
 describe('role-scoped operational task printing', () => {
   const allRoles: OperationalTaskRole[] = ['sales','accountant','warehouse','purchasing','management','operations'];
 
-  it('prints every row that the current account is allowed to see when scope is all', () => {
+  it('prints every row allowed to the current account when scope is all', () => {
     expect(filterTasksForPrint(tasks, 'all', allRoles).map((task) => task.id)).toEqual(tasks.map((task) => task.id));
+  });
+
+  it('prints exactly the rows currently visible after role and other screen filters', () => {
+    const nonRoleFiltered = tasks.filter((task) => task.id !== 'sales-1' && task.id !== 'purchase-1');
+    const screenFiltered = nonRoleFiltered.filter((task) => task.task_role === 'accountant');
+    expect(filterTasksForPrint(nonRoleFiltered, 'filtered', allRoles, screenFiltered)).toEqual(screenFiltered);
+  });
+
+  it('does not leak roles omitted from the permissions even if supplied by stale screen state', () => {
+    const staffRoles: OperationalTaskRole[] = ['sales','warehouse','purchasing','operations'];
+    const secretlyAddedRole = [...tasks.filter((task) => staffRoles.includes(task.task_role)), tasks[1]];
+    expect(filterTasksForPrint(secretlyAddedRole, 'filtered', staffRoles, secretlyAddedRole).map((task) => task.task_role))
+      .toEqual(staffRoles);
+    expect(filterTasksForPrint(tasks, 'all', staffRoles).map((task) => task.task_role)).toEqual(staffRoles);
+    expect(filterTasksForPrint(tasks, 'accountant', staffRoles)).toEqual([]);
+    expect(filterTasksForPrint(tasks, 'management', staffRoles)).toEqual([]);
   });
 
   it.each([
@@ -24,34 +40,14 @@ describe('role-scoped operational task printing', () => {
     ['warehouse', 'warehouse-1'],
     ['purchasing', 'purchase-1'],
     ['management', 'management-1'],
-  ] as const)('prints only the %s role with preserved upstream filters', (role, id) => {
+  ] as const)('prints only the selected %s role with upstream non-role filters preserved', (role, id) => {
     const alreadyFiltered = tasks.filter((task) => task.id !== 'sales-1');
     const printable = filterTasksForPrint(alreadyFiltered, role, allRoles);
     expect(printable.map((task) => task.id)).toEqual(role === 'sales' ? [] : [id]);
   });
 
-  it('does not expose a role omitted from current-account permissions, even if requested by stale UI state', () => {
-    const staffRoles: OperationalTaskRole[] = ['sales','warehouse','purchasing','operations'];
-    expect(filterTasksForPrint(tasks, 'all', staffRoles).map((task) => task.task_role))
-      .toEqual(staffRoles);
-    expect(filterTasksForPrint(tasks, 'accountant', staffRoles)).toEqual([]);
-    expect(filterTasksForPrint(tasks, 'management', staffRoles)).toEqual([]);
-  });
-
-  it('returns no printable tasks rather than inventing content when there are no matches', () => {
+  it('returns no printable tasks rather than inventing content when no filter matches', () => {
     expect(filterTasksForPrint([], 'all', allRoles)).toEqual([]);
-  });
-
-  it('does not broaden the current screen role filter when print scope is all', () => {
-    const screenVisibleRows = tasks.filter((task) => task.task_role === 'sales');
-    expect(filterTasksForPrint(screenVisibleRows, 'all', allRoles))
-      .toEqual([{ id: 'sales-1', task_role: 'sales' }]);
-  });
-
-  it('intersects the requested print role with the current screen role filter', () => {
-    const screenVisibleRows = tasks.filter((task) => task.task_role === 'sales');
-    expect(filterTasksForPrint(screenVisibleRows, 'accountant', allRoles)).toEqual([]);
-    expect(filterTasksForPrint(screenVisibleRows, 'sales', allRoles))
-      .toEqual([{ id: 'sales-1', task_role: 'sales' }]);
+    expect(filterTasksForPrint(tasks, 'filtered', [], tasks)).toEqual([]);
   });
 });

@@ -109,7 +109,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   }
 
 
-  const [printScope, setPrintScope] = useState<OperationalTaskRole | 'all'>('all');
+  const [printScope, setPrintScope] = useState<OperationalTaskRole | 'all' | 'filtered'>('all');
 
   // One shared predicate applies all non-role filters to both screen and print output.
   const matchesNonRoleFilters = useCallback((task: OperationalTask) => {
@@ -135,12 +135,15 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     () => filteredWithoutRole.filter((task) => roleFilter === 'all' || task.task_role === roleFilter),
     [filteredWithoutRole,roleFilter],
   );
-  // Printing is a projection of the visible list, never a broader query. A print-role
-  // selection may narrow the current screen role filter, but cannot bypass it.
   const printable = useMemo(
-    () => filterTasksForPrint(filtered,printScope,allowedRoles),
-    [filtered,printScope,allowedRoles],
+    () => filterTasksForPrint(filteredWithoutRole,printScope,allowedRoles,filtered),
+    [filteredWithoutRole,filtered,printScope,allowedRoles],
   );
+  const printScopeLabel = printScope === 'filtered'
+    ? 'النتائج المفلترة الحالية'
+    : printScope === 'all'
+      ? 'كل المهام المسموحة'
+      : roleLabels[printScope];
 
   const openCount = tasks.filter((task) => !['completed','cancelled'].includes(task.status)).length;
   const lateCount = tasks.filter(isLate).length;
@@ -194,13 +197,14 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
         {canManage && <button className="btn primary" type="button" onClick={() => setShowCreate((visible) => !visible)}><Plus size={16} /> مهمة يدوية</button>}
         <label className="task-print-scope">
           <span>نطاق الطباعة</span>
-          <select value={printScope} onChange={(event) => setPrintScope(event.target.value as OperationalTaskRole | 'all')}>
+          <select value={printScope} onChange={(event) => setPrintScope(event.target.value as OperationalTaskRole | 'all' | 'filtered')}>
+            <option value="filtered">النتائج المفلترة الحالية</option>
             <option value="all">الكل — الأدوار المسموحة</option>
             {allowedRoles.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}
           </select>
         </label>
         <button className="btn primary" type="button" onClick={() => window.print()} disabled={printable.length===0}>
-          <Printer size={16} /> طباعة {printScope === 'all' ? 'كل المهام المسموحة' : roleLabels[printScope]}
+          <Printer size={16} /> طباعة {printScopeLabel}
         </button>
       </div>
     </div>
@@ -279,7 +283,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     <div className="operational-task-print" dir="rtl" aria-hidden="true">
       <header><h1>متجر الأغبري — كشف المهام التشغيلية</h1>
         <p>تاريخ الطباعة: {new Date().toLocaleString('ar-YE')}</p>
-        <p>نطاق الطباعة: {printScope==='all'?(roleFilter==='all'?'كل النتائج المطابقة للفلاتر':roleLabels[roleFilter]):roleLabels[printScope]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {printable.length}</p>
+        <p>نطاق الطباعة: {printScope==='filtered'?'النتائج المفلترة الحالية':printScope==='all'?'كل الأدوار المسموحة للحساب':roleLabels[printScope]} — فلتر الدور على الشاشة: {roleFilter==='all'?'كل الأدوار المسموحة':roleLabels[roleFilter]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {printable.length}</p>
         <p>المسؤول: {assigneeFilter==='all'?'كل المسؤولين':assigneeFilter==='unassigned'?'غير مسندة':assigneeById.get(assigneeFilter)?.full_name??'الموظف المحدد'} — فترة الإنشاء: {createdFrom||'بلا بداية'} إلى {createdTo||'بلا نهاية'}</p>
         {search.trim()&&<p>بحث: {search.trim()}</p>}</header>
       <table><thead><tr><th>#</th><th>المهمة والإجراء</th><th>الدور</th><th>الأولوية</th><th>الحالة</th><th>الموعد المسجل</th><th>المصدر</th><th>المسؤول</th></tr></thead>
