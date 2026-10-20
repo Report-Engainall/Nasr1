@@ -10,8 +10,9 @@ const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 
 
 async function setIdentity(authUserId, email) {
   await db.unsafe("select set_config('request.jwt.claim.sub', $1, false)", [authUserId]);
+  // Confirmation is read from auth.users.email_confirmed_at in PostgreSQL, never forged into JWT claims.
   await db.unsafe("select set_config('request.jwt.claims', $1, false)", [
-    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
+    JSON.stringify({ sub: authUserId, email, role: "authenticated" }),
   ]);
 }
 
@@ -33,6 +34,11 @@ async function main() {
     do $$ begin create role authenticated nologin; exception when duplicate_object then null; end $$;
     do $$ begin create role service_role nologin bypassrls; exception when duplicate_object then null; end $$;
     create schema if not exists auth;
+    create table if not exists auth.users (
+      id uuid primary key,
+      email text,
+      email_confirmed_at timestamptz
+    );
     create or replace function auth.uid() returns uuid
       language sql stable
       as $$ select coalesce(
@@ -3867,6 +3873,161 @@ async function main() {
   await expectFailure("accountant cannot write the price grid",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[db.json([{...priceGridPayload[0],expected_base_price:101,expected_price_wholesale_of_wholesale:91,expected_price_wholesale:96,expected_price_retail:111,base_price:103}])]),/active admin or manager/i);
   await db.unsafe("reset role");
   process.stdout.write("PASS price grid: admin/manager auth, base+three tier values, atomic writes, audit, stale-value guard, tenant rollback and accountant denial\n");
+
+  // P2 customer activation: PostgreSQL/RLS acceptance using the real auth.users confirmation source.
+  const activationProfileId = "f1212121-1212-4121-8121-121212121211";
+  const activationAuthId = "12121212-1212-4121-8121-121212121211";
+  const unconfirmedProfileId = "f1313131-1313-4131-8131-131313131311";
+  const unconfirmedAuthId = "13131313-1313-4131-8131-131313131311";
+  const mismatchProfileId = "f1414141-1414-4141-8141-141414141411";
+  const mismatchAuthId = "14141414-1414-4141-8141-141414141411";
+  const expiredProfileId = "f1515151-1515-4151-8151-151515151511";
+  const expiredAuthId = "15151515-1515-4151-8151-151515151511";
+  const activationFixtures = [
+    [activationProfileId, activationAuthId, organizationId, "CI Activation Customer", "activation-client@example.test"],
+    [unconfirmedProfileId, unconfirmedAuthId, organizationId, "CI Unconfirmed Customer", "unconfirmed-client@example.test"],
+    [mismatchProfileId, mismatchAuthId, organizationId, "CI Mismatch Customer", "mismatch-client@example.test"],
+    [expiredProfileId, expiredAuthId, organizationId, "CI Expired Customer", "expired-client@example.test"],
+  ];
+  for (const [id, authId, orgId, fullName, email] of activationFixtures) {
+    await db.unsafe(
+      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,$4,$5,true) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,full_name=excluded.full_name,email=excluded.email,is_active=true",
+      [id, authId, orgId, fullName, email],
+    );
+    await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'customer') on conflict(profile_id,role) do nothing", [id]);
+  }
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()),($3,$4,null),($5,$6,now()),($7,$8,now()),($9,$10,now()) on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [activationAuthId,"activation-client@example.test",unconfirmedAuthId,"unconfirmed-client@example.test",mismatchAuthId,"mismatch-client@example.test",expiredAuthId,"expired-client@example.test",staffAuthUserId,"admin@aghbari.ye"],
+  );
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()) on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [foreignAuthUserId, "foreign-ci-profile@example.test"],
+  );
+
+  const activationCodes = [
+    ["CI-ACT-01", "CI Activation Customer Record", "activation-client@example.test"],
+    ["CI-ACT-02", "CI Unconfirmed Customer Record", "unconfirmed-client@example.test"],
+    ["CI-ACT-03", "CI Foreign Scope Customer Record", "foreign-ci-profile@example.test"],
+    ["CI-ACT-04", "CI Staff Rejection Customer Record", "admin@aghbari.ye"],
+    ["CI-ACT-05", "CI Expired Customer Record", "expired-client@example.test"],
+  ];
+  for (const [code, businessName, email] of activationCodes) {
+    await db.unsafe(
+      "insert into public.customers(organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier,credit_limit,current_balance,status,approved_at) values($1,null,$2,$3,'CI Activation Contact','7778000100',$4,'retail',0,0,'approved',now()) on conflict(organization_id,customer_code) do update set profile_id=null,business_name=excluded.business_name,email=excluded.email,status='approved',approved_at=now()",
+      [organizationId, code, businessName, email],
+    );
+  }
+  const activationCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-01'", [organizationId]))[0].id;
+  const unconfirmedCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-02'", [organizationId]))[0].id;
+  const foreignScopeCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-03'", [organizationId]))[0].id;
+  const staffRejectCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-04'", [organizationId]))[0].id;
+  const expiredCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-05'", [organizationId]))[0].id;
+
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const createActivationInvite = async (customerId, email) => {
+    const result = await db.unsafe(
+      "select public.create_customer_activation_invitation($1::uuid,$2::text,$3::integer) as result",
+      [customerId, email, 72],
+    );
+    assert.equal(typeof result[0].result.token, "string");
+    return result[0].result;
+  };
+  const validInvitation = await createActivationInvite(activationCustomer, "activation-client@example.test");
+  const unconfirmedInvitation = await createActivationInvite(unconfirmedCustomer, "unconfirmed-client@example.test");
+  const foreignScopeInvitation = await createActivationInvite(foreignScopeCustomer, "foreign-ci-profile@example.test");
+  const staffRejectInvitation = await createActivationInvite(staffRejectCustomer, "admin@aghbari.ye");
+  const expiredInvitation = await createActivationInvite(expiredCustomer, "expired-client@example.test");
+  await db.unsafe("reset role");
+
+  const tokenHashRow = (await db.unsafe(
+    "select token_hash from public.customer_activation_invitations where id=$1",
+    [validInvitation.invitation_id],
+  ))[0];
+  const computedTokenHash = (await db.unsafe("select encode(digest($1::text,'sha256'),'hex') as hash", [validInvitation.token]))[0].hash;
+  assert.equal(tokenHashRow.token_hash, computedTokenHash, "only the SHA-256 digest of the bearer token is persisted");
+  assert.notEqual(tokenHashRow.token_hash, validInvitation.token, "raw bearer token is not stored in the token_hash column");
+  await db.unsafe("update public.customer_activation_invitations set expires_at=now()-interval '1 minute' where id=$1", [expiredInvitation.invitation_id]);
+
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure("activation role cannot directly SELECT invitation storage",
+    () => db.unsafe("select id from public.customer_activation_invitations"), /permission denied/i);
+  await expectFailure("activation role cannot directly INSERT invitation rows",
+    () => db.unsafe("insert into public.customer_activation_invitations(organization_id,customer_id,invited_email,token_hash,expires_at) values('a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','x@example.test',repeat('a',64),now()+interval '1 hour')"), /permission denied/i);
+  await expectFailure("activation role cannot directly UPDATE invitation rows",
+    () => db.unsafe("update public.customer_activation_invitations set status='revoked'"), /permission denied/i);
+  await expectFailure("activation role cannot directly DELETE invitation rows",
+    () => db.unsafe("delete from public.customer_activation_invitations"), /permission denied/i);
+  await expectFailure("staff cannot accept a customer activation invitation",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [staffRejectInvitation.token]),
+    /دعوة تفعيل العميل لا تمنح|42501|staff|customer/i);
+  await expectFailure("staff cannot create an activation invitation for a different organization",
+    () => db.unsafe("select public.create_customer_activation_invitation($1::uuid,$2::text,$3::integer)", [staffCustomers[0].id, "cross@example.test", 72]),
+    /سجل العميل غير موجود ضمن المؤسسة الحالية|42501/i);
+  await db.unsafe("reset role");
+
+  const createdAudit = await db.unsafe(
+    "select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=any($2::uuid[])",
+    [organizationId, [validInvitation.invitation_id, unconfirmedInvitation.invitation_id, foreignScopeInvitation.invitation_id, staffRejectInvitation.invitation_id, expiredInvitation.invitation_id]],
+  );
+  assert.ok(createdAudit.filter(row => row.action === "customer_activation_invitation.created").length >= 5,
+    "creation of each invitation is audited");
+
+  await setIdentity(activationAuthId, "activation-client@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("activation rejects an incorrect bearer token",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", ["c".repeat(64)]),
+    /رابط التفعيل غير موجود|42501|expired|used/i);
+  const accepted = await db.unsafe("select public.accept_customer_activation_invitation($1::text) as result", [validInvitation.token]);
+  assert.equal(accepted[0].result.status, "active");
+  assert.equal(accepted[0].result.customer_id, activationCustomer);
+  await expectFailure("activation bearer token cannot be replayed",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [validInvitation.token]),
+    /رابط التفعيل غير موجود|42501|expired|used/i);
+  await db.unsafe("reset role");
+  const linkedAfterAcceptance = await db.unsafe("select profile_id from public.customers where id=$1", [activationCustomer]);
+  assert.equal(linkedAfterAcceptance[0].profile_id, activationProfileId, "successful acceptance links the target customer once");
+  const acceptedState = await db.unsafe("select status,accepted_by_profile_id from public.customer_activation_invitations where id=$1", [validInvitation.invitation_id]);
+  assert.equal(acceptedState[0].status, "accepted");
+  assert.equal(acceptedState[0].accepted_by_profile_id, activationProfileId);
+
+  await setIdentity(unconfirmedAuthId, "unconfirmed-client@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("unconfirmed Auth user row cannot accept an invitation regardless of JWT email",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [unconfirmedInvitation.token]),
+    /أكّد البريد الإلكتروني|42501/i);
+  await db.unsafe("reset role");
+
+  await setIdentity(mismatchAuthId, "activation-client@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("verified Auth email mismatch is rejected",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [unconfirmedInvitation.token]),
+    /بالبريد الإلكتروني المسجل في الدعوة|بريد الجلسة|42501/i);
+  await db.unsafe("reset role");
+
+  await setIdentity(foreignAuthUserId, "foreign-ci-profile@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("customer from another organization cannot accept tenant-scoped invitation",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [foreignScopeInvitation.token]),
+    /لا تخص مؤسسة|42501/i);
+  await db.unsafe("reset role");
+
+  await setIdentity(expiredAuthId, "expired-client@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("expired invitation token is rejected",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [expiredInvitation.token]),
+    /غير موجود أو منتهي أو مستخدم|42501/i);
+  await db.unsafe("reset role");
+
+  const activationAudit = await db.unsafe(
+    "select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=$2",
+    [organizationId, validInvitation.invitation_id],
+  );
+  assert.ok(activationAudit.some(row => row.action === "customer_activation_invitation.created"));
+  assert.ok(activationAudit.some(row => row.action === "customer_activation_invitation.accepted"));
+  process.stdout.write("PASS customer activation invitations: auth.users confirmation/email, tenant and role guards, hash-only token, no direct table DML, one-use/replay, expiry and audit trail\n");
 
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }
