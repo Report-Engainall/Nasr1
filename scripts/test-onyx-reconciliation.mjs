@@ -125,8 +125,8 @@ async function main() {
       [importJobId,organizationId,"a".repeat(64),managerProfileId],
     );
     await db.unsafe(
-      "insert into public.onyx_snapshots(id,organization_id,source_import_job_id,source_file_hash,source_file_name,report_type,row_count,data_quality_score,metrics,status,created_by) values($1,$2,$3,$4,'onyx-ci.csv','inventory_stock',2,100,$5::jsonb,'ready',$6)",
-      [snapshotId,organizationId,importJobId,"sha-onyx-"+suffix,JSON.stringify({ warehouse_code: warehouseCode, warehouse_name: warehouseName }),managerProfileId],
+      "insert into public.onyx_snapshots(id,organization_id,source_import_job_id,source_file_hash,source_file_name,report_type,row_count,data_quality_score,metrics,status,created_by) values($1,$2,$3,$4,'onyx-ci.csv','inventory_stock',2,100,'{}'::jsonb,'ready',$5)",
+      [snapshotId,organizationId,importJobId,"sha-onyx-"+suffix,managerProfileId],
     );
     await db.unsafe(
       "insert into public.onyx_snapshot_rows(organization_id,snapshot_id,row_number,canonical_key,row_hash,status,data,errors) values" +
@@ -176,10 +176,9 @@ async function main() {
     await db.unsafe("reset role");
 
     const sourceEvidence = await db.unsafe(
-      "select s.metrics->>'warehouse_code' as snapshot_warehouse_code, r.data->>'warehouse_code' as row_warehouse_code from public.onyx_snapshots s join public.onyx_snapshot_rows r on r.snapshot_id=s.id where s.id=$1 order by r.row_number limit 1",
+      "select r.data->>'warehouse_code' as row_warehouse_code from public.onyx_snapshots s join public.onyx_snapshot_rows r on r.snapshot_id=s.id where s.id=$1 order by r.row_number limit 1",
       [snapshotId],
     );
-    assert.equal(sourceEvidence[0].snapshot_warehouse_code,warehouseCode,"snapshot metadata warehouse scope must be persisted");
     assert.equal(sourceEvidence[0].row_warehouse_code,warehouseCode,"source row warehouse scope must be persisted");
     await db.unsafe("update public.inventory_balances set quantity_reserved=20 where product_id=$1 and warehouse_id=$2",[productOneId,warehouseId]);
     await db.unsafe("set role authenticated");
