@@ -3991,9 +3991,9 @@ async function main() {
   await expectFailure("activation rejects an incorrect bearer token",
     () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", ["c".repeat(64)]),
     /رابط التفعيل غير موجود|42501|expired|used/i);
-  const accepted = await db.unsafe("select public.accept_customer_activation_invitation($1::text) as result", [validInvitation.token]);
-  assert.equal(accepted[0].result.status, "active");
-  assert.equal(accepted[0].result.customer_id, activationCustomer);
+  const activationAccepted = await db.unsafe("select public.accept_customer_activation_invitation($1::text) as result", [validInvitation.token]);
+  assert.equal(activationAccepted[0].result.status, "active");
+  assert.equal(activationAccepted[0].result.customer_id, activationCustomer);
   await expectFailure("activation bearer token cannot be replayed",
     () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [validInvitation.token]),
     /رابط التفعيل غير موجود|42501|expired|used/i);
