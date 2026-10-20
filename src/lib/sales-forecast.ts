@@ -8,6 +8,26 @@ export type SalesForecastPoint = {
   sales: number;
 };
 
+/**
+ * Applies a user-entered what-if percentage to a forecast total without
+ * mutating the source data. Returns null for invalid or unsafe calculations.
+ * The supported range is an explicit UI guard, not a claim about likely outcomes.
+ */
+export function calculateWhatIfSales(expectedTotal: number, changePercent: number): number | null {
+  if (
+    !Number.isFinite(expectedTotal) ||
+    expectedTotal < 0 ||
+    !Number.isFinite(changePercent) ||
+    changePercent < -100 ||
+    changePercent > 500
+  ) {
+    return null;
+  }
+  const resultCents = Math.round(expectedTotal * (1 + changePercent / 100) * 100);
+  if (!Number.isSafeInteger(resultCents) || resultCents < 0) return null;
+  return resultCents / 100;
+}
+
 export type SalesForecastResult =
   | {
       ready: false;
