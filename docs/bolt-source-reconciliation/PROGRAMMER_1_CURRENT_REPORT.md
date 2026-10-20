@@ -3,7 +3,7 @@
 - **المستودع الوحيد المستهدف:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **الملكية:** هذا التقرير و`SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` فقط.
-- **المهمة الحالية:** `NASR1-SOURCE-SERVICE-WORKER-CACHE-BOUNDARY-001` — أضيف اختبار انحدار لحدود التخزين المؤقت في PWA على فرع P1 المستمر؛ سجل المصدر وسجل التدقيق محدّثان، والاختبار **بانتظار CI على الرأس النهائي** قبل الدمج.
+- **المهمة الحالية:** NASR1-SOURCE-SERVICE-WORKER-CACHE-BOUNDARY-001 — أضيف اختبار انحدار لحدود التخزين المؤقت في PWA؛ GitHub Actions 39444658074 (https://github.com/Report-Engainall/Nasr1/actions/runs/39444658074) passed on exact implementation/test SHA 93f6d6b3f19f4d94e075b8b6bd0ea8892dbe06b0: frozen Bun lock verification, unit tests, PostgreSQL 17/RLS acceptance, lint/build, preview 4173, dev 5173, and cleanup. الكود والاختبار اجتازا CI على SHA المذكور، لكن تم بعدها تحديث سجلات التوثيق فقط، لذلك يلزم تشغيل CI جديد على الرأس الأحدث قبل الدمج. browser/production NOT RUN.
 - **المهمة التالية بعد إغلاق المهمة الحالية:** `NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001` — مقارنة تفعيل حساب العميل ودورة دعواته في `src/CustomerActivation.tsx` و`src/CustomerPanel.tsx` و`src/services/customerInvitations.ts` مع مسارات Nasr1 الحالية؛ تكييف النقص المثبت فقط دون استيراد عقد الجداول القديمة.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
@@ -48,13 +48,13 @@
 - `READY_TO_REUSE_FILE_AUDIT.csv`: **78 صف تدقيق** على فرع P1؛ أضيف قرار صريح لملف تصدير الكتالوج المانح.
 - الصفوف المضافة تغطي مصدر معالج الصور واختباره، وقرار تكرار طابور offline واختباره. جميع البصمات المنقولة من الشجرة المانحة مسجلة؛ لم نعد فتح أي source blob كان له قرار مسجل.
 - المراجعة الحالية سجلت 78 صفًا في audit؛ لا يعني ذلك إغلاق جميع ملفات المستودعات المانحة، بل تُواصل مراجعة العناصر المتبقية.
-- المهمة الجارية `NASR1-SOURCE-SERVICE-WORKER-CACHE-BOUNDARY-001` ما تزال `IMPLEMENTED_PENDING_EXACT_SHA_CI` حتى ينجح CI على رأس PR النهائي. المهمة التالية هي `NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001`.
+- مهمة حماية Service Worker: IMPLEMENTED وTESTED على SHA 93f6d6b3f19f4d94e075b8b6bd0ea8892dbe06b0؛ أحدث حالة CI للاختبار PASS كما في الرابط أعلاه. تحديثات السجلات بعد الاختبار توثيقية فقط لكن رأس PR تغيّر، لذا يلزم CI نهائي على الرأس الأحدث قبل الدمج. المهمة التالية: NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001.
 
 ## 5.1. مراجعة حدود PWA وتكافؤ تصدير الكتالوج — 2026-10-20
 
 - **حدود Service Worker:** مصدر المانح Report-Engainall/aghbari-commerce@00d7446bba9652ea40178a08b00c9da9a2bba8a1، public/sw.js، blob 53936f83f2340c0e2d450edaa20db85619e8cf01. استُخدم كمرجع مقارنة فقط؛ عامل المانح يسمح بتخزين استجابات تنقل أوسع، لذا لم يُنسخ.
 - **تنفيذ Nasr1 المحتفظ به:** public/sw.js blob 166e449316349394e8870cb14f90067893a0dd24 لا يخزّن التنقلات العميقة، ويستبعد مسارات auth/rest/api/rpc/storage/functions، ولا يقبل إلا GET من نفس الأصل للتخزين، مع قصر التنقل على shell الجذر وقائمة موارد ثابتة واضحة.
-- **اختبار جديد:** src/test/service-worker-cache-boundary.test.ts يثبت تلك الحدود بالإضافة إلى تنظيف cache الخاص بنطاق التطبيق فقط. لا تغييرات schema/RPC/RLS ولا dependency جديدة. الحالة: **IMPLEMENTED — CI PENDING**؛ browser/production لم يُشغّلا.
+- **اختبار جديد:** src/test/service-worker-cache-boundary.test.ts يثبت تلك الحدود بالإضافة إلى تنظيف cache الخاص بنطاق التطبيق فقط. لا تغييرات schema/RPC/RLS ولا dependency جديدة. الحالة: IMPLEMENTED + TESTED؛ ${ci} أحدث commits بعد هذا الاختبار حدّثت توثيق P1 فقط وتحتاج إعادة CI على الرأس الجديد قبل الدمج. browser/production لم يُشغّلا.
 - **تكافؤ تصدير الكتالوج:** Report-Engainall/aghbari-commerce/src/ExportPanel.tsx blob 3526a3232cce9159ab6554797e7afa8f49f7129e يستخدم مخطط SKU/tiers قديمًا. Nasr1 يملك PricingGrid وprice-grid-csv.ts وprice-grid-xlsx.ts على المخطط الحالي، ويصدّر أربع شرائح أسعار وملخص المخزون مع تهريب حقن الصيغ وحدود للحجم؛ لذلك سُجّل القرار ALREADY_PRESENT_BETTER دون نسخ مكوّن مانح.
 - **المراجع الحية بعد إكمال توثيق P1:** ledger = 116 صف بيانات، audit = 78 صفًا. لا يثبت هذا حصر كل ملفات المستودعات المانحة؛ تُستكمل مراجعة النواقص حسب next task أعلاه.
 
