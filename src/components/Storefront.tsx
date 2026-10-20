@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, Minus, Plus, Search, ShoppingCart, Trash2,
   Package, Tag, Phone, MapPin, Mail, Check, ChevronLeft, Menu, ClipboardList,
@@ -16,6 +16,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { FileText } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-addresses';
+import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSavedProduct, syncStorefrontSavedProducts } from '@/lib/saved-products';
 
 type CartItem = { product: ProductWithInventory; quantity: number };
 type StoreView = 'shop' | 'product' | 'wishlist' | 'compare' | 'matrix' | 'cart' | 'checkout' | 'confirm';
@@ -38,7 +39,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   initialCategoryId?: string;
   initialAvailableOnly?: boolean;
 }) {
-  const { user } = useAuth();
+  const { user, ready: authReady } = useAuth();
   const navigate = useNavigate();
   const { data: liveProducts, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(fetchProducts);
   const [cachedProducts, setCachedProducts] = useState<ProductWithInventory[]>(() => {
@@ -58,6 +59,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
   const [view, setView] = useState<StoreView>(initialView);
   const cartStorageKey = offlineCartStorageKey(user?.profileId);
+  const wishlistStorageKey = user?.profileId ? savedProductCacheKey(user.profileId) : 'aghbari:wishlist:v1';
   const [cartState, setCartState] = useState<{ storageKey: string; items: CartItem[] }>({ storageKey: '', items: [] });
   const cartRestored = cartState.storageKey === cartStorageKey;
   const cart = cartRestored ? cartState.items : [];
@@ -77,10 +79,22 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const [lastOrderNo, setLastOrderNo] = useState('');
   const [lastOrderId, setLastOrderId] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<ProductWithInventory | null>(null);
-  const [wishlist, setWishlist] = useState<string[]>(() => readSavedProductIds('aghbari:wishlist:v1', 500));
+  const [wishlistState, setWishlistState] = useState<{ scopeKey: string; ids: string[] }>({ scopeKey: '', ids: [] });
+  const wishlist = wishlistState.scopeKey === wishlistStorageKey ? wishlistState.ids : [];
+  const setWishlist = useCallback((next: string[] | ((previous: string[]) => string[])) => {
+    setWishlistState((current) => {
+      const previous = current.scopeKey === wishlistStorageKey ? current.ids : [];
+      const ids = typeof next === 'function' ? next(previous) : next;
+      return { scopeKey: wishlistStorageKey, ids };
+    });
+  }, [wishlistStorageKey]);
   const [compare, setCompare] = useState<string[]>(() => readSavedProductIds('aghbari:compare:v1', 3));
   const [savedListNotice, setSavedListNotice] = useState('');
+  const [wishlistHydratedFor, setWishlistHydratedFor] = useState('');
+  const [wishlistSyncState, setWishlistSyncState] = useState<'loading' | 'local' | 'synced' | 'pending'>('loading');
+  const wishlistRevisionRef = useRef(0);
   const [isOnline, setIsOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+  const previousOnlineRef = useRef(isOnline);
 
   useEffect(() => {
     setQuery(normalizeCatalogSearchQuery(initialQuery ?? ''));
@@ -113,8 +127,59 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   }, [liveProducts]);
 
   useEffect(() => {
-    try { window.localStorage.setItem('aghbari:wishlist:v1', JSON.stringify(wishlist)); } catch { /* saved preferences are optional */ }
-  }, [wishlist]);
+    if (!authReady) return;
+    let cancelled = false;
+    setWishlistHydratedFor('');
+    const cached = readSavedProductIds(wishlistStorageKey, 500);
+    const revisionAtStart = wishlistRevisionRef.current;
+    setWishlist(cached);
+
+    if (!user?.id || !user.profileId) {
+      setWishlistSyncState('local');
+      setWishlistHydratedFor(wishlistStorageKey);
+      return () => { cancelled = true; };
+    }
+
+    setWishlistSyncState('loading');
+    void syncStorefrontSavedProducts(user.id, user.profileId).then(({ productIds, pendingCount }) => {
+      if (cancelled) return;
+      setWishlistHydratedFor(wishlistStorageKey);
+      if (revisionAtStart !== wishlistRevisionRef.current) return;
+      setWishlist(productIds);
+      setWishlistSyncState(pendingCount > 0 ? 'pending' : 'synced');
+    }).catch(() => {
+      if (cancelled) return;
+      setWishlistHydratedFor(wishlistStorageKey);
+      if (revisionAtStart !== wishlistRevisionRef.current) return;
+      setWishlist(cached);
+      setWishlistSyncState('pending');
+    });
+
+    return () => { cancelled = true; };
+  }, [authReady, user?.id, user?.profileId, wishlistStorageKey, setWishlist]);
+
+  useEffect(() => {
+    const cameOnline = !previousOnlineRef.current && isOnline;
+    previousOnlineRef.current = isOnline;
+    if (!cameOnline || !authReady || !user?.id || !user.profileId || wishlistHydratedFor !== wishlistStorageKey) return;
+
+    let cancelled = false;
+    const revisionAtStart = wishlistRevisionRef.current;
+    setWishlistSyncState('loading');
+    void syncStorefrontSavedProducts(user.id, user.profileId).then(({ productIds, pendingCount }) => {
+      if (cancelled || revisionAtStart !== wishlistRevisionRef.current) return;
+      setWishlist(productIds);
+      setWishlistSyncState(pendingCount > 0 ? 'pending' : 'synced');
+    }).catch(() => {
+      if (!cancelled && revisionAtStart === wishlistRevisionRef.current) setWishlistSyncState('pending');
+    });
+    return () => { cancelled = true; };
+  }, [isOnline, authReady, user?.id, user?.profileId, wishlistHydratedFor, wishlistStorageKey, setWishlist]);
+
+  useEffect(() => {
+    if (!authReady || wishlistHydratedFor !== wishlistStorageKey || wishlistState.scopeKey !== wishlistStorageKey) return;
+    try { window.localStorage.setItem(wishlistStorageKey, JSON.stringify(wishlist)); } catch { /* cache is optional; server remains authoritative */ }
+  }, [authReady, wishlist, wishlistHydratedFor, wishlistStorageKey, wishlistState.scopeKey]);
 
   useEffect(() => {
     try { window.localStorage.setItem('aghbari:compare:v1', JSON.stringify(compare)); } catch { /* saved preferences are optional */ }
@@ -191,8 +256,19 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
     setMatrixFeedback({ kind: 'success', message: `تمت إضافة ${selected.length} أصناف إلى السلة. سيُعاد احتساب الأسعار والمخزون من الخادم قبل اعتماد الطلب.` });
   }
   function toggleWishlist(productId: string) {
-    setWishlist((prev) => normalizeSavedProductIds(prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId], 500));
+    const saved = !wishlist.includes(productId);
+    wishlistRevisionRef.current += 1;
+    setWishlist((prev) => normalizeSavedProductIds(saved ? [...prev, productId] : prev.filter((id) => id !== productId), 500));
     setSavedListNotice('');
+    if (!authReady || !user?.id || !user.profileId) return;
+
+    void setStorefrontSavedProduct(user.id, user.profileId, productId, saved).then((applied) => {
+      if (!applied) {
+        setWishlistSyncState('pending');
+        return;
+      }
+      setWishlistSyncState(Object.keys(readPendingSavedProductChanges(user.profileId)).length ? 'pending' : 'synced');
+    });
   }
   function toggleCompare(productId: string) {
     if (compare.includes(productId)) {
@@ -310,6 +386,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
         )}
 
         {savedListNotice && <div role="status" className="sf-form-error" style={{ marginBottom: 12 }}>{savedListNotice}</div>}
+        {user?.profileId && wishlistSyncState === 'pending' && <div role="status" className="sf-form-error" style={{ marginBottom: 12 }}>بعض تغييرات المفضلة لم تصل إلى الخادم بعد؛ حُفظت في هذا الجهاز وستُعاد مزامنتها عند عودة الاتصال أو استقرار الجلسة.</div>}
         {view === 'product' && (selectedProduct
           ? <ProductDetail product={selectedProduct} inWishlist={wishlist.includes(selectedProduct.id)} inCompare={compare.includes(selectedProduct.id)} onBack={() => void navigate({ to: '/' })} onAdd={() => addToCart(selectedProduct)} onWishlist={() => toggleWishlist(selectedProduct.id)} onCompare={() => toggleCompare(selectedProduct.id)} />
           : productsLoading ? <div className="sf-empty" role="status">جار تحميل تفاصيل المنتج...</div>
