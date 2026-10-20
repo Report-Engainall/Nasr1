@@ -32,6 +32,7 @@ export interface FinancePrintCreditMemoOption {
   total_amount: Money;
 }
 export interface FinancePrintOptions {
+  organization_name: string;
   customers: FinancePrintCustomer[];
   customers_has_more: boolean;
   invoices: FinancePrintInvoiceOption[];
@@ -219,6 +220,7 @@ export function readFinancePrintOptions(value: unknown): FinancePrintOptions {
   });
   const limit = itemCount(value.limit, "limit");
   return {
+    organization_name: requiredText(value.organization_name, "organization_name"),
     customers,
     customers_has_more: readBoolean(value.customers_has_more, "customers_has_more"),
     invoices,
@@ -434,9 +436,11 @@ function statusAr(status: string): string {
   return statuses[status] ?? status;
 }
 
-export function renderStaffInvoiceDocument(doc: Document, payload: StaffInvoicePrintPayload): void {
+export function renderStaffInvoiceDocument(doc: Document, payload: StaffInvoicePrintPayload, organizationName: string): void {
+  const issuerName = requiredText(organizationName, "organization_name");
   const main = addBase(doc, "فاتورة العميل " + payload.invoice.invoice_number);
   addMeta(doc, main, [
+    ["المؤسسة المصدرة", issuerName],
     ["العميل", customerLabel(payload.customer)],
     ["رقم العميل", payload.customer.customer_code || "غير مسجل"],
     ["رقم الفاتورة", payload.invoice.invoice_number],
@@ -457,9 +461,11 @@ export function renderStaffInvoiceDocument(doc: Document, payload: StaffInvoiceP
   addNote(doc, main, "تم إنشاء بيانات الفاتورة من مصدر محاسبي داخل المؤسسة الحالية. المستند لا ينشئ دفعة ولا يغير حالة الفاتورة.");
 }
 
-export function renderStaffStatementDocument(doc: Document, payload: StaffStatementPrintPayload): void {
+export function renderStaffStatementDocument(doc: Document, payload: StaffStatementPrintPayload, organizationName: string): void {
+  const issuerName = requiredText(organizationName, "organization_name");
   const main = addBase(doc, "كشف حساب العميل " + customerLabel(payload.customer));
   addMeta(doc, main, [
+    ["المؤسسة المصدرة", issuerName],
     ["العميل", customerLabel(payload.customer)],
     ["رقم العميل", payload.customer.customer_code || "غير مسجل"],
     ["تاريخ الرصيد المرجعي", fmtDateTime(payload.summary_as_of_utc)],
@@ -495,9 +501,11 @@ export function renderStaffStatementDocument(doc: Document, payload: StaffStatem
   }
 }
 
-export function renderCreditMemoDocument(doc: Document, payload: PrintableCreditMemo): void {
+export function renderCreditMemoDocument(doc: Document, payload: PrintableCreditMemo, organizationName: string): void {
+  const issuerName = requiredText(organizationName, "organization_name");
   const main = addBase(doc, "الإشعار الدائن " + payload.memo.memo_number);
   addMeta(doc, main, [
+    ["المؤسسة المصدرة", issuerName],
     ["العميل", payload.customer.name],
     ["الطلب", payload.invoice.order_number],
     ["الفاتورة الأصلية", payload.invoice.invoice_number],

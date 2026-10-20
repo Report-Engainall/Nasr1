@@ -14,6 +14,7 @@ import {
 
 type DocumentKind = "invoice" | "statement" | "credit_memo";
 const emptyOptions: FinancePrintOptions = {
+  organization_name: "",
   customers: [], customers_has_more: false, invoices: [], invoices_has_more: false,
   credit_memos: [], credit_memos_has_more: false, limit: 500,
 };
@@ -77,6 +78,7 @@ export function FinanceDocumentPrintActions() {
     if (!selectedId || busy) return;
     setError("");
     setNotice("");
+    const requestedKind = kind;
     let printWindow: Window | null = null;
     try {
       // Open synchronously in the user click to avoid popup blockers after the authorized RPC awaits.
@@ -91,19 +93,32 @@ export function FinanceDocumentPrintActions() {
       waiting.textContent = "جارٍ التحقق من صلاحية المحاسبة وتحميل المصدر المالي المعتمد…";
       printWindow.document.body.appendChild(waiting);
       setBusy(true);
+      const optionsResult = await supabase.rpc("get_finance_document_print_options", { p_limit: 500 });
+      if (optionsResult.error) throw new Error(optionsResult.error.message || "تعذر التحقق من المؤسسة النشطة قبل الطباعة.");
+      const currentOptions = readFinancePrintOptions(optionsResult.data);
+      const sourceStillAuthorized = requestedKind === "invoice"
+        ? currentOptions.invoices.some((row) => row.id === selectedId)
+        : requestedKind === "statement"
+          ? currentOptions.customers.some((row) => row.id === selectedId)
+          : currentOptions.credit_memos.some((row) => row.id === selectedId);
+      setOptions(currentOptions);
+      if (!sourceStillAuthorized) {
+        setSourceId("");
+        throw new Error("تغيرت المؤسسة النشطة أو لم يعد المصدر ضمن صلاحيتها. حدّث القائمة واختر مصدرًا من المؤسسة الحالية.");
+      }
 
-      if (kind === "invoice") {
+      if (requestedKind === "invoice") {
         const result = await supabase.rpc("get_staff_customer_invoice_print_data", { p_invoice_id: selectedId });
         if (result.error) throw new Error(result.error.message || "تعذر تحميل مصدر الفاتورة ضمن المؤسسة الحالية.");
-        renderStaffInvoiceDocument(printWindow.document, readStaffInvoicePrintPayload(result.data));
-      } else if (kind === "statement") {
+        renderStaffInvoiceDocument(printWindow.document, readStaffInvoicePrintPayload(result.data), currentOptions.organization_name);
+      } else if (requestedKind === "statement") {
         const result = await supabase.rpc("get_staff_customer_account_statement", { p_customer_id: selectedId });
         if (result.error) throw new Error(result.error.message || "تعذر تحميل كشف حساب العميل ضمن المؤسسة الحالية.");
-        renderStaffStatementDocument(printWindow.document, readStaffStatementPrintPayload(result.data));
+        renderStaffStatementDocument(printWindow.document, readStaffStatementPrintPayload(result.data), currentOptions.organization_name);
       } else {
         const result = await supabase.rpc("get_customer_return_credit_memo_pdf", { p_credit_memo_id: selectedId });
         if (result.error) throw new Error(result.error.message || "تعذر تحميل الإشعار الدائن؛ يلزم دور المحاسبة.");
-        renderCreditMemoDocument(printWindow.document, readPrintableCreditMemo(result.data));
+        renderCreditMemoDocument(printWindow.document, readPrintableCreditMemo(result.data), currentOptions.organization_name);
       }
 
       printWindow.focus();
@@ -126,6 +141,7 @@ export function FinanceDocumentPrintActions() {
             <Printer size={18} /> طباعة المستندات المالية حسب الصلاحية
           </h3>
           <p style={muted}>الفواتير وكشوف حساب العملاء والإشعارات الدائنة. يحدد الخادم المؤسسة النشطة ويتحقق من صلاحية الإدارة أو المدير أو المحاسب قبل كشف البيانات.</p>
+          <p style={muted}>المؤسسة المصدرة: <strong>{options.organization_name || "غير متاحة حتى يتحقق الخادم"}</strong></p>
         </div>
         <button type="button" style={button} onClick={() => void loadOptions()} disabled={loading || busy}>
           <RefreshCw size={15} /> تحديث المصادر

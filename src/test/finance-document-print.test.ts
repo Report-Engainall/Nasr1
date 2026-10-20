@@ -56,6 +56,7 @@ function statementFixture() {
 describe("finance document print contracts", () => {
   it("validates role-scoped document options and preserves IDs such as leading-zero customer codes", () => {
     const parsed = readFinancePrintOptions({
+      organization_name: "مؤسسة الاختبار",
       customers: [{ id: customerId, customer_code: "000125", business_name: "متجر اختبار", contact_name: null }],
       customers_has_more: false,
       invoices: [{
@@ -67,7 +68,12 @@ describe("finance document print contracts", () => {
       credit_memos_has_more: false,
       limit: 500,
     });
+    expect(parsed.organization_name).toBe("مؤسسة الاختبار");
     expect(parsed.customers[0].customer_code).toBe("000125");
+    expect(() => readFinancePrintOptions({
+      customers: [], customers_has_more: false, invoices: [], invoices_has_more: false,
+      credit_memos: [], credit_memos_has_more: false, limit: 500,
+    })).toThrow(/organization_name/);
     expect(parsed.invoices[0].invoice_number).toBe("INV-0009");
     expect(() => readFinancePrintOptions({ customers: [{}], invoices: [], credit_memos: [], limit: 500 })).toThrow();
   });
@@ -100,10 +106,12 @@ describe("finance document print contracts", () => {
 
   it("renders untrusted invoice descriptions as text nodes, not executable HTML", () => {
     const doc = document.implementation.createHTMLDocument("");
-    renderStaffInvoiceDocument(doc, readStaffInvoicePrintPayload(invoiceFixture()));
+    renderStaffInvoiceDocument(doc, readStaffInvoicePrintPayload(invoiceFixture()), "مؤسسة الاختبار <img src=x onerror=alert(1)>");
     expect(doc.querySelector("script, img")).toBeNull();
     expect(doc.body.textContent).toContain("<img src=x onerror=alert(1)> منتج");
     expect(doc.body.textContent).toContain("000017");
+    expect(doc.body.textContent).toContain("مؤسسة الاختبار <img src=x onerror=alert(1)>");
+    expect(doc.querySelector("img")).toBeNull();
     expect(doc.documentElement.dir).toBe("rtl");
   });
 
@@ -111,9 +119,10 @@ describe("finance document print contracts", () => {
     const payload = statementFixture();
     payload.truncated.invoices = true;
     const doc = document.implementation.createHTMLDocument("");
-    renderStaffStatementDocument(doc, readStaffStatementPrintPayload(payload));
+    renderStaffStatementDocument(doc, readStaffStatementPrintPayload(payload), "مؤسسة الاختبار");
     expect(doc.body.textContent).toContain("٣٧٥٫٠٠");
     expect(doc.body.textContent).toContain("الإشعارات الدائنة المرحلة");
+    expect(doc.body.textContent).toContain("مؤسسة الاختبار");
     expect(doc.body.textContent).toContain("أحدث 200");
   });
 });

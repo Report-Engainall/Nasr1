@@ -174,6 +174,12 @@ async function main() {
 
     await setIdentity(managerAuthId,"onyx-manager-"+suffix+"@example.test");
     await db.unsafe("set role authenticated");
+    const financeOptions = asJson((await db.unsafe(
+      "select public.get_finance_document_print_options($1::integer) as payload", [1],
+    ))[0].payload);
+    assert.equal(financeOptions.organization_name, "CI Onyx " + suffix,
+      "finance print issuer identity is derived from the active organization in the database");
+
     const warehouseOptions = asJson((await db.unsafe("select public.get_onyx_reconciliation_warehouses() as payload"))[0].payload);
     assert.ok(warehouseOptions.some((item) => item.id === warehouseId), "manager sees active warehouses only in their organization");
 

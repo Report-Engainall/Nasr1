@@ -9,6 +9,7 @@ const customerId = "11111111-1111-4111-8111-111111111111";
 const invoiceId = "22222222-2222-4222-8222-222222222222";
 const memoId = "33333333-3333-4333-8333-333333333333";
 const options = {
+  organization_name: "مؤسسة الاختبار الموثقة",
   customers: [{ id: customerId, customer_code: "000125", business_name: "متجر الاختبار", contact_name: null }],
   customers_has_more: false,
   invoices: [{
@@ -105,6 +106,7 @@ describe("finance document printing UI", () => {
     expect(await screen.findByText(/تم تجهيز المستند/)).toBeInTheDocument();
     expect(mocks.rpc).toHaveBeenCalledWith("get_staff_customer_invoice_print_data", { p_invoice_id: invoiceId });
     expect(popup.document.body.textContent).toContain("INV-TEST-0009");
+    expect(popup.document.body.textContent).toContain("مؤسسة الاختبار الموثقة");
     expect(popup.document.body.textContent).toContain("000017");
     expect(popup.document.documentElement.dir).toBe("rtl");
     await waitFor(() => expect(popup.print).toHaveBeenCalled());
@@ -119,6 +121,7 @@ describe("finance document printing UI", () => {
     expect(await screen.findByText(/تم تجهيز المستند/)).toBeInTheDocument();
     expect(mocks.rpc).toHaveBeenCalledWith("get_staff_customer_account_statement", { p_customer_id: customerId });
     expect(popup.document.body.textContent).toContain("كشف حساب العميل");
+    expect(popup.document.body.textContent).toContain("مؤسسة الاختبار الموثقة");
     expect(popup.document.body.textContent).toContain("٧٥٫٠٠");
     expect(popup.document.body.textContent).toContain("INV-TEST-0009");
   });
@@ -132,6 +135,7 @@ describe("finance document printing UI", () => {
     expect(await screen.findByText(/تم تجهيز المستند/)).toBeInTheDocument();
     expect(mocks.rpc).toHaveBeenCalledWith("get_customer_return_credit_memo_pdf", { p_credit_memo_id: memoId });
     expect(popup.document.body.textContent).toContain("CRM-TEST-001");
+    expect(popup.document.body.textContent).toContain("مؤسسة الاختبار الموثقة");
     expect(popup.document.body.textContent).toContain("مُرحّل محاسبيًا");
   });
 
