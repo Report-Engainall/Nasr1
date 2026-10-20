@@ -404,7 +404,7 @@ REVOKE ALL ON FUNCTION public.get_customer_invoice_pdf(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_customer_invoice_pdf(uuid) TO authenticated;
 
 COMMENT ON FUNCTION public.get_customer_invoice_pdf(uuid) IS
-  'Returns only the active customer\'s own invoice. Financial amounts are omitted from the RPC JSON whenever show_price_in_invoice=false; raw invoice monetary column grants remain revoked.';
+  'Returns only the active customer''s own invoice. Financial amounts are omitted from the RPC JSON whenever show_price_in_invoice=false; raw invoice monetary column grants remain revoked.';
 
 
 -- The catalog price resolver retains its existing customer-tier isolation but returns a non-price
