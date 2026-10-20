@@ -214,6 +214,27 @@ async function main() {
       [matchedSnapshotId, organizationId],
     );
     assert.equal(ownerRows[0].count, 21, "CI fixture must persist all 21 source rows before calling the evidence RPC");
+    const ownerExternalIdRows = await db.unsafe(
+      "select count(*)::integer as count from public.onyx_snapshot_rows r " +
+        "where r.snapshot_id=$1::uuid and r.organization_id=$2::uuid and (" +
+        "nullif(pg_catalog.btrim(coalesce(r.data->>'external_id','')),'') is not null or " +
+        "nullif(pg_catalog.btrim(coalesce(r.data->>'externalId','')),'') is not null or " +
+        "nullif(pg_catalog.btrim(coalesce(r.data->>'source_id','')),'') is not null or " +
+        "nullif(pg_catalog.btrim(coalesce(r.data->>'sourceId','')),'') is not null or " +
+        "nullif(pg_catalog.btrim(coalesce(r.data->>'onyx_id','')),'') is not null or " +
+        "nullif(pg_catalog.btrim(coalesce(r.data->>'onyx_code','')),'') is not null or " +
+        "nullif(pg_catalog.btrim(coalesce(r.data->>'external_code','')),'') is not null)",
+      [matchedSnapshotId, organizationId],
+    );
+    const ownerExternalIdSample = await db.unsafe(
+      "select row_number,data from public.onyx_snapshot_rows where snapshot_id=$1::uuid and organization_id=$2::uuid order by row_number limit 3",
+      [matchedSnapshotId, organizationId],
+    );
+    assert.equal(
+      ownerExternalIdRows[0].count,
+      21,
+      "CI fixture must persist top-level external-ID JSONB fields; sample=" + JSON.stringify(ownerExternalIdSample),
+    );
 
     await setIdentity(managerAuthId, "onyx-evidence-manager-" + suffix + "@example.test");
     const visibleRows = await db.unsafe(
