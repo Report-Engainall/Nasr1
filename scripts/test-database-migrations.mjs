@@ -1428,17 +1428,22 @@ async function main() {
   assert.equal(toMinorUnits(paidCapInvoiceDetail.paid_amount),505n,"invoice paid total must include the 5 payments omitted from the capped detail list");
   assert.equal(toMinorUnits(paidCapInvoiceDetail.outstanding_amount),495n,"invoice balance must use the full 505-payment ledger rather than only 500 displayed rows");
 
-  // The invoice PDF RPC returns amounts only for the signed-in customer's own invoice.
+  // The default invoice privacy policy removes monetary keys from the JSON itself,
+  // not merely from the PDF layout. The dedicated price-visibility acceptance test
+  // verifies that enabling the tenant setting restores the persisted values.
   const ownInvoicePdfResult = await db.unsafe(
     "select public.get_customer_invoice_pdf($1::uuid) as result",
     [invoice.id],
   );
   const ownInvoicePdf = ownInvoicePdfResult[0].result;
   assert.equal(ownInvoicePdf.invoice.id, invoice.id);
-  assert.equal(Number(ownInvoicePdf.invoice.total_amount), 370000);
+  assert.equal(ownInvoicePdf.financial_details_visible, false);
+  assert.equal(ownInvoicePdf.invoice.subtotal, undefined);
+  assert.equal(ownInvoicePdf.invoice.tax_amount, undefined);
+  assert.equal(ownInvoicePdf.invoice.total_amount, undefined);
   assert.equal(ownInvoicePdf.lines.length, 1);
-  assert.equal(Number(ownInvoicePdf.lines[0].unit_price), 37000);
-  assert.equal(Number(ownInvoicePdf.lines[0].line_total), 370000);
+  assert.equal(ownInvoicePdf.lines[0].unit_price, undefined);
+  assert.equal(ownInvoicePdf.lines[0].line_total, undefined);
   assert.equal(ownInvoicePdf.customer.id, undefined, "PDF customer projection should not return an internal customer primary key");
 
   // A second customer in the same organization must never receive the first customer's statement.
