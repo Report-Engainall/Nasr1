@@ -112,3 +112,10 @@ task التالي بعده مباشرة: NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETIO
 - التغييرات المستحدثة من هذه الجولة على فرع P2: src/lib/unified-import.ts وsrc/test/unified-import-safety.test.ts، مع تقرير المراجعة والتكليف الإضافي. CI النهائي الخاص بها PENDING حتى يجري على رأس الفرع بعد الحفظ الأخير؛ نجاح SHA سابق لا ينتقل إليها.
 - لم يُنفّذ بعد controlled inventory apply/rollback ولا browser E2E source test؛ كليهما مسجل بالحدود والمخاطر في تقرير المراجعة. PR #12 لا يستخدم كدليل نجاح للخصوصية السعرية: Action 39339667293 فشل على SHA b3daf67de14c935fdafb0c2bf06c2f02e6be6ec5 ويحتاج قراءة سبب الفشل قبل أي قرار.
 - لا يتغير مؤشر P2 التالي بهذه الإضافة: NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004. استكمال المراجعة الإضافية يستمر ضمن المهمة الأم ولا يبرر فتح next_task_id متوازٍ.
+
+
+## 2026-10-20 — تحديث الأدلة بعد أول مراجعة للمصادر
+- تحوّل تحسين تطبيع رؤوس الاستيراد من IMPLEMENTED إلى TESTED_EXACT_SHA=PASS على SHA 49fa336b6a04db3d3272ac78d78cc17b89bc7a89 عبر [Action 39437730603 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39437730603). يشمل دليل CI هذا وحدات الاختبار وPostgreSQL 17 migrations/acceptance والـlint/build وpreview/dev smoke؛ لا يثبت browser/production.
+- رأس PR #18 بعد تحديثات الوثائق e7867d548bea5ee8529cdb8001f290b79da6c939 له Action 39438007926 وكان IN_PROGRESS عند آخر readback. أي commit وثائقي جديد سيغيّر الرأس ويستلزم فحص run المطابق الجديد.
+- تم تشخيص فشل PR #12 من log Action 39339667293: migration 20261020040000_customer_price_visibility_controls.sql بها apostrophe مهربة بشرطة مائلة عكسية في نص COMMENT، وتسبب PostgreSQL syntax error at or near "s" عند character 15112. تم تعديلها إلى SQL-standard doubled quote customer''s في commit 6417e723a532b4bfd2c1a81c59ff6a78722ed721 على فرع PR #12؛ Action 39438180471 قيد التنفيذ عند آخر فحص. لا يُعلن نجاح الخصوصية السعرية قبل PASS على هذا الرأس أو successor tested.
+- يظل next_task_id الوحيد في P2 هو NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004؛ تكليف المصادر الإضافي لا يغيّر ترتيب التنفيذ أو ملكية P1.
