@@ -135,9 +135,11 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     () => filteredWithoutRole.filter((task) => roleFilter === 'all' || task.task_role === roleFilter),
     [filteredWithoutRole,roleFilter],
   );
+  // Printing is a projection of the visible list, never a broader query. A print-role
+  // selection may narrow the current screen role filter, but cannot bypass it.
   const printable = useMemo(
-    () => filterTasksForPrint(filteredWithoutRole,printScope,allowedRoles),
-    [filteredWithoutRole,printScope,allowedRoles],
+    () => filterTasksForPrint(filtered,printScope,allowedRoles),
+    [filtered,printScope,allowedRoles],
   );
 
   const openCount = tasks.filter((task) => !['completed','cancelled'].includes(task.status)).length;
@@ -277,7 +279,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     <div className="operational-task-print" dir="rtl" aria-hidden="true">
       <header><h1>متجر الأغبري — كشف المهام التشغيلية</h1>
         <p>تاريخ الطباعة: {new Date().toLocaleString('ar-YE')}</p>
-        <p>نطاق الطباعة: {printScope==='all'?'كل الأدوار المسموحة للحساب':roleLabels[printScope]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {printable.length}</p>
+        <p>نطاق الطباعة: {printScope==='all'?(roleFilter==='all'?'كل النتائج المطابقة للفلاتر':roleLabels[roleFilter]):roleLabels[printScope]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {printable.length}</p>
         <p>المسؤول: {assigneeFilter==='all'?'كل المسؤولين':assigneeFilter==='unassigned'?'غير مسندة':assigneeById.get(assigneeFilter)?.full_name??'الموظف المحدد'} — فترة الإنشاء: {createdFrom||'بلا بداية'} إلى {createdTo||'بلا نهاية'}</p>
         {search.trim()&&<p>بحث: {search.trim()}</p>}</header>
       <table><thead><tr><th>#</th><th>المهمة والإجراء</th><th>الدور</th><th>الأولوية</th><th>الحالة</th><th>الموعد المسجل</th><th>المصدر</th><th>المسؤول</th></tr></thead>
