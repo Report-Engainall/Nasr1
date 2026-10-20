@@ -288,14 +288,16 @@ jobs:
         run: |
           set -euo pipefail
           local_project="$RUNNER_TEMP/p2-local-supabase"
-          mkdir -p "$local_project"
-          cp -R supabase/. "$local_project/"
-          sed -i '1s/.*/project_id = "p2-local-e2e"/' "$local_project/config.toml"
-          if [ ! -f "$local_project/migrations/20261018100000_product_image_storage.sql" ]; then
+          mkdir -p "$local_project/supabase"
+          cp -R supabase/. "$local_project/supabase/"
+          test -f "$local_project/supabase/config.toml"
+          test -d "$local_project/supabase/migrations"
+          sed -i '1s/.*/project_id = "p2-local-e2e"/' "$local_project/supabase/config.toml"
+          if [ ! -f "$local_project/supabase/migrations/20261018100000_product_image_storage.sql" ]; then
             echo "Expected Storage-only migration not found; refusing to claim the scoped migration set." >&2
             exit 1
           fi
-          rm "$local_project/migrations/20261018100000_product_image_storage.sql"
+          rm "$local_project/supabase/migrations/20261018100000_product_image_storage.sql"
           {
             echo "## Local order/tenant E2E migration boundary"
             echo '- Uses a temporary copy of repository migrations with only `20261018100000_product_image_storage.sql` omitted; this migration mutates Supabase-owned `storage.objects` and is unrelated to authentication, order creation, or tenant-read isolation.'
