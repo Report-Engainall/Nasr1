@@ -61,7 +61,7 @@ describe("customer return receipt validation", () => {
   it("rejects over-receipt, fractional precision beyond three decimals, and restock larger than receipt", () => {
     expect(() => buildCustomerReturnReceiptLines({
       [items[0].request_item_id]: { received_quantity: "3.501", restockable_quantity: "0" },
-    }, items)).toThrow(/يتجاوز المتبقي/);
+    }, items)).toThrow(/تتجاوز المتبقي/);
     expect(() => buildCustomerReturnReceiptLines({
       [items[0].request_item_id]: { received_quantity: "1.0001", restockable_quantity: "0" },
     }, items)).toThrow(/ثلاث منازل/);
