@@ -49,6 +49,10 @@ export function FinanceDocumentPrintActions() {
     }));
   }, [kind, options]);
 
+  // Derive a valid selection synchronously so a just-loaded or newly switched list never
+  // exposes an enabled-looking print path with a stale/empty controlled value.
+  const effectiveSourceId = sources.some((row) => row.id === sourceId) ? sourceId : (sources[0]?.id ?? "");
+
   const hasMore = kind === "invoice" ? options.invoices_has_more :
     kind === "statement" ? options.customers_has_more : options.credit_memos_has_more;
 
@@ -68,12 +72,9 @@ export function FinanceDocumentPrintActions() {
   }, []);
 
   useEffect(() => { void loadOptions(); }, [loadOptions]);
-  useEffect(() => {
-    if (!sources.some((row) => row.id === sourceId)) setSourceId(sources[0]?.id ?? "");
-  }, [sources, sourceId]);
-
   async function printDocument() {
-    if (!sourceId || busy) return;
+    const selectedId = effectiveSourceId;
+    if (!selectedId || busy) return;
     setError("");
     setNotice("");
     let printWindow: Window | null = null;
@@ -92,15 +93,15 @@ export function FinanceDocumentPrintActions() {
       setBusy(true);
 
       if (kind === "invoice") {
-        const result = await supabase.rpc("get_staff_customer_invoice_print_data", { p_invoice_id: sourceId });
+        const result = await supabase.rpc("get_staff_customer_invoice_print_data", { p_invoice_id: selectedId });
         if (result.error) throw new Error(result.error.message || "تعذر تحميل مصدر الفاتورة ضمن المؤسسة الحالية.");
         renderStaffInvoiceDocument(printWindow.document, readStaffInvoicePrintPayload(result.data));
       } else if (kind === "statement") {
-        const result = await supabase.rpc("get_staff_customer_account_statement", { p_customer_id: sourceId });
+        const result = await supabase.rpc("get_staff_customer_account_statement", { p_customer_id: selectedId });
         if (result.error) throw new Error(result.error.message || "تعذر تحميل كشف حساب العميل ضمن المؤسسة الحالية.");
         renderStaffStatementDocument(printWindow.document, readStaffStatementPrintPayload(result.data));
       } else {
-        const result = await supabase.rpc("get_customer_return_credit_memo_pdf", { p_credit_memo_id: sourceId });
+        const result = await supabase.rpc("get_customer_return_credit_memo_pdf", { p_credit_memo_id: selectedId });
         if (result.error) throw new Error(result.error.message || "تعذر تحميل الإشعار الدائن؛ يلزم دور المحاسبة.");
         renderCreditMemoDocument(printWindow.document, readPrintableCreditMemo(result.data));
       }
@@ -142,7 +143,7 @@ export function FinanceDocumentPrintActions() {
         </label>
         <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
           المصدر
-          <select aria-label="مصدر المستند المالي" style={field} value={sourceId} onChange={(event) => setSourceId(event.target.value)} disabled={loading || busy || sources.length === 0}>
+          <select aria-label="مصدر المستند المالي" style={field} value={effectiveSourceId} onChange={(event) => setSourceId(event.target.value)} disabled={loading || busy || sources.length === 0}>
             <option value="">{loading ? "جارٍ تحميل المصادر…" : "اختر المصدر…"}</option>
             {sources.map((source) => <option key={source.id} value={source.id}>{source.label}</option>)}
           </select>
@@ -155,7 +156,7 @@ export function FinanceDocumentPrintActions() {
       {notice && <p role="status" style={{ ...muted, color: "#17684d", display: "flex", alignItems: "center", gap: 6 }}><ShieldCheck size={15} />{notice}</p>}
       {!loading && !error && sources.length === 0 && <p style={muted}>لا توجد مصادر من هذا النوع ضمن قائمة المؤسسة المتاحة أو لا توجد سجلات قابلة للطباعة.</p>}
       <div className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button type="button" style={primary} onClick={() => void printDocument()} disabled={loading || busy || !sourceId}>
+        <button type="button" style={primary} onClick={() => void printDocument()} disabled={loading || busy || !effectiveSourceId}>
           <FileText size={16} /> {busy ? "جارٍ تجهيز المستند…" : "فتح نافذة الطباعة / حفظ PDF"}
         </button>
       </div>
