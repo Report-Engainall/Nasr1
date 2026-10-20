@@ -9,7 +9,7 @@ CREATE OR REPLACE FUNCTION public.create_admin_catalog_category(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = ''
+SET search_path=''
 AS $function$
 DECLARE
   v_actor uuid := public.current_profile_id();
@@ -90,7 +90,7 @@ CREATE OR REPLACE FUNCTION public.save_admin_catalog_product(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = ''
+SET search_path=''
 AS $function$
 DECLARE
   v_actor uuid := public.current_profile_id();
@@ -352,7 +352,7 @@ CREATE OR REPLACE FUNCTION public.archive_admin_catalog_product(p_product_id uui
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = ''
+SET search_path=''
 AS $function$
 DECLARE
   v_actor uuid := public.current_profile_id();
@@ -405,7 +405,7 @@ CREATE OR REPLACE FUNCTION public.archive_admin_catalog_category(p_category_id u
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = ''
+SET search_path=''
 AS $function$
 DECLARE
   v_actor uuid := public.current_profile_id();
