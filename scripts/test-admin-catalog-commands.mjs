@@ -1,1 +1,304 @@
-import assert from'node:assert/strict';import postgres from'postgres';const url=process.env.TEST_DATABASE_URL;if(!url)throw Error('TEST_DATABASE_URL required');const org='a0000000-0000-0000-0000-000000000001',adminAuth='33333333-3333-4333-8333-333333333333',customerAuth='11111111-1111-4111-8111-111111111111',code='CI-P1-CAT-001',name='CI P1 Category';const root=postgres(url,{max:1,prepare:false}),admin=postgres(url,{max:1,prepare:false}),customer=postgres(url,{max:1,prepare:false});async function ident(c,id,email){await c.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[id]);await c.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:id,email,email_confirmed_at:new Date().toISOString(),role:'authenticated'})]);await c.unsafe('set role authenticated');}async function rpc(c,q,a){return(await c.unsafe(q,a))[0]?.result;}async function cleanup(){await root.unsafe("delete from public.audit_logs where organization_id=$1 and entity_id in(select id from public.products where item_code=$2 union all select id from public.categories where name=$3)",[org,code,name]).catch(()=>{});await root.unsafe("delete from public.products where organization_id=$1 and item_code=$2",[org,code]);await root.unsafe("delete from public.categories where organization_id=$1 and name=$2",[org,name]);}async function main(){await cleanup();await ident(admin,adminAuth,'admin@aghbari.ye');await ident(customer,customerAuth,'customer@example.test');const c=await rpc(admin,'select public.create_admin_catalog_category($1,null,$2) result',[name,'CI-P1']);assert.ok(c.id&&c.created);const c2=await rpc(admin,'select public.create_admin_catalog_category($1,null,$2) result',[name,'CI-P1']);assert.equal(c2.id,c.id);assert.equal(c2.created,false);const p={name:'CI product',item_code:code,barcode:null,unit:'قطعة',description:'test fixture',category_id:c.id,base_price:12,price_wholesale_of_wholesale:10,price_wholesale:11,price_retail:13,status:'active'};const made=await rpc(admin,'select public.save_admin_catalog_product(null,$1::jsonb) result',[JSON.stringify(p)]);assert.ok(made.id&&made.created);const upd={...p,name:'CI product changed',base_price:14,expected_base_price:12,expected_price_wholesale_of_wholesale:10,expected_price_wholesale:11,expected_price_retail:13};await rpc(admin,'select public.save_admin_catalog_product($1::uuid,$2::jsonb) result',[made.id,JSON.stringify(upd)]);await assert.rejects(()=>rpc(admin,'select public.save_admin_catalog_product($1::uuid,$2::jsonb) result',[made.id,JSON.stringify({...upd,expected_base_price:12,name:'stale'})]),/product prices changed after the form opened/);await assert.rejects(()=>rpc(customer,'select public.create_admin_catalog_category($1,null,null) result',['no access']),/active admin or manager profile required/);await assert.rejects(()=>rpc(customer,'select public.save_admin_catalog_product(null,$1::jsonb) result',[JSON.stringify(p)]),/active admin or manager profile required/);assert.ok((await root.unsafe('select count(*)::int n from public.audit_logs where organization_id=$1 and entity_id=any($2::uuid[])',[org,[c.id,made.id]]))[0].n>=3);const ar=await rpc(admin,'select public.archive_admin_catalog_product($1::uuid) result',[made.id]);assert.equal(ar.status,'inactive');assert.equal((await root.unsafe('select count(*)::int n from public.products where id=$1',[made.id]))[0].n,1);await admin.unsafe('reset role');await customer.unsafe('reset role');await cleanup();console.log('PASS admin catalog commands: auth, category idempotency, create/update, stale-write rejection, audit and soft archive');}try{await main();}catch(e){console.error('ADMIN_CATALOG_COMMANDS_FAILED',e);process.exitCode=1;}finally{for(const c of[admin,customer]){try{await c.unsafe('reset role')}catch{}await c.end();}try{await cleanup()}catch(e){console.error('catalog cleanup failed',e);process.exitCode=1;}await root.end();}
+import assert from "node:assert/strict";
+import postgres from "postgres";
+
+const url = process.env.TEST_DATABASE_URL;
+if (!url) throw new Error("TEST_DATABASE_URL required");
+
+const org = "a0000000-0000-0000-0000-000000000001";
+const otherOrg = "e9999999-eeee-4eee-8eee-eeeeeeeeee99";
+const adminAuth = "33333333-3333-4333-8333-333333333333";
+const customerAuth = "11111111-1111-4111-8111-111111111111";
+const code = "CI-P1-CAT-001";
+const name = "CI P1 Category";
+const foreignCode = "CI-P1-CAT-FOREIGN-001";
+const foreignName = "CI P1 Foreign Category";
+const root = postgres(url, { max: 1, prepare: false });
+const admin = postgres(url, { max: 1, prepare: false });
+const customer = postgres(url, { max: 1, prepare: false });
+
+async function ident(connection, id, email) {
+  await connection.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [id]);
+  await connection.unsafe(
+    "select set_config('request.jwt.claims',$1,false)",
+    [JSON.stringify({ sub: id, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" })],
+  );
+  await connection.unsafe("set role authenticated");
+}
+async function rpc(connection, query, args) {
+  return (await connection.unsafe(query, args))[0]?.result;
+}
+async function cleanup() {
+  await root.unsafe(
+    "delete from public.audit_logs where organization_id=$1 and entity_id in " +
+      "(select id from public.products where organization_id=$1 and item_code=$2 " +
+      "union all select id from public.categories where organization_id=$1 and name=$3)",
+    [org, code, name],
+  ).catch(() => {});
+  await root.unsafe(
+    "delete from public.audit_logs where organization_id=$1 and entity_id in " +
+      "(select id from public.products where organization_id=$1 and item_code=$2 " +
+      "union all select id from public.categories where organization_id=$1 and name=$3)",
+    [otherOrg, foreignCode, foreignName],
+  ).catch(() => {});
+  await root.unsafe(
+    "delete from public.products where (organization_id=$1 and item_code=$2) " +
+      "or (organization_id=$3 and item_code=$4)",
+    [org, code, otherOrg, foreignCode],
+  ).catch(() => {});
+  await root.unsafe(
+    "delete from public.categories where (organization_id=$1 and name=$2) " +
+      "or (organization_id=$3 and name=$4)",
+    [org, name, otherOrg, foreignName],
+  ).catch(() => {});
+  await root.unsafe(
+    "delete from public.organizations where id=$1 and name='CI P1 Catalog Foreign Tenant'",
+    [otherOrg],
+  ).catch(() => {});
+}
+
+async function main() {
+  await cleanup();
+  await root.unsafe(
+    "insert into public.organizations(id,name) values($1,'CI P1 Catalog Foreign Tenant') " +
+      "on conflict(id) do update set name=excluded.name",
+    [otherOrg],
+  );
+  const foreignCategory = (await root.unsafe(
+    "insert into public.categories(organization_id,name,code,is_active) " +
+      "values($1,$2,'CI-FOREIGN',true) returning id",
+    [otherOrg, foreignName],
+  ))[0].id;
+  const foreignProduct = (await root.unsafe(
+    "insert into public.products(organization_id,category_id,name,item_code,unit,status) " +
+      "values($1,$2,'CI foreign product',$3,'قطعة','active') returning id",
+    [otherOrg, foreignCategory, foreignCode],
+  ))[0].id;
+
+  await ident(admin, adminAuth, "admin@aghbari.ye");
+  await ident(customer, customerAuth, "customer@example.test");
+
+  const category = await rpc(
+    admin,
+    "select public.create_admin_catalog_category($1,null,$2) result",
+    [name, "CI-P1"],
+  );
+  assert.ok(category.id && category.created, "category create returns a new ID");
+  const categoryAgain = await rpc(
+    admin,
+    "select public.create_admin_catalog_category($1,null,$2) result",
+    [name, "CI-P1"],
+  );
+  assert.equal(categoryAgain.id, category.id, "duplicate category create is idempotent");
+  assert.equal(categoryAgain.created, false);
+
+  const payload = {
+    name: "CI product",
+    item_code: code,
+    barcode: null,
+    unit: "قطعة",
+    description: "test fixture",
+    category_id: category.id,
+    base_price: 12,
+    price_wholesale_of_wholesale: 10,
+    price_wholesale: 11,
+    price_retail: 13,
+    status: "active",
+  };
+  const created = await rpc(
+    admin,
+    "select public.save_admin_catalog_product(null,$1::jsonb) result",
+    [JSON.stringify(payload)],
+  );
+  assert.ok(created.id && created.created, "product create returns a new ID");
+
+  await assert.rejects(
+    () => rpc(admin, "select public.save_admin_catalog_product(null,$1::jsonb) result", [
+      JSON.stringify({ ...payload, shadow_tier_price: 999 }),
+    ]),
+    (error) =>
+      /catalog payload contains unsupported fields/i.test(error.message) &&
+      /shadow_tier_price/i.test(String(error.detail || "")),
+    "unexpected catalog field is rejected with the offending key",
+  );
+
+  const update = {
+    ...payload,
+    name: "CI product changed",
+    base_price: 14,
+    expected_base_price: 12,
+    expected_price_wholesale_of_wholesale: 10,
+    expected_price_wholesale: 11,
+    expected_price_retail: 13,
+  };
+  const updated = await rpc(
+    admin,
+    "select public.save_admin_catalog_product($1::uuid,$2::jsonb) result",
+    [created.id, JSON.stringify(update)],
+  );
+  assert.equal(updated.id, created.id);
+  assert.equal(updated.created, false);
+
+  await assert.rejects(
+    () => rpc(admin, "select public.save_admin_catalog_product($1::uuid,$2::jsonb) result", [
+      created.id,
+      JSON.stringify({ ...update, expected_base_price: 12, name: "stale form" }),
+    ]),
+    /changed after the grid was loaded/i,
+    "stale price snapshot is rejected by the canonical price-grid command",
+  );
+
+  await assert.rejects(
+    () => rpc(admin, "select public.save_admin_catalog_product($1::uuid,$2::jsonb) result", [
+      foreignProduct,
+      JSON.stringify({ ...update, category_id: category.id }),
+    ]),
+    /product not found in organization/i,
+    "a product in a different tenant cannot be edited",
+  );
+  await assert.rejects(
+    () => rpc(admin, "select public.archive_admin_catalog_product($1::uuid) result", [foreignProduct]),
+    /product not found in organization/i,
+    "a product in a different tenant cannot be archived",
+  );
+  await assert.rejects(
+    () => rpc(admin, "select public.create_admin_catalog_category($1,$2,$3) result", [
+      "CI foreign child attempt",
+      foreignCategory,
+      "CI-CHILD",
+    ]),
+    /active parent category not found in organization/i,
+    "foreign-tenant parent category cannot be used",
+  );
+  await assert.rejects(
+    () => rpc(admin, "select public.archive_admin_catalog_category($1::uuid) result", [foreignCategory]),
+    /category not found in organization/i,
+    "a category in a different tenant cannot be archived",
+  );
+
+  await assert.rejects(
+    () => rpc(customer, "select public.create_admin_catalog_category($1,null,null) result", ["no access"]),
+    /active admin or manager profile required/i,
+    "customer cannot run staff category commands",
+  );
+  await assert.rejects(
+    () => rpc(customer, "select public.save_admin_catalog_product(null,$1::jsonb) result", [
+      JSON.stringify(payload),
+    ]),
+    /active admin or manager profile required/i,
+    "customer cannot run staff product commands",
+  );
+  await assert.rejects(
+    () => admin.unsafe(
+      "insert into public.categories(organization_id,name,code) values($1,'direct write forbidden','DIRECT')",
+      [org],
+    ),
+    /permission denied/i,
+    "direct category writes are denied",
+  );
+  await assert.rejects(
+    () => admin.unsafe(
+      "insert into public.products(organization_id,name,item_code,unit) values($1,'direct write forbidden','CI-DIRECT-001','piece')",
+      [org],
+    ),
+    /permission denied/i,
+    "direct product writes are denied",
+  );
+  await assert.rejects(
+    () => admin.unsafe(
+      "insert into public.product_prices(product_id,tier,price,min_quantity,is_active) values($1,'retail',1,1,true)",
+      [created.id],
+    ),
+    /permission denied/i,
+    "direct price-table writes are denied; use the price-grid command",
+  );
+  await assert.rejects(
+    () => admin.unsafe(
+      "insert into public.audit_logs(organization_id,action,entity_type) values($1,'forged','product')",
+      [org],
+    ),
+    /permission denied/i,
+    "direct audit writes are denied",
+  );
+
+  const foreignAuditId = (await root.unsafe(
+    "insert into public.audit_logs(organization_id,action,entity_type,entity_id) " +
+      "values($1,'catalog.test.foreign','product',$2) returning id",
+    [otherOrg, foreignProduct],
+  ))[0].id;
+  const foreignAuditVisible = await admin.unsafe(
+    "select id from public.audit_logs where id=$1",
+    [foreignAuditId],
+  );
+  assert.equal(foreignAuditVisible.length, 0, "audit reads remain tenant scoped");
+
+  const archiveProduct = await rpc(
+    admin,
+    "select public.archive_admin_catalog_product($1::uuid) result",
+    [created.id],
+  );
+  assert.equal(archiveProduct.status, "inactive");
+  assert.equal(
+    (await root.unsafe("select count(*)::int n from public.products where id=$1", [created.id]))[0].n,
+    1,
+    "product archive is soft and preserves the row",
+  );
+
+  const archiveCategory = await rpc(
+    admin,
+    "select public.archive_admin_catalog_category($1::uuid) result",
+    [category.id],
+  );
+  assert.equal(archiveCategory.is_active, false);
+  assert.equal(
+    (await root.unsafe("select is_active from public.categories where id=$1", [category.id]))[0].is_active,
+    false,
+    "category archive is soft and preserves the row",
+  );
+
+  const actor = (await root.unsafe(
+    "select id from public.profiles where auth_user_id=$1",
+    [adminAuth],
+  ))[0]?.id;
+  const auditRows = await root.unsafe(
+    "select action,actor_id from public.audit_logs " +
+      "where organization_id=$1 and entity_id=any($2::uuid[])",
+    [org, [category.id, created.id]],
+  );
+  const actions = new Set(auditRows.map((row) => row.action));
+  for (const action of [
+    "catalog.category_created",
+    "catalog.product_created",
+    "catalog.product_updated",
+    "product.price_grid_updated",
+    "catalog.product_archived",
+    "catalog.category_archived",
+  ]) {
+    assert.ok(actions.has(action), "missing audit action: " + action);
+  }
+  assert.ok(auditRows.length >= 6, "expected a full product/category audit trail");
+  assert.ok(actor && auditRows.every((row) => row.actor_id === actor), "audit rows retain the authenticated profile identity");
+
+  await admin.unsafe("reset role");
+  await customer.unsafe("reset role");
+  await cleanup();
+  console.log(
+    "PASS admin catalog commands: create/update/archive product and category, explicit key rejection, canonical price RPC/stale-write rejection, tenant isolation, audit identity, and direct-DML denial",
+  );
+}
+
+try {
+  await main();
+} catch (error) {
+  console.error("ADMIN_CATALOG_COMMANDS_FAILED", error);
+  process.exitCode = 1;
+} finally {
+  for (const connection of [admin, customer]) {
+    try { await connection.unsafe("reset role"); } catch {}
+    await connection.end();
+  }
+  try { await cleanup(); } catch (error) {
+    console.error("catalog cleanup failed", error);
+    process.exitCode = 1;
+  }
+  await root.end();
+}
