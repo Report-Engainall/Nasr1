@@ -489,9 +489,10 @@ async function main() {
   assert.ok(staffStatement.credits.some((row) => row.id === preparedCredit.credit_memo_id),"staff statement includes posted source credit memos");
   const staffYER = staffStatement.summary.find((row) => row.currency === "YER");
   assert.ok(staffYER,"staff statement summarizes YER receivables");
-  const sourceStatementInvoice = staffStatement.invoices.find((row) => row.id === sourceInvoiceId);
-  assert.ok(sourceStatementInvoice,"staff statement includes the source invoice in its bounded recent details");
-  assert.equal(Number(sourceStatementInvoice.outstanding_amount),375,"source invoice balance is total less its posted return credit");
+  const postedSourceCredit = staffStatement.credits.find((row) => row.id === preparedCredit.credit_memo_id);
+  assert.ok(postedSourceCredit,"staff statement includes the posted source credit memo");
+  assert.equal(postedSourceCredit.invoice_id,sourceInvoiceId,"credit memo remains bound to its source invoice");
+  assert.equal(Number(postedSourceCredit.total_amount),125,"printed source credit amount matches the authorized memo");
   assert.equal(Number(staffYER.credited) - Number(beforeYER.credited),125,
     "posting the source credit increases the full-ledger credited total by exactly the source amount");
   assert.equal(Number(beforeYER.outstanding) - Number(staffYER.outstanding),125,
