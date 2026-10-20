@@ -1,3 +1,9 @@
+## P2 follow-up — AI Gateway measured-vs-estimated usage controls — 20 October 2026 (CI pending)
+
+- Target-native patch in the AI Edge Gateway and migration 20261020130000_ai_gateway_usage_measurement_basis.sql; no donor code or P1 integration ledger was changed.
+- Failed provider attempts retain NULL observed token counts/cost; request status separates measured, partial and unknown use, while reservation estimates continue enforcing quotas. No-egress outcomes have server-derived actor/organization scope. Prompts, outputs and credentials are not persisted.
+- IMPLEMENTED/INTEGRATED; exact-SHA CI pending. Browser/live-provider/production proof not established. Source extraction-count discrepancy remains open; no archive was re-extracted or re-hashed.
+---
 ## P2 readback — DQS calendar integrity and CSV/XLSX spreadsheet safety — 20 October 2026
 
 - Tested application/test SHA: `c1e67c8fc006ad11f40af4547e5eb8afc34e12ae`. CI workflow **Aghbari Commerce checks** run [39452983497](https://github.com/Report-Engainall/Nasr1/actions/runs/39452983497) completed `success`; same-head evidence includes PostgreSQL 17 migrations/database acceptance and application build. Preserve this SHA association; it does not certify any later code SHA.

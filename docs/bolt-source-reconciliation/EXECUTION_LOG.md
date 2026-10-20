@@ -686,3 +686,10 @@
 - الأرشيف المعتمد فقط هو `project-bolt-github-7sl6ykzz (2).zip` مع البصمات المحفوظة في سجل المصالحة؛ لم يُعد تنزيله أو استخراجه أو حساب بصماته. لا تعديلات على سجلات P1 أو ملفاته المقفلة أو harness الخاص به.
 - **next_task_id الوحيد:** `NASR1-ORIGINAL-SPEC-ONYX-INVENTORY-RECONCILIATION-005` — تصميم وتنفيذ دورة مصالحة مخزون Onyx من معاينة محفوظة إلى تطبيق صريح قابل للتدقيق، مع منع تسوية خاطئة بين إجمالي المصدر ومخازن متعددة، ورفض التطبيق عند تغيّر المخزون بعد المعاينة، وتراجع تعويضي لا يمحو حركات أحدث. تبقى المهمة الأم للمواصفة مفتوحة؛ لا يُدّعى اكتمال المنتج كليًا.
 
+
+
+## 2026-10-20 — NASR1-ORIGINAL-SPEC-AI-GATEWAY-USAGE-AUDIT-009 — CI pending
+
+- On branch feat/p2-customer-return-intake-20261020 / PR #18, added migration 20261020130000_ai_gateway_usage_measurement_basis.sql, provider attempt telemetry, unit tests and independent PostgreSQL acceptance in scripts/test-ai-gateway-telemetry.mjs; registered in package.json. P1 test harness unchanged.
+- Root cause: timeout/failure estimates had been presented in the usage fields as if observed, and no-provider outcomes could return without a ledger event. Now measured/partial/unknown/not_attempted are distinct while conservative estimates remain used for quotas.
+- Exact-SHA CI PENDING; browser E2E and production migration/deployment NOT RUN. No archive re-download/extraction/fingerprint changes. Extraction discrepancy 2,329 vs 2,044 remains unresolved. next_task_id remains NASR1-ORIGINAL-SPEC-AI-GATEWAY-USAGE-AUDIT-009 until acceptance.

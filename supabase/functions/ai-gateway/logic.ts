@@ -165,3 +165,21 @@ export function parseProviderResponse(provider: AiProvider, value: unknown): Par
   if (!text.trim() || inputTokens === null || outputTokens === null) throw new Error("provider_response_invalid");
   return { text: text.trim().slice(0, 5000), usage: { inputTokens, outputTokens } };
 }
+
+
+export type ProviderAttemptTelemetry = {
+ provider: AiProvider; model: string; fallback: boolean; status: "succeeded" | "failed";
+ elapsedMs: number; observedInputTokens: number | null; observedOutputTokens: number | null;
+ estimatedCost: number | null; errorCode: string | null;
+};
+export type AiUsageMeasurementStatus = "measured" | "partial" | "unknown";
+/** Failed provider calls never become fabricated token measurements. */
+export function summarizeAiProviderAttempts(attempts: readonly ProviderAttemptTelemetry[]): {
+ status: AiUsageMeasurementStatus; observedInputTokens: number | null; observedOutputTokens: number | null;
+} {
+ const succeeded=attempts.filter((a)=>a.status==="succeeded"),failed=attempts.filter((a)=>a.status==="failed");
+ if(!succeeded.length)return {status:"unknown",observedInputTokens:null,observedOutputTokens:null};
+ return {status:failed.length?"partial":"measured",
+  observedInputTokens:succeeded.reduce((n,a)=>n+(a.observedInputTokens??0),0),
+  observedOutputTokens:succeeded.reduce((n,a)=>n+(a.observedOutputTokens??0),0)};
+}

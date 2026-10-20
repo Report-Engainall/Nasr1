@@ -6,6 +6,8 @@ import {
   isSafeProviderBaseUrl,
   parseProviderResponse,
   sanitizeAiQuestion,
+  summarizeAiProviderAttempts,
+  type ProviderAttemptTelemetry,
 } from "../../supabase/functions/ai-gateway/logic";
 
 describe("AI gateway privacy, provider parsing and quota math", () => {
@@ -106,6 +108,22 @@ describe("AI gateway privacy, provider parsing and quota math", () => {
     expect(() => parseProviderResponse("gemini", { candidates: [] })).toThrow("provider_response_invalid");
   });
 
+  it("keeps failed primary usage unknown and measured fallback usage partial", () => {
+    const attempts: ProviderAttemptTelemetry[] = [
+      {provider:"openai_compatible",model:"test-primary",fallback:false,status:"failed",elapsedMs:15000,observedInputTokens:null,observedOutputTokens:null,estimatedCost:null,errorCode:"provider_timeout"},
+      {provider:"gemini",model:"test-fallback",fallback:true,status:"succeeded",elapsedMs:240,observedInputTokens:80,observedOutputTokens:21,estimatedCost:0.02,errorCode:null},
+    ];
+    expect(summarizeAiProviderAttempts(attempts)).toEqual({status:"partial",observedInputTokens:80,observedOutputTokens:21});
+    expect(attempts[0].observedInputTokens).toBeNull();
+    expect(attempts[0].observedOutputTokens).toBeNull();
+    expect(attempts[0].estimatedCost).toBeNull();
+  });
+  it("does not convert two failed providers into measured zero usage", () => {
+    expect(summarizeAiProviderAttempts([
+      {provider:"openai_compatible",model:"test-primary",fallback:false,status:"failed",elapsedMs:300,observedInputTokens:null,observedOutputTokens:null,estimatedCost:null,errorCode:"provider_http_503"},
+      {provider:"gemini",model:"test-fallback",fallback:true,status:"failed",elapsedMs:900,observedInputTokens:null,observedOutputTokens:null,estimatedCost:null,errorCode:"provider_unavailable"},
+    ])).toEqual({status:"unknown",observedInputTokens:null,observedOutputTokens:null});
+  });
   it("calculates nonnegative token cost and rejects invalid rate configuration", () => {
     expect(estimateCost(1000, 500, { inputPerThousand: 0.2, outputPerThousand: 0.4 })).toBe(0.4);
     expect(estimateCost(1000, 100, { inputPerThousand: 0, outputPerThousand: 0 })).toBe(0);

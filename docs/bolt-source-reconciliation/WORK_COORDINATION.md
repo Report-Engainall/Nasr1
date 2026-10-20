@@ -1,3 +1,9 @@
+## P2 active ownership — AI Gateway usage audit (2026-10-20)
+
+- Active single P2 task: NASR1-ORIGINAL-SPEC-AI-GATEWAY-USAGE-AUDIT-009 on feat/p2-customer-return-intake-20261020 / PR #18. Added a migration, patched Edge Gateway telemetry, added unit and standalone DB tests, and registered the separate DB acceptance.
+- P1 paths untouched: scripts/test-database-migrations.mjs, src/lib/api.ts, src/components/AghbariApp.tsx, src/routeTree.gen.ts, .github/workflows/commerce-checks.yml and P1 integration ledgers/report.
+- Failed provider usage remains NULL when unobserved; request state distinguishes measured/partial/unknown and conservative estimates still protect quotas. No-provider outcomes are tenant/actor bound and idempotent. No prompts/secrets stored.
+- IMPLEMENTED/INTEGRATED only until exact-head CI passes. Browser/production proof remains separate; source archives remain read-only and were not re-extracted or re-hashed.
 ## P2 readback — DQS calendar integrity and CSV/XLSX spreadsheet safety — 20 October 2026
 
 - Tested application/test SHA: `c1e67c8fc006ad11f40af4547e5eb8afc34e12ae`. CI workflow **Aghbari Commerce checks** run [39452983497](https://github.com/Report-Engainall/Nasr1/actions/runs/39452983497) completed `success`; same-head evidence includes PostgreSQL 17 migrations/database acceptance and application build. Preserve this SHA association; it does not certify any later code SHA.

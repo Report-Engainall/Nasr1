@@ -1,3 +1,11 @@
+## P2 AI Gateway telemetry hardening — 20 October 2026 (CI pending)
+
+- Active task: NASR1-ORIGINAL-SPEC-AI-GATEWAY-USAGE-AUDIT-009; branch feat/p2-customer-return-intake-20261020; PR #18. P2 adds independent database acceptance instead of modifying P1-owned scripts/test-database-migrations.mjs.
+- Root cause: failed provider calls were counted as if token use had been observed. The ledger did not distinguish reported usage from conservative reservation estimates, and no-egress outcomes could return without a persistent event.
+- Migration 20261020130000_ai_gateway_usage_measurement_basis.sql adds actor attribution, measured/partial/unknown/not_attempted state, nullable observed token counts, bounded provider attempt metadata, and outcome reason. Service-only RPCs validate telemetry and record no-provider paths. Quota caps/grants remain intact.
+- Edge code logs provider/model/status/duration/safe error code only, leaves failed-attempt token and cost fields NULL, and retains conservative reservation estimates for quota enforcement. No prompts, responses, raw errors, or credentials are persisted. Tests cover measured, partial, unknown, no-provider, idempotency, quota-denial and ACL behavior.
+- Status IMPLEMENTED/INTEGRATED; exact-SHA CI pending. BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN. Do not advance the single next_task_id until same-SHA acceptance passes.
+- No archive re-download/extraction/re-hashing. Source discrepancy 2,329 tree entries vs 2,044 reported files remains unresolved.
 ## P2 readback — DQS calendar integrity and CSV/XLSX spreadsheet safety — 20 October 2026
 
 - Tested application/test SHA: `c1e67c8fc006ad11f40af4547e5eb8afc34e12ae`. CI workflow **Aghbari Commerce checks** run [39452983497](https://github.com/Report-Engainall/Nasr1/actions/runs/39452983497) completed `success`; same-head evidence includes PostgreSQL 17 migrations/database acceptance and application build. Preserve this SHA association; it does not certify any later code SHA.

@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { buildGeminiRequestConfig, estimateCost,estimateInputTokens,isSafeProviderBaseUrl,parseProviderResponse,sanitizeAiQuestion,type AiProvider,type AiCostRates } from "./logic.ts";
+import { buildGeminiRequestConfig, estimateCost, estimateInputTokens, isSafeProviderBaseUrl, parseProviderResponse, sanitizeAiQuestion, summarizeAiProviderAttempts, type AiProvider, type AiCostRates, type ProviderAttemptTelemetry } from "./logic.ts";
 type Runtime={env:{get(n:string):string|undefined};serve(h:(r:Request)=>Response|Promise<Response>):void};
 type Settings={status:string;primary_provider:AiProvider;primary_model:string;primary_base_url:string;fallback_enabled:boolean;fallback_provider:AiProvider;fallback_model:string;fallback_base_url:string};
 type Candidate={provider:AiProvider;model:string;baseUrl:string;key:string;rates:AiCostRates;fallback:boolean};
@@ -20,6 +20,14 @@ function candidate(provider:AiProvider,model:string,baseUrl:string,fallback:bool
  return {provider,model,baseUrl:baseUrl.replace(/\/+$/,""),key,rates:r,fallback};
 }
 function cleanText(value:string){let out="";for(const c of value){const n=c.charCodeAt(0);if((n<32&&n!==9&&n!==10)||n===127)continue;out+=c;}return out.trim().slice(0,5000);}
+function providerErrorCode(cause: unknown): string {
+ if(cause instanceof Error&&cause.name==="AbortError")return "provider_timeout";
+ const message=cause instanceof Error?cause.message:"";
+ const http=/^provider_http_(\d{3})$/.exec(message);
+ if(http)return "provider_http_"+http[1];
+ if(message==="provider_response_invalid")return message;
+ return "provider_unavailable";
+}
 async function callProvider(c:Candidate,q:string,signal:AbortSignal){
  let url:URL,headers:Record<string,string>,payload:unknown;
  if(c.provider==="openai_compatible"){
@@ -58,37 +66,75 @@ if(d)d.serve(async(request)=>{
  }
  const input=action==="test_connection"?{ok:true as const,question:"Reply with exactly: Aghbari AI gateway connection confirmed."}:sanitizeAiQuestion(body.question);
  if(!input.ok)return reply({error:input.reason},400);
+ const requestId=crypto.randomUUID();
  const {data:configRaw,error:configError}=await db.rpc("get_ai_gateway_runtime_config",{p_user_id:authData.user.id});
- if(configError){console.error("AI config RPC failed",{code:(configError as {code?:string}).code??"unknown"});return reply({error:"gateway_configuration_failed"},503);}
+ if(configError){
+  console.error("AI config RPC failed",{code:(configError as {code?:string}).code??"unknown"});
+  const logged=await db.rpc("record_ai_gateway_no_provider_attempt",{p_user_id:authData.user.id,p_request_id:requestId,p_reason:"gateway_configuration_failed"});
+  if(logged.error){console.error("AI outcome ledger failed",{code:(logged.error as {code?:string}).code??"unknown"});return reply({error:"usage_accounting_failed"},503);}
+  return reply({error:"gateway_configuration_failed"},503);
+ }
  const config=configRaw as Settings|null;
- if(!config||config.status!=="enabled")return reply({status:"fallback",reason:"ai_disabled",answer:SAFE});
+ if(!config||config.status!=="enabled"){
+  const logged=await db.rpc("record_ai_gateway_no_provider_attempt",{p_user_id:authData.user.id,p_request_id:requestId,p_reason:"ai_disabled"});
+  if(logged.error){console.error("AI outcome ledger failed",{code:(logged.error as {code?:string}).code??"unknown"});return reply({error:"usage_accounting_failed"},503);}
+  return reply({status:"fallback",reason:"ai_disabled",answer:SAFE});
+ }
  const primary=candidate(config.primary_provider,config.primary_model,config.primary_base_url,false);
  const fallback=config.fallback_enabled?candidate(config.fallback_provider,config.fallback_model,config.fallback_base_url,true):null;
  const attempts=action==="test_connection"?(primary?[primary]:[]):[primary,fallback].filter((x):x is Candidate=>x!==null);
- if(!attempts.length)return action==="test_connection"?reply({error:"primary_provider_secret_or_rates_missing"},424):reply({status:"fallback",reason:"provider_not_configured",answer:SAFE});
+ if(!attempts.length){
+  const logged=await db.rpc("record_ai_gateway_no_provider_attempt",{p_user_id:authData.user.id,p_request_id:requestId,p_reason:"provider_not_configured"});
+  if(logged.error){console.error("AI outcome ledger failed",{code:(logged.error as {code?:string}).code??"unknown"});return reply({error:"usage_accounting_failed"},503);}
+  return action==="test_connection"?reply({error:"primary_provider_secret_or_rates_missing"},424):reply({status:"fallback",reason:"provider_not_configured",answer:SAFE});
+ }
  const outputEstimate=action==="test_connection"?64:384,inputEstimate=estimateInputTokens(input.question,SYSTEM.length);
- const estimatedCost=attempts.reduce((sum,c)=>sum+estimateCost(inputEstimate,outputEstimate,c.rates),0);
- const requestId=crypto.randomUUID();
- const {data:reservedRaw,error:reserveError}=await db.rpc("reserve_ai_gateway_usage",{p_user_id:authData.user.id,p_request_id:requestId,p_estimated_input_tokens:inputEstimate*attempts.length,p_estimated_output_tokens:outputEstimate*attempts.length,p_estimated_cost:Number(estimatedCost.toFixed(6))});
+ const reservedCostEstimate=attempts.reduce((sum,c)=>sum+estimateCost(inputEstimate,outputEstimate,c.rates),0);
+ const {data:reservedRaw,error:reserveError}=await db.rpc("reserve_ai_gateway_usage",{p_user_id:authData.user.id,p_request_id:requestId,p_estimated_input_tokens:inputEstimate*attempts.length,p_estimated_output_tokens:outputEstimate*attempts.length,p_estimated_cost:Number(reservedCostEstimate.toFixed(6))});
  if(reserveError){console.error("AI quota reserve failed",{code:(reserveError as {code?:string}).code??"unknown"});return reply({error:"quota_reservation_failed"},503);}
  const reservation=reservedRaw as Record<string,unknown>|null;
  if(!reservation||reservation.status!=="reserved"||typeof reservation.reservation_id!=="string"){
   const reason=reservation?.status==="quota_exceeded"?"quota_exceeded":reservation?.status==="disabled"?"ai_disabled":"request_not_reserved";
+  if(reason==="ai_disabled"){
+   const logged=await db.rpc("record_ai_gateway_no_provider_attempt",{p_user_id:authData.user.id,p_request_id:requestId,p_reason:"quota_reservation_disabled"});
+   if(logged.error){console.error("AI outcome ledger failed",{code:(logged.error as {code?:string}).code??"unknown"});return reply({error:"usage_accounting_failed"},503);}
+  }
   return action==="test_connection"?reply({error:reason},reason==="quota_exceeded"?429:503):reply({status:"fallback",reason,answer:SAFE});
  }
- const started=Date.now();let inputTokens=0,outputTokens=0,actualCost=0,result:ReturnType<typeof parseProviderResponse>|null=null,used:Candidate|null=null;
+ const started=Date.now();let result:ReturnType<typeof parseProviderResponse>|null=null,used:Candidate|null=null;
+ const providerAttempts:ProviderAttemptTelemetry[]=[];
  for(const c of attempts){
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),action==="test_connection"?10000:15000);
-  try{result=await callProvider(c,input.question,controller.signal);used=c;inputTokens+=result.usage.inputTokens;outputTokens+=result.usage.outputTokens;actualCost+=estimateCost(result.usage.inputTokens,result.usage.outputTokens,c.rates);break;}
-  catch{inputTokens+=inputEstimate;actualCost+=estimateCost(inputEstimate,0,c.rates);}
-  finally{clearTimeout(timer);}
+  const attemptStarted=Date.now(),controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),action==="test_connection"?10000:15000);
+  try{
+   result=await callProvider(c,input.question,controller.signal);used=c;
+   providerAttempts.push({provider:c.provider,model:c.model,fallback:c.fallback,status:"succeeded",
+    elapsedMs:Math.min(Math.max(0,Date.now()-attemptStarted),600000),
+    observedInputTokens:result.usage.inputTokens,observedOutputTokens:result.usage.outputTokens,
+    estimatedCost:estimateCost(result.usage.inputTokens,result.usage.outputTokens,c.rates),errorCode:null});
+   break;
+  }catch(cause){
+   providerAttempts.push({provider:c.provider,model:c.model,fallback:c.fallback,status:"failed",
+    elapsedMs:Math.min(Math.max(0,Date.now()-attemptStarted),600000),
+    observedInputTokens:null,observedOutputTokens:null,estimatedCost:null,errorCode:providerErrorCode(cause)});
+  }finally{clearTimeout(timer);}
  }
+ const summary=summarizeAiProviderAttempts(providerAttempts),failedAttempt=providerAttempts.some((a)=>a.status==="failed");
  const fallbackUsed=Boolean(used?.fallback),last=used??attempts[attempts.length-1];
- const {error:recordError}=await db.rpc("complete_ai_gateway_usage",{
-  p_reservation_id:reservation.reservation_id,p_input_tokens:Math.min(inputTokens,2000000),p_output_tokens:Math.min(outputTokens,100000),
-  p_actual_cost:Math.min(Number(actualCost.toFixed(6)),10000),p_execution_time_ms:Math.min(Math.max(0,Date.now()-started),600000),
+ const quotaInputTokens=failedAttempt?inputEstimate*attempts.length:(result?.usage.inputTokens??0);
+ const quotaOutputTokens=failedAttempt?outputEstimate*attempts.length:(result?.usage.outputTokens??0);
+ const estimatedCost=failedAttempt?reservedCostEstimate:(result&&used?estimateCost(result.usage.inputTokens,result.usage.outputTokens,used.rates):reservedCostEstimate);
+ const attemptPayload=providerAttempts.map((a)=>({provider:a.provider,model:a.model,fallback:a.fallback,status:a.status,
+  elapsed_ms:a.elapsedMs,observed_input_tokens:a.observedInputTokens,observed_output_tokens:a.observedOutputTokens,
+  estimated_cost:a.estimatedCost,error_code:a.errorCode}));
+ const {error:recordError}=await db.rpc("complete_ai_gateway_usage_v2",{
+  p_reservation_id:reservation.reservation_id,p_input_tokens:Math.min(quotaInputTokens,2000000),
+  p_output_tokens:Math.min(quotaOutputTokens,100000),p_estimated_cost:Math.min(Number(estimatedCost.toFixed(6)),10000),
+  p_execution_time_ms:Math.min(Math.max(0,Date.now()-started),600000),
   p_provider:last.provider,p_model_name:last.model,p_result_status:result?(fallbackUsed?"fallback":"completed"):"failed",
   p_fallback_used:fallbackUsed||(!result&&attempts.length>1),
+  p_observed_input_tokens:summary.observedInputTokens,p_observed_output_tokens:summary.observedOutputTokens,
+  p_usage_measurement_status:summary.status,p_provider_attempts:attemptPayload,
  });
  if(recordError){console.error("AI usage ledger finalization failed",{code:(recordError as {code?:string}).code??"unknown"});return reply({error:"usage_accounting_failed"},500);}
  if(!result||!used)return action==="test_connection"?reply({error:"provider_connection_failed"},502):reply({status:"fallback",reason:"provider_unavailable",answer:SAFE});
