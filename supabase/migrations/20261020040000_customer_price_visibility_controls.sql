@@ -468,7 +468,7 @@ BEGIN
     SELECT p.id, p.organization_id,
            EXISTS (
              SELECT 1 FROM public.user_roles r
-              WHERE r.profile_id = p.id AND r.role IN ('admin','manager','staff','accountant')
+              WHERE r.profile_id = p.id AND r.role IN ('admin','manager','staff')
            )
       INTO v_profile_id, v_organization_id, v_is_staff
       FROM public.profiles p
