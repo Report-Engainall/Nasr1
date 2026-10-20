@@ -89,7 +89,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
     } catch { return []; }
   });
   const cachedProductsRef = useRef(cachedProducts);
-  const products = liveProducts ?? cachedProducts;
+  const products = isPagedView ? (liveProducts ?? []) : (liveProducts ?? cachedProducts);
   const { data: categories, error: categoriesError } = useFetch(fetchCategories);
   const { data: promotions } = useFetch(fetchStorefrontPromotions);
   const { data: settings } = useFetch(fetchSettingsMap);
@@ -175,17 +175,14 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   }, []);
 
   useEffect(() => {
-    if (!liveProducts) return;
+    // Never merge tenant-scoped server pages into the legacy shared v1 cache.
+    // Full-catalog views may continue to refresh the existing cache; paged shop
+    // views fail closed on a load error rather than rendering another tenant's cache.
+    if (!liveProducts || productSnapshot?.mode === 'paged') return;
     const safeCatalog = sanitizePublicCatalogCache(liveProducts);
-    const previous = cachedProductsRef.current;
-    let next = safeCatalog;
-    if (productSnapshot?.mode === 'paged') {
-      const incomingIds = new Set(safeCatalog.map((product) => product.id));
-      next = sanitizePublicCatalogCache([...previous.filter((product) => !incomingIds.has(product.id)), ...safeCatalog]);
-    }
-    cachedProductsRef.current = next;
-    setCachedProducts(next);
-    try { window.localStorage.setItem('aghbari:catalog:v1', JSON.stringify(next)); } catch { /* storage is optional */ }
+    cachedProductsRef.current = safeCatalog;
+    setCachedProducts(safeCatalog);
+    try { window.localStorage.setItem('aghbari:catalog:v1', JSON.stringify(safeCatalog)); } catch { /* storage is optional */ }
   }, [liveProducts, productSnapshot?.mode]);
 
   useEffect(() => {

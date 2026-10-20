@@ -46,6 +46,12 @@ describe('tenant-scoped server storefront pagination', () => {
     expect(migration).toContain('GRANT EXECUTE ON FUNCTION public.get_storefront_catalog_page');
   });
 
+  it('does not use or populate the shared legacy catalog cache for tenant-paged responses', () => {
+    expect(storefront).toContain('isPagedView ? (liveProducts ?? []) : (liveProducts ?? cachedProducts)');
+    expect(storefront).toContain("if (!liveProducts || productSnapshot?.mode === 'paged') return;");
+    expect(storefront).not.toContain("previous.filter((product) => !incomingIds.has(product.id))");
+  });
+
   it('integrates page result data and next/previous controls', () => {
     expect(storefront).toContain('fetchStorefrontCatalogPage');
     expect(storefront).toContain('صفحة {pageInfo.page} من {pageInfo.totalPages}');
