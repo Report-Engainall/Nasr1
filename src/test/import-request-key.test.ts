@@ -16,6 +16,7 @@ function memoryStorage(): ImportRequestKeyStorage {
 }
 
 const identity: ImportRequestIdentity = {
+  actorId: "11111111-1111-4111-8111-111111111111",
   fileName: "catalog.csv",
   fileHash: "a".repeat(64),
   fileSize: 128,
@@ -57,6 +58,7 @@ describe("import request key persistence", () => {
         "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
       ];
       return keys[generated - 1] ?? "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
     };
@@ -64,10 +66,12 @@ describe("import request key persistence", () => {
     const first = await getOrCreateImportRequestKey(identity, { storage, createRequestKey });
     const merge = await getOrCreateImportRequestKey({ ...identity, intent: "merge" }, { storage, createRequestKey });
     const changedFile = await getOrCreateImportRequestKey({ ...identity, fileHash: "b".repeat(64) }, { storage, createRequestKey });
+    const anotherActor = await getOrCreateImportRequestKey({ ...identity, actorId: "22222222-2222-4222-8222-222222222222" }, { storage, createRequestKey });
 
     expect(merge.requestKey).not.toBe(first.requestKey);
     expect(changedFile.requestKey).not.toBe(first.requestKey);
-    expect(new Set([first.requestKey, merge.requestKey, changedFile.requestKey]).size).toBe(3);
+    expect(anotherActor.requestKey).not.toBe(first.requestKey);
+    expect(new Set([first.requestKey, merge.requestKey, changedFile.requestKey, anotherActor.requestKey]).size).toBe(4);
   });
 
   it("expires a stale key instead of reusing an old import attempt", async () => {
