@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, Database, Fingerprint, Link2, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Database, Download, Fingerprint, Link2, ShieldCheck } from "lucide-react";
 import {
   fetchOnyxSnapshotSourceEvidence,
   type OnyxSnapshotSourceEvidence,
 } from "@/lib/onyx-source-evidence";
+import { buildOnyxSourceEvidenceCsv } from "@/lib/onyx-source-evidence-export";
 
 function dateText(value: string | null | undefined): string {
   if (!value) return "غير مسجل";
@@ -29,11 +30,13 @@ export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: st
   const [evidence, setEvidence] = useState<OnyxSnapshotSourceEvidence | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exportMessage, setExportMessage] = useState("");
 
   useEffect(() => {
     let active = true;
     setEvidence(null);
     setError("");
+    setExportMessage("");
     setLoading(true);
     void fetchOnyxSnapshotSourceEvidence(snapshotId)
       .then((result) => { if (active) setEvidence(result); })
@@ -41,6 +44,31 @@ export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: st
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [snapshotId]);
+
+  function exportEvidence() {
+    if (!evidence) return;
+    let objectUrl: string | null = null;
+    try {
+      const csv = buildOnyxSourceEvidenceCsv(evidence);
+      const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+      objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = `aghbari-onyx-source-evidence-${evidence.snapshot.id}.csv`;
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setExportMessage("تم تجهيز ملف أدلة المصدر CSV للّقطة المحددة.");
+    } catch {
+      setExportMessage("تعذر إنشاء ملف التصدير؛ أعد المحاولة.");
+    } finally {
+      if (objectUrl) {
+        const urlToRevoke = objectUrl;
+        window.setTimeout(() => URL.revokeObjectURL(urlToRevoke), 0);
+      }
+    }
+  }
 
   return (
     <section className="panel" dir="rtl" aria-label="أدلة هوية مصدر أونكس" style={{ marginBlock: 14, padding: 16 }}>
@@ -53,6 +81,19 @@ export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: st
       </header>
       {loading ? <p role="status">جار قراءة سجل مصدر اللقطة من قاعدة البيانات…</p> : null}
       {error ? <p role="alert" style={{ color: "var(--destructive, #b42318)" }}><AlertTriangle size={15} style={{ verticalAlign: "middle", marginInlineEnd: 5 }} />{error}</p> : null}
+      {!loading && !error && evidence ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBlock: 10 }}>
+          <button
+            type="button"
+            className="btn secondary"
+            data-testid="onyx-source-evidence-export"
+            onClick={exportEvidence}
+          >
+            <Download size={15} aria-hidden="true" /> تصدير أدلة المصدر CSV
+          </button>
+          {exportMessage ? <p role="status" style={{ margin: 0 }}>{exportMessage}</p> : null}
+        </div>
+      ) : null}
       {!loading && !error && evidence ? (
         <>
           <div className="onyx-source-metadata">
