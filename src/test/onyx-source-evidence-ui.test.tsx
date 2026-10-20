@@ -75,7 +75,7 @@ describe("Onyx source evidence panel", () => {
     fetchEvidence.mockResolvedValue(fixture);
     const createDescriptor = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
     const revokeDescriptor = Object.getOwnPropertyDescriptor(URL, "revokeObjectURL");
-    const createObjectURL = vi.fn(() => "blob:onyx-source-evidence");
+    const createObjectURL = vi.fn((_blob: Blob | MediaSource) => "blob:onyx-source-evidence");
     const revokeObjectURL = vi.fn();
     const clickedAnchors: HTMLAnchorElement[] = [];
     const originalAnchorClick = HTMLAnchorElement.prototype.click;
