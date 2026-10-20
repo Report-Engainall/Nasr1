@@ -83,3 +83,13 @@ P2 owns WORK_COORDINATION.md, CURRENT_EXECUTION_STATE.md, EXECUTION_LOG.md, ARCH
 | Harness ownership | P1 PR #3 merged; latest P1 report confirms P2 ownership in PR #6 | P2-owned for this task; P1 ledgers/report untouched |
 | Live tenant/browser/production | No authenticated live-tenant or production mutation was run | NOT RUN |
 | Next P2 task | `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-VISIBILITY-007` | Inspect current price privacy, connect admin display controls to routed customer screens and test the server boundary |
+
+
+## قفل/تنسيق — تكليف مصادر NASR المستخرجة ومعايير المواصفة الإضافية (2026-10-20)
+
+- المالك: P2. المستودع الهدف Report-Engainall/Nasr1 فقط. أُضيف docs/bolt-source-reconciliation/P2_ADDITIONAL_ACCEPTANCE_MANDATE_2026-10-20.md إلى أمر الإقلاع. التنفيذ البرمجي لم يُثبت بمجرد إضافة هذا السجل.
+- المصدر الإضافي للقراءة فقط: Report-Engainall/NASR-MULTI-PROJECTS-TRANSFER/EXTRACTED_PROJECTS، بالتفتيش التكراري. تقرير الاستخراج يسجل 9 أرشيفات و2,044 ملفًا؛ project-bolt-github-7wyze9ut (2) و(3) متطابقان حسب SHA-256 ويجب عدم تكرار احتساب المحتوى. لا تعد تنزيل/استخراج/بصمة ملف دون فجوة دليل محددة.
+- لا يتداخل هذا النطاق مع ملكية P1 للثلاثة donor repos أو SOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv وPROGRAMMER_1_CURRENT_REPORT.md. استخدم مسارات مستقلة واطلب patch عبر هذا السجل عند تعارض ملكية ملف.
+- ملفات التعليمات المحدثة على فرع P2: BOLT_BOOT_MESSAGE_2026-10-18.txt وBOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md وPROGRAMMER_2_CURRENT_REPORT.md وWORK_COORDINATION.md. لم تُكتب تعديلات مباشرة إلى main. لا تعلن أي بند جديد مكتملًا حتى يوجد code path/tests/CI مناسب.
+- المعايير تشمل identity/price privacy، atomic audited price grid، inventory locking/idempotency، Onyx source/sync provenance، import DQS/leading-zero/formula safety، AI fallback/usage ledger، وطباعة المهام/الفواتير/الكشوف/الإشعارات الدائنة بصلاحيات tenant/role نفسها.
+- تبقى المهمة التالية واحدة فقط وفق المراجعة الحية؛ يعاد التحقق من branch/PR/CI قبل تحريك next_task_id. لا تدمج PR قبل PASS على head SHA نفسه، ولا تضعف RLS أو تخترع بيانات/تكلفة.
