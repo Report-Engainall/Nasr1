@@ -146,6 +146,7 @@ DECLARE
   v_line_total numeric(15,2);
   v_total numeric(15,2) := 0;
   v_items jsonb := '[]'::jsonb;
+  v_input_items jsonb;
   v_count integer := 0;
 BEGIN
   IF auth.uid() IS NULL THEN
@@ -154,8 +155,18 @@ BEGIN
   IF p_surface IS NULL OR p_surface NOT IN ('cart', 'orders') THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'pricing preview surface must be cart or orders';
   END IF;
-  IF p_items IS NULL OR pg_catalog.jsonb_typeof(p_items) <> 'array'
-     OR pg_catalog.jsonb_array_length(p_items) > 100 THEN
+  -- A few SQL clients send a JSON array wrapped as a JSON string. Parse that layer once,
+  -- then apply the same strict array type and line-count limit before touching catalog data.
+  v_input_items := p_items;
+  IF pg_catalog.jsonb_typeof(v_input_items) = 'string' THEN
+    BEGIN
+      v_input_items := (v_input_items #>> '{}')::jsonb;
+    EXCEPTION WHEN invalid_text_representation THEN
+      RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'pricing preview requires a valid JSON array';
+    END;
+  END IF;
+  IF v_input_items IS NULL OR pg_catalog.jsonb_typeof(v_input_items) <> 'array'
+     OR pg_catalog.jsonb_array_length(v_input_items) > 100 THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'pricing preview accepts at most 100 order lines';
   END IF;
 
@@ -213,7 +224,7 @@ BEGIN
     );
   END IF;
 
-  FOR v_line IN SELECT value FROM pg_catalog.jsonb_array_elements(p_items) LOOP
+  FOR v_line IN SELECT value FROM pg_catalog.jsonb_array_elements(v_input_items) LOOP
     BEGIN
       v_product_id := (v_line->>'product_id')::uuid;
       v_quantity := (v_line->>'quantity')::numeric;
@@ -231,7 +242,7 @@ BEGIN
   FOR v_item IN
     SELECT (e.value->>'product_id')::uuid AS product_id,
            pg_catalog.sum((e.value->>'quantity')::numeric)::numeric(15,3) AS quantity
-    FROM pg_catalog.jsonb_array_elements(p_items) AS e(value)
+    FROM pg_catalog.jsonb_array_elements(v_input_items) AS e(value)
     GROUP BY (e.value->>'product_id')::uuid
     ORDER BY (e.value->>'product_id')::uuid
   LOOP
