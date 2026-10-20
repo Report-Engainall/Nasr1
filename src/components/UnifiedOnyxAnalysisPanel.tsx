@@ -3,6 +3,7 @@ import { AlertTriangle, Database, FileSpreadsheet, RefreshCw, ShieldCheck } from
 import { fetchOnyxSnapshotAnalytics, fetchOnyxSnapshots } from "@/lib/api";
 import type { OnyxSnapshotAnalytics, OnyxSnapshotSummary } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { OnyxSnapshotSourceEvidencePanel } from "@/components/OnyxSnapshotSourceEvidencePanel";
 
 function countText(value: number): string {
   return new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 0 }).format(value);
@@ -129,15 +130,18 @@ export function UnifiedOnyxAnalysisPanel() {
         {(() => {
           const selected = snapshots.find((row) => row.id === selectedId);
           if (!selected) return <div role="alert" className="onyx-alert">لا تطابق اللقطة المحددة قائمة مصادر المؤسسة الحالية.</div>;
-          return <div className="onyx-source-metadata" aria-label="بيانات تتبع المصدر">
-            <span><strong>ملف المصدر:</strong> {selected.source_file_name || "اسم الملف غير متوفر"}</span>
-            <span><strong>نوع التقرير:</strong> {selected.report_type}</span>
-            <span><strong>الفترة:</strong> {selected.period_key || "غير محددة في المصدر"}</span>
-            <span><strong>تاريخ اللقطة:</strong> {new Date(selected.created_at).toLocaleString("ar-YE")}</span>
-            <span><strong>عدد صفوف المصدر:</strong> {countText(selected.row_count)}</span>
-            <span><strong>جودة المصدر:</strong> {countText(selected.data_quality_score)}/100</span>
-            <span className="onyx-hash"><strong>SHA-256 للمصدر:</strong> <code>{selected.source_file_hash}</code></span>
-          </div>;
+          return <>
+            <div className="onyx-source-metadata" aria-label="بيانات تتبع المصدر">
+              <span><strong>ملف المصدر:</strong> {selected.source_file_name || "اسم الملف غير متوفر"}</span>
+              <span><strong>نوع التقرير:</strong> {selected.report_type}</span>
+              <span><strong>الفترة:</strong> {selected.period_key || "غير محددة في المصدر"}</span>
+              <span><strong>تاريخ اللقطة:</strong> {new Date(selected.created_at).toLocaleString("ar-YE")}</span>
+              <span><strong>عدد صفوف المصدر:</strong> {countText(selected.row_count)}</span>
+              <span><strong>جودة المصدر:</strong> {countText(selected.data_quality_score)}/100</span>
+              <span className="onyx-hash"><strong>SHA-256 للمصدر:</strong> <code>{selected.source_file_hash}</code></span>
+            </div>
+            <OnyxSnapshotSourceEvidencePanel snapshotId={selectedId} />
+          </>;
         })()}
 
         {analyticsLoading ? <div role="status" className="onyx-empty">جار حساب مؤشرات اللقطة المحددة…</div>

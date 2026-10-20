@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { UnifiedOnyxAnalysisPanel } from "@/components/UnifiedOnyxAnalysisPanel";
+import { fetchOnyxSnapshotSourceEvidence } from "@/lib/onyx-source-evidence";
 
 const mocks = vi.hoisted(() => ({
   fetchOnyxSnapshots: vi.fn(),
@@ -17,6 +18,32 @@ vi.mock("@/lib/api", () => ({
 vi.mock("@/lib/auth", () => ({
   useAuth: () => ({ user: { isStaff: mocks.isStaff, roles: mocks.roles } }),
 }));
+vi.mock("@/lib/onyx-source-evidence", () => ({
+  fetchOnyxSnapshotSourceEvidence: vi.fn(),
+}));
+
+const provenanceEvidence = (id: string, file: string) => ({
+  organization: { id: "99999999-9999-4999-8999-999999999999", name: "مؤسسة الاختبار" },
+  snapshot: {
+    id, source_import_job_id: null, source_file_name: file, source_file_hash: "a".repeat(64),
+    report_type: "inventory", period_key: "2026-10", snapshot_version: 3,
+    created_at: "2026-10-18T09:00:00.000Z", row_count: 25,
+  },
+  import_job: null,
+  source_identity: {
+    provenance_status: "snapshot_without_import_job", source_system: null, source_record_id: null,
+    source_row_count: 25, external_id_fields_found: ["external_id"],
+    external_id_examples: [{
+      row_number: 1, canonical_key: "SKU-001", canonical_key_truncated: false,
+      external_ids: { external_id: "ONYX-001" }, value_truncated: false,
+    }],
+    external_id_examples_truncated: false, rows_with_external_id: 1,
+  },
+  live_sync_evidence: {
+    status: "not_proven", live_connection_proven: false,
+    message: "Snapshot/import provenance alone is not evidence of a live Onyx API connection or completed synchronization.",
+  },
+});
 
 const snapshot = (id: string, file: string) => ({
   id,
@@ -54,6 +81,9 @@ describe("unified Onyx analysis panel", () => {
   beforeEach(() => {
     mocks.roles = ["manager"];
     mocks.isStaff = true;
+    vi.mocked(fetchOnyxSnapshotSourceEvidence).mockReset().mockImplementation(async (id: string) =>
+      provenanceEvidence(id, id === "snapshot-1" ? "inventory-october.csv" : "inventory-september.csv")
+    );
     mocks.fetchOnyxSnapshots.mockReset().mockResolvedValue([
       snapshot("snapshot-1", "inventory-october.csv"),
       snapshot("snapshot-2", "inventory-september.csv"),
@@ -77,6 +107,11 @@ describe("unified Onyx analysis panel", () => {
     expect(screen.getByText("قيمة المبيعات داخل اللقطة").parentElement).toHaveTextContent(/٤.*٢٠٠|4200/);
     expect(screen.getByText(/SHA-256 للمصدر/)).toBeInTheDocument();
     expect(mocks.fetchOnyxSnapshotAnalytics).toHaveBeenCalledWith("snapshot-1");
+    const provenancePanel = await screen.findByRole("region", { name: "أدلة هوية مصدر أونكس" });
+    expect(within(provenancePanel).getByText("مؤسسة الاختبار")).toBeInTheDocument();
+    expect(within(provenancePanel).getByText("ONYX-001")).toBeInTheDocument();
+    expect(within(provenancePanel).getByText("لا يثبت اتصالًا حيًا أو اكتمال مزامنة من واجهة Onyx API.")).toBeInTheDocument();
+    expect(fetchOnyxSnapshotSourceEvidence).toHaveBeenCalledWith("snapshot-1");
   });
 
   it("loads analytics for a different selected source snapshot", async () => {
