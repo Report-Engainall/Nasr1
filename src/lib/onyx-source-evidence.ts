@@ -27,6 +27,8 @@ export type OnyxSnapshotSourceEvidence = {
     file_hash_matches_snapshot: boolean;
   };
   source_identity: {
+    external_id_examples: Array<{ row_number: number; canonical_key: string; canonical_key_truncated: boolean; external_ids: Record<string, string>; value_truncated: boolean }>;
+    external_id_examples_truncated: boolean;
     provenance_status: "snapshot_without_import_job" | "linked_import_job_unavailable" | "linked_hash_mismatch" | "linked_import_job_hash_match";
     source_system: string | null;
     source_record_id: string | null;
@@ -123,6 +125,27 @@ export async function fetchOnyxSnapshotSourceEvidence(snapshotId: string): Promi
   if (!Array.isArray(identity.external_id_fields_found) || identity.external_id_fields_found.some((x) => typeof x !== "string")) {
     throw new Error("قائمة حقول المعرّفات الخارجية غير صالحة.");
   }
+  if (typeof identity.external_id_examples_truncated !== "boolean" || !Array.isArray(identity.external_id_examples)) {
+    throw new Error("عينة المعرّفات الخارجية غير مكتملة.");
+  }
+  const externalIdExamples = identity.external_id_examples.map((example) => {
+    if (
+      !isRecord(example) ||
+      typeof example.row_number !== "number" || !Number.isInteger(example.row_number) || example.row_number < 1 ||
+      typeof example.canonical_key !== "string" ||
+      typeof example.canonical_key_truncated !== "boolean" ||
+      typeof example.value_truncated !== "boolean" ||
+      !isRecord(example.external_ids) ||
+      Object.values(example.external_ids).some((value) => typeof value !== "string")
+    ) throw new Error("صف المعرّفات الخارجية غير صالح.");
+    return {
+      row_number: example.row_number,
+      canonical_key: example.canonical_key,
+      canonical_key_truncated: example.canonical_key_truncated,
+      external_ids: example.external_ids as Record<string, string>,
+      value_truncated: example.value_truncated,
+    };
+  });
   const sync = data.live_sync_evidence;
   if (sync.status !== "not_proven" || sync.live_connection_proven !== false || typeof sync.message !== "string") {
     throw new Error("رفض الخادم حالة مزامنة غير مدعومة بالدليل.");
@@ -148,6 +171,8 @@ export async function fetchOnyxSnapshotSourceEvidence(snapshotId: string): Promi
       source_record_id: nullableString(identity.source_record_id, "source_record_id"),
       source_row_count: nonnegativeInteger(identity.source_row_count, "source_row_count"),
       external_id_fields_found: identity.external_id_fields_found as string[],
+      external_id_examples: externalIdExamples,
+      external_id_examples_truncated: identity.external_id_examples_truncated,
       rows_with_external_id: nonnegativeInteger(identity.rows_with_external_id, "rows_with_external_id"),
     },
     live_sync_evidence: {
