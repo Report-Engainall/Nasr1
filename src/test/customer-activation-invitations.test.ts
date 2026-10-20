@@ -36,7 +36,7 @@ describe("customer activation invitation RPC adapter", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("create_customer_activation_invitation", {
       p_customer_id: CUSTOMER_ID, p_email: "client@example.test", p_expires_hours: 72,
     });
-    expect(result.url).toBe(`http://localhost/customer/activate/${TOKEN}`);
+    expect(result.url).toBe(`http://localhost:3000/customer/activate/${TOKEN}`);
     expect(result.token).toBe(TOKEN);
   });
 

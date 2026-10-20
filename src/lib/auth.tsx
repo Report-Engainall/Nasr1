@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { supabase } from './supabase';
+import { getAuthEmailRedirectUrl } from './auth-redirect';
 
 export type AuthUser = { id: string; profileId: string; email: string; name: string; roles: string[]; isStaff: boolean };
 
