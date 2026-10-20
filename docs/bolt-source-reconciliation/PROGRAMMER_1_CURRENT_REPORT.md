@@ -3,8 +3,8 @@
 - **المستودع الوحيد المستهدف:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **الملكية:** هذا التقرير و`SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` فقط.
-- **حالة المهمة الحالية:** `NASR1-SOURCE-SERVICE-WORKER-CACHE-BOUNDARY-001` — مغلقة على الرأس الحي الحالي بعد إعادة إثبات CI. مراجعة تكافؤ دورة دعوات العميل من منظور P1 مكتملة، لكن **التكامل المشترك النهائي محجوب** بسبب وجود migration متداخل في PR #18، ولا أدّعي دمج واجهة العميل/RouteTree/قبول RLS في PR #26.
-- **المهمة التالية الوحيدة / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-001` — تقييم `supabase/migrations/0002_server_authoritative_commands.sql` دون نقل عقودها القديمة؛ يُحافظ على تنفيذ Nasr1 الأفضل ويُسجّل أي فجوة مستقلة قبل الانتقال.
+- **حالة المهمة الحالية:** Service Worker cache boundary مُثبتة على آخر رأس ناجح؛ مراجعة P1 لدورة دعوات العملاء مكتملة من منظور المصدر. التكامل الموحد للدعوات ما زال `BLOCKED` بسبب تكرار migration بين PR #26 وPR #18.
+- **المهمة التالية الوحيدة / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-002` — تقييم `supabase/migrations/0003_command_hardening.sql` blob `f8de4174145f9145e801ef0bbc1e2afb8debe591` مقابل عقود Nasr1 الحالية.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 
@@ -226,3 +226,7 @@
 - أمر المانح `create_order` يعيد الطلب السابق عند إعادة استخدام المفتاح إذا تطابق العميل والمخزن فقط؛ لا يتحقق من hash الحمولة في هذه migration. Nasr1 يملك حاليًا مسارًا أقوى: `submit_customer_order` يلتف على أمر خادمي، و`place_order` يحسب `idempotency_payload_hash` ويقفل محاولة المفتاح تنافسيًا ويرفض إعادة استخدام المفتاح لحمولة مختلفة. كما أن أسعار الفئة مشتقة من سياق العميل/المؤسسة على الخادم، والجدول الخام للأسعار غير قابل للقراءة مباشرة؛ توجد لقطات عناوين التسليم والترويج وتاريخ الطلب وoutbox.
 - **القرار:** `ALREADY_PRESENT_BETTER` لأمر الطلب، ولا نقل لعقد المانح الذي يعتمد `customers.tier/is_active` و`warehouses` و`product_prices/price_lists` القديمة. واجهة Nasr1 الحالية تستدعي `validate_checkout_cart` ثم `submit_customer_order`، وتمنع عرض الإجماليات المالية في ملخص العميل. قرار المصدر والملفات المكافئة واختبار CI الحالي مسجلة في ledger/audit.
 - المصدر التالي الوحيد بعد هذا القرار: `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-002` — `supabase/migrations/0003_command_hardening.sql`، blob `f8de4174145f9145e801ef0bbc1e2afb8debe591`. لا يُعاد فحص ملفات دعوة العميل أو الأرشيفات ما دامت بصماتها المسجلة ثابتة.
+
+
+### 6.14.1. دقة قرار get_catalog — لا ادعاء بتكافؤ pagination
+- ملف المصدر نفسه `0002_server_authoritative_commands.sql` يتضمن `get_catalog(p_limit,p_offset)`. Nasr1 حاليًا يعتمد جلب الكتالوج النشط ضمن نطاق المؤسسة ثم بحثًا عربيًا محليًا معياريًا يدعم المطابقة المتحملة لأخطاء الكتابة؛ **pagination الخادمي غير مدمج**. لم أنقل function المصدر لأنها تعتمد schema legacy ولا تكمل واجهة/خدمة/RLS/اختبارات قبول في Nasr1. سجل التدقيق يقرر `KEEP_AS_REFERENCE` لهذا الجزء بالذات، ولا يضعه في خانة `INTEGRATED`. تحسين pagination واسع الكتالوج يظل تحسينًا مستقلًا وليس نجاحًا مزعومًا.
