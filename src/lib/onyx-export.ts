@@ -28,6 +28,8 @@ export type OnyxOrderWorkbookInput = {
   customerCode: string;
   customerName: string;
   items: readonly OnyxExportItem[];
+  /** Persisted audit row created before the browser starts downloading this XLSX. */
+  exportAuditId?: string;
 };
 
 type CellValue = string | number | null | undefined;
@@ -228,6 +230,7 @@ function workbookFiles(input: OnyxOrderWorkbookInput): { name: string; content: 
     ['النظام المصدر', 'Aghbari Commerce'],
     ['رقم الطلب', input.orderNumber],
     ['المعرف الداخلي للطلب', input.orderId],
+    ['معرف سجل التدقيق المركزي', input.exportAuditId ?? 'غير متاح قبل تسجيل حدث التصدير'],
     ['تاريخ الطلب', input.orderCreatedAt],
     ['حالة الطلب', input.orderStatus],
     ['رقم العميل', input.customerCode],
