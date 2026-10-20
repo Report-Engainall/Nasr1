@@ -40,7 +40,7 @@ describe("Onyx source evidence panel", () => {
     expect(await screen.findByText("مرجع دفعة الاستيراد موجود والبصمة متطابقة")).toBeTruthy();
     expect(screen.getByText("استيراد ملف يدوي")).toBeTruthy();
     expect(screen.getByText("external_id")).toBeTruthy();
-    expect(screen.getByText("غير مثبتة بأدلة هذا السجل")).toBeTruthy();
+    expect(screen.getByText(/غير مثبتة بأدلة هذا السجل/)).toBeTruthy();
     expect(screen.getByText(/لا يثبت اتصالًا حيًا أو اكتمال مزامنة/)).toBeTruthy();
     expect(fetchEvidence).toHaveBeenCalledWith(snapshotId);
   });
