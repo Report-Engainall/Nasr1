@@ -1150,10 +1150,11 @@ async function main() {
     /customer was not found in the active organization/i,
   );
   await expectFailure(
-    "foreign-tenant accountant cannot print another organization's credit memo",
+    "foreign-tenant accountant cannot treat an invoice UUID as a printable credit memo",
     () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [invoice.id]),
     /credit memo was not found in the active organization/i,
   );
+  process.stdout.write("PASS finance document print: admin/manager/accountant access, issuer identity, persisted invoice/statement amounts, staff/customer denial, and foreign-tenant invoice/statement isolation\\n");
 
   // Customers receive allowed statement amounts only through the account-statement RPC.
   await db.unsafe("reset role");
