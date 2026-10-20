@@ -48,7 +48,7 @@ async function main() {
   );
 
   const customerRows = await db.unsafe(
-    "select id,profile_id from public.customers where organization_id=$1 and profile_id in ($2::uuid,$3::uuid) and status='approved'",
+    "select id,profile_id from public.customers where organization_id=$1 and profile_id in ($2::uuid,$3::uuid) and status='approved' order by created_at,id",
     [organizationId,customerOneProfileId,customerTwoProfileId],
   );
   const customerOne = customerRows.find((row) => row.profile_id === customerOneProfileId);

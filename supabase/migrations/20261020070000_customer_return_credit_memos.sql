@@ -947,8 +947,16 @@ BEGIN
   ) THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='authenticated active customer required for account statement';
   END IF;
-  SELECT c.id,c.organization_id INTO v_customer,v_org
-    FROM public.customers c WHERE c.profile_id=v_profile ORDER BY c.created_at,c.id LIMIT 1;
+  SELECT p.organization_id INTO v_org
+    FROM public.profiles p
+   WHERE p.id=v_profile AND p.auth_user_id=auth.uid() AND p.is_active;
+  IF v_org IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='active customer organization is required for account statement';
+  END IF;
+  SELECT c.id INTO v_customer
+    FROM public.customers c
+   WHERE c.profile_id=v_profile AND c.organization_id=v_org
+   ORDER BY c.created_at,c.id LIMIT 1;
   IF v_customer IS NULL OR v_org IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='customer account is not linked to the active profile';
   END IF;
