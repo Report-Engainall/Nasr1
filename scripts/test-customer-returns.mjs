@@ -328,11 +328,53 @@ async function main() {
     /customer return receipt idempotency key payload conflict/i,
   );
 
-  const secondReceiptRaw = await db.unsafe(
-    "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
-    [firstRequest.request_id,receiptWarehouseId,db.json([{request_item_id:requestItemId,received_quantity:0.50,restockable_quantity:0.25}]),"final physical inspection","ci-return-receipt-two-"+suffix],
+  // Race two independent authenticated PostgreSQL sessions with the same key/payload.
+  // The database idempotency lock must let one call create the receipt and force the other to replay it.
+  const secondReceiptLines = [{request_item_id:requestItemId,received_quantity:0.50,restockable_quantity:0.25}];
+  const secondReceiptKey = "ci-return-receipt-two-"+suffix;
+  const concurrentDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  let secondReceiptA;
+  let secondReceiptB;
+  try {
+    await concurrentDb.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [managerAuthId]);
+    await concurrentDb.unsafe("select set_config('request.jwt.claims',$1,false)", [
+      JSON.stringify({
+        sub: managerAuthId,
+        email: "ci-return-manager@example.test",
+        email_confirmed_at: new Date().toISOString(),
+        role: "authenticated",
+      }),
+    ]);
+    await concurrentDb.unsafe("set role authenticated");
+    const [secondReceiptRawA, secondReceiptRawB] = await Promise.all([
+      db.unsafe(
+        "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
+        [firstRequest.request_id,receiptWarehouseId,db.json(secondReceiptLines),"final physical inspection",secondReceiptKey],
+      ),
+      concurrentDb.unsafe(
+        "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
+        [firstRequest.request_id,receiptWarehouseId,concurrentDb.json(secondReceiptLines),"final physical inspection",secondReceiptKey],
+      ),
+    ]);
+    secondReceiptA = asJson(secondReceiptRawA[0].result);
+    secondReceiptB = asJson(secondReceiptRawB[0].result);
+  } finally {
+    await concurrentDb.end({ timeout: 5 });
+  }
+  assert.equal(
+    secondReceiptA.receipt_id,
+    secondReceiptB.receipt_id,
+    "concurrent identical receipt requests must converge on one persisted receipt",
   );
-  const secondReceipt = asJson(secondReceiptRaw[0].result);
+  assert.notEqual(
+    secondReceiptA.idempotent_replay,
+    secondReceiptB.idempotent_replay,
+    "exactly one concurrent call creates the receipt and the other is an idempotent replay",
+  );
+  const secondReceipt = secondReceiptA.idempotent_replay ? secondReceiptB : secondReceiptA;
+  const concurrentReceiptReplay = secondReceiptA.idempotent_replay ? secondReceiptA : secondReceiptB;
+  assert.equal(concurrentReceiptReplay.idempotent_replay,true);
+  assert.equal(secondReceipt.idempotent_replay,false);
   assert.equal(secondReceipt.request_status,"received","request closes only after all approved quantity is received");
   assert.equal(Number(secondReceipt.received_quantity),0.50);
   assert.equal(Number(secondReceipt.restockable_quantity),0.25);
