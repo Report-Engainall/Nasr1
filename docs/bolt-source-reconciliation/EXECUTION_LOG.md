@@ -867,3 +867,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - P1 head at checkpoint `3c215994fdf4c082dc996105447e63bd1cf9a326`: PostgreSQL acceptance passed but lint failed at `src/lib/admin-catalog-commands.ts:5:455` (`no-explicit-any`) in [run 39491518290](https://github.com/Report-Engainall/Nasr1/actions/runs/39491518290). Exact finding passed to P1 in [comment 6300705160](https://github.com/Report-Engainall/Nasr1/pull/26#issuecomment-6300705160).
 - [P2 Playwright #39491537907](https://github.com/Report-Engainall/Nasr1/actions/runs/39491537907): workflow success, but external gate skipped app build/launch and actual browser tests. Browser/prod proof remain NOT RUN.
 - Single active pointer remains `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010`; the Storefront UI integration and its enabled/disabled browser evidence are still open.
+
+
+### P2 follow-up — P1 CI recovery, customer UI still pending — 2026-10-20
+
+- P2 docs-head SHA `17650f57f35600fcae38610a1bb214dc6f044029`: [CI 39491995765](https://github.com/Report-Engainall/Nasr1/actions/runs/39491995765) SUCCESS. Parent code/test SHA `47ee8b8aa6e7e5c78a1047f695797b9f8d34f2c6` passed [CI 39491538001](https://github.com/Report-Engainall/Nasr1/actions/runs/39491538001), including 71 unit-test files and 15 new guard tests, PostgreSQL 17, lint, build, preview and dev smoke.
+- P1 head advanced to `20822761dfdd5a6bd331ea1f172d8c7dcad2cad6`; [CI 39491944048](https://github.com/Report-Engainall/Nasr1/actions/runs/39491944048) is SUCCESS. The preceding lint failure on `3c215994...` remains in history.
+- Storefront UI is still unintegrated: blob `f3fe744f1cef6a7a9f093f4794e01d46f7e65518` has no guard/policy integration. Do not mark privacy work done from green CI alone.
+- Keep `next_task_id=NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010`; actual Playwright/browser and production proof remain NOT RUN.
