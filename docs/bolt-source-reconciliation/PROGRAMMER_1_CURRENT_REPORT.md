@@ -3,8 +3,8 @@
 - **المستودع المستهدف الوحيد:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **PR:** [#26 — مفتوح / Draft / غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/26)
-- **آخر رأس كود مختبر ومثبت بالـCI:** `7a62ac5cf68b05db5e6f313cab84104cf49cf773` — [Actions 39498693983: SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39498693983)؛ اختبارات الوحدات، قبول PostgreSQL 17 لدورة التصدير والكتالوج والأسعار والاستيراد والمنتجات المحفوظة، lint/build، وسموك معاينة الإنتاج والتطوير.
-- **المهمة التالية / next_source_task_id:** `NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001-ACTIVATION` — دورة حياة العميل/التفعيل؛ لا تُعدّل الملفات المشتركة التي يملكها P2. تحقق من PR #18 والرأس الحي قبل أي تغيير، واعمل فقط على الجزء غير المملوك للمبرمج 2 إن وُجد.
+- **آخر رأس كود واختبارات اجتاز CI على SHA المطابق:** `9e070285e3e001a8661fe5c297f19face97fdcf5` — [Actions 39501610331: SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39501610331)؛ 73/73 ملف اختبار و480/480 اختبارًا، PostgreSQL 17، أوامر كتالوج الموظفين، إثبات سجل بدء جرد المخزون مرة واحدة مع idempotent replay، تصدير الطلبات، import idempotency، المنتجات المحفوظة، lint/build، وسموك preview 4173 وdev 5173.
+- **المهمة المصدرية التالية المسجلة:** `NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001-ACTIVATION` — ما تزال محجوبة بتعارض migration مع PR #18؛ لا تكتب فوق ملفات P2 ولا تعتبر اختبار رأس منفصل إثباتًا لدمج PR #26. انتقل إلى مهمة P1 مستقلة إذا ظل التعارض قائمًا.
 - **أُغلقت دفعة سلة العميل:** اختبار الوحدة 67/67 ملفًا، وقبول PostgreSQL 17 الفعلي للسلة، وCI الكامل نجح على SHA المذكور. تفاصيل الفشل والإصلاح وبصمات الملفات في القسم 6.15.1.
 - **حد Service Worker مغلق:** لا تعِد تنفيذه أو مراجعة أرشيفه ما لم يظهر regression جديد. اختبار متصفح/إنتاج لهذا الحد: NOT RUN.
 - **حد دورة تفعيل العميل:** مقارنة المصدر انتهت؛ الدمج المشترك ما يزال محجوبًا بتعارض migration بين P1 وP2. لا تعدّل ملفات المبرمج 2 أو تحذف migration مملوكة له بلا تنسيق صريح.
@@ -354,3 +354,25 @@
 
 ### الاستئناف
 المهمة التشغيلية التالية هي `NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001-ACTIVATION`، وهي مرتبطة بتغييرات دورة العميل التي يجريها P2. لا تُعدّل المسارات المملوكة له؛ افحص رأس PR #18 وسجله فقط للتمييز بين ما دُمج وما لا يزال بانتظاره، ثم انتقل إلى أقرب مهمة غير محجوبة لا تشترك في ملكية الملفات.
+
+## 6.19. قبول PostgreSQL 17 المطابق: كتالوج الموظفين وسجل بدء جرد المخزون — 2026-10-21
+
+### كتالوج الموظفين 0007 — إغلاق الفشل الأصلي وإعادة إثباته
+
+- الفشل التاريخي على SHA `298bd1f98d3f516203b798d09283083c65ee61f9` في [Actions 39486351594](https://github.com/Report-Engainall/Nasr1/actions/runs/39486351594) لم يكن بسبب حقل منتج فعلي. كان الاختبار يمرر `JSON.stringify(payload)` إلى Postgres.js كمعامل نصي ثم يصبّه إلى `$1::jsonb`؛ أصبحت قيمة JSON scalar string، فرفضتها الدالة قبل فحص حقول المنتج.
+- التصحيح في `scripts/test-admin-catalog-commands.mjs` يستخدم `admin.json(payload)` و`admin.json(update)`، بينما تبقى allowlist صارمة؛ تضيف SQL أسماء المفاتيح المرفوضة في DETAIL ولا تخفف الحقول المسموحة. المخطط المستهدف يستخدم `product_prices` وRPC السعر القياسي `save_product_price_grid`/`get_admin_product_price_grid`، والتدقيق في `audit_logs` مع actor والمؤسسة وقيم before/after.
+- ملفات الإثبات على رأس الكود المختبَر: migration `supabase/migrations/20261020220000_staff_catalog_commands.sql` blob `309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa`؛ runtime script blob `29f3ae2db8a320695181c7664a969d9885c96914`؛ static contract test blob `307a78ef0da765132bd63171c8e1969ca83938e0`؛ helper blob `ecc91c45a535fc966788b09a7a49cadde23a3025`. المصدر المانح `Report-Engainall/aghbari-commerce/supabase/migrations/0007_staff_catalog_commands.sql` blob `239789342a29a824852185cdbb95de7906900dbc` بقي مرجعًا ولم يُطبق SQL المانح خامًا.
+
+### سجل بدء الجرد — اختبار runtime مستقل دون لمس harness المملوك لـP2
+
+- أُضيف `scripts/test-stock-count-start-audit.mjs` blob `631f14a483588bf5e76f50bd6b824cddf654781c` وأُدرج في `.github/workflows/commerce-checks.yml` blob `ab6621945156a437e8bb29cd60708ea92230fe65`. لم يتغير `scripts/test-database-migrations.mjs` أو `package.json` أو أي مسار مشترك مملوك لـP2.
+- الاختبار يستدعي `start_stock_count` بهوية مدير ومخزن من نفس المؤسسة، ويثبت إنشاء session بهوية profile الصحيحة، وسجل تدقيق واحد بالضبط باسم `inventory.stock_count.started` وبحقول metadata المعتمدة (`warehouse_id`, `status`, `started_at`). يعيد استدعاء الأمر بنفس idempotency key ثم يثبت عدم إنشاء سجل تدقيق مكرر، وينظف جلسة الاختبار عبر أمر الإلغاء الخادمي.
+- migration الحالية `supabase/migrations/20261020120000_stock_count_start_audit.sql` blob `8bc0117a08aefb2ae006538c931f9e31793460fe` وstatic test `src/test/stock-count-start-audit-migration.test.ts` blob `df218a87689b16558bcb7dc7bf857c990adb9af6` ظلا كما هما؛ لم تتغير سياسات RLS أو صلاحيات الكتابة المباشرة.
+
+### دليل القبول النهائي
+
+- commit الكود والاختبار: [`9e070285e3e001a8661fe5c297f19face97fdcf5`](https://github.com/Report-Engainall/Nasr1/commit/9e070285e3e001a8661fe5c297f19face97fdcf5).
+- [GitHub Actions 39501610331 — SUCCESS على SHA نفسه](https://github.com/Report-Engainall/Nasr1/actions/runs/39501610331): 73/73 ملف اختبار و480/480 اختبارًا؛ قبول PostgreSQL 17 نجح؛ خطوة اختبار سجل الجرد الجديد نجحت؛ تصدير الطلبات وimport idempotency والمنتجات المحفوظة نجحت؛ lint/build/preview smoke 4173/dev smoke 5173 والتنظيف نجحت.
+- حالة الكتالوج: `IMPLEMENTED=YES`; `INTEGRATED=YES`; `TESTED_EXACT_SHA=PASS (9e070285e3e001a8661fe5c297f19face97fdcf5; Actions 39501610331)`.
+- حالة سجل بدء الجرد: `IMPLEMENTED=YES`; `INTEGRATED=YES`; `TESTED_EXACT_SHA=PASS (9e070285e3e001a8661fe5c297f19face97fdcf5; Actions 39501610331)`.
+- `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`. نجاح سموك CI المحلي لا يثبت نشر الإنتاج أو جلسة متصفح موثقة.

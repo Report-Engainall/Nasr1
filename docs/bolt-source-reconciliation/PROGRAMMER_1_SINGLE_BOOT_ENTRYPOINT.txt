@@ -1,27 +1,28 @@
 # P1 — رسالة إقلاع واحدة مختصرة
-التاريخ: 2026-10-20
+التاريخ: 2026-10-21
 المستودع الوحيد: https://github.com/Report-Engainall/Nasr1
 الفرع المستمر: integration/inventory-transfer-batches-20261019-rebased
-PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (لا تدمج main مباشرة)
+PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (مفتوح؛ لا تدمج main مباشرة)
 
-آخر رأس كود اجتاز CI:
-7a62ac5cf68b05db5e6f313cab84104cf49cf773
-CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39498693983 — SUCCESS على SHA نفسه.
-شمل: اختبارات الوحدة، PostgreSQL 17 ودورة التصدير async، price grid، staff catalog، server-side pagination، import idempotency concurrency، saved-products، lint، build، preview smoke 4173، dev smoke 5173 والتنظيف.
+آخر رأس كود واختبارات اجتاز CI على SHA المطابق:
+9e070285e3e001a8661fe5c297f19face97fdcf5
+CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39501610331 — SUCCESS على SHA نفسه.
+شمل: 73/73 ملف اختبار و480/480 اختبارًا، PostgreSQL 17، كتالوج الموظفين (CRUD/allowlist/price-grid/audit/tenant isolation/direct-DML denial)، إثبات سجل بدء جرد المخزون مرة واحدة وidempotent replay، async export، import idempotency concurrency، saved-products، lint، build، preview smoke 4173، dev smoke 5173 والتنظيف.
 BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 
-المنجز:
-1. Staff catalog 0007: صلاحيات صارمة، canonical price RPC، audit_logs، tenant isolation ومنع DML المباشر.
-2. Server pagination: المخطط الفعلي يستخدم inventory_balances(product_id,warehouse_id)، لا organization_id على inventory_balances؛ prices عبر get_storefront_product_prices.
-3. Async order export: idempotent tenant/actor request, role gating, lease/retry cap, CSV safe escaping/BOM, private storage, SHA-256, 7-day expiry cleanup, 60-second signed URL, audit, Arabic UI route /admin/exports.
-4. donor migration 0004_import_storage.sql بقي مرجعًا ولم يُطبّق خامًا.
+المنجز وأدلته:
+1. Staff catalog 0007: root cause كان JSON.stringify payload الممرر كنص إلى $1::jsonb، وليس field صالحًا/غير صالح؛ الاختبار يستخدم admin.json، وتبقى allowlist صارمة. Prices عبر save_product_price_grid/product_prices، audit_logs، tenant isolation، منع DML المباشر. SQL donor لم يُطبق خامًا.
+2. Stock-count start audit: scripts/test-stock-count-start-audit.mjs (blob 631f14a483588bf5e76f50bd6b824cddf654781c) يثبت سجلًا واحدًا بفاعل/مؤسسة صحيحين وmetadata معتمد فقط، ثم يعيد نفس idempotency key دون سجل مكرر. Workflow blob ab6621945156a437e8bb29cd60708ea92230fe65.
+3. Server pagination: المخطط الفعلي يستخدم inventory_balances(product_id,warehouse_id)، لا organization_id على inventory_balances؛ الأسعار عبر get_storefront_product_prices.
+4. Async order export: idempotent tenant/actor request, role gating, lease/retry cap, CSV safe escaping/BOM, private storage, SHA-256, 7-day expiry cleanup, 60-second signed URL, audit, Arabic UI route /admin/exports.
+5. Donor migration 0004_import_storage.sql بقيت مرجعًا؛ لا تطبق SQL غير المتوافق خامًا.
 
-المهمة التالية المسجلة:
+المهمة المصدرية التالية المسجلة:
 NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001-ACTIVATION
-ابدأ من رأس PR #18 وسجل الحالة الحي. هذه مهمة مشتركة/مملوكة جزئيًا لـP2: لا تعدّل src/lib/api.ts أو src/components/AghbariApp.tsx أو src/routeTree.gen.ts أو package.json أو scripts/test-database-migrations.mjs أو Onyx/returns files دون تنسيق. إن كانت محجوبة، انتقل إلى مهمة مستقلة غير متداخلة بدل إعادة فحص الأرشيفات.
+الحالة: BLOCKED_BY_P2_MIGRATION_RECONCILIATION؛ migration P1 عند 20261020110000_customer_activation_invitations.sql تتداخل دلاليًا مع migration P2 عند 20261020140000_customer_activation_invitations.sql في PR #18. لا تعدّل P2-owned files، ولا تعتبر نجاح P2 على فرعه منفردًا إثبات دمج PR #26. إذا ظل التعارض قائمًا، انتقل إلى فجوة P1 مستقلة مثبتة في ledger بدل الانتظار أو إعادة فحص الأرشيفات.
 
 قيود:
 - لا reset/clean/force-push ولا كتابة مباشرة على main.
-- اقرأ الرأس الحي قبل كل commit؛ push باستخدام expected-head.
-- سجلات P1 التي تحدّث: PROGRAMMER_1_CURRENT_REPORT.md, SOURCE_INTEGRATION_LEDGER.csv, READY_TO_REUSE_FILE_AUDIT.csv, PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt.
+- أعد قراءة الرأس الحي قبل كل commit، وpush باستخدام expected-head.
+- سجلات P1 المملوكة للتحديث: PROGRAMMER_1_CURRENT_REPORT.md, SOURCE_INTEGRATION_LEDGER.csv, READY_TO_REUSE_FILE_AUDIT.csv, PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt.
 - ميّز IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA / BROWSER_PROVEN / PRODUCTION_PROVEN. لا تُحوّل NOT RUN إلى PASS.
