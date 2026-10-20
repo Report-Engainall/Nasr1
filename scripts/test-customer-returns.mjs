@@ -345,6 +345,15 @@ async function main() {
   assert.equal(Number(preparedCredit.total_amount),125);
   assert.equal(preparedCredit.replayed,false);
 
+  const draftPrintRows = await db.unsafe(
+    "select public.get_customer_return_credit_memo_pdf($1::uuid) as result",[preparedCredit.credit_memo_id],
+  );
+  const draftPrint = asJson(draftPrintRows[0].result);
+  assert.equal(draftPrint.memo.status,"draft");
+  assert.equal(draftPrint.invoice.invoice_number,"INV-CI-RET-"+suffix);
+  assert.equal(draftPrint.lines.length,1);
+  assert.equal(draftPrint.lines[0].item_code,"000125");
+
   const replayCreditRaw = await db.unsafe(
     "select public.prepare_customer_return_credit_memo($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
     [firstRequest.request_id,receivableAccountId,revenueAccountId,null,creditIdempotencyKey],
@@ -354,12 +363,28 @@ async function main() {
   assert.equal(replayCredit.journal_entry_id,preparedCredit.journal_entry_id,"retry returns the original journal");
   assert.equal(replayCredit.replayed,true,"credit memo retry is marked as replay");
 
+  await db.unsafe("reset role");
+  await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("non-finance user cannot retrieve a credit memo print source",
+    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)",[preparedCredit.credit_memo_id]),
+    /finance permission required/i);
+  await db.unsafe("reset role");
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
+  await db.unsafe("set role authenticated");
+
   const postCreditRaw = await db.unsafe(
     "select public.post_general_journal_entry($1::uuid) as result",
     [preparedCredit.journal_entry_id],
   );
   const postedCreditJournal = asJson(postCreditRaw[0].result);
   assert.equal(postedCreditJournal.status,"posted","source guard permits the balanced credit memo posting");
+  const postedPrintRows = await db.unsafe(
+    "select public.get_customer_return_credit_memo_pdf($1::uuid) as result",[preparedCredit.credit_memo_id],
+  );
+  const postedPrint = asJson(postedPrintRows[0].result);
+  assert.equal(postedPrint.memo.status,"posted");
+  assert.equal(postedPrint.journal.status,"posted");
   await db.unsafe("reset role");
 
   const creditRows = await db.unsafe(

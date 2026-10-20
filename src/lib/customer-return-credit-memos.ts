@@ -229,3 +229,74 @@ export function readReturnCreditMemoMutation(value: unknown): ReturnCreditMemoMu
     replayed: value.replayed,
   };
 }
+
+export interface PrintableReturnCreditMemo {
+  memo: { id:string; memo_number:string; status:"draft"|"posted"; currency:string;
+    subtotal_amount:number; tax_amount:number; total_amount:number; created_at:string; posted_at:string|null };
+  customer: { id:string; name:string; contact_name:string|null };
+  invoice: { id:string; invoice_number:string; currency:string; issued_at:string;
+    subtotal:number; tax_amount:number; total_amount:number; order_number:string };
+  return_request: { id:string; request_number:string; status:string; created_at:string };
+  journal: { id:string; entry_number:string; status:"draft"|"posted"; entry_date:string };
+  lines: Array<{ id:string; item_code:string|null; description:string; unit:string|null;
+    returned_quantity:number; credited_subtotal:number; invoice_quantity:number; invoice_unit_price:number; invoice_line_total:number }>;
+}
+
+export function readPrintableReturnCreditMemo(value: unknown): PrintableReturnCreditMemo {
+  if (!isRecord(value) || !isRecord(value.memo) || !isRecord(value.customer) || !isRecord(value.invoice) ||
+      !isRecord(value.return_request) || !isRecord(value.journal) || !Array.isArray(value.lines) ||
+      value.lines.length < 1 || value.lines.length > 100) {
+    throw new Error("أعاد الخادم بيانات طباعة إشعار دائن غير مكتملة.");
+  }
+  const status = requiredText(value.memo.status,"memo.status");
+  const journalStatus = requiredText(value.journal.status,"journal.status");
+  if ((status!=="draft" && status!=="posted") || (journalStatus!=="draft" && journalStatus!=="posted") || status!==journalStatus) {
+    throw new Error("حالة الإشعار الدائن والقيد المحاسبي غير متطابقة للطباعة.");
+  }
+  const currency=requiredText(value.memo.currency,"memo.currency");
+  if (!/^[A-Z]{3}$/.test(currency) || value.invoice.currency!==currency) throw new Error("عملة الإشعار لا تطابق الفاتورة المصدر.");
+  const subtotal=finiteAmount(value.memo.subtotal_amount,"memo.subtotal_amount");
+  const tax=finiteAmount(value.memo.tax_amount,"memo.tax_amount");
+  const total=finiteAmount(value.memo.total_amount,"memo.total_amount");
+  if (subtotal<=0 || tax<0 || total<=0 || Math.abs(subtotal+tax-total)>0.001) throw new Error("إجماليات الإشعار الدائن لا تتطابق؛ أوقفت الطباعة.");
+  const invoiceSubtotal=finiteAmount(value.invoice.subtotal,"invoice.subtotal");
+  const invoiceTax=finiteAmount(value.invoice.tax_amount,"invoice.tax_amount");
+  const invoiceTotal=finiteAmount(value.invoice.total_amount,"invoice.total_amount");
+  if (invoiceSubtotal<0 || invoiceTax<0 || invoiceTotal<=0 || Math.abs(invoiceSubtotal+invoiceTax-invoiceTotal)>0.001) {
+    throw new Error("إجمالي الفاتورة الأصلية غير متطابق؛ أوقفت الطباعة.");
+  }
+  const lines=value.lines.map((raw):PrintableReturnCreditMemo["lines"][number]=>{
+    if (!isRecord(raw)) throw new Error("يوجد سطر غير صالح في مستند الإشعار الدائن.");
+    const returned=finiteAmount(raw.returned_quantity,"line.returned_quantity");
+    const invoiceQty=finiteAmount(raw.invoice_quantity,"line.invoice_quantity");
+    const credit=finiteAmount(raw.credited_subtotal,"line.credited_subtotal");
+    const unitPrice=finiteAmount(raw.invoice_unit_price,"line.invoice_unit_price");
+    const lineTotal=finiteAmount(raw.invoice_line_total,"line.invoice_line_total");
+    if (returned<=0 || invoiceQty<=0 || returned>invoiceQty || credit<0 || unitPrice<0 || lineTotal<0) {
+      throw new Error("كمية أو قيمة غير صالحة في سطر إشعار دائن؛ أوقفت الطباعة.");
+    }
+    return {id:requiredText(raw.id,"line.id"),item_code:nullableText(raw.item_code),
+      description:requiredText(raw.description,"line.description"),unit:nullableText(raw.unit),
+      returned_quantity:returned,credited_subtotal:credit,invoice_quantity:invoiceQty,
+      invoice_unit_price:unitPrice,invoice_line_total:lineTotal};
+  });
+  if (Math.abs(lines.reduce((sum,line)=>sum+line.credited_subtotal,0)-subtotal)>0.011) {
+    throw new Error("مجموع بنود الإشعار الدائن لا يطابق الإجمالي؛ أوقفت الطباعة.");
+  }
+  return {
+    memo:{id:requiredText(value.memo.id,"memo.id"),memo_number:requiredText(value.memo.memo_number,"memo.memo_number"),
+      status,currency,subtotal_amount:subtotal,tax_amount:tax,total_amount:total,
+      created_at:requiredText(value.memo.created_at,"memo.created_at"),posted_at:nullableText(value.memo.posted_at)},
+    customer:{id:requiredText(value.customer.id,"customer.id"),name:requiredText(value.customer.name,"customer.name"),
+      contact_name:nullableText(value.customer.contact_name)},
+    invoice:{id:requiredText(value.invoice.id,"invoice.id"),invoice_number:requiredText(value.invoice.invoice_number,"invoice.invoice_number"),
+      currency,issued_at:requiredText(value.invoice.issued_at,"invoice.issued_at"),subtotal:invoiceSubtotal,
+      tax_amount:invoiceTax,total_amount:invoiceTotal,order_number:requiredText(value.invoice.order_number,"invoice.order_number")},
+    return_request:{id:requiredText(value.return_request.id,"return_request.id"),
+      request_number:requiredText(value.return_request.request_number,"return_request.request_number"),
+      status:requiredText(value.return_request.status,"return_request.status"),created_at:requiredText(value.return_request.created_at,"return_request.created_at")},
+    journal:{id:requiredText(value.journal.id,"journal.id"),entry_number:requiredText(value.journal.entry_number,"journal.entry_number"),
+      status:journalStatus,entry_date:requiredText(value.journal.entry_date,"journal.entry_date")},
+    lines,
+  };
+}

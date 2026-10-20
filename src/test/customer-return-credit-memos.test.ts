@@ -3,6 +3,7 @@ import {
   createCreditMemoIdempotencyKey,
   readReturnCreditMemoMutation,
   readReturnCreditMemoQueue,
+  readPrintableReturnCreditMemo,
 } from "@/lib/customer-return-credit-memos";
 
 const queueFixture = () => ({
@@ -87,4 +88,18 @@ describe("return credit memo server contracts", () => {
   it("creates a UUID idempotency key suitable for the server accounting contract", () => {
     expect(createCreditMemoIdempotencyKey()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
   });
+  it("validates the finance-scoped print payload and refuses inconsistent totals", () => {
+    const valid = {
+      memo:{id:"m1",memo_number:"CRM-001",status:"draft",currency:"YER",subtotal_amount:125,tax_amount:0,total_amount:125,created_at:"2026-10-20T00:00:00Z",posted_at:null},
+      customer:{id:"c1",name:"عميل الطباعة",contact_name:null},
+      invoice:{id:"i1",invoice_number:"INV-001",currency:"YER",issued_at:"2026-10-19T00:00:00Z",subtotal:500,tax_amount:0,total_amount:500,order_number:"ORD-001"},
+      return_request:{id:"r1",request_number:"RET-001",status:"received",created_at:"2026-10-20T00:00:00Z"},
+      journal:{id:"j1",entry_number:"51",status:"draft",entry_date:"2026-10-20"},
+      lines:[{id:"l1",item_code:"000125",description:"صنف مرتجع",unit:"كرتون",returned_quantity:1.25,credited_subtotal:125,invoice_quantity:5,invoice_unit_price:100,invoice_line_total:500}],
+    };
+    expect(readPrintableReturnCreditMemo(valid).lines[0].item_code).toBe("000125");
+    expect(() => readPrintableReturnCreditMemo({...valid,memo:{...valid.memo,total_amount:126}})).toThrow(/إجماليات/);
+    expect(() => readPrintableReturnCreditMemo({...valid,journal:{...valid.journal,status:"posted"}})).toThrow(/حالة الإشعار/);
+  });
+
 });
