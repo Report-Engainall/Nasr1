@@ -3,8 +3,8 @@
 - **المستودع المستهدف الوحيد:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **PR:** [#26 — مفتوح / Draft / غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/26)
-- **آخر رأس كود مختبر:** `dc8377209b81d1a6a307242ede3d71f9d3f18949` — [Actions 39484437993: SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39484437993)
-- **المهمة النشطة الوحيدة / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-007-AGHBCOM-STAFF-CATALOG-0007` — مراجعة مصدر `0007_staff_catalog_commands.sql` مقابل تدفقات Nasr1 الحالية، ثم اتخاذ قرار مسبب وعدم النقل الخام.
+- **آخر رأس كود مختبر:** `20822761dfdd5a6bd331ea1f172d8c7dcad2cad6` — [Actions 39491944048: SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39491944048)؛ 67/67 test files، PostgreSQL 17، import-idempotency concurrency، saved-products acceptance، lint/build، preview 4173، dev 5173، cleanup.
+- **المهمة النشطة الوحيدة / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-001-AGHBCOM-CATALOG-0002` — استكمال فجوة pagination الخادمية للكتالوج دون استبدال RPC أو حدود أسعار Nasr1.
 - **أُغلقت دفعة سلة العميل:** اختبار الوحدة 67/67 ملفًا، وقبول PostgreSQL 17 الفعلي للسلة، وCI الكامل نجح على SHA المذكور. تفاصيل الفشل والإصلاح وبصمات الملفات في القسم 6.15.1.
 - **حد Service Worker مغلق:** لا تعِد تنفيذه أو مراجعة أرشيفه ما لم يظهر regression جديد. اختبار متصفح/إنتاج لهذا الحد: NOT RUN.
 - **حد دورة تفعيل العميل:** مقارنة المصدر انتهت؛ الدمج المشترك ما يزال محجوبًا بتعارض migration بين P1 وP2. لا تعدّل ملفات المبرمج 2 أو تحذف migration مملوكة له بلا تنسيق صريح.
@@ -267,3 +267,32 @@
 - **الرأس المختبر:** [commit `dc8377209b81d1a6a307242ede3d71f9d3f18949`](https://github.com/Report-Engainall/Nasr1/commit/dc8377209b81d1a6a307242ede3d71f9d3f18949). [Actions 39484437993 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39484437993) على SHA نفسه. 67/67 ملف اختبار اجتاز؛ تطبيق migrations وقبول PostgreSQL 17 نجحا، بما في ذلك اختبار السلة الفعلي: عزل المؤسسة/الملف، replay idempotency، تسلسل الكتابة المتزامنة، rollback للتحقق غير الصحيح، منع الوصول المباشر مع RPC-only privileges. كما نجح قبول idempotency للاستيراد والعناصر المحفوظة، lint، build، production-preview smoke على 4173، dev smoke على 5173 والتنظيف.
 - **الحالة:** `IMPLEMENTED=YES`; `INTEGRATED=YES`; `TESTED_EXACT_SHA=PASS (dc8377209b81d1a6a307242ede3d71f9d3f18949)`; `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`. الـpreview/dev smoke اختبار CI وليس اختبار مستخدم يدويًا ولا إثبات نشر إنتاجي.
 - **الاستئناف التالي الوحيد:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-007-AGHBCOM-STAFF-CATALOG-0007`. المصدر والبصمة مسجلان؛ قارن الميزة كاملة ولا تنقل schema/RPC قديمة قبل إثبات فجوة في Nasr1.
+
+
+## 6.16. إغلاق أوامر كتالوج الموظفين 0007 — إصلاح السبب الجذري وإثبات CI مطابق (2026-10-20)
+
+### قرار مصدر مثبت
+- المصدر: `Report-Engainall/aghbari-commerce/supabase/migrations/0007_staff_catalog_commands.sql`، بصمة Git blob: `239789342a29a824852185cdbb95de7906900dbc`، مصدره commit `00d7446bba9652ea40178a08b00c9da9a2bba8a1`.
+- المصدر المانح لا يحتوي الدالة `save_admin_catalog_product`؛ بل يقدّم أوامر قديمة `create_category`, `upsert_product`, `set_product_price`, `adjust_inventory` مع اعتماد على `audit_events` ومخطط سعر مختلف. القرار: `ADAPT_AND_INTEGRATE`، وعدم نقل SQL المانح الخام.
+- مخطط Nasr1 الفعلي يحتفظ بأسعار الشرائح في `product_prices`، والتدفق المعتمد هو `get_admin_product_price_grid()` و`save_product_price_grid(jsonb)`. الدالة الجديدة لا تكتب إلى أعمدة شرائح قديمة على `products` ولا تخلق مسار تسعير موازيًا.
+- سجل التدقيق الصحيح هو `audit_logs(organization_id, actor_id, action, entity_type, entity_id, old_value, new_value)`. أوامر الإنشاء/التعديل/الأرشفة تشتق المؤسسة والمستخدم من سياق الخادم، وتتحقق من الملف النشط والدور، وتعزل التصنيف والمنتج عن المؤسسات الأخرى. الكتابة المباشرة على `categories`, `product_prices`, `audit_logs` ممنوعة، وتعديل/حذف المنتج المباشر ممنوع؛ مسار إدخال المنتج يبقى ضمن RLS المؤسسة القائم حتى لا ينكسر قبول P2 للبيانات الاختبارية.
+
+### السبب الجذري للفشل
+- اختبار PostgreSQL كان يمرر `JSON.stringify(payload)` إلى معامل `$1::jsonb` في عميل `postgres`. العميل كان يعيد ترميز النص كسلسلة JSON scalar؛ ولذلك كانت الدالة ترى `jsonb_typeof(p_payload) = 'string'` لا كائن JSON، ولم يكن الخطأ الأصلي دليلًا على وجود حقل منتج فعلي غير معروف.
+- أصلح الاختبار ليربط كائن JavaScript مباشرة (`[payload]`, `[created.id, update]`). أبقيت allowlist صارمة وأضفت تشخيصًا يعرض أسماء المفاتيح المرفوضة؛ اختبار `shadow_tier_price` يثبت رفض الحقل غير المسموح مع `DETAIL: unsupported fields: shadow_tier_price`.
+- أصلحت تعارض السعر المتزامن بترجمة SQLSTATE `40001` إلى رسالة إعادة التحميل المعتمدة، وأزلت `any` من محوّل الحمولة TypeScript بدل تخفيض قاعدة lint.
+
+### الملفات المنفذة وبصمات Git blob عند الرأس المختبر
+- `supabase/migrations/20261020220000_staff_catalog_commands.sql` — `309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa`
+- `scripts/test-admin-catalog-commands.mjs` — `4259e03bf3bff659c83adffdb658871a7b9dc9ef`
+- `src/test/staff-catalog-commands-migration.test.ts` — `044e1011cb2fbd070507aad5f93b56d48e2c15b8`
+- `src/lib/admin-catalog-commands.ts` — `ecc91c45a535fc966788b09a7a49cadde23a3025`
+- لم تُعدّل ملفات المبرمج 2 المحمية: `src/lib/api.ts`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, `package.json`, workflows الخاصة به، أو `scripts/test-database-migrations.mjs`.
+
+### الاختبار والنتيجة
+- الرأس المختبر المطابق: [`20822761dfdd5a6bd331ea1f172d8c7dcad2cad6`](https://github.com/Report-Engainall/Nasr1/commit/20822761dfdd5a6bd331ea1f172d8c7dcad2cad6).
+- [Actions 39491944048 — SUCCESS على SHA نفسه](https://github.com/Report-Engainall/Nasr1/actions/runs/39491944048): وحدة الاختبارات، تطبيق migrations وقبول PostgreSQL 17 (بما في ذلك product/category CRUD soft archive وallowlist وstale-price conflict وعزل المؤسسة وسياق audit ومنع DML المباشر)، import idempotency concurrency، saved-products acceptance، lint، build، preview smoke 4173، dev smoke 5173 والتنظيف كلها ناجحة.
+- الحالة: `IMPLEMENTED=YES`; `INTEGRATED=YES`; `TESTED_EXACT_SHA=PASS (20822761dfdd5a6bd331ea1f172d8c7dcad2cad6; Actions 39491944048)`; `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
+
+### الاستئناف التالي من السجل الحي
+- `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-001-AGHBCOM-CATALOG-0002`: تحقيق pagination الكتالوج الخادمية على عقود Nasr1 الحالية؛ لا نقل `0002_server_authoritative_commands.sql` خامًا، ولا تعديل `src/lib/api.ts` دون تنسيق مع P2.

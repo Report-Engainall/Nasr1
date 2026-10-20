@@ -7,8 +7,8 @@ PR: https://github.com/Report-Engainall/Nasr1/pull/26 (OPEN / DRAFT / NOT MERGED
 ابدأ من docs/bolt-source-reconciliation/PROGRAMMER_1_CURRENT_REPORT.md، ثم اقرأ صف المهمة المحددة فقط من SOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv. لا تعِد تشغيل استكشاف الأرشيفات أو مراجعة العناصر المحسومة.
 
 آخر رأس كود/اختبارات ناجح:
-dc8377209b81d1a6a307242ede3d71f9d3f18949
-CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39484437993 — SUCCESS، 67/67 test files، PostgreSQL 17 acceptance (بما فيه cart runtime)، import idempotency concurrency، saved-products PostgreSQL، lint/build، preview smoke 4173، dev smoke 5173، cleanup.
+20822761dfdd5a6bd331ea1f172d8c7dcad2cad6
+CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39491944048 — SUCCESS على SHA نفسه؛ 67/67 test files، PostgreSQL 17 acceptance لأوامر catalog والسلة، import idempotency concurrency، saved-products PostgreSQL، lint/build، preview smoke 4173، dev smoke 5173، cleanup.
 حالة المتصفح والإنتاج: NOT RUN.
 
 أُغلقت:
@@ -16,12 +16,12 @@ CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39484437993 — SUCCE
 - سلة العميل المحفوظة على الخادم: migration/RPC/service/Storefront متكاملة؛ فشل PostgreSQL السابق بسبب jsonb_object_length غير الموجودة أُصلح واختُبر على الرأس أعلاه.
 - مقارنة دورة دعوات العميل أُنجزت، لكن الدمج المشترك ما زال محجوبًا بتعارض migration بين P1 وP2.
 
-المهمة الوحيدة التالية:
-NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-007-AGHBCOM-STAFF-CATALOG-0007
-المصدر المسجل: Report-Engainall/aghbari-commerce/supabase/migrations/0007_staff_catalog_commands.sql
-بصمة المصدر: 239789342a29a824852185cdbb95de7906900dbc
+أُغلقت مهمة كتالوج الموظفين 0007 على الرأس أعلاه: IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA=PASS. السبب الجذري كان تمرير JSON.stringify(payload) إلى $1::jsonb مما جعل Postgres.js يرسل JSON scalar، لا object. التفاصيل والبصمات في القسم 6.16 من التقرير وسطر المهمة في ledger.
 
-قارن المصدر مع واجهات Nasr1 ومساراته وخدماته وRPC/migrations وRLS/grants والمؤسسة/الدور والاختبارات. خذ قرارًا واحدًا مسببًا؛ إذا كان الهدف أفضل فوثّق ALREADY_PRESENT_BETTER، وإذا كانت هناك فجوة حقيقية فكيّفها فقط. لا تنقل SQL قديمًا خامًا ولا تعدّل main.
+المهمة الوحيدة التالية:
+NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-001-AGHBCOM-CATALOG-0002
+المصدر المسجل: Report-Engainall/aghbari-commerce/supabase/migrations/0002_server_authoritative_commands.sql
+الحالة: SERVER_SIDE_PAGINATION_NOT_INTEGRATED. تابع التنفيذ على عقود Nasr1 الحالية؛ لا تنقل donor SQL خامًا ولا تعدّل src/lib/api.ts دون تنسيق صريح مع P2.
 
 الملكية والقيود:
 - P1 يحدّث PROGRAMMER_1_CURRENT_REPORT.md وSOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv وهذا الملف فقط.
