@@ -76,7 +76,9 @@ async function renderFinancePage() {
 }
 
 async function submitPayment(amount: string) {
-  const selects = container.querySelectorAll("select");
+  const invoiceSelect = Array.from(container.querySelectorAll("select")).find((select) =>
+    Array.from(select.options).some((option) => option.value === INVOICE_ID),
+  );
   const amountInput = container.querySelector<HTMLInputElement>('input[type="number"]');
   const form = container.querySelector("form");
   if (!selects.length || !amountInput || !form) {
@@ -84,7 +86,8 @@ async function submitPayment(amount: string) {
   }
 
   await act(async () => {
-    setNativeValue(selects[0], INVOICE_ID);
+    if (!invoiceSelect) throw new Error("Finance payment invoice selector did not render");
+    setNativeValue(invoiceSelect, INVOICE_ID);
     setNativeValue(amountInput, amount);
     form.requestSubmit();
     await Promise.resolve();
