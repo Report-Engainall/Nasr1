@@ -39,6 +39,8 @@ const evidenceFixture = {
     source_record_id: null,
     source_row_count: 3,
     external_id_fields_found: ["external_id", "onyx_code"],
+    external_id_examples: [{ row_number: 1, canonical_key: "SKU-101", canonical_key_truncated: false, external_ids: { external_id: "ONYX-101" }, value_truncated: false }],
+    external_id_examples_truncated: false,
     rows_with_external_id: 2,
   },
   live_sync_evidence: {
@@ -57,11 +59,15 @@ describe("tenant-scoped Onyx source evidence contract", () => {
     expect(rpc).toHaveBeenCalledWith("get_onyx_snapshot_source_evidence", { p_snapshot_id: snapshotId });
     expect(result.organization).toEqual({ id: "99999999-9999-4999-8999-999999999999", name: "مؤسسة الاختبار" });
     expect(result.import_job).toMatchObject({ updated_at: null });
+    expect(result.source_identity.external_id_examples[0]).toMatchObject({ row_number: 1, external_ids: { external_id: "ONYX-101" } });
+    expect(result.source_identity.external_id_examples_truncated).toBe(false);
     expect(result.source_identity).toMatchObject({
       provenance_status: "linked_import_job_hash_match",
       source_system: "manual",
       source_record_id: null,
       external_id_fields_found: ["external_id", "onyx_code"],
+      external_id_examples: [{ row_number: 1, canonical_key: "SKU-101", canonical_key_truncated: false, external_ids: { external_id: "ONYX-101" }, value_truncated: false }],
+      external_id_examples_truncated: false,
       rows_with_external_id: 2,
     });
     expect(result.live_sync_evidence).toMatchObject({ status: "not_proven", live_connection_proven: false });
