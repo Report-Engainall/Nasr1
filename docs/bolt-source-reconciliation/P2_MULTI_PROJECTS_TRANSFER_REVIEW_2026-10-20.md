@@ -1,3 +1,14 @@
+## P2 readback — Task-center print parity and browser-test gate — 20 October 2026
+
+- Branch: `feat/p2-customer-return-intake-20261020`; PR #18: https://github.com/Report-Engainall/Nasr1/pull/18.
+- Exact tested application-code SHA for this batch: `d9590e4b8aefed27682a14c1915e26661e31e575`. GitHub Actions [39452487876](https://github.com/Report-Engainall/Nasr1/actions/runs/39452487876) completed `SUCCESS`: frozen Bun lockfile, unit tests, PostgreSQL 17 migration/acceptance, Lint, production build, production-preview smoke (4173), and dev-server smoke (5173).
+- `NASR1-ORIGINAL-SPEC-TASK-CENTER-PRINT-FILTER-PARITY-007`: `IMPLEMENTED`, `INTEGRATED`, `TESTED_EXACT_SHA`. Files changed: `src/components/TaskCenter.tsx`, `src/lib/task-print.ts`, `src/test/task-print.test.ts`. The print scope supports the exact currently displayed results (role + status + priority + assignee + date range + search), all rows allowed to the active account, or a selected allowed role. The print helper rechecks allowed roles; the print list shares the current non-role filters.
+- Browser E2E suite/workflow: `IMPLEMENTED` but `BROWSER_PROVEN=NOT RUN / BLOCKED_EXTERNAL`. The exact-head run [39452487724](https://github.com/Report-Engainall/Nasr1/actions/runs/39452487724) explicitly gated execution because dedicated non-production Supabase URL/key, two users from different organizations, test phone, and the affirmative non-production-write confirmation are absent. Setup, Chromium, built app, and Playwright steps were skipped by this gate; the job's green status is a gate success, **not** a browser test pass. No test order was created and production was not touched. To unblock, follow `docs/bolt-source-reconciliation/P2_PLAYWRIGHT_E2E_SETUP.md`.
+- Onyx reconciliation remains `TESTED_EXACT_SHA` at `acadfb1321166ef5246f83ddb7703ca8a9650cb6`, run [39450490958](https://github.com/Report-Engainall/Nasr1/actions/runs/39450490958); print-parity changes did not modify its database/RPC code. This database CI is not browser or production proof.
+- Archive review reused existing manifest/fingerprint and source integration evidence. No donor ZIP was redownloaded, extracted, or rehashed. The source recursive-tree/extraction-report discrepancy remains unresolved evidence (2,329 tree entries versus 2,044 reported extracted files); it is not silently treated as reconciled.
+- Status axes remain separate: `IMPLEMENTED` is not `INTEGRATED`; `TESTED_EXACT_SHA` is not `BROWSER_PROVEN`; `BROWSER_PROVEN` is not `PRODUCTION_PROVEN`.
+- **next_task_id الوحيد:** `NASR1-ORIGINAL-SPEC-DQS-CSV-XLSX-HARDENING-008` — trace DQS scoring into persisted import/snapshot records and the user-facing flow; validate CSV/XLSX formula-injection handling and parser bounds with adversarial tests; remediate only demonstrable target-side gaps while preserving P1 ownership/locks.
+
 ## P2 readback — Onyx reconciliation CI result — 20 October 2026
 
 - `NASR1-ORIGINAL-SPEC-ONYX-INVENTORY-RECONCILIATION-005`: `IMPLEMENTED`, `INTEGRATED`, `TESTED_EXACT_SHA`.
@@ -110,3 +121,6 @@
 - حدود القائمة: لا يمكن اعتبار ظهور الملفات/الواجهات وحده قبولًا؛ القبول نُفذ باستخدام PostgreSQL 17 وعقود RPC. اختبارات الفشل السابقة محفوظة في EXECUTION_LOG مع SHA/Action وسبب كل فشل وتصحيحه.
 - لا تزال مصالحة Onyx في قاعدة Nasr1 عملية تحليل فقط؛ جدول المصدر `onyx_snapshots/onyx_snapshot_rows` ومخرجات `inventory_reconciliation_runs/items` لا تطابق مخطط المشروع المانح حرفيًا، لذا لا تُنسخ SQL القديمة مباشرة. يلزم تصميم تطبيق مضبوط بالمخزن، معاينة، قفل وتحقق من تغير المخزون، وتراجع تعويضي آمن.
 - `next_task_id` الوحيد الآن: `NASR1-ORIGINAL-SPEC-ONYX-INVENTORY-RECONCILIATION-005`. لم تُنزّل أو تُستخرج أو تُعاد بصمات ZIPs، ولم تُعدّل `main` أو ملفات P1.
+
+### Multi-project source review disposition
+Treat `EXTRACTED_PROJECTS` as read-only evidence. Reuse recorded manifests, byte hashes, and accept/adapt/reject decisions; do not recopy matching files without a specific gap. The known difference between recursive source-tree entries (2,329) and the extraction report (2,044 files) remains an unresolved accounting difference. Before any later transfer, inspect the target implementation and schema first; adapt rather than copying donor migrations, old routes, or permission assumptions.
