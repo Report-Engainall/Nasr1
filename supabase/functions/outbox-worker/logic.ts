@@ -33,3 +33,16 @@ export function classifyOutboxProcessResult(value: unknown): OutboxProcessOutcom
   if (status === "dead_letter") return "dead_letter";
   return "unexpected";
 }
+
+/**
+ * Convert the process RPC error to a bounded, redacted durable outbox message.
+ * Missing/unrecognized RPC payloads are handled without trusting arbitrary values.
+ */
+export function outboxFailureMessage(
+  error: { message?: unknown } | null | undefined,
+): string {
+  if (!error || typeof error.message !== "string" || !error.message.trim()) {
+    return "process_outbox_event returned no recognized status";
+  }
+  return sanitizeOutboxErrorMessage(new Error(error.message));
+}
