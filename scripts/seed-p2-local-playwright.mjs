@@ -178,7 +178,8 @@ async function main() {
 function requiredEnv(name) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(name + " is required for local P2 browser acceptance.");
-  return value;
+  // Supabase CLI env output uses shell quotes; tolerate only one outer pair defensively.
+  return value.replace(/^"(.*)"$/s, "$1");
 }
 
 main()
