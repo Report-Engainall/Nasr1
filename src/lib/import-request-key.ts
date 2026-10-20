@@ -1,6 +1,8 @@
 export type ImportRequestIntent = "replace" | "merge" | "new_version";
 
 export type ImportRequestIdentity = {
+  /** Local scoping only; the database still derives the authoritative actor from auth.uid(). */
+  actorId: string;
   fileName: string;
   fileHash: string;
   fileSize: number;
@@ -50,6 +52,7 @@ function getSessionStorage(): ImportRequestKeyStorage | null {
 
 function stableIdentity(identity: ImportRequestIdentity): string {
   return JSON.stringify({
+    actorId: identity.actorId,
     fileName: identity.fileName,
     fileHash: identity.fileHash,
     fileSize: identity.fileSize,
