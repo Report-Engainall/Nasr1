@@ -21,7 +21,7 @@ if (runtime) runtime.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (request.method !== "POST") return reply({ error: "method_not_allowed" }, 405);
   const url = runtime.env.get("SUPABASE_URL");
-  const anonKey = runtime.env.get("SUPABASE_ANON_KEY") ?? runtime.env.get("SUPABASE_ANON_KEY");
+  const anonKey = runtime.env.get("SUPABASE_ANON_KEY");
   const serviceKey = runtime.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const authorization = request.headers.get("authorization") ?? "";
   const token = /^Bearer\s+(.+)$/i.exec(authorization)?.[1];

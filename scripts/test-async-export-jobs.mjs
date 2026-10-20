@@ -36,7 +36,7 @@ async function denied(label, action) {
   assert.match(String(error.message), /permission denied/i, label + " must fail by table privilege");
 }
 async function createJob(db, key, f = filters) {
-  return rpc(db, "select public.request_async_export_job('orders_csv',$1::jsonb,$2::text) as result", [JSON.stringify(f), key]);
+  return rpc(db, "select public.request_async_export_job('orders_csv',$1::jsonb,$2::text) as result", [f, key]);
 }
 async function cleanup() {
   await admin.unsafe("delete from public.async_export_jobs where idempotency_key like $1 or idempotency_key like $2", [prefix + "%", prefix + "FOREIGN-%"]).catch(() => {});
