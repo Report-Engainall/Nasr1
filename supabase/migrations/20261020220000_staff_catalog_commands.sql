@@ -21,7 +21,7 @@ BEGIN
   IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
      OR NOT EXISTS (
        SELECT 1 FROM public.user_roles AS r
-       WHERE r.profile_id = v_actor AND r.role IN ('admin', 'manager')
+       WHERE r.profile_id = v_actor AND r.role IN('admin','manager')
      )
      OR NOT EXISTS (
        SELECT 1 FROM public.profiles AS p
@@ -72,7 +72,7 @@ BEGIN
   RETURNING id INTO v_id;
 
   INSERT INTO public.audit_logs(
-    organization_id, actor_id, action, entity_type, entity_id, old_value, new_value
+    organization_id,actor_id,action,entity_type,entity_id,old_value,new_value
   ) VALUES (
     v_org, v_actor, 'catalog.category_created', 'category', v_id,
     '{}'::jsonb,
@@ -126,7 +126,7 @@ BEGIN
   IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
      OR NOT EXISTS (
        SELECT 1 FROM public.user_roles AS r
-       WHERE r.profile_id = v_actor AND r.role IN ('admin', 'manager')
+       WHERE r.profile_id = v_actor AND r.role IN('admin','manager')
      )
      OR NOT EXISTS (
        SELECT 1 FROM public.profiles AS p
@@ -307,21 +307,26 @@ BEGIN
     END IF;
   END IF;
 
-  PERFORM public.save_product_price_grid(
-    pg_catalog.jsonb_build_array(
-      pg_catalog.jsonb_build_object(
-        'id', v_product_id,
-        'expected_base_price', v_expected_base_price,
-        'expected_price_wholesale_of_wholesale', v_expected_vip_price,
-        'expected_price_wholesale', v_expected_wholesale_price,
-        'expected_price_retail', v_expected_retail_price,
-        'base_price', v_base_price,
-        'price_wholesale_of_wholesale', v_vip_price,
-        'price_wholesale', v_wholesale_price,
-        'price_retail', v_retail_price
+  BEGIN
+    PERFORM public.save_product_price_grid(
+      pg_catalog.jsonb_build_array(
+        pg_catalog.jsonb_build_object(
+          'id', v_product_id,
+          'expected_base_price', v_expected_base_price,
+          'expected_price_wholesale_of_wholesale', v_expected_vip_price,
+          'expected_price_wholesale', v_expected_wholesale_price,
+          'expected_price_retail', v_expected_retail_price,
+          'base_price', v_base_price,
+          'price_wholesale_of_wholesale', v_vip_price,
+          'price_wholesale', v_wholesale_price,
+          'price_retail', v_retail_price
+        )
       )
-    )
-  );
+    );
+  EXCEPTION WHEN SQLSTATE '40001' THEN
+    RAISE EXCEPTION USING ERRCODE = '40001',
+      MESSAGE = 'product prices changed after the form opened; reload before saving';
+  END;
 
   v_after := pg_catalog.jsonb_build_object(
     'name', v_name, 'item_code', v_item_code, 'barcode', v_barcode,
@@ -330,7 +335,7 @@ BEGIN
   );
 
   INSERT INTO public.audit_logs(
-    organization_id, actor_id, action, entity_type, entity_id, old_value, new_value
+    organization_id,actor_id,action,entity_type,entity_id,old_value,new_value
   ) VALUES (
     v_org, v_actor,
     CASE WHEN v_created THEN 'catalog.product_created' ELSE 'catalog.product_updated' END,
@@ -357,7 +362,7 @@ BEGIN
   IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
      OR NOT EXISTS (
        SELECT 1 FROM public.user_roles AS r
-       WHERE r.profile_id = v_actor AND r.role IN ('admin', 'manager')
+       WHERE r.profile_id = v_actor AND r.role IN('admin','manager')
      )
      OR NOT EXISTS (
        SELECT 1 FROM public.profiles AS p
@@ -384,7 +389,7 @@ BEGIN
      WHERE id = p_product_id AND organization_id = v_org;
 
     INSERT INTO public.audit_logs(
-      organization_id, actor_id, action, entity_type, entity_id, old_value, new_value
+      organization_id,actor_id,action,entity_type,entity_id,old_value,new_value
     ) VALUES (
       v_org, v_actor, 'catalog.product_archived', 'product', p_product_id,
       pg_catalog.jsonb_build_object('status', v_old.status),
@@ -410,7 +415,7 @@ BEGIN
   IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
      OR NOT EXISTS (
        SELECT 1 FROM public.user_roles AS r
-       WHERE r.profile_id = v_actor AND r.role IN ('admin', 'manager')
+       WHERE r.profile_id = v_actor AND r.role IN('admin','manager')
      )
      OR NOT EXISTS (
        SELECT 1 FROM public.profiles AS p
@@ -448,7 +453,7 @@ BEGIN
     WHERE id = p_category_id AND organization_id = v_org;
 
     INSERT INTO public.audit_logs(
-      organization_id, actor_id, action, entity_type, entity_id, old_value, new_value
+      organization_id,actor_id,action,entity_type,entity_id,old_value,new_value
     ) VALUES (
       v_org, v_actor, 'catalog.category_archived', 'category', p_category_id,
       pg_catalog.jsonb_build_object('name', v_old.name, 'code', v_old.code, 'is_active', true),

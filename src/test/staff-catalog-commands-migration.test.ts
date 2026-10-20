@@ -24,8 +24,8 @@ describe("staff catalog commands migration contract", () => {
   });
 
   it("records actor, tenant, before and after values for product and category changes", () => {
-    expect(migration).toMatch(/v_actor\s*:=\s*public\.current_profile_id\(\)/i);
-    expect(migration).toMatch(/v_org\s*:=\s*public\.current_organization_id\(\)/i);
+    expect(migration).toMatch(/v_actor\s+uuid\s*:=\s*public\.current_profile_id\(\)/i);
+    expect(migration).toMatch(/v_org\s+uuid\s*:=\s*public\.current_organization_id\(\)/i);
     expect(migration).toMatch(/catalog\.product_created/);
     expect(migration).toMatch(/catalog\.product_updated/);
     expect(migration).toMatch(/catalog\.product_archived/);

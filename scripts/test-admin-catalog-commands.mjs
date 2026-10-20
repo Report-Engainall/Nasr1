@@ -143,7 +143,7 @@ async function main() {
       created.id,
       JSON.stringify({ ...update, expected_base_price: 12, name: "stale form" }),
     ]),
-    /changed after the grid was loaded/i,
+    /product prices changed after the form opened/i,
     "stale price snapshot is rejected by the canonical price-grid command",
   );
 
