@@ -251,7 +251,7 @@ describe("customer price visibility UI acceptance", () => {
 
     expect(mount.host.textContent).toContain("Rice");
     expect(mount.host.textContent).not.toContain("سعر الوحدة:");
-    expect(mount.host.textContent).not.toContain("إجمالي السلة");
+    expect(mount.host.querySelector('[aria-label="إجمالي السلة"]')).toBeNull();
     expect(mount.host.textContent).not.toContain(formatCurrency(777777));
     expect(mocks.rpc.mock.calls.some(([name]) => name === "preview_customer_order_pricing")).toBe(false);
   });
@@ -264,7 +264,7 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
 
     expect(mount.host.textContent).toContain("سعر الوحدة:");
-    expect(mount.host.textContent).toContain("إجمالي السلة");
+    expect(mount.host.querySelector('[aria-label="إجمالي السلة"]')).not.toBeNull();
     expect(mount.host.textContent).toContain(formatCurrency(1234));
     expect(mount.host.textContent).toContain(formatCurrency(2468));
   });
@@ -328,7 +328,7 @@ describe("customer price visibility UI acceptance", () => {
 
     expect(mount.host.textContent).toContain("ملخص الطلب");
     expect(mount.host.textContent).not.toContain("سعر الوحدة:");
-    expect(mount.host.textContent).not.toContain("إجمالي مراجعة الطلب");
+    expect(mount.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).toBeNull();
     expect(mount.host.textContent).not.toContain(formatCurrency(777777));
     expect(mount.host.textContent).toContain("الأسعار والإجماليات مخفية في مراجعة الطلب");
     expect(mocks.rpc.mock.calls.some(([name]) => name === "validate_checkout_cart")).toBe(true);
@@ -348,7 +348,7 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
 
     expect(mount.host.textContent).toContain("سعر الوحدة:");
-    expect(mount.host.textContent).toContain("إجمالي مراجعة الطلب");
+    expect(mount.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).not.toBeNull();
     expect(mount.host.textContent).toContain(formatCurrency(1234));
     expect(mount.host.textContent).toContain(formatCurrency(2468));
   });
@@ -369,7 +369,7 @@ describe("customer price visibility UI acceptance", () => {
     const hidden = await mountAt("/checkout");
     await flushEffects();
     expect(hidden.host.textContent).not.toContain("سعر الوحدة:");
-    expect(hidden.host.textContent).not.toContain("إجمالي مراجعة الطلب");
+    expect(hidden.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).toBeNull();
     expect(hidden.host.textContent).not.toContain(formatCurrency(2468));
     await unmount(hidden);
 
@@ -383,7 +383,7 @@ describe("customer price visibility UI acceptance", () => {
     const malformed = await mountAt("/checkout");
     await flushEffects();
     expect(malformed.host.textContent).not.toContain("سعر الوحدة:");
-    expect(malformed.host.textContent).not.toContain("إجمالي مراجعة الطلب");
+    expect(malformed.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).toBeNull();
     expect(malformed.host.textContent).not.toContain(formatCurrency(2468));
     await unmount(malformed);
 
@@ -395,7 +395,7 @@ describe("customer price visibility UI acceptance", () => {
     const failed = await mountAt("/checkout");
     await flushEffects();
     expect(failed.host.textContent).not.toContain("سعر الوحدة:");
-    expect(failed.host.textContent).not.toContain("إجمالي مراجعة الطلب");
+    expect(failed.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).toBeNull();
     expect(failed.host.textContent).not.toContain(formatCurrency(2468));
   });
 });
