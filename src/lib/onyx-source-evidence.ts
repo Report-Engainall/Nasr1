@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 export type OnyxSnapshotSourceEvidence = {
+  organization: { id: string; name: string };
   snapshot: {
     id: string;
     source_import_job_id: string | null;
@@ -63,8 +64,11 @@ export async function fetchOnyxSnapshotSourceEvidence(snapshotId: string): Promi
   }
   const { data, error } = await supabase.rpc("get_onyx_snapshot_source_evidence", { p_snapshot_id: snapshotId });
   if (error) throw new Error("تعذر قراءة أدلة مصدر أونكس: " + error.message);
-  if (!isRecord(data) || !isRecord(data.snapshot) || !isRecord(data.source_identity) || !isRecord(data.live_sync_evidence)) {
+  if (!isRecord(data) || !isRecord(data.organization) || !isRecord(data.snapshot) || !isRecord(data.source_identity) || !isRecord(data.live_sync_evidence)) {
     throw new Error("أعاد الخادم أدلة مصدر أونكس غير مكتملة؛ لم يتم افتراض أي قيم.");
+  }
+  if (typeof data.organization.id !== "string" || !data.organization.id || typeof data.organization.name !== "string" || !data.organization.name.trim()) {
+    throw new Error("هوية المؤسسة المرتبطة بمصدر أونكس غير مكتملة.");
   }
 
   const rawSnapshot = data.snapshot;
@@ -125,6 +129,7 @@ export async function fetchOnyxSnapshotSourceEvidence(snapshotId: string): Promi
   }
 
   return {
+    organization: { id: data.organization.id, name: data.organization.name },
     snapshot: {
       id: rawSnapshot.id,
       source_import_job_id: nullableString(rawSnapshot.source_import_job_id, "source_import_job_id"),
