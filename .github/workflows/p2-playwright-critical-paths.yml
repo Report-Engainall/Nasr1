@@ -301,14 +301,25 @@ jobs:
             echo "- The repository migration itself is unchanged. Storage/RLS for product images is not covered by this browser job."
             echo "- This job uses a fresh local-only PostgreSQL 17/Supabase stack and does not connect to a hosted project."
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Start isolated local Supabase and apply PostgreSQL 17 migrations
+      - name: Start isolated local Supabase services
+        timeout-minutes: 10
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/p2-local-supabase"
-          supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check
-          # Starting containers does not apply repository migrations; reset the isolated local DB before fixture setup.
-          supabase db reset --local
+          timeout 8m supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check
+      - name: Apply repository migrations to local PostgreSQL 17
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/p2-local-supabase"
+          timeout 12m supabase db reset --local
+      - name: Export local Supabase environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/p2-local-supabase"
           supabase status -o env \
             --override-name api.url=SUPABASE_URL \
             --override-name auth.anon_key=SUPABASE_PUBLISHABLE_KEY \
