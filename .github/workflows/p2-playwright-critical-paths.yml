@@ -214,7 +214,7 @@ jobs:
             sleep 1
           done
           if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/p2-public-ui-preview.log"; exit 1; fi
-          echo "Exact source SHA: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Exact source SHA: ${{ github.event.pull_request.head.sha || github.sha }}" >> "$GITHUB_STEP_SUMMARY"
       - name: Run read-only public Storefront browser assertions
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
