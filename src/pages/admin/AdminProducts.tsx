@@ -102,7 +102,7 @@ export default function AdminProducts() {
           </table>
         </div>
       )}
-      {showForm && <ProductForm product={editing} categories={categories} onSave={handleSave} onClose={() => { setShowForm(false); setEditing(null) }} />}
+      {showForm && <ProductForm product={editing} categories={categories} onSave={handleSave} onCreateCategory={handleCreateCategory} onClose={() => { setShowForm(false); setEditing(null) }} />}
     </div>
   )
 }
@@ -116,7 +116,7 @@ function ProductForm({ product, categories, onSave, onCreateCategory, onClose }:
     price_retail: product?.price_retail || 0,
     is_featured: product?.is_featured || false, is_active: product?.is_active ?? true,
   })
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave({ ...form, category_id: form.category_id || null, brand_id: form.brand_id || null }) }
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave({ ...form, category_id: form.category_id || null }) }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }} onClick={onClose}>
