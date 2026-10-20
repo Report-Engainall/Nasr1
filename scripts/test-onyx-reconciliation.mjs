@@ -130,8 +130,8 @@ async function main() {
     );
     await db.unsafe(
       "insert into public.onyx_snapshot_rows(organization_id,snapshot_id,row_number,canonical_key,row_hash,status,data,errors) values" +
-      "($1,$2,1,$3,md5(jsonb_build_object('item_code',$3,'quantity',15,'warehouse_code',$5,'warehouse_name',$6)::text),'valid',jsonb_build_object('item_code',$3,'quantity',15,'warehouse_code',$5,'warehouse_name',$6),'[]'::jsonb)," +
-      "($1,$2,2,$4,md5(jsonb_build_object('item_code',$4,'quantity',4,'warehouse_code',$5,'warehouse_name',$6)::text),'valid',jsonb_build_object('item_code',$4,'quantity',4,'warehouse_code',$5,'warehouse_name',$6),'[]'::jsonb)",
+      "($1::uuid,$2::uuid,1,$3::text,md5(jsonb_build_object('item_code',$3::text,'quantity',15,'warehouse_code',$5::text,'warehouse_name',$6::text)::text),'valid',jsonb_build_object('item_code',$3::text,'quantity',15,'warehouse_code',$5::text,'warehouse_name',$6::text),'[]'::jsonb)," +
+      "($1::uuid,$2::uuid,2,$4::text,md5(jsonb_build_object('item_code',$4::text,'quantity',4,'warehouse_code',$5::text,'warehouse_name',$6::text)::text),'valid',jsonb_build_object('item_code',$4::text,'quantity',4,'warehouse_code',$5::text,'warehouse_name',$6::text),'[]'::jsonb)",
       [organizationId,snapshotId,itemOne,itemTwo,warehouseCode,warehouseName],
     );
     await db.unsafe(
