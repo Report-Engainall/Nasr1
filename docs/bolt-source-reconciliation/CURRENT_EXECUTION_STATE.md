@@ -394,3 +394,14 @@ Objective: wire visibility controls to the actually routed catalog/cart/order-re
 - الأرشيف المعتمد فقط هو `project-bolt-github-7sl6ykzz (2).zip` مع البصمات المحفوظة في سجل المصالحة؛ لم يُعد تنزيله أو استخراجه أو حساب بصماته. لا تعديلات على سجلات P1 أو ملفاته المقفلة أو harness الخاص به.
 - **next_task_id الوحيد:** `NASR1-ORIGINAL-SPEC-ONYX-INVENTORY-RECONCILIATION-005` — تصميم وتنفيذ دورة مصالحة مخزون Onyx من معاينة محفوظة إلى تطبيق صريح قابل للتدقيق، مع منع تسوية خاطئة بين إجمالي المصدر ومخازن متعددة، ورفض التطبيق عند تغيّر المخزون بعد المعاينة، وتراجع تعويضي لا يمحو حركات أحدث. تبقى المهمة الأم للمواصفة مفتوحة؛ لا يُدّعى اكتمال المنتج كليًا.
 
+
+
+## AUTHORITATIVE P2 LIVE CHECKPOINT — 2026-10-20 — CUSTOMER PRICE PRIVACY ACCEPTED
+
+- Only project: `Report-Engainall/Nasr1`. Continue the existing P2 branch `feat/p2-customer-return-intake-20261020` / PR #18 for P2-owned work. PR #12 remains a separate open price-privacy feature PR; do not merge directly to main.
+- `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010`: `IMPLEMENTED=YES`; `INTEGRATED=YES on PR #12 branch`; `TESTED_EXACT_SHA=PASS` at `be595fc74b8bbf64b308b84210d86a9aa1d464b8`, Actions [39463202326](https://github.com/Report-Engainall/Nasr1/actions/runs/39463202326). Exact DB acceptance log prints the standalone `PASS customer price privacy` line. See the latest appended section in `PROGRAMMER_2_CURRENT_REPORT.md`.
+- Root causes resolved in the price-privacy branch: accountant incorrectly fell into operational `base_price` path; replacement price resolver dropped active promotion discounts; the new standalone test first bound bool as string, then raw PostgreSQL boolean to jsonb. These were fixed in the migration/test parameterization, not by changing authorization or weakening SQL policy. Earlier failed Actions remain historical evidence.
+- `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`. Preview and dev smoke tests are CI HTTP smokes only, not authenticated browser proof or production proof.
+- Important merge coordination: the existing PR #12 diff includes a prior change to the P1-locked `scripts/test-database-migrations.mjs`. This P2 batch did not edit that file; do not merge PR #12 until P1 resolves that historical protected-file diff. Separate acceptance lives in `scripts/test-customer-price-visibility.mjs`.
+- Donor extraction discrepancy remains unresolved: 2,329 Git tree entries versus 2,044 items reported by the extraction manifest; no archive redownload, extraction, or hash recalculation was performed.
+- **Single authoritative active pointer:** `next_task_id = NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011`. Next: inspect and complete target-native identity/branding and source identity/external IDs plus timestamp/status/trace evidence across saved Onyx snapshots, analysis, import/export and financial documents; prove that stored snapshot evidence is not mislabeled as live Onyx API sync. Do not start a parallel pointer.
