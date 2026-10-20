@@ -1,0 +1,32 @@
+# P1 — رسالة إقلاع واحدة مختصرة
+التاريخ: 2026-10-20
+المستودع الوحيد القابل للتعديل: https://github.com/Report-Engainall/Nasr1
+الفرع المستمر: integration/inventory-transfer-batches-20261019-rebased
+PR: https://github.com/Report-Engainall/Nasr1/pull/26 (OPEN / DRAFT / NOT MERGED)
+
+ابدأ من docs/bolt-source-reconciliation/PROGRAMMER_1_CURRENT_REPORT.md، ثم اقرأ صف المهمة المحددة فقط من SOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv. لا تعِد تشغيل استكشاف الأرشيفات أو مراجعة العناصر المحسومة.
+
+آخر رأس كود/اختبارات ناجح:
+dc8377209b81d1a6a307242ede3d71f9d3f18949
+CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39484437993 — SUCCESS، 67/67 test files، PostgreSQL 17 acceptance (بما فيه cart runtime)، import idempotency concurrency، saved-products PostgreSQL، lint/build، preview smoke 4173، dev smoke 5173، cleanup.
+حالة المتصفح والإنتاج: NOT RUN.
+
+أُغلقت:
+- Service Worker cache boundary: سياسة Nasr1 الأشد محفوظة؛ لا cache لطلبات auth/API/RPC/storage/functions.
+- سلة العميل المحفوظة على الخادم: migration/RPC/service/Storefront متكاملة؛ فشل PostgreSQL السابق بسبب jsonb_object_length غير الموجودة أُصلح واختُبر على الرأس أعلاه.
+- مقارنة دورة دعوات العميل أُنجزت، لكن الدمج المشترك ما زال محجوبًا بتعارض migration بين P1 وP2.
+
+المهمة الوحيدة التالية:
+NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-007-AGHBCOM-STAFF-CATALOG-0007
+المصدر المسجل: Report-Engainall/aghbari-commerce/supabase/migrations/0007_staff_catalog_commands.sql
+بصمة المصدر: 239789342a29a824852185cdbb95de7906900dbc
+
+قارن المصدر مع واجهات Nasr1 ومساراته وخدماته وRPC/migrations وRLS/grants والمؤسسة/الدور والاختبارات. خذ قرارًا واحدًا مسببًا؛ إذا كان الهدف أفضل فوثّق ALREADY_PRESENT_BETTER، وإذا كانت هناك فجوة حقيقية فكيّفها فقط. لا تنقل SQL قديمًا خامًا ولا تعدّل main.
+
+الملكية والقيود:
+- P1 يحدّث PROGRAMMER_1_CURRENT_REPORT.md وSOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv وهذا الملف فقط.
+- لا تكتب فوق ملفات P2 أو WORK_COORDINATION.md أو CURRENT_EXECUTION_STATE.md أو EXECUTION_LOG.md أو سجلات الأرشيف.
+- لا reset ولا clean ولا force-push ولا فرع جديد لكل جلسة. لا تخفف RLS/grants.
+- بعد كل دفعة: اختبار فعلي، commit على هذا الفرع، قراءة الرأس ونتيجة Actions المطابقة، تحديث السجلات وقراءتها مجددًا.
+- افصل IMPLEMENTED وINTEGRATED وTESTED_EXACT_SHA وBROWSER_PROVEN وPRODUCTION_PROVEN؛ غير المنفذ يظل NOT RUN/BLOCKED_EXTERNAL.
+- عند الاستئناف التالي، افحص الرأس وCI الحيين أولًا؛ قيمة SHA أعلاه هي آخر رأس كود مختبر وليست افتراضًا أن الفرع لم يتقدم.

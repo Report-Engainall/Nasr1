@@ -1,10 +1,15 @@
 # تقرير الحالة التنفيذي — المبرمج 1 / دمج ميزات المصادر الثلاثة
 
-- **المستودع الوحيد المستهدف:** `Report-Engainall/Nasr1`
+- **المستودع المستهدف الوحيد:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
-- **الملكية:** هذا التقرير و`SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` فقط.
-- **حالة المهمة الحالية:** `NASR1-SOURCE-CART-PERSISTENCE-001-AGHBCOM-CART-0006` — التنفيذ مكتوب على الفرع؛ إعادة التحقق وCI مطلوبة بعد معالجة فشل UUID validator في أول تشغيل.
-- **المهمة التالية الوحيدة بعد إغلاق الحالية / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-007-AGHBCOM-STAFF-CATALOG-0007` — قارن `supabase/migrations/0007_staff_catalog_commands.sql` مع أوامر الكتالوج/التسعير/المخزون في Nasr1، ثم احسم الفجوات المستقلة فقط. لا تنفذ قبل إغلاق CI للمهمة الحالية.
+- **PR:** [#26 — مفتوح / Draft / غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/26)
+- **آخر رأس كود مختبر:** `dc8377209b81d1a6a307242ede3d71f9d3f18949` — [Actions 39484437993: SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39484437993)
+- **المهمة النشطة الوحيدة / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-007-AGHBCOM-STAFF-CATALOG-0007` — مراجعة مصدر `0007_staff_catalog_commands.sql` مقابل تدفقات Nasr1 الحالية، ثم اتخاذ قرار مسبب وعدم النقل الخام.
+- **أُغلقت دفعة سلة العميل:** اختبار الوحدة 67/67 ملفًا، وقبول PostgreSQL 17 الفعلي للسلة، وCI الكامل نجح على SHA المذكور. تفاصيل الفشل والإصلاح وبصمات الملفات في القسم 6.15.1.
+- **حد Service Worker مغلق:** لا تعِد تنفيذه أو مراجعة أرشيفه ما لم يظهر regression جديد. اختبار متصفح/إنتاج لهذا الحد: NOT RUN.
+- **حد دورة تفعيل العميل:** مقارنة المصدر انتهت؛ الدمج المشترك ما يزال محجوبًا بتعارض migration بين P1 وP2. لا تعدّل ملفات المبرمج 2 أو تحذف migration مملوكة له بلا تنسيق صريح.
+- **ملكية P1:** هذا التقرير و`SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` ورسالة الإقلاع الجديدة الخاصة بـP1 فقط. ملفات التنسيق والتنفيذ المملوكة لـP2 ليست ضمن نطاق الكتابة.
+- **قاعدة الاستئناف:** اقرأ رسالة `PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt` ثم هذا التقرير. نفّذ task ID النشط أعلاه وحده؛ لا تُعد الخطوات التاريخية ولا تعلن PASS إلا لدليل فعلي مرتبط بـSHA.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 
@@ -247,8 +252,18 @@
 
 ### الفشل السابق والسبب الجذري
 - [Actions 39483696866](https://github.com/Report-Engainall/Nasr1/actions/runs/39483696866) على SHA `1ff4a5076c0729945740ba4dd2ff50ff41a95f2c` فشل في Unit tests فقط: `src/test/customer-cart.test.ts` (5 اختبارات). السبب الجذري المثبت من سجل الاختبار أن regex التحقق من UUID اشترط version nibble من 1 إلى 8 وvariant محددًا، بينما UUIDs صحيحة نحويًا في PostgreSQL ومستخدمة للمعرفات الاختبارية تحتوي على مجموعات صفرية. خفّضت قيود العميل إلى شكل UUID عام؛ لم ألمس صلاحيات قاعدة البيانات أو أضعف التحقق من المؤسسة.
-- رأس الإصلاح الحالي بعد هذه الدفعة سيُختبر عبر Actions جديدة؛ حتى عودة النتيجة يبقى `CI=NOT VERIFIED FOR FIXED HEAD`. لا أدعي نجاح تشغيل PostgreSQL لميزة السلة بعد.
-- حالة الدليل: `IMPLEMENTED`; `INTEGRATED` على مسار Storefront/Service/RPC/Migration؛ `TESTED_EXACT_SHA=PENDING`; `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
+- تحديث تاريخي لهذه النسخة من التقرير: بعد إصلاح اختبار UUID، فشل قبول PostgreSQL 17 على SHA `92b28f325068e4dc69cd81d8ccd5982e6bbc7cf0` لأن الترحيل استدعى دالة غير موجودة `pg_catalog.jsonb_object_length(jsonb)`. أُصلح السبب الجذري وأُعيد اختبار الرأس المصحح؛ انظر القسم 6.15.1.
+- حالة الدليل وقت كتابة المقطع الأول: `IMPLEMENTED`; `INTEGRATED`; `TESTED_EXACT_SHA=PENDING`. أُغلقت حالة CI لاحقًا في القسم 6.15.1؛ لا يتغير حد إثبات المتصفح/الإنتاج.
 
 ### قرار المصدر التالي الوحيد بعد الإغلاق
 - `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-007-AGHBCOM-STAFF-CATALOG-0007` — المصدر التالي `supabase/migrations/0007_staff_catalog_commands.sql`, blob `239789342a29a824852185cdbb95de7906900dbc`. لا تنقل العقود القديمة قبل مطابقتها مع واجهات وأوامر Nasr1 الحالية.
+
+
+## 6.15.1. إغلاق سلة العميل المحفوظة — إصلاح الجذر وإثبات SHA مطابق (2026-10-20)
+
+- **الفشل الأول محفوظ:** [Actions 39483696866](https://github.com/Report-Engainall/Nasr1/actions/runs/39483696866) على `1ff4a5076c0729945740ba4dd2ff50ff41a95f2c` فشل في 5 اختبارات من `src/test/customer-cart.test.ts` بسبب validator كان يفرض أرقام إصدار/variant على UUID؛ خُففت القاعدة إلى شكل UUID عام، دون تغيير تحقق المؤسسة أو الصلاحيات.
+- **الفشل الثاني محفوظ:** [Actions 39484145821](https://github.com/Report-Engainall/Nasr1/actions/runs/39484145821) على `92b28f325068e4dc69cd81d8ccd5982e6bbc7cf0` اجتاز Unit tests لكنه فشل في قبول PostgreSQL 17 لأن `jsonb_object_length(jsonb)` غير موجودة. السبب كان خطأً في SQL، لا RLS ولا grants.
+- **الإصلاح:** في `supabase/migrations/20261020210000_customer_persistent_cart.sql` استُبدل الاستدعاء غير الموجود بتحقق مرحلي من نوع JSON object، ثم طرح مفاتيح `product_id` و`quantity` والتحقق من عدم بقاء مفاتيح إضافية. بصمة الترحيل النهائية: `3001681069d2567fb9c17e74be1d85de5bb8e47d`. اختبار العقد `src/test/customer-cart-persistence-migration.test.ts` بصمته `e15a11d281fdd7e219276f393d05dd4b3cd6d02c`.
+- **الرأس المختبر:** [commit `dc8377209b81d1a6a307242ede3d71f9d3f18949`](https://github.com/Report-Engainall/Nasr1/commit/dc8377209b81d1a6a307242ede3d71f9d3f18949). [Actions 39484437993 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39484437993) على SHA نفسه. 67/67 ملف اختبار اجتاز؛ تطبيق migrations وقبول PostgreSQL 17 نجحا، بما في ذلك اختبار السلة الفعلي: عزل المؤسسة/الملف، replay idempotency، تسلسل الكتابة المتزامنة، rollback للتحقق غير الصحيح، منع الوصول المباشر مع RPC-only privileges. كما نجح قبول idempotency للاستيراد والعناصر المحفوظة، lint، build، production-preview smoke على 4173، dev smoke على 5173 والتنظيف.
+- **الحالة:** `IMPLEMENTED=YES`; `INTEGRATED=YES`; `TESTED_EXACT_SHA=PASS (dc8377209b81d1a6a307242ede3d71f9d3f18949)`; `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`. الـpreview/dev smoke اختبار CI وليس اختبار مستخدم يدويًا ولا إثبات نشر إنتاجي.
+- **الاستئناف التالي الوحيد:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-007-AGHBCOM-STAFF-CATALOG-0007`. المصدر والبصمة مسجلان؛ قارن الميزة كاملة ولا تنقل schema/RPC قديمة قبل إثبات فجوة في Nasr1.
