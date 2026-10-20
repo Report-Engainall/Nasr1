@@ -388,7 +388,7 @@ async function main() {
   const statementRaw = await db.unsafe("select public.get_customer_account_statement() as result");
   const customerStatement = asJson(statementRaw[0].result);
   const creditedInvoice = customerStatement.invoices.find((row) => row.id === sourceInvoiceId);
-  assert.ok(creditedInvoice,"customer statement contains the source invoice");
+  assert.ok(creditedInvoice,"customer statement source invoice "+sourceInvoiceId+" missing; returned invoice IDs: "+JSON.stringify(customerStatement.invoices.map((row) => ({ id:row.id, invoice_number:row.invoice_number, customer_id:row.customer_id }))) );
   assert.equal(Number(creditedInvoice.credit_memo_amount),125,"customer statement includes posted credit memo");
   assert.equal(Number(creditedInvoice.outstanding_amount),375,"source invoice receivable is reduced by the posted credit");
   await db.unsafe("reset role");

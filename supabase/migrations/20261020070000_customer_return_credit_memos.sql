@@ -955,7 +955,7 @@ BEGIN
   END IF;
   SELECT c.id INTO v_customer
     FROM public.customers c
-   WHERE c.profile_id=v_profile AND c.organization_id=v_org
+   WHERE c.profile_id=v_profile AND c.organization_id=v_org AND c.status='approved'
    ORDER BY c.created_at,c.id LIMIT 1;
   IF v_customer IS NULL OR v_org IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='customer account is not linked to the active profile';
