@@ -21,8 +21,8 @@ describe("staff catalog commands migration contract", () => {
     ]) {
       expect(runtimeTest).not.toContain(forbidden);
     }
-    expect(runtimeTest).toMatch(/\\[payload\\]/);
-    expect(runtimeTest).toMatch(/\\[created\\.id, update\\]/);
+    expect(runtimeTest).toContain('[payload]');
+    expect(runtimeTest).toContain('[created.id, update]');
   });
 
   it("reports unsupported payload keys explicitly rather than relying on JSONB key subtraction", () => {
