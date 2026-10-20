@@ -18,12 +18,12 @@ const fixture = {
   import_job: {
     id: jobId, source_system: "manual", job_type: "inventory", status: "completed",
     file_name: "stock.csv", file_hash: "a".repeat(64), period_key: "2026-10",
-    created_at: "2026-10-20T11:59:00.000Z", updated_at: "2026-10-20T12:00:00.000Z",
+    created_at: "2026-10-20T11:59:00.000Z", updated_at: null,
     error_code: null, file_hash_matches_snapshot: true,
   },
   source_identity: {
     provenance_status: "linked_import_job_hash_match", source_system: "manual",
-    source_record_id: jobId, source_row_count: 3,
+    source_record_id: null, source_row_count: 3,
     external_id_fields_found: ["external_id"], rows_with_external_id: 2,
   },
   live_sync_evidence: {
@@ -40,6 +40,8 @@ describe("Onyx source evidence panel", () => {
     render(<OnyxSnapshotSourceEvidencePanel snapshotId={snapshotId} />);
     expect(await screen.findByText("مرجع دفعة الاستيراد موجود والبصمة متطابقة")).toBeTruthy();
     expect(screen.getByTestId("onyx-evidence-organization-name").textContent).toBe("مؤسسة الاختبار");
+    expect(screen.getByText(/آخر تحديث للدفعة:/).textContent).toContain("غير مسجل");
+    expect(screen.getByText(/معرّف سجل المصدر/).textContent).toContain("غير متاح");
     expect(screen.getByText("استيراد ملف يدوي")).toBeTruthy();
     expect(screen.getByText("external_id")).toBeTruthy();
     expect(screen.getByText(/غير مثبتة بأدلة هذا السجل/)).toBeTruthy();
