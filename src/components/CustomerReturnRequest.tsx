@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { AlertCircle, ClipboardCheck, Printer, RefreshCw, RotateCcw, Send } from "lucide-react";
+import { AlertCircle, ClipboardCheck, RefreshCw, RotateCcw, Send } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   buildCustomerReturnLines,
@@ -101,6 +101,11 @@ export function CustomerReturnRequest({ orderId, orderStatus }: { orderId: strin
       attemptRef.current = { fingerprint, key: createReturnIdempotencyKey() };
     }
 
+    const attempt = attemptRef.current;
+    if (!attempt) {
+      setError("تعذر تأمين مفتاح طلب الإرجاع؛ حاول مرة أخرى.");
+      return;
+    }
     setBusy(true);
     setError("");
     setNotice("");
@@ -110,7 +115,7 @@ export function CustomerReturnRequest({ orderId, orderStatus }: { orderId: strin
         p_lines: lines,
         p_reason: reason,
         p_notes: trimmedNotes || null,
-        p_idempotency_key: attemptRef.current.key,
+        p_idempotency_key: attempt.key,
       });
       if (rpcError) throw new Error(rpcError.message || "تعذر إرسال طلب الإرجاع.");
       const result = readReturnMutationResult(data);
