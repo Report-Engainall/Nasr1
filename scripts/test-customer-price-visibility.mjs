@@ -30,7 +30,7 @@ async function setVisibility(values) {
     ["show_customer_tier_in_customer_views", values.tier],
   ];
   for (const [key, visible] of keys) {
-    const value = visible;
+    const value = db.json(visible);
     await db.unsafe(
       "insert into public.admin_settings(organization_id,key,value,category,updated_at) values($1,$2,$3::jsonb,'storefront',statement_timestamp()) on conflict(organization_id,key) do update set value=excluded.value,updated_at=statement_timestamp()",
       [ORG_ID, key, value],
