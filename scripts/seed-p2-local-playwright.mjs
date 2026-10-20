@@ -59,8 +59,8 @@ async function createConfirmedUser(email, password, fullName) {
 async function main() {
   const userAId = await createConfirmedUser(emailA, passwordA, "P2 Local E2E Customer A");
   const userBId = await createConfirmedUser(emailB, passwordB, "P2 Local E2E Customer B");
-  const profileAId = randomUUID();
-  const profileBId = randomUUID();
+  let profileAId;
+  let profileBId;
   const suffix = runKey.replaceAll("-", "").slice(-12);
 
   await db.begin(async (tx) => {
@@ -78,14 +78,27 @@ async function main() {
       [foreignOrganizationId],
     );
 
-    await tx.unsafe(
-      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
-      "values($1::uuid,$2::uuid,$3::uuid,$4,$5,true),($6::uuid,$7::uuid,$8::uuid,$9,$10,true)",
-      [
-        profileAId, userAId, organizationId, "P2 Local E2E Customer A", emailA,
-        profileBId, userBId, foreignOrganizationId, "P2 Local E2E Customer B", emailB,
-      ],
-    );
+    const upsertProfile = async (authUserId, tenantId, fullName, email) => {
+      const existing = await tx.unsafe(
+        "select id from public.profiles where auth_user_id=$1::uuid order by id limit 1",
+        [authUserId],
+      );
+      if (existing.length) {
+        await tx.unsafe(
+          "update public.profiles set organization_id=$2::uuid,full_name=$3,email=$4,is_active=true where id=$1::uuid",
+          [existing[0].id, tenantId, fullName, email],
+        );
+        return existing[0].id;
+      }
+      const id = randomUUID();
+      await tx.unsafe(
+        "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1::uuid,$2::uuid,$3::uuid,$4,$5,true)",
+        [id, authUserId, tenantId, fullName, email],
+      );
+      return id;
+    };
+    profileAId = await upsertProfile(userAId, organizationId, "P2 Local E2E Customer A", emailA);
+    profileBId = await upsertProfile(userBId, foreignOrganizationId, "P2 Local E2E Customer B", emailB);
     await tx.unsafe(
       "insert into public.user_roles(profile_id,role) values($1::uuid,'customer'),($2::uuid,'customer') " +
       "on conflict(profile_id,role) do nothing",
