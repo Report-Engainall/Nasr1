@@ -119,7 +119,7 @@ describe("finance document printing UI", () => {
     expect(await screen.findByText(/تم تجهيز المستند/)).toBeInTheDocument();
     expect(mocks.rpc).toHaveBeenCalledWith("get_staff_customer_account_statement", { p_customer_id: customerId });
     expect(popup.document.body.textContent).toContain("كشف حساب العميل");
-    expect(popup.document.body.textContent).toContain("75.00");
+    expect(popup.document.body.textContent).toContain("٧٥٫٠٠");
     expect(popup.document.body.textContent).toContain("INV-TEST-0009");
   });
 
