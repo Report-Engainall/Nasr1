@@ -252,6 +252,8 @@ async function main() {
   assert.equal(Number(secondReceipt.restockable_quantity),0.25);
   assert.equal(Number(secondReceipt.defective_quantity),0.25);
 
+  // Inspect persisted tables as the privileged test runner; authenticated callers intentionally have no direct table SELECT.
+  await db.unsafe("reset role");
   const finalReturnRows = await db.unsafe(
     "select status from public.customer_return_requests where id=$1::uuid and organization_id=$2",
     [firstRequest.request_id,organizationId],
