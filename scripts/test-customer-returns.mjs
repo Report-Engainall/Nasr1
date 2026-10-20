@@ -426,8 +426,6 @@ async function main() {
   await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
   await db.unsafe("set role authenticated");
   await expectFailure(
-    "customers cannot access the finance return-credit queue",
-  await expectFailure(
     "ordinary customers cannot execute the administrative physical-receipt RPC",
     () => db.unsafe(
       "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text)",
@@ -435,6 +433,8 @@ async function main() {
     ),
     /administrator or manager permission required to receive customer returns/i,
   );
+  await expectFailure(
+    "customers cannot access the finance return-credit queue",
     () => db.unsafe("select public.fetch_customer_return_credit_memo_queue(50)"),
     /finance permission required/i,
   );
