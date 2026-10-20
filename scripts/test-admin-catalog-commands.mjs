@@ -118,7 +118,7 @@ async function main() {
   const created = await rpc(
     admin,
     "select public.save_admin_catalog_product(null,$1::jsonb) result",
-    [payload],
+    [admin.json(payload)],
   );
   assert.ok(created.id && created.created, "product create returns a new ID");
 
@@ -132,7 +132,7 @@ async function main() {
     const result = await rpc(
       admin,
       "select public.save_admin_catalog_product(null,$1::jsonb) result",
-      [{
+      [admin.json({
         ...payload,
         name: fixture.name,
         item_code: fixture.item_code,
@@ -140,7 +140,7 @@ async function main() {
         price_wholesale_of_wholesale: 4,
         price_wholesale: 4.5,
         price_retail: 6,
-      }],
+      })],
     );
     assert.ok(result.id && result.created, "pagination fixture product is created through the audited command");
     pageProducts.push(result.id);
@@ -183,7 +183,7 @@ async function main() {
 
   await assert.rejects(
     () => rpc(admin, "select public.save_admin_catalog_product(null,$1::jsonb) result", [
-      { ...payload, shadow_tier_price: 999 },
+      admin.json({ ...payload, shadow_tier_price: 999 }),
     ]),
     (error) =>
       /catalog payload contains unsupported fields/i.test(error.message) &&
@@ -203,7 +203,7 @@ async function main() {
   const updated = await rpc(
     admin,
     "select public.save_admin_catalog_product($1::uuid,$2::jsonb) result",
-    [created.id, update],
+    [created.id, admin.json(update)],
   );
   assert.equal(updated.id, created.id);
   assert.equal(updated.created, false);
@@ -211,7 +211,7 @@ async function main() {
   await assert.rejects(
     () => rpc(admin, "select public.save_admin_catalog_product($1::uuid,$2::jsonb) result", [
       created.id,
-      { ...update, expected_base_price: 12, name: "stale form" },
+      admin.json({ ...update, expected_base_price: 12, name: "stale form" }),
     ]),
     /product prices changed after the form opened/i,
     "stale price snapshot is rejected by the canonical price-grid command",
@@ -220,7 +220,7 @@ async function main() {
   await assert.rejects(
     () => rpc(admin, "select public.save_admin_catalog_product($1::uuid,$2::jsonb) result", [
       foreignProduct,
-      { ...update, category_id: category.id },
+      admin.json({ ...update, category_id: category.id }),
     ]),
     /product not found in organization/i,
     "a product in a different tenant cannot be edited",
@@ -252,7 +252,7 @@ async function main() {
   );
   await assert.rejects(
     () => rpc(customer, "select public.save_admin_catalog_product(null,$1::jsonb) result", [
-      payload,
+      customer.json(payload),
     ]),
     /active admin or manager profile required/i,
     "customer cannot run staff product commands",
