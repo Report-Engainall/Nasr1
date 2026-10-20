@@ -32,7 +32,8 @@ describe('persistent customer cart migration contract', () => {
 
   it('validates before replacing a cart and serializes concurrent sync operations', () => {
     expect(migration).toMatch(/pg_catalog\.jsonb_array_length\(p_items\) > 100/i);
-    expect(migration).toMatch(/pg_catalog\.jsonb_object_length\(v_item\) <> 2/i);
+    expect(migration).toMatch(/IF pg_catalog\.jsonb_typeof\(v_item\) IS DISTINCT FROM 'object' THEN[\s\S]*?END IF;\s*IF \(v_item - ARRAY\['product_id', 'quantity'\]::text\[\]\) <> '\{\}'::jsonb[\s\S]*?NOT \(v_item \? 'product_id'\)[\s\S]*?NOT \(v_item \? 'quantity'\)/i);
+    expect(migration).not.toMatch(/jsonb_object_length/i);
     expect(migration).toMatch(/v_quantity < 1 OR v_quantity > 10000/i);
     expect(migration).toMatch(/v_product_id = ANY\(v_seen\)/i);
     expect(migration).toMatch(/p\.organization_id = v_org[\s\S]*?p\.status = 'active'/i);

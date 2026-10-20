@@ -145,8 +145,12 @@ BEGIN
     SELECT entry.value
       FROM pg_catalog.jsonb_array_elements(p_items) AS entry(value)
   LOOP
-    IF pg_catalog.jsonb_typeof(v_item) IS DISTINCT FROM 'object'
-       OR pg_catalog.jsonb_object_length(v_item) <> 2
+    IF pg_catalog.jsonb_typeof(v_item) IS DISTINCT FROM 'object' THEN
+      RAISE EXCEPTION USING ERRCODE = '22023',
+        MESSAGE = 'each cart line must be an object';
+    END IF;
+
+    IF (v_item - ARRAY['product_id', 'quantity']::text[]) <> '{}'::jsonb
        OR NOT (v_item ? 'product_id')
        OR NOT (v_item ? 'quantity') THEN
       RAISE EXCEPTION USING ERRCODE = '22023',
