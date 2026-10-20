@@ -3,7 +3,7 @@
 - **المستودع المستهدف الوحيد:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **PR:** [#26 — مفتوح / Draft / غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/26)
-- **آخر رأس كود مختبر:** `20822761dfdd5a6bd331ea1f172d8c7dcad2cad6` — [Actions 39491944048: SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39491944048)؛ 67/67 test files، PostgreSQL 17، import-idempotency concurrency، saved-products acceptance، lint/build، preview 4173، dev 5173، cleanup.
+- **آخر رأس كود مختبر:** `884d856330da8ec7c0eea71e10c16605dd4c7605` — [Actions 39495133683: SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39495133683)؛ اختبارات الوحدة، PostgreSQL 17، lint/build، preview/dev smoke على SHA نفسه.
 - **المهمة النشطة الوحيدة / next_source_task_id:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-001-AGHBCOM-CATALOG-0002` — استكمال فجوة pagination الخادمية للكتالوج دون استبدال RPC أو حدود أسعار Nasr1.
 - **أُغلقت دفعة سلة العميل:** اختبار الوحدة 67/67 ملفًا، وقبول PostgreSQL 17 الفعلي للسلة، وCI الكامل نجح على SHA المذكور. تفاصيل الفشل والإصلاح وبصمات الملفات في القسم 6.15.1.
 - **حد Service Worker مغلق:** لا تعِد تنفيذه أو مراجعة أرشيفه ما لم يظهر regression جديد. اختبار متصفح/إنتاج لهذا الحد: NOT RUN.
@@ -296,3 +296,19 @@
 
 ### الاستئناف التالي من السجل الحي
 - `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-001-AGHBCOM-CATALOG-0002`: تحقيق pagination الكتالوج الخادمية على عقود Nasr1 الحالية؛ لا نقل `0002_server_authoritative_commands.sql` خامًا، ولا تعديل `src/lib/api.ts` دون تنسيق مع P2.
+
+## 6.17. إغلاق فجوة Pagination الكتالوج — اختبار مطابق
+
+- السبب: واجهة المتجر كانت تحمّل كل المنتجات وتنفذ البحث والتصنيف وتصفية التوفر محليًا، بلا ترقيم صفحات أو إجمالي خادمي بعد تطبيق مرشحات المؤسسة.
+- الحل: `get_storefront_catalog_page` يشتق المؤسسة من سياق الخادم، يطبق البحث العربي والتصنيف والتوفر قبل `OFFSET/LIMIT`، ويحد حجم الصفحة إلى 100 مع ترتيب ثابت.
+- سلامة المخزون: ربط الرصيد عبر المستودع النشط المملوك للمؤسسة؛ لا افتراض بوجود `organization_id` داخل `inventory_balances`.
+- التسعير: يعيد استخدام `get_storefront_product_prices(product_ids, 1)` لإرجاع سعر العرض المخول، بلا أعمدة أسعار شرائح خام ولا RPC تسعير موازية.
+- الكاش: نتائج الصفحات المؤسسية لا تُدمج في الكاش العام `aghbari:catalog:v1`، كما أن عرض المتجر المرقّم لا يعود إلى كاش عام عند فشل الطلب، منعًا لتسرب أصناف مستأجر آخر.
+- الملفات:
+  - `supabase/migrations/20261020230000_storefront_catalog_pagination.sql` — `19179c346848a8991d71cb1897d80e61732d4501`
+  - `src/lib/storefront-catalog.ts` — `5ca04b24ddea87c1d89c136b3c3524d823c9c670`
+  - `src/test/storefront-catalog-pagination.test.ts` — `27cfed01146e29a8feec9c62772e72ce6e27b685`
+  - `src/components/Storefront.tsx` — `905825d6df7dabaaf5ed8c08c39c45dc9cdeffd8`
+  - `scripts/test-admin-catalog-commands.mjs` — `f5bab2c46e4bb7a0915bb5bda3ecff69cacf9501`
+- الاختبار: [Actions 39495133683 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39495133683) على الرأس `884d856330da8ec7c0eea71e10c16605dd4c7605`. `IMPLEMENTED=YES`; `INTEGRATED=YES`; `TESTED_EXACT_SHA=PASS`; `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
+- لم تتغير ملفات P2 المحمية: `src/lib/api.ts`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, `package.json`, `scripts/test-database-migrations.mjs` أو workflows المملوكة له.

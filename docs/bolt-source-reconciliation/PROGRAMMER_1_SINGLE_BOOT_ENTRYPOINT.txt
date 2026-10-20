@@ -7,9 +7,8 @@ PR: https://github.com/Report-Engainall/Nasr1/pull/26 (OPEN / DRAFT / NOT MERGED
 ابدأ من docs/bolt-source-reconciliation/PROGRAMMER_1_CURRENT_REPORT.md، ثم اقرأ صف المهمة المحددة فقط من SOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv. لا تعِد تشغيل استكشاف الأرشيفات أو مراجعة العناصر المحسومة.
 
 آخر رأس كود/اختبارات ناجح:
-20822761dfdd5a6bd331ea1f172d8c7dcad2cad6
-CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39491944048 — SUCCESS على SHA نفسه؛ 67/67 test files، PostgreSQL 17 acceptance لأوامر catalog والسلة، import idempotency concurrency، saved-products PostgreSQL، lint/build، preview smoke 4173، dev smoke 5173، cleanup.
-حالة المتصفح والإنتاج: NOT RUN.
+884d856330da8ec7c0eea71e10c16605dd4c7605
+CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39495133683 — SUCCESS على SHA نفسه؛ PostgreSQL 17، الاختبارات، lint/build، preview/dev smoke.
 
 أُغلقت:
 - Service Worker cache boundary: سياسة Nasr1 الأشد محفوظة؛ لا cache لطلبات auth/API/RPC/storage/functions.
@@ -19,14 +18,7 @@ CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39491944048 — SUCCE
 أُغلقت مهمة كتالوج الموظفين 0007 على الرأس أعلاه: IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA=PASS. السبب الجذري كان تمرير JSON.stringify(payload) إلى $1::jsonb مما جعل Postgres.js يرسل JSON scalar، لا object. التفاصيل والبصمات في القسم 6.16 من التقرير وسطر المهمة في ledger.
 
 المهمة الوحيدة التالية:
-NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-001-AGHBCOM-CATALOG-0002
-المصدر المسجل: Report-Engainall/aghbari-commerce/supabase/migrations/0002_server_authoritative_commands.sql
-الحالة: SERVER_SIDE_PAGINATION_NOT_INTEGRATED. تابع التنفيذ على عقود Nasr1 الحالية؛ لا تنقل donor SQL خامًا ولا تعدّل src/lib/api.ts دون تنسيق صريح مع P2.
-
-الملكية والقيود:
-- P1 يحدّث PROGRAMMER_1_CURRENT_REPORT.md وSOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv وهذا الملف فقط.
-- لا تكتب فوق ملفات P2 أو WORK_COORDINATION.md أو CURRENT_EXECUTION_STATE.md أو EXECUTION_LOG.md أو سجلات الأرشيف.
-- لا reset ولا clean ولا force-push ولا فرع جديد لكل جلسة. لا تخفف RLS/grants.
-- بعد كل دفعة: اختبار فعلي، commit على هذا الفرع، قراءة الرأس ونتيجة Actions المطابقة، تحديث السجلات وقراءتها مجددًا.
-- افصل IMPLEMENTED وINTEGRATED وTESTED_EXACT_SHA وBROWSER_PROVEN وPRODUCTION_PROVEN؛ غير المنفذ يظل NOT RUN/BLOCKED_EXTERNAL.
-- عند الاستئناف التالي، افحص الرأس وCI الحيين أولًا؛ قيمة SHA أعلاه هي آخر رأس كود مختبر وليست افتراضًا أن الفرع لم يتقدم.
+NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-001-AGHBCOM-CORE-0001
+المصدر: supabase/migrations/0001_operational_core.sql
+أُغلقت مهمة Pagination 001 على الرأس 884d856330da8ec7c0eea71e10c16605dd4c7605 مع Actions 39495133683 SUCCESS.
+لا تنقل SQL المانح خامًا، ولا تعدّل ملفات P2 المحمية دون تنسيق صريح.
