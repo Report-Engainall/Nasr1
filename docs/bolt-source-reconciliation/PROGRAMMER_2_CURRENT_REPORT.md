@@ -1,5 +1,19 @@
 # تقرير الاستئناف — المبرمج 2 / Bolt archive ثم المواصفة
 
+## الحالة التنفيذية الحالية — 20 أكتوبر 2026
+
+- المهمة الحالية: NASR1-ORIGINAL-SPEC-RETURNS-INTAKE-001 (CI_PENDING إلى أن يجتاز PR الرأس النهائي نفسه).
+- الفرع: feat/p2-customer-return-intake-20261020؛ قاعدة المقارنة البرمجية: main SHA e815d1e01e5190220083e0593b8b9d152fc3783a. بعد إنشاء الفرع تقدم main إلى 0303cff02ff548aad74e68372bf02991237603af في تحديثات P1 لا تتقاطع مع ملفات كود هذه المهمة؛ تُنفذ اختبارات PR ضد main الحالي.
+- ملخص الأرشيف المعتمد وقراراته: P2_SINGLE_ARCHIVE_RECONCILIATION_2026-10-20.md؛ فهرس البصمات: P2_SINGLE_ARCHIVE_MANIFEST_2026-10-20.csv؛ مصفوفة القرار لكل مسار من 22 مسارًا archive-only: P2_SINGLE_ARCHIVE_DECISION_MATRIX_2026-10-20.csv.
+- قيد الأرشيف: ملف واحد فقط، project-bolt-github-7sl6ykzz (2).zip؛ 1,009,556 بايت؛ Git Blob 4835a0565f799a272dfca0ff49fbc3ce0d760474؛ SHA-256 1a692b013da35b4cb034f5b18f8160ec66bca778bc4649bd5128abc7fccb9be1؛ CRC PASS؛ 359 ملفًا. لم نفتح أو نفحص نسختي Bolt القديمتين.
+- فرق الأرشيف مقابل هدف SHA e815d1e01e5190220083e0593b8b9d152fc3783a: 270 تطابق محتوى، 67 مسارًا مختلفًا، 22 مسارًا archive-only، 168 target-only. لم تنسخ الصفحات القديمة التي لها مقابل في التطبيق الحي؛ استُبعدت متغيرات .env وSQL تعيين دور/كلمة مرور admin. إدارة التصنيفات الإدارية ما زالت فجوة موثقة؛ لم يُنسخ helper قديم مباشر الكتابة دون عقد صلاحيات.
+- عمل المواصفة الأصلي الذي أضيف على الفرع: وحدة طلب مرتجع/قرار مراجعة في المخطط والواجهات الحية. تغييرات الكود الأساسية checkpoint 1ee787b27b536d3442bd49c69c5fbc6b166a95d (قبل تحديث ملفات التقارير). انظر ملف المصالحة لشرح التوافق والحدود.
+- اختبارات جديدة: src/test/customer-returns.test.ts؛ scripts/test-customer-returns.mjs؛ test:db يشغل اختبار PostgreSQL الجديد بعد harness الأساسي. لم تُعتبر الاختبارات ناجحة قبل نتيجة CI على رأس PR النهائي. اختبار production/live tenant/browser غير منفذ.
+- ملفات P1 المحمية وتقارير P1 ودفاترهم لم تُعدل. main وsource repository لم يكتب إليهما.
+- task التالي بعد PASS: NASR1-ORIGINAL-SPEC-RETURNS-RECEIPT-POSTING-002 — استلام وفحص فعلي، حركة مخزون حتمية، إشعار دائن وربط قيد/دفتر الأستاذ داخل معاملة idempotent منفصلة؛ ثم إدارة التصنيفات الإدارية target-native.
+
+---
+
 المستودع الهدف الوحيد: Report-Engainall/Nasr1.  
 task الحالي الوحيد: NASR1-BOLT-ARCHIVE-DELTA-001.  
 task التالي بعده مباشرة: NASR1-ORIGINAL-SPEC-INTERFACE-COMPLETION-002 (الحالة الحية هي المرجع إذا تغير HEAD/المواصفة).
