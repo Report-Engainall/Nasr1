@@ -1054,10 +1054,131 @@ async function main() {
   const customerBalance = await db.unsafe("select current_balance from public.customers where id=(select customer_id from public.orders where id=$1)", [order.id]);
   assert.equal(Number(customerBalance[0].current_balance), 270000, "customer balance must reflect invoice minus payment");
 
+  // NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004: source-backed print authorization and tenant scope.
+  await db.unsafe("reset role");
+  const issuerRows = await db.unsafe("select name from public.organizations where id=$1 and is_active", [organizationId]);
+  assert.equal(issuerRows.length, 1, "finance print requires an active source tenant identity");
+  const managerPrintProfileId = "f8888888-8888-4888-8888-888888888881";
+  const managerPrintAuthId = "88888888-8888-4888-8888-888888888881";
+  const foreignFinanceProfileId = "f8888888-8888-4888-8888-888888888882";
+  const foreignFinanceAuthId = "88888888-8888-4888-8888-888888888882";
+  await db.unsafe(
+    `insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active)
+       values($1,$2,$3,'CI Finance Print Manager','ci-finance-print-manager@example.test',true),
+             ($4,$5,$6,'CI Foreign Finance Accountant','ci-foreign-finance-print@example.test',true)
+       on conflict(id) do nothing`,
+    [managerPrintProfileId, managerPrintAuthId, organizationId,
+      foreignFinanceProfileId, foreignFinanceAuthId, otherOrganizationId],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'manager'),($2,'accountant') on conflict(profile_id,role) do nothing",
+    [managerPrintProfileId, foreignFinanceProfileId],
+  );
+
+  for (const [actorId, email, roleLabel] of [
+    [staffAuthUserId, "admin@aghbari.ye", "admin"],
+    [accountantAuthUserId, "ci-accountant@example.test", "accountant"],
+    [managerPrintAuthId, "ci-finance-print-manager@example.test", "manager"],
+  ]) {
+    await db.unsafe("reset role");
+    await setIdentity(actorId, email);
+    await db.unsafe("set role authenticated");
+    const options = (await db.unsafe(
+      "select public.get_finance_document_print_options($1::integer) as result", [100],
+    ))[0].result;
+    assert.equal(options.organization_name, issuerRows[0].name, roleLabel + " must receive issuer identity from the active organization");
+    assert.ok(options.customers.some((row) => row.id === customerOneId), roleLabel + " must receive current-tenant customers");
+    assert.ok(options.invoices.some((row) => row.id === invoice.id), roleLabel + " must receive the current-tenant invoice");
+    const invoicePrint = (await db.unsafe(
+      "select public.get_staff_customer_invoice_print_data($1::uuid) as result", [invoice.id],
+    ))[0].result;
+    assert.equal(invoicePrint.invoice.id, invoice.id, roleLabel + " invoice print must retain the persisted source ID");
+    assert.equal(Number(invoicePrint.invoice.total_amount), 370000, roleLabel + " invoice amount must match the database source");
+    assert.equal(invoicePrint.lines.length, 1, roleLabel + " invoice print must contain source lines");
+    assert.equal(Number(invoicePrint.lines[0].line_total), Number(invoicePrint.invoice.subtotal));
+    const statementPrint = (await db.unsafe(
+      "select public.get_staff_customer_account_statement($1::uuid) as result", [customerOneId],
+    ))[0].result;
+    const printedInvoice = statementPrint.invoices.find((row) => row.id === invoice.id);
+    assert.ok(printedInvoice, roleLabel + " statement must include the tenant's source invoice");
+    assert.equal(Number(printedInvoice.paid_amount), 100000);
+    assert.equal(Number(printedInvoice.outstanding_amount), 270000);
+    assert.equal(statementPrint.customer.id, customerOneId);
+  }
+
+  await db.unsafe("reset role");
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "ordinary staff cannot list financial print options",
+    () => db.unsafe("select public.get_finance_document_print_options($1::integer)", [100]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "ordinary staff cannot print a customer invoice",
+    () => db.unsafe("select public.get_staff_customer_invoice_print_data($1::uuid)", [invoice.id]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "ordinary staff cannot print a customer statement",
+    () => db.unsafe("select public.get_staff_customer_account_statement($1::uuid)", [customerOneId]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "ordinary staff cannot print a return credit memo",
+    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [invoice.id]),
+    /finance permission required/i,
+  );
+
+  await db.unsafe("reset role");
+  await setIdentity(foreignFinanceAuthId, "ci-foreign-finance-print@example.test");
+  await db.unsafe("set role authenticated");
+  const foreignOptions = (await db.unsafe(
+    "select public.get_finance_document_print_options($1::integer) as result", [100],
+  ))[0].result;
+  assert.equal(foreignOptions.organization_name, "Foreign organization", "foreign accountant must receive only the active foreign organization's issuer identity");
+  assert.equal(foreignOptions.customers.some((row) => row.id === customerOneId), false, "foreign finance options must not expose another tenant's customers");
+  assert.equal(foreignOptions.invoices.some((row) => row.id === invoice.id), false, "foreign finance options must not expose another tenant's invoices");
+  await expectFailure(
+    "foreign-tenant accountant cannot print another organization's invoice",
+    () => db.unsafe("select public.get_staff_customer_invoice_print_data($1::uuid)", [invoice.id]),
+    /invoice was not found in the active organization/i,
+  );
+  await expectFailure(
+    "foreign-tenant accountant cannot print another organization's statement",
+    () => db.unsafe("select public.get_staff_customer_account_statement($1::uuid)", [customerOneId]),
+    /customer was not found in the active organization/i,
+  );
+  await expectFailure(
+    "foreign-tenant accountant cannot print another organization's credit memo",
+    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [invoice.id]),
+    /credit memo was not found in the active organization/i,
+  );
+
   // Customers receive allowed statement amounts only through the account-statement RPC.
   await db.unsafe("reset role");
   await setIdentity(authUserId, "ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customer cannot list staff financial print options",
+    () => db.unsafe("select public.get_finance_document_print_options($1::integer)", [100]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "customer cannot print staff invoice documents",
+    () => db.unsafe("select public.get_staff_customer_invoice_print_data($1::uuid)", [invoice.id]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "customer cannot print staff account statements",
+    () => db.unsafe("select public.get_staff_customer_account_statement($1::uuid)", [customerOneId]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "customer cannot use the staff credit-memo print RPC",
+    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [invoice.id]),
+    /finance permission required/i,
+  );
   await expectFailure(
     "customer cannot read staff receivables aging",
     () => db.unsafe("select public.fetch_staff_receivables_aging($1::integer,$2::integer)", [200, 0]),
