@@ -12,17 +12,13 @@ const runtimeTest = readFileSync(
 );
 
 describe("staff catalog commands migration contract", () => {
-  it("binds JSONB payload objects without double-serializing them into JSON strings", () => {
-    for (const forbidden of [
-      "JSON.stringify(payload)",
-      "JSON.stringify(update)",
-      "JSON.stringify({ ...payload",
-      "JSON.stringify({ ...update",
-    ]) {
-      expect(runtimeTest).not.toContain(forbidden);
-    }
-    expect(runtimeTest).toContain('[payload]');
-    expect(runtimeTest).toContain('[created.id, update]');
+  it("binds catalog JSONB values with the Postgres.js JSON wrapper", () => {
+    expect(runtimeTest).toContain("[admin.json(payload)]");
+    expect(runtimeTest).toContain("admin.json({ ...payload, shadow_tier_price: 999 })");
+    expect(runtimeTest).toContain("[created.id, admin.json(update)]");
+    expect(runtimeTest).toContain('admin.json({ ...update, expected_base_price: 12, name: "stale form" })');
+    expect(runtimeTest).toContain("admin.json({ ...update, category_id: category.id })");
+    expect(runtimeTest).toContain("[customer.json(payload)]");
   });
 
   it("reports unsupported payload keys explicitly rather than relying on JSONB key subtraction", () => {
