@@ -107,10 +107,12 @@ BEGIN
         WHERE cm.organization_id=v_org AND cm.customer_id=v_customer.id AND cm.status='posted' GROUP BY cm.invoice_id) cb ON cb.invoice_id=ci.id
       WHERE ci.organization_id=v_org AND ci.customer_id=v_customer.id ORDER BY ci.issued_at DESC,ci.id LIMIT 200) i;
 
-  SELECT COALESCE(jsonb_agg(jsonb_build_object('id',p.id,'invoice_id',p.invoice_id,'amount',p.amount::text,'paid_at',p.paid_at,
-    'payment_method',p.payment_method,'reference',p.reference) ORDER BY p.paid_at DESC,p.id),'[]'::jsonb) INTO v_payments
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('id',p.id,'invoice_id',p.invoice_id,'invoice_number',ci.invoice_number,
+    'currency',ci.currency,'amount',p.amount::text,'paid_at',p.paid_at,'payment_method',p.payment_method,'reference',p.reference)
+    ORDER BY p.paid_at DESC,p.id),'[]'::jsonb) INTO v_payments
     FROM (SELECT cp.* FROM public.customer_payments cp WHERE cp.organization_id=v_org AND cp.customer_id=v_customer.id
-      ORDER BY cp.paid_at DESC,cp.id LIMIT 500) p;
+      ORDER BY cp.paid_at DESC,cp.id LIMIT 500) p
+    JOIN public.customer_invoices ci ON ci.id=p.invoice_id AND ci.organization_id=v_org AND ci.customer_id=v_customer.id;
 
   SELECT COALESCE(jsonb_agg(jsonb_build_object('id',m.id,'memo_number',m.memo_number,'invoice_id',m.invoice_id,
     'invoice_number',i.invoice_number,'currency',m.currency,'subtotal_amount',m.subtotal_amount::text,'tax_amount',m.tax_amount::text,
