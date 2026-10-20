@@ -65,7 +65,7 @@ CREATE POLICY customer_return_requests_scoped_read
   USING (
     organization_id = public.current_organization_id()
     AND (
-      public.is_staff()
+      public.operational_tasks_can_manage()
       OR EXISTS (
         SELECT 1 FROM public.customers c
          WHERE c.id = customer_return_requests.customer_id
@@ -85,7 +85,7 @@ CREATE POLICY customer_return_request_items_scoped_read
        WHERE r.id = customer_return_request_items.return_request_id
          AND r.organization_id = customer_return_request_items.organization_id
          AND (
-           public.is_staff()
+           public.operational_tasks_can_manage()
            OR EXISTS (
              SELECT 1 FROM public.customers c
               WHERE c.id = r.customer_id
