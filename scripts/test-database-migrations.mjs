@@ -2190,6 +2190,13 @@ async function main() {
   process.stdout.write("PASS pricing approval gate, protected approval state, audit rationale, shared customer-tier preview and role denial\n");
 
 
+  // Legacy company-membership RPC checks a confirmation claim; keep its test fixture local.
+  // Customer activation acceptance does not read this claim and is tested against auth.users.email_confirmed_at above.
+  const setCompanyInvitationConfirmedClaim = async (id, email) => {
+    await db.unsafe("select set_config('request.jwt.claims', $1, false)", [
+      JSON.stringify({ sub: id, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
+    ]);
+  };
   // AGH-CUSTOMER-360-MEMBERS-001: verified invitation, explicit company scope, permission matrix and revocation.
   await db.unsafe("reset role");
   const invitedProfileId="f8888888-8888-4888-8888-888888888888";
@@ -2219,11 +2226,13 @@ async function main() {
   assert.notEqual(storedHash[0].token_hash,invite.invitation_token,"only a one-way hash is persisted");
 
   await setIdentity(secondAuthUserId,"ci-customer-two@example.test");
+  await setCompanyInvitationConfirmedClaim(secondAuthUserId, "ci-customer-two@example.test");
   await db.unsafe("set role authenticated");
   await expectFailure("a different email cannot claim an invitation",
     ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[invite.invitation_token]),/البريد الإلكتروني الذي استلم/i);
   await db.unsafe("reset role");
   await setIdentity(invitedAuthUserId,"ci-invited-buyer@example.test");
+  await setCompanyInvitationConfirmedClaim(invitedAuthUserId, "ci-invited-buyer@example.test");
   await db.unsafe("set role authenticated");
   const identityContext=await db.unsafe("select auth.uid() as auth_id,public.current_profile_id() as profile_id,public.current_organization_id() as current_org,(select p.organization_id from public.profiles p where p.auth_user_id=auth.uid()) as profile_org");
   assert.equal(identityContext[0].auth_id,invitedAuthUserId,"the test JWT must resolve to the invited authentication ID");
