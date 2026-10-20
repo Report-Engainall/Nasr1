@@ -110,7 +110,7 @@ describe("unified Onyx analysis panel", () => {
     const provenancePanel = await screen.findByRole("region", { name: "أدلة هوية مصدر أونكس" });
     expect(within(provenancePanel).getByText("مؤسسة الاختبار")).toBeInTheDocument();
     expect(within(provenancePanel).getByText("ONYX-001")).toBeInTheDocument();
-    expect(within(provenancePanel).getByText("لا يثبت اتصالًا حيًا أو اكتمال مزامنة من واجهة Onyx API.")).toBeInTheDocument();
+    expect(within(provenancePanel).getByText(/لا يثبت اتصالًا حيًا أو اكتمال مزامنة من واجهة Onyx API\./)).toBeInTheDocument();
     expect(fetchOnyxSnapshotSourceEvidence).toHaveBeenCalledWith("snapshot-1");
   });
 
