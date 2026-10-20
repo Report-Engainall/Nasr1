@@ -766,3 +766,12 @@ Next single live task: NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION
 - [Playwright 39478994561](https://github.com/Report-Engainall/Nasr1/actions/runs/39478994561) = workflow SUCCESS only; explicit gate skipped actual app build, launch, and browser tests for absent non-production E2E credentials/accounts. Browser and production proof remain NOT RUN.
 - PR #26 merge blocker: `20261020110000_customer_activation_invitations.sql` collides with P2 `20261020110000_onyx_inventory_reconciliation_apply_rollback.sql`. No concurrent PR merges; no P1-owned reports/ledgers/reuse-audit or donor files were edited. Archive discrepancy 2,329 vs 2,044 is still unresolved and archives untouched.
 - Single active pointer: `NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011`; next bounded substep is source identity/provenance through Onyx export and financial/customer documents, without associating data absent a persisted relationship.
+
+
+## P2 live checkpoint — Onyx evidence CSV export + finance issuer identity — 2026-10-20
+
+- P2 code/test head 3fb70618eabd9f93d67f734987a1f196ca4c9084 exact CI [39481288019](https://github.com/Report-Engainall/Nasr1/actions/runs/39481288019) SUCCESS: “Test Files 69 passed (69)”; PG17 migration/core acceptance passed, including activation and returns, Onyx reconciliation/export boundaries, lint/build and 4173/5173 smoke checks.
+- Root-cause failure retained: [39481109555](https://github.com/Report-Engainall/Nasr1/actions/runs/39481109555), no-control-regex in CSV formula guard. Source-level fix uses a character-code loop; exact fix head passed. Do not delete or overwrite the historical failure record.
+- Playwright [39481288053](https://github.com/Report-Engainall/Nasr1/actions/runs/39481288053) workflow SUCCESS, but external gate skipped app build/launch/actual browser tests; browser and production proof remain NOT RUN.
+- P1 handoff comment 6298705621 remains available; P1/P2 migration collision remains a merge blocker; no concurrent merges. Archive count difference remains unresolved evidence. No donor or P1-owned ledger/report edited.
+- Single active pointer retained: NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011. Next bounded task: outbound Onyx source/export identity trace, then server-authorized finance role/price visibility tests.
