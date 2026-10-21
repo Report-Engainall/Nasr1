@@ -4,12 +4,11 @@
 الفرع المستمر: integration/inventory-transfer-batches-20261019-rebased
 PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (مفتوح؛ لا تدمج main مباشرة)
 
-آخر رأس كود واختبارات اجتاز CI على SHA المطابق:
-1b8b9be1fd7aca1e9fff20a0891c2db7d83ae6ff
-CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39502788878 — SUCCESS على SHA نفسه.
-إعادة تحقق HEAD قبل تحديث هذا السجل: 90df8540847489b0bcd5a5b1770599295672dc17 — https://github.com/Report-Engainall/Nasr1/actions/runs/39503228966 SUCCESS على SHA نفسه.
-كتالوج الموظفين: code/test SHA 9e070285e3e001a8661fe5c297f19face97fdcf5 — Actions 39501610331 SUCCESS.
-شمل: 73/73 ملف اختبار و480/480 اختبارًا، PostgreSQL 17، كتالوج الموظفين (CRUD/allowlist/price-grid/audit/tenant isolation/direct-DML denial)، إثبات سجل بدء جرد المخزون مرة واحدة وidempotent replay، async export، import idempotency concurrency، saved-products، lint، build، preview smoke 4173، dev smoke 5173 والتنظيف.
+آخر رأس PR #26 اجتاز CI بحسب بيانات GitHub الحالية:
+9cda76450b022b50cc3d005fbe16c1355c36638d
+CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39621297941 — SUCCESS على SHA نفسه (التحقق الحالي).
+قبول كتالوج الموظفين 0007: Actions 39501610331 SUCCESS على SHA 9e070285e3e001a8661fe5c297f19face97fdcf5؛ اختبارات PostgreSQL 17 أثبتت CRUD/allowlist/price-grid/audit/tenant isolation/direct-DML denial.
+سبب الفشل الجذري: JSON.stringify(payload) أرسل JSON scalar نصيًا إلى $1::jsonb؛ الإصلاح admin.json(payload)، دون توسيع allowlist.
 BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 
 المنجز وأدلته:
