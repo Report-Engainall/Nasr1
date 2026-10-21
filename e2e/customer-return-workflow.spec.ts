@@ -125,7 +125,7 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       await expect(row).toContainText(amount100);
       await expect(row).toContainText(amountZero);
       await expect(row).toContainText("(draft)");
-      const memoNumber = (await row.innerText()).match(/CRM-\\d{8}-[A-F0-9]{8}/i)?.[0];
+      const memoNumber = (await row.innerText()).match(/CRM-\d{8}-[A-F0-9]{8}/i)?.[0];
       expect(memoNumber, "draft credit memo exposes its source document number").toBeTruthy();
       const taskTitle = "مراجعة وترحيل قيد الإشعار الدائن " + memoNumber;
       const tasksPage = await staffContext.newPage();
