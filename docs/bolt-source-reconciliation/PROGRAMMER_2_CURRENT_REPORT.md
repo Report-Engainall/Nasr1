@@ -507,3 +507,20 @@ Implemented in this batch:
 Earlier test failures remain recorded in `EXECUTION_LOG.md`; they were reproduced, fixed, and superseded by the exact-head success above.
 
 **Outstanding integration boundary:** keep the single active pointer `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010`. The live P1 Storefront still needs to consume the P2 renderers/policy helper at real card/detail/cart/order-review points. P2 has not edited P1-owned Storefront/API/auth/shell/workflow paths. Customer-return-specific browser proof and production proof are not claimed.
+
+
+## P2 execution report — return-specific browser path and accounting test expansion — 2026-10-21
+
+### Confirmed result on prior exact SHA
+- Return review, receipt and credit draft were exercised in authenticated Chromium via local Supabase/PostgreSQL 17 on SHA e38eb05350baef906dea51721a9026751506b420: [Playwright 39650888310](https://github.com/Report-Engainall/Nasr1/actions/runs/39650888310) SUCCESS. This closes the prior return-specific BROWSER_PROVEN=NOT RUN gap for that SHA, but only for the tested route through draft credit memo creation. It does not prove production deployment, actual hosted users, cash refund, or posting of the return-credit journal.
+- The matching core code workflow [39650888295](https://github.com/Report-Engainall/Nasr1/actions/runs/39650888295) passed on that same SHA.
+
+### New accounting acceptance under validation
+- Added dedicated scripts/test-cash-expense-journal-posting.mjs and a step in the P2-owned local-Supabase workflow. The fixture now creates a transient manager in the isolated test tenant; the test exercises cash expense source -> balanced journal draft -> posted GL -> audit and both idempotency and the race between posting and source cancellation.
+- New code/workflow head after the fixture-env correction is 3709d6bb27e15a3eda1e632c0c30b10a3787236d. The run must be read back on this or a later final SHA; no test success for this new acceptance is claimed until the specific step completes successfully.
+
+### Parallel P1 coordination
+- PR #26 comment: 6323249569 — actual UI integration for customer price privacy, activation database and route/browser acceptance, and scope isolation before non-draft/merge.
+- PR #27 comment: 6323250396 — render/accept forecast in the real Reports page and test unavailable/incomplete data behavior.
+- PR #18 comment: 6323251176 — exact return browser proof and accounting acceptance batch.
+- Protocol: P2_PARALLEL_EXECUTION_PROTOCOL_2026-10-21.md. Keep one authoritative primary pointer: NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010. P2 continues to leave P1-locked Storefront/API/App shell/source ledgers untouched.

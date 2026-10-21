@@ -477,3 +477,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Exact tested P2 code SHA `dcb770a8e24211ddeb8c438b6bbf4510852f9e0a` passed [Aghbari Commerce checks](<https://github.com/Report-Engainall/Nasr1/actions/runs/39641647895>), including unit tests, PostgreSQL 17 acceptance, lint, build, preview smoke, and dev smoke. The preceding red runs and their repair reasons remain in the execution log.
 - Live P1 PR #26 head read during this checkpoint: `c0afe525e51ab2b95467afabd95633df69a2e807`. The Storefront card/detail still displays a numeric `display_price` without explicit policy gating and zero-sentinel suppression. P1 ownership is preserved; no Storefront integration is claimed.
 - Preserve exactly one active `next_task_id=NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010` until P1 integrates the surface-specific policy at the actual user-facing render points and confirms with a tested SHA. No browser or production proof is claimed by P2.
+
+
+## بروتوكول الجبهات المتوازية مع P1 — 2026-10-21
+
+- تمت إضافة البروتوكول التنفيذي المركزي: P2_PARALLEL_EXECUTION_PROTOCOL_2026-10-21.md. يحدد مالك كل مسار، الجبهات المتوازية، ومعيار إغلاق واختبارات كل جبهة.
+- تم إرسال تنسيق على PR #26 (تعليق 6323249569) لخصوصية الأسعار والتفعيل ونطاق الدمج؛ وعلى PR #27 (تعليق 6323250396) لقبول شاشة توقعات المبيعات؛ وعلى PR #18 (تعليق 6323251176) لإثبات دورة المرتجع وقبول المحاسبة.
+- main وقت القراءة ccbc82ffe36d52beb7e9fe1ab1cb17f4de358f21. PR #26 عند 8df71f91653aa1688d2db39e27e8a8e7fbc1640a وCI 39650838748 SUCCESS، ولا يزال Draft. PR #27 عند caa1f4101428655518435783051a03b29aa90e04 وCI 39467476202 SUCCESS. فرع P2 له 34 commit خلف main حسب مقارنة REST وقت القراءة؛ لا يُدّعى أنه محدّث على main قبل merge/rebase منضبط واختبارات جديدة.
+- P2 لا يعدّل Storefront.tsx أو api.ts أو auth.tsx أو AghbariApp.tsx أو routeTree.gen.ts أو commerce-checks.yml أو سجلات P1 دون تسليم صريح. تظل المهاجرة المشتركة customer activation متطابقة blob f62ec20998ddc4b6a00517bdab1f55c9a73d58da.
