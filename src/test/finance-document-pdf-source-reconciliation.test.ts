@@ -9,6 +9,7 @@ import {
   resolveCustomerStatementInvoiceStatus,
 } from "@/lib/finance-document-pdf";
 import { loadArabicDocumentFont } from "@/lib/finance-pdf-server";
+import { BUSINESS_BRAND_NAME } from "@/lib/brand";
 
 const generatedAt = new Date("2026-10-19T10:00:00.000Z");
 
@@ -122,6 +123,9 @@ describe("finance PDF source integration — authoritative financial rendering",
     expect(bytes.byteLength).toBeGreaterThan(1000);
     expect(pdf.getPageCount()).toBeGreaterThan(0);
     expect(pdf.getTitle()).toContain("INV-TEST-001");
+    expect(pdf.getTitle()).toContain(BUSINESS_BRAND_NAME);
+    expect(pdf.getAuthor()).toBe(BUSINESS_BRAND_NAME);
+    expect(pdf.getCreator()).toBe(BUSINESS_BRAND_NAME);
   });
 
   it("builds a customer invoice PDF when the server deliberately omits all financial fields", async () => {
