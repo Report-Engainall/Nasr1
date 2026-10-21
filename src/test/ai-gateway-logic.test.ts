@@ -5,8 +5,10 @@ import {
   estimateInputTokens,
   isSafeProviderBaseUrl,
   parseProviderResponse,
+  runProviderCandidates,
   sanitizeAiQuestion,
   summarizeAiProviderAttempts,
+  type AiProviderCandidate,
   type ProviderAttemptTelemetry,
 } from "../../supabase/functions/ai-gateway/logic";
 
@@ -106,6 +108,90 @@ describe("AI gateway privacy, provider parsing and quota math", () => {
       choices: [{ message: { content: "yes" } }],
     })).toThrow("provider_response_invalid");
     expect(() => parseProviderResponse("gemini", { candidates: [] })).toThrow("provider_response_invalid");
+  });
+
+  it("executes the fallback provider after the primary returns HTTP 429 and preserves measured fallback usage", async () => {
+    const primary: AiProviderCandidate = {
+      provider: "openai_compatible", model: "primary-test", baseUrl: "https://api.openai.com/v1",
+      key: "test-only-primary-key", rates: { inputPerThousand: 0.2, outputPerThousand: 0.4 }, fallback: false,
+    };
+    const fallback: AiProviderCandidate = {
+      provider: "gemini", model: "fallback-test", baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      key: "test-only-fallback-key", rates: { inputPerThousand: 0.1, outputPerThousand: 0.2 }, fallback: true,
+    };
+    const called: string[] = [];
+    const outcome = await runProviderCandidates([primary, fallback], "question", async (candidate) => {
+      called.push(candidate.model);
+      if (!candidate.fallback) throw new Error("provider_http_429");
+      return { text: "fallback answer", usage: { inputTokens: 80, outputTokens: 21 } };
+    }, 100);
+
+    expect(called).toEqual(["primary-test", "fallback-test"]);
+    expect(outcome.result).toEqual({ text: "fallback answer", usage: { inputTokens: 80, outputTokens: 21 } });
+    expect(outcome.used).toEqual(fallback);
+    expect(outcome.attempts).toMatchObject([
+      {
+        provider: "openai_compatible", model: "primary-test", fallback: false, status: "failed",
+        observedInputTokens: null, observedOutputTokens: null, estimatedCost: null, errorCode: "provider_http_429",
+      },
+      {
+        provider: "gemini", model: "fallback-test", fallback: true, status: "succeeded",
+        observedInputTokens: 80, observedOutputTokens: 21, errorCode: null,
+      },
+    ]);
+    expect(summarizeAiProviderAttempts(outcome.attempts)).toEqual({
+      status: "partial", observedInputTokens: 80, observedOutputTokens: 21,
+    });
+  });
+
+  it("aborts a provider timeout and leaves failed attempt usage/cost unknown", async () => {
+    const primary: AiProviderCandidate = {
+      provider: "openai_compatible", model: "slow-primary", baseUrl: "https://api.openai.com/v1",
+      key: "test-only-key", rates: { inputPerThousand: 0.2, outputPerThousand: 0.4 }, fallback: false,
+    };
+    const outcome = await runProviderCandidates([primary], "question", (_candidate, _question, signal) =>
+      new Promise((_, reject) => {
+        const abort = () => reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+        if (signal.aborted) abort();
+        else signal.addEventListener("abort", abort, { once: true });
+      }), 5);
+
+    expect(outcome.result).toBeNull();
+    expect(outcome.used).toBeNull();
+    expect(outcome.attempts).toHaveLength(1);
+    expect(outcome.attempts[0]).toMatchObject({
+      status: "failed", errorCode: "provider_timeout",
+      observedInputTokens: null, observedOutputTokens: null, estimatedCost: null,
+    });
+    expect(summarizeAiProviderAttempts(outcome.attempts)).toEqual({
+      status: "unknown", observedInputTokens: null, observedOutputTokens: null,
+    });
+  });
+
+  it("does not report measured usage if both production fallback candidates fail", async () => {
+    const candidates: AiProviderCandidate[] = [
+      {
+        provider: "openai_compatible", model: "primary-503", baseUrl: "https://api.openai.com/v1",
+        key: "test-only-primary-key", rates: { inputPerThousand: 0, outputPerThousand: 0 }, fallback: false,
+      },
+      {
+        provider: "gemini", model: "fallback-failed", baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+        key: "test-only-fallback-key", rates: { inputPerThousand: 0, outputPerThousand: 0 }, fallback: true,
+      },
+    ];
+    const outcome = await runProviderCandidates(candidates, "question", async (candidate) => {
+      throw new Error(candidate.fallback ? "network error" : "provider_http_503");
+    }, 100);
+
+    expect(outcome.result).toBeNull();
+    expect(outcome.used).toBeNull();
+    expect(outcome.attempts.map((attempt) => attempt.status)).toEqual(["failed", "failed"]);
+    expect(outcome.attempts.every((attempt) =>
+      attempt.observedInputTokens === null && attempt.observedOutputTokens === null && attempt.estimatedCost === null,
+    )).toBe(true);
+    expect(summarizeAiProviderAttempts(outcome.attempts)).toEqual({
+      status: "unknown", observedInputTokens: null, observedOutputTokens: null,
+    });
   });
 
   it("keeps failed primary usage unknown and measured fallback usage partial", () => {
