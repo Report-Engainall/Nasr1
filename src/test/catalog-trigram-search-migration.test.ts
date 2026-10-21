@@ -23,7 +23,7 @@ describe("target-native catalog trigram indexes", () => {
     expect(migration).toMatch(/WHERE status = 'active'/i);
     expect(runtimeTest).toContain("products_org_name_trgm_idx");
     expect(runtimeTest).toContain("products_org_item_code_trgm_idx");
-    expect(runtimeTest).toMatch(/name OPERATOR\(extensions\. %\)/i);
-    expect(runtimeTest).toMatch(/item_code OPERATOR\(extensions\. %\)/i);
+    expect(runtimeTest).toMatch(/name OPERATOR\(extensions\.%\)/i);
+    expect(runtimeTest).toMatch(/item_code OPERATOR\(extensions\.%\)/i);
   });
 });
