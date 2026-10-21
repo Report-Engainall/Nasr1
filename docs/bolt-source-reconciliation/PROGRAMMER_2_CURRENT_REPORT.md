@@ -524,3 +524,26 @@ Earlier test failures remain recorded in `EXECUTION_LOG.md`; they were reproduce
 - PR #27 comment: 6323250396 — render/accept forecast in the real Reports page and test unavailable/incomplete data behavior.
 - PR #18 comment: 6323251176 — exact return browser proof and accounting acceptance batch.
 - Protocol: P2_PARALLEL_EXECUTION_PROTOCOL_2026-10-21.md. Keep one authoritative primary pointer: NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010. P2 continues to leave P1-locked Storefront/API/App shell/source ledgers untouched.
+
+
+## P2 real-work continuation — main-sync, accounting acceptance, price-grid transaction tests — 2026-10-21
+
+### Verified completed proof
+- Exact old head `a0e77eff3fdfda4cbd0b0605717853882d0bad7f`: [CI 39652376366](https://github.com/Report-Engainall/Nasr1/actions/runs/39652376366) and [Playwright 39652376394](https://github.com/Report-Engainall/Nasr1/actions/runs/39652376394) both SUCCESS. The local Postgres 17 acceptance includes the new cash-expense-to-ledger test and the Chromium return-specific workflow through creation of an unposted credit memo draft.
+- Current P2 branch was synchronized with current `main` in merge commit `2ecc14e4235039e9378c87e9df44517f74ce82be`; compare reports main is an ancestor, 35 ahead / 0 behind. CI for this merge tree: [39653248172](https://github.com/Report-Engainall/Nasr1/actions/runs/39653248172) and [39653248451](https://github.com/Report-Engainall/Nasr1/actions/runs/39653248451), active at last readback.
+
+### Added next acceptance gate
+- New P2-owned `scripts/test-price-grid-atomicity.mjs` + a dedicated step in `.github/workflows/p2-playwright-critical-paths.yml` test actual local PostgreSQL calls for: two-product atomic success and returned row IDs, manager actor audit, invalid later row rolling back the earlier change and audit record, duplicate-product rejection, concurrent stale writer (exactly one commit), and denial of ordinary customer writes. It seeds inactive isolated products, verifies environment is strictly local Supabase, and restores their initial prices.
+- Exact test PASS will only be recorded after the workflow for the final pushed SHA completes; previous code/CI proof is not enough for the new step.
+
+### P1 cooperation/open blockers
+- PR #26 remains Draft at last readback and owns `src/components/Storefront.tsx` plus `src/lib/api.ts`; task 010 remains the primary handoff because actual price-renderer integration and cart/order-review preview wiring still need P1-side implementation and rendered-browser regression checks.
+- PR #27 forecast feature remains separate; exact build CI passed on its prior SHA, but a real `/admin/reports` browser acceptance artifact remains open.
+- Protocol/source-ownership updates are in `P2_PARALLEL_EXECUTION_PROTOCOL_2026-10-21.md`; do not merge PR #18 and #26 concurrently.
+
+
+## Final readback correction after main-sync CI — 2026-10-21
+
+- Correction to the provisional checkpoint recorded earlier in this file: runs 39653248172 (Aghbari Commerce checks) and 39653248451 (P2 Playwright Critical Paths) have both completed SUCCESS on exact main-sync SHA `2ecc14e4235039e9378c87e9df44517f74ce82be`. The local PostgreSQL 17 job passed step 14 `Test cash-expense source posting, idempotency and void/post concurrency`, step 19 authenticated order/tenant isolation, and step 20 customer return/review/receipt/credit memo browser flow.
+- P1's new pair on PR #26 head `6974e2c6361c67ba6632d3ace3767a87bfc9f8f6` is not green as a pair: commerce checks 39653605115 SUCCESS; Playwright 39653605064 FAILURE at local Supabase startup/migration application before any browser tests. Root cause is SQLSTATE 42601 in P1-owned migration `20261021150000_customer_cart_atomic_checkout.sql`, posted at PR #26 comment `6323610588`; do not report return or cart behavior as tested on that P1 head.
+- A new P2 price-grid atomicity acceptance step is ready in `scripts/test-price-grid-atomicity.mjs` and the P2 local Supabase workflow. Its final PASS remains pending until the next branch SHA completes the new exact-head CI pair.
