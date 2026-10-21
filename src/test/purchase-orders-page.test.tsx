@@ -37,7 +37,7 @@ describe('purchase orders page',()=>{
     mocks.cancelPurchaseOrder.mockReset().mockResolvedValue({purchase_order:{...draft,status:'cancelled'},idempotent_replay:false});
     mocks.receivePurchaseOrder.mockReset().mockResolvedValue({purchase_order:{...draft,status:'received'},receipt:{id:'receipt-1',receipt_number:'PR-01',purchase_order_id:'po-1',received_at:'2026-10-19T10:00:00Z'},idempotent_replay:false});
   });
-  afterEach(()=>{cleanup();vi.restoreAllMocks();});
+  afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();});
 
   it('loads real supplier/catalog references and allows managers to select and submit a saved draft',async()=>{
     mocks.fetchPurchaseOrders.mockResolvedValueOnce([draft]).mockResolvedValueOnce([submitted]);
@@ -57,4 +57,64 @@ describe('purchase orders page',()=>{
     expect(screen.getByText(/صلاحية إدارة المشتريات مطلوبة/)).toBeInTheDocument();
     expect(mocks.fetchPurchaseOrders).not.toHaveBeenCalled();
   });
+
+  it('creates a target-native draft while preserving an unknown unit cost as null',async()=>{
+    vi.stubGlobal('crypto',{randomUUID:()=> '22222222-2222-4222-8222-222222222222'});
+    render(<PurchaseOrdersPage/>);
+    expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:/إنشاء مسودة أمر شراء/}));
+    fireEvent.change(screen.getByLabelText('الصنف'),{target:{value:'product-1'}});
+    fireEvent.click(screen.getByRole('button',{name:/حفظ مسودة أمر الشراء/}));
+    expect(await screen.findByText(/حُفظت مسودة أمر الشراء من البيانات الحالية/)).toBeInTheDocument();
+    expect(mocks.createPurchaseOrder).toHaveBeenCalledTimes(1);
+    const input=mocks.createPurchaseOrder.mock.calls[0][0];
+    expect(input.lines).toEqual([{product_id:'product-1',quantity:1,unit_cost:null}]);
+    expect(input.idempotencyKey).toMatch(/^po-[0-9a-f]{32}$/);
+  });
+
+  it('rejects duplicate products before submitting a purchase draft',async()=>{
+    render(<PurchaseOrdersPage/>);
+    expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:/إنشاء مسودة أمر شراء/}));
+    fireEvent.change(screen.getAllByLabelText('الصنف')[0],{target:{value:'product-1'}});
+    fireEvent.click(screen.getByRole('button',{name:/إضافة صنف/}));
+    fireEvent.change(screen.getAllByLabelText('الصنف')[1],{target:{value:'product-1'}});
+    fireEvent.click(screen.getByRole('button',{name:/حفظ مسودة أمر الشراء/}));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/الصنف مكرر/);
+    expect(mocks.createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
+  it('rejects quantities with more precision than the target supports',async()=>{
+    render(<PurchaseOrdersPage/>);
+    expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:/إنشاء مسودة أمر شراء/}));
+    fireEvent.change(screen.getByLabelText('الصنف'),{target:{value:'product-1'}});
+    fireEvent.change(screen.getByLabelText('الكمية المطلوبة'),{target:{value:'1.0001'}});
+    fireEvent.click(screen.getByRole('button',{name:/حفظ مسودة أمر الشراء/}));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/الكمية يجب أن تكون موجبة/);
+    expect(mocks.createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unsafe unit cost instead of rounding it silently',async()=>{
+    render(<PurchaseOrdersPage/>);
+    expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:/إنشاء مسودة أمر شراء/}));
+    fireEvent.change(screen.getByLabelText('الصنف'),{target:{value:'product-1'}});
+    fireEvent.change(screen.getByLabelText('تكلفة الوحدة (اختياري)'),{target:{value:'12.345'}});
+    fireEvent.click(screen.getByRole('button',{name:/حفظ مسودة أمر الشراء/}));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/تكلفة الوحدة يجب أن تكون غير سالبة/);
+    expect(mocks.createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
+  it('rejects a receipt quantity greater than the server-reported remainder',async()=>{
+    mocks.fetchPurchaseOrders.mockResolvedValueOnce([submitted]);
+    render(<PurchaseOrdersPage/>);
+    expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:/PO-20261019-000001/}));
+    fireEvent.change(await screen.findByLabelText('كمية الاستلام سكر'),{target:{value:'2.001'}});
+    fireEvent.click(screen.getByRole('button',{name:/ترحيل إيصال الاستلام/}));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/كمية استلام سكر/);
+    expect(mocks.receivePurchaseOrder).not.toHaveBeenCalled();
+  });
+
 });
