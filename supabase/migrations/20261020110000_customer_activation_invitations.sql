@@ -225,7 +225,7 @@ SET search_path = ''
 AS $function$
 DECLARE
   v_profile_id uuid := public.current_profile_id();
-  v_auth_email text := pg_catalog.lower(pg_catalog.btrim(coalesce(auth.jwt()->>'email','')));
+  v_auth_email text;
   v_profile public.profiles%ROWTYPE;
   v_org_id uuid;
   v_invitation public.customer_activation_invitations%ROWTYPE;
@@ -237,13 +237,14 @@ BEGIN
   IF coalesce(p_token,'') !~ '^[0-9a-fA-F]{64}$' THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='رابط تفعيل الحساب غير صالح.';
   END IF;
-  -- Check the authoritative Auth user row; email_confirmed_at is not a guaranteed standard JWT claim.
-  IF NOT EXISTS (
-    SELECT 1
-    FROM auth.users AS u
-    WHERE u.id=auth.uid()
-      AND u.email_confirmed_at IS NOT NULL
-  ) THEN
+  -- Derive email and confirmation from auth.users, never from the JWT email/confirmation claims.
+  SELECT pg_catalog.lower(pg_catalog.btrim(coalesce(u.email,'')))
+    INTO v_auth_email
+  FROM auth.users AS u
+  WHERE u.id=auth.uid()
+    AND u.email_confirmed_at IS NOT NULL;
+
+  IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='أكّد البريد الإلكتروني قبل قبول دعوة التفعيل.';
   END IF;
   IF v_auth_email !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$' THEN

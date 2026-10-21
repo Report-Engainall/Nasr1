@@ -84,6 +84,8 @@ describe("customer activation invitation migration security contract", () => {
   });
 
   it("validates confirmed email, tenant, customer eligibility and single-use state server-side", () => {
+    expect(migration).not.toMatch(/auth\.jwt\(\)->>\s*'email'/i);
+    expect(migration).toMatch(/SELECT pg_catalog\.lower\(pg_catalog\.btrim\(coalesce\(u\.email,''\)\)\)[\s\S]*?INTO v_auth_email[\s\S]*?FROM auth\.users AS u[\s\S]*?WHERE u\.id=auth\.uid\(\)[\s\S]*?AND u\.email_confirmed_at IS NOT NULL;[\s\S]*?IF NOT FOUND THEN/i);
     expect(migration).toMatch(/FROM auth\.users AS u[\s\S]*?u\.id=auth\.uid\(\)[\s\S]*?u\.email_confirmed_at IS NOT NULL/i);
     expect(migration).toMatch(/IF auth\.uid\(\) IS NULL[\s\S]*?OR NOT public\.is_staff\(\)/i);
     expect(migration).toMatch(/OR public\.is_staff\(\)/i);
