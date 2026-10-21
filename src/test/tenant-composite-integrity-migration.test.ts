@@ -79,7 +79,7 @@ describe("target-native tenant integrity migration", () => {
     ]) {
       expect(additionalMigration).toContain(constraint);
     }
-    expect(additionalMigration).toMatch(/ON public\.inventory_transfers\(product_id,organization_id\)/i);
+    expect(additionalMigration).toMatch(/ALTER TABLE public\.inventory_transfers ADD CONSTRAINT tenant_integrity_inventory_transfers_product_org_fk[\s\S]*FOREIGN KEY\(product_id,organization_id\) REFERENCES public\.products\(id,organization_id\)/i);
     expect(additionalMigration).toMatch(/public\.customer_addresses[\s\S]*FOREIGN KEY\(customer_id,organization_id\)/i);
   });
 
