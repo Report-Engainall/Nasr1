@@ -109,8 +109,8 @@ describe("TaskCenter role-boundary and print integration", () => {
     setUser(["staff"]);
     render(<TaskCenter onNotice={vi.fn()} />);
 
-    await screen.findByText("طلب عميل للتجهيز");
-    expect(screen.getByText("حركة جرد المخزن")).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+    expect(screen.getByRole("heading", { name: "حركة جرد المخزن" })).toBeInTheDocument();
     expect(screen.queryByText("مراجعة قيد محاسبي خاص")).not.toBeInTheDocument();
 
     const printRoot = document.querySelector(".operational-task-print");
@@ -128,7 +128,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     setUser(["manager"]);
     render(<TaskCenter onNotice={vi.fn()} />);
 
-    await screen.findByText("مراجعة قيد محاسبي خاص");
+    await screen.findByRole("heading", { name: "مراجعة قيد محاسبي خاص" });
     fireEvent.change(screen.getByPlaceholderText("عنوان المهمة أو التفاصيل أو مرجع المصدر"), {
       target: { value: "طلب عميل" },
     });
@@ -149,7 +149,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     setUser(["manager"]);
     render(<TaskCenter onNotice={vi.fn()} />);
 
-    await screen.findByText("طلب عميل للتجهيز");
+    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
     fireEvent.click(screen.getAllByRole("button", { name: "استلام" })[0]);
 
     await waitFor(() => expect(mocks.setOperationalTaskStatus).toHaveBeenCalledWith(
