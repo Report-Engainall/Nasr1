@@ -20,7 +20,7 @@ BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 5. Async order export: idempotent tenant/actor request, role gating, lease/retry cap, CSV safe escaping/BOM, private storage, SHA-256, 7-day expiry cleanup, 60-second signed URL, audit, Arabic UI route /admin/exports.
 6. Donor migration 0004_import_storage.sql بقيت مرجعًا؛ لا تطبق SQL غير المتوافق خامًا.
 
-كتالوج الموظفين 0007: CLOSED؛ target SQL blob 309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa؛ runtime test blob 8012fd9d97762cbf6b97411ac5be3f72ed3fcc72؛ static migration test blob b82e19d8f72185e108b09d5cb490900d4bb45e2d؛ exact current code/test head 18b0c8a8f3f03a3f5ad188357690223e3749628f, Actions 39647895468 SUCCESS. Docs-only head e167624a7ba93f885e43782d94ce3b515990b4ef also passed Actions 39649079344. Browser/production NOT RUN.
+كتالوج الموظفين 0007: CLOSED؛ target SQL blob 309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa؛ runtime test blob 8012fd9d97762cbf6b97411ac5be3f72ed3fcc72؛ static migration test blob 307a78ef0da765132bd63171c8e1969ca83938e0؛ exact current code/test head 18b0c8a8f3f03a3f5ad188357690223e3749628f, Actions 39647895468 SUCCESS. Docs-only head e167624a7ba93f885e43782d94ce3b515990b4ef also passed Actions 39649079344. Browser/production NOT RUN.
 
 المراجعة التالية: 0005_order_state_machine = ALREADY_PRESENT_BETTER في target migration 20261009050000_order_transition_integrity.sql (blob 57ba9360e48cbf1cf4ba7c30b37631102bea776c).
 Task 0009 P1 implementation is closed. Source 0010 order concurrency is ALREADY_PRESENT_BETTER; target checkout PostgreSQL 17 contract passed on e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba / Actions 39630570096. Dedicated contention stress NOT RUN. Next source task: NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-011-AGHBCOM-ORDER-INPUT-0011.
