@@ -22,11 +22,68 @@ const managerEmail = "ci-import-stock-" + suffix + "@example.test";
 const fileHash = "a".repeat(64);
 const chunkHash = "c".repeat(64);
 
-async function setIdentity() {
-  await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [managerAuthId]);
+async function setIdentity(authUserId = managerAuthId, email = managerEmail) {
+  await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [authUserId]);
   await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
-    JSON.stringify({ sub: managerAuthId, email: managerEmail, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
+    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
   ]);
+}
+
+function asJson(value) {
+  return typeof value === "string" ? JSON.parse(value) : value;
+}
+
+function idempotencyKey() {
+  return uuid().replaceAll("-", "");
+}
+
+async function expectFailure(label, action, pattern) {
+  await db.unsafe("SAVEPOINT inventory_reconciliation_expected_failure");
+  let caught;
+  try {
+    await action();
+  } catch (error) {
+    caught = error;
+  }
+  if (!caught) {
+    await db.unsafe("RELEASE SAVEPOINT inventory_reconciliation_expected_failure");
+    assert.fail(label + " should fail");
+  }
+  await db.unsafe("ROLLBACK TO SAVEPOINT inventory_reconciliation_expected_failure");
+  await db.unsafe("RELEASE SAVEPOINT inventory_reconciliation_expected_failure");
+  assert.ok(!pattern || pattern.test(String(caught.message)), label + " returned the wrong error: " + caught.message);
+}
+
+async function previewInventory(snapshotId, idem, reason = "P1 finalized-import reconciliation acceptance") {
+  const rows = await db.unsafe(
+    "select public.preview_onyx_inventory_reconciliation($1::uuid,$2::uuid,$3::text,$4::text) as result",
+    [snapshotId, warehouseId, idem, reason],
+  );
+  return asJson(rows[0].result);
+}
+
+async function applyInventory(commandId, idem) {
+  const rows = await db.unsafe(
+    "select public.apply_onyx_inventory_reconciliation($1::uuid,$2::text) as result",
+    [commandId, idem],
+  );
+  return asJson(rows[0].result);
+}
+
+async function rollbackInventory(commandId, idem, reason = "P1 compensating rollback acceptance") {
+  const rows = await db.unsafe(
+    "select public.rollback_onyx_inventory_reconciliation($1::uuid,$2::text,$3::text) as result",
+    [commandId, idem, reason],
+  );
+  return asJson(rows[0].result);
+}
+
+function quantityFor(snapshot, productId) {
+  return snapshot.balances.find((row) => row.product_id === productId);
+}
+
+function movementsFor(snapshot, productId) {
+  return snapshot.movements.find((row) => row.product_id === productId)?.count ?? 0;
 }
 
 async function readAsOwner(query, params = []) {
@@ -67,6 +124,15 @@ async function main() {
       [managerProfileId, managerAuthId, organizationId, managerEmail],
     );
     await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'manager')", [managerProfileId]);
+    const staffProfileId = uuid();
+    const staffAuthId = uuid();
+    const staffEmail = "ci-import-stock-staff-" + suffix + "@example.test";
+    await db.unsafe(
+      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
+        "values($1,$2,$3,'CI Import Inventory Staff',$4,true)",
+      [staffProfileId, staffAuthId, organizationId, staffEmail],
+    );
+    await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'staff')", [staffProfileId]);
     await db.unsafe(
       "insert into public.warehouses(id,organization_id,name,code,is_active) values($1,$2,$3,$4,true)",
       [warehouseId, organizationId, warehouseName, warehouseCode],
@@ -208,9 +274,145 @@ async function main() {
     const afterComparison = await snapshotStock();
     assert.deepEqual(afterComparison, beforeFinalize, "read-only reconciliation must not mutate stock balances or movement ledger");
 
+    // Exercise the actual importer-finalized snapshot through the guarded server RPC contract.
+    const previewKey = idempotencyKey();
+    const reason = "Actual finalized import snapshot acceptance";
+    const previewed = await previewInventory(finalized.snapshot_id, previewKey, reason);
+    assert.equal(previewed.status, "previewed");
+    assert.equal(previewed.source_row_count, 2);
+    assert.equal(previewed.adjusted_lines, 0);
+    assert.deepEqual(await snapshotStock(), beforeFinalize, "saved preview must not mutate stock");
+    const previewReplay = await previewInventory(finalized.snapshot_id, previewKey, reason);
+    assert.equal(previewReplay.command_id, previewed.command_id);
+    assert.equal(previewReplay.idempotent_replay, true, "preview replay returns the same command");
+
+    await setIdentity(staffAuthId, staffEmail);
+    await expectFailure(
+      "ordinary staff cannot preview stock-changing reconciliation",
+      () => previewInventory(finalized.snapshot_id, idempotencyKey(), "staff denied"),
+      /administrator or manager permission required/i,
+    );
+    await setIdentity();
+    await expectFailure(
+      "foreign or unavailable snapshot is denied without disclosing tenant data",
+      () => previewInventory(uuid(), idempotencyKey(), "foreign snapshot denial"),
+      /ready Onyx snapshot is unavailable in the current organization/i,
+    );
+    await expectFailure(
+      "authenticated callers cannot bypass the server-owned reconciliation command",
+      () => db.unsafe("insert into public.onyx_inventory_reconciliation_commands default values"),
+      /permission denied|insufficient privilege/i,
+    );
+
+    const applyKey = idempotencyKey();
+    const applied = await applyInventory(previewed.command_id, applyKey);
+    assert.equal(applied.status, "applied");
+    assert.equal(applied.source_row_count, 2);
+    assert.equal(applied.adjusted_lines, 1, "only the changed stock row should create a movement");
+    const afterApply = await snapshotStock();
+    assert.equal(quantityFor(afterApply, productChangedId).quantity_on_hand, "15.000");
+    assert.equal(quantityFor(afterApply, productChangedId).quantity_reserved, "2.000", "apply must preserve reserved quantity");
+    assert.equal(quantityFor(afterApply, productMatchedId).quantity_on_hand, "4.000");
+    assert.equal(movementsFor(afterApply, productChangedId), 1);
+    assert.equal(movementsFor(afterApply, productMatchedId), 0);
+    const applyReplay = await applyInventory(previewed.command_id, applyKey);
+    assert.equal(applyReplay.idempotent_replay, true, "apply replay must not duplicate stock movements");
+    assert.equal(movementsFor(await snapshotStock(), productChangedId), 1);
+
+    const rollbackKey = idempotencyKey();
+    const rolledBack = await rollbackInventory(previewed.command_id, rollbackKey);
+    assert.equal(rolledBack.status, "rolled_back");
+    const afterRollback = await snapshotStock();
+    assert.equal(quantityFor(afterRollback, productChangedId).quantity_on_hand, "10.000");
+    assert.equal(quantityFor(afterRollback, productChangedId).quantity_reserved, "2.000");
+    assert.equal(quantityFor(afterRollback, productMatchedId).quantity_on_hand, "4.000");
+    assert.equal(movementsFor(afterRollback, productChangedId), 2, "rollback must append a compensating movement");
+    assert.equal(movementsFor(afterRollback, productMatchedId), 0);
+    const rollbackReplay = await rollbackInventory(previewed.command_id, rollbackKey);
+    assert.equal(rollbackReplay.idempotent_replay, true, "rollback replay must not append another movement");
+
+    // Force a stale second line and assert that no first-line write survives the apply.
+    const stalePreview = await previewInventory(finalized.snapshot_id, idempotencyKey(), "stale baseline atomicity");
+    const sortedProducts = [productChangedId, productMatchedId].sort();
+    const firstProductId = sortedProducts[0];
+    const laterProductId = sortedProducts[1];
+    const firstBeforeStale = quantityFor(await snapshotStock(), firstProductId).quantity_on_hand;
+    await db.unsafe("reset role");
+    const laterBalance = await db.unsafe(
+      "select quantity_on_hand::numeric as quantity from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+      [laterProductId, warehouseId],
+    );
+    const laterNextQuantity = Number(laterBalance[0].quantity) + 1;
+    await db.unsafe(
+      "update public.inventory_balances set quantity_on_hand=$3::numeric,last_movement_at=pg_catalog.clock_timestamp(),updated_at=pg_catalog.clock_timestamp() where product_id=$1::uuid and warehouse_id=$2::uuid",
+      [laterProductId, warehouseId, laterNextQuantity],
+    );
+    await db.unsafe(
+      "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,created_at) " +
+        "values($1,$2,'ci_concurrent_adjustment',1,$3,'ci_import_onyx_test',$4,'Deliberate stale integration fixture',$5,pg_catalog.clock_timestamp())",
+      [laterProductId, warehouseId, laterNextQuantity, stalePreview.command_id, managerProfileId],
+    );
+    await db.unsafe("set role authenticated");
+    await setIdentity();
+    await expectFailure(
+      "stale importer-snapshot apply is denied atomically",
+      () => applyInventory(stalePreview.command_id, idempotencyKey()),
+      /stock balance or reservation changed after preview/i,
+    );
+    const afterStaleReject = await snapshotStock();
+    assert.equal(quantityFor(afterStaleReject, firstProductId).quantity_on_hand, firstBeforeStale, "no earlier product update may survive a stale later-line failure");
+    assert.equal(quantityFor(afterStaleReject, laterProductId).quantity_on_hand, laterNextQuantity, "concurrent stock change is preserved");
+    assert.equal(movementsFor(afterStaleReject, firstProductId), movementsFor(afterRollback, firstProductId));
+    const staleStatus = await readAsOwner(
+      "select status from public.onyx_inventory_reconciliation_commands where id=$1::uuid",
+      [stalePreview.command_id],
+    );
+    assert.equal(staleStatus[0].status, "previewed", "failed apply must leave the command previewed");
+
+    const freshPreview = await previewInventory(finalized.snapshot_id, idempotencyKey(), "rollback-later-movement guard");
+    const freshApply = await applyInventory(freshPreview.command_id, idempotencyKey());
+    assert.equal(freshApply.status, "applied");
+    assert.equal(freshApply.adjusted_lines, 2, "both rows should reconcile against the changed baseline");
+    const appliedFreshState = await snapshotStock();
+    const guardProductId = productChangedId;
+    const guardBefore = Number(quantityFor(appliedFreshState, guardProductId).quantity_on_hand);
+    await db.unsafe("reset role");
+    const guardNext = guardBefore + 1;
+    await db.unsafe(
+      "update public.inventory_balances set quantity_on_hand=$3::numeric,last_movement_at=pg_catalog.clock_timestamp(),updated_at=pg_catalog.clock_timestamp() where product_id=$1::uuid and warehouse_id=$2::uuid",
+      [guardProductId, warehouseId, guardNext],
+    );
+    await db.unsafe(
+      "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,created_at) " +
+        "values($1,$2,'ci_later_adjustment',1,$3,'ci_import_onyx_test',$4,'Deliberate post-apply stock movement',$5,pg_catalog.clock_timestamp())",
+      [guardProductId, warehouseId, guardNext, freshPreview.command_id, managerProfileId],
+    );
+    await db.unsafe("set role authenticated");
+    await setIdentity();
+    await expectFailure(
+      "rollback refuses to overwrite post-apply stock movement",
+      () => rollbackInventory(freshPreview.command_id, idempotencyKey(), "unsafe rollback denied"),
+      /stock or reservations changed after Onyx apply|newer or altered stock movement history exists/i,
+    );
+    const afterUnsafeRollback = await snapshotStock();
+    assert.equal(quantityFor(afterUnsafeRollback, guardProductId).quantity_on_hand, String(guardNext.toFixed(3)), "later stock quantity must remain untouched");
+    const freshStatus = await readAsOwner(
+      "select status from public.onyx_inventory_reconciliation_commands where id=$1::uuid",
+      [freshPreview.command_id],
+    );
+    assert.equal(freshStatus[0].status, "applied", "failed rollback must not change command state");
+
+    const auditRows = await readAsOwner(
+      "select organization_id::text,actor_id::text,action,entity_id::text from public.audit_logs " +
+        "where organization_id=$1::uuid and entity_type='onyx_inventory_reconciliation' and entity_id=$2::uuid order by created_at",
+      [organizationId, previewed.command_id],
+    );
+    assert.ok(auditRows.some((row) => row.organization_id === organizationId && row.actor_id === managerProfileId && row.action === "inventory.onyx_reconciliation.applied"));
+    assert.ok(auditRows.some((row) => row.organization_id === organizationId && row.actor_id === managerProfileId && row.action === "inventory.onyx_reconciliation.rolled_back"));
+
     await db.unsafe("rollback");
     process.stdout.write(
-      "PASS inventory snapshot contract: real import finalization preserves tenant/profile/hash/row identity, item_code, quantity and warehouse scope; comparison is accurate and stock remains unchanged until an explicit guarded stock-write command.\\n",
+      "PASS inventory->Onyx reconciliation: real finalized snapshot hash/tenant/warehouse scope; preview no-write + replay; staff/tenant/direct-DML denial; apply/replay; compensating rollback/replay; atomic stale-apply denial; later-movement rollback refusal; audit actor/tenant.\\n",
     );
   } catch (error) {
     await db.unsafe("rollback").catch(() => {});
