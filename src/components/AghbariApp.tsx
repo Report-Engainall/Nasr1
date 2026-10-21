@@ -31,9 +31,6 @@ import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
 import { CustomerActivationInvitationDialog } from '@/components/CustomerActivationInvitationDialog';
 import { TaskCenter } from '@/components/TaskCenter';
-import { CustomerReturnReviewQueue } from '@/components/CustomerReturnReviewQueue';
-import { CustomerReturnReceiptQueue } from '@/components/CustomerReturnReceiptQueue';
-import { CustomerReturnCreditMemoQueue } from '@/components/CustomerReturnCreditMemoQueue';
 import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
 import { InventoryTransferHistoryPage } from '@/components/InventoryTransferHistoryPage';
 import { PurchaseOrdersPage } from '@/components/PurchaseOrdersPage';
@@ -94,8 +91,6 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const canManageFinance = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'accountant'));
   const isFinanceOnly = canManageFinance && !canOperateAdmin;
   const canManageAudit = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  // Customer-return review and warehouse receipt are management actions, not ordinary staff/accountant actions.
-  const canManageCustomerReturns = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const visibleNav = nav.filter(({ id }) =>
     (isFinanceOnly ? id === 'finance' || id === 'tasks' : id !== 'finance' || canManageFinance) &&
     (id !== 'audit' || canManageAudit) &&
@@ -178,13 +173,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
           {view === 'dashboard' && <Dashboard onNavigate={setView} />}
           {view === 'products' && <Products onNotice={showNotice} />}
           {view === 'customers' && <Customers onNotice={showNotice} />}
-          {view === 'orders' && !orderDetailId && <>
-            <Orders onViewDetail={setOrderDetailId} />
-            {canManageCustomerReturns && <>
-              <CustomerReturnReviewQueue onNotice={showNotice} />
-              <CustomerReturnReceiptQueue onNotice={showNotice} />
-            </>}
-          </>}
+          {view === 'orders' && !orderDetailId && <Orders onViewDetail={setOrderDetailId} />}
           {view === 'orders' && orderDetailId && <OrderDetail orderId={orderDetailId} onBack={() => { if (navigationBlocked) { showNotice('اعتمد كميات وأسعار الطلب أو ألغِ المسودة قبل الرجوع.'); return; } setOrderDetailId(null); }} onNotice={showNotice} onBlockedChange={setNavigationBlocked} />}
           {view === 'pricing' && <Pricing onNotice={showNotice} />}
           {view === 'offers' && <Offers onNotice={showNotice} />}
@@ -198,10 +187,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
           {view === 'operations' && <OperationsCenter onNotice={showNotice} />}
           {view === 'settings' && <SettingsPage onNotice={showNotice} />}
           {view === 'quotes' && <StaffQuotesPage />}
-          {view === 'finance' && <>
-            <StaffFinancePage />
-            {canManageFinance && <CustomerReturnCreditMemoQueue onNotice={showNotice} />}
-          </>}
+          {view === 'finance' && <StaffFinancePage />}
           {view === 'tasks' && <TaskCenter onNotice={showNotice} />}
           {view === 'audit' && <AdminAuditLog />}
           {view === 'stock-count' && <InventoryStockCountPage />}
