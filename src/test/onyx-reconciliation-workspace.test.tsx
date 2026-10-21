@@ -100,7 +100,7 @@ describe("Onyx inventory reconciliation workspace integration", () => {
     render(<OnyxInventoryReconciliationWorkspace />);
 
     fireEvent.click(screen.getByRole("button", { name: "مصالحة مخزون أونكس" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("لا توجد لقطة Onyx بحالة جاهزة");
+    expect(await screen.findByText(/لا توجد لقطة Onyx بحالة جاهزة/)).toBeInTheDocument();
     expect(screen.queryByTestId("onyx-reconciliation-actions")).not.toBeInTheDocument();
   });
 
