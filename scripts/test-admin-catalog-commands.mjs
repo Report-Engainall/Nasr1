@@ -63,6 +63,18 @@ async function cleanup() {
     [org, name, otherOrg, foreignName],
   ).catch(() => {});
   await root.unsafe(
+    "delete from public.customers where organization_id=$1 and customer_code='CI-P1-CATALOG-LOCAL-CUSTOMER'",
+    [org],
+  ).catch(() => {});
+  await root.unsafe(
+    "delete from public.warehouses where organization_id=$1 and name='CI P1 Catalog Local Tenant Warehouse'",
+    [org],
+  ).catch(() => {});
+  await root.unsafe(
+    "delete from public.profiles where email='ci-p1-foreign-profile@example.test'",
+    [],
+  ).catch(() => {});
+  await root.unsafe(
     "delete from public.warehouses where organization_id=$1 and name='CI P1 Cross Tenant Warehouse'",
     [otherOrg],
   ).catch(() => {});
@@ -94,6 +106,28 @@ async function main() {
       "values($1,'CI P1 Cross Tenant Warehouse','CI-P1-XTENANT',true) returning id",
     [otherOrg],
   ))[0].id;
+
+  const localWarehouse = (await root.unsafe(
+    "insert into public.warehouses(organization_id,name,code,is_active) " +
+      "values($1,'CI P1 Catalog Local Tenant Warehouse','CI-P1-LOCAL-TENANT',true) returning id",
+    [org],
+  ))[0].id;
+  const foreignCustomer = (await root.unsafe(
+    "insert into public.customers(organization_id,customer_code,business_name,status) " +
+      "values($1,'CI-P1-FOREIGN-CUSTOMER','CI P1 foreign customer','approved') returning id",
+    [otherOrg],
+  ))[0].id;
+  const localCustomer = (await root.unsafe(
+    "insert into public.customers(organization_id,customer_code,business_name,status) " +
+      "values($1,'CI-P1-CATALOG-LOCAL-CUSTOMER','CI P1 local customer','approved') returning id",
+    [org],
+  ))[0].id;
+  const foreignProfile = (await root.unsafe(
+    "insert into public.profiles(organization_id,full_name,email,is_active) " +
+      "values($1,'CI P1 foreign profile','ci-p1-foreign-profile@example.test',true) returning id",
+    [otherOrg],
+  ))[0].id;
+
 
   await ident(admin, adminAuth, "admin@aghbari.ye");
   await ident(customer, customerAuth, "customer@example.test");
@@ -145,6 +179,65 @@ async function main() {
     ),
     /inventory product and warehouse must belong to the same organization/i,
     "privileged direct DML cannot create stock for a product in another organization's warehouse",
+  );
+  // Later target-native tables must preserve both the row tenant and every tenant-bearing foreign key.
+  const adminProfileId = (await root.unsafe(
+    "select id from public.profiles where auth_user_id=$1 and organization_id=$2",
+    [adminAuth, org],
+  ))[0]?.id;
+  assert.ok(adminProfileId, "CI admin profile must exist in the target organization");
+
+  await assert.rejects(
+    () => root.unsafe(
+      "insert into public.customer_addresses(organization_id,customer_id,label,recipient_name,phone,address_line1,city,country) " +
+        "values($1,$2,'foreign address','Foreign Customer','7771112222','Cross tenant street','Sanaa','YE')",
+      [org, foreignCustomer],
+    ),
+    /tenant_integrity_customer_addresses_customer_org_fk/i,
+    "cross-tenant customer address writes must be rejected",
+  );
+  await assert.rejects(
+    () => root.unsafe(
+      "insert into public.customer_company_invitations(organization_id,customer_id,invited_email,member_role,token_hash,expires_at) " +
+        "values($1,$2,'foreign@example.test','buyer',$3,now()+interval '1 day')",
+      [org, foreignCustomer, "a".repeat(32)],
+    ),
+    /tenant_integrity_company_invitations_customer_org_fk/i,
+    "cross-tenant company invitation writes must be rejected",
+  );
+  await assert.rejects(
+    () => root.unsafe(
+      "insert into public.customer_activation_invitations(organization_id,customer_id,invited_email,token_hash,expires_at) " +
+        "values($1,$2,'foreign@example.test',$3,now()+interval '1 day')",
+      [org, foreignCustomer, "b".repeat(64)],
+    ),
+    /tenant_integrity_activation_invitations_customer_org_fk/i,
+    "cross-tenant activation invitation writes must be rejected",
+  );
+  await assert.rejects(
+    () => root.unsafe(
+      "insert into public.customer_company_memberships(organization_id,customer_id,profile_id,member_role) values($1,$2,$3,'buyer')",
+      [org, localCustomer, foreignProfile],
+    ),
+    /tenant_integrity_company_memberships_profile_org_fk/i,
+    "a company membership cannot bind a profile from another organization",
+  );
+  await assert.rejects(
+    () => root.unsafe(
+      "insert into public.storefront_saved_products(organization_id,profile_id,product_id) values($1,$2,$3)",
+      [org, adminProfileId, foreignProduct],
+    ),
+    /tenant_integrity_saved_products_product_org_fk/i,
+    "a saved product cannot point at a product from another organization",
+  );
+  await assert.rejects(
+    () => root.unsafe(
+      "insert into public.inventory_transfers(organization_id,product_id,source_warehouse_id,destination_warehouse_id,quantity,reason,idempotency_key,created_by) " +
+        "values($1,$2,$3,$4,1,'cross-tenant integrity fixture','CI-P1-CROSS-TENANT-TRANSFER-0001',$5)",
+      [org, created.id, localWarehouse, foreignWarehouse, adminProfileId],
+    ),
+    /tenant_integrity_inventory_transfers_destination_warehouse_org_fk/i,
+    "a stock transfer cannot target another organization's warehouse",
   );
 
   const pageProducts = [];

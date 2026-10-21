@@ -10,6 +10,10 @@ const runtimeTest = readFileSync(
   join(process.cwd(), "scripts/test-admin-catalog-commands.mjs"),
   "utf8",
 );
+const additionalMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/20261021140000_target_native_tenant_integrity_additional.sql"),
+  "utf8",
+);
 
 describe("target-native tenant integrity migration", () => {
   it("adds composite organization-preserving foreign keys to tenant-owned relationships", () => {
@@ -51,5 +55,44 @@ describe("target-native tenant integrity migration", () => {
 
   it("does not import legacy-only schema contracts", () => {
     expect(migration).not.toMatch(/public\.price_lists\b|public\.carts\b|public\.cart_items\b|public\.audit_events\b/i);
+  });
+
+  it("covers newer target-native tenant relationships without recreating donor tables", () => {
+    for (const constraint of [
+      "tenant_integrity_customer_addresses_customer_org_fk",
+      "tenant_integrity_company_invitations_customer_org_fk",
+      "tenant_integrity_activation_invitations_customer_org_fk",
+      "tenant_integrity_company_memberships_profile_org_fk",
+      "tenant_integrity_saved_products_profile_org_fk",
+      "tenant_integrity_saved_products_product_org_fk",
+      "tenant_integrity_inventory_transfers_product_org_fk",
+      "tenant_integrity_inventory_transfers_source_warehouse_org_fk",
+      "tenant_integrity_inventory_transfers_destination_warehouse_org_fk",
+      "tenant_integrity_onyx_snapshot_import_org_fk",
+      "tenant_integrity_onyx_rows_snapshot_org_fk",
+      "tenant_integrity_onyx_commands_snapshot_org_fk",
+      "tenant_integrity_onyx_items_command_org_fk",
+      "tenant_integrity_onyx_items_snapshot_row_org_fk",
+      "tenant_integrity_onyx_items_product_org_fk",
+      "tenant_integrity_sales_quote_items_quote_org_fk",
+      "tenant_integrity_reorder_template_items_template_org_fk",
+    ]) {
+      expect(additionalMigration).toContain(constraint);
+    }
+    expect(additionalMigration).toMatch(/ON public\.inventory_transfers\(product_id,organization_id\)/i);
+    expect(additionalMigration).toMatch(/public\.customer_addresses[\s\S]*FOREIGN KEY\(customer_id,organization_id\)/i);
+  });
+
+  it("includes runtime negative cases for newer tenant-owned tables", () => {
+    for (const assertion of [
+      "cross-tenant customer address writes must be rejected",
+      "cross-tenant company invitation writes must be rejected",
+      "cross-tenant activation invitation writes must be rejected",
+      "a company membership cannot bind a profile from another organization",
+      "a saved product cannot point at a product from another organization",
+      "a stock transfer cannot target another organization's warehouse",
+    ]) {
+      expect(runtimeTest).toContain(assertion);
+    }
   });
 });
