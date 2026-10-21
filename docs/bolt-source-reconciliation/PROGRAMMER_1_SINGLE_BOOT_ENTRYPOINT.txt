@@ -1,16 +1,24 @@
 # P1 — رسالة إقلاع واحدة مختصرة
 التاريخ: 2026-10-21
 المستودع الوحيد: https://github.com/Report-Engainall/Nasr1
-main المدموج المثبت: `6e97fb35be9ebf65c546a3d5e9615063853c8eab`
-فرع الاستكمال الجاري: `feat/storefront-price-policy-browser-acceptance-20261021`
-PR التسليم والقبول المخصص: https://github.com/Report-Engainall/Nasr1/pull/29
-PR #18 merged as `f00e609013e248de4ecb94c41e31296884f899cf`; PR #26 merged as `6e97fb35be9ebf65c546a3d5e9615063853c8eab`.
+PR #18: MERGED `f00e609013e248de4ecb94c41e31296884f899cf`
+PR #26: MERGED `6e97fb35be9ebf65c546a3d5e9615063853c8eab`
+PR #29: MERGED `1eb57a661b413c9c7d0321dccca70e5d6a0e42fe`
+Post-merge Core CI: [Actions 39662642889 COMPLETED/SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39662642889) on exact merge SHA `1eb57a661b413c9c7d0321dccca70e5d6a0e42fe`.
+PR29-head combined acceptance: [Core 39662020790 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/39662020790) and [P2 Playwright 39662020868 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/39662020868) both on exact SHA `f97dae32eb1308e677a3ce04c6e5442146e40a02`.
 
-آخر رأس كود/اختبار P1+P2 تم التحقق منه حيًا من GitHub:
-bbcb894f003fc2e1b0a5b85c67c128b779d3f30c
-Core CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39661182977 — COMPLETED/SUCCESS على SHA نفسه.
-P2 Playwright Critical Paths: https://github.com/Report-Engainall/Nasr1/actions/runs/39661182935 — COMPLETED/SUCCESS على SHA نفسه.
-هذا الرأس يحتوي اختبار Chromium مخصصًا لسياسة إخفاء السعر؛ نجح تشغيل ProductGrid/ProductDetail الحقيقيين مع حالات الإظهار والإخفاء والـ policy غير الصالحة وعلامة السعر صفر. main لا يزال `6e97fb35be9ebf65c546a3d5e9615063853c8eab`; PR #18 وPR #26 مدموجان بالفعل، وPR #29 هو مسار تسليم اختبار المتصفح وسجلات المطابقة.
+## Restart rule — always read live main
+At the start of any new session, fetch `https://api.github.com/repos/Report-Engainall/Nasr1/git/ref/heads/main` and treat its `object.sha` as the only current head. Do not assume that a SHA in this handoff remains current after a documentation-only PR is merged. Continue only on the live main or an explicitly created review branch; never write directly to main.
+
+## Closed tasks and exact proof boundaries
+- **STAFF-CATALOG-0007 — CLOSED:** source SHA `239789342a29a824852185cdbb95de7906900dbc`; root cause was JSON.stringify(payload) passed as scalar text to `$1::jsonb`; fixed using `admin.json(payload)`, strict allowlist preserved. Exact target test SHA `18b0c8a8f3f03a3f5ad188357690223e3749628f`; [Actions 39647895468 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/39647895468). PostgreSQL 17 acceptance proved product/category commands, price-grid permission boundary, tenant-scoped audit, conflict handling, tenant isolation and denial of direct DML. This SQL-command task makes no browser/production claim.
+- **CUSTOMER-PRICE-PRIVACY-010 — CLOSED:** `src/components/Storefront.tsx` blob `ca56ebae3688cfa4896f4e21f8abdcb726b0b604` passes the existing `show_price_on_cards` setting to real ProductGrid/ProductDetail and wishlist/comparison views; existing fail-closed renderer/resolver reused. Price is not calculated in the browser.
+- **CUSTOMER-PRICE-PRIVACY-CHROMIUM-011 — CLOSED:** test `e2e/storefront-price-visibility.spec.ts` blob `45e183aef4f0b4e9e329cba67ea66a191356f5ae`; [PR29 Core 39662020790 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/39662020790) + [PR29 P2 39662020868 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/39662020868) on exact PR head `f97dae32eb1308e677a3ce04c6e5442146e40a02`; post-merge Core 39662642889 also passed on `1eb57a661b413c9c7d0321dccca70e5d6a0e42fe`. Chromium verified enabled/disabled/malformed settings and zero-price sentinel against the actual ProductGrid/ProductDetail components.
+- **Not proven:** remote public settings RPC against a live production project and production deployment remain `NOT RUN`; the external hosted-account E2E path was skipped because credentials were not configured. Do not claim these as passed.
+- **P2 boundaries respected:** no changes to `src/lib/api.ts`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, `package.json`, `.github/workflows/p2-playwright-critical-paths.yml`, or `e2e/public-storefront-smoke.spec.ts`.
+
+## Immediate next execution
+Read the live source integration ledger and continue the first remaining incomplete task. Do not re-open the closed 0007 catalog fix, repeat archive extraction, or treat prior task history as current code. Keep the distinctions `IMPLEMENTED`, `INTEGRATED_IN_MAIN`, `TESTED_EXACT_SHA`, `BROWSER_PROVEN`, and `PRODUCTION_PROVEN` separate.
 
 
 قبول كتالوج الموظفين 0007: [Actions 39647895468 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39647895468) على SHA `18b0c8a8f3f03a3f5ad188357690223e3749628f`. اختبارات PostgreSQL 17 أثبتت CRUD للمنتج والتصنيف، رفض الحقول غير المسموحة، صلاحيات price-grid، التعارض، التدقيق، عزل المؤسسة ومنع DML المباشر.
