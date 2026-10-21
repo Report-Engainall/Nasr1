@@ -88,10 +88,12 @@ describe("staff dashboard finance-parity migration contract", () => {
 
   it("has PostgreSQL runtime coverage for all major KPI groups and a foreign tenant", () => {
     expect(runtimeTest).toContain("CI-P1-METRICS-FOREIGN");
-    expect(runtimeTest).toContain('processing\",\"shipped\",\"delivered\",\"cancelled');
+    expect(runtimeTest).toContain('"processing","shipped","delivered","cancelled');
     expect(runtimeTest).toContain("metricsAfter.completed_sales");
     expect(runtimeTest).toContain("metricsAfter.available_stock");
     expect(runtimeTest).toContain("metricsAfter.receivables_issued");
+    expect(runtimeTest).toContain("missing warehouse balance is unknown");
+    expect(runtimeTest).toContain("YER and USD invoice balances");
     expect(runtimeTest).toContain("700,0");
     expect(runtimeTest).toContain("800");
   });

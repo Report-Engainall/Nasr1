@@ -15,6 +15,8 @@ const name = "CI P1 Category";
 const foreignCode = "CI-P1-CAT-FOREIGN-001";
 const foreignName = "CI P1 Foreign Category";
 const metricsOrderNumbers = ["CI-P1-METRICS-PENDING","CI-P1-METRICS-CONFIRMED","CI-P1-METRICS-PROCESSING","CI-P1-METRICS-SHIPPED","CI-P1-METRICS-DELIVERED","CI-P1-METRICS-CANCELLED"];
+const metricsInvoiceNumbers = ["CI-P1-METRICS-INVOICE-YER", "CI-P1-METRICS-INVOICE-USD"];
+const metricsUnknownStockCode = "CI-P1-METRICS-UNKNOWN-STOCK";
 const metricsForeignOrderNumber = "CI-P1-METRICS-FOREIGN";
 const root = postgres(url, { max: 1, prepare: false });
 const admin = postgres(url, { max: 1, prepare: false });
@@ -32,6 +34,8 @@ async function rpc(connection, query, args) {
   return (await connection.unsafe(query, args))[0]?.result;
 }
 async function cleanup() {
+  await root.unsafe("delete from public.customer_invoices where organization_id=$1 and invoice_number=any($2::text[])", [org, metricsInvoiceNumbers]).catch(() => {});
+  await root.unsafe("delete from public.products where organization_id=$1 and item_code=$2", [org, metricsUnknownStockCode]).catch(() => {});
   await root.unsafe(
     "delete from public.orders where (organization_id=$1 and order_number=any($2::text[])) " +
       "or (organization_id=$3 and order_number=any($4::text[]))",
@@ -519,6 +523,9 @@ async function main() {
 
 
   // Target-native finance parity: metrics aggregate only the authenticated profile's organization.
+  // A live product without a balance row must keep the aggregate stock unknown.
+  await root.unsafe("insert into public.products(organization_id,name,item_code,unit,status) values($1,'CI P1 Metrics Unknown Stock',$2,'bundle','active')", [org, metricsUnknownStockCode]);
+
   const metricsBeforeRows = await admin.unsafe("select * from public.get_staff_dashboard_metrics()");
   assert.equal(metricsBeforeRows.length, 1, "dashboard metrics return exactly one tenant-scoped row");
   await root.unsafe(
@@ -528,6 +535,10 @@ async function main() {
     [org, localCustomer, metricsOrderNumbers,
       ["pending","confirmed","processing","shipped","delivered","cancelled"], [1,2,3,4,6,7]],
   );
+  await root.unsafe("insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,currency,subtotal,tax_amount,total_amount) " + "values($1,$2,(select id from public.orders where organization_id=$1 and order_number=$3),$4,'issued',$5,$6,0,$6)",
+    [org, localCustomer, metricsOrderNumbers[0], metricsInvoiceNumbers[0], "YER", 100]);
+  await root.unsafe("insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,currency,subtotal,tax_amount,total_amount) " + "values($1,$2,(select id from public.orders where organization_id=$1 and order_number=$3),$4,'issued',$5,$6,0,$6)",
+    [org, localCustomer, metricsOrderNumbers[1], metricsInvoiceNumbers[1], "USD", 200]);
   await root.unsafe(
     "insert into public.orders(organization_id,customer_id,order_number,status,total_amount) " +
       "values($1,$2,$3,'delivered',800)",
@@ -603,6 +614,8 @@ async function main() {
     expectedMetricsRows[0].receivables_issued === null ? null : Number(expectedMetricsRows[0].receivables_issued),
     "receivables are computed from invoice minus recorded payments and never add unlike currencies");
   await assert.rejects(
+  assert.equal(metricsAfter.available_stock, null, "missing warehouse balance is unknown, never zero");
+  assert.equal(metricsAfter.receivables_issued, null, "positive YER and USD invoice balances are not combined");
     () => customer.unsafe("select * from public.get_staff_dashboard_metrics()"),
     /active same-organization staff or finance permission required/i,
     "a customer without the staff/finance boundary cannot read organization dashboard metrics",
