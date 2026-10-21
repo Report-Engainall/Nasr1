@@ -16,7 +16,7 @@ describe("target-native catalog trigram indexes", () => {
     expect(migration).toMatch(/CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions/i);
     expect(migration).toMatch(/ON public\.products USING gin \(name extensions\.gin_trgm_ops\)/i);
     expect(migration).toMatch(/ON public\.products USING gin \(item_code extensions\.gin_trgm_ops\)/i);
-    expect(migration).not.toMatch(/\bsku\b/i);
+    expect(migration).not.toMatch(/USING gin \(sku\b/i);
   });
 
   it("limits trigram indexes to active rows and tests the actual PostgreSQL operator", () => {

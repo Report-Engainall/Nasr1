@@ -167,8 +167,8 @@ async function main() {
   assert.ok(created.id && created.created, "product create returns a new ID");
 
   const expectedSearchIndexes = [
-    "products_org_name_trgm_idx",
     "products_org_item_code_trgm_idx",
+    "products_org_name_trgm_idx",
   ];
   const searchIndexes = await root.unsafe(
     "select indexname,indexdef from pg_indexes where schemaname='public' and indexname=any($1::text[]) order by indexname",
