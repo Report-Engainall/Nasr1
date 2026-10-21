@@ -2,13 +2,32 @@ import { expect, test } from "@playwright/test";
 
 test("Chromium verifies fail-closed product card and detail price visibility", async ({ page }) => {
   const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  const failedRequests: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("requestfailed", (request) => {
+    failedRequests.push(`${request.url()}: ${request.failure()?.errorText ?? "request failed"}`);
+  });
 
   // This local-only fixture imports the real exported ProductGrid/ProductDetail components.
   // It deliberately never mounts Storefront's auth/cart lifecycle or writes to a backend.
   await page.route("https://ci-placeholder.supabase.co/**", (route) => route.abort("blockedbyclient"));
-  await page.goto("/e2e/fixtures/storefront-price-visibility.html");
-  await expect(page.getByTestId("fixture-ready")).toBeVisible();
+  const response = await page.goto("/e2e/fixtures/storefront-price-visibility.html");
+  await page.waitForTimeout(1500);
+  const readyCount = await page.getByTestId("fixture-ready").count();
+  if (readyCount !== 1) {
+    const bodyText = await page.locator("body").innerText().catch(() => "");
+    throw new Error([
+      `Price visibility fixture did not mount (HTTP ${response?.status() ?? "no response"}).`,
+      `Page errors: ${JSON.stringify(pageErrors)}`,
+      `Console errors: ${JSON.stringify(consoleErrors)}`,
+      `Failed requests: ${JSON.stringify(failedRequests)}`,
+      `Body text: ${JSON.stringify(bodyText.slice(0, 1200))}`,
+    ].join("\\n"));
+  }
 
   const cardPrice = page.locator(".sf-product-price");
   const detailPrice = page.locator(".sf-detail-price");
