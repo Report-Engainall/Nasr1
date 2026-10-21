@@ -466,3 +466,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 ### Next task
 - Single next_task_id: `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010`.
 - Resume the product card/detail/cart/checkout visible-hidden price matrix and fail-closed error cases. P1 owns `src/components/Storefront.tsx` and `src/lib/api.ts`; a path-level request is recorded in the P1 PR conversation. Do not modify those files without explicit handoff; continue on P2-owned helper/tests and document exact acceptance gaps.
+
+
+## P2 follow-up — customer price privacy integration handoff, 21 October 2026
+
+- Verified P2 helper: `src/lib/storefront-price-visibility.ts`; regression coverage: `src/test/storefront-price-visibility-presentation.test.ts`.
+- The unresolved UI integration remains in P1-owned `src/components/Storefront.tsx` and its API/settings path. P2 did not modify those files.
+- Posted an explicit integration/ownership handoff on PR #26: https://github.com/Report-Engainall/Nasr1/pull/26#issuecomment-6320698979. Requested explicit price-policy gating at card/detail render points, zero-sentinel suppression, and UI-level regression tests. Awaiting P1 integration or explicit path handoff.
+- Task `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010` remains OPEN. Helper tests do not prove screen integration. No claim of browser or production proof is made.
