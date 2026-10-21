@@ -83,8 +83,43 @@ AS $function$
 DECLARE
   v_currency text;
 BEGIN
-  SELECT o.currency INTO v_currency FROM public.organizations o WHERE o.id = NEW.organization_id;
+  SELECT o.currency INTO v_currency
+    FROM public.organizations o
+   WHERE o.id = NEW.organization_id;
+
+  -- A journal already linked to this receipt is authoritative: subsequent receipt
+  -- row updates must not reopen finance work or reconstruct stale cost-review tasks.
+  IF EXISTS (
+    SELECT 1 FROM public.purchase_receipt_accounting_postings posting
+     WHERE posting.organization_id = NEW.organization_id
+       AND posting.receipt_id = NEW.id
+  ) THEN
+    UPDATE public.ai_tasks
+       SET status = 'completed',
+           completed_at = coalesce(completed_at, now()),
+           completed_by = NULL,
+           resolution_note = 'أُغلقت المهمة بعد وجود ارتباط محاسبي محفوظ للإيصال.',
+           updated_at = now()
+     WHERE organization_id = NEW.organization_id
+       AND source_entity_type = 'purchase_receipts'
+       AND source_entity_id = NEW.id
+       AND status IN ('pending', 'in_progress');
+    RETURN NEW;
+  END IF;
+
   IF NEW.received_cost IS NOT NULL AND NEW.received_cost > 0 THEN
+    -- Receipt creation may precede the UPDATE that finalizes received_cost.
+    -- Resolve a cost-review task that was correctly opened while the cost was NULL.
+    UPDATE public.ai_tasks
+       SET status = 'completed',
+           completed_at = coalesce(completed_at, now()),
+           completed_by = NULL,
+           resolution_note = 'أُغلقت بعد تسجيل تكلفة مصدرية موجبة للإيصال؛ انتقلت المتابعة إلى المحاسبة.',
+           updated_at = now()
+     WHERE organization_id = NEW.organization_id
+       AND source_event_key = 'purchase-receipt-cost-review:' || NEW.id::text
+       AND status IN ('pending', 'in_progress');
+
     PERFORM public.upsert_operational_task(
       NEW.organization_id,
       'إعداد مسودة القيد لإيصال الشراء ' || NEW.receipt_number,
@@ -95,7 +130,7 @@ BEGIN
         'receipt_number', NEW.receipt_number, 'source_amount', NEW.received_cost,
         'source_currency', v_currency, 'purchase_order_id', NEW.purchase_order_id
       ),
-      true
+      false
     );
   ELSE
     PERFORM public.upsert_operational_task(
@@ -109,7 +144,7 @@ BEGIN
         'source_currency', v_currency, 'purchase_order_id', NEW.purchase_order_id,
         'requires_source_cost_reconciliation', true
       ),
-      true
+      false
     );
   END IF;
   RETURN NEW;
@@ -118,7 +153,7 @@ $function$;
 
 DROP TRIGGER IF EXISTS operational_tasks_purchase_receipt_event ON public.purchase_receipts;
 CREATE TRIGGER operational_tasks_purchase_receipt_event
-AFTER INSERT ON public.purchase_receipts
+AFTER INSERT OR UPDATE OF received_cost ON public.purchase_receipts
 FOR EACH ROW EXECUTE FUNCTION public.operational_tasks_from_purchase_receipt();
 
 CREATE OR REPLACE FUNCTION public.operational_tasks_from_purchase_receipt_accounting()
@@ -233,6 +268,15 @@ BEGIN
        )
   LOOP
     IF r.received_cost IS NOT NULL AND r.received_cost > 0 THEN
+      UPDATE public.ai_tasks
+         SET status = 'completed', completed_at = coalesce(completed_at, now()),
+             completed_by = NULL,
+             resolution_note = 'أُغلقت بعد تسجيل تكلفة مصدرية موجبة للإيصال؛ انتقلت المتابعة إلى المحاسبة.',
+             updated_at = now()
+       WHERE organization_id = v_org
+         AND source_event_key = 'purchase-receipt-cost-review:' || r.id::text
+         AND status IN ('pending', 'in_progress');
+
       PERFORM public.upsert_operational_task(
         v_org, 'إعداد مسودة القيد لإيصال الشراء ' || r.receipt_number,
         'سُجل إيصال استلام فعلي بتكلفة مصدرية؛ يلزم على المحاسبة التحقق من البنود والحسابات وإعداد مسودة القيد.',
