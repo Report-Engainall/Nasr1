@@ -1,3 +1,4 @@
+import { BUSINESS_BRAND_NAME, BUSINESS_BRAND_NAME_AR, BUSINESS_BRAND_NAME_EN_UPPER } from "@/lib/brand";
 import { readPrintableReturnCreditMemo } from "@/lib/customer-return-credit-memos";
 
 type UnknownRecord = Record<string, unknown>;
@@ -377,7 +378,7 @@ function el<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, text?:
   return node;
 }
 function addBase(doc: Document, title: string): HTMLElement {
-  doc.title = title;
+  doc.title = `${title} | ${BUSINESS_BRAND_NAME}`;
   doc.documentElement.lang = "ar";
   doc.documentElement.dir = "rtl";
   doc.body.replaceChildren();
@@ -387,7 +388,8 @@ function addBase(doc: Document, title: string): HTMLElement {
   const main = el(doc, "main");
   const header = el(doc, "header");
   const brandBox = el(doc, "div");
-  brandBox.append(el(doc, "div", "متجر الأغبري", "brand"), el(doc, "small", "AGHBARI COMMERCE"));
+  brandBox.setAttribute("aria-label", BUSINESS_BRAND_NAME);
+  brandBox.append(el(doc, "div", BUSINESS_BRAND_NAME_AR, "brand"), el(doc, "small", BUSINESS_BRAND_NAME_EN_UPPER));
   const titleBox = el(doc, "div");
   titleBox.append(el(doc, "h1", title), el(doc, "p", "تاريخ إنشاء المستند: " + fmtDateTime(new Date().toISOString())));
   header.append(brandBox, titleBox);
