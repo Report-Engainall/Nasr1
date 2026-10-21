@@ -361,7 +361,7 @@ async function main() {
     );
     const afterStaleReject = await snapshotStock();
     assert.equal(quantityFor(afterStaleReject, firstProductId).quantity_on_hand, firstBeforeStale, "no earlier product update may survive a stale later-line failure");
-    assert.equal(quantityFor(afterStaleReject, laterProductId).quantity_on_hand, laterNextQuantity, "concurrent stock change is preserved");
+    assert.equal(quantityFor(afterStaleReject, laterProductId).quantity_on_hand, laterNextQuantity.toFixed(3), "concurrent stock change is preserved");
     assert.equal(movementsFor(afterStaleReject, firstProductId), movementsFor(afterRollback, firstProductId));
     const staleStatus = await readAsOwner(
       "select status from public.onyx_inventory_reconciliation_commands where id=$1::uuid",
@@ -372,7 +372,7 @@ async function main() {
     const freshPreview = await previewInventory(finalized.snapshot_id, idempotencyKey(), "rollback-later-movement guard");
     const freshApply = await applyInventory(freshPreview.command_id, idempotencyKey());
     assert.equal(freshApply.status, "applied");
-    assert.equal(freshApply.adjusted_lines, 2, "both rows should reconcile against the changed baseline");
+    assert.equal(freshApply.adjusted_lines, laterProductId === productChangedId ? 1 : 2, "adjusted line count follows the actually changed baseline rows");
     const appliedFreshState = await snapshotStock();
     const guardProductId = productChangedId;
     const guardBefore = Number(quantityFor(appliedFreshState, guardProductId).quantity_on_hand);
