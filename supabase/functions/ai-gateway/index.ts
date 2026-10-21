@@ -1,8 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { buildGeminiRequestConfig, estimateCost, estimateInputTokens, isSafeProviderBaseUrl, parseProviderResponse, sanitizeAiQuestion, summarizeAiProviderAttempts, type AiProvider, type AiCostRates, type ProviderAttemptTelemetry } from "./logic.ts";
+import { buildGeminiRequestConfig, estimateCost, estimateInputTokens, isSafeProviderBaseUrl, parseProviderResponse, runProviderCandidates, sanitizeAiQuestion, summarizeAiProviderAttempts, type AiProvider, type AiProviderCandidate, type AiCostRates } from "./logic.ts";
 type Runtime={env:{get(n:string):string|undefined};serve(h:(r:Request)=>Response|Promise<Response>):void};
 type Settings={status:string;primary_provider:AiProvider;primary_model:string;primary_base_url:string;fallback_enabled:boolean;fallback_provider:AiProvider;fallback_model:string;fallback_base_url:string};
-type Candidate={provider:AiProvider;model:string;baseUrl:string;key:string;rates:AiCostRates;fallback:boolean};
+type Candidate=AiProviderCandidate;
 const d=(globalThis as unknown as {Deno?:Runtime}).Deno;
 if(!d)throw new Error("Supabase Edge Runtime required.");
 const SYSTEM="أجب بالعربية. ليس لديك بيانات مباشرة من قاعدة بيانات متجر الأغبري. لا تخمّن أسعاراً أو طلبات أو أرصدة أو مخزوناً؛ وجّه تلك الأسئلة إلى الشاشات الموثقة. لا تنفذ إجراءات مالية أو تغيّر بيانات. قدّم إرشاداً عاماً وميّز الحقيقة عن الافتراض.";
@@ -20,14 +20,6 @@ function candidate(provider:AiProvider,model:string,baseUrl:string,fallback:bool
  return {provider,model,baseUrl:baseUrl.replace(/\/+$/,""),key,rates:r,fallback};
 }
 function cleanText(value:string){let out="";for(const c of value){const n=c.charCodeAt(0);if((n<32&&n!==9&&n!==10)||n===127)continue;out+=c;}return out.trim().slice(0,5000);}
-function providerErrorCode(cause: unknown): string {
- if(cause instanceof Error&&cause.name==="AbortError")return "provider_timeout";
- const message=cause instanceof Error?cause.message:"";
- const http=/^provider_http_(\d{3})$/.exec(message);
- if(http)return "provider_http_"+http[1];
- if(message==="provider_response_invalid")return message;
- return "provider_unavailable";
-}
 async function callProvider(c:Candidate,q:string,signal:AbortSignal){
  let url:URL,headers:Record<string,string>,payload:unknown;
  if(c.provider==="openai_compatible"){
@@ -101,24 +93,9 @@ if(d)d.serve(async(request)=>{
   }
   return action==="test_connection"?reply({error:reason},reason==="quota_exceeded"?429:503):reply({status:"fallback",reason,answer:SAFE});
  }
- const started=Date.now();let result:ReturnType<typeof parseProviderResponse>|null=null,used:Candidate|null=null;
- const providerAttempts:ProviderAttemptTelemetry[]=[];
- for(const c of attempts){
-  const attemptStarted=Date.now(),controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),action==="test_connection"?10000:15000);
-  try{
-   result=await callProvider(c,input.question,controller.signal);used=c;
-   providerAttempts.push({provider:c.provider,model:c.model,fallback:c.fallback,status:"succeeded",
-    elapsedMs:Math.min(Math.max(0,Date.now()-attemptStarted),600000),
-    observedInputTokens:result.usage.inputTokens,observedOutputTokens:result.usage.outputTokens,
-    estimatedCost:estimateCost(result.usage.inputTokens,result.usage.outputTokens,c.rates),errorCode:null});
-   break;
-  }catch(cause){
-   providerAttempts.push({provider:c.provider,model:c.model,fallback:c.fallback,status:"failed",
-    elapsedMs:Math.min(Math.max(0,Date.now()-attemptStarted),600000),
-    observedInputTokens:null,observedOutputTokens:null,estimatedCost:null,errorCode:providerErrorCode(cause)});
-  }finally{clearTimeout(timer);}
- }
+ const started=Date.now();
+ const providerRun=await runProviderCandidates(attempts,input.question,callProvider,action==="test_connection"?10000:15000);
+ const {result,used,attempts:providerAttempts}=providerRun;
  const summary=summarizeAiProviderAttempts(providerAttempts),failedAttempt=providerAttempts.some((a)=>a.status==="failed");
  const fallbackUsed=Boolean(used?.fallback),last=used??attempts[attempts.length-1];
  const quotaInputTokens=failedAttempt?inputEstimate*attempts.length:(result?.usage.inputTokens??0);
