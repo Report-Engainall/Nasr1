@@ -166,6 +166,38 @@ async function main() {
   );
   assert.ok(created.id && created.created, "product create returns a new ID");
 
+  const expectedSearchIndexes = [
+    "products_org_name_trgm_idx",
+    "products_org_item_code_trgm_idx",
+  ];
+  const searchIndexes = await root.unsafe(
+    "select indexname,indexdef from pg_indexes where schemaname='public' and indexname=any($1::text[]) order by indexname",
+    [expectedSearchIndexes],
+  );
+  assert.deepEqual(searchIndexes.map((row) => row.indexname), expectedSearchIndexes,
+    "the active tenant catalog exposes both trigram search indexes");
+  for (const index of searchIndexes) {
+    assert.match(index.indexdef, /USING gin/i, "trigram search uses a GIN index");
+    assert.match(index.indexdef, /extensions\.gin_trgm_ops/i, "the index binds the installed pg_trgm operator class");
+    assert.match(index.indexdef, /WHERE \(status = 'active'::text\)/i, "the index excludes archived/inactive products");
+  }
+  const searchableProduct = (await root.unsafe(
+    "select name,item_code from public.products where id=$1 and organization_id=$2 and status='active'",
+    [created.id, org],
+  ))[0];
+  assert.ok(searchableProduct?.name && searchableProduct?.item_code,
+    "the product has target-native search fields");
+  const nameMatch = await root.unsafe(
+    "select id from public.products where id=$1 and organization_id=$2 and status='active' and name OPERATOR(extensions.%) $3",
+    [created.id, org, searchableProduct.name],
+  );
+  assert.equal(nameMatch[0]?.id, created.id, "the name trigram operator returns the tenant's active product");
+  const itemCodeMatch = await root.unsafe(
+    "select id from public.products where id=$1 and organization_id=$2 and status='active' and item_code OPERATOR(extensions.%) $3",
+    [created.id, org, searchableProduct.item_code],
+  );
+  assert.equal(itemCodeMatch[0]?.id, created.id, "the item-code trigram operator returns the tenant's active product");
+
   // Root-level writes bypass RLS; database integrity must still reject cross-tenant links.
   await assert.rejects(
     () => root.unsafe("update public.products set category_id=$1 where id=$2", [foreignCategory, created.id]),
