@@ -25,7 +25,7 @@ describe("source-linked stock-count variance tasks", () => {
   });
 
   it("creates one warehouse task only for non-zero persisted quantity variances", () => {
-    expect(completionTrigger).toMatch(/count\(\) FILTER \(WHERE coalesce\(line\.variance, 0\) <> 0\)/i);
+    expect(completionTrigger).toMatch(/count\(\*\) FILTER \(WHERE coalesce\(line\.variance, 0\) <> 0\)/i);
     expect(completionTrigger).toMatch(/'warehouse',\s*'medium'/i);
     expect(completionTrigger).toMatch(/'stock-count-variance:'\s*\|\|\s*NEW\.id::text/i);
     expect(completionTrigger).toMatch(/'stock_count_sessions',\s*NEW\.id/i);
