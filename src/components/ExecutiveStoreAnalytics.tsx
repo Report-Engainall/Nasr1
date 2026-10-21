@@ -110,6 +110,7 @@ export function ExecutiveStoreAnalytics() {
           <p className="report-note" style={{ marginTop: 12 }}>
             آخر تحديث: {formatDateShort(data.generated_at)}. مصدر الأرقام هو سجل الطلبات وبنوده في المؤسسة الحالية؛ اتجاه المبيعات يستبعد الحالات الملغاة والمرفوضة ولا يقدّر البيانات المفقودة.
           </p>
+          <FinanceParitySnapshot />
         </>
       )}
     </section>
