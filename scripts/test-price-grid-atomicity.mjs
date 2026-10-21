@@ -59,7 +59,7 @@ async function readGrid(client, id) {
 }
 async function save(client, changes) {
   return asJson((await client.unsafe(
-    "select public.save_product_price_grid($1::jsonb) as result", [JSON.stringify(changes)],
+    "select public.save_product_price_grid($1::jsonb) as result", [client.json(changes)],
   ))[0].result);
 }
 async function auditCount(db, orgId, id) {
