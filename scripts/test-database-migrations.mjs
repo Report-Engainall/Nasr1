@@ -10,8 +10,9 @@ const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 
 
 async function setIdentity(authUserId, email) {
   await db.unsafe("select set_config('request.jwt.claim.sub', $1, false)", [authUserId]);
+  // Confirmation is read from auth.users.email_confirmed_at in PostgreSQL, never forged into JWT claims.
   await db.unsafe("select set_config('request.jwt.claims', $1, false)", [
-    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
+    JSON.stringify({ sub: authUserId, email, role: "authenticated" }),
   ]);
 }
 
@@ -33,6 +34,11 @@ async function main() {
     do $$ begin create role authenticated nologin; exception when duplicate_object then null; end $$;
     do $$ begin create role service_role nologin bypassrls; exception when duplicate_object then null; end $$;
     create schema if not exists auth;
+    create table if not exists auth.users (
+      id uuid primary key,
+      email text,
+      email_confirmed_at timestamptz
+    );
     create or replace function auth.uid() returns uuid
       language sql stable
       as $$ select coalesce(
@@ -1048,10 +1054,224 @@ async function main() {
   const customerBalance = await db.unsafe("select current_balance from public.customers where id=(select customer_id from public.orders where id=$1)", [order.id]);
   assert.equal(Number(customerBalance[0].current_balance), 270000, "customer balance must reflect invoice minus payment");
 
+  // NASR1-ORIGINAL-SPEC-ROLE-BASED-PRINTING-004: source-backed print authorization and tenant scope.
+  await db.unsafe("reset role");
+  const issuerRows = await db.unsafe("select name from public.organizations where id=$1 and is_active", [organizationId]);
+  assert.equal(issuerRows.length, 1, "finance print requires an active source tenant identity");
+  const managerPrintProfileId = "f8888888-8888-4888-8888-888888888881";
+  const managerPrintAuthId = "88888888-8888-4888-8888-888888888881";
+  const foreignFinanceProfileId = "f8888888-8888-4888-8888-888888888882";
+  const foreignFinanceAuthId = "88888888-8888-4888-8888-888888888882";
+  await db.unsafe(
+    `insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active)
+       values($1,$2,$3,'CI Finance Print Manager','ci-finance-print-manager@example.test',true),
+             ($4,$5,$6,'CI Foreign Finance Accountant','ci-foreign-finance-print@example.test',true)
+       on conflict(id) do nothing`,
+    [managerPrintProfileId, managerPrintAuthId, organizationId,
+      foreignFinanceProfileId, foreignFinanceAuthId, otherOrganizationId],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'manager'),($2,'accountant') on conflict(profile_id,role) do nothing",
+    [managerPrintProfileId, foreignFinanceProfileId],
+  );
+
+  // Build a source-linked, fully received return through the real receipt and
+  // accounting RPCs. This makes the positive credit-memo PDF test meaningful;
+  // the receipt line is defective (restockable_quantity=0) so this fixture does
+  // not change saleable stock.
+  const sourceInvoiceItem = (await db.unsafe(
+    `select id,order_item_id,product_id,item_code,description,unit,quantity,unit_price
+       from public.customer_invoice_items
+      where organization_id=$1 and invoice_id=$2
+      order by created_at,id limit 1`,
+    [organizationId, invoice.id],
+  ))[0];
+  assert.ok(sourceInvoiceItem?.id && sourceInvoiceItem.order_item_id && sourceInvoiceItem.product_id,
+    "credit memo PDF fixture requires a real invoice line linked to an order item and product");
+  const printWarehouseId = (await db.unsafe(
+    "select id from public.warehouses where organization_id=$1 and is_active order by id limit 1",
+    [organizationId],
+  ))[0]?.id;
+  assert.ok(printWarehouseId, "credit memo PDF fixture requires an active warehouse in the source tenant");
+  const printReturnRequestId = (await db.unsafe(
+    `insert into public.customer_return_requests(
+       organization_id,customer_id,order_id,request_number,status,reason,notes,requested_by,
+       reviewed_by,reviewed_at,idempotency_key,payload_fingerprint
+     ) values($1,$2,$3,'CI-PRINT-RETURN-REQUEST','approved','other','Finance print tenant fixture',$4,
+       $5,statement_timestamp(),'CI-PRINT-RETURN-REQUEST-KEY','0123456789abcdef0123456789abcdef')
+     returning id`,
+    [organizationId, customerOneId, order.id, profileId, staffProfileId],
+  ))[0].id;
+  const printReturnRequestItemId = (await db.unsafe(
+    `insert into public.customer_return_request_items(
+       organization_id,return_request_id,order_item_id,product_id,item_code_snapshot,
+       product_name_snapshot,unit_snapshot,requested_quantity
+     ) values($1,$2,$3,$4,$5,$6,$7,1) returning id`,
+    [organizationId, printReturnRequestId, sourceInvoiceItem.order_item_id, sourceInvoiceItem.product_id,
+      sourceInvoiceItem.item_code, sourceInvoiceItem.description, sourceInvoiceItem.unit],
+  ))[0].id;
+
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const printReceipt = (await db.unsafe(
+    "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text) as result",
+    [printReturnRequestId, printWarehouseId,
+      db.json([{ request_item_id: printReturnRequestItemId, received_quantity: 1, restockable_quantity: 0 }]),
+      "CI source-backed finance print acceptance", "CI-PRINT-RETURN-RECEIPT-0001"],
+  ))[0].result;
+  assert.equal(printReceipt.request_status, "received", "source-linked return must be physically received before accounting credit");
+  assert.equal(Number(printReceipt.received_quantity), 1);
+
+  await db.unsafe("reset role");
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const printReceivable = (await db.unsafe(
+    "select public.create_accounting_account($1,$2,$3,null,$4) as result",
+    ["CI-RET-AR-0100", "CI return receivable", "asset", "Source-backed return credit memo PDF fixture"],
+  ))[0].result;
+  const printReturnsRevenue = (await db.unsafe(
+    "select public.create_accounting_account($1,$2,$3,null,$4) as result",
+    ["CI-RET-SALES-0100", "CI sales returns", "revenue", "Source-backed return credit memo PDF fixture"],
+  ))[0].result;
+  assert.equal(printReceivable.replayed, false);
+  assert.equal(printReturnsRevenue.replayed, false);
+  const preparedPrintCreditMemo = (await db.unsafe(
+    "select public.prepare_customer_return_credit_memo($1::uuid,$2::uuid,$3::uuid,null,$4::uuid) as result",
+    [printReturnRequestId, printReceivable.id, printReturnsRevenue.id, "f8888888-8888-4888-8888-888888888884"],
+  ))[0].result;
+  const printCreditMemoId = preparedPrintCreditMemo.credit_memo_id;
+  assert.ok(printCreditMemoId, "source-linked credit memo preparation must return a persisted ID");
+  assert.equal(preparedPrintCreditMemo.status, "draft");
+  assert.equal(preparedPrintCreditMemo.journal_status, "draft");
+  const sourceBackedCreditMemoPrint = (await db.unsafe(
+    "select public.get_customer_return_credit_memo_pdf($1::uuid) as result", [printCreditMemoId],
+  ))[0].result;
+  assert.equal(sourceBackedCreditMemoPrint.memo.id, printCreditMemoId);
+  assert.equal(sourceBackedCreditMemoPrint.memo.status, "draft");
+  assert.equal(sourceBackedCreditMemoPrint.return_request.id, printReturnRequestId);
+  assert.equal(sourceBackedCreditMemoPrint.invoice.id, invoice.id);
+  assert.equal(sourceBackedCreditMemoPrint.journal.id, preparedPrintCreditMemo.journal_entry_id);
+  assert.equal(sourceBackedCreditMemoPrint.lines.length, 1);
+  assert.equal(Number(sourceBackedCreditMemoPrint.lines[0].returned_quantity), 1);
+  assert.equal(Number(sourceBackedCreditMemoPrint.lines[0].invoice_quantity), Number(sourceInvoiceItem.quantity));
+  assert.equal(Number(sourceBackedCreditMemoPrint.lines[0].invoice_unit_price), Number(sourceInvoiceItem.unit_price));
+  assert.equal(Number(sourceBackedCreditMemoPrint.lines[0].credited_subtotal), Number(preparedPrintCreditMemo.subtotal_amount));
+
+  for (const [actorId, email, roleLabel] of [
+    [staffAuthUserId, "admin@aghbari.ye", "admin"],
+    [accountantAuthUserId, "ci-accountant@example.test", "accountant"],
+    [managerPrintAuthId, "ci-finance-print-manager@example.test", "manager"],
+  ]) {
+    await db.unsafe("reset role");
+    await setIdentity(actorId, email);
+    await db.unsafe("set role authenticated");
+    const options = (await db.unsafe(
+      "select public.get_finance_document_print_options($1::integer) as result", [100],
+    ))[0].result;
+    assert.equal(options.organization_name, issuerRows[0].name, roleLabel + " must receive issuer identity from the active organization");
+    assert.ok(options.customers.some((row) => row.id === customerOneId), roleLabel + " must receive current-tenant customers");
+    assert.ok(options.invoices.some((row) => row.id === invoice.id), roleLabel + " must receive the current-tenant invoice");
+    assert.ok(options.credit_memos.some((row) => row.id === printCreditMemoId), roleLabel + " must receive the source-linked credit memo print option");
+    const creditMemoPrint = (await db.unsafe(
+      "select public.get_customer_return_credit_memo_pdf($1::uuid) as result", [printCreditMemoId],
+    ))[0].result;
+    assert.equal(creditMemoPrint.memo.id, printCreditMemoId, roleLabel + " credit memo print must retain the persisted source ID");
+    assert.equal(creditMemoPrint.return_request.id, printReturnRequestId);
+    assert.equal(creditMemoPrint.invoice.id, invoice.id);
+    assert.equal(creditMemoPrint.journal.id, preparedPrintCreditMemo.journal_entry_id);
+    assert.equal(creditMemoPrint.lines.length, 1);
+    const invoicePrint = (await db.unsafe(
+      "select public.get_staff_customer_invoice_print_data($1::uuid) as result", [invoice.id],
+    ))[0].result;
+    assert.equal(invoicePrint.invoice.id, invoice.id, roleLabel + " invoice print must retain the persisted source ID");
+    assert.equal(Number(invoicePrint.invoice.total_amount), 370000, roleLabel + " invoice amount must match the database source");
+    assert.equal(invoicePrint.lines.length, 1, roleLabel + " invoice print must contain source lines");
+    assert.equal(Number(invoicePrint.lines[0].line_total), Number(invoicePrint.invoice.subtotal));
+    const statementPrint = (await db.unsafe(
+      "select public.get_staff_customer_account_statement($1::uuid) as result", [customerOneId],
+    ))[0].result;
+    const printedInvoice = statementPrint.invoices.find((row) => row.id === invoice.id);
+    assert.ok(printedInvoice, roleLabel + " statement must include the tenant's source invoice");
+    assert.equal(Number(printedInvoice.paid_amount), 100000);
+    assert.equal(Number(printedInvoice.outstanding_amount), 270000);
+    assert.equal(statementPrint.customer.id, customerOneId);
+  }
+
+  await db.unsafe("reset role");
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "ordinary staff cannot list financial print options",
+    () => db.unsafe("select public.get_finance_document_print_options($1::integer)", [100]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "ordinary staff cannot print a customer invoice",
+    () => db.unsafe("select public.get_staff_customer_invoice_print_data($1::uuid)", [invoice.id]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "ordinary staff cannot print a customer statement",
+    () => db.unsafe("select public.get_staff_customer_account_statement($1::uuid)", [customerOneId]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "ordinary staff cannot print a return credit memo",
+    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [printCreditMemoId]),
+    /finance permission required/i,
+  );
+
+  await db.unsafe("reset role");
+  await setIdentity(foreignFinanceAuthId, "ci-foreign-finance-print@example.test");
+  await db.unsafe("set role authenticated");
+  const foreignOptions = (await db.unsafe(
+    "select public.get_finance_document_print_options($1::integer) as result", [100],
+  ))[0].result;
+  assert.equal(foreignOptions.organization_name, "Foreign organization", "foreign accountant must receive only the active foreign organization's issuer identity");
+  assert.equal(foreignOptions.customers.some((row) => row.id === customerOneId), false, "foreign finance options must not expose another tenant's customers");
+  assert.equal(foreignOptions.invoices.some((row) => row.id === invoice.id), false, "foreign finance options must not expose another tenant's invoices");
+  await expectFailure(
+    "foreign-tenant accountant cannot print another organization's invoice",
+    () => db.unsafe("select public.get_staff_customer_invoice_print_data($1::uuid)", [invoice.id]),
+    /invoice was not found in the active organization/i,
+  );
+  await expectFailure(
+    "foreign-tenant accountant cannot print another organization's statement",
+    () => db.unsafe("select public.get_staff_customer_account_statement($1::uuid)", [customerOneId]),
+    /customer was not found in the active organization/i,
+  );
+  await expectFailure(
+    "foreign-tenant accountant cannot print another organization’s persisted credit memo",
+    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [printCreditMemoId]),
+    /credit memo was not found in the active organization/i,
+  );
+  process.stdout.write("PASS finance document print: admin/manager/accountant access, issuer identity, persisted invoice/statement amounts, staff/customer denial, and foreign-tenant invoice/statement isolation\\n");
+
   // Customers receive allowed statement amounts only through the account-statement RPC.
   await db.unsafe("reset role");
   await setIdentity(authUserId, "ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customer cannot list staff financial print options",
+    () => db.unsafe("select public.get_finance_document_print_options($1::integer)", [100]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "customer cannot print staff invoice documents",
+    () => db.unsafe("select public.get_staff_customer_invoice_print_data($1::uuid)", [invoice.id]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "customer cannot print staff account statements",
+    () => db.unsafe("select public.get_staff_customer_account_statement($1::uuid)", [customerOneId]),
+    /finance permission required/i,
+  );
+  await expectFailure(
+    "customer cannot use the staff credit-memo print RPC",
+    () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)", [printCreditMemoId]),
+    /finance permission required/i,
+  );
   await expectFailure(
     "customer cannot read staff receivables aging",
     () => db.unsafe("select public.fetch_staff_receivables_aging($1::integer,$2::integer)", [200, 0]),
@@ -1208,17 +1428,22 @@ async function main() {
   assert.equal(toMinorUnits(paidCapInvoiceDetail.paid_amount),505n,"invoice paid total must include the 5 payments omitted from the capped detail list");
   assert.equal(toMinorUnits(paidCapInvoiceDetail.outstanding_amount),495n,"invoice balance must use the full 505-payment ledger rather than only 500 displayed rows");
 
-  // The invoice PDF RPC returns amounts only for the signed-in customer's own invoice.
+  // The default invoice privacy policy removes monetary keys from the JSON itself,
+  // not merely from the PDF layout. The dedicated price-visibility acceptance test
+  // verifies that enabling the tenant setting restores the persisted values.
   const ownInvoicePdfResult = await db.unsafe(
     "select public.get_customer_invoice_pdf($1::uuid) as result",
     [invoice.id],
   );
   const ownInvoicePdf = ownInvoicePdfResult[0].result;
   assert.equal(ownInvoicePdf.invoice.id, invoice.id);
-  assert.equal(Number(ownInvoicePdf.invoice.total_amount), 370000);
+  assert.equal(ownInvoicePdf.financial_details_visible, false);
+  assert.equal(ownInvoicePdf.invoice.subtotal, undefined);
+  assert.equal(ownInvoicePdf.invoice.tax_amount, undefined);
+  assert.equal(ownInvoicePdf.invoice.total_amount, undefined);
   assert.equal(ownInvoicePdf.lines.length, 1);
-  assert.equal(Number(ownInvoicePdf.lines[0].unit_price), 37000);
-  assert.equal(Number(ownInvoicePdf.lines[0].line_total), 370000);
+  assert.equal(ownInvoicePdf.lines[0].unit_price, undefined);
+  assert.equal(ownInvoicePdf.lines[0].line_total, undefined);
   assert.equal(ownInvoicePdf.customer.id, undefined, "PDF customer projection should not return an internal customer primary key");
 
   // A second customer in the same organization must never receive the first customer's statement.
@@ -2184,6 +2409,13 @@ async function main() {
   process.stdout.write("PASS pricing approval gate, protected approval state, audit rationale, shared customer-tier preview and role denial\n");
 
 
+  // Legacy company-membership RPC checks a confirmation claim; keep its test fixture local.
+  // Customer activation acceptance does not read this claim and is tested against auth.users.email_confirmed_at above.
+  const setCompanyInvitationConfirmedClaim = async (id, email) => {
+    await db.unsafe("select set_config('request.jwt.claims', $1, false)", [
+      JSON.stringify({ sub: id, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
+    ]);
+  };
   // AGH-CUSTOMER-360-MEMBERS-001: verified invitation, explicit company scope, permission matrix and revocation.
   await db.unsafe("reset role");
   const invitedProfileId="f8888888-8888-4888-8888-888888888888";
@@ -2213,11 +2445,13 @@ async function main() {
   assert.notEqual(storedHash[0].token_hash,invite.invitation_token,"only a one-way hash is persisted");
 
   await setIdentity(secondAuthUserId,"ci-customer-two@example.test");
+  await setCompanyInvitationConfirmedClaim(secondAuthUserId, "ci-customer-two@example.test");
   await db.unsafe("set role authenticated");
   await expectFailure("a different email cannot claim an invitation",
     ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[invite.invitation_token]),/البريد الإلكتروني الذي استلم/i);
   await db.unsafe("reset role");
   await setIdentity(invitedAuthUserId,"ci-invited-buyer@example.test");
+  await setCompanyInvitationConfirmedClaim(invitedAuthUserId, "ci-invited-buyer@example.test");
   await db.unsafe("set role authenticated");
   const identityContext=await db.unsafe("select auth.uid() as auth_id,public.current_profile_id() as profile_id,public.current_organization_id() as current_org,(select p.organization_id from public.profiles p where p.auth_user_id=auth.uid()) as profile_org");
   assert.equal(identityContext[0].auth_id,invitedAuthUserId,"the test JWT must resolve to the invited authentication ID");
@@ -2263,6 +2497,7 @@ async function main() {
   const financeInvite=financeInviteRows[0].result;
   await db.unsafe("reset role");
   await setIdentity(financeAuthUserId,"ci-invited-finance@example.test");
+  await setCompanyInvitationConfirmedClaim(financeAuthUserId, "ci-invited-finance@example.test");
   await db.unsafe("set role authenticated");
   await db.unsafe("select public.accept_customer_company_invitation($1::text)",[financeInvite.invitation_token]);
   const financeScope=await db.unsafe("select public.current_customer_id() as customer_id,public.current_customer_can('orders.create') as can_order,public.current_customer_can('statement.read') as can_statement");
@@ -3130,13 +3365,18 @@ async function main() {
   assert.equal(postedReplay.status,"posted");
   assert.equal(postedReplay.replayed,true,"posting an already posted entry is idempotent");
   const ledgerPayload=(await db.unsafe("select public.fetch_general_ledger(null,null,null,50,0) as result"))[0].result;
-  assert.equal(ledgerPayload.entry_count,1,"fresh CI database contains only the explicitly-created ledger entry");
-  assert.equal(ledgerPayload.entries.length,1);
-  assert.equal(ledgerPayload.entries[0].id,journalId);
-  assert.equal(ledgerPayload.entries[0].status,"posted");
-  assert.equal(ledgerPayload.entries[0].debit_total,"125.50");
-  assert.equal(ledgerPayload.entries[0].credit_total,"125.50");
-  assert.equal(ledgerPayload.summary.posted_entry_count,1);
+  const creditMemoJournalId = preparedPrintCreditMemo.journal_entry_id;
+  assert.equal(ledgerPayload.entry_count,2,"ledger entry listing should contain only the explicitly-posted GL entry and the source-linked return-credit journal draft");
+  assert.equal(ledgerPayload.entries.length,2);
+  const ledgerJournalRow = ledgerPayload.entries.find((row) => row.id === journalId);
+  assert.ok(ledgerJournalRow,"the explicitly-posted general-journal entry must remain in the ledger view");
+  assert.equal(ledgerJournalRow.status,"posted");
+  assert.equal(ledgerJournalRow.debit_total,"125.50");
+  assert.equal(ledgerJournalRow.credit_total,"125.50");
+  const unpostedCreditMemoJournalRow = ledgerPayload.entries.find((row) => row.id === creditMemoJournalId);
+  assert.ok(unpostedCreditMemoJournalRow,"the source-linked credit-memo draft journal must retain its provenance");
+  assert.equal(unpostedCreditMemoJournalRow.status,"draft","preparing a printable credit memo must not post its journal");
+  assert.equal(ledgerPayload.summary.posted_entry_count,1,"credit-memo draft must not increment the posted-entry count");
   assert.equal(ledgerPayload.summary.debit_total,"125.50");
   assert.equal(ledgerPayload.summary.credit_total,"125.50");
   const debitTB=ledgerPayload.accounts.find((row)=>row.id===debitAccountId);
@@ -3867,6 +4107,191 @@ async function main() {
   await expectFailure("accountant cannot write the price grid",()=>db.unsafe("select public.save_product_price_grid($1::jsonb)",[db.json([{...priceGridPayload[0],expected_base_price:101,expected_price_wholesale_of_wholesale:91,expected_price_wholesale:96,expected_price_retail:111,base_price:103}])]),/active admin or manager/i);
   await db.unsafe("reset role");
   process.stdout.write("PASS price grid: admin/manager auth, base+three tier values, atomic writes, audit, stale-value guard, tenant rollback and accountant denial\n");
+
+  // P2 customer activation: PostgreSQL/RLS acceptance using the real auth.users confirmation source.
+  const activationProfileId = "f1212121-1212-4121-8121-121212121211";
+  const activationAuthId = "12121212-1212-4121-8121-121212121211";
+  const unconfirmedProfileId = "f1313131-1313-4131-8131-131313131311";
+  const unconfirmedAuthId = "13131313-1313-4131-8131-131313131311";
+  const mismatchProfileId = "f1414141-1414-4141-8141-141414141411";
+  const mismatchAuthId = "14141414-1414-4141-8141-141414141411";
+  const expiredProfileId = "f1515151-1515-4151-8151-151515151511";
+  const expiredAuthId = "15151515-1515-4151-8151-151515151511";
+  const activationFixtures = [
+    [activationProfileId, activationAuthId, organizationId, "CI Activation Customer", "activation-client@example.test"],
+    [unconfirmedProfileId, unconfirmedAuthId, organizationId, "CI Unconfirmed Customer", "unconfirmed-client@example.test"],
+    [mismatchProfileId, mismatchAuthId, organizationId, "CI Mismatch Customer", "mismatch-client@example.test"],
+    [expiredProfileId, expiredAuthId, organizationId, "CI Expired Customer", "expired-client@example.test"],
+  ];
+  for (const [id, authId, orgId, fullName, email] of activationFixtures) {
+    await db.unsafe(
+      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,$4,$5,true) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,full_name=excluded.full_name,email=excluded.email,is_active=true",
+      [id, authId, orgId, fullName, email],
+    );
+    await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'customer') on conflict(profile_id,role) do nothing", [id]);
+  }
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()),($3,$4,null),($5,$6,now()),($7,$8,now()),($9,$10,now()) on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [activationAuthId,"activation-client@example.test",unconfirmedAuthId,"unconfirmed-client@example.test",mismatchAuthId,"mismatch-client@example.test",expiredAuthId,"expired-client@example.test",staffAuthUserId,"admin@aghbari.ye"],
+  );
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()) on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [foreignAuthUserId, "foreign-ci-profile@example.test"],
+  );
+
+  await db.unsafe(
+    "insert into public.customers(organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier,credit_limit,current_balance,status,approved_at) values($1,null,'CI-ACT-FOREIGN','CI Foreign Organization Customer','CI Activation Contact','7778000101','foreign-ci-profile@example.test','retail',0,0,'approved',now()) on conflict(organization_id,customer_code) do update set profile_id=null,email=excluded.email,status='approved',approved_at=now()",
+    [otherOrganizationId],
+  );
+  const foreignOrganizationCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-FOREIGN'", [otherOrganizationId]))[0].id;
+
+  const activationCodes = [
+    ["CI-ACT-01", "CI Activation Customer Record", "activation-client@example.test"],
+    ["CI-ACT-02", "CI Unconfirmed Customer Record", "unconfirmed-client@example.test"],
+    ["CI-ACT-03", "CI Foreign Scope Customer Record", "foreign-ci-profile@example.test"],
+    ["CI-ACT-04", "CI Staff Rejection Customer Record", "admin@aghbari.ye"],
+    ["CI-ACT-05", "CI Expired Customer Record", "expired-client@example.test"],
+    ["CI-ACT-06", "CI Revoked Customer Record", "revoked-client@example.test"],
+  ];
+  for (const [code, businessName, email] of activationCodes) {
+    await db.unsafe(
+      "insert into public.customers(organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier,credit_limit,current_balance,status,approved_at) values($1,null,$2,$3,'CI Activation Contact','7778000100',$4,'retail',0,0,'approved',now()) on conflict(organization_id,customer_code) do update set profile_id=null,business_name=excluded.business_name,email=excluded.email,status='approved',approved_at=now()",
+      [organizationId, code, businessName, email],
+    );
+  }
+  const activationCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-01'", [organizationId]))[0].id;
+  const unconfirmedCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-02'", [organizationId]))[0].id;
+  const foreignScopeCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-03'", [organizationId]))[0].id;
+  const staffRejectCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-04'", [organizationId]))[0].id;
+  const expiredCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-05'", [organizationId]))[0].id;
+  const revokedCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-06'", [organizationId]))[0].id;
+
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const createActivationInvite = async (customerId, email) => {
+    const result = await db.unsafe(
+      "select public.create_customer_activation_invitation($1::uuid,$2::text,$3::integer) as result",
+      [customerId, email, 72],
+    );
+    assert.equal(typeof result[0].result.token, "string");
+    return result[0].result;
+  };
+  const validInvitation = await createActivationInvite(activationCustomer, "activation-client@example.test");
+  const unconfirmedInvitation = await createActivationInvite(unconfirmedCustomer, "unconfirmed-client@example.test");
+  const foreignScopeInvitation = await createActivationInvite(foreignScopeCustomer, "foreign-ci-profile@example.test");
+  const staffRejectInvitation = await createActivationInvite(staffRejectCustomer, "admin@aghbari.ye");
+  const expiredInvitation = await createActivationInvite(expiredCustomer, "expired-client@example.test");
+  const revokedInvitation = await createActivationInvite(revokedCustomer, "revoked-client@example.test");
+  const revokedResult = await db.unsafe("select public.revoke_customer_activation_invitation($1::uuid) as revoked", [revokedInvitation.invitation_id]);
+  assert.equal(revokedResult[0].revoked, true, "staff can revoke a pending tenant-scoped activation invitation");
+  await db.unsafe("reset role");
+
+  const tokenHashRow = (await db.unsafe(
+    "select token_hash from public.customer_activation_invitations where id=$1",
+    [validInvitation.invitation_id],
+  ))[0];
+  const computedTokenHash = (await db.unsafe("select encode(digest($1::text,'sha256'),'hex') as hash", [validInvitation.token]))[0].hash;
+  assert.equal(tokenHashRow.token_hash, computedTokenHash, "only the SHA-256 digest of the bearer token is persisted");
+  assert.notEqual(tokenHashRow.token_hash, validInvitation.token, "raw bearer token is not stored in the token_hash column");
+  await db.unsafe("update public.customer_activation_invitations set expires_at=now()-interval '1 minute' where id=$1", [expiredInvitation.invitation_id]);
+
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure("activation role cannot directly SELECT invitation storage",
+    () => db.unsafe("select id from public.customer_activation_invitations"), /permission denied/i);
+  await expectFailure("activation role cannot directly INSERT invitation rows",
+    () => db.unsafe("insert into public.customer_activation_invitations(organization_id,customer_id,invited_email,token_hash,expires_at) values('a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','x@example.test',repeat('a',64),now()+interval '1 hour')"), /permission denied/i);
+  await expectFailure("activation role cannot directly UPDATE invitation rows",
+    () => db.unsafe("update public.customer_activation_invitations set status='revoked'"), /permission denied/i);
+  await expectFailure("activation role cannot directly DELETE invitation rows",
+    () => db.unsafe("delete from public.customer_activation_invitations"), /permission denied/i);
+  await expectFailure("staff cannot accept a customer activation invitation",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [staffRejectInvitation.token]),
+    /دعوة تفعيل العميل لا تمنح|42501|staff|customer/i);
+  await expectFailure("staff cannot create an activation invitation for a different organization",
+    () => db.unsafe("select public.create_customer_activation_invitation($1::uuid,$2::text,$3::integer)", [foreignOrganizationCustomer, "cross@example.test", 72]),
+    /سجل العميل غير موجود ضمن المؤسسة الحالية|42501/i);
+  await db.unsafe("reset role");
+
+  // Anonymous access is denied independently of authenticated staff, including direct DML.
+  await db.unsafe("select set_config('request.jwt.claim.sub','',false)");
+  await db.unsafe("select set_config('request.jwt.claims','{}',false)");
+  await db.unsafe("set role anon");
+  await expectFailure("anon cannot directly SELECT invitation storage",
+    () => db.unsafe("select id from public.customer_activation_invitations"), /permission denied/i);
+  await expectFailure("anon cannot directly INSERT invitation rows",
+    () => db.unsafe("insert into public.customer_activation_invitations(organization_id,customer_id,invited_email,token_hash,expires_at) values('a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','anon@example.test',repeat('b',64),now()+interval '1 hour')"), /permission denied/i);
+  await expectFailure("anon cannot directly UPDATE invitation rows",
+    () => db.unsafe("update public.customer_activation_invitations set status='revoked'"), /permission denied/i);
+  await expectFailure("anon cannot directly DELETE invitation rows",
+    () => db.unsafe("delete from public.customer_activation_invitations"), /permission denied/i);
+  await db.unsafe("reset role");
+
+  const createdAudit = await db.unsafe(
+    "select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=any($2::uuid[])",
+    [organizationId, [validInvitation.invitation_id, unconfirmedInvitation.invitation_id, foreignScopeInvitation.invitation_id, staffRejectInvitation.invitation_id, expiredInvitation.invitation_id, revokedInvitation.invitation_id]],
+  );
+  assert.ok(createdAudit.filter(row => row.action === "customer_activation_invitation.created").length >= 5,
+    "creation of each invitation is audited");
+
+  await setIdentity(activationAuthId, "activation-client@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("activation rejects an incorrect bearer token",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", ["c".repeat(64)]),
+    /رابط التفعيل غير موجود|42501|expired|used/i);
+  const activationAccepted = await db.unsafe("select public.accept_customer_activation_invitation($1::text) as result", [validInvitation.token]);
+  assert.equal(activationAccepted[0].result.status, "active");
+  assert.equal(activationAccepted[0].result.customer_id, activationCustomer);
+  await expectFailure("activation bearer token cannot be replayed",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [validInvitation.token]),
+    /رابط التفعيل غير موجود|42501|expired|used/i);
+  await expectFailure("revoked activation invitation cannot be accepted",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [revokedInvitation.token]),
+    /رابط التفعيل غير موجود|42501|expired|used/i);
+  await db.unsafe("reset role");
+  const linkedAfterAcceptance = await db.unsafe("select profile_id from public.customers where id=$1", [activationCustomer]);
+  assert.equal(linkedAfterAcceptance[0].profile_id, activationProfileId, "successful acceptance links the target customer once");
+  const acceptedState = await db.unsafe("select status,accepted_by_profile_id from public.customer_activation_invitations where id=$1", [validInvitation.invitation_id]);
+  assert.equal(acceptedState[0].status, "accepted");
+  assert.equal(acceptedState[0].accepted_by_profile_id, activationProfileId);
+
+  await setIdentity(unconfirmedAuthId, "unconfirmed-client@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("unconfirmed Auth user row cannot accept an invitation regardless of JWT email",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [unconfirmedInvitation.token]),
+    /أكّد البريد الإلكتروني|42501/i);
+  await db.unsafe("reset role");
+
+  await setIdentity(mismatchAuthId, "unconfirmed-client@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("verified Auth email mismatch is rejected",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [unconfirmedInvitation.token]),
+    /بالبريد الإلكتروني المسجل في الدعوة|بريد الجلسة|42501/i);
+  await db.unsafe("reset role");
+
+  await setIdentity(foreignAuthUserId, "foreign-ci-profile@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("customer from another organization cannot accept tenant-scoped invitation",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [foreignScopeInvitation.token]),
+    /لا تخص مؤسسة|42501/i);
+  await db.unsafe("reset role");
+
+  await setIdentity(expiredAuthId, "expired-client@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("expired invitation token is rejected",
+    () => db.unsafe("select public.accept_customer_activation_invitation($1::text)", [expiredInvitation.token]),
+    /غير موجود أو منتهي أو مستخدم|42501/i);
+  await db.unsafe("reset role");
+
+  const activationAudit = await db.unsafe(
+    "select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=$2",
+    [organizationId, validInvitation.invitation_id],
+  );
+  assert.ok(activationAudit.some(row => row.action === "customer_activation_invitation.created"));
+  assert.ok(activationAudit.some(row => row.action === "customer_activation_invitation.accepted"));
+  const revokeAudit = await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=$2", [organizationId, revokedInvitation.invitation_id]);
+  assert.ok(revokeAudit.some(row => row.action === "customer_activation_invitation.revoked"), "revocation is audited");
+  process.stdout.write("PASS customer activation invitations: auth.users confirmation/email, tenant and role guards, hash-only token, no direct table DML, one-use/replay, expiry/revoke and audit trail\n");
 
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }

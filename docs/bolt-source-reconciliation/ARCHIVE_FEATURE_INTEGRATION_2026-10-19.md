@@ -173,3 +173,25 @@
 - Archive work remains closed with 0 pending matrix review rows, based on the original successful verification Action 39294387493. No ZIP source operations were repeated.
 - Subsequent target-native source posting SHA `df43fb05e9e8a31a8b45e40d38a94f85ff12691b` passed Action 39321543032 (45/45 test files and 339/339 tests plus PostgreSQL 17 migration/acceptance, lint/build and smoke). Archive member code/SQL was not executed.
 - Flow-specific DB trigger assertions for cash expense posting are NOT RUN because P1 currently owns the migration test harness. Request an acceptance-test patch via WORK_COORDINATION; do not change P1-owned files until released.
+
+
+## P2 feature reconciliation — returns UI mounting and acceptance evidence — 2026-10-21
+
+## P2 feature reconciliation — returns UI mounting and acceptance evidence — 2026-10-21
+
+This entry records target-native integration evidence and does not imply that archived source members were copied, executed, or applied to the database in this batch.
+
+| Feature slice | Target state after P2 route integration | Evidence / boundary |
+|---|---|---|
+| Customer return request and request history | Existing customer order detail route | `CustomerOrders.tsx` already renders `CustomerReturnRequest`; customer eligibility and request ownership are guarded by database RPCs. |
+| Manager/admin return review | Reachable from `/admin/orders` through P2-owned route wrapper | `CustomerReturnOperationsDrawer workflow="orders"`; admin/manager-only controls and server-side manager checks. |
+| Physical receipt/inspection | Reachable from the same order operations drawer | `CustomerReturnReceiptQueue` calls `receive_customer_return`; DB acceptance covers approved state, remaining quantity, active tenant warehouse, idempotency/replay, concurrency, stockable/defective quantities, inventory/audit/task effects. |
+| Credit memo preparation/printing/posting | Reachable from `/admin/finance` through P2-owned route wrapper | Finance-role guard and existing source-backed credit-memo RPCs; amounts derive from the original invoice and actual received lines; posting is explicit and journal balance is checked in PostgreSQL acceptance. |
+| UI-role/route behavior | Added 5 focused component tests | `src/test/customer-return-operations-drawer.test.tsx`; exact-head Vitest passed 72/72 files. |
+| Database acceptance | PASS on exact code SHA `9293b2008b0f42d2130bb4be5ade6a909cf30eb2` | [CI #39622591718](https://github.com/Report-Engainall/Nasr1/actions/runs/39622591718), PostgreSQL 17, including explicit `PASS customer returns`. |
+| Browser proof for return-specific path | NOT RUN | [Playwright #39622591724](https://github.com/Report-Engainall/Nasr1/actions/runs/39622591724) covers order persistence/cross-tenant denial and public read-only Storefront smoke, not return review/receipt/credit. Hosted test credentials were absent. |
+| Production migration/UI proof | NOT RUN | No production database or deployed app was changed/tested. |
+
+Historical failure #39487393265 remains recorded against old SHA `2388927343da2078a0fc652877bfb1a7d134fb24`; its missing closing brace at EOF was later corrected and current unit CI is green. Archive manifests/member rows were not rewritten because no new archive bytes or member decisions were made in this batch.
+
+Single successor `next_task_id=NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010`: continue customer-facing amount-visibility reconciliation through P2-owned checks while respecting P1 ownership of the Storefront/API shared paths.

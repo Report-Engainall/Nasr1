@@ -50,4 +50,15 @@ describe('price grid CSV export', () => {
     expect(csv).toContain("\"'+CMD|payload\"");
     expect(csv).toContain("'=HYPERLINK");
   });
+  it('preserves valid negative numeric stock values without treating them as untrusted formula text', () => {
+    const csv = buildPriceGridCsv([{
+      ...row,
+      quantity_on_hand_total: -1.25,
+      quantity_available_total: -2.5,
+    }]);
+    expect(csv).toContain('"110.25","-1.250","1.125","-2.500","4","2"');
+    expect(csv).not.toContain('"\'-1.250"');
+    expect(csv).not.toContain('"\'-2.500"');
+  });
+
 });

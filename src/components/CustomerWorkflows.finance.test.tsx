@@ -76,15 +76,17 @@ async function renderFinancePage() {
 }
 
 async function submitPayment(amount: string) {
-  const selects = container.querySelectorAll("select");
-  const amountInput = container.querySelector<HTMLInputElement>('input[type="number"]');
-  const form = container.querySelector("form");
-  if (!selects.length || !amountInput || !form) {
+  const invoiceSelect = Array.from(container.querySelectorAll("select")).find((select) =>
+    Array.from(select.options).some((option) => option.value === INVOICE_ID),
+  );
+  const form = invoiceSelect?.closest("form");
+  const amountInput = form?.querySelector<HTMLInputElement>('input[type="number"]');
+  if (!invoiceSelect || !amountInput || !form) {
     throw new Error("Finance payment form did not render");
   }
 
   await act(async () => {
-    setNativeValue(selects[0], INVOICE_ID);
+    setNativeValue(invoiceSelect, INVOICE_ID);
     setNativeValue(amountInput, amount);
     form.requestSubmit();
     await Promise.resolve();
@@ -102,6 +104,18 @@ describe("StaffFinancePage payment amount guard", () => {
       }
       if (name === "record_customer_payment") {
         return { data: { success: true }, error: null };
+      }
+      if (name === "fetch_staff_receivables_aging") {
+        return {
+          data: { as_of_utc: "2026-10-20T00:00:00.000Z", total_open_invoices: 1, summary: [], items: [], has_more: false, limit: 50, offset: 0 },
+          error: null,
+        };
+      }
+      if (name === "get_finance_document_print_options") {
+        return {
+          data: { organization_name: "شركة الاختبار", customers: [], customers_has_more: false, invoices: [], invoices_has_more: false, credit_memos: [], credit_memos_has_more: false, limit: 100 },
+          error: null,
+        };
       }
       return { data: null, error: { message: "Unexpected RPC in test" } };
     });

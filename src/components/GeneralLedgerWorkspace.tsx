@@ -6,6 +6,7 @@ import { formatLedgerBalance, formatLedgerMoney, validateJournalDraft, type Jour
 import { buildFinancialStatements, formatStatementCents, type FinancialStatementsReport } from "@/lib/financial-statements";
 import { CashExpenseJournalLinker } from "@/components/CashExpenseJournalLinker";
 import { CustomerInvoicePaymentJournalLinker } from "@/components/CustomerInvoicePaymentJournalLinker";
+import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 
 type Account = { id: string; code: string; name: string; account_type: LedgerAccountType; is_active: boolean; debit_total: string; credit_total: string };
 type JournalLine = { line_number: number; account_id: string; account_code: string; account_name: string; debit: string; credit: string; memo: string | null };
@@ -360,6 +361,7 @@ export function GeneralLedgerWorkspace() {
 
       <CashExpenseJournalLinker accounts={payload?.accounts ?? []} onRefresh={refreshAccountingViews} />
       <CustomerInvoicePaymentJournalLinker accounts={payload?.accounts ?? []} onRefresh={refreshAccountingViews} />
+      <FinanceDocumentPrintActions />
 
       <form style={card} onSubmit={(event) => { event.preventDefault(); setFilters(filtersDraft); setPage(0); }}>
         <h3 style={{ margin: 0 }}>تصفية دفتر القيود</h3>
