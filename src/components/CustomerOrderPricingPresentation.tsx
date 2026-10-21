@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { resolveCustomerOrderPricingPresentation } from "@/lib/storefront-price-visibility";
 
 export type CustomerOrderPricingPresentationProps = {
@@ -7,7 +6,7 @@ export type CustomerOrderPricingPresentationProps = {
   /** Exact RPC payload from preview_customer_order_pricing; never client-calculated. */
   serverPayload: unknown;
   expectedSurface: "cart" | "orders";
-  title?: ReactNode;
+  title?: string;
   className?: string;
 };
 
