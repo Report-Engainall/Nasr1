@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BarChart3, Package, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
 import { Empty, ErrorBox, Loading } from '@/components/AdminPages';
 import { fetchStoreExecutiveAnalytics } from '@/lib/api';
+import { StaffDashboardMetrics } from '@/components/StaffDashboardMetrics';
 import { buildSalesForecast, calculateWhatIfSales } from '@/lib/sales-forecast';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { useFetch } from '@/lib/useFetch';
@@ -211,6 +212,7 @@ export function ExecutiveStoreAnalytics() {
           </p>
         </>
       )}
+      <StaffDashboardMetrics />
     </section>
   );
 }
