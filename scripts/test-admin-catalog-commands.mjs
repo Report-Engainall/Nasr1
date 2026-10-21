@@ -18,9 +18,11 @@ const metricsOrderNumbers = ["CI-P1-METRICS-PENDING","CI-P1-METRICS-CONFIRMED","
 const metricsInvoiceNumbers = ["CI-P1-METRICS-INVOICE-YER", "CI-P1-METRICS-INVOICE-USD"];
 const metricsUnknownStockCode = "CI-P1-METRICS-UNKNOWN-STOCK";
 const metricsForeignOrderNumber = "CI-P1-METRICS-FOREIGN";
+const concurrentOrderKey = "ci-p1-staff-race-idempotency-0001";
 const root = postgres(url, { max: 1, prepare: false });
 const admin = postgres(url, { max: 1, prepare: false });
 const customer = postgres(url, { max: 1, prepare: false });
+const raceConnections = Array.from({ length: 4 }, () => postgres(url, { max: 1, prepare: false }));
 
 async function ident(connection, id, email) {
   await connection.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [id]);
@@ -34,6 +36,27 @@ async function rpc(connection, query, args) {
   return (await connection.unsafe(query, args))[0]?.result;
 }
 async function cleanup() {
+  await root.unsafe(
+    "delete from public.audit_logs where organization_id=$1 and entity_id in " +
+      "(select id from public.orders where organization_id=$1 and idempotency_key=$2)",
+    [org, concurrentOrderKey],
+  ).catch(() => {});
+  await root.unsafe(
+    "delete from public.outbox_events where aggregate_id in " +
+      "(select id from public.orders where organization_id=$1 and idempotency_key=$2)",
+    [org, concurrentOrderKey],
+  ).catch(() => {});
+  await root.unsafe(
+    "delete from public.order_status_history where order_id in " +
+      "(select id from public.orders where organization_id=$1 and idempotency_key=$2)",
+    [org, concurrentOrderKey],
+  ).catch(() => {});
+  await root.unsafe(
+    "delete from public.order_items where order_id in " +
+      "(select id from public.orders where organization_id=$1 and idempotency_key=$2)",
+    [org, concurrentOrderKey],
+  ).catch(() => {});
+  await root.unsafe("delete from public.orders where organization_id=$1 and idempotency_key=$2", [org, concurrentOrderKey]).catch(() => {});
   await root.unsafe("delete from public.customer_invoices where organization_id=$1 and invoice_number=any($2::text[])", [org, metricsInvoiceNumbers]).catch(() => {});
   await root.unsafe("delete from public.products where organization_id=$1 and item_code=$2", [org, metricsUnknownStockCode]).catch(() => {});
   await root.unsafe(
@@ -182,6 +205,55 @@ async function main() {
     [admin.json(payload)],
   );
   assert.ok(created.id && created.created, "product create returns a new ID");
+
+  // Four independent authenticated PostgreSQL sessions race the same staff-order idempotency key.
+  // Exactly one must create a row; all other callers must replay that same committed order.
+  await Promise.all(raceConnections.map((connection) => ident(connection, adminAuth, "admin@aghbari.ye")));
+  const raceItems = [{ product_id: created.id, quantity: 1 }];
+  const racePayload = (connection) => [
+    localCustomer,
+    connection.json(raceItems),
+    "CI concurrent staff-order idempotency",
+    concurrentOrderKey,
+    "cash_on_delivery",
+  ];
+  const raceReplies = await Promise.all(raceConnections.map((connection) => rpc(
+    connection,
+    "select public.create_staff_order($1::uuid,$2::jsonb,$3,$4,$5) result",
+    racePayload(connection),
+  )));
+  assert.equal(raceReplies.length, 4);
+  assert.ok(raceReplies.every((reply) => reply.id === raceReplies[0].id),
+    "all four concurrent callers must return the same order UUID");
+  assert.equal(raceReplies.filter((reply) => reply.idempotent_replay === false).length, 1,
+    "exactly one concurrent caller creates the order");
+  assert.equal(raceReplies.filter((reply) => reply.idempotent_replay === true).length, 3,
+    "the other three concurrent callers replay the committed order");
+  const racedOrderCount = await root.unsafe(
+    "select count(*)::int as count from public.orders where organization_id=$1 and created_by=$2 and idempotency_key=$3",
+    [org, adminProfileId, concurrentOrderKey],
+  );
+  assert.equal(racedOrderCount[0].count, 1,
+    "concurrent same-key RPC calls persist exactly one order in the organization");
+  const racedItems = await root.unsafe(
+    "select count(*)::int as count,coalesce(sum(oi.quantity),0)::numeric as quantity " +
+      "from public.order_items oi where oi.order_id=$1",
+    [raceReplies[0].id],
+  );
+  assert.equal(racedItems[0].count, 1, "concurrent replay must not duplicate order items");
+  assert.equal(Number(racedItems[0].quantity), 1, "the persisted single order retains the normalized quantity");
+  await assert.rejects(
+    () => rpc(
+      raceConnections[0],
+      "select public.create_staff_order($1::uuid,$2::jsonb,$3,$4,$5) result",
+      [localCustomer, raceConnections[0].json([{ product_id: created.id, quantity: 2 }]),
+        "CI concurrent staff-order idempotency", concurrentOrderKey, "cash_on_delivery"],
+    ),
+    /idempotency key was already used for a different order payload/i,
+    "same-key different payload must be rejected after the race",
+  );
+  process.stdout.write("PASS PostgreSQL order concurrency: four independent sessions, one order, three idempotent replays, one item set, conflicting payload rejected\\n");
+
 
   const expectedSearchIndexes = [
     "products_org_item_code_trgm_idx",
@@ -639,7 +711,7 @@ try {
   console.error("ADMIN_CATALOG_COMMANDS_FAILED", error);
   process.exitCode = 1;
 } finally {
-  for (const connection of [admin, customer]) {
+  for (const connection of [admin, customer, ...raceConnections]) {
     try { await connection.unsafe("reset role"); } catch {}
     await connection.end();
   }
