@@ -19,9 +19,12 @@ const commandDb = postgres(connectionString, { max: 1, prepare: false });
 const auditDb = postgres(connectionString, { max: 1, prepare: false });
 let sessionId = null;
 let roleEstablished = false;
+let transactionOpen = false;
 let passed = false;
 
 async function setAdminIdentity() {
+  await commandDb.unsafe("reset role").catch(() => {});
+  roleEstablished = false;
   await commandDb.unsafe(
     "select set_config('request.jwt.claim.sub', $1, false)",
     [adminAuthUserId],
@@ -40,15 +43,21 @@ async function setAdminIdentity() {
 }
 
 async function readStartAudit() {
-  return auditDb.unsafe(
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const rows = await commandDb.unsafe(
     "select organization_id, actor_id, action, entity_type, entity_id, new_value " +
       "from public.audit_logs " +
       "where action = 'inventory.stock_count.started' and entity_id = $1::uuid",
     [sessionId],
   );
+  await setAdminIdentity();
+  return rows;
 }
 
 async function main() {
+  await commandDb.unsafe("begin");
+  transactionOpen = true;
   await setAdminIdentity();
 
   const available = await auditDb.unsafe(
@@ -103,6 +112,101 @@ async function main() {
   assert.equal(replay.replayed, true, "retry is reported as a replay");
   const replayAudit = await readStartAudit();
   assert.equal(replayAudit.length, 1, "idempotent replay does not create a duplicate start-audit row");
+
+  // Complete the real count with exactly one source-backed variance and verify the task integration.
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const lines = await commandDb.unsafe(
+    "select product_id, expected_quantity::text as expected_quantity " +
+    "from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid order by product_id",
+    [organizationId, sessionId],
+  );
+  assert.ok(lines.length > 0, "started stock count captures source inventory lines");
+  await setAdminIdentity();
+  for (let index = 0; index < lines.length; index += 1) {
+    const expected = Number(lines[index].expected_quantity);
+    assert.ok(Number.isFinite(expected) && expected >= 0, "expected quantity is source-backed and finite");
+    const counted = expected + (index === 0 ? 1 : 0);
+    await commandDb.unsafe(
+      "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+      [sessionId, lines[index].product_id, counted],
+    );
+  }
+  const completedRows = await commandDb.unsafe(
+    "select public.complete_stock_count($1::uuid) as result",
+    [sessionId],
+  );
+  const completed = completedRows[0]?.result;
+  assert.equal(completed.status, "completed", "stock count finalization persists the completed state");
+  assert.equal(Number(completed.adjusted_lines), 1, "one changed source count creates one applied variance");
+  assert.equal(Number(completed.positive_adjustment), 1, "the positive variance matches the counted delta");
+
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const varianceKey = "stock-count-variance:" + sessionId;
+  const firstTaskRows = await commandDb.unsafe(
+    "select task_role,status,source_entity_type,source_entity_id,task_payload " +
+    "from public.ai_tasks where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId, varianceKey],
+  );
+  assert.equal(firstTaskRows.length, 1, "a completed count with non-zero variance creates exactly one task");
+  assert.equal(firstTaskRows[0].task_role, "warehouse");
+  assert.equal(firstTaskRows[0].status, "pending");
+  assert.equal(firstTaskRows[0].source_entity_type, "stock_count_sessions");
+  assert.equal(firstTaskRows[0].source_entity_id, sessionId);
+  const taskPayload = typeof firstTaskRows[0].task_payload === "string"
+    ? JSON.parse(firstTaskRows[0].task_payload) : firstTaskRows[0].task_payload;
+  assert.equal(Number(taskPayload.adjusted_lines), 1);
+  assert.equal(Number(taskPayload.positive_adjustment_quantity), 1);
+  assert.equal(Number(taskPayload.negative_adjustment_quantity), 0);
+  assert.equal(taskPayload.warehouse_id, warehouseId, "task is linked to the counted warehouse");
+
+  await setAdminIdentity();
+  await commandDb.unsafe("select public.refresh_operational_tasks() as result");
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const refreshedTaskRows = await commandDb.unsafe(
+    "select count(*)::integer as count,min(status) as status from public.ai_tasks " +
+    "where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId, varianceKey],
+  );
+  assert.equal(refreshedTaskRows[0].count, 1, "task refresh does not duplicate source-linked variance tasks");
+  assert.equal(refreshedTaskRows[0].status, "pending", "refresh preserves the open warehouse follow-up");
+
+  // A second source-backed count with zero variance must not create noise in the task inbox.
+  await setAdminIdentity();
+  const noVarianceKey = "ci-stock-count-no-variance-" + randomUUID();
+  const secondRows = await commandDb.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+    [warehouseId, noVarianceKey, "CI zero-variance stock-count acceptance"],
+  );
+  const second = secondRows[0]?.result;
+  assert.ok(second?.id, "second count starts after prior count completion");
+  const zeroLines = await commandDb.unsafe(
+    "select product_id,expected_quantity::text as expected_quantity from public.stock_count_lines " +
+    "where organization_id=$1::uuid and session_id=$2::uuid order by product_id",
+    [organizationId, second.id],
+  );
+  assert.ok(zeroLines.length > 0);
+  for (const line of zeroLines) {
+    await commandDb.unsafe(
+      "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+      [second.id, line.product_id, Number(line.expected_quantity)],
+    );
+  }
+  const zeroCompletedRows = await commandDb.unsafe(
+    "select public.complete_stock_count($1::uuid) as result",
+    [second.id],
+  );
+  assert.equal(Number(zeroCompletedRows[0]?.result.adjusted_lines), 0);
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const noVarianceTasks = await commandDb.unsafe(
+    "select count(*)::integer as count from public.ai_tasks " +
+    "where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId, "stock-count-variance:" + second.id],
+  );
+  assert.equal(noVarianceTasks[0].count, 0, "zero-variance stock counts do not create unnecessary follow-up tasks");
 }
 
 try {
@@ -112,14 +216,12 @@ try {
   console.error("STOCK_COUNT_START_AUDIT_FAILED", error);
   process.exitCode = 1;
 } finally {
-  if (sessionId && roleEstablished) {
+  if (transactionOpen) {
     try {
-      await commandDb.unsafe(
-        "select public.cancel_stock_count($1::uuid, $2::text)",
-        [sessionId, "CI cleanup after stock-count start audit acceptance"],
-      );
+      await commandDb.unsafe("rollback");
+      transactionOpen = false;
     } catch (error) {
-      console.error("stock-count acceptance cleanup failed", error);
+      console.error("stock-count variance acceptance rollback failed", error);
       process.exitCode = 1;
       passed = false;
     }
