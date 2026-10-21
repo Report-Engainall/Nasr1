@@ -334,6 +334,8 @@ jobs:
         run: node scripts/test-price-grid-atomicity.mjs
       - name: Test cash-expense source posting, idempotency and void/post concurrency
         run: node scripts/test-cash-expense-journal-posting.mjs
+      - name: Test purchase receipt source-linked accounting draft and restrictions
+        run: node scripts/test-purchase-receipt-accounting.mjs
       - name: Install pinned Playwright runner outside the project lockfile
         shell: bash
         run: |
