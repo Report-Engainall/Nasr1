@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createCreditMemoIdempotencyKey,
   readReturnCreditMemoMutation,
+  readReturnCreditMemoReversalMutation,
   readReturnCreditMemoQueue,
   readPrintableReturnCreditMemo,
 } from "@/lib/customer-return-credit-memos";
@@ -100,6 +101,28 @@ describe("return credit memo server contracts", () => {
     expect(readPrintableReturnCreditMemo(valid).lines[0].item_code).toBe("000125");
     expect(() => readPrintableReturnCreditMemo({...valid,memo:{...valid.memo,total_amount:126}})).toThrow(/إجماليات/);
     expect(() => readPrintableReturnCreditMemo({...valid,journal:{...valid.journal,status:"posted"}})).toThrow(/حالة الإشعار/);
+  });
+
+
+  it("validates an authoritative posted reversal response and replay state", () => {
+    const result = readReturnCreditMemoReversalMutation({
+      credit_memo_id: "memo1",
+      memo_number: "CRM-20261020-ABCD1234",
+      status: "reversed",
+      original_journal_entry_id: "original-journal",
+      reversal_journal_entry_id: "reversal-journal",
+      reversal_journal_entry_number: "89",
+      reversal_status: "posted",
+      reason: "مراجعة محاسبية مع سبب موثق",
+      replayed: true,
+    });
+    expect(result.status).toBe("reversed");
+    expect(result.reversal_status).toBe("posted");
+    expect(result.reversal_journal_entry_number).toBe("89");
+    expect(result.replayed).toBe(true);
+    expect(() => readReturnCreditMemoReversalMutation({ ...result, reversal_status: "draft" })).toThrow(/لم يؤكد الخادم/);
+    expect(() => readReturnCreditMemoReversalMutation({ ...result, reason: "" })).toThrow(/reason/);
+    expect(() => readReturnCreditMemoReversalMutation({ ...result, replayed: "true" })).toThrow(/إعادة محاولة/);
   });
 
 });

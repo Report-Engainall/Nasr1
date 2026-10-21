@@ -24,7 +24,7 @@ export interface ReturnCreditLine {
 export interface ReturnCreditMemoSummary {
   id: string;
   memo_number: string;
-  status: "draft" | "posted" | "void";
+  status: "draft" | "posted" | "void" | "reversed";
   currency: string;
   subtotal_amount: number;
   tax_amount: number;
@@ -32,6 +32,10 @@ export interface ReturnCreditMemoSummary {
   journal_entry_id: string;
   journal_entry_number: string;
   journal_status: "draft" | "posted" | "void";
+  reversed_at: string | null;
+  reversal_reason: string | null;
+  reversal_journal_entry_id: string | null;
+  reversal_journal_entry_number: string | null;
   receivable_account_id: string;
   revenue_account_id: string;
   tax_account_id: string | null;
@@ -121,7 +125,7 @@ export function readReturnCreditMemoQueue(value: unknown): ReturnCreditQueue {
       if (!isRecord(memoRaw)) throw new Error("ملخص الإشعار الدائن غير صالح.");
       const status = requiredText(memoRaw.status, "credit_memo.status");
       const journalStatus = requiredText(memoRaw.journal_status, "credit_memo.journal_status");
-      if (!["draft", "posted", "void"].includes(status) || !["draft", "posted", "void"].includes(journalStatus)) {
+      if (!["draft", "posted", "void", "reversed"].includes(status) || !["draft", "posted", "void"].includes(journalStatus)) {
         throw new Error("حالة الإشعار الدائن أو القيد غير معروفة.");
       }
       creditMemo = {
@@ -135,6 +139,10 @@ export function readReturnCreditMemoQueue(value: unknown): ReturnCreditQueue {
         journal_entry_id: requiredText(memoRaw.journal_entry_id, "credit_memo.journal_entry_id"),
         journal_entry_number: requiredText(memoRaw.journal_entry_number, "credit_memo.journal_entry_number"),
         journal_status: journalStatus as ReturnCreditMemoSummary["journal_status"],
+        reversed_at: nullableText(memoRaw.reversed_at),
+        reversal_reason: nullableText(memoRaw.reversal_reason),
+        reversal_journal_entry_id: nullableText(memoRaw.reversal_journal_entry_id),
+        reversal_journal_entry_number: nullableText(memoRaw.reversal_journal_entry_number),
         receivable_account_id: requiredText(memoRaw.receivable_account_id, "credit_memo.receivable_account_id"),
         revenue_account_id: requiredText(memoRaw.revenue_account_id, "credit_memo.revenue_account_id"),
         tax_account_id: nullableText(memoRaw.tax_account_id),
@@ -226,6 +234,38 @@ export function readReturnCreditMemoMutation(value: unknown): ReturnCreditMemoMu
     tax_amount: finiteAmount(value.tax_amount, "tax_amount"),
     total_amount: finiteAmount(value.total_amount, "total_amount"),
     currency: requiredText(value.currency, "currency"),
+    replayed: value.replayed,
+  };
+}
+
+
+export interface ReturnCreditMemoReversalMutation {
+  credit_memo_id: string;
+  memo_number: string;
+  status: "reversed";
+  original_journal_entry_id: string;
+  reversal_journal_entry_id: string;
+  reversal_journal_entry_number: string;
+  reversal_status: "posted";
+  reason: string;
+  replayed: boolean;
+}
+
+export function readReturnCreditMemoReversalMutation(value: unknown): ReturnCreditMemoReversalMutation {
+  if (!isRecord(value)) throw new Error("لم يرجع الخادم نتيجة صالحة لعكس الإشعار الدائن.");
+  if (value.status !== "reversed" || value.reversal_status !== "posted") {
+    throw new Error("لم يؤكد الخادم حالة الإشعار المعكوس والقيد العكسي المرحّل.");
+  }
+  if (typeof value.replayed !== "boolean") throw new Error("علامة إعادة محاولة العكس غير موجودة.");
+  return {
+    credit_memo_id: requiredText(value.credit_memo_id, "credit_memo_id"),
+    memo_number: requiredText(value.memo_number, "memo_number"),
+    status: "reversed",
+    original_journal_entry_id: requiredText(value.original_journal_entry_id, "original_journal_entry_id"),
+    reversal_journal_entry_id: requiredText(value.reversal_journal_entry_id, "reversal_journal_entry_id"),
+    reversal_journal_entry_number: requiredText(value.reversal_journal_entry_number, "reversal_journal_entry_number"),
+    reversal_status: "posted",
+    reason: requiredText(value.reason, "reason"),
     replayed: value.replayed,
   };
 }
