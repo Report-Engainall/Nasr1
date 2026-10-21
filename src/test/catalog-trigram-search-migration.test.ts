@@ -12,7 +12,11 @@ const runtimeTest = readFileSync(
 );
 
 describe("target-native catalog trigram indexes", () => {
-  it("uses the installed pg_trgm extension and Nasr1's actual searchable columns", () => {
+  it("provisions the extension schema before installing pg_trgm and uses Nasr1's searchable columns", () => {
+    expect(migration).toMatch(/CREATE SCHEMA IF NOT EXISTS extensions/i);
+    expect(migration.indexOf("CREATE SCHEMA IF NOT EXISTS extensions")).toBeLessThan(
+      migration.indexOf("CREATE EXTENSION IF NOT EXISTS pg_trgm"),
+    );
     expect(migration).toMatch(/CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions/i);
     expect(migration).toMatch(/ON public\.products USING gin \(name extensions\.gin_trgm_ops\)/i);
     expect(migration).toMatch(/ON public\.products USING gin \(item_code extensions\.gin_trgm_ops\)/i);
