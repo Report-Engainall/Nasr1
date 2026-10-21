@@ -63,6 +63,10 @@ async function cleanup() {
     [org, name, otherOrg, foreignName],
   ).catch(() => {});
   await root.unsafe(
+    "delete from public.warehouses where organization_id=$1 and name='CI P1 Cross Tenant Warehouse'",
+    [otherOrg],
+  ).catch(() => {});
+  await root.unsafe(
     "delete from public.organizations where id=$1 and name='CI P1 Catalog Foreign Tenant'",
     [otherOrg],
   ).catch(() => {});
@@ -84,6 +88,11 @@ async function main() {
     "insert into public.products(organization_id,category_id,name,item_code,unit,status) " +
       "values($1,$2,'CI foreign product',$3,'قطعة','active') returning id",
     [otherOrg, foreignCategory, foreignCode],
+  ))[0].id;
+  const foreignWarehouse = (await root.unsafe(
+    "insert into public.warehouses(organization_id,name,code,is_active) " +
+      "values($1,'CI P1 Cross Tenant Warehouse','CI-P1-XTENANT',true) returning id",
+    [otherOrg],
   ))[0].id;
 
   await ident(admin, adminAuth, "admin@aghbari.ye");
@@ -122,6 +131,21 @@ async function main() {
     [admin.json(payload)],
   );
   assert.ok(created.id && created.created, "product create returns a new ID");
+
+  // Root-level writes bypass RLS; database integrity must still reject cross-tenant links.
+  await assert.rejects(
+    () => root.unsafe("update public.products set category_id=$1 where id=$2", [foreignCategory, created.id]),
+    /foreign key constraint|tenant_integrity_products_category_org_fk/i,
+    "privileged direct DML cannot bind a product to another organization's category",
+  );
+  await assert.rejects(
+    () => root.unsafe(
+      "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved) values($1,$2,0,0)",
+      [created.id, foreignWarehouse],
+    ),
+    /inventory product and warehouse must belong to the same organization/i,
+    "privileged direct DML cannot create stock for a product in another organization's warehouse",
+  );
 
   const pageProducts = [];
   const pageFixtures = [
