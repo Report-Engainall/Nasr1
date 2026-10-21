@@ -15,6 +15,13 @@ const refreshFunction = migration.match(
   /CREATE OR REPLACE FUNCTION public\.refresh_operational_tasks\(\)[\s\S]*?\$function\$;/i,
 )?.[0] ?? "";
 
+const taskCenterSource = readFileSync(join(
+  process.cwd(),
+  "src",
+  "components",
+  "TaskCenter.tsx",
+), "utf8");
+
 describe("source-linked stock-count variance tasks", () => {
   it("uses a tenant-safe trigger after the source session is completed", () => {
     expect(completionTrigger).toMatch(/SECURITY DEFINER/i);
@@ -42,5 +49,13 @@ describe("source-linked stock-count variance tasks", () => {
     expect(refreshFunction).toMatch(/\bfalse\s*\n\s*\);/i);
     expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.refresh_operational_tasks\(\) FROM PUBLIC, anon;/i);
     expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.refresh_operational_tasks\(\) TO authenticated;/i);
+  });
+
+  it("renders Arabic source labels for operational task types created by the integrated workflows", () => {
+    expect(taskCenterSource).toMatch(/purchase_receipts:\s*'إيصال استلام شراء'/);
+    expect(taskCenterSource).toMatch(/stock_count_sessions:\s*'جلسة جرد'/);
+    expect(taskCenterSource).toMatch(/customer_return_requests:\s*'طلب إرجاع'/);
+    expect(taskCenterSource).toMatch(/customer_return_credit_memos:\s*'إشعار دائن لمرتجع'/);
+    expect(taskCenterSource).toMatch(/entityLabels\[task\.source_entity_type\]/);
   });
 });

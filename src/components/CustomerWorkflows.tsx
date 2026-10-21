@@ -153,6 +153,15 @@ function formatInvoiceMoney(value: number | string | undefined, currency: string
   if (!Number.isFinite(amount) || amount < 0) return "غير متاح";
   return `${new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 2 }).format(amount)} ${currency}`;
 }
+
+function isValidInvoiceMoney(value: unknown): value is number | string {
+  const amount = typeof value === "number"
+    ? value
+    : typeof value === "string" && value.trim()
+      ? Number(value)
+      : Number.NaN;
+  return Number.isFinite(amount) && amount >= 0;
+}
 type Product = {
   id: string;
   name: string;
@@ -383,6 +392,7 @@ function Invoices() {
   } | null>(null);
   const [items, setItems] = useState<InvoiceLine[]>([]);
   const [chosenFinancials, setChosenFinancials] = useState<InvoiceFinancialSummary | null>(null);
+  const [financialDetailsVisible, setFinancialDetailsVisible] = useState(false);
   const [busy, setBusy] = useState(true);
   const [detailBusy, setDetailBusy] = useState(false);
   const [error, setError] = useState("");
@@ -407,6 +417,8 @@ function Invoices() {
     setChosen(i);
     setDetailBusy(true);
     setChosenFinancials(null);
+    setFinancialDetailsVisible(false);
+    setChosenCustomer(null);
     setItems([]);
     const [invoicePayloadResult, orderResult] = await Promise.all([
       supabase.rpc("get_customer_invoice_pdf", { p_invoice_id: i.id }),
@@ -419,41 +431,72 @@ function Invoices() {
         .maybeSingle(),
     ]);
     const payload = invoicePayloadResult.data as {
-      invoice?: InvoiceFinancialSummary & { id?: string };
+      invoice?: Invoice & { id?: string };
       lines?: InvoiceLine[];
       customer?: {
         customer_code?: string | null;
         business_name?: string | null;
         contact_name?: string | null;
       };
+      financial_details_visible?: unknown;
+      customer_tier_visible?: unknown;
     } | null;
+    const invoice = payload?.invoice;
+    const lines = payload?.lines;
+    const hasVisibleFinancialValues = Boolean(
+      invoice &&
+      isValidInvoiceMoney(invoice.subtotal) &&
+      isValidInvoiceMoney(invoice.tax_amount) &&
+      isValidInvoiceMoney(invoice.total_amount) &&
+      Array.isArray(lines) &&
+      lines.every((line) => isValidInvoiceMoney(line.unit_price) && isValidInvoiceMoney(line.line_total)),
+    );
+    const hiddenPayloadOmitsFinancialValues = Boolean(
+      invoice &&
+      !("subtotal" in invoice) &&
+      !("tax_amount" in invoice) &&
+      !("total_amount" in invoice) &&
+      Array.isArray(lines) &&
+      lines.every((line) => !("unit_price" in line) && !("line_total" in line)),
+    );
+    const policyShapeValid = payload?.financial_details_visible === true
+      ? hasVisibleFinancialValues
+      : payload?.financial_details_visible === false && hiddenPayloadOmitsFinancialValues;
     const payloadValid = Boolean(
-      payload?.invoice &&
-      payload.invoice.id === i.id &&
-      Array.isArray(payload.lines) &&
-      payload.customer,
+      invoice &&
+      invoice.id === i.id &&
+      typeof invoice.currency === "string" &&
+      invoice.currency.length > 0 &&
+      Array.isArray(lines) &&
+      payload?.customer &&
+      policyShapeValid,
     );
     if (invoicePayloadResult.error || orderResult.error || !payloadValid || !payload) {
       setError("تعذر تحميل تفاصيل الفاتورة ومبالغها المصرح بها. تحقق من صلاحية الفاتورة ونشر مخطط المالية.");
       setChosen(null);
       setChosenCustomer(null);
       setChosenFinancials(null);
+      setFinancialDetailsVisible(false);
       setItems([]);
       setInvoiceOrder(null);
     } else {
       setError("");
-      setItems(payload.lines ?? []);
+      const financialVisible = payload.financial_details_visible === true;
+      setFinancialDetailsVisible(financialVisible);
+      setItems((payload.lines ?? []).map((line) => financialVisible
+        ? line
+        : { id: line.id, item_code: line.item_code, description: line.description, unit: line.unit, quantity: line.quantity }));
       setChosenCustomer({
         customer_code: payload.customer?.customer_code ?? "",
         business_name: payload.customer?.business_name ?? "",
         contact_name: payload.customer?.contact_name ?? null,
       });
-      setChosenFinancials({
+      setChosenFinancials(financialVisible ? {
         currency: payload.invoice!.currency,
-        subtotal: payload.invoice!.subtotal,
-        tax_amount: payload.invoice!.tax_amount,
-        total_amount: payload.invoice!.total_amount,
-      });
+        subtotal: payload.invoice!.subtotal!,
+        tax_amount: payload.invoice!.tax_amount!,
+        total_amount: payload.invoice!.total_amount!,
+      } : null);
       setInvoiceOrder(
         orderResult.data as {
           quantity_review_required: boolean;
@@ -659,8 +702,7 @@ function Invoices() {
                   <th style={{ textAlign: "right", padding: 10 }}>الصنف</th>
                   <th>الرمز</th>
                   <th>الكمية</th>
-                  <th>سعر الوحدة</th>
-                  <th>الإجمالي</th>
+                  {financialDetailsVisible && <><th>سعر الوحدة</th><th>الإجمالي</th></>}
                 </tr>
               </thead>
               <tbody>
@@ -669,12 +711,19 @@ function Invoices() {
                     <td style={{ padding: 10 }}>{l.description}</td>
                     <td>{l.item_code ?? "—"}</td>
                     <td>{formatNumber(Number(l.quantity))} {l.unit ?? ""}</td>
-                    <td>{formatInvoiceMoney(l.unit_price, chosenFinancials?.currency ?? chosen.currency)}</td>
-                    <td>{formatInvoiceMoney(l.line_total, chosenFinancials?.currency ?? chosen.currency)}</td>
+                    {financialDetailsVisible && <>
+                      <td>{formatInvoiceMoney(l.unit_price, chosenFinancials?.currency ?? chosen.currency)}</td>
+                      <td>{formatInvoiceMoney(l.line_total, chosenFinancials?.currency ?? chosen.currency)}</td>
+                    </>}
                   </tr>
                 ))}
               </tbody>
             </table>
+          )}
+          {!detailBusy && !financialDetailsVisible && (
+            <p role="status" data-testid="invoice-prices-hidden" style={{ marginTop: 14, ...quiet }}>
+              الأسعار والإجماليات مخفية في هذه الفاتورة وفق إعدادات المتجر.
+            </p>
           )}
           {!detailBusy && chosenFinancials && (
             <div style={{ ...card, marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>

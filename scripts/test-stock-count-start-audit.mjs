@@ -239,6 +239,6 @@ try {
 
 if (passed && process.exitCode !== 1) {
   console.log(
-    "PASS stock-count start audit: one tenant/profile-bound metadata event; idempotent replay adds no duplicate",
+    "PASS stock-count audit and variance tasks: tenant/profile-bound idempotent start; one task for non-zero variance; zero-variance suppression; refresh idempotency; transaction rollback leaves no fixture changes",
   );
 }
