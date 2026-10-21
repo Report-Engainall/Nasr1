@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ProductDetail, ProductGrid } from "../../src/components/Storefront";
-import type { ProductWithInventory } from "../../src/lib/types";
+import { ProductDetail, ProductGrid } from "../components/Storefront";
+import type { ProductWithInventory } from "../lib/types";
 
 const serverPrice = 43210;
 const sourceProduct = {
