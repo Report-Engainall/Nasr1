@@ -30,7 +30,7 @@ async function signIn(page: Page, email: string, password: string) {
   expect(hasSupabaseSession, "Sign-in must persist a real local Supabase session before the return workflow starts.").toBe(true);
 }
 
-test("customer return request -> staff review -> warehouse receipt -> source-linked credit memo draft", async ({ browser }) => {
+test("customer return request -> manager approval -> warehouse receipt -> post and reverse source-linked credit memo", async ({ browser }) => {
   const customerEmail = requiredEnv("E2E_EMAIL");
   const customerPassword = requiredEnv("E2E_PASSWORD");
   const managerEmail = requiredEnv("E2E_MANAGER_EMAIL");
@@ -126,6 +126,22 @@ test("customer return request -> staff review -> warehouse receipt -> source-lin
       await expect(row).toContainText(amountZero);
       await expect(row).toContainText("(draft)");
       completedStages.push("source_linked_credit_memo_draft_created");
+
+      await row.getByRole("button", { name: "ترحيل القيد", exact: true }).click();
+      await expect(row.getByText("مرحل", { exact: true })).toBeVisible();
+      await expect(row.getByRole("button", { name: "ترحيل القيد", exact: true })).toHaveCount(0);
+      await expect(row.getByRole("button", { name: "عكس الإشعار والقيد", exact: true })).toBeVisible();
+      completedStages.push("credit_memo_journal_posted_from_ui");
+
+      const reversalReason = "Playwright UI reversal acceptance after posted credit.";
+      await row.getByLabel(/^سبب عكس الإشعار/).fill(reversalReason);
+      await row.getByRole("button", { name: "عكس الإشعار والقيد", exact: true }).click();
+      await expect(row.getByText("معكوس ماليًا", { exact: true })).toBeVisible();
+      await expect(row).toContainText("رقم قيد العكس:");
+      await expect(row).toContainText(reversalReason);
+      await expect(row).toContainText("لم يُنشأ استرداد نقدي أو حركة مخزون.");
+      await expect(row.getByRole("button", { name: "عكس الإشعار والقيد", exact: true })).toHaveCount(0);
+      completedStages.push("credit_memo_reversal_posted_and_visible_from_ui");
     });
 
     await test.info().attach("customer-return-workflow-proof.json", {
@@ -137,7 +153,10 @@ test("customer return request -> staff review -> warehouse receipt -> source-lin
         stages: completedStages,
         expectedCreditMemoSubtotalYER: 100,
         expectedSourceInvoiceTaxYER: 0,
-        creditMemoState: "draft_not_posted",
+        creditMemoState: "reversed_after_posted_original_journal",
+        reversalJournalState: "posted",
+        noCashRefund: true,
+        noStockMovement: true,
       }, null, 2),
       contentType: "application/json",
     });
