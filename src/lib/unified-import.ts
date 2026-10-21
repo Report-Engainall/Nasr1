@@ -184,19 +184,80 @@ export async function hashFileSha256(file: Blob, onProgress?: (processedBytes: n
   return digest.digestHex();
 }
 
+const ARABIC_DIACRITICS = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g;
+
+function normalizeHeaderToken(value: string): string {
+  return value
+    .trim()
+    .normalize("NFKC")
+    .replace(/\u0640/g, "")
+    .replace(ARABIC_DIACRITICS, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .toLocaleLowerCase("ar")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export const DEFAULT_SYNONYMS: Record<string, string> = {
-  'الصنف': 'item_code', 'رمز الصنف': 'item_code', 'الكود': 'item_code', 'sku': 'item_code', 'code': 'item_code',
-  'اسم الصنف': 'product_name', 'المنتج': 'product_name', 'اسم المنتج': 'product_name', 'name': 'product_name',
-  'الكمية': 'quantity', 'الرصيد': 'quantity', 'المخزون': 'quantity', 'qty': 'quantity', 'quantity': 'quantity',
-  'العميل': 'customer_code', 'كود العميل': 'customer_code', 'customer': 'customer_code',
-  'المورد': 'supplier_code', 'كود المورد': 'supplier_code', 'supplier': 'supplier_code',
-  'الإيراد': 'revenue', 'المبيعات': 'revenue', 'sales': 'revenue', 'revenue': 'revenue',
-  'السعر': 'price', 'التكلفة': 'cost', 'التاريخ': 'date', 'date': 'date',
+  "الصنف": "item_code",
+  "رمز الصنف": "item_code",
+  "الكود": "item_code",
+  "item_code": "item_code",
+  "sku": "item_code",
+  "code": "item_code",
+  "اسم الصنف": "product_name",
+  "المنتج": "product_name",
+  "اسم المنتج": "product_name",
+  "الاسم": "product_name",
+  "name": "product_name",
+  "product_name": "product_name",
+  "الكمية": "quantity",
+  "الرصيد": "quantity",
+  "المخزون": "quantity",
+  "qty": "quantity",
+  "quantity": "quantity",
+  "العميل": "customer_code",
+  "كود العميل": "customer_code",
+  "customer": "customer_code",
+  "المورد": "supplier_code",
+  "كود المورد": "supplier_code",
+  "supplier": "supplier_code",
+  "الإيراد": "revenue",
+  "المبيعات": "revenue",
+  "sales": "revenue",
+  "revenue": "revenue",
+  "السعر": "price",
+  "price": "price",
+  "التكلفة": "cost",
+  "cost": "cost",
+  "التاريخ": "date",
+  "date": "date",
+  "الباركود": "barcode",
+  "barcode": "barcode",
+  "الوحدة": "unit",
+  "unit": "unit",
+  "الفئة": "category_name",
+  "category": "category_name",
+  "description": "description",
+  "الوصف": "description",
 };
 
+const NORMALIZED_DEFAULT_SYNONYMS = new Map(
+  Object.entries(DEFAULT_SYNONYMS).map(([key, canonical]) => [normalizeHeaderToken(key), canonical]),
+);
+
 export function normalizeHeader(value: string, synonyms: Record<string, string> = DEFAULT_SYNONYMS): string {
-  const cleaned = value.trim().toLocaleLowerCase('ar').replace(/[ـ_-]+/g, ' ').replace(/\s+/g, ' ');
-  return synonyms[cleaned] ?? cleaned.replace(/\s/g, '_');
+  const cleaned = normalizeHeaderToken(value);
+  const canonical = synonyms === DEFAULT_SYNONYMS
+    ? NORMALIZED_DEFAULT_SYNONYMS.get(cleaned)
+    : synonyms[cleaned] ?? Object.entries(synonyms).find(([key]) => normalizeHeaderToken(key) === cleaned)?.[1];
+
+  return canonical ?? cleaned
+    .replace(/[^\p{L}\p{N}_]/gu, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
 }
 
 export type ParsedImportRow = {
