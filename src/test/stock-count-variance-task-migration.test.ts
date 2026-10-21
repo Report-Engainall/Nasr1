@@ -37,7 +37,7 @@ describe("source-linked stock-count variance tasks", () => {
   it("rebuilds tasks from saved count lines without reopening a completed task", () => {
     expect(refreshFunction).toMatch(/refresh_operational_tasks_pre_stock_count_v1\(\)/i);
     expect(refreshFunction).toMatch(/session\.status = 'completed'/i);
-    expect(refreshFunction).toMatch(/HAVING count\(\) FILTER \(WHERE coalesce\(line\.variance, 0\) <> 0\) > 0/i);
+    expect(refreshFunction).toMatch(/HAVING count\(\*\) FILTER \(WHERE coalesce\(line\.variance, 0\) <> 0\) > 0/i);
     expect(refreshFunction).toMatch(/'stock-count-variance:'\s*\|\|\s*r\.id::text/i);
     expect(refreshFunction).toMatch(/\bfalse\s*\n\s*\);/i);
     expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.refresh_operational_tasks\(\) FROM PUBLIC, anon;/i);
