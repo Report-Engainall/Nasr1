@@ -1,5 +1,6 @@
 import fontkit from "@pdf-lib/fontkit";
 import { drawArabicText } from "naqqash/pdf-lib";
+import { BUSINESS_BRAND_NAME, BUSINESS_BRAND_NAME_AR, BUSINESS_BRAND_NAME_EN, BUSINESS_BRAND_NAME_EN_UPPER } from "./brand";
 import { isCustomerStatementPossiblyPartial } from "./commerce-utils";
 import {
   PDFDocument,
@@ -217,8 +218,8 @@ function drawDocumentHeader(
   generatedAt: Date,
   documentTitle = "كشف الحساب",
 ) {
-  drawArabic(page, font, "الأغبري", PAGE_WIDTH - 40, PAGE_HEIGHT - 45, 20, BRAND, 150);
-  page.drawText("AGHBARI COMMERCE", {
+  drawArabic(page, font, BUSINESS_BRAND_NAME_AR, PAGE_WIDTH - 40, PAGE_HEIGHT - 45, 20, BRAND, 150);
+  page.drawText(BUSINESS_BRAND_NAME_EN_UPPER, {
     x: 40,
     y: PAGE_HEIGHT - 43,
     size: 10,
@@ -250,7 +251,7 @@ function drawTableHeader(page: PDFPage, font: PDFFont, y: number) {
 
 function appendPageNumber(page: PDFPage, index: number, count: number, font: PDFFont) {
   drawRule(page, 42);
-  page.drawText(`Aghbari Commerce  •  ${index + 1}/${count}`, {
+  page.drawText(`${BUSINESS_BRAND_NAME_EN}  •  ${index + 1}/${count}`, {
     x: 40,
     y: 26,
     size: 8,
@@ -427,10 +428,10 @@ export async function buildCustomerStatementPdf(
   const font = await pdf.embedFont(fontBytes, { subset: false });
   const agingAsOf = summaryAsOf ?? generatedAt;
   const totalsByCurrency = resolveCustomerStatementCurrencySummary(authoritativeSummary, invoices, payments, agingAsOf);
-  pdf.setTitle("كشف الحساب | متجر الأغبري");
-  pdf.setAuthor("Aghbari Commerce");
+  pdf.setTitle(`كشف الحساب | ${BUSINESS_BRAND_NAME}`);
+  pdf.setAuthor(BUSINESS_BRAND_NAME);
   pdf.setSubject("Customer account statement");
-  pdf.setCreator("Aghbari Commerce");
+  pdf.setCreator(BUSINESS_BRAND_NAME);
   pdf.setCreationDate(generatedAt);
   pdf.setModificationDate(generatedAt);
 
@@ -718,10 +719,10 @@ export async function buildCustomerInvoicePdf(
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   const font = await pdf.embedFont(fontBytes, { subset: false });
-  pdf.setTitle(`فاتورة ${cleanLabel(invoice.invoice_number, 40)} | متجر الأغبري`);
-  pdf.setAuthor("Aghbari Commerce");
+  pdf.setTitle(`فاتورة ${cleanLabel(invoice.invoice_number, 40)} | ${BUSINESS_BRAND_NAME}`);
+  pdf.setAuthor(BUSINESS_BRAND_NAME);
   pdf.setSubject("Customer invoice document with scoped financial totals");
-  pdf.setCreator("Aghbari Commerce");
+  pdf.setCreator(BUSINESS_BRAND_NAME);
   pdf.setCreationDate(generatedAt);
   pdf.setModificationDate(generatedAt);
 
