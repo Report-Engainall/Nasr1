@@ -22,8 +22,28 @@ function spreadsheetSafeText(value: string): string {
   return /^\s*[=+\-@]/.test(value) ? "'" + value : value;
 }
 
-function csvCell(value: string | number | boolean | null): string {
-  const normalized = value === null ? '' : typeof value === 'string' ? spreadsheetSafeText(value) : String(value);
+type CsvFormattedNumber = { readonly __trustedCsvNumber: string };
+
+function formattedNumber(value: unknown, fractionDigits: number, fieldName: string): CsvFormattedNumber {
+  const numeric = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim() !== ''
+      ? Number(value)
+      : Number.NaN;
+  if (!Number.isFinite(numeric)) {
+    throw new Error('تعذر تصدير شبكة الأسعار: القيمة الرقمية غير صالحة في الحقل ' + fieldName + '.');
+  }
+  // This string came from a validated numeric field, not untrusted business text.
+  // Keep valid negative quantities numeric instead of escaping them as possible formulas.
+  return { __trustedCsvNumber: numeric.toFixed(fractionDigits) };
+}
+
+function csvCell(value: string | number | boolean | null | CsvFormattedNumber): string {
+  const trustedNumeric = typeof value === 'object' && value !== null && '__trustedCsvNumber' in value;
+  const normalized = value === null ? ''
+    : trustedNumeric ? value.__trustedCsvNumber
+    : typeof value === 'string' ? spreadsheetSafeText(value)
+    : String(value);
   return '"' + normalized.replace(/"/g, '""') + '"';
 }
 
@@ -40,14 +60,14 @@ export function buildPriceGridCsv(rows: readonly ProductPriceGridRow[]): string 
       row.name,
       row.unit,
       row.is_active ? 'نشط' : 'موقوف',
-      Number(row.base_price).toFixed(2),
-      Number(row.price_wholesale_of_wholesale).toFixed(2),
-      Number(row.price_wholesale).toFixed(2),
-      Number(row.price_retail).toFixed(2),
-      row.quantity_on_hand_total === null ? null : Number(row.quantity_on_hand_total).toFixed(3),
-      row.quantity_reserved_total === null ? null : Number(row.quantity_reserved_total).toFixed(3),
-      row.quantity_available_total === null ? null : Number(row.quantity_available_total).toFixed(3),
-      row.reorder_point_total === null ? null : Number(row.reorder_point_total).toFixed(0),
+      formattedNumber(row.base_price, 2, 'base_price'),
+      formattedNumber(row.price_wholesale_of_wholesale, 2, 'price_wholesale_of_wholesale'),
+      formattedNumber(row.price_wholesale, 2, 'price_wholesale'),
+      formattedNumber(row.price_retail, 2, 'price_retail'),
+      row.quantity_on_hand_total === null ? null : formattedNumber(row.quantity_on_hand_total, 3, 'quantity_on_hand_total'),
+      row.quantity_reserved_total === null ? null : formattedNumber(row.quantity_reserved_total, 3, 'quantity_reserved_total'),
+      row.quantity_available_total === null ? null : formattedNumber(row.quantity_available_total, 3, 'quantity_available_total'),
+      row.reorder_point_total === null ? null : formattedNumber(row.reorder_point_total, 0, 'reorder_point_total'),
       row.inventory_warehouse_count,
     ];
     output.push(values.map(csvCell).join(','));
