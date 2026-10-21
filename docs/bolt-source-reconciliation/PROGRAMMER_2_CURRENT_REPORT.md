@@ -540,3 +540,10 @@ Earlier test failures remain recorded in `EXECUTION_LOG.md`; they were reproduce
 - PR #26 remains Draft at last readback and owns `src/components/Storefront.tsx` plus `src/lib/api.ts`; task 010 remains the primary handoff because actual price-renderer integration and cart/order-review preview wiring still need P1-side implementation and rendered-browser regression checks.
 - PR #27 forecast feature remains separate; exact build CI passed on its prior SHA, but a real `/admin/reports` browser acceptance artifact remains open.
 - Protocol/source-ownership updates are in `P2_PARALLEL_EXECUTION_PROTOCOL_2026-10-21.md`; do not merge PR #18 and #26 concurrently.
+
+
+## Final readback correction after main-sync CI — 2026-10-21
+
+- Correction to the provisional checkpoint recorded earlier in this file: runs 39653248172 (Aghbari Commerce checks) and 39653248451 (P2 Playwright Critical Paths) have both completed SUCCESS on exact main-sync SHA `2ecc14e4235039e9378c87e9df44517f74ce82be`. The local PostgreSQL 17 job passed step 14 `Test cash-expense source posting, idempotency and void/post concurrency`, step 19 authenticated order/tenant isolation, and step 20 customer return/review/receipt/credit memo browser flow.
+- P1's new pair on PR #26 head `6974e2c6361c67ba6632d3ace3767a87bfc9f8f6` is not green as a pair: commerce checks 39653605115 SUCCESS; Playwright 39653605064 FAILURE at local Supabase startup/migration application before any browser tests. Root cause is SQLSTATE 42601 in P1-owned migration `20261021150000_customer_cart_atomic_checkout.sql`, posted at PR #26 comment `6323610588`; do not report return or cart behavior as tested on that P1 head.
+- A new P2 price-grid atomicity acceptance step is ready in `scripts/test-price-grid-atomicity.mjs` and the P2 local Supabase workflow. Its final PASS remains pending until the next branch SHA completes the new exact-head CI pair.
