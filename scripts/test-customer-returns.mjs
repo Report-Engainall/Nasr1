@@ -780,6 +780,124 @@ async function main() {
     [firstRequest.request_id,secondRequest.request_id],
   );
   assert.equal(forbiddenStockMutation[0].count,0,"request/approval records no stock movement before receipt");
+
+  // Acceptance: reverse a posted source credit once, with audit, balanced mirror lines, restored receivables and no stock/cash side effects.
+  await db.unsafe("reset role");
+  const balanceBeforeRow=(await db.unsafe(
+    "select current_balance::text as balance from public.customers where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId,customerOne.id],
+  ))[0];
+  assert.ok(balanceBeforeRow);
+  const balanceBefore=Number(balanceBeforeRow.balance);
+  const stockBefore=(await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements where organization_id=$1::uuid and reference_type='customer_return_request' and reference_id=$2::uuid",
+    [organizationId,firstRequest.request_id],
+  ))[0].count;
+
+  await setIdentity(customerOneAuthId,"ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("customer cannot reverse a finance credit memo",
+    () => db.unsafe("select public.reverse_customer_return_credit_memo($1::uuid,$2::text,$3::uuid)",
+      [preparedCredit.credit_memo_id,"Customer attempts reversal",randomUUID()]),
+    /finance permission required to reverse/i);
+  await db.unsafe("reset role");
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
+  await db.unsafe("set role authenticated");
+  const reason="Approved correction of the source-linked return credit.";
+  const key=randomUUID();
+  const racer=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  let results;
+  try {
+    await racer.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[managerAuthId]);
+    await racer.unsafe("select set_config('request.jwt.claims',$1,false)",[
+      JSON.stringify({sub:managerAuthId,email:"ci-return-manager@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated"}),
+    ]);
+    await racer.unsafe("set role authenticated");
+    results=await Promise.all([
+      db.unsafe("select public.reverse_customer_return_credit_memo($1::uuid,$2::text,$3::uuid) as result",[preparedCredit.credit_memo_id,reason,key]),
+      racer.unsafe("select public.reverse_customer_return_credit_memo($1::uuid,$2::text,$3::uuid) as result",[preparedCredit.credit_memo_id,reason,key]),
+    ]);
+  } finally { await racer.end({timeout:5}).catch(()=>{}); }
+  const r1=asJson(results[0][0].result), r2=asJson(results[1][0].result);
+  assert.equal(r1.status,"reversed");
+  assert.equal(r1.reversal_status,"posted");
+  assert.equal(r1.reversal_journal_entry_id,r2.reversal_journal_entry_id);
+  assert.equal([r1,r2].filter(x=>x.replayed===false).length,1);
+  assert.equal([r1,r2].filter(x=>x.replayed===true).length,1);
+  const reversalId=r1.reversal_journal_entry_id;
+  await expectFailure("second reversal cannot create a second counter-entry",
+    () => db.unsafe("select public.reverse_customer_return_credit_memo($1::uuid,$2::text,$3::uuid)",[preparedCredit.credit_memo_id,reason,randomUUID()]),
+    /already reversed|original reversal is immutable/i);
+  await expectFailure("clients cannot delete immutable reversal links",
+    () => db.unsafe("delete from public.accounting_return_credit_memo_reversals where organization_id=$1::uuid and credit_memo_id=$2::uuid",[organizationId,preparedCredit.credit_memo_id]),
+    /permission denied/i);
+
+  const memoRows=await db.unsafe(
+    "select m.status,m.reversal_journal_entry_id,m.reversal_reason,je.status as original_status,rj.status as reversal_status "+
+    "from public.customer_return_credit_memos m "+
+    "join public.accounting_return_credit_memo_postings sp on sp.organization_id=m.organization_id and sp.credit_memo_id=m.id "+
+    "join public.accounting_journal_entries je on je.organization_id=sp.organization_id and je.id=sp.journal_entry_id "+
+    "join public.accounting_return_credit_memo_reversals r on r.organization_id=m.organization_id and r.credit_memo_id=m.id "+
+    "join public.accounting_journal_entries rj on rj.organization_id=r.organization_id and rj.id=r.reversal_journal_entry_id "+
+    "where m.organization_id=$1::uuid and m.id=$2::uuid",[organizationId,preparedCredit.credit_memo_id]);
+  assert.equal(memoRows.length,1);
+  assert.equal(memoRows[0].status,"reversed");
+  assert.equal(memoRows[0].original_status,"posted");
+  assert.equal(memoRows[0].reversal_status,"posted");
+  assert.equal(memoRows[0].reversal_journal_entry_id,reversalId);
+  assert.equal(memoRows[0].reversal_reason,reason);
+
+  const mirrors=await db.unsafe(
+    "select o.line_number,o.account_id::text as account_id,o.debit::text as od,o.credit::text as oc,"+
+    "r.account_id::text as reversal_account_id,r.debit::text as rd,r.credit::text as rc "+
+    "from public.accounting_journal_lines o join public.accounting_journal_lines r "+
+    "on r.organization_id=o.organization_id and r.line_number=o.line_number "+
+    "where o.organization_id=$1::uuid and o.journal_entry_id=$2::uuid and r.journal_entry_id=$3::uuid order by o.line_number",
+    [organizationId,preparedCredit.journal_entry_id,reversalId]);
+  assert.ok(mirrors.length>=2);
+  for(const line of mirrors){
+    assert.equal(line.account_id,line.reversal_account_id);
+    assert.equal(Number(line.rd),Number(line.oc));
+    assert.equal(Number(line.rc),Number(line.od));
+  }
+  const totals=(await db.unsafe(
+    "select sum(debit)::numeric(15,2)::text as debit,sum(credit)::numeric(15,2)::text as credit "+
+    "from public.accounting_journal_lines where organization_id=$1::uuid and journal_entry_id in ($2::uuid,$3::uuid)",
+    [organizationId,preparedCredit.journal_entry_id,reversalId]))[0];
+  assert.equal(Number(totals.debit),250);
+  assert.equal(Number(totals.credit),250);
+
+  const balanceAfter=Number((await db.unsafe(
+    "select current_balance::text as balance from public.customers where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId,customerOne.id]))[0].balance);
+  assert.equal(balanceAfter,balanceBefore+125);
+  const statementAfter=asJson((await db.unsafe(
+    "select public.get_staff_customer_account_statement_full($1::uuid) as result",[customerOne.id]))[0].result);
+  const invoiceAfter=statementAfter.invoices.find(x=>x.id===sourceInvoiceId);
+  assert.ok(invoiceAfter);
+  assert.equal(Number(invoiceAfter.credit_memo_amount),0);
+  assert.equal(Number(invoiceAfter.outstanding_amount),500);
+  assert.equal(statementAfter.credits.some(x=>x.id===preparedCredit.credit_memo_id),false);
+  const queueAfter=asJson((await db.unsafe("select public.fetch_customer_return_credit_memo_queue(50) as result"))[0].result);
+  const returnAfter=queueAfter.requests.find(x=>x.request_id===firstRequest.request_id);
+  assert.equal(returnAfter.credit_memo.status,"reversed");
+  assert.equal(returnAfter.credit_memo.reversal_journal_entry_number,r1.reversal_journal_entry_number);
+  assert.equal(Number(returnAfter.items[0].already_credited_quantity),1.25);
+  assert.equal(Number(returnAfter.items[0].remaining_invoice_quantity),3.75);
+  await expectFailure("reversed return cannot be credited again",
+    () => db.unsafe("select public.prepare_customer_return_credit_memo($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid)",
+      [firstRequest.request_id,receivableAccountId,revenueAccountId,null,randomUUID()]),
+    /physical return already has a reversed credit memo/i);
+  const audit=await db.unsafe(
+    "select actor_id from public.audit_logs where organization_id=$1::uuid and entity_type='customer_return_credit_memo' and entity_id=$2::uuid and action='accounting.customer_return_credit_memo_reversed'",
+    [organizationId,preparedCredit.credit_memo_id]);
+  assert.equal(audit.length,1);
+  assert.equal(audit[0].actor_id,managerProfileId);
+  const stockAfter=(await db.unsafe(
+    "select count(*)::integer as count from public.inventory_movements where organization_id=$1::uuid and reference_type='customer_return_request' and reference_id=$2::uuid",
+    [organizationId,firstRequest.request_id]))[0].count;
+  assert.equal(stockAfter,stockBefore,"financial reversal creates no stock movement or cash refund");
+
   process.stdout.write("PASS customer returns: tenant ownership, delivered-order gate, line quantities, idempotent replay/conflict, direct-write denial, customer privacy, manager decisions/audit, warehouse inspection task, accountant denial, and no automatic stock movement.\n");
 }
 

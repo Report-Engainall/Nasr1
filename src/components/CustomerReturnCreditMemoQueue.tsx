@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import {
   createCreditMemoIdempotencyKey,
   readReturnCreditMemoMutation,
+  readReturnCreditMemoReversalMutation,
   readReturnCreditMemoQueue,
   readPrintableReturnCreditMemo,
   type ReturnCreditAccount,
@@ -43,6 +44,8 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
   const [taxAccountId, setTaxAccountId] = useState("");
   const [retryKeys, setRetryKeys] = useState<Record<string, string>>({});
   const [voidReason, setVoidReason] = useState<Record<string, string>>({});
+  const [reversalReason, setReversalReason] = useState<Record<string, string>>({});
+  const [reversalRetryKeys, setReversalRetryKeys] = useState<Record<string, { key: string; reason: string }>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -169,6 +172,47 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
     }
   }
 
+
+
+  async function reversePosted(memo: ReturnCreditMemoSummary) {
+    const reason = (reversalReason[memo.id] ?? "").trim();
+    if (reason.length < 5 || reason.length > 500) {
+      setError("أدخل سبب عكس من 5 إلى 500 حرف قبل ترحيل القيد العكسي.");
+      return;
+    }
+    if (memo.status !== "posted" || memo.journal_status !== "posted") {
+      setError("لا يمكن عكس هذا الإشعار؛ يجب أن يكون الإشعار وقيده الأصلي مرحّلين.");
+      return;
+    }
+    const existingKey = reversalRetryKeys[memo.id];
+    const key = existingKey?.reason === reason ? existingKey.key : createCreditMemoIdempotencyKey();
+    setReversalRetryKeys((current) => ({ ...current, [memo.id]: { key, reason } }));
+    setError("");
+    setBusyId(memo.id);
+    try {
+      const { data, error: rpcError } = await supabase.rpc("reverse_customer_return_credit_memo", {
+        p_credit_memo_id: memo.id,
+        p_reason: reason,
+        p_idempotency_key: key,
+      });
+      if (rpcError) throw new Error(rpcError.message || "تعذر عكس الإشعار الدائن؛ لم تتغير الحالة إلى معكوس.");
+      const result = readReturnCreditMemoReversalMutation(data);
+      onNotice(
+        (result.replayed ? "استُعيد قيد العكس " : "رُحّل قيد العكس ") + result.reversal_journal_entry_number +
+        " للإشعار " + result.memo_number +
+        ". أُعيد أثر الذمم فقط؛ لا توجد حركة مخزون أو استرداد نقدي.",
+      );
+      setReversalReason((current) => { const next = { ...current }; delete next[memo.id]; return next; });
+      setReversalRetryKeys((current) => { const next = { ...current }; delete next[memo.id]; return next; });
+      await load();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "تعذر عكس الإشعار الدائن.";
+      setError(message);
+      onNotice(message);
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function printMemo(memo: ReturnCreditMemoSummary) {
     setError("");
@@ -331,8 +375,8 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
                   {" · "}مطابقة البنود: {request.mapping_ready ? "جاهزة" : "تحتاج مراجعة"}
                 </p>
               </div>
-              <span style={{ background: memo?.status === "posted" ? "#e6f4ec" : "#fff4df", color: memo?.status === "posted" ? "#176b55" : "#805413", borderRadius: 20, padding: "4px 9px", fontSize: 12, fontWeight: 800 }}>
-                {memo?.status === "posted" ? "مرحل" : memo ? "مسودة محاسبية" : "بانتظار الإعداد المالي"}
+              <span style={{ background: memo?.status === "posted" ? "#e6f4ec" : memo?.status === "reversed" ? "#eef2ff" : "#fff4df", color: memo?.status === "posted" ? "#176b55" : memo?.status === "reversed" ? "#3730a3" : "#805413", borderRadius: 20, padding: "4px 9px", fontSize: 12, fontWeight: 800 }}>
+                {memo?.status === "posted" ? "مرحل" : memo?.status === "reversed" ? "معكوس ماليًا" : memo ? "مسودة محاسبية" : "بانتظار الإعداد المالي"}
               </span>
             </div>
 
@@ -368,7 +412,7 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
                   <strong>{memo.memo_number}</strong>
                   <span style={muted}>القيد {memo.journal_entry_number} ({memo.journal_status})</span>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}><button type="button" style={button} disabled={busyId !== null || loading} onClick={() => void printMemo(memo)}><Printer size={16} /> طباعة الإشعار</button></div>
+                {memo.status !== "reversed" && <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}><button type="button" style={button} disabled={busyId !== null || loading} onClick={() => void printMemo(memo)}><Printer size={16} /> طباعة الإشعار</button></div>}
                 <p style={{ margin: 0, fontWeight: 800 }}>
                   قبل الضريبة: {money(memo.subtotal_amount,memo.currency)} · الضريبة: {money(memo.tax_amount,memo.currency)} · الإجمالي: {money(memo.total_amount,memo.currency)}
                 </p>
@@ -385,7 +429,26 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
                     </div>
                   </>
                 )}
-                {memo.status === "posted" && <p style={{ ...muted, color: "#176b55", display: "flex", gap: 6, alignItems: "center" }}><ShieldAlert size={15}/> مرحّل؛ تم تحديث رصيد ذمم العميل بعد تحقق الحارس المحاسبي من المصدر والقيد.</p>}
+                {memo.status === "posted" && (
+                  <>
+                    <p style={{ ...muted, color: "#176b55", display: "flex", gap: 6, alignItems: "center" }}><ShieldAlert size={15}/> مرحّل؛ تم تحديث رصيد ذمم العميل بعد تحقق الحارس المحاسبي من المصدر والقيد.</p>
+                    <p style={muted}>عكس الإشعار ينشئ قيدًا عكسيًا متوازنًا ويحافظ على القيد الأصلي. لا يُصدر استردادًا نقديًا ولا يعيد حركة المخزون.</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 8, alignItems: "end" }}>
+                      <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
+                        سبب عكس الإشعار المُرحّل
+                        <input aria-label={"سبب عكس الإشعار " + memo.memo_number} value={reversalReason[memo.id] ?? ""} maxLength={500} onChange={(event) => setReversalReason((current) => ({ ...current,[memo.id]:event.target.value }))} style={field} disabled={busyId !== null}/>
+                      </label>
+                      <button type="button" style={button} disabled={busyId !== null || loading || (reversalReason[memo.id] ?? "").trim().length < 5} onClick={() => void reversePosted(memo)}>عكس الإشعار والقيد</button>
+                    </div>
+                  </>
+                )}
+                {memo.status === "reversed" && (
+                  <div role="status" style={{ display: "grid", gap: 5 }}>
+                    <p style={{ ...muted, color: "#3730a3", fontWeight: 800 }}>معكوس ماليًا؛ القيد الأصلي محفوظ والقيد العكسي مرحّل.</p>
+                    <p style={muted}>رقم قيد العكس: {memo.reversal_journal_entry_number ?? "غير متاح"} · تاريخ العكس: {memo.reversed_at ?? "غير متاح"}</p>
+                    <p style={muted}>السبب: {memo.reversal_reason ?? "غير متاح"}. لم يُنشأ استرداد نقدي أو حركة مخزون.</p>
+                  </div>
+                )}
               </div>
             )}
           </article>

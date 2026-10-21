@@ -393,4 +393,335 @@ BEGIN
 END;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.prepare_customer_return_credit_memo(
+  p_return_request_id uuid,
+  p_receivable_account_id uuid,
+  p_revenue_account_id uuid,
+  p_tax_account_id uuid,
+  p_idempotency_key uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_actor uuid:=public.current_profile_id();
+  v_org uuid;
+  v_request public.customer_return_requests%ROWTYPE;
+  v_invoice public.customer_invoices%ROWTYPE;
+  v_existing record;
+  v_line record;
+  v_item jsonb;
+  v_source_lines jsonb:='[]'::jsonb;
+  v_final_lines jsonb:='[]'::jsonb;
+  v_request_item_id uuid;
+  v_invoice_item_id uuid;
+  v_order_item_id uuid;
+  v_returned_quantity numeric(15,3);
+  v_invoice_quantity numeric(15,3);
+  v_invoice_line_total numeric(15,2);
+  v_prior_quantity numeric(15,3);
+  v_prior_subtotal numeric(15,2);
+  v_priormemo_subtotal numeric(15,2):=0;
+  v_line_subtotal numeric(15,2);
+  v_subtotal numeric(15,2):=0;
+  v_prior_tax numeric(15,2):=0;
+  v_tax numeric(15,2):=0;
+  v_total numeric(15,2):=0;
+  v_line_count integer:=0;
+  v_fingerprint text;
+  v_memo_id uuid;
+  v_memo_number text;
+  v_entry public.accounting_journal_entries%ROWTYPE;
+  v_replay_status text;
+BEGIN
+  SELECT p.organization_id INTO v_org
+    FROM public.profiles p
+   WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active;
+  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.can_manage_finance() THEN
+    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='finance permission required to prepare customer return credit memos';
+  END IF;
+  IF p_return_request_id IS NULL OR p_receivable_account_id IS NULL OR p_revenue_account_id IS NULL OR p_idempotency_key IS NULL
+     OR p_receivable_account_id=p_revenue_account_id
+     OR p_receivable_account_id=p_tax_account_id
+     OR p_revenue_account_id=p_tax_account_id THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='return request, distinct accounts and idempotency key are required';
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(v_org::text||':return-credit-memo:'||p_return_request_id::text,0)
+  );
+  SELECT rr.* INTO v_request
+    FROM public.customer_return_requests rr
+   WHERE rr.id=p_return_request_id AND rr.organization_id=v_org
+   FOR UPDATE;
+  IF NOT FOUND OR v_request.status<>'received' THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='only fully received customer returns can be credited';
+  END IF;
+
+  SELECT ci.* INTO v_invoice
+    FROM public.customer_invoices ci
+   WHERE ci.organization_id=v_org AND ci.order_id=v_request.order_id AND ci.customer_id=v_request.customer_id
+   ORDER BY ci.issued_at DESC,ci.id DESC
+   LIMIT 1
+   FOR UPDATE;
+  IF NOT FOUND OR v_invoice.status='void' THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='active source invoice for this return could not be resolved';
+  END IF;
+  IF v_invoice.currency<>'YER' THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='only YER invoices can be credited until an approved foreign-exchange policy exists';
+  END IF;
+  IF v_invoice.total_amount<=0 OR v_invoice.subtotal<0 OR v_invoice.tax_amount<0
+     OR pg_catalog.round(v_invoice.subtotal+v_invoice.tax_amount,2) IS DISTINCT FROM v_invoice.total_amount THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice subtotal, stored tax and total do not reconcile; manual source review required';
+  END IF;
+  IF v_invoice.tax_amount>0 AND v_invoice.subtotal<=0 THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='taxed invoice has no positive subtotal; manual tax allocation is required';
+  END IF;
+  IF (v_invoice.tax_amount>0 AND p_tax_account_id IS NULL) OR (v_invoice.tax_amount=0 AND p_tax_account_id IS NOT NULL) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='select an active tax liability account only when the source invoice contains tax';
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM public.accounting_accounts a WHERE a.id=p_receivable_account_id AND a.organization_id=v_org AND a.is_active AND a.account_type='asset') THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='receivable account must be an active asset account in this organization';
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM public.accounting_accounts a WHERE a.id=p_revenue_account_id AND a.organization_id=v_org AND a.is_active AND a.account_type='revenue') THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='sales-return account must be an active revenue account in this organization';
+  END IF;
+  IF v_invoice.tax_amount>0 AND NOT EXISTS(SELECT 1 FROM public.accounting_accounts a WHERE a.id=p_tax_account_id AND a.organization_id=v_org AND a.is_active AND a.account_type='liability') THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='tax account must be an active liability account in this organization';
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM public.customer_invoice_items ci WHERE ci.organization_id=v_org AND ci.invoice_id=v_invoice.id) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice has no source lines; manual source review required';
+  END IF;
+  IF (SELECT COALESCE(pg_catalog.sum(ci.line_total),0)::numeric(15,2)
+        FROM public.customer_invoice_items ci WHERE ci.organization_id=v_org AND ci.invoice_id=v_invoice.id)
+       IS DISTINCT FROM v_invoice.subtotal THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invoice line amounts do not reconcile to subtotal; manual source review required';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM public.customer_return_request_items ri
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(pg_catalog.sum(rli.received_quantity),0)::numeric(15,3) AS received_quantity
+          FROM public.customer_return_receipt_items rli
+         WHERE rli.organization_id=v_org AND rli.request_item_id=ri.id
+      ) received ON true
+     WHERE ri.organization_id=v_org AND ri.return_request_id=v_request.id
+       AND received.received_quantity IS DISTINCT FROM ri.requested_quantity
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='return request has an unreceived or inconsistent quantity; no credit memo was prepared';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM public.customer_return_request_items ri
+      LEFT JOIN public.customer_invoice_items ci
+        ON ci.organization_id=v_org AND ci.invoice_id=v_invoice.id AND ci.order_item_id=ri.order_item_id
+     WHERE ri.organization_id=v_org AND ri.return_request_id=v_request.id AND ci.id IS NULL
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='one or more return lines lack an unambiguous invoice-line link; manual source mapping is required';
+  END IF;
+
+  SELECT COALESCE(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+    'request_item_id',ri.id,
+    'invoice_item_id',ci.id,
+    'order_item_id',ri.order_item_id,
+    'returned_quantity',received.received_quantity,
+    'invoice_item_quantity',ci.quantity,
+    'invoice_item_line_total',ci.line_total,
+    'product_id',ci.product_id,
+    'item_code',ci.item_code,
+    'description',ci.description,
+    'unit',ci.unit
+  ) ORDER BY ri.created_at,ri.id),'[]'::jsonb)
+    INTO v_source_lines
+    FROM public.customer_return_request_items ri
+    JOIN public.customer_invoice_items ci
+      ON ci.organization_id=v_org AND ci.invoice_id=v_invoice.id AND ci.order_item_id=ri.order_item_id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(pg_catalog.sum(rli.received_quantity),0)::numeric(15,3) AS received_quantity
+        FROM public.customer_return_receipt_items rli
+       WHERE rli.organization_id=v_org AND rli.request_item_id=ri.id
+    ) received ON true
+   WHERE ri.organization_id=v_org AND ri.return_request_id=v_request.id;
+  IF pg_catalog.jsonb_array_length(v_source_lines)<1 THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='return invoice source lines are empty';
+  END IF;
+
+  v_fingerprint:=pg_catalog.md5(pg_catalog.jsonb_build_object(
+    'source_type','customer_return_credit_memo',
+    'organization_id',v_org,'return_request_id',v_request.id,'invoice_id',v_invoice.id,
+    'currency',v_invoice.currency,'invoice_subtotal',v_invoice.subtotal::text,
+    'invoice_tax_amount',v_invoice.tax_amount::text,'invoice_total_amount',v_invoice.total_amount::text,
+    'receivable_account_id',p_receivable_account_id,'revenue_account_id',p_revenue_account_id,
+    'tax_account_id',p_tax_account_id,'lines',v_source_lines
+  )::text);
+
+  IF EXISTS (
+    SELECT 1 FROM public.customer_return_credit_memos m
+     WHERE m.organization_id=v_org AND m.return_request_id=v_request.id AND m.status='reversed'
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='this physical return already has a reversed credit memo; its returned quantity remains consumed and cannot be credited again';
+  END IF;
+
+  SELECT m.id,m.memo_number,m.status,m.payload_fingerprint,m.subtotal_amount,m.tax_amount,m.total_amount,
+         sp.journal_entry_id,je.entry_number,je.status AS journal_status
+    INTO v_existing
+    FROM public.customer_return_credit_memos m
+    JOIN public.accounting_return_credit_memo_postings sp
+      ON sp.organization_id=m.organization_id AND sp.credit_memo_id=m.id
+    JOIN public.accounting_journal_entries je
+      ON je.organization_id=sp.organization_id AND je.id=sp.journal_entry_id
+   WHERE m.organization_id=v_org AND m.return_request_id=v_request.id AND m.status IN ('draft','posted')
+   ORDER BY m.created_at DESC,m.id DESC
+   LIMIT 1
+   FOR UPDATE OF m,je;
+  IF FOUND THEN
+    IF v_existing.payload_fingerprint IS DISTINCT FROM v_fingerprint THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='return request already has a credit memo with a different source payload or account mapping';
+    END IF;
+    RETURN pg_catalog.jsonb_build_object(
+      'credit_memo_id',v_existing.id,'memo_number',v_existing.memo_number,'status',v_existing.status,
+      'journal_entry_id',v_existing.journal_entry_id,'journal_entry_number',v_existing.entry_number::text,
+      'journal_status',v_existing.journal_status,'subtotal_amount',v_existing.subtotal_amount::text,
+      'tax_amount',v_existing.tax_amount::text,'total_amount',v_existing.total_amount::text,
+      'currency',v_invoice.currency,'replayed',true
+    );
+  END IF;
+
+  IF EXISTS(SELECT 1 FROM public.customer_return_credit_memos m WHERE m.organization_id=v_org AND m.idempotency_key=p_idempotency_key) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='credit memo idempotency key has already been used';
+  END IF;
+  IF EXISTS(SELECT 1 FROM public.accounting_journal_entries je WHERE je.organization_id=v_org AND je.idempotency_key=p_idempotency_key) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='journal idempotency key has already been used for another entry';
+  END IF;
+
+  FOR v_item IN SELECT value FROM pg_catalog.jsonb_array_elements(v_source_lines) AS entry(value)
+  LOOP
+    v_request_item_id:=(v_item->>'request_item_id')::uuid;
+    v_invoice_item_id:=(v_item->>'invoice_item_id')::uuid;
+    v_order_item_id:=(v_item->>'order_item_id')::uuid;
+    v_returned_quantity:=(v_item->>'returned_quantity')::numeric;
+    v_invoice_quantity:=(v_item->>'invoice_item_quantity')::numeric;
+    v_invoice_line_total:=(v_item->>'invoice_item_line_total')::numeric;
+
+    SELECT COALESCE(pg_catalog.sum(mi.returned_quantity),0)::numeric(15,3)
+      INTO v_prior_quantity
+      FROM public.customer_return_credit_memo_items mi
+      JOIN public.customer_return_credit_memos m
+        ON m.organization_id=mi.organization_id AND m.id=mi.credit_memo_id
+     WHERE mi.organization_id=v_org AND mi.invoice_item_id=v_invoice_item_id
+       AND m.status IN ('draft','posted','reversed');
+    SELECT COALESCE(pg_catalog.sum(mi.credited_subtotal),0)::numeric(15,2)
+      INTO v_prior_subtotal
+      FROM public.customer_return_credit_memo_items mi
+      JOIN public.customer_return_credit_memos m
+        ON m.organization_id=mi.organization_id AND m.id=mi.credit_memo_id
+     WHERE mi.organization_id=v_org AND mi.invoice_item_id=v_invoice_item_id
+       AND m.status IN ('draft','posted');
+    IF v_returned_quantity<=0 OR v_invoice_quantity<=0
+       OR v_returned_quantity+v_prior_quantity>v_invoice_quantity THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='credited return quantity exceeds the remaining invoice line quantity';
+    END IF;
+
+    v_line_subtotal:=LEAST(
+      pg_catalog.round(v_invoice_line_total*v_returned_quantity/v_invoice_quantity,2),
+      GREATEST(v_invoice_line_total-v_prior_subtotal,0)
+    );
+    v_subtotal:=v_subtotal+v_line_subtotal;
+    v_final_lines:=v_final_lines || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+      'request_item_id',v_request_item_id,'invoice_item_id',v_invoice_item_id,'order_item_id',v_order_item_id,
+      'returned_quantity',v_returned_quantity,'credited_subtotal',v_line_subtotal,
+      'product_id',v_item->'product_id','item_code',v_item->'item_code',
+      'description',v_item->'description','unit',v_item->'unit'
+    ));
+    v_line_count:=v_line_count+1;
+  END LOOP;
+  v_subtotal:=v_subtotal::numeric(15,2);
+  SELECT COALESCE(pg_catalog.sum(m.tax_amount),0)::numeric(15,2)
+    INTO v_prior_tax
+    FROM public.customer_return_credit_memos m
+   WHERE m.organization_id=v_org AND m.invoice_id=v_invoice.id AND m.status IN ('draft','posted');
+  IF v_invoice.tax_amount>0 THEN
+    v_tax:=LEAST(
+      pg_catalog.round(v_invoice.tax_amount*v_subtotal/v_invoice.subtotal,2),
+      GREATEST(v_invoice.tax_amount-v_prior_tax,0)
+    );
+  END IF;
+  v_total:=(v_subtotal+v_tax)::numeric(15,2);
+  SELECT COALESCE(pg_catalog.sum(m.subtotal_amount),0)::numeric(15,2)
+    INTO v_priormemo_subtotal
+    FROM public.customer_return_credit_memos m
+   WHERE m.organization_id=v_org AND m.invoice_id=v_invoice.id AND m.status IN ('draft','posted');
+  IF v_subtotal<=0 OR v_total<=0 OR v_subtotal+v_priormemo_subtotal>v_invoice.subtotal THEN
+    RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='return does not produce a positive and unreconciled source credit; manual review required';
+  END IF;
+
+  v_memo_id:=gen_random_uuid();
+  v_memo_number:='CRM-'||pg_catalog.to_char(pg_catalog.now(),'YYYYMMDD')||'-'||
+    pg_catalog.upper(pg_catalog.substr(pg_catalog.replace(v_memo_id::text,'-',''),1,8));
+  INSERT INTO public.customer_return_credit_memos(
+    id,organization_id,return_request_id,invoice_id,customer_id,memo_number,status,currency,
+    subtotal_amount,tax_amount,total_amount,idempotency_key,payload_fingerprint,created_by_profile_id
+  ) VALUES (
+    v_memo_id,v_org,v_request.id,v_invoice.id,v_invoice.customer_id,v_memo_number,'draft',v_invoice.currency,
+    v_subtotal,v_tax,v_total,p_idempotency_key,v_fingerprint,v_actor
+  );
+
+  FOR v_item IN SELECT value FROM pg_catalog.jsonb_array_elements(v_final_lines) AS entry(value)
+  LOOP
+    INSERT INTO public.customer_return_credit_memo_items(
+      organization_id,credit_memo_id,return_request_item_id,invoice_item_id,order_item_id,product_id,
+      item_code_snapshot,description_snapshot,unit_snapshot,returned_quantity,credited_subtotal
+    ) VALUES (
+      v_org,v_memo_id,(v_item->>'request_item_id')::uuid,(v_item->>'invoice_item_id')::uuid,
+      (v_item->>'order_item_id')::uuid,
+      NULLIF(v_item->>'product_id','null')::uuid,
+      NULLIF(v_item->>'item_code','null'),COALESCE(v_item->>'description',''),NULLIF(v_item->>'unit','null'),
+      (v_item->>'returned_quantity')::numeric,(v_item->>'credited_subtotal')::numeric
+    );
+  END LOOP;
+
+  INSERT INTO public.accounting_journal_entries(
+    organization_id,entry_date,description,source_type,source_reference,status,idempotency_key,payload_fingerprint,created_by_profile_id
+  ) VALUES (
+    v_org,(pg_catalog.now() AT TIME ZONE 'UTC')::date,'إشعار دائن لمرتجع '||v_memo_number,
+    'customer_return_credit_memo',v_memo_id::text,'draft',p_idempotency_key,v_fingerprint,v_actor
+  ) RETURNING * INTO v_entry;
+
+  INSERT INTO public.accounting_journal_lines(organization_id,journal_entry_id,line_number,account_id,debit,credit,memo)
+  VALUES(v_org,v_entry.id,1,p_revenue_account_id,v_subtotal,0,'تخفيض إيراد المرتجع '||v_memo_number);
+  IF v_tax>0 THEN
+    INSERT INTO public.accounting_journal_lines(organization_id,journal_entry_id,line_number,account_id,debit,credit,memo)
+    VALUES(v_org,v_entry.id,2,p_tax_account_id,v_tax,0,'تخفيض الضريبة المستحقة للمرتجع '||v_memo_number);
+    INSERT INTO public.accounting_journal_lines(organization_id,journal_entry_id,line_number,account_id,debit,credit,memo)
+    VALUES(v_org,v_entry.id,3,p_receivable_account_id,0,v_total,'تخفيض ذمم العميل '||v_memo_number);
+  ELSE
+    INSERT INTO public.accounting_journal_lines(organization_id,journal_entry_id,line_number,account_id,debit,credit,memo)
+    VALUES(v_org,v_entry.id,2,p_receivable_account_id,0,v_total,'تخفيض ذمم العميل '||v_memo_number);
+  END IF;
+
+  INSERT INTO public.accounting_return_credit_memo_postings(
+    organization_id,credit_memo_id,journal_entry_id,source_amount,source_currency,
+    receivable_account_id,revenue_account_id,tax_account_id,idempotency_key,payload_fingerprint,created_by_profile_id
+  ) VALUES (
+    v_org,v_memo_id,v_entry.id,v_total,v_invoice.currency,p_receivable_account_id,p_revenue_account_id,
+    p_tax_account_id,p_idempotency_key,v_fingerprint,v_actor
+  );
+  INSERT INTO public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value)
+  VALUES(v_org,v_actor,'accounting.customer_return_credit_memo_draft_created','customer_return_credit_memo',v_memo_id,'{}'::jsonb,
+    pg_catalog.jsonb_build_object('memo_number',v_memo_number,'request_id',v_request.id,'invoice_id',v_invoice.id,
+      'journal_entry_id',v_entry.id,'subtotal_amount',v_subtotal::text,'tax_amount',v_tax::text,
+      'total_amount',v_total::text,'currency',v_invoice.currency,'line_count',v_line_count));
+  RETURN pg_catalog.jsonb_build_object(
+    'credit_memo_id',v_memo_id,'memo_number',v_memo_number,'status','draft',
+    'journal_entry_id',v_entry.id,'journal_entry_number',v_entry.entry_number::text,'journal_status',v_entry.status,
+    'subtotal_amount',v_subtotal::text,'tax_amount',v_tax::text,'total_amount',v_total::text,
+    'currency',v_invoice.currency,'replayed',false
+  );
+END;
+$function$;
+
+
 COMMIT;
