@@ -319,8 +319,8 @@ export function PurchaseOrdersPage() {
                 {selectedOrder.status==='cancelled'&&<p className="po-error">أُلغي هذا الأمر. السبب المسجل: {selectedOrder.cancellation_reason||'غير مسجل'}</p>}
                 {selectedOrder.status==='received'&&<p className="po-notice"><CheckCircle2 size={15} style={{verticalAlign:'middle',marginInlineEnd:5}}/>تم استلام الكميات المطلوبة كاملة؛ مهمة أمين المخزن مرتبطة بالحدث ومغلقة خادميًا.</p>}
                 {selectedOrder.status==='draft'&&<p className="po-muted">المسودة لا تؤثر على المخزون. الإرسال ينشئ مهمة استلام واحدة؛ لا يتغير الرصيد قبل الاستلام الفعلي.</p>}
+                <PurchaseReceiptAccountingWorkspace purchaseOrderId={selectedOrder.id} />
               </section>
-              <PurchaseReceiptAccountingWorkspace purchaseOrderId={selectedOrder.id} />
             }
           </div>
         </div>}
