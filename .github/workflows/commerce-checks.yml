@@ -286,7 +286,7 @@ jobs:
           "$RUNNER_TEMP/pw-price-policy/node_modules/.bin/playwright" install --with-deps chromium
 
           VITE_SUPABASE_URL=https://ci-placeholder.supabase.co \
-          VITE_SUPABASE_ANON_KEY=ci-price-policy-placeholder \
+          VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ci_placeholder \
           npm run dev -- --host 127.0.0.1 --port 5191 > /tmp/aghbari-price-policy-vite.log 2>&1 &
           server_pid=$!
           cleanup() {
