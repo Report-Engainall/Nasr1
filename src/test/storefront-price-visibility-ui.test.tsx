@@ -17,17 +17,29 @@ const mocks = vi.hoisted(() => ({
     {
       id: "product-1",
       name: "Rice",
+      name_en: null,
       item_code: "SKU-001",
+      sku: null,
       barcode: null,
+      category_id: null,
+      brand_id: null,
       description: "اختبار الخصوصية",
       unit: "carton",
+      image_url: null,
+      is_active: true,
+      is_featured: false,
+      sort_order: 0,
+      price_wholesale_of_wholesale: 1000,
+      price_wholesale: 1100,
+      price_retail: 1234,
       base_price: 99000,
       display_price: 1234,
       cost_price: 600,
+      stock_quantity: 20,
+      reserved_quantity: 0,
+      min_stock_level: 0,
       min_stock: 0,
       status: "active",
-      category_id: null,
-      image_url: null,
       created_at: "2026-01-01T00:00:00Z",
       retail_price: 1234,
       wholesale_price: 1100,
@@ -63,7 +75,9 @@ vi.mock("@/lib/useFetch", () => ({
     if (fetcher === mocks.fetchStorefrontPromotions) return { data: [], loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchSettingsMap) return { data: mocks.settings, loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchStorefrontAnnouncements) return { data: [], loading: false, error: null, refetch: vi.fn() };
-    return { data: null, loading: false, error: null, refetch: vi.fn() };
+    // Storefront passes async query wrappers for the current full/paged catalog reads,
+    // so the fallback must provide the concrete snapshot shape that the component consumes.
+    return { data: { mode: "full", items: mocks.products }, loading: false, error: null, refetch: vi.fn() };
   },
 }));
 
