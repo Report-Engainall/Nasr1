@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(
-  join(process.cwd(), "supabase/migrations/20261021160000_target_native_catalog_trigram_search.sql"),
+  join(process.cwd(), "supabase/migrations/20261021180000_target_native_catalog_trigram_search.sql"),
   "utf8",
 );
 const runtimeTest = readFileSync(
