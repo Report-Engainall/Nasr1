@@ -6,7 +6,7 @@ const migrationPath = join(
   process.cwd(),
   "supabase",
   "migrations",
-  "20261020110000_customer_activation_invitations.sql",
+  "20261020140000_customer_activation_invitations.sql",
 );
 const migration = readFileSync(migrationPath, "utf8");
 
