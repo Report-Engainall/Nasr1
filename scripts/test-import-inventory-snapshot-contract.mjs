@@ -113,6 +113,24 @@ async function snapshotStock() {
 
 async function main() {
   await db.unsafe("begin");
+  const expectedQueryIndexes = [
+    "import_job_rows_job_item_code_idx",
+    "orders_customer_history_idx",
+    "orders_staff_queue_idx",
+  ];
+  const queryIndexes = await db.unsafe(
+    "select indexname,indexdef from pg_indexes where schemaname='public' and indexname=any($1::text[]) order by indexname",
+    [expectedQueryIndexes],
+  );
+  assert.deepEqual(queryIndexes.map((row) => row.indexname), expectedQueryIndexes,
+    "target-native import and order history/queue query indexes must be installed");
+  const importRowsIndex = queryIndexes.find((row) => row.indexname === "import_job_rows_job_item_code_idx");
+  assert.match(importRowsIndex.indexdef, /import_job_id/i);
+  assert.match(importRowsIndex.indexdef, /data.*item_code/i);
+  const customerHistoryIndex = queryIndexes.find((row) => row.indexname === "orders_customer_history_idx");
+  assert.match(customerHistoryIndex.indexdef, /organization_id.*customer_id.*created_at.*id/i);
+  const staffQueueIndex = queryIndexes.find((row) => row.indexname === "orders_staff_queue_idx");
+  assert.match(staffQueueIndex.indexdef, /organization_id.*status.*created_at.*id/i);
   try {
     await db.unsafe(
       "insert into public.organizations(id,name,currency,is_active) values($1,$2,'YER',true)",
