@@ -222,8 +222,6 @@ async function main() {
   assert.equal(itemCodeMatch[0]?.id, created.id, "the item-code trigram operator returns the tenant's active product");
 
   // Root-level writes bypass RLS; database integrity must still reject cross-tenant links.
-  assert.equal(metricsAfter.available_stock, null, "missing warehouse balance is unknown, never zero");
-  assert.equal(metricsAfter.receivables_issued, null, "positive YER and USD invoice balances are not combined");
   await assert.rejects(
     () => root.unsafe("update public.products set category_id=$1 where id=$2", [foreignCategory, created.id]),
     /foreign key constraint|tenant_integrity_products_category_org_fk/i,
@@ -615,6 +613,8 @@ async function main() {
   assert.equal(metricsAfter.receivables_issued === null ? null : Number(metricsAfter.receivables_issued),
     expectedMetricsRows[0].receivables_issued === null ? null : Number(expectedMetricsRows[0].receivables_issued),
     "receivables are computed from invoice minus recorded payments and never add unlike currencies");
+  assert.equal(metricsAfter.available_stock, null, "missing warehouse balance is unknown, never zero");
+  assert.equal(metricsAfter.receivables_issued, null, "positive YER and USD invoice balances are not combined");
   await assert.rejects(
     () => customer.unsafe("select * from public.get_staff_dashboard_metrics()"),
     /active same-organization staff or finance permission required/i,
