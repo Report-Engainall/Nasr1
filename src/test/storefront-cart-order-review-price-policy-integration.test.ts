@@ -15,7 +15,7 @@ const visibilityHelper = readFileSync(
 describe("storefront cart and pre-submit order-review price policy wiring", () => {
   it("mounts the server-priced preview in the actual cart branch using show_price_in_cart", () => {
     const cartBranch = storefront.slice(storefront.indexOf("{view === 'cart' &&"), storefront.indexOf("{view === 'checkout' &&"));
-    expect(storefront).toContain('import { CustomerOrderPricingPreview } from "@/components/CustomerOrderPricingPreview";');
+    expect(storefront).toMatch(/import\s+\{\s*CustomerOrderPricingPreview\s*\}\s+from\s+["']@\/components\/CustomerOrderPricingPreview["'];/);
     expect(cartBranch).toContain("<CustomerOrderPricingPreview");
     expect(cartBranch).toContain("policyValue={settings?.show_price_in_cart}");
     expect(cartBranch).toContain('surface="cart"');
