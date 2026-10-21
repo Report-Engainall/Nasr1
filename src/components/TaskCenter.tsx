@@ -47,7 +47,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const { user } = useAuth();
   const roles = user?.roles ?? [];
   const canManage = roles.includes('admin') || roles.includes('manager');
-  const allowedRoles = roleOptionsFor(roles);
+  const allowedRoles = useMemo(() => roleOptionsFor(roles), [roles]);
   const financeOnly = roles.includes('accountant') && !roles.some((role) => ['admin','manager','staff'].includes(role));
   const [tasks, setTasks] = useState<OperationalTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,8 +128,8 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   }, [statusFilter,priorityFilter,assigneeFilter,createdFrom,createdTo,search]);
 
   const filteredWithoutRole = useMemo(
-    () => tasks.filter(matchesNonRoleFilters),
-    [tasks,matchesNonRoleFilters],
+    () => tasks.filter((task) => allowedRoles.includes(task.task_role) && matchesNonRoleFilters(task)),
+    [tasks,matchesNonRoleFilters,allowedRoles],
   );
   const filtered = useMemo(
     () => filteredWithoutRole.filter((task) => roleFilter === 'all' || task.task_role === roleFilter),
