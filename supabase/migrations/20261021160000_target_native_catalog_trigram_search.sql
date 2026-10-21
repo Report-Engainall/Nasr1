@@ -3,6 +3,9 @@
 -- Preserve tenant/status predicates while supporting substring/similarity search.
 BEGIN;
 
+-- Supabase normally provisions this schema, but isolated PostgreSQL 17 CI does not.
+-- Ensure the requested extension schema exists before installing pg_trgm into it.
+CREATE SCHEMA IF NOT EXISTS extensions;
 CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions;
 
 CREATE INDEX IF NOT EXISTS products_org_name_trgm_idx
