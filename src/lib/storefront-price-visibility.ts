@@ -11,7 +11,7 @@ export type StorefrontPricePresentation =
   | { visible: false }
   | { visible: true; amount: number };
 
-type ServerPricedLine = Record<string, unknown> & {
+type ServerPricedLine = {
   product_id: string;
   name: string;
   quantity: number;
@@ -124,7 +124,15 @@ export function resolveCustomerOrderPricingPresentation(
 
   return {
     visible: true,
-    items: payload.items,
+    // Whitelist only fields this presentation contract consumes. A future RPC field
+    // such as base_price, unit_cost, margin, or tenant metadata must not flow through.
+    items: payload.items.map((line) => ({
+      product_id: line.product_id,
+      name: line.name,
+      quantity: line.quantity,
+      unit_price: line.unit_price,
+      line_total: line.line_total,
+    })),
     totalAmount: payload.total_amount,
     currency: payload.currency,
     customerTierVisible: payload.customer_tier_visible === true && customerTierLabel !== undefined,
