@@ -110,7 +110,7 @@ describe("AI gateway privacy, provider parsing and quota math", () => {
     expect(() => parseProviderResponse("gemini", { candidates: [] })).toThrow("provider_response_invalid");
   });
 
-  it("executes the fallback provider after the primary returns HTTP 429 and preserves measured fallback usage", async () => {
+  it.each([401, 429, 503])("executes the fallback provider after primary HTTP %i and preserves measured fallback usage", async (status) => {
     const primary: AiProviderCandidate = {
       provider: "openai_compatible", model: "primary-test", baseUrl: "https://api.openai.com/v1",
       key: "test-only-primary-key", rates: { inputPerThousand: 0.2, outputPerThousand: 0.4 }, fallback: false,
@@ -122,7 +122,7 @@ describe("AI gateway privacy, provider parsing and quota math", () => {
     const called: string[] = [];
     const outcome = await runProviderCandidates([primary, fallback], "question", async (candidate) => {
       called.push(candidate.model);
-      if (!candidate.fallback) throw new Error("provider_http_429");
+      if (!candidate.fallback) throw new Error("provider_http_" + status);
       return { text: "fallback answer", usage: { inputTokens: 80, outputTokens: 21 } };
     }, 100);
 
@@ -132,7 +132,7 @@ describe("AI gateway privacy, provider parsing and quota math", () => {
     expect(outcome.attempts).toMatchObject([
       {
         provider: "openai_compatible", model: "primary-test", fallback: false, status: "failed",
-        observedInputTokens: null, observedOutputTokens: null, estimatedCost: null, errorCode: "provider_http_429",
+        observedInputTokens: null, observedOutputTokens: null, estimatedCost: null, errorCode: "provider_http_" + status,
       },
       {
         provider: "gemini", model: "fallback-test", fallback: true, status: "succeeded",
