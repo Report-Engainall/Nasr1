@@ -125,12 +125,30 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       await expect(row).toContainText(amount100);
       await expect(row).toContainText(amountZero);
       await expect(row).toContainText("(draft)");
-      completedStages.push("source_linked_credit_memo_draft_created");
+      const memoNumber = (await row.innerText()).match(/CRM-\\d{8}-[A-F0-9]{8}/i)?.[0];
+      expect(memoNumber, "draft credit memo exposes its source document number").toBeTruthy();
+      const taskTitle = "مراجعة وترحيل قيد الإشعار الدائن " + memoNumber;
+      const tasksPage = await staffContext.newPage();
+      await tasksPage.goto("/admin/tasks");
+      const openCreditTask = tasksPage.locator(".task-card").filter({ hasText: taskTitle });
+      await expect(openCreditTask).toBeVisible();
+      await expect(openCreditTask.locator(".task-role-badge")).toHaveText("المحاسبة والتحصيل");
+      await expect(openCreditTask.getByText("بانتظار التنفيذ", { exact: true })).toBeVisible();
+      completedStages.push("accountant_task_visible_while_credit_memo_journal_is_draft");
 
       await row.getByRole("button", { name: "ترحيل القيد", exact: true }).click();
       await expect(row.getByText("مرحل", { exact: true })).toBeVisible();
       await expect(row.getByRole("button", { name: "ترحيل القيد", exact: true })).toHaveCount(0);
       await expect(row.getByRole("button", { name: "عكس الإشعار والقيد", exact: true })).toBeVisible();
+
+      await tasksPage.goto("/admin/tasks");
+      await tasksPage.getByLabel("الحالة").selectOption("completed");
+      const completedCreditTask = tasksPage.locator(".task-card").filter({ hasText: taskTitle });
+      await expect(completedCreditTask).toBeVisible();
+      await expect(completedCreditTask.getByText("مكتملة", { exact: true })).toBeVisible();
+      await expect(completedCreditTask.getByText(/أُغلقت بعد ترحيل القيد/)).toBeVisible();
+      await tasksPage.close();
+      completedStages.push("accountant_task_closed_after_credit_journal_posting");
       completedStages.push("credit_memo_journal_posted_from_ui");
 
       const reversalReason = "Playwright UI reversal acceptance after posted credit.";
