@@ -51,6 +51,8 @@ function statementFixture() {
     }],
     summary_as_of_utc: "2026-10-20T03:00:00.000Z",
     truncated: { invoices: false, payments: false, credits: false },
+    full_statement: true,
+    record_counts: { invoices: 1, payments: 1, credits: 1, total: 3 },
   };
 }
 
@@ -120,14 +122,21 @@ describe("finance document print contracts", () => {
     expect(doc.body.textContent).toContain("AGHBARI COMMERCE");
   });
 
-  it("prints a full-ledger statement summary while clearly labelling limited detail arrays", () => {
+  it("rejects legacy truncated statement payloads rather than printing an incomplete ledger", () => {
     const payload = statementFixture();
     payload.truncated.invoices = true;
-    const doc = document.implementation.createHTMLDocument("");
-    renderStaffStatementDocument(doc, readStaffStatementPrintPayload(payload), "مؤسسة الاختبار");
-    expect(doc.body.textContent).toContain("٣٧٥٫٠٠");
-    expect(doc.body.textContent).toContain("الإشعارات الدائنة المرحلة");
-    expect(doc.body.textContent).toContain("مؤسسة الاختبار");
-    expect(doc.body.textContent).toContain("أحدث 200");
+    expect(() => readStaffStatementPrintPayload(payload)).toThrow(/لا تطابق أعداد السجلات الكاملة/);
   });
+
+  it("requires server-declared full statement counts to match all returned details", () => {
+    const payload = statementFixture();
+    expect(() => readStaffStatementPrintPayload({ ...payload, full_statement: false }))
+      .toThrow(/ليس معلّمًا من الخادم ككشف كامل/);
+    expect(() => readStaffStatementPrintPayload({
+      ...payload,
+      record_counts: { ...payload.record_counts, invoices: 2, total: 4 },
+    })).toThrow(/لا تطابق أعداد السجلات الكاملة/);
+  });
+
+
 });

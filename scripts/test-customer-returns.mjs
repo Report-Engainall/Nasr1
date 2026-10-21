@@ -512,6 +512,11 @@ async function main() {
     () => db.unsafe("select public.get_staff_customer_account_statement($1::uuid)",[customerOne.id]),
     /finance permission required/i,
   );
+  await expectFailure(
+    "customers cannot print a complete staff-scoped account statement",
+    () => db.unsafe("select public.get_staff_customer_account_statement_full($1::uuid)",[customerOne.id]),
+    /finance permission required to print a customer account statement/i,
+  );
   await db.unsafe("reset role");
 
   await setIdentity(managerAuthId,"ci-return-manager@example.test");
@@ -588,6 +593,20 @@ async function main() {
   const postedPrint = asJson(postedPrintRows[0].result);
   assert.equal(postedPrint.memo.status,"posted");
   assert.equal(postedPrint.journal.status,"posted");
+
+  const fullStatementRaw = await db.unsafe(
+    "select public.get_staff_customer_account_statement_full($1::uuid) as result",[customerOne.id],
+  );
+  const fullStatement = asJson(fullStatementRaw[0].result);
+  assert.equal(fullStatement.customer.id,customerOne.id,"full statement is tied to the requested customer");
+  assert.ok(fullStatement.invoices.some((row) => row.id === sourceInvoiceId),"full statement includes the source invoice");
+  assert.ok(fullStatement.credits.some((row) => row.id === preparedCredit.credit_memo_id),"full statement includes the posted return credit");
+  assert.deepEqual(fullStatement.truncated,{ invoices:false,payments:false,credits:false },
+    "full endpoint never labels partial detail as a complete statement");
+  assert.equal(fullStatement.record_counts.invoices,fullStatement.invoices.length,"statement invoice count matches returned details");
+  assert.equal(fullStatement.record_counts.payments,fullStatement.payments.length,"statement payment count matches returned details");
+  assert.equal(fullStatement.record_counts.credits,fullStatement.credits.length,"statement credit count matches returned details");
+  assert.ok(fullStatement.record_counts.total <= 10000,"statement is within the safe print limit");
 
   const printOptionsRaw = await db.unsafe("select public.get_finance_document_print_options(500) as result");
   const printOptions = asJson(printOptionsRaw[0].result);

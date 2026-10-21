@@ -118,8 +118,13 @@ export function FinanceDocumentPrintActions() {
         if (result.error) throw new Error(result.error.message || "تعذر تحميل مصدر الفاتورة ضمن المؤسسة الحالية.");
         renderStaffInvoiceDocument(printWindow.document, readStaffInvoicePrintPayload(result.data), currentOptions.organization_name);
       } else if (requestedKind === "statement") {
-        const result = await supabase.rpc("get_staff_customer_account_statement", { p_customer_id: selectedId });
-        if (result.error) throw new Error(result.error.message || "تعذر تحميل كشف حساب العميل ضمن المؤسسة الحالية.");
+        const result = await supabase.rpc("get_staff_customer_account_statement_full", { p_customer_id: selectedId });
+        if (result.error) {
+          if (/customer statement exceeds full-print row limit/i.test(result.error.message || "")) {
+            throw new Error("تجاوز كشف الحساب الحد الآمن للطباعة (10,000 سجل). لم تتم طباعة كشف جزئي؛ صغّر نطاق التقرير ثم أعد المحاولة.");
+          }
+          throw new Error(result.error.message || "تعذر تحميل كشف حساب العميل الكامل ضمن المؤسسة الحالية.");
+        }
         renderStaffStatementDocument(printWindow.document, readStaffStatementPrintPayload(result.data), currentOptions.organization_name);
       } else {
         const result = await supabase.rpc("get_customer_return_credit_memo_pdf", { p_credit_memo_id: selectedId });

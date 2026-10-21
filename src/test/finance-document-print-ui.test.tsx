@@ -55,6 +55,8 @@ const statementPayload = {
   }],
   summary_as_of_utc: "2026-10-20T00:00:00Z",
   truncated: { invoices: false, payments: false, credits: false },
+  full_statement: true,
+  record_counts: { invoices: 1, payments: 1, credits: 0, total: 2 },
 };
 const creditMemoPayload = {
   memo: { id: memoId, memo_number: "CRM-TEST-001", status: "posted", currency: "YER", subtotal_amount: 25, tax_amount: 0,
@@ -92,7 +94,7 @@ describe("finance document printing UI", () => {
     mocks.rpc.mockReset().mockImplementation(async (name: string) => {
       if (name === "get_finance_document_print_options") return { data: options, error: null };
       if (name === "get_staff_customer_invoice_print_data") return { data: invoicePayload, error: null };
-      if (name === "get_staff_customer_account_statement") return { data: statementPayload, error: null };
+      if (name === "get_staff_customer_account_statement_full") return { data: statementPayload, error: null };
       if (name === "get_customer_return_credit_memo_pdf") return { data: creditMemoPayload, error: null };
       return { data: null, error: { message: "unexpected RPC " + name } };
     });
@@ -119,7 +121,7 @@ describe("finance document printing UI", () => {
     await screen.findByRole("option", { name: /متجر الاختبار/ });
     fireEvent.click(screen.getByRole("button", { name: /فتح نافذة الطباعة/ }));
     expect(await screen.findByText(/تم تجهيز المستند/)).toBeInTheDocument();
-    expect(mocks.rpc).toHaveBeenCalledWith("get_staff_customer_account_statement", { p_customer_id: customerId });
+    expect(mocks.rpc).toHaveBeenCalledWith("get_staff_customer_account_statement_full", { p_customer_id: customerId });
     expect(popup.document.body.textContent).toContain("كشف حساب العميل");
     expect(popup.document.body.textContent).toContain("مؤسسة الاختبار الموثقة");
     expect(popup.document.body.textContent).toContain("٧٥٫٠٠");
@@ -182,5 +184,25 @@ describe("finance document printing UI", () => {
     expect(screen.getByRole("button", { name: "السجلات السابقة" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "السجلات التالية" })).toBeDisabled();
   });
+
+
+  it("refuses a partial statement when the server full-print safety limit is exceeded", async () => {
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_finance_document_print_options") return { data: options, error: null };
+      if (name === "get_staff_customer_account_statement_full") {
+        return { data: null, error: { message: "customer statement exceeds full-print row limit" } };
+      }
+      return { data: null, error: { message: "unexpected RPC " + name } };
+    });
+    render(<FinanceDocumentPrintActions />);
+    await screen.findByRole("option", { name: /INV-TEST-0009/ });
+    fireEvent.change(screen.getByLabelText("نوع المستند المالي"), { target: { value: "statement" } });
+    await screen.findByRole("option", { name: /متجر الاختبار/ });
+    fireEvent.click(screen.getByRole("button", { name: /فتح نافذة الطباعة/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("10,000 سجل");
+    expect(popup.close).toHaveBeenCalled();
+    expect(popup.print).not.toHaveBeenCalled();
+  });
+
 
 });

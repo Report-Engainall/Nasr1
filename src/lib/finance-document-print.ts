@@ -121,6 +121,8 @@ export interface StaffStatementPrintPayload {
   summary: StaffStatementSummary[];
   summary_as_of_utc: string;
   truncated: { invoices: boolean; payments: boolean; credits: boolean };
+  full_statement: true;
+  record_counts: { invoices: number; payments: number; credits: number; total: number };
 }
 export type PrintableCreditMemo = ReturnType<typeof readPrintableReturnCreditMemo>;
 
@@ -350,7 +352,28 @@ export function readStaffStatementPrintPayload(value: unknown): StaffStatementPr
     payments: readBoolean(value.truncated.payments, "truncated.payments"),
     credits: readBoolean(value.truncated.credits, "truncated.credits"),
   };
-  return { customer, invoices, payments, credits, summary, summary_as_of_utc: isoDate(value.summary_as_of_utc, "summary_as_of_utc"), truncated };
+  if (value.full_statement !== true || !isRecord(value.record_counts)) {
+    throw new Error("كشف الحساب ليس معلّمًا من الخادم ككشف كامل.");
+  }
+  const record_counts = {
+    invoices: nonNegativeCount(value.record_counts.invoices, "record_counts.invoices"),
+    payments: nonNegativeCount(value.record_counts.payments, "record_counts.payments"),
+    credits: nonNegativeCount(value.record_counts.credits, "record_counts.credits"),
+    total: nonNegativeCount(value.record_counts.total, "record_counts.total"),
+  };
+  if (truncated.invoices || truncated.payments || truncated.credits ||
+      record_counts.invoices !== invoices.length ||
+      record_counts.payments !== payments.length ||
+      record_counts.credits !== credits.length ||
+      record_counts.total !== record_counts.invoices + record_counts.payments + record_counts.credits ||
+      record_counts.total > 10000) {
+    throw new Error("تفاصيل كشف الحساب لا تطابق أعداد السجلات الكاملة؛ تم منع الطباعة.");
+  }
+  return {
+    customer, invoices, payments, credits, summary,
+    summary_as_of_utc: isoDate(value.summary_as_of_utc, "summary_as_of_utc"),
+    truncated, full_statement: true, record_counts,
+  };
 }
 function nonNegativeCount(value: unknown, name: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new Error("عدد غير صالح في المستند: " + name);
