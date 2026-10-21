@@ -13,6 +13,8 @@ vi.mock('@/lib/api',()=>({
   createPurchaseOrder:mocks.createPurchaseOrder,cancelPurchaseOrder:mocks.cancelPurchaseOrder,receivePurchaseOrder:mocks.receivePurchaseOrder,
 }));
 vi.mock('@/lib/auth',()=>({useAuth:()=>({user:{roles:mocks.canManage?['manager']:['staff']}})}));
+const accountingMocks=vi.hoisted(()=>({rpc:vi.fn()}));
+vi.mock('@/lib/supabase',()=>({supabase:{rpc:accountingMocks.rpc}}));
 
 const draft={
   id:'po-1',organization_id:'org-1',purchase_order_number:'PO-20261019-000001',
@@ -28,6 +30,7 @@ const submitted={...draft,status:'submitted',submitted_by:'manager-1',submitted_
 describe('purchase orders page',()=>{
   beforeEach(()=>{
     mocks.canManage=true;
+    accountingMocks.rpc.mockReset().mockResolvedValue({data:{accounts:[],receipts:[]},error:null});
     mocks.fetchPurchaseOrders.mockReset().mockResolvedValue([draft]);
     mocks.fetchSuppliers.mockReset().mockResolvedValue([{id:'supplier-1',name:'مورد موثوق',supplier_code:'SUP-01',status:'active'}]);
     mocks.fetchProducts.mockReset().mockResolvedValue([{id:'product-1',name:'سكر',item_code:'0000125',unit:'كرتون',status:'active'}]);
