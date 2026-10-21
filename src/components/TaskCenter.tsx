@@ -18,8 +18,17 @@ const roleLabels: Record<OperationalTaskRole, string> = {
 const statusLabels: Record<string, string> = { pending: 'بانتظار التنفيذ', in_progress: 'قيد التنفيذ', completed: 'مكتملة', cancelled: 'ملغاة' };
 const priorityLabels: Record<string, string> = { low: 'منخفضة', medium: 'متوسطة', high: 'مرتفعة', critical: 'حرجة' };
 const entityLabels: Record<string, string> = {
-  orders: 'طلب', customer_invoices: 'فاتورة', inventory_balances: 'رصيد مخزون',
-  sales_quotes: 'عرض سعر', import_jobs: 'عملية استيراد', purchase_orders: 'أمر شراء',
+  orders: 'طلب',
+  customer_invoices: 'فاتورة',
+  inventory_balances: 'رصيد مخزون',
+  sales_quotes: 'عرض سعر',
+  import_jobs: 'عملية استيراد',
+  purchase_orders: 'أمر شراء',
+  purchase_receipts: 'إيصال استلام شراء',
+  stock_count_sessions: 'جلسة جرد',
+  customer_return_requests: 'طلب إرجاع',
+  customer_return_receipts: 'استلام مرتجع',
+  customer_return_credit_memos: 'إشعار دائن لمرتجع',
 };
 
 function dateText(value: string | null | undefined): string {
@@ -194,7 +203,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     <div className="task-center-hero">
       <div><span className="task-center-eyebrow"><ClipboardList size={15} /> متابعة التنفيذ</span>
         <h1>مركز المهام التشغيلية</h1>
-        <p>مهام ناتجة من الطلبات والمخزون والفواتير وعروض الأسعار والاستيراد المحفوظة فعليًا، مع تسجيل الإنجاز والطباعة حسب الدور.</p>
+        <p>مهام ناتجة من الطلبات والمشتريات وإيصالات الاستلام والجرد وفروقات المخزون والفواتير والإشعارات الدائنة وعروض الأسعار والاستيراد المحفوظة فعليًا، مع تسجيل الإنجاز والطباعة حسب الدور.</p>
       </div>
       <div className="task-center-toolbar">
         <button className="btn secondary" type="button" onClick={() => void loadTasks()} disabled={busy}><RefreshCw size={16} /> تحديث</button>
