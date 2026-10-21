@@ -70,6 +70,8 @@ jobs:
         run: node scripts/test-async-export-jobs.mjs
       - name: Verify target-native import request idempotency under PostgreSQL concurrency
         run: node scripts/test-import-job-idempotency.mjs
+      - name: Verify inventory import snapshot contract without implicit stock mutation
+        run: node scripts/test-import-inventory-snapshot-contract.mjs
       - name: Verify tenant-safe persistent storefront favourites under PostgreSQL 17
         run: node scripts/test-storefront-saved-products.mjs
 
