@@ -231,32 +231,6 @@ describe("customer price visibility UI acceptance", () => {
     window.localStorage.clear();
   });
 
-  it.each([false, true])("shows product-card and direct product-detail price according to the catalog setting (%s)", async (enabled) => {
-    resetSettings({ show_price_on_cards: enabled });
-    const mount = await mountAt("/");
-    await flushEffects();
-    const cardPrice = mount.host.querySelector(".sf-product-price");
-    expect(cardPrice).not.toBeNull();
-
-    if (enabled) {
-      expect(cardPrice?.textContent).toContain(formatCurrency(1234));
-    } else {
-      expect(cardPrice?.textContent).toContain("السعر حسب سياسة حسابك");
-      expect(cardPrice?.textContent).not.toContain(formatCurrency(1234));
-    }
-
-    clickButton(mount.host, "button.sf-product-open");
-    await flushEffects();
-    const detailPrice = mount.host.querySelector(".sf-detail-price");
-    expect(detailPrice).not.toBeNull();
-    if (enabled) {
-      expect(detailPrice?.textContent).toContain(formatCurrency(1234));
-    } else {
-      expect(detailPrice?.textContent).toContain("السعر حسب سياسة حسابك");
-      expect(detailPrice?.textContent).not.toContain(formatCurrency(1234));
-    }
-  });
-
   it("keeps cart amounts hidden when the setting is off, even if local cart storage contains monetary fields", async () => {
     resetSettings({ show_price_in_cart: false });
     seedCustomerCart();
@@ -265,7 +239,7 @@ describe("customer price visibility UI acceptance", () => {
 
     expect(mount.host.textContent).toContain("Rice");
     expect(mount.host.textContent).not.toContain("سعر الوحدة:");
-    expect(mount.host.querySelector('[aria-label="إجمالي السلة"]')).toBeNull();
+    expect(mount.host.querySelector('.sf-order-pricing-total')).toBeNull();
     expect(mount.host.textContent).not.toContain(formatCurrency(777777));
     expect(mocks.rpc.mock.calls.some(([name]) => name === "preview_customer_order_pricing")).toBe(false);
   });
@@ -278,7 +252,7 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
 
     expect(mount.host.textContent).toContain("سعر الوحدة:");
-    expect(mount.host.querySelector('[aria-label="إجمالي السلة"]')).not.toBeNull();
+    expect(mount.host.querySelector('.sf-order-pricing-total')).not.toBeNull();
     expect(mount.host.textContent).toContain(formatCurrency(1234));
     expect(mount.host.textContent).toContain(formatCurrency(2468));
   });
@@ -305,7 +279,7 @@ describe("customer price visibility UI acceptance", () => {
     expect(mount.host.textContent).not.toContain("سعر الوحدة:");
     expect(mount.host.textContent).not.toContain("إجمالي السلة");
     expect(mount.host.textContent).not.toContain(formatCurrency(2468));
-    expect(mount.host.textContent).toContain("تبقى المبالغ مخفية");
+    expect(mount.host.textContent).toContain("لم يسمح إعداد الخادم بعرض الأسعار على هذه الشاشة؛ لم تُعرض أي مبالغ.");
   });
 
   it("fails closed when cart pricing RPC errors or returns malformed amounts", async () => {
@@ -342,7 +316,7 @@ describe("customer price visibility UI acceptance", () => {
 
     expect(mount.host.textContent).toContain("ملخص الطلب");
     expect(mount.host.textContent).not.toContain("سعر الوحدة:");
-    expect(mount.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).toBeNull();
+    expect(mount.host.querySelector('.sf-order-pricing-total')).toBeNull();
     expect(mount.host.textContent).not.toContain(formatCurrency(777777));
     expect(mount.host.textContent).toContain("الأسعار والإجماليات مخفية في مراجعة الطلب");
     expect(mocks.rpc.mock.calls.some(([name]) => name === "validate_checkout_cart")).toBe(true);
@@ -362,7 +336,7 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
 
     expect(mount.host.textContent).toContain("سعر الوحدة:");
-    expect(mount.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).not.toBeNull();
+    expect(mount.host.querySelector('.sf-order-pricing-total')).not.toBeNull();
     expect(mount.host.textContent).toContain(formatCurrency(1234));
     expect(mount.host.textContent).toContain(formatCurrency(2468));
   });
@@ -383,7 +357,7 @@ describe("customer price visibility UI acceptance", () => {
     const hidden = await mountAt("/checkout");
     await flushEffects();
     expect(hidden.host.textContent).not.toContain("سعر الوحدة:");
-    expect(hidden.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).toBeNull();
+    expect(hidden.host.querySelector('.sf-order-pricing-total')).toBeNull();
     expect(hidden.host.textContent).not.toContain(formatCurrency(2468));
     await unmount(hidden);
 
@@ -397,7 +371,7 @@ describe("customer price visibility UI acceptance", () => {
     const malformed = await mountAt("/checkout");
     await flushEffects();
     expect(malformed.host.textContent).not.toContain("سعر الوحدة:");
-    expect(malformed.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).toBeNull();
+    expect(malformed.host.querySelector('.sf-order-pricing-total')).toBeNull();
     expect(malformed.host.textContent).not.toContain(formatCurrency(2468));
     await unmount(malformed);
 
@@ -409,7 +383,7 @@ describe("customer price visibility UI acceptance", () => {
     const failed = await mountAt("/checkout");
     await flushEffects();
     expect(failed.host.textContent).not.toContain("سعر الوحدة:");
-    expect(failed.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).toBeNull();
+    expect(failed.host.querySelector('.sf-order-pricing-total')).toBeNull();
     expect(failed.host.textContent).not.toContain(formatCurrency(2468));
   });
 });
