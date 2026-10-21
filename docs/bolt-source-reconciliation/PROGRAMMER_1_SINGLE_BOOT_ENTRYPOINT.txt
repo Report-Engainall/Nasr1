@@ -7,6 +7,8 @@ PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (مفتوح؛ لا ت�
 آخر رأس كود واختبارات اجتاز CI على SHA المطابق:
 1b8b9be1fd7aca1e9fff20a0891c2db7d83ae6ff
 CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39502788878 — SUCCESS على SHA نفسه.
+إعادة تحقق HEAD قبل تحديث هذا السجل: 90df8540847489b0bcd5a5b1770599295672dc17 — https://github.com/Report-Engainall/Nasr1/actions/runs/39503228966 SUCCESS على SHA نفسه.
+كتالوج الموظفين: code/test SHA 9e070285e3e001a8661fe5c297f19face97fdcf5 — Actions 39501610331 SUCCESS.
 شمل: 73/73 ملف اختبار و480/480 اختبارًا، PostgreSQL 17، كتالوج الموظفين (CRUD/allowlist/price-grid/audit/tenant isolation/direct-DML denial)، إثبات سجل بدء جرد المخزون مرة واحدة وidempotent replay، async export، import idempotency concurrency، saved-products، lint، build، preview smoke 4173، dev smoke 5173 والتنظيف.
 BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 
@@ -18,12 +20,18 @@ BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 5. Async order export: idempotent tenant/actor request, role gating, lease/retry cap, CSV safe escaping/BOM, private storage, SHA-256, 7-day expiry cleanup, 60-second signed URL, audit, Arabic UI route /admin/exports.
 6. Donor migration 0004_import_storage.sql بقيت مرجعًا؛ لا تطبق SQL غير المتوافق خامًا.
 
-المهمة المصدرية التالية المسجلة:
-NASR1-SOURCE-CUSTOMER-LIFECYCLE-PARITY-001-ACTIVATION
-الحالة: BLOCKED_BY_P2_MIGRATION_RECONCILIATION؛ migration P1 عند 20261020110000_customer_activation_invitations.sql تتداخل دلاليًا مع migration P2 عند 20261020140000_customer_activation_invitations.sql في PR #18. لا تعدّل P2-owned files، ولا تعتبر نجاح P2 على فرعه منفردًا إثبات دمج PR #26. إذا ظل التعارض قائمًا، انتقل إلى فجوة P1 مستقلة مثبتة في ledger بدل الانتظار أو إعادة فحص الأرشيفات.
+كتالوج الموظفين 0007: CLOSED؛ JSON.stringify قبل $1::jsonb سبب التحويل إلى scalar. الاختبار الحالي يستخدم admin.json(payload) ويظل رفض shadow_tier_price فعالًا. المصدر blob 239789342a29a824852185cdbb95de7906900dbc؛ target SQL blob 309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa؛ runtime test blob 29f3ae2db8a320695181c7664a969d9885c96914.
+
+المراجعة التالية: 0005_order_state_machine = ALREADY_PRESENT_BETTER في target migration 20261009050000_order_transition_integrity.sql (blob 57ba9360e48cbf1cf4ba7c30b37631102bea776c).
+الفجوة التالية غير المكتملة: 0009_fix_import_inventory_delta.sql (blob 0a6ce547791c5103c89fc74be0e4424cdec5d146). الحالة DEFERRED_PENDING_P2_INVENTORY_RECONCILIATION_CONTRACT: schema المانح قديم، وتكامل Onyx inventory reconciliation يتقاطع مع PR #18 غير المدمج. لا تطبق SQL خامًا ولا تنشئ مسار كتابة مخزون موازيًا. تفعيل العميل يظل BLOCKED_BY_P2_MIGRATION_RECONCILIATION؛ لا تعدّل ملفات P2-owned.
 
 قيود:
 - لا reset/clean/force-push ولا كتابة مباشرة على main.
 - أعد قراءة الرأس الحي قبل كل commit، وpush باستخدام expected-head.
 - سجلات P1 المملوكة للتحديث: PROGRAMMER_1_CURRENT_REPORT.md, SOURCE_INTEGRATION_LEDGER.csv, READY_TO_REUSE_FILE_AUDIT.csv, PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt.
 - ميّز IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA / BROWSER_PROVEN / PRODUCTION_PROVEN. لا تُحوّل NOT RUN إلى PASS.
+
+
+حالات مراجعة المصدر:
+- 0005 order state machine: already present better; لا نسخ SQL.
+- 0009 inventory delta: DEFERRED_PENDING_P2_INVENTORY_RECONCILIATION_CONTRACT؛ target parity لم تثبت، ولا يجوز إعلان المهمة مكتملة.
