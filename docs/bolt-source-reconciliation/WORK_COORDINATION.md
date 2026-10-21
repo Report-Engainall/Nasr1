@@ -448,3 +448,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Historical failure is preserved: [run #39487393265](https://github.com/Report-Engainall/Nasr1/actions/runs/39487393265) on SHA `2388927343da2078a0fc652877bfb1a7d134fb24` failed Vitest parsing at EOF in `src/test/finance-document-pdf-source-reconciliation.test.ts:216` (outer `describe` closure missing; 69/70 files passed). The corrected file passes on the current 72/72 run; the old run remains historically failed.
 - P2 documented the route-level alternative to P1 in [PR #26 comment #6319370624](https://github.com/Report-Engainall/Nasr1/pull/26#issuecomment-6319370624). No P1 handoff is required for the route paths changed here; no shared locked path was modified.
 - **Single current successor pointer:** `next_task_id=NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010`. The previous blocker was missing mounted return review/receipt/finance queues; that route-reachability/code-CI blocker is now closed. Begin customer storefront price-visibility reconciliation next, but keep `Storefront.tsx`/`src/lib/api.ts` locked to P1 until an explicit path handoff or usable integration point is confirmed. Continue on P2-owned helper/tests and coordinate; do not treat the existing price-preview helper alone as proof that the full customer UI is integrated.
+
+
+## P2 follow-up — customer price privacy integration handoff, 21 October 2026
+
+- Verified P2 helper: `src/lib/storefront-price-visibility.ts`; regression coverage: `src/test/storefront-price-visibility-presentation.test.ts`.
+- The unresolved UI integration remains in P1-owned `src/components/Storefront.tsx` and its API/settings path. P2 did not modify those files.
+- Posted an explicit integration/ownership handoff on PR #26: https://github.com/Report-Engainall/Nasr1/pull/26#issuecomment-6320698979. Requested explicit price-policy gating at card/detail render points, zero-sentinel suppression, and UI-level regression tests. Awaiting P1 integration or explicit path handoff.
+- Task `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010` remains OPEN. Helper tests do not prove screen integration. No claim of browser or production proof is made.
