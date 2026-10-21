@@ -987,3 +987,10 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Historical failure remains preserved: [#39487393265](https://github.com/Report-Engainall/Nasr1/actions/runs/39487393265) failed Unit tests on old SHA `2388927343da2078a0fc652877bfb1a7d134fb24` because the closing brace for the outer `describe` was missing at EOF in `src/test/finance-document-pdf-source-reconciliation.test.ts:216`. The two sibling Playwright runs #39487394099 and #39487386222 showed SUCCESS only at the workflow level with their actual browser steps skipped; neither is browser proof.
 - `BROWSER_PROVEN` for the return-specific UI = `NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`. No production deployment/migration/write, invented amount/tax/FX or automatic cash refund is claimed.
 
+
+
+## P2 follow-up — customer price privacy integration handoff, 21 October 2026
+
+- Posted cross-PR integration handoff on PR #26: https://github.com/Report-Engainall/Nasr1/pull/26#issuecomment-6320698979. P1-owned Storefront/API paths remain untouched.
+- Task `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010` remains OPEN until the explicit policy guard and zero-sentinel suppression are integrated into actual card/detail rendering and verified by UI tests.
+- Updated `CURRENT_EXECUTION_STATE.md`, `PROGRAMMER_2_CURRENT_REPORT.md`, and `WORK_COORDINATION.md` to preserve the same ownership boundary and evidence status. No browser/production proof is claimed.
