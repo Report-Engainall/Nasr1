@@ -173,6 +173,64 @@ export type ProviderAttemptTelemetry = {
  estimatedCost: number | null; errorCode: string | null;
 };
 export type AiUsageMeasurementStatus = "measured" | "partial" | "unknown";
+
+export type AiProviderCandidate = {
+ provider: AiProvider; model: string; baseUrl: string; key: string;
+ rates: AiCostRates; fallback: boolean;
+};
+
+export function providerErrorCode(cause: unknown): string {
+ if (cause instanceof Error && cause.name === "AbortError") return "provider_timeout";
+ const message = cause instanceof Error ? cause.message : "";
+ const http = /^provider_http_(\d{3})$/.exec(message);
+ if (http) return "provider_http_" + http[1];
+ if (message === "provider_response_invalid") return message;
+ return "provider_unavailable";
+}
+
+/**
+ * Execute provider candidates in order using the same loop in production and tests.
+ * Failed calls never receive fabricated token or cost observations; later candidates
+ * are attempted only after the current call fails or times out.
+ */
+export async function runProviderCandidates<C extends AiProviderCandidate>(
+ candidates: readonly C[],
+ question: string,
+ execute: (candidate: C, question: string, signal: AbortSignal) => Promise<ParsedProviderResponse>,
+ timeoutMs: number,
+): Promise<{ result: ParsedProviderResponse | null; used: C | null; attempts: ProviderAttemptTelemetry[] }> {
+ if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 600000) {
+  throw new Error("invalid_provider_timeout");
+ }
+ let result: ParsedProviderResponse | null = null;
+ let used: C | null = null;
+ const attempts: ProviderAttemptTelemetry[] = [];
+ for (const candidate of candidates) {
+  const attemptStarted = Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+   result = await execute(candidate, question, controller.signal);
+   used = candidate;
+   attempts.push({
+    provider: candidate.provider, model: candidate.model, fallback: candidate.fallback, status: "succeeded",
+    elapsedMs: Math.min(Math.max(0, Date.now() - attemptStarted), 600000),
+    observedInputTokens: result.usage.inputTokens, observedOutputTokens: result.usage.outputTokens,
+    estimatedCost: estimateCost(result.usage.inputTokens, result.usage.outputTokens, candidate.rates), errorCode: null,
+   });
+   break;
+  } catch (cause) {
+   attempts.push({
+    provider: candidate.provider, model: candidate.model, fallback: candidate.fallback, status: "failed",
+    elapsedMs: Math.min(Math.max(0, Date.now() - attemptStarted), 600000),
+    observedInputTokens: null, observedOutputTokens: null, estimatedCost: null, errorCode: providerErrorCode(cause),
+   });
+  } finally {
+   clearTimeout(timer);
+  }
+ }
+ return { result, used, attempts };
+}
 /** Failed provider calls never become fabricated token measurements. */
 export function summarizeAiProviderAttempts(attempts: readonly ProviderAttemptTelemetry[]): {
  status: AiUsageMeasurementStatus; observedInputTokens: number | null; observedOutputTokens: number | null;
