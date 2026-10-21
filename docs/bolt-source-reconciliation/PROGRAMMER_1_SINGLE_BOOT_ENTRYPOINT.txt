@@ -20,7 +20,7 @@ BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 5. Async order export: idempotent tenant/actor request, role gating, lease/retry cap, CSV safe escaping/BOM, private storage, SHA-256, 7-day expiry cleanup, 60-second signed URL, audit, Arabic UI route /admin/exports.
 6. Donor migration 0004_import_storage.sql بقيت مرجعًا؛ لا تطبق SQL غير المتوافق خامًا.
 
-كتالوج الموظفين 0007: CLOSED؛ target SQL blob 309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa؛ test blob 29f3ae2db8a320695181c7664a969d9885c96914؛ Actions 39621935392 SUCCESS on exact code/test head 7b070783d25c4b0b6064a3792213ac45671c0f78. Browser/production NOT RUN.
+كتالوج الموظفين 0007: CLOSED؛ target SQL blob 309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa؛ runtime test blob 8012fd9d97762cbf6b97411ac5be3f72ed3fcc72؛ static migration test blob b82e19d8f72185e108b09d5cb490900d4bb45e2d؛ exact current code/test head 18b0c8a8f3f03a3f5ad188357690223e3749628f, Actions 39647895468 SUCCESS. Docs-only head e167624a7ba93f885e43782d94ce3b515990b4ef also passed Actions 39649079344. Browser/production NOT RUN.
 
 المراجعة التالية: 0005_order_state_machine = ALREADY_PRESENT_BETTER في target migration 20261009050000_order_transition_integrity.sql (blob 57ba9360e48cbf1cf4ba7c30b37631102bea776c).
 Task 0009 P1 implementation is closed. Source 0010 order concurrency is ALREADY_PRESENT_BETTER; target checkout PostgreSQL 17 contract passed on e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba / Actions 39630570096. Dedicated contention stress NOT RUN. Next source task: NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-011-AGHBCOM-ORDER-INPUT-0011.
@@ -89,7 +89,7 @@ Task 0009 P1 implementation is closed. Source 0010 order concurrency is ALREADY_
 - P1's activation migration now has the exact same Git blob f62ec20998ddc4b6a00517bdab1f55c9a73d58da as P2: `accept_customer_activation_invitation` derives confirmed email solely from auth.users. Static regression test blob `76a57d0cc790ea1376fff785112b7b1bb57d10d7`. Migration filenames still differ (P1 20261020110000, P2 20261020140000); combined-tree acceptance NOT RUN.
 - Onyx apply/rollback migration blob is exact-match across P1/P2: `9e1e7fde3faaa7887809ebbcef214bc044197223`. Coordination comment posted at https://github.com/Report-Engainall/Nasr1/pull/18#issuecomment-6322540496. No P2-owned file was edited.
 - Source tasks 0011 and 0013 are tested on this exact head; negative order matrix covers 24 rejection cases, and finance dashboard KPI acceptance verifies tenant separation and null-safe unknown/multi-unit/multi-currency values. Finance still uses the canonical general ledger; no `cash_accounts` parallel store.
-- **Next blocking item:** combined PR #26/#18 migration-chain acceptance. Both Onyx and activation SQL content match, but both timestamped activation migration files exist; test the actual combined tree under PostgreSQL 17 before closing. `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN; BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN`.
+- **Next blocking item:** combined PR #26/#18 migration-chain acceptance. Activation now has only the shared canonical path `supabase/migrations/20261020140000_customer_activation_invitations.sql`; Onyx uses the same path/blob as PR #18. Path collision is reconciled. Run the actual combined tree under PostgreSQL 17 before closing; `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN; BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN`.
 
 ## P1 — أحدث نقطة استئناف مثبتة (2026-10-21)
 - رأس الكود/الاختبار: `18b0c8a8f3f03a3f5ad188357690223e3749628f`؛ [Actions 39647895468](https://github.com/Report-Engainall/Nasr1/actions/runs/39647895468) = COMPLETED/SUCCESS على الرأس نفسه.
@@ -98,3 +98,6 @@ Task 0009 P1 implementation is closed. Source 0010 order concurrency is ALREADY_
 - تفعيل العميل موحد على `supabase/migrations/20261020140000_customer_activation_invitations.sql`، Git blob `f62ec20998ddc4b6a00517bdab1f55c9a73d58da` مطابق لـP2؛ Onyx path/blob يطابق P2: `9e1e7fde3faaa7887809ebbcef214bc044197223`.
 - الاختبارات والبصمات: harness `8012fd9d97762cbf6b97411ac5be3f72ed3fcc72`; finance migration `866b70c64bac99a72575978c5c706624feb79dc6`; finance UI `4aa2fa76ef27eaec83b8d1d256e2049444ed16bd` + `3391d1b81fe03e1e1590afaaee8c7693ac31db0f`; Onyx runtime test `7fa2e7cbee5ae3c04c743893f93dd3c1670be415`.
 - التالي: acceptance على الشجرة المشتركة PR #26 + PR #18، ثم اختبارات متصفح بولد. `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN`; `P2_UI_ROUTE_WIRING_PENDING`; `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
+
+
+تحديث توثيق الاستئناف: فُضّ تعارض أسماء migrations على مستوى المسارات؛ activation أصبح canonical 20261020140000، ومسار Onyx/blob يطابق PR #18. هذا ليس إثباتًا لقبول الشجرة المشتركة. بقيت `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN` و`BROWSER_PROVEN=NOT RUN` و`PRODUCTION_PROVEN=NOT RUN`.
