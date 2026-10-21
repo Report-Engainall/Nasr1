@@ -5,8 +5,8 @@
 PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (مفتوح؛ لا تدمج main مباشرة)
 
 آخر رأس كود/اختبار P1 تم التحقق منه حيًا من GitHub:
-527700144cb55daa2865180e9c231d9187de280b
-CI المطابق للرأس نفسه: https://github.com/Report-Engainall/Nasr1/actions/runs/39632513991 — Actions 39632513991 COMPLETED/SUCCESS على SHA نفسه. سجل PostgreSQL 17 يثبت صراحةً PASS admin catalog commands (إنشاء/تعديل/أرشفة المنتج والتصنيف، رفض الحقول الزائدة، canonical price RPC وتعارض السعر، عزل المؤسسة، هوية التدقيق ورفض الكتابة المباشرة)، مع نجاح اختبارات الوحدة وبقية قبول PostgreSQL 17 وlint/build. BROWSER_PROVEN=NOT RUN؛ PRODUCTION_PROVEN=NOT RUN.
+18b0c8a8f3f03a3f5ad188357690223e3749628f
+CI المطابق للرأس نفسه: https://github.com/Report-Engainall/Nasr1/actions/runs/39647895468 — Actions 39647895468 COMPLETED/SUCCESS على SHA نفسه. سجل PostgreSQL 17 يثبت صراحةً PASS admin catalog commands (إنشاء/تعديل/أرشفة المنتج والتصنيف، رفض الحقول الزائدة، canonical price RPC وتعارض السعر، عزل المؤسسة، هوية التدقيق ورفض الكتابة المباشرة)، مع نجاح اختبارات الوحدة وبقية قبول PostgreSQL 17 وlint/build. BROWSER_PROVEN=NOT RUN؛ PRODUCTION_PROVEN=NOT RUN.
 
 قبول كتالوج الموظفين 0007: Actions 39501610331 SUCCESS على SHA 9e070285e3e001a8661fe5c297f19face97fdcf5؛ اختبارات PostgreSQL 17 أثبتت CRUD/allowlist/price-grid/audit/tenant isolation/direct-DML denial.
 سبب الفشل الجذري: حمولة الإنشاء نفسها لم تتضمن مفتاحًا غير مسموح؛ اختبار SHA القديم مرر JSON.stringify(p) كنص عادي إلى $1::jsonb، ومسار SQL القديم أعاد رسالة unsupported fields نفسها عند فشل نوع JSON. الإصلاح admin.json(payload) مع allowlist صارمة وإظهار DETAIL للمفتاح المرفوض الحقيقي.
@@ -90,3 +90,11 @@ Task 0009 P1 implementation is closed. Source 0010 order concurrency is ALREADY_
 - Onyx apply/rollback migration blob is exact-match across P1/P2: `9e1e7fde3faaa7887809ebbcef214bc044197223`. Coordination comment posted at https://github.com/Report-Engainall/Nasr1/pull/18#issuecomment-6322540496. No P2-owned file was edited.
 - Source tasks 0011 and 0013 are tested on this exact head; negative order matrix covers 24 rejection cases, and finance dashboard KPI acceptance verifies tenant separation and null-safe unknown/multi-unit/multi-currency values. Finance still uses the canonical general ledger; no `cash_accounts` parallel store.
 - **Next blocking item:** combined PR #26/#18 migration-chain acceptance. Both Onyx and activation SQL content match, but both timestamped activation migration files exist; test the actual combined tree under PostgreSQL 17 before closing. `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN; BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN`.
+
+## P1 — أحدث نقطة استئناف مثبتة (2026-10-21)
+- رأس الكود/الاختبار: `18b0c8a8f3f03a3f5ad188357690223e3749628f`؛ [Actions 39647895468](https://github.com/Report-Engainall/Nasr1/actions/runs/39647895468) = COMPLETED/SUCCESS على الرأس نفسه.
+- الدليل: 79/79 test files و505/505 unit tests؛ PostgreSQL 17 migration/core acceptance؛ lint/build؛ preview smoke 4173؛ dev smoke 5173. سجل PostgreSQL أثبت PASS admin catalog + finance dashboard، واختبار تنافس الطلبات بأربع جلسات (منشئ واحد وثلاث إعادات idempotent)، و24 حالة إدخال غير صالح مرفوضة، وسيناريو import snapshot إلى Onyx preview/apply/rollback.
+- جذور الإصلاح: في الكتالوج كان `JSON.stringify(payload)` يرسل نصًا إلى `$1::jsonb`؛ أصلح بتمرير JSON object عبر `admin.json(payload)` مع إبقاء allowlist صارمة. المالية تكامل target-native عبر دفتر الأستاذ المزدوج، بلا `cash_accounts` موازٍ؛ الأرصدة غير المتجانسة تظهر كغير متاحة.
+- تفعيل العميل موحد على `supabase/migrations/20261020140000_customer_activation_invitations.sql`، Git blob `f62ec20998ddc4b6a00517bdab1f55c9a73d58da` مطابق لـP2؛ Onyx path/blob يطابق P2: `9e1e7fde3faaa7887809ebbcef214bc044197223`.
+- الاختبارات والبصمات: harness `8012fd9d97762cbf6b97411ac5be3f72ed3fcc72`; finance migration `866b70c64bac99a72575978c5c706624feb79dc6`; finance UI `4aa2fa76ef27eaec83b8d1d256e2049444ed16bd` + `3391d1b81fe03e1e1590afaaee8c7693ac31db0f`; Onyx runtime test `7fa2e7cbee5ae3c04c743893f93dd3c1670be415`.
+- التالي: acceptance على الشجرة المشتركة PR #26 + PR #18، ثم اختبارات متصفح بولد. `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN`; `P2_UI_ROUTE_WIRING_PENDING`; `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
