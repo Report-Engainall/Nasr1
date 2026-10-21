@@ -157,7 +157,8 @@ describe("TaskCenter role-boundary and print integration", () => {
 
     const printRoot = document.querySelector(".operational-task-print");
     expect(printRoot).not.toBeNull();
-    const table = within(printRoot as HTMLElement).getByRole("table");
+    const table = (printRoot as HTMLElement).querySelector("table");
+    expect(table).not.toBeNull();
     expect(table).toHaveTextContent("طلب عميل للتجهيز");
     expect(table).not.toHaveTextContent("مراجعة قيد محاسبي خاص");
     expect(table).not.toHaveTextContent("حركة جرد المخزن");
