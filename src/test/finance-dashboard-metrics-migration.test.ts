@@ -22,6 +22,14 @@ const customerPostings = readFileSync(
   join(process.cwd(), "supabase/migrations/20261020030000_accounting_customer_source_posting.sql"),
   "utf8",
 );
+const dashboardComponent = readFileSync(
+  join(process.cwd(), "src/components/StaffDashboardMetrics.tsx"),
+  "utf8",
+);
+const executiveComponent = readFileSync(
+  join(process.cwd(), "src/components/ExecutiveStoreAnalytics.tsx"),
+  "utf8",
+);
 const runtimeTest = readFileSync(
   join(process.cwd(), "scripts/test-admin-catalog-commands.mjs"),
   "utf8",
@@ -71,9 +79,16 @@ describe("staff dashboard finance-parity migration contract", () => {
     expect(commerce).not.toMatch(/CREATE\s+TABLE\s+(IF NOT EXISTS\s+)?public\.cash_accounts/i);
   });
 
+  it("renders finance KPIs inside the existing executive analytics screen", () => {
+    expect(executiveComponent).toContain("<StaffDashboardMetrics />");
+    expect(dashboardComponent).toContain('supabase.rpc("get_staff_dashboard_metrics")');
+    expect(dashboardComponent).toContain("غير متاح");
+    expect(dashboardComponent).toContain("لا تنشئ حساب خزينة");
+  });
+
   it("has PostgreSQL runtime coverage for all major KPI groups and a foreign tenant", () => {
     expect(runtimeTest).toContain("CI-P1-METRICS-FOREIGN");
-    expect(runtimeTest).toContain("processing","shipped","delivered","cancelled");
+    expect(runtimeTest).toContain('processing\",\"shipped\",\"delivered\",\"cancelled');
     expect(runtimeTest).toContain("metricsAfter.completed_sales");
     expect(runtimeTest).toContain("metricsAfter.available_stock");
     expect(runtimeTest).toContain("metricsAfter.receivables_issued");
