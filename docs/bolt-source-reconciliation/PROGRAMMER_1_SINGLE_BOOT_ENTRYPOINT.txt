@@ -4,9 +4,10 @@
 الفرع المستمر: integration/inventory-transfer-batches-20261019-rebased
 PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (مفتوح؛ لا تدمج main مباشرة)
 
-آخر رأس كود/اختبار P1 جرى التحقق منه من GitHub (قبل تحديث السجلات):
-e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba
-CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39630570096 — check-run test-and-build COMPLETED/SUCCESS على SHA نفسه e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba; PostgreSQL 17 actual-import → Onyx preview/apply/replay/rollback/stale rejection/audit، unit tests، lint/build، preview 4173 وdev 5173 PASS.
+آخر رأس كود/اختبار P1 تم التحقق منه حيًا من GitHub:
+527700144cb55daa2865180e9c231d9187de280b
+CI المطابق للرأس نفسه: https://github.com/Report-Engainall/Nasr1/actions/runs/39632513991 — Actions 39632513991 COMPLETED/SUCCESS على SHA نفسه. سجل PostgreSQL 17 يثبت صراحةً PASS admin catalog commands (إنشاء/تعديل/أرشفة المنتج والتصنيف، رفض الحقول الزائدة، canonical price RPC وتعارض السعر، عزل المؤسسة، هوية التدقيق ورفض الكتابة المباشرة)، مع نجاح اختبارات الوحدة وبقية قبول PostgreSQL 17 وlint/build. BROWSER_PROVEN=NOT RUN؛ PRODUCTION_PROVEN=NOT RUN.
+
 قبول كتالوج الموظفين 0007: Actions 39501610331 SUCCESS على SHA 9e070285e3e001a8661fe5c297f19face97fdcf5؛ اختبارات PostgreSQL 17 أثبتت CRUD/allowlist/price-grid/audit/tenant isolation/direct-DML denial.
 سبب الفشل الجذري: حمولة الإنشاء نفسها لم تتضمن مفتاحًا غير مسموح؛ اختبار SHA القديم مرر JSON.stringify(p) كنص عادي إلى $1::jsonb، ومسار SQL القديم أعاد رسالة unsupported fields نفسها عند فشل نوع JSON. الإصلاح admin.json(payload) مع allowlist صارمة وإظهار DETAIL للمفتاح المرفوض الحقيقي.
 BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
@@ -65,3 +66,11 @@ Task 0009 P1 implementation is closed. Source 0010 order concurrency is ALREADY_
 - Task 0009 P1 adaptation is IMPLEMENTED + INTEGRATED + TESTED_EXACT_SHA. Cross-PR migration-path convergence and customer-activation trust-boundary ordering remain OPEN; do not merge concurrently or claim production/browser proof.
 - Source 0010 order concurrency is ALREADY_PRESENT_BETTER: target checkout/order transition contracts passed PostgreSQL 17 acceptance. High-contention race stress = NOT RUN.
 - **Next source task:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-011-AGHBCOM-ORDER-INPUT-0011`.
+
+
+## تحديث الاستئناف الحي — بعد إغلاق 0007
+- رأس كود/اختبار P1: 527700144cb55daa2865180e9c231d9187de280b
+- دليل CI على الرأس نفسه: https://github.com/Report-Engainall/Nasr1/actions/runs/39632513991 — SUCCESS؛ دليل قبول PostgreSQL 17 للكتالوج وارد في سجل المهمة أعلاه.
+- مهمة 0007 مغلقة؛ القرار التالي 0011 هو ALREADY_PRESENT_BETTER، مع إبقاء اختبارات حالات الإدخال السلبية غير المشغلة على NOT RUN.
+- المهمة غير المقيمة التالية: `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-012-AGHBCOM-CROSS-TENANT-0012` — `supabase/migrations/0012_cross_tenant_integrity.sql`, source blob `67cae6d6f3a62be65b39d17ff6d1a7bbc0cef318`. طابق المفاتيح المركبة مع مخطط Nasr1 الحالي قبل تنفيذ أي قيد؛ لا تنقل SQL المانح كما هو.
+- BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
