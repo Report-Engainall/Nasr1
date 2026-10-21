@@ -31,6 +31,7 @@ function displayName(name: string | null, fallback: string | null): string {
 export function FinanceDocumentPrintActions() {
   const [options, setOptions] = useState<FinancePrintOptions>(emptyOptions);
   const [kind, setKind] = useState<DocumentKind>("invoice");
+  const [pageOffset, setPageOffset] = useState(0);
   const [sourceId, setSourceId] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -57,11 +58,11 @@ export function FinanceDocumentPrintActions() {
   const hasMore = kind === "invoice" ? options.invoices_has_more :
     kind === "statement" ? options.customers_has_more : options.credit_memos_has_more;
 
-  const loadOptions = useCallback(async () => {
+  const loadOptions = useCallback(async (targetOffset = pageOffset) => {
     setLoading(true);
     setError("");
     try {
-      const result = await supabase.rpc("get_finance_document_print_options", { p_limit: 500 });
+      const result = await supabase.rpc("get_finance_document_print_options", { p_limit: 500, p_offset: targetOffset });
       if (result.error) throw new Error(result.error.message || "تعذر تحميل مصادر المستندات المالية.");
       setOptions(readFinancePrintOptions(result.data));
     } catch (cause) {
@@ -70,7 +71,7 @@ export function FinanceDocumentPrintActions() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pageOffset]);
 
   useEffect(() => { void loadOptions(); }, [loadOptions]);
   async function printDocument() {
@@ -93,7 +94,7 @@ export function FinanceDocumentPrintActions() {
       waiting.textContent = "جارٍ التحقق من صلاحية المحاسبة وتحميل المصدر المالي المعتمد…";
       printWindow.document.body.appendChild(waiting);
       setBusy(true);
-      const optionsResult = await supabase.rpc("get_finance_document_print_options", { p_limit: 500 });
+      const optionsResult = await supabase.rpc("get_finance_document_print_options", { p_limit: 500, p_offset: pageOffset });
       if (optionsResult.error) throw new Error(optionsResult.error.message || "تعذر التحقق من المؤسسة النشطة قبل الطباعة.");
       const currentOptions = readFinancePrintOptions(optionsResult.data);
       const sourceStillAuthorized = requestedKind === "invoice"
@@ -151,7 +152,7 @@ export function FinanceDocumentPrintActions() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
         <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 750 }}>
           نوع المستند
-          <select aria-label="نوع المستند المالي" style={field} value={kind} onChange={(event) => setKind(event.target.value as DocumentKind)} disabled={loading || busy}>
+          <select aria-label="نوع المستند المالي" style={field} value={kind} onChange={(event) => { setKind(event.target.value as DocumentKind); setSourceId(""); setPageOffset(0); }} disabled={loading || busy}>
             <option value="invoice">فاتورة عميل</option>
             <option value="statement">كشف حساب عميل</option>
             <option value="credit_memo">إشعار دائن للمرتجعات</option>
@@ -166,7 +167,23 @@ export function FinanceDocumentPrintActions() {
         </label>
       </div>
 
-      {hasMore && <p role="status" style={{ ...muted, color: "#8b5a18" }}>تُعرض أحدث {options.limit} من هذا النوع فقط في قائمة الاختيار. لا يعني ذلك أن بقية السجل غير موجود.</p>}
+      {(pageOffset > 0 || hasMore) && (
+        <nav aria-label="ترقيم صفحات المستندات المالية" style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+          <span role="status" style={muted}>
+            {sources.length
+              ? "السجلات " + (pageOffset + 1).toLocaleString("ar-YE") + "–" + (pageOffset + sources.length).toLocaleString("ar-YE") + " · الصفحة " + (Math.floor(pageOffset / options.limit) + 1).toLocaleString("ar-YE")
+              : "لا توجد سجلات في هذه الصفحة"}
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" style={button} onClick={() => { setSourceId(""); setPageOffset(Math.max(0, pageOffset - options.limit)); }} disabled={loading || busy || pageOffset === 0}>
+              السجلات السابقة
+            </button>
+            <button type="button" style={button} onClick={() => { setSourceId(""); setPageOffset(pageOffset + options.limit); }} disabled={loading || busy || !hasMore}>
+              السجلات التالية
+            </button>
+          </div>
+        </nav>
+      )}
       {loading && <p role="status" style={muted}>جارٍ تحميل قائمة المصادر المالية المسموحة…</p>}
       {error && <p role="alert" style={{ ...muted, color: "#a32929", background: "#fff1f1", padding: 10, borderRadius: 8 }}>{error}</p>}
       {notice && <p role="status" style={{ ...muted, color: "#17684d", display: "flex", alignItems: "center", gap: 6 }}><ShieldCheck size={15} />{notice}</p>}

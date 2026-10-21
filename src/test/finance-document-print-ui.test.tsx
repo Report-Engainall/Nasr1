@@ -151,4 +151,36 @@ describe("finance document printing UI", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("finance permission required");
     expect(popup.close).toHaveBeenCalled();
   });
+  it("loads the next server page instead of stranding finance records beyond the first 500", async () => {
+    const secondInvoiceId = "99999999-9999-4999-8999-999999999999";
+    const firstPage = { ...options, invoices_has_more: true };
+    const secondPage = {
+      ...options,
+      invoices: [{
+        ...options.invoices[0],
+        id: secondInvoiceId,
+        invoice_number: "INV-TEST-0010",
+        issued_at: "2026-10-20T00:00:00Z",
+      }],
+      invoices_has_more: false,
+    };
+    mocks.rpc.mockImplementation(async (name: string, args?: Record<string, unknown>) => {
+      if (name === "get_finance_document_print_options") {
+        return { data: Number(args?.p_offset) === 500 ? secondPage : firstPage, error: null };
+      }
+      return { data: null, error: { message: "unexpected RPC " + name } };
+    });
+
+    render(<FinanceDocumentPrintActions />);
+    await screen.findByRole("option", { name: /INV-TEST-0009/ });
+    expect(screen.getByRole("button", { name: "السجلات التالية" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "السجلات التالية" }));
+
+    await screen.findByRole("option", { name: /INV-TEST-0010/ });
+    expect(screen.queryByRole("option", { name: /INV-TEST-0009/ })).not.toBeInTheDocument();
+    expect(mocks.rpc).toHaveBeenCalledWith("get_finance_document_print_options", { p_limit: 500, p_offset: 500 });
+    expect(screen.getByRole("button", { name: "السجلات السابقة" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "السجلات التالية" })).toBeDisabled();
+  });
+
 });

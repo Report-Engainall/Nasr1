@@ -577,6 +577,18 @@ async function main() {
   assert.ok(!printOptions.customers.some((row) => row.id === foreignCustomerId),"finance print options exclude foreign-organization customers");
   assert.ok(!printOptions.invoices.some((row) => row.id === foreignInvoiceId),"finance print options exclude foreign-organization invoices");
 
+  const printOptionsOffsetRaw = await db.unsafe(
+    "select public.get_finance_document_print_options($1::integer,$2::integer) as result",[500,1],
+  );
+  const printOptionsOffset = asJson(printOptionsOffsetRaw[0].result);
+  assert.ok(printOptions.customers.length >= 2,"pagination fixture has at least two same-organization customer rows");
+  assert.equal(printOptionsOffset.customers[0]?.id,printOptions.customers[1]?.id,
+    "customer page offset one starts at the second server-ordered customer");
+  assert.equal(printOptionsOffset.invoices[0]?.id,printOptions.invoices[1]?.id,
+    "invoice page offset one starts at the second server-ordered invoice");
+  assert.ok(!printOptionsOffset.customers.some((row) => row.id === foreignCustomerId),
+    "offset pagination remains scoped to the active organization");
+
   const staffInvoiceRaw = await db.unsafe(
     "select public.get_staff_customer_invoice_print_data($1::uuid) as result",[sourceInvoiceId],
   );
