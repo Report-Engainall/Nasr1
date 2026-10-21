@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterTasksForPrint } from '@/lib/task-print';
+import { filterTasksForPrint, operationalTaskPrintTitle } from '@/lib/task-print';
 import type { OperationalTaskRole } from '@/lib/types';
 
 const tasks: Array<{ id: string; task_role: OperationalTaskRole }> = [
@@ -12,6 +12,10 @@ const tasks: Array<{ id: string; task_role: OperationalTaskRole }> = [
 ];
 
 describe('role-scoped operational task printing', () => {
+  it('uses the canonical Aghbari business identity in the printable task register title', () => {
+    expect(operationalTaskPrintTitle()).toBe('متجر الأغبري | Aghbari Commerce — كشف المهام التشغيلية');
+  });
+
   const allRoles: OperationalTaskRole[] = ['sales','accountant','warehouse','purchasing','management','operations'];
 
   it('prints every row allowed to the current account when scope is all', () => {
