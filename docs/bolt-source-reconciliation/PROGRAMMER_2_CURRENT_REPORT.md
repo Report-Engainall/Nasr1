@@ -524,3 +524,19 @@ Earlier test failures remain recorded in `EXECUTION_LOG.md`; they were reproduce
 - PR #27 comment: 6323250396 — render/accept forecast in the real Reports page and test unavailable/incomplete data behavior.
 - PR #18 comment: 6323251176 — exact return browser proof and accounting acceptance batch.
 - Protocol: P2_PARALLEL_EXECUTION_PROTOCOL_2026-10-21.md. Keep one authoritative primary pointer: NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010. P2 continues to leave P1-locked Storefront/API/App shell/source ledgers untouched.
+
+
+## P2 real-work continuation — main-sync, accounting acceptance, price-grid transaction tests — 2026-10-21
+
+### Verified completed proof
+- Exact old head `a0e77eff3fdfda4cbd0b0605717853882d0bad7f`: [CI 39652376366](https://github.com/Report-Engainall/Nasr1/actions/runs/39652376366) and [Playwright 39652376394](https://github.com/Report-Engainall/Nasr1/actions/runs/39652376394) both SUCCESS. The local Postgres 17 acceptance includes the new cash-expense-to-ledger test and the Chromium return-specific workflow through creation of an unposted credit memo draft.
+- Current P2 branch was synchronized with current `main` in merge commit `2ecc14e4235039e9378c87e9df44517f74ce82be`; compare reports main is an ancestor, 35 ahead / 0 behind. CI for this merge tree: [39653248172](https://github.com/Report-Engainall/Nasr1/actions/runs/39653248172) and [39653248451](https://github.com/Report-Engainall/Nasr1/actions/runs/39653248451), active at last readback.
+
+### Added next acceptance gate
+- New P2-owned `scripts/test-price-grid-atomicity.mjs` + a dedicated step in `.github/workflows/p2-playwright-critical-paths.yml` test actual local PostgreSQL calls for: two-product atomic success and returned row IDs, manager actor audit, invalid later row rolling back the earlier change and audit record, duplicate-product rejection, concurrent stale writer (exactly one commit), and denial of ordinary customer writes. It seeds inactive isolated products, verifies environment is strictly local Supabase, and restores their initial prices.
+- Exact test PASS will only be recorded after the workflow for the final pushed SHA completes; previous code/CI proof is not enough for the new step.
+
+### P1 cooperation/open blockers
+- PR #26 remains Draft at last readback and owns `src/components/Storefront.tsx` plus `src/lib/api.ts`; task 010 remains the primary handoff because actual price-renderer integration and cart/order-review preview wiring still need P1-side implementation and rendered-browser regression checks.
+- PR #27 forecast feature remains separate; exact build CI passed on its prior SHA, but a real `/admin/reports` browser acceptance artifact remains open.
+- Protocol/source-ownership updates are in `P2_PARALLEL_EXECUTION_PROTOCOL_2026-10-21.md`; do not merge PR #18 and #26 concurrently.
