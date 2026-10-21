@@ -12,22 +12,27 @@ const runtimeTest = readFileSync(
 );
 
 describe("target-native catalog trigram indexes", () => {
-  it("provisions the extension schema before installing pg_trgm and uses Nasr1's searchable columns", () => {
-    expect(migration).toMatch(/CREATE SCHEMA IF NOT EXISTS extensions/i);
-    expect(migration.indexOf("CREATE SCHEMA IF NOT EXISTS extensions")).toBeLessThan(
-      migration.indexOf("CREATE EXTENSION IF NOT EXISTS pg_trgm"),
-    );
-    expect(migration).toMatch(/CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions/i);
-    expect(migration).toMatch(/ON public\.products USING gin \(name extensions\.gin_trgm_ops\)/i);
-    expect(migration).toMatch(/ON public\.products USING gin \(item_code extensions\.gin_trgm_ops\)/i);
+  it("resolves pg_trgm from the namespace available in Supabase or isolated PostgreSQL", () => {
+    expect(migration).toContain("CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions");
+    expect(migration).toContain("CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public");
+    expect(migration).toContain("v_extension_schema");
+    expect(migration).toContain("%I.gin_trgm_ops");
+  });
+
+  it("indexes Nasr1's real active-product search columns without importing donor sku schema", () => {
+    expect(migration).toContain("products_org_name_trgm_idx");
+    expect(migration).toContain("products_org_item_code_trgm_idx");
+    expect(migration).toContain("name %I.gin_trgm_ops");
+    expect(migration).toContain("item_code %I.gin_trgm_ops");
+    expect(migration).toContain("WHERE status = %L");
     expect(migration).not.toMatch(/USING gin \(sku\b/i);
   });
 
-  it("limits trigram indexes to active rows and tests the actual PostgreSQL operator", () => {
-    expect(migration).toMatch(/WHERE status = 'active'/i);
+  it("executes trigram matching using the installed PostgreSQL operator schema", () => {
+    expect(runtimeTest).toContain("pg_extension e join pg_namespace n on n.oid=e.extnamespace");
+    expect(runtimeTest).toContain("name OPERATOR(${trigramSchema}.%)");
+    expect(runtimeTest).toContain("item_code OPERATOR(${trigramSchema}.%)");
     expect(runtimeTest).toContain("products_org_name_trgm_idx");
     expect(runtimeTest).toContain("products_org_item_code_trgm_idx");
-    expect(runtimeTest).toMatch(/name OPERATOR\(extensions\.%\)/i);
-    expect(runtimeTest).toMatch(/item_code OPERATOR\(extensions\.%\)/i);
   });
 });
