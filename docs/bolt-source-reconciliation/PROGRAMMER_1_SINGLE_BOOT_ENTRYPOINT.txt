@@ -68,9 +68,10 @@ Task 0009 P1 implementation is closed. Source 0010 order concurrency is ALREADY_
 - **Next source task:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-011-AGHBCOM-ORDER-INPUT-0011`.
 
 
-## تحديث الاستئناف الحي — بعد إغلاق 0007
-- رأس كود/اختبار P1: 527700144cb55daa2865180e9c231d9187de280b
-- دليل CI على الرأس نفسه: https://github.com/Report-Engainall/Nasr1/actions/runs/39632513991 — SUCCESS؛ دليل قبول PostgreSQL 17 للكتالوج وارد في سجل المهمة أعلاه.
-- مهمة 0007 مغلقة؛ القرار التالي 0011 هو ALREADY_PRESENT_BETTER، مع إبقاء اختبارات حالات الإدخال السلبية غير المشغلة على NOT RUN.
-- المهمة غير المقيمة التالية: `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-012-AGHBCOM-CROSS-TENANT-0012` — `supabase/migrations/0012_cross_tenant_integrity.sql`, source blob `67cae6d6f3a62be65b39d17ff6d1a7bbc0cef318`. طابق المفاتيح المركبة مع مخطط Nasr1 الحالي قبل تنفيذ أي قيد؛ لا تنقل SQL المانح كما هو.
-- BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
+## آخر حالة مُلزمة — 2026-10-21, بعد القراءة الحية
+- الرأس المرصود عند كتابة هذا التحديث: a0650379499123deab79479b13714464db264792; PR #26 يبقى مفتوحًا.
+- 0007 Staff Catalog: مغلق. السبب الجذري: JSON.stringify(payload) أرسل نصًا scalar إلى $1::jsonb؛ admin.json(payload) عالج binding من دون تخفيف allowlist. المفتاح الوهمي shadow_tier_price مرفوض ويظهر في SQL DETAIL. التسعير يستخدم save_product_price_grid/product_prices، والتدقيق audit_logs.
+- 0012 Cross-Tenant Integrity: مغلق. target-native migrations: 20261021130000_target_native_tenant_integrity.sql (38f8504128aa52fe6c836a9e485913c3370b1025) و20261021140000_target_native_tenant_integrity_additional.sql (eb6c506a2d88dccf032a61ee68b5f03dd7ef5e99); static test 26f788427a4840861570cdb011d9f132b28a05f0. PostgreSQL 17 قبول رفض العلاقات العابرة للمؤسسات على SHA 5ac8969dcdf344822237e99449f9abce043f70ad مع Actions 39638446987 SUCCESS.
+- إصلاح متزامن إضافي: migration 20261021160000_target_native_catalog_trigram_search.sql أصبح ينشئ schema extensions إن لم يوجد قبل pg_trgm. اختبار runtime يفحص الفهرسين والمشغل الفعلي. CI على الرأس a0650379499123deab79479b13714464db264792: https://github.com/Report-Engainall/Nasr1/actions/runs/39640035840 كان IN_PROGRESS عند كتابة التحديث؛ لا تعتبره PASS قبل اكتماله.
+- المهمة التالية OPEN: NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-013-AGHBCOM-FINANCE-B2B-0013: المصدر supabase/migrations/0013_finance_b2b_pipeline.sql blob 75962ddec0c3c58d20c62e14a7303bfeb4782543. توجد محاسبة target-native أكثر صرامة، لكن يلزم مقارنة عملية سطح حسابات النقد وجميع حقول get_staff_dashboard_metrics واختبار القبول المتخصص قبل الإغلاق. لا تنسخ SQL المانح ولا تنشئ مسارًا ماليًا موازيًا.
+- احفظ ملفات P2 المشتركة من التعديل دون تنسيق صريح. BROWSER_PROVEN=NOT RUN؛ PRODUCTION_PROVEN=NOT RUN. فحص المتصفح لبولد نيو كما طلب المستخدم.
