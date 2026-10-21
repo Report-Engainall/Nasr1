@@ -103,6 +103,55 @@ describe("server-computed cart/order pricing presentation guard", () => {
     expect(resolveCustomerOrderPricingPresentation(true, withoutTotal)).toEqual({ visible: false });
   });
 
+  it("fails closed for empty, missing, or inconsistent server line counts", () => {
+    expect(resolveCustomerOrderPricingPresentation(true, {
+      ...validPayload,
+      items: [],
+      item_count: 0,
+    })).toEqual({ visible: false });
+
+    expect(resolveCustomerOrderPricingPresentation(true, {
+      ...validPayload,
+      item_count: 2,
+    })).toEqual({ visible: false });
+  });
+
+  it("fails closed for incomplete product identity/quantity and duplicate product lines", () => {
+    for (const line of [
+      { name: "صنف", quantity: 2, unit_price: 1234, line_total: 2468 },
+      { product_id: "product-1", name: " ", quantity: 2, unit_price: 1234, line_total: 2468 },
+      { product_id: "product-1", name: "صنف", quantity: "2", unit_price: 1234, line_total: 2468 },
+      { product_id: "product-1", name: "صنف", quantity: 0, unit_price: 1234, line_total: 2468 },
+    ]) {
+      expect(resolveCustomerOrderPricingPresentation(true, {
+        ...validPayload,
+        items: [line],
+        item_count: 1,
+      })).toEqual({ visible: false });
+    }
+
+    expect(resolveCustomerOrderPricingPresentation(true, {
+      ...validPayload,
+      items: [validPayload.items[0], validPayload.items[0]],
+      item_count: 2,
+    })).toEqual({ visible: false });
+  });
+
+  it("requires a supported preview surface and valid currency, and can reject a stale surface response", () => {
+    expect(resolveCustomerOrderPricingPresentation(true, {
+      ...validPayload,
+      surface: "invoice",
+    })).toEqual({ visible: false });
+
+    expect(resolveCustomerOrderPricingPresentation(true, {
+      ...validPayload,
+      currency: "YER ",
+    })).toEqual({ visible: false });
+
+    expect(resolveCustomerOrderPricingPresentation(true, validPayload, "orders")).toEqual({ visible: false });
+    expect(resolveCustomerOrderPricingPresentation(true, validPayload, "cart").visible).toBe(true);
+  });
+
   it("does not infer a hidden customer tier from the returned label alone", () => {
     const payload = { ...validPayload, customer_tier_visible: false, customer_tier_label: null };
     const result = resolveCustomerOrderPricingPresentation(true, payload);

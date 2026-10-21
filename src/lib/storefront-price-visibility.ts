@@ -12,6 +12,9 @@ export type StorefrontPricePresentation =
   | { visible: true; amount: number };
 
 type ServerPricedLine = Record<string, unknown> & {
+  product_id: string;
+  name: string;
+  quantity: number;
   unit_price: number;
   line_total: number;
 };
@@ -64,8 +67,30 @@ export function isCustomerTierVisible(policyValue: unknown): boolean {
 
 function isServerPricedLine(value: unknown): value is ServerPricedLine {
   return isRecord(value)
+    && typeof value.product_id === "string"
+    && value.product_id.trim().length > 0
+    && typeof value.name === "string"
+    && value.name.trim().length > 0
+    && typeof value.quantity === "number"
+    && Number.isFinite(value.quantity)
+    && Number.isInteger(value.quantity)
+    && value.quantity > 0
     && isFiniteNonNegativeAmount(value.unit_price)
     && isFiniteNonNegativeAmount(value.line_total);
+}
+
+function hasCompleteServerPricedLines(value: unknown, itemCount: unknown): value is ServerPricedLine[] {
+  if (
+    !Array.isArray(value)
+    || typeof itemCount !== "number"
+    || !Number.isSafeInteger(itemCount)
+    || itemCount <= 0
+    || itemCount !== value.length
+    || !value.every(isServerPricedLine)
+  ) {
+    return false;
+  }
+  return new Set(value.map((line) => line.product_id)).size === value.length;
 }
 
 /**
@@ -76,14 +101,18 @@ function isServerPricedLine(value: unknown): value is ServerPricedLine {
 export function resolveCustomerOrderPricingPresentation(
   policyValue: unknown,
   payload: unknown,
+  expectedSurface?: "cart" | "orders",
 ): CustomerOrderPricingPresentation {
   if (
     policyValue !== true
     || !isRecord(payload)
     || payload.visible !== true
-    || !Array.isArray(payload.items)
+    || (payload.surface !== "cart" && payload.surface !== "orders")
+    || (expectedSurface !== undefined && payload.surface !== expectedSurface)
+    || !hasCompleteServerPricedLines(payload.items, payload.item_count)
+    || typeof payload.currency !== "string"
+    || !/^[A-Z]{3}$/.test(payload.currency)
     || !isFiniteNonNegativeAmount(payload.total_amount)
-    || !payload.items.every(isServerPricedLine)
   ) {
     return { visible: false };
   }
@@ -97,7 +126,7 @@ export function resolveCustomerOrderPricingPresentation(
     visible: true,
     items: payload.items,
     totalAmount: payload.total_amount,
-    ...(typeof payload.currency === "string" ? { currency: payload.currency } : {}),
+    currency: payload.currency,
     customerTierVisible: payload.customer_tier_visible === true && customerTierLabel !== undefined,
     ...(payload.customer_tier_visible === true && customerTierLabel !== undefined
       ? { customerTierLabel }
