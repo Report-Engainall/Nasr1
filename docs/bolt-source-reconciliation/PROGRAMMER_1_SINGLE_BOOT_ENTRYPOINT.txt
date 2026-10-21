@@ -4,22 +4,22 @@
 الفرع المستمر: integration/inventory-transfer-batches-20261019-rebased
 PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (مفتوح؛ لا تدمج main مباشرة)
 
-آخر رأس PR #26 اجتاز CI بحسب بيانات GitHub الحالية:
-9cda76450b022b50cc3d005fbe16c1355c36638d
-CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39621297941 — SUCCESS على SHA نفسه (التحقق الحالي).
+آخر رأس كود/اختبار PR #26 تحقق منه GitHub قبل هذا التحديث الوثائقي:
+7b070783d25c4b0b6064a3792213ac45671c0f78
+CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39621935392 — SUCCESS على SHA نفسه 7b070783d25c4b0b6064a3792213ac45671c0f78. نجح test-and-build بما فيه PostgreSQL 17 واختبار staff catalog وlint/build وpreview/dev smoke.
 قبول كتالوج الموظفين 0007: Actions 39501610331 SUCCESS على SHA 9e070285e3e001a8661fe5c297f19face97fdcf5؛ اختبارات PostgreSQL 17 أثبتت CRUD/allowlist/price-grid/audit/tenant isolation/direct-DML denial.
-سبب الفشل الجذري: JSON.stringify(payload) أرسل JSON scalar نصيًا إلى $1::jsonb؛ الإصلاح admin.json(payload)، دون توسيع allowlist.
+سبب الفشل الجذري: حمولة الإنشاء نفسها لم تتضمن مفتاحًا غير مسموح؛ اختبار SHA القديم مرر JSON.stringify(p) كنص عادي إلى $1::jsonb، ومسار SQL القديم أعاد رسالة unsupported fields نفسها عند فشل نوع JSON. الإصلاح admin.json(payload) مع allowlist صارمة وإظهار DETAIL للمفتاح المرفوض الحقيقي.
 BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 
 المنجز وأدلته:
-1. Staff catalog 0007: root cause كان JSON.stringify payload الممرر كنص إلى $1::jsonb، وليس field صالحًا/غير صالح؛ الاختبار يستخدم admin.json، وتبقى allowlist صارمة. Prices عبر save_product_price_grid/product_prices، audit_logs، tenant isolation، منع DML المباشر. SQL donor لم يُطبق خامًا.
+1. Staff catalog 0007: CLOSED بعد PostgreSQL 17 runtime acceptance. السبب الجذري ليس حقلًا من payload: كل مفاتيح الإنشاء القديمة كانت allowlisted، لكن JSON.stringify(p) رُبط كنص؛ current test uses admin.json(payload). Strict allowlist now reports actual rejected keys (negative case: shadow_tier_price). Price changes exclusively via save_product_price_grid/product_prices; audit_logs uses authenticated actor+tenant.
 2. Import migration prefix collision: renamed to supabase/migrations/20261020180000_import_job_request_idempotency.sql (same SQL blob 9db693b4dbba4dcc397ba6b62800d4f2fa3aa246); contract test blob f8591475cceff314e4536b68bc4ff99c1c146311; exact-head Actions 39502788878 PASS. The P1/P2 import migration prefix collision is closed on the current branch pair.
 3. Stock-count start audit: scripts/test-stock-count-start-audit.mjs (blob 631f14a483588bf5e76f50bd6b824cddf654781c) يثبت سجلًا واحدًا بفاعل/مؤسسة صحيحين وmetadata معتمد فقط، ثم يعيد نفس idempotency key دون سجل مكرر. Workflow blob ab6621945156a437e8bb29cd60708ea92230fe65.
 4. Server pagination: المخطط الفعلي يستخدم inventory_balances(product_id,warehouse_id)، لا organization_id على inventory_balances؛ الأسعار عبر get_storefront_product_prices.
 5. Async order export: idempotent tenant/actor request, role gating, lease/retry cap, CSV safe escaping/BOM, private storage, SHA-256, 7-day expiry cleanup, 60-second signed URL, audit, Arabic UI route /admin/exports.
 6. Donor migration 0004_import_storage.sql بقيت مرجعًا؛ لا تطبق SQL غير المتوافق خامًا.
 
-كتالوج الموظفين 0007: CLOSED؛ JSON.stringify قبل $1::jsonb سبب التحويل إلى scalar. الاختبار الحالي يستخدم admin.json(payload) ويظل رفض shadow_tier_price فعالًا. المصدر blob 239789342a29a824852185cdbb95de7906900dbc؛ target SQL blob 309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa؛ runtime test blob 29f3ae2db8a320695181c7664a969d9885c96914.
+كتالوج الموظفين 0007: CLOSED؛ target SQL blob 309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa؛ test blob 29f3ae2db8a320695181c7664a969d9885c96914؛ Actions 39621935392 SUCCESS on exact code/test head 7b070783d25c4b0b6064a3792213ac45671c0f78. Browser/production NOT RUN.
 
 المراجعة التالية: 0005_order_state_machine = ALREADY_PRESENT_BETTER في target migration 20261009050000_order_transition_integrity.sql (blob 57ba9360e48cbf1cf4ba7c30b37631102bea776c).
 الفجوة التالية غير المكتملة: 0009_fix_import_inventory_delta.sql (blob 0a6ce547791c5103c89fc74be0e4424cdec5d146). الحالة DEFERRED_PENDING_P2_INVENTORY_RECONCILIATION_CONTRACT: schema المانح قديم، وتكامل Onyx inventory reconciliation يتقاطع مع PR #18 غير المدمج. لا تطبق SQL خامًا ولا تنشئ مسار كتابة مخزون موازيًا. تفعيل العميل يظل BLOCKED_BY_P2_MIGRATION_RECONCILIATION؛ لا تعدّل ملفات P2-owned.
@@ -44,3 +44,9 @@ BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 - 480/480 unit tests وPostgreSQL 17 migrations/core acceptance وlint/build/preview/dev smoke PASS على هذا الرأس. BROWSER_PROVEN=NOT RUN؛ PRODUCTION_PROVEN=NOT RUN.
 - المهمة 0009 لا تزال مفتوحة: لا تنفيذ لتغيير الكمية التشغيلي حتى يُحل تصادم migration بين P1/P2 ويُقبل اختبار معاينة/تطبيق/إعادة تشغيل/تراجع باستخدام RPCs الرسمية على الرأس المشترك. لا تطبق donor SQL القديم ولا تنشئ مسار كتابة مخزون موازيًا.
 - طلب التنسيق في PR #18: https://github.com/Report-Engainall/Nasr1/pull/18#issuecomment-6318750176
+
+
+تحديث استئناف P1 — 2026-10-21
+- التحقق السابق لتحديث ملفات الأدلة: PR #26 head 7b070783d25c4b0b6064a3792213ac45671c0f78, Actions 39621935392 SUCCESS على SHA نفسه. هذا تحديث وثائقي لا يغير SQL أو الاختبار؛ تحقّق من Actions المرتبط بالرأس الناتج قبل تعميم نجاح الرأس الجديد.
+- 0007 مغلق: no create-payload member was outside the allowlist; typed JSON binding and explicit key-detail validation are now tested. Do not use the old generic error string to justify widening allowlist.
+- المهمة التالية: NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-009-AGHBCOM-IMPORT-INVENTORY-0009 — partial import snapshot/read-only contract only. Operational inventory delta stays deferred pending P2 canonical preview/apply/replay/rollback contract on the combined PR #26/#18, and migration-order reconciliation. No parallel stock writes; P2-owned paths remain untouched.
