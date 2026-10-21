@@ -167,7 +167,7 @@ async function main() {
     assert.equal(snapshots[0].source_file_hash, fileHash, "snapshot must preserve the source file hash");
 
     const persistedRows = await readAsOwner(
-      "select row_number,canonical_key,row_hash,status,data from public.onyx_snapshot_rows " +
+      "select row_number,canonical_key,row_hash,status,data,md5(data::text) as computed_row_hash from public.onyx_snapshot_rows " +
         "where snapshot_id=$1::uuid and organization_id=$2::uuid order by row_number",
       [finalized.snapshot_id, organizationId],
     );
@@ -183,6 +183,11 @@ async function main() {
       assert.equal(persisted.data.warehouse_code, expected.warehouse_code, "snapshot must preserve warehouse code scope");
       assert.equal(persisted.data.warehouse_name, expected.warehouse_name, "snapshot must preserve warehouse name scope");
       assert.match(persisted.row_hash, /^[0-9a-f]{32}$/, "snapshot row hash must be persisted");
+      assert.equal(
+        persisted.row_hash,
+        persisted.computed_row_hash,
+        "snapshot row hash must match the canonical Onyx apply-time check md5(data::text)",
+      );
     }
 
     const afterFinalize = await snapshotStock();
