@@ -14,6 +14,8 @@ const paginationCodes = ["CI-P1-PAGE-001", "CI-P1-PAGE-002", "CI-P1-PAGE-003"];
 const name = "CI P1 Category";
 const foreignCode = "CI-P1-CAT-FOREIGN-001";
 const foreignName = "CI P1 Foreign Category";
+const metricsOrderNumbers = ["CI-P1-METRICS-PENDING","CI-P1-METRICS-CONFIRMED","CI-P1-METRICS-PROCESSING","CI-P1-METRICS-SHIPPED","CI-P1-METRICS-DELIVERED","CI-P1-METRICS-CANCELLED"];
+const metricsForeignOrderNumber = "CI-P1-METRICS-FOREIGN";
 const root = postgres(url, { max: 1, prepare: false });
 const admin = postgres(url, { max: 1, prepare: false });
 const customer = postgres(url, { max: 1, prepare: false });
@@ -30,6 +32,11 @@ async function rpc(connection, query, args) {
   return (await connection.unsafe(query, args))[0]?.result;
 }
 async function cleanup() {
+  await root.unsafe(
+    "delete from public.orders where (organization_id=$1 and order_number=any($2::text[])) " +
+      "or (organization_id=$3 and order_number=any($4::text[]))",
+    [org, metricsOrderNumbers, otherOrg, [metricsForeignOrderNumber]],
+  ).catch(() => {});
   await root.unsafe(
     "delete from public.audit_logs where organization_id=$1 and entity_id in " +
       "(select id from public.products where organization_id=$1 and item_code = any($2::text[]))",
@@ -106,6 +113,12 @@ async function main() {
       "values($1,'CI P1 Cross Tenant Warehouse','CI-P1-XTENANT',true) returning id",
     [otherOrg],
   ))[0].id;
+  await root.unsafe(
+    "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved) " +
+      "values($1,$2,700,0) on conflict(product_id,warehouse_id) do update " +
+      "set quantity_on_hand=excluded.quantity_on_hand,quantity_reserved=excluded.quantity_reserved",
+    [foreignProduct, foreignWarehouse],
+  );
 
   const localWarehouse = (await root.unsafe(
     "insert into public.warehouses(organization_id,name,code,is_active) " +
@@ -504,6 +517,97 @@ async function main() {
   assert.ok(auditRows.length >= 6, "expected a full product/category audit trail");
   assert.ok(actor && auditRows.every((row) => row.actor_id === actor), "audit rows retain the authenticated profile identity");
 
+
+  // Target-native finance parity: metrics aggregate only the authenticated profile's organization.
+  const metricsBeforeRows = await admin.unsafe("select * from public.get_staff_dashboard_metrics()");
+  assert.equal(metricsBeforeRows.length, 1, "dashboard metrics return exactly one tenant-scoped row");
+  await root.unsafe(
+    "insert into public.orders(organization_id,customer_id,order_number,status,total_amount) " +
+      "select $1,$2,fixture.order_number,fixture.status,fixture.total_amount " +
+      "from unnest($3::text[],$4::text[],$5::numeric[]) as fixture(order_number,status,total_amount)",
+    [org, localCustomer, metricsOrderNumbers,
+      ["pending","confirmed","processing","shipped","delivered","cancelled"], [1,2,3,4,6,7]],
+  );
+  await root.unsafe(
+    "insert into public.orders(organization_id,customer_id,order_number,status,total_amount) " +
+      "values($1,$2,$3,'delivered',800)",
+    [otherOrg, foreignCustomer, metricsForeignOrderNumber],
+  );
+  const metricsAfterRows = await admin.unsafe("select * from public.get_staff_dashboard_metrics()");
+  assert.equal(metricsAfterRows.length, 1, "dashboard metrics remain available after seeded movements");
+  const metricsBefore = metricsBeforeRows[0];
+  const metricsAfter = metricsAfterRows[0];
+  assert.equal(Number(metricsAfter.orders_total)-Number(metricsBefore.orders_total), 6,
+    "orders_total changes only for the six rows created inside this organization");
+  for (const [key, label] of [
+    ["orders_pending","pending orders"],
+    ["orders_confirmed","confirmed orders"],
+    ["orders_preparing","processing/preparing orders"],
+    ["orders_ready","shipped/ready orders"],
+    ["orders_completed","delivered/completed orders"],
+    ["orders_cancelled","cancelled orders"],
+  ]) {
+    assert.equal(Number(metricsAfter[key])-Number(metricsBefore[key]), 1,
+      label + " metric maps the target state machine to the legacy dashboard contract");
+  }
+  assert.equal(Number(metricsAfter.completed_sales)-Number(metricsBefore.completed_sales), 6,
+    "completed sales include the local delivered order but exclude the foreign tenant's 800-unit order");
+
+  const expectedMetricsRows = await root.unsafe(
+    `WITH stock_rows AS (
+       SELECT p.unit,ib.id AS balance_id,ib.quantity_available
+       FROM public.products p
+       JOIN public.warehouses w ON w.organization_id=p.organization_id AND w.is_active=true
+       LEFT JOIN public.inventory_balances ib ON ib.product_id=p.id AND ib.warehouse_id=w.id
+       WHERE p.organization_id=$1 AND p.status='active'
+     ),
+     stock_rollup AS (
+       SELECT CASE
+         WHEN NOT EXISTS(SELECT 1 FROM public.products p WHERE p.organization_id=$1 AND p.status='active') THEN 0::numeric
+         WHEN NOT EXISTS(SELECT 1 FROM public.warehouses w WHERE w.organization_id=$1 AND w.is_active=true) THEN NULL::numeric
+         WHEN count(*) FILTER(WHERE sr.balance_id IS NULL)>0 THEN NULL::numeric
+         WHEN count(DISTINCT sr.unit)>1 THEN NULL::numeric
+         ELSE coalesce(sum(sr.quantity_available),0)::numeric
+       END AS available_stock FROM stock_rows sr
+     ),
+     invoice_balances AS (
+       SELECT i.id,i.currency,greatest(i.total_amount-coalesce(sum(cp.amount),0),0)::numeric AS outstanding
+       FROM public.customer_invoices i
+       LEFT JOIN public.customer_payments cp ON cp.invoice_id=i.id AND cp.organization_id=i.organization_id
+       WHERE i.organization_id=$1 AND i.status<>'void'
+       GROUP BY i.id,i.currency,i.total_amount
+     ),
+     receivables_rollup AS (
+       SELECT CASE WHEN count(DISTINCT ib.currency) FILTER(WHERE ib.outstanding>0)>1
+         THEN NULL::numeric ELSE coalesce(sum(ib.outstanding),0)::numeric END AS receivables_issued
+       FROM invoice_balances ib
+     )
+     SELECT
+       (SELECT count(*)::bigint FROM public.customers c WHERE c.organization_id=$1 AND c.status='approved') AS active_customers,
+       (SELECT count(*)::bigint FROM public.products p WHERE p.organization_id=$1 AND p.status='active') AS active_products,
+       (SELECT coalesce(sum(o.total_amount),0)::numeric FROM public.orders o WHERE o.organization_id=$1 AND o.status IN ('delivered','completed')) AS completed_sales,
+       (SELECT available_stock FROM stock_rollup) AS available_stock,
+       (SELECT receivables_issued FROM receivables_rollup) AS receivables_issued`,
+    [org],
+  );
+  assert.equal(Number(metricsAfter.active_customers), Number(expectedMetricsRows[0].active_customers),
+    "active customers count only approved customers in the current organization");
+  assert.equal(Number(metricsAfter.active_products), Number(expectedMetricsRows[0].active_products),
+    "active products count only current-organization active catalog rows");
+  assert.equal(Number(metricsAfter.completed_sales), Number(expectedMetricsRows[0].completed_sales),
+    "completed sales match organization-scoped delivered/completed order source amounts");
+  assert.equal(metricsAfter.available_stock === null ? null : Number(metricsAfter.available_stock),
+    expectedMetricsRows[0].available_stock === null ? null : Number(expectedMetricsRows[0].available_stock),
+    "stock summary follows current organization coverage and avoids adding unlike units or treating missing balances as zero");
+  assert.equal(metricsAfter.receivables_issued === null ? null : Number(metricsAfter.receivables_issued),
+    expectedMetricsRows[0].receivables_issued === null ? null : Number(expectedMetricsRows[0].receivables_issued),
+    "receivables are computed from invoice minus recorded payments and never add unlike currencies");
+  await assert.rejects(
+    () => customer.unsafe("select * from public.get_staff_dashboard_metrics()"),
+    /active same-organization staff or finance permission required/i,
+    "a customer without the staff/finance boundary cannot read organization dashboard metrics",
+  );
+
   await runOrderInputHardeningAcceptance({
     root, admin, customer, org, adminAuth, customerAuth, foreignProduct,
   });
@@ -512,7 +616,7 @@ async function main() {
   await customer.unsafe("reset role");
   await cleanup();
   console.log(
-    "PASS admin catalog commands: create/update/archive product and category, explicit key rejection, canonical price RPC/stale-write rejection, tenant isolation, audit identity, and direct-DML denial",
+    "PASS admin catalog + finance dashboard: catalog CRUD/strict prices/audit/tenant DML denial; dashboard KPI mapping, finance aggregates, unknown-stock/multi-unit and multi-currency safety, and cross-tenant isolation",
   );
 }
 
