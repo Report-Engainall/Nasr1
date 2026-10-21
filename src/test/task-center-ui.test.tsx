@@ -124,6 +124,27 @@ describe("TaskCenter role-boundary and print integration", () => {
     expect(screen.queryByRole("option", { name: "المحاسبة والتحصيل" })).not.toBeInTheDocument();
   });
 
+  it("keeps summary metrics inside the same role boundary as visible task rows", async () => {
+    setUser(["staff"]);
+    mocks.fetchOperationalTasks.mockResolvedValue([
+      task({ id: "visible-open", title: "مهمة بيع مرئية", task_role: "sales", status: "pending" }),
+      task({ id: "visible-complete", title: "مهمة مخزن مكتملة", task_role: "warehouse", status: "completed", completed_at: "2026-10-21T11:00:00.000Z" }),
+      task({ id: "hidden-finance-late", title: "مهمة محاسبة مخفية", task_role: "accountant", status: "pending", due_at: "2020-01-01T00:00:00.000Z" }),
+      task({ id: "hidden-management-complete", title: "مهمة إدارة مخفية", task_role: "management", status: "completed", completed_at: "2026-10-21T11:00:00.000Z" }),
+    ]);
+
+    render(<TaskCenter onNotice={vi.fn()} />);
+    await screen.findByRole("heading", { name: "مهمة بيع مرئية" });
+    expect(screen.queryByText("مهمة محاسبة مخفية")).not.toBeInTheDocument();
+
+    const openMetrics = screen.getByText("المهام المفتوحة").closest("article");
+    expect(within(openMetrics as HTMLElement).getByText((1).toLocaleString("ar-YE"))).toBeInTheDocument();
+    const lateMetrics = screen.getByText("متأخرة حسب موعد المصدر").closest("article");
+    expect(within(lateMetrics as HTMLElement).getByText((0).toLocaleString("ar-YE"))).toBeInTheDocument();
+    const completedMetrics = screen.getByText("مكتملة").closest("article");
+    expect(within(completedMetrics as HTMLElement).getByText((1).toLocaleString("ar-YE"))).toBeInTheDocument();
+  });
+
   it("prints only the currently searched rows when the print scope is filtered", async () => {
     setUser(["manager"]);
     render(<TaskCenter onNotice={vi.fn()} />);

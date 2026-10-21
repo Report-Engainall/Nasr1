@@ -127,9 +127,14 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     return true;
   }, [statusFilter,priorityFilter,assigneeFilter,createdFrom,createdTo,search]);
 
+  // Apply the same authorized role scope to cards, print output and every summary metric.
+  const roleScopedTasks = useMemo(
+    () => tasks.filter((task) => allowedRoles.includes(task.task_role)),
+    [tasks,allowedRoles],
+  );
   const filteredWithoutRole = useMemo(
-    () => tasks.filter((task) => allowedRoles.includes(task.task_role) && matchesNonRoleFilters(task)),
-    [tasks,matchesNonRoleFilters,allowedRoles],
+    () => roleScopedTasks.filter(matchesNonRoleFilters),
+    [roleScopedTasks,matchesNonRoleFilters],
   );
   const filtered = useMemo(
     () => filteredWithoutRole.filter((task) => roleFilter === 'all' || task.task_role === roleFilter),
@@ -145,9 +150,9 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       ? 'كل المهام المسموحة'
       : roleLabels[printScope];
 
-  const openCount = tasks.filter((task) => !['completed','cancelled'].includes(task.status)).length;
-  const lateCount = tasks.filter(isLate).length;
-  const completedCount = tasks.filter((task) => task.status === 'completed').length;
+  const openCount = roleScopedTasks.filter((task) => !['completed','cancelled'].includes(task.status)).length;
+  const lateCount = roleScopedTasks.filter(isLate).length;
+  const completedCount = roleScopedTasks.filter((task) => task.status === 'completed').length;
 
   async function performStatus(task: OperationalTask, status: OperationalTaskStatus) {
     setBusy(true); setError('');
