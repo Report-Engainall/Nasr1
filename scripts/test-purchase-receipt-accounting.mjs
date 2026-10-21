@@ -58,6 +58,30 @@ async function makeReceipt(manager, cost) {
   assert.ok(po?.id, "purchase order creation returns a source order");
   await rpcJson("select public.submit_purchase_order($1::uuid) as result", [po.id]);
   await db.unsafe("reset role");
+  const orderTaskKey = "purchase-order-receiving:" + po.id;
+  const initialOrderTask = await db.unsafe(
+    "select task_role,status,source_entity_type from public.ai_tasks where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId, orderTaskKey],
+  );
+  assert.equal(initialOrderTask.length, 1, "submitting a purchase order creates one source-linked receiving task");
+  assert.equal(initialOrderTask[0].task_role, "purchasing");
+  assert.equal(initialOrderTask[0].status, "pending");
+  assert.equal(initialOrderTask[0].source_entity_type, "purchase_orders");
+
+  // Exercise refresh as a real manager, after deliberately removing only this CI fixture's task.
+  await db.unsafe("delete from public.ai_tasks where organization_id=$1::uuid and source_event_key=$2", [organizationId, orderTaskKey]);
+  await setIdentity(manager.auth_user_id, manager.email);
+  const refreshed = await rpcJson("select public.refresh_operational_tasks() as result", []);
+  assert.equal(refreshed.organization_id, organizationId, "task refresh remains tenant-bound");
+  await db.unsafe("reset role");
+  const rebuiltOrderTask = await db.unsafe(
+    "select task_role,status,source_entity_type from public.ai_tasks where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId, orderTaskKey],
+  );
+  assert.equal(rebuiltOrderTask.length, 1, "refresh reconstructs the missing task exactly once");
+  assert.equal(rebuiltOrderTask[0].task_role, "purchasing");
+  assert.equal(rebuiltOrderTask[0].status, "pending");
+
   const itemRows = await db.unsafe(
     "select id from public.purchase_order_items where organization_id=$1::uuid and purchase_order_id=$2::uuid", [organizationId, po.id],
   );
@@ -68,6 +92,26 @@ async function makeReceipt(manager, cost) {
     [po.id, db.json([{ item_id: itemRows[0].id, quantity: 1 }]), "CI physical receipt", "pr-" + randomUUID().replaceAll("-", "")],
   );
   assert.ok(received.receipt?.id, "receipt RPC returns a persisted receipt identifier");
+  await db.unsafe("reset role");
+  const orderTaskAfterReceipt = await db.unsafe(
+    "select status,completed_at from public.ai_tasks where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId, orderTaskKey],
+  );
+  assert.equal(orderTaskAfterReceipt.length, 1, "the source-linked purchase order task remains unique after receipt");
+  assert.equal(orderTaskAfterReceipt[0].status, "completed", "full physical receipt closes the purchaser follow-up task");
+  assert.ok(orderTaskAfterReceipt[0].completed_at, "automatic completion is timestamped");
+
+  const receiptTaskKey = cost !== null && cost > 0
+    ? "purchase-receipt-accounting:" + received.receipt.id
+    : "purchase-receipt-cost-review:" + received.receipt.id;
+  const receiptTasks = await db.unsafe(
+    "select task_role,status,source_entity_type,task_payload from public.ai_tasks where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId, receiptTaskKey],
+  );
+  assert.equal(receiptTasks.length, 1, "physical receiving creates exactly one role-scoped receipt task");
+  assert.equal(receiptTasks[0].task_role, cost !== null && cost > 0 ? "accountant" : "purchasing");
+  assert.equal(receiptTasks[0].status, "pending", "receipt follow-up remains open until its source action is completed");
+  assert.equal(receiptTasks[0].source_entity_type, "purchase_receipts");
   return { purchaseOrderId: po.id, receiptId: received.receipt.id, receiptNumber: received.receipt.receipt_number };
 }
 async function callPrepare(receiptId, inventoryAccountId, payableAccountId, key = randomUUID()) {
@@ -102,6 +146,29 @@ async function main() {
   assert.equal(prepared.replayed, false);
   assert.ok(prepared.journal_entry_id);
 
+  await db.unsafe("reset role");
+  const preparedTask = await db.unsafe(
+    "select task_role,status,completed_at,resolution_note from public.ai_tasks where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId, "purchase-receipt-accounting:" + first.receiptId],
+  );
+  assert.equal(preparedTask.length, 1, "receipt accounting task has a durable source event key");
+  assert.equal(preparedTask[0].task_role, "accountant");
+  assert.equal(preparedTask[0].status, "completed", "creating the linked journal draft closes the accounting preparation task");
+  assert.ok(preparedTask[0].completed_at, "accounting task completion is timestamped");
+  assert.match(preparedTask[0].resolution_note ?? "", /مسودة القيد|مسودة/i, "task closeout states the source-linked draft outcome");
+
+  await setIdentity(manager.auth_user_id, manager.email);
+  const refreshAfterPosting = await rpcJson("select public.refresh_operational_tasks() as result", []);
+  assert.equal(refreshAfterPosting.organization_id, organizationId);
+  await db.unsafe("reset role");
+  const refreshedPreparedTask = await db.unsafe(
+    "select count(*)::integer as count, min(status) as status from public.ai_tasks where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId, "purchase-receipt-accounting:" + first.receiptId],
+  );
+  assert.equal(refreshedPreparedTask[0].count, 1, "refresh must not duplicate a receipt task");
+  assert.equal(refreshedPreparedTask[0].status, "completed", "refresh must not reopen a completed task with an existing journal draft");
+
+  await setIdentity(manager.auth_user_id, manager.email);
   const replay = await callPrepare(first.receiptId, inventoryAccount.id, payableAccount.id, randomUUID());
   assert.equal(replay.journal_entry_id, prepared.journal_entry_id, "a retry must reuse the one receipt-linked journal");
   assert.equal(replay.replayed, true);
@@ -142,6 +209,20 @@ async function main() {
   await expectFailure("receipt with unknown source cost cannot create a journal",
     () => callPrepare(incomplete.receiptId, inventoryAccount.id, payableAccount.id),
     /no positive source-backed received cost/i);
+  await db.unsafe("reset role");
+  const incompleteCostTasks = await db.unsafe(
+    "select task_role,status,task_payload from public.ai_tasks where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId, "purchase-receipt-cost-review:" + incomplete.receiptId],
+  );
+  assert.equal(incompleteCostTasks.length, 1, "unknown-cost receipt creates one source-linked purchaser follow-up");
+  assert.equal(incompleteCostTasks[0].task_role, "purchasing");
+  assert.equal(incompleteCostTasks[0].status, "pending");
+  assert.equal(incompleteCostTasks[0].task_payload.requires_source_cost_reconciliation, true);
+  const unsupportedAccountantTasks = await db.unsafe(
+    "select count(*)::integer as count from public.ai_tasks where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId, "purchase-receipt-accounting:" + incomplete.receiptId],
+  );
+  assert.equal(unsupportedAccountantTasks[0].count, 0, "unknown cost must not create a misleading accounting draft task");
   const orgCurrency = await db.unsafe("select currency from public.organizations where id=$1::uuid", [organizationId]);
   assert.equal(orgCurrency[0]?.currency, "YER", "the isolated test tenant uses its explicit configured YER currency");
   process.stdout.write("PASS purchase receipt accounting: source-backed cost only, YER policy, balanced inventory/AP draft, durable source link, idempotent replay, customer denial, direct-write denial, and unknown-cost rejection\n");
