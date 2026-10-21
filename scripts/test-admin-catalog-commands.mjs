@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import postgres from "postgres";
+import { runOrderInputHardeningAcceptance } from "./test-order-input-hardening.mjs";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL required");
@@ -347,6 +348,10 @@ async function main() {
   }
   assert.ok(auditRows.length >= 6, "expected a full product/category audit trail");
   assert.ok(actor && auditRows.every((row) => row.actor_id === actor), "audit rows retain the authenticated profile identity");
+
+  await runOrderInputHardeningAcceptance({
+    root, admin, customer, org, adminAuth, customerAuth, foreignProduct,
+  });
 
   await admin.unsafe("reset role");
   await customer.unsafe("reset role");
