@@ -1,10 +1,16 @@
 # P1 — رسالة إقلاع واحدة مختصرة
 التاريخ: 2026-10-21
 المستودع الوحيد: https://github.com/Report-Engainall/Nasr1
-main المدموج المثبت: `6e97fb35be9ebf65c546a3d5e9615063853c8eab`
-فرع الاستكمال الجاري: `feat/storefront-price-policy-browser-acceptance-20261021`
-PR التسليم والقبول المخصص: https://github.com/Report-Engainall/Nasr1/pull/29
-PR #18 merged as `f00e609013e248de4ecb94c41e31296884f899cf`; PR #26 merged as `6e97fb35be9ebf65c546a3d5e9615063853c8eab`.
+رأس main المدموج: 1eb57a661b413c9c7d0321dccca70e5d6a0e42fe (tree abc1fe1e247a207347b7c05428485436963c4e8a)
+PR #18 merged: f00e609013e248de4ecb94c41e31296884f899cf
+PR #26 merged: 6e97fb35be9ebf65c546a3d5e9615063853c8eab
+PR #29 merged: 1eb57a661b413c9c7d0321dccca70e5d6a0e42fe — اختبار Chromium المخصص لسياسة السعر.
+Core CI على رأس main: https://github.com/Report-Engainall/Nasr1/actions/runs/39662642889 — COMPLETED/SUCCESS.
+P2 Playwright على SHA f97dae32eb1308e677a3ce04c6e5442146e40a02 / الشجرة المطابقة abc1fe1e247a207347b7c05428485436963c4e8a: https://github.com/Report-Engainall/Nasr1/actions/runs/39662020868 — COMPLETED/SUCCESS.
+سجل Chromium في main: 1 passed خلال 4.7 ثانية. فحوص PostgreSQL 17 والوحدة وlint/build وpreview/dev smoke نجحت.
+حد الإثبات: BROWSER_PROVEN=PASS لسلوك ProductGrid/ProductDetail في fixture محلي؛ REMOTE_SETTINGS_RPC_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN. اختبار hosted-account منفصل كان SKIPPED؛ لا تعتبره PASS.
+صفوف 0007/0009/011-order-input/012-tenant/013-finance محدثة إلى هذا الإثبات، ومهمة customer-price privacy 010 وChromium acceptance موثقتان. لا تُعد PR #18/#26/#29 إلى حالة مفتوحة.
+
 
 آخر رأس كود/اختبار P1+P2 تم التحقق منه حيًا من GitHub:
 bbcb894f003fc2e1b0a5b85c67c128b779d3f30c
@@ -119,3 +125,6 @@ Task 0009 P1 implementation is closed. Source 0010 order concurrency is ALREADY_
 - حالات الإثبات: `IMPLEMENTED=YES; INTEGRATED=YES; TESTED_EXACT_SHA=PASS`; `BROWSER_PROVEN=NOT RUN` لتفاعل سياسة السعر نفسه؛ `PRODUCTION_PROVEN=NOT RUN`. لا تخلط smoke الواجهة العام بإثبات سياسة السعر في متصفح.
 - المهمة المصدرية 0007 باقية مغلقة على إثباتها السابق: `18b0c8a8f3f03a3f5ad188357690223e3749628f` / Actions 39647895468 SUCCESS؛ السبب الجذري كان ربط JSON كنص عبر `JSON.stringify(payload)`, وتم إصلاحه بـ `admin.json(payload)` مع إبقاء قائمة الحقول الصارمة.
 - التالي: مراجعة عناصر السجل غير المغلقة على الرأس المشترك `65267f08f9c5e17204d33805ca2eb23be0b10bd4`; لا تُغلق PR #26 ولا تعلن دمجًا إلى `main` ما دام PR بحالة Draft.
+
+تحديث ما بعد دمج PR #29: رأس الإثبات 1eb57a661b413c9c7d0321dccca70e5d6a0e42fe; شجرة الكود abc1fe1e247a207347b7c05428485436963c4e8a; Core Actions 39662642889 SUCCESS؛ P2 Actions 39662020868 SUCCESS على SHA f97dae32eb1308e677a3ce04c6e5442146e40a02 بنفس الشجرة. جميع قيم الأسعار تبقى server-resolved؛ remote settings RPC والإنتاج NOT RUN.
+العمل التالي: مراجعة BROWSER_PROVEN=NOT RUN للمهمة NASR1-ORIGINAL-SPEC-TASK-PRINT-001؛ استخدم البيانات الفعلية والاختبارات في المستودع، ولا تدّعِ إثبات متصفح/إنتاج قبل وجوده.
