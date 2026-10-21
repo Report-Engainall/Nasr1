@@ -790,8 +790,8 @@ async function main() {
   assert.ok(balanceBeforeRow);
   const balanceBefore=Number(balanceBeforeRow.balance);
   const stockBefore=(await db.unsafe(
-    "select count(*)::integer as count from public.inventory_movements where organization_id=$1::uuid and reference_type='customer_return_request' and reference_id=$2::uuid",
-    [organizationId,firstRequest.request_id],
+    "select count(*)::integer as count from public.inventory_movements where reference_type='customer_return_request' and reference_id=$1::uuid",
+    [firstRequest.request_id],
   ))[0].count;
 
   await setIdentity(customerOneAuthId,"ci-customer-one@example.test");
@@ -894,8 +894,8 @@ async function main() {
   assert.equal(audit.length,1);
   assert.equal(audit[0].actor_id,managerProfileId);
   const stockAfter=(await db.unsafe(
-    "select count(*)::integer as count from public.inventory_movements where organization_id=$1::uuid and reference_type='customer_return_request' and reference_id=$2::uuid",
-    [organizationId,firstRequest.request_id]))[0].count;
+    "select count(*)::integer as count from public.inventory_movements where reference_type='customer_return_request' and reference_id=$1::uuid",
+    [firstRequest.request_id]))[0].count;
   assert.equal(stockAfter,stockBefore,"financial reversal creates no stock movement or cash refund");
 
   process.stdout.write("PASS customer returns: tenant ownership, delivered-order gate, line quantities, idempotent replay/conflict, direct-write denial, customer privacy, manager decisions/audit, warehouse inspection task, accountant denial, and no automatic stock movement.\n");
