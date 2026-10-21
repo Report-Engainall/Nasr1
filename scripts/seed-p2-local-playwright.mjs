@@ -29,8 +29,14 @@ const preferredWarehouseId = "d0000000-0000-0000-0000-000000000001";
 const runKey = (process.env.GITHUB_RUN_ID || "local") + "-" + randomUUID().slice(0, 8);
 const passwordA = randomUUID().replaceAll("-", "") + "Aa1!";
 const passwordB = randomUUID().replaceAll("-", "") + "Bb2!";
+const managerPassword = randomUUID().replaceAll("-", "") + "Mm3!";
 const emailA = "p2.local.e2e.a." + runKey + "@example.test";
 const emailB = "p2.local.e2e.b." + runKey + "@example.test";
+const managerEmail = "p2.local.e2e.manager." + runKey + "@example.test";
+const returnOrderId = randomUUID();
+const returnOrderNumber = "P2-RET-" + runKey.replaceAll("-", "").slice(-12).toUpperCase();
+const returnInvoiceNumber = "INV-" + returnOrderNumber;
+const returnItemName = "P2 Playwright Return Item";
 
 const db = postgres(connectionString, { max: 2, prepare: false, idle_timeout: 5 });
 
@@ -58,13 +64,17 @@ async function createConfirmedUser(email, password, fullName) {
 
 async function main() {
   // Mask every ephemeral identity/credential before the next Actions step echoes inherited env.
-  for (const value of [emailA, passwordA, emailB, passwordB, apiUrl, publishableKey, serviceRoleKey, connectionString]) {
+  for (const value of [emailA, passwordA, emailB, passwordB, managerEmail, managerPassword, apiUrl, publishableKey, serviceRoleKey, connectionString]) {
     process.stdout.write("::add-mask::" + value + String.fromCharCode(10));
   }
   const userAId = await createConfirmedUser(emailA, passwordA, "P2 Local E2E Customer A");
   const userBId = await createConfirmedUser(emailB, passwordB, "P2 Local E2E Customer B");
+  const managerUserId = await createConfirmedUser(managerEmail, managerPassword, "P2 Local E2E Manager");
   let profileAId;
   let profileBId;
+  let managerProfileId;
+  let returnReceivableAccountId;
+  let returnRevenueAccountId;
   const suffix = runKey.replaceAll("-", "").slice(-12);
 
   await db.begin(async (tx) => {
@@ -103,10 +113,11 @@ async function main() {
     };
     profileAId = await upsertProfile(userAId, organizationId, "P2 Local E2E Customer A", emailA);
     profileBId = await upsertProfile(userBId, foreignOrganizationId, "P2 Local E2E Customer B", emailB);
+    managerProfileId = await upsertProfile(managerUserId, organizationId, "P2 Local E2E Manager", managerEmail);
     await tx.unsafe(
-      "insert into public.user_roles(profile_id,role) values($1::uuid,'customer'),($2::uuid,'customer') " +
+      "insert into public.user_roles(profile_id,role) values($1::uuid,'customer'),($2::uuid,'customer'),($3::uuid,'manager') " +
       "on conflict(profile_id,role) do nothing",
-      [profileAId, profileBId],
+      [profileAId, profileBId, managerProfileId],
     );
     await tx.unsafe(
       "insert into public.customers(" +
@@ -152,6 +163,59 @@ async function main() {
       "on conflict(organization_id,key) do update set value=excluded.value,category=excluded.category",
       [organizationId],
     );
+
+    const returnCustomerRows = await tx.unsafe(
+      "select id from public.customers where organization_id=$1::uuid and profile_id=$2::uuid and status='approved' limit 1",
+      [organizationId, profileAId],
+    );
+    if (returnCustomerRows.length !== 1) {
+      throw new Error("The local return workflow needs the approved customer created by this isolated fixture.");
+    }
+    const returnCustomerId = returnCustomerRows[0].id;
+    await tx.unsafe(
+      "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,notes,created_by) " +
+      "values($1::uuid,$2::uuid,$3::uuid,$4,'delivered',200,2,'Isolated Playwright customer return workflow',$5::uuid)",
+      [returnOrderId, organizationId, returnCustomerId, returnOrderNumber, profileAId],
+    );
+    const returnOrderItemRows = await tx.unsafe(
+      "insert into public.order_items(order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity,unit_price_snapshot,discount_snapshot,line_total) " +
+      "values($1::uuid,$2::uuid,'P2-RET-001',$3,'piece',2,2,2,100,0,200) returning id",
+      [returnOrderId, productId, returnItemName],
+    );
+    if (returnOrderItemRows.length !== 1) {
+      throw new Error("The isolated customer return order line could not be created.");
+    }
+    const returnInvoiceRows = await tx.unsafe(
+      "insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,issued_at,currency,subtotal,tax_amount,total_amount) " +
+      "values($1::uuid,$2::uuid,$3::uuid,$4,'issued',pg_catalog.now(),'YER',200,0,200) returning id",
+      [organizationId, returnCustomerId, returnOrderId, returnInvoiceNumber],
+    );
+    if (returnInvoiceRows.length !== 1) {
+      throw new Error("The isolated customer return source invoice could not be created.");
+    }
+    await tx.unsafe(
+      "insert into public.customer_invoice_items(organization_id,invoice_id,order_item_id,product_id,item_code,description,unit,quantity,unit_price," +
+      "discount_snapshot,promotion_discount_per_unit_snapshot,promotion_id_snapshot,promotion_title_snapshot,promotion_discount_type_snapshot,promotion_discount_value_snapshot,line_total) " +
+      "select $1::uuid,$2::uuid,oi.id,oi.product_id,oi.item_code,oi.product_name_snapshot,oi.unit_snapshot,oi.quantity,oi.unit_price_snapshot," +
+      "oi.discount_snapshot,oi.promotion_discount_per_unit_snapshot,oi.promotion_id_snapshot,oi.promotion_title_snapshot," +
+      "oi.promotion_discount_type_snapshot,oi.promotion_discount_value_snapshot,oi.line_total from public.order_items oi where oi.id=$3::uuid",
+      [organizationId, returnInvoiceRows[0].id, returnOrderItemRows[0].id],
+    );
+    const receivableRows = await tx.unsafe(
+      "insert into public.accounting_accounts(organization_id,code,name,account_type,is_active) " +
+      "values($1::uuid,$2,'P2 local E2E return receivables','asset',true) returning id",
+      [organizationId, "P2-E2E-AR-" + suffix.toUpperCase()],
+    );
+    const revenueRows = await tx.unsafe(
+      "insert into public.accounting_accounts(organization_id,code,name,account_type,is_active) " +
+      "values($1::uuid,$2,'P2 local E2E sales returns','revenue',true) returning id",
+      [organizationId, "P2-E2E-RET-" + suffix.toUpperCase()],
+    );
+    if (receivableRows.length !== 1 || revenueRows.length !== 1) {
+      throw new Error("The isolated customer return workflow requires active tenant-local test accounts.");
+    }
+    returnReceivableAccountId = receivableRows[0].id;
+    returnRevenueAccountId = revenueRows[0].id;
   });
 
   const configuredTenant = await db.unsafe("select public.public_storefront_organization_id() as id");
@@ -166,6 +230,13 @@ async function main() {
     "E2E_PASSWORD_B=" + passwordB,
     "E2E_PHONE=771234567",
     "E2E_CUSTOMER_NAME=P2 Local E2E Customer A",
+    "E2E_MANAGER_EMAIL=" + managerEmail,
+    "E2E_MANAGER_PASSWORD=" + managerPassword,
+    "E2E_RETURN_ORDER_ID=" + returnOrderId,
+    "E2E_RETURN_ORDER_NUMBER=" + returnOrderNumber,
+    "E2E_RETURN_ITEM_NAME=" + returnItemName,
+    "E2E_RETURN_RECEIVABLE_ACCOUNT_ID=" + returnReceivableAccountId,
+    "E2E_RETURN_REVENUE_ACCOUNT_ID=" + returnRevenueAccountId,
     "E2E_SUPABASE_URL=" + apiUrl,
     "E2E_SUPABASE_PUBLISHABLE_KEY=" + publishableKey,
     "E2E_ALLOW_TEST_WRITES=YES_I_CONFIRM_NON_PRODUCTION",
@@ -175,8 +246,8 @@ async function main() {
   process.stdout.write(
     "P2_LOCAL_E2E_FIXTURES_READY organizationA=" + organizationId +
     " organizationB=" + foreignOrganizationId +
-    " confirmedUsers=2 catalogProduct=" + productId +
-    " stock=100 localOnly=true\n",
+    " confirmedUsers=3 customerReturnOrder=" + returnOrderNumber +
+    " catalogProduct=" + productId + " stock=100 localOnly=true\n",
   );
 }
 
