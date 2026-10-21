@@ -101,3 +101,8 @@ Task 0009 P1 implementation is closed. Source 0010 order concurrency is ALREADY_
 
 
 تحديث توثيق الاستئناف: فُضّ تعارض أسماء migrations على مستوى المسارات؛ activation أصبح canonical 20261020140000، ومسار Onyx/blob يطابق PR #18. هذا ليس إثباتًا لقبول الشجرة المشتركة. بقيت `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN` و`BROWSER_PROVEN=NOT RUN` و`PRODUCTION_PROVEN=NOT RUN`.
+
+## P1 — بوابة تكامل PR #26 / PR #18
+- رؤوس وقت الفحص: P1 `9f82d34015a63044e5c2072fa7faf80a5ca86ac5`، P2 `2bcb2d64fca5da2a72420931c8b5e424c667ff81`. يوجد 14 مسارًا مشتركًا، بينها `package.json`، ملفات auth والتفعيل، route/dialog/page، اختبارات التفعيل، وترحيلا customer-activation وOnyx.
+- مسارا التفعيل وOnyx وبصمتاهما متطابقان عبر الفرعين. ملفات UI/auth/route وpackage/workflow المشتركة لم تُعدّل من P1؛ تكامل شاشة التفعيل بقي ضمن P2.
+- لم يُشغّل CI على شجرة مشتركة بعد: `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN`. الخطوة التالية: combined-tree PostgreSQL 17/CI ثم Bolt browser validation؛ لا تخلط smoke بمتصفح أو إثبات إنتاج.

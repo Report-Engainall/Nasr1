@@ -513,3 +513,25 @@
 
 
 **Evidence-head note:** the docs-only commit `e167624a7ba93f885e43782d94ce3b515990b4ef` has a separate full CI success, [Actions 39649079344](https://github.com/Report-Engainall/Nasr1/actions/runs/39649079344). The last code-bearing feature head remains `18b0c8a8f3f03a3f5ad188357690223e3749628f`, with its own exact-head proof Actions 39647895468. No browser-authenticated or production proof is claimed.
+
+## 6.25 — Explicit PR #26 / PR #18 overlap and remaining integration gate — 2026-10-21
+
+- Exact PR heads re-read: P1 `9f82d34015a63044e5c2072fa7faf80a5ca86ac5` (open/draft); P2 `2bcb2d64fca5da2a72420931c8b5e424c667ff81` (open). GitHub reports 14 overlapping changed paths:
+  - `package.json`
+  - `src/components/CustomerActivationInvitationDialog.tsx`
+  - `src/components/CustomerActivationInvitationPage.tsx`
+  - `src/lib/auth-redirect.ts`
+  - `src/lib/auth.tsx`
+  - `src/lib/customer-activation-invitations.ts`
+  - `src/routes/customer.activate.$token.tsx`
+  - `src/test/auth-redirect.test.ts`
+  - `src/test/customer-activation-invitations-dialog.test.tsx`
+  - `src/test/customer-activation-invitations-migration.test.ts`
+  - `src/test/customer-activation-invitations-page.test.tsx`
+  - `src/test/customer-activation-invitations.test.ts`
+  - `supabase/migrations/20261020140000_customer_activation_invitations.sql`
+  - `supabase/migrations/20261021100000_onyx_inventory_reconciliation_apply_rollback.sql`
+- The activation and Onyx migrations now have canonical path+blob matches. P1 did not modify P2's dialog/page, auth client, route, package manifest or workflow.
+- P2 owns activation UI route/component integration on its branch. The overlapping paths need combined-tree acceptance before merge. Since the combined PR #26 + PR #18 tree has not been exercised, `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN`; do not declare cross-PR integration closed.
+- Documentation CI for prior checkpoint `e167624a7ba93f885e43782d94ce3b515990b4ef` passed (Actions `39649079344`); another P1 handoff-only correction commit followed it. The current handoff/audit correction will trigger another exact-head CI.
+
