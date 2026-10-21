@@ -543,6 +543,31 @@ async function main() {
   assert.equal(Number(preparedCredit.total_amount),125);
   assert.equal(preparedCredit.replayed,false);
 
+  const draftPostingTasks = await db.unsafe(
+    "select task_role,status,source_entity_type,source_entity_id,task_payload,completed_at " +
+    "from public.ai_tasks where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId,"return-credit-memo-posting:"+preparedCredit.credit_memo_id],
+  );
+  assert.equal(draftPostingTasks.length,1,"source-linked credit memo draft creates exactly one accountant task");
+  assert.equal(draftPostingTasks[0].task_role,"accountant");
+  assert.equal(draftPostingTasks[0].status,"pending","credit-memo posting task stays open while journal is a draft");
+  assert.equal(draftPostingTasks[0].source_entity_type,"customer_return_credit_memos");
+  assert.equal(draftPostingTasks[0].source_entity_id,preparedCredit.credit_memo_id);
+  const draftPostingPayload = typeof draftPostingTasks[0].task_payload==="string"
+    ? JSON.parse(draftPostingTasks[0].task_payload) : draftPostingTasks[0].task_payload;
+  assert.equal(draftPostingPayload.journal_entry_id,preparedCredit.journal_entry_id);
+  assert.equal(Number(draftPostingPayload.source_amount),125);
+  assert.equal(draftPostingPayload.source_currency,"YER");
+
+  await db.unsafe("select public.refresh_operational_tasks() as result");
+  const refreshedDraftTasks = await db.unsafe(
+    "select count(*)::integer as count,min(status) as status from public.ai_tasks " +
+    "where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId,"return-credit-memo-posting:"+preparedCredit.credit_memo_id],
+  );
+  assert.equal(refreshedDraftTasks[0].count,1,"refresh must not duplicate the source-linked credit memo task");
+  assert.equal(refreshedDraftTasks[0].status,"pending","refresh must preserve the real open accounting action");
+
   const draftPrintRows = await db.unsafe(
     "select public.get_customer_return_credit_memo_pdf($1::uuid) as result",[preparedCredit.credit_memo_id],
   );
@@ -587,6 +612,26 @@ async function main() {
   );
   const postedCreditJournal = asJson(postCreditRaw[0].result);
   assert.equal(postedCreditJournal.status,"posted","source guard permits the balanced credit memo posting");
+
+  const postedPostingTasks = await db.unsafe(
+    "select task_role,status,completed_at,resolution_note from public.ai_tasks " +
+    "where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId,"return-credit-memo-posting:"+preparedCredit.credit_memo_id],
+  );
+  assert.equal(postedPostingTasks.length,1,"posting must retain one auditable accountant task");
+  assert.equal(postedPostingTasks[0].task_role,"accountant");
+  assert.equal(postedPostingTasks[0].status,"completed","successful journal posting closes its corresponding task");
+  assert.ok(postedPostingTasks[0].completed_at,"task completion records a timestamp");
+  assert.match(postedPostingTasks[0].resolution_note??"",/ترحيل|posted/i,"task resolution records the source-ledger outcome");
+  await db.unsafe("select public.refresh_operational_tasks() as result");
+  const refreshedPostedTasks = await db.unsafe(
+    "select count(*)::integer as count,min(status) as status from public.ai_tasks " +
+    "where organization_id=$1::uuid and source_event_key=$2",
+    [organizationId,"return-credit-memo-posting:"+preparedCredit.credit_memo_id],
+  );
+  assert.equal(refreshedPostedTasks[0].count,1,"refresh cannot duplicate completed credit-memo tasks");
+  assert.equal(refreshedPostedTasks[0].status,"completed","refresh must not reopen a posted source-ledger task");
+
   const postedPrintRows = await db.unsafe(
     "select public.get_customer_return_credit_memo_pdf($1::uuid) as result",[preparedCredit.credit_memo_id],
   );
