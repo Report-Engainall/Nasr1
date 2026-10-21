@@ -236,7 +236,7 @@ async function main() {
         "values($1,$2,$3,$4,1,'cross-tenant integrity fixture','CI-P1-CROSS-TENANT-TRANSFER-0001',$5)",
       [org, created.id, localWarehouse, foreignWarehouse, adminProfileId],
     ),
-    /tenant_integrity_inventory_transfers_destination_warehouse_org_fk/i,
+    /tenant_integrity_transfer_dest_warehouse_org_fk/i,
     "a stock transfer cannot target another organization's warehouse",
   );
 

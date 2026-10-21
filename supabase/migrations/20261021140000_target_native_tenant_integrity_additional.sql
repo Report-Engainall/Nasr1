@@ -69,8 +69,8 @@ BEGIN
     ALTER TABLE public.inventory_transfers ADD CONSTRAINT tenant_integrity_inventory_transfers_source_warehouse_org_fk
       FOREIGN KEY(source_warehouse_id,organization_id) REFERENCES public.warehouses(id,organization_id) ON DELETE RESTRICT;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.inventory_transfers'::regclass AND conname='tenant_integrity_inventory_transfers_destination_warehouse_org_fk') THEN
-    ALTER TABLE public.inventory_transfers ADD CONSTRAINT tenant_integrity_inventory_transfers_destination_warehouse_org_fk
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.inventory_transfers'::regclass AND conname='tenant_integrity_transfer_dest_warehouse_org_fk') THEN
+    ALTER TABLE public.inventory_transfers ADD CONSTRAINT tenant_integrity_transfer_dest_warehouse_org_fk
       FOREIGN KEY(destination_warehouse_id,organization_id) REFERENCES public.warehouses(id,organization_id) ON DELETE RESTRICT;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.inventory_transfers'::regclass AND conname='tenant_integrity_inventory_transfers_actor_org_fk') THEN

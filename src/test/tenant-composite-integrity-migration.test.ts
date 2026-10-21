@@ -67,7 +67,7 @@ describe("target-native tenant integrity migration", () => {
       "tenant_integrity_saved_products_product_org_fk",
       "tenant_integrity_inventory_transfers_product_org_fk",
       "tenant_integrity_inventory_transfers_source_warehouse_org_fk",
-      "tenant_integrity_inventory_transfers_destination_warehouse_org_fk",
+      "tenant_integrity_transfer_dest_warehouse_org_fk",
       "tenant_integrity_onyx_snapshot_import_org_fk",
       "tenant_integrity_onyx_rows_snapshot_org_fk",
       "tenant_integrity_onyx_commands_snapshot_org_fk",
