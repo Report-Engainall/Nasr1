@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BUSINESS_BRAND_NAME } from '@/lib/brand';
 import { buildOnyxDetailRows, buildOnyxOrderWorkbook, ONYX_ORDER_COLUMNS, onyxOrderWorkbookFilename } from '@/lib/onyx-export';
 
 const order = {
@@ -64,6 +65,9 @@ describe('Onyx order workbook draft', () => {
     expect(archiveText).toContain('xl/worksheets/sheet2.xml');
     expect(archiveText).toContain('000125');
     expect(archiveText).toContain('شركة اختبار الأغبري');
+    expect(archiveText).toContain(BUSINESS_BRAND_NAME);
+    expect(archiveText).toContain('<dc:creator>' + BUSINESS_BRAND_NAME + '</dc:creator>');
+    expect(archiveText).toContain('<Application>' + BUSINESS_BRAND_NAME + '</Application>');
     expect(archiveText).toContain('غير مثبت');
     expect(archiveText).toContain('inlineStr');
   });
