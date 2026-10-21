@@ -486,3 +486,24 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - P2 Playwright [39634813658](https://github.com/Report-Engainall/Nasr1/actions/runs/39634813658): public read-only storefront Chromium smoke completed **SUCCESS**. The local-Supabase order persistence/cross-tenant job was still running at this documentation readback; hosted customer-account E2E remains skipped by its missing-credentials gate. Do not claim the latter as browser proof; no production proof is claimed.
 - Coordination: P2 reported the completed migration-path reconciliation and P1 test failure to [PR #26 comment 6321009536](https://github.com/Report-Engainall/Nasr1/pull/26#issuecomment-6321009536). P1 run [39630254521](https://github.com/Report-Engainall/Nasr1/actions/runs/39630254521) on SHA `6fc6b312df13885df956d9ac36f75b7ac0993b80` failed in the P1-owned importer/snapshot contract assertion because PostgreSQL returned `'5.000'` while the test expected numeric `5`; P2 did not modify that test. Verify P1's next exact-head run before treating this integration acceptance as closed.
 - Customer price-privacy task `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010` remains **OPEN**: P1-owned Storefront card/detail render conditions still need explicit policy gating and zero-sentinel suppression. P2 continues to leave `src/components/Storefront.tsx` and `src/lib/api.ts` untouched pending explicit handoff. Return review/receipt/credit UI browser proof and production proof remain separate.
+
+
+## P2 implementation closeout — finance print paging and spreadsheet integrity — 2026-10-21
+
+**Code tested:** `dcb770a8e24211ddeb8c438b6bbf4510852f9e0a`  
+**Exact-head CI:** [run 39641647895](<https://github.com/Report-Engainall/Nasr1/actions/runs/39641647895>) — **SUCCESS**  
+**Unit tests:** 76/76 files passed.  
+**Database:** all migrations/core workflow acceptance passed on PostgreSQL 17.11.  
+**Build gates:** lint, build, production-preview smoke, and dev-server smoke all passed.
+
+Implemented in this batch:
+- `supabase/migrations/20261021160000_finance_document_print_pagination.sql`: new paginated RPC overload; tenant is always resolved server-side, roles are checked, offsets/limits are bounded, and the legacy one-argument signature is preserved.
+- `src/components/FinanceDocumentPrintActions.tsx`: previous/next paging across invoice, customer-statement source, and credit-memo selectors; resets selection as pages change; revalidates current source authorization before printing.
+- `scripts/test-customer-returns.mjs`: actual second invoice fixture and assertions for page ordering, active-tenant containment, customer denial, and invalid negative offset.
+- `src/test/onyx-export-formula-injection.test.ts`: checks adversarial formula-like values are inline-string OOXML cells with no formula nodes.
+- `src/lib/price-grid-csv.ts` and `src/test/price-grid-csv.test.ts`: preserves numeric negative inventory values while still escaping untrusted text cells; rejects non-finite numeric output.
+- `src/test/pwa-branding.test.ts`: avoids depending on a transformed test module's `import.meta.url` protocol.
+
+Earlier test failures remain recorded in `EXECUTION_LOG.md`; they were reproduced, fixed, and superseded by the exact-head success above.
+
+**Outstanding integration boundary:** keep the single active pointer `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010`. The live P1 Storefront still needs to consume the P2 renderers/policy helper at real card/detail/cart/order-review points. P2 has not edited P1-owned Storefront/API/auth/shell/workflow paths. Customer-return-specific browser proof and production proof are not claimed.
