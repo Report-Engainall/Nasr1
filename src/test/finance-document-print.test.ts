@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BUSINESS_BRAND_NAME } from "@/lib/brand";
 import {
   readFinancePrintOptions,
   readStaffInvoicePrintPayload,
@@ -107,12 +108,16 @@ describe("finance document print contracts", () => {
   it("renders untrusted invoice descriptions as text nodes, not executable HTML", () => {
     const doc = document.implementation.createHTMLDocument("");
     renderStaffInvoiceDocument(doc, readStaffInvoicePrintPayload(invoiceFixture()), "مؤسسة الاختبار <img src=x onerror=alert(1)>");
+    expect(doc.title).toContain(BUSINESS_BRAND_NAME);
+    expect(doc.querySelector("header > div[aria-label]")?.getAttribute("aria-label")).toBe(BUSINESS_BRAND_NAME);
     expect(doc.querySelector("script, img")).toBeNull();
     expect(doc.body.textContent).toContain("<img src=x onerror=alert(1)> منتج");
     expect(doc.body.textContent).toContain("000017");
     expect(doc.body.textContent).toContain("مؤسسة الاختبار <img src=x onerror=alert(1)>");
     expect(doc.querySelector("img")).toBeNull();
     expect(doc.documentElement.dir).toBe("rtl");
+    expect(doc.body.textContent).toContain("متجر الأغبري");
+    expect(doc.body.textContent).toContain("AGHBARI COMMERCE");
   });
 
   it("prints a full-ledger statement summary while clearly labelling limited detail arrays", () => {
