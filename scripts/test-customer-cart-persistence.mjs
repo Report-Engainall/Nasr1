@@ -15,6 +15,7 @@ const staffProfileId = "f0000000-0000-0000-0000-000000000001";
 const staffAuthId = "33333333-3333-4333-8333-333333333333";
 const productId = "a1000000-0000-0000-0000-000000000001";
 const otherTenantProductId = "a1111111-1111-4111-8111-111111111112";
+const checkoutKeys = ["ci-p1-cart-checkout-mismatch-0001", "ci-p1-cart-checkout-valid-0001"];
 
 const admin = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const first = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
@@ -48,7 +49,35 @@ async function expectDenied(label, action) {
   await assert.rejects(action, /permission denied/i, label + " must be denied for authenticated direct table access");
 }
 
+async function cleanupCheckoutOrders() {
+  const rows = await admin.unsafe(
+    "select id from public.orders where organization_id=$1 and created_by=$2 and idempotency_key=any($3::text[])",
+    [organizationId, customerOneProfileId, checkoutKeys],
+  );
+  const orderIds = rows.map((row) => row.id);
+  if (orderIds.length === 0) return;
+  const invoiceRows = await admin.unsafe(
+    "select id from public.customer_invoices where organization_id=$1 and order_id=any($2::uuid[])",
+    [organizationId, orderIds],
+  );
+  const invoiceIds = invoiceRows.map((row) => row.id);
+  if (invoiceIds.length) {
+    await admin.unsafe("delete from public.customer_payments where organization_id=$1 and invoice_id=any($2::uuid[])", [organizationId, invoiceIds]);
+    await admin.unsafe("delete from public.customer_invoice_items where organization_id=$1 and invoice_id=any($2::uuid[])", [organizationId, invoiceIds]);
+    await admin.unsafe("delete from public.customer_invoices where organization_id=$1 and id=any($2::uuid[])", [organizationId, invoiceIds]);
+  }
+  await admin.unsafe("delete from public.order_status_history where order_id=any($1::uuid[])", [orderIds]);
+  await admin.unsafe("delete from public.order_items where order_id=any($1::uuid[])", [orderIds]);
+  await admin.unsafe("delete from public.outbox_events where aggregate_id=any($1::uuid[])", [orderIds]).catch(() => {});
+  await admin.unsafe(
+    "delete from public.audit_logs where (organization_id=$1 and entity_id=any($2::uuid[])) or (organization_id=$1 and actor_id=$3 and action='customer.cart.checked_out')",
+    [organizationId, orderIds, customerOneProfileId],
+  ).catch(() => {});
+  await admin.unsafe("delete from public.orders where id=any($1::uuid[])", [orderIds]);
+}
+
 async function main() {
+  await cleanupCheckoutOrders();
   const fixtures = await admin.unsafe(
     "select (select organization_id from public.profiles where id=$1 and is_active=true) as customer_one_org, (select organization_id from public.profiles where id=$2 and is_active=true) as customer_two_org, (select organization_id from public.profiles where id=$3 and is_active=true) as staff_org, (select organization_id from public.products where id=$4 and status='active') as product_org, (select organization_id from public.products where id=$5 and status='active') as other_product_org",
     [customerOneProfileId, customerTwoProfileId, staffProfileId, productId, otherTenantProductId],
@@ -105,6 +134,48 @@ async function main() {
   assert.equal(concurrent.items.length, 1, "parallel same-profile syncs must not create duplicate cart rows");
   assert.ok([3, 4].includes(concurrent.items[0].quantity), "one complete submitted line set must win; mixed state is forbidden");
 
+  const checkoutSnapshot = await getCart(first);
+  assert.equal(checkoutSnapshot.items.length, 1, "checkout fixture has one normalized persistent-cart line");
+  const submitOrder = (items, idempotencyKey) => first.unsafe(
+    "select public.submit_customer_order($1::jsonb,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,null::uuid) as result",
+    [first.json(items), "P1 persistent cart atomic checkout", "CI cart checkout business", "CI cart checkout contact", "123456789", "cash_on_delivery", idempotencyKey],
+  );
+  const mismatchedItems = [{
+    product_id: checkoutSnapshot.items[0].product_id,
+    quantity: checkoutSnapshot.items[0].quantity + 1,
+  }];
+  await assert.rejects(
+    () => submitOrder(mismatchedItems, checkoutKeys[0]),
+    /checkout lines do not match active persistent cart/i,
+    "a mismatched checkout must fail inside the order transaction",
+  );
+  assert.deepEqual((await getCart(first)).items, checkoutSnapshot.items, "rejected checkout leaves saved cart unchanged");
+  assert.equal((await admin.unsafe(
+    "select count(*)::int as count from public.orders where organization_id=$1 and created_by=$2 and idempotency_key=$3",
+    [organizationId, customerOneProfileId, checkoutKeys[0]],
+  ))[0].count, 0, "a mismatched checkout must not persist an order");
+
+  const successful = (await submitOrder(checkoutSnapshot.items, checkoutKeys[1]))[0].result;
+  assert.ok(successful?.id, "matching checkout returns persisted order identity");
+  assert.equal(successful.idempotent_replay, false, "first checkout is not a replay");
+  const cartState = (await admin.unsafe(
+    "select id,status from public.customer_carts where organization_id=$1 and profile_id=$2 order by created_at desc limit 1",
+    [organizationId, customerOneProfileId],
+  ))[0];
+  assert.equal(cartState.status, "checked_out", "matching order atomically converts the active cart");
+  assert.equal((await admin.unsafe(
+    "select count(*)::int as count from public.customer_cart_items where organization_id=$1 and cart_id=$2",
+    [organizationId, cartState.id],
+  ))[0].count, 0, "checkout removes lines only after order items persist");
+  assert.deepEqual((await getCart(first)).items, [], "completed checkout no longer exposes old cart as active");
+  const replay = (await submitOrder(checkoutSnapshot.items, checkoutKeys[1]))[0].result;
+  assert.equal(replay.id, successful.id, "retry returns the original order");
+  assert.equal(replay.idempotent_replay, true, "replayed checkout is marked idempotent");
+  assert.equal((await admin.unsafe(
+    "select count(*)::int as count from public.orders where organization_id=$1 and created_by=$2 and idempotency_key=$3",
+    [organizationId, customerOneProfileId, checkoutKeys[1]],
+  ))[0].count, 1, "idempotent checkout never creates a duplicate order");
+
   await assert.rejects(
     () => syncCart(staff, [{ product_id: productId, quantity: 1 }]),
     /active customer profile required/i,
@@ -141,6 +212,7 @@ try {
     try { await client.unsafe("reset role"); } catch { /* connection may already be aborted */ }
   }
   try {
+    await cleanupCheckoutOrders();
     await admin.unsafe(
       "delete from public.customer_cart_items where organization_id=$1 and cart_id in (select id from public.customer_carts where profile_id=any($2::uuid[]))",
       [organizationId, [customerOneProfileId, customerTwoProfileId]],
