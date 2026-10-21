@@ -206,53 +206,6 @@ async function main() {
   );
   assert.ok(created.id && created.created, "product create returns a new ID");
 
-  // Four independent authenticated PostgreSQL sessions race the same staff-order idempotency key.
-  // Exactly one must create a row; all other callers must replay that same committed order.
-  await Promise.all(raceConnections.map((connection) => ident(connection, adminAuth, "admin@aghbari.ye")));
-  const raceItems = [{ product_id: created.id, quantity: 1 }];
-  const racePayload = (connection) => [
-    localCustomer,
-    connection.json(raceItems),
-    "CI concurrent staff-order idempotency",
-    concurrentOrderKey,
-    "cash_on_delivery",
-  ];
-  const raceReplies = await Promise.all(raceConnections.map((connection) => rpc(
-    connection,
-    "select public.create_staff_order($1::uuid,$2::jsonb,$3,$4,$5) result",
-    racePayload(connection),
-  )));
-  assert.equal(raceReplies.length, 4);
-  assert.ok(raceReplies.every((reply) => reply.id === raceReplies[0].id),
-    "all four concurrent callers must return the same order UUID");
-  assert.equal(raceReplies.filter((reply) => reply.idempotent_replay === false).length, 1,
-    "exactly one concurrent caller creates the order");
-  assert.equal(raceReplies.filter((reply) => reply.idempotent_replay === true).length, 3,
-    "the other three concurrent callers replay the committed order");
-  const racedOrderCount = await root.unsafe(
-    "select count(*)::int as count from public.orders where organization_id=$1 and created_by=$2 and idempotency_key=$3",
-    [org, adminProfileId, concurrentOrderKey],
-  );
-  assert.equal(racedOrderCount[0].count, 1,
-    "concurrent same-key RPC calls persist exactly one order in the organization");
-  const racedItems = await root.unsafe(
-    "select count(*)::int as count,coalesce(sum(oi.quantity),0)::numeric as quantity " +
-      "from public.order_items oi where oi.order_id=$1",
-    [raceReplies[0].id],
-  );
-  assert.equal(racedItems[0].count, 1, "concurrent replay must not duplicate order items");
-  assert.equal(Number(racedItems[0].quantity), 1, "the persisted single order retains the normalized quantity");
-  await assert.rejects(
-    () => rpc(
-      raceConnections[0],
-      "select public.create_staff_order($1::uuid,$2::jsonb,$3,$4,$5) result",
-      [localCustomer, raceConnections[0].json([{ product_id: created.id, quantity: 2 }]),
-        "CI concurrent staff-order idempotency", concurrentOrderKey, "cash_on_delivery"],
-    ),
-    /idempotency key was already used for a different order payload/i,
-    "same-key different payload must be rejected after the race",
-  );
-  process.stdout.write("PASS PostgreSQL order concurrency: four independent sessions, one order, three idempotent replays, one item set, conflicting payload rejected\\n");
 
 
   const expectedSearchIndexes = [
@@ -313,6 +266,54 @@ async function main() {
     [adminAuth, org],
   ))[0]?.id;
   assert.ok(adminProfileId, "CI admin profile must exist in the target organization");
+
+  // Four independent authenticated PostgreSQL sessions race the same staff-order idempotency key.
+  // Exactly one must create a row; all other callers must replay that same committed order.
+  await Promise.all(raceConnections.map((connection) => ident(connection, adminAuth, "admin@aghbari.ye")));
+  const raceItems = [{ product_id: created.id, quantity: 1 }];
+  const racePayload = (connection) => [
+    localCustomer,
+    connection.json(raceItems),
+    "CI concurrent staff-order idempotency",
+    concurrentOrderKey,
+    "cash_on_delivery",
+  ];
+  const raceReplies = await Promise.all(raceConnections.map((connection) => rpc(
+    connection,
+    "select public.create_staff_order($1::uuid,$2::jsonb,$3,$4,$5) result",
+    racePayload(connection),
+  )));
+  assert.equal(raceReplies.length, 4);
+  assert.ok(raceReplies.every((reply) => reply.id === raceReplies[0].id),
+    "all four concurrent callers must return the same order UUID");
+  assert.equal(raceReplies.filter((reply) => reply.idempotent_replay === false).length, 1,
+    "exactly one concurrent caller creates the order");
+  assert.equal(raceReplies.filter((reply) => reply.idempotent_replay === true).length, 3,
+    "the other three concurrent callers replay the committed order");
+  const racedOrderCount = await root.unsafe(
+    "select count(*)::int as count from public.orders where organization_id=$1 and created_by=$2 and idempotency_key=$3",
+    [org, adminProfileId, concurrentOrderKey],
+  );
+  assert.equal(racedOrderCount[0].count, 1,
+    "concurrent same-key RPC calls persist exactly one order in the organization");
+  const racedItems = await root.unsafe(
+    "select count(*)::int as count,coalesce(sum(oi.quantity),0)::numeric as quantity " +
+      "from public.order_items oi where oi.order_id=$1",
+    [raceReplies[0].id],
+  );
+  assert.equal(racedItems[0].count, 1, "concurrent replay must not duplicate order items");
+  assert.equal(Number(racedItems[0].quantity), 1, "the persisted single order retains the normalized quantity");
+  await assert.rejects(
+    () => rpc(
+      raceConnections[0],
+      "select public.create_staff_order($1::uuid,$2::jsonb,$3,$4,$5) result",
+      [localCustomer, raceConnections[0].json([{ product_id: created.id, quantity: 2 }]),
+        "CI concurrent staff-order idempotency", concurrentOrderKey, "cash_on_delivery"],
+    ),
+    /idempotency key was already used for a different order payload/i,
+    "same-key different payload must be rejected after the race",
+  );
+  process.stdout.write("PASS PostgreSQL order concurrency: four independent sessions, one order, three idempotent replays, one item set, conflicting payload rejected\\n");
 
   await assert.rejects(
     () => root.unsafe(
