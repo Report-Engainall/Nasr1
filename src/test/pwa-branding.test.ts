@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BUSINESS_BRAND_NAME, BUSINESS_BRAND_NAME_AR } from "@/lib/brand";
 
 const manifest = JSON.parse(
-  readFileSync(new URL("../../public/manifest.webmanifest", import.meta.url), "utf8"),
+  readFileSync(resolve(process.cwd(), "public/manifest.webmanifest"), "utf8"),
 ) as { name?: unknown; short_name?: unknown; description?: unknown; lang?: unknown; dir?: unknown };
 
 describe("Aghbari PWA business identity", () => {

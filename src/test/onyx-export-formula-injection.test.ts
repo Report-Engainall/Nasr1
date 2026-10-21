@@ -45,7 +45,7 @@ describe("Onyx spreadsheet formula-injection resistance", () => {
     expect(detailXml).toContain("+SUM(1,1)");
     expect(detailXml).toContain("@SUM(1,1)");
     expect(headerXml).toContain('=WEBSERVICE(&quot;https://example.invalid&quot;)');
-    expect(headerXml).toContain("-CMD|' /C calc'!A0");
+    expect(headerXml).toContain("-CMD|&apos; /C calc&apos;!A0");
 
     // No user-controlled cell is serialized as an OOXML formula element.
     expect(detailXml).not.toMatch(/<f(?:\s|>)/i);
