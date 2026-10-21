@@ -130,6 +130,14 @@ function validPricing(surface: "cart" | "orders") {
   };
 }
 
+function formatServerAmount(amount: number): string {
+  return new Intl.NumberFormat("ar-YE", {
+    style: "currency",
+    currency: "YER",
+    maximumFractionDigits: 3,
+  }).format(amount);
+}
+
 function validCartValidation() {
   return {
     valid: true,
@@ -253,8 +261,8 @@ describe("customer price visibility UI acceptance", () => {
 
     expect(mount.host.textContent).toContain("سعر الوحدة:");
     expect(mount.host.querySelector('.sf-order-pricing-total')).not.toBeNull();
-    expect(mount.host.textContent).toContain(formatCurrency(1234));
-    expect(mount.host.textContent).toContain(formatCurrency(2468));
+    expect(mount.host.textContent).toContain(formatServerAmount(1234));
+    expect(mount.host.textContent).toContain(formatServerAmount(2468));
   });
 
   it("does not render financial keys from a server-hidden cart preview", async () => {
@@ -278,7 +286,7 @@ describe("customer price visibility UI acceptance", () => {
 
     expect(mount.host.textContent).not.toContain("سعر الوحدة:");
     expect(mount.host.textContent).not.toContain("إجمالي السلة");
-    expect(mount.host.textContent).not.toContain(formatCurrency(2468));
+    expect(mount.host.textContent).not.toContain(formatServerAmount(2468));
     expect(mount.host.textContent).toContain("لم يسمح إعداد الخادم بعرض الأسعار على هذه الشاشة؛ لم تُعرض أي مبالغ.");
   });
 
@@ -294,7 +302,7 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
     expect(malformed.host.textContent).not.toContain("سعر الوحدة:");
     expect(malformed.host.textContent).not.toContain("إجمالي السلة");
-    expect(malformed.host.textContent).not.toContain(formatCurrency(2468));
+    expect(malformed.host.textContent).not.toContain(formatServerAmount(2468));
     await unmount(malformed);
 
     mocks.rpc.mockImplementation(async (name: string) => {
@@ -305,7 +313,7 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
     expect(failed.host.textContent).not.toContain("سعر الوحدة:");
     expect(failed.host.textContent).not.toContain("إجمالي السلة");
-    expect(failed.host.textContent).not.toContain(formatCurrency(2468));
+    expect(failed.host.textContent).not.toContain(formatServerAmount(2468));
   });
 
   it("keeps order-review amounts hidden while the order validation remains non-financial", async () => {
@@ -337,8 +345,8 @@ describe("customer price visibility UI acceptance", () => {
 
     expect(mount.host.textContent).toContain("سعر الوحدة:");
     expect(mount.host.querySelector('.sf-order-pricing-total')).not.toBeNull();
-    expect(mount.host.textContent).toContain(formatCurrency(1234));
-    expect(mount.host.textContent).toContain(formatCurrency(2468));
+    expect(mount.host.textContent).toContain(formatServerAmount(1234));
+    expect(mount.host.textContent).toContain(formatServerAmount(2468));
   });
 
   it("fails closed for hidden, malformed, or errored order-review pricing responses", async () => {
@@ -358,7 +366,7 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
     expect(hidden.host.textContent).not.toContain("سعر الوحدة:");
     expect(hidden.host.querySelector('.sf-order-pricing-total')).toBeNull();
-    expect(hidden.host.textContent).not.toContain(formatCurrency(2468));
+    expect(hidden.host.textContent).not.toContain(formatServerAmount(2468));
     await unmount(hidden);
 
     mocks.rpc.mockImplementation(async (name: string) => {
@@ -372,7 +380,7 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
     expect(malformed.host.textContent).not.toContain("سعر الوحدة:");
     expect(malformed.host.querySelector('.sf-order-pricing-total')).toBeNull();
-    expect(malformed.host.textContent).not.toContain(formatCurrency(2468));
+    expect(malformed.host.textContent).not.toContain(formatServerAmount(2468));
     await unmount(malformed);
 
     mocks.rpc.mockImplementation(async (name: string) => {
@@ -384,6 +392,6 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
     expect(failed.host.textContent).not.toContain("سعر الوحدة:");
     expect(failed.host.querySelector('.sf-order-pricing-total')).toBeNull();
-    expect(failed.host.textContent).not.toContain(formatCurrency(2468));
+    expect(failed.host.textContent).not.toContain(formatServerAmount(2468));
   });
 });
