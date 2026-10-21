@@ -3,7 +3,7 @@
 - **المستودع المستهدف الوحيد:** `Report-Engainall/Nasr1`
 - **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
 - **PR:** [#26 — مفتوح / Draft / غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/26)
-- **آخر رأس كود واختبارات قبل توثيق هذه الدفعة:** `1b8b9be1fd7aca1e9fff20a0891c2db7d83ae6ff` — [Actions 39502788878: SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39502788878). أُعيد التحقق من الرأس `90df8540847489b0bcd5a5b1770599295672dc17` عبر [Actions 39503228966: SUCCESS على SHA نفسه](https://github.com/Report-Engainall/Nasr1/actions/runs/39503228966). تفاصيل الكتالوج مثبتة على `9e070285e3e001a8661fe5c297f19face97fdcf5` / [Actions 39501610331](https://github.com/Report-Engainall/Nasr1/actions/runs/39501610331).
+- **آخر رأس كود/اختبار مثبت:** `1e0f0f9de775fa46e698eb20dd0e3f7458a901b3` — [Actions 39620354015: SUCCESS على SHA نفسه](https://github.com/Report-Engainall/Nasr1/actions/runs/39620354015)؛ 480/480 اختبار وحدات، قبول ترحيلات PostgreSQL 17، اختبار جسر استيراد المخزون إلى لقطة Onyx، lint/build، وسموكات preview/dev. هذا يثبت إنشاء اللقطة ومطابقتها دون تعديل مخزون ضمني، ولا يثبت بعد تطبيق/تراجع أمر Onyx على رأس PR #26 + PR #18 المشترك.
 - **إغلاق كتالوج الموظفين:** task 0007 مثبت أدناه؛ الفشل كان تمرير JSON مزدوج التسلسل، لا نقص حقل في allowlist. تمت مراجعة 0005 كميزة موجودة بأفضلية في Nasr1؛ أما 0009 ففجوة استيراد مخزون لم تُنفذ، وتحتاج عقد تكامل مع مسار Onyx في PR #18. تفعيل العميل يظل محجوبًا بتعارض migration؛ لا تعدّل ملفات P2.
 - **أُغلقت دفعة سلة العميل:** اختبار الوحدة 67/67 ملفًا، وقبول PostgreSQL 17 الفعلي للسلة، وCI الكامل نجح على SHA المذكور. تفاصيل الفشل والإصلاح وبصمات الملفات في القسم 6.15.1.
 - **حد Service Worker مغلق:** لا تعِد تنفيذه أو مراجعة أرشيفه ما لم يظهر regression جديد. اختبار متصفح/إنتاج لهذا الحد: NOT RUN.
@@ -392,3 +392,21 @@
 - الفشل الأصلي: [Actions 39486351594](https://github.com/Report-Engainall/Nasr1/actions/runs/39486351594) على الرأس التاريخي `298bd1f98d3f516203b798d09283083c65ee61f9`. النسخة الفاشلة من الاختبار مررت `JSON.stringify(payload)` إلى `$1::jsonb`، فتحولت الحمولة إلى JSON string scalar بدل object؛ لم يكن هناك حقل مشروع مفقود. الإصلاح يستخدم `admin.json(payload)` ويحافظ على allowlist صارمة ويرفض `shadow_tier_price` صراحة.
 - المصدر blob `239789342a29a824852185cdbb95de7906900dbc`; target SQL blob `309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa`; runtime test blob `29f3ae2db8a320695181c7664a969d9885c96914`. الأسعار تمر عبر `save_product_price_grid` و`product_prices`، والتدقيق عبر أعمدة `audit_logs` الفعلية. لا تُطبق SQL المانح خامًا.
 - إثبات القبول: [Actions 39501610331](https://github.com/Report-Engainall/Nasr1/actions/runs/39501610331) نجح على code/test SHA `9e070285e3e001a8661fe5c297f19face97fdcf5`; شمل إنشاء/تعديل/أرشفة المنتج، إنشاء/أرشفة التصنيف، رفض الحقول غير المسموحة، رفض تحديث السعر القديم، عزل المؤسسات، هوية سجل التدقيق ومنع DML المباشر. [Actions 39503228966](https://github.com/Report-Engainall/Nasr1/actions/runs/39503228966) نجح أيضًا على الرأس `90df8540847489b0bcd5a5b1770599295672dc17`. `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
+
+
+## 6.22. جسر استيراد المخزون إلى لقطة Onyx — إثبات جزئي مع تعليق الكتابة التشغيلية — 2026-10-21
+
+### ما نُفّذ واختُبر
+
+- أُضيف الاختبار المستقل المملوك لـP1 `scripts/test-import-inventory-snapshot-contract.mjs`، blob `2acbc8e7b1e6c620f15205b251bcdd5244482292`، وأُدرج في `.github/workflows/commerce-checks.yml`، blob `b94dde30298bb4a090b4bf08ffcb4b6e267f92dd`. لم تُعدّل ملفات P2 المشتركة (`src/lib/api.ts`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, `package.json`, `scripts/test-database-migrations.mjs`, أو `scripts/test-onyx-reconciliation.mjs`).
+- الاختبار يشغّل مسار PostgreSQL الحقيقي: ملف استيراد بتعريف نشط صريح `report_type=inventory_stock` و`matching_key=item_code`، ثم `create_import_job`، صفوف `import_job_rows`، جلسة/شريحة رفع متصلة، ثم `finalize_import_job`. ويثبت أن اللقطة الجاهزة تحفظ المؤسسة، وبصمة الملف، نوع التقرير، عدد الصفوف، `canonical_key/item_code`، الكمية، `row_hash`، وهوية المستودع `warehouse_id/warehouse_code/warehouse_name`.
+- أُثبت أن الاستيراد العام وتشغيل المقارنة للقراءة لا يغيّران أرصدة المخزون أو المحجوز أو توقيت تحديث الرصيد أو عدد قيود `inventory_movements`. أرجعت المقارنة صفًا واحدًا متغيرًا وصفًا مطابقًا، دون تعديل الكميات.
+- نتيجة القبول على SHA `1e0f0f9de775fa46e698eb20dd0e3f7458a901b3`: [GitHub Actions 39620354015 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39620354015). اجتازت 480/480 اختبارات وحدات، وكل الترحيلات وقبول PostgreSQL 17، والاختبار الجديد، وlint/build وسموكات preview/dev.
+
+### لماذا تبقى المهمة 0009 مفتوحة؟
+
+- ترحيل المانح `0009_fix_import_inventory_delta.sql` blob `0a6ce547791c5103c89fc74be0e4424cdec5d146` يستخدم مخططًا قديمًا (`import_rows`, `products.sku`, `inventory_balances.organization_id/quantity`, `price_lists`, `audit_events`)؛ لم يُنسخ ولم يُشغّل.
+- الدالة الافتراضية للملف التعريفي `Unified CSV` نوعها `tabular`؛ قبول أمر Onyx يتطلب ملفًا تعريفيًا صريحًا لنوع مخزون، ويحافظ الاختبار على عدم وجود أي كتابة مخزون تلقائية عند إنهاء الاستيراد.
+- ما يزال `preview_onyx_inventory_reconciliation/apply_onyx_inventory_reconciliation/rollback_onyx_inventory_reconciliation` خاصًا بعمل P2 داخل PR #18 وليس مثبتًا على رأس PR #26 نفسه. كما أن migration P2 `20261020110000_onyx_inventory_reconciliation_apply_rollback.sql` تتشارك بادئة الزمن مع migration تفعيل P1 `20261020110000_customer_activation_invitations.sql`. يلزم أولًا حل تصادم الترحيلات وعقد التكامل المشترك، ثم اختبار معاينة/تطبيق/إعادة محاولة/تراجع فعلي على PostgreSQL 17.
+- طُلب التنسيق من P2 في [PR #18، التعليق 6318750176](https://github.com/Report-Engainall/Nasr1/pull/18#issuecomment-6318750176). إلى أن يثبت الدمج المشترك، الحالة هي `PARTIAL_TARGET_SNAPSHOT_CONTRACT=IMPLEMENTED`; `TESTED_EXACT_SHA=PASS (1e0f0f9de775fa46e698eb20dd0e3f7458a901b3; Actions 39620354015)`; `OPERATIONAL_STOCK_DELTA=NOT PROVEN`; `COMBINED_PR26_PR18=NOT PROVEN`.
+- `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`. لا تُعتبر هذه الدفعة إغلاقًا للمهمة المصدرية 0009.

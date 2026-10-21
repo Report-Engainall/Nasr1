@@ -35,3 +35,13 @@ BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 حالات مراجعة المصدر:
 - 0005 order state machine: already present better; لا نسخ SQL.
 - 0009 inventory delta: DEFERRED_PENDING_P2_INVENTORY_RECONCILIATION_CONTRACT؛ target parity لم تثبت، ولا يجوز إعلان المهمة مكتملة.
+
+
+تحديث قبول جسر استيراد المخزون — 2026-10-21:
+- HEAD كود/اختبار: 1e0f0f9de775fa46e698eb20dd0e3f7458a901b3 — Actions 39620354015 SUCCESS على SHA المطابق: https://github.com/Report-Engainall/Nasr1/actions/runs/39620354015
+- اختبار جديد: scripts/test-import-inventory-snapshot-contract.mjs — blob 2acbc8e7b1e6c620f15205b251bcdd5244482292
+- workflow: .github/workflows/commerce-checks.yml — blob b94dde30298bb4a090b4bf08ffcb4b6e267f92dd
+- يثبت الاختبار أن finalize_import_job ينشئ لقطة inventory_stock من ملف تعريفي مخزون صريح ويحفظ المؤسسة/بصمة المصدر/item_code/quantity/warehouse_id+code+name، وأن الاستيراد والمقارنة للقراءة لا يغيران أرصدة المخزون أو سجل الحركة.
+- 480/480 unit tests وPostgreSQL 17 migrations/core acceptance وlint/build/preview/dev smoke PASS على هذا الرأس. BROWSER_PROVEN=NOT RUN؛ PRODUCTION_PROVEN=NOT RUN.
+- المهمة 0009 لا تزال مفتوحة: لا تنفيذ لتغيير الكمية التشغيلي حتى يُحل تصادم migration بين P1/P2 ويُقبل اختبار معاينة/تطبيق/إعادة تشغيل/تراجع باستخدام RPCs الرسمية على الرأس المشترك. لا تطبق donor SQL القديم ولا تنشئ مسار كتابة مخزون موازيًا.
+- طلب التنسيق في PR #18: https://github.com/Report-Engainall/Nasr1/pull/18#issuecomment-6318750176
