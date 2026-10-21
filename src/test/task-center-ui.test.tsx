@@ -141,7 +141,9 @@ describe("TaskCenter role-boundary and print integration", () => {
     expect(within(openMetrics as HTMLElement).getByText((1).toLocaleString("ar-YE"))).toBeInTheDocument();
     const lateMetrics = screen.getByText("متأخرة حسب موعد المصدر").closest("article");
     expect(within(lateMetrics as HTMLElement).getByText((0).toLocaleString("ar-YE"))).toBeInTheDocument();
-    const completedMetrics = screen.getByText("مكتملة").closest("article");
+    const completedMetrics = Array.from(document.querySelectorAll(".task-center-metrics article"))
+      .find((card) => card.querySelector("span")?.textContent?.includes("مكتملة"));
+    expect(completedMetrics).toBeDefined();
     expect(within(completedMetrics as HTMLElement).getByText((1).toLocaleString("ar-YE"))).toBeInTheDocument();
   });
 
