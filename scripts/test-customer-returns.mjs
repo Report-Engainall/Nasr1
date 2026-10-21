@@ -153,6 +153,23 @@ async function main() {
     "oi.promotion_discount_type_snapshot,oi.promotion_discount_value_snapshot,oi.line_total from public.order_items oi where oi.id=$3::uuid",
     [organizationId,sourceInvoiceId,lineOneId],
   );
+
+  // Second own-organization invoice proves that offset pagination returns a real next row,
+  // without changing the customerOne ledger used for the return-credit balance assertions.
+  const secondaryInvoiceRows = await db.unsafe(
+    "insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,issued_at,currency,subtotal,tax_amount,total_amount) " +
+    "values($1,$2,$3,$4,'issued',pg_catalog.now(),'YER',400,0,400) returning id",
+    [organizationId,customerTwo.id,otherOrderId,"INV-CI-RET-SECOND-"+suffix],
+  );
+  const secondaryInvoiceId = secondaryInvoiceRows[0].id;
+  await db.unsafe(
+    "insert into public.customer_invoice_items(organization_id,invoice_id,order_item_id,product_id,item_code,description,unit,quantity,unit_price," +
+    "discount_snapshot,promotion_discount_per_unit_snapshot,promotion_id_snapshot,promotion_title_snapshot,promotion_discount_type_snapshot,promotion_discount_value_snapshot,line_total) " +
+    "select $1,$2,oi.id,oi.product_id,oi.item_code,oi.product_name_snapshot,oi.unit_snapshot,oi.quantity,oi.unit_price_snapshot," +
+    "oi.discount_snapshot,oi.promotion_discount_per_unit_snapshot,oi.promotion_id_snapshot,oi.promotion_title_snapshot," +
+    "oi.promotion_discount_type_snapshot,oi.promotion_discount_value_snapshot,oi.line_total from public.order_items oi where oi.id=$3::uuid",
+    [organizationId,secondaryInvoiceId,otherLineId],
+  );
   const receivableAccountRows = await db.unsafe(
     "insert into public.accounting_accounts(organization_id,code,name,account_type,is_active) values($1,$2,'CI Test Receivables','asset',true) returning id",
     [organizationId,"CI-AR-"+suffix.toUpperCase()],
@@ -545,6 +562,9 @@ async function main() {
   await expectFailure("non-finance user cannot retrieve a credit memo print source",
     () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)",[preparedCredit.credit_memo_id]),
     /finance permission required/i);
+  await expectFailure("non-finance user cannot list paginated finance print sources",
+    () => db.unsafe("select public.get_finance_document_print_options($1::integer,$2::integer)",[500,1]),
+    /finance permission required to list printable customer documents/i);
   await db.unsafe("reset role");
   await setIdentity(managerAuthId,"ci-return-manager@example.test");
   await db.unsafe("set role authenticated");
@@ -584,10 +604,14 @@ async function main() {
   assert.ok(printOptions.customers.length >= 2,"pagination fixture has at least two same-organization customer rows");
   assert.equal(printOptionsOffset.customers[0]?.id,printOptions.customers[1]?.id,
     "customer page offset one starts at the second server-ordered customer");
+  assert.ok(printOptions.invoices.length >= 2,"pagination fixture has at least two same-organization invoices");
   assert.equal(printOptionsOffset.invoices[0]?.id,printOptions.invoices[1]?.id,
     "invoice page offset one starts at the second server-ordered invoice");
   assert.ok(!printOptionsOffset.customers.some((row) => row.id === foreignCustomerId),
     "offset pagination remains scoped to the active organization");
+  await expectFailure("finance print pagination rejects a negative offset",
+    () => db.unsafe("select public.get_finance_document_print_options($1::integer,$2::integer)",[500,-1]),
+    /finance print option offset must be between 0 and 10000000/i);
 
   const staffInvoiceRaw = await db.unsafe(
     "select public.get_staff_customer_invoice_print_data($1::uuid) as result",[sourceInvoiceId],
