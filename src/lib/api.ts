@@ -1068,9 +1068,15 @@ export async function createImportJob(input: {
   profileId?: string | null;
   periodKey?: string | null;
   sourceSystem?: string;
+  /** Stable for retries of one logical import attempt; a new intentional version gets a fresh key. */
+  requestKey?: string;
+  /** The user-selected duplicate intent is part of the idempotency payload, not file identity. */
+  intent?: "replace" | "merge" | "new_version";
 }): Promise<ImportJob> {
   // Tenant identity is derived by the database from auth.uid(); no organization_id comes from the browser.
-  const { data, error } = await supabase.rpc('create_import_job', {
+  // Reuse the supplied key for transport retries; UI starts a fresh key for each intentional operation.
+  const { data, error } = await supabase.rpc('create_import_job_idempotent', {
+    p_request_key: input.requestKey ?? crypto.randomUUID(),
     p_file_name: input.fileName,
     p_file_hash: input.fileHash,
     p_file_size: input.fileSize,
@@ -1078,6 +1084,7 @@ export async function createImportJob(input: {
     p_profile_id: input.profileId ?? null,
     p_period_key: input.periodKey ?? null,
     p_source_system: input.sourceSystem ?? 'manual',
+    p_intent: input.intent ?? 'new_version',
   });
   if (error) throw error;
   return data as ImportJob;

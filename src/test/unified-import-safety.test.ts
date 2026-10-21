@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_IMPORT_COLUMNS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ROWS, MAX_IMPORT_CELL_CHARS,
   StreamingCsvParser, applyImportProfileRules, shouldPersistParsedImportRow, stableJsonStringify,
-  validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
+  normalizeHeader, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
   type VerifiedImportChunk,
 } from "@/lib/unified-import";
 
@@ -26,6 +26,15 @@ describe("unified import safety contracts", () => {
     expect(() => validateVerifiedImportChunkPrefix([], 0, 4)).toThrow("حجم الملف");
     expect(() => validateVerifiedImportChunkPrefix([], MAX_IMPORT_FILE_BYTES + 1, 4)).toThrow("حجم الملف");
     expect(() => validateVerifiedImportChunkPrefix([chunks[0], chunks[1]], 4, 4)).toThrow("أكثر من حجم الملف");
+  });
+
+  it("normalizes Unicode and Arabic header variants without losing canonical business fields", () => {
+    expect(normalizeHeader("  ｂａｒｃｏｄｅ  ")).toBe("barcode");
+    expect(normalizeHeader("اَلْبَارْكود")).toBe("barcode");
+    expect(normalizeHeader("الوَحْـدَة")).toBe("unit");
+    expect(normalizeHeader("الفِئَة")).toBe("category_name");
+    expect(normalizeHeader("الإيراد")).toBe("revenue");
+    expect(normalizeHeader("إسم الصّنف", { "اسم الصنف": "external_item_key" })).toBe("external_item_key");
   });
 
   it("preserves leading-zero business identifiers and rejects invalid numeric syntax", () => {

@@ -6,7 +6,10 @@ import {
 import { createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
-import { filterTasksForPrint } from '@/lib/task-print';
+import { filterTasksForPrint, operationalTaskPrintTitle } from '@/lib/task-print';
+import { CustomerReturnReviewQueue } from '@/components/CustomerReturnReviewQueue';
+import { CustomerReturnReceiptQueue } from '@/components/CustomerReturnReceiptQueue';
+import { CustomerReturnCreditMemoQueue } from '@/components/CustomerReturnCreditMemoQueue';
 
 const roleLabels: Record<OperationalTaskRole, string> = {
   sales: 'المبيعات', accountant: 'المحاسبة والتحصيل', warehouse: 'أمين المخزن',
@@ -44,7 +47,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   const { user } = useAuth();
   const roles = user?.roles ?? [];
   const canManage = roles.includes('admin') || roles.includes('manager');
-  const allowedRoles = roleOptionsFor(roles);
+  const allowedRoles = useMemo(() => roleOptionsFor(roles), [roles]);
   const financeOnly = roles.includes('accountant') && !roles.some((role) => ['admin','manager','staff'].includes(role));
   const [tasks, setTasks] = useState<OperationalTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,7 +109,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
   }
 
 
-  const [printScope, setPrintScope] = useState<OperationalTaskRole | 'all'>('all');
+  const [printScope, setPrintScope] = useState<OperationalTaskRole | 'all' | 'filtered'>('all');
 
   // One shared predicate applies all non-role filters to both screen and print output.
   const matchesNonRoleFilters = useCallback((task: OperationalTask) => {
@@ -124,22 +127,32 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     return true;
   }, [statusFilter,priorityFilter,assigneeFilter,createdFrom,createdTo,search]);
 
+  // Apply the same authorized role scope to cards, print output and every summary metric.
+  const roleScopedTasks = useMemo(
+    () => tasks.filter((task) => allowedRoles.includes(task.task_role)),
+    [tasks,allowedRoles],
+  );
   const filteredWithoutRole = useMemo(
-    () => tasks.filter(matchesNonRoleFilters),
-    [tasks,matchesNonRoleFilters],
+    () => roleScopedTasks.filter(matchesNonRoleFilters),
+    [roleScopedTasks,matchesNonRoleFilters],
   );
   const filtered = useMemo(
     () => filteredWithoutRole.filter((task) => roleFilter === 'all' || task.task_role === roleFilter),
     [filteredWithoutRole,roleFilter],
   );
   const printable = useMemo(
-    () => filterTasksForPrint(filteredWithoutRole,printScope,allowedRoles),
-    [filteredWithoutRole,printScope,allowedRoles],
+    () => filterTasksForPrint(filteredWithoutRole,printScope,allowedRoles,filtered),
+    [filteredWithoutRole,filtered,printScope,allowedRoles],
   );
+  const printScopeLabel = printScope === 'filtered'
+    ? 'النتائج المفلترة الحالية'
+    : printScope === 'all'
+      ? 'كل المهام المسموحة'
+      : roleLabels[printScope];
 
-  const openCount = tasks.filter((task) => !['completed','cancelled'].includes(task.status)).length;
-  const lateCount = tasks.filter(isLate).length;
-  const completedCount = tasks.filter((task) => task.status === 'completed').length;
+  const openCount = roleScopedTasks.filter((task) => !['completed','cancelled'].includes(task.status)).length;
+  const lateCount = roleScopedTasks.filter(isLate).length;
+  const completedCount = roleScopedTasks.filter((task) => task.status === 'completed').length;
 
   async function performStatus(task: OperationalTask, status: OperationalTaskStatus) {
     setBusy(true); setError('');
@@ -189,13 +202,14 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
         {canManage && <button className="btn primary" type="button" onClick={() => setShowCreate((visible) => !visible)}><Plus size={16} /> مهمة يدوية</button>}
         <label className="task-print-scope">
           <span>نطاق الطباعة</span>
-          <select value={printScope} onChange={(event) => setPrintScope(event.target.value as OperationalTaskRole | 'all')}>
+          <select value={printScope} onChange={(event) => setPrintScope(event.target.value as OperationalTaskRole | 'all' | 'filtered')}>
+            <option value="filtered">النتائج المفلترة الحالية</option>
             <option value="all">الكل — الأدوار المسموحة</option>
             {allowedRoles.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}
           </select>
         </label>
         <button className="btn primary" type="button" onClick={() => window.print()} disabled={printable.length===0}>
-          <Printer size={16} /> طباعة {printScope === 'all' ? 'كل المهام المسموحة' : roleLabels[printScope]}
+          <Printer size={16} /> طباعة {printScopeLabel}
         </button>
       </div>
     </div>
@@ -272,9 +286,9 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       </article>;
     })}</div>}
     <div className="operational-task-print" dir="rtl" aria-hidden="true">
-      <header><h1>متجر الأغبري — كشف المهام التشغيلية</h1>
+      <header><h1>{operationalTaskPrintTitle()}</h1>
         <p>تاريخ الطباعة: {new Date().toLocaleString('ar-YE')}</p>
-        <p>نطاق الطباعة: {printScope==='all'?'كل الأدوار المسموحة للحساب':roleLabels[printScope]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {printable.length}</p>
+        <p>نطاق الطباعة: {printScope==='filtered'?'النتائج المفلترة الحالية':printScope==='all'?'كل الأدوار المسموحة للحساب':roleLabels[printScope]} — فلتر الدور على الشاشة: {roleFilter==='all'?'كل الأدوار المسموحة':roleLabels[roleFilter]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {printable.length}</p>
         <p>المسؤول: {assigneeFilter==='all'?'كل المسؤولين':assigneeFilter==='unassigned'?'غير مسندة':assigneeById.get(assigneeFilter)?.full_name??'الموظف المحدد'} — فترة الإنشاء: {createdFrom||'بلا بداية'} إلى {createdTo||'بلا نهاية'}</p>
         {search.trim()&&<p>بحث: {search.trim()}</p>}</header>
       <table><thead><tr><th>#</th><th>المهمة والإجراء</th><th>الدور</th><th>الأولوية</th><th>الحالة</th><th>الموعد المسجل</th><th>المصدر</th><th>المسؤول</th></tr></thead>
@@ -284,5 +298,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       </table>
       <footer>تعرض هذه القائمة سجلات التشغيل الحالية؛ لا تُنشأ مواعيد غير مسجلة في المصدر.</footer>
     </div>
+    {canManage && <><CustomerReturnReviewQueue onNotice={onNotice} /><CustomerReturnReceiptQueue onNotice={onNotice} /></>}
+    {roles.some((role) => ['admin','manager','accountant'].includes(role)) && <CustomerReturnCreditMemoQueue onNotice={onNotice} />}
   </section>;
 }

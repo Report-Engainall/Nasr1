@@ -1,0 +1,411 @@
+name: P2 Playwright Critical Paths
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p2-playwright-critical-paths-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-infrastructure-gate:
+    name: Authenticated E2E infrastructure gate
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.e2e_gate.outputs.ready }}
+    steps:
+      - name: Explicitly gate external test infrastructure
+        id: e2e_gate
+        shell: bash
+        env:
+          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_EMAIL_B: ${{ secrets.E2E_EMAIL_B }}
+          E2E_PASSWORD_B: ${{ secrets.E2E_PASSWORD_B }}
+          E2E_PHONE: ${{ secrets.E2E_PHONE }}
+          E2E_ALLOW_TEST_WRITES: ${{ secrets.E2E_ALLOW_TEST_WRITES }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in E2E_SUPABASE_URL E2E_SUPABASE_PUBLISHABLE_KEY E2E_EMAIL E2E_PASSWORD E2E_EMAIL_B E2E_PASSWORD_B E2E_PHONE; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ "$E2E_ALLOW_TEST_WRITES" != "YES_I_CONFIRM_NON_PRODUCTION" ]; then
+            missing+=("E2E_ALLOW_TEST_WRITES (must explicitly confirm non-production writes)")
+          fi
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=NOT RUN / BLOCKED_EXTERNAL::Playwright needs a dedicated non-production Supabase project, two cross-organization test accounts, and explicit permission to create test orders."
+            {
+              echo "## Playwright acceptance: NOT RUN / BLOCKED_EXTERNAL"
+              echo
+              echo "Authenticated order creation and cross-organization denial are NOT RUN / BLOCKED_EXTERNAL. Missing or unconfirmed settings: ${missing[*]}."
+              echo "A separate read-only public UI smoke may run without these credentials; it does not prove authentication, pricing backend behavior, or tenant isolation."
+              echo "This gate is not a pass for the authenticated critical path. No synthetic credentials, production writes, or privilege bypasses are used."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            node -e "const u=new URL(process.env.E2E_SUPABASE_URL);if(!['https:','http:'].includes(u.protocol))throw new Error('Invalid test Supabase URL');if(u.username||u.password)throw new Error('Supabase URL must not embed credentials')"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Playwright acceptance: dedicated test settings confirmed"
+              echo
+              echo "The browser job checks out the exact pull-request head SHA before build and test."
+              echo "The workflow will build this SHA and write only to the declared isolated E2E backend."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  browser-critical-paths:
+    name: Playwright customer order and tenant isolation
+    needs: e2e-infrastructure-gate
+    if: needs.e2e-infrastructure-gate.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Select exact source SHA
+        id: source
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$PR_HEAD_SHA" ]; then source_sha="$PR_HEAD_SHA"; else source_sha="$EVENT_SHA"; fi
+          echo "$source_sha" | grep -Eq '^[0-9a-f]{40}$'
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "Source SHA selected for build/test: $source_sha" >> "$GITHUB_STEP_SUMMARY"
+      - name: Checkout the exact tested source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 1
+      - name: Setup Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install app dependencies from the verified Bun lockfile
+        run: bun install --frozen-lockfile
+      - name: Install pinned Playwright runner outside the project lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
+          mkdir -p node_modules/@playwright
+          ln -s "$RUNNER_TEMP/pw/node_modules/@playwright/test" node_modules/@playwright/test
+      - name: Install Chromium
+        run: "$RUNNER_TEMP/pw/node_modules/.bin/playwright install --with-deps chromium"
+      - name: Build exact SHA against the isolated E2E backend
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run build
+      - name: Launch the exact built application
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+          PORT: "4173"
+        run: |
+          set -euo pipefail
+          npx wrangler dev --config .output/server/wrangler.json --local --ip 127.0.0.1 --port 4173 > "$RUNNER_TEMP/p2-e2e-preview.log" 2>&1 &
+          server_pid=$!
+          echo "$server_pid" > "$RUNNER_TEMP/p2-e2e-preview.pid"
+          ready=0
+          for attempt in $(seq 1 45); do
+            status="$(curl --silent --connect-timeout 2 --max-time 5 --output "$RUNNER_TEMP/p2-e2e-home.html" --write-out '%{http_code}' http://127.0.0.1:4173/ || true)"
+            if [ "$status" = "200" ] && grep -q "الأغبري" "$RUNNER_TEMP/p2-e2e-home.html"; then ready=1; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then cat "$RUNNER_TEMP/p2-e2e-preview.log"; exit 1; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/p2-e2e-preview.log"; exit 1; fi
+          echo "Built application is ready for source SHA ${{ steps.source.outputs.sha }}."
+      - name: Run Playwright critical paths and tenant isolation
+        shell: bash
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_EMAIL_B: ${{ secrets.E2E_EMAIL_B }}
+          E2E_PASSWORD_B: ${{ secrets.E2E_PASSWORD_B }}
+          E2E_PHONE: ${{ secrets.E2E_PHONE }}
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: "$RUNNER_TEMP/pw/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list"
+      - name: Stop the local application
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/p2-e2e-preview.pid" ]; then kill "$(cat "$RUNNER_TEMP/p2-e2e-preview.pid")" >/dev/null 2>&1 || true; fi
+      - name: Upload Playwright traces, report, screenshots and server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p2-playwright-${{ github.run_id }}-${{ steps.source.outputs.sha }}
+          path: |
+            playwright-report/
+            test-results/
+            ${{ runner.temp }}/p2-e2e-preview.log
+          if-no-files-found: ignore
+
+  public-ui-smoke:
+    name: Playwright public UI smoke (no external backend writes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout the exact tested source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Setup Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install app dependencies from the verified Bun lockfile
+        run: bun install --frozen-lockfile
+      - name: Install pinned Playwright runner outside the project lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/pw-public" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
+          mkdir -p node_modules/@playwright
+          ln -s "$RUNNER_TEMP/pw-public/node_modules/@playwright/test" node_modules/@playwright/test
+      - name: Install Chromium
+        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright install --with-deps chromium"
+      - name: Build exact source with isolated non-routable placeholder configuration
+        env:
+          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+          SUPABASE_URL: https://ci-placeholder.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+        run: npm run build
+      - name: Launch local build for no-write browser smoke
+        shell: bash
+        env:
+          SUPABASE_URL: https://ci-placeholder.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+          PORT: "4173"
+        run: |
+          set -euo pipefail
+          npx wrangler dev --config .output/server/wrangler.json --local --ip 127.0.0.1 --port 4173 > "$RUNNER_TEMP/p2-public-ui-preview.log" 2>&1 &
+          server_pid=$!
+          echo "$server_pid" > "$RUNNER_TEMP/p2-public-ui-preview.pid"
+          ready=0
+          for attempt in $(seq 1 45); do
+            status="$(curl --silent --connect-timeout 2 --max-time 5 --output "$RUNNER_TEMP/p2-public-ui-home.html" --write-out '%{http_code}' http://127.0.0.1:4173/ || true)"
+            if [ "$status" = "200" ] && grep -q "الأغبري" "$RUNNER_TEMP/p2-public-ui-home.html"; then ready=1; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then cat "$RUNNER_TEMP/p2-public-ui-preview.log"; exit 1; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/p2-public-ui-preview.log"; exit 1; fi
+          echo "Exact source SHA: ${{ github.event.pull_request.head.sha || github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Run read-only public Storefront browser assertions
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/public-storefront-smoke.spec.ts"
+      - name: Record narrow proof boundary
+        if: always()
+        run: |
+          {
+            echo "## Public UI browser proof boundary"
+            echo
+            echo "- This job uses Chromium against a local build and aborts requests to the non-routable placeholder Supabase hostname."
+            echo "- It performs no login, database mutation, order submission, or cross-tenant assertion."
+            echo "- It cannot substitute for the separately gated authenticated customer-order and tenant-isolation workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Stop the local application
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/p2-public-ui-preview.pid" ]; then kill "$(cat "$RUNNER_TEMP/p2-public-ui-preview.pid")" >/dev/null 2>&1 || true; fi
+      - name: Upload public UI smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p2-public-ui-smoke-${{ github.run_id }}-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+            ${{ runner.temp }}/p2-public-ui-preview.log
+          if-no-files-found: ignore
+
+
+  browser-local-tenant-paths:
+    name: Playwright local Supabase order persistence and tenant isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Select exact source SHA
+        id: source
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$PR_HEAD_SHA" ]; then source_sha="$PR_HEAD_SHA"; else source_sha="$EVENT_SHA"; fi
+          echo "$source_sha" | grep -Eq '^[0-9a-f]{40}$'
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "## Local authenticated E2E source SHA: $source_sha" >> "$GITHUB_STEP_SUMMARY"
+      - name: Checkout exact tested source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 1
+      - name: Setup Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install app dependencies from the verified Bun lockfile
+        run: bun install --frozen-lockfile
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.84.2
+      - name: Verify local-only container runtime
+        run: docker info
+      - name: Prepare isolated migration copy for order and tenant acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_project="$RUNNER_TEMP/p2-local-supabase"
+          mkdir -p "$local_project/supabase"
+          cp -R supabase/. "$local_project/supabase/"
+          test -f "$local_project/supabase/config.toml"
+          test -d "$local_project/supabase/migrations"
+          sed -i '1s/.*/project_id = "p2-local-e2e"/' "$local_project/supabase/config.toml"
+          if [ ! -f "$local_project/supabase/migrations/20261018100000_product_image_storage.sql" ]; then
+            echo "Expected Storage-only migration not found; refusing to claim the scoped migration set." >&2
+            exit 1
+          fi
+          rm "$local_project/supabase/migrations/20261018100000_product_image_storage.sql"
+          {
+            echo "## Local order/tenant E2E migration boundary"
+            echo '- Uses a temporary copy of repository migrations with only `20261018100000_product_image_storage.sql` omitted; this migration mutates Supabase-owned `storage.objects` and is unrelated to authentication, order creation, or tenant-read isolation.'
+            echo "- The repository migration itself is unchanged. Storage/RLS for product images is not covered by this browser job."
+            echo "- This job uses a fresh local-only PostgreSQL 17/Supabase stack and does not connect to a hosted project."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Start isolated local Supabase services
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/p2-local-supabase"
+          timeout 8m supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check
+      - name: Apply repository migrations to local PostgreSQL 17
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/p2-local-supabase"
+          timeout 12m supabase db reset --local
+      - name: Export local Supabase environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/p2-local-supabase"
+          supabase status -o env \
+            --override-name api.url=SUPABASE_URL \
+            --override-name auth.anon_key=SUPABASE_PUBLISHABLE_KEY \
+            --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY \
+            --override-name db.url=TEST_DATABASE_URL | \
+            sed -E 's/^([A-Za-z_][A-Za-z0-9_]*)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
+      - name: Create ephemeral local users and tenant fixtures
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: node scripts/seed-p2-local-playwright.mjs
+      - name: Test atomic price grid writes, rollback, audit and stale-writer race
+        run: node scripts/test-price-grid-atomicity.mjs
+      - name: Test cash-expense source posting, idempotency and void/post concurrency
+        run: node scripts/test-cash-expense-journal-posting.mjs
+      - name: Install pinned Playwright runner outside the project lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/pw-local" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
+          mkdir -p node_modules/@playwright
+          ln -s "$RUNNER_TEMP/pw-local/node_modules/@playwright/test" node_modules/@playwright/test
+      - name: Install Chromium
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install --with-deps chromium"
+      - name: Build exact source against local Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          export VITE_SUPABASE_URL="$SUPABASE_URL"
+          export VITE_SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+          export SUPABASE_URL="$SUPABASE_URL"
+          export SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+          npm run build
+      - name: Launch exact built source against local Supabase
+        shell: bash
+        env:
+          PORT: "4173"
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$SUPABASE_URL"
+          export SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+          npx wrangler dev --config .output/server/wrangler.json --local --ip 127.0.0.1 --port 4173 > "$RUNNER_TEMP/p2-local-e2e-preview.log" 2>&1 &
+          server_pid=$!
+          echo "$server_pid" > "$RUNNER_TEMP/p2-local-e2e-preview.pid"
+          ready=0
+          for attempt in $(seq 1 60); do
+            status="$(curl --silent --connect-timeout 2 --max-time 5 --output "$RUNNER_TEMP/p2-local-e2e-home.html" --write-out '%{http_code}' http://127.0.0.1:4173/ || true)"
+            if [ "$status" = "200" ] && grep -q "الأغبري" "$RUNNER_TEMP/p2-local-e2e-home.html"; then ready=1; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then cat "$RUNNER_TEMP/p2-local-e2e-preview.log"; exit 1; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/p2-local-e2e-preview.log"; exit 1; fi
+          echo "Built app ready; local-only Supabase URL host: $(node -e 'console.log(new URL(process.env.SUPABASE_URL).hostname)')" >> "$GITHUB_STEP_SUMMARY"
+      - name: Run authenticated order persistence and cross-tenant denial in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/critical-path.spec.ts"
+      - name: Run customer return request, review, receipt and credit memo in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/customer-return-workflow.spec.ts"
+      - name: Record proof boundary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo
+            echo "### Authenticated local E2E proof boundary"
+            echo "- This job uses a fresh local Supabase stack, local PostgreSQL 17, two transient confirmed users in distinct organizations, and synthetic catalogue/stock fixtures only."
+            echo "- It proves the exact checked-out SHA's browser order path and cross-tenant denial only if the Playwright test step passes."
+            echo "- No hosted Supabase project, production secret, remote migration, or production write is used."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Stop local application and Supabase
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/p2-local-e2e-preview.pid" ]; then kill "$(cat "$RUNNER_TEMP/p2-local-e2e-preview.pid")" >/dev/null 2>&1 || true; fi
+          if [ -d "$RUNNER_TEMP/p2-local-supabase" ]; then (cd "$RUNNER_TEMP/p2-local-supabase" && supabase stop --no-backup >/dev/null 2>&1) || true; fi
+      - name: Upload authenticated E2E traces, report and server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p2-local-authenticated-e2e-${{ github.run_id }}-${{ steps.source.outputs.sha }}
+          path: |
+            playwright-report/
+            test-results/
+            ${{ runner.temp }}/p2-local-e2e-preview.log
+          if-no-files-found: ignore

@@ -64,6 +64,17 @@ jobs:
             done
           fi
           exit "$db_status"
+      - name: Verify exactly-once tenant-scoped stock-count start audit under PostgreSQL 17
+        run: node scripts/test-stock-count-start-audit.mjs
+      - name: Verify tenant-scoped asynchronous export lifecycle under PostgreSQL 17
+        run: node scripts/test-async-export-jobs.mjs
+      - name: Verify target-native import request idempotency under PostgreSQL concurrency
+        run: node scripts/test-import-job-idempotency.mjs
+      - name: Verify inventory import snapshot contract without implicit stock mutation
+        run: node scripts/test-import-inventory-snapshot-contract.mjs
+      - name: Verify tenant-safe persistent storefront favourites under PostgreSQL 17
+        run: node scripts/test-storefront-saved-products.mjs
+
       # The repository-wide Prettier rule currently reports thousands of pre-existing formatting errors.
       # Keep ESLint correctness rules enabled here and do not let that legacy formatting backlog hide build results.
       - name: Lint (excluding repository-wide Prettier formatting rule)
@@ -265,3 +276,38 @@ jobs:
             cat /tmp/aghbari-manifest.json
             exit 1
           }
+      - name: Browser price visibility acceptance (Chromium; local fixture; no backend writes)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw-price-policy"
+          npm install --prefix "$RUNNER_TEMP/pw-price-policy" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
+          mkdir -p node_modules/@playwright
+          ln -s "$RUNNER_TEMP/pw-price-policy/node_modules/@playwright/test" node_modules/@playwright/test
+          "$RUNNER_TEMP/pw-price-policy/node_modules/.bin/playwright" install --with-deps chromium
+
+          VITE_SUPABASE_URL=https://ci-placeholder.supabase.co \
+          VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ci_placeholder \
+          npm run dev -- --host 127.0.0.1 --port 5191 > /tmp/aghbari-price-policy-vite.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            pkill -P "$server_pid" 2>/dev/null || true
+            kill "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:5191/e2e/fixtures/storefront-price-visibility.html -o /tmp/aghbari-price-policy-fixture.html; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "Vite did not serve the isolated price-policy fixture."
+            cat /tmp/aghbari-price-policy-vite.log
+            exit 1
+          fi
+
+          E2E_BASE_URL=http://127.0.0.1:5191 "$RUNNER_TEMP/pw-price-policy/node_modules/.bin/playwright" test --config=playwright.config.ts --reporter=list e2e/storefront-price-visibility.spec.ts
+

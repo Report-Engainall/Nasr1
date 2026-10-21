@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BUSINESS_BRAND_NAME } from '@/lib/brand';
 import { buildOnyxDetailRows, buildOnyxOrderWorkbook, ONYX_ORDER_COLUMNS, onyxOrderWorkbookFilename } from '@/lib/onyx-export';
 
 const order = {
@@ -64,8 +65,21 @@ describe('Onyx order workbook draft', () => {
     expect(archiveText).toContain('xl/worksheets/sheet2.xml');
     expect(archiveText).toContain('000125');
     expect(archiveText).toContain('شركة اختبار الأغبري');
+    expect(archiveText).toContain(BUSINESS_BRAND_NAME);
+    expect(archiveText).toContain('<dc:creator>' + BUSINESS_BRAND_NAME + '</dc:creator>');
+    expect(archiveText).toContain('<Application>' + BUSINESS_BRAND_NAME + '</Application>');
     expect(archiveText).toContain('غير مثبت');
     expect(archiveText).toContain('inlineStr');
+  });
+
+  it('embeds the persisted central audit event ID in the final workbook header', () => {
+    const auditId = '9f4c1d25-7ab9-47e1-9ac8-67f0c15b4c20';
+    const bytes = buildOnyxOrderWorkbook({ ...order, exportAuditId: auditId });
+    const headerXml = storedZipEntry(bytes, 'xl/worksheets/sheet2.xml');
+    expect(headerXml).toContain('معرف سجل التدقيق المركزي');
+    expect(headerXml).toContain(auditId);
+    expect(headerXml).toContain('حالة توافق أونكس');
+    expect(headerXml).toContain('غير مثبت');
   });
 
   it('removes XML 1.0-forbidden control characters from dirty imported cells', () => {

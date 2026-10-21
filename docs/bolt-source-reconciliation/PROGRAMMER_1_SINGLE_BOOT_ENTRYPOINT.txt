@@ -1,0 +1,129 @@
+# P1 — رسالة إقلاع واحدة مختصرة
+التاريخ: 2026-10-21
+المستودع الوحيد: https://github.com/Report-Engainall/Nasr1
+PR #18: MERGED `f00e609013e248de4ecb94c41e31296884f899cf`
+PR #26: MERGED `6e97fb35be9ebf65c546a3d5e9615063853c8eab`
+PR #29: MERGED `1eb57a661b413c9c7d0321dccca70e5d6a0e42fe`
+Post-merge Core CI: [Actions 39662642889 COMPLETED/SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39662642889) on exact merge SHA `1eb57a661b413c9c7d0321dccca70e5d6a0e42fe`.
+PR29-head combined acceptance: [Core 39662020790 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/39662020790) and [P2 Playwright 39662020868 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/39662020868) both on exact SHA `f97dae32eb1308e677a3ce04c6e5442146e40a02`.
+
+## Restart rule — always read live main
+At the start of any new session, fetch `https://api.github.com/repos/Report-Engainall/Nasr1/git/ref/heads/main` and treat its `object.sha` as the only current head. Do not assume that a SHA in this handoff remains current after a documentation-only PR is merged. Continue only on the live main or an explicitly created review branch; never write directly to main.
+
+## Closed tasks and exact proof boundaries
+- **STAFF-CATALOG-0007 — CLOSED:** source SHA `239789342a29a824852185cdbb95de7906900dbc`; root cause was JSON.stringify(payload) passed as scalar text to `$1::jsonb`; fixed using `admin.json(payload)`, strict allowlist preserved. Exact target test SHA `18b0c8a8f3f03a3f5ad188357690223e3749628f`; [Actions 39647895468 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/39647895468). PostgreSQL 17 acceptance proved product/category commands, price-grid permission boundary, tenant-scoped audit, conflict handling, tenant isolation and denial of direct DML. This SQL-command task makes no browser/production claim.
+- **CUSTOMER-PRICE-PRIVACY-010 — CLOSED:** `src/components/Storefront.tsx` blob `ca56ebae3688cfa4896f4e21f8abdcb726b0b604` passes the existing `show_price_on_cards` setting to real ProductGrid/ProductDetail and wishlist/comparison views; existing fail-closed renderer/resolver reused. Price is not calculated in the browser.
+- **CUSTOMER-PRICE-PRIVACY-CHROMIUM-011 — CLOSED:** test `e2e/storefront-price-visibility.spec.ts` blob `45e183aef4f0b4e9e329cba67ea66a191356f5ae`; [PR29 Core 39662020790 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/39662020790) + [PR29 P2 39662020868 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/39662020868) on exact PR head `f97dae32eb1308e677a3ce04c6e5442146e40a02`; post-merge Core 39662642889 also passed on `1eb57a661b413c9c7d0321dccca70e5d6a0e42fe`. Chromium verified enabled/disabled/malformed settings and zero-price sentinel against the actual ProductGrid/ProductDetail components.
+- **Not proven:** remote public settings RPC against a live production project and production deployment remain `NOT RUN`; the external hosted-account E2E path was skipped because credentials were not configured. Do not claim these as passed.
+- **P2 boundaries respected:** no changes to `src/lib/api.ts`, `src/components/AghbariApp.tsx`, `src/routeTree.gen.ts`, `package.json`, `.github/workflows/p2-playwright-critical-paths.yml`, or `e2e/public-storefront-smoke.spec.ts`.
+
+## Immediate next execution
+Read the live source integration ledger and continue the first remaining incomplete task. Do not re-open the closed 0007 catalog fix, repeat archive extraction, or treat prior task history as current code. Keep the distinctions `IMPLEMENTED`, `INTEGRATED_IN_MAIN`, `TESTED_EXACT_SHA`, `BROWSER_PROVEN`, and `PRODUCTION_PROVEN` separate.
+
+
+قبول كتالوج الموظفين 0007: [Actions 39647895468 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39647895468) على SHA `18b0c8a8f3f03a3f5ad188357690223e3749628f`. اختبارات PostgreSQL 17 أثبتت CRUD للمنتج والتصنيف، رفض الحقول غير المسموحة، صلاحيات price-grid، التعارض، التدقيق، عزل المؤسسة ومنع DML المباشر.
+سبب الفشل الجذري: الاختبار كان يربط `JSON.stringify(payload)` كنص إلى `$1::jsonb` بدل JSON object؛ أصلح بـ `admin.json(payload)` مع إبقاء allowlist الصارمة.
+سياستا التنفيذ: `BROWSER_PROVEN=PASS` لسلوك مكونات السعر على SHA `bbcb894f003fc2e1b0a5b85c67c128b779d3f30c` / Actions 39661182977؛ `REMOTE_SETTINGS_RPC_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
+
+المنجز وأدلته:
+1. Staff catalog 0007: CLOSED بعد PostgreSQL 17 runtime acceptance. السبب الجذري ليس حقلًا من payload: كل مفاتيح الإنشاء القديمة كانت allowlisted، لكن JSON.stringify(p) رُبط كنص؛ current test uses admin.json(payload). Strict allowlist now reports actual rejected keys (negative case: shadow_tier_price). Price changes exclusively via save_product_price_grid/product_prices; audit_logs uses authenticated actor+tenant.
+2. Import migration prefix collision: renamed to supabase/migrations/20261020180000_import_job_request_idempotency.sql (same SQL blob 9db693b4dbba4dcc397ba6b62800d4f2fa3aa246); contract test blob f8591475cceff314e4536b68bc4ff99c1c146311; exact-head Actions 39502788878 PASS. The P1/P2 import migration prefix collision is closed on the current branch pair.
+3. Stock-count start audit: scripts/test-stock-count-start-audit.mjs (blob 631f14a483588bf5e76f50bd6b824cddf654781c) يثبت سجلًا واحدًا بفاعل/مؤسسة صحيحين وmetadata معتمد فقط، ثم يعيد نفس idempotency key دون سجل مكرر. Workflow blob ab6621945156a437e8bb29cd60708ea92230fe65.
+4. Server pagination: المخطط الفعلي يستخدم inventory_balances(product_id,warehouse_id)، لا organization_id على inventory_balances؛ الأسعار عبر get_storefront_product_prices.
+5. Async order export: idempotent tenant/actor request, role gating, lease/retry cap, CSV safe escaping/BOM, private storage, SHA-256, 7-day expiry cleanup, 60-second signed URL, audit, Arabic UI route /admin/exports.
+6. Donor migration 0004_import_storage.sql بقيت مرجعًا؛ لا تطبق SQL غير المتوافق خامًا.
+
+كتالوج الموظفين 0007: CLOSED؛ target SQL blob 309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa؛ runtime test blob 8012fd9d97762cbf6b97411ac5be3f72ed3fcc72؛ static migration test blob 307a78ef0da765132bd63171c8e1969ca83938e0؛ exact current code/test head 18b0c8a8f3f03a3f5ad188357690223e3749628f, Actions 39647895468 SUCCESS. Docs-only head e167624a7ba93f885e43782d94ce3b515990b4ef also passed Actions 39649079344. Browser/production NOT RUN.
+
+المراجعة التالية: 0005_order_state_machine = ALREADY_PRESENT_BETTER في target migration 20261009050000_order_transition_integrity.sql (blob 57ba9360e48cbf1cf4ba7c30b37631102bea776c).
+Task 0009 P1 implementation is closed. Source 0010 order concurrency is ALREADY_PRESENT_BETTER; target checkout PostgreSQL 17 contract passed on e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba / Actions 39630570096. Dedicated contention stress NOT RUN. Next source task: NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-011-AGHBCOM-ORDER-INPUT-0011.
+
+قيود:
+- لا reset/clean/force-push ولا كتابة مباشرة على main.
+- أعد قراءة الرأس الحي قبل كل commit، وpush باستخدام expected-head.
+- سجلات P1 المملوكة للتحديث: PROGRAMMER_1_CURRENT_REPORT.md, SOURCE_INTEGRATION_LEDGER.csv, READY_TO_REUSE_FILE_AUDIT.csv, PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt.
+- ميّز IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA / BROWSER_PROVEN / PRODUCTION_PROVEN. لا تُحوّل NOT RUN إلى PASS.
+
+
+حالات مراجعة المصدر:
+- 0005 order state machine: already present better; لا نسخ SQL.
+- 0009 inventory delta: DEFERRED_PENDING_P2_INVENTORY_RECONCILIATION_CONTRACT؛ target parity لم تثبت، ولا يجوز إعلان المهمة مكتملة.
+
+
+تحديث قبول جسر استيراد المخزون — 2026-10-21:
+- HEAD كود/اختبار: 1e0f0f9de775fa46e698eb20dd0e3f7458a901b3 — Actions 39620354015 SUCCESS على SHA المطابق: https://github.com/Report-Engainall/Nasr1/actions/runs/39620354015
+- اختبار جديد: scripts/test-import-inventory-snapshot-contract.mjs — blob 2acbc8e7b1e6c620f15205b251bcdd5244482292
+- workflow: .github/workflows/commerce-checks.yml — blob b94dde30298bb4a090b4bf08ffcb4b6e267f92dd
+- يثبت الاختبار أن finalize_import_job ينشئ لقطة inventory_stock من ملف تعريفي مخزون صريح ويحفظ المؤسسة/بصمة المصدر/item_code/quantity/warehouse_id+code+name، وأن الاستيراد والمقارنة للقراءة لا يغيران أرصدة المخزون أو سجل الحركة.
+- 480/480 unit tests وPostgreSQL 17 migrations/core acceptance وlint/build/preview/dev smoke PASS على هذا الرأس. BROWSER_PROVEN=NOT RUN؛ PRODUCTION_PROVEN=NOT RUN.
+- المهمة 0009 لا تزال مفتوحة: لا تنفيذ لتغيير الكمية التشغيلي حتى يُحل تصادم migration بين P1/P2 ويُقبل اختبار معاينة/تطبيق/إعادة تشغيل/تراجع باستخدام RPCs الرسمية على الرأس المشترك. لا تطبق donor SQL القديم ولا تنشئ مسار كتابة مخزون موازيًا.
+- طلب التنسيق في PR #18: https://github.com/Report-Engainall/Nasr1/pull/18#issuecomment-6318750176
+
+
+تحديث استئناف P1 — 2026-10-21
+- التحقق السابق لتحديث ملفات الأدلة: PR #26 head 7b070783d25c4b0b6064a3792213ac45671c0f78, Actions 39621935392 SUCCESS على SHA نفسه. هذا تحديث وثائقي لا يغير SQL أو الاختبار؛ تحقّق من Actions المرتبط بالرأس الناتج قبل تعميم نجاح الرأس الجديد.
+- 0007 مغلق: no create-payload member was outside the allowlist; typed JSON binding and explicit key-detail validation are now tested. Do not use the old generic error string to justify widening allowlist.
+- Task 0009: P1 target-native implementation + real importer snapshot PostgreSQL 17 acceptance CLOSED at e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba; P2 migration path/activation sequencing remains separately OPEN: https://github.com/Report-Engainall/Nasr1/pull/18#issuecomment-6320358607.
+
+
+2026-10-21 — task 0009 compatibility checkpoint
+- P1 branch start HEAD before this docs-only update: 7b70a9e448b8d1e17a8ff5869b4c2d8e394114b4; exact Actions 39626649853 SUCCESS. Updated import runtime test blob 15d4b5985e5538a86563a1aee9ee2e27fb884db8 now asserts row_hash = md5(data::text) from PostgreSQL and proves the actual finalize_import_job result is a ready inventory_stock snapshot with row hashes, item_code, quantity and warehouse scope; finalization/read-only comparison do not mutate stock.
+- Compatibility reviewed: target finalize_import_job persists row_hash = md5(data::text), matching P2 Onyx apply hash validation. P2's migration/service/acceptance exist on parallel head 506089a8692ef716ca2c61e21d1f7c417afa1e5c; P2 commerce CI 39627035588 SUCCESS on that exact SHA. This is not combined-tree proof; P2 Playwright 39627035716 later completed SUCCESS on exact P2 head 506089a8692ef716ca2c61e21d1f7c417afa1e5c; local Supabase order persistence/cross-tenant denial and read-only public Storefront smoke ran, but this is not Onyx UI proof.
+- Blocking integration conflict: P1 activation migration 20261020110000 conflicts by timestamp with P2 Onyx migration 20261020110000. P2 also carries activation migration 20261020140000 whose content differs in authoritative email/confirmation source (auth.users versus P1 JWT claim). Resolve one authoritative activation migration and unique ordering before combining.
+- Handoff: https://github.com/Report-Engainall/Nasr1/pull/18#issuecomment-6319928443. Preserve P2-owned files. Next execution is to reconcile the shared migration contract, then acceptance of preview/no-write, apply/replay, stale atomic denial, rollback, role/tenant isolation on a common head. Status: IMPLEMENTED=PARTIAL_SNAPSHOT_CONTRACT; TESTED_EXACT_SHA=PASS per isolated branch; COMBINED_BRANCH_POSTGRES_ACCEPTANCE=NOT RUN; BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
+
+
+## Current verified resume point — 2026-10-21
+- P1 branch `integration/inventory-transfer-batches-20261019-rebased`; code/test SHA before this documentation commit: e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba.
+- Exact check-run [Actions 39630570096](https://github.com/Report-Engainall/Nasr1/actions/runs/39630570096) COMPLETED/SUCCESS at `2026-10-21T16:00:26Z`. PostgreSQL 17 log: `PASS inventory->Onyx reconciliation: real finalized snapshot hash/tenant/warehouse scope; preview no-write + replay; staff/tenant/direct-DML denial; apply/replay; compensating rollback/replay; atomic stale-apply denial; later-movement rollback refusal; audit actor/tenant.`.
+- Task 0009 P1 adaptation is IMPLEMENTED + INTEGRATED + TESTED_EXACT_SHA. Cross-PR migration-path convergence and customer-activation trust-boundary ordering remain OPEN; do not merge concurrently or claim production/browser proof.
+- Source 0010 order concurrency is ALREADY_PRESENT_BETTER: target checkout/order transition contracts passed PostgreSQL 17 acceptance. High-contention race stress = NOT RUN.
+- **Next source task:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-011-AGHBCOM-ORDER-INPUT-0011`.
+
+
+## آخر حالة مُلزمة — 2026-10-21, بعد القراءة الحية
+- الرأس المرصود عند كتابة هذا التحديث: a0650379499123deab79479b13714464db264792; PR #26 يبقى مفتوحًا.
+- 0007 Staff Catalog: مغلق. السبب الجذري: JSON.stringify(payload) أرسل نصًا scalar إلى $1::jsonb؛ admin.json(payload) عالج binding من دون تخفيف allowlist. المفتاح الوهمي shadow_tier_price مرفوض ويظهر في SQL DETAIL. التسعير يستخدم save_product_price_grid/product_prices، والتدقيق audit_logs.
+- 0012 Cross-Tenant Integrity: مغلق. target-native migrations: 20261021130000_target_native_tenant_integrity.sql (38f8504128aa52fe6c836a9e485913c3370b1025) و20261021140000_target_native_tenant_integrity_additional.sql (eb6c506a2d88dccf032a61ee68b5f03dd7ef5e99); static test 26f788427a4840861570cdb011d9f132b28a05f0. PostgreSQL 17 قبول رفض العلاقات العابرة للمؤسسات على SHA 5ac8969dcdf344822237e99449f9abce043f70ad مع Actions 39638446987 SUCCESS.
+- إصلاح متزامن إضافي: migration 20261021160000_target_native_catalog_trigram_search.sql أصبح ينشئ schema extensions إن لم يوجد قبل pg_trgm. اختبار runtime يفحص الفهرسين والمشغل الفعلي. CI على الرأس a0650379499123deab79479b13714464db264792: https://github.com/Report-Engainall/Nasr1/actions/runs/39640035840 كان IN_PROGRESS عند كتابة التحديث؛ لا تعتبره PASS قبل اكتماله.
+- المهمة التالية OPEN: NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-013-AGHBCOM-FINANCE-B2B-0013: المصدر supabase/migrations/0013_finance_b2b_pipeline.sql blob 75962ddec0c3c58d20c62e14a7303bfeb4782543. توجد محاسبة target-native أكثر صرامة، لكن يلزم مقارنة عملية سطح حسابات النقد وجميع حقول get_staff_dashboard_metrics واختبار القبول المتخصص قبل الإغلاق. لا تنسخ SQL المانح ولا تنشئ مسارًا ماليًا موازيًا.
+- احفظ ملفات P2 المشتركة من التعديل دون تنسيق صريح. BROWSER_PROVEN=NOT RUN؛ PRODUCTION_PROVEN=NOT RUN. فحص المتصفح لبولد نيو كما طلب المستخدم.
+
+## P1 — أحدث نقطة استئناف مثبتة (2026-10-21)
+- فرع العمل الوحيد: `integration/inventory-transfer-batches-20261019-rebased`; الرأس المقبول للكود والاختبارات: `2688d210d69ad766ac406b2c520d284ba8673e54`; PR #26 لا يزال open/draft/unmerged.
+- CI مطابق للرأس: [Actions 39644648317](https://github.com/Report-Engainall/Nasr1/actions/runs/39644648317) = COMPLETED/SUCCESS. تحققنا أن 79/79 test files و505/505 unit tests وPostgreSQL 17 migration/core acceptance وlint/build وpreview smoke 4173 وdev smoke 5173 مرّت. سجل PostgreSQL يحتوي ``PASS admin catalog + finance dashboard` ويثبت حالات المستودع الناقص/الوحدات المختلفة/عملات الذمم وعزل المؤسسة.
+- مصدر 0013 المالي: تم تكييفه مع بنية Nasr1 لا نسخه. migration `supabase/migrations/20261021170000_staff_dashboard_metrics_finance_parity.sql` blob `866b70c64bac99a72575978c5c706624feb79dc6`; `src/components/StaffDashboardMetrics.tsx` blob `4aa2fa76ef27eaec83b8d1d256e2049444ed16bd`; `src/components/ExecutiveStoreAnalytics.tsx` blob `3391d1b81fe03e1e1590afaaee8c7693ac31db0f`; static test blob `b60dd5a10bb785fcaad852f6ccfbfd21e0f7d123`; runtime acceptance blob `476985b72f7f9c3cd88bd45b69d59fcebd5d8dcc`.
+- لا تنشئ `cash_accounts` أو `received/spent`: حسابات النقد/البنك ورصيدها من `accounting_accounts` والقيود المرحلة، والمدفوعات عبر `record_customer_payment`. `available_stock` يصير NULL إذا كان التغطية غير كاملة/الوحدات غير متجانسة، والذمم NULL إذا اختلطت العملات. browser/production proof=`NOT RUN`، وواجهة المتصفح لبولد نيو.
+- المصدر 0011 لم يعد لديه فجوة اختبار مدخلات سلبية: PostgreSQL acceptance شغّل 24 حالة إدخال عميل/موظف مرفوضة وتأكد من عدم حفظ أي طلب غير صالح، exact SHA وCI أعلاه.
+- **العنصر التالي:** التوفيق المشترك لطلب #26 وPR #18 في جسر الاستيراد→Onyx وترتيب migrations تفعيل العميل. لا تمس ملفات P2 المحمية ولا تنفذ دمجًا عشوائيًا: ملف Onyx متكرر بمسارين في PR #18، وهناك اختلاف بين نسخ migration التفعيل في مصدر البريد/التأكيد. يلزم قرار ترتيب موحد وقبول PostgreSQL على شجرة مشتركة؛ إلى حينه `COMBINED_BRANCH_POSTGRES_ACCEPTANCE=NOT RUN`.
+- `IMPLEMENTED=YES; INTEGRATED=YES; TESTED_EXACT_SHA=PASS (2688d210d69ad766ac406b2c520d284ba8673e54 / Actions 39644648317); BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN`.
+## P1 — أحدث نقطة استئناف بعد إصلاح حد الثقة بالبريد (2026-10-21)
+- HEAD `896a3b0477117411fc389c312b64203a469cd03e`; exact Actions 39645796731 SUCCESS: https://github.com/Report-Engainall/Nasr1/actions/runs/39645796731. 79/79 test files, 505/505 unit tests, PostgreSQL 17 migrations/core acceptance, lint, build and preview/dev smoke PASS.
+- P1's activation migration now has the exact same Git blob f62ec20998ddc4b6a00517bdab1f55c9a73d58da as P2: `accept_customer_activation_invitation` derives confirmed email solely from auth.users. Static regression test blob `76a57d0cc790ea1376fff785112b7b1bb57d10d7`. Migration filenames still differ (P1 20261020110000, P2 20261020140000); combined-tree acceptance NOT RUN.
+- Onyx apply/rollback migration blob is exact-match across P1/P2: `9e1e7fde3faaa7887809ebbcef214bc044197223`. Coordination comment posted at https://github.com/Report-Engainall/Nasr1/pull/18#issuecomment-6322540496. No P2-owned file was edited.
+- Source tasks 0011 and 0013 are tested on this exact head; negative order matrix covers 24 rejection cases, and finance dashboard KPI acceptance verifies tenant separation and null-safe unknown/multi-unit/multi-currency values. Finance still uses the canonical general ledger; no `cash_accounts` parallel store.
+- **Next blocking item:** combined PR #26/#18 migration-chain acceptance. Activation now has only the shared canonical path `supabase/migrations/20261020140000_customer_activation_invitations.sql`; Onyx uses the same path/blob as PR #18. Path collision is reconciled. Run the actual combined tree under PostgreSQL 17 before closing; `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN; BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN`.
+
+## P1 — أحدث نقطة استئناف مثبتة (2026-10-21)
+- رأس الكود/الاختبار: `18b0c8a8f3f03a3f5ad188357690223e3749628f`؛ [Actions 39647895468](https://github.com/Report-Engainall/Nasr1/actions/runs/39647895468) = COMPLETED/SUCCESS على الرأس نفسه.
+- الدليل: 79/79 test files و505/505 unit tests؛ PostgreSQL 17 migration/core acceptance؛ lint/build؛ preview smoke 4173؛ dev smoke 5173. سجل PostgreSQL أثبت PASS admin catalog + finance dashboard، واختبار تنافس الطلبات بأربع جلسات (منشئ واحد وثلاث إعادات idempotent)، و24 حالة إدخال غير صالح مرفوضة، وسيناريو import snapshot إلى Onyx preview/apply/rollback.
+- جذور الإصلاح: في الكتالوج كان `JSON.stringify(payload)` يرسل نصًا إلى `$1::jsonb`؛ أصلح بتمرير JSON object عبر `admin.json(payload)` مع إبقاء allowlist صارمة. المالية تكامل target-native عبر دفتر الأستاذ المزدوج، بلا `cash_accounts` موازٍ؛ الأرصدة غير المتجانسة تظهر كغير متاحة.
+- تفعيل العميل موحد على `supabase/migrations/20261020140000_customer_activation_invitations.sql`، Git blob `f62ec20998ddc4b6a00517bdab1f55c9a73d58da` مطابق لـP2؛ Onyx path/blob يطابق P2: `9e1e7fde3faaa7887809ebbcef214bc044197223`.
+- الاختبارات والبصمات: harness `8012fd9d97762cbf6b97411ac5be3f72ed3fcc72`; finance migration `866b70c64bac99a72575978c5c706624feb79dc6`; finance UI `4aa2fa76ef27eaec83b8d1d256e2049444ed16bd` + `3391d1b81fe03e1e1590afaaee8c7693ac31db0f`; Onyx runtime test `7fa2e7cbee5ae3c04c743893f93dd3c1670be415`.
+- التالي: acceptance على الشجرة المشتركة PR #26 + PR #18، ثم اختبارات متصفح بولد. `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN`; `P2_UI_ROUTE_WIRING_PENDING`; `BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
+
+
+تحديث توثيق الاستئناف: فُضّ تعارض أسماء migrations على مستوى المسارات؛ activation أصبح canonical 20261020140000، ومسار Onyx/blob يطابق PR #18. هذا ليس إثباتًا لقبول الشجرة المشتركة. بقيت `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN` و`BROWSER_PROVEN=NOT RUN` و`PRODUCTION_PROVEN=NOT RUN`.
+
+## P1 — بوابة تكامل PR #26 / PR #18
+- رؤوس وقت الفحص: P1 `9f82d34015a63044e5c2072fa7faf80a5ca86ac5`، P2 `2bcb2d64fca5da2a72420931c8b5e424c667ff81`. يوجد 14 مسارًا مشتركًا، بينها `package.json`، ملفات auth والتفعيل، route/dialog/page، اختبارات التفعيل، وترحيلا customer-activation وOnyx.
+- مسارا التفعيل وOnyx وبصمتاهما متطابقان عبر الفرعين. ملفات UI/auth/route وpackage/workflow المشتركة لم تُعدّل من P1؛ تكامل شاشة التفعيل بقي ضمن P2.
+- لم يُشغّل CI على شجرة مشتركة بعد: `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN`. الخطوة التالية: combined-tree PostgreSQL 17/CI ثم Bolt browser validation؛ لا تخلط smoke بمتصفح أو إثبات إنتاج.
+
+## تحديث P1 — سياسة إخفاء السعر وتحقق الشجرة المشتركة (2026-10-21)
+- المهمة `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010` منجزة على مستوى التنفيذ والاختبارات الأساسية: `src/components/Storefront.tsx` blob `ca56ebae3688cfa4896f4e21f8abdcb726b0b604`; اختبار `src/test/storefront-price-policy-integration.test.tsx` blob `ef473e49e524a72c98c7859132aa5f83645d0226`.
+- السبب الجذري: بطاقات المنتجات والتفاصيل كانت تعرض `display_price` مباشرة وتتجاوز سياسة `show_price_on_cards`. تمت إعادة توصيل `ProductGrid`, `ProductDetail`, المفضلة والمقارنة بمكوّن العرض المحمي، مع رفض القيمة الصفرية كعلامة إخفاء وعدم حساب السعر في المتصفح.
+- SHA الشجرة المدمجة: `65267f08f9c5e17204d33805ca2eb23be0b10bd4`; [Core Actions 39657406222 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39657406222); [P2 Playwright 39657406198 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39657406198). في قبول Playwright، اختبار hosted-account المستقل SKIPPED لغياب بيانات الاعتماد الخارجية؛ اختبار local Supabase/Chromium نجح.
+- حالات الإثبات: `IMPLEMENTED=YES; INTEGRATED=YES; TESTED_EXACT_SHA=PASS`; `BROWSER_PROVEN=NOT RUN` لتفاعل سياسة السعر نفسه؛ `PRODUCTION_PROVEN=NOT RUN`. لا تخلط smoke الواجهة العام بإثبات سياسة السعر في متصفح.
+- المهمة المصدرية 0007 باقية مغلقة على إثباتها السابق: `18b0c8a8f3f03a3f5ad188357690223e3749628f` / Actions 39647895468 SUCCESS؛ السبب الجذري كان ربط JSON كنص عبر `JSON.stringify(payload)`, وتم إصلاحه بـ `admin.json(payload)` مع إبقاء قائمة الحقول الصارمة.
+- التالي: مراجعة عناصر السجل غير المغلقة على الرأس المشترك `65267f08f9c5e17204d33805ca2eb23be0b10bd4`; لا تُغلق PR #26 ولا تعلن دمجًا إلى `main` ما دام PR بحالة Draft.
