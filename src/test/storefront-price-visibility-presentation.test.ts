@@ -77,6 +77,36 @@ describe("server-computed cart/order pricing presentation guard", () => {
     });
   });
 
+  it("whitelists visible preview-line fields and does not pass through unapproved financial or tenant metadata", () => {
+    const payload = {
+      ...validPayload,
+      items: [{
+        ...validPayload.items[0],
+        base_price: 99999,
+        unit_cost: 1,
+        margin: 90,
+        hidden_price: 7654,
+        tenant_id: "foreign-tenant",
+      }],
+    };
+    const result = resolveCustomerOrderPricingPresentation(true, payload);
+    expect(result.visible).toBe(true);
+    if (result.visible) {
+      expect(result.items).toEqual([{
+        product_id: "product-1",
+        name: "صنف",
+        quantity: 2,
+        unit_price: 1234,
+        line_total: 2468,
+      }]);
+      expect(result.items[0]).not.toHaveProperty("base_price");
+      expect(result.items[0]).not.toHaveProperty("unit_cost");
+      expect(result.items[0]).not.toHaveProperty("margin");
+      expect(result.items[0]).not.toHaveProperty("hidden_price");
+      expect(result.items[0]).not.toHaveProperty("tenant_id");
+    }
+  });
+
   it("hides all financial output if the client policy is disabled, even if a stale payload says visible", () => {
     expect(resolveCustomerOrderPricingPresentation(false, validPayload)).toEqual({ visible: false });
   });
