@@ -87,15 +87,27 @@ END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.convert_customer_cart_after_order_commit() FROM PUBLIC, anon, authenticated;
-DROP TRIGGER IF EXISTS customer_cart_atomic_order_conversion ON public.orders;
-CREATE CONSTRAINT TRIGGER customer_cart_atomic_order_conversion
-  AFTER INSERT ON public.orders
-  DEFERRABLE INITIALLY DEFERRED
-  FOR EACH ROW EXECUTE FUNCTION public.convert_customer_cart_after_order_commit();
+DO $cart_trigger$
+BEGIN
+  EXECUTE 'DROP TRIGGER IF EXISTS customer_cart_atomic_order_conversion ON public.orders';
 
-COMMENT ON FUNCTION public.convert_customer_cart_after_order_commit() IS
-  'At transaction commit, converts a customer profile’s active persistent cart only when its product/quantity set matches persisted order_items; mismatch aborts the order transaction.';
-COMMENT ON TRIGGER customer_cart_atomic_order_conversion ON public.orders IS
-  'Atomic persistent-cart status transition, line cleanup and actor/tenant audit; uses the existing order RPC without a parallel order or pricing path.';
+  EXECUTE $ddl$
+    CREATE CONSTRAINT TRIGGER customer_cart_atomic_order_conversion
+      AFTER INSERT ON public.orders
+      DEFERRABLE INITIALLY DEFERRED
+      FOR EACH ROW EXECUTE FUNCTION public.convert_customer_cart_after_order_commit()
+  $ddl$;
+
+  EXECUTE $ddl$
+    COMMENT ON FUNCTION public.convert_customer_cart_after_order_commit() IS
+      'At transaction commit, converts a customer profile’s active persistent cart only when its product/quantity set matches persisted order_items; mismatch aborts the order transaction.'
+  $ddl$;
+
+  EXECUTE $ddl$
+    COMMENT ON TRIGGER customer_cart_atomic_order_conversion ON public.orders IS
+      'Atomic persistent-cart status transition, line cleanup and actor/tenant audit; uses the existing order RPC without a parallel order or pricing path.'
+  $ddl$;
+END;
+$cart_trigger$;
 
 COMMIT;
