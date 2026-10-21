@@ -4,9 +4,11 @@
 الفرع المستمر: integration/inventory-transfer-batches-20261019-rebased
 PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (مفتوح؛ لا تدمج main مباشرة)
 
-آخر رأس كود/اختبار P1 تم التحقق منه حيًا من GitHub:
-18b0c8a8f3f03a3f5ad188357690223e3749628f
-CI المطابق للرأس نفسه: https://github.com/Report-Engainall/Nasr1/actions/runs/39647895468 — Actions 39647895468 COMPLETED/SUCCESS على SHA نفسه. سجل PostgreSQL 17 يثبت صراحةً PASS admin catalog commands (إنشاء/تعديل/أرشفة المنتج والتصنيف، رفض الحقول الزائدة، canonical price RPC وتعارض السعر، عزل المؤسسة، هوية التدقيق ورفض الكتابة المباشرة)، مع نجاح اختبارات الوحدة وبقية قبول PostgreSQL 17 وlint/build. BROWSER_PROVEN=NOT RUN؛ PRODUCTION_PROVEN=NOT RUN.
+آخر رأس تكامل كود/اختبار P1+P2 تم التحقق منه حيًا من GitHub:
+65267f08f9c5e17204d33805ca2eb23be0b10bd4
+Core CI المطابق للرأس نفسه: https://github.com/Report-Engainall/Nasr1/actions/runs/39657406222 — COMPLETED/SUCCESS.
+P2 Playwright Critical Paths المطابق للرأس نفسه: https://github.com/Report-Engainall/Nasr1/actions/runs/39657406198 — COMPLETED/SUCCESS.
+هذا الرأس دمج فرعي P1/P2 في شجرة الاختبار فقط؛ PR #26 لا يزال مفتوحًا/Draft ولم يُدمج إلى main. إثبات إخفاء السعر في متصفح مخصص وإثبات الإنتاج ما زالا NOT RUN. سجل PostgreSQL 17 يثبت صراحةً PASS admin catalog commands (إنشاء/تعديل/أرشفة المنتج والتصنيف، رفض الحقول الزائدة، canonical price RPC وتعارض السعر، عزل المؤسسة، هوية التدقيق ورفض الكتابة المباشرة)، مع نجاح اختبارات الوحدة وبقية قبول PostgreSQL 17 وlint/build. BROWSER_PROVEN=NOT RUN؛ PRODUCTION_PROVEN=NOT RUN.
 
 قبول كتالوج الموظفين 0007: Actions 39501610331 SUCCESS على SHA 9e070285e3e001a8661fe5c297f19face97fdcf5؛ اختبارات PostgreSQL 17 أثبتت CRUD/allowlist/price-grid/audit/tenant isolation/direct-DML denial.
 سبب الفشل الجذري: حمولة الإنشاء نفسها لم تتضمن مفتاحًا غير مسموح؛ اختبار SHA القديم مرر JSON.stringify(p) كنص عادي إلى $1::jsonb، ومسار SQL القديم أعاد رسالة unsupported fields نفسها عند فشل نوع JSON. الإصلاح admin.json(payload) مع allowlist صارمة وإظهار DETAIL للمفتاح المرفوض الحقيقي.
@@ -106,3 +108,11 @@ Task 0009 P1 implementation is closed. Source 0010 order concurrency is ALREADY_
 - رؤوس وقت الفحص: P1 `9f82d34015a63044e5c2072fa7faf80a5ca86ac5`، P2 `2bcb2d64fca5da2a72420931c8b5e424c667ff81`. يوجد 14 مسارًا مشتركًا، بينها `package.json`، ملفات auth والتفعيل، route/dialog/page، اختبارات التفعيل، وترحيلا customer-activation وOnyx.
 - مسارا التفعيل وOnyx وبصمتاهما متطابقان عبر الفرعين. ملفات UI/auth/route وpackage/workflow المشتركة لم تُعدّل من P1؛ تكامل شاشة التفعيل بقي ضمن P2.
 - لم يُشغّل CI على شجرة مشتركة بعد: `COMBINED_PR26_PR18_ACCEPTANCE=NOT RUN`. الخطوة التالية: combined-tree PostgreSQL 17/CI ثم Bolt browser validation؛ لا تخلط smoke بمتصفح أو إثبات إنتاج.
+
+## تحديث P1 — سياسة إخفاء السعر وتحقق الشجرة المشتركة (2026-10-21)
+- المهمة `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010` منجزة على مستوى التنفيذ والاختبارات الأساسية: `src/components/Storefront.tsx` blob `ca56ebae3688cfa4896f4e21f8abdcb726b0b604`; اختبار `src/test/storefront-price-policy-integration.test.tsx` blob `ef473e49e524a72c98c7859132aa5f83645d0226`.
+- السبب الجذري: بطاقات المنتجات والتفاصيل كانت تعرض `display_price` مباشرة وتتجاوز سياسة `show_price_on_cards`. تمت إعادة توصيل `ProductGrid`, `ProductDetail`, المفضلة والمقارنة بمكوّن العرض المحمي، مع رفض القيمة الصفرية كعلامة إخفاء وعدم حساب السعر في المتصفح.
+- SHA الشجرة المدمجة: `65267f08f9c5e17204d33805ca2eb23be0b10bd4`; [Core Actions 39657406222 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39657406222); [P2 Playwright 39657406198 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39657406198). في قبول Playwright، اختبار hosted-account المستقل SKIPPED لغياب بيانات الاعتماد الخارجية؛ اختبار local Supabase/Chromium نجح.
+- حالات الإثبات: `IMPLEMENTED=YES; INTEGRATED=YES; TESTED_EXACT_SHA=PASS`; `BROWSER_PROVEN=NOT RUN` لتفاعل سياسة السعر نفسه؛ `PRODUCTION_PROVEN=NOT RUN`. لا تخلط smoke الواجهة العام بإثبات سياسة السعر في متصفح.
+- المهمة المصدرية 0007 باقية مغلقة على إثباتها السابق: `18b0c8a8f3f03a3f5ad188357690223e3749628f` / Actions 39647895468 SUCCESS؛ السبب الجذري كان ربط JSON كنص عبر `JSON.stringify(payload)`, وتم إصلاحه بـ `admin.json(payload)` مع إبقاء قائمة الحقول الصارمة.
+- التالي: مراجعة عناصر السجل غير المغلقة على الرأس المشترك `65267f08f9c5e17204d33805ca2eb23be0b10bd4`; لا تُغلق PR #26 ولا تعلن دمجًا إلى `main` ما دام PR بحالة Draft.
