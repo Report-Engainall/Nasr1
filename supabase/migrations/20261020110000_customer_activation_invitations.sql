@@ -243,7 +243,6 @@ BEGIN
   FROM auth.users AS u
   WHERE u.id=auth.uid()
     AND u.email_confirmed_at IS NOT NULL;
-
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='أكّد البريد الإلكتروني قبل قبول دعوة التفعيل.';
   END IF;
