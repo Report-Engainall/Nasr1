@@ -4,9 +4,9 @@
 الفرع المستمر: integration/inventory-transfer-batches-20261019-rebased
 PR #26: https://github.com/Report-Engainall/Nasr1/pull/26 (مفتوح؛ لا تدمج main مباشرة)
 
-آخر رأس كود/اختبار PR #26 تحقق منه GitHub قبل هذا التحديث الوثائقي:
-01f20c07012735d4f32a6d0c7c011c4fcb9fe638
-CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39628121399 — test-and-build job SUCCESS على SHA نفسه؛ اجتاز PostgreSQL 17 وstaff catalog وimport snapshot hash-contract assertion وlint/build وpreview/dev smoke. حالة workflow الإجمالية كانت in_progress عند آخر API readback؛ تحقق من رأس الوثائق التالي بشكل مستقل.
+آخر رأس كود/اختبار P1 جرى التحقق منه من GitHub (قبل تحديث السجلات):
+e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba
+CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39630570096 — check-run test-and-build COMPLETED/SUCCESS على SHA نفسه e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba; PostgreSQL 17 actual-import → Onyx preview/apply/replay/rollback/stale rejection/audit، unit tests، lint/build، preview 4173 وdev 5173 PASS.
 قبول كتالوج الموظفين 0007: Actions 39501610331 SUCCESS على SHA 9e070285e3e001a8661fe5c297f19face97fdcf5؛ اختبارات PostgreSQL 17 أثبتت CRUD/allowlist/price-grid/audit/tenant isolation/direct-DML denial.
 سبب الفشل الجذري: حمولة الإنشاء نفسها لم تتضمن مفتاحًا غير مسموح؛ اختبار SHA القديم مرر JSON.stringify(p) كنص عادي إلى $1::jsonb، ومسار SQL القديم أعاد رسالة unsupported fields نفسها عند فشل نوع JSON. الإصلاح admin.json(payload) مع allowlist صارمة وإظهار DETAIL للمفتاح المرفوض الحقيقي.
 BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
@@ -22,7 +22,7 @@ BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 كتالوج الموظفين 0007: CLOSED؛ target SQL blob 309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa؛ test blob 29f3ae2db8a320695181c7664a969d9885c96914؛ Actions 39621935392 SUCCESS on exact code/test head 7b070783d25c4b0b6064a3792213ac45671c0f78. Browser/production NOT RUN.
 
 المراجعة التالية: 0005_order_state_machine = ALREADY_PRESENT_BETTER في target migration 20261009050000_order_transition_integrity.sql (blob 57ba9360e48cbf1cf4ba7c30b37631102bea776c).
-الفجوة التالية غير المكتملة: 0009_fix_import_inventory_delta.sql (blob 0a6ce547791c5103c89fc74be0e4424cdec5d146). الحالة DEFERRED_PENDING_P2_INVENTORY_RECONCILIATION_CONTRACT: schema المانح قديم، وتكامل Onyx inventory reconciliation يتقاطع مع PR #18 غير المدمج. لا تطبق SQL خامًا ولا تنشئ مسار كتابة مخزون موازيًا. تفعيل العميل يظل BLOCKED_BY_P2_MIGRATION_RECONCILIATION؛ لا تعدّل ملفات P2-owned.
+Task 0009 P1 implementation is closed. Source 0010 order concurrency is ALREADY_PRESENT_BETTER; target checkout PostgreSQL 17 contract passed on e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba / Actions 39630570096. Dedicated contention stress NOT RUN. Next source task: NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-011-AGHBCOM-ORDER-INPUT-0011.
 
 قيود:
 - لا reset/clean/force-push ولا كتابة مباشرة على main.
@@ -49,7 +49,7 @@ BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 تحديث استئناف P1 — 2026-10-21
 - التحقق السابق لتحديث ملفات الأدلة: PR #26 head 7b070783d25c4b0b6064a3792213ac45671c0f78, Actions 39621935392 SUCCESS على SHA نفسه. هذا تحديث وثائقي لا يغير SQL أو الاختبار؛ تحقّق من Actions المرتبط بالرأس الناتج قبل تعميم نجاح الرأس الجديد.
 - 0007 مغلق: no create-payload member was outside the allowlist; typed JSON binding and explicit key-detail validation are now tested. Do not use the old generic error string to justify widening allowlist.
-- المهمة التالية: NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-009-AGHBCOM-IMPORT-INVENTORY-0009 — partial import snapshot/read-only contract only. Operational inventory delta stays deferred pending P2 canonical preview/apply/replay/rollback contract on the combined PR #26/#18, and migration-order reconciliation. No parallel stock writes; P2-owned paths remain untouched.
+- Task 0009: P1 target-native implementation + real importer snapshot PostgreSQL 17 acceptance CLOSED at e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba; P2 migration path/activation sequencing remains separately OPEN: https://github.com/Report-Engainall/Nasr1/pull/18#issuecomment-6320358607.
 
 
 2026-10-21 — task 0009 compatibility checkpoint
@@ -57,3 +57,11 @@ BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
 - Compatibility reviewed: target finalize_import_job persists row_hash = md5(data::text), matching P2 Onyx apply hash validation. P2's migration/service/acceptance exist on parallel head 506089a8692ef716ca2c61e21d1f7c417afa1e5c; P2 commerce CI 39627035588 SUCCESS on that exact SHA. This is not combined-tree proof; P2 Playwright 39627035716 later completed SUCCESS on exact P2 head 506089a8692ef716ca2c61e21d1f7c417afa1e5c; local Supabase order persistence/cross-tenant denial and read-only public Storefront smoke ran, but this is not Onyx UI proof.
 - Blocking integration conflict: P1 activation migration 20261020110000 conflicts by timestamp with P2 Onyx migration 20261020110000. P2 also carries activation migration 20261020140000 whose content differs in authoritative email/confirmation source (auth.users versus P1 JWT claim). Resolve one authoritative activation migration and unique ordering before combining.
 - Handoff: https://github.com/Report-Engainall/Nasr1/pull/18#issuecomment-6319928443. Preserve P2-owned files. Next execution is to reconcile the shared migration contract, then acceptance of preview/no-write, apply/replay, stale atomic denial, rollback, role/tenant isolation on a common head. Status: IMPLEMENTED=PARTIAL_SNAPSHOT_CONTRACT; TESTED_EXACT_SHA=PASS per isolated branch; COMBINED_BRANCH_POSTGRES_ACCEPTANCE=NOT RUN; BROWSER_PROVEN=NOT RUN; PRODUCTION_PROVEN=NOT RUN.
+
+
+## Current verified resume point — 2026-10-21
+- P1 branch `integration/inventory-transfer-batches-20261019-rebased`; code/test SHA before this documentation commit: e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba.
+- Exact check-run [Actions 39630570096](https://github.com/Report-Engainall/Nasr1/actions/runs/39630570096) COMPLETED/SUCCESS at `2026-10-21T16:00:26Z`. PostgreSQL 17 log: `PASS inventory->Onyx reconciliation: real finalized snapshot hash/tenant/warehouse scope; preview no-write + replay; staff/tenant/direct-DML denial; apply/replay; compensating rollback/replay; atomic stale-apply denial; later-movement rollback refusal; audit actor/tenant.`.
+- Task 0009 P1 adaptation is IMPLEMENTED + INTEGRATED + TESTED_EXACT_SHA. Cross-PR migration-path convergence and customer-activation trust-boundary ordering remain OPEN; do not merge concurrently or claim production/browser proof.
+- Source 0010 order concurrency is ALREADY_PRESENT_BETTER: target checkout/order transition contracts passed PostgreSQL 17 acceptance. High-contention race stress = NOT RUN.
+- **Next source task:** `NASR1-SOURCE-UNASSESSED-MIGRATION-SEMANTIC-GAP-011-AGHBCOM-ORDER-INPUT-0011`.
