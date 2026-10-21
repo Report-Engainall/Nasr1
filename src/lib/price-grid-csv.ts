@@ -54,7 +54,7 @@ function csvCell(value: string | number | boolean | null | CsvFormattedNumber): 
 export function buildPriceGridCsv(rows: readonly ProductPriceGridRow[]): string {
   const output = [PRICE_GRID_EXPORT_HEADERS.map(csvCell).join(',')];
   for (const row of rows) {
-    const values: (string | number | boolean | null)[] = [
+    const values: (string | number | boolean | null | CsvFormattedNumber)[] = [
       row.id,
       row.item_code,
       row.name,
