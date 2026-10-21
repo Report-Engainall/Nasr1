@@ -425,3 +425,24 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - P2-only price-presentation helper now rejects empty/mismatched line counts, duplicate IDs, missing identity/name/quantity, invalid currency and unsupported/stale surface responses. Its test file and helper are covered by [current code suite #39620620077](https://github.com/Report-Engainall/Nasr1/actions/runs/39620620077); this is safety hardening only, not evidence the customer-facing Storefront UI was wired.
 - State: return request UI `INTEGRATED=YES`; review/receipt/credit queue components `EXISTS=YES`, admin/finance route wiring `INTEGRATED=NO — BLOCKED_P1_PATH_HANDOFF`; return browser E2E `NOT RUN`; production `NOT RUN`. The historical unit EOF failure at line 216 in `src/test/finance-document-pdf-source-reconciliation.test.ts` on old SHA `2388927343da2078a0fc652877bfb1a7d134fb24` and fix chronology are retained.
 - `next_task_id=NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010` remains deferred until the open return UI wiring blocker is closed.
+
+
+## P2 closeout — customer return operational entry points mounted and tested — 2026-10-21
+
+## P2 closeout — customer return operational entry points mounted and tested — 2026-10-21
+
+### Delivery
+- PR #18 branch: `feat/p2-customer-return-intake-20261020`; exact tested code SHA `9293b2008b0f42d2130bb4be5ade6a909cf30eb2`; PR remains open, base `main`, not merged.
+- Added route-level mounting using existing P2-editable `src/routes/admin_.orders.tsx` and `src/routes/admin_.finance.tsx`, plus `CustomerReturnOperationsDrawer.tsx`. The admin order workspace exposes manager/admin review and warehouse physical receipt; finance exposes credit-memo preparation, printing and explicit posting flow for admin/manager/accountant. The ordinary customer cannot see the operational launchers; PostgreSQL RPCs continue enforcing authorization and organization isolation.
+- Added five component tests for role/tab/notice behavior. No P1-protected App shell, generated route tree, shared API, workflow, P1 ledgers, or P1 report changed.
+
+### Acceptance evidence
+- [CI #39622591718](https://github.com/Report-Engainall/Nasr1/actions/runs/39622591718) — **PASS**, exact SHA `9293b2008b0f42d2130bb4be5ade6a909cf30eb2`: 72/72 Vitest files; frozen Bun lockfile check; PostgreSQL 17 migrations/core acceptance; explicit `PASS customer returns` and `PASS customer price privacy`; lint; build; preview and dev smoke.
+- [Playwright #39622591724](https://github.com/Report-Engainall/Nasr1/actions/runs/39622591724) — **PASS**, exact SHA `9293b2008b0f42d2130bb4be5ade6a909cf30eb2`: isolated local Supabase Chromium order persistence plus cross-tenant read denial 1/1; public no-write UI smoke 1/1. Hosted authenticated job skipped due missing dedicated non-production credentials.
+- Status axes: `RETURN_REQUEST_UI=INTEGRATED`; `REVIEW_RECEIPT_CREDIT_ROUTE_WIRING=INTEGRATED`; `UNIT_AND_PG17_EXACT_SHA=PASS`; `RETURN_UI_BROWSER_PROVEN=NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
+- Historical #39487393265 remains a failure on SHA `2388927343da2078a0fc652877bfb1a7d134fb24` caused by EOF/missing closing brace at `src/test/finance-document-pdf-source-reconciliation.test.ts:216`. Later correction is evidenced by the current 72/72 pass; original failure is preserved.
+- Credit amounts/tax continue to derive only from source-linked original invoice lines and recorded receipt quantities. No mock production records, production writes, auto-refund, fabricated amount/tax, or unsupported deployment claim.
+
+### Next task
+- Single next_task_id: `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010`.
+- Resume the product card/detail/cart/checkout visible-hidden price matrix and fail-closed error cases. P1 owns `src/components/Storefront.tsx` and `src/lib/api.ts`; a path-level request is recorded in the P1 PR conversation. Do not modify those files without explicit handoff; continue on P2-owned helper/tests and document exact acceptance gaps.
