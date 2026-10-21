@@ -28,6 +28,11 @@ function displayName(name: string | null, fallback: string | null): string {
   return name?.trim() || fallback?.trim() || "عميل بلا اسم مسجل";
 }
 
+function financePrintOptionsArgs(offset: number): { p_limit: number; p_offset?: number } {
+  // Keep the established one-argument RPC contract on page one; only later pages need the overload.
+  return offset === 0 ? { p_limit: 500 } : { p_limit: 500, p_offset: offset };
+}
+
 export function FinanceDocumentPrintActions() {
   const [options, setOptions] = useState<FinancePrintOptions>(emptyOptions);
   const [kind, setKind] = useState<DocumentKind>("invoice");
@@ -62,7 +67,7 @@ export function FinanceDocumentPrintActions() {
     setLoading(true);
     setError("");
     try {
-      const result = await supabase.rpc("get_finance_document_print_options", { p_limit: 500, p_offset: targetOffset });
+      const result = await supabase.rpc("get_finance_document_print_options", financePrintOptionsArgs(targetOffset));
       if (result.error) throw new Error(result.error.message || "تعذر تحميل مصادر المستندات المالية.");
       setOptions(readFinancePrintOptions(result.data));
     } catch (cause) {
@@ -94,7 +99,7 @@ export function FinanceDocumentPrintActions() {
       waiting.textContent = "جارٍ التحقق من صلاحية المحاسبة وتحميل المصدر المالي المعتمد…";
       printWindow.document.body.appendChild(waiting);
       setBusy(true);
-      const optionsResult = await supabase.rpc("get_finance_document_print_options", { p_limit: 500, p_offset: pageOffset });
+      const optionsResult = await supabase.rpc("get_finance_document_print_options", financePrintOptionsArgs(pageOffset));
       if (optionsResult.error) throw new Error(optionsResult.error.message || "تعذر التحقق من المؤسسة النشطة قبل الطباعة.");
       const currentOptions = readFinancePrintOptions(optionsResult.data);
       const sourceStillAuthorized = requestedKind === "invoice"
