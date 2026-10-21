@@ -6,7 +6,7 @@ import {
 import { createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
-import { filterTasksForPrint } from '@/lib/task-print';
+import { filterTasksForPrint, operationalTaskPrintTitle } from '@/lib/task-print';
 import { CustomerReturnReviewQueue } from '@/components/CustomerReturnReviewQueue';
 import { CustomerReturnReceiptQueue } from '@/components/CustomerReturnReceiptQueue';
 import { CustomerReturnCreditMemoQueue } from '@/components/CustomerReturnCreditMemoQueue';
@@ -281,7 +281,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       </article>;
     })}</div>}
     <div className="operational-task-print" dir="rtl" aria-hidden="true">
-      <header><h1>متجر الأغبري — كشف المهام التشغيلية</h1>
+      <header><h1>{operationalTaskPrintTitle()}</h1>
         <p>تاريخ الطباعة: {new Date().toLocaleString('ar-YE')}</p>
         <p>نطاق الطباعة: {printScope==='filtered'?'النتائج المفلترة الحالية':printScope==='all'?'كل الأدوار المسموحة للحساب':roleLabels[printScope]} — فلتر الدور على الشاشة: {roleFilter==='all'?'كل الأدوار المسموحة':roleLabels[roleFilter]} — الحالة: {statusFilter==='open'?'المفتوحة':statusLabels[statusFilter]??'كل الحالات'} — الأولوية: {priorityFilter==='all'?'كل الأولويات':priorityLabels[priorityFilter]} — العدد: {printable.length}</p>
         <p>المسؤول: {assigneeFilter==='all'?'كل المسؤولين':assigneeFilter==='unassigned'?'غير مسندة':assigneeById.get(assigneeFilter)?.full_name??'الموظف المحدد'} — فترة الإنشاء: {createdFrom||'بلا بداية'} إلى {createdTo||'بلا نهاية'}</p>
