@@ -3,7 +3,7 @@ import { BUSINESS_BRAND_NAME } from '@/lib/brand';
 
 type HasTaskRole = { task_role: OperationalTaskRole };
 export type TaskPrintScope = OperationalTaskRole | 'all' | 'filtered';
- 
+
 /** Canonical title used by the printable operational task register. */
 export function operationalTaskPrintTitle(): string {
   return BUSINESS_BRAND_NAME + ' — كشف المهام التشغيلية';
