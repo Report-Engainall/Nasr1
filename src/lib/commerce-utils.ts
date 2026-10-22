@@ -80,7 +80,7 @@ function moneyNumber(minorUnits: bigint): number {
 }
 
 function invalidInvoiceBalance(): InvoiceBalance {
-  return { valid: false, currency: '', total: 0, paid: 0, outstanding: 0 };
+  return { valid: false, currency: '', total: 0, paid: 0, credited: 0, outstanding: 0 };
 }
 
 function invalidAccountSummary(): AccountSummary {
