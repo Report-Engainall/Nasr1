@@ -21,7 +21,8 @@ describe("admin category archive command", () => {
       is_active: false,
       archived: true,
     });
-    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("archive_admin_catalog_category", {
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).toHaveBeenCalledWith("archive_admin_catalog_category", {
       p_category_id: CATEGORY_ID,
     });
   });
