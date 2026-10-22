@@ -213,7 +213,7 @@ describe('commerce completion utilities', () => {
     expect(summarizeInvoiceAmounts(
       { id: 'i1', total_amount: '10.00', currency: 'YER' },
       [{ invoice_id: 'i1', amount: 'NaN' }],
-    )).toEqual({ valid: false, currency: '', total: 0, paid: 0, outstanding: 0 });
+    )).toEqual({ valid: false, currency: '', total: 0, paid: 0, credited: 0, outstanding: 0 });
   });
 
   it('rejects malformed, duplicate, fractional, and unbounded offline cart lines', () => {
