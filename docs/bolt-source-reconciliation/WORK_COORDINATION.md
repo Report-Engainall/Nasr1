@@ -794,3 +794,13 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - External evidence limits are unchanged: no actual authorized Onyx request/response or target-import receipt exists in this run; keep live sync and Onyx target compatibility BLOCKED_EXTERNAL, production NOT RUN.
 - Matrix-first unresolved row now leads to CAT-STAFF-001. Before any code edit, inspect current file changes/PR locks for staff invites, account activation, and customer-directory paths and take a path-level lock here. Do not modify the P1-owned files listed in the mandate.
 - Sole active pointer is maintained only in CURRENT_EXECUTION_STATE.md: CAT-STAFF-001. All pointers below earlier historical sections remain archival, not live tasks.
+
+
+## P2 path lock — COMPANY-001 / company invitation token and verified-email authority — 2026-10-22
+
+- **Owner:** P2 only. **Branch:** `feat/p2-onyx-source-trace-sync-evidence-20261022`. **Task:** `COMPANY-001`.
+- **Exclusive paths:** new additive migration `supabase/migrations/20261022130000_customer_company_invitation_sha256_auth_confirmation.sql`; focused source/migration test `src/test/customer-company-invitation-security-migration.test.ts`; bounded company-membership acceptance block in `scripts/test-database-migrations.mjs` around the existing `AGH-CUSTOMER-360-MEMBERS-001` test (currently ~2420–2530).
+- **Shared test harness coordination:** open PR #12 also touches `scripts/test-database-migrations.mjs`, but its patch is limited to invoice/price-visibility assertions around lines ~1208–1370. Do not edit that range or package/workflow changes; the company-membership test block only is locked for this P2 task.
+- **P1 ownership:** `SOURCE_INTEGRATION_LEDGER.csv`, `READY_TO_REUSE_FILE_AUDIT.csv`, `PROGRAMMER_1_CURRENT_REPORT.md`, and `PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt` remain read-only and untouched.
+- **Implementation boundary:** new invites store SHA-256 token digests; acceptance supports the previous MD5 digest only to allow already-pending legacy invites to finish within their original expiry. Make verified email confirmation authoritative from `auth.users.email_confirmed_at`, reject stale/forged JWT confirmation claims, preserve email match, profile/tenant/role guards, single-use/replay, expiry, revocation, audit and current owner/company scope. Do not change roles, RLS or direct-table grants to make tests pass.
+- **No production DB writes.** Validate only in the isolated PostgreSQL 17 CI harness. Lock releases only after exact-head Core CI is terminal and the scoped test evidence is recorded.
