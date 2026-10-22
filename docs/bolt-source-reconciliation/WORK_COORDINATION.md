@@ -782,3 +782,15 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **No P1 files touched:** `PROGRAMMER_1_CURRENT_REPORT.md`, `PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt`, `SOURCE_INTEGRATION_LEDGER.csv`, and `READY_TO_REUSE_FILE_AUDIT.csv` remain protected.
 - **Database boundary:** additive migration and isolated PostgreSQL 17 only; no remote/production Supabase DDL or data writes. Live-sync attempt rows can only be written by `service_role`; browser/user sessions cannot self-assert a successful provider response. No real Onyx adapter/credential is present, so a saved snapshot or locally prepared XLSX remains explicitly non-live evidence.
 - This lock was written to the P2 feature branch before edits to `AdminPages.tsx`. Update it with exact commit/CI references after tests; do not create a second active task pointer while task 011 is open.
+
+
+## P2 exact-head closeout and ownership handoff — 2026-10-22
+
+- PR #40 remains the only branch carrying the Onyx source-trace implementation; application code/test SHA 8c414a06b584a37d56f3f4aaafcb8d3f53863e42 passed [Core CI #39799542472](https://github.com/Report-Engainall/Nasr1/actions/runs/39799542472). Keep PR #40 unmerged until owner review and the final required PR checks are green on its live HEAD.
+- Task NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011 is closed for code/DB/unit acceptance. Locked paths and their tests listed in the earlier Onyx source-trace section remain protected while PR #40 is open: make no parallel edits to AdminPages.tsx, the source-evidence panel/service/export, their migration, or focused tests.
+- INV-009 was runtime-revalidated in the same isolated PostgreSQL 17 workflow; no inventory migration/RPC rewrite is needed without a new failing assertion.
+- SRC-011 was read-only revalidated: P1-owned SOURCE_INTEGRATION_LEDGER.csv already records donor order-input migration 0011 as ALREADY_PRESENT_BETTER / DEDICATED_NEGATIVE_MATRIX_INTEGRATED. Current target CI explicitly rejects 24 invalid customer/staff order payloads and confirms no invalid order persisted. No donor SQL and no P1-owned ledger was changed.
+- Finance/task print acceptance was revalidated at the same exact application SHA with unit tests + PostgreSQL 17 outcomes; authenticated browser print preview was not run. Public Storefront smoke is not substitute evidence. Production writes/migrations were not performed.
+- External evidence limits are unchanged: no actual authorized Onyx request/response or target-import receipt exists in this run; keep live sync and Onyx target compatibility BLOCKED_EXTERNAL, production NOT RUN.
+- Matrix-first unresolved row now leads to CAT-STAFF-001. Before any code edit, inspect current file changes/PR locks for staff invites, account activation, and customer-directory paths and take a path-level lock here. Do not modify the P1-owned files listed in the mandate.
+- Sole active pointer is maintained only in CURRENT_EXECUTION_STATE.md: CAT-STAFF-001. All pointers below earlier historical sections remain archival, not live tasks.
