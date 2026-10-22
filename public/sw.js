@@ -99,6 +99,7 @@ self.addEventListener('fetch', (event) => {
         if (
           response.ok &&
           response.type === 'basic' &&
+          url.pathname.startsWith('/assets/') &&
           /\.(js|css|svg|png|jpe?g|webp|woff2?|ico)$/i.test(url.pathname) &&
           hasExpectedStaticAssetMimeType(url.pathname, response.headers.get('content-type'))
         ) {
