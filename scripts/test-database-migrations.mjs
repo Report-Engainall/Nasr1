@@ -283,8 +283,8 @@ async function main() {
     "insert into public.organizations(id,name,currency) values($1,'Foreign organization','YER') on conflict(id) do nothing",
     [otherOrganizationId],
   );
-  const foreignProfileId = "f6666666-6666-4666-8666-666666666666";
-  const foreignAuthUserId = "66666666-6666-4666-8666-666666666666";
+  const foreignProfileId = "fb666666-6666-4666-8666-666666666666";
+  const foreignAuthUserId = "c6666666-6666-4666-8666-666666666666";
   await db.unsafe(
     "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'Foreign CI Profile','foreign-ci-profile@example.test',true) on conflict(id) do nothing",
     [foreignProfileId, foreignAuthUserId, otherOrganizationId],
@@ -2416,10 +2416,10 @@ async function main() {
   const invitedAuthUserId="88888888-8888-4888-8888-888888888888";
   const financeProfileId="f9999999-9999-4999-8999-999999999999";
   const financeAuthUserId="99999999-9999-4999-8999-999999999999";
-  const unconfirmedMemberProfileId="f7777777-7777-4777-8777-777777777777";
-  const unconfirmedMemberAuthUserId="77777777-7777-4777-8777-777777777777";
-  const legacyMemberProfileId="f6666666-6666-4666-8666-666666666666";
-  const legacyMemberAuthUserId="66666666-6666-4666-8666-666666666666";
+  const unconfirmedMemberProfileId="fa777777-7777-4777-8777-777777777777";
+  const unconfirmedMemberAuthUserId="c7777777-7777-4777-8777-777777777777";
+  const legacyMemberProfileId="fb666666-6666-4666-8666-666666666666";
+  const legacyMemberAuthUserId="c6666666-6666-4666-8666-666666666666";
   await db.unsafe(
     "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Invited Buyer','ci-invited-buyer@example.test',true),($4,$5,$3,'CI Invited Finance','ci-invited-finance@example.test',true),($6,$7,$3,'CI Unconfirmed Member','ci-unconfirmed-member@example.test',true),($8,$9,$3,'CI Legacy Member','ci-legacy-member@example.test',true)",
     [invitedProfileId,invitedAuthUserId,organizationId,financeProfileId,financeAuthUserId,unconfirmedMemberProfileId,unconfirmedMemberAuthUserId,legacyMemberProfileId,legacyMemberAuthUserId],
