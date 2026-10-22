@@ -99,7 +99,11 @@ test("manager order detail downloads the persisted-audit 27-column Onyx XLSX", a
   expect(firstRow, "The detail worksheet must include its reference header row.").not.toBeNull();
   expect(itemRow, "The detail worksheet must contain the persisted order item.").not.toBeNull();
   expect([...firstRow![1].matchAll(/<c\b/g)]).toHaveLength(27);
-  expect([...itemRow![1].matchAll(/<c\b/g)]).toHaveLength(27);
+  // Blank XLSX cells are intentionally omitted; assert the 27-column schema and the actual populated column refs.
+  expect([...firstRow![1].matchAll(/<c\b/g)]).toHaveLength(27);
+  expect([...itemRow![1].matchAll(/<c\b/g)]).toHaveLength(6);
+  for (const ref of ["A2", "B2", "C2", "E2", "G2", "W2"]) expect(itemRow![1]).toContain(`r="${ref}"`);
+  expect(detailXml).toContain('<autoFilter ref="A1:AA2"/>');
   expect(detailXml).toContain("P2-RET-001");
   expect(headerXml).toContain(orderNumber);
   expect(headerXml).toContain("معرف سجل التدقيق المركزي");
