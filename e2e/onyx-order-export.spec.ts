@@ -95,9 +95,13 @@ test("manager order detail downloads the persisted-audit 27-column Onyx XLSX", a
   const detailXml = readStoredZipEntry(artifact, "xl/worksheets/sheet1.xml");
   const headerXml = readStoredZipEntry(artifact, "xl/worksheets/sheet2.xml");
   const firstRow = detailXml.match(/<row r="1"[^>]*>([\s\S]*?)<\/row>/);
-  expect(firstRow, "The XLSX must contain its first detail worksheet row.").not.toBeNull();
+  const itemRow = detailXml.match(/<row r="2"[^>]*>([\s\S]*?)<\/row>/);
+  expect(firstRow, "The detail worksheet must include its reference header row.").not.toBeNull();
+  expect(itemRow, "The detail worksheet must contain the persisted order item.").not.toBeNull();
   expect([...firstRow![1].matchAll(/<c\b/g)]).toHaveLength(27);
-  expect(detailXml).toContain(orderNumber);
+  expect([...itemRow![1].matchAll(/<c\b/g)]).toHaveLength(27);
+  expect(detailXml).toContain("P2-RET-001");
+  expect(headerXml).toContain(orderNumber);
   expect(headerXml).toContain("معرف سجل التدقيق المركزي");
   expect(headerXml).toContain(orderId);
   expect(headerXml).toContain("حالة توافق أونكس");
