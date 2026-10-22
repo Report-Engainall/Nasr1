@@ -1,3 +1,17 @@
+# تصحيح حاكم لحالة التنسيق — 22 أكتوبر 2026
+
+هذه الإضافة تتقدم على كل سطر تاريخي أدناه يتعارض معها، ولا تحذف السجل السابق.
+
+- الحالة الحية وقت التصحيح: main = 0395367d869d0d63fba669940a92eeca0ae3e893؛ Core CI #39789165220 ما زال QUEUED عند القراءة.
+- PR #18 و#26 و#29 و#38 مدمجة بالفعل. أي فقرة أقدم تصف #18 أو #26 بأنها OPEN أو غير مدمجة هي تاريخية ولا تستخدم لتحديد العمل الحالي.
+- PR #31 مسودة توثيقية تغيّر تقرير P1، مدخل إقلاع P1، SOURCE_INTEGRATION_LEDGER.csv، وREADY_TO_REUSE_FILE_AUDIT.csv. هذه الملفات مقفلة أمام P2 إلى أن يُحسم PR #31؛ لا تحدثها من هذا المسار.
+- PR #38 أضاف src/test/storefront-price-visibility-ui.test.tsx فقط، ودمج على 0395367d869d0d63fba669940a92eeca0ae3e893. اختبار الفرع السابق نجح في Core #39682383887 وP2 Playwright #39682383901؛ قبول SHA الدمج مرتبط بنتيجة #39789165220.
+- المبرمج 1 متوقف بحسب توجيه المالك. لا تنتظر عودته للعمل المستقل. يجوز لـP2 استلام مسار كود غير مملوك حاليًا بعد مقارنة جميع الفروع وPRs غير المدمجة وتسجيل نقل ملكية مؤقت قبل التعديل. لا يُسمح بالكتابة المتزامنة في مسار واحد.
+- قفل المسار يجب أن يتضمن: task ID، المسارات الدقيقة، مالك واحد، branch وbase SHA، ملفات لن تُمسّ، الاختبارات المطلوبة، وشرط تحرير القفل. يُحرر القفل بعد دمج PR والتحقق من الرأس الجديد فقط.
+- لا تنفذ reset أو clean أو force-push ولا كتابة مباشرة على main. لا تدمج فرعين متداخلين بالتزامن. افحص diff وملكية كل ملف قبل أي دمج.
+- مؤشر الاستئناف الديناميكي الوحيد موجود في CURRENT_EXECUTION_STATE.md. خطة المسارات المتوازية موجودة في FULL_APPLICATION_PARALLEL_EXECUTION_MANDATE_2026-10-22.md والمصفوفة REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv. لا تنشئ مؤشرًا ديناميكيًا آخر في هذا الملف.
+- فحص المتصفح النهائي مسؤولية Bolt New وفق توجيه المالك؛ CI وPostgreSQL لا يتحولان إلى BROWSER_PROVEN أو PRODUCTION_PROVEN.
+---
 ## P2 latest exact-head verification and successor handoff — 21 October 2026
 
 - **Repository/branch/PR:** `Report-Engainall/Nasr1` / `feat/p2-customer-return-intake-20261020` / [PR #18](https://github.com/Report-Engainall/Nasr1/pull/18), still OPEN and unmerged. Exact tested application/code SHA for the latest code batch: `afcdd69e75b1f1783652ce3fca2d14d7351d93a1`. Documentation changes made later do not inherit this CI label.
