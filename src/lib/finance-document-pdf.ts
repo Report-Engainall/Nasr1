@@ -44,7 +44,7 @@ export type CustomerStatementCurrencySummaryPayload = {
   currency: string;
   invoiced: string | number;
   paid: string | number;
-  credited?: string | number;
+  credited: string | number;
   outstanding: string | number;
   overdue_invoice_count: number;
   overdue_outstanding: string | number;
@@ -521,10 +521,10 @@ export async function buildCustomerStatementPdf(
     drawLtr(page, font, minorUnitsToText(totals.invoiced), 175, summaryY - 2, 8, INK, 72);
     drawArabic(page, font, "المدفوع", 405, summaryY - 2, 8, MUTED, 70);
     drawLtr(page, font, minorUnitsToText(totals.paid), 345, summaryY - 2, 8, INK, 72);
-    drawArabic(page, font, "الدائن", 270, summaryY - 15, 8, MUTED, 70);
-    drawLtr(page, font, minorUnitsToText(totals.credited), 175, summaryY - 15, 8, INK, 72);
-    drawArabic(page, font, "المتبقي", 520, summaryY - 15, 8, MUTED, 55);
-    drawLtr(page, font, minorUnitsToText(totals.outstanding), 438, summaryY - 15, 8, INK, 75);
+    drawArabic(page, font, "الدائن", 345, summaryY - 15, 7.2, MUTED, 70);
+    drawLtr(page, font, minorUnitsToText(totals.credited), 285, summaryY - 15, 7.2, INK, 72);
+    drawArabic(page, font, "المتبقي", 520, summaryY - 2, 8, MUTED, 55);
+    drawLtr(page, font, minorUnitsToText(totals.outstanding), 438, summaryY - 2, 8, INK, 75);
 
     drawArabic(page, font, `المتأخر (${totals.overdueInvoiceCount})`, 520, summaryY - 15, 7.2, MUTED, 78);
     drawLtr(page, font, minorUnitsToText(totals.overdueOutstanding), 438, summaryY - 15, 7.2, INK, 75);
