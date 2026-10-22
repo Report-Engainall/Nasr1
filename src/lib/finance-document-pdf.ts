@@ -350,9 +350,8 @@ function validatePayload(payload: unknown): {
     const total = moneyToMinorUnits(invoice.total_amount);
     const paid = invoice.paid_amount === undefined ? 0n : moneyToMinorUnits(invoice.paid_amount);
     const credited = invoice.credit_memo_amount === undefined ? 0n : moneyToMinorUnits(invoice.credit_memo_amount);
-    if (total < 0n || paid < 0n || credited < 0n) {
-      throw new Error("Statement contains a negative invoice or payment aggregate.");
-    }
+    if (total < 0n) throw new Error("Statement contains a negative invoice total.");
+    if (paid < 0n || credited < 0n) throw new Error("Statement contains a negative invoice payment or credit aggregate.");
     const expectedOutstanding = invoice.status === "void" || total <= paid + credited
       ? 0n
       : total - paid - credited;
