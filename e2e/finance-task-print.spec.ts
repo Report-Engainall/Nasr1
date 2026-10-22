@@ -55,6 +55,9 @@ test("authorized finance documents and operational-task print remain tenant-scop
   // Keep Chromium headless and deterministic while proving the application invoked its print action.
   await managerContext.addInitScript(() => {
     window.print = () => { document.documentElement.dataset.e2ePrintInvoked = "true"; };
+    // The product may close a print popup after invoking window.print().
+    // Keep it alive in this deterministic harness so Chromium can inspect its rendered PDF.
+    window.close = () => {};
   });
 
   try {
