@@ -302,12 +302,32 @@ jobs:
             echo "- This job uses a fresh local-only PostgreSQL 17/Supabase stack and does not connect to a hosted project."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Start isolated local Supabase services
-        timeout-minutes: 10
+        timeout-minutes: 13
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/p2-local-supabase"
-          timeout 8m supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check
+          # Retry only transient GitHub Container Registry throttling while pulling local test images.
+          # Any non-registry startup error fails immediately; database/migration errors are never skipped.
+          for attempt in 1 2 3; do
+            log_file="$RUNNER_TEMP/p2-supabase-start-attempt-${attempt}.log"
+            echo "Starting isolated Supabase services (attempt ${attempt}/3)."
+            if timeout 210s supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check 2>&1 | tee "$log_file"; then
+              echo "Isolated Supabase services started on attempt ${attempt}." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if ! grep -Eiq 'toomanyrequests|429[[:space:]]+Too Many Requests|rate.limit' "$log_file"; then
+              echo "::error title=Local Supabase startup failed::Non-retryable error; see startup log above."
+              exit 1
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error title=Local Supabase image pull exhausted retries::GHCR rate limiting persisted for 3 attempts."
+              exit 1
+            fi
+            echo "::warning::GHCR throttled an image pull; stopping the partial local stack and retrying after backoff."
+            supabase stop --no-backup >/dev/null 2>&1 || true
+            sleep $((attempt * 15))
+          done
       - name: Apply repository migrations to local PostgreSQL 17
         timeout-minutes: 15
         shell: bash
