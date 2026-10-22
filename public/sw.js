@@ -2,6 +2,32 @@
 const CACHE_NAME = 'aghbari-shell-v2';
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.ico'];
 
+const STATIC_ASSET_MIME_POLICIES = [
+  { extension: /\.js$/i, types: ['application/javascript', 'text/javascript', 'application/ecmascript', 'text/ecmascript', 'application/x-javascript'] },
+  { extension: /\.css$/i, types: ['text/css'] },
+  { extension: /\.svg$/i, types: ['image/svg+xml'] },
+  { extension: /\.png$/i, types: ['image/png'] },
+  { extension: /\.jpe?g$/i, types: ['image/jpeg'] },
+  { extension: /\.webp$/i, types: ['image/webp'] },
+  { extension: /\.woff2?$/i, types: ['font/woff', 'font/woff2', 'application/font-woff', 'application/font-woff2', 'application/x-font-woff'] },
+  { extension: /\.ico$/i, types: ['image/x-icon', 'image/vnd.microsoft.icon', 'image/ico'] },
+];
+
+function responseMimeType(response) {
+  return (response.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase();
+}
+
+function hasExpectedStaticAssetMimeType(pathname, contentType) {
+  const mimeType = (contentType || '').split(';', 1)[0].trim().toLowerCase();
+  const policy = STATIC_ASSET_MIME_POLICIES.find((entry) => entry.extension.test(pathname));
+  return Boolean(policy && policy.types.includes(mimeType));
+}
+
+function isHtmlResponse(response) {
+  const mimeType = responseMimeType(response);
+  return mimeType === 'text/html' || mimeType === 'application/xhtml+xml';
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -42,8 +68,13 @@ self.addEventListener('fetch', (event) => {
         // navigations such as account, invoice or admin routes: those may contain
         // identity-bound data in future SSR changes.
         if (response.ok && url.pathname === '/') {
-          const homeResponse = response.clone();
-          void caches.open(CACHE_NAME).then((cache) => cache.put('/', homeResponse));
+          // An SPA/SSR error page must not poison the offline shell cache.
+          if (isHtmlResponse(response)) {
+            const homeResponse = response.clone();
+            void caches.open(CACHE_NAME)
+              .then((cache) => cache.put('/', homeResponse))
+              .catch(() => undefined);
+          }
         }
         return response;
       }).catch(async () => (await caches.match('/')) || Response.error()),
@@ -54,8 +85,16 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(request).then((cached) => {
       const network = fetch(request).then((response) => {
-        if (response.ok && response.type === 'basic' && /\.(js|css|svg|png|jpe?g|webp|woff2?|ico)$/i.test(url.pathname)) {
-          void caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
+        if (
+          response.ok &&
+          response.type === 'basic' &&
+          /\.(js|css|svg|png|jpe?g|webp|woff2?|ico)$/i.test(url.pathname) &&
+          hasExpectedStaticAssetMimeType(url.pathname, response.headers.get('content-type'))
+        ) {
+          // A missing JS asset can fall back to index.html with HTTP 200; never persist it as JS.
+          void caches.open(CACHE_NAME)
+            .then((cache) => cache.put(request, response.clone()))
+            .catch(() => undefined);
         }
         return response;
       });
