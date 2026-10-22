@@ -180,6 +180,25 @@ async function main() {
         "values($1::uuid,$2::uuid,1,$3::text,pg_catalog.md5($4::jsonb::text),'valid',$4::jsonb,'[]'::jsonb)",
       [organizationId, snapshotId, itemCode, JSON.stringify(sourceRow)],
     );
+    // Prove the test fixture's scope survived PostgreSQL persistence before invoking the guarded RPC.
+    // This distinguishes bad fixture data from a database function/migration regression.
+    const persistedScope = await admin.unsafe(
+      "select s.metrics->>'warehouse_id' as snapshot_warehouse_id, " +
+        "s.metrics->>'warehouse_code' as snapshot_warehouse_code, " +
+        "r.data->>'warehouse_id' as row_warehouse_id, " +
+        "r.data->>'warehouse_code' as row_warehouse_code, " +
+        "r.data->>'warehouse_name' as row_warehouse_name " +
+        "from public.onyx_snapshots s join public.onyx_snapshot_rows r " +
+        "on r.snapshot_id=s.id and r.organization_id=s.organization_id " +
+        "where s.id=$1::uuid and s.organization_id=$2::uuid",
+      [snapshotId, organizationId],
+    );
+    assert.equal(persistedScope.length, 1, "scoped Onyx fixture must persist exactly one source row");
+    assert.equal(persistedScope[0].snapshot_warehouse_id, warehouseId, "snapshot warehouse_id must persist");
+    assert.equal(persistedScope[0].snapshot_warehouse_code, warehouseCode, "snapshot warehouse_code must persist");
+    assert.equal(persistedScope[0].row_warehouse_id, warehouseId, "source row warehouse_id must persist");
+    assert.equal(persistedScope[0].row_warehouse_code, warehouseCode, "source row warehouse_code must persist");
+    assert.equal(persistedScope[0].row_warehouse_name, warehouseName, "source row warehouse_name must persist");
     await admin.unsafe("commit");
     setupCommitted = true;
   } catch (error) {
