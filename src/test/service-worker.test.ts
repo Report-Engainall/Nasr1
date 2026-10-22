@@ -10,6 +10,13 @@ type FetchWorkerEvent = {
 };
 type Listener = (event: WorkerEvent | FetchWorkerEvent) => void;
 
+function sameOriginResponse(body: BodyInit | null, init?: ResponseInit): Response {
+  const response = new Response(body, init);
+  // Node's Response defaults to type "default"; browser fetch for same-origin returns "basic".
+  Object.defineProperty(response, "type", { configurable: true, value: "basic" });
+  return response;
+}
+
 async function loadServiceWorker(overrides: {
   cacheAdd?: (url: string) => Promise<void>;
   cacheNames?: string[];
@@ -57,13 +64,13 @@ describe("Aghbari PWA offline shell", () => {
   it("precaches MIME-valid shell assets while skipping an optional asset with the wrong MIME", async () => {
     const worker = await loadServiceWorker({
       fetcher: async (url) => {
-        if (url === "/") return new Response("<!doctype html>", {
+        if (url === "/") return sameOriginResponse("<!doctype html>", {
           status: 200, headers: { "Content-Type": "text/html; charset=utf-8" },
         });
-        if (url === "/manifest.webmanifest") return new Response("<html>fallback</html>", {
+        if (url === "/manifest.webmanifest") return sameOriginResponse("<html>fallback</html>", {
           status: 200, headers: { "Content-Type": "text/html; charset=utf-8" },
         });
-        if (url === "/favicon.ico") return new Response("icon", {
+        if (url === "/favicon.ico") return sameOriginResponse("icon", {
           status: 200, headers: { "Content-Type": "image/x-icon" },
         });
         throw new Error("unexpected shell URL: " + url);
