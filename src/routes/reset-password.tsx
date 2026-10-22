@@ -6,6 +6,8 @@ export const Route = createFileRoute("/reset-password")({
   head: () => ({
     meta: [
       { title: "تعيين كلمة مرور جديدة | الأغبري" },
+      { name: "robots", content: "noindex, nofollow" },
+      { name: "referrer", content: "no-referrer" },
       { name: "description", content: "أعد تعيين كلمة مرور حسابك في الأغبري." },
       { property: "og:title", content: "تعيين كلمة مرور جديدة | الأغبري" },
       { property: "og:description", content: "أعد تعيين كلمة مرور حسابك." },
