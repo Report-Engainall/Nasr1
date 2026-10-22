@@ -51,7 +51,7 @@ describe('price grid CSV export', () => {
     expect(csv).toContain("'=HYPERLINK");
   });
   it('round-trips quoted delimiters, escaped quotes, and embedded newlines without shifting price columns', () => {
-    const richRow = { ...row, name: 'شركة "الأغبري"، فرع 2\\nالمخزن الخلفي' };
+    const richRow = { ...row, name: 'شركة "الأغبري"، فرع 2\nالمخزن الخلفي' };
     const csv = buildPriceGridCsv([richRow]);
     const parsed = parsePriceGridCsv(csv, [richRow]);
     expect(parsed.itemCount).toBe(1);
