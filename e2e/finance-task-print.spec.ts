@@ -63,9 +63,11 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
 
-    const kind = manager.getByLabel("نوع المستند المالي");
-    const source = manager.getByLabel("مصدر المستند المالي");
-    const printButton = manager.getByRole("button", { name: "فتح نافذة الطباعة / حفظ PDF", exact: true });
+    // The general-ledger panel exposes its own selectors with the same accessible names.
+    // Scope this acceptance to the dedicated finance-document print panel's first controls.
+    const kind = manager.getByLabel("نوع المستند المالي").first();
+    const source = manager.getByLabel("مصدر المستند المالي").first();
+    const printButton = manager.getByRole("button", { name: "فتح نافذة الطباعة / حفظ PDF", exact: true }).first();
 
     await expect(source).toBeEnabled();
     await kind.selectOption("invoice");
