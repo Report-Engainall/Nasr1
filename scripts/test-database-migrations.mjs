@@ -2416,10 +2416,10 @@ async function main() {
   const invitedAuthUserId="88888888-8888-4888-8888-888888888888";
   const financeProfileId="f9999999-9999-4999-8999-999999999999";
   const financeAuthUserId="99999999-9999-4999-8999-999999999999";
-  const unconfirmedMemberProfileId="be1ff83b-d537-4fb8-a0ff-e43d29e1a4e7";
-  const unconfirmedMemberAuthUserId="812c13c6-f6ce-4bff-a9fd-3546ddf4895f";
-  const legacyMemberProfileId="a3480c93-5192-42c2-a43a-ccb53ef71fea";
-  const legacyMemberAuthUserId="ff78feae-86d0-4906-aa9d-938c7fc0e6f5";
+  const unconfirmedMemberProfileId=(await db.unsafe("select gen_random_uuid()::text as id"))[0].id;
+  const unconfirmedMemberAuthUserId=(await db.unsafe("select gen_random_uuid()::text as id"))[0].id;
+  const legacyMemberProfileId=(await db.unsafe("select gen_random_uuid()::text as id"))[0].id;
+  const legacyMemberAuthUserId=(await db.unsafe("select gen_random_uuid()::text as id"))[0].id;
   await db.unsafe(
     "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Invited Buyer','ci-invited-buyer@example.test',true),($4,$5,$3,'CI Invited Finance','ci-invited-finance@example.test',true),($6,$7,$3,'CI Unconfirmed Member','ci-unconfirmed-member@example.test',true),($8,$9,$3,'CI Legacy Member','ci-legacy-member@example.test',true)",
     [invitedProfileId,invitedAuthUserId,organizationId,financeProfileId,financeAuthUserId,unconfirmedMemberProfileId,unconfirmedMemberAuthUserId,legacyMemberProfileId,legacyMemberAuthUserId],
