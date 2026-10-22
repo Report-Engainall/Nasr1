@@ -5,7 +5,8 @@ export const Route = createFileRoute("/invite/$token")({
   head: () => ({
     meta: [
       { title: "قبول دعوة الشركة | متجر الأغبري" },
-      { name: "robots", content: "noindex" },
+      { name: "robots", content: "noindex, nofollow" },
+      { name: "referrer", content: "no-referrer" },
     ],
   }),
   component: InvitePage,
