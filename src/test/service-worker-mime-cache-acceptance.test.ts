@@ -127,6 +127,16 @@ describe("PWA service-worker MIME cache acceptance", () => {
     expect(scenario.cache.put).toHaveBeenCalledWith(scenario.request, { cachedCopy: true });
   });
 
+  it("does not cache customer-looking paths just because the extension and MIME resemble a public asset", async () => {
+    const response = responseStub("image/svg+xml");
+    const scenario = runFetchScenario("https://aghbari.test/customers/private-mark.svg", "cors", response);
+
+    expect(await scenario.responsePromise).toBe(response);
+    await flushCacheWrite();
+
+    expect(scenario.cache.put).not.toHaveBeenCalled();
+  });
+
   it("does not persist a non-HTML root response as the offline application shell", async () => {
     const response = responseStub("application/json");
     const scenario = runFetchScenario("https://aghbari.test/", "navigate", response);
