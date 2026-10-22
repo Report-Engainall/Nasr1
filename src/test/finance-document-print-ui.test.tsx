@@ -166,7 +166,7 @@ describe("finance document printing UI", () => {
     render(<FinanceDocumentPrintActions />);
     await screen.findByRole("option", { name: /INV-TEST-0009/ });
     fireEvent.change(screen.getByLabelText("نوع المستند المالي"), { target: { value: "credit_memo" } });
-    await screen.findByRole("option", { name: /CRM-TEST-001.*reversed/ });
+    await screen.findByRole("option", { name: /CRM-TEST-001.*معكوس ماليًا/ });
     fireEvent.click(screen.getByRole("button", { name: /فتح نافذة الطباعة/ }));
     expect(await screen.findByText(/تم تجهيز المستند/)).toBeInTheDocument();
     expect(popup.document.body.textContent).toContain("معكوس ماليًا");
