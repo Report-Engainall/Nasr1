@@ -81,7 +81,8 @@ describe("Onyx XLSX formula-injection acceptance", () => {
       if (index === 5) {
         expect(cell).toContain("&lt;click &amp; open&gt;");
       } else {
-        expect(cell).toContain(value);
+        // Quotes are XML-escaped in cell text; verify the serialized source, not raw input.
+        expect(cell).toContain(value.replace(/"/g, "&quot;"));
       }
     });
 
