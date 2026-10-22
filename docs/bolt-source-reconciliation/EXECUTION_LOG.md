@@ -1,3 +1,20 @@
+## P2 exact-head closeout — source identity, Onyx evidence, finance/task printing — 22 October 2026
+
+- Task closed with evidence: NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011, code/test SHA 8c414a06b584a37d56f3f4aaafcb8d3f53863e42, PR #40. [Aghbari Commerce checks #39799542472](https://github.com/Report-Engainall/Nasr1/actions/runs/39799542472) completed SUCCESS for this exact code SHA.
+- Unit tests: 682 passed / 682. Database acceptance on isolated PostgreSQL 17, lint, build, production-preview smoke on port 4173, and dev smoke on port 5173 passed.
+- Onyx source/export contract: source snapshot + import job + source file hash + tenant identity flowed into the order-export audit; per-item mapping distinguishes exact/ambiguous/unmatched/non-valid source rows; external IDs emitted only for a unique safe match; request-key replay returns the same audit and payload mismatch is rejected. Audit explicitly records download_completion_verified=false, target_import_verified=false, live_sync_triggered=false.
+- Sync contract: service-role-only sync recorder requires a recorded 2xx and request/response SHA-256 for a successful attempt; latest attempt/error and latest historical success are separate, and snapshot-specific success is separately bound. CI fixtures exercised success followed by failure, foreign tenant/unauthorized actor denial, orphan snapshots, hash mismatch and truncation. This is code/fixture proof, not a real Onyx provider call.
+- Print contract: src/test/finance-document-print-ui.test.tsx 6 tests, src/test/finance-document-print.test.ts 6 tests, and src/test/task-print.test.ts 10 tests passed. PostgreSQL 17 output confirms allowed admin/manager/accountant printing, denied staff/customer roles, foreign-tenant invoice/statement isolation, credit-memo finance permission enforcement, and task-center role isolation. Print/browser preview was not run.
+- Same-head extra gates: Onyx inventory reconciliation printed PASS for warehouse/tenant/manager guards, preview no-write, apply/rollback idempotency, reservations, stale apply, audited movements, compensating rollback and refusal to undo later movements. Source donor order-input 0011 was checked read-only in P1's ledger and was already classified ALREADY_PRESENT_BETTER; current DB harness rejected 24 invalid customer/staff order payloads with no persisted order. Donor SQL was not copied or applied.
+- Matrix updates: GATE-001, STF-011, RET-013, INV-009, SRC-011, and PRINT-001 are now reclassified based on the actual results above. ONYX-XLSX-001 remains BLOCKED_EXTERNAL for target import acceptance.
+- [P2 Playwright #39799542477](https://github.com/Report-Engainall/Nasr1/actions/runs/39799542477) concluded CANCELLED. The public read-only Storefront Chromium smoke passed. The local-Supabase order/tenant browser job passed migration setup, database acceptance, and accounting scripts, then was cancelled during Chromium installation; browser build and authenticated Chromium steps were skipped. Do not claim authenticated browser proof from this run.
+- BROWSER_PROVEN=NOT RUN for authenticated source evidence/finance/task printing; PRODUCTION_PROVEN=NOT RUN; real Onyx API sync and import against the actual 27-column target remain BLOCKED_EXTERNAL.
+- Single next pointer in CURRENT_EXECUTION_STATE.md: CAT-STAFF-001 — verify staff invitation/account activation/customer directory against the current tree before changing anything. Historical task pointers below are archival only.
+
+---
+
+## Historical interim readback (superseded after Core CI terminal result)
+
 ## P2 readback — Onyx source trace and sync evidence — 22 October 2026
 
 - **Task remains OPEN:** `NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011`; only active pointer remains in `CURRENT_EXECUTION_STATE.md`.
