@@ -804,3 +804,10 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **P1 ownership:** `SOURCE_INTEGRATION_LEDGER.csv`, `READY_TO_REUSE_FILE_AUDIT.csv`, `PROGRAMMER_1_CURRENT_REPORT.md`, and `PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt` remain read-only and untouched.
 - **Implementation boundary:** new invites store SHA-256 token digests; acceptance supports the previous MD5 digest only to allow already-pending legacy invites to finish within their original expiry. Make verified email confirmation authoritative from `auth.users.email_confirmed_at`, reject stale/forged JWT confirmation claims, preserve email match, profile/tenant/role guards, single-use/replay, expiry, revocation, audit and current owner/company scope. Do not change roles, RLS or direct-table grants to make tests pass.
 - **No production DB writes.** Validate only in the isolated PostgreSQL 17 CI harness. Lock releases only after exact-head Core CI is terminal and the scoped test evidence is recorded.
+
+
+## P2 path lock — self-contained customer-return cross-tenant print fixture — 2026-10-22
+- Purpose: support the current P2 exact-SHA CI remediation; this is **not** a second `next_task_id` and does not change the authoritative pointer.
+- Exclusive path: `scripts/test-customer-returns.mjs` only. Root cause identified in Actions #39811820945: the return acceptance script creates a foreign-tenant customer using a hard-coded profile ID but does not create the corresponding `auth.users` and `public.profiles` fixtures; PostgreSQL rejects the customer with `customers_profile_id_fkey`.
+- P2 owns this narrow test-fixture correction. Make the fixture self-contained with unique test identities, the required auth/profile rows, and a customer role. Do not change the database constraint, relax RLS, or reuse/modify the COMPANY-001 test block in `scripts/test-database-migrations.mjs`.
+- Keep the lock until the exact-head Core CI including all chained PostgreSQL 17 acceptance scripts is terminal and the outcome is recorded. No production database writes.
