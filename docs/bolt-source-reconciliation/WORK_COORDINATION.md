@@ -1,3 +1,14 @@
+## P2 active path lock — ORD-001 order-status write-result confirmation — 22 October 2026
+
+- Task ID: `ORD-001`; owner: P2 only; branch: `feat/p2-onyx-source-trace-sync-evidence-20261022`; starting application SHA: `87ff39c228b055ace8ef2c321358683d2939becb`.
+- Exclusive edit slice: `src/lib/api.ts` — only the existing `updateOrderStatus` function; new file `src/test/order-status-write-result.test.ts`. No ownership is claimed over adjacent product-write functions.
+- Open PR overlap check: PR #45 edits `createProduct`/`updateProduct` and `src/test/product-write-result.test.ts` in the same API file but does not edit `updateOrderStatus`. P2 preserves all PR #45 code and will keep the diff limited to its disjoint function. No other open PR changes the same function/test path at lock creation.
+- Required acceptance: reject unsupported status input before network write; use only safe `id` projection on the update; distinguish zero affected rows and unexpected returned id from success; propagate database/RLS/state-machine errors. PostgreSQL triggers remain authoritative for tenant, transition validity, inventory, and atomic history.
+- Verification: dedicated Vitest regression tests; full Core CI on exact final branch SHA, including PostgreSQL 17, lint, build and preview/dev smoke. Authenticated browser/production status is independent and will not be inferred from CI.
+- Files explicitly protected from this work: P1 evidence files listed under PR #31 (`PROGRAMMER_1_CURRENT_REPORT.md`, `PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt`, `SOURCE_INTEGRATION_LEDGER.csv`, `READY_TO_REUSE_FILE_AUDIT.csv`). No direct writes to main. Release this lock only after the relevant PR is merged and the post-merge head is rechecked; otherwise keep it as a hand-off record.
+
+---
+
 # تصحيح حاكم لحالة التنسيق — 22 أكتوبر 2026
 
 هذه الإضافة تتقدم على كل سطر تاريخي أدناه يتعارض معها، ولا تحذف السجل السابق.

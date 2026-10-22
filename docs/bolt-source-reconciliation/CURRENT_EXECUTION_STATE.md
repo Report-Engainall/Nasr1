@@ -5,17 +5,19 @@
 
 ### الحقيقة الحية
 - المستودع الوحيد: https://github.com/Report-Engainall/Nasr1
-- رأس main المقروء: 0395367d869d0d63fba669940a92eeca0ae3e893.
-- Core CI على رأس main نفسه 0395367d869d0d63fba669940a92eeca0ae3e893: https://github.com/Report-Engainall/Nasr1/actions/runs/39789165220 — SUCCESS بعد قراءة الحالة النهائية ووظائف التشغيل. هذا إثبات للرأس المذكور فقط.
+- رأس main المقروء بتاريخ 22 أكتوبر 2026: 7ed0f17e4422ab76e0162f730f70fe4c2564c336.
+- Core CI للرأس الحالي 7ed0f17e4422ab76e0162f730f70fe4c2564c336: https://github.com/Report-Engainall/Nasr1/actions/runs/39812114706 — SUCCESS على SHA مطابق؛ بوابة unit/PG17/lint/build/preview/dev ناجحة لهذا الرأس فقط. Run 39789165220 يظل إثباتًا تاريخيًا للرأس 0395367….
 - PRs المدمجة: #18 → f00e609013e248de4ecb94c41e31296884f899cf؛ #26 → 6e97fb35be9ebf65c546a3d5e9615063853c8eab؛ #29 → 1eb57a661b413c9c7d0321dccca70e5d6a0e42fe؛ #32 (محاسبة استلام المشتريات) → 3692be6e7bd2ef9db6d78c89813cbddd74df6e08؛ #34 (مهام المشتريات/الاستلام) → 9c1dbda4065964567ad36ebc8b6489f6eca935c4؛ #38 (اختبار خصوصية السلة والـcheckout) → 0395367d869d0d63fba669940a92eeca0ae3e893.
 - دليل محاسبة استلام المشتريات: Core 39664466105 وP2 Playwright 39664466118 نجحا على SHA bf39642529c984ec2ff03cb49fbfbce665349d17 قبل الدمج؛ كما اجتاز main Core في 6f1985f8babe414f11f4c5a809e6f9312e0faefa / Actions 39681956093. لا تكرر نقل أو دمج الميزة.
 - دليل مهام المشتريات: PR #34 مدمج على 9c1dbda... واجتاز main Core Actions 39678996166 على SHA الدمج نفسه.
 - PR #31 مسودة توثيقية تغيّر أدلة P1 فقط. تجنّب هذه الملفات حتى الحسم: PROGRAMMER_1_CURRENT_REPORT.md، PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt، SOURCE_INTEGRATION_LEDGER.csv، READY_TO_REUSE_FILE_AUDIT.csv.
 - المبرمج 1 متوقف حسب توجيه المالك. لا تنتظر عودته؛ أكمل المسارات المستقلة على فروع متابعة، مع قفل واضح للملفات المتداخلة.
 
-- PR #40 (P2 Onyx source trace/sync evidence) — مسودة غير مدمجة: https://github.com/Report-Engainall/Nasr1/pull/40. آخر SHA كود مختبر لهذه الدفعة: 8c414a06b584a37d56f3f4aaafcb8d3f53863e42؛ Core CI https://github.com/Report-Engainall/Nasr1/actions/runs/39799542472 انتهى SUCCESS على هذا الرأس (682/682 unit tests، PostgreSQL 17 acceptance، lint، build، preview/dev smoke). P2 Playwright https://github.com/Report-Engainall/Nasr1/actions/runs/39799542477 انتهى CANCELLED: اختبار Storefront العام read-only نجح، لكن مسار Supabase/المتصفح المصادق عليه أُلغي عند تثبيت Chromium؛ لذلك هذا المسار BROWSER_PROVEN=NOT RUN. لا إنتاج ولا اتصال Onyx خارجي.
+- PR #40 (مسودة غير مدمجة): https://github.com/Report-Engainall/Nasr1/pull/40؛ رأس الفرع الحالي وقت القراءة `87ff39c228b055ace8ef2c321358683d2939becb` وقاعدة PR المرصودة `7ed0f17e4422ab76e0162f730f70fe4c2564c336`. Core CI https://github.com/Report-Engainall/Nasr1/actions/runs/39819984846 = SUCCESS على SHA مطابق، وكل خطوات unit/PG17/lint/build/preview/dev نجحت. P2 Playwright https://github.com/Report-Engainall/Nasr1/actions/runs/39819984701 كان IN_PROGRESS في آخر قراءة: public read-only smoke = SUCCESS، بينما local Supabase لم يتجاوز تثبيت Chromium؛ لا يُدّعى browser proof للمسارات المصادقة. run 39799542477 CANCELLED على رأس تاريخي أقدم. لا إنتاج ولا اتصال Onyx خارجي مثبت.
 
 ### إغلاق البنود التي وصل قبولها إلى دليل فعلي — 22 أكتوبر 2026
+
+**آخر قراءة وتحقق مطابق للرأس:** PR #40 عند `87ff39c228b055ace8ef2c321358683d2939becb` اجتاز Core CI #39819984846. مؤشر المصدر/Onyx والطباعة `NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011` أُغلق بالأدلة المسجلة أدناه، مع بقاء اتصال Onyx الخارجي والطباعة المصادق عليها في المتصفح غير مثبتين.
 
 **أُغلق المؤشر الأساسي:** NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011
 
@@ -28,12 +30,14 @@
 - [P2 Playwright #39799542477](https://github.com/Report-Engainall/Nasr1/actions/runs/39799542477) حالته النهائية CANCELLED. خطوة اختبار Chromium العام read-only نجحت، أما مسار الطلبات/عزل المؤسسة على Supabase محلي فنجحت فيه تهيئة PostgreSQL والقبول قبل إلغاء خطوة Install Chromium؛ بناء المتصفح والاختبارات المصادق عليها SKIPPED. لا تُصنّف ذلك Browser proof. PRODUCTION_PROVEN=NOT RUN، وتوافق الاستيراد الحي إلى إصدار Onyx الفعلي BLOCKED_EXTERNAL لعدم توفر استجابة/إيصال مستهدف مصرح به.
 
 ### مؤشر الاستئناف الديناميكي الوحيد
-**next_task_id = CAT-STAFF-001**
+**next_task_id = ORD-001**
 
-أول بند تالٍ غير مغلق بالترتيب بعد تحديث المصفوفة: مراجعة الشاشة الفعلية لدليل دعوات الموظفين وتفعيل الحساب ودليل العملاء في الشجرة الحالية. افحص route→UI→service/RPC→DB/RLS/grants→audit/replay/expiry/revoke، ثم اختبر مستخدمين من مؤسستين في PostgreSQL 17. ابدأ بفحص الموجود والاختبارات على SHA الجاري، ولا تكرر تنفيذ الميزات المدمجة. متصفح/إنتاج غير مثبتين ولا يجوز ادعاؤهما.
+أُغلق `CAT-STAFF-001` بعد فحص المسار المربوط في لوحة العملاء، ومسار التفعيل المسجل في `routeTree.gen.ts`، وخدمة/RPC وقواعد الجدول واختبارات PostgreSQL 17 على main SHA `7ed0f17e4422ab76e0162f730f70fe4c2564c336` / Core #39812114706 SUCCESS. أُغلق `COMPANY-001` على PR #40 exact head `87ff39c228b055ace8ef2c321358683d2939becb` / Core #39819984846 SUCCESS؛ الاختبارات تغطي عضوية الشركة والدعوات، بصمة SHA-256، تأكيد البريد، حواجز الدور/المؤسسة، وإلغاء/قبول الدعوة. UI browser proof والإنتاج لا يزالان NOT RUN.
+
+العمل الحي التالي الوحيد `ORD-001`: إصلاح دقة تأكيد نتيجة تغيير حالة الطلب دون لمس حواجز التحول أو تسويات المخزون. السبب المحدد: `updateOrderStatus()` كان ينفذ UPDATE بلا `RETURNING` ولا يتحقق من الصف المتأثر؛ PostgREST قد يعيد `{data:null,error:null}` عند صفر صف بسبب معرّف غير موجود أو RLS، بينما تعرض الواجهة إشعار نجاح. سيبقى انتقال الحالة authoritative في trigger PostgreSQL، مع اختبار السماح بالحالات المدعومة، تأكيد safe `id` فقط، رفض صفر صف/معرف مختلف، وتمرير أخطاء الخادم.
 
 ### مسارات العمل الموازية
-- بوابة الدمج #38: متابعة Core #39789165220 حتى النهاية على SHA 0395367... وإصلاح الفشل إن ظهر.
+- بوابة main الحالية: Core #39812114706 ناجحة على SHA 7ed0f17e4422ab76e0162f730f70fe4c2564c336. لا تُسقط هذا الدليل على أي رأس أحدث.
 - Onyx/المخزون: الذرية وحداثة snapshot وحماية المحجوز والتزامن وعزل المؤسسة والتراجع التعويضي، مع الفصل بين snapshot والمزامنة الحية.
 - المالية: دورة الأستاذ العام والمستندات والأرصدة والمدفوعات والطباعة حسب الدور. مسار استلام المشتريات ومسودات القيد المصدرية مدمج، فلا تكررها.
 - الاستيراد/التصدير/DQS: pipeline واحد، idempotency، حفظ الأكواد كنصوص، سلامة CSV/XLSX، نتائج جودة قابلة للتفسير.
