@@ -6,12 +6,14 @@
 ### الحقيقة الحية
 - المستودع الوحيد: https://github.com/Report-Engainall/Nasr1
 - رأس main المقروء: 0395367d869d0d63fba669940a92eeca0ae3e893.
-- Core CI على الرأس نفسه: https://github.com/Report-Engainall/Nasr1/actions/runs/39789165220 — IN_PROGRESS عند آخر قراءة؛ لا إعلان PASS قبل الحالة النهائية لهذا SHA.
+- Core CI على رأس main نفسه 0395367d869d0d63fba669940a92eeca0ae3e893: https://github.com/Report-Engainall/Nasr1/actions/runs/39789165220 — SUCCESS بعد قراءة الحالة النهائية ووظائف التشغيل. هذا إثبات للرأس المذكور فقط.
 - PRs المدمجة: #18 → f00e609013e248de4ecb94c41e31296884f899cf؛ #26 → 6e97fb35be9ebf65c546a3d5e9615063853c8eab؛ #29 → 1eb57a661b413c9c7d0321dccca70e5d6a0e42fe؛ #32 (محاسبة استلام المشتريات) → 3692be6e7bd2ef9db6d78c89813cbddd74df6e08؛ #34 (مهام المشتريات/الاستلام) → 9c1dbda4065964567ad36ebc8b6489f6eca935c4؛ #38 (اختبار خصوصية السلة والـcheckout) → 0395367d869d0d63fba669940a92eeca0ae3e893.
 - دليل محاسبة استلام المشتريات: Core 39664466105 وP2 Playwright 39664466118 نجحا على SHA bf39642529c984ec2ff03cb49fbfbce665349d17 قبل الدمج؛ كما اجتاز main Core في 6f1985f8babe414f11f4c5a809e6f9312e0faefa / Actions 39681956093. لا تكرر نقل أو دمج الميزة.
 - دليل مهام المشتريات: PR #34 مدمج على 9c1dbda... واجتاز main Core Actions 39678996166 على SHA الدمج نفسه.
 - PR #31 مسودة توثيقية تغيّر أدلة P1 فقط. تجنّب هذه الملفات حتى الحسم: PROGRAMMER_1_CURRENT_REPORT.md، PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt، SOURCE_INTEGRATION_LEDGER.csv، READY_TO_REUSE_FILE_AUDIT.csv.
 - المبرمج 1 متوقف حسب توجيه المالك. لا تنتظر عودته؛ أكمل المسارات المستقلة على فروع متابعة، مع قفل واضح للملفات المتداخلة.
+
+- PR #40 (P2 Onyx source trace/sync evidence) — مسودة غير مدمجة: https://github.com/Report-Engainall/Nasr1/pull/40. فرع `feat/p2-onyx-source-trace-sync-evidence-20261022` والرأس الحالي `8c414a06b584a37d56f3f4aaafcb8d3f53863e42`؛ Core CI #39799542472 ما زال QUEUED، وP2 Playwright #39799542477 لم يصل إلى نتيجة نهائية (آخر قراءة: infrastructure gate IN_PROGRESS وبقية الوظائف QUEUED). لا يُعتمد TESTED_EXACT_SHA حتى نجاح الفحوصات على رأس نهائي مطابق.
 
 ### مؤشر الاستئناف الديناميكي الوحيد
 **next_task_id = NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011**
