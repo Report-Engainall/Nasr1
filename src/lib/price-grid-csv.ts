@@ -155,8 +155,8 @@ function parseCsvRecords(source: string): string[][] {
     } else if (char === ',') {
       row.push(field);
       field = '';
-      if (char === '\r' || char === '\n') {
-        if (char === '\r' && text[i + 1] === '\n') i += 1;
+    } else if (char === '\r' || char === '\n') {
+      if (char === '\r' && text[i + 1] === '\n') i += 1;
       row.push(field);
       rows.push(row);
       row = [];
