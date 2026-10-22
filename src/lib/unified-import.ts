@@ -570,7 +570,7 @@ export class DataQualityAccumulator {
       const value = row.data[field];
       // PostgreSQL ->> stringifies JSON numeric scalars; NULL and empty text are both unscored.
       if (value === undefined || value === null || value === '') return true;
-      return /^-?[0-9]+(?:\\.[0-9]+)?$/.test(String(value));
+      return /^-?[0-9]+([.][0-9]+)?$/.test(String(value));
     });
     if (consistent) this.consistentRows += 1;
 
