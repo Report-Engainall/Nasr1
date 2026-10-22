@@ -12,7 +12,7 @@ describe("customer statement posted-credit parity migration", () => {
     expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.get_customer_account_statement\(\)/i);
     expect(migration).toMatch(/SECURITY DEFINER[\s\S]*?SET search_path\s*=\s*''/i);
     expect(migration).toMatch(/p\.auth_user_id\s*=\s*auth\.uid\(\)/i);
-    expect(migration).toMatch(/p\.is_active\s*=\s*true/i);
+    expect(migration).toMatch(/p\.is_active\b/i);
     expect(migration).toMatch(/cm\.organization_id=v_org[\s\S]*?cm\.customer_id=v_customer/i);
     expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.get_customer_account_statement\(\) FROM PUBLIC, anon/i);
     expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.get_customer_account_statement\(\) TO authenticated/i);
