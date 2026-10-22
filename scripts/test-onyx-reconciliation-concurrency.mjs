@@ -156,7 +156,7 @@ async function main() {
         importJobId,
         sourceHash,
         "onyx-race-" + suffix + ".csv",
-        JSON.stringify({ warehouse_code: warehouseCode, warehouse_name: warehouseName }),
+        JSON.stringify({}),
         profileId,
       ],
     );
