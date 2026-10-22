@@ -1,3 +1,19 @@
+# تصحيح الحالة التنفيذية لـP2 — 22 أكتوبر 2026
+
+**مرجع أحدث من السجل التاريخي أدناه.** تقارير هذا الملف تحافظ على أحداثها القديمة؛ أي جملة في الأسفل تفيد بأن PR #18 أو #26 ما زال مفتوحًا، أو أن تكامل خصوصية أسعار Storefront لم يحدث، تعود إلى نقطة قراءة تاريخية ولا تمثل main الحالي.
+
+- المستودع الهدف: Report-Engainall/Nasr1 فقط.
+- main المقروء بعد دمج اختبار سلة/checkout PR #38: 0395367d869d0d63fba669940a92eeca0ae3e893.
+- Core CI لـmain SHA `0395367d869d0d63fba669940a92eeca0ae3e893`: https://github.com/Report-Engainall/Nasr1/actions/runs/39789165220 — SUCCESS بعد قراءة النتيجة النهائية. هذا لا يثبت CI لأي رأس لاحق.
+- PR #18/#26/#29/#38 مدمجة. بطاقة المنتج/التفاصيل والمفضلة/المقارنة متصلة بسياسة إظهار السعر في Storefront؛ PR #38 أضاف اختبار UI للسلة والطلب النهائي. لا تعِد فتح 0007 أو 010/011 من سجل قديم، لكن أصلح أي regression يثبته الاختبار الحالي.
+- تصحيح: محاسبة استلام المشتريات NASR1-ORIGINAL-SPEC-PURCHASE-RECEIPT-ACCOUNTING-012 مدمجة من PR #32 على 3692be6e7bd2ef9db6d78c89813cbddd74df6e08، وتوليد مهام الشراء/الاستلام مدمج من PR #34 على 9c1dbda4065964567ad36ebc8b6489f6eca935c4. فرع feat/p2-purchase-receipt-accounting-20261021 قديم ومتفرع؛ لا تعِد دمجه. دليل acceptance قبل الدمج: Core 39664466105 وP2 Playwright 39664466118 على bf39642529c984ec2ff03cb49fbfbce665349d17؛ main CI بعد الدمج 39681956093 على 6f1985f8babe414f11f4c5a809e6f9312e0faefa.
+- P1 متوقف بحسب توجيه المالك. لا تنتظر رجوعه؛ واصل مسارات P2 المستقلة. لا تعدّل ملفات دليل P1 التي يغيّرها PR #31: PROGRAMMER_1_CURRENT_REPORT.md، PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt، SOURCE_INTEGRATION_LEDGER.csv، READY_TO_REUSE_FILE_AUDIT.csv.
+- next_task_id الحالي: NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011. الخطوة المحددة هي تتبع source/external/tenant IDs حتى تصدير Onyx وسجل audit، والتفريق بين snapshot/محاولة مزامنة/نجاح حي، ثم إغلاق قبول الطباعة المالية حسب الدور والمؤسسة. استخدم مصفوفة docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv لتوزيع المجالات المتوازية. أكمل Onyx/المخزون، المستندات المالية، الاستيراد/التصدير/DQS، مركز المهام والطباعة حسب الدور، التقارير/AI، PWA والتكاملات كلًا في مساره. لا توقف الأعمال المستقلة بانتظار اختبار المتصفح؛ Bolt New مسؤول عن browser validation.
+- لا تضع بيانات مالية وهمية، ولا تنشئ دفتر أستاذ موازيًا، ولا تخفف RLS/grants، ولا تدّعِ Live Onyx/WhatsApp/production proof بلا استجابة فعلية.
+- الحالة الديناميكية الوحيدة موجودة في CURRENT_EXECUTION_STATE.md. ما يأتي بعد هذا التصحيح سجل تاريخي append-only؛ لا يستعمل كمؤشر حي متنافس.
+- PR #40 (P2 source trace + sync evidence) is open as draft at https://github.com/Report-Engainall/Nasr1/pull/40, branch `feat/p2-onyx-source-trace-sync-evidence-20261022`, current SHA `8c414a06b584a37d56f3f4aaafcb8d3f53863e42`. Implemented source-snapshot selection + per-line external-ID resolution states, tenant-scoped idempotent export-audit RPC, server-role-only sync-attempt evidence, and a separate historical last-success record. Core CI #39799542472 is QUEUED; P2 Playwright #39799542477 is pending. `TESTED_EXACT_SHA` = NOT YET; `BROWSER_PROVEN` = NOT RUN; `PRODUCTION_PROVEN` = NOT RUN. No real Onyx provider adapter/credentials exist here, so real target sync/import remains `BLOCKED_EXTERNAL`. P1-protected files were not edited; PR remains unmerged.
+
+---
 ## P2 latest exact-head verification and successor handoff — 21 October 2026
 
 - **Repository/branch/PR:** `Report-Engainall/Nasr1` / `feat/p2-customer-return-intake-20261020` / [PR #18](https://github.com/Report-Engainall/Nasr1/pull/18), still OPEN and unmerged. Exact tested application/code SHA for the latest code batch: `afcdd69e75b1f1783652ce3fca2d14d7351d93a1`. Documentation changes made later do not inherit this CI label.
