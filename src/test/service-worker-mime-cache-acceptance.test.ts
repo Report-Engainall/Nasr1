@@ -65,6 +65,46 @@ async function flushCacheWrite(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+function runInstallScenario(responses: Map<string, ResponseStub>) {
+  const handlers = new Map<string, (event: unknown) => void>();
+  const cache = {
+    add: vi.fn(async () => undefined),
+    match: vi.fn(async () => null),
+    put: vi.fn(async () => undefined),
+  };
+  const caches = {
+    open: vi.fn(async () => cache),
+    match: vi.fn(async () => null),
+    keys: vi.fn(async () => []),
+    delete: vi.fn(async () => true),
+  };
+  const workerSelf = {
+    location: { origin: "https://aghbari.test" },
+    addEventListener: (name: string, callback: (event: unknown) => void) => handlers.set(name, callback),
+    skipWaiting: vi.fn(async () => undefined),
+    clients: { claim: vi.fn(async () => undefined) },
+  };
+  const fetchMock = vi.fn(async (url: string) => {
+    const response = responses.get(url);
+    if (!response) throw new Error("No fixture response configured for " + url);
+    return response;
+  });
+  runInNewContext(workerSource, {
+    self: workerSelf,
+    caches,
+    fetch: fetchMock,
+    URL,
+    Response: { error: () => ({ ok: false, type: "error" }) },
+  });
+
+  const handler = handlers.get("install");
+  if (!handler) throw new Error("Service worker did not register an install handler");
+  let lifecyclePromise: Promise<unknown> | undefined;
+  handler({ waitUntil: (value: Promise<unknown>) => { lifecyclePromise = Promise.resolve(value); } });
+  if (!lifecyclePromise) throw new Error("Service worker did not wait for its install work");
+  return { lifecyclePromise, cache, caches, fetchMock };
+}
+
 describe("PWA service-worker MIME cache acceptance", () => {
   it("does not cache an HTML SPA fallback returned as HTTP 200 for a missing JavaScript asset", async () => {
     const response = responseStub("text/html; charset=utf-8");
@@ -106,5 +146,40 @@ describe("PWA service-worker MIME cache acceptance", () => {
 
     expect(scenario.cache.put).toHaveBeenCalledTimes(1);
     expect(scenario.cache.put).toHaveBeenCalledWith("/", { cachedCopy: true });
+  });
+
+  it("rejects MIME-mismatched shell files independently during installation", async () => {
+    const root = responseStub("application/json");
+    const manifest = responseStub("text/html; charset=utf-8");
+    const favicon = responseStub("image/x-icon");
+    const scenario = runInstallScenario(new Map([
+      ["/", root],
+      ["/manifest.webmanifest", manifest],
+      ["/favicon.ico", favicon],
+    ]));
+
+    await scenario.lifecyclePromise;
+
+    expect(scenario.fetchMock).toHaveBeenCalledTimes(3);
+    expect(scenario.cache.put).toHaveBeenCalledTimes(1);
+    expect(scenario.cache.put).toHaveBeenCalledWith("/favicon.ico", favicon);
+  });
+
+  it("precaches a valid HTML shell, manifest JSON and favicon by their expected MIME types", async () => {
+    const root = responseStub("text/html; charset=utf-8");
+    const manifest = responseStub("application/manifest+json; charset=utf-8");
+    const favicon = responseStub("image/vnd.microsoft.icon");
+    const scenario = runInstallScenario(new Map([
+      ["/", root],
+      ["/manifest.webmanifest", manifest],
+      ["/favicon.ico", favicon],
+    ]));
+
+    await scenario.lifecyclePromise;
+
+    expect(scenario.cache.put).toHaveBeenCalledTimes(3);
+    expect(scenario.cache.put).toHaveBeenCalledWith("/", root);
+    expect(scenario.cache.put).toHaveBeenCalledWith("/manifest.webmanifest", manifest);
+    expect(scenario.cache.put).toHaveBeenCalledWith("/favicon.ico", favicon);
   });
 });
