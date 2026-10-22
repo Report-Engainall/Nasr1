@@ -86,7 +86,11 @@ BEGIN
       'error','انتهت صلاحية الدعوة؛ اطلب رابطًا جديدًا'
     );
   END IF;
-  -- Read confirmation from the authoritative Auth row; a caller-supplied JWT claim is not proof.
+  -- Reject a mismatched claimed identity first for a clear denial; this claim never proves confirmation.
+  IF v_email='' OR v_email<>v_invitation.invited_email THEN
+    RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='سجّل الدخول بالبريد الإلكتروني الذي استلم الدعوة';
+  END IF;
+  -- Read confirmation and the authoritative address from Auth; a JWT confirmation claim is not proof.
   SELECT pg_catalog.lower(pg_catalog.btrim(coalesce(u.email,'')))
     INTO v_confirmed_email
   FROM auth.users u
@@ -94,7 +98,7 @@ BEGIN
   IF NOT FOUND OR v_confirmed_email='' THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='أكّد بريدك الإلكتروني قبل قبول الدعوة';
   END IF;
-  IF v_email='' OR v_email<>v_invitation.invited_email OR v_confirmed_email<>v_invitation.invited_email THEN
+  IF v_confirmed_email<>v_invitation.invited_email THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='سجّل الدخول بالبريد الإلكتروني الذي استلم الدعوة';
   END IF;
   SELECT p.organization_id INTO v_org FROM public.profiles p
