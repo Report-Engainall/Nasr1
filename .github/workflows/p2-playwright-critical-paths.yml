@@ -184,8 +184,20 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw-public" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
           mkdir -p node_modules/@playwright
           ln -s "$RUNNER_TEMP/pw-public/node_modules/@playwright/test" node_modules/@playwright/test
-      - name: Install Chromium
+      - name: Cache pinned Playwright Chromium
+        id: chromium-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-1.63.0-v1
+      - name: Install Chromium and OS dependencies
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 8
         run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright install --with-deps chromium"
+      - name: Install Chromium OS dependencies from cached browser
+        if: steps.chromium-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 8
+        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright install-deps chromium"
       - name: Build exact source with isolated non-routable placeholder configuration
         env:
           VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
@@ -247,6 +259,7 @@ jobs:
 
   browser-local-tenant-paths:
     name: Playwright local Supabase order persistence and tenant isolation
+    needs: [public-ui-smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -286,8 +299,20 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw-local" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
           mkdir -p node_modules/@playwright
           ln -s "$RUNNER_TEMP/pw-local/node_modules/@playwright/test" node_modules/@playwright/test
-      - name: Install Chromium
+      - name: Cache pinned Playwright Chromium
+        id: chromium-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-1.63.0-v1
+      - name: Install Chromium and OS dependencies
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 8
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install --with-deps chromium"
+      - name: Install Chromium OS dependencies from cached browser
+        if: steps.chromium-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 8
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install-deps chromium"
       - name: Verify local-only container runtime
         run: docker info
       - name: Prepare isolated migration copy for order and tenant acceptance
