@@ -7,7 +7,7 @@ const categoryCommands = readFileSync(join(process.cwd(), "src/lib/admin-catalog
 
 describe("admin category command wiring", () => {
   it("routes Data Center category creation through the audited target-native RPC service", () => {
-    expect(adminApp).toContain("import { createAdminCatalogCategory } from '@/lib/admin-catalog-commands';");
+    expect(adminApp).toContain("import { archiveAdminCatalogCategory, createAdminCatalogCategory } from '@/lib/admin-catalog-commands';");
     expect(adminApp).toContain("await createAdminCatalogCategory(name);");
     expect(adminApp).not.toContain("await createCategory({ name,");
   });
