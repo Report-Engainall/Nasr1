@@ -156,13 +156,20 @@ async function main() {
         importJobId,
         sourceHash,
         "onyx-race-" + suffix + ".csv",
-        JSON.stringify({}),
+        JSON.stringify({
+          warehouse_id: warehouseId,
+          warehouse_code: warehouseCode,
+          warehouse_name: warehouseName,
+        }),
         profileId,
       ],
     );
+    // Bind this fixture explicitly to the selected warehouse in both the row and snapshot.
+    // A scope-free aggregate is intentionally rejected by preview_onyx_inventory_reconciliation.
     const sourceRow = {
       item_code: itemCode,
       quantity: "15",
+      warehouse_id: warehouseId,
       warehouse_code: warehouseCode,
       warehouse_name: warehouseName,
       external_id: "ONYX-" + suffix,
