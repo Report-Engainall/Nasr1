@@ -98,7 +98,14 @@ test("authorized finance documents and operational-task print remain tenant-scop
     const memoId = await memoOption.getAttribute("value");
     expect(memoId).toBeTruthy();
     await source.selectOption(memoId!);
-    await printPopup(manager, printButton, [invoiceNumber, "P2 Local E2E Customer A"]);
+    await printPopup(manager, printButton, [
+      invoiceNumber,
+      "P2 Local E2E Customer A",
+      "معكوس ماليًا",
+      "رقم قيد العكس",
+      "Playwright UI reversal acceptance after posted credit.",
+      "لا يمثل رصيدًا دائنًا قائمًا",
+    ]);
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
 
     await manager.goto("/admin/tasks");
