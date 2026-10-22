@@ -28,6 +28,15 @@ function isHtmlResponse(response) {
   return mimeType === 'text/html' || mimeType === 'application/xhtml+xml';
 }
 
+function isExpectedShellMimeType(pathname, response) {
+  if (pathname === '/') return isHtmlResponse(response);
+  if (pathname === '/manifest.webmanifest') {
+    const mimeType = responseMimeType(response);
+    return mimeType === 'application/manifest+json' || mimeType === 'application/json';
+  }
+  return hasExpectedStaticAssetMimeType(pathname, response.headers.get('content-type'));
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -36,9 +45,11 @@ self.addEventListener('install', (event) => {
         // cancel caching the usable offline document and favicon.
         await Promise.all(SHELL.map(async (url) => {
           try {
-            await cache.add(url);
+            const response = await fetch(url);
+            if (!response.ok || response.type !== 'basic' || !isExpectedShellMimeType(url, response)) return;
+            await cache.put(url, response);
           } catch {
-            // A missing shell asset is non-fatal; other assets remain cached.
+            // A missing or unexpected shell asset is non-fatal; other assets remain cached.
           }
         }));
       })
