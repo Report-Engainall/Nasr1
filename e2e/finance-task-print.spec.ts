@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -24,9 +24,9 @@ async function signIn(page: Page, email: string, password: string) {
   }))).toBe(true);
 }
 
-async function printPopup(page: Page, expectedText: string[]) {
+async function printPopup(page: Page, printButton: Locator, expectedText: string[]) {
   const popupPromise = page.waitForEvent("popup");
-  await page.getByRole("button", { name: "فتح نافذة الطباعة / حفظ PDF", exact: true }).click();
+  await printButton.click();
   const popup = await popupPromise;
   await expect(popup.locator("html")).toHaveAttribute("dir", "rtl");
   for (const text of expectedText) await expect(popup.locator("body")).toContainText(text);
@@ -77,7 +77,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     expect(invoiceId).toBeTruthy();
     await source.selectOption(invoiceId!);
     await expect(printButton).toBeEnabled();
-    await printPopup(manager, [invoiceNumber, "P2-RET-001", itemName]);
+    await printPopup(manager, printButton, [invoiceNumber, "P2-RET-001", itemName]);
 
     await kind.selectOption("statement");
     await expect(source.locator("option").filter({ hasText: "P2 Local E2E Customer A" }).first()).toBeAttached();
@@ -87,7 +87,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     const customerId = await customerOption.getAttribute("value");
     expect(customerId).toBeTruthy();
     await source.selectOption(customerId!);
-    await printPopup(manager, ["P2 Local E2E Customer A", invoiceNumber]);
+    await printPopup(manager, printButton, ["P2 Local E2E Customer A", invoiceNumber]);
     
     await kind.selectOption("credit_memo");
     const memoOption = source.locator("option").filter({ hasText: invoiceNumber }).first();
@@ -95,7 +95,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     const memoId = await memoOption.getAttribute("value");
     expect(memoId).toBeTruthy();
     await source.selectOption(memoId!);
-    await printPopup(manager, [invoiceNumber, "P2 Local E2E Customer A"]);
+    await printPopup(manager, printButton, [invoiceNumber, "P2 Local E2E Customer A"]);
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
 
     await manager.goto("/admin/tasks");
@@ -105,6 +105,8 @@ test("authorized finance documents and operational-task print remain tenant-scop
     const printTasksButton = manager.getByRole("button", { name: "طباعة كل المهام المسموحة", exact: true });
     await expect(printTasksButton).toBeEnabled({ timeout: 15_000 });
     await expect(manager.locator(".operational-task-print")).toContainText("مراجعة وترحيل قيد الإشعار الدائن");
+    // Prove the task-center action itself invoked printing, not a previous finance-popup print.
+    await manager.evaluate(() => { delete document.documentElement.dataset.e2ePrintInvoked; });
     await printTasksButton.click();
     await expect.poll(() => manager.evaluate(() => document.documentElement.dataset.e2ePrintInvoked)).toBe("true");
 
