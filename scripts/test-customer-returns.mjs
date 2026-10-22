@@ -28,8 +28,11 @@ function asJson(value) {
 async function main() {
   const organizationId = "a0000000-0000-0000-0000-000000000001";
   const otherOrganizationId = "a1111111-1111-4111-8111-111111111111";
-  const foreignCustomerProfileId = "f6666666-6666-4666-8666-666666666666";
-  const foreignCustomerAuthId = "66666666-6666-4666-8666-666666666666";
+  const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,8);
+  // The return acceptance suite must not depend on profile fixtures from an earlier script.
+  const foreignCustomerProfileId = randomUUID();
+  const foreignCustomerAuthId = randomUUID();
+  const foreignCustomerEmail = "ci-foreign-finance-print-" + suffix + "@example.test";
   const customerOneProfileId = "f1111111-1111-4111-8111-111111111111";
   const customerOneAuthId = "11111111-1111-4111-8111-111111111111";
   const customerTwoProfileId = "f2222222-2222-4222-8222-222222222222";
@@ -39,7 +42,6 @@ async function main() {
   const accountantProfileId = "f5555555-5555-4555-8555-555555555555";
   const accountantAuthId = "55555555-5555-4555-8555-555555555555";
   const productId = "a1000000-0000-0000-0000-000000000001";
-  const suffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,8);
 
   await db.unsafe(
     "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Return Manager','ci-return-manager@example.test',true) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,is_active=true",
@@ -56,6 +58,19 @@ async function main() {
   await db.unsafe(
     "insert into public.user_roles(profile_id,role) values($1,'accountant') on conflict(profile_id,role) do nothing",
     [accountantProfileId],
+  );
+  // Seed the foreign-tenant print fixture explicitly; do not rely on another acceptance script's rows.
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,pg_catalog.now()) on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [foreignCustomerAuthId, foreignCustomerEmail],
+  );
+  await db.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Foreign Finance Print',$4,true) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,full_name=excluded.full_name,email=excluded.email,is_active=true",
+    [foreignCustomerProfileId, foreignCustomerAuthId, otherOrganizationId, foreignCustomerEmail],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'customer') on conflict(profile_id,role) do nothing",
+    [foreignCustomerProfileId],
   );
 
   const customerRows = await db.unsafe(
@@ -75,9 +90,9 @@ async function main() {
   const foreignProductId = foreignProductRows[0].id;
   const foreignCustomerRows = await db.unsafe(
     "insert into public.customers(organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier,credit_limit,current_balance,status,approved_at) " +
-    "values($1,$2,'CI-FINANCE-PRINT-FOREIGN','Foreign print fixture','Foreign contact','7779999999','foreign-finance-print@example.test','retail',0,0,'approved',pg_catalog.now()) " +
+    "values($1,$2,'CI-FINANCE-PRINT-FOREIGN','Foreign print fixture','Foreign contact','7779999999',$3,'retail',0,0,'approved',pg_catalog.now()) " +
     "on conflict(organization_id,customer_code) do update set profile_id=excluded.profile_id,status='approved',approved_at=pg_catalog.now() returning id",
-    [otherOrganizationId, foreignCustomerProfileId],
+    [otherOrganizationId, foreignCustomerProfileId, foreignCustomerEmail],
   );
   assert.equal(foreignCustomerRows.length, 1, "foreign-organization customer print fixture must exist");
   const foreignCustomerId = foreignCustomerRows[0].id;

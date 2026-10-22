@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: p2-playwright-critical-paths-${{ github.event.pull_request.number || github.ref }}
@@ -278,6 +279,15 @@ jobs:
         uses: supabase/setup-cli@v3
         with:
           version: 2.84.2
+      - name: Install pinned Playwright runner outside the project lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/pw-local" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
+          mkdir -p node_modules/@playwright
+          ln -s "$RUNNER_TEMP/pw-local/node_modules/@playwright/test" node_modules/@playwright/test
+      - name: Install Chromium
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install --with-deps chromium"
       - name: Verify local-only container runtime
         run: docker info
       - name: Prepare isolated migration copy for order and tenant acceptance
@@ -301,13 +311,49 @@ jobs:
             echo "- The repository migration itself is unchanged. Storage/RLS for product images is not covered by this browser job."
             echo "- This job uses a fresh local-only PostgreSQL 17/Supabase stack and does not connect to a hosted project."
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Start isolated local Supabase services
-        timeout-minutes: 10
+      - name: Authenticate read-only to GHCR for isolated Supabase images
         shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          echo "Read-only GHCR authentication succeeded for isolated test image pulls." >> "$GITHUB_STEP_SUMMARY"
+      - name: Start isolated local Supabase services
+        timeout-minutes: 13
+        shell: bash
+        run: |
+          # Use the deliberately isolated migration copy prepared in the previous step, not the repository root.
+          # The storage.objects migration is omitted only from this temporary local-only acceptance scope because
+          # the Storage service is excluded; the source migration remains untouched and its RLS is not claimed here.
+          set -euo pipefail
           cd "$RUNNER_TEMP/p2-local-supabase"
-          timeout 8m supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check
+          test "$(sed -n '1p' supabase/config.toml)" = 'project_id = "p2-local-e2e"'
+          test ! -e supabase/migrations/20261018100000_product_image_storage.sql
+          registry=ghcr.io
+          for attempt in 1 2 3; do
+            log_file="$RUNNER_TEMP/p2-supabase-start-attempt-${attempt}.log"
+            echo "Starting isolated Supabase services (attempt ${attempt}/3; registry=$registry)."
+            if SUPABASE_INTERNAL_IMAGE_REGISTRY="$registry" timeout 210s supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check 2>&1 | tee "$log_file"; then
+              echo "Isolated Supabase services started on attempt ${attempt} using $registry." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if ! grep -Eiq 'toomanyrequests|429[[:space:]]+Too Many Requests|rate.limit' "$log_file"; then
+              echo "::error title=Local Supabase startup failed::Non-retryable error; see startup log above."
+              exit 1
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error title=Local Supabase image pull exhausted retries::Rate limiting persisted across GHCR and official Docker Hub fallback."
+              exit 1
+            fi
+            echo "::warning::Registry image pull was throttled; stopping the partial local stack before bounded fallback."
+            supabase stop --no-backup >/dev/null 2>&1 || true
+            if [ "$registry" = "ghcr.io" ]; then
+              registry=docker.io
+              echo "Switching Supabase internal images to the official Docker Hub mirror." >> "$GITHUB_STEP_SUMMARY"
+            fi
+            sleep $((attempt * 15))
+          done
       - name: Apply repository migrations to local PostgreSQL 17
         timeout-minutes: 15
         shell: bash
@@ -336,15 +382,6 @@ jobs:
         run: node scripts/test-cash-expense-journal-posting.mjs
       - name: Test purchase receipt source-linked accounting draft and restrictions
         run: node scripts/test-purchase-receipt-accounting.mjs
-      - name: Install pinned Playwright runner outside the project lockfile
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --prefix "$RUNNER_TEMP/pw-local" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
-          mkdir -p node_modules/@playwright
-          ln -s "$RUNNER_TEMP/pw-local/node_modules/@playwright/test" node_modules/@playwright/test
-      - name: Install Chromium
-        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install --with-deps chromium"
       - name: Build exact source against local Supabase
         shell: bash
         run: |
@@ -384,6 +421,16 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/customer-return-workflow.spec.ts"
+      - name: Run audited Onyx order XLSX export in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/onyx-order-export.spec.ts"
+      - name: Run finance document and operational-task print acceptance in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/finance-task-print.spec.ts"
       - name: Record proof boundary
         if: always()
         shell: bash
@@ -393,6 +440,8 @@ jobs:
             echo "### Authenticated local E2E proof boundary"
             echo "- This job uses a fresh local Supabase stack, local PostgreSQL 17, two transient confirmed users in distinct organizations, and synthetic catalogue/stock fixtures only."
             echo "- It proves the exact checked-out SHA's browser order path and cross-tenant denial only if the Playwright test step passes."
+            echo "- It also proves the manager order-detail -> server audit RPC -> 27-column XLSX download only if the dedicated Onyx export browser step passes."
+            echo "- It proves finance invoice/statement/credit-memo and operational task printing by role only if finance-task-print.spec.ts completes; customer print UI must remain absent."
             echo "- No hosted Supabase project, production secret, remote migration, or production write is used."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Stop local application and Supabase
