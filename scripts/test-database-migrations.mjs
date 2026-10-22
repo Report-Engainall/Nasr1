@@ -3093,6 +3093,105 @@ async function main() {
     /active staff organization|required|staff/i,
   );
   await db.unsafe("reset role");
+
+  // Exercise two truly overlapping authenticated writers against one finite available-stock balance.
+  // Both sessions reach the barrier before either RPC starts, so the acceptance tests the DB lock,
+  // reserved-stock invariant, transaction rollback, movement ledger and exactly-once audit together.
+  await db.unsafe(
+    "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) " +
+    "values($1,$2,30,5,0) on conflict(product_id,warehouse_id) do update " +
+    "set quantity_on_hand=30,quantity_reserved=5,reorder_point=0",
+    [productId, testWarehouseId],
+  );
+  await db.unsafe(
+    "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) " +
+    "values($1,$2,0,0,0) on conflict(product_id,warehouse_id) do update " +
+    "set quantity_on_hand=0,quantity_reserved=0,reorder_point=0",
+    [productId, transferDestinationId],
+  );
+  const raceKeys = ["ci-inventory-race-000001", "ci-inventory-race-000002"];
+  let readyWriters = 0;
+  let releaseWriters;
+  const writersReady = new Promise((resolve) => { releaseWriters = resolve; });
+  const runConcurrentBatchTransfer = async (key, quantity) => {
+    const client = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+    try {
+      const result = await client.begin(async (tx) => {
+        await tx.unsafe("select set_config('request.jwt.claim.sub', $1, false)", [staffAuthUserId]);
+        await tx.unsafe("select set_config('request.jwt.claims', $1, false)", [
+          JSON.stringify({
+            sub: staffAuthUserId,
+            email: "admin@aghbari.ye",
+            email_confirmed_at: new Date().toISOString(),
+            role: "authenticated",
+          }),
+        ]);
+        await tx.unsafe("set role authenticated");
+        readyWriters += 1;
+        if (readyWriters === 2) releaseWriters();
+        await writersReady;
+        const reply = await tx.unsafe(
+          "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text) as result",
+          [testWarehouseId, transferDestinationId, key, db.json([{ product_id: productId, quantity }]), "CI overlapping transfer writers"],
+        );
+        return reply[0].result;
+      });
+      return { ok: true, result };
+    } catch (error) {
+      return { ok: false, error: String(error?.message ?? error) };
+    } finally {
+      await client.end({ timeout: 5 });
+    }
+  };
+  const raceResults = await Promise.all([
+    runConcurrentBatchTransfer(raceKeys[0], 15),
+    runConcurrentBatchTransfer(raceKeys[1], 12),
+  ]);
+  assert.equal(raceResults.filter((result) => result.ok).length, 1,
+    "only one overlapping writer can consume stock when combined transfers exceed quantity available");
+  assert.equal(raceResults.filter((result) => !result.ok).length, 1,
+    "the losing overlapping writer must be rejected");
+  const rejectedRace = raceResults.find((result) => !result.ok);
+  assert.match(rejectedRace.error, /available|reserved|stock|quantity/i,
+    "the losing writer must fail on the stock invariant, not an unrelated error");
+  const winningRace = raceResults.find((result) => result.ok).result;
+  const winningLines = await db.unsafe(
+    "select quantity::text from public.inventory_transfers where batch_id=$1::uuid",
+    [winningRace.batch_id],
+  );
+  assert.equal(winningLines.length, 1, "the winning race persists exactly one transfer line");
+  const movedQuantity = Number(winningLines[0].quantity);
+  assert.ok([12, 15].includes(movedQuantity), "the successful transfer must match one requested quantity");
+  const racedBalances = await db.unsafe(
+    "select warehouse_id,quantity_on_hand::text,quantity_reserved::text,quantity_available::text " +
+    "from public.inventory_balances where product_id=$1::uuid and warehouse_id=any($2::uuid[])",
+    [productId, [testWarehouseId, transferDestinationId]],
+  );
+  const racedSource = racedBalances.find((row) => row.warehouse_id === testWarehouseId);
+  const racedDestination = racedBalances.find((row) => row.warehouse_id === transferDestinationId);
+  assert.equal(Number(racedSource.quantity_on_hand), 30 - movedQuantity);
+  assert.equal(Number(racedSource.quantity_reserved), 5, "a transfer must never consume reserved stock");
+  assert.ok(Number(racedSource.quantity_available) >= 0, "overlapping writers cannot create negative available stock");
+  assert.equal(Number(racedDestination.quantity_on_hand), movedQuantity, "destination balance matches the single winning transfer");
+  const raceHeaders = await db.unsafe(
+    "select id from public.inventory_transfer_batches where organization_id=$1::uuid and idempotency_key=any($2::text[])",
+    [organizationId, raceKeys],
+  );
+  assert.equal(raceHeaders.length, 1, "the losing transaction leaves no batch header behind");
+  const raceAudits = await db.unsafe(
+    "select id from public.audit_logs where action='inventory.transfer.batch' and entity_id=$1::uuid",
+    [winningRace.batch_id],
+  );
+  assert.equal(raceAudits.length, 1, "the winning transfer writes exactly one batch audit event");
+  const raceMovements = await db.unsafe(
+    "select m.id from public.inventory_movements m join public.inventory_transfers t " +
+    "on t.id=m.reference_id and m.reference_type='inventory_transfer' where t.batch_id=$1::uuid",
+    [winningRace.batch_id],
+  );
+  assert.equal(raceMovements.length, 2, "the winning transfer commits one paired in/out movement");
+  process.stdout.write("PASS concurrent batch-transfer writers: one commit, one stock-invariant rejection, reserved balance preserved, audit/movements exactly once\\n");
+
+  await db.unsafe("reset role");
   // Restore the original single-transfer acceptance fixture before the reorder-point assertions below.
   await db.unsafe("reset role");
   await db.unsafe(
