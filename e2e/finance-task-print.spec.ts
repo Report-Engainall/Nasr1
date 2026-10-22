@@ -61,7 +61,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await signIn(manager, managerEmail, managerPassword);
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
-    await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" })).toBeVisible();
+    await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
 
     const kind = manager.getByLabel("نوع المستند المالي");
     const source = manager.getByLabel("مصدر المستند المالي");
@@ -94,7 +94,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     expect(memoId).toBeTruthy();
     await source.selectOption(memoId!);
     await printPopup(manager, [invoiceNumber, "P2 Local E2E Customer A"]);
-    await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" })).toBeVisible();
+    await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
 
     await manager.goto("/admin/tasks");
     await expect(manager.getByRole("heading", { name: "مركز المهام التشغيلية" })).toBeVisible();
