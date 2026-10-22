@@ -314,15 +314,14 @@ jobs:
         timeout-minutes: 13
         shell: bash
         run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/p2-local-supabase"
-          # Retry only transient GitHub Container Registry throttling while pulling local test images.
-          # Any non-registry startup error fails immediately; database/migration errors are never skipped.
+          # GHCR is tried first. If shared-runner throttling persists, switch to the official Docker Hub mirror.
+          # Only rate-limit failures may retry; all other startup errors remain fatal, and migrations are never skipped.
+          registry=ghcr.io
           for attempt in 1 2 3; do
             log_file="$RUNNER_TEMP/p2-supabase-start-attempt-${attempt}.log"
-            echo "Starting isolated Supabase services (attempt ${attempt}/3)."
-            if timeout 210s supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check 2>&1 | tee "$log_file"; then
-              echo "Isolated Supabase services started on attempt ${attempt}." >> "$GITHUB_STEP_SUMMARY"
+            echo "Starting isolated Supabase services (attempt ${attempt}/3; registry=$registry)."
+            if SUPABASE_INTERNAL_IMAGE_REGISTRY="$registry" timeout 210s supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check 2>&1 | tee "$log_file"; then
+              echo "Isolated Supabase services started on attempt ${attempt} using $registry." >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
             if ! grep -Eiq 'toomanyrequests|429[[:space:]]+Too Many Requests|rate.limit' "$log_file"; then
@@ -330,11 +329,15 @@ jobs:
               exit 1
             fi
             if [ "$attempt" -eq 3 ]; then
-              echo "::error title=Local Supabase image pull exhausted retries::GHCR rate limiting persisted for 3 attempts."
+              echo "::error title=Local Supabase image pull exhausted retries::Rate limiting persisted across GHCR and official Docker Hub fallback."
               exit 1
             fi
-            echo "::warning::GHCR throttled an image pull; stopping the partial local stack and retrying after backoff."
+            echo "::warning::Registry image pull was throttled; stopping the partial local stack before bounded fallback."
             supabase stop --no-backup >/dev/null 2>&1 || true
+            if [ "$registry" = "ghcr.io" ]; then
+              registry=docker.io
+              echo "Switching Supabase internal images to the official Docker Hub mirror." >> "$GITHUB_STEP_SUMMARY"
+            fi
             sleep $((attempt * 15))
           done
       - name: Apply repository migrations to local PostgreSQL 17
