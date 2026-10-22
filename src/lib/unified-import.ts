@@ -568,7 +568,9 @@ export class DataQualityAccumulator {
     const numericFields = ['quantity','revenue','price'];
     const consistent = numericFields.every((field) => {
       const value = row.data[field];
-      return value === undefined || value === '' || (typeof value === 'string' && /^-?[0-9]+(?:\.[0-9]+)?$/.test(value));
+      // PostgreSQL ->> stringifies JSON numeric scalars; NULL and empty text are both unscored.
+      if (value === undefined || value === null || value === '') return true;
+      return /^-?[0-9]+(?:\\.[0-9]+)?$/.test(String(value));
     });
     if (consistent) this.consistentRows += 1;
 
