@@ -2494,8 +2494,8 @@ async function main() {
   await db.unsafe("reset role");
   await setIdentity(authUserId,"ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
-  const unconfirmedInviteRows=await db.unsafe("select public.create_customer_company_invitation($1::text,$2::text) as result",["ci-unconfirmed-member@example.test","viewer"]);
-  const unconfirmedInvite=unconfirmedInviteRows[0].result;
+  const companySecurityUnconfirmedRows=await db.unsafe("select public.create_customer_company_invitation($1::text,$2::text) as result",["ci-unconfirmed-member@example.test","viewer"]);
+  const companySecurityUnconfirmedInvite=companySecurityUnconfirmedRows[0].result;
   await db.unsafe("reset role");
   await setIdentity(unconfirmedMemberAuthUserId,"ci-unconfirmed-member@example.test");
   // Simulate a stale/incorrect positive claim: the persistent auth.users row remains unconfirmed.
@@ -2504,47 +2504,47 @@ async function main() {
   ]);
   await db.unsafe("set role authenticated");
   await expectFailure("company invitation rejects unconfirmed auth.users even if the JWT says confirmed",
-    ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[unconfirmedInvite.invitation_token]),
+    ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[companySecurityUnconfirmedInvite.invitation_token]),
     /أكّد بريدك الإلكتروني قبل قبول الدعوة/i);
   await db.unsafe("reset role");
   await setIdentity(authUserId,"ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
-  const revokedInvitation=await db.unsafe("select public.revoke_customer_company_invitation($1::uuid) as result",[unconfirmedInvite.invitation_id]);
-  assert.equal(revokedInvitation[0].result,true,"company owner can revoke a pending invitation within its tenant");
+  const companySecurityRevocationResult=await db.unsafe("select public.revoke_customer_company_invitation($1::uuid) as result",[companySecurityUnconfirmedInvite.invitation_id]);
+  assert.equal(companySecurityRevocationResult[0].result,true,"company owner can revoke a pending invitation within its tenant");
   await db.unsafe("reset role");
   await setIdentity(unconfirmedMemberAuthUserId,"ci-unconfirmed-member@example.test");
   await db.unsafe("set role authenticated");
   await expectFailure("revoked company invitation cannot be accepted",
-    ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[unconfirmedInvite.invitation_token]),
+    ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[companySecurityUnconfirmedInvite.invitation_token]),
     /الدعوة غير موجودة أو استُخدمت أو أُلغيت/i);
   await db.unsafe("reset role");
 
   // Existing pending invitations have MD5 digests and remain usable until their original expiry.
-  const legacyCompanyToken="c".repeat(64);
+  const companySecurityLegacyToken="c".repeat(64);
   await db.unsafe(
     "insert into public.customer_company_invitations(organization_id,customer_id,invited_email,member_role,token_hash,status,invited_by,expires_at) values($1,$2,$3,'viewer',md5($4),'pending',$5,now()+interval '7 days')",
-    [organizationId,customerOneId,"ci-legacy-member@example.test",legacyCompanyToken,profileId],
+    [organizationId,customerOneId,"ci-legacy-member@example.test",companySecurityLegacyToken,profileId],
   );
   await setIdentity(legacyMemberAuthUserId,"ci-legacy-member@example.test");
   await db.unsafe("set role authenticated");
-  const legacyAccepted=await db.unsafe("select public.accept_customer_company_invitation($1::text) as result",[legacyCompanyToken]);
-  assert.equal(legacyAccepted[0].result.company_name,"CI Company One","an unexpired pre-migration invitation remains redeemable");
-  assert.equal(legacyAccepted[0].result.member_role,"viewer");
+  const companySecurityLegacyAcceptance=await db.unsafe("select public.accept_customer_company_invitation($1::text) as result",[companySecurityLegacyToken]);
+  assert.equal(companySecurityLegacyAcceptance[0].result.company_name,"CI Company One","an unexpired pre-migration invitation remains redeemable");
+  assert.equal(companySecurityLegacyAcceptance[0].result.member_role,"viewer");
   await db.unsafe("reset role");
-  const legacyStatus=await db.unsafe("select status from public.customer_company_invitations where invited_email=$1 order by created_at desc limit 1",["ci-legacy-member@example.test"]);
-  assert.equal(legacyStatus[0].status,"accepted","legacy invite acceptance transitions once and is auditable");
-  const legacyAudit=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='customer_company_invitation' and action='customer_company_invitation.accepted'",[organizationId]);
-  assert.ok(legacyAudit.length>=1,"successful legacy invitation acceptance writes an audit event");
+  const companySecurityLegacyStatus=await db.unsafe("select status from public.customer_company_invitations where invited_email=$1 order by created_at desc limit 1",["ci-legacy-member@example.test"]);
+  assert.equal(companySecurityLegacyStatus[0].status,"accepted","legacy invite acceptance transitions once and is auditable");
+  const companySecurityLegacyAudit=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='customer_company_invitation' and action='customer_company_invitation.accepted'",[organizationId]);
+  assert.ok(companySecurityLegacyAudit.length>=1,"successful legacy invitation acceptance writes an audit event");
 
-  const expiredCompanyToken="e".repeat(64);
+  const companySecurityExpiredToken="e".repeat(64);
   await db.unsafe(
     "insert into public.customer_company_invitations(organization_id,customer_id,invited_email,member_role,token_hash,status,invited_by,expires_at) values($1,$2,$3,'viewer',md5($4),'pending',$5,now()-interval '1 minute')",
-    [organizationId,customerOneId,"ci-legacy-member@example.test",expiredCompanyToken,profileId],
+    [organizationId,customerOneId,"ci-legacy-member@example.test",companySecurityExpiredToken,profileId],
   );
   await setIdentity(legacyMemberAuthUserId,"ci-legacy-member@example.test");
   await db.unsafe("set role authenticated");
   await expectFailure("expired company invitations cannot be accepted",
-    ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[expiredCompanyToken]),
+    ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[companySecurityExpiredToken]),
     /انتهت صلاحية الدعوة/i);
   await db.unsafe("reset role");
 
