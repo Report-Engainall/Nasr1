@@ -278,22 +278,19 @@ export function summarizeAccount(
     currencyTotals.outstanding += outstanding;
   }
 
-  return {
-    valid: true,
-    currencies: [...totalsByCurrency.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([currency, totals]) => {
-        const values = [totals.invoiced, totals.paid, totals.credited, totals.outstanding].map((minor) => Number(minor));
-        if (values.some((value) => !Number.isSafeInteger(value))) return invalidAccountSummary();
-        return {
-          currency,
-          invoiced: values[0] / 100,
-          paid: values[1] / 100,
-          credited: values[2] / 100,
-          outstanding: values[3] / 100,
-        };
-      }),
-  };
+  const currencies: AccountCurrencySummary[] = [];
+  for (const [currency, totals] of [...totalsByCurrency.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    const values = [totals.invoiced, totals.paid, totals.credited, totals.outstanding].map((minor) => Number(minor));
+    if (values.some((value) => !Number.isSafeInteger(value))) return invalidAccountSummary();
+    currencies.push({
+      currency,
+      invoiced: values[0] / 100,
+      paid: values[1] / 100,
+      credited: values[2] / 100,
+      outstanding: values[3] / 100,
+    });
+  }
+  return { valid: true, currencies };
 }
 
 export type CartLineDraft = { product_id: string; quantity: number };
