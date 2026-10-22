@@ -283,8 +283,8 @@ async function main() {
     "insert into public.organizations(id,name,currency) values($1,'Foreign organization','YER') on conflict(id) do nothing",
     [otherOrganizationId],
   );
-  const foreignProfileId = "fb666666-6666-4666-8666-666666666666";
-  const foreignAuthUserId = "c6666666-6666-4666-8666-666666666666";
+  const foreignProfileId = "f0c4a0c2-1f55-4d72-8f46-a01000000073";
+  const foreignAuthUserId = "c0c4a0c2-1f55-4d72-8f46-a01000000074";
   await db.unsafe(
     "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'Foreign CI Profile','foreign-ci-profile@example.test',true) on conflict(id) do nothing",
     [foreignProfileId, foreignAuthUserId, otherOrganizationId],
@@ -2416,10 +2416,10 @@ async function main() {
   const invitedAuthUserId="88888888-8888-4888-8888-888888888888";
   const financeProfileId="f9999999-9999-4999-8999-999999999999";
   const financeAuthUserId="99999999-9999-4999-8999-999999999999";
-  const unconfirmedMemberProfileId="fa777777-7777-4777-8777-777777777777";
-  const unconfirmedMemberAuthUserId="c7777777-7777-4777-8777-777777777777";
-  const legacyMemberProfileId="fb666666-6666-4666-8666-666666666666";
-  const legacyMemberAuthUserId="c6666666-6666-4666-8666-666666666666";
+  const unconfirmedMemberProfileId="f0c4a0c1-1f55-4d71-8f45-a01000000071";
+  const unconfirmedMemberAuthUserId="c0c4a0c1-1f55-4d71-8f45-a01000000072";
+  const legacyMemberProfileId="f0c4a0c2-1f55-4d72-8f46-a01000000073";
+  const legacyMemberAuthUserId="c0c4a0c2-1f55-4d72-8f46-a01000000074";
   await db.unsafe(
     "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Invited Buyer','ci-invited-buyer@example.test',true),($4,$5,$3,'CI Invited Finance','ci-invited-finance@example.test',true),($6,$7,$3,'CI Unconfirmed Member','ci-unconfirmed-member@example.test',true),($8,$9,$3,'CI Legacy Member','ci-legacy-member@example.test',true)",
     [invitedProfileId,invitedAuthUserId,organizationId,financeProfileId,financeAuthUserId,unconfirmedMemberProfileId,unconfirmedMemberAuthUserId,legacyMemberProfileId,legacyMemberAuthUserId],
@@ -2507,6 +2507,17 @@ async function main() {
     ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[unconfirmedInvite.invitation_token]),
     /أكّد بريدك الإلكتروني قبل قبول الدعوة/i);
   await db.unsafe("reset role");
+  await setIdentity(authUserId,"ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  const revokedInvitation=await db.unsafe("select public.revoke_customer_company_invitation($1::uuid) as result",[unconfirmedInvite.invitation_id]);
+  assert.equal(revokedInvitation[0].result,true,"company owner can revoke a pending invitation within its tenant");
+  await db.unsafe("reset role");
+  await setIdentity(unconfirmedMemberAuthUserId,"ci-unconfirmed-member@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("revoked company invitation cannot be accepted",
+    ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[unconfirmedInvite.invitation_token]),
+    /الدعوة غير موجودة أو استُخدمت أو أُلغيت/i);
+  await db.unsafe("reset role");
 
   // Existing pending invitations have MD5 digests and remain usable until their original expiry.
   const legacyCompanyToken="c".repeat(64);
@@ -2524,6 +2535,18 @@ async function main() {
   assert.equal(legacyStatus[0].status,"accepted","legacy invite acceptance transitions once and is auditable");
   const legacyAudit=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='customer_company_invitation' and action='customer_company_invitation.accepted'",[organizationId]);
   assert.ok(legacyAudit.length>=1,"successful legacy invitation acceptance writes an audit event");
+
+  const expiredCompanyToken="e".repeat(64);
+  await db.unsafe(
+    "insert into public.customer_company_invitations(organization_id,customer_id,invited_email,member_role,token_hash,status,invited_by,expires_at) values($1,$2,$3,'viewer',md5($4),'pending',$5,now()-interval '1 minute')",
+    [organizationId,customerOneId,"ci-legacy-member@example.test",expiredCompanyToken,profileId],
+  );
+  await setIdentity(legacyMemberAuthUserId,"ci-legacy-member@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("expired company invitations cannot be accepted",
+    ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[expiredCompanyToken]),
+    /انتهت صلاحية الدعوة/i);
+  await db.unsafe("reset role");
 
   await setIdentity(authUserId,"ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
