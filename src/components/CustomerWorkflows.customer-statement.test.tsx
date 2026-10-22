@@ -100,7 +100,7 @@ describe("customer statement full-ledger and posted-credit integration", () => {
     render(<CustomerStatementPage />);
     expect(await screen.findByText("CRM-001")).toBeInTheDocument();
     expect(screen.getByText("الإشعارات الدائنة المرحّلة")).toBeInTheDocument();
-    expect(screen.getByText("INV-CREDIT-001")).toBeInTheDocument();
+    expect(screen.getAllByText("INV-CREDIT-001").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText(/إجماليات الرصيد محسوبة من دفتر العميل الكامل/)).toBeInTheDocument();
     expect(screen.getByText(/عدد الدفعات المسجلة: 1/)).toBeInTheDocument();
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("get_customer_account_statement"));
