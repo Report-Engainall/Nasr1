@@ -106,15 +106,18 @@ describe('admin order status transition UI', () => {
     expect(select.value).toBe('pending')
   })
 
-  it('does not offer mutations for terminal or legacy statuses', async () => {
+  it('does not offer mutations for terminal statuses', async () => {
     mocks.orders = [makeOrder('delivered')]
-    const { rerender } = render(<AdminOrders />)
+    render(<AdminOrders />)
     const terminal = await screen.findByRole('combobox', { name: 'حالة الطلب ORD-1' }) as HTMLSelectElement
     expect(terminal.disabled).toBe(true)
     expect(Array.from(terminal.options).map((option) => option.value)).toEqual(['delivered'])
+  })
 
+  it('does not offer mutation controls for legacy statuses unsupported by the database workflow', async () => {
     mocks.orders = [makeOrder('new')]
-    rerender(<AdminOrders />)
+    render(<AdminOrders />)
     expect(await screen.findByLabelText('حالة قديمة للطلب ORD-1')).toHaveTextContent('حالة قديمة: جديد')
+    expect(screen.queryByRole('combobox', { name: 'حالة الطلب ORD-1' })).not.toBeInTheDocument()
   })
 })
