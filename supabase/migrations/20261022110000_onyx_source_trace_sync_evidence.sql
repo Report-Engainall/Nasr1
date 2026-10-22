@@ -224,9 +224,10 @@ BEGIN
   ORDER BY a.completed_at DESC,a.id DESC LIMIT 1;
 
   SELECT pg_catalog.jsonb_build_object(
-    'id',a.id,'snapshot_id',a.snapshot_id,'status',a.status,'http_status',a.http_status,
-    'request_sha256',a.request_sha256,'response_sha256',a.response_sha256,
-    'external_request_id',a.external_request_id,'started_at',a.started_at,'completed_at',a.completed_at
+    'id',a.id,'operation',a.operation,'status',a.status,'snapshot_id',a.snapshot_id,'order_id',a.order_id,
+    'http_status',a.http_status,'request_sha256',a.request_sha256,'response_sha256',a.response_sha256,
+    'external_request_id',a.external_request_id,'error_code',a.error_code,'error_summary',a.error_summary,
+    'started_at',a.started_at,'completed_at',a.completed_at
   ) INTO v_snapshot_success
   FROM public.onyx_live_sync_attempts a
   WHERE a.organization_id=v_org AND a.operation='inventory_pull'
@@ -471,7 +472,8 @@ BEGIN
   SELECT pg_catalog.jsonb_build_object(
     'id',a.id,'operation',a.operation,'status',a.status,'snapshot_id',a.snapshot_id,'order_id',a.order_id,
     'http_status',a.http_status,'request_sha256',a.request_sha256,'response_sha256',a.response_sha256,
-    'external_request_id',a.external_request_id,'started_at',a.started_at,'completed_at',a.completed_at
+    'external_request_id',a.external_request_id,'error_code',a.error_code,'error_summary',a.error_summary,
+    'started_at',a.started_at,'completed_at',a.completed_at
   ) INTO v_latest_success
   FROM public.onyx_live_sync_attempts a
   WHERE a.organization_id=v_org AND a.status='succeeded'
