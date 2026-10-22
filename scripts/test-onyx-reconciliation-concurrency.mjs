@@ -149,18 +149,18 @@ async function main() {
       "insert into public.onyx_snapshots(" +
         "id,organization_id,source_import_job_id,source_file_hash,source_file_name,report_type,row_count," +
         "data_quality_score,metrics,status,created_by) " +
-        "values($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text,'inventory_stock',1,100,$6::jsonb,'ready',$7::uuid)",
+        "values($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text,'inventory_stock',1,100," +
+        "pg_catalog.jsonb_build_object('warehouse_id',$6::text,'warehouse_code',$7::text,'warehouse_name',$8::text)," +
+        "'ready',$9::uuid)",
       [
         snapshotId,
         organizationId,
         importJobId,
         sourceHash,
         "onyx-race-" + suffix + ".csv",
-        JSON.stringify({
-          warehouse_id: warehouseId,
-          warehouse_code: warehouseCode,
-          warehouse_name: warehouseName,
-        }),
+        warehouseId,
+        warehouseCode,
+        warehouseName,
         profileId,
       ],
     );
