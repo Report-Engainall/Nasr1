@@ -49,6 +49,7 @@ AS $function$
 DECLARE
   v_profile uuid:=public.current_profile_id();
   v_email text:=pg_catalog.lower(pg_catalog.btrim(coalesce(auth.jwt()->>'email','')));
+  v_confirmed_email text;
   v_invitation public.customer_company_invitations%ROWTYPE;
   v_org uuid;
   v_roles text[];
@@ -66,7 +67,10 @@ BEGIN
   END IF;
   SELECT i.* INTO v_invitation
     FROM public.customer_company_invitations i
-   WHERE i.token_hash=pg_catalog.md5(pg_catalog.lower(p_token))
+   WHERE i.token_hash IN (
+     pg_catalog.encode(public.digest(pg_catalog.lower(p_token),'sha256'),'hex'),
+     pg_catalog.md5(pg_catalog.lower(p_token))
+   )
    FOR UPDATE;
   IF NOT FOUND OR v_invitation.status<>'pending' THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='الدعوة غير موجودة أو استُخدمت أو أُلغيت';
@@ -82,10 +86,15 @@ BEGIN
       'error','انتهت صلاحية الدعوة؛ اطلب رابطًا جديدًا'
     );
   END IF;
-  IF nullif(auth.jwt()->>'email_confirmed_at','') IS NULL THEN
+  -- Read confirmation from the authoritative Auth row; a caller-supplied JWT claim is not proof.
+  SELECT pg_catalog.lower(pg_catalog.btrim(coalesce(u.email,'')))
+    INTO v_confirmed_email
+  FROM auth.users u
+  WHERE u.id=auth.uid() AND u.email_confirmed_at IS NOT NULL;
+  IF NOT FOUND OR v_confirmed_email='' THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='أكّد بريدك الإلكتروني قبل قبول الدعوة';
   END IF;
-  IF v_email='' OR v_email<>v_invitation.invited_email THEN
+  IF v_email='' OR v_email<>v_invitation.invited_email OR v_confirmed_email<>v_invitation.invited_email THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='سجّل الدخول بالبريد الإلكتروني الذي استلم الدعوة';
   END IF;
   SELECT p.organization_id INTO v_org FROM public.profiles p
