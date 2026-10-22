@@ -15,7 +15,7 @@ const staffProfileId = "f0000000-0000-0000-0000-000000000001";
 const staffAuthId = "33333333-3333-4333-8333-333333333333";
 const productId = "a1000000-0000-0000-0000-000000000001";
 const otherTenantProductId = "a1111111-1111-4111-8111-111111111112";
-const checkoutKeys = ["ci-p1-cart-checkout-mismatch-0001", "ci-p1-cart-checkout-valid-0001"];
+const checkoutKeys = ["ci-p1-cart-checkout-mismatch-0001", "ci-p1-cart-checkout-valid-0001", "ci-p2-order-input-race-0001"];
 
 const admin = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const first = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
@@ -136,16 +136,16 @@ async function main() {
 
   const checkoutSnapshot = await getCart(first);
   assert.equal(checkoutSnapshot.items.length, 1, "checkout fixture has one normalized persistent-cart line");
-  const submitOrder = (items, idempotencyKey) => first.unsafe(
+  const submitOrder = (client, items, idempotencyKey) => client.unsafe(
     "select public.submit_customer_order($1::jsonb,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,null::uuid) as result",
-    [first.json(items), "P1 persistent cart atomic checkout", "CI cart checkout business", "CI cart checkout contact", "123456789", "cash_on_delivery", idempotencyKey],
+    [client.json(items), "P2 source order-input acceptance", "CI order input business", "CI order input contact", "123456789", "cash_on_delivery", idempotencyKey],
   );
   const mismatchedItems = [{
     product_id: checkoutSnapshot.items[0].product_id,
     quantity: checkoutSnapshot.items[0].quantity + 1,
   }];
   await assert.rejects(
-    () => submitOrder(mismatchedItems, checkoutKeys[0]),
+    () => submitOrder(first, mismatchedItems, checkoutKeys[0]),
     /checkout lines do not match active persistent cart/i,
     "a mismatched checkout must fail inside the order transaction",
   );
@@ -155,7 +155,7 @@ async function main() {
     [organizationId, customerOneProfileId, checkoutKeys[0]],
   ))[0].count, 0, "a mismatched checkout must not persist an order");
 
-  const successful = (await submitOrder(checkoutSnapshot.items, checkoutKeys[1]))[0].result;
+  const successful = (await submitOrder(first, checkoutSnapshot.items, checkoutKeys[1]))[0].result;
   assert.ok(successful?.id, "matching checkout returns persisted order identity");
   assert.equal(successful.idempotent_replay, false, "first checkout is not a replay");
   const cartState = (await admin.unsafe(
@@ -175,6 +175,42 @@ async function main() {
     "select count(*)::int as count from public.orders where organization_id=$1 and created_by=$2 and idempotency_key=$3",
     [organizationId, customerOneProfileId, checkoutKeys[1]],
   ))[0].count, 1, "idempotent checkout never creates a duplicate order");
+
+  const changedReplayItems = checkoutSnapshot.items.map((item) => ({
+    ...item,
+    quantity: item.quantity + 1,
+  }));
+  await assert.rejects(
+    () => submitOrder(first, changedReplayItems, checkoutKeys[1]),
+    /مفتاح منع التكرار استُخدم سابقًا لبيانات طلب مختلفة/,
+    "reusing one idempotency key with changed order input must fail closed",
+  );
+  assert.equal((await admin.unsafe(
+    "select count(*)::int as count from public.orders where organization_id=$1 and created_by=$2 and idempotency_key=$3",
+    [organizationId, customerOneProfileId, checkoutKeys[1]],
+  ))[0].count, 1, "changed-payload replay must not create a second order");
+
+  const raceItems = [{ product_id: productId, quantity: 1 }];
+  await syncCart(first, raceItems);
+  const raceRows = await Promise.all([
+    submitOrder(first, raceItems, checkoutKeys[2]),
+    submitOrder(firstConcurrent, raceItems, checkoutKeys[2]),
+  ]);
+  const raceResults = raceRows.map((rows) => rows[0].result);
+  assert.equal(raceResults[0].id, raceResults[1].id,
+    "concurrent same-key submits must return one persisted order id");
+  assert.equal(raceResults.filter((result) => result.idempotent_replay === false).length, 1,
+    "concurrent same-key submissions must create the order exactly once");
+  assert.equal(raceResults.filter((result) => result.idempotent_replay === true).length, 1,
+    "the second concurrent submission must be an idempotent replay");
+  assert.equal((await admin.unsafe(
+    "select count(*)::int as count from public.orders where organization_id=$1 and created_by=$2 and idempotency_key=$3",
+    [organizationId, customerOneProfileId, checkoutKeys[2]],
+  ))[0].count, 1, "same-key race persists exactly one order row");
+  assert.equal((await admin.unsafe(
+    "select count(*)::int as count from public.order_items where order_id=$1",
+    [raceResults[0].id],
+  ))[0].count, 1, "same-key race persists the complete line set exactly once");
 
   await assert.rejects(
     () => syncCart(staff, [{ product_id: productId, quantity: 1 }]),
@@ -199,7 +235,7 @@ async function main() {
 
   await syncCart(first, []);
   assert.deepEqual((await getCart(first)).items, [], "empty sync must clear the cart");
-  process.stdout.write("PASS persistent customer cart: profile/tenant isolation, replay idempotency, concurrency serialization, atomic validation rollback, RPC-only privileges and clear\n");
+  process.stdout.write("PASS persistent customer cart/order input: profile/tenant isolation, exact replay, changed-payload key conflict, concurrent same-key create/replay, atomic rollback, RPC-only privileges and clear\\n");
 }
 
 try {
