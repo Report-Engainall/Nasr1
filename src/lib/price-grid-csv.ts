@@ -110,7 +110,7 @@ function parseCsvRecords(source: string): string[][] {
   let field = '';
   let quoted = false;
   let closedQuote = false;
-  const text = source.replace(/^\\uFEFF/, '');
+  const text = source.replace(/^\uFEFF/, '');
 
   for (let i = 0; i < text.length; i += 1) {
     const char = text[i];
@@ -135,8 +135,8 @@ function parseCsvRecords(source: string): string[][] {
         closedQuote = false;
         continue;
       }
-      if (char === '\\r' || char === '\\n') {
-        if (char === '\\r' && text[i + 1] === '\\n') i += 1;
+      if (char === '\r' || char === '\n') {
+        if (char === '\r' && text[i + 1] === '\n') i += 1;
         row.push(field);
         rows.push(row);
         row = [];
@@ -155,8 +155,8 @@ function parseCsvRecords(source: string): string[][] {
     } else if (char === ',') {
       row.push(field);
       field = '';
-    } else if (char === '\\r' || char === '\\n') {
-      if (char === '\\r' && text[i + 1] === '\\n') i += 1;
+      if (char === '\r' || char === '\n') {
+        if (char === '\r' && text[i + 1] === '\n') i += 1;
       row.push(field);
       rows.push(row);
       row = [];
