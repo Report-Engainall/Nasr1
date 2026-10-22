@@ -11,7 +11,7 @@ describe("unified import safety contracts", () => {
     const quality = new DataQualityAccumulator(["item_code"], "item_code");
     quality.add({
       row_number: 2,
-      data: { item_code: "SKU-1", cost: "cost unavailable" },
+      data: { item_code: "SKU-1", quantity: 2, revenue: null, price: 4, cost: "cost unavailable" },
       status: "valid",
       errors: [],
     });
