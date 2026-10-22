@@ -907,6 +907,23 @@ async function main() {
   assert.equal(memoRows[0].reversal_journal_entry_id,reversalId);
   assert.equal(memoRows[0].reversal_reason,reason);
 
+  const reversedOptions=asJson((await db.unsafe(
+    "select public.get_finance_document_print_options($1::integer,$2::integer) as result",[500,0]
+  ))[0].result);
+  const reversedOption=reversedOptions.credit_memos.find((row)=>row.id===preparedCredit.credit_memo_id);
+  assert.ok(reversedOption,"finance print options retain the reversed credit memo as an audit-print source");
+  assert.equal(reversedOption.status,"reversed","print source exposes the persisted reversed status");
+  assert.equal(reversedOption.invoice_number,"INV-CI-RET-"+suffix,"reversed print source remains tied to its source invoice");
+  const reversedPrint=asJson((await db.unsafe(
+    "select public.get_customer_return_credit_memo_pdf($1::uuid) as result",[preparedCredit.credit_memo_id]
+  ))[0].result);
+  assert.equal(reversedPrint.memo.status,"reversed");
+  assert.equal(reversedPrint.journal.status,"posted","the original journal remains immutable and posted");
+  assert.equal(reversedPrint.memo.reversed_at!=null,true);
+  assert.equal(reversedPrint.memo.reversal_reason,reason);
+  assert.equal(reversedPrint.memo.reversal_journal_entry_number,r1.reversal_journal_entry_number);
+  assert.equal(reversedPrint.memo.reversal_journal_status,"posted","the print source verifies the posted counter-entry");
+
   const mirrors=await db.unsafe(
     "select o.line_number,o.account_id::text as account_id,o.debit::text as od,o.credit::text as oc,"+
     "r.account_id::text as reversal_account_id,r.debit::text as rd,r.credit::text as rc "+
