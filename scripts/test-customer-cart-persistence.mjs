@@ -168,7 +168,7 @@ async function main() {
     [organizationId, cartState.id],
   ))[0].count, 0, "checkout removes lines only after order items persist");
   assert.deepEqual((await getCart(first)).items, [], "completed checkout no longer exposes old cart as active");
-  const replay = (await submitOrder(checkoutSnapshot.items, checkoutKeys[1]))[0].result;
+  const replay = (await submitOrder(first, checkoutSnapshot.items, checkoutKeys[1]))[0].result;
   assert.equal(replay.id, successful.id, "retry returns the original order");
   assert.equal(replay.idempotent_replay, true, "replayed checkout is marked idempotent");
   assert.equal((await admin.unsafe(
