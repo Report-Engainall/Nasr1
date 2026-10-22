@@ -14,7 +14,7 @@ async function loadServiceWorker(overrides: {
   cacheAdd?: (url: string) => Promise<void>;
   cacheNames?: string[];
   cacheMatch?: (request: Request | string) => Promise<Response | null>;
-  fetcher?: (request: Request) => Promise<Response>;
+  fetcher?: (request: Request | string) => Promise<Response>;
 } = {}) {
   const source = await readFile(resolve(process.cwd(), "public/sw.js"), "utf8");
   const listeners = new Map<string, Listener>();
@@ -44,7 +44,7 @@ async function loadServiceWorker(overrides: {
     URL,
     Promise,
     Response,
-    fetch: vi.fn((request: Request) => overrides.fetcher
+    fetch: vi.fn((request: Request | string) => overrides.fetcher
       ? overrides.fetcher(request)
       : Promise.reject(new Error("unexpected network request"))),
     console,
@@ -54,10 +54,19 @@ async function loadServiceWorker(overrides: {
 }
 
 describe("Aghbari PWA offline shell", () => {
-  it("caches the available shell assets even when one optional asset fails", async () => {
+  it("precaches MIME-valid shell assets while skipping an optional asset with the wrong MIME", async () => {
     const worker = await loadServiceWorker({
-      cacheAdd: async (url) => {
-        if (url === "/manifest.webmanifest") throw new Error("manifest unavailable");
+      fetcher: async (url) => {
+        if (url === "/") return new Response("<!doctype html>", {
+          status: 200, headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
+        if (url === "/manifest.webmanifest") return new Response("<html>fallback</html>", {
+          status: 200, headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
+        if (url === "/favicon.ico") return new Response("icon", {
+          status: 200, headers: { "Content-Type": "image/x-icon" },
+        });
+        throw new Error("unexpected shell URL: " + url);
       },
     });
     const pending: Promise<unknown>[] = [];
@@ -66,9 +75,8 @@ describe("Aghbari PWA offline shell", () => {
     await Promise.all(pending);
 
     expect(worker.cachesMock.open).toHaveBeenCalledWith("aghbari-shell-v2");
-    expect(worker.cacheAdd.mock.calls.map(([url]) => url)).toEqual([
-      "/", "/manifest.webmanifest", "/favicon.ico",
-    ]);
+    expect(worker.cacheAdd).not.toHaveBeenCalled();
+    expect(worker.cachePut.mock.calls.map(([url]) => url)).toEqual(["/", "/favicon.ico"]);
     expect(worker.skipWaiting).toHaveBeenCalledOnce();
   });
 
@@ -91,11 +99,14 @@ describe("Aghbari PWA offline shell", () => {
   });
 
   it("caches only the public home shell and uses it as the offline deep-route fallback", async () => {
-    const shell = new Response("public Aghbari shell", { status: 200 });
+    const shell = new Response("public Aghbari shell", { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
     const worker = await loadServiceWorker({
       cacheMatch: async (key) => key === "/" ? shell : null,
       fetcher: async (request) => {
-        if (request.url === "https://aghbari.example/") return shell.clone();
+        const requestUrl = typeof request === "string"
+          ? new URL(request, "https://aghbari.example").href
+          : request.url;
+        if (requestUrl === "https://aghbari.example/") return shell.clone();
         throw new Error("offline");
       },
     });
