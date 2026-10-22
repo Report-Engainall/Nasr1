@@ -74,7 +74,7 @@ describe("Aghbari PWA offline shell", () => {
 
     await Promise.all(pending);
 
-    expect(worker.cachesMock.open).toHaveBeenCalledWith("aghbari-shell-v2");
+    expect(worker.cachesMock.open).toHaveBeenCalledWith("aghbari-shell-v3");
     expect(worker.cacheAdd).not.toHaveBeenCalled();
     expect(worker.cachePut.mock.calls.map(([url]) => url)).toEqual(["/", "/favicon.ico"]);
     expect(worker.skipWaiting).toHaveBeenCalledOnce();
@@ -152,14 +152,15 @@ describe("Aghbari PWA offline shell", () => {
   });
 
   it("removes previous shell cache versions during activation", async () => {
-    const worker = await loadServiceWorker({ cacheNames: ["aghbari-shell-v1", "aghbari-shell-v2", "unrelated-cache"] });
+    const worker = await loadServiceWorker({ cacheNames: ["aghbari-shell-v1", "aghbari-shell-v2", "aghbari-shell-v3", "unrelated-cache"] });
     const pending: Promise<unknown>[] = [];
     worker.listeners.get("activate")?.({ waitUntil: (promise) => pending.push(promise) });
 
     await Promise.all(pending);
 
-    expect(worker.cacheDelete).toHaveBeenCalledTimes(1);
+    expect(worker.cacheDelete).toHaveBeenCalledTimes(2);
     expect(worker.cacheDelete).toHaveBeenCalledWith("aghbari-shell-v1");
+    expect(worker.cacheDelete).toHaveBeenCalledWith("aghbari-shell-v2");
     expect(worker.claim).toHaveBeenCalledOnce();
   });
 });
