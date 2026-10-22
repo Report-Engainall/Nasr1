@@ -1,0 +1,27 @@
+# P2 path ownership lock — NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011
+
+- Repository: `Report-Engainall/Nasr1`
+- Sole owner: P2
+- Branch: `feat/p2-onyx-sync-evidence-mainline-20261022`
+- Base SHA: `bf06c73226033da8e4f81e24981eb64e6e7fca99`
+- Purpose: port only the target-native Onyx source/export/live-attempt evidence increment onto current main without carrying unrelated stale-branch commits.
+- Locked implementation paths for this task:
+  - `.github/workflows/p2-playwright-critical-paths.yml`
+  - `e2e/finance-task-print.spec.ts`
+  - `e2e/onyx-order-export.spec.ts`
+  - `scripts/test-onyx-source-evidence.mjs`
+  - `src/components/AdminPages.tsx`
+  - `src/components/OnyxSnapshotSourceEvidencePanel.tsx`
+  - `src/lib/onyx-export.ts`
+  - `src/lib/onyx-source-evidence-export.ts`
+  - `src/lib/onyx-source-evidence.ts`
+  - `src/test/UnifiedOnyxAnalysisPanel.test.tsx`
+  - `src/test/onyx-export.test.ts`
+  - `src/test/onyx-source-evidence-export.test.ts`
+  - `src/test/onyx-source-evidence-ui.test.tsx`
+  - `src/test/onyx-source-evidence.test.ts`
+  - `supabase/migrations/20261022110000_onyx_source_trace_sync_evidence.sql`
+- Explicitly excluded: P1-protected report/entrypoint/source-ledger/reuse-audit files; storefront/auth shared paths; `WORK_COORDINATION.md` while its open P1 PR is reconciled; `scripts/test-database-migrations.mjs` because the stale source branch mixes unrelated invitation and stock-transfer changes; customer-company invitation migration and tests, which are outside task 011.
+- Coordination check: P1 is paused by owner. Open PR #50's changed-file list does not include the implementation files above except historical coordination documentation; PR #52's changed path is `scripts/test-onyx-reconciliation-concurrency.mjs`, not this lock's paths. No concurrent writer found for the locked implementation paths at acquisition.
+- Required validation: focused unit tests for Onyx source evidence/export/UI; isolated PostgreSQL 17 migration/evidence acceptance; complete Core CI (tests, lint, build/smoke) on exact HEAD; Playwright run status by job, clearly separating browser proof from infrastructure gate; no claim of live Onyx connection or production acceptance without external response/evidence.
+- Release condition: merge the accepted PR and reread `main` exact SHA, or explicitly release without merge after recording the blocker and preserving the current cursor. Do not release on build success alone.
