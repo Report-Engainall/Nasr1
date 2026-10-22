@@ -1,3 +1,30 @@
+# تصحيح الحالة الحية والتحقق المستقل — 22 أكتوبر 2026، 22:20 Asia/Aden
+
+> **هذه الإضافة هي أحدث تصحيح زمني وتعلو على التفاصيل التاريخية أدناه.** أُعيد تشغيل P1 بتوجيه المالك. دور P1 هو التحقق المستقل فقط؛ لا يجري تغييرات تطبيق/قاعدة بيانات متوازية ولا يعالج كود P2.
+
+## رأس GitHub والأدلة المطابقة
+
+- **المستودع:** https://github.com/Report-Engainall/Nasr1
+- **رأس main عند القراءة:** `bf06c73226033da8e4f81e24981eb64e6e7fca99`
+- **Core CI على رأس main نفسه:** SUCCESS — https://github.com/Report-Engainall/Nasr1/actions/runs/39833065820
+- **PR #52 / INV-009 concurrency acceptance:** رأس `45a8cc2a00c57965f9c08ccac7965ae7838b206b`. Core CI FAILURE — https://github.com/Report-Engainall/Nasr1/actions/runs/39837521493. سبب الفشل الصريح: `DATABASE_ACCEPTANCE_FAILED onyx reconciliation concurrency: PostgresError: Onyx source is not warehouse-scoped; aggregate stock cannot be assigned safely to one warehouse`. فشل الاختبار أثناء preview قبل وصوله إلى حواجز التزامن/الـidempotency؛ لا يوجد إثبات للسباق على هذا الرأس. سُجلت ملاحظة P1 في PR #52 (تعليق GitHub رقم 6349297451).
+- **PR #52 Playwright:** FAILURE — https://github.com/Report-Engainall/Nasr1/actions/runs/39837521468. أظهر السجل فشل تشغيل Supabase المحلي بسبب `toomanyrequests` عند سحب `ghcr.io/supabase/postgres:17.6.1.095`. التصنيف: `BLOCKED_EXTERNAL`؛ لم يصل اختبار المتصفح المقصود إلى التنفيذ.
+- **PR #51 / بروتوكول الإقلاع:** Core CI SUCCESS على `87b2599e9dab237c7f1138cb4f1a0ab773148af2` — https://github.com/Report-Engainall/Nasr1/actions/runs/39836914928. Playwright فشل بسبب GHCR throttling كما سبق — https://github.com/Report-Engainall/Nasr1/actions/runs/39836915007. تعليقات P1: 6349301583.
+- **PR #50 / إدارة التصنيفات:** Core CI SUCCESS على `3301a3806ae7ffd62064b97b5796b12b2dd0eff9` — https://github.com/Report-Engainall/Nasr1/actions/runs/39836522643. Playwright فشل قبل اختبار المتصفح بسبب سحب صورة PostgreSQL من GHCR — https://github.com/Report-Engainall/Nasr1/actions/runs/39836522607. تعليقات P1: 6349302357.
+- لا يُستنتج من إخفاق GHCR وجود regression في التطبيق؛ كذلك لا يُحوّل إلى `BROWSER_PROVEN`. يلزم إعادة تشغيل المسار بعد استعادة سحب الصور، وعلى SHA نهائي مطابق.
+
+## مؤشر الاستئناف الواحد — أولوية مباشرة
+
+**next_task_id = INV-009-ONYX-CONCURRENCY-TEST-FIX-20261022**
+
+- **المالك:** P2 (البناء والإصلاح). أعد فحص fixture في `scripts/test-onyx-reconciliation-concurrency.mjs` عند الأسطر 163–190؛ الكود الظاهر يبني `warehouse_code` و`warehouse_name` في صف المصدر، ومع ذلك ترفضه قاعدة البيانات في مرحلة preview بأنه غير محدد للمخزن. افحص قيمة JSON المحفوظة فعليًا، ومقارنة scope في RPC، وتعاقد fixture في `scripts/test-onyx-reconciliation.mjs`. أصلح fixture/precondition مع إبقاء تحقق النطاق الخادمي الصارم كما هو.
+- أعد تشغيل Core CI / PostgreSQL 17 حتى نجاح قبول التزامن على **الرأس النهائي نفسه**؛ يجب أن يثبت الاختبار أن الجلستين تنتظران، ثم تطبيقًا واحدًا وreplay واحدًا وحركة مخزون واحدة وسجل تدقيق واحدًا مع بقاء المحجوز.
+- أعد تشغيل Playwright بعد حل GHCR pull throttling؛ حتى النجاح يبقى browser proof منفصلًا عن Core/DB proof.
+- لا تختبر على الإنتاج، ولا تكتب مباشرة على main، ولا تخفف اختبارات النطاق لتجاوز الفشل.
+- بعد حسم INV-009 على SHA مثبت، ارجع إلى الفجوة الأقدم المفتوحة في المصفوفة، بدءًا من `NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011` إذا ظلت مفتوحة على الحالة الحية. لا تنشئ مؤشر استئناف ثانٍ.
+
+---
+
 # الحالة التنفيذية الحالية الوحيدة — متجر الأغبري | Nasr1
 ## قراءة مباشرة بتاريخ 22 أكتوبر 2026
 
