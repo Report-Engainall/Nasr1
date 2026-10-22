@@ -363,11 +363,21 @@ async function main() {
       "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,null::text,$9::text,$10::text)",
       ["inventory_pull","failed",organizationId,matchedSnapshotId,failStart[0].id,"3".repeat(64),504,"CI-FAILED-"+suffix,"REMOTE_TIMEOUT","Provider timeout"]
     );
+    // A later attempt with no selected snapshot must not appear as if it belonged to the saved snapshot.
+    const unlinkedStart = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,null::uuid,null::uuid,null::uuid,$4::text,null::integer,null::text,null::text,null::text,null::text) as id",
+      ["inventory_pull","started",organizationId,"4".repeat(64)]
+    );
+    await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,null::uuid,null::uuid,$4::uuid,$5::text,$6::integer,$7::text,null::text,$8::text,$9::text)",
+      ["inventory_pull","failed",organizationId,unlinkedStart[0].id,"4".repeat(64),504,"CI-UNLINKED-"+suffix,"UNLINKED_TIMEOUT","No snapshot selected"]
+    );
     await setIdentity(managerAuthId, "onyx-evidence-manager-" + suffix + "@example.test");
     const syncRows = await db.unsafe("select public.get_onyx_live_sync_attempt_evidence($1::uuid) as payload",[matchedSnapshotId]);
     const sync = asJson(syncRows[0].payload);
     assert.equal(sync.last_sync_attempt.status,"failed");
     assert.equal(sync.last_sync_attempt.error_code,"REMOTE_TIMEOUT");
+    assert.equal(sync.last_sync_attempt.snapshot_id,matchedSnapshotId,"the last attempt shown for a snapshot must actually be linked to that snapshot");
     assert.equal(sync.live_connection_proven,true,"the latest failure cannot erase a previous successful response");
     assert.equal(sync.latest_successful_connection.id,successfulId);
     assert.equal(sync.snapshot_sync_proven,true);

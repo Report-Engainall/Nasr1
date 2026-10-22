@@ -210,7 +210,7 @@ BEGIN
   ) INTO v_last
   FROM public.onyx_live_sync_attempts a
   WHERE a.organization_id=v_org AND a.operation='inventory_pull'
-    AND (a.snapshot_id=p_snapshot_id OR a.snapshot_id IS NULL)
+    AND a.snapshot_id=p_snapshot_id
   ORDER BY a.started_at DESC,a.id DESC LIMIT 1;
 
   SELECT pg_catalog.jsonb_build_object(
@@ -464,7 +464,10 @@ BEGIN
   ) INTO v_last_attempt
   FROM public.onyx_live_sync_attempts a
   WHERE a.organization_id=v_org AND (
-    (a.operation='inventory_pull' AND (p_source_snapshot_id IS NULL OR a.snapshot_id=p_source_snapshot_id OR a.snapshot_id IS NULL))
+    (a.operation='inventory_pull' AND (
+      (p_source_snapshot_id IS NULL AND a.snapshot_id IS NULL)
+      OR a.snapshot_id=p_source_snapshot_id
+    ))
     OR (a.operation='order_push' AND a.order_id=v_order.id)
   )
   ORDER BY a.started_at DESC,a.id DESC LIMIT 1;
