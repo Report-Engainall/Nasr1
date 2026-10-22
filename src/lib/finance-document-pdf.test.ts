@@ -184,7 +184,7 @@ describe("Arabic customer finance PDFs", () => {
       summary_as_of_utc: "2026-10-18T12:00:00.000Z",
       summary: [
         { currency: "YER", invoiced: "150.00", paid: "50.00", credited: "0.00", outstanding: "100.00", overdue_invoice_count: 2, overdue_outstanding: "80.00", unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: "0.00" },
-        { currency: "USD", invoiced: "40.00", paid: "0.00", outstanding: "40.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 1, unknown_due_date_outstanding: "40.00" },
+        { currency: "USD", invoiced: "40.00", paid: "0.00", credited: "0.00", outstanding: "40.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 1, unknown_due_date_outstanding: "40.00" },
       ],
     };
 
