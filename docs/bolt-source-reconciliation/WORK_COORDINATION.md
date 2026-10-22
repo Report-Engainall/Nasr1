@@ -791,3 +791,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **Protected / excluded:** `src/lib/api.ts` while PR #46 owns order-status changes; `src/components/AdminPages.tsx`, Onyx/finance/print files, and workflow changes associated with P2 PR #40; `src/routeTree.gen.ts`; and PR #31's four locked P1 evidence files. Donor repositories remain read-only.
 - **Validation:** targeted service/UI-wiring tests plus exact-head Core CI including PostgreSQL 17, lint, build and smoke. Authenticated browser/production proof stays NOT RUN unless actually executed.
 - **Serialization:** `WORK_COORDINATION.md` is also changed by open PR #40. Merge this P1 PR only as one sequential merge; do not merge PR #40 concurrently. After this PR's post-merge CI succeeds, release this lock and re-read main before taking another shared-path task.
+
+
+## P2 exclusive path lock — INV-009 Onyx reconciliation two-session concurrency acceptance — 22 October 2026
+- **Task ID:** \`INV-009\` (original specification: inventory reconciliation must be atomic, idempotent, reservation-safe, and concurrency-tested).
+- **Owner:** P2; **branch:** \`feat/p2-onyx-apply-concurrency-acceptance-20261022\`; **base SHA:** \`bf06c73226033da8e4f81e24981eb64e6e7fca99\`.
+- **Exclusive paths:** \`scripts/test-onyx-reconciliation-concurrency.mjs\` (new) and \`package.json\` (only the \`test:db\` command). This is a test-harness-only change; production RPC/schema files are not modified.
+- **No-touch paths:** \`src/components/AdminPages.tsx\`, \`src/lib/api.ts\`, \`src/routeTree.gen.ts\`, all migrations, and the four protected P1 evidence paths.
+- **Acceptance:** two separate authenticated PostgreSQL sessions race on the same preview command while an independent coordinator holds the command-row lock; release only after both callers are observed blocked. Assert one apply and one idempotent replay, one movement per changed item, unchanged reservation, one audit record, and final command/balance state. Exercise an isolated PostgreSQL 17 database through the existing \`test:db\` workflow; never production.
+- **Release condition:** after the PR's exact-head Core CI and PostgreSQL acceptance succeed and the merged main head is rechecked. This lock does not authorize edits to the unrelated synchronization/export UI.
