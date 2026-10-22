@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import postgres from "postgres";
+import { runOrderInputHardeningAcceptance } from "./test-order-input-hardening.mjs";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) throw new Error("TEST_DATABASE_URL is required for isolated database migration tests.");
@@ -4292,6 +4293,30 @@ async function main() {
   const revokeAudit = await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=$2", [organizationId, revokedInvitation.invitation_id]);
   assert.ok(revokeAudit.some(row => row.action === "customer_activation_invitation.revoked"), "revocation is audited");
   process.stdout.write("PASS customer activation invitations: auth.users confirmation/email, tenant and role guards, hash-only token, no direct table DML, one-use/replay, expiry/revoke and audit trail\n");
+
+  // SRC-011 / ORDER-INPUT-0011: wire the existing adversarial customer/staff payload contract
+  // into the live isolated-PostgreSQL acceptance chain.
+  // Separate sessions prevent actor role state and root cleanup privileges from leaking between callers.
+  const orderInputRoot = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const orderInputAdmin = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const orderInputCustomer = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  try {
+    await runOrderInputHardeningAcceptance({
+      root: orderInputRoot,
+      admin: orderInputAdmin,
+      customer: orderInputCustomer,
+      org: organizationId,
+      adminAuth: staffAuthUserId,
+      customerAuth: authUserId,
+      foreignProduct: otherProductId,
+    });
+  } finally {
+    await Promise.all([
+      orderInputRoot.end({ timeout: 5 }).catch(() => undefined),
+      orderInputAdmin.end({ timeout: 5 }).catch(() => undefined),
+      orderInputCustomer.end({ timeout: 5 }).catch(() => undefined),
+    ]);
+  }
 
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }
