@@ -1,3 +1,17 @@
+# تصحيح الحالة التنفيذية لـP2 — 22 أكتوبر 2026
+
+**مرجع أحدث من السجل التاريخي أدناه.** تقارير هذا الملف تحافظ على أحداثها القديمة؛ أي جملة في الأسفل تفيد بأن PR #18 أو #26 ما زال مفتوحًا، أو أن تكامل خصوصية أسعار Storefront لم يحدث، تعود إلى نقطة قراءة تاريخية ولا تمثل main الحالي.
+
+- المستودع الهدف: Report-Engainall/Nasr1 فقط.
+- main المقروء بعد دمج اختبار سلة/checkout PR #38: 0395367d869d0d63fba669940a92eeca0ae3e893.
+- Core CI للرأس نفسه: https://github.com/Report-Engainall/Nasr1/actions/runs/39789165220 — QUEUED عند التوثيق. لا تُعلن اكتمال قبول الدمج حتى النتيجة النهائية.
+- PR #18/#26/#29/#38 مدمجة. بطاقة المنتج/التفاصيل والمفضلة/المقارنة متصلة بسياسة إظهار السعر في Storefront؛ PR #38 أضاف اختبار UI للسلة والطلب النهائي. لا تعِد فتح 0007 أو 010/011 من سجل قديم، لكن أصلح أي regression يثبته الاختبار الحالي.
+- أولوية P2 الحالية: NASR1-ORIGINAL-SPEC-PURCHASE-RECEIPT-ACCOUNTING-012. الفرع القائم feat/p2-purchase-receipt-accounting-20261021 عند SHA bf39642529c984ec2ff03cb49fbfbce665349d17، وCore #39664466105 وP2 Playwright #39664466118 نجحا على هذا الرأس. ليس ذلك دليل دمج في main الحالي؛ المطلوب PR وتحديث آمن واختبارات exact-SHA على الشجرة الجديدة.
+- P1 متوقف بحسب توجيه المالك. لا تنتظر رجوعه؛ واصل مسارات P2 المستقلة. لا تعدّل ملفات دليل P1 التي يغيّرها PR #31: PROGRAMMER_1_CURRENT_REPORT.md، PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt، SOURCE_INTEGRATION_LEDGER.csv، READY_TO_REUSE_FILE_AUDIT.csv.
+- استخدم مصفوفة docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv لتوزيع المجالات المتوازية. بعد المهمة الأساسية استمر تلقائيًا في Onyx/المخزون، المستندات المالية، الاستيراد/التصدير/DQS، مركز المهام والطباعة حسب الدور، التقارير/AI، PWA والتكاملات. لا توقف الأعمال المستقلة بانتظار اختبار المتصفح؛ Bolt New مسؤول عن browser validation.
+- لا تضع بيانات مالية وهمية، ولا تنشئ دفتر أستاذ موازيًا، ولا تخفف RLS/grants، ولا تدّعِ Live Onyx/WhatsApp/production proof بلا استجابة فعلية.
+- الحالة الديناميكية الوحيدة موجودة في CURRENT_EXECUTION_STATE.md. ما يأتي بعد هذا التصحيح سجل تاريخي append-only؛ لا يستعمل كمؤشر حي متنافس.
+---
 ## P2 latest exact-head verification and successor handoff — 21 October 2026
 
 - **Repository/branch/PR:** `Report-Engainall/Nasr1` / `feat/p2-customer-return-intake-20261020` / [PR #18](https://github.com/Report-Engainall/Nasr1/pull/18), still OPEN and unmerged. Exact tested application/code SHA for the latest code batch: `afcdd69e75b1f1783652ce3fca2d14d7351d93a1`. Documentation changes made later do not inherit this CI label.
