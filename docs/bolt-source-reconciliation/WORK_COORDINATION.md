@@ -811,3 +811,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Exclusive path: `scripts/test-customer-returns.mjs` only. Root cause identified in Actions #39811820945: the return acceptance script creates a foreign-tenant customer using a hard-coded profile ID but does not create the corresponding `auth.users` and `public.profiles` fixtures; PostgreSQL rejects the customer with `customers_profile_id_fkey`.
 - P2 owns this narrow test-fixture correction. Make the fixture self-contained with unique test identities, the required auth/profile rows, and a customer role. Do not change the database constraint, relax RLS, or reuse/modify the COMPANY-001 test block in `scripts/test-database-migrations.mjs`.
 - Keep the lock until the exact-head Core CI including all chained PostgreSQL 17 acceptance scripts is terminal and the outcome is recorded. No production database writes.
+
+
+## P2 workflow lock — local Supabase bootstrap retry under registry throttling — 2026-10-22
+- Purpose: repair reliability of isolated, non-production Playwright infrastructure after exact-head runs 39812666824 attempts 1 and 2 failed before migrations/browser execution while pulling GHCR images (`toomanyrequests`; see failed job 119945051944 logs).
+- Exclusive path: `.github/workflows/p2-playwright-critical-paths.yml`, only the `Start isolated local Supabase services` command. Do not alter E2E credential gates, production endpoints, migration scope, or the browser assertions.
+- Pre-edit overlap review: current open PR file lists #40, #43, #44 and older #12, #13, #5, #1 were checked; none of these has a change to this workflow path. PR #40 has no workflow diff. P2 owns the bounded workflow reliability change.
+- Implement bounded retry with visible attempt logs only for transient GHCR rate-limit/pull failures; preserve a hard failure after the retry limit. No bypassing failed migrations or suppressing service-start errors.
+- This lock releases only when the updated exact-SHA Playwright job is terminal and its result/root cause is recorded. Authenticated external E2E remains gated until dedicated test secrets and non-production identities are provided.
