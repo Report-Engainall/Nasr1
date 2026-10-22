@@ -30,7 +30,7 @@
 - المهام: توليد من أحداث حقيقية؛ مهام الشراء/الاستلام وفرق الجرد أضيفت، لكن تحقق من بقية مصادر المهام والطباعة.
 - الإدارة والعملاء والشركات والصلاحيات والهوية/PWA والتقارير/AI والتكاملات: أكمل النواقص الحقيقية فقط حسب مصفوفة الإغلاق.
 
-المصفوفة الوحيدة للأعمال المتوازية: docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv.
+المصفوفة الوحيدة للأعمال المتوازية: docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv. تشمل المتاجر والإدارة والمالية/Onyx والاستيراد وDQS والتقارير/AI والمهام والطباعة والأمن وPWA والتكاملات، وأضيفت لها بوابات صريحة للأداء والنسخ الاحتياطي/الاستعادة وقبول قالب Onyx ذي 27 عمودًا ووثائق التسليم وAPI.
 
 ### قواعد الإثبات
 الحالات منفصلة: IMPLEMENTED، INTEGRATED، TESTED_EXACT_SHA، BROWSER_PROVEN، PRODUCTION_PROVEN، CLOSED_WITH_EVIDENCE، BLOCKED_EXTERNAL، NOT RUN. الاختبار الذي لم يُشغّل يبقى NOT RUN. مسؤولية فحص المتصفح النهائية لـBolt New كما طلب المالك؛ لا توقف الأعمال التي لا تعتمد عليه ولا تدّع Browser/Production proof من CI. لا تعديلات أو معاملات إنتاجية.
