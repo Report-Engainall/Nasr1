@@ -7,7 +7,9 @@ ALTER TABLE public.customer_company_invitations
   DROP CONSTRAINT IF EXISTS customer_company_invitations_token_hash_check;
 ALTER TABLE public.customer_company_invitations
   ADD CONSTRAINT customer_company_invitations_token_hash_check
-  CHECK (token_hash ~ '^([0-9a-f]{32}|[0-9a-f]{64})
+  CHECK (token_hash ~ '^([0-9a-f]{32}|[0-9a-f]{64})$');
+
+CREATE OR REPLACE FUNCTION public.audit_customer_company_invitation_expiry()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
