@@ -164,21 +164,20 @@ async function main() {
         profileId,
       ],
     );
-    // Bind this fixture explicitly to the selected warehouse in both the row and snapshot.
-    // A scope-free aggregate is intentionally rejected by preview_onyx_inventory_reconciliation.
-    const sourceRow = {
-      item_code: itemCode,
-      quantity: "15",
-      warehouse_id: warehouseId,
-      warehouse_code: warehouseCode,
-      warehouse_name: warehouseName,
-      external_id: "ONYX-" + suffix,
-    };
+    // Build fixture JSON inside PostgreSQL, matching the known-good reconciliation acceptance path.
+    // This avoids relying on JavaScript JSON-string binding for jsonb fixture columns.
     await admin.unsafe(
       "insert into public.onyx_snapshot_rows(" +
         "organization_id,snapshot_id,row_number,canonical_key,row_hash,status,data,errors) " +
-        "values($1::uuid,$2::uuid,1,$3::text,pg_catalog.md5($4::jsonb::text),'valid',$4::jsonb,'[]'::jsonb)",
-      [organizationId, snapshotId, itemCode, JSON.stringify(sourceRow)],
+        "values($1::uuid,$2::uuid,1,$3::text," +
+        "pg_catalog.md5(pg_catalog.jsonb_build_object(" +
+        "'item_code',$3::text,'quantity','15','warehouse_id',$4::text," +
+        "'warehouse_code',$5::text,'warehouse_name',$6::text,'external_id',$7::text)::text)," +
+        "'valid',pg_catalog.jsonb_build_object(" +
+        "'item_code',$3::text,'quantity','15','warehouse_id',$4::text," +
+        "'warehouse_code',$5::text,'warehouse_name',$6::text,'external_id',$7::text)," +
+        "'[]'::jsonb)",
+      [organizationId, snapshotId, itemCode, warehouseId, warehouseCode, warehouseName, "ONYX-" + suffix],
     );
     // Prove the test fixture's scope survived PostgreSQL persistence before invoking the guarded RPC.
     // This distinguishes bad fixture data from a database function/migration regression.
