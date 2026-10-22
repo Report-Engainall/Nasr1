@@ -575,7 +575,8 @@ export class DataQualityAccumulator {
     // PostgreSQL treats only NULL/empty as a missing date; whitespace is a malformed value.
     // This component is date-format-only on the server and does not depend on the matching key.
     const date = String(row.data.date ?? '');
-    const dateOkay = date === '' || /^([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}(?:\\/|\\.|-)[0-9]{2}(?:\\/|\\.|-)[0-9]{4})$/.test(date);
+    const serverDatePattern = new RegExp('^([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}[/.-][0-9]{2}[/.-][0-9]{4})$');
+    const dateOkay = date === '' || serverDatePattern.test(date);
     if (dateOkay) this.temporalReferentialRows += 1;
   }
 
