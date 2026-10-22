@@ -92,8 +92,9 @@ describe("product write result verification", () => {
   });
 
   it("confirms creation through the safe id projection before reading private fields through the staff RPC", async () => {
-    await expect(createProduct({ name: "Product", item_code: "P-001" })).resolves.toMatchObject(PRODUCT);
+    await expect(createProduct({ id: PRODUCT_ID, name: "Product", item_code: "P-001" })).resolves.toMatchObject(PRODUCT);
     expect(mocks.lastQuery?.insertPayload).toMatchObject({
+      id: PRODUCT_ID,
       organization_id: ORGANIZATION_ID,
       name: "Product",
       item_code: "P-001",
