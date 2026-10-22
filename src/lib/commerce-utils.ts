@@ -263,7 +263,7 @@ export function summarizeAccount(
     if (!invoice.paidFromServer) invoice.paid += amount;
   }
 
-  for (const [invoiceId, invoice] of invoiceAmounts) {
+  for (const invoice of invoiceAmounts.values()) {
     const currencyTotals = totalsByCurrency.get(invoice.currency);
     if (!currencyTotals) return invalidAccountSummary();
     const outstanding = invoice.total > invoice.paid + invoice.credited
@@ -284,7 +284,7 @@ export function summarizeAccount(
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([currency, totals]) => {
         const values = [totals.invoiced, totals.paid, totals.credited, totals.outstanding].map((minor) => Number(minor));
-        if (values.some((value) => !Number.isSafeInteger(value))) throw new Error('Account statement total exceeds safe numeric presentation.');
+        if (values.some((value) => !Number.isSafeInteger(value))) return invalidAccountSummary();
         return {
           currency,
           invoiced: values[0] / 100,
