@@ -279,6 +279,15 @@ jobs:
         uses: supabase/setup-cli@v3
         with:
           version: 2.84.2
+      - name: Install pinned Playwright runner outside the project lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/pw-local" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
+          mkdir -p node_modules/@playwright
+          ln -s "$RUNNER_TEMP/pw-local/node_modules/@playwright/test" node_modules/@playwright/test
+      - name: Install Chromium
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install --with-deps chromium"
       - name: Verify local-only container runtime
         run: docker info
       - name: Prepare isolated migration copy for order and tenant acceptance
@@ -373,15 +382,6 @@ jobs:
         run: node scripts/test-cash-expense-journal-posting.mjs
       - name: Test purchase receipt source-linked accounting draft and restrictions
         run: node scripts/test-purchase-receipt-accounting.mjs
-      - name: Install pinned Playwright runner outside the project lockfile
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --prefix "$RUNNER_TEMP/pw-local" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
-          mkdir -p node_modules/@playwright
-          ln -s "$RUNNER_TEMP/pw-local/node_modules/@playwright/test" node_modules/@playwright/test
-      - name: Install Chromium
-        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install --with-deps chromium"
       - name: Build exact source against local Supabase
         shell: bash
         run: |
