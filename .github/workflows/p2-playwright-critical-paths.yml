@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: p2-playwright-critical-paths-${{ github.event.pull_request.number || github.ref }}
@@ -301,6 +302,14 @@ jobs:
             echo "- The repository migration itself is unchanged. Storage/RLS for product images is not covered by this browser job."
             echo "- This job uses a fresh local-only PostgreSQL 17/Supabase stack and does not connect to a hosted project."
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Authenticate read-only to GHCR for isolated Supabase images
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          echo "Read-only GHCR authentication succeeded for isolated test image pulls." >> "$GITHUB_STEP_SUMMARY"
       - name: Start isolated local Supabase services
         timeout-minutes: 13
         shell: bash
