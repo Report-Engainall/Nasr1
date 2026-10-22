@@ -1,8 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { CustomerStatementPage } from "@/components/CustomerWorkflows";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
+
+vi.mock("@tanstack/react-router", async () => {
+  const React = await import("react");
+  return {
+    Link: ({ children }: { children: ReactNode }) => React.createElement("a", null, children),
+    useNavigate: () => vi.fn(),
+  };
+});
 
 vi.mock("@/lib/supabase", () => ({
   supabase: { rpc: mocks.rpc, auth: { getSession: vi.fn() } },
