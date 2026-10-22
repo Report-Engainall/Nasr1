@@ -564,21 +564,27 @@ export class DataQualityAccumulator {
     const key = String(row.data[this.matchingKey] ?? '').trim();
     if (key) this.keys.add(key);
 
-    const numericFields = ['quantity','revenue','price','cost'];
+    // Keep this set in parity with public.calculate_import_job_quality(uuid) in PostgreSQL.
+    const numericFields = ['quantity','revenue','price'];
     const consistent = numericFields.every((field) => {
       const value = row.data[field];
       return value === undefined || value === '' || (typeof value === 'string' && /^-?[0-9]+(?:\.[0-9]+)?$/.test(value));
     });
     if (consistent) this.consistentRows += 1;
 
-    const date = String(row.data.date ?? '').trim();
-    const dateOkay = !date || /^([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}[/. -][0-9]{2}[/. -][0-9]{4})$/.test(date);
-    if (key && dateOkay) this.temporalReferentialRows += 1;
+    // PostgreSQL treats only NULL/empty as a missing date; whitespace is a malformed value.
+    // This component is date-format-only on the server and does not depend on the matching key.
+    const date = String(row.data.date ?? '');
+    const dateOkay = date === '' || /^([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}(?:\\/|\\.|-)[0-9]{2}(?:\\/|\\.|-)[0-9]{4})$/.test(date);
+    if (dateOkay) this.temporalReferentialRows += 1;
   }
 
   result(): QualityResult {
     const pct = (value: number) => this.total ? (value / this.total) * 100 : 0;
-    const completeness = this.total ? (this.completeFields / Math.max(this.requiredFieldCount, 1)) * 100 : 0;
+    // The server treats an explicitly empty required_columns list as unconstrained completeness.
+    const completeness = !this.total ? 0 : this.requiredColumns.length === 0
+      ? 100
+      : (this.completeFields / Math.max(this.requiredFieldCount, 1)) * 100;
     const validity = pct(this.validRows);
     const uniqueness = this.total ? (this.keys.size / this.total) * 100 : 0;
     const consistency = pct(this.consistentRows);
