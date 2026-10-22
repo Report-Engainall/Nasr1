@@ -1,0 +1,45 @@
+# رسالة إقلاع P2 — الإكمال الفعلي المتوازي للتطبيق — 22 أكتوبر 2026
+
+المستودع الوحيد: https://github.com/Report-Engainall/Nasr1
+الفرع المرجعي: main. لا تنشئ تطبيقًا أو قاعدة بيانات أو مشروع Supabase موازيًا، ولا تكتب مباشرة على main.
+رأس main المرصود وقت إعداد الرسالة: 0395367d869d0d63fba669940a92eeca0ae3e893.
+Core CI على هذا الرأس: https://github.com/Report-Engainall/Nasr1/actions/runs/39789165220 — IN_PROGRESS بآخر قراءة؛ يجب قراءة النتيجة النهائية لكل job قبل اعتماد SHA.
+
+## اقرأ هذا الترتيب ثم نفّذ
+1. docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md — المؤشر الحي الوحيد.
+2. docs/bolt-source-reconciliation/FULL_APPLICATION_PARALLEL_EXECUTION_MANDATE_2026-10-22.md — تكليف التنفيذ.
+3. docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv — 32+ بند قبول لكل شاشة/مجال.
+4. docs/bolt-source-reconciliation/WORK_COORDINATION.md — أقفال الملكية والتداخل.
+5. docs/bolt-source-reconciliation/PROGRAMMER_2_CURRENT_REPORT.md وEXECUTION_LOG.md.
+6. docs/bolt-source-reconciliation/P2_ADDITIONAL_ACCEPTANCE_MANDATE_2026-10-20.md.
+7. القسم المطلوب فقط من docs/canonical/AGHBARI-MASTER-PROJECT-SPECIFICATION.md.
+
+## مؤشر المهمة الأساسي الوحيد
+NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011
+
+نفّذ الآن:
+- تتبّع source IDs / external IDs / tenant IDs من الاستيراد واللقطة حتى تصدير الطلب الفعلي وسجل التدقيق.
+- فرّق بين saved snapshot وآخر محاولة مزامنة وحالتها/خطئها وبين مزامنة Onyx الحية المثبتة؛ لا تدّع الاتصال الحي من وجود snapshot.
+- أكمل قبول الطباعة بحسب الدور والمؤسسة للفواتير وكشوف الحساب والإشعارات الدائنة ومركز المهام. ارفض الأدوار غير المخولة وامنع التسرب بين المؤسسات.
+- عند ثبوت فجوة، نفّذ إصلاحًا فعليًا على فرع عمل، ثم اختبر المسار الكامل UI → route → service/RPC → DB/RLS/grants → audit/idempotency/concurrency → tests.
+- بعد إغلاق هذا المؤشر بالأدلة، انتقل تلقائيًا إلى أول بند مفتوح تالٍ في المصفوفة. لا تنشئ next_task_id ثانيًا.
+
+## افتح المسارات المستقلة بالتوازي، ولا تعطل العمل ببند واحد
+1. Onyx والمخزون: حداثة snapshot، القفل/الذرية، حماية المحجوز، التزامن، عزل المؤسسة، التراجع التعويضي.
+2. المحاسبة والمستندات: الأستاذ العام، الفواتير والتحصيلات والمصروفات والمردودات والإشعارات الدائنة والطباعة؛ راقب عدم التكرار وتوازن القيود.
+3. الاستيراد والتصدير وDQS: مسار واحد، file/request idempotency، الأكواد والأصفار البادئة كنص، CSV/XLSX formula-injection، وقبول قالب Onyx ذي 27 عمودًا مع إبقاء توافق Onyx الفعلي BLOCKED_EXTERNAL حتى اختبار مستهدف حقيقي.
+4. مركز المهام والطباعة: المهام تأتي من أحداث عمل فعلية محفوظة؛ مهام الشراء/الاستلام وفرق الجرد موجودة، لذا أكمل بقية مصادر الأحداث دون محرك موازٍ.
+5. لوحة الإدارة والعملاء والشركات والصلاحيات، تقارير/KPIs، AI، PWA، الإشعارات والتكاملات، الأداء والنسخ الاحتياطي والتعافي والتسليم، حسب مصفوفة القبول.
+6. لا تستخدم بيانات مالية وهمية أو UNKNOWN=0؛ لا تخفف RLS/RPC؛ لا تضف اشتراكات أو مزودات مدفوعة كشرط للتشغيل.
+
+## ملكية الملفات ومنع التعارض
+- P1 متوقف مؤقتًا بحسب توجيه المالك؛ لا تنتظر عودته للعمل المستقل.
+- لا تعدّل ملفات أدلة P1 التي يغيّرها PR #31: PROGRAMMER_1_CURRENT_REPORT.md، PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt، SOURCE_INTEGRATION_LEDGER.csv، READY_TO_REUSE_FILE_AUDIT.csv.
+- قبل تحرير مسار مشترك مثل src/lib/api.ts أو src/components/AghbariApp.tsx أو src/routeTree.gen.ts أو package.json أو migrations/auth/workflow، افحص PRs المفتوحة وسجّل قفلًا/تسليم ملكية في WORK_COORDINATION.md. لا يعمل شخصان على المسار نفسه.
+- PR #32 (استلام المشتريات/مسودة القيد) وPR #34 (توليد مهام الشراء والاستلام) مدمجان؛ لا تعِد دمج الفرع التاريخي feat/p2-purchase-receipt-accounting-20261021.
+- PR #38 مدمج ويضيف اختبار UI للسلة/checkout؛ لا تعد إعادة تنفيذ الوظيفة من الصفر.
+- لا reset ولا clean ولا force-push ولا كتابة مباشرة على main. اختبر الرأس الدقيق الذي ستطلب دمجه.
+
+## قواعد الإثبات والتسليم
+التمييز لازم بين IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA / BROWSER_PROVEN / PRODUCTION_PROVEN. غير المشغل NOT RUN. الاختبارات العادية على PostgreSQL 17 المعزول، والـunit/lint/build وGitHub Actions مطلوبة حسب المجال. متصفح Bolt New مسؤوليته؛ لا توقف مهامك المستقلة بانتظاره ولا تدّع browser/production proof من CI. لا تُنفذ تغييرات إنتاجية.
+سلّم task ID، التغيير الفعلي، الملفات، SHA، اختبارات ونتائج فعلية وروابط CI المطابقة، والسبب الجذري لأي فشل. حدّث CURRENT_EXECUTION_STATE.md بمؤشر واحد بعد عمل حقيقي.
