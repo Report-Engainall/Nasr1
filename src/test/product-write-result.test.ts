@@ -111,6 +111,14 @@ describe("product write result verification", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it("fails closed if creation returns an unexpected product id", async () => {
+    mocks.insertResult = { data: { id: "different-product" }, error: null };
+    await expect(createProduct({ id: PRODUCT_ID, name: "Product", item_code: "P-001" })).rejects.toThrow(
+      /تعذر تأكيد إنشاء الصنف/,
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("propagates an insert error without attempting a follow-up private read", async () => {
     mocks.insertResult = { data: null, error: { message: "permission denied" } };
     await expect(createProduct({ name: "Product", item_code: "P-001" })).rejects.toMatchObject({
