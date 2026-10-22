@@ -6,7 +6,8 @@ export const Route = createFileRoute("/forgot-password")({
     meta: [
       { title: "استعادة كلمة المرور | الأغبري" },
       { name: "description", content: "اطلب رابطاً آمناً لإعادة تعيين كلمة مرور حسابك." },
-      { name: "robots", content: "noindex" },
+      { name: "robots", content: "noindex, nofollow" },
+      { name: "referrer", content: "no-referrer" },
     ],
   }),
   component: ForgotPasswordPage,
