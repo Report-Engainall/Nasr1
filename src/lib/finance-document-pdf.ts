@@ -297,7 +297,8 @@ export function normalizeCustomerStatementCurrencySummary(input: unknown): Custo
     seenCurrencies.add(currency);
     const invoiced = moneyToMinorUnits(row.invoiced);
     const paid = moneyToMinorUnits(row.paid);
-    const credited = row.credited === undefined ? 0n : moneyToMinorUnits(row.credited);
+    if (row.credited === undefined) throw new Error("Statement summary is missing posted-credit totals.");
+    const credited = moneyToMinorUnits(row.credited);
     const outstanding = moneyToMinorUnits(row.outstanding);
     const overdueOutstanding = moneyToMinorUnits(row.overdue_outstanding);
     const unknownDueDateOutstanding = moneyToMinorUnits(row.unknown_due_date_outstanding);
