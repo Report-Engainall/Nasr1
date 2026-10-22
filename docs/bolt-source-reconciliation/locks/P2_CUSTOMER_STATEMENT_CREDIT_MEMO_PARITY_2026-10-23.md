@@ -31,3 +31,9 @@
 - SQL includes only `status='posted'` invoice/org/customer/currency-matched credit memos; reversed memos do not reduce balances. Inconsistent posted memo source/currency fails closed.
 - Summary figures must come from the full ledger, be currency-separated and validated; bounded detail rows must never be summed on top of authoritative aggregates.
 - Lock is released only after PR integration is resolved and all required tests are proven on the exact merged SHA. Unit/CI success does not imply browser- or production-proof.
+
+
+## Additional ownership correction — PR #40 discovered during CI review
+- PR #40 (feat/p2-onyx-source-trace-sync-evidence-20261022, current head 6a14d64d6ea9aed8b8c3bab8335767987ae9b5a6) is open and mergeable=false against its stale base. It overlaps this PR in src/lib/finance-document-pdf.ts and src/test/finance-document-pdf-source-reconciliation.test.ts; it separately owns the Onyx XLSX and finance/task-print browser suites. This PR did not change those browser paths.
+- Do not merge PR #40 and PR #62 concurrently. Once one integrates, port the other using a new branch (no force-push), compare the shared-file diffs and preserve both posted-credit full-ledger reconciliation and persisted Onyx export/audit tests. Rerun Core and Playwright on the integration head.
+- PR #54 owns its finance-print integration and scripts/test-customer-returns.mjs / scripts/test-database-migrations.mjs. Those paths remain untouched by this PR.
