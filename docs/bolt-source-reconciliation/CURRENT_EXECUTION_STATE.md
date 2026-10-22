@@ -13,16 +13,24 @@
 - PR #31 مسودة توثيقية تغيّر أدلة P1 فقط. تجنّب هذه الملفات حتى الحسم: PROGRAMMER_1_CURRENT_REPORT.md، PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt، SOURCE_INTEGRATION_LEDGER.csv، READY_TO_REUSE_FILE_AUDIT.csv.
 - المبرمج 1 متوقف حسب توجيه المالك. لا تنتظر عودته؛ أكمل المسارات المستقلة على فروع متابعة، مع قفل واضح للملفات المتداخلة.
 
-- PR #40 (P2 Onyx source trace/sync evidence) — مسودة غير مدمجة: https://github.com/Report-Engainall/Nasr1/pull/40. فرع `feat/p2-onyx-source-trace-sync-evidence-20261022` والرأس الحالي `8c414a06b584a37d56f3f4aaafcb8d3f53863e42`؛ Core CI #39799542472 ما زال QUEUED، وP2 Playwright #39799542477 لم يصل إلى نتيجة نهائية (آخر قراءة: infrastructure gate IN_PROGRESS وبقية الوظائف QUEUED). لا يُعتمد TESTED_EXACT_SHA حتى نجاح الفحوصات على رأس نهائي مطابق.
+- PR #40 (P2 Onyx source trace/sync evidence) — مسودة غير مدمجة: https://github.com/Report-Engainall/Nasr1/pull/40. آخر SHA كود مختبر لهذه الدفعة: 8c414a06b584a37d56f3f4aaafcb8d3f53863e42؛ Core CI https://github.com/Report-Engainall/Nasr1/actions/runs/39799542472 انتهى SUCCESS على هذا الرأس (682/682 unit tests، PostgreSQL 17 acceptance، lint، build، preview/dev smoke). P2 Playwright https://github.com/Report-Engainall/Nasr1/actions/runs/39799542477 انتهى CANCELLED: اختبار Storefront العام read-only نجح، لكن مسار Supabase/المتصفح المصادق عليه أُلغي عند تثبيت Chromium؛ لذلك هذا المسار BROWSER_PROVEN=NOT RUN. لا إنتاج ولا اتصال Onyx خارجي.
+
+### إغلاق البنود التي وصل قبولها إلى دليل فعلي — 22 أكتوبر 2026
+
+**أُغلق المؤشر الأساسي:** NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011
+
+- IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA لكود PR #40 على SHA 8c414a06b584a37d56f3f4aaafcb8d3f53863e42؛ [Core CI #39799542472 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39799542472).
+- ربط تصدير XLSX للطلب المعتمد بلقطة المصدر المختارة، وهوية المؤسسة، وimport job/hash، وخرائط item_code→external IDs مع حالات matched/ambiguous/unmatched، وعدّ الصفوف، ومعرّف audit وrequest key. إعادة الطلب بنفس المفتاح تعيد سجل التدقيق ذاته؛ اختلاف الحمولة يُرفض. السجل لا يدّعي إتمام تنزيل الملف أو قبوله في Onyx.
+- المزامنة منفصلة عن اللقطة: محاولة الخدمة وحالتها وخطئها وبصمات الطلب/الاستجابة تُحفظ عبر RPC لـservice_role فقط. آخر محاولة، وآخر نجاح مسجل تاريخيًا، ونجاح مربوط باللقطة حقول منفصلة. قاعدة الاختبار تؤكد أن اللقطة/الاستيراد وحدهما لا يثبتان live sync.
+- قبول الطباعة: اختبارات UI والخدمة وقاعدة البيانات على SHA نفسه؛ ستة اختبارات لطباعة المستندات المالية، وستة لاستخراج بيانات الطباعة، وعشرة لمطابقة فلاتر طباعة المهام. قاعدة PostgreSQL 17 أكدت إذن admin/manager/accountant ورفض staff/customer وعزل المؤسسة للفواتير والكشوف؛ الإشعار الدائن يستخدم RPC مالي مخول. الاختبار الفعلي لطباعة المتصفح لا يزال NOT RUN.
+- تقدم مصفوفة المتابعة بعد الإثبات نفسه: INV-009 اجتاز PostgreSQL 17 لقبول الذرية/حداثة اللقطة/الحجوزات/الأدوار والمؤسسات/التدقيق والتراجع التعويضي؛ SRC-011 أُعيد التحقق منه على الرأس الحالي: سجل المصدر المملوك لـP1 صنف donor migration 0011 على أنه ALREADY_PRESENT_BETTER، ورفض حمولة الطلب ذات 24 حالة غير صالحة نجح على الهدف دون نسخ SQL المانح. لا تعديل لأي ملف أدلة مملوك لـP1.
+- 682/682 اختبار وحدة ناجح؛ npm run test:db نجح على PostgreSQL 17، ويتضمن مخرجات PASS لتصدير Onyx، ودليل المصدر، ومصالحة Onyx، ومنع مدخلات الطلب، ومركز المهام والطباعة المالية، ودفتر القيود والاستيراد. Lint/build/preview/dev smoke نجحت.
+- [P2 Playwright #39799542477](https://github.com/Report-Engainall/Nasr1/actions/runs/39799542477) حالته النهائية CANCELLED. خطوة اختبار Chromium العام read-only نجحت، أما مسار الطلبات/عزل المؤسسة على Supabase محلي فنجحت فيه تهيئة PostgreSQL والقبول قبل إلغاء خطوة Install Chromium؛ بناء المتصفح والاختبارات المصادق عليها SKIPPED. لا تُصنّف ذلك Browser proof. PRODUCTION_PROVEN=NOT RUN، وتوافق الاستيراد الحي إلى إصدار Onyx الفعلي BLOCKED_EXTERNAL لعدم توفر استجابة/إيصال مستهدف مصرح به.
 
 ### مؤشر الاستئناف الديناميكي الوحيد
-**next_task_id = NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011**
+**next_task_id = CAT-STAFF-001**
 
-الخطوة التالية المحددة:
-1. تتبّع حقول مصدر Onyx وexternal IDs وtenant/source IDs من اللقطة/الاستيراد حتى تصدير الطلبات الفعلي وسجل الـaudit، دون ادعاء مزامنة حية من مجرد وجود snapshot.
-2. ميّز بدقة بين آخر محاولة مزامنة وحالتها/خطئها، واللقطة المستوردة، والاتصال الحي المثبت. لا تخترع حالة مزامنة غير محفوظة.
-3. أتمم قبول الطباعة المالية بحسب الدور والمؤسسة: الفاتورة، كشف الحساب، الإشعار الدائن، وكل المهام المسموح بها؛ اختبر منع الوصول عبر المؤسسات ورفض الدور.
-4. عند أي فجوة مثبتة، نفّذ إصلاحًا وظيفيًا موضعيًا واختبارات ذات صلة. عند اكتمال هذه الخطوات بأدلة على الرأس الحالي، أغلق المؤشر وانتقل إلى الفجوة التالية غير المكتملة في المصفوفة.
+أول بند تالٍ غير مغلق بالترتيب بعد تحديث المصفوفة: مراجعة الشاشة الفعلية لدليل دعوات الموظفين وتفعيل الحساب ودليل العملاء في الشجرة الحالية. افحص route→UI→service/RPC→DB/RLS/grants→audit/replay/expiry/revoke، ثم اختبر مستخدمين من مؤسستين في PostgreSQL 17. ابدأ بفحص الموجود والاختبارات على SHA الجاري، ولا تكرر تنفيذ الميزات المدمجة. متصفح/إنتاج غير مثبتين ولا يجوز ادعاؤهما.
 
 ### مسارات العمل الموازية
 - بوابة الدمج #38: متابعة Core #39789165220 حتى النهاية على SHA 0395367... وإصلاح الفشل إن ظهر.
