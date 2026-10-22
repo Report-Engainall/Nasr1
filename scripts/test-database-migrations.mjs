@@ -2444,6 +2444,14 @@ async function main() {
   assert.equal(storedHash[0].token_hash.length,32);
   assert.notEqual(storedHash[0].token_hash,invite.invitation_token,"only a one-way hash is persisted");
 
+  // Invitation acceptance now verifies confirmation and address against auth.users, not JWT claims.
+  // Keep the historical fixed-ID fixture faithful to that authoritative database contract.
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()),($3,$4,now()),($5,$6,now()) " +
+    "on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [secondAuthUserId,"ci-customer-two@example.test",invitedAuthUserId,"ci-invited-buyer@example.test",financeAuthUserId,"ci-invited-finance@example.test"],
+  );
+
   await setIdentity(secondAuthUserId,"ci-customer-two@example.test");
   await setCompanyInvitationConfirmedClaim(secondAuthUserId, "ci-customer-two@example.test");
   await db.unsafe("set role authenticated");
