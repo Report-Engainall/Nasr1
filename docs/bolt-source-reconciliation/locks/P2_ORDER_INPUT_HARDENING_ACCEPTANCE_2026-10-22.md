@@ -6,7 +6,7 @@
 - Branch: `fix/p2-order-input-hardening-acceptance-20261022`
 - Base SHA: `bf06c73226033da8e4f81e24981eb64e6e7fca99`
 - Owner: P2
-- Status: active — wire an existing unused PostgreSQL acceptance helper into the current database test harness; do not redesign order RPCs unless a test proves a defect.
+- Status: `TESTED_EXACT_SHA` — helper is now wired into the isolated PostgreSQL acceptance chain; no order RPC redesign was needed.
 
 ## Exact owned scope
 
@@ -19,6 +19,17 @@
 - Do not modify `package.json`, `.github/workflows/commerce-checks.yml`, `docs/bolt-source-reconciliation/WORK_COORDINATION.md`, the dynamic resume index, the acceptance matrix, or P1-owned reports/ledgers.
 - PR #54 and PR #57 both have work on `scripts/test-database-migrations.mjs`. Their existing Auth/company-membership fixture cases must be preserved; this lock owns only the new order-input-helper import/invocation hunks. Before merging, reconcile both current branch versions rather than copying this file wholesale.
 - Do not introduce a new schema, RPC, app, dependency or duplicate order workflow.
+
+## Exact-SHA evidence
+
+- Code SHA: `90d4b770f1f73b8eaf69521dafb6213cca682c44`
+- PR: https://github.com/Report-Engainall/Nasr1/pull/58
+- Core CI: **SUCCESS** — https://github.com/Report-Engainall/Nasr1/actions/runs/39852384604
+- The action log contains the exact assertion output:
+  `PASS order input hardening: customer+staff reject 24 invalid payloads (shape, row count, IDs, missing/fractional/out-of-range quantities, aggregate cap, inactive/cross-tenant products, and payment terms) with no persisted orders`.
+- The same run's PostgreSQL migration/core workflow acceptance, unit tests, lint, build, preview smoke, dev-server smoke and browser price-visibility acceptance completed successfully.
+- P2 Playwright public UI smoke and authenticated local-Supabase lifecycle are separate checks. The latter previously blocked on GHCR rate limiting; no authenticated order browser proof is claimed from the Core run.
+- Requested independent P1 review is still required before merge. Do not merge this test-harness change while PR #54/#57 fixture edits remain unintegrated; preserve each scoped hunk when reconciling.
 
 ## Acceptance required
 
