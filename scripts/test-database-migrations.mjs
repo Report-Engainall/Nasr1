@@ -2533,8 +2533,11 @@ async function main() {
   await db.unsafe("reset role");
   const companySecurityLegacyStatus=await db.unsafe("select status from public.customer_company_invitations where invited_email=$1 order by created_at desc limit 1",["ci-legacy-member@example.test"]);
   assert.equal(companySecurityLegacyStatus[0].status,"accepted","legacy invite acceptance transitions once and is auditable");
-  const companySecurityLegacyAudit=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='customer_company_invitation' and action='customer_company_invitation.accepted'",[organizationId]);
-  assert.ok(companySecurityLegacyAudit.length>=1,"successful legacy invitation acceptance writes an audit event");
+  const companySecurityLegacyAudit=await db.unsafe(
+    "select action from public.audit_logs where organization_id=$1 and entity_type='customer_company_membership' and entity_id=$2::uuid and action='customer_company_invitation.accepted'",
+    [organizationId,companySecurityLegacyAcceptance[0].result.membership_id],
+  );
+  assert.equal(companySecurityLegacyAudit.length,1,"successful legacy invitation acceptance writes an audit event against the created membership");
 
   const companySecurityExpiredToken="e".repeat(64);
   await db.unsafe(
