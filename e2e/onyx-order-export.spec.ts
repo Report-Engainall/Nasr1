@@ -98,7 +98,6 @@ test("manager order detail downloads the persisted-audit 27-column Onyx XLSX", a
   const itemRow = detailXml.match(/<row r="2"[^>]*>([\s\S]*?)<\/row>/);
   expect(firstRow, "The detail worksheet must include its reference header row.").not.toBeNull();
   expect(itemRow, "The detail worksheet must contain the persisted order item.").not.toBeNull();
-  expect([...firstRow![1].matchAll(/<c\b/g)]).toHaveLength(27);
   // Blank XLSX cells are intentionally omitted; assert the 27-column schema and the actual populated column refs.
   expect([...firstRow![1].matchAll(/<c\b/g)]).toHaveLength(27);
   expect([...itemRow![1].matchAll(/<c\b/g)]).toHaveLength(6);
@@ -112,7 +111,7 @@ test("manager order detail downloads the persisted-audit 27-column Onyx XLSX", a
   expect(headerXml).toContain("غير مثبت");
   expect(headerXml).toContain("لم يتم ربط لقطة مصدر");
   expect(headerXml).toContain("معرف لقطة مصدر أونكس المختارة");
-  const auditCell = headerXml.match(/<c r="B5"[^>]*>[\s\S]*?<t>([\s\S]*?)<\/t>[\s\S]*?<\/c>/);
+  const auditCell = headerXml.match(/<c r="B5"[^>]*>[\s\S]*?<t\b[^>]*>([\s\S]*?)<\/t>[\s\S]*?<\/c>/);
   expect(auditCell?.[1], "The downloaded artifact must bind the server-returned audit ID.").toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   );
