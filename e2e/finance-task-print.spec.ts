@@ -90,7 +90,6 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await kind.selectOption("credit_memo");
     const memoOption = source.locator("option").filter({ hasText: invoiceNumber }).first();
     await expect(memoOption).toBeAttached({ timeout: 15_000 });
-    const memoLabel = (await memoOption.innerText()).trim();
     const memoId = await memoOption.getAttribute("value");
     expect(memoId).toBeTruthy();
     await source.selectOption(memoId!);
