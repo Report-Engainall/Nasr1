@@ -371,6 +371,10 @@ async function main() {
       },
     });
 
+    process.stdout.write(
+      "PASS persisted DQS parity: PostgreSQL score/components match finalize response, import-job persistence and ready Onyx snapshot for both edge cases.\\n",
+    );
+
     const comparisonRows = await db.unsafe(
       "select public.run_inventory_reconciliation($1::uuid) as result",
       [finalized.snapshot_id],
