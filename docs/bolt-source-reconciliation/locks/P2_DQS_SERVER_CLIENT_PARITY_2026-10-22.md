@@ -11,7 +11,8 @@
 ## Owned paths
 
 - `src/lib/unified-import.ts`: only `DataQualityAccumulator` parity corrections; do not change parser, row transformations, upload/session behavior or import RPCs.
-- `src/test/unified-import-safety.test.ts` and/or a dedicated `src/test/import-quality-parity.test.ts`: regression tests for the mismatched quality scenarios.
+- `src/test/unified-import-safety.test.ts`: regression tests for the mismatched quality scenarios.
+- `scripts/test-import-inventory-snapshot-contract.mjs`: assert PostgreSQL-calculated DQS components, finalization response, persisted job score/breakdown and immutable snapshot score/breakdown for two edge-case import datasets.
 - This lock only. Do not edit the dynamic resume index, acceptance matrix, `WORK_COORDINATION.md`, source ledger, or P1-owned reports.
 
 ## Defects confirmed against main
@@ -25,5 +26,6 @@
 
 - Preserve the server calculation as the source of truth unless tests prove the SQL contract itself is wrong; this task aligns the preview only.
 - Keep unknown/unavailable values distinct from zero; do not change parsing to coerce invalid input silently.
-- Prove score components and total through specific unit assertions; run exact-SHA Core CI and PostgreSQL 17 acceptance.
+- Prove score components and total through specific unit assertions and PostgreSQL 17 acceptance, including the exact persisted job/snapshot values.
+- Run exact-SHA Core CI after all code and lock changes; record the terminal run SHA rather than transferring prior-run results.
 - Do not claim persisted/displayed runtime parity solely because pure unit tests pass; distinguish unit, PostgreSQL, browser, and production evidence.
