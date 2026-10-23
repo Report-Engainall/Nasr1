@@ -1101,3 +1101,7 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **Regression:** added `src/test/admin-reports-route-wiring.test.ts` to assert route ownership and one analytics mount within `Reports`.
 - **Implementation commit:** `ef7db67f5811d58a12b8d179c41217c36b19863d`; test commit `4789080eac80f0d8a9b782b45abea20d7e77dcf1`.
 - **Acceptance:** local tests not run; final-head Core CI pending.
+## P3 interface completion matrix sync — 2026-10-23
+
+- Appended `P3-CAT-ERR-001`, `P3-CAT-COUNT-002`, and `P3-REPORT-DUP-003` to `docs/bolt-source-reconciliation/INTERFACE_COMPLETION_MATRIX.csv` as implemented but exact-final-SHA tests pending; browser and production proof are NOT RUN.
+- Clarified in the requirement registry that `INTERFACE_COMPLETION_MATRIX.csv` is the interface coverage summary and `REMAINING_SCREEN_ACCEPTANCE_MATRIX-2026-10-22.csv` remains the active acceptance-gap register. The requested `AGHBARI-SCREEN-ACTION-COVERAGE.md` is not present, so no third matrix was invented.
