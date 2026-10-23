@@ -71,8 +71,8 @@ export async function createCustomerActivationInvitation(
   }
 
   // Bound the accepted server expiry against the requested TTL while allowing
-  // a small server/client clock skew. A success-shaped but expired/overlong
-  // response must never produce a shareable activation link.
+  // a small server/client clock skew. Re-check against response-time clock too:
+  // the server response itself may arrive after a short-lived link has expired.
   const requestStartedAt = Date.now();
   const { data, error } = await supabase.rpc("create_customer_activation_invitation", {
     p_customer_id: customerId,
@@ -89,7 +89,7 @@ export async function createCustomerActivationInvitation(
   const expiresAt = parseDate(row.expires_at, "وقت انتهاء الدعوة غير صالح.");
   const expiresAtMs = Date.parse(expiresAt);
   const latestAllowedExpiry = requestStartedAt + expiresHours * 60 * 60 * 1000 + MAX_EXPIRY_CLOCK_SKEW_MS;
-  if (expiresAtMs <= requestStartedAt || expiresAtMs > latestAllowedExpiry) {
+  if (expiresAtMs <= Date.now() || expiresAtMs > latestAllowedExpiry) {
     throw new Error("وقت انتهاء الدعوة خارج المدة المطلوبة.");
   }
   if (!UUID_PATTERN.test(invitationId) || returnedCustomerId !== customerId ||
