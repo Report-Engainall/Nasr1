@@ -80,8 +80,11 @@ export default function AdminOrders() {
         setTransitionError('تعذر تغيير حالة الطلب ' + current.order_code + ': ' + error.message)
         return
       }
-      if (!data) {
-        setTransitionError('لم تتغير حالة الطلب ' + current.order_code + '؛ لم يُرجع الخادم سجلًا محدّثًا. أعد تحميل القائمة وتحقق من صلاحياتك.')
+      if (!data || data.id !== orderId) {
+        const reason = !data
+          ? 'لم يُرجع الخادم سجلًا محدّثًا.'
+          : 'أعاد الخادم صفًا لا يطابق الطلب المطلوب.'
+        setTransitionError('لم تتغير حالة الطلب ' + current.order_code + '؛ ' + reason + ' أعد تحميل القائمة وتحقق من صلاحياتك.')
         return
       }
 

@@ -106,6 +106,16 @@ describe('admin order status transition UI', () => {
     expect(select.value).toBe('pending')
   })
 
+  it('rejects a status write response for a different order row', async () => {
+    mocks.updateResult = { data: { id: 'other-order', status: 'confirmed' }, error: null }
+    render(<AdminOrders />)
+    const select = await screen.findByRole('combobox', { name: 'حالة الطلب ORD-1' }) as HTMLSelectElement
+    fireEvent.change(select, { target: { value: 'confirmed' } })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/صفًا لا يطابق الطلب المطلوب/)
+    expect(select.value).toBe('pending')
+  })
+
   it('does not offer mutations for terminal statuses', async () => {
     mocks.orders = [makeOrder('delivered')]
     render(<AdminOrders />)
