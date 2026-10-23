@@ -922,6 +922,8 @@ async function main() {
   );
   assert.equal(restoredPending.status, "pending", "restoring an archived pending customer must preserve pending status");
 
+  // Audit rows are seeded by the privileged test connection, then all RPC assertions run as authenticated.
+  await db.unsafe("reset role");
   // Restoration must not borrow an otherwise valid archive record from another customer or tenant.
   await db.unsafe(
     "insert into public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value) " +
@@ -935,6 +937,8 @@ async function main() {
     [otherOrganizationId, foreignProfileId, lifecycleIds.foreignHistory,
       db.json({ status: "rejected" }), db.json({ status: "archived", reason: "CI foreign tenant audit fixture" })],
   );
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
   await expectFailure(
     "archived customer without its own valid archive audit cannot be restored",
     () => customerLifecycleCommand(lifecycleIds.noHistory, "archived", "restore", "CI missing history restore"),
