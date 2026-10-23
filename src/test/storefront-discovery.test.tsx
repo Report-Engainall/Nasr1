@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { QueryClient } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { storefrontCategorySlug } from "@/lib/storefront-slugs";
+import { formatCurrency } from "@/lib/format";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -158,14 +159,17 @@ describe("customer storefront saved discovery", () => {
   it("hides catalog card amounts when the organization display setting is disabled", async () => {
     mocks.settings = { show_price_on_cards: false };
     const catalog = await mountAt("/products");
-    expect(catalog.host.textContent).toContain("السعر حسب سياسة حسابك");
-    expect(catalog.host.querySelector(".sf-product-price")?.textContent).toBe("السعر حسب سياسة حسابك");
+    expect(catalog.host.querySelector(".sf-product-price")).toBeNull();
+    for (const amount of [1000, 1200, 1500, 900]) {
+      expect(catalog.host.textContent).not.toContain(formatCurrency(amount));
+    }
   });
 
   it("shows catalog amounts when the organization display setting is enabled", async () => {
     mocks.settings = { show_price_on_cards: true };
     const catalog = await mountAt("/products");
-    expect(catalog.host.textContent).not.toContain("السعر حسب سياسة حسابك");
+    expect(catalog.host.querySelector(".sf-product-price")).not.toBeNull();
+    expect(catalog.host.textContent).toContain(formatCurrency(1000));
   });
 
   it("opens the catalog route directly and applies a URL search query to live products", async () => {

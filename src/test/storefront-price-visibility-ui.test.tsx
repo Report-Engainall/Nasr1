@@ -244,24 +244,25 @@ describe("customer price visibility UI acceptance", () => {
     const mount = await mountAt("/");
     await flushEffects();
     const cardPrice = mount.host.querySelector(".sf-product-price");
-    expect(cardPrice).not.toBeNull();
 
     if (enabled) {
+      expect(cardPrice).not.toBeNull();
       expect(cardPrice?.textContent).toContain(formatCurrency(1234));
     } else {
-      expect(cardPrice?.textContent).toContain("السعر حسب سياسة حسابك");
-      expect(cardPrice?.textContent).not.toContain(formatCurrency(1234));
+      // Hidden prices are removed from the DOM rather than replaced by a fabricated price message.
+      expect(cardPrice).toBeNull();
+      expect(mount.host.textContent).not.toContain(formatCurrency(1234));
     }
 
     clickButton(mount.host, "button.sf-product-open");
     await flushEffects();
     const detailPrice = mount.host.querySelector(".sf-detail-price");
-    expect(detailPrice).not.toBeNull();
     if (enabled) {
+      expect(detailPrice).not.toBeNull();
       expect(detailPrice?.textContent).toContain(formatCurrency(1234));
     } else {
-      expect(detailPrice?.textContent).toContain("السعر حسب سياسة حسابك");
-      expect(detailPrice?.textContent).not.toContain(formatCurrency(1234));
+      expect(detailPrice).toBeNull();
+      expect(mount.host.textContent).not.toContain(formatCurrency(1234));
     }
   });
 
