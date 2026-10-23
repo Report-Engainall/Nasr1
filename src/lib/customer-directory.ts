@@ -54,8 +54,11 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
     /^[a-z0-9._+@-]+$/i.test(emailLikeSearch);
   const search = isEmailLikeSearch ? emailLikeSearch : normalizeCustomerDirectorySearch(rawSearch);
   const scope = await getCurrentTenantScope();
-  if ((!scope.isStaff && !scope.canManageCustomers) || !scope.organizationId) {
-    throw new Error('صلاحية إدارة العملاء مطلوبة لفتح دليل العملاء.');
+  if (!scope.organizationId) {
+    throw new Error('صلاحية موظف المؤسسة مطلوبة لفتح دليل العملاء.');
+  }
+  if (!scope.isStaff && !scope.canManageCustomers) {
+    throw new Error('صلاحية موظف المؤسسة مطلوبة لفتح دليل العملاء.');
   }
 
   // Customer managers must never read financial columns from the base customers table.
