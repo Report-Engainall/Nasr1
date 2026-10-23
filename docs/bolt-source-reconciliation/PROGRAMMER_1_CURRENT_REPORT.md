@@ -1,18 +1,19 @@
 # تقرير الحالة التنفيذي — P1 / واجهات العميل والتجارة والإدارة
 
 - **المستودع:** `Report-Engainall/Nasr1`.
-- **المهمة المكتملة:** `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` — منع الإرسال المكرر وحفظ حالة فشل قابلة لإعادة المحاولة في نموذج المنتج.
+- **المهمة المكتملة:** `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` — منع ازدواج إنشاء/تحديث المنتج وإتاحة إعادة المحاولة الآمنة بعد الفشل.
 - **PR #97:** [fix(admin): prevent duplicate product submissions](https://github.com/Report-Engainall/Nasr1/pull/97) — `OPEN / DRAFT / NOT MERGED`.
-- **MAIN_SHA / BASE_SHA:** `d7a49d8ca7d968e2fc04307fb26313e54168410a`.
-- **رأس PR الحالي:** `81003438cddd57e29771c21b9903ec6a2113f960`؛ رأس توثيقي قبل هذه الدفعة. Core [40021324149](https://github.com/Report-Engainall/Nasr1/actions/runs/40021324149) وP2 [40021324065](https://github.com/Report-Engainall/Nasr1/actions/runs/40021324065) قيد التنفيذ على هذا الرأس، ولا يرث الرأس القادم نجاحها.
-- **فرق PR #97:** أربعة مسارات P1 فقط؛ الفرع متزامن مع `main` (`behind_by=0`).
-- **نتيجة الرأس السابق:** Core [40020159218 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020159218) وP2 [40020159220 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020159220) على `bd53fc8...` فقط قبل تحديث main إلى `d7a49d8...`.
-- **الطلبات P1 الأخرى بعد المصالحة:** #124 head `44a0833...`؛ #107 head `b801225...`؛ #102 head `730ffc4...`؛ #119 head `e13e9c4...`. Core وP2 في حالة `IN_PROGRESS` على الرؤوس الدقيقة المذكورة في checkpoint.
-- **بوابة P2 على #119:** الرأس السابق #119 أثبت أن `set_admin_customer_tier` يرد `HTTP 500 / P0002` بدل حالة رفض غير-5xx، مع عدم تغيير صف المؤسسة الأخرى. هذا خلل SQLSTATE/REST mapping ضمن ملكية P2؛ لا يعدله P1. الحوالة موثقة في [تعليق #119](https://github.com/Report-Engainall/Nasr1/pull/119#issuecomment-6374286493).
-- **حدود الإثبات:** اختبارات الحسابات الخارجية المتخطاة ليست نجاح متصفح؛ ProductModal-specific browser proof و`PRODUCTION_PROVEN` = `NOT RUN`.
-- **المراجعة الرسمية:** لا توجد مراجعة مستقلة مخولة؛ لا يدمج أي PR حتى تتوفر مراجعة مستقلة مع الفحوص النهائية على SHA واحد.
-- **NEXT_ACTION:** `P1-PR119-RETEST-AFTER-P2-SQLSTATE-FIX-001` — إعادة اختبار #119 بعد إصلاح P2؛ واصل الأعمال المستقلة ضمن ملكية P1.
-- **UPDATED_AT:** `2026-10-23T20:42:00Z`.
+- **PR base:** `d7a49d8ca7d968e2fc04307fb26313e54168410a`; **آخر main قرئ:** `b48a4b2e8ae09e87432b49dab591a23e1be651c6`. Main متقدم بcommit واحد في ملفات P2 الخاصة بدعوات الشركة؛ هذا الفرق غير متداخل مع #97، لكن يلزم المصالحة قبل الدمج.
+- **رأس العمل قبل دفعة التوثيق:** `a68b48dce64f97fbc42387fc1c25e9b21c5424da`; Core [40021680149 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40021680149) وP2 [40021680249 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40021680249) على SHA نفسه.
+- **فرق #97:** أربعة ملفات P1 فقط؛ لا تغييرات إلى SQL/RPC/RLS/migrations أو مسارات P3.
+- **PR #124:** Core [40021372945 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40021372945), P2 [40021372958 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40021372958), SHA `44a0833b3853bb31c188919be7f3114862e2ffb0`.
+- **PR #107:** Core [40021418811 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40021418811), P2 [40021418856 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40021418856), SHA `b80122507b51b77844ba22b286e79cb9fad7d6b2`.
+- **PR #102:** Core [40021472400 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40021472400), P2 [40021472443 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40021472443), SHA `730ffc4c63487b9aea0f483110d17a8db8154c54`.
+- **PR #119:** الرأس `a70e2775d1be01f89a315b241c147147fd1183fb`; Core [40022445712](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445712), P2 [40022445722](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445722) قيد التنفيذ. الرأس السابق أثبت `HTTP 500 / P0002` من `set_admin_customer_tier` مع بقاء الصف الخارجي بدون تغيير. اختبار P1 يستمر في رفض 5xx لكنه يسمح باستمرار بقية التحقق عبر soft assertion. إصلاح SQLSTATE/RPC يملكه P2؛ الحوالة موثقة في [تعليق #119](https://github.com/Report-Engainall/Nasr1/pull/119#issuecomment-6374448606).
+- **حدود الإثبات:** hosted customer/tenant E2E متخطّى لغياب اعتمادات non-production؛ لا يساوي PASS. إثبات الإنتاج غير منفذ.
+- **المراجعة:** لا توجد مراجعة مستقلة مخوّلة؛ جميع PRs تبقى Draft وغير مدمجة.
+- **NEXT_ACTION:** `P1-PR119-RETEST-AFTER-P2-SQLSTATE-FIX-001` — أعد الاختبارات بعد إصلاح P2 لعقد رفض المؤسسة، على SHA واحد نهائي.
+- **UPDATED_AT:** `2026-10-23T20:54:00Z`.
 
 ## P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001 — سجل التنفيذ
 
