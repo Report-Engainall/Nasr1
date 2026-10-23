@@ -16,5 +16,5 @@ export const Route = createFileRoute("/orders/$id")({
 
 function OrderPage() {
   const { id } = Route.useParams();
-  return <ClientOnly fallback={null}><OrderInvoice id={id} /></ClientOnly>;
+  return <ClientOnly fallback={<main className="storefront" dir="rtl" role="status">جار تحميل تفاصيل الطلب...</main>}><OrderInvoice id={id} /></ClientOnly>;
 }
