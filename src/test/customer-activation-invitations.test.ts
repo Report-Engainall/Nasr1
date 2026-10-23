@@ -14,7 +14,7 @@ import {
 const CUSTOMER_ID = "11111111-1111-4111-8111-111111111111";
 const INVITATION_ID = "22222222-2222-4222-8222-222222222222";
 const TOKEN = "a".repeat(64);
-const EXPIRES = "2099-10-20T12:00:00.000Z";
+const EXPIRES = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
 describe("customer activation invitation RPC adapter", () => {
   beforeEach(() => {
@@ -54,6 +54,29 @@ describe("customer activation invitation RPC adapter", () => {
       error: null,
     });
     await expect(createCustomerActivationInvitation(CUSTOMER_ID, "client@example.test")).rejects.toThrow(/مطابقة للطلب/);
+  });
+
+  it("rejects a server success payload whose invitation expiry is expired or longer than requested", async () => {
+    const validIdentity = {
+      invitation_id: INVITATION_ID,
+      customer_id: CUSTOMER_ID,
+      invited_email: "client@example.test",
+      token: TOKEN,
+    };
+
+    mocks.rpc.mockResolvedValueOnce({
+      data: { ...validIdentity, expires_at: new Date(Date.now() - 1_000).toISOString() },
+      error: null,
+    });
+    await expect(createCustomerActivationInvitation(CUSTOMER_ID, "client@example.test", 72))
+      .rejects.toThrow(/خارج المدة المطلوبة/);
+
+    mocks.rpc.mockResolvedValueOnce({
+      data: { ...validIdentity, expires_at: new Date(Date.now() + 169 * 60 * 60 * 1000).toISOString() },
+      error: null,
+    });
+    await expect(createCustomerActivationInvitation(CUSTOMER_ID, "client@example.test", 72))
+      .rejects.toThrow(/خارج المدة المطلوبة/);
   });
 
   it("validates and bounds the server-provided activation workspace", async () => {

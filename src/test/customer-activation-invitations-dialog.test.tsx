@@ -110,6 +110,18 @@ describe("customer activation invitation dialog", () => {
     expect(confirm).toHaveBeenCalledTimes(1);
   });
 
+  it("does not expose a success notice or shareable link when invitation creation is rejected", async () => {
+    const rejection = "لم يؤكد الخادم إنشاء دعوة تفعيل مطابقة للطلب.";
+    mocks.createInvite.mockRejectedValueOnce(new Error(rejection));
+
+    render(<CustomerActivationInvitationDialog customer={CUSTOMER} onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "إنشاء رابط تفعيل صالح 72 ساعة" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(rejection);
+    expect(screen.queryByText(/أنشأ الخادم رابط تفعيل/)).toBeNull();
+    expect(screen.queryByLabelText(/رابط التفعيل/)).toBeNull();
+  });
+
   it("fails closed when the customer invitation status cannot be loaded, then allows retry", async () => {
     mocks.fetchWorkspace.mockRejectedValueOnce(new Error("تعذر تحميل سجل الدعوات"));
     render(<CustomerActivationInvitationDialog customer={CUSTOMER} onClose={vi.fn()} />);
