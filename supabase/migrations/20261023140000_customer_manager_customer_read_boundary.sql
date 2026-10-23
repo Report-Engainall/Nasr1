@@ -13,12 +13,15 @@ CREATE POLICY customer_base_read_boundary
   USING (
     public.is_staff()
     OR (
-      profile_id = public.current_profile_id()
-      AND NOT EXISTS (
+      NOT EXISTS (
         SELECT 1
         FROM public.user_roles AS customer_manager_role
         WHERE customer_manager_role.profile_id = public.current_profile_id()
           AND customer_manager_role.role = 'customer_manager'
+      )
+      AND (
+        profile_id = public.current_profile_id()
+        OR id = public.current_customer_id()
       )
     )
   );
