@@ -92,11 +92,14 @@ test("advanced search recovers from a category-source failure", async ({ page })
 
   await page.goto("/search/advanced");
   const categorySelect = page.getByLabel("التصنيف");
+  // useFetch intentionally presents a generic customer-safe error, not the raw PostgREST body.
   const categoryError = page
     .getByRole("alert")
-    .filter({ hasText: "تعذر تحميل التصنيفات: synthetic category outage" });
+    .filter({ hasText: "تعذر تحميل التصنيفات: حدث خطأ غير متوقع" });
   await expect(categoryError).toBeVisible();
   await expect(categorySelect).toBeDisabled();
+  // Prove the category endpoint itself was hit for all automatic transient retries.
+  expect(categoryReads).toBeGreaterThanOrEqual(3);
 
   allowCategorySuccess = true;
   await page.getByRole("button", { name: "إعادة تحميل التصنيفات" }).click();
