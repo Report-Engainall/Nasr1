@@ -83,6 +83,140 @@ function schemaDataSignature(url) {
   ]);
 }
 
+function criticalBusinessDataSignature(url) {
+  // Row-set fingerprints make the isolated restore drill cover financial postings,
+  // source documents, import jobs, immutable Onyx snapshots and reconciliation commands.
+  // Hash each canonical row set in PostgreSQL, then SHA-256 the small deterministic manifest.
+  const tables = [
+    ["cash_expenses", "public.cash_expenses"],
+    ["customer_invoices", "public.customer_invoices"],
+    ["customer_payments", "public.customer_payments"],
+    ["accounting_accounts", "public.accounting_accounts"],
+    ["accounting_journal_entries", "public.accounting_journal_entries"],
+    ["accounting_journal_lines", "public.accounting_journal_lines"],
+    ["accounting_source_postings", "public.accounting_source_postings"],
+    ["accounting_customer_source_postings", "public.accounting_customer_source_postings"],
+    ["customer_return_credit_memos", "public.customer_return_credit_memos"],
+    ["customer_return_credit_memo_items", "public.customer_return_credit_memo_items"],
+    ["accounting_return_credit_memo_postings", "public.accounting_return_credit_memo_postings"],
+    ["purchase_receipts", "public.purchase_receipts"],
+    ["purchase_receipt_accounting_postings", "public.purchase_receipt_accounting_postings"],
+    ["import_jobs", "public.import_jobs"],
+    ["import_job_request_keys", "public.import_job_request_keys"],
+    ["onyx_snapshots", "public.onyx_snapshots"],
+    ["onyx_snapshot_rows", "public.onyx_snapshot_rows"],
+    ["onyx_inventory_reconciliation_commands", "public.onyx_inventory_reconciliation_commands"],
+    ["onyx_inventory_reconciliation_items", "public.onyx_inventory_reconciliation_items"],
+    ["async_export_jobs", "public.async_export_jobs"],
+    ["outbox_events", "public.outbox_events"],
+    ["outbox_event_deliveries", "public.outbox_event_deliveries"],
+    ["ai_tasks", "public.ai_tasks"],
+  ];
+  const fields = tables.map(([label, table]) =>
+    "'" + label + "', jsonb_build_object(" +
+      "'row_count', (SELECT count(*)::bigint FROM " + table + "), " +
+      "'rows_sha256', (SELECT public.customer_company_invitation_sha256(COALESCE(string_agg(row_data, pg_catalog.chr(10) ORDER BY row_data), '')) " +
+        "FROM (SELECT pg_catalog.to_jsonb(t)::text AS row_data FROM " + table + " t) AS backup_rows))"
+  );
+  const sql = "SELECT pg_catalog.jsonb_build_object(" + fields.join(", ") + ")::text";
+  const output = runTool("psql", [
+    "--no-psqlrc",
+    "--tuples-only",
+    "--no-align",
+    "--dbname=" + url,
+    "--command=" + sql,
+  ]);
+  let parsed;
+  try {
+    parsed = JSON.parse(output);
+  } catch (cause) {
+    throw new Error("critical business data signature did not return valid JSON: " + String(cause?.message ?? cause));
+  }
+  assert.equal(Object.keys(parsed).length, tables.length, "all critical financial/import/Onyx tables must be fingerprinted");
+  const totalRows = Object.values(parsed).reduce((sum, value) => sum + Number(value.row_count), 0);
+  assert.ok(Number.isSafeInteger(totalRows) && totalRows >= 0, "critical business data row count must be valid");
+  return {
+    sha256: createHash("sha256").update(JSON.stringify(parsed)).digest("hex"),
+    tableCount: Object.keys(parsed).length,
+    totalRows,
+  };
+}
+
+function catalogJsonSha256(url, label, sql) {
+  const output = runTool("psql", [
+    "--no-psqlrc",
+    "--tuples-only",
+    "--no-align",
+    "--dbname=" + url,
+    "--command=" + sql,
+  ]);
+  let parsed;
+  try {
+    parsed = JSON.parse(output);
+  } catch (cause) {
+    throw new Error(label + " catalog query did not return valid JSON: " + String(cause?.message ?? cause));
+  }
+  return createHash("sha256").update(JSON.stringify(parsed)).digest("hex");
+}
+
+function definitionSignatures(url) {
+  // pg_dump's schema-only form covers relations, columns, constraints, indexes,
+  // types, functions, policies and triggers. PostgreSQL 17 emits a randomized
+  // psql restriction token; remove only those wrapper lines before fingerprinting.
+  const schemaDump = runTool("pg_dump", [
+    "--schema-only",
+    "--no-owner",
+    "--no-acl",
+    "--dbname=" + url,
+  ]);
+  const canonicalSchemaDump = schemaDump
+    .split(/\r?\n/)
+    .filter((line) => !/^\\(?:un)?restrict(?:\s|$)/.test(line))
+    .join("\n")
+    .trim();
+  assert.ok(canonicalSchemaDump.length > 1000, "schema-only dump is unexpectedly small");
+
+  const routinesSql = [
+    "SELECT COALESCE(jsonb_agg(jsonb_build_array(",
+    "n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid),",
+    "p.prokind::text, l.lanname, pg_catalog.format_type(p.prorettype, NULL),",
+    "p.prosecdef, p.provolatile::text, p.proisstrict, p.proretset,",
+    "COALESCE(p.proconfig, ARRAY[]::text[]), pg_catalog.pg_get_functiondef(p.oid)",
+    ") ORDER BY n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid)),",
+    "'[]'::jsonb)::text",
+    "FROM pg_catalog.pg_proc p",
+    "JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace",
+    "JOIN pg_catalog.pg_language l ON l.oid=p.prolang",
+    "WHERE n.nspname <> 'information_schema' AND n.nspname !~ '^pg_' AND p.prokind IN ('f','p','w')",
+  ].join(" ");
+
+  const policiesSql = [
+    "SELECT COALESCE(jsonb_agg(jsonb_build_array(",
+    "schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check",
+    ") ORDER BY schemaname, tablename, policyname), '[]'::jsonb)::text",
+    "FROM pg_catalog.pg_policies",
+    "WHERE schemaname <> 'information_schema' AND schemaname !~ '^pg_'",
+  ].join(" ");
+
+  const triggersSql = [
+    "SELECT COALESCE(jsonb_agg(jsonb_build_array(",
+    "n.nspname, c.relname, t.tgname, t.tgenabled::text,",
+    "pg_catalog.pg_get_triggerdef(t.oid, true)",
+    ") ORDER BY n.nspname, c.relname, t.tgname), '[]'::jsonb)::text",
+    "FROM pg_catalog.pg_trigger t",
+    "JOIN pg_catalog.pg_class c ON c.oid=t.tgrelid",
+    "JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace",
+    "WHERE n.nspname <> 'information_schema' AND n.nspname !~ '^pg_' AND NOT t.tgisinternal",
+  ].join(" ");
+
+  return {
+    schemaSha256: createHash("sha256").update(canonicalSchemaDump).digest("hex"),
+    routineSha256: catalogJsonSha256(url.toString(), "routine", routinesSql),
+    policySha256: catalogJsonSha256(url.toString(), "RLS policy", policiesSql),
+    triggerSha256: catalogJsonSha256(url.toString(), "user trigger", triggersSql),
+  };
+}
+
 function appendSummary(lines) {
   const path = process.env.GITHUB_STEP_SUMMARY;
   if (path) appendFileSync(path, "\n" + lines.join("\n") + "\n", "utf8");
@@ -127,6 +261,20 @@ async function main() {
       sourceSignature,
       "restored schema/function/policy/trigger counts and critical row counts must match the source signature",
     );
+    const sourceDefinitions = definitionSignatures(sourceUrl.toString());
+    const restoredDefinitions = definitionSignatures(restoreUrl.toString());
+    assert.deepEqual(
+      restoredDefinitions,
+      sourceDefinitions,
+      "schema, routine, RLS policy and user-trigger definition SHA-256 signatures must match the source",
+    );
+    const sourceBusinessData = criticalBusinessDataSignature(sourceUrl.toString());
+    const restoredBusinessData = criticalBusinessDataSignature(restoreUrl.toString());
+    assert.deepEqual(
+      restoredBusinessData,
+      sourceBusinessData,
+      "critical finance, import, Onyx, export-job, outbox and task row-set fingerprints must match after restore",
+    );
 
     const requiredFunctions = runTool("psql", [
       "--no-psqlrc",
@@ -151,7 +299,14 @@ async function main() {
       "- Backup duration ms: " + backupElapsedMs,
       "- Restore duration ms: " + restoreElapsedMs,
       "- Total measured duration ms: " + elapsedMs,
-      "- Source/restore schema, routines, policies, triggers and critical row-count signature: identical",
+      "- Schema definition SHA-256 (source=restore): `" + sourceDefinitions.schemaSha256 + "`",
+      "- Function/procedure definition SHA-256 (source=restore): `" + sourceDefinitions.routineSha256 + "`",
+      "- RLS policy definition SHA-256 (source=restore): `" + sourceDefinitions.policySha256 + "`",
+      "- User-trigger definition SHA-256 (source=restore): `" + sourceDefinitions.triggerSha256 + "`",
+      "- Critical business data SHA-256 (source=restore): `" + sourceBusinessData.sha256 + "`",
+      "- Fingerprinted financial/import/Onyx/export/outbox/task tables: " + sourceBusinessData.tableCount,
+      "- Total rows across fingerprinted financial/import/Onyx/export/outbox/task tables: " + sourceBusinessData.totalRows,
+      "- Source/restore schema, routines, policies, triggers, core row counts and critical finance/integration/queue data fingerprints: identical",
       "- Critical RPCs restored: `transfer_inventory_batch`, `apply_onyx_inventory_reconciliation`",
       "- Temporary restore database: removed after verification",
     ];
