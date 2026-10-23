@@ -1,21 +1,22 @@
 # تقرير الحالة التنفيذي — P1 / منع التكرار في إنشاء المنتج
 
 - **المستودع:** `Report-Engainall/Nasr1`
-- **فرع P1:** `p1/admin-product-singleflight-20261023`
+- **CURRENT_BRANCH:** `p1/admin-product-singleflight-20261023`
 - **PR الحالي:** [#97 — Draft/open](https://github.com/Report-Engainall/Nasr1/pull/97)
-- **BASE_SHA:** `c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99` — main بعد دمج واجهة الجلسات PR #88.
-- **المهمة المكتملة السابقة:** `P1-DEVICE-SESSION-MGMT-UI-001`، دُمجت في `c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99`. Core CI [39982277415 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39982277415) وP2 Playwright [39982277637 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39982277637)، بما في ذلك اختبار محلي لـSupabase/Chromium يثبت التفويض وإلغاء الجلسة فورًا.
-- **المهمة الحالية:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001` — منع تكرار إنشاء المنتج بسبب إرسال نموذج مرتين قبل إعادة الرسم.
-- **دليل الرأس السابق للميزة:** `a90e524060b3362d2fd49b34576eaa61fbea7c04`: Core CI [39982049908 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39982049908)؛ P2 Playwright [39982049932 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39982049932). تغطي الاختبارات إرسالًا متزامنًا مرتين، وفشل الكتابة ثم إعادة المحاولة، ومنع الحفظ عند فشل تحميل التصنيفات.
-- **حدود الإثبات:** رأس الدمج الجديد فوق main يحتاج اختبارات مطابقة مستقلة. اختبار الحساب الخارجي تخطّاه حاجز الاعتماد؛ الإنتاج NOT RUN.
-- **صافي الملفات المقصود:** `src/components/AghbariApp.tsx`، `src/test/admin-product-double-submit.test.tsx`، نقطة الاستئناف والتقرير الحالي.
-- **NEXT_ACTION:** أعد التكامل فوق main بعد دمج #88، ثم شغّل Core وP2 Playwright على الرأس الناتج. لا تدمج قبل نجاح الفحوص على نفس SHA والتحقق من diff الحالي.
-- **MERGE_STATUS:** #88 MERGED؛ #97 Draft/open.
-
-> تم الاحتفاظ بالتقرير التاريخي أدناه؛ هذا الملخص يصف نقطة الاستئناف الحالية فقط.
-
+- **BASE_SHA:** `c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99` — رأس `main` الحي الذي تمت قراءته قبل تحديث هذا التقرير.
+- **LAST_TESTED_CODE_SHA:** `f57624c320344adeb3a251475f4b83f9d1637c8d`.
+- **المهمة:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001` — منع الطلبات المكررة عند حفظ منتج جديد أو تعديل منتج موجود.
+- **التنفيذ:** حارس `useRef` متزامن داخل `ProductModal`؛ يتم تفعيله قبل أول `await` وتحريره في `finally`. فشل الخادم يبقى ظاهرًا ويسمح بإعادة المحاولة، وفشل تحميل التصنيفات يمنع الحفظ حتى تنجح إعادة المحاولة.
+- **اختبار الانحدار:** [`admin-product-double-submit.test.tsx`](https://github.com/Report-Engainall/Nasr1/blob/p1/admin-product-singleflight-20261023/src/test/admin-product-double-submit.test.tsx) يغطي الآن 4 حالات: ضغط إنشاء مزدوج، ضغط تحديث مزدوج، فشل إنشاء ثم إعادة محاولة ناجحة، وفشل تحميل التصنيفات ومنع الكتابة حتى الاسترداد.
+- **Core CI:** [39988368910 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39988368910) على `f57624c320344adeb3a251475f4b83f9d1637c8d`؛ 140 ملف اختبار / 883 اختبارًا ناجحًا، وقبول PostgreSQL 17 وlint/build وsmoke والاختبار الخاص بالمنتج (4/4).
+- **P2 Playwright:** [39988368947 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39988368947) على SHA نفسه؛ سموك الواجهة العامة وقبول Chromium مع Supabase المحلي ناجحان. التشغيل الخارجي المقيّد باعتماد كان `SKIPPED` وليس PASS، وإثبات الإنتاج `NOT RUN`.
+- **FILES_CHANGED في صافي فرق PR:** `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, هذا التقرير و`PROGRAMMER_1_EXECUTION_CHECKPOINT.md`. لم تُلمس ملفات P2/P3 المقفلة.
+- **المراجعة:** لا توجد مراجعة مستقلة مسجلة. طلب مراجعة CodeRabbit عبر [التعليق 6369850663](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369850663) حُجب بسبب حد المراجعات المجانية ([الرد 6369852853](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369852853)). لهذا لا يُعتبر PR مؤهلًا للدمج حتى تسجيل مراجعة مستقلة.
+- **MERGE_STATUS:** #97 لا يزال Draft/open؛ لم يحدث دمج.
+- **NEXT_ACTION:** التحقق من Core وPlaywright على الرأس الجديد الناتج عن تحديث الوثائق، ثم الحصول على مراجعة مستقلة. لا تُرحّل PASS إلى الرأس الجديد قبل قراءة Actions المطابقة.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
+
 
 - **الحالة:** مندمج ومختبر. [PR #3](https://github.com/Report-Engainall/Nasr1/pull/3) أُغلق بالدمج؛ [PR #2](https://github.com/Report-Engainall/Nasr1/pull/2) المكرر بقي مغلقًا دون دمج.
 - **الرأس الذي اختُبر:** `01ef17b05c2bf507003efccbb897f76318e0df02`.
