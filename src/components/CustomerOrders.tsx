@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ArrowRight, FileText, Package, Printer } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -100,6 +100,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
   const [templateSaving, setTemplateSaving] = useState(false);
   const [templateSaved, setTemplateSaved] = useState(false);
   const [templateFeedback, setTemplateFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
+  const templateSaveInFlightRef = useRef(false);
   const { data, loading, error, refetch } = useFetch(async () => {
     const [o, i, h] = await Promise.all([
       supabase.from('orders').select('id,order_number,customer_id,status,total_items,notes,created_at,quantity_review_required,customer_adjustment_note,customer_payment_requested_at,customer_confirmed_at,payment_request_status,delivery_address_snapshot').eq('id', id).maybeSingle(),
@@ -124,7 +125,8 @@ function OrderInvoiceInner({ id }: { id: string }) {
   const { order, items, history, customer } = data;
 
   async function saveAsReorderTemplate() {
-    if (templateSaving || templateSaved) return;
+    if (templateSaveInFlightRef.current || templateSaving || templateSaved) return;
+    templateSaveInFlightRef.current = true;
     setTemplateSaving(true);
     setTemplateFeedback(null);
     try {
@@ -180,6 +182,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
         message: cause instanceof Error ? cause.message : 'تعذر حفظ قالب إعادة الطلب. حاول مجددًا.',
       });
     } finally {
+      templateSaveInFlightRef.current = false;
       setTemplateSaving(false);
     }
   }
