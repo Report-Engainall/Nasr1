@@ -35,18 +35,20 @@ LAST_COMPLETED_MERGE_SHA=391e25847c7cc7fb2ba5f77164600455db04abfd
 NEXT_TASK_ID=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-PENDING-REQUEST-MAP
 CURRENT_BRANCH=p2/payment-idempotency-pending-map-20261023
 BASE_SHA=391e25847c7cc7fb2ba5f77164600455db04abfd
-IMPLEMENTATION_HEAD_BEFORE_CHECKPOINT_COMMITS=cbcbf3db6261b1018c3e83766c575dd854314654
+INITIAL_IMPLEMENTATION_TEST_HEAD=cbcbf3db6261b1018c3e83766c575dd854314654
+LATEST_CODE_AND_TEST_HEAD_BEFORE_CHECKPOINT_REFRESH=b9915624033398ad47f7d25f72fc7b7ed9969e4a
+PAYMENT_ACKNOWLEDGEMENT_CONTRACT=RPC result must be a well-formed UUID; null, empty, or malformed identifiers fail closed and retain the request key
 CURRENT_PR=https://github.com/Report-Engainall/Nasr1/pull/123
 TASK_STATUS=IMPLEMENTED; REGRESSION_TESTS_ADDED; EXACT_FINAL_HEAD_CI_PENDING
 FILES_CHANGED=src/components/CustomerWorkflows.tsx; src/components/CustomerWorkflows.finance.test.tsx; docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md; docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv; docs/bolt-source-reconciliation/PROGRAMMER_2_CURRENT_REPORT.md; docs/bolt-source-reconciliation/WORK_COORDINATION.md; docs/bolt-source-reconciliation/EXECUTION_LOG.md
 TESTS_RUN_WITH_RESULTS=PR #112 Core 40010842943 SUCCESS and P2 40010842853 SUCCESS on exact PR head 1aa7c7906851e1a5ddb088a173d868a16809f9ef; these do not test follow-up #123.
 CURRENT_FOLLOWUP_TESTS=NOT RUN on final PR #123 head until the sequential checkpoint updates finish and fresh workflows reach terminal state.
-FAILED_OR_SKIPPED=PR #112 hosted customer E2E job SKIPPED because dedicated non-production credentials are unavailable; no production financial writes. Current PR #123 workflows pending.
+FAILED_OR_SKIPPED=PR #112 hosted customer E2E job SKIPPED because dedicated non-production credentials are unavailable; no production financial writes. Current PR #123 final-head workflows pending; last source/test change is the UUID-acknowledgement validator.
 MERGE_STATUS=PR #123 OPEN; do not merge before Core and P2 terminal success on one exact final head and review disposition.
 BLOCKERS=Dedicated hosted customer E2E credentials are BLOCKED_EXTERNAL; this is not a substitute for the required local PostgreSQL 17/Playwright checks.
 LOCKED_PATHS=src/components/CustomerWorkflows.tsx; src/components/CustomerWorkflows.finance.test.tsx; P2-owned CURRENT_EXECUTION_STATE.md; REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv; PROGRAMMER_2_CURRENT_REPORT.md; WORK_COORDINATION.md; EXECUTION_LOG.md
 NEXT_ACTION=After all checkpoint commits, re-read PR #123 and its exact head; inspect all Core and P2 jobs until terminal; verify the new A-ambiguous → B-success → A-retry test and missing-acknowledgement test ran; address valid review findings; merge only through PR #123 after all required gates pass, then verify the new main SHA and its own CI before advancing.
-UPDATED_AT=2026-10-23T23:07:00+03:00
+UPDATED_AT=2026-10-23T23:08:00+03:00
 
 ## Evidence rules
 Allowed statuses: IMPLEMENTED, INTEGRATED, TESTED_EXACT_SHA, BROWSER_PROVEN, PRODUCTION_PROVEN, CLOSED_WITH_EVIDENCE, BLOCKED_EXTERNAL, NOT RUN. A skipped job is not a pass. Never transfer PASS between SHAs. Local DB/browser evidence is not production proof.
