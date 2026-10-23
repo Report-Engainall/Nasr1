@@ -1,10 +1,45 @@
-# تقرير P2 — الحالة الحية 2026-10-23T21:17:51+03:00
+# تقرير P2 — الحالة الحية 2026-10-23T21:48:00+03:00
 
 REPOSITORY=Report-Engainall/Nasr1
-MAIN_SHA=d81c9b34f819a53df7610937264c6fcb923c3f95; MAIN_TREE=8107f52d4d6c61845b95ed7226c5c7f03038a484
-MAIN_CORE_CI=IN_PROGRESS — run 40001438040 on exact current main SHA. Previous merge SHA 5dbb01f7cf2ac054212abc6f3ec34af1b1fe99df passed Core run 40001179290 on that exact merge SHA. Do not transfer this PASS to d81c9b34f819a53df7610937264c6fcb923c3f95.
-P2 on exact current main SHA = NOT RUN. PR #104 exact tested head 7f1110d95d26ece5d516b7267904a4f3f397f6ef: Core 40000512625 SUCCESS, P2 40000512706 SUCCESS. Hosted customer credential-dependent job 120575459434 was SKIPPED, not PASS.
-The only source delta after the PR #104 merge is the Bolt archive `docs/project-bolt-github-7sl6ykzz (5).zip`; current main Core is not terminal yet.
+MAIN_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
+MAIN_TREE=15f30663a80ba9ff2e83c2057f15ed489eed92be
+MAIN_CORE_CI=IN_PROGRESS — run 40005590004 on exact main SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac.
+P2_ON_EXACT_MAIN_SHA=NOT RUN. PR #110's PR-head success was not transferred to its merge SHA.
+CURRENT_BRANCH=p2/payment-idempotency-current-main-20261023
+BASE_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
+HEAD_SHA=REREAD FINAL BRANCH HEAD BEFORE CREATING PR
+CURRENT_TASK=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD
+TASK_STATUS=IMPLEMENTED; EXACT-HEAD CI NOT RUN; PR NOT CREATED
+
+## Recent P2 release reconciliation
+- PR #110 (pricing preview retry, concurrent work) merged at `03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac`; its exact tested head `b6d99a91958b43e7cd90164a104c8c0a5bc1bd09` Core `40004970539` and P2 `40004970599` SUCCESS. Main Core run `40005590004` is in progress on the merge SHA; exact-main P2 is NOT RUN.
+- PR #109 active-session guard for AI budget RPCs merged at `46a5fbb379d908328e5e2136eec3190a32e148f7`; exact PR head `a5bff9191481bc9c84e4fa2fecc345692a9635d4` Core `40003198716` and P2 `40003198651` SUCCESS. Hosted customer job was SKIPPED for lack of dedicated non-production credentials; not PASS.
+- No direct writes to main; branch was recreated from latest main after finding five intervening pricing-merge commits on the older branch. Those latest-main changes do not overlap any payment-idempotency paths.
+
+## FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD — implemented, pending CI
+Purpose: prevent a second financial collection when a committed payment's RPC response is lost and the user retries.
+Files:
+- `supabase/migrations/20261023240000_customer_payment_idempotency.sql`: adds tenant-scoped request UUID and SHA-256 canonical payload fingerprint, unique partial index, a private schema-aware pgcrypto helper, removes legacy five-argument RPC overload, and installs an authenticated six-argument SECURITY DEFINER RPC. Identical key/payload replays the saved payment ID; changed payload conflicts. Acquires request-key lock then the exact existing tenant+invoice settlement lock used by posted-credit journal posting.
+- `src/components/CustomerWorkflows.tsx`: synchronous key creation to handle rapid repeat submits, stable key across ambiguous RPC/network failures and same-payload retry, new key only when the canonical payload changes, clear on server-confirmed success.
+- `src/integrations/supabase/types.ts`: generated RPC arg declaration now requires `p_idempotency_key`.
+- `src/components/CustomerWorkflows.finance.test.tsx`: component regressions for exact retry reuse and changed-payload key rotation.
+- `scripts/test-staff-receivables-aging-credit-memo-parity.mjs`: PostgreSQL 17 acceptance for legacy overload absence, grants, same-payload replay, changed-payload rejection, same-key concurrency, per-tenant scope and cross-tenant denial. Existing credit-adjusted overpayment/race tests retained with new RPC args.
+- `scripts/test-database-migrations.mjs`: existing payment RPC calls updated to new signature.
+
+VALIDATION:
+- Payment branch tests = NOT RUN by CI at current branch head.
+- PostgreSQL 17 migration/payment acceptance = NOT RUN by CI at current branch head.
+- P2 Playwright/local Supabase = NOT RUN at current branch head.
+- Main Core's current in-progress run is not evidence for the payment branch.
+- No production database was accessed or written, and no live payment/provider call was made.
+- Hosted credential-dependent customer E2E remains BLOCKED_EXTERNAL until dedicated non-production credentials exist.
+
+NEXT_ACTION=Reread final feature branch head and changed files; create PR targeting main; allow exact-head Core and P2 Critical Paths to finish; inspect all failed/skipped jobs and root-cause fix failures; merge only after required terminal successes and review clearance; then read the new main SHA and exact-main CI/P2 before moving to the next acceptance gap.
+UPDATED_AT=2026-10-23T21:48:00+03:00
+
+---
+
+## Historical report (audit only; current status above supersedes it)
 
 ## FIN-LEDGER-001 — integrated
 - PR #101 manual journal reversal merged at 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb.
