@@ -12,7 +12,12 @@ const mocks = vi.hoisted(() => ({
   fetchStorefrontPromotions: vi.fn(),
   fetchSettingsMap: vi.fn(),
   fetchStorefrontAnnouncements: vi.fn(),
-  categoryResult: null as null | { data: unknown; loading: boolean; error: string | null; refetch: () => void },
+  categoryResult: null as null | {
+    data: unknown;
+    loading: boolean;
+    error: string | null;
+    refetch: () => void;
+  },
   settings: {} as Record<string, unknown>,
   user: null as null | { isStaff: boolean; profileId?: string; name?: string },
   products: [
@@ -376,7 +381,9 @@ describe("customer price visibility UI acceptance", () => {
     await unmount(malformed);
 
     mocks.rpc.mockImplementation(async (name: string) => {
-      if (name === "preview_customer_order_pricing") return { data: null, error: { message: "pricing unavailable" } };
+      if (name === "preview_customer_order_pricing") {
+        return { data: null, error: { message: "pricing unavailable" } };
+      }
       return { data: null, error: null };
     });
     const failed = await mountAt("/cart");
@@ -385,7 +392,6 @@ describe("customer price visibility UI acceptance", () => {
     expect(failed.host.textContent).not.toContain("إجمالي السلة");
     expect(failed.host.textContent).not.toContain(formatServerAmount(2468));
   });
-
 
   it("prevents same-tick duplicate checkout submits until the server acknowledges the first", async () => {
     window.sessionStorage.clear();
@@ -496,7 +502,9 @@ describe("customer price visibility UI acceptance", () => {
     await unmount(malformed);
 
     mocks.rpc.mockImplementation(async (name: string) => {
-      if (name === "preview_customer_order_pricing") return { data: null, error: { message: "pricing unavailable" } };
+      if (name === "preview_customer_order_pricing") {
+        return { data: null, error: { message: "pricing unavailable" } };
+      }
       if (name === "validate_checkout_cart") return { data: validCartValidation(), error: null };
       return { data: null, error: null };
     });
@@ -506,7 +514,7 @@ describe("customer price visibility UI acceptance", () => {
     expect(failed.host.querySelector('.sf-order-pricing-total')).toBeNull();
     expect(failed.host.textContent).not.toContain(formatServerAmount(2468));
   });
-  
+
   describe("public storefront deep-link acceptance", () => {
     it.each([
       { path: "/categories", heading: "تصنيفات المنتجات" },
