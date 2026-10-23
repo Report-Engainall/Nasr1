@@ -142,4 +142,35 @@ describe("published storefront offer product scope", () => {
     expect(alert).not.toHaveTextContent("تعذر تحميل العروض");
   });
 
+  it("identifies a promotion-query failure without blaming the catalog and retries both sources", () => {
+    const refetchPromotions = vi.fn();
+    const refetchProducts = vi.fn();
+    mocks.promotionResult = {
+      data: [],
+      loading: false,
+      error: "تعذر جلب الحملات",
+      refetch: refetchPromotions,
+    };
+    mocks.productResult = {
+      data: [{ id: "available-product", name: "أرز منشور", item_code: "SKU-LIVE", category_id: null, is_active: true, status: "active" }],
+      loading: false,
+      error: null,
+      refetch: refetchProducts,
+    };
+    mocks.useFetch.mockImplementation((fetcher: unknown) =>
+      fetcher === mocks.fetchStorefrontPromotions ? mocks.promotionResult : mocks.productResult,
+    );
+
+    render(<StorefrontOffersPage />);
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("تعذر تحميل العروض");
+    expect(alert).toHaveTextContent("العروض: تعذر جلب الحملات");
+    expect(alert).not.toHaveTextContent("تعذر تحميل كتالوج المنتجات");
+
+    fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة" }));
+    expect(refetchPromotions).toHaveBeenCalledTimes(1);
+    expect(refetchProducts).toHaveBeenCalledTimes(1);
+  });
+
 });
