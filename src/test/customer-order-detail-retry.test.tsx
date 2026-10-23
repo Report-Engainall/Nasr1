@@ -149,11 +149,14 @@ describe("customer order detail retry", () => {
     const saveButton = host?.querySelector<HTMLButtonElement>('button[aria-label="حفظ كقالب إعادة الطلب"]');
     expect(saveButton).not.toBeNull();
     await act(async () => {
+      // Simulate two fast clicks before React has rendered the disabled state.
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 0));
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
     expect(mocks.rpc).toHaveBeenCalledWith("save_reorder_template", {
       p_name: "إعادة طلب ORD-RETRY-001",
       p_lines: [{ product_id: productId, quantity: 3 }],
