@@ -925,6 +925,24 @@ async function main() {
     );
     assert.equal(managerDirectory.rows.some((row) => row.id === foreignCustomer), false,
       "customer-manager directory must not expose another organization's customer");
+    // Pin the exact role and RLS evaluation context so a privileged connection cannot
+    // accidentally make this an ineffective authorization test.
+    const managerSecurityContext = (await admin.unsafe(
+      "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
+      "public.is_staff() as is_staff, public.current_customer_id()::text as current_customer_id, " +
+      "current_user as database_role, current_setting('row_security') as row_security",
+    ))[0];
+    assert.equal(managerSecurityContext.auth_user_id, adminAuth,
+      "security probe must execute as the intended customer-manager identity");
+    assert.equal(managerSecurityContext.profile_id, managerProfileId,
+      "security probe must resolve the expected customer-manager profile");
+    assert.equal(managerSecurityContext.database_role, "authenticated",
+      "security probe must not run as postgres/service_role or bypass RLS");
+    assert.equal(managerSecurityContext.is_staff, false,
+      "customer_manager must not inherit the broad staff permission");
+    assert.notEqual(managerSecurityContext.current_customer_id, localCustomer,
+      "unlinked CI customer must not be the manager's own customer record");
+
     // Table-level SELECT grants are evaluated together with RLS; test actual row visibility
     // instead of assuming has_table_privilege=false. Explicit privilege denial or zero visible
     // rows is acceptable, but returning even one finance-bearing row is a hard failure.
