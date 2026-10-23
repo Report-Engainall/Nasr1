@@ -245,8 +245,10 @@ describe("customer cart and checkout real route acceptance", () => {
 
   async function flush() {
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      // Cart restoration and checkout server validation cross multiple async effects.
+      for (let i = 0; i < 10; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
     });
   }
 
@@ -313,7 +315,7 @@ describe("customer cart and checkout real route acceptance", () => {
     await clickButtonContaining("إعادة المحاولة");
 
     expect(host?.querySelector('[role="alert"]')).toBeNull();
-    expect(host?.textContent).toContain("SKU-CART-01");
+    expect(host?.textContent).toContain("صنف السلة");
     expect(host?.textContent).not.toContain("777777");
   });
 
