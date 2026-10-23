@@ -223,7 +223,7 @@ Extended least-privilege customer_manager access to activation-link management w
 - UPDATED_AT: 2026-10-23T16:27+03:00
 
 
-## Current live branch checkpoint — after main-sync and exact-ack test — 2026-10-23T16:35+03:00
+## Historical P1 central-session UI handoff — 2026-10-23T16:35+03:00
 
 - LAST_COMPLETED_TASK_ID: `P1-INVITE-EXPIRY-90`; CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001` (current-base code/test head awaiting final exact-head CI and P2 contract integration).
 - CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
@@ -239,3 +239,21 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: #88 Draft/open; #83 Draft/open; #82 open/P2-owned; checkpoint/report PR #93 open and not merged due CI setup failure.
 - UPDATED_AT: 2026-10-23T16:35+03:00
+
+
+## Active resume — P1 storefront dashboard navigation role gate — 2026-10-23T17:05+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-INVITE-EXPIRY-90` (PR #90 merged and exact-head Core/P2 success verified); `P1-ROLE-ASSIGNMENT-SETTINGS-84` is also merged. Do not repeat either task.
+- CURRENT_TASK_ID: `P1-STOREFRONT-ADMIN-NAV-ROLE-GATE-001` — implementation and regression test committed; exact-head validation pending.
+- CURRENT_BRANCH: `p1/storefront-admin-nav-role-gate-20261023`; PR [#96](https://github.com/Report-Engainall/Nasr1/pull/96).
+- BASE_SHA: `f7565aefd7af6033d169167d1bebb3dc5cd248ce` (main when PR #96 was opened and the branch was synchronized).
+- HEAD_SHA: `8027ea59e89a1f939af1eea8f5107d1f7e1e7365` — code/test head before this checkpoint/report commit. A checkpoint-only commit will advance the branch; read PR #96's live head and its checks after saving this record.
+- LAST_CONFIRMED_TESTS: no terminal result is yet claimed for `8027ea59...`. Core run [39967523311](https://github.com/Report-Engainall/Nasr1/actions/runs/39967523311) was `IN_PROGRESS`; P2 Playwright [39967523516](https://github.com/Report-Engainall/Nasr1/actions/runs/39967523516) was `PENDING` at the last exact-head read.
+- FAILED_OR_NOT_RUN_TESTS: no local checkout/test command was run in this session; remote CI is authoritative. No authenticated browser proof or production proof is claimed. Re-read both workflow results on the actual PR head after this checkpoint commit; do not transfer predecessor SHA status.
+- FILES_CHANGED: `src/components/Storefront.tsx` gates the “لوحة التحكم” action on `user?.isStaff === true`; `src/test/storefront-admin-navigation-access.test.ts` covers the server-derived role gate. This checkpoint and report are updated below/in this branch.
+- LOCKED_PATHS: P2 migrations/RPC/RLS, `src/lib/api.ts`, finance/import/Onyx backend, P2 workflow/lockfiles, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, and the shared acceptance matrix. Do not modify `DeviceManagement.tsx` / session backend while PR #88 depends on P2 PR #83.
+- NEXT_ACTION: read Core + P2 workflow results bound to the live PR #96 head after this documentation update. Fix any concrete code/test failure. Merge only when the required checks are terminal-success on the exact head and the PR is mergeable; then verify the resulting `main` SHA and its Core CI. Continue to the next independent P1 screen gap, not back to #90/#84.
+- BLOCKER: exact-head CI is pending at the code/test SHA. Separately, PR #88 remains Draft and blocked on the P2-owned central-session contract in PR #83.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/96
+- MERGE_STATUS: OPEN; not merged. PR #88 stays Draft/open; PR #83 stays P2-owned/open.
+- UPDATED_AT: 2026-10-23T17:05+03:00

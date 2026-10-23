@@ -1,3 +1,23 @@
+# Latest execution summary — P1 storefront navigation — 2026-10-23T17:05+03:00
+
+- **Repository:** `Report-Engainall/Nasr1`
+- **Task:** `P1-STOREFRONT-ADMIN-NAV-ROLE-GATE-001`
+- **Branch / PR:** `p1/storefront-admin-nav-role-gate-20261023` / [PR #96](https://github.com/Report-Engainall/Nasr1/pull/96)
+- **Base SHA:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`
+- **Code/test SHA:** `8027ea59e89a1f939af1eea8f5107d1f7e1e7365` (current live PR head before this resume-record commit).
+- **Finding:** `src/components/Storefront.tsx` unconditionally showed the “لوحة التحكم” control in the customer/public storefront. It invoked the route-provided `onExit` callback (the current customer-facing routes send that action to `/admin`). The authenticated context already exposes `user.isStaff`, derived from the server-backed role list, so a duplicate role service was unnecessary.
+- **Implemented:** the control now renders only under `user?.isStaff === true`; added `src/test/storefront-admin-navigation-access.test.ts` for the server-derived role gate.
+- **Changed paths:** `src/components/Storefront.tsx`, `src/test/storefront-admin-navigation-access.test.ts`; this checkpoint/report update is in the P1 branch.
+- **Checks:** Core [39967523311](https://github.com/Report-Engainall/Nasr1/actions/runs/39967523311) was `IN_PROGRESS` and P2 Playwright [39967523516](https://github.com/Report-Engainall/Nasr1/actions/runs/39967523516) was `PENDING` when read on exact code/test SHA `8027ea59...`. **No PASS claimed until terminal results are read on the live PR head.** No local test command, authenticated manual browser, or production test is claimed.
+- **Safety/ownership:** no backend, migration, RPC, RLS, finance, import/Onyx, CI workflow, shared execution-state, coordination or acceptance-matrix file was changed. PR #88 remains Draft pending P2 PR #83.
+- **Next action:** after this report commit, fetch the exact live PR #96 head and read Core + P2 results for that SHA. Fix real failures, merge only if required checks pass on the final head, then verify Core CI on the resulting main SHA. No direct-main write, force-push or reset was used.
+
+---
+
+# Historical execution report — source-reconciliation and earlier P1 delivery
+
+The detailed sections below are preserved as the historical task/evidence ledger. For the active task, use the latest summary above and `PROGRAMMER_1_EXECUTION_CHECKPOINT.md`.
+
 # تقرير الحالة التنفيذي — المبرمج 1 / دمج ميزات المصادر الثلاثة
 
 - **المستودع المستهدف الوحيد:** `Report-Engainall/Nasr1`
