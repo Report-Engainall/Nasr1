@@ -43,7 +43,15 @@ export function AdvancedStorefrontSearchPage() {
           {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
         </select>
       </label>
-      {categoryQuery.error && <p role="alert">تعذر تحميل التصنيفات: {categoryQuery.error}. يمكنك البحث بالاسم أو الرمز.</p>}
+      {categoryQuery.loading && <p role="status">جار تحميل التصنيفات...</p>}
+      {categoryQuery.error && (
+        <div role="alert" style={{ display: "grid", gap: 8 }}>
+          <p style={{ margin: 0 }}>تعذر تحميل التصنيفات: {categoryQuery.error}. يمكنك البحث بالاسم أو الرمز.</p>
+          <button type="button" className="sf-btn-secondary" onClick={() => { void categoryQuery.refetch(); }}>
+            إعادة تحميل التصنيفات
+          </button>
+        </div>
+      )}
       <label style={{ display: "flex", alignItems: "center", gap: 9 }}><input type="checkbox" checked={availableOnly} onChange={(e) => setAvailableOnly(e.target.checked)} /> عرض الأصناف ذات الرصيد المتاح المعروف فقط</label>
       {formError && <p role="alert">{formError}</p>}
       <button type="submit" className="sf-btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: 8, justifyContent: "center" }}><Search size={17}/> عرض النتائج</button>
