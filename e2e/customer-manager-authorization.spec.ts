@@ -25,8 +25,8 @@ function assertLoopbackOnly(): void {
   if (api.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(api.hostname) || api.port !== "54321") {
     throw new Error("Customer-manager E2E may use only the isolated local Supabase API on loopback:54321.");
   }
-  if (!["127.0.0.1", "localhost"].includes(database.hostname) || database.port !== "54322") {
-    throw new Error("Customer-manager E2E database assertions may use only isolated local PostgreSQL on loopback:54322.");
+  if (!["127.0.0.1", "localhost"].includes(database.hostname) || database.port !== "55432") {
+    throw new Error("Customer-manager E2E database assertions may use only isolated local PostgreSQL on loopback:55432.");
   }
 }
 
