@@ -137,11 +137,15 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
   const [sessionsError, setSessionsError] = useState('');
   const revocationInFlight = useRef(false);
   const otherSessionsInFlight = useRef(false);
+  // Prevent a slow pre-revocation response from restoring stale rows over a newer list.
+  const organizationSessionsRequestId = useRef(0);
 
   const loadOrganizationSessions = useCallback(async () => {
+    const requestId = ++organizationSessionsRequestId.current;
     if (!canManageOrganizationSessions) {
       setOrganizationSessions([]);
       setSessionsError('قائمة جلسات المؤسسة وإبطال جلسة مستخدم آخر متاحان لمدير النظام فقط.');
+      setSessionsLoading(false);
       return;
     }
     setSessionsLoading(true);
@@ -166,12 +170,14 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
         }
         ids.add(row.session_id);
       }
+      if (requestId !== organizationSessionsRequestId.current) return;
       setOrganizationSessions(parsed);
     } catch {
+      if (requestId !== organizationSessionsRequestId.current) return;
       setOrganizationSessions([]);
       setSessionsError('تعذر تحميل قائمة الجلسات المركزية من الخادم. لم تُستنتج أجهزة من المتصفح؛ أعد المحاولة بعد التحقق من نشر عقد الجلسات.');
     } finally {
-      setSessionsLoading(false);
+      if (requestId === organizationSessionsRequestId.current) setSessionsLoading(false);
     }
   }, [canManageOrganizationSessions]);
 

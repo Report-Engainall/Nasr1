@@ -190,6 +190,57 @@ describe('central device and session management', () => {
     expect(mocks.onNotice).toHaveBeenCalledWith(expect.stringContaining('1 جلسة أخرى لهذا الحساب'));
   });
 
+  it('does not let a slow pre-revocation session read restore rows removed by a newer read', async () => {
+    const preRevocationRows = [...sessions];
+    let resolveInitialList: ((value: { data: unknown; error: null }) => void) | undefined;
+    let listCalls = 0;
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'list_organization_sessions') {
+        listCalls += 1;
+        if (listCalls === 1) {
+          return await new Promise<{ data: unknown; error: null }>((resolve) => {
+            resolveInitialList = resolve;
+          });
+        }
+        return { data: sessions.filter((row) => row.session_id === CURRENT_SESSION_ID), error: null };
+      }
+      if (name === 'revoke_other_auth_sessions') {
+        sessions = sessions.filter((row) => row.session_id === CURRENT_SESSION_ID);
+        return {
+          data: {
+            current_session_id: CURRENT_SESSION_ID,
+            revoked_count: 1,
+            revoked_session_ids: [OTHER_SESSION_ID],
+            revoked_at: '2026-10-23T10:16:00.000Z',
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: { message: 'unexpected RPC' } };
+    });
+
+    await mount();
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === 'list_organization_sessions')).toHaveLength(1);
+
+    await act(async () => {
+      host?.querySelector<HTMLButtonElement>(
+        'button[aria-label="تسجيل الخروج من الأجهزة الأخرى"]',
+      )?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(host?.textContent).not.toContain('موظف الاختبار');
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === 'list_organization_sessions')).toHaveLength(2);
+
+    await act(async () => {
+      resolveInitialList?.({ data: preRevocationRows, error: null });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(host?.textContent).not.toContain('موظف الاختبار');
+    expect(host?.querySelector('[role="alert"]')).toBeNull();
+  });
+
   it('does not issue duplicate revocation RPCs for rapid repeated clicks', async () => {
     let finishRevocation: ((value: { data: unknown; error: null }) => void) | undefined;
     mocks.rpc.mockImplementation((name: string) => {
