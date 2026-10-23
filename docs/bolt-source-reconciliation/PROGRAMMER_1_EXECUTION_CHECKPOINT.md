@@ -384,3 +384,20 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: DRAFT / OPEN / NOT READY.
 - UPDATED_AT: 2026-10-23T17:24+03:00
+
+
+## Active resume — local sign-out failure/retry acceptance — 2026-10-23T17:29+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-LOCAL-SIGNOUT-RETRY-001` (regression test committed; exact-head CI pending).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `f7565aefd7af6033d169167d1bebb3dc5cd248ce`.
+- HEAD_SHA (functional code/test commit): `8d3ee29f48c6f9f600722b2354f9d3fc40b41ca5`. Current checkpoint/report commit will supersede this HEAD without changing code; resolve the live branch at next session.
+- LAST_CONFIRMED_TESTS: local sign-out handler (single-flight, state clear only after server confirmation) Core [39968018993](https://github.com/Report-Engainall/Nasr1/actions/runs/39968018993) SUCCESS on code SHA `f1c298299281f1e10755c3786c3900724f5c5632`; timestamp-ack validation Core [39968697854](https://github.com/Report-Engainall/Nasr1/actions/runs/39968697854) SUCCESS on code SHA `f6d0c75326cc6ab650359b983d6fd6749ec647f3`. Neither includes the new retry regression on `8d3ee29...`.
+- FAILED_OR_NOT_RUN_TESTS: new test is awaiting current-head Core. Core/P2 runs on prior documentation head `052386744dc02d76e002ce172d54c2cd6d6bf9ac` were running, not terminal, at last check. Session-specific browser acceptance remains NOT_PROVEN; latest read of P2 branch `dda512495c43f2fd84517635cd83421ef49e92c0` showed its workflow still lacks `e2e/device-session-management.spec.ts` and `scripts/seed-p1-device-session-playwright.mjs`.
+- FILES_CHANGED: `src/test/device-management.test.tsx`. The regression causes local `signOut` to reject once then succeed on retry; it expects the error to preserve the visible session, not fire a success notice, and release the action guard; retry must call the local-scope API once more, clear session details after acknowledgement, and emit one success notice.
+- LOCKED_PATHS: P2 server workflows/migrations/RPC/RLS/Auth/types; shared `CURRENT_EXECUTION_STATE.md`/`WORK_COORDINATION.md`; P3-owned route/screens in PR #89. No locked path edited.
+- NEXT_ACTION: check exact-head Core/P2 run for `8d3ee29...`. If test passes, verify latest branch head CI and continue with the next P1 screen gap only outside PR #89 changed paths and P2-owned files; keep session PR #88 Draft until P2 wires and proves dedicated local Supabase session E2E after #83 is integrated.
+- BLOCKER: central-session integration browser tests are not wired by P2. P2 PR #83 at checkpoint: `dda512495c43f2fd84517635cd83421ef49e92c0`, Core [39968531790](https://github.com/Report-Engainall/Nasr1/actions/runs/39968531790) SUCCESS on predecessor SHA `338e650...`; P2 Playwright was still running/cancelled during branch advances and must be re-read at current head.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: DRAFT / OPEN / NOT READY.
+- UPDATED_AT: 2026-10-23T17:29+03:00

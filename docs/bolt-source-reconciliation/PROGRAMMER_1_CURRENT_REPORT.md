@@ -870,3 +870,18 @@ Read exact Core and P2 results on the latest PR #88 head after this checkpoint c
 **BASE_SHA:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`  
 **FUNCTIONAL_HEAD_SHA:** `f6d0c75326cc6ab650359b983d6fd6749ec647f3`  
 **STATUS:** Implemented; exact-head CI pending; session E2E not yet wired by P2.
+
+
+## P1 — local sign-out failure preserves retry path — 2026-10-23T17:29+03:00
+
+Added an explicit error/retry regression test for the current-device sign-out action in `src/test/device-management.test.tsx`. The first mocked `supabase.auth.signOut({ scope: 'local' })` rejects with a network error; acceptance requires the existing account/session details to remain visible, an error alert to show, no success notice, and the button to become available again. A second click then succeeds and must clear the visible session details and issue exactly one success notice. This complements the current-head implementation guard that prevents overlapping clicks and clears auth-derived display state only after a successful response.
+
+- Test commit: `8d3ee29f48c6f9f600722b2354f9d3fc40b41ca5`; exact-head Core/P2 results pending.
+- Previous implementation heads: [Core 39968018993](https://github.com/Report-Engainall/Nasr1/actions/runs/39968018993) successful at `f1c2982...`; [Core 39968697854](https://github.com/Report-Engainall/Nasr1/actions/runs/39968697854) successful at `f6d0c75...`. Neither run tests the new retry test. No local test command was run by this session.
+- Session browser blocker remains P2-owned: workflow on PR #83 `dda5124...` did not invoke the dedicated P1 session spec/seed script. The #88 PR remains Draft until that local-only browser contract test actually runs on the integrated backend.
+
+**Branch:** `p1/central-device-session-ui-20261023`  
+**PR:** [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**BASE_SHA:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`  
+**FUNCTIONAL_HEAD_SHA:** `8d3ee29f48c6f9f600722b2354f9d3fc40b41ca5`  
+**STATUS:** Implemented; exact-head CI pending; authenticated session E2E not yet executed.
