@@ -1,44 +1,48 @@
-# الحالة التنفيذية الحالية الوحيدة — متجر الأغبري | Nasr1
-## آخر تحديث مثبت: 23 أكتوبر 2026
+# الحالة التنفيذية الحالية الوحيدة — Nasr1 / P2
+LAST_RECONCILED_AT=2026-10-23T19:55:00+03:00
 
-هذه هي الصفحة الوحيدة لمؤشر الاستئناف الديناميكي. لا تستخرج المهمة التالية من تقارير قديمة. مصفوفة القبول الوحيدة: `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
+## حقيقة Git الحالية
+REPOSITORY=Report-Engainall/Nasr1
+CURRENT_BRANCH=main (الحالة البرمجية المعتمدة؛ لا كتابة مباشرة على main)
+MAIN_SHA=15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb
+MAIN_TREE=539b6073bbefacd3d569d667b913748f2466ab67
+MAIN_CORE_CI=PASS — https://github.com/Report-Engainall/Nasr1/actions/runs/39990714405 (النتيجة النهائية على SHA main نفسه)
+DOCS_UPDATE_PR=100
+DOCS_UPDATE_BRANCH=docs/p2-live-reconciliation-20261023
+DOCS_BRANCH_HEAD=راجع رأس PR #100 الحي؛ لا تستخدم SHA ذاتيًا محفوظًا داخل هذا الملف
+لا force-push أو reset مدمر. تغييرات الحالة هذه تمر عبر PR #100 فقط.
 
-### حقيقة Git الحية
-- المستودع الوحيد: https://github.com/Report-Engainall/Nasr1
-- رأس `main` الذي تم التحقق منه قبل هذا التحديث: `76baf9dbe7860a764abc18e75835abb8750d56a3`. لا كتابة مباشرة إلى `main`.
-- طلب الدمج #54: https://github.com/Report-Engainall/Nasr1/pull/54 — الفرع `feat/p2-onyx-source-trace-mainline-20261022`، رأس الكود المختبَر `52ae68f1f14d61d1fb13925a840c330cb70956e1`، ما يزال مفتوحًا ولم يُدمج بعد.
-- Core CI على **SHA نفسه**: **PASS** — https://github.com/Report-Engainall/Nasr1/actions/runs/39905763702.
-- P2 Playwright على **SHA نفسه**: **PASS** — https://github.com/Report-Engainall/Nasr1/actions/runs/39905763717. نجحت وظيفة المتصفح المحلية `120258001144` وواجهة القراءة فقط `120257730020`; اختبارات الطلب وعزل المستأجر، المرتجعات والإشعارات الدائنة، XLSX لـOnyx، والطباعة المالية/التشغيلية كلها PASS. اختبار الحساب الخارجي `120257758167` كان **SKIPPED** لغياب اعتماد اختبار خارجي غير إنتاجي.
-- Core على هذا الرأس أثبت Unit tests وPostgreSQL 17 والمigrations وقيود Onyx على بصمة الطلب وربط اللقطة، واختبارات الطلبات والاستيراد وDQS، وLint/build وsmoke على 4173 و5173. لا اتصال Onyx حي ولا اختبار إنتاج.
-- أُضيفت بعد رأس الكود المختبَر تحديثات توثيقية إلى مؤشر الاستئناف والمصفوفة وWORK_COORDINATION فقط؛ لم يتغير كود التطبيق بعد SHA `52ae68f1f14d61d1fb13925a840c330cb70956e1`. مع ذلك، لا تصف رأس الوثائق الحالي بأنه `TESTED_EXACT_SHA` حتى تنتهي فحوص Actions الناتجة عن هذه التحديثات على رأسها النهائي.
-- إصلاحان مثبتان بهذا الرأس: رفض إنهاء محاولة Onyx ببصمة طلب مختلفة أو إعادة ربط لقطة، ودعم SHA-256 لدعوات الشركة/قبول الدعوة عبر مخطط `pgcrypto` المثبت فعليًا بدل افتراض `public.digest`.
-- مراجعة P1 المستقلة ليست مسجلة كنتيجة نهائية؛ لا تُحوّل ذلك إلى موافقة مراجعة. لا يُدّعى `PRODUCTION_PROVEN`.
+## آخر وحدة مكتملة — FIN-LEDGER-001
+TASK_ID=FIN-LEDGER-001-MANUAL-JOURNAL-REVERSAL-ACCEPTANCE
+TASK_STATUS=INTEGRATED
+PR_URL=https://github.com/Report-Engainall/Nasr1/pull/101
+MERGE_SHA=15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb
+PR_HEAD_TESTED_SHA=df18dd58a0f0f74a420f55d6e14c0e352af8f7b0
+FILES_CHANGED=supabase/migrations/20261023200000_accounting_general_journal_reversal.sql; scripts/test-general-ledger-reversal.mjs; scripts/test-database-migrations.mjs; src/integrations/supabase/types.ts; src/components/GeneralJournalReversalAction.tsx; src/components/GeneralLedgerWorkspace.tsx; src/test/general-ledger-statements-ui.test.tsx
+PR_HEAD_CORE=PASS — https://github.com/Report-Engainall/Nasr1/actions/runs/39990033594 on df18dd58a0f0f74a420f55d6e14c0e352af8f7b0
+PR_HEAD_P2=PASS — https://github.com/Report-Engainall/Nasr1/actions/runs/39990033892 on df18dd58a0f0f74a420f55d6e14c0e352af8f7b0
+MAIN_CORE=TESTED_EXACT_SHA — https://github.com/Report-Engainall/Nasr1/actions/runs/39990714405 on 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb
+MAIN_P2_EXACT_SHA=NOT RUN. The successful pre-merge P2 run above used df18dd58a0f0f74a420f55d6e14c0e352af8f7b0; it is not relabeled as an exact-main-SHA run. Its tested tree was 539b6073bbefacd3d569d667b913748f2466ab67, the same tree on main.
+TESTS_FAILED_OR_SKIPPED=Core run 39989568026 failed on SHA a6fb9b407d16e68a1eb7babb1ec698140740644d because the new function delimiter was emitted as AS $ / $;. Corrected in df18dd58a0f0f74a420f55d6e14c0e352af8f7b0; Core and P2 passed after correction. Hosted/customer-credential E2E job 120539173603 was SKIPPED due unavailable dedicated non-production credentials, not PASS.
+REVIEW=CodeRabbit’s linked-reversal-draft finding was fixed in a6fb9b407d16e68a1eb7babb1ec698140740644d; the finding’s thread is resolved. The final PR-head migration was re-tested. A maintainer COMMENT review is recorded; no independent human APPROVE is claimed.
+EXTERNAL_BOUNDARIES=No production writes, no live Onyx Pro import/sync, no live WhatsApp Business API call, no production restore proof.
 
-### الإنجاز المغلق بدليل — دون خلط الأدلة
-- `NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011`: **IMPLEMENTED + INTEGRATED + TESTED_EXACT_SHA + BROWSER_PROVEN** على SHA `52ae68f1f14d61d1fb13925a840c330cb70956e1`، مع إضافة منع إعادة ربط بصمة طلب/لقطة في تدفق مزامنة Onyx واختبارات الانحدار الخاصة بها.
-- أثبت اختبار قاعدة البيانات مصدر اللقطة/مهمة الاستيراد/بصمة الملف ومعرفات الصفوف والعينة المحدودة ومعنى محاولة الاتصال؛ لا تُحوّل اللقطة المحفوظة إلى ادعاء اتصال Onyx حي.
-- أثبت المتصفح تنزيل XLSX مرتبطًا بسجل تدقيق وبملف 27 عمودًا. هذا لا يثبت قبول الملف في نسخة Onyx الهدف.
-- أثبت المتصفح طباعة الفاتورة وكشف الحساب والإشعار الدائن المعكوس والمهام التشغيلية بحسب المسار المختبَر. الإشعار المعكوس لا يُعرض إلا مع دليل قيد عكس مُرحّل مطابق، ويحمل المستند رقم القيد والسبب والتنبيه بأنه لا يمثل رصيدًا دائنًا قائمًا أو استردادًا نقديًا.
-- الحالات مستقلة: الكود محفوظ، والتكامل، ونجاح الاختبار على SHA، وإثبات المتصفح، وإثبات الإنتاج. لا يُدّعى **PRODUCTION_PROVEN**.
+## الأعمال التي لا تُعاد
+- PR #52 و#54 مدمجان؛ INV-009 مثبت محليًا فقط، وتكامل Onyx الحي BLOCKED_EXTERNAL.
+- PR #83 و#88 و#84 و#90 و#99 مدمجة. لا تعاود بناء الجلسات، تعيين customer_manager، انتهاء الدعوة، أو تاريخ انتقال الطلبات ما لم يظهر انحدار جديد موثق.
+- OPS-DR-001 مثبت باستعادة PostgreSQL 17 معزولة فقط؛ لا يعني جاهزية استعادة الإنتاج.
+- PR #97 (P1) وPR #89 (P3) ما زالا خارج ملكية P2؛ لا تعديل لمساراتهما المقفلة.
+- PR #100 هو طلب المصالحة المركزية الحالي.
 
-### الطلبات المفتوحة التي يجب عدم الخلط بينها
-- **PR #52 / INV-009**: الرأس `e7cc5fa6aa2a7e22eeedc3d8f179c0638712ad3f`; Core CI PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39842798167، ويشمل اختبار التزامن الذري. فشل P2 `39842798332` عند سحب صورة PostgreSQL من GHCR قبل بدء خدمات Supabase؛ لذلك إثبات المتصفح **NOT PROVEN** لهذا الرأس. PR #54 يتضمن مسارًا محدثًا لاختبار Supabase المحلي اجتاز التشغيل على SHA `52ae68f...`؛ حدّث #52 فوق `main` بعد دمج #54 ثم أعد اختبار المتصفح والـCore قبل الدمج.
-- **PR #56 / ORD-001**: الرأس `7e52b17c81ea00a562b7fb48611e420bc2076f74`; Core CI PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39841895977. تشغيل P2 القديم تعطل عند سحب صورة Supabase من GHCR؛ مسار المتصفح لهذا الرأس لا يُعتبر مثبتًا حتى إعادة تشغيل ناجحة على فرع محدث.
-- PR #54 لم يُدمج؛ يلزم التحقق المستقل ثم الدمج المتسلسل، مع إعادة قراءة `main` وتشغيل CI على SHA ما بعد الدمج. لا تُدمج طلبات تغيّر `WORK_COORDINATION.md` بالتوازي.
+## مؤشر الاستئناف الوحيد
+LAST_COMPLETED_TASK_ID=FIN-LEDGER-001-MANUAL-JOURNAL-REVERSAL-ACCEPTANCE
+NEXT_TASK_ID=FIN-INVOICE-001-SUMMARY-PAGINATION-NO-DOUBLE-COUNT
+CURRENT_BRANCH=main (الكود؛ يظل أي تغيير جديد عبر PR)
+BASE_SHA=15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb
+HEAD_SHA=15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb
+TASK_STATUS=INTEGRATED; Core TESTED_EXACT_SHA; P2 TESTED_EXACT_SHA on PR head only
+NEXT_ACTION=افحص ملكية الملفات والـPRs مرة واحدة، ثم أضف قبول PostgreSQL 17 يثبت أن p_limit/p_offset يحددان مصفوفة entries فقط بينما summary وحسابات accounts مجمّعة من كامل القيود المرحلة بلا اقتطاع أو مضاعفة. استعمل أكثر من قيد مرحّل اصطناعي، وقارن p_limit=1 مع p_limit=50؛ أصلح السبب الجذري إذا كشف الاختبار انحرافًا. لا تفتح محرك دفتر جديدًا ولا تعِد كتابة الحسابات إذا كانت الوظيفة الحالية صحيحة. بعد ذلك اختبر على SHA الفرع نفسه وحدث المؤشر من خلال PR.
+UPDATED_AT=2026-10-23T19:55:00+03:00
 
-### مؤشر الاستئناف الديناميكي الوحيد
-**next_task_id = INV-009**
-
-تم حسم `SRC-011` بقراءة فقط للسجل المصدر المملوك لـP1: الترحيل الهدف الحالي يوفّر سلوك إدخال الطلب المقابل بصورة أفضل من الترحيل المصدر `0011_order_input_hardening.sql`؛ لم يُنسخ SQL المصدر أو يُكرر. دليل القبول موجود على SHA `18b0c8a8f3f03a3f5ad188357690223e3749628f` وCore CI PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39647895468، بما في ذلك رفض 24 حمولة غير صالحة دون حفظ أي طلب. لا تعدّل `SOURCE_INTEGRATION_LEDGER.csv` أو أي ملف آخر مملوك لـP1.
-
-المهمة التالية `INV-009`: استئناف PR #52، فحص الرأس والـActions الفعلية، ثم تحديث فرعه فوق `main` بعد إدخال تحسينات اختبار Supabase المحلي المثبتة في PR #54؛ أعد تشغيل PostgreSQL 17 وP2 Chromium على SHA محدد. لا تخلط نتيجة core القديمة مع اختبار المتصفح المحجوب، ولا تدمج تغييرات `WORK_COORDINATION.md` بالتوازي. تجنّب `src/lib/api.ts` حتى إغلاق ملكية PR #56 أو تحريرها صراحة.
-
-### عوائق خارجية باقية — ليست صفرًا ولا نجاحًا ضمنيًا
-- `INTEGRATION-001`: اتصال Onyx الحي وWhatsApp Business API الرسمي **BLOCKED_EXTERNAL** إلى حين توفر اعتماد صالح واستجابة فعلية ومعرف طلب خارجي. لم يحدث اتصال إنتاجي.
-- `ONYX-XLSX-001`: التصدير المحلي مثبت، لكن قبول الاستيراد في نسخة Onyx الهدف **BLOCKED_EXTERNAL** حتى اختبار مخوّل وسجل نتيجة حقيقي.
-- `OPS-DR-001`: تجربة نسخ احتياطي واستعادة معزولة موثقة ببصمة ومدة مقاسة **NOT RUN/NOT PROVEN**؛ لا RTO/RPO أو P95 تخمينية.
-- قبول المتصفح الشامل لكل الشاشات مسؤولية Bolt New كما هو منصوص في قواعد المشروع؛ نجاح المسارات المحددة أعلاه ليس إثباتًا لجميع المسارات.
-- لا اختبارات على الإنتاج، ولا مزود مدفوع شرط تشغيل، ولا اختلاق أرقام أو نتائج.
-
-### قواعد الإغلاق
-الحالات المسموحة: `IMPLEMENTED`, `INTEGRATED`, `TESTED_EXACT_SHA`, `BROWSER_PROVEN`, `PRODUCTION_PROVEN`, `CLOSED_WITH_EVIDENCE`, `BLOCKED_EXTERNAL`, `NOT RUN`. كل نتيجة تختص برأس الكود الذي اختبرته فعليًا. بعد هذا تحديث التوثيق، يجب انتظار/قراءة CI على SHA التوثيق الجديد قبل وصف رأس الفرع الأحدث بأنه `TESTED_EXACT_SHA`. لا `reset` أو `clean` أو `force-push` ولا تطبيق/قاعدة بيانات موازية.
+## Evidence rules
+Allowed statuses: IMPLEMENTED, INTEGRATED, TESTED_EXACT_SHA, BROWSER_PROVEN, PRODUCTION_PROVEN, CLOSED_WITH_EVIDENCE, BLOCKED_EXTERNAL, NOT RUN. A skipped job is not a pass. Never transfer a PASS from one SHA to another. Local DB/browser evidence is not production proof.
