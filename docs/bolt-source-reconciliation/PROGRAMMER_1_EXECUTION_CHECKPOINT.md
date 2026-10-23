@@ -495,3 +495,22 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: OPEN / DRAFT / NOT MERGE-READY.
 - UPDATED_AT: 2026-10-23T17:52+03:00
+
+
+## P1 live readback — stricter revoked-JWT denial assertion; related PR checkpoints — 2026-10-23T14:55:38.344Z
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-E2E-UNEXPIRED-JWT-001` — the browser helper now verifies the exact revoked `session_id`, proves `exp` remains later than request start and response, and requires HTTP **403** from the current tenant-authorization RPC. This removes the prior false-positive path that accepted any server 5xx as successful revocation denial.
+- CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c` as recorded by PR #88; live `main` pointer last read at `75ef8774917e25f11c328568bc316330546aefba`.
+- HEAD_SHA: `87ecae031fd78caccd9fe5710ed66f5e6b61b3ba` (current code head before this checkpoint/report update; the just-added 403 assertion is included).
+- LAST_CONFIRMED_TESTS: predecessor head `b611b293...` Core SUCCESS [39971452491](https://github.com/Report-Engainall/Nasr1/actions/runs/39971452491); that predecessor does **not** validate the newer JWT-expiry/403 assertion. The prior functional head `916f68f...` also predates the HTTP-403 tightening.
+- FAILED_OR_NOT_RUN_TESTS: exact-head Core run [39973709057](https://github.com/Report-Engainall/Nasr1/actions/runs/39973709057) is IN_PROGRESS; P2 run [39973708325](https://github.com/Report-Engainall/Nasr1/actions/runs/39973708325) is PENDING. The P2 workflow currently on live `main` blob `1b2b0eade154b8b4e8ed0bed0fa9b7067b5666b7` still contains neither `scripts/seed-p1-device-session-playwright.mjs` nor `e2e/device-session-management.spec.ts`; no dedicated session-browser proof is claimed. The prior P2 local database job eventually ran other commerce scenarios only; the hosted customer-order job remained SKIPPED and is not PASS.
+- FILES_CHANGED: `e2e/device-session-management.spec.ts` (HTTP result must now be 403, not arbitrary >=400); the local endpoint helper/seeder/tests from the preceding unit remain included in the branch. This update modifies only the two P1 resumption documents.
+- LOCKED_PATHS: do not edit `.github/workflows/p2-playwright-critical-paths.yml`, P2 migrations/RPC/RLS/API/generated types, finance/inventory service files, `package.json`, `bun.lock`, `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, or the common acceptance matrix.
+- NEXT_ACTION: read terminal Core/P2 on the new code head, then obtain P2's wired session test in a later head. The current workflow-owner handoff is recorded on #88 [comment 6367467756](https://github.com/Report-Engainall/Nasr1/pull/88#issuecomment-6367467756) and P2 was also notified on #83 [comment 6367496372](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6367496372). Keep #88 Draft until the targeted two-test Chromium suite executes and passes.
+- INDEPENDENT PR #96: branch head `f831033690a524779fc3fafab0bf6269494240f2` is now a normal merge commit including live main `75ef877...`; compare from current main shows only `src/components/Storefront.tsx` and `src/test/storefront-admin-navigation-access.test.ts`. Core [39973108364 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39973108364). P2 [39973108292](https://github.com/Report-Engainall/Nasr1/actions/runs/39973108292) is still IN_PROGRESS on the isolated local Supabase job; the external customer-order job is SKIPPED. Do not merge until this P2 run reaches a terminal conclusion and current main/head are rechecked.
+- INDEPENDENT PR #97: the implementation head `ed4ee7ad...` passed Core `39972341560` and P2 `39972341569`, but documentation-only head `a2372eed...` started newer runs `39973415690` and `39973415713`; those results must be read on the latest head before merge. It is Draft and behind live main by one commit; synchronize and remove shared checkpoint/report changes from its final diff before merging.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 OPEN / DRAFT / NOT MERGE-READY. No P1 merge performed on stale or insufficient session-browser evidence.
+- UPDATED_AT: 2026-10-23T14:55:38.344Z
