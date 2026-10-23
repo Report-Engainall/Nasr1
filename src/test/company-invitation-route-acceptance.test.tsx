@@ -177,7 +177,25 @@ describe("company invitation real route acceptance", () => {
     },
   );
 
-  it("keeps the acceptance RPC unreachable to signed-out visitors", async () => {
+  it("surfaces a malformed route token as a clear rejection without claiming success", async () => {
+    const malformedToken = "not-a-valid-token";
+    mocks.acceptInvitation.mockRejectedValueOnce(new Error("رابط الدعوة غير صالح."));
+
+    await mountInvitationRoute(`/invite/${malformedToken}`);
+
+    await act(async () => {
+      fireEvent.click(acceptanceButton());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.acceptInvitation).toHaveBeenCalledWith(malformedToken);
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("رابط الدعوة غير صالح");
+    expect(host?.textContent).not.toContain("تم تفعيل العضوية");
+    expect(window.location.pathname).toBe("/company/accept-invitation");
+    expect(window.location.search).toBe("");
+  });
+
+
     mocks.user = null;
 
     await mountInvitationRoute(`/invite/${TOKEN}`);
