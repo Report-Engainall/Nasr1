@@ -5,6 +5,8 @@ import postgres from "postgres";
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) throw new Error("TEST_DATABASE_URL is required for receivables aging credit-memo acceptance.");
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const concurrentDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const observerDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const customerProfileId = "f1111111-1111-4111-8111-111111111111";
@@ -233,6 +235,81 @@ async function main() {
   assert.ok(after.page.summary.some((s)=>s.currency==="YER"),"currency-separated aging summary remains present");
   assert.ok(Number(after.item.outstanding_amount)>=0,"the aging balance cannot become negative");
 
+  // Two independent authenticated sessions race to collect the same invoice balance.
+  // The first holds the transaction open after creating a real payment; the second must wait on
+  // the shared invoice advisory lock and then reject against the newly committed balance.
+  const openingBalance = Number(after.item.outstanding_amount);
+  assert.ok(Number.isFinite(openingBalance) && openingBalance >= 0.01,
+    "race acceptance requires at least one cent of outstanding invoice balance");
+  const managerClaims = { sub: managerAuthId, email: "ci-return-manager@example.test", role: "authenticated" };
+  await concurrentDb.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[managerAuthId]);
+  await concurrentDb.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify(managerClaims)]);
+  await concurrentDb.unsafe("set role authenticated");
+
+  let signalPaymentCreated;
+  let signalPaymentFailed;
+  const firstPaymentReady = new Promise((resolve,reject) => {
+    signalPaymentCreated = resolve;
+    signalPaymentFailed = reject;
+  });
+  const firstPaymentTransaction = db.begin(async (tx) => {
+    try {
+      const created = await tx.unsafe(
+        "select public.record_customer_payment($1::uuid,0.01::numeric,'cash',null,'CI concurrent first collector') as payment_id",
+        [source.invoice_id],
+      );
+      signalPaymentCreated(created[0].payment_id);
+      await tx.unsafe("select pg_catalog.pg_sleep(4)");
+      return created[0].payment_id;
+    } catch (error) {
+      signalPaymentFailed(error);
+      throw error;
+    }
+  });
+  const firstPaymentId = await firstPaymentReady;
+  const competingPayment = concurrentDb.unsafe(
+    "select public.record_customer_payment($1::uuid,$2::numeric,'cash',null,'CI concurrent competing collector') as payment_id",
+    [source.invoice_id,openingBalance.toFixed(2)],
+  ).then(
+    (rows) => ({ ok:true, paymentId:rows[0].payment_id }),
+    (error) => ({ ok:false, error }),
+  );
+
+  let advisoryWaitObserved = false;
+  for (let attempt=0; attempt<60; attempt+=1) {
+    const waiting = await observerDb.unsafe(
+      "select exists(" +
+      "select 1 from pg_catalog.pg_stat_activity " +
+      "where pid<>pg_catalog.pg_backend_pid() and datname=pg_catalog.current_database() " +
+      "and query ilike '%record_customer_payment%' and state='active' " +
+      "and wait_event_type='Lock' and wait_event='advisory') as waiting",
+    );
+    if (waiting[0].waiting) {
+      advisoryWaitObserved = true;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve,50));
+  }
+  const committedFirstPaymentId = await firstPaymentTransaction;
+  assert.equal(committedFirstPaymentId,firstPaymentId,"the first concurrent payment commits exactly once");
+  const competingResult = await competingPayment;
+  assert.ok(advisoryWaitObserved,
+    "the competing database session must be observed waiting on the invoice advisory lock");
+  assert.equal(competingResult.ok,false,
+    "the second individually-valid amount must be rejected after the first concurrent payment commits");
+  assert.match(String(competingResult.error?.message || ""),/payment exceeds invoice balance after posted credit memos/i);
+
+  const afterRace = await receivablesItem(source.invoice_id);
+  assert.equal(Number(afterRace.item.paid_amount),Number(after.item.paid_amount)+0.01,
+    "exactly one racing payment is included in the invoice paid aggregate");
+  assert.equal(Number(afterRace.item.outstanding_amount),Math.max(0,openingBalance-0.01),
+    "the concurrent over-collection does not overshoot the authoritative invoice balance");
+  const raceAuditRows = await db.unsafe(
+    "select count(*)::integer as count from public.customer_payments where organization_id=$1::uuid and invoice_id=$2::uuid and id=$3::uuid",
+    [organizationId,source.invoice_id,firstPaymentId],
+  );
+  assert.equal(raceAuditRows[0].count,1,"the successful concurrent payment persists once");
+
   // Ordinary staff must not read invoice/payment aggregates through a SECURITY DEFINER RPC.
   const staffAuthId = randomUUID();
   const staffProfileId = randomUUID();
@@ -266,5 +343,9 @@ main().catch((error) => {
   process.stderr.write((error && error.stack) || String(error));
   process.exitCode = 1;
 }).finally(async () => {
-  await db.end({ timeout: 5 }).catch(() => {});
+  await Promise.all([
+    db.end({ timeout: 5 }).catch(() => {}),
+    concurrentDb.end({ timeout: 5 }).catch(() => {}),
+    observerDb.end({ timeout: 5 }).catch(() => {}),
+  ]);
 });
