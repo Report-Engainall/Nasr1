@@ -5,18 +5,17 @@
 - Status: IN_PROGRESS
 - Branch / PR: `p1/remaining-work-execution-20261023` / [PR #66](https://github.com/Report-Engainall/Nasr1/pull/66)
 - Base main SHA: `76baf9dbe7860a764abc18e75835abb8750d56a3`
-- Code/test HEAD before this checkpoint: `2ea803e9ecc9ed25b28abc0ca0e27979f29475a6`
-- P1-01 category rename: PR #50 candidate `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; Core CI PASS; browser proof externally blocked before assertions by GHCR rate limit.
-- P1-02 password recovery: PR #44 candidate `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`; Core CI PASS; route-specific browser proof NOT_RUN.
-- P1-03a order-detail retry: Core CI [39905102470](https://github.com/Report-Engainall/Nasr1/actions/runs/39905102470) PASS on exact SHA `16bfe4f96513753dc145dfec17a020f121e1f711`.
-- P1-03b reorder template from order detail: existing `save_reorder_template` RPC; validates source order items/product IDs/approved quantities and response; immediate duplicate-submit guard. Tests in `src/test/customer-order-detail-retry.test.tsx`.
-- P1-03c/d invitation acceptance: company and customer activation flows remove bearer token from URL before network requests and retain in-memory retry. Tests: `src/test/customer-company-members-page.test.tsx`, `src/test/customer-activation-invitations-page.test.tsx`.
-- P1-04/05 customer activation dialog: prevents duplicate invitations and fails closed if current server link state cannot load; both behaviors tested in `src/test/customer-activation-invitations-dialog.test.tsx`.
-- P1-06 category landing: parent no longer downloads all products or performs a second count RPC; delegates product display/filtering to existing paged `Storefront`, preserving the current locked Storefront contract. Test `src/test/storefront-category-landing.test.tsx` uses a canonical ID-backed slug and covers failure/retry.
-- P1-07 audit log: `src/components/AdminAuditLog.tsx` pages tenant-scoped audit events using exact server count and ranges. Test `src/test/admin-audit-log.test.tsx` covers pages, tenant filter, missing count fail-closed, and role denial.
-- CI failed on prior SHAs `6434513b089db6698842b4d0dca3f742173adada` / `e39c3b4071834c62afce56740549dca94cd39726`: test fixture used a non-canonical slug, and category parent performed a paged RPC not handled by P2-locked `src/test/storefront-discovery.test.tsx`'s existing mock. Corrected by using the canonical slug in the new test and delegating product loading to the existing paged Storefront component; never changed the P2-locked test.
-- Exact-head CI after this checkpoint: pending. Browser proof for new controls NOT_RUN; production proof NOT_RUN.
-- Next action: read Core CI on the resulting SHA; fix only observed current-head failures, then proceed to the next independently owned commercial screen.
+- Code/test SHA after the current test correction: `f90f424a2aed820351103aeb20bab6060f65047c`
+- P1-01 category rename: PR #50 candidate `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; Core CI PASS; browser assertion step externally blocked by GHCR rate limit.
+- P1-02 password recovery: PR #44 candidate `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`; Core CI PASS; reset-route-specific browser proof NOT_RUN.
+- P1-03a order-detail retry: Core CI [39905102470](https://github.com/Report-Engainall/Nasr1/actions/runs/39905102470) PASS on SHA `16bfe4f96513753dc145dfec17a020f121e1f711`.
+- P1-03b source-linked reorder template: existing `save_reorder_template` RPC reused; source order and approved quantities are validated; immediate duplicate-submit guard and fail-closed response handling. Test: `src/test/customer-order-detail-retry.test.tsx`.
+- P1-03c/d invitation acceptance: bearer token removed from visible URL before network calls, with in-memory retry retained. Tests: `src/test/customer-company-members-page.test.tsx`, `src/test/customer-activation-invitations-page.test.tsx`.
+- P1-04/05 activation dialog: duplicate invitation guard and fail-closed workspace-load gating with retry. Test: `src/test/customer-activation-invitations-dialog.test.tsx`.
+- P1-06 category landing: delegates product filtering/loading to the existing paged Storefront; parent no longer fetches all products or an extra RPC. Test: `src/test/storefront-category-landing.test.tsx` with canonical slug and retry assertion.
+- P1-07 audit history: tenant-scoped exact count and 200-row pages with previous/next; test covers range and org scope, unknown count fail-closed, and denied-role access. Run [39907047512](https://github.com/Report-Engainall/Nasr1/actions/runs/39907047512) failed only because the test expected an internal error string not rendered by the permission screen; fixed the assertion to match the explicit role-denial UI and still assert zero DB queries. This fix is not yet tested.
+- Exact-head Core CI for `f90f424a2aed820351103aeb20bab6060f65047c`: pending. Browser proof for new controls NOT_RUN; production proof NOT_RUN.
+- Next action: verify Core CI for the final post-checkpoint SHA; fix only a failure reported on that SHA, then move to the next unowned function.
 
 ## Recent execution history
 
@@ -58,3 +57,6 @@ Audit history was hard-limited to the newest 200 events with no way to navigate 
 
 ### 2026-10-23 — P1-06/P1-07 — IMPLEMENTED; current-head CI pending
 Removed the full product fetch/count logic from `StorefrontCategoryLandingPage`; the existing paged `Storefront` now handles product results, category filtering, and true empty state. The prior CI root was a non-canonical slug in the new test and an extra paged RPC that interfered with the P2-locked discovery test mock. Rewrote only the new unlocked category-landing test to use `storefrontCategorySlug`, asserting correct delegation and category-load retry. Audit history pagination remains implemented in `AdminAuditLog` with tenant filters and exact count; dedicated acceptance is in `admin-audit-log.test.tsx`. Changed functional paths: `src/components/StorefrontCategoryLandingPage.tsx`, `src/test/storefront-category-landing.test.tsx`, `src/components/AdminAuditLog.tsx`, `src/test/admin-audit-log.test.tsx`.
+
+### 2026-10-23 — P1-07 regression adjustment — IMPLEMENTED; exact-head CI pending
+The previous Core CI failed one assertion in `src/test/admin-audit-log.test.tsx`: it expected an internal error message while the component renders an explicit access-denied panel. Updated the test to assert the actual visible access-denied heading/content and still verify that no audit query occurs for a customer role. No application code changed in this correction. New test SHA: `f90f424a2aed820351103aeb20bab6060f65047c`; CI not yet run on this SHA.
