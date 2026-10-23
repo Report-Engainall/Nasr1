@@ -16,6 +16,7 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
   const targetProfile = "a9000000-0000-4000-8000-000000000023";
   const foreignAdminProfile = "a9000000-0000-4000-8000-000000000024";
   const adminSession = "a9000000-0000-4000-8000-000000000031";
+  const adminOtherSession = "a9000000-0000-4000-8000-000000000039";
   const staffSession = "a9000000-0000-4000-8000-000000000032";
   const targetSession = "a9000000-0000-4000-8000-000000000033";
   const foreignSession = "a9000000-0000-4000-8000-000000000034";
@@ -38,8 +39,8 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
     [adminProfile,staffProfile,targetProfile,foreignAdminProfile],
   );
   await db.unsafe(
-    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now()-interval '2 days',now()-interval '1 minute',now()-interval '30 seconds',null,'Admin test browser','192.0.2.10'::inet),($3,$4,now()-interval '1 day',now()-interval '2 minutes',now()-interval '1 minute',null,'Staff test browser','192.0.2.11'::inet),($5,$6,now()-interval '3 days',now()-interval '4 minutes',now()-interval '3 minutes',null,'Target test browser','192.0.2.12'::inet),($7,$8,now()-interval '4 days',now()-interval '5 minutes',now()-interval '4 minutes',null,'Foreign tenant browser','192.0.2.13'::inet),($9,$6,now()-interval '9 days',now()-interval '9 days',now()-interval '9 days',now()-interval '1 day','Expired test browser','192.0.2.14'::inet) on conflict(id) do nothing",
-    [adminSession,adminAuth,staffSession,staffAuth,targetSession,targetAuth,foreignSession,foreignAdminAuth,expiredSession],
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now()-interval '2 days',now()-interval '1 minute',now()-interval '30 seconds',null,'Admin test browser','192.0.2.10'::inet),($3,$4,now()-interval '1 day',now()-interval '2 minutes',now()-interval '1 minute',null,'Staff test browser','192.0.2.11'::inet),($5,$6,now()-interval '3 days',now()-interval '4 minutes',now()-interval '3 minutes',null,'Target test browser','192.0.2.12'::inet),($7,$8,now()-interval '4 days',now()-interval '5 minutes',now()-interval '4 minutes',null,'Foreign tenant browser','192.0.2.13'::inet),($9,$6,now()-interval '9 days',now()-interval '9 days',now()-interval '9 days',now()-interval '1 day','Expired test browser','192.0.2.14'::inet),($10,$11,now()-interval '2 hours',now()-interval '1 minute',now()-interval '30 seconds',null,'Admin other device','192.0.2.15'::inet) on conflict(id) do nothing",
+    [adminSession,adminAuth,staffSession,staffAuth,targetSession,targetAuth,foreignSession,foreignAdminAuth,expiredSession,adminOtherSession,adminAuth],
   );
 
   await db.unsafe("reset role");
@@ -90,6 +91,15 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
   await expectFailure("the caller cannot revoke its own current session through the device endpoint",
     () => db.unsafe("select public.revoke_organization_session($1::uuid)", [adminSession]),
     /current administrator session/i);
+  await expectFailure("the caller cannot revoke another session belonging to its own account through the organization endpoint",
+    () => db.unsafe("select public.revoke_organization_session($1::uuid)", [adminOtherSession]),
+    /own sessions|organization endpoint|42501/i);
+  const adminOwnSessionsRemain = await db.unsafe(
+    "select id from auth.sessions where user_id=$1 and id in ($2::uuid,$3::uuid)",
+    [adminAuth,adminSession,adminOtherSession],
+  );
+  assert.equal(adminOwnSessionsRemain.length, 2,
+    "denied organization-level self-revocation leaves both caller sessions untouched");
 
   const revoked = (await db.unsafe(
     "select public.revoke_organization_session($1::uuid) as result", [targetSession],
@@ -160,5 +170,5 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
   assert.equal(bulkAudit.length, 1, "bulk revocation produces exactly one audit event");
   assert.equal(bulkAudit[0].new_value.revoked_count, 3,
     "bulk revocation audit matches the acknowledged deletion count");
-  process.stdout.write("PASS central session management: live-session acceptance, tenant-bounded listing, expiry filtering, audit view/revoke, admin-only individual revocation, self-scoped bulk revocation, cross-tenant denial, current-session protection, and immediate canonical tenant-context rejection after revocation\n");
+  process.stdout.write("PASS central session management: live-session acceptance, tenant-bounded listing, expiry filtering, audit view/revoke, admin-only individual revocation, no self-revocation through organization endpoint, self-scoped bulk revocation, cross-tenant denial, current-session protection, and immediate canonical tenant-context rejection after revocation\n");
 }

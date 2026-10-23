@@ -259,6 +259,18 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='the current administrator session cannot be revoked from this endpoint';
   END IF;
 
+  -- Organization administration may revoke other users' devices, not sibling sessions
+  -- belonging to the administrator's own account. Use the explicit self-scoped bulk RPC.
+  IF EXISTS (
+    SELECT 1
+    FROM auth.sessions AS s
+    WHERE s.id=p_session_id
+      AND s.user_id=auth.uid()
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='42501',
+      MESSAGE='administrators cannot revoke their own sessions through the organization endpoint';
+  END IF;
+
   SELECT p.organization_id INTO v_org
   FROM public.profiles AS p
   WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true;
