@@ -183,7 +183,7 @@ async function main() {
   assert.deepEqual({ orders: firstDay.orders, sales: firstDay.sales }, { orders: 1, sales: 100 });
   assert.deepEqual({ orders: recentDay.orders, sales: recentDay.sales }, { orders: 1, sales: 50 });
   assert.deepEqual({ orders: cancelledDay.orders, sales: cancelledDay.sales }, { orders: 0, sales: 0 });
-  assert.deepEqual({ orders: outsideDay.orders, sales: outsideDay.sales }, { orders: 0, sales: 0 });
+  assert.equal(outsideDay, undefined, "dates outside the 30-day period must not appear in the 30-day trend");
   assert.equal(result.sales_trend.reduce((sum, row) => sum + row.sales, 0), 150,
     "trend total must reconcile to 30-day eligible sales");
   assert.equal(result.sales_trend.reduce((sum, row) => sum + row.orders, 0), 2,
