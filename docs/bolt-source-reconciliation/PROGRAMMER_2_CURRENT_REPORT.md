@@ -1,4 +1,4 @@
-# تقرير P2 — الحالة التنفيذية الحية 2026-10-23T23:07:00+03:00
+# تقرير P2 — الحالة التنفيذية الحية 2026-10-23T23:09:00+03:00
 
 REPOSITORY=Report-Engainall/Nasr1
 MAIN_SHA=391e25847c7cc7fb2ba5f77164600455db04abfd
@@ -10,7 +10,7 @@ PR112=https://github.com/Report-Engainall/Nasr1/pull/112; exact tested head 1aa7
 CURRENT_BRANCH=p2/payment-idempotency-pending-map-20261023
 BASE_SHA=391e25847c7cc7fb2ba5f77164600455db04abfd
 INITIAL_IMPLEMENTATION_TEST_HEAD=cbcbf3db6261b1018c3e83766c575dd854314654
-LATEST_CODE_AND_TEST_HEAD_BEFORE_CHECKPOINT_REFRESH=b9915624033398ad47f7d25f72fc7b7ed9969e4a
+LATEST_CODE_AND_TEST_HEAD_BEFORE_CHECKPOINT_REFRESH=3e91a41de8022408beebe669efbc7611a3792b72
 ACKNOWLEDGEMENT_CONTRACT=Accept only a well-formed UUID payment identifier; null, empty and malformed IDs preserve the retry key.
 CURRENT_TASK=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-PENDING-REQUEST-MAP
 TASK_STATUS=IMPLEMENTED; REGRESSION_TESTS_ADDED; EXACT_FINAL_HEAD_CI_PENDING
@@ -36,7 +36,7 @@ This follow-up, on P2-owned UI/test paths only:
 - No production database writes, real payment processing, or live Onyx/WhatsApp calls were performed.
 
 NEXT_ACTION=Re-read PR #123 after the sequential central checkpoint updates; inspect its final head, Core/P2 terminal jobs and review threads; fix evidenced failures; merge only through the PR after all required checks pass; verify the post-merge main SHA and current CI.
-UPDATED_AT=2026-10-23T23:08:00+03:00
+UPDATED_AT=2026-10-23T23:09:00+03:00
 
 ---
 
