@@ -58,7 +58,7 @@ import { Route as CheckoutRoute } from "@/routes/checkout";
 import { Route as CompareRoute } from "@/routes/compare";
 import { Route as ProductRoute } from "@/routes/product.$id";
 import { Route as ProductsRoute } from "@/routes/products";
-import { Route as SearchRoute } from "@/routes/search";
+import { Route as SearchRoute } from "@/routes/search.index";
 import { Route as StoreAliasRoute } from "@/routes/store";
 import { Route as WishlistRoute } from "@/routes/wishlist";
 import { Route as CompanyContactsRoute } from "@/routes/company.contacts";
