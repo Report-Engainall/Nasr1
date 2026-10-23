@@ -91,7 +91,7 @@ test("advanced search recovers from a category-source failure", async ({ page })
   });
 
   await page.goto("/search/advanced");
-  await expect(page).toHaveURL(/\\/search\\/advanced$/);
+  await expect(page).toHaveURL(/\/search\/advanced$/);
   await expect(page.getByRole("heading", { name: "البحث المتقدم", exact: true })).toBeVisible();
   const categorySelect = page.locator("#advanced-storefront-category");
   // useFetch intentionally presents a generic customer-safe error, not the raw PostgREST body.
