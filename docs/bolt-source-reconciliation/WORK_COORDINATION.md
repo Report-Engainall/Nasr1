@@ -13,6 +13,15 @@
 - تسلسل الدمج: لا تُدمج أو تحدث فروعًا متداخلة بالتوازي. PR #54 هو الذي يحمل تحديث المسار المشترك `.github/workflows/p2-playwright-critical-paths.yml`؛ بعد حسمه حدّث واختبر PR #52 ثم PR #57 بالتتابع مع فحص التعارضات وإعادة تشغيل الاختبارات على SHA الجديد. مراجعة P1 المستقلة لم تُسجّل كنتيجة نهائية بعد.
 - لا اختبارات إنتاجية أو اتصال حيّ بـOnyx/WhatsApp. لا `PRODUCTION_PROVEN`، ولا نجاح خارجي ضمني، ولا تعديل لملفات ملكية P1.
 
+
+## قفل تنفيذ مؤقت — OPS-DR-001: اختبار النسخ الاحتياطي والاستعادة المعزولة — تحديث 23 أكتوبر 2026
+
+- **مالك التنفيذ الوحيد:** P2؛ الفرع `feat/p2-backup-restore-drill-20261022`. أساس الفرع السابق `008bc9a0b5c79dc1a973e4bc1b38d73a1a3dc747` قديم؛ يُحدّث بالتسلسل فوق `024c279a2d1c0226c662e5d916871f45534c7242` دون force-push.
+- **المسارات الحصرية:** `scripts/test-local-backup-restore.mjs` و`.github/workflows/commerce-checks.yml` لخطوة قبول واحدة. لا يشمل القفل صفحات التطبيق أو migrations أو RLS.
+- **القبول:** pg_dump مخصص من PostgreSQL 17 المحلي `aghbari_test`، استعادة إلى قاعدة مؤقتة، مقارنة تعداد المخطط والدوال والسياسات والمحفزات، أعداد الصفوف وبصمات مرتبة لقيم الصفوف في الجداول الحرجة، بصمة SHA-256 للأرشيف وقياس الزمن، ثم حذف قاعدة الاستعادة والمجلد المؤقت.
+- **حدود السلامة:** يرفض السكربت أي مضيف خارج loopback وأي اسم قاعدة مصدر غير `aghbari_test`. لا يستهدف قاعدة مستضافة أو إنتاجية؛ قياسات CI المعزول لا تثبت RTO/RPO للإنتاج.
+- **شرط الإغلاق:** لا يُغلق `OPS-DR-001` إلا بعد Core CI نهائي ناجح وP2 ناجح على SHA النهائي نفسه. تحرير القفل بعد تسجيل نتيجة دمج `main` وبصمة/مدة فعلية من سجل التشغيل.
+
 ---
 
 ## سجل التنسيق الأصلي (للتاريخ فقط)
@@ -828,3 +837,15 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **Acceptance:** isolated PostgreSQL 17; two authenticated sessions call the same apply command while a third independent session holds the command row lock; verify both callers actually wait before release, exactly one apply and one idempotent replay, a single stock movement, a single audit event, final on-hand quantity `15.000`, reserved quantity unchanged at `2.000`, and final idempotency key/command state. Any failure is fixed on this branch and retested on the resulting exact SHA.
 - **Browser boundary:** exact-head P2 Playwright must also pass its local Supabase/Chromium order-persistence and tenant-isolation path. External hosted-account credentials remain `BLOCKED_EXTERNAL` unless the infrastructure gate is genuinely supplied; this is not a live Onyx provider test.
 - **Release condition:** merge only after exact-head Core CI and P2 Playwright terminal success; then verify Core CI against the merge SHA on `main`. Never write directly to `main`, force-push, or merge any overlapping `WORK_COORDINATION.md` change concurrently.
+
+
+## Live ownership and reconciliation — 2026-10-23 (latest entry supersedes older SHA notes)
+
+- `main` at reconciliation start: `52df650957c857cc32c21c8804e3f5e88f73d9e7`. P1 PR: [#66](https://github.com/Report-Engainall/Nasr1/pull/66), branch `p1/remaining-work-execution-20261023`, exact source head before reconciliation `7b4afd00a5abd26cf983ee5f82247ccd0e7c89f1`.
+- **P1 owns until handoff:** the customer/admin implementation in PR #66, its customer-directory, lifecycle/tier command, audit pagination, order-history/invitation UI paths, P1 checkpoint, and P1 acceptance rows. P1 stays responsible for fixing source/test regressions in those paths; a documentation update alone does not close a requirement.
+- **P2 owns integration:** updating and merging eligible branches, exact-SHA Core/Playwright confirmation, PR #50/#43/#71/#72 decisions and merge/closure evidence, the shared coordination file, current CI/backup integration, and follow-up sync to current main.
+- **Shared file lock:** `scripts/test-database-migrations.mjs` contains P1 customer lifecycle/role acceptance and P2 order-input/inventory acceptance. Never replace this file wholesale from either branch. Preserve the distinct test blocks and imports, and reconcile subsequent changes serially.
+- Current P2 order-input acceptance from `main` is retained through `scripts/test-order-input-hardening.mjs` and its invocation in the PostgreSQL migration test. The merge also preserves main’s `.github/workflows/commerce-checks.yml`, `scripts/test-local-backup-restore.mjs`, and lock note `locks/P2_ORDER_INPUT_HARDENING_ACCEPTANCE_2026-10-22.md`.
+- PR #58 is already merged at `52df650957c857cc32c21c8804e3f5e88f73d9e7`; do not reimplement its order-input helper. PR #72 must remain open until its latest Core and Playwright checks finish successfully. Previously read PR #72 head `469f0ef35da749d095988cdff3d890c8e795e41c` failed Core at the post-race reorder-point fixture (actual 1, expected 20); a subsequent branch head `841709a6f500e7ea81fcec9447da9f61671d2ba0` has fresh checks pending and is not merge-ready until those checks are terminal successes.
+- PR #71 Core passed, but Playwright failed during Chromium/OS-dependency installation timeout; PR #50 and #43 have prior Playwright failures at isolated Supabase image startup from GHCR rate limiting. These are **not** functional acceptance passes; rerun or repair infrastructure, and report any still-unrun authenticated path honestly.
+- No direct writes to `main`, no force-push, no destructive reset. After this merge commit, verify its exact SHA and run Core + Playwright against that SHA before making PR #66 ready or merging it.

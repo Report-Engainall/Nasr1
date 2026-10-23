@@ -119,3 +119,19 @@ Canonical resumption is tracked only in `docs/bolt-source-reconciliation/CURRENT
 
 
 | `NASR1-FINANCE-STATEMENT-AGING-SUMMARY-001` | `TESTED / CI SUCCESS` | Full customer ledger summary inside the existing account-statement RPC, with per-invoice full-ledger payment/outstanding fields and bounded detail arrays; PDF consumes the authoritative summary and preserves exact bigint money arithmetic. CI [39148856503 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39148856503) passed unit, PostgreSQL 17 acceptance, lint, build, preview and dev smoke. | Next: test that the summary stays full when detail lists cross 200/500 row caps. |
+
+
+## Nasr1 P1 customer/admin implementation evidence — 2026-10-23
+
+The following features are committed on PR #66 and tested on exact source SHA `7b4afd00a5abd26cf983ee5f82247ccd0e7c89f1`. They remain **PR_OPEN / not yet integrated into main** until sequential integration is re-tested.
+
+| Requirement | Implementation and acceptance evidence | Status / boundary |
+|---|---|---|
+| P1-CUST-DIRECTORY-001 | `src/lib/customer-directory.ts`, `src/pages/admin/AdminCustomers.tsx`, directory/API tests; Core [39918895865](https://github.com/Report-Engainall/Nasr1/actions/runs/39918895865); Playwright [39918895866](https://github.com/Report-Engainall/Nasr1/actions/runs/39918895866). | `IMPLEMENTED; TESTED_EXACT_SHA`; main integration pending. |
+| P1-CUST-TIER-COMMAND-001 | `supabase/migrations/20261023090000_admin_customer_tier_command.sql`, `updateCustomerTier`, role/tenant/audit acceptance; same exact-SHA CI. | `IMPLEMENTED; TESTED_EXACT_SHA`; production migration NOT RUN. |
+| P1-CUST-LIFECYCLE-001 | `supabase/migrations/20261023100000_customer_lifecycle_command.sql`, `20261023110000_customer_lifecycle_restore_approval_timestamp.sql`, lifecycle/audit tests; same exact-SHA CI. | `IMPLEMENTED; TESTED_EXACT_SHA`; production database proof NOT RUN. |
+| P1-CUST-ORDER-HISTORY-001 | `src/components/CustomerOrders.tsx`; server-side status filter, page/count alignment, error retry and source-linked reorder tests; same exact-SHA CI. | `IMPLEMENTED; TESTED_EXACT_SHA`; production browser acceptance NOT RUN. |
+| P1-CUST-INVITATIONS-001 | Activation/company invitation handlers guard stale workspace, duplicate submissions, URL token exposure and safe retry; component tests; same exact-SHA CI. | `IMPLEMENTED; TESTED_EXACT_SHA`; external mail delivery NOT PROVEN. |
+| P1-ADMIN-AUDIT-PAGING-001 | `src/components/AdminAuditLog.tsx`, paginated tenant-scoped audit reads and localized action labels; same exact-SHA CI. | `IMPLEMENTED; TESTED_EXACT_SHA`; all-page browser proof NOT RUN. |
+
+Current-main reconciliation performed as a merge commit must preserve P1’s customer-lifecycle acceptance in `scripts/test-database-migrations.mjs` and main’s independent order-input hardening acceptance helper. The resulting combined SHA must receive its own Core and Playwright runs; neither current P1-head nor old main PASS is transferable.

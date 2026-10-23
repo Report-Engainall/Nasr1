@@ -10,8 +10,16 @@
 - Tier command now exists in `supabase/migrations/20261023090000_admin_customer_tier_command.sql` and client wrapper `updateCustomerTier`. It requires active admin/manager in the tenant, valid tier, reason, and matching old tier under lock; emits before/after audit; blocks direct tier UPDATE. UI dialog is present in `src/components/AghbariApp.tsx` with API/UI/Postgres acceptance tests, but the old routed page was still bypassing it.
 - **Routed customer page correction (this batch; exact-head CI pending):** `src/App.tsx` routes `/admin/customers` to `src/pages/admin/AdminCustomers.tsx`; that legacy page used stale `customer_tier` numeric and direct table updates despite the canonical schema using `tier` text, and it bypassed the tenant-scoped directory. `AdminCustomers.tsx` now hosts the canonical `Customers` directory inside `AuthProvider` and renders its notices accessibly; the adapter test `src/test/admin-customers-route.test.tsx` verifies route mounting and accessible notice/close behavior. This removes that old direct-write UI from the active route rather than duplicating another customer service.
 - Concurrent P2 commit `624e85cd947b56e5282d78a1ae040a7ef0a0ecb2` expanded safe partial-email searches but malformed the wildcard-escape statement in `src/lib/customer-directory.ts`; fixed in `d4cdc75ef002258b9142614e58bd3453c78cd9a0`. Exact-head Core [39914410486](https://github.com/Report-Engainall/Nasr1/actions/runs/39914410486) was IN_PROGRESS and Playwright [39914410474](https://github.com/Report-Engainall/Nasr1/actions/runs/39914410474) PENDING at readback before this route batch.
-- The tier batch and route adapter must be retested on this new head. Authenticated production browser proof and production database proof are NOT_RUN.
+- Exact-head verification is now available for P1 head `7b4afd00a5abd26cf983ee5f82247ccd0e7c89f1`: Core CI [39918895865](https://github.com/Report-Engainall/Nasr1/actions/runs/39918895865) SUCCESS and P2 Playwright Critical Paths [39918895866](https://github.com/Report-Engainall/Nasr1/actions/runs/39918895866) SUCCESS. These results apply only to this SHA; full authenticated production-browser and production-database proof remain NOT_RUN.
 - Next action: read exact-head Core and Playwright results, fix only concrete failures, then proceed with the next P1 customer lifecycle gap. Avoid redoing directory paging/search, activation invites/memberships, Customer 360, order history, category, and audit work. Do not alter P2-locked customer workflow/storefront, finance, inventory, Onyx, or E2E files.
+
+## Latest exact-head proof — 2026-10-23
+
+- Tested P1 source SHA: `7b4afd00a5abd26cf983ee5f82247ccd0e7c89f1`.
+- Core CI: **SUCCESS** — [39918895865](https://github.com/Report-Engainall/Nasr1/actions/runs/39918895865).
+- P2 Playwright Critical Paths: **SUCCESS** — [39918895866](https://github.com/Report-Engainall/Nasr1/actions/runs/39918895866).
+- This validates repository checks on that exact PR head only. It does not prove that all customer/admin workflows are browser-certified or that production data/migrations were exercised.
+- Current main at sync start: `52df650957c857cc32c21c8804e3f5e88f73d9e7`. The integration commit below preserves P1’s customer lifecycle changes plus main’s order-input acceptance and coordination/backup workflow updates. All checks must run again on the resulting integration SHA before the PR is considered merge-ready.
 
 ## Recent execution history
 
