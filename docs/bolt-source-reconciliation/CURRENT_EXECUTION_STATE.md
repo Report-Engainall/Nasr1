@@ -15,16 +15,17 @@
 
 **next_task_id = AUTH-CENTRAL-SESSION-BACKEND-P2**
 
-- PR #83: [العقد الخلفي لإدارة الجلسات المركزية](https://github.com/Report-Engainall/Nasr1/pull/83)، الفرع `feat/p2-central-session-backend-20261023`، الرأس الحالي بعد دمج main دون force-push هو `49ea0ce8936bf319a1941ea0ba0a1f03ebec9c3c`، والحالة OPEN/Draft. قارن التغيير مع main: `behind_by=0`، ولا تعارض في الملفات.
-- [Core CI على الرأس النهائي الحالي](https://github.com/Report-Engainall/Nasr1/actions/runs/39956842859): **IN PROGRESS** عند آخر قراءة. Core نجح كاملًا على الرأس السابق `ca0156b...` بما فيه PostgreSQL 17 والمهاجرات واختبارات الجلسات والـlint/build والـsmoke، لكن هذا لا يثبت SHA الدمج الجديد.
-- [P2 Playwright على الرأس النهائي الحالي](https://github.com/Report-Engainall/Nasr1/actions/runs/39956842892): **IN PROGRESS** عند آخر قراءة؛ نجح حارس البنية التحتية، وما زال اختبار Chromium العام يجهز البيئة. لم يصل الاختبار المحلي مع Supabase إلى خطوة المهاجرات بعد. حارس الاعتمادات المستضافة قد يتخطى اختبار الحسابات الخارجية؛ لا تسم ذلك قبولًا للواجهة أو للحسابات الخارجية.
-- الفجوة الأمنية الإضافية عولجت في الكود عبر `public.revoke_other_auth_sessions()`: إنهاء جلسات المستخدم نفسه الأخرى فقط، والحفاظ على الجلسة الحالية، وإرجاع IDs/العدد المحذوف بدقة وسجل تدقيق واحد. أضيف اختبار PostgreSQL 17 لحماية جلسات المستخدمين الآخرين، بما فيها جلسة مؤسسة أخرى. هذه الوظيفة ليست تسجيل خروج جماعيًا للمؤسسة، وواجهة P1 لا تُعد مدمجة بها بعد.
-- تم تشخيص فشل تشغيل P2 القديم بلا Jobs: ذيل مكرر مبتور بعد اكتمال الوظيفة في `.github/workflows/p2-playwright-critical-paths.yml` بدءًا من السطر 493؛ أُزيل. التشغيل الجديد أنشأ Jobs فعلية. احتفظ بالفشل القديم كسجل تاريخي ولا تخلطه بحالة الرأس الحالي.
-- فرع #83 محدث إلى رأس main `cb72f35...` بدمج Git عادي، دون force-push. لا تدمج #83 قبل نجاح Core وP2 على الرأس النهائي نفسه ومراجعة حدود SECURITY DEFINER/التبعيات. PR #88 يملك دمج واجهة الأجهزة؛ لم تُعدّل ملفات الواجهة المملوكة لـP1.
+- PR #83: [العقد الخلفي لإدارة الجلسات المركزية](https://github.com/Report-Engainall/Nasr1/pull/83)، الفرع `feat/p2-central-session-backend-20261023`، الرأس الحالي `04241376b769403bc6a6357265c51cf1ca66e3e2`، والحالة OPEN/Draft. فرع PR محدث إلى main `cb72f35de524af82f63bbbcebec97213464921ed` بدمج Git غير قسري؛ compare يؤكد `behind_by=0`.
+- [Core CI على الرأس الحالي](https://github.com/Report-Engainall/Nasr1/actions/runs/39958234359): **IN PROGRESS** عند آخر قراءة، بدأ تثبيت التبعيات من القفل المجمد.
+- [P2 Playwright على الرأس الحالي](https://github.com/Report-Engainall/Nasr1/actions/runs/39958234348): **PENDING** عند آخر قراءة؛ لا يوجد PASS حتى الآن على هذا SHA.
+- فشلت محاولات سابقة على الرأس `7c4cef696807a7fa081f4ae89b995e6a805b398f` بسبب HTTP 429 من مستودع حزم Lovable خلال التنزيل (وليس بسبب mismatch القفل أو اختبار التطبيق). أُضيفت إعادة محاولة محدودة 3 مرات مع backoff فقط عند 429 في `.github/workflows/commerce-checks.yml` وفي مواضع Bun الثلاثة داخل `.github/workflows/p2-playwright-critical-paths.yml`; أي خطأ آخر يظل fail-fast. التشغيل الحالي يتحقق من أثر هذا التصحيح.
+- قيد أمني أُغلق في الكود: `revoke_organization_session` يرفض الجلسة الحالية وكل جلسة ثانية للحساب المستدعي، ويستخدم تسجيل الخروج الذاتي الإجراء المنفصل `revoke_other_auth_sessions()`. أضيف fixture لجلسة جهاز ثانية للمدير واختبار يثبت رفض الإجراء المركزي مع بقاء جلستيه. الإجراء الذاتي الآخر يزيل جلسات `auth.uid()` الأخرى فقط، ويحتفظ بالحالية، ويعيد المعرّفات/العدد مع حدث تدقيق واحد. هذا ليس إلغاءً جماعيًا على مستوى المؤسسة.
+- إصلاح P2 workflow القديم الذي كان يفشل قبل إنشاء Jobs باقٍ: أزيل الذيل المكرر المبتور من `.github/workflows/p2-playwright-critical-paths.yml`. لا تُحوّل حالات الفشل التاريخية على رؤوس سابقة إلى دليل للرأس الحالي.
+- P2 لم يعدّل ملفات واجهة الأجهزة المملوكة لـP1. أُضيف تعليق تنسيق على [PR #88](https://github.com/Report-Engainall/Nasr1/pull/88): الواجهة الظاهرة حاليًا تعرض الجلسة المحلية وتستعمل `supabase.auth.signOut({scope:'others'})`؛ لا تثبت تكامل واجهة قائمة جلسات المؤسسة وإلغائها عبر RPCs.
+- لا تدمج #83 حتى تنجح Core وP2 على `04241376...` أو رأس نهائي أحدث، ثم راجع حدود SECURITY DEFINER وتبعيات الدمج في PR #88. إثبات المتصفح للوحة جلسات المؤسسة والإثبات الإنتاجي غير مدّعيين.
 
-**المهمة التالية المستقلة بعد إغلاق #83: PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE.**
-
-- PR #82 ما يزال OPEN عند الرأس المختبَر `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`؛ [Core CI](https://github.com/Report-Engainall/Nasr1/actions/runs/39953364100) و[P2 Playwright](https://github.com/Report-Engainall/Nasr1/actions/runs/39953364029) **SUCCESS** على الرأس نفسه. يلزم إعادة التحقق من أحدث base/sha إذا تغير الفرع أو قاعدة الدمج قبل إغلاقه. شمل P2 دعوات مدير العملاء وعزل المؤسسة والطباعة وتصدير Onyx، لكنه لا يثبت إرسال بريد إنتاجي.
+**المهمة التالية بعد إغلاق #83: PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE.**  
+#82 ما يزال OPEN، وآخر اختبارات PASS على `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591` قديمة بالنسبة إلى main؛ يجب مزامنته مع `cb72f35...` وإعادة Core/P2 على SHA النهائي قبل قرار الإغلاق أو الدمج. اختبارات الدعوة لا تثبت إرسال بريد إنتاجي.
 
 ## 3. مسار P2 التالي بعد إغلاق #82
 
