@@ -1,14 +1,14 @@
-# تحديث P2 الحي — 23 أكتوبر 2026، 2026-10-23T17:00:00+03:00
+# تحديث P2 الحي — 23 أكتوبر 2026، 2026-10-23T17:10:00+03:00
 
-هذا القسم هو الحالة الأحدث. التقارير التاريخية لا تُحوّل PASS بين الرؤوس.
+هذا القسم هو الحالة الأحدث؛ الأقسام أدناه سجل تاريخي ولا تنقل PASS بين الرؤوس.
 
-- **main:** `59547c7d683cefd65cab445b97219aa701021676`; Core [39956957952](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952) = SUCCESS على رأس main نفسه.
-- **PR #83:** الرأس الحالي `1f60e27ecef78c86cc3b343b10335e5b09dfff33`, base `59547c...`, OPEN/Draft. Core [39965936282](https://github.com/Report-Engainall/Nasr1/actions/runs/39965936282) = IN_PROGRESS وP2 [39965936142](https://github.com/Report-Engainall/Nasr1/actions/runs/39965936142) = PENDING. الرأس السابق `91c87e0...` اجتاز Core [39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) وP2 [39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847)؛ لا تُنقل نتائجهما إلى الرأس الجديد.
-- **مراجعة الجلسات/الأمان:** اكتُشف أن `can_manage_finance()` يستخدم `auth.uid()` والدور بلا تحقق من صف الجلسة الحية. تم ربطه بـ`current_profile_id()` في #83 وإضافة PostgreSQL assertions لرفض المالية/الأدوار/الموظفين/المهام بعد سحب الجلسة. يجب مراجعة هذه الدفعة واختبارها على SHA الحالي قبل إغلاق #83.
-- **PR #95:** الرأس `024e155a2135a104a7dc1c6d8ced7e2018b0a467`. Core [39964921878](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921878) وP2 [39964921887](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921887) = SUCCESS على الرأس نفسه؛ توجد علامة قبول صريحة `PASS staff receivables aging`. اختيار fixture يستبعد بنود الفواتير التي لها أي تاريخ مرتجع سابق، ويختبر أن الاستلام والمسودة لا يغيران الذمم بينما الترحيل يخفضها بمقدار الإشعار المنشور. يبقى PR95 Draft انتظارًا لتسلسل دمج migrations بعد #83.
-- **الترتيب:** `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`; بعد نجاح Core/P2 ومراجعة الأمن على رأس #83 الأخير، يصبح الدمج مؤهلًا؛ بعد دمجه يُحدّث #95 فوق main الجديد ويعاد اختباره إذا تغير SHA. ثم يتبع #82 بالتتابع.
-- **عوائق خارجية:** Onyx live sync/target import وWhatsApp Business API الرسمي = `BLOCKED_EXTERNAL`; استعادة الإنتاج = `NOT RUN`. hosted-account E2E في P2 workflows ظل SKIPPED لغياب اعتمادات غير إنتاجية.
-
+- **main:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`. Core [39966840332](https://github.com/Report-Engainall/Nasr1/actions/runs/39966840332) = IN_PROGRESS. الفرق عن main السابق توثيقي فقط في ملفي P1 report/checkpoint.
+- **PR #83 / AUTH-CENTRAL-SESSION-BACKEND-P2:** head `d2706613906ab401a28628de101a500b8b80b2d5`, base `59547c...`, OPEN/Draft. Core [39966420997](https://github.com/Report-Engainall/Nasr1/actions/runs/39966420997) = SUCCESS ويحتوي على `PASS central session management`. P2 [39966421033](https://github.com/Report-Engainall/Nasr1/actions/runs/39966421033) = IN_PROGRESS عند تثبيت Chromium OS dependencies من browser cache. لا دمج قبل النتيجة النهائية.
+- **تصحيح أمني:** `can_manage_finance()` مربوط الآن بـ`current_profile_id()` ويحتفظ بأدوار `admin/manager/accountant`. الرأس `1f60e27...` فشل Core لأن دور accountant سقط من القائمة؛ أُصلح في `d270661...` ونجح Core على الرأس الحالي.
+- **تزامن main:** تحديث P1 نقل main إلى `f7565a...` خلال العمل، وهو تغيير وثائقي فقط. بعد نتيجة P2، حدّث فرع #83 إلى main الحالي بدمج غير قسري وأعد Core/P2 على SHA الناتج.
+- **PR #95 / FIN-INVOICE-001:** head `024e155a2135a104a7dc1c6d8ced7e2018b0a467`. Core [39964921878](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921878) وP2 [39964921887](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921887) = SUCCESS على الرأس نفسه؛ Core log صرّح `PASS staff receivables aging`. PR #95 Ready for review ولم يُدمج؛ حدّثه وأعد CI فوق main بعد دمج #83.
+- **الترتيب التالي:** `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`; بعد نجاح P2 على الرأس النهائي ومراجعة الأمان، ادمج #83، ثم حدّث #95 فوق main الجديد واختبره، ثم انتقل إلى #82.
+- **حدود الإثبات:** Onyx live sync/target import وWhatsApp Business API الرسمي = `BLOCKED_EXTERNAL`; production restore = `NOT RUN`. Hosted account E2E بقي SKIPPED لغياب اعتمادات اختبار غير إنتاجية.
 # تصحيح الحالة التنفيذية لـP2 — 22 أكتوبر 2026
 
 **مرجع أحدث من السجل التاريخي أدناه.** تقارير هذا الملف تحافظ على أحداثها القديمة؛ أي جملة في الأسفل تفيد بأن PR #18 أو #26 ما زال مفتوحًا، أو أن تكامل خصوصية أسعار Storefront لم يحدث، تعود إلى نقطة قراءة تاريخية ولا تمثل main الحالي.
