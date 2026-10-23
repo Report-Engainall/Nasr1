@@ -173,7 +173,7 @@ Extended least-privilege customer_manager access to activation-link management w
 
 ## P1 session UI network-failure retry coverage — 2026-10-23T16:15+03:00
 
-- LAST_COMPLETED_TASK_ID: `P1-SESSION-LIST-NETWORK-RETRY-TEST` test added; exact-head validation pending.
+- LAST_COMPLETED_TASK_ID: `P1-INVITE-EXPIRY-90`. CURRENT_TASK_ID: `P1-SESSION-LIST-NETWORK-RETRY-TEST` (implementation committed; exact-head validation pending).
 - CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
 - BASE_SHA: original PR #88 base `0396b29aeab8c09c430df0063821251208a38477`; main at latest integration point `59547c7d683cefd65cab445b97219aa701021676`.
 - HEAD_SHA: new functional/test commit `7adeec2fa2490840aa213449a2d87f49b4e97b74`.
