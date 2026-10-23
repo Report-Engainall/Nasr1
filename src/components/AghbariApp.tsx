@@ -550,7 +550,7 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
           <input
             aria-label="البحث في دليل العملاء"
             value={query}
-            maxLength={120}
+            maxLength={254}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="ابحث باسم المنشأة أو جهة الاتصال أو الهاتف أو البريد الإلكتروني أو رمز العميل..."
           />

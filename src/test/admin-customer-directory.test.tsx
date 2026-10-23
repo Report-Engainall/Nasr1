@@ -74,6 +74,7 @@ describe('admin customer directory paging', () => {
     expect(host?.textContent).toContain('متجر 25');
     expect(host?.textContent).not.toContain('متجر 26');
     expect(host?.querySelector('[aria-label="إجمالي نتائج دليل العملاء"]')?.textContent).toContain('٣٠');
+    expect(host?.querySelector<HTMLInputElement>('input[aria-label="البحث في دليل العملاء"]')?.maxLength).toBe(254);
 
     await act(async () => {
       host?.querySelector<HTMLButtonElement>('button[aria-label="صفحة العملاء التالية"]')?.click();
