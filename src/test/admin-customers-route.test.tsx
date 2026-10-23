@@ -6,11 +6,11 @@ const mocks = vi.hoisted(() => ({
   renderCustomerDirectory: vi.fn(),
 }));
 
-vi.mock('../../lib/auth', () => ({
+vi.mock('@/lib/auth', () => ({
   AuthProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
-vi.mock('../../components/AghbariApp', () => ({
+vi.mock('@/components/AghbariApp', () => ({
   Customers: (props: { onNotice: (message: string) => void }) => {
     mocks.renderCustomerDirectory(props);
     return null;
