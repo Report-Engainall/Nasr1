@@ -118,11 +118,12 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
       throw new Error('لم يؤكد الخادم بيانات صفحات دليل العملاء.');
     }
     const sanitizedRows = payload.rows.map(sanitizeCustomerManagerDirectoryRow);
-    if (sanitizedRows.some((row) => row === null) || sanitizedRows.length > pageSize) {
+    const rows = sanitizedRows.filter((row): row is Customer => row !== null);
+    if (rows.length !== payload.rows.length || rows.length > pageSize) {
       throw new Error('أعاد الخادم سجلات غير صالحة لدليل العملاء.');
     }
     return {
-      rows: sanitizedRows as Customer[],
+      rows,
       totalCount: payload.total_count,
       page: payload.page,
       pageSize,
