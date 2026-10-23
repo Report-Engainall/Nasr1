@@ -478,3 +478,20 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: OPEN / DRAFT / NOT MERGE-READY until the dedicated integrated session browser scenarios execute and pass.
 - UPDATED_AT: 2026-10-23T17:46+03:00
+
+
+## P1 live CI readback — updated session expiry assertions; dedicated session spec remains unexecuted — 2026-10-23T17:52+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-E2E-UNEXPIRED-JWT-001` (the browser spec now asserts the exact revoked session ID and an unexpired JWT at request start and after denial).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c`.
+- FUNCTIONAL_HEAD_SHA: `916f68fbb362c6d430efbef294391155e601c156`.
+- LAST_CONFIRMED_TESTS: Core [39972851057 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972851057) and P2 [39972851031 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972851031) both ran on exact pre-status documentation head `37be3a6ae29be70cc87d8e7a4c236a460e215d5d`, which includes functional SHA `916f68f...`. Core unit tests, PostgreSQL 17 migrations/acceptance, lint/build/preview/dev smoke, and configured price-visibility Chromium checks passed. P2 public UI smoke and the configured isolated local Supabase job succeeded; hosted customer-order/tenant isolation was explicitly skipped by its external-infrastructure gate.
+- FAILED_OR_NOT_RUN_TESTS: the session-specific `e2e/device-session-management.spec.ts` remains **NOT RUN** by the P2 workflow, which still invokes only the configured commerce critical-path/returns/Onyx/finance specs. Generic Playwright success is not central-session acceptance.
+- FILES_CHANGED: `e2e/device-session-management.spec.ts`; this checkpoint/report update is documentation-only. The E2E spec now checks that the exact expected `session_id` is present and that `exp` exceeds both the protected-request start time and the time after its denied response.
+- LOCKED_PATHS: `.github/workflows/p2-playwright-critical-paths.yml`, P2 seed/workflow and SQL/RPC/RLS/API/type/finance paths, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, shared acceptance matrix, and P3 #89 paths. No locked paths edited.
+- NEXT_ACTION: P2 must add `scripts/seed-p1-device-session-playwright.mjs` plus both tests from `e2e/device-session-management.spec.ts` to the existing isolated local Supabase/Chromium job, after DB setup and environment export. Re-read the exact final SHA/run and require targeted same-tenant revocation → protected RPC denial with still-unexpired token, plus self-scoped bulk revoke retaining current session and denying sibling session. The request is recorded at [#83 comment 6367739971](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6367739971).
+- BLOCKER: missing session-specific invocation is P2-owned; hosted/production E2E remains NOT RUN.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: OPEN / DRAFT / NOT MERGE-READY.
+- UPDATED_AT: 2026-10-23T17:52+03:00
