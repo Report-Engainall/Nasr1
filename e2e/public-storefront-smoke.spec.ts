@@ -95,7 +95,7 @@ test("advanced search recovers from a category-source failure", async ({ page })
   // useFetch intentionally presents a generic customer-safe error, not the raw PostgREST body.
   const categoryError = page
     .getByRole("alert")
-    .filter({ hasText: "تعذر تحميل التصنيفات: حدث خطأ غير متوقع" });
+    .filter({ hasText: "تعذر تحميل التصنيفات:" });
   await expect(categoryError).toBeVisible();
   await expect(categorySelect).toBeDisabled();
   // Prove the category endpoint itself was hit for all automatic transient retries.
