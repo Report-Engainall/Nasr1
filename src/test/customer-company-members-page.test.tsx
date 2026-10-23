@@ -160,6 +160,33 @@ describe("customer company membership screens", () => {
     expect(mocks.createInvite).not.toHaveBeenCalled();
   });
 
+  it("disables revocation against stale memberships if the workspace refresh fails", async () => {
+    mocks.fetchWorkspace
+      .mockReset()
+      .mockResolvedValueOnce(workspace)
+      .mockRejectedValueOnce(new Error("تعذر تحديث أعضاء الشركة"));
+
+    const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");
+    render(<CustomerCompanyMembersPage />);
+
+    expect(await screen.findByText("سارة الأغبري")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إلغاء العضوية" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "إلغاء الدعوة" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "تحديث" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحديث أعضاء الشركة");
+
+    const revokeMemberButton = screen.getByRole("button", { name: "إلغاء العضوية" });
+    const revokeInvitationButton = screen.getByRole("button", { name: "إلغاء الدعوة" });
+    expect(revokeMemberButton).toBeDisabled();
+    expect(revokeInvitationButton).toBeDisabled();
+
+    fireEvent.click(revokeMemberButton);
+    fireEvent.click(revokeInvitationButton);
+    expect(mocks.revokeMember).not.toHaveBeenCalled();
+    expect(mocks.revokeInvitation).not.toHaveBeenCalled();
+  });
+
   it("revokes active members and pending invitations only through their explicit actions", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");

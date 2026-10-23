@@ -79,3 +79,6 @@ Added a status filter to the customer order-history page. The selected status is
 
 ### 2026-10-23 — P1-11 test-driven correction — IMPLEMENTED; exact-head CI pending
 The first Core CI for status filtering ran 736/737 unit tests successfully. The only failure exposed a real UI gap: result count was only rendered in pagination controls, so a filtered set that fit one page showed no count. Added a separate count status line whenever the server confirms a count and the page is not loading/error; the filter-specific and all-orders labels are distinguished. Updated the test to assert the localized number. Paths remain `src/components/CustomerOrders.tsx` and `src/test/customer-orders-pagination.test.tsx`.
+
+### 2026-10-23 — P1-12 — IMPLEMENTED; exact-head CI pending
+Company-members cards previously left revoke actions enabled when a manual workspace refresh failed, allowing actions against stale membership/invitation rows. Revoke handlers now fail closed unless workspace data exists and the latest read has no error; both buttons use the same guard while loading/error is present. A regression test loads the workspace, forces refresh to fail, verifies both controls are disabled, and confirms no revoke service is called. Paths: `src/components/CustomerCompanyMembers.tsx`, `src/test/customer-company-members-page.test.tsx`. CI pending on the new current head.
