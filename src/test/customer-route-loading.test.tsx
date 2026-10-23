@@ -28,6 +28,14 @@ vi.mock("@/components/CustomerWorkflows", () => ({
   OfflineWorkspacePage: () => null,
   QuoteWorkspacePage: () => null,
   ReorderWorkspacePage: () => null,
+  CustomerCompanyContactsPage: () => null,
+}));
+vi.mock("@/components/CustomerCompanyMembers", () => ({
+  CustomerCompanyMembersPage: () => null,
+  CompanyInvitationAcceptancePage: () => null,
+}));
+vi.mock("@/components/CustomerActivationInvitationPage", () => ({
+  CustomerActivationInvitationPage: () => null,
 }));
 
 import { Route as OrderDetailRoute } from "@/routes/orders.$id";
@@ -53,6 +61,11 @@ import { Route as ProductsRoute } from "@/routes/products";
 import { Route as SearchRoute } from "@/routes/search";
 import { Route as StoreAliasRoute } from "@/routes/store";
 import { Route as WishlistRoute } from "@/routes/wishlist";
+import { Route as CompanyContactsRoute } from "@/routes/company.contacts";
+import { Route as CompanyMembersRoute } from "@/routes/company.members";
+import { Route as CompanyAcceptInvitationRoute } from "@/routes/company.accept-invitation";
+import { Route as InviteTokenRoute } from "@/routes/invite.$token";
+import { Route as CustomerActivateTokenRoute } from "@/routes/customer.activate.$token";
 
 type RouteWithComponent = { options: { component: ComponentType } };
 const customerRoutes = [
@@ -79,6 +92,11 @@ const customerRoutes = [
   { label: "search", route: SearchRoute, expected: "جار فتح البحث…" },
   { label: "store alias", route: StoreAliasRoute, expected: "جار فتح المتجر..." },
   { label: "wishlist", route: WishlistRoute, expected: "جار تحميل المفضلة..." },
+  { label: "company contacts", route: CompanyContactsRoute, expected: "جارٍ تحميل جهات الاتصال..." },
+  { label: "company members", route: CompanyMembersRoute, expected: "جارٍ تحميل أعضاء الشركة..." },
+  { label: "company invitation acceptance", route: CompanyAcceptInvitationRoute, expected: "جارٍ التحقق من الدعوة..." },
+  { label: "invitation token", route: InviteTokenRoute, expected: "جارٍ التحقق من الدعوة..." },
+  { label: "customer activation token", route: CustomerActivateTokenRoute, expected: "جارٍ التحقق من رابط التفعيل..." },
 ] as const;
 
 afterEach(() => cleanup());
