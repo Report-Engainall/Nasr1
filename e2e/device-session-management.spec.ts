@@ -105,7 +105,7 @@ async function expectProtectedTenantRpcDenied(page: Page, expectedSessionId: str
   expect(result.expiresAt, "The JWT must still be unexpired when the protected request starts.").toBeGreaterThan(result.requestStartedAt);
   expect(result.expiresAt, "The JWT must still be unexpired after the protected request returns.").toBeGreaterThan(Math.floor(Date.now() / 1000));
   expect(result.ok, "A revoked but not-yet-expired JWT must lose protected tenant context immediately.").toBe(false);
-  expect(result.status).toBeGreaterThanOrEqual(400);
+  expect(result.status, "A revoked but unexpired session must be denied by the tenant authorization boundary, not fail with a server error.").toBe(403);
 }
 
 test.describe("central device-session management — real local Supabase", () => {
