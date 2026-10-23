@@ -152,7 +152,7 @@ describe("StaffFinancePage payment amount guard", () => {
     expect(container.textContent).toContain("تم تسجيل الدفعة وتحديث حالة الفاتورة.");
     expect(rpcMock).toHaveBeenCalledWith("record_customer_payment", {
       p_invoice_id: INVOICE_ID,
-      p_amount: 75,
+      p_amount: 50,
       p_payment_method: "cash",
       p_reference: null,
       p_notes: null,

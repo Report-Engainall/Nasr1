@@ -2493,7 +2493,7 @@ export function StaffFinancePage() {
     const raw = i.outstanding_amount;
     if (raw === undefined || raw === null) return null;
     const normalized = String(raw).trim();
-    if (!/^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$/.test(normalized)) return null;
+    if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(normalized)) return null;
     const cents = Math.round(Number(normalized) * 100);
     return Number.isSafeInteger(cents) && cents >= 0 ? cents / 100 : null;
   };
