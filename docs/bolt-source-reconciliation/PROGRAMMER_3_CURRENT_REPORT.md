@@ -1,28 +1,33 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T21:06:37.080+03:00
-LAST_COMPLETED_TASK_ID: P3-ADDR-ROUTE-ACCEPT-001 — actual-route /addresses acceptance implemented and terminal Core/P2 checks passed on PR #105 exact SHA.
+UPDATED_AT: 2026-10-23T22:14:59.384+03:00
+LAST_COMPLETED_TASK_ID: P3-COMPANY-CONTACTS-ROUTE-ACCEPT-001 — PR #113 Core and P2 runnable gates completed successfully on its exact head; independent review still required.
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
-BASE_SHA: 2908079abd76e1a84cc4449d65b6b01cdfc63482 (current live main)
-HEAD_SHA: b60857b144127c2369ad6e3f4ea4f1ad0eb0891a (live PR #89 report/application SHA with terminal Core/P2 SUCCESS below; this documentation-only child is a new SHA and needs its own CI).
-ROUTES_COVERED: Pattern tests cover 55 explicit customer/admin URL patterns plus root. Chromium covers storefront/login, category-subcategory deep link, advanced-search category-source failure/retry, reset-password validation, and cart/checkout price-sentinel removal. PR #105 adds actual-route /addresses checks for guest/staff access denial, read failure/retry, and rejected-save handling. Full all-route browser UAT: NOT RUN.
-FILES_CHANGED: e2e/public-storefront-smoke.spec.ts adds the cart/checkout local-money privacy E2E regression; two P3 documentation files updated. No P1-owned access guards, generated route tree, P2 central state/matrix, RPC, migrations, or RLS were altered.
+BASE_SHA: cd303b7fe0f263c9f62ed97f10202e9895465273 (live main at reconciliation).
+HEAD_SHA: 77262a6065c9e0446c35d67033703fba45bec3a3 (current PR #89 merge/application SHA; Core and P2 completed SUCCESS on this exact SHA before this documentation-only update). This checkpoint/report update creates a new child SHA; do not transfer the results below to that child before its own Actions runs are terminal.
+ROUTES_COVERED: Existing #89 route/category/search/reset-password/reports and guest cart/checkout privacy coverage; PR #105 actual /addresses route gate/retry/rejected-save tests; PR #113 actual /company/contacts route guest/staff/fetch-retry/rejected-save tests; PR #114 actual /company/members route tests are in CI. Full all-route browser UAT: NOT RUN.
+FILES_CHANGED: PR #89 has 35 changed paths after synchronization; independent test-only paths are PR #113 `src/test/customer-company-contacts-route-acceptance.test.tsx` and PR #114 `src/test/customer-company-members-route-acceptance.test.tsx`. This commit updates only the two P3 checkpoint/report files.
 TESTS_RUN_WITH_RESULTS:
-- PR #89 exact current report/application SHA `b60857b144127c2369ad6e3f4ea4f1ad0eb0891a`, based on live `main` `2908079abd76e1a84cc4449d65b6b01cdfc63482`: Core [run 39999922305 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39999922305). Unit tests, isolated PostgreSQL 17 migrations/contracts, import idempotency, restore, lint/build, preview/dev smoke, and Chromium price-visibility steps passed.
-- Same exact SHA `b60857b144127c2369ad6e3f4ea4f1ad0eb0891a`: P2 Playwright [run 39999922407 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39999922407) for all runnable gates. Public UI [job 120573041605 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39999922407/job/120573041605); infrastructure gate [job 120573041093 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39999922407/job/120573041093); isolated local Supabase/PostgreSQL 17 acceptance [job 120573492270 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39999922407/job/120573492270). The local suite passed migrations, write/tenant guards, ledger/price/expense concurrency checks, order persistence and cross-tenant denial, returns/credit memos, audited Onyx XLSX export, finance/task printing, customer-manager privacy/audit, and device-session authorization/revocation.
-- External credential-gated customer-order/tenant job [120573099642 — SKIPPED](https://github.com/Report-Engainall/Nasr1/actions/runs/39999922407/job/120573099642), not PASS. This is the only skipped job; it requires unavailable authorized external E2E credentials. No production/external-provider proof is claimed.
-- Independent P3 route acceptance in [PR #105](https://github.com/Report-Engainall/Nasr1/pull/105), exact test SHA `3c38f1e5b14d131c5eca6caf4c4bf2df9e456921`: Core [run 39999185813 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39999185813); P2 Playwright [run 39999185832 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39999185832) for every runnable gate, including public UI job [120570523679 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39999185832/job/120570523679) and isolated local Supabase/PostgreSQL 17 job [120570882423 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39999185832/job/120570882423). External credential-gated job [120570570798 — SKIPPED](https://github.com/Report-Engainall/Nasr1/actions/runs/39999185832/job/120570570798), not PASS. The test-only change verifies the real `/addresses` route blocks guest/staff reads, exposes address-fetch error and retry, and preserves form fields with no false success when server save fails.
-- Full all-route browser UAT: NOT RUN. Production acceptance: NOT RUN. The docs commit prepared from this checkpoint will create a new SHA and must receive its own terminal CI before its own HEAD can be called tested.
-DEFECTS_FOUND: Nested route composition hid /search/advanced and /category/$slug/subcategory/$subcategorySlug beneath their parents. The parents now expose Outlet only for the child URLs, retaining the old /search page and regular category parent page. Direct-link Chromium acceptance for subcategory and advanced search passed on the exact SHA.
-HANDOFF_TO_P1_OR_P2: P1-ROUTE-TREE-EXPORT-001 remains open: src/routes/admin_.exports.tsx source exists but generated src/routeTree.gen.ts lacks route registration; /admin/exports remains NOT PROVEN. Evidence is already in PR #89 comment #6369510405. P1 owns its route-tree regeneration and staff-only storefront dashboard nav. P2 owns RPC/backend/migrations, canonical matrix, CURRENT_EXECUTION_STATE.md, WORK_COORDINATION.md and .github/workflows/commerce-checks.yml. No locked files changed by P3.
+- PR #89 exact SHA `77262a6065c9e0446c35d67033703fba45bec3a3`: Core [40008952019 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40008952019); P2 Playwright [40008951977 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40008951977).
+- PR #89 P2 public UI smoke [job 120604018779 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40008951977/job/120604018779); local Supabase/PostgreSQL 17 order/tenant acceptance [job 120604399445 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40008951977/job/120604399445); infrastructure gate [job 120604018476 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40008951977/job/120604018476). Credential-gated customer-order/tenant job [job 120604079365 — SKIPPED](https://github.com/Report-Engainall/Nasr1/actions/runs/40008951977/job/120604079365), not PASS.
+- PR #113 exact SHA `81ee66d7c1b81536e762188527b0527696dcd413`: Core [40008717351 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40008717351), P2 [40008717476 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40008717476), public smoke and local Supabase/PostgreSQL 17 acceptance succeeded. Credential-gated external customer-order/tenant job [120603255994 — SKIPPED](https://github.com/Report-Engainall/Nasr1/actions/runs/40008717476/job/120603255994), not PASS. The test suite reported 142 test files / 889 tests passed.
+- PR #105 live head `c03967db1c600ba283a5b861631edbdd261bbe81`: Core [40001631195 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40001631195) and P2 [40001630874 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40001630874) on that exact head. Its base is older than current main and must be safely synchronized and revalidated before merge.
+- PR #114 exact SHA `1944263a062eabaf3ac9662f76a4f6540f2c5a0d`: Core run currently IN_PROGRESS ([40009425324](https://github.com/Report-Engainall/Nasr1/actions/runs/40009425324)); P2 run currently IN_PROGRESS ([40009425337](https://github.com/Report-Engainall/Nasr1/actions/runs/40009425337)); do not claim PASS until both workflows and required jobs are terminal. Its credential-gated external E2E job is SKIPPED, not PASS.
+FAILED_OR_SKIPPED: External credential-gated order/tenant E2E jobs above are SKIPPED, not PASS. Full all-route UAT: NOT RUN. Production acceptance: NOT RUN. PR #114 Core/P2 still running at this update.
+LOCKED_PATHS: `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`, central acceptance CSV, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`, P2-owned services/RPC/migrations/RLS and shared workflows; P1 route-tree and customer-commerce paths. No locked paths changed by this P3 unit.
+DEFECTS_FOUND: /admin/exports route runtime reachability remains NOT PROVEN and is P1-owned; generated route tree must not be hand-edited. See existing P1 handoff in PR #89 comment history.
+HANDOFF_TO_P1_OR_P2: P1 to resolve/verify generated route registration and runtime reachability for /admin/exports. P2 to maintain canonical state/matrix and backend contracts. P3 did not modify P2 central-state files or backend contracts.
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
-MERGE_STATUS: PR #89 OPEN, UNMERGED. Current application/merge SHA 4b767e07ab697e1b6deffcdb68ad9c4a7c9bdff8 has terminal Core and all runnable P2 gates green. No independent human APPROVE review exists; CodeRabbit is COMMENTED only. Keep PR open until maintainer approval is recorded.
-BLOCKERS: Independent human maintainer review/approval absent on PR #89; PR #105 is awaiting independent review; external credential-gated customer-order/tenant E2E is SKIPPED; P1-owned /admin/exports runtime route is NOT PROVEN; all-route browser UAT and production acceptance are NOT RUN; this report-only child SHA needs its own exact-head CI.
-NEXT_ACTION: Read terminal Core/P2 checks for the new report-only child SHA. Keep PR #89 and PR #105 unmerged until independent formal human approval is recorded. Continue the next P3 route-acceptance gap only where no P1/P2 locked files overlap.
-PR_89_SCOPE: Existing fixes include source-specific category/catalog/promotion errors with retry, inactive-product filtering from published counts/offers, RTL hydration/loading for covered routes, reset-password validation/submit guards, checkout duplicate-submit protection, exactly one ExecutiveStoreAnalytics mount, and 55 URL-pattern route-registration coverage. The generated route tree omits /admin/exports, so no reachability claim is made.
-HISTORICAL_EVIDENCE_BOUNDARY: SHA d141edfbf1da2292a95cc65e063c3a1abefe2014 was previously Core 39973405032 SUCCESS and P2 39973405016 SUCCESS; those PASS results are only for that SHA.
+MERGE_STATUS: PR #89 OPEN, UNMERGED. Exact current merge/application SHA `77262a6065c9e0446c35d67033703fba45bec3a3` has Core/P2 SUCCESS; credential-gated job is SKIPPED. The only submitted PR #89 review is CodeRabbit COMMENTED; there is no independent human APPROVE. PR #113 is ready for review, Core/P2 runnable jobs pass, unmerged. PR #105 is open and based on older main; synchronize and revalidate before merge. PR #114 is draft and its current-head Core/P2 checks are still running.
+BLOCKERS: Independent human maintainer approval absent on #89/#105/#113/#114; external customer-order/tenant E2E requires authorized credentials; /admin/exports runtime route is NOT PROVEN (P1-owned); all-route browser UAT and production acceptance are NOT RUN; #105 requires safe main synchronization; #114 CI not terminal.
+NEXT_ACTION: Do not mutate #89 while its exact-head CI is terminal and this doc-only child CI is about to start; read the new report-child SHA from live GitHub and validate its own Core/P2 runs. Then inspect terminal results for #114, safely synchronize #105 to current main using changed-path/overlap checks, and continue independent route acceptance. Do not merge any PR without independent human approval and exact-head gates.
+UPDATED_AT_CANONICAL: 2026-10-23T22:14:59.384+03:00
 
-## Latest execution unit — 2026-10-23T20:44:06+03:00
+
+## Historical execution evidence
+
+
+## Historical execution unit — 2026-10-23T20:44:06+03:00
 
 - Task: `P3-STF-011-CART-CHECKOUT-BROWSER-001`.
 - Implementation: deterministic Chromium test in `e2e/public-storefront-smoke.spec.ts` exercises the real `/cart` and `/checkout` route wrappers with a synthetic guest cart that deliberately contains `unit_price=777777` and `line_total=1555554`.
@@ -32,7 +37,7 @@ HISTORICAL_EVIDENCE_BOUNDARY: SHA d141edfbf1da2292a95cc65e063c3a1abefe2014 was p
 - Previous synchronization acceptance on exact merge SHA `ddaa93c955b777ba05fcdac8aee18e581b6ce159`: Core [39996562718](https://github.com/Report-Engainall/Nasr1/actions/runs/39996562718) **SUCCESS**; P2 Playwright [39996562641](https://github.com/Report-Engainall/Nasr1/actions/runs/39996562641) **SUCCESS**. In P2, public UI smoke and local-Supabase/PostgreSQL 17 acceptance passed; external credential-gated customer-order/tenant job was **SKIPPED**, not PASS.
 - Remaining boundaries: `/admin/exports` runtime reachability remains P1-owned and NOT PROVEN; formal independent maintainer approval is still required; all-route browser UAT and production acceptance remain NOT RUN. Authenticated server-approved visible pricing is not proven by this guest-only regression.
 
-## Current exact-head acceptance — 2026-10-23T20:49:14+03:00
+## Historical exact-head acceptance — 2026-10-23T20:49:14+03:00
 
 - Authoritative tested application SHA: `50f998c8a3281c1630e8a3459141ada50b7f9e5c`.
 - Core run [39997532597](https://github.com/Report-Engainall/Nasr1/actions/runs/39997532597): **SUCCESS**.
@@ -40,7 +45,7 @@ HISTORICAL_EVIDENCE_BOUNDARY: SHA d141edfbf1da2292a95cc65e063c3a1abefe2014 was p
 - Credential-gated customer-order/tenant job [120564909173](https://github.com/Report-Engainall/Nasr1/actions/runs/39997532609/job/120564909173): **SKIPPED**, not PASS.
 - The report-only child created by this update does not alter application behavior; verify its own live branch SHA and exact-head checks after commit.
 
-## Latest synchronized acceptance — 2026-10-23T21:01:24.519+03:00
+## Historical synchronized acceptance — 2026-10-23T21:01:24.519+03:00
 
 - Tested application/merge SHA: `4b767e07ab697e1b6deffcdb68ad9c4a7c9bdff8` (parents `0acbf0fb3650eaa15223f7617ef6e314184892a2` and `2908079abd76e1a84cc4449d65b6b01cdfc63482`).
 - Core [run 39999119779](https://github.com/Report-Engainall/Nasr1/actions/runs/39999119779): **SUCCESS**.
@@ -51,7 +56,7 @@ HISTORICAL_EVIDENCE_BOUNDARY: SHA d141edfbf1da2292a95cc65e063c3a1abefe2014 was p
 - This documentation update will create a new branch SHA; do not transfer the `4b767e07ab697e1b6deffcdb68ad9c4a7c9bdff8` checks to that descendant until its own live Core and P2 runs are terminal.
 
 
-## Latest execution unit — 2026-10-23T21:06:37.080+03:00
+## Historical execution unit — 2026-10-23T21:06:37.080+03:00
 
 - Completed `P3-ADDR-ROUTE-ACCEPT-001` in [PR #105](https://github.com/Report-Engainall/Nasr1/pull/105), commit `3c38f1e5b14d131c5eca6caf4c4bf2df9e456921`, adding only `src/test/customer-addresses-route-acceptance.test.tsx`. It exercises the actual `/addresses` route and tests guest/staff gate behavior, recoverable fetch failure, and server-rejected save with no false success.
 - Exact PR #105 Core `39999185813` and P2 `39999185832` are SUCCESS for runnable jobs, including local Supabase/PostgreSQL 17 browser acceptance. The external credential-gated job was SKIPPED; no production claim is made.
