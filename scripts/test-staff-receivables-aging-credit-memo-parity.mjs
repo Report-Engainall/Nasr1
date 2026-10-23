@@ -7,7 +7,6 @@ if (!connectionString) throw new Error("TEST_DATABASE_URL is required for receiv
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
 const organizationId = "a0000000-0000-0000-0000-000000000001";
-const otherOrganizationId = "a1111111-1111-4111-8111-111111111111";
 const customerProfileId = "f1111111-1111-4111-8111-111111111111";
 const customerAuthId = "11111111-1111-4111-8111-111111111111";
 const managerProfileId = "f7777777-7777-4777-8777-777777777777";
@@ -75,7 +74,7 @@ async function main() {
     [managerProfileId],
   );
 
-  // Choose a real issued invoice line in the seeded CI tenant with enough remaining quantity and receivable balance.
+  // Choose a real issued invoice line with enough receivable balance and no prior return request for that order line.
   const sourceRows = await db.unsafe(
     "select ci.id::text as invoice_id,ci.customer_id::text as customer_id,ci.order_id::text as order_id," +
     "ci.currency,ci.total_amount::text as total_amount,cii.id::text as invoice_item_id," +
@@ -86,6 +85,10 @@ async function main() {
     "join public.customer_invoice_items cii on cii.organization_id=ci.organization_id and cii.invoice_id=ci.id " +
     "where ci.organization_id=$1::uuid and ci.status<>'void' and ci.currency='YER' " +
     "and cii.order_item_id is not null and cii.quantity>=0.500 " +
+    "and NOT EXISTS (select 1 from public.customer_return_request_items prior_item " +
+    " join public.customer_return_requests prior_request on prior_request.id=prior_item.return_request_id " +
+    " and prior_request.organization_id=prior_item.organization_id " +
+    " where prior_item.organization_id=ci.organization_id and prior_item.order_item_id=cii.order_item_id) " +
     "and ci.total_amount=ci.subtotal+ci.tax_amount " +
     "and greatest(ci.total_amount-coalesce((select pg_catalog.sum(cp.amount) from public.customer_payments cp " +
     " where cp.organization_id=ci.organization_id and cp.invoice_id=ci.id),0)-coalesce((select pg_catalog.sum(cm.total_amount) " +
