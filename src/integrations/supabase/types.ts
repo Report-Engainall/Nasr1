@@ -1907,6 +1907,7 @@ export type Database = {
       get_current_tenant_context: { Args: never; Returns: Json }
       list_organization_sessions: { Args: { p_limit?: number }; Returns: Json }
       revoke_organization_session: { Args: { p_session_id: string }; Returns: Json }
+      revoke_other_auth_sessions: { Args: never; Returns: Json }
       customer_respond_to_quote: {
         Args: { p_accept: boolean; p_quote_id: string }
         Returns: undefined
