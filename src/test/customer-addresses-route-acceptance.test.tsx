@@ -38,6 +38,18 @@ vi.mock("@/components/Login", () => ({
   Login: () => <div data-testid="login-required">تسجيل الدخول مطلوب</div>,
 }));
 
+vi.mock("@/components/FinanceDocumentPrintActions", () => ({
+  FinanceDocumentPrintActions: () => null,
+}));
+
+vi.mock("@/components/CashExpenseLedger", () => ({
+  CashExpenseLedger: () => null,
+}));
+
+vi.mock("@/components/GeneralLedgerWorkspace", () => ({
+  GeneralLedgerWorkspace: () => null,
+}));
+
 vi.mock("@/lib/customer-addresses", () => ({
   fetchCustomerAddresses: mocks.fetchCustomerAddresses,
   saveCustomerAddress: mocks.saveCustomerAddress,
