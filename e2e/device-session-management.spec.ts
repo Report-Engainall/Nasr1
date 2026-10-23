@@ -126,7 +126,7 @@ test.describe("central device-session management — real local Supabase", () =>
       await signIn(adminPage, adminEmail, adminPassword);
       await adminPage.goto("/admin/devices");
       await expect(adminPage.getByRole("heading", { name: "جلسات المؤسسة المسجلة خادميًا" })).toBeVisible();
-      const targetRow = adminPage.locator('section[aria-labelledby="organization-session-list-title"] article').filter({ hasText: targetEmail });
+      const targetRow = adminPage.locator('section[aria-labelledby="organization-session-list-title"] article').filter({ hasText: revokedSessionId.slice(0, 8) });
       await expect(targetRow).toBeVisible();
       await expect(targetRow.getByText(revokedSessionId.slice(0, 8))).toBeVisible();
       await expect(targetRow.getByRole("button", { name: "إبطال جلسة " + targetName })).toBeEnabled();

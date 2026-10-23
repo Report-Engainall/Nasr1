@@ -1052,3 +1052,13 @@ Read current #88 Core + P2 runs by exact post-sync SHA. If green, hand the missi
 **Status:** `ROOT CAUSE CONFIRMED — LOCATOR FIX IMPLEMENTED — RETEST PENDING`  
 **Next:** inspect new exact-head Core and P2 runs; require P1 seed + central session Chromium tests to conclude success before making #88 ready.  
 **UPDATED_AT:** 2026-10-23T18:14+03:00
+
+
+
+## P1 live test follow-up — avoid ambiguous manager sessions after retries — 2026-10-23T18:17+03:00
+
+The first integrated test reached the P1 seed step successfully, then both scenarios failed at test-row selection before invoking revoke RPCs. Scoping to the labelled organization-session list removed the parent/child article ambiguity, but the target manager may have several session records left by prior attempts. The target row now keys on `revokedSessionId.slice(0, 8)` captured from that specific browser session; confirmation still checks the target email. This prevents duplicate same-profile sessions from producing a broad match.
+
+**Status:** `TEST LOCATOR ROOT CAUSE REFINED — EXACT SESSION ID SELECTOR COMMITTED — RETEST PENDING`  
+**Next:** inspect the new exact-head run; do not infer backend behavior from the previous pre-revocation locator failures.  
+**UPDATED_AT:** 2026-10-23T18:17+03:00

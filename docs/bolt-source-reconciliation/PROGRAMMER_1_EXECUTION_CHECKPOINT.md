@@ -568,3 +568,23 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: OPEN / DRAFT / NOT MERGE-READY.
 - UPDATED_AT: 2026-10-23T18:14+03:00
+
+
+
+## Active resume — target session row keyed by exact revoked session ID — 2026-10-23T18:17+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-LOCATOR-NESTING-FIX-001` — session rows now scope to the labelled organization-session list.
+- CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `f9beca0553fc7e546415b42b83274898fcf9449a`.
+- HEAD_SHA_BEFORE_FIX: `1647ef42b85abae4d2668cc76ff276268c19d436`.
+- EVIDENCE: integrated P2 run [39975835151](https://github.com/Report-Engainall/Nasr1/actions/runs/39975835151) seed passed, but both session cases failed at row selection. The first attempt showed multiple rows when matching by manager email; previous retries leave multiple session records for the same target profile. This is still a test-selection issue before RPC revocation.
+- FIX: select the target list row using the first eight characters of the exact `revokedSessionId` captured from the target browser session, not the manager email. The confirmation dialog still verifies the target email. Current/sibling session locators are also confined to the organization-session list.
+- FILES_CHANGED: `e2e/device-session-management.spec.ts`, this checkpoint, this report.
+- FAILED_OR_NOT_RUN_TESTS: previous integrated session run failed before any revocation assertion; the exact-session-ID selector needs a fresh Core/P2 rerun.
+- LOCKED_PATHS: P2 workflow, seed, migrations/RPC/RLS/Auth/API/types/finance; shared central state/coordination/matrix; and P3 #89 files.
+- NEXT_ACTION: inspect fresh exact-head checks; require seed success and both Chromium session scenarios to execute through actual server revocation and unexpired-token denied RPC.
+- BLOCKER: exact-head integrated browser rerun.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: OPEN / DRAFT.
+- UPDATED_AT: 2026-10-23T18:17+03:00
