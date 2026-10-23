@@ -1,17 +1,20 @@
 # تقرير الحالة التنفيذي — P1 / واجهات العميل والتجارة والإدارة
 
 - **المستودع:** `Report-Engainall/Nasr1`.
-- **المهمة:** `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` — حارس الإرسال المتزامن لنموذج المنتج.
-- **PR #97:** [fix(admin): prevent duplicate product submissions](https://github.com/Report-Engainall/Nasr1/pull/97) — `OPEN / DRAFT / NOT MERGED`.
-- **MAIN_SHA / BASE_SHA:** `271de9ac23d6fd092db5a77c15bcf191249fd40d`.
-- **HEAD_SHA / آخر رأس مختبر بدقة قبل دفعة التوثيق:** `87a2ff8d38cf050c10dda50e92b9e2fd97941898`.
-- **Core CI:** [40018287119 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40018287119) على الرأس الدقيق أعلاه.
-- **P2 Playwright:** [40018287061 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40018287061) على SHA نفسه؛ public UI smoke والقبول المحلي المعزول عبر Supabase/PostgreSQL 17 نجحا.
-- **الحدود:** hosted customer-order/tenant-isolation `SKIPPED / BLOCKED_EXTERNAL` لغياب اعتمادات non-production؛ ProductModal-specific browser proof و`PRODUCTION_PROVEN` = `NOT RUN`.
-- **الفرق المصالح:** PR base = main، الفرع synchronized (`behind_by=0`) وصافي التغيير أربعة ملفات P1 فقط: نموذج المنتج، اختبار الانحدار، وتقريرا P1.
-- **بوابة المراجعة:** لا توجد مراجعة مستقلة مخولة مسجلة؛ أبقِ #97 Draft وغير مدمج.
-- **العمل التالي:** `P1-PR124-EXACT-HEAD-ACCEPTANCE-001` — احسم Core وP2 Playwright على الرأس الحالي لـ#124، ثم تابع فحوص طلبات P1 المفتوحة الأخرى التي تمت مزامنتها مع main.
-- **UPDATED_AT:** `2026-10-23T20:23:00Z`.
+- **المهمة المكتملة:** `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001`؛ نموذج المنتج يمنع الإرسال المكرر ويتيح إعادة المحاولة بعد الفشل، ويمنع الحفظ عندما لا تكون التصنيفات محمّلة بنجاح.
+- **PR #97:** [منع الإرسال المكرر لنموذج المنتج](https://github.com/Report-Engainall/Nasr1/pull/97) — `OPEN / DRAFT / NOT MERGED`.
+- **MAIN_SHA / BASE_SHA:** `6815b00781412bd98cbdd9fb660e475e4540b543`.
+- **HEAD_SHA / آخر رأس مختبر قبل هذه الدفعة التوثيقية:** `bd53fc8bc701a9a009daa24b243246f81cfa4d36`.
+- **Core:** [40020159218 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020159218) على الرأس الدقيق.
+- **P2 Playwright:** [40020159220 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020159220) على SHA نفسه؛ public UI smoke والقبول المحلي المعزول عبر Supabase/PostgreSQL 17 نجحا.
+- **الحدود:** hosted customer-order/tenant-isolation `SKIPPED / BLOCKED_EXTERNAL`; ProductModal-specific browser proof و`PRODUCTION_PROVEN` = `NOT RUN`.
+- **PR #124:** Core [40020205584 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020205584) وP2 [40020205700 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020205700) على الرأس `4272cb57eb5de70aa82cfa2bbe72a38b465e52b8`.
+- **PR #107:** Core [40020235495 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020235495) وP2 [40020235565 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020235565) على الرأس `dbed932fc6dcf7f5835f84bac8053ba30c2f270c`.
+- **PR #102:** Core [40020297710 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020297710) وP2 [40020297753 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020297753) على الرأس `93a1f0d25058dd53c034a8854f6a4eedc100b3d1`.
+- **PR #119:** Core [40020337764 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020337764)؛ P2 [40020337829 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/40020337829). إثبات المتصفح المحلي سجّل `HTTP 500`, `P0002`, و`customer not found in current organization` مع عدم تغيّر الصف الخارجي. السبب في mapping SQLSTATE/HTTP ويملكه P2؛ تسليم موثق في [تعليق PR #119](https://github.com/Report-Engainall/Nasr1/pull/119#issuecomment-6374286493). لم يضعف P1 الاختبار ولم يعدّل SQL/RPC.
+- **فرق #97:** أربعة ملفات P1 فقط؛ branch synchronized مع main (`behind_by=0`). لا توجد مراجعة مستقلة مخولة؛ لا دمج قبلها.
+- **NEXT_ACTION:** `P1-PR119-RETEST-AFTER-P2-SQLSTATE-FIX-001` — أعد اختبار #119 بعد إصلاح P2 لعقد الرفض، على SHA موحّد. واصل الأعمال المستقلة في نطاق P1 دون لمس ملفات P2/P3.
+- **UPDATED_AT:** `2026-10-23T20:40:00Z`.
 
 ## P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001 — سجل التنفيذ
 
