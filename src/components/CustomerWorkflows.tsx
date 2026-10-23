@@ -2441,8 +2441,11 @@ export function StaffFinancePage() {
     setLoading(true);
     setError("");
     const r = await supabase.rpc("fetch_staff_finance_data");
-    if (r.error) setError("تعذر تحميل المالية. تأكد من نشر الترحيل وصلاحيات الموظف.");
-    else {
+    if (r.error) {
+      setError("تعذر تحميل المالية. تأكد من نشر الترحيل وصلاحيات المحاسب/الإدارة.");
+      setInvoices([]);
+      setPayments([]);
+    } else {
       const payload = (r.data ?? {}) as {
         invoices?: Invoice[];
         payments?: (PaymentAmount & { paid_at?: string; payment_method?: string })[];
@@ -2485,14 +2488,15 @@ export function StaffFinancePage() {
       void loadAging(0);
     }
   }, [load, loadAging, canManageFinance]);
-  const outstanding = (i: Invoice) =>
-    i.status === "void"
-      ? 0
-      : Math.max(
-          0,
-          Number(i.total_amount) -
-            payments.filter((p) => p.invoice_id === i.id).reduce((s, p) => s + Number(p.amount), 0),
-        );
+  const outstanding = (i: Invoice): number | null => {
+    if (i.status === "void") return 0;
+    const raw = i.outstanding_amount;
+    if (raw === undefined || raw === null) return null;
+    const normalized = String(raw).trim();
+    if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(normalized)) return null;
+    const cents = Math.round(Number(normalized) * 100);
+    return Number.isSafeInteger(cents) && cents >= 0 ? cents / 100 : null;
+  };
   async function submit(e: FormEvent) {
     e.preventDefault();
     const i = invoices.find((x) => x.id === invoiceId);
@@ -2507,8 +2511,13 @@ export function StaffFinancePage() {
       setError(cause instanceof Error ? cause.message : "بيانات الدفعة غير صالحة.");
       return;
     }
-    if (n > outstanding(i)) {
-      setError("المبلغ يتجاوز المتبقي على الفاتورة.");
+    const remaining = outstanding(i);
+    if (remaining === null) {
+      setError("تعذر التحقق من المتبقي من دفتر العميل الكامل؛ أعد تحميل البيانات قبل تسجيل الدفعة.");
+      return;
+    }
+    if (n > remaining) {
+      setError("المبلغ يتجاوز المتبقي على الفاتورة بعد احتساب الإشعارات الدائنة المرحّلة.");
       return;
     }
     setBusy(true);
@@ -2568,13 +2577,15 @@ export function StaffFinancePage() {
             required
           >
             <option value="">اختر فاتورة</option>
-            {invoices
-              .filter((i) => i.status !== "void" && outstanding(i) > 0)
-              .map((i) => (
+            {invoices.map((i) => {
+              const remaining = outstanding(i);
+              if (i.status === "void" || remaining === null || remaining <= 0) return null;
+              return (
                 <option key={i.id} value={i.id}>
-                  {i.invoice_number} — متبقٍ {formatCurrency(outstanding(i))}
+                  {i.invoice_number} — متبقٍ {formatCurrency(remaining)}
                 </option>
-              ))}
+              );
+            })}
           </select>
         </label>
         <label>
