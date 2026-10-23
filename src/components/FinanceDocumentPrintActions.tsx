@@ -52,7 +52,9 @@ export function FinanceDocumentPrintActions() {
       label: displayName(row.business_name, row.contact_name) + (row.customer_code ? " — " + row.customer_code : ""),
     }));
     return options.credit_memos.map((row) => ({
-      id: row.id, label: row.memo_number + " — " + row.customer_name + " — " + row.invoice_number + " — " + row.currency + " — " + row.status,
+      id: row.id,
+      label: row.memo_number + " — " + row.customer_name + " — " + row.invoice_number + " — " + row.currency + " — " +
+        (row.status === "draft" ? "مسودة" : row.status === "posted" ? "مُرحّل" : "معكوس ماليًا"),
     }));
   }, [kind, options]);
 
