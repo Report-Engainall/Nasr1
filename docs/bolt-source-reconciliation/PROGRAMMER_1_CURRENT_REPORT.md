@@ -692,3 +692,23 @@ Core/P2 workflows for the corrected functional HEAD were pending when this repor
 **Base:** `bd0d2df489e40b2dc5f83882d90565c7799a448c`  
 **Functional head:** `c22f8b771a3390994cb8b95f22231904e806fa41`  
 **Status:** Draft; awaiting exact-head Core and P2 run results.
+
+
+## P1 exact-head closeout — admin product modal duplicate-submit and category-load failure — 2026-10-23T17:51+03:00
+
+**Task IDs:** `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001`, `P1-ADMIN-PRODUCT-CATEGORY-LOAD-RETRY-001`  
+**Branch / PR:** `p1/admin-product-singleflight-20261023` / [#97 — prevent duplicate product submissions](https://github.com/Report-Engainall/Nasr1/pull/97)  
+**Base SHA:** `bd0d2df489e40b2dc5f83882d90565c7799a448c`  
+**Exact tested head:** `ed4ee7ad99c79b6e904778d6b609aa33bd981032`
+
+### Exact-head evidence
+- Core [run 39972341560 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341560): Unit tests, PostgreSQL 17 migration/core acceptance, lint, build, preview/dev smoke and configured price-visibility Chromium acceptance completed successfully on `ed4ee7ad...`.
+- P2 [run 39972341569 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341569): public UI smoke succeeded; isolated local Supabase/Chromium job completed SUCCESS with configured commerce browser acceptance (order and tenant denial, return/credit memo, Onyx XLSX export, finance/task print). The externally gated customer-order/tenant job was SKIPPED and is not counted as a pass.
+- Core includes focused `admin-product-double-submit.test.tsx` cases: synchronous repeated click produces one create call; rejected create allows retry; category lookup failure blocks save, exposes accessible retry, and then submits the selected category ID after recovery.
+- Failed predecessor Core run [39971686418](https://github.com/Report-Engainall/Nasr1/actions/runs/39971686418) is superseded: its three failing assertions were traced to asynchronous category-loading timing and an incorrectly nested retry button. The code/test correction is included in current tested head; no failures are hidden or waived.
+
+### Decision / next step
+The functional PR satisfies its declared component-acceptance gate on the exact tested SHA. This status-note commit is documentation-only and will start fresh checks on a newer head; do not merge based on the predecessor SHA alone. Next read the newest Core/P2 checks. If both are terminal-success and PR base/head remain unchanged, mark #97 ready, merge with the live expected head SHA, then verify the resulting main SHA and post-merge Core. This task is independent from P1 session PR #88 (still blocked on P2 wiring the dedicated session browser spec) and P3 #89 path ownership.
+
+**Status:** `FUNCTIONAL_CODE_VERIFIED_ON ed4ee7ad — DOCS_HEAD_CI PENDING`  
+**UPDATED_AT:** 2026-10-23T17:51+03:00

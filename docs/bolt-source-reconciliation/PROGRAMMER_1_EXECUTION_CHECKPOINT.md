@@ -295,3 +295,19 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
 - MERGE_STATUS: DRAFT / OPEN / NOT READY.
 - UPDATED_AT: 2026-10-23T17:56+03:00
+
+
+## Active resume — exact-head product modal acceptance passed; merge gate refresh — 2026-10-23T17:51+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` and `P1-ADMIN-PRODUCT-CATEGORY-LOAD-RETRY-001` (code + regression tests pass on the exact tested head).
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c`.
+- LAST_CONFIRMED_TESTS: Core [39972341560 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341560) on exact head `ed4ee7ad99c79b6e904778d6b609aa33bd981032`; P2 Playwright [39972341569 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341569) on the same exact head. Core Unit tests, PostgreSQL 17 acceptance, lint/build, preview/dev smoke, and local price-visibility browser acceptance completed successfully. P2 public UI smoke and configured isolated local Supabase/Chromium acceptance succeeded, including order/tenant isolation, returns/credit memo, Onyx XLSX export, and finance/task print. The separately gated hosted customer-order/tenant-isolation job was SKIPPED; no proof for that unavailable external path is claimed.
+- FAILED_OR_NOT_RUN_TESTS: predecessor code/test head `7a1162c1f0b5180f8d4a94256f9fb0d280e87fc3` Core failed 3 focused tests due to submit tests firing before category loading settled and the retry control being nested inside the category label. These root causes were fixed in `c22f8b771a3390994cb8b95f22231904e806fa41`; the later exact-head Core run above passed. This newest commit is documentation-only and requires fresh exact-head workflows.
+- FILES_CHANGED (functional scope): `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`. Resume files: this checkpoint and current report.
+- LOCKED_PATHS: P2 API/RPC/SQL migrations/RLS/Auth/types/workflow; shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, shared acceptance matrix; and P3-owned #89 paths. No locked path changed.
+- NEXT_ACTION: read exact-head Core/P2 results after this checkpoint/report-only commit. If terminal-success, mark PR #97 ready, merge with the live expected head SHA, then verify the resulting `main` SHA and post-merge Core CI. Reconcile/sync #88 afterward without overwriting its session proof changes.
+- BLOCKER: none in product-modal scope after exact-head code tests; post-documentation exact-head CI must finish before merge.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
+- MERGE_STATUS: OPEN / DRAFT until the new documentation head's Core/P2 checks finish; then merge if unchanged and green.
+- UPDATED_AT: 2026-10-23T17:51+03:00
