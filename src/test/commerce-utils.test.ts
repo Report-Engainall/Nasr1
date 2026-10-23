@@ -1,6 +1,6 @@
 import { applyImportProfileRules, DataQualityAccumulator, IncrementalSha256, StreamingCsvParser, chooseImportStatus, normalizeHeader, parseXlsxFirstWorksheet, shouldPersistParsedImportRow, stableJsonStringify, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix } from '@/lib/unified-import';
 import { describe, expect, it } from 'vitest';
-import { classifyAssistantIntent, isCustomerStatementPossiblyPartial, matchesArabicCatalogSearch, normalizeArabicSearchText, normalizeCartDraft, normalizeSavedProductIds, sanitizePublicCatalogCache, summarizeAccount, summarizeInvoiceAmounts, summarizeCustomerInvoiceStatuses, summarizeCustomerOrderStatuses, validateQuickOrderLines } from '@/lib/commerce-utils';
+import { classifyAssistantIntent, isCustomerStatementPossiblyPartial, matchesArabicCatalogSearch, normalizeArabicSearchText, normalizeCartDraft, normalizeSavedProductIds, parseCustomerStatementCreditMemos, sanitizePublicCatalogCache, summarizeAccount, summarizeInvoiceAmounts, summarizeCustomerInvoiceStatuses, summarizeCustomerOrderStatuses, validateQuickOrderLines } from '@/lib/commerce-utils';
 
 function makeStoredZip(files: Record<string, string>): Blob {
   const encoder = new TextEncoder();
@@ -150,7 +150,7 @@ describe('commerce completion utilities', () => {
       [{ invoice_id: 'i1', amount: '25.50' }, { invoice_id: 'i1', amount: 10 }],
     )).toEqual({
       valid: true,
-      currencies: [{ currency: 'YER', invoiced: 175.5, paid: 35.5, outstanding: 140 }],
+      currencies: [{ currency: 'YER', invoiced: 175.5, paid: 35.5, credited: 0, outstanding: 140 }],
     });
   });
 
@@ -163,7 +163,7 @@ describe('commerce completion utilities', () => {
       [{ invoice_id: 'live', amount: 20 }, { invoice_id: 'void', amount: 500 }],
     )).toEqual({
       valid: true,
-      currencies: [{ currency: 'YER', invoiced: 100, paid: 20, outstanding: 80 }],
+      currencies: [{ currency: 'YER', invoiced: 100, paid: 20, credited: 0, outstanding: 80 }],
     });
   });
 
@@ -180,8 +180,8 @@ describe('commerce completion utilities', () => {
     )).toEqual({
       valid: true,
       currencies: [
-        { currency: 'USD', invoiced: 20, paid: 5, outstanding: 15 },
-        { currency: 'YER', invoiced: 100, paid: 30, outstanding: 70 },
+        { currency: 'USD', invoiced: 20, paid: 5, credited: 0, outstanding: 15 },
+        { currency: 'YER', invoiced: 100, paid: 30, credited: 0, outstanding: 70 },
       ],
     });
   });
@@ -190,11 +190,11 @@ describe('commerce completion utilities', () => {
     const payments = Array.from({ length: 100 }, () => ({ invoice_id: 'i1', amount: '0.10' }));
     expect(summarizeAccount([{ id: 'i1', total_amount: '10.00', currency: 'YER' }], payments)).toEqual({
       valid: true,
-      currencies: [{ currency: 'YER', invoiced: 10, paid: 10, outstanding: 0 }],
+      currencies: [{ currency: 'YER', invoiced: 10, paid: 10, credited: 0, outstanding: 0 }],
     });
     expect(summarizeInvoiceAmounts(
       { id: 'i1', total_amount: '10.00', currency: 'YER' }, payments,
-    )).toEqual({ valid: true, currency: 'YER', total: 10, paid: 10, outstanding: 0 });
+    )).toEqual({ valid: true, currency: 'YER', total: 10, paid: 10, credited: 0, outstanding: 0 });
   });
 
   it('marks malformed money or currency unavailable rather than treating it as zero or YER', () => {
@@ -213,7 +213,7 @@ describe('commerce completion utilities', () => {
     expect(summarizeInvoiceAmounts(
       { id: 'i1', total_amount: '10.00', currency: 'YER' },
       [{ invoice_id: 'i1', amount: 'NaN' }],
-    )).toEqual({ valid: false, currency: '', total: 0, paid: 0, outstanding: 0 });
+    )).toEqual({ valid: false, currency: '', total: 0, paid: 0, credited: 0, outstanding: 0 });
   });
 
   it('rejects malformed, duplicate, fractional, and unbounded offline cart lines', () => {
@@ -441,4 +441,44 @@ describe('commerce completion utilities', () => {
     expect(classifyAssistantIntent('هل يوجد مخزون من السكر؟')).toBe('catalog_search');
     expect(classifyAssistantIntent('كيف أستخدمه بدون اتصال؟')).toBe('offline_help');
   });
+  it('uses full-ledger payment and posted-credit aggregates without double-counting bounded payment details', () => {
+    const invoice = {
+      id: 'invoice-credit-1', total_amount: '500.00', currency: 'YER', status: 'issued',
+      paid_amount: '100.00', credit_memo_amount: '125.00', outstanding_amount: '275.00',
+    };
+    const payments = [{ invoice_id: 'invoice-credit-1', amount: '100.00' }];
+    expect(summarizeInvoiceAmounts(invoice, payments)).toEqual({
+      valid: true, currency: 'YER', total: 500, paid: 100, credited: 125, outstanding: 275,
+    });
+    expect(summarizeAccount([invoice], payments)).toEqual({
+      valid: true, currencies: [{ currency: 'YER', invoiced: 500, paid: 100, credited: 125, outstanding: 275 }],
+    });
+  });
+
+  it('uses the server authoritative full-ledger currency summary instead of summing truncated detail rows', () => {
+    expect(summarizeAccount(
+      [{ id: 'latest-only', total_amount: '500.00', currency: 'YER', paid_amount: '100.00', credit_memo_amount: '25.00', outstanding_amount: '375.00' }],
+      [{ invoice_id: 'latest-only', amount: '100.00' }],
+      [{ currency: 'YER', invoiced: '1500.00', paid: '200.00', credited: '125.00', outstanding: '1175.00',
+        overdue_invoice_count: 1, overdue_outstanding: '200.00',
+        unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: '0.00' }],
+    )).toEqual({
+      valid: true,
+      currencies: [{ currency: 'YER', invoiced: 1500, paid: 200, credited: 125, outstanding: 1175 }],
+    });
+    expect(summarizeAccount([], [], [{ currency: 'YER', invoiced: 'bad', paid: '0.00', credited: '0.00', outstanding: '0.00',
+      overdue_invoice_count: 0, overdue_outstanding: '0.00', unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: '0.00' }]))
+      .toEqual({ valid: false, currencies: [] });
+  });
+
+  it('validates statement credit details, rejects duplicate source rows, and flags detail truncation', () => {
+    const credit = { id: 'credit-1', invoice_id: 'invoice-1', invoice_number: 'INV-0001',
+      memo_number: 'CRM-0001', currency: 'YER', total_amount: '125.00', posted_at: '2026-10-22T10:00:00Z' };
+    expect(parseCustomerStatementCreditMemos([credit])).toEqual([credit]);
+    expect(() => parseCustomerStatementCreditMemos([credit, credit])).toThrow(/بيانات مالية غير صالحة/);
+    expect(() => parseCustomerStatementCreditMemos([{ ...credit, total_amount: '-1.00' }])).toThrow(/بيانات مالية غير صالحة/);
+    expect(() => parseCustomerStatementCreditMemos({ credits: [credit] })).toThrow(/قائمة الإشعارات/);
+    expect(isCustomerStatementPossiblyPartial(0, 0, 500)).toBe(true);
+  });
+
 });

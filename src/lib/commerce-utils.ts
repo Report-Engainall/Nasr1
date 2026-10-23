@@ -5,18 +5,35 @@ export type InvoiceAmount = {
   total_amount: number | string;
   currency: string;
   status?: string;
+  /** Server-computed aggregates are not constrained by the visible payment detail page. */
+  paid_amount?: number | string;
+  credit_memo_amount?: number | string;
+  outstanding_amount?: number | string;
 };
 export type PaymentAmount = { invoice_id: string; amount: number | string };
+
+export type CustomerStatementCreditMemo = {
+  id: string;
+  invoice_id: string;
+  invoice_number: string;
+  memo_number: string;
+  currency: string;
+  total_amount: number | string;
+  posted_at: string;
+};
 
 // Must remain aligned with the row limits on the customer account-statement RPC.
 export const CUSTOMER_STATEMENT_MAX_INVOICES = 200;
 export const CUSTOMER_STATEMENT_MAX_PAYMENTS = 500;
+export const CUSTOMER_STATEMENT_MAX_CREDITS = 500;
 
-export function isCustomerStatementPossiblyPartial(invoiceCount: number, paymentCount: number): boolean {
+export function isCustomerStatementPossiblyPartial(invoiceCount: number, paymentCount: number, creditCount = 0): boolean {
   if (!Number.isSafeInteger(invoiceCount) || invoiceCount < 0 ||
-      !Number.isSafeInteger(paymentCount) || paymentCount < 0) return true;
+      !Number.isSafeInteger(paymentCount) || paymentCount < 0 ||
+      !Number.isSafeInteger(creditCount) || creditCount < 0) return true;
   return invoiceCount >= CUSTOMER_STATEMENT_MAX_INVOICES ||
-    paymentCount >= CUSTOMER_STATEMENT_MAX_PAYMENTS;
+    paymentCount >= CUSTOMER_STATEMENT_MAX_PAYMENTS ||
+    creditCount >= CUSTOMER_STATEMENT_MAX_CREDITS;
 }
 
 type InvoiceBalance = {
@@ -24,12 +41,14 @@ type InvoiceBalance = {
   currency: string;
   total: number;
   paid: number;
+  credited: number;
   outstanding: number;
 };
 type AccountCurrencySummary = {
   currency: string;
   invoiced: number;
   paid: number;
+  credited: number;
   outstanding: number;
 };
 type AccountSummary = { valid: boolean; currencies: AccountCurrencySummary[] };
@@ -61,7 +80,7 @@ function moneyNumber(minorUnits: bigint): number {
 }
 
 function invalidInvoiceBalance(): InvoiceBalance {
-  return { valid: false, currency: '', total: 0, paid: 0, outstanding: 0 };
+  return { valid: false, currency: '', total: 0, paid: 0, credited: 0, outstanding: 0 };
 }
 
 function invalidAccountSummary(): AccountSummary {
@@ -77,72 +96,201 @@ export function summarizeInvoiceAmounts(
   const total = moneyMinorUnits(invoice.total_amount);
   if (currency === null || total === null) return invalidInvoiceBalance();
 
-  let paid = 0n;
+  const paidFromServer = invoice.paid_amount !== undefined;
+  const paidAggregate = paidFromServer ? moneyMinorUnits(invoice.paid_amount) : null;
+  const credited = invoice.credit_memo_amount === undefined ? 0n : moneyMinorUnits(invoice.credit_memo_amount);
+  if ((paidFromServer && paidAggregate === null) || credited === null) return invalidInvoiceBalance();
+
+  let paid = paidAggregate ?? 0n;
   for (const payment of payments) {
     if (payment.invoice_id !== invoice.id) continue;
     const amount = moneyMinorUnits(payment.amount);
     if (amount === null) return invalidInvoiceBalance();
-    paid += amount;
+    // When the RPC supplies the all-ledger paid aggregate, never add its bounded detail rows again.
+    if (!paidFromServer) paid += amount;
   }
 
-  const outstanding = invoice.status === 'void' || total <= paid ? 0n : total - paid;
+  const outstanding = invoice.status === 'void' || total <= paid + credited
+    ? 0n
+    : total - paid - credited;
+  if (invoice.outstanding_amount !== undefined) {
+    const serverOutstanding = moneyMinorUnits(invoice.outstanding_amount);
+    if (serverOutstanding === null || serverOutstanding !== outstanding) return invalidInvoiceBalance();
+  }
+
+  const values = [total, paid, credited, outstanding].map((minor) => Number(minor));
+  if (values.some((value) => !Number.isSafeInteger(value))) return invalidInvoiceBalance();
   return {
     valid: true,
     currency,
-    total: moneyNumber(total),
-    paid: moneyNumber(paid),
-    outstanding: moneyNumber(outstanding),
+    total: values[0] / 100,
+    paid: values[1] / 100,
+    credited: values[2] / 100,
+    outstanding: values[3] / 100,
   };
 }
 
-/** Group account balances per currency and expose malformed values as invalid, never as zero. */
-export function summarizeAccount(invoices: InvoiceAmount[], payments: PaymentAmount[]): AccountSummary {
+/** Parse only the bounded posted-credit detail list returned by the scoped customer statement RPC. */
+export function parseCustomerStatementCreditMemos(value: unknown): CustomerStatementCreditMemo[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > CUSTOMER_STATEMENT_MAX_CREDITS) {
+    throw new Error('قائمة الإشعارات الدائنة في كشف الحساب غير صالحة أو تجاوزت حد القراءة.');
+  }
+  const ids = new Set<string>();
+  return value.map((candidate) => {
+    if (!candidate || typeof candidate !== 'object') {
+      throw new Error('يحتوي كشف الحساب على إشعار دائن غير مكتمل.');
+    }
+    const row = candidate as Record<string, unknown>;
+    const id = row.id;
+    const invoiceId = row.invoice_id;
+    const invoiceNumber = row.invoice_number;
+    const memoNumber = row.memo_number;
+    const currency = normalizeMoneyCurrency(row.currency);
+    const amount = moneyMinorUnits(row.total_amount);
+    const postedAt = row.posted_at;
+    if (typeof id !== 'string' || !id.trim() || ids.has(id) ||
+        typeof invoiceId !== 'string' || !invoiceId.trim() ||
+        typeof invoiceNumber !== 'string' || !invoiceNumber.trim() ||
+        typeof memoNumber !== 'string' || !memoNumber.trim() ||
+        currency === null || amount === null || amount <= 0n ||
+        typeof postedAt !== 'string' || !Number.isFinite(Date.parse(postedAt))) {
+      throw new Error('يحتوي كشف الحساب على بيانات مالية غير صالحة لإشعار دائن.');
+    }
+    const amountNumber = Number(amount);
+    if (!Number.isSafeInteger(amountNumber)) {
+      throw new Error('مبلغ الإشعار الدائن يتجاوز حدود الدقة الآمنة للعرض.');
+    }
+    ids.add(id);
+    return {
+      id,
+      invoice_id: invoiceId,
+      invoice_number: invoiceNumber,
+      memo_number: memoNumber,
+      currency,
+      total_amount: typeof row.total_amount === 'string' ? row.total_amount.trim() : String(row.total_amount),
+      posted_at: postedAt,
+    };
+  });
+}
+
+/** Group full-ledger account balances per currency; malformed server totals fail closed instead of becoming zero. */
+export function summarizeAccount(
+  invoices: InvoiceAmount[],
+  payments: PaymentAmount[],
+  authoritativeSummary?: unknown,
+): AccountSummary {
+  if (authoritativeSummary !== undefined) {
+    if (!Array.isArray(authoritativeSummary)) return invalidAccountSummary();
+    if (authoritativeSummary.length === 0 && invoices.some((invoice) => invoice.status !== 'void')) {
+      return invalidAccountSummary();
+    }
+    const seen = new Set<string>();
+    const currencies: AccountCurrencySummary[] = [];
+    for (const candidate of authoritativeSummary) {
+      if (!candidate || typeof candidate !== 'object') return invalidAccountSummary();
+      const row = candidate as Record<string, unknown>;
+      const currency = normalizeMoneyCurrency(row.currency);
+      const invoiced = moneyMinorUnits(row.invoiced);
+      const paid = moneyMinorUnits(row.paid);
+      const credited = moneyMinorUnits(row.credited);
+      const outstanding = moneyMinorUnits(row.outstanding);
+      const overdueOutstanding = moneyMinorUnits(row.overdue_outstanding);
+      const unknownDueDateOutstanding = moneyMinorUnits(row.unknown_due_date_outstanding);
+      const overdueCount = row.overdue_invoice_count;
+      const unknownDueDateCount = row.unknown_due_date_invoice_count;
+      if (currency === null || seen.has(currency) ||
+          invoiced === null || paid === null || credited === null || outstanding === null ||
+          overdueOutstanding === null || unknownDueDateOutstanding === null ||
+          [invoiced, paid, credited, outstanding, overdueOutstanding, unknownDueDateOutstanding].some((n) => n < 0n) ||
+          typeof overdueCount !== 'number' || !Number.isSafeInteger(overdueCount) || overdueCount < 0 ||
+          typeof unknownDueDateCount !== 'number' || !Number.isSafeInteger(unknownDueDateCount) || unknownDueDateCount < 0 ||
+          overdueOutstanding + unknownDueDateOutstanding > outstanding) {
+        return invalidAccountSummary();
+      }
+      const values = [invoiced, paid, credited, outstanding].map((minor) => Number(minor));
+      if (values.some((value) => !Number.isSafeInteger(value))) return invalidAccountSummary();
+      seen.add(currency);
+      currencies.push({
+        currency,
+        invoiced: values[0] / 100,
+        paid: values[1] / 100,
+        credited: values[2] / 100,
+        outstanding: values[3] / 100,
+      });
+    }
+    return {
+      valid: true,
+      currencies: currencies.sort((left, right) => left.currency.localeCompare(right.currency)),
+    };
+  }
+
   const activeInvoices = invoices.filter((invoice) => invoice.status !== 'void');
   const activeIds = new Set(activeInvoices.map((invoice) => invoice.id));
-  const invoiceAmounts = new Map<string, { currency: string; total: bigint; paid: bigint }>();
-  const totalsByCurrency = new Map<string, { invoiced: bigint; paid: bigint; outstanding: bigint }>();
+  const invoiceAmounts = new Map<string, {
+    currency: string;
+    total: bigint;
+    paid: bigint;
+    credited: bigint;
+    paidFromServer: boolean;
+    serverOutstanding?: bigint;
+  }>();
+  const totalsByCurrency = new Map<string, { invoiced: bigint; paid: bigint; credited: bigint; outstanding: bigint }>();
 
   for (const invoice of activeInvoices) {
     const currency = normalizeMoneyCurrency(invoice.currency);
     const total = moneyMinorUnits(invoice.total_amount);
-    if (currency === null || total === null) return invalidAccountSummary();
-
-    const currencyTotals = totalsByCurrency.get(currency) ?? { invoiced: 0n, paid: 0n, outstanding: 0n };
-    currencyTotals.invoiced += total;
-    totalsByCurrency.set(currency, currencyTotals);
-    invoiceAmounts.set(invoice.id, { currency, total, paid: 0n });
+    const paidFromServer = invoice.paid_amount !== undefined;
+    const paid = paidFromServer ? moneyMinorUnits(invoice.paid_amount) : 0n;
+    const credited = invoice.credit_memo_amount === undefined ? 0n : moneyMinorUnits(invoice.credit_memo_amount);
+    const serverOutstanding = invoice.outstanding_amount === undefined ? undefined : moneyMinorUnits(invoice.outstanding_amount);
+    if (currency === null || total === null || paid === null || credited === null ||
+        (invoice.outstanding_amount !== undefined && serverOutstanding === null)) return invalidAccountSummary();
+    invoiceAmounts.set(invoice.id, {
+      currency, total, paid, credited, paidFromServer,
+      serverOutstanding: serverOutstanding ?? undefined,
+    });
+    if (!totalsByCurrency.has(currency)) {
+      totalsByCurrency.set(currency, { invoiced: 0n, paid: 0n, credited: 0n, outstanding: 0n });
+    }
   }
 
   for (const payment of payments) {
-    // Orphaned rows and payments for void invoices must not change the visible account summary.
     if (!activeIds.has(payment.invoice_id)) continue;
     const amount = moneyMinorUnits(payment.amount);
     const invoice = invoiceAmounts.get(payment.invoice_id);
     if (amount === null || !invoice) return invalidAccountSummary();
-
-    invoice.paid += amount;
-    const currencyTotals = totalsByCurrency.get(invoice.currency);
-    if (!currencyTotals) return invalidAccountSummary();
-    currencyTotals.paid += amount;
+    if (!invoice.paidFromServer) invoice.paid += amount;
   }
 
   for (const invoice of invoiceAmounts.values()) {
     const currencyTotals = totalsByCurrency.get(invoice.currency);
     if (!currencyTotals) return invalidAccountSummary();
-    if (invoice.total > invoice.paid) currencyTotals.outstanding += invoice.total - invoice.paid;
+    const outstanding = invoice.total > invoice.paid + invoice.credited
+      ? invoice.total - invoice.paid - invoice.credited
+      : 0n;
+    if (invoice.serverOutstanding !== undefined && invoice.serverOutstanding !== outstanding) {
+      return invalidAccountSummary();
+    }
+    currencyTotals.invoiced += invoice.total;
+    currencyTotals.paid += invoice.paid;
+    currencyTotals.credited += invoice.credited;
+    currencyTotals.outstanding += outstanding;
   }
 
-  return {
-    valid: true,
-    currencies: [...totalsByCurrency.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([currency, totals]) => ({
-        currency,
-        invoiced: moneyNumber(totals.invoiced),
-        paid: moneyNumber(totals.paid),
-        outstanding: moneyNumber(totals.outstanding),
-      })),
-  };
+  const currencies: AccountCurrencySummary[] = [];
+  for (const [currency, totals] of [...totalsByCurrency.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    const values = [totals.invoiced, totals.paid, totals.credited, totals.outstanding].map((minor) => Number(minor));
+    if (values.some((value) => !Number.isSafeInteger(value))) return invalidAccountSummary();
+    currencies.push({
+      currency,
+      invoiced: values[0] / 100,
+      paid: values[1] / 100,
+      credited: values[2] / 100,
+      outstanding: values[3] / 100,
+    });
+  }
+  return { valid: true, currencies };
 }
 
 export type CartLineDraft = { product_id: string; quantity: number };
