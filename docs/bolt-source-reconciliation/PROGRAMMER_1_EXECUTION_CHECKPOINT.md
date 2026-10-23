@@ -18,6 +18,23 @@
 - `NEXT_ACTION=P1-REVIEW-GATE-001`: prioritize obtaining an authorized independent maintainer review for existing PR #97, then keep #107/#102 Draft until independently reviewed. If that external gate remains unavailable, continue only with a newly evidenced, independent P1-owned UI defect; do not repeat merged PR #66/#75/#84/#88/#99/#106 work or open a duplicate PR.
 - `UPDATED_AT=2026-10-23T22:13:00+03:00`.
 
+## Current state — 2026-10-23 — P1 admin product duplicate-submit guard
+
+- `REPOSITORY=Report-Engainall/Nasr1`; `TASK_ID=LAST_COMPLETED_TASK_ID=P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001`.
+- `CURRENT_BRANCH=p1/admin-product-singleflight-20261023`; `PR_URL=https://github.com/Report-Engainall/Nasr1/pull/97`.
+- `BASE_SHA=MAIN_SHA=391e25847c7cc7fb2ba5f77164600455db04abfd`.
+- `HEAD_SHA=TESTED_EXACT_SHA=a0d117452e567c5a2bedea2fda1417a24b19fc58` (current code+main integration head; this documentation update will create a new head that needs its own exact-SHA CI).
+- The branch was synchronized by a regular merge commit with parents current `main` then the prior PR branch. No direct write to `main`, force-push, reset, or history rewrite occurred.
+- **Actual branch net diff vs current `main`:** four P1 paths only: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, and these two P1-owned checkpoint/report files.
+- **Core CI — SUCCESS on exact `a0d117...`:** [run 40016108720](https://github.com/Report-Engainall/Nasr1/actions/runs/40016108720).
+- **P2 Playwright — SUCCESS on the same exact SHA:** [run 40016108724](https://github.com/Report-Engainall/Nasr1/actions/runs/40016108724). Public read-only UI smoke and isolated local Supabase/PostgreSQL 17 browser acceptance passed. The hosted customer-order/tenant-isolation job was `SKIPPED` because dedicated external non-production credentials were unavailable; this is not hosted-account proof.
+- ProductModal-specific browser proof: `NOT RUN`; component tests cover rapid duplicate create/update, retries after server failure, and category-load failure/retry. `PRODUCTION_PROVEN=NOT RUN`.
+- **Review gate:** GitHub returned zero formal review submissions and zero inline review threads at last read. PR #97 remains `OPEN / DRAFT / NOT MERGED`; do not self-approve, mark ready, or merge until an authorized independent maintainer review is recorded.
+- **PR metadata discrepancy:** live `main...head` comparison reports `ahead_by=26`, `behind_by=0`, and four changed paths, but the PR REST metadata still reports `changed_files=15` and exposes inherited P2 paths. Treat the PR as merge-blocked until this discrepancy is reconciled; do not infer a safe PR diff from either stale cached field alone.
+- `LOCKED_PATHS`: P2-owned `CURRENT_EXECUTION_STATE.md`, acceptance matrix, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`, finance/SQL/RPC/RLS/migrations/services; P3-owned PR #89 route/report acceptance files; generated `src/routeTree.gen.ts`; other active PR-owned paths.
+- `NEXT_ACTION=P1-PR97-REVIEW-AND-DIFF-RECONCILIATION-001`: reconcile GitHub PR base/files metadata against the exact live compare and obtain authorized independent maintainer review. Keep Draft/unmerged until both gates clear. Continue independent P1 PR #124 validation in parallel without touching #97 files.
+- `UPDATED_AT=2026-10-23T20:08:00Z`.
+
 ## Recent execution history
 
 ### 2026-10-23 — P1-STOREFRONT-ORDER-PRICE-BROWSER-001 — TESTED_EXACT_SHA / BROWSER_PROVEN (PR #107 open)
