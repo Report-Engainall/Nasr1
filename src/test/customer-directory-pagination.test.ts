@@ -75,7 +75,7 @@ describe('customer directory query contract', () => {
       { column: 'id', ascending: false },
     ]);
     expect(mocks.filters).toEqual([
-      'business_name.ilike.%متجر النور%,phone.ilike.%متجر النور%,customer_code.ilike.%متجر النور%',
+      'business_name.ilike.%متجر النور%,contact_name.ilike.%متجر النور%,phone.ilike.%متجر النور%,email.ilike.%متجر النور%,customer_code.ilike.%متجر النور%',
     ]);
     expect(mocks.ranges).toEqual([[25, 49]]);
   });
@@ -84,8 +84,18 @@ describe('customer directory query contract', () => {
     expect(normalizeCustomerDirectorySearch('متجر,)(status.eq.approved_%')).toBe('متجر status eq approved');
     await fetchCustomerDirectoryPage({ search: 'متجر,)(status.eq.approved_%' });
     expect(mocks.filters).toHaveLength(1);
-    expect(mocks.filters[0].split(',')).toHaveLength(3);
+    expect(mocks.filters[0].split(',')).toHaveLength(5);
     expect(mocks.filters[0]).not.toContain('.eq.approved');
+  });
+
+  it('searches contact details and preserves a validated full email query', async () => {
+    await fetchCustomerDirectoryPage({ search: 'مسؤول المشتريات' });
+    expect(mocks.filters[0]).toContain('contact_name.ilike.%مسؤول المشتريات%');
+    expect(mocks.filters[0]).toContain('email.ilike.%مسؤول المشتريات%');
+
+    await fetchCustomerDirectoryPage({ search: 'Buyer+Ops@example.test' });
+    expect(mocks.filters[1]).toContain('email.ilike.%buyer+ops@example.test%');
+    expect(mocks.filters[1]).not.toMatch(/\\),status\\.|,status\\.eq/i);
   });
 
   it('clamps an out-of-range page against the exact count after deletions', async () => {

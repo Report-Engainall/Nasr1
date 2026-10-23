@@ -569,7 +569,7 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
             value={query}
             maxLength={120}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="ابحث باسم المنشأة أو الهاتف أو رمز العميل..."
+            placeholder="ابحث باسم المنشأة أو جهة الاتصال أو الهاتف أو البريد الإلكتروني أو رمز العميل..."
           />
           <button type="submit" disabled={loading}>بحث</button>
         </form>

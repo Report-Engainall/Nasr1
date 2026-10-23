@@ -43,7 +43,13 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
     throw new Error('عبارة البحث عن العملاء غير صالحة.');
   }
 
-  const search = normalizeCustomerDirectorySearch(input.search ?? '');
+  const rawSearch = input.search ?? '';
+  // Allow a complete, validated email address to be searched without removing its separators.
+  // The allowlist excludes commas, parentheses, wildcards, and PostgREST filter operators.
+  const emailSearch = rawSearch.normalize('NFKC').trim().toLowerCase();
+  const isEmailSearch = emailSearch.length <= 254 &&
+    /^[a-z0-9._+-]+@[a-z0-9.-]+\\.[a-z]{2,63}$/i.test(emailSearch);
+  const search = isEmailSearch ? emailSearch : normalizeCustomerDirectorySearch(rawSearch);
   const scope = await getCurrentTenantScope();
   if (!scope.isStaff || !scope.organizationId) {
     throw new Error('صلاحية موظف المؤسسة مطلوبة لفتح دليل العملاء.');
@@ -58,9 +64,14 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
       .order('id', { ascending: false });
 
     if (search) {
-      request = request.or(
-        `business_name.ilike.%${search}%,phone.ilike.%${search}%,customer_code.ilike.%${search}%`,
-      );
+      const pattern = `%${search}%`;
+      request = request.or([
+        `business_name.ilike.${pattern}`,
+        `contact_name.ilike.${pattern}`,
+        `phone.ilike.${pattern}`,
+        `email.ilike.${pattern}`,
+        `customer_code.ilike.${pattern}`,
+      ].join(','));
     }
 
     const { data, error, count } = await request.range(
