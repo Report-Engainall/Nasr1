@@ -13,6 +13,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/components/Login", () => ({ Login: () => null }));
+vi.mock("@/components/Storefront", () => ({ Storefront: () => null }));
 vi.mock("@/components/CustomerOrders", () => ({
   OrderInvoice: () => null,
   MyOrders: () => null,
@@ -39,6 +40,7 @@ import { Route as ForgotPasswordRoute } from "@/routes/forgot-password";
 import { Route as RegisterRoute } from "@/routes/register";
 import { Route as QuotesRoute } from "@/routes/quotes";
 import { Route as ReorderRoute } from "@/routes/reorder";
+import { Route as StoreRoute } from "@/routes/index";
 
 type RouteWithComponent = { options: { component: ComponentType } };
 const customerRoutes = [
@@ -54,6 +56,7 @@ const customerRoutes = [
   { label: "registration", route: RegisterRoute, expected: "جار تحميل إنشاء الحساب..." },
   { label: "quotes workspace", route: QuotesRoute, expected: "جار تحميل عروض الأسعار..." },
   { label: "reorder workspace", route: ReorderRoute, expected: "جار تحميل قائمة إعادة الطلب..." },
+  { label: "storefront home", route: StoreRoute, expected: "جار تحميل المتجر..." },
 ] as const;
 
 afterEach(() => cleanup());
