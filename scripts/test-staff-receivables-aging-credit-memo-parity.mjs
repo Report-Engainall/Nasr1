@@ -56,6 +56,13 @@ async function receivablesItem(invoiceId) {
   throw new Error("Expected source invoice was not found in the complete paginated receivables aging result.");
 }
 
+async function expectDbFailure(label, operation, expectedPattern) {
+  let failure;
+  try { await operation(); } catch (error) { failure = error; }
+  assert.ok(failure, label + ": operation unexpectedly succeeded");
+  assert.match(String(failure.message || failure), expectedPattern, label + ": unexpected database error");
+}
+
 async function main() {
   await db.unsafe("reset role");
   await db.unsafe(
@@ -84,6 +91,7 @@ async function main() {
     "join public.customers c on c.id=ci.customer_id and c.organization_id=ci.organization_id and c.profile_id=$2::uuid " +
     "join public.customer_invoice_items cii on cii.organization_id=ci.organization_id and cii.invoice_id=ci.id " +
     "where ci.organization_id=$1::uuid and ci.status<>'void' and ci.currency='YER' " +
+    "and ci.id in (select recent.id from public.customer_invoices recent where recent.organization_id=$1::uuid order by recent.issued_at desc,recent.id limit 500) " +
     "and cii.order_item_id is not null and cii.quantity>=0.500 " +
     "and NOT EXISTS (select 1 from public.customer_return_request_items prior_item " +
     " join public.customer_return_requests prior_request on prior_request.id=prior_item.return_request_id " +
@@ -179,6 +187,30 @@ async function main() {
   const after = await receivablesItem(source.invoice_id);
   assert.equal(Number(after.item.credit_memo_amount)-Number(before.item.credit_memo_amount),Number(draft.total_amount),
     "the posted credit increases the invoice credit-memo aggregate by its source amount");
+  const financeRaw = await db.unsafe("select public.fetch_staff_finance_data() as result");
+  const financeData = asJson(financeRaw[0].result);
+  const financeInvoice = (financeData.invoices || []).find((row) => row.id === source.invoice_id);
+  assert.ok(financeInvoice, "source invoice is available to finance users inside the bounded UI invoice list");
+  assert.equal(Number(financeInvoice.paid_amount),Number(after.item.paid_amount),
+    "finance invoice payload exposes the full-ledger paid aggregate");
+  assert.equal(Number(financeInvoice.credit_memo_amount),Number(after.item.credit_memo_amount),
+    "finance invoice payload exposes only the posted credit aggregate");
+  assert.equal(Number(financeInvoice.outstanding_amount),Number(after.item.outstanding_amount),
+    "finance invoice payload exposes the authoritative full-ledger outstanding balance");
+
+  const overpaymentAmount = (Number(after.item.outstanding_amount) + 0.01).toFixed(2);
+  await expectDbFailure(
+    "record_customer_payment rejects a payment above outstanding after posted credits",
+    () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,'cash',null,$3::text)",
+      [source.invoice_id,overpaymentAmount,"CI must reject credit-adjusted overpayment"]),
+    /payment exceeds invoice balance after posted credit memos/i,
+  );
+  await expectDbFailure(
+    "record_customer_payment rejects more than two decimal places",
+    () => db.unsafe("select public.record_customer_payment($1::uuid,0.011::numeric,'cash',null,'precision guard')",
+      [source.invoice_id]),
+    /at most two decimal places/i,
+  );
   assert.equal(Number(before.item.outstanding_amount)-Number(after.item.outstanding_amount),Number(draft.total_amount),
     "posting the credit reduces outstanding receivables by exactly the posted source amount");
 
@@ -200,6 +232,33 @@ async function main() {
     "aging outstanding must reconcile to saved invoice total less payments less posted credits");
   assert.ok(after.page.summary.some((s)=>s.currency==="YER"),"currency-separated aging summary remains present");
   assert.ok(Number(after.item.outstanding_amount)>=0,"the aging balance cannot become negative");
+
+  // Ordinary staff must not read invoice/payment aggregates through a SECURITY DEFINER RPC.
+  const staffAuthId = randomUUID();
+  const staffProfileId = randomUUID();
+  const staffEmail = "ci-nonfinance-" + suffix + "@example.test";
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1::uuid,$2,pg_catalog.now()) on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [staffAuthId,staffEmail],
+  );
+  await db.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1::uuid,$2::uuid,$3::uuid,'CI Non-finance Staff',$4,true) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,is_active=true",
+    [staffProfileId,staffAuthId,organizationId,staffEmail],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1::uuid,'staff') on conflict(profile_id,role) do nothing",
+    [staffProfileId],
+  );
+  await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[staffAuthId]);
+  await db.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:staffAuthId,email:staffEmail,role:"authenticated"})]);
+  await db.unsafe("set role authenticated");
+  await expectDbFailure(
+    "ordinary staff cannot read staff finance invoice/payment aggregates",
+    () => db.unsafe("select public.fetch_staff_finance_data()"),
+    /finance permission required/i,
+  );
+  await db.unsafe("reset role");
   process.stdout.write("PASS staff receivables aging: source-linked posted credits reduce outstanding exactly once; drafts and physical receipts do not; balances reconcile to the stored invoice, payment and posted-credit ledgers.\n");
 }
 

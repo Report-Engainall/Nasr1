@@ -41,6 +41,9 @@ const FINANCE_DATA = {
       subtotal: "100.00",
       tax_amount: "0.00",
       total_amount: "100.00",
+      paid_amount: "25.00",
+      credit_memo_amount: "25.00",
+      outstanding_amount: "50.00",
     },
   ],
   payments: [
@@ -132,11 +135,11 @@ describe("StaffFinancePage payment amount guard", () => {
     container.remove();
   });
 
-  it("does not call the payment RPC when a payment exceeds the remaining balance", async () => {
+  it("uses the server-computed balance after posted credits to reject excess payments", async () => {
     await renderFinancePage();
-    await submitPayment("75.01");
+    await submitPayment("50.01");
 
-    expect(container.textContent).toContain("المبلغ يتجاوز المتبقي على الفاتورة.");
+    expect(container.textContent).toContain("المبلغ يتجاوز المتبقي على الفاتورة بعد احتساب الإشعارات الدائنة المرحّلة.");
     expect(
       rpcMock.mock.calls.some(([name]) => name === "record_customer_payment"),
     ).toBe(false);
@@ -144,7 +147,7 @@ describe("StaffFinancePage payment amount guard", () => {
 
   it("submits an amount equal to the remaining balance", async () => {
     await renderFinancePage();
-    await submitPayment("75.00");
+    await submitPayment("50.00");
 
     expect(container.textContent).toContain("تم تسجيل الدفعة وتحديث حالة الفاتورة.");
     expect(rpcMock).toHaveBeenCalledWith("record_customer_payment", {
