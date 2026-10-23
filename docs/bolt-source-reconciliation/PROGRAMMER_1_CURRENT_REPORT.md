@@ -621,3 +621,11 @@
 - P2 #83 latest head `04241376b769403bc6a6357265c51cf1ca66e3e2` similarly failed Core at dependency installation before migrations/tests; run [39958234359](https://github.com/Report-Engainall/Nasr1/actions/runs/39958234359). P2 run [39958234348](https://github.com/Report-Engainall/Nasr1/actions/runs/39958234348) remained in progress at readback. Exact evidence was posted to PR #83, comment 6365616497.
 - PR #93 documentation PR's prior retry also hit HTTP 429 in both Core/P2 dependency installation; that PR must not be merged until a later exact-head CI attempt completes successfully. No package lock, workflow, migration, RPC/RLS/API, shared execution-state, or shared coordination paths were changed to conceal or bypass these failures.
 - NEXT_ACTION: coordinate recovery of dependency registry/rate limiting with its workflow owner; then rerun current-head P2 Playwright for #88 and verify local Supabase/Chromium actually passed. Keep #88 Draft until PR #83 backend is integrated on current main. Review PR #93's latest exact-head workflow status separately.
+
+
+## 6.35 — Exact session-revoke acknowledgement regression added — 2026-10-23T16:27+03:00
+
+- Added `src/test/device-management.test.tsx` coverage for a malformed-but-success-shaped revoke RPC response that names a different session ID. Expected behavior: no success notice, visible error, and no stale session row displayed. Current #88 exact head is `5f500eb2129f5745bb924beb06e6a4764ab9a0e0`.
+- New Core run [39959076957](https://github.com/Report-Engainall/Nasr1/actions/runs/39959076957) and P2 run [39959076848](https://github.com/Report-Engainall/Nasr1/actions/runs/39959076848) were queued at this update. Do not infer their outcomes. Prior Core green `39958053579` is only for predecessor `7adeec2...`.
+- Main dependency remains P2 PR #83; live head at record time was `5c0367b631a80cc13d10ba5219d3f1966d0185ec`, with its own workflows active. P2 test installation has seen repeated HTTP 429 from the configured Lovable npm package mirror before application/browser steps; external-account jobs are separately gated. No registry/lockfile/workflow modifications were made from P1.
+- Next: confirm Core and P2 exact-head results for `5f500eb...`, keep #88 Draft until the #83 session backend is integrated and server-backed browser acceptance completes.
