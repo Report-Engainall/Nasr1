@@ -234,3 +234,20 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: DRAFT / OPEN / NOT READY.
 - UPDATED_AT: 2026-10-23T16:46+03:00
+
+
+## Active resume — stale session-list response hardening — 2026-10-23T17:00+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-STALE-LIST-RESPONSE-001` (implementation committed; exact-head verification pending).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA (functional code/test commit): `f3673f85a88762be52a4c8ca7597be475639eda9`. This checkpoint/report update is documentation-only; read the live PR head for the exact documentation commit and test runs.
+- LAST_CONFIRMED_TESTS: prior head `58e795f6ab601093b02286a18bce080e55424c63` — Core [39965165177](https://github.com/Report-Engainall/Nasr1/actions/runs/39965165177) SUCCESS; P2 Playwright [39965165130](https://github.com/Report-Engainall/Nasr1/actions/runs/39965165130) SUCCESS. Those runs predate this functional fix and do not prove it. P2 PR #83 exact head `91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`: Core [39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) SUCCESS; P2 Playwright [39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) SUCCESS, including its local Supabase/Chromium commerce job.
+- FAILED_OR_NOT_RUN_TESTS: Core and P2 Playwright for `f3673f85a88762be52a4c8ca7597be475639eda9` PENDING at checkpoint time. The new session-specific browser spec and local seeding script are present in PR #88, but the existing P2 workflow explicitly runs only the critical-path, return, Onyx export, finance-print, and public-smoke specs; it did not invoke `e2e/device-session-management.spec.ts` or `scripts/seed-p1-device-session-playwright.mjs` on SHA `58e795f...`. This gap was handed to P2 in [PR #83 comment 6366644229](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366644229). No authenticated session-revocation browser PASS is claimed yet.
+- FILES_CHANGED: functional commit modifies `src/components/DeviceManagement.tsx` and `src/test/device-management.test.tsx`; PR #88 also carries the new `e2e/device-session-management.spec.ts` and `scripts/seed-p1-device-session-playwright.mjs` from the concurrent P1 batch.
+- LOCKED_PATHS: P2 migrations/RPC/RLS/Auth/generated types and `.github/workflows/p2-playwright-critical-paths.yml`; shared `CURRENT_EXECUTION_STATE.md` and `WORK_COORDINATION.md`; P3 acceptance paths. No locked path changed.
+- NEXT_ACTION: read Core + P2 workflow results on the live latest #88 head. Fix only concrete failures. Coordinate with P2 to execute the P1-owned session browser spec inside the existing isolated local Supabase job; it must revoke a same-tenant target session and prove a later protected tenant-context RPC is denied while the JWT has not yet expired, and prove bulk self-revocation retains the current session. Keep #88 Draft until backend #83 is merged and this exact integrated acceptance runs.
+- BLOCKER: exact-head CI pending; session-specific E2E is not yet wired into the P2-owned workflow; external authenticated E2E remains gated.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: DRAFT / OPEN / NOT READY.
+- UPDATED_AT: 2026-10-23T17:00+03:00

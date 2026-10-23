@@ -745,3 +745,27 @@ Verified that main's `src/components/AdminPages.tsx` (blob `f40d28dd03dd32cda00e
 - Session UI: implemented and Core-tested at the code/test SHA; PR #88 remains **DRAFT / PARTIAL**. Do not merge until #83's P2 workflow acceptance is fixed, the backend is merged, and browser proof establishes selective revocation and denial of subsequent protected requests.
 - Invitation create: **NOT PROVEN in browser on current main**; await synced #82 exact-head Core + local Supabase/Chromium success and post-merge verification.
 - Files changed by P1: only `DeviceManagement.tsx`, `device-management.test.tsx`, and P1-owned checkpoint/report.
+
+
+## P1 — reject stale session-list responses — 2026-10-23T17:00+03:00
+
+### Root cause and fix
+A session list read can outlive a newer read triggered by a successful revocation. Without ordering, an earlier response could overwrite the newer server state and make a revoked session appear in the UI again. `src/components/DeviceManagement.tsx` now assigns a monotonically increasing request ID to each organization-session list request. Only the newest request may update session rows, error state, or loading state, including when an old request fails. A new request also invalidates pending reads when the caller is no longer authorized.
+
+### Regression acceptance
+Added a deferred-RPC component test in `src/test/device-management.test.tsx`: the initial server list remains pending; the account-scoped revocation succeeds; the subsequent list returns only the current session; then the stale pre-revocation list is released. The expected behavior is that the revoked row remains absent and the error state stays clear.
+
+### Exact-head evidence
+- Functional commit: `f3673f85a88762be52a4c8ca7597be475639eda9`.
+- Latest prior exact-head Core run [39965165177](https://github.com/Report-Engainall/Nasr1/actions/runs/39965165177) and P2 Playwright [39965165130](https://github.com/Report-Engainall/Nasr1/actions/runs/39965165130) passed on parent SHA `58e795f6ab601093b02286a18bce080e55424c63`; they do **not** prove this new code/test. Exact-head results for `f3673f85...` are pending.
+- P2 session backend exact-head Core [39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) and Playwright [39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) both passed on P2 SHA `91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`. This is evidence for the backend branch and its configured commerce tests, not proof the P1 session E2E was run.
+- The new `e2e/device-session-management.spec.ts` / `scripts/seed-p1-device-session-playwright.mjs` are in #88, but the inspected P2 workflow at current head does not invoke them. P1 handed this gap to P2 at [comment 6366644229](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366644229). Session browser proof remains NOT_PROVEN until the explicit tests run on an integrated backend.
+
+### Next action and ownership
+Read the latest #88 Core and Playwright results by exact SHA; repair concrete failures only. P2 owns the workflow/backend fixture connection and must make the session spec run inside local-only Supabase/PG17. Do not modify its workflow, migrations, RPC, RLS or generated types from P1. Do not merge #88 until that scenario plus post-revocation protected-request denial is proven.
+
+**Branch:** `p1/central-device-session-ui-20261023`  
+**PR:** [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**BASE_SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
+**FUNCTIONAL_HEAD_SHA:** `f3673f85a88762be52a4c8ca7597be475639eda9`  
+**STATUS:** Implemented; exact-head CI pending; session E2E wiring pending with P2.  
