@@ -74,14 +74,14 @@ describe('customer-manager role assignment', () => {
     expect(select).toBeTruthy();
     await act(async () => {
       if (select) {
-        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set?.call(select, 'customer');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set?.call(select, 'staff');
         select.dispatchEvent(new Event('change', { bubbles: true }));
       }
     });
     expect(button?.disabled).toBe(false);
     await act(async () => { button?.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(mocks.rpc).toHaveBeenCalledWith('set_organization_user_roles', {
-      p_profile_id: 'manager-profile', p_roles: ['customer'],
+      p_profile_id: 'manager-profile', p_roles: ['staff'],
     });
     expect(mocks.onNotice).not.toHaveBeenCalled();
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain('رفض الخادم تغيير الأدوار');

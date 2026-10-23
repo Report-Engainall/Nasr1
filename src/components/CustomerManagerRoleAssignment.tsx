@@ -8,7 +8,6 @@ const ROLE_LABELS: Record<string, string> = {
   accountant: 'محاسب', customer: 'عميل', customer_manager: 'مسؤول العملاء',
 };
 const FALLBACK_ROLES = [
-  { value: 'customer', label: 'عميل — أقل صلاحية تشغيلية' },
   { value: 'staff', label: 'موظف تشغيل — صلاحيات تشغيلية' },
   { value: 'accountant', label: 'محاسب — صلاحيات مالية' },
 ] as const;
