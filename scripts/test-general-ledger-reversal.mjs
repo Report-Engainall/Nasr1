@@ -50,7 +50,7 @@ export async function runGeneralLedgerReversalAcceptance({
   async function createDraft(client, expenseAccountId, cashAccountId, key, description = "P2 manual journal reversal acceptance") {
     return asJson((await client.unsafe(
       "select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text) as result",
-      [key, "2026-10-23", description, JSON.stringify([
+      [key, "2026-10-23", description, client.json([
         { account_id: expenseAccountId, debit: "125.50", credit: "0", memo: "Original debit evidence" },
         { account_id: cashAccountId, debit: "0", credit: "125.50", memo: "Original credit evidence" },
       ]), null],
