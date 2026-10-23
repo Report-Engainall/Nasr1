@@ -1,11 +1,12 @@
-## P2 live reconciliation and PR101 exact-head acceptance — 2026-10-23T19:26:00+03:00
+## P2 current exact-head validation — 2026-10-23T19:40:00+03:00
 
-- Current main c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99, tree ce3773a9c69ca2ee9acc2daa3fc759753bd4cdd9; exact-main Core run 39983210712 SUCCESS.
-- PR #54 is merged at afa4840c137d9da853c8486b005adb1ffd5fdd0a; tested feature head 52ae68f1f14d61d1fb13925a840c330cb70956e1 had Core 39905763702/P2 39905763717 PASS. PR #52 merged at c11ea018b81c6e47a9bbbc36d4d7b8f432892f8d. INV-009 remains closed for local evidence; Onyx target import/sync BLOCKED_EXTERNAL.
-- PR #88 merged at c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Feature head 5021734e2beadef83fe9209aa2611b4399eafd4e had Core 39982277415/P2 39982277637 PASS. Hosted customer E2E skipped.
-- OPS-DR-001 is proven only for isolated PG17 restore (run 39969721081/job 120468865117; SHA-256 59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1; 394 ms backup, 1012 ms restore, 4607 ms total; 23 tables/1048 rows). No production RTO/RPO claim.
-- PR #101 head 4efe9877354936fe4df19c0cfbaa24ec9d43eb4d, base c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Core 39986670318/P2 39986670155 IN_PROGRESS. Prior head 9f2407ca838dfa258257cd8535fd29e97c327c38 passed P2 but failed Core because fixture JSONB input used JSON.stringify; fixed to client.json([...]) before current head. Do not hide prior failure or inherit pass from other SHA.
-- PR #100 docs-only reconciliation is being updated again with this current checkpoint; checks must finish on its resulting exact head. P1 #97 and P3 #89 remain open and own their paths.
+- Main c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99, tree ce3773a9c69ca2ee9acc2daa3fc759753bd4cdd9; Core 39983210712 PASS on exact main SHA.
+- PR #54 merged at afa4840c137d9da853c8486b005adb1ffd5fdd0a; PR #52 merged at c11ea018b81c6e47a9bbbc36d4d7b8f432892f8d. INV-009 stays closed for local proof; live Onyx import/sync is BLOCKED_EXTERNAL.
+- PR #88 merged at c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99; feature-head Core 39982277415/P2 39982277637 PASS. Hosted customer E2E skipped.
+- OPS-DR-001 remains isolated PostgreSQL 17 restore proof only; no production RTO/RPO assertion.
+- PR #101 head 695328d97c8078c43bea5859f858b7f99ff43a5b, base c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Core 39987599300 and P2 39987599442 both SUCCESS on exact head. Earlier failures were in test harness parameter binding and private-table inspection context; fixed on current head without widening client grants.
+- CodeRabbit review triggered, still in progress as of 2026-10-23T19:40:00+03:00; do not merge until review findings are resolved and mandatory checks remain green.
+- PR #100 central docs checkpoint is being refreshed to this exact head and its exact-head Core/P2 checks must finish. P1 #97 and P3 #89 own their UI paths.
 
 ---
 

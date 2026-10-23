@@ -1,5 +1,5 @@
 # الحالة التنفيذية الحالية الوحيدة — Nasr1 / P2
-LAST_RECONCILED_AT=2026-10-23T19:26:00+03:00
+LAST_RECONCILED_AT=2026-10-23T19:40:00+03:00
 
 ## خط الأساس الحي
 REPOSITORY=Report-Engainall/Nasr1
@@ -21,16 +21,16 @@ LAST_COMPLETED_TASK_ID=ORD-001
 NEXT_TASK_ID=FIN-LEDGER-001-MANUAL-JOURNAL-REVERSAL-ACCEPTANCE
 CURRENT_BRANCH=p2/general-ledger-reversal-20261023
 BASE_SHA=c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99
-HEAD_SHA=4efe9877354936fe4df19c0cfbaa24ec9d43eb4d
+HEAD_SHA=695328d97c8078c43bea5859f858b7f99ff43a5b
 TASK_STATUS=IMPLEMENTED; exact-head acceptance pending
 FILES_CHANGED=supabase/migrations/20261023200000_accounting_general_journal_reversal.sql; scripts/test-general-ledger-reversal.mjs; scripts/test-database-migrations.mjs; src/integrations/supabase/types.ts; src/components/GeneralJournalReversalAction.tsx; src/components/GeneralLedgerWorkspace.tsx; src/test/general-ledger-statements-ui.test.tsx
-TESTS_RUN=Current main Core 39983210712 PASS. PR #101 current-head Core 39986670318 IN_PROGRESS and P2 39986670155 IN_PROGRESS on exact SHA 4efe9877354936fe4df19c0cfbaa24ec9d43eb4d. Prior head 9f2407ca838dfa258257cd8535fd29e97c327c38 had P2 run 39985455240 PASS, but its Core failed in the PostgreSQL 17 fixture setup; neither prior-head result certifies 4efe9877354936fe4df19c0cfbaa24ec9d43eb4d.
-TESTS_FAILED_OR_SKIPPED=Previous head 9f2407ca838dfa258257cd8535fd29e97c327c38: Core 39985455274 FAILED because the new acceptance fixture passed journal lines as a plain JSON string and create_general_journal_draft rejected the parameter; corrected to the established postgres.js client.json([...]) contract before this head. Hosted customer E2E 120523368573 was SKIPPED for missing dedicated non-production credentials; not a pass.
-MERGE_STATUS=PR #101 OPEN at 4efe9877354936fe4df19c0cfbaa24ec9d43eb4d; fixed JSONB binding committed and new Core/P2 exact-head checks are in progress. No merge until mandatory tests pass and review is complete. PR #100 docs-only branch is being refreshed on its own branch.
+TESTS_RUN=Core run 39987599300 PASS and P2 run 39987599442 PASS on exact SHA 695328d97c8078c43bea5859f858b7f99ff43a5b. Core includes isolated PostgreSQL 17 migrations/database acceptance. P2 public UI smoke and local Supabase/Chromium order/tenant acceptance PASS.
+TESTS_FAILED_OR_SKIPPED=Prior SHA 9f2407ca838dfa258257cd8535fd29e97c327c38 failed Core due to plain-JSON binding instead of postgres.js client.json; SHA 4efe9877354936fe4df19c0cfbaa24ec9d43eb4d failed during private-table inspection under authenticated role; SHA 7ab35a39420874204ab8e266a52f7c11b143e776 still had three such inspection reads. Current SHA 695328d97c8078c43bea5859f858b7f99ff43a5b passed Core and P2. Hosted customer E2E SKIPPED for lack of dedicated non-production credentials; not a pass.
+MERGE_STATUS=PR #101 open at 695328d97c8078c43bea5859f858b7f99ff43a5b; Core and P2 exact-head checks PASS. CodeRabbit review has been triggered and is still in progress. Do not merge until review is resolved and required checks remain green at exact head. PR #100 must re-run checks after this central-state update.
 EXTERNAL_BLOCKERS=Onyx target import/live sync; official WhatsApp Business API request/response; hosted customer-account E2E credentials; production restore proof.
 LOCKED_PATHS=P1: product singleflight PR #97 owned UI/tests/reports; P3: catalog PR #89 owned UI/tests. P2 owns database migrations/RPC, DB acceptance, types, ledger wiring and central state/matrix/log/report/coordination.
-NEXT_ACTION=Inspect Core 39986670318 and P2 39986670155 exact-head logs; fix only evidenced failures, rerun on resulting head, then merge PR #101 only after all mandatory checks and review pass.
-UPDATED_AT=2026-10-23T19:26:00+03:00
+NEXT_ACTION=Read CodeRabbit findings on exact PR #101 head 695328d97c8078c43bea5859f858b7f99ff43a5b; fix only substantive evidence-backed blockers and rerun required checks if the head changes. Then merge eligible PRs and record the post-merge main SHA.
+UPDATED_AT=2026-10-23T19:40:00+03:00
 
 ## Evidence rules
 Allowed statuses: IMPLEMENTED, INTEGRATED, TESTED_EXACT_SHA, BROWSER_PROVEN, PRODUCTION_PROVEN, CLOSED_WITH_EVIDENCE, BLOCKED_EXTERNAL, NOT RUN. A skipped job is not a pass. Do not generalize tests across SHA. Local browser/DB evidence is not production proof.

@@ -1,17 +1,17 @@
 # سجل التنسيق — المرجع الحي
 
-## المصالحة الحالية — 2026-10-23T19:26:00+03:00
+## المصالحة الحالية — 2026-10-23T19:40:00+03:00
 
-- Main c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99; tree ce3773a9c69ca2ee9acc2daa3fc759753bd4cdd9; Core run 39983210712 SUCCESS on exact current main.
-- PR #54 merged at afa4840c137d9da853c8486b005adb1ffd5fdd0a; tested feature head 52ae68f1f14d61d1fb13925a840c330cb70956e1 had Core 39905763702/P2 39905763717 PASS. PR #52 merged at c11ea018b81c6e47a9bbbc36d4d7b8f432892f8d. INV-009 closed for local evidence only; live Onyx import/sync remains BLOCKED_EXTERNAL.
-- OPS-DR-001 has isolated PostgreSQL 17 evidence only (run 39969721081/job 120468865117; backup SHA-256 59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1; 394 ms backup, 1012 ms restore, 4607 ms total; 23 tables/1048 rows; temporary DB removed). No production restore or RTO/RPO claim.
-- PR #99 / ORD-001 merged at 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2; evidence remains bounded to tested tree at merge. Current main advanced with #88.
-- PR #88 central session UI merged at c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Feature head 5021734e2beadef83fe9209aa2611b4399eafd4e had Core 39982277415/P2 39982277637 PASS; hosted customer E2E was skipped.
-- PR #101 P2 finance reversal head 4efe9877354936fe4df19c0cfbaa24ec9d43eb4d, base c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Previous head 9f2407ca838dfa258257cd8535fd29e97c327c38: P2 PASS, Core failed in test fixture JSONB binding. The fixture now uses postgres.js client.json([...]); current Core 39986670318 and P2 39986670155 are IN_PROGRESS on this exact head. Merge is blocked pending results and review.
-- PR #100 is the serialized P2 docs-only reconciliation; this commit refreshes the five central files and triggers fresh checks. P1 owns PR #97 product-singleflight paths; P3 owns PR #89 catalog paths. Do not edit these locked paths.
-- P2 owns migrations/RPC/RLS, DB acceptance, generated Supabase types, ledger wiring and the five central state files. Do not rebuild already closed INV-009 or OPS-DR-001 tasks unless a new regression is evidenced.
-- Sole next action: finish exact-head acceptance for FIN-LEDGER-001 / PR #101. Existing source-linked invoice/payment/cash-expense/purchase-receipt reversal flows remain authoritative.
-- External blockers: Onyx target import/live sync; official WhatsApp API response/ID; hosted customer-account E2E credentials; production restore proof.
+- main c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99; tree ce3773a9c69ca2ee9acc2daa3fc759753bd4cdd9; Core run 39983210712 SUCCESS على رأس main الحالي.
+- PR #54 مدمج عند afa4840c137d9da853c8486b005adb1ffd5fdd0a؛ رأس الوظيفة المختبر 52ae68f1f14d61d1fb13925a840c330cb70956e1 اجتاز Core 39905763702 وP2 39905763717. PR #52 مدمج عند c11ea018b81c6e47a9bbbc36d4d7b8f432892f8d. INV-009 مغلق لأدلة محلية؛ مزامنة/استيراد Onyx الحي BLOCKED_EXTERNAL.
+- OPS-DR-001 لديه أدلة استعادة PostgreSQL 17 المعزولة فقط: run 39969721081/job 120468865117؛ backup SHA-256 59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1؛ 394 ms نسخ، 1012 ms استعادة، 4607 ms إجمالي، 23 جدولًا/1048 صفًا. لا إثبات إنتاج أو RTO/RPO.
+- PR #99 / ORD-001 مدمج عند 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2؛ أدلة القبول تخص شجرة الاختبار عند الدمج؛ اختبار العميل المستضاف SKIPPED.
+- PR #88 مدمج ضمن c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. رأس الميزة 5021734e2beadef83fe9209aa2611b4399eafd4e اجتاز Core 39982277415 وP2 39982277637؛ اختبار العميل المستضاف SKIPPED.
+- PR #101 / FIN-LEDGER-001: رأس 695328d97c8078c43bea5859f858b7f99ff43a5b، أساس c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Core 39987599300 PASS وP2 39987599442 PASS على الرأس نفسه. تم إصلاح تمرير JSONB للاختبار وحماية قراءات الجدول الخاص مع الحفاظ على رفض القراءة المباشرة من authenticated. مراجعة CodeRabbit مطلوبة ولا تزال قيد التنفيذ؛ لا دمج قبل حسمها.
+- PR #100 هو طلب توثيق المصالحة المركزية؛ هذا التحديث يربط مؤشر الاستئناف بنتيجة الرأس المختبر، ويستلزم إعادة فحوص PR #100 بعد الالتزام. P1 يملك مسارات PR #97، وP3 يملك مسارات PR #89؛ لا تعدلها.
+- P2 يملك migrations/RPC/RLS، اختبارات قاعدة البيانات، أنواع Supabase، ربط دفتر الأستاذ والملفات المركزية الخمسة. لا تعِد تنفيذ INV-009 أو OPS-DR-001 ما لم يظهر انحدار جديد.
+- الإجراء التالي الوحيد: حسم مراجعة PR #101؛ أصلح العيوب الجوهرية المدعومة بالدليل، ثم تأكد من الفحوص على الرأس النهائي وادمج المؤهل.
+- العوائق الخارجية: استيراد/مزامنة Onyx الحية؛ استجابة/معرّف WhatsApp Business API الرسمي؛ اعتماد اختبار العميل المستضاف؛ إثبات الاستعادة الإنتاجية.
 
 ## سجل التنسيق الأصلي (للتاريخ فقط)
 
