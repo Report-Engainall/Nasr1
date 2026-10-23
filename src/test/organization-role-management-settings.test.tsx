@@ -41,6 +41,13 @@ const userRow = (profileId: string, fullName: string, roles: string[]) => ({
   roles,
 });
 
+const cardForEmail = async (email: string) => {
+  const emailNode = await screen.findByText(email, { exact: true });
+  const card = emailNode.closest("article");
+  expect(card).not.toBeNull();
+  return card!;
+};
+
 describe("organization role management through admin settings", () => {
   beforeEach(() => {
     mocks.rpc.mockReset();
@@ -80,9 +87,7 @@ describe("organization role management through admin settings", () => {
     render(<SettingsPage onNotice={onNotice} />);
     fireEvent.click(screen.getByRole("button", { name: "المستخدمون والصلاحيات" }));
 
-    const name = await screen.findByText("موظف اختبار");
-    const card = name.closest("article");
-    expect(card).not.toBeNull();
+    const card = await cardForEmail("موظف.اختبار@example.test");
     fireEvent.click(within(card!).getByLabelText("محاسب"));
     fireEvent.click(within(card!).getByRole("button", { name: "حفظ الأدوار" }));
 
@@ -99,9 +104,7 @@ describe("organization role management through admin settings", () => {
     render(<SettingsPage onNotice={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "المستخدمون والصلاحيات" }));
 
-    const name = await screen.findByText("مدير الاختبار");
-    const card = name.closest("article");
-    expect(card).not.toBeNull();
+    const card = await cardForEmail("مدير.الاختبار@example.test");
     expect(within(card!).getByText("حسابك الحالي محمي من التعديل المباشر.")).toBeInTheDocument();
     expect(within(card!).getByLabelText("مدير النظام")).toBeDisabled();
     expect(within(card!).queryByRole("button", { name: "حفظ الأدوار" })).toBeNull();
@@ -118,9 +121,7 @@ describe("organization role management through admin settings", () => {
 
     render(<SettingsPage onNotice={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "المستخدمون والصلاحيات" }));
-    const name = await screen.findByText("مدير آخر");
-    const card = name.closest("article");
-    expect(card).not.toBeNull();
+    const card = await cardForEmail("مدير.آخر@example.test");
 
     fireEvent.click(within(card!).getByLabelText("مدير النظام"));
     fireEvent.click(within(card!).getByLabelText("مدير"));
