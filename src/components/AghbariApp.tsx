@@ -751,14 +751,16 @@ export function CustomerLifecycleDialog({ customer, onClose, onSaved }: {
   </Modal>;
 }
 
-function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+export function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [business, setBusiness] = useState('');
   const [contact, setContact] = useState('');
   const [phone, setPhone] = useState('');
   const [tier, setTier] = useState('retail');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const submitInFlight = useRef(false);
   async function save() {
+    if (submitInFlight.current || saving) return;
     setError('');
     let input: ReturnType<typeof validateCustomerInput>;
     try {
@@ -767,13 +769,17 @@ function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
       setError(cause instanceof Error ? cause.message : 'بيانات العميل غير صالحة.');
       return;
     }
+    submitInFlight.current = true;
     setSaving(true);
     try {
       await createCustomer(input);
       onSaved();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'تعذر حفظ العميل.');
-    } finally { setSaving(false); }
+    } finally {
+      submitInFlight.current = false;
+      setSaving(false);
+    }
   }
   return <Modal title="إضافة عميل" onClose={() => { if (!saving) onClose(); }}>
     <Field label="اسم المنشأة">
