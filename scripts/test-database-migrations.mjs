@@ -815,6 +815,8 @@ async function main() {
     { key: "blockedApprove", code: "CI-LC-BLOCKED-APPROVE", status: "blocked" },
     { key: "blockedArchive", code: "CI-LC-BLOCKED-ARCHIVE", status: "blocked" },
     { key: "noHistory", code: "CI-LC-NO-ARCHIVE-HISTORY", status: "archived" },
+    { key: "otherCustomerArchive", code: "CI-LC-OTHER-CUSTOMER-ARCHIVE", status: "archived" },
+    { key: "foreignHistory", code: "CI-LC-FOREIGN-ARCHIVE-HISTORY", status: "archived" },
     { key: "tierCommand", code: "CI-TIER-COMMAND-01", status: "approved" },
     { key: "foreignLifecycle", code: "CI-LC-FOREIGN-01", status: "pending", foreign: true },
     { key: "foreignTier", code: "CI-TIER-FOREIGN-01", status: "approved", foreign: true },
@@ -919,9 +921,29 @@ async function main() {
     lifecycleIds.pendingArchive, "archived", "restore", "CI restore pending customer",
   );
   assert.equal(restoredPending.status, "pending", "restoring an archived pending customer must preserve pending status");
+
+  // Restoration must not borrow an otherwise valid archive record from another customer or tenant.
+  await db.unsafe(
+    "insert into public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value) " +
+    "values($1,$2,'customer.status_changed','customer',$3,$4::jsonb,$5::jsonb)",
+    [organizationId, staffProfileId, lifecycleIds.otherCustomerArchive,
+      db.json({ status: "frozen" }), db.json({ status: "archived", reason: "CI unrelated customer audit fixture" })],
+  );
+  await db.unsafe(
+    "insert into public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value) " +
+    "values($1,$2,'customer.status_changed','customer',$3,$4::jsonb,$5::jsonb)",
+    [otherOrganizationId, foreignProfileId, lifecycleIds.foreignHistory,
+      db.json({ status: "rejected" }), db.json({ status: "archived", reason: "CI foreign tenant audit fixture" })],
+  );
   await expectFailure(
     "archived customer without its own valid archive audit cannot be restored",
     () => customerLifecycleCommand(lifecycleIds.noHistory, "archived", "restore", "CI missing history restore"),
+    /previous customer status is unavailable; cannot restore safely/i,
+  );
+
+  await expectFailure(
+    "archived customer cannot be restored from another tenant's audit history",
+    () => customerLifecycleCommand(lifecycleIds.foreignHistory, "archived", "restore", "CI foreign audit must be ignored"),
     /previous customer status is unavailable; cannot restore safely/i,
   );
   await expectFailure(
