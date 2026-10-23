@@ -1152,3 +1152,33 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Hosted customer order/tenant E2E job `120607612381` was SKIPPED due absent dedicated non-production credentials; it is `BLOCKED_EXTERNAL`, not PASS. Local Supabase browser acceptance is distinct and passed. No production financial/database writes or live external integration are claimed.
 - CodeRabbit review was explicitly triggered for `1ecfd0b343419e9745e5e8631ecea738c9f13862`; its trigger was acknowledged, but no completed formal review was returned at the time of this log. Manual diff review performed; verify bot output before merge.
 - This single checkpoint commit is documentation-only but changes the PR head. Core/P2 results above attach only to `1ecfd0b343419e9745e5e8631ecea738c9f13862`; rerun both gates to terminal on the post-checkpoint head before merge, then verify exact merge/main SHA and CI. Do not copy the prior PASS status to the new SHA.
+
+
+## P2 FIN-INVOICE-001 pending payment retry-key preservation — 2026-10-23T23:07:00+03:00
+
+- Main before this follow-up: `391e25847c7cc7fb2ba5f77164600455db04abfd`, created by merging PR #112.
+- PR [#112](https://github.com/Report-Engainall/Nasr1/pull/112) merged at `391e25847c7cc7fb2ba5f77164600455db04abfd` from exact PR head `1aa7c7906851e1a5ddb088a173d868a16809f9ef`. Core [40010842943](https://github.com/Report-Engainall/Nasr1/actions/runs/40010842943) and P2 [40010842853](https://github.com/Report-Engainall/Nasr1/actions/runs/40010842853) both completed SUCCESS on that exact PR head. The merge-SHA checks were not confirmed in the live readback, and the previous PR-head pass is not relabelled as main-SHA CI.
+- Hosted customer credential-gated E2E was SKIPPED due unavailable dedicated non-production credentials. It remains `BLOCKED_EXTERNAL`, not PASS.
+- Review-triggered regression confirmed in the merged client: the scalar `paymentRequestRef` stored only one unresolved fingerprint/key; submitting a different payload replaced a prior ambiguous payment's idempotency key. The component also treated `data: null, error: null` as a success acknowledgement.
+- PR [#123](https://github.com/Report-Engainall/Nasr1/pull/123) opened on branch `p2/payment-idempotency-pending-map-20261023`, based on main `391e25847c7cc7fb2ba5f77164600455db04abfd`. Source change replaces the scalar slot with a `Map<fingerprint,key>`, preserving pending request keys independently and deleting only a valid acknowledged request. A successful response must include a non-empty payment ID; errors, thrown transport rejection, and malformed acknowledgements retain the key and surface failure.
+- Regression cases added: (1) A fails ambiguously, B succeeds, then A retries with the original key; (2) null acknowledgement retains the key and the retry reuses it. Formatting issues called out in the merged PR review are corrected.
+- Implementation/test head before the central checkpoint commits: `cbcbf3db6261b1018c3e83766c575dd854314654`. All central P2 files were updated serially on the branch; the final PR head is expected to have advanced after those commits and must be re-read.
+- `TESTS_RUN_WITH_RESULTS`: existing PR #112 Core/P2 results are attached only to `1aa7c7906851e1a5ddb088a173d868a16809f9ef`. New PR #123 final-head workflows are PENDING; no PASS claimed for the new fix until Core and P2 reach terminal SUCCESS on one exact final SHA.
+- No production database migration/write, real payment operation, hosted customer E2E, live Onyx sync, or live WhatsApp API call was performed.
+
+
+
+## P2 payment retry acknowledgement hardening — 2026-10-23T23:08:00+03:00
+
+- Follow-up to PR [#123](https://github.com/Report-Engainall/Nasr1/pull/123): the payment RPC contract returns a UUID, so a non-empty arbitrary string is not a sufficient success acknowledgement.
+- Source/test update at `b9915624033398ad47f7d25f72fc7b7ed9969e4a` validates the trimmed result as a canonical UUID shape. Null and malformed values retain the matching fingerprint's key and show an error; a later exact-payload retry reuses that same key.
+- Regression now exercises null acknowledgement, malformed non-UUID response, and a valid UUID response in sequence, with all attempts sharing the original key. The separate A-ambiguous → B-success → A-retry regression tests independent per-payload key retention.
+- The latest PR head changes after the code/test update and sequential checkpoint commits. Exact-head Core and P2 workflows must be read to terminal on the final current head; no PASS is claimed for the new code until then.
+- No production database migration/write, real payment operation, hosted customer E2E, live Onyx sync, or live WhatsApp API call was performed.
+
+
+## P2 payment fixture aligned to UUID RPC result — 2026-10-23T23:09:00+03:00
+
+- Latest code/test commit before the central checkpoint refresh: `3e91a41de8022408beebe669efbc7611a3792b72`.
+- The existing default payment RPC test mock returned an object even though `record_customer_payment` returns a UUID. Tightened acknowledgement handling correctly rejects that payload; the fixture now returns a valid UUID instead of the old object, so unrelated successful-payment tests exercise the real response contract.
+- No additional SQL/migration/service behavior was changed. CI on the final PR #123 head remains pending; neither local PASS nor production proof is claimed.
