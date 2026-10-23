@@ -18,7 +18,7 @@ export async function fetchCompanyMembershipWorkspace():Promise<CompanyMembershi
 export async function createCompanyInvitation(email:string,memberRole:CompanyMemberRole):Promise<CreatedCompanyInvitation>{
  const normalized=email.trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)||normalized.length>254)throw new Error("أدخل بريدًا إلكترونيًا صحيحًا.");role(memberRole);
  const {data,error}=await supabase.rpc("create_customer_company_invitation",{p_email:normalized,p_member_role:memberRole});if(error)throw new Error("تعذر إنشاء الدعوة: "+error.message);
- const row=obj(data);if(typeof row.invitation_id!=="string"||!uuid.test(row.invitation_id)||row.invited_email!==normalized||row.member_role!==memberRole||typeof row.invitation_token!=="string"||!/^[0-9a-f]{64}$/i.test(row.invitation_token)||typeof row.expires_at!=="string")throw new Error("لم يؤكد الخادم إنشاء دعوة صالحة.");return row as unknown as CreatedCompanyInvitation;
+ const row=obj(data);const expiresAt=typeof row.expires_at==="string"?Date.parse(row.expires_at):NaN;if(typeof row.invitation_id!=="string"||!uuid.test(row.invitation_id)||row.invited_email!==normalized||row.member_role!==memberRole||typeof row.invitation_token!=="string"||!/^[0-9a-f]{64}$/i.test(row.invitation_token)||!Number.isFinite(expiresAt)||expiresAt<=Date.now())throw new Error("لم يؤكد الخادم إنشاء دعوة صالحة بموعد انتهاء مستقبلي.");return row as unknown as CreatedCompanyInvitation;
 }
 export async function acceptCompanyInvitation(token:string):Promise<{company_name:string;member_role:CompanyMemberRole;status:"active"}>{
  if(!/^[0-9a-f]{64}$/i.test(token))throw new Error("رابط الدعوة غير صالح.");
