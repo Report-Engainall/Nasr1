@@ -1,20 +1,21 @@
 # P3 execution checkpoint — Nasr1
 
-UPDATED_AT: 2026-10-23T18:53:35.851+03:00
-LAST_COMPLETED_TASK_ID: P3-BROWSER-CATEGORY-RETRY-RESET-025
+UPDATED_AT: 2026-10-23T18:57:30.668+03:00
+LAST_COMPLETED_TASK_ID: P3-BROWSER-CATEGORY-RETRY-RESET-025 (browser failure diagnosed; exact alert-locator fix is NEXT_ACTION)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: f9beca0553fc7e546415b42b83274898fcf9449a
-HEAD_SHA: e05fbd62383310f022c847d9a8926ae3b4d910ee (last implementation/test commit before this docs-only successor; see NEXT_ACTION for current-head verification)
-ROUTES_COVERED: 55 explicit URL patterns plus / root via generated routeTree; focused category/subcategory, collections, offers, advanced search, reset-password, reports and customer route hydration. New browser tests cover advanced-search category retry and reset-password invalid input; current-head result pending. Full all-route browser UAT NOT RUN.
-FILES_CHANGED: src/components/AdvancedStorefrontSearchPage.tsx; src/components/Storefront.tsx; src/components/StorefrontCollectionsPage.tsx; src/components/StorefrontOffersPage.tsx; src/routes/admin_.reports.tsx; src/routes/assistant.tsx; src/test/admin-reports-route-wiring.test.ts; src/test/admin-reports-runtime-mount.test.tsx; src/test/advanced-storefront-search.test.tsx; src/test/storefront-price-visibility-ui.test.tsx; e2e/public-storefront-smoke.spec.ts; PROGRAMMER_3_CURRENT_REPORT.md; PROGRAMMER_3_EXECUTION_CHECKPOINT.md.
+HEAD_SHA: 7f890483e3f0dcf8f0631be1ca828a4eee09a4f1 (implementation/test commit before documentation successors)
+ROUTES_COVERED: 55 explicit URL patterns plus root via generated routeTree; targeted category/subcategory, collections, offers, advanced search, reset-password, reports and checkout coverage. New Chromium test simulates category HTTP 503 then retry success; first attempt revealed a missing public tenant-context RPC fixture and a non-unique alert locator. Invalid reset-password browser check passed in the first run. Full all-route browser UAT NOT RUN.
+FILES_CHANGED: AdvancedStorefrontSearchPage, Storefront, StorefrontCollectionsPage, StorefrontOffersPage, admin reports route, assistant route, related regression files, e2e/public-storefront-smoke.spec.ts, PROGRAMMER_3_CURRENT_REPORT.md and PROGRAMMER_3_EXECUTION_CHECKPOINT.md.
 TESTS_RUN_WITH_RESULTS:
-- Exact SHA 4fc4667f1c943173729f3984f18091848bd7d19e: Core 39975610110 SUCCESS; P2 39975609968 SUCCESS. Core included PostgreSQL 17 acceptance, unit tests, lint with repository-wide Prettier rule excluded, build and smoke; P2 included public UI and local-Supabase order/tenant, return/credit, Onyx export, customer-manager and print acceptance.
-- Last implementation/test SHA e05fbd62383310f022c847d9a8926ae3b4d910ee: Core 39981955534 IN_PROGRESS and P2 39981955515 PENDING at readback. Do not label new browser tests TESTED_EXACT_SHA until terminal result is read.
-TESTS_FAILED_OR_SKIPPED: Latest implementation/test runs not terminal at checkpoint. External credential-gated customer-order/tenant E2E SKIPPED; conditional device-session checks SKIPPED in predecessor; local tests NOT RUN in this runtime; all-route browser UAT and production acceptance NOT RUN.
-DEFECTS_FOUND: Formatting issues across reviewed P3 JSX/test hunks corrected; the report route assertion accepts formatting whitespace. Browser regression added for category source 503 then retry success, plus a reset-password direct URL and invalid-password no-success check. Current behavior still requires exact-head validation.
-HANDOFF_TO_P1_OR_P2: P1: /admin/exports generated route registration/reachability remains NOT PROVEN; do not edit src/routeTree.gen.ts manually. P2: update canonical route-to-source matrix and shared state only from exact-SHA evidence; do not change central matrices or WORK_COORDINATION.md from P3.
+- Historical SHA 4fc4667f1c943173729f3984f18091848bd7d19e: Core 39975610110 SUCCESS and P2 39975609968 SUCCESS; not evidence for new tests.
+- SHA b36eca67eb15afa7bb8f76be7f20908849c6b2df: Core 39982185788 IN_PROGRESS at readback; P2 39982185830 FAILED. Public Chromium smoke failed because the category test asserted against two role=alert nodes and the stub did not cover rpc/get_public_storefront_context.
+- Commit 7f890483e3f0dcf8f0631be1ca828a4eee09a4f1 adds a deterministic response to the public context RPC so categories can reach the intentional first 503 and next-success fixture. Current rerun pending.
+TESTS_FAILED_OR_SKIPPED: P2 39982185830 failure on b36eca; 2 browser tests passed and category retry failed. External credential-gated authenticated customer/order E2E SKIPPED. Local commands NOT RUN. Full-route browser UAT and production acceptance NOT RUN.
+DEFECTS_FOUND: Root cause found in browser log: public context RPC was aborted before categories could load. RPC fixture added. Exact category locator must now be narrowed to an alert containing the synthetic category outage message, not all role=alert elements.
+HANDOFF_TO_P1_OR_P2: P1 owns /admin/exports generated route registration and storefront admin-exit access guard; don't edit generated route tree. P2 owns shared matrix/state/WORK_COORDINATION and backend/RPC contracts.
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
-MERGE_STATUS: OPEN; UNMERGED; independent formal review missing; CodeRabbit COMMENTED only.
-BLOCKERS: Current-head CI pending; P1-owned /admin/exports registration; external credential-gated E2E skipped; all-route UAT/production acceptance not run.
-NEXT_ACTION: Read live PR #89 head; inspect exact-SHA Core and P2 job conclusions, particularly e2e/public-storefront-smoke.spec.ts. Fix any genuine failure. Then request independent formal maintainer review and keep the PR open until all gates are satisfied.
-PR_BRANCH_RULE: No direct main writes, no force-push/reset/clean, no manual generated route-tree edits, no changes to P1/P2-owned backend contracts, migrations, shared matrix or WORK_COORDINATION.md.
+MERGE_STATUS: OPEN, unmerged; independent formal review missing (CodeRabbit COMMENTED only).
+BLOCKERS: Locator correction and final exact-head Core/P2 checks; P1-owned /admin/exports registration not proven; external E2E skipped; all-route UAT and production acceptance not run.
+NEXT_ACTION: In e2e/public-storefront-smoke.spec.ts, scope the category error assertion to the category-specific alert, keep the public context RPC stub, and verify the first synthetic 503 followed by a successful categories read. Then inspect exact-head Core/P2 jobs and refresh checkpoint before stopping.
+PR_BRANCH_RULE: No direct main writes, no force-push/reset/clean, no manual src/routeTree.gen.ts edits, and no edits to P2-owned shared matrices/state/WORK_COORDINATION or backend/migration contracts.
