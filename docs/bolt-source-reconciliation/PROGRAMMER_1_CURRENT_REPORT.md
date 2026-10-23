@@ -847,3 +847,26 @@ Read exact-head CI after the current resume-doc commit. Fix code/test failures o
 **BASE_SHA:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`  
 **FUNCTIONAL_HEAD_SHA:** `f1c298299281f1e10755c3786c3900724f5c5632`  
 **STATUS:** Two P1 UI regressions implemented; stale-list guard Core-tested; new single-flight logout test awaits exact-head CI; session E2E remains blocked on P2 workflow wiring.
+
+
+## P1 — validate the full server acknowledgment for session revocation — 2026-10-23T17:24+03:00
+
+### Change
+The selected-session UI previously accepted any object with the correct `session_id` and `revoked: true`. It did not validate that the server returned a parseable `revoked_at` value even though that timestamp is part of the acknowledged revocation/audit contract. The handler now fails closed unless the selected ID matches, `revoked === true`, and `revoked_at` is a valid date. The UI shows no success on malformed acknowledgement.
+
+### Regression
+Added a component regression where the RPC returns the correct target session ID and `revoked: true`, but `revoked_at: "not-a-timestamp"`. It asserts the exact target RPC was called, no success notice was shown, the error remains visible and stale session rows are not rendered while acceptance is unresolved.
+
+### Evidence
+- Functional commit: `f6d0c75326cc6ab650359b983d6fd6749ec647f3`; exact-head CI was pending at this report update.
+- Prior Core only: stale-list guard SHA `f3673f85a88762be52a4c8ca7597be475639eda9`, run [39966125912 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39966125912). Local sign-out SHA `f1c298299281f1e10755c3786c3900724f5c5632`, run [39968018993 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39968018993). These are predecessor SHAs, not proof for the new timestamp validation.
+- PR #88 is [open/Draft](https://github.com/Report-Engainall/Nasr1/pull/88). Session browser spec and local seeding script exist in the branch, but the inspected P2 workflow did not invoke them. Handoff remains with P2 under comments [6366644229](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366644229) and [6366901182](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366901182).
+
+### Next action / ownership
+Read exact Core and P2 results on the latest PR #88 head after this checkpoint commit. P2 alone owns the workflow/backend integration; P1 will not edit its workflow, migration, RPC/RLS/Auth or generated type paths. Keep #88 Draft until the integrated session browser tests run and prove post-revocation protected-request denial.
+
+**Branch:** `p1/central-device-session-ui-20261023`  
+**PR:** [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**BASE_SHA:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`  
+**FUNCTIONAL_HEAD_SHA:** `f6d0c75326cc6ab650359b983d6fd6749ec647f3`  
+**STATUS:** Implemented; exact-head CI pending; session E2E not yet wired by P2.
