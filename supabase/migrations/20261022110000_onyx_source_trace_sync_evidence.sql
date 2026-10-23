@@ -130,6 +130,22 @@ BEGIN
   IF NOT FOUND OR v_attempt.operation<>p_operation THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='Onyx attempt is unavailable in the requested organization';
   END IF;
+  -- The request fingerprint is immutable provenance, not a caller-controlled finalization field.
+  IF v_attempt.request_sha256 IS DISTINCT FROM p_request_sha256 THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Onyx request fingerprint does not match the persisted attempt';
+  END IF;
+  -- A selected snapshot can never be silently reassigned. Inventory pulls may bind their
+  -- resulting snapshot exactly once when the attempt began without one; order pushes may not.
+  IF v_attempt.snapshot_id IS NOT NULL
+     AND p_snapshot_id IS NOT NULL
+     AND v_attempt.snapshot_id IS DISTINCT FROM p_snapshot_id THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Onyx attempt snapshot is already bound to a different snapshot';
+  END IF;
+  IF v_attempt.snapshot_id IS NULL
+     AND p_snapshot_id IS NOT NULL
+     AND p_operation <> 'inventory_pull' THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='only an inventory pull may bind its resulting snapshot during finalization';
+  END IF;
   IF p_status='succeeded' AND (
     p_http_status IS NULL OR p_http_status NOT BETWEEN 200 AND 299
     OR p_response_sha256 IS NULL OR p_response_sha256 !~ '^[0-9a-f]{64}$'
@@ -146,7 +162,7 @@ BEGIN
     IF v_attempt.status=p_status
        AND v_attempt.snapshot_id IS NOT DISTINCT FROM coalesce(p_snapshot_id,v_attempt.snapshot_id)
        AND v_attempt.http_status IS NOT DISTINCT FROM p_http_status
-       AND v_attempt.external_request_id IS NOT DISTINCT FROM p_external_request_id
+       AND v_attempt.external_request_id IS NOT DISTINCT FROM coalesce(p_external_request_id,v_attempt.external_request_id)
        AND v_attempt.response_sha256 IS NOT DISTINCT FROM p_response_sha256
        AND v_attempt.error_code IS NOT DISTINCT FROM p_error_code
        AND v_attempt.error_summary IS NOT DISTINCT FROM p_error_summary THEN
