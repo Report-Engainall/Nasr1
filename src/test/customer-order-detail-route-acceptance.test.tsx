@@ -155,6 +155,8 @@ describe("customer order detail real route acceptance", () => {
 
     expect(host?.querySelector('[role="alert"]')).toBeNull();
     expect(host?.textContent).toContain("الطلب غير موجود أو لا تملك صلاحية عرضه.");
+    expect(host?.textContent).not.toContain("0.00");
+
     expect(host?.textContent).not.toContain("تأكيد طلب");
   });
 });
