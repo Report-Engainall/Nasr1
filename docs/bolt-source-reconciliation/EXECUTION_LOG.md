@@ -1,3 +1,14 @@
+## P2 live reconciliation — 2026-10-24T01:48:00+03:00
+
+- Re-read live main SHA `16a3d23e558696700bccbb3dbf9ea75b0fccf745`, tree `7dc8d72c0ece57777cc5e3337d1f8b416870697a`; Core run [40035355209](https://github.com/Report-Engainall/Nasr1/actions/runs/40035355209) is terminal SUCCESS on that exact SHA.
+- PR #131 is merged into main at `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; it corrects tenant-scope denial to SQLSTATE 42501/HTTP 403 without changing cross-tenant data or its audit state. Do not recreate it.
+- PR #119 current head is `a1a17bcf9ae320ea39680421a83e4b32deef3c67`; Core [40036273431](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273431) SUCCESS and P2 [40036273465](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273465) was IN_PROGRESS at reconciliation. Treat the result as pending until terminal; if it fails, inspect the job log and repair only the evidenced root cause.
+- PR #118 current head `bf23b0d04d49cdd1218e75e72d22c97a0e8c3673`: Core [40035579224](https://github.com/Report-Engainall/Nasr1/actions/runs/40035579224) and P2 [40035578462](https://github.com/Report-Engainall/Nasr1/actions/runs/40035578462) are terminal SUCCESS. It remains OPEN / UNMERGED with no formal review recorded; do not bypass review gating.
+- PR #133 central docs are being refreshed against main `16a3d23e558696700bccbb3dbf9ea75b0fccf745`. The previously successful runs 40034694219/40034694221 belong to the previous documentation head and are not evidence for the new commit. Require current-head Core and P2 results and an authorized independent review before merge.
+- Hosted customer/tenant E2E skipped for missing non-production credentials remains `BLOCKED_EXTERNAL`, not PASS. No production writes or live third-party integration claims.
+
+---
+
 ## P2 current exact-head validation — 2026-10-23T19:40:00+03:00
 
 - Main c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99, tree ce3773a9c69ca2ee9acc2daa3fc759753bd4cdd9; Core 39983210712 PASS on exact main SHA.
