@@ -99,6 +99,10 @@ export function registerCustomerOrdersKeyboardAcceptance() {
           headers: {
             "content-range": "0-1/2",
             "accept-ranges": "items",
+            // The app origin differs from the intercepted Supabase origin. Expose the exact-count
+            // header to browser JavaScript, as PostgREST does, or supabase-js will report count=null.
+            "access-control-allow-origin": "*",
+            "access-control-expose-headers": "content-range, range",
           },
           body: JSON.stringify(orderRows),
         });
