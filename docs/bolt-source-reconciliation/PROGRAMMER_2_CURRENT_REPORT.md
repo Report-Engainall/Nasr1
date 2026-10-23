@@ -1,15 +1,19 @@
 # تحديث P2 الحي — 23 أكتوبر 2026
 
-هذا الملخص هو أحدث قراءة تشغيلية لهذا الملف؛ الأقسام اللاحقة محفوظة كسجل تاريخي ولا تُعد مؤشرًا حيًا إذا خالفت رأس `main` أو ملف `CURRENT_EXECUTION_STATE.md`.
+المعلومات في هذا القسم تتقدم على السجل التاريخي أدناه. تُقيد حالات الاختبار بالرأس الذي جرى اختباره بالفعل.
 
 - **المستودع:** `Report-Engainall/Nasr1`.
-- **main الحالي:** `d3a27dc9c4b209e61bf6b3b9a54ceb8b4a26974d`; Core CI على رأس الدمج [#39952977823](https://github.com/Report-Engainall/Nasr1/actions/runs/39952977823) = **SUCCESS**.
-- **PR #71 مدمج:** إصلاح قبول النسخ والاستعادة المعزولة؛ رأس الاختبار `09c052d9f39e92e81b8dc994f54554c1fa9fdf49`. [Core #39952265056](https://github.com/Report-Engainall/Nasr1/actions/runs/39952265056) و[P2 #39952265061](https://github.com/Report-Engainall/Nasr1/actions/runs/39952265061) = **SUCCESS** على رأس PR نفسه. يشمل الاختبار PostgreSQL 17 المعزول، تعريفات المخطط والدوال وRLS والمشغلات، وSHA-256 لبيانات 23 جدولًا ماليًا/تشغيليًا/استيراد/Onyx. هذا ليس إثبات استعادة إنتاج أو RTO/RPO.
-- **PR #82 مفتوح** عند الرأس `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`. P2 Playwright [#39953364029](https://github.com/Report-Engainall/Nasr1/actions/runs/39953364029) = **SUCCESS**، وشمل الطلبات وعزل المؤسسة، المرتجعات والإشعارات الدائنة، تصدير XLSX، الطباعة، وصلاحيات customer_manager وخصوصية المالية والتدقيق. Core CI [#39953364100](https://github.com/Report-Engainall/Nasr1/actions/runs/39953364100) كان **IN PROGRESS** في اختبار Chromium لخصوصية أسعار المتجر عند آخر قراءة؛ لا دمج قبل النجاح النهائي على الرأس نفسه.
-- تم إصلاح افتراض مخطط pgcrypto في دعوات تفعيل العميل بترتيب `20261023125000_customer_activation_pgcrypto_schema.sql` قبل ترحيل أذونات مدير العملاء، وفصل تعريف وظيفة قبول الدعوة عن إعادة تعريف صلاحيات مدير العملاء وإزالة تعارض رقم الترحيل. اختبارات CI الجديدة على الرأس `8e70899...` لم تُعلن PASS بشكل مستقل إلا بعد إكمال Core.
-- **PR #83** للجلسات المركزية ما يزال Draft؛ رأسه عند القراءة `9e28cb442d5ff43d805b468de82c77feffd1a4ea`. Core [#39953761360](https://github.com/Report-Engainall/Nasr1/actions/runs/39953761360) قيد التشغيل وP2 [#39953754321](https://github.com/Report-Engainall/Nasr1/actions/runs/39953754321) فشل؛ يجب تشخيص الفشل على هذا الرأس قبل قبول العمل.
-- **المؤشر التالي بعد #82:** `FIN-INVOICE-001` — مطابقة الفواتير والمدفوعات والتخصيصات وكشوف الحساب وأعمار الذمم مع مصدر الحقيقة، ثم `IMPORT-001`, `DQS-001`, و`EXPORT-001` وفق الفجوات المثبتة فقط.
-- اتصال Onyx الحي وWhatsApp Business API ونجاح استيراد الملف في نسخة Onyx الهدف تبقى **BLOCKED_EXTERNAL** بلا اعتماد/بيئة مستهدفة/استجابة حقيقية. `OPS-DR-001` مثبت على PostgreSQL 17 المعزول فقط؛ الإنتاج **NOT RUN**.
+- **main:** `d3a27dc9c4b209e61bf6b3b9a54ceb8b4a26974d`; [Core CI](https://github.com/Report-Engainall/Nasr1/actions/runs/39952977823) = **SUCCESS**.
+- **PR #71 مدمج:** اختبار نسخ واستعادة PostgreSQL 17 معزول ناجح على الرأس `09c052d9f39e92e81b8dc994f54554c1fa9fdf49` مع Core/P2 بنجاح؛ بعد الدمج Core `39952977823` ناجح على main. هذا لا يثبت استعادة إنتاجية أو RTO/RPO.
+- **PR #82:** مفتوح عند الرأس `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`. [Core](https://github.com/Report-Engainall/Nasr1/actions/runs/39953364100) و[P2 Playwright](https://github.com/Report-Engainall/Nasr1/actions/runs/39953364029) = **SUCCESS** على هذا الرأس. أُثبتت محليًا حماية دعوة مدير العملاء، صلاحياته، الخصوصية المالية، تدفقات الإرجاع، وتصدير/طباعة المستندات ضمن حدود اختبارات التشغيل. لا تُدعَ رسالة بريد أو عملية إنتاجية.
+- **PR #83:** مفتوح/Draft، الرأس الحالي `ca0156b3384478cb45a3286da1e2dad752d375d3`. [Core CI](https://github.com/Report-Engainall/Nasr1/actions/runs/39955798397) = **SUCCESS** على SHA نفسه، بما في ذلك PostgreSQL 17 وتطبيق المهاجرات واختبارات الجلسات، ثم lint/build/preview/dev. [P2 Playwright](https://github.com/Report-Engainall/Nasr1/actions/runs/39955798441) = **IN PROGRESS** عند آخر قراءة: public UI smoke ناجح، والاختبار المحلي مع Supabase لم ينتهِ؛ القبول المستضاف تخطاه حاجز الاعتمادات الخارجية.
+- **إصلاح P2 workflow:** التشغيلات السابقة فشلت بلا Jobs بسبب ذيل مكرر مبتور في `.github/workflows/p2-playwright-critical-paths.yml`; حُذف الذيل بعد نهاية الوظيفة المكتملة. أول تشغيل جديد أنشأ وظائف فعلية على SHA `ca0156b...`. فشل المحاولات السابقة تاريخي ولا يُحوّل إلى PASS، وحالة الرأس الحالي تبقى مرتبطة بالتشغيلين أعلاه.
+- **العقد الأمني الجديد في #83:** بالإضافة إلى قائمة الجلسات وإلغاء جلسة واحدة، أضيف `public.revoke_other_auth_sessions()` لإنهاء جلسات الحساب نفسه الأخرى فقط، مع الحفاظ على الجلسة الحالية، إرجاع معرّفات/عدد المحذوف، وسجل تدقيق واحد. أضيفت أنواع Supabase واختبارات PostgreSQL 17 تمنع التأثير على جلسات بقية المستخدمين. واجهة الأجهزة مملوكة لـP1 ضمن PR #88؛ لذا لا يُدّعى تكامل واجهة أو إثبات إنتاجي.
+- **المطابقة المالية التالية — FIN-INVOICE-001:** فحص المهاجرات كشف فجوة محددة: `fetch_staff_receivables_aging` لا يجمع الإشعارات الدائنة المنشورة عند احتساب المتبقي، بينما `get_customer_account_statement()` يجمع فقط الإشعارات بحالة `posted` ويستبعد `reversed`. أصلح التقارير من المصدر المالي الحالي مع فصل العملات واختبارات PostgreSQL 17، ولا تنشئ دفترًا أو محركًا ثانيًا.
+- **التبعيات الخارجية:** مزامنة Onyx الحية، استيراد Onyx في نسخة الهدف، وWhatsApp Business API = **BLOCKED_EXTERNAL** من دون اعتماد/بيئة هدف مخوّلة/استجابة حقيقية. استعادة الإنتاج وRTO/RPO = **NOT RUN**.
+
+**NEXT_TASK_ID:** `AUTH-CENTRAL-SESSION-BACKEND-P2`.  
+**NEXT_ACTION:** الحصول على نتيجة P2 النهائية على `ca0156b...`؛ إصلاح الفشل إن وُجد؛ بعدها مراجعة أمان SECURITY DEFINER وتبعيات PR #83، مزامنة الفرع مع main الأحدث، وإعادة Core/P2 على SHA النهائي نفسه. لا تدمج ما دامت P2 لم تصبح SUCCESS.  
 
 ---
 
