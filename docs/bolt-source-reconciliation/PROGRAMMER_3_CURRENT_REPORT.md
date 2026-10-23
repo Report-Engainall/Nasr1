@@ -1,13 +1,14 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T16:17:00+03:00
+UPDATED_AT: 2026-10-23T16:24:00+03:00
 
 ## Git and current execution
 - Repository: Report-Engainall/Nasr1
 - PR #89: https://github.com/Report-Engainall/Nasr1/pull/89
 - Branch: `p3/catalog-screen-error-states-20261023`
 - Main/base observed: `59547c7d683cefd65cab445b97219aa701021676`; parent before this batch: `22718ee03fc8bb9074d0f8444b701d04c8623669`.
-- Task `P3-STORE-HYDRATION-009`: fixed the storefront root `/` hydration fallback that previously rendered an empty decorative `<div>` with no announced loading state. It now renders Arabic RTL `<main role="status">جار تحميل المتجر...</main>`; the parameterized customer-route regression test imports the real root route with a mocked Storefront and asserts the status, tag, direction and text. Code/test commit: `d10920e7d818e38d5c74bea06104bcc4609a4c46`. At last readback, exact-SHA Core run `39959839014` and P2 run `39959838829` were queued. This report sync creates a documentation-only successor commit; verify its exact-head checks before claiming current-head PASS.
+- Task `P3-STORE-HYDRATION-009`: the storefront root `/` now renders Arabic RTL `<main role="status">جار تحميل المتجر...</main>` instead of an empty first viewport before hydration. Parameterized test asserts tag, role, direction, and text. Implementation SHA: `d10920e7d818e38d5c74bea06104bcc4609a4c46`.
+- Task `P3-ROUTE-HYDRATION-COVERAGE-010`: expanded `src/test/customer-route-loading.test.tsx` from 13 to 23 parameterized route assertions. Newly covered pre-existing fallback states: `/addresses`, `/cart`, `/catalog`, `/checkout`, `/compare`, `/product/$id`, `/products`, `/search`, `/store`, and `/wishlist`. The test mock now exposes `useSearch()` so route wrappers with search state can be rendered in the test harness. This is test coverage only; no claim that underlying data or checkout actions were browser-proven.
 
 ## Implemented task IDs
 - `P3-CAT-ERR-001`: category fetch failure, catalog failure, and combined failure separated on `/categories` and `/collections`, with source detail and retry.
@@ -35,9 +36,22 @@ UPDATED_AT: 2026-10-23T16:17:00+03:00
 - P1 PR #66 changed-file list was checked; the five route files changed in this batch were not in its diff. P1-owned `AghbariApp.tsx`, `auth.tsx`, customer invitation/order-history pages remain untouched.
 - P2-owned shared matrix/state/coordination, backend contracts, RPCs, services and migrations were not edited.
 
-## Review, blockers, and next action
-- CodeRabbit's static review on prior SHA identified two test gaps; remediation is committed on the prior tested SHA, and new tests must now run on the current head. The review request for SHA `22718ee03fc8bb9074d0f8444b701d04c8623669` is at https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365584510. Static review is not a formal approval.
-- P2 package-cache HTTP 429 remains an external blocker; the latest head must get fresh exact-SHA runs.
-- All-route browser UAT, production proof/writes and live Onyx/WhatsApp calls: NOT RUN.
-- PR #89 remains OPEN/UNMERGED, with no formal independent GitHub approval recorded.
-- Fetch the resulting SHA, inspect exact-head Core and P2 jobs, retry P2 once registry throttling clears, respond to new review findings, and merge only once all required checks and independent review pass. Continue remaining unlocked route coverage.
+
+
+
+## Mandatory execution checkpoint fields — current readback
+LAST_COMPLETED_TASK_ID: P3-ROUTE-HYDRATION-COVERAGE-010 (test source changed; exact-SHA checks pending)
+CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
+BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
+HEAD_SHA: 2336edce6075d210e27a20f6c5aaaea6d7b9d3e7 (live branch will be advanced by this commit; read actual ref before any next change)
+ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist — route fallback/loading tests only, not complete all-route UAT
+FILES_CHANGED: src/test/customer-route-loading.test.tsx; docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md; docs/bolt-source-reconciliation/PROGRAMMER_3_CURRENT_REPORT.md
+TESTS_RUN_WITH_RESULTS: no local test run because clone/DNS remains unavailable; on parent SHA 2336edce6075d210e27a20f6c5aaaea6d7b9d3e7, Core 39960137068 and P2 39960137051 were IN_PROGRESS with dependency installation running; this increment requires fresh exact-SHA runs
+TESTS_FAILED_OR_SKIPPED: parent SHA 22718ee03fc8bb9074d0f8444b701d04c8623669 P2 dependency install failed on HTTP 429 and downstream browser jobs were skipped; authenticated external-credential E2E was skipped on an older SHA; no production proof
+DEFECTS_FOUND: P3-STORE-HYDRATION-009 fixed root blank fallback; P3-ROUTE-HYDRATION-COVERAGE-010 extends assertions to 23 route wrappers; full route screen acceptance remains open
+HANDOFF_TO_P1_OR_P2: P1 owns /admin/exports generated route registration and remaining locked admin fallbacks; P2 owns the canonical route matrix, backend contracts and Playwright dependency-cache blocker
+PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
+MERGE_STATUS: OPEN; UNMERGED; formal independent review absent
+BLOCKERS: exact-SHA CI pending; repeated external package-cache HTTP 429; no local checkout due GitHub DNS; full route browser UAT NOT RUN
+NEXT_ACTION: verify resulting live branch HEAD and new Core/P2 runs; inspect every job, repair actual test failures, and continue uncovered P3-owned acceptance; do not merge without green current-head checks and formal independent review
+UPDATED_AT: 2026-10-23T16:24:00+03:00

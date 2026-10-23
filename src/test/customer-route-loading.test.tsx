@@ -7,6 +7,7 @@ vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({
     options,
     useParams: () => ({ id: "test-order" }),
+    useSearch: () => ({}),
   }),
   ClientOnly: ({ fallback }: { fallback?: ReactNode }) => fallback ?? null,
   useNavigate: () => vi.fn(),
@@ -41,6 +42,16 @@ import { Route as RegisterRoute } from "@/routes/register";
 import { Route as QuotesRoute } from "@/routes/quotes";
 import { Route as ReorderRoute } from "@/routes/reorder";
 import { Route as StoreRoute } from "@/routes/index";
+import { Route as AddressesRoute } from "@/routes/addresses";
+import { Route as CartRoute } from "@/routes/cart";
+import { Route as CatalogRoute } from "@/routes/catalog";
+import { Route as CheckoutRoute } from "@/routes/checkout";
+import { Route as CompareRoute } from "@/routes/compare";
+import { Route as ProductRoute } from "@/routes/product.$id";
+import { Route as ProductsRoute } from "@/routes/products";
+import { Route as SearchRoute } from "@/routes/search";
+import { Route as StoreAliasRoute } from "@/routes/store";
+import { Route as WishlistRoute } from "@/routes/wishlist";
 
 type RouteWithComponent = { options: { component: ComponentType } };
 const customerRoutes = [
@@ -57,6 +68,16 @@ const customerRoutes = [
   { label: "quotes workspace", route: QuotesRoute, expected: "جار تحميل عروض الأسعار..." },
   { label: "reorder workspace", route: ReorderRoute, expected: "جار تحميل قائمة إعادة الطلب..." },
   { label: "storefront home", route: StoreRoute, expected: "جار تحميل المتجر..." },
+  { label: "delivery addresses", route: AddressesRoute, expected: "جارٍ تحميل عناوين التوصيل..." },
+  { label: "cart", route: CartRoute, expected: "جار تحميل السلة..." },
+  { label: "catalog", route: CatalogRoute, expected: "جار تحميل الكتالوج..." },
+  { label: "checkout", route: CheckoutRoute, expected: "جار التحقق من السلة..." },
+  { label: "product comparison", route: CompareRoute, expected: "جار تحميل المقارنة..." },
+  { label: "product detail", route: ProductRoute, expected: "جار تحميل تفاصيل المنتج..." },
+  { label: "products listing", route: ProductsRoute, expected: "جار تحميل كتالوج المنتجات..." },
+  { label: "search", route: SearchRoute, expected: "جار فتح البحث…" },
+  { label: "store alias", route: StoreAliasRoute, expected: "جار فتح المتجر..." },
+  { label: "wishlist", route: WishlistRoute, expected: "جار تحميل المفضلة..." },
 ] as const;
 
 afterEach(() => cleanup());
