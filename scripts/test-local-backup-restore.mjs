@@ -107,6 +107,10 @@ function criticalBusinessDataSignature(url) {
     ["onyx_snapshot_rows", "public.onyx_snapshot_rows"],
     ["onyx_inventory_reconciliation_commands", "public.onyx_inventory_reconciliation_commands"],
     ["onyx_inventory_reconciliation_items", "public.onyx_inventory_reconciliation_items"],
+    ["async_export_jobs", "public.async_export_jobs"],
+    ["outbox_events", "public.outbox_events"],
+    ["outbox_event_deliveries", "public.outbox_event_deliveries"],
+    ["ai_tasks", "public.ai_tasks"],
   ];
   const fields = tables.map(([label, table]) =>
     "'" + label + "', jsonb_build_object(" +
@@ -269,7 +273,7 @@ async function main() {
     assert.deepEqual(
       restoredBusinessData,
       sourceBusinessData,
-      "critical finance, import, purchase-receipt and Onyx row-set fingerprints must match after restore",
+      "critical finance, import, Onyx, export-job, outbox and task row-set fingerprints must match after restore",
     );
 
     const requiredFunctions = runTool("psql", [
@@ -300,9 +304,9 @@ async function main() {
       "- RLS policy definition SHA-256 (source=restore): `" + sourceDefinitions.policySha256 + "`",
       "- User-trigger definition SHA-256 (source=restore): `" + sourceDefinitions.triggerSha256 + "`",
       "- Critical business data SHA-256 (source=restore): `" + sourceBusinessData.sha256 + "`",
-      "- Fingerprinted financial/import/Onyx tables: " + sourceBusinessData.tableCount,
-      "- Total rows across fingerprinted financial/import/Onyx tables: " + sourceBusinessData.totalRows,
-      "- Source/restore schema, routines, policies, triggers, core row counts and critical business data fingerprints: identical",
+      "- Fingerprinted financial/import/Onyx/export/outbox/task tables: " + sourceBusinessData.tableCount,
+      "- Total rows across fingerprinted financial/import/Onyx/export/outbox/task tables: " + sourceBusinessData.totalRows,
+      "- Source/restore schema, routines, policies, triggers, core row counts and critical finance/integration/queue data fingerprints: identical",
       "- Critical RPCs restored: `transfer_inventory_batch`, `apply_onyx_inventory_reconciliation`",
       "- Temporary restore database: removed after verification",
     ];
