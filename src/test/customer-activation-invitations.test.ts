@@ -79,6 +79,32 @@ describe("customer activation invitation RPC adapter", () => {
       .rejects.toThrow(/خارج المدة المطلوبة/);
   });
 
+  it("rejects an invitation that expires while the server response is in flight", async () => {
+    const requestStartedAt = Date.now();
+    const expiresAt = new Date(requestStartedAt + 1_000).toISOString();
+    const responseCompletedAt = requestStartedAt + 2_000;
+    const nowSpy = vi.spyOn(Date, "now");
+    nowSpy.mockReturnValueOnce(requestStartedAt).mockReturnValueOnce(responseCompletedAt);
+
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        invitation_id: INVITATION_ID,
+        customer_id: CUSTOMER_ID,
+        invited_email: "client@example.test",
+        token: TOKEN,
+        expires_at: expiresAt,
+      },
+      error: null,
+    });
+
+    try {
+      await expect(createCustomerActivationInvitation(CUSTOMER_ID, "client@example.test", 1))
+        .rejects.toThrow(/خارج المدة المطلوبة/);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it("validates and bounds the server-provided activation workspace", async () => {
     mocks.rpc.mockResolvedValueOnce({
       data: {
