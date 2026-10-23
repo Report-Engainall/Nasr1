@@ -347,16 +347,16 @@ jobs:
               start = next((i for i, line in enumerate(lines) if line.strip() == f"[{name}]"), None)
               if start is None:
                   return None, None
-              end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\\s*\\[", lines[i])), len(lines))
+              end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\s*\[", lines[i])), len(lines))
               return start, end
 
           def set_option(section, key, value):
               start, end = section_bounds(section)
               if start is None:
-                  insert_at = next((i for i, line in enumerate(lines) if re.match(r"^\\s*\\[", line)), len(lines))
+                  insert_at = next((i for i, line in enumerate(lines) if re.match(r"^\s*\[", line)), len(lines))
                   lines[insert_at:insert_at] = [f"[{section}]"]
                   start, end = section_bounds(section)
-              match = next((i for i in range(start + 1, end) if re.match(rf"^\\s*{re.escape(key)}\\s*=", lines[i])), None)
+              match = next((i for i in range(start + 1, end) if re.match(rf"^\s*{re.escape(key)}\s*=", lines[i])), None)
               assignment = f"{key} = {value}"
               if match is None:
                   lines.insert(start + 1, assignment)
@@ -366,7 +366,7 @@ jobs:
           set_option("api", "port", api_port)
           set_option("db", "port", db_port)
           set_option("db", "shadow_port", shadow_port)
-          path.write_text("\\n".join(lines) + "\\n")
+          path.write_text("\n".join(lines) + "\n")
           PY
           grep -Fx "project_id = \"$project_id\"" "$local_project/supabase/config.toml"
           if [ ! -f "$local_project/supabase/migrations/20261018100000_product_image_storage.sql" ]; then
