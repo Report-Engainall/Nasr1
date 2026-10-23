@@ -7,7 +7,7 @@ const categoryCommands = readFileSync(join(process.cwd(), "src/lib/admin-catalog
 
 describe("admin category command wiring", () => {
   it("routes Data Center category creation through the audited target-native RPC service", () => {
-    expect(adminApp).toContain("import { archiveAdminCatalogCategory, createAdminCatalogCategory } from '@/lib/admin-catalog-commands';");
+    expect(adminApp).toContain("import { archiveAdminCatalogCategory, createAdminCatalogCategory, renameAdminCatalogCategory } from '@/lib/admin-catalog-commands';");
     expect(adminApp).toContain("await createAdminCatalogCategory(name);");
     expect(adminApp).not.toContain("await createCategory({ name,");
   });
@@ -17,7 +17,7 @@ describe("admin category command wiring", () => {
     expect(categoryCommands).not.toContain(".from('categories').insert(");
   });
   it("wires category archive to the same audited server command and gates it by role", () => {
-    expect(adminApp).toContain("import { archiveAdminCatalogCategory, createAdminCatalogCategory } from '@/lib/admin-catalog-commands';");
+    expect(adminApp).toContain("import { archiveAdminCatalogCategory, createAdminCatalogCategory, renameAdminCatalogCategory } from '@/lib/admin-catalog-commands';");
     expect(adminApp).toContain("await archiveAdminCatalogCategory(category.id);");
     expect(adminApp).toContain("window.confirm(");
     expect(adminApp).toContain("canManageImports && category.is_active !== false");
@@ -27,5 +27,16 @@ describe("admin category command wiring", () => {
     expect(adminApp).not.toContain(".from('categories').update(");
     expect(adminApp).not.toContain(".from('categories').delete(");
   });
-
+  it("wires category rename to the audited command and prevents direct table updates", () => {
+    expect(adminApp).toContain("await renameAdminCatalogCategory(category.id, nextName);");
+    expect(adminApp).toContain("setEditingCategoryId(category.id);");
+    expect(adminApp).toContain("aria-label={`اسم التصنيف الجديد: ${category.name}`}");
+    expect(adminApp).toContain("تعديل الاسم");
+    expect(adminApp).toContain("حفظ الاسم");
+    expect(categoryCommands).toContain("supabase.rpc('rename_admin_catalog_category'");
+    expect(categoryCommands).toContain("لم يؤكد الخادم إعادة تسمية التصنيف.");
+    expect(adminApp).not.toContain(".from('categories').update(");
+    expect(adminApp).not.toContain(".from('categories').delete(");
+  });
+  
 });
