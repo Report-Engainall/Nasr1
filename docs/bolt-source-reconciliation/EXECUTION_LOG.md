@@ -1,3 +1,14 @@
+
+
+## P2 live reconciliation and concurrent inventory idempotency — 2026-10-24T02:03:00+03:00
+
+- Main remains `16a3d23e558696700bccbb3dbf9ea75b0fccf745` / tree `7dc8d72c0ece57777cc5e3337d1f8b416870697a`; Core 40035355209 is SUCCESS on exact main SHA.
+- #131 is merged. P1 PR #119 Core 40036273431 and P2 40036273465 are terminal SUCCESS on the same head `a1a17bcf9ae320ea39680421a83e4b32deef3c67`; hosted customer/tenant E2E remains SKIPPED/BLOCKED_EXTERNAL.
+- PR #127 address validation is merged at `d7a49d8ca7d968e2fc04307fb26313e54168410a`; do not repeat. DQS PR #70 is merged and exact-head Core/P2 runs 39914838897/39914838852 passed.
+- Direct compare shows PR #118 has only three intended files changed against current main, ahead 5/behind 0; head `bf23b0d04d49cdd1218e75e72d22c97a0e8c3673` Core 40035579224 and P2 40035578462 SUCCESS; formal review missing.
+- PR #134 adds isolated PostgreSQL 17 same-key concurrent batch idempotency proof. Core 40037207461 and P2 40037207264 were QUEUED on exact head `387db64bfa6686ab08d4707d88b7aea3f9c6ff41`; no PASS claimed.
+- PR #133 previous docs head `ede749f27847efe5ffe3d53bad4476ed822aff99` passed Core 40036690415 and P2 40036690420. This update changes the docs head; reread live CI and review status before closure.
+- Hosted E2E and live Onyx/WhatsApp integrations remain BLOCKED_EXTERNAL without authorized non-production access and actual provider responses. No production writes performed.
 ## P2 live reconciliation — 2026-10-24T01:48:00+03:00
 
 - Re-read live main SHA `16a3d23e558696700bccbb3dbf9ea75b0fccf745`, tree `7dc8d72c0ece57777cc5e3337d1f8b416870697a`; Core run [40035355209](https://github.com/Report-Engainall/Nasr1/actions/runs/40035355209) is terminal SUCCESS on that exact SHA.
