@@ -83,6 +83,81 @@ function schemaDataSignature(url) {
   ]);
 }
 
+function catalogJsonSha256(url, label, sql) {
+  const output = runTool("psql", [
+    "--no-psqlrc",
+    "--tuples-only",
+    "--no-align",
+    "--dbname=" + url,
+    "--command=" + sql,
+  ]);
+  let parsed;
+  try {
+    parsed = JSON.parse(output);
+  } catch (cause) {
+    throw new Error(label + " catalog query did not return valid JSON: " + String(cause?.message ?? cause));
+  }
+  return createHash("sha256").update(JSON.stringify(parsed)).digest("hex");
+}
+
+function definitionSignatures(url) {
+  // pg_dump's schema-only form covers relations, columns, constraints, indexes,
+  // types, functions, policies and triggers. PostgreSQL 17 emits a randomized
+  // psql restriction token; remove only those wrapper lines before fingerprinting.
+  const schemaDump = runTool("pg_dump", [
+    "--schema-only",
+    "--no-owner",
+    "--no-acl",
+    "--dbname=" + url,
+  ]);
+  const canonicalSchemaDump = schemaDump
+    .split(/\r?\n/)
+    .filter((line) => !/^\\(?:un)?restrict(?:\s|$)/.test(line))
+    .join("\n")
+    .trim();
+  assert.ok(canonicalSchemaDump.length > 1000, "schema-only dump is unexpectedly small");
+
+  const routinesSql = [
+    "SELECT COALESCE(jsonb_agg(jsonb_build_array(",
+    "n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid),",
+    "p.prokind::text, l.lanname, pg_catalog.format_type(p.prorettype, NULL),",
+    "p.prosecdef, p.provolatile::text, p.proisstrict, p.proretset,",
+    "COALESCE(p.proconfig, ARRAY[]::text[]), pg_catalog.pg_get_functiondef(p.oid)",
+    ") ORDER BY n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid)),",
+    "'[]'::jsonb)::text",
+    "FROM pg_catalog.pg_proc p",
+    "JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace",
+    "JOIN pg_catalog.pg_language l ON l.oid=p.prolang",
+    "WHERE n.nspname <> 'information_schema' AND n.nspname !~ '^pg_' AND p.prokind IN ('f','p','w')",
+  ].join(" ");
+
+  const policiesSql = [
+    "SELECT COALESCE(jsonb_agg(jsonb_build_array(",
+    "schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check",
+    ") ORDER BY schemaname, tablename, policyname), '[]'::jsonb)::text",
+    "FROM pg_catalog.pg_policies",
+    "WHERE schemaname <> 'information_schema' AND schemaname !~ '^pg_'",
+  ].join(" ");
+
+  const triggersSql = [
+    "SELECT COALESCE(jsonb_agg(jsonb_build_array(",
+    "n.nspname, c.relname, t.tgname, t.tgenabled::text,",
+    "pg_catalog.pg_get_triggerdef(t.oid, true)",
+    ") ORDER BY n.nspname, c.relname, t.tgname), '[]'::jsonb)::text",
+    "FROM pg_catalog.pg_trigger t",
+    "JOIN pg_catalog.pg_class c ON c.oid=t.tgrelid",
+    "JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace",
+    "WHERE n.nspname <> 'information_schema' AND n.nspname !~ '^pg_' AND NOT t.tgisinternal",
+  ].join(" ");
+
+  return {
+    schemaSha256: createHash("sha256").update(canonicalSchemaDump).digest("hex"),
+    routineSha256: catalogJsonSha256(url.toString(), "routine", routinesSql),
+    policySha256: catalogJsonSha256(url.toString(), "RLS policy", policiesSql),
+    triggerSha256: catalogJsonSha256(url.toString(), "user trigger", triggersSql),
+  };
+}
+
 function appendSummary(lines) {
   const path = process.env.GITHUB_STEP_SUMMARY;
   if (path) appendFileSync(path, "\n" + lines.join("\n") + "\n", "utf8");
@@ -127,6 +202,13 @@ async function main() {
       sourceSignature,
       "restored schema/function/policy/trigger counts and critical row counts must match the source signature",
     );
+    const sourceDefinitions = definitionSignatures(sourceUrl.toString());
+    const restoredDefinitions = definitionSignatures(restoreUrl.toString());
+    assert.deepEqual(
+      restoredDefinitions,
+      sourceDefinitions,
+      "schema, routine, RLS policy and user-trigger definition SHA-256 signatures must match the source",
+    );
 
     const requiredFunctions = runTool("psql", [
       "--no-psqlrc",
@@ -151,6 +233,10 @@ async function main() {
       "- Backup duration ms: " + backupElapsedMs,
       "- Restore duration ms: " + restoreElapsedMs,
       "- Total measured duration ms: " + elapsedMs,
+      "- Schema definition SHA-256 (source=restore): `" + sourceDefinitions.schemaSha256 + "`",
+      "- Function/procedure definition SHA-256 (source=restore): `" + sourceDefinitions.routineSha256 + "`",
+      "- RLS policy definition SHA-256 (source=restore): `" + sourceDefinitions.policySha256 + "`",
+      "- User-trigger definition SHA-256 (source=restore): `" + sourceDefinitions.triggerSha256 + "`",
       "- Source/restore schema, routines, policies, triggers and critical row-count signature: identical",
       "- Critical RPCs restored: `transfer_inventory_batch`, `apply_onyx_inventory_reconciliation`",
       "- Temporary restore database: removed after verification",
