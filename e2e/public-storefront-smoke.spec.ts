@@ -225,3 +225,209 @@ test("reset-password rejects an invalid password without reporting success", asy
   );
   await expect(page).toHaveURL(/\/reset-password$/);
 });
+
+test("cart and checkout ignore browser-stored money without an authorized server price preview", async ({ page }) => {
+  const pageErrors: string[] = [];
+  const organizationId = "11111111-1111-4111-8111-111111111111";
+  const productId = "a1000000-0000-4000-8000-000000000444";
+  const cartStorageKey = "aghbari:cart:v2:guest";
+  let pricingPreviewCalls = 0;
+  let orderSubmissionCalls = 0;
+
+  const headers = {
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers":
+      "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+  };
+
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  // Re-seed on each navigation so both real route wrappers receive the hostile legacy-shaped draft.
+  // The application's normalizer must retain only product_id and quantity.
+  await page.addInitScript(
+    ({ storageKey, draft }) => {
+      window.localStorage.setItem(storageKey, JSON.stringify([draft]));
+    },
+    {
+      storageKey: cartStorageKey,
+      draft: {
+        product_id: productId,
+        quantity: 2,
+        unit_price: 777777,
+        line_total: 1555554,
+      },
+    },
+  );
+
+  // Deterministic, read-only API fixtures. No external database writes or credentials are used.
+  await page.route("https://ci-placeholder.supabase.co/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 200, headers });
+      return;
+    }
+
+    if (path === "/rest/v1/rpc/get_public_storefront_context") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({ organization_id: organizationId, warehouse_id: null }),
+      });
+      return;
+    }
+
+    if (path === "/rest/v1/rpc/get_public_storefront_settings") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({
+          show_price_on_cards: false,
+          show_price_in_cart: true,
+          show_price_in_orders: true,
+          show_customer_tier_in_customer_views: false,
+        }),
+      });
+      return;
+    }
+
+    if (path === "/rest/v1/rpc/get_storefront_product_prices") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify([{ product_id: productId, unit_price: 1234 }]),
+      });
+      return;
+    }
+
+    if (path === "/rest/v1/rpc/validate_checkout_cart") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({
+          valid: true,
+          items: [{ product_id: productId, name: "أرز اختبار", item_code: "SKU-001", unit: "كرتون", quantity: 2 }],
+          item_count: 1,
+          currency: "YER",
+          pricing_verified: true,
+        }),
+      });
+      return;
+    }
+
+    if (path === "/rest/v1/rpc/preview_customer_order_pricing") {
+      pricingPreviewCalls += 1;
+      await route.fulfill({
+        status: 403,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({ message: "authenticated customer profile required" }),
+      });
+      return;
+    }
+
+    if (path === "/rest/v1/rpc/submit_customer_order") {
+      orderSubmissionCalls += 1;
+      await route.fulfill({
+        status: 403,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({ message: "authenticated customer required" }),
+      });
+      return;
+    }
+
+    if (path === "/rest/v1/products" && request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { ...headers, "content-range": "0-0/1" },
+        body: JSON.stringify([{
+          id: productId,
+          organization_id: organizationId,
+          category_id: null,
+          name: "أرز اختبار",
+          item_code: "SKU-001",
+          barcode: null,
+          description: "اختبار إخفاء مبالغ التخزين المحلي",
+          unit: "كرتون",
+          status: "active",
+          image_url: null,
+          created_at: "2026-01-01T00:00:00Z",
+        }]),
+      });
+      return;
+    }
+
+    if (path === "/rest/v1/categories" && request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { ...headers, "content-range": "0-0/0" },
+        body: "[]",
+      });
+      return;
+    }
+
+    if (path.startsWith("/rest/v1/") && request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { ...headers, "content-range": "0-0/0" },
+        body: "[]",
+      });
+      return;
+    }
+
+    // Unknown RPCs and every non-read endpoint are blocked by default.
+    if (path.startsWith("/rest/v1/rpc/") && request.method() === "POST") {
+      await route.fulfill({ status: 200, contentType: "application/json", headers, body: "[]" });
+      return;
+    }
+    await route.abort("blockedbyclient");
+  });
+
+  for (const pathname of ["/cart", "/checkout"]) {
+    await page.goto(pathname);
+    await expect(
+      page.getByRole("heading", {
+        name: pathname === "/cart" ? "سلة المشتريات" : "إتمام الطلب",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page.getByText("أرز اختبار", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("سجّل الدخول أولًا؛ لن تُعرض الأسعار دون معاينة خادمية مرتبطة بحسابك.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    // No browser-supplied unit price/line total may escape into rendered text or markup.
+    const visibleText = await page.locator("body").innerText();
+    const markup = await page.locator("body").innerHTML();
+    expect(visibleText).not.toContain("777777");
+    expect(visibleText).not.toContain("1555554");
+    expect(markup).not.toContain("777777");
+    expect(markup).not.toContain("1555554");
+    await expect(page.locator(".sf-order-pricing-total")).toHaveCount(0);
+    await expect(page.getByText(/سعر الوحدة/)).toHaveCount(0);
+
+    const persistedDraft = await page.evaluate((key) => window.localStorage.getItem(key), cartStorageKey);
+    expect(persistedDraft).not.toContain("777777");
+    expect(persistedDraft).not.toContain("1555554");
+    expect(JSON.parse(persistedDraft ?? "null")).toEqual([{ product_id: productId, quantity: 2 }]);
+  }
+
+  // No authenticated customer exists in this read-only fixture; therefore an RPC preview,
+  // an order submission, or a client-authored success must never be attempted.
+  expect(pricingPreviewCalls).toBe(0);
+  expect(orderSubmissionCalls).toBe(0);
+  expect(pageErrors).toEqual([]);
+});
+

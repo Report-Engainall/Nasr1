@@ -1,12 +1,12 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T20:08:00+03:00
-LAST_COMPLETED_TASK_ID: P3-MAIN-SYNC-032 — completed the latest-main merge and verified route fixes with exact-head Core and P2 acceptance.
+UPDATED_AT: 2026-10-23T20:44:06+03:00
+LAST_COMPLETED_TASK_ID: P3-STF-011-CART-CHECKOUT-BROWSER-001 (added real-route Chromium assertion that hostile local money is normalized away and no unauthenticated price/order RPC is called)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
-BASE_SHA: 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb
-HEAD_SHA: 2f84bbdb3bc301bcdb9c932ccbe0cdbef8f916c2 (verified application/merge SHA; this report-only commit is a descendant and requires its own exact-head CI readback.)
-ROUTES_COVERED: Pattern-based tests cover 55 explicit customer/admin URL patterns plus root. Exact-source Chromium coverage includes storefront/login, nested category-subcategory direct navigation, advanced-search category failure/retry, and reset-password invalid submission. Full all-route UAT remains NOT RUN.
-FILES_CHANGED: P3 route/UI/test scope in this PR includes src/routes/search.tsx, src/routes/category.$slug.tsx, src/test/customer-route-loading.test.tsx, e2e/public-storefront-smoke.spec.ts, and previously implemented P3 category/offers/report/loading/reset-password regression changes. No generated route-tree manual edits or P2-owned central/backend/migration files.
+BASE_SHA: ddaa93c955b777ba05fcdac8aee18e581b6ce159
+HEAD_SHA: pending GitHub branch-ref readback after the implementation/test commit; parent SHA ddaa93c955b777ba05fcdac8aee18e581b6ce159; exact-head Actions must run before PASS
+ROUTES_COVERED: Pattern tests cover 55 explicit customer/admin URL patterns plus root. Focused Chromium acceptance now includes cart and checkout wrapper routes with hostile local money fields, proving those values are stripped from storage/DOM and that missing authenticated customer scope prevents both pricing-preview and order-submission RPCs. Full all-route UAT remains NOT RUN.
+FILES_CHANGED: e2e/public-storefront-smoke.spec.ts adds the cart/checkout local-money privacy E2E regression; two P3 documentation files updated. No P1-owned access guards, generated route tree, P2 central state/matrix, RPC, migrations, or RLS were altered.
 TESTS_RUN_WITH_RESULTS:
 - Exact merge/application SHA `2f84bbdb3bc301bcdb9c932ccbe0cdbef8f916c2`: Core [run 39991963798 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991963798). The terminal Core job passed unit tests, isolated PostgreSQL 17 migrations/workflows and backup/restore, invitation/stock-count/export/import/favorites contract checks, lint, build, preview/dev smoke, and Chromium price-visibility acceptance.
 - Same exact SHA `2f84bbdb3bc301bcdb9c932ccbe0cdbef8f916c2`: P2 [run 39991963773](https://github.com/Report-Engainall/Nasr1/actions/runs/39991963773). Public read-only Chromium smoke job `120545758197` SUCCESS and isolated local-Supabase / PostgreSQL 17 order-and-tenant acceptance job `120546137712` SUCCESS. The local job verified order persistence and cross-tenant denial; return/review/receipt/credit memo; audited Onyx order XLSX export; finance/operational-task printing; customer-manager authorization, financial privacy and audit; device-session authorization and immediate revocation; migrations and concurrency/idempotency checks.
@@ -23,6 +23,16 @@ HANDOFF_TO_P1_OR_P2: P1-ROUTE-TREE-EXPORT-001 remains open: src/routes/admin_.ex
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
 MERGE_STATUS: PR #89 OPEN, UNMERGED. Source branch is synchronized with main; Core and runnable P2 gates passed on the exact application/merge SHA. Independent human maintainer approval is still absent; CodeRabbit is COMMENTED only. No PR merge attempted.
 BLOCKERS: Independent human review/approval for PR #89; external credential-gated customer-order/tenant E2E SKIPPED; P1-owned /admin/exports route registration is NOT PROVEN; all-route UAT and production acceptance NOT RUN; exact-head CI for the report-only child commit pending.
-NEXT_ACTION: Read terminal Core/P2 results triggered by this report-only commit on its exact new SHA; if green, request independent maintainer review and leave PR #89 open until human approval is recorded. Do not hand-edit the route tree or touch P1/P2-owned files. Then continue an independent P3 route-acceptance gap only after the report-only CI resolves and without overlapping active owners.
+NEXT_ACTION: Read exact-head Core and P2 Playwright outcomes for the new test SHA and inspect any failing step/log. If green, record the final evidence, request independent formal human review, and continue to the next independent P3 route gap. Keep PR #89 open until exact-head required gates and formal approval pass.
 PR_89_SCOPE: Existing fixes include source-specific category/catalog/promotion errors with retry, inactive-product filtering from published counts/offers, RTL hydration/loading for covered routes, reset-password validation/submit guards, checkout duplicate-submit protection, exactly one ExecutiveStoreAnalytics mount, and 55 URL-pattern route-registration coverage. The generated route tree omits /admin/exports, so no reachability claim is made.
 HISTORICAL_EVIDENCE_BOUNDARY: SHA d141edfbf1da2292a95cc65e063c3a1abefe2014 was previously Core 39973405032 SUCCESS and P2 39973405016 SUCCESS; those PASS results are only for that SHA.
+
+## Latest execution unit — 2026-10-23T20:44:06+03:00
+
+- Task: `P3-STF-011-CART-CHECKOUT-BROWSER-001`.
+- Implementation: deterministic Chromium test in `e2e/public-storefront-smoke.spec.ts` exercises the real `/cart` and `/checkout` route wrappers with a synthetic guest cart that deliberately contains `unit_price=777777` and `line_total=1555554`.
+- Assertions: the application keeps only `product_id` and `quantity` in cart storage; neither sentinel value appears in DOM text/markup; no order total or unit-price label appears; with no authenticated customer, the UI explicitly asks for sign-in and makes zero `preview_customer_order_pricing` and `submit_customer_order` calls; no uncaught browser exceptions occur.
+- External I/O: synthetic read-only fixtures intercept the CI placeholder backend; unknown REST writes are blocked. No production credentials or writes are used.
+- Base/head boundary: this commit is based on `ddaa93c955b777ba05fcdac8aee18e581b6ce159`. The new commit SHA must be read back from the live PR branch and validated by its own Core/P2 Actions. No PASS is inherited from the base.
+- Previous synchronization acceptance on exact merge SHA `ddaa93c955b777ba05fcdac8aee18e581b6ce159`: Core [39996562718](https://github.com/Report-Engainall/Nasr1/actions/runs/39996562718) **SUCCESS**; P2 Playwright [39996562641](https://github.com/Report-Engainall/Nasr1/actions/runs/39996562641) **SUCCESS**. In P2, public UI smoke and local-Supabase/PostgreSQL 17 acceptance passed; external credential-gated customer-order/tenant job was **SKIPPED**, not PASS.
+- Remaining boundaries: `/admin/exports` runtime reachability remains P1-owned and NOT PROVEN; formal independent maintainer approval is still required; all-route browser UAT and production acceptance remain NOT RUN. Authenticated server-approved visible pricing is not proven by this guest-only regression.
