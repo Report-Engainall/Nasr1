@@ -1,5 +1,8 @@
 # Aghbari Commerce — Requirement Registry and Execution Rules
 
+> **تصحيح هدف التنفيذ الحي — 23 أكتوبر 2026:** وجهة الكود الحالية الوحيدة هي `Report-Engainall/Nasr1`. أي مستودع أو SHA أو حالة تشغيل قديمة مذكورة في محتوى هذا السجل أدناه هي مرجع تاريخي وليست خط أساس حيًا. مصدر المسارات الفعلي هو إعداد TanStack Start في `vite.config.ts` مع `src/router.tsx` و`src/routeTree.gen.ts` وملفات `src/routes/`؛ لا يكفي استخدام `src/App.tsx` أو `src/main.tsx` وحدهما لجرد المسارات. مصفوفة قبول الشاشات الوحيدة المعتمدة على Nasr1 هي `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`. المسار `docs/canonical/AGHBARI-SCREEN-ACTION-COVERAGE.md` غير موجود على الرأس الذي فُحص، لذلك لم تُنشأ مصفوفة موازية.
+
+
 **Product:** متجر الأغبري | Aghbari Commerce  
 **Repository:** `Aghbari-Technologies/aghbari-commerce-evolved`  
 **Branch:** `main`  
@@ -139,3 +142,15 @@ The following features are committed on PR #66 and tested on exact source SHA `7
 Current-main reconciliation performed as a merge commit must preserve P1’s customer-lifecycle acceptance in `scripts/test-database-migrations.mjs` and main’s independent order-input hardening acceptance helper. The resulting combined SHA must receive its own Core and Playwright runs; neither current P1-head nor old main PASS is transferable.
 | P1-CUST-MANAGER-ROLE-UI-001 | src/components/CustomerManagerRoleAssignment.tsx; role-RPC UI test; PostgreSQL acceptance in scripts/test-database-migrations.mjs; current runs Core 39937170618 and P2 39937170509 were attached to code SHA e9dd04d6a49ac4910e2a17d649485173ef486e66. | IMPLEMENTED; UI_UNIT_TEST_PASS; POSTGRESQL_ROLE_ACCEPTANCE_PASS; overall Core/P2 pending their last active browser/dependency steps; browser and production proof NOT RUN. |
 | P1-DEVICE-SESSION-MGMT-001 | src/components/DeviceManagement.tsx and src/test/device-management.test.tsx; current-session metadata and real auth sign-out scopes only. | PARTIAL; UI_UNIT_TEST_PASS; central device inventory, login history, selective per-device revocation and session policy are NOT IMPLEMENTED because the active P2 path lock prohibits the required SQL/RLS/RPC work. P2 must release/coordinate the contract; P1 owns implementation and acceptance after release. |
+
+## إضافة تنفيذ P3 على Nasr1 — 23 أكتوبر 2026
+
+### `P3-CAT-ERR-001` — مصدر الخطأ الصحيح في شاشة التصنيفات
+
+- **الهدف:** `Report-Engainall/Nasr1`; فرع التنفيذ `p3/catalog-screen-error-states-20261023`.
+- **الدليل الأساسي:** رأس `main` عند بدء الدفعة `0396b29aeab8c09c430df0063821251208a38477`; تنفيذ المكوّن في commit `50660fb5e371da59fc25a0d5e34266247ff399f8`. تغييرات التوثيق تجعل رأس PR النهائي مختلفًا؛ لا تنقل نتيجة اختبار إلى رأس آخر.
+- **الفجوة:** كانت `StorefrontCollectionsPage` تعرض عنوان «تعذر تحميل التصنيفات» حتى عندما يفشل استعلام المنتجات/الكتالوج وحده، ما يوجه المستخدم إلى مصدر خطأ خاطئ.
+- **التغيير:** يحدد العنوان مصدر الفشل (التصنيفات، الكتالوج، أو كلاهما)، ويعرض التفاصيل المسماة لكل مصدر فاشل ويحافظ على زر إعادة المحاولة.
+- **الاختبار المضاف:** `src/test/storefront-collections.test.tsx` يغطي الحالات الثلاث المذكورة.
+- **الحالة:** `IMPLEMENTED`; الاختبارات المحلية `NOT RUN` لأن checkout محليًا غير متاح في بيئة التنفيذ؛ Core CI على رأس PR النهائي `PENDING` حتى قراءة نتائج Actions. لا توجد مطالبة بإثبات متصفح أو إنتاج لهذه الدفعة.
+- **نطاق المتابعة:** تظل مراجعة جميع المسارات والإجراءات ومتطلبات B2B أوسع من هذا الإصلاح؛ سجّل الإغلاق بندًا بندًا في مصفوفة القبول، ولا تعتبر هذا الإصلاح إغلاقًا عامًا لتجربة المتجر.
