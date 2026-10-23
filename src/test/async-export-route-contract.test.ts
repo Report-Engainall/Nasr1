@@ -14,6 +14,13 @@ describe("async export center route wiring", () => {
     expect(route).toContain('content: "noindex"');
     expect(reportsRoute).toContain('href="/admin/exports"');
   });
+  it("shows an accessible Arabic fallback while the client-only export center initializes", () => {
+    expect(route).toContain("function ExportCenterFallback()");
+    expect(route).toContain("fallback={<ExportCenterFallback />}");
+    expect(route).toContain('role="status"');
+    expect(route).toContain('aria-live="polite"');
+    expect(route).toContain("جار تجهيز مركز التصدير…");
+  });
   it("connects the form and actions to server-owned operations", () => {
     expect(component).toContain("requestAsyncOrdersCsvExport");
     expect(component).toContain("listMyAsyncExportJobs");
