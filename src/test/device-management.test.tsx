@@ -282,7 +282,7 @@ describe('central device and session management', () => {
   });
 
   it('uses the server-owned self-scoped RPC to revoke other sessions and preserves the current session', async () => {
-    const onNotice = vi.fn();
+    const onNotice = mocks.onNotice;
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === 'list_organization_sessions') return { data: sessions, error: null };
       if (name === 'revoke_other_auth_sessions') {
@@ -319,7 +319,7 @@ describe('central device and session management', () => {
   });
 
   it('does not report bulk revocation success when the server acknowledgement is malformed', async () => {
-    const onNotice = vi.fn();
+    const onNotice = mocks.onNotice;
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === 'list_organization_sessions') return { data: sessions, error: null };
       if (name === 'revoke_other_auth_sessions') {
