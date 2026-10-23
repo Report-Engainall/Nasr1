@@ -1166,3 +1166,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - `TESTS_RUN_WITH_RESULTS`: existing PR #112 Core/P2 results are attached only to `1aa7c7906851e1a5ddb088a173d868a16809f9ef`. New PR #123 final-head workflows are PENDING; no PASS claimed for the new fix until Core and P2 reach terminal SUCCESS on one exact final SHA.
 - No production database migration/write, real payment operation, hosted customer E2E, live Onyx sync, or live WhatsApp API call was performed.
 
+
+
+## P2 payment retry acknowledgement hardening — 2026-10-23T23:08:00+03:00
+
+- Follow-up to PR [#123](https://github.com/Report-Engainall/Nasr1/pull/123): the payment RPC contract returns a UUID, so a non-empty arbitrary string is not a sufficient success acknowledgement.
+- Source/test update at `b9915624033398ad47f7d25f72fc7b7ed9969e4a` validates the trimmed result as a canonical UUID shape. Null and malformed values retain the matching fingerprint's key and show an error; a later exact-payload retry reuses that same key.
+- Regression now exercises null acknowledgement, malformed non-UUID response, and a valid UUID response in sequence, with all attempts sharing the original key. The separate A-ambiguous → B-success → A-retry regression tests independent per-payload key retention.
+- The latest PR head changes after the code/test update and sequential checkpoint commits. Exact-head Core and P2 workflows must be read to terminal on the final current head; no PASS is claimed for the new code until then.
+- No production database migration/write, real payment operation, hosted customer E2E, live Onyx sync, or live WhatsApp API call was performed.
