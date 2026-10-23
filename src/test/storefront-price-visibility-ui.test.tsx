@@ -239,6 +239,33 @@ describe("customer price visibility UI acceptance", () => {
     window.localStorage.clear();
   });
 
+  it.each([false, true])("shows product-card and direct product-detail price according to the catalog setting (%s)", async (enabled) => {
+    resetSettings({ show_price_on_cards: enabled });
+    const mount = await mountAt("/");
+    await flushEffects();
+    const cardPrice = mount.host.querySelector(".sf-product-price");
+
+    if (enabled) {
+      expect(cardPrice).not.toBeNull();
+      expect(cardPrice?.textContent).toContain(formatCurrency(1234));
+    } else {
+      // Hidden prices are removed from the DOM rather than replaced by a fabricated price message.
+      expect(cardPrice).toBeNull();
+      expect(mount.host.textContent).not.toContain(formatCurrency(1234));
+    }
+
+    clickButton(mount.host, "button.sf-product-open");
+    await flushEffects();
+    const detailPrice = mount.host.querySelector(".sf-detail-price");
+    if (enabled) {
+      expect(detailPrice).not.toBeNull();
+      expect(detailPrice?.textContent).toContain(formatCurrency(1234));
+    } else {
+      expect(detailPrice).toBeNull();
+      expect(mount.host.textContent).not.toContain(formatCurrency(1234));
+    }
+  });
+
   it("keeps cart amounts hidden when the setting is off, even if local cart storage contains monetary fields", async () => {
     resetSettings({ show_price_in_cart: false });
     seedCustomerCart();
