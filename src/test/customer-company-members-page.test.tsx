@@ -141,6 +141,25 @@ describe("customer company membership screens", () => {
     expect(await screen.findByText(/لم يُرسل بريد تلقائيًا؛ شارك الرابط يدويًا/)).toBeInTheDocument();
   });
 
+  it("keeps invitation creation disabled until the company workspace is confirmed and supports retry", async () => {
+    mocks.fetchWorkspace
+      .mockReset()
+      .mockRejectedValueOnce(new Error("تعذر تحميل أعضاء الشركة"))
+      .mockResolvedValueOnce(workspace);
+
+    const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");
+    render(<CustomerCompanyMembersPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل أعضاء الشركة");
+    expect(screen.getByRole("button", { name: "إنشاء رابط دعوة" })).toBeDisabled();
+    expect(mocks.createInvite).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "تحديث" }));
+    expect(await screen.findByText("سارة الأغبري")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إنشاء رابط دعوة" })).toBeEnabled();
+    expect(mocks.createInvite).not.toHaveBeenCalled();
+  });
+
   it("revokes active members and pending invitations only through their explicit actions", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");
