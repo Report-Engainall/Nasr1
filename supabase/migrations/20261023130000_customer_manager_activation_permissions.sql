@@ -66,7 +66,8 @@ BEGIN
   SET status='revoked', revoked_at=pg_catalog.now(), updated_at=pg_catalog.now()
   WHERE customer_id=v_customer.id AND organization_id=v_org_id AND status='pending';
 
-  v_token := pg_catalog.encode(public.gen_random_bytes(32), 'hex');
+  -- Use schema-aware pgcrypto helpers; only the one-time token is returned to the authorized creator.
+  v_token := public.customer_activation_invitation_random_token();
   v_expires_at := pg_catalog.now() + pg_catalog.make_interval(hours => p_expires_hours);
   INSERT INTO public.customer_activation_invitations(
     organization_id, customer_id, invited_email, token_hash,
@@ -74,7 +75,7 @@ BEGIN
   )
   VALUES(
     v_org_id, v_customer.id, v_email,
-    pg_catalog.encode(public.digest(v_token, 'sha256'), 'hex'),
+    public.customer_activation_invitation_sha256(v_token),
     v_profile_id, v_expires_at
   )
   RETURNING id INTO v_invitation_id;
