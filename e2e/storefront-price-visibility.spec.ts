@@ -308,9 +308,10 @@ test("Chromium displays cart and order-review amounts only from complete server 
   }
 });
 
-test("Chromium suppresses monetary fields when the server preview is hidden or malformed", async ({ page }) => {
+test("Chromium suppresses monetary fields when the server preview is hidden, malformed, or incomplete", async ({ page }) => {
   let mode: PricingPreviewMode = "hidden";
-  await installPricingPreviewRoutes(page, () => mode);
+  const requests: unknown[] = [];
+  await installPricingPreviewRoutes(page, () => mode, (payload) => requests.push(payload));
   await page.goto("/e2e/fixtures/storefront-price-visibility.html");
   await expect(page.getByTestId("fixture-ready")).toBeVisible();
 
@@ -336,13 +337,15 @@ test("Chromium suppresses monetary fields when the server preview is hidden or m
     "missing-line-total",
     "missing-total",
   ];
-  for (const invalidMode of invalidModes) {
+  for (const [index, invalidMode] of invalidModes.entries()) {
     mode = invalidMode;
     await cart.getByTestId("cart-policy-disable").click();
     await cart.getByTestId("cart-policy-enable").click();
     await order.getByTestId("order-policy-disable").click();
     await order.getByTestId("order-policy-enable").click();
 
+    // Wait for both new RPC responses so an earlier alert cannot satisfy this iteration.
+    await expect.poll(() => requests.length).toBe(2 + 2 * (index + 1));
     await expect(cart.getByRole("alert")).toContainText("تم إخفاء المبالغ");
     await expect(order.getByRole("alert")).toContainText("تم إخفاء المبالغ");
     await expect(cart.locator(".sf-order-pricing-total")).toHaveCount(0);
@@ -379,7 +382,8 @@ test("Chromium retries failed server price previews without showing local or sta
 
 test("Chromium removes previously visible prices when the next approved preview fails", async ({ page }) => {
   let mode: PricingPreviewMode = "visible";
-  await installPricingPreviewRoutes(page, () => mode);
+  const requests: unknown[] = [];
+  await installPricingPreviewRoutes(page, () => mode, (payload) => requests.push(payload));
   await page.goto("/e2e/fixtures/storefront-price-visibility.html");
   await expect(page.getByTestId("fixture-ready")).toBeVisible();
 
@@ -399,6 +403,7 @@ test("Chromium removes previously visible prices when the next approved preview 
   await cart.getByTestId("cart-policy-enable").click();
   await order.getByTestId("order-policy-disable").click();
   await order.getByTestId("order-policy-enable").click();
+  await expect.poll(() => requests.length).toBe(4);
 
   await expect(cart.getByRole("alert")).toContainText("تم إخفاء المبالغ");
   await expect(order.getByRole("alert")).toContainText("تم إخفاء المبالغ");
