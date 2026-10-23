@@ -1,5 +1,5 @@
 # الحالة التنفيذية الحالية الوحيدة — Nasr1 / متجر الأغبري
-## قراءة Git الحية — 2026-10-23T17:10:00+03:00
+## قراءة Git الحية — 2026-10-23T17:20:00+03:00
 
 هذا هو مؤشر الاستئناف المركزي الوحيد. لا تستخرج NEXT_TASK_ID من تقارير تاريخية؛ اجعل هذا القسم مرجع التنفيذ الجاري. رأس main والحالات أدناه تم التحقق منها من GitHub.
 
@@ -11,13 +11,14 @@
 
 ### المهمة الأساسية الحالية — AUTH-CENTRAL-SESSION-BACKEND-P2
 - PR [#83](https://github.com/Report-Engainall/Nasr1/pull/83), الفرع `feat/p2-central-session-backend-20261023`.
-- `HEAD_SHA=d2706613906ab401a28628de101a500b8b80b2d5`; `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`; OPEN/Draft; not merged.
-- Core CI [run 39966420997](https://github.com/Report-Engainall/Nasr1/actions/runs/39966420997) = SUCCESS على الرأس `d270661...`. سجل PostgreSQL يتضمن `PASS central session management` ويثبت تعداد الجلسات حسب المؤسسة، صلاحيات المدير، حماية الجلسة الحالية، التدقيق، رفض الجلسة المسحوبة، والإلغاء الذاتي المحدود.
-- P2 Playwright [run 39966421033](https://github.com/Report-Engainall/Nasr1/actions/runs/39966421033) ما زال IN_PROGRESS على نفس الرأس؛ خطوة `Install Chromium OS dependencies from cached browser` لم تصل إلى نتيجة نهائية. اختبار الحساب المستضاف بقي SKIPPED لغياب اعتمادات اختبار خارجية غير إنتاجية. لا دمج قبل النتيجة النهائية.
-- رأس `1f60e27...` فشل Core لأن `can_manage_finance()` فقد دور `accountant`; أُصلح في `d270661...` مع الإبقاء على `admin/manager/accountant` وربط الصلاحية بـ`current_profile_id()` الذي يشترط جلسة Supabase حية. Core الحالي نجح.
-- الفشل الأقدم على SHA `9079ffa...` كان منفذ PostgreSQL المحلي في اختبار استلام المشتريات (`55432` بدل `54322`); أُصلح في `91c87e0...` بحارس loopback المشترك.
-- عقد الجلسات يضيف `list_organization_sessions`, `revoke_organization_session` و`revoke_other_auth_sessions()`; يقيد الجلسات بالمؤسسة والمستخدمين النشطين، يحجب الأسرار، ويسجل العرض والإلغاء. راجع SECURITY DEFINER وأكمل P2 على الرأس الدقيق قبل إغلاق #83.
-- رأس main أصبح `f7565aefd7af6033d169167d1bebb3dc5cd248ce` بتغيير توثيقي P1 فقط. بعد انتهاء P2، ادمج main الحالي إلى فرع #83 بدون force-push وأعد Core/P2 على الرأس المحدث قبل الدمج.
+- `HEAD_SHA=8b4135131533114d3d6efa023f6ddb4c8032384f`; `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`; OPEN/Draft; not merged.
+- Core CI [run 39968149759](https://github.com/Report-Engainall/Nasr1/actions/runs/39968149759) = IN_PROGRESS on this exact head. P2 Playwright [run 39968149719](https://github.com/Report-Engainall/Nasr1/actions/runs/39968149719) = QUEUED on this exact head; don't transfer earlier-head evidence.
+- Prior head `d2706613906ab401a28628de101a500b8b80b2d5` passed Core [39966420997](https://github.com/Report-Engainall/Nasr1/actions/runs/39966420997) with `PASS central session management`. Its P2 [39966421033](https://github.com/Report-Engainall/Nasr1/actions/runs/39966421033) stalled at `playwright install-deps chromium` for a cache hit and did not reach a terminal result.
+- Workflow change in `8b413513...`: both Chromium paths now install the browser separately, inspect cached browser executables with `ldd`, and call apt-backed `playwright install-deps` only if libraries are missing; fallback is bounded to eight minutes. It is implemented but not validated until the exact-head Core/P2 complete.
+- Root cause before this: `1f60e27...` Core omitted `accountant` and failed; fixed on `d270661...` with `admin/manager/accountant` preserved and a live session gate through `current_profile_id()`. `d270661...` Core passed.
+- Earlier P2 failure on `9079ffa...` was local PostgreSQL port mismatch (`55432` vs `54322`), corrected in `91c87e0...` using the loopback-only endpoint guard.
+- Session RPCs list/revoke tenant-bounded active sessions without exposing secrets; listing/revoking is audited; self-bulk revoke preserves the current session. The live `auth.sessions` row is required by canonical profile/tenant identity. Keep #83 open until exact-head P2 passes and security review is complete.
+- Current `main=f7565aefd7af6033d169167d1bebb3dc5cd248ce` is one P1 documentation-only commit ahead of this PR base. After tests terminate, update the branch non-force to the current main and rerun Core/P2 on the final SHA.
 - لا تدمج #83 قبل Core وP2 النهائيين على الرأس النهائي ومراجعة العقد. PR #88 واجهة P1 تابعة للعقد وليست متكاملة نهائيًا قبل دمجه.
 
 ### مسار مالي موازٍ مستقل — FIN-INVOICE-001
@@ -29,7 +30,7 @@
 
 ### الترتيب التالي والطلبات المرتبطة
 - `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`.
-- `NEXT_ACTION`: انتظر نهاية P2 على #83 `d270661...`; عند نجاحه حدّث فرع #83 إلى main الحالي `f7565a...` بدمج غير قسري، ثم أعد Core/P2 على الرأس النهائي وراجع SECURITY DEFINER قبل الدمج. بعدها حدّث #95 فوق main بعد دمج #83 وأعد اختبار الرأس الجديد.
+- `NEXT_ACTION`: انتظر Core/P2 على HEAD #83 `8b413513...`; إذا نجحا، حدّث الفرع إلى main الحالي `f7565a...` بدمج غير قسري وأعد الاختبارين على الرأس النهائي. بعد الدمج حدّث #95 فوق main الجديد وأعد CI إذا تغيّر الرأس.
 - المهمة التالية بعد #83: `PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE`. PR [#82](https://github.com/Report-Engainall/Nasr1/pull/82) ما زال مفتوحًا ورأسه `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591` متفرعًا من base قديم `0396b29...`; نجاح Core/P2 السابق يخص هذا الرأس وحده. حدّثه بالتتابع بعد #83 وكرر الاختبارات المطلوبة على الرأس الجديد.
 - PR [#71](https://github.com/Report-Engainall/Nasr1/pull/71) مدمج؛ فحوص Core وP2 نجحت على رأسه `09c052d9f39e92e81b8dc994f54554c1fa9fdf49`. إثبات النسخ والاستعادة يخص PostgreSQL 17 المحلي المعزول فقط، وليس استعادة الإنتاج أو RTO/RPO.
 - PR #54 و#52 و#84 و#90 مدمجة. لا تُستأنف بالاعتماد على التقارير القديمة.
@@ -47,14 +48,14 @@
 - `MAIN_SHA=f7565aefd7af6033d169167d1bebb3dc5cd248ce`
 - `CURRENT_BRANCH=feat/p2-central-session-backend-20261023`
 - `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`
-- `HEAD_SHA=d2706613906ab401a28628de101a500b8b80b2d5`
-- `TASK_STATUS=IMPLEMENTED; Core TESTED_EXACT_SHA=SUCCESS on d270661; P2 IN_PROGRESS on the same SHA`
+- `HEAD_SHA=8b4135131533114d3d6efa023f6ddb4c8032384f`
+- `TASK_STATUS=IMPLEMENTED; prior d270661 Core PASS with P2 hung; latest 8b413513 Core IN_PROGRESS / P2 QUEUED`
 - `FILES_CHANGED=28 paths in PR #83; latest functional fix scripts/test-purchase-receipt-accounting.mjs`
-- `TESTS_RUN=Core 39966420997 SUCCESS on d270661 including PASS central session management; P2 39966421033 IN_PROGRESS at Chromium OS dependencies; main Core 39966840332 IN_PROGRESS on f7565a`
-- `TESTS_FAILED_OR_SKIPPED=Core on 1f60e27 omitted accountant role and failed; fixed on d270661, new Core PASS. Hosted-account E2E SKIPPED for missing external non-production credentials; current P2 not terminal`
+- `TESTS_RUN=Core 39966420997 SUCCESS on d270661 incl. PASS central session management; current Core 39968149759 IN_PROGRESS and P2 39968149719 QUEUED on 8b413513; main Core 39966840332 IN_PROGRESS on f7565a`
+- `TESTS_FAILED_OR_SKIPPED=Core on 1f60e27 omitted accountant role and failed; fixed in d270661 and Core passed. P2 d270661 stalled at apt-backed install-deps; workflow cache path fixed in 8b413513, exact-head validation pending. Hosted-account E2E SKIPPED for missing external non-production credentials`
 - `MERGE_STATUS=NOT MERGED`
 - `EXTERNAL_BLOCKERS=Onyx live sync/target import, official WhatsApp API, production DR`
 - `LOCKED_PATHS=.github/workflows/*, bun.lock, scripts/test-database-migrations.mjs and session-related test fixtures in PR #83; matrix/WORK_COORDINATION under PR #43`
 - `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`
-- `NEXT_ACTION=finish P2 on d270661; then merge current main f7565a into branch non-forcibly, re-test final SHA, merge PR83 only after both checks PASS, then update and re-test PR95`
-- `UPDATED_AT=2026-10-23T17:10:00+03:00`
+- `NEXT_ACTION=finish Core/P2 on 8b413513; merge current main f7565a into branch non-forcibly; rerun both on final SHA; merge only after PASS; update/retest PR95 afterward`
+- `UPDATED_AT=2026-10-23T17:20:00+03:00`
