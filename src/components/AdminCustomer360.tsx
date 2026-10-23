@@ -5,13 +5,8 @@ import { fetchOrders, fetchStaffCustomer360Summary } from '@/lib/api';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import type { Customer } from '@/lib/types';
 import { getCurrentTenantScope, supabase } from '@/lib/supabase';
-import { projectCustomer360, type Customer360Projection } from '@/lib/customer-360';
+import { formatCustomer360Money, projectCustomer360, type Customer360Projection } from '@/lib/customer-360';
 import type { StaffCustomer360Summary } from '@/lib/customer-360-summary';
-
-function customer360Money(value: number | null, currency = 'YER'): string {
-  if (value === null || !Number.isFinite(value)) return 'غير متاح';
-  return new Intl.NumberFormat('ar-YE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value) + ' ' + currency;
-}
 
 const invoiceStatusLabel: Record<string, string> = {
   issued: 'صادرة',
@@ -78,8 +73,8 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         <section className="report-grid">
           <article className="report-metric"><ShoppingBag size={20} /><span>الطلبات المحمّلة</span><strong>{formatNumber(m?.order_count ?? 0)}</strong></article>
           <article className="report-metric"><CalendarClock size={20} /><span>طلبات قيد المعالجة</span><strong>{formatNumber(m?.pending_order_count ?? 0)}</strong></article>
-          <article className="report-metric"><Wallet size={20} /><span>الرصيد المسجل بالبطاقة</span><strong>{formatCurrency(Number(customer.current_balance ?? 0))}</strong></article>
-          <article className="report-metric"><CreditCard size={20} /><span>الحد الائتماني المسجل</span><strong>{formatCurrency(Number(customer.credit_limit ?? 0))}</strong></article>
+          <article className="report-metric"><Wallet size={20} /><span>الرصيد المسجل بالبطاقة</span><strong>{formatCustomer360Money(customer.current_balance, 'YER')}</strong></article>
+          <article className="report-metric"><CreditCard size={20} /><span>الحد الائتماني المسجل</span><strong>{formatCustomer360Money(customer.credit_limit, 'YER')}</strong></article>
         </section>
         {(projection.potentially_partial.invoices || projection.potentially_partial.payments) && <div className="form-error" role="status"><AlertTriangle size={16} /> قوائم تفاصيل الفواتير والدفعات على مستوى المؤسسة محدودة (حتى 500 فاتورة و1000 دفعة)، لذلك لا تشمل الجداول كل الحركات القديمة. إجماليات المبالغ والمتأخرات حسب العملة في الملخص التالي محسوبة خادميًا من دفتر العميل الكامل.</div>}
         <section className="panel">
@@ -103,15 +98,15 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         <h3 style={{ marginTop: 18 }}>ملخص الفواتير والتحصيل الكامل حسب العملة</h3>
         {!summary.finance_by_currency.length ? <Empty text="لا توجد فواتير مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>العملة</th><th>الفواتير</th><th>إجمالي الفواتير</th><th>المسدّد</th><th>المتبقي</th><th>فواتير متأخرة</th><th>متأخرات</th></tr></thead><tbody>{summary.finance_by_currency.map((row) => <tr key={row.currency}>
           <td>{row.currency}</td><td>{formatNumber(row.invoice_count)}</td>
-          <td>{customer360Money(row.invoiced_total, row.currency)}</td><td>{customer360Money(row.paid_total, row.currency)}</td>
-          <td>{customer360Money(row.outstanding_total, row.currency)}</td><td>{formatNumber(row.overdue_invoice_count)}</td>
-          <td>{customer360Money(row.overdue_outstanding, row.currency)}</td>
+          <td>{formatCustomer360Money(row.invoiced_total, row.currency)}</td><td>{formatCustomer360Money(row.paid_total, row.currency)}</td>
+          <td>{formatCustomer360Money(row.outstanding_total, row.currency)}</td><td>{formatNumber(row.overdue_invoice_count)}</td>
+          <td>{formatCustomer360Money(row.overdue_outstanding, row.currency)}</td>
         </tr>)}</tbody></table></TableWrap>}
 
         <h3 style={{ marginTop: 18 }}>المنتجات الأكثر شراءً من العميل</h3>
         {!summary.top_products.length ? <Empty text="لا توجد بنود طلبات قابلة للترتيب لهذا العميل." /> : <TableWrap><table><thead><tr><th>الصنف</th><th>الكمية</th><th>قيمة البنود</th><th>آخر شراء</th></tr></thead><tbody>{summary.top_products.map((product) => <tr key={product.item_code + ':' + product.product_name}>
           <td><strong>{product.product_name}</strong><small style={{ display: 'block' }}>{product.item_code || 'دون رمز صنف'}</small></td>
-          <td>{formatNumber(product.quantity)}</td><td>{customer360Money(product.sales, 'YER')}</td>
+          <td>{formatNumber(product.quantity)}</td><td>{formatCustomer360Money(product.sales, 'YER')}</td>
           <td>{product.last_purchased_at ? formatDateShort(product.last_purchased_at) : 'غير متاح'}</td>
         </tr>)}</tbody></table></TableWrap>}
 
@@ -122,7 +117,7 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
               <strong>{recommendation.title}</strong><span className="badge">{recommendation.priority === 'high' ? 'أولوية عالية' : recommendation.priority === 'medium' ? 'أولوية متوسطة' : 'أولوية منخفضة'}</span>
             </div>
             <p>{recommendation.description}</p>
-            {recommendation.currency && recommendation.overdue_outstanding !== undefined && <p><strong>المبلغ المتأخر: {customer360Money(recommendation.overdue_outstanding, recommendation.currency)}</strong> · فواتير: {formatNumber(recommendation.overdue_invoice_count ?? 0)}</p>}
+            {recommendation.currency && recommendation.overdue_outstanding !== undefined && <p><strong>المبلغ المتأخر: {formatCustomer360Money(recommendation.overdue_outstanding, recommendation.currency)}</strong> · فواتير: {formatNumber(recommendation.overdue_invoice_count ?? 0)}</p>}
             {recommendation.pending_order_count !== undefined && <p>الطلبات المعلقة: {formatNumber(recommendation.pending_order_count)}</p>}
             {recommendation.days_since_last_order !== undefined && <p>الأيام منذ آخر طلب: {formatNumber(recommendation.days_since_last_order)}</p>}
             <small>{recommendation.action}</small>
@@ -136,11 +131,11 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         </section>
         <section className="panel">
           <h3>آخر الفواتير ({formatNumber(m?.invoice_count_loaded ?? 0)} فاتورة محمّلة)</h3>
-          {!projection.invoices.length ? <Empty text="لا توجد فواتير مسجلة لهذا العميل في نتيجة RPC الحالية." /> : <TableWrap><table><thead><tr><th>الفاتورة</th><th>الإصدار</th><th>الاستحقاق</th><th>الحالة</th><th>الإجمالي</th><th>المسدّد من الدفعات المحمّلة</th><th>المتبقي المحسوب</th></tr></thead><tbody>{projection.invoices.map((invoice) => <tr key={invoice.id}><td>{invoice.invoice_number}</td><td>{formatDateShort(invoice.issued_at)}</td><td>{invoice.due_at ? formatDateShort(invoice.due_at) : 'غير محدد'}</td><td>{invoiceStatusLabel[invoice.status] ?? invoice.status}</td><td>{customer360Money(invoice.total_amount, invoice.currency)}</td><td>{customer360Money(invoice.paid_amount, invoice.currency)}</td><td>{customer360Money(invoice.outstanding_amount, invoice.currency)}</td></tr>)}</tbody></table></TableWrap>}
+          {!projection.invoices.length ? <Empty text="لا توجد فواتير مسجلة لهذا العميل في نتيجة RPC الحالية." /> : <TableWrap><table><thead><tr><th>الفاتورة</th><th>الإصدار</th><th>الاستحقاق</th><th>الحالة</th><th>الإجمالي</th><th>المسدّد من الدفعات المحمّلة</th><th>المتبقي المحسوب</th></tr></thead><tbody>{projection.invoices.map((invoice) => <tr key={invoice.id}><td>{invoice.invoice_number}</td><td>{formatDateShort(invoice.issued_at)}</td><td>{invoice.due_at ? formatDateShort(invoice.due_at) : 'غير محدد'}</td><td>{invoiceStatusLabel[invoice.status] ?? invoice.status}</td><td>{formatCustomer360Money(invoice.total_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.paid_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.outstanding_amount, invoice.currency)}</td></tr>)}</tbody></table></TableWrap>}
         </section>
         <section className="panel">
           <h3>آخر الدفعات ({formatNumber(m?.payment_count_loaded ?? 0)} دفعة محمّلة)</h3>
-          {!projection.payments.length ? <Empty text="لا توجد دفعات مسجلة لهذا العميل في نتيجة RPC الحالية." /> : <TableWrap><table><thead><tr><th>التاريخ</th><th>الفاتورة</th><th>طريقة الدفع</th><th>المبلغ</th></tr></thead><tbody>{projection.payments.map((payment) => <tr key={payment.id}><td>{formatDateShort(payment.paid_at)}</td><td>{projection.invoices.find((invoice) => invoice.id === payment.invoice_id)?.invoice_number ?? payment.invoice_id.slice(0, 8)}</td><td>{payment.payment_method}</td><td>{customer360Money(payment.amount, projection.invoices.find((invoice) => invoice.id === payment.invoice_id)?.currency ?? 'YER')}</td></tr>)}</tbody></table></TableWrap>}
+          {!projection.payments.length ? <Empty text="لا توجد دفعات مسجلة لهذا العميل في نتيجة RPC الحالية." /> : <TableWrap><table><thead><tr><th>التاريخ</th><th>الفاتورة</th><th>طريقة الدفع</th><th>المبلغ</th></tr></thead><tbody>{projection.payments.map((payment) => <tr key={payment.id}><td>{formatDateShort(payment.paid_at)}</td><td>{projection.invoices.find((invoice) => invoice.id === payment.invoice_id)?.invoice_number ?? payment.invoice_id.slice(0, 8)}</td><td>{payment.payment_method}</td><td>{formatCustomer360Money(payment.amount, projection.invoices.find((invoice) => invoice.id === payment.invoice_id)?.currency ?? 'YER')}</td></tr>)}</tbody></table></TableWrap>}
         </section>
       </>}
     </div>

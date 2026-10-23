@@ -854,3 +854,15 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - The category RPC is unique and should not be closed as a duplicate unless it is later proven present in `main`. Do not merge this branch based on old-head CI; evidence must match its new head.
 - Coordination file ownership: P2 is responsible for subsequent updates/merges here. Do not let an older branch replace newer P2 locks or status entries.
 
+
+
+## Live ownership and reconciliation — 2026-10-23 (latest entry supersedes older SHA notes)
+
+- `main` at reconciliation start: `52df650957c857cc32c21c8804e3f5e88f73d9e7`. P1 PR: [#66](https://github.com/Report-Engainall/Nasr1/pull/66), branch `p1/remaining-work-execution-20261023`, exact source head before reconciliation `7b4afd00a5abd26cf983ee5f82247ccd0e7c89f1`.
+- **P1 owns until handoff:** the customer/admin implementation in PR #66, its customer-directory, lifecycle/tier command, audit pagination, order-history/invitation UI paths, P1 checkpoint, and P1 acceptance rows. P1 stays responsible for fixing source/test regressions in those paths; a documentation update alone does not close a requirement.
+- **P2 owns integration:** updating and merging eligible branches, exact-SHA Core/Playwright confirmation, PR #50/#43/#71/#72 decisions and merge/closure evidence, the shared coordination file, current CI/backup integration, and follow-up sync to current main.
+- **Shared file lock:** `scripts/test-database-migrations.mjs` contains P1 customer lifecycle/role acceptance and P2 order-input/inventory acceptance. Never replace this file wholesale from either branch. Preserve the distinct test blocks and imports, and reconcile subsequent changes serially.
+- Current P2 order-input acceptance from `main` is retained through `scripts/test-order-input-hardening.mjs` and its invocation in the PostgreSQL migration test. The merge also preserves main’s `.github/workflows/commerce-checks.yml`, `scripts/test-local-backup-restore.mjs`, and lock note `locks/P2_ORDER_INPUT_HARDENING_ACCEPTANCE_2026-10-22.md`.
+- PR #58 is already merged at `52df650957c857cc32c21c8804e3f5e88f73d9e7`; do not reimplement its order-input helper. PR #72 must remain open until its latest Core and Playwright checks finish successfully. Previously read PR #72 head `469f0ef35da749d095988cdff3d890c8e795e41c` failed Core at the post-race reorder-point fixture (actual 1, expected 20); a subsequent branch head `841709a6f500e7ea81fcec9447da9f61671d2ba0` has fresh checks pending and is not merge-ready until those checks are terminal successes.
+- PR #71 Core passed, but Playwright failed during Chromium/OS-dependency installation timeout; PR #50 and #43 have prior Playwright failures at isolated Supabase image startup from GHCR rate limiting. These are **not** functional acceptance passes; rerun or repair infrastructure, and report any still-unrun authenticated path honestly.
+- No direct writes to `main`, no force-push, no destructive reset. After this merge commit, verify its exact SHA and run Core + Playwright against that SHA before making PR #66 ready or merging it.

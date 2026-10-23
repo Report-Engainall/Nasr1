@@ -230,7 +230,7 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
   delivered: 'تم التسليم', cancelled: 'ملغي', rejected: 'مرفوض', invoiced: 'حوّل إلى فاتورة',
 }
 export const CUSTOMER_STATUS_LABELS: Record<string, string> = {
-  pending: 'بانتظار الموافقة', approved: 'معتمد', frozen: 'مجمّد', blocked: 'محظور', archived: 'مؤرشف',
+  pending: 'بانتظار الموافقة', approved: 'معتمد', rejected: 'مرفوض', frozen: 'مجمّد', blocked: 'محظور', archived: 'مؤرشف',
 }
 
 export type OperationalTaskRole = 'sales' | 'accountant' | 'warehouse' | 'purchasing' | 'management' | 'operations';

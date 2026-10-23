@@ -796,6 +796,270 @@ async function main() {
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   await db.unsafe("set role authenticated");
 
+
+  // AGH-CUSTOMER-LIFECYCLE-001: execute real customer tier/status RPCs against PostgreSQL.
+  // These fixtures are resettable and isolated by stable CI-only customer codes.
+  await db.unsafe("reset role");
+  const lifecycleFixtureSpecs = [
+    { key: "restoreApproved", code: "CI-LC-RESTORE-APPROVED", status: "pending" },
+    { key: "pendingReject", code: "CI-LC-PENDING-REJECT", status: "pending" },
+    { key: "pendingBlock", code: "CI-LC-PENDING-BLOCK", status: "pending" },
+    { key: "pendingArchive", code: "CI-LC-PENDING-ARCHIVE", status: "pending" },
+    { key: "approvedFreeze", code: "CI-LC-APPROVED-FREEZE", status: "approved" },
+    { key: "approvedBlock", code: "CI-LC-APPROVED-BLOCK", status: "approved" },
+    { key: "rejectedApprove", code: "CI-LC-REJECTED-APPROVE", status: "rejected" },
+    { key: "rejectedBlock", code: "CI-LC-REJECTED-BLOCK", status: "rejected" },
+    { key: "rejectedArchive", code: "CI-LC-REJECTED-ARCHIVE", status: "rejected" },
+    { key: "frozenApprove", code: "CI-LC-FROZEN-APPROVE", status: "frozen" },
+    { key: "frozenBlock", code: "CI-LC-FROZEN-BLOCK", status: "frozen" },
+    { key: "frozenArchive", code: "CI-LC-FROZEN-ARCHIVE", status: "frozen" },
+    { key: "blockedApprove", code: "CI-LC-BLOCKED-APPROVE", status: "blocked" },
+    { key: "blockedArchive", code: "CI-LC-BLOCKED-ARCHIVE", status: "blocked" },
+    { key: "noHistory", code: "CI-LC-NO-ARCHIVE-HISTORY", status: "archived" },
+    { key: "otherCustomerArchive", code: "CI-LC-OTHER-CUSTOMER-ARCHIVE", status: "archived" },
+    { key: "foreignHistory", code: "CI-LC-FOREIGN-ARCHIVE-HISTORY", status: "archived" },
+    { key: "tierCommand", code: "CI-TIER-COMMAND-01", status: "approved" },
+    { key: "foreignLifecycle", code: "CI-LC-FOREIGN-01", status: "pending", foreign: true },
+    { key: "foreignTier", code: "CI-TIER-FOREIGN-01", status: "approved", foreign: true },
+  ];
+  const lifecycleIds = {};
+  for (let index = 0; index < lifecycleFixtureSpecs.length; index += 1) {
+    const fixture = lifecycleFixtureSpecs[index];
+    const fixtureOrganizationId = fixture.foreign ? otherOrganizationId : organizationId;
+    const tier = "retail";
+    const approvedAt = ["approved", "frozen", "blocked"].includes(fixture.status)
+      ? "2026-10-01T10:00:00Z"
+      : null;
+    const rows = await db.unsafe(
+      "insert into public.customers(organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier,credit_limit,current_balance,status,approved_at) " +
+      "values($1,null,$2,$3,$4,$5,$6,$7,0,0,$8,$9::timestamptz) " +
+      "on conflict (organization_id,customer_code) do update set profile_id=null,business_name=excluded.business_name," +
+      "contact_name=excluded.contact_name,phone=excluded.phone,email=excluded.email,tier=excluded.tier,status=excluded.status," +
+      "approved_at=excluded.approved_at,updated_at=pg_catalog.now() returning id",
+      [fixtureOrganizationId, fixture.code, "CI Lifecycle " + fixture.key, "CI Lifecycle Contact",
+        "777" + String(9000000 + index), fixture.code.toLowerCase() + "@example.test", tier, fixture.status, approvedAt],
+    );
+    lifecycleIds[fixture.key] = rows[0].id;
+  }
+  await db.unsafe(
+    "delete from public.audit_logs where entity_type='customer' and entity_id=any($1::uuid[]) " +
+    "and action in ('customer.status_changed','customer.tier_changed')",
+    [Object.values(lifecycleIds)],
+  );
+
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const customerLifecycleCommand = async (customerId, expectedStatus, nextStatus, reason) =>
+    (await db.unsafe(
+      "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) as result",
+      [customerId, expectedStatus, nextStatus, reason],
+    ))[0].result;
+  const assertLifecycleTransition = async (fixtureKey, from, to, reason) => {
+    const result = await customerLifecycleCommand(lifecycleIds[fixtureKey], from, to, reason);
+    assert.equal(result.customer_id, lifecycleIds[fixtureKey], "lifecycle command must return the requested customer");
+    assert.equal(result.previous_status, from, "lifecycle command must return the locked previous status");
+    assert.equal(result.status, to, "lifecycle command must apply the requested legal status");
+    assert.equal(result.changed, true, "legal status transition must acknowledge a mutation");
+    return result;
+  };
+
+  await expectFailure(
+    "customer lifecycle requires a non-empty reason",
+    () => customerLifecycleCommand(lifecycleIds.restoreApproved, "pending", "approved", ""),
+    /reason must contain between 3 and 500 characters/i,
+  );
+  await assertLifecycleTransition("restoreApproved", "pending", "approved", "CI lifecycle initial approval");
+  const approvedAtFirst = (await db.unsafe(
+    "select approved_at::text as approved_at from public.customers where id=$1", [lifecycleIds.restoreApproved],
+  ))[0].approved_at;
+  assert.ok(approvedAtFirst, "approval must stamp approved_at");
+
+  await assertLifecycleTransition("restoreApproved", "approved", "frozen", "CI freeze timestamp preservation");
+  const approvedAtAfterFreeze = (await db.unsafe(
+    "select approved_at::text as approved_at from public.customers where id=$1", [lifecycleIds.restoreApproved],
+  ))[0].approved_at;
+  assert.equal(approvedAtAfterFreeze, approvedAtFirst, "freezing must preserve the existing approval timestamp");
+
+  await assertLifecycleTransition("restoreApproved", "frozen", "approved", "CI new approval cycle");
+  const approvedAtBeforeArchive = (await db.unsafe(
+    "select approved_at::text as approved_at from public.customers where id=$1", [lifecycleIds.restoreApproved],
+  ))[0].approved_at;
+  await assertLifecycleTransition("restoreApproved", "approved", "archived", "CI archive previously approved customer");
+  const approvedAtWhileArchived = (await db.unsafe(
+    "select approved_at::text as approved_at from public.customers where id=$1", [lifecycleIds.restoreApproved],
+  ))[0].approved_at;
+  assert.equal(approvedAtWhileArchived, approvedAtBeforeArchive, "archiving must preserve the approval timestamp");
+  const restoredApproved = await customerLifecycleCommand(
+    lifecycleIds.restoreApproved, "archived", "restore", "CI restore previously approved customer",
+  );
+  assert.equal(restoredApproved.previous_status, "archived");
+  assert.equal(restoredApproved.status, "approved", "archive restoration must recover the last valid status from this customer's audit trail");
+  assert.equal(restoredApproved.changed, true);
+  const approvedAtAfterRestore = (await db.unsafe(
+    "select approved_at::text as approved_at from public.customers where id=$1", [lifecycleIds.restoreApproved],
+  ))[0].approved_at;
+  assert.equal(approvedAtAfterRestore, approvedAtBeforeArchive, "restoring an approved customer must not falsify the previous approval timestamp");
+
+  // Exercise every non-restore transition represented in the PostgreSQL transition matrix.
+  for (const [key, from, to] of [
+    ["pendingReject", "pending", "rejected"],
+    ["pendingBlock", "pending", "blocked"],
+    ["pendingArchive", "pending", "archived"],
+    ["approvedFreeze", "approved", "frozen"],
+    ["approvedBlock", "approved", "blocked"],
+    ["rejectedApprove", "rejected", "approved"],
+    ["rejectedBlock", "rejected", "blocked"],
+    ["rejectedArchive", "rejected", "archived"],
+    ["frozenApprove", "frozen", "approved"],
+    ["frozenBlock", "frozen", "blocked"],
+    ["frozenArchive", "frozen", "archived"],
+    ["blockedApprove", "blocked", "approved"],
+    ["blockedArchive", "blocked", "archived"],
+  ]) {
+    await assertLifecycleTransition(key, from, to, "CI transition matrix " + from + " to " + to);
+  }
+  const restoredPending = await customerLifecycleCommand(
+    lifecycleIds.pendingArchive, "archived", "restore", "CI restore pending customer",
+  );
+  assert.equal(restoredPending.status, "pending", "restoring an archived pending customer must preserve pending status");
+
+  // Audit rows are seeded by the privileged test connection, then all RPC assertions run as authenticated.
+  await db.unsafe("reset role");
+  // Restoration must not borrow an otherwise valid archive record from another customer or tenant.
+  await db.unsafe(
+    "insert into public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value) " +
+    "values($1,$2,'customer.status_changed','customer',$3,$4::jsonb,$5::jsonb)",
+    [organizationId, staffProfileId, lifecycleIds.otherCustomerArchive,
+      db.json({ status: "frozen" }), db.json({ status: "archived", reason: "CI unrelated customer audit fixture" })],
+  );
+  await db.unsafe(
+    "insert into public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value) " +
+    "values($1,$2,'customer.status_changed','customer',$3,$4::jsonb,$5::jsonb)",
+    [otherOrganizationId, foreignProfileId, lifecycleIds.foreignHistory,
+      db.json({ status: "rejected" }), db.json({ status: "archived", reason: "CI foreign tenant audit fixture" })],
+  );
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "archived customer without its own valid archive audit cannot be restored",
+    () => customerLifecycleCommand(lifecycleIds.noHistory, "archived", "restore", "CI missing history restore"),
+    /previous customer status is unavailable; cannot restore safely/i,
+  );
+
+  await expectFailure(
+    "archived customer cannot be restored from another tenant's audit history",
+    () => customerLifecycleCommand(lifecycleIds.foreignHistory, "archived", "restore", "CI foreign audit must be ignored"),
+    /previous customer status is unavailable; cannot restore safely/i,
+  );
+  await expectFailure(
+    "stale customer status is rejected instead of overwriting a newer change",
+    () => customerLifecycleCommand(lifecycleIds.restoreApproved, "pending", "frozen", "CI stale status"),
+    /customer status changed since directory loaded/i,
+  );
+  await expectFailure(
+    "illegal customer lifecycle transition is rejected",
+    () => customerLifecycleCommand(lifecycleIds.restoreApproved, "approved", "rejected", "CI illegal transition"),
+    /invalid customer status transition/i,
+  );
+  await expectFailure(
+    "customer lifecycle RPC cannot target another organization",
+    () => customerLifecycleCommand(lifecycleIds.foreignLifecycle, "pending", "approved", "CI foreign tenant"),
+    /customer not found in current organization/i,
+  );
+
+  const tierChange = (await db.unsafe(
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) as result",
+    [lifecycleIds.tierCommand, "retail", "wholesale", "CI governed tier change"],
+  ))[0].result;
+  assert.equal(tierChange.customer_id, lifecycleIds.tierCommand);
+  assert.equal(tierChange.previous_tier, "retail");
+  assert.equal(tierChange.tier, "wholesale");
+  assert.equal(tierChange.changed, true);
+  const tierState = (await db.unsafe(
+    "select tier from public.customers where id=$1", [lifecycleIds.tierCommand],
+  ))[0];
+  assert.equal(tierState.tier, "wholesale", "tier command must persist the server-confirmed value");
+  await expectFailure(
+    "stale customer tier is rejected instead of overwriting a newer change",
+    () => db.unsafe("select public.set_admin_customer_tier($1::uuid,'retail','vip','CI stale tier')", [lifecycleIds.tierCommand]),
+    /customer tier changed since the directory loaded/i,
+  );
+  await expectFailure(
+    "unsupported customer tier is rejected by PostgreSQL",
+    () => db.unsafe("select public.set_admin_customer_tier($1::uuid,'wholesale','discount','CI invalid tier')", [lifecycleIds.tierCommand]),
+    /tier must be one of retail, wholesale, or vip/i,
+  );
+  await expectFailure(
+    "customer tier command requires a valid reason",
+    () => db.unsafe("select public.set_admin_customer_tier($1::uuid,'wholesale','vip','')", [lifecycleIds.tierCommand]),
+    /reason must contain between 3 and 500 characters/i,
+  );
+  await expectFailure(
+    "customer tier RPC cannot target another organization",
+    () => db.unsafe("select public.set_admin_customer_tier($1::uuid,'retail','wholesale','CI foreign tier')", [lifecycleIds.foreignTier]),
+    /customer not found in current organization/i,
+  );
+
+  await db.unsafe("reset role");
+  const lifecycleAuditRows = await db.unsafe(
+    "select organization_id,actor_id,old_value,new_value from public.audit_logs " +
+    "where organization_id=$1 and entity_type='customer' and entity_id=$2 and action='customer.status_changed' " +
+    "order by created_at asc",
+    [organizationId, lifecycleIds.restoreApproved],
+  );
+  assert.equal(lifecycleAuditRows.length, 5, "each main customer lifecycle transition must produce one audit row");
+  assert.ok(lifecycleAuditRows.every((row) => row.actor_id === staffProfileId), "lifecycle audit must identify the active admin");
+  assert.ok(lifecycleAuditRows.every((row) => row.organization_id === organizationId), "lifecycle audit must remain in the customer's organization");
+  const initialApprovalAudit = lifecycleAuditRows.find((row) =>
+    row.old_value?.status === "pending" && row.new_value?.status === "approved" &&
+    row.new_value?.reason === "CI lifecycle initial approval");
+  assert.ok(initialApprovalAudit, "approval audit must contain the previous/new status and reason");
+  const restoreAudit = lifecycleAuditRows.find((row) =>
+    row.new_value?.restored_from_archive === true &&
+    row.new_value?.reason === "CI restore previously approved customer");
+  assert.equal(restoreAudit?.old_value?.status, "archived");
+  assert.equal(restoreAudit?.new_value?.status, "approved");
+  const tierAuditRows = await db.unsafe(
+    "select organization_id,actor_id,old_value,new_value from public.audit_logs " +
+    "where organization_id=$1 and entity_type='customer' and entity_id=$2 and action='customer.tier_changed'",
+    [organizationId, lifecycleIds.tierCommand],
+  );
+  assert.equal(tierAuditRows.length, 1, "customer tier change must produce one audit row");
+  assert.equal(tierAuditRows[0].actor_id, staffProfileId);
+  assert.equal(tierAuditRows[0].old_value?.tier, "retail");
+  assert.equal(tierAuditRows[0].new_value?.tier, "wholesale");
+  assert.equal(tierAuditRows[0].new_value?.reason, "CI governed tier change");
+
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "authenticated admin cannot bypass the lifecycle RPC with a direct status update",
+    () => db.unsafe("update public.customers set status='frozen' where id=$1", [lifecycleIds.restoreApproved]),
+    /permission denied/i,
+  );
+  await expectFailure(
+    "authenticated admin cannot bypass the tier RPC with a direct tier update",
+    () => db.unsafe("update public.customers set tier='vip' where id=$1", [lifecycleIds.tierCommand]),
+    /permission denied/i,
+  );
+  await db.unsafe("reset role");
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "ordinary staff cannot change customer lifecycle",
+    () => customerLifecycleCommand(lifecycleIds.pendingReject, "rejected", "blocked", "CI staff must be denied"),
+    /active customer-management permission required/i,
+  );
+  await expectFailure(
+    "ordinary staff cannot change customer tier",
+    () => db.unsafe("select public.set_admin_customer_tier($1::uuid,'wholesale','vip','CI staff must be denied')", [lifecycleIds.tierCommand]),
+    /active customer-management permission required/i,
+  );
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  process.stdout.write("PASS customer tier/lifecycle PostgreSQL commands: complete transition matrix, tenant/role/RPC-only guards, optimistic concurrency, reason validation, restore integrity, approved_at preservation and audit evidence\n");
+
   const scopeRows = await db.unsafe("select public.get_current_tenant_context() as scope");
   const scope = scopeRows[0].scope;
   assert.equal(scope.profile_id, staffProfileId, "tenant context must resolve the authenticated profile on the server");
@@ -4436,6 +4700,7 @@ async function main() {
     ["CI-ACT-04", "CI Staff Rejection Customer Record", "admin@aghbari.ye"],
     ["CI-ACT-05", "CI Expired Customer Record", "expired-client@example.test"],
     ["CI-ACT-06", "CI Revoked Customer Record", "revoked-client@example.test"],
+    ["CI-ACT-07", "CI Customer Manager Activation Record", "customer-manager-activation@example.test"],
   ];
   for (const [code, businessName, email] of activationCodes) {
     await db.unsafe(
@@ -4449,6 +4714,7 @@ async function main() {
   const staffRejectCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-04'", [organizationId]))[0].id;
   const expiredCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-05'", [organizationId]))[0].id;
   const revokedCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-06'", [organizationId]))[0].id;
+  const customerManagerActivationCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-07'", [organizationId]))[0].id;
 
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   await db.unsafe("set role authenticated");
@@ -4495,7 +4761,61 @@ async function main() {
   await expectFailure("staff cannot create an activation invitation for a different organization",
     () => db.unsafe("select public.create_customer_activation_invitation($1::uuid,$2::text,$3::integer)", [foreignOrganizationCustomer, "cross@example.test", 72]),
     /سجل العميل غير موجود ضمن المؤسسة الحالية|42501/i);
+
   await db.unsafe("reset role");
+  // Use a customer_manager-only profile to prove this capability is independent of broad staff access.
+  await db.unsafe("delete from public.user_roles where profile_id=$1", [operationsStaffProfileId]);
+  await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'customer_manager')", [operationsStaffProfileId]);
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  const customerManagerTenantScope = (await db.unsafe("select public.get_current_tenant_context() as result"))[0].result;
+  assert.equal(customerManagerTenantScope.is_staff, false, "customer_manager must not inherit broad staff access");
+  assert.equal(customerManagerTenantScope.can_manage_customers, true, "customer_manager has the narrow customer capability");
+
+  const customerManagerDirectory = (await db.unsafe(
+    "select public.fetch_customer_manager_directory($1::text,$2::integer,$3::integer) as result",
+    ["CI Customer Manager Activation Record", 1, 25],
+  ))[0].result;
+  assert.equal(customerManagerDirectory.total_count, 1, "customer-manager directory search/count are server-scoped");
+  const customerManagerRow = customerManagerDirectory.rows.find((row) => row.id === customerManagerActivationCustomer);
+  assert.ok(customerManagerRow, "directory returns the authorized tenant customer");
+  assert.equal(Object.hasOwn(customerManagerRow, "current_balance"), false, "directory hides current balance");
+  assert.equal(Object.hasOwn(customerManagerRow, "credit_limit"), false, "directory hides credit limit");
+
+  const customerManagerInvitation = (await db.unsafe(
+    "select public.create_customer_activation_invitation($1::uuid,$2::text,$3::integer) as result",
+    [customerManagerActivationCustomer, "customer-manager-activation@example.test", 72],
+  ))[0].result;
+  assert.equal(customerManagerInvitation.customer_id, customerManagerActivationCustomer,
+    "customer_manager can create a tenant-scoped activation invitation");
+  const customerManagerWorkspace = (await db.unsafe(
+    "select public.list_customer_activation_invitations($1::uuid) as result",
+    [customerManagerActivationCustomer],
+  ))[0].result;
+  assert.equal(customerManagerWorkspace.invitations[0].invitation_id, customerManagerInvitation.invitation_id,
+    "customer_manager can list invitation metadata");
+  await expectFailure("customer_manager cannot directly SELECT invitation storage",
+    () => db.unsafe("select id from public.customer_activation_invitations"), /permission denied/i);
+  const customerManagerRevoked = (await db.unsafe(
+    "select public.revoke_customer_activation_invitation($1::uuid) as result",
+    [customerManagerInvitation.invitation_id],
+  ))[0].result;
+  assert.equal(customerManagerRevoked, true, "customer_manager can revoke a pending invitation");
+  const customerManagerTier = (await db.unsafe(
+    "select public.set_admin_customer_tier($1::uuid,'retail','wholesale','CI customer manager tier change') as result",
+    [customerManagerActivationCustomer],
+  ))[0].result;
+  assert.equal(customerManagerTier.tier, "wholesale", "customer_manager can change tier through the audited command");
+  const customerManagerStatus = (await db.unsafe(
+    "select public.set_admin_customer_status($1::uuid,'approved','frozen','CI customer manager status change') as result",
+    [customerManagerActivationCustomer],
+  ))[0].result;
+  assert.equal(customerManagerStatus.status, "frozen", "customer_manager can change status through the audited command");
+
+  await db.unsafe("reset role");
+  await db.unsafe("delete from public.user_roles where profile_id=$1", [operationsStaffProfileId]);
+  await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'staff')", [operationsStaffProfileId]);
+  process.stdout.write("PASS customer_manager scope: non-financial directory, audited tier/status commands, invitation create/list/revoke, and direct-table denial\\n");
 
   // Anonymous access is denied independently of authenticated staff, including direct DML.
   await db.unsafe("select set_config('request.jwt.claim.sub','',false)");
@@ -4576,9 +4896,9 @@ async function main() {
   const revokeAudit = await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=$2", [organizationId, revokedInvitation.invitation_id]);
   assert.ok(revokeAudit.some(row => row.action === "customer_activation_invitation.revoked"), "revocation is audited");
   process.stdout.write("PASS customer activation invitations: auth.users confirmation/email, tenant and role guards, hash-only token, no direct table DML, one-use/replay, expiry/revoke and audit trail\n");
-  // SRC-011 / ORDER-INPUT-0011: exercise all adversarial customer/staff payload cases
-  // against the same isolated PostgreSQL fixtures as the rest of this acceptance chain.
-  // Keep separate connections so SET ROLE state cannot leak between actors or root cleanup.
+
+  // SRC-011 / ORDER-INPUT-0011: test every adversarial customer/staff payload against isolated PostgreSQL fixtures.
+  // Separate sessions ensure JWT role state cannot leak across actors.
   const orderInputRoot = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const orderInputAdmin = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const orderInputCustomer = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
@@ -4599,7 +4919,6 @@ async function main() {
       orderInputCustomer.end({ timeout: 5 }).catch(() => undefined),
     ]);
   }
-
 
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }

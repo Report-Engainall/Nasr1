@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft, ClipboardList, PackageCheck,
   CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package,
@@ -9,14 +9,15 @@ import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
   fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
-  updateCustomerStatus, updatePricingRule, updateProduct, uploadProductImage,
+  updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage,
   approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
 import { archiveAdminCatalogCategory, createAdminCatalogCategory, renameAdminCatalogCategory } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
+import { fetchCustomerDirectoryPage } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
-import { ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
+import { CUSTOMER_STATUS_LABELS, ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { useNavigate } from '@tanstack/react-router';
 import { Login } from '@/components/Login';
@@ -91,11 +92,14 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const canOperateAdmin = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff'));
   const canManageFinance = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'accountant'));
   const isFinanceOnly = canManageFinance && !canOperateAdmin;
+  const isCustomerManagerOnly = Boolean(user?.roles.includes('customer_manager') &&
+    !user.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'accountant'));
   const canManageAudit = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const visibleNav = nav.filter(({ id }) =>
-    (isFinanceOnly ? id === 'finance' || id === 'tasks' : id !== 'finance' || canManageFinance) &&
-    (id !== 'audit' || canManageAudit) &&
-    (id !== 'purchase-orders' || user?.roles.some((role) => role === 'admin' || role === 'manager'))
+  const visibleNav = nav.filter(({ id }) => isCustomerManagerOnly
+    ? id === 'customers'
+    : (isFinanceOnly ? id === 'finance' || id === 'tasks' : id !== 'finance' || canManageFinance) &&
+      (id !== 'audit' || canManageAudit) &&
+      (id !== 'purchase-orders' || user?.roles.some((role) => role === 'admin' || role === 'manager'))
   );
   const navigate = useNavigate();
   const [view, setView] = useState<View>(initialView);
@@ -123,6 +127,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
 
   const runAdminCommand = (id: View) => {
     setCommandOpen(false);
+    if (isCustomerManagerOnly && id !== 'customers') { showNotice('صلاحية مسؤول العملاء مقتصرة على إدارة العملاء.'); return; }
     if (isFinanceOnly && id !== 'finance' && id !== 'tasks') {
       showNotice('حساب المحاسب مخصص للفواتير والتحصيل فقط.');
       return;
@@ -156,14 +161,16 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
     <div className="app-shell" dir="rtl">
       <aside className={`sidebar ${mobileNav ? 'open' : ''}`}>
         <div className="brand" onClick={() => setMode('storefront')} style={{ cursor: 'pointer' }}><div className="brand-icon"><Activity size={22} /></div><div><strong>الأغبري</strong><span>منصة التوزيع الذكية</span></div></div>
-        <div className="user-card"><div className="avatar">{user.name.charAt(0)}</div><div><strong>{user.name}</strong><span>{isFinanceOnly ? 'المحاسبة' : user.roles.includes('admin') ? 'مدير النظام' : user.roles.includes('manager') ? 'مدير' : 'فريق الأغبري'}</span></div><span className="online-dot" /></div>
+        <div className="user-card"><div className="avatar">{user.name.charAt(0)}</div><div><strong>{user.name}</strong><span>{isCustomerManagerOnly ? 'مسؤول العملاء' : isFinanceOnly ? 'المحاسبة' : user.roles.includes('admin') ? 'مدير النظام' : user.roles.includes('manager') ? 'مدير' : 'فريق الأغبري'}</span></div><span className="online-dot" /></div>
         <nav>{visibleNav.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? 'active' : ''} aria-disabled={navigationBlocked || undefined} onClick={() => { if (navigationBlocked) { showNotice('اعتمد كميات وأسعار الطلب أو ألغِ المسودة قبل الانتقال إلى قسم آخر.'); return; } setView(id); setOrderDetailId(null); setMobileNav(false); void navigate({ to: adminPaths[id] as never }); }}><Icon size={18} /><span>{label}</span></button>)}</nav>
         <div className="sidebar-bottom"><button onClick={() => setMode('storefront')}><Store size={18} /> عرض المتجر</button><button onClick={() => { if (navigationBlocked) { showNotice('لا يمكن تسجيل الخروج قبل اعتماد تغييرات الطلب أو إلغائها.'); return; } void signOut(); }}><LogOut size={18} /> خروج</button><div className="secure"><span /> النظام متصل وآمن</div></div>
       </aside>
       <main className="main">
         <header className="topbar"><button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)}><Menu size={20} /></button><div className="topbar-title"><span className="live" /> {isFinanceOnly ? 'المحاسبة — الأغبري' : 'مركز تشغيل الأغبري'} <small>{isFinanceOnly ? 'الفواتير والتحصيل وكشف الحساب' : 'الطلبات والمخزون والأسعار والعملاء'}</small></div><div className="top-actions"><button type="button" className="search-button" aria-haspopup="dialog" aria-label="بحث سريع (Ctrl K)" onClick={() => setCommandOpen(true)}><Search size={16} /> بحث سريع <kbd>Ctrl K</kbd></button><button className="notification" aria-label="فتح التنبيهات" onClick={() => runAdminCommand('notifications')}><Bell size={18} /></button></div></header>
         <div className="page-wrap">
-          {isFinanceOnly && view !== 'finance' && view !== 'tasks' ? (
+          {isCustomerManagerOnly && view !== 'customers' ? (
+            <section className="panel" role="status" style={{ padding: 24 }}><h1>مساحة مسؤول العملاء</h1><p>هذا الدور مخصص لدليل العملاء واعتماد الحسابات وتغيير شرائح الأسعار وحالات الحساب. لا يتيح الوصول إلى البيانات المالية أو وحدات المخزون والطلبات.</p><button className="btn primary" onClick={() => runAdminCommand('customers')}>فتح إدارة العملاء</button></section>
+          ) : isFinanceOnly && view !== 'finance' && view !== 'tasks' ? (
             <section className="panel" role="status" style={{ padding: 24 }}>
               <h1 style={{ marginTop: 0 }}>بوابة المحاسبة</h1>
               <p>هذا الحساب مخصص للفواتير والتحصيل فقط، ولا يملك صلاحيات إدارة الطلبات أو المنتجات أو النظام.</p>
@@ -467,20 +474,301 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
   </Modal>;
 }
 
-function Customers({ onNotice }: { onNotice: (m: string) => void }) {
-  const { data, loading, error, refetch } = useFetch(fetchCustomers); const { user } = useAuth(); const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager')); const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff')); const [query, setQuery] = useState(''); const [modal, setModal] = useState(false); const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null); const [activationCustomer, setActivationCustomer] = useState<Customer | null>(null);
-  const rows = (data ?? []).filter((c) => `${c.business_name} ${c.phone ?? ''} ${c.customer_code}`.includes(query));
-  async function status(id: string, next: string) { try { await updateCustomerStatus(id, next); refetch(); onNotice(next === 'approved' ? 'تم اعتماد العميل' : 'تم تحديث حالة العميل'); } catch (e) { onNotice(e instanceof Error ? e.message : 'تعذر تحديث العميل'); } }
-  return <><Heading eyebrow="المبيعات والعملاء" title="إدارة العملاء" description="اعتماد الحسابات ومتابعة الأرصدة وشرائح الأسعار" icon={Users} /><div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} عميل مسجل</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => setModal(true)}><Plus size={17} /> إضافة عميل</Button></div></div><section className="panel table-panel"><div className="table-head"><h2>دليل العملاء</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث عن عميل..." /></label></div>{loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table><thead><tr><th>العميل</th><th>جهة الاتصال</th><th>الشريحة</th><th>الرصيد</th><th>الحد الائتماني</th><th>الحالة</th><th /></tr></thead><tbody>{rows.map((c) => <tr key={c.id}><td><strong>{c.business_name}</strong><small>{c.customer_code}</small></td><td>{c.contact_name ?? '—'}<small>{c.phone ?? '—'}</small></td><td><span className="tier">{c.tier === 'vip' ? 'مميز' : c.tier === 'wholesale' ? 'جملة' : 'تجزئة'}</span></td><td className={c.current_balance > 0 ? 'amount-danger' : ''}>{formatCurrency(c.current_balance)}</td><td>{formatCurrency(c.credit_limit)}</td><td><span className={`badge ${c.status === 'approved' ? 'success' : c.status === 'pending' ? 'warning' : 'danger'}`}>{c.status === 'approved' ? 'معتمد' : c.status === 'pending' ? 'قيد المراجعة' : 'موقوف'}</span></td><td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{canReadCustomer360 && <Button variant="outline" onClick={() => setSelectedCustomer(c)}>ملف 360</Button>}{canManageCustomerActivation && c.status === 'approved' && <Button variant="outline" onClick={() => setActivationCustomer(c)}>دعوة تفعيل</Button>}{c.status === 'pending' && <Button onClick={() => status(c.id, 'approved')}>اعتماد</Button>}</div></td></tr>)}</tbody></table></TableWrap>}</section>{selectedCustomer && <AdminCustomer360 customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />}{activationCustomer && <CustomerActivationInvitationDialog customer={activationCustomer} onClose={() => setActivationCustomer(null)} />}{modal && <CustomerModal onClose={() => setModal(false)} onSaved={() => { setModal(false); refetch(); onNotice('تمت إضافة العميل'); }} />}</>;
+export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
+  const { user } = useAuth();
+  const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'customer_manager'));
+  const canManageCustomerRecords = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'customer_manager'));
+  const canManageCustomerLifecycle = canManageCustomerRecords;
+  const isCustomerManagerOnly = Boolean(user?.roles.includes('customer_manager') &&
+    !user.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'accountant'));
+  const [directory, setDirectory] = useState<Awaited<ReturnType<typeof fetchCustomerDirectoryPage>> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [modal, setModal] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [activationCustomer, setActivationCustomer] = useState<Customer | null>(null);
+  const [tierCustomer, setTierCustomer] = useState<Customer | null>(null);
+  const [statusCustomer, setStatusCustomer] = useState<Customer | null>(null);
+  const requestIdRef = useRef(0);
+
+  const load = useCallback(async (): Promise<boolean> => {
+    const requestId = ++requestIdRef.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await fetchCustomerDirectoryPage({
+        search: appliedSearch,
+        page,
+        pageSize: 25,
+      });
+      if (requestId !== requestIdRef.current) return false;
+      setDirectory(result);
+      if (result.page !== page) setPage(result.page);
+      return true;
+    } catch (cause) {
+      if (requestId === requestIdRef.current) {
+        setDirectory(null);
+        setError(cause instanceof Error ? cause.message : 'تعذر تحميل دليل العملاء.');
+      }
+      return false;
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false);
+    }
+  }, [appliedSearch, page, reloadKey]);
+
+  useEffect(() => {
+    void load();
+    return () => { requestIdRef.current += 1; };
+  }, [load]);
+
+  const rows = directory?.rows ?? [];
+  const pageSize = directory?.pageSize ?? 25;
+  const pageCount = directory ? Math.max(1, Math.ceil(directory.totalCount / pageSize)) : 1;
+  const resultSummary = loading
+    ? 'جار تحميل دليل العملاء...'
+    : error
+      ? 'تعذر تأكيد عدد العملاء'
+      : directory
+        ? 'إجمالي النتائج: ' + formatNumber(directory.totalCount)
+        : 'لا توجد نتيجة مؤكدة';
+
+  return <>
+    <Heading eyebrow="المبيعات والعملاء" title="إدارة العملاء" description="اعتماد الحسابات ومتابعة الأرصدة وشرائح الأسعار" icon={Users} />
+    <div className="toolbar">
+      <span className="toolbar-note" aria-label="إجمالي نتائج دليل العملاء">{resultSummary}</span>
+      <div className="toolbar-actions">
+        <Button variant="secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> تحديث</Button>
+        {!isCustomerManagerOnly && <Button onClick={() => setModal(true)}><Plus size={17} /> إضافة عميل</Button>}
+      </div>
+    </div>
+    <section className="panel table-panel">
+      <div className="table-head">
+        <h2>دليل العملاء</h2>
+        <form className="search-field" onSubmit={(event) => {
+          event.preventDefault();
+          setPage(1);
+          setAppliedSearch(query.trim());
+          setReloadKey((value) => value + 1);
+        }}>
+          <Search size={16} />
+          <input
+            aria-label="البحث في دليل العملاء"
+            value={query}
+            maxLength={254}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="ابحث باسم المنشأة أو جهة الاتصال أو الهاتف أو البريد الإلكتروني أو رمز العميل..."
+          />
+          <button type="submit" disabled={loading}>بحث</button>
+        </form>
+      </div>
+      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <>
+        <TableWrap>
+          <table>
+            <thead><tr><th>العميل</th><th>جهة الاتصال</th><th>الشريحة</th>{!isCustomerManagerOnly && <><th>الرصيد</th><th>الحد الائتماني</th></>}<th>الحالة</th><th /></tr></thead>
+            <tbody>{rows.map((c) => <tr key={c.id}>
+              <td><strong>{c.business_name}</strong><small>{c.customer_code}</small></td>
+              <td>{c.contact_name ?? '—'}<small>{c.phone ?? '—'}</small><small>{c.email ?? '—'}</small></td>
+              <td><span className="tier">{c.tier === 'vip' ? 'جملة الجملة' : c.tier === 'wholesale' ? 'جملة' : 'تجزئة'}</span></td>
+              {!isCustomerManagerOnly && <><td className={c.current_balance > 0 ? 'amount-danger' : ''}>{formatCurrency(c.current_balance)}</td><td>{formatCurrency(c.credit_limit)}</td></>}
+              <td><span className={`badge ${c.status === 'approved' ? 'success' : c.status === 'pending' ? 'warning' : 'danger'}`}>{CUSTOMER_STATUS_LABELS[c.status] ?? c.status}</span></td>
+              <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {canReadCustomer360 && <Button variant="outline" onClick={() => setSelectedCustomer(c)}>ملف 360</Button>}
+                {canManageCustomerRecords && <Button variant="outline" onClick={() => setTierCustomer(c)}>تغيير الشريحة</Button>}
+                {canManageCustomerActivation && c.status === 'approved' && <Button variant="outline" onClick={() => setActivationCustomer(c)}>دعوة تفعيل</Button>}
+                {canManageCustomerLifecycle && <Button variant="outline" onClick={() => setStatusCustomer(c)}>إدارة دورة الحياة</Button>}
+              </div></td>
+            </tr>)}</tbody>
+          </table>
+          {rows.length === 0 && <Empty text={appliedSearch ? 'لا توجد نتائج مطابقة للبحث.' : 'لا يوجد عملاء مسجلون.'} />}
+        </TableWrap>
+        {pageCount > 1 && <nav aria-label="صفحات دليل العملاء" style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center', padding: 12, flexWrap: 'wrap' }}>
+          <button type="button" className="btn outline" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={loading || page <= 1} aria-label="صفحة العملاء السابقة">السابق</button>
+          <span role="status" aria-label="صفحة دليل العملاء الحالية">{'صفحة ' + page + ' من ' + pageCount}</span>
+          <button type="button" className="btn outline" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={loading || page >= pageCount} aria-label="صفحة العملاء التالية">التالي</button>
+        </nav>}
+      </>}
+    </section>
+    {selectedCustomer && <AdminCustomer360 customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />}
+    {activationCustomer && <CustomerActivationInvitationDialog customer={activationCustomer} onClose={() => setActivationCustomer(null)} />}
+    {tierCustomer && <CustomerTierDialog customer={tierCustomer} onClose={() => setTierCustomer(null)} onSaved={() => {
+      setTierCustomer(null);
+      void load().then((refreshed) => onNotice(refreshed
+        ? 'تم تحديث شريحة العميل وتسجيل السبب في سجل التدقيق.'
+        : 'تم تحديث الشريحة، لكن تعذّر تحديث القائمة. اضغط تحديث للمزامنة.'));
+    }} />}
+    {statusCustomer && <CustomerLifecycleDialog customer={statusCustomer} onClose={() => setStatusCustomer(null)} onSaved={(nextStatus) => {
+      setStatusCustomer(null);
+      void load().then((refreshed) => onNotice(refreshed
+        ? `تم تغيير حالة العميل إلى ${CUSTOMER_STATUS_LABELS[nextStatus] ?? nextStatus} وتسجيل السبب في سجل التدقيق.`
+        : 'تم تحديث حالة العميل وتسجيل السبب، لكن تعذّر تحديث القائمة. اضغط تحديث للمزامنة.'));
+    }} />}
+    {modal && <CustomerModal onClose={() => setModal(false)} onSaved={() => {
+      setModal(false);
+      setQuery('');
+      setAppliedSearch('');
+      setPage(1);
+      setReloadKey((value) => value + 1);
+      onNotice('تمت إضافة العميل');
+    }} />}
+  </>;
 }
-function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+
+
+export function CustomerTierDialog({ customer, onClose, onSaved }: {
+  customer: Customer; onClose: () => void; onSaved: () => void;
+}) {
+  const currentTier = typeof customer.tier === 'string' ? customer.tier.trim().toLowerCase() : '';
+  const supportedTiers = ['retail', 'wholesale', 'vip'] as const;
+  const [tier, setTier] = useState(supportedTiers.includes(currentTier as typeof supportedTiers[number]) ? currentTier : 'retail');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submitInFlight = useRef(false);
+  async function save() {
+    if (submitInFlight.current || saving) return;
+    setError('');
+    const cleanReason = reason.trim();
+    if (tier === currentTier) { setError('اختر شريحة مختلفة عن الشريحة الحالية.'); return; }
+    if (cleanReason.length < 3 || cleanReason.length > 500) {
+      setError('سبب تغيير الشريحة مطلوب (3 إلى 500 حرف).'); return;
+    }
+    submitInFlight.current = true;
+    setSaving(true);
+    try {
+      await updateCustomerTier(customer.id, currentTier, tier, cleanReason);
+      onSaved();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر تحديث شريحة العميل.');
+      submitInFlight.current = false;
+    } finally { setSaving(false); }
+  }
+  return <Modal title={`تغيير شريحة ${customer.business_name}`} onClose={() => { if (!saving) onClose(); }}>
+    <p className="text-muted">يتطلب تغيير الشريحة صلاحية مدير أو مسؤول، مع تسجيل السبب والقيمة السابقة والجديدة في سجل التدقيق.</p>
+    <Field label="شريحة العميل الجديدة">
+      <select aria-label="شريحة العميل الجديدة" value={tier} onChange={(event) => setTier(event.target.value)} disabled={saving}>
+        <option value="retail">تجزئة</option><option value="wholesale">جملة</option><option value="vip">جملة الجملة</option>
+      </select>
+    </Field>
+    <Field label="سبب تغيير الشريحة">
+      <textarea aria-label="سبب تغيير الشريحة" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={3} disabled={saving} />
+    </Field>
+    {error && <div className="form-error" role="alert">{error}</div>}
+    <div className="modal-actions">
+      <Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button>
+      <Button onClick={() => void save()} disabled={saving || tier === currentTier || reason.trim().length < 3 || reason.trim().length > 500}>
+        {saving ? 'جار حفظ الشريحة...' : 'حفظ تغيير الشريحة'}
+      </Button>
+    </div>
+  </Modal>;
+}
+
+type CustomerLifecycleCommand = 'approved' | 'rejected' | 'frozen' | 'blocked' | 'archived' | 'restore';
+
+const CUSTOMER_LIFECYCLE_TRANSITIONS: Record<string, { value: CustomerLifecycleCommand; label: string }[]> = {
+  pending: [
+    { value: 'approved', label: 'اعتماد العميل' },
+    { value: 'rejected', label: 'رفض الطلب' },
+    { value: 'blocked', label: 'حظر العميل' },
+    { value: 'archived', label: 'أرشفة العميل' },
+  ],
+  approved: [
+    { value: 'frozen', label: 'تجميد مؤقت' },
+    { value: 'blocked', label: 'حظر العميل' },
+    { value: 'archived', label: 'أرشفة العميل' },
+  ],
+  rejected: [
+    { value: 'approved', label: 'إعادة التفعيل والاعتماد' },
+    { value: 'blocked', label: 'حظر العميل' },
+    { value: 'archived', label: 'أرشفة العميل' },
+  ],
+  frozen: [
+    { value: 'approved', label: 'إعادة التفعيل' },
+    { value: 'blocked', label: 'حظر العميل' },
+    { value: 'archived', label: 'أرشفة العميل' },
+  ],
+  blocked: [
+    { value: 'approved', label: 'إعادة التفعيل' },
+    { value: 'archived', label: 'أرشفة العميل' },
+  ],
+  archived: [
+    { value: 'restore', label: 'استرجاع الحالة السابقة' },
+  ],
+};
+
+export function CustomerLifecycleDialog({ customer, onClose, onSaved }: {
+  customer: Customer;
+  onClose: () => void;
+  onSaved: (status: string) => void;
+}) {
+  const options = CUSTOMER_LIFECYCLE_TRANSITIONS[customer.status] ?? [];
+  const [nextStatus, setNextStatus] = useState<CustomerLifecycleCommand>(options[0]?.value ?? 'restore');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submitInFlight = useRef(false);
+
+  async function save() {
+    if (submitInFlight.current || saving) return;
+    setError('');
+    const cleanReason = reason.trim();
+    if (!options.some((option) => option.value === nextStatus)) {
+      setError('لا يوجد انتقال حالة مسموح لهذا العميل.');
+      return;
+    }
+    if (cleanReason.length < 3 || cleanReason.length > 500) {
+      setError('سبب تغيير الحالة مطلوب (3 إلى 500 حرف).');
+      return;
+    }
+    submitInFlight.current = true;
+    setSaving(true);
+    try {
+      const result = await updateCustomerStatus(customer.id, customer.status, nextStatus, cleanReason);
+      onSaved(result.status);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر تحديث حالة العميل.');
+      submitInFlight.current = false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <Modal title={`إدارة دورة حياة ${customer.business_name}`} onClose={() => { if (!saving) onClose(); }}>
+    <p className="text-muted">تُنفّذ الانتقالات المعتمدة خادميًا فقط، ويلزم سبب موثّق لكل تغيير. تُرفض الانتقالات القديمة أو غير المسموح بها ويُحفظ سجل التدقيق.</p>
+    {options.length === 0 ? <div className="form-error" role="alert">لا يوجد انتقال حالة مسموح للحالة الحالية: {CUSTOMER_STATUS_LABELS[customer.status] ?? customer.status}.</div> : <>
+      <Field label="الحالة التالية">
+        <select aria-label="حالة العميل الجديدة" value={nextStatus} onChange={(event) => setNextStatus(event.target.value as CustomerLifecycleCommand)} disabled={saving}>
+          {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </Field>
+      <Field label="سبب تغيير الحالة">
+        <textarea aria-label="سبب تغيير الحالة" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={3} disabled={saving} />
+      </Field>
+    </>}
+    {error && <div className="form-error" role="alert">{error}</div>}
+    <div className="modal-actions">
+      <Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button>
+      <Button onClick={() => void save()} disabled={saving || options.length === 0 || reason.trim().length < 3 || reason.trim().length > 500}>
+        {saving ? 'جار حفظ الحالة...' : 'حفظ تغيير الحالة'}
+      </Button>
+    </div>
+  </Modal>;
+}
+
+export function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [business, setBusiness] = useState('');
   const [contact, setContact] = useState('');
   const [phone, setPhone] = useState('');
   const [tier, setTier] = useState('retail');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const submitInFlight = useRef(false);
   async function save() {
+    if (submitInFlight.current || saving) return;
     setError('');
     let input: ReturnType<typeof validateCustomerInput>;
     try {
@@ -489,13 +777,17 @@ function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
       setError(cause instanceof Error ? cause.message : 'بيانات العميل غير صالحة.');
       return;
     }
+    submitInFlight.current = true;
     setSaving(true);
     try {
       await createCustomer(input);
       onSaved();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'تعذر حفظ العميل.');
-    } finally { setSaving(false); }
+    } finally {
+      submitInFlight.current = false;
+      setSaving(false);
+    }
   }
   return <Modal title="إضافة عميل" onClose={() => { if (!saving) onClose(); }}>
     <Field label="اسم المنشأة">
@@ -507,7 +799,7 @@ function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     </div>
     <Field label="شريحة الأسعار">
       <select value={tier} onChange={(e) => setTier(e.target.value)} disabled={saving}>
-        <option value="retail">تجزئة</option><option value="wholesale">جملة</option><option value="vip">مميز</option>
+        <option value="retail">تجزئة</option><option value="wholesale">جملة</option><option value="vip">جملة الجملة</option>
       </select>
     </Field>
     {error && <div className="form-error" role="alert">{error}</div>}

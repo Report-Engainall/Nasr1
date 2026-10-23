@@ -16,7 +16,7 @@ type AuthContextType = {
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
-const STAFF_ROLES = ['admin', 'manager', 'staff', 'accountant'];
+const STAFF_ROLES = ['admin', 'manager', 'staff', 'accountant', 'customer_manager'];
 
 function translateAuthError(message: string): string {
   const m = message.toLowerCase();

@@ -99,6 +99,11 @@ async function cleanup() {
     [org, [name, renamedName, collisionName], otherOrg, foreignName],
   ).catch(() => {});
   await root.unsafe(
+    "delete from public.audit_logs where organization_id=$1 and action in ('customer.tier_changed','customer.status_changed') and entity_id in " +
+      "(select id from public.customers where organization_id=$1 and customer_code='CI-P1-CATALOG-LOCAL-CUSTOMER')",
+    [org],
+  ).catch(() => {});
+  await root.unsafe(
     "delete from public.customers where organization_id=$1 and customer_code='CI-P1-CATALOG-LOCAL-CUSTOMER'",
     [org],
   ).catch(() => {});
@@ -173,6 +178,127 @@ async function main() {
 
   await ident(admin, adminAuth, "admin@aghbari.ye");
   await ident(customer, customerAuth, "customer@example.test");
+
+  const tierChange = await rpc(admin,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer, "retail", "wholesale", "CI test: customer moved to wholesale tier"]);
+  assert.deepEqual(
+    { customer_id:tierChange.customer_id, previous_tier:tierChange.previous_tier, tier:tierChange.tier, changed:tierChange.changed },
+    { customer_id:localCustomer, previous_tier:"retail", tier:"wholesale", changed:true });
+  const tierAuditRows=await root.unsafe(
+    "select organization_id,actor_id,action,entity_type,entity_id,old_value,new_value from public.audit_logs " +
+    "where organization_id=$1 and action='customer.tier_changed' and entity_id=$2",
+    [org,localCustomer]);
+  assert.equal(tierAuditRows.length,1);
+  assert.equal(tierAuditRows[0].organization_id,org);
+  assert.equal(tierAuditRows[0].action,"customer.tier_changed");
+  assert.equal(tierAuditRows[0].entity_type,"customer");
+  assert.equal(tierAuditRows[0].old_value.tier,"retail");
+  assert.equal(tierAuditRows[0].new_value.tier,"wholesale");
+  assert.equal(tierAuditRows[0].new_value.reason,"CI test: customer moved to wholesale tier");
+  assert.ok(tierAuditRows[0].actor_id);
+
+  const tierNoOp=await rpc(admin,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"wholesale","wholesale","CI no-op"]);
+  assert.equal(tierNoOp.changed,false);
+  const tierAuditCount=await root.unsafe(
+    "select count(*)::integer as count from public.audit_logs where action='customer.tier_changed' and entity_id=$1",
+    [localCustomer]);
+  assert.equal(tierAuditCount[0].count,1);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"wholesale","secret","CI invalid tier"]),/tier must be one of/i);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"wholesale","vip"," "]),/reason must contain/i);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"retail","vip","CI stale expected value"]),/tier changed|stale/i);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [foreignCustomer,"retail","vip","CI cross tenant"]),/not found in current organization/i);
+  await assert.rejects(()=>rpc(customer,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"wholesale","vip","CI customer forbidden"]),/active customer-management permission required/i);
+  const customerPrivileges=await root.unsafe(
+    "select has_table_privilege('authenticated','public.customers','UPDATE') as table_update, " +
+    "has_column_privilege('authenticated','public.customers','tier','UPDATE') as tier_update, " +
+    "has_column_privilege('authenticated','public.customers','status','UPDATE') as status_update");
+  assert.equal(customerPrivileges[0].table_update,false);
+  assert.equal(customerPrivileges[0].tier_update,false);
+  assert.equal(customerPrivileges[0].status_update,false, "customer lifecycle status is only writable through the audited RPC");
+  await assert.rejects(()=>admin.unsafe("update public.customers set tier='vip' where id=$1",[localCustomer]),/permission denied/i);
+  await assert.rejects(()=>admin.unsafe("update public.customers set status='blocked' where id=$1",[localCustomer]),/permission denied/i);
+
+  // PostgreSQL acceptance for customer lifecycle: scoped command, optimistic concurrency,
+  // finite transitions, restoration, manager authorization and before/after audit evidence.
+  const lifecycleFreeze = await rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"approved","frozen","CI lifecycle: temporary account freeze"]);
+  assert.deepEqual(
+    {customer_id:lifecycleFreeze.customer_id,previous_status:lifecycleFreeze.previous_status,status:lifecycleFreeze.status,changed:lifecycleFreeze.changed},
+    {customer_id:localCustomer,previous_status:"approved",status:"frozen",changed:true},
+  );
+
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"frozen","rejected","CI invalid transition"]),
+    /invalid customer status transition/i);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"approved","archived","CI stale expected state"]),
+    /customer status changed since directory loaded/i);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [foreignCustomer,"approved","frozen","CI lifecycle cross tenant"]),
+    /customer not found in current organization/i);
+  await assert.rejects(()=>rpc(customer,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"frozen","approved","CI customer cannot administer lifecycle"]),
+    /active customer-management permission required to change customer status/i);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"frozen","approved"," "]),
+    /reason must contain between 3 and 500 characters/i);
+
+  const lifecycleArchive = await rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"frozen","archived","CI lifecycle: archive after review"]);
+  assert.equal(lifecycleArchive.status,"archived");
+  const lifecycleRestore = await rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"archived","restore","CI lifecycle: restore archived account"]);
+  assert.equal(lifecycleRestore.previous_status,"archived");
+  assert.equal(lifecycleRestore.status,"frozen",
+    "restore returns to the last known non-archived state rather than inventing a default");
+
+  const lifecycleApproval = await rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"frozen","approved","CI lifecycle: restore active service"]);
+  assert.equal(lifecycleApproval.status,"approved");
+  const lifecycleAudit = await root.unsafe(
+    "select organization_id,actor_id,action,entity_type,entity_id,old_value,new_value " +
+    "from public.audit_logs where organization_id=$1 and action='customer.status_changed' and entity_id=$2 order by created_at,id",
+    [org,localCustomer]);
+  assert.equal(lifecycleAudit.length,4,"each successful lifecycle transition is audited exactly once");
+  assert.ok(lifecycleAudit.every(row => row.organization_id===org && row.action==="customer.status_changed" && row.entity_type==="customer"));
+  assert.equal(lifecycleAudit[0].old_value.status,"approved");
+  assert.equal(lifecycleAudit[0].new_value.status,"frozen");
+  assert.equal(lifecycleAudit[0].new_value.reason,"CI lifecycle: temporary account freeze");
+  assert.equal(lifecycleAudit[1].old_value.status,"frozen");
+  assert.equal(lifecycleAudit[1].new_value.status,"archived");
+  assert.equal(lifecycleAudit[2].old_value.status,"archived");
+  assert.equal(lifecycleAudit[2].new_value.status,"frozen");
+  assert.equal(lifecycleAudit[2].new_value.restored_from_archive,true);
+  assert.equal(lifecycleAudit[3].old_value.status,"frozen");
+  assert.equal(lifecycleAudit[3].new_value.status,"approved");
+  const foreignLifecycleAudit = await root.unsafe(
+    "select id from public.audit_logs where action='customer.status_changed' and entity_id=$1",
+    [foreignCustomer]);
+  assert.equal(foreignLifecycleAudit.length,0,"a cross-tenant lifecycle command cannot mutate or audit the foreign customer");
+  process.stdout.write("PASS customer lifecycle RPC: legal transitions, archive restore, reason/audit, tenant scope, stale state, denied role and no direct status DML\\n");
+
 
   const category = await rpc(
     admin,
@@ -757,6 +883,147 @@ async function main() {
   await runOrderInputHardeningAcceptance({
     root, admin, customer, org, adminAuth, customerAuth, foreignProduct,
   });
+
+  // The nested acceptance helper resets SET ROLE on shared connections. Re-establish the
+  // authenticated JWT/session before any following RLS assertions; never probe with postgres.
+  await ident(admin, adminAuth, "admin@aghbari.ye");
+  await ident(customer, customerAuth, "customer@example.test");
+
+  // Prove the dedicated customer_manager role gets a server-scoped, non-financial directory,
+  // can run only the audited customer commands, and cannot read the base table or manage staff roles.
+  const managerProfileId = (await root.unsafe(
+    "select id from public.profiles where auth_user_id=$1 and organization_id=$2 and is_active=true",
+    [adminAuth, org],
+  ))[0]?.id;
+  assert.ok(managerProfileId, "CI customer-manager fixture profile must exist in the active organization");
+  const originalManagerRoles = await root.unsafe(
+    "select role from public.user_roles where profile_id=$1 order by role",
+    [managerProfileId],
+  );
+  assert.ok(originalManagerRoles.some((entry) => entry.role === "admin"),
+    "the fixture account must begin with its administrator role");
+  try {
+    await root.unsafe("delete from public.user_roles where profile_id=$1", [managerProfileId]);
+    await root.unsafe(
+      "insert into public.user_roles(profile_id,role) values($1,'customer_manager')",
+      [managerProfileId],
+    );
+    await root.unsafe(
+      "update public.customers set current_balance=1234.56,credit_limit=7890.12 where id=$1 and organization_id=$2",
+      [localCustomer, org],
+    );
+
+    const managerDirectory = await rpc(
+      admin,
+      "select public.fetch_customer_manager_directory($1::text,$2::integer,$3::integer) result",
+      ["", 1, 25],
+    );
+    assert.equal(managerDirectory.page, 1);
+    assert.equal(managerDirectory.page_size, 25);
+    assert.ok(managerDirectory.total_count >= 1);
+    const localManagerRow = managerDirectory.rows.find((row) => row.id === localCustomer);
+    assert.ok(localManagerRow, "customer_manager can read an in-tenant customer");
+    assert.deepEqual(
+      Object.keys(localManagerRow).sort(),
+      ["id","business_name","contact_name","phone","email","customer_code","tier","status","created_at"].sort(),
+      "customer-manager RPC contract must return only approved non-financial fields",
+    );
+    assert.equal(managerDirectory.rows.some((row) => row.id === foreignCustomer), false,
+      "customer-manager directory must not expose another organization's customer");
+    // Re-establish authenticated role after the directory RPC before probing row visibility;
+    // the nested acceptance helper may reset session role on the shared client.
+    await ident(admin, adminAuth, "admin@aghbari.ye");
+    // Pin the exact role and RLS evaluation context so a privileged connection cannot
+    // accidentally make this an ineffective authorization test.
+    const managerSecurityContext = (await admin.unsafe(
+      "select auth.uid()::text as auth_user_id, public.current_profile_id()::text as profile_id, " +
+      "public.is_staff() as is_staff, public.current_customer_id()::text as current_customer_id, " +
+      "current_user as database_role, current_setting('row_security') as row_security",
+    ))[0];
+    assert.equal(managerSecurityContext.auth_user_id, adminAuth,
+      "security probe must execute as the intended customer-manager identity");
+    assert.equal(managerSecurityContext.profile_id, managerProfileId,
+      "security probe must resolve the expected customer-manager profile");
+    assert.equal(managerSecurityContext.database_role, "authenticated",
+      "security probe must not run as postgres/service_role or bypass RLS");
+    assert.equal(managerSecurityContext.is_staff, false,
+      "customer_manager must not inherit the broad staff permission");
+    assert.notEqual(managerSecurityContext.current_customer_id, localCustomer,
+      "unlinked CI customer must not be the manager's own customer record");
+
+    // Table-level SELECT grants are evaluated together with RLS; test actual row visibility
+    // instead of assuming has_table_privilege=false. Explicit privilege denial or zero visible
+    // rows is acceptable, but returning even one finance-bearing row is a hard failure.
+    async function assertNoFinancialRows(connection, label) {
+      let rows;
+      try {
+        rows = await connection.unsafe(
+          "select current_balance,credit_limit from public.customers where id=$1",
+          [localCustomer],
+        );
+      } catch (error) {
+        assert.match(
+          String(error),
+          /permission denied|insufficient privilege|42501/i,
+          label + " may only reject the query for an authorization reason",
+        );
+        return;
+      }
+      assert.equal(rows.length, 0, label + " must not expose financial columns for an unlinked customer");
+    }
+    await assertNoFinancialRows(admin, "customer_manager direct financial read");
+    await assertNoFinancialRows(customer, "ordinary customer direct financial read");
+    await assert.rejects(
+      () => rpc(customer,
+        "select public.fetch_customer_manager_directory($1::text,$2::integer,$3::integer) result",
+        ["", 1, 25]),
+      /active customer-management permission required/i,
+      "ordinary customer cannot invoke the manager-only directory RPC",
+    );
+
+    const managerTierChange = await rpc(
+      admin,
+      "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+      [localCustomer, "wholesale", "vip", "CI customer-manager authorized tier change"],
+    );
+    assert.equal(managerTierChange.changed, true,
+      "customer_manager may change tier only through the audited command RPC");
+    assert.equal(managerTierChange.tier, "vip");
+    await assert.rejects(
+      () => rpc(admin,
+        "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+        [foreignCustomer, "retail", "vip", "CI customer-manager cross tenant denial"]),
+      /not found in current organization/i,
+      "customer_manager cannot mutate a customer from another organization",
+    );
+    await assert.rejects(
+      () => rpc(admin,
+        "select public.set_organization_user_roles($1::uuid,$2::text[]) result",
+        [managerProfileId, ["admin"]]),
+      /admin role required/i,
+      "customer_manager cannot grant administrator or staff roles",
+    );
+    const managerAudit = await root.unsafe(
+      "select actor_id,organization_id,old_value,new_value from public.audit_logs " +
+      "where action='customer.tier_changed' and entity_id=$1 and organization_id=$2 " +
+      "and new_value->>'reason'='CI customer-manager authorized tier change'",
+      [localCustomer, org],
+    );
+    assert.equal(managerAudit.length, 1,
+      "customer-manager tier changes are tenant-scoped and audited exactly once");
+    assert.equal(managerAudit[0].actor_id, managerProfileId);
+    assert.equal(managerAudit[0].old_value.tier, "wholesale");
+    assert.equal(managerAudit[0].new_value.tier, "vip");
+    console.log("PASS customer_manager security: non-financial RPC allowlist, tenant isolation, direct financial-read denial, audited authorized command, ordinary-user denial, and role-administration denial");
+  } finally {
+    await root.unsafe("delete from public.user_roles where profile_id=$1", [managerProfileId]);
+    for (const entry of originalManagerRoles) {
+      await root.unsafe(
+        "insert into public.user_roles(profile_id,role) values($1,$2) on conflict(profile_id,role) do nothing",
+        [managerProfileId, entry.role],
+      );
+    }
+  }
 
   await admin.unsafe("reset role");
   await customer.unsafe("reset role");

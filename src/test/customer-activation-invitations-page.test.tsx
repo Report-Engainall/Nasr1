@@ -55,6 +55,33 @@ describe("customer activation invitation page", () => {
     expect(mocks.accept).not.toHaveBeenCalled();
   });
 
+  it("removes the token before the request and retains it in memory for a retry after network failure", async () => {
+    mocks.accept
+      .mockImplementationOnce(async (token: string) => {
+        expect(token).toBe(TOKEN);
+        expect(window.location.pathname).toBe("/");
+        expect(window.location.pathname).not.toContain(TOKEN);
+        throw new Error("تعذر الاتصال مؤقتًا");
+      })
+      .mockResolvedValueOnce({
+        customer_id: "11111111-1111-4111-8111-111111111111",
+        business_name: "متجر العميل",
+        email: "client@example.test",
+        status: "active",
+      });
+    render(<CustomerActivationInvitationPage token={TOKEN} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "التحقق من الدعوة وتفعيل الحساب" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر الاتصال مؤقتًا");
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.pathname).not.toContain(TOKEN);
+
+    fireEvent.click(screen.getByRole("button", { name: "التحقق من الدعوة وتفعيل الحساب" }));
+    expect(await screen.findByText("تم تفعيل حساب العميل")).toBeInTheDocument();
+    expect(mocks.accept).toHaveBeenNthCalledWith(1, TOKEN);
+    expect(mocks.accept).toHaveBeenNthCalledWith(2, TOKEN);
+  });
+
   it("shows the server-confirmed result and removes the bearer token from the address bar", async () => {
     mocks.accept.mockResolvedValueOnce({
       customer_id: "11111111-1111-4111-8111-111111111111",

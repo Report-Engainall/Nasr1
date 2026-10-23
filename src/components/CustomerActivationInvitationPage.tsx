@@ -19,10 +19,11 @@ export function CustomerActivationInvitationPage({ token }: { token: string }) {
     setBusy(true);
     setError("");
     try {
+      // Remove the bearer token from the visible URL before any network request.
+      // Keep it in component state/props so a transient error can be retried without re-exposing it.
+      window.history.replaceState(null, "", window.location.origin + "/");
       const result = await acceptCustomerActivationInvitation(token);
       setAccepted({ business_name: result.business_name, email: result.email });
-      // Replace the bearer token in the visible address bar after the server consumes it.
-      window.history.replaceState(null, "", window.location.origin + "/");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تفعيل حساب العميل.");
     } finally {
