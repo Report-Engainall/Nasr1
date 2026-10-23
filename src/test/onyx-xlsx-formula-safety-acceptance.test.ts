@@ -87,7 +87,7 @@ describe("Onyx XLSX formula-injection acceptance", () => {
     });
 
     // Header metadata must use the same safe text-cell encoding, not a formula cell.
-    expect(findCell(header, "B9")).toContain('t="inlineStr"');
-    expect(findCell(header, "B9")).toContain("=HYPERLINK(");
+    expect(findCell(header, "B11")).toContain('t="inlineStr"');
+    expect(findCell(header, "B11")).toContain("=HYPERLINK(");
   });
 });
