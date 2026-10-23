@@ -1902,7 +1902,7 @@ export type Database = {
       }; Returns: string }
       set_promotion_active: { Args: { p_is_active: boolean; p_promotion_id: string }; Returns: string }
       current_auth_session_id: { Args: never; Returns: string | null }
-      current_profile_id: { Args: never; Returns: string }
+      current_profile_id: { Args: never; Returns: string | null }
       current_organization_id: { Args: never; Returns: string | null }
       get_current_tenant_context: { Args: never; Returns: Json }
       list_organization_sessions: { Args: { p_limit?: number }; Returns: Json }
