@@ -15,7 +15,7 @@ export const Route = createFileRoute("/forgot-password")({
 
 function ForgotPasswordPage() {
   return (
-    <ClientOnly fallback={null}>
+    <ClientOnly fallback={<main className="storefront" dir="rtl" role="status">جار تحميل استعادة كلمة المرور...</main>}>
       <Login initialMode="forgot" />
     </ClientOnly>
   );

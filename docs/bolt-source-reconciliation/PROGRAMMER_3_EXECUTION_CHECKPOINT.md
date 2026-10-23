@@ -1,11 +1,11 @@
 # P3 execution checkpoint — Nasr1
 
-UPDATED_AT: 2026-10-23T16:03:00+03:00
-LAST_COMPLETED_TASK_ID: P3-TEST-QUALITY-007 (review findings addressed with stronger regression cases; exact-head CI pending)
+UPDATED_AT: 2026-10-23T16:10:00+03:00
+LAST_COMPLETED_TASK_ID: P3-CUST-ROUTE-LOAD-008 (five route fallback defects implemented; exact-head checks pending)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: fa3905649ceb495e6504979fb0b6821bbb74f74d (parent of the test-remediation commit; read back the resulting SHA and verify new workflow runs before marking tested)
-ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline — targeted acceptance only, not full route-by-route UAT
+HEAD_SHA: 22718ee03fc8bb9074d0f8444b701d04c8623669 (parent of this batch; retrieve and validate resulting SHA after commit)
+ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /quotes; /reorder — targeted route wiring/tests only; full route acceptance remains open
 FILES_CHANGED:
 - src/components/StorefrontCollectionsPage.tsx
 - src/routes/admin_.reports.tsx
@@ -21,35 +21,39 @@ FILES_CHANGED:
 - src/routes/assistant.tsx
 - src/routes/barcode.tsx
 - src/routes/offline.tsx
+- src/routes/login.tsx
+- src/routes/forgot-password.tsx
+- src/routes/register.tsx
+- src/routes/quotes.tsx
+- src/routes/reorder.tsx
 - docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md
 - docs/bolt-source-reconciliation/PROGRAMMER_3_CURRENT_REPORT.md
 TESTS_RUN_WITH_RESULTS:
-- Core run 39954864338 on c034c7a884deadd31458dc25ac73e1f95edebb53: SUCCESS (earlier SHA only).
-- P2 run 39954864343 on the same earlier SHA: SUCCESS scoped public/local Supabase paths; credential-gated authenticated E2E SKIPPED.
-- Parent fa3905649ceb495e6504979fb0b6821bbb74f74d: Core 39957709263 in_progress; P2 39957709006 failure. P2 failed dependency installation because package-cache downloads received HTTP 429; dependent browser steps SKIPPED. Do not report PASS for this parent P2 run.
-- Local tests NOT RUN: clone blocked by GitHub DNS failure.
-- New review-remediation SHA: exact-head CI PENDING.
+- Core run 39958335414 on 22718ee03fc8bb9074d0f8444b701d04c8623669: SUCCESS, parent SHA only.
+- P2 run 39958335519 on that parent: FAILED twice at external dependency install due HTTP 429; dependent browser jobs were skipped. Rerun was requested; no Playwright proof.
+- Earlier Core/P2 runs 39954864338/39954864343 on c034c7a884deadd31458dc25ac73e1f95edebb53 passed their executed scopes; hosted authenticated E2E was SKIPPED.
+- Local tests NOT RUN because clone was blocked by DNS.
+- New commit exact-SHA tests PENDING.
 TESTS_FAILED_OR_SKIPPED:
-- P2 dependency installation failure at external package cache (HTTP 429) on parent SHA fa3905649ceb495e6504979fb0b6821bbb74f74d.
-- Authenticated external-credential E2E SKIPPED on earlier SHA; not PASS.
-- All-route browser UAT and production proof NOT RUN.
+- P2 dependency mirror returned HTTP 429 twice on parent SHA, blocking test execution.
+- Dedicated authenticated external E2E skipped on the older proven SHA due missing non-production credentials; not PASS.
+- Full route browser UAT and production proof NOT RUN.
 DEFECTS_FOUND:
-- P3-CAT-ERR-001: category/catalog error separation and retry implemented; earlier SHA Core PASS.
-- P3-CAT-COUNT-002: inactive products excluded and empty-category link suppressed; earlier SHA Core PASS; review now adds active-count and destination assertions (new SHA pending).
-- P3-REPORT-DUP-003: duplicate route mount removed; earlier SHA Core PASS; runtime single-mount regression test added in this batch (new SHA pending).
-- P3-REPORT-LOAD-004: reports loading status implemented; earlier SHA Core PASS.
-- P3-CUST-ROUTE-LOAD-005: four customer loading fallbacks fixed; new/current branch regression test pending on resulting SHA.
-- P3-CUST-ROUTE-LOAD-006: assistant/barcode/offline loading fallbacks fixed; new/current branch regression test pending on resulting SHA.
-- P3-TEST-QUALITY-007: both actionable review test gaps addressed in code; exact-head verification pending.
-- P3-ROUTE-INVENTORY-001: 61 route files, 50 UI/root routes not explicitly mapped in canonical records. P2 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365043277.
-- P3-ROUTE-INVENTORY-002 / P1-ROUTE-TREE-EXPORT-001: generated tree omits admin_.exports; handoff https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365137817.
+- P3-CAT-ERR-001: source-specific category/catalog errors and retry implemented; earlier exact-SHA Core pass.
+- P3-CAT-COUNT-002: inactive products excluded and empty-category links suppressed; strengthened count/link test passed on parent SHA.
+- P3-REPORT-DUP-003: duplicate mount removed; runtime Reports mount test passed on parent SHA.
+- P3-REPORT-LOAD-004: Arabic RTL reports loading status implemented; earlier Core pass.
+- P3-CUST-ROUTE-LOAD-005/006: seven customer route loading fallbacks fixed and covered; parent Core pass.
+- P3-CUST-ROUTE-LOAD-008: login, forgot password, registration, quotes and reorder loading fallbacks fixed; new exact-head result pending.
+- P3-ROUTE-INVENTORY-001: 61 route sources; 50 UI/root sources not explicit in the existing matrix files. P2 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365043277.
+- P3-ROUTE-INVENTORY-002 / P1-ROUTE-TREE-EXPORT-001: generated tree omits admin_.exports; P1 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365137817.
 HANDOFF_TO_P1_OR_P2:
-- P1: generate routeTree using supported tooling and prove /admin/exports direct navigation; handle 19 locked admin loading wrappers.
-- P2: reconcile route source paths in the existing acceptance matrix; preserve ownership of shared state, coordination and service/RPC contracts.
+- P1: generator-backed route tree repair and direct /admin/exports proof; remaining 19 locked admin null fallbacks; no changes to P1 AghbariApp/auth/invitation/order-history paths.
+- P2: route-to-source mapping in existing matrix, backend/RPC/migration ownership and package-cache HTTP 429 in P2 Playwright.
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
-MERGE_STATUS: OPEN; UNMERGED; no formal independent GitHub approval/review recorded.
+MERGE_STATUS: OPEN; UNMERGED; no formal independent approval recorded.
 BLOCKERS:
-- Exact-head Core/P2 for the remediation commit pending.
-- Earlier parent P2 failed package registry dependency downloads with HTTP 429.
-- Local clone unavailable due DNS; all-route browser UAT and production proof NOT RUN.
-NEXT_ACTION: verify resulting branch HEAD; inspect exact-SHA Core/P2 checks and every job; retry the failed external dependency gate if relevant after new checks start; request independent review; merge only with green required checks/review. Continue route coverage after closure.
+- Exact-head Core/P2 for this batch pending.
+- P2 dependency cache HTTP 429 on previous SHA, even after retry.
+- Local checkout DNS failure; all-route browser UAT/production proof NOT RUN.
+NEXT_ACTION: capture resulting HEAD and exact-SHA Core/P2; fix code/test defects, retry dependency setup when mirror recovers, obtain independent review, merge only when latest-head checks are green and approval is recorded. Continue remaining independent route acceptance in parallel.

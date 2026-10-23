@@ -1,39 +1,42 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T16:03:00+03:00
+UPDATED_AT: 2026-10-23T16:10:00+03:00
 
 ## Git and current execution
-- Repository: `Report-Engainall/Nasr1`
-- PR: https://github.com/Report-Engainall/Nasr1/pull/89
+- Repository: Report-Engainall/Nasr1
+- PR #89: https://github.com/Report-Engainall/Nasr1/pull/89
 - Branch: `p3/catalog-screen-error-states-20261023`
-- Main/base incorporated: `59547c7d683cefd65cab445b97219aa701021676`; parent before this review-remediation batch: `fa3905649ceb495e6504979fb0b6821bbb74f74d`.
-- New task `P3-TEST-QUALITY-007` addresses both actionable CodeRabbit findings from [review comment 6365410321](https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365410321). The resulting commit needs fresh exact-SHA Core and P2 checks; previous checks do not transfer.
+- Main/base observed: `59547c7d683cefd65cab445b97219aa701021676`; parent before this batch: `22718ee03fc8bb9074d0f8444b701d04c8623669`.
+- Task `P3-CUST-ROUTE-LOAD-008`: five independent customer/auth route wrappers replace blank hydration fallbacks with semantic Arabic RTL loading states. New exact-SHA Core/P2 checks for this commit are pending.
 
 ## Implemented task IDs
-- `P3-CAT-ERR-001`: distinguish category-fetch failure, catalog failure and combined failure on `/categories` and `/collections`, keeping source details and retry.
-- `P3-CAT-COUNT-002`: inactive products are excluded from published counts and inactive-only categories do not show browse links.
-- `P3-REPORT-DUP-003`: the route no longer mounts a second `ExecutiveStoreAnalytics`; the existing Reports view is the sole intended mount.
-- `P3-REPORT-LOAD-004`: Arabic RTL semantic loading status in `/admin/reports`.
-- `P3-CUST-ROUTE-LOAD-005`: Arabic RTL loading statuses for `/orders/$id`, `/orders/`, `/invoices`, and `/statement`, with parameterized regression coverage.
-- `P3-CUST-ROUTE-LOAD-006`: Arabic RTL loading statuses for `/assistant`, `/barcode`, and `/offline`, covered by the same parameterized regression test.
-- `P3-TEST-QUALITY-007`: strengthened category count acceptance with one active target-category product, inactive target-category rows, and an active product in another category; asserts exact displayed count and exact category URL. Removed the vacuous `queryByTestId` assertion from the route stub test and added `src/test/admin-reports-runtime-mount.test.tsx`, which renders the real `AdminApp` Reports view with an analytics test double and asserts exactly one mounted analytics panel. `src/components/AghbariApp.tsx` remains untouched.
+- `P3-CAT-ERR-001`: category fetch failure, catalog failure, and combined failure separated on `/categories` and `/collections`, with source detail and retry.
+- `P3-CAT-COUNT-002`: inactive products excluded from published category counts; no browse link for inactive-only categories.
+- `P3-REPORT-DUP-003`: route-level duplicate `ExecutiveStoreAnalytics` mount removed; a runtime regression test renders real `AdminApp` Reports view and asserts one mounted panel.
+- `P3-REPORT-LOAD-004`: Arabic RTL semantic loading state on `/admin/reports`.
+- `P3-CUST-ROUTE-LOAD-005`: loading status on `/orders/$id`, `/orders/`, `/invoices`, and `/statement`.
+- `P3-CUST-ROUTE-LOAD-006`: loading status on `/assistant`, `/barcode`, and `/offline`.
+- `P3-TEST-QUALITY-007`: category regression includes a published target-category item, inactive rows and an active other-category row; it asserts exact count/link. Removed a vacuous route-stub assertion and added the runtime Reports mount test.
+- `P3-CUST-ROUTE-LOAD-008`: `/login`, `/forgot-password`, `/register`, `/quotes`, and `/reorder` now provide Arabic RTL `role="status"` hydration fallbacks. The shared parameterized route test covers all twelve customer routes now changed. Route wrappers only; no auth provider or backend code changed.
 
-## Exact-SHA test evidence
-- Core run [39954864338](https://github.com/Report-Engainall/Nasr1/actions/runs/39954864338) on `c034c7a884deadd31458dc25ac73e1f95edebb53`: SUCCESS for unit, PostgreSQL 17, lint/build, preview/dev smoke and Chromium price visibility; this is an earlier SHA.
-- P2 run [39954864343](https://github.com/Report-Engainall/Nasr1/actions/runs/39954864343) on that same earlier SHA: SUCCESS for public UI smoke and local Supabase order/tenant checks. Authenticated external-credential job was SKIPPED, not PASS.
-- Parent `fa3905649ceb495e6504979fb0b6821bbb74f74d`: Core [39957709263](https://github.com/Report-Engainall/Nasr1/actions/runs/39957709263) `in_progress`; P2 [39957709006](https://github.com/Report-Engainall/Nasr1/actions/runs/39957709006) `failure`. P2 failed during dependency setup with HTTP 429 responses from the Lovable package-cache registry; the public smoke/build and dependent Playwright steps were skipped after install failure. This is an external registry-rate-limit blocker, not a browser-test pass or confirmed app defect.
-- Local tests NOT RUN because GitHub DNS resolution prevented cloning the repo.
-- Exact-head tests for the review-remediation commit: PENDING.
+## Exact-SHA evidence
+- Core [39958335414](https://github.com/Report-Engainall/Nasr1/actions/runs/39958335414) on parent `22718ee03fc8bb9074d0f8444b701d04c8623669`: SUCCESS. This proves the previous review-remediation batch, not the five new route changes.
+- P2 [39958335519](https://github.com/Report-Engainall/Nasr1/actions/runs/39958335519) on that same parent: failed twice during dependency setup due HTTP 429 from the configured Lovable package-cache for many package tarballs. The dependent public build/smoke and local-Supabase browser job did not run. A rerun was requested; its second attempt failed at the same external installation gate. No browser pass is claimed on that SHA.
+- Older exact-SHA Core run [39954864338](https://github.com/Report-Engainall/Nasr1/actions/runs/39954864338) and P2 run [39954864343](https://github.com/Report-Engainall/Nasr1/actions/runs/39954864343) passed their executed scopes on `c034c7a884deadd31458dc25ac73e1f95edebb53`. Hosted authenticated E2E was SKIPPED due missing dedicated non-production credentials.
+- Local tests NOT RUN because the environment could not resolve github.com for a shallow clone.
+- Resulting commit SHA/new exact-head Core/P2 outcomes: pending; previous SHA statuses do not carry forward.
 
 ## Route inventory and ownership handoffs
-- `src/routes/` has 61 source files (59 UI/root routes and 2 API handlers).
-- `INTERFACE_COMPLETION_MATRIX.csv` has 10 rows and explicitly references 9 route source paths; `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` has 42 task rows but no explicit route-source paths. Fifty UI/root files are not explicitly mapped in those records. This is a traceability gap, not proof of missing functionality; P2 owns reconciliation in the existing canonical matrix.
-- P1 `P1-ROUTE-TREE-EXPORT-001`: `src/routes/admin_.exports.tsx` exists but generated `src/routeTree.gen.ts` has no `admin_.exports` registration while `/admin/reports` links to `/admin/exports`. Direct route reachability remains NOT PROVEN. Handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365137817. Generated output was not edited manually.
-- P1 `P1-ADMIN-ROUTE-LOADING-001`: 19 other admin wrappers still use `ClientOnly fallback={null}`; P1-owned files were not changed.
-- P2 owns the shared matrix, current state, work coordination, service/RPC/data contracts; none were edited.
+- `src/routes/`: 61 source files, comprising 59 UI/root routes and 2 API handlers.
+- `INTERFACE_COMPLETION_MATRIX.csv` has 10 rows and explicit paths for 9 route sources; `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` has 42 task rows and no explicit source-route paths. Fifty UI/root files are not explicitly mapped by those records. This is traceability debt, not proof they are broken; P2 owns updates to the existing canonical matrix.
+- P1 `P1-ROUTE-TREE-EXPORT-001`: `src/routes/admin_.exports.tsx` exists but generated `src/routeTree.gen.ts` lacks `admin_.exports` while reports links to `/admin/exports`. Reachability NOT PROVEN. Handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365137817. Generated output untouched.
+- P1 `P1-ADMIN-ROUTE-LOADING-001`: 19 other admin wrappers still use blank ClientOnly fallbacks; these P1-locked files were not changed.
+- P1 PR #66 changed-file list was checked; the five route files changed in this batch were not in its diff. P1-owned `AghbariApp.tsx`, `auth.tsx`, customer invitation/order-history pages remain untouched.
+- P2-owned shared matrix/state/coordination, backend contracts, RPCs, services and migrations were not edited.
 
-## Evidence boundaries and next action
-- Core/P2 on the new review-remediation SHA: NOT RUN/PENDING until fresh workflows start and finish.
-- Full all-route browser UAT, production proof/writes, and live Onyx/WhatsApp calls: NOT RUN.
-- PR #89 remains OPEN and UNMERGED. CodeRabbit gave a static review report, not an approval review; no GitHub review approval is recorded.
-- Read back the resulting head, inspect exact-SHA Core/P2 job outcomes, fix any failure, rerun after registry rate limits clear if necessary, obtain an independent review, and merge only after required checks and review pass. Then continue route-by-route acceptance.
+## Review, blockers, and next action
+- CodeRabbit's static review on prior SHA identified two test gaps; remediation is committed on the prior tested SHA, and new tests must now run on the current head. The review request for SHA `22718ee03fc8bb9074d0f8444b701d04c8623669` is at https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365584510. Static review is not a formal approval.
+- P2 package-cache HTTP 429 remains an external blocker; the latest head must get fresh exact-SHA runs.
+- All-route browser UAT, production proof/writes and live Onyx/WhatsApp calls: NOT RUN.
+- PR #89 remains OPEN/UNMERGED, with no formal independent GitHub approval recorded.
+- Fetch the resulting SHA, inspect exact-head Core and P2 jobs, retry P2 once registry throttling clears, respond to new review findings, and merge only once all required checks and independent review pass. Continue remaining unlocked route coverage.

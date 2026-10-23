@@ -9,8 +9,10 @@ vi.mock("@tanstack/react-router", () => ({
     useParams: () => ({ id: "test-order" }),
   }),
   ClientOnly: ({ fallback }: { fallback?: ReactNode }) => fallback ?? null,
+  useNavigate: () => vi.fn(),
 }));
 
+vi.mock("@/components/Login", () => ({ Login: () => null }));
 vi.mock("@/components/CustomerOrders", () => ({
   OrderInvoice: () => null,
   MyOrders: () => null,
@@ -21,6 +23,8 @@ vi.mock("@/components/CustomerWorkflows", () => ({
   CommerceAssistantPage: () => null,
   BarcodeWorkspacePage: () => null,
   OfflineWorkspacePage: () => null,
+  QuoteWorkspacePage: () => null,
+  ReorderWorkspacePage: () => null,
 }));
 
 import { Route as OrderDetailRoute } from "@/routes/orders.$id";
@@ -30,6 +34,11 @@ import { Route as StatementRoute } from "@/routes/statement";
 import { Route as AssistantRoute } from "@/routes/assistant";
 import { Route as BarcodeRoute } from "@/routes/barcode";
 import { Route as OfflineRoute } from "@/routes/offline";
+import { Route as LoginRoute } from "@/routes/login";
+import { Route as ForgotPasswordRoute } from "@/routes/forgot-password";
+import { Route as RegisterRoute } from "@/routes/register";
+import { Route as QuotesRoute } from "@/routes/quotes";
+import { Route as ReorderRoute } from "@/routes/reorder";
 
 type RouteWithComponent = { options: { component: ComponentType } };
 const customerRoutes = [
@@ -40,6 +49,11 @@ const customerRoutes = [
   { label: "assistant", route: AssistantRoute, expected: "جار تحميل المساعد الذكي..." },
   { label: "barcode scanner", route: BarcodeRoute, expected: "جار تحميل ماسح الباركود..." },
   { label: "offline workspace", route: OfflineRoute, expected: "جار تحميل مساحة العمل دون اتصال..." },
+  { label: "login", route: LoginRoute, expected: "جار تحميل تسجيل الدخول..." },
+  { label: "forgot password", route: ForgotPasswordRoute, expected: "جار تحميل استعادة كلمة المرور..." },
+  { label: "registration", route: RegisterRoute, expected: "جار تحميل إنشاء الحساب..." },
+  { label: "quotes workspace", route: QuotesRoute, expected: "جار تحميل عروض الأسعار..." },
+  { label: "reorder workspace", route: ReorderRoute, expected: "جار تحميل قائمة إعادة الطلب..." },
 ] as const;
 
 afterEach(() => cleanup());
