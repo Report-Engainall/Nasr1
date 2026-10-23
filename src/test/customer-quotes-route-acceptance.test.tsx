@@ -245,7 +245,7 @@ describe("customer quotes real route acceptance", () => {
     await mountQuotesRoute();
 
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
-      "تعذر تحميل أسعار فئة حسابك من الخادم",
+      "لم يرجع الخادم سعرًا موثقًا لكل صنف متاح",
     );
     expect(host?.textContent).not.toContain("SKU-QUOTE-01");
     expect(host?.textContent).not.toContain("125");
