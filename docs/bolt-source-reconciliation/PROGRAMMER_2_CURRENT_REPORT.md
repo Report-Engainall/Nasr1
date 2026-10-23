@@ -1,9 +1,9 @@
-# تقرير P2 — الحالة الحية 2026-10-23T21:48:00+03:00
+# تقرير P2 — الحالة الحية 2026-10-23T21:50:00+03:00
 
 REPOSITORY=Report-Engainall/Nasr1
 MAIN_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
 MAIN_TREE=15f30663a80ba9ff2e83c2057f15ed489eed92be
-MAIN_CORE_CI=IN_PROGRESS — run 40005590004 on exact main SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac.
+MAIN_CORE_CI=SUCCESS — run 40005590004 on exact main SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac.
 P2_ON_EXACT_MAIN_SHA=NOT RUN. PR #110's PR-head success was not transferred to its merge SHA.
 CURRENT_BRANCH=p2/payment-idempotency-current-main-20261023
 BASE_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
@@ -12,7 +12,7 @@ CURRENT_TASK=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD
 TASK_STATUS=IMPLEMENTED; EXACT-HEAD CI NOT RUN; PR NOT CREATED
 
 ## Recent P2 release reconciliation
-- PR #110 (pricing preview retry, concurrent work) merged at `03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac`; its exact tested head `b6d99a91958b43e7cd90164a104c8c0a5bc1bd09` Core `40004970539` and P2 `40004970599` SUCCESS. Main Core run `40005590004` is in progress on the merge SHA; exact-main P2 is NOT RUN.
+- PR #110 (pricing preview retry, concurrent work) merged at `03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac`; its exact tested head `b6d99a91958b43e7cd90164a104c8c0a5bc1bd09` Core `40004970539` and P2 `40004970599` SUCCESS. Main Core run `40005590004` completed SUCCESS on the exact merge SHA; exact-main P2 is NOT RUN.
 - PR #109 active-session guard for AI budget RPCs merged at `46a5fbb379d908328e5e2136eec3190a32e148f7`; exact PR head `a5bff9191481bc9c84e4fa2fecc345692a9635d4` Core `40003198716` and P2 `40003198651` SUCCESS. Hosted customer job was SKIPPED for lack of dedicated non-production credentials; not PASS.
 - No direct writes to main; branch was recreated from latest main after finding five intervening pricing-merge commits on the older branch. Those latest-main changes do not overlap any payment-idempotency paths.
 
@@ -35,7 +35,7 @@ VALIDATION:
 - Hosted credential-dependent customer E2E remains BLOCKED_EXTERNAL until dedicated non-production credentials exist.
 
 NEXT_ACTION=Reread final feature branch head and changed files; create PR targeting main; allow exact-head Core and P2 Critical Paths to finish; inspect all failed/skipped jobs and root-cause fix failures; merge only after required terminal successes and review clearance; then read the new main SHA and exact-main CI/P2 before moving to the next acceptance gap.
-UPDATED_AT=2026-10-23T21:48:00+03:00
+UPDATED_AT=2026-10-23T21:50:00+03:00
 
 ---
 
