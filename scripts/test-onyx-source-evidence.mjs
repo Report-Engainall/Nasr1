@@ -413,14 +413,14 @@ async function main() {
     const lateBoundId = lateBoundStart[0].id;
     const lateBoundResult = await db.unsafe(
       "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text) as id",
-      ["inventory_pull","succeeded",organizationId,matchedSnapshotId,lateBoundId,"5".repeat(64),200,"CI-ONYX-LATE-"+suffix,"6".repeat(64)]
+      ["inventory_pull","succeeded",organizationId,mismatchSnapshotId,lateBoundId,"5".repeat(64),200,"CI-ONYX-LATE-"+suffix,"6".repeat(64)]
     );
     assert.equal(lateBoundResult[0].id,lateBoundId,"an inventory pull may bind its resulting snapshot when finalized");
     await expectFailure(
       "a late-bound inventory-pull snapshot cannot be changed after successful finalization",
       () => db.unsafe(
         "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text)",
-        ["inventory_pull","succeeded",organizationId,mismatchSnapshotId,lateBoundId,"5".repeat(64),200,"CI-ONYX-LATE-"+suffix,"6".repeat(64)]
+        ["inventory_pull","succeeded",organizationId,matchedSnapshotId,lateBoundId,"5".repeat(64),200,"CI-ONYX-LATE-"+suffix,"6".repeat(64)]
       ),
       /snapshot is already bound to a different snapshot/i,
     );
