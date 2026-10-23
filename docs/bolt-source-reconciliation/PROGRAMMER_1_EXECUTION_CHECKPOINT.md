@@ -1,25 +1,31 @@
 # P1 Execution Checkpoint — live resume record
 
-## Current state — 2026-10-23 (reconciled with live refs)
+## Current state — 2026-10-23 — P1-ADMIN-PRODUCT-SINGLEFLIGHT-001
 
-- Status: IN_PROGRESS; device-session UI is implemented, and the branch is being reconciled with current main before merge.
-- Repository: `Report-Engainall/Nasr1`.
-- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
-- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88.
-- BASE_SHA: `8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2` (live main immediately before this integration commit).
-- FEATURE_HEAD_SHA_BEFORE_INTEGRATION: `0d51e2090951e1dab80d4fbdf8e92bcfbb256de8`.
-- HEAD_SHA (last tested functional/code head): `5114ea8227f570662533219af1dc3a013cd49f75`. Core CI and the P1 session-specific local-browser path passed on this exact SHA. This checkpoint-only commit will advance the branch; validate its resulting SHA before merge.
-- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001` — server-backed central device/session UI and guarded revocation plus component/browser acceptance are implemented.
-- LAST_CONFIRMED_TESTS on the integrated functional head `5114ea8227f570662533219af1dc3a013cd49f75`: Core CI **SUCCESS** [run 39981579136](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579136); P2 Playwright **SUCCESS** [run 39981579236](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579236). The local Supabase/Chromium job explicitly ran **central device-session authorization and immediate-revocation acceptance** and passed; public Storefront smoke passed.
-- FAILED_OR_NOT_RUN_TESTS: checks on the new current-main integration head are pending. The external customer-order/tenant-isolation job was skipped by its credential gate; this is not a session-management pass. Production proof is NOT RUN.
-- FILES_CHANGED in the intended net diff: this checkpoint/report plus `e2e/device-session-management.spec.ts`, the P1 session endpoint/seed helpers, `src/components/DeviceManagement.tsx`, and `src/test/device-management.test.tsx`.
-- LOCKED_PATHS: no P2-owned RPC, RLS, migration, `src/lib/api.ts`, or workflow changes are included in the intended net diff. P2 dependency PR #83 is merged into main; no backend ownership is claimed by P1.
-- NEXT_ACTION: verify Core and P2 Playwright checks on the checkpoint-only commit that follows the tested code SHA; if both reach terminal success and the net diff remains P1-owned, mark PR #88 ready and merge it, then verify the merge SHA and post-merge main CI.
-- BLOCKER: no remaining backend-contract blocker; only current checkpoint-commit exact-head CI is pending. External-account E2E remains gated by unavailable non-production credentials.
-- MERGE_STATUS: PR #88 remains Draft/open and not merged.
-- UPDATED_AT: 2026-10-23 18:50 +03:00.
+- **STATUS:** `IMPLEMENTED`; source/test change is `TESTED_EXACT_SHA` on `f57624c320344adeb3a251475f4b83f9d1637c8d`. This report update is a documentation-only successor and must not inherit those test results; read Actions for the resulting branch HEAD separately.
+- **Repository:** `Report-Engainall/Nasr1`.
+- **CURRENT_BRANCH:** `p1/admin-product-singleflight-20261023`.
+- **PR_URL:** https://github.com/Report-Engainall/Nasr1/pull/97
+- **BASE_SHA:** `c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99` (verified live `main` immediately before this checkpoint update).
+- **LAST_TESTED_CODE_SHA / pre-report HEAD_SHA:** `f57624c320344adeb3a251475f4b83f9d1637c8d`.
+- **LAST_COMPLETED_TASK_ID:** `P1-DEVICE-SESSION-MGMT-UI-001`, merged into main as `c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99`; its prior Core and P2 evidence belongs to its own exact head.
+- **CURRENT_TASK_ID:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001` — guard duplicate product create/update submissions.
+- **Implementation:** existing `ProductModal` acquires a synchronous `useRef` single-flight guard before the first await, releases it in `finally`, exposes failed server writes and allows retry, and prevents save while category loading has failed.
+- **Regression coverage:** synchronous double create is one API request; synchronous double update is one API request; create failure remains visible and a subsequent retry succeeds; failed category loading blocks writes until explicit retry succeeds.
+- **FILES_CHANGED in the net PR diff:** `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, this checkpoint and `PROGRAMMER_1_CURRENT_REPORT.md`. No P2/P3-locked backend, workflow, or route files changed in the net diff.
+- **Core CI:** [run 39988368910](https://github.com/Report-Engainall/Nasr1/actions/runs/39988368910) — **SUCCESS** on exact source/test SHA `f57624c320344adeb3a251475f4b83f9d1637c8d`; frozen lockfile install passed, **140 test files / 883 tests passed**, isolated PostgreSQL 17/migration acceptance, lint, build, port 4173 preview smoke, port 5173 dev smoke, and Chromium price-visibility acceptance passed. The product regression file reports **4/4 tests passed** in that run.
+- **P2 Playwright:** [run 39988368947](https://github.com/Report-Engainall/Nasr1/actions/runs/39988368947) — **SUCCESS** on the same exact source/test SHA `f57624c320344adeb3a251475f4b83f9d1637c8d`; public UI smoke and local-Supabase/Chromium acceptance passed, including order/tenant denial, returns/credit memo, audited Onyx XLSX, finance/task print, customer-manager privacy, and device-session revocation.
+- **FAILED_OR_SKIPPED:** separately credential-gated external-account customer-order/tenant job `120533443079` was **SKIPPED**, not PASS. The external-account test remains `BLOCKED_EXTERNAL`; production and hosted-provider proof are `NOT RUN`.
+- **Review gate:** no formal review submission is recorded for #97. Manual CodeRabbit review trigger comment [6369850663](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369850663) was rate-limited by the bot ([response 6369852853](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369852853)). Do not treat bot invocation as review/approval and do not merge before independent review.
+- **LOCKED_PATHS:** P2-owned RPC/RLS/migrations/API/finance/inventory/Onyx/workflow files; P3-owned #89 files and acceptance matrix; generated `src/routeTree.gen.ts` (must be regenerated using the official toolchain, never manually edited).
+- **NEXT_ACTION:** this checkpoint/report commit advances the PR head; read Core and P2 Playwright conclusions for that exact new SHA. Then secure an independent review for #97; resolve any real findings, and only mark ready/merge if review, exact-head checks, and merge eligibility all pass. Until then #97 remains Draft/open. If review remains externally blocked, continue a non-overlapping P1 task on a separate branch.
+- **BLOCKERS:** independent reviewer unavailable; CodeRabbit review quota exhausted. No local clone/test execution was possible because the environment could not resolve `github.com` (`Could not resolve host: github.com`); CI was the actual test executor.
+- **MERGE_STATUS:** #88 merged; #97 **OPEN / DRAFT / NOT MERGED**.
+- **UPDATED_AT:** 2026-10-23.
 
 ## Recent execution history
+
+
 
 
 ### 2026-10-23 — P1-01 — CLOSED_WITH_EVIDENCE (merge pending)

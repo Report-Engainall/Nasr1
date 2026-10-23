@@ -1,22 +1,22 @@
-# تقرير الحالة التنفيذي — المبرمج 1 / إدارة جلسات الأجهزة المركزية
+# تقرير الحالة التنفيذي — P1 / منع التكرار في إنشاء المنتج
 
 - **المستودع:** `Report-Engainall/Nasr1`
-- **فرع P1 الحالي:** `p1/central-device-session-ui-20261023`
-- **PR الحالي:** [#88 — Draft/open، غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/88)
-- **BASE_SHA لإعادة التكامل:** `8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2`
-- **رأس الميزة قبل إعادة التكامل:** `0d51e2090951e1dab80d4fbdf8e92bcfbb256de8`
-- **آخر رأس وظيفي مختبَر بدقة:** `5114ea8227f570662533219af1dc3a013cd49f75` — Core CI **SUCCESS** [39981579136](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579136)؛ P2 Playwright **SUCCESS** [39981579236](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579236)، بما يشمل Chromium/Supabase المحلي لاختبار صلاحية وإلغاء الجلسة فورًا.
-- **المهمة:** `P1-DEVICE-SESSION-MGMT-UI-001` — ربط إدارة الأجهزة والجلسات بعقد الخادم، ورفض بيانات الجلسات غير الصحيحة، وحماية الجلسة الحالية، واشتراط إقرار مطابق من الخادم قبل إظهار نجاح الإلغاء.
-- **الاختبارات المثبتة على الرأس السابق فقط:** Core CI [39977276920 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276920)؛ P2 Playwright [39977276972 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276972). خطوة Chromium الخاصة بتفويض إدارة الجلسات والإلغاء الفوري نجحت مع Supabase محلي معزول.
-- **المتبقي:** التحقق من CI على commit التوثيق الحالي؛ اختبار الحساب الخارجي تخطّاه حاجز الاعتماد؛ الإنتاج NOT RUN.
-- **الملفات في صافي التغيير المقصود:** هذا التقرير ونقطة الاستئناف وواجهة الجلسات واختبارها وأدوات/اختبارات Playwright الخاصة بـP1.
-- **NEXT_ACTION:** فحص Core وP2 Playwright على رأس commit التوثيق الحالي. إذا نجحا وظل صافي الملفات ضمن ملكية P1، اجعل PR #88 جاهزًا وادمجه عبر GitHub ثم تحقق من SHA الدمج وCI الخاص بـ`main`.
-- **حدود الإثبات:** نجاح المتصفح المحلي يخص تدفق الجلسات الذي اختُبر؛ لا يثبت الحسابات الخارجية أو الإنتاج.
-
-> الأقسام التالية تحتفظ بالسجل التاريخي من تكاملات سابقة؛ هذا الملخص هو نقطة الاستئناف الحالية لهذا الفرع.
-
+- **CURRENT_BRANCH:** `p1/admin-product-singleflight-20261023`
+- **PR الحالي:** [#97 — Draft/open](https://github.com/Report-Engainall/Nasr1/pull/97)
+- **BASE_SHA:** `c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99` — رأس `main` الحي الذي تمت قراءته قبل تحديث هذا التقرير.
+- **LAST_TESTED_CODE_SHA:** `f57624c320344adeb3a251475f4b83f9d1637c8d`.
+- **المهمة:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001` — منع الطلبات المكررة عند حفظ منتج جديد أو تعديل منتج موجود.
+- **التنفيذ:** حارس `useRef` متزامن داخل `ProductModal`؛ يتم تفعيله قبل أول `await` وتحريره في `finally`. فشل الخادم يبقى ظاهرًا ويسمح بإعادة المحاولة، وفشل تحميل التصنيفات يمنع الحفظ حتى تنجح إعادة المحاولة.
+- **اختبار الانحدار:** [`admin-product-double-submit.test.tsx`](https://github.com/Report-Engainall/Nasr1/blob/p1/admin-product-singleflight-20261023/src/test/admin-product-double-submit.test.tsx) يغطي الآن 4 حالات: ضغط إنشاء مزدوج، ضغط تحديث مزدوج، فشل إنشاء ثم إعادة محاولة ناجحة، وفشل تحميل التصنيفات ومنع الكتابة حتى الاسترداد.
+- **Core CI:** [39988368910 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39988368910) على `f57624c320344adeb3a251475f4b83f9d1637c8d`؛ 140 ملف اختبار / 883 اختبارًا ناجحًا، وقبول PostgreSQL 17 وlint/build وsmoke والاختبار الخاص بالمنتج (4/4).
+- **P2 Playwright:** [39988368947 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39988368947) على SHA نفسه؛ سموك الواجهة العامة وقبول Chromium مع Supabase المحلي ناجحان. التشغيل الخارجي المقيّد باعتماد كان `SKIPPED` وليس PASS، وإثبات الإنتاج `NOT RUN`.
+- **FILES_CHANGED في صافي فرق PR:** `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, هذا التقرير و`PROGRAMMER_1_EXECUTION_CHECKPOINT.md`. لم تُلمس ملفات P2/P3 المقفلة.
+- **المراجعة:** لا توجد مراجعة مستقلة مسجلة. طلب مراجعة CodeRabbit عبر [التعليق 6369850663](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369850663) حُجب بسبب حد المراجعات المجانية ([الرد 6369852853](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369852853)). لهذا لا يُعتبر PR مؤهلًا للدمج حتى تسجيل مراجعة مستقلة.
+- **MERGE_STATUS:** #97 لا يزال Draft/open؛ لم يحدث دمج.
+- **NEXT_ACTION:** التحقق من Core وPlaywright على الرأس الجديد الناتج عن تحديث الوثائق، ثم الحصول على مراجعة مستقلة. لا تُرحّل PASS إلى الرأس الجديد قبل قراءة Actions المطابقة.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
+
 
 - **الحالة:** مندمج ومختبر. [PR #3](https://github.com/Report-Engainall/Nasr1/pull/3) أُغلق بالدمج؛ [PR #2](https://github.com/Report-Engainall/Nasr1/pull/2) المكرر بقي مغلقًا دون دمج.
 - **الرأس الذي اختُبر:** `01ef17b05c2bf507003efccbb897f76318e0df02`.
