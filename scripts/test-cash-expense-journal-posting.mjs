@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 
+import { validateCashExpenseEndpoints } from "./lib/local-endpoint-guard.mjs";
+
 const connectionString = requiredEnv("TEST_DATABASE_URL");
 const managerEmail = requiredEnv("E2E_MANAGER_EMAIL").toLowerCase();
-const apiUrl = new URL(requiredEnv("E2E_SUPABASE_URL"));
-if (apiUrl.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(apiUrl.hostname) || apiUrl.port !== "54321") {
-  throw new Error("Cash-expense accounting acceptance is restricted to the local Supabase API.");
-}
+// Validate BOTH targets before opening the database connection. Dynamic ports are expected;
+// remote hosts and protocols remain rejected by the shared, unit-tested guard.
+validateCashExpenseEndpoints(requiredEnv("E2E_SUPABASE_URL"), connectionString);
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
