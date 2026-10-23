@@ -3321,7 +3321,7 @@ async function main() {
   // Restore the original single-transfer acceptance fixture before the reorder-point assertions below.
   await db.unsafe("reset role");
   await db.unsafe(
-    "update public.inventory_balances set quantity_on_hand=33,quantity_reserved=10 where product_id=$1 and warehouse_id=$2",
+    "update public.inventory_balances set quantity_on_hand=33,quantity_reserved=10,reorder_point=20 where product_id=$1 and warehouse_id=$2",
     [productId, testWarehouseId],
   );
   await db.unsafe(
