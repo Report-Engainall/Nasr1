@@ -1,3 +1,15 @@
+## P2 checkpoint — PR99 merged, main reconciled; next: generic manual journal reversal — 2026-10-23T18:54:23+03:00
+
+- Current main SHA 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2, tree 40fcbdf56ddb5a50badc3c4d42e3164bb7ecfb3e; post-merge Core CI 39980802016 SUCCESS on the same SHA.
+- PR #99 merged as 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2. Exact tested code head 4122ed10b6827c6e0d4b4aeb64c6578ea8cd4d08 has matching tree; Core 39976687601 and P2 39976687945 PASS. Added ordered order lifecycle history, active same-tenant staff actor attribution, and no audit record for rejected cancellation. Local authenticated order/tenant Chromium job 120493443382 PASS; external hosted customer job 120493047623 SKIPPED.
+- #83, #82, #71, #52, #54, #90, #84, #94, #95, #96 merged. #43/#56 closed without merge. #98 and stale docs PR #92 closed without merge after supersession comments; replacements use latest main.
+- INV-009 and OPS-DR-001 retain local/isolation-only evidence; Onyx target sync/import and production DR remain unproven/blocked.
+- P1 PR #88 current head 5114ea8227f570662533219af1dc3a013cd49f75 Core 39981579136/P2 39981579236 in progress; device-session UI/spec/seed remain P1-owned. P3 #89 and P1 #97 stay outside P2 file ownership.
+- Next task FIN-LEDGER-001-MANUAL-JOURNAL-REVERSAL. Existing GL has draft/post/void-draft and balance/idempotency protections but no explicit generic reversal for posted manual/adjustment entries. Invoice/payment and cash-expense reversals already have source-specific implementations; do not duplicate/bypass them.
+- Current code branch initialized: p2/general-ledger-reversal-20261023 from 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2. Implementation/tests not yet committed as of this checkpoint.
+
+---
+
 ## P2 readback — Onyx source trace and sync evidence — 22 October 2026
 
 - **Task remains OPEN:** `NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011`; only active pointer remains in `CURRENT_EXECUTION_STATE.md`.
