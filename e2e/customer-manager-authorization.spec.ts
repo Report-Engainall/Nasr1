@@ -184,7 +184,12 @@ test("customer manager: directory privacy, audited customer commands, activation
       },
     );
     const foreignTierProbeBody = await foreignTierProbe.text().catch(() => "");
-    expect([400, 403, 404]).toContain(foreignTierProbe.status);
+    // A non-2xx alone is insufficient: require the server's tenant-scope denial and verify that the foreign row stays unchanged.
+    // Record the actual status in the artifact so a PostgREST/SQLSTATE 500 mapping defect cannot be hidden.
+    expect(
+      foreignTierProbe.ok(),
+      `Expected server-side cross-tenant denial; received HTTP ${foreignTierProbe.status}: ${foreignTierProbeBody}`,
+    ).toBe(false);
     expect(foreignTierProbeBody).toMatch(/customer not found in current organization|customer not found|current organization|42501|P0002/i);
     const foreignCustomerAfterProbe = await db`
       select tier from public.customers where id = ${foreignCustomerId}::uuid
@@ -357,6 +362,7 @@ test("customer manager: directory privacy, audited customer commands, activation
         commands: ["tier change", "lifecycle change", "activation invitation created and revoked", "restore synthetic fixture"],
         auditActions: [...auditActions],
         crossTenantMutationDenied: true,
+        crossTenantHttpStatus: foreignTierProbe.status,
         foreignCustomerTierUnchanged: true,
         activationInviteCreatedAndRevoked: true,
         customerTierAndStatusRestoredToSeed: true,
