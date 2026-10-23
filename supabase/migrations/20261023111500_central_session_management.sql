@@ -162,7 +162,7 @@ BEGIN
   INTO v_sessions
   FROM (
     SELECT
-      s.updated_at AS activity_at,
+      coalesce(s.refreshed_at,s.updated_at,s.created_at) AS activity_at,
       s.created_at,
       jsonb_build_object(
         'session_id',s.id,
