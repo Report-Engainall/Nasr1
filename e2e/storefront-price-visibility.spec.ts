@@ -241,6 +241,17 @@ async function installPricingPreviewRoutes(
   });
 }
 
+
+async function expectNoHiddenPriceLeak(page: Page) {
+  const body = page.locator("body");
+  const visibleText = await body.innerText();
+  const serializedDom = await body.evaluate((element) => element.innerHTML);
+  for (const secret of ["987654", "1975308", "شريحة سرية"]) {
+    expect(visibleText).not.toContain(secret);
+    expect(serializedDom).not.toContain(secret);
+  }
+}
+
 test("Chromium displays cart and order-review amounts only from complete server previews", async ({ page }) => {
   const mode: PricingPreviewMode = "visible";
   const requests: unknown[] = [];
@@ -285,8 +296,7 @@ test("Chromium suppresses monetary fields when the server preview is hidden or m
   await expect(order.getByRole("status")).toContainText("لم يسمح إعداد الخادم بعرض الأسعار");
   await expect(cart.locator(".sf-order-pricing-total")).toHaveCount(0);
   await expect(order.locator(".sf-order-pricing-total")).toHaveCount(0);
-  expect(await page.locator("body").innerText()).not.toContain("987654");
-  expect(await page.locator("body").innerText()).not.toContain("شريحة سرية");
+  await expectNoHiddenPriceLeak(page);
 
   mode = "malformed";
   await cart.getByTestId("cart-policy-disable").click();
@@ -297,8 +307,7 @@ test("Chromium suppresses monetary fields when the server preview is hidden or m
   await expect(order.getByRole("alert")).toContainText("تم إخفاء المبالغ");
   await expect(cart.locator(".sf-order-pricing-total")).toHaveCount(0);
   await expect(order.locator(".sf-order-pricing-total")).toHaveCount(0);
-  expect(await page.locator("body").innerText()).not.toContain("987654");
-  expect(await page.locator("body").innerText()).not.toContain("شريحة سرية");
+  await expectNoHiddenPriceLeak(page);
 });
 
 test("Chromium retries failed server price previews without showing local or stale monetary values", async ({ page }) => {
