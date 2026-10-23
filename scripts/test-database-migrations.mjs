@@ -2792,7 +2792,7 @@ async function main() {
   await setIdentity(unconfirmedMemberAuthUserId,"ci-unconfirmed-member@example.test");
   // Simulate a stale/incorrect positive claim: the persistent auth.users row remains unconfirmed.
   await db.unsafe("select set_config('request.jwt.claims', $1, false)",[
-    JSON.stringify({sub:unconfirmedMemberAuthUserId,email:"ci-unconfirmed-member@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated"}),
+    JSON.stringify({sub:unconfirmedMemberAuthUserId,email:"ci-unconfirmed-member@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated",session_id:unconfirmedMemberAuthUserId}),
   ]);
   await db.unsafe("set role authenticated");
   await expectFailure("company invitation rejects unconfirmed auth.users even if the JWT says confirmed",
@@ -3454,7 +3454,7 @@ async function main() {
     await connection.unsafe("select set_config('application_name',$1,false)", [appName]);
     await connection.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [staffAuthUserId]);
     await connection.unsafe("select set_config('request.jwt.claims',$1,false)", [
-      JSON.stringify({ sub: staffAuthUserId, email: "admin@aghbari.ye", role: "authenticated" }),
+      JSON.stringify({ sub: staffAuthUserId, email: "admin@aghbari.ye", role: "authenticated", session_id: staffAuthUserId }),
     ]);
     await connection.unsafe("set role authenticated");
   };
