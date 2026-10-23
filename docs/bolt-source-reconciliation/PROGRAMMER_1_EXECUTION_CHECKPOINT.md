@@ -186,3 +186,21 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: #88 Draft/open, #83 P2-owned/open; P1 docs PR #93 open and will receive this checkpoint refresh.
 - UPDATED_AT: 2026-10-23T16:15+03:00
+
+
+## Exact-head readback — session UI Core passed; P2 browser infrastructure blocked — 2026-10-23T16:22+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-INVITE-EXPIRY-90`; CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001` (UI/test added; P2 end-to-end acceptance pending).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: original PR #88 base `0396b29aeab8c09c430df0063821251208a38477`; current main integration SHA `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA: `7adeec2fa2490840aa213449a2d87f49b4e97b74`.
+- LAST_CONFIRMED_TESTS: Core [39958053579 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39958053579) on exact `7adeec2...`. Steps prove Bun lockfile verification, dependency install, unit tests, isolated PostgreSQL 17 migrations/core workflows, audit/idempotency/import/favourites/backup-restore, lint/build/smoke and price-visibility acceptance all succeeded. New session list network-failure retry and rapid repeated-revoke regression are included in this exact head's Unit Tests.
+- FAILED_OR_NOT_RUN_TESTS: P2 [39958054156 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/39958054156) on exact `7adeec2...`, attempt 2 failed at public UI smoke dependency installation; logs show repeated HTTP 429 from the configured Lovable npm mirror and `HTTP 429 persisted after three bounded attempts`. The local Supabase/Chromium job was `SKIPPED` because the dependency-install job failed. This is an external CI setup failure, not a functional assertion failure; nevertheless end-to-end central-session acceptance is NOT PROVEN.
+- P2 dependency head: PR #83 now has head `04241376b769403bc6a6357265c51cf1ca66e3e2`; Core [39958234359](https://github.com/Report-Engainall/Nasr1/actions/runs/39958234359) failed at the same dependency-install step with HTTP 429 before migrations/tests; P2 run [39958234348](https://github.com/Report-Engainall/Nasr1/actions/runs/39958234348) was still in progress at readback. The exact log and evidence were posted to #83 comment 6365616497.
+- FILES_CHANGED: `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`; synchronous per-session revoke guard and retry recovery for network failure. Core validation passed. No P2-owned migration/RPC/RLS/API/lockfile/workflow path changed.
+- LOCKED_PATHS: P2 schema/RPC/RLS/API/types, `.github/workflows/p2-playwright-critical-paths.yml`, package configuration and lockfiles, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, acceptance matrix untouched.
+- NEXT_ACTION: after the package-mirror HTTP 429 blocker is addressed/recovered by the workflow owner, rerun P2 Playwright on current #88 head and ensure the isolated local Supabase/Chromium job actually runs and passes (not skipped). Keep #88 Draft until #83 is current-main integrated and current-head Core + backend/Chromium acceptance passes. Separately, inspect latest PR #93 documentation checks; its prior attempt also hit the same dependency mirror rate limit.
+- BLOCKER: recurring external Lovable package-mirror HTTP 429 causes P2 workflow setup failure; PR #83 backend not merged.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 Draft/open; #83 P2-owned/open; checkpoint/report PR #93 open. Main `59547c7d...` post-merge Core run `39956957952` SUCCESS remains proven.
+- UPDATED_AT: 2026-10-23T16:22+03:00
