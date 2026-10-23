@@ -320,7 +320,7 @@ LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $$
 DECLARE
   v_actor uuid := public.current_profile_id();
   v_org uuid;
@@ -345,6 +345,6 @@ BEGIN
        AND (r.original_journal_entry_id = ANY(p_entry_ids)
          OR r.reversal_journal_entry_id = ANY(p_entry_ids));
 END;
-$;
+$$;
 REVOKE ALL ON FUNCTION public.fetch_general_journal_reversal_links(uuid[]) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.fetch_general_journal_reversal_links(uuid[]) TO authenticated;

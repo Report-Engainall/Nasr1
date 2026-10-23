@@ -233,6 +233,37 @@ export async function runGeneralLedgerReversalAcceptance({
     [organizationId, concurrentOriginal.id],
   );
   assert.equal(concurrentLinks[0].count, 1, "race must not create duplicate reversal mapping rows");
+  
+  // Different idempotency keys racing against the same original must still create at most one reversal.
+  const competingOriginal = await createDraft(db, expenseAccountId, cashAccountId, randomUUID(), "P2 competing reversal source");
+  assert.equal((await postJournal(db, competingOriginal.id)).status, "posted");
+  const c = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const d = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  try {
+    await Promise.all([
+      setIdentityOn(c, staffAuthUserId, "admin@aghbari.ye"),
+      setIdentityOn(d, staffAuthUserId, "admin@aghbari.ye"),
+    ]);
+    const competing = await Promise.allSettled([
+      reverse(c, competingOriginal.id, "First authorized competing reversal request", randomUUID()),
+      reverse(d, competingOriginal.id, "Second authorized competing reversal request", randomUUID()),
+    ]);
+    assert.equal(competing.filter((item) => item.status === "fulfilled").length, 1,
+      "different idempotency keys racing on one original must create at most one reversal");
+    assert.equal(competing.filter((item) => item.status === "rejected").length, 1,
+      "the losing different-key request must be rejected");
+    const rejected = competing.find((item) => item.status === "rejected");
+    assert.match(String(rejected?.status === "rejected" ? (rejected.reason?.message ?? rejected.reason) : ""),
+      /original journal entry already has a reversal/i);
+  } finally {
+    await Promise.all([c.end({ timeout: 5 }).catch(() => {}), d.end({ timeout: 5 }).catch(() => {})]);
+  }
+  const competingLinks = await db.unsafe(
+    "select count(*)::integer as count from public.accounting_journal_reversals where organization_id=$1::uuid and original_journal_entry_id=$2::uuid",
+    [organizationId, competingOriginal.id],
+  );
+  assert.equal(competingLinks[0].count, 1, "different-key race must persist exactly one reversal mapping row");
+
 
   await db.unsafe("reset role");
   process.stdout.write("PASS FIN-LEDGER-001 reversal: manual/adjustment scope, exact mirrored lines, explicit post, audit, tenant/RLS denial, source-linked path restriction, idempotency conflict/replay and concurrent exact retry\n");
