@@ -54,7 +54,7 @@ BEGIN
     )
   );
 END
-$function$
+$function$;
 
 REVOKE ALL ON FUNCTION public.get_current_tenant_context() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_current_tenant_context() TO authenticated;
