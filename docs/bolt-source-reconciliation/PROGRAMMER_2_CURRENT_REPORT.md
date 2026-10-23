@@ -1,35 +1,36 @@
-# تحديث P2 الحي — 2026-10-23T17:34:00+03:00
+# تحديث P2 الحي — 2026-10-23T18:03:00+03:00
 
-## الحالة التنفيذية الحالية (تتقدم على السجل التاريخي أدناه)
-- `MAIN_SHA=bd0d2df489e40b2dc5f83882d90565c7799a448c`; شجرة main `6d881e097101b574a7b1e6a83717c28719310cd28`.
-- `AUTH-CENTRAL-SESSION-BACKEND-P2` / PR #83 أُدمج: commit `bd0d2df...`; الشجرة المطابقة لرأس الاختبار `dda512495c43f2fd84517635cd83421ef49e92c0`. Core 39968857948 وP2 39968858140 = SUCCESS على الشجرة نفسها. هذا يثبت عقد الخادم والقبول المحدد بالـworkflow؛ لا يثبت واجهة #88 أو الإنتاج.
-- عقد الجلسات في main الآن يدعم `current_auth_session_id`، هوية ملف/مؤسسة مرتبطة بوجود جلسة حية متطابقة، RPCs `list_organization_sessions` و`revoke_organization_session` و`revoke_other_auth_sessions`، صلاحيات مخفضة وAudit، واختبارًا لقبول/رفض الجلسة المسحوبة. لا تُعد تنفيذ هذا العقد ما لم يظهر فشل محدد جديد.
-- `PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE` هو التالي: PR #82 مفتوح والرأس `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`. Core 39953364100 وP2 39953364029 ناجحان على SHA نفسه، لكن قبل دمج #83؛ يجب إدخال main الحالي وإعادة الاختبارين قبل الدمج. يحتوي الفرع على حل schema-aware لـpgcrypto ودعوات customer_manager، ويتداخل مع workflow و`scripts/test-database-migrations.mjs` وfixtures التي تغيرت في #83.
-- PR #88 واجهة أجهزة P1 لا يزال Draft؛ آخر رأس `428c98bece43296dbebd9ce30c78cffe48541348`. اختبار Chromium الخاص به لا يُدّعى أنه نفذ. P2 يملك wiring الخاص بالـworkflow فقط، وملفات الواجهة/seed/spec ملك P1. سكربت seed يشترط منفذ DB 54322 بينما الـworkflow المعزول يستخدم 55432؛ تم إرسال تعليق تنسيق #88 رقم 6367191624، ولم تُقرأ استجابة تثبت حل الفجوة.
-- PR #95 الرأس الحالي `f856a6cf284084953cbebfd2718cbf909ce3d17e` مبني على main `bd0d2df...`; نتيجة CI على هذا الرأس لم تُثبت بعد في هذه اللقطة. نتائج `024e155...` السابقة لا تنتقل إليه.
-- PR #43 ما يزال Draft وdirty؛ لا تدمج فرعه القديم. PR #94 بديل اختبار واجهة محدود، وما زال يحتاج قراءة CI على رأسه.
-- `OPS-DR-001=NOT RUN / NOT PROVEN`: وجود PR #71 مدمج لا يغلق تجربة backup/restore المطابقة للعقد. `INV-009`: #52 و#54 مدمجان؛ اقرأ فجوة قبول Onyx الباقية بدل إبقاء الحالة OPEN. Onyx الحي/استيراد الهدف وWhatsApp الرسمي وrestore الإنتاجي تظل `BLOCKED_EXTERNAL`/ `NOT RUN`.
+## الحالة الحالية قبل السجل التاريخي
+- `main=5680bf08a08ed38af830fd2ced58f1eac8bece82`; tree `ff6c23116f1428b00a00fde1d6c2aa04becdf9ee`. PR #83 sessions, #95 receivables credit memo, and #96 staff-only dashboard navigation are merged.
+- PR #83 Core 39968857948 + P2 39968858140 passed exact tested tree; PR #95 Core 39969721081 + P2 39969721208 passed on `f856a6c...`, with tested tree exactly matching main.
+- **OPS-DR-001=CLOSED_WITH_EVIDENCE** from Core #39969721081 job `120468865117`; local PostgreSQL 17 backup SHA256 `59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1`, backup 394 ms, restore 1012 ms, total 4607 ms; 23 critical tables / 1048 rows; structure and critical-data fingerprints matched; temporary DB dropped. Isolated-CI-only, not production.
+- PR #82 latest head `4437526cebed13717bd71c084df447696b18183a`, base `5680bf08a08ed38af830fd2ced58f1eac8bece82`, tree `559802f1adfc4e7984c45e32e868a115e8d66280`. The previous P2 run 39973107081 failed because the browser test rejected loopback DB port 55432; guard now explicitly accepts only 54322 or 55432 on localhost/127.0.0.1. Latest Core 39974149475 and P2 39974149285 were QUEUED. No merge until both pass on latest exact SHA.
+- Fix uses forward migration `20261023190000_customer_activation_pgcrypto_schema.sql`, after merged 23180000; historical migration 23130000 stays unchanged.
+- #88 session UI remains owned by P1; session-specific Chromium test not proven. P1 seed guard mismatch remains open in comment 6367191624.
+- #52/#54 merged; Onyx target import/live integration remains external. #56 order PR closed but not merged.
 
-## checkpoint الحالي
+## checkpoint
 ```
-LAST_COMPLETED_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2
-MAIN_SHA=bd0d2df489e40b2dc5f83882d90565c7799a448c
-CURRENT_BRANCH=docs/p2-current-state-20261023
-BASE_SHA=0396b29aeab8c09c430df0063821251208a38477
-HEAD_SHA=8e70899da67d53f0acf221d7e4eeb1a8f2f1b591
-TASK_STATUS=TESTED_EXACT_SHA on pre-#83 head; sync and retest required
-FILES_CHANGED=PR82 invitation pgcrypto/schema fix, permission migration, customer-manager Chromium acceptance and shared CI harness
-TESTS_RUN=Core 39953364100 PASS; P2 39953364029 PASS; both on 8e70899
-TESTS_FAILED_OR_SKIPPED=Post-#83 integrated PR82 runs NOT RUN; no hosted account E2E claim
-MERGE_STATUS=PR83 merged; PR82 open and needs current-main integration
-EXTERNAL_BLOCKERS=Onyx target import/live sync, official WhatsApp, production restore proof
-LOCKED_PATHS=PR82 shared workflow/test harness until sync; P1 owns DeviceManagement component/spec/seed
+LAST_COMPLETED_TASK_ID=OPS-DR-001
+MAIN_SHA=5680bf08a08ed38af830fd2ced58f1eac8bece82
+CURRENT_BRANCH=feat/p2-customer-manager-e2e-authorization-20261023
+BASE_SHA=5680bf08a08ed38af830fd2ced58f1eac8bece82
+HEAD_SHA=4437526cebed13717bd71c084df447696b18183a
+TASK_STATUS=OPS-DR CLOSED_WITH_EVIDENCE; PR82 CORE+P2 RUNS QUEUED
+FILES_CHANGED=PR82 customer-manager loopback guard, invitation forward migration, tests/workflow
+TESTS_RUN=Prior Core 39973107041 PASS; new Core 39974149475 and P2 39974149285 queued
+TESTS_FAILED_OR_SKIPPED=Prior P2 failed at loopback port guard; fixed on latest head; new results pending
+MERGE_STATUS=PR83/#95/#96 merged; PR82 open
+EXTERNAL_BLOCKERS=Onyx target import/live sync; official WhatsApp; production restore proof
+LOCKED_PATHS=P1 DeviceManagement UI/spec/seed; PR82 code paths pending latest exact-head CI
 NEXT_TASK_ID=PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE
-NEXT_ACTION=merge current main into PR82 without force; reconcile the shared test/workflow files; rerun Core+P2 and Chromium on the exact final SHA
-UPDATED_AT=2026-10-23T17:34:00+03:00
+NEXT_ACTION=wait for current P2 run terminal status; fix real failures and merge only after Core+P2 pass
+UPDATED_AT=2026-10-23T18:03:00+03:00
 ```
 
-\n---\n\n## سجل P2 التاريخي (لا يحدد حالة التنفيذ الحالية)\n\n# تصحيح الحالة التنفيذية لـP2 — 22 أكتوبر 2026
+---
+
+## سجل P2 التاريخي (لا يحدد حالة التنفيذ الحالية)\n\n# تصحيح الحالة التنفيذية لـP2 — 22 أكتوبر 2026
 
 **مرجع أحدث من السجل التاريخي أدناه.** تقارير هذا الملف تحافظ على أحداثها القديمة؛ أي جملة في الأسفل تفيد بأن PR #18 أو #26 ما زال مفتوحًا، أو أن تكامل خصوصية أسعار Storefront لم يحدث، تعود إلى نقطة قراءة تاريخية ولا تمثل main الحالي.
 

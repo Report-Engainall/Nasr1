@@ -1,17 +1,17 @@
-# سجل التنسيق — الحالة الحية بعد دمج عقد الجلسات
+# سجل التنسيق — المرجع الحي
 
-## تصحيح التنسيق الحاكم — 2026-10-23T17:34:00+03:00
+## حالة التنسيق الملزمة — 2026-10-23T18:03:00+03:00
 
-- `main` الحالي: `bd0d2df489e40b2dc5f83882d90565c7799a448c`; شجرته `6d881e097101b574a7b1e6a83717c28719310cd28`. لا كتابة مباشرة إلى main.
-- **PR #83 مدمج**. قفل عقد الجلسات الذي شمل `supabase/migrations/20261023150000_central_session_management.sql` و`supabase/migrations/20261023170000_revoke_other_auth_sessions.sql` و`scripts/test-session-management.mjs` و`scripts/test-database-migrations.mjs` و`src/integrations/supabase/types.ts` وملفات workflow ذات الصلة أُغلق. لا تعاود إنشاء تلك الوظائف. Core 39968857948 وP2 39968858140 نجحا على رأس `dda512495c43f2fd84517635cd83421ef49e92c0` ذي الشجرة المطابقة لـmain.
-- **القفل النشط التالي: PR #82 / customer_manager invitations**. رأسه `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591` اجتاز Core 39953364100 وP2 39953364029، ولكن قبل دمج #83. عند تحديث الفرع فوق main الجديد، حافظ على إصلاح مخطط pgcrypto ومهاجرة الأذونات وادمج تغييرات هوية الجلسة من main في test fixtures. لا تنفذ تعديلًا متزامنًا على `.github/workflows/p2-playwright-critical-paths.yml` أو `scripts/test-database-migrations.mjs` أو `scripts/seed-p2-local-playwright.mjs` من فرع آخر حتى يفرغ هذا القفل.
-- **PR #88 / واجهة إدارة الأجهزة**: ملكية P1 لـ`src/components/DeviceManagement.tsx` و`e2e/device-session-management.spec.ts` و`scripts/seed-p1-device-session-playwright.mjs`; P2 يملك wiring الـworkflow. آخر رأس مقروء `428c98bece43296dbebd9ce30c78cffe48541348`، والفرع لا يزال Draft وقاعدته القديمة `f7565a...`. ملف seed ما زال يرفض منفذ DB `55432` المستخدم في الـworkflow المحلي المعزول. تعليق التنسيق #88 رقم 6367191624 طلب قبول `54322` أو `55432` مع قصر الاتصال على loopback. لا تغيّر ملف P1 بنفسك ولا تضعف الـendpoint guard؛ يجب أن ينجح اختبار المتصفح الفعلي قبل وصف تكامل الواجهة بأنه BROWSER_PROVEN.
-- **PR #95 / FIN-INVOICE-001** فرع مستقل عن عقد الجلسات؛ رأسه `f856a6cf284084953cbebfd2718cbf909ce3d17e` وقاعدة main `bd0d2df...`. لا تتداخل الكتابة على الملفات إلا بعد قراءة قائمة الملفات والرأس الحالي؛ لا تنقل نتائج `024e155...` إلى الرأس الحالي. اقرأ Core وP2 على SHA الحالي ثم ادمج إذا اجتاز شروط القبول.
-- **PR #43** إدارة الأدوار: قديم، Draft و`mergeable_state=dirty`; لا تدمج 48 ملفًا من الفرع القديم. PR #94 هو بديل اختبار محدود لواجهة إعدادات الأدوار، لكنه غير مدمج ويلزمه CI على رأس محدث وقرار مستقل.
-- **OPS-DR-001** يبقى `NOT RUN / NOT PROVEN` حتى تجربة معزولة كاملة على PostgreSQL 17 تتضمن SHA-256 للنسخة، استعادة مؤقتة، مقارنة مخطط/دوال/سياسات/محفزات/بيانات حرجة، مدة مقاسة وتنظيف. دمج PR #71 وحده لا يثبت ذلك.
-- **INV-009**: PR #52 و#54 مدمجان؛ تحقق من فجوات القبول غير المغطاة على main ولا تستخدم `PR_OPEN` أو فشلًا قديمًا كحقيقة حالية. قبول استيراد XLSX في Onyx الهدف والمزامنة الحية غير مثبتين دون sandbox واعتماد موثوق واستجابة فعلية.
-- Onyx live sync/import وWhatsApp Business API الرسمي واستعادة الإنتاج `BLOCKED_EXTERNAL`/ `NOT RUN` ما لم توفر جهة مخولة الاعتماد والبيئة ونتيجة موثقة. لا أسرار حقيقية في المستودع ولا اعتماد مدفوع إلزامي.
-- **قاعدة الكتابة المشتركة**: P2 وحده يحدّث `CURRENT_EXECUTION_STATE.md` و`REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` و`WORK_COORDINATION.md` و`EXECUTION_LOG.md` و`PROGRAMMER_2_CURRENT_REPORT.md`. اقرأ رؤوس الفروع قبل أي كتابة واحمِ التحديث عبر expected-SHA؛ لا تحدّث ملفًا مشتركًا من فرعين في آن واحد. يُحرر القفل بعد دمج التغيير والتحقق من SHA الجديد على main.
+- `main=5680bf08a08ed38af830fd2ced58f1eac8bece82`; tree `ff6c23116f1428b00a00fde1d6c2aa04becdf9ee`. #83 (session backend), #95 (credit memo aging), #96 (staff-only dashboard entry) merged.
+- `OPS-DR-001=CLOSED_WITH_EVIDENCE`: Core run 39969721081/job 120468865117 verifies the isolated PostgreSQL 17 backup/restore with SHA-256 `59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1`, measured 394ms dump, 1012ms restore, 4607ms total; 23 tables/1048 rows; schema/routines/policies/triggers/data fingerprints match; temporary DB cleaned. Tree `4436aa...` exactly matches the code tree merged in #95. No production proof.
+- **Active PR #82:** branch `feat/p2-customer-manager-e2e-authorization-20261023`; newest HEAD `4437526cebed13717bd71c084df447696b18183a`; BASE `5680bf08a08ed38af830fd2ced58f1eac8bece82`; Tree `559802f1adfc4e7984c45e32e868a115e8d66280`. Core 39974149475 / P2 39974149285 queued at checkpoint. Previous P2 run 39973107081 failed only because local test guard rejected port 55432; the fix allows DB ports 54322/55432 only on loopback and retains Supabase API loopback:54321. Do not merge until both current runs pass.
+- **Forward migration ordering:** pgcrypto repair at `20261023190000_customer_activation_pgcrypto_schema.sql`, after merged 23180000 receivables migration; historical 23130000 untouched.
+- **P1 lock for #88:** P1 owns `src/components/DeviceManagement.tsx`, `e2e/device-session-management.spec.ts`, and `scripts/seed-p1-device-session-playwright.mjs`. P2 owns only workflow call. The DB seed guard mismatch (54322 vs 55432) remains assigned to P1 under comment #88 `6367191624`; browser acceptance remains NOT PROVEN until the dedicated E2E passes.
+- **Inventory/Onyx:** #52 and #54 merged; inspect only the specific remaining invariants on current main. Live target import remains BLOCKED_EXTERNAL.
+- **Orders:** PR #56 closed without merge. ORD-001 is not closed; examine current main before creating a focused successor.
+- **Stale branch hygiene:** #43 remains Draft/dirty; never merge its 48-file branch wholesale. #94 is a separate test-only candidate.
+- Official WhatsApp API, actual Onyx live sync/import, and production restore remain BLOCKED_EXTERNAL or NOT RUN until real authorized responses are captured.
+- P2 owns shared state/matrix/coordination/log/report and must update them serially with expected-SHA checks. No direct main writes and no force-push.
 
 ---
 

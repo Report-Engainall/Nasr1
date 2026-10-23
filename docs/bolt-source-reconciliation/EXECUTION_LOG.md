@@ -1,3 +1,16 @@
+## P2 checkpoint — latest invitation E2E rerun; isolated restore proof — 2026-10-23T18:03:00+03:00
+
+- Live main `5680bf08a08ed38af830fd2ced58f1eac8bece82`, tree `ff6c23116f1428b00a00fde1d6c2aa04becdf9ee`.
+- PR #83 session backend and PR #95 posted-credit-memo receivables parity are merged; PR #96 staff-only dashboard entry is also merged.
+- `OPS-DR-001=CLOSED_WITH_EVIDENCE`: Core run 39969721081, job 120468865117, isolated PostgreSQL 17 backup/restore step SUCCESS. SHA-256 `59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1`; backup 394 ms, restore 1012 ms, total 4607 ms; 23 critical tables/1048 rows; schema/routines/policies/triggers/row counts/critical data fingerprints identical; temporary restore database dropped. Tested head f856a6cf... tree 4436aa... is identical to the tree merged into main at PR #95. Isolated CI only, not production proof or RTO/RPO.
+- PR #82 old integrated head dbb554d... Core passed but P2 failed at line 29 of `e2e/customer-manager-authorization.spec.ts`, because the test accepted only PostgreSQL loopback port 54322, while isolated workflow uses 55432. Fixed guard on new commit `4437526cebed13717bd71c084df447696b18183a`: API stays loopback:54321; DB must be loopback and port 54322 or 55432. No external hostname is permitted.
+- Latest PR82 CI for head `4437526...`: Core [39974149475](https://github.com/Report-Engainall/Nasr1/actions/runs/39974149475) and P2 [39974149285](https://github.com/Report-Engainall/Nasr1/actions/runs/39974149285) were queued at the checkpoint. Do not merge until both terminal success on that SHA.
+- Forward pgcrypto migration is `20261023190000_customer_activation_pgcrypto_schema.sql`, ordered after the mainline 23180000 receivables migration. Historical migration 23130000 was preserved untouched.
+- #88 device-session browser test stays unproven; P1 owns UI/spec/seed and has been asked to align loopback port guard for 55432. PR #56 remains closed, not merged; do not mark ORD-001 done. #52/#54 merged; live Onyx/WhatsApp remain external.
+- This checkpoint supersedes the history below.
+
+---
+
 ## P2 checkpoint — central session backend integrated; current next action — 2026-10-23T17:34:00+03:00
 
 - Verified main SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c`; source-tree SHA: `6d881e097101b574a7b1e6a83717c28719310cd28`.

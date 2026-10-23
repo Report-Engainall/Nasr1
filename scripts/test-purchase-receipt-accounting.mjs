@@ -2,15 +2,14 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 
-const apiUrl = new URL(requiredEnv("E2E_SUPABASE_URL"));
+import { validateCashExpenseEndpoints } from "./lib/local-endpoint-guard.mjs";
+
 const connectionString = requiredEnv("TEST_DATABASE_URL");
-if (apiUrl.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(apiUrl.hostname) || apiUrl.port !== "54321") {
-  throw new Error("Purchase receipt accounting acceptance is restricted to the local Supabase API.");
-}
-const databaseUrl = new URL(connectionString);
-if (!["localhost", "127.0.0.1"].includes(databaseUrl.hostname) || databaseUrl.port !== "54322") {
-  throw new Error("Purchase receipt accounting acceptance is restricted to local PostgreSQL 17.");
-}
+// Match the existing, unit-tested local-only policy used by the cash-expense
+// acceptance: the host must be loopback and the port must be explicit, but it
+// may be a dynamically assigned local PostgreSQL 17 port (e.g. Supabase 55432).
+// Never accept a hosted database or a non-loopback Supabase API here.
+validateCashExpenseEndpoints(requiredEnv("E2E_SUPABASE_URL"), connectionString);
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const productId = "a1000000-0000-0000-0000-000000000001";
 const supplierId = "a2000000-0000-0000-0000-000000000001";
@@ -42,8 +41,9 @@ async function findProfile(email) {
 }
 async function setIdentity(authUserId, email) {
   await db.unsafe("reset role");
+  await db.unsafe("insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now(),now(),now(),null,'CI isolated session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null", [authUserId, authUserId]);
   await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [authUserId]);
-  await db.unsafe("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: authUserId, email, role: "authenticated" })]);
+  await db.unsafe("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: authUserId, email, role: "authenticated", session_id: authUserId })]);
   await db.unsafe("set role authenticated");
 }
 async function rpcJson(sql, args) { return asJson((await db.unsafe(sql, args))[0].result); }
