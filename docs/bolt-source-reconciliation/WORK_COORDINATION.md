@@ -854,3 +854,15 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - PR #58 is already merged at `52df650957c857cc32c21c8804e3f5e88f73d9e7`; do not reimplement its order-input helper. PR #72 must remain open until its latest Core and Playwright checks finish successfully. Previously read PR #72 head `469f0ef35da749d095988cdff3d890c8e795e41c` failed Core at the post-race reorder-point fixture (actual 1, expected 20); a subsequent branch head `841709a6f500e7ea81fcec9447da9f61671d2ba0` has fresh checks pending and is not merge-ready until those checks are terminal successes.
 - PR #71 Core passed, but Playwright failed during Chromium/OS-dependency installation timeout; PR #50 and #43 have prior Playwright failures at isolated Supabase image startup from GHCR rate limiting. These are **not** functional acceptance passes; rerun or repair infrastructure, and report any still-unrun authenticated path honestly.
 - No direct writes to `main`, no force-push, no destructive reset. After this merge commit, verify its exact SHA and run Core + Playwright against that SHA before making PR #66 ready or merging it.
+
+## Exclusive P2 path lock — payment idempotency — 2026-10-23T21:25:00+03:00
+LOCK_STATUS=ACTIVE
+TASK_ID=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD
+OWNER=P2
+BRANCH=p2/customer-payment-idempotency-20261023
+BASE_SHA=60a61b448fb1a5407f0cf57f380d443ad0fb9799
+LOCKED_PATHS=supabase/migrations/20261023240000_customer_payment_idempotency.sql;src/components/CustomerWorkflows.tsx;src/integrations/supabase/types.ts;src/components/CustomerWorkflows.finance.test.tsx;scripts/test-staff-receivables-aging-credit-memo-parity.mjs
+COORDINATION_PATHS=CURRENT_EXECUTION_STATE.md;REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv;PROGRAMMER_2_CURRENT_REPORT.md;EXECUTION_LOG.md;WORK_COORDINATION.md (P2 only, sequential writes)
+EXCLUDED_PATHS=src/routes/assistant.tsx;src/routes/admin_.reports.tsx;P1/P3 owned screens and tests;production database
+ACCEPTANCE=PG17 replay of identical same-key payload returns original payment; changed payload conflicts; simultaneous same-key calls create one row; same key remains tenant scoped; client retains key after ambiguous failure and reuses it only for same request payload; no callable legacy 5-argument RPC overload.
+RELEASE_CONDITION=PR merged and exact resulting main SHA checked with terminal Core; local/browser/database proof must be labeled separately from production proof.
