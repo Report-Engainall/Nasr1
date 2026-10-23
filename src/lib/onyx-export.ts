@@ -30,6 +30,8 @@ export type OnyxOrderWorkbookInput = {
   customerCode: string;
   customerName: string;
   items: readonly OnyxExportItem[];
+  /** Source snapshot selected by the active staff member; null means no source was linked. */
+  sourceSnapshotId?: string | null;
   /** Persisted audit row created before the browser starts downloading this XLSX. */
   exportAuditId?: string;
 };
@@ -233,6 +235,8 @@ function workbookFiles(input: OnyxOrderWorkbookInput): { name: string; content: 
     ['رقم الطلب', input.orderNumber],
     ['المعرف الداخلي للطلب', input.orderId],
     ['معرف سجل التدقيق المركزي', input.exportAuditId ?? 'غير متاح قبل تسجيل حدث التصدير'],
+    ['معرف لقطة مصدر أونكس المختارة', input.sourceSnapshotId ?? 'لم يتم ربط لقطة مصدر'],
+    ['تنبيه تتبع المصدر', input.sourceSnapshotId ? 'مطابقة كل بند ونتيجة الربط موثقة في سجل تدقيق التصدير' : 'لم يحدد المستخدم لقطة مصدر؛ لا تفترض مطابقة خارجية'],
     ['تاريخ الطلب', input.orderCreatedAt],
     ['حالة الطلب', input.orderStatus],
     ['رقم العميل', input.customerCode],

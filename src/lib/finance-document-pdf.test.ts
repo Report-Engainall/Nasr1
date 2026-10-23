@@ -122,12 +122,12 @@ describe("Arabic customer finance PDFs", () => {
 
   it("validates and resolves authoritative full-ledger summaries without numeric precision loss", () => {
     const source = [
-      { currency: "YER", invoiced: "150000000000.25", paid: "50000000000.25", outstanding: "100000000000.00", overdue_invoice_count: 7, overdue_outstanding: "80000000000.00", unknown_due_date_invoice_count: 2, unknown_due_date_outstanding: "10000000000.00" },
-      { currency: "USD", invoiced: "40.00", paid: "0.00", outstanding: "40.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 1, unknown_due_date_outstanding: "40.00" },
+      { currency: "YER", invoiced: "150000000000.25", paid: "50000000000.25", credited: "0.00", outstanding: "100000000000.00", overdue_invoice_count: 7, overdue_outstanding: "80000000000.00", unknown_due_date_invoice_count: 2, unknown_due_date_outstanding: "10000000000.00" },
+      { currency: "USD", invoiced: "40.00", paid: "0.00", credited: "0.00", outstanding: "40.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 1, unknown_due_date_outstanding: "40.00" },
     ];
     const expected = [
-      { currency: "USD", invoiced: 4000n, paid: 0n, outstanding: 4000n, overdueInvoiceCount: 0, overdueOutstanding: 0n, unknownDueDateInvoiceCount: 1, unknownDueDateOutstanding: 4000n },
-      { currency: "YER", invoiced: 15000000000025n, paid: 5000000000025n, outstanding: 10000000000000n, overdueInvoiceCount: 7, overdueOutstanding: 8000000000000n, unknownDueDateInvoiceCount: 2, unknownDueDateOutstanding: 1000000000000n },
+      { currency: "USD", invoiced: 4000n, paid: 0n, credited: 0n, outstanding: 4000n, overdueInvoiceCount: 0, overdueOutstanding: 0n, unknownDueDateInvoiceCount: 1, unknownDueDateOutstanding: 4000n },
+      { currency: "YER", invoiced: 15000000000025n, paid: 5000000000025n, credited: 0n, outstanding: 10000000000000n, overdueInvoiceCount: 7, overdueOutstanding: 8000000000000n, unknownDueDateInvoiceCount: 2, unknownDueDateOutstanding: 1000000000000n },
     ];
     expect(normalizeCustomerStatementCurrencySummary(source)).toEqual(expected);
     expect(resolveCustomerStatementCurrencySummary(
@@ -183,8 +183,8 @@ describe("Arabic customer finance PDFs", () => {
       ],
       summary_as_of_utc: "2026-10-18T12:00:00.000Z",
       summary: [
-        { currency: "YER", invoiced: "150.00", paid: "50.00", outstanding: "100.00", overdue_invoice_count: 2, overdue_outstanding: "80.00", unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: "0.00" },
-        { currency: "USD", invoiced: "40.00", paid: "0.00", outstanding: "40.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 1, unknown_due_date_outstanding: "40.00" },
+        { currency: "YER", invoiced: "150.00", paid: "50.00", credited: "0.00", outstanding: "100.00", overdue_invoice_count: 2, overdue_outstanding: "80.00", unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: "0.00" },
+        { currency: "USD", invoiced: "40.00", paid: "0.00", credited: "0.00", outstanding: "40.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 1, unknown_due_date_outstanding: "40.00" },
       ],
     };
 
