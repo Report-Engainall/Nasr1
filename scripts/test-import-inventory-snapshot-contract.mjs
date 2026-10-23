@@ -23,9 +23,10 @@ const fileHash = "a".repeat(64);
 const chunkHash = "c".repeat(64);
 
 async function setIdentity(authUserId = managerAuthId, email = managerEmail) {
+  await db.unsafe("insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now(),now(),now(),null,'CI isolated session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null", [authUserId, authUserId]);
   await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [authUserId]);
   await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
-    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
+    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated", session_id: authUserId }),
   ]);
 }
 
