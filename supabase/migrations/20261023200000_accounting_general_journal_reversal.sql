@@ -32,9 +32,7 @@ CREATE POLICY accounting_journal_reversals_finance_read_same_org
          AND p.is_active = true
     )
   );
-GRANT SELECT ON public.accounting_journal_reversals TO authenticated;
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
-  ON public.accounting_journal_reversals FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON public.accounting_journal_reversals FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.reverse_general_journal_entry(
   p_entry_id uuid,
@@ -313,3 +311,40 @@ BEFORE UPDATE OF status ON public.accounting_journal_entries
 FOR EACH ROW
 WHEN (OLD.status = 'draft' AND NEW.status = 'posted')
 EXECUTE FUNCTION public.accounting_validate_general_journal_reversal_post();
+
+-- The workspace asks only about the entries on the current page; never scan all reversal links from the browser.
+CREATE OR REPLACE FUNCTION public.fetch_general_journal_reversal_links(
+  p_entry_ids uuid[]
+) RETURNS TABLE(original_journal_entry_id uuid, reversal_journal_entry_id uuid)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $
+DECLARE
+  v_actor uuid := public.current_profile_id();
+  v_org uuid;
+BEGIN
+  SELECT p.organization_id INTO v_org
+    FROM public.profiles p
+   WHERE p.id = v_actor
+     AND p.auth_user_id = auth.uid()
+     AND p.is_active = true;
+  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
+     OR NOT public.can_manage_finance() THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'finance permission required';
+  END IF;
+  IF p_entry_ids IS NULL OR pg_catalog.cardinality(p_entry_ids) NOT BETWEEN 1 AND 100
+     OR EXISTS (SELECT 1 FROM pg_catalog.unnest(p_entry_ids) AS requested(id) WHERE requested.id IS NULL) THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'between 1 and 100 journal entry ids are required';
+  END IF;
+  RETURN QUERY
+    SELECT r.original_journal_entry_id, r.reversal_journal_entry_id
+      FROM public.accounting_journal_reversals r
+     WHERE r.organization_id = v_org
+       AND (r.original_journal_entry_id = ANY(p_entry_ids)
+         OR r.reversal_journal_entry_id = ANY(p_entry_ids));
+END;
+$;
+REVOKE ALL ON FUNCTION public.fetch_general_journal_reversal_links(uuid[]) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.fetch_general_journal_reversal_links(uuid[]) TO authenticated;
