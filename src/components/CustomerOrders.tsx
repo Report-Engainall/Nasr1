@@ -128,6 +128,11 @@ function MyOrdersInner() {
         </select>
       </div>
       {loading && <p role="status">جارٍ تحميل الطلبات...</p>}
+      {!loading && !error && totalCount !== null && (
+        <p role="status" aria-label="إجمالي نتائج الطلبات">
+          {'إجمالي النتائج: ' + formatNumber(totalCount) + (statusFilter === 'all' ? ' طلب' : ' طلب بهذه الحالة')}
+        </p>
+      )}
       {error && <div style={card} role="alert">{error} <button type="button" className="sf-link" onClick={() => void load()}>إعادة المحاولة</button></div>}
       {data && data.length === 0 && totalCount === 0 && !loading && !error && <div style={{ ...card, textAlign: 'center' }}><FileText size={32} /><p>{statusFilter === 'all' ? 'لا توجد طلبات بعد.' : 'لا توجد طلبات بهذه الحالة.'}</p><Link to="/" className="sf-btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '10px 18px' }}>ابدأ التسوق</Link></div>}
       {data && data.length > 0 && !error && (

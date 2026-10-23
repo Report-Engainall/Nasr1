@@ -156,7 +156,7 @@ describe("customer order history pagination", () => {
     expect(mocks.filters).toContainEqual({ column: "status", value: "delivered" });
     expect(mocks.ranges.at(-1)).toEqual([0, 24]);
     expect(host?.textContent).toContain("DELIVERED-1");
-    expect(host?.textContent).toContain("إجمالي النتائج: 5");
+    expect(host?.textContent).toContain("إجمالي النتائج: ٥");
     expect(host?.textContent).not.toContain("ORDER-001");
     expect(host?.textContent).not.toContain("صفحة 1 من 2");
   });
