@@ -43,11 +43,21 @@ export function AdvancedStorefrontSearchPage() {
           {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
         </select>
       </label>
-      {categoryQuery.loading && <p role="status">جار تحميل التصنيفات...</p>}
+      {categoryQuery.loading && (
+        <p role="status">جار تحميل التصنيفات...</p>
+      )}
       {categoryQuery.error && (
         <div role="alert" style={{ display: "grid", gap: 8 }}>
-          <p style={{ margin: 0 }}>تعذر تحميل التصنيفات: {categoryQuery.error}. يمكنك البحث بالاسم أو الرمز.</p>
-          <button type="button" className="sf-btn-secondary" onClick={() => { void categoryQuery.refetch(); }}>
+          <p style={{ margin: 0 }}>
+            تعذر تحميل التصنيفات: {categoryQuery.error}. يمكنك البحث بالاسم أو الرمز.
+          </p>
+          <button
+            type="button"
+            className="sf-btn-secondary"
+            onClick={() => {
+              void categoryQuery.refetch();
+            }}
+          >
             إعادة تحميل التصنيفات
           </button>
         </div>
