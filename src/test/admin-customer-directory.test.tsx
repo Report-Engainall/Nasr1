@@ -196,4 +196,55 @@ describe('admin customer directory paging', () => {
     expect(mocks.fetchPage).toHaveBeenCalledTimes(1);
   });
 
+
+  it('shows loading and error states, retries safely, and renders the server-confirmed empty search state', async () => {
+    let rejectInitial: ((reason: Error) => void) | undefined;
+    mocks.fetchPage.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      rejectInitial = reject;
+    }));
+
+    await act(async () => {
+      root?.render(<Customers onNotice={vi.fn()} />);
+    });
+    expect(host?.textContent).toContain('جار تحميل دليل العملاء...');
+    expect(rejectInitial).toBeTypeOf('function');
+
+    await act(async () => {
+      rejectInitial?.(new Error('تعذر الاتصال مؤقتًا'));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host?.textContent).toContain('تعذر تحميل البيانات.');
+    expect(host?.textContent).toContain('تعذر الاتصال مؤقتًا');
+
+    const retryButton = [...(host?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent?.trim() === 'تحديث');
+    expect(retryButton).toBeTruthy();
+    expect(retryButton?.disabled).toBe(false);
+    await act(async () => {
+      retryButton?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mocks.fetchPage).toHaveBeenCalledTimes(2);
+    expect(host?.textContent).toContain('متجر 1');
+    expect(host?.textContent).not.toContain('تعذر تحميل البيانات.');
+
+    mocks.fetchPage.mockImplementationOnce(async ({ search, page, pageSize }: { search: string; page: number; pageSize: number }) => ({
+      rows: [], totalCount: 0, page, pageSize,
+    }));
+    const searchInput = host?.querySelector<HTMLInputElement>('input[aria-label="البحث في دليل العملاء"]');
+    await act(async () => {
+      if (searchInput) {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(searchInput, 'لا يوجد تطابق');
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    await act(async () => {
+      [...(host?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+        .find((button) => button.textContent?.trim() === 'بحث')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mocks.fetchPage).toHaveBeenLastCalledWith({ search: 'لا يوجد تطابق', page: 1, pageSize: 25 });
+    expect(host?.textContent).toContain('لا توجد نتائج مطابقة للبحث.');
+  });
+
 });
