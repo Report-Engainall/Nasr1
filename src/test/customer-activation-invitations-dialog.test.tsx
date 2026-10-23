@@ -110,6 +110,19 @@ describe("customer activation invitation dialog", () => {
     expect(confirm).toHaveBeenCalledTimes(1);
   });
 
+  it("fails closed when the customer invitation status cannot be loaded, then allows retry", async () => {
+    mocks.fetchWorkspace.mockRejectedValueOnce(new Error("تعذر تحميل سجل الدعوات"));
+    render(<CustomerActivationInvitationDialog customer={CUSTOMER} onClose={vi.fn()} />);
+
+    expect(await screen.findByText(/لن يُسمح بإنشاء دعوة حتى يُحمّل سجل الدعوات بنجاح/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "إنشاء رابط تفعيل صالح 72 ساعة" })).not.toBeInTheDocument();
+    expect(mocks.createInvite).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة" }));
+    expect(await screen.findByRole("button", { name: "إنشاء رابط تفعيل صالح 72 ساعة" })).toBeInTheDocument();
+    expect(mocks.createInvite).not.toHaveBeenCalled();
+  });
+
   it("does not permit invitations for unapproved or already linked records", async () => {
     const otherId = "33333333-3333-4333-8333-333333333333";
     const { rerender } = render(<CustomerActivationInvitationDialog customer={{ ...CUSTOMER, status: "pending" }} onClose={vi.fn()} />);
