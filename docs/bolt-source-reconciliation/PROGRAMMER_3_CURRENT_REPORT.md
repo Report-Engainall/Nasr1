@@ -1,13 +1,13 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T16:10:00+03:00
+UPDATED_AT: 2026-10-23T16:17:00+03:00
 
 ## Git and current execution
 - Repository: Report-Engainall/Nasr1
 - PR #89: https://github.com/Report-Engainall/Nasr1/pull/89
 - Branch: `p3/catalog-screen-error-states-20261023`
 - Main/base observed: `59547c7d683cefd65cab445b97219aa701021676`; parent before this batch: `22718ee03fc8bb9074d0f8444b701d04c8623669`.
-- Task `P3-CUST-ROUTE-LOAD-008`: five independent customer/auth route wrappers replace blank hydration fallbacks with semantic Arabic RTL loading states. New exact-SHA Core/P2 checks for this commit are pending.
+- Task `P3-STORE-HYDRATION-009`: fixed the storefront root `/` hydration fallback that previously rendered an empty decorative `<div>` with no announced loading state. It now renders Arabic RTL `<main role="status">جار تحميل المتجر...</main>`; the parameterized customer-route regression test imports the real root route with a mocked Storefront and asserts the status, tag, direction and text. Code/test commit: `d10920e7d818e38d5c74bea06104bcc4609a4c46`. At last readback, exact-SHA Core run `39959839014` and P2 run `39959838829` were queued. This report sync creates a documentation-only successor commit; verify its exact-head checks before claiming current-head PASS.
 
 ## Implemented task IDs
 - `P3-CAT-ERR-001`: category fetch failure, catalog failure, and combined failure separated on `/categories` and `/collections`, with source detail and retry.
@@ -17,7 +17,8 @@ UPDATED_AT: 2026-10-23T16:10:00+03:00
 - `P3-CUST-ROUTE-LOAD-005`: loading status on `/orders/$id`, `/orders/`, `/invoices`, and `/statement`.
 - `P3-CUST-ROUTE-LOAD-006`: loading status on `/assistant`, `/barcode`, and `/offline`.
 - `P3-TEST-QUALITY-007`: category regression includes a published target-category item, inactive rows and an active other-category row; it asserts exact count/link. Removed a vacuous route-stub assertion and added the runtime Reports mount test.
-- `P3-CUST-ROUTE-LOAD-008`: `/login`, `/forgot-password`, `/register`, `/quotes`, and `/reorder` now provide Arabic RTL `role="status"` hydration fallbacks. The shared parameterized route test covers all twelve customer routes now changed. Route wrappers only; no auth provider or backend code changed.
+- `P3-CUST-ROUTE-LOAD-008`: `/login`, `/forgot-password`, `/register`, `/quotes`, and `/reorder` provide Arabic RTL `role="status"` hydration fallbacks; the shared parameterized test covers those routes alongside the seven prior routes.
+- `P3-STORE-HYDRATION-009`: root `/` previously had a blank `ClientOnly` fallback, leaving no visible or semantic loading state before hydration. It now has a semantic Arabic RTL main/status fallback and a parameterized regression test. Scope: `src/routes/index.tsx` and `src/test/customer-route-loading.test.tsx`.
 
 ## Exact-SHA evidence
 - Core [39958335414](https://github.com/Report-Engainall/Nasr1/actions/runs/39958335414) on parent `22718ee03fc8bb9074d0f8444b701d04c8623669`: SUCCESS. This proves the previous review-remediation batch, not the five new route changes.
