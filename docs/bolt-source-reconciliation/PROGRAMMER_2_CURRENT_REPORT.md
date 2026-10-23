@@ -1,14 +1,15 @@
-# تحديث P2 الحي — 23 أكتوبر 2026، 2026-10-23T17:10:00+03:00
+# تحديث P2 الحي — 23 أكتوبر 2026، 2026-10-23T17:20:00+03:00
 
 هذا القسم هو الحالة الأحدث؛ الأقسام أدناه سجل تاريخي ولا تنقل PASS بين الرؤوس.
 
-- **main:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`. Core [39966840332](https://github.com/Report-Engainall/Nasr1/actions/runs/39966840332) = IN_PROGRESS. الفرق عن main السابق توثيقي فقط في ملفي P1 report/checkpoint.
-- **PR #83 / AUTH-CENTRAL-SESSION-BACKEND-P2:** head `d2706613906ab401a28628de101a500b8b80b2d5`, base `59547c...`, OPEN/Draft. Core [39966420997](https://github.com/Report-Engainall/Nasr1/actions/runs/39966420997) = SUCCESS ويحتوي على `PASS central session management`. P2 [39966421033](https://github.com/Report-Engainall/Nasr1/actions/runs/39966421033) = IN_PROGRESS عند تثبيت Chromium OS dependencies من browser cache. لا دمج قبل النتيجة النهائية.
-- **تصحيح أمني:** `can_manage_finance()` مربوط الآن بـ`current_profile_id()` ويحتفظ بأدوار `admin/manager/accountant`. الرأس `1f60e27...` فشل Core لأن دور accountant سقط من القائمة؛ أُصلح في `d270661...` ونجح Core على الرأس الحالي.
-- **تزامن main:** تحديث P1 نقل main إلى `f7565a...` خلال العمل، وهو تغيير وثائقي فقط. بعد نتيجة P2، حدّث فرع #83 إلى main الحالي بدمج غير قسري وأعد Core/P2 على SHA الناتج.
-- **PR #95 / FIN-INVOICE-001:** head `024e155a2135a104a7dc1c6d8ced7e2018b0a467`. Core [39964921878](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921878) وP2 [39964921887](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921887) = SUCCESS على الرأس نفسه؛ Core log صرّح `PASS staff receivables aging`. PR #95 Ready for review ولم يُدمج؛ حدّثه وأعد CI فوق main بعد دمج #83.
-- **الترتيب التالي:** `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`; بعد نجاح P2 على الرأس النهائي ومراجعة الأمان، ادمج #83، ثم حدّث #95 فوق main الجديد واختبره، ثم انتقل إلى #82.
-- **حدود الإثبات:** Onyx live sync/target import وWhatsApp Business API الرسمي = `BLOCKED_EXTERNAL`; production restore = `NOT RUN`. Hosted account E2E بقي SKIPPED لغياب اعتمادات اختبار غير إنتاجية.
+- **main:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`; Core [39966840332](https://github.com/Report-Engainall/Nasr1/actions/runs/39966840332) = IN_PROGRESS. فرق main توثيقي فقط في ملفات P1.
+- **PR #83:** current head `8b4135131533114d3d6efa023f6ddb4c8032384f`, base `59547c...`, OPEN/Draft. Core [39968149759](https://github.com/Report-Engainall/Nasr1/actions/runs/39968149759) = IN_PROGRESS; P2 [39968149719](https://github.com/Report-Engainall/Nasr1/actions/runs/39968149719) = QUEUED on exact head.
+- **Previous exact-head proof:** `d270661...` Core [39966420997](https://github.com/Report-Engainall/Nasr1/actions/runs/39966420997) = SUCCESS and contained `PASS central session management`. P2 [39966421033](https://github.com/Report-Engainall/Nasr1/actions/runs/39966421033) stalled at apt-backed `playwright install-deps chromium` for a cache hit; no terminal proof from that run.
+- **Workflow fix pushed:** cached Chromium flows now inspect `ldd` first and skip OS package installation when no linked libraries are missing. If missing, dependency installation is bounded with an eight-minute timeout. Current head has not yet proved this fix; require both exact-head runs.
+- **Security gate fix:** `can_manage_finance()` remains limited to existing `admin/manager/accountant` roles and now requires a live-session-backed `current_profile_id()`. The prior omission of accountant caused a Core failure at `1f60e27...`; fixed at `d270661...`.
+- **PR #95:** head `024e155a2135a104a7dc1c6d8ced7e2018b0a467`. Core [39964921878](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921878) + P2 [39964921887](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921887) = SUCCESS on same head; log contains `PASS staff receivables aging`. It is Ready for review but should be rebased/merged only after #83 due migration order and then retested if SHA changes.
+- **Next:** `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`; finish exact-head checks, update PR83 to current main non-forcibly, rerun, and merge only after terminal PASS; then update/retest #95 and continue to #82.
+- External Onyx live sync/import, official WhatsApp API and production restore remain `BLOCKED_EXTERNAL` / `NOT RUN`. Hosted-account E2E remains SKIPPED for missing non-production credentials.
 # تصحيح الحالة التنفيذية لـP2 — 22 أكتوبر 2026
 
 **مرجع أحدث من السجل التاريخي أدناه.** تقارير هذا الملف تحافظ على أحداثها القديمة؛ أي جملة في الأسفل تفيد بأن PR #18 أو #26 ما زال مفتوحًا، أو أن تكامل خصوصية أسعار Storefront لم يحدث، تعود إلى نقطة قراءة تاريخية ولا تمثل main الحالي.
