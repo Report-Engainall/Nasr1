@@ -141,6 +141,41 @@ describe("finance document printing UI", () => {
     expect(popup.document.body.textContent).toContain("مُرحّل محاسبيًا");
   });
 
+  it("prints a reversed credit memo only with visible reversal evidence", async () => {
+    const reversedOptions = {
+      ...options,
+      credit_memos: options.credit_memos.map((row) => ({ ...row, status: "reversed" })),
+    };
+    const reversedPayload = {
+      ...creditMemoPayload,
+      memo: {
+        ...creditMemoPayload.memo,
+        status: "reversed",
+        reversed_at: "2026-10-20T03:00:00Z",
+        reversal_reason: "Approved correction of the source-linked return credit.",
+        reversal_journal_entry_number: "52",
+        reversal_journal_status: "posted",
+      },
+    };
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_finance_document_print_options") return { data: reversedOptions, error: null };
+      if (name === "get_customer_return_credit_memo_pdf") return { data: reversedPayload, error: null };
+      return { data: null, error: { message: "unexpected RPC " + name } };
+    });
+
+    render(<FinanceDocumentPrintActions />);
+    await screen.findByRole("option", { name: /INV-TEST-0009/ });
+    fireEvent.change(screen.getByLabelText("نوع المستند المالي"), { target: { value: "credit_memo" } });
+    await screen.findByRole("option", { name: /CRM-TEST-001.*معكوس ماليًا/ });
+    fireEvent.click(screen.getByRole("button", { name: /فتح نافذة الطباعة/ }));
+    expect(await screen.findByText(/تم تجهيز المستند/)).toBeInTheDocument();
+    expect(popup.document.body.textContent).toContain("معكوس ماليًا");
+    expect(popup.document.body.textContent).toContain("رقم قيد العكس");
+    expect(popup.document.body.textContent).toContain("Approved correction of the source-linked return credit.");
+    expect(popup.document.body.textContent).toContain("52");
+    expect(popup.document.body.textContent).toContain("لا يمثل رصيدًا دائنًا قائمًا");
+  });
+
   it("closes the print popup and reports a server authorization failure", async () => {
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === "get_finance_document_print_options") return { data: options, error: null };

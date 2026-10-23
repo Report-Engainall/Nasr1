@@ -84,10 +84,41 @@ export function buildOnyxSourceEvidenceCsv(evidence: OnyxSnapshotSourceEvidence)
     }
   }
 
-  add("live_sync_evidence", "", "status", evidence.live_sync_evidence.status);
-  add("live_sync_evidence", "", "live_connection_proven", evidence.live_sync_evidence.live_connection_proven);
-  add("live_sync_evidence", "", "last_live_sync_at", "NOT_AVAILABLE_IN_EVIDENCE_MODEL");
-  add("live_sync_evidence", "", "message", evidence.live_sync_evidence.message);
+  const live = evidence.live_sync_evidence;
+  add("live_sync_evidence", "", "status", live.status);
+  add("live_sync_evidence", "", "live_connection_proven", live.live_connection_proven);
+  add("live_sync_evidence", "", "snapshot_sync_proven", live.snapshot_sync_proven);
+  add("live_sync_evidence", "", "message", live.message);
+
+  const addAttempt = (section: string, attempt: OnyxSnapshotSourceEvidence["live_sync_evidence"]["last_sync_attempt"]) => {
+    add(section, "", "available", Boolean(attempt));
+    if (!attempt) {
+      add(section, "", "status", "NOT_RECORDED");
+      add(section, "", "started_at", "NOT_RECORDED");
+      add(section, "", "completed_at", "NOT_RECORDED");
+      add(section, "", "error_code", "NOT_RECORDED");
+      add(section, "", "error_summary", "NOT_RECORDED");
+      add(section, "", "request_sha256", "NOT_AVAILABLE");
+      add(section, "", "response_sha256", "NOT_AVAILABLE");
+      return;
+    }
+    add(section, "", "id", attempt.id);
+    add(section, "", "operation", attempt.operation);
+    add(section, "", "status", attempt.status);
+    add(section, "", "snapshot_id", attempt.snapshot_id ?? "NOT_ASSOCIATED");
+    add(section, "", "order_id", attempt.order_id ?? "NOT_ASSOCIATED");
+    add(section, "", "started_at", attempt.started_at);
+    add(section, "", "completed_at", attempt.completed_at ?? "NOT_COMPLETED");
+    add(section, "", "http_status", attempt.http_status ?? "NOT_RECORDED");
+    add(section, "", "external_request_id", attempt.external_request_id ?? "NOT_RECORDED");
+    add(section, "", "error_code", attempt.error_code ?? "NONE_RECORDED");
+    add(section, "", "error_summary", attempt.error_summary ?? "NONE_RECORDED");
+    add(section, "", "request_sha256", attempt.request_sha256);
+    add(section, "", "response_sha256", attempt.response_sha256 ?? "NOT_AVAILABLE");
+  };
+  addAttempt("last_sync_attempt", live.last_sync_attempt);
+  addAttempt("latest_successful_connection", live.latest_successful_connection);
+  addAttempt("snapshot_sync_success", live.snapshot_sync_success);
 
   return rows.join("\r\n") + "\r\n";
 }

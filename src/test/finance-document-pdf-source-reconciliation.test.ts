@@ -55,14 +55,14 @@ describe("finance PDF source integration — authoritative financial rendering",
   it("rejects malformed or arithmetically inconsistent authoritative summaries", () => {
     expect(() => normalizeCustomerStatementCurrencySummary({})).toThrow("not an array");
     expect(() => normalizeCustomerStatementCurrencySummary([
-      { currency: "USD", invoiced: "10.00", paid: "0.00", outstanding: "10.00", overdue_invoice_count: 1, overdue_outstanding: "4.00", unknown_due_date_invoice_count: 1, unknown_due_date_outstanding: "7.00" },
+      { currency: "USD", invoiced: "10.00", paid: "0.00", credited: "0.00", outstanding: "10.00", overdue_invoice_count: 1, overdue_outstanding: "4.00", unknown_due_date_invoice_count: 1, unknown_due_date_outstanding: "7.00" },
     ])).toThrow("aging buckets exceed");
     expect(() => normalizeCustomerStatementCurrencySummary([
-      { currency: "USD", invoiced: "-1.00", paid: "0.00", outstanding: "0.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: "0.00" },
+      { currency: "USD", invoiced: "-1.00", paid: "0.00", credited: "0.00", outstanding: "0.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: "0.00" },
     ])).toThrow("negative monetary balance");
     expect(() => normalizeCustomerStatementCurrencySummary([
-      { currency: "USD", invoiced: "10.00", paid: "0.00", outstanding: "10.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: "0.00" },
-      { currency: "usd", invoiced: "5.00", paid: "0.00", outstanding: "5.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: "0.00" },
+      { currency: "USD", invoiced: "10.00", paid: "0.00", credited: "0.00", outstanding: "10.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: "0.00" },
+      { currency: "usd", invoiced: "5.00", paid: "0.00", credited: "0.00", outstanding: "5.00", overdue_invoice_count: 0, overdue_outstanding: "0.00", unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: "0.00" },
     ])).toThrow("duplicate currency");
   });
 
@@ -208,6 +208,7 @@ describe("finance PDF source integration — authoritative financial rendering",
         currency: "YER",
         invoiced: "10.00",
         paid: "0.00",
+        credited: "0.00",
         outstanding: "10.00",
         overdue_invoice_count: 1,
         overdue_outstanding: "10.00",
@@ -216,4 +217,57 @@ describe("finance PDF source integration — authoritative financial rendering",
       }],
     }, loadArabicDocumentFont(), generatedAt)).rejects.toThrow("Statement summary is missing its valid as-of timestamp.");
   });
+  it("subtracts a posted credit memo once from per-invoice and full currency aging totals", () => {
+    const invoices = [{
+      id: "credit-source",
+      invoice_number: "INV-CREDIT-001",
+      status: "issued",
+      issued_at: "2026-10-01T00:00:00.000Z",
+      due_at: "2026-10-10T00:00:00.000Z",
+      currency: "YER",
+      total_amount: "500.00",
+      paid_amount: "100.00",
+      credit_memo_amount: "125.00",
+      outstanding_amount: "275.00",
+    }];
+    const payments = [{ invoice_id: "credit-source", amount: "100.00", paid_at: "2026-10-05T00:00:00.000Z" }];
+    const result = buildCustomerStatementCurrencySummary(invoices, payments, generatedAt);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      currency: "YER", invoiced: 50000n, paid: 10000n, credited: 12500n,
+      outstanding: 27500n, overdueInvoiceCount: 1, overdueOutstanding: 27500n,
+    });
+    expect(resolveCustomerStatementInvoiceStatus(invoices[0], 10000n, generatedAt, 12500n)).toBe("متأخرة جزئيًا");
+    expect(resolveCustomerStatementInvoiceStatus(invoices[0], 10000n, generatedAt, 40000n)).toBe("مسوّاة بإشعار دائن");
+  });
+
+  it("renders posted credit memo evidence and its authoritative total in the customer statement PDF", async () => {
+    const bytes = await buildCustomerStatementPdf({
+      invoices: [{
+        id: "credit-source", invoice_number: "INV-CREDIT-001", status: "issued",
+        issued_at: "2026-10-01T00:00:00.000Z", due_at: "2026-10-10T00:00:00.000Z",
+        currency: "YER", total_amount: "500.00", paid_amount: "100.00",
+        credit_memo_amount: "125.00", outstanding_amount: "275.00",
+      }],
+      payments: [{ invoice_id: "credit-source", amount: "100.00", paid_at: "2026-10-05T00:00:00.000Z" }],
+      credits: [{ id: "credit-1", invoice_id: "credit-source", invoice_number: "INV-CREDIT-001",
+        memo_number: "CRM-001", currency: "YER", total_amount: "125.00", posted_at: "2026-10-15T00:00:00.000Z" }],
+      summary: [{ currency: "YER", invoiced: "500.00", paid: "100.00", credited: "125.00",
+        outstanding: "275.00", overdue_invoice_count: 1, overdue_outstanding: "275.00",
+        unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: "0.00" }],
+      summary_as_of_utc: "2026-10-19T00:00:00.000Z",
+    }, loadArabicDocumentFont(), generatedAt);
+    const pdf = await PDFDocument.load(bytes);
+    expect(pdf.getPageCount()).toBeGreaterThan(0);
+    expect(pdf.getTitle()).toContain("كشف الحساب");
+  });
+
+  it("fails closed when an authoritative statement summary omits posted-credit totals", () => {
+    expect(() => normalizeCustomerStatementCurrencySummary([{
+      currency: "YER", invoiced: "10.00", paid: "0.00", outstanding: "10.00",
+      overdue_invoice_count: 0, overdue_outstanding: "0.00",
+      unknown_due_date_invoice_count: 0, unknown_due_date_outstanding: "0.00",
+    }])).toThrow("missing posted-credit totals");
+  });
+
 });
