@@ -589,7 +589,7 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
               <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {canReadCustomer360 && <Button variant="outline" onClick={() => setSelectedCustomer(c)}>ملف 360</Button>}
                 {canReadCustomer360 && <Button variant="outline" onClick={() => setTierCustomer(c)}>تغيير الشريحة</Button>}
-                {canManageCustomerActivation && c.status === 'approved' && <Button variant="outline" onClick={() => setActivationCustomer(c)}>دعوة تفعيل</Button>
+                {canManageCustomerActivation && c.status === 'approved' && <Button variant="outline" onClick={() => setActivationCustomer(c)}>دعوة تفعيل</Button>}
                 {c.status === 'pending' && <Button onClick={() => void status(c.id, 'approved')} disabled={busyCustomerId !== null}>{busyCustomerId === c.id ? 'جار الاعتماد...' : 'اعتماد'}</Button>}
               </div></td>
             </tr>)}</tbody>
