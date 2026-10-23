@@ -15,6 +15,13 @@ describe('retryRead', () => {
     expect(isTransientReadFailure(new TypeError('Failed to fetch'))).toBe(true);
   });
 
+  it('classifies wrapped Supabase/PostgREST network failures as transient', () => {
+    expect(isTransientReadFailure({ status: 0, message: 'TypeError: Failed to fetch' })).toBe(true);
+    expect(isTransientReadFailure({ name: 'FetchError', message: 'Failed to fetch' })).toBe(true);
+    expect(isTransientReadFailure({ code: 'FETCH_ERROR' })).toBe(true);
+    expect(isTransientReadFailure({ status: 403, message: 'permission denied' })).toBe(false);
+  });
+
   it('retries a transient read with bounded backoff and then succeeds', async () => {
     let calls = 0;
     const delays: number[] = [];

@@ -59,7 +59,60 @@ async function main(){
    await db.unsafe("select public.complete_ai_gateway_usage_v2($1::uuid,$2::bigint,$3::bigint,$4::numeric,$5::bigint,$6::text,$7::text,$8::text,$9::boolean,$10::bigint,$11::bigint,$12::text,$13::jsonb)",
     [first.reservation_id,10,20,0.02,85,"openai_compatible","ci-primary","completed",false,10,20,"measured",db.json(good)]);
   },/permission denied/i);
-  process.stdout.write("PASS AI usage telemetry: measured/partial/unknown, no-provider, idempotency, quota denial, and service-only RPCs\\n");
+  // AI-001: the same live-session boundary must guard budget read/configure RPCs.
+  const budgetSettings = {
+    primary_provider: "openai_compatible",
+    primary_model: "ci-primary",
+    primary_base_url: "https://api.openai.com/v1",
+    fallback_provider: "gemini",
+    fallback_model: "ci-fallback",
+    fallback_base_url: "https://generativelanguage.googleapis.com/v1beta",
+    daily_cost_limit: 0.12,
+    monthly_cost_limit: 0.5,
+    daily_token_limit: 3000,
+    monthly_token_limit: 10000,
+    per_request_cost_limit: 0.05,
+    ai_enabled: true,
+    fallback_enabled: true,
+  };
+  await db.unsafe("set role authenticated");
+  const currentBudget = await db.unsafe("select public.get_ai_gateway_budget() as result");
+  assert.equal(currentBudget[0].result.organization_id, org,
+    "a live administrator session can read only its organization's AI budget");
+  const configuredBudget = await db.unsafe(
+    "select public.configure_ai_usage_budget($1::jsonb) as result",
+    [db.json(budgetSettings)],
+  );
+  assert.equal(configuredBudget[0].result.organization_id, org,
+    "a live administrator session can configure its organization's AI budget");
+  assert.equal(configuredBudget[0].result.ai_enabled, true);
+  await db.unsafe("reset role");
+  const budgetAudit = await db.unsafe(
+    "select updated_by from public.ai_usage_budgets where organization_id=$1",
+    [org],
+  );
+  assert.equal(budgetAudit[0]?.updated_by, profile,
+    "AI budget changes remain attributed to the active profile");
+
+  // Keep the JWT/session_id claim but revoke the backing Auth session row.
+  // A correctly guarded RPC must reject this stale-but-not-expired token.
+  await db.unsafe("delete from auth.sessions where id=$1::uuid and user_id=$1::uuid", [user]);
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "revoked session cannot read AI budget using a still-present JWT",
+    () => db.unsafe("select public.get_ai_gateway_budget()"),
+    /AI gateway settings require administrator or manager/,
+  );
+  await expectFailure(
+    "revoked session cannot mutate AI budget using a still-present JWT",
+    () => db.unsafe(
+      "select public.configure_ai_usage_budget($1::jsonb)",
+      [db.json({ ...budgetSettings, daily_cost_limit: 0.13 })],
+    ),
+    /AI gateway settings require administrator or manager/,
+  );
+  await db.unsafe("reset role");
+  process.stdout.write("PASS AI usage telemetry: measured/partial/unknown, no-provider, idempotency, quota denial, service-only RPCs, and live-session revocation\\n");
  }finally{try{await db.unsafe("RESET ROLE");}catch{}try{await db.unsafe("ROLLBACK");}catch{}try{await db.unsafe("select set_config('request.jwt.claim.sub','',false)");}catch{}try{await db.unsafe("select set_config('request.jwt.claims','',false)");}catch{}}
 }
 try{await main();}catch(cause){const e=cause&&typeof cause==="object"?cause:{message:String(cause)};process.stderr.write("AI_GATEWAY_USAGE_TELEMETRY_ACCEPTANCE_FAILED "+JSON.stringify({name:e.name,message:e.message,code:e.code,detail:e.detail,hint:e.hint,where:e.where,constraint:e.constraint})+"\\n");throw cause;}finally{await db.end({timeout:5});}
