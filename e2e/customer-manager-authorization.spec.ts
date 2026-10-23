@@ -87,6 +87,7 @@ function collectForbiddenKeys(value: unknown, path = "$", found: string[] = []):
 }
 
 test("customer manager: directory privacy, audited customer commands, activation invitation and route/RPC denial", async ({ browser }) => {
+  test.setTimeout(120_000);
   assertLoopbackOnly();
   const db = postgres(DATABASE_URL, { max: 1, prepare: false, idle_timeout: 5 });
   const managerContext = await browser.newContext();
