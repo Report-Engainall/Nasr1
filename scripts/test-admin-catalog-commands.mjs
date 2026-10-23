@@ -884,6 +884,116 @@ async function main() {
     root, admin, customer, org, adminAuth, customerAuth, foreignProduct,
   });
 
+  // Prove the dedicated customer_manager role gets a server-scoped, non-financial directory,
+  // can run only the audited customer commands, and cannot read the base table or manage staff roles.
+  const managerProfileId = (await root.unsafe(
+    "select id from public.profiles where auth_user_id=$1 and organization_id=$2 and is_active=true",
+    [adminAuth, org],
+  ))[0]?.id;
+  assert.ok(managerProfileId, "CI customer-manager fixture profile must exist in the active organization");
+  const originalManagerRoles = await root.unsafe(
+    "select role from public.user_roles where profile_id=$1 order by role",
+    [managerProfileId],
+  );
+  assert.ok(originalManagerRoles.some((entry) => entry.role === "admin"),
+    "the fixture account must begin with its administrator role");
+  try {
+    await root.unsafe("delete from public.user_roles where profile_id=$1", [managerProfileId]);
+    await root.unsafe(
+      "insert into public.user_roles(profile_id,role) values($1,'customer_manager')",
+      [managerProfileId],
+    );
+    await root.unsafe(
+      "update public.customers set current_balance=1234.56,credit_limit=7890.12 where id=$1 and organization_id=$2",
+      [localCustomer, org],
+    );
+
+    const managerDirectory = await rpc(
+      admin,
+      "select public.fetch_customer_manager_directory($1::text,$2::integer,$3::integer) result",
+      ["", 1, 25],
+    );
+    assert.equal(managerDirectory.page, 1);
+    assert.equal(managerDirectory.page_size, 25);
+    assert.ok(managerDirectory.total_count >= 1);
+    const localManagerRow = managerDirectory.rows.find((row) => row.id === localCustomer);
+    assert.ok(localManagerRow, "customer_manager can read an in-tenant customer");
+    assert.deepEqual(
+      Object.keys(localManagerRow).sort(),
+      ["id","business_name","contact_name","phone","email","customer_code","tier","status","created_at"].sort(),
+      "customer-manager RPC contract must return only approved non-financial fields",
+    );
+    assert.equal(managerDirectory.rows.some((row) => row.id === foreignCustomer), false,
+      "customer-manager directory must not expose another organization's customer");
+    assert.equal(
+      (await root.unsafe(
+        "select has_table_privilege('authenticated','public.customers','SELECT') as table_select",
+      ))[0].table_select,
+      false,
+      "authenticated users have no direct SELECT privilege on the financial customer table",
+    );
+    await assert.rejects(
+      () => admin.unsafe("select current_balance,credit_limit from public.customers where id=$1", [localCustomer]),
+      /permission denied/i,
+      "customer_manager cannot query balances or credit limits directly",
+    );
+    await assert.rejects(
+      () => customer.unsafe("select current_balance,credit_limit from public.customers where id=$1", [localCustomer]),
+      /permission denied/i,
+      "ordinary customer cannot query balances or credit limits directly",
+    );
+    await assert.rejects(
+      () => rpc(customer,
+        "select public.fetch_customer_manager_directory($1::text,$2::integer,$3::integer) result",
+        ["", 1, 25]),
+      /active customer-management permission required/i,
+      "ordinary customer cannot invoke the manager-only directory RPC",
+    );
+
+    const managerTierChange = await rpc(
+      admin,
+      "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+      [localCustomer, "wholesale", "vip", "CI customer-manager authorized tier change"],
+    );
+    assert.equal(managerTierChange.changed, true,
+      "customer_manager may change tier only through the audited command RPC");
+    assert.equal(managerTierChange.tier, "vip");
+    await assert.rejects(
+      () => rpc(admin,
+        "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+        [foreignCustomer, "retail", "vip", "CI customer-manager cross tenant denial"]),
+      /not found in current organization/i,
+      "customer_manager cannot mutate a customer from another organization",
+    );
+    await assert.rejects(
+      () => rpc(admin,
+        "select public.set_organization_user_roles($1::uuid,$2::text[]) result",
+        [managerProfileId, ["admin"]]),
+      /admin role required/i,
+      "customer_manager cannot grant administrator or staff roles",
+    );
+    const managerAudit = await root.unsafe(
+      "select actor_id,organization_id,old_value,new_value from public.audit_logs " +
+      "where action='customer.tier_changed' and entity_id=$1 and organization_id=$2 " +
+      "and new_value->>'reason'='CI customer-manager authorized tier change'",
+      [localCustomer, org],
+    );
+    assert.equal(managerAudit.length, 1,
+      "customer-manager tier changes are tenant-scoped and audited exactly once");
+    assert.equal(managerAudit[0].actor_id, managerProfileId);
+    assert.equal(managerAudit[0].old_value.tier, "wholesale");
+    assert.equal(managerAudit[0].new_value.tier, "vip");
+    console.log("PASS customer_manager security: non-financial RPC allowlist, tenant isolation, direct financial-read denial, audited authorized command, ordinary-user denial, and role-administration denial");
+  } finally {
+    await root.unsafe("delete from public.user_roles where profile_id=$1", [managerProfileId]);
+    for (const entry of originalManagerRoles) {
+      await root.unsafe(
+        "insert into public.user_roles(profile_id,role) values($1,$2) on conflict(profile_id,role) do nothing",
+        [managerProfileId, entry.role],
+      );
+    }
+  }
+
   await admin.unsafe("reset role");
   await customer.unsafe("reset role");
   await cleanup();
