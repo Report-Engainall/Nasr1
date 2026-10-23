@@ -134,7 +134,7 @@ for (const filename of migrations) {
 
   // Historical operational-task implementations remain in pg_proc after a migration
   // renames the previous function. Record ALTER FUNCTION RENAME as source provenance.
-  const renameRegex = /ALTER\s+FUNCTION\s+public\.([A-Za-z_][A-Za-z0-9_]*)\s*\(([\s\S]*?)\)\s+RENAME\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gi;
+  const renameRegex = /ALTER\s+FUNCTION\s+public\.([A-Za-z_][A-Za-z0-9_]*)\s*\(([\s\S]*?)\)\s+RENAME\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)\s*'?\s*;/gi;
   while ((match = renameRegex.exec(source)) !== null) {
     const previousName = match[1].toLowerCase();
     const types = typeSignature(match[2]);
