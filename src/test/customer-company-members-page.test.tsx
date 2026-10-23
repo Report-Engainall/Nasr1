@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { act, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -100,6 +100,45 @@ describe("customer company membership screens", () => {
     expect(await screen.findByText(/لم يُرسل بريد تلقائيًا؛ شارك الرابط يدويًا/)).toBeInTheDocument();
     const linkField = screen.getByLabelText(/رابط الدعوة/) as HTMLInputElement;
     expect(linkField.value).toContain("/company/accept-invitation?token=" + TOKEN);
+  });
+
+  it("creates only one invitation when two submit events arrive before the busy state rerenders", async () => {
+    const invitation = {
+      invitation_id: INVITATION_ID,
+      invited_email: "finance@example.test",
+      member_role: "finance",
+      invitation_token: TOKEN,
+      expires_at: "2026-10-27T10:00:00Z",
+    };
+    let resolveCreate: ((value: typeof invitation) => void) | undefined;
+    mocks.createInvite.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveCreate = resolve;
+    }));
+
+    const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");
+    render(<CustomerCompanyMembersPage />);
+
+    expect(await screen.findByText("سارة الأغبري")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("بريد العضو"), { target: { value: "finance@example.test" } });
+    fireEvent.change(screen.getByLabelText("الدور التجاري"), { target: { value: "finance" } });
+    const submit = await screen.findByRole("button", { name: "إنشاء رابط دعوة" });
+    const form = submit.closest("form");
+    expect(form).not.toBeNull();
+
+    await act(async () => {
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+
+    expect(mocks.createInvite).toHaveBeenCalledTimes(1);
+    expect(mocks.createInvite).toHaveBeenCalledWith("finance@example.test", "finance");
+
+    await act(async () => {
+      resolveCreate?.(invitation);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(await screen.findByText(/لم يُرسل بريد تلقائيًا؛ شارك الرابط يدويًا/)).toBeInTheDocument();
   });
 
   it("revokes active members and pending invitations only through their explicit actions", async () => {

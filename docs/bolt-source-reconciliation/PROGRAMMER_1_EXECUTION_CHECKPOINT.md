@@ -5,7 +5,7 @@
 - Status: IN_PROGRESS
 - Branch / PR: `p1/remaining-work-execution-20261023` / [PR #66](https://github.com/Report-Engainall/Nasr1/pull/66)
 - Base main SHA: `76baf9dbe7860a764abc18e75835abb8750d56a3`
-- Last verified Core CI: [39907278863](https://github.com/Report-Engainall/Nasr1/actions/runs/39907278863) SUCCESS on exact SHA `1797822aff47c310dcd9e54441b5dcc8b4cfbbf4` (24/24 steps). Newer head `b9d5af63a84e670ef972604f8f0560c8848fcb8d` had one test-only failure: the audit label assertion matched both the table cell and the filter option. The next commit will assert those roles separately; exact-head CI pending.
+- Last verified Core CI: [39907278863](https://github.com/Report-Engainall/Nasr1/actions/runs/39907278863) SUCCESS on exact SHA `1797822aff47c310dcd9e54441b5dcc8b4cfbbf4` (24/24 steps). On head `b9d5af63a84e670ef972604f8f0560c8848fcb8d`, the only unit failure was an ambiguous test selector for the audit label; the correction is in head `8612628ddf620040f028a11813cc5565ce919132`, and its Core CI is pending.
 - P1-01 category rename: PR #50 candidate `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; Core CI PASS; browser assertion step externally blocked by GHCR rate limit.
 - P1-02 password recovery: PR #44 candidate `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`; Core CI PASS; reset-route-specific browser proof NOT_RUN.
 - P1-03a order-detail retry: Core CI [39905102470](https://github.com/Report-Engainall/Nasr1/actions/runs/39905102470) PASS on SHA `16bfe4f96513753dc145dfec17a020f121e1f711`.
@@ -14,8 +14,8 @@
 - P1-04/05 activation dialog: duplicate invitation guard and fail-closed workspace-load gating with retry. Test: `src/test/customer-activation-invitations-dialog.test.tsx`.
 - P1-06 category landing: delegates product filtering/loading to the existing paged Storefront; parent no longer fetches all products or an extra RPC. Test: `src/test/storefront-category-landing.test.tsx` with canonical slug and retry assertion.
 - P1-07 audit history: tenant-scoped exact count and 200-row pages with previous/next; test covers range and org scope, unknown count fail-closed, and denied-role access. Run [39907047512](https://github.com/Report-Engainall/Nasr1/actions/runs/39907047512) failed only because the test expected an internal error string not rendered by the permission screen; fixed the assertion to match the explicit role-denial UI and still assert zero DB queries. This fix is not yet tested.
-- Exact-head Core CI for current verified head `1797822aff47c310dcd9e54441b5dcc8b4cfbbf4`: SUCCESS. Browser proof for new retry/double-submit controls NOT_RUN; production proof NOT_RUN.
-- Next action: add localized audit log presentation for the server action `catalog.category_renamed`, then test it on the next exact head.
+- Exact-head Core CI for `1797822aff47c310dcd9e54441b5dcc8b4cfbbf4`: SUCCESS. The later audit-label and company-invitation duplicate-submit batch is being retested on the current head; browser proof for component-specific controls and production proof remain NOT_RUN.
+- Next action: verify the current head's Core CI; only then move to the next commercial screen.
 
 ## Recent execution history
 
@@ -67,3 +67,6 @@ The existing audited category rename RPC records action `catalog.category_rename
 
 ### 2026-10-23 — P1-08 test correction — IMPLEMENTED; exact-head CI pending
 The new audit-label assertion matched two valid renderings of `إعادة تسمية تصنيف` (the row cell and the filter option). Changed the test to assert each role explicitly with `getByRole("cell")` and `getByRole("option")`. The component label matches the server event identifier `catalog.category_renamed`; no application change was necessary for this failure. Exact-head CI must confirm the correction.
+
+### 2026-10-23 — P1-09 — IMPLEMENTED; exact-head CI pending
+The company-member invitation form relied on React's `creating` state alone; two submit events before rerender could start two server requests for the same invite. Added a synchronous `useRef` in-flight guard so the second event is rejected before awaiting the RPC. Added a regression test that dispatches two submit events in one React batch and asserts one service call and a truthful server-backed success. Changed `src/components/CustomerCompanyMembers.tsx` and `src/test/customer-company-members-page.test.tsx`. The same batch includes the audit event-label assertion correction; CI must pass on the new head before it is closed.
