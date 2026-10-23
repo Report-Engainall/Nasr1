@@ -68,6 +68,7 @@ export function AdminAuditLog() {
       const nextPageCount = Math.max(1, Math.ceil(count / AUDIT_PAGE_SIZE));
       setTotalCount(count);
       if (page > nextPageCount) {
+        setRows([]);
         setPage(nextPageCount);
         return;
       }
@@ -96,7 +97,7 @@ export function AdminAuditLog() {
   }, [rows, search, actionFilter]);
 
   return <AdminPage eyebrow="الحوكمة والأمان" title="سجل التدقيق" description="عرض أحداث التغيير المسجلة فعليًا للمؤسسة؛ لا تُعرض قيم الحقول القديمة أو الجديدة في هذه الشاشة." icon={ScrollText}
-    note={!canReadAudit ? 'يتطلب العرض صلاحية مدير أو مدير النظام' : totalCount === null ? 'تعذر تأكيد إجمالي سجل التدقيق.' : 'إجمالي السجلات في المؤسسة: ' + totalCount.toLocaleString('ar-YE') + ' — الصفحة ' + page + ' من ' + pageCount}
+    note={!canReadAudit ? 'يتطلب العرض صلاحية مدير أو مدير النظام' : loading ? 'جارٍ تحميل سجل التدقيق...' : totalCount === null ? 'تعذر تأكيد إجمالي سجل التدقيق.' : 'إجمالي السجلات في المؤسسة: ' + totalCount.toLocaleString('ar-YE') + ' — الصفحة ' + page + ' من ' + pageCount}
     toolbar={<div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
       <Button variant="secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> تحديث</Button>
       {canReadAudit && pageCount > 1 && <>
