@@ -5,6 +5,8 @@ import postgres from "postgres";
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) throw new Error("TEST_DATABASE_URL is required for receivables aging credit-memo acceptance.");
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const concurrentDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const observerDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const customerProfileId = "f1111111-1111-4111-8111-111111111111";
@@ -56,6 +58,13 @@ async function receivablesItem(invoiceId) {
   throw new Error("Expected source invoice was not found in the complete paginated receivables aging result.");
 }
 
+async function expectDbFailure(label, operation, expectedPattern) {
+  let failure;
+  try { await operation(); } catch (error) { failure = error; }
+  assert.ok(failure, label + ": operation unexpectedly succeeded");
+  assert.match(String(failure.message || failure), expectedPattern, label + ": unexpected database error");
+}
+
 async function main() {
   await db.unsafe("reset role");
   await db.unsafe(
@@ -84,7 +93,8 @@ async function main() {
     "join public.customers c on c.id=ci.customer_id and c.organization_id=ci.organization_id and c.profile_id=$2::uuid " +
     "join public.customer_invoice_items cii on cii.organization_id=ci.organization_id and cii.invoice_id=ci.id " +
     "where ci.organization_id=$1::uuid and ci.status<>'void' and ci.currency='YER' " +
-    "and cii.order_item_id is not null and cii.quantity>=0.500 " +
+    "and ci.id in (select recent.id from public.customer_invoices recent where recent.organization_id=$1::uuid order by recent.issued_at desc,recent.id limit 500) " +
+    "and cii.order_item_id is not null and cii.quantity>=1.000 " +
     "and NOT EXISTS (select 1 from public.customer_return_request_items prior_item " +
     " join public.customer_return_requests prior_request on prior_request.id=prior_item.return_request_id " +
     " and prior_request.organization_id=prior_item.organization_id " +
@@ -93,7 +103,7 @@ async function main() {
     "and greatest(ci.total_amount-coalesce((select pg_catalog.sum(cp.amount) from public.customer_payments cp " +
     " where cp.organization_id=ci.organization_id and cp.invoice_id=ci.id),0)-coalesce((select pg_catalog.sum(cm.total_amount) " +
     " from public.customer_return_credit_memos cm where cm.organization_id=ci.organization_id and cm.invoice_id=ci.id " +
-    " and cm.status='posted' and cm.currency=ci.currency),0),0) > (cii.line_total/nullif(cii.quantity,0))*0.500 " +
+    " and cm.status='posted' and cm.currency=ci.currency),0),0) > ci.total_amount*0.500 " +
     "and coalesce((select pg_catalog.sum(mi.returned_quantity) from public.customer_return_credit_memo_items mi " +
     " join public.customer_return_credit_memos cm on cm.id=mi.credit_memo_id and cm.organization_id=mi.organization_id " +
     " where mi.organization_id=ci.organization_id and mi.invoice_item_id=cii.id and cm.status in ('draft','posted')),0)+0.500 <= cii.quantity " +
@@ -179,6 +189,30 @@ async function main() {
   const after = await receivablesItem(source.invoice_id);
   assert.equal(Number(after.item.credit_memo_amount)-Number(before.item.credit_memo_amount),Number(draft.total_amount),
     "the posted credit increases the invoice credit-memo aggregate by its source amount");
+  const financeRaw = await db.unsafe("select public.fetch_staff_finance_data() as result");
+  const financeData = asJson(financeRaw[0].result);
+  const financeInvoice = (financeData.invoices || []).find((row) => row.id === source.invoice_id);
+  assert.ok(financeInvoice, "source invoice is available to finance users inside the bounded UI invoice list");
+  assert.equal(Number(financeInvoice.paid_amount),Number(after.item.paid_amount),
+    "finance invoice payload exposes the full-ledger paid aggregate");
+  assert.equal(Number(financeInvoice.credit_memo_amount),Number(after.item.credit_memo_amount),
+    "finance invoice payload exposes only the posted credit aggregate");
+  assert.equal(Number(financeInvoice.outstanding_amount),Number(after.item.outstanding_amount),
+    "finance invoice payload exposes the authoritative full-ledger outstanding balance");
+
+  const overpaymentAmount = (Number(after.item.outstanding_amount) + 0.01).toFixed(2);
+  await expectDbFailure(
+    "record_customer_payment rejects a payment above outstanding after posted credits",
+    () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,'cash',null,$3::text)",
+      [source.invoice_id,overpaymentAmount,"CI must reject credit-adjusted overpayment"]),
+    /payment exceeds invoice balance after posted credit memos/i,
+  );
+  await expectDbFailure(
+    "record_customer_payment rejects more than two decimal places",
+    () => db.unsafe("select public.record_customer_payment($1::uuid,0.011::numeric,'cash',null,'precision guard')",
+      [source.invoice_id]),
+    /at most two decimal places/i,
+  );
   assert.equal(Number(before.item.outstanding_amount)-Number(after.item.outstanding_amount),Number(draft.total_amount),
     "posting the credit reduces outstanding receivables by exactly the posted source amount");
 
@@ -200,6 +234,121 @@ async function main() {
     "aging outstanding must reconcile to saved invoice total less payments less posted credits");
   assert.ok(after.page.summary.some((s)=>s.currency==="YER"),"currency-separated aging summary remains present");
   assert.ok(Number(after.item.outstanding_amount)>=0,"the aging balance cannot become negative");
+
+  // Two independent authenticated sessions race to collect the same invoice balance.
+  // The first holds the transaction open after creating a real payment; the second must wait on
+  // the shared invoice advisory lock and then reject against the newly committed balance.
+  const openingBalance = Number(after.item.outstanding_amount);
+  assert.ok(Number.isFinite(openingBalance) && openingBalance >= 0.01,
+    "race acceptance requires at least one cent of outstanding invoice balance");
+  const concurrentSessionId = randomUUID();
+  const concurrentHasSessionTable = (await concurrentDb.unsafe(
+    "select pg_catalog.to_regclass('auth.sessions') is not null as present",
+  ))[0].present;
+  const managerClaims = { sub: managerAuthId, email: "ci-return-manager@example.test", role: "authenticated" };
+  if (concurrentHasSessionTable) {
+    await concurrentDb.unsafe(
+      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+      "values($1::uuid,$2::uuid,pg_catalog.now(),pg_catalog.now(),pg_catalog.now(),null,'CI concurrent payment acceptance','192.0.2.45'::inet) " +
+      "on conflict(id) do update set user_id=excluded.user_id,updated_at=excluded.updated_at,refreshed_at=excluded.refreshed_at,not_after=null",
+      [concurrentSessionId,managerAuthId],
+    );
+    managerClaims.session_id = concurrentSessionId;
+  }
+  await concurrentDb.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[managerAuthId]);
+  await concurrentDb.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify(managerClaims)]);
+  await concurrentDb.unsafe("set role authenticated");
+
+  let signalPaymentCreated;
+  let signalPaymentFailed;
+  const firstPaymentReady = new Promise((resolve,reject) => {
+    signalPaymentCreated = resolve;
+    signalPaymentFailed = reject;
+  });
+  const firstPaymentTransaction = db.begin(async (tx) => {
+    try {
+      const created = await tx.unsafe(
+        "select public.record_customer_payment($1::uuid,0.01::numeric,'cash',null,'CI concurrent first collector') as payment_id",
+        [source.invoice_id],
+      );
+      signalPaymentCreated(created[0].payment_id);
+      await tx.unsafe("select pg_catalog.pg_sleep(4)");
+      return created[0].payment_id;
+    } catch (error) {
+      signalPaymentFailed(error);
+      throw error;
+    }
+  });
+  const firstPaymentId = await firstPaymentReady;
+  const competingPayment = concurrentDb.unsafe(
+    "select public.record_customer_payment($1::uuid,$2::numeric,'cash',null,'CI concurrent competing collector') as payment_id",
+    [source.invoice_id,openingBalance.toFixed(2)],
+  ).then(
+    (rows) => ({ ok:true, paymentId:rows[0].payment_id }),
+    (error) => ({ ok:false, error }),
+  );
+
+  let advisoryWaitObserved = false;
+  for (let attempt=0; attempt<60; attempt+=1) {
+    const waiting = await observerDb.unsafe(
+      "select exists(" +
+      "select 1 from pg_catalog.pg_stat_activity " +
+      "where pid<>pg_catalog.pg_backend_pid() and datname=pg_catalog.current_database() " +
+      "and query ilike '%record_customer_payment%' and state='active' " +
+      "and wait_event_type='Lock' and wait_event='advisory') as waiting",
+    );
+    if (waiting[0].waiting) {
+      advisoryWaitObserved = true;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve,50));
+  }
+  const committedFirstPaymentId = await firstPaymentTransaction;
+  assert.equal(committedFirstPaymentId,firstPaymentId,"the first concurrent payment commits exactly once");
+  const competingResult = await competingPayment;
+  assert.ok(advisoryWaitObserved,
+    "the competing database session must be observed waiting on the invoice advisory lock");
+  assert.equal(competingResult.ok,false,
+    "the second individually-valid amount must be rejected after the first concurrent payment commits");
+  assert.match(String(competingResult.error?.message || ""),/payment exceeds invoice balance after posted credit memos/i);
+
+  const afterRace = await receivablesItem(source.invoice_id);
+  assert.equal(Number(afterRace.item.paid_amount),Number(after.item.paid_amount)+0.01,
+    "exactly one racing payment is included in the invoice paid aggregate");
+  assert.equal(Number(afterRace.item.outstanding_amount),Math.max(0,openingBalance-0.01),
+    "the concurrent over-collection does not overshoot the authoritative invoice balance");
+  const raceAuditRows = await db.unsafe(
+    "select count(*)::integer as count from public.customer_payments where organization_id=$1::uuid and invoice_id=$2::uuid and id=$3::uuid",
+    [organizationId,source.invoice_id,firstPaymentId],
+  );
+  assert.equal(raceAuditRows[0].count,1,"the successful concurrent payment persists once");
+
+  // Ordinary staff must not read invoice/payment aggregates through a SECURITY DEFINER RPC.
+  const staffAuthId = randomUUID();
+  const staffProfileId = randomUUID();
+  const staffEmail = "ci-nonfinance-" + suffix + "@example.test";
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1::uuid,$2,pg_catalog.now()) on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [staffAuthId,staffEmail],
+  );
+  await db.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1::uuid,$2::uuid,$3::uuid,'CI Non-finance Staff',$4,true) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,is_active=true",
+    [staffProfileId,staffAuthId,organizationId,staffEmail],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1::uuid,'staff') on conflict(profile_id,role) do nothing",
+    [staffProfileId],
+  );
+  await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[staffAuthId]);
+  await db.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:staffAuthId,email:staffEmail,role:"authenticated"})]);
+  await db.unsafe("set role authenticated");
+  await expectDbFailure(
+    "ordinary staff cannot read staff finance invoice/payment aggregates",
+    () => db.unsafe("select public.fetch_staff_finance_data()"),
+    /finance permission required/i,
+  );
+  await db.unsafe("reset role");
   process.stdout.write("PASS staff receivables aging: source-linked posted credits reduce outstanding exactly once; drafts and physical receipts do not; balances reconcile to the stored invoice, payment and posted-credit ledgers.\n");
 }
 
@@ -207,5 +356,9 @@ main().catch((error) => {
   process.stderr.write((error && error.stack) || String(error));
   process.exitCode = 1;
 }).finally(async () => {
-  await db.end({ timeout: 5 }).catch(() => {});
+  await Promise.all([
+    db.end({ timeout: 5 }).catch(() => {}),
+    concurrentDb.end({ timeout: 5 }).catch(() => {}),
+    observerDb.end({ timeout: 5 }).catch(() => {}),
+  ]);
 });
