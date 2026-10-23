@@ -62,8 +62,10 @@ function parseCustomerAddress(value: unknown): CustomerAddress {
   const row = value as Record<string, unknown>;
   const id = row.id;
   if (typeof id !== "string" || !uuid.test(id)) throw new Error("معرّف عنوان التوصيل غير صالح.");
-  const country = requiredText(row, "country", 2);
-  if (!/^[A-Z]{2}$/.test(country)) throw new Error("رمز دولة عنوان التوصيل غير صالح.");
+  const country = row.country;
+  if (typeof country !== "string" || !/^[A-Z]{2}$/.test(country)) {
+    throw new Error("رمز دولة عنوان التوصيل غير صالح.");
+  }
   if (typeof row.is_default !== "boolean") throw new Error("حالة العنوان الافتراضي غير صالحة.");
   const createdAt = requiredText(row, "created_at", 64);
   const updatedAt = requiredText(row, "updated_at", 64);
