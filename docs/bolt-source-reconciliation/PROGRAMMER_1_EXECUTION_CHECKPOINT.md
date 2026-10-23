@@ -1,25 +1,30 @@
 # P1 Execution Checkpoint — live resume record
 
-## Current state — 2026-10-23 (reconciled with live refs)
+## Current state — 2026-10-23 — P1 product-submit hardening + export center recovery
 
-- Status: IN_PROGRESS; device-session UI is implemented, and the branch is being reconciled with current main before merge.
-- Repository: `Report-Engainall/Nasr1`.
-- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
-- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88.
-- BASE_SHA: `8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2` (live main immediately before this integration commit).
-- FEATURE_HEAD_SHA_BEFORE_INTEGRATION: `0d51e2090951e1dab80d4fbdf8e92bcfbb256de8`.
-- HEAD_SHA (last tested functional/code head): `5114ea8227f570662533219af1dc3a013cd49f75`. Core CI and the P1 session-specific local-browser path passed on this exact SHA. This checkpoint-only commit will advance the branch; validate its resulting SHA before merge.
-- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001` — server-backed central device/session UI and guarded revocation plus component/browser acceptance are implemented.
-- LAST_CONFIRMED_TESTS on the integrated functional head `5114ea8227f570662533219af1dc3a013cd49f75`: Core CI **SUCCESS** [run 39981579136](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579136); P2 Playwright **SUCCESS** [run 39981579236](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579236). The local Supabase/Chromium job explicitly ran **central device-session authorization and immediate-revocation acceptance** and passed; public Storefront smoke passed.
-- FAILED_OR_NOT_RUN_TESTS: checks on the new current-main integration head are pending. The external customer-order/tenant-isolation job was skipped by its credential gate; this is not a session-management pass. Production proof is NOT RUN.
-- FILES_CHANGED in the intended net diff: this checkpoint/report plus `e2e/device-session-management.spec.ts`, the P1 session endpoint/seed helpers, `src/components/DeviceManagement.tsx`, and `src/test/device-management.test.tsx`.
-- LOCKED_PATHS: no P2-owned RPC, RLS, migration, `src/lib/api.ts`, or workflow changes are included in the intended net diff. P2 dependency PR #83 is merged into main; no backend ownership is claimed by P1.
-- NEXT_ACTION: verify Core and P2 Playwright checks on the checkpoint-only commit that follows the tested code SHA; if both reach terminal success and the net diff remains P1-owned, mark PR #88 ready and merge it, then verify the merge SHA and post-merge main CI.
-- BLOCKER: no remaining backend-contract blocker; only current checkpoint-commit exact-head CI is pending. External-account E2E remains gated by unavailable non-production credentials.
-- MERGE_STATUS: PR #88 remains Draft/open and not merged.
-- UPDATED_AT: 2026-10-23 18:50 +03:00.
+- **STATUS:** P1 product-create/update single-flight behavior and async export recovery UI are implemented. The component-test/change set for PR #102 is `TESTED_EXACT_SHA`; the report commit being written now is documentation-only and must be re-tested on its new head.
+- **Repository:** `Report-Engainall/Nasr1`.
+- **CURRENT_BRANCH:** `p1/admin-product-singleflight-20261023`.
+- **BASE_SHA / live MAIN_SHA:** `1c21fa6d81009dc8924d26b6f7addd5c976c0cb7`; P2 PR #100 central-state reconciliation is merged into this main. Core on this exact main was reported SUCCESS (run 39990714405).
+- **HEAD_SHA before this checkpoint/report update:** `56c338777e2857cae5aca37940beaf01be2ea0a2`.
+- **PR #97:** https://github.com/Report-Engainall/Nasr1/pull/97 — OPEN / DRAFT / NOT MERGED. Source commit head `b82ab28ff5496b4cf0cacbca80fa9c3fb9bfa080` passed Core [39991414716](https://github.com/Report-Engainall/Nasr1/actions/runs/39991414716) and P2 Playwright [39991414728](https://github.com/Report-Engainall/Nasr1/actions/runs/39991414728) on that exact SHA. Product regression `src/test/admin-product-double-submit.test.tsx` passed 4/4: double create/update only one call; create failure remains retryable; category load failure blocks save until retry.
+- **PR #97 current doc-head gate status:** Core [39992302888 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39992302888) on `56c338777e2857cae5aca37940beaf01be2ea0a2`. P2 [39992302856](https://github.com/Report-Engainall/Nasr1/actions/runs/39992302856) failed twice at preview startup, not at browser assertions: workflow tried to install `wrangler@4.152.0` via `npx` and never served HTTP 200 in its 45-second readiness loop, so public-smoke browser assertions did not execute on that SHA. This is a P2-owned workflow/bootstrap blocker, not evidence of a source regression. Handoff: [PR #100 comment 6370494862](https://github.com/Report-Engainall/Nasr1/pull/100#issuecomment-6370494862). Do not hand-edit workflow/manifest/lockfile from P1.
+- **STF-010 / STF-011 evidence supplied to P2:** [PR #100 comment 6370504665](https://github.com/Report-Engainall/Nasr1/pull/100#issuecomment-6370504665). Price UI tests 9/9, presentation guards 20/20, cart/checkout wiring tests 3/3, PostgreSQL 17 policy check, and Chromium card/detail visibility passed on Core run 39992302888. Dedicated real-browser cart/checkout preview journey remains `NOT PROVEN`; P1 did not find a source defect in the current cart/review implementation during that check.
+- **PR #102 — export hydration and stale-list error:** https://github.com/Report-Engainall/Nasr1/pull/102 — OPEN / DRAFT / NOT MERGED. Latest head `d83db9e07ab836ff6755d7088e4fa8027b268dd1`, based on live main `1c21fa6d81009dc8924d26b6f7addd5c976c0cb7` (`behind_by=0`). It now includes the accessible Arabic RTL hydration fallback plus a separate list-fetch error state so successful refresh clears only that error and preserves operation notices.
+- **PR #102 exact-head evidence:** Core [39993981567 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39993981567), P2 [39993981590 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39993981590), both on `d83db9e...`. Core: **141 test files / 883 tests PASS**, the new `src/test/async-export-center.test.tsx` passes 1/1, PostgreSQL 17, lint, build, preview/dev smoke and Chromium price-visibility acceptance passed. P2: public UI smoke and local Supabase/Chromium critical paths passed. Credential-gated hosted customer-order/tenant-isolation test was `SKIPPED`, not PASS.
+- **PR #102 exact changed files:** `src/components/AsyncExportCenter.tsx`, `src/routes/admin_.exports.tsx`, `src/test/async-export-center.test.tsx`, `src/test/async-export-route-contract.test.ts`. No workflow, backend/RPC/migration, P2 central state, or P3 #89 files changed.
+- **LOCKED_PATHS:** P2 SQL/RPC/RLS/migrations/API/finance/inventory/Onyx and workflow files; P2-owned `CURRENT_EXECUTION_STATE.md`, acceptance matrix, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`; P3 #89 acceptance files and generated `src/routeTree.gen.ts` (never hand-edit).
+- **Review gate:** no independent formal review is recorded for #97 or #102. CodeRabbit on #97 was rate-limited after exhausting the free review quota (comments [6369850663](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369850663) and [6369852853](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369852853)). Keep both Draft and unmerged until an authorized independent review and exact-head acceptance are available.
+- **NEXT_ACTION:** read Core and P2 checks for the new report SHA once they finish. Then keep both PRs Draft unless independent review becomes available; continue the next source-backed P1 UI gap on a separate, non-overlapping branch. Do not repeat completed #52/#54/#83/#84/#88/#90/#99 functionality.
+- **FAILED_OR_SKIPPED:** PR #97 P2 preview start failed on doc head; no browser assertions ran on that SHA. Hosted external customer-order/tenant test remains `SKIPPED` on successful runs. Production proof remains `NOT RUN`.
+- **MERGE_STATUS:** #97 OPEN / DRAFT / NOT MERGED; #102 OPEN / DRAFT / NOT MERGED.
+- **UPDATED_AT:** 2026-10-23 (after exact-head acceptance for PR #102).
 
 ## Recent execution history
+
+
+
+
 
 
 ### 2026-10-23 — P1-01 — CLOSED_WITH_EVIDENCE (merge pending)

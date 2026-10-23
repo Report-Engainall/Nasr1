@@ -1,22 +1,37 @@
-# تقرير الحالة التنفيذي — المبرمج 1 / إدارة جلسات الأجهزة المركزية
+# تقرير الحالة التنفيذي — P1 / واجهات العميل والتجارة والإدارة
 
 - **المستودع:** `Report-Engainall/Nasr1`
-- **فرع P1 الحالي:** `p1/central-device-session-ui-20261023`
-- **PR الحالي:** [#88 — Draft/open، غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/88)
-- **BASE_SHA لإعادة التكامل:** `8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2`
-- **رأس الميزة قبل إعادة التكامل:** `0d51e2090951e1dab80d4fbdf8e92bcfbb256de8`
-- **آخر رأس وظيفي مختبَر بدقة:** `5114ea8227f570662533219af1dc3a013cd49f75` — Core CI **SUCCESS** [39981579136](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579136)؛ P2 Playwright **SUCCESS** [39981579236](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579236)، بما يشمل Chromium/Supabase المحلي لاختبار صلاحية وإلغاء الجلسة فورًا.
-- **المهمة:** `P1-DEVICE-SESSION-MGMT-UI-001` — ربط إدارة الأجهزة والجلسات بعقد الخادم، ورفض بيانات الجلسات غير الصحيحة، وحماية الجلسة الحالية، واشتراط إقرار مطابق من الخادم قبل إظهار نجاح الإلغاء.
-- **الاختبارات المثبتة على الرأس السابق فقط:** Core CI [39977276920 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276920)؛ P2 Playwright [39977276972 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276972). خطوة Chromium الخاصة بتفويض إدارة الجلسات والإلغاء الفوري نجحت مع Supabase محلي معزول.
-- **المتبقي:** التحقق من CI على commit التوثيق الحالي؛ اختبار الحساب الخارجي تخطّاه حاجز الاعتماد؛ الإنتاج NOT RUN.
-- **الملفات في صافي التغيير المقصود:** هذا التقرير ونقطة الاستئناف وواجهة الجلسات واختبارها وأدوات/اختبارات Playwright الخاصة بـP1.
-- **NEXT_ACTION:** فحص Core وP2 Playwright على رأس commit التوثيق الحالي. إذا نجحا وظل صافي الملفات ضمن ملكية P1، اجعل PR #88 جاهزًا وادمجه عبر GitHub ثم تحقق من SHA الدمج وCI الخاص بـ`main`.
-- **حدود الإثبات:** نجاح المتصفح المحلي يخص تدفق الجلسات الذي اختُبر؛ لا يثبت الحسابات الخارجية أو الإنتاج.
+- **CURRENT_BRANCH للتقرير:** `p1/admin-product-singleflight-20261023`
+- **MAIN_SHA / BASE_SHA:** `1c21fa6d81009dc8924d26b6f7addd5c976c0cb7`، بعد دمج تسوية الحالة المركزية P2 (#100).
+- **HEAD_SHA قبل هذا التحديث التوثيقي:** `56c338777e2857cae5aca37940beaf01be2ea0a2`.
 
-> الأقسام التالية تحتفظ بالسجل التاريخي من تكاملات سابقة؛ هذا الملخص هو نقطة الاستئناف الحالية لهذا الفرع.
+## 1. P1-ADMIN-PRODUCT-SINGLEFLIGHT-001 — منع إرسال المنتج المكرر
+- **PR:** [#97 — OPEN / DRAFT](https://github.com/Report-Engainall/Nasr1/pull/97). رأس الشيفرة `b82ab28ff5496b4cf0cacbca80fa9c3fb9bfa080` اجتاز Core [39991414716 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991414716) وP2 [39991414728 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991414728) على SHA نفسه؛ اختبار المنتج 4/4 و141 ملف اختبار/883 اختبارًا ناجحًا.
+- Core على الرأس الوثائقي `56c338777e2857cae5aca37940beaf01be2ea0a2` نجح [39992302888](https://github.com/Report-Engainall/Nasr1/actions/runs/39992302888). P2 [39992302856](https://github.com/Report-Engainall/Nasr1/actions/runs/39992302856) فشل في محاولتين عند تشغيل معاينة Wrangler قبل اختبارات المتصفح؛ لم يُنفذ اختبار Chromium على ذلك الرأس. المشكلة مسلّمة إلى مالك workflow/الحالة المركزية عبر [تعليق #100 رقم 6370494862](https://github.com/Report-Engainall/Nasr1/pull/100#issuecomment-6370494862)، ولا تعدّ فشل مصدر التطبيق.
+- بقي PR #97 Draft لأن المراجعة المستقلة غير مسجلة.
 
+## 2. P1-ADMIN-EXPORT-001 — إغلاق فجوات مركز التصدير
+- **PR:** [#102 — OPEN / DRAFT](https://github.com/Report-Engainall/Nasr1/pull/102)، رأسه الدقيق `d83db9e07ab836ff6755d7088e4fa8027b268dd1` ومزامن مع `1c21fa6d81009dc8924d26b6f7addd5c976c0cb7`.
+- عولجت حالتان: شاشة فراغ أثناء ClientOnly hydration، ورسالة فشل قديمة لجلب سجل التصدير كانت تبقى بعد نجاح إعادة المحاولة. أصبح خطأ سجل التصدير منفصلًا عن إشعارات الإجراء؛ لا يُمحى إشعار نجاح العامل عند نجاح تحديث السجل.
+- **Core:** [39993981567 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39993981567) على الرأس المطابق؛ 141 ملف اختبار/883 اختبارًا، واختبار الاسترداد الجديد `src/test/async-export-center.test.tsx` ناجح 1/1؛ نجحت PostgreSQL 17 وlint/build وsmoke وChromium.
+- **P2 Playwright:** [39993981590 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39993981590) على SHA نفسه؛ سموك الواجهة العامة وقبول Supabase/Chromium المحلي ناجحان. الاختبار المستضاف المقيّد ببيانات اعتماد خارجية `SKIPPED` وليس PASS.
+- لم تُعدّل أي migrations/RPC/workflows أو ملفات P2 المركزية أو P3 #89 أو `src/routeTree.gen.ts`.
+- إثبات الوصول المباشر إلى `/admin/exports` ما زال `NOT PROVEN`، ومسلّم لـP3 في [تعليق #89 رقم 6370079296](https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6370079296).
+
+## 3. خصوصية السعر وملكية القبول
+- سلّمت إلى P2 الأدلة الدقيقة لتقييم `STF-010/011` عبر [تعليق #100 رقم 6370504665](https://github.com/Report-Engainall/Nasr1/pull/100#issuecomment-6370504665): اختبارات UI 9/9، presentation 20/20، ربط السلة/checkout 3/3، PostgreSQL 17، وChromium للبطاقات/التفاصيل. رحلة متصفح مستقلة للسلة/مراجعة الطلب ما زالت `NOT PROVEN`; لا ادعاء قبول غير مثبت.
+- PR #89 وملفات مصفوفة القبول/الحالة المركزية ضمن ملكيات P2/P3 ولم تُعدل.
+
+## 4. مراجعة وNEXT_ACTION
+- #97 و#102 ما زالا Draft وغير مدمجين لعدم وجود مراجعة رسمية مستقلة. محاولة CodeRabbit في #97 حُجبت بسبب انتهاء الحصة المجانية.
+- **NEXT_ACTION:** تحقق من Actions على الرأس الجديد الناتج عن تحديث التقرير؛ ثم استمر في فجوة P1 مستقلة لا تتداخل مع P2/P3. لا تدمج أي PR دون مراجعة مستقلة ونجاح البوابات المطلوبة على SHA واحد.
+- **MERGE_STATUS:** #97 OPEN / DRAFT / NOT MERGED؛ #102 OPEN / DRAFT / NOT MERGED.
+- **UPDATED_AT:** 2026-10-23.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
+
+
+
 
 - **الحالة:** مندمج ومختبر. [PR #3](https://github.com/Report-Engainall/Nasr1/pull/3) أُغلق بالدمج؛ [PR #2](https://github.com/Report-Engainall/Nasr1/pull/2) المكرر بقي مغلقًا دون دمج.
 - **الرأس الذي اختُبر:** `01ef17b05c2bf507003efccbb897f76318e0df02`.
