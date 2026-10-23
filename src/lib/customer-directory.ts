@@ -18,6 +18,37 @@ const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 const CUSTOMER_DIRECTORY_COLUMNS = 'id,business_name,contact_name,phone,email,customer_code,tier,current_balance,credit_limit,status,created_at';
 
+/**
+ * The customer-manager RPC is expected to return a non-financial projection.
+ * Enforce the same boundary in the client in case a future SQL change adds columns
+ * accidentally. Do not replace omitted financial values with zero: they are not
+ * part of this role's data contract.
+ */
+const CUSTOMER_MANAGER_DIRECTORY_FIELDS = [
+  'contact_name', 'phone', 'email', 'customer_code', 'tier', 'status', 'created_at',
+] as const;
+
+function sanitizeCustomerManagerDirectoryRow(value: unknown): Customer | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.id !== 'string' || typeof row.business_name !== 'string' ||
+      typeof row.status !== 'string') return null;
+
+  const safe: Record<string, unknown> = {
+    id: row.id,
+    business_name: row.business_name,
+    status: row.status,
+  };
+  for (const field of CUSTOMER_MANAGER_DIRECTORY_FIELDS) {
+    const fieldValue = row[field];
+    if (typeof fieldValue === 'string' || fieldValue === null) safe[field] = fieldValue;
+  }
+  // The row is intentionally a partial Customer projection for customer-manager callers;
+  // callers must keep all finance-only views behind their existing server-backed role gates.
+  return safe as unknown as Customer;
+}
+
+
 /** Remove PostgREST filter grammar and wildcard characters from user-provided search text. */
 export function normalizeCustomerDirectorySearch(value: string): string {
   return value
@@ -86,15 +117,13 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
     ) {
       throw new Error('لم يؤكد الخادم بيانات صفحات دليل العملاء.');
     }
-    const validRows = payload.rows.every((row) => row && typeof row === 'object' && !Array.isArray(row) &&
-      typeof (row as Record<string, unknown>).id === 'string' &&
-      typeof (row as Record<string, unknown>).business_name === 'string' &&
-      typeof (row as Record<string, unknown>).status === 'string');
-    if (!validRows || payload.rows.length > pageSize) {
+    const sanitizedRows = payload.rows.map(sanitizeCustomerManagerDirectoryRow);
+    const rows = sanitizedRows.filter((row): row is Customer => row !== null);
+    if (rows.length !== payload.rows.length || rows.length > pageSize) {
       throw new Error('أعاد الخادم سجلات غير صالحة لدليل العملاء.');
     }
     return {
-      rows: payload.rows as Customer[],
+      rows,
       totalCount: payload.total_count,
       page: payload.page,
       pageSize,
