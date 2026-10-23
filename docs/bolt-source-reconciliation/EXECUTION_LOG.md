@@ -1,5 +1,17 @@
 
 
+## P2 latest exact-head execution evidence — 2026-10-24T02:25:19+03:00
+
+- Main `16a3d23e558696700bccbb3dbf9ea75b0fccf745`, tree `7dc8d72c0ece57777cc5e3337d1f8b416870697a`; Core [40035355209](https://github.com/Report-Engainall/Nasr1/actions/runs/40035355209) SUCCESS on exact main SHA.
+- PR #119 head `a1a17bcf9ae320ea39680421a83e4b32deef3c67`: Core [40036273431](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273431) and P2 [40036273465](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273465) both SUCCESS exact head after #131 merge.
+- PR #134 head `387db64bfa6686ab08d4707d88b7aea3f9c6ff41`: Core [40037207461](https://github.com/Report-Engainall/Nasr1/actions/runs/40037207461) and P2 [40037207264](https://github.com/Report-Engainall/Nasr1/actions/runs/40037207264) SUCCESS exact head; same-key concurrent batch requests produce one creation and one replay without double movement/audit.
+- PR #135 head `982768af887384217353151134e23c18f6bcb030`: Core [40038517615](https://github.com/Report-Engainall/Nasr1/actions/runs/40038517615) and P2 [40038517499](https://github.com/Report-Engainall/Nasr1/actions/runs/40038517499) SUCCESS exact head; PostgreSQL 17 tests current customer schema, tenant/role denial, sales/trend boundaries and cancellation exclusions.
+- PR #138 head `3015b4f35857c756e9fde05e47fef6ed1c513510`: Core [40038957424](https://github.com/Report-Engainall/Nasr1/actions/runs/40038957424) and P2 [40038957490](https://github.com/Report-Engainall/Nasr1/actions/runs/40038957490) SUCCESS exact head; README, no-secret env example, Bun install and deployment/environment guide.
+- PR #118 remains open pending formal review despite exact head Core 40035579224/P2 40035578462 SUCCESS and only three intended CSV/XLSX/test files.
+- PR #133 previous head `2728d7c6d14b7e18d60d9cf22cae6eadea70c238` had Core [40037504255](https://github.com/Report-Engainall/Nasr1/actions/runs/40037504255) / P2 [40037504475](https://github.com/Report-Engainall/Nasr1/actions/runs/40037504475) terminal SUCCESS on that exact SHA. This new documentation commit needs fresh exact-head CI.
+- Formal review APIs are empty for #133/#134/#135/#138; do not merge without authorized independent approval. Hosted customer/tenant E2E, live Onyx target import/sync, WhatsApp delivery, production deployment and production restore remain SKIPPED/BLOCKED_EXTERNAL/NOT PROVEN.
+
+
 ## P2 live reconciliation and concurrent inventory idempotency — 2026-10-24T02:03:00+03:00
 
 - Main remains `16a3d23e558696700bccbb3dbf9ea75b0fccf745` / tree `7dc8d72c0ece57777cc5e3337d1f8b416870697a`; Core 40035355209 is SUCCESS on exact main SHA.

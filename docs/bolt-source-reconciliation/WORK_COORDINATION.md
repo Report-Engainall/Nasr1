@@ -1,6 +1,6 @@
-# CURRENT COORDINATION OVERRIDE — 2026-10-24T02:03:00+03:00
+# CURRENT COORDINATION OVERRIDE — 2026-10-24T02:25:19+03:00
 
-## AUTHORITATIVE LIVE RECONCILIATION — 2026-10-24T02:03:00+03:00
+## AUTHORITATIVE LIVE RECONCILIATION — 2026-10-24T02:25:19+03:00
 
 This live block supersedes older snapshot metadata below; historical entries are retained and must not be read as current Git state.
 
@@ -46,6 +46,13 @@ This live block supersedes older snapshot metadata below; historical entries are
 - #89/#102/#124 overlap on `e2e/public-storefront-smoke.spec.ts`; sequentially reconcile after independent review to avoid dropping coverage.
 - No PR is merge-ready until an authorized independent reviewer submits a formal approval, required checks pass on its exact final head, and skipped hosted E2E remains marked BLOCKED_EXTERNAL.
 - Next action after this checkpoint: obtain independent reviews, then execute the ordered merges and refresh this central state once the 18-PR group is either merged or blocked with precise evidence.
+
+## P2 follow-up evidence — 2026-10-24T02:25:19+03:00
+
+- PR #134 [concurrent batch idempotency](https://github.com/Report-Engainall/Nasr1/pull/134): exact head `387db64bfa6686ab08d4707d88b7aea3f9c6ff41`; Core 40037207461 SUCCESS and P2 40037207264 SUCCESS. PG17 proves one create + one replay and no duplicate stock movement. Review list empty; not merged.
+- PR #135 [executive analytics schema correction](https://github.com/Report-Engainall/Nasr1/pull/135): exact head `982768af887384217353151134e23c18f6bcb030`; Core 40038517615 SUCCESS and P2 40038517499 SUCCESS. PG17 validates current customer schema, tenant/role denial, cancellation exclusions, exact 30-day boundaries and totals. Review list empty; not merged.
+- PR #138 [runtime handover](https://github.com/Report-Engainall/Nasr1/pull/138): exact head `3015b4f35857c756e9fde05e47fef6ed1c513510`; Core 40038957424 SUCCESS and P2 40038957490 SUCCESS. README, no-secret `.env.example`, Bun bootstrap and environment/deployment guide. Review list empty; not merged.
+- Review and production boundaries: do not merge these PRs without authorized independent approvals. Hosted customer/tenant E2E remains SKIPPED/BLOCKED_EXTERNAL. Live Onyx target import, WhatsApp delivery, and production restore/deployment proof remain unproven.
 
 ---
 
