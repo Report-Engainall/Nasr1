@@ -1,3 +1,14 @@
+## P2 live reconciliation and PR101 acceptance — 2026-10-23T19:12:00+03:00
+
+- Main is c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99, tree ce3773a9c69ca2ee9acc2daa3fc759753bd4cdd9; exact-main Core CI 39983210712 SUCCESS.
+- PR #88 central device-session UI merged at c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Exact head 5114ea8227f570662533219af1dc3a013cd49f75 Core 39981579136/P2 39981579236 PASS; local Supabase/Chromium job 120510279957 PASS; customer credential-gated E2E 120510010437 SKIPPED.
+- PR #99 ORD-001 remains closed with evidence on tested tree 40fcbdf56ddb5a50badc3c4d42e3164bb7ecfb3e at merge 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2; current main later advanced with #88 and has a separate successful Core run.
+- PR #101 implements FIN-LEDGER-001 manual/adjustment reversal with migration/RPC/trigger, bounded tenant-scoped mapping lookup, existing GeneralLedgerWorkspace action, generated types, unit and PG17 acceptance. Head 3087df8f2ca8132dfd08ab102dfbbc219db927a9; Core 39984747428 and P2 39984747357 IN_PROGRESS; public UI smoke job 120520903989 PASS; local Supabase/PG17 acceptance job 120521326012 IN_PROGRESS; external customer job 120520954758 SKIPPED. No full acceptance or merge claimed yet.
+- P1 #97 draft and P3 #89 open; P1 device session #88 is integrated and its path lock released. P2 continues to avoid P1/P3-owned files.
+- Docs PR #100 was rebased into a merge commit with current main and its central files are being updated serially; old PR #92/#98 remain closed unmerged.
+
+---
+
 ## P2 checkpoint — PR99 merged, main reconciled; next: generic manual journal reversal — 2026-10-23T18:54:23+03:00
 
 - Current main SHA 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2, tree 40fcbdf56ddb5a50badc3c4d42e3164bb7ecfb3e; post-merge Core CI 39980802016 SUCCESS on the same SHA.

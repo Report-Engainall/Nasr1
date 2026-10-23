@@ -1,15 +1,16 @@
 # سجل التنسيق — المرجع الحي
 
-## المصالحة الحالية — 2026-10-23T18:54:23+03:00
+## المصالحة الحالية — 2026-10-23T19:12:00+03:00
 
-- Main 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2; tree 40fcbdf56ddb5a50badc3c4d42e3164bb7ecfb3e; Core CI 39980802016 SUCCESS on exact main SHA.
-- PR #99 merged with matching tested tree. Core 39976687601/P2 39976687945 PASS on tested head 4122ed10b6827c6e0d4b4aeb64c6578ea8cd4d08; order status history records correct sequence/actor and rejects false audit rows. External hosted customer E2E is SKIPPED, not pass.
-- #82/#83/#71/#52/#54/#90/#84/#94/#95/#96 merged. #43/#56 closed without merge; #98 closed as superseded by #82 and current forward migration; #92 closed as stale doc checkpoint. New docs branch from current main is docs/p2-live-reconciliation-20261023.
-- P1 owns PR #88 session UI/spec/seed/reports; latest head 5114ea8227f570662533219af1dc3a013cd49f75 has Core 39981579136/P2 39981579236 still running at checkpoint. Do not modify its locked UI/E2E/seed files. P3 owns catalog PR #89 paths; P1 owns product submission PR #97 paths.
-- P2 owns the central state/matrix/log/coordination/P2 report, database migrations/RPCs, official DB types and PostgreSQL acceptance. Update these central files serially, each by current blob SHA. Don't modify P1/P3-owned paths.
-- Next P2 task FIN-LEDGER-001-MANUAL-JOURNAL-REVERSAL on branch p2/general-ledger-reversal-20261023 base 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2. Scope only posted manual/adjustment entries; use existing source-specific reversal workflows for invoices/payments/cash expenses/purchase receipts.
-- INV-009 local reconciliation closed with evidence; Onyx target live import/sync remains BLOCKED_EXTERNAL. OPS-DR-001 has isolated PG17 evidence only; no production restoration, RTO or RPO claim. Official WhatsApp requires authorized provider response/ID.
-- No direct main writes, force push, destructive reset/clean, duplicate ledger, or merge based on a skipped/pending job.
+- Main c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99; tree ce3773a9c69ca2ee9acc2daa3fc759753bd4cdd9; Core run 39983210712 SUCCESS on exact main.
+- #88 merged at c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99; Core 39981579136/P2 39981579236 PASS on head 5114ea8227f570662533219af1dc3a013cd49f75; local Supabase Chromium job 120510279957 PASS, including device session revocation. Hosted customer-account E2E job 120510010437 SKIPPED.
+- #99 ORD-001 merged at 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2; tested tree exact for that merge, not the newer main tree. Current main has its own green run 39983210712.
+- PR #101 P2 finance code head 3087df8f2ca8132dfd08ab102dfbbc219db927a9, Core 39984747428 and P2 39984747357 still running at checkpoint; P2 public UI smoke passed, local Supabase/PG17 acceptance pending, hosted customer E2E skipped. P2 owns this PR and its acceptance.
+- P1 owns PR #97 product singleflight paths; P3 owns PR #89 catalog UI paths. Do not modify their locked files. PR #88 device session UI is already merged; its ownership lock is released for regression only, not a new rebuild.
+- P2 owns migrations/RPC/RLS, official database types, database acceptance, ledger wiring and the central state/matrix/log/report/coordination documents. Update central files in a single serialized operation based on latest blob SHAs.
+- PR #100 docs reconciliation now incorporates main #88 merge. It must keep task states and main SHA current. PR #92/#98 closed without merge; no work should be replayed from them.
+- Next acceptance: FIN-LEDGER-001-MANUAL-JOURNAL-REVERSAL. Generic reversal handles posted manual/adjustment only; invoice/payment/cash-expense reversals remain source-specific. Do not merge #101 before exact-head Core and PostgreSQL 17 required tests pass.
+- External blockers remain: live Onyx target import/sync, official WhatsApp API response/ID, dedicated hosted customer-account E2E credentials, production restore proof.
 
 ## سجل التنسيق الأصلي (للتاريخ فقط)
 
