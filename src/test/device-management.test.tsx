@@ -223,6 +223,37 @@ describe('central device and session management', () => {
     expect(host?.textContent).not.toContain('موظف الاختبار');
   });
 
+  it('rejects a success-shaped acknowledgement for a different session id', async () => {
+    const onNotice = vi.fn();
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'list_organization_sessions') return { data: sessions, error: null };
+      if (name === 'revoke_organization_session') {
+        return {
+          data: { session_id: CURRENT_SESSION_ID, revoked: true, revoked_at: '2026-10-23T10:16:00.000Z' },
+          error: null,
+        };
+      }
+      return { data: null, error: { message: 'unexpected RPC' } };
+    });
+    await act(async () => {
+      root?.render(<DeviceManagement onNotice={onNotice} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    await act(async () => {
+      host?.querySelector<HTMLButtonElement>(
+        'button[aria-label="إبطال جلسة موظف الاختبار"]',
+      )?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(onNotice).not.toHaveBeenCalled();
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+      'تعذر تأكيد إبطال الجلسة المحددة',
+    );
+    expect(host?.textContent).not.toContain('موظف الاختبار');
+  });
+
   it('does not call organization session RPCs for a non-admin role or permit organization revocation', async () => {
     mocks.useAuth.mockReturnValue({ user: { profileId: 'manager-profile', roles: ['manager'] } });
     const onNotice = vi.fn();
