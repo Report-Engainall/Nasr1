@@ -213,11 +213,16 @@ async function main() {
   await db.unsafe("insert into public.user_roles(profile_id,role) values($1::uuid,'customer')", [ids.profile]);
   await setIdentity(ids.authUser, email);
   let customerDenied = false;
+  await db.unsafe("savepoint before_customer_denial");
   try {
     await db.unsafe("select public.get_store_executive_analytics()");
   } catch (error) {
     customerDenied = error?.code === "42501";
     if (!customerDenied) throw error;
+    // A PostgreSQL statement error aborts the transaction until it is rolled back to a savepoint.
+    await db.unsafe("rollback to savepoint before_customer_denial");
+  } finally {
+    await db.unsafe("release savepoint before_customer_denial");
   }
   assert.equal(customerDenied, true, "customer-role callers must be denied the executive analytics RPC");
   await db.unsafe("reset role");
