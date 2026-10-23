@@ -1206,3 +1206,14 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Latest #127 head changes through the atomic code+central commit; final-head Core/P2 remain pending. Do not use old head results.
 - Hosted tenant E2E remains BLOCKED_EXTERNAL/SKIPPED without dedicated authorized non-production credentials; no production writes.
 
+
+
+## P2 live GitHub reconciliation — 2026-10-24T01:30:00+03:00
+
+- Re-read GitHub `main`: SHA `b48a4b2e8ae09e87432b49dab591a23e1be651c6`, tree `b457c13a78b91f85cf175a11adfda5095d5271db`; Core [40021821444](https://github.com/Report-Engainall/Nasr1/actions/runs/40021821444) completed SUCCESS on that exact SHA.
+- Compared the full assigned set of 18 PR heads with current main: all are OPEN / UNMERGED and show `behind_by=0`. Exact tested-head SHA and Core/P2 run IDs are preserved in `PROGRAMMER_2_CURRENT_REPORT.md` and as 18 `GITHUB-PR-###` records in the acceptance matrix.
+- 17 exact heads have terminal Core + P2 SUCCESS. #119: Core [40022445712](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445712) SUCCESS; P2 [40022445722](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445722) FAILURE on `a70e2775d1be01f89a315b241c147147fd1183fb`. The dependency is #131; do not weaken its HTTP/tenant-isolation assertion.
+- #131: Core [40024841272](https://github.com/Report-Engainall/Nasr1/actions/runs/40024841272) and P2 [40024841182](https://github.com/Report-Engainall/Nasr1/actions/runs/40024841182) SUCCESS on `f88d72e497eed851c425dfaa7b9eeca1291ee411`; formal review list empty; hosted customer/tenant E2E skipped due missing dedicated non-production credentials.
+- #118: Core [40026679121](https://github.com/Report-Engainall/Nasr1/actions/runs/40026679121) and P2 [40026678990](https://github.com/Report-Engainall/Nasr1/actions/runs/40026678990) SUCCESS on `1ab496e444c696b1ed491c3cf9eb01ebebf56709`; current diff is exactly the three export files; formal review list empty; hosted E2E skipped is not PASS.
+- Independent approvals are missing across the assigned 18. Automated CodeRabbit `COMMENTED` events and owner comments are not approval. Merge sequence is #131 -> refresh/test #119 -> reconcile shared #89/#102/#124 file -> remaining PRs after review. #127 is already merged at `d7a49d8ca7d968e2fc04307fb26313e54168410a`; #129 and #132 are closed without merge and must not be recreated without a proven missing unique change.
+- No production database was touched, no direct main write was made, and no skipped hosted check is counted as PASS. The checkpoint PR and its final-head checks remain pending.
