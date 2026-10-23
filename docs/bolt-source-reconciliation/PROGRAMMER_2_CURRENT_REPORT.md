@@ -1,42 +1,45 @@
-# تقرير P2 — الحالة التنفيذية الحية 2026-10-23T23:09:00+03:00
+# تقرير P2 — الحالة التنفيذية الحية 2026-10-23T23:29:00+03:00
 
 REPOSITORY=Report-Engainall/Nasr1
-MAIN_SHA=391e25847c7cc7fb2ba5f77164600455db04abfd
-MAIN_TREE=NOT RETRIEVED
-MAIN_CI=NOT CONFIRMED on merge SHA; no main-green claim transferred from PR-head checks.
-LAST_MERGED_PR=#112 at merge SHA 391e25847c7cc7fb2ba5f77164600455db04abfd.
-PR112=https://github.com/Report-Engainall/Nasr1/pull/112; exact tested head 1aa7c7906851e1a5ddb088a173d868a16809f9ef; Core 40010842943 SUCCESS; P2 40010842853 SUCCESS. Hosted customer E2E SKIPPED / BLOCKED_EXTERNAL due missing dedicated non-production credentials.
-
-CURRENT_BRANCH=p2/payment-idempotency-pending-map-20261023
-BASE_SHA=391e25847c7cc7fb2ba5f77164600455db04abfd
-INITIAL_IMPLEMENTATION_TEST_HEAD=cbcbf3db6261b1018c3e83766c575dd854314654
-LATEST_CODE_AND_TEST_HEAD_BEFORE_CHECKPOINT_REFRESH=3e91a41de8022408beebe669efbc7611a3792b72
-ACKNOWLEDGEMENT_CONTRACT=Accept only a well-formed UUID payment identifier; null, empty and malformed IDs preserve the retry key.
-CURRENT_TASK=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-PENDING-REQUEST-MAP
-TASK_STATUS=IMPLEMENTED; REGRESSION_TESTS_ADDED; EXACT_FINAL_HEAD_CI_PENDING
+MAIN_SHA=271de9ac23d6fd092db5a77c15bcf191249fd40d
+MAIN_TREE=4bde3ed3147037170bb6a27c5fcb9e1d62cea37e
+MAIN_CI=SUCCESS — Core push run 40017988386 completed SUCCESS on this exact merge/main SHA.
+LAST_MERGED_PR=#123 at merge SHA 271de9ac23d6fd092db5a77c15bcf191249fd40d; exact PR head f7f0071a4a5437877e7da13dd1e83471ded3a610.
 PR_URL=https://github.com/Report-Engainall/Nasr1/pull/123
+PR_CORE_TEST=SUCCESS — run 40017279766 on exact PR head f7f0071a4a5437877e7da13dd1e83471ded3a610.
+PR_P2_TEST=SUCCESS — run 40017279809 on the same exact PR head f7f0071a4a5437877e7da13dd1e83471ded3a610.
+MAIN_CORE_TEST=SUCCESS — run 40017988386 on exact SHA 271de9ac23d6fd092db5a77c15bcf191249fd40d.
+HOSTED_CUSTOMER_E2E=SKIPPED / BLOCKED_EXTERNAL; dedicated non-production Supabase credentials and authorized cross-tenant accounts are unavailable. Not PASS.
+CODERABBIT_REVIEW=rate-limited; no completed independent bot review is claimed. Manual P2 diff/ownership/security review completed and no unresolved review threads remained at merge.
+
+LAST_COMPLETED_TASK_ID=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-PENDING-REQUEST-MAP
+CURRENT_TASK_STATUS=CLOSED_WITH_EVIDENCE; INTEGRATED; TESTED_EXACT_SHA.
+CURRENT_BRANCH=main (read-only reference; create a new branch before coding)
+BASE_SHA=271de9ac23d6fd092db5a77c15bcf191249fd40d
+HEAD_SHA=271de9ac23d6fd092db5a77c15bcf191249fd40d
+MERGE_STATUS=PR #123 CLOSED / MERGED; merge SHA 271de9ac23d6fd092db5a77c15bcf191249fd40d
 FILES_CHANGED=src/components/CustomerWorkflows.tsx; src/components/CustomerWorkflows.finance.test.tsx; docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md; docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv; docs/bolt-source-reconciliation/PROGRAMMER_2_CURRENT_REPORT.md; docs/bolt-source-reconciliation/WORK_COORDINATION.md; docs/bolt-source-reconciliation/EXECUTION_LOG.md
 
-## Verified issue and code fix
+## Completed implementation and evidence
 
-The merged #112 client retained only one unresolved request fingerprint/key. If payment A returned an ambiguous failure and the user submitted a different valid payment B, B overwrote A's only key. Retrying A later could generate another key. In addition, a transport result with no error but a null/empty payment ID was handled as success.
+PR #123 addressed the proven client regression in merged #112 payment idempotency. The previous scalar key/fingerprint slot could be overwritten by a different request after an ambiguous failure. It is now a Map keyed by normalized request fingerprint, so unresolved payload A retains its original key after payload B is submitted. An RPC response only counts as success if it includes a well-formed UUID payment identifier; errors, null, empty, and malformed acknowledgements fail closed and keep the key for a same-payload retry.
 
-This follow-up, on P2-owned UI/test paths only:
-- Stores idempotency keys in a Map keyed by the normalized request fingerprint so multiple unresolved payment payloads retain their own keys.
-- Reuses A's key when A is resubmitted after another payload was attempted; removes a key only after a non-empty payment ID acknowledgement and only if it still maps to that request.
-- Treats an RPC error, thrown transport failure, or null/empty acknowledgement as ambiguous/fail-closed, preserving the key for the exact payload retry.
-- Adds component regressions for A ambiguous → B successful → A retry reuses A's key, and null/malformed acknowledgements → same-key retries before a valid UUID succeeds.
-- Formats the affected test and component paths. No SQL, grants, payment service, or ledger engine is duplicated.
+Regression coverage added:
+- A ambiguous -> B succeeds -> A retries using A's original key.
+- Null and malformed acknowledgement retain one stable key until a valid UUID acknowledgement arrives.
+- The baseline successful payment RPC mock now returns a UUID matching the service contract.
 
-## Exact-head evidence and remaining gates
+Verification:
+- Core PR-head run 40017279766 SUCCESS on exact head f7f0071a4a5437877e7da13dd1e83471ded3a610: https://github.com/Report-Engainall/Nasr1/actions/runs/40017279766
+- P2 Playwright run 40017279809 SUCCESS on that same exact head, including isolated PostgreSQL 17 migrations, local Supabase, tenant-denial and finance/browser acceptance: https://github.com/Report-Engainall/Nasr1/actions/runs/40017279809
+- Core push-to-main run 40017988386 SUCCESS on merge/main SHA 271de9ac23d6fd092db5a77c15bcf191249fd40d: https://github.com/Report-Engainall/Nasr1/actions/runs/40017988386
+- The hosted Playwright customer order and tenant isolation job was SKIPPED because required non-production credentials were unavailable. This is BLOCKED_EXTERNAL, not PASS. No production database writes or live payment operation occurred.
+- CodeRabbit review invocation was rate-limited; no completed independent CodeRabbit report is claimed. Manual P2 review was posted on PR #123 and no unresolved review threads were found before merging.
+- PR https://github.com/Report-Engainall/Nasr1/pull/123 is closed/merged at 271de9ac23d6fd092db5a77c15bcf191249fd40d.
 
-- PR #112 exact tested head 1aa7c7906851e1a5ddb088a173d868a16809f9ef: [Core 40010842943](https://github.com/Report-Engainall/Nasr1/actions/runs/40010842943) SUCCESS and [P2 40010842853](https://github.com/Report-Engainall/Nasr1/actions/runs/40010842853) SUCCESS. These confirm the merged baseline implementation only, not the new code in #123.
-- PR #112 credential-gated hosted customer E2E was SKIPPED. This remains BLOCKED_EXTERNAL, not PASS.
-- The new PR #123 has been opened from code/test head cbcbf3db6261b1018c3e83766c575dd854314654. This checkpoint refresh changes the PR head, so the final-head Core/P2 checks must be read after all checkpoint commits and must each terminate successfully on that same SHA. Do not merge while a required job is in progress, failed, cancelled, or skipped.
-- No production database writes, real payment processing, or live Onyx/WhatsApp calls were performed.
-
-NEXT_ACTION=Re-read PR #123 after the sequential central checkpoint updates; inspect its final head, Core/P2 terminal jobs and review threads; fix evidenced failures; merge only through the PR after all required checks pass; verify the post-merge main SHA and current CI.
-UPDATED_AT=2026-10-23T23:09:00+03:00
+NEXT_TASK_ID=COMPANY-001-CURRENT-MAIN-ACCEPTANCE
+NEXT_ACTION=On the latest live main, inspect existing company workspace routes, services, invitations, membership lifecycle, addresses and RLS/RPC. Implement only the first evidenced gap, without repeating #84 customer_manager mapping, #90 invitation expiry validation, or #83/#88 central-session work. Record path ownership before changes; test UI + RPC/DB + role/tenant isolation in PostgreSQL 17 and exact-head Core/P2 gates.
+UPDATED_AT=2026-10-23T23:29:00+03:00
 
 ---
 
