@@ -823,3 +823,27 @@ Read the latest #88 Core and Playwright results by exact SHA; repair concrete fa
 **BASE_SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
 **FUNCTIONAL_HEAD_SHA:** `f3673f85a88762be52a4c8ca7597be475639eda9`  
 **STATUS:** Implemented; exact-head CI pending; session E2E wiring pending with P2.
+
+
+## P1 — current-device sign-out is single-flight and clears stale auth details — 2026-10-23T17:15+03:00
+
+### Root cause and fix
+The current-device sign-out handler relied on the button becoming disabled after React state updated and kept the locally rendered session object after the auth API acknowledged logout. A rapid double click could therefore issue duplicate `supabase.auth.signOut({ scope: 'local' })` calls, and the current-session details could remain visible until a later navigation. The handler now takes a synchronous `useRef` single-flight lock, refuses execution if another action is active, and clears the locally held current-session and organization-session rows only after a successful auth-service response. On error it retains the session state for an honest retry and shows an error rather than success.
+
+### Regression acceptance
+Added a deferred-signOut component test in `src/test/device-management.test.tsx`: two rapid clicks while the first sign-out is pending must call the service once; after a successful response the user notice fires once, the account email/session details disappear, and the action stays disabled. The previously completed `P1-DEVICE-SESSION-STALE-LIST-RESPONSE-001` guards against stale list replies restoring revoked sessions after a newer read.
+
+### Exact-head evidence and route wiring
+- Local sign-out implementation/test commit: `f1c298299281f1e10755c3786c3900724f5c5632`; Core CI is pending on this SHA.
+- Previous head `d23de924cccc839208eb64c4bbc9528d9feddb4c` Core [39967378247](https://github.com/Report-Engainall/Nasr1/actions/runs/39967378247) SUCCESS; it predates this sign-out change. Its P2 Playwright [39967378245](https://github.com/Report-Engainall/Nasr1/actions/runs/39967378245) was still running when this new code was committed.
+- `src/components/AghbariApp.tsx` blob `6acb7515e4c77cdc9416d1475672c4b7552a772c` imports and renders `DeviceManagement` for the `devices` view and maps that view to `/admin/devices`. `src/routes/admin_.devices.tsx` blob `97d76c572af13d5714baf3b1f0652da98114885f` mounts `AdminApp initialView="devices"` at the real route. This is source-level route wiring, not a claim of authenticated browser acceptance.
+- The session browser spec and seeding script are committed in #88 but not executed by the currently inspected P2 workflow. P1 handed this to P2 via comments [6366644229](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366644229) and [6366901182](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366901182).
+
+### Next action / ownership
+Read exact-head CI after the current resume-doc commit. Fix code/test failures only. P2 owns backend/session RPC/RLS and the local-only Playwright workflow wiring; do not change those locked paths in P1. Once P2 runs the dedicated browser test on its synced branch and merges the server contract, rerun the exact integrated scenario against #88. Keep #88 Draft pending this proof.
+
+**Branch:** `p1/central-device-session-ui-20261023`  
+**PR:** [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**BASE_SHA:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`  
+**FUNCTIONAL_HEAD_SHA:** `f1c298299281f1e10755c3786c3900724f5c5632`  
+**STATUS:** Two P1 UI regressions implemented; stale-list guard Core-tested; new single-flight logout test awaits exact-head CI; session E2E remains blocked on P2 workflow wiring.

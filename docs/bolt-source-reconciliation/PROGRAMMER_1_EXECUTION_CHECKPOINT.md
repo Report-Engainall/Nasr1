@@ -350,3 +350,20 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: DRAFT / OPEN / NOT READY.
 - UPDATED_AT: 2026-10-23T17:00+03:00
+
+
+## Active resume — local sign-out duplicate-action guard — 2026-10-23T17:15+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-LOCAL-SIGNOUT-DOUBLE-SUBMIT-001` (code/test implemented in `f1c298299281f1e10755c3786c3900724f5c5632`; exact-head CI pending).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `f7565aefd7af6033d169167d1bebb3dc5cd248ce` (current main after the merged invitation/checkpoint PR #93).
+- HEAD_SHA (functional code/test commit): `f1c298299281f1e10755c3786c3900724f5c5632`. The subsequent resume-doc commit is documentation-only; resolve the live branch head at the next start.
+- LAST_CONFIRMED_TESTS: code/test parent `d23de924cccc839208eb64c4bbc9528d9feddb4c` Core [39967378247](https://github.com/Report-Engainall/Nasr1/actions/runs/39967378247) SUCCESS. That head includes the stale-list-response guard, but predates local sign-out hardening. Stale-list functional commit `f3673f85a88762be52a4c8ca7597be475639eda9` Core [39966125912](https://github.com/Report-Engainall/Nasr1/actions/runs/39966125912) SUCCESS. Do not transfer either PASS to `f1c2982...`.
+- FAILED_OR_NOT_RUN_TESTS: Core and P2 Playwright for `f1c298299281f1e10755c3786c3900724f5c5632` were not yet terminal at this checkpoint. Authenticated central-session browser acceptance remains NOT_PROVEN: `e2e/device-session-management.spec.ts` and its local seed script are not invoked by the P2 workflow version read at blob `2a74366b6b0c7b7a23f25aae3578d67d5d1d9341`. P1 requested P2 wiring in [PR #83 comment 6366644229](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366644229) and reiterated after main advanced in [comment 6366901182](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366901182).
+- FILES_CHANGED: `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`; session-specific browser spec and local fixture script remain in the branch. PR #88 history includes main checkpoint/report merge commit `d23de924cccc839208eb64c4bbc9528d9feddb4c`; no force-push.
+- LOCKED_PATHS: P2 migrations/RPC/RLS/Auth/generated types and `.github/workflows/p2-playwright-critical-paths.yml`; shared `CURRENT_EXECUTION_STATE.md` and `WORK_COORDINATION.md`; P3 acceptance paths. P1 did not change these files.
+- NEXT_ACTION: get Core + P2 workflow terminal results for the live #88 head; fix specific failures only. Then require P2 to run the new session spec in isolated local Supabase/PG17, proving exact same-tenant session revocation, subsequent protected-tenant RPC denial while JWT time has not expired, and bulk self-revocation preserving the caller session. Keep #88 Draft until backend #83 is merged and the scenario is run on the integrated base.
+- BLOCKER: new local sign-out test still needs exact-head CI; session E2E runner is not yet wired by P2. P2 PR #83 live head `d2706613906ab401a28628de101a500b8b80b2d5` was 69 ahead / 1 behind main; Core [39966420997](https://github.com/Report-Engainall/Nasr1/actions/runs/39966420997) SUCCESS, P2 Playwright [39966421033](https://github.com/Report-Engainall/Nasr1/actions/runs/39966421033) IN_PROGRESS at last read.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: DRAFT / OPEN / NOT READY.
+- UPDATED_AT: 2026-10-23T17:15+03:00
