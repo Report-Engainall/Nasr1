@@ -1089,3 +1089,9 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **Validation truth:** local `npm test -- --run src/test/storefront-collections.test.tsx`, lint and build were **NOT RUN** because there is no local checkout and network name resolution prevented cloning the repository. GitHub Actions for the final PR head were not yet available at this log update; no `TESTED_EXACT_SHA`, `BROWSER_PROVEN` or `PRODUCTION_PROVEN` claim is made.
 - **Coverage:** appended `P3-CAT-ERR-001` to the existing canonical screen-acceptance CSV. No duplicate Markdown coverage matrix was created because `docs/canonical/AGHBARI-SCREEN-ACTION-COVERAGE.md` is absent on the inspected main SHA and the CSV is the single active matrix.
 - **Next P3 task:** continue the actual TanStack route/action inventory from `src/routes/` and map each visible workflow to its component, service/RPC contract and tests; keep P1-owned app-shell/Storefront paths and P2-owned backend contracts coordinated rather than overwriting their open PRs.
+## P3 category count accuracy — 2026-10-23
+
+- **Task:** `P3-CAT-COUNT-002`; updated `src/components/StorefrontCollectionsPage.tsx` so catalog category counts exclude products with `is_active === false` as well as `status === "inactive"`.
+- **Regression:** expanded `src/test/storefront-collections.test.tsx` with inactive records whose state fields disagree. It verifies that the category stays zero and no browse link is shown.
+- **Implementation commit:** `1c801c1f9e1fd46c3d86d4531a0eca0e4beca81f`; test commit `2dfee3fd19f5873614c416575511c4300fcc6ad9`.
+- **Acceptance state:** implemented; local test execution unavailable; wait for new exact-PR-head Core CI after these edits before marking PASS.
