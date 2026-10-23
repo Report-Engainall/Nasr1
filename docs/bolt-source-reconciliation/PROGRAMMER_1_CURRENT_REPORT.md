@@ -721,3 +721,27 @@ Read latest exact-head runs. Fix only demonstrated UI/test defects; retry rate-l
 **Files changed:** `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`, the two P1-owned resume documents.  
 **LOCKED_PATHS:** P2 database/API/RLS/Auth/workflows and P3 acceptance paths — unchanged.  
 **STATUS:** implementation/test additions committed; CI pending; PR #88 remains not merge-ready.
+
+
+## P1 live readback — code acceptance green, integration gates remain — 2026-10-23T16:46+03:00
+
+### Verified P1 code/test head
+- Code/test SHA `572ab73dc3dab53d2042f2fa8f1f0f1388ba3633`.
+- [Core CI #39962147380](https://github.com/Report-Engainall/Nasr1/actions/runs/39962147380) COMPLETED SUCCESS: 136 test files / 857 tests, PostgreSQL 17 migrations/core acceptance, invitation expiry, stock-count audit, async export, import idempotency, inventory snapshot, saved products, backup/restore, lint, build, dev/preview smoke, and Chromium price-visibility test all passed.
+- [P2 Playwright #39962147845](https://github.com/Report-Engainall/Nasr1/actions/runs/39962147845) had public UI smoke SUCCESS, external customer-order/tenant acceptance SKIPPED and local Supabase job CANCELLED. This does not prove the new session RPC works against a running backend.
+
+### Exact current branch head
+The docs-only branch head `7d756c62743fbbd92e52d9a392f6c441add61951` has its own check runs, separate from the tested code head above. Core [39962288619](https://github.com/Report-Engainall/Nasr1/actions/runs/39962288619) was still IN_PROGRESS at the last read; unit/DB/lint/build and preview/dev-smoke steps were successful while Chromium price-visibility acceptance remained non-terminal. P2 [39962288636](https://github.com/Report-Engainall/Nasr1/actions/runs/39962288636) was still in public UI smoke, and authenticated external customer/tenant acceptance was skipped. Re-read before claiming the docs head green.
+
+### Previously completed current-main UI task — no duplicate rebuild
+Verified that main's `src/components/AdminPages.tsx` (blob `f40d28dd03dd32cda00e181465115266c6330a8a`) imports and mounts `CustomerManagerRoleAssignment` inside the real `SettingsPage` access tab under `canManageRoles`. The wiring test `src/test/customer-manager-role-assignment-settings-wiring.test.tsx` (blob `eeb72df65158681064c81652087e7e9a0e01f1e5`) tests the actual page/tab and denies the customer-manager role. The above 857-test current-main-based Core suite passed; the feature is already integrated, so P1 did not create a duplicate panel.
+
+### Invitation create failure remains with P2
+- PR #90 is in current main but its P2 Playwright attempt was cancelled. Its UI adapter now rejects expired/overlong/foreign invitation responses; it does not mask server errors as success.
+- The browser's root failure was real: pgcrypto was called as `public.gen_random_bytes` although the installed extension schema was different. P2's migration fix is in open PR #82 at `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`; live compare now reports `ahead_by=18`, `behind_by=13` from main `59547c7...`. P1 recorded the sync + exact-head retest requirement at [#82 comment 6366161962](https://github.com/Report-Engainall/Nasr1/pull/82#issuecomment-6366161962) and [handoff #86 comment 6366213509](https://github.com/Report-Engainall/Nasr1/issues/86#issuecomment-6366213509). No P2 migration/workflow path was changed by P1.
+- PR #83 central-session backend is 66 ahead / 0 behind main, Core PASS on [39960901244](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901244), but its local P2 Playwright job [39960901154](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154) is FAIL because purchase-receipt acceptance rejected the runtime as not local PostgreSQL 17. P1 reported the exact failure in comment 6366037526; the workflow/harness fix is P2-owned.
+
+### Status / next action
+- Session UI: implemented and Core-tested at the code/test SHA; PR #88 remains **DRAFT / PARTIAL**. Do not merge until #83's P2 workflow acceptance is fixed, the backend is merged, and browser proof establishes selective revocation and denial of subsequent protected requests.
+- Invitation create: **NOT PROVEN in browser on current main**; await synced #82 exact-head Core + local Supabase/Chromium success and post-merge verification.
+- Files changed by P1: only `DeviceManagement.tsx`, `device-management.test.tsx`, and P1-owned checkpoint/report.

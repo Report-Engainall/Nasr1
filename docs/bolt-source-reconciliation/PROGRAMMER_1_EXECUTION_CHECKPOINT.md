@@ -214,3 +214,23 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: OPEN / NOT READY.
 - UPDATED_AT: 2026-10-23T16:37+03:00
+
+
+## Latest resume — exact-head Core result + invitation and settings integration readback — 2026-10-23T16:46+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-BULK-DOUBLE-SUBMIT-001`; its code/test head has a green Core CI result.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA: `572ab73dc3dab53d2042f2fa8f1f0f1388ba3633` is the last fully tested code/test SHA. Documentation-only branch head before this update: `7d756c62743fbbd92e52d9a392f6c441add61951`.
+- LAST_CONFIRMED_TESTS: code/test SHA `572ab73dc3dab53d2042f2fa8f1f0f1388ba3633`, Core [39962147380](https://github.com/Report-Engainall/Nasr1/actions/runs/39962147380) = SUCCESS: **136/136 test files, 857/857 tests**; migrations + PostgreSQL 17 core acceptance, invitation expiry, stock-count start audit, async export, import idempotency, inventory snapshot, saved products, backup/restore, lint, build, preview 4173, dev 5173, and Chromium price-visibility acceptance all succeeded. This includes the fixed mounted-notice fixture and rapid-double-click test.
+- P2_BROWSER_RESULT: P2 Playwright [39962147845](https://github.com/Report-Engainall/Nasr1/actions/runs/39962147845): public UI smoke SUCCESS; external customer-order/tenant job SKIPPED; local Supabase job CANCELLED. No authenticated session-revocation browser proof.
+- LATEST_DOCS_HEAD_CHECKS: current documentation-only child `7d756c62743fbbd92e52d9a392f6c441add61951`: Core [39962288619](https://github.com/Report-Engainall/Nasr1/actions/runs/39962288619) still IN_PROGRESS at last read, with unit tests, PostgreSQL 17, lint/build, preview and dev-smoke steps successful; Chromium price-visibility acceptance had not yet become terminal. P2 [39962288636](https://github.com/Report-Engainall/Nasr1/actions/runs/39962288636) public smoke IN_PROGRESS; authenticated external path SKIPPED. Do not mark this docs SHA green until its run is terminal.
+- P1-ROLE-UI-READBACK: on current `main`, `src/components/AdminPages.tsx` blob `f40d28dd03dd32cda00e181465115266c6330a8a` imports `CustomerManagerRoleAssignment` and mounts it in the actual access-settings tab behind `canManageRoles`; `src/test/customer-manager-role-assignment-settings-wiring.test.tsx` blob `eeb72df65158681064c81652087e7e9a0e01f1e5` mounts `SettingsPage` and checks real tab wiring and customer-manager denial. The green 857-test Core suite above covers the integrated current-main page. No duplicate UI work is needed.
+- INVITATION_BLOCKER: #90 is merged into main at `59547c7d683cefd65cab445b97219aa701021676`, but its historical P2 Playwright run was cancelled. The prior invitation-create failure is a confirmed pgcrypto schema defect. P2 fix PR #82 is still OPEN at `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`, and live comparison reports 18 ahead / 13 behind current main. P1 coordination comments: [#82 comment 6366161962](https://github.com/Report-Engainall/Nasr1/pull/82#issuecomment-6366161962) and [handoff #86 comment 6366213509](https://github.com/Report-Engainall/Nasr1/issues/86#issuecomment-6366213509). Do not claim invite-create browser proof until P2 syncs and reruns the dedicated local Chromium scenario.
+- P2_SESSION_BLOCKER: PR #83 branch is synced to main (66 ahead, 0 behind at last comparison), Core [39960901244](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901244) succeeded, but P2 Playwright [39960901154](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154) failed in local PostgreSQL purchase-receipt acceptance. P1 reported exact failure in comment 6366037526. P1 must not edit P2-owned workflow/migration paths.
+- FILES_CHANGED: `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`, this checkpoint/report only. P2 and P3 paths remain untouched.
+- NEXT_ACTION: read final CI for the newest docs head; if green, preserve that exact SHA/run. Keep #88 draft and partial until #83's exact-head Core + P2 acceptance are green and merged to main; then sync and prove actual authenticated session list, selective revocation, retained current session, audit and subsequent protected-request denial. Continue coordinating #82 invitation fix separately.
+- BLOCKER: no authenticated central-session browser proof; #83 P2 acceptance fails; #82 is 13 commits behind main.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: DRAFT / OPEN / NOT READY.
+- UPDATED_AT: 2026-10-23T16:46+03:00
