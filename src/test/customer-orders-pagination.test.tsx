@@ -167,18 +167,25 @@ describe("customer order history pagination", () => {
     expect(host?.textContent).not.toContain("صفحة 1 من 2");
   });
 
-  it("gives each order detail link an order-specific accessible name", async () => {
+  it("gives each order detail link a unique accessible name and keeps it keyboard-focusable", async () => {
     await act(async () => {
       root?.render(<MyOrders />);
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const first = host?.querySelector<HTMLAnchorElement>('a.sf-link[aria-label="تفاصيل الطلب ORDER-001"]');
-    const second = host?.querySelector<HTMLAnchorElement>('a.sf-link[aria-label="تفاصيل الطلب ORDER-002"]');
-    expect(first).not.toBeNull();
-    expect(second).not.toBeNull();
-    expect(first?.textContent).toBe("التفاصيل");
-    expect(first?.getAttribute("aria-label")).not.toBe(second?.getAttribute("aria-label"));
+    const detailLinks = [...(host?.querySelectorAll<HTMLAnchorElement>('a[aria-label^="تفاصيل الطلب "]') ?? [])];
+    expect(detailLinks).toHaveLength(2);
+    expect(detailLinks.map((link) => link.getAttribute("aria-label"))).toEqual([
+      "تفاصيل الطلب ORDER-001",
+      "تفاصيل الطلب ORDER-002",
+    ]);
+    expect(detailLinks.map((link) => link.textContent)).toEqual(["التفاصيل", "التفاصيل"]);
+
+    // These are native anchors with no negative tabindex: keyboard users can
+    // reach them with Tab, and focus remains available to screen-reader users.
+    expect(detailLinks.map((link) => link.tabIndex)).toEqual([0, 0]);
+    detailLinks[0]?.focus();
+    expect(document.activeElement).toBe(detailLinks[0]);
   });
 
   it("fails closed instead of presenting an unknown count as zero", async () => {
