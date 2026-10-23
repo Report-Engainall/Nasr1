@@ -281,20 +281,75 @@ describe('central device and session management', () => {
     expect(host?.querySelector('button[aria-label="إبطال جلسة موظف الاختبار"]')).toBeNull();
   });
 
-  it('keeps account-level sign-out actions separate from organization session management', async () => {
+  it('uses the server-owned self-scoped RPC to revoke other sessions and preserves the current session', async () => {
     const onNotice = vi.fn();
-    await act(async () => {
-      root?.render(<DeviceManagement onNotice={onNotice} />);
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'list_organization_sessions') return { data: sessions, error: null };
+      if (name === 'revoke_other_auth_sessions') {
+        const revokedIds = sessions
+          .filter((row) => row.session_id !== CURRENT_SESSION_ID)
+          .map((row) => row.session_id);
+        sessions = sessions.filter((row) => row.session_id === CURRENT_SESSION_ID);
+        return {
+          data: {
+            current_session_id: CURRENT_SESSION_ID,
+            revoked_count: revokedIds.length,
+            revoked_session_ids: revokedIds,
+            revoked_at: '2026-10-23T10:16:00.000Z',
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: { message: 'unexpected RPC' } };
     });
+    await mount();
+
     await act(async () => {
       host?.querySelector<HTMLButtonElement>(
         'button[aria-label="تسجيل الخروج من الأجهزة الأخرى"]',
       )?.click();
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'others' });
-    expect(onNotice).toHaveBeenCalledWith(expect.stringContaining('لا يخص بقية مستخدمي المؤسسة'));
+
+    expect(mocks.rpc).toHaveBeenCalledWith('revoke_other_auth_sessions', undefined);
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(onNotice).toHaveBeenCalledWith(expect.stringContaining('1 جلسة أخرى لهذا الحساب'));
+    expect(host?.textContent).toContain('مدير النظام');
+    expect(host?.textContent).not.toContain('موظف الاختبار');
+  });
+
+  it('does not report bulk revocation success when the server acknowledgement is malformed', async () => {
+    const onNotice = vi.fn();
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'list_organization_sessions') return { data: sessions, error: null };
+      if (name === 'revoke_other_auth_sessions') {
+        return {
+          data: {
+            current_session_id: OTHER_SESSION_ID,
+            revoked_count: 1,
+            revoked_session_ids: [OTHER_SESSION_ID, OTHER_SESSION_ID],
+            revoked_at: 'not-a-timestamp',
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: { message: 'unexpected RPC' } };
+    });
+    await mount();
+
+    await act(async () => {
+      host?.querySelector<HTMLButtonElement>(
+        'button[aria-label="تسجيل الخروج من الأجهزة الأخرى"]',
+      )?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('revoke_other_auth_sessions', undefined);
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(onNotice).not.toHaveBeenCalled();
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+      'تعذر تأكيد إبطال الجلسات الأخرى لهذا الحساب عبر الخادم',
+    );
   });
 
   it('uses local scope for current-device logout', async () => {

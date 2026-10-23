@@ -96,6 +96,27 @@ function parseOrganizationSession(value: unknown): OrganizationSession | null {
   };
 }
 
+function parseOtherSessionRevocationCount(value: unknown, currentSessionId: string | null): number | null {
+  if (!currentSessionId || !value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const result = value as Record<string, unknown>;
+  const sessionIds = result.revoked_session_ids;
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (
+    result.current_session_id !== currentSessionId ||
+    typeof result.revoked_count !== 'number' ||
+    !Number.isSafeInteger(result.revoked_count) ||
+    result.revoked_count < 0 ||
+    !Array.isArray(sessionIds) ||
+    sessionIds.length !== result.revoked_count ||
+    !sessionIds.every((id) => typeof id === 'string' && uuidPattern.test(id)) ||
+    new Set(sessionIds).size !== sessionIds.length ||
+    sessionIds.includes(currentSessionId) ||
+    typeof result.revoked_at !== 'string' ||
+    !Number.isFinite(Date.parse(result.revoked_at))
+  ) return null;
+  return result.revoked_count;
+}
+
 function dateLabel(value: string | null): string {
   if (!value) return 'غير محدد في سجل المصادقة';
   const timestamp = Date.parse(value);
@@ -115,6 +136,7 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
   const [error, setError] = useState('');
   const [sessionsError, setSessionsError] = useState('');
   const revocationInFlight = useRef(false);
+  const otherSessionsInFlight = useRef(false);
 
   const loadOrganizationSessions = useCallback(async () => {
     if (!canManageOrganizationSessions) {
@@ -185,16 +207,24 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
   useEffect(() => { void loadOrganizationSessions(); }, [loadOrganizationSessions]);
 
   async function signOutOthers() {
+    if (!session?.sessionId || loading || action !== null || otherSessionsInFlight.current) return;
+    // Lock synchronously before awaiting the server RPC to prevent rapid duplicate revocation.
+    otherSessionsInFlight.current = true;
     setAction('others');
     setError('');
     try {
-      const { error: revokeError } = await supabase.auth.signOut({ scope: 'others' });
-      if (revokeError) throw revokeError;
-      onNotice('أكدت خدمة المصادقة طلب إبطال جلسات التجديد الأخرى لهذا الحساب؛ هذا الإجراء لا يخص بقية مستخدمي المؤسسة.');
+      const { data, error: revokeError } = await callSessionRpc('revoke_other_auth_sessions');
+      if (revokeError) throw new Error(revokeError.message || 'تعذر إبطال الجلسات الأخرى عبر الخادم.');
+      const revokedCount = parseOtherSessionRevocationCount(data, session.sessionId);
+      if (revokedCount === null) {
+        throw new Error('استجابة إبطال الجلسات الأخرى لا تطابق الجلسة الحالية أو قائمة الجلسات المحذوفة.');
+      }
+      onNotice('أكد الخادم إبطال ' + revokedCount + ' جلسة أخرى لهذا الحساب؛ هذا الإجراء لا يخص بقية مستخدمي المؤسسة.');
       await Promise.all([load(), loadOrganizationSessions()]);
     } catch {
-      setError('تعذر إبطال جلسات التجديد الأخرى لهذا الحساب. لم يتم تأكيد العملية؛ أعد المحاولة.');
+      setError('تعذر تأكيد إبطال الجلسات الأخرى لهذا الحساب عبر الخادم؛ لم تُعرض رسالة نجاح. أعد التحميل وتحقق من الحالة قبل المحاولة مجددًا.');
     } finally {
+      otherSessionsInFlight.current = false;
       setAction(null);
     }
   }
@@ -274,7 +304,7 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
         <RefreshCw size={16} /> تحديث الجلسة الحالية
       </button>
       <button type="button" className="btn primary" aria-label="تسجيل الخروج من الأجهزة الأخرى"
-        onClick={() => void signOutOthers()} disabled={!session || loading || action !== null}>
+        onClick={() => void signOutOthers()} disabled={!session?.sessionId || loading || action !== null}>
         {action === 'others' ? <RefreshCw size={16} className="spin" /> : <ShieldCheck size={16} />}
         {action === 'others' ? 'جار إبطال الجلسات…' : 'الخروج من الجلسات الأخرى لهذا الحساب'}
       </button>
