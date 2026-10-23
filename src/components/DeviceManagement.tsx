@@ -279,12 +279,17 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
         p_session_id: target.session_id,
       });
       if (rpcError) throw new Error(rpcError.message || 'رفض الخادم إبطال الجلسة.');
+      const acknowledgement = data && typeof data === 'object' && !Array.isArray(data)
+        ? data as Record<string, unknown>
+        : null;
       if (
-        !data || typeof data !== 'object' || Array.isArray(data) ||
-        (data as Record<string, unknown>).session_id !== target.session_id ||
-        (data as Record<string, unknown>).revoked !== true
+        !acknowledgement ||
+        acknowledgement.session_id !== target.session_id ||
+        acknowledgement.revoked !== true ||
+        typeof acknowledgement.revoked_at !== 'string' ||
+        !Number.isFinite(Date.parse(acknowledgement.revoked_at))
       ) {
-        throw new Error('لم يؤكد الخادم إبطال الجلسة المستهدفة.');
+        throw new Error('لم يؤكد الخادم إبطال الجلسة المستهدفة بإقرار صالح.');
       }
       onNotice('أكد الخادم إبطال الجلسة المحددة لمستخدم المؤسسة، وسُجل الإجراء في سجل التدقيق.');
       await loadOrganizationSessions();
