@@ -22,14 +22,14 @@
 
 ### مسار مالي موازٍ مستقل — FIN-INVOICE-001
 - PR [#95](https://github.com/Report-Engainall/Nasr1/pull/95), الفرع `feat/p2-fin-receivables-aging-credit-memo-20261023`.
-- `HEAD_SHA=024e155a2135a104a7dc1c6d8ced7e2018b0a467`; `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`; OPEN/Draft; not merged.
+- `HEAD_SHA=024e155a2135a104a7dc1c6d8ced7e2018b0a467`; `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`; OPEN/Ready for review; not merged.
 - الفجوة المثبتة: `fetch_staff_receivables_aging` يحسب المتبقي من الفاتورة ناقص المدفوعات لكنه لم يطرح الإشعارات الدائنة المنشورة، خلافًا لعقد كشف الحساب.
 - التغيير يضيف تجميعًا مصدره نفس الفاتورة والمؤسسة، ويحسب `total - payments - posted credits` دون النزول عن الصفر؛ يستبعد المسودات والمعكوسات، ويرفض إشعارًا منشورًا لا يطابق مصدره أو عملته، ويضيف `credit_memo_amount` إلى تفاصيل بند التقادم.
 - بعد تقوية fixture لاستبعاد أي بند دخل في طلب مرتجع سابق، الرأس الحالي `024e155a2135a104a7dc1c6d8ced7e2018b0a467` اجتاز Core [run 39964921878](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921878) = SUCCESS وP2 [run 39964921887](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921887) = SUCCESS على الرأس نفسه. سجل Core يحتوي على `PASS staff receivables aging`، بما في ذلك خصم الإشعارات المنشورة مرة واحدة واستبعاد المسودات والاستلام المادي. PR95 يبقى مفتوحًا Ready for review حتى ترتيب الدمج بعد عقد #83؛ لا ادعاء نجاح لاختبار الحساب المستضاف الذي بقي SKIPPED. المسارات الثلاثة لا تتداخل مع files workflow/اختبار قاعدة البيانات المشتركة المقفلة في #83.
 
 ### الترتيب التالي والطلبات المرتبطة
 - `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`.
-- `NEXT_ACTION`: راجع النتيجة النهائية لـCore وP2 على رأس #83 الحالي `1f60e27...`; أصلح أي فشل مثبت فقط؛ نفّذ مراجعة SQL/SECURITY DEFINER؛ عند تحقق جميع الشروط حوّل المسودة إلى Ready وادمج، ثم أعد التحقق من main وتشغيل Core على SHA ما بعد الدمج.
+- `NEXT_ACTION`: انتظر نهاية P2 على #83 `d270661...`; عند نجاحه حدّث فرع #83 إلى main الحالي `f7565a...` بدمج غير قسري، ثم أعد Core/P2 على الرأس النهائي وراجع SECURITY DEFINER قبل الدمج. بعدها حدّث #95 فوق main بعد دمج #83 وأعد اختبار الرأس الجديد.
 - المهمة التالية بعد #83: `PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE`. PR [#82](https://github.com/Report-Engainall/Nasr1/pull/82) ما زال مفتوحًا ورأسه `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591` متفرعًا من base قديم `0396b29...`; نجاح Core/P2 السابق يخص هذا الرأس وحده. حدّثه بالتتابع بعد #83 وكرر الاختبارات المطلوبة على الرأس الجديد.
 - PR [#71](https://github.com/Report-Engainall/Nasr1/pull/71) مدمج؛ فحوص Core وP2 نجحت على رأسه `09c052d9f39e92e81b8dc994f54554c1fa9fdf49`. إثبات النسخ والاستعادة يخص PostgreSQL 17 المحلي المعزول فقط، وليس استعادة الإنتاج أو RTO/RPO.
 - PR #54 و#52 و#84 و#90 مدمجة. لا تُستأنف بالاعتماد على التقارير القديمة.
