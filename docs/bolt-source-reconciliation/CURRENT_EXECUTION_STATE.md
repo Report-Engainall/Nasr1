@@ -1,60 +1,58 @@
 # الحالة التنفيذية الحالية الوحيدة — Nasr1 / متجر الأغبري
-## آخر قراءة موثقة: 23 أكتوبر 2026
+## قراءة Git الحية — 2026-10-23T16:47:00+03:00
 
-هذه الوثيقة هي مؤشر الاستئناف الحي. لا تعتمد المؤشرات القديمة أو نصوص التقارير التاريخية إذا خالفت GitHub. مصدر المتطلبات التفصيلي هو `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`، ويُحدّث هذا المؤشر بعد كل دمج أو تغيير في حالة الإثبات.
+هذا هو مؤشر الاستئناف المركزي الوحيد. لا تستخرج NEXT_TASK_ID من تقارير تاريخية؛ اجعل هذا القسم مرجع التنفيذ الجاري. رأس main والحالات أدناه تم التحقق منها من GitHub.
 
-## 1. خط الأساس الحي
+### خط الأساس
+- المستودع الوحيد: `Report-Engainall/Nasr1`.
+- `MAIN_SHA=59547c7d683cefd65cab445b97219aa701021676`.
+- Core CI على main: [run 39956957952](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952) = SUCCESS على SHA نفسه.
+- لا كتابة مباشرة إلى main. أحدث main لا يزال `59547c7d683cefd65cab445b97219aa701021676` وقت هذه القراءة.
 
-- المستودع الوحيد: [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1).
-- رأس `main`: `cb72f35de524af82f63bbbcebec97213464921ed`.
-- [Core CI على رأس main نفسه](https://github.com/Report-Engainall/Nasr1/actions/runs/39955478215): **SUCCESS** على SHA `cb72f35de524af82f63bbbcebec97213464921ed`، الذي ضمّ توصيل إسناد customer_manager إلى إعدادات الوصول واختبار ربطه. نتيجة `d3a27dc...` تاريخية ولا تحل محل فحص الرأس الحالي. لا يثبت CI أي تكامل إنتاجي.
-- PR #71 الخاص باختبار النسخ والاستعادة مدمج. رأسه المختبَر قبل الدمج `09c052d9f39e92e81b8dc994f54554c1fa9fdf49`; [Core CI](https://github.com/Report-Engainall/Nasr1/actions/runs/39952265056) و[P2 Playwright](https://github.com/Report-Engainall/Nasr1/actions/runs/39952265061) كلاهما **SUCCESS** على SHA نفسه. اختبار PostgreSQL 17 المعزول اجتاز النسخ والاستعادة ومقارنة تعريفات المخطط/الدوال/RLS/المشغلات وبصمات SHA-256 لمجموعات بيانات 23 جدولًا حساسًا للمالية والاستيراد وOnyx والتشغيل. أعاد فحص Core بعد الدمج على `d3a27dc...` النتيجة **SUCCESS**.
-- لا تخلط نجاح الفحوص المعزولة مع اختبار استعادة الإنتاج أو ادعاء RTO/RPO مقاسَين؛ الإنتاج **NOT RUN**.
+### المهمة الأساسية الحالية — AUTH-CENTRAL-SESSION-BACKEND-P2
+- PR [#83](https://github.com/Report-Engainall/Nasr1/pull/83), الفرع `feat/p2-central-session-backend-20261023`.
+- `HEAD_SHA=91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`; `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`; OPEN/Draft; not merged.
+- Core CI [run 39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) = SUCCESS على SHA `91c87e0...`.
+- P2 Playwright [run 39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) لم يصل إلى نتيجة نهائية عند القراءة. Public read-only UI smoke = SUCCESS؛ infrastructure gate = SUCCESS؛ الاختبار المستضاف الذي يحتاج اعتمادات خارجية = SKIPPED؛ local Supabase/PG17 job ما زال يعمل، وآخر خطوة مقروءة تثبيت اعتمادات Chromium من المتصفح المحفوظ.
+- سبب الفشل السابق على SHA `9079ffa7dc56051f29f5ab344dd4522e208cb841`: اختبار استلام المشتريات رفض منفذ PostgreSQL الديناميكي `55432` رغم أنه المنفذ المحلي الذي يخصصه workflow. أُصلح ذلك في `91c87e0...` باستعمال حارس endpoint المحلي المشترك؛ النتيجة الجديدة لهذا المسار لا تزال تنتظر P2 النهائي.
+- عقد الجلسات يضيف `list_organization_sessions`, `revoke_organization_session` و`revoke_other_auth_sessions()`; يتحقق من جلسة `auth.sessions` الحية المطابقة لـJWT، ويقيد الجلسات بالمؤسسة والمستخدمين النشطين، ويحجب الأسرار، ويحفظ التدقيق والأنواع الرسمية. فحوص PostgreSQL 17/الوحدة نجحت على الرأس الحالي ضمن Core؛ لا تغلق المهمة حتى ينتهي P2 ويُراجع عقد SECURITY DEFINER على هذا الرأس نفسه.
+- لا تدمج #83 قبل Core وP2 النهائيين على الرأس النهائي ومراجعة العقد. PR #88 واجهة P1 تابعة للعقد وليست متكاملة نهائيًا قبل دمجه.
 
-## 2. المهمة التنفيذية الحالية الوحيدة
+### مسار مالي موازٍ مستقل — FIN-INVOICE-001
+- PR [#95](https://github.com/Report-Engainall/Nasr1/pull/95), الفرع `feat/p2-fin-receivables-aging-credit-memo-20261023`.
+- `HEAD_SHA=d2f904beeb14674cfed3501f5482734eaa76e34b`; `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`; OPEN/Draft; not merged.
+- الفجوة المثبتة: `fetch_staff_receivables_aging` يحسب المتبقي من الفاتورة ناقص المدفوعات لكنه لم يطرح الإشعارات الدائنة المنشورة، خلافًا لعقد كشف الحساب.
+- التغيير يضيف تجميعًا مصدره نفس الفاتورة والمؤسسة، ويحسب `total - payments - posted credits` دون النزول عن الصفر؛ يستبعد المسودات والمعكوسات، ويرفض إشعارًا منشورًا لا يطابق مصدره أو عملته، ويضيف `credit_memo_amount` إلى تفاصيل بند التقادم.
+- Core [run 39963814368](https://github.com/Report-Engainall/Nasr1/actions/runs/39963814368) وP2 [run 39963814885](https://github.com/Report-Engainall/Nasr1/actions/runs/39963814885) قيد التنفيذ؛ لا يُصنف الاختبار كنجاح قبل ظهور نتيجة نهائية. المسارات الثلاثة في PR95 لا تتداخل مع ملفات workflow/اختبار قاعدة البيانات المشتركة المقفلة في #83.
 
-**next_task_id = AUTH-CENTRAL-SESSION-BACKEND-P2**
+### الترتيب التالي والطلبات المرتبطة
+- `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`.
+- `NEXT_ACTION`: راجع النتيجة النهائية لـP2 على #83 `91c87e0...`; أصلح أي فشل مثبت فقط؛ نفّذ مراجعة SQL/SECURITY DEFINER؛ عند تحقق جميع الشروط حوّل المسودة إلى Ready وادمج، ثم أعد التحقق من main وتشغيل Core على SHA ما بعد الدمج.
+- المهمة التالية بعد #83: `PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE`. PR [#82](https://github.com/Report-Engainall/Nasr1/pull/82) ما زال مفتوحًا ورأسه `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591` متفرعًا من base قديم `0396b29...`; نجاح Core/P2 السابق يخص هذا الرأس وحده. حدّثه بالتتابع بعد #83 وكرر الاختبارات المطلوبة على الرأس الجديد.
+- PR [#71](https://github.com/Report-Engainall/Nasr1/pull/71) مدمج؛ فحوص Core وP2 نجحت على رأسه `09c052d9f39e92e81b8dc994f54554c1fa9fdf49`. إثبات النسخ والاستعادة يخص PostgreSQL 17 المحلي المعزول فقط، وليس استعادة الإنتاج أو RTO/RPO.
+- PR #54 و#52 و#84 و#90 مدمجة. لا تُستأنف بالاعتماد على التقارير القديمة.
+- PR #88 واجهة الأجهزة التابعة لـ#83، و#89 من P3 ما زال مفتوحًا على main الحالي، و#43 اختبار واجهة الأدوار ما زال مفتوحًا لكن قاعدته قديمة؛ CI Core السابق له نجح وP2 فشل في خطوة محاسبة مستقلة عن اختبار الأدوار. لا تعدّل ملفات P1/P3 المحمية أو تُدمج #43 قبل مزامنة القاعدة وإعادة اختباره من قبل مالك مساره.
 
-- PR #83: [العقد الخلفي لإدارة الجلسات المركزية](https://github.com/Report-Engainall/Nasr1/pull/83)، الفرع `feat/p2-central-session-backend-20261023`، الرأس الحالي `91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`، الحالة OPEN/Draft، والـbase `59547c7d683cefd65cab445b97219aa701021676`. فرع #83 محدث إلى main الحالي بدمج Git غير قسري.
-- آخر Core ناجح كان على الرأس السابق `9079ffa7dc56051f29f5ab344dd4522e208cb841`: [run 39960901244](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901244) = **SUCCESS** على ذلك SHA. اجتازت unit tests وPostgreSQL 17 migrations/database acceptance، ومجموعة فحوص الأداء/الأمان والبناء/Chromium.
-- Core على الرأس الحالي `91c87e0...`: [run 39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) = **IN PROGRESS** عند آخر قراءة؛ كان في Unit tests.
-- P2 على الرأس السابق `9079ffa...`: [run 39960901154](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154) = **FAILURE**. بعد نجاح public UI smoke ومهاجرات Supabase وإنشاء fixtures المحلية ونجاح endpoint guard واختبارات price-grid وcash-expense، فشل اختبار استلام المشتريات لأن `scripts/test-purchase-receipt-accounting.mjs` فرض المنفذ 54322 بينما workflow يعزل PostgreSQL على 55432.
-- عولج هذا السبب على الرأس الحالي `91c87e0...` باستعمال `validateCashExpenseEndpoints` المشترك، الذي يمنع الأجهزة/المضيفات الخارجية ويشترط loopback ومنفذًا صريحًا صالحًا؛ التحقق النهائي على الرأس الحالي قيد التشغيل وليس PASS حتى الآن.
-- P2 الحالي: [run 39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) = **IN PROGRESS**. آخر قراءة: الاختبار العام في خطوة تثبيت اعتماديات Chromium؛ مسار local Supabase يعتمد على نجاح هذا الاختبار العام. حارس الحسابات المستضافة متجاوز لغياب الاعتمادات، وليس إثبات تسجيل دخول حقيقي أو إنتاج.
-- حل HTTP 429: Bun موجّه إلى `https://registry.npmjs.org` مع backoff محدود لأخطاء 429 فقط. تغيّرت 97 روابط tarball في `bun.lock` إلى npm العام، مع بقاء إصدارات الحزم و721 SHA-512 integrity entries دون تغيير؛ frozen-lockfile validation والتثبيت نجحا في التشغيلات السابقة.
-- عقد الجلسات في #83: `list_organization_sessions` محصور بمدير مؤسسة نشط والجلسات الفعالة دون أسرار مع التدقيق؛ `revoke_organization_session` يمنع إلغاء الجلسة الحالية أو أي جلسة أخرى تخص المدير؛ `revoke_other_auth_sessions()` ينهي جلسات الحساب نفسه الأخرى فقط، ويحتفظ بالحالية ويرجع IDs/count مع حدث تدقيق. اجتازت اختبارات PostgreSQL 17 هذا المنطق في Core على SHA `9079ffa...`; يلزم إعادة إثباته على الرأس الحالي بعد تعديل الاختبار المالي.
-- تم إصلاح الذيل المكرر المبتور في workflow P2. P2 لم يعدّل واجهة الأجهزة المملوكة لـP1، وعُلّق على [PR #88](https://github.com/Report-Engainall/Nasr1/pull/88) أن الشاشة الحالية لا تثبت تكامل RPCs لقائمة جلسات المؤسسة وإلغائها.
-- لا تدمج #83 حتى ينجح Core وP2 على `91c87e0...` أو رأس أحدث ثابت، وتُراجع حدود SECURITY DEFINER والتكامل مع #88.
+### العوائق الخارجية والملفات المقفلة
+- `INTEGRATION-001=BLOCKED_EXTERNAL`: لا اعتماد/استجابة حقيقية تثبت اتصال Onyx أو WhatsApp Business API الرسمي.
+- `ONYX-XLSX-001=BLOCKED_EXTERNAL`: تصدير XLSX المحلي مثبت على أدلة سابقة، لكن قبول الاستيراد في نسخة Onyx الهدف غير مثبت.
+- `OPS-DR-001`: استعادة PostgreSQL محلية معزولة مثبتة على PR #71 فقط؛ استعادة الإنتاج `NOT RUN`.
+- مصفوفة القبول و`WORK_COORDINATION.md` مقفولتان حاليًا ضمن PR #43؛ لم تُعدلا بالتوازي. `CURRENT_EXECUTION_STATE.md` و`PROGRAMMER_2_CURRENT_REPORT.md` و`EXECUTION_LOG.md` تحت تحديث P2 في PR #92. ملفات workflow و`scripts/test-database-migrations.mjs` و`bun.lock` المتأثرة في #83 ممنوع لمسها من PR آخر بالتوازي.
+- لا ادعاء اتصال حي أو إنتاجي، ولا مزود مدفوع إلزامي، ولا أرصدة/نتائج مختلقة.
 
-**المهمة التالية بعد إغلاق #83: PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE.**
-يحتاج #82 إلى مزامنة واختبارات على latest main `59547c7...` قبل اتخاذ قرار الدمج. دعوة ناجحة في قاعدة محلية لا تثبت بريدًا إنتاجيًا.
-
-## 3. مسار P2 التالي بعد إغلاق #82
-
-**الهدف التالي: FIN-INVOICE-001 — مطابقة الفواتير والدفعات والتخصيصات وكشوف الحساب وأعمار الذمم على مصدر الحقيقة الحالي.**
-
-تحقق من اكتمال المجاميع عبر كامل دفتر البيانات، وتطابق الفاتورة/الدفعة/التخصيص/الإشعار الدائن مع المصدر، وفصل العملات ومنع الازدواج؛ أضف اختبارات PostgreSQL 17 للحالات المقبولة والمرفوضة والتزامن وإعادة المعالجة على SHA واحد. لا تنشئ دفترًا أو أرصدة بديلة. كشف فحص المهاجرات عن فجوة يجب اختبارها وإغلاقها: `fetch_staff_receivables_aging` في `20261018030000_staff_receivables_aging.sql` يحسب المتبقي من الفواتير ناقص المدفوعات، ولا يجمع الإشعارات الدائنة المنشورة؛ بينما `get_customer_account_statement()` في `20261023010000_customer_statement_credit_memo_parity.sql` يحسم الإشعارات المنشورة ويستبعد المعكوسة. بعد إغلاق #82، أكمل مطابقة أعمار الذمم للائتمانات المنشورة واختبارات مصدر البيانات والتكرار والعملة، دون إنشاء دفتر/محرك موازٍ.
-
-بعد ذلك ارجع إلى `IMPORT-001` و`DQS-001` و`EXPORT-001` لإكمال قبول حدود الملفات، والأصفار البادئة، والتكرار/إعادة المحاولة، وسلامة صيغ Excel، واحتساب DQS من المصدر المخزن. استخدم المحرك الحالي بدل إعادة بنائه.
-
-## 4. الطلبات الأخرى — مستقلة عن المهمة الحالية
-
-- PR #83، جلسات مركزية مرتبطة بالمؤسسة، مفتوح كـDraft؛ الرأس عند آخر قراءة `9e28cb442d5ff43d805b468de82c77feffd1a4ea`. Core CI [#39953761360](https://github.com/Report-Engainall/Nasr1/actions/runs/39953761360) ما يزال **IN PROGRESS**، وفشل P2 على هذا الرأس في [#39953754321](https://github.com/Report-Engainall/Nasr1/actions/runs/39953754321). يلزم تشخيص الفشل من سجل التشغيل الدقيق وإصلاحه قبل تقديم دليل قبول؛ لا تخلط هذه النتيجة بأدلة #82 أو #71.
-- PR #84 وPR #90 تخصان P1؛ فحوصهما السابقة ناجحة على رأسيهما المشار إليهما في GitHub. لا تعدّل مساراتهما المملوكة لـP1 دون تسليم ملكية صريح.
-- توجد PRs مفتوحة لـP3/P1 والاختبارات المشتركة؛ افحص مالك كل ملف قبل تغييره، ولا تعدّل `EXECUTION_LOG.md` أو مصفوفة القبول أو `WORK_COORDINATION.md` بالتوازي مع PR يملكها.
-
-## 5. حالات الإغلاق والعوائق الخارجية
-
-- `OPS-DR-001`: اختبار نسخ واستعادة PostgreSQL 17 المعزول **TESTED_EXACT_SHA=PASS** على رأس PR #71 `09c052d...`؛ تحقق Core بعد الدمج **SUCCESS** على `d3a27dc...`. استعادة الإنتاج وRTO/RPO **NOT RUN**، ولا تُختلق مدة أو أرقامًا.
-- `INTEGRATION-001`: اتصال Onyx الحي وWhatsApp Business API **BLOCKED_EXTERNAL** حتى توفير اعتماد صالح وإثبات استجابة فعلية/معرف خارجي. سجل محاولة أو لقطة Onyx لا يعني مزامنة حية.
-- `ONYX-XLSX-001`: تصدير XLSX المحلي ذي 27 عمودًا والمدقق قابل للاختبار، لكن قبول الاستيراد في نسخة Onyx الهدف **BLOCKED_EXTERNAL** إلى حين توفير بيئة/نسخة هدف مخوّلة وإيصال نتيجة.
-- لا اختبار إنتاجي أو كتابة إنتاجية ضمن هذه الأدلة. لا نجاح ظاهري لعملية لم يحسمها عقد خلفي.
-- الحالات المقبولة: `IMPLEMENTED`, `INTEGRATED`, `TESTED_EXACT_SHA`, `BROWSER_PROVEN`, `PRODUCTION_PROVEN`, `CLOSED_WITH_EVIDENCE`, `BLOCKED_EXTERNAL`, `NOT RUN`. كل حالة مقيدة برأس الكود الذي اختُبر فعليًا.
-
-## 6. قواعد الاستئناف
-
-- قبل الدمج اقرأ رأس PR و`main` ونتائج Core/P2 على SHA المراد دمجه؛ بعد الدمج اقرأ رأس `main` الجديد وشغّل/تحقق من Core على SHA الدمج.
-- لا كتابة مباشرة إلى `main`، ولا force-push/reset/clean، ولا تطبيق أو قاعدة بيانات موازية.
-- لا تكرار للجداول أو محركات الاستيراد أو الأستاذ أو خدمة Onyx. لا تتعامل مع فراغ البيانات كصفر حقيقي، ولا تضع أرقامًا مالية تجريبية على أنها حقيقة.
-- كل نتيجة بلا سجل تشغيل أو اختبار فعلي تبقى `NOT PROVEN`.
-
+### الحقول الإلزامية لتسليم الجلسة
+- `LAST_COMPLETED_TASK_ID=OPS-DR-001` — PR #71 مدمج؛ إثبات محلي معزول فقط.
+- `MAIN_SHA=59547c7d683cefd65cab445b97219aa701021676`
+- `CURRENT_BRANCH=feat/p2-central-session-backend-20261023`
+- `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`
+- `HEAD_SHA=91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`
+- `TASK_STATUS=IMPLEMENTED; Core TESTED_EXACT_SHA=SUCCESS; P2 terminal result NOT RUN`
+- `FILES_CHANGED=28 paths in PR #83; latest functional fix scripts/test-purchase-receipt-accounting.mjs`
+- `TESTS_RUN=Core 39961778913 SUCCESS on 91c87e0; P2 39961778847 pending terminal conclusion`
+- `TESTS_FAILED_OR_SKIPPED=older P2 39960901154 failed at purchase-receipt local endpoint guard; fixed in 91c87e0, final retry pending; hosted-account E2E SKIPPED for missing external non-production credentials`
+- `MERGE_STATUS=NOT MERGED`
+- `EXTERNAL_BLOCKERS=Onyx live sync/target import, official WhatsApp API, production DR`
+- `LOCKED_PATHS=.github/workflows/*, bun.lock, scripts/test-database-migrations.mjs and session-related test fixtures in PR #83; matrix/WORK_COORDINATION under PR #43`
+- `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`
+- `NEXT_ACTION=finish exact-head P2, review security-definer contract, merge only after acceptance, verify post-merge main CI`
+- `UPDATED_AT=2026-10-23T16:47:00+03:00`
