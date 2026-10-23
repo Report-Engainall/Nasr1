@@ -4717,6 +4717,21 @@ async function main() {
   const customerManagerActivationCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-07'", [organizationId]))[0].id;
 
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("reset role");
+  // Exercise token generation, storage and acceptance with pgcrypto outside public, as in Supabase projects.
+  const pgcryptoBeforeRow = (await db.unsafe(
+    "select n.nspname as schema from pg_catalog.pg_extension e join pg_catalog.pg_namespace n on n.oid=e.extnamespace where e.extname='pgcrypto'",
+  ))[0];
+  const pgcryptoSchemaBeforeActivation = pgcryptoBeforeRow?.schema;
+  assert.ok(pgcryptoSchemaBeforeActivation, "PostgreSQL 17 acceptance requires pgcrypto");
+  await db.unsafe("create schema if not exists extensions");
+  if (pgcryptoSchemaBeforeActivation !== "extensions") {
+    await db.unsafe("alter extension pgcrypto set schema extensions");
+  }
+  const pgcryptoSchemaDuringActivation = (await db.unsafe(
+    "select n.nspname as schema from pg_catalog.pg_extension e join pg_catalog.pg_namespace n on n.oid=e.extnamespace where e.extname='pgcrypto'",
+  ))[0]?.schema;
+  assert.equal(pgcryptoSchemaDuringActivation, "extensions", "activation flow must support pgcrypto installed outside public");
   await db.unsafe("set role authenticated");
   const createActivationInvite = async (customerId, email) => {
     const result = await db.unsafe(
@@ -4740,7 +4755,8 @@ async function main() {
     "select token_hash from public.customer_activation_invitations where id=$1",
     [validInvitation.invitation_id],
   ))[0];
-  const computedTokenHash = (await db.unsafe("select encode(digest($1::text,'sha256'),'hex') as hash", [validInvitation.token]))[0].hash;
+  assert.match(validInvitation.token, /^[0-9a-f]{64}$/i, "activation bearer token uses 256 bits represented as 64 hex characters");
+  const computedTokenHash = (await db.unsafe("select pg_catalog.encode(extensions.digest($1::text,'sha256'),'hex') as hash", [validInvitation.token]))[0].hash;
   assert.equal(tokenHashRow.token_hash, computedTokenHash, "only the SHA-256 digest of the bearer token is persisted");
   assert.notEqual(tokenHashRow.token_hash, validInvitation.token, "raw bearer token is not stored in the token_hash column");
   await db.unsafe("update public.customer_activation_invitations set expires_at=now()-interval '1 minute' where id=$1", [expiredInvitation.invitation_id]);
@@ -4895,7 +4911,13 @@ async function main() {
   assert.ok(activationAudit.some(row => row.action === "customer_activation_invitation.accepted"));
   const revokeAudit = await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=$2", [organizationId, revokedInvitation.invitation_id]);
   assert.ok(revokeAudit.some(row => row.action === "customer_activation_invitation.revoked"), "revocation is audited");
-  process.stdout.write("PASS customer activation invitations: auth.users confirmation/email, tenant and role guards, hash-only token, no direct table DML, one-use/replay, expiry/revoke and audit trail\n");
+  process.stdout.write("PASS customer activation invitations: auth.users confirmation/email, tenant and role guards, SHA-256-only token storage, pgcrypto-in-extensions, one-use/replay, expiry/revoke and audit trail\\n");
+  // Restore the isolated test database's extension placement before subsequent acceptance modules.
+  await db.unsafe("reset role");
+  if (pgcryptoSchemaBeforeActivation !== "extensions") {
+    const safeSchema = '"' + pgcryptoSchemaBeforeActivation.replace(/"/g, '""') + '"';
+    await db.unsafe(`alter extension pgcrypto set schema ${safeSchema}`);
+  }
 
   // SRC-011 / ORDER-INPUT-0011: test every adversarial customer/staff payload against isolated PostgreSQL fixtures.
   // Separate sessions ensure JWT role state cannot leak across actors.
