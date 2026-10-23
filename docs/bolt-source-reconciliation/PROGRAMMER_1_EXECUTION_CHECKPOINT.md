@@ -1,26 +1,35 @@
-# P1 Execution Checkpoint — live resume record
+## Current state — 2026-10-23 — P1 product single-flight and live-main reconciliation
 
-## Current state — 2026-10-23 (reconciled with live refs)
-
-- Status: IN_PROGRESS; device-session UI is implemented, and the branch is being reconciled with current main before merge.
-- Repository: `Report-Engainall/Nasr1`.
-- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
-- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88.
-- BASE_SHA: `8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2` (live main immediately before this integration commit).
-- FEATURE_HEAD_SHA_BEFORE_INTEGRATION: `0d51e2090951e1dab80d4fbdf8e92bcfbb256de8`.
-- HEAD_SHA (last tested functional/code head): `5114ea8227f570662533219af1dc3a013cd49f75`. Core CI and the P1 session-specific local-browser path passed on this exact SHA. This checkpoint-only commit will advance the branch; validate its resulting SHA before merge.
-- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001` — server-backed central device/session UI and guarded revocation plus component/browser acceptance are implemented.
-- LAST_CONFIRMED_TESTS on the integrated functional head `5114ea8227f570662533219af1dc3a013cd49f75`: Core CI **SUCCESS** [run 39981579136](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579136); P2 Playwright **SUCCESS** [run 39981579236](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579236). The local Supabase/Chromium job explicitly ran **central device-session authorization and immediate-revocation acceptance** and passed; public Storefront smoke passed.
-- FAILED_OR_NOT_RUN_TESTS: checks on the new current-main integration head are pending. The external customer-order/tenant-isolation job was skipped by its credential gate; this is not a session-management pass. Production proof is NOT RUN.
-- FILES_CHANGED in the intended net diff: this checkpoint/report plus `e2e/device-session-management.spec.ts`, the P1 session endpoint/seed helpers, `src/components/DeviceManagement.tsx`, and `src/test/device-management.test.tsx`.
-- LOCKED_PATHS: no P2-owned RPC, RLS, migration, `src/lib/api.ts`, or workflow changes are included in the intended net diff. P2 dependency PR #83 is merged into main; no backend ownership is claimed by P1.
-- NEXT_ACTION: verify Core and P2 Playwright checks on the checkpoint-only commit that follows the tested code SHA; if both reach terminal success and the net diff remains P1-owned, mark PR #88 ready and merge it, then verify the merge SHA and post-merge main CI.
-- BLOCKER: no remaining backend-contract blocker; only current checkpoint-commit exact-head CI is pending. External-account E2E remains gated by unavailable non-production credentials.
-- MERGE_STATUS: PR #88 remains Draft/open and not merged.
-- UPDATED_AT: 2026-10-23 18:50 +03:00.
+- `REPOSITORY=Report-Engainall/Nasr1`; `LAST_COMPLETED_TASK_ID=P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001`.
+- `CURRENT_BRANCH=p1/admin-product-singleflight-20261023`; `PR_URL=https://github.com/Report-Engainall/Nasr1/pull/97`.
+- `MAIN_SHA=BASE_SHA=6815b00781412bd98cbdd9fb660e475e4540b543`.
+- `TESTED_EXACT_SHA=HEAD_SHA=bd53fc8bc701a9a009daa24b243246f81cfa4d36` before this checkpoint/report-only successor. The new successor must receive its own exact-head checks; do not transfer these results.
+- Branch synchronization was performed using a two-parent merge commit, preserving the prior P1 branch and latest main. No direct main writes, force-push, reset, clean, rebase, or published-history rewrite.
+- **PR #97 exact diff reconciled:** compare `main...p1/admin-product-singleflight-20261023` is ahead 31 / behind 0 with four P1-owned files only: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, and the two P1 checkpoint/report files.
+- **PR #97 Core — SUCCESS** on exact `bd53fc8...`: [run 40020159218](https://github.com/Report-Engainall/Nasr1/actions/runs/40020159218).
+- **PR #97 P2 Playwright — SUCCESS** on the same SHA: [run 40020159220](https://github.com/Report-Engainall/Nasr1/actions/runs/40020159220). Public read-only Chromium and isolated local Supabase/PostgreSQL 17 acceptance passed. Hosted customer-order/tenant-isolation was `SKIPPED / BLOCKED_EXTERNAL`; ProductModal-specific browser proof and production proof `NOT RUN`.
+- **PR #124 — Core and P2 SUCCESS on exact head** `4272cb57eb5de70aa82cfa2bbe72a38b465e52b8`: Core [40020205584](https://github.com/Report-Engainall/Nasr1/actions/runs/40020205584), P2 [40020205700](https://github.com/Report-Engainall/Nasr1/actions/runs/40020205700). Accessible order-detail names are unique per order; hosted customer E2E `SKIPPED / BLOCKED_EXTERNAL`, production/dedicated accessibility browser proof `NOT RUN`.
+- **PR #107 — Core and P2 SUCCESS on exact head** `dbed932fc6dcf7f5835f84bac8053ba30c2f270c`: Core [40020235495](https://github.com/Report-Engainall/Nasr1/actions/runs/40020235495), P2 [40020235565](https://github.com/Report-Engainall/Nasr1/actions/runs/40020235565). Price privacy browser acceptance passed; hosted external tenant/customer job `SKIPPED / BLOCKED_EXTERNAL`.
+- **PR #102 — Core and P2 SUCCESS on exact head** `93a1f0d25058dd53c034a8854f6a4eedc100b3d1`: Core [40020297710](https://github.com/Report-Engainall/Nasr1/actions/runs/40020297710), P2 [40020297753](https://github.com/Report-Engainall/Nasr1/actions/runs/40020297753).
+- **PR #119 — backend contract blocker handed to P2:** current head `31061923855ae6ab011f0e539766f8ba8697f188`; Core [40020337764 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020337764), P2 [40020337829 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/40020337829). Local authenticated Chromium confirms the cross-tenant row remains unchanged but `set_admin_customer_tier` returns HTTP 500 / SQLSTATE `P0002` / “customer not found in current organization”. The test correctly rejects 5xx. P2-owned SQL/RPC fix request is documented on [PR #119 comment](https://github.com/Report-Engainall/Nasr1/pull/119#issuecomment-6374286493). No SQL/RPC/migration was changed by P1.
+- **Review gate:** no authorized independent review recorded for #97/#124/#107/#102/#119. All remain Draft. The repo owner account is the PR author; the other checked account has read-only permission. Do not self-approve or merge.
+- `LOCKED_PATHS`: P2-owned `CURRENT_EXECUTION_STATE.md`, acceptance matrix, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`, finance/SQL/RPC/RLS/migrations/services; P3-owned #89 routes/report acceptance; `src/routeTree.gen.ts`; any other active PR-owned paths.
+- `CURRENT_TASK_ID=P1-PR119-REST-DENIAL-DIAGNOSTICS-001`; implemented a bounded response code/message diagnostic in the existing P1 E2E test while retaining the non-5xx assertion.
+- `NEXT_ACTION=P1-PR119-RETEST-AFTER-P2-SQLSTATE-FIX-001`: after P2 repairs the owned RPC denial mapping, rerun Core + Playwright on one exact SHA. Until then keep #119 Draft and the test failing truthfully. Continue independent P1 PRs only on their own files.
+- `UPDATED_AT=2026-10-23T20:40:00Z`.
 
 ## Recent execution history
 
+### 2026-10-23 — P1-STOREFRONT-ORDER-PRICE-BROWSER-001 — TESTED_EXACT_SHA / BROWSER_PROVEN (PR #107 open)
+
+Added a DOM-level regression in `e2e/storefront-price-visibility.spec.ts`: hidden or malformed cart/order-review pricing must not leak the deliberately secret unit price, line/total amount, or customer-tier label into either visible text or serialized `innerHTML`. Existing fixture isolation remains in place; the test does not contact production or mutate a real backend.
+
+- Functional test commit / exact tested SHA: `05e4b0eaaee3dade67f2ca763c4f101d475226c6` on `p1/storefront-order-price-browser-20261023`.
+- Core CI: [40008732247 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732247) on that exact SHA. Unit tests, PostgreSQL 17 acceptance, lint/build, preview/dev smoke, and the Chromium price-visibility suite passed; all four tests in `e2e/storefront-price-visibility.spec.ts` passed.
+- P2 Playwright: [40008732216 SUCCESS, attempt 2](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732216) on the same SHA. The public read-only smoke and isolated local Supabase/PostgreSQL 17 Chromium suite passed. The first public-smoke attempt failed during local Wrangler preview launch; only that failed job was rerun, and the retry passed.
+- Evidence boundary: the hosted customer-order/tenant-isolation job was `SKIPPED / BLOCKED_EXTERNAL` because dedicated external test credentials were unavailable; production proof is `NOT RUN`.
+- PR #107 remains `OPEN / DRAFT / NOT MERGED`; live review query returned zero formal reviews. Keep draft/unmerged until an authorized independent maintainer review is recorded.
+- Exact main base at validation: `cd303b7fe0f263c9f62ed97f10202e9895465273`; PR #107 is synchronized (`behind_by=0`) and its net code diff is only the browser spec plus fixture harness.
 
 ### 2026-10-23 — P1-01 — CLOSED_WITH_EVIDENCE (merge pending)
 PR #50 uses the existing `renameAdminCatalogCategory` UI command and tenant-scoped RPC; audit, permission, duplicate-name and stable category identity behavior were reviewed. Exact-head Core CI run 39836522643 passed on `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`. Browser run 39836522607 was BLOCKED_EXTERNAL before assertions by GHCR `toomanyrequests`; not BROWSER_PROVEN. No duplicate implementation was created.
