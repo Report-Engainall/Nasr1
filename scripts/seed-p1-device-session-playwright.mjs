@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { appendFile } from "node:fs/promises";
 import postgres from "postgres";
+import { validateP1DeviceSessionEndpoints } from "./lib/p1-device-session-endpoints.mjs";
 
 const apiUrl = requiredEnv("SUPABASE_URL");
 const publishableKey = requiredEnv("SUPABASE_PUBLISHABLE_KEY");
@@ -10,23 +11,13 @@ const githubEnv = requiredEnv("GITHUB_ENV");
 const targetEmail = requiredEnv("E2E_MANAGER_EMAIL");
 const targetPassword = requiredEnv("E2E_MANAGER_PASSWORD");
 
-const api = new URL(apiUrl);
-const database = new URL(connectionString);
+const api = validateP1DeviceSessionEndpoints(apiUrl, connectionString);
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const runKey = (process.env.GITHUB_RUN_ID || "local") + "-" + randomUUID().slice(0, 8);
 const adminEmail = "p1.local.devices.admin." + runKey + "@example.test";
 const adminPassword = randomUUID().replaceAll("-", "") + "Aa1!";
 const adminName = "P1 Device Session Admin";
 
-if (
-  api.protocol !== "http:" ||
-  !["localhost", "127.0.0.1"].includes(api.hostname) ||
-  api.port !== "54321" ||
-  !["localhost", "127.0.0.1"].includes(database.hostname) ||
-  database.port !== "54322"
-) {
-  throw new Error("P1 device-session browser fixtures are restricted to local Supabase at 127.0.0.1:54321 and PostgreSQL 54322.");
-}
 if (!targetEmail.startsWith("p2.local.e2e.manager.") || !targetEmail.endsWith("@example.test")) {
   throw new Error("The device-session target must be the isolated P2 local E2E manager, never an arbitrary or hosted account.");
 }
