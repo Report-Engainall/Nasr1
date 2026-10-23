@@ -20,6 +20,7 @@ const foreign = postgres(url, { max: 1, prepare: false });
 const customer = postgres(url, { max: 1, prepare: false });
 
 async function identity(db, authUser, email) {
+  await db.unsafe("reset role").catch(() => {});
   await db.unsafe("insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now(),now(),now(),null,'CI isolated session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null", [authUser, authUser]);
   await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [authUser]);
   await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
