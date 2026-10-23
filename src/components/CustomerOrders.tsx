@@ -76,7 +76,8 @@ function MyOrdersInner() {
       let query = supabase
         .from('orders')
         .select('id,order_number,status,total_items,created_at,quantity_review_required,customer_adjustment_note,customer_payment_requested_at,payment_request_status', { count: 'exact' })
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false });
       if (statusFilter !== 'all') query = query.eq('status', statusFilter);
       const { data: rows, error: queryError, count } = await query
         .range((page - 1) * CUSTOMER_ORDERS_PAGE_SIZE, page * CUSTOMER_ORDERS_PAGE_SIZE - 1);

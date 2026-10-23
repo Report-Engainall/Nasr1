@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   rows: [] as Array<Record<string, unknown>>,
   ranges: [] as Array<[number, number]>,
   filters: [] as Array<{ column: string; value: unknown }>,
+  orderings: [] as Array<{ column: string; ascending: boolean }>,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -35,7 +36,7 @@ function makeQuery() {
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn((column: string, value: unknown) => { mocks.filters.push({ column, value }); return query; }),
-    order: vi.fn(() => query),
+    order: vi.fn((column: string, options: { ascending: boolean }) => { mocks.orderings.push({ column, ascending: options.ascending }); return query; }),
     range: vi.fn((start: number, end: number) => {
       range = [start, end];
       mocks.ranges.push(range);
@@ -60,6 +61,7 @@ describe("customer order history pagination", () => {
     mocks.count = 30;
     mocks.ranges = [];
     mocks.filters = [];
+    mocks.orderings = [];
     mocks.rows = Array.from({ length: 30 }, (_, index) => ({
       id: `order-${index + 1}`,
       order_number: `ORDER-${String(index + 1).padStart(3, "0")}`,
@@ -97,6 +99,10 @@ describe("customer order history pagination", () => {
     });
 
     expect(mocks.ranges[0]).toEqual([0, 24]);
+    expect(mocks.orderings.slice(0, 2)).toEqual([
+      { column: 'created_at', ascending: false },
+      { column: 'id', ascending: false },
+    ]);
     expect(host?.textContent).toContain("ORDER-001");
     expect(host?.textContent).toContain("ORDER-025");
     expect(host?.textContent).not.toContain("ORDER-026");
