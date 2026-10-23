@@ -1,6 +1,6 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T16:30:00+03:00
+UPDATED_AT: 2026-10-23T16:36:00+03:00
 
 ## Git and current execution
 - Repository: Report-Engainall/Nasr1
@@ -9,7 +9,8 @@ UPDATED_AT: 2026-10-23T16:30:00+03:00
 - Main/base observed: `59547c7d683cefd65cab445b97219aa701021676`; parent before this batch: `22718ee03fc8bb9074d0f8444b701d04c8623669`.
 - Task `P3-STORE-HYDRATION-009`: the storefront root `/` now renders Arabic RTL `<main role="status">جار تحميل المتجر...</main>` instead of an empty first viewport before hydration. Parameterized test asserts tag, role, direction, and text. Implementation SHA: `d10920e7d818e38d5c74bea06104bcc4609a4c46`.
 - Task P3-ROUTE-HYDRATION-COVERAGE-010: expanded src/test/customer-route-loading.test.tsx from 13 to 23 parameterized route assertions; additional cases cover /addresses, /cart, /catalog, /checkout, /compare, /product/$id, /products, /search, /store, and /wishlist. The test mock exposes useSearch() so search-aware route wrappers can be instantiated. The underlying checkout/data actions are not browser-proven.
-- Task P3-OFFERS-ACTIVE-SCOPE-011: code commit 2de7031910cdbfb4bf5b32223bc6ef5a19550a2f changes src/components/StorefrontOffersPage.tsx so campaign target products are filtered to product.is_active !== false && product.status !== "inactive" before they appear in published scope. New test src/test/storefront-offers.test.tsx covers visible active target + hidden inactive targets and a category campaign where only inactive products match (renders the existing unavailable-scope status). Implementation and regression tests are committed; exact-SHA test execution is not yet proven.
+- Task P3-OFFERS-ACTIVE-SCOPE-011: commit 2de7031910cdbfb4bf5b32223bc6ef5a19550a2f changes src/components/StorefrontOffersPage.tsx so campaign target products are filtered by product.is_active !== false and product.status !== "inactive". New test src/test/storefront-offers.test.tsx covers active target visibility, inactive target exclusion, and an inactive-only category campaign. Core run 39961737329 on descendant SHA 39638915e900d898601b6b59e8f6801d2b45bc31 recorded both offer tests PASS.
+- Task P3-ROUTE-TEST-REGRESSION-012: that same Core run exposed 7 failures (of 881 tests) in the broadened route-loading harness: six route fallbacks use a DIV but the test wrongly mandated MAIN, and the addresses route component was not mocked. Fixed in code/test commit d076794e3f245cc9766807a4c5beafe6bf4dd520; only root `/` now has a strict MAIN assertion, all routes still assert role/status, RTL, and expected message. Exact-SHA rerun is pending.
 
 ## Implemented task IDs
 - `P3-CAT-ERR-001`: category fetch failure, catalog failure, and combined failure separated on `/categories` and `/collections`, with source detail and retry.
@@ -38,18 +39,18 @@ UPDATED_AT: 2026-10-23T16:30:00+03:00
 - P2-owned shared matrix/state/coordination, backend contracts, RPCs, services and migrations were not edited.
 
 ## Mandatory execution checkpoint fields — current readback
-LAST_COMPLETED_TASK_ID: P3-OFFERS-ACTIVE-SCOPE-011 (implementation and two regressions committed; exact-SHA tests pending)
+LAST_COMPLETED_TASK_ID: P3-ROUTE-TEST-REGRESSION-012 (test harness fix committed; exact-SHA rerun pending)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: 2de7031910cdbfb4bf5b32223bc6ef5a19550a2f (last code/test SHA before this documentation sync; verify resulting branch ref)
-ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers — targeted route/component tests, not all-route browser UAT
-FILES_CHANGED: src/routes/index.tsx; src/test/customer-route-loading.test.tsx; src/components/StorefrontOffersPage.tsx; src/test/storefront-offers.test.tsx; P3 checkpoint and report
-TESTS_RUN_WITH_RESULTS: no local tests run because GitHub DNS prevented clone. Code/test SHA 2de7031910cdbfb4bf5b32223bc6ef5a19550a2f adds 2 offer tests; workflow-runs API did not yet list runs for the SHA at last readback, so tests NOT RUN / NOT PROVEN until checked. Previous SHA 5881e04d93e4138494cbad68cb1aefe1971aa43e Core 39960689234 and P2 39960689260 both failed before tests with dependency-cache HTTP 429.
-TESTS_FAILED_OR_SKIPPED: dependency install failed on Core and P2 at the locked package-cache URLs; public UI build/smoke, Chromium and local-Supabase browser steps were skipped; external-credential E2E was not run; all-route UAT and production proof NOT RUN
-DEFECTS_FOUND: root / blank loading fallback fixed; route hydration regression coverage expanded to 23 wrappers; /offers no longer presents explicitly inactive campaign products; full route acceptance remains open
-HANDOFF_TO_P1_OR_P2: P1 owns generated /admin/exports tree registration and locked admin loading wrappers; P2 owns route-matrix reconciliation, backend contracts, and package-cache CI installation blocker (handoff https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365925364)
+HEAD_SHA: d076794e3f245cc9766807a4c5beafe6bf4dd520 (code/test SHA before this documentation sync; verify the actual successor ref)
+ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers — targeted test coverage only, full route browser acceptance remains open
+FILES_CHANGED: src/routes/index.tsx; src/test/customer-route-loading.test.tsx; src/components/StorefrontOffersPage.tsx; src/test/storefront-offers.test.tsx; P3 checkpoint/report
+TESTS_RUN_WITH_RESULTS: Core 39961737329 on descendant SHA 39638915e900d898601b6b59e8f6801d2b45bc31 executed Unit tests: 874 passed / 881 total; src/test/storefront-offers.test.tsx passed 2/2; route-loading file failed 7 assertions due to the test harness. Fix committed at d076794e3f245cc9766807a4c5beafe6bf4dd520; exact-SHA rerun not yet visible. Local tests not run because GitHub DNS blocked clone.
+TESTS_FAILED_OR_SKIPPED: P2 39961737301 failed dependency installation on package cache HTTP 429; downstream public UI/Chromium/local-Supabase browser stages skipped. Core test failures are known and fixed in code, pending rerun. External authenticated E2E and full route UAT NOT RUN.
+DEFECTS_FOUND: root / blank hydration fallback fixed; hydration test coverage spans 23 route wrappers; /offers hides inactive campaign products; route test harness corrected; overall PR remains unverified due fresh CI gates.
+HANDOFF_TO_P1_OR_P2: P1 owns generated /admin/exports route-tree registration and locked admin loading wrappers; P2 owns canonical route matrix/backend contracts/package-cache CI blocker. HTTP 429 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365925364
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
-MERGE_STATUS: OPEN; UNMERGED; no formal independent review recorded
-BLOCKERS: package-cache HTTP 429; unavailable local clone due GitHub DNS; exact-SHA CI for latest offer-scope commit not yet returned by workflow API; full route browser acceptance NOT RUN
-NEXT_ACTION: read back exact current branch head; inspect exact-SHA Core/P2 runs for the latest code and doc SHA, correct any code/test failure, continue independent unlocked routes, then obtain formal independent review before merging
-UPDATED_AT: 2026-10-23T16:30:00+03:00
+MERGE_STATUS: OPEN; UNMERGED; formal independent GitHub approval absent
+BLOCKERS: exact-SHA rerun for d076794e... pending; P2 package cache returns HTTP 429; local clone unavailable due GitHub DNS; all-route browser acceptance NOT RUN
+NEXT_ACTION: verify Core/P2 workflows for latest code SHA d076794e3f245cc9766807a4c5beafe6bf4dd520 and the new docs SHA; confirm the 23 route-loading tests pass; continue unlocked P3 work, then obtain independent review before merge
+UPDATED_AT: 2026-10-23T16:36:00+03:00
