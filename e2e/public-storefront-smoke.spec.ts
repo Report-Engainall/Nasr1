@@ -37,6 +37,33 @@ test("advanced search recovers from a category-source failure", async ({ page })
     route.abort("blockedbyclient"),
   );
 
+  await page.route(
+    "https://ci-placeholder.supabase.co/rest/v1/rpc/get_public_storefront_context",
+    async (route) => {
+      const headers = {
+        "access-control-allow-origin": "*",
+        "access-control-allow-headers":
+          "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
+        "access-control-allow-methods": "POST,OPTIONS",
+      };
+
+      if (route.request().method() === "OPTIONS") {
+        await route.fulfill({ status: 200, headers });
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({
+          organization_id: "11111111-1111-4111-8111-111111111111",
+          warehouse_id: null,
+        }),
+      });
+    },
+  );
+
   let categoryReads = 0;
   await page.route(
     "https://ci-placeholder.supabase.co/rest/v1/categories**",
