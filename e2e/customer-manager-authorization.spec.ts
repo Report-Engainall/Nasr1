@@ -217,6 +217,17 @@ test("customer manager: directory privacy, audited customer commands, activation
     // A non-2xx alone is insufficient: require the server's tenant-scope denial and verify that the foreign row stays unchanged.
     // Record the actual status in the artifact so a PostgREST/SQLSTATE 500 mapping defect cannot be hidden.
     const tenantDenialMessageMatched = /customer not found in current organization|customer not found|current organization|42501|P0002/i.test(foreignTierProbeBody);
+    const rpcErrorEnvelope = (() => {
+      try {
+        const parsed = JSON.parse(foreignTierProbeBody) as { code?: unknown; message?: unknown };
+        return {
+          code: typeof parsed.code === "string" ? parsed.code.slice(0, 32) : null,
+          message: typeof parsed.message === "string" ? parsed.message.slice(0, 240) : foreignTierProbeBody.slice(0, 240),
+        };
+      } catch {
+        return { code: null, message: foreignTierProbeBody.slice(0, 240) };
+      }
+    })();
     expect(
       tenantDenialMessageMatched,
       `Expected an opaque tenant-scope denial; received HTTP ${foreignTierProbe.status}: ${foreignTierProbeBody}`,
@@ -230,10 +241,15 @@ test("customer manager: directory privacy, audited customer commands, activation
     console.info("[P1 tenant-boundary proof]", JSON.stringify({
       sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
       httpStatus: foreignTierProbe.status,
+      rpcErrorCode: rpcErrorEnvelope.code,
+      rpcErrorMessage: rpcErrorEnvelope.message,
       tenantDenialMessageMatched,
       foreignCustomerTierUnchanged: true,
     }));
-    expect([400, 403, 404]).toContain(foreignTierProbe.status);
+    expect(
+      [400, 403, 404],
+      `Cross-tenant tier RPC must map the tenant denial to a non-5xx response; got HTTP ${foreignTierProbe.status}, code=${rpcErrorEnvelope.code ?? "unknown"}, message=${rpcErrorEnvelope.message}`,
+    ).toContain(foreignTierProbe.status);
 
     await rowA.getByRole("button", { name: "تغيير الشريحة" }).click();
     await managerPage.getByLabel("شريحة العميل الجديدة").selectOption("vip");
