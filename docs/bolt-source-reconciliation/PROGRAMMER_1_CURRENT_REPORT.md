@@ -694,3 +694,30 @@ Inspect new exact-head Core/P2 results for `ddb80804...`. Preserve the error if 
 **Files changed in this unit:** `src/test/device-management.test.tsx`; checkpoint/report appended.  
 **LOCKED_PATHS:** P2 API/database/auth/workflow paths and P3 acceptance — unchanged.  
 **STATUS:** test fixture fixed; new exact-head CI pending; PR #88 not merge-ready.
+
+
+## P1 bulk-session double-submit regression — 2026-10-23T16:37+03:00
+
+**Task ID:** `P1-DEVICE-SESSION-BULK-DOUBLE-SUBMIT-001`  
+**Branch/PR:** `p1/central-device-session-ui-20261023` / [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**Base SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
+**Functional code/test SHA:** `572ab73dc3dab53d2042f2fa8f1f0f1388ba3633`
+
+### Change
+Added an async/deferred-RPC regression proving that two rapid clicks on the own-account “other sessions” action issue exactly one `revoke_other_auth_sessions` call. The test resolves the server acknowledgement and then asserts the success notice only follows the acknowledgement. This directly tests the synchronous `otherSessionsInFlight` guard added in `DeviceManagement.tsx`.
+
+### Test history — keep each SHA separate
+- SHA `8248a7f8dc3145063ee319fa35de41305d19705a`, Core run [39961454298](https://github.com/Report-Engainall/Nasr1/actions/runs/39961454298): **1 failure / 855 passing tests** in the newly added successful-RPC test. The assertion used a callback different from the one mounted. It was fixed in test setup on SHA `ddb80804b8749cb8dff182344ca9713e2beb64ec`; assertions were not weakened.
+- Corrected SHA `ddb80804b8749cb8dff182344ca9713e2beb64ec`, Core [39961918566](https://github.com/Report-Engainall/Nasr1/actions/runs/39961918566) was still in progress at last read; P2 Playwright [39961918709](https://github.com/Report-Engainall/Nasr1/actions/runs/39961918709) was CANCELLED.
+- Latest SHA `572ab73dc3dab53d2042f2fa8f1f0f1388ba3633`, Core [39962147380](https://github.com/Report-Engainall/Nasr1/actions/runs/39962147380) and P2 Playwright [39962147845](https://github.com/Report-Engainall/Nasr1/actions/runs/39962147845) are IN PROGRESS.
+- A separate documentation-head run [39961596225](https://github.com/Report-Engainall/Nasr1/actions/runs/39961596225) failed before tests because repeated npm-cache package download requests returned HTTP 429. That is an infrastructure problem, not test evidence for the current functional head.
+
+### P2 dependency and coordination
+PR #83 has current-main sync. Its Core run [39960901244](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901244) succeeded, but P2 Playwright [39960901154](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154) failed its local Supabase acceptance at purchase-receipt acceptance. P1 posted exact evidence to #83 comment 6366037526; P1 made no changes to P2-owned workflows, fixtures, DB or RPC paths.
+
+### Next action
+Read latest exact-head runs. Fix only demonstrated UI/test defects; retry rate-limited install failures without weakening dependency verification. Then refresh this branch after #83 integrates and require authenticated browser proof of actual self-scoped and admin-selected session revocation, retained current session, audit and subsequent protected-request denial.
+
+**Files changed:** `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`, the two P1-owned resume documents.  
+**LOCKED_PATHS:** P2 database/API/RLS/Auth/workflows and P3 acceptance paths — unchanged.  
+**STATUS:** implementation/test additions committed; CI pending; PR #88 remains not merge-ready.

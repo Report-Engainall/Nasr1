@@ -196,3 +196,21 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: OPEN / NOT READY.
 - UPDATED_AT: 2026-10-23T16:33+03:00
+
+
+## Latest resume — bulk-session action duplicate-click guard — 2026-10-23T16:37+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-BULK-DOUBLE-SUBMIT-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA: `572ab73dc3dab53d2042f2fa8f1f0f1388ba3633` (code/test head; next checkpoint commit is documentation-only).
+- LAST_CONFIRMED_TESTS: latest exact code/test Core run [39962147380](https://github.com/Report-Engainall/Nasr1/actions/runs/39962147380) IN_PROGRESS; P2 Playwright [39962147845](https://github.com/Report-Engainall/Nasr1/actions/runs/39962147845) IN_PROGRESS. CodeRabbit status SUCCESS is not test evidence. The latest test commit adds a deferred-RPC rapid-double-click test asserting only one `revoke_other_auth_sessions` call is emitted and the success notice appears after server acknowledgement.
+- PREVIOUS_FAILURE_AND_FIX: Core [39961454298](https://github.com/Report-Engainall/Nasr1/actions/runs/39961454298) on earlier SHA `8248a7f8...` ran 136 files with 855/856 tests passing; one new UI test observed an unmounted callback. Fixed on `ddb80804b8749cb8dff182344ca9713e2beb64ec` by asserting the callback the shared mount helper actually passes. The corrected-head Core [39961918566](https://github.com/Report-Engainall/Nasr1/actions/runs/39961918566) was still IN_PROGRESS at last read; its result is not yet known.
+- INFRASTRUCTURE: separate run [39961596225](https://github.com/Report-Engainall/Nasr1/actions/runs/39961596225) on prior docs head failed at dependency installation with repeated HTTP 429 from the Lovable npm cache; no tests ran in that attempt. Do not conflate it with the earlier unit assertion failure.
+- FILES_CHANGED: `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`; checkpoint/report appended.
+- LOCKED_PATHS: P2 database/RPC/RLS/type/Auth/workflow/fixture paths; shared `CURRENT_EXECUTION_STATE.md` and `WORK_COORDINATION.md`; P3 acceptance paths — untouched.
+- NEXT_ACTION: read exact-head Core/P2 outcomes for the latest branch head after this checkpoint commit; investigate any remaining failing assertion from the actual log, retry only infrastructure flake safely, preserve Bun lock verification. Keep the UI feature PARTIAL until PR #83 backend is merged and authenticated browser acceptance proves selective revocation then denial of later protected requests.
+- BLOCKER: exact-head CI pending; P2 PR #83 P2 Playwright [39960901154](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154) failed local Supabase acceptance and that issue was reported to P2 via comment 6366037526.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: OPEN / NOT READY.
+- UPDATED_AT: 2026-10-23T16:37+03:00
