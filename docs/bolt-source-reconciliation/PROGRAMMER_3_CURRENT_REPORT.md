@@ -1,45 +1,43 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T15:33:00+03:00
+UPDATED_AT: 2026-10-23T15:35:00+03:00
 
-## Execution summary
+## Current Git state
 - Repository: `Report-Engainall/Nasr1`
-- Role: P3 — route/screen acceptance, user flows, UX tests, and independent UI defects
 - PR: https://github.com/Report-Engainall/Nasr1/pull/89
 - Branch: `p3/catalog-screen-error-states-20261023`
-- Last observed pre-alignment head: `63575cb2a8c6f72b88676cae38cd38d551916cdf`
-- Verified main head before alignment: `d3a27dc9c4b209e61bf6b3b9a54ceb8b4a26974d`
-- Status: implementation exists; exact-head validation and PR merge remain OPEN.
+- Main incorporated: `d3a27dc9c4b209e61bf6b3b9a54ceb8b4a26974d`
+- Safe branch-alignment commit: `dfdbd33c5c98af5cb8b254127808a2d4db2e1f4d`
+- Branch compare after alignment: `ahead 32 / behind 0` at the readback; the only PR-diff files were the five P3 UI/test paths plus the two required P3 resume/report files. Stale P2-owned matrix/registry/log changes were excluded.
+- PR remains OPEN and UNMERGED. No review submission exists at this readback.
 
-## Implemented units (not yet all closed with evidence)
-1. `P3-CAT-ERR-001`: `/categories` and `/collections` now distinguish category-query failure, product-catalog failure, and simultaneous source failures; retry remains available.
-2. `P3-CAT-COUNT-002`: category counts exclude records with `is_active === false` or `status === "inactive"`; regression checks that inactive-only categories do not show a browse link.
-3. `P3-REPORT-DUP-003`: `/admin/reports` no longer mounts `ExecutiveStoreAnalytics` a second time outside the existing Reports view.
-4. `P3-REPORT-LOAD-004`: reports route now exposes Arabic RTL `role="status"` loading text rather than an empty client-only fallback.
+## Implemented units — validation pending
+1. `P3-CAT-ERR-001`: `/categories` and `/collections` distinguish category-query failure, catalog failure, and combined failure, with details and retry.
+2. `P3-CAT-COUNT-002`: category counts exclude `is_active === false` and `status === "inactive"`; inactive-only categories do not get a browse link.
+3. `P3-REPORT-DUP-003`: duplicate `ExecutiveStoreAnalytics` route-wrapper mount removed; the existing Reports view remains its single mount.
+4. `P3-REPORT-LOAD-004`: blank reports-route `ClientOnly` fallback replaced by Arabic RTL `role="status"` loading copy.
 
-## Paths and changes in this PR
+## Changed files
 - `src/components/StorefrontCollectionsPage.tsx`
 - `src/test/storefront-collections.test.tsx`
 - `src/routes/admin_.reports.tsx`
 - `src/test/admin-reports-route-forecast.test.tsx`
 - `src/test/admin-reports-route-wiring.test.ts`
-- These are scoped screen/component/route tests. The full route matrix remains owned by the canonical existing CSV and has not been claimed complete by this report.
+- `docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md`
+- `docs/bolt-source-reconciliation/PROGRAMMER_3_CURRENT_REPORT.md`
 
-## Test truth
-- Local test/lint/build commands: `NOT RUN` — no local checkout was available through this execution.
-- Core CI on pre-alignment SHA `63575cb2a8c6f72b88676cae38cd38d551916cdf`: run [39953612906](https://github.com/Report-Engainall/Nasr1/actions/runs/39953612906) was in progress at last read. It is not evidence for the post-alignment SHA.
-- Playwright on pre-alignment SHA `63575cb2a8c6f72b88676cae38cd38d551916cdf`: run [39953612963](https://github.com/Report-Engainall/Nasr1/actions/runs/39953612963) had browser smoke in progress at last read. Authenticated E2E's credential gate and any skipped jobs must remain distinct from PASS.
-- Browser proof for all routes: `NOT RUN`.
+## Evidence states
+- Local Vitest/lint/build: `NOT RUN` — no local checkout was available through this execution.
+- Core CI on alignment SHA `dfdbd33c5c98af5cb8b254127808a2d4db2e1f4d`: run [39954111851](https://github.com/Report-Engainall/Nasr1/actions/runs/39954111851) was queued at last readback.
+- P2 Playwright on alignment SHA `dfdbd33c5c98af5cb8b254127808a2d4db2e1f4d`: run [39954111866](https://github.com/Report-Engainall/Nasr1/actions/runs/39954111866) was pending at last readback.
+- All-routes browser proof: `NOT RUN`.
 - Production proof: `NOT RUN`.
-- Do not apply `TESTED_EXACT_SHA`, `BROWSER_PROVEN`, or `CLOSED_WITH_EVIDENCE` until the corresponding final-head evidence exists.
+- No `TESTED_EXACT_SHA`, `BROWSER_PROVEN`, or `CLOSED_WITH_EVIDENCE` claim is made. These labels require readback of the final relevant job results against the tested SHA.
 
-## Protected ownership / handoff
-- P1-owned scope: 19 additional admin route wrappers still use `ClientOnly fallback={null}`. The code was not bulk-edited because shared route integration is locked to P1. Handoff ID: `P1-ADMIN-ROUTE-LOADING-001`.
-- P2-owned scope: shared acceptance matrix, execution-state cursor, WORK_COORDINATION, and backend/RPC/data contracts. This PR's stale edits to the existing shared matrix/registry/log are being excluded from the aligned tree; send P2 the four task IDs and final evidence so P2 can update the canonical matrix once.
-- No production writes, production database tests, or external-provider success are claimed.
+## Handoffs / ownership limits
+- P1-owned loading-state gap `P1-ADMIN-ROUTE-LOADING-001`: 19 additional admin route wrappers retain blank `ClientOnly fallback={null}`; no bulk changes to P1-owned paths were made.
+- P2 owns the canonical shared matrix/state/WORK_COORDINATION and backend contracts. The aligned PR excludes stale changes to those shared files. Provide P2 the task IDs and exact-SHA evidence after CI completes; do not create a duplicate matrix.
+- No production writes, production DB tests, live external-provider requests, or provider-success states are claimed.
 
-## Required next action
-1. Read back current PR head after main alignment.
-2. Read every job conclusion from Core and Playwright for that exact SHA; repair failures on this branch and await the rerun.
-3. Obtain/record review and merge PR #89 only after exact-head checks pass.
-4. Then resume P3 route inventory from existing `src/routes/` and acceptance matrix; do not recreate a competing matrix.
+## Next action
+Check the latest PR head after this report update and inspect Core plus every relevant Playwright job conclusion on that exact SHA. Fix real failures on this branch, obtain/record review, and merge PR #89 only after the exact-head checks and review pass. After that, resume a systematic route inventory from existing `src/routes/`; the three covered route groups are not a full-screen acceptance claim.
