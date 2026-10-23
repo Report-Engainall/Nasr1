@@ -64,7 +64,7 @@ $function$;
 REVOKE ALL ON FUNCTION public.current_profile_id() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.current_profile_id() TO authenticated;
 
--- Finance authorization is a shared SECURITY DEFINER/RLS gate; tie it to the same live Auth session.
+-- Finance authorization is a shared SECURITY DEFINER/RLS gate; bind it to the live Auth session and preserve the existing accountant capability.
 CREATE OR REPLACE FUNCTION public.can_manage_finance()
 RETURNS boolean
 LANGUAGE sql
@@ -79,7 +79,7 @@ AS $function$
     WHERE p.id=public.current_profile_id()
       AND p.auth_user_id=auth.uid()
       AND p.is_active=true
-      AND r.role IN ('admin','manager')
+      AND r.role IN ('admin','manager','accountant')
   )
 $function$;
 REVOKE ALL ON FUNCTION public.can_manage_finance() FROM PUBLIC, anon;
