@@ -1,3 +1,15 @@
+## P2 checkpoint — central sessions plus receivables credit-memo parity — 2026-10-23T16:47:00+03:00
+
+- Live main SHA: `59547c7d683cefd65cab445b97219aa701021676`; current main Core run [39956957952](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952) = SUCCESS.
+- PR #83 / `AUTH-CENTRAL-SESSION-BACKEND-P2`: branch `feat/p2-central-session-backend-20261023`, current head `91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`, base `59547c7...`. Core run [39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) = SUCCESS on exact head. P2 run [39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) is not terminal: public UI smoke SUCCESS, local Supabase test job still installing Chromium OS dependencies, and hosted account E2E skipped for missing external test credentials.
+- Failure from older P2 run [39960901154](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154): `scripts/test-purchase-receipt-accounting.mjs` rejected the workflow's isolated local PostgreSQL port (workflow used 55432; fixture guard expected 54322). Corrected in commit `91c87e0...` by reusing the shared loopback-only endpoint validator. Do not close #83 until the new exact-head P2 run completes and SECURITY DEFINER review is finished.
+- Parallel PR #95 / `FIN-INVOICE-001`: branch `feat/p2-fin-receivables-aging-credit-memo-20261023`, head `d2f904beeb14674cfed3501f5482734eaa76e34b`, base `59547c...`. New migration `20261023180000_staff_receivables_aging_credit_memo_parity.sql`, acceptance `scripts/test-staff-receivables-aging-credit-memo-parity.mjs`, plus `package.json` test:db registration. Core [39963814368](https://github.com/Report-Engainall/Nasr1/actions/runs/39963814368) and P2 [39963814885](https://github.com/Report-Engainall/Nasr1/actions/runs/39963814885) still in progress at checkpoint. Expected result: aging derives outstanding from saved invoice totals minus saved payments minus same-tenant same-invoice posted credits; draft/reversed credits do not alter the balance; non-reconciling posted source/currency fails closed.
+- PR #82 must be updated after #83 because its base is old and it shares test/workflow paths. PR #71 is merged; its isolated PostgreSQL restore proof is not production proof. PR #91 closed as superseded by PR #92 to avoid two writers to the sole resumption index.
+- External blockers remain: live Onyx sync/target XLSX import, official WhatsApp provider access, and production restore. Matrix/WORK_COORDINATION remain locked by PR #43 and are intentionally not changed in this checkpoint.
+- Status: #83 `IMPLEMENTED`; Core `TESTED_EXACT_SHA`; P2 nonterminal. #95 `IMPLEMENTED`; exact-head Core/P2 acceptance pending. No main write, production call, paid dependency or fabricated operational evidence.
+
+---
+
 ## P2 readback — Onyx source trace and sync evidence — 22 October 2026
 
 - **Task remains OPEN:** `NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011`; only active pointer remains in `CURRENT_EXECUTION_STATE.md`.
