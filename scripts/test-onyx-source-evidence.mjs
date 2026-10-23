@@ -371,16 +371,23 @@ async function main() {
       ),
       /snapshot is already bound to a different snapshot/i,
     );
-    await db.unsafe("reset role");
-    const rejectedAttemptState = await db.unsafe(
-      "select status,request_sha256,snapshot_id,http_status,response_sha256 from public.onyx_live_sync_attempts where id=$1::uuid",
-      [successfulId],
+    // Inspect the unchanged attempt through the authorized tenant-scoped evidence RPC.
+    // The attempt table intentionally grants no direct SELECT privilege to service_role.
+    await setIdentity(managerAuthId, "onyx-evidence-manager-" + suffix + "@example.test");
+    const rejectedStateRows = await db.unsafe(
+      "select public.get_onyx_live_sync_attempt_evidence($1::uuid) as payload",
+      [matchedSnapshotId],
     );
-    assert.equal(rejectedAttemptState[0].status,"started","rejected finalization must leave the attempt started");
-    assert.equal(rejectedAttemptState[0].request_sha256,requestHash,"a rejected request fingerprint must not replace stored provenance");
-    assert.equal(rejectedAttemptState[0].snapshot_id,matchedSnapshotId,"a rejected snapshot reassignment must leave the selected snapshot unchanged");
-    assert.equal(rejectedAttemptState[0].http_status,null,"a rejected finalization must not persist a provider status");
-    assert.equal(rejectedAttemptState[0].response_sha256,null,"a rejected finalization must not persist a response fingerprint");
+    const rejectedAttemptState = asJson(rejectedStateRows[0].payload).last_sync_attempt;
+    assert.equal(rejectedAttemptState.id,successfulId,"evidence RPC returns the same attempted sync record");
+    assert.equal(rejectedAttemptState.status,"started","rejected finalization must leave the attempt started");
+    assert.equal(rejectedAttemptState.request_sha256,requestHash,"a rejected request fingerprint must not replace stored provenance");
+    assert.equal(rejectedAttemptState.snapshot_id,matchedSnapshotId,"a rejected snapshot reassignment must leave the selected snapshot unchanged");
+    assert.equal(rejectedAttemptState.http_status,null,"a rejected finalization must not persist a provider status");
+    assert.equal(rejectedAttemptState.response_sha256,null,"a rejected finalization must not persist a response fingerprint");
+    await db.unsafe("reset role");
+    await db.unsafe("select set_config('request.jwt.claim.role','service_role',false)");
+    await db.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({role:"service_role"})]);
     await db.unsafe("set role service_role");
 
     const finalized = await db.unsafe(
