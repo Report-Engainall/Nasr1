@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
+import { AuthProvider } from "../lib/auth";
+import { CustomerOrderPricingPreview } from "../components/CustomerOrderPricingPreview";
 import { ProductDetail, ProductGrid } from "../components/Storefront";
 import type { ProductWithInventory } from "../lib/types";
 
@@ -21,7 +23,10 @@ const noop = () => undefined;
 function StorefrontPricePolicyHarness() {
   const [policy, setPolicy] = useState<unknown>(false);
   const [amount, setAmount] = useState(serverPrice);
+  const [cartPolicy, setCartPolicy] = useState<unknown>(false);
+  const [orderPolicy, setOrderPolicy] = useState<unknown>(false);
   const product = { ...sourceProduct, display_price: amount };
+  const previewItems = [{ product_id: sourceProduct.id, quantity: 2 }];
 
   return (
     <main>
@@ -59,8 +64,30 @@ function StorefrontPricePolicyHarness() {
           onCompare={noop}
         />
       </section>
+      <section aria-label="معاينة أسعار السلة" data-testid="cart-preview">
+        <h2>معاينة السلة</h2>
+        <button data-testid="cart-policy-enable" type="button" onClick={() => setCartPolicy(true)}>السماح بأسعار السلة</button>
+        <button data-testid="cart-policy-disable" type="button" onClick={() => setCartPolicy(false)}>إخفاء أسعار السلة</button>
+        <CustomerOrderPricingPreview
+          items={previewItems}
+          policyValue={cartPolicy}
+          surface="cart"
+          title="معاينة أسعار السلة"
+        />
+      </section>
+      <section aria-label="مراجعة أسعار الطلب" data-testid="order-preview">
+        <h2>مراجعة الطلب</h2>
+        <button data-testid="order-policy-enable" type="button" onClick={() => setOrderPolicy(true)}>السماح بأسعار مراجعة الطلب</button>
+        <button data-testid="order-policy-disable" type="button" onClick={() => setOrderPolicy(false)}>إخفاء أسعار مراجعة الطلب</button>
+        <CustomerOrderPricingPreview
+          items={previewItems}
+          policyValue={orderPolicy}
+          surface="orders"
+          title="مراجعة أسعار الطلب"
+        />
+      </section>
     </main>
   );
 }
 
-createRoot(document.getElementById("root")!).render(<StorefrontPricePolicyHarness />);
+createRoot(document.getElementById("root")!).render(<AuthProvider><StorefrontPricePolicyHarness /></AuthProvider>);
