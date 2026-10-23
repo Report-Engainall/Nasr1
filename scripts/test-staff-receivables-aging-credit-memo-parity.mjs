@@ -241,7 +241,20 @@ async function main() {
   const openingBalance = Number(after.item.outstanding_amount);
   assert.ok(Number.isFinite(openingBalance) && openingBalance >= 0.01,
     "race acceptance requires at least one cent of outstanding invoice balance");
+  const concurrentSessionId = randomUUID();
+  const concurrentHasSessionTable = (await concurrentDb.unsafe(
+    "select pg_catalog.to_regclass('auth.sessions') is not null as present",
+  ))[0].present;
   const managerClaims = { sub: managerAuthId, email: "ci-return-manager@example.test", role: "authenticated" };
+  if (concurrentHasSessionTable) {
+    await concurrentDb.unsafe(
+      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+      "values($1::uuid,$2::uuid,pg_catalog.now(),pg_catalog.now(),pg_catalog.now(),null,'CI concurrent payment acceptance','192.0.2.45'::inet) " +
+      "on conflict(id) do update set user_id=excluded.user_id,updated_at=excluded.updated_at,refreshed_at=excluded.refreshed_at,not_after=null",
+      [concurrentSessionId,managerAuthId],
+    );
+    managerClaims.session_id = concurrentSessionId;
+  }
   await concurrentDb.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[managerAuthId]);
   await concurrentDb.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify(managerClaims)]);
   await concurrentDb.unsafe("set role authenticated");
