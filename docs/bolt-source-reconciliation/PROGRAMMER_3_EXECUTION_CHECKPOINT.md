@@ -1,11 +1,11 @@
 # P3 execution checkpoint — Nasr1
 
-UPDATED_AT: 2026-10-23T17:17:26.433+03:00
-LAST_COMPLETED_TASK_ID: P3-CHECKOUT-DUPLICATE-SUBMIT-018 (synchronous in-flight guard and rapid double-click/server-acknowledgement regression committed; code-bearing SHA 259aabc6078d868e35087aa33924d4b044af8e5 Core/P2 scopes passed)
+UPDATED_AT: 2026-10-23T17:22:01+03:00
+LAST_COMPLETED_TASK_ID: P3-ROUTE-DEEPLINK-019 (six direct generated-route entry/query-state assertions committed at c4d53b9; current branch-head CI pending).
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: c4d53b9ac0a7b5b42d4a1622c4bef2154e4d74bf (live docs head; Core SUCCESS on this SHA, code-bearing source SHA 259aabc6078d868e35087aa33924d4b044af8e5; this sync adds a docs successor requiring its own readback)
-ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /reset-password; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route/component tests only, full all-route browser UAT remains open
+HEAD_SHA: 4653641bac43bcde9e1a43f8010c355fe3fb3a57 (live code/test head includes P3-ROUTE-DEEPLINK-019; Core #39968751206 is IN_PROGRESS at Unit tests and P2 #39968751364 is PENDING. This docs update creates a successor which must receive its own exact-head CI readback.)
+ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /reset-password; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route/component tests only, full all-route browser UAT remains open; direct routeTree entry assertions added for /categories, /collections, /offers, /search/advanced, /catalog?q=Rice, /search?q=Rice (CI pending)
 FILES_CHANGED:
 - src/components/StorefrontCollectionsPage.tsx
 - src/routes/admin_.reports.tsx
@@ -40,6 +40,7 @@ TESTS_RUN_WITH_RESULTS:
 - Exact source/test SHA `259aabc6078d868e35087aa33924d4b044af8e5`: Core [39966679379](https://github.com/Report-Engainall/Nasr1/actions/runs/39966679379) SUCCESS; 143 Vitest files / 895 tests passed; isolated PostgreSQL migrations/workflows and backup/restore, lint, build, production-preview/dev smoke and Chromium price-visibility acceptance passed.
 - Exact source/test SHA `259aabc6078d868e35087aa33924d4b044af8e5`: P2 [39966679223](https://github.com/Report-Engainall/Nasr1/actions/runs/39966679223) SUCCESS for public UI smoke and local-Supabase browser acceptance: order persistence/cross-tenant denial, customer return and credit memo, audited Onyx XLSX export, and finance-document/operational-task print.
 - Latest docs-only head `6bba167ed6358ef4f90f7559d6d4548e7b4d411d`: Core [39967683475](https://github.com/Report-Engainall/Nasr1/actions/runs/39967683475) SUCCESS. P2 [39967683902](https://github.com/Report-Engainall/Nasr1/actions/runs/39967683902) remains IN_PROGRESS at cached Chromium OS dependency installation; external credential-gated customer-order/tenant job is SKIPPED.
+- P3-ROUTE-DEEPLINK-019: six real-router direct route/query-state tests committed at c4d53b9; current code/test head is 4653641; exact-head Core is IN_PROGRESS and P2 PENDING; local tests NOT RUN.
 TESTS_FAILED_OR_SKIPPED:
 - External credential-gated customer-order/tenant E2E is SKIPPED because dedicated external credentials are unavailable; this is not PASS.
 - Full all-route browser UAT and production acceptance remain NOT RUN.
@@ -72,7 +73,7 @@ BLOCKERS:
 - `main` advanced by one documentation commit since PR #89's merge base: live comparison `main=f7565aefd7af6033d169167d1bebb3dc5cd248ce`; PR branch is 1 commit behind and diverged, though GitHub reports mergeable=true. No branch sync/merge performed in this step; reassess and integrate conflict-aware before merge.
 - External credential-gated customer E2E remains SKIPPED. Local browser proof for reset-password and category-error retry is NOT RUN.
 - The report/checkpoint updates below create a new documentation-only SHA; read its own Actions before labelling that successor TESTED_EXACT_SHA.
-- Exact-head Core/P2 for this batch pending.
+- Current exact-head Core #39968751206 is IN_PROGRESS and P2 #39968751364 is PENDING; earlier P2 runs were CANCELLED on superseded heads, not successful.
 - P2 dependency cache HTTP 429 on previous SHA, even after retry.
 - Local checkout DNS failure; all-route browser UAT/production proof NOT RUN.
-NEXT_ACTION: verify the actual branch ref and exact-SHA checks after this docs sync; current head Core 39967683475 is SUCCESS, while P2 39967683902 is still IN_PROGRESS at Chromium OS dependency installation. Keep PR #89 open until current-head required checks conclude and independent formal review is recorded; then continue uncovered P3 route acceptance.
+NEXT_ACTION: fetch the live PR head after this checkpoint/report tree commit and inspect exact-head Core/P2 job conclusions. If a new commit cancels P2, don't label it PASS; re-run at the final stable branch head after concurrent writes settle. Continue only with independent uncovered P3 acceptance. Keep PR #89 open until final-head required checks succeed and independent formal review is recorded; integrate main's one-commit drift conflict-aware.

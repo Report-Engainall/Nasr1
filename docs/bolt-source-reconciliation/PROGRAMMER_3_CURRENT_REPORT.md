@@ -1,6 +1,6 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T17:17:26.433+03:00
+UPDATED_AT: 2026-10-23T17:22:01+03:00
 
 ## Git and current execution
 - Repository: Report-Engainall/Nasr1
@@ -72,18 +72,19 @@ Local test execution was attempted but is blocked by environment DNS (`git ls-re
 - Full all-route browser UAT and production acceptance are NOT RUN.
 
 ## Mandatory execution checkpoint fields — current readback
-LAST_COMPLETED_TASK_ID: P3-CHECKOUT-DUPLICATE-SUBMIT-018 (synchronous in-flight guard and double-click regression committed; source SHA 259aabc... Core SUCCESS with 895 tests and P2 local-Supabase acceptance SUCCESS)
+LAST_COMPLETED_TASK_ID: P3-ROUTE-DEEPLINK-019 (six direct generated-route entry/query-state assertions committed at c4d53b9; current branch-head CI pending).
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: c4d53b9ac0a7b5b42d4a1622c4bef2154e4d74bf (Core SUCCESS on exact docs head; the upcoming documentation-only commit must be checked on its resulting SHA)
-ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /reset-password; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route/component tests; full all-route browser UAT remains open
+HEAD_SHA: 4653641bac43bcde9e1a43f8010c355fe3fb3a57 (live code/test head includes P3-ROUTE-DEEPLINK-019; Core #39968751206 is IN_PROGRESS at Unit tests and P2 #39968751364 is PENDING. This docs update creates a successor which must receive its own exact-head CI readback.)
+ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /reset-password; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route/component tests; full all-route browser UAT remains open; direct routeTree entry assertions added for /categories, /collections, /offers, /search/advanced, /catalog?q=Rice, /search?q=Rice (CI pending)
 FILES_CHANGED: src/routes/index.tsx; src/test/customer-route-loading.test.tsx; src/components/StorefrontOffersPage.tsx; src/test/storefront-offers.test.tsx; src/components/AdvancedStorefrontSearchPage.tsx; src/test/advanced-storefront-search.test.tsx; src/components/Storefront.tsx; src/test/storefront-price-visibility-ui.test.tsx; src/test/reset-password-route.test.tsx; docs checkpoint/report
 TESTS_RUN_WITH_RESULTS: Core 39966679379 SUCCESS on source SHA 259aabc... : 143 test files/895 passed; PostgreSQL/migrations/backup-restore, lint, build, preview/dev smoke, Chromium price-visibility all passed. P2 39966679223 SUCCESS for public UI smoke, local-Supabase order persistence and tenant isolation, returns/credit memo, Onyx XLSX export, finance documents and task-center printing. Newest doc head 6bba... Core 39967683475 SUCCESS; current P2 39967683902 remains IN_PROGRESS at Chromium OS dependencies.
+- P3-ROUTE-DEEPLINK-019: six real-router direct route/query-state tests committed at c4d53b9; current code/test head is 4653641; exact-head Core is IN_PROGRESS and P2 PENDING; local tests NOT RUN.
 TESTS_FAILED_OR_SKIPPED: gated external customer-order/tenant E2E SKIPPED due unavailable non-production external credentials; full all-route browser UAT and production acceptance NOT RUN. Historical 7 test-harness failures fixed; historical package cache HTTP 429 recorded.
 DEFECTS_FOUND: root hydration fallback; route loading coverage expanded to 23 wrappers; published offers exclude inactive items and distinguish source errors; advanced search and category loading/error/retry added; reset-password flows regression-tested; checkout same-tick duplicate submission guard added.
 HANDOFF_TO_P1_OR_P2: P1 owns generated /admin/exports route-tree registration and locked admin wrappers; P2 owns route matrix/backend contracts and external-credential E2E setup. Historical package-cache handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365925364
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
 MERGE_STATUS: OPEN; UNMERGED; no formal independent review/approval recorded
-BLOCKERS: P2 current-head run 39967683902 still in progress; external credential-gated E2E skipped; full all-route browser UAT not run; docs successor requires fresh exact-SHA readback
-NEXT_ACTION: read actual branch ref after the docs commit and inspect its Core/P2 run conclusions; once current-head required gates finish, request/obtain independent formal review; continue uncovered P3 routes without duplicating completed work.
-UPDATED_AT: 2026-10-23T17:17:26.433+03:00
+BLOCKERS: current code/test head 4653641 Core #39968751206 IN_PROGRESS at Unit tests and P2 #39968751364 PENDING; prior P2 runs on earlier heads were cancelled; docs successor needs fresh exact-head CI; independent formal review absent; main remains one documentation commit ahead; credential-gated external E2E and manual reset-password/category-retry UAT NOT RUN.
+NEXT_ACTION: fetch the live PR head after this checkpoint/report tree commit and inspect exact-head Core/P2 job conclusions. If a new commit cancels P2, don't label it PASS; re-run at the final stable branch head after concurrent writes settle. Continue only with independent uncovered P3 acceptance. Keep PR #89 open until final-head required checks succeed and independent formal review is recorded; integrate main's one-commit drift conflict-aware.
+UPDATED_AT: 2026-10-23T17:22:01+03:00
