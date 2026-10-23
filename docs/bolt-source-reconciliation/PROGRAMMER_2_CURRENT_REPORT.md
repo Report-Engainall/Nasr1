@@ -13,7 +13,7 @@ This live block supersedes older snapshot metadata below; historical entries are
 - Credential-gated hosted tenant/customer E2E jobs explicitly recorded as SKIPPED remain `BLOCKED_EXTERNAL`, not PASS. Production proof is not claimed.
 - Out-of-set P2 history verified live: #127 merged at `d7a49d8ca7d968e2fc04307fb26313e54168410a` and is included in current main ancestry; #129 and duplicate export #132 are CLOSED / NOT MERGED. Do not recreate the #127 address-validation fix or merge duplicate #132.
 - Merge sequence after reviews: merge #131 through its PR first; then refresh #119 to the resulting main SHA and rerun its failing P2 workflow; resolve the shared `e2e/public-storefront-smoke.spec.ts` overlap among #89/#102/#124 during sequential main refreshes; then merge other eligible PRs one at a time. Re-read main and run Core on the final main SHA before closing the central matrix.
-- Central checkpoint branch: `p2/reconcile-18-prs-live-main-20261024`; central reconciliation PR URL: `PENDING_PR_URL`. Current branch HEAD and CI must be reread from the live PR after the last documentation update.
+- Central checkpoint branch: `p2/reconcile-18-prs-live-main-20261024`; central reconciliation PR URL: `https://github.com/Report-Engainall/Nasr1/pull/133`. Current branch HEAD and CI must be reread from the live PR after the last documentation update.
 
 | PR | owner | exact tested head SHA | Core | P2 / PostgreSQL 17 / Playwright | live disposition |
 |---|---|---|---|---|---|
