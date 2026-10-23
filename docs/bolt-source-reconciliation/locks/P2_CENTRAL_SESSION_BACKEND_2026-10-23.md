@@ -10,7 +10,7 @@ State: backend change set created; awaiting exact-head CI, P2 Playwright, and in
 
 ## Implementation paths
 
-- supabase/migrations/20261023111500_central_session_management.sql
+- supabase/migrations/20261023150000_central_session_management.sql
 - scripts/test-session-management.mjs
 - scripts/test-database-migrations.mjs (only the Auth session fixture, identity claims, and acceptance hook)
 - src/integrations/supabase/types.ts: publish the RPC signatures for the P1 screen integration.
