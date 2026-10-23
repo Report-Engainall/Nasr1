@@ -1,11 +1,11 @@
-## P2 live reconciliation and PR101 exact-head acceptance — 2026-10-23T19:17:00+03:00
+## P2 live reconciliation and PR101 exact-head acceptance — 2026-10-23T19:26:00+03:00
 
 - Current main c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99, tree ce3773a9c69ca2ee9acc2daa3fc759753bd4cdd9; exact-main Core run 39983210712 SUCCESS.
-- PR #54 is merged at afa4840c137d9da853c8486b005adb1ffd5fdd0a; tested feature head 52ae68f1f14d61d1fb13925a840c330cb70956e1 had Core 39905763702/P2 39905763717 PASS. PR #52 merged at c11ea018b81c6e47a9bbbc36d4d7b8f432892f8d. INV-009 is closed for local evidence only; Onyx target live import/sync is BLOCKED_EXTERNAL.
-- PR #88 merged at c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Final feature head 5021734e2beadef83fe9209aa2611b4399eafd4e had Core 39982277415/P2 39982277637 PASS. Hosted customer E2E skipped.
-- OPS-DR-001 isolated PG17 evidence: run 39969721081/job 120468865117; backup SHA-256 59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1; backup 394 ms, restore 1012 ms, total 4607 ms; 23 tables/1048 rows, temporary DB removed. No production restore or RTO/RPO claim.
-- PR #101 FIN-LEDGER-001 current head 9f2407ca838dfa258257cd8535fd29e97c327c38, base c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Fixed SQL dollar quoting in fetch_general_journal_reversal_links and added a PG17 concurrency case with different idempotency keys against one original. Core run 39985455274 and P2 run 39985455240 are IN_PROGRESS on this exact head; public UI smoke 120523317686 PASS, local Supabase/PG17 acceptance 120523647680 IN_PROGRESS, hosted customer E2E 120523368573 SKIPPED. Previous-head statuses must not be inherited.
-- PR #100 docs-only branch is being reconciled and exact-head checks must finish after this commit. P1 #97 and P3 #89 remain open and own their UI paths.
+- PR #54 is merged at afa4840c137d9da853c8486b005adb1ffd5fdd0a; tested feature head 52ae68f1f14d61d1fb13925a840c330cb70956e1 had Core 39905763702/P2 39905763717 PASS. PR #52 merged at c11ea018b81c6e47a9bbbc36d4d7b8f432892f8d. INV-009 remains closed for local evidence; Onyx target import/sync BLOCKED_EXTERNAL.
+- PR #88 merged at c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Feature head 5021734e2beadef83fe9209aa2611b4399eafd4e had Core 39982277415/P2 39982277637 PASS. Hosted customer E2E skipped.
+- OPS-DR-001 is proven only for isolated PG17 restore (run 39969721081/job 120468865117; SHA-256 59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1; 394 ms backup, 1012 ms restore, 4607 ms total; 23 tables/1048 rows). No production RTO/RPO claim.
+- PR #101 head 4efe9877354936fe4df19c0cfbaa24ec9d43eb4d, base c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Core 39986670318/P2 39986670155 IN_PROGRESS. Prior head 9f2407ca838dfa258257cd8535fd29e97c327c38 passed P2 but failed Core because fixture JSONB input used JSON.stringify; fixed to client.json([...]) before current head. Do not hide prior failure or inherit pass from other SHA.
+- PR #100 docs-only reconciliation is being updated again with this current checkpoint; checks must finish on its resulting exact head. P1 #97 and P3 #89 remain open and own their paths.
 
 ---
 
