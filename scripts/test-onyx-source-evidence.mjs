@@ -346,15 +346,91 @@ async function main() {
     await db.unsafe("select set_config('request.jwt.claim.role','service_role',false)");
     await db.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({role:"service_role"})]);
     await db.unsafe("set role service_role");
+    const requestHash = "1".repeat(64);
+    const responseHash = "2".repeat(64);
+    const externalRequestId = "CI-ONYX-" + suffix;
     const start = await db.unsafe(
       "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,null::uuid,$5::text,null::integer,null::text,null::text,null::text,null::text) as id",
-      ["inventory_pull","started",organizationId,matchedSnapshotId,"1".repeat(64)]
+      ["inventory_pull","started",organizationId,matchedSnapshotId,requestHash]
     );
     const successfulId = start[0].id;
+
+    await expectFailure(
+      "Onyx finalization rejects a request fingerprint different from the stored attempt",
+      () => db.unsafe(
+        "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text)",
+        ["inventory_pull","succeeded",organizationId,matchedSnapshotId,successfulId,"f".repeat(64),200,externalRequestId,responseHash]
+      ),
+      /request fingerprint does not match the persisted attempt/i,
+    );
+    await expectFailure(
+      "Onyx finalization rejects rebinding a snapshot that was already selected",
+      () => db.unsafe(
+        "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text)",
+        ["inventory_pull","succeeded",organizationId,mismatchSnapshotId,successfulId,requestHash,200,externalRequestId,responseHash]
+      ),
+      /snapshot is already bound to a different snapshot/i,
+    );
+    await db.unsafe("reset role");
+    const rejectedAttemptState = await db.unsafe(
+      "select status,request_sha256,snapshot_id,http_status,response_sha256 from public.onyx_live_sync_attempts where id=$1::uuid",
+      [successfulId],
+    );
+    assert.equal(rejectedAttemptState[0].status,"started","rejected finalization must leave the attempt started");
+    assert.equal(rejectedAttemptState[0].request_sha256,requestHash,"a rejected request fingerprint must not replace stored provenance");
+    assert.equal(rejectedAttemptState[0].snapshot_id,matchedSnapshotId,"a rejected snapshot reassignment must leave the selected snapshot unchanged");
+    assert.equal(rejectedAttemptState[0].http_status,null,"a rejected finalization must not persist a provider status");
+    assert.equal(rejectedAttemptState[0].response_sha256,null,"a rejected finalization must not persist a response fingerprint");
+    await db.unsafe("set role service_role");
+
+    const finalized = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text) as id",
+      ["inventory_pull","succeeded",organizationId,matchedSnapshotId,successfulId,requestHash,200,externalRequestId,responseHash]
+    );
+    assert.equal(finalized[0].id,successfulId,"the matching persisted request fingerprint must finalize the same attempt");
+    const exactRetry = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text) as id",
+      ["inventory_pull","succeeded",organizationId,matchedSnapshotId,successfulId,requestHash,200,externalRequestId,responseHash]
+    );
+    assert.equal(exactRetry[0].id,successfulId,"an identical finalization retry returns the original attempt");
+    const retryWithoutOptionalExternalId = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,null::text,$8::text,null::text,null::text) as id",
+      ["inventory_pull","succeeded",organizationId,matchedSnapshotId,successfulId,requestHash,200,responseHash]
+    );
+    assert.equal(retryWithoutOptionalExternalId[0].id,successfulId,"omitting an optional provider request ID retains the recorded ID on retry");
+    await expectFailure(
+      "Onyx finalization rejects a changed result after the attempt was already finalized",
+      () => db.unsafe(
+        "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text)",
+        ["inventory_pull","succeeded",organizationId,matchedSnapshotId,successfulId,requestHash,200,externalRequestId,"9".repeat(64)]
+      ),
+      /already finalized with a different result/i,
+    );
+    await expectFailure(
+      "Onyx finalization cannot reassign a snapshot after success",
+      () => db.unsafe(
+        "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text)",
+        ["inventory_pull","succeeded",organizationId,mismatchSnapshotId,successfulId,requestHash,200,externalRequestId,responseHash]
+      ),
+      /snapshot is already bound to a different snapshot/i,
+    );
+
+    // Inventory pulls may bind a produced snapshot once when no snapshot was selected at start.
+    const lateBoundStart = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,null::uuid,null::uuid,null::uuid,$4::text,null::integer,null::text,null::text,null::text,null::text) as id",
+      ["inventory_pull","started",organizationId,"5".repeat(64)]
+    );
+    const lateBoundId = lateBoundStart[0].id;
     await db.unsafe(
       "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text)",
-      ["inventory_pull","succeeded",organizationId,matchedSnapshotId,successfulId,"1".repeat(64),200,"CI-ONYX-"+suffix,"2".repeat(64)]
+      ["inventory_pull","succeeded",organizationId,matchedSnapshotId,lateBoundId,"5".repeat(64),200,"CI-ONYX-LATE-"+suffix,"6".repeat(64)]
     );
+    const lateBoundRow = await db.unsafe(
+      "select status,snapshot_id from public.onyx_live_sync_attempts where id=$1::uuid",
+      [lateBoundId],
+    );
+    assert.equal(lateBoundRow[0].status,"succeeded");
+    assert.equal(lateBoundRow[0].snapshot_id,matchedSnapshotId,"an inventory-pull result may bind the produced snapshot exactly once");
     const failStart = await db.unsafe(
       "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,null::uuid,$5::text,null::integer,null::text,null::text,null::text,null::text) as id",
       ["inventory_pull","started",organizationId,matchedSnapshotId,"3".repeat(64)]
