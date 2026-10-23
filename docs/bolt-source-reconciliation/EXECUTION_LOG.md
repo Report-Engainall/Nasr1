@@ -1126,3 +1126,15 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Main then advanced to `d81c9b34f819a53df7610937264c6fcb923c3f95` by adding only `docs/project-bolt-github-7sl6ykzz (5).zip`. Exact-current-main Core `40001438040` was IN_PROGRESS in PostgreSQL 17 migration acceptance at time of update; no PASS transferred to this SHA. P2 on exact current main is NOT RUN.
 - Released statement-credit lock: PR #62 merged at `024c279a2d1c0226c662e5d916871f45534c7242`. PR #40 is CLOSED and NOT MERGED; its old "open PR" note is historical only.
 - Next task: `FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD`. The live payment table has no persisted key and the UI sends none. Add identical-payload replay, changed-payload conflict, retry-key persistence, and concurrent replay/tenant isolation tests on PostgreSQL 17. Check all callers, overloads, grants and RLS; no parallel ledger/payment engine.
+
+## P2 FIN-INVOICE-001 payment idempotency implementation — 2026-10-23T21:55:00+03:00
+
+- Current main verified at `cd303b7fe0f263c9f62ed97f10202e9895465273`, tree `51aa49eb36bbf6227c42612e35b1bf03e6b3360a`. Main Core run `40006315985` was IN_PROGRESS on exact SHA at this read; exact-main P2 NOT RUN.
+- PR #111 documentation-only reconciliation merged at current main SHA; its central docs now record `FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD` as the next task. No parallel central-doc owner remains on PR #111.
+- Opened fresh branch `p2/payment-idempotency-current-main-20261023b` from current main; ported only the implementation/test paths. Previous feature branch was not opened as a PR after main advanced, so it does not cause an outdated-base merge.
+- Payment migration path finalized as `supabase/migrations/20261023235900_customer_payment_idempotency.sql` (valid chronological timestamp after the 23:00 AI session guard migration).
+- Implementation adds tenant-scoped payment key/fingerprint, identical replay, altered-payload conflict, request-key and shared invoice-settlement locks, legacy 5-argument overload removal, and restricted execution; the UI preserves the key across ambiguous retries for the exact same payload.
+- Test updates include component retry-key assertions and PostgreSQL 17 scenarios for replay/conflict/concurrency/tenant scope/legacy signature/grants, plus updates to existing database acceptance call sites.
+- P2 central WorkCoordination, current-state pointer, acceptance matrix, report and log updated sequentially on this feature branch. All new branch test gates are still NOT RUN; no PASS claimed.
+- NEXT_ACTION: finish diff review, open PR against main, wait for exact-head Core and P2 local PostgreSQL/Playwright terminal results, fix evidenced failures, merge only after required gates/review, then record the exact post-merge main SHA/results.
+
