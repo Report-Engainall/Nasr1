@@ -477,7 +477,7 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
 export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
   const { user } = useAuth();
   const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff'));
+  const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'customer_manager'));
   const canManageCustomerRecords = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'customer_manager'));
   const canManageCustomerLifecycle = canManageCustomerRecords;
   const isCustomerManagerOnly = Boolean(user?.roles.includes('customer_manager') &&

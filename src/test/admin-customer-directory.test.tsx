@@ -260,6 +260,7 @@ describe('admin customer directory paging', () => {
     expect(host?.textContent).toContain('إدارة العملاء');
     expect(host?.textContent).toContain('تغيير الشريحة');
     expect(host?.textContent).toContain('إدارة دورة الحياة');
+    expect(host?.textContent).toContain('دعوة تفعيل');
     expect(host?.textContent).not.toContain('ملف 360');
     expect(host?.textContent).not.toContain('الرصيد');
     expect(host?.textContent).not.toContain('الحد الائتماني');

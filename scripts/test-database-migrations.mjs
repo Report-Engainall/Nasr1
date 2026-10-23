@@ -4700,6 +4700,7 @@ async function main() {
     ["CI-ACT-04", "CI Staff Rejection Customer Record", "admin@aghbari.ye"],
     ["CI-ACT-05", "CI Expired Customer Record", "expired-client@example.test"],
     ["CI-ACT-06", "CI Revoked Customer Record", "revoked-client@example.test"],
+    ["CI-ACT-07", "CI Customer Manager Activation Record", "customer-manager-activation@example.test"],
   ];
   for (const [code, businessName, email] of activationCodes) {
     await db.unsafe(
@@ -4713,6 +4714,7 @@ async function main() {
   const staffRejectCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-04'", [organizationId]))[0].id;
   const expiredCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-05'", [organizationId]))[0].id;
   const revokedCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-06'", [organizationId]))[0].id;
+  const customerManagerActivationCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-07'", [organizationId]))[0].id;
 
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   await db.unsafe("set role authenticated");
@@ -4759,7 +4761,61 @@ async function main() {
   await expectFailure("staff cannot create an activation invitation for a different organization",
     () => db.unsafe("select public.create_customer_activation_invitation($1::uuid,$2::text,$3::integer)", [foreignOrganizationCustomer, "cross@example.test", 72]),
     /سجل العميل غير موجود ضمن المؤسسة الحالية|42501/i);
+
   await db.unsafe("reset role");
+  // Use a customer_manager-only profile to prove this capability is independent of broad staff access.
+  await db.unsafe("delete from public.user_roles where profile_id=$1", [operationsStaffProfileId]);
+  await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'customer_manager')", [operationsStaffProfileId]);
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  const customerManagerTenantScope = (await db.unsafe("select public.get_current_tenant_context() as result"))[0].result;
+  assert.equal(customerManagerTenantScope.is_staff, false, "customer_manager must not inherit broad staff access");
+  assert.equal(customerManagerTenantScope.can_manage_customers, true, "customer_manager has the narrow customer capability");
+
+  const customerManagerDirectory = (await db.unsafe(
+    "select public.fetch_customer_manager_directory($1::text,$2::integer,$3::integer) as result",
+    ["CI Customer Manager Activation Record", 1, 25],
+  ))[0].result;
+  assert.equal(customerManagerDirectory.total_count, 1, "customer-manager directory search/count are server-scoped");
+  const customerManagerRow = customerManagerDirectory.rows.find((row) => row.id === customerManagerActivationCustomer);
+  assert.ok(customerManagerRow, "directory returns the authorized tenant customer");
+  assert.equal(Object.hasOwn(customerManagerRow, "current_balance"), false, "directory hides current balance");
+  assert.equal(Object.hasOwn(customerManagerRow, "credit_limit"), false, "directory hides credit limit");
+
+  const customerManagerInvitation = (await db.unsafe(
+    "select public.create_customer_activation_invitation($1::uuid,$2::text,$3::integer) as result",
+    [customerManagerActivationCustomer, "customer-manager-activation@example.test", 72],
+  ))[0].result;
+  assert.equal(customerManagerInvitation.customer_id, customerManagerActivationCustomer,
+    "customer_manager can create a tenant-scoped activation invitation");
+  const customerManagerWorkspace = (await db.unsafe(
+    "select public.list_customer_activation_invitations($1::uuid) as result",
+    [customerManagerActivationCustomer],
+  ))[0].result;
+  assert.equal(customerManagerWorkspace.invitations[0].invitation_id, customerManagerInvitation.invitation_id,
+    "customer_manager can list invitation metadata");
+  await expectFailure("customer_manager cannot directly SELECT invitation storage",
+    () => db.unsafe("select id from public.customer_activation_invitations"), /permission denied/i);
+  const customerManagerRevoked = (await db.unsafe(
+    "select public.revoke_customer_activation_invitation($1::uuid) as result",
+    [customerManagerInvitation.invitation_id],
+  ))[0].result;
+  assert.equal(customerManagerRevoked, true, "customer_manager can revoke a pending invitation");
+  const customerManagerTier = (await db.unsafe(
+    "select public.set_admin_customer_tier($1::uuid,'retail','wholesale','CI customer manager tier change') as result",
+    [customerManagerActivationCustomer],
+  ))[0].result;
+  assert.equal(customerManagerTier.tier, "wholesale", "customer_manager can change tier through the audited command");
+  const customerManagerStatus = (await db.unsafe(
+    "select public.set_admin_customer_status($1::uuid,'approved','frozen','CI customer manager status change') as result",
+    [customerManagerActivationCustomer],
+  ))[0].result;
+  assert.equal(customerManagerStatus.status, "frozen", "customer_manager can change status through the audited command");
+
+  await db.unsafe("reset role");
+  await db.unsafe("delete from public.user_roles where profile_id=$1", [operationsStaffProfileId]);
+  await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'staff')", [operationsStaffProfileId]);
+  process.stdout.write("PASS customer_manager scope: non-financial directory, audited tier/status commands, invitation create/list/revoke, and direct-table denial\\n");
 
   // Anonymous access is denied independently of authenticated staff, including direct DML.
   await db.unsafe("select set_config('request.jwt.claim.sub','',false)");
