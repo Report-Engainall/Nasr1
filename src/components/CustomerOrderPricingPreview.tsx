@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { CustomerOrderPricingPresentation } from "@/components/CustomerOrderPricingPresentation";
 import { resolveCustomerOrderPricingPresentation } from "@/lib/storefront-price-visibility";
+import { retryRead } from "@/lib/retry";
 
 export type CustomerOrderPricingPreviewItem = {
   product_id: string;
@@ -76,11 +77,17 @@ export function CustomerOrderPricingPreview({
     setAttempt({ signature: requestSignature, status: "loading" });
     void (async () => {
       try {
-        const { data, error } = await supabase.rpc("preview_customer_order_pricing", {
-          p_items: parsedItems,
-          p_surface: surface,
+        const data = await retryRead(async () => {
+          // A component that has unmounted or changed policy must not schedule another read.
+          if (!active) throw new Error("pricing preview request cancelled");
+          const { data, error } = await supabase.rpc("preview_customer_order_pricing", {
+            p_items: parsedItems,
+            p_surface: surface,
+          });
+          // Preserve status/code metadata so only recognized transient read failures retry.
+          if (error) throw error;
+          return data;
         });
-        if (error) throw new Error(error.message || "price preview RPC failed");
         if (!active) return;
 
         const presentation = resolveCustomerOrderPricingPresentation(true, data, surface);
