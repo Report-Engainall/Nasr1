@@ -7,10 +7,11 @@ import { buildFinancialStatements, formatStatementCents, type FinancialStatement
 import { CashExpenseJournalLinker } from "@/components/CashExpenseJournalLinker";
 import { CustomerInvoicePaymentJournalLinker } from "@/components/CustomerInvoicePaymentJournalLinker";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
+import { GeneralJournalReversalAction } from "@/components/GeneralJournalReversalAction";
 
 type Account = { id: string; code: string; name: string; account_type: LedgerAccountType; is_active: boolean; debit_total: string; credit_total: string };
 type JournalLine = { line_number: number; account_id: string; account_code: string; account_name: string; debit: string; credit: string; memo: string | null };
-type JournalEntry = { id: string; entry_number: string; entry_date: string; description: string; source_type: string; source_reference: string | null; status: "draft" | "posted" | "void"; created_at: string; posted_at: string | null; voided_at?: string | null; void_reason?: string | null; debit_total: string; credit_total: string; lines: JournalLine[] };
+type JournalEntry = { id: string; entry_number: string; entry_date: string; description: string; source_type: string; source_reference: string | null; status: "draft" | "posted" | "void"; created_at: string; posted_at: string | null; voided_at?: string | null; void_reason?: string | null; debit_total: string; credit_total: string; lines: JournalLine[]; isReversal?: boolean; hasReversal?: boolean };
 type LedgerPayload = { accounts: Account[]; entries: JournalEntry[]; entry_count: number; has_more: boolean; summary: { posted_entry_count: number; debit_total: string; credit_total: string }; };
 type Filters = { from: string; to: string; accountId: string };
 const ACCOUNT_TYPES: { value: LedgerAccountType; label: string }[] = [
@@ -103,7 +104,28 @@ export function GeneralLedgerWorkspace() {
         p_offset: page * 50,
       });
       if (result.error) throw new Error("تعذر تحميل دفتر الأستاذ. تحقق من ترحيل المحاسبة وصلاحية الحساب.");
-      setPayload(readLedgerPayload(result.data));
+      const ledger = readLedgerPayload(result.data);
+      let reversalLinks: Array<{ original_journal_entry_id: string; reversal_journal_entry_id: string }> = [];
+      if (ledger.entries.length > 0) {
+        const reversalResult = await supabase.rpc("fetch_general_journal_reversal_links", {
+          p_entry_ids: ledger.entries.map((entry) => entry.id),
+        });
+        if (reversalResult.error || !Array.isArray(reversalResult.data)
+          || !reversalResult.data.every((link) => typeof link.original_journal_entry_id === "string" && typeof link.reversal_journal_entry_id === "string")) {
+          throw new Error("تعذر التحقق من روابط عكس القيود؛ تم إيقاف العرض احترازيًا.");
+        }
+        reversalLinks = reversalResult.data;
+      }
+      const reversedOriginalIds = new Set(reversalLinks.map((link) => link.original_journal_entry_id));
+      const reversalIds = new Set(reversalLinks.map((link) => link.reversal_journal_entry_id));
+      setPayload({
+        ...ledger,
+        entries: ledger.entries.map((entry) => ({
+          ...entry,
+          isReversal: reversalIds.has(entry.id),
+          hasReversal: reversedOriginalIds.has(entry.id),
+        })),
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل دفتر الأستاذ.");
       setPayload(null);
@@ -216,7 +238,7 @@ export function GeneralLedgerWorkspace() {
   }
 
   async function voidDraft(entryId: string) {
-    if (!canVoid) return;
+    if (!canVoidDraft) return;
     const reason = window.prompt("سبب إلغاء مسودة القيد (5 أحرف على الأقل):");
     if (!reason) return;
     setSaving(true); setError(""); setNotice("");
@@ -416,6 +438,9 @@ export function GeneralLedgerWorkspace() {
                   {entry.lines.map((line) => <tr key={line.line_number} style={{ borderTop: "1px solid var(--border, #e3e9ec)" }}><td style={{ padding: 7 }}>{line.account_code} — {line.account_name}</td><td>{line.memo || "—"}</td><td>{formatLedgerMoney(line.debit)}</td><td>{formatLedgerMoney(line.credit)}</td></tr>)}
                 </tbody></table></div>
                 {entry.status === "draft" && entry.source_type !== "cash_expense" && <div className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><button type="button" style={primary} onClick={() => void postEntry(entry.id)} disabled={saving}><Send size={14} /> ترحيل القيد</button>{canVoidDraft && <button type="button" style={button} onClick={() => void voidDraft(entry.id)} disabled={saving}><X size={14} /> إلغاء المسودة</button>}</div>}
+                {canVoidDraft && entry.status === "posted" && (entry.source_type === "manual" || entry.source_type === "adjustment") && !entry.isReversal && !entry.hasReversal && <GeneralJournalReversalAction entryId={entry.id} disabled={saving} onCreated={async (status) => { setNotice(status === "draft" ? "تم إنشاء مسودة عكس؛ لن يتغير الميزان حتى الترحيل." : "تم تأكيد عكس سابق."); setPage(0); await refresh(); }} />}
+                {entry.isReversal && <p style={muted}>قيد عكس مرتبط بقيد أصلي.</p>}
+                {entry.hasReversal && <p style={muted}>لهذا القيد مسودة عكس أو عكس مرحّل؛ مُنع التكرار.</p>}
               </article>
             ))}
           </div>}

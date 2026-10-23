@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import postgres from "postgres";
 import { runOrderInputHardeningAcceptance } from "./test-order-input-hardening.mjs";
 import { runSessionManagementAcceptance } from "./test-session-management.mjs";
+import { runGeneralLedgerReversalAcceptance } from "./test-general-ledger-reversal.mjs";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) throw new Error("TEST_DATABASE_URL is required for isolated database migration tests.");
@@ -2174,6 +2175,29 @@ async function main() {
     [order.id],
   );
   assert.equal(saleMovements[0].count, 1, "delivery must not consume the same stock twice");
+
+  const orderLifecycleHistory = await db.unsafe(
+    "select from_status,to_status,changed_by from public.order_status_history " +
+      "where order_id=$1 and to_status = any($2::text[]) " +
+      "order by case to_status when 'processing' then 1 when 'shipped' then 2 when 'delivered' then 3 else 4 end",
+    [order.id, ["processing", "shipped", "delivered"]],
+  );
+  assert.deepEqual(
+    orderLifecycleHistory.map((row) => [row.from_status, row.to_status]),
+    [["confirmed", "processing"], ["processing", "shipped"], ["shipped", "delivered"]],
+    "each successful order lifecycle transition must append one ordered from/to audit record",
+  );
+  assert.ok(
+    orderLifecycleHistory.every((row) => row.changed_by === staffProfileId),
+    "order status history must record the active tenant staff actor, not a null or foreign actor",
+  );
+  const rejectedCancelHistory = await db.unsafe(
+    "select id from public.order_status_history where order_id=$1 and to_status='cancelled'",
+    [order.id],
+  );
+  assert.equal(rejectedCancelHistory.length, 0,
+    "a rejected shipped-order cancellation must not append a false status-history record");
+  process.stdout.write("PASS order lifecycle audit: ordered transitions, same-tenant actor attribution and no audit row for rejected cancellation\\n");
 
   await db.unsafe("reset role");
   await setIdentity(authUserId, "ci-customer-one@example.test");
@@ -4967,6 +4991,18 @@ async function main() {
   }
 
   await runSessionManagementAcceptance({ db, setIdentity, expectFailure });
+  await runGeneralLedgerReversalAcceptance({
+    db,
+    setIdentity,
+    expectFailure,
+    connectionString,
+    organizationId,
+    otherOrganizationId,
+    staffAuthUserId,
+    customerAuthUserId: authUserId,
+    foreignAuthUserId,
+    foreignProfileId,
+  });
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }
 
