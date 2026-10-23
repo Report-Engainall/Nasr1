@@ -20,10 +20,11 @@ vi.mock('@/lib/auth', async (importOriginal) => {
 vi.mock('@/lib/useFetch', () => ({
   useFetch: () => ({ data: [], loading: false, error: null, refetch: mocks.refetch }),
 }));
-vi.mock('@/lib/supabase', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/supabase')>();
-  return { ...actual, supabase: { ...actual.supabase, rpc: mocks.rpc } };
-});
+vi.mock('@/lib/supabase', () => ({
+  supabase: { rpc: mocks.rpc },
+  getCurrentTenantScope: vi.fn(),
+  getStorefrontDataScope: vi.fn(),
+}));
 
 import { SettingsPage } from '@/components/AdminPages';
 
