@@ -906,3 +906,22 @@ Read current #88 Core + P2 runs by exact post-sync SHA. If green, hand the missi
 **BASE_SHA:** `bd0d2df489e40b2dc5f83882d90565c7799a448c`  
 **PRE_SYNC_HEAD_SHA:** `428c98bece43296dbebd9ce30c78cffe48541348`  
 **STATUS:** P2 backend integrated; P1 exact post-sync CI pending; dedicated session E2E not yet invoked; PR stays Draft.
+
+
+## P1 live resumption — local session-fixture guard + acceptance wiring audit — 2026-10-23T14:38:56.566Z
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-LOCAL-ENDPOINT-GUARD-CODE` (implementation committed; exact-head checks are not yet terminal).
+- CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c` (PR #88 base recorded by the live PR record; branch integrated P2 session contract through its main-sync commit).
+- HEAD_SHA: `7a3bc8a3e952c021bf122e484416b12ba2a82379` — code/test head immediately before the resume-record commits below. The checkpoint/report updates are documentation-only and do not alter the tested code.
+- LAST_CONFIRMED_TESTS: no terminal result is claimed for `7a3bc8a3e952c021bf122e484416b12ba2a82379`. Exact-head Core run [39971268285](https://github.com/Report-Engainall/Nasr1/actions/runs/39971268285) was IN_PROGRESS and P2 Playwright [39971268281](https://github.com/Report-Engainall/Nasr1/actions/runs/39971268281) was PENDING at readback. These must be rechecked on the final branch head. Predecessor Core/P2 results on `5f500eb2129f5745bb924beb06e6a4764ab9a0e0` do not validate the new guard/test.
+- FAILED_OR_NOT_RUN_TESTS: exact-head Vitest/Core and isolated PostgreSQL/Chromium results remain pending. P2 job inspection on the predecessor run showed the local setup invokes `scripts/seed-p2-local-playwright.mjs`, followed by order/finance acceptance; it did not invoke `scripts/seed-p1-device-session-playwright.mjs` or select `e2e/device-session-management.spec.ts`. Therefore central-session browser acceptance is NOT PROVEN regardless of the generic P2 job conclusion. The hosted-account E2E remains subject to its explicit missing-credentials gate and is not counted as a pass.
+- FILES_CHANGED in this implementation unit: `scripts/lib/p1-device-session-endpoints.mjs`, `scripts/lib/p1-device-session-endpoints.d.mts`, `scripts/seed-p1-device-session-playwright.mjs`, `src/test/p1-device-session-endpoints.test.ts`; prior PR #88 changes remain in `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`, `e2e/device-session-management.spec.ts`, and its isolated seed script.
+- IMPLEMENTED: the seeder now validates through a pure local-only guard and allows PostgreSQL loopback ports `54322` (default local Supabase) and `55432` (the port configured by the current isolated P2 workflow), while still requiring the API on HTTP loopback port `54321`. Vitest coverage includes both allowed ports and rejects remote endpoints, unexpected ports, incorrect database paths, embedded API credentials, and malformed URLs.
+- LOCKED_PATHS: `.github/workflows/p2-playwright-critical-paths.yml`, P2 migrations/RPC/RLS/API/generated DB types, finance/inventory/data-service paths, `package.json`, `bun.lock`, shared `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, and the shared acceptance matrix remain untouched.
+- NEXT_ACTION: read terminal Core and P2 checks on the final #88 head; fix only evidenced failures. Coordinate with P2 to run the new P1 local seed and `e2e/device-session-management.spec.ts` within the isolated local Supabase/Chromium job (without P1 editing the P2-owned workflow). Do not mark browser proof or merge #88 until that exact session acceptance executes and passes after the contract is integrated.
+- BLOCKER: P1 session browser spec/seeder are not wired into the current P2 workflow; this requires workflow-owner coordination. Current exact-head checks are pending. Hosted/external-account testing remains NOT RUN where credentials are absent.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 Draft/open; keep Draft until exact-head Core plus actual session-management Chromium acceptance pass.
+- UPDATED_AT: 2026-10-23T14:38:56.566Z
