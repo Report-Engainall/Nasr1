@@ -143,3 +143,12 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/90
 - MERGE_STATUS: PR #90 MERGED as `59547c7d683cefd65cab445b97219aa701021676`; PR #84 MERGED as `cb72f35de524af82f63bbbcebec97213464921ed`; P1 docs continuation PR for this branch to be opened separately.
 - UPDATED_AT: 2026-10-23T15:53+03:00
+
+
+## Post-merge CI readback correction — 2026-10-23T16:02+03:00
+
+- Main merge SHA `59547c7d683cefd65cab445b97219aa701021676` is now confirmed by Core run [39956957952 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952). This resolves the post-merge Core blocker recorded above for that exact application SHA.
+- The application merge SHA is unchanged. The P1 checkpoint/report documentation branch has its own later documentation commits; do not label those commits as tested application heads unless their own workflows finish.
+- Current P2 dependency readback: #82 head `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`, #83 head `49ea0ce8936bf319a1941ea0ba0a1f03ebec9c3c`, and P1 #88 head `895b27384e21f654bf3e1124303304266ddccb3f` all read `mergeable=true` at this timestamp, but that flag alone is not proof of current-base exact-head CI or required review. #82 exact head has prior Core/P2 success; #83 must have terminal current-head Core/P2 before integration; #88 remains Draft and dependent on #83.
+- LAST_COMPLETED_TASK_ID remains `P1-INVITE-EXPIRY-90`; NEXT_ACTION: create a small documentation PR for this checkpoint/report update, validate its checks, then continue with the next independent P1 UI gap. Keep #88 unmerged until the backend contract is integrated and current-head verified.
+- UPDATED_AT: 2026-10-23T16:02+03:00
