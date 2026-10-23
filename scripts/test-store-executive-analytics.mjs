@@ -216,6 +216,23 @@ async function main() {
 
   await db.unsafe("reset role");
   await db.unsafe("delete from public.user_roles where profile_id=$1::uuid", [ids.profile]);
+  await db.unsafe("insert into public.user_roles(profile_id,role) values($1::uuid,'staff')", [ids.profile]);
+  await setIdentity(ids.authUser, email);
+  let staffDenied = false;
+  await db.unsafe("savepoint before_staff_denial");
+  try {
+    await db.unsafe("select public.get_store_executive_analytics()");
+  } catch (error) {
+    staffDenied = error?.code === "42501";
+    if (!staffDenied) throw error;
+    await db.unsafe("rollback to savepoint before_staff_denial");
+  } finally {
+    await db.unsafe("release savepoint before_staff_denial");
+  }
+  assert.equal(staffDenied, true, "generic staff callers must not read financial executive analytics");
+
+  await db.unsafe("reset role");
+  await db.unsafe("delete from public.user_roles where profile_id=$1::uuid", [ids.profile]);
   await db.unsafe("insert into public.user_roles(profile_id,role) values($1::uuid,'customer')", [ids.profile]);
   await setIdentity(ids.authUser, email);
   let customerDenied = false;

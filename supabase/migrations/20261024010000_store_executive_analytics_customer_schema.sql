@@ -18,7 +18,7 @@ BEGIN
      AND p.auth_user_id = auth.uid()
      AND p.is_active;
 
-  IF v_org IS NULL OR NOT public.is_staff() THEN
+  IF v_org IS NULL OR NOT public.can_manage_finance() THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
       MESSAGE = 'لا تملك صلاحية قراءة التحليلات التنفيذية للمؤسسة الحالية.';
   END IF;
@@ -158,7 +158,7 @@ $function$;
 REVOKE ALL ON FUNCTION public.get_store_executive_analytics() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_store_executive_analytics() TO authenticated;
 COMMENT ON FUNCTION public.get_store_executive_analytics() IS
-  'Tenant-scoped aggregate analytics for current store orders; excludes cancelled/rejected orders from sales and ranks products/customers from order snapshots.';
+  'Admin/manager-only tenant-scoped aggregate analytics; excludes cancelled/rejected orders from sales and ranks products/customers from order snapshots.';
 
 DO $block$
 BEGIN
