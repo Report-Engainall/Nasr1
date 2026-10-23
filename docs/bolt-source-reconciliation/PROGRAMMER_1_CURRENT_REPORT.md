@@ -675,3 +675,20 @@ Test added in `src/test/admin-product-double-submit.test.tsx`: first fetch rejec
 - Scope isolation: no server API/RPC/migration or P2 workflow changes, and no P3 #89 file changes.
 
 **Next action:** read exact Core/P2 results for the latest #97 head; fix test/code from evidence and do not mark ready until all required checks pass.
+
+
+## P1 — CI-driven correction of product modal acceptance — 2026-10-23T17:56+03:00
+
+The initial Core run on `7a1162c1f0b5180f8d4a94256f9fb0d280e87fc3` failed 3 focused tests while 848 of 851 tests passed. The log proved two related causes: the newly enforced category-loading state kept the submit button disabled while our component tests submitted too early; and the retry button was placed inside a `<label>`, making its accessible name include the entire label/error/select context, so `getByRole("button", {name:"إعادة المحاولة"})` correctly failed. The retry affordance was semantically misplaced as well.
+
+Correction in `c22f8b771a3390994cb8b95f22231904e806fa41`:
+- moved the category error/retry alert outside the category `Field`/label;
+- waits for the submit button to become enabled before the rapid-click scenario and before the first request in the failure/retry scenario;
+- retained all core assertions (one network write for two clicks, retry becomes possible after failure, category retry saves the server-returned category ID).
+
+Core/P2 workflows for the corrected functional HEAD were pending when this report was written. No local command has been run in this execution. The previous failing run remains documented as a failure; only a completed run on the new live SHA can provide the new verdict.
+
+**PR:** [#97](https://github.com/Report-Engainall/Nasr1/pull/97)  
+**Base:** `bd0d2df489e40b2dc5f83882d90565c7799a448c`  
+**Functional head:** `c22f8b771a3390994cb8b95f22231904e806fa41`  
+**Status:** Draft; awaiting exact-head Core and P2 run results.

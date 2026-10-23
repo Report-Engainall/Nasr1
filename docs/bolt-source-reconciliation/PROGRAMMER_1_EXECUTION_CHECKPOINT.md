@@ -276,3 +276,22 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
 - MERGE_STATUS: DRAFT / OPEN / NOT READY.
 - UPDATED_AT: 2026-10-23T17:49+03:00
+
+
+## Active resume — product modal test failures corrected — 2026-10-23T17:56+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-FORM-ACCEPTANCE-FIX-001` (root causes identified from CI log and tests updated; current-head verification pending).
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c`.
+- FUNCTIONAL_HEAD_SHA: `c22f8b771a3390994cb8b95f22231904e806fa41`; current checkpoint/report-only commit advances HEAD. Re-read the live branch and Actions before continuing.
+- FAILED_EXACT_HEAD_TEST: Core [39971686418](https://github.com/Report-Engainall/Nasr1/actions/runs/39971686418) FAILED on `7a1162c1f0b5180f8d4a94256f9fb0d280e87fc3`; Vitest reported 848 passed / 3 failed out of 851. Failures were in the newly added `src/test/admin-product-double-submit.test.tsx`: rapid-submit and failure-retry clicked before async category lookup completed (submit remained disabled); category retry could not be selected by its own accessible name because the button was nested inside the category `<label>`.
+- FIX_COMMITTED: `c22f8b771a3390994cb8b95f22231904e806fa41` moves the category error/retry action outside the label and waits for form readiness in the double-submit and server-create retry tests. This corrects semantic HTML/accessibility and the test synchronization; no assertions were removed.
+- LAST_CONFIRMED_TESTS: base `bd0d2df489e40b2dc5f83882d90565c7799a448c` Core [39969622689](https://github.com/Report-Engainall/Nasr1/actions/runs/39969622689) SUCCESS. No PASS claimed yet for `c22f8b7...`.
+- FAILED_OR_NOT_RUN_TESTS: Core and P2 Playwright for `c22f8b7...` pending at checkpoint time. The first P2 Playwright run on earlier product head is not UI component test evidence and cannot replace Core.
+- FILES_CHANGED: `src/components/AghbariApp.tsx` and `src/test/admin-product-double-submit.test.tsx`; checkpoint/report appended here.
+- LOCKED_PATHS: no P2 service/RPC/workflow/migration/RLS/type path; no shared checkpoint files; no P3 #89 owned path.
+- NEXT_ACTION: inspect exact Core + P2 results at live branch HEAD after this checkpoint. If any failures remain, get that run’s exact job log and fix only the proven cause. Do not mark PR ready or merge until both workflows settle successfully.
+- BLOCKER: exact-head checks pending after correcting three test failures on predecessor `7a1162c...`.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
+- MERGE_STATUS: DRAFT / OPEN / NOT READY.
+- UPDATED_AT: 2026-10-23T17:56+03:00
