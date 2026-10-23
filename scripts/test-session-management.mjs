@@ -123,5 +123,42 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
     /administrator|required|42501/i);
   await db.unsafe("reset role");
 
-  process.stdout.write("PASS central session management: live-session acceptance, tenant-bounded listing, expiry filtering, audit view/revoke, admin-only revocation, cross-tenant denial, current-session protection, and immediate canonical tenant-context rejection after revocation\n");
+  // The self-scoped bulk operation preserves the live caller session and never touches another account.
+  const bulkCurrentSession = "a9000000-0000-4000-8000-000000000036";
+  const bulkOtherSessionA = "a9000000-0000-4000-8000-000000000037";
+  const bulkOtherSessionB = "a9000000-0000-4000-8000-000000000038";
+  await db.unsafe(
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now(),now(),now(),null,'Current bulk-revoke session','192.0.2.20'::inet),($3,$2,now(),now(),now(),null,'Other bulk-revoke session A','192.0.2.21'::inet),($4,$2,now(),now(),now(),now()-interval '1 day','Expired bulk-revoke session B','192.0.2.22'::inet) on conflict(id) do nothing",
+    [bulkCurrentSession,targetAuth,bulkOtherSessionA,bulkOtherSessionB],
+  );
+  await setIdentity(targetAuth, "session-target@example.test", bulkCurrentSession, true);
+  await db.unsafe("set role authenticated");
+  const bulkResult = (await db.unsafe("select public.revoke_other_auth_sessions() as result"))[0].result;
+  assert.equal(bulkResult.current_session_id, bulkCurrentSession,
+    "bulk revocation confirms which live session was retained");
+  assert.equal(bulkResult.revoked_count, 2,
+    "bulk revocation reports the exact number of deleted sessions, including expired siblings");
+  assert.deepEqual(new Set(bulkResult.revoked_session_ids), new Set([bulkOtherSessionA, bulkOtherSessionB]),
+    "bulk response acknowledges exactly the sessions deleted for auth.uid()");
+  await db.unsafe("reset role");
+  const targetSessionsAfterBulk = await db.unsafe(
+    "select id from auth.sessions where user_id=$1 order by id",
+    [targetAuth],
+  );
+  assert.deepEqual(targetSessionsAfterBulk.map((s) => s.id), [bulkCurrentSession],
+    "self-scoped bulk revocation retains only the current target-account session");
+  const unrelatedSessionsRemain = await db.unsafe(
+    "select id from auth.sessions where id in ($1::uuid,$2::uuid)",
+    [staffSession, foreignSession],
+  );
+  assert.equal(unrelatedSessionsRemain.length, 2,
+    "bulk revocation leaves same-tenant and cross-tenant users' sessions untouched");
+  const bulkAudit = await db.unsafe(
+    "select new_value from public.audit_logs where organization_id=$1 and actor_id=$2 and action='auth.sessions.revoked_others'",
+    [org,targetProfile],
+  );
+  assert.equal(bulkAudit.length, 1, "bulk revocation produces exactly one audit event");
+  assert.equal(bulkAudit[0].new_value.revoked_count, 2,
+    "bulk revocation audit matches the acknowledged deletion count");
+  process.stdout.write("PASS central session management: live-session acceptance, tenant-bounded listing, expiry filtering, audit view/revoke, admin-only individual revocation, self-scoped bulk revocation, cross-tenant denial, current-session protection, and immediate canonical tenant-context rejection after revocation\n");
 }
