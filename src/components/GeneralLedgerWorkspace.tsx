@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { BookOpenCheck, Plus, RefreshCw, Printer, Send, Trash2, X } from "lucide-react";
+import { BookOpenCheck, Plus, RefreshCw, Printer, Send, Trash2, X, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { formatLedgerBalance, formatLedgerMoney, validateJournalDraft, type JournalDraftLine, type LedgerAccountType } from "@/lib/general-ledger";
@@ -10,7 +10,7 @@ import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintAc
 
 type Account = { id: string; code: string; name: string; account_type: LedgerAccountType; is_active: boolean; debit_total: string; credit_total: string };
 type JournalLine = { line_number: number; account_id: string; account_code: string; account_name: string; debit: string; credit: string; memo: string | null };
-type JournalEntry = { id: string; entry_number: string; entry_date: string; description: string; source_type: string; source_reference: string | null; status: "draft" | "posted" | "void"; created_at: string; posted_at: string | null; voided_at?: string | null; void_reason?: string | null; debit_total: string; credit_total: string; lines: JournalLine[] };
+type JournalEntry = { id: string; entry_number: string; entry_date: string; description: string; source_type: string; source_reference: string | null; status: "draft" | "posted" | "void"; created_at: string; posted_at: string | null; voided_at?: string | null; void_reason?: string | null; debit_total: string; credit_total: string; lines: JournalLine[]; isReversal?: boolean; hasReversal?: boolean };
 type LedgerPayload = { accounts: Account[]; entries: JournalEntry[]; entry_count: number; has_more: boolean; summary: { posted_entry_count: number; debit_total: string; credit_total: string }; };
 type Filters = { from: string; to: string; accountId: string };
 const ACCOUNT_TYPES: { value: LedgerAccountType; label: string }[] = [
@@ -84,6 +84,7 @@ export function GeneralLedgerWorkspace() {
   const [draftLines, setDraftLines] = useState<JournalDraftLine[]>([emptyLine(), emptyLine()]);
   const [showAccountForm, setShowAccountForm] = useState(false);
   const pendingKey = useRef<{ fingerprint: string; key: string } | null>(null);
+  const pendingReversalKeys = useRef<Map<string, { fingerprint: string; key: string }>>(new Map());
   const [statementRangeDraft, setStatementRangeDraft] = useState({ from: new Date().getFullYear() + "-01-01", to: today() });
   const [statementRange, setStatementRange] = useState({ from: new Date().getFullYear() + "-01-01", to: today() });
   const [statements, setStatements] = useState<FinancialStatementsReport | null>(null);
@@ -95,15 +96,34 @@ export function GeneralLedgerWorkspace() {
     setLoading(true);
     setError("");
     try {
-      const result = await supabase.rpc("fetch_general_ledger", {
-        p_from: filters.from || null,
-        p_to: filters.to || null,
-        p_account_id: filters.accountId || null,
-        p_limit: 50,
-        p_offset: page * 50,
+      const [result, reversalResult] = await Promise.all([
+        supabase.rpc("fetch_general_ledger", {
+          p_from: filters.from || null,
+          p_to: filters.to || null,
+          p_account_id: filters.accountId || null,
+          p_limit: 50,
+          p_offset: page * 50,
+        }),
+        supabase.from("accounting_journal_reversals").select("original_journal_entry_id,reversal_journal_entry_id"),
+      ]);
+      if (result.error || reversalResult.error) {
+        throw new Error("تعذر تحميل دفتر الأستاذ أو روابط العكس المعتمدة. تحقق من الترحيلات والصلاحيات.");
+      }
+      const ledger = readLedgerPayload(result.data);
+      const reversalLinks = reversalResult.data ?? [];
+      if (!reversalLinks.every((link) => typeof link.original_journal_entry_id === "string" && typeof link.reversal_journal_entry_id === "string")) {
+        throw new Error("روابط عكس القيود غير صالحة؛ تم إيقاف العرض احترازيًا.");
+      }
+      const reversedOriginalIds = new Set(reversalLinks.map((link) => link.original_journal_entry_id));
+      const reversalIds = new Set(reversalLinks.map((link) => link.reversal_journal_entry_id));
+      setPayload({
+        ...ledger,
+        entries: ledger.entries.map((entry) => ({
+          ...entry,
+          isReversal: reversalIds.has(entry.id),
+          hasReversal: reversedOriginalIds.has(entry.id),
+        })),
       });
-      if (result.error) throw new Error("تعذر تحميل دفتر الأستاذ. تحقق من ترحيل المحاسبة وصلاحية الحساب.");
-      setPayload(readLedgerPayload(result.data));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل دفتر الأستاذ.");
       setPayload(null);
@@ -215,8 +235,58 @@ export function GeneralLedgerWorkspace() {
     }
   }
 
+  async function reverseEntry(entryId: string) {
+    if (!canVoidDraft) return;
+    const reasonInput = window.prompt("سبب عكس القيد المرحّل (5 أحرف على الأقل):");
+    if (!reasonInput) return;
+    const reason = reasonInput.trim();
+    if (reason.length < 5) {
+      setError("سبب العكس مطلوب بطول 5 أحرف على الأقل. لم يُرسل أي طلب.");
+      return;
+    }
+    if (!window.crypto?.randomUUID) {
+      setError("المتصفح لا يدعم مفتاح منع التكرار الآمن؛ لم يُرسل طلب العكس.");
+      return;
+    }
+    const fingerprint = JSON.stringify({ entryId, reason });
+    let pending = pendingReversalKeys.current.get(entryId);
+    if (!pending || pending.fingerprint !== fingerprint) {
+      pending = { fingerprint, key: window.crypto.randomUUID() };
+      pendingReversalKeys.current.set(entryId, pending);
+    }
+
+    setSaving(true); setError(""); setNotice("");
+    try {
+      const result = await supabase.rpc("reverse_general_journal_entry", {
+        p_entry_id: entryId,
+        p_reason: reason,
+        p_idempotency_key: pending.key,
+      });
+      if (result.error) throw new Error("تعذر إنشاء مسودة العكس. تحقق من صلاحية المدير وحالة القيد؛ لم يُعلن أي ترحيل.");
+      if (!isRecord(result.data)
+        || result.data.original_journal_entry_id !== entryId
+        || typeof result.data.reversal_journal_entry_id !== "string"
+        || (result.data.status !== "draft" && result.data.status !== "posted")
+        || typeof result.data.replayed !== "boolean") {
+        throw new Error("استجابة العكس لا تطابق القيد المطلوب؛ لم يتم عرض نجاح غير مؤكد.");
+      }
+      pendingReversalKeys.current.delete(entryId);
+      setNotice(result.data.status === "draft"
+        ? "تم إنشاء مسودة عكس مرتبطة بالقيد. لن يتغير ميزان المراجعة حتى تُرحّل المسودة."
+        : "تم العثور على عملية عكس سابقة مؤكدة لهذا القيد.");
+      setPage(0);
+      await refresh();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "تعذر إنشاء مسودة العكس.";
+      await refresh();
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function voidDraft(entryId: string) {
-    if (!canVoid) return;
+    if (!canVoidDraft) return;
     const reason = window.prompt("سبب إلغاء مسودة القيد (5 أحرف على الأقل):");
     if (!reason) return;
     setSaving(true); setError(""); setNotice("");
@@ -416,6 +486,9 @@ export function GeneralLedgerWorkspace() {
                   {entry.lines.map((line) => <tr key={line.line_number} style={{ borderTop: "1px solid var(--border, #e3e9ec)" }}><td style={{ padding: 7 }}>{line.account_code} — {line.account_name}</td><td>{line.memo || "—"}</td><td>{formatLedgerMoney(line.debit)}</td><td>{formatLedgerMoney(line.credit)}</td></tr>)}
                 </tbody></table></div>
                 {entry.status === "draft" && entry.source_type !== "cash_expense" && <div className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><button type="button" style={primary} onClick={() => void postEntry(entry.id)} disabled={saving}><Send size={14} /> ترحيل القيد</button>{canVoidDraft && <button type="button" style={button} onClick={() => void voidDraft(entry.id)} disabled={saving}><X size={14} /> إلغاء المسودة</button>}</div>}
+                {canVoidDraft && entry.status === "posted" && (entry.source_type === "manual" || entry.source_type === "adjustment") && !entry.isReversal && !entry.hasReversal && <div className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><button type="button" style={button} onClick={() => void reverseEntry(entry.id)} disabled={saving}><RotateCcw size={14} /> إنشاء مسودة عكس</button></div>}
+                {entry.isReversal && <p style={muted}>هذا قيد عكس مرتبط بقيد أصلي؛ لا يمكن عكسه مرة أخرى بهذه العملية.</p>}
+                {entry.hasReversal && <p style={muted}>أنشئت لهذا القيد مسودة عكس أو عكس مرحّل بالفعل؛ لن يُنشأ عكس مكرر.</p>}
               </article>
             ))}
           </div>}
