@@ -167,6 +167,20 @@ describe("customer order history pagination", () => {
     expect(host?.textContent).not.toContain("صفحة 1 من 2");
   });
 
+  it("gives each order detail link an order-specific accessible name", async () => {
+    await act(async () => {
+      root?.render(<MyOrders />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const first = host?.querySelector<HTMLAnchorElement>('a.sf-link[aria-label="تفاصيل الطلب ORDER-001"]');
+    const second = host?.querySelector<HTMLAnchorElement>('a.sf-link[aria-label="تفاصيل الطلب ORDER-002"]');
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    expect(first?.textContent).toBe("التفاصيل");
+    expect(first?.getAttribute("aria-label")).not.toBe(second?.getAttribute("aria-label"));
+  });
+
   it("fails closed instead of presenting an unknown count as zero", async () => {
     mocks.count = null;
     await act(async () => {
