@@ -639,3 +639,105 @@
 - P2 PR #83 live head `b7830efa562021e0139736a33d0235037cd8f976` has Core [39959552835 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39959552835) while P2 [39959552757](https://github.com/Report-Engainall/Nasr1/actions/runs/39959552757) remained in progress. P2's central-session backend still is not in main, so #88 must stay Draft even if UI/Core tests are green.
 - Documentation PR #93 remains open. Its previous head `0fb97ce055da170fab2173a53462ce5eafae0508` Core and P2 attempts failed at dependency installation with HTTP 429 before test execution; no docs PR merge is claimed.
 - NEXT_ACTION: verify both workflows on exact #88 head `f7839b...`, then resume after P2 #83 integration and require actual local Supabase/Chromium session-contract acceptance. Main SHA remains `59547c...` at this checkpoint.
+
+
+## P1 — admin product form duplicate submission guard — 2026-10-23T17:43+03:00
+
+### Root cause
+The existing admin `ProductModal` only disabled its submit button through React's `saving` state. Two click events delivered before the component rerender could enter `save()` twice and issue duplicate product writes. The existing customer modal already uses a synchronous in-flight guard, but the product modal did not.
+
+### Fix and tests
+- Added a `useRef` single-flight lock set before the first await and released in `finally`; it does not change the existing server contract or create/update payload.
+- Added a focused test mounting the existing component and dispatching two immediate click events while the first create RPC promise is unresolved; expected service call count is exactly one.
+- Added a failure/retry test: the first create rejects and shows an alert; the guard releases; a second create succeeds and calls `onSaved` once.
+- Commit: `ffb973cd3ba9a1b27a0068812c39622a452ca9c7`; exact-head Core/Playwright results pending. Main baseline Core was green at [39969622689](https://github.com/Report-Engainall/Nasr1/actions/runs/39969622689) for `bd0d2df489e40b2dc5f83882d90565c7799a448c`.
+
+### Ownership / next action
+This change is separate from PR #88 session UI and from P3 PR #89. No P2 service/RPC/workflow file changed; #89 does not modify `src/components/AghbariApp.tsx`. Read the new branch’s exact SHA checks, fix any concrete failure, and open a narrow PR. Keep #88 Draft until its dedicated browser spec is wired by P2 and proves selective revocation against the integrated session contract.
+
+**Branch:** `p1/admin-product-singleflight-20261023`  
+**BASE_SHA:** `bd0d2df489e40b2dc5f83882d90565c7799a448c`  
+**FUNCTIONAL_HEAD_SHA:** `ffb973cd3ba9a1b27a0068812c39622a452ca9c7`  
+**FILES:** `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`  
+**STATUS:** Implemented; exact-head CI pending.
+
+
+## P1 — fail closed and retry when product categories cannot load — 2026-10-23T17:49+03:00
+
+The admin product modal previously used only `data` from `useFetch(fetchCategories)`; the loading/error/refetch state was discarded. A category API failure therefore rendered an apparently empty select with no retry path, and the product could be submitted without a confirmed category list. The modal now surfaces the actual fetch error in an accessible alert, presents a retry action, shows loading/error placeholder states, and keeps the category select and save button disabled until the lookup settles successfully. This preserves the existing service contract and prevents a save from proceeding against a hidden lookup failure.
+
+Test added in `src/test/admin-product-double-submit.test.tsx`: first fetch rejects, the error and disabled save are asserted, the retry button triggers a second fetch, a returned category is selected and the create payload is verified to include the chosen category ID. This joins the rapid duplicate-submit and failure-then-retry tests from the same PR.
+
+- Functional commit: `1c1d90858a4e45c2da1287e483b1c5027b388c0e`; exact-head Core/P2 checks pending.
+- Previous product code commit `ffb973cd3ba9a1b27a0068812c39622a452ca9c7` changed only the synchronous submit guard/export + initial tests. It is superseded; no PASS is claimed for it.
+- PR: [#97](https://github.com/Report-Engainall/Nasr1/pull/97), Draft pending exact-head test results.
+- Base: `bd0d2df489e40b2dc5f83882d90565c7799a448c`; files `src/components/AghbariApp.tsx` and `src/test/admin-product-double-submit.test.tsx`.
+- Scope isolation: no server API/RPC/migration or P2 workflow changes, and no P3 #89 file changes.
+
+**Next action:** read exact Core/P2 results for the latest #97 head; fix test/code from evidence and do not mark ready until all required checks pass.
+
+
+## P1 — CI-driven correction of product modal acceptance — 2026-10-23T17:56+03:00
+
+The initial Core run on `7a1162c1f0b5180f8d4a94256f9fb0d280e87fc3` failed 3 focused tests while 848 of 851 tests passed. The log proved two related causes: the newly enforced category-loading state kept the submit button disabled while our component tests submitted too early; and the retry button was placed inside a `<label>`, making its accessible name include the entire label/error/select context, so `getByRole("button", {name:"إعادة المحاولة"})` correctly failed. The retry affordance was semantically misplaced as well.
+
+Correction in `c22f8b771a3390994cb8b95f22231904e806fa41`:
+- moved the category error/retry alert outside the category `Field`/label;
+- waits for the submit button to become enabled before the rapid-click scenario and before the first request in the failure/retry scenario;
+- retained all core assertions (one network write for two clicks, retry becomes possible after failure, category retry saves the server-returned category ID).
+
+Core/P2 workflows for the corrected functional HEAD were pending when this report was written. No local command has been run in this execution. The previous failing run remains documented as a failure; only a completed run on the new live SHA can provide the new verdict.
+
+**PR:** [#97](https://github.com/Report-Engainall/Nasr1/pull/97)  
+**Base:** `bd0d2df489e40b2dc5f83882d90565c7799a448c`  
+**Functional head:** `c22f8b771a3390994cb8b95f22231904e806fa41`  
+**Status:** Draft; awaiting exact-head Core and P2 run results.
+
+
+## P1 exact-head closeout — admin product modal duplicate-submit and category-load failure — 2026-10-23T17:51+03:00
+
+**Task IDs:** `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001`, `P1-ADMIN-PRODUCT-CATEGORY-LOAD-RETRY-001`  
+**Branch / PR:** `p1/admin-product-singleflight-20261023` / [#97 — prevent duplicate product submissions](https://github.com/Report-Engainall/Nasr1/pull/97)  
+**Base SHA:** `bd0d2df489e40b2dc5f83882d90565c7799a448c`  
+**Exact tested head:** `ed4ee7ad99c79b6e904778d6b609aa33bd981032`
+
+### Exact-head evidence
+- Core [run 39972341560 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341560): Unit tests, PostgreSQL 17 migration/core acceptance, lint, build, preview/dev smoke and configured price-visibility Chromium acceptance completed successfully on `ed4ee7ad...`.
+- P2 [run 39972341569 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341569): public UI smoke succeeded; isolated local Supabase/Chromium job completed SUCCESS with configured commerce browser acceptance (order and tenant denial, return/credit memo, Onyx XLSX export, finance/task print). The externally gated customer-order/tenant job was SKIPPED and is not counted as a pass.
+- Core includes focused `admin-product-double-submit.test.tsx` cases: synchronous repeated click produces one create call; rejected create allows retry; category lookup failure blocks save, exposes accessible retry, and then submits the selected category ID after recovery.
+- Failed predecessor Core run [39971686418](https://github.com/Report-Engainall/Nasr1/actions/runs/39971686418) is superseded: its three failing assertions were traced to asynchronous category-loading timing and an incorrectly nested retry button. The code/test correction is included in current tested head; no failures are hidden or waived.
+
+### Decision / next step
+The functional PR satisfies its declared component-acceptance gate on the exact tested SHA. This status-note commit is documentation-only and will start fresh checks on a newer head; do not merge based on the predecessor SHA alone. Next read the newest Core/P2 checks. If both are terminal-success and PR base/head remain unchanged, mark #97 ready, merge with the live expected head SHA, then verify the resulting main SHA and post-merge Core. This task is independent from P1 session PR #88 (still blocked on P2 wiring the dedicated session browser spec) and P3 #89 path ownership.
+
+**Status:** `FUNCTIONAL_CODE_VERIFIED_ON ed4ee7ad — DOCS_HEAD_CI PENDING`  
+**UPDATED_AT:** 2026-10-23T17:51+03:00
+
+
+## P1 — product form exact-head acceptance and finance-main sync — 2026-10-23T17:54+03:00
+
+PR #97's corrected code and tests passed on exact code head `ed4ee7ad99c79b6e904778d6b609aa33bd981032`: Core [39972341560](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341560) SUCCESS, and P2 Playwright [39972341569](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341569) SUCCESS. The tests prove a same-tick double click issues one write, a failed write releases the guard for retry, and a category-load failure remains visible until retry; the category retry action is now outside its label for correct accessible naming.
+
+Main subsequently advanced to `75ef8774917e25f11c328568bc316330546aefba` with a finance-only merge (posted credit memos included in receivables aging). This commit did not touch P1 checkpoint/report, ProductModal, or its new test. A normal two-parent merge now retains branch and main history and overlays only the two P1 code/test files and these checkpoints. Core and P2 runs are required again for the new sync SHA.
+
+**PR:** [#97](https://github.com/Report-Engainall/Nasr1/pull/97)  
+**PRE_SYNC_HEAD_SHA:** `a2372eed98a9275f7f5f8ae01f945fcdda75a783`  
+**NEW_BASE_SHA:** `75ef8774917e25f11c328568bc316330546aefba`  
+**STATUS:** Sync commit created; current sync-head checks pending.
+
+
+
+## Active resume — product modal fix synced with current main — 2026-10-23T18:07+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` and `P1-ADMIN-PRODUCT-CATEGORY-LOAD-RETRY-001` (single-flight submit guard, retry after failed save, category-load fail-closed behavior and regression tests implemented).
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`.
+- PRE_SYNC_HEAD_SHA: `b87e3c767d690e39fe4360dcebb33b7812e97e86`.
+- BASE_SHA: `f9beca0553fc7e546415b42b83274898fcf9449a` (main after P2 #82 integration).
+- LAST_CONFIRMED_TESTS: Core [39973752685 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39973752685) and P2 [39973752533 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39973752533) both passed on exact pre-sync head `b87e3c767d690e39fe4360dcebb33b7812e97e86`. The separate external hosted customer-order path was skipped by its explicit gate. These results do not validate the new main-sync commit.
+- FILES_CHANGED: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, plus reconciled resume/report documents. P2 workflow/session acceptance changes from current main are retained; P3-owned #89 paths are unchanged.
+- LOCKED_PATHS: P2 SQL/migrations/RPC/RLS/Auth/API/types/workflows, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, shared acceptance matrix, and P3-owned #89 paths.
+- NEXT_ACTION: inspect fresh exact-head Core and P2 on this two-parent main-sync commit. If both terminal-success and the PR/base remain unchanged, mark #97 ready and merge using the exact live head SHA; then verify post-merge main SHA and main Core/P2. The P1 session PR #88 stays separate until its newly integrated dedicated session browser steps run successfully.
+- BLOCKER: exact-head checks after synchronization.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
+- MERGE_STATUS: OPEN / DRAFT until exact synced-head checks pass.
+- UPDATED_AT: 2026-10-23T18:07+03:00

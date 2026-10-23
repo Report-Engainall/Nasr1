@@ -239,3 +239,109 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: #88 Draft/open; #83 Draft/open; #82 open/P2-owned; checkpoint/report PR #93 open and not merged due CI setup failure.
 - UPDATED_AT: 2026-10-23T16:35+03:00
+
+
+## Active resume — admin product form single-flight fix — 2026-10-23T17:43+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` (implementation + regression tests committed; exact-head CI pending).
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c`.
+- HEAD_SHA (functional commit): `ffb973cd3ba9a1b27a0068812c39622a452ca9c7`; next checkpoint/report commit will advance HEAD. At next session read this checkpoint first, then resolve the live branch SHA and its Actions.
+- CHANGE: exported the existing `ProductModal` for focused component acceptance; added a synchronous `saveInFlight` ref guard so two click events before React rerender do not issue duplicate `createProduct`/`updateProduct` requests. Added `src/test/admin-product-double-submit.test.tsx` for rapid duplicate submission and a rejected-create followed by safe retry. Existing server service/RPC contracts unchanged.
+- FILES_CHANGED: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`.
+- LAST_CONFIRMED_TESTS: main after P2 central-session integration Core [39969622689](https://github.com/Report-Engainall/Nasr1/actions/runs/39969622689) SUCCESS on base `bd0d2df489e40b2dc5f83882d90565c7799a448c`. Product form fix itself has no exact-head result yet.
+- FAILED_OR_NOT_RUN_TESTS: test-and-build / Core CI for `ffb973cd3ba9a1b27a0068812c39622a452ca9c7` not terminal when this report was written. No local command was run.
+- LOCKED_PATHS: P2 `src/lib/api.ts`, RPC/migrations/RLS/types/workflows; shared `CURRENT_EXECUTION_STATE.md` / `WORK_COORDINATION.md`; no P3-owned paths from #89 changed. #89 changes Storefront, advanced search, collections/offers, and admin reports; it does not change `src/components/AghbariApp.tsx`.
+- COORDINATED_WORK: PR #88 central-session UI has sync commit `a1dd49ec92476ece80102ed3dd677e82257e1211` based on integrated backend/main; its new exact-head Core/P2 runs were in progress when recorded. Dedicated browser session acceptance remains NOT_PROVEN because the P2 workflow does not invoke the P1 session spec.
+- NEXT_ACTION: verify exact-head Core for this branch. Fix failures from logs, not guesses; then open a narrow PR and only merge when Core and required test checks pass. After that return to #88 and require a P2-owned invocation of `e2e/device-session-management.spec.ts` against the now-integrated backend before calling central device/session management complete.
+- BLOCKER: none for product-form implementation; exact-head CI pending. Session E2E runner integration is a separate P2-owned blocker.
+- PR_URL: pending creation after exact-head checks.
+- MERGE_STATUS: branch work in progress; no PR yet.
+- UPDATED_AT: 2026-10-23T17:43+03:00
+
+
+## Active resume — product category load retry and fail-closed save — 2026-10-23T17:49+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-CATEGORY-LOAD-RETRY-001` (code and acceptance committed; exact-head CI pending).
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c`.
+- FUNCTIONAL_HEAD_SHA: `1c1d90858a4e45c2da1287e483b1c5027b388c0e`. This checkpoint-only commit supersedes it; resolve current branch head at the next launch.
+- FILES_CHANGED: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`; P1 checkpoint/report also updated. ProductModal now displays category-fetch errors with an accessible retry button and disables category selection/save while loading or failed; test expects retry to re-fetch choices and submits the selected category ID. The prior synchronous single-flight guard and two submit/retry regressions remain in this branch.
+- LAST_CONFIRMED_TESTS: base `bd0d2df489e40b2dc5f83882d90565c7799a448c` Core [39969622689](https://github.com/Report-Engainall/Nasr1/actions/runs/39969622689) SUCCESS. Functional product branch before category retry, `ffb973cd3ba9a1b27a0068812c39622a452ca9c7`, had Core/P2 runs started by PR #97, but these were not terminal; the category fix commit `1c1d908...` is not covered by them.
+- FAILED_OR_NOT_RUN_TESTS: exact-head Core + P2 Playwright for `1c1d908...` pending. No local test command was run. Product test has not been observed green yet.
+- LOCKED_PATHS: `src/lib/api.ts`, P2 RPC/migration/RLS/types and all workflows; shared `CURRENT_EXECUTION_STATE.md`/`WORK_COORDINATION.md`; P3 changed paths in #89. No locked file changed.
+- RELATED P1 #88: backend PR #83 is integrated at main `bd0d2df...`; #88 sync head `a1dd49ec92476ece80102ed3dd677e82257e1211` Core [39970504008](https://github.com/Report-Engainall/Nasr1/actions/runs/39970504008) SUCCESS and P2 Playwright [39970503979](https://github.com/Report-Engainall/Nasr1/actions/runs/39970503979) SUCCESS. Its dedicated session-browser spec is still not invoked by P2's workflow, so actual authenticated UI revocation remains NOT_PROVEN. P2 handoff after merge: comment [6367402258](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6367402258).
+- NEXT_ACTION: inspect exact current-head CI for the product branch, fix only concrete failures, then mark PR #97 ready only after checks are green. Next inspect remaining P1 screen gaps not owned by #89 or #95, while following #88 session-browser workflow handoff.
+- BLOCKER: exact-head CI pending for product form; P2 still must wire a separate browser run for #88 session tests.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
+- MERGE_STATUS: DRAFT / OPEN / NOT READY.
+- UPDATED_AT: 2026-10-23T17:49+03:00
+
+
+## Active resume — product modal test failures corrected — 2026-10-23T17:56+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-FORM-ACCEPTANCE-FIX-001` (root causes identified from CI log and tests updated; current-head verification pending).
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c`.
+- FUNCTIONAL_HEAD_SHA: `c22f8b771a3390994cb8b95f22231904e806fa41`; current checkpoint/report-only commit advances HEAD. Re-read the live branch and Actions before continuing.
+- FAILED_EXACT_HEAD_TEST: Core [39971686418](https://github.com/Report-Engainall/Nasr1/actions/runs/39971686418) FAILED on `7a1162c1f0b5180f8d4a94256f9fb0d280e87fc3`; Vitest reported 848 passed / 3 failed out of 851. Failures were in the newly added `src/test/admin-product-double-submit.test.tsx`: rapid-submit and failure-retry clicked before async category lookup completed (submit remained disabled); category retry could not be selected by its own accessible name because the button was nested inside the category `<label>`.
+- FIX_COMMITTED: `c22f8b771a3390994cb8b95f22231904e806fa41` moves the category error/retry action outside the label and waits for form readiness in the double-submit and server-create retry tests. This corrects semantic HTML/accessibility and the test synchronization; no assertions were removed.
+- LAST_CONFIRMED_TESTS: base `bd0d2df489e40b2dc5f83882d90565c7799a448c` Core [39969622689](https://github.com/Report-Engainall/Nasr1/actions/runs/39969622689) SUCCESS. No PASS claimed yet for `c22f8b7...`.
+- FAILED_OR_NOT_RUN_TESTS: Core and P2 Playwright for `c22f8b7...` pending at checkpoint time. The first P2 Playwright run on earlier product head is not UI component test evidence and cannot replace Core.
+- FILES_CHANGED: `src/components/AghbariApp.tsx` and `src/test/admin-product-double-submit.test.tsx`; checkpoint/report appended here.
+- LOCKED_PATHS: no P2 service/RPC/workflow/migration/RLS/type path; no shared checkpoint files; no P3 #89 owned path.
+- NEXT_ACTION: inspect exact Core + P2 results at live branch HEAD after this checkpoint. If any failures remain, get that run’s exact job log and fix only the proven cause. Do not mark PR ready or merge until both workflows settle successfully.
+- BLOCKER: exact-head checks pending after correcting three test failures on predecessor `7a1162c...`.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
+- MERGE_STATUS: DRAFT / OPEN / NOT READY.
+- UPDATED_AT: 2026-10-23T17:56+03:00
+
+
+## Active resume — exact-head product modal acceptance passed; merge gate refresh — 2026-10-23T17:51+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` and `P1-ADMIN-PRODUCT-CATEGORY-LOAD-RETRY-001` (code + regression tests pass on the exact tested head).
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c`.
+- LAST_CONFIRMED_TESTS: Core [39972341560 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341560) on exact head `ed4ee7ad99c79b6e904778d6b609aa33bd981032`; P2 Playwright [39972341569 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341569) on the same exact head. Core Unit tests, PostgreSQL 17 acceptance, lint/build, preview/dev smoke, and local price-visibility browser acceptance completed successfully. P2 public UI smoke and configured isolated local Supabase/Chromium acceptance succeeded, including order/tenant isolation, returns/credit memo, Onyx XLSX export, and finance/task print. The separately gated hosted customer-order/tenant-isolation job was SKIPPED; no proof for that unavailable external path is claimed.
+- FAILED_OR_NOT_RUN_TESTS: predecessor code/test head `7a1162c1f0b5180f8d4a94256f9fb0d280e87fc3` Core failed 3 focused tests due to submit tests firing before category loading settled and the retry control being nested inside the category label. These root causes were fixed in `c22f8b771a3390994cb8b95f22231904e806fa41`; the later exact-head Core run above passed. This newest commit is documentation-only and requires fresh exact-head workflows.
+- FILES_CHANGED (functional scope): `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`. Resume files: this checkpoint and current report.
+- LOCKED_PATHS: P2 API/RPC/SQL migrations/RLS/Auth/types/workflow; shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, shared acceptance matrix; and P3-owned #89 paths. No locked path changed.
+- NEXT_ACTION: read exact-head Core/P2 results after this checkpoint/report-only commit. If terminal-success, mark PR #97 ready, merge with the live expected head SHA, then verify the resulting `main` SHA and post-merge Core CI. Reconcile/sync #88 afterward without overwriting its session proof changes.
+- BLOCKER: none in product-modal scope after exact-head code tests; post-documentation exact-head CI must finish before merge.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
+- MERGE_STATUS: OPEN / DRAFT until the new documentation head's Core/P2 checks finish; then merge if unchanged and green.
+- UPDATED_AT: 2026-10-23T17:51+03:00
+
+
+## Main sync for P1 product-form fix — 2026-10-23T17:54+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-FORM-ACCEPTANCE-FIX-001` (corrected tests and passed full Core + P2 at exact pre-sync code head).
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`.
+- PRE_SYNC_HEAD_SHA: `a2372eed98a9275f7f5f8ae01f945fcdda75a783`.
+- NEW_BASE_SHA: `75ef8774917e25f11c328568bc316330546aefba` (main advanced with the independent posted-credit-memo receivables aging fix; no overlapping P1 checkpoint or ProductModal file changes in that main commit).
+- LAST_CONFIRMED_TESTS: Core [39972341560 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341560) and P2 Playwright [39972341569 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341569), both exact SHA `ed4ee7ad99c79b6e904778d6b609aa33bd981032`. The recorded status-only commit `a2372eed...` and the upcoming main-sync are documentation/history-only relative to those tested code files; do not call either new HEAD green until its own runs are terminal.
+- FAILED_OR_NOT_RUN_TESTS: prior code head `7a1162c...` Core failed 3 newly introduced UI tests; fixes were committed and Core/P2 passed on `ed4ee7ad...`. Exact Core + P2 for this main-sync commit pending.
+- FILES_CHANGED: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, P1 checkpoint and report.
+- LOCKED_PATHS: P2 database/API/migration/RLS/workflows; shared execution-state/coordination/acceptance matrix; P3 PR #89 files. No locked path changed.
+- NEXT_ACTION: check both workflows at the new two-parent sync SHA; if green, mark PR #97 ready and merge immediately. Then resume PR #88's session acceptance work without claiming E2E completion until P2 wires and runs its specific local session scenario.
+- BLOCKER: exact-head revalidation after main sync only.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
+- MERGE_STATUS: Draft/open; not merge-eligible until sync-head Core + P2 terminal PASS.
+- UPDATED_AT: 2026-10-23T17:54+03:00
+
+
+
+## Active resume — product modal fix synced with current main — 2026-10-23T18:07+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` and `P1-ADMIN-PRODUCT-CATEGORY-LOAD-RETRY-001` (single-flight submit guard, retry after failed save, category-load fail-closed behavior and regression tests implemented).
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`.
+- PRE_SYNC_HEAD_SHA: `b87e3c767d690e39fe4360dcebb33b7812e97e86`.
+- BASE_SHA: `f9beca0553fc7e546415b42b83274898fcf9449a` (main after P2 #82 integration).
+- LAST_CONFIRMED_TESTS: Core [39973752685 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39973752685) and P2 [39973752533 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39973752533) both passed on exact pre-sync head `b87e3c767d690e39fe4360dcebb33b7812e97e86`. The separate external hosted customer-order path was skipped by its explicit gate. These results do not validate the new main-sync commit.
+- FILES_CHANGED: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, plus reconciled resume/report documents. P2 workflow/session acceptance changes from current main are retained; P3-owned #89 paths are unchanged.
+- LOCKED_PATHS: P2 SQL/migrations/RPC/RLS/Auth/API/types/workflows, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, shared acceptance matrix, and P3-owned #89 paths.
+- NEXT_ACTION: inspect fresh exact-head Core and P2 on this two-parent main-sync commit. If both terminal-success and the PR/base remain unchanged, mark #97 ready and merge using the exact live head SHA; then verify post-merge main SHA and main Core/P2. The P1 session PR #88 stays separate until its newly integrated dedicated session browser steps run successfully.
+- BLOCKER: exact-head checks after synchronization.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
+- MERGE_STATUS: OPEN / DRAFT until exact synced-head checks pass.
+- UPDATED_AT: 2026-10-23T18:07+03:00
