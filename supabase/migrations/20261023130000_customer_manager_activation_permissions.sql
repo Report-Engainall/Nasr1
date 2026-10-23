@@ -66,9 +66,8 @@ BEGIN
   SET status='revoked', revoked_at=pg_catalog.now(), updated_at=pg_catalog.now()
   WHERE customer_id=v_customer.id AND organization_id=v_org_id AND status='pending';
 
-  -- pg_catalog.gen_random_uuid is built into PostgreSQL; do not assume pgcrypto lives in public.
-  -- Two UUIDv4 values preserve a 64-hex-character token with ample cryptographic entropy.
-  v_token := pg_catalog.replace(pg_catalog.gen_random_uuid()::text,'-','') || pg_catalog.replace(pg_catalog.gen_random_uuid()::text,'-','');
+  -- Use schema-aware pgcrypto helpers; only the one-time token is returned to the authorized creator.
+  v_token := public.customer_activation_invitation_random_token();
   v_expires_at := pg_catalog.now() + pg_catalog.make_interval(hours => p_expires_hours);
   INSERT INTO public.customer_activation_invitations(
     organization_id, customer_id, invited_email, token_hash,
@@ -76,7 +75,7 @@ BEGIN
   )
   VALUES(
     v_org_id, v_customer.id, v_email,
-    public.customer_company_invitation_sha256(v_token),
+    public.customer_activation_invitation_sha256(v_token),
     v_profile_id, v_expires_at
   )
   RETURNING id INTO v_invitation_id;
