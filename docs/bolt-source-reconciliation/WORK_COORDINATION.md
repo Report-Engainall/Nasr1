@@ -1,6 +1,19 @@
 # سجل التنسيق — المرجع الحي
 
-## المصالحة الحالية — 2026-10-23T21:17:51+03:00
+## LIVE reconciliation and exclusive P2 lock — 2026-10-23T21:47:00+03:00
+
+- Repository: `Report-Engainall/Nasr1`; live `main` SHA `03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac`; tree `15f30663a80ba9ff2e83c2057f15ed489eed92be`. No direct writes to main.
+- PR #110 (pricing preview retry) merged at `03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac`. Its exact PR head `b6d99a91958b43e7cd90164a104c8c0a5bc1bd09` Core [40004970539](https://github.com/Report-Engainall/Nasr1/actions/runs/40004970539) SUCCESS and P2 [40004970599](https://github.com/Report-Engainall/Nasr1/actions/runs/40004970599) SUCCESS. Main Core [40005590004](https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004) is IN_PROGRESS on exact merge SHA `03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac`; P2 on exact merge SHA has NOT RUN.
+- PR #109 AI live-session guard was merged at `46a5fbb379d908328e5e2136eec3190a32e148f7`; exact PR head Core and P2 local browser/PG gates succeeded. Hosted credential-dependent customer E2E was skipped, not pass.
+- Other open PRs reviewed for conflicts: #102 is P1 export hydration; #105 P3 customer-address route tests; #107 P1 storefront price privacy; #97 P1 product singleflight; #89 P3 catalog/report route acceptance. None changes the current P2 payment idempotency paths; those owners remain exclusive for their locked files.
+- **ACTIVE EXCLUSIVE P2 LOCK**: `FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD`; branch `p2/payment-idempotency-current-main-20261023`; base `03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac`.
+- Locked implementation/test paths: `supabase/migrations/20261023240000_customer_payment_idempotency.sql`; `src/components/CustomerWorkflows.tsx`; `src/integrations/supabase/types.ts`; `src/components/CustomerWorkflows.finance.test.tsx`; `scripts/test-staff-receivables-aging-credit-memo-parity.mjs`; `scripts/test-database-migrations.mjs`.
+- Shared P2 state paths are this `WORK_COORDINATION.md`, `CURRENT_EXECUTION_STATE.md`, `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`, `PROGRAMMER_2_CURRENT_REPORT.md`, and `EXECUTION_LOG.md`; P2 is their only writer and updates them sequentially on this branch. P1/P3 implementation paths and production databases are excluded.
+- Acceptance: tenant-scoped UUID key; same key + same canonical payload returns saved payment id; changed payload errors; concurrent same-key requests persist one row; cross-tenant key isolation; no callable old five-argument overload; no anonymous execute grant; UI keeps the key after an ambiguous error and reuses it only for an identical payload. Reuse the exact invoice settlement advisory-lock namespace already used by posted-credit journal posting.
+- Payment implementation is IMPLEMENTED, but exact-head CI is NOT RUN. Do not claim acceptance until Core and P2 Playwright/local PostgreSQL 17 finish successfully on a single exact PR head. Hosted external customer E2E remains BLOCKED_EXTERNAL without non-production credentials.
+- Historical coordination entries below are retained for audit only and do not override this active lock.
+
+## Historical reconciliation — 2026-10-23T21:17:51+03:00 (superseded)
 
 - Main exact SHA `d81c9b34f819a53df7610937264c6fcb923c3f95`, tree `8107f52d4d6c61845b95ed7226c5c7f03038a484`. Only source delta since PR #104 merge is `docs/project-bolt-github-7sl6ykzz (5).zip`.
 - Core run `40001179290` SUCCESS on exact PR #104 merge SHA `5dbb01f7cf2ac054212abc6f3ec34af1b1fe99df`. Current main Core run `40001438040` is IN_PROGRESS on exact `d81c9b34f819a53df7610937264c6fcb923c3f95`; no cross-SHA pass claim. P2 on exact `d81c9b34f819a53df7610937264c6fcb923c3f95` = NOT RUN.
