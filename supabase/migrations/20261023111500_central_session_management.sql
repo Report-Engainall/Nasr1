@@ -64,6 +64,28 @@ $function$;
 REVOKE ALL ON FUNCTION public.current_profile_id() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.current_profile_id() TO authenticated;
 
+-- Admin capability checks must use the same live-session identity boundary too.
+CREATE OR REPLACE FUNCTION public.can_manage_user_roles()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+  SELECT auth.uid() IS NOT NULL AND EXISTS (
+    SELECT 1
+    FROM public.profiles AS p
+    JOIN public.user_roles AS r ON r.profile_id=p.id
+    WHERE p.id=public.current_profile_id()
+      AND p.auth_user_id=auth.uid()
+      AND p.is_active=true
+      AND p.organization_id IS NOT NULL
+      AND r.role='admin'
+  )
+$function$;
+REVOKE ALL ON FUNCTION public.can_manage_user_roles() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.can_manage_user_roles() TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.current_organization_id()
 RETURNS uuid
 LANGUAGE sql
