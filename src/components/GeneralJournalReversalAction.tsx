@@ -23,6 +23,7 @@ export function GeneralJournalReversalAction({ entryId, disabled, onCreated }: P
       pending.current = { reason, key: window.crypto.randomUUID() };
     }
     setSaving(true); setError("");
+    let confirmedByServer: "draft" | "posted" | null = null;
     try {
       const { data, error: rpcError } = await supabase.rpc("reverse_general_journal_entry", {
         p_entry_id: entryId, p_reason: reason, p_idempotency_key: pending.current.key,
@@ -35,10 +36,17 @@ export function GeneralJournalReversalAction({ entryId, disabled, onCreated }: P
         || !("replayed" in data) || typeof data.replayed !== "boolean") {
         throw new Error("استجابة العكس لا تطابق القيد المطلوب.");
       }
-      pending.current = null;
+      confirmedByServer = data.status;
+      // Preserve pending.current until the caller has also completed its refresh.
+      // If refresh fails, retrying the same reason reuses the server idempotency key.
       await onCreated(data.status);
+      pending.current = null;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر إنشاء مسودة العكس.");
+      setError(
+        confirmedByServer
+          ? "تم تأكيد العكس من الخادم، لكن تعذر تحديث دفتر الأستاذ. أعد المحاولة بالتعليل نفسه لإعادة التحقق."
+          : cause instanceof Error ? cause.message : "تعذر إنشاء مسودة العكس."
+      );
     } finally { setSaving(false); }
   }
 
