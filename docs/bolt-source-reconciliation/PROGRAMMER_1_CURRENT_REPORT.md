@@ -712,3 +712,15 @@ The functional PR satisfies its declared component-acceptance gate on the exact 
 
 **Status:** `FUNCTIONAL_CODE_VERIFIED_ON ed4ee7ad — DOCS_HEAD_CI PENDING`  
 **UPDATED_AT:** 2026-10-23T17:51+03:00
+
+
+## P1 — product form exact-head acceptance and finance-main sync — 2026-10-23T17:54+03:00
+
+PR #97's corrected code and tests passed on exact code head `ed4ee7ad99c79b6e904778d6b609aa33bd981032`: Core [39972341560](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341560) SUCCESS, and P2 Playwright [39972341569](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341569) SUCCESS. The tests prove a same-tick double click issues one write, a failed write releases the guard for retry, and a category-load failure remains visible until retry; the category retry action is now outside its label for correct accessible naming.
+
+Main subsequently advanced to `75ef8774917e25f11c328568bc316330546aefba` with a finance-only merge (posted credit memos included in receivables aging). This commit did not touch P1 checkpoint/report, ProductModal, or its new test. A normal two-parent merge now retains branch and main history and overlays only the two P1 code/test files and these checkpoints. Core and P2 runs are required again for the new sync SHA.
+
+**PR:** [#97](https://github.com/Report-Engainall/Nasr1/pull/97)  
+**PRE_SYNC_HEAD_SHA:** `a2372eed98a9275f7f5f8ae01f945fcdda75a783`  
+**NEW_BASE_SHA:** `75ef8774917e25f11c328568bc316330546aefba`  
+**STATUS:** Sync commit created; current sync-head checks pending.

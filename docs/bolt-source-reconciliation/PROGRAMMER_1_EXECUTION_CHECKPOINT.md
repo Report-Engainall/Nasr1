@@ -311,3 +311,20 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
 - MERGE_STATUS: OPEN / DRAFT until the new documentation head's Core/P2 checks finish; then merge if unchanged and green.
 - UPDATED_AT: 2026-10-23T17:51+03:00
+
+
+## Main sync for P1 product-form fix — 2026-10-23T17:54+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-FORM-ACCEPTANCE-FIX-001` (corrected tests and passed full Core + P2 at exact pre-sync code head).
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`.
+- PRE_SYNC_HEAD_SHA: `a2372eed98a9275f7f5f8ae01f945fcdda75a783`.
+- NEW_BASE_SHA: `75ef8774917e25f11c328568bc316330546aefba` (main advanced with the independent posted-credit-memo receivables aging fix; no overlapping P1 checkpoint or ProductModal file changes in that main commit).
+- LAST_CONFIRMED_TESTS: Core [39972341560 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341560) and P2 Playwright [39972341569 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972341569), both exact SHA `ed4ee7ad99c79b6e904778d6b609aa33bd981032`. The recorded status-only commit `a2372eed...` and the upcoming main-sync are documentation/history-only relative to those tested code files; do not call either new HEAD green until its own runs are terminal.
+- FAILED_OR_NOT_RUN_TESTS: prior code head `7a1162c...` Core failed 3 newly introduced UI tests; fixes were committed and Core/P2 passed on `ed4ee7ad...`. Exact Core + P2 for this main-sync commit pending.
+- FILES_CHANGED: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, P1 checkpoint and report.
+- LOCKED_PATHS: P2 database/API/migration/RLS/workflows; shared execution-state/coordination/acceptance matrix; P3 PR #89 files. No locked path changed.
+- NEXT_ACTION: check both workflows at the new two-parent sync SHA; if green, mark PR #97 ready and merge immediately. Then resume PR #88's session acceptance work without claiming E2E completion until P2 wires and runs its specific local session scenario.
+- BLOCKER: exact-head revalidation after main sync only.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
+- MERGE_STATUS: Draft/open; not merge-eligible until sync-head Core + P2 terminal PASS.
+- UPDATED_AT: 2026-10-23T17:54+03:00
