@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -52,6 +52,32 @@ describe("storefront category and catalog error states", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("refetches both sources when the retry action is activated", () => {
+    const categoryRefetch = vi.fn();
+    const productRefetch = vi.fn();
+    mocks.categoryResult = {
+      data: [],
+      loading: false,
+      error: "تعذر جلب التصنيفات",
+      refetch: categoryRefetch,
+    };
+    mocks.productResult = {
+      data: [],
+      loading: false,
+      error: "تعذر جلب كتالوج المنتجات",
+      refetch: productRefetch,
+    };
+    mocks.useFetch.mockImplementation((fetcher: unknown) =>
+      fetcher === mocks.fetchCategories ? mocks.categoryResult : mocks.productResult,
+    );
+
+    render(<StorefrontCollectionsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة" }));
+
+    expect(categoryRefetch).toHaveBeenCalledTimes(1);
+    expect(productRefetch).toHaveBeenCalledTimes(1);
   });
 
   it("excludes explicitly inactive products from published category counts", () => {
