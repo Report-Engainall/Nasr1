@@ -83,13 +83,21 @@ async function main() {
   const adminAuthUserId = await createConfirmedUser(adminEmail, adminPassword, adminName);
   const adminProfileId = randomUUID();
   await db.begin(async (tx) => {
-    await tx.unsafe(
-      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
-        "values($1::uuid,$2::uuid,$3::uuid,$4,$5,true) " +
-        "on conflict(auth_user_id) do update set organization_id=excluded.organization_id," +
-        "full_name=excluded.full_name,email=excluded.email,is_active=true",
-      [adminProfileId, adminAuthUserId, organizationId, adminName, adminEmail],
+    const existing = await tx.unsafe(
+      "select id from public.profiles where auth_user_id=$1::uuid order by id limit 1",
+      [adminAuthUserId],
     );
+    if (existing.length) {
+      await tx.unsafe(
+        "update public.profiles set organization_id=$2::uuid,full_name=$3,email=$4,is_active=true where id=$1::uuid",
+        [existing[0].id, organizationId, adminName, adminEmail],
+      );
+    } else {
+      await tx.unsafe(
+        "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1::uuid,$2::uuid,$3::uuid,$4,$5,true)",
+        [adminProfileId, adminAuthUserId, organizationId, adminName, adminEmail],
+      );
+    }
     const profile = await tx.unsafe(
       "select id from public.profiles where auth_user_id=$1::uuid and organization_id=$2::uuid and is_active=true",
       [adminAuthUserId, organizationId],
