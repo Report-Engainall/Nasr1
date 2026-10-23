@@ -119,7 +119,7 @@ test("subcategory deep link renders the child category screen", async ({ page })
   });
 
   await page.goto(`/category/${parentSlug}/subcategory/${childSlug}`);
-  await expect(page).toHaveURL(/\\/category\\/.*\\/subcategory\\/.*$/);
+  await expect(page).toHaveURL(/\/category\/.*\/subcategory\/.*$/);
   await expect(page.getByRole("heading", { name: "Juices", exact: true })).toBeVisible();
   await expect(page.getByText("Beverages / تصنيف فرعي", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Beverages", exact: true })).toHaveCount(0);
