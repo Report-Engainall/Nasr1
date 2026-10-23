@@ -1,15 +1,16 @@
 # سجل التنسيق — المرجع الحي
 
-## المصالحة الحالية — 2026-10-23T19:55:00+03:00
+## المصالحة الحالية — 2026-10-23T21:17:51+03:00
 
-- main الحالي: 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb; tree: 539b6073bbefacd3d569d667b913748f2466ab67. Core push run 39990714405 انتهى SUCCESS على SHA الدمج نفسه.
-- PR #101 / FIN-LEDGER-001 مدمج عبر 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb من رأس PR df18dd58a0f0f74a420f55d6e14c0e352af8f7b0. Core run 39990033594 وP2 run 39990033892 نجحا على رأس PR نفسه؛ شجرة الاختبار 539b6073bbefacd3d569d667b913748f2466ab67 مطابقة لشجرة main. لا يوجد تشغيل P2 على SHA الدمج نفسه؛ لا تنقل حالة PASS إلى SHA مختلف.
-- أصلح الاختبار الفعلي فشل SQLSTATE 42601 في رأس a6fb9b4 بسبب اقتباس جسم الدالة؛ رأس df18dd58a0f0f74a420f55d6e14c0e352af8f7b0 صحح AS $$ / $$; واجتاز تطبيق المهاجرات PostgreSQL 17. كما أصلحت إعادة استخدام مفتاح idempotency بعد نجاح RPC وفشل تحديث الواجهة، ومنع إبطال مسودة عكس مرتبطة.
-- ملاحظة CodeRabbit الجوهرية حول مسودة العكس عولجت واختبارها؛ تم حل thread. مراجعة المالك المعلّقة COMMENT لا تساوي موافقة بشرية مستقلة. اختبار بيانات اعتماد العميل المستضاف SKIPPED.
-- PR #100 هذا هو الفرع الوحيد لتحديث الحالة/المصفوفة/التقرير/سجل التنفيذ/هذا الملف، ويجب أن يبقى متسقًا مع main 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb; لا تعدل هذه الملفات من فرع موازٍ.
-- P1 ما زال يملك PR #97 ومسارات المنتج/التجارة المقفلة، وP3 يملك PR #89 ومسارات التصنيفات/تقارير الإدارة. لا تعدلها من P2.
-- NEXT_TASK_ID=FIN-INVOICE-001-SUMMARY-PAGINATION-NO-DOUBLE-COUNT: أضف اختبار PostgreSQL 17 يثبت أن LIMIT/OFFSET يؤثران على entries فقط ولا يقتطعان ملخص الأستاذ أو مجاميع الحسابات ولا يضاعفانهما. افحص الشجرة والـPRs قبل تعديل scripts/test-database-migrations.mjs؛ مسار P2 الآن بعد دمج #101.
-- العوائق الخارجية: استيراد/مزامنة Onyx Pro الحية؛ طلب/استجابة WhatsApp Business API؛ بيانات اعتماد عميل E2E غير الإنتاجية؛ استعادة الإنتاج. لا ادعاء بإتمام أي منها.
+- Main exact SHA `d81c9b34f819a53df7610937264c6fcb923c3f95`, tree `8107f52d4d6c61845b95ed7226c5c7f03038a484`. Only source delta since PR #104 merge is `docs/project-bolt-github-7sl6ykzz (5).zip`.
+- Core run `40001179290` SUCCESS on exact PR #104 merge SHA `5dbb01f7cf2ac054212abc6f3ec34af1b1fe99df`. Current main Core run `40001438040` is IN_PROGRESS on exact `d81c9b34f819a53df7610937264c6fcb923c3f95`; no cross-SHA pass claim. P2 on exact `d81c9b34f819a53df7610937264c6fcb923c3f95` = NOT RUN.
+- PR #104 merged at `5dbb01f7cf2ac054212abc6f3ec34af1b1fe99df` from tested head `7f1110d95d26ece5d516b7267904a4f3f397f6ef`; Core `40000512625` and P2 Playwright `40000512706` SUCCESS on that exact head. Credential-gated job `120575459434` SKIPPED, not PASS.
+- PR #103 closed the GL summary/detail pagination acceptance gap, merged at `2908079abd76e1a84cc4449d65b6b01cdfc63482`; Core `39993605159` and P2 `39993605124` passed on exact PR head `3a95de8991c3609349a56f4a102f147e0f9587e8`.
+- FIN-LEDGER-001, FIN-EXPENSE-001 and FIN-CREDIT-001 are integrated. FIN-INVOICE-001 remains PARTIAL because persisted payment idempotency/replay is missing.
+- NEXT_TASK_ID=`FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD`: add tenant-scoped idempotency key+payload fingerprint to `record_customer_payment`; same-payload replay returns existing payment, changed payload reusing the key fails, concurrent duplicate calls commit only once, cross-tenant keys isolated, UI preserves request key over ambiguous retries. Inspect all callers, RLS/grants and function overloads before changing RPC.
+- P2 central state belongs only to P2 and is updated serially through this docs PR. Do not edit P1 #97 or P3 #89 owned paths. Other open PRs #102 (exports), #105 (address/access acceptance), #106 (audit order) and #107 (storefront visibility acceptance) do not own these central finance files.
+- PR #62 statement/credit parity is merged at `024c279a2d1c0226c662e5d916871f45534c7242`; its old exclusive lock is released. PR #40 is CLOSED and NOT MERGED, so it is not an active conflict. Live Onyx import/sync, WhatsApp API calls, hosted credential E2E and production restore remain BLOCKED_EXTERNAL/NOT RUN until real authorized evidence exists.
+- `CURRENT_EXECUTION_STATE.md` is the only dynamic resume pointer. Archived sections below are historical only.
 
 ## سجل التنسيق الأصلي (للتاريخ فقط)
 
