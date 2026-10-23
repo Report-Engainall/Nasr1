@@ -129,6 +129,14 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
     "the revoked, not-yet-expired JWT loses its canonical application identity immediately");
   assert.equal((await db.unsafe("select public.current_organization_id() as id"))[0].id, null,
     "the revoked JWT cannot acquire tenant scope");
+  assert.equal((await db.unsafe("select public.can_manage_finance() as allowed"))[0].allowed, false,
+    "the shared SECURITY DEFINER finance gate denies the revoked JWT despite auth.uid() remaining present");
+  assert.equal((await db.unsafe("select public.can_manage_user_roles() as allowed"))[0].allowed, false,
+    "organization-role authorization is bound to the same live Auth session");
+  assert.equal((await db.unsafe("select public.is_staff() as allowed"))[0].allowed, false,
+    "staff authorization is bound to the same live Auth session");
+  assert.equal((await db.unsafe("select public.operational_tasks_can_manage() as allowed"))[0].allowed, false,
+    "operational task authorization cannot rely on a revoked JWT");
   await expectFailure("the revoked JWT is rejected by tenant-context reads",
     () => db.unsafe("select public.get_current_tenant_context()"),
     /non-revoked session|active profile|42501/i);
