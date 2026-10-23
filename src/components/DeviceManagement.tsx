@@ -244,7 +244,15 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
   }
 
   async function revokeOrganizationSession(target: OrganizationSession) {
-    if (!canManageOrganizationSessions || target.is_current_session || action !== null || revocationInFlight.current) return;
+    // Organization-level revocation must never target a sibling session owned by the current auth user.
+    // Those sessions are revoked only through the self-scoped bulk RPC, which retains the live caller session.
+    if (
+      !canManageOrganizationSessions ||
+      target.is_current_session ||
+      target.profile_id === user?.profileId ||
+      action !== null ||
+      revocationInFlight.current
+    ) return;
     if (!window.confirm('إبطال جلسة ' + target.display_name + (target.email ? ' (' + target.email + ')' : '') + '؟ ستُرفض طلبات التطبيق التي تعتمد على هذه الجلسة بعد تأكيد الخادم.')) return;
     // Lock synchronously before awaiting the RPC so duplicate events cannot revoke twice.
     if (revocationInFlight.current) return;
@@ -319,7 +327,7 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
         <div>
           <h2 id="organization-session-list-title" style={{ margin: 0, fontSize: 18 }}>جلسات المؤسسة المسجلة خادميًا</h2>
           <p style={{ margin: '5px 0 0', color: '#71868a', fontSize: 13, lineHeight: 1.7 }}>
-            تظهر السجلات التي يعيدها الخادم فقط. الجلسة الحالية لا يمكن إبطالها من هذه القائمة.
+            تظهر السجلات التي يعيدها الخادم فقط. الجلسة الحالية وجلسات حسابك الأخرى لا تُبطل من هذه القائمة؛ استخدم إجراء «الخروج من الجلسات الأخرى لهذا الحساب» لجلسات حسابك.
           </p>
         </div>
         <button type="button" className="btn btn-outline" onClick={() => void loadOrganizationSessions()} disabled={sessionsLoading || action !== null || !canManageOrganizationSessions}>
@@ -352,6 +360,7 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
                     <UserRound size={17} aria-hidden="true" />
                     <strong>{item.display_name}</strong>
                     {item.is_current_session && <span className="badge success">الجلسة الحالية</span>}
+                    {!item.is_current_session && item.profile_id === user?.profileId && <span className="badge">جلسة أخرى لحسابك</span>}
                   </div>
                   <div style={{ marginTop: 4, fontSize: 13, color: '#71868a', overflowWrap: 'anywhere' }}>{item.email ?? 'بريد غير متاح'}</div>
                   <div style={{ marginTop: 5, fontSize: 12, color: '#71868a' }}>
@@ -360,9 +369,9 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
                 </div>
                 <button type="button" className="btn btn-outline" aria-label={'إبطال جلسة ' + item.display_name}
                   onClick={() => void revokeOrganizationSession(item)}
-                  disabled={!canManageOrganizationSessions || item.is_current_session || action !== null || sessionsLoading}>
+                  disabled={!canManageOrganizationSessions || item.is_current_session || item.profile_id === user?.profileId || action !== null || sessionsLoading}>
                   {action === item.session_id ? <RefreshCw size={15} className="spin" /> : <Ban size={15} />}
-                  {action === item.session_id ? 'جار الإبطال…' : 'إبطال هذه الجلسة'}
+                  {action === item.session_id ? 'جار الإبطال…' : item.profile_id === user?.profileId && !item.is_current_session ? 'تُدار من إجراء حسابك' : 'إبطال هذه الجلسة'}
                 </button>
               </div>
               <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 10, margin: '14px 0 0' }}>

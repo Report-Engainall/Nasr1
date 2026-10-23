@@ -131,6 +131,65 @@ describe('central device and session management', () => {
     expect(onNotice).toHaveBeenCalledWith(expect.stringContaining('أكد الخادم إبطال الجلسة المحددة'));
   });
 
+  it('routes sibling sessions of the current account through self-scoped bulk revocation only', async () => {
+    sessions = [
+      makeSession(CURRENT_SESSION_ID, 'مدير النظام', true),
+      {
+        ...makeSession(OTHER_SESSION_ID, 'جهاز المدير الثاني', false),
+        profile_id: 'admin-profile',
+        email: 'admin@example.test',
+      },
+    ];
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'list_organization_sessions') return { data: sessions, error: null };
+      if (name === 'revoke_other_auth_sessions') {
+        const revokedIds = sessions
+          .filter((row) => row.session_id !== CURRENT_SESSION_ID)
+          .map((row) => row.session_id);
+        sessions = sessions.filter((row) => row.session_id === CURRENT_SESSION_ID);
+        return {
+          data: {
+            current_session_id: CURRENT_SESSION_ID,
+            revoked_count: revokedIds.length,
+            revoked_session_ids: revokedIds,
+            revoked_at: '2026-10-23T10:16:00.000Z',
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: { message: 'unexpected or prohibited organization-level RPC' } };
+    });
+    await mount();
+
+    const siblingButton = host?.querySelector<HTMLButtonElement>(
+      'button[aria-label="إبطال جلسة جهاز المدير الثاني"]',
+    );
+    expect(host?.textContent).toContain('جلسة أخرى لحسابك');
+    expect(siblingButton?.disabled).toBe(true);
+    await act(async () => {
+      siblingButton?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.rpc).not.toHaveBeenCalledWith('revoke_organization_session', {
+      p_session_id: OTHER_SESSION_ID,
+    });
+
+    await act(async () => {
+      host?.querySelector<HTMLButtonElement>(
+        'button[aria-label="تسجيل الخروج من الأجهزة الأخرى"]',
+      )?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('revoke_other_auth_sessions', undefined);
+    expect(mocks.rpc).not.toHaveBeenCalledWith('revoke_organization_session', {
+      p_session_id: OTHER_SESSION_ID,
+    });
+    expect(host?.textContent).toContain('مدير النظام');
+    expect(host?.textContent).not.toContain('جهاز المدير الثاني');
+    expect(mocks.onNotice).toHaveBeenCalledWith(expect.stringContaining('1 جلسة أخرى لهذا الحساب'));
+  });
+
   it('does not issue duplicate revocation RPCs for rapid repeated clicks', async () => {
     let finishRevocation: ((value: { data: unknown; error: null }) => void) | undefined;
     mocks.rpc.mockImplementation((name: string) => {
