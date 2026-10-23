@@ -470,9 +470,9 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
 
 export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
   const { user } = useAuth();
-  const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'customer_manager'));
-  const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'customer_manager'));
-  const canManageCustomerLifecycle = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'customer_manager'));
+  const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff'));
+  const canManageCustomerLifecycle = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const [directory, setDirectory] = useState<Awaited<ReturnType<typeof fetchCustomerDirectoryPage>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

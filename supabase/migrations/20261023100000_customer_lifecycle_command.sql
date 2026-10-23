@@ -25,9 +25,9 @@ BEGIN
      )
      OR NOT EXISTS (
        SELECT 1 FROM public.user_roles r
-        WHERE r.profile_id=v_actor AND r.role IN ('admin','manager','customer_manager')
+        WHERE r.profile_id=v_actor AND r.role IN ('admin','manager')
      ) THEN
-    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='active customer manager permission required to change customer status';
+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='active admin or manager permission required to change customer status';
   END IF;
 
   IF p_customer_id IS NULL

@@ -254,7 +254,7 @@ async function main() {
   await assert.rejects(()=>rpc(customer,
     "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
     [localCustomer,"frozen","approved","CI customer cannot administer lifecycle"]),
-    /customer manager permission required to change customer status/i);
+    /admin or manager permission required to change customer status/i);
   await assert.rejects(()=>rpc(admin,
     "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
     [localCustomer,"frozen","approved"," "]),

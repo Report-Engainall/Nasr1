@@ -15,7 +15,7 @@ BEGIN
   IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL
      OR NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id=v_actor AND p.auth_user_id=auth.uid()
        AND p.organization_id=v_org AND p.is_active=true)
-     OR NOT EXISTS (SELECT 1 FROM public.user_roles r WHERE r.profile_id=v_actor AND r.role IN ('admin','manager','customer_manager')) THEN
+     OR NOT EXISTS (SELECT 1 FROM public.user_roles r WHERE r.profile_id=v_actor AND r.role IN ('admin','manager')) THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='active admin or manager permission required to change customer tier';
   END IF;
   IF p_customer_id IS NULL OR v_next_tier NOT IN ('retail','wholesale','vip')
