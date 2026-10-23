@@ -1,16 +1,17 @@
 # سجل التنسيق — المرجع الحي
 
-## المصالحة الحالية — 2026-10-23T19:12:00+03:00
+## المصالحة الحالية — 2026-10-23T19:17:00+03:00
 
-- Main c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99; tree ce3773a9c69ca2ee9acc2daa3fc759753bd4cdd9; Core run 39983210712 SUCCESS on exact main.
-- #88 merged at c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99; Core 39981579136/P2 39981579236 PASS on head 5114ea8227f570662533219af1dc3a013cd49f75; local Supabase Chromium job 120510279957 PASS, including device session revocation. Hosted customer-account E2E job 120510010437 SKIPPED.
-- #99 ORD-001 merged at 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2; tested tree exact for that merge, not the newer main tree. Current main has its own green run 39983210712.
-- PR #101 P2 finance code head 3087df8f2ca8132dfd08ab102dfbbc219db927a9, Core 39984747428 and P2 39984747357 still running at checkpoint; P2 public UI smoke passed, local Supabase/PG17 acceptance pending, hosted customer E2E skipped. P2 owns this PR and its acceptance.
-- P1 owns PR #97 product singleflight paths; P3 owns PR #89 catalog UI paths. Do not modify their locked files. PR #88 device session UI is already merged; its ownership lock is released for regression only, not a new rebuild.
-- P2 owns migrations/RPC/RLS, official database types, database acceptance, ledger wiring and the central state/matrix/log/report/coordination documents. Update central files in a single serialized operation based on latest blob SHAs.
-- PR #100 docs reconciliation now incorporates main #88 merge. It must keep task states and main SHA current. PR #92/#98 closed without merge; no work should be replayed from them.
-- Next acceptance: FIN-LEDGER-001-MANUAL-JOURNAL-REVERSAL. Generic reversal handles posted manual/adjustment only; invoice/payment/cash-expense reversals remain source-specific. Do not merge #101 before exact-head Core and PostgreSQL 17 required tests pass.
-- External blockers remain: live Onyx target import/sync, official WhatsApp API response/ID, dedicated hosted customer-account E2E credentials, production restore proof.
+- Main c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99; tree ce3773a9c69ca2ee9acc2daa3fc759753bd4cdd9; Core run 39983210712 SUCCESS on exact current main.
+- PR #54 merged at afa4840c137d9da853c8486b005adb1ffd5fdd0a; tested feature head 52ae68f1f14d61d1fb13925a840c330cb70956e1 had Core 39905763702/P2 39905763717 PASS. PR #52 merged at c11ea018b81c6e47a9bbbc36d4d7b8f432892f8d. INV-009 local reconciliation is closed with evidence; live Onyx import/sync remains BLOCKED_EXTERNAL.
+- OPS-DR-001 has isolated PostgreSQL 17 evidence only (run 39969721081/job 120468865117; backup SHA-256 59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1; 394 ms backup, 1012 ms restore, 4607 ms total; 23 tables/1048 rows, temp DB removed). No production restore or RTO/RPO claim.
+- PR #99 / ORD-001 merged at 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2; its acceptance was valid on the tested tree at that merge. Current main advanced with PR #88.
+- PR #88 central device-session UI merged at c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Its final feature head 5021734e2beadef83fe9209aa2611b4399eafd4e had Core 39982277415/P2 39982277637 PASS; do not treat skipped hosted customer E2E as a pass.
+- PR #101 P2 finance reversal branch head 9f2407ca838dfa258257cd8535fd29e97c327c38, base c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99; Core 39985455274 and P2 39985455240 IN_PROGRESS at this checkpoint. Public UI smoke 120523317686 PASS, local Supabase/PG17 acceptance 120523647680 IN_PROGRESS, external customer E2E 120523368573 SKIPPED. SQL dollar-quote repair and a different-idempotency-key race test are included.
+- PR #100 is the serialized documentation-only reconciliation; this commit updates its five central files and triggers fresh exact-head checks. P1 owns product-singleflight PR #97; P3 owns catalog PR #89. Do not edit their locked paths. PR #88 device-session work is merged; its lock is released for regression only, not rebuild.
+- P2 owns migrations/RPC/RLS, official DB types, PostgreSQL acceptance, ledger wiring and central state/matrix/log/report/coordination docs. Update these files serially using current blob SHAs.
+- Sole next action: terminal acceptance of FIN-LEDGER-001 / PR #101 exact head. Invoice/payment/cash-expense/purchase-receipt reversals stay on existing source-specific workflows.
+- External blockers: Onyx target import/live sync; official WhatsApp Business API provider response/ID; hosted customer-account E2E credentials; production restore proof.
 
 ## سجل التنسيق الأصلي (للتاريخ فقط)
 
