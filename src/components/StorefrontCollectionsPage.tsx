@@ -11,11 +11,12 @@ export function StorefrontCollectionsPage() {
   const products = productsQuery.data ?? [];
   const loading = categoriesQuery.loading || productsQuery.loading;
   const error = categoriesQuery.error || productsQuery.error;
-  const errorTitle = categoriesQuery.error && productsQuery.error
-    ? "تعذر تحميل التصنيفات والكتالوج"
-    : categoriesQuery.error
-      ? "تعذر تحميل التصنيفات"
-      : "تعذر تحميل كتالوج المنتجات";
+  const errorTitle =
+    categoriesQuery.error && productsQuery.error
+      ? "تعذر تحميل التصنيفات والكتالوج"
+      : categoriesQuery.error
+        ? "تعذر تحميل التصنيفات"
+        : "تعذر تحميل كتالوج المنتجات";
   const errorDetails = [
     categoriesQuery.error ? `التصنيفات: ${categoriesQuery.error}` : null,
     productsQuery.error ? `الكتالوج: ${productsQuery.error}` : null,
