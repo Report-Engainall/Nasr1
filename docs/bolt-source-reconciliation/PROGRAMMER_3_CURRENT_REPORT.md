@@ -1,6 +1,6 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T17:01:39.588+03:00
+UPDATED_AT: 2026-10-23T17:05:19.795+03:00
 
 ## Git and current execution
 - Repository: Report-Engainall/Nasr1
@@ -24,6 +24,10 @@ UPDATED_AT: 2026-10-23T17:01:39.588+03:00
 - `P3-TEST-QUALITY-007`: category regression includes a published target-category item, inactive rows and an active other-category row; it asserts exact count/link. Removed a vacuous route-stub assertion and added the runtime Reports mount test.
 - `P3-CUST-ROUTE-LOAD-008`: `/login`, `/forgot-password`, `/register`, `/quotes`, and `/reorder` provide Arabic RTL `role="status"` hydration fallbacks; the shared parameterized test covers those routes alongside the seven prior routes.
 - `P3-STORE-HYDRATION-009`: root `/` previously had a blank `ClientOnly` fallback, leaving no visible or semantic loading state before hydration. It now has a semantic Arabic RTL main/status fallback and a parameterized regression test. Scope: `src/routes/index.tsx` and `src/test/customer-route-loading.test.tsx`.
+
+## Latest independent P3 increment — P3-RESET-PASSWORD-FLOW-017
+
+Added `src/test/reset-password-route.test.tsx`, which exercises the actual `/reset-password` route component while mocking only the external Supabase client and router navigation. Five regressions verify: (1) password length validation prevents a server call; (2) an expired recovery session produces an error and never navigates; (3) network rejection displays a recoverable error and releases the disabled-submit state; (4) navigation occurs only after the update promise resolves successfully; and (5) rapid duplicate submission invokes the RPC only once while pending. No production auth logic or API contract was changed. Application/test SHA `b8259e42a75aa06ea9c23069372c877b9112040f`. Core `39966520265` was IN_PROGRESS and P2 `39966520115` PENDING at readback. Local test run is NOT RUN because this runtime cannot resolve `github.com`; exact-SHA CI is required before marking tested.
 
 ## Latest independent P3 increment — P3-CATEGORY-LOADING-REGRESSION-016
 
@@ -51,18 +55,18 @@ Local test execution was attempted but is blocked by environment DNS (`git ls-re
 - P2-owned shared matrix/state/coordination, backend contracts, RPCs, services and migrations were not edited.
 
 ## Mandatory execution checkpoint fields — current readback
-LAST_COMPLETED_TASK_ID: P3-CATEGORY-LOADING-REGRESSION-016 (loading and failure/retry states now have distinct regressions; exact-head CI pending)
+LAST_COMPLETED_TASK_ID: P3-RESET-PASSWORD-FLOW-017 (test implementation committed; acceptance pending exact-head CI)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: 4cd6860c8ad06ba03f84d4a7dbe923ab76ea7c36 (latest application-code/test commit before this documentation-only synchronization)
+HEAD_SHA: b8259e42a75aa06ea9c23069372c877b9112040f (latest application/test commit before documentation-only synchronization)
 ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route/component tests, no all-route browser UAT
-FILES_CHANGED: src/routes/index.tsx; src/test/customer-route-loading.test.tsx; src/components/StorefrontOffersPage.tsx; src/test/storefront-offers.test.tsx; src/components/AdvancedStorefrontSearchPage.tsx; src/test/advanced-storefront-search.test.tsx; src/components/Storefront.tsx; src/test/storefront-price-visibility-ui.test.tsx; P3 checkpoint/report
-TESTS_RUN_WITH_RESULTS: Core `39965251969` on prior documentation head `7a9bcc48794f7217ded96ad5403184704391cba7` completed SUCCESS. P2 `39965248960` was still running its public UI smoke Chromium dependency setup; external-credential customer E2E was SKIPPED. Those checks do not cover the newer test SHA `4cd6860c8ad06ba03f84d4a7dbe923ab76ea7c36`. At that SHA, no Actions workflow run appeared in the first readback; exact-head workflow status must be read again. Local test attempt remained NOT RUN because `git ls-remote` failed with `Could not resolve host: github.com`. This report/checkpoint synchronization itself changes the branch SHA and requires exact-head CI readback.
-TESTS_FAILED_OR_SKIPPED: earlier Core SHA `39638915...` failed seven route-test harness assertions; the harness was corrected and Core succeeded on exact SHA `8663bd9...` for that code set. Prior P2 attempts failed dependency installation with HTTP 429 or were cancelled; the credential-gated external E2E job was SKIPPED, not PASS. Current code/test SHA `4cd6860...` requires its own CI result; local tests, all-route browser UAT, and production acceptance are NOT RUN.
+FILES_CHANGED: src/routes/index.tsx; src/test/customer-route-loading.test.tsx; src/components/StorefrontOffersPage.tsx; src/test/storefront-offers.test.tsx; src/components/AdvancedStorefrontSearchPage.tsx; src/test/advanced-storefront-search.test.tsx; src/components/Storefront.tsx; src/test/storefront-price-visibility-ui.test.tsx; src/test/reset-password-route.test.tsx; P3 checkpoint/report
+TESTS_RUN_WITH_RESULTS: Exact code/test SHA `add4f49413ccc450d61fd0533615a472679443e2`: Core [39964711803] SUCCESS including unit tests, isolated PostgreSQL 17 acceptance, lint, build, preview/dev smoke and Chromium price-visibility acceptance; P2 [39964711930] public UI smoke SUCCESS but local-Supabase browser job CANCELLED and credential-gated E2E SKIPPED. The newer separate loading regression SHA `4cd6860...` had no workflow exposed on first lookup. Current application/test SHA `b8259e42a75aa06ea9c23069372c877b9112040f` Core [39966520265] is IN_PROGRESS and P2 [39966520115] PENDING. Local tests NOT RUN: DNS to github.com is unavailable. Check the documentation successor separately after this synchronization.
+TESTS_FAILED_OR_SKIPPED: Historical Core SHA `39638915...` failed seven route-test harness assertions; fixed later, and the complete Core workflow succeeded on `8663bd9...` for that code set. P2 on `add4f494...` had public smoke SUCCESS, local-Supabase browser job CANCELLED, credential-gated E2E SKIPPED; these are distinct outcomes, not a full P2 PASS. Latest SHA `b8259e42...` has pending/running CI; local tests, full-route UAT, and production acceptance NOT RUN.
 DEFECTS_FOUND: root / blank hydration fallback fixed; 23 route-loading assertions added; offers filter inactive products and report source-specific errors; advanced search now has category loading/retry states; full route acceptance remains open
 HANDOFF_TO_P1_OR_P2: P1 owns /admin/exports generated route registration and locked admin wrappers; P2 owns canonical route matrix/backend contracts and package-cache CI path (handoff https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365925364)
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
 MERGE_STATUS: OPEN; UNMERGED; formal independent review absent
 BLOCKERS: current code SHA Core/P2 checks pending; earlier HTTP 429 cache issue; P2 local-Supabase run on ef294... not yet terminal at last readback; full route browser UAT NOT RUN
-NEXT_ACTION: check exact-SHA Core and P2 runs for application/test SHA 4cd6860c8ad06ba03f84d4a7dbe923ab76ea7c36 and the following documentation head, inspect each job, fix failures, and continue another unlocked P3 acceptance gap. Keep PR #89 open until final-head CI is green and an independent formal review is recorded.
+NEXT_ACTION: inspect terminal results for Core 39966520265 and P2 39966520115 on application/test SHA b8259e42a75aa06ea9c23069372c877b9112040f; then read the current documentation-successor checks, repair any concrete failure, and continue an independent unlocked P3 acceptance gap. PR #89 must remain open until final-head required checks pass and an independent formal review is recorded.
 UPDATED_AT: 2026-10-23T16:50:00+03:00
