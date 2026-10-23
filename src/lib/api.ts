@@ -291,11 +291,28 @@ export async function createCustomer(c: Partial<Customer>): Promise<Customer> {
 }
 
 export async function updateCustomerStatus(id: string, status: string): Promise<void> {
-  const { error } = await supabase
+  const customerId = typeof id === 'string' ? id.trim() : '';
+  if (!customerId) throw new Error('هوية العميل غير صالحة.');
+  const nextStatus = typeof status === 'string' ? status.trim() : '';
+  if (!nextStatus) throw new Error('حالة العميل غير صالحة.');
+
+  const scope = await getCurrentTenantScope();
+  if (!scope.isStaff || !scope.organizationId) {
+    throw new Error('صلاحية إدارة العملاء مطلوبة ضمن مؤسسة نشطة.');
+  }
+
+  const { data, error } = await supabase
     .from('customers')
-    .update({ status, approved_at: status === 'approved' ? new Date().toISOString() : null })
-    .eq('id', id);
+    .update({ status: nextStatus, approved_at: nextStatus === 'approved' ? new Date().toISOString() : null })
+    .eq('id', customerId)
+    .eq('organization_id', scope.organizationId)
+    .select('id');
+
   if (error) throw error;
+  // Stale IDs and tenant/RLS mismatches may affect zero rows without a database error.
+  if (!Array.isArray(data) || data.length !== 1 || data[0]?.id !== customerId) {
+    throw new Error('لم يؤكد الخادم تحديث حالة العميل ضمن المؤسسة الحالية.');
+  }
 }
 
 // ─── Suppliers ───
