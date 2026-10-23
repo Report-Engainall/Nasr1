@@ -1195,3 +1195,15 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - CodeRabbit was rate-limited; manual P2 review is recorded on PR #123. No unresolved review threads remained before merge. Do not claim a completed independent automated review.
 - Resume pointer: COMPANY-001-CURRENT-MAIN-ACCEPTANCE. On the live main SHA at next boot, inspect current company workspace routes, membership/invitation/address services and RLS/RPC; preserve #84/#90/#83/#88 and implement only the first evidenced gap. Take a single code-path lock after identifying real files.
 
+
+
+## P2 COMPANY-001 — address UUID service contract — 2026-10-23T23:34:00+03:00
+
+- Base main SHA 6815b00781412bd98cbdd9fb660e475e4540b543; current main Core run 40019333142 was IN_PROGRESS when noted. Do not claim PASS until this exact merge SHA job is terminal.
+- Inspected current route/service/migration/tests. Existing UI and server migration are in place and tenant/customer IDs are server-derived. SQL save RPC contract returns UUID; delete RPC requires UUID and returns boolean.
+- Proven client-side gap: `saveCustomerAddress` used to accept any non-empty string as a saved address ID; `saveCustomerAddress({id})` and `deleteCustomerAddress(id)` sent malformed identifiers to RPC.
+- Fixed `src/lib/customer-addresses.ts` to validate UUID-shaped save acknowledgements and optional edit/delete IDs before RPC.
+- Added regression to `src/test/customer-addresses.test.ts`: malformed save response cannot return success; malformed update/delete IDs are rejected before writing.
+- No migration, RLS/policy/grant, service route, UI component or generated route tree changed.
+- Exact PR-head Core/P2 outcomes are pending after the atomic implementation + checkpoint commit; do not use prior SHA results as proof.
+- Hosted external cross-tenant E2E remains BLOCKED_EXTERNAL/SKIPPED if dedicated non-production credentials are not present.

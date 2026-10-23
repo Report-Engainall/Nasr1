@@ -14,6 +14,7 @@ export type CustomerAddressInput = {
   delivery_instructions?: string | null; is_default: boolean;
 };
 const COLUMNS = "id,label,recipient_name,phone,address_line1,address_line2,city,region,postal_code,country,delivery_instructions,is_default,created_at,updated_at";
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const clean = (value: string | null | undefined) => (value ?? "").trim();
 const optional = (value: string | null | undefined) => clean(value) || null;
 
@@ -26,6 +27,7 @@ function validate(input: CustomerAddressInput): CustomerAddressInput {
     country: clean(input.country).toUpperCase(), delivery_instructions: optional(input.delivery_instructions),
     is_default: input.is_default === true,
   };
+  if (value.id && !UUID.test(value.id)) throw new Error("معرّف العنوان غير صالح.");
   if (!value.label || value.label.length > 50) throw new Error("اسم العنوان مطلوب ولا يتجاوز 50 حرفًا.");
   if (value.recipient_name.length < 2 || value.recipient_name.length > 120) throw new Error("اسم المستلم مطلوب (من حرفين إلى 120 حرفًا).");
   if (value.phone.length < 7 || value.phone.length > 32) throw new Error("أدخل رقم هاتف صحيحًا من 7 إلى 32 حرفًا.");
@@ -55,12 +57,13 @@ export async function saveCustomerAddress(input: CustomerAddressInput): Promise<
     p_country: v.country, p_delivery_instructions: v.delivery_instructions ?? null, p_is_default: v.is_default,
   });
   if (error) throw new Error("تعذر حفظ عنوان التوصيل: " + error.message);
-  if (typeof data !== "string" || !data) throw new Error("لم يؤكد الخادم حفظ العنوان؛ لم يتم عرض نجاح غير مثبت.");
+  if (typeof data !== "string" || !UUID.test(data)) throw new Error("لم يؤكد الخادم حفظ العنوان؛ لم يتم عرض نجاح غير مثبت.");
   return data;
 }
 export async function deleteCustomerAddress(id: string): Promise<void> {
-  if (!clean(id)) throw new Error("حدد عنوانًا صالحًا للحذف.");
-  const { data, error } = await supabase.rpc("delete_customer_address", { p_address_id: id });
+  const addressId = clean(id);
+  if (!UUID.test(addressId)) throw new Error("معرّف العنوان غير صالح.");
+  const { data, error } = await supabase.rpc("delete_customer_address", { p_address_id: addressId });
   if (error) throw new Error("تعذر حذف عنوان التوصيل: " + error.message);
   if (data !== true) throw new Error("لم يؤكد الخادم حذف العنوان.");
 }

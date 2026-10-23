@@ -1,21 +1,23 @@
 # سجل التنسيق — المرجع الحي
 
-## CLOSED P2 path lock — FIN-INVOICE-001 payment retry-key preservation — 2026-10-23T23:29:00+03:00
+## CLOSED — central-state reconciliation PR #126 — 2026-10-23T23:34:00+03:00
 
-- PR https://github.com/Report-Engainall/Nasr1/pull/123 is CLOSED/MERGED. Merge/main SHA: 271de9ac23d6fd092db5a77c15bcf191249fd40d; exact tested PR head: f7f0071a4a5437877e7da13dd1e83471ded3a610.
-- Core run 40017279766 and P2 run 40017279809 completed SUCCESS on the same exact PR head. Core push run 40017988386 completed SUCCESS on merge/main SHA 271de9ac23d6fd092db5a77c15bcf191249fd40d.
-- Hosted authenticated customer/tenant E2E was SKIPPED because dedicated non-production Supabase credentials and authorized cross-tenant accounts were unavailable. This remains BLOCKED_EXTERNAL, not PASS. Local isolated PostgreSQL 17/Supabase browser paths completed SUCCESS.
-- Verified fix: each unresolved payment payload retains a fingerprint-mapped idempotency key; null/empty/malformed payment UUID or RPC/transport error cannot report success or clear the key. Regression tests cover switching A -> B -> retry A and malformed/null acknowledgements.
-- Payment code lock released after merge: src/components/CustomerWorkflows.tsx and src/components/CustomerWorkflows.finance.test.tsx. No migration or RPC/security grant was added in #123. CodeRabbit was rate-limited; manual P2 review completed and no unresolved review threads remained at merge.
+- PR #126 is merged at main SHA 6815b00781412bd98cbdd9fb660e475e4540b543. Exact PR head 2d1fddde5c8c9b3185dc19880ef5426129d28005 completed Core 40018779157 SUCCESS and P2 40018779193 SUCCESS.
+- Main Core run 40019333142 was IN_PROGRESS at this checkpoint on the exact merge SHA 6815b00781412bd98cbdd9fb660e475e4540b543; no terminal PASS is claimed yet.
+- External hosted customer/tenant acceptance remained SKIPPED/BLOCKED_EXTERNAL due lack of dedicated non-production credentials. Do not call this PASS.
 
-## NEXT P2 task — COMPANY-001-CURRENT-MAIN-ACCEPTANCE
+## ACTIVE P2 exclusive path lock — COMPANY-001-CUSTOMER-ADDRESS-UUID-CONTRACT — 2026-10-23T23:34:00+03:00
 
-- Owner: P2. Re-read the live main SHA before opening the code branch; no direct main write.
-- Target: inspect existing company workspace routing, membership/invitation/address services and RLS/RPC, then implement only a current reproducible end-to-end gap.
-- Preserve merged fixes: #84 customer_manager role mapping; #90 invitation-expiry validation; #83/#88 central sessions. Verify only if touched or a regression is found.
-- Potential code paths are NOT LOCKED yet; don't invent a lock before identifying the actual route/component/service. After comparing open PRs, assign one exclusive P2 path lock and keep the five central P2 files serially owned only by P2.
-- Acceptance: same-tenant role allow/deny, customer-own/company-authorized address visibility, invitation create/revoke/expiry audit, PostgreSQL 17/RLS/RPC checks as applicable, and browser loading/error/retry proof. Require exact-head Core and P2 acceptance; no hosted PASS without dedicated authorized non-production test credentials.
-- No direct main writes, force-push, destructive reset, production DB writes, or live external calls.
+- Owner: P2. Repo Report-Engainall/Nasr1; branch p2/customer-address-uuid-contract-20261023; base 6815b00781412bd98cbdd9fb660e475e4540b543. Do not write directly to main.
+- Exclusive changed product paths: `src/lib/customer-addresses.ts`, `src/test/customer-addresses.test.ts`.
+- Actual contract gap: SQL `save_customer_address` returns UUID, while the client accepted arbitrary non-empty strings as save confirmation; optional edit/delete IDs were not UUID-validated before RPC.
+- Fix is intentionally service-contract scope only: validate UUID-shaped acknowledgement and optional edit/delete IDs; no UI route, generated route tree, migrations, RLS, grants or new table is part of this patch.
+- Regression cases: malformed save acknowledgement fails closed; malformed edit and delete IDs reject before RPC; existing valid UUID success and explicit delete boolean cases remain.
+- No concurrent open PR identified that owns these exact service/test paths; P3 open address work is route-acceptance tests only. P1 work is in unrelated storefront/admin paths.
+- Acceptance: inspect final diff; exact-head Core and P2/PostgreSQL 17 workflows both terminal SUCCESS on same final SHA; verify migration guards and existing tenant-scoped RLS/RPC through existing P2 workflow; hosted customer/tenant job remains BLOCKED_EXTERNAL if credentials are absent.
+- Release path lock only after merge and verification of the resulting main SHA and its current Core CI.
+- P2 owns and updates the five central documents sequentially/atomically: CURRENT_EXECUTION_STATE.md, REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv, PROGRAMMER_2_CURRENT_REPORT.md, WORK_COORDINATION.md and EXECUTION_LOG.md.
+- No production DB writes, force-push, destructive reset, live payment operation, live Onyx or live WhatsApp calls.
 
 ## المصالحة الحالية — 2026-10-23T21:47:31+03:00
 
