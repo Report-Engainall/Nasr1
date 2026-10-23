@@ -1,23 +1,23 @@
 # P1 Execution Checkpoint — live resume record
 
-## Current state — 2026-10-23 — PR #97 exact-head reconciliation
+## Current state — 2026-10-23 — PR #97 exact-head main-sync acceptance
 
 - `LAST_COMPLETED_TASK_ID=P1-ADMIN-PRODUCT-SINGLEFLIGHT-001`.
 - `REPOSITORY=Report-Engainall/Nasr1`; `CURRENT_BRANCH=p1/admin-product-singleflight-20261023`.
-- `BASE_SHA=2908079abd76e1a84cc4449d65b6b01cdfc63482`; latest observed main and PR base are the same. PR branch compare: 20 commits ahead, 0 behind, merge base equals current main.
-- `LAST_TESTED_CODE_HEAD_SHA=148e4ce4a6eaef66a511bc4c950991736d09e442` (feature tree integrated with latest main before this checkpoint-only update).
-- **Core CI — TESTED_EXACT_SHA / SUCCESS:** [run 39997706494](https://github.com/Report-Engainall/Nasr1/actions/runs/39997706494), completed on `148e4ce4a6eaef66a511bc4c950991736d09e442`.
-- **P2 Playwright — TESTED_EXACT_SHA / SUCCESS:** [run 39997706603](https://github.com/Report-Engainall/Nasr1/actions/runs/39997706603), completed on the same SHA. Infrastructure gate, public read-only UI smoke, and local isolated Supabase/PostgreSQL 17 Chromium acceptance succeeded.
-- The exact-head local browser job completed order persistence and tenant-denial cases, returns/credit-memo flow, audited Onyx XLSX export, finance/operational print, and other enabled local acceptance steps. This does not mean the dedicated product-modal browser spec ran.
-- `FILES_CHANGED` for the functional PR scope: `src/components/AghbariApp.tsx`; `src/test/admin-product-double-submit.test.tsx`. This checkpoint/report refresh only changes these two P1-owned documentation files.
-- `FAILED_OR_SKIPPED`: hosted customer-order/tenant-isolation job `SKIPPED` due unavailable dedicated non-production credentials; dedicated product-modal browser proof `NOT RUN`; production proof `NOT RUN`. Skipped/external-gated cases are not PASS.
+- `BASE_SHA=MAIN_SHA=d81c9b34f819a53df7610937264c6fcb923c3f95`; PR base is current main. Branch comparison: ahead_by=22, behind_by=0, merge base equals current main.
+- `HEAD_SHA=LAST_TESTED_CODE_HEAD_SHA=5f4350a55eb16b06ee719dc00cc8b04eb6dde8ee` — synchronized PR head after a non-force merge commit; PR diff remains limited to P1 checkpoint/report and the ProductModal code/test.
+- **Core CI — TESTED_EXACT_SHA / SUCCESS:** [run 40002107150](https://github.com/Report-Engainall/Nasr1/actions/runs/40002107150), completed on `5f4350a55eb16b06ee719dc00cc8b04eb6dde8ee`.
+- **P2 Playwright — TESTED_EXACT_SHA / SUCCESS:** [run 40002107131](https://github.com/Report-Engainall/Nasr1/actions/runs/40002107131), completed on the same SHA. Public read-only Storefront smoke and isolated local Supabase/PostgreSQL 17 Chromium acceptance passed.
+- **FAILED_OR_SKIPPED:** hosted customer-order/tenant-isolation job [120580624539](https://github.com/Report-Engainall/Nasr1/actions/runs/40002107131) `SKIPPED` because external non-production test credentials were unavailable; dedicated ProductModal browser proof `NOT RUN`; production proof `NOT RUN`. No skipped check is treated as PASS.
+- `FILES_CHANGED`: `src/components/AghbariApp.tsx`; `src/test/admin-product-double-submit.test.tsx`; `docs/bolt-source-reconciliation/PROGRAMMER_1_EXECUTION_CHECKPOINT.md`; `docs/bolt-source-reconciliation/PROGRAMMER_1_CURRENT_REPORT.md`. No P2 central-state, matrix, coordination, SQL/RPC/RLS/migration, or P3-owned file is changed by this PR.
 - `LOCKED_PATHS`: P2-owned SQL/RPC/RLS/migrations/API/finance/inventory/Onyx/workflows and central `CURRENT_EXECUTION_STATE.md`, acceptance matrix, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`; P3 PR #89 category/report acceptance; generated `src/routeTree.gen.ts`.
 - `PR_URL=https://github.com/Report-Engainall/Nasr1/pull/97`; `MERGE_STATUS=OPEN / DRAFT / NOT MERGED`.
-- `BLOCKERS`: no independent human/authorized review recorded. The earlier CodeRabbit request was rate-limited; a new exact-head review request was posted in [comment 6371255618](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6371255618). External hosted-account E2E remains blocked by unavailable non-production credentials. Neither issue is represented as a pass.
-- `NEXT_ACTION`: obtain and inspect the independent review on the current PR head; fix only evidenced findings, and re-run required gates on the resulting exact SHA. Keep Draft/unmerged until independent review is recorded; do not merge while the hosted account job remains explicitly skipped if that path is a release criterion. Verify Core and P2 Playwright again on the new documentation-only head created by this checkpoint batch; do not transfer the previous SHA result to it.
-- `UPDATED_AT=2026-10-23T20:52:00+03:00`.
+- **Independent review:** `BLOCKED_EXTERNAL` — live GitHub review query returned zero formal reviews and zero review threads; CodeRabbit acknowledgements/rate-limit responses are not an independent review. Do not self-approve, mark ready, or merge without an authorized independent maintainer review.
+- `NEXT_ACTION=P1-ADMIN-AUDIT-STABLE-PAGINATION-001`: while independent review for #97 is unavailable, continue on the separate P1-owned PR #106, safely sync it with live main, rerun Core and P2 Playwright on one final SHA, and do not touch P2/P3 locked paths. Revisit #97 only after a formal independent review or evidence-backed finding.
+- `UPDATED_AT=2026-10-23T21:13:00+03:00`.
 
 ## Recent execution history
+
 
 
 

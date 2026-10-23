@@ -2,23 +2,21 @@
 
 - **المستودع:** `Report-Engainall/Nasr1`
 - **CURRENT_BRANCH:** `p1/admin-product-singleflight-20261023`
-- **BASE_SHA / live MAIN_SHA:** `2908079abd76e1a84cc4449d65b6b01cdfc63482`; PR branch is synchronized with current `main` (`behind_by=0`).
-- **LAST_TESTED_CODE_HEAD_SHA:** `148e4ce4a6eaef66a511bc4c950991736d09e442`.
-- **المهمة:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001` — منع الإرسال المكرر للإنشاء والتحديث، وإظهار فشل الخادم مع السماح بإعادة المحاولة، وإغلاق الحفظ عند فشل جلب التصنيفات إلى أن تنجح إعادة المحاولة.
-- **Core CI — SUCCESS على SHA المطابق:** [run 39997706494](https://github.com/Report-Engainall/Nasr1/actions/runs/39997706494) على `148e4ce4a6eaef66a511bc4c950991736d09e442`.
-- **P2 Playwright — SUCCESS على SHA نفسه:** [run 39997706603](https://github.com/Report-Engainall/Nasr1/actions/runs/39997706603). نجح سموك الواجهة العامة وقبول Chromium مع Supabase/PostgreSQL 17 المحلي المعزول. اختبار عميل مستضاف وعزل المؤسسة كان `SKIPPED` بسبب بوابة الاعتمادات الخارجية، وليس PASS.
-- **تغطية المنتج المثبتة في Core:** منع الإنشاء المكرر عند ضغطتين قبل إعادة التصيير؛ منع التحديث المكرر بالطريقة نفسها؛ بقاء رسائل فشل الإنشاء/التحديث وإمكانية إعادة المحاولة؛ منع الكتابة عند فشل التصنيفات حتى نجاح إعادة التحميل؛ وعدم إعلان النجاح قبل إقرار الخادم.
-- **حدود الإثبات:** اختبار المتصفح المخصص لنافذة المنتج `NOT RUN`؛ اختبار حساب العميل المستضاف `SKIPPED / BLOCKED_EXTERNAL`؛ إثبات الإنتاج `NOT RUN`.
-- **المراجعة:** لا توجد مراجعة مستقلة مسجلة بعد. طلب CodeRabbit السابق حُجب بسبب rate limit؛ أُرسل طلب مراجعة جديد مرتبط بالرأس المختبر في [comment 6371255618](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6371255618).
-- **PR #97:** [منع الإرسال المكرر لنموذج المنتج](https://github.com/Report-Engainall/Nasr1/pull/97) — OPEN / DRAFT / NOT MERGED، ولا يُحوّل إلى Ready ولا يدمج قبل المراجعة المستقلة المطلوبة.
-- **الملفات الوظيفية:** `src/components/AghbariApp.tsx` و`src/test/admin-product-double-submit.test.tsx`. تحديث هذه الجلسة يعيد مصالحة checkpoint/report فقط؛ لا توجد تغييرات وظيفية إضافية في هذه الدفعة.
-- **FILES_CHANGED لهذه الدفعة:** `docs/bolt-source-reconciliation/PROGRAMMER_1_EXECUTION_CHECKPOINT.md`; `docs/bolt-source-reconciliation/PROGRAMMER_1_CURRENT_REPORT.md`.
-- **NEXT_ACTION:** التحقق من Core وP2 Playwright على SHA الجديد الذي سينشأ من دفعة التوثيق هذه، ثم مراجعة CodeRabbit/المراجع المستقل على أحدث رأس. أصلح ملاحظات مثبتة فقط ولا تدّعِ نجاح SHA آخر.
+- **BASE_SHA / MAIN_SHA:** `d81c9b34f819a53df7610937264c6fcb923c3f95`; PR branch synchronized with live main (`behind_by=0`, ahead 22).
+- **TASK_ID / LAST_COMPLETED_TASK_ID:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001`.
+- **HEAD_SHA / TESTED_EXACT_SHA:** `5f4350a55eb16b06ee719dc00cc8b04eb6dde8ee`.
+- **Core CI — SUCCESS on exact SHA:** [run 40002107150](https://github.com/Report-Engainall/Nasr1/actions/runs/40002107150).
+- **P2 Playwright — SUCCESS on the same SHA:** [run 40002107131](https://github.com/Report-Engainall/Nasr1/actions/runs/40002107131). Isolated local Supabase/PostgreSQL 17 Chromium acceptance and public UI smoke passed.
+- **ProductModal behavior implemented/tested:** synchronous guard prevents duplicate create/update before React rerender; server errors remain visible and a failed request can retry; category fetch failure disables save until a successful explicit retry; server-backed success only.
+- **Evidence boundaries:** hosted customer-order/tenant-isolation job `SKIPPED / BLOCKED_EXTERNAL` due unavailable non-production credentials; dedicated ProductModal browser proof `NOT RUN`; production proof `NOT RUN`.
+- **Independent review:** no formal review or review thread recorded. CodeRabbit’s green status/acknowledgment is not a formal independent review; previous review triggers were rate-limited. `BLOCKED_EXTERNAL` pending an authorized independent maintainer review.
+- **PR #97:** [منع الإرسال المكرر لنموذج المنتج](https://github.com/Report-Engainall/Nasr1/pull/97) — `OPEN / DRAFT / NOT MERGED`. Keep it Draft and unmerged until independent review is recorded; do not convert the skipped hosted check into PASS.
+- **Changed files in PR scope:** `src/components/AghbariApp.tsx`; `src/test/admin-product-double-submit.test.tsx`; these two P1 checkpoint/report documents. No P2 central state/matrix/coordination file or P3-owned path changed.
+- **NEXT_ACTION:** continue independent P1 task `P1-ADMIN-AUDIT-STABLE-PAGINATION-001` in existing PR #106 while review of #97 is externally blocked; sync with current main and rerun required gates on a single exact SHA.
 - **MERGE_STATUS:** #97 OPEN / DRAFT / NOT MERGED.
-- **UPDATED_AT:** 2026-10-23T20:52:00+03:00.
+- **UPDATED_AT:** 2026-10-23T21:13:00+03:00.
 
-> Exact-head evidence recorded above is for functional SHA `148e4ce4a6eaef66a511bc4c950991736d09e442`. The checkpoint/report commit created by this update is a distinct SHA and must receive its own Actions readback before being labeled `TESTED_EXACT_SHA`.
-
+> Exact-head evidence in this summary refers to `5f4350a55eb16b06ee719dc00cc8b04eb6dde8ee`. The current report/checkpoint refresh below will create a new documentation-only head; it must receive its own Actions readback before it is labeled `TESTED_EXACT_SHA`.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 
