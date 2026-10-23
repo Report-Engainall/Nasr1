@@ -92,7 +92,7 @@ async function main() {
     "join public.customer_invoice_items cii on cii.organization_id=ci.organization_id and cii.invoice_id=ci.id " +
     "where ci.organization_id=$1::uuid and ci.status<>'void' and ci.currency='YER' " +
     "and ci.id in (select recent.id from public.customer_invoices recent where recent.organization_id=$1::uuid order by recent.issued_at desc,recent.id limit 500) " +
-    "and cii.order_item_id is not null and cii.quantity>=0.500 " +
+    "and cii.order_item_id is not null and cii.quantity>=1.000 " +
     "and NOT EXISTS (select 1 from public.customer_return_request_items prior_item " +
     " join public.customer_return_requests prior_request on prior_request.id=prior_item.return_request_id " +
     " and prior_request.organization_id=prior_item.organization_id " +
@@ -101,7 +101,7 @@ async function main() {
     "and greatest(ci.total_amount-coalesce((select pg_catalog.sum(cp.amount) from public.customer_payments cp " +
     " where cp.organization_id=ci.organization_id and cp.invoice_id=ci.id),0)-coalesce((select pg_catalog.sum(cm.total_amount) " +
     " from public.customer_return_credit_memos cm where cm.organization_id=ci.organization_id and cm.invoice_id=ci.id " +
-    " and cm.status='posted' and cm.currency=ci.currency),0),0) > (cii.line_total/nullif(cii.quantity,0))*0.500 " +
+    " and cm.status='posted' and cm.currency=ci.currency),0),0) > ci.total_amount*0.500 " +
     "and coalesce((select pg_catalog.sum(mi.returned_quantity) from public.customer_return_credit_memo_items mi " +
     " join public.customer_return_credit_memos cm on cm.id=mi.credit_memo_id and cm.organization_id=mi.organization_id " +
     " where mi.organization_id=ci.organization_id and mi.invoice_item_id=cii.id and cm.status in ('draft','posted')),0)+0.500 <= cii.quantity " +
