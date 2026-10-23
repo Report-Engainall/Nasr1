@@ -1,90 +1,35 @@
 # P3 execution checkpoint — Nasr1
 
-UPDATED_AT: 2026-10-23T17:36:00+03:00
-LAST_COMPLETED_TASK_ID: P3-CATEGORY-ASYNC-ASSERT-022 (test waits for the precise async not-found message; exact-SHA CI pending)
+UPDATED_AT: 2026-10-23T18:00:38.350+03:00
+LAST_COMPLETED_TASK_ID: P3-OFFERS-PROMOTION-ONLY-024 (plus route registration coverage and deterministic category not-found regression)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
-BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: 399699cad5afd953f396d4cee6b28cd62573f639 (source/test commit; checkpoint/report updates are documentation-only successors, so verify their current exact SHA and Actions)
-ROUTES_COVERED: /company/contacts; /company/members; /company/accept-invitation; /invite/$token; /customer/activate/$token; /categories; /category/$slug; /category/$slug/subcategory/$subcategorySlug; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /reset-password; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — route/component loading and direct-link regressions only; full all-route browser UAT remains open
-FILES_CHANGED: src/routes/index.tsx; src/test/customer-route-loading.test.tsx; src/components/StorefrontOffersPage.tsx; src/test/storefront-offers.test.tsx; src/components/AdvancedStorefrontSearchPage.tsx; src/test/advanced-storefront-search.test.tsx; src/components/Storefront.tsx; src/test/storefront-price-visibility-ui.test.tsx; src/test/storefront-category-landing.test.tsx; src/test/reset-password-route.test.tsx; docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md; docs/bolt-source-reconciliation/PROGRAMMER_3_CURRENT_REPORT.md
-- src/components/StorefrontCollectionsPage.tsx
-- src/routes/admin_.reports.tsx
-- src/test/admin-reports-route-forecast.test.tsx
-- src/test/admin-reports-route-wiring.test.ts
-- src/test/admin-reports-runtime-mount.test.tsx
-- src/test/storefront-collections.test.tsx
-- src/routes/orders.$id.tsx
-- src/routes/orders.index.tsx
-- src/routes/invoices.tsx
-- src/routes/statement.tsx
-- src/test/customer-route-loading.test.tsx
-- src/routes/assistant.tsx
-- src/routes/barcode.tsx
-- src/routes/offline.tsx
-- src/routes/login.tsx
-- src/routes/forgot-password.tsx
-- src/routes/register.tsx
-- src/routes/quotes.tsx
-- src/routes/reorder.tsx
-- src/routes/index.tsx
-- src/components/StorefrontOffersPage.tsx
-- src/test/storefront-offers.test.tsx
-- src/components/AdvancedStorefrontSearchPage.tsx
-- src/test/advanced-storefront-search.test.tsx
-- src/components/Storefront.tsx
-- src/test/storefront-price-visibility-ui.test.tsx
-- src/test/reset-password-route.test.tsx
-- docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md
-- docs/bolt-source-reconciliation/PROGRAMMER_3_CURRENT_REPORT.md
+BASE_SHA: 5680bf08a08ed38af830fd2ced58f1eac8bece82
+HEAD_SHA: 24a1d34b9b03c4103c18eb2c90521253a06a6324 (latest source/test SHA observed before this checkpoint/report commit; read the successor SHA and its own Actions after this write)
+ROUTES_COVERED: 55 explicit URL patterns plus / root in src/test/app-routing.test.tsx against the actual generated routeTree; targeted loading/state regressions cover category/subcategory, collections, offers, advanced search, auth/reset-password, admin reports, orders, invoices, statements, cart and checkout. Full all-route browser UAT NOT RUN. /admin/exports remains a P1-owned missing generated registration.
+FILES_CHANGED: src/test/app-routing.test.tsx; src/test/storefront-category-landing.test.tsx; src/test/storefront-offers.test.tsx; earlier P3 storefront/loading/error tests/components in PR #89; this checkpoint/report pair
 TESTS_RUN_WITH_RESULTS:
-- Exact source/test SHA `259aabc6078d868e35087aa33924d4b044af8e5`: Core [39966679379](https://github.com/Report-Engainall/Nasr1/actions/runs/39966679379) SUCCESS; 143 Vitest files / 895 tests passed; isolated PostgreSQL migrations/workflows and backup/restore, lint, build, production-preview/dev smoke and Chromium price-visibility acceptance passed.
-- Exact source/test SHA `259aabc6078d868e35087aa33924d4b044af8e5`: P2 [39966679223](https://github.com/Report-Engainall/Nasr1/actions/runs/39966679223) SUCCESS for public UI smoke and local-Supabase browser acceptance: order persistence/cross-tenant denial, customer return and credit memo, audited Onyx XLSX export, and finance-document/operational-task print.
-- Latest docs-only head `6bba167ed6358ef4f90f7559d6d4548e7b4d411d`: Core [39967683475](https://github.com/Report-Engainall/Nasr1/actions/runs/39967683475) SUCCESS. P2 [39967683902](https://github.com/Report-Engainall/Nasr1/actions/runs/39967683902) remains IN_PROGRESS at cached Chromium OS dependency installation; external credential-gated customer-order/tenant job is SKIPPED.
-- P3-ROUTE-DEEPLINK-019: six real-router direct route/query-state tests committed at c4d53b9; current code/test head is 4653641; exact-head Core is IN_PROGRESS and P2 PENDING; local tests NOT RUN.
-- `P3-COMPANY-INVITATION-HYDRATION-020`: commit `418e25d1e9fc75145f27cf0668fb41a7e471c692` extends `src/test/customer-route-loading.test.tsx` with five parameterized route-loading assertions: `/company/contacts`, `/company/members`, `/company/accept-invitation`, `/invite/$token`, `/customer/activate/$token`. The source route files were not edited; only component mocks for the ClientOnly boundary were added. Core `39969440685` was QUEUED and P2 `39969439898` PENDING/IN_PROGRESS at readback on this code/test SHA; local tests are NOT RUN due GitHub DNS failure. The documentation sync below will require fresh exact-head CI.
-- Prior route acceptance increment `P3-ROUTE-DEEPLINK-019` adds six direct-link/query-state cases to `src/test/storefront-price-visibility-ui.test.tsx`; subcategory loading, valid-parent, and mismatch cases were added by the following code commit `4653641bac43bcde9e1a43f8010c355fe3fb3a57`. Core `39968751206` succeeded on that head; P2 `39968751364` public smoke succeeded but local-Supabase acceptance was CANCELLED, so do not claim full P2 acceptance for that older head.
-- Exact tested docs SHA `7d5fb61857ca27c84c1ae9fdba6a3e957fe8e658`: Core [39969630673](https://github.com/Report-Engainall/Nasr1/actions/runs/39969630673) **SUCCESS**, including Unit tests, PostgreSQL 17 migrations/acceptance, backup/restore, lint/build, preview/dev smoke, and Chromium price privacy. P2 [39969630660](https://github.com/Report-Engainall/Nasr1/actions/runs/39969630660): public UI smoke SUCCESS; local-Supabase job FAILED at `Create ephemeral local users and tenant fixtures` before browser flows. `supabase status -o env` emitted local DB URL port `55432`, while `scripts/seed-p2-local-playwright.mjs:15-22` requires `54322`. Exact evidence and P2 handoff: [comment 6367290450](https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6367290450). Credential-gated external customer E2E remains SKIPPED. The docs update below creates a new head and will trigger fresh CI.
-- External credential-gated customer-order/tenant E2E is SKIPPED because dedicated external credentials are unavailable; this is not PASS.
-- Full all-route browser UAT and production acceptance remain NOT RUN.
-- Historical route-test harness failure (7 assertions on SHA 39638915...) was corrected and later full Core succeeded; historical HTTP 429 dependency-cache errors are documented in the P2 handoff.
+- Prior exact source/test SHA d141edfbf1da2292a95cc65e063c3a1abefe2014: Core [39973405032](https://github.com/Report-Engainall/Nasr1/actions/runs/39973405032) SUCCESS and P2 [39973405016](https://github.com/Report-Engainall/Nasr1/actions/runs/39973405016) SUCCESS. This proves the route-registration/category/offer regressions and local-Supabase order/tenant, returns/credit memo, Onyx XLSX and finance/task printing on that SHA.
+- The latest observed source/test SHA 24a1d34b9b03c4103c18eb2c90521253a06a6324 contains a newer main integration affecting Storefront admin navigation and an access regression. Current Actions at capture: Aghbari Commerce checks #39974485802: in_progress; P2 Playwright Critical Paths #39974485745: in_progress. These runs may be superseded by this docs commit; verify the new live head and its own Actions before claiming validation.
+- Core on d141edfbf1da2292a95cc65e063c3a1abefe2014 passed Unit, PostgreSQL 17 migrations/acceptance, audit/export/import contracts, backup/restore, lint/build, preview/dev smoke, Chromium price-visibility acceptance. P2 on that SHA passed local-Supabase fixtures, order persistence/cross-tenant denial, returns/credit memo, audited Onyx XLSX, finance/task printing. External credential-gated E2E remained SKIPPED.
 TESTS_FAILED_OR_SKIPPED:
-- Source/test commit `399699cad5afd953f396d4cee6b28cd62573f639`: local test **NOT RUN**; exact-head CI not yet returned in this readback.
-- Previous PR head `ef2944351fe887c0c12e896ab52c67fe9965f2e4`: Core [39963003111](https://github.com/Report-Engainall/Nasr1/actions/runs/39963003111) **SUCCESS**; P2 [39963003108](https://github.com/Report-Engainall/Nasr1/actions/runs/39963003108) **CANCELLED**.
+- Last fully validated source/test SHA d141edfbf1da2292a95cc65e063c3a1abefe2014: Core SUCCESS, P2 SUCCESS.
+- Latest observed head 24a1d34b9b03c4103c18eb2c90521253a06a6324: workflow states were: Aghbari Commerce checks #39974485802: in_progress; P2 Playwright Critical Paths #39974485745: in_progress.
+- Credential-gated external customer-order/tenant E2E is SKIPPED, not PASS.
+- Local tests NOT RUN due prior environment DNS failure. Full all-route browser UAT, dedicated category-retry/reset-password browser sessions and production acceptance NOT RUN.
 DEFECTS_FOUND:
-- P3-CAT-ERR-001: source-specific category/catalog errors and retry implemented; earlier exact-SHA Core pass.
-- P3-CAT-COUNT-002: inactive products excluded and empty-category links suppressed; strengthened count/link test passed on parent SHA.
-- P3-REPORT-DUP-003: duplicate mount removed; runtime Reports mount test passed on parent SHA.
-- P3-REPORT-LOAD-004: Arabic RTL reports loading status implemented; earlier Core pass.
-- P3-CUST-ROUTE-LOAD-005/006: seven customer route loading fallbacks fixed and covered; parent Core pass.
-- P3-CUST-ROUTE-LOAD-008: login, forgot password, registration, quotes and reorder loading fallbacks fixed; latest exact-head result pending.
-- P3-STORE-HYDRATION-009: `/` now renders Arabic RTL `<main role="status">جار تحميل المتجر...</main>` instead of a blank hydration fallback; its regression assertion remains in `customer-route-loading.test.tsx`.
-- P3-ROUTE-HYDRATION-COVERAGE-010: parameterized acceptance expanded to 23 route wrappers; exact-SHA result pending.
-- P3-OFFERS-ACTIVE-SCOPE-011: /offers filters products by is_active/status before displaying campaign targets; both new regression tests passed in Core 39961737329 before the route-loading test file failed.
-- P3-ROUTE-TEST-REGRESSION-012: corrected route loading test harness: addresses route has a component mock; only root `/` is required to use a MAIN landmark; other routes are asserted by role=status, RTL direction and expected content. Core Unit tests on SHA d0b0b08... then passed.
-- P3-OFFERS-ERROR-UX-013: `/offers` distinguishes promotion-query failure, catalog-query failure, and both causes; retry triggers both source reads. Added two regression tests; unit suite/Core passed on SHA 8663... .
-- P3-ADVANCED-SEARCH-STATE-014: `/search/advanced` now announces category loading, exposes a retry button when the category read fails, and keeps text search available on that error path. Added four regressions: loading announcement/disabled selector, error and retry plus text search, empty-submit validation and active top-level categories, and navigation with category/known-stock filters. Exact-SHA CI is pending.
-- P3-ROUTE-INVENTORY-001: 61 route sources; 50 UI/root sources not explicit in the existing matrix files. P2 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365043277.
-- P3-ROUTE-INVENTORY-002 / P1-ROUTE-TREE-EXPORT-001: generated tree omits admin_.exports; P1 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365137817.
-- `P3-CATALOG-CATEGORY-RETRY-015`: `src/components/Storefront.tsx` now announces category loading and exposes the source error with `role=alert`, plus a labeled retry button; name/SKU search stays available. Regression coverage asserts the message, retry callback, and search availability.
-- `P3-CATEGORY-LOADING-REGRESSION-016`: added an independent loading-state case with category data absent and `loading=true`. It asserts the Arabic `role=status` copy is present, the alert/retry button do not appear before a failure occurs, and text search remains enabled. Renamed the previous test to explicitly describe the error/retry path. Code/test SHA `4cd6860c8ad06ba03f84d4a7dbe923ab76ea7c36`; exact-head CI pending.
-- `P3-RESET-PASSWORD-FLOW-017`: added `src/test/reset-password-route.test.tsx` against the real route component (mocking only Supabase and the router boundary). It covers short input rejected before RPC, expired recovery session with no navigation, transport rejection and form unlock, navigation only after successful server acknowledgment, and prevention of duplicate submit while the request is pending. This suite passed within Core unit tests on tested documentation SHA `259aabc6078d868e35087aa33924d4b044af8e5b`; route-specific live browser UAT is still NOT RUN. No auth route or server contract was changed.
-- `P3-COMPANY-INVITATION-HYDRATION-020`: loading-state regression only; `src/routes/company.contacts.tsx`, `company.members.tsx`, `company.accept-invitation.tsx`, `invite.$token.tsx`, and `customer.activate.$token.tsx` remain untouched. Their service/business state acceptance is not implied by loading placeholders.
-- `P2-LOCAL-SUPABASE-PORT-GUARD-021` → P2. Local Playwright job `39969630660`, job `120469135169`, exact failure: exported `TEST_DATABASE_URL` uses loopback port `55432` while `scripts/seed-p2-local-playwright.mjs` rejects anything but `54322`; PR handoff [comment 6367290450](https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6367290450). No P2-owned file was changed by P3.
-- P1: generator-backed route tree repair and direct /admin/exports proof; remaining 19 locked admin null fallbacks; no changes to P1 AghbariApp/auth/invitation/order-history paths.
-- P2: route-to-source mapping in existing matrix, backend/RPC/migration ownership and package-cache HTTP 429 in P2 Playwright.
-HANDOFF_TO_P1_OR_P2: P1 owns the generated /admin/exports route-tree registration and locked admin route wrappers; P2 owns the local-Supabase fixture port guard and shared route-to-source matrix. Existing P2 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6367290450. This P3 test-only fix requires no handoff.
+- P3-ROUTE-REGISTRATION-COVERAGE-023: tests 55 explicit route URL patterns plus root against the real generated routeTree; no generated files edited manually.
+- P3-CATEGORY-ASYNC-ASSERT-022: subcategory parent-mismatch test waits for the precise “التصنيف غير موجود” text then checks semantic status, avoiding a false pass on transient loading.
+- P3-OFFERS-PROMOTION-ONLY-024: regression confirms promotions-only failure is labelled accurately and retry invokes both source reads.
+- Earlier P3 corrections retained in PR #89: source-specific category/catalog/combined errors and retries; filter inactive products from published counts/offers; Arabic RTL hydration/loading; advanced-search loading/error/retry; reset-password validation/error/submit protection; checkout same-tick duplicate-submit guard; exactly one ExecutiveStoreAnalytics mount on reports.
+HANDOFF_TO_P1_OR_P2:
+- P1 owns generator-backed /admin/exports registration/reachability: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365137817. Do not edit src/routeTree.gen.ts manually.
+- P2 owns the canonical route-to-source matrix, backend/RPC contracts and central state. Local-Supabase acceptance passed on d141edfbf1da2292a95cc65e063c3a1abefe2014; refresh central status only from exact-head evidence.
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
-MERGE_STATUS: OPEN; UNMERGED; no formal independent approval recorded.
+MERGE_STATUS: OPEN; UNMERGED; GitHub mergeable flag last read as true. Only CodeRabbit COMMENTED review is recorded; no independent formal human approval.
 BLOCKERS:
-- P2 local-Supabase acceptance FAILED at fixture creation due the exact loopback database-port mismatch documented in handoff comment 6367290450; P2 must fix and rerun.
-- External-credential customer-order E2E remains SKIPPED; full route/browser UAT NOT RUN.
-- No independent formal human review is recorded for PR #89; do not merge.
-- main has one documentation-only commit beyond the current PR base; integrate conflict-aware before merge.
-- Independent formal review for PR #89 has not been submitted; do not merge until an authorized reviewer records it.
-- `main` advanced by one documentation commit since PR #89's merge base: live comparison `main=f7565aefd7af6033d169167d1bebb3dc5cd248ce`; PR branch is 1 commit behind and diverged, though GitHub reports mergeable=true. No branch sync/merge performed in this step; reassess and integrate conflict-aware before merge.
-- External credential-gated customer E2E remains SKIPPED. Local browser proof for reset-password and category-error retry is NOT RUN.
-- The report/checkpoint updates below create a new documentation-only SHA; read its own Actions before labelling that successor TESTED_EXACT_SHA.
-- Current exact-head Core #39968751206 is IN_PROGRESS and P2 #39968751364 is PENDING; earlier P2 runs were CANCELLED on superseded heads, not successful.
-- P2 dependency cache HTTP 429 on previous SHA, even after retry.
-- Local checkout DNS failure; all-route browser UAT/production proof NOT RUN.
-NEXT_ACTION: re-read the live branch head and exact-SHA Core/P2 Actions for the report/checkpoint successor; confirm the precise category not-found test, Core lint/build and Playwright outcome. Then continue one independent P3 route-acceptance defect while P2 resolves local-Supabase fixture setup. Keep PR #89 open until current-head checks are green and formal independent review is recorded.
+- Independent formal maintainer approval absent; do not merge.
+- /admin/exports direct registration/reachability remains NOT PROVEN and P1-owned.
+- External credential-gated E2E SKIPPED; full all-route browser UAT and production acceptance NOT RUN.
+- Live main SHA is 5680bf08a08ed38af830fd2ced58f1eac8bece82; this branch incorporates main at base 5680bf08a08ed38af830fd2ced58f1eac8bece82, but recheck live comparison and synchronize conflict-aware before final merge.
+- The documentation commit creates a successor; the successor's exact-head Core/P2 runs must be verified before marking current status green.
+NEXT_ACTION: after this checkpoint/report commit, re-read the actual PR head and Core/P2 Actions. Continue an independent acceptance gap, prioritizing browser proof for category retry and reset-password. Ask P2 to update its canonical matrix and P1 to close /admin/exports reachability. Keep PR #89 open until the current required checks are green and an independent formal human review is recorded.
