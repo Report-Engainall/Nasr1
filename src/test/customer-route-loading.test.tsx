@@ -12,6 +12,7 @@ vi.mock("@tanstack/react-router", () => ({
   useLocation: () => ({ pathname: "/search" }),
   Outlet: () => null,
   ClientOnly: ({ fallback }: { fallback?: ReactNode }) => fallback ?? null,
+  useLocation: () => ({ pathname: "/search" }),
   useNavigate: () => vi.fn(),
 }));
 
