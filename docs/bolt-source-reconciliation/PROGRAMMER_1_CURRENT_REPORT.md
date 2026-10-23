@@ -1,22 +1,33 @@
 # تقرير الحالة التنفيذي — P1 / واجهات العميل والتجارة والإدارة
 
 - **المستودع:** `Report-Engainall/Nasr1`
-- **CURRENT_BRANCH:** `p1/admin-product-singleflight-20261023`
-- **BASE_SHA / MAIN_SHA:** `d81c9b34f819a53df7610937264c6fcb923c3f95`; PR branch synchronized with live main (`behind_by=0`, ahead 22).
-- **TASK_ID / LAST_COMPLETED_TASK_ID:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001`.
-- **HEAD_SHA / TESTED_EXACT_SHA:** `5f4350a55eb16b06ee719dc00cc8b04eb6dde8ee`.
-- **Core CI — SUCCESS on exact SHA:** [run 40002107150](https://github.com/Report-Engainall/Nasr1/actions/runs/40002107150).
-- **P2 Playwright — SUCCESS on the same SHA:** [run 40002107131](https://github.com/Report-Engainall/Nasr1/actions/runs/40002107131). Isolated local Supabase/PostgreSQL 17 Chromium acceptance and public UI smoke passed.
-- **ProductModal behavior implemented/tested:** synchronous guard prevents duplicate create/update before React rerender; server errors remain visible and a failed request can retry; category fetch failure disables save until a successful explicit retry; server-backed success only.
-- **Evidence boundaries:** hosted customer-order/tenant-isolation job `SKIPPED / BLOCKED_EXTERNAL` due unavailable non-production credentials; dedicated ProductModal browser proof `NOT RUN`; production proof `NOT RUN`.
-- **Independent review:** no formal review or review thread recorded. CodeRabbit’s green status/acknowledgment is not a formal independent review; previous review triggers were rate-limited. `BLOCKED_EXTERNAL` pending an authorized independent maintainer review.
-- **PR #97:** [منع الإرسال المكرر لنموذج المنتج](https://github.com/Report-Engainall/Nasr1/pull/97) — `OPEN / DRAFT / NOT MERGED`. Keep it Draft and unmerged until independent review is recorded; do not convert the skipped hosted check into PASS.
-- **Changed files in PR scope:** `src/components/AghbariApp.tsx`; `src/test/admin-product-double-submit.test.tsx`; these two P1 checkpoint/report documents. No P2 central state/matrix/coordination file or P3-owned path changed.
-- **NEXT_ACTION:** continue independent P1 task `P1-ADMIN-AUDIT-STABLE-PAGINATION-001` in existing PR #106 while review of #97 is externally blocked; sync with current main and rerun required gates on a single exact SHA.
-- **MERGE_STATUS:** #97 OPEN / DRAFT / NOT MERGED.
-- **UPDATED_AT:** 2026-10-23T21:13:00+03:00.
+- **CURRENT_BRANCH / last tested task branch:** `p1/storefront-order-price-browser-20261023`.
+- **CHECKPOINT_STORAGE_BRANCH:** `p1/admin-product-singleflight-20261023` (تحديث ملفَي P1 المملوكين عبر PR #97 القائم؛ لا يوجد PR توثيق موازٍ). Parent قبل دفعة التوثيق: `24263ffcb333e94f3350daf7c8e5de805151a512`؛ يجب قراءة CI على الرأس الناتج قبل إغلاق دفعة الوثائق.
+- **BASE_SHA / MAIN_SHA:** `cd303b7fe0f263c9f62ed97f10202e9895465273`.
+- **TASK_ID / LAST_COMPLETED_TASK_ID:** `P1-STOREFRONT-ORDER-PRICE-BROWSER-001`.
+- **HEAD_SHA / TESTED_EXACT_SHA للوظيفة الأخيرة:** `05e4b0eaaee3dade67f2ca763c4f101d475226c6`.
+- **Core CI — SUCCESS على SHA نفسه:** [run 40008732247](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732247). جميع اختبارات الوحدة وقبول PostgreSQL 17 وlint/build وsmoke، واختبارات Chromium الأربع الخاصة بخصوصية السعر نجحت.
+- **P2 Playwright — SUCCESS على SHA نفسه:** [run 40008732216، المحاولة 2](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732216). نجح public read-only smoke وقبول Chromium عبر Supabase/PostgreSQL 17 المحلي المعزول.
+- **التغيير:** أضيف تأكيد في `e2e/storefront-price-visibility.spec.ts` يفحص النص المرئي و`innerHTML` معًا لمنع ظهور مبلغ الوحدة أو إجمالي السطر/الطلب أو اسم شريحة العميل السرية في DOM عند إخفاء رد المعاينة أو كونه غير صالح. لا يوجد اتصال إنتاجي في الاختبار.
+- **حدود الإثبات:** hosted customer-order/tenant-isolation `SKIPPED / BLOCKED_EXTERNAL` لغياب اعتماد اختبار خارجي؛ `PRODUCTION_PROVEN=NOT RUN`. فشل تشغيل P2 الأول في بدء Wrangler preview، ثم أُعيد تشغيل الوظيفة الفاشلة فقط واجتازت الإعادة.
+- **PR #107:** [storefront price privacy browser tests](https://github.com/Report-Engainall/Nasr1/pull/107) — `OPEN / DRAFT / NOT MERGED`; exact tested head `05e4b0eaaee3dade67f2ca763c4f101d475226c6`; branch synchronized with main (`behind_by=0`). Net diff: `e2e/storefront-price-visibility.spec.ts`, `src/test/storefront-price-visibility-harness.tsx`.
+- **المراجعة المستقلة:** `BLOCKED_EXTERNAL`. استعلام GitHub المباشر أعاد صفر مراجعات رسمية على #107؛ #97 أيضًا ما زال Draft دون اعتماد مستقل. لا تعتمد على رسائل CodeRabbit أو نجاح CI كبديل عن مراجعة maintainer مخول.
+- **الملكية والمسارات المقفلة:** لا تعديل على ملفات P2 المركزية/SQL/RPC/RLS/migrations أو مصفوفة القبول، ولا على ملفات P3 في #89، ولا على `src/routeTree.gen.ts`.
+- **NEXT_ACTION:** `P1-REVIEW-GATE-001` — اطلب/احصل على مراجعة رسمية من maintainer مخوّل لطلب P1 #97 أولًا، واترك #107 و#102 Draft إلى أن تتم مراجعتهما مستقلًا. إن بقيت المراجعة محجوبة خارجيًا، انتقل فقط إلى عيب واجهة P1 مستقل مثبت، دون إعادة أعمال #66/#75/#84/#88/#99/#106 المدمجة أو فتح PR مكرر.
+- **MERGE_STATUS:** PR #107 مفتوح وDraft وغير مدمج؛ لا يُرفع أو يُدمج دون مراجعة مستقلة.
+- **UPDATED_AT:** 2026-10-23T22:13:00+03:00.
 
-> Exact-head evidence in this summary refers to `5f4350a55eb16b06ee719dc00cc8b04eb6dde8ee`. The current report/checkpoint refresh below will create a new documentation-only head; it must receive its own Actions readback before it is labeled `TESTED_EXACT_SHA`.
+> دليل الاختبار أعلاه يخص HEAD `05e4b0eaaee3dade67f2ca763c4f101d475226c6` على PR #107 فقط. تحديث هذا التقرير/الـcheckpoint على فرع #97 سينشئ رأسًا وثائقيًا جديدًا؛ لا تنقل دليل SHA #107 إليه، واقرأ تشغيلات الرأس الوثائقي الجديد عند انتهائها.
+
+## P1-STOREFRONT-ORDER-PRICE-BROWSER-001 — سجل التنفيذ
+
+تم إكمال اختبار المتصفح المحلي للسلة ومراجعة الطلب. في حالات `visible=false` والحمولة غير السليمة، يجب ألا تظهر قيم الاختبار السرية (`987654`, `1975308`, `شريحة سرية`) في النص أو HTML المسلسل للـDOM. وبقي اختبار فشل RPC وإعادة المحاولة fail-closed إلى أن تعود معاينة خادمية صالحة.
+
+- Functional/test commit: `05e4b0eaaee3dade67f2ca763c4f101d475226c6`.
+- Core: [40008732247 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732247).
+- P2: [40008732216 SUCCESS, attempt 2](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732216).
+- Browser tests: 4/4 pass in `e2e/storefront-price-visibility.spec.ts`; local-only fixture blocks other endpoint requests. Hosted customer-order E2E skipped and production NOT RUN.
+- Reviewer gate for PR #107 remains `BLOCKED_EXTERNAL`; no formal review found.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 

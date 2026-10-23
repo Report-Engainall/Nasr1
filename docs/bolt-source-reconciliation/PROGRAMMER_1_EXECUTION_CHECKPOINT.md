@@ -1,28 +1,35 @@
 # P1 Execution Checkpoint — live resume record
 
-## Current state — 2026-10-23 — PR #97 exact-head main-sync acceptance
+## Current state — 2026-10-23 — P1 storefront cart/order price privacy, exact-head acceptance
 
-- `LAST_COMPLETED_TASK_ID=P1-ADMIN-PRODUCT-SINGLEFLIGHT-001`.
-- `REPOSITORY=Report-Engainall/Nasr1`; `CURRENT_BRANCH=p1/admin-product-singleflight-20261023`.
-- `BASE_SHA=MAIN_SHA=d81c9b34f819a53df7610937264c6fcb923c3f95`; PR base is current main. Branch comparison: ahead_by=22, behind_by=0, merge base equals current main.
-- `HEAD_SHA=LAST_TESTED_CODE_HEAD_SHA=5f4350a55eb16b06ee719dc00cc8b04eb6dde8ee` — synchronized PR head after a non-force merge commit; PR diff remains limited to P1 checkpoint/report and the ProductModal code/test.
-- **Core CI — TESTED_EXACT_SHA / SUCCESS:** [run 40002107150](https://github.com/Report-Engainall/Nasr1/actions/runs/40002107150), completed on `5f4350a55eb16b06ee719dc00cc8b04eb6dde8ee`.
-- **P2 Playwright — TESTED_EXACT_SHA / SUCCESS:** [run 40002107131](https://github.com/Report-Engainall/Nasr1/actions/runs/40002107131), completed on the same SHA. Public read-only Storefront smoke and isolated local Supabase/PostgreSQL 17 Chromium acceptance passed.
-- **FAILED_OR_SKIPPED:** hosted customer-order/tenant-isolation job [120580624539](https://github.com/Report-Engainall/Nasr1/actions/runs/40002107131) `SKIPPED` because external non-production test credentials were unavailable; dedicated ProductModal browser proof `NOT RUN`; production proof `NOT RUN`. No skipped check is treated as PASS.
-- `FILES_CHANGED`: `src/components/AghbariApp.tsx`; `src/test/admin-product-double-submit.test.tsx`; `docs/bolt-source-reconciliation/PROGRAMMER_1_EXECUTION_CHECKPOINT.md`; `docs/bolt-source-reconciliation/PROGRAMMER_1_CURRENT_REPORT.md`. No P2 central-state, matrix, coordination, SQL/RPC/RLS/migration, or P3-owned file is changed by this PR.
-- `LOCKED_PATHS`: P2-owned SQL/RPC/RLS/migrations/API/finance/inventory/Onyx/workflows and central `CURRENT_EXECUTION_STATE.md`, acceptance matrix, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`; P3 PR #89 category/report acceptance; generated `src/routeTree.gen.ts`.
-- `PR_URL=https://github.com/Report-Engainall/Nasr1/pull/97`; `MERGE_STATUS=OPEN / DRAFT / NOT MERGED`.
-- **Independent review:** `BLOCKED_EXTERNAL` — live GitHub review query returned zero formal reviews and zero review threads; CodeRabbit acknowledgements/rate-limit responses are not an independent review. Do not self-approve, mark ready, or merge without an authorized independent maintainer review.
-- `NEXT_ACTION=P1-ADMIN-AUDIT-STABLE-PAGINATION-001`: while independent review for #97 is unavailable, continue on the separate P1-owned PR #106, safely sync it with live main, rerun Core and P2 Playwright on one final SHA, and do not touch P2/P3 locked paths. Revisit #97 only after a formal independent review or evidence-backed finding.
-- `UPDATED_AT=2026-10-23T21:13:00+03:00`.
+- `LAST_COMPLETED_TASK_ID=P1-STOREFRONT-ORDER-PRICE-BROWSER-001`.
+- `REPOSITORY=Report-Engainall/Nasr1`.
+- `CURRENT_BRANCH=p1/storefront-order-price-browser-20261023`; `LAST_TESTED_CODE_HEAD_SHA=HEAD_SHA=05e4b0eaaee3dade67f2ca763c4f101d475226c6`.
+- `BASE_SHA=MAIN_SHA=cd303b7fe0f263c9f62ed97f10202e9895465273`; PR #107 is synchronized with main (`behind_by=0`, merge base equals main).
+- `CHECKPOINT_STORAGE_BRANCH=p1/admin-product-singleflight-20261023` — this P1-owned checkpoint/report pair is updated through the already-open PR #97, not through a duplicate documentation PR. The branch parent before this record commit is `24263ffcb333e94f3350daf7c8e5de805151a512`; the documentation-only successor must receive its own exact-head CI readback.
+- `TASK_STATUS=TESTED_EXACT_SHA`; `BROWSER_PROVEN` is limited to the stated local-fixture Chromium flow.
+- **Core CI — TESTED_EXACT_SHA / SUCCESS:** [run 40008732247](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732247), completed on `05e4b0eaaee3dade67f2ca763c4f101d475226c6`. Unit tests, isolated PostgreSQL 17 workflows, lint/build, preview/dev smoke, and Chromium price visibility all passed; the four price-visibility tests passed.
+- **P2 Playwright — TESTED_EXACT_SHA / SUCCESS:** [run 40008732216, attempt 2](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732216), completed on the same SHA. Public read-only UI smoke and isolated local Supabase/PostgreSQL 17 Chromium acceptance passed.
+- `FAILED_OR_SKIPPED`: hosted customer-order/tenant-isolation job `SKIPPED / BLOCKED_EXTERNAL` due unavailable external non-production credentials; production proof `NOT RUN`. First P2 public-smoke attempt failed during local Wrangler preview launch; only that failed job was rerun and the retry passed.
+- `FILES_CHANGED` for #107: `e2e/storefront-price-visibility.spec.ts` plus existing `src/test/storefront-price-visibility-harness.tsx`; no migrations/RPC/RLS, P2 central-state/matrix/coordination, or P3-owned route/report files changed.
+- `PR_URL=https://github.com/Report-Engainall/Nasr1/pull/107`; `MERGE_STATUS=OPEN / DRAFT / NOT MERGED`.
+- **Independent review:** `BLOCKED_EXTERNAL`; live GitHub review query returned zero formal reviews for #107, and #97 is also still Draft without an authorized independent approval. Do not self-approve, mark ready, or merge any of these requests based solely on green CI.
+- `LOCKED_PATHS`: P2-owned SQL/RPC/RLS/migrations/API/finance/inventory/Onyx/workflows and central `CURRENT_EXECUTION_STATE.md`, acceptance matrix, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`; P3-owned PR #89/category/report acceptance and route-acceptance matrix; generated `src/routeTree.gen.ts`.
+- `NEXT_ACTION=P1-REVIEW-GATE-001`: prioritize obtaining an authorized independent maintainer review for existing PR #97, then keep #107/#102 Draft until independently reviewed. If that external gate remains unavailable, continue only with a newly evidenced, independent P1-owned UI defect; do not repeat merged PR #66/#75/#84/#88/#99/#106 work or open a duplicate PR.
+- `UPDATED_AT=2026-10-23T22:13:00+03:00`.
 
 ## Recent execution history
 
+### 2026-10-23 — P1-STOREFRONT-ORDER-PRICE-BROWSER-001 — TESTED_EXACT_SHA / BROWSER_PROVEN (PR #107 open)
 
+Added a DOM-level regression in `e2e/storefront-price-visibility.spec.ts`: hidden or malformed cart/order-review pricing must not leak the deliberately secret unit price, line/total amount, or customer-tier label into either visible text or serialized `innerHTML`. Existing fixture isolation remains in place; the test does not contact production or mutate a real backend.
 
-
-
-
+- Functional test commit / exact tested SHA: `05e4b0eaaee3dade67f2ca763c4f101d475226c6` on `p1/storefront-order-price-browser-20261023`.
+- Core CI: [40008732247 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732247) on that exact SHA. Unit tests, PostgreSQL 17 acceptance, lint/build, preview/dev smoke, and the Chromium price-visibility suite passed; all four tests in `e2e/storefront-price-visibility.spec.ts` passed.
+- P2 Playwright: [40008732216 SUCCESS, attempt 2](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732216) on the same SHA. The public read-only smoke and isolated local Supabase/PostgreSQL 17 Chromium suite passed. The first public-smoke attempt failed during local Wrangler preview launch; only that failed job was rerun, and the retry passed.
+- Evidence boundary: the hosted customer-order/tenant-isolation job was `SKIPPED / BLOCKED_EXTERNAL` because dedicated external test credentials were unavailable; production proof is `NOT RUN`.
+- PR #107 remains `OPEN / DRAFT / NOT MERGED`; live review query returned zero formal reviews. Keep draft/unmerged until an authorized independent maintainer review is recorded.
+- Exact main base at validation: `cd303b7fe0f263c9f62ed97f10202e9895465273`; PR #107 is synchronized (`behind_by=0`) and its net code diff is only the browser spec plus fixture harness.
 
 ### 2026-10-23 — P1-01 — CLOSED_WITH_EVIDENCE (merge pending)
 PR #50 uses the existing `renameAdminCatalogCategory` UI command and tenant-scoped RPC; audit, permission, duplicate-name and stable category identity behavior were reviewed. Exact-head Core CI run 39836522643 passed on `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`. Browser run 39836522607 was BLOCKED_EXTERNAL before assertions by GHCR `toomanyrequests`; not BROWSER_PROVEN. No duplicate implementation was created.
