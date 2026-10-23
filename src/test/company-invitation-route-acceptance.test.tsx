@@ -195,7 +195,7 @@ describe("company invitation real route acceptance", () => {
     expect(window.location.search).toBe("");
   });
 
-
+  it("denies guests before invoking the customer invitation RPC", async () => {
     mocks.user = null;
 
     await mountInvitationRoute(`/invite/${TOKEN}`);
