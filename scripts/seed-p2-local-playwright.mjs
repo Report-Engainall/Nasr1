@@ -8,18 +8,28 @@ const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
 const connectionString = requiredEnv("TEST_DATABASE_URL");
 const githubEnv = requiredEnv("GITHUB_ENV");
 
-// This fixture is deliberately constrained to the stock local Supabase ports.
-// It must never create test identities or inventory against a hosted/production project.
+// This fixture is constrained to a per-run local Supabase project, never a hosted/production project.
+// The workflow assigns an isolated project ID and dedicated loopback API/database ports per run attempt.
 const api = new URL(apiUrl);
 const database = new URL(connectionString);
+const projectId = process.env.P2_LOCAL_SUPABASE_PROJECT_ID ?? "";
+const apiPort = Number(api.port);
+const databasePort = Number(database.port);
+const isLoopback = (url) => ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+const isIsolatedProject = /^p2-local-e2e-\d+-\d+$/.test(projectId);
 if (
   api.protocol !== "http:" ||
-  !["localhost", "127.0.0.1"].includes(api.hostname) ||
-  api.port !== "54321" ||
-  !["localhost", "127.0.0.1"].includes(database.hostname) ||
-  database.port !== "54322"
+  database.protocol !== "postgres:" && database.protocol !== "postgresql:" ||
+  !isLoopback(api) ||
+  !isLoopback(database) ||
+  !Number.isInteger(apiPort) ||
+  apiPort < 52000 ||
+  apiPort > 60997 ||
+  databasePort !== apiPort + 1 ||
+  !isIsolatedProject ||
+  !projectId.endsWith(`-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`)
 ) {
-  throw new Error("P2 browser fixtures may only run against local Supabase at 127.0.0.1:54321 and PostgreSQL 54322.");
+  throw new Error("P2 fixtures require a run-isolated loopback Supabase project, API port 52000-60997, and adjacent local PostgreSQL port.");
 }
 
 const organizationId = "a0000000-0000-0000-0000-000000000001";
