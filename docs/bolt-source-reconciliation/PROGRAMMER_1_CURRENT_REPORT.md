@@ -1,32 +1,22 @@
 # تقرير الحالة التنفيذي — P1 / واجهات العميل والتجارة والإدارة
 
 - **المستودع:** `Report-Engainall/Nasr1`
-- **CURRENT_BRANCH للتقرير:** `p1/admin-product-singleflight-20261023`
-- **MAIN_SHA / BASE_SHA:** `1c21fa6d81009dc8924d26b6f7addd5c976c0cb7`، بعد دمج تسوية الحالة المركزية P2 (#100).
-- **HEAD_SHA قبل هذا التحديث التوثيقي:** `56c338777e2857cae5aca37940beaf01be2ea0a2`.
-
-## 1. P1-ADMIN-PRODUCT-SINGLEFLIGHT-001 — منع إرسال المنتج المكرر
-- **PR:** [#97 — OPEN / DRAFT](https://github.com/Report-Engainall/Nasr1/pull/97). رأس الشيفرة `b82ab28ff5496b4cf0cacbca80fa9c3fb9bfa080` اجتاز Core [39991414716 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991414716) وP2 [39991414728 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991414728) على SHA نفسه؛ اختبار المنتج 4/4 و141 ملف اختبار/883 اختبارًا ناجحًا.
-- Core على الرأس الوثائقي `56c338777e2857cae5aca37940beaf01be2ea0a2` نجح [39992302888](https://github.com/Report-Engainall/Nasr1/actions/runs/39992302888). P2 [39992302856](https://github.com/Report-Engainall/Nasr1/actions/runs/39992302856) فشل في محاولتين عند تشغيل معاينة Wrangler قبل اختبارات المتصفح؛ لم يُنفذ اختبار Chromium على ذلك الرأس. المشكلة مسلّمة إلى مالك workflow/الحالة المركزية عبر [تعليق #100 رقم 6370494862](https://github.com/Report-Engainall/Nasr1/pull/100#issuecomment-6370494862)، ولا تعدّ فشل مصدر التطبيق.
-- بقي PR #97 Draft لأن المراجعة المستقلة غير مسجلة.
-
-## 2. P1-ADMIN-EXPORT-001 — إغلاق فجوات مركز التصدير
-- **PR:** [#102 — OPEN / DRAFT](https://github.com/Report-Engainall/Nasr1/pull/102)، رأسه الدقيق `d83db9e07ab836ff6755d7088e4fa8027b268dd1` ومزامن مع `1c21fa6d81009dc8924d26b6f7addd5c976c0cb7`.
-- عولجت حالتان: شاشة فراغ أثناء ClientOnly hydration، ورسالة فشل قديمة لجلب سجل التصدير كانت تبقى بعد نجاح إعادة المحاولة. أصبح خطأ سجل التصدير منفصلًا عن إشعارات الإجراء؛ لا يُمحى إشعار نجاح العامل عند نجاح تحديث السجل.
-- **Core:** [39993981567 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39993981567) على الرأس المطابق؛ 141 ملف اختبار/883 اختبارًا، واختبار الاسترداد الجديد `src/test/async-export-center.test.tsx` ناجح 1/1؛ نجحت PostgreSQL 17 وlint/build وsmoke وChromium.
-- **P2 Playwright:** [39993981590 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39993981590) على SHA نفسه؛ سموك الواجهة العامة وقبول Supabase/Chromium المحلي ناجحان. الاختبار المستضاف المقيّد ببيانات اعتماد خارجية `SKIPPED` وليس PASS.
-- لم تُعدّل أي migrations/RPC/workflows أو ملفات P2 المركزية أو P3 #89 أو `src/routeTree.gen.ts`.
-- إثبات الوصول المباشر إلى `/admin/exports` ما زال `NOT PROVEN`، ومسلّم لـP3 في [تعليق #89 رقم 6370079296](https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6370079296).
-
-## 3. خصوصية السعر وملكية القبول
-- سلّمت إلى P2 الأدلة الدقيقة لتقييم `STF-010/011` عبر [تعليق #100 رقم 6370504665](https://github.com/Report-Engainall/Nasr1/pull/100#issuecomment-6370504665): اختبارات UI 9/9، presentation 20/20، ربط السلة/checkout 3/3، PostgreSQL 17، وChromium للبطاقات/التفاصيل. رحلة متصفح مستقلة للسلة/مراجعة الطلب ما زالت `NOT PROVEN`; لا ادعاء قبول غير مثبت.
-- PR #89 وملفات مصفوفة القبول/الحالة المركزية ضمن ملكيات P2/P3 ولم تُعدل.
-
-## 4. مراجعة وNEXT_ACTION
-- #97 و#102 ما زالا Draft وغير مدمجين لعدم وجود مراجعة رسمية مستقلة. محاولة CodeRabbit في #97 حُجبت بسبب انتهاء الحصة المجانية.
-- **NEXT_ACTION:** تحقق من Actions على الرأس الجديد الناتج عن تحديث التقرير؛ ثم استمر في فجوة P1 مستقلة لا تتداخل مع P2/P3. لا تدمج أي PR دون مراجعة مستقلة ونجاح البوابات المطلوبة على SHA واحد.
+- **CURRENT_BRANCH:** `p1/admin-product-singleflight-20261023`
+- **MAIN_SHA / BASE_SHA:** `1c21fa6d81009dc8924d26b6f7addd5c976c0cb7`؛ PR #100 مدمج في هذا الرأس.
+- **HEAD_SHA للكود والاختبارات المثبتة:** `71196f78f793caf2874c0db8fade309b16873602`.
+- **LAST_COMPLETED_TASK_ID:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001`.
+- **PR #97:** [منع الإرسال المكرر لنموذج المنتج](https://github.com/Report-Engainall/Nasr1/pull/97) — OPEN / DRAFT / NOT MERGED، وفرعه ليس متأخرًا عن `main` وفق المقارنة الحية قبل هذه الدفعة.
+- **التغيير المنفّذ:** أضيف اختبار انحدار إلى `src/test/admin-product-double-submit.test.tsx` يغطي فشل تحديث المنتج، بقاء رسالة الخادم ظاهرة، عدم إظهار نجاح مبكر، وإمكانية إعادة المحاولة الناجحة مع التحقق من استدعاء التحديث مرتين وعدم استدعاء الإنشاء.
+- **Core CI على SHA المطابق:** [run 39996761435 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39996761435).
+- **P2 Playwright على SHA نفسه:** [run 39996761441 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39996761441). نجح سموك الواجهة العامة ومسار Supabase المحلي المعزول مع PostgreSQL 17/Chromium. اختبار حساب العميل المستضاف وعزل المؤسسة `SKIPPED` بسبب حاجز بيانات الاعتماد الخارجية؛ ليس PASS.
+- **حدود الإثبات:** اختبار المكوّن ضمن Core اجتاز على الرأس الدقيق. لا توجد جلسة متصفح مخصصة لنموذج المنتج نفسه (`NOT RUN`). إثبات الإنتاج `NOT RUN`.
+- **المراجعة:** لا توجد مراجعة مستقلة رسمية مسجلة لـ#97؛ محاولة CodeRabbit وصلت إلى حد المعدل. يظل Draft وغير مدمج إلى أن تُسجل مراجعة مستقلة معتمدة.
+- **PR #102:** مهمة منفصلة لاسترداد حالة hydration وقائمة التصدير؛ OPEN / DRAFT وغير مدمجة، والرأس المثبت `d83db9e07ab836ff6755d7088e4fa8027b268dd1` اجتاز Core [39993981567](https://github.com/Report-Engainall/Nasr1/actions/runs/39993981567) وP2 [39993981590](https://github.com/Report-Engainall/Nasr1/actions/runs/39993981590). لا يُعاد تنفيذها داخل #97.
+- **فحص مستقل لخصوصية السعر على main:** `Storefront.tsx` يربط إظهار أسعار البطاقات/التفاصيل بإعداد الخادم، والسلة ومراجعة الطلب تستخدمان معاينة تسعير خادمية؛ اختبارات الإخفاء والحمولات غير السليمة والإخفاق مغلقة بأمان. لم يُجرَ تعديل غير مبرر لهذا المسار.
+- **الملفات المملوكة والمحمية:** لم تُعدّل ملفات P2 المركزية أو migrations/RPC/RLS/API/workflows، ولم تُعدل مسارات P3 في #89 أو `src/routeTree.gen.ts`. التغيير البرمجي فقط ضمن اختبار P1، إضافةً إلى تحديث هذا التقرير ونقطة الاستئناف.
+- **NEXT_ACTION:** انتظار وفحص Core وP2 على SHA الناتج عن تحديث التقرير؛ ثم إبقاء #97 Draft حتى المراجعة المستقلة. عند وصول ملاحظات، أصلح ما يثبت منها وأعد بوابات الرأس النهائي. لا كتابة إلى `main` ولا دمج دون المراجعة المطلوبة.
 - **MERGE_STATUS:** #97 OPEN / DRAFT / NOT MERGED؛ #102 OPEN / DRAFT / NOT MERGED.
-- **UPDATED_AT:** 2026-10-23.
+- **UPDATED_AT:** 2026-10-23 20:40 +03:00.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 
