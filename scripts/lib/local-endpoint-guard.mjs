@@ -1,16 +1,24 @@
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
-function hasExplicitPort(raw) {
+function explicitPort(raw) {
   const match = /^[a-z][a-z\d+.-]*:\/\/([^/?#]*)/i.exec(raw);
-  if (!match) return false;
+  if (!match) return null;
   const authority = match[1];
   const hostPort = authority.slice(authority.lastIndexOf("@") + 1);
+  let portText;
   if (hostPort.startsWith("[")) {
     const close = hostPort.indexOf("]");
-    return close >= 0 && /^:\d+$/.test(hostPort.slice(close + 1));
+    if (close < 0) return null;
+    const suffix = hostPort.slice(close + 1);
+    const portMatch = /^:(\d+)$/.exec(suffix);
+    portText = portMatch?.[1];
+  } else {
+    const colon = hostPort.lastIndexOf(":");
+    if (colon <= 0 || hostPort.slice(0, colon).includes(":")) return null;
+    const portMatch = /^(\d+)$/.exec(hostPort.slice(colon + 1));
+    portText = portMatch?.[1];
   }
-  const colon = hostPort.lastIndexOf(":");
-  return colon > 0 && !hostPort.slice(0, colon).includes(":") && /^\d+$/.test(hostPort.slice(colon + 1));
+  return portText === undefined ? null : Number(portText);
 }
 
 export function requireLocalEndpoint(raw, label, allowedProtocols) {
@@ -21,11 +29,10 @@ export function requireLocalEndpoint(raw, label, allowedProtocols) {
     throw new Error(label + " must be a valid URL for a loopback-only local endpoint.");
   }
 
-  const port = Number(url.port);
+  const port = explicitPort(raw);
   if (
     !allowedProtocols.includes(url.protocol) ||
     !LOOPBACK_HOSTS.has(url.hostname.toLowerCase()) ||
-    !hasExplicitPort(raw) ||
     !Number.isInteger(port) ||
     port < 1 ||
     port > 65535
