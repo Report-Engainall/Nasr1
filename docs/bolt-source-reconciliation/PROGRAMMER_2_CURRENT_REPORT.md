@@ -9,7 +9,9 @@ PR112=https://github.com/Report-Engainall/Nasr1/pull/112; exact tested head 1aa7
 
 CURRENT_BRANCH=p2/payment-idempotency-pending-map-20261023
 BASE_SHA=391e25847c7cc7fb2ba5f77164600455db04abfd
-IMPLEMENTATION_HEAD_BEFORE_CHECKPOINT_COMMITS=cbcbf3db6261b1018c3e83766c575dd854314654
+INITIAL_IMPLEMENTATION_TEST_HEAD=cbcbf3db6261b1018c3e83766c575dd854314654
+LATEST_CODE_AND_TEST_HEAD_BEFORE_CHECKPOINT_REFRESH=b9915624033398ad47f7d25f72fc7b7ed9969e4a
+ACKNOWLEDGEMENT_CONTRACT=Accept only a well-formed UUID payment identifier; null, empty and malformed IDs preserve the retry key.
 CURRENT_TASK=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-PENDING-REQUEST-MAP
 TASK_STATUS=IMPLEMENTED; REGRESSION_TESTS_ADDED; EXACT_FINAL_HEAD_CI_PENDING
 PR_URL=https://github.com/Report-Engainall/Nasr1/pull/123
@@ -23,7 +25,7 @@ This follow-up, on P2-owned UI/test paths only:
 - Stores idempotency keys in a Map keyed by the normalized request fingerprint so multiple unresolved payment payloads retain their own keys.
 - Reuses A's key when A is resubmitted after another payload was attempted; removes a key only after a non-empty payment ID acknowledgement and only if it still maps to that request.
 - Treats an RPC error, thrown transport failure, or null/empty acknowledgement as ambiguous/fail-closed, preserving the key for the exact payload retry.
-- Adds component regressions for A ambiguous → B successful → A retry reuses A's key, and null acknowledgement → same-key successful retry.
+- Adds component regressions for A ambiguous → B successful → A retry reuses A's key, and null/malformed acknowledgements → same-key retries before a valid UUID succeeds.
 - Formats the affected test and component paths. No SQL, grants, payment service, or ledger engine is duplicated.
 
 ## Exact-head evidence and remaining gates
@@ -34,7 +36,7 @@ This follow-up, on P2-owned UI/test paths only:
 - No production database writes, real payment processing, or live Onyx/WhatsApp calls were performed.
 
 NEXT_ACTION=Re-read PR #123 after the sequential central checkpoint updates; inspect its final head, Core/P2 terminal jobs and review threads; fix evidenced failures; merge only through the PR after all required checks pass; verify the post-merge main SHA and current CI.
-UPDATED_AT=2026-10-23T23:07:00+03:00
+UPDATED_AT=2026-10-23T23:08:00+03:00
 
 ---
 
