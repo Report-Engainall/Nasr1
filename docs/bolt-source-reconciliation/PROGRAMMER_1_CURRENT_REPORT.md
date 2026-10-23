@@ -1,16 +1,19 @@
-# تقرير الحالة التنفيذي — المبرمج 1 / دمج ميزات المصادر الثلاثة
+# تقرير الحالة التنفيذي — المبرمج 1 / إدارة جلسات الأجهزة المركزية
 
-- **المستودع المستهدف الوحيد:** `Report-Engainall/Nasr1`
-- **فرع P1 المستمر:** `integration/inventory-transfer-batches-20261019-rebased`
-- **PR:** [#26 — مفتوح / Draft / غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/26)
-- **آخر رأس كود/اختبار للميزات الحالية:** `18b0c8a8f3f03a3f5ad188357690223e3749628f` — [Actions 39647895468](https://github.com/Report-Engainall/Nasr1/actions/runs/39647895468) = SUCCESS على SHA نفسه. إثبات هذا الرأس يخص الكود والاختبارات؛ تحديثات التوثيق اللاحقة لا تغيّر بصمات SQL أو harness.
-- **كتالوج الموظفين 0007:** مغلق ومثبت؛ SQL blob `309844a812fcb4c3564c1d7d8cc8eb22d0bb50fa`، اختبار القبول الحالي `8012fd9d97762cbf6b97411ac5be3f72ed3fcc72`، static migration test `307a78ef0da765132bd63171c8e1969ca83938e0`. أحدث إثبات PostgreSQL 17: SHA `18b0c8a8f3f03a3f5ad188357690223e3749628f`, Actions 39647895468. strict allowlist و`admin.json(payload)` وأسعار `product_prices` وتدقيق `audit_logs` والصلاحيات مثبتة؛ لا يُعاد فتحه دون regression.
-- **إغلاق كتالوج الموظفين:** task 0007 مثبت باختبار PostgreSQL 17 وبـCI كامل للرأس `7b070783d25c4b0b6064a3792213ac45671c0f78`. الاختبار السلبي الحالي يثبت أن `shadow_tier_price` هو المفتاح غير المسموح الحقيقي ويظهره SQL في `DETAIL`؛ أما حمولة الإنشاء الأصلية فلا تحتوي مفتاحًا خارج القائمة. تمت مراجعة 0005 كميزة موجودة بأفضلية في Nasr1؛ المهمة 0009 مدمجة ومثبتة باختبار PostgreSQL 17 على SHA `e5466fcc1958d0d1ae0a1f532cb0c7e6f8d4c1ba`؛ المتبقي هو قبول الشجرة المشتركة PR #26 + PR #18. لا تعدّل ملفات P2 المحمية.
-- **أُغلقت دفعة سلة العميل:** اختبار الوحدة 67/67 ملفًا، وقبول PostgreSQL 17 الفعلي للسلة، وCI الكامل نجح على SHA المذكور. تفاصيل الفشل والإصلاح وبصمات الملفات في القسم 6.15.1.
-- **حد Service Worker مغلق:** لا تعِد تنفيذه أو مراجعة أرشيفه ما لم يظهر regression جديد. اختبار متصفح/إنتاج لهذا الحد: NOT RUN.
-- **حد دورة تفعيل العميل:** مقارنة المصدر انتهت؛ الدمج المشترك ما يزال محجوبًا بتعارض migration بين P1 وP2. لا تعدّل ملفات المبرمج 2 أو تحذف migration مملوكة له بلا تنسيق صريح.
-- **ملكية P1:** هذا التقرير و`SOURCE_INTEGRATION_LEDGER.csv` و`READY_TO_REUSE_FILE_AUDIT.csv` ورسالة الإقلاع الجديدة الخاصة بـP1 فقط. ملفات التنسيق والتنفيذ المملوكة لـP2 ليست ضمن نطاق الكتابة.
-- **قاعدة الاستئناف:** اقرأ `PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt` ثم هذا التقرير. مهمة 0009 أُنجزت على فرع P1 باختبار PostgreSQL 17 من لقطة استيراد فعلية. المهمة التالية في السجل 0011؛ مراجعة 0010 انتهت `ALREADY_PRESENT_BETTER`.
+- **المستودع:** `Report-Engainall/Nasr1`
+- **فرع P1 الحالي:** `p1/central-device-session-ui-20261023`
+- **PR الحالي:** [#88 — Draft/open، غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/88)
+- **BASE_SHA لإعادة التكامل:** `8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2`
+- **رأس الميزة قبل إعادة التكامل:** `0d51e2090951e1dab80d4fbdf8e92bcfbb256de8`
+- **المهمة:** `P1-DEVICE-SESSION-MGMT-UI-001` — ربط إدارة الأجهزة والجلسات بعقد الخادم، ورفض بيانات الجلسات غير الصحيحة، وحماية الجلسة الحالية، واشتراط إقرار مطابق من الخادم قبل إظهار نجاح الإلغاء.
+- **الاختبارات المثبتة على الرأس السابق فقط:** Core CI [39977276920 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276920)؛ P2 Playwright [39977276972 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276972). خطوة Chromium الخاصة بتفويض إدارة الجلسات والإلغاء الفوري نجحت مع Supabase محلي معزول.
+- **لم يُثبت بعد:** نتائج الاختبارات على رأس إعادة التكامل الجديد؛ اختبار الحساب الخارجي تخطّاه حاجز الاعتماد؛ الإنتاج NOT RUN.
+- **الملفات في صافي التغيير المقصود:** هذا التقرير ونقطة الاستئناف وواجهة الجلسات واختبارها وأدوات/اختبارات Playwright الخاصة بـP1.
+- **NEXT_ACTION:** فحص Core وP2 Playwright على رأس الفرع المدمج مع أحدث `main` وإصلاح الأعطال المثبتة فقط. لا تجعل PR جاهزًا ولا تدمجه قبل نجاح اختبار الجلسات الفعلي على الرأس النهائي.
+- **حدود الإثبات:** نجاح المتصفح المحلي يخص تدفق الجلسات الذي اختُبر؛ لا يثبت الحسابات الخارجية أو الإنتاج.
+
+> الأقسام التالية تحتفظ بالسجل التاريخي من تكاملات سابقة؛ هذا الملخص هو نقطة الاستئناف الحالية لهذا الفرع.
+
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 
@@ -639,3 +642,441 @@
 - P2 PR #83 live head `b7830efa562021e0139736a33d0235037cd8f976` has Core [39959552835 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39959552835) while P2 [39959552757](https://github.com/Report-Engainall/Nasr1/actions/runs/39959552757) remained in progress. P2's central-session backend still is not in main, so #88 must stay Draft even if UI/Core tests are green.
 - Documentation PR #93 remains open. Its previous head `0fb97ce055da170fab2173a53462ce5eafae0508` Core and P2 attempts failed at dependency installation with HTTP 429 before test execution; no docs PR merge is claimed.
 - NEXT_ACTION: verify both workflows on exact #88 head `f7839b...`, then resume after P2 #83 integration and require actual local Supabase/Chromium session-contract acceptance. Main SHA remains `59547c...` at this checkpoint.
+
+
+## P1 central device/session UI — live execution update (2026-10-23T16:19:11.592+03:00)
+
+**Task:** `P1-DEVICE-SESSION-UI-SYNC-MAIN-001` / `P1-DEVICE-SESSION-MGMT-001`  
+**Branch / PR:** `p1/central-device-session-ui-20261023` / [PR #88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**BASE_SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
+**Functional HEAD:** `f7839b615282a1627804fce360d6ceda5fe56e48`
+
+### Completed in this unit
+- Fast-forwarded the existing PR branch by a merge commit whose first parent is the verified current `main` SHA and whose second parent is the prior PR head. This removed the 13-commit behind/diverged condition without rewriting published history.
+- Verified the updated branch compares to `main` as `ahead`, `ahead_by=10`, `behind_by=0`; the code diff is confined to `src/components/DeviceManagement.tsx` and `src/test/device-management.test.tsx`.
+- Existing UI test coverage includes server-backed listing, exact-target revocation acknowledgement, duplicate-action prevention, network retry, malformed server contract rejection, RPC failure, non-admin denial, and separation of account-level versus organization-level sign-out. No parallel page/backend implementation was introduced.
+
+### Verification (exact SHA)
+- Core CI [run 39959906007](https://github.com/Report-Engainall/Nasr1/actions/runs/39959906007) on `f7839b615282a1627804fce360d6ceda5fe56e48`: **FAIL before tests** at `bun install --frozen-lockfile` because package archive downloads from the configured Lovable npm cache returned HTTP 429. Unit/PostgreSQL/lint/build steps were skipped; this is not a code PASS or FAIL.
+- A failed-job retry was requested for run 39959906007; outcome pending when this report entry was written.
+- P2 Playwright [run 39959905948](https://github.com/Report-Engainall/Nasr1/actions/runs/39959905948) on the same functional HEAD was in progress at last read; authenticated customer order/tenant test was skipped. No authenticated session-revocation browser proof or production proof is claimed.
+- PR #83 remains the dependency for server-side tenant-scoped session inventory and selective revocation. Until it is integrated, #88 must remain PARTIAL and must not claim end-to-end session management.
+
+### Files changed
+- `src/components/DeviceManagement.tsx`
+- `src/test/device-management.test.tsx`
+- This report and `PROGRAMMER_1_EXECUTION_CHECKPOINT.md` for resume evidence only.
+
+### Next action
+Read the exact-head Core retry and P2 Playwright results. Resolve only a proven code failure; if the dependency registry is still throttling, use an approved fallback that preserves the frozen lockfile and do not weaken dependency-integrity checks. Coordinate after #83 is merged and run the integrated UI/API/browser acceptance before recommending merge.
+
+**LOCKED_PATHS:** P2-owned SQL migrations, RPC/RLS, Auth enforcement, generated database types and workflow fixtures — unchanged.  
+**BLOCKER:** npm cache HTTP 429 and open backend dependency #83.  
+**STATUS:** branch synchronized to main; acceptance pending; PR #88 not ready to merge.
+
+
+## P1 duplicate session-row rejection acceptance — 2026-10-23T16:25+03:00
+
+**Task ID:** `P1-DEVICE-SESSION-DUPLICATE-ROW-ACCEPTANCE-001`  
+**Repository/branch:** `Report-Engainall/Nasr1` / `p1/central-device-session-ui-20261023`  
+**PR:** [#88 — server-backed device session controls](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**Base SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
+**Code/test SHA:** `73864a23839d75f275e44bc52893f0533383033e`
+
+### Implementation
+Added a focused regression test to `src/test/device-management.test.tsx`. The mock server returns two inventory entries with the same `session_id`; the expected behavior is a visible error alert and fail-closed clearing of all entries, including both display names. The UI implementation already rejects duplicate IDs, so this closes a test gap without duplicating implementation or touching backend contracts.
+
+### Actual verification state
+- Core CI [run 39960886831](https://github.com/Report-Engainall/Nasr1/actions/runs/39960886831): **QUEUED** on the exact code/test head at checkpoint time.
+- P2 Playwright [run 39960886827](https://github.com/Report-Engainall/Nasr1/actions/runs/39960886827): **PENDING** at checkpoint time.
+- Previous Core run [39959906007](https://github.com/Report-Engainall/Nasr1/actions/runs/39959906007) failed before tests at package installation due to repeated HTTP 429 responses from the configured Lovable npm cache; unit, PostgreSQL, lint/build and smoke checks were skipped. Previous P2 run [39959905948](https://github.com/Report-Engainall/Nasr1/actions/runs/39959905948) was cancelled. Neither is a pass for the new change.
+- No local test execution is claimed in this connector-only change workflow; wait for the exact-head Actions conclusions before closing the task.
+
+### Files changed
+- `src/test/device-management.test.tsx` (new test only in this unit).
+- `PROGRAMMER_1_EXECUTION_CHECKPOINT.md` and this report appended for resumption.
+
+### Next action / release condition
+Read exact-head CI results on the final branch SHA after the checkpoint commit. Retry transient package-cache 429 failures without bypassing the frozen lockfile or changing test assertions. Then wait for P2 PR #83 to land, test this UI against the integrated backend, and require authenticated isolated-browser evidence of list scoping, selective revocation, audit readback and denial of later protected requests before recommending a merge.
+
+**LOCKED_PATHS:** P2 migrations/RPC/RLS/types/workflows and P3 acceptance files — unchanged.  
+**BLOCKER:** exact-head CI and authenticated browser acceptance pending; P2 #83 is still open.  
+**STATUS:** implemented regression test; test result pending; PR #88 not ready to merge.
+
+
+## P1 audited self-session revocation RPC wiring — 2026-10-23T16:28+03:00
+
+**Task:** `P1-DEVICE-SESSION-SELF-REVOCATION-RPC-001`  
+**Branch/PR:** `p1/central-device-session-ui-20261023` / [PR #88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**Base SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
+**Functional code/test SHA:** `8248a7f8dc3145063ee319fa35de41305d19705a`
+
+### Change delivered
+The “sign out other sessions” button previously called `supabase.auth.signOut({scope:'others'})`, which did not consume the P2-owned auditable, server-enforced contract. It now calls `revoke_other_auth_sessions` and fails closed unless the response proves the same current session was retained, the revoked count is a non-negative integer, the server-reported UUID list is unique and count-aligned, the current session is absent from that list, and `revoked_at` is parseable. The UI reports the number only after that exact response validation. A synchronous guard blocks rapid duplicate invocation. Current-device logout remains on `scope:'local'`; organization-level selected-session revoke remains separate.
+
+### Regression coverage
+- Added a successful RPC-flow test verifying the current session remains visible and other session rows are absent after server acknowledgment.
+- Added malformed acknowledgment coverage (wrong current session, duplicate IDs, mismatched count/invalid timestamp) asserting no success notice.
+- Retained existing coverage for per-session acknowledgment mismatch, list duplicate IDs, malformed list shape, RPC/network failures, retry and admin gating.
+
+### Exact-head verification
+- Core CI [39961454298](https://github.com/Report-Engainall/Nasr1/actions/runs/39961454298): **IN PROGRESS** on `8248a7f8dc3145063ee319fa35de41305d19705a`.
+- P2 Playwright [39961454316](https://github.com/Report-Engainall/Nasr1/actions/runs/39961454316): **IN PROGRESS** on the same SHA.
+- No local test command is claimed. The earlier HTTP 429 install failure was on an older SHA and must not be presented as a functional failure or a pass for this head.
+- P2 PR #83 is still required. PostgreSQL acceptance of the contract and UI unit tests do not replace an authenticated browser proof of revocation followed by rejection on a later protected request.
+
+### Files changed
+- `src/components/DeviceManagement.tsx`
+- `src/test/device-management.test.tsx`
+- `PROGRAMMER_1_EXECUTION_CHECKPOINT.md` and this report for resume evidence.
+
+### Next action and gates
+Read CI on the final checkpoint SHA; repair concrete failures only. Once #83 merges, update the P1 branch on the current main, rerun Core and P2 browser acceptance on the exact integration head, and preserve the PARTIAL state until authenticated browser proof passes.
+
+**LOCKED_PATHS:** P2 database/API/RLS/Auth/workflow files, shared execution-state/coordination files, and P3 acceptance files — unchanged.  
+**BLOCKER:** terminal CI pending; P2 PR #83 open.  
+**STATUS:** implementation committed; acceptance pending; do not merge yet.
+
+
+## P1 self-session RPC acceptance fixture correction — 2026-10-23T16:33+03:00
+
+**Task ID:** `P1-DEVICE-SESSION-RPC-ACK-FIXTURE-001`  
+**Branch/PR:** `p1/central-device-session-ui-20261023` / [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**Base SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
+**Corrected code/test SHA:** `ddb80804b8749cb8dff182344ca9713e2beb64ec`
+
+### Failure observed and fix
+Core CI on the previous code/test head `8248a7f8dc3145063ee319fa35de41305d19705a` ran 136 test files and failed one new bulk-revocation test (855/856 individual tests passed). The exact failed assertion was that the success notice callback had not been called with the expected text. The test helper `mount()` mounts with `mocks.onNotice`, while the test created and asserted against a different `vi.fn()`. Fixed only the test fixture to observe the callback actually passed into the component. The assertions about exact RPC, current session retention and hidden revoked rows remain intact; no code behavior was relaxed.
+
+### Separate infrastructure failure
+On docs SHA `0c582c1ca0cf92f0b1a959d26a1e82af66c84d39`, both Core [39961596225](https://github.com/Report-Engainall/Nasr1/actions/runs/39961596225) and P2 Playwright [39961596206](https://github.com/Report-Engainall/Nasr1/actions/runs/39961596206) failed at dependency download with HTTP 429 from `lovable-core-prod/sandbox-npm-cache` before executing tests. This is independent of the functional-head unit assertion. Latest corrected code/test SHA `ddb80804...` requires fresh exact-head Core and P2 runs.
+
+### Related P2 dependency
+P2's session backend branch is synced to main, but P2 Playwright run [39960901154](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154) failed its local Supabase job in purchase-receipt acceptance with `Purchase receipt accounting acceptance is restricted to local PostgreSQL 17.`; the failure and exact SHA were reported to P2 via PR #83 comment 6366037526. No P2-owned path was changed in P1.
+
+### Next action
+Inspect new exact-head Core/P2 results for `ddb80804...`. Preserve the error if any test still fails and fix the concrete cause. Keep #88 unmerged/partial until P2 #83 lands, its backend acceptance is green, and authenticated browser acceptance verifies the actual session revocation and subsequent request denial.
+
+**Files changed in this unit:** `src/test/device-management.test.tsx`; checkpoint/report appended.  
+**LOCKED_PATHS:** P2 API/database/auth/workflow paths and P3 acceptance — unchanged.  
+**STATUS:** test fixture fixed; new exact-head CI pending; PR #88 not merge-ready.
+
+
+## P1 bulk-session double-submit regression — 2026-10-23T16:37+03:00
+
+**Task ID:** `P1-DEVICE-SESSION-BULK-DOUBLE-SUBMIT-001`  
+**Branch/PR:** `p1/central-device-session-ui-20261023` / [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**Base SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
+**Functional code/test SHA:** `572ab73dc3dab53d2042f2fa8f1f0f1388ba3633`
+
+### Change
+Added an async/deferred-RPC regression proving that two rapid clicks on the own-account “other sessions” action issue exactly one `revoke_other_auth_sessions` call. The test resolves the server acknowledgement and then asserts the success notice only follows the acknowledgement. This directly tests the synchronous `otherSessionsInFlight` guard added in `DeviceManagement.tsx`.
+
+### Test history — keep each SHA separate
+- SHA `8248a7f8dc3145063ee319fa35de41305d19705a`, Core run [39961454298](https://github.com/Report-Engainall/Nasr1/actions/runs/39961454298): **1 failure / 855 passing tests** in the newly added successful-RPC test. The assertion used a callback different from the one mounted. It was fixed in test setup on SHA `ddb80804b8749cb8dff182344ca9713e2beb64ec`; assertions were not weakened.
+- Corrected SHA `ddb80804b8749cb8dff182344ca9713e2beb64ec`, Core [39961918566](https://github.com/Report-Engainall/Nasr1/actions/runs/39961918566) was still in progress at last read; P2 Playwright [39961918709](https://github.com/Report-Engainall/Nasr1/actions/runs/39961918709) was CANCELLED.
+- Latest SHA `572ab73dc3dab53d2042f2fa8f1f0f1388ba3633`, Core [39962147380](https://github.com/Report-Engainall/Nasr1/actions/runs/39962147380) and P2 Playwright [39962147845](https://github.com/Report-Engainall/Nasr1/actions/runs/39962147845) are IN PROGRESS.
+- A separate documentation-head run [39961596225](https://github.com/Report-Engainall/Nasr1/actions/runs/39961596225) failed before tests because repeated npm-cache package download requests returned HTTP 429. That is an infrastructure problem, not test evidence for the current functional head.
+
+### P2 dependency and coordination
+PR #83 has current-main sync. Its Core run [39960901244](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901244) succeeded, but P2 Playwright [39960901154](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154) failed its local Supabase acceptance at purchase-receipt acceptance. P1 posted exact evidence to #83 comment 6366037526; P1 made no changes to P2-owned workflows, fixtures, DB or RPC paths.
+
+### Next action
+Read latest exact-head runs. Fix only demonstrated UI/test defects; retry rate-limited install failures without weakening dependency verification. Then refresh this branch after #83 integrates and require authenticated browser proof of actual self-scoped and admin-selected session revocation, retained current session, audit and subsequent protected-request denial.
+
+**Files changed:** `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`, the two P1-owned resume documents.  
+**LOCKED_PATHS:** P2 database/API/RLS/Auth/workflows and P3 acceptance paths — unchanged.  
+**STATUS:** implementation/test additions committed; CI pending; PR #88 remains not merge-ready.
+
+
+## P1 live readback — code acceptance green, integration gates remain — 2026-10-23T16:46+03:00
+
+### Verified P1 code/test head
+- Code/test SHA `572ab73dc3dab53d2042f2fa8f1f0f1388ba3633`.
+- [Core CI #39962147380](https://github.com/Report-Engainall/Nasr1/actions/runs/39962147380) COMPLETED SUCCESS: 136 test files / 857 tests, PostgreSQL 17 migrations/core acceptance, invitation expiry, stock-count audit, async export, import idempotency, inventory snapshot, saved products, backup/restore, lint, build, dev/preview smoke, and Chromium price-visibility test all passed.
+- [P2 Playwright #39962147845](https://github.com/Report-Engainall/Nasr1/actions/runs/39962147845) had public UI smoke SUCCESS, external customer-order/tenant acceptance SKIPPED and local Supabase job CANCELLED. This does not prove the new session RPC works against a running backend.
+
+### Exact current branch head
+The docs-only branch head `7d756c62743fbbd92e52d9a392f6c441add61951` has its own check runs, separate from the tested code head above. Core [39962288619](https://github.com/Report-Engainall/Nasr1/actions/runs/39962288619) was still IN_PROGRESS at the last read; unit/DB/lint/build and preview/dev-smoke steps were successful while Chromium price-visibility acceptance remained non-terminal. P2 [39962288636](https://github.com/Report-Engainall/Nasr1/actions/runs/39962288636) was still in public UI smoke, and authenticated external customer/tenant acceptance was skipped. Re-read before claiming the docs head green.
+
+### Previously completed current-main UI task — no duplicate rebuild
+Verified that main's `src/components/AdminPages.tsx` (blob `f40d28dd03dd32cda00e181465115266c6330a8a`) imports and mounts `CustomerManagerRoleAssignment` inside the real `SettingsPage` access tab under `canManageRoles`. The wiring test `src/test/customer-manager-role-assignment-settings-wiring.test.tsx` (blob `eeb72df65158681064c81652087e7e9a0e01f1e5`) tests the actual page/tab and denies the customer-manager role. The above 857-test current-main-based Core suite passed; the feature is already integrated, so P1 did not create a duplicate panel.
+
+### Invitation create failure remains with P2
+- PR #90 is in current main but its P2 Playwright attempt was cancelled. Its UI adapter now rejects expired/overlong/foreign invitation responses; it does not mask server errors as success.
+- The browser's root failure was real: pgcrypto was called as `public.gen_random_bytes` although the installed extension schema was different. P2's migration fix is in open PR #82 at `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`; live compare now reports `ahead_by=18`, `behind_by=13` from main `59547c7...`. P1 recorded the sync + exact-head retest requirement at [#82 comment 6366161962](https://github.com/Report-Engainall/Nasr1/pull/82#issuecomment-6366161962) and [handoff #86 comment 6366213509](https://github.com/Report-Engainall/Nasr1/issues/86#issuecomment-6366213509). No P2 migration/workflow path was changed by P1.
+- PR #83 central-session backend is 66 ahead / 0 behind main, Core PASS on [39960901244](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901244), but its local P2 Playwright job [39960901154](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154) is FAIL because purchase-receipt acceptance rejected the runtime as not local PostgreSQL 17. P1 reported the exact failure in comment 6366037526; the workflow/harness fix is P2-owned.
+
+### Status / next action
+- Session UI: implemented and Core-tested at the code/test SHA; PR #88 remains **DRAFT / PARTIAL**. Do not merge until #83's P2 workflow acceptance is fixed, the backend is merged, and browser proof establishes selective revocation and denial of subsequent protected requests.
+- Invitation create: **NOT PROVEN in browser on current main**; await synced #82 exact-head Core + local Supabase/Chromium success and post-merge verification.
+- Files changed by P1: only `DeviceManagement.tsx`, `device-management.test.tsx`, and P1-owned checkpoint/report.
+
+
+## P1 — reject stale session-list responses — 2026-10-23T17:00+03:00
+
+### Root cause and fix
+A session list read can outlive a newer read triggered by a successful revocation. Without ordering, an earlier response could overwrite the newer server state and make a revoked session appear in the UI again. `src/components/DeviceManagement.tsx` now assigns a monotonically increasing request ID to each organization-session list request. Only the newest request may update session rows, error state, or loading state, including when an old request fails. A new request also invalidates pending reads when the caller is no longer authorized.
+
+### Regression acceptance
+Added a deferred-RPC component test in `src/test/device-management.test.tsx`: the initial server list remains pending; the account-scoped revocation succeeds; the subsequent list returns only the current session; then the stale pre-revocation list is released. The expected behavior is that the revoked row remains absent and the error state stays clear.
+
+### Exact-head evidence
+- Functional commit: `f3673f85a88762be52a4c8ca7597be475639eda9`.
+- Latest prior exact-head Core run [39965165177](https://github.com/Report-Engainall/Nasr1/actions/runs/39965165177) and P2 Playwright [39965165130](https://github.com/Report-Engainall/Nasr1/actions/runs/39965165130) passed on parent SHA `58e795f6ab601093b02286a18bce080e55424c63`; they do **not** prove this new code/test. Exact-head results for `f3673f85...` are pending.
+- P2 session backend exact-head Core [39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) and Playwright [39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) both passed on P2 SHA `91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`. This is evidence for the backend branch and its configured commerce tests, not proof the P1 session E2E was run.
+- The new `e2e/device-session-management.spec.ts` / `scripts/seed-p1-device-session-playwright.mjs` are in #88, but the inspected P2 workflow at current head does not invoke them. P1 handed this gap to P2 at [comment 6366644229](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366644229). Session browser proof remains NOT_PROVEN until the explicit tests run on an integrated backend.
+
+### Next action and ownership
+Read the latest #88 Core and Playwright results by exact SHA; repair concrete failures only. P2 owns the workflow/backend fixture connection and must make the session spec run inside local-only Supabase/PG17. Do not modify its workflow, migrations, RPC, RLS or generated types from P1. Do not merge #88 until that scenario plus post-revocation protected-request denial is proven.
+
+**Branch:** `p1/central-device-session-ui-20261023`  
+**PR:** [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**BASE_SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
+**FUNCTIONAL_HEAD_SHA:** `f3673f85a88762be52a4c8ca7597be475639eda9`  
+**STATUS:** Implemented; exact-head CI pending; session E2E wiring pending with P2.
+
+
+## P1 — current-device sign-out is single-flight and clears stale auth details — 2026-10-23T17:15+03:00
+
+### Root cause and fix
+The current-device sign-out handler relied on the button becoming disabled after React state updated and kept the locally rendered session object after the auth API acknowledged logout. A rapid double click could therefore issue duplicate `supabase.auth.signOut({ scope: 'local' })` calls, and the current-session details could remain visible until a later navigation. The handler now takes a synchronous `useRef` single-flight lock, refuses execution if another action is active, and clears the locally held current-session and organization-session rows only after a successful auth-service response. On error it retains the session state for an honest retry and shows an error rather than success.
+
+### Regression acceptance
+Added a deferred-signOut component test in `src/test/device-management.test.tsx`: two rapid clicks while the first sign-out is pending must call the service once; after a successful response the user notice fires once, the account email/session details disappear, and the action stays disabled. The previously completed `P1-DEVICE-SESSION-STALE-LIST-RESPONSE-001` guards against stale list replies restoring revoked sessions after a newer read.
+
+### Exact-head evidence and route wiring
+- Local sign-out implementation/test commit: `f1c298299281f1e10755c3786c3900724f5c5632`; Core CI is pending on this SHA.
+- Previous head `d23de924cccc839208eb64c4bbc9528d9feddb4c` Core [39967378247](https://github.com/Report-Engainall/Nasr1/actions/runs/39967378247) SUCCESS; it predates this sign-out change. Its P2 Playwright [39967378245](https://github.com/Report-Engainall/Nasr1/actions/runs/39967378245) was still running when this new code was committed.
+- `src/components/AghbariApp.tsx` blob `6acb7515e4c77cdc9416d1475672c4b7552a772c` imports and renders `DeviceManagement` for the `devices` view and maps that view to `/admin/devices`. `src/routes/admin_.devices.tsx` blob `97d76c572af13d5714baf3b1f0652da98114885f` mounts `AdminApp initialView="devices"` at the real route. This is source-level route wiring, not a claim of authenticated browser acceptance.
+- The session browser spec and seeding script are committed in #88 but not executed by the currently inspected P2 workflow. P1 handed this to P2 via comments [6366644229](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366644229) and [6366901182](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366901182).
+
+### Next action / ownership
+Read exact-head CI after the current resume-doc commit. Fix code/test failures only. P2 owns backend/session RPC/RLS and the local-only Playwright workflow wiring; do not change those locked paths in P1. Once P2 runs the dedicated browser test on its synced branch and merges the server contract, rerun the exact integrated scenario against #88. Keep #88 Draft pending this proof.
+
+**Branch:** `p1/central-device-session-ui-20261023`  
+**PR:** [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**BASE_SHA:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`  
+**FUNCTIONAL_HEAD_SHA:** `f1c298299281f1e10755c3786c3900724f5c5632`  
+**STATUS:** Two P1 UI regressions implemented; stale-list guard Core-tested; new single-flight logout test awaits exact-head CI; session E2E remains blocked on P2 workflow wiring.
+
+
+## P1 — validate the full server acknowledgment for session revocation — 2026-10-23T17:24+03:00
+
+### Change
+The selected-session UI previously accepted any object with the correct `session_id` and `revoked: true`. It did not validate that the server returned a parseable `revoked_at` value even though that timestamp is part of the acknowledged revocation/audit contract. The handler now fails closed unless the selected ID matches, `revoked === true`, and `revoked_at` is a valid date. The UI shows no success on malformed acknowledgement.
+
+### Regression
+Added a component regression where the RPC returns the correct target session ID and `revoked: true`, but `revoked_at: "not-a-timestamp"`. It asserts the exact target RPC was called, no success notice was shown, the error remains visible and stale session rows are not rendered while acceptance is unresolved.
+
+### Evidence
+- Functional commit: `f6d0c75326cc6ab650359b983d6fd6749ec647f3`; exact-head CI was pending at this report update.
+- Prior Core only: stale-list guard SHA `f3673f85a88762be52a4c8ca7597be475639eda9`, run [39966125912 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39966125912). Local sign-out SHA `f1c298299281f1e10755c3786c3900724f5c5632`, run [39968018993 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39968018993). These are predecessor SHAs, not proof for the new timestamp validation.
+- PR #88 is [open/Draft](https://github.com/Report-Engainall/Nasr1/pull/88). Session browser spec and local seeding script exist in the branch, but the inspected P2 workflow did not invoke them. Handoff remains with P2 under comments [6366644229](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366644229) and [6366901182](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6366901182).
+
+### Next action / ownership
+Read exact Core and P2 results on the latest PR #88 head after this checkpoint commit. P2 alone owns the workflow/backend integration; P1 will not edit its workflow, migration, RPC/RLS/Auth or generated type paths. Keep #88 Draft until the integrated session browser tests run and prove post-revocation protected-request denial.
+
+**Branch:** `p1/central-device-session-ui-20261023`  
+**PR:** [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**BASE_SHA:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`  
+**FUNCTIONAL_HEAD_SHA:** `f6d0c75326cc6ab650359b983d6fd6749ec647f3`  
+**STATUS:** Implemented; exact-head CI pending; session E2E not yet wired by P2.
+
+
+## P1 — local sign-out failure preserves retry path — 2026-10-23T17:29+03:00
+
+Added an explicit error/retry regression test for the current-device sign-out action in `src/test/device-management.test.tsx`. The first mocked `supabase.auth.signOut({ scope: 'local' })` rejects with a network error; acceptance requires the existing account/session details to remain visible, an error alert to show, no success notice, and the button to become available again. A second click then succeeds and must clear the visible session details and issue exactly one success notice. This complements the current-head implementation guard that prevents overlapping clicks and clears auth-derived display state only after a successful response.
+
+- Test commit: `8d3ee29f48c6f9f600722b2354f9d3fc40b41ca5`; exact-head Core/P2 results pending.
+- Previous implementation heads: [Core 39968018993](https://github.com/Report-Engainall/Nasr1/actions/runs/39968018993) successful at `f1c2982...`; [Core 39968697854](https://github.com/Report-Engainall/Nasr1/actions/runs/39968697854) successful at `f6d0c75...`. Neither run tests the new retry test. No local test command was run by this session.
+- Session browser blocker remains P2-owned: workflow on PR #83 `dda5124...` did not invoke the dedicated P1 session spec/seed script. The #88 PR remains Draft until that local-only browser contract test actually runs on the integrated backend.
+
+**Branch:** `p1/central-device-session-ui-20261023`  
+**PR:** [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**BASE_SHA:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`  
+**FUNCTIONAL_HEAD_SHA:** `8d3ee29f48c6f9f600722b2354f9d3fc40b41ca5`  
+**STATUS:** Implemented; exact-head CI pending; authenticated session E2E not yet executed.
+
+
+## P1 live readback — P2 backend merged; integrated session UI needs exact-head browser proof — 2026-10-23T17:38+03:00
+
+### P2 dependency resolved, acceptance still incomplete
+P2 PR #83 merged to `main` at `bd0d2df489e40b2dc5f83882d90565c7799a448c`. Its pre-merge Core run [39968857948](https://github.com/Report-Engainall/Nasr1/actions/runs/39968857948) and P2 Playwright run [39968858140](https://github.com/Report-Engainall/Nasr1/actions/runs/39968858140) both succeeded on `dda512495c43f2fd84517635cd83421ef49e92c0`. The Core migration workflow calls `runSessionManagementAcceptance` in `scripts/test-session-management.mjs`; the isolated local Supabase browser job succeeded for its configured order, tenant isolation, returns/credit memo, Onyx export and finance/task print scenarios. However, the P2 workflow blob `1b2b0eade154b8b4e8ed0bed0fa9b7067b5666b7` does not invoke P1's `e2e/device-session-management.spec.ts` or local seed script, so those generic browser passes do not prove the session-specific sequence.
+ 
+### P1 branch sync and code evidence
+P1's pre-sync head `428c98bece43296dbebd9ce30c78cffe48541348` Core [39969541171](https://github.com/Report-Engainall/Nasr1/actions/runs/39969541171) and P2 Playwright [39969541110](https://github.com/Report-Engainall/Nasr1/actions/runs/39969541110) both passed. This head includes the current-session single-flight sign-out, clear-on-ack behavior, retry-after-network-failure regression, stale session-list response guard and full acknowledgment validation (`session_id`, `revoked === true`, valid `revoked_at`). Those tests establish UI-level behavior against mocks, not the authenticated browser/backend journey. The main-sync merge commit created here must receive a fresh exact-head CI run.
+
+### Other ordered P1 tasks
+P1-01 category rename (#50) and P1-02 password recovery metadata/reset handling (#44) are merged. Current main Core [39969622689](https://github.com/Report-Engainall/Nasr1/actions/runs/39969622689) passed on `bd0d2df489e40b2dc5f83882d90565c7799a448c`; password-reset authenticated browser acceptance is still NOT_RUN. P1 is moving next to any independently confirmed product/admin form gap outside P3's active #89 paths.
+
+### Required next action
+Read current #88 Core + P2 runs by exact post-sync SHA. If green, hand the missing session-spec invocation to P2 in a separate workflow-only follow-up; keep #88 Draft until same-tenant selective revocation is browser-proven to deny a subsequent protected tenant-context request for the revoked-but-unexpired session, and self-scoped bulk revocation is proven to preserve the current session. Do not edit P2's locked workflow or DB paths from P1.
+
+**Branch:** `p1/central-device-session-ui-20261023`  
+**PR:** [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**BASE_SHA:** `bd0d2df489e40b2dc5f83882d90565c7799a448c`  
+**PRE_SYNC_HEAD_SHA:** `428c98bece43296dbebd9ce30c78cffe48541348`  
+**STATUS:** P2 backend integrated; P1 exact post-sync CI pending; dedicated session E2E not yet invoked; PR stays Draft.
+
+
+## P1 live resumption — local session-fixture guard + acceptance wiring audit — 2026-10-23T14:38:56.566Z
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-LOCAL-ENDPOINT-GUARD-CODE` (implementation committed; exact-head checks are not yet terminal).
+- CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c` (PR #88 base recorded by the live PR record; branch integrated P2 session contract through its main-sync commit).
+- HEAD_SHA: `7a3bc8a3e952c021bf122e484416b12ba2a82379` — code/test head immediately before the resume-record commits below. The checkpoint/report updates are documentation-only and do not alter the tested code.
+- LAST_CONFIRMED_TESTS: no terminal result is claimed for `7a3bc8a3e952c021bf122e484416b12ba2a82379`. Exact-head Core run [39971268285](https://github.com/Report-Engainall/Nasr1/actions/runs/39971268285) was IN_PROGRESS and P2 Playwright [39971268281](https://github.com/Report-Engainall/Nasr1/actions/runs/39971268281) was PENDING at readback. These must be rechecked on the final branch head. Predecessor Core/P2 results on `5f500eb2129f5745bb924beb06e6a4764ab9a0e0` do not validate the new guard/test.
+- FAILED_OR_NOT_RUN_TESTS: exact-head Vitest/Core and isolated PostgreSQL/Chromium results remain pending. P2 job inspection on the predecessor run showed the local setup invokes `scripts/seed-p2-local-playwright.mjs`, followed by order/finance acceptance; it did not invoke `scripts/seed-p1-device-session-playwright.mjs` or select `e2e/device-session-management.spec.ts`. Therefore central-session browser acceptance is NOT PROVEN regardless of the generic P2 job conclusion. The hosted-account E2E remains subject to its explicit missing-credentials gate and is not counted as a pass.
+- FILES_CHANGED in this implementation unit: `scripts/lib/p1-device-session-endpoints.mjs`, `scripts/lib/p1-device-session-endpoints.d.mts`, `scripts/seed-p1-device-session-playwright.mjs`, `src/test/p1-device-session-endpoints.test.ts`; prior PR #88 changes remain in `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`, `e2e/device-session-management.spec.ts`, and its isolated seed script.
+- IMPLEMENTED: the seeder now validates through a pure local-only guard and allows PostgreSQL loopback ports `54322` (default local Supabase) and `55432` (the port configured by the current isolated P2 workflow), while still requiring the API on HTTP loopback port `54321`. Vitest coverage includes both allowed ports and rejects remote endpoints, unexpected ports, incorrect database paths, embedded API credentials, and malformed URLs.
+- LOCKED_PATHS: `.github/workflows/p2-playwright-critical-paths.yml`, P2 migrations/RPC/RLS/API/generated DB types, finance/inventory/data-service paths, `package.json`, `bun.lock`, shared `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, and the shared acceptance matrix remain untouched.
+- NEXT_ACTION: read terminal Core and P2 checks on the final #88 head; fix only evidenced failures. Coordinate with P2 to run the new P1 local seed and `e2e/device-session-management.spec.ts` within the isolated local Supabase/Chromium job (without P1 editing the P2-owned workflow). Do not mark browser proof or merge #88 until that exact session acceptance executes and passes after the contract is integrated.
+- BLOCKER: P1 session browser spec/seeder are not wired into the current P2 workflow; this requires workflow-owner coordination. Current exact-head checks are pending. Hosted/external-account testing remains NOT RUN where credentials are absent.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 Draft/open; keep Draft until exact-head Core plus actual session-management Chromium acceptance pass.
+- UPDATED_AT: 2026-10-23T14:38:56.566Z
+
+
+## Latest live readback — Core PASS; session browser acceptance still not proven — 2026-10-23T14:44:49.787Z
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-LOCAL-ENDPOINT-GUARD-CODE` — seeder now supports the isolated local PostgreSQL port with a fail-closed localhost boundary; the new Vitest guard coverage is included in Core.
+- CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c` (PR #88 base recorded by GitHub at latest readback).
+- LAST_CODE_SHA: `7a3bc8a3e952c021bf122e484416b12ba2a82379`.
+- EXACT_HEAD_CI_READBACK_SHA: `b611b293ffc62e8f078fb3586148023ab6038aa5` (current PR #88 head before this status-note commit; contains no code changes after LAST_CODE_SHA).
+- LAST_CONFIRMED_TESTS: Core CI [run 39971452491](https://github.com/Report-Engainall/Nasr1/actions/runs/39971452491) **SUCCESS** on exact head `b611b293...`; this includes the unit test suite containing `src/test/p1-device-session-endpoints.test.ts`, build and configured Core gates. It does not establish the new session-management Chromium acceptance.
+- FAILED_OR_NOT_RUN_TESTS: P2 Playwright [run 39971452473](https://github.com/Report-Engainall/Nasr1/actions/runs/39971452473) was still **IN_PROGRESS** at readback. Jobs: authenticated external-account gate SUCCESS; public UI smoke SUCCESS; hosted-account customer-order job SKIPPED due its explicit credentials gate; isolated local Supabase order/tenant job IN_PROGRESS at “Start isolated local Supabase services”. This workflow does not invoke `scripts/seed-p1-device-session-playwright.mjs` or `e2e/device-session-management.spec.ts`, so central-session browser acceptance is **NOT PROVEN**, regardless of the generic P2 job's eventual result.
+- FILES_CHANGED since code SHA: only this checkpoint/report status bookkeeping. Code change files remain `scripts/lib/p1-device-session-endpoints.mjs`, `scripts/lib/p1-device-session-endpoints.d.mts`, `scripts/seed-p1-device-session-playwright.mjs`, `src/test/p1-device-session-endpoints.test.ts`, alongside pre-existing #88 UI/browser files.
+- LOCKED_PATHS: P2-owned `.github/workflows/p2-playwright-critical-paths.yml`, migrations/RPC/RLS/API/generated DB types, finance/inventory/services, `package.json`, `bun.lock`, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, shared acceptance matrix remain untouched.
+- NEXT_ACTION: P2 must wire the P1 seed and the two `device-session-management.spec.ts` tests into the isolated local Supabase/Chromium job after environment export/app startup. Handoff comment recorded on #88 as [comment 6367467756](https://github.com/Report-Engainall/Nasr1/pull/88#issuecomment-6367467756). Then run Core + this exact browser acceptance on the new head; only promote #88 after the session tests truly execute and pass.
+- BLOCKER: missing session-specific browser invocation in P2-owned workflow; this P1 branch cannot edit that locked file without ownership transfer. External hosted-account E2E remains NOT RUN/SKIPPED, not PASS.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 OPEN / DRAFT / NOT MERGE-READY.
+- INDEPENDENT_NEXT_CANDIDATE: PR #96 storefront admin-navigation gate has Core/P2 success on its exact head `844aebd2c63a479b02d5bb17c08d06180bd64f3d`, but its base is one main commit behind and it edits the same checkpoint/report files as #88. Do not merge it until it is brought onto current main, re-tested, and the shared documentation overlap is reconciled.
+- UPDATED_AT: 2026-10-23T14:44:49.787Z
+
+
+## P1 live execution — revoked JWT expiry guard added to session browser acceptance — 2026-10-23T17:46+03:00
+
+**Task:** `P1-SESSION-E2E-UNEXPIRED-JWT-001`  
+**Repository / branch:** `Report-Engainall/Nasr1` / `p1/central-device-session-ui-20261023`  
+**PR:** [#88 — server-backed central device session controls](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**Base SHA:** `bd0d2df489e40b2dc5f83882d90565c7799a448c`  
+**Functional code/test SHA before this docs-only commit:** `916f68fbb362c6d430efbef294391155e601c156`
+
+### Implemented in this unit
+- Strengthened the existing `expectProtectedTenantRpcDenied` assertion instead of creating a separate browser test.
+- Both targeted administrative revocation and self-scoped sibling-session revocation now pass their expected session IDs into the protected-request check.
+- The browser check decodes only `session_id` and `exp` from the access token in local storage, verifies the ID matches the exact revoked session, and captures the current epoch time just before the protected tenant-context RPC.
+- The assertion requires the JWT expiry to be later than the request start and still later than the time after the rejected response. The token itself is not logged or returned by the browser helper.
+
+### Exact-head evidence
+- Previous head `b611b293ffc62e8f078fb3586148023ab6038aa5`: Core [39971452491 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39971452491); P2 Playwright [39971452473 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39971452473). These runs predate this new assertion.
+- New functional/test SHA `916f68fbb362c6d430efbef294391155e601c156`: Core and P2 status were not yet terminal/available at the time of this entry. No PASS is inferred from predecessor runs.
+- Important boundary: P2 run #39971452473 succeeded for the existing configured local PostgreSQL/Chromium tests (order/tenant, returns/credit memo, Onyx XLSX and finance/task print), but the workflow did not invoke `scripts/seed-p1-device-session-playwright.mjs` or `e2e/device-session-management.spec.ts`. Therefore targeted session revocation and same-token post-revocation denial remain NOT_PROVEN.
+
+### Ownership and next action
+- P1 left `.github/workflows/p2-playwright-critical-paths.yml` and all P2-owned SQL/RPC/RLS/Auth/API/type paths unchanged.
+- P1 posted the implementation/acceptance handoff to P2 on [PR #83 comment 6367496372](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6367496372), asking P2 to wire the existing seed and both session-spec tests into the isolated local Supabase/Chromium job.
+- Next: read the exact live branch SHA and its Core/P2 workflow results; fix any failure evidenced at that SHA. Keep #88 Draft until the dedicated scenario actually runs and passes. Hosted-account/production proof remains NOT RUN.
+
+**Status:** `IMPLEMENTED — CI PENDING — SESSION BROWSER ACCEPTANCE NOT PROVEN — PR DRAFT`  
+**UPDATED_AT:** 2026-10-23T17:46+03:00
+
+
+## P1 live CI readback — updated session expiry assertions; dedicated session spec remains unexecuted — 2026-10-23T17:52+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-E2E-UNEXPIRED-JWT-001` (the browser spec now asserts the exact revoked session ID and an unexpired JWT at request start and after denial).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c`.
+- FUNCTIONAL_HEAD_SHA: `916f68fbb362c6d430efbef294391155e601c156`.
+- LAST_CONFIRMED_TESTS: Core [39972851057 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972851057) and P2 [39972851031 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39972851031) both ran on exact pre-status documentation head `37be3a6ae29be70cc87d8e7a4c236a460e215d5d`, which includes functional SHA `916f68f...`. Core unit tests, PostgreSQL 17 migrations/acceptance, lint/build/preview/dev smoke, and configured price-visibility Chromium checks passed. P2 public UI smoke and the configured isolated local Supabase job succeeded; hosted customer-order/tenant isolation was explicitly skipped by its external-infrastructure gate.
+- FAILED_OR_NOT_RUN_TESTS: the session-specific `e2e/device-session-management.spec.ts` remains **NOT RUN** by the P2 workflow, which still invokes only the configured commerce critical-path/returns/Onyx/finance specs. Generic Playwright success is not central-session acceptance.
+- FILES_CHANGED: `e2e/device-session-management.spec.ts`; this checkpoint/report update is documentation-only. The E2E spec now checks that the exact expected `session_id` is present and that `exp` exceeds both the protected-request start time and the time after its denied response.
+- LOCKED_PATHS: `.github/workflows/p2-playwright-critical-paths.yml`, P2 seed/workflow and SQL/RPC/RLS/API/type/finance paths, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, shared acceptance matrix, and P3 #89 paths. No locked paths edited.
+- NEXT_ACTION: P2 must add `scripts/seed-p1-device-session-playwright.mjs` plus both tests from `e2e/device-session-management.spec.ts` to the existing isolated local Supabase/Chromium job, after DB setup and environment export. Re-read the exact final SHA/run and require targeted same-tenant revocation → protected RPC denial with still-unexpired token, plus self-scoped bulk revoke retaining current session and denying sibling session. The request is recorded at [#83 comment 6367739971](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6367739971).
+- BLOCKER: missing session-specific invocation is P2-owned; hosted/production E2E remains NOT RUN.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: OPEN / DRAFT / NOT MERGE-READY.
+- UPDATED_AT: 2026-10-23T17:52+03:00
+
+
+## P1 live readback — stricter revoked-JWT denial assertion; related PR checkpoints — 2026-10-23T14:55:38.344Z
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-E2E-UNEXPIRED-JWT-001` — the browser helper now verifies the exact revoked `session_id`, proves `exp` remains later than request start and response, and requires HTTP **403** from the current tenant-authorization RPC. This removes the prior false-positive path that accepted any server 5xx as successful revocation denial.
+- CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c` as recorded by PR #88; live `main` pointer last read at `75ef8774917e25f11c328568bc316330546aefba`.
+- HEAD_SHA: `87ecae031fd78caccd9fe5710ed66f5e6b61b3ba` (current code head before this checkpoint/report update; the just-added 403 assertion is included).
+- LAST_CONFIRMED_TESTS: predecessor head `b611b293...` Core SUCCESS [39971452491](https://github.com/Report-Engainall/Nasr1/actions/runs/39971452491); that predecessor does **not** validate the newer JWT-expiry/403 assertion. The prior functional head `916f68f...` also predates the HTTP-403 tightening.
+- FAILED_OR_NOT_RUN_TESTS: exact-head Core run [39973709057](https://github.com/Report-Engainall/Nasr1/actions/runs/39973709057) is IN_PROGRESS; P2 run [39973708325](https://github.com/Report-Engainall/Nasr1/actions/runs/39973708325) is PENDING. The P2 workflow currently on live `main` blob `1b2b0eade154b8b4e8ed0bed0fa9b7067b5666b7` still contains neither `scripts/seed-p1-device-session-playwright.mjs` nor `e2e/device-session-management.spec.ts`; no dedicated session-browser proof is claimed. The prior P2 local database job eventually ran other commerce scenarios only; the hosted customer-order job remained SKIPPED and is not PASS.
+- FILES_CHANGED: `e2e/device-session-management.spec.ts` (HTTP result must now be 403, not arbitrary >=400); the local endpoint helper/seeder/tests from the preceding unit remain included in the branch. This update modifies only the two P1 resumption documents.
+- LOCKED_PATHS: do not edit `.github/workflows/p2-playwright-critical-paths.yml`, P2 migrations/RPC/RLS/API/generated types, finance/inventory service files, `package.json`, `bun.lock`, `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, or the common acceptance matrix.
+- NEXT_ACTION: read terminal Core/P2 on the new code head, then obtain P2's wired session test in a later head. The current workflow-owner handoff is recorded on #88 [comment 6367467756](https://github.com/Report-Engainall/Nasr1/pull/88#issuecomment-6367467756) and P2 was also notified on #83 [comment 6367496372](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6367496372). Keep #88 Draft until the targeted two-test Chromium suite executes and passes.
+- INDEPENDENT PR #96: branch head `f831033690a524779fc3fafab0bf6269494240f2` is now a normal merge commit including live main `75ef877...`; compare from current main shows only `src/components/Storefront.tsx` and `src/test/storefront-admin-navigation-access.test.ts`. Core [39973108364 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39973108364). P2 [39973108292](https://github.com/Report-Engainall/Nasr1/actions/runs/39973108292) is still IN_PROGRESS on the isolated local Supabase job; the external customer-order job is SKIPPED. Do not merge until this P2 run reaches a terminal conclusion and current main/head are rechecked.
+- INDEPENDENT PR #97: the implementation head `ed4ee7ad...` passed Core `39972341560` and P2 `39972341569`, but documentation-only head `a2372eed...` started newer runs `39973415690` and `39973415713`; those results must be read on the latest head before merge. It is Draft and behind live main by one commit; synchronize and remove shared checkpoint/report changes from its final diff before merging.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 OPEN / DRAFT / NOT MERGE-READY. No P1 merge performed on stale or insufficient session-browser evidence.
+- UPDATED_AT: 2026-10-23T14:55:38.344Z
+
+
+## Active resume — P2 workflow integrated; run real central-session browser acceptance — 2026-10-23T18:05+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-JWT-EXPIRY-ASSERTIONS-CODE-001` — the browser spec now checks exact revoked `session_id`, expiry later than request start, expiry still in the future after the denied RPC, and HTTP 403.
+- CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `f9beca0553fc7e546415b42b83274898fcf9449a` (latest main before this merge commit; includes merged P2 PR #82 and its conditional session-spec runner).
+- PRE_SYNC_HEAD_SHA: `1267f76ba825f739372a5e05dd5efc7cc165250b`.
+- LAST_CONFIRMED_TESTS: Core [39973840052 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39973840052) and P2 [39973840047 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39973840047) on the pre-sync head `1267f76ba825f739372a5e05dd5efc7cc165250b`. These prove configured Core/browser checks only; session-specific seed/spec was skipped because the P2 workflow update had not yet reached main at that run.
+- FAILED_OR_NOT_RUN_TESTS: the dedicated `e2e/device-session-management.spec.ts` remains NOT PROVEN until the newly integrated runner actually executes both session tests. P2 PR #82's own Core + customer-manager authorization/financial privacy/audit Chromium acceptance passed on `4437526cebed13717bd71c084df447696b18183a`; its conditional P1 session steps skipped on #82 because P1-owned seed/spec files were absent from that PR.
+- FILES_CHANGED: P1 session UI/E2E/fixture guard files from the prior #88 head plus these reconciled checkpoint/report ledgers. Current main copies of P2-owned workflow, migrations/RPC/RLS/Auth/API/types/finance paths are preserved unchanged.
+- LOCKED_PATHS: `.github/workflows/p2-playwright-critical-paths.yml`, P2 seed/workflow and SQL/RPC/RLS/Auth/API/type/finance paths, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, shared acceptance matrix, and P3-owned #89 paths. Do not edit these.
+- NEXT_ACTION: verify this merge commit becomes the #88 branch head; then inspect exact-head Core + P2 runs. The steps `Seed P1 local device-session fixtures when the session acceptance suite is present` and `Run central device-session authorization and immediate-revocation Chromium acceptance` must be non-skipped and successful. If they fail, inspect artifacts/logs and fix only P1-owned code/fixture/spec. Keep #88 Draft until both dedicated scenarios pass, then verify the live base again before any merge.
+- BLOCKER: integrated session browser proof pending on the freshly synced head. Hosted-account E2E remains explicitly skipped without its external credentials.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: OPEN / DRAFT / NOT MERGE-READY until exact integrated session acceptance passes.
+- UPDATED_AT: 2026-10-23T18:05+03:00
+
+
+## P1 live test correction — session E2E row selection was ambiguous — 2026-10-23T18:14+03:00
+
+**Head under test:** `d7def4dcf2b714a9a1d9ef0643fc32923cf52e5d`  
+**P2 run:** [39975835151](https://github.com/Report-Engainall/Nasr1/actions/runs/39975835151)  
+**Core run:** [39975835128](https://github.com/Report-Engainall/Nasr1/actions/runs/39975835128)  
+**Failure:** Playwright strict-mode violation at test locators using `page.locator("article")`. The current-session summary is itself an article, while the server-backed organization session list contains row articles under a separate labelled section. The locator matched multiple nested articles, so both scenarios failed before revocation behavior was reached. No backend authorization failure has yet been demonstrated.
+
+**Correction:** scope the session-row locators to `section[aria-labelledby="organization-session-list-title"] article` for target, current and sibling records. This changes only the P1-owned spec. The fixture seed succeeded (`P1_DEVICE_SESSION_FIXTURES_READY localOnly=true adminRole=true sameTenantManagerTarget=true credentialsMasked=true`); the session assertion must now be rerun on the new SHA.
+
+**Status:** `ROOT CAUSE CONFIRMED — LOCATOR FIX IMPLEMENTED — RETEST PENDING`  
+**Next:** inspect new exact-head Core and P2 runs; require P1 seed + central session Chromium tests to conclude success before making #88 ready.  
+**UPDATED_AT:** 2026-10-23T18:14+03:00
+
+
+## P1 live test follow-up — avoid ambiguous manager sessions after retries — 2026-10-23T18:17+03:00
+
+The first integrated test reached the P1 seed step successfully, then both scenarios failed at test-row selection before invoking revoke RPCs. Scoping to the labelled organization-session list removed the parent/child article ambiguity, but the target manager may have several session records left by prior attempts. The target row now keys on `revokedSessionId.slice(0, 8)` captured from that specific browser session; confirmation still checks the target email. This prevents duplicate same-profile sessions from producing a broad match.
+
+**Status:** `TEST LOCATOR ROOT CAUSE REFINED — EXACT SESSION ID SELECTOR COMMITTED — RETEST PENDING`  
+**Next:** inspect the new exact-head run; do not infer backend behavior from the previous pre-revocation locator failures.  
+**UPDATED_AT:** 2026-10-23T18:17+03:00
+
+
+
+## Active resume — latest main sync; session row matching refined — 2026-10-23T18:20+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-LOCATOR-FIX-002` — target row selection uses the captured target `session_id` prefix within the server-backed session-list section, avoiding nested `article` and same-email historic-session collisions.
+- CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `78d8492a14ef025f53c8b669e44d622d95de525a` (latest main before this merge commit; includes P2 conditional session-test workflow and merged P2 authorization acceptance).
+- PRE_SYNC_HEAD_SHA: `d7d850783ff61f6dfc525f50bf183c9e89e6f4e1`.
+- LAST_CONFIRMED_TESTS: Core #39975835128 SUCCESS. P2 #39975835151 reached the P1 session test; the seed passed, but the spec failed before revocation because the selector matched multiple nested/session rows. The exact-session-ID selector was committed afterward and has not yet run.
+- FILES_CHANGED: P1 session UI/E2E/fixture guard plus reconciled checkpoint/report. Main's role-settings test and P2 workflow/backend paths remain unchanged.
+- LOCKED_PATHS: P2 workflow, seed, migrations/RPC/RLS/Auth/API/types/finance; shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, acceptance matrix, and P3 #89 paths.
+- NEXT_ACTION: inspect fresh exact-head CI; confirm P1 seed + session spec execute and both security scenarios pass through real revocation and still-unexpired-token denial. Fix only P1-owned code based on logs. Keep #88 Draft until proven.
+- BLOCKER: integrated session acceptance rerun.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: OPEN / DRAFT.
+- UPDATED_AT: 2026-10-23T18:20+03:00
