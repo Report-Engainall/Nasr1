@@ -1,10 +1,45 @@
-# تقرير P2 — الحالة الحية 2026-10-23T21:17:51+03:00
+# تقرير P2 — الحالة الحية 2026-10-23T21:43:00+03:00
 
 REPOSITORY=Report-Engainall/Nasr1
-MAIN_SHA=d81c9b34f819a53df7610937264c6fcb923c3f95; MAIN_TREE=8107f52d4d6c61845b95ed7226c5c7f03038a484
-MAIN_CORE_CI=IN_PROGRESS — run 40001438040 on exact current main SHA. Previous merge SHA 5dbb01f7cf2ac054212abc6f3ec34af1b1fe99df passed Core run 40001179290 on that exact merge SHA. Do not transfer this PASS to d81c9b34f819a53df7610937264c6fcb923c3f95.
-P2 on exact current main SHA = NOT RUN. PR #104 exact tested head 7f1110d95d26ece5d516b7267904a4f3f397f6ef: Core 40000512625 SUCCESS, P2 40000512706 SUCCESS. Hosted customer credential-dependent job 120575459434 was SKIPPED, not PASS.
-The only source delta after the PR #104 merge is the Bolt archive `docs/project-bolt-github-7sl6ykzz (5).zip`; current main Core is not terminal yet.
+MAIN_SHA=46a5fbb379d908328e5e2136eec3190a32e148f7
+MAIN_TREE=36339f658d84eb370320bf1f45f301eabc8c7add
+MAIN_CORE_CI=SUCCESS — run 40004846442 on exact main SHA 46a5fbb379d908328e5e2136eec3190a32e148f7.
+P2_ON_EXACT_MAIN_SHA=NOT RUN. Do not transfer PR #109's exact-head Playwright success to main merge SHA.
+CURRENT_BRANCH=p2/customer-payment-idempotency-mainhead-20261023
+BASE_SHA=46a5fbb379d908328e5e2136eec3190a32e148f7
+HEAD_SHA=REREAD_BRANCH_HEAD_BEFORE_OPENING_PR (central documents are being updated sequentially)
+CURRENT_TASK=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD
+TASK_STATUS=IMPLEMENTED; EXACT-HEAD CI NOT RUN; PR NOT CREATED YET
+
+## AI-001-AI-BUDGET-RPC-LIVE-SESSION-GUARD — integrated
+- PR #109 merged at `46a5fbb379d908328e5e2136eec3190a32e148f7`.
+- Exact PR-head Core [40003198716](https://github.com/Report-Engainall/Nasr1/actions/runs/40003198716) SUCCESS and P2 [40003198651](https://github.com/Report-Engainall/Nasr1/actions/runs/40003198651) SUCCESS on `a5bff9191481bc9c84e4fa2fecc345692a9635d4`. The local Supabase/browser path passed. Hosted credential-dependent customer E2E was SKIPPED because the dedicated non-production credentials were unavailable; not PASS.
+- Main Core [40004846442](https://github.com/Report-Engainall/Nasr1/actions/runs/40004846442) SUCCESS on exact merge SHA. Exact-merge P2 = NOT RUN.
+
+## FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD — implemented, pending CI
+Goal: a lost response after a successful payment must not cause a duplicate collection when the exact request is retried.
+Files changed on the active branch:
+- `supabase/migrations/20261023240000_customer_payment_idempotency.sql`: adds tenant-scoped idempotency UUID and SHA-256 request fingerprint; creates a partial unique index; uses request and invoice advisory locks; same key/same canonical payload replays original payment ID; altered payload with reused key errors; drops the callable old five-argument RPC signature; the new guarded six-argument RPC is granted only to authenticated users.
+- `src/components/CustomerWorkflows.tsx`: synchronously retains the request key for identical concurrent/retried submissions; preserves it across ambiguous network/RPC failures; generates a new key only when the user changes the canonical payload; clears it after confirmed success.
+- `src/integrations/supabase/types.ts`: types the required request key on the updated RPC.
+- `src/components/CustomerWorkflows.finance.test.tsx`: adds retry-key reuse and changed-payload key regeneration regressions.
+- `scripts/test-staff-receivables-aging-credit-memo-parity.mjs`: adds PostgreSQL 17 acceptance for absent legacy overload, execute grants, identical replay, changed-payload conflict, parallel same-key callers, tenant-key isolation, and cross-tenant denial; preserves existing credit-adjusted balance and concurrent over-collection acceptance.
+- `scripts/test-database-migrations.mjs`: updates its existing payment commands to pass keys to the replacement function.
+
+Validation status at this report revision:
+- New payment branch unit tests: NOT RUN by CI on the final PR head.
+- New payment branch PostgreSQL 17 migration/acceptance: NOT RUN by CI on the final PR head.
+- New payment branch P2 Playwright: NOT RUN on the final PR head.
+- Current main Core success is only baseline evidence and says nothing about the unmerged payment branch.
+- No production database was accessed or written. No external payment/provider request was made.
+- Lock coordination is registered in `WORK_COORDINATION.md`; P2 is the exclusive writer for the central state/matrix/log and updates those paths sequentially.
+
+NEXT_ACTION=Finish exact-head diff review and migration ordering; reread active branch SHA; create PR from p2/customer-payment-idempotency-mainhead-20261023; wait for terminal Core and P2 workflow results on that exact SHA; repair any observed failure before another push; merge by PR only when both required gates and review are clear; then reread main SHA and exact-main CI/P2 state before selecting the next matrix gap.
+UPDATED_AT=2026-10-23T21:43:00+03:00
+
+---
+
+## Historical report (kept for audit; superseded by the live status above)
 
 ## FIN-LEDGER-001 — integrated
 - PR #101 manual journal reversal merged at 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb.
