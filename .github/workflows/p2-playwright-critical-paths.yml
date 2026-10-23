@@ -162,7 +162,7 @@ jobs:
   public-ui-smoke:
     name: Playwright public UI smoke (no external backend writes)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout the exact tested source
         uses: actions/checkout@v6
@@ -192,11 +192,11 @@ jobs:
           key: ${{ runner.os }}-playwright-chromium-1.63.0-v1
       - name: Install Chromium and OS dependencies
         if: steps.chromium-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 8
+        timeout-minutes: 15
         run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright install --with-deps chromium"
       - name: Install Chromium OS dependencies from cached browser
         if: steps.chromium-cache.outputs.cache-hit == 'true'
-        timeout-minutes: 8
+        timeout-minutes: 15
         run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright install-deps chromium"
       - name: Build exact source with isolated non-routable placeholder configuration
         env:
@@ -307,11 +307,11 @@ jobs:
           key: ${{ runner.os }}-playwright-chromium-1.63.0-v1
       - name: Install Chromium and OS dependencies
         if: steps.chromium-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 8
+        timeout-minutes: 15
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install --with-deps chromium"
       - name: Install Chromium OS dependencies from cached browser
         if: steps.chromium-cache.outputs.cache-hit == 'true'
-        timeout-minutes: 8
+        timeout-minutes: 15
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install-deps chromium"
       - name: Verify local-only container runtime
         run: docker info
