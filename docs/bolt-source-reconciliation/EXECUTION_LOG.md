@@ -1,3 +1,13 @@
+## P2 security review follow-up — 2026-10-23T17:00:00+03:00
+
+- Main SHA remains `59547c7d683cefd65cab445b97219aa701021676`; main Core [39956957952](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952) = SUCCESS.
+- PR #83 head advanced to `1f60e27ecef78c86cc3b343b10335e5b09dfff33` after the SECURITY DEFINER review found that `public.can_manage_finance()` relied on `auth.uid()` and role only. It now requires `public.current_profile_id()`, whose output is tied to the live `auth.sessions` row matching JWT `session_id`. Regression acceptance additionally asserts that finance, role-management, staff and operational-task gates reject the revoked JWT.
+- Exact-head checks for `1f60e27...`: Core [39965936282](https://github.com/Report-Engainall/Nasr1/actions/runs/39965936282) = IN_PROGRESS; P2 [39965936142](https://github.com/Report-Engainall/Nasr1/actions/runs/39965936142) = PENDING. The prior head `91c87e0...` completed Core [39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) and P2 [39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) successfully, but those runs are no longer terminal proof for the modified helper/test.
+- PR #95 head `024e155a2135a104a7dc1c6d8ced7e2018b0a467` passed Core [39964921878](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921878) and P2 [39964921887](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921887). Core log emitted `PASS staff receivables aging`. The fixture filter now excludes invoice lines with any prior return-request history. PR95 will be merged after the foundational session migration #83 to preserve migration sequencing, and will be checked against post-merge main.
+- PR #95 does not edit files locked by #83. Matrix/WORK_COORDINATION remain locked by PR #43. Docs are saved only on PR #92 branch; main has not been modified.
+
+---
+
 ## P2 checkpoint refresh — 2026-10-23T16:55:00+03:00
 
 - Current verified main is `59547c7d683cefd65cab445b97219aa701021676`; current-main Core [39956957952](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952) = SUCCESS.
