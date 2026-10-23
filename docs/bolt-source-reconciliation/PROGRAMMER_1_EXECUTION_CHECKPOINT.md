@@ -459,3 +459,22 @@ Extended least-privilege customer_manager access to activation-link management w
 - MERGE_STATUS: #88 OPEN / DRAFT / NOT MERGE-READY.
 - INDEPENDENT_NEXT_CANDIDATE: PR #96 storefront admin-navigation gate has Core/P2 success on its exact head `844aebd2c63a479b02d5bb17c08d06180bd64f3d`, but its base is one main commit behind and it edits the same checkpoint/report files as #88. Do not merge it until it is brought onto current main, re-tested, and the shared documentation overlap is reconciled.
 - UPDATED_AT: 2026-10-23T14:44:49.787Z
+
+
+## P1 — prove revoked session JWT remains unexpired during protected-RPC denial — 2026-10-23T17:46+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-E2E-UNEXPIRED-JWT-001` (regression assertions implemented in `e2e/device-session-management.spec.ts`; exact-head CI pending).
+- CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c` (P2 session contract merge on main).
+- FUNCTIONAL_HEAD_SHA: `916f68fbb362c6d430efbef294391155e601c156`. This checkpoint/report commit is documentation-only and will advance branch HEAD; re-read the live PR head for exact CI.
+- LAST_CONFIRMED_TESTS: previous code/documentation head `b611b293ffc62e8f078fb3586148023ab6038aa5` Core CI [39971452491 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39971452491) and P2 Playwright [39971452473 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39971452473). The P2 workflow's configured local Supabase/Chromium scenarios completed, but the new `e2e/device-session-management.spec.ts` was not invoked by that workflow; these runs do **not** prove central-session revocation.
+- FAILED_OR_NOT_RUN_TESTS: exact-head Core/P2 outcomes for functional SHA `916f68fbb362c6d430efbef294391155e601c156` are not yet available at this checkpoint. The new browser assertions have not yet been executed in CI because the P2-owned workflow does not invoke the P1 session seed/spec.
+- IMPLEMENTED: `expectProtectedTenantRpcDenied(page, expectedSessionId)` now decodes only non-secret `session_id` and `exp` claims from the existing local browser token, asserts the token matches the exact revoked target/sibling, captures the request start time, and asserts `exp` is still in the future both before the protected tenant-context RPC request and after its denied response. It never prints or returns the access token.
+- FILES_CHANGED: `e2e/device-session-management.spec.ts` functional/test change; this checkpoint and current report are the resume record.
+- LOCKED_PATHS: `.github/workflows/p2-playwright-critical-paths.yml`, P2 migrations/RPC/RLS/Auth/API/generated types and seed/workflow files, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, shared acceptance matrix, and P3-owned #89 files remain untouched.
+- NEXT_ACTION: verify exact-head Core and P2 results on the live branch SHA. Continue the handoff to P2 to invoke `scripts/seed-p1-device-session-playwright.mjs` and both tests in `e2e/device-session-management.spec.ts` inside isolated local Supabase/Chromium after DB migration and app environment export. Require proof of targeted same-tenant revocation followed by denial while JWT is still unexpired, plus self-scoped bulk revocation preserving the current session and denying the sibling token. Do not edit the locked workflow from P1.
+- BLOCKER: the dedicated session-browser spec is still not wired into the P2-owned workflow. P1 handoff comment on #83: [6367496372](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6367496372).
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: OPEN / DRAFT / NOT MERGE-READY until the dedicated integrated session browser scenarios execute and pass.
+- UPDATED_AT: 2026-10-23T17:46+03:00

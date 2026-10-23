@@ -945,3 +945,31 @@ Read current #88 Core + P2 runs by exact post-sync SHA. If green, hand the missi
 - MERGE_STATUS: #88 OPEN / DRAFT / NOT MERGE-READY.
 - INDEPENDENT_NEXT_CANDIDATE: PR #96 storefront admin-navigation gate has Core/P2 success on its exact head `844aebd2c63a479b02d5bb17c08d06180bd64f3d`, but its base is one main commit behind and it edits the same checkpoint/report files as #88. Do not merge it until it is brought onto current main, re-tested, and the shared documentation overlap is reconciled.
 - UPDATED_AT: 2026-10-23T14:44:49.787Z
+
+
+## P1 live execution — revoked JWT expiry guard added to session browser acceptance — 2026-10-23T17:46+03:00
+
+**Task:** `P1-SESSION-E2E-UNEXPIRED-JWT-001`  
+**Repository / branch:** `Report-Engainall/Nasr1` / `p1/central-device-session-ui-20261023`  
+**PR:** [#88 — server-backed central device session controls](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**Base SHA:** `bd0d2df489e40b2dc5f83882d90565c7799a448c`  
+**Functional code/test SHA before this docs-only commit:** `916f68fbb362c6d430efbef294391155e601c156`
+
+### Implemented in this unit
+- Strengthened the existing `expectProtectedTenantRpcDenied` assertion instead of creating a separate browser test.
+- Both targeted administrative revocation and self-scoped sibling-session revocation now pass their expected session IDs into the protected-request check.
+- The browser check decodes only `session_id` and `exp` from the access token in local storage, verifies the ID matches the exact revoked session, and captures the current epoch time just before the protected tenant-context RPC.
+- The assertion requires the JWT expiry to be later than the request start and still later than the time after the rejected response. The token itself is not logged or returned by the browser helper.
+
+### Exact-head evidence
+- Previous head `b611b293ffc62e8f078fb3586148023ab6038aa5`: Core [39971452491 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39971452491); P2 Playwright [39971452473 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39971452473). These runs predate this new assertion.
+- New functional/test SHA `916f68fbb362c6d430efbef294391155e601c156`: Core and P2 status were not yet terminal/available at the time of this entry. No PASS is inferred from predecessor runs.
+- Important boundary: P2 run #39971452473 succeeded for the existing configured local PostgreSQL/Chromium tests (order/tenant, returns/credit memo, Onyx XLSX and finance/task print), but the workflow did not invoke `scripts/seed-p1-device-session-playwright.mjs` or `e2e/device-session-management.spec.ts`. Therefore targeted session revocation and same-token post-revocation denial remain NOT_PROVEN.
+
+### Ownership and next action
+- P1 left `.github/workflows/p2-playwright-critical-paths.yml` and all P2-owned SQL/RPC/RLS/Auth/API/type paths unchanged.
+- P1 posted the implementation/acceptance handoff to P2 on [PR #83 comment 6367496372](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6367496372), asking P2 to wire the existing seed and both session-spec tests into the isolated local Supabase/Chromium job.
+- Next: read the exact live branch SHA and its Core/P2 workflow results; fix any failure evidenced at that SHA. Keep #88 Draft until the dedicated scenario actually runs and passes. Hosted-account/production proof remains NOT RUN.
+
+**Status:** `IMPLEMENTED — CI PENDING — SESSION BROWSER ACCEPTANCE NOT PROVEN — PR DRAFT`  
+**UPDATED_AT:** 2026-10-23T17:46+03:00
