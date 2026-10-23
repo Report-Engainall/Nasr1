@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw new Error(translateAuthError(error.message));
   }, []);
 
-  const signOut = useCallback(async () => { await supabase.auth.signOut(); setUser(null); }, []);
+  const signOut = useCallback(async () => { await supabase.auth.signOut({ scope: 'local' }); setUser(null); }, []);
 
   return <AuthContext.Provider value={{ user, loading, ready, configurationError, signIn, signUp, resetPassword, signOut }}>{children}</AuthContext.Provider>;
 }

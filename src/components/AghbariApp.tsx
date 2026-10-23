@@ -23,7 +23,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Login } from '@/components/Login';
 
 import {
-  AiCenter, Devices, Field, Loading, ErrorBox, Empty, Button,
+  AiCenter, Field, Loading, ErrorBox, Empty, Button,
   TableWrap, Modal, Notifications, OrderDetail, SettingsPage, Suppliers,
 } from '@/components/AdminPages';
 import { OperationsCenter } from '@/components/OperationsCenter';
@@ -32,6 +32,8 @@ import { PricingGrid } from '@/components/PricingGrid';
 import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
 import { CustomerActivationInvitationDialog } from '@/components/CustomerActivationInvitationDialog';
+import { CustomerManagerRoleAssignment } from '@/components/CustomerManagerRoleAssignment';
+import { DeviceManagement } from '@/components/DeviceManagement';
 import { TaskCenter } from '@/components/TaskCenter';
 import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
 import { InventoryTransferHistoryPage } from '@/components/InventoryTransferHistoryPage';
@@ -63,7 +65,7 @@ const nav: { id: View; label: string; icon: IconType }[] = [
   { id: 'offers', label: 'العروض', icon: Tag },
   { id: 'suppliers', label: 'الموردون', icon: Package },
   { id: 'purchase-orders', label: 'أوامر الشراء والاستلام', icon: PackageCheck },
-  { id: 'devices', label: 'أجهزة العملاء', icon: Smartphone },
+  { id: 'devices', label: 'الأجهزة والجلسات', icon: Smartphone },
   { id: 'reports', label: 'التقارير الذكية', icon: BarChart3 },
   { id: 'ai', label: 'مركز الذكاء', icon: Bot },
   { id: 'notifications', label: 'التنبيهات', icon: Bell },
@@ -187,13 +189,13 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
           {view === 'offers' && <Offers onNotice={showNotice} />}
           {view === 'suppliers' && <Suppliers onNotice={showNotice} />}
           {view === 'purchase-orders' && <PurchaseOrdersPage />}
-          {view === 'devices' && <Devices onNotice={showNotice} />}
+          {view === 'devices' && <DeviceManagement onNotice={showNotice} />}
           {view === 'reports' && <Reports />}
           {view === 'ai' && <AiCenter onNotice={showNotice} />}
           {view === 'notifications' && <Notifications onNotice={showNotice} />}
           {view === 'data' && <DataCenter onNotice={showNotice} />}
           {view === 'operations' && <OperationsCenter onNotice={showNotice} />}
-          {view === 'settings' && <SettingsPage onNotice={showNotice} />}
+          {view === 'settings' && <><SettingsPage onNotice={showNotice} />{user.roles.includes('admin') && <CustomerManagerRoleAssignment currentProfileId={user.profileId} onNotice={showNotice} />}</>}
           {view === 'quotes' && <StaffQuotesPage />}
           {view === 'finance' && <StaffFinancePage />}
           {view === 'tasks' && <TaskCenter onNotice={showNotice} />}
