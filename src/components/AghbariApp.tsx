@@ -411,8 +411,8 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
     </Modal>}
   </>;
 }
-function ProductModal({ product, onClose, onSaved }: { product: ProductWithInventory | null; onClose: () => void; onSaved: (message?: string) => void }) {
-  const { data: categories } = useFetch(fetchCategories);
+export function ProductModal({ product, onClose, onSaved }: { product: ProductWithInventory | null; onClose: () => void; onSaved: (message?: string) => void }) {
+  const { data: categories, loading: categoriesLoading, error: categoriesError, refetch: refetchCategories } = useFetch(fetchCategories);
   const [name, setName] = useState(product?.name ?? '');
   const [code, setCode] = useState(product?.item_code ?? '');
   const [price, setPrice] = useState(String(product?.base_price ?? ''));
@@ -421,6 +421,8 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
   const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // React state alone does not block two click events dispatched before a rerender.
+  const saveInFlight = useRef(false);
 
   useEffect(() => {
     if (!imageFile) { setImagePreview(product?.image_url ?? null); return; }
@@ -438,9 +440,11 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
   }
 
   async function save() {
+    if (saveInFlight.current || saving) return;
     if (!name.trim() || !code.trim() || !price) { setError('أكمل الحقول المطلوبة'); return; }
     const priceValue = Number(price);
     if (!Number.isFinite(priceValue) || priceValue < 0 || priceValue > 999999999999.99) { setError('السعر الأساسي غير صالح.'); return; }
+    saveInFlight.current = true;
     setSaving(true); setError('');
     let productSaved = false;
     try {
@@ -461,18 +465,24 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
     } catch (cause) {
       if (productSaved) onSaved('تم حفظ بيانات المنتج؛ تعذر تأكيد اكتمال العملية. أعد تحديث القائمة قبل التكرار.');
       else setError(cause instanceof Error ? cause.message : 'تعذر حفظ المنتج.');
-    } finally { setSaving(false); }
+    } finally { saveInFlight.current = false; setSaving(false); }
   }
 
   return <Modal title={product ? 'تعديل المنتج' : 'إضافة منتج'} onClose={() => { if (!saving) onClose(); }}>
     <Field label="اسم المنتج"><input value={name} onChange={(e) => setName(e.target.value)} maxLength={240} disabled={saving} /></Field>
     <div className="form-grid"><Field label="رمز المنتج"><input value={code} onChange={(e) => setCode(e.target.value)} maxLength={80} disabled={saving} /></Field><Field label="السعر الأساسي"><input type="number" min="0" max="999999999999.99" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} disabled={saving} /></Field></div>
-    <Field label="التصنيف"><select value={category} onChange={(e) => setCategory(e.target.value)} disabled={saving}><option value="">غير مصنف</option>{categories?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+    {categoriesError && <div className="form-error" role="alert"><span>تعذر تحميل التصنيفات: {categoriesError}</span><Button variant="outline" onClick={() => void refetchCategories()} disabled={saving || categoriesLoading}>إعادة المحاولة</Button></div>}
+    <Field label="التصنيف">
+      <select value={category} onChange={(e) => setCategory(e.target.value)} disabled={saving || categoriesLoading || Boolean(categoriesError)}>
+        <option value="">{categoriesLoading ? 'جار تحميل التصنيفات…' : categoriesError ? 'تعذر تحميل التصنيفات' : 'غير مصنف'}</option>
+        {categories?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+    </Field>
     <Field label="صورة المنتج (JPG / PNG / WebP، بحد أقصى 8 ميغابايت)"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { chooseImage(e.currentTarget.files?.[0] ?? null); e.currentTarget.value = ''; }} disabled={saving} /></Field>
     {imagePreview && <div style={{ display: 'flex', justifyContent: 'center', padding: 8, border: '1px solid var(--border, #e2e8f0)', borderRadius: 12 }}><img src={imagePreview} alt={'معاينة صورة ' + name} style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8 }} /></div>}
     {imageFile && <p className="text-muted">ستُضغط الصورة إلى WebP بحد أقصى 1600×1600 وتُرفع إلى مساحة صور الكتالوج للمؤسسة.</p>}
     {error && <div className="form-error" role="alert">{error}</div>}
-    <div className="modal-actions"><Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button><Button onClick={() => void save()} disabled={saving}>{saving ? 'جار الحفظ والرفع...' : 'حفظ المنتج'}</Button></div>
+    <div className="modal-actions"><Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button><Button onClick={() => void save()} disabled={saving || categoriesLoading || Boolean(categoriesError)}>{saving ? 'جار الحفظ والرفع...' : 'حفظ المنتج'}</Button></div>
   </Modal>;
 }
 

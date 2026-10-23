@@ -1,22 +1,38 @@
-# تقرير الحالة التنفيذي — المبرمج 1 / إدارة جلسات الأجهزة المركزية
+# تقرير الحالة التنفيذي — P1 / واجهات العميل والتجارة والإدارة
 
 - **المستودع:** `Report-Engainall/Nasr1`
-- **فرع P1 الحالي:** `p1/central-device-session-ui-20261023`
-- **PR الحالي:** [#88 — Draft/open، غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/88)
-- **BASE_SHA لإعادة التكامل:** `8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2`
-- **رأس الميزة قبل إعادة التكامل:** `0d51e2090951e1dab80d4fbdf8e92bcfbb256de8`
-- **آخر رأس وظيفي مختبَر بدقة:** `5114ea8227f570662533219af1dc3a013cd49f75` — Core CI **SUCCESS** [39981579136](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579136)؛ P2 Playwright **SUCCESS** [39981579236](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579236)، بما يشمل Chromium/Supabase المحلي لاختبار صلاحية وإلغاء الجلسة فورًا.
-- **المهمة:** `P1-DEVICE-SESSION-MGMT-UI-001` — ربط إدارة الأجهزة والجلسات بعقد الخادم، ورفض بيانات الجلسات غير الصحيحة، وحماية الجلسة الحالية، واشتراط إقرار مطابق من الخادم قبل إظهار نجاح الإلغاء.
-- **الاختبارات المثبتة على الرأس السابق فقط:** Core CI [39977276920 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276920)؛ P2 Playwright [39977276972 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276972). خطوة Chromium الخاصة بتفويض إدارة الجلسات والإلغاء الفوري نجحت مع Supabase محلي معزول.
-- **المتبقي:** التحقق من CI على commit التوثيق الحالي؛ اختبار الحساب الخارجي تخطّاه حاجز الاعتماد؛ الإنتاج NOT RUN.
-- **الملفات في صافي التغيير المقصود:** هذا التقرير ونقطة الاستئناف وواجهة الجلسات واختبارها وأدوات/اختبارات Playwright الخاصة بـP1.
-- **NEXT_ACTION:** فحص Core وP2 Playwright على رأس commit التوثيق الحالي. إذا نجحا وظل صافي الملفات ضمن ملكية P1، اجعل PR #88 جاهزًا وادمجه عبر GitHub ثم تحقق من SHA الدمج وCI الخاص بـ`main`.
-- **حدود الإثبات:** نجاح المتصفح المحلي يخص تدفق الجلسات الذي اختُبر؛ لا يثبت الحسابات الخارجية أو الإنتاج.
+- **CURRENT_BRANCH / last tested task branch:** `p1/storefront-order-price-browser-20261023`.
+- **CHECKPOINT_STORAGE_BRANCH:** `p1/admin-product-singleflight-20261023` (تحديث ملفَي P1 المملوكين عبر PR #97 القائم؛ لا يوجد PR توثيق موازٍ). Parent قبل دفعة التوثيق: `24263ffcb333e94f3350daf7c8e5de805151a512`؛ يجب قراءة CI على الرأس الناتج قبل إغلاق دفعة الوثائق.
+- **BASE_SHA / MAIN_SHA:** `cd303b7fe0f263c9f62ed97f10202e9895465273`.
+- **TASK_ID / LAST_COMPLETED_TASK_ID:** `P1-STOREFRONT-ORDER-PRICE-BROWSER-001`.
+- **HEAD_SHA / TESTED_EXACT_SHA للوظيفة الأخيرة:** `05e4b0eaaee3dade67f2ca763c4f101d475226c6`.
+- **Core CI — SUCCESS على SHA نفسه:** [run 40008732247](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732247). جميع اختبارات الوحدة وقبول PostgreSQL 17 وlint/build وsmoke، واختبارات Chromium الأربع الخاصة بخصوصية السعر نجحت.
+- **P2 Playwright — SUCCESS على SHA نفسه:** [run 40008732216، المحاولة 2](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732216). نجح public read-only smoke وقبول Chromium عبر Supabase/PostgreSQL 17 المحلي المعزول.
+- **التغيير:** أضيف تأكيد في `e2e/storefront-price-visibility.spec.ts` يفحص النص المرئي و`innerHTML` معًا لمنع ظهور مبلغ الوحدة أو إجمالي السطر/الطلب أو اسم شريحة العميل السرية في DOM عند إخفاء رد المعاينة أو كونه غير صالح. لا يوجد اتصال إنتاجي في الاختبار.
+- **حدود الإثبات:** hosted customer-order/tenant-isolation `SKIPPED / BLOCKED_EXTERNAL` لغياب اعتماد اختبار خارجي؛ `PRODUCTION_PROVEN=NOT RUN`. فشل تشغيل P2 الأول في بدء Wrangler preview، ثم أُعيد تشغيل الوظيفة الفاشلة فقط واجتازت الإعادة.
+- **PR #107:** [storefront price privacy browser tests](https://github.com/Report-Engainall/Nasr1/pull/107) — `OPEN / DRAFT / NOT MERGED`; exact tested head `05e4b0eaaee3dade67f2ca763c4f101d475226c6`; branch synchronized with main (`behind_by=0`). Net diff: `e2e/storefront-price-visibility.spec.ts`, `src/test/storefront-price-visibility-harness.tsx`.
+- **المراجعة المستقلة:** `BLOCKED_EXTERNAL`. استعلام GitHub المباشر أعاد صفر مراجعات رسمية على #107؛ #97 أيضًا ما زال Draft دون اعتماد مستقل. لا تعتمد على رسائل CodeRabbit أو نجاح CI كبديل عن مراجعة maintainer مخول.
+- **الملكية والمسارات المقفلة:** لا تعديل على ملفات P2 المركزية/SQL/RPC/RLS/migrations أو مصفوفة القبول، ولا على ملفات P3 في #89، ولا على `src/routeTree.gen.ts`.
+- **NEXT_ACTION:** `P1-REVIEW-GATE-001` — اطلب/احصل على مراجعة رسمية من maintainer مخوّل لطلب P1 #97 أولًا، واترك #107 و#102 Draft إلى أن تتم مراجعتهما مستقلًا. إن بقيت المراجعة محجوبة خارجيًا، انتقل فقط إلى عيب واجهة P1 مستقل مثبت، دون إعادة أعمال #66/#75/#84/#88/#99/#106 المدمجة أو فتح PR مكرر.
+- **MERGE_STATUS:** PR #107 مفتوح وDraft وغير مدمج؛ لا يُرفع أو يُدمج دون مراجعة مستقلة.
+- **UPDATED_AT:** 2026-10-23T22:13:00+03:00.
 
-> الأقسام التالية تحتفظ بالسجل التاريخي من تكاملات سابقة؛ هذا الملخص هو نقطة الاستئناف الحالية لهذا الفرع.
+> دليل الاختبار أعلاه يخص HEAD `05e4b0eaaee3dade67f2ca763c4f101d475226c6` على PR #107 فقط. تحديث هذا التقرير/الـcheckpoint على فرع #97 سينشئ رأسًا وثائقيًا جديدًا؛ لا تنقل دليل SHA #107 إليه، واقرأ تشغيلات الرأس الوثائقي الجديد عند انتهائها.
 
+## P1-STOREFRONT-ORDER-PRICE-BROWSER-001 — سجل التنفيذ
+
+تم إكمال اختبار المتصفح المحلي للسلة ومراجعة الطلب. في حالات `visible=false` والحمولة غير السليمة، يجب ألا تظهر قيم الاختبار السرية (`987654`, `1975308`, `شريحة سرية`) في النص أو HTML المسلسل للـDOM. وبقي اختبار فشل RPC وإعادة المحاولة fail-closed إلى أن تعود معاينة خادمية صالحة.
+
+- Functional/test commit: `05e4b0eaaee3dade67f2ca763c4f101d475226c6`.
+- Core: [40008732247 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732247).
+- P2: [40008732216 SUCCESS, attempt 2](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732216).
+- Browser tests: 4/4 pass in `e2e/storefront-price-visibility.spec.ts`; local-only fixture blocks other endpoint requests. Hosted customer-order E2E skipped and production NOT RUN.
+- Reviewer gate for PR #107 remains `BLOCKED_EXTERNAL`; no formal review found.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
+
+
+
 
 - **الحالة:** مندمج ومختبر. [PR #3](https://github.com/Report-Engainall/Nasr1/pull/3) أُغلق بالدمج؛ [PR #2](https://github.com/Report-Engainall/Nasr1/pull/2) المكرر بقي مغلقًا دون دمج.
 - **الرأس الذي اختُبر:** `01ef17b05c2bf507003efccbb897f76318e0df02`.
