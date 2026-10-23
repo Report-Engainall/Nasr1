@@ -1,6 +1,22 @@
-# تصحيح حاكم لحالة التنسيق — 22 أكتوبر 2026
+# سجل التنسيق التاريخي — تحديثات 22 أكتوبر 2026
 
-هذه الإضافة تتقدم على كل سطر تاريخي أدناه يتعارض معها، ولا تحذف السجل السابق.
+## تصحيح حاكم حي — 23 أكتوبر 2026
+
+هذا القسم هو المرجع الأحدث لحالة Git والتنسيق؛ أي SHA أو حالة قديمة في السجل أسفله تاريخية ولا تُعامل كحقيقة حية.
+
+- `main` الحالي الذي تم التحقق منه: `76baf9dbe7860a764abc18e75835abb8750d56a3`. لا كتابة مباشرة إلى `main`.
+- PR #54: `feat/p2-onyx-source-trace-mainline-20261022`. رأس الكود المثبت `52ae68f1f14d61d1fb13925a840c330cb70956e1`: Core CI PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39905763702 وP2 Playwright PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39905763717. وظيفة Supabase المحلية `120258001144` نجحت في PostgreSQL 17، الطلب/عزل المستأجر، المرتجعات والإشعارات الدائنة، تصدير Onyx XLSX، والطباعة المالية/التشغيلية. اعتماد الاختبار الخارجي منفصل وبقي SKIPPED.
+- رأس الفرع الحالي قد يكون أحدث من SHA الكود المختبَر بسبب تحديثات الوثائق في PR #54. لا يُعتبر رأس الوثائق المختبَر إلا بعد نجاح Actions على SHA النهائي للوثائق.
+- مؤشر الاستئناف الوحيد في `CURRENT_EXECUTION_STATE.md` هو `INV-009`. أُغلق `SRC-011` بدليل لأن التحقق من `SOURCE_INTEGRATION_LEDGER.csv` (قراءة فقط) يثبت أن تدفق إدخال الطلب الحالي أفضل من donor migration 0011؛ لا تنسخ SQL المصدر ولا تعدّل سجل P1.
+- PR #52 / INV-009 (`e7cc5fa6aa2a7e22eeedc3d8f179c0638712ad3f`): Core PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39842798167. P2 run https://github.com/Report-Engainall/Nasr1/actions/runs/39842798332 فشل قبل بدء الخدمات بسبب GHCR rate limiting؛ لا إثبات متصفح لهذا الرأس. حدّث الفرع بعد تكامل تحسينات مسار Supabase في PR #54، ثم أعد Core وP2 على SHA محدد.
+- PR #57 / انتهاء دعوة الشركة (`2c4dea9ef63d34a6cf104bee58a5998c5fcef128`): Core PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39904816444 وP2 Playwright PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39904816431، بما فيه Supabase المحلي؛ اختبار الحساب الخارجي منفصل وبقي SKIPPED. هذا الفرع يتداخل مع `scripts/test-database-migrations.mjs` الذي يعدّله PR #54، لذلك يُحدّث ويختبر بعد دمج #54، وليس بالتوازي.
+- تسلسل الدمج: لا تُدمج أو تحدث فروعًا متداخلة بالتوازي. PR #54 هو الذي يحمل تحديث المسار المشترك `.github/workflows/p2-playwright-critical-paths.yml`؛ بعد حسمه حدّث واختبر PR #52 ثم PR #57 بالتتابع مع فحص التعارضات وإعادة تشغيل الاختبارات على SHA الجديد. مراجعة P1 المستقلة لم تُسجّل كنتيجة نهائية بعد.
+- لا اختبارات إنتاجية أو اتصال حيّ بـOnyx/WhatsApp. لا `PRODUCTION_PROVEN`، ولا نجاح خارجي ضمني، ولا تعديل لملفات ملكية P1.
+
+---
+
+## سجل التنسيق الأصلي (للتاريخ فقط)
+
 
 - الحالة الحية وقت التصحيح: main = 0395367d869d0d63fba669940a92eeca0ae3e893؛ Core CI #39789165220 IN_PROGRESS عند آخر قراءة.
 - PR #18 و#26 و#29 و#32 و#34 و#38 مدمجة بالفعل؛ محاسبة استلام المشتريات في PR #32 ومهام الشراء في PR #34 مكتملة الدمج. أي فقرة أقدم تصف #18 أو #26 بأنها OPEN أو غير مدمجة هي تاريخية ولا تستخدم لتحديد العمل الحالي.
@@ -791,3 +807,24 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **Protected / excluded:** `src/lib/api.ts` while PR #46 owns order-status changes; `src/components/AdminPages.tsx`, Onyx/finance/print files, and workflow changes associated with P2 PR #40; `src/routeTree.gen.ts`; and PR #31's four locked P1 evidence files. Donor repositories remain read-only.
 - **Validation:** targeted service/UI-wiring tests plus exact-head Core CI including PostgreSQL 17, lint, build and smoke. Authenticated browser/production proof stays NOT RUN unless actually executed.
 - **Serialization:** `WORK_COORDINATION.md` is also changed by open PR #40. Merge this P1 PR only as one sequential merge; do not merge PR #40 concurrently. After this PR's post-merge CI succeeds, release this lock and re-read main before taking another shared-path task.
+
+
+## P2 path lock — NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011 — mainline replay, 22 October 2026
+
+- **Owner:** P2 only. **Branch:** `feat/p2-onyx-source-trace-mainline-20261022`. **Exact base:** `bf06c73226033da8e4f81e24981eb64e6e7fca99`.
+- **Purpose:** port the already-reviewed Onyx source-lineage/export evidence and role-/tenant-scoped finance/task print acceptance from the stale PR #40 branch onto the current main without bringing unrelated company-invitation migration work.
+- **Exclusive paths:** `.github/workflows/p2-playwright-critical-paths.yml`, `e2e/finance-task-print.spec.ts`, `e2e/onyx-order-export.spec.ts`, `scripts/test-customer-returns.mjs`, `scripts/test-database-migrations.mjs`, `scripts/test-onyx-source-evidence.mjs`, `src/components/AdminPages.tsx`, `src/components/OnyxSnapshotSourceEvidencePanel.tsx`, `src/lib/onyx-export.ts`, `src/lib/onyx-source-evidence-export.ts`, `src/lib/onyx-source-evidence.ts`, the related Onyx tests, and `supabase/migrations/20261022110000_onyx_source_trace_sync_evidence.sql`.
+- **Supersession:** PR #40 is read-only for this task; do not edit or merge it in parallel with this branch. The Onyx export/source-evidence code is being revalidated on this base. The company-invitation SHA-256 migration and its regression test are included only because the transferred canonical PostgreSQL acceptance script asserts that exact 64-character token-hash contract; they remain a separately identified security slice, not a replacement for company-workspace acceptance.
+- **Overlap controls:** preserve P1's current `WORK_COORDINATION.md` entries; PR #52 owns `package.json` and `scripts/test-onyx-reconciliation-concurrency.mjs`, so this branch must not overwrite either file or import the untested post-`87ff39c` race-test edits to `scripts/test-database-migrations.mjs`. PR #46's `src/lib/api.ts` order-status slice is out of scope.
+- **Acceptance:** exact-head Core CI (unit tests, PostgreSQL 17 acceptance, lint, build and smoke); exact-head P2 Playwright with local Supabase setup, authenticated Onyx export and finance/task-print paths. Investigate and fix the failed Onyx XLSX browser assertion using the recorded job logs. Browser proof applies only to the tests that actually pass; no production Onyx sync is claimed.
+- **Lock release:** only after the replacement PR is reviewed/merged sequentially and the resulting main SHA has its own required CI result. Never reset, clean, force-push, or write directly to `main`.
+
+## P2 exclusive path lock — INV-009 Onyx reconciliation two-session concurrency acceptance — refreshed 23 October 2026
+
+- **Owner:** P2 only. **Branch:** `feat/p2-onyx-apply-concurrency-acceptance-20261022`. **Updated base:** `c3d5bfefa62d4503c4b8b2ce358031c7db3e6625` (main after the sequential #54 and #57 merges and exact post-merge Core CI).
+- **Sequencing evidence:** PR #54 merged as `afa4840c137d9da853c8486b005adb1ffd5fdd0a`; exact-head Core/P2 pass on `0f7c951ee220e6569f5f68011488064564585ca1` (runs [39907766276](https://github.com/Report-Engainall/Nasr1/actions/runs/39907766276), [39907766290](https://github.com/Report-Engainall/Nasr1/actions/runs/39907766290)); post-merge Core pass [39908182164](https://github.com/Report-Engainall/Nasr1/actions/runs/39908182164). PR #57 merged as `c3d5bfefa62d4503c4b8b2ce358031c7db3e6625`; exact-head Core/P2 pass on `886fbea35d631dfe3af854ec1d0f8ac3f300069c` (runs [39909049064](https://github.com/Report-Engainall/Nasr1/actions/runs/39909049064), [39909049120](https://github.com/Report-Engainall/Nasr1/actions/runs/39909049120)); post-merge Core pass [39910254370](https://github.com/Report-Engainall/Nasr1/actions/runs/39910254370).
+- **Exclusive paths:** `package.json` (the `test:db` command only), new `scripts/test-onyx-reconciliation-concurrency.mjs`, and this file append-only. The script removes its ephemeral `auth.users` fixture along with tenant data during cleanup.
+- **No-touch:** `src/lib/api.ts` while PR #56 owns order status; `src/components/AdminPages.tsx`, `src/routeTree.gen.ts`, SQL/RLS/RPC migrations, protected P1 evidence paths, and existing Onyx/finance/export implementation. No donor SQL is copied and PR #40 remains read-only.
+- **Acceptance:** isolated PostgreSQL 17; two authenticated sessions call the same apply command while a third independent session holds the command row lock; verify both callers actually wait before release, exactly one apply and one idempotent replay, a single stock movement, a single audit event, final on-hand quantity `15.000`, reserved quantity unchanged at `2.000`, and final idempotency key/command state. Any failure is fixed on this branch and retested on the resulting exact SHA.
+- **Browser boundary:** exact-head P2 Playwright must also pass its local Supabase/Chromium order-persistence and tenant-isolation path. External hosted-account credentials remain `BLOCKED_EXTERNAL` unless the infrastructure gate is genuinely supplied; this is not a live Onyx provider test.
+- **Release condition:** merge only after exact-head Core CI and P2 Playwright terminal success; then verify Core CI against the merge SHA on `main`. Never write directly to `main`, force-push, or merge any overlapping `WORK_COORDINATION.md` change concurrently.

@@ -379,10 +379,26 @@ export async function reviewOrderLines(
   };
 }
 
+const ORDER_STATUS_VALUES = new Set([
+  'draft', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled',
+]);
+
 export async function updateOrderStatus(id: string, status: string): Promise<void> {
-  // The database transition trigger validates the state change and writes status history atomically.
-  const { error } = await supabase.from('orders').update({ status }).eq('id', id);
+  // Reject unknown values locally; the database trigger remains authoritative for legal transitions.
+  if (!ORDER_STATUS_VALUES.has(status)) throw new Error('حالة الطلب غير مدعومة.');
+
+  // PostgREST can return no row without an error when no row is visible to this tenant/RLS scope.
+  // Ask only for the granted id column and never report success without the exact row acknowledgement.
+  const { data: updated, error } = await supabase
+    .from('orders')
+    .update({ status })
+    .eq('id', id)
+    .select('id')
+    .maybeSingle();
   if (error) throw error;
+  if (!updated?.id || updated.id !== id) {
+    throw new Error('لم يؤكد الخادم تحديث حالة الطلب؛ قد يكون الطلب غير موجود في المؤسسة الحالية أو أن الانتقال غير مسموح.');
+  }
 }
 
 export async function createOrder(order: {
