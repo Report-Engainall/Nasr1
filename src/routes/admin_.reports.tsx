@@ -1,6 +1,5 @@
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
 import { AdminApp } from "@/components/AghbariApp";
-import { ExecutiveStoreAnalytics } from "@/components/ExecutiveStoreAnalytics";
 
 export const Route = createFileRoute("/admin_/reports")({
   head: () => ({ meta: [{ title: "التقارير | الأغبري" }, { name: "robots", content: "noindex" }] }),
@@ -13,9 +12,6 @@ export const Route = createFileRoute("/admin_/reports")({
           </a>
         </div>
         <AdminApp initialView="reports" />
-        <div dir="rtl" className="mx-auto max-w-6xl px-4 pb-6">
-          <ExecutiveStoreAnalytics />
-        </div>
       </div>
     </ClientOnly>
   ),
