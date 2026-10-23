@@ -45,10 +45,10 @@ BEGIN
   PERFORM pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended(v_org::text||':customer-invoice-settlement:'||p_invoice_id::text,0)
   );
+  -- The invoice-keyed advisory lock serializes payments and credit postings without row-lock inversion.
   SELECT i.* INTO v_invoice
     FROM public.customer_invoices i
-   WHERE i.id=p_invoice_id AND i.organization_id=v_org
-   FOR UPDATE;
+   WHERE i.id=p_invoice_id AND i.organization_id=v_org;
   IF NOT FOUND OR v_invoice.status='void' THEN
     RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='active invoice not found in this organization';
   END IF;

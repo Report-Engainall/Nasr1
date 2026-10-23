@@ -2445,8 +2445,7 @@ export function StaffFinancePage() {
       setError("تعذر تحميل المالية. تأكد من نشر الترحيل وصلاحيات المحاسب/الإدارة.");
       setInvoices([]);
       setPayments([]);
-    }
-    else {
+    } else {
       const payload = (r.data ?? {}) as {
         invoices?: Invoice[];
         payments?: (PaymentAmount & { paid_at?: string; payment_method?: string })[];
