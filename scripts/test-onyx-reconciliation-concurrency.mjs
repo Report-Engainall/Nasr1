@@ -104,6 +104,7 @@ async function removeFixture() {
     await admin.unsafe("delete from public.warehouses where id=$1::uuid", [warehouseId]);
     await admin.unsafe("delete from public.user_roles where profile_id=$1::uuid", [profileId]);
     await admin.unsafe("delete from public.profiles where id=$1::uuid", [profileId]);
+    await admin.unsafe("delete from auth.users where id=$1::uuid", [authUserId]);
     await admin.unsafe("delete from public.organizations where id=$1::uuid", [organizationId]);
     await admin.unsafe("commit");
   } catch (error) {

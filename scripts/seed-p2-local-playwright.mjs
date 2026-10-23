@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { appendFile } from "node:fs/promises";
 import postgres from "postgres";
 
@@ -33,6 +33,10 @@ const managerPassword = randomUUID().replaceAll("-", "") + "Mm3!";
 const emailA = "p2.local.e2e.a." + runKey + "@example.test";
 const emailB = "p2.local.e2e.b." + runKey + "@example.test";
 const managerEmail = "p2.local.e2e.manager." + runKey + "@example.test";
+const companyMemberPassword = randomUUID().replaceAll("-", "") + "Cc4!";
+const companyMemberEmail = "p2.local.e2e.member." + runKey + "@example.test";
+const expiredInvitationToken = randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", "");
+const expiredInvitationId = randomUUID();
 const returnOrderId = randomUUID();
 const returnOrderNumber = "P2-RET-" + runKey.replaceAll("-", "").slice(-12).toUpperCase();
 const returnInvoiceNumber = "INV-" + returnOrderNumber;
@@ -64,15 +68,17 @@ async function createConfirmedUser(email, password, fullName) {
 
 async function main() {
   // Mask every ephemeral identity/credential before the next Actions step echoes inherited env.
-  for (const value of [emailA, passwordA, emailB, passwordB, managerEmail, managerPassword, apiUrl, publishableKey, serviceRoleKey, connectionString]) {
+  for (const value of [emailA, passwordA, emailB, passwordB, managerEmail, managerPassword, companyMemberEmail, companyMemberPassword, expiredInvitationToken, apiUrl, publishableKey, serviceRoleKey, connectionString]) {
     process.stdout.write("::add-mask::" + value + String.fromCharCode(10));
   }
   const userAId = await createConfirmedUser(emailA, passwordA, "P2 Local E2E Customer A");
   const userBId = await createConfirmedUser(emailB, passwordB, "P2 Local E2E Customer B");
   const managerUserId = await createConfirmedUser(managerEmail, managerPassword, "P2 Local E2E Manager");
+  const companyMemberUserId = await createConfirmedUser(companyMemberEmail, companyMemberPassword, "P2 Local E2E Company Member");
   let profileAId;
   let profileBId;
   let managerProfileId;
+  let companyMemberProfileId;
   let returnReceivableAccountId;
   let returnRevenueAccountId;
   const suffix = runKey.replaceAll("-", "").slice(-12);
@@ -114,10 +120,11 @@ async function main() {
     profileAId = await upsertProfile(userAId, organizationId, "P2 Local E2E Customer A", emailA);
     profileBId = await upsertProfile(userBId, foreignOrganizationId, "P2 Local E2E Customer B", emailB);
     managerProfileId = await upsertProfile(managerUserId, organizationId, "P2 Local E2E Manager", managerEmail);
+    companyMemberProfileId = await upsertProfile(companyMemberUserId, organizationId, "P2 Local E2E Company Member", companyMemberEmail);
     await tx.unsafe(
-      "insert into public.user_roles(profile_id,role) values($1::uuid,'customer'),($2::uuid,'customer'),($3::uuid,'manager') " +
+      "insert into public.user_roles(profile_id,role) values($1::uuid,'customer'),($2::uuid,'customer'),($3::uuid,'manager'),($4::uuid,'customer') " +
       "on conflict(profile_id,role) do nothing",
-      [profileAId, profileBId, managerProfileId],
+      [profileAId, profileBId, managerProfileId, companyMemberProfileId],
     );
     await tx.unsafe(
       "insert into public.customers(" +
@@ -132,6 +139,16 @@ async function main() {
         "771234568", emailB,
       ],
     );
+
+    const expiredInvitationRows = await tx.unsafe(
+      "insert into public.customer_company_invitations(id,organization_id,customer_id,invited_email,member_role,token_hash,status,invited_by,expires_at) " +
+      "select $1::uuid,c.organization_id,c.id,$4::text,'viewer',$5::text,'pending',$2::uuid,pg_catalog.now()-interval '1 second' " +
+      "from public.customers c where c.organization_id=$3::uuid and c.profile_id=$2::uuid and c.status='approved' returning id",
+      [expiredInvitationId, profileAId, organizationId, companyMemberEmail, createHash("md5").update(expiredInvitationToken).digest("hex")],
+    );
+    if (expiredInvitationRows.length !== 1) {
+      throw new Error("The isolated company expiry browser test requires one customer-owned expired invitation.");
+    }
 
     const product = await tx.unsafe(
       "select id from public.products where id=$1::uuid and organization_id=$2::uuid and status='active'",
@@ -232,6 +249,10 @@ async function main() {
     "E2E_CUSTOMER_NAME=P2 Local E2E Customer A",
     "E2E_MANAGER_EMAIL=" + managerEmail,
     "E2E_MANAGER_PASSWORD=" + managerPassword,
+    "E2E_COMPANY_MEMBER_EMAIL=" + companyMemberEmail,
+    "E2E_COMPANY_MEMBER_PASSWORD=" + companyMemberPassword,
+    "E2E_EXPIRED_COMPANY_INVITE_TOKEN=" + expiredInvitationToken,
+    "E2E_EXPIRED_COMPANY_INVITATION_ID=" + expiredInvitationId,
     "E2E_RETURN_ORDER_ID=" + returnOrderId,
     "E2E_RETURN_ORDER_NUMBER=" + returnOrderNumber,
     "E2E_RETURN_ITEM_NAME=" + returnItemName,
@@ -246,7 +267,7 @@ async function main() {
   process.stdout.write(
     "P2_LOCAL_E2E_FIXTURES_READY organizationA=" + organizationId +
     " organizationB=" + foreignOrganizationId +
-    " confirmedUsers=3 customerReturnOrder=" + returnOrderNumber +
+    " confirmedUsers=4 expiredCompanyInvitationSeeded=true customerReturnOrder=" + returnOrderNumber +
     " catalogProduct=" + productId + " stock=100 localOnly=true\n",
   );
 }

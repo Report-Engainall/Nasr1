@@ -157,3 +157,66 @@ test("catalog → cart → order → refresh, then cross-organization read denia
     await contextA.close();
   }
 });
+
+test("expired company invitation is denied in Chromium and shown as expired in the owner workspace", async ({ browser }) => {
+  const ownerEmail = process.env.E2E_EMAIL;
+  const ownerPassword = process.env.E2E_PASSWORD;
+  const memberEmail = process.env.E2E_COMPANY_MEMBER_EMAIL;
+  const memberPassword = process.env.E2E_COMPANY_MEMBER_PASSWORD;
+  const expiredToken = process.env.E2E_EXPIRED_COMPANY_INVITE_TOKEN;
+  if (!ownerEmail || !ownerPassword || !memberEmail || !memberPassword || !expiredToken) {
+    throw new Error("Dedicated local owner/member accounts and an expired company invitation are required; do not silently skip company expiry acceptance.");
+  }
+
+  const ownerContext = await browser.newContext();
+  const ownerPage = await ownerContext.newPage();
+  const ownerDiagnostics = captureBrowserDiagnostics(ownerPage);
+  const memberContext = await browser.newContext();
+  const memberPage = await memberContext.newPage();
+  const memberDiagnostics = captureBrowserDiagnostics(memberPage);
+
+  try {
+    await test.step("customer account: the real addresses route renders from the authenticated application", async () => {
+      await signIn(ownerPage, ownerEmail, ownerPassword);
+      await ownerPage.goto("/addresses");
+      await expect(ownerPage.getByRole("heading", { name: "عناوين التوصيل" })).toBeVisible();
+    });
+
+    await test.step("invited account: an expired single-use token is denied by the server", async () => {
+      await signIn(memberPage, memberEmail, memberPassword);
+      await memberPage.goto("/company/accept-invitation?token=" + encodeURIComponent(expiredToken));
+      const acceptButton = memberPage.getByRole("button", { name: "قبول الدعوة والانضمام للشركة" });
+      await expect(acceptButton).toBeVisible();
+      await acceptButton.click();
+      await expect(memberPage.getByRole("alert")).toContainText("انتهت صلاحية الدعوة؛ اطلب رابطًا جديدًا");
+      await expect(memberPage.getByText("تم تفعيل العضوية")).toHaveCount(0);
+    });
+
+    await test.step("company owner: persisted invitation is visible as expired", async () => {
+      await ownerPage.goto("/company/members");
+      await expect(ownerPage.getByRole("heading", { name: "أعضاء الشركة وصلاحياتهم" })).toBeVisible();
+      const invitation = ownerPage.locator("article").filter({ hasText: memberEmail });
+      await expect(invitation).toContainText("مشاهد");
+      await expect(invitation).toContainText("منتهية");
+      await expect(invitation.getByRole("button", { name: "إلغاء الدعوة" })).toHaveCount(0);
+    });
+
+    expect(ownerDiagnostics.pageErrors, "Uncaught errors on the customer address/company owner pages.").toEqual([]);
+    expect(memberDiagnostics.pageErrors, "Uncaught errors on the company invitation acceptance route.").toEqual([]);
+    await test.info().attach("company-expiry-browser-proof.json", {
+      body: JSON.stringify({
+        result: "BROWSER_PROVEN",
+        sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+        criticalPath: "customer login -> addresses route -> expired invitation acceptance denied -> owner workspace shows durable expired status",
+        invitationStatus: "expired",
+        membershipGranted: false,
+        externalEmailSent: false,
+        targetDatabase: "isolated local Supabase/PostgreSQL 17",
+      }),
+      contentType: "application/json",
+    });
+  } finally {
+    await memberContext.close();
+    await ownerContext.close();
+  }
+});
