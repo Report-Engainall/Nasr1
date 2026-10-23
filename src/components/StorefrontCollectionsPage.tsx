@@ -35,7 +35,7 @@ export function StorefrontCollectionsPage() {
       : categories.length === 0 ? <div className="sf-empty" role="status"><Tags size={26}/><strong>لا توجد تصنيفات منشورة</strong><small>لا يوجد تصنيف نشط متاح للحساب الحالي.</small><Link to="/catalog">فتح الكتالوج الكامل</Link></div>
       : <section aria-label="التصنيفات المنشورة" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14 }}>
         {categories.map((category) => {
-          const count = products.filter((product) => product.category_id === category.id && product.status !== "inactive").length;
+          const count = products.filter((product) => product.category_id === category.id && product.is_active !== false && product.status !== "inactive").length;
           return <article key={category.id} style={{ border: "1px solid #dce9e8", background: "#fff", borderRadius: 14, padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}><Layers3 size={22} color="#087f8d"/><h2 style={{ fontSize: 18, margin: 0 }}>{category.name}</h2></div>
             <p style={{ margin: 0, color: "#526b70" }}>{category.description || "تصنيف منظم لأصناف الكتالوج المنشور."}</p>
