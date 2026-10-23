@@ -30,7 +30,13 @@ describe("customer address book data contract",()=>{
     mocks.rpc.mockResolvedValue({data:"d1111111-1111-4111-8111-111111111111",error:null});
   });
   it("reads only display-safe fields and sorts the default address first",async()=>{
-    const rows=[{id:"d1111111-1111-4111-8111-111111111111",label:"المستودع الرئيسي",is_default:true}];
+    const rows=[{
+      id:"d1111111-1111-4111-8111-111111111111",label:"المستودع الرئيسي",
+      recipient_name:"مؤسسة الأغبري",phone:"+967 777 123 456",address_line1:"شارع الستين، مبنى 12",
+      address_line2:"البوابة الخلفية",city:"صنعاء",region:"أمانة العاصمة",postal_code:null,country:"YE",
+      delivery_instructions:"الاتصال قبل الوصول",is_default:true,
+      created_at:"2026-10-20T10:00:00Z",updated_at:"2026-10-21T10:00:00Z",
+    }];
     mocks.readResponse={data:rows,error:null};
     await expect(fetchCustomerAddresses()).resolves.toEqual(rows);
     expect(mocks.from).toHaveBeenCalledWith("customer_addresses");
@@ -39,6 +45,17 @@ describe("customer address book data contract",()=>{
     expect(mocks.orders).toEqual([
       {column:"is_default",ascending:false},{column:"updated_at",ascending:false},{column:"created_at",ascending:false},
     ]);
+  });
+  it("fails closed on malformed address rows instead of trusting an unchecked database cast",async()=>{
+    mocks.readResponse={data:[{id:"not-a-uuid",label:"عنوان",is_default:true}],error:null};
+    await expect(fetchCustomerAddresses()).rejects.toThrow("معرّف عنوان التوصيل غير صالح");
+    mocks.readResponse={data:[{
+      id:"d1111111-1111-4111-8111-111111111111",label:"عنوان",recipient_name:"مستلم",
+      phone:"1234567",address_line1:"شارع 12",address_line2:null,city:"صنعاء",region:null,
+      postal_code:null,country:"YEM",delivery_instructions:null,is_default:true,
+      created_at:"2026-10-20T10:00:00Z",updated_at:"2026-10-21T10:00:00Z",
+    }],error:null};
+    await expect(fetchCustomerAddresses()).rejects.toThrow("رمز دولة عنوان التوصيل غير صالح");
   });
   it("normalizes fields and never sends customer or organization IDs to write RPCs",async()=>{
     await expect(saveCustomerAddress({...VALID,label:"  المستودع الرئيسي ",recipient_name:" مؤسسة الأغبري "}))
@@ -54,6 +71,15 @@ describe("customer address book data contract",()=>{
   it("rejects malformed fields before any write",async()=>{
     await expect(saveCustomerAddress({...VALID,phone:"123"})).rejects.toThrow("رقم هاتف صحيح");
     await expect(saveCustomerAddress({...VALID,country:"YEM"})).rejects.toThrow("رمز الدولة");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("requires UUID save acknowledgement and rejects malformed edit/delete IDs before RPC",async()=>{
+    mocks.rpc.mockResolvedValueOnce({data:"not-a-uuid",error:null});
+    await expect(saveCustomerAddress(VALID)).rejects.toThrow("لم يؤكد الخادم حفظ العنوان");
+    expect(mocks.rpc).toHaveBeenCalledWith("save_customer_address",expect.objectContaining({p_address_id:null}));
+    mocks.rpc.mockClear();
+    await expect(saveCustomerAddress({...VALID,id:"not-a-uuid"})).rejects.toThrow("معرّف عنوان التوصيل غير صالح");
+    await expect(deleteCustomerAddress("not-a-uuid")).rejects.toThrow("معرّف عنوان التوصيل غير صالح");
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it("shows database errors instead of claiming success",async()=>{

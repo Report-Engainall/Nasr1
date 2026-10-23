@@ -2429,7 +2429,8 @@ export function StaffFinancePage() {
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
-  const paymentRequestRef = useRef<{ fingerprint: string; key: string } | null>(null);
+  // Keep a separate key for each unresolved request so changing form values cannot orphan an ambiguous retry.
+  const paymentRequestKeysRef = useRef<Map<string, string>>(new Map());
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -2531,12 +2532,13 @@ export function StaffFinancePage() {
       reference: normalizedReference,
       notes: normalizedNotes,
     });
-    const priorRequest = paymentRequestRef.current;
-    const idempotencyKey = priorRequest?.fingerprint === requestFingerprint
-      ? priorRequest.key
-      : globalThis.crypto.randomUUID();
-    // Set synchronously before awaiting the network so rapid duplicate submits share one key.
-    paymentRequestRef.current = { fingerprint: requestFingerprint, key: idempotencyKey };
+    const pendingRequests = paymentRequestKeysRef.current;
+    let idempotencyKey = pendingRequests.get(requestFingerprint);
+    if (!idempotencyKey) {
+      idempotencyKey = globalThis.crypto.randomUUID();
+      // Store synchronously before awaiting the network so rapid duplicate submits share one key.
+      pendingRequests.set(requestFingerprint, idempotencyKey);
+    }
 
     setBusy(true);
     setError("");
@@ -2550,13 +2552,22 @@ export function StaffFinancePage() {
         p_reference: normalizedReference,
         p_notes: normalizedNotes,
       });
-      if (r.error) {
-        // Keep the key on every unsuccessful/ambiguous result. If the server committed before
-        // the response was lost, the same request key safely replays the original payment.
-        setError("تعذر تسجيل الدفعة: " + r.error.message + ". أعد المحاولة بالقيم نفسها.");
+      const acknowledgedPaymentId = typeof r.data === "string" ? r.data.trim() : "";
+      const hasValidPaymentId =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          acknowledgedPaymentId,
+        );
+      if (r.error || !hasValidPaymentId) {
+        // A transport failure or malformed acknowledgement is ambiguous: retain the key so
+        // retrying the same payload replays instead of potentially collecting twice.
+        const reason = r.error?.message ?? "استجابة الخادم لم تتضمن معرف دفعة صالحًا";
+        setError("تعذر تسجيل الدفعة: " + reason + ". أعد المحاولة بالقيم نفسها.");
         return;
       }
-      paymentRequestRef.current = null;
+      // Only a well-formed UUID payment identifier is an acknowledgement; clear this completed request.
+      if (paymentRequestKeysRef.current.get(requestFingerprint) === idempotencyKey) {
+        paymentRequestKeysRef.current.delete(requestFingerprint);
+      }
       setMessage("تم تسجيل الدفعة وتحديث حالة الفاتورة.");
       setAmount("");
       setReference("");
