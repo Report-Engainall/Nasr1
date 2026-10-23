@@ -84,7 +84,11 @@ describe("async export center list recovery", () => {
     expect(mocks.triggerAsyncExportWorker).toHaveBeenCalledWith(queuedJob.job_id);
     expect(mocks.listMyAsyncExportJobs).toHaveBeenCalledTimes(2);
     expect(host?.querySelector('[role="status"]')?.textContent).toContain("أُرسل الطلب الحالي إلى العامل.");
-    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("list unavailable");
+    const listErrorStatus = [...(host?.querySelectorAll('[role="status"]') ?? [])]
+      .find((element) => element.textContent?.includes("list unavailable"));
+    expect(listErrorStatus).toBeTruthy();
+    expect(listErrorStatus).toHaveAttribute("aria-live", "polite");
+    expect(host?.querySelector('[role="alert"]')).toBeNull();
 
     await clickButton("تحديث السجل");
     expect(mocks.listMyAsyncExportJobs).toHaveBeenCalledTimes(3);

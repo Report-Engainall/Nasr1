@@ -107,7 +107,15 @@ export function AsyncExportCenter() {
       <button type="button" onClick={() => void refresh()} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-60"><RefreshCw size={16} className={loading ? "animate-spin" : ""}/> تحديث السجل</button>
     </header>
     {notice && <div role="status" aria-live="polite" className={"rounded-xl border p-4 text-sm " + (notice.kind === "error" ? "border-rose-200 bg-rose-50 text-rose-900" : notice.kind === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-sky-200 bg-sky-50 text-sky-900")}>{notice.text}</div>}
-    {listError && <div role="alert" aria-live="assertive" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">{listError}</div>}
+    {listError && (
+      <div
+        role="status"
+        aria-live="polite"
+        className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"
+      >
+        {listError}
+      </div>
+    )}
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm md:p-6">
       <div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><FileSpreadsheet size={20}/></span>
         <div><h2 className="font-semibold text-foreground">طلب تصدير جديد</h2><p className="mt-0.5 text-xs text-muted-foreground">الحدود: 1000 طلب، 10000 بند، 25 ميجابايت، واحتفاظ سبعة أيام.</p></div>
