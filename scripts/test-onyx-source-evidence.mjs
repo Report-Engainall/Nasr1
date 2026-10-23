@@ -16,6 +16,10 @@ function asJson(value) {
 
 async function setIdentity(userId, email) {
   await db.unsafe("reset role");
+  await db.unsafe(
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI Onyx evidence session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+    [userId],
+  );
   await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [userId]);
   await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
     JSON.stringify({
@@ -23,6 +27,7 @@ async function setIdentity(userId, email) {
       email,
       role: "authenticated",
       email_confirmed_at: new Date().toISOString(),
+      session_id: userId,
     }),
   ]);
   await db.unsafe("set role authenticated");
