@@ -2175,6 +2175,29 @@ async function main() {
   );
   assert.equal(saleMovements[0].count, 1, "delivery must not consume the same stock twice");
 
+  const orderLifecycleHistory = await db.unsafe(
+    "select from_status,to_status,changed_by from public.order_status_history " +
+      "where order_id=$1 and to_status = any($2::text[]) " +
+      "order by case to_status when 'processing' then 1 when 'shipped' then 2 when 'delivered' then 3 else 4 end",
+    [order.id, ["processing", "shipped", "delivered"]],
+  );
+  assert.deepEqual(
+    orderLifecycleHistory.map((row) => [row.from_status, row.to_status]),
+    [["confirmed", "processing"], ["processing", "shipped"], ["shipped", "delivered"]],
+    "each successful order lifecycle transition must append one ordered from/to audit record",
+  );
+  assert.ok(
+    orderLifecycleHistory.every((row) => row.changed_by === staffProfileId),
+    "order status history must record the active tenant staff actor, not a null or foreign actor",
+  );
+  const rejectedCancelHistory = await db.unsafe(
+    "select id from public.order_status_history where order_id=$1 and to_status='cancelled'",
+    [order.id],
+  );
+  assert.equal(rejectedCancelHistory.length, 0,
+    "a rejected shipped-order cancellation must not append a false status-history record");
+  process.stdout.write("PASS order lifecycle audit: ordered transitions, same-tenant actor attribution and no audit row for rejected cancellation\\n");
+
   await db.unsafe("reset role");
   await setIdentity(authUserId, "ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
