@@ -31,6 +31,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 const TOKEN_PATTERN = /^[0-9a-f]{64}$/i;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INVITATION_STATUSES = new Set<CustomerActivationInvitationStatus>(["pending", "accepted", "revoked", "expired"]);
+const MAX_EXPIRY_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 function record(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -69,6 +70,10 @@ export async function createCustomerActivationInvitation(
     throw new Error("مدة الدعوة يجب أن تكون من ساعة إلى 168 ساعة.");
   }
 
+  // Bound the accepted server expiry against the requested TTL while allowing
+  // a small server/client clock skew. Re-check against response-time clock too:
+  // the server response itself may arrive after a short-lived link has expired.
+  const requestStartedAt = Date.now();
   const { data, error } = await supabase.rpc("create_customer_activation_invitation", {
     p_customer_id: customerId,
     p_email: normalizedEmail,
@@ -82,6 +87,11 @@ export async function createCustomerActivationInvitation(
   const invitedEmail = requiredString(row.invited_email, "رد الخادم ببريد دعوة غير صالح.");
   const token = requiredString(row.token, "لم يرجع الخادم رمز الدعوة.");
   const expiresAt = parseDate(row.expires_at, "وقت انتهاء الدعوة غير صالح.");
+  const expiresAtMs = Date.parse(expiresAt);
+  const latestAllowedExpiry = requestStartedAt + expiresHours * 60 * 60 * 1000 + MAX_EXPIRY_CLOCK_SKEW_MS;
+  if (expiresAtMs <= Date.now() || expiresAtMs > latestAllowedExpiry) {
+    throw new Error("وقت انتهاء الدعوة خارج المدة المطلوبة.");
+  }
   if (!UUID_PATTERN.test(invitationId) || returnedCustomerId !== customerId ||
       invitedEmail !== normalizedEmail || !TOKEN_PATTERN.test(token)) {
     throw new Error("لم يؤكد الخادم إنشاء دعوة تفعيل مطابقة للطلب.");

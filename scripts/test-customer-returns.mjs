@@ -7,9 +7,14 @@ if (!connectionString) throw new Error("TEST_DATABASE_URL is required for custom
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
 async function setIdentity(authUserId, email) {
+  await db.unsafe("reset role").catch(() => {});
+  await db.unsafe(
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI customer return session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+    [authUserId],
+  );
   await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [authUserId]);
   await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
-    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
+    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated", session_id: authUserId }),
   ]);
 }
 
@@ -368,6 +373,8 @@ async function main() {
   let secondReceiptA;
   let secondReceiptB;
   try {
+    await concurrentDb.unsafe("reset role").catch(() => {});
+    await concurrentDb.unsafe("insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI return race session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null", [managerAuthId]);
     await concurrentDb.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [managerAuthId]);
     await concurrentDb.unsafe("select set_config('request.jwt.claims',$1,false)", [
       JSON.stringify({
@@ -375,6 +382,7 @@ async function main() {
         email: "ci-return-manager@example.test",
         email_confirmed_at: new Date().toISOString(),
         role: "authenticated",
+        session_id: managerAuthId,
       }),
     ]);
     await concurrentDb.unsafe("set role authenticated");
@@ -868,9 +876,11 @@ async function main() {
   const racer=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   let results;
   try {
+    await racer.unsafe("reset role").catch(() => {});
+    await racer.unsafe("insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI return reversal race session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null", [managerAuthId]);
     await racer.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[managerAuthId]);
     await racer.unsafe("select set_config('request.jwt.claims',$1,false)",[
-      JSON.stringify({sub:managerAuthId,email:"ci-return-manager@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated"}),
+      JSON.stringify({sub:managerAuthId,email:"ci-return-manager@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated",session_id:managerAuthId}),
     ]);
     await racer.unsafe("set role authenticated");
     results=await Promise.all([

@@ -20,7 +20,7 @@ const cryptoMigrationPath = join(
   process.cwd(),
   "supabase",
   "migrations",
-  "20261023125000_customer_activation_pgcrypto_schema.sql",
+  "20261023190000_customer_activation_pgcrypto_schema.sql",
 );
 const cryptoMigration = readFileSync(cryptoMigrationPath, "utf8");
 
@@ -98,10 +98,9 @@ describe("customer activation invitation migration security contract", () => {
     expect(migration).toMatch(/customer_activation_invitations_one_pending_customer_idx[\s\S]*?WHERE status='pending'/i);
   });
 
-  it("uses schema-aware SHA-256 and cryptographic token generation in the active manager permission migration", () => {
-    expect(currentPermissionMigration).toMatch(/public\.customer_activation_invitation_random_token\(\)/i);
-    expect(currentPermissionMigration).toMatch(/public\.customer_activation_invitation_sha256\(v_token\)/i);
-    expect(currentPermissionMigration).not.toMatch(/public\.gen_random_bytes|public\.digest\(|CREATE OR REPLACE FUNCTION public\.accept_customer_activation_invitation/i);
+  it("uses a forward migration to repair token generation for already-applied permission migrations", () => {
+    expect(currentPermissionMigration).toMatch(/CREATE OR REPLACE FUNCTION public\.create_customer_activation_invitation\(/i);
+    expect(cryptoMigration).toMatch(/CREATE OR REPLACE FUNCTION public\.create_customer_activation_invitation\([\s\S]*?public\.customer_activation_invitation_random_token\(\)[\s\S]*?public\.customer_activation_invitation_sha256\(v_token\)/i);
   });
 
   it("resolves pgcrypto's installed schema for token creation and acceptance", () => {

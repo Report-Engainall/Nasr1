@@ -3,18 +3,32 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import postgres from "postgres";
 import { runOrderInputHardeningAcceptance } from "./test-order-input-hardening.mjs";
+import { runSessionManagementAcceptance } from "./test-session-management.mjs";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) throw new Error("TEST_DATABASE_URL is required for isolated database migration tests.");
 
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
-async function setIdentity(authUserId, email) {
+async function setIdentity(authUserId, email, sessionId = authUserId, registerSession = true) {
+  // Test identities must seed Auth session rows with the elevated fixture connection role,
+  // then restore the caller's PostgreSQL role so existing RLS assertions remain meaningful.
+  const priorRole = (await db.unsafe("select current_setting('role', true) as role"))[0]?.role;
+  if (registerSession) {
+    await db.unsafe("reset role");
+    await db.unsafe(
+      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now(),now(),now(),null,'CI isolated session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+      [sessionId, authUserId],
+    );
+  }
   await db.unsafe("select set_config('request.jwt.claim.sub', $1, false)", [authUserId]);
-  // Confirmation is read from auth.users.email_confirmed_at in PostgreSQL, never forged into JWT claims.
+  // Auth email confirmation stays sourced from auth.users; session_id models the signed JWT claim.
   await db.unsafe("select set_config('request.jwt.claims', $1, false)", [
-    JSON.stringify({ sub: authUserId, email, role: "authenticated" }),
+    JSON.stringify({ sub: authUserId, email, role: "authenticated", session_id: sessionId }),
   ]);
+  if (["authenticated", "anon", "service_role"].includes(priorRole)) {
+    await db.unsafe("set role " + priorRole);
+  }
 }
 
 async function expectFailure(label, action, pattern) {
@@ -39,6 +53,16 @@ async function main() {
       id uuid primary key,
       email text,
       email_confirmed_at timestamptz
+    );
+    create table if not exists auth.sessions (
+      id uuid primary key,
+      user_id uuid not null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      refreshed_at timestamp,
+      not_after timestamptz,
+      user_agent text,
+      ip inet
     );
     create or replace function auth.uid() returns uuid
       language sql stable
@@ -2775,7 +2799,7 @@ async function main() {
   await setIdentity(unconfirmedMemberAuthUserId,"ci-unconfirmed-member@example.test");
   // Simulate a stale/incorrect positive claim: the persistent auth.users row remains unconfirmed.
   await db.unsafe("select set_config('request.jwt.claims', $1, false)",[
-    JSON.stringify({sub:unconfirmedMemberAuthUserId,email:"ci-unconfirmed-member@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated"}),
+    JSON.stringify({sub:unconfirmedMemberAuthUserId,email:"ci-unconfirmed-member@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated",session_id:unconfirmedMemberAuthUserId}),
   ]);
   await db.unsafe("set role authenticated");
   await expectFailure("company invitation rejects unconfirmed auth.users even if the JWT says confirmed",
@@ -3437,7 +3461,7 @@ async function main() {
     await connection.unsafe("select set_config('application_name',$1,false)", [appName]);
     await connection.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [staffAuthUserId]);
     await connection.unsafe("select set_config('request.jwt.claims',$1,false)", [
-      JSON.stringify({ sub: staffAuthUserId, email: "admin@aghbari.ye", role: "authenticated" }),
+      JSON.stringify({ sub: staffAuthUserId, email: "admin@aghbari.ye", role: "authenticated", session_id: staffAuthUserId }),
     ]);
     await connection.unsafe("set role authenticated");
   };
@@ -4942,6 +4966,7 @@ async function main() {
     ]);
   }
 
+  await runSessionManagementAcceptance({ db, setIdentity, expectFailure });
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }
 
