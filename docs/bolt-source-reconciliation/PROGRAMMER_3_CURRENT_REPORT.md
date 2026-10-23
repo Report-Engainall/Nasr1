@@ -1,6 +1,6 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T17:31:40.611+03:00
+UPDATED_AT: 2026-10-23T17:36:00+03:00
 
 ## Git and current execution
 - Repository: Report-Engainall/Nasr1
@@ -80,19 +80,21 @@ On exact tested head `7d5fb61857ca27c84c1ae9fdba6a3e957fe8e658`, Core [399696306
 - Full all-route browser UAT and production acceptance are NOT RUN.
 
 ## Mandatory execution checkpoint fields — current readback
-LAST_COMPLETED_TASK_ID: P3-P2-HANDOFF-LOCAL-PORT-GUARD-021 (P2-owned exact-SHA CI failure diagnosed; owner handoff posted; no P2 source files changed)
+LAST_COMPLETED_TASK_ID: P3-CATEGORY-ASYNC-ASSERT-022 (specific not-found assertion committed; exact-SHA CI not yet returned)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: 7d5fb61857ca27c84c1ae9fdba6a3e957fe8e658 (live docs branch head before this docs-only synchronization; latest source/test commit 418e25d1e9fc75145f27cf0668fb41a7e471c692)
-ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /reset-password; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route/component tests; full all-route browser UAT remains open; direct routeTree entry assertions added for /categories, /collections, /offers, /search/advanced, /catalog?q=Rice, /search?q=Rice (CI pending)
+HEAD_SHA: 399699cad5afd953f396d4cee6b28cd62573f639 (source/test commit; report/checkpoint updates are documentation-only successors and require exact-head CI readback)
+ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /reset-password; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route/component tests; full all-route browser UAT remains open; direct routeTree entry assertions added for /categories, /collections, /offers, /search/advanced, /catalog?q=Rice, /search?q=Rice (CI pending); /category/$slug/subcategory/$subcategorySlug — async not-found assertion regression
 FILES_CHANGED: src/routes/index.tsx; src/test/customer-route-loading.test.tsx; src/components/StorefrontOffersPage.tsx; src/test/storefront-offers.test.tsx; src/components/AdvancedStorefrontSearchPage.tsx; src/test/advanced-storefront-search.test.tsx; src/components/Storefront.tsx; src/test/storefront-price-visibility-ui.test.tsx; src/test/storefront-category-landing.test.tsx; src/test/reset-password-route.test.tsx; P3 checkpoint/report
 TESTS_RUN_WITH_RESULTS: Exact head `7d5fb61857ca27c84c1ae9fdba6a3e957fe8e658`: Core run [39969630673 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39969630673). Unit suite, PostgreSQL 17 migration/workflow checks, backup/restore, lint, build, preview/dev smoke, and price-privacy Chromium acceptance passed. P2 run [39969630660](https://github.com/Report-Engainall/Nasr1/actions/runs/39969630660): public UI smoke SUCCESS; local Supabase job FAILED at fixture creation because environment port `55432` conflicts with hard-coded `54322` check in P2-owned script; no authenticated browser scenarios ran. Failure evidence in P2 handoff [comment 6367290450](https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6367290450). Credential-gated external customer E2E SKIPPED; local tests NOT RUN due local DNS restriction. This report/checkpoint synchronization creates a new docs head requiring its own exact-head actions.
 - P3-ROUTE-DEEPLINK-019: six real-router direct route/query-state tests committed at c4d53b9; current code/test head is 4653641; exact-head Core is IN_PROGRESS and P2 PENDING; local tests NOT RUN.
+- Previous PR head `ef2944351fe887c0c12e896ab52c67fe9965f2e4`: Core [39963003111](https://github.com/Report-Engainall/Nasr1/actions/runs/39963003111) **SUCCESS**; P2 [39963003108](https://github.com/Report-Engainall/Nasr1/actions/runs/39963003108) **CANCELLED**. This does not validate the new source/test commit `399699cad5afd953f396d4cee6b28cd62573f639` or any documentation successor.
+- New source/test commit `399699cad5afd953f396d4cee6b28cd62573f639`: local tests **NOT RUN**; exact-head CI result **NOT YET AVAILABLE** at this readback.
+
 TESTS_FAILED_OR_SKIPPED: P2 local-Supabase acceptance failed on `7d5fb618...` specifically at `Create ephemeral local users and tenant fixtures`; observed CLI output is loopback database port `55432` but the fixture script requires `54322`. This is a P2-owned CI fixture guard, not a P3 storefront defect; owner handoff `6367290450`. External-credential customer-order/tenant E2E SKIPPED, not PASS. Full all-route browser UAT and production acceptance NOT RUN.
 DEFECTS_FOUND: root hydration fallback; route loading coverage expanded to 23 wrappers; published offers exclude inactive items and distinguish source errors; advanced search and category loading/error/retry added; reset-password flows regression-tested; checkout same-tick duplicate submission guard added.
 HANDOFF_TO_P1_OR_P2: P1 owns generated /admin/exports route-tree registration and locked admin wrappers; P2 owns route matrix/backend contracts and external-credential E2E setup. Historical package-cache handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365925364
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
 MERGE_STATUS: OPEN; UNMERGED; no formal independent review/approval recorded
 BLOCKERS: current code/test head 4653641 Core #39968751206 IN_PROGRESS at Unit tests and P2 #39968751364 PENDING; prior P2 runs on earlier heads were cancelled; docs successor needs fresh exact-head CI; independent formal review absent; main remains one documentation commit ahead; credential-gated external E2E and manual reset-password/category-retry UAT NOT RUN.
-NEXT_ACTION: verify Core/P2 on this checkpoint/report successor; continue independent P3 route acceptance while P2 reconciles handoff 6367290450. Do not edit P2-owned CI/script files or claim local browser acceptance passed until a fresh local-Supabase run executes the browser scenarios and reaches SUCCESS. Keep PR #89 open pending that rerun and independent formal human review.
-UPDATED_AT: 2026-10-23T17:22:01+03:00
+NEXT_ACTION: verify the live PR branch SHA and its exact-head Core/P2 results, including the new category not-found regression and lint/build; if green, continue the next independent P3 route acceptance task. Keep P2's local-Supabase port-guard handoff open. Do not merge PR #89 while P2 browser acceptance is cancelled/unproven or formal independent approval is absent.
