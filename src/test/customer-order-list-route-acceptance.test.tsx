@@ -229,7 +229,7 @@ describe("customer order-list real route acceptance", () => {
 
     expect(host?.querySelector('[role="alert"]')).toBeNull();
     expect(host?.textContent).toContain("لا توجد طلبات بعد.");
-    expect(host?.querySelector('a[href="/"]')?.textContent).toContain("ابدأ التسوق");
+    expect(host?.querySelector('a.sf-btn-primary[href="/"]')?.textContent).toContain("ابدأ التسوق");
   });
 
   it("uses exact counts, stable ranged pagination, and never renders financial fields", async () => {
