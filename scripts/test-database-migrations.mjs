@@ -3140,6 +3140,11 @@ async function main() {
   // INV-STOCK-001: prove a real lock race between single-item transfer and a multi-item batch.
   // A third PostgreSQL session holds the shared product row lock until both API calls are blocked.
   await db.unsafe("reset role");
+  const raceOriginalBalances = await db.unsafe(
+    "select product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point,last_movement_at,updated_at " +
+    "from public.inventory_balances where product_id in ($1::uuid,$2::uuid) and warehouse_id in ($3::uuid,$4::uuid)",
+    [productId,batchProductId,testWarehouseId,transferDestinationId],
+  );
   for (const [raceProduct, raceWarehouse, onHand, reserved] of [
     [productId, testWarehouseId, 10, 2],
     [productId, transferDestinationId, 0, 0],
@@ -3280,6 +3285,27 @@ async function main() {
     );
     assert.equal(raceAudit.length, 1, "only the winning single transfer or winning batch is audited");
     assert.equal(raceAudit[0].action, singleOutcome.ok ? "inventory.transfer" : "inventory.transfer.batch");
+    for (const [raceProduct, raceWarehouse] of [
+      [productId, testWarehouseId],
+      [productId, transferDestinationId],
+      [batchProductId, testWarehouseId],
+      [batchProductId, transferDestinationId],
+    ]) {
+      const before = raceOriginalBalances.find((row) =>
+        row.product_id === raceProduct && row.warehouse_id === raceWarehouse);
+      if (before) {
+        await db.unsafe(
+          "update public.inventory_balances set quantity_on_hand=$3,quantity_reserved=$4,reorder_point=$5," +
+          "last_movement_at=$6,updated_at=$7 where product_id=$1 and warehouse_id=$2",
+          [before.product_id,before.warehouse_id,before.quantity_on_hand,before.quantity_reserved,before.reorder_point,before.last_movement_at,before.updated_at],
+        );
+      } else {
+        await db.unsafe(
+          "delete from public.inventory_balances where product_id=$1 and warehouse_id=$2",
+          [raceProduct,raceWarehouse],
+        );
+      }
+    }
     process.stdout.write(
       "PASS inventory transfer race: both PostgreSQL RPC sessions waited on a held product lock; exactly one single/batch transfer won, stock/reservations were conserved, rejected path left no partial rows or movements, and one audit event persisted\n",
     );
