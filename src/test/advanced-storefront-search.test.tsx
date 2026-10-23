@@ -17,8 +17,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/api", () => ({ fetchCategories: mocks.fetchCategories }));
 vi.mock("@/lib/useFetch", () => ({ useFetch: mocks.useFetch }));
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children, ...props }: { to: string; children?: ReactNode } & AnchorHTMLAttributes<HTMLAnchorElement>) =>
-    <a href={to} {...props}>{children}</a>,
+  Link: ({
+    to,
+    children,
+    ...props
+  }: { to: string; children?: ReactNode } & AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a href={to} {...props}>{children}</a>
+  ),
   useNavigate: () => mocks.navigate,
 }));
 
