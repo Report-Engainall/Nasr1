@@ -220,7 +220,7 @@ async function main() {
     [foreignCustomer,"retail","vip","CI cross tenant"]),/not found in current organization/i);
   await assert.rejects(()=>rpc(customer,
     "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
-    [localCustomer,"wholesale","vip","CI customer forbidden"]),/admin or manager permission required/i);
+    [localCustomer,"wholesale","vip","CI customer forbidden"]),/active customer-management permission required/i);
   const customerPrivileges=await root.unsafe(
     "select has_table_privilege('authenticated','public.customers','UPDATE') as table_update, " +
     "has_column_privilege('authenticated','public.customers','tier','UPDATE') as tier_update, " +
@@ -256,7 +256,7 @@ async function main() {
   await assert.rejects(()=>rpc(customer,
     "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
     [localCustomer,"frozen","approved","CI customer cannot administer lifecycle"]),
-    /admin or manager permission required to change customer status/i);
+    /active customer-management permission required to change customer status/i);
   await assert.rejects(()=>rpc(admin,
     "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
     [localCustomer,"frozen","approved"," "]),
