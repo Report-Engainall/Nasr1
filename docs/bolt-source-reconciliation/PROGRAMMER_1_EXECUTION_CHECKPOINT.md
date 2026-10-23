@@ -152,3 +152,20 @@ Extended least-privilege customer_manager access to activation-link management w
 - Current P2 dependency readback: #82 head `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`, #83 head `49ea0ce8936bf319a1941ea0ba0a1f03ebec9c3c`, and P1 #88 head `895b27384e21f654bf3e1124303304266ddccb3f` all read `mergeable=true` at this timestamp, but that flag alone is not proof of current-base exact-head CI or required review. #82 exact head has prior Core/P2 success; #83 must have terminal current-head Core/P2 before integration; #88 remains Draft and dependent on #83.
 - LAST_COMPLETED_TASK_ID remains `P1-INVITE-EXPIRY-90`; NEXT_ACTION: create a small documentation PR for this checkpoint/report update, validate its checks, then continue with the next independent P1 UI gap. Keep #88 unmerged until the backend contract is integrated and current-head verified.
 - UPDATED_AT: 2026-10-23T16:02+03:00
+
+
+## P1 central-session UI repeated-action guard — 2026-10-23T16:10+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-REVOKE-DOUBLE-CLICK-GUARD` implementation/test added; exact-head validation pending.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023` (UI feature branch for PR #88). Documentation updates remain isolated on `p1/post-merge-resume-20261023`.
+- BASE_SHA: `0396b29aeab8c09c430df0063821251208a38477` original #88 base; live main when this follow-up began was `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA: `9310fbb76a7df9db9c45026d9b53053a9ab2d201` exact code/test head; docs branch current head when updated is separate and not yet tested.
+- LAST_CONFIRMED_TESTS: previous PR #88 head `895b27384e21f654bf3e1124303304266ddccb3f` had Core [39950279851 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39950279851) and P2 [39950279733 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39950279733), but those runs do not cover this new change. Exact-new-head Core [39957639395](https://github.com/Report-Engainall/Nasr1/actions/runs/39957639395) and P2 [39957639394](https://github.com/Report-Engainall/Nasr1/actions/runs/39957639394) are queued at time of record.
+- FAILED_OR_NOT_RUN_TESTS: do not claim test success for `9310fbb...` until both new-head workflows complete. Authenticated production and live organization-session proof are NOT RUN; contract integration depends on P2 #83.
+- FILES_CHANGED: `src/components/DeviceManagement.tsx` and `src/test/device-management.test.tsx`. Component now uses a synchronous ref lock against duplicate per-session revoke events; regression test submits two rapid clicks while the mocked RPC remains in flight and asserts one RPC call.
+- LOCKED_PATHS: no change to P2 migration/RPC/RLS/types/API files, no modification to `.github/workflows/p2-playwright-critical-paths.yml`, no edits to shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md` or acceptance matrix.
+- NEXT_ACTION: verify exact-head Core and P2 runs on `9310fbb...`; fix only evidence-backed failures. Keep #88 Draft until P2 #83 is merged and current-main contract acceptance is green; then integrate #88 with the current main SHA without force-push and rerun UI + server-backed browser acceptance.
+- BLOCKER: P2 #83 session backend not yet merged; last live head `49ea0ce8936bf319a1941ea0ba0a1f03ebec9c3c`. New exact-head workflows queued. This component unit regression is not proof of end-to-end session revocation.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 remains Draft/open; #83 remains P2-owned/open; P1 documentation PR #93 is open.
+- UPDATED_AT: 2026-10-23T16:10+03:00
