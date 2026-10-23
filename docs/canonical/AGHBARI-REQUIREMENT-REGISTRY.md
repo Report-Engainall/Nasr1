@@ -176,3 +176,10 @@ Current-main reconciliation performed as a merge commit must preserve P1’s cus
 - **الإصلاح:** أضيف fallback عربي `role="status"` باتجاه RTL: «جار تحميل التقارير...».
 - **اختبار الانحدار:** `src/test/admin-reports-route-wiring.test.ts` يتحقق من وجود النص والدور الدلالي.
 - **الحالة:** `IMPLEMENTED; REGRESSION_TEST_ADDED; FINAL_SHA_CI_PENDING`؛ إثبات المتصفح غير منفذ محليًا.
+
+### `P1-ADMIN-ROUTE-LOADING-001` — حالات تحميل المسارات الإدارية المحجوبة بملكية التكامل
+
+- **نتيجة الجرد:** 19 ملفًا تحت `src/routes/` (`admin_.ai`, `audit`, `customers`, `data`, `devices`, `finance`, `inventory-transfers`, `notifications`, `offers`, `operations`, `pricing`, `products`, `purchase-orders`, `quotes`, `settings`, `stock-count`, `suppliers`, `tasks`, `exports`) تستخدم `ClientOnly fallback={null}` دون حالة تحميل دلالية في الغلاف.
+- **الأثر:** قد يرى المستخدم مساحة فارغة أثناء انتظار تهيئة العميل، بدل رسالة حالة تحميل عربية RTL.
+- **قرار الملكية:** لم تُعدّل هذه الملفات في دفعة P3 الحالية؛ وصف الملكية/تنسيق PR #83 يضع تكامل المسارات لدى P1. المطلوب تسليم واضح أو موافقة P1 ثم استخدام fallback موحد واختبار المسارات. مسار `/admin/reports` عولج مستقلًا في `P3-REPORT-LOAD-004`.
+- **الحالة:** `BLOCKED_P1_ROUTE_INTEGRATION_OWNERSHIP; NO_CODE_CHANGED`؛ لم يتم ادعاء نجاح أو تغطية متصفح.
