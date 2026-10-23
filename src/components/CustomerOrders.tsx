@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ArrowRight, FileText, Package, Printer } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -19,7 +20,7 @@ type CustomerOrderDocument = Pick<Order, 'id' | 'order_number' | 'customer_id' |
   customer_confirmed_at?: string | null;
   payment_request_status?: string;
 };
-type CustomerOrderLine = Pick<OrderItem, 'id' | 'item_code' | 'product_name_snapshot' | 'unit_snapshot' | 'quantity'> & {
+type CustomerOrderLine = Pick<OrderItem, 'id' | 'product_id' | 'item_code' | 'product_name_snapshot' | 'unit_snapshot' | 'quantity'> & {
   requested_quantity?: number;
   approved_quantity?: number;
 };
@@ -96,10 +97,13 @@ export function OrderInvoice({ id }: { id: string }) {
 
 function OrderInvoiceInner({ id }: { id: string }) {
   const { user } = useAuth();
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [templateSaved, setTemplateSaved] = useState(false);
+  const [templateFeedback, setTemplateFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
   const { data, loading, error, refetch } = useFetch(async () => {
     const [o, i, h] = await Promise.all([
       supabase.from('orders').select('id,order_number,customer_id,status,total_items,notes,created_at,quantity_review_required,customer_adjustment_note,customer_payment_requested_at,customer_confirmed_at,payment_request_status,delivery_address_snapshot').eq('id', id).maybeSingle(),
-      supabase.from('order_items').select('id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity').eq('order_id', id),
+      supabase.from('order_items').select('id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity').eq('order_id', id),
       supabase.from('order_status_history').select('id,to_status,created_at,notes').eq('order_id', id).order('created_at'),
     ]);
     if (o.error || i.error || h.error) throw new Error('تعذر تحميل الطلب');
@@ -119,12 +123,93 @@ function OrderInvoiceInner({ id }: { id: string }) {
   if (!data?.order) return <Shell><div style={card}>الطلب غير موجود أو لا تملك صلاحية عرضه. <Link to="/orders" className="sf-link">طلباتي</Link></div></Shell>;
   const { order, items, history, customer } = data;
 
+  async function saveAsReorderTemplate() {
+    if (templateSaving || templateSaved) return;
+    setTemplateSaving(true);
+    setTemplateFeedback(null);
+    try {
+      if (items.length < 1 || items.length > 100) {
+        throw new Error('لا يمكن حفظ قالب فارغ أو يحتوي على أكثر من 100 صنف.');
+      }
+
+      const productIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const lines = items.map((item) => {
+        if (typeof item.product_id !== 'string' || !productIdPattern.test(item.product_id)) {
+          throw new Error('لا يمكن حفظ القالب لأن أحد الأصناف لم يعد مرتبطًا بمنتج صالح.');
+        }
+        const quantity = Number(item.approved_quantity ?? item.quantity);
+        if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 10000) {
+          throw new Error('توجد كمية غير صالحة في الطلب؛ لم يُحفظ القالب.');
+        }
+        return { product_id: item.product_id, quantity };
+      });
+
+      const productIds = new Set(lines.map((line) => line.product_id.toLowerCase()));
+      if (productIds.size !== lines.length) {
+        throw new Error('يتضمن الطلب صنفًا مكررًا؛ لم يُحفظ القالب لتجنب تكرار الكميات.');
+      }
+
+      const templateName = (\`إعادة طلب \${String(order.order_number ?? '').trim()}\`).slice(0, 100);
+      if (templateName.trim().length < 2) {
+        throw new Error('تعذر تحديد اسم صالح لقالب إعادة الطلب.');
+      }
+
+      // This existing RPC derives the customer and organization from the session,
+      // validates source-order ownership, and rejects products that are no longer active.
+      const { data: templateId, error: rpcError } = await supabase.rpc('save_reorder_template', {
+        p_name: templateName,
+        p_lines: lines,
+        p_source_order_id: order.id,
+      });
+      if (
+        rpcError
+        || typeof templateId !== 'string'
+        || !productIdPattern.test(templateId)
+      ) {
+        throw new Error('تعذر حفظ قالب إعادة الطلب. تحقق من صلاحيات الحساب وتوفر أصناف الطلب، ثم حاول مجددًا.');
+      }
+
+      setTemplateSaved(true);
+      setTemplateFeedback({
+        kind: 'success',
+        message: \`تم حفظ قالب مرتبط بالطلب \${order.order_number}. عند تطبيقه ستُراجع الأسعار والتوفر الحاليان قبل إرسال طلب جديد.\`,
+      });
+    } catch (cause) {
+      setTemplateFeedback({
+        kind: 'error',
+        message: cause instanceof Error ? cause.message : 'تعذر حفظ قالب إعادة الطلب. حاول مجددًا.',
+      });
+    } finally {
+      setTemplateSaving(false);
+    }
+  }
+
   return (
     <Shell>
       <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <Link to="/orders" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>كل الطلبات</Link>
+        <button
+          type="button"
+          className="sf-btn-secondary"
+          aria-label="حفظ كقالب إعادة الطلب"
+          disabled={templateSaving || templateSaved}
+          onClick={() => void saveAsReorderTemplate()}
+        >
+          {templateSaving ? 'جارٍ حفظ قالب إعادة الطلب...' : templateSaved ? 'تم حفظ قالب إعادة الطلب' : 'حفظ كقالب إعادة الطلب'}
+        </button>
         <button className="sf-btn-primary" onClick={() => window.print()}><Printer size={16} /> طباعة / حفظ PDF</button>
       </div>
+      {templateFeedback && (
+        <div
+          role={templateFeedback.kind === 'error' ? 'alert' : 'status'}
+          style={{ ...card, marginBottom: 16, borderColor: templateFeedback.kind === 'error' ? '#dfb5ad' : '#b7d9ce' }}
+        >
+          <p style={{ margin: 0 }}>{templateFeedback.message}</p>
+          {templateFeedback.kind === 'success' && (
+            <Link to="/reorder" className="sf-link" style={{ display: 'inline-flex', marginTop: 8 }}>فتح مساحة إعادة الطلب</Link>
+          )}
+        </div>
+      )}
       <article style={card} className="print-area">
         <header style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '2px solid #0b97a5', paddingBottom: 14 }}>
           <div><h1 style={{ margin: 0, color: '#0b7b89', fontSize: 24 }}>الأغبري</h1><small>شركة الأغبري للمواد الغذائية — صنعاء، اليمن</small></div>
