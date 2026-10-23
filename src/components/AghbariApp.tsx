@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft, ClipboardList, PackageCheck,
   CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package,
