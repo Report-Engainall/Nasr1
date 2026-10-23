@@ -1,15 +1,17 @@
 # سجل التنسيق — المرجع الحي
 
-## المصالحة الحالية — 2026-10-23T19:55:00+03:00
+## المصالحة الحالية — 2026-10-23T21:47:31+03:00
 
-- main الحالي: 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb; tree: 539b6073bbefacd3d569d667b913748f2466ab67. Core push run 39990714405 انتهى SUCCESS على SHA الدمج نفسه.
-- PR #101 / FIN-LEDGER-001 مدمج عبر 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb من رأس PR df18dd58a0f0f74a420f55d6e14c0e352af8f7b0. Core run 39990033594 وP2 run 39990033892 نجحا على رأس PR نفسه؛ شجرة الاختبار 539b6073bbefacd3d569d667b913748f2466ab67 مطابقة لشجرة main. لا يوجد تشغيل P2 على SHA الدمج نفسه؛ لا تنقل حالة PASS إلى SHA مختلف.
-- أصلح الاختبار الفعلي فشل SQLSTATE 42601 في رأس a6fb9b4 بسبب اقتباس جسم الدالة؛ رأس df18dd58a0f0f74a420f55d6e14c0e352af8f7b0 صحح AS $$ / $$; واجتاز تطبيق المهاجرات PostgreSQL 17. كما أصلحت إعادة استخدام مفتاح idempotency بعد نجاح RPC وفشل تحديث الواجهة، ومنع إبطال مسودة عكس مرتبطة.
-- ملاحظة CodeRabbit الجوهرية حول مسودة العكس عولجت واختبارها؛ تم حل thread. مراجعة المالك المعلّقة COMMENT لا تساوي موافقة بشرية مستقلة. اختبار بيانات اعتماد العميل المستضاف SKIPPED.
-- PR #100 هذا هو الفرع الوحيد لتحديث الحالة/المصفوفة/التقرير/سجل التنفيذ/هذا الملف، ويجب أن يبقى متسقًا مع main 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb; لا تعدل هذه الملفات من فرع موازٍ.
-- P1 ما زال يملك PR #97 ومسارات المنتج/التجارة المقفلة، وP3 يملك PR #89 ومسارات التصنيفات/تقارير الإدارة. لا تعدلها من P2.
-- NEXT_TASK_ID=FIN-INVOICE-001-SUMMARY-PAGINATION-NO-DOUBLE-COUNT: أضف اختبار PostgreSQL 17 يثبت أن LIMIT/OFFSET يؤثران على entries فقط ولا يقتطعان ملخص الأستاذ أو مجاميع الحسابات ولا يضاعفانهما. افحص الشجرة والـPRs قبل تعديل scripts/test-database-migrations.mjs؛ مسار P2 الآن بعد دمج #101.
-- العوائق الخارجية: استيراد/مزامنة Onyx Pro الحية؛ طلب/استجابة WhatsApp Business API؛ بيانات اعتماد عميل E2E غير الإنتاجية؛ استعادة الإنتاج. لا ادعاء بإتمام أي منها.
+- المستودع الوحيد Report-Engainall/Nasr1، الفرع المرجعي main. آخر SHA متحقق منه: 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac؛ الشجرة 15f30663a80ba9ff2e83c2057f15ed489eed92be.
+- **PR #110 مدمج**: [fix(pricing): retry transient server-side price preview reads](https://github.com/Report-Engainall/Nasr1/pull/110). tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09؛ merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac. tree hash مطابق بين الرأس المختبر والدمج.
+- Core [run 40004970539](https://github.com/Report-Engainall/Nasr1/actions/runs/40004970539) SUCCESS على PR head exact. شمل unit tests وPostgreSQL 17 وlint والبناء وفحوص preview/dev واختبار إظهار/إخفاء الأسعار في Chromium.
+- P2 [run 40004970599](https://github.com/Report-Engainall/Nasr1/actions/runs/40004970599) SUCCESS على PR head exact. نجح public UI smoke واختبار Supabase المحلي المعزول ومسارات الطلب والعزل والمرتجعات والطباعة والصلاحيات وتصدير Onyx. اختبار hosted customer E2E 120590754389 SKIPPED لغياب اعتمادات non-production مخصصة؛ ليس PASS.
+- Core بعد الدمج [run 40005590004](https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004) أكمل SUCCESS على merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac ([run 40005590004](https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004)). لم يُرصد P2 run على merge SHA؛ تظل نتيجة P2 مرتبطة برأس PR المختبر b6d99a91958b43e7cd90164a104c8c0a5bc1bd09 مع شجرة مطابقة.
+- فحص الملف المرفق الوحيد project-bolt-github-7sl6ykzz (5)(2).zip: 871 entry، 790 ملفًا، 9,158,183 byte غير مضغوطة، CRC PASS، بلا أسماء أعضاء مكررة أو مسارات traversal. لم تُقرأ محتويات .env ولم تُنقل/تُلتزم.
+- قرار الدمج: لم تُستبدل package.json/bun.lock القديمة؛ أبقيت نسخ Nasr1 الحالية من Storefront ومحرك الاستيراد وتصدير Onyx. وظائف/اختبارات الاستيراد والمرتجعات والمحاسبة والمخزون وOnyx والنسخ الاحتياطي البارزة موجودة بالفعل في Nasr1. نسخة outbox في الحزمة تتضمن استدعاء مساعد خطأ غير معرف، ومركز السياسات/تحليلات الأعمال الموروثين لا يطابقان عقد المصادقة والبيانات الحاليين؛ لم ينقلا.
+- التغيير المأخوذ بأمان: وصل retryRead الموجود أصلًا وغير المستخدم بمسار RPC القرائي preview_customer_order_pricing؛ تصنيف status=0 وأخطاء الشبكة الملفوفة كأعطال عابرة، وعدم إعادة محاولة أخطاء الصلاحيات أو أي طفرة بيانات، مع بقاء سياسة الأسعار fail-closed. تقرير القرارات: [P2_UPLOADED_ARCHIVE_RECONCILIATION_2026-10-23.md](P2_UPLOADED_ARCHIVE_RECONCILIATION_2026-10-23.md).
+- مؤشر الاستئناف المتحرك الوحيد هو CURRENT_EXECUTION_STATE.md. يبقى المسار التالي FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD: مفتاح idempotency على مستوى المؤسسة مع بصمة payload وإعادة النتيجة الأصلية وحسم التعارض/التوازي والعزل.
+- لا كتابة مباشرة على main، لا force-push، لا إعادة بناء من الصفر، ولا كتابة على قاعدة إنتاج. سجلات الحالة تتبع الأدلة الفعلية ولا تعيد إنشاء ميزات مدمجة.
 
 ## سجل التنسيق الأصلي (للتاريخ فقط)
 
