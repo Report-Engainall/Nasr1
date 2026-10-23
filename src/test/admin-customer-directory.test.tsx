@@ -7,10 +7,11 @@ const mocks = vi.hoisted(() => ({
   updateCustomerStatus: vi.fn(),
   updateCustomerTier: vi.fn(),
   createCustomer: vi.fn(),
+  roles: ['admin', 'manager'] as string[],
 }));
 
 vi.mock('@/lib/customer-directory', () => ({ fetchCustomerDirectoryPage: mocks.fetchPage }));
-vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { roles: ['admin', 'manager'], isStaff: true } }) }));
+vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { roles: mocks.roles, isStaff: mocks.roles.some((role) => ['admin','manager','staff','accountant'].includes(role)) } }) }));
 vi.mock('@/lib/api', () => ({
   createCustomer: mocks.createCustomer,
   createProduct: vi.fn(), createPricingRule: vi.fn(), deletePricingRule: vi.fn(), deleteProduct: vi.fn(),
@@ -44,6 +45,7 @@ describe('admin customer directory paging', () => {
     mocks.updateCustomerStatus.mockReset();
     mocks.updateCustomerTier.mockReset();
     mocks.createCustomer.mockReset();
+    mocks.roles = ['admin', 'manager'];
     mocks.fetchPage.mockImplementation(async ({ search, page, pageSize }: { search: string; page: number; pageSize: number }) => {
       const all = Array.from({ length: 30 }, (_, index) => customer(index + 1));
       const filtered = search ? [customer(7)] : all;
@@ -247,6 +249,22 @@ describe('admin customer directory paging', () => {
     });
     expect(mocks.fetchPage).toHaveBeenLastCalledWith({ search: 'لا يوجد تطابق', page: 1, pageSize: 25 });
     expect(host?.textContent).toContain('لا توجد نتائج مطابقة للبحث.');
+  });
+
+  it('gives customer_manager customer-only actions without financial fields or Customer 360', async () => {
+    mocks.roles = ['customer_manager'];
+    await act(async () => {
+      root?.render(<Customers onNotice={vi.fn()} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host?.textContent).toContain('إدارة العملاء');
+    expect(host?.textContent).toContain('تغيير الشريحة');
+    expect(host?.textContent).toContain('إدارة دورة الحياة');
+    expect(host?.textContent).not.toContain('ملف 360');
+    expect(host?.textContent).not.toContain('الرصيد');
+    expect(host?.textContent).not.toContain('الحد الائتماني');
+    expect(host?.textContent).not.toContain('إضافة عميل');
+    expect(host?.textContent).toContain('الحالة');
   });
 
 });
