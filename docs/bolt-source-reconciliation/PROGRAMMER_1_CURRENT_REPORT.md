@@ -670,3 +670,27 @@ Read CI on the final checkpoint SHA; repair concrete failures only. Once #83 mer
 **LOCKED_PATHS:** P2 database/API/RLS/Auth/workflow files, shared execution-state/coordination files, and P3 acceptance files — unchanged.  
 **BLOCKER:** terminal CI pending; P2 PR #83 open.  
 **STATUS:** implementation committed; acceptance pending; do not merge yet.
+
+
+## P1 self-session RPC acceptance fixture correction — 2026-10-23T16:33+03:00
+
+**Task ID:** `P1-DEVICE-SESSION-RPC-ACK-FIXTURE-001`  
+**Branch/PR:** `p1/central-device-session-ui-20261023` / [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**Base SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
+**Corrected code/test SHA:** `ddb80804b8749cb8dff182344ca9713e2beb64ec`
+
+### Failure observed and fix
+Core CI on the previous code/test head `8248a7f8dc3145063ee319fa35de41305d19705a` ran 136 test files and failed one new bulk-revocation test (855/856 individual tests passed). The exact failed assertion was that the success notice callback had not been called with the expected text. The test helper `mount()` mounts with `mocks.onNotice`, while the test created and asserted against a different `vi.fn()`. Fixed only the test fixture to observe the callback actually passed into the component. The assertions about exact RPC, current session retention and hidden revoked rows remain intact; no code behavior was relaxed.
+
+### Separate infrastructure failure
+On docs SHA `0c582c1ca0cf92f0b1a959d26a1e82af66c84d39`, both Core [39961596225](https://github.com/Report-Engainall/Nasr1/actions/runs/39961596225) and P2 Playwright [39961596206](https://github.com/Report-Engainall/Nasr1/actions/runs/39961596206) failed at dependency download with HTTP 429 from `lovable-core-prod/sandbox-npm-cache` before executing tests. This is independent of the functional-head unit assertion. Latest corrected code/test SHA `ddb80804...` requires fresh exact-head Core and P2 runs.
+
+### Related P2 dependency
+P2's session backend branch is synced to main, but P2 Playwright run [39960901154](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154) failed its local Supabase job in purchase-receipt acceptance with `Purchase receipt accounting acceptance is restricted to local PostgreSQL 17.`; the failure and exact SHA were reported to P2 via PR #83 comment 6366037526. No P2-owned path was changed in P1.
+
+### Next action
+Inspect new exact-head Core/P2 results for `ddb80804...`. Preserve the error if any test still fails and fix the concrete cause. Keep #88 unmerged/partial until P2 #83 lands, its backend acceptance is green, and authenticated browser acceptance verifies the actual session revocation and subsequent request denial.
+
+**Files changed in this unit:** `src/test/device-management.test.tsx`; checkpoint/report appended.  
+**LOCKED_PATHS:** P2 API/database/auth/workflow paths and P3 acceptance — unchanged.  
+**STATUS:** test fixture fixed; new exact-head CI pending; PR #88 not merge-ready.

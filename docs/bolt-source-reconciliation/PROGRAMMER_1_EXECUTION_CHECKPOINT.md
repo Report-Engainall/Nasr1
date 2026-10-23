@@ -179,3 +179,20 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: OPEN / NOT READY — retain PARTIAL until backend integration and browser proof.
 - UPDATED_AT: 2026-10-23T16:28+03:00
+
+
+## Latest resume — correct bulk-revocation test callback fixture — 2026-10-23T16:33+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-RPC-ACK-FIXTURE-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA: `ddb80804b8749cb8dff182344ca9713e2beb64ec` (test fixture correction; checkpoint/report update is a docs-only child).
+- LAST_CONFIRMED_TESTS: prior functional code/test SHA `8248a7f8dc3145063ee319fa35de41305d19705a`, Core run [39961454298](https://github.com/Report-Engainall/Nasr1/actions/runs/39961454298), ran 136 test files: **135 passed / 1 failed; 855 tests passed / 1 failed**. The failed test was `src/test/device-management.test.tsx > uses the server-owned self-scoped RPC to revoke other sessions and preserves the current session`. Exact log showed the assertion failed because the test called `mount()` (which passes `mocks.onNotice`) but asserted a separate unmounted `vi.fn()`. Fixed the two new tests to observe `mocks.onNotice`; no assertion was weakened. New-head CI is pending readback.
+- FAILED_OR_NOT_RUN_TESTS: for the later docs HEAD `0c582c1ca0cf92f0b1a959d26a1e82af66c84d39`, Core run [39961596225](https://github.com/Report-Engainall/Nasr1/actions/runs/39961596225) and P2 Playwright [39961596206](https://github.com/Report-Engainall/Nasr1/actions/runs/39961596206) failed before test execution at frozen-lock dependency downloads with HTTP 429 from `lovable-core-prod/sandbox-npm-cache`; this is separate from the 1 assertion failure on the earlier functional SHA. Latest commit `ddb80804...` needs its own exact-head CI results.
+- FILES_CHANGED: `src/test/device-management.test.tsx` now uses the actual mounted `mocks.onNotice` callback for both success and malformed-ack assertions. The preceding UI implementation remains in `src/components/DeviceManagement.tsx`.
+- LOCKED_PATHS: P2 SQL/RPC/RLS/type/Auth/workflow/fixture files, shared execution-state/coordination, and P3 acceptance files unchanged.
+- NEXT_ACTION: read Core + P2 Actions on latest code/test SHA `ddb80804b8749cb8dff182344ca9713e2beb64ec` and final doc HEAD once saved. If the unit test fails again, follow the new exact assertion and fix its cause. If installs fail at HTTP 429, record the infrastructure blocker and request safe rerun; do not alter the frozen lockfile. Then sync to main after P2 #83 merge and run integrated session browser acceptance.
+- BLOCKER: exact-head tests pending; previous feature-head unit failure was a test callback-fixture defect now corrected; transient package-cache HTTP 429 recurred. P2 PR #83 also has a failing local Supabase Playwright job (reported to P2 in comment 6366037526).
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: OPEN / NOT READY.
+- UPDATED_AT: 2026-10-23T16:33+03:00
