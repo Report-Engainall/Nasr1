@@ -126,4 +126,74 @@ describe('admin customer directory paging', () => {
     expect(host?.textContent).not.toContain('حفظ تغيير الشريحة');
   });
 
+
+  it('executes a server-confirmed lifecycle transition from the selected customer status', async () => {
+    const onNotice = vi.fn();
+    mocks.updateCustomerStatus.mockResolvedValueOnce({
+      customer_id: 'customer-1', previous_status: 'approved', status: 'frozen', changed: true,
+    });
+    await act(async () => {
+      root?.render(<Customers onNotice={onNotice} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const lifecycleButton = [...(host?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent?.includes('إدارة دورة الحياة'));
+    expect(lifecycleButton).toBeTruthy();
+    await act(async () => { lifecycleButton?.click(); });
+
+    const reasonInput = host?.querySelector<HTMLTextAreaElement>('textarea[aria-label="سبب تغيير الحالة"]');
+    const saveButton = [...(host?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent?.includes('حفظ تغيير الحالة'));
+    expect(host?.querySelector('select[aria-label="حالة العميل الجديدة"]')).toBeTruthy();
+    expect(saveButton?.disabled).toBe(true);
+
+    await act(async () => {
+      if (reasonInput) {
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(reasonInput, 'تجميد مؤقت بعد مراجعة الحساب');
+        reasonInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    expect(saveButton?.disabled).toBe(false);
+
+    await act(async () => {
+      saveButton?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mocks.updateCustomerStatus).toHaveBeenCalledWith('customer-1', 'approved', 'frozen', 'تجميد مؤقت بعد مراجعة الحساب');
+    expect(mocks.fetchPage).toHaveBeenCalledTimes(2);
+    expect(onNotice).toHaveBeenCalledWith(expect.stringContaining('مجمّد'));
+  });
+
+  it('shows lifecycle server failures without reporting a successful status change', async () => {
+    const onNotice = vi.fn();
+    mocks.updateCustomerStatus.mockRejectedValueOnce(new Error('رفض الخادم الانتقال بسبب تغير الحالة'));
+    await act(async () => {
+      root?.render(<Customers onNotice={onNotice} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const lifecycleButton = [...(host?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent?.includes('إدارة دورة الحياة'));
+    await act(async () => { lifecycleButton?.click(); });
+    const reasonInput = host?.querySelector<HTMLTextAreaElement>('textarea[aria-label="سبب تغيير الحالة"]');
+    const saveButton = [...(host?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent?.includes('حفظ تغيير الحالة'));
+
+    await act(async () => {
+      if (reasonInput) {
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(reasonInput, 'إعادة التحقق من حالة الحساب');
+        reasonInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    await act(async () => {
+      saveButton?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain('رفض الخادم الانتقال');
+    expect(onNotice).not.toHaveBeenCalled();
+    expect(mocks.fetchPage).toHaveBeenCalledTimes(1);
+  });
+
 });

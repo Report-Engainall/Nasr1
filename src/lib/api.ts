@@ -290,29 +290,56 @@ export async function createCustomer(c: Partial<Customer>): Promise<Customer> {
   return data;
 }
 
-export async function updateCustomerStatus(id: string, status: string): Promise<void> {
-  const customerId = typeof id === 'string' ? id.trim() : '';
-  if (!customerId) throw new Error('هوية العميل غير صالحة.');
-  const nextStatus = typeof status === 'string' ? status.trim() : '';
-  if (!nextStatus) throw new Error('حالة العميل غير صالحة.');
+export type CustomerStatusChangeResult = {
+  customer_id: string;
+  previous_status: string;
+  status: string;
+  changed: boolean;
+};
 
-  const scope = await getCurrentTenantScope();
-  if (!scope.isStaff || !scope.organizationId) {
-    throw new Error('صلاحية إدارة العملاء مطلوبة ضمن مؤسسة نشطة.');
+const CUSTOMER_LIFECYCLE_STATUSES = ['pending', 'approved', 'rejected', 'frozen', 'blocked', 'archived'] as const;
+const CUSTOMER_LIFECYCLE_COMMANDS = ['approved', 'rejected', 'frozen', 'blocked', 'archived', 'restore'] as const;
+
+export async function updateCustomerStatus(
+  id: string,
+  expectedStatus: string,
+  nextStatus: string,
+  reason: string,
+): Promise<CustomerStatusChangeResult> {
+  const customerId = typeof id === 'string' ? id.trim().toLowerCase() : '';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customerId)) {
+    throw new Error('معرّف العميل غير صالح.');
+  }
+  const normalizedExpected = typeof expectedStatus === 'string' ? expectedStatus.trim().toLowerCase() : '';
+  const normalizedNext = typeof nextStatus === 'string' ? nextStatus.trim().toLowerCase() : '';
+  const normalizedReason = typeof reason === 'string' ? reason.trim() : '';
+  if (!CUSTOMER_LIFECYCLE_STATUSES.includes(normalizedExpected as typeof CUSTOMER_LIFECYCLE_STATUSES[number])
+    || !CUSTOMER_LIFECYCLE_COMMANDS.includes(normalizedNext as typeof CUSTOMER_LIFECYCLE_COMMANDS[number])) {
+    throw new Error('انتقال حالة العميل غير صالح.');
+  }
+  if (normalizedReason.length < 3 || normalizedReason.length > 500) {
+    throw new Error('سبب تغيير الحالة مطلوب (3 إلى 500 حرف).');
   }
 
-  const { data, error } = await supabase
-    .from('customers')
-    .update({ status: nextStatus, approved_at: nextStatus === 'approved' ? new Date().toISOString() : null })
-    .eq('id', customerId)
-    .eq('organization_id', scope.organizationId)
-    .select('id');
-
+  const { data, error } = await supabase.rpc('set_admin_customer_status', {
+    p_customer_id: customerId,
+    p_expected_status: normalizedExpected,
+    p_status: normalizedNext,
+    p_reason: normalizedReason,
+  });
   if (error) throw error;
-  // Stale IDs and tenant/RLS mismatches may affect zero rows without a database error.
-  if (!Array.isArray(data) || data.length !== 1 || data[0]?.id !== customerId) {
-    throw new Error('لم يؤكد الخادم تحديث حالة العميل ضمن المؤسسة الحالية.');
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)
+    || data.customer_id !== customerId
+    || data.previous_status !== normalizedExpected
+    || typeof data.status !== 'string'
+    || !CUSTOMER_LIFECYCLE_STATUSES.includes(data.status as typeof CUSTOMER_LIFECYCLE_STATUSES[number])
+    || typeof data.changed !== 'boolean'
+    || (normalizedNext !== 'restore' && data.status !== normalizedNext)
+    || (normalizedNext === 'restore' && data.status === 'archived')) {
+    throw new Error('لم يؤكد الخادم تحديث حالة العميل.');
   }
+  return data as CustomerStatusChangeResult;
 }
 
 

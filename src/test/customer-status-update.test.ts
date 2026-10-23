@@ -1,95 +1,73 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-  from: vi.fn(),
-  getScope: vi.fn(),
-  tables: [] as string[],
-  updates: [] as Array<Record<string, unknown>>,
-  filters: [] as Array<[string, unknown]>,
-  selectColumns: [] as string[],
-  responses: [] as Array<{ data: unknown; error: unknown }>,
-  defaultResponse: { data: null as unknown, error: null as unknown },
-}));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
 
 vi.mock('@/lib/supabase', () => ({
-  supabase: { from: mocks.from },
-  getCurrentTenantScope: mocks.getScope,
+  supabase: { rpc: mocks.rpc },
+  getCurrentTenantScope: vi.fn(),
   getStorefrontDataScope: vi.fn(),
 }));
 
 import { updateCustomerStatus } from '@/lib/api';
 
 const CUSTOMER_ID = 'c1111111-1111-4111-8111-111111111111';
-const ORGANIZATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-function makeQuery() {
-  const q = {
-    update(payload: Record<string, unknown>) { mocks.updates.push(payload); return q; },
-    eq(column: string, value: unknown) { mocks.filters.push([column, value]); return q; },
-    select(columns: string) { mocks.selectColumns.push(columns); return q; },
-    then<TResult1 = { data: unknown; error: unknown }, TResult2 = never>(
-      onfulfilled?: ((value: { data: unknown; error: unknown }) => TResult1 | PromiseLike<TResult1>) | null,
-      onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
-    ): Promise<TResult1 | TResult2> {
-      const value = mocks.responses.shift() ?? mocks.defaultResponse;
-      return Promise.resolve(value).then(onfulfilled ?? undefined, onrejected ?? undefined);
-    },
-  };
-  return q;
-}
-
-describe('customer status mutation safety contract', () => {
+describe('audited customer lifecycle command contract', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.tables.splice(0); mocks.updates.splice(0); mocks.filters.splice(0);
-    mocks.selectColumns.splice(0); mocks.responses.splice(0);
-    mocks.defaultResponse = { data: [{ id: CUSTOMER_ID }], error: null };
-    mocks.getScope.mockResolvedValue({
-      profileId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-      organizationId: ORGANIZATION_ID,
-      warehouseId: null,
-      isStaff: true,
-    });
-    mocks.from.mockImplementation((table: string) => {
-      mocks.tables.push(table);
-      return makeQuery();
+    mocks.rpc.mockReset();
+    mocks.rpc.mockResolvedValue({
+      data: { customer_id: CUSTOMER_ID, previous_status: 'pending', status: 'approved', changed: true },
+      error: null,
     });
   });
 
-  it('scopes the mutation to the resolved organization and confirms the changed row', async () => {
-    await expect(updateCustomerStatus(CUSTOMER_ID, 'approved')).resolves.toBeUndefined();
-    expect(mocks.tables).toEqual(['customers']);
-    expect(mocks.filters).toEqual([['id', CUSTOMER_ID], ['organization_id', ORGANIZATION_ID]]);
-    expect(mocks.selectColumns).toEqual(['id']);
-    expect(mocks.updates[0]).toMatchObject({ status: 'approved' });
-    expect(new Date(String(mocks.updates[0].approved_at)).toString()).not.toBe('Invalid Date');
+  it('sends normalized expected status, destination and reason to the audited tenant RPC', async () => {
+    await expect(updateCustomerStatus(CUSTOMER_ID, ' pending ', ' approved ', '  مراجعة مستندات العميل  ')).resolves.toEqual({
+      customer_id: CUSTOMER_ID, previous_status: 'pending', status: 'approved', changed: true,
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith('set_admin_customer_status', {
+      p_customer_id: CUSTOMER_ID,
+      p_expected_status: 'pending',
+      p_status: 'approved',
+      p_reason: 'مراجعة مستندات العميل',
+    });
   });
 
-  it('fails closed if a stale, denied, or unmatched customer ID affects no matching row', async () => {
-    mocks.responses.push({ data: [], error: null });
-    await expect(updateCustomerStatus(CUSTOMER_ID, 'approved')).rejects.toThrow('لم يؤكد الخادم تحديث حالة العميل');
-    mocks.responses.push({ data: [{ id: 'd2222222-2222-4222-8222-222222222222' }], error: null });
-    await expect(updateCustomerStatus(CUSTOMER_ID, 'approved')).rejects.toThrow('لم يؤكد الخادم تحديث حالة العميل');
+  it('validates UUID, expected status, destination command and reason before contacting the server', async () => {
+    await expect(updateCustomerStatus('customer-1', 'pending', 'approved', 'سبب صالح')).rejects.toThrow('معرّف العميل غير صالح');
+    await expect(updateCustomerStatus(CUSTOMER_ID, 'unknown', 'approved', 'سبب صالح')).rejects.toThrow('انتقال حالة العميل غير صالح');
+    await expect(updateCustomerStatus(CUSTOMER_ID, 'pending', 'deleted', 'سبب صالح')).rejects.toThrow('انتقال حالة العميل غير صالح');
+    await expect(updateCustomerStatus(CUSTOMER_ID, 'pending', 'approved', '  ')).rejects.toThrow('سبب تغيير الحالة مطلوب');
+    await expect(updateCustomerStatus(CUSTOMER_ID, 'pending', 'approved', 'xx')).rejects.toThrow('سبب تغيير الحالة مطلوب');
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it('rejects non-staff or missing organization scope before issuing a write', async () => {
-    mocks.getScope.mockResolvedValueOnce({ profileId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', organizationId: ORGANIZATION_ID, warehouseId: null, isStaff: false });
-    await expect(updateCustomerStatus(CUSTOMER_ID, 'approved')).rejects.toThrow('صلاحية إدارة العملاء');
-    expect(mocks.from).not.toHaveBeenCalled();
-    mocks.getScope.mockResolvedValueOnce({ profileId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', organizationId: '', warehouseId: null, isStaff: true });
-    await expect(updateCustomerStatus(CUSTOMER_ID, 'approved')).rejects.toThrow('صلاحية إدارة العملاء');
-    expect(mocks.from).not.toHaveBeenCalled();
+  it('accepts server-computed archive restoration and rejects an unconfirmed restore target', async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: { customer_id: CUSTOMER_ID, previous_status: 'archived', status: 'frozen', changed: true },
+      error: null,
+    });
+    await expect(updateCustomerStatus(CUSTOMER_ID, 'archived', 'restore', 'استرجاع الحالة السابقة')).resolves.toMatchObject({ status: 'frozen' });
+    expect(mocks.rpc).toHaveBeenCalledWith('set_admin_customer_status', {
+      p_customer_id: CUSTOMER_ID, p_expected_status: 'archived', p_status: 'restore', p_reason: 'استرجاع الحالة السابقة',
+    });
+
+    mocks.rpc.mockResolvedValueOnce({
+      data: { customer_id: CUSTOMER_ID, previous_status: 'archived', status: 'archived', changed: true },
+      error: null,
+    });
+    await expect(updateCustomerStatus(CUSTOMER_ID, 'archived', 'restore', 'استرجاع الحالة السابقة')).rejects.toThrow('لم يؤكد الخادم تحديث حالة العميل');
   });
 
-  it('rejects empty identifiers and status values before resolving scope', async () => {
-    await expect(updateCustomerStatus('  ', 'approved')).rejects.toThrow('هوية العميل غير صالحة');
-    await expect(updateCustomerStatus(CUSTOMER_ID, '  ')).rejects.toThrow('حالة العميل غير صالحة');
-    expect(mocks.getScope).not.toHaveBeenCalled();
-    expect(mocks.from).not.toHaveBeenCalled();
-  });
+  it('surfaces server permission/concurrency failures and rejects malformed acknowledgements', async () => {
+    const failure = { message: 'customer status changed since directory loaded' };
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: failure });
+    await expect(updateCustomerStatus(CUSTOMER_ID, 'pending', 'approved', 'سبب صحيح')).rejects.toEqual(failure);
 
-  it('preserves database write failures', async () => {
-    mocks.responses.push({ data: null, error: new Error('permission denied') });
-    await expect(updateCustomerStatus(CUSTOMER_ID, 'approved')).rejects.toThrow('permission denied');
+    mocks.rpc.mockResolvedValueOnce({
+      data: { customer_id: 'd2222222-2222-4222-8222-222222222222', previous_status: 'pending', status: 'approved', changed: true },
+      error: null,
+    });
+    await expect(updateCustomerStatus(CUSTOMER_ID, 'pending', 'approved', 'سبب صحيح')).rejects.toThrow('لم يؤكد الخادم تحديث حالة العميل');
   });
 });

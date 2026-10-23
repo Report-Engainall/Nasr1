@@ -68,7 +68,7 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
 
     if (search) {
       // Treat SQL LIKE wildcards as literal search characters, not user-controlled wildcards.
-      const escapedSearch = search.replace(/[\\%_]/g, '\\$&');
+      const escapedSearch = search.replace(/[\\%_]/g, (character) => `\\${character}`);
       const pattern = `%${escapedSearch}%`;
       request = request.or([
         `business_name.ilike.${pattern}`,

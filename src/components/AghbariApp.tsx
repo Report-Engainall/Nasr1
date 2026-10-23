@@ -17,7 +17,7 @@ import { archiveAdminCatalogCategory, createAdminCatalogCategory } from '@/lib/a
 import { useFetch } from '@/lib/useFetch';
 import { fetchCustomerDirectoryPage } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
-import { ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
+import { CUSTOMER_STATUS_LABELS, ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { useNavigate } from '@tanstack/react-router';
 import { Login } from '@/components/Login';
@@ -470,8 +470,9 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
 
 export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
   const { user } = useAuth();
-  const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff'));
+  const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'customer_manager'));
+  const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'customer_manager'));
+  const canManageCustomerLifecycle = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'customer_manager'));
   const [directory, setDirectory] = useState<Awaited<ReturnType<typeof fetchCustomerDirectoryPage>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -483,9 +484,8 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [activationCustomer, setActivationCustomer] = useState<Customer | null>(null);
   const [tierCustomer, setTierCustomer] = useState<Customer | null>(null);
-  const [busyCustomerId, setBusyCustomerId] = useState<string | null>(null);
+  const [statusCustomer, setStatusCustomer] = useState<Customer | null>(null);
   const requestIdRef = useRef(0);
-  const statusMutationRef = useRef<string | null>(null);
 
   const load = useCallback(async (): Promise<boolean> => {
     const requestId = ++requestIdRef.current;
@@ -516,24 +516,6 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
     void load();
     return () => { requestIdRef.current += 1; };
   }, [load]);
-
-  async function status(id: string, next: string) {
-    if (statusMutationRef.current !== null) return;
-    statusMutationRef.current = id;
-    setBusyCustomerId(id);
-    try {
-      await updateCustomerStatus(id, next);
-      const refreshed = await load();
-      onNotice(refreshed
-        ? (next === 'approved' ? 'تم اعتماد العميل' : 'تم تحديث حالة العميل')
-        : 'تم تحديث حالة العميل، لكن تعذّر تحديث القائمة. اضغط تحديث لمزامنتها.');
-    } catch (cause) {
-      onNotice(cause instanceof Error ? cause.message : 'تعذر تحديث العميل');
-    } finally {
-      statusMutationRef.current = null;
-      setBusyCustomerId(null);
-    }
-  }
 
   const rows = directory?.rows ?? [];
   const pageSize = directory?.pageSize ?? 25;
@@ -582,15 +564,15 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
             <tbody>{rows.map((c) => <tr key={c.id}>
               <td><strong>{c.business_name}</strong><small>{c.customer_code}</small></td>
               <td>{c.contact_name ?? '—'}<small>{c.phone ?? '—'}</small></td>
-              <td><span className="tier">{c.tier === 'vip' ? 'مميز' : c.tier === 'wholesale' ? 'جملة' : 'تجزئة'}</span></td>
+              <td><span className="tier">{c.tier === 'vip' ? 'جملة الجملة' : c.tier === 'wholesale' ? 'جملة' : 'تجزئة'}</span></td>
               <td className={c.current_balance > 0 ? 'amount-danger' : ''}>{formatCurrency(c.current_balance)}</td>
               <td>{formatCurrency(c.credit_limit)}</td>
-              <td><span className={`badge ${c.status === 'approved' ? 'success' : c.status === 'pending' ? 'warning' : 'danger'}`}>{c.status === 'approved' ? 'معتمد' : c.status === 'pending' ? 'قيد المراجعة' : 'موقوف'}</span></td>
+              <td><span className={`badge ${c.status === 'approved' ? 'success' : c.status === 'pending' ? 'warning' : 'danger'}`}>{CUSTOMER_STATUS_LABELS[c.status] ?? c.status}</span></td>
               <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {canReadCustomer360 && <Button variant="outline" onClick={() => setSelectedCustomer(c)}>ملف 360</Button>}
                 {canReadCustomer360 && <Button variant="outline" onClick={() => setTierCustomer(c)}>تغيير الشريحة</Button>}
                 {canManageCustomerActivation && c.status === 'approved' && <Button variant="outline" onClick={() => setActivationCustomer(c)}>دعوة تفعيل</Button>}
-                {c.status === 'pending' && <Button onClick={() => void status(c.id, 'approved')} disabled={busyCustomerId !== null}>{busyCustomerId === c.id ? 'جار الاعتماد...' : 'اعتماد'}</Button>}
+                {canManageCustomerLifecycle && <Button variant="outline" onClick={() => setStatusCustomer(c)}>إدارة دورة الحياة</Button>}
               </div></td>
             </tr>)}</tbody>
           </table>
@@ -610,6 +592,12 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
       void load().then((refreshed) => onNotice(refreshed
         ? 'تم تحديث شريحة العميل وتسجيل السبب في سجل التدقيق.'
         : 'تم تحديث الشريحة، لكن تعذّر تحديث القائمة. اضغط تحديث للمزامنة.'));
+    }} />}
+    {statusCustomer && <CustomerLifecycleDialog customer={statusCustomer} onClose={() => setStatusCustomer(null)} onSaved={(nextStatus) => {
+      setStatusCustomer(null);
+      void load().then((refreshed) => onNotice(refreshed
+        ? `تم تغيير حالة العميل إلى ${CUSTOMER_STATUS_LABELS[nextStatus] ?? nextStatus} وتسجيل السبب في سجل التدقيق.`
+        : 'تم تحديث حالة العميل وتسجيل السبب، لكن تعذّر تحديث القائمة. اضغط تحديث للمزامنة.'));
     }} />}
     {modal && <CustomerModal onClose={() => setModal(false)} onSaved={() => {
       setModal(false);
@@ -655,7 +643,7 @@ export function CustomerTierDialog({ customer, onClose, onSaved }: {
     <p className="text-muted">يتطلب تغيير الشريحة صلاحية مدير أو مسؤول، مع تسجيل السبب والقيمة السابقة والجديدة في سجل التدقيق.</p>
     <Field label="شريحة العميل الجديدة">
       <select aria-label="شريحة العميل الجديدة" value={tier} onChange={(event) => setTier(event.target.value)} disabled={saving}>
-        <option value="retail">تجزئة</option><option value="wholesale">جملة</option><option value="vip">مميز</option>
+        <option value="retail">تجزئة</option><option value="wholesale">جملة</option><option value="vip">جملة الجملة</option>
       </select>
     </Field>
     <Field label="سبب تغيير الشريحة">
@@ -666,6 +654,98 @@ export function CustomerTierDialog({ customer, onClose, onSaved }: {
       <Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button>
       <Button onClick={() => void save()} disabled={saving || tier === currentTier || reason.trim().length < 3 || reason.trim().length > 500}>
         {saving ? 'جار حفظ الشريحة...' : 'حفظ تغيير الشريحة'}
+      </Button>
+    </div>
+  </Modal>;
+}
+
+type CustomerLifecycleCommand = 'approved' | 'rejected' | 'frozen' | 'blocked' | 'archived' | 'restore';
+
+const CUSTOMER_LIFECYCLE_TRANSITIONS: Record<string, { value: CustomerLifecycleCommand; label: string }[]> = {
+  pending: [
+    { value: 'approved', label: 'اعتماد العميل' },
+    { value: 'rejected', label: 'رفض الطلب' },
+    { value: 'blocked', label: 'حظر العميل' },
+    { value: 'archived', label: 'أرشفة العميل' },
+  ],
+  approved: [
+    { value: 'frozen', label: 'تجميد مؤقت' },
+    { value: 'blocked', label: 'حظر العميل' },
+    { value: 'archived', label: 'أرشفة العميل' },
+  ],
+  rejected: [
+    { value: 'approved', label: 'إعادة التفعيل والاعتماد' },
+    { value: 'blocked', label: 'حظر العميل' },
+    { value: 'archived', label: 'أرشفة العميل' },
+  ],
+  frozen: [
+    { value: 'approved', label: 'إعادة التفعيل' },
+    { value: 'blocked', label: 'حظر العميل' },
+    { value: 'archived', label: 'أرشفة العميل' },
+  ],
+  blocked: [
+    { value: 'approved', label: 'إعادة التفعيل' },
+    { value: 'archived', label: 'أرشفة العميل' },
+  ],
+  archived: [
+    { value: 'restore', label: 'استرجاع الحالة السابقة' },
+  ],
+};
+
+export function CustomerLifecycleDialog({ customer, onClose, onSaved }: {
+  customer: Customer;
+  onClose: () => void;
+  onSaved: (status: string) => void;
+}) {
+  const options = CUSTOMER_LIFECYCLE_TRANSITIONS[customer.status] ?? [];
+  const [nextStatus, setNextStatus] = useState<CustomerLifecycleCommand>(options[0]?.value ?? 'restore');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submitInFlight = useRef(false);
+
+  async function save() {
+    if (submitInFlight.current || saving) return;
+    setError('');
+    const cleanReason = reason.trim();
+    if (!options.some((option) => option.value === nextStatus)) {
+      setError('لا يوجد انتقال حالة مسموح لهذا العميل.');
+      return;
+    }
+    if (cleanReason.length < 3 || cleanReason.length > 500) {
+      setError('سبب تغيير الحالة مطلوب (3 إلى 500 حرف).');
+      return;
+    }
+    submitInFlight.current = true;
+    setSaving(true);
+    try {
+      const result = await updateCustomerStatus(customer.id, customer.status, nextStatus, cleanReason);
+      onSaved(result.status);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر تحديث حالة العميل.');
+      submitInFlight.current = false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <Modal title={`إدارة دورة حياة ${customer.business_name}`} onClose={() => { if (!saving) onClose(); }}>
+    <p className="text-muted">تُنفّذ الانتقالات المعتمدة خادميًا فقط، ويلزم سبب موثّق لكل تغيير. تُرفض الانتقالات القديمة أو غير المسموح بها ويُحفظ سجل التدقيق.</p>
+    {options.length === 0 ? <div className="form-error" role="alert">لا يوجد انتقال حالة مسموح للحالة الحالية: {CUSTOMER_STATUS_LABELS[customer.status] ?? customer.status}.</div> : <>
+      <Field label="الحالة التالية">
+        <select aria-label="حالة العميل الجديدة" value={nextStatus} onChange={(event) => setNextStatus(event.target.value as CustomerLifecycleCommand)} disabled={saving}>
+          {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </Field>
+      <Field label="سبب تغيير الحالة">
+        <textarea aria-label="سبب تغيير الحالة" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={3} disabled={saving} />
+      </Field>
+    </>}
+    {error && <div className="form-error" role="alert">{error}</div>}
+    <div className="modal-actions">
+      <Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button>
+      <Button onClick={() => void save()} disabled={saving || options.length === 0 || reason.trim().length < 3 || reason.trim().length > 500}>
+        {saving ? 'جار حفظ الحالة...' : 'حفظ تغيير الحالة'}
       </Button>
     </div>
   </Modal>;
@@ -705,7 +785,7 @@ function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     </div>
     <Field label="شريحة الأسعار">
       <select value={tier} onChange={(e) => setTier(e.target.value)} disabled={saving}>
-        <option value="retail">تجزئة</option><option value="wholesale">جملة</option><option value="vip">مميز</option>
+        <option value="retail">تجزئة</option><option value="wholesale">جملة</option><option value="vip">جملة الجملة</option>
       </select>
     </Field>
     {error && <div className="form-error" role="alert">{error}</div>}
