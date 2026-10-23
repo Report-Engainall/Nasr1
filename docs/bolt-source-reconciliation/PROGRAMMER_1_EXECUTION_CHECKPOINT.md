@@ -127,6 +127,61 @@ Extended least-privilege customer_manager access to activation-link management w
 - MERGE_STATUS: PR #90 OPEN; PR #84 MERGED; PR #88 remains Draft and blocked on P2 PR #83.
 - UPDATED_AT: 2026-10-23T15:40+03:00
 
+## Post-merge resume — 2026-10-23T15:53+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-INVITE-EXPIRY-90`
+- CURRENT_BRANCH: `p1/post-merge-resume-20261023`
+- BASE_SHA: `59547c7d683cefd65cab445b97219aa701021676` (main at the start of this documentation-only continuation branch).
+- HEAD_SHA: `59547c7d683cefd65cab445b97219aa701021676` (last confirmed application merge SHA; this record explicitly distinguishes application-tested code from subsequent resume-documentation commits).
+- LAST_CONFIRMED_TESTS: PR #90 final functional/source+test head `aff7fc76eaa48b3c4cebdb4eea6fb2e2860ea8f6`: Core [39955806806 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39955806806); P2 Playwright [39955806654 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39955806654). The local Supabase order/tenant, return, Onyx-export and print acceptance jobs passed in that run. The separate external customer-order/tenant job was `SKIPPED` by the external-credential gate. PR #90 merged by squash as `59547c7d683cefd65cab445b97219aa701021676`. Previous main integration SHA `cb72f35de524af82f63bbbcebec97213464921ed` passed Core [39955478215 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39955478215).
+- FAILED_OR_NOT_RUN_TESTS: post-merge main Core `test-and-build` run [39956957952](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952) is `IN_PROGRESS` at this checkpoint. No result is inferred until terminal. Production data, live email delivery and authenticated external-account E2E remain `NOT RUN / NOT PROVEN`. No Core/P2 workflow has yet been claimed for this new documentation-only branch head.
+- FILES_CHANGED: functional files already delivered and merged by #90: `src/lib/customer-activation-invitations.ts`, `src/test/customer-activation-invitations.test.ts`, and `src/test/customer-activation-invitations-dialog.test.tsx`; this continuation only updates `PROGRAMMER_1_EXECUTION_CHECKPOINT.md` and `PROGRAMMER_1_CURRENT_REPORT.md`.
+- LOCKED_PATHS: no edits to P2 migrations/RPC/RLS, `src/lib/api.ts`, finance/import/Onyx backend, P2 Playwright workflows, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, or shared acceptance matrix.
+- NEXT_ACTION: verify main CI run `39956957952` on exact SHA `59547c7d683cefd65cab445b97219aa701021676`. Do not change the conclusion based on an in-progress run. Then resume the central-session dependency in coordination with P2: PR #82 currently has head `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`, and PR #83 head `49ea0ce8936bf319a1941ea0ba0a1f03ebec9c3c`; both have become `mergeable=false` after main advanced, so P2 must merge-conflict-aware update and re-run exact-head Core + required local browser tests. Keep P1 PR #88 Draft until P2 contract #83 is integrated and proven. After that, update/revalidate #88 against new main and continue the next independent P1 screen gap.
+- BLOCKER: post-merge main CI is still running at the last read; #82/#83 need current-main integration owned by P2; #88 depends on #83 and must not be merged before integration. External authenticated customer account is unavailable and is not a passing result.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/90
+- MERGE_STATUS: PR #90 MERGED as `59547c7d683cefd65cab445b97219aa701021676`; PR #84 MERGED as `cb72f35de524af82f63bbbcebec97213464921ed`; P1 docs continuation PR for this branch to be opened separately.
+- UPDATED_AT: 2026-10-23T15:53+03:00
+
+## Post-merge CI readback correction — 2026-10-23T16:02+03:00
+
+- Main merge SHA `59547c7d683cefd65cab445b97219aa701021676` is now confirmed by Core run [39956957952 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952). This resolves the post-merge Core blocker recorded above for that exact application SHA.
+- The application merge SHA is unchanged. The P1 checkpoint/report documentation branch has its own later documentation commits; do not label those commits as tested application heads unless their own workflows finish.
+- Current P2 dependency readback: #82 head `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`, #83 head `49ea0ce8936bf319a1941ea0ba0a1f03ebec9c3c`, and P1 #88 head `895b27384e21f654bf3e1124303304266ddccb3f` all read `mergeable=true` at this timestamp, but that flag alone is not proof of current-base exact-head CI or required review. #82 exact head has prior Core/P2 success; #83 must have terminal current-head Core/P2 before integration; #88 remains Draft and dependent on #83.
+- LAST_COMPLETED_TASK_ID remains `P1-INVITE-EXPIRY-90`; NEXT_ACTION: create a small documentation PR for this checkpoint/report update, validate its checks, then continue with the next independent P1 UI gap. Keep #88 unmerged until the backend contract is integrated and current-head verified.
+- UPDATED_AT: 2026-10-23T16:02+03:00
+
+## P1 central-session UI repeated-action guard — 2026-10-23T16:10+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-REVOKE-DOUBLE-CLICK-GUARD` implementation/test added; exact-head validation pending.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023` (UI feature branch for PR #88). Documentation updates remain isolated on `p1/post-merge-resume-20261023`.
+- BASE_SHA: `0396b29aeab8c09c430df0063821251208a38477` original #88 base; live main when this follow-up began was `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA: `9310fbb76a7df9db9c45026d9b53053a9ab2d201` exact code/test head; docs branch current head when updated is separate and not yet tested.
+- LAST_CONFIRMED_TESTS: previous PR #88 head `895b27384e21f654bf3e1124303304266ddccb3f` had Core [39950279851 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39950279851) and P2 [39950279733 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39950279733), but those runs do not cover this new change. Exact-new-head Core [39957639395](https://github.com/Report-Engainall/Nasr1/actions/runs/39957639395) and P2 [39957639394](https://github.com/Report-Engainall/Nasr1/actions/runs/39957639394) are queued at time of record.
+- FAILED_OR_NOT_RUN_TESTS: do not claim test success for `9310fbb...` until both new-head workflows complete. Authenticated production and live organization-session proof are NOT RUN; contract integration depends on P2 #83.
+- FILES_CHANGED: `src/components/DeviceManagement.tsx` and `src/test/device-management.test.tsx`. Component now uses a synchronous ref lock against duplicate per-session revoke events; regression test submits two rapid clicks while the mocked RPC remains in flight and asserts one RPC call.
+- LOCKED_PATHS: no change to P2 migration/RPC/RLS/types/API files, no modification to `.github/workflows/p2-playwright-critical-paths.yml`, no edits to shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md` or acceptance matrix.
+- NEXT_ACTION: verify exact-head Core and P2 runs on `9310fbb...`; fix only evidence-backed failures. Keep #88 Draft until P2 #83 is merged and current-main contract acceptance is green; then integrate #88 with the current main SHA without force-push and rerun UI + server-backed browser acceptance.
+- BLOCKER: P2 #83 session backend not yet merged; last live head `49ea0ce8936bf319a1941ea0ba0a1f03ebec9c3c`. New exact-head workflows queued. This component unit regression is not proof of end-to-end session revocation.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 remains Draft/open; #83 remains P2-owned/open; P1 documentation PR #93 is open.
+- UPDATED_AT: 2026-10-23T16:10+03:00
+
+## P1 session UI network-failure retry coverage — 2026-10-23T16:15+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-INVITE-EXPIRY-90`. CURRENT_TASK_ID: `P1-SESSION-LIST-NETWORK-RETRY-TEST` (implementation committed; exact-head validation pending).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: original PR #88 base `0396b29aeab8c09c430df0063821251208a38477`; main at latest integration point `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA: new functional/test commit `7adeec2fa2490840aa213449a2d87f49b4e97b74`.
+- LAST_CONFIRMED_TESTS: Core `39957639395` and P2 `39957639394` were originally started on predecessor `9310fbb76a7df9db9c45026d9b53053a9ab2d201`; Core was still running when read. First P2 attempt failed only at public-browser dependency installation because the configured Lovable package mirror returned HTTP 429 for multiple tarballs; this is an external rate-limit failure, not test/assertion failure. Failed job rerun attempt 2 was started, but its result is not yet an exact-head proof for the new `7adeec2...` commit.
+- FAILED_OR_NOT_RUN_TESTS: no PASS claim for new `7adeec2...` head. Required Core and P2 exact-head workflows must be read after they complete; external authenticated customer-account E2E remains skipped by credential gate.
+- FILES_CHANGED: `src/test/device-management.test.tsx` now verifies that a network rejection from `list_organization_sessions` displays an alert, clears potentially stale rows, and the Retry control loads server data again on a succeeding call. Earlier in this branch `src/components/DeviceManagement.tsx` also received a synchronous ref lock and rapid-double-click regression. No additional application code changed for this network-retry test.
+- LOCKED_PATHS: P2 DB migrations/RPC/RLS/types/API, `.github/workflows/p2-playwright-critical-paths.yml`, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, and shared acceptance matrix untouched.
+- NEXT_ACTION: inspect workflow runs bound to exact branch SHA `7adeec2...`; if Core fails, use the failing test/log to fix the root cause. Re-run P2 after rate-limit failure on the current head; verify actual local Supabase job rather than treating a skipped job as pass. Keep #88 Draft until P2 #83 is integrated and the session RPC contract works end to end.
+- BLOCKER: external package mirror HTTP 429 on predecessor P2 run; new current-head tests awaiting CI. Backend contract remains P2-owned/open.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 Draft/open, #83 P2-owned/open; P1 docs PR #93 open and will receive this checkpoint refresh.
+- UPDATED_AT: 2026-10-23T16:15+03:00
 
 ## Latest resume — P1 central device/session UI — 2026-10-23T16:19:11.592+03:00
 
@@ -144,6 +199,22 @@ Extended least-privilege customer_manager access to activation-link management w
 - MERGE_STATUS: OPEN / NOT READY — backend contract #83 and exact-head acceptance still required.
 - UPDATED_AT: 2026-10-23T16:19:11.592+03:00
 
+## Exact-head readback — session UI Core passed; P2 browser infrastructure blocked — 2026-10-23T16:22+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-INVITE-EXPIRY-90`; CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001` (UI/test added; P2 end-to-end acceptance pending).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: original PR #88 base `0396b29aeab8c09c430df0063821251208a38477`; current main integration SHA `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA: `7adeec2fa2490840aa213449a2d87f49b4e97b74`.
+- LAST_CONFIRMED_TESTS: Core [39958053579 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39958053579) on exact `7adeec2...`. Steps prove Bun lockfile verification, dependency install, unit tests, isolated PostgreSQL 17 migrations/core workflows, audit/idempotency/import/favourites/backup-restore, lint/build/smoke and price-visibility acceptance all succeeded. New session list network-failure retry and rapid repeated-revoke regression are included in this exact head's Unit Tests.
+- FAILED_OR_NOT_RUN_TESTS: P2 [39958054156 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/39958054156) on exact `7adeec2...`, attempt 2 failed at public UI smoke dependency installation; logs show repeated HTTP 429 from the configured Lovable npm mirror and `HTTP 429 persisted after three bounded attempts`. The local Supabase/Chromium job was `SKIPPED` because the dependency-install job failed. This is an external CI setup failure, not a functional assertion failure; nevertheless end-to-end central-session acceptance is NOT PROVEN.
+- P2 dependency head: PR #83 now has head `04241376b769403bc6a6357265c51cf1ca66e3e2`; Core [39958234359](https://github.com/Report-Engainall/Nasr1/actions/runs/39958234359) failed at the same dependency-install step with HTTP 429 before migrations/tests; P2 run [39958234348](https://github.com/Report-Engainall/Nasr1/actions/runs/39958234348) was still in progress at readback. The exact log and evidence were posted to #83 comment 6365616497.
+- FILES_CHANGED: `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`; synchronous per-session revoke guard and retry recovery for network failure. Core validation passed. No P2-owned migration/RPC/RLS/API/lockfile/workflow path changed.
+- LOCKED_PATHS: P2 schema/RPC/RLS/API/types, `.github/workflows/p2-playwright-critical-paths.yml`, package configuration and lockfiles, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, acceptance matrix untouched.
+- NEXT_ACTION: after the package-mirror HTTP 429 blocker is addressed/recovered by the workflow owner, rerun P2 Playwright on current #88 head and ensure the isolated local Supabase/Chromium job actually runs and passes (not skipped). Keep #88 Draft until #83 is current-main integrated and current-head Core + backend/Chromium acceptance passes. Separately, inspect latest PR #93 documentation checks; its prior attempt also hit the same dependency mirror rate limit.
+- BLOCKER: recurring external Lovable package-mirror HTTP 429 causes P2 workflow setup failure; PR #83 backend not merged.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 Draft/open; #83 P2-owned/open; checkpoint/report PR #93 open. Main `59547c7d...` post-merge Core run `39956957952` SUCCESS remains proven.
+- UPDATED_AT: 2026-10-23T16:22+03:00
 
 ## Latest resume — duplicate server-session inventory acceptance — 2026-10-23T16:25+03:00
 
@@ -161,6 +232,21 @@ Extended least-privilege customer_manager access to activation-link management w
 - MERGE_STATUS: OPEN / NOT READY — exact-head CI and server-backed browser acceptance still required.
 - UPDATED_AT: 2026-10-23T16:25+03:00
 
+## P1 exact-session-acknowledgement regression — 2026-10-23T16:27+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-INVITE-EXPIRY-90`; CURRENT_TASK_ID: `P1-SESSION-REVOCATION-EXACT-ACK-TEST` (new test committed; CI pending).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: original PR #88 base `0396b29aeab8c09c430df0063821251208a38477`; current main anchor `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA: `5f500eb2129f5745bb924beb06e6a4764ab9a0e0`.
+- LAST_CONFIRMED_TESTS: predecessor head `7adeec2fa2490840aa213449a2d87f49b4e97b74` Core [39958053579 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39958053579), including network-list failure/retry and rapid-revoke double-click regression. The new mismatched-acknowledgement test is only on `5f500eb...`; Core [39959076957](https://github.com/Report-Engainall/Nasr1/actions/runs/39959076957) and P2 [39959076848](https://github.com/Report-Engainall/Nasr1/actions/runs/39959076848) were queued at record time.
+- FAILED_OR_NOT_RUN_TESTS: no test result is claimed for `5f500eb...` yet. P2 dependency-install runs on prior heads repeatedly failed with HTTP 429 from the Lovable npm mirror; local Supabase/Chromium acceptance was skipped where dependency installation failed.
+- FILES_CHANGED: only `src/test/device-management.test.tsx` in this unit. It verifies a success-shaped RPC result for another session ID does not trigger success notice and hides potentially stale session rows.
+- LOCKED_PATHS: no P2 migration/RPC/RLS/API/lockfile/workflow, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, or shared matrix changes.
+- NEXT_ACTION: run Core and P2 on `5f500eb...`; fix concrete code/test failures. P2 test must actually execute local Supabase/Chromium, not skip, before #88 can graduate from Draft after PR #83 is integrated.
+- BLOCKER: recurring HTTP 429 from external Lovable package mirror prevents P2 test setup; P2 PR #83 current head `5c0367b631a80cc13d10ba5219d3f1966d0185ec` has separate current-head Core/P2 checks in progress.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 Draft/open; #83 Draft/open; checkpoint PR #93 open, with its previous run failing at dependency install due same HTTP 429.
+- UPDATED_AT: 2026-10-23T16:27+03:00
 
 ## Latest resume — audited self-session revocation UI integration — 2026-10-23T16:28+03:00
 
@@ -180,7 +266,6 @@ Extended least-privilege customer_manager access to activation-link management w
 - MERGE_STATUS: OPEN / NOT READY — retain PARTIAL until backend integration and browser proof.
 - UPDATED_AT: 2026-10-23T16:28+03:00
 
-
 ## Latest resume — correct bulk-revocation test callback fixture — 2026-10-23T16:33+03:00
 
 - LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-RPC-ACK-FIXTURE-001`.
@@ -197,6 +282,22 @@ Extended least-privilege customer_manager access to activation-link management w
 - MERGE_STATUS: OPEN / NOT READY.
 - UPDATED_AT: 2026-10-23T16:33+03:00
 
+## Current live branch checkpoint — after main-sync and exact-ack test — 2026-10-23T16:35+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-INVITE-EXPIRY-90`; CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001` (current-base code/test head awaiting final exact-head CI and P2 contract integration).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `59547c7d683cefd65cab445b97219aa701021676` (current main; the UI branch now has a merge commit syncing this main).
+- HEAD_SHA: `f7839b615282a1627804fce360d6ceda5fe56e48` (current live PR #88 head).
+- LAST_CONFIRMED_TESTS: predecessor `5f500eb2129f5745bb924beb06e6a4764ab9a0e0` Core run [39959076957 SUCCESS, attempt 2](https://github.com/Report-Engainall/Nasr1/actions/runs/39959076957) including Unit tests (duplicate revocation, network retry, exact-session acknowledgement), PostgreSQL 17 workflow checks, lint/build/smoke, and browser price-visibility acceptance. That run does not validate the newer merge head `f7839b...`. Current-head Core [39959906007](https://github.com/Report-Engainall/Nasr1/actions/runs/39959906007) and P2 Playwright [39959905948](https://github.com/Report-Engainall/Nasr1/actions/runs/39959905948) were in progress at this checkpoint.
+- FAILED_OR_NOT_RUN_TESTS: predecessor P2 run [39959076848 FAILURE, attempt 2](https://github.com/Report-Engainall/Nasr1/actions/runs/39959076848) failed at app dependency installation due repeated HTTP 429 from Lovable's package mirror; local Supabase/Chromium job was skipped. End-to-end organization session listing/revocation therefore remains NOT PROVEN. Current head must receive both terminal results.
+- P2 backend dependency: PR #83 live head `b7830efa562021e0139736a33d0235037cd8f976`; Core [39959552835 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39959552835), P2 Playwright [39959552757](https://github.com/Report-Engainall/Nasr1/actions/runs/39959552757) still in progress at readback. Do not merge #88 until P2's backend contract is integrated in main and current-head local Supabase/Chromium acceptance of session RPCs passes.
+- FILES_CHANGED in P1 code PR: `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`; current PR diff remains limited to these two P1-owned paths. This UI branch sync used a normal merge commit, no force-push.
+- LOCKED_PATHS: no P2 migration/RPC/RLS/types/API, `bun.lock`, CI workflow, shared execution-state/coordination or acceptance matrix changes by P1.
+- NEXT_ACTION: inspect current-head Core/P2 terminal results for `f7839b...`; if both pass, keep #88 Draft until #83 backend integration, then rerun selective revocation browser acceptance on the integrated main base. P1 checkpoint/report PR #93 remains open because its prior documentation-head Core/P2 attempts failed before tests with package-mirror HTTP 429; current docs branch head is separate from the code PR head.
+- BLOCKER: central-session server contract remains P2-owned/unmerged; prior P2 setup failure was persistent external registry rate limiting. New current-head workflows are running.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 Draft/open; #83 Draft/open; #82 open/P2-owned; checkpoint/report PR #93 open and not merged due CI setup failure.
+- UPDATED_AT: 2026-10-23T16:35+03:00
 
 ## Latest resume — bulk-session action duplicate-click guard — 2026-10-23T16:37+03:00
 
@@ -214,7 +315,6 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: OPEN / NOT READY.
 - UPDATED_AT: 2026-10-23T16:37+03:00
-
 
 ## Latest resume — exact-head Core result + invitation and settings integration readback — 2026-10-23T16:46+03:00
 
@@ -234,7 +334,6 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: DRAFT / OPEN / NOT READY.
 - UPDATED_AT: 2026-10-23T16:46+03:00
-
 
 ## Active resume — stale session-list response hardening — 2026-10-23T17:00+03:00
 
