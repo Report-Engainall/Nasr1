@@ -1,5 +1,5 @@
 # الحالة التنفيذية الحالية الوحيدة — Nasr1 / متجر الأغبري
-## قراءة Git الحية — 2026-10-23T16:47:00+03:00
+## قراءة Git الحية — 2026-10-23T16:55:00+03:00
 
 هذا هو مؤشر الاستئناف المركزي الوحيد. لا تستخرج NEXT_TASK_ID من تقارير تاريخية؛ اجعل هذا القسم مرجع التنفيذ الجاري. رأس main والحالات أدناه تم التحقق منها من GitHub.
 
@@ -20,10 +20,10 @@
 
 ### مسار مالي موازٍ مستقل — FIN-INVOICE-001
 - PR [#95](https://github.com/Report-Engainall/Nasr1/pull/95), الفرع `feat/p2-fin-receivables-aging-credit-memo-20261023`.
-- `HEAD_SHA=d2f904beeb14674cfed3501f5482734eaa76e34b`; `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`; OPEN/Draft; not merged.
+- `HEAD_SHA=024e155a2135a104a7dc1c6d8ced7e2018b0a467`; `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`; OPEN/Draft; not merged.
 - الفجوة المثبتة: `fetch_staff_receivables_aging` يحسب المتبقي من الفاتورة ناقص المدفوعات لكنه لم يطرح الإشعارات الدائنة المنشورة، خلافًا لعقد كشف الحساب.
 - التغيير يضيف تجميعًا مصدره نفس الفاتورة والمؤسسة، ويحسب `total - payments - posted credits` دون النزول عن الصفر؛ يستبعد المسودات والمعكوسات، ويرفض إشعارًا منشورًا لا يطابق مصدره أو عملته، ويضيف `credit_memo_amount` إلى تفاصيل بند التقادم.
-- Core [run 39963814368](https://github.com/Report-Engainall/Nasr1/actions/runs/39963814368) وP2 [run 39963814885](https://github.com/Report-Engainall/Nasr1/actions/runs/39963814885) قيد التنفيذ؛ لا يُصنف الاختبار كنجاح قبل ظهور نتيجة نهائية. المسارات الثلاثة في PR95 لا تتداخل مع ملفات workflow/اختبار قاعدة البيانات المشتركة المقفلة في #83.
+- بعد تقوية fixture لاستبعاد أي بند دخل في طلب مرتجع سابق، الرأس الحالي هو `024e155a2135a104a7dc1c6d8ced7e2018b0a467`. Core [run 39964921878](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921878) قيد التنفيذ في Unit tests؛ P2 [run 39964921887](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921887) لا يزال بانتظار وظيفة اختبار Supabase المحلية. الرأس السابق `d2f904...` اجتاز Core/P2، بما فيه سطر القبول `PASS staff receivables aging`, لكنه لا يُثبت رأس الاختبار المعدّل. المسارات الثلاثة في PR95 لا تتداخل مع ملفات workflow/اختبار قاعدة البيانات المشتركة المقفلة في #83.
 
 ### الترتيب التالي والطلبات المرتبطة
 - `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`.
@@ -46,9 +46,9 @@
 - `CURRENT_BRANCH=feat/p2-central-session-backend-20261023`
 - `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`
 - `HEAD_SHA=91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`
-- `TASK_STATUS=IMPLEMENTED; Core TESTED_EXACT_SHA=SUCCESS; P2 terminal result NOT RUN`
+- `TASK_STATUS=IMPLEMENTED; Core/P2 on HEAD 91c87e0 still waiting for P2 terminal result`
 - `FILES_CHANGED=28 paths in PR #83; latest functional fix scripts/test-purchase-receipt-accounting.mjs`
-- `TESTS_RUN=Core 39961778913 SUCCESS on 91c87e0; P2 39961778847 pending terminal conclusion`
+- `TESTS_RUN=Core 39961778913 SUCCESS on 91c87e0; P2 39961778847 stuck at Chromium OS deps step (15-minute step timeout configured); do not merge until terminal result`
 - `TESTS_FAILED_OR_SKIPPED=older P2 39960901154 failed at purchase-receipt local endpoint guard; fixed in 91c87e0, final retry pending; hosted-account E2E SKIPPED for missing external non-production credentials`
 - `MERGE_STATUS=NOT MERGED`
 - `EXTERNAL_BLOCKERS=Onyx live sync/target import, official WhatsApp API, production DR`
