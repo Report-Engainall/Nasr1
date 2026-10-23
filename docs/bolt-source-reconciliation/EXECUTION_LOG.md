@@ -1105,3 +1105,9 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 
 - Appended `P3-CAT-ERR-001`, `P3-CAT-COUNT-002`, and `P3-REPORT-DUP-003` to `docs/bolt-source-reconciliation/INTERFACE_COMPLETION_MATRIX.csv` as implemented but exact-final-SHA tests pending; browser and production proof are NOT RUN.
 - Clarified in the requirement registry that `INTERFACE_COMPLETION_MATRIX.csv` is the interface coverage summary and `REMAINING_SCREEN_ACCEPTANCE_MATRIX-2026-10-22.csv` remains the active acceptance-gap register. The requested `AGHBARI-SCREEN-ACTION-COVERAGE.md` is not present, so no third matrix was invented.
+## P3 reports loading state — 2026-10-23
+
+- **Task:** `P3-REPORT-LOAD-004`. Replaced the blank `ClientOnly fallback={null}` in `src/routes/admin_.reports.tsx` with RTL Arabic `role="status"` copy (`جار تحميل التقارير...`).
+- **Regression:** extended `src/test/admin-reports-route-wiring.test.ts` with the semantic loading-state assertion.
+- **Commits:** implementation `7069bb884343dc65336109d584d9554949182f28`; test `70c7daf91bfd7d973a72951d27e8afed868e25ca`.
+- **Acceptance:** final SHA CI pending; browser proof not run locally.
