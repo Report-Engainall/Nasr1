@@ -2,15 +2,14 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 
-const apiUrl = new URL(requiredEnv("E2E_SUPABASE_URL"));
+import { validateCashExpenseEndpoints } from "./lib/local-endpoint-guard.mjs";
+
 const connectionString = requiredEnv("TEST_DATABASE_URL");
-if (apiUrl.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(apiUrl.hostname) || apiUrl.port !== "54321") {
-  throw new Error("Purchase receipt accounting acceptance is restricted to the local Supabase API.");
-}
-const databaseUrl = new URL(connectionString);
-if (!["localhost", "127.0.0.1"].includes(databaseUrl.hostname) || databaseUrl.port !== "54322") {
-  throw new Error("Purchase receipt accounting acceptance is restricted to local PostgreSQL 17.");
-}
+// Match the existing, unit-tested local-only policy used by the cash-expense
+// acceptance: the host must be loopback and the port must be explicit, but it
+// may be a dynamically assigned local PostgreSQL 17 port (e.g. Supabase 55432).
+// Never accept a hosted database or a non-loopback Supabase API here.
+validateCashExpenseEndpoints(requiredEnv("E2E_SUPABASE_URL"), connectionString);
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const productId = "a1000000-0000-0000-0000-000000000001";
 const supplierId = "a2000000-0000-0000-0000-000000000001";
