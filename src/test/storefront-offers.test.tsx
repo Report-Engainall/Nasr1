@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -86,4 +86,60 @@ describe("published storefront offer product scope", () => {
     expect(screen.queryByText("زيت غير منشور · SKU-OFF-CAT")).toBeNull();
     expect(screen.queryByText("فاصوليا غير منشورة · SKU-OFF-STATUS")).toBeNull();
   });
+  it("reports both failed sources and retries promotions and catalog together", () => {
+    const refetchPromotions = vi.fn();
+    const refetchProducts = vi.fn();
+    mocks.promotionResult = {
+      data: [],
+      loading: false,
+      error: "تعذر جلب الحملات",
+      refetch: refetchPromotions,
+    };
+    mocks.productResult = {
+      data: [],
+      loading: false,
+      error: "تعذر جلب المنتجات",
+      refetch: refetchProducts,
+    };
+    mocks.useFetch.mockImplementation((fetcher: unknown) =>
+      fetcher === mocks.fetchStorefrontPromotions ? mocks.promotionResult : mocks.productResult,
+    );
+
+    render(<StorefrontOffersPage />);
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("تعذر تحميل العروض والكتالوج");
+    expect(alert).toHaveTextContent("العروض: تعذر جلب الحملات");
+    expect(alert).toHaveTextContent("الكتالوج: تعذر جلب المنتجات");
+
+    fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة" }));
+    expect(refetchPromotions).toHaveBeenCalledTimes(1);
+    expect(refetchProducts).toHaveBeenCalledTimes(1);
+  });
+
+  it("identifies a catalog-only failure without blaming promotions", () => {
+    mocks.promotionResult = {
+      data: [],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    mocks.productResult = {
+      data: [],
+      loading: false,
+      error: "كتالوج الاختبار غير متاح",
+      refetch: vi.fn(),
+    };
+    mocks.useFetch.mockImplementation((fetcher: unknown) =>
+      fetcher === mocks.fetchStorefrontPromotions ? mocks.promotionResult : mocks.productResult,
+    );
+
+    render(<StorefrontOffersPage />);
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("تعذر تحميل كتالوج المنتجات");
+    expect(alert).toHaveTextContent("الكتالوج: كتالوج الاختبار غير متاح");
+    expect(alert).not.toHaveTextContent("تعذر تحميل العروض");
+  });
+
 });

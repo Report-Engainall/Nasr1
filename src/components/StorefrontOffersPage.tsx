@@ -11,6 +11,15 @@ export function StorefrontOffersPage() {
   const products = productsQuery.data ?? [];
   const loading = promotionsQuery.loading || productsQuery.loading;
   const error = promotionsQuery.error || productsQuery.error;
+  const errorTitle = promotionsQuery.error && productsQuery.error
+    ? "تعذر تحميل العروض والكتالوج"
+    : promotionsQuery.error
+      ? "تعذر تحميل العروض"
+      : "تعذر تحميل كتالوج المنتجات";
+  const errorDetails = [
+    promotionsQuery.error ? `العروض: ${promotionsQuery.error}` : null,
+    productsQuery.error ? `الكتالوج: ${productsQuery.error}` : null,
+  ].filter((detail): detail is string => detail !== null).join(" — ");
 
   return <main className="storefront" dir="rtl" style={{ minHeight: "100vh", padding: 20, maxWidth: 1180, margin: "0 auto" }}>
     <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 22 }}>
@@ -22,7 +31,7 @@ export function StorefrontOffersPage() {
       <button type="button" className="btn outline" disabled={loading} onClick={() => { void promotionsQuery.refetch(); void productsQuery.refetch(); }}><RefreshCw size={15}/> تحديث العروض</button>
     </header>
     {loading ? <div className="sf-empty" role="status">جار تحميل العروض المنشورة…</div>
-      : error ? <div className="sf-empty" role="alert"><strong>تعذر تحميل العروض</strong><small>{error}</small><button type="button" className="sf-btn-secondary" onClick={() => { void promotionsQuery.refetch(); void productsQuery.refetch(); }}>إعادة المحاولة</button></div>
+      : error ? <div className="sf-empty" role="alert"><strong>{errorTitle}</strong><small>{errorDetails || error}</small><button type="button" className="sf-btn-secondary" onClick={() => { void promotionsQuery.refetch(); void productsQuery.refetch(); }}>إعادة المحاولة</button></div>
       : promotions.length === 0 ? <div className="sf-empty" role="status"><Tag size={26}/><strong>لا توجد عروض منشورة حاليًا</strong><small>لم يُرجع الخادم حملات فعالة ضمن نافذة النشر الحالية.</small><Link to="/catalog">تصفح الكتالوج</Link></div>
       : <section aria-label="قائمة العروض المنشورة" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(270px,1fr))", gap: 14 }}>
         {promotions.map((promotion) => {
