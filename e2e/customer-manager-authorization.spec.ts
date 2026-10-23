@@ -126,7 +126,8 @@ test("customer manager: directory privacy, audited customer commands, activation
     expect(payload.page_size).toBe(25);
     expect(collectForbiddenKeys(payload)).toEqual([]);
 
-    await expect(managerPage.getByText("P2 Local E2E Customer A", { exact: true })).toBeVisible();
+    const rowA = managerPage.getByRole("row").filter({ hasText: "P2 Local E2E Customer A" });
+    await expect(rowA).toBeVisible();
     await expect(managerPage.getByText("P2 Local E2E Customer B", { exact: true })).toHaveCount(0);
     await expect(managerPage.getByRole("columnheader", { name: "الرصيد", exact: true })).toHaveCount(0);
     await expect(managerPage.getByRole("columnheader", { name: "الحد الائتماني", exact: true })).toHaveCount(0);
@@ -147,15 +148,12 @@ test("customer manager: directory privacy, audited customer commands, activation
       await directRead.text().catch(() => "");
     }
 
-    let rowA = managerPage.getByRole("row").filter({ hasText: "P2 Local E2E Customer A" });
-    await expect(rowA).toBeVisible();
     await rowA.getByRole("button", { name: "تغيير الشريحة" }).click();
     await managerPage.getByLabel("شريحة العميل الجديدة").selectOption("vip");
     await managerPage.getByLabel("سبب تغيير الشريحة").fill("P2 E2E acceptance: verify audited customer-manager tier change");
     await managerPage.getByRole("button", { name: "حفظ تغيير الشريحة" }).click();
-    await expect(managerPage.getByText("جملة الجملة", { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(rowA.getByText("جملة الجملة", { exact: true })).toBeVisible({ timeout: 20_000 });
 
-    rowA = managerPage.getByRole("row").filter({ hasText: "P2 Local E2E Customer A" });
     await rowA.getByRole("button", { name: "إدارة دورة الحياة" }).click();
     await managerPage.getByLabel("حالة العميل الجديدة").selectOption("frozen");
     await managerPage.getByLabel("سبب تغيير الحالة").fill("P2 E2E acceptance: verify audited customer-manager lifecycle change");
