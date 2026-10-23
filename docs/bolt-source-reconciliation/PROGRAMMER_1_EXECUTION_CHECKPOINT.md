@@ -160,3 +160,22 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: OPEN / NOT READY — exact-head CI and server-backed browser acceptance still required.
 - UPDATED_AT: 2026-10-23T16:25+03:00
+
+
+## Latest resume — audited self-session revocation UI integration — 2026-10-23T16:28+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-SELF-REVOCATION-RPC-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA: `8248a7f8dc3145063ee319fa35de41305d19705a` (functional code/test commit; current checkpoint/report append is a docs-only child).
+- LAST_CONFIRMED_TESTS: code/test commit `8248a7f8dc3145063ee319fa35de41305d19705a` has Core CI [39961454298](https://github.com/Report-Engainall/Nasr1/actions/runs/39961454298) IN_PROGRESS and P2 Playwright [39961454316](https://github.com/Report-Engainall/Nasr1/actions/runs/39961454316) IN_PROGRESS at the time of this checkpoint. CodeRabbit reports SUCCESS, which is not a replacement for test evidence.
+- IMPLEMENTED: `DeviceManagement.tsx` now calls P2's `revoke_other_auth_sessions` RPC instead of `auth.signOut({scope:'others'})` for the “other sessions” action. It validates the exact current `session_id`, finite non-negative count, unique UUID deletion list whose length matches the count, exclusion of the current session, and parseable server timestamp before showing success. The action has a synchronous in-flight guard and requires a current session ID. The current-device local logout remains unchanged.
+- TESTS_ADDED: component acceptance verifies that the server RPC is called, the current session remains visible while other-session rows disappear, and a malformed/mismatched acknowledgment never displays success. The prior duplicate-session-ID test remains.
+- FAILED_OR_NOT_RUN_TESTS: no terminal test conclusion is available yet for `8248a7f...`; no local test command was run through this remote GitHub editing session. Earlier Core failure `39959906007` was pre-test HTTP 429 during dependency installation; prior Playwright `39959905948` was cancelled. Those outcomes are not evidence for the new head.
+- FILES_CHANGED: `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`; this checkpoint and current report updated below.
+- LOCKED_PATHS: P2 migrations/RPC/RLS/generated types/Auth enforcement and workflows/fixtures; shared `CURRENT_EXECUTION_STATE.md` / `WORK_COORDINATION.md`; P3 acceptance files — untouched.
+- NEXT_ACTION: inspect terminal Core/P2 Actions for the exact newest branch head after this checkpoint append; fix only real failures. P2 PR #83 remains the server contract dependency; after it merges into main, refresh this branch and prove list/revoke behavior using isolated authenticated browser checks, including denial of a later protected request with the revoked session.
+- BLOCKER: exact-head Core/P2 results pending; backend contract PR #83 must merge before integrated browser acceptance.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: OPEN / NOT READY — retain PARTIAL until backend integration and browser proof.
+- UPDATED_AT: 2026-10-23T16:28+03:00

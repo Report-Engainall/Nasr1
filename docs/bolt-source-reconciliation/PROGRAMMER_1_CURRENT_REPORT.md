@@ -636,3 +636,37 @@ Read exact-head CI results on the final branch SHA after the checkpoint commit. 
 **LOCKED_PATHS:** P2 migrations/RPC/RLS/types/workflows and P3 acceptance files — unchanged.  
 **BLOCKER:** exact-head CI and authenticated browser acceptance pending; P2 #83 is still open.  
 **STATUS:** implemented regression test; test result pending; PR #88 not ready to merge.
+
+
+## P1 audited self-session revocation RPC wiring — 2026-10-23T16:28+03:00
+
+**Task:** `P1-DEVICE-SESSION-SELF-REVOCATION-RPC-001`  
+**Branch/PR:** `p1/central-device-session-ui-20261023` / [PR #88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**Base SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
+**Functional code/test SHA:** `8248a7f8dc3145063ee319fa35de41305d19705a`
+
+### Change delivered
+The “sign out other sessions” button previously called `supabase.auth.signOut({scope:'others'})`, which did not consume the P2-owned auditable, server-enforced contract. It now calls `revoke_other_auth_sessions` and fails closed unless the response proves the same current session was retained, the revoked count is a non-negative integer, the server-reported UUID list is unique and count-aligned, the current session is absent from that list, and `revoked_at` is parseable. The UI reports the number only after that exact response validation. A synchronous guard blocks rapid duplicate invocation. Current-device logout remains on `scope:'local'`; organization-level selected-session revoke remains separate.
+
+### Regression coverage
+- Added a successful RPC-flow test verifying the current session remains visible and other session rows are absent after server acknowledgment.
+- Added malformed acknowledgment coverage (wrong current session, duplicate IDs, mismatched count/invalid timestamp) asserting no success notice.
+- Retained existing coverage for per-session acknowledgment mismatch, list duplicate IDs, malformed list shape, RPC/network failures, retry and admin gating.
+
+### Exact-head verification
+- Core CI [39961454298](https://github.com/Report-Engainall/Nasr1/actions/runs/39961454298): **IN PROGRESS** on `8248a7f8dc3145063ee319fa35de41305d19705a`.
+- P2 Playwright [39961454316](https://github.com/Report-Engainall/Nasr1/actions/runs/39961454316): **IN PROGRESS** on the same SHA.
+- No local test command is claimed. The earlier HTTP 429 install failure was on an older SHA and must not be presented as a functional failure or a pass for this head.
+- P2 PR #83 is still required. PostgreSQL acceptance of the contract and UI unit tests do not replace an authenticated browser proof of revocation followed by rejection on a later protected request.
+
+### Files changed
+- `src/components/DeviceManagement.tsx`
+- `src/test/device-management.test.tsx`
+- `PROGRAMMER_1_EXECUTION_CHECKPOINT.md` and this report for resume evidence.
+
+### Next action and gates
+Read CI on the final checkpoint SHA; repair concrete failures only. Once #83 merges, update the P1 branch on the current main, rerun Core and P2 browser acceptance on the exact integration head, and preserve the PARTIAL state until authenticated browser proof passes.
+
+**LOCKED_PATHS:** P2 database/API/RLS/Auth/workflow files, shared execution-state/coordination files, and P3 acceptance files — unchanged.  
+**BLOCKER:** terminal CI pending; P2 PR #83 open.  
+**STATUS:** implementation committed; acceptance pending; do not merge yet.
