@@ -1,3 +1,15 @@
+## P2 checkpoint — central session backend integrated; current next action — 2026-10-23T17:34:00+03:00
+
+- Verified main SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c`; source-tree SHA: `6d881e097101b574a7b1e6a83717c28719310cd28`.
+- PR #83 merged at `bd0d2df...`; tree equals the tested PR head `dda512495c43f2fd84517635cd83421ef49e92c0`. Core `39968857948` = SUCCESS, P2 `39968858140` = SUCCESS on that exact tested SHA/tree.
+- PR #82 remains open at `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`; Core `39953364100` and P2 `39953364029` both passed on that older SHA before central-session migration landed. Do not merge it on historical checks; update non-forcibly onto main, reconcile shared test/workflow files, and rerun Core + P2/Chromium.
+- PR #88 remains P1-owned Draft; session-specific browser acceptance is NOT RUN. The P1 seed currently requires local DB port 54322 while P2 isolated Supabase uses 55432; comment 6367191624 asks P1 to widen only the loopback-port guard.
+- PR #95 current head is `f856a6cf284084953cbebfd2718cbf909ce3d17e` on base `bd0d2df...`; verify its own latest checks before merge. Previous SHA results do not transfer.
+- `OPS-DR-001` stays `NOT RUN / NOT PROVEN`; merged PR #71 alone is not proof of a complete isolated restore drill. #52/#54 are merged; keep target Onyx import and live Onyx/WhatsApp integrations `BLOCKED_EXTERNAL`.
+- This checkpoint supersedes older snapshots below; those remain in the append-only history and must not drive NEXT_TASK_ID.
+
+---
+
 ## P2 security review follow-up — 2026-10-23T17:00:00+03:00
 
 - Main SHA remains `59547c7d683cefd65cab445b97219aa701021676`; main Core [39956957952](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952) = SUCCESS.

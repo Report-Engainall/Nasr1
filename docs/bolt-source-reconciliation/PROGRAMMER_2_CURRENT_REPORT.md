@@ -1,16 +1,35 @@
-# تحديث P2 الحي — 23 أكتوبر 2026، 2026-10-23T17:30:00+03:00
+# تحديث P2 الحي — 2026-10-23T17:34:00+03:00
 
-هذا القسم هو الحالة الأحدث؛ لا تنقل نتائج اختبار من رأس إلى آخر.
+## الحالة التنفيذية الحالية (تتقدم على السجل التاريخي أدناه)
+- `MAIN_SHA=bd0d2df489e40b2dc5f83882d90565c7799a448c`; شجرة main `6d881e097101b574a7b1e6a83717c28719310cd28`.
+- `AUTH-CENTRAL-SESSION-BACKEND-P2` / PR #83 أُدمج: commit `bd0d2df...`; الشجرة المطابقة لرأس الاختبار `dda512495c43f2fd84517635cd83421ef49e92c0`. Core 39968857948 وP2 39968858140 = SUCCESS على الشجرة نفسها. هذا يثبت عقد الخادم والقبول المحدد بالـworkflow؛ لا يثبت واجهة #88 أو الإنتاج.
+- عقد الجلسات في main الآن يدعم `current_auth_session_id`، هوية ملف/مؤسسة مرتبطة بوجود جلسة حية متطابقة، RPCs `list_organization_sessions` و`revoke_organization_session` و`revoke_other_auth_sessions`، صلاحيات مخفضة وAudit، واختبارًا لقبول/رفض الجلسة المسحوبة. لا تُعد تنفيذ هذا العقد ما لم يظهر فشل محدد جديد.
+- `PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE` هو التالي: PR #82 مفتوح والرأس `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`. Core 39953364100 وP2 39953364029 ناجحان على SHA نفسه، لكن قبل دمج #83؛ يجب إدخال main الحالي وإعادة الاختبارين قبل الدمج. يحتوي الفرع على حل schema-aware لـpgcrypto ودعوات customer_manager، ويتداخل مع workflow و`scripts/test-database-migrations.mjs` وfixtures التي تغيرت في #83.
+- PR #88 واجهة أجهزة P1 لا يزال Draft؛ آخر رأس `428c98bece43296dbebd9ce30c78cffe48541348`. اختبار Chromium الخاص به لا يُدّعى أنه نفذ. P2 يملك wiring الخاص بالـworkflow فقط، وملفات الواجهة/seed/spec ملك P1. سكربت seed يشترط منفذ DB 54322 بينما الـworkflow المعزول يستخدم 55432؛ تم إرسال تعليق تنسيق #88 رقم 6367191624، ولم تُقرأ استجابة تثبت حل الفجوة.
+- PR #95 الرأس الحالي `f856a6cf284084953cbebfd2718cbf909ce3d17e` مبني على main `bd0d2df...`; نتيجة CI على هذا الرأس لم تُثبت بعد في هذه اللقطة. نتائج `024e155...` السابقة لا تنتقل إليه.
+- PR #43 ما يزال Draft وdirty؛ لا تدمج فرعه القديم. PR #94 بديل اختبار واجهة محدود، وما زال يحتاج قراءة CI على رأسه.
+- `OPS-DR-001=NOT RUN / NOT PROVEN`: وجود PR #71 مدمج لا يغلق تجربة backup/restore المطابقة للعقد. `INV-009`: #52 و#54 مدمجان؛ اقرأ فجوة قبول Onyx الباقية بدل إبقاء الحالة OPEN. Onyx الحي/استيراد الهدف وWhatsApp الرسمي وrestore الإنتاجي تظل `BLOCKED_EXTERNAL`/ `NOT RUN`.
 
-- **main:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`; Core [39966840332](https://github.com/Report-Engainall/Nasr1/actions/runs/39966840332) = SUCCESS على SHA نفسه؛ تغيير main توثيقي P1 فقط.
-- **PR #83:** تم تحديث الفرع إلى main الحالي بدمج تقدمي غير قسري. الرأس الحالي `dda512495c43f2fd84517635cd83421ef49e92c0`, base `f7565a...`, OPEN/Draft. Core [39968857948](https://github.com/Report-Engainall/Nasr1/actions/runs/39968857948) = QUEUED؛ P2 [39968858140](https://github.com/Report-Engainall/Nasr1/actions/runs/39968858140) = PENDING. لا توجد نتيجة نهائية على شجرة الدمج حتى الآن.
-- **سجل سابق:** `d270661...` اجتاز Core [39966420997](https://github.com/Report-Engainall/Nasr1/actions/runs/39966420997), وفيه `PASS central session management`. P2 تعطل في apt-backed `playwright install-deps chromium`. الرأس `8b413513...` أثبت public UI smoke SUCCESS لكنه لم يصل إلى نتيجة نهائية لكل الوظائف.
-- **إصلاح Chromium:** موجود في Core وP2: تنزيل المتصفح منفصلًا، فحص `ldd`, وتثبيت OS dependencies فقط عند نقص المكتبات مع timeout ثماني دقائق. يجب إثبات ذلك على `dda512...`.
-- **الأمان:** `can_manage_finance()` يحتفظ بدور `accountant` ويشترط `current_profile_id()` المرتبط بجلسة Supabase حية. الخطأ السابق في دور accountant عولج في `d270661...` وCore نجح.
-- **PR #95:** head `024e155a2135a104a7dc1c6d8ced7e2018b0a467`, Core/P2 [39964921878](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921878) و[39964921887](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921887) = SUCCESS على الرأس نفسه؛ Core log يحتوي `PASS staff receivables aging`. Ready for review ولم يُدمج؛ يجب تحديثه وإعادة اختباره بعد دمج #83.
-- **الخطوة التالية:** `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`; انتظر Core/P2 على `dda512...`, أصلح الفشل المثبت، ثم ادمج فقط بعد نجاح الاثنين ومراجعة الأمن. بعدها حدّث #95 فوق main الجديد، وأعد اختباره ثم انتقل إلى #82.
-- Onyx live sync/target import، WhatsApp Business API الرسمي، واستعادة الإنتاج = `BLOCKED_EXTERNAL` / `NOT RUN`. Hosted-account E2E ما زال SKIPPED لغياب اعتماد اختبار غير إنتاجي.
-# تصحيح الحالة التنفيذية لـP2 — 22 أكتوبر 2026
+## checkpoint الحالي
+```
+LAST_COMPLETED_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2
+MAIN_SHA=bd0d2df489e40b2dc5f83882d90565c7799a448c
+CURRENT_BRANCH=docs/p2-current-state-20261023
+BASE_SHA=0396b29aeab8c09c430df0063821251208a38477
+HEAD_SHA=8e70899da67d53f0acf221d7e4eeb1a8f2f1b591
+TASK_STATUS=TESTED_EXACT_SHA on pre-#83 head; sync and retest required
+FILES_CHANGED=PR82 invitation pgcrypto/schema fix, permission migration, customer-manager Chromium acceptance and shared CI harness
+TESTS_RUN=Core 39953364100 PASS; P2 39953364029 PASS; both on 8e70899
+TESTS_FAILED_OR_SKIPPED=Post-#83 integrated PR82 runs NOT RUN; no hosted account E2E claim
+MERGE_STATUS=PR83 merged; PR82 open and needs current-main integration
+EXTERNAL_BLOCKERS=Onyx target import/live sync, official WhatsApp, production restore proof
+LOCKED_PATHS=PR82 shared workflow/test harness until sync; P1 owns DeviceManagement component/spec/seed
+NEXT_TASK_ID=PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE
+NEXT_ACTION=merge current main into PR82 without force; reconcile the shared test/workflow files; rerun Core+P2 and Chromium on the exact final SHA
+UPDATED_AT=2026-10-23T17:34:00+03:00
+```
+
+\n---\n\n## سجل P2 التاريخي (لا يحدد حالة التنفيذ الحالية)\n\n# تصحيح الحالة التنفيذية لـP2 — 22 أكتوبر 2026
 
 **مرجع أحدث من السجل التاريخي أدناه.** تقارير هذا الملف تحافظ على أحداثها القديمة؛ أي جملة في الأسفل تفيد بأن PR #18 أو #26 ما زال مفتوحًا، أو أن تكامل خصوصية أسعار Storefront لم يحدث، تعود إلى نقطة قراءة تاريخية ولا تمثل main الحالي.
 

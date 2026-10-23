@@ -1,26 +1,17 @@
-# سجل التنسيق التاريخي — تحديثات 22 أكتوبر 2026
+# سجل التنسيق — الحالة الحية بعد دمج عقد الجلسات
 
-## تصحيح حاكم حي — 23 أكتوبر 2026
+## تصحيح التنسيق الحاكم — 2026-10-23T17:34:00+03:00
 
-هذا القسم هو المرجع الأحدث لحالة Git والتنسيق؛ أي SHA أو حالة قديمة في السجل أسفله تاريخية ولا تُعامل كحقيقة حية.
-
-- `main` الحالي الذي تم التحقق منه: `76baf9dbe7860a764abc18e75835abb8750d56a3`. لا كتابة مباشرة إلى `main`.
-- PR #54: `feat/p2-onyx-source-trace-mainline-20261022`. رأس الكود المثبت `52ae68f1f14d61d1fb13925a840c330cb70956e1`: Core CI PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39905763702 وP2 Playwright PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39905763717. وظيفة Supabase المحلية `120258001144` نجحت في PostgreSQL 17، الطلب/عزل المستأجر، المرتجعات والإشعارات الدائنة، تصدير Onyx XLSX، والطباعة المالية/التشغيلية. اعتماد الاختبار الخارجي منفصل وبقي SKIPPED.
-- رأس الفرع الحالي قد يكون أحدث من SHA الكود المختبَر بسبب تحديثات الوثائق في PR #54. لا يُعتبر رأس الوثائق المختبَر إلا بعد نجاح Actions على SHA النهائي للوثائق.
-- مؤشر الاستئناف الوحيد في `CURRENT_EXECUTION_STATE.md` هو `INV-009`. أُغلق `SRC-011` بدليل لأن التحقق من `SOURCE_INTEGRATION_LEDGER.csv` (قراءة فقط) يثبت أن تدفق إدخال الطلب الحالي أفضل من donor migration 0011؛ لا تنسخ SQL المصدر ولا تعدّل سجل P1.
-- PR #52 / INV-009 (`e7cc5fa6aa2a7e22eeedc3d8f179c0638712ad3f`): Core PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39842798167. P2 run https://github.com/Report-Engainall/Nasr1/actions/runs/39842798332 فشل قبل بدء الخدمات بسبب GHCR rate limiting؛ لا إثبات متصفح لهذا الرأس. حدّث الفرع بعد تكامل تحسينات مسار Supabase في PR #54، ثم أعد Core وP2 على SHA محدد.
-- PR #57 / انتهاء دعوة الشركة (`2c4dea9ef63d34a6cf104bee58a5998c5fcef128`): Core PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39904816444 وP2 Playwright PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39904816431، بما فيه Supabase المحلي؛ اختبار الحساب الخارجي منفصل وبقي SKIPPED. هذا الفرع يتداخل مع `scripts/test-database-migrations.mjs` الذي يعدّله PR #54، لذلك يُحدّث ويختبر بعد دمج #54، وليس بالتوازي.
-- تسلسل الدمج: لا تُدمج أو تحدث فروعًا متداخلة بالتوازي. PR #54 هو الذي يحمل تحديث المسار المشترك `.github/workflows/p2-playwright-critical-paths.yml`؛ بعد حسمه حدّث واختبر PR #52 ثم PR #57 بالتتابع مع فحص التعارضات وإعادة تشغيل الاختبارات على SHA الجديد. مراجعة P1 المستقلة لم تُسجّل كنتيجة نهائية بعد.
-- لا اختبارات إنتاجية أو اتصال حيّ بـOnyx/WhatsApp. لا `PRODUCTION_PROVEN`، ولا نجاح خارجي ضمني، ولا تعديل لملفات ملكية P1.
-
-
-## قفل تنفيذ مؤقت — OPS-DR-001: اختبار النسخ الاحتياطي والاستعادة المعزولة — تحديث 23 أكتوبر 2026
-
-- **مالك التنفيذ الوحيد:** P2؛ الفرع `feat/p2-backup-restore-drill-20261022`. أساس الفرع السابق `008bc9a0b5c79dc1a973e4bc1b38d73a1a3dc747` قديم؛ يُحدّث بالتسلسل فوق `024c279a2d1c0226c662e5d916871f45534c7242` دون force-push.
-- **المسارات الحصرية:** `scripts/test-local-backup-restore.mjs` و`.github/workflows/commerce-checks.yml` لخطوة قبول واحدة. لا يشمل القفل صفحات التطبيق أو migrations أو RLS.
-- **القبول:** pg_dump مخصص من PostgreSQL 17 المحلي `aghbari_test`، استعادة إلى قاعدة مؤقتة، مقارنة تعداد المخطط والدوال والسياسات والمحفزات، أعداد الصفوف وبصمات مرتبة لقيم الصفوف في الجداول الحرجة، بصمة SHA-256 للأرشيف وقياس الزمن، ثم حذف قاعدة الاستعادة والمجلد المؤقت.
-- **حدود السلامة:** يرفض السكربت أي مضيف خارج loopback وأي اسم قاعدة مصدر غير `aghbari_test`. لا يستهدف قاعدة مستضافة أو إنتاجية؛ قياسات CI المعزول لا تثبت RTO/RPO للإنتاج.
-- **شرط الإغلاق:** لا يُغلق `OPS-DR-001` إلا بعد Core CI نهائي ناجح وP2 ناجح على SHA النهائي نفسه. تحرير القفل بعد تسجيل نتيجة دمج `main` وبصمة/مدة فعلية من سجل التشغيل.
+- `main` الحالي: `bd0d2df489e40b2dc5f83882d90565c7799a448c`; شجرته `6d881e097101b574a7b1e6a83717c28719310cd28`. لا كتابة مباشرة إلى main.
+- **PR #83 مدمج**. قفل عقد الجلسات الذي شمل `supabase/migrations/20261023150000_central_session_management.sql` و`supabase/migrations/20261023170000_revoke_other_auth_sessions.sql` و`scripts/test-session-management.mjs` و`scripts/test-database-migrations.mjs` و`src/integrations/supabase/types.ts` وملفات workflow ذات الصلة أُغلق. لا تعاود إنشاء تلك الوظائف. Core 39968857948 وP2 39968858140 نجحا على رأس `dda512495c43f2fd84517635cd83421ef49e92c0` ذي الشجرة المطابقة لـmain.
+- **القفل النشط التالي: PR #82 / customer_manager invitations**. رأسه `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591` اجتاز Core 39953364100 وP2 39953364029، ولكن قبل دمج #83. عند تحديث الفرع فوق main الجديد، حافظ على إصلاح مخطط pgcrypto ومهاجرة الأذونات وادمج تغييرات هوية الجلسة من main في test fixtures. لا تنفذ تعديلًا متزامنًا على `.github/workflows/p2-playwright-critical-paths.yml` أو `scripts/test-database-migrations.mjs` أو `scripts/seed-p2-local-playwright.mjs` من فرع آخر حتى يفرغ هذا القفل.
+- **PR #88 / واجهة إدارة الأجهزة**: ملكية P1 لـ`src/components/DeviceManagement.tsx` و`e2e/device-session-management.spec.ts` و`scripts/seed-p1-device-session-playwright.mjs`; P2 يملك wiring الـworkflow. آخر رأس مقروء `428c98bece43296dbebd9ce30c78cffe48541348`، والفرع لا يزال Draft وقاعدته القديمة `f7565a...`. ملف seed ما زال يرفض منفذ DB `55432` المستخدم في الـworkflow المحلي المعزول. تعليق التنسيق #88 رقم 6367191624 طلب قبول `54322` أو `55432` مع قصر الاتصال على loopback. لا تغيّر ملف P1 بنفسك ولا تضعف الـendpoint guard؛ يجب أن ينجح اختبار المتصفح الفعلي قبل وصف تكامل الواجهة بأنه BROWSER_PROVEN.
+- **PR #95 / FIN-INVOICE-001** فرع مستقل عن عقد الجلسات؛ رأسه `f856a6cf284084953cbebfd2718cbf909ce3d17e` وقاعدة main `bd0d2df...`. لا تتداخل الكتابة على الملفات إلا بعد قراءة قائمة الملفات والرأس الحالي؛ لا تنقل نتائج `024e155...` إلى الرأس الحالي. اقرأ Core وP2 على SHA الحالي ثم ادمج إذا اجتاز شروط القبول.
+- **PR #43** إدارة الأدوار: قديم، Draft و`mergeable_state=dirty`; لا تدمج 48 ملفًا من الفرع القديم. PR #94 هو بديل اختبار محدود لواجهة إعدادات الأدوار، لكنه غير مدمج ويلزمه CI على رأس محدث وقرار مستقل.
+- **OPS-DR-001** يبقى `NOT RUN / NOT PROVEN` حتى تجربة معزولة كاملة على PostgreSQL 17 تتضمن SHA-256 للنسخة، استعادة مؤقتة، مقارنة مخطط/دوال/سياسات/محفزات/بيانات حرجة، مدة مقاسة وتنظيف. دمج PR #71 وحده لا يثبت ذلك.
+- **INV-009**: PR #52 و#54 مدمجان؛ تحقق من فجوات القبول غير المغطاة على main ولا تستخدم `PR_OPEN` أو فشلًا قديمًا كحقيقة حالية. قبول استيراد XLSX في Onyx الهدف والمزامنة الحية غير مثبتين دون sandbox واعتماد موثوق واستجابة فعلية.
+- Onyx live sync/import وWhatsApp Business API الرسمي واستعادة الإنتاج `BLOCKED_EXTERNAL`/ `NOT RUN` ما لم توفر جهة مخولة الاعتماد والبيئة ونتيجة موثقة. لا أسرار حقيقية في المستودع ولا اعتماد مدفوع إلزامي.
+- **قاعدة الكتابة المشتركة**: P2 وحده يحدّث `CURRENT_EXECUTION_STATE.md` و`REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` و`WORK_COORDINATION.md` و`EXECUTION_LOG.md` و`PROGRAMMER_2_CURRENT_REPORT.md`. اقرأ رؤوس الفروع قبل أي كتابة واحمِ التحديث عبر expected-SHA؛ لا تحدّث ملفًا مشتركًا من فرعين في آن واحد. يُحرر القفل بعد دمج التغيير والتحقق من SHA الجديد على main.
 
 ---
 
