@@ -1,3 +1,4 @@
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -65,6 +66,39 @@ describe("customer activation invitation dialog", () => {
     expect(await screen.findByText(/لم يُرسل بريد تلقائيًا؛ شارك الرابط يدويًا/)).toBeInTheDocument();
     expect(mocks.createInvite).toHaveBeenCalledWith(CUSTOMER.id, CUSTOMER.email, 72);
     expect((screen.getByLabelText(/رابط التفعيل/) as HTMLInputElement).value).toContain("/customer/activate/");
+  });
+
+  it("creates only one activation invitation when submit is triggered twice rapidly", async () => {
+    const created = {
+      invitation_id: INVITATION_ID,
+      customer_id: CUSTOMER.id,
+      invited_email: CUSTOMER.email,
+      token: "a".repeat(64),
+      expires_at: "2099-10-20T12:00:00.000Z",
+      url: "http://localhost/customer/activate/" + "a".repeat(64),
+    };
+    let resolveCreate: ((value: typeof created) => void) | undefined;
+    mocks.createInvite.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveCreate = resolve;
+    }));
+
+    render(<CustomerActivationInvitationDialog customer={CUSTOMER} onClose={vi.fn()} />);
+    const submit = await screen.findByRole("button", { name: "إنشاء رابط تفعيل صالح 72 ساعة" });
+
+    await act(async () => {
+      // Both clicks are issued in one event batch, before the busy state rerenders.
+      submit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      submit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+    expect(mocks.createInvite).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveCreate?.(created);
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(await screen.findByText(/لم يُرسل بريد تلقائيًا؛ شارك الرابط يدويًا/)).toBeInTheDocument();
   });
 
   it("revokes a pending invitation only after explicit confirmation", async () => {
