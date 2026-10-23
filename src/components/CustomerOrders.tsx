@@ -149,7 +149,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
         throw new Error('يتضمن الطلب صنفًا مكررًا؛ لم يُحفظ القالب لتجنب تكرار الكميات.');
       }
 
-      const templateName = (\`إعادة طلب \${String(order.order_number ?? '').trim()}\`).slice(0, 100);
+      const templateName = ('إعادة طلب ' + String(order.order_number ?? '').trim()).slice(0, 100);
       if (templateName.trim().length < 2) {
         throw new Error('تعذر تحديد اسم صالح لقالب إعادة الطلب.');
       }
@@ -172,7 +172,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
       setTemplateSaved(true);
       setTemplateFeedback({
         kind: 'success',
-        message: \`تم حفظ قالب مرتبط بالطلب \${order.order_number}. عند تطبيقه ستُراجع الأسعار والتوفر الحاليان قبل إرسال طلب جديد.\`,
+        message: 'تم حفظ قالب مرتبط بالطلب ' + String(order.order_number ?? '') + '. عند تطبيقه ستُراجع الأسعار والتوفر الحاليان قبل إرسال طلب جديد.',
       });
     } catch (cause) {
       setTemplateFeedback({
