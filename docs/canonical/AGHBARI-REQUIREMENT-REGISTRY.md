@@ -162,3 +162,10 @@ Current-main reconciliation performed as a merge commit must preserve P1’s cus
 - **الإصلاح:** يشترط العد أن يكون `is_active !== false` وأن لا تكون الحالة `inactive`. هذه معالجة لبيانات الواجهة الواردة ولا تمنح أي صلاحية إضافية للخادم.
 - **الاختبار:** إضافة اختبار يمرر منتجين غير نشطين بتمثيلين مختلفين ويتحقق من ظهور حالة «لا توجد أصناف منشورة» وعدم عرض رابط تصفح زائف.
 - **الحالة:** `IMPLEMENTED; TEST_ADDED; FINAL_SHA_CI_PENDING`. لا نحتسبها `PASS` قبل قراءة CI للرأس النهائي.
+
+### `P3-REPORT-DUP-003` — تكرار لوحة التحليلات في مسار التقارير
+
+- **الفجوة:** كان `src/routes/admin_.reports.tsx` يركّب `<AdminApp initialView="reports" />` ثم يركّب `<ExecutiveStoreAnalytics />` ثانية. تنفيذ `Reports` داخل `AghbariApp.tsx` يركّب التحليلات التنفيذية بالفعل، فيتكرر العرض في المسار نفسه.
+- **الإصلاح:** أزيل تركيب التحليلات الإضافي من غلاف المسار؛ بقي مكوّن التقرير الموحد داخل شاشة `Reports` القائمة. لم أعدّل ملف shell المملوك للتكامل.
+- **الاختبار:** `src/test/admin-reports-route-wiring.test.ts` يثبت أن المسار لا يركب المكوّن مباشرة وأن `Reports` يحتوي تركيبًا واحدًا.
+- **الحالة:** `IMPLEMENTED; REGRESSION_TEST_ADDED; FINAL_SHA_CI_PENDING`.
