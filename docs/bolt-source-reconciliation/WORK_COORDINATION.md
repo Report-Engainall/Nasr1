@@ -1,16 +1,17 @@
 # سجل التنسيق — المرجع الحي
 
-## المصالحة الحالية — 2026-10-23T21:17:51+03:00
+## المصالحة الحالية — 2026-10-23T21:44:36+03:00
 
-- Main exact SHA `d81c9b34f819a53df7610937264c6fcb923c3f95`, tree `8107f52d4d6c61845b95ed7226c5c7f03038a484`. Only source delta since PR #104 merge is `docs/project-bolt-github-7sl6ykzz (5).zip`.
-- Core run `40001179290` SUCCESS on exact PR #104 merge SHA `5dbb01f7cf2ac054212abc6f3ec34af1b1fe99df`. Current main Core run `40001438040` is IN_PROGRESS on exact `d81c9b34f819a53df7610937264c6fcb923c3f95`; no cross-SHA pass claim. P2 on exact `d81c9b34f819a53df7610937264c6fcb923c3f95` = NOT RUN.
-- PR #104 merged at `5dbb01f7cf2ac054212abc6f3ec34af1b1fe99df` from tested head `7f1110d95d26ece5d516b7267904a4f3f397f6ef`; Core `40000512625` and P2 Playwright `40000512706` SUCCESS on that exact head. Credential-gated job `120575459434` SKIPPED, not PASS.
-- PR #103 closed the GL summary/detail pagination acceptance gap, merged at `2908079abd76e1a84cc4449d65b6b01cdfc63482`; Core `39993605159` and P2 `39993605124` passed on exact PR head `3a95de8991c3609349a56f4a102f147e0f9587e8`.
-- FIN-LEDGER-001, FIN-EXPENSE-001 and FIN-CREDIT-001 are integrated. FIN-INVOICE-001 remains PARTIAL because persisted payment idempotency/replay is missing.
-- NEXT_TASK_ID=`FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD`: add tenant-scoped idempotency key+payload fingerprint to `record_customer_payment`; same-payload replay returns existing payment, changed payload reusing the key fails, concurrent duplicate calls commit only once, cross-tenant keys isolated, UI preserves request key over ambiguous retries. Inspect all callers, RLS/grants and function overloads before changing RPC.
-- P2 central state belongs only to P2 and is updated serially through this docs PR. Do not edit P1 #97 or P3 #89 owned paths. Other open PRs #102 (exports), #105 (address/access acceptance), #106 (audit order) and #107 (storefront visibility acceptance) do not own these central finance files.
-- PR #62 statement/credit parity is merged at `024c279a2d1c0226c662e5d916871f45534c7242`; its old exclusive lock is released. PR #40 is CLOSED and NOT MERGED, so it is not an active conflict. Live Onyx import/sync, WhatsApp API calls, hosted credential E2E and production restore remain BLOCKED_EXTERNAL/NOT RUN until real authorized evidence exists.
-- `CURRENT_EXECUTION_STATE.md` is the only dynamic resume pointer. Archived sections below are historical only.
+- المستودع الوحيد Report-Engainall/Nasr1، الفرع المرجعي main. آخر SHA متحقق منه: 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac؛ الشجرة 15f30663a80ba9ff2e83c2057f15ed489eed92be.
+- **PR #110 مدمج**: [fix(pricing): retry transient server-side price preview reads](https://github.com/Report-Engainall/Nasr1/pull/110). tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09؛ merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac. tree hash مطابق بين الرأس المختبر والدمج.
+- Core [run 40004970539](https://github.com/Report-Engainall/Nasr1/actions/runs/40004970539) SUCCESS على PR head exact. شمل unit tests وPostgreSQL 17 وlint والبناء وفحوص preview/dev واختبار إظهار/إخفاء الأسعار في Chromium.
+- P2 [run 40004970599](https://github.com/Report-Engainall/Nasr1/actions/runs/40004970599) SUCCESS على PR head exact. نجح public UI smoke واختبار Supabase المحلي المعزول ومسارات الطلب والعزل والمرتجعات والطباعة والصلاحيات وتصدير Onyx. اختبار hosted customer E2E 120590754389 SKIPPED لغياب اعتمادات non-production مخصصة؛ ليس PASS.
+- Core بعد الدمج [run 40005590004](https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004) ما زال IN_PROGRESS على merge SHA وقت هذا التحديث. لا ننقل PASS من SHA إلى آخر؛ دليل الشفرة قبل الدمج يشير إلى شجرة مطابقة لا إلى تشغيل CI نهائي بعد الدمج.
+- فحص الملف المرفق الوحيد project-bolt-github-7sl6ykzz (5)(2).zip: 871 entry، 790 ملفًا، 9,158,183 byte غير مضغوطة، CRC PASS، بلا أسماء أعضاء مكررة أو مسارات traversal. لم تُقرأ محتويات .env ولم تُنقل/تُلتزم.
+- قرار الدمج: لم تُستبدل package.json/bun.lock القديمة؛ أبقيت نسخ Nasr1 الحالية من Storefront ومحرك الاستيراد وتصدير Onyx. وظائف/اختبارات الاستيراد والمرتجعات والمحاسبة والمخزون وOnyx والنسخ الاحتياطي البارزة موجودة بالفعل في Nasr1. نسخة outbox في الحزمة تتضمن استدعاء مساعد خطأ غير معرف، ومركز السياسات/تحليلات الأعمال الموروثين لا يطابقان عقد المصادقة والبيانات الحاليين؛ لم ينقلا.
+- التغيير المأخوذ بأمان: وصل retryRead الموجود أصلًا وغير المستخدم بمسار RPC القرائي preview_customer_order_pricing؛ تصنيف status=0 وأخطاء الشبكة الملفوفة كأعطال عابرة، وعدم إعادة محاولة أخطاء الصلاحيات أو أي طفرة بيانات، مع بقاء سياسة الأسعار fail-closed. تقرير القرارات: [P2_UPLOADED_ARCHIVE_RECONCILIATION_2026-10-23.md](P2_UPLOADED_ARCHIVE_RECONCILIATION_2026-10-23.md).
+- مؤشر الاستئناف المتحرك الوحيد هو CURRENT_EXECUTION_STATE.md. يبقى المسار التالي FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD: مفتاح idempotency على مستوى المؤسسة مع بصمة payload وإعادة النتيجة الأصلية وحسم التعارض/التوازي والعزل.
+- لا كتابة مباشرة على main، لا force-push، لا إعادة بناء من الصفر، ولا كتابة على قاعدة إنتاج. سجلات الحالة تتبع الأدلة الفعلية ولا تعيد إنشاء ميزات مدمجة.
 
 ## سجل التنسيق الأصلي (للتاريخ فقط)
 
