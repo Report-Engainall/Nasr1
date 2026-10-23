@@ -930,6 +930,9 @@ async function main() {
     );
     assert.equal(managerDirectory.rows.some((row) => row.id === foreignCustomer), false,
       "customer-manager directory must not expose another organization's customer");
+    // Re-establish authenticated role after the directory RPC before probing row visibility;
+    // the nested acceptance helper may reset session role on the shared client.
+    await ident(admin, adminAuth, "admin@aghbari.ye");
     // Pin the exact role and RLS evaluation context so a privileged connection cannot
     // accidentally make this an ineffective authorization test.
     const managerSecurityContext = (await admin.unsafe(
