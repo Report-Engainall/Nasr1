@@ -14,9 +14,22 @@ function statusOf(error: unknown): number | undefined {
 
 /** Retry only transient reads. Never use this helper around a business mutation. */
 export function isTransientReadFailure(error: unknown): boolean {
+  // Supabase/PostgREST can represent a fetch/network failure as a response-like
+  // error with status 0 or as a wrapped FetchError rather than a native TypeError.
+  if (error && typeof error === 'object') {
+    const candidate = error as { name?: unknown; code?: unknown };
+    if (
+      candidate.name === 'FetchError'
+      || candidate.code === 'FETCH_ERROR'
+      || candidate.code === 'NETWORK_ERROR'
+    ) return true;
+  }
+
   const status = statusOf(error);
   return error instanceof TypeError
-    || status === 408 || status === 425 || status === 429 || (status !== undefined && status >= 500 && status <= 599);
+    || status === 0
+    || status === 408 || status === 425 || status === 429
+    || (status !== undefined && status >= 500 && status <= 599);
 }
 
 export async function retryRead<T>(operation: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
