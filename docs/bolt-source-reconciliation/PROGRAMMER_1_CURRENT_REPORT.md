@@ -1,21 +1,35 @@
-# تقرير الحالة التنفيذي — P1 / منع التكرار في إنشاء المنتج
+# تقرير الحالة التنفيذي — P1 / واجهات العميل والتجارة والإدارة
 
 - **المستودع:** `Report-Engainall/Nasr1`
-- **CURRENT_BRANCH:** `p1/admin-product-singleflight-20261023`
-- **PR الحالي:** [#97 — Draft/open](https://github.com/Report-Engainall/Nasr1/pull/97)
-- **BASE_SHA:** `c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99` — رأس `main` الحي الذي تمت قراءته قبل تحديث هذا التقرير.
-- **LAST_TESTED_CODE_SHA:** `f57624c320344adeb3a251475f4b83f9d1637c8d`.
-- **المهمة:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001` — منع الطلبات المكررة عند حفظ منتج جديد أو تعديل منتج موجود.
-- **التنفيذ:** حارس `useRef` متزامن داخل `ProductModal`؛ يتم تفعيله قبل أول `await` وتحريره في `finally`. فشل الخادم يبقى ظاهرًا ويسمح بإعادة المحاولة، وفشل تحميل التصنيفات يمنع الحفظ حتى تنجح إعادة المحاولة.
-- **اختبار الانحدار:** [`admin-product-double-submit.test.tsx`](https://github.com/Report-Engainall/Nasr1/blob/p1/admin-product-singleflight-20261023/src/test/admin-product-double-submit.test.tsx) يغطي الآن 4 حالات: ضغط إنشاء مزدوج، ضغط تحديث مزدوج، فشل إنشاء ثم إعادة محاولة ناجحة، وفشل تحميل التصنيفات ومنع الكتابة حتى الاسترداد.
-- **Core CI:** [39988368910 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39988368910) على `f57624c320344adeb3a251475f4b83f9d1637c8d`؛ 140 ملف اختبار / 883 اختبارًا ناجحًا، وقبول PostgreSQL 17 وlint/build وsmoke والاختبار الخاص بالمنتج (4/4).
-- **P2 Playwright:** [39988368947 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39988368947) على SHA نفسه؛ سموك الواجهة العامة وقبول Chromium مع Supabase المحلي ناجحان. التشغيل الخارجي المقيّد باعتماد كان `SKIPPED` وليس PASS، وإثبات الإنتاج `NOT RUN`.
-- **FILES_CHANGED في صافي فرق PR:** `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, هذا التقرير و`PROGRAMMER_1_EXECUTION_CHECKPOINT.md`. لم تُلمس ملفات P2/P3 المقفلة.
-- **المراجعة:** لا توجد مراجعة مستقلة مسجلة. طلب مراجعة CodeRabbit عبر [التعليق 6369850663](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369850663) حُجب بسبب حد المراجعات المجانية ([الرد 6369852853](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369852853)). لهذا لا يُعتبر PR مؤهلًا للدمج حتى تسجيل مراجعة مستقلة.
-- **MERGE_STATUS:** #97 لا يزال Draft/open؛ لم يحدث دمج.
-- **NEXT_ACTION:** التحقق من Core وPlaywright على الرأس الجديد الناتج عن تحديث الوثائق، ثم الحصول على مراجعة مستقلة. لا تُرحّل PASS إلى الرأس الجديد قبل قراءة Actions المطابقة.
+- **CURRENT_BRANCH للتقرير:** `p1/admin-product-singleflight-20261023`
+- **BASE_SHA / MAIN_SHA:** `15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb`؛ يحتوي `main` على دمج #101، وCore post-merge [39990714405 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39990714405) على SHA المطابق.
+- **HEAD_SHA قبل هذا التحديث التوثيقي:** `b82ab28ff5496b4cf0cacbca80fa9c3fb9bfa080`.
+
+## 1. المهمة P1-ADMIN-PRODUCT-SINGLEFLIGHT-001 — منع إرسال المنتج المكرر
+- **PR:** [#97 — OPEN / DRAFT](https://github.com/Report-Engainall/Nasr1/pull/97)، الفرع متزامن مع main على `b82ab28ff5496b4cf0cacbca80fa9c3fb9bfa080`.
+- حارس متزامن داخل `ProductModal` يمنع إنشاء/تحديث مزدوجًا قبل أول `await`، ويُحرر في `finally`. فشل الخادم يبقى ظاهرًا ويسمح بإعادة المحاولة، وفشل جلب التصنيفات يمنع الحفظ حتى ينجح retry.
+- **Core:** [39991414716 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991414716) على `b82ab28ff5496b4cf0cacbca80fa9c3fb9bfa080`; 141 ملف اختبار ناجح، وقبول PostgreSQL 17 والـlint والبناء والـsmoke وChromium ناجح.
+- **P2 Playwright:** [39991414728 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991414728) على `b82ab28ff5496b4cf0cacbca80fa9c3fb9bfa080`; سموك عام وقبول Supabase/Chromium محلي ناجح. الاختبار المقيد ببيانات اعتماد خارجية `SKIPPED` وليس PASS.
+- اختبار `src/test/admin-product-double-submit.test.tsx`: 4/4 حالات ناجحة، تشمل الإرسال المزدوج للإنشاء والتحديث، وإظهار فشل الخادم مع retry، والمنع الآمن عند فشل التصنيفات.
+
+## 2. المهمة المستقلة P1-ADMIN-EXPORT-HYDRATION-001 — إزالة شاشة الفراغ أثناء تهيئة التصدير
+- **PR:** [#102 — OPEN / DRAFT](https://github.com/Report-Engainall/Nasr1/pull/102)، الفرع `p1/admin-export-hydration-fallback-20261023`، الرأس المتزامن `6d04f3caf1171ac09e67d635482dbcd0bd284454`.
+- استبدل `fallback={null}` بواجهة تحميل عربية RTL تحتوي `role="status"` و`aria-live="polite"`، مع الإبقاء على خدمة التصدير الحالية.
+- **Core:** [39991422343 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991422343) على الرأس المطابق؛ 140 ملف اختبار ناجح، واختبار عقد التصدير 3/3.
+- **P2 Playwright:** [39991422222 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991422222) على الرأس نفسه؛ سموك المتصفح العام وSupabase/Chromium المحلي نجحا، بما في ذلك قبول إلغاء جلسة الجهاز. اختبار الحساب المستضاف المقيّد باعتماد خارجي `SKIPPED`.
+- لم تُعدّل شجرة المسارات المولّدة أو الخدمة الخلفية. لا يزال إثبات التنقل المباشر للمتصفح إلى `/admin/exports` منفصلًا `NOT_PROVEN`؛ التسليم لـP3 مسجل في [تعليق #89 رقم 6370079296](https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6370079296).
+
+## 3. المراجعة والبوابات المتبقية
+- كلا الطلبين #97 و#102 ما زالا Draft لأن **المراجعة المستقلة غير مسجلة**. محاولة CodeRabbit لـ#97 رُفضت بسبب استنفاد الحصة المجانية؛ لا يُعامل ذلك على أنه مراجعة.
+- لا يُدّعى قبول اختبار hosted customer-order/tenant isolation المتخطّى، ولا إثبات إنتاج. الحالة `NOT RUN` / `BLOCKED_EXTERNAL` بحسب المجال.
+- التحديث الحالي للوثائق يولّد SHA جديدًا؛ لا تنقل نجاحات الرؤوس السابقة إليه قبل قراءة Core وP2 على الرأس الجديد.
+
+**NEXT_ACTION:** تحقق من نتائج Actions الدقيقة للرأس الناتج عن هذا التحديث. ثم اطلب مراجعة مستقلة لـ#97 و#102 من مراجع مخوّل، واتركهما Draft لحين المراجعة. إذا بقيت المراجعة محجوبة، واصل فجوة P1 مستقلة لا تتداخل مع ملكية P2/P3.
+**MERGE_STATUS:** #97 OPEN / DRAFT / NOT MERGED؛ #102 OPEN / DRAFT / NOT MERGED.
+**UPDATED_AT:** 2026-10-23 (بعد قبول الرأسين المتزامنين).
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
+
 
 
 - **الحالة:** مندمج ومختبر. [PR #3](https://github.com/Report-Engainall/Nasr1/pull/3) أُغلق بالدمج؛ [PR #2](https://github.com/Report-Engainall/Nasr1/pull/2) المكرر بقي مغلقًا دون دمج.

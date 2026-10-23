@@ -1,29 +1,28 @@
 # P1 Execution Checkpoint — live resume record
 
-## Current state — 2026-10-23 — P1-ADMIN-PRODUCT-SINGLEFLIGHT-001
+## Current state — 2026-10-23 — P1 product-submit hardening + export hydration follow-up
 
-- **STATUS:** `IMPLEMENTED`; source/test change is `TESTED_EXACT_SHA` on `f57624c320344adeb3a251475f4b83f9d1637c8d`. This report update is a documentation-only successor and must not inherit those test results; read Actions for the resulting branch HEAD separately.
+- **STATUS:** Both current P1 code tasks are implemented and tested on their exact synchronized branch heads. The report/checkpoint commit written now is documentation-only and will create a new SHA; do not transfer these results to that documentation SHA until its own Actions finish.
 - **Repository:** `Report-Engainall/Nasr1`.
 - **CURRENT_BRANCH:** `p1/admin-product-singleflight-20261023`.
-- **PR_URL:** https://github.com/Report-Engainall/Nasr1/pull/97
-- **BASE_SHA:** `c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99` (verified live `main` immediately before this checkpoint update).
-- **LAST_TESTED_CODE_SHA / pre-report HEAD_SHA:** `f57624c320344adeb3a251475f4b83f9d1637c8d`.
-- **LAST_COMPLETED_TASK_ID:** `P1-DEVICE-SESSION-MGMT-UI-001`, merged into main as `c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99`; its prior Core and P2 evidence belongs to its own exact head.
-- **CURRENT_TASK_ID:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001` — guard duplicate product create/update submissions.
-- **Implementation:** existing `ProductModal` acquires a synchronous `useRef` single-flight guard before the first await, releases it in `finally`, exposes failed server writes and allows retry, and prevents save while category loading has failed.
-- **Regression coverage:** synchronous double create is one API request; synchronous double update is one API request; create failure remains visible and a subsequent retry succeeds; failed category loading blocks writes until explicit retry succeeds.
-- **FILES_CHANGED in the net PR diff:** `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, this checkpoint and `PROGRAMMER_1_CURRENT_REPORT.md`. No P2/P3-locked backend, workflow, or route files changed in the net diff.
-- **Core CI:** [run 39988368910](https://github.com/Report-Engainall/Nasr1/actions/runs/39988368910) — **SUCCESS** on exact source/test SHA `f57624c320344adeb3a251475f4b83f9d1637c8d`; frozen lockfile install passed, **140 test files / 883 tests passed**, isolated PostgreSQL 17/migration acceptance, lint, build, port 4173 preview smoke, port 5173 dev smoke, and Chromium price-visibility acceptance passed. The product regression file reports **4/4 tests passed** in that run.
-- **P2 Playwright:** [run 39988368947](https://github.com/Report-Engainall/Nasr1/actions/runs/39988368947) — **SUCCESS** on the same exact source/test SHA `f57624c320344adeb3a251475f4b83f9d1637c8d`; public UI smoke and local-Supabase/Chromium acceptance passed, including order/tenant denial, returns/credit memo, audited Onyx XLSX, finance/task print, customer-manager privacy, and device-session revocation.
-- **FAILED_OR_SKIPPED:** separately credential-gated external-account customer-order/tenant job `120533443079` was **SKIPPED**, not PASS. The external-account test remains `BLOCKED_EXTERNAL`; production and hosted-provider proof are `NOT RUN`.
-- **Review gate:** no formal review submission is recorded for #97. Manual CodeRabbit review trigger comment [6369850663](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369850663) was rate-limited by the bot ([response 6369852853](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369852853)). Do not treat bot invocation as review/approval and do not merge before independent review.
-- **LOCKED_PATHS:** P2-owned RPC/RLS/migrations/API/finance/inventory/Onyx/workflow files; P3-owned #89 files and acceptance matrix; generated `src/routeTree.gen.ts` (must be regenerated using the official toolchain, never manually edited).
-- **NEXT_ACTION:** this checkpoint/report commit advances the PR head; read Core and P2 Playwright conclusions for that exact new SHA. Then secure an independent review for #97; resolve any real findings, and only mark ready/merge if review, exact-head checks, and merge eligibility all pass. Until then #97 remains Draft/open. If review remains externally blocked, continue a non-overlapping P1 task on a separate branch.
-- **BLOCKERS:** independent reviewer unavailable; CodeRabbit review quota exhausted. No local clone/test execution was possible because the environment could not resolve `github.com` (`Could not resolve host: github.com`); CI was the actual test executor.
-- **MERGE_STATUS:** #88 merged; #97 **OPEN / DRAFT / NOT MERGED**.
-- **UPDATED_AT:** 2026-10-23.
+- **BASE_SHA / live MAIN_SHA:** `15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb`; main contains the merged P2 PR #101. Main Core [39990714405](https://github.com/Report-Engainall/Nasr1/actions/runs/39990714405) completed SUCCESS on this exact SHA.
+- **HEAD_SHA before this documentation update:** `b82ab28ff5496b4cf0cacbca80fa9c3fb9bfa080`.
+- **LAST_COMPLETED_TASK_ID:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001`; PR #97 code and regression tests passed Core and P2 acceptance on the exact synchronized head below.
+- **PR #97:** https://github.com/Report-Engainall/Nasr1/pull/97 — OPEN / DRAFT / NOT MERGED. Branch head `b82ab28ff5496b4cf0cacbca80fa9c3fb9bfa080`. The existing `ProductModal` uses a synchronous `useRef` single-flight guard before the first await and releases it in `finally`; failed server writes remain visible/retryable and category-fetch failure blocks writes until recovery.
+- **PR #97 regression tests:** [Core 39991414716 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991414716) and [P2 Playwright 39991414728 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991414728), both exact SHA `b82ab28ff5496b4cf0cacbca80fa9c3fb9bfa080`. `src/test/admin-product-double-submit.test.tsx` passes 4/4: duplicate create sends one request; duplicate update sends one request; create error then retry; failed category load blocks write until retry succeeds. Core completed 141 test files and PostgreSQL 17 / lint / build / smoke / Chromium acceptance with no failed job.
+- **PR #102 independent P1 UI task:** https://github.com/Report-Engainall/Nasr1/pull/102 — OPEN / DRAFT / NOT MERGED. Branch `p1/admin-export-hydration-fallback-20261023`, synchronized head `6d04f3caf1171ac09e67d635482dbcd0bd284454`, base `15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb`. Existing `/admin/exports` ClientOnly screen had `fallback={null}`; now it renders an Arabic RTL title and accessible `role="status"` / `aria-live="polite"` hydration message. The export service and generated route tree were not changed. Core [39991422343 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991422343) and P2 [39991422222 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39991422222) on the same exact synchronized SHA; export route contract test passes 3/3. The full local Supabase/Chromium job, including device-session revocation acceptance, completed successfully.
+- **FILES_CHANGED in PR #97 net diff:** `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, this checkpoint, and `PROGRAMMER_1_CURRENT_REPORT.md`. PR #102 net diff is separate and limited to `src/routes/admin_.exports.tsx` and `src/test/async-export-route-contract.test.ts`.
+- **FAILED_OR_SKIPPED:** in both P2 workflows, the credential-gated hosted customer-order/tenant-isolation job was `SKIPPED`, not PASS. Production proof is `NOT RUN`. Do not promote skipped external proof to pass.
+- **Review gate:** no independent formal review is recorded for #97 or #102. CodeRabbit review on #97 was rate-limited due to exhausted free review capacity ([comment 6369850663](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369850663), [reply 6369852853](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6369852853)). Keep both Draft; do not merge without independent review and current exact-head checks.
+- **Additional P3 handoff:** #89 comment [6370079296](https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6370079296) records evidence about `/admin/exports`: production build emitted the route assets, but direct browser reachability is still NOT_PROVEN. P3 owns the acceptance record; do not edit P3 files or `src/routeTree.gen.ts` manually.
+- **LOCKED_PATHS:** P2-owned SQL/RPC/RLS/migrations/API/finance/inventory/Onyx and workflow files; P2-owned `CURRENT_EXECUTION_STATE.md`, acceptance matrix, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`; P3 #89 files and generated `src/routeTree.gen.ts`.
+- **NEXT_ACTION:** read the new Core and P2 Playwright runs triggered by this documentation-only commit on its exact HEAD. After those finish, secure independent review for #97 and #102; until that exists, keep both Draft and continue the next independent P1 screen gap. Do not keep making docs-only commits merely to repeat a test result.
+- **BLOCKERS:** independent review not yet recorded; hosted external test credentials unavailable; production deployment proof not run.
+- **MERGE_STATUS:** #97 OPEN / DRAFT / NOT MERGED; #102 OPEN / DRAFT / NOT MERGED.
+- **UPDATED_AT:** 2026-10-23 (after exact-head synchronized acceptance on #97 and #102).
 
 ## Recent execution history
+
 
 
 
