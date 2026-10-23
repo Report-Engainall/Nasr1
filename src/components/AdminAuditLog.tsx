@@ -61,6 +61,7 @@ export function AdminAuditLog() {
         .select('id,actor_id,action,entity_type,entity_id,created_at', { count: 'exact' })
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .range((page - 1) * AUDIT_PAGE_SIZE, page * AUDIT_PAGE_SIZE - 1);
       if (queryError) throw queryError;
       if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) {
