@@ -15,6 +15,12 @@ const cases = [
     accept: true,
   },
   {
+    name: "accepts explicitly specified default HTTP port",
+    api: "http://localhost:80",
+    database: "postgresql://tester:secret@127.0.0.1:58256/test_db",
+    accept: true,
+  },
+  {
     name: "rejects external API hostname",
     api: "http://api.example.com:58255",
     database: "postgresql://tester:secret@127.0.0.1:58256/test_db",
