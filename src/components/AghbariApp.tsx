@@ -92,11 +92,14 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const canOperateAdmin = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff'));
   const canManageFinance = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'accountant'));
   const isFinanceOnly = canManageFinance && !canOperateAdmin;
+  const isCustomerManagerOnly = Boolean(user?.roles.includes('customer_manager') &&
+    !user.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'accountant'));
   const canManageAudit = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const visibleNav = nav.filter(({ id }) =>
-    (isFinanceOnly ? id === 'finance' || id === 'tasks' : id !== 'finance' || canManageFinance) &&
-    (id !== 'audit' || canManageAudit) &&
-    (id !== 'purchase-orders' || user?.roles.some((role) => role === 'admin' || role === 'manager'))
+  const visibleNav = nav.filter(({ id }) => isCustomerManagerOnly
+    ? id === 'customers'
+    : (isFinanceOnly ? id === 'finance' || id === 'tasks' : id !== 'finance' || canManageFinance) &&
+      (id !== 'audit' || canManageAudit) &&
+      (id !== 'purchase-orders' || user?.roles.some((role) => role === 'admin' || role === 'manager'))
   );
   const navigate = useNavigate();
   const [view, setView] = useState<View>(initialView);
@@ -124,6 +127,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
 
   const runAdminCommand = (id: View) => {
     setCommandOpen(false);
+    if (isCustomerManagerOnly && id !== 'customers') { showNotice('صلاحية مسؤول العملاء مقتصرة على إدارة العملاء.'); return; }
     if (isFinanceOnly && id !== 'finance' && id !== 'tasks') {
       showNotice('حساب المحاسب مخصص للفواتير والتحصيل فقط.');
       return;
@@ -157,14 +161,16 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
     <div className="app-shell" dir="rtl">
       <aside className={`sidebar ${mobileNav ? 'open' : ''}`}>
         <div className="brand" onClick={() => setMode('storefront')} style={{ cursor: 'pointer' }}><div className="brand-icon"><Activity size={22} /></div><div><strong>الأغبري</strong><span>منصة التوزيع الذكية</span></div></div>
-        <div className="user-card"><div className="avatar">{user.name.charAt(0)}</div><div><strong>{user.name}</strong><span>{isFinanceOnly ? 'المحاسبة' : user.roles.includes('admin') ? 'مدير النظام' : user.roles.includes('manager') ? 'مدير' : 'فريق الأغبري'}</span></div><span className="online-dot" /></div>
+        <div className="user-card"><div className="avatar">{user.name.charAt(0)}</div><div><strong>{user.name}</strong><span>{isCustomerManagerOnly ? 'مسؤول العملاء' : isFinanceOnly ? 'المحاسبة' : user.roles.includes('admin') ? 'مدير النظام' : user.roles.includes('manager') ? 'مدير' : 'فريق الأغبري'}</span></div><span className="online-dot" /></div>
         <nav>{visibleNav.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? 'active' : ''} aria-disabled={navigationBlocked || undefined} onClick={() => { if (navigationBlocked) { showNotice('اعتمد كميات وأسعار الطلب أو ألغِ المسودة قبل الانتقال إلى قسم آخر.'); return; } setView(id); setOrderDetailId(null); setMobileNav(false); void navigate({ to: adminPaths[id] as never }); }}><Icon size={18} /><span>{label}</span></button>)}</nav>
         <div className="sidebar-bottom"><button onClick={() => setMode('storefront')}><Store size={18} /> عرض المتجر</button><button onClick={() => { if (navigationBlocked) { showNotice('لا يمكن تسجيل الخروج قبل اعتماد تغييرات الطلب أو إلغائها.'); return; } void signOut(); }}><LogOut size={18} /> خروج</button><div className="secure"><span /> النظام متصل وآمن</div></div>
       </aside>
       <main className="main">
         <header className="topbar"><button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)}><Menu size={20} /></button><div className="topbar-title"><span className="live" /> {isFinanceOnly ? 'المحاسبة — الأغبري' : 'مركز تشغيل الأغبري'} <small>{isFinanceOnly ? 'الفواتير والتحصيل وكشف الحساب' : 'الطلبات والمخزون والأسعار والعملاء'}</small></div><div className="top-actions"><button type="button" className="search-button" aria-haspopup="dialog" aria-label="بحث سريع (Ctrl K)" onClick={() => setCommandOpen(true)}><Search size={16} /> بحث سريع <kbd>Ctrl K</kbd></button><button className="notification" aria-label="فتح التنبيهات" onClick={() => runAdminCommand('notifications')}><Bell size={18} /></button></div></header>
         <div className="page-wrap">
-          {isFinanceOnly && view !== 'finance' && view !== 'tasks' ? (
+          {isCustomerManagerOnly && view !== 'customers' ? (
+            <section className="panel" role="status" style={{ padding: 24 }}><h1>مساحة مسؤول العملاء</h1><p>هذا الدور مخصص لدليل العملاء واعتماد الحسابات وتغيير شرائح الأسعار وحالات الحساب. لا يتيح الوصول إلى البيانات المالية أو وحدات المخزون والطلبات.</p><button className="btn primary" onClick={() => runAdminCommand('customers')}>فتح إدارة العملاء</button></section>
+          ) : isFinanceOnly && view !== 'finance' && view !== 'tasks' ? (
             <section className="panel" role="status" style={{ padding: 24 }}>
               <h1 style={{ marginTop: 0 }}>بوابة المحاسبة</h1>
               <p>هذا الحساب مخصص للفواتير والتحصيل فقط، ولا يملك صلاحيات إدارة الطلبات أو المنتجات أو النظام.</p>
@@ -472,7 +478,10 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
   const { user } = useAuth();
   const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff'));
-  const canManageCustomerLifecycle = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const canManageCustomerRecords = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'customer_manager'));
+  const canManageCustomerLifecycle = canManageCustomerRecords;
+  const isCustomerManagerOnly = Boolean(user?.roles.includes('customer_manager') &&
+    !user.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'accountant'));
   const [directory, setDirectory] = useState<Awaited<ReturnType<typeof fetchCustomerDirectoryPage>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -534,7 +543,7 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
       <span className="toolbar-note" aria-label="إجمالي نتائج دليل العملاء">{resultSummary}</span>
       <div className="toolbar-actions">
         <Button variant="secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> تحديث</Button>
-        <Button onClick={() => setModal(true)}><Plus size={17} /> إضافة عميل</Button>
+        {!isCustomerManagerOnly && <Button onClick={() => setModal(true)}><Plus size={17} /> إضافة عميل</Button>}
       </div>
     </div>
     <section className="panel table-panel">
@@ -560,17 +569,16 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
       {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <>
         <TableWrap>
           <table>
-            <thead><tr><th>العميل</th><th>جهة الاتصال</th><th>الشريحة</th><th>الرصيد</th><th>الحد الائتماني</th><th>الحالة</th><th /></tr></thead>
+            <thead><tr><th>العميل</th><th>جهة الاتصال</th><th>الشريحة</th>{!isCustomerManagerOnly && <><th>الرصيد</th><th>الحد الائتماني</th></>}<th>الحالة</th><th /></tr></thead>
             <tbody>{rows.map((c) => <tr key={c.id}>
               <td><strong>{c.business_name}</strong><small>{c.customer_code}</small></td>
               <td>{c.contact_name ?? '—'}<small>{c.phone ?? '—'}</small><small>{c.email ?? '—'}</small></td>
               <td><span className="tier">{c.tier === 'vip' ? 'جملة الجملة' : c.tier === 'wholesale' ? 'جملة' : 'تجزئة'}</span></td>
-              <td className={c.current_balance > 0 ? 'amount-danger' : ''}>{formatCurrency(c.current_balance)}</td>
-              <td>{formatCurrency(c.credit_limit)}</td>
+              {!isCustomerManagerOnly && <><td className={c.current_balance > 0 ? 'amount-danger' : ''}>{formatCurrency(c.current_balance)}</td><td>{formatCurrency(c.credit_limit)}</td></>}
               <td><span className={`badge ${c.status === 'approved' ? 'success' : c.status === 'pending' ? 'warning' : 'danger'}`}>{CUSTOMER_STATUS_LABELS[c.status] ?? c.status}</span></td>
               <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {canReadCustomer360 && <Button variant="outline" onClick={() => setSelectedCustomer(c)}>ملف 360</Button>}
-                {canReadCustomer360 && <Button variant="outline" onClick={() => setTierCustomer(c)}>تغيير الشريحة</Button>}
+                {canManageCustomerRecords && <Button variant="outline" onClick={() => setTierCustomer(c)}>تغيير الشريحة</Button>}
                 {canManageCustomerActivation && c.status === 'approved' && <Button variant="outline" onClick={() => setActivationCustomer(c)}>دعوة تفعيل</Button>}
                 {canManageCustomerLifecycle && <Button variant="outline" onClick={() => setStatusCustomer(c)}>إدارة دورة الحياة</Button>}
               </div></td>
