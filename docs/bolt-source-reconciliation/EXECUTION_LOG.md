@@ -1182,3 +1182,16 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Latest code/test commit before the central checkpoint refresh: `3e91a41de8022408beebe669efbc7611a3792b72`.
 - The existing default payment RPC test mock returned an object even though `record_customer_payment` returns a UUID. Tightened acknowledgement handling correctly rejects that payload; the fixture now returns a valid UUID instead of the old object, so unrelated successful-payment tests exercise the real response contract.
 - No additional SQL/migration/service behavior was changed. CI on the final PR #123 head remains pending; neither local PASS nor production proof is claimed.
+
+
+## P2 closeout — pending customer-payment retry map — 2026-10-23T23:29:00+03:00
+
+- Task FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-PENDING-REQUEST-MAP.
+- PR https://github.com/Report-Engainall/Nasr1/pull/123 merged via GitHub at 271de9ac23d6fd092db5a77c15bcf191249fd40d; tested PR head f7f0071a4a5437877e7da13dd1e83471ded3a610.
+- Core PR-head run 40017279766 and P2 PR-head run 40017279809 completed SUCCESS on the same exact tested SHA. Core main push run 40017988386 completed SUCCESS on the exact merge/main SHA 271de9ac23d6fd092db5a77c15bcf191249fd40d.
+- Change summary: preserve independent idempotency key per unresolved normalized payload; validate payment result as UUID; null, malformed and RPC-error responses fail closed and retain keys. Regression tests prove A ambiguous -> B success -> A retry reuses A key and null/malformed acknowledgements never report success.
+- P2 local acceptance passed: isolated PostgreSQL 17 migrations/core workflow tests, local Supabase and Chromium acceptance for order persistence/tenant isolation, return/review/receipt/credit memo, Onyx XLSX export, finance/task print, customer-manager authorization/privacy/audit, and session revocation.
+- External hosted authenticated customer order/tenant job was SKIPPED because dedicated non-production backend and cross-tenant users were unavailable. Mark BLOCKED_EXTERNAL; do not claim hosted/production acceptance. No production writes or live payment occurred.
+- CodeRabbit was rate-limited; manual P2 review is recorded on PR #123. No unresolved review threads remained before merge. Do not claim a completed independent automated review.
+- Resume pointer: COMPANY-001-CURRENT-MAIN-ACCEPTANCE. On the live main SHA at next boot, inspect current company workspace routes, membership/invitation/address services and RLS/RPC; preserve #84/#90/#83/#88 and implement only the first evidenced gap. Take a single code-path lock after identifying real files.
+

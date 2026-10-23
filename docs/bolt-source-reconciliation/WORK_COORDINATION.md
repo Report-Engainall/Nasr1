@@ -1,22 +1,21 @@
 # سجل التنسيق — المرجع الحي
 
-## CLOSED P2 lock — customer payment idempotency PR #112 — 2026-10-23T23:07:00+03:00
+## CLOSED P2 path lock — FIN-INVOICE-001 payment retry-key preservation — 2026-10-23T23:29:00+03:00
 
-- PR #112 merged at `391e25847c7cc7fb2ba5f77164600455db04abfd` from exact tested PR head `1aa7c7906851e1a5ddb088a173d868a16809f9ef`.
-- Core [40010842943](https://github.com/Report-Engainall/Nasr1/actions/runs/40010842943) and P2 [40010842853](https://github.com/Report-Engainall/Nasr1/actions/runs/40010842853) completed SUCCESS on the exact PR head. This does not claim the checks ran on the merge SHA. Hosted customer E2E was SKIPPED / BLOCKED_EXTERNAL.
-- The merged client had a proven remaining defect: only one pending request key could be retained; a different payload could overwrite an unresolved payment's retry key. A null/empty successful RPC response could also be shown as payment success.
-- The merged PR #112 migration/RPC and database-acceptance paths are released from active ownership; no SQL/RPC/grant changes are part of the follow-up.
+- PR https://github.com/Report-Engainall/Nasr1/pull/123 is CLOSED/MERGED. Merge/main SHA: 271de9ac23d6fd092db5a77c15bcf191249fd40d; exact tested PR head: f7f0071a4a5437877e7da13dd1e83471ded3a610.
+- Core run 40017279766 and P2 run 40017279809 completed SUCCESS on the same exact PR head. Core push run 40017988386 completed SUCCESS on merge/main SHA 271de9ac23d6fd092db5a77c15bcf191249fd40d.
+- Hosted authenticated customer/tenant E2E was SKIPPED because dedicated non-production Supabase credentials and authorized cross-tenant accounts were unavailable. This remains BLOCKED_EXTERNAL, not PASS. Local isolated PostgreSQL 17/Supabase browser paths completed SUCCESS.
+- Verified fix: each unresolved payment payload retains a fingerprint-mapped idempotency key; null/empty/malformed payment UUID or RPC/transport error cannot report success or clear the key. Regression tests cover switching A -> B -> retry A and malformed/null acknowledgements.
+- Payment code lock released after merge: src/components/CustomerWorkflows.tsx and src/components/CustomerWorkflows.finance.test.tsx. No migration or RPC/security grant was added in #123. CodeRabbit was rate-limited; manual P2 review completed and no unresolved review threads remained at merge.
 
-## ACTIVE P2 exclusive path lock — FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-PENDING-REQUEST-MAP — 2026-10-23T23:07:00+03:00
+## NEXT P2 task — COMPANY-001-CURRENT-MAIN-ACCEPTANCE
 
-- Owner: P2. Repository `Report-Engainall/Nasr1`; branch `p2/payment-idempotency-pending-map-20261023`; base main SHA `391e25847c7cc7fb2ba5f77164600455db04abfd`; PR [#123](https://github.com/Report-Engainall/Nasr1/pull/123). No direct main writes, force-push, or destructive reset.
-- Initial implementation/test head: `cbcbf3db6261b1018c3e83766c575dd854314654`. A follow-up commit `b9915624033398ad47f7d25f72fc7b7ed9969e4a` validated the RPC result against UUID format; latest source/test commit `3e91a41de8022408beebe669efbc7611a3792b72` also aligns the successful mock with the UUID contract. Checkpoint commits advance the PR head; re-read the exact final head before claiming test evidence.
-- Exclusive application paths: `src/components/CustomerWorkflows.tsx` and `src/components/CustomerWorkflows.finance.test.tsx`. This follow-up introduces no SQL migration and does not alter RPC grants or financial source-of-truth.
-- Acceptance: a map keyed by the full normalized payload fingerprint preserves a distinct unresolved key per payload; after A is ambiguous and B succeeds, retrying A must send A's original key. A null/empty payment-ID response must remain fail-closed and retain its key. A key is deleted only after a valid non-empty payment identifier is acknowledged.
-- Regressions added: `keeps each unresolved payment key when the user switches payload after an ambiguous result`; `retains the retry key when the RPC response does not acknowledge a payment id`. Formatting findings from CodeRabbit are corrected in the changed files.
-- Required exact-final-head acceptance: Core and P2 Playwright/local PostgreSQL 17 workflows must both reach terminal SUCCESS on the same final PR head; inspect job-level failures and active review threads. Hosted external customer E2E remains BLOCKED_EXTERNAL if credentials are not provisioned; no production writes are allowed.
-- Lock central P2 files while this PR is active: `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`, `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`, `PROGRAMMER_2_CURRENT_REPORT.md`, `WORK_COORDINATION.md`, and `EXECUTION_LOG.md`. Do not modify P1/P3-owned route/catalog files.
-- Release this lock only after PR #123 merge plus verification of the new main SHA and its current CI. If any gate fails, fix the evidenced root cause on this branch and retest the new head.
+- Owner: P2. Re-read the live main SHA before opening the code branch; no direct main write.
+- Target: inspect existing company workspace routing, membership/invitation/address services and RLS/RPC, then implement only a current reproducible end-to-end gap.
+- Preserve merged fixes: #84 customer_manager role mapping; #90 invitation-expiry validation; #83/#88 central sessions. Verify only if touched or a regression is found.
+- Potential code paths are NOT LOCKED yet; don't invent a lock before identifying the actual route/component/service. After comparing open PRs, assign one exclusive P2 path lock and keep the five central P2 files serially owned only by P2.
+- Acceptance: same-tenant role allow/deny, customer-own/company-authorized address visibility, invitation create/revoke/expiry audit, PostgreSQL 17/RLS/RPC checks as applicable, and browser loading/error/retry proof. Require exact-head Core and P2 acceptance; no hosted PASS without dedicated authorized non-production test credentials.
+- No direct main writes, force-push, destructive reset, production DB writes, or live external calls.
 
 ## المصالحة الحالية — 2026-10-23T21:47:31+03:00
 
