@@ -1,15 +1,5 @@
 # سجل التنسيق — المرجع الحي
 
-## Latest live reconciliation and P2 path lock — 2026-10-23T21:15:00+03:00
-
-- Current `main`: `d81c9b34f819a53df7610937264c6fcb923c3f95`; Core CI [40001438040](https://github.com/Report-Engainall/Nasr1/actions/runs/40001438040) completed `SUCCESS` on that exact SHA. This supersedes the older 15a3c10 state below.
-- PR #103 (`FIN-INVOICE-001-SUMMARY-PAGINATION-NO-DOUBLE-COUNT`) is merged. Its acceptance script `scripts/test-general-ledger-pagination.mjs` is wired into `test:db`; do not recreate that test. PR #104 payment/posted-credit balance guard is also merged. Current Core proves the test suite on d81c9b34; it does not prove hosted authenticated E2E or production behavior.
-- **Exclusive P2 lock:** `AI-001-AI-BUDGET-RPC-LIVE-SESSION-GUARD`; owner P2; branch `p2/ai-gateway-live-session-guard-20261023`; base `d81c9b34f819a53df7610937264c6fcb923c3f95`. Owned implementation/test paths: `supabase/migrations/20261023230000_ai_gateway_live_session_guard.sql` and `scripts/test-ai-gateway-telemetry.mjs`. P2-owned evidence paths updated in this same branch: `CURRENT_EXECUTION_STATE.md`, `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`, `PROGRAMMER_2_CURRENT_REPORT.md`, `EXECUTION_LOG.md`, and this file. No other programmer may edit these paths concurrently.
-- **Files explicitly excluded:** `src/routes/assistant.tsx`, `src/routes/admin_.reports.tsx`, P1/P3 reports/checkpoints, and any production database. Open PRs #89, #97, #102, #105, #106, and #107 have been checked; none currently changes the two implementation/test paths above. UI/browser and external-provider behavior remain separately unclaimed.
-- **Acceptance gates:** unit tests, Core (isolated PostgreSQL 17 migration + database acceptance), and P2 Playwright on the final PR head; test revoked-session denial for both budget read and configuration RPCs while a non-expired JWT claim remains, then prove active-session allow. Release this lock only after merge and inspection of the resulting main SHA/CI.
-- Historical line below is retained as history; do not use its old main SHA, PR100-only workflow, or pagination cursor to determine current work.
-
-## Historical reconciliation (do not use as the live cursor)
 ## المصالحة الحالية — 2026-10-23T19:55:00+03:00
 
 - main الحالي: 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb; tree: 539b6073bbefacd3d569d667b913748f2466ab67. Core push run 39990714405 انتهى SUCCESS على SHA الدمج نفسه.
