@@ -7,6 +7,37 @@ ALTER TABLE public.customer_company_invitations
   ADD CONSTRAINT customer_company_invitations_token_hash_check
   CHECK (token_hash ~ '^([0-9a-f]{32}|[0-9a-f]{64})$');
 
+-- Resolve pgcrypto from its installed extension schema instead of assuming a fixed schema.
+CREATE OR REPLACE FUNCTION public.customer_company_invitation_sha256(p_token text)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_crypto_schema text;
+  v_hash text;
+BEGIN
+  IF p_token IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='invitation token is required';
+  END IF;
+  SELECT n.nspname INTO v_crypto_schema
+  FROM pg_catalog.pg_extension e
+  JOIN pg_catalog.pg_namespace n ON n.oid=e.extnamespace
+  WHERE e.extname='pgcrypto';
+  IF v_crypto_schema IS NULL
+     OR pg_catalog.to_regprocedure(pg_catalog.format('%I.digest(text,text)',v_crypto_schema)) IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='55000', MESSAGE='pgcrypto SHA-256 digest function is unavailable';
+  END IF;
+  EXECUTE pg_catalog.format(
+    'SELECT pg_catalog.encode(%I.digest($1::text, ''sha256''), ''hex'')',
+    v_crypto_schema
+  ) INTO v_hash USING p_token;
+  RETURN v_hash;
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.customer_company_invitation_sha256(text) FROM PUBLIC,anon,authenticated;
+
 CREATE OR REPLACE FUNCTION public.create_customer_company_invitation(p_email text,p_member_role text)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -60,7 +91,7 @@ BEGIN
   )
   VALUES(
     v_customer.organization_id,v_customer.id,v_email,v_role,
-    pg_catalog.encode(public.digest(v_token,'sha256'),'hex'),
+    public.customer_company_invitation_sha256(v_token),
     'pending',v_profile,v_expires
   )
   RETURNING id INTO v_id;
@@ -112,7 +143,7 @@ BEGIN
   SELECT i.* INTO v_invitation
   FROM public.customer_company_invitations i
   WHERE i.token_hash IN (
-    pg_catalog.encode(public.digest(pg_catalog.lower(p_token),'sha256'),'hex'),
+    public.customer_company_invitation_sha256(pg_catalog.lower(p_token)),
     pg_catalog.md5(pg_catalog.lower(p_token))
   )
   FOR UPDATE;
