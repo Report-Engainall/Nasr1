@@ -165,7 +165,8 @@ describe('central device and session management', () => {
     expect(onNotice).not.toHaveBeenCalled();
     expect(host?.querySelectorAll('[role="alert"]').length).toBeGreaterThan(0);
     expect(host?.textContent).toContain('تعذر تأكيد إبطال الجلسة المحددة');
-    expect(host?.textContent).toContain('موظف الاختبار');
+    // A failed refresh clears the list instead of retaining potentially stale session data.
+    expect(host?.textContent).not.toContain('موظف الاختبار');
   });
 
   it('does not call organization session RPCs for a non-admin role or permit organization revocation', async () => {
