@@ -29,6 +29,103 @@ test("public storefront and login routes render without external backend writes"
   expect(pageErrors, "The public storefront routes must not throw uncaught browser errors.").toEqual([]);
 });
 
+test("subcategory deep link renders the child category screen", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  const organizationId = "11111111-1111-4111-8111-111111111111";
+  const parentId = "a1000000-0000-4000-8000-000000000222";
+  const childId = "a1000000-0000-4000-8000-000000000333";
+  const parentSlug = `beverages--${parentId}`;
+  const childSlug = `juices--${childId}`;
+  const headers = {
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers":
+      "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+  };
+
+  // All backend requests are deterministic local fixtures. Writes are blocked.
+  await page.route("https://ci-placeholder.supabase.co/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 200, headers });
+      return;
+    }
+
+    if (url.pathname === "/rest/v1/rpc/get_public_storefront_context") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({
+          organization_id: organizationId,
+          warehouse_id: null,
+        }),
+      });
+      return;
+    }
+
+    if (url.pathname === "/rest/v1/categories" && request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { ...headers, "content-range": "0-1/2" },
+        body: JSON.stringify([
+          {
+            id: parentId,
+            name: "Beverages",
+            name_en: "Beverages",
+            code: "BEV",
+            parent_id: null,
+            sort_order: 1,
+            is_active: true,
+            organization_id: organizationId,
+          },
+          {
+            id: childId,
+            name: "Juices",
+            name_en: "Juices",
+            code: "JUICE",
+            parent_id: parentId,
+            sort_order: 2,
+            is_active: true,
+            organization_id: organizationId,
+          },
+        ]),
+      });
+      return;
+    }
+
+    if (request.method() !== "GET") {
+      await route.abort("blockedbyclient");
+      return;
+    }
+
+    // Keep product, promotion, and other public reads inside this no-write fixture.
+    if (url.pathname.startsWith("/rest/v1/")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { ...headers, "content-range": "0-0/*" },
+        body: "[]",
+      });
+      return;
+    }
+
+    await route.abort("blockedbyclient");
+  });
+
+  await page.goto(`/category/${parentSlug}/subcategory/${childSlug}`);
+  await expect(page).toHaveURL(/\\/category\\/.*\\/subcategory\\/.*$/);
+  await expect(page.getByRole("heading", { name: "Juices", exact: true })).toBeVisible();
+  await expect(page.getByText("Beverages / تصنيف فرعي", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Beverages", exact: true })).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
+});
+
 test("advanced search recovers from a category-source failure", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
