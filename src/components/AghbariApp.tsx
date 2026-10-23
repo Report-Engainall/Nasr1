@@ -411,7 +411,7 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
     </Modal>}
   </>;
 }
-function ProductModal({ product, onClose, onSaved }: { product: ProductWithInventory | null; onClose: () => void; onSaved: (message?: string) => void }) {
+export function ProductModal({ product, onClose, onSaved }: { product: ProductWithInventory | null; onClose: () => void; onSaved: (message?: string) => void }) {
   const { data: categories } = useFetch(fetchCategories);
   const [name, setName] = useState(product?.name ?? '');
   const [code, setCode] = useState(product?.item_code ?? '');
@@ -421,6 +421,8 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
   const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // React state alone does not block two click events dispatched before a rerender.
+  const saveInFlight = useRef(false);
 
   useEffect(() => {
     if (!imageFile) { setImagePreview(product?.image_url ?? null); return; }
@@ -438,9 +440,11 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
   }
 
   async function save() {
+    if (saveInFlight.current || saving) return;
     if (!name.trim() || !code.trim() || !price) { setError('أكمل الحقول المطلوبة'); return; }
     const priceValue = Number(price);
     if (!Number.isFinite(priceValue) || priceValue < 0 || priceValue > 999999999999.99) { setError('السعر الأساسي غير صالح.'); return; }
+    saveInFlight.current = true;
     setSaving(true); setError('');
     let productSaved = false;
     try {
@@ -461,7 +465,7 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
     } catch (cause) {
       if (productSaved) onSaved('تم حفظ بيانات المنتج؛ تعذر تأكيد اكتمال العملية. أعد تحديث القائمة قبل التكرار.');
       else setError(cause instanceof Error ? cause.message : 'تعذر حفظ المنتج.');
-    } finally { setSaving(false); }
+    } finally { saveInFlight.current = false; setSaving(false); }
   }
 
   return <Modal title={product ? 'تعديل المنتج' : 'إضافة منتج'} onClose={() => { if (!saving) onClose(); }}>

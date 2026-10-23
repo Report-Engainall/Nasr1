@@ -1,0 +1,104 @@
+import { act } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+
+const mocks = vi.hoisted(() => ({
+  createProduct: vi.fn(),
+  updateProduct: vi.fn(),
+  fetchCategories: vi.fn(),
+  uploadProductImage: vi.fn(),
+}));
+
+vi.mock("@/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api")>();
+  return {
+    ...actual,
+    createProduct: mocks.createProduct,
+    updateProduct: mocks.updateProduct,
+    fetchCategories: mocks.fetchCategories,
+    uploadProductImage: mocks.uploadProductImage,
+  };
+});
+
+import { ProductModal } from "@/components/AghbariApp";
+
+const savedProduct = {
+  id: "product-created",
+  name: "منتج الاختبار",
+  item_code: "TEST-001",
+  base_price: 25,
+  category_id: null,
+  status: "active",
+  unit: "كرتون",
+};
+
+function fillRequiredFields() {
+  fireEvent.change(screen.getByLabelText("اسم المنتج"), { target: { value: "منتج الاختبار" } });
+  fireEvent.change(screen.getByLabelText("رمز المنتج"), { target: { value: "TEST-001" } });
+  fireEvent.change(screen.getByLabelText("السعر الأساسي"), { target: { value: "25.00" } });
+}
+
+describe("admin product form submission", () => {
+  beforeEach(() => {
+    mocks.createProduct.mockReset().mockResolvedValue(savedProduct);
+    mocks.updateProduct.mockReset().mockResolvedValue(savedProduct);
+    mocks.fetchCategories.mockReset().mockResolvedValue([]);
+    mocks.uploadProductImage.mockReset().mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("sends only one create request for rapid submits dispatched before rerender", async () => {
+    let finishCreate: ((value: typeof savedProduct) => void) | undefined;
+    mocks.createProduct.mockImplementationOnce(
+      () => new Promise<typeof savedProduct>((resolve) => { finishCreate = resolve; }),
+    );
+    const onSaved = vi.fn();
+    render(<ProductModal product={null} onClose={vi.fn()} onSaved={onSaved} />);
+    fillRequiredFields();
+
+    const submit = screen.getByRole("button", { name: "حفظ المنتج" });
+    await act(async () => {
+      submit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      submit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+
+    expect(mocks.createProduct).toHaveBeenCalledTimes(1);
+    expect(onSaved).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finishCreate?.(savedProduct);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(mocks.createProduct).toHaveBeenCalledWith({
+      name: "منتج الاختبار",
+      item_code: "TEST-001",
+      base_price: 25,
+      category_id: null,
+      unit: "كرتون",
+      status: "active",
+    });
+  });
+
+  it("releases the create guard after a failed request so the user can retry", async () => {
+    mocks.createProduct
+      .mockRejectedValueOnce(new Error("تعذر حفظ المنتج"))
+      .mockResolvedValueOnce(savedProduct);
+    const onSaved = vi.fn();
+    render(<ProductModal product={null} onClose={vi.fn()} onSaved={onSaved} />);
+    fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("button", { name: "حفظ المنتج" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر حفظ المنتج");
+    expect(onSaved).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "حفظ المنتج" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(mocks.createProduct).toHaveBeenCalledTimes(2);
+  });
+});
