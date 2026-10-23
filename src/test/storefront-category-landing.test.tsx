@@ -130,7 +130,8 @@ describe("storefront category landing", () => {
 
     render(<StorefrontCategoryLandingPage categorySlug={CATEGORY_SLUG} subcategorySlug={childSlug} />);
 
-    expect(await screen.findByRole("status")).toHaveTextContent("التصنيف غير موجود");
+    expect(await screen.findByText("التصنيف غير موجود")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("التصنيف غير موجود");
     expect(screen.getByRole("link", { name: "العودة إلى التصنيفات" })).toHaveAttribute("href", "/categories");
     expect(screen.queryByTestId("category-storefront")).not.toBeInTheDocument();
     expect(mocks.fetchProducts).not.toHaveBeenCalled();
