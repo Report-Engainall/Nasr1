@@ -1,12 +1,12 @@
 # سجل التنسيق — المرجع الحي
 
-## المصالحة الحالية — 2026-10-23T21:44:36+03:00
+## المصالحة الحالية — 2026-10-23T21:47:31+03:00
 
 - المستودع الوحيد Report-Engainall/Nasr1، الفرع المرجعي main. آخر SHA متحقق منه: 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac؛ الشجرة 15f30663a80ba9ff2e83c2057f15ed489eed92be.
 - **PR #110 مدمج**: [fix(pricing): retry transient server-side price preview reads](https://github.com/Report-Engainall/Nasr1/pull/110). tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09؛ merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac. tree hash مطابق بين الرأس المختبر والدمج.
 - Core [run 40004970539](https://github.com/Report-Engainall/Nasr1/actions/runs/40004970539) SUCCESS على PR head exact. شمل unit tests وPostgreSQL 17 وlint والبناء وفحوص preview/dev واختبار إظهار/إخفاء الأسعار في Chromium.
 - P2 [run 40004970599](https://github.com/Report-Engainall/Nasr1/actions/runs/40004970599) SUCCESS على PR head exact. نجح public UI smoke واختبار Supabase المحلي المعزول ومسارات الطلب والعزل والمرتجعات والطباعة والصلاحيات وتصدير Onyx. اختبار hosted customer E2E 120590754389 SKIPPED لغياب اعتمادات non-production مخصصة؛ ليس PASS.
-- Core بعد الدمج [run 40005590004](https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004) ما زال IN_PROGRESS على merge SHA وقت هذا التحديث. لا ننقل PASS من SHA إلى آخر؛ دليل الشفرة قبل الدمج يشير إلى شجرة مطابقة لا إلى تشغيل CI نهائي بعد الدمج.
+- Core بعد الدمج [run 40005590004](https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004) أكمل SUCCESS على merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac ([run 40005590004](https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004)). لم يُرصد P2 run على merge SHA؛ تظل نتيجة P2 مرتبطة برأس PR المختبر b6d99a91958b43e7cd90164a104c8c0a5bc1bd09 مع شجرة مطابقة.
 - فحص الملف المرفق الوحيد project-bolt-github-7sl6ykzz (5)(2).zip: 871 entry، 790 ملفًا، 9,158,183 byte غير مضغوطة، CRC PASS، بلا أسماء أعضاء مكررة أو مسارات traversal. لم تُقرأ محتويات .env ولم تُنقل/تُلتزم.
 - قرار الدمج: لم تُستبدل package.json/bun.lock القديمة؛ أبقيت نسخ Nasr1 الحالية من Storefront ومحرك الاستيراد وتصدير Onyx. وظائف/اختبارات الاستيراد والمرتجعات والمحاسبة والمخزون وOnyx والنسخ الاحتياطي البارزة موجودة بالفعل في Nasr1. نسخة outbox في الحزمة تتضمن استدعاء مساعد خطأ غير معرف، ومركز السياسات/تحليلات الأعمال الموروثين لا يطابقان عقد المصادقة والبيانات الحاليين؛ لم ينقلا.
 - التغيير المأخوذ بأمان: وصل retryRead الموجود أصلًا وغير المستخدم بمسار RPC القرائي preview_customer_order_pricing؛ تصنيف status=0 وأخطاء الشبكة الملفوفة كأعطال عابرة، وعدم إعادة محاولة أخطاء الصلاحيات أو أي طفرة بيانات، مع بقاء سياسة الأسعار fail-closed. تقرير القرارات: [P2_UPLOADED_ARCHIVE_RECONCILIATION_2026-10-23.md](P2_UPLOADED_ARCHIVE_RECONCILIATION_2026-10-23.md).

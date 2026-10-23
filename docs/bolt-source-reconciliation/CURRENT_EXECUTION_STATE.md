@@ -1,12 +1,12 @@
 # الحالة التنفيذية الحالية الوحيدة — Nasr1 / P2
-LAST_RECONCILED_AT=2026-10-23T21:44:36+03:00
+LAST_RECONCILED_AT=2026-10-23T21:47:31+03:00
 
 ## حقيقة Git الحالية
 REPOSITORY=Report-Engainall/Nasr1
 CURRENT_BRANCH=main (مرجع قراءة فقط؛ لا كتابة مباشرة على main)
 MAIN_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
 MAIN_TREE=15f30663a80ba9ff2e83c2057f15ed489eed92be
-MAIN_CURRENT_CI=IN_PROGRESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004 (exact merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac)
+MAIN_CURRENT_CI=SUCCESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004 (exact merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac)
 LAST_MERGED_PR=#110 — archive-derived bounded retry for read-only customer pricing preview; merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac; tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09 has the same tree SHA 15f30663a80ba9ff2e83c2057f15ed489eed92be
 PR110_CORE_CI=SUCCESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40004970539 (exact tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09)
 PR110_P2_CI=SUCCESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40004970599 (exact tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09)
@@ -46,8 +46,8 @@ BASE_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
 HEAD_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
 TASK_STATUS=NEXT_ACTION
 NEXT_ACTION=Close the duplicate-payment gap. customer_payments currently has no persisted idempotency key, and the UI calls record_customer_payment without a request key. Add a tenant-scoped unique idempotency key plus canonical request fingerprint. Same key and same payload must replay the original saved payment; same key with changed payload must fail; concurrent same-key requests must not duplicate. Preserve request key across ambiguous client retries. Keep same invoice advisory lock shared with posted-credit posting; inspect RPC grants, signatures, all call sites and prevent an unintended old overload. Add PostgreSQL 17 tests for replay, changed-payload conflict, concurrent same-key calls and cross-tenant isolation, plus React retry regression. Do not create a second ledger/payment engine.
-NEXT_ACTION_EVIDENCE=PR #110 exact tested head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09: Core 40004970539 SUCCESS and P2 40004970599 SUCCESS; hosted customer E2E SKIPPED, not PASS. Merge commit 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac has identical tree 15f30663a80ba9ff2e83c2057f15ed489eed92be; main Core run 40005590004 IN_PROGRESS on exact merge SHA at 2026-10-23T21:44:36+03:00; no cross-SHA PASS claim.
-UPDATED_AT=2026-10-23T21:44:36+03:00
+NEXT_ACTION_EVIDENCE=PR #110 exact tested head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09: Core 40004970539 SUCCESS and P2 40004970599 SUCCESS; hosted customer E2E SKIPPED, not PASS. Merge commit 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac has identical tree 15f30663a80ba9ff2e83c2057f15ed489eed92be; main Core run 40005590004 SUCCESS on exact merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac. No P2 run was observed on the merge SHA; P2 evidence remains attached to exact tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09, whose tree matches the merge tree.
+UPDATED_AT=2026-10-23T21:47:31+03:00
 
 ## Evidence rules
 Allowed statuses: IMPLEMENTED, INTEGRATED, TESTED_EXACT_SHA, BROWSER_PROVEN, PRODUCTION_PROVEN, CLOSED_WITH_EVIDENCE, BLOCKED_EXTERNAL, NOT RUN. A skipped job is not PASS. Never transfer PASS between SHAs. Local DB/browser evidence is not production proof.

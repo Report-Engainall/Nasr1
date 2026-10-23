@@ -48,7 +48,7 @@
 - **Core CI:** [run 40004970539](https://github.com/Report-Engainall/Nasr1/actions/runs/40004970539) — SUCCESS على رأس PR الدقيق؛ اجتازت اختبارات الوحدة وPostgreSQL 17 والـlint والبناء وفحوص preview/dev واختبار قبول إظهار/إخفاء الأسعار في Chromium.
 - **P2 Playwright:** [run 40004970599](https://github.com/Report-Engainall/Nasr1/actions/runs/40004970599) — SUCCESS على رأس PR الدقيق؛ public UI smoke وSupabase المحلي المعزول ومسارات الطلب والعزل والمرتجعات والطباعة والصلاحيات وتصدير Onyx نجحت.
 - **حدّ الدليل:** الوظيفة المستضافة Playwright customer order and tenant isolation (120590754389) كانت SKIPPED لغياب اعتمادات اختبار غير إنتاجية مخصصة. لا يُحسب ذلك PASS ولا يثبت اختبار حسابات العملاء المستضافة.
-- **التحقق بعد الدمج:** main انتقل إلى 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac، بنفس الشجرة أعلاه. Core على merge SHA، run [40005590004](https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004)، كان IN_PROGRESS عند إعداد هذا التقرير؛ لذلك لا يُدّعى أنه انتهى على merge SHA بعد.
+- **التحقق بعد الدمج:** main انتقل إلى 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac، بنفس الشجرة أعلاه. Core على merge SHA، run [40005590004](https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004)، اكتمل لاحقًا SUCCESS على merge SHA (run 40005590004). لم يُرصد P2 run على merge SHA؛ تظل نتيجة P2 مثبتة على الرأس المختبر قبل الدمج مع شجرة مطابقة.
 
 ## القرار الختامي
 
