@@ -387,6 +387,7 @@ function Invoices() {
     customer_code: string;
     business_name: string;
     contact_name: string | null;
+    tier_label: string | null;
   } | null>(null);
   const [invoiceOrder, setInvoiceOrder] = useState<{
     quantity_review_required: boolean;
@@ -442,6 +443,7 @@ function Invoices() {
         customer_code?: string | null;
         business_name?: string | null;
         contact_name?: string | null;
+        tier_label?: unknown;
       };
       financial_details_visible?: unknown;
       customer_tier_visible?: unknown;
@@ -467,6 +469,10 @@ function Invoices() {
     const policyShapeValid = payload?.financial_details_visible === true
       ? hasVisibleFinancialValues
       : payload?.financial_details_visible === false && hiddenPayloadOmitsFinancialValues;
+    const tierPolicyShapeValid = payload?.customer_tier_visible === true
+      ? typeof payload.customer?.tier_label === "string" && payload.customer.tier_label.trim().length > 0
+      : payload?.customer_tier_visible === false &&
+        Boolean(payload.customer && !Object.prototype.hasOwnProperty.call(payload.customer, "tier_label"));
     const payloadValid = Boolean(
       invoice &&
       invoice.id === i.id &&
@@ -474,7 +480,8 @@ function Invoices() {
       invoice.currency.length > 0 &&
       Array.isArray(lines) &&
       payload?.customer &&
-      policyShapeValid,
+      policyShapeValid &&
+      tierPolicyShapeValid,
     );
     if (invoicePayloadResult.error || orderResult.error || !payloadValid || !payload) {
       setError("تعذر تحميل تفاصيل الفاتورة ومبالغها المصرح بها. تحقق من صلاحية الفاتورة ونشر مخطط المالية.");
@@ -495,6 +502,7 @@ function Invoices() {
         customer_code: payload.customer?.customer_code ?? "",
         business_name: payload.customer?.business_name ?? "",
         contact_name: payload.customer?.contact_name ?? null,
+        tier_label: payload.customer_tier_visible === true ? payload.customer.tier_label as string : null,
       });
       setChosenFinancials(financialVisible ? {
         currency: payload.invoice!.currency,
@@ -691,6 +699,9 @@ function Invoices() {
                   {chosenCustomer?.business_name ?? chosenCustomer?.contact_name ?? "—"}
                 </strong>
               </div>
+              {chosenCustomer?.tier_label && (
+                <div>فئة العميل: <strong>{chosenCustomer.tier_label}</strong></div>
+              )}
             </div>
             <div>
               <strong>{chosen.invoice_number}</strong>
