@@ -5,8 +5,33 @@ import { ORDER_STATUS_LABELS } from '../../lib/types'
 import { formatPrice } from '../../lib/pricing'
 
 type CustomerSummary = { id: string; full_name: string }
+type WorkflowOrderStatus = 'draft' | 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
 
-const STATUS_OPTIONS = ['new', 'received', 'reviewing', 'returned', 'approved', 'preparing', 'prepared', 'dispatched', 'delivered', 'cancelled', 'rejected', 'invoiced']
+const STATUS_LABELS: Record<WorkflowOrderStatus, string> = {
+  draft: 'مسودة',
+  pending: 'بانتظار التأكيد',
+  confirmed: 'معتمد',
+  processing: 'قيد التجهيز',
+  shipped: 'تم الشحن',
+  delivered: 'تم التسليم',
+  cancelled: 'ملغي',
+}
+const STATUS_OPTIONS: WorkflowOrderStatus[] = [
+  'draft', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled',
+]
+const NEXT_STATUSES: Record<WorkflowOrderStatus, WorkflowOrderStatus[]> = {
+  draft: ['pending', 'cancelled'],
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['processing', 'shipped', 'delivered', 'cancelled'],
+  processing: ['shipped', 'delivered', 'cancelled'],
+  shipped: ['delivered'],
+  delivered: [],
+  cancelled: [],
+}
+const isWorkflowStatus = (status: string): status is WorkflowOrderStatus =>
+  Object.prototype.hasOwnProperty.call(NEXT_STATUSES, status)
+const getStatusLabel = (status: string) =>
+  isWorkflowStatus(status) ? STATUS_LABELS[status] : ORDER_STATUS_LABELS[status] ?? status
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState<(Order & { customer_name?: string })[]>([])
@@ -14,6 +39,8 @@ export default function AdminOrders() {
   const [filterStatus, setFilterStatus] = useState('')
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null)
   const [orderItems, setOrderItems] = useState<OrderItem[]>([])
+  const [savingOrderId, setSavingOrderId] = useState<string | null>(null)
+  const [transitionError, setTransitionError] = useState<string | null>(null)
 
   useEffect(() => { loadOrders() }, [])
 
@@ -35,8 +62,41 @@ export default function AdminOrders() {
   const filtered = filterStatus ? orders.filter(o => o.status === filterStatus) : orders
 
   const handleStatusChange = async (orderId: string, status: string) => {
-    await supabase.from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId)
-    loadOrders()
+    const current = orders.find((order) => order.id === orderId)
+    if (!current || !isWorkflowStatus(current.status) || !NEXT_STATUSES[current.status].includes(status as WorkflowOrderStatus)) return
+    if (status === current.status) return
+
+    setTransitionError(null)
+    setSavingOrderId(orderId)
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', orderId)
+        .select('id, status')
+        .maybeSingle()
+
+      if (error) {
+        setTransitionError('تعذر تغيير حالة الطلب ' + current.order_code + ': ' + error.message)
+        return
+      }
+      if (!data || data.id !== orderId) {
+        const reason = !data
+          ? 'لم يُرجع الخادم سجلًا محدّثًا.'
+          : 'أعاد الخادم صفًا لا يطابق الطلب المطلوب.'
+        setTransitionError('لم تتغير حالة الطلب ' + current.order_code + '؛ ' + reason + ' أعد تحميل القائمة وتحقق من صلاحياتك.')
+        return
+      }
+
+      setOrders((previous) => previous.map((order) =>
+        order.id === orderId ? { ...order, status: data.status } : order,
+      ))
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'خطأ غير معروف'
+      setTransitionError('تعذر تغيير حالة الطلب ' + current.order_code + ': ' + detail)
+    } finally {
+      setSavingOrderId(null)
+    }
   }
 
   const viewDetails = async (orderId: string) => {
@@ -52,9 +112,10 @@ export default function AdminOrders() {
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
         <button className={`btn btn-sm ${!filterStatus ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilterStatus('')}>الكل</button>
         {STATUS_OPTIONS.map(s => (
-          <button key={s} className={`btn btn-sm ${filterStatus === s ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilterStatus(s)}>{ORDER_STATUS_LABELS[s]}</button>
+          <button key={s} className={`btn btn-sm ${filterStatus === s ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilterStatus(s)}>{STATUS_LABELS[s]}</button>
         ))}
       </div>
+      {transitionError && <div role="alert" className="card" style={{ padding: '12px', marginBottom: '16px', color: 'var(--color-danger, #b42318)' }}>{transitionError}</div>}
       {loading ? <div className="text-muted text-center">جارٍ التحميل...</div> : orders.length === 0 ? (
         <div className="card text-center" style={{ padding: '40px' }}><p className="text-muted">لا توجد طلبات</p></div>
       ) : (
@@ -69,9 +130,25 @@ export default function AdminOrders() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <span className="text-muted" style={{ fontSize: '14px' }}>{order.total_items} صنف</span>
                   <span className="font-bold" style={{ color: 'var(--color-primary)' }}>{formatPrice(order.total_amount)}</span>
-                  <select className="input" style={{ width: 'auto', padding: '6px 10px', fontSize: '13px' }} value={order.status} onChange={(e) => handleStatusChange(order.id, e.target.value)}>
-                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{ORDER_STATUS_LABELS[s]}</option>)}
-                  </select>
+                  {isWorkflowStatus(order.status) ? (
+                    <select
+                      aria-label={'حالة الطلب ' + order.order_code}
+                      className="input"
+                      style={{ width: 'auto', padding: '6px 10px', fontSize: '13px' }}
+                      value={order.status}
+                      disabled={savingOrderId === order.id || NEXT_STATUSES[order.status].length === 0}
+                      onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                    >
+                      <option value={order.status}>{STATUS_LABELS[order.status]}</option>
+                      {NEXT_STATUSES[order.status].map((status) => (
+                        <option key={status} value={status}>{STATUS_LABELS[status]}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-muted" aria-label={'حالة قديمة للطلب ' + order.order_code}>
+                      حالة قديمة: {getStatusLabel(order.status)}
+                    </span>
+                  )}
                   <button className="btn btn-secondary btn-sm" onClick={() => viewDetails(order.id)}>تفاصيل</button>
                 </div>
               </div>

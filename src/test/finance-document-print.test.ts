@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { BUSINESS_BRAND_NAME } from "@/lib/brand";
 import {
   readFinancePrintOptions,
+  readPrintableCreditMemo,
   readStaffInvoicePrintPayload,
   readStaffStatementPrintPayload,
+  renderCreditMemoDocument,
   renderStaffInvoiceDocument,
   renderStaffStatementDocument,
 } from "@/lib/finance-document-print";
@@ -56,6 +58,45 @@ function statementFixture() {
   };
 }
 
+function reversedCreditMemoFixture() {
+  return {
+    memo: {
+      id: "44444444-4444-4444-8444-444444444444",
+      memo_number: "CRM-REV-0001",
+      status: "reversed",
+      currency: "YER",
+      subtotal_amount: 125,
+      tax_amount: 0,
+      total_amount: 125,
+      created_at: "2026-10-20T01:00:00.000Z",
+      posted_at: "2026-10-20T02:00:00.000Z",
+      reversed_at: "2026-10-20T03:00:00.000Z",
+      reversal_reason: "Correction approved by finance.",
+      reversal_journal_entry_number: "52",
+      reversal_journal_status: "posted",
+    },
+    customer: { id: customerId, name: "عميل الإشعار", contact_name: null },
+    invoice: {
+      id: invoiceId, invoice_number: "INV-0009", currency: "YER", issued_at: "2026-10-19T00:00:00.000Z",
+      subtotal: 500, tax_amount: 0, total_amount: 500, order_number: "ORD-0009",
+    },
+    return_request: {
+      id: "55555555-5555-4555-8555-555555555555", request_number: "RET-0009",
+      status: "received", created_at: "2026-10-20T00:00:00.000Z",
+    },
+    journal: {
+      id: "66666666-6666-4666-8666-666666666666", entry_number: "51",
+      status: "posted", entry_date: "2026-10-20",
+    },
+    lines: [{
+      id: "77777777-7777-4777-8777-777777777777",
+      item_code: "000017", description: "صنف مرتجع", unit: "كرتون",
+      returned_quantity: 1.25, credited_subtotal: 125, invoice_quantity: 5,
+      invoice_unit_price: 100, invoice_line_total: 500,
+    }],
+  };
+}
+
 describe("finance document print contracts", () => {
   it("validates role-scoped document options and preserves IDs such as leading-zero customer codes", () => {
     const parsed = readFinancePrintOptions({
@@ -79,6 +120,34 @@ describe("finance document print contracts", () => {
     })).toThrow(/organization_name/);
     expect(parsed.invoices[0].invoice_number).toBe("INV-0009");
     expect(() => readFinancePrintOptions({ customers: [{}], invoices: [], credit_memos: [], limit: 500 })).toThrow();
+  });
+
+  it("allows a reversed credit memo only with a posted, identified counter-entry and prints its reversal", () => {
+    const options = readFinancePrintOptions({
+      organization_name: "مؤسسة الاختبار",
+      customers: [], customers_has_more: false, invoices: [], invoices_has_more: false,
+      credit_memos: [{
+        id: "44444444-4444-4444-8444-444444444444",
+        memo_number: "CRM-REV-0001", customer_id: customerId, customer_name: "عميل الإشعار",
+        invoice_number: "INV-0009", status: "reversed", created_at: "2026-10-20T01:00:00.000Z",
+        currency: "YER", total_amount: "125.00",
+      }],
+      credit_memos_has_more: false, limit: 500,
+    });
+    expect(options.credit_memos[0].status).toBe("reversed");
+
+    const fixture = reversedCreditMemoFixture();
+    const parsed = readPrintableCreditMemo(fixture);
+    const doc = document.implementation.createHTMLDocument("");
+    renderCreditMemoDocument(doc, parsed, "مؤسسة الاختبار");
+    expect(doc.body.textContent).toContain("معكوس ماليًا");
+    expect(doc.body.textContent).toContain("52");
+    expect(doc.body.textContent).toContain("Correction approved by finance.");
+    expect(doc.body.textContent).toContain("لا يمثل رصيدًا دائنًا قائمًا");
+    expect(() => readPrintableCreditMemo({
+      ...fixture,
+      memo: { ...fixture.memo, reversal_journal_entry_number: null },
+    })).toThrow(/يفتقد دليل قيد العكس المرحّل/);
   });
 
   it("rejects invoices whose source lines or tax do not reconcile", () => {
