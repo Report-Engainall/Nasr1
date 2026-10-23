@@ -1,5 +1,16 @@
 # سجل التنسيق — المرجع الحي
 
+## ACTIVE P2 lock — payment idempotency — 2026-10-23T21:53:00+03:00
+
+- Current verified main base: `cd303b7fe0f263c9f62ed97f10202e9895465273`, tree `51aa49eb36bbf6227c42612e35b1bf03e6b3360a`. The documentation reconciliation PR #111 is merged at this base. Do not write to main directly.
+- Current exact-main Core run [40006315985](https://github.com/Report-Engainall/Nasr1/actions/runs/40006315985) is IN_PROGRESS on `cd303b7fe0f263c9f62ed97f10202e9895465273`. P2 workflow for this exact main SHA has NOT RUN. Prior PR #110 results are not transferred to this merge SHA.
+- `FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD` is assigned exclusively to P2 on branch `p2/payment-idempotency-current-main-20261023b`, based on `cd303b7fe0f263c9f62ed97f10202e9895465273`.
+- Locked paths: `supabase/migrations/20261023235900_customer_payment_idempotency.sql`; `src/components/CustomerWorkflows.tsx`; `src/integrations/supabase/types.ts`; `src/components/CustomerWorkflows.finance.test.tsx`; `scripts/test-staff-receivables-aging-credit-memo-parity.mjs`; `scripts/test-database-migrations.mjs`.
+- P2 also owns the central state, acceptance matrix, this coordination file, current report, and execution log; update those sequentially on this branch. No P1/P3-owned screen or production DB is included.
+- Acceptance contract: same tenant/key and normalized payload returns the existing saved payment; changed payload with same key rejects; parallel same-key calls persist one row; different tenants may use the same key independently but cannot replay each other's payment; legacy 5-argument RPC overload is absent; anonymous role cannot execute the replacement RPC; UI retains key across ambiguous failure and same-payload retry. Preserve the exact tenant+invoice settlement lock namespace used by posted-credit journal posting.
+- Implementation files are committed; branch Core/PostgreSQL 17/Playwright tests remain NOT RUN until final PR-head workflow jobs finish. Release the lock only after merge and exact-main follow-up.
+- Historic entries follow and are retained for audit; this lock supersedes prior next-action-only descriptions.
+
 ## المصالحة الحالية — 2026-10-23T21:47:31+03:00
 
 - المستودع الوحيد Report-Engainall/Nasr1، الفرع المرجعي main. آخر SHA متحقق منه: 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac؛ الشجرة 15f30663a80ba9ff2e83c2057f15ed489eed92be.
