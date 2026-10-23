@@ -136,9 +136,9 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
   const bulkResult = (await db.unsafe("select public.revoke_other_auth_sessions() as result"))[0].result;
   assert.equal(bulkResult.current_session_id, bulkCurrentSession,
     "bulk revocation confirms which live session was retained");
-  assert.equal(bulkResult.revoked_count, 2,
-    "bulk revocation reports the exact number of deleted sessions, including expired siblings");
-  assert.deepEqual(new Set(bulkResult.revoked_session_ids), new Set([bulkOtherSessionA, bulkOtherSessionB]),
+  assert.equal(bulkResult.revoked_count, 3,
+    "bulk revocation reports every deleted session, including all expired siblings seeded by this fixture");
+  assert.deepEqual(new Set(bulkResult.revoked_session_ids), new Set([bulkOtherSessionA, bulkOtherSessionB, expiredSession]),
     "bulk response acknowledges exactly the sessions deleted for auth.uid()");
   await db.unsafe("reset role");
   const targetSessionsAfterBulk = await db.unsafe(
@@ -158,7 +158,7 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
     [org,targetProfile],
   );
   assert.equal(bulkAudit.length, 1, "bulk revocation produces exactly one audit event");
-  assert.equal(bulkAudit[0].new_value.revoked_count, 2,
+  assert.equal(bulkAudit[0].new_value.revoked_count, 3,
     "bulk revocation audit matches the acknowledged deletion count");
   process.stdout.write("PASS central session management: live-session acceptance, tenant-bounded listing, expiry filtering, audit view/revoke, admin-only individual revocation, self-scoped bulk revocation, cross-tenant denial, current-session protection, and immediate canonical tenant-context rejection after revocation\n");
 }
