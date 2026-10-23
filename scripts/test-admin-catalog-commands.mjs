@@ -884,6 +884,11 @@ async function main() {
     root, admin, customer, org, adminAuth, customerAuth, foreignProduct,
   });
 
+  // The nested acceptance helper resets SET ROLE on shared connections. Re-establish the
+  // authenticated JWT/session before any following RLS assertions; never probe with postgres.
+  await ident(admin, adminAuth, "admin@aghbari.ye");
+  await ident(customer, customerAuth, "customer@example.test");
+
   // Prove the dedicated customer_manager role gets a server-scoped, non-financial directory,
   // can run only the audited customer commands, and cannot read the base table or manage staff roles.
   const managerProfileId = (await root.unsafe(
