@@ -3,17 +3,17 @@
 المعلومات في هذا القسم تتقدم على السجل التاريخي أدناه. تُقيد حالات الاختبار بالرأس الذي جرى اختباره بالفعل.
 
 - **المستودع:** `Report-Engainall/Nasr1`.
-- **main:** `d3a27dc9c4b209e61bf6b3b9a54ceb8b4a26974d`; [Core CI](https://github.com/Report-Engainall/Nasr1/actions/runs/39952977823) = **SUCCESS**.
+- **main:** `cb72f35de524af82f63bbbcebec97213464921ed`; [Core CI](https://github.com/Report-Engainall/Nasr1/actions/runs/39955478215) = **SUCCESS** on this exact SHA. The prior `d3a27dc...` result is historical.
 - **PR #71 مدمج:** اختبار نسخ واستعادة PostgreSQL 17 معزول ناجح على الرأس `09c052d9f39e92e81b8dc994f54554c1fa9fdf49` مع Core/P2 بنجاح؛ بعد الدمج Core `39952977823` ناجح على main. هذا لا يثبت استعادة إنتاجية أو RTO/RPO.
 - **PR #82:** مفتوح عند الرأس `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`. [Core](https://github.com/Report-Engainall/Nasr1/actions/runs/39953364100) و[P2 Playwright](https://github.com/Report-Engainall/Nasr1/actions/runs/39953364029) = **SUCCESS** على هذا الرأس. أُثبتت محليًا حماية دعوة مدير العملاء، صلاحياته، الخصوصية المالية، تدفقات الإرجاع، وتصدير/طباعة المستندات ضمن حدود اختبارات التشغيل. لا تُدعَ رسالة بريد أو عملية إنتاجية.
-- **PR #83:** مفتوح/Draft، الرأس الحالي `ca0156b3384478cb45a3286da1e2dad752d375d3`. [Core CI](https://github.com/Report-Engainall/Nasr1/actions/runs/39955798397) = **SUCCESS** على SHA نفسه، بما في ذلك PostgreSQL 17 وتطبيق المهاجرات واختبارات الجلسات، ثم lint/build/preview/dev. [P2 Playwright](https://github.com/Report-Engainall/Nasr1/actions/runs/39955798441) = **IN PROGRESS** عند آخر قراءة: public UI smoke ناجح، والاختبار المحلي مع Supabase لم ينتهِ؛ القبول المستضاف تخطاه حاجز الاعتمادات الخارجية.
-- **إصلاح P2 workflow:** التشغيلات السابقة فشلت بلا Jobs بسبب ذيل مكرر مبتور في `.github/workflows/p2-playwright-critical-paths.yml`; حُذف الذيل بعد نهاية الوظيفة المكتملة. أول تشغيل جديد أنشأ وظائف فعلية على SHA `ca0156b...`. فشل المحاولات السابقة تاريخي ولا يُحوّل إلى PASS، وحالة الرأس الحالي تبقى مرتبطة بالتشغيلين أعلاه.
+- **PR #83:** مفتوح/Draft، الرأس الحالي `49ea0ce8936bf319a1941ea0ba0a1f03ebec9c3c` بعد دمج main بدمج Git عادي (no force); compare مع main = `behind_by=0`. [Core CI](https://github.com/Report-Engainall/Nasr1/actions/runs/39956842859) و[P2 Playwright](https://github.com/Report-Engainall/Nasr1/actions/runs/39956842892) = **IN PROGRESS** عند آخر قراءة على الرأس النهائي. سبق أن نجح Core على الرأس السابق `ca0156b...`، لكن النتيجة السابقة لا تثبت الرأس الجديد. الـCore/P2 الحاليان يعيدان التحقق من شجرة الدمج الحديثة.
+- **إصلاح P2 workflow:** التشغيلات السابقة فشلت بلا Jobs بسبب ذيل مكرر مبتور في `.github/workflows/p2-playwright-critical-paths.yml`; حُذف الذيل بعد نهاية الوظيفة المكتملة. التشغيل على `ca0156b...` أنشأ Jobs وفشلُ workflow-level لم يعد قائمًا؛ رأس الدمج الحالي `49ea0ce...` يعاد اختباره.
 - **العقد الأمني الجديد في #83:** بالإضافة إلى قائمة الجلسات وإلغاء جلسة واحدة، أضيف `public.revoke_other_auth_sessions()` لإنهاء جلسات الحساب نفسه الأخرى فقط، مع الحفاظ على الجلسة الحالية، إرجاع معرّفات/عدد المحذوف، وسجل تدقيق واحد. أضيفت أنواع Supabase واختبارات PostgreSQL 17 تمنع التأثير على جلسات بقية المستخدمين. واجهة الأجهزة مملوكة لـP1 ضمن PR #88؛ لذا لا يُدّعى تكامل واجهة أو إثبات إنتاجي.
 - **المطابقة المالية التالية — FIN-INVOICE-001:** فحص المهاجرات كشف فجوة محددة: `fetch_staff_receivables_aging` لا يجمع الإشعارات الدائنة المنشورة عند احتساب المتبقي، بينما `get_customer_account_statement()` يجمع فقط الإشعارات بحالة `posted` ويستبعد `reversed`. أصلح التقارير من المصدر المالي الحالي مع فصل العملات واختبارات PostgreSQL 17، ولا تنشئ دفترًا أو محركًا ثانيًا.
 - **التبعيات الخارجية:** مزامنة Onyx الحية، استيراد Onyx في نسخة الهدف، وWhatsApp Business API = **BLOCKED_EXTERNAL** من دون اعتماد/بيئة هدف مخوّلة/استجابة حقيقية. استعادة الإنتاج وRTO/RPO = **NOT RUN**.
 
 **NEXT_TASK_ID:** `AUTH-CENTRAL-SESSION-BACKEND-P2`.  
-**NEXT_ACTION:** الحصول على نتيجة P2 النهائية على `ca0156b...`؛ إصلاح الفشل إن وُجد؛ بعدها مراجعة أمان SECURITY DEFINER وتبعيات PR #83، مزامنة الفرع مع main الأحدث، وإعادة Core/P2 على SHA النهائي نفسه. لا تدمج ما دامت P2 لم تصبح SUCCESS.  
+**NEXT_ACTION:** الحصول على نتائج Core/P2 النهائية على `49ea0ce...`؛ إصلاح أي فشل؛ إكمال مراجعة SECURITY DEFINER؛ ثم إغلاق #83 بالدليل بعد تحقق الشروط. بعدها مزامنة PR #82 مع main وإعادة Core/P2 على الرأس الجديد ثم دمجها إذا اجتازت القبول.  
 
 ---
 
