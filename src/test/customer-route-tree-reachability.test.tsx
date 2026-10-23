@@ -89,7 +89,15 @@ afterEach(async () => {
 
 describe("customer company and token routes resolve through the generated route tree", () => {
   it.each([
+    { path: "/addresses", testId: "customer-addresses-page" },
     { path: "/company/contacts", testId: "company-contacts-page" },
+    { path: "/invoices", testId: "customer-invoices-page" },
+    { path: "/statement", testId: "customer-statement-page" },
+    { path: "/assistant", testId: "commerce-assistant-page" },
+    { path: "/barcode", testId: "barcode-workspace-page" },
+    { path: "/offline", testId: "offline-workspace-page" },
+    { path: "/quotes", testId: "quote-workspace-page" },
+    { path: "/reorder", testId: "reorder-workspace-page" },
     { path: "/company/members", testId: "company-members-page" },
     { path: "/company/accept-invitation?token=query-invitation-test-token", testId: "company-invitation-page" },
     { path: "/invite/path-invitation-test-token", testId: "company-invitation-page", token: "path-invitation-test-token" },
