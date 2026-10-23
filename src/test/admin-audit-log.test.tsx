@@ -37,11 +37,11 @@ vi.mock("@/components/AdminPages", () => ({
 
 import { AdminAuditLog } from "@/components/AdminAuditLog";
 
-function makeAuditRow(entityPrefix: string, id: string) {
+function makeAuditRow(entityPrefix: string, id: string, action = "customer_address.created") {
   return {
     id,
     actor_id: "99999999-9999-4999-8999-999999999999",
-    action: "customer_address.created",
+    action,
     entity_type: "customer",
     entity_id: entityPrefix + "-entity-identifier",
     created_at: "2026-10-23T05:00:00.000Z",
@@ -98,7 +98,7 @@ describe("admin audit log pagination", () => {
     });
     mocks.from.mockReset().mockImplementation((table: string) => makeQuery(table));
     mocks.responses = [
-      { data: [makeAuditRow("aaaaaaaa", "audit-page-1")], count: 450, error: null },
+      { data: [makeAuditRow("aaaaaaaa", "audit-page-1", "catalog.category_renamed")], count: 450, error: null },
       { data: [makeAuditRow("bbbbbbbb", "audit-page-2")], count: 450, error: null },
     ];
     mocks.requests = [];
@@ -113,6 +113,7 @@ describe("admin audit log pagination", () => {
     render(<AdminAuditLog />);
 
     expect(await screen.findByText("aaaaaaaa")).toBeInTheDocument();
+    expect(screen.getByText("إعادة تسمية تصنيف")).toBeInTheDocument();
     expect(screen.getByText(/إجمالي السجلات في المؤسسة: ٤٥٠/)).toBeInTheDocument();
     expect(mocks.requests[0].range).toEqual([0, 199]);
     expect(mocks.requests[0].options).toEqual({ count: "exact" });

@@ -5,7 +5,7 @@
 - Status: IN_PROGRESS
 - Branch / PR: `p1/remaining-work-execution-20261023` / [PR #66](https://github.com/Report-Engainall/Nasr1/pull/66)
 - Base main SHA: `76baf9dbe7860a764abc18e75835abb8750d56a3`
-- Code/test SHA after the current test correction: `f90f424a2aed820351103aeb20bab6060f65047c`
+- Verified code/test HEAD: `1797822aff47c310dcd9e54441b5dcc8b4cfbbf4` — Core CI [39907278863](https://github.com/Report-Engainall/Nasr1/actions/runs/39907278863) SUCCESS on this exact SHA (unit tests, PostgreSQL 17, lint, build, smoke and Chromium price-visibility acceptance; 24/24 steps).
 - P1-01 category rename: PR #50 candidate `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; Core CI PASS; browser assertion step externally blocked by GHCR rate limit.
 - P1-02 password recovery: PR #44 candidate `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`; Core CI PASS; reset-route-specific browser proof NOT_RUN.
 - P1-03a order-detail retry: Core CI [39905102470](https://github.com/Report-Engainall/Nasr1/actions/runs/39905102470) PASS on SHA `16bfe4f96513753dc145dfec17a020f121e1f711`.
@@ -14,8 +14,8 @@
 - P1-04/05 activation dialog: duplicate invitation guard and fail-closed workspace-load gating with retry. Test: `src/test/customer-activation-invitations-dialog.test.tsx`.
 - P1-06 category landing: delegates product filtering/loading to the existing paged Storefront; parent no longer fetches all products or an extra RPC. Test: `src/test/storefront-category-landing.test.tsx` with canonical slug and retry assertion.
 - P1-07 audit history: tenant-scoped exact count and 200-row pages with previous/next; test covers range and org scope, unknown count fail-closed, and denied-role access. Run [39907047512](https://github.com/Report-Engainall/Nasr1/actions/runs/39907047512) failed only because the test expected an internal error string not rendered by the permission screen; fixed the assertion to match the explicit role-denial UI and still assert zero DB queries. This fix is not yet tested.
-- Exact-head Core CI for `f90f424a2aed820351103aeb20bab6060f65047c`: pending. Browser proof for new controls NOT_RUN; production proof NOT_RUN.
-- Next action: verify Core CI for the final post-checkpoint SHA; fix only a failure reported on that SHA, then move to the next unowned function.
+- Exact-head Core CI for current verified head `1797822aff47c310dcd9e54441b5dcc8b4cfbbf4`: SUCCESS. Browser proof for new retry/double-submit controls NOT_RUN; production proof NOT_RUN.
+- Next action: add localized audit log presentation for the server action `catalog.category_renamed`, then test it on the next exact head.
 
 ## Recent execution history
 
@@ -60,3 +60,7 @@ Removed the full product fetch/count logic from `StorefrontCategoryLandingPage`;
 
 ### 2026-10-23 — P1-07 regression adjustment — IMPLEMENTED; exact-head CI pending
 The previous Core CI failed one assertion in `src/test/admin-audit-log.test.tsx`: it expected an internal error message while the component renders an explicit access-denied panel. Updated the test to assert the actual visible access-denied heading/content and still verify that no audit query occurs for a customer role. No application code changed in this correction. New test SHA: `f90f424a2aed820351103aeb20bab6060f65047c`; CI not yet run on this SHA.
+
+
+### 2026-10-23 — P1-08 — IMPLEMENTED; next exact-head CI pending
+The existing audited category rename RPC records action `catalog.category_renamed`, but the admin audit view displayed this important business operation as a raw technical identifier. Added the Arabic action label “إعادة تسمية تصنيف” and extended `src/test/admin-audit-log.test.tsx` to assert that a real row with this action renders the friendly label. No RPC, migration, P2-owned file, or audit payload was changed. This batch is committed together with the checkpoint update; CI must run on the new branch SHA.

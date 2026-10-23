@@ -16,6 +16,7 @@ type AuditLogRow = {
 };
 
 const actionLabels: Record<string, string> = {
+  'catalog.category_renamed': 'إعادة تسمية تصنيف',
   'pricing_rule.created': 'إنشاء قاعدة تسعير',
   'pricing_rule.updated': 'تعديل قاعدة تسعير',
   'pricing_rule.deleted': 'حذف قاعدة تسعير',
