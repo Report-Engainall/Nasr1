@@ -75,7 +75,10 @@ describe("admin product form submission", () => {
   it("sends only one create request for rapid submits dispatched before rerender", async () => {
     let finishCreate: ((value: typeof savedProduct) => void) | undefined;
     mocks.createProduct.mockImplementationOnce(
-      () => new Promise<typeof savedProduct>((resolve) => { finishCreate = resolve; }),
+      () =>
+        new Promise<typeof savedProduct>((resolve) => {
+          finishCreate = resolve;
+        }),
     );
     const onSaved = vi.fn();
     render(<ProductModal product={null} onClose={vi.fn()} onSaved={onSaved} />);
@@ -110,7 +113,10 @@ describe("admin product form submission", () => {
   it("sends only one update request for rapid submits dispatched before rerender", async () => {
     let finishUpdate: ((value: typeof savedProduct) => void) | undefined;
     mocks.updateProduct.mockImplementationOnce(
-      () => new Promise<typeof savedProduct>((resolve) => { finishUpdate = resolve; }),
+      () =>
+        new Promise<typeof savedProduct>((resolve) => {
+          finishUpdate = resolve;
+        }),
     );
     const onSaved = vi.fn();
     render(<ProductModal product={existingProduct} onClose={vi.fn()} onSaved={onSaved} />);
@@ -194,7 +200,7 @@ describe("admin product form submission", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(mocks.createProduct).toHaveBeenCalledTimes(2);
   });
-  
+
   it("keeps update errors visible and allows retry after a failed update", async () => {
     mocks.updateProduct
       .mockRejectedValueOnce(new Error("تعذر تحديث المنتج"))
@@ -221,5 +227,4 @@ describe("admin product form submission", () => {
     });
     expect(mocks.createProduct).not.toHaveBeenCalled();
   });
-
 });
