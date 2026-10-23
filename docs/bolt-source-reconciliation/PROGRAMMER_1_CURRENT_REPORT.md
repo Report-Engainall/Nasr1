@@ -1,21 +1,18 @@
 # تقرير الحالة التنفيذي — P1 / واجهات العميل والتجارة والإدارة
 
-- **المستودع:** `Report-Engainall/Nasr1`.
-- **المهمة المكتملة:** `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` — منع ازدواج إنشاء/تحديث المنتج وإتاحة إعادة المحاولة الآمنة بعد الفشل.
-- **PR #97:** [fix(admin): prevent duplicate product submissions](https://github.com/Report-Engainall/Nasr1/pull/97) — `OPEN / DRAFT / NOT MERGED`.
-- **مزامنة الفرع:** جرى دمج `main` الحالي `b48a4b2e8ae09e87432b49dab591a23e1be651c6` في فرع #97 بواسطة merge commit آمن `d0bd70af26d5de0d52c41aba7626f4f92a9de7e5`؛ Git compare: `ahead_by=38`, `behind_by=0`, وصافي الفرق أربعة ملفات P1 فقط.
-- **الاختبارات الحالية على SHA `d0bd70af26d5de0d52c41aba7626f4f92a9de7e5`:** Core [40023645588 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40023645588) وP2 Playwright [40023645596 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40023645596). فحص Chromium العام والاختبار المحلي ناجحان؛ اختبار العميل المستضاف المشروط باعتمادات خارجية `SKIPPED / BLOCKED_EXTERNAL` وليس PASS.
-- **المراجعة والدمج:** ما زال #97 `OPEN / DRAFT / NOT MERGED`; لا توجد مراجعة مستقلة مسجلة، ولا يُسمح بالدمج قبل تسجيلها.
-- **فرق #97:** أربعة ملفات P1 فقط؛ لا تغييرات إلى SQL/RPC/RLS/migrations أو مسارات P3.
-- **PR #124:** الرأس الحالي بعد إصلاح افتراض عدّ الصفوف في فحص التركيز `671c12ff75449009e90aebbcd3f2926d13421e46`; فشل الرأس السابق `659cf25...` لأن بيانات الاختبار تُظهر 25 رابطًا لا رابطين. أعيد الفحص على الرأس الجديد؛ لا تنقل PASS من الرأس السابق.
-- **PR #107:** الرأس `7becbdc71f2fb7ef1202578157ca0617a0b93356`; Core [40023658718 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40023658718) وP2 Playwright [40023658606 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40023658606) على SHA المطابق. لا توجد مراجعة مستقلة.
-- **PR #102:** الرأس `30d50fcaf47e055f7c2d3123165d5115aaa0d5b4`; أُضيف اختبار Chromium لفتح `/admin/exports` والتحقق من تركيب المكوّن الحقيقي دون إنشاء تصدير. Core [40023918087](https://github.com/Report-Engainall/Nasr1/actions/runs/40023918087) قيد التنفيذ وP2 Playwright [40023918196](https://github.com/Report-Engainall/Nasr1/actions/runs/40023918196) في الانتظار؛ لا دمج قبل نتيجة نهائية ناجحة على SHA النهائي.
-- **PR #119:** الرأس `a70e2775d1be01f89a315b241c147147fd1183fb`; Core [40022445712 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445712)، لكن P2 [40022445722 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445722): منع العبور بين الجهات ما زال يرجع HTTP 500 / SQLSTATE `P0002` على ذلك الرأس. P2 يملك الإصلاح في #131؛ لا إضعاف للاختبار ولا دمج لـ #119.
-- **حدود الإثبات:** hosted customer/tenant E2E متخطّى لغياب اعتمادات non-production؛ لا يساوي PASS. إثبات الإنتاج غير منفذ.
-- **المراجعة:** لا توجد مراجعة مستقلة مخوّلة؛ جميع PRs تبقى Draft وغير مدمجة.
-- **PR #131:** الرأس الحالي `f8c01e4d365d7cb433fd2ae58ff1c155684ed14d`; Core [40023737416 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40023737416), P2 Playwright [40023737380](https://github.com/Report-Engainall/Nasr1/actions/runs/40023737380) قيد التنفيذ. لا موافقة مستقلة مسجلة ولا دمج حتى الآن.
-- **NEXT_ACTION:** `P1-PR119-RETEST-AFTER-P2-131-MERGE-001` — انتظر دمج #131 بعد الفحص والمراجعة، حدّث #119 إلى SHA `main` الجديد ثم شغّل Core وP2 على الرأس النهائي.
-- **UPDATED_AT:** `2026-10-24T00:00:00+03:00`.
+- المستودع: Report-Engainall/Nasr1.
+- الفرع: p1/admin-product-singleflight-20261023.
+- MAIN_SHA / BASE_SHA: b48a4b2e8ae09e87432b49dab591a23e1be651c6.
+- رأس العمل المختبر قبل هذه الدفعة التوثيقية: 30795c3d370ae6044a6ba83fd2c97fdf60781d97. الرأس الناتج عن تحديث التقارير يحتاج فحوصه الخاصة؛ لا تنقل إليه نجاحات الرأس السابق.
+- PR #97: Core [40024340859 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024340859) وP2 [40024340801 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024340801) على SHA نفسه. الفرق أربعة ملفات P1 فقط؛ hosted customer/tenant E2E SKIPPED / BLOCKED_EXTERNAL، وProductModal-specific browser proof والإنتاج NOT RUN.
+- PR #124: الرأس 671c12ff75449009e90aebbcd3f2926d13421e46؛ Core [40024250407 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024250407) وP2 [40024250291 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024250291) على SHA نفسه.
+- PR #107: الرأس 7becbdc71f2fb7ef1202578157ca0617a0b93356؛ Core [40023658718 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40023658718) وP2 [40023658606 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40023658606) على SHA نفسه.
+- PR #102: الرأس 64e35ea154d83c14472a887c9ec9abd733f8cb16؛ Core [40025905333 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40025905333) وP2 [40025905186 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40025905186). صافي الفرق أربعة ملفات واجهة/اختبار P1 فقط؛ لا تعديل لسير العمل المشترك أو ملف E2E الإضافي.
+- PR #119: الرأس a70e2775d1be01f89a315b241c147147fd1183fb؛ Core [40022445712 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445712)، بينما P2 [40022445722 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445722): رفض المؤسسة الأخرى يعيد HTTP 500 / P0002. اختبار P1 ما زال يفشل عن قصد على هذا العقد، ولا يعتبر حماية الصف من التغيير كافيًا لإعلان PASS.
+- PR #131 في ملكية P2: الرأس f88d72e497eed851c425dfaa7b9eeca1291ee411؛ Core [40024841272 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024841272) وP2 [40024841182 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024841182). الإصلاح يعيد SQLSTATE 42501 للرفض العابر للمؤسسات مع الحفاظ على صلاحية customer_manager داخل المؤسسة الصحيحة، لكنه لم يُدمج بعد.
+- المراجعة: لا توجد موافقة مستقلة مخولة لـ#97/#107/#119/#124/#131؛ تعليقات #102 لا تعادل APPROVE. لم يدمج P1 أي طلب.
+- NEXT_ACTION: P1-PR119-RETEST-AFTER-P2-131-MERGE-001 — بعد المراجعة المستقلة ودمج #131، أعد مزامنة #119 مع main وشغّل Core وP2 على SHA واحد.
+- UPDATED_AT: 2026-10-23T21:30:00Z.
 
 ## P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001 — سجل التنفيذ
 
