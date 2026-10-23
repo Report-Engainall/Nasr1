@@ -253,31 +253,41 @@ describe("StaffFinancePage payment amount guard", () => {
     expect(container.textContent).toContain("تم تسجيل الدفعة وتحديث حالة الفاتورة.");
   });
 
-  it("retains the retry key when the RPC response does not acknowledge a payment id", async () => {
+  it("retains the retry key until the RPC acknowledges a valid payment UUID", async () => {
     vi.stubGlobal("crypto", {
       randomUUID: vi.fn().mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
     });
     const defaultImplementation = rpcMock.getMockImplementation();
     if (!defaultImplementation) throw new Error("Finance RPC test mock is not configured");
+    const responses = [
+      { data: null, error: null },
+      { data: "not-a-payment-uuid", error: null },
+      { data: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", error: null },
+    ];
     let paymentAttempts = 0;
     rpcMock.mockImplementation(async (name: string, ...args: unknown[]) => {
       if (name === "record_customer_payment") {
-        paymentAttempts += 1;
-        if (paymentAttempts === 1) return { data: null, error: null };
-        return { data: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", error: null };
+        const response = responses[paymentAttempts++];
+        if (!response) throw new Error("Unexpected payment RPC attempt");
+        return response;
       }
       return defaultImplementation(name, ...args);
     });
 
     await renderFinancePage();
     await submitPayment("20.00");
-    expect(container.textContent).toContain("استجابة الخادم لم تتضمن معرف الدفعة");
+    expect(container.textContent).toContain("استجابة الخادم لم تتضمن معرف دفعة صالحًا");
+    await submitPayment("20.00");
+    expect(container.textContent).toContain("استجابة الخادم لم تتضمن معرف دفعة صالحًا");
     await submitPayment("20.00");
 
     const calls = rpcMock.mock.calls.filter(([name]) => name === "record_customer_payment");
-    expect(calls).toHaveLength(2);
-    expect(calls[0][1].p_idempotency_key).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
-    expect(calls[1][1].p_idempotency_key).toBe(calls[0][1].p_idempotency_key);
+    expect(calls).toHaveLength(3);
+    expect(calls.map(([, args]) => args.p_idempotency_key)).toEqual([
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    ]);
     expect(container.textContent).toContain("تم تسجيل الدفعة وتحديث حالة الفاتورة.");
   });
 
