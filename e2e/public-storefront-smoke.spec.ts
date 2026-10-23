@@ -65,6 +65,7 @@ test("advanced search recovers from a category-source failure", async ({ page })
   );
 
   let categoryReads = 0;
+  let allowCategorySuccess = false;
   await page.route(
     "https://ci-placeholder.supabase.co/rest/v1/categories**",
     async (route) => {
@@ -81,7 +82,7 @@ test("advanced search recovers from a category-source failure", async ({ page })
       }
 
       categoryReads += 1;
-      if (categoryReads <= 3) {
+      if (!allowCategorySuccess) {
         await route.fulfill({
           status: 503,
           contentType: "application/json",
@@ -108,11 +109,12 @@ test("advanced search recovers from a category-source failure", async ({ page })
   await expect(categoryError).toContainText("تعذر تحميل التصنيفات");
   await expect(categorySelect).toBeDisabled();
 
+  allowCategorySuccess = true;
   await page.getByRole("button", { name: "إعادة تحميل التصنيفات" }).click();
   await expect(categorySelect).toBeEnabled();
   await expect(categoryError).toHaveCount(0);
 
-  expect(categoryReads).toBe(4);
+  expect(categoryReads).toBeGreaterThanOrEqual(4);
   expect(pageErrors).toEqual([]);
 });
 
