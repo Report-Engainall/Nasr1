@@ -12,7 +12,8 @@ State: backend change set created; awaiting exact-head CI, P2 Playwright, and in
 
 - supabase/migrations/20261023150000_central_session_management.sql
 - scripts/test-session-management.mjs
-- scripts/test-database-migrations.mjs (only the Auth session fixture, identity claims, and acceptance hook)
+- scripts/test-database-migrations.mjs (Auth session fixture, session-aware identity claims, and acceptance hook)
+- Session-aware identity fixtures across scripts/test-admin-catalog-commands.mjs, scripts/test-ai-gateway-telemetry.mjs, scripts/test-async-export-jobs.mjs, scripts/test-cash-expense-journal-posting.mjs, scripts/test-company-invitation-expiry.mjs, scripts/test-customer-cart-persistence.mjs, scripts/test-customer-price-visibility.mjs, scripts/test-customer-returns.mjs, scripts/test-import-inventory-snapshot-contract.mjs, scripts/test-import-job-idempotency.mjs, scripts/test-onyx-reconciliation-concurrency.mjs, scripts/test-onyx-reconciliation.mjs, scripts/test-onyx-source-evidence.mjs, scripts/test-order-input-hardening.mjs, scripts/test-price-grid-atomicity.mjs, scripts/test-purchase-receipt-accounting.mjs, scripts/test-stock-count-start-audit.mjs, and scripts/test-storefront-saved-products.mjs
 - src/integrations/supabase/types.ts: publish the RPC signatures for the P1 screen integration.
 - This lock document.
 
