@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ArrowRight, FileText, Package, Printer } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -6,6 +6,8 @@ import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatNumber } from '@/lib/format';
 import type { Order, OrderItem } from '@/lib/types';
+
+const CUSTOMER_ORDERS_PAGE_SIZE = 25;
 
 type CustomerOrderSummary = Pick<Order, 'id' | 'order_number' | 'status' | 'total_items' | 'created_at'> & {
   quantity_review_required?: boolean;
@@ -60,19 +62,53 @@ export function MyOrders() {
 }
 
 function MyOrdersInner() {
-  const { data, loading, error, refetch } = useFetch(async () => {
-    const { data, error } = await supabase.from('orders').select('id,order_number,status,total_items,created_at,quantity_review_required,customer_adjustment_note,customer_payment_requested_at,payment_request_status').order('created_at', { ascending: false });
-    if (error) throw new Error('تعذر تحميل الطلبات');
-    return data as CustomerOrderSummary[];
-  });
+  const [data, setData] = useState<CustomerOrderSummary[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data: rows, error: queryError, count } = await supabase
+        .from('orders')
+        .select('id,order_number,status,total_items,created_at,quantity_review_required,customer_adjustment_note,customer_payment_requested_at,payment_request_status', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range((page - 1) * CUSTOMER_ORDERS_PAGE_SIZE, page * CUSTOMER_ORDERS_PAGE_SIZE - 1);
+      if (queryError) throw new Error('تعذر تحميل الطلبات');
+      if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) {
+        throw new Error('تعذر تأكيد إجمالي الطلبات. أعد المحاولة قبل الاعتماد على قائمة الطلبات.');
+      }
+      const nextPageCount = Math.max(1, Math.ceil(count / CUSTOMER_ORDERS_PAGE_SIZE));
+      setTotalCount(count);
+      if (page > nextPageCount) {
+        setData([]);
+        setPage(nextPageCount);
+        return;
+      }
+      setData((rows ?? []) as CustomerOrderSummary[]);
+    } catch (cause) {
+      setData(null);
+      setTotalCount(null);
+      setError(cause instanceof Error ? cause.message : 'تعذر تحميل الطلبات.');
+    } finally {
+      setLoading(false);
+    }
+  }, [page]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const pageCount = totalCount === null ? 1 : Math.max(1, Math.ceil(totalCount / CUSTOMER_ORDERS_PAGE_SIZE));
   return (
     <Shell>
       <h1 style={{ fontSize: 26, margin: '0 0 6px' }}>طلباتي</h1>
       <p style={{ color: '#7a9398', margin: '0 0 20px' }}>كل الطلبات المرسلة من حسابك وحالتها الحالية</p>
       {loading && <p role="status">جارٍ تحميل الطلبات...</p>}
-      {error && <div style={card} role="alert">{error} <button className="sf-link" onClick={refetch}>إعادة المحاولة</button></div>}
-      {data && data.length === 0 && <div style={{ ...card, textAlign: 'center' }}><FileText size={32} /><p>لا توجد طلبات بعد.</p><Link to="/" className="sf-btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '10px 18px' }}>ابدأ التسوق</Link></div>}
-      {data && data.length > 0 && (
+      {error && <div style={card} role="alert">{error} <button type="button" className="sf-link" onClick={() => void load()}>إعادة المحاولة</button></div>}
+      {data && data.length === 0 && totalCount === 0 && !loading && !error && <div style={{ ...card, textAlign: 'center' }}><FileText size={32} /><p>لا توجد طلبات بعد.</p><Link to="/" className="sf-btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '10px 18px' }}>ابدأ التسوق</Link></div>}
+      {data && data.length > 0 && !error && (
         <div style={{ ...card, padding: 0, overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead><tr style={{ background: '#f4f8f9', textAlign: 'right' }}><th style={{ padding: 12 }}>رقم الطلب</th><th>التاريخ</th><th>الأصناف</th><th>الحالة</th><th /></tr></thead>
@@ -85,6 +121,11 @@ function MyOrdersInner() {
                 <td><Link to="/orders/$id" params={{ id: o.id }} className="sf-link">التفاصيل</Link></td>
               </tr>))}</tbody>
           </table>
+          {pageCount > 1 && <nav aria-label="صفحات الطلبات" style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center', padding: 12, flexWrap: 'wrap' }}>
+            <button type="button" className="sf-link" aria-label="صفحة الطلبات السابقة" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={loading || page <= 1}>السابق</button>
+            <span role="status" aria-label="صفحة الطلبات الحالية">{'صفحة ' + page + ' من ' + pageCount + ' — إجمالي الطلبات: ' + totalCount}</span>
+            <button type="button" className="sf-link" aria-label="صفحة الطلبات التالية" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={loading || page >= pageCount}>التالي</button>
+          </nav>}
         </div>
       )}
     </Shell>
