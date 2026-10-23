@@ -69,10 +69,12 @@ function makeQuery(table: string) {
     eq: () => query,
     order: () => query,
     maybeSingle: () => Promise.resolve(responseFor()),
-    then: (
-      onfulfilled?: (value: { data: unknown; error: Error | null }) => unknown,
-      onrejected?: (reason: unknown) => unknown,
-    ) => Promise.resolve(responseFor()).then(onfulfilled, onrejected),
+    then<TResult1 = { data: unknown; error: Error | null }, TResult2 = never>(
+      onfulfilled?: ((value: { data: unknown; error: Error | null }) => TResult1 | PromiseLike<TResult1>) | null,
+      onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+    ): Promise<TResult1 | TResult2> {
+      return Promise.resolve(responseFor()).then(onfulfilled ?? undefined, onrejected ?? undefined);
+    },
   };
   return query;
 }
