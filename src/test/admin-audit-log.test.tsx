@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     options?: unknown;
     filters: Array<{ column: string; value: unknown }>;
     orderBy?: string;
+    orderCalls: Array<{ column: string; options?: unknown }>;
     range?: [number, number];
   }>,
 }));
@@ -56,6 +57,7 @@ function makeQuery(table: string) {
     options: undefined as unknown,
     filters: [] as Array<{ column: string; value: unknown }>,
     orderBy: undefined as string | undefined,
+    orderCalls: [] as Array<{ column: string; options?: unknown }>,
     range: undefined as [number, number] | undefined,
   };
   mocks.requests.push(request);
@@ -69,8 +71,9 @@ function makeQuery(table: string) {
       request.filters.push({ column, value });
       return query;
     },
-    order(column: string) {
+    order(column: string, options?: unknown) {
       request.orderBy = column;
+      request.orderCalls.push({ column, options });
       return query;
     },
     range(from: number, to: number) {
@@ -118,6 +121,10 @@ describe("admin audit log pagination", () => {
     expect(screen.getByText(/إجمالي السجلات في المؤسسة: ٤٥٠/)).toBeInTheDocument();
     expect(mocks.requests[0].range).toEqual([0, 199]);
     expect(mocks.requests[0].options).toEqual({ count: "exact" });
+    expect(mocks.requests[0].orderCalls).toEqual([
+      { column: "created_at", options: { ascending: false } },
+      { column: "id", options: { ascending: false } },
+    ]);
     expect(mocks.requests[0].filters).toContainEqual({
       column: "organization_id",
       value: "22222222-2222-4222-8222-222222222222",
