@@ -5,17 +5,18 @@
 - Status: IN_PROGRESS
 - Branch / PR: `p1/remaining-work-execution-20261023` / [PR #66](https://github.com/Report-Engainall/Nasr1/pull/66)
 - Base main SHA: `76baf9dbe7860a764abc18e75835abb8750d56a3`
-- Latest code/test HEAD before this checkpoint: `e39c3b4071834c62afce56740549dca94cd39726`
+- Latest code/test HEAD before this checkpoint: `a6c49a819af6cdb77e6ed4274bf62a3d38ccb3ce`
 - P1-01 category rename: PR #50 candidate `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; Core CI PASS; browser proof externally blocked by GHCR rate limit.
-- P1-02 password recovery: PR #44 candidate `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`; Core CI PASS; route-specific browser proof NOT_RUN.
+- P1-02 password recovery: PR #44 candidate `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`; Core CI PASS; reset-route-specific browser proof NOT_RUN.
 - P1-03a order-detail retry: Core CI [39905102470](https://github.com/Report-Engainall/Nasr1/actions/runs/39905102470) PASS on exact SHA `16bfe4f96513753dc145dfec17a020f121e1f711`.
-- P1-03b reorder template: existing `save_reorder_template` RPC reused; source order, validated product IDs/approved quantities, fail-closed response parsing, and rapid duplicate-submit guard. Test: `src/test/customer-order-detail-retry.test.tsx`.
-- P1-03c/d invitations: both company and customer activation handlers remove bearer token from address bar before server request while retaining in-memory retry. Tests: `src/test/customer-company-members-page.test.tsx`, `src/test/customer-activation-invitations-page.test.tsx`.
-- P1-04/05 customer activation dialog: immediate in-flight guard prevents duplicate server invites; creation now stays closed until workspace status loads, with retry after load failure. Test: `src/test/customer-activation-invitations-dialog.test.tsx`.
-- P1-06 category landing performance/correctness: `src/components/StorefrontCategoryLandingPage.tsx` no longer fetches the full product list just to count one category. It uses existing `fetchStorefrontCatalogPage` with page size 1 and the server's total count; loading/error/retry is tied to the active category. New test: `src/test/storefront-category-landing.test.tsx`.
-- Exact-head Core CI for combined source/tests `e39c3b4071834c62afce56740549dca94cd39726`: pending at checkpoint time. No older SHA result is being used to claim this head passed.
-- Browser proof for retry and rapid-submit UI: NOT_RUN. Production proof: NOT_RUN.
-- Next action: verify Core CI on the resulting checkpoint SHA; fix only failures reported on that head, then continue with the next unowned commercial-admin function.
+- P1-03b reorder template: existing `save_reorder_template` RPC; source order, validated IDs/approved quantities, fail-closed response, duplicate-submit guard. Test: `src/test/customer-order-detail-retry.test.tsx`.
+- P1-03c/d invitations: both acceptance flows remove bearer token from the visible URL before network requests and preserve in-memory retry. Tests: `src/test/customer-company-members-page.test.tsx`, `src/test/customer-activation-invitations-page.test.tsx`.
+- P1-04/05 customer activation dialog: duplicate-submit guard; creation fails closed if invite workspace status did not load and exposes retry. Test: `src/test/customer-activation-invitations-dialog.test.tsx`.
+- P1-06 category landing: replaced whole-catalog fetch used only for counting one category with the existing paged storefront RPC and server total; count is bound to the active category, and failures retry. Test: `src/test/storefront-category-landing.test.tsx`.
+- P1-07 audit history: `src/components/AdminAuditLog.tsx` now requests exact tenant-scoped total and paged ranges, enables Previous/Next for older logs, identifies search as page-local, and refuses to present an unconfirmed total as zero. Test: `src/test/admin-audit-log.test.tsx` covers pagination ranges, organization scope, unknown counts, and role gate.
+- Latest code/test SHA `a6c49a819af6cdb77e6ed4274bf62a3d38ccb3ce`: exact-head Core CI pending/not verified at checkpoint time. Older SHA runs are not proof for this head.
+- Browser proof for new retry, pagination and duplicate-submit controls: NOT_RUN. Production proof: NOT_RUN.
+- Next action: verify Core CI on the resulting checkpoint SHA, fix only failures reported on that SHA, then continue with the next independently owned admin/customer function.
 
 ## Recent execution history
 
@@ -51,3 +52,6 @@ The customer activation invitation dialog previously showed the creation form wh
 
 ### 2026-10-23 — P1-06 — IMPLEMENTED; exact-head CI pending
 Category landing previously called `fetchProducts` to count products for one category, downloading the full product collection and counting in the browser. It now uses the existing paged storefront RPC contract with `pageSize: 1` and its server total; the result is keyed to the current category ID to prevent stale counts on navigation. Added tests for scoped count, no full product fetch, error, and retry. Changed `src/components/StorefrontCategoryLandingPage.tsx`, new `src/test/storefront-category-landing.test.tsx`. No shared P2-locked file or new RPC/migration changed.
+
+### 2026-10-23 — P1-07 — IMPLEMENTED; exact-head CI pending
+Audit history was hard-limited to the newest 200 events with no way to navigate older records. The screen now reads a tenant-scoped exact count and pages results with `range`, preserves the organization filter on every page, shows page navigation, and reports a missing total as an error instead of zero. Search explicitly states it is scoped to the current page. Added `src/test/admin-audit-log.test.tsx` for paging, tenant filter, missing-count fail-closed behavior, and role denial. Changed paths: `src/components/AdminAuditLog.tsx`, new `src/test/admin-audit-log.test.tsx`.
