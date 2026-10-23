@@ -112,16 +112,42 @@ const declarations = new Map();
 const declarationsByName = new Map();
 for (const filename of migrations) {
   const source = stripComments(await readFile(resolve(migrationDir, filename), "utf8"));
-  const regex = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+public\.([A-Za-z0-9_]+)\s*\(([\s\S]*?)\)\s*RETURNS\b/gi;
+
+  // Match schema-qualified declarations and functions created under the migration's
+  // effective search_path. Unqualified declarations are credited only when the name and
+  // signature also exist in the queried public runtime catalog.
+  const createRegex = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:(public)\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([\s\S]*?)\)\s*RETURNS\b/gi;
   let match;
-  while ((match = regex.exec(source)) !== null) {
-    const name = match[1].toLowerCase();
-    const types = typeSignature(match[2]);
-    const key = name + "|" + types;
-    const declaration = { name, types, filename };
-    declarations.set(key, declaration);
+  while ((match = createRegex.exec(source)) !== null) {
+    const name = match[2].toLowerCase();
+    const types = typeSignature(match[3]);
+    const declaration = {
+      name,
+      types,
+      filename,
+      sourceKind: match[1] ? "CREATE FUNCTION public" : "unqualified CREATE FUNCTION resolved against public runtime catalog",
+    };
+    declarations.set(name + "|" + types, declaration);
     if (!declarationsByName.has(name)) declarationsByName.set(name, new Map());
     declarationsByName.get(name).set(types, declaration);
+  }
+
+  // Historical operational-task implementations remain in pg_proc after a migration
+  // renames the previous function. Record ALTER FUNCTION RENAME as source provenance.
+  const renameRegex = /ALTER\s+FUNCTION\s+public\.([A-Za-z_][A-Za-z0-9_]*)\s*\(([\s\S]*?)\)\s+RENAME\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/gi;
+  while ((match = renameRegex.exec(source)) !== null) {
+    const previousName = match[1].toLowerCase();
+    const types = typeSignature(match[2]);
+    const renamedName = match[3].toLowerCase();
+    const declaration = {
+      name: renamedName,
+      types,
+      filename,
+      sourceKind: "ALTER FUNCTION RENAME from public." + previousName,
+    };
+    declarations.set(renamedName + "|" + types, declaration);
+    if (!declarationsByName.has(renamedName)) declarationsByName.set(renamedName, new Map());
+    declarationsByName.get(renamedName).set(types, declaration);
   }
 }
 
@@ -150,7 +176,11 @@ try {
       has_function_privilege('service_role', p.oid, 'EXECUTE') as service_role_execute,
       coalesce(p.prosrc, '') as body,
       pg_get_functiondef(p.oid) as definition,
-      e.extname as extension_name
+      e.extname as extension_name,
+      exists (
+        select 1 from pg_trigger t
+        where t.tgfoid = p.oid and not t.tgisinternal
+      ) as has_user_trigger_binding
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     join pg_language l on l.oid = p.prolang
@@ -191,13 +221,25 @@ for (const row of rows) {
   if (/audit_logs|actor_id|audit/i.test(body)) signals.push("audit signal");
   if (row.result_type.toLowerCase() === "trigger") signals.push("trigger-only return");
   const hash = createHash("sha256").update(row.definition).digest("hex");
-  const sourceLabel = source ? "`" + source.filename + "`" : row.extension_name ? "extension:`" + row.extension_name + "`" : "**NO MIGRATION MATCH**";
+  const sourceLabel = source
+    ? source.filename + " (" + source.sourceKind + ")"
+    : row.extension_name ? "extension:" + row.extension_name : "**NO MIGRATION MATCH**";
+  const surface = row.extension_name
+    ? "EXTENSION FUNCTION"
+    : row.kind_code === "p"
+      ? "SQL PROCEDURE (not a PostgREST function RPC)"
+      : row.has_user_trigger_binding || row.result_type.toLowerCase() === "trigger"
+        ? "TRIGGER CALLBACK (database-internal execution surface)"
+        : executeRoles.length > 0
+          ? "PUBLIC FUNCTION / EXECUTE GRANTED (RPC candidate; contract still needs review)"
+          : "PUBLIC FUNCTION / no target-role EXECUTE (review internal callers)";
   mappedRows.push({
     name,
     identityArgs: row.identity_args || "",
     allArgs: row.all_args || "",
     resultType: row.result_type,
     kind: row.kind_code === "p" ? "PROCEDURE" : "FUNCTION",
+    surface,
     language: row.language,
     security: row.security_definer ? "DEFINER" : "INVOKER",
     config,
@@ -207,11 +249,18 @@ for (const row of rows) {
     signals,
     sourceLabel,
     sourceMissing: !source && !row.extension_name,
+    hasUserTriggerBinding: Boolean(row.has_user_trigger_binding),
     hash
   });
 }
 const mapped = mappedRows.filter((row) => !row.sourceMissing).length;
 const missingSource = mappedRows.filter((row) => row.sourceMissing);
+assert.equal(
+  missingSource.length,
+  0,
+  "every runtime public function/procedure must map to a migration declaration, an ALTER FUNCTION rename, or an extension; unmatched: " +
+    missingSource.map((row) => "public." + row.name + "(" + row.identityArgs + ")").join(", "),
+);
 const esc = (value) => String(value ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ").trim();
 const lines = [
   "# Public PostgreSQL RPC/function inventory — runtime snapshot",
@@ -223,13 +272,14 @@ const lines = [
   "",
   "**Review flags:** an exposed `SECURITY DEFINER` function must be examined against its body, role/tenant checks and search path; a `trigger-only return` is not an ordinary PostgREST RPC entrypoint. Functions with no matched migration or extension source remain explicit review items.",
   "",
-  "| Signature | Result | Runtime kind / language | Security | Effective EXECUTE | Function config / search_path | Static body signals (heuristic) | Source migration / extension | Definition SHA-256 | ACL snapshot |",
-  "|---|---|---|---|---|---|---|---|---|---|",
+  "| Signature | Result | Catalog surface classification | Runtime kind / language | Security | Effective EXECUTE | Function config / search_path | Static body signals (heuristic) | Source migration / extension | Definition SHA-256 | ACL snapshot |",
+  "|---|---|---|---|---|---|---|---|---|---|---|",
   ...mappedRows.map((row) => {
     const signature = "`public." + row.name + "(" + row.identityArgs + ")`";
     return "| " + [
       signature,
       "`" + esc(row.resultType) + "`",
+      row.surface,
       row.kind + " / " + row.language,
       row.security,
       row.executeRoles.length ? row.executeRoles.map((role) => "`" + role + "`").join(", ") : "none of target roles",
