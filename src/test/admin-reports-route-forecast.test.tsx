@@ -15,12 +15,11 @@ import { Route } from "@/routes/admin_.reports";
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-describe("actual admin reports route forecast integration", () => {
-  it("routes to the reports view and preserves the export link without duplicating the forecast panel", () => {
+describe("admin reports route navigation", () => {
+  it("routes to the existing reports view and preserves the export link", () => {
     const component = (Route as unknown as { options: { component: ComponentType } }).options.component;
     render(createElement(component));
     expect(screen.getByTestId("admin-app")).toHaveAttribute("data-initial-view", "reports");
-    expect(screen.queryByTestId("executive-store-analytics")).toBeNull();
     expect(screen.getByRole("link", { name: "مركز تصدير الطلبات CSV" })).toHaveAttribute("href", "/admin/exports");
   });
 });

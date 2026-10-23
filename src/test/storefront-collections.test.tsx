@@ -106,6 +106,35 @@ describe("storefront category and catalog error states", () => {
     expect(screen.queryByRole("link", { name: "تصفح التصنيف" })).toBeNull();
   });
 
+  it("counts active products in the requested category and links to that category", () => {
+    mocks.categoryResult = {
+      data: [{ id: "category-1", name: "الأرز", description: null, is_active: true }],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    mocks.productResult = {
+      data: [
+        { id: "active-target", category_id: "category-1", is_active: true, status: "active" },
+        { id: "inactive-flag", category_id: "category-1", is_active: false, status: "active" },
+        { id: "inactive-status", category_id: "category-1", is_active: true, status: "inactive" },
+        { id: "active-other-category", category_id: "category-2", is_active: true, status: "active" },
+      ],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    mocks.useFetch.mockImplementation((fetcher: unknown) =>
+      fetcher === mocks.fetchCategories ? mocks.categoryResult : mocks.productResult,
+    );
+
+    render(<StorefrontCollectionsPage />);
+
+    expect(screen.getByText(`${(1).toLocaleString("ar-YE")} صنف`)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "تصفح التصنيف" }))
+      .toHaveAttribute("href", "/category/الارز--category-1");
+  });
+
   it("identifies a product-catalog failure rather than blaming categories", () => {
     setQueryResults(null, "تعذر جلب كتالوج المنتجات");
 
