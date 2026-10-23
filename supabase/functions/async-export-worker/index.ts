@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { readBoundedTextBody } from "../_shared/bounded-body.ts";
 import {
   ASYNC_EXPORT_BUCKET, ASYNC_EXPORT_MAX_BYTES, ASYNC_EXPORT_MAX_ITEMS, ASYNC_EXPORT_MAX_ORDERS,
   buildOrdersCsv, sha256Hex, validateOrdersExportFilters,
@@ -215,9 +216,12 @@ if (runtime) runtime.serve(async (request) => {
   const suppliedSecret = request.headers.get("x-async-export-worker-secret") ?? "";
   const secretMode = Boolean(expectedSecret && constantTimeEqual(suppliedSecret, expectedSecret));
 
-  let bodyText = "";
-  try { bodyText = await request.text(); } catch { return reply({ error: "invalid_request" }, 400); }
-  if (bodyText.length > 4096) return reply({ error: "request_too_large" }, 413);
+  const bodyRead = await readBoundedTextBody(request.body, 4096, request.headers.get("content-length"));
+  if (!bodyRead.ok) {
+    if (bodyRead.reason === "too_large") return reply({ error: "request_too_large" }, 413);
+    return reply({ error: bodyRead.reason === "invalid_utf8" ? "invalid_json" : "invalid_request" }, 400);
+  }
+  const bodyText = bodyRead.text;
   let payload: unknown = {};
   if (bodyText.trim()) {
     try { payload = JSON.parse(bodyText) as unknown; } catch { return reply({ error: "invalid_json" }, 400); }
