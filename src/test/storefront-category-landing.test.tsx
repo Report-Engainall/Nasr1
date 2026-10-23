@@ -1,20 +1,16 @@
 import type { ReactNode } from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { storefrontCategorySlug } from "@/lib/storefront-slugs";
 
 const mocks = vi.hoisted(() => ({
   fetchCategories: vi.fn(),
   fetchProducts: vi.fn(),
-  fetchCatalogPage: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({
   fetchCategories: mocks.fetchCategories,
   fetchProducts: mocks.fetchProducts,
-}));
-
-vi.mock("@/lib/storefront-catalog", () => ({
-  fetchStorefrontCatalogPage: mocks.fetchCatalogPage,
 }));
 
 vi.mock("@/components/Storefront", () => ({
@@ -34,61 +30,51 @@ import { StorefrontCategoryLandingPage } from "@/components/StorefrontCategoryLa
 const CATEGORY = {
   id: "11111111-1111-4111-8111-111111111111",
   name: "مواد غذائية",
-  slug: "food",
+  name_en: null,
   parent_id: null,
   is_active: true,
 };
+const CATEGORY_SLUG = storefrontCategorySlug({
+  id: CATEGORY.id,
+  name: CATEGORY.name,
+  name_en: CATEGORY.name_en,
+});
 
-function categoryPage(totalCount: number) {
-  return {
-    items: [],
-    page: 1,
-    pageSize: 1,
-    totalCount,
-    hasNextPage: totalCount > 1,
-  };
-}
-
-describe("storefront category landing catalog counts", () => {
+describe("storefront category landing", () => {
   beforeEach(() => {
     mocks.fetchCategories.mockReset().mockResolvedValue([CATEGORY]);
     mocks.fetchProducts.mockReset().mockResolvedValue([]);
-    mocks.fetchCatalogPage.mockReset().mockResolvedValue(categoryPage(37));
   });
 
   afterEach(() => {
     cleanup();
   });
 
-  it("uses the existing paged server catalog count instead of fetching every product", async () => {
-    render(<StorefrontCategoryLandingPage categorySlug="food" />);
+  it("resolves the canonical category and delegates product loading to the paged Storefront", async () => {
+    render(<StorefrontCategoryLandingPage categorySlug={CATEGORY_SLUG} />);
 
-    expect(await screen.findByText(/37 صنف منشور يطابق هذا التصنيف/)).toBeInTheDocument();
-    expect(mocks.fetchCatalogPage).toHaveBeenCalledWith({
-      search: "",
-      categoryId: CATEGORY.id,
-      page: 1,
-      pageSize: 1,
-      availableOnly: false,
-    });
-    expect(mocks.fetchProducts).not.toHaveBeenCalled();
+    expect(await screen.findByRole("heading", { name: "مواد غذائية" })).toBeInTheDocument();
+    expect(screen.getByText("تُحمّل الأصناف المنشورة لهذا التصنيف من الكتالوج المرقّم.")).toBeInTheDocument();
     expect(screen.getByTestId("category-storefront")).toHaveAttribute("data-category-id", CATEGORY.id);
+    // The category shell does not download the entire product list just to validate/count a category.
+    expect(mocks.fetchProducts).not.toHaveBeenCalled();
+    expect(mocks.fetchCategories).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the category in a loading/error state when the count RPC fails and retries it", async () => {
-    mocks.fetchCatalogPage
-      .mockRejectedValueOnce(new Error("تعذر تحميل عدد أصناف التصنيف"))
-      .mockResolvedValueOnce(categoryPage(12));
+  it("keeps a category lookup failure visible and retries the existing category service", async () => {
+    mocks.fetchCategories
+      .mockRejectedValueOnce(new Error("تعذر تحميل التصنيفات"))
+      .mockResolvedValueOnce([CATEGORY]);
 
-    render(<StorefrontCategoryLandingPage categorySlug="food" />);
+    render(<StorefrontCategoryLandingPage categorySlug={CATEGORY_SLUG} />);
 
-    expect(await screen.findByText("تعذر تحميل عدد أصناف التصنيف")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "إعادة المحاولة" })).toBeInTheDocument();
+    expect(await screen.findByText("تعذر تحميل التصنيفات")).toBeInTheDocument();
     expect(screen.queryByTestId("category-storefront")).not.toBeInTheDocument();
-
     fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة" }));
-    expect(await screen.findByText(/12 صنف منشور يطابق هذا التصنيف/)).toBeInTheDocument();
+
+    expect(await screen.findByRole("heading", { name: "مواد غذائية" })).toBeInTheDocument();
+    expect(screen.getByTestId("category-storefront")).toHaveAttribute("data-category-id", CATEGORY.id);
     expect(mocks.fetchProducts).not.toHaveBeenCalled();
-    await waitFor(() => expect(mocks.fetchCatalogPage).toHaveBeenCalledTimes(2));
+    expect(mocks.fetchCategories).toHaveBeenCalledTimes(2);
   });
 });
