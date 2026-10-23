@@ -25,7 +25,7 @@ export function normalizeCustomerDirectorySearch(value: string): string {
     .replace(/[^\p{L}\p{N}\s+-]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 80);
+    .slice(0, 254);
 }
 
 /** Tenant-scoped server-side customer directory with exact count and bounded result pages. */
