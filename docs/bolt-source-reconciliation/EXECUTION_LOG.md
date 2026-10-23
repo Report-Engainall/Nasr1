@@ -1,3 +1,12 @@
+## P2 checkpoint refresh — 2026-10-23T16:55:00+03:00
+
+- Current verified main is `59547c7d683cefd65cab445b97219aa701021676`; current-main Core [39956957952](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952) = SUCCESS.
+- PR #83 head `91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`: Core [39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) succeeded on exact SHA. P2 [39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) remains in progress at Playwright Chromium OS dependencies; this step has a 15-minute timeout. No merge.
+- PR #95 updated to `024e155a2135a104a7dc1c6d8ced7e2018b0a467` after adding a fixture filter that excludes order lines with any prior return-request history. This prevents the acceptance case from bypassing the return-request quota/path. Core [39964921878](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921878) is in progress at unit tests; P2 [39964921887](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921887) has its local Supabase job queued. Prior head `d2f904...` passed Core/P2 and printed `PASS staff receivables aging`, but that evidence is historical for the new head.
+- PR #92 docs branch is the sole current-state/report/log update path. Matrix and `WORK_COORDINATION.md` remain under PR #43 lock; no parallel changes were made to those paths. No direct write to main or external/production calls.
+
+---
+
 ## P2 checkpoint — central sessions plus receivables credit-memo parity — 2026-10-23T16:47:00+03:00
 
 - Live main SHA: `59547c7d683cefd65cab445b97219aa701021676`; current main Core run [39956957952](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952) = SUCCESS.
