@@ -1,8 +1,107 @@
+import { useState } from 'react';
 import { BarChart3, Package, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
 import { Empty, ErrorBox, Loading } from '@/components/AdminPages';
 import { fetchStoreExecutiveAnalytics } from '@/lib/api';
+import { StaffDashboardMetrics } from '@/components/StaffDashboardMetrics';
+import { buildSalesForecast, calculateWhatIfSales } from '@/lib/sales-forecast';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { useFetch } from '@/lib/useFetch';
+
+function SalesForecastPanel({ points }: { points: ReadonlyArray<{ day: string; orders: number; sales: number }> }) {
+  const [changePercent, setChangePercent] = useState('0');
+  const forecast = buildSalesForecast(points);
+
+  if (!forecast.ready) {
+    const reason = forecast.reason === 'insufficient_history'
+      ? 'يلزم 21 يومًا متتاليًا على الأقل قبل إظهار تقدير قابل للاختبار.'
+      : forecast.reason === 'missing_days'
+        ? 'توجد فجوات في تواريخ المصدر. لم تُحوّل الأيام المفقودة إلى مبيعات صفرية.'
+        : 'توجد تواريخ أو قيم مبيعات غير صالحة؛ أُوقف التقدير بدل تخمين القيم.';
+    return (
+      <section className="panel" style={{ marginTop: 16 }} aria-live="polite">
+        <div className="panel-head">
+          <div>
+            <h3>التقدير التنبؤي للمبيعات</h3>
+            <p>لا يُعرض التقدير إلا بعد فحص اكتمال السلسلة التاريخية وصلاحية مبالغها.</p>
+          </div>
+          <TrendingUp size={20} />
+        </div>
+        <p className="report-note">{reason} الأيام الصالحة المتاحة: {forecast.availableDays}.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel" style={{ marginTop: 16 }}>
+      <div className="panel-head">
+        <div>
+          <h3>التقدير التنبؤي للمبيعات — 7 أيام</h3>
+          <p>خط أساس حتمي من متوسط آخر 7 أيام، بعد اختباره على 7 أيام تاريخية سابقة.</p>
+        </div>
+        <TrendingUp size={20} />
+      </div>
+      <div className="report-grid">
+        <article className="report-metric">
+          <span>التقدير الأساسي للفترة</span>
+          <strong>{formatCurrency(forecast.expectedTotal)}</strong>
+          <small>متوسط يومي: {formatCurrency(forecast.dailyBaseline)}</small>
+        </article>
+        <article className="report-metric">
+          <span>سيناريو تخطيطي أقل</span>
+          <strong>{formatCurrency(forecast.lowerScenario)}</strong>
+          <small>الأساس مطروحًا منه خطأ الاختبار للفترة</small>
+        </article>
+        <article className="report-metric">
+          <span>سيناريو تخطيطي أعلى</span>
+          <strong>{formatCurrency(forecast.upperScenario)}</strong>
+          <small>الأساس مضافًا إليه خطأ الاختبار للفترة</small>
+        </article>
+        <article className="report-metric">
+          <span>متوسط الخطأ المطلق في الاختبار</span>
+          <strong>{formatCurrency(forecast.meanAbsoluteError)}</strong>
+          <small>لكل يوم من الأيام السبعة المختبرة</small>
+        </article>
+      </div>
+      <div style={{ overflowX: 'auto', marginTop: 12 }}>
+        <table>
+          <thead><tr><th>اليوم المتوقع</th><th>تقدير المبيعات</th></tr></thead>
+          <tbody>{forecast.days.map((day) => (
+            <tr key={day.day}><td>{formatDateShort(day.day)}</td><td>{formatCurrency(day.expectedSales)}</td></tr>
+          ))}</tbody>
+        </table>
+      </div>
+      <section aria-label="محاكاة سيناريو المبيعات" style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--border, #d6dfe4)' }}>
+        <h4>محاكاة «ماذا لو؟»</h4>
+        <p className="report-note">أدخل نسبة افتراضية من اختيارك لتوضيح أثرها الحسابي على خط الأساس. هذه ليست توقعًا إضافيًا ولا تغيّر بيانات المتجر.</p>
+        <label style={{ display: 'grid', gap: 6, maxWidth: 320, marginTop: 10 }}>
+          <span>التغير الافتراضي في المبيعات (%) — من ‎-100 إلى ‎500</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={-100}
+            max={500}
+            step={1}
+            value={changePercent}
+            onChange={(event) => setChangePercent(event.currentTarget.value)}
+            aria-describedby="sales-what-if-help"
+            style={{ minHeight: 40, padding: '8px 10px', border: '1px solid var(--border, #d6dfe4)', borderRadius: 8, maxWidth: 220 }}
+          />
+        </label>
+        <p id="sales-what-if-help" className="report-note" style={{ marginTop: 8 }}>
+          {calculateWhatIfSales(forecast.expectedTotal, changePercent.trim() === '' ? Number.NaN : Number(changePercent)) === null
+            ? 'أدخل نسبة رقمية ضمن الحدود المحددة. لم يتم حساب سيناريو غير صالح.'
+            : <>القيمة الحسابية الافتراضية للفترة: <strong>{formatCurrency(calculateWhatIfSales(forecast.expectedTotal, Number(changePercent)) as number)}</strong></>}
+        </p>
+      </section>
+      <p className="report-note" style={{ marginTop: 12 }}>
+        يغطي هذا التقدير الأيام السبعة التالية لآخر يوم متاح في المصدر ({formatDateShort(forecast.lastHistoricalDay)}).
+        حُسب متوسط الخطأ بمقارنة كل يوم من آخر 7 أيام فعلية بمتوسط الأيام السبعة السابقة له.
+        نطاق التخطيط هو الأساس ± (متوسط الخطأ × 7)، وليس نطاق ثقة إحصائيًا أو وعدًا بالإيراد.
+        لا يغيّر التقدير الطلبات أو المخزون أو القيود المالية ولا يثبت سببًا تجاريًا.
+      </p>
+    </section>
+  );
+}
 
 export function ExecutiveStoreAnalytics() {
   const { data, loading, error, refetch } = useFetch(fetchStoreExecutiveAnalytics);
@@ -107,11 +206,13 @@ export function ExecutiveStoreAnalytics() {
               )}
             </section>
           </div>
+          <SalesForecastPanel points={data.sales_trend} />
           <p className="report-note" style={{ marginTop: 12 }}>
             آخر تحديث: {formatDateShort(data.generated_at)}. مصدر الأرقام هو سجل الطلبات وبنوده في المؤسسة الحالية؛ اتجاه المبيعات يستبعد الحالات الملغاة والمرفوضة ولا يقدّر البيانات المفقودة.
           </p>
         </>
       )}
+      <StaffDashboardMetrics />
     </section>
   );
 }

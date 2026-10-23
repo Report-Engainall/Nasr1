@@ -6,13 +6,14 @@ import {
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
 } from 'lucide-react';
 import {
-  createCategory, createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
+  createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
   fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updatePricingRule, updateProduct, uploadProductImage,
   approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
+import { archiveAdminCatalogCategory, createAdminCatalogCategory, renameAdminCatalogCategory } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
@@ -29,6 +30,7 @@ import { buildBusinessSignals, buildBusinessStatusBreakdown } from '@/lib/busine
 import { PricingGrid } from '@/components/PricingGrid';
 import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
+import { CustomerActivationInvitationDialog } from '@/components/CustomerActivationInvitationDialog';
 import { TaskCenter } from '@/components/TaskCenter';
 import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
 import { InventoryTransferHistoryPage } from '@/components/InventoryTransferHistoryPage';
@@ -466,10 +468,10 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
 }
 
 function Customers({ onNotice }: { onNotice: (m: string) => void }) {
-  const { data, loading, error, refetch } = useFetch(fetchCustomers); const { user } = useAuth(); const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager')); const [query, setQuery] = useState(''); const [modal, setModal] = useState(false); const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const { data, loading, error, refetch } = useFetch(fetchCustomers); const { user } = useAuth(); const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager')); const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff')); const [query, setQuery] = useState(''); const [modal, setModal] = useState(false); const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null); const [activationCustomer, setActivationCustomer] = useState<Customer | null>(null);
   const rows = (data ?? []).filter((c) => `${c.business_name} ${c.phone ?? ''} ${c.customer_code}`.includes(query));
   async function status(id: string, next: string) { try { await updateCustomerStatus(id, next); refetch(); onNotice(next === 'approved' ? 'تم اعتماد العميل' : 'تم تحديث حالة العميل'); } catch (e) { onNotice(e instanceof Error ? e.message : 'تعذر تحديث العميل'); } }
-  return <><Heading eyebrow="المبيعات والعملاء" title="إدارة العملاء" description="اعتماد الحسابات ومتابعة الأرصدة وشرائح الأسعار" icon={Users} /><div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} عميل مسجل</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => setModal(true)}><Plus size={17} /> إضافة عميل</Button></div></div><section className="panel table-panel"><div className="table-head"><h2>دليل العملاء</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث عن عميل..." /></label></div>{loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table><thead><tr><th>العميل</th><th>جهة الاتصال</th><th>الشريحة</th><th>الرصيد</th><th>الحد الائتماني</th><th>الحالة</th><th /></tr></thead><tbody>{rows.map((c) => <tr key={c.id}><td><strong>{c.business_name}</strong><small>{c.customer_code}</small></td><td>{c.contact_name ?? '—'}<small>{c.phone ?? '—'}</small></td><td><span className="tier">{c.tier === 'vip' ? 'مميز' : c.tier === 'wholesale' ? 'جملة' : 'تجزئة'}</span></td><td className={c.current_balance > 0 ? 'amount-danger' : ''}>{formatCurrency(c.current_balance)}</td><td>{formatCurrency(c.credit_limit)}</td><td><span className={`badge ${c.status === 'approved' ? 'success' : c.status === 'pending' ? 'warning' : 'danger'}`}>{c.status === 'approved' ? 'معتمد' : c.status === 'pending' ? 'قيد المراجعة' : 'موقوف'}</span></td><td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{canReadCustomer360 && <Button variant="outline" onClick={() => setSelectedCustomer(c)}>ملف 360</Button>}{c.status === 'pending' && <Button onClick={() => status(c.id, 'approved')}>اعتماد</Button>}</div></td></tr>)}</tbody></table></TableWrap>}</section>{selectedCustomer && <AdminCustomer360 customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />}{modal && <CustomerModal onClose={() => setModal(false)} onSaved={() => { setModal(false); refetch(); onNotice('تمت إضافة العميل'); }} />}</>;
+  return <><Heading eyebrow="المبيعات والعملاء" title="إدارة العملاء" description="اعتماد الحسابات ومتابعة الأرصدة وشرائح الأسعار" icon={Users} /><div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} عميل مسجل</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => setModal(true)}><Plus size={17} /> إضافة عميل</Button></div></div><section className="panel table-panel"><div className="table-head"><h2>دليل العملاء</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث عن عميل..." /></label></div>{loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table><thead><tr><th>العميل</th><th>جهة الاتصال</th><th>الشريحة</th><th>الرصيد</th><th>الحد الائتماني</th><th>الحالة</th><th /></tr></thead><tbody>{rows.map((c) => <tr key={c.id}><td><strong>{c.business_name}</strong><small>{c.customer_code}</small></td><td>{c.contact_name ?? '—'}<small>{c.phone ?? '—'}</small></td><td><span className="tier">{c.tier === 'vip' ? 'مميز' : c.tier === 'wholesale' ? 'جملة' : 'تجزئة'}</span></td><td className={c.current_balance > 0 ? 'amount-danger' : ''}>{formatCurrency(c.current_balance)}</td><td>{formatCurrency(c.credit_limit)}</td><td><span className={`badge ${c.status === 'approved' ? 'success' : c.status === 'pending' ? 'warning' : 'danger'}`}>{c.status === 'approved' ? 'معتمد' : c.status === 'pending' ? 'قيد المراجعة' : 'موقوف'}</span></td><td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{canReadCustomer360 && <Button variant="outline" onClick={() => setSelectedCustomer(c)}>ملف 360</Button>}{canManageCustomerActivation && c.status === 'approved' && <Button variant="outline" onClick={() => setActivationCustomer(c)}>دعوة تفعيل</Button>}{c.status === 'pending' && <Button onClick={() => status(c.id, 'approved')}>اعتماد</Button>}</div></td></tr>)}</tbody></table></TableWrap>}</section>{selectedCustomer && <AdminCustomer360 customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />}{activationCustomer && <CustomerActivationInvitationDialog customer={activationCustomer} onClose={() => setActivationCustomer(null)} />}{modal && <CustomerModal onClose={() => setModal(false)} onSaved={() => { setModal(false); refetch(); onNotice('تمت إضافة العميل'); }} />}</>;
 }
 function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [business, setBusiness] = useState('');
@@ -914,16 +916,71 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
   const [section, setSection] = useState<'categories' | 'import' | 'onyx'>('categories');
   const { data: categories, loading, error, refetch } = useFetch(fetchCategories);
   const [name, setName] = useState('');
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [renamingId, setRenamingId] = useState<string | null>(null);
 
   async function add() {
     if (!name.trim()) return;
     try {
-      await createCategory({ name, is_active: true, sort_order: (categories?.length ?? 0) + 1 });
+      await createAdminCatalogCategory(name);
       setName('');
       await refetch();
       onNotice('تمت إضافة التصنيف');
     } catch (cause) {
       onNotice(cause instanceof Error ? cause.message : 'تعذر إضافة التصنيف');
+    }
+  }
+
+  async function archive(category: Category) {
+    if (!canManageImports || category.is_active === false) return;
+    if (!window.confirm(`هل تريد أرشفة التصنيف «${category.name}»؟ سيبقى السجل محفوظًا، ولن يُحذف.`)) return;
+    setArchivingId(category.id);
+    try {
+      const result = await archiveAdminCatalogCategory(category.id);
+      if (result.id !== category.id || result.is_active !== false || result.archived !== true) {
+        throw new Error('لم يؤكد الخادم أرشفة التصنيف.');
+      }
+      await refetch();
+      onNotice('تمت أرشفة التصنيف');
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذر أرشفة التصنيف');
+    } finally {
+      setArchivingId(null);
+    }
+  }
+
+  function beginRename(category: Category) {
+    if (!canManageImports || category.is_active === false || renamingId !== null || archivingId !== null) return;
+    setEditingCategoryId(category.id);
+    setRenameDraft(category.name);
+  }
+
+  function cancelRename() {
+    if (renamingId !== null) return;
+    setEditingCategoryId(null);
+    setRenameDraft('');
+  }
+
+  async function renameCategory(category: Category) {
+    const nextName = renameDraft.trim();
+    if (!canManageImports || category.is_active === false || editingCategoryId !== category.id
+      || !nextName || renamingId !== null || archivingId !== null) return;
+    setRenamingId(category.id);
+    try {
+      const result = await renameAdminCatalogCategory(category.id, nextName);
+      if (result.id !== category.id || result.name !== nextName || typeof result.renamed !== 'boolean') {
+        throw new Error('لم يؤكد الخادم إعادة تسمية التصنيف.');
+      }
+      setEditingCategoryId(null);
+      setRenameDraft('');
+      await refetch();
+      onNotice(result.renamed ? 'تم تحديث اسم التصنيف' : 'لم يتغير اسم التصنيف');
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذر تحديث اسم التصنيف');
+    } finally {
+      setRenamingId(null);
     }
   }
 
@@ -958,13 +1015,37 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
     <div className="data-layout">
       <section className="panel">
         <div className="panel-head"><div><h2>التصنيفات</h2><p>تستخدم لتنظيم المنتجات والتقارير</p></div></div>
-        <div className="inline-form">
+        {canManageImports && <div className="inline-form">
           <input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} placeholder="اسم التصنيف الجديد" />
           <Button onClick={() => void add()} disabled={!name.trim()}><Plus size={16} /> إضافة</Button>
-        </div>
+        </div>}
         {loading ? <Loading /> : error ? <ErrorBox message={error} /> : categories?.length
           ? <div className="category-list">{categories.map((category: Category) =>
-              <div key={category.id}><span>{category.name}</span><small>{category.code ?? 'بدون رمز'}</small></div>
+              <div key={category.id}>
+                {editingCategoryId === category.id && category.is_active !== false ? <>
+                  <input
+                    aria-label={`اسم التصنيف الجديد: ${category.name}`}
+                    value={renameDraft}
+                    onChange={(event) => setRenameDraft(event.target.value)}
+                    maxLength={100}
+                    disabled={renamingId === category.id}
+                  />
+                  <Button onClick={() => void renameCategory(category)} disabled={!renameDraft.trim() || renamingId !== null || archivingId !== null}>
+                    <Check size={16} /> {renamingId === category.id ? 'جار حفظ الاسم…' : 'حفظ الاسم'}
+                  </Button>
+                  <Button variant="outline" disabled={renamingId !== null} onClick={cancelRename}>إلغاء</Button>
+                </> : <>
+                  <span>{category.name}</span>
+                  {canManageImports && category.is_active !== false && <Button variant="outline" disabled={renamingId !== null || archivingId !== null} onClick={() => beginRename(category)}>
+                    <Pencil size={16} /> تعديل الاسم
+                  </Button>}
+                </>}
+                <small>{category.code ?? 'بدون رمز'}</small>
+                {category.is_active === false && <small className="text-muted">مؤرشف</small>}
+                {canManageImports && category.is_active !== false && <Button variant="outline" disabled={archivingId === category.id || renamingId !== null || editingCategoryId !== null} onClick={() => void archive(category)}>
+                  <Trash2 size={16} /> {archivingId === category.id ? 'جار الأرشفة…' : 'أرشفة'}
+                </Button>}
+              </div>
             )}</div>
           : <Empty text="لا توجد تصنيفات محفوظة لهذه المؤسسة بعد." />}
       </section>

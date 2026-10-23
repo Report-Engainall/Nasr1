@@ -62,6 +62,7 @@ import { Route as CompanyAcceptInvitationRouteImport } from './routes/company.ac
 import { Route as CompanyContactsRouteImport } from './routes/company.contacts'
 import { Route as CompanyMembersRouteImport } from './routes/company.members'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as CustomerActivateTokenRouteImport } from './routes/customer.activate.$token'
 import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 import { Route as OrdersIdRouteImport } from './routes/orders.$id'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
@@ -289,6 +290,11 @@ const InviteTokenRoute = InviteTokenRouteImport.update({
   path: '/invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CustomerActivateTokenRoute = CustomerActivateTokenRouteImport.update({
+  id: '/customer/activate/$token',
+  path: '/customer/activate/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrdersIndexRoute = OrdersIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -410,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/admin/audit': typeof AdminAuditRoute
   '/products': typeof ProductsRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/customer/activate/$token': typeof CustomerActivateTokenRoute
   '/catalog': typeof CatalogRoute
   '/collections': typeof CollectionsRoute
   '/offers': typeof OffersRoute
@@ -469,6 +476,7 @@ export interface FileRoutesByTo {
   '/admin/audit': typeof AdminAuditRoute
   '/products': typeof ProductsRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/customer/activate/$token': typeof CustomerActivateTokenRoute
   '/catalog': typeof CatalogRoute
   '/collections': typeof CollectionsRoute
   '/offers': typeof OffersRoute
@@ -530,6 +538,7 @@ export interface FileRoutesById {
   '/admin_/audit': typeof AdminAuditRoute
   '/products': typeof ProductsRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/customer/activate/$token': typeof CustomerActivateTokenRoute
   '/catalog': typeof CatalogRoute
   '/collections': typeof CollectionsRoute
   '/offers': typeof OffersRoute
@@ -589,6 +598,7 @@ export interface FileRouteTypes {
     | '/orders/'
     | '/api/invoice-pdf/$invoiceId'
     | '/invite/$token'
+    | '/customer/activate/$token'
     | '/catalog'
     | '/collections'
     | '/offers'
@@ -645,6 +655,7 @@ export interface FileRouteTypes {
     | '/orders'
     | '/api/invoice-pdf/$invoiceId'
     | '/invite/$token'
+    | '/customer/activate/$token'
     | '/catalog'
     | '/collections'
     | '/offers'
@@ -702,6 +713,7 @@ export interface FileRouteTypes {
     | '/orders/'
     | '/api/invoice-pdf/$invoiceId'
     | '/invite/$token'
+    | '/customer/activate/$token'
     | '/catalog'
     | '/collections'
     | '/offers'
@@ -761,6 +773,7 @@ export interface RootRouteChildren {
   AdminAuditRoute: typeof AdminAuditRoute
   ProductsRoute: typeof ProductsRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  CustomerActivateTokenRoute: typeof CustomerActivateTokenRoute
   CatalogRoute: typeof CatalogRoute
   CollectionsRoute: typeof CollectionsRoute
   OffersRoute: typeof OffersRoute
@@ -1174,6 +1187,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInvoicePdfInvoiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/customer/activate/$token': {
+      id: '/customer/activate/$token'
+      path: '/customer/activate/$token'
+      fullPath: '/customer/activate/$token'
+      preLoaderRoute: typeof CustomerActivateTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/invite/$token': {
       id: '/invite/$token'
       path: '/invite/$token'
@@ -1250,6 +1270,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminAuditRoute: AdminAuditRoute,
   ProductsRoute: ProductsRoute,
   InviteTokenRoute: InviteTokenRoute,
+  CustomerActivateTokenRoute: CustomerActivateTokenRoute,
   CatalogRoute: CatalogRoute,
   CollectionsRoute: CollectionsRoute,
   OffersRoute: OffersRoute,

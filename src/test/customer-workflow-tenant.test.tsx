@@ -465,6 +465,8 @@ describe("customer quote workspace tenant boundary", () => {
             business_name: "متجر الاختبار",
             contact_name: null,
           },
+          financial_details_visible: true,
+          customer_tier_visible: false,
         },
         error: null,
       };
@@ -488,6 +490,85 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.textContent).toContain("متجر الاختبار");
     expect(mocks.queries.some((query) => query.table === "customer_invoice_items")).toBe(false);
     expect(mocks.queries.some((query) => query.table === "customers")).toBe(false);
+  });
+
+  it("omits invoice price columns and totals when the server hides invoice financial details", async () => {
+    const invoiceId = "66666666-6666-4666-8666-666666666666";
+    mocks.user = {
+      id: USER_ID,
+      profileId: PROFILE_ID,
+      email: "ci-customer@example.test",
+      name: "CI Customer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.responses = {
+      customer_invoices: [{
+        id: invoiceId,
+        invoice_number: "INV-HIDDEN-001",
+        order_id: "77777777-7777-4777-8777-777777777777",
+        customer_id: "44444444-4444-4444-8444-444444444444",
+        status: "issued",
+        issued_at: "2026-10-15T09:00:00.000Z",
+        due_at: null,
+        currency: "YER",
+      }],
+      orders: [{
+        quantity_review_required: false,
+        customer_adjustment_note: null,
+        customer_payment_requested_at: null,
+        payment_request_status: "none",
+        status: "confirmed",
+      }],
+    };
+    mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
+      if (name !== "get_customer_invoice_pdf") return { data: null, error: null };
+      expect(args).toEqual({ p_invoice_id: invoiceId });
+      return {
+        data: {
+          invoice: {
+            id: invoiceId,
+            invoice_number: "INV-HIDDEN-001",
+            currency: "YER",
+          },
+          lines: [{
+            id: "88888888-8888-4888-8888-888888888888",
+            item_code: "000126",
+            description: "صنف مخفي السعر",
+            unit: "كرتون",
+            quantity: "2",
+          }],
+          customer: {
+            customer_code: "000043",
+            business_name: "عميل مخفي الأسعار",
+            contact_name: null,
+          },
+          financial_details_visible: false,
+          customer_tier_visible: false,
+        },
+        error: null,
+      };
+    });
+
+    await mountQuoteWorkspace("/invoices");
+    const openButton = Array.from(host?.querySelectorAll("button") ?? []).find((button) =>
+      button.textContent?.includes("عرض / طباعة"),
+    );
+    expect(openButton).toBeDefined();
+    await act(async () => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(host?.querySelector("[data-testid='invoice-prices-hidden']")?.textContent).toContain("مخفية");
+    const headers = Array.from(host?.querySelectorAll('[role="dialog"] th') ?? []).map((node) => node.textContent?.trim());
+    expect(headers).not.toContain("سعر الوحدة");
+    expect(headers).not.toContain("الإجمالي");
+    expect(headers).not.toContain("الإجمالي المستحق");
+    expect(host?.textContent).not.toContain("12.50");
+    expect(host?.textContent).not.toContain("25.00");
+    expect(host?.textContent).toContain("صنف مخفي السعر");
+    expect(mocks.queries.some((query) => query.table === "customer_invoice_items")).toBe(false);
   });
 
   it("warns when the customer invoice list reaches its 100-row read cap", async () => {
