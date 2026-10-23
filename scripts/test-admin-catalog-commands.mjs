@@ -12,6 +12,8 @@ const customerAuth = "11111111-1111-4111-8111-111111111111";
 const code = "CI-P1-CAT-001";
 const paginationCodes = ["CI-P1-PAGE-001", "CI-P1-PAGE-002", "CI-P1-PAGE-003"];
 const name = "CI P1 Category";
+const renamedName = "CI P1 Category Renamed";
+const collisionName = "CI P1 Category Collision";
 const foreignCode = "CI-P1-CAT-FOREIGN-001";
 const foreignName = "CI P1 Foreign Category";
 const metricsOrderNumbers = ["CI-P1-METRICS-PENDING","CI-P1-METRICS-CONFIRMED","CI-P1-METRICS-PROCESSING","CI-P1-METRICS-SHIPPED","CI-P1-METRICS-DELIVERED","CI-P1-METRICS-CANCELLED"];
@@ -77,8 +79,8 @@ async function cleanup() {
   await root.unsafe(
     "delete from public.audit_logs where organization_id=$1 and entity_id in " +
       "(select id from public.products where organization_id=$1 and item_code=$2 " +
-      "union all select id from public.categories where organization_id=$1 and name=$3)",
-    [org, code, name],
+      "union all select id from public.categories where organization_id=$1 and name=any($3::text[]))",
+    [org, code, [name, renamedName, collisionName]],
   ).catch(() => {});
   await root.unsafe(
     "delete from public.audit_logs where organization_id=$1 and entity_id in " +
@@ -92,9 +94,9 @@ async function cleanup() {
     [org, code, otherOrg, foreignCode],
   ).catch(() => {});
   await root.unsafe(
-    "delete from public.categories where (organization_id=$1 and name=$2) " +
+    "delete from public.categories where (organization_id=$1 and name=any($2::text[])) " +
       "or (organization_id=$3 and name=$4)",
-    [org, name, otherOrg, foreignName],
+    [org, [name, renamedName, collisionName], otherOrg, foreignName],
   ).catch(() => {});
   await root.unsafe(
     "delete from public.customers where organization_id=$1 and customer_code='CI-P1-CATALOG-LOCAL-CUSTOMER'",
@@ -185,6 +187,43 @@ async function main() {
   );
   assert.equal(categoryAgain.id, category.id, "duplicate category create is idempotent");
   assert.equal(categoryAgain.created, false);
+
+  const renamedCategory = await rpc(
+    admin,
+    "select public.rename_admin_catalog_category($1::uuid,$2) result",
+    [category.id, renamedName],
+  );
+  assert.equal(renamedCategory.id, category.id);
+  assert.equal(renamedCategory.name, renamedName);
+  assert.equal(renamedCategory.renamed, true, "a real category rename reports a change");
+
+  const renameNoOp = await rpc(
+    admin,
+    "select public.rename_admin_catalog_category($1::uuid,$2) result",
+    [category.id, "  " + renamedName + "  "],
+  );
+  assert.equal(renameNoOp.name, renamedName, "server trims category names");
+  assert.equal(renameNoOp.renamed, false, "replaying the same rename is an audited no-op without duplicate events");
+
+  const restoredCategory = await rpc(
+    admin,
+    "select public.rename_admin_catalog_category($1::uuid,$2) result",
+    [category.id, name],
+  );
+  assert.equal(restoredCategory.name, name, "category can be renamed back without changing its stable ID");
+  assert.equal(restoredCategory.renamed, true);
+
+  const collisionCategory = await rpc(
+    admin,
+    "select public.create_admin_catalog_category($1,null,$2) result",
+    [collisionName, "CI-COLLISION"],
+  );
+  assert.ok(collisionCategory.id && collisionCategory.created, "duplicate-name fixture exists");
+  await assert.rejects(
+    () => rpc(admin, "select public.rename_admin_catalog_category($1::uuid,$2) result", [category.id, collisionName]),
+    /same name/i,
+    "renaming to an existing active sibling category is rejected",
+  );
 
   const payload = {
     name: "CI product",
@@ -490,11 +529,21 @@ async function main() {
     /category not found in organization/i,
     "a category in a different tenant cannot be archived",
   );
+  await assert.rejects(
+    () => rpc(admin, "select public.rename_admin_catalog_category($1::uuid,$2) result", [foreignCategory, "Tenant theft"]),
+    /category not found in organization/i,
+    "a category in a different tenant cannot be renamed",
+  );
 
   await assert.rejects(
     () => rpc(customer, "select public.create_admin_catalog_category($1,null,null) result", ["no access"]),
     /active admin or manager profile required/i,
     "customer cannot run staff category commands",
+  );
+  await assert.rejects(
+    () => rpc(customer, "select public.rename_admin_catalog_category($1::uuid,$2) result", [category.id, "no access"]),
+    /active admin or manager profile required/i,
+    "customer cannot rename categories",
   );
   await assert.rejects(
     () => rpc(customer, "select public.save_admin_catalog_product(null,$1::jsonb) result", [
@@ -510,6 +559,11 @@ async function main() {
     ),
     /permission denied/i,
     "direct category writes are denied",
+  );
+  await assert.rejects(
+    () => admin.unsafe("update public.categories set name='direct rename forbidden' where id=$1", [category.id]),
+    /permission denied/i,
+    "direct category rename is denied; use the audited category RPC",
   );
   await assert.rejects(
     () => admin.unsafe(
@@ -570,6 +624,11 @@ async function main() {
     false,
     "category archive is soft and preserves the row",
   );
+  await assert.rejects(
+    () => rpc(admin, "select public.rename_admin_catalog_category($1::uuid,$2) result", [category.id, "Archived name"]),
+    /archived category cannot be renamed/i,
+    "archived categories cannot be renamed",
+  );
 
   const actor = (await root.unsafe(
     "select id from public.profiles where auth_user_id=$1",
@@ -587,6 +646,7 @@ async function main() {
     "catalog.product_updated",
     "product.price_grid_updated",
     "catalog.product_archived",
+    "catalog.category_renamed",
     "catalog.category_archived",
   ]) {
     assert.ok(actions.has(action), "missing audit action: " + action);
@@ -702,7 +762,7 @@ async function main() {
   await customer.unsafe("reset role");
   await cleanup();
   console.log(
-    "PASS admin catalog + finance dashboard: catalog CRUD/strict prices/audit/tenant DML denial; dashboard KPI mapping, finance aggregates, unknown-stock/multi-unit and multi-currency safety, and cross-tenant isolation",
+    "PASS admin catalog + finance dashboard: category create/rename/no-op/duplicate/archive, strict price writes, audit/RBAC/tenant/DML boundaries, dashboard KPI mapping, finance aggregates and unknown-stock/multi-currency safety",
   );
 }
 
