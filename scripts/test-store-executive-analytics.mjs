@@ -97,6 +97,12 @@ async function main() {
     [ids.authUser, email],
   );
   await db.unsafe(
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+      "values($1::uuid,$1::uuid,now(),now(),now(),null,'CI isolated executive analytics session','127.0.0.1'::inet) " +
+      "on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+    [ids.authUser],
+  );
+  await db.unsafe(
     "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
       "values($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text,true)",
     [ids.profile, ids.authUser, ids.organization, "CI Executive Analytics Staff", email],
