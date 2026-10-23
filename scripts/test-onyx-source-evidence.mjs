@@ -268,6 +268,190 @@ async function main() {
     assert.equal(mismatch.import_job.file_hash_matches_snapshot, false);
     assert.equal(mismatch.source_identity.provenance_status, "linked_hash_mismatch");
 
+    // Exercise export provenance and idempotency against persisted order rows in this rollback-only DB fixture.
+    await db.unsafe("reset role");
+    const exportCustomer = uuid(), exportOrder = uuid(), productExact = uuid(), productDuplicate = uuid(), productMiss = uuid();
+    const codeExact = "CI-SKU-" + suffix + "-3", codeDuplicate = "CI-SKU-" + suffix + "-4", codeMiss = "CI-NOT-FOUND-" + suffix;
+    await db.unsafe(
+      "insert into public.onyx_snapshot_rows(organization_id,snapshot_id,row_number,canonical_key,row_hash,status,data,errors) " +
+      "values($1::uuid,$2::uuid,22,$3::text,pg_catalog.md5($4::jsonb::text),'valid',$4::jsonb,'[]'::jsonb)",
+      [organizationId,matchedSnapshotId,codeDuplicate,db.json({item_code:codeDuplicate,external_id:"DUPLICATE-EXT"})],
+    );
+    await db.unsafe(
+      "insert into public.customers(id,organization_id,customer_code,business_name,tier,status) values($1::uuid,$2::uuid,$3::text,$4::text,'retail','approved')",
+      [exportCustomer,organizationId,"CI-EXP-"+suffix,"CI export customer"],
+    );
+    await db.unsafe(
+      "insert into public.products(id,organization_id,name,item_code,unit,base_price,cost_price,status) " +
+      "values($1::uuid,$4::uuid,'Exact',$5::text,'piece',10,5,'active'),($2::uuid,$4::uuid,'Duplicate',$6::text,'piece',10,5,'active'),($3::uuid,$4::uuid,'Missing',$7::text,'piece',10,5,'active')",
+      [productExact,productDuplicate,productMiss,organizationId,codeExact,codeDuplicate,codeMiss],
+    );
+    await db.unsafe(
+      "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,created_by) " +
+      "values($1::uuid,$2::uuid,$3::uuid,$4::text,'confirmed',30,3,$5::uuid)",
+      [exportOrder,organizationId,exportCustomer,"CI-ONYX-"+suffix,managerProfileId],
+    );
+    await db.unsafe(
+      "insert into public.order_items(order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,unit_price_snapshot,line_total) " +
+      "values($1::uuid,$2::uuid,$3::text,'Exact','piece',1,10,10),($1::uuid,$4::uuid,$5::text,'Duplicate','piece',1,10,10),($1::uuid,$6::uuid,$7::text,'Missing','piece',1,10,10)",
+      [exportOrder,productExact,codeExact,productDuplicate,codeDuplicate,productMiss,codeMiss],
+    );
+
+    await setIdentity(managerAuthId, "onyx-evidence-manager-" + suffix + "@example.test");
+    const exportRequestKey = uuid();
+    const exportRows = await db.unsafe(
+      "select public.record_onyx_order_export($1::uuid,3,$2::uuid,$3::uuid) as audit_id",
+      [exportOrder,matchedSnapshotId,exportRequestKey],
+    );
+    const exportAuditId = exportRows[0].audit_id;
+    const auditRows = await db.unsafe("select organization_id,new_value from public.audit_logs where id=$1::uuid", [exportAuditId]);
+    assert.equal(auditRows[0].organization_id,organizationId);
+    const trace = asJson(auditRows[0].new_value).source_trace;
+    assert.equal(trace.organization_id,organizationId);
+    assert.equal(trace.snapshot.id,matchedSnapshotId);
+    assert.equal(trace.snapshot.source_import_job_id,matchedJobId);
+    assert.equal(trace.import_job.file_hash_matches_snapshot,true);
+    assert.equal(trace.item_counts.matched,1);
+    assert.equal(trace.item_counts.ambiguous,1);
+    assert.equal(trace.item_counts.unmatched,1);
+    assert.equal(trace.item_mappings.find((row)=>row.item_code===codeExact).external_ids.external_id,"EXT-CI-"+suffix+"-3");
+    assert.equal(trace.item_mappings.find((row)=>row.item_code===codeDuplicate).source_mapping_status,"ambiguous");
+    assert.deepEqual(trace.item_mappings.find((row)=>row.item_code===codeDuplicate).external_ids,{});
+    assert.equal(trace.item_mappings.find((row)=>row.item_code===codeMiss).source_mapping_status,"unmatched");
+    assert.equal(trace.live_sync_evidence.live_connection_proven,false);
+    const replay = await db.unsafe(
+      "select public.record_onyx_order_export($1::uuid,3,$2::uuid,$3::uuid) as audit_id",
+      [exportOrder,matchedSnapshotId,exportRequestKey],
+    );
+    assert.equal(replay[0].audit_id,exportAuditId,"identical export retry returns the original audit row");
+    await expectFailure("export request key cannot bind another source snapshot",()=>db.unsafe(
+      "select public.record_onyx_order_export($1::uuid,3,null::uuid,$2::uuid)",[exportOrder,exportRequestKey]
+    ),/already bound to a different order or source snapshot/i);
+    const noSource = await db.unsafe(
+      "select public.record_onyx_order_export($1::uuid,3,null::uuid,$2::uuid) as audit_id",[exportOrder,uuid()]
+    );
+    const noSourceRows = await db.unsafe("select new_value from public.audit_logs where id=$1::uuid",[noSource[0].audit_id]);
+    const noSourceTrace = asJson(noSourceRows[0].new_value).source_trace;
+    assert.equal(noSourceTrace.source_trace_status,"snapshot_not_selected");
+    assert.equal(noSourceTrace.item_counts.snapshot_not_selected,3);
+    assert.equal(asJson(noSourceRows[0].new_value).live_sync_triggered,false);
+
+    // Successful provider evidence must be generated through the service-only attempt state machine.
+    const access = await db.unsafe(
+      "select has_function_privilege('authenticated','public.record_onyx_live_sync_attempt(text,text,uuid,uuid,uuid,uuid,text,integer,text,text,text,text)','EXECUTE') as user_exec,"+
+      "has_function_privilege('service_role','public.record_onyx_live_sync_attempt(text,text,uuid,uuid,uuid,uuid,text,integer,text,text,text,text)','EXECUTE') as service_exec"
+    );
+    assert.equal(access[0].user_exec,false); assert.equal(access[0].service_exec,true);
+    await db.unsafe("reset role");
+    await db.unsafe("select set_config('request.jwt.claim.role','service_role',false)");
+    await db.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({role:"service_role"})]);
+    await db.unsafe("set role service_role");
+    const requestHash = "1".repeat(64);
+    const responseHash = "2".repeat(64);
+    const externalRequestId = "CI-ONYX-" + suffix;
+    const start = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,null::uuid,$5::text,null::integer,null::text,null::text,null::text,null::text) as id",
+      ["inventory_pull","started",organizationId,matchedSnapshotId,requestHash]
+    );
+    const successfulId = start[0].id;
+
+    await expectFailure(
+      "Onyx finalization rejects a request fingerprint different from the stored attempt",
+      () => db.unsafe(
+        "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text)",
+        ["inventory_pull","succeeded",organizationId,matchedSnapshotId,successfulId,"f".repeat(64),200,externalRequestId,responseHash]
+      ),
+      /request fingerprint does not match the persisted attempt/i,
+    );
+    await expectFailure(
+      "Onyx finalization rejects rebinding a snapshot that was already selected",
+      () => db.unsafe(
+        "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text)",
+        ["inventory_pull","succeeded",organizationId,mismatchSnapshotId,successfulId,requestHash,200,externalRequestId,responseHash]
+      ),
+      /snapshot is already bound to a different snapshot/i,
+    );
+    // These failed statements must be atomic: finalization with the originally persisted
+    // request hash and snapshot below must still succeed on this same attempt ID.
+    const finalized = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text) as id",
+      ["inventory_pull","succeeded",organizationId,matchedSnapshotId,successfulId,requestHash,200,externalRequestId,responseHash]
+    );
+    assert.equal(finalized[0].id,successfulId,"the matching persisted request fingerprint must finalize the same attempt");
+    const exactRetry = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text) as id",
+      ["inventory_pull","succeeded",organizationId,matchedSnapshotId,successfulId,requestHash,200,externalRequestId,responseHash]
+    );
+    assert.equal(exactRetry[0].id,successfulId,"an identical finalization retry returns the original attempt");
+    const retryWithoutOptionalExternalId = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,null::text,$8::text,null::text,null::text) as id",
+      ["inventory_pull","succeeded",organizationId,matchedSnapshotId,successfulId,requestHash,200,responseHash]
+    );
+    assert.equal(retryWithoutOptionalExternalId[0].id,successfulId,"omitting an optional provider request ID retains the recorded ID on retry");
+    await expectFailure(
+      "Onyx finalization rejects a changed result after the attempt was already finalized",
+      () => db.unsafe(
+        "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text)",
+        ["inventory_pull","succeeded",organizationId,matchedSnapshotId,successfulId,requestHash,200,externalRequestId,"9".repeat(64)]
+      ),
+      /already finalized with a different result/i,
+    );
+    await expectFailure(
+      "Onyx finalization cannot reassign a snapshot after success",
+      () => db.unsafe(
+        "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text)",
+        ["inventory_pull","succeeded",organizationId,mismatchSnapshotId,successfulId,requestHash,200,externalRequestId,responseHash]
+      ),
+      /snapshot is already bound to a different snapshot/i,
+    );
+
+    // Inventory pulls may bind a produced snapshot once when no snapshot was selected at start.
+    const lateBoundStart = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,null::uuid,null::uuid,null::uuid,$4::text,null::integer,null::text,null::text,null::text,null::text) as id",
+      ["inventory_pull","started",organizationId,"5".repeat(64)]
+    );
+    const lateBoundId = lateBoundStart[0].id;
+    const lateBoundResult = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text) as id",
+      ["inventory_pull","succeeded",organizationId,mismatchSnapshotId,lateBoundId,"5".repeat(64),200,"CI-ONYX-LATE-"+suffix,"6".repeat(64)]
+    );
+    assert.equal(lateBoundResult[0].id,lateBoundId,"an inventory pull may bind its resulting snapshot when finalized");
+    await expectFailure(
+      "a late-bound inventory-pull snapshot cannot be changed after successful finalization",
+      () => db.unsafe(
+        "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text)",
+        ["inventory_pull","succeeded",organizationId,matchedSnapshotId,lateBoundId,"5".repeat(64),200,"CI-ONYX-LATE-"+suffix,"6".repeat(64)]
+      ),
+      /snapshot is already bound to a different snapshot/i,
+    );
+    const failStart = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,null::uuid,$5::text,null::integer,null::text,null::text,null::text,null::text) as id",
+      ["inventory_pull","started",organizationId,matchedSnapshotId,"3".repeat(64)]
+    );
+    await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,null::text,$9::text,$10::text)",
+      ["inventory_pull","failed",organizationId,matchedSnapshotId,failStart[0].id,"3".repeat(64),504,"CI-FAILED-"+suffix,"REMOTE_TIMEOUT","Provider timeout"]
+    );
+    // A later attempt with no selected snapshot must not appear as if it belonged to the saved snapshot.
+    const unlinkedStart = await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,null::uuid,null::uuid,null::uuid,$4::text,null::integer,null::text,null::text,null::text,null::text) as id",
+      ["inventory_pull","started",organizationId,"4".repeat(64)]
+    );
+    await db.unsafe(
+      "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,null::uuid,null::uuid,$4::uuid,$5::text,$6::integer,$7::text,null::text,$8::text,$9::text)",
+      ["inventory_pull","failed",organizationId,unlinkedStart[0].id,"4".repeat(64),504,"CI-UNLINKED-"+suffix,"UNLINKED_TIMEOUT","No snapshot selected"]
+    );
+    await setIdentity(managerAuthId, "onyx-evidence-manager-" + suffix + "@example.test");
+    const syncRows = await db.unsafe("select public.get_onyx_live_sync_attempt_evidence($1::uuid) as payload",[matchedSnapshotId]);
+    const sync = asJson(syncRows[0].payload);
+    assert.equal(sync.last_sync_attempt.status,"failed");
+    assert.equal(sync.last_sync_attempt.error_code,"REMOTE_TIMEOUT");
+    assert.equal(sync.last_sync_attempt.snapshot_id,matchedSnapshotId,"the last attempt shown for a snapshot must actually be linked to that snapshot");
+    assert.equal(sync.live_connection_proven,true,"the latest failure cannot erase a previous successful response");
+    assert.equal(sync.latest_successful_connection.id,lateBoundId,"latest successful connection is organization-wide and may refer to a different snapshot");
+    assert.equal(sync.snapshot_sync_proven,true);
+    assert.equal(sync.snapshot_sync_success.id,successfulId);
+
     await expectFailure(
       "manager cannot read a snapshot from another organization",
       () => readEvidence(missingSnapshotId),

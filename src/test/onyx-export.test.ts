@@ -9,6 +9,7 @@ const order = {
   orderCreatedAt: '2026-10-15T09:30:00.000Z',
   customerCode: '000042',
   customerName: 'شركة اختبار الأغبري',
+  sourceSnapshotId: '99999999-9999-4999-8999-999999999999',
   items: [{
     item_code: '000125',
     product_name_snapshot: 'سكر "برازيلي", 50ك',
@@ -78,6 +79,8 @@ describe('Onyx order workbook draft', () => {
     const headerXml = storedZipEntry(bytes, 'xl/worksheets/sheet2.xml');
     expect(headerXml).toContain('معرف سجل التدقيق المركزي');
     expect(headerXml).toContain(auditId);
+    expect(headerXml).toContain('معرف لقطة مصدر أونكس المختارة');
+    expect(headerXml).toContain(order.sourceSnapshotId);
     expect(headerXml).toContain('حالة توافق أونكس');
     expect(headerXml).toContain('غير مثبت');
   });
