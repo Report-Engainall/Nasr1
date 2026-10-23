@@ -48,7 +48,7 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
   // The allowlist excludes commas, parentheses, wildcards, and PostgREST filter operators.
   const emailSearch = rawSearch.normalize('NFKC').trim().toLowerCase();
   const isEmailSearch = emailSearch.length <= 254 &&
-    /^[a-z0-9._+-]+@[a-z0-9.-]+\\.[a-z]{2,63}$/i.test(emailSearch);
+    /^[a-z0-9._+-]+@[a-z0-9.-]+\.[a-z]{2,63}$/i.test(emailSearch);
   const search = isEmailSearch ? emailSearch : normalizeCustomerDirectorySearch(rawSearch);
   const scope = await getCurrentTenantScope();
   if (!scope.isStaff || !scope.organizationId) {
