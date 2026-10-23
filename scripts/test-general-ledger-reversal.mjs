@@ -157,10 +157,15 @@ export async function runGeneralLedgerReversalAcceptance({
     /journal entry not found in this organization/i,
   );
   const hiddenReversalLink = await db.unsafe(
-    "select id from public.accounting_journal_reversals where organization_id=$1::uuid",
-    [organizationId],
+    "select * from public.fetch_general_journal_reversal_links($1::uuid[])",
+    [[originalDraft.id, reversal.reversal_journal_entry_id]],
   );
-  assert.equal(hiddenReversalLink.length, 0, "RLS hides another tenant's reversal map");
+  assert.equal(hiddenReversalLink.length, 0, "the scoped RPC hides another tenant's reversal mapping");
+  await expectFailure(
+    "authenticated clients cannot read reversal mapping storage directly",
+    () => db.unsafe("select id from public.accounting_journal_reversals where organization_id=$1::uuid", [organizationId]),
+    /permission denied/i,
+  );
 
   await db.unsafe("reset role");
   await setIdentity(customerAuthUserId, "ci-customer-one@example.test");
