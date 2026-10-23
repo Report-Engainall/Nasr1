@@ -111,6 +111,7 @@ async function main() {
     const hiddenInvoice = hiddenInvoiceResult[0]?.result;
     assert.equal(hiddenInvoice?.financial_details_visible, false, "invoice PDF RPC must report disabled financial visibility");
     assert.equal(hiddenInvoice?.customer_tier_visible, false, "invoice PDF RPC must hide customer tier by default");
+    assert.equal(hiddenInvoice?.customer?.tier_label, undefined, "hidden invoice RPC must omit the customer tier label itself");
     assert.equal(hiddenInvoice?.invoice?.total_amount, undefined, "hidden invoice RPC response must omit invoice total");
     assert.equal(hiddenInvoice?.invoice?.subtotal, undefined, "hidden invoice RPC response must omit subtotal");
     assert.ok(Array.isArray(hiddenInvoice?.lines), "invoice non-financial line details remain available");
@@ -170,6 +171,8 @@ async function main() {
     );
     const visibleInvoice = visibleInvoiceResult[0]?.result;
     assert.equal(visibleInvoice?.financial_details_visible, true);
+    assert.equal(visibleInvoice?.customer_tier_visible, true, "authorized invoice payload should honor the separate tier-label policy");
+    assert.equal(visibleInvoice?.customer?.tier_label, "الجملة", "authorized invoice payload should include only the server-approved tier label");
     assert.ok(Number(visibleInvoice?.invoice?.total_amount) > 0, "authorized invoice payload includes amounts after setting change");
 
     // Even an accidentally overlapping manager + accountant profile may never receive products.base_price.
