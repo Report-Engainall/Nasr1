@@ -1,10 +1,10 @@
 # P3 execution checkpoint — Nasr1
 
-UPDATED_AT: 2026-10-23T17:31:40.611+03:00
-LAST_COMPLETED_TASK_ID: P3-P2-HANDOFF-LOCAL-PORT-GUARD-021 (diagnosed exact-SHA P2 fixture failure and posted owner handoff; not a P3-owned code fix)
+UPDATED_AT: 2026-10-23T17:36:00+03:00
+LAST_COMPLETED_TASK_ID: P3-CATEGORY-ASYNC-ASSERT-022 (test waits for the precise async not-found message; exact-SHA CI pending)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: 7d5fb61857ca27c84c1ae9fdba6a3e957fe8e658 (live branch SHA at checkpoint start; app/test SHA 418e25d1e9fc75145f27cf0668fb41a7e471c692; this documentation update creates a successor that needs its own exact-head CI readback)
+HEAD_SHA: 399699cad5afd953f396d4cee6b28cd62573f639 (source/test commit; checkpoint/report updates are documentation-only successors, so verify their current exact SHA and Actions)
 ROUTES_COVERED: /company/contacts; /company/members; /company/accept-invitation; /invite/$token; /customer/activate/$token; /categories; /category/$slug; /category/$slug/subcategory/$subcategorySlug; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /reset-password; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — route/component loading and direct-link regressions only; full all-route browser UAT remains open
 FILES_CHANGED: src/routes/index.tsx; src/test/customer-route-loading.test.tsx; src/components/StorefrontOffersPage.tsx; src/test/storefront-offers.test.tsx; src/components/AdvancedStorefrontSearchPage.tsx; src/test/advanced-storefront-search.test.tsx; src/components/Storefront.tsx; src/test/storefront-price-visibility-ui.test.tsx; src/test/storefront-category-landing.test.tsx; src/test/reset-password-route.test.tsx; docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md; docs/bolt-source-reconciliation/PROGRAMMER_3_CURRENT_REPORT.md
 - src/components/StorefrontCollectionsPage.tsx
@@ -47,6 +47,9 @@ TESTS_RUN_WITH_RESULTS:
 - External credential-gated customer-order/tenant E2E is SKIPPED because dedicated external credentials are unavailable; this is not PASS.
 - Full all-route browser UAT and production acceptance remain NOT RUN.
 - Historical route-test harness failure (7 assertions on SHA 39638915...) was corrected and later full Core succeeded; historical HTTP 429 dependency-cache errors are documented in the P2 handoff.
+TESTS_FAILED_OR_SKIPPED:
+- Source/test commit `399699cad5afd953f396d4cee6b28cd62573f639`: local test **NOT RUN**; exact-head CI not yet returned in this readback.
+- Previous PR head `ef2944351fe887c0c12e896ab52c67fe9965f2e4`: Core [39963003111](https://github.com/Report-Engainall/Nasr1/actions/runs/39963003111) **SUCCESS**; P2 [39963003108](https://github.com/Report-Engainall/Nasr1/actions/runs/39963003108) **CANCELLED**.
 DEFECTS_FOUND:
 - P3-CAT-ERR-001: source-specific category/catalog errors and retry implemented; earlier exact-SHA Core pass.
 - P3-CAT-COUNT-002: inactive products excluded and empty-category links suppressed; strengthened count/link test passed on parent SHA.
@@ -69,6 +72,7 @@ DEFECTS_FOUND:
 - `P2-LOCAL-SUPABASE-PORT-GUARD-021` → P2. Local Playwright job `39969630660`, job `120469135169`, exact failure: exported `TEST_DATABASE_URL` uses loopback port `55432` while `scripts/seed-p2-local-playwright.mjs` rejects anything but `54322`; PR handoff [comment 6367290450](https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6367290450). No P2-owned file was changed by P3.
 - P1: generator-backed route tree repair and direct /admin/exports proof; remaining 19 locked admin null fallbacks; no changes to P1 AghbariApp/auth/invitation/order-history paths.
 - P2: route-to-source mapping in existing matrix, backend/RPC/migration ownership and package-cache HTTP 429 in P2 Playwright.
+HANDOFF_TO_P1_OR_P2: P1 owns the generated /admin/exports route-tree registration and locked admin route wrappers; P2 owns the local-Supabase fixture port guard and shared route-to-source matrix. Existing P2 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6367290450. This P3 test-only fix requires no handoff.
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
 MERGE_STATUS: OPEN; UNMERGED; no formal independent approval recorded.
 BLOCKERS:
@@ -83,4 +87,4 @@ BLOCKERS:
 - Current exact-head Core #39968751206 is IN_PROGRESS and P2 #39968751364 is PENDING; earlier P2 runs were CANCELLED on superseded heads, not successful.
 - P2 dependency cache HTTP 429 on previous SHA, even after retry.
 - Local checkout DNS failure; all-route browser UAT/production proof NOT RUN.
-NEXT_ACTION: read exact-head CI for the checkpoint/report successor after this update. Continue an independent P3 route-acceptance task; track P2 handoff 6367290450 until the local Supabase fixture/Playwright run is rerun successfully. Do not edit P2 workflow/seed script, do not mark P2 acceptance PASS, and do not merge PR #89 without green current-head checks plus independent formal review.
+NEXT_ACTION: re-read the live branch head and exact-SHA Core/P2 Actions for the report/checkpoint successor; confirm the precise category not-found test, Core lint/build and Playwright outcome. Then continue one independent P3 route-acceptance defect while P2 resolves local-Supabase fixture setup. Keep PR #89 open until current-head checks are green and formal independent review is recorded.
