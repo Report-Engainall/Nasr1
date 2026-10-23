@@ -1,15 +1,16 @@
 # سجل التنسيق — المرجع الحي
 
-## ACTIVE P2 lock — payment idempotency — 2026-10-23T21:57:00+03:00
+## ACTIVE P2 lock — customer payment idempotency — 2026-10-23T22:20:00+03:00
 
-- Current verified main base: `cd303b7fe0f263c9f62ed97f10202e9895465273`, tree `51aa49eb36bbf6227c42612e35b1bf03e6b3360a`. The documentation reconciliation PR #111 is merged at this base. Do not write to main directly.
-- Core run [40006315985](https://github.com/Report-Engainall/Nasr1/actions/runs/40006315985) completed SUCCESS on exact main SHA `cd303b7fe0f263c9f62ed97f10202e9895465273`. P2 workflow for this exact main SHA has NOT RUN; run 40006269156 remains IN_PROGRESS on PR #111 head `64632871573b0d655051df9ac795c4cc76b68069`, not the merge SHA.
-- `FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD` is assigned exclusively to P2 on branch `p2/payment-idempotency-current-main-20261023b`, based on `cd303b7fe0f263c9f62ed97f10202e9895465273`.
-- Locked paths: `supabase/migrations/20261023235900_customer_payment_idempotency.sql`; `src/components/CustomerWorkflows.tsx`; `src/integrations/supabase/types.ts`; `src/components/CustomerWorkflows.finance.test.tsx`; `scripts/test-staff-receivables-aging-credit-memo-parity.mjs`; `scripts/test-database-migrations.mjs`.
-- P2 also owns the central state, acceptance matrix, this coordination file, current report, and execution log; update those sequentially on this branch. No P1/P3-owned screen or production DB is included.
-- Acceptance contract: same tenant/key and normalized payload returns the existing saved payment; changed payload with same key rejects; parallel same-key calls persist one row; different tenants may use the same key independently but cannot replay each other's payment; legacy 5-argument RPC overload is absent; anonymous role cannot execute the replacement RPC; UI retains key across ambiguous failure and same-payload retry. Preserve the exact tenant+invoice settlement lock namespace used by posted-credit journal posting.
-- Implementation files are committed; branch Core/PostgreSQL 17/Playwright tests remain NOT RUN until final PR-head workflow jobs finish. Release the lock only after merge and exact-main follow-up.
-- Historic entries follow and are retained for audit; this lock supersedes prior next-action-only descriptions.
+- Owner: P2 only. Repository `Report-Engainall/Nasr1`; feature branch `p2/payment-idempotency-current-main-20261023b`; base-main SHA `cd303b7fe0f263c9f62ed97f10202e9895465273`. No direct main writes.
+- Current PR: [#112](https://github.com/Report-Engainall/Nasr1/pull/112); branch/PR exact tested head `1ecfd0b343419e9745e5e8631ecea738c9f13862`.
+- Exact-head Core [40009788759](https://github.com/Report-Engainall/Nasr1/actions/runs/40009788759) SUCCESS; exact-head P2 [40009788309](https://github.com/Report-Engainall/Nasr1/actions/runs/40009788309) SUCCESS on the same tested SHA. Local PostgreSQL 17 and local Supabase Chromium acceptance both completed with no failed jobs.
+- Credential-gated hosted customer order/tenant E2E was SKIPPED, not PASS. External non-production credentials remain unavailable; no live production/financial writes.
+- CodeRabbit review was triggered against `1ecfd0b343419e9745e5e8631ecea738c9f13862`, but no completed formal review has been returned at this snapshot; check review output after the checkpoint head refresh.
+- The central checkpoint changes in this commit create a new PR head. Retest Core and P2 on that exact resulting SHA and retain these prior run links as history only; do not transfer PASS labels.
+- Locked paths: `supabase/migrations/20261023235900_customer_payment_idempotency.sql`; `src/components/CustomerWorkflows.tsx`; `src/integrations/supabase/types.ts`; `src/components/CustomerWorkflows.finance.test.tsx`; `scripts/test-staff-receivables-aging-credit-memo-parity.mjs`; `scripts/test-database-migrations.mjs`; P2-owned state/report/matrix/coordination/log.
+- Release the code lock only after PR merge plus exact post-merge main verification; meanwhile P1/P3-owned paths remain excluded.
+
 
 ## المصالحة الحالية — 2026-10-23T21:47:31+03:00
 
