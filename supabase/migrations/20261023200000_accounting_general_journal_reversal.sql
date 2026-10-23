@@ -348,3 +348,63 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.fetch_general_journal_reversal_links(uuid[]) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.fetch_general_journal_reversal_links(uuid[]) TO authenticated;
+
+-- Keep a created reversal draft available for explicit authorized posting.
+-- Voiding it would leave a permanent uniqueness link and make a safe retry impossible.
+CREATE OR REPLACE FUNCTION public.void_general_journal_draft(p_entry_id uuid,p_reason text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $
+DECLARE
+  v_actor uuid := public.current_profile_id();
+  v_org uuid;
+  v_reason text := pg_catalog.btrim(coalesce(p_reason,''));
+  v_entry public.accounting_journal_entries%ROWTYPE;
+BEGIN
+  SELECT p.organization_id INTO v_org
+    FROM public.profiles p
+   WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true;
+  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT public.operational_tasks_can_manage() THEN
+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='administrator or manager permission required to void a journal draft';
+  END IF;
+  IF p_entry_id IS NULL OR pg_catalog.char_length(v_reason) NOT BETWEEN 5 AND 500 THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='journal identifier and a reason between 5 and 500 characters are required';
+  END IF;
+  SELECT e.* INTO v_entry FROM public.accounting_journal_entries e
+   WHERE e.id=p_entry_id AND e.organization_id=v_org FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='journal entry not found in this organization';
+  END IF;
+  IF v_entry.status='void' THEN
+    IF v_entry.void_reason IS DISTINCT FROM v_reason THEN
+      RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='voided journal draft keeps its original reason';
+    END IF;
+    RETURN pg_catalog.jsonb_build_object('id',v_entry.id,'status',v_entry.status,'replayed',true);
+  END IF;
+  IF v_entry.status='draft' AND EXISTS (
+    SELECT 1 FROM public.accounting_journal_reversals r
+     WHERE r.organization_id=v_org AND r.reversal_journal_entry_id=v_entry.id
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE='22023',
+      MESSAGE='reversal draft cannot be voided; post the linked reversal explicitly';
+  END IF;
+  IF v_entry.status<>'draft' THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='posted journal entries cannot be voided through the draft cancellation operation';
+  END IF;
+  UPDATE public.accounting_journal_entries
+     SET status='void',voided_by_profile_id=v_actor,voided_at=pg_catalog.now(),
+         void_reason=v_reason,updated_at=pg_catalog.now()
+   WHERE id=v_entry.id AND organization_id=v_org
+   RETURNING * INTO v_entry;
+  INSERT INTO public.audit_logs(organization_id,actor_id,action,entity_type,entity_id,old_value,new_value)
+  VALUES (v_org,v_actor,'accounting.journal_draft_voided','accounting_journal_entry',v_entry.id,
+    pg_catalog.jsonb_build_object('status','draft'),
+    pg_catalog.jsonb_build_object('status','void','entry_number',v_entry.entry_number::text,'reason',v_reason));
+  RETURN pg_catalog.jsonb_build_object('id',v_entry.id,'status',v_entry.status,'replayed',false);
+END;
+$;
+REVOKE ALL ON FUNCTION public.void_general_journal_draft(uuid,text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.void_general_journal_draft(uuid,text) TO authenticated;
+

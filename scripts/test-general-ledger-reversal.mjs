@@ -190,6 +190,24 @@ export async function runGeneralLedgerReversalAcceptance({
   await db.unsafe("reset role");
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   await db.unsafe("set role authenticated");
+  await expectFailure(
+    "a linked reversal draft cannot be voided before explicit posting",
+    () => db.unsafe(
+      "select public.void_general_journal_draft($1::uuid,$2::text)",
+      [reversal.reversal_journal_entry_id, "Keep linked reversal draft available"],
+    ),
+    /reversal draft cannot be voided/i,
+  );
+  const stillDraft = await inspectReversalMappings(
+    "select reversal.status as reversal_status from public.accounting_journal_reversals r join public.accounting_journal_entries reversal on reversal.id=r.reversal_journal_entry_id and reversal.organization_id=r.organization_id where r.organization_id=$1::uuid and r.original_journal_entry_id=$2::uuid",
+    [organizationId, originalDraft.id],
+  );
+  assert.deepEqual(stillDraft.map((row) => row.reversal_status), ["draft"]);
+  const replayAfterDeniedVoid = await reverse(db, originalDraft.id, reversalReason, reversalKey);
+  assert.equal(replayAfterDeniedVoid.reversal_journal_entry_id, reversal.reversal_journal_entry_id);
+  assert.equal(replayAfterDeniedVoid.status, "draft");
+  assert.equal(replayAfterDeniedVoid.replayed, true, "a rejected void must leave the same reversal safely retryable");
+
   const postedReversal = await postJournal(db, reversal.reversal_journal_entry_id);
   assert.equal(postedReversal.status, "posted", "reversal becomes financial only after explicit posting");
   assert.equal(postedReversal.replayed, false);
