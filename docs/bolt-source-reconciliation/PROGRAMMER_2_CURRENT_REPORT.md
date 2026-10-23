@@ -1,10 +1,39 @@
-# تقرير P2 — الحالة الحية 2026-10-23T21:17:51+03:00
+# تقرير P2 — الحالة التنفيذية الحية 2026-10-23T23:41:00+03:00
 
 REPOSITORY=Report-Engainall/Nasr1
-MAIN_SHA=d81c9b34f819a53df7610937264c6fcb923c3f95; MAIN_TREE=8107f52d4d6c61845b95ed7226c5c7f03038a484
-MAIN_CORE_CI=IN_PROGRESS — run 40001438040 on exact current main SHA. Previous merge SHA 5dbb01f7cf2ac054212abc6f3ec34af1b1fe99df passed Core run 40001179290 on that exact merge SHA. Do not transfer this PASS to d81c9b34f819a53df7610937264c6fcb923c3f95.
-P2 on exact current main SHA = NOT RUN. PR #104 exact tested head 7f1110d95d26ece5d516b7267904a4f3f397f6ef: Core 40000512625 SUCCESS, P2 40000512706 SUCCESS. Hosted customer credential-dependent job 120575459434 was SKIPPED, not PASS.
-The only source delta after the PR #104 merge is the Bolt archive `docs/project-bolt-github-7sl6ykzz (5).zip`; current main Core is not terminal yet.
+MAIN_SHA=6815b00781412bd98cbdd9fb660e475e4540b543
+MAIN_TREE=28a1b4dd0084c88a2a7f22fd6dc38b3a21fb82a8
+MAIN_CORE_CI=SUCCESS — run 40019333142 on exact main SHA 6815b00781412bd98cbdd9fb660e475e4540b543.
+CURRENT_PR=https://github.com/Report-Engainall/Nasr1/pull/127
+CURRENT_BRANCH=feat/p2-company-workspace-acceptance-20261023
+BASE_SHA=6815b00781412bd98cbdd9fb660e475e4540b543
+TASK_ID=COMPANY-001-CUSTOMER-ADDRESS-VALIDATION
+TASK_STATUS=IMPLEMENTED; REGRESSION_TESTS_ADDED; FINAL-HEAD CORE/P2 PENDING
+MERGE_STATUS=OPEN; no direct main writes.
+LOCKED_PATHS=src/lib/customer-addresses.ts; src/test/customer-addresses.test.ts; five central P2 files.
+
+## Consolidated Company/address validation — existing PR #127
+
+PR #127 already owns `src/lib/customer-addresses.ts` and its tests and validates fetched rows, UUID, country, default flag and timestamps. An additional PR #129 was found touching these same two files, so the UUID acknowledgement/ID prevalidation fix is being transferred into #127 and #129 will close without merge.
+
+The additional gap: `save_customer_address` returns UUID, but the service accepted arbitrary non-empty strings as success; optional edit IDs and delete IDs were sent to RPC without UUID validation. The combined implementation requires UUID acknowledgement, rejects invalid edit/delete IDs before RPC, and adds regression coverage.
+
+No UI routes, migration, RLS, grants or membership/invitation/session code changed.
+
+## Evidence boundary
+
+- Main 6815b00781412bd98cbdd9fb660e475e4540b543, Core run 40019333142 SUCCESS on exact main SHA.
+- PR #126 exact head 2d1fddde5c8c9b3185dc19880ef5426129d28005: Core 40018779157 + P2 40018779193 SUCCESS.
+- PR #127 current head changes after this atomic code+checkpoint commit; exact-head Core and P2/PostgreSQL 17 must reach terminal SUCCESS on the same latest SHA. Earlier results do not prove the combined patch.
+- Hosted customer/tenant E2E is SKIPPED/BLOCKED_EXTERNAL if authorized non-production credentials are unavailable; it is not PASS.
+
+NEXT_TASK_ID=COMPANY-001-CUSTOMER-ADDRESS-VALIDATION
+NEXT_ACTION=Close PR #129 without merging after transfer; read current #127 HEAD; inspect latest exact-head Core/P2 statuses; fix evidenced defects; merge #127 through PR only after the gates succeed; verify main SHA and main Core.
+UPDATED_AT=2026-10-23T23:41:00+03:00
+
+---
+
+## Historical report (preserved; live status above supersedes older task pointers)
 
 ## FIN-LEDGER-001 — integrated
 - PR #101 manual journal reversal merged at 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb.

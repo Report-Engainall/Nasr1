@@ -1,5 +1,20 @@
 # سجل التنسيق — المرجع الحي
 
+## CLOSED — main-state reconciliation PR #126 — 2026-10-23T23:41:00+03:00
+
+- Main SHA 6815b00781412bd98cbdd9fb660e475e4540b543; Core push run 40019333142 SUCCESS on the exact SHA.
+- PR #126 exact head 2d1fddde5c8c9b3185dc19880ef5426129d28005 completed Core 40018779157 + P2 40018779193 SUCCESS. External customer/tenant E2E remains SKIPPED/BLOCKED_EXTERNAL.
+
+## ACTIVE P2 exclusive path lock — https://github.com/Report-Engainall/Nasr1/pull/127
+
+- Owner P2; base main 6815b00781412bd98cbdd9fb660e475e4540b543; branch feat/p2-company-workspace-acceptance-20261023; active PR [#127](https://github.com/Report-Engainall/Nasr1/pull/127).
+- Exclusive files: `src/lib/customer-addresses.ts`, `src/test/customer-addresses.test.ts`.
+- PR #127 originally validates fetched address row shape/UUID/country/timestamps. Current commit adds UUID validation for save acknowledgement plus pre-RPC edit/delete ID validation and tests, preserving row validation.
+- PR #129 overlaps the same paths. Its UUID contract fix is integrated into #127; close #129 without merge to prevent duplicate code/review. Do not keep two PRs modifying these paths.
+- Require Core + P2/PostgreSQL 17 terminal SUCCESS on the same latest #127 HEAD. Do not transfer runs from earlier #127/#129 heads.
+- No route, UI, routeTree, migration, RLS/grants or invitation/session scope changes. P1/P3 file ownership remains separate.
+- No direct main write, force-push, destructive reset, production DB write or live external API.
+
 ## المصالحة الحالية — 2026-10-23T21:47:31+03:00
 
 - المستودع الوحيد Report-Engainall/Nasr1، الفرع المرجعي main. آخر SHA متحقق منه: 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac؛ الشجرة 15f30663a80ba9ff2e83c2057f15ed489eed92be.

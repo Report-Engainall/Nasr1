@@ -2429,6 +2429,8 @@ export function StaffFinancePage() {
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
+  // Keep a separate key for each unresolved request so changing form values cannot orphan an ambiguous retry.
+  const paymentRequestKeysRef = useRef<Map<string, string>>(new Map());
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -2520,24 +2522,67 @@ export function StaffFinancePage() {
       setError("المبلغ يتجاوز المتبقي على الفاتورة بعد احتساب الإشعارات الدائنة المرحّلة.");
       return;
     }
+    const normalizedMethod = method.trim().toLowerCase();
+    const normalizedReference = reference.trim() || null;
+    const normalizedNotes = notes.trim() || null;
+    const requestFingerprint = JSON.stringify({
+      invoiceId: i.id,
+      amount: n,
+      paymentMethod: normalizedMethod,
+      reference: normalizedReference,
+      notes: normalizedNotes,
+    });
+    const pendingRequests = paymentRequestKeysRef.current;
+    let idempotencyKey = pendingRequests.get(requestFingerprint);
+    if (!idempotencyKey) {
+      idempotencyKey = globalThis.crypto.randomUUID();
+      // Store synchronously before awaiting the network so rapid duplicate submits share one key.
+      pendingRequests.set(requestFingerprint, idempotencyKey);
+    }
+
     setBusy(true);
     setError("");
-    const r = await supabase.rpc("record_customer_payment", {
-      p_invoice_id: i.id,
-      p_amount: n,
-      p_payment_method: method,
-      p_reference: reference.trim() || null,
-      p_notes: notes.trim() || null,
-    });
-    if (r.error) setError("تعذر تسجيل الدفعة: " + r.error.message);
-    else {
+    setMessage("");
+    try {
+      const r = await supabase.rpc("record_customer_payment", {
+        p_invoice_id: i.id,
+        p_amount: n,
+        p_payment_method: normalizedMethod,
+        p_idempotency_key: idempotencyKey,
+        p_reference: normalizedReference,
+        p_notes: normalizedNotes,
+      });
+      const acknowledgedPaymentId = typeof r.data === "string" ? r.data.trim() : "";
+      const hasValidPaymentId =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          acknowledgedPaymentId,
+        );
+      if (r.error || !hasValidPaymentId) {
+        // A transport failure or malformed acknowledgement is ambiguous: retain the key so
+        // retrying the same payload replays instead of potentially collecting twice.
+        const reason = r.error?.message ?? "استجابة الخادم لم تتضمن معرف دفعة صالحًا";
+        setError("تعذر تسجيل الدفعة: " + reason + ". أعد المحاولة بالقيم نفسها.");
+        return;
+      }
+      // Only a well-formed UUID payment identifier is an acknowledgement; clear this completed request.
+      if (paymentRequestKeysRef.current.get(requestFingerprint) === idempotencyKey) {
+        paymentRequestKeysRef.current.delete(requestFingerprint);
+      }
       setMessage("تم تسجيل الدفعة وتحديث حالة الفاتورة.");
       setAmount("");
       setReference("");
       setNotes("");
-      await Promise.all([load(), loadAging(0)]);
+      try {
+        await Promise.all([load(), loadAging(0)]);
+      } catch {
+        setError("تم تسجيل الدفعة، لكن تعذر تحديث العرض المالي. أعد تحميل البيانات.");
+      }
+    } catch {
+      // Network rejection is ambiguous: retain the key until the exact payload succeeds or changes.
+      setError("تعذر تأكيد نتيجة الدفعة. أعد المحاولة بالقيم نفسها؛ سيُستخدم مفتاح الطلب نفسه.");
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
   if (!canManageFinance)
     return (
