@@ -1,16 +1,19 @@
 # سجل التنسيق — المرجع الحي
 
-## ACTIVE P2 lock — customer payment idempotency — 2026-10-23T22:20:00+03:00
+## CLOSED — main-state reconciliation PR #126 — 2026-10-23T23:41:00+03:00
 
-- Owner: P2 only. Repository `Report-Engainall/Nasr1`; feature branch `p2/payment-idempotency-current-main-20261023b`; base-main SHA `cd303b7fe0f263c9f62ed97f10202e9895465273`. No direct main writes.
-- Current PR: [#112](https://github.com/Report-Engainall/Nasr1/pull/112); branch/PR exact tested head `1ecfd0b343419e9745e5e8631ecea738c9f13862`.
-- Exact-head Core [40009788759](https://github.com/Report-Engainall/Nasr1/actions/runs/40009788759) SUCCESS; exact-head P2 [40009788309](https://github.com/Report-Engainall/Nasr1/actions/runs/40009788309) SUCCESS on the same tested SHA. Local PostgreSQL 17 and local Supabase Chromium acceptance both completed with no failed jobs.
-- Credential-gated hosted customer order/tenant E2E was SKIPPED, not PASS. External non-production credentials remain unavailable; no live production/financial writes.
-- CodeRabbit review was triggered against `1ecfd0b343419e9745e5e8631ecea738c9f13862`, but no completed formal review has been returned at this snapshot; check review output after the checkpoint head refresh.
-- The central checkpoint changes in this commit create a new PR head. Retest Core and P2 on that exact resulting SHA and retain these prior run links as history only; do not transfer PASS labels.
-- Locked paths: `supabase/migrations/20261023235900_customer_payment_idempotency.sql`; `src/components/CustomerWorkflows.tsx`; `src/integrations/supabase/types.ts`; `src/components/CustomerWorkflows.finance.test.tsx`; `scripts/test-staff-receivables-aging-credit-memo-parity.mjs`; `scripts/test-database-migrations.mjs`; P2-owned state/report/matrix/coordination/log.
-- Release the code lock only after PR merge plus exact post-merge main verification; meanwhile P1/P3-owned paths remain excluded.
+- Main SHA 6815b00781412bd98cbdd9fb660e475e4540b543; Core push run 40019333142 SUCCESS on the exact SHA.
+- PR #126 exact head 2d1fddde5c8c9b3185dc19880ef5426129d28005 completed Core 40018779157 + P2 40018779193 SUCCESS. External customer/tenant E2E remains SKIPPED/BLOCKED_EXTERNAL.
 
+## ACTIVE P2 exclusive path lock — https://github.com/Report-Engainall/Nasr1/pull/127
+
+- Owner P2; base main 6815b00781412bd98cbdd9fb660e475e4540b543; branch feat/p2-company-workspace-acceptance-20261023; active PR [#127](https://github.com/Report-Engainall/Nasr1/pull/127).
+- Exclusive files: `src/lib/customer-addresses.ts`, `src/test/customer-addresses.test.ts`.
+- PR #127 originally validates fetched address row shape/UUID/country/timestamps. Current commit adds UUID validation for save acknowledgement plus pre-RPC edit/delete ID validation and tests, preserving row validation.
+- PR #129 overlaps the same paths. Its UUID contract fix is integrated into #127; close #129 without merge to prevent duplicate code/review. Do not keep two PRs modifying these paths.
+- Require Core + P2/PostgreSQL 17 terminal SUCCESS on the same latest #127 HEAD. Do not transfer runs from earlier #127/#129 heads.
+- No route, UI, routeTree, migration, RLS/grants or invitation/session scope changes. P1/P3 file ownership remains separate.
+- No direct main write, force-push, destructive reset, production DB write or live external API.
 
 ## المصالحة الحالية — 2026-10-23T21:47:31+03:00
 
