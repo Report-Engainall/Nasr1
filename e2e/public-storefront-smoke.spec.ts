@@ -81,7 +81,7 @@ test("advanced search recovers from a category-source failure", async ({ page })
       }
 
       categoryReads += 1;
-      if (categoryReads === 1) {
+      if (categoryReads <= 3) {
         await route.fulfill({
           status: 503,
           contentType: "application/json",
@@ -102,14 +102,17 @@ test("advanced search recovers from a category-source failure", async ({ page })
 
   await page.goto("/search/advanced");
   const categorySelect = page.getByLabel("التصنيف");
-  await expect(page.getByRole("alert")).toContainText("تعذر تحميل التصنيفات");
+  const categoryError = page
+    .getByRole("alert")
+    .filter({ hasText: "تعذر تحميل التصنيفات: synthetic category outage" });
+  await expect(categoryError).toContainText("تعذر تحميل التصنيفات");
   await expect(categorySelect).toBeDisabled();
 
   await page.getByRole("button", { name: "إعادة تحميل التصنيفات" }).click();
   await expect(categorySelect).toBeEnabled();
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(categoryError).toHaveCount(0);
 
-  expect(categoryReads).toBe(2);
+  expect(categoryReads).toBe(4);
   expect(pageErrors).toEqual([]);
 });
 
