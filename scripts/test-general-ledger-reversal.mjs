@@ -33,6 +33,17 @@ export async function runGeneralLedgerReversalAcceptance({
   foreignProfileId,
 }) {
   assert.ok(connectionString, "local PostgreSQL connection string is required");
+  async function inspectReversalMappings(query, params) {
+    const priorRole = (await db.unsafe("select current_setting('role', true) as role"))[0]?.role;
+    await db.unsafe("reset role");
+    try {
+      return await db.unsafe(query, params);
+    } finally {
+      if (["authenticated", "anon", "service_role"].includes(priorRole)) {
+        await db.unsafe("set role " + priorRole);
+      }
+    }
+  }
   await db.unsafe("reset role");
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   await db.unsafe("set role authenticated");
@@ -82,7 +93,7 @@ export async function runGeneralLedgerReversalAcceptance({
   assert.equal(reversal.status, "draft", "reversal must remain a draft until the authorized explicit post action");
   assert.equal(reversal.replayed, false);
 
-  const linked = await db.unsafe(
+  const linked = await inspectReversalMappings(
     "select r.id,r.reason,r.payload_fingerprint,original.status as original_status,original.source_type as original_source_type,reversal.status as reversal_status,reversal.source_type as reversal_source_type,reversal.source_reference,reversal.idempotency_key::text from public.accounting_journal_reversals r join public.accounting_journal_entries original on original.id=r.original_journal_entry_id and original.organization_id=r.organization_id join public.accounting_journal_entries reversal on reversal.id=r.reversal_journal_entry_id and reversal.organization_id=r.organization_id where r.organization_id=$1::uuid and r.original_journal_entry_id=$2::uuid",
     [organizationId, originalDraft.id],
   );
@@ -190,7 +201,7 @@ export async function runGeneralLedgerReversalAcceptance({
     /a reversal journal cannot itself be reversed/i,
   );
 
-  const finalStatus = await db.unsafe(
+  const finalStatus = await inspectReversalMappings(
     "select original.status as original_status,reversal.status as reversal_status from public.accounting_journal_reversals r join public.accounting_journal_entries original on original.id=r.original_journal_entry_id and original.organization_id=r.organization_id join public.accounting_journal_entries reversal on reversal.id=r.reversal_journal_entry_id and reversal.organization_id=r.organization_id where r.organization_id=$1::uuid and r.original_journal_entry_id=$2::uuid",
     [organizationId, originalDraft.id],
   );
@@ -228,7 +239,7 @@ export async function runGeneralLedgerReversalAcceptance({
   } finally {
     await Promise.all([a.end({ timeout: 5 }).catch(() => {}), b.end({ timeout: 5 }).catch(() => {})]);
   }
-  const concurrentLinks = await db.unsafe(
+  const concurrentLinks = await inspectReversalMappings(
     "select count(*)::integer as count from public.accounting_journal_reversals where organization_id=$1::uuid and original_journal_entry_id=$2::uuid",
     [organizationId, concurrentOriginal.id],
   );
@@ -258,9 +269,7 @@ export async function runGeneralLedgerReversalAcceptance({
   } finally {
     await Promise.all([c.end({ timeout: 5 }).catch(() => {}), d.end({ timeout: 5 }).catch(() => {})]);
   }
-  // Inspect private mapping data with the database owner, not the authenticated client role.
-  await db.unsafe("reset role");
-  const competingLinks = await db.unsafe(
+  const competingLinks = await inspectReversalMappings(
     "select count(*)::integer as count from public.accounting_journal_reversals where organization_id=$1::uuid and original_journal_entry_id=$2::uuid",
     [organizationId, competingOriginal.id],
   );
