@@ -385,6 +385,48 @@ describe("customer price visibility UI acceptance", () => {
     expect(failed.host.textContent).not.toContain(formatServerAmount(2468));
   });
 
+
+  it("prevents same-tick duplicate checkout submits until the server acknowledges the first", async () => {
+    window.sessionStorage.clear();
+    seedCustomerCart();
+    let resolveOrder!: (value: { data: unknown; error: null }) => void;
+    const pendingOrder = new Promise<{ data: unknown; error: null }>((resolve) => { resolveOrder = resolve; });
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "validate_checkout_cart") return { data: validCartValidation(), error: null };
+      if (name === "submit_customer_order") return pendingOrder;
+      return { data: null, error: null };
+    });
+
+    const mount = await mountAt("/checkout");
+    await flushEffects();
+
+    const phone = mount.host.querySelector<HTMLInputElement>('input[placeholder="7XX XXX XXX"]');
+    expect(phone).not.toBeNull();
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(phone, "777123456");
+      phone!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await flushEffects();
+
+    const confirm = mount.host.querySelector<HTMLButtonElement>(".sf-checkout-actions .sf-btn-primary");
+    expect(confirm).not.toBeNull();
+    expect(confirm?.disabled).toBe(false);
+    act(() => {
+      confirm!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      confirm!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === "submit_customer_order")).toHaveLength(1);
+    expect(mount.host.textContent).not.toContain("PO-001");
+    await act(async () => {
+      resolveOrder({ data: { id: "order-1", order_number: "PO-001", status: "pending" }, error: null });
+      await pendingOrder;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mount.host.textContent).toContain("PO-001");
+  });
+
   it("keeps order-review amounts hidden while the order validation remains non-financial", async () => {
     resetSettings({ show_price_in_orders: false });
     seedCustomerCart();

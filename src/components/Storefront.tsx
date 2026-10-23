@@ -890,6 +890,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     [cart],
   );
   const idempotencyRef = useRef<{ signature: string; key: string } | null>(null);
+  const submitInFlightRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -983,12 +984,15 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
   }
 
   async function submit() {
+    // Button disabled state updates after React commits; guard the same-tick duplicate event too.
+    if (submitInFlightRef.current) return;
     if (!user) { setError('سجّل الدخول أو أنشئ حساباً لإتمام الطلب'); return; }
     if (name.trim().length < 2 || phone.trim().length < 6) { setError('الاسم ورقم الهاتف مطلوبان'); return; }
     if (previewLoading || !cartValidation) { setError('لا يمكن تسجيل الطلب حتى ينجح التحقق من أصناف السلة وسياسة التسعير. أعد المحاولة.'); return; }
+    submitInFlightRef.current = true;
     setSubmitting(true); setError('');
-    const requestKey = getIdempotencyKey();
     try {
+      const requestKey = getIdempotencyKey();
       const { data, error: rpcError } = await supabase.rpc('submit_customer_order', {
         _items: cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity })),
         _notes: notes.trim(), _business_name: business.trim(), _contact_name: name.trim(), _phone: phone.trim(),
@@ -1010,7 +1014,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
       onComplete({ id: result.id, order_number: result.order_number });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'تعذر إرسال الطلب');
-    } finally { setSubmitting(false); }
+    } finally { submitInFlightRef.current = false; setSubmitting(false); }
   }
 
   return (
