@@ -194,4 +194,32 @@ describe("admin product form submission", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(mocks.createProduct).toHaveBeenCalledTimes(2);
   });
+  
+  it("keeps update errors visible and allows retry after a failed update", async () => {
+    mocks.updateProduct
+      .mockRejectedValueOnce(new Error("تعذر تحديث المنتج"))
+      .mockResolvedValueOnce(savedProduct);
+    const onSaved = vi.fn();
+    render(<ProductModal product={existingProduct} onClose={vi.fn()} onSaved={onSaved} />);
+
+    const submit = screen.getByRole("button", { name: "حفظ المنتج" });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحديث المنتج");
+    expect(onSaved).not.toHaveBeenCalled();
+
+    fireEvent.click(submit);
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(mocks.updateProduct).toHaveBeenCalledTimes(2);
+    expect(mocks.updateProduct).toHaveBeenNthCalledWith(1, "product-created", {
+      name: "منتج الاختبار",
+      item_code: "TEST-001",
+      base_price: 25,
+      category_id: null,
+      unit: "كرتون",
+      status: "active",
+    });
+    expect(mocks.createProduct).not.toHaveBeenCalled();
+  });
+
 });
