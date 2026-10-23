@@ -40,7 +40,8 @@ const provenanceEvidence = (id: string, file: string) => ({
     external_id_examples_truncated: false, rows_with_external_id: 1,
   },
   live_sync_evidence: {
-    status: "not_proven", live_connection_proven: false,
+    status: "not_proven", live_connection_proven: false, snapshot_sync_proven: false,
+    last_sync_attempt: null, latest_successful_connection: null, snapshot_sync_success: null,
     message: "Snapshot/import provenance alone is not evidence of a live Onyx API connection or completed synchronization.",
   },
 });

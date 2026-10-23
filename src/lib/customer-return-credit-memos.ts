@@ -271,8 +271,9 @@ export function readReturnCreditMemoReversalMutation(value: unknown): ReturnCred
 }
 
 export interface PrintableReturnCreditMemo {
-  memo: { id:string; memo_number:string; status:"draft"|"posted"; currency:string;
-    subtotal_amount:number; tax_amount:number; total_amount:number; created_at:string; posted_at:string|null };
+  memo: { id:string; memo_number:string; status:"draft"|"posted"|"reversed"; currency:string;
+    subtotal_amount:number; tax_amount:number; total_amount:number; created_at:string; posted_at:string|null;
+    reversed_at:string|null; reversal_reason:string|null; reversal_journal_entry_number:string|null; reversal_journal_status:"posted"|null };
   customer: { id:string; name:string; contact_name:string|null };
   invoice: { id:string; invoice_number:string; currency:string; issued_at:string;
     subtotal:number; tax_amount:number; total_amount:number; order_number:string };
@@ -290,8 +291,20 @@ export function readPrintableReturnCreditMemo(value: unknown): PrintableReturnCr
   }
   const status = requiredText(value.memo.status,"memo.status");
   const journalStatus = requiredText(value.journal.status,"journal.status");
-  if ((status!=="draft" && status!=="posted") || (journalStatus!=="draft" && journalStatus!=="posted") || status!==journalStatus) {
+  if ((status!=="draft" && status!=="posted" && status!=="reversed") ||
+      (journalStatus!=="draft" && journalStatus!=="posted") ||
+      !((status===journalStatus) || (status==="reversed" && journalStatus==="posted"))) {
     throw new Error("حالة الإشعار الدائن والقيد المحاسبي غير متطابقة للطباعة.");
+  }
+  const reversedAt=nullableText(value.memo.reversed_at);
+  const reversalReason=nullableText(value.memo.reversal_reason);
+  const reversalJournalNumber=nullableText(value.memo.reversal_journal_entry_number);
+  const reversalJournalStatus=nullableText(value.memo.reversal_journal_status);
+  if (status==="reversed" && (!reversedAt || !reversalReason || !reversalJournalNumber || reversalJournalStatus!=="posted")) {
+    throw new Error("الإشعار المعكوس يفتقد دليل قيد العكس المرحّل؛ تم منع الطباعة.");
+  }
+  if (status!=="reversed" && (reversedAt || reversalReason || reversalJournalNumber || reversalJournalStatus)) {
+    throw new Error("مستند غير معكوس يحمل حقول عكس مالية غير متوقعة؛ تم منع الطباعة.");
   }
   const currency=requiredText(value.memo.currency,"memo.currency");
   if (!/^[A-Z]{3}$/.test(currency) || value.invoice.currency!==currency) throw new Error("عملة الإشعار لا تطابق الفاتورة المصدر.");
@@ -326,7 +339,9 @@ export function readPrintableReturnCreditMemo(value: unknown): PrintableReturnCr
   return {
     memo:{id:requiredText(value.memo.id,"memo.id"),memo_number:requiredText(value.memo.memo_number,"memo.memo_number"),
       status,currency,subtotal_amount:subtotal,tax_amount:tax,total_amount:total,
-      created_at:requiredText(value.memo.created_at,"memo.created_at"),posted_at:nullableText(value.memo.posted_at)},
+      created_at:requiredText(value.memo.created_at,"memo.created_at"),posted_at:nullableText(value.memo.posted_at),
+      reversed_at:reversedAt,reversal_reason:reversalReason,reversal_journal_entry_number:reversalJournalNumber,
+      reversal_journal_status:reversalJournalStatus as "posted"|null},
     customer:{id:requiredText(value.customer.id,"customer.id"),name:requiredText(value.customer.name,"customer.name"),
       contact_name:nullableText(value.customer.contact_name)},
     invoice:{id:requiredText(value.invoice.id,"invoice.id"),invoice_number:requiredText(value.invoice.invoice_number,"invoice.invoice_number"),

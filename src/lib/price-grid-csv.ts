@@ -109,26 +109,68 @@ function parseCsvRecords(source: string): string[][] {
   let row: string[] = [];
   let field = '';
   let quoted = false;
+  let closedQuote = false;
   const text = source.replace(/^\uFEFF/, '');
+
   for (let i = 0; i < text.length; i += 1) {
     const char = text[i];
+
     if (quoted) {
-      if (char === '"' && text[i + 1] === '"') { field += '"'; i += 1; }
-      else if (char === '"') quoted = false;
-      else field += char;
-    } else if (char === '"' && field === '') {
+      if (char === '"' && text[i + 1] === '"') {
+        field += '"';
+        i += 1;
+      } else if (char === '"') {
+        quoted = false;
+        closedQuote = true;
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (closedQuote) {
+      if (char === ',') {
+        row.push(field);
+        field = '';
+        closedQuote = false;
+        continue;
+      }
+      if (char === '\r' || char === '\n') {
+        if (char === '\r' && text[i + 1] === '\n') i += 1;
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = '';
+        closedQuote = false;
+        continue;
+      }
+      throw new Error('ملف CSV يحتوي على نص غير مسموح به بعد إغلاق علامة الاقتباس.');
+    }
+
+    if (char === '"') {
+      if (field !== '') {
+        throw new Error('ملف CSV يحتوي على علامة اقتباس داخل حقل غير مقتبس.');
+      }
       quoted = true;
     } else if (char === ',') {
-      row.push(field); field = '';
+      row.push(field);
+      field = '';
     } else if (char === '\r' || char === '\n') {
       if (char === '\r' && text[i + 1] === '\n') i += 1;
-      row.push(field); rows.push(row); row = []; field = '';
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
     } else {
       field += char;
     }
   }
+
   if (quoted) throw new Error('ملف CSV يحتوي على حقل نصي غير مغلق بعلامة اقتباس.');
-  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  if (field !== '' || row.length || closedQuote) {
+    row.push(field);
+    rows.push(row);
+  }
   return rows.filter((record) => record.some((cell) => cell.trim() !== ''));
 }
 
