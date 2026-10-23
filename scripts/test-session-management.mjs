@@ -94,12 +94,16 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
   await expectFailure("the caller cannot revoke another session belonging to its own account through the organization endpoint",
     () => db.unsafe("select public.revoke_organization_session($1::uuid)", [adminOtherSession]),
     /own sessions|organization endpoint|42501/i);
+  // Auth session storage is not readable to the application role; leave that role
+  // before asserting protected rows, then restore it for the successful RPC call.
+  await db.unsafe("reset role");
   const adminOwnSessionsRemain = await db.unsafe(
     "select id from auth.sessions where user_id=$1 and id in ($2::uuid,$3::uuid)",
     [adminAuth,adminSession,adminOtherSession],
   );
   assert.equal(adminOwnSessionsRemain.length, 2,
     "denied organization-level self-revocation leaves both caller sessions untouched");
+  await db.unsafe("set role authenticated");
 
   const revoked = (await db.unsafe(
     "select public.revoke_organization_session($1::uuid) as result", [targetSession],
