@@ -2552,10 +2552,15 @@ export function StaffFinancePage() {
         p_reference: normalizedReference,
         p_notes: normalizedNotes,
       });
-      if (r.error || typeof r.data !== "string" || r.data.length === 0) {
+      const acknowledgedPaymentId = typeof r.data === "string" ? r.data.trim() : "";
+      const hasValidPaymentId =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          acknowledgedPaymentId,
+        );
+      if (r.error || !hasValidPaymentId) {
         // A transport failure or malformed acknowledgement is ambiguous: retain the key so
         // retrying the same payload replays instead of potentially collecting twice.
-        const reason = r.error?.message ?? "استجابة الخادم لم تتضمن معرف الدفعة";
+        const reason = r.error?.message ?? "استجابة الخادم لم تتضمن معرف دفعة صالحًا";
         setError("تعذر تسجيل الدفعة: " + reason + ". أعد المحاولة بالقيم نفسها.");
         return;
       }
