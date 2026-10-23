@@ -1175,3 +1175,10 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Regression now exercises null acknowledgement, malformed non-UUID response, and a valid UUID response in sequence, with all attempts sharing the original key. The separate A-ambiguous → B-success → A-retry regression tests independent per-payload key retention.
 - The latest PR head changes after the code/test update and sequential checkpoint commits. Exact-head Core and P2 workflows must be read to terminal on the final current head; no PASS is claimed for the new code until then.
 - No production database migration/write, real payment operation, hosted customer E2E, live Onyx sync, or live WhatsApp API call was performed.
+
+
+## P2 payment fixture aligned to UUID RPC result — 2026-10-23T23:09:00+03:00
+
+- Latest code/test commit before the central checkpoint refresh: `3e91a41de8022408beebe669efbc7611a3792b72`.
+- The existing default payment RPC test mock returned an object even though `record_customer_payment` returns a UUID. Tightened acknowledgement handling correctly rejects that payload; the fixture now returns a valid UUID instead of the old object, so unrelated successful-payment tests exercise the real response contract.
+- No additional SQL/migration/service behavior was changed. CI on the final PR #123 head remains pending; neither local PASS nor production proof is claimed.
