@@ -1,6 +1,6 @@
 # Aghbari Commerce — Requirement Registry and Execution Rules
 
-> **تصحيح هدف التنفيذ الحي — 23 أكتوبر 2026:** وجهة الكود الحالية الوحيدة هي `Report-Engainall/Nasr1`. أي مستودع أو SHA أو حالة تشغيل قديمة مذكورة في محتوى هذا السجل أدناه هي مرجع تاريخي وليست خط أساس حيًا. مصدر المسارات الفعلي هو إعداد TanStack Start في `vite.config.ts` مع `src/router.tsx` و`src/routeTree.gen.ts` وملفات `src/routes/`؛ لا يكفي استخدام `src/App.tsx` أو `src/main.tsx` وحدهما لجرد المسارات. مصفوفة قبول الشاشات الوحيدة المعتمدة على Nasr1 هي `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`. المسار `docs/canonical/AGHBARI-SCREEN-ACTION-COVERAGE.md` غير موجود على الرأس الذي فُحص، لذلك لم تُنشأ مصفوفة موازية.
+> **تصحيح هدف التنفيذ الحي — 23 أكتوبر 2026:** وجهة الكود الحالية الوحيدة هي `Report-Engainall/Nasr1`. أي مستودع أو SHA أو حالة تشغيل قديمة مذكورة في محتوى هذا السجل أدناه هي مرجع تاريخي وليست خط أساس حيًا. مصدر المسارات الفعلي هو إعداد TanStack Start في `vite.config.ts` مع `src/router.tsx` و`src/routeTree.gen.ts` وملفات `src/routes/`؛ لا يكفي استخدام `src/App.tsx` أو `src/main.tsx` وحدهما لجرد المسارات. تُستخدم `docs/bolt-source-reconciliation/INTERFACE_COMPLETION_MATRIX.csv` كملخص تغطية للواجهات، وتُستخدم `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` كسجل مهام فجوات القبول الجارية؛ يجب تحديث السجلين المتأثرين دون نسخ مصفوفة ثالثة. المسار `docs/canonical/AGHBARI-SCREEN-ACTION-COVERAGE.md` غير موجود على الرأس الذي فُحص، لذلك لم تُنشأ مصفوفة موازية.
 
 
 **Product:** متجر الأغبري | Aghbari Commerce  
