@@ -33,25 +33,27 @@ test("advanced search recovers from a category-source failure", async ({ page })
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
-  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
-    route.abort("blockedbyclient"),
-  );
+  let categoryReads = 0;
+  let allowCategorySuccess = false;
+  const headers = {
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers":
+      "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+  };
 
-  await page.route(
-    "https://ci-placeholder.supabase.co/rest/v1/rpc/get_public_storefront_context",
-    async (route) => {
-      const headers = {
-        "access-control-allow-origin": "*",
-        "access-control-allow-headers":
-          "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
-        "access-control-allow-methods": "POST,OPTIONS",
-      };
+  // Use one dispatcher for the placeholder origin so the catch-all abort cannot
+  // shadow the two deterministic API fixtures below.
+  await page.route("https://ci-placeholder.supabase.co/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
 
-      if (route.request().method() === "OPTIONS") {
-        await route.fulfill({ status: 200, headers });
-        return;
-      }
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 200, headers });
+      return;
+    }
 
+    if (url.pathname === "/rest/v1/rpc/get_public_storefront_context") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -61,26 +63,10 @@ test("advanced search recovers from a category-source failure", async ({ page })
           warehouse_id: null,
         }),
       });
-    },
-  );
+      return;
+    }
 
-  let categoryReads = 0;
-  let allowCategorySuccess = false;
-  await page.route(
-    "https://ci-placeholder.supabase.co/rest/v1/categories**",
-    async (route) => {
-      const headers = {
-        "access-control-allow-origin": "*",
-        "access-control-allow-headers":
-          "apikey,authorization,content-type,x-client-info,prefer,accept-profile,content-profile,range",
-        "access-control-allow-methods": "GET,OPTIONS",
-      };
-
-      if (route.request().method() === "OPTIONS") {
-        await route.fulfill({ status: 200, headers });
-        return;
-      }
-
+    if (url.pathname === "/rest/v1/categories") {
       categoryReads += 1;
       if (!allowCategorySuccess) {
         await route.fulfill({
@@ -98,15 +84,18 @@ test("advanced search recovers from a category-source failure", async ({ page })
         headers: { ...headers, "content-range": "0-0/*" },
         body: "[]",
       });
-    },
-  );
+      return;
+    }
+
+    await route.abort("blockedbyclient");
+  });
 
   await page.goto("/search/advanced");
   const categorySelect = page.getByLabel("التصنيف");
   const categoryError = page
     .getByRole("alert")
     .filter({ hasText: "تعذر تحميل التصنيفات: synthetic category outage" });
-  await expect(categoryError).toContainText("تعذر تحميل التصنيفات");
+  await expect(categoryError).toBeVisible();
   await expect(categorySelect).toBeDisabled();
 
   allowCategorySuccess = true;
