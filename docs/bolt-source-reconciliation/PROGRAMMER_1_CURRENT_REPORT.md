@@ -1,3 +1,22 @@
+# P1 Current Report — live reconciliation 2026-10-24
+
+- Repository: `Report-Engainall/Nasr1`; owner branch: `p1/admin-product-singleflight-20261023`; active PR #97.
+- Live `main` / PR base: `16a3d23e558696700bccbb3dbf9ea75b0fccf745`.
+- P1 task `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001`: implemented in `src/components/AghbariApp.tsx` with a synchronous `useRef` single-flight guard, visible server errors, retry after failure, and fail-closed category lookup state. Regression coverage in `src/test/admin-product-double-submit.test.tsx` covers duplicate create/update, category recovery, and failed save/update retry.
+- Functional/test head `6dfe404b51a414ae953cfeb765b6a58ea2874264`: Core [40035835482 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035835482) and P2 [40035835461 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035835461) both passed on the same SHA. The subsequent checkpoint-only commit `a90bb513e0b07bf04e1fd842b72d2368d868c0ed` does **not** inherit those passes.
+- This current-report-only commit is also documentation-only and advances PR #97's HEAD. Read live PR metadata after this commit and run Core plus P2 on that exact resulting SHA; record terminal outcomes before treating #97 as ready to merge. The workflow trigger requires the P3-owned authenticated GitHub workflow procedure, as delegated by the team; no claim is made that CI ran on this report update.
+- PR #97 remains OPEN / UNMERGED. Authorized independent human approval is NOT RECORDED; reviewer `adnanabderab2016-sys` is requested. Outdated CodeRabbit formatting threads are resolved after checking the current source/test are formatted and prior exact functional-head CI passed.
+- PR #119 exact head `a1a17bcf9ae320ea39680421a83e4b32deef3c67`: Core [40036273431 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273431), P2 [40036273465 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273465); logs confirm the exact `e2e/customer-manager-authorization.spec.ts` ran and passed. PR is ready for review; formal independent approval remains outstanding.
+- PR #107 exact head `6ee0eb1df7872e44c3d116dd0990c6f959773184`: Core [40035843139 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035843139), P2 [40035843245 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035843245); five Chromium price-visibility assertions passed.
+- PR #124 exact head `95e0073e6d9db5e4c1a386866cb63d926249fdf9`: Core [40035851261 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035851261), P2 [40035851352 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035851352); Chromium Tab-navigation and Arabic accessible-name test passed.
+- PR #102 exact head `999d4c5cef2ef58e73ed50d535a29e6f1120a1ad`: Core [40035839468 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035839468), P2 [40035839465 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035839465); Chromium export hydration test for `/admin/exports` passed.
+- In #107/#124/#102, hosted credential-gated customer/tenant E2E remains `SKIPPED / BLOCKED_EXTERNAL`, not PASS; production proof is NOT RUN. Formal human approval remains outstanding on all three.
+- No new PRs were created and no P2-owned SQL/RPC/RLS/migrations/workflows or central state/matrix/coordination files were changed. P3-owned #89 routes/files were not changed.
+- NEXT_ACTION: P3 triggers Core and P2 on the exact post-report PR #97 HEAD and records terminal results; independently review #97 and #119 when exact-head checks are ready. Keep all P1 PRs unmerged until an authorized independent reviewer records a formal decision; then merge eligible PRs serially and verify post-merge main CI.
+- Updated: 2026-10-24.
+
+---
+
 # تقرير الحالة التنفيذي — P1 / واجهات العميل والتجارة والإدارة
 
 - المستودع: Report-Engainall/Nasr1.
