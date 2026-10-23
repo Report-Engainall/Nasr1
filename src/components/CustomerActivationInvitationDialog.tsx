@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Copy, Link2, Mail, RefreshCw, ShieldCheck, UserPlus, UserX, X } from "lucide-react";
 import {
   createCustomerActivationInvitation,
@@ -41,6 +41,7 @@ export function CustomerActivationInvitationDialog({
   const [inviteUrl, setInviteUrl] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const createInFlightRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,7 +59,8 @@ export function CustomerActivationInvitationDialog({
 
   async function createInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || loading || workspace?.is_linked) return;
+    if (createInFlightRef.current || busy || loading || workspace?.is_linked) return;
+    createInFlightRef.current = true;
     setBusy(true);
     setError("");
     setNotice("");
@@ -71,6 +73,7 @@ export function CustomerActivationInvitationDialog({
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر إنشاء رابط التفعيل.");
     } finally {
+      createInFlightRef.current = false;
       setBusy(false);
     }
   }
