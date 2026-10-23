@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
