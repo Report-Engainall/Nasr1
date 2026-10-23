@@ -173,19 +173,22 @@ describe("customer order history pagination", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const detailLinks = [...(host?.querySelectorAll<HTMLAnchorElement>('a[aria-label^="تفاصيل الطلب "]') ?? [])];
-    expect(detailLinks).toHaveLength(2);
-    expect(detailLinks.map((link) => link.getAttribute("aria-label"))).toEqual([
-      "تفاصيل الطلب ORDER-001",
-      "تفاصيل الطلب ORDER-002",
-    ]);
-    expect(detailLinks.map((link) => link.textContent)).toEqual(["التفاصيل", "التفاصيل"]);
+    // Assert two concrete order rows while allowing the fixture's other 23
+    // rows to remain rendered by the pagination test data.
+    const first = host?.querySelector<HTMLAnchorElement>('a[aria-label="تفاصيل الطلب ORDER-001"]');
+    const second = host?.querySelector<HTMLAnchorElement>('a[aria-label="تفاصيل الطلب ORDER-002"]');
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    const names = [first?.getAttribute("aria-label"), second?.getAttribute("aria-label")];
+    expect(names).toEqual(["تفاصيل الطلب ORDER-001", "تفاصيل الطلب ORDER-002"]);
+    expect(new Set(names).size).toBe(2);
+    expect([first?.textContent, second?.textContent]).toEqual(["التفاصيل", "التفاصيل"]);
 
     // These are native anchors with no negative tabindex: keyboard users can
     // reach them with Tab, and focus remains available to screen-reader users.
-    expect(detailLinks.map((link) => link.tabIndex)).toEqual([0, 0]);
-    detailLinks[0]?.focus();
-    expect(document.activeElement).toBe(detailLinks[0]);
+    expect([first?.tabIndex, second?.tabIndex]).toEqual([0, 0]);
+    first?.focus();
+    expect(document.activeElement).toBe(first);
   });
 
   it("fails closed instead of presenting an unknown count as zero", async () => {
