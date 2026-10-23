@@ -2444,8 +2444,18 @@ async function main() {
   await db.unsafe("reset role");
   const storedHash=await db.unsafe("select token_hash from public.customer_company_invitations where id=$1",[invite.invitation_id]);
   assert.equal(storedHash[0].token_hash.length,64,"new company invitations store a SHA-256 digest");
-  const expectedCompanyTokenHash=(await db.unsafe("select encode(digest($1::text,'sha256'),'hex') as hash",[invite.invitation_token]))[0].hash;
-  assert.equal(storedHash[0].token_hash,expectedCompanyTokenHash,"only the SHA-256 digest is persisted, never the raw bearer token");
+  const pgcryptoSchemaRows = await db.unsafe(
+    "select n.nspname as schema_name from pg_catalog.pg_extension e join pg_catalog.pg_namespace n on n.oid=e.extnamespace where e.extname='pgcrypto'",
+  );
+  assert.equal(pgcryptoSchemaRows.length,1,"pgcrypto must be installed in a discoverable extension schema");
+  const digestHelperPrivileges = await db.unsafe(
+    "select has_function_privilege('authenticated','public.customer_company_invitation_sha256(text)','EXECUTE') as authenticated_execute," +
+    "has_function_privilege('anon','public.customer_company_invitation_sha256(text)','EXECUTE') as anon_execute",
+  );
+  assert.equal(digestHelperPrivileges[0].authenticated_execute,false,"the private hash helper must not be callable by authenticated clients");
+  assert.equal(digestHelperPrivileges[0].anon_execute,false,"the private hash helper must not be callable by anonymous clients");
+  const expectedCompanyTokenHash=(await db.unsafe("select public.customer_company_invitation_sha256($1::text) as hash",[invite.invitation_token]))[0].hash;
+  assert.equal(storedHash[0].token_hash,expectedCompanyTokenHash,"only the SHA-256 digest is persisted, never the raw bearer token; hashing resolves the installed pgcrypto schema");
 
   await setIdentity(secondAuthUserId,"ci-customer-two@example.test");
   await db.unsafe("set role authenticated");
