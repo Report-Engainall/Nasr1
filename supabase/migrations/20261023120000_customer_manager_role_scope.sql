@@ -53,7 +53,7 @@ BEGIN
       WHERE r.profile_id = v_profile_id AND r.role IN ('admin','manager','customer_manager')
     )
   );
-END
+END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.get_current_tenant_context() FROM PUBLIC, anon;
@@ -216,7 +216,7 @@ BEGIN
     pg_catalog.jsonb_build_object('tier',v_customer.tier),
     pg_catalog.jsonb_build_object('tier',v_next_tier,'reason',v_reason));
   RETURN pg_catalog.jsonb_build_object('customer_id',v_customer.id,'previous_tier',v_customer.tier,'tier',v_next_tier,'changed',true);
-END
+END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.set_admin_customer_tier(uuid,text,text,text) FROM PUBLIC, anon, authenticated;
@@ -324,7 +324,7 @@ BEGIN
   RETURN pg_catalog.jsonb_build_object(
     'customer_id',v_customer.id,'previous_status',v_customer.status,'status',v_next_status,'changed',true
   );
-END
+END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.set_admin_customer_status(uuid,text,text,text) FROM PUBLIC, anon, authenticated;
@@ -418,7 +418,7 @@ BEGIN
   RETURN pg_catalog.jsonb_build_object(
     'rows',v_rows,'total_count',v_total,'page',v_page,'page_size',v_page_size
   );
-END
+END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.fetch_customer_manager_directory(text,integer,integer) FROM PUBLIC, anon;
