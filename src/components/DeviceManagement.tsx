@@ -139,6 +139,7 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
   const otherSessionsInFlight = useRef(false);
   // Prevent a slow pre-revocation response from restoring stale rows over a newer list.
   const organizationSessionsRequestId = useRef(0);
+  const currentSignOutInFlight = useRef(false);
 
   const loadOrganizationSessions = useCallback(async () => {
     const requestId = ++organizationSessionsRequestId.current;
@@ -236,15 +237,23 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
   }
 
   async function signOutCurrent() {
+    if (!session || loading || action !== null || currentSignOutInFlight.current) return;
+    currentSignOutInFlight.current = true;
     setAction('current');
     setError('');
     try {
       const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
       if (signOutError) throw signOutError;
+      // Clear auth-derived details immediately after acknowledgement; do not leave a
+      // stale session card or enable a second logout while the route redirect settles.
+      setSession(null);
+      setOrganizationSessions([]);
+      setSessionsError('');
       onNotice('تم تسجيل الخروج من هذا الجهاز.');
     } catch {
       setError('تعذر تسجيل الخروج من هذا الجهاز.');
     } finally {
+      currentSignOutInFlight.current = false;
       setAction(null);
     }
   }

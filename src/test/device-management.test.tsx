@@ -508,6 +508,38 @@ describe('central device and session management', () => {
     );
   });
 
+  it('prevents duplicate local sign-out requests and clears the session after acknowledgement', async () => {
+    let finishSignOut: ((value: { error: null }) => void) | undefined;
+    mocks.signOut.mockImplementation(() => new Promise((resolve) => {
+      finishSignOut = resolve;
+    }));
+    await mount();
+
+    const button = host?.querySelector<HTMLButtonElement>(
+      'button[aria-label="تسجيل الخروج من هذا الجهاز"]',
+    );
+    expect(button?.disabled).toBe(false);
+    await act(async () => {
+      button?.click();
+      button?.click();
+      await Promise.resolve();
+    });
+
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    expect(host?.textContent).toContain('admin@example.test');
+
+    await act(async () => {
+      finishSignOut?.({ error: null });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(mocks.onNotice).toHaveBeenCalledTimes(1);
+    expect(host?.textContent).not.toContain('admin@example.test');
+    expect(button?.disabled).toBe(true);
+  });
+
   it('uses local scope for current-device logout', async () => {
     const onNotice = vi.fn();
     await act(async () => {
