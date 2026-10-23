@@ -1,16 +1,21 @@
 # سجل التنسيق — المرجع الحي
 
-## ACTIVE P2 lock — customer payment idempotency — 2026-10-23T22:20:00+03:00
+## CLOSED P2 path lock — FIN-INVOICE-001 payment retry-key preservation — 2026-10-23T23:29:00+03:00
 
-- Owner: P2 only. Repository `Report-Engainall/Nasr1`; feature branch `p2/payment-idempotency-current-main-20261023b`; base-main SHA `cd303b7fe0f263c9f62ed97f10202e9895465273`. No direct main writes.
-- Current PR: [#112](https://github.com/Report-Engainall/Nasr1/pull/112); branch/PR exact tested head `1ecfd0b343419e9745e5e8631ecea738c9f13862`.
-- Exact-head Core [40009788759](https://github.com/Report-Engainall/Nasr1/actions/runs/40009788759) SUCCESS; exact-head P2 [40009788309](https://github.com/Report-Engainall/Nasr1/actions/runs/40009788309) SUCCESS on the same tested SHA. Local PostgreSQL 17 and local Supabase Chromium acceptance both completed with no failed jobs.
-- Credential-gated hosted customer order/tenant E2E was SKIPPED, not PASS. External non-production credentials remain unavailable; no live production/financial writes.
-- CodeRabbit review was triggered against `1ecfd0b343419e9745e5e8631ecea738c9f13862`, but no completed formal review has been returned at this snapshot; check review output after the checkpoint head refresh.
-- The central checkpoint changes in this commit create a new PR head. Retest Core and P2 on that exact resulting SHA and retain these prior run links as history only; do not transfer PASS labels.
-- Locked paths: `supabase/migrations/20261023235900_customer_payment_idempotency.sql`; `src/components/CustomerWorkflows.tsx`; `src/integrations/supabase/types.ts`; `src/components/CustomerWorkflows.finance.test.tsx`; `scripts/test-staff-receivables-aging-credit-memo-parity.mjs`; `scripts/test-database-migrations.mjs`; P2-owned state/report/matrix/coordination/log.
-- Release the code lock only after PR merge plus exact post-merge main verification; meanwhile P1/P3-owned paths remain excluded.
+- PR https://github.com/Report-Engainall/Nasr1/pull/123 is CLOSED/MERGED. Merge/main SHA: 271de9ac23d6fd092db5a77c15bcf191249fd40d; exact tested PR head: f7f0071a4a5437877e7da13dd1e83471ded3a610.
+- Core run 40017279766 and P2 run 40017279809 completed SUCCESS on the same exact PR head. Core push run 40017988386 completed SUCCESS on merge/main SHA 271de9ac23d6fd092db5a77c15bcf191249fd40d.
+- Hosted authenticated customer/tenant E2E was SKIPPED because dedicated non-production Supabase credentials and authorized cross-tenant accounts were unavailable. This remains BLOCKED_EXTERNAL, not PASS. Local isolated PostgreSQL 17/Supabase browser paths completed SUCCESS.
+- Verified fix: each unresolved payment payload retains a fingerprint-mapped idempotency key; null/empty/malformed payment UUID or RPC/transport error cannot report success or clear the key. Regression tests cover switching A -> B -> retry A and malformed/null acknowledgements.
+- Payment code lock released after merge: src/components/CustomerWorkflows.tsx and src/components/CustomerWorkflows.finance.test.tsx. No migration or RPC/security grant was added in #123. CodeRabbit was rate-limited; manual P2 review completed and no unresolved review threads remained at merge.
 
+## NEXT P2 task — COMPANY-001-CURRENT-MAIN-ACCEPTANCE
+
+- Owner: P2. Re-read the live main SHA before opening the code branch; no direct main write.
+- Target: inspect existing company workspace routing, membership/invitation/address services and RLS/RPC, then implement only a current reproducible end-to-end gap.
+- Preserve merged fixes: #84 customer_manager role mapping; #90 invitation-expiry validation; #83/#88 central sessions. Verify only if touched or a regression is found.
+- Potential code paths are NOT LOCKED yet; don't invent a lock before identifying the actual route/component/service. After comparing open PRs, assign one exclusive P2 path lock and keep the five central P2 files serially owned only by P2.
+- Acceptance: same-tenant role allow/deny, customer-own/company-authorized address visibility, invitation create/revoke/expiry audit, PostgreSQL 17/RLS/RPC checks as applicable, and browser loading/error/retry proof. Require exact-head Core and P2 acceptance; no hosted PASS without dedicated authorized non-production test credentials.
+- No direct main writes, force-push, destructive reset, production DB writes, or live external calls.
 
 ## المصالحة الحالية — 2026-10-23T21:47:31+03:00
 
