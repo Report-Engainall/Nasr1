@@ -319,12 +319,56 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          local_project="$RUNNER_TEMP/p2-local-supabase"
+          local_project="$RUNNER_TEMP/p2-local-supabase-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          project_id="p2-local-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "P2_LOCAL_SUPABASE_DIR=$local_project" >> "$GITHUB_ENV"
+          echo "P2_LOCAL_SUPABASE_PROJECT_ID=$project_id" >> "$GITHUB_ENV"
+          echo "P2_LOCAL_E2E_PREFIX=$RUNNER_TEMP/p2-local-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
           mkdir -p "$local_project/supabase"
           cp -R supabase/. "$local_project/supabase/"
           test -f "$local_project/supabase/config.toml"
           test -d "$local_project/supabase/migrations"
-          sed -i '1s/.*/project_id = "p2-local-e2e"/' "$local_project/supabase/config.toml"
+          base_port=$((52000 + (GITHUB_RUN_ID % 3000) * 3))
+          api_port="$base_port"
+          db_port=$((base_port + 1))
+          shadow_port=$((base_port + 2))
+          python3 - "$local_project/supabase/config.toml" "$project_id" "$api_port" "$db_port" "$shadow_port" <<'PY'
+          from pathlib import Path
+          import re, sys
+
+          path = Path(sys.argv[1])
+          project_id, api_port, db_port, shadow_port = sys.argv[2:]
+          lines = path.read_text().splitlines()
+          if not lines or not lines[0].startswith("project_id"):
+              raise SystemExit("Unexpected Supabase config header; refusing unsafe port rewrite")
+          lines[0] = f'project_id = "{project_id}"'
+
+          def section_bounds(name):
+              start = next((i for i, line in enumerate(lines) if line.strip() == f"[{name}]"), None)
+              if start is None:
+                  return None, None
+              end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\\s*\\[", lines[i])), len(lines))
+              return start, end
+
+          def set_option(section, key, value):
+              start, end = section_bounds(section)
+              if start is None:
+                  insert_at = next((i for i, line in enumerate(lines) if re.match(r"^\\s*\\[", line)), len(lines))
+                  lines[insert_at:insert_at] = [f"[{section}]"]
+                  start, end = section_bounds(section)
+              match = next((i for i in range(start + 1, end) if re.match(rf"^\\s*{re.escape(key)}\\s*=", lines[i])), None)
+              assignment = f"{key} = {value}"
+              if match is None:
+                  lines.insert(start + 1, assignment)
+              else:
+                  lines[match] = assignment
+
+          set_option("api", "port", api_port)
+          set_option("db", "port", db_port)
+          set_option("db", "shadow_port", shadow_port)
+          path.write_text("\\n".join(lines) + "\\n")
+          PY
+          grep -Fx "project_id = \"$project_id\"" "$local_project/supabase/config.toml"
           if [ ! -f "$local_project/supabase/migrations/20261018100000_product_image_storage.sql" ]; then
             echo "Expected Storage-only migration not found; refusing to claim the scoped migration set." >&2
             exit 1
@@ -352,12 +396,12 @@ jobs:
           # The storage.objects migration is omitted only from this temporary local-only acceptance scope because
           # the Storage service is excluded; the source migration remains untouched and its RLS is not claimed here.
           set -euo pipefail
-          cd "$RUNNER_TEMP/p2-local-supabase"
-          test "$(sed -n '1p' supabase/config.toml)" = 'project_id = "p2-local-e2e"'
+          cd "$P2_LOCAL_SUPABASE_DIR"
+          test "$(sed -n '1p' supabase/config.toml)" = "project_id = \"$P2_LOCAL_SUPABASE_PROJECT_ID\""
           test ! -e supabase/migrations/20261018100000_product_image_storage.sql
           registry=ghcr.io
           for attempt in 1 2 3; do
-            log_file="$RUNNER_TEMP/p2-supabase-start-attempt-${attempt}.log"
+            log_file="${P2_LOCAL_E2E_PREFIX}-supabase-start-attempt-${attempt}.log"
             echo "Starting isolated Supabase services (attempt ${attempt}/3; registry=$registry)."
             if SUPABASE_INTERNAL_IMAGE_REGISTRY="$registry" timeout 210s supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta --ignore-health-check 2>&1 | tee "$log_file"; then
               echo "Isolated Supabase services started on attempt ${attempt} using $registry." >> "$GITHUB_STEP_SUMMARY"
@@ -384,13 +428,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/p2-local-supabase"
+          cd "$P2_LOCAL_SUPABASE_DIR"
           timeout 12m supabase db reset --local
       - name: Export local Supabase environment
         shell: bash
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/p2-local-supabase"
+          cd "$P2_LOCAL_SUPABASE_DIR"
           supabase status -o env \
             --override-name api.url=SUPABASE_URL \
             --override-name auth.anon_key=SUPABASE_PUBLISHABLE_KEY \
@@ -424,17 +468,17 @@ jobs:
           set -euo pipefail
           export SUPABASE_URL="$SUPABASE_URL"
           export SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
-          npx wrangler dev --config .output/server/wrangler.json --local --ip 127.0.0.1 --port 4173 > "$RUNNER_TEMP/p2-local-e2e-preview.log" 2>&1 &
+          npx wrangler dev --config .output/server/wrangler.json --local --ip 127.0.0.1 --port 4173 > "${P2_LOCAL_E2E_PREFIX}-preview.log" 2>&1 &
           server_pid=$!
-          echo "$server_pid" > "$RUNNER_TEMP/p2-local-e2e-preview.pid"
+          echo "$server_pid" > "${P2_LOCAL_E2E_PREFIX}-preview.pid"
           ready=0
           for attempt in $(seq 1 60); do
-            status="$(curl --silent --connect-timeout 2 --max-time 5 --output "$RUNNER_TEMP/p2-local-e2e-home.html" --write-out '%{http_code}' http://127.0.0.1:4173/ || true)"
-            if [ "$status" = "200" ] && grep -q "الأغبري" "$RUNNER_TEMP/p2-local-e2e-home.html"; then ready=1; break; fi
-            if ! kill -0 "$server_pid" 2>/dev/null; then cat "$RUNNER_TEMP/p2-local-e2e-preview.log"; exit 1; fi
+            status="$(curl --silent --connect-timeout 2 --max-time 5 --output "${P2_LOCAL_E2E_PREFIX}-home.html" --write-out '%{http_code}' http://127.0.0.1:4173/ || true)"
+            if [ "$status" = "200" ] && grep -q "الأغبري" "${P2_LOCAL_E2E_PREFIX}-home.html"; then ready=1; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then cat "${P2_LOCAL_E2E_PREFIX}-preview.log"; exit 1; fi
             sleep 1
           done
-          if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/p2-local-e2e-preview.log"; exit 1; fi
+          if [ "$ready" -ne 1 ]; then cat "${P2_LOCAL_E2E_PREFIX}-preview.log"; exit 1; fi
           echo "Built app ready; local-only Supabase URL host: $(node -e 'console.log(new URL(process.env.SUPABASE_URL).hostname)')" >> "$GITHUB_STEP_SUMMARY"
       - name: Run authenticated order persistence and cross-tenant denial in Chromium
         env:
@@ -473,8 +517,8 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if [ -f "$RUNNER_TEMP/p2-local-e2e-preview.pid" ]; then kill "$(cat "$RUNNER_TEMP/p2-local-e2e-preview.pid")" >/dev/null 2>&1 || true; fi
-          if [ -d "$RUNNER_TEMP/p2-local-supabase" ]; then (cd "$RUNNER_TEMP/p2-local-supabase" && supabase stop --no-backup >/dev/null 2>&1) || true; fi
+          if [ -f "${P2_LOCAL_E2E_PREFIX}-preview.pid" ]; then kill "$(cat "${P2_LOCAL_E2E_PREFIX}-preview.pid")" >/dev/null 2>&1 || true; fi
+          if [ -n "${P2_LOCAL_SUPABASE_DIR:-}" ] && [ -d "$P2_LOCAL_SUPABASE_DIR" ]; then (cd "$P2_LOCAL_SUPABASE_DIR" && supabase stop --no-backup >/dev/null 2>&1) || true; fi
       - name: Upload authenticated E2E traces, report and server log
         if: always()
         uses: actions/upload-artifact@v4
@@ -483,5 +527,5 @@ jobs:
           path: |
             playwright-report/
             test-results/
-            ${{ runner.temp }}/p2-local-e2e-preview.log
+            ${{ runner.temp }}/p2-local-e2e-${{ github.run_id }}-${{ github.run_attempt }}-preview.log
           if-no-files-found: ignore
