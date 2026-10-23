@@ -73,6 +73,15 @@ describe("customer address book data contract",()=>{
     await expect(saveCustomerAddress({...VALID,country:"YEM"})).rejects.toThrow("رمز الدولة");
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
+  it("requires UUID save acknowledgement and rejects malformed edit/delete IDs before RPC",async()=>{
+    mocks.rpc.mockResolvedValueOnce({data:"not-a-uuid",error:null});
+    await expect(saveCustomerAddress(VALID)).rejects.toThrow("لم يؤكد الخادم حفظ العنوان");
+    expect(mocks.rpc).toHaveBeenCalledWith("save_customer_address",expect.objectContaining({p_address_id:null}));
+    mocks.rpc.mockClear();
+    await expect(saveCustomerAddress({...VALID,id:"not-a-uuid"})).rejects.toThrow("معرّف عنوان التوصيل غير صالح");
+    await expect(deleteCustomerAddress("not-a-uuid")).rejects.toThrow("معرّف عنوان التوصيل غير صالح");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
   it("shows database errors instead of claiming success",async()=>{
     mocks.rpc.mockResolvedValueOnce({data:null,error:{message:"permission denied"}});
     await expect(saveCustomerAddress(VALID)).rejects.toThrow("permission denied");
