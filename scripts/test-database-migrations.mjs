@@ -1048,12 +1048,12 @@ async function main() {
   await expectFailure(
     "ordinary staff cannot change customer lifecycle",
     () => customerLifecycleCommand(lifecycleIds.pendingReject, "rejected", "blocked", "CI staff must be denied"),
-    /active admin or manager permission required/i,
+    /active customer-management permission required/i,
   );
   await expectFailure(
     "ordinary staff cannot change customer tier",
     () => db.unsafe("select public.set_admin_customer_tier($1::uuid,'wholesale','vip','CI staff must be denied')", [lifecycleIds.tierCommand]),
-    /active admin or manager permission required/i,
+    /active customer-management permission required/i,
   );
   await db.unsafe("reset role");
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
