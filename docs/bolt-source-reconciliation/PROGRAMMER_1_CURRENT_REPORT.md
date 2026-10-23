@@ -3,7 +3,7 @@
 - **المستودع:** `Report-Engainall/Nasr1`.
 - **المهمة المكتملة:** `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` — منع ازدواج إنشاء/تحديث المنتج وإتاحة إعادة المحاولة الآمنة بعد الفشل.
 - **PR #97:** [fix(admin): prevent duplicate product submissions](https://github.com/Report-Engainall/Nasr1/pull/97) — `OPEN / DRAFT / NOT MERGED`.
-- **PR base:** `d7a49d8ca7d968e2fc04307fb26313e54168410a`; **آخر main قرئ:** `b48a4b2e8ae09e87432b49dab591a23e1be651c6`. Main متقدم بcommit واحد في ملفات P2 الخاصة بدعوات الشركة؛ هذا الفرق غير متداخل مع #97، لكن يلزم المصالحة قبل الدمج.
+- **PR base:** `d7a49d8ca7d968e2fc04307fb26313e54168410a`; **آخر main قرئ:** `b48a4b2e8ae09e87432b49dab591a23e1be651c6`. يعرض Git compare الآن أن فرع #97 متأخر بأربعة commits عن main الحالي من merge-base `d7a49d8...` بسبب تحديثات P2 للبيانات والحالة المركزية. صافي فرق #97 ما زال أربعة ملفات P1 لا تتداخل مع ملفات P2 الجديدة؛ أعد المصالحة مع main عند التحضير للمراجعة والدمج.
 - **رأس العمل قبل دفعة التوثيق:** `a68b48dce64f97fbc42387fc1c25e9b21c5424da`; Core [40021680149 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40021680149) وP2 [40021680249 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40021680249) على SHA نفسه.
 - **فرق #97:** أربعة ملفات P1 فقط؛ لا تغييرات إلى SQL/RPC/RLS/migrations أو مسارات P3.
 - **PR #124:** Core [40021372945 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40021372945), P2 [40021372958 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40021372958), SHA `44a0833b3853bb31c188919be7f3114862e2ffb0`.

@@ -3,7 +3,7 @@
 - `REPOSITORY=Report-Engainall/Nasr1`; `LAST_COMPLETED_TASK_ID=P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001`.
 - `CURRENT_BRANCH=p1/admin-product-singleflight-20261023`; `PR_URL=https://github.com/Report-Engainall/Nasr1/pull/97`.
 - `BRANCH_BASE_SHA=d7a49d8ca7d968e2fc04307fb26313e54168410a`; latest `MAIN_SHA_AT_CHECK=b48a4b2e8ae09e87432b49dab591a23e1be651c6`.
-- **Important:** live main advanced one commit after this P1 branch was reconciled. That commit affects P2 company-invitation service/tests and does not overlap the four P1 paths in #97. Because this PR is Draft and has no independent review, do not merge; sync against live main before any eventual merge attempt.
+- **Important:** live Git compare now reports this branch is behind main by four commits from merge base `d7a49d8...`, reflecting intervening P2 feature and state merges. The current #97 net diff remains four P1 paths and does not overlap the latest P2 customer-address/company-invitation files. Since the PR is Draft and has no independent review, do not merge; resynchronize to live main when review/merge preparation begins.
 - `LAST_TESTED_EXACT_SHA=a68b48dce64f97fbc42387fc1c25e9b21c5424da`; this upcoming checkpoint/report-only successor needs its own exact-head Core/P2 checks.
 - **Core — SUCCESS on exact `a68b48...`:** [run 40021680149](https://github.com/Report-Engainall/Nasr1/actions/runs/40021680149).
 - **P2 Playwright — SUCCESS on the same exact SHA:** [run 40021680249](https://github.com/Report-Engainall/Nasr1/actions/runs/40021680249). Public read-only smoke and isolated local Supabase/PostgreSQL 17 acceptance passed. Hosted customer-order/tenant isolation `SKIPPED / BLOCKED_EXTERNAL`; ProductModal-specific browser proof and production proof `NOT RUN`.
