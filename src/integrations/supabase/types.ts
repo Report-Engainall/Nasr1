@@ -2007,6 +2007,7 @@ export type Database = {
       record_customer_payment: {
         Args: {
           p_amount: number
+          p_idempotency_key: string
           p_invoice_id: string
           p_notes?: string
           p_payment_method: string

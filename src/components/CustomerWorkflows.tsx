@@ -2429,6 +2429,7 @@ export function StaffFinancePage() {
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
+  const paymentRequestRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -2520,24 +2521,57 @@ export function StaffFinancePage() {
       setError("المبلغ يتجاوز المتبقي على الفاتورة بعد احتساب الإشعارات الدائنة المرحّلة.");
       return;
     }
+    const normalizedMethod = method.trim().toLowerCase();
+    const normalizedReference = reference.trim() || null;
+    const normalizedNotes = notes.trim() || null;
+    const requestFingerprint = JSON.stringify({
+      invoiceId: i.id,
+      amount: n,
+      paymentMethod: normalizedMethod,
+      reference: normalizedReference,
+      notes: normalizedNotes,
+    });
+    const priorRequest = paymentRequestRef.current;
+    const idempotencyKey = priorRequest?.fingerprint === requestFingerprint
+      ? priorRequest.key
+      : globalThis.crypto.randomUUID();
+    // Set synchronously before awaiting the network so rapid duplicate submits share one key.
+    paymentRequestRef.current = { fingerprint: requestFingerprint, key: idempotencyKey };
+
     setBusy(true);
     setError("");
-    const r = await supabase.rpc("record_customer_payment", {
-      p_invoice_id: i.id,
-      p_amount: n,
-      p_payment_method: method,
-      p_reference: reference.trim() || null,
-      p_notes: notes.trim() || null,
-    });
-    if (r.error) setError("تعذر تسجيل الدفعة: " + r.error.message);
-    else {
+    setMessage("");
+    try {
+      const r = await supabase.rpc("record_customer_payment", {
+        p_invoice_id: i.id,
+        p_amount: n,
+        p_payment_method: normalizedMethod,
+        p_idempotency_key: idempotencyKey,
+        p_reference: normalizedReference,
+        p_notes: normalizedNotes,
+      });
+      if (r.error) {
+        // Keep the key on every unsuccessful/ambiguous result. If the server committed before
+        // the response was lost, the same request key safely replays the original payment.
+        setError("تعذر تسجيل الدفعة: " + r.error.message + ". أعد المحاولة بالقيم نفسها.");
+        return;
+      }
+      paymentRequestRef.current = null;
       setMessage("تم تسجيل الدفعة وتحديث حالة الفاتورة.");
       setAmount("");
       setReference("");
       setNotes("");
-      await Promise.all([load(), loadAging(0)]);
+      try {
+        await Promise.all([load(), loadAging(0)]);
+      } catch {
+        setError("تم تسجيل الدفعة، لكن تعذر تحديث العرض المالي. أعد تحميل البيانات.");
+      }
+    } catch {
+      // Network rejection is ambiguous: retain the key until the exact payload succeeds or changes.
+      setError("تعذر تأكيد نتيجة الدفعة. أعد المحاولة بالقيم نفسها؛ سيُستخدم مفتاح الطلب نفسه.");
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
   if (!canManageFinance)
     return (

@@ -1126,3 +1126,29 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Main then advanced to `d81c9b34f819a53df7610937264c6fcb923c3f95` by adding only `docs/project-bolt-github-7sl6ykzz (5).zip`. Exact-current-main Core `40001438040` was IN_PROGRESS in PostgreSQL 17 migration acceptance at time of update; no PASS transferred to this SHA. P2 on exact current main is NOT RUN.
 - Released statement-credit lock: PR #62 merged at `024c279a2d1c0226c662e5d916871f45534c7242`. PR #40 is CLOSED and NOT MERGED; its old "open PR" note is historical only.
 - Next task: `FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD`. The live payment table has no persisted key and the UI sends none. Add identical-payload replay, changed-payload conflict, retry-key persistence, and concurrent replay/tenant isolation tests on PostgreSQL 17. Check all callers, overloads, grants and RLS; no parallel ledger/payment engine.
+
+## P2 FIN-INVOICE-001 payment idempotency implementation — 2026-10-23T21:55:00+03:00
+
+- Current main verified at `cd303b7fe0f263c9f62ed97f10202e9895465273`, tree `51aa49eb36bbf6227c42612e35b1bf03e6b3360a`. Main Core run `40006315985` was IN_PROGRESS on exact SHA at this read; exact-main P2 NOT RUN.
+- PR #111 documentation-only reconciliation merged at current main SHA; its central docs now record `FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD` as the next task. No parallel central-doc owner remains on PR #111.
+- Opened fresh branch `p2/payment-idempotency-current-main-20261023b` from current main; ported only the implementation/test paths. Previous feature branch was not opened as a PR after main advanced, so it does not cause an outdated-base merge.
+- Payment migration path finalized as `supabase/migrations/20261023235900_customer_payment_idempotency.sql` (valid chronological timestamp after the 23:00 AI session guard migration).
+- Implementation adds tenant-scoped payment key/fingerprint, identical replay, altered-payload conflict, request-key and shared invoice-settlement locks, legacy 5-argument overload removal, and restricted execution; the UI preserves the key across ambiguous retries for the exact same payload.
+- Test updates include component retry-key assertions and PostgreSQL 17 scenarios for replay/conflict/concurrency/tenant scope/legacy signature/grants, plus updates to existing database acceptance call sites.
+- P2 central WorkCoordination, current-state pointer, acceptance matrix, report and log updated sequentially on this feature branch. All new branch test gates are still NOT RUN; no PASS claimed.
+- NEXT_ACTION: finish diff review, open PR against main, wait for exact-head Core and P2 local PostgreSQL/Playwright terminal results, fix evidenced failures, merge only after required gates/review, then record the exact post-merge main SHA/results.
+
+## Exact-main baseline CI terminal result — 2026-10-23T21:56:00+03:00
+
+- Core run [40006315985](https://github.com/Report-Engainall/Nasr1/actions/runs/40006315985) completed SUCCESS on exact main merge SHA `cd303b7fe0f263c9f62ed97f10202e9895465273`, tree `51aa49eb36bbf6227c42612e35b1bf03e6b3360a).
+- P2 run `40006269156` remains IN_PROGRESS on the distinct PR #111 head `64632871573b0d655051df9ac795c4cc76b68069`; no exact-main P2 run is confirmed. Do not transfer that state to the merge SHA.
+- Active payment branch is still untested; the successful current-main Core result is baseline only and does not cover the unmerged payment migration or payment retry code.
+
+## P2 FIN-INVOICE-001 payment idempotency — exact-head acceptance and checkpoint refresh — 2026-10-23T22:20:00+03:00
+
+- PR [#112](https://github.com/Report-Engainall/Nasr1/pull/112) is open on branch `p2/payment-idempotency-current-main-20261023b`, based on `cd303b7fe0f263c9f62ed97f10202e9895465273`.
+- Exact tested implementation head `1ecfd0b343419e9745e5e8631ecea738c9f13862`: Core [40009788759](https://github.com/Report-Engainall/Nasr1/actions/runs/40009788759) SUCCESS and P2 [40009788309](https://github.com/Report-Engainall/Nasr1/actions/runs/40009788309) SUCCESS. The same-SHA runs completed PostgreSQL 17 migration/financial acceptance, component/unit/lint/build checks, public UI smoke, and local-Supabase authenticated Chromium acceptance for order persistence/tenant isolation, returns and credit memos, Onyx XLSX export, finance/task printing, customer-manager authorization/privacy/audit, and device-session revocation.
+- Root-cause test fixes on earlier heads: import `randomUUID` in `scripts/test-database-migrations.mjs`; use the privileged isolated-fixture role only while inspecting rows in `customer_payments`, then restore `authenticated` before client RPC/concurrency tests. Table grants were not widened. These final code/test paths passed on `1ecfd0b343419e9745e5e8631ecea738c9f13862`.
+- Hosted customer order/tenant E2E job `120607612381` was SKIPPED due absent dedicated non-production credentials; it is `BLOCKED_EXTERNAL`, not PASS. Local Supabase browser acceptance is distinct and passed. No production financial/database writes or live external integration are claimed.
+- CodeRabbit review was explicitly triggered for `1ecfd0b343419e9745e5e8631ecea738c9f13862`; its trigger was acknowledged, but no completed formal review was returned at the time of this log. Manual diff review performed; verify bot output before merge.
+- This single checkpoint commit is documentation-only but changes the PR head. Core/P2 results above attach only to `1ecfd0b343419e9745e5e8631ecea738c9f13862`; rerun both gates to terminal on the post-checkpoint head before merge, then verify exact merge/main SHA and CI. Do not copy the prior PASS status to the new SHA.

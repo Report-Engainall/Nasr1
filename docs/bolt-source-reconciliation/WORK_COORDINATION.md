@@ -1,5 +1,17 @@
 # سجل التنسيق — المرجع الحي
 
+## ACTIVE P2 lock — customer payment idempotency — 2026-10-23T22:20:00+03:00
+
+- Owner: P2 only. Repository `Report-Engainall/Nasr1`; feature branch `p2/payment-idempotency-current-main-20261023b`; base-main SHA `cd303b7fe0f263c9f62ed97f10202e9895465273`. No direct main writes.
+- Current PR: [#112](https://github.com/Report-Engainall/Nasr1/pull/112); branch/PR exact tested head `1ecfd0b343419e9745e5e8631ecea738c9f13862`.
+- Exact-head Core [40009788759](https://github.com/Report-Engainall/Nasr1/actions/runs/40009788759) SUCCESS; exact-head P2 [40009788309](https://github.com/Report-Engainall/Nasr1/actions/runs/40009788309) SUCCESS on the same tested SHA. Local PostgreSQL 17 and local Supabase Chromium acceptance both completed with no failed jobs.
+- Credential-gated hosted customer order/tenant E2E was SKIPPED, not PASS. External non-production credentials remain unavailable; no live production/financial writes.
+- CodeRabbit review was triggered against `1ecfd0b343419e9745e5e8631ecea738c9f13862`, but no completed formal review has been returned at this snapshot; check review output after the checkpoint head refresh.
+- The central checkpoint changes in this commit create a new PR head. Retest Core and P2 on that exact resulting SHA and retain these prior run links as history only; do not transfer PASS labels.
+- Locked paths: `supabase/migrations/20261023235900_customer_payment_idempotency.sql`; `src/components/CustomerWorkflows.tsx`; `src/integrations/supabase/types.ts`; `src/components/CustomerWorkflows.finance.test.tsx`; `scripts/test-staff-receivables-aging-credit-memo-parity.mjs`; `scripts/test-database-migrations.mjs`; P2-owned state/report/matrix/coordination/log.
+- Release the code lock only after PR merge plus exact post-merge main verification; meanwhile P1/P3-owned paths remain excluded.
+
+
 ## المصالحة الحالية — 2026-10-23T21:47:31+03:00
 
 - المستودع الوحيد Report-Engainall/Nasr1، الفرع المرجعي main. آخر SHA متحقق منه: 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac؛ الشجرة 15f30663a80ba9ff2e83c2057f15ed489eed92be.
