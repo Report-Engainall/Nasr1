@@ -1195,3 +1195,14 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - CodeRabbit was rate-limited; manual P2 review is recorded on PR #123. No unresolved review threads remained before merge. Do not claim a completed independent automated review.
 - Resume pointer: COMPANY-001-CURRENT-MAIN-ACCEPTANCE. On the live main SHA at next boot, inspect current company workspace routes, membership/invitation/address services and RLS/RPC; preserve #84/#90/#83/#88 and implement only the first evidenced gap. Take a single code-path lock after identifying real files.
 
+
+
+## P2 COMPANY-001 — consolidate address validation into existing PR #127 — 2026-10-23T23:41:00+03:00
+
+- Main 6815b00781412bd98cbdd9fb660e475e4540b543; Core run 40019333142 SUCCESS on exact main SHA.
+- Existing PR #127 already owns `src/lib/customer-addresses.ts` and `src/test/customer-addresses.test.ts` to validate fetched address-row shape/UUID/country/timestamps.
+- A separate PR #129 was detected with the same exact two paths. To avoid duplicate/conflicting fixes, the UUID save-acknowledgement and edit/delete ID prevalidation work is integrated into #127; PR #129 will close without merge.
+- Combined fix: UUID required as save confirmation; optional edit and delete IDs rejected before RPC; malformed-ack/ID regression added. No schema/RLS/UI changes.
+- Latest #127 head changes through the atomic code+central commit; final-head Core/P2 remain pending. Do not use old head results.
+- Hosted tenant E2E remains BLOCKED_EXTERNAL/SKIPPED without dedicated authorized non-production credentials; no production writes.
+
