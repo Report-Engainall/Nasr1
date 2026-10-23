@@ -8,9 +8,9 @@ vi.mock("@tanstack/react-router", () => ({
     options,
     useParams: () => ({ id: "test-order" }),
     useSearch: () => ({}),
-    useLocation: () => ({ pathname: "/search" }),
-    Outlet: () => null,
   }),
+  useLocation: () => ({ pathname: "/search" }),
+  Outlet: () => null,
   ClientOnly: ({ fallback }: { fallback?: ReactNode }) => fallback ?? null,
   useNavigate: () => vi.fn(),
 }));
