@@ -230,14 +230,41 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-chromium-1.63.0-v1
-      - name: Install Chromium and OS dependencies
+      - name: Install Chromium browser
         if: steps.chromium-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 15
-        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright install --with-deps chromium"
-      - name: Install Chromium OS dependencies from cached browser
-        if: steps.chromium-cache.outputs.cache-hit == 'true'
-        timeout-minutes: 15
-        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright install-deps chromium"
+        timeout-minutes: 8
+        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright install chromium"
+      - name: Verify Chromium OS dependencies and install only if missing
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser_dir="$HOME/.cache/ms-playwright"
+          browser_bins="$(find "$browser_dir" -type f \( -name chrome -o -name chrome-headless-shell \) -perm -111 -print)"
+          if [ -z "$browser_bins" ]; then
+            echo "::error title=Chromium cache invalid::No executable Chromium browser was found in $browser_dir."
+            exit 1
+          fi
+          missing=""
+          while IFS= read -r browser; do
+            [ -n "$browser" ] || continue
+            ldd_output="$RUNNER_TEMP/chromium-ldd-$(basename "$browser").txt"
+            if ! ldd "$browser" > "$ldd_output" 2>&1; then
+              missing="${missing}${browser}: ldd failed; "
+              continue
+            fi
+            unresolved="$(awk '/not found/ { print $1 }' "$ldd_output" | paste -sd ',' -)"
+            if [ -n "$unresolved" ]; then
+              missing="${missing}${browser}: ${unresolved}; "
+            fi
+          done <<< "$browser_bins"
+          if [ -n "$missing" ]; then
+            echo "::warning title=Chromium system libraries missing::Installing OS packages only because ldd found unresolved libraries."
+            printf '%s\n' "$missing"
+            timeout 8m "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright" install-deps chromium
+          else
+            echo "All linked system libraries for cached Chromium executables are present; skipped redundant apt package installation."
+          fi
       - name: Build exact source with isolated non-routable placeholder configuration
         env:
           VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
@@ -365,14 +392,41 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-chromium-1.63.0-v1
-      - name: Install Chromium and OS dependencies
+      - name: Install Chromium browser
         if: steps.chromium-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 15
-        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install --with-deps chromium"
-      - name: Install Chromium OS dependencies from cached browser
-        if: steps.chromium-cache.outputs.cache-hit == 'true'
-        timeout-minutes: 15
-        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install-deps chromium"
+        timeout-minutes: 8
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install chromium"
+      - name: Verify Chromium OS dependencies and install only if missing
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser_dir="$HOME/.cache/ms-playwright"
+          browser_bins="$(find "$browser_dir" -type f \( -name chrome -o -name chrome-headless-shell \) -perm -111 -print)"
+          if [ -z "$browser_bins" ]; then
+            echo "::error title=Chromium cache invalid::No executable Chromium browser was found in $browser_dir."
+            exit 1
+          fi
+          missing=""
+          while IFS= read -r browser; do
+            [ -n "$browser" ] || continue
+            ldd_output="$RUNNER_TEMP/chromium-ldd-$(basename "$browser").txt"
+            if ! ldd "$browser" > "$ldd_output" 2>&1; then
+              missing="${missing}${browser}: ldd failed; "
+              continue
+            fi
+            unresolved="$(awk '/not found/ { print $1 }' "$ldd_output" | paste -sd ',' -)"
+            if [ -n "$unresolved" ]; then
+              missing="${missing}${browser}: ${unresolved}; "
+            fi
+          done <<< "$browser_bins"
+          if [ -n "$missing" ]; then
+            echo "::warning title=Chromium system libraries missing::Installing OS packages only because ldd found unresolved libraries."
+            printf '%s\n' "$missing"
+            timeout 8m "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright" install-deps chromium
+          else
+            echo "All linked system libraries for cached Chromium executables are present; skipped redundant apt package installation."
+          fi
       - name: Verify local-only container runtime
         run: docker info
       - name: Prepare isolated migration copy for order and tenant acceptance
