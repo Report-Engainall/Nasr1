@@ -66,16 +66,19 @@ function MyOrdersInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('all');
   const [totalCount, setTotalCount] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const { data: rows, error: queryError, count } = await supabase
+      let query = supabase
         .from('orders')
         .select('id,order_number,status,total_items,created_at,quantity_review_required,customer_adjustment_note,customer_payment_requested_at,payment_request_status', { count: 'exact' })
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false });
+      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+      const { data: rows, error: queryError, count } = await query
         .range((page - 1) * CUSTOMER_ORDERS_PAGE_SIZE, page * CUSTOMER_ORDERS_PAGE_SIZE - 1);
       if (queryError) throw new Error('تعذر تحميل الطلبات');
       if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) {
@@ -96,7 +99,7 @@ function MyOrdersInner() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, statusFilter]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -105,9 +108,28 @@ function MyOrdersInner() {
     <Shell>
       <h1 style={{ fontSize: 26, margin: '0 0 6px' }}>طلباتي</h1>
       <p style={{ color: '#7a9398', margin: '0 0 20px' }}>كل الطلبات المرسلة من حسابك وحالتها الحالية</p>
+      <div className="no-print" style={{ ...card, marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label htmlFor="customer-orders-status-filter" style={{ fontWeight: 700 }}>تصفية حسب الحالة</label>
+        <select
+          id="customer-orders-status-filter"
+          aria-label="تصفية طلباتي حسب الحالة"
+          value={statusFilter}
+          disabled={loading}
+          onChange={(event) => {
+            setData(null);
+            setTotalCount(null);
+            setPage(1);
+            setStatusFilter(event.target.value);
+          }}
+          style={{ minWidth: 220, padding: 10, border: '1px solid #cbdad9', borderRadius: 9, background: '#fff' }}
+        >
+          <option value="all">كل الحالات</option>
+          {Object.entries(STATUS_LABELS).map(([status, label]) => <option key={status} value={status}>{label}</option>)}
+        </select>
+      </div>
       {loading && <p role="status">جارٍ تحميل الطلبات...</p>}
       {error && <div style={card} role="alert">{error} <button type="button" className="sf-link" onClick={() => void load()}>إعادة المحاولة</button></div>}
-      {data && data.length === 0 && totalCount === 0 && !loading && !error && <div style={{ ...card, textAlign: 'center' }}><FileText size={32} /><p>لا توجد طلبات بعد.</p><Link to="/" className="sf-btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '10px 18px' }}>ابدأ التسوق</Link></div>}
+      {data && data.length === 0 && totalCount === 0 && !loading && !error && <div style={{ ...card, textAlign: 'center' }}><FileText size={32} /><p>{statusFilter === 'all' ? 'لا توجد طلبات بعد.' : 'لا توجد طلبات بهذه الحالة.'}</p><Link to="/" className="sf-btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '10px 18px' }}>ابدأ التسوق</Link></div>}
       {data && data.length > 0 && !error && (
         <div style={{ ...card, padding: 0, overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -122,9 +144,9 @@ function MyOrdersInner() {
               </tr>))}</tbody>
           </table>
           {pageCount > 1 && <nav aria-label="صفحات الطلبات" style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center', padding: 12, flexWrap: 'wrap' }}>
-            <button type="button" className="sf-link" aria-label="صفحة الطلبات السابقة" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={loading || page <= 1}>السابق</button>
-            <span role="status" aria-label="صفحة الطلبات الحالية">{'صفحة ' + page + ' من ' + pageCount + ' — إجمالي الطلبات: ' + totalCount}</span>
-            <button type="button" className="sf-link" aria-label="صفحة الطلبات التالية" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={loading || page >= pageCount}>التالي</button>
+            <button type="button" className="sf-link" aria-label="صفحة الطلبات السابقة" onClick={() => { setData(null); setPage((value) => Math.max(1, value - 1)); }} disabled={loading || page <= 1}>السابق</button>
+            <span role="status" aria-label="صفحة الطلبات الحالية">{'صفحة ' + page + ' من ' + pageCount + ' — إجمالي النتائج: ' + totalCount}</span>
+            <button type="button" className="sf-link" aria-label="صفحة الطلبات التالية" onClick={() => { setData(null); setPage((value) => Math.min(pageCount, value + 1)); }} disabled={loading || page >= pageCount}>التالي</button>
           </nav>}
         </div>
       )}

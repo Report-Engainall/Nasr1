@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   count: 30 as number | null,
   rows: [] as Array<Record<string, unknown>>,
   ranges: [] as Array<[number, number]>,
+  filters: [] as Array<{ column: string; value: unknown }>,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -33,6 +34,7 @@ function makeQuery() {
   let range: [number, number] = [0, 24];
   const query = {
     select: vi.fn(() => query),
+    eq: vi.fn((column: string, value: unknown) => { mocks.filters.push({ column, value }); return query; }),
     order: vi.fn(() => query),
     range: vi.fn((start: number, end: number) => {
       range = [start, end];
@@ -57,6 +59,7 @@ describe("customer order history pagination", () => {
   beforeEach(() => {
     mocks.count = 30;
     mocks.ranges = [];
+    mocks.filters = [];
     mocks.rows = Array.from({ length: 30 }, (_, index) => ({
       id: `order-${index + 1}`,
       order_number: `ORDER-${String(index + 1).padStart(3, "0")}`,
@@ -117,6 +120,45 @@ describe("customer order history pagination", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(mocks.ranges.at(-1)).toEqual([0, 24]);
+  });
+
+  it("filters by status on the server, resets pagination, and reports the filtered result count", async () => {
+    await act(async () => {
+      root?.render(<MyOrders />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host?.textContent).toContain("صفحة 1 من 2");
+
+    mocks.rows = Array.from({ length: 5 }, (_, index) => ({
+      id: `delivered-${index + 1}`,
+      order_number: `DELIVERED-${index + 1}`,
+      status: "delivered",
+      total_items: 1,
+      created_at: "2026-10-23T00:00:00.000Z",
+      quantity_review_required: false,
+      customer_adjustment_note: null,
+      customer_payment_requested_at: null,
+      payment_request_status: "none",
+    }));
+    mocks.count = 5;
+    const filter = host?.querySelector<HTMLSelectElement>("#customer-orders-status-filter");
+    expect(filter).not.toBeNull();
+
+    await act(async () => {
+      if (filter) {
+        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
+        setter?.call(filter, "delivered");
+        filter.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.filters).toContainEqual({ column: "status", value: "delivered" });
+    expect(mocks.ranges.at(-1)).toEqual([0, 24]);
+    expect(host?.textContent).toContain("DELIVERED-1");
+    expect(host?.textContent).toContain("إجمالي النتائج: 5");
+    expect(host?.textContent).not.toContain("ORDER-001");
+    expect(host?.textContent).not.toContain("صفحة 1 من 2");
   });
 
   it("fails closed instead of presenting an unknown count as zero", async () => {
