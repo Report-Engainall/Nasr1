@@ -150,4 +150,15 @@ describe('customer directory query contract', () => {
     await expect(fetchCustomerDirectoryPage({ page: 0 })).rejects.toThrow('رقم صفحة العملاء غير صالح');
     await expect(fetchCustomerDirectoryPage({ pageSize: 101 })).rejects.toThrow('حجم صفحة العملاء خارج النطاق');
   });
+
+  it('keeps normalized search length aligned with the 254-character UI limit', async () => {
+    const longSearch = 'A'.repeat(300);
+    const boundedSearch = 'A'.repeat(254);
+    expect(normalizeCustomerDirectorySearch(longSearch)).toBe(boundedSearch);
+
+    await fetchCustomerDirectoryPage({ search: longSearch });
+    expect(mocks.filters[0]).toContain(`business_name.ilike.%${boundedSearch}%`);
+    expect(mocks.filters[0]).toContain(`customer_code.ilike.%${boundedSearch}%`);
+  });
+
 });
