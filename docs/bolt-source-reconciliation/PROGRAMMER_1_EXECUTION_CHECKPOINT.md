@@ -5,16 +5,17 @@
 - Status: IN_PROGRESS
 - Branch / PR: `p1/remaining-work-execution-20261023` / [PR #66](https://github.com/Report-Engainall/Nasr1/pull/66)
 - Base main SHA: `76baf9dbe7860a764abc18e75835abb8750d56a3`
-- Current code/test HEAD before this checkpoint: `9082a6cd5764a14d8738f1d0b424b4a01a93a689`
-- P1-01 category rename: PR #50 code `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; Core CI PASS, browser proof externally blocked by GHCR rate limit.
-- P1-02 password recovery: PR #44 code `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`; Core CI PASS; password-reset-specific browser proof NOT_RUN.
-- P1-03a order-detail retry: Core CI [39905102470](https://github.com/Report-Engainall/Nasr1/actions/runs/39905102470) PASS on exact code SHA `16bfe4f96513753dc145dfec17a020f121e1f711`.
-- P1-03b source-linked reorder template: `src/components/CustomerOrders.tsx` reuses `save_reorder_template`, validates product IDs/quantities, sends approved quantities and source order, fails closed, and blocks rapid duplicate clicks. Tests are in `src/test/customer-order-detail-retry.test.tsx`.
-- P1-03c company invitation retry: removes URL bearer token before server call while retaining in-memory token for retry. Tested in `src/test/customer-company-members-page.test.tsx`.
-- P1-03d customer activation retry: `src/components/CustomerActivationInvitationPage.tsx` now removes the path bearer token before the server call and retains it in memory so a failed call can be retried. Test added to `src/test/customer-activation-invitations-page.test.tsx`.
-- Code/test HEAD at `9082a6cd5764a14d8738f1d0b424b4a01a93a689`: exact-head Core CI result pending at last readback; do not rely on runs for older heads.
-- Browser proof for the added retry controls: NOT_RUN. Production proof: NOT_RUN.
-- Next task: P1-04 — the next unowned, independently testable commercial-admin/customer-workspace function. Do not touch `src/components/AdminPages.tsx`, `src/components/CustomerWorkflows.tsx`, or other paths locked by active PRs.
+- Code/test HEAD before this checkpoint: `5931e2fe879887c7d7bd6439ca07623efd91b945`
+- P1-01 category rename: PR #50 candidate `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; Core CI PASS; browser proof externally blocked before assertions by GHCR rate limit.
+- P1-02 password recovery: PR #44 candidate `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`; Core CI PASS; reset-route-specific browser proof NOT_RUN.
+- P1-03a order-detail retry: Core CI [39905102470](https://github.com/Report-Engainall/Nasr1/actions/runs/39905102470) PASS on exact SHA `16bfe4f96513753dc145dfec17a020f121e1f711`.
+- P1-03b reorder template from order details: existing `save_reorder_template` RPC; UUID/quantity validation, approved quantities, source-order link, malformed response fail-closed, and immediate duplicate-click guard. Tests in `src/test/customer-order-detail-retry.test.tsx`.
+- P1-03c company invite acceptance: token removed from URL before network request; in-memory retry preserved. Test in `src/test/customer-company-members-page.test.tsx`.
+- P1-03d customer activation acceptance: path token removed before network request; in-memory retry preserved. Test in `src/test/customer-activation-invitations-page.test.tsx`.
+- P1-04 customer activation dialog: `src/components/CustomerActivationInvitationDialog.tsx` now uses an immediate in-flight ref to prevent rapid duplicate invite creation (server revokes a previous pending link when a new one is created). New regression test batches two submits before rerender and asserts one server call in `src/test/customer-activation-invitations-dialog.test.tsx`.
+- Latest code/test SHA: `5931e2fe879887c7d7bd6439ca07623efd91b945`; exact-head Core CI result pending at last readback. Older SHA runs do not prove this head.
+- Browser proof for the specific retry/double-submit controls: NOT_RUN. Production proof: NOT_RUN.
+- Next action: verify Core CI for the checkpoint's resulting SHA; fix only evidenced failures, then continue with the next unowned commercial-admin function.
 
 ## Recent execution history
 
@@ -41,3 +42,6 @@ The company-invitation acceptance handler now removes the bearer token from brow
 
 ### 2026-10-23 — P1-03d — IMPLEMENTED; exact-head CI pending
 The customer activation handler now removes the path token from the visible address before calling the server, while preserving in-memory token state for retry if the request fails. Added a test asserting token removal before the request and successful retry after a transient failure. Changed `src/components/CustomerActivationInvitationPage.tsx` and `src/test/customer-activation-invitations-page.test.tsx`. Exact-head CI must be verified on the final checkpoint SHA.
+
+### 2026-10-23 — P1-04 — IMPLEMENTED; exact-head CI pending
+The customer activation dialog used only React `busy` state to suppress duplicate submits. Concurrent clicks before rerender could call the server twice; the server supersedes a prior pending invitation, which can make the first copied link immediately invalid. Added a synchronous `useRef` in-flight guard and a component test dispatching two submit clicks in one batched event, asserting exactly one call. Changed `src/components/CustomerActivationInvitationDialog.tsx` and `src/test/customer-activation-invitations-dialog.test.tsx`. No server contract or migration changed.
