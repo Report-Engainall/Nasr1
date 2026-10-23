@@ -1,17 +1,43 @@
 # الحالة التنفيذية الحالية الوحيدة — Nasr1 / P2
-LAST_RECONCILED_AT=2026-10-23T21:17:51+03:00
+LAST_RECONCILED_AT=2026-10-23T21:47:00+03:00
 
 ## حقيقة Git الحالية
 REPOSITORY=Report-Engainall/Nasr1
 CURRENT_BRANCH=main (مرجع قراءة فقط؛ لا كتابة مباشرة على main)
-MAIN_SHA=d81c9b34f819a53df7610937264c6fcb923c3f95
-MAIN_TREE=8107f52d4d6c61845b95ed7226c5c7f03038a484
-MAIN_DELTA_FROM_PR104_MERGE=docs/project-bolt-github-7sl6ykzz (5).zip only; application source unchanged in this commit
-MAIN_CORE_CI=IN_PROGRESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40001438040 (exact SHA d81c9b34f819a53df7610937264c6fcb923c3f95; latest observed step: PostgreSQL 17 migration acceptance)
-PREVIOUS_MERGE_CORE=SUCCESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40001179290 on exact merge SHA 5dbb01f7cf2ac054212abc6f3ec34af1b1fe99df
-DOCS_UPDATE_BRANCH=docs/p2-live-reconciliation-post104-20261023
-DOCS_UPDATE_BASE=d81c9b34f819a53df7610937264c6fcb923c3f95
-No force-push, destructive reset, direct main writes or production database writes.
+MAIN_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
+MAIN_TREE=15f30663a80ba9ff2e83c2057f15ed489eed92be
+MAIN_CORE_CI=IN_PROGRESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004 على SHA المطابق 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac.
+MAIN_P2_EXACT_SHA=NOT RUN; no P2 gate is confirmed for this exact merge SHA.
+LATEST_PR_MERGE=#110 pricing preview retry merged at 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac; exact tested head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09 Core 40004970539 SUCCESS and P2 40004970599 SUCCESS. Those are PR-head results, not proof for the merge SHA.
+No force-push, destructive reset, direct writes to main, or production database writes.
+
+## Last completed P2 security unit
+LAST_COMPLETED_TASK_ID=AI-001-AI-BUDGET-RPC-LIVE-SESSION-GUARD
+LAST_COMPLETED_PR=https://github.com/Report-Engainall/Nasr1/pull/109
+LAST_COMPLETED_MERGE_SHA=46a5fbb379d908328e5e2136eec3190a32e148f7
+TASK_STATUS=INTEGRATED; exact PR-head Core and P2 passed; hosted customer E2E skipped due unavailable dedicated non-production credentials.
+EVIDENCE=PR #109 exact head a5bff9191481bc9c84e4fa2fecc345692a9635d4: Core run 40003198716 SUCCESS and P2 run 40003198651 SUCCESS; then merge commit 46a5fbb379d908328e5e2136eec3190a32e148f7. Its Core on exact main merge SHA later succeeded in run 40004846442. Latest main has advanced to 03ac6c5 due merged PR #110; current Core is in progress and current-main P2 is not run.
+
+## مؤشر الاستئناف الوحيد
+LAST_COMPLETED_TASK_ID=AI-001-AI-BUDGET-RPC-LIVE-SESSION-GUARD
+LAST_COMPLETED_PR=https://github.com/Report-Engainall/Nasr1/pull/109
+LAST_COMPLETED_MERGE_SHA=46a5fbb379d908328e5e2136eec3190a32e148f7
+NEXT_TASK_ID=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD
+CURRENT_BRANCH=p2/payment-idempotency-current-main-20261023
+BASE_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
+HEAD_SHA=de8d65981ef7d99266bd517bf3510cda3959bd51 (pre-state-update snapshot; reread final branch head after remaining sequential doc writes and before CI)
+TASK_STATUS=IMPLEMENTED; EXACT-HEAD CI NOT RUN
+FILES_CHANGED=supabase/migrations/20261023240000_customer_payment_idempotency.sql; src/components/CustomerWorkflows.tsx; src/integrations/supabase/types.ts; src/components/CustomerWorkflows.finance.test.tsx; scripts/test-staff-receivables-aging-credit-memo-parity.mjs; scripts/test-database-migrations.mjs
+TESTS_RUN_WITH_RESULTS=NOT RUN on current payment branch. Current main Core run 40005590004 is IN_PROGRESS on exact SHA 03ac6c5 and is unrelated to this feature branch.
+FAILED_OR_SKIPPED=Hosted credential-dependent customer E2E on PR #109 was SKIPPED, not PASS. No payment branch test has been marked PASS.
+MERGE_STATUS=No payment PR yet; do not merge until exact-head Core and P2 local PostgreSQL/Playwright are terminal successes and review findings are addressed.
+BLOCKED_EXTERNAL=Hosted credential-dependent customer E2E is blocked by absent dedicated non-production credentials; local PG17 acceptance and local browser work are available in CI.
+LOCKED_PATHS=20261023240000_customer_payment_idempotency.sql; CustomerWorkflows.tsx; Supabase types.ts; CustomerWorkflows.finance.test.tsx; test-staff-receivables-aging-credit-memo-parity.mjs; test-database-migrations.mjs
+NEXT_ACTION=Finish exact diff and RPC-call-site review; create PR from p2/payment-idempotency-current-main-20261023 against the current main; inspect both final workflow results and fix any root cause; merge through PR only when Core and P2 gates pass; re-read the resulting main SHA and exact-main Core/P2 state before moving to the next acceptance gap.
+UPDATED_AT=2026-10-23T21:47:00+03:00
+
+## Evidence rules
+Allowed statuses: IMPLEMENTED, INTEGRATED, TESTED_EXACT_SHA, BROWSER_PROVEN, PRODUCTION_PROVEN, CLOSED_WITH_EVIDENCE, BLOCKED_EXTERNAL, NOT RUN. A skipped job is not PASS. Never transfer PASS between SHAs. Local DB/browser evidence is not production proof.
 
 ## Recent merged work — do not recreate
 - PR #100 central-state reconciliation merged at 1c21fa6d81009dc8924d26b6f7addd5c976c0cb7.
