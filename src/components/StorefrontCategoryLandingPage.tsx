@@ -1,22 +1,34 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Layers3, RefreshCw } from "lucide-react";
 import { Storefront } from "@/components/Storefront";
-import { fetchCategories, fetchProducts } from "@/lib/api";
+import { fetchCategories } from "@/lib/api";
+import { fetchStorefrontCatalogPage } from "@/lib/storefront-catalog";
 import { resolveStorefrontCategorySlug, storefrontCategorySlug } from "@/lib/storefront-slugs";
 import { useFetch } from "@/lib/useFetch";
 
 export function StorefrontCategoryLandingPage({ categorySlug, subcategorySlug }: { categorySlug: string; subcategorySlug?: string }) {
   const categoriesQuery = useFetch(fetchCategories);
-  const productsQuery = useFetch(fetchProducts);
   const categories = (categoriesQuery.data ?? []).filter((category) => category.is_active !== false);
-  const products = productsQuery.data ?? [];
-  const loading = categoriesQuery.loading || productsQuery.loading;
-  const error = categoriesQuery.error || productsQuery.error;
   const parent = resolveStorefrontCategorySlug(categories, categorySlug);
   const child = subcategorySlug ? resolveStorefrontCategorySlug(categories, subcategorySlug) : undefined;
   const validChild = !subcategorySlug || Boolean(parent && child && child.parent_id === parent.id);
   const active = subcategorySlug ? child : parent;
-  const count = active ? products.filter((product) => product.category_id === active.id).length : 0;
+  const productsQuery = useFetch(async () => {
+    if (!active) return { categoryId: null as string | null, totalCount: 0 };
+    const page = await fetchStorefrontCatalogPage({
+      search: "",
+      categoryId: active.id,
+      page: 1,
+      pageSize: 1,
+      availableOnly: false,
+    });
+    return { categoryId: active.id, totalCount: page.totalCount };
+  }, [active?.id]);
+  const countMatchesActive = Boolean(active && productsQuery.data?.categoryId === active.id);
+  const countPending = Boolean(active && !countMatchesActive && !productsQuery.error);
+  const loading = categoriesQuery.loading || (Boolean(active) && (productsQuery.loading || countPending));
+  const error = categoriesQuery.error || productsQuery.error;
+  const count = countMatchesActive ? productsQuery.data!.totalCount : 0;
   const children = parent ? categories.filter((category) => category.parent_id === parent.id) : [];
 
   if (loading) return <main className="storefront" dir="rtl" style={{ minHeight: "100vh", padding: 24 }}><div className="sf-empty" role="status">جار التحقق من التصنيف وتحميل الأصناف المنشورة…</div></main>;
