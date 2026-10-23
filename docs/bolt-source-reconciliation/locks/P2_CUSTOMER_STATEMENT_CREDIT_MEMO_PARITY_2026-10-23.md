@@ -1,5 +1,17 @@
 # P2 path ownership lock — customer statement credit parity — 2026-10-23
 
+## CURRENT STATUS — RELEASED 2026-10-23T21:17:51+03:00
+LOCK_STATUS=RELEASED
+TASK_ID=FIN-INVOICE-001 + FIN-CREDIT-001 customer-statement / receivables posted-credit parity
+PR_URL=https://github.com/Report-Engainall/Nasr1/pull/62
+MERGE_STATUS=INTEGRATED
+MERGE_SHA=024c279a2d1c0226c662e5d916871f45534c7242
+CURRENT_MAIN_SHA=d81c9b34f819a53df7610937264c6fcb923c3f95
+Statement/aging credit parity is merged. Descendant PR #104 acceptance revalidated posted-credit aggregates and invoice balances in PostgreSQL 17, plus local Chromium return/review/receipt/credit memo flow; this is not production monetary proof. The listed paths are no longer exclusively held by this task. PR #40 is CLOSED and NOT MERGED; its old overlap note is historical, not an active lock.
+This file remains as audit history only.
+
+## Archived lock contents (historical only; not active)
+
 ## Task
 `FIN-INVOICE-001` + `FIN-CREDIT-001`: reconcile customer statements, aging, and statement PDF against posted credit memos and the full ledger.
 
