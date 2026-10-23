@@ -15,6 +15,7 @@ import {
 import type { CustomerTierPricePreview } from '@/lib/api';
 import { archiveAdminCatalogCategory, createAdminCatalogCategory } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
+import { fetchCustomerDirectoryPage } from '@/lib/customer-directory';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
@@ -467,12 +468,152 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
   </Modal>;
 }
 
-function Customers({ onNotice }: { onNotice: (m: string) => void }) {
-  const { data, loading, error, refetch } = useFetch(fetchCustomers); const { user } = useAuth(); const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager')); const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff')); const [query, setQuery] = useState(''); const [modal, setModal] = useState(false); const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null); const [activationCustomer, setActivationCustomer] = useState<Customer | null>(null);
-  const rows = (data ?? []).filter((c) => `${c.business_name} ${c.phone ?? ''} ${c.customer_code}`.includes(query));
-  async function status(id: string, next: string) { try { await updateCustomerStatus(id, next); refetch(); onNotice(next === 'approved' ? 'تم اعتماد العميل' : 'تم تحديث حالة العميل'); } catch (e) { onNotice(e instanceof Error ? e.message : 'تعذر تحديث العميل'); } }
-  return <><Heading eyebrow="المبيعات والعملاء" title="إدارة العملاء" description="اعتماد الحسابات ومتابعة الأرصدة وشرائح الأسعار" icon={Users} /><div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} عميل مسجل</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => setModal(true)}><Plus size={17} /> إضافة عميل</Button></div></div><section className="panel table-panel"><div className="table-head"><h2>دليل العملاء</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث عن عميل..." /></label></div>{loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table><thead><tr><th>العميل</th><th>جهة الاتصال</th><th>الشريحة</th><th>الرصيد</th><th>الحد الائتماني</th><th>الحالة</th><th /></tr></thead><tbody>{rows.map((c) => <tr key={c.id}><td><strong>{c.business_name}</strong><small>{c.customer_code}</small></td><td>{c.contact_name ?? '—'}<small>{c.phone ?? '—'}</small></td><td><span className="tier">{c.tier === 'vip' ? 'مميز' : c.tier === 'wholesale' ? 'جملة' : 'تجزئة'}</span></td><td className={c.current_balance > 0 ? 'amount-danger' : ''}>{formatCurrency(c.current_balance)}</td><td>{formatCurrency(c.credit_limit)}</td><td><span className={`badge ${c.status === 'approved' ? 'success' : c.status === 'pending' ? 'warning' : 'danger'}`}>{c.status === 'approved' ? 'معتمد' : c.status === 'pending' ? 'قيد المراجعة' : 'موقوف'}</span></td><td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{canReadCustomer360 && <Button variant="outline" onClick={() => setSelectedCustomer(c)}>ملف 360</Button>}{canManageCustomerActivation && c.status === 'approved' && <Button variant="outline" onClick={() => setActivationCustomer(c)}>دعوة تفعيل</Button>}{c.status === 'pending' && <Button onClick={() => status(c.id, 'approved')}>اعتماد</Button>}</div></td></tr>)}</tbody></table></TableWrap>}</section>{selectedCustomer && <AdminCustomer360 customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />}{activationCustomer && <CustomerActivationInvitationDialog customer={activationCustomer} onClose={() => setActivationCustomer(null)} />}{modal && <CustomerModal onClose={() => setModal(false)} onSaved={() => { setModal(false); refetch(); onNotice('تمت إضافة العميل'); }} />}</>;
+export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
+  const { user } = useAuth();
+  const canReadCustomer360 = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const canManageCustomerActivation = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff'));
+  const [directory, setDirectory] = useState<Awaited<ReturnType<typeof fetchCustomerDirectoryPage>> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [modal, setModal] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [activationCustomer, setActivationCustomer] = useState<Customer | null>(null);
+  const [busyCustomerId, setBusyCustomerId] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
+  const statusMutationRef = useRef<string | null>(null);
+
+  const load = useCallback(async (): Promise<boolean> => {
+    const requestId = ++requestIdRef.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await fetchCustomerDirectoryPage({
+        search: appliedSearch,
+        page,
+        pageSize: 25,
+      });
+      if (requestId !== requestIdRef.current) return false;
+      setDirectory(result);
+      if (result.page !== page) setPage(result.page);
+      return true;
+    } catch (cause) {
+      if (requestId === requestIdRef.current) {
+        setDirectory(null);
+        setError(cause instanceof Error ? cause.message : 'تعذر تحميل دليل العملاء.');
+      }
+      return false;
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false);
+    }
+  }, [appliedSearch, page, reloadKey]);
+
+  useEffect(() => {
+    void load();
+    return () => { requestIdRef.current += 1; };
+  }, [load]);
+
+  async function status(id: string, next: string) {
+    if (statusMutationRef.current !== null) return;
+    statusMutationRef.current = id;
+    setBusyCustomerId(id);
+    try {
+      await updateCustomerStatus(id, next);
+      const refreshed = await load();
+      onNotice(refreshed
+        ? (next === 'approved' ? 'تم اعتماد العميل' : 'تم تحديث حالة العميل')
+        : 'تم تحديث حالة العميل، لكن تعذّر تحديث القائمة. اضغط تحديث لمزامنتها.');
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذر تحديث العميل');
+    } finally {
+      statusMutationRef.current = null;
+      setBusyCustomerId(null);
+    }
+  }
+
+  const rows = directory?.rows ?? [];
+  const pageSize = directory?.pageSize ?? 25;
+  const pageCount = directory ? Math.max(1, Math.ceil(directory.totalCount / pageSize)) : 1;
+  const resultSummary = loading
+    ? 'جار تحميل دليل العملاء...'
+    : error
+      ? 'تعذر تأكيد عدد العملاء'
+      : directory
+        ? 'إجمالي النتائج: ' + formatNumber(directory.totalCount)
+        : 'لا توجد نتيجة مؤكدة';
+
+  return <>
+    <Heading eyebrow="المبيعات والعملاء" title="إدارة العملاء" description="اعتماد الحسابات ومتابعة الأرصدة وشرائح الأسعار" icon={Users} />
+    <div className="toolbar">
+      <span className="toolbar-note" aria-label="إجمالي نتائج دليل العملاء">{resultSummary}</span>
+      <div className="toolbar-actions">
+        <Button variant="secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> تحديث</Button>
+        <Button onClick={() => setModal(true)}><Plus size={17} /> إضافة عميل</Button>
+      </div>
+    </div>
+    <section className="panel table-panel">
+      <div className="table-head">
+        <h2>دليل العملاء</h2>
+        <form className="search-field" onSubmit={(event) => {
+          event.preventDefault();
+          setPage(1);
+          setAppliedSearch(query.trim());
+          setReloadKey((value) => value + 1);
+        }}>
+          <Search size={16} />
+          <input
+            aria-label="البحث في دليل العملاء"
+            value={query}
+            maxLength={120}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="ابحث باسم المنشأة أو الهاتف أو رمز العميل..."
+          />
+          <button type="submit" disabled={loading}>بحث</button>
+        </form>
+      </div>
+      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <>
+        <TableWrap>
+          <table>
+            <thead><tr><th>العميل</th><th>جهة الاتصال</th><th>الشريحة</th><th>الرصيد</th><th>الحد الائتماني</th><th>الحالة</th><th /></tr></thead>
+            <tbody>{rows.map((c) => <tr key={c.id}>
+              <td><strong>{c.business_name}</strong><small>{c.customer_code}</small></td>
+              <td>{c.contact_name ?? '—'}<small>{c.phone ?? '—'}</small></td>
+              <td><span className="tier">{c.tier === 'vip' ? 'مميز' : c.tier === 'wholesale' ? 'جملة' : 'تجزئة'}</span></td>
+              <td className={c.current_balance > 0 ? 'amount-danger' : ''}>{formatCurrency(c.current_balance)}</td>
+              <td>{formatCurrency(c.credit_limit)}</td>
+              <td><span className={`badge ${c.status === 'approved' ? 'success' : c.status === 'pending' ? 'warning' : 'danger'}`}>{c.status === 'approved' ? 'معتمد' : c.status === 'pending' ? 'قيد المراجعة' : 'موقوف'}</span></td>
+              <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {canReadCustomer360 && <Button variant="outline" onClick={() => setSelectedCustomer(c)}>ملف 360</Button>}
+                {canManageCustomerActivation && c.status === 'approved' && <Button variant="outline" onClick={() => setActivationCustomer(c)}>دعوة تفعيل</Button>}
+                {c.status === 'pending' && <Button onClick={() => void status(c.id, 'approved')} disabled={busyCustomerId !== null}>{busyCustomerId === c.id ? 'جار الاعتماد...' : 'اعتماد'}</Button>}
+              </div></td>
+            </tr>)}</tbody>
+          </table>
+          {rows.length === 0 && <Empty text={appliedSearch ? 'لا توجد نتائج مطابقة للبحث.' : 'لا يوجد عملاء مسجلون.'} />}
+        </TableWrap>
+        {pageCount > 1 && <nav aria-label="صفحات دليل العملاء" style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center', padding: 12, flexWrap: 'wrap' }}>
+          <Button variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={loading || page <= 1} aria-label="صفحة العملاء السابقة">السابق</Button>
+          <span role="status" aria-label="صفحة دليل العملاء الحالية">{'صفحة ' + page + ' من ' + pageCount}</span>
+          <Button variant="outline" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={loading || page >= pageCount} aria-label="صفحة العملاء التالية">التالي</Button>
+        </nav>}
+      </>}
+    </section>
+    {selectedCustomer && <AdminCustomer360 customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />}
+    {activationCustomer && <CustomerActivationInvitationDialog customer={activationCustomer} onClose={() => setActivationCustomer(null)} />}
+    {modal && <CustomerModal onClose={() => setModal(false)} onSaved={() => {
+      setModal(false);
+      setQuery('');
+      setAppliedSearch('');
+      setPage(1);
+      setReloadKey((value) => value + 1);
+      onNotice('تمت إضافة العميل');
+    }} />}
+  </>;
 }
+
 function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [business, setBusiness] = useState('');
   const [contact, setContact] = useState('');
