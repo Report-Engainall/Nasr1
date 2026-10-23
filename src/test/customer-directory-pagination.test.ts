@@ -95,7 +95,7 @@ describe('customer directory query contract', () => {
 
     await fetchCustomerDirectoryPage({ search: 'Buyer+Ops@example.test' });
     expect(mocks.filters[1]).toContain('email.ilike.%buyer+ops@example.test%');
-    expect(mocks.filters[1]).not.toMatch(/\\),status\\.|,status\\.eq/i);
+    expect(mocks.filters[1]).not.toContain('status.eq');
   });
 
   it('clamps an out-of-range page against the exact count after deletions', async () => {
