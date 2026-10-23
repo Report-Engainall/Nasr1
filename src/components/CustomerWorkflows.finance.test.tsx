@@ -178,10 +178,7 @@ describe("StaffFinancePage payment amount guard", () => {
   });
 
   it("generates a new idempotency key when a retry changes the request payload", async () => {
-    const keys = [
-      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-    ];
+    const keys = ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "cccccccc-cccc-4ccc-8ccc-cccccccccccc"];
     vi.stubGlobal("crypto", {
       randomUUID: vi.fn(() => {
         const key = keys.shift();
@@ -213,6 +210,77 @@ describe("StaffFinancePage payment amount guard", () => {
     expect(calls[1][1].p_amount).toBe(21);
   });
 
+  it("keeps each unresolved payment key when the user switches payload after an ambiguous result", async () => {
+    const keys = ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "cccccccc-cccc-4ccc-8ccc-cccccccccccc"];
+    vi.stubGlobal("crypto", {
+      randomUUID: vi.fn(() => {
+        const key = keys.shift();
+        if (!key) throw new Error("Unexpected UUID generation in test");
+        return key;
+      }),
+    });
+    const defaultImplementation = rpcMock.getMockImplementation();
+    if (!defaultImplementation) throw new Error("Finance RPC test mock is not configured");
+    const responses = [
+      { data: null, error: { message: "network response was lost" } },
+      { data: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", error: null },
+      { data: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", error: null },
+    ];
+    let paymentAttempts = 0;
+    rpcMock.mockImplementation(async (name: string, ...args: unknown[]) => {
+      if (name === "record_customer_payment") {
+        const response = responses[paymentAttempts++];
+        if (!response) throw new Error("Unexpected payment RPC attempt");
+        return response;
+      }
+      return defaultImplementation(name, ...args);
+    });
+
+    await renderFinancePage();
+    await submitPayment("20.00");
+    expect(container.textContent).toContain("أعد المحاولة بالقيم نفسها");
+    await submitPayment("21.00");
+    await submitPayment("20.00");
+
+    const calls = rpcMock.mock.calls.filter(([name]) => name === "record_customer_payment");
+    expect(calls).toHaveLength(3);
+    expect(calls.map(([, args]) => args.p_idempotency_key)).toEqual([
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    ]);
+    expect(calls.map(([, args]) => args.p_amount)).toEqual([20, 21, 20]);
+    expect(container.textContent).toContain("تم تسجيل الدفعة وتحديث حالة الفاتورة.");
+  });
+
+  it("retains the retry key when the RPC response does not acknowledge a payment id", async () => {
+    vi.stubGlobal("crypto", {
+      randomUUID: vi.fn().mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+    });
+    const defaultImplementation = rpcMock.getMockImplementation();
+    if (!defaultImplementation) throw new Error("Finance RPC test mock is not configured");
+    let paymentAttempts = 0;
+    rpcMock.mockImplementation(async (name: string, ...args: unknown[]) => {
+      if (name === "record_customer_payment") {
+        paymentAttempts += 1;
+        if (paymentAttempts === 1) return { data: null, error: null };
+        return { data: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", error: null };
+      }
+      return defaultImplementation(name, ...args);
+    });
+
+    await renderFinancePage();
+    await submitPayment("20.00");
+    expect(container.textContent).toContain("استجابة الخادم لم تتضمن معرف الدفعة");
+    await submitPayment("20.00");
+
+    const calls = rpcMock.mock.calls.filter(([name]) => name === "record_customer_payment");
+    expect(calls).toHaveLength(2);
+    expect(calls[0][1].p_idempotency_key).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(calls[1][1].p_idempotency_key).toBe(calls[0][1].p_idempotency_key);
+    expect(container.textContent).toContain("تم تسجيل الدفعة وتحديث حالة الفاتورة.");
+  });
+
   it("submits an amount equal to the remaining balance", async () => {
     await renderFinancePage();
     await submitPayment("50.00");
@@ -222,7 +290,9 @@ describe("StaffFinancePage payment amount guard", () => {
       p_invoice_id: INVOICE_ID,
       p_amount: 50,
       p_payment_method: "cash",
-      p_idempotency_key: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
+      p_idempotency_key: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      ),
       p_reference: null,
       p_notes: null,
     });
