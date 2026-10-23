@@ -1,23 +1,25 @@
-## Current state — 2026-10-23 — P1 acceptance and owner handoffs
+## Current state — 2026-10-24 — P1 live-main reconciliation
 
-- Repository: Report-Engainall/Nasr1.
-- Current branch: p1/admin-product-singleflight-20261023; PR #97.
-- Main/base SHA: b48a4b2e8ae09e87432b49dab591a23e1be651c6.
-- Completed task: P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001.
-- Head fully tested before this checkpoint-only successor: 30795c3d370ae6044a6ba83fd2c97fdf60781d97. The successor created by this update must receive its own exact-head CI results; do not transfer these passes.
-- The PR is synchronized with main (ahead 40, behind 0). Its net diff is four P1-owned files only: src/components/AghbariApp.tsx, src/test/admin-product-double-submit.test.tsx, and the two P1 checkpoint/report files.
-- PR #97 Core succeeded on exact head 30795c3...: [run 40024340859](https://github.com/Report-Engainall/Nasr1/actions/runs/40024340859).
-- PR #97 P2 Playwright succeeded on the same SHA: [run 40024340801](https://github.com/Report-Engainall/Nasr1/actions/runs/40024340801). Public read-only browser smoke and isolated local Supabase/PostgreSQL 17 acceptance passed. Hosted customer/tenant E2E was SKIPPED / BLOCKED_EXTERNAL; ProductModal-specific browser proof and production proof remain NOT RUN.
-- PR #124 current tested head: 671c12ff75449009e90aebbcd3f2926d13421e46; Core [40024250407 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024250407), P2 [40024250291 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024250291). Order detail links have unique Arabic accessible names while preserving their visible text. Hosted account E2E skipped; production proof not run.
-- PR #107 current tested head: 7becbdc71f2fb7ef1202578157ca0617a0b93356; Core [40023658718 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40023658718), P2 [40023658606 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40023658606). Local Chromium price-privacy acceptance passed; hosted tenant E2E skipped, production proof not run.
-- PR #102 current tested head: 64e35ea154d83c14472a887c9ec9abd733f8cb16; Core [40025905333 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40025905333), P2 [40025905186 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40025905186). Its net diff has four P1-owned export UI/test files only. The shared commerce workflow and additional route E2E file are excluded from the PR to preserve shared workflow ownership. Hosted external E2E skipped, production proof not run.
-- PR #119 remains blocked: head a70e2775d1be01f89a315b241c147147fd1183fb; Core [40022445712 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445712), P2 [40022445722 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445722). The local cross-tenant tier call returned HTTP 500 / SQLSTATE P0002 with an opaque denial while the foreign row remained unchanged. P1 keeps the non-5xx check as a soft failure only after the non-mutation and non-disclosure assertions, allowing remaining same-tenant, invitation, privacy and audit checks to execute. This is not a pass.
-- P2 PR #131 proposed fix is green but unmerged: head f88d72e497eed851c425dfaa7b9eeca1291ee411; Core [40024841272 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024841272), P2 [40024841182 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024841182). It maps cross-tenant denials to SQLSTATE 42501 while preserving the opaque denial and the existing customer_manager same-tenant tier permission. P2 owns the SQL/RPC change; P1 did not modify it. After authorized review and merge of #131, resync #119 and rerun Core/P2 on one exact final SHA.
-- Review gate: no authorized independent maintainer approval has been recorded for #97, #107, #119, #124 or #131. PR #102 has comment-only reviews, not an authorized APPROVE. Do not self-approve or merge.
-- Locked paths: P2 central execution state, acceptance matrix, coordination/log, finance/SQL/RPC/RLS/migrations/services and shared workflows; P3 #89 route/report acceptance; generated src/routeTree.gen.ts; all other active PR-owned paths.
-- Next action: P1-PR119-RETEST-AFTER-P2-131-MERGE-001. Wait for an authorized independent review and merge of #131, reread live main, safely sync #119, then rerun Core and P2 on one exact SHA.
-- Updated at: 2026-10-23T21:30:00Z.
-
+- Repository: `Report-Engainall/Nasr1`.
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`; current PR: [#97](https://github.com/Report-Engainall/Nasr1/pull/97).
+- MAIN_SHA / BASE_SHA: `16a3d23e558696700bccbb3dbf9ea75b0fccf745`.
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` — the existing `ProductModal` uses a synchronous `useRef` single-flight guard for create/update; category-load error blocks writes until retry succeeds; failed save remains visible/retryable; regression tests cover rapid duplicate submits and retries.
+- HEAD_SHA / TESTED_EXACT_SHA: `6dfe404b51a414ae953cfeb765b6a58ea2874264`. Live compare: 42 commits ahead, 0 behind `main`; net diff is the two P1 functional/test paths and the two P1 checkpoint/report paths only.
+- Core: **SUCCESS** on exact HEAD — [run 40035835482](https://github.com/Report-Engainall/Nasr1/actions/runs/40035835482).
+- P2 Playwright: **SUCCESS** on the same exact HEAD — [run 40035835461](https://github.com/Report-Engainall/Nasr1/actions/runs/40035835461). Public read-only smoke and isolated local Supabase/PostgreSQL 17 job passed.
+- Review: CodeRabbit's formatting comments on predecessor `443c8e2e3402e0a88a09341e8b5f27be67febc29` were corrected; current-head Core/Playwright both pass. Authorized independent human approval is still **NOT RECORDED**; reviewer `adnanabderab2016-sys` remains requested.
+- PR #97 status: **OPEN / NOT MERGED**. No self-approval and no merge before the independent formal review. Hosted credential-gated E2E is **SKIPPED / BLOCKED_EXTERNAL**, not PASS; ProductModal-specific authenticated browser proof and production proof remain **NOT RUN**.
+- PR #119 follow-on (`P1-PR119-RETEST-AFTER-P2-131-MERGE-001`): exact HEAD `a1a17bcf9ae320ea39680421a83e4b32deef3c67`; Core [40036273431 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273431); P2 [40036273465 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273465). The completed local Supabase/PostgreSQL 17 job executed `e2e/customer-manager-authorization.spec.ts` and reported 1 passed. PR #119 is now ready for review; hosted E2E remains skipped, and formal independent approval is outstanding.
+- Existing P1 gaps now have current exact-head test evidence; do not reimplement them:
+  - PR #107 price privacy: HEAD `6ee0eb1df7872e44c3d116dd0990c6f959773184`; Core [40035843139 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035843139); P2 [40035843245 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035843245). Five Chromium price-visibility cases passed.
+  - PR #124 order-history keyboard accessibility: HEAD `95e0073e6d9db5e4c1a386866cb63d926249fdf9`; Core [40035851261 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035851261); P2 [40035851352 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035851352). Chromium Tab-navigation/accessibility test passed.
+  - PR #102 admin-export hydration: HEAD `999d4c5cef2ef58e73ed50d535a29e6f1120a1ad`; Core [40035839468 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035839468); P2 [40035839465 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035839465). Chromium test for hydrated `/admin/exports` passed.
+- For #107/#124/#102, formal independent maintainer approval is still **NOT RECORDED**. Their hosted credential-gated jobs remain skipped where credentials are absent; do not count them as PASS.
+- LOCKED_PATHS: P2 central execution state, acceptance matrix, WORK_COORDINATION, EXECUTION_LOG, backend/RPC/RLS/migrations/finance/services/shared workflows; P3-owned #89 files; generated `src/routeTree.gen.ts`; every other active PR-owned path.
+- NEXT_ACTION: obtain independent formal review on #97 and #119 (reviewer already requested); process review feedback without weakening tests. Keep #107/#124/#102 open until their authorized reviews are recorded. Merge each approved eligible PR sequentially via GitHub PR, then read live `main` SHA and its own terminal CI before moving to the next task. Do not change shared P2 state files.
+- BLOCKERS: independent maintainer review pending on all active P1 PRs; hosted authenticated E2E lacks dedicated non-production credentials.
+- UPDATED_AT: 2026-10-24 (live GitHub readback).
+  
 ## Recent execution history
 
 ### 2026-10-23 — P1-STOREFRONT-ORDER-PRICE-BROWSER-001 — TESTED_EXACT_SHA / BROWSER_PROVEN (PR #107 open)
