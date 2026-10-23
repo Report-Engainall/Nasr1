@@ -1095,3 +1095,9 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **Regression:** expanded `src/test/storefront-collections.test.tsx` with inactive records whose state fields disagree. It verifies that the category stays zero and no browse link is shown.
 - **Implementation commit:** `1c801c1f9e1fd46c3d86d4531a0eca0e4beca81f`; test commit `2dfee3fd19f5873614c416575511c4300fcc6ad9`.
 - **Acceptance state:** implemented; local test execution unavailable; wait for new exact-PR-head Core CI after these edits before marking PASS.
+## P3 admin reporting de-duplication — 2026-10-23
+
+- **Task:** `P3-REPORT-DUP-003`. `src/routes/admin_.reports.tsx` mounted `ExecutiveStoreAnalytics` outside `AdminApp initialView="reports"`, while the existing `Reports` component already mounted the same analytics component. Removed the outer duplicate without changing the locked shared shell.
+- **Regression:** added `src/test/admin-reports-route-wiring.test.ts` to assert route ownership and one analytics mount within `Reports`.
+- **Implementation commit:** `ef7db67f5811d58a12b8d179c41217c36b19863d`; test commit `4789080eac80f0d8a9b782b45abea20d7e77dcf1`.
+- **Acceptance:** local tests not run; final-head Core CI pending.
