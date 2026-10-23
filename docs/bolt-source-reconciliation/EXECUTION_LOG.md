@@ -1,3 +1,27 @@
+## P2 current exact-head validation — 2026-10-23T19:40:00+03:00
+
+- Main c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99, tree ce3773a9c69ca2ee9acc2daa3fc759753bd4cdd9; Core 39983210712 PASS on exact main SHA.
+- PR #54 merged at afa4840c137d9da853c8486b005adb1ffd5fdd0a; PR #52 merged at c11ea018b81c6e47a9bbbc36d4d7b8f432892f8d. INV-009 stays closed for local proof; live Onyx import/sync is BLOCKED_EXTERNAL.
+- PR #88 merged at c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99; feature-head Core 39982277415/P2 39982277637 PASS. Hosted customer E2E skipped.
+- OPS-DR-001 remains isolated PostgreSQL 17 restore proof only; no production RTO/RPO assertion.
+- PR #101 head 695328d97c8078c43bea5859f858b7f99ff43a5b, base c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99. Core 39987599300 and P2 39987599442 both SUCCESS on exact head. Earlier failures were in test harness parameter binding and private-table inspection context; fixed on current head without widening client grants.
+- CodeRabbit review triggered, still in progress as of 2026-10-23T19:40:00+03:00; do not merge until review findings are resolved and mandatory checks remain green.
+- PR #100 central docs checkpoint is being refreshed to this exact head and its exact-head Core/P2 checks must finish. P1 #97 and P3 #89 own their UI paths.
+
+---
+
+## P2 checkpoint — PR99 merged, main reconciled; next: generic manual journal reversal — 2026-10-23T18:54:23+03:00
+
+- Current main SHA 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2, tree 40fcbdf56ddb5a50badc3c4d42e3164bb7ecfb3e; post-merge Core CI 39980802016 SUCCESS on the same SHA.
+- PR #99 merged as 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2. Exact tested code head 4122ed10b6827c6e0d4b4aeb64c6578ea8cd4d08 has matching tree; Core 39976687601 and P2 39976687945 PASS. Added ordered order lifecycle history, active same-tenant staff actor attribution, and no audit record for rejected cancellation. Local authenticated order/tenant Chromium job 120493443382 PASS; external hosted customer job 120493047623 SKIPPED.
+- #83, #82, #71, #52, #54, #90, #84, #94, #95, #96 merged. #43/#56 closed without merge. #98 and stale docs PR #92 closed without merge after supersession comments; replacements use latest main.
+- INV-009 and OPS-DR-001 retain local/isolation-only evidence; Onyx target sync/import and production DR remain unproven/blocked.
+- P1 PR #88 current head 5114ea8227f570662533219af1dc3a013cd49f75 Core 39981579136/P2 39981579236 in progress; device-session UI/spec/seed remain P1-owned. P3 #89 and P1 #97 stay outside P2 file ownership.
+- Next task FIN-LEDGER-001-MANUAL-JOURNAL-REVERSAL. Existing GL has draft/post/void-draft and balance/idempotency protections but no explicit generic reversal for posted manual/adjustment entries. Invoice/payment and cash-expense reversals already have source-specific implementations; do not duplicate/bypass them.
+- Current code branch initialized: p2/general-ledger-reversal-20261023 from 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2. Implementation/tests not yet committed as of this checkpoint.
+
+---
+
 ## P2 readback — Onyx source trace and sync evidence — 22 October 2026
 
 - **Task remains OPEN:** `NASR1-ORIGINAL-SPEC-IDENTITY-AND-ONYX-SYNC-EVIDENCE-011`; only active pointer remains in `CURRENT_EXECUTION_STATE.md`.
@@ -1079,3 +1103,14 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Exact-head acceptance for this new follow-up is pending. The old-branch commit did not pass CI and must not be described as tested. Re-read Commerce checks and the P2 local-Postgres workflow at the exact follow-up branch head, retain the failure cause if any, and repair it before closure. Browser and production proof for this accounting workflow remain NOT RUN.
 - P1 price privacy: merged PR #26 connects fail-closed price display to cards and product details; cart/checkout/order-review still need server pricing-preview RPC integration and the `show_price_in_cart` / `show_price_in_orders` visibility matrix. Keep task `NASR1-ORIGINAL-SPEC-CUSTOMER-PRICE-PRIVACY-RECONCILIATION-010` OPEN and do not edit P1-owned Storefront/API without an explicit handoff.
 - Keep task 010 as the single primary integration pointer and run front 012 as a parallel bounded task. Neither closes full-application completion. No direct main write, production migration/write, or paid service was used.
+
+
+## P2 FIN-LEDGER-001 — exact-head acceptance, remediation and merge — 2026-10-23T19:55:00+03:00
+
+- PR #101 was merged through GitHub at merge SHA 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb: https://github.com/Report-Engainall/Nasr1/pull/101.
+- Final tested PR head: df18dd58a0f0f74a420f55d6e14c0e352af8f7b0. Core checks run 39990033594 SUCCESS; P2 Playwright run 39990033892 SUCCESS on that exact PR head. Main Core push run 39990714405 SUCCESS on the exact post-merge SHA 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb.
+- Root-cause repairs: keep the same idempotency key when RPC succeeds but the UI refresh callback fails; reject voiding an already linked reversal draft while preserving cancellation of ordinary unlinked drafts; add regression coverage to the PostgreSQL 17 and component tests.
+- A failed Core run 39989568026 on a6fb9b407d16e68a1eb7babb1ec698140740644d identified SQLSTATE 42601 due to an improperly quoted dollar-delimited function body. Corrected in df18dd58a0f0f74a420f55d6e14c0e352af8f7b0; the subsequent exact-head migration acceptance passed.
+- P2 local Supabase/Chromium run 39990033892 included local PostgreSQL 17 migrations, order/tenant isolation, returns/credit memo, audited Onyx XLSX export, finance/operations printing, customer-manager authorization, financial privacy/audit, and device-session revocation. Hosted customer credential job 120539173603 was SKIPPED; no production writes or live external integration claimed.
+- Boundary: P2 run passed on PR head df18dd58a0f0f74a420f55d6e14c0e352af8f7b0; that head's tree 539b6073bbefacd3d569d667b913748f2466ab67 matches main tree 539b6073bbefacd3d569d667b913748f2466ab67, but no P2 workflow ran on exact merge SHA 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb. Record exact-main P2 as NOT RUN, not PASS. CodeRabbit's linked reversal draft thread was resolved after the correction and exact-head tests.
+- Next: FIN-INVOICE-001-SUMMARY-PAGINATION-NO-DOUBLE-COUNT. Add PostgreSQL 17 proof that fetch_general_ledger LIMIT/OFFSET restricts entry detail only and never truncates/double-counts summary/account aggregates; keep the implementation if the test confirms it.
