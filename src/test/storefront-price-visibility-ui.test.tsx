@@ -241,7 +241,24 @@ describe("customer price visibility UI acceptance", () => {
     window.localStorage.clear();
   });
 
-  it("shows a category loading state and retries a failed category read without blocking text search", async () => {
+  it("announces category loading while the category service has no data yet", async () => {
+    mocks.categoryResult = {
+      data: null,
+      loading: true,
+      error: null,
+      refetch: vi.fn(),
+    };
+
+    const mount = await mountAt("/");
+    await flushEffects();
+
+    expect(mount.host.querySelector('[role="status"]')?.textContent).toContain("جار تحميل التصنيفات...");
+    expect(mount.host.querySelector('[role="alert"]')?.textContent ?? "").not.toContain("تعذر تحميل التصنيفات");
+    expect(mount.host.querySelector('button[aria-label="إعادة تحميل التصنيفات"]')).toBeNull();
+    expect(mount.host.querySelector<HTMLInputElement>(".sf-search input")?.disabled).not.toBe(true);
+  });
+
+  it("shows a source-specific category error, retries it, and keeps text search available", async () => {
     const refetch = vi.fn();
     mocks.categoryResult = {
       data: null,
