@@ -885,3 +885,24 @@ Added an explicit error/retry regression test for the current-device sign-out ac
 **BASE_SHA:** `f7565aefd7af6033d169167d1bebb3dc5cd248ce`  
 **FUNCTIONAL_HEAD_SHA:** `8d3ee29f48c6f9f600722b2354f9d3fc40b41ca5`  
 **STATUS:** Implemented; exact-head CI pending; authenticated session E2E not yet executed.
+
+
+## P1 live readback — P2 backend merged; integrated session UI needs exact-head browser proof — 2026-10-23T17:38+03:00
+
+### P2 dependency resolved, acceptance still incomplete
+P2 PR #83 merged to `main` at `bd0d2df489e40b2dc5f83882d90565c7799a448c`. Its pre-merge Core run [39968857948](https://github.com/Report-Engainall/Nasr1/actions/runs/39968857948) and P2 Playwright run [39968858140](https://github.com/Report-Engainall/Nasr1/actions/runs/39968858140) both succeeded on `dda512495c43f2fd84517635cd83421ef49e92c0`. The Core migration workflow calls `runSessionManagementAcceptance` in `scripts/test-session-management.mjs`; the isolated local Supabase browser job succeeded for its configured order, tenant isolation, returns/credit memo, Onyx export and finance/task print scenarios. However, the P2 workflow blob `1b2b0eade154b8b4e8ed0bed0fa9b7067b5666b7` does not invoke P1's `e2e/device-session-management.spec.ts` or local seed script, so those generic browser passes do not prove the session-specific sequence.
+ 
+### P1 branch sync and code evidence
+P1's pre-sync head `428c98bece43296dbebd9ce30c78cffe48541348` Core [39969541171](https://github.com/Report-Engainall/Nasr1/actions/runs/39969541171) and P2 Playwright [39969541110](https://github.com/Report-Engainall/Nasr1/actions/runs/39969541110) both passed. This head includes the current-session single-flight sign-out, clear-on-ack behavior, retry-after-network-failure regression, stale session-list response guard and full acknowledgment validation (`session_id`, `revoked === true`, valid `revoked_at`). Those tests establish UI-level behavior against mocks, not the authenticated browser/backend journey. The main-sync merge commit created here must receive a fresh exact-head CI run.
+
+### Other ordered P1 tasks
+P1-01 category rename (#50) and P1-02 password recovery metadata/reset handling (#44) are merged. Current main Core [39969622689](https://github.com/Report-Engainall/Nasr1/actions/runs/39969622689) passed on `bd0d2df489e40b2dc5f83882d90565c7799a448c`; password-reset authenticated browser acceptance is still NOT_RUN. P1 is moving next to any independently confirmed product/admin form gap outside P3's active #89 paths.
+
+### Required next action
+Read current #88 Core + P2 runs by exact post-sync SHA. If green, hand the missing session-spec invocation to P2 in a separate workflow-only follow-up; keep #88 Draft until same-tenant selective revocation is browser-proven to deny a subsequent protected tenant-context request for the revoked-but-unexpired session, and self-scoped bulk revocation is proven to preserve the current session. Do not edit P2's locked workflow or DB paths from P1.
+
+**Branch:** `p1/central-device-session-ui-20261023`  
+**PR:** [#88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**BASE_SHA:** `bd0d2df489e40b2dc5f83882d90565c7799a448c`  
+**PRE_SYNC_HEAD_SHA:** `428c98bece43296dbebd9ce30c78cffe48541348`  
+**STATUS:** P2 backend integrated; P1 exact post-sync CI pending; dedicated session E2E not yet invoked; PR stays Draft.

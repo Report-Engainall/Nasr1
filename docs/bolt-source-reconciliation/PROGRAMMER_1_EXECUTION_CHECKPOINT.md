@@ -401,3 +401,22 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: DRAFT / OPEN / NOT READY.
 - UPDATED_AT: 2026-10-23T17:29+03:00
+
+
+## Current live checkpoint — P2 central-session backend integrated; P1 sync proof pending — 2026-10-23T17:38+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-UI-REGRESSION-HARDENING` (stale-list response, selected-session acknowledgment, local sign-out single-flight, and error/retry regression committed; old-head exact CI green).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c` (PR #83 backend merge SHA).
+- PRE_SYNC_HEAD_SHA: `428c98bece43296dbebd9ce30c78cffe48541348`; normal two-parent main-sync commit is created now and must receive new exact-head CI.
+- LAST_CONFIRMED_TESTS: pre-sync PR #88 head `428c98bece43296dbebd9ce30c78cffe48541348` Core [39969541171](https://github.com/Report-Engainall/Nasr1/actions/runs/39969541171) SUCCESS and P2 Playwright [39969541110](https://github.com/Report-Engainall/Nasr1/actions/runs/39969541110) SUCCESS. P2 local Supabase/PostgreSQL 17 + Chromium job [120466867487](https://github.com/Report-Engainall/Nasr1/actions/runs/39968858140/job/120466867487) passed order persistence / tenant denial, customer return / credit memo, Onyx XLSX export, and finance/task print. The successful run did **not** invoke the dedicated P1 session-browser spec.
+- BACKEND INTEGRATION: P2 PR #83 merged at main SHA `bd0d2df489e40b2dc5f83882d90565c7799a448c` on 2026-10-23 17:26+03. Exact pre-merge P2 head `dda512495c43f2fd84517635cd83421ef49e92c0`: Core [39968857948](https://github.com/Report-Engainall/Nasr1/actions/runs/39968857948) SUCCESS; P2 Playwright [39968858140](https://github.com/Report-Engainall/Nasr1/actions/runs/39968858140) SUCCESS. The Core migration test imports `runSessionManagementAcceptance` from `scripts/test-session-management.mjs`; this proves DB/RPC contract checks on that tested P2 head, not browser revocation flow.
+- FAILED_OR_NOT_RUN_TESTS: current merge head Core + P2 local browser acceptance are pending after this sync. `e2e/device-session-management.spec.ts` and `scripts/seed-p1-device-session-playwright.mjs` are present in #88 but not invoked by `.github/workflows/p2-playwright-critical-paths.yml` (main blob `1b2b0eade154b8b4e8ed0bed0fa9b7067b5666b7`). Thus still NOT_PROVEN: actual session revocation followed by protected tenant-context RPC denial for a still-unexpired revoked JWT; self-scoped bulk revocation retaining the caller’s live session.
+- P1-01 / P1-02: PR #50 category rename and PR #44 password-recovery route hardening are merged. Post-merge main Core [39969622689](https://github.com/Report-Engainall/Nasr1/actions/runs/39969622689) SUCCESS on `bd0d2df489e40b2dc5f83882d90565c7799a448c`; the feature-specific historical Core evidence remains recorded above. Password-reset authenticated browser proof remains NOT_RUN, not a production claim.
+- FILES_CHANGED: #88 owns only the session component/test, its dedicated E2E spec and local seed, and P1 checkpoint/report. P2 paths were integrated through main; no P2-owned path changed in the P1 branch.
+- LOCKED_PATHS: `.github/workflows/p2-playwright-critical-paths.yml`, P2 migrations/RPC/RLS/Auth/types/seed scripts, shared `CURRENT_EXECUTION_STATE.md`/`WORK_COORDINATION.md`, and P3-owned paths in #89.
+- NEXT_ACTION: verify Core and P2 run results on the exact new merge HEAD. If green, request P2’s follow-up wiring of the dedicated session spec in a separate P2-owned workflow change; do not edit the locked workflow from P1. Keep #88 Draft until the specific browser scenario is executed against the integrated backend and passes.
+- BLOCKER: no browser run currently invokes `e2e/device-session-management.spec.ts`; P2 must own the runner integration. P3 route work remains locked while PR #89 is open.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: DRAFT / OPEN / NOT READY.
+- UPDATED_AT: 2026-10-23T17:38+03:00

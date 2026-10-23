@@ -24,9 +24,15 @@ const second = postgres(connectionString, { max: 1, prepare: false, idle_timeout
 const staff = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
 async function setIdentity(client, authUserId, email) {
+  // Seed a server-side Auth session before assuming the application role.
+  // A JWT without a live session row must not obtain customer tenant identity.
+  await client.unsafe(
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI customer cart session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+    [authUserId],
+  );
   await client.unsafe("select set_config('request.jwt.claim.sub', $1, false)", [authUserId]);
   await client.unsafe("select set_config('request.jwt.claims', $1, false)", [
-    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
+    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated", session_id: authUserId }),
   ]);
   await client.unsafe("set role authenticated");
 }
