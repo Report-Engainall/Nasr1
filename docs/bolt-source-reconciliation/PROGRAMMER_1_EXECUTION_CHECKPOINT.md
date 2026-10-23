@@ -35,6 +35,23 @@
 - `NEXT_ACTION=P1-PR97-REVIEW-AND-DIFF-RECONCILIATION-001`: reconcile GitHub PR base/files metadata against the exact live compare and obtain authorized independent maintainer review. Keep Draft/unmerged until both gates clear. Continue independent P1 PR #124 validation in parallel without touching #97 files.
 - `UPDATED_AT=2026-10-23T20:08:00Z`.
 
+## Current state — 2026-10-23 — P1 admin product single-flight acceptance
+
+- `REPOSITORY=Report-Engainall/Nasr1`; `TASK_ID=LAST_COMPLETED_TASK_ID=P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001`.
+- `CURRENT_BRANCH=p1/admin-product-singleflight-20261023`; `PR_URL=https://github.com/Report-Engainall/Nasr1/pull/97`.
+- `MAIN_SHA=BASE_SHA=391e25847c7cc7fb2ba5f77164600455db04abfd`.
+- `TESTED_EXACT_SHA=HEAD_SHA=3f8f77ddcced2d6fb21a58b7f49aa931a3101d56`. This is the latest fully checked code+checkpoint/report head before this final checkpoint refresh; the new documentation-only commit must receive its own exact-head readback.
+- Branch was synchronized with current main via a regular two-parent merge. No direct main write, force-push, reset, or history rewrite occurred.
+- **PR #97 actual diff reconciled:** PR base SHA now equals current main; live compare reports `ahead_by=27`, `behind_by=0`, and exactly four P1 paths: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, `docs/bolt-source-reconciliation/PROGRAMMER_1_EXECUTION_CHECKPOINT.md`, `docs/bolt-source-reconciliation/PROGRAMMER_1_CURRENT_REPORT.md`.
+- **Core CI — SUCCESS on exact `3f8f77...`:** [run 40016875827](https://github.com/Report-Engainall/Nasr1/actions/runs/40016875827). Unit tests, isolated PostgreSQL 17 acceptance, lint/build, preview/dev smoke and Chromium price-visibility acceptance completed.
+- **P2 Playwright — SUCCESS on the same exact SHA:** [run 40016875908](https://github.com/Report-Engainall/Nasr1/actions/runs/40016875908). Public read-only browser smoke and local Supabase/PostgreSQL 17 order persistence and tenant-denial acceptance completed successfully. Hosted customer-order/tenant-isolation remained `SKIPPED / BLOCKED_EXTERNAL` due absent dedicated non-production credentials.
+- ProductModal-specific browser proof: `NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
+- **Independent follow-up PR #124:** [customer order link accessibility](https://github.com/Report-Engainall/Nasr1/pull/124), tested implementation SHA `78b3403aac010495bbb21fb47b4436bb8787070d`; Core [40016712064 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016712064) and P2 [40016712103 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016712103) on that exact same SHA. Hosted customer-order/tenant-isolation was `SKIPPED / BLOCKED_EXTERNAL`; production proof and authenticated browser proof specific to the accessible-link change remain `NOT RUN`. PR #124 is Draft and unmerged.
+- **Formal review gate:** no authorized independent review submission or inline review thread has been recorded for PR #97 or #124. PR #97 remains `OPEN / DRAFT / NOT MERGED`. Do not mark ready or merge either PR based solely on green CI.
+- `LOCKED_PATHS`: P2-owned `CURRENT_EXECUTION_STATE.md`, acceptance matrix, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`, finance/SQL/RPC/RLS/migrations/services; P3-owned PR #89 route/report acceptance files; generated `src/routeTree.gen.ts`; other active PR-owned paths.
+- `NEXT_ACTION=P1-PR97-INDEPENDENT-REVIEW-001`: obtain authorized independent maintainer review for PR #97; keep it Draft/unmerged until review is present. After review, recheck live main and exact diff/required checks before merge. Continue independent P1 work only in its existing PR/branch, without modifying P2/P3-locked files.
+- `UPDATED_AT=2026-10-23T20:13:00Z`.
+
 ## Recent execution history
 
 ### 2026-10-23 — P1-STOREFRONT-ORDER-PRICE-BROWSER-001 — TESTED_EXACT_SHA / BROWSER_PROVEN (PR #107 open)
