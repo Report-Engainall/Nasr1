@@ -92,7 +92,7 @@ function MyOrdersInner() {
 }
 
 export function OrderInvoice({ id }: { id: string }) {
-  return <Gate><OrderInvoiceInner id={id} /></Gate>;
+  return <Gate><OrderInvoiceInner key={id} id={id} /></Gate>;
 }
 
 function OrderInvoiceInner({ id }: { id: string }) {
