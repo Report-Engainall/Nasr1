@@ -163,6 +163,28 @@ describe('central device and session management', () => {
     expect(mocks.rpc.mock.calls.filter(([name]) => name === 'revoke_organization_session')).toHaveLength(1);
   });
 
+  it('recovers from a network failure when the administrator retries the session list', async () => {
+    mocks.rpc.mockRejectedValueOnce(new Error('network interrupted'));
+    await mount();
+
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+      'تعذر تحميل قائمة الجلسات المركزية من الخادم',
+    );
+    expect(host?.textContent).not.toContain('موظف الاختبار');
+
+    const retry = Array.from(host?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+      .find((button) => button.textContent?.includes('إعادة المحاولة'));
+    expect(retry).toBeDefined();
+    await act(async () => {
+      retry?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(host?.textContent).toContain('موظف الاختبار');
+    expect(host?.querySelector('[role="alert"]')).toBeNull();
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === 'list_organization_sessions')).toHaveLength(2);
+  });
+
   it('fails closed when the server session-list contract is missing or malformed', async () => {
     mocks.rpc.mockResolvedValueOnce({
       data: { sessions: [sessions[0]] },
