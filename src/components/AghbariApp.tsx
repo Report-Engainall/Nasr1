@@ -6,13 +6,14 @@ import {
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
 } from 'lucide-react';
 import {
-  createCategory, createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
+  createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
   fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
   updateCustomerStatus, updatePricingRule, updateProduct, uploadProductImage,
   approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
+import { archiveAdminCatalogCategory, createAdminCatalogCategory } from '@/lib/admin-catalog-commands';
 import { useFetch } from '@/lib/useFetch';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { ORDER_STATUS_LABELS, type Category, type CreatePricingRuleInput, type Customer, type PricingRule, type ProductWithInventory } from '@/lib/types';
@@ -915,16 +916,35 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
   const [section, setSection] = useState<'categories' | 'import' | 'onyx'>('categories');
   const { data: categories, loading, error, refetch } = useFetch(fetchCategories);
   const [name, setName] = useState('');
+  const [archivingId, setArchivingId] = useState<string | null>(null);
 
   async function add() {
     if (!name.trim()) return;
     try {
-      await createCategory({ name, is_active: true, sort_order: (categories?.length ?? 0) + 1 });
+      await createAdminCatalogCategory(name);
       setName('');
       await refetch();
       onNotice('تمت إضافة التصنيف');
     } catch (cause) {
       onNotice(cause instanceof Error ? cause.message : 'تعذر إضافة التصنيف');
+    }
+  }
+
+  async function archive(category: Category) {
+    if (!canManageImports || category.is_active === false) return;
+    if (!window.confirm(`هل تريد أرشفة التصنيف «${category.name}»؟ سيبقى السجل محفوظًا، ولن يُحذف.`)) return;
+    setArchivingId(category.id);
+    try {
+      const result = await archiveAdminCatalogCategory(category.id);
+      if (result.id !== category.id || result.is_active !== false || result.archived !== true) {
+        throw new Error('لم يؤكد الخادم أرشفة التصنيف.');
+      }
+      await refetch();
+      onNotice('تمت أرشفة التصنيف');
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'تعذر أرشفة التصنيف');
+    } finally {
+      setArchivingId(null);
     }
   }
 
@@ -959,13 +979,20 @@ function DataCenter({ onNotice }: { onNotice: (m: string) => void }) {
     <div className="data-layout">
       <section className="panel">
         <div className="panel-head"><div><h2>التصنيفات</h2><p>تستخدم لتنظيم المنتجات والتقارير</p></div></div>
-        <div className="inline-form">
+        {canManageImports && <div className="inline-form">
           <input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} placeholder="اسم التصنيف الجديد" />
           <Button onClick={() => void add()} disabled={!name.trim()}><Plus size={16} /> إضافة</Button>
-        </div>
+        </div>}
         {loading ? <Loading /> : error ? <ErrorBox message={error} /> : categories?.length
           ? <div className="category-list">{categories.map((category: Category) =>
-              <div key={category.id}><span>{category.name}</span><small>{category.code ?? 'بدون رمز'}</small></div>
+              <div key={category.id}>
+                <span>{category.name}</span>
+                <small>{category.code ?? 'بدون رمز'}</small>
+                {category.is_active === false && <small className="text-muted">مؤرشف</small>}
+                {canManageImports && category.is_active !== false && <Button variant="outline" disabled={archivingId === category.id} onClick={() => void archive(category)}>
+                  <Trash2 size={16} /> {archivingId === category.id ? 'جار الأرشفة…' : 'أرشفة'}
+                </Button>}
+              </div>
             )}</div>
           : <Empty text="لا توجد تصنيفات محفوظة لهذه المؤسسة بعد." />}
       </section>

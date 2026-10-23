@@ -64,6 +64,8 @@ jobs:
             done
           fi
           exit "$db_status"
+      - name: Verify company invitation expiry persists and is audited under PostgreSQL 17
+        run: node scripts/test-company-invitation-expiry.mjs
       - name: Verify exactly-once tenant-scoped stock-count start audit under PostgreSQL 17
         run: node scripts/test-stock-count-start-audit.mjs
       - name: Verify tenant-scoped asynchronous export lifecycle under PostgreSQL 17

@@ -27,7 +27,7 @@ export interface FinancePrintCreditMemoOption {
   customer_id: string;
   customer_name: string;
   invoice_number: string;
-  status: "draft" | "posted";
+  status: "draft" | "posted" | "reversed";
   created_at: string;
   currency: string;
   total_amount: Money;
@@ -208,7 +208,7 @@ export function readFinancePrintOptions(value: unknown): FinancePrintOptions {
   const credit_memos = value.credit_memos.map((item): FinancePrintCreditMemoOption => {
     if (!isRecord(item)) throw new Error("عنصر إشعار دائن للطباعة غير صالح.");
     const status = requiredText(item.status, "credit_memo.status");
-    if (status !== "draft" && status !== "posted") throw new Error("حالة إشعار دائن غير مسموحة للطباعة.");
+    if (status !== "draft" && status !== "posted" && status !== "reversed") throw new Error("حالة إشعار دائن غير مسموحة للطباعة.");
     return {
       id: assertUUID(requiredText(item.id, "credit_memo.id"), "credit_memo.id"),
       memo_number: requiredText(item.memo_number, "credit_memo.memo_number"),
@@ -457,7 +457,7 @@ function addNote(doc: Document, main: HTMLElement, text: string) {
   main.appendChild(el(doc, "p", text, "note"));
 }
 function statusAr(status: string): string {
-  const statuses: Record<string, string> = { issued: "صادرة", partially_paid: "مدفوعة جزئيًا", paid: "مدفوعة", void: "ملغاة", draft: "مسودة — غير مُرحّلة", posted: "مُرحّل محاسبيًا" };
+  const statuses: Record<string, string> = { issued: "صادرة", partially_paid: "مدفوعة جزئيًا", paid: "مدفوعة", void: "ملغاة", draft: "مسودة — غير مُرحّلة", posted: "مُرحّل محاسبيًا", reversed: "معكوس ماليًا" };
   return statuses[status] ?? status;
 }
 
@@ -529,17 +529,29 @@ export function renderStaffStatementDocument(doc: Document, payload: StaffStatem
 export function renderCreditMemoDocument(doc: Document, payload: PrintableCreditMemo, organizationName: string): void {
   const issuerName = requiredText(organizationName, "organization_name");
   const main = addBase(doc, "الإشعار الدائن " + payload.memo.memo_number);
-  addMeta(doc, main, [
+  const metadata: Array<[string, string]> = [
     ["المؤسسة المصدرة", issuerName],
     ["العميل", payload.customer.name],
     ["الطلب", payload.invoice.order_number],
     ["الفاتورة الأصلية", payload.invoice.invoice_number],
     ["رقم الإشعار", payload.memo.memo_number],
     ["حالة الإشعار", statusAr(payload.memo.status)],
-    ["رقم القيد", payload.journal.entry_number],
-    ["حالة القيد", statusAr(payload.journal.status)],
+    ["رقم القيد الأصلي", payload.journal.entry_number],
+    ["حالة القيد الأصلي", statusAr(payload.journal.status)],
     ["تاريخ الإعداد", fmtDateTime(payload.memo.created_at)],
-  ]);
+  ];
+  if (payload.memo.status === "reversed") {
+    if (!payload.memo.reversed_at || !payload.memo.reversal_reason || !payload.memo.reversal_journal_entry_number) {
+      throw new Error("الإشعار المعكوس يفتقد دليل العكس المالي؛ تم منع الطباعة.");
+    }
+    metadata.push(
+      ["تاريخ العكس", fmtDateTime(payload.memo.reversed_at)],
+      ["رقم قيد العكس", payload.memo.reversal_journal_entry_number],
+      ["حالة قيد العكس", "مُرحّل محاسبيًا"],
+      ["سبب العكس", payload.memo.reversal_reason],
+    );
+  }
+  addMeta(doc, main, metadata);
   addTable(doc, main, "تفاصيل البنود المرتجعة", ["رمز الصنف", "الصنف", "الوحدة", "الكمية المرتجعة", "كمية الفاتورة", "قيمة السطر", "القيمة الدائنة"], payload.lines.map((line) => [
     line.item_code || "—", line.description, line.unit || "—", fmtQty(String(line.returned_quantity)),
     fmtQty(String(line.invoice_quantity)), fmtMoney(String(line.invoice_line_total.toFixed(2)), payload.invoice.currency),
@@ -552,7 +564,9 @@ export function renderCreditMemoDocument(doc: Document, payload: PrintableCredit
   main.appendChild(totals);
   addNote(doc, main, payload.memo.status === "draft"
     ? "هذه مسودة غير مُرحّلة ولا تغير ذمم العميل أو السجلات المحاسبية، ولا تمثل إثبات استرداد نقدي."
-    : "تم ترحيل الإشعار والقيد المزدوج المرتبط به. هذا المستند لا يمثل إثبات استرداد نقدي.");
+    : payload.memo.status === "reversed"
+      ? "هذا الإشعار معكوس ماليًا بقيد مقابل مُرحّل؛ لا يمثل رصيدًا دائنًا قائمًا ولا إثبات استرداد نقدي."
+      : "تم ترحيل الإشعار والقيد المزدوج المرتبط به. هذا المستند لا يمثل إثبات استرداد نقدي.");
 }
 
 export function readPrintableCreditMemo(value: unknown): PrintableCreditMemo {

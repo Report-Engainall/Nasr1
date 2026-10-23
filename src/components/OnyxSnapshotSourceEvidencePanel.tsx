@@ -140,9 +140,18 @@ export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: st
           )}
           <div style={{ display: "grid", gap: 6, marginTop: 12, padding: 12, border: "1px solid var(--border, #d8e0e0)", borderRadius: 10 }}>
             <strong><Database size={15} style={{ verticalAlign: "middle", marginInlineEnd: 5 }} />حالة الاتصال والمزامنة الحية</strong>
-            <span><strong>الحالة:</strong> غير مثبتة بأدلة هذا السجل</span>
-            <span>وجود لقطة أو دفعة استيراد محفوظة لا يثبت اتصالًا حيًا أو اكتمال مزامنة من واجهة Onyx API.</span>
-            <span><Clock3 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />وقت آخر مزامنة حية: غير متاح في نموذج الأدلة الحالي</span>
+            <span><strong>حالة اتصال Onyx المسجلة تاريخيًا:</strong> {evidence.live_sync_evidence.live_connection_proven ? "يوجد رد ناجح مسجل من الخدمة" : "غير مثبتة بأدلة هذا السجل"}</span>
+            <span><strong>هل ارتبط رد ناجح بهذه اللقطة تحديدًا؟</strong> {evidence.live_sync_evidence.snapshot_sync_proven ? "نعم — توجد محاولة ناجحة موثقة لهذه اللقطة" : "لا — لا يوجد إثبات نجاح مرتبط بهذه اللقطة"}</span>
+            <span><strong>آخر محاولة مزامنة مرتبطة باللقطة:</strong> {evidence.live_sync_evidence.last_sync_attempt ? evidence.live_sync_evidence.last_sync_attempt.status : "لا توجد محاولة مسجلة"}</span>
+            {evidence.live_sync_evidence.last_sync_attempt ? <>
+              <span><Clock3 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />بدء المحاولة: {dateText(evidence.live_sync_evidence.last_sync_attempt.started_at)} · الاكتمال: {dateText(evidence.live_sync_evidence.last_sync_attempt.completed_at)}</span>
+              <span>عملية: <code dir="ltr">{evidence.live_sync_evidence.last_sync_attempt.operation}</code> · HTTP: {evidence.live_sync_evidence.last_sync_attempt.http_status ?? "غير مسجل"} · معرّف الطلب الخارجي: <code dir="ltr">{evidence.live_sync_evidence.last_sync_attempt.external_request_id ?? "غير مسجل"}</code></span>
+              {evidence.live_sync_evidence.last_sync_attempt.error_code ? <span role="alert">رمز الخطأ: <code dir="ltr">{evidence.live_sync_evidence.last_sync_attempt.error_code}</code> — {evidence.live_sync_evidence.last_sync_attempt.error_summary ?? "لا يوجد ملخص خطأ محفوظ"}</span> : null}
+            </> : null}
+            <span>{evidence.live_sync_evidence.live_connection_proven
+              ? "توجد استجابة ناجحة مسجلة تاريخيًا؛ لا يثبت ذلك الحالة الصحية الحالية للخدمة."
+              : "وجود لقطة أو دفعة استيراد محفوظة لا يثبت اتصالًا حيًا أو اكتمال مزامنة من واجهة Onyx API."}</span>
+            <span><Clock3 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />وقت آخر استجابة ناجحة مسجلة: {dateText(evidence.live_sync_evidence.latest_successful_connection?.completed_at)}</span>
             <span><Fingerprint size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />بصمة اللقطة: <code>{evidence.snapshot.source_file_hash}</code></span>
             <span><Link2 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />وقت حفظ اللقطة: {dateText(evidence.snapshot.created_at)} · الإصدار {evidence.snapshot.snapshot_version}</span>
           </div>
