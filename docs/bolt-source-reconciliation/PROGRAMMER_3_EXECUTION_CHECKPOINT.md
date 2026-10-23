@@ -1,11 +1,11 @@
 # P3 execution checkpoint — Nasr1
 
-UPDATED_AT: 2026-10-23T16:43:00+03:00
-LAST_COMPLETED_TASK_ID: P3-OFFERS-ERROR-UX-013 (separate promotion/catalog fetch errors and add 2 error/retry regression tests; exact-SHA run is in progress)
+UPDATED_AT: 2026-10-23T16:50:00+03:00
+LAST_COMPLETED_TASK_ID: P3-ADVANCED-SEARCH-STATE-014 (category loading/error/retry states added with 4 regression tests; exact-SHA CI pending)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: 8663bd9b399da5fd986a36b152f23fbd44620bc5 (latest code/test SHA; documentation sync creates a successor, so check both current code and docs-head workflows)
-ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers — targeted route wiring/tests only; full route acceptance remains open
+HEAD_SHA: a4be9ff155d70dc971b19a45b0859e655e446bf4 (latest code/test SHA; docs sync below creates a successor and must be validated independently)
+ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route wiring/component tests only; full route acceptance remains open
 FILES_CHANGED:
 - src/components/StorefrontCollectionsPage.tsx
 - src/routes/admin_.reports.tsx
@@ -29,6 +29,8 @@ FILES_CHANGED:
 - src/routes/index.tsx
 - src/components/StorefrontOffersPage.tsx
 - src/test/storefront-offers.test.tsx
+- src/components/AdvancedStorefrontSearchPage.tsx
+- src/test/advanced-storefront-search.test.tsx
 - docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md
 - docs/bolt-source-reconciliation/PROGRAMMER_3_CURRENT_REPORT.md
 TESTS_RUN_WITH_RESULTS:
@@ -41,11 +43,13 @@ TESTS_RUN_WITH_RESULTS:
 - P2 [39961737301](https://github.com/Report-Engainall/Nasr1/actions/runs/39961737301) failed dependency installation on HTTP 429.
 - Test-harness fix in `d076794e3f245cc9766807a4c5beafe6bf4dd520` was validated by Core Unit tests on descendant SHA `d0b0b08dd44af04089477a45cef4896b7de54d77`: Unit tests SUCCESS, PostgreSQL core migrations/workflow tests SUCCESS, Lint SUCCESS, Build SUCCESS, preview smoke SUCCESS and dev smoke SUCCESS. Core workflow [39962440526](https://github.com/Report-Engainall/Nasr1/actions/runs/39962440526) was still in Chromium price-visibility acceptance at last readback.
 - P2 workflow [39962440529](https://github.com/Report-Engainall/Nasr1/actions/runs/39962440529): public UI smoke SUCCESS; local-Supabase order persistence/tenant isolation still in progress installing Chromium OS dependencies; credential-gated customer-order/tenant job skipped.
-- Latest code/test SHA `8663bd9b399da5fd986a36b152f23fbd44620bc5` adds separate offers/catalog error states and two regressions. Core [39962755869](https://github.com/Report-Engainall/Nasr1/actions/runs/39962755869) was IN_PROGRESS; P2 [39962755831](https://github.com/Report-Engainall/Nasr1/actions/runs/39962755831) was PENDING. Documentation sync adds another SHA and its own checks must be verified.
+- Code/test SHA `8663bd9b399da5fd986a36b152f23fbd44620bc5`: Core [39962755869](https://github.com/Report-Engainall/Nasr1/actions/runs/39962755869) completed SUCCESS, proving the complete unit suite/build/acceptance scope configured by that workflow. P2 [39962755831](https://github.com/Report-Engainall/Nasr1/actions/runs/39962755831) was CANCELLED; public UI smoke had succeeded but the local-Supabase order/tenant browser job did not finish.
+- Docs SHA `ef2944351fe887c0c12e896ab52c67fe9965f2e4`: Core [39963003111](https://github.com/Report-Engainall/Nasr1/actions/runs/39963003111) completed SUCCESS. P2 [39963003108](https://github.com/Report-Engainall/Nasr1/actions/runs/39963003108) had public UI smoke SUCCESS; local-Supabase order/tenant isolation was still in progress at its browser dependency setup at latest readback.
+- Latest code/test SHA `a4be9ff155d70dc971b19a45b0859e655e446bf4` adds advanced-search loading/retry behavior and four tests. Core [39963467338](https://github.com/Report-Engainall/Nasr1/actions/runs/39963467338) was IN_PROGRESS at container initialization; P2 [39963467553](https://github.com/Report-Engainall/Nasr1/actions/runs/39963467553) was PENDING. Docs synchronization adds another SHA and its own current-head checks.
 TESTS_FAILED_OR_SKIPPED:
-- Core 39961737329 on SHA 39638915... failed 7 assertions in the route test harness; fixed by d076794e..., and subsequent Core Unit tests on SHA d0b0b08... SUCCESS.
-- P2 39961737301 failed dependency installation due HTTP 429; subsequent P2 run 39962440529 passed public UI smoke but local-Supabase order persistence/tenant isolation remained in progress at latest readback.
-- Credential-gated customer-order/tenant job skipped, not PASS. Full route browser UAT and production proof NOT RUN.
+- Core 39961737329 on SHA 39638915... failed 7 harness assertions; fixed in d076794e...; subsequent Core run 39962755869 on code SHA 8663... completed SUCCESS.
+- P2 39961737301 failed on HTTP 429; P2 39962755831 was cancelled before local-Supabase browser completion; later P2 39963003108 had public smoke success and local-Supabase still in progress at last readback.
+- Credential-gated customer order/tenant job skipped, not PASS. New advanced-search tests on code SHA a4be... require exact-SHA run. Full route browser UAT and production proof NOT RUN.
 DEFECTS_FOUND:
 - P3-CAT-ERR-001: source-specific category/catalog errors and retry implemented; earlier exact-SHA Core pass.
 - P3-CAT-COUNT-002: inactive products excluded and empty-category links suppressed; strengthened count/link test passed on parent SHA.
@@ -57,7 +61,8 @@ DEFECTS_FOUND:
 - P3-ROUTE-HYDRATION-COVERAGE-010: parameterized acceptance expanded to 23 route wrappers; exact-SHA result pending.
 - P3-OFFERS-ACTIVE-SCOPE-011: /offers filters products by is_active/status before displaying campaign targets; both new regression tests passed in Core 39961737329 before the route-loading test file failed.
 - P3-ROUTE-TEST-REGRESSION-012: corrected route loading test harness: addresses route has a component mock; only root `/` is required to use a MAIN landmark; other routes are asserted by role=status, RTL direction and expected content. Core Unit tests on SHA d0b0b08... then passed.
-- P3-OFFERS-ERROR-UX-013: `/offers` now distinguishes promotion-query failure, catalog-query failure, and both failures at once; preserves each source's error text, and retains retry for both reads. Added regression tests for combined failure + retry of both queries and catalog-only failure. Code/test SHA 8663bd9b399da5fd986a36b152f23fbd44620bc5; exact-SHA test run is in progress.
+- P3-OFFERS-ERROR-UX-013: `/offers` distinguishes promotion-query failure, catalog-query failure, and both causes; retry triggers both source reads. Added two regression tests; unit suite/Core passed on SHA 8663... .
+- P3-ADVANCED-SEARCH-STATE-014: `/search/advanced` now announces category loading, exposes a retry button when the category read fails, and keeps text search available on that error path. Added four regressions: loading announcement/disabled selector, error and retry plus text search, empty-submit validation and active top-level categories, and navigation with category/known-stock filters. Exact-SHA CI is pending.
 - P3-ROUTE-INVENTORY-001: 61 route sources; 50 UI/root sources not explicit in the existing matrix files. P2 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365043277.
 - P3-ROUTE-INVENTORY-002 / P1-ROUTE-TREE-EXPORT-001: generated tree omits admin_.exports; P1 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365137817.
 HANDOFF_TO_P1_OR_P2:
@@ -69,4 +74,4 @@ BLOCKERS:
 - Exact-head Core/P2 for this batch pending.
 - P2 dependency cache HTTP 429 on previous SHA, even after retry.
 - Local checkout DNS failure; all-route browser UAT/production proof NOT RUN.
-NEXT_ACTION: inspect latest Core/P2 runs on code SHA 8663bd9b399da5fd986a36b152f23fbd44620bc5 and the docs successor; verify the combined-error/retry offer tests pass, review final Chromium price-visibility and local-Supabase job conclusions, then continue unlocked P3 acceptance and obtain formal independent review before merge.
+NEXT_ACTION: verify branch head after docs sync; inspect Core/P2 on code SHA a4be9ff155d70dc971b19a45b0859e655e446bf4 and docs successor, ensure all four advanced-search tests pass, record final Chromium and local-Supabase job conclusions, continue unlocked P3 acceptance, then obtain independent formal review before merge.
