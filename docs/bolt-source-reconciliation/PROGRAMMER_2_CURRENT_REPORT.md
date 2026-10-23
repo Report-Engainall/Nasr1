@@ -1,17 +1,16 @@
-# تحديث P2 الحي — 23 أكتوبر 2026، 2026-10-23T16:47:00+03:00
+# تحديث P2 الحي — 23 أكتوبر 2026، 2026-10-23T16:55:00+03:00
 
-هذا القسم هو الحالة الأحدث؛ الأقسام أدناه سجل تاريخي ولا تتغلب على Git/Actions الحية.
+هذا القسم هو الحالة الأحدث؛ الأقسام أدناه سجل تاريخي. تقارير الاختبارات لا تنتقل من رأس إلى رأس.
 
 - **المستودع:** `Report-Engainall/Nasr1`.
 - **main:** `59547c7d683cefd65cab445b97219aa701021676`; Core [39956957952](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952) = SUCCESS على هذا SHA.
-- **PR #83 — AUTH-CENTRAL-SESSION-BACKEND-P2:** OPEN/Draft، الفرع `feat/p2-central-session-backend-20261023`, head `91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`, base `59547c7...`. Core [39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) = SUCCESS على الرأس نفسه. P2 [39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) لم يصل لنتيجة نهائية: public UI smoke = SUCCESS، E2E hosted gate = SUCCESS لكن المسار يحتاج اعتمادات محلية غير متوفرة فبقي SKIPPED، ومسار local Supabase/PG17 ما زال يعمل عند تثبيت اعتمادات Chromium من المتصفح المحفوظ. لا تدمج #83 قبل نتيجة P2 النهائية ومراجعة SECURITY DEFINER.
-- الفشل السابق لـP2 على `9079ffa...` كان من اختبار استلام المشتريات الذي افترض DB port `54322` بدل المنفذ المحلي `55432`. أُصلح في commit `91c87e0...` باستخدام `validateCashExpenseEndpoints` المشترك. الإصلاح موجود؛ إعادة الإثبات النهائية على الرأس الحالي ما زالت قيد التشغيل.
-- **PR #95 — FIN-INVOICE-001 موازٍ مستقل:** OPEN/Draft، الفرع `feat/p2-fin-receivables-aging-credit-memo-20261023`, head `d2f904beeb14674cfed3501f5482734eaa76e34b`, base `59547c...`. يعالج خللًا محددًا في `fetch_staff_receivables_aging`: طرح الإشعارات الدائنة المنشورة المرتبطة بالفاتورة والمؤسسة بعد التحقق من العملة/المصدر، مع إبقاء المسودات والمعكوسات خارج الرصيد. Core [39963814368](https://github.com/Report-Engainall/Nasr1/actions/runs/39963814368) وP2 [39963814885](https://github.com/Report-Engainall/Nasr1/actions/runs/39963814885) قيد التشغيل وقت القراءة؛ قبول دقيق الرأس ليس PASS حتى الانتهاء.
-- **PR #82:** OPEN، head `8e70899...` مبني على `0396b29...` القديم. نجاحات Core/P2 السابقة لا تنتقل إلى main الحالي؛ حدّثه بعد دمج #83 ثم أعد الاختبار.
-- **PR #71:** merged. Core وP2 نجحا على head `09c052d...`; إثبات استعادة PostgreSQL 17 محلية معزولة فقط. لا RTO/RPO أو استعادة إنتاجية.
-- **تنظيف الحالة:** PR #91 أُغلق باعتباره نسخة قديمة تتعارض على مؤشر الاستئناف؛ PR #92 هو مسار تحديث الحالة/التقرير ومصدر الالتقاط الحالي.
-- **الترتيب:** `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`; بعد إغلاق #83 انتقل إلى `PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE`. مسار FIN-INVOICE-001 يعمل بالتوازي عبر PR #95 دون لمس ملفات #83 المقفلة.
-- **حدود الإثبات:** Onyx live sync واستيراد XLSX في Onyx وWhatsApp Business API الرسمي = `BLOCKED_EXTERNAL`; production restore = `NOT RUN`. لا بيانات مالية مخترعة ولا ادعاء اتصال حي.
+- **PR #83 / AUTH-CENTRAL-SESSION-BACKEND-P2:** OPEN/Draft، فرع `feat/p2-central-session-backend-20261023`, head `91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`, base `59547c7...`. Core [39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) = SUCCESS على الرأس نفسه. P2 [39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) ما زال IN_PROGRESS، وآخر خطوة قراءة هي `Install Chromium OS dependencies from cached browser` (timeout محدد بـ15 دقيقة). لا نتيجة نهائية ولا دمج حتى الآن.
+- **PR #95 / FIN-INVOICE-001:** head الحالي `024e155a2135a104a7dc1c6d8ced7e2018b0a467`, branch `feat/p2-fin-receivables-aging-credit-memo-20261023`, base `59547c...`. في هذا الرأس ضُيّق اختيار fixture ليختار سطر فاتورة لم يدخل في طلب مرتجع سابق، حتى لا يتجاوز اختبار التقادم تاريخ المرتجعات. Core [39964921878](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921878) قيد التنفيذ عند Unit tests؛ P2 [39964921887](https://github.com/Report-Engainall/Nasr1/actions/runs/39964921887) ينتظر local Supabase job. **الرأس السابق** `d2f904beeb14674cfed3501f5482734eaa76e34b` اجتاز Core [39963814368](https://github.com/Report-Engainall/Nasr1/actions/runs/39963814368) وP2 [39963814885](https://github.com/Report-Engainall/Nasr1/actions/runs/39963814885)؛ سجلاته تحتوي `PASS staff receivables aging`, لكن لا تُنقل هذه الحالة إلى الرأس المعدّل.
+- **PR #82:** OPEN على الرأس `8e70899...` من قاعدة قديمة `0396b29...`. يجب تحديثه بالتسلسل بعد دمج #83 ثم تشغيل القبول على الرأس الجديد؛ أدلة SHA القديم تاريخية.
+- **PR #71:** merged؛ Core/P2 سابقًا PASS على `09c052d...`, ويثبت استعادة PostgreSQL 17 محلية معزولة فقط.
+- **PR #91:** أُغلق كنسخة قديمة متعارضة مع مؤشر الاستئناف؛ PR #92 هو مسار تحديث المؤشر/التقرير/سجل التنفيذ.
+- **الحالات الخارجية:** Onyx live sync واستيراد XLSX في Onyx وWhatsApp Business API الرسمي = `BLOCKED_EXTERNAL`; production restore = `NOT RUN`. لا اتصال أو إنتاج ضمن الأدلة الحالية.
+- **الخطوة الوحيدة التالية:** `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`. راقب P2 الحالي لـ#83 حتى النهاية؛ لا تدمج قبل نجاحه ومراجعة SECURITY DEFINER. مسار #95 موازٍ مستقل، ويُحسم بعد اختبارات رأسه الحالي.
 
 # تصحيح الحالة التنفيذية لـP2 — 22 أكتوبر 2026
 
