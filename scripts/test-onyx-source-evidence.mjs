@@ -448,7 +448,7 @@ async function main() {
     assert.equal(sync.last_sync_attempt.error_code,"REMOTE_TIMEOUT");
     assert.equal(sync.last_sync_attempt.snapshot_id,matchedSnapshotId,"the last attempt shown for a snapshot must actually be linked to that snapshot");
     assert.equal(sync.live_connection_proven,true,"the latest failure cannot erase a previous successful response");
-    assert.equal(sync.latest_successful_connection.id,successfulId);
+    assert.equal(sync.latest_successful_connection.id,lateBoundId,"latest successful connection is organization-wide and may refer to a different snapshot");
     assert.equal(sync.snapshot_sync_proven,true);
     assert.equal(sync.snapshot_sync_success.id,successfulId);
 
