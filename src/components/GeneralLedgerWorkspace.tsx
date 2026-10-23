@@ -216,7 +216,7 @@ export function GeneralLedgerWorkspace() {
   }
 
   async function voidDraft(entryId: string) {
-    if (!canVoid) return;
+    if (!canVoidDraft) return;
     const reason = window.prompt("سبب إلغاء مسودة القيد (5 أحرف على الأقل):");
     if (!reason) return;
     setSaving(true); setError(""); setNotice("");
