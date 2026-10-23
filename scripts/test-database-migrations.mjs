@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import postgres from "postgres";
 import { runOrderInputHardeningAcceptance } from "./test-order-input-hardening.mjs";
 import { runSessionManagementAcceptance } from "./test-session-management.mjs";
+import { runGeneralLedgerReversalAcceptance } from "./test-general-ledger-reversal.mjs";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) throw new Error("TEST_DATABASE_URL is required for isolated database migration tests.");
@@ -4990,6 +4991,18 @@ async function main() {
   }
 
   await runSessionManagementAcceptance({ db, setIdentity, expectFailure });
+  await runGeneralLedgerReversalAcceptance({
+    db,
+    setIdentity,
+    expectFailure,
+    connectionString,
+    organizationId,
+    otherOrganizationId,
+    staffAuthUserId,
+    customerAuthUserId: authUserId,
+    foreignAuthUserId,
+    foreignProfileId,
+  });
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }
 
