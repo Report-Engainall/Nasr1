@@ -169,3 +169,20 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: #88 remains Draft/open; #83 remains P2-owned/open; P1 documentation PR #93 is open.
 - UPDATED_AT: 2026-10-23T16:10+03:00
+
+
+## P1 session UI network-failure retry coverage — 2026-10-23T16:15+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-LIST-NETWORK-RETRY-TEST` test added; exact-head validation pending.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: original PR #88 base `0396b29aeab8c09c430df0063821251208a38477`; main at latest integration point `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA: new functional/test commit `7adeec2fa2490840aa213449a2d87f49b4e97b74`.
+- LAST_CONFIRMED_TESTS: Core `39957639395` and P2 `39957639394` were originally started on predecessor `9310fbb76a7df9db9c45026d9b53053a9ab2d201`; Core was still running when read. First P2 attempt failed only at public-browser dependency installation because the configured Lovable package mirror returned HTTP 429 for multiple tarballs; this is an external rate-limit failure, not test/assertion failure. Failed job rerun attempt 2 was started, but its result is not yet an exact-head proof for the new `7adeec2...` commit.
+- FAILED_OR_NOT_RUN_TESTS: no PASS claim for new `7adeec2...` head. Required Core and P2 exact-head workflows must be read after they complete; external authenticated customer-account E2E remains skipped by credential gate.
+- FILES_CHANGED: `src/test/device-management.test.tsx` now verifies that a network rejection from `list_organization_sessions` displays an alert, clears potentially stale rows, and the Retry control loads server data again on a succeeding call. Earlier in this branch `src/components/DeviceManagement.tsx` also received a synchronous ref lock and rapid-double-click regression. No additional application code changed for this network-retry test.
+- LOCKED_PATHS: P2 DB migrations/RPC/RLS/types/API, `.github/workflows/p2-playwright-critical-paths.yml`, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, and shared acceptance matrix untouched.
+- NEXT_ACTION: inspect workflow runs bound to exact branch SHA `7adeec2...`; if Core fails, use the failing test/log to fix the root cause. Re-run P2 after rate-limit failure on the current head; verify actual local Supabase job rather than treating a skipped job as pass. Keep #88 Draft until P2 #83 is integrated and the session RPC contract works end to end.
+- BLOCKER: external package mirror HTTP 429 on predecessor P2 run; new current-head tests awaiting CI. Backend contract remains P2-owned/open.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 Draft/open, #83 P2-owned/open; P1 docs PR #93 open and will receive this checkpoint refresh.
+- UPDATED_AT: 2026-10-23T16:15+03:00
