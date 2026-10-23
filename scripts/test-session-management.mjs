@@ -42,6 +42,7 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
     [adminSession,adminAuth,staffSession,staffAuth,targetSession,targetAuth,foreignSession,foreignAdminAuth,expiredSession,targetAuth],
   );
 
+  await db.unsafe("reset role");
   await setIdentity(adminAuth, "session-admin@example.test", adminSession, true);
   await db.unsafe("set role authenticated");
   assert.equal((await db.unsafe("select public.current_profile_id() as id"))[0].id, adminProfile,
