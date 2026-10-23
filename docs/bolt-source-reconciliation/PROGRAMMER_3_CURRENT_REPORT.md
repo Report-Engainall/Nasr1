@@ -1,6 +1,6 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T16:50:00+03:00
+UPDATED_AT: 2026-10-23T16:55:00+03:00
 
 ## Git and current execution
 - Repository: Report-Engainall/Nasr1
@@ -25,6 +25,12 @@ UPDATED_AT: 2026-10-23T16:50:00+03:00
 - `P3-CUST-ROUTE-LOAD-008`: `/login`, `/forgot-password`, `/register`, `/quotes`, and `/reorder` provide Arabic RTL `role="status"` hydration fallbacks; the shared parameterized test covers those routes alongside the seven prior routes.
 - `P3-STORE-HYDRATION-009`: root `/` previously had a blank `ClientOnly` fallback, leaving no visible or semantic loading state before hydration. It now has a semantic Arabic RTL main/status fallback and a parameterized regression test. Scope: `src/routes/index.tsx` and `src/test/customer-route-loading.test.tsx`.
 
+## Latest independent P3 increment — P3-CATALOG-CATEGORY-RETRY-015
+
+The `/` and `/catalog` routes share `Storefront`. When `fetchCategories` failed, the existing UI provided only a generic message and no retry action. The component now announces category loading, exposes the actual source error as an alert with an accessible retry button, and leaves keyword/SKU search enabled. `src/test/storefront-price-visibility-ui.test.tsx` adds a route-tree regression for the source-specific error text, retry callback, and continued text-search usability. Implementation commit: `2135d4000d0c23e3de450a691b40eaaaaaddcb1f`; code/test SHA: `add4f49413ccc450d61fd0533615a472679443e2`.
+
+Local test execution was attempted but is blocked by environment DNS (`git ls-remote` → `Could not resolve host: github.com`), so local tests are NOT RUN. At the last readback Core `39964711803` was IN_PROGRESS and P2 `39964711930` was PENDING on the code/test SHA; exact docs-successor runs must be inspected separately. No browser or production proof is claimed for this change.
+
 ## Exact-SHA evidence
 - Core [39958335414](https://github.com/Report-Engainall/Nasr1/actions/runs/39958335414) on parent `22718ee03fc8bb9074d0f8444b701d04c8623669`: SUCCESS. This proves the previous review-remediation batch, not the five new route changes.
 - P2 [39958335519](https://github.com/Report-Engainall/Nasr1/actions/runs/39958335519) on that same parent: failed twice during dependency setup due HTTP 429 from the configured Lovable package-cache for many package tarballs. The dependent public build/smoke and local-Supabase browser job did not run. A rerun was requested; its second attempt failed at the same external installation gate. No browser pass is claimed on that SHA.
@@ -41,18 +47,18 @@ UPDATED_AT: 2026-10-23T16:50:00+03:00
 - P2-owned shared matrix/state/coordination, backend contracts, RPCs, services and migrations were not edited.
 
 ## Mandatory execution checkpoint fields — current readback
-LAST_COMPLETED_TASK_ID: P3-ADVANCED-SEARCH-STATE-014 (source and 4 tests committed; exact-SHA CI pending)
+LAST_COMPLETED_TASK_ID: P3-CATALOG-CATEGORY-RETRY-015 (source/test committed; exact-head CI pending)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: a4be9ff155d70dc971b19a45b0859e655e446bf4 (last code/test SHA before this docs synchronization; verify actual branch successor)
+HEAD_SHA: add4f49413ccc450d61fd0533615a472679443e2 (application code+test SHA before documentation-only commits)
 ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route/component tests, no all-route browser UAT
-FILES_CHANGED: src/routes/index.tsx; src/test/customer-route-loading.test.tsx; src/components/StorefrontOffersPage.tsx; src/test/storefront-offers.test.tsx; src/components/AdvancedStorefrontSearchPage.tsx; src/test/advanced-storefront-search.test.tsx; P3 checkpoint/report
-TESTS_RUN_WITH_RESULTS: Core 39962755869 on code SHA 8663bd9b399da5fd986a36b152f23fbd44620bc5 completed SUCCESS. Core 39963003111 on docs SHA ef2944351fe887c0c12e896ab52c67fe9965f2e4 completed SUCCESS. P2 39963003108 public UI smoke SUCCESS but local-Supabase order/tenant workflow still in progress at last readback. Latest code/test SHA a4be9ff155d70dc971b19a45b0859e655e446bf4 has Core 39963467338 IN_PROGRESS at container initialization and P2 39963467553 PENDING; four advanced-search tests need exact-SHA confirmation.
-TESTS_FAILED_OR_SKIPPED: earlier Core SHA 39638915... failed 7 route-test harness cases, fixed in d076794...; later Core source SHA 8663... success. P2 hit HTTP 429 on two earlier runs; no final local-Supabase browser proof yet. Credential-gated customer-order/tenant job skipped, not PASS. Full route UAT and production acceptance NOT RUN.
+FILES_CHANGED: src/routes/index.tsx; src/test/customer-route-loading.test.tsx; src/components/StorefrontOffersPage.tsx; src/test/storefront-offers.test.tsx; src/components/AdvancedStorefrontSearchPage.tsx; src/test/advanced-storefront-search.test.tsx; src/components/Storefront.tsx; src/test/storefront-price-visibility-ui.test.tsx; P3 checkpoint/report
+TESTS_RUN_WITH_RESULTS: Earlier Core runs 39962755869 and 39963003111 succeeded only on their respective older SHAs. Core 39963722190 passed on ancestor d5743e62..., not current code. Latest code+test SHA add4f49413ccc450d61fd0533615a472679443e2: Core 39964711803 IN_PROGRESS and P2 39964711930 PENDING at readback. Local tests NOT RUN; `git ls-remote` failed because github.com DNS could not be resolved. The docs-only commits after add4 create a new SHA whose actions must be read separately.
+TESTS_FAILED_OR_SKIPPED: earlier Core SHA 39638915... failed 7 route-test harness assertions; later Core succeeded on SHA 8663bd9... for its own code set. Prior P2 runs failed package installation with HTTP 429; authenticated external-credential E2E is SKIPPED, not PASS. Latest code+test runs are pending/in progress; local tests and full route UAT are NOT RUN. Production acceptance NOT RUN.
 DEFECTS_FOUND: root / blank hydration fallback fixed; 23 route-loading assertions added; offers filter inactive products and report source-specific errors; advanced search now has category loading/retry states; full route acceptance remains open
 HANDOFF_TO_P1_OR_P2: P1 owns /admin/exports generated route registration and locked admin wrappers; P2 owns canonical route matrix/backend contracts and package-cache CI path (handoff https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365925364)
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
 MERGE_STATUS: OPEN; UNMERGED; formal independent review absent
 BLOCKERS: current code SHA Core/P2 checks pending; earlier HTTP 429 cache issue; P2 local-Supabase run on ef294... not yet terminal at last readback; full route browser UAT NOT RUN
-NEXT_ACTION: inspect Core 39963467338/P2 39963467553 on code SHA a4be9ff155d70dc971b19a45b0859e655e446bf4 and the docs successor; ensure advanced-search tests pass and determine local-Supabase outcome; continue unlocked P3 screen acceptance; request independent formal review before merge
+NEXT_ACTION: inspect terminal outcomes for Core 39964711803 and P2 39964711930 on code/test SHA add4f49413ccc450d61fd0533615a472679443e2; inspect the documentation-successor head checks after synchronization; fix failures and then continue the next independent unlocked P3 screen-acceptance gap. Keep PR #89 open until exact-head required checks are green and formal independent review is recorded.
 UPDATED_AT: 2026-10-23T16:50:00+03:00
