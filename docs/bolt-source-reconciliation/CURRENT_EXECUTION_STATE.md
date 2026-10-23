@@ -15,18 +15,19 @@
 
 **next_task_id = AUTH-CENTRAL-SESSION-BACKEND-P2**
 
-- PR #83: [العقد الخلفي لإدارة الجلسات المركزية](https://github.com/Report-Engainall/Nasr1/pull/83)، الفرع `feat/p2-central-session-backend-20261023`، الرأس الحالي `9079ffa7dc56051f29f5ab344dd4522e208cb841`، والحالة OPEN/Draft. رأس main هو `59547c7d683cefd65cab445b97219aa701021676`، مدمج في الفرع عبر Git merge عادي؛ لا force-push.
-- [Core CI على الرأس الحالي](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901244): **SUCCESS** على SHA نفسه. نجحت اختبارات الوحدة، مهاجرات PostgreSQL 17 واختبارات القبول، اختبارات invitation expiry وstock-count audit وasync export وimport idempotency/inventory snapshot وstorefront favorites وbackup/restore المعزول، lint/build، preview/dev smoke وChromium price-visibility acceptance.
-- [P2 Playwright على الرأس الحالي](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154): **IN PROGRESS** عند آخر قراءة. نجح public read-only UI smoke؛ الاختبار المحلي مع Supabase وPostgreSQL 17 يجري تهيئته حاليًا. اختبار الاستضافة/الحسابات الخارجية تخطاه حارس الاعتمادات، فلا يُعد PASS أو إثباتًا للإنتاج.
-- فشل P2 سابقًا على SHA `b7830ef...` لعدم تطابق منفذ DB: workflow حجز `55432` لكن fixture فرض `54322`. تم تصحيح `scripts/seed-p2-local-playwright.mjs` ليقبل API على loopback/54321 وقاعدة البيانات المحلية المخصصة loopback/55432 فقط. التشغيل الحالي يعيد اختبار التغيير على رأس 9079.
-- تم حل عائق HTTP 429 من وكيل حزم Lovable بتوجيه Bun إلى `https://registry.npmjs.org`، إعادة محاولة محدودة لخطأ 429 فقط، وتحديث 97 عنوان tarball داخل `bun.lock` مع الحفاظ على الإصدارات و721 بصمة SHA-512. التثبيت والتحقق من frozen lockfile نجحا قبل اختبارات التطبيق.
-- عقد الجلسات في #83: `list_organization_sessions` يعرض جلسات المؤسسة الفعالة لمدير فعال دون رموز/أسرار مع تدقيق العرض؛ `revoke_organization_session` يمنع إلغاء الجلسة الحالية وأي جلسة أخرى لحساب المدير نفسه؛ `revoke_other_auth_sessions()` يسمح للمستخدم بإلغاء جلساته الأخرى فقط مع إبقاء الحالية وإرجاع IDs/العدد وتدقيق واحد. اجتاز هذا العقد واختباره PostgreSQL 17 ضمن Core على SHA `9079ffa...`.
-- أُصلح الذيل المكرر المبتور في workflow P2؛ لم تعد التشغيلات تفشل قبل إنشاء Jobs. لا تُحوّل حالات SHA سابق إلى قبول للرأس الحالي.
-- P2 لم يعدّل شاشة الأجهزة المملوكة لـP1. أضيف تعليق إلى [PR #88](https://github.com/Report-Engainall/Nasr1/pull/88): الشاشة الحالية محلية وتستعمل `supabase.auth.signOut({scope:'others'})`، ولا تثبت تكامل RPCs لقائمة جلسات المؤسسة وإلغائها. لا تدّعِ Browser/Production proof للوحة المؤسسة.
-- لا تدمج #83 حتى ينجح P2 المحلي على `9079ffa...`، ثم تُراجع حدود SECURITY DEFINER والاعتماديات والتكامل مع #88. Core ناجح وحده لا يثبت مسار الطلبات وعزل المؤسسة في المتصفح.
+- PR #83: [العقد الخلفي لإدارة الجلسات المركزية](https://github.com/Report-Engainall/Nasr1/pull/83)، الفرع `feat/p2-central-session-backend-20261023`، الرأس الحالي `91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`، الحالة OPEN/Draft، والـbase `59547c7d683cefd65cab445b97219aa701021676`. فرع #83 محدث إلى main الحالي بدمج Git غير قسري.
+- آخر Core ناجح كان على الرأس السابق `9079ffa7dc56051f29f5ab344dd4522e208cb841`: [run 39960901244](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901244) = **SUCCESS** على ذلك SHA. اجتازت unit tests وPostgreSQL 17 migrations/database acceptance، ومجموعة فحوص الأداء/الأمان والبناء/Chromium.
+- Core على الرأس الحالي `91c87e0...`: [run 39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) = **IN PROGRESS** عند آخر قراءة؛ كان في Unit tests.
+- P2 على الرأس السابق `9079ffa...`: [run 39960901154](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154) = **FAILURE**. بعد نجاح public UI smoke ومهاجرات Supabase وإنشاء fixtures المحلية ونجاح endpoint guard واختبارات price-grid وcash-expense، فشل اختبار استلام المشتريات لأن `scripts/test-purchase-receipt-accounting.mjs` فرض المنفذ 54322 بينما workflow يعزل PostgreSQL على 55432.
+- عولج هذا السبب على الرأس الحالي `91c87e0...` باستعمال `validateCashExpenseEndpoints` المشترك، الذي يمنع الأجهزة/المضيفات الخارجية ويشترط loopback ومنفذًا صريحًا صالحًا؛ التحقق النهائي على الرأس الحالي قيد التشغيل وليس PASS حتى الآن.
+- P2 الحالي: [run 39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) = **IN PROGRESS**. آخر قراءة: الاختبار العام في خطوة تثبيت اعتماديات Chromium؛ مسار local Supabase يعتمد على نجاح هذا الاختبار العام. حارس الحسابات المستضافة متجاوز لغياب الاعتمادات، وليس إثبات تسجيل دخول حقيقي أو إنتاج.
+- حل HTTP 429: Bun موجّه إلى `https://registry.npmjs.org` مع backoff محدود لأخطاء 429 فقط. تغيّرت 97 روابط tarball في `bun.lock` إلى npm العام، مع بقاء إصدارات الحزم و721 SHA-512 integrity entries دون تغيير؛ frozen-lockfile validation والتثبيت نجحا في التشغيلات السابقة.
+- عقد الجلسات في #83: `list_organization_sessions` محصور بمدير مؤسسة نشط والجلسات الفعالة دون أسرار مع التدقيق؛ `revoke_organization_session` يمنع إلغاء الجلسة الحالية أو أي جلسة أخرى تخص المدير؛ `revoke_other_auth_sessions()` ينهي جلسات الحساب نفسه الأخرى فقط، ويحتفظ بالحالية ويرجع IDs/count مع حدث تدقيق. اجتازت اختبارات PostgreSQL 17 هذا المنطق في Core على SHA `9079ffa...`; يلزم إعادة إثباته على الرأس الحالي بعد تعديل الاختبار المالي.
+- تم إصلاح الذيل المكرر المبتور في workflow P2. P2 لم يعدّل واجهة الأجهزة المملوكة لـP1، وعُلّق على [PR #88](https://github.com/Report-Engainall/Nasr1/pull/88) أن الشاشة الحالية لا تثبت تكامل RPCs لقائمة جلسات المؤسسة وإلغائها.
+- لا تدمج #83 حتى ينجح Core وP2 على `91c87e0...` أو رأس أحدث ثابت، وتُراجع حدود SECURITY DEFINER والتكامل مع #88.
 
 **المهمة التالية بعد إغلاق #83: PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE.**
-#82 يبقى بحاجة إلى مزامنة واختبارات على أحدث main `59547c7...` قبل قرار الإغلاق/الدمج. الدعوات لا تثبت إرسال بريد إنتاجي.
+يحتاج #82 إلى مزامنة واختبارات على latest main `59547c7...` قبل اتخاذ قرار الدمج. دعوة ناجحة في قاعدة محلية لا تثبت بريدًا إنتاجيًا.
 
 ## 3. مسار P2 التالي بعد إغلاق #82
 
