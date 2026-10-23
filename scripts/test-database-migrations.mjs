@@ -3489,6 +3489,142 @@ async function main() {
     /active staff organization|required|staff/i,
   );
   await db.unsafe("reset role");
+  // INV-STOCK-001: concurrent duplicate batch submissions with one idempotency key must create one batch.
+  // Hold all sorted product rows so both authenticated RPC sessions overlap: the first keeps the
+  // tenant-scoped idempotency advisory lock while waiting on a product row; the second must wait
+  // on that same key, then replay the first result instead of moving stock a second time.
+  await db.unsafe("reset role");
+  for (const [raceProduct, raceWarehouse, onHand, reserved] of [
+    [productId, testWarehouseId, 10, 2],
+    [productId, transferDestinationId, 0, 0],
+    [batchProductId, testWarehouseId, 10, 2],
+    [batchProductId, transferDestinationId, 0, 0],
+  ]) {
+    await db.unsafe(
+      "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) " +
+      "values($1,$2,$3,$4,1) on conflict(product_id,warehouse_id) do update " +
+      "set quantity_on_hand=excluded.quantity_on_hand,quantity_reserved=excluded.quantity_reserved,reorder_point=excluded.reorder_point",
+      [raceProduct, raceWarehouse, onHand, reserved],
+    );
+  }
+
+  const concurrentBatchKey = "ci-inventory-batch-samekey-race-0001";
+  const concurrentBatchReason = "CI concurrent idempotent batch replay";
+  const concurrentBatchLines = [
+    { product_id: productId, quantity: 3 },
+    { product_id: batchProductId, quantity: 1 },
+  ];
+  const sameKeyGate = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const sameKeyFirst = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const sameKeySecond = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  let sameKeyGateOpen = false;
+  let sameKeyFirstAttempt;
+  let sameKeySecondAttempt;
+  const setSameKeyStaffIdentity = async (connection, appName) => {
+    await connection.unsafe("select set_config('application_name',$1,false)", [appName]);
+    await connection.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [staffAuthUserId]);
+    await connection.unsafe("select set_config('request.jwt.claims',$1,false)", [
+      JSON.stringify({ sub: staffAuthUserId, email: "admin@aghbari.ye", role: "authenticated", session_id: staffAuthUserId }),
+    ]);
+    await connection.unsafe("set role authenticated");
+  };
+  try {
+    await Promise.all([
+      setSameKeyStaffIdentity(sameKeyFirst, "ci-inventory-batch-same-key-a"),
+      setSameKeyStaffIdentity(sameKeySecond, "ci-inventory-batch-same-key-b"),
+    ]);
+    await sameKeyGate.unsafe("begin");
+    sameKeyGateOpen = true;
+    await sameKeyGate.unsafe(
+      "select id from public.products where id=any($1::uuid[]) order by id for update",
+      [[productId, batchProductId]],
+    );
+
+    const concurrentArgs = (connection) => [
+      testWarehouseId, transferDestinationId, concurrentBatchKey,
+      connection.json(concurrentBatchLines), concurrentBatchReason,
+    ];
+    const submitBatch = (connection) => connection.unsafe(
+      "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text) as result",
+      concurrentArgs(connection),
+    ).then((rows) => ({ ok: true, result: rows[0].result }))
+      .catch((error) => ({ ok: false, error }));
+    sameKeyFirstAttempt = submitBatch(sameKeyFirst);
+    sameKeySecondAttempt = submitBatch(sameKeySecond);
+
+    let observedBothSameKeySessionsWaiting = false;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const waiting = await db.unsafe(
+        "select count(*)::int as count from pg_catalog.pg_stat_activity " +
+        "where application_name in ('ci-inventory-batch-same-key-a','ci-inventory-batch-same-key-b') " +
+        "and state='active' and wait_event_type='Lock'",
+      );
+      if (Number(waiting[0]?.count ?? 0) === 2) {
+        observedBothSameKeySessionsWaiting = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(observedBothSameKeySessionsWaiting, true,
+      "concurrent same-key batch calls must overlap while contending on the held product lock and key lock");
+
+    await sameKeyGate.unsafe("commit");
+    sameKeyGateOpen = false;
+    const [firstOutcome, secondOutcome] = await Promise.all([sameKeyFirstAttempt, sameKeySecondAttempt]);
+    assert.equal(firstOutcome.ok, true, "first concurrent same-key batch call must succeed");
+    assert.equal(secondOutcome.ok, true, "duplicate concurrent same-key batch call must replay successfully");
+    assert.equal(firstOutcome.result.batch_id, secondOutcome.result.batch_id,
+      "concurrent same-key requests must return the same canonical batch id");
+    assert.deepEqual(
+      [firstOutcome.result.idempotent_replay, secondOutcome.result.idempotent_replay].sort(),
+      [false, true],
+      "exactly one concurrent caller creates the batch and the other observes idempotent replay",
+    );
+
+    await db.unsafe("reset role");
+    const concurrentHeaderRows = await db.unsafe(
+      "select id,line_count from public.inventory_transfer_batches where organization_id=$1 and idempotency_key=$2",
+      [organizationId, concurrentBatchKey],
+    );
+    assert.equal(concurrentHeaderRows.length, 1, "concurrent same-key requests create exactly one batch header");
+    assert.equal(Number(concurrentHeaderRows[0].line_count), 2);
+    assert.equal(concurrentHeaderRows[0].id, firstOutcome.result.batch_id);
+    const concurrentTransferRows = await db.unsafe(
+      "select id,product_id,quantity from public.inventory_transfers where batch_id=$1::uuid order by product_id",
+      [firstOutcome.result.batch_id],
+    );
+    assert.equal(concurrentTransferRows.length, 2, "concurrent replay creates each product transfer exactly once");
+    const concurrentMovementRows = await db.unsafe(
+      "select m.movement_type,m.quantity from public.inventory_movements m " +
+      "join public.inventory_transfers t on t.id=m.reference_id " +
+      "where m.reference_type='inventory_transfer' and t.batch_id=$1::uuid",
+      [firstOutcome.result.batch_id],
+    );
+    assert.equal(concurrentMovementRows.length, 4, "concurrent replay writes only one pair of movements per product");
+    const concurrentAuditRows = await db.unsafe(
+      "select id from public.audit_logs where organization_id=$1 and action='inventory.transfer.batch' and entity_id=$2::uuid",
+      [organizationId, firstOutcome.result.batch_id],
+    );
+    assert.equal(concurrentAuditRows.length, 1, "idempotent replay does not duplicate the batch audit event");
+    const concurrentBalances = await db.unsafe(
+      "select product_id,warehouse_id,quantity_on_hand,quantity_reserved from public.inventory_balances " +
+      "where product_id in ($1::uuid,$2::uuid) and warehouse_id in ($3::uuid,$4::uuid)",
+      [productId, batchProductId, testWarehouseId, transferDestinationId],
+    );
+    const concurrentBalanceFor = (pid, wid) => concurrentBalances.find((row) => row.product_id === pid && row.warehouse_id === wid);
+    assert.equal(Number(concurrentBalanceFor(productId, testWarehouseId).quantity_on_hand), 7,
+      "first product is transferred exactly once under concurrent replay");
+    assert.equal(Number(concurrentBalanceFor(productId, transferDestinationId).quantity_on_hand), 3);
+    assert.equal(Number(concurrentBalanceFor(batchProductId, testWarehouseId).quantity_on_hand), 9);
+    assert.equal(Number(concurrentBalanceFor(batchProductId, transferDestinationId).quantity_on_hand), 1);
+  } finally {
+    if (sameKeyGateOpen) await sameKeyGate.unsafe("rollback").catch(() => {});
+    if (sameKeyFirstAttempt || sameKeySecondAttempt) {
+      await Promise.allSettled([sameKeyFirstAttempt, sameKeySecondAttempt].filter(Boolean));
+    }
+    await Promise.all([sameKeyGate.end({ timeout: 5 }), sameKeyFirst.end({ timeout: 5 }), sameKeySecond.end({ timeout: 5 })]);
+  }
+
   // INV-STOCK-001: prove a real lock race between single-item transfer and a multi-item batch.
   // A third PostgreSQL session holds the shared product row lock until both API calls are blocked.
   await db.unsafe("reset role");
