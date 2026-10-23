@@ -18,12 +18,18 @@ vi.mock("@/components/CustomerOrders", () => ({
 vi.mock("@/components/CustomerWorkflows", () => ({
   CustomerInvoicesPage: () => null,
   CustomerStatementPage: () => null,
+  CommerceAssistantPage: () => null,
+  BarcodeWorkspacePage: () => null,
+  OfflineWorkspacePage: () => null,
 }));
 
 import { Route as OrderDetailRoute } from "@/routes/orders.$id";
 import { Route as OrdersIndexRoute } from "@/routes/orders.index";
 import { Route as InvoicesRoute } from "@/routes/invoices";
 import { Route as StatementRoute } from "@/routes/statement";
+import { Route as AssistantRoute } from "@/routes/assistant";
+import { Route as BarcodeRoute } from "@/routes/barcode";
+import { Route as OfflineRoute } from "@/routes/offline";
 
 type RouteWithComponent = { options: { component: ComponentType } };
 const customerRoutes = [
@@ -31,6 +37,9 @@ const customerRoutes = [
   { label: "orders list", route: OrdersIndexRoute, expected: "جار تحميل طلباتك..." },
   { label: "invoices", route: InvoicesRoute, expected: "جار تحميل الفواتير..." },
   { label: "account statement", route: StatementRoute, expected: "جار تحميل كشف الحساب..." },
+  { label: "assistant", route: AssistantRoute, expected: "جار تحميل المساعد الذكي..." },
+  { label: "barcode scanner", route: BarcodeRoute, expected: "جار تحميل ماسح الباركود..." },
+  { label: "offline workspace", route: OfflineRoute, expected: "جار تحميل مساحة العمل دون اتصال..." },
 ] as const;
 
 afterEach(() => cleanup());

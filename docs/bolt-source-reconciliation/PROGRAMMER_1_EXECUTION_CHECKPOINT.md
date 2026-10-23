@@ -110,3 +110,19 @@ Extended least-privilege customer_manager access to activation-link management w
 - Acceptance status: P1-CUST-MANAGER-ROLE-UI-001 is functionally implemented and its component tests passed; exact overall CI status is pending until the final browser steps conclude. Browser proof and production proof are NOT RUN/NOT PROVEN.
 - Acceptance status: P1-DEVICE-SESSION-MGMT-001 remains PARTIAL. Central organization/device inventory, login history, selective per-device revocation and single-/multi-device policy controls are not implemented. The active P2 path lock forbids adding the required SQL/RLS/RPC work in this batch; this is a coordination lock, not an external-service pass. P2 must explicitly release/coordinate that path, then P1 must implement server-persisted device/session records, tenant-safe commands, audit coverage and PostgreSQL/browser acceptance before marking the full requirement IMPLEMENTED.
 - This checkpoint records the code-head evidence above; this documentation commit creates a new SHA and therefore the latest Core/P2 runs must again be checked against the new exact head.
+
+## Active resume — invitation expiry hardening — 2026-10-23T15:40+03:00
+
+- LAST_COMPLETED_TASK_ID: P1-ROLE-ASSIGNMENT-SETTINGS-84
+- CURRENT_BRANCH: `p1/validate-customer-invitation-response-20261023`
+- BASE_SHA: `0396b29aeab8c09c430df0063821251208a38477` (original PR #90 base; current `main` before integration was `d3a27dc9c4b209e61bf6b3b9a54ceb8b4a26974d`, then PR #84 merged successfully as `cb72f35de524af82f63bbbcebec97213464921ed`).
+- HEAD_SHA: `6d1cc62c56bf49c4ecda75a480021d8bad9938eb` (latest functional code/test commit before this checkpoint append).
+- LAST_CONFIRMED_TESTS: PR #90 Core CI run [39952596164](https://github.com/Report-Engainall/Nasr1/actions/runs/39952596164) and P2 Playwright [39952595979](https://github.com/Report-Engainall/Nasr1/actions/runs/39952595979) passed on the previous code head `17001d51714a89183e3c7a7381128cfb52d85303`; those runs do not cover the new elapsed-in-flight regression yet. PR #84 Core run [39952308326](https://github.com/Report-Engainall/Nasr1/actions/runs/39952308326) and P2 Playwright [39952308332](https://github.com/Report-Engainall/Nasr1/actions/runs/39952308332) passed on `0ba76e85ae54411a8840985ba6b789cc76c1cf47`; PR #84 is merged, merge SHA `cb72f35de524af82f63bbbcebec97213464921ed`.
+- FAILED_OR_NOT_RUN_TESTS: exact-head Core + P2 status for `6d1cc62c56bf49c4ecda75a480021d8bad9938eb` has not yet been read back; do not claim it passed. Post-merge main CI on `cb72f35...` also must be confirmed.
+- FILES_CHANGED: `src/lib/customer-activation-invitations.ts`, `src/test/customer-activation-invitations.test.ts` (response-time expiry guard + delayed-response regression); this checkpoint and `PROGRAMMER_1_CURRENT_REPORT.md` are being appended for resumption.
+- LOCKED_PATHS: P2 migrations/RPC/RLS, `src/lib/api.ts`, finance/import/Onyx backend paths, and P2-owned browser workflow fixtures remain untouched. Do not change shared `CURRENT_EXECUTION_STATE.md` or `WORK_COORDINATION.md` from P1.
+- NEXT_ACTION: read Core and P2 workflow results for the newest PR #90 head and verify main's post-#84 CI by exact SHA. Fix only failures on that head. If the final integration checks are green and the PR remains mergeable, merge #90 with `expected_head_sha`; then re-read `refs/heads/main` and verify CI for the resulting merge SHA.
+- BLOCKER: latest exact-head workflow results pending inspection; PR #90 was 11 commits behind the pre-merge main snapshot at initial comparison, so acceptance must include the current-base merge result.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/90
+- MERGE_STATUS: PR #90 OPEN; PR #84 MERGED; PR #88 remains Draft and blocked on P2 PR #83.
+- UPDATED_AT: 2026-10-23T15:40+03:00
