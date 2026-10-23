@@ -97,7 +97,7 @@ async function cleanup() {
     [org, name, otherOrg, foreignName],
   ).catch(() => {});
   await root.unsafe(
-    "delete from public.audit_logs where organization_id=$1 and action='customer.tier_changed' and entity_id in " +
+    "delete from public.audit_logs where organization_id=$1 and action in ('customer.tier_changed','customer.status_changed') and entity_id in " +
       "(select id from public.customers where organization_id=$1 and customer_code='CI-P1-CATALOG-LOCAL-CUSTOMER')",
     [org],
   ).catch(() => {});
@@ -225,8 +225,77 @@ async function main() {
     "has_column_privilege('authenticated','public.customers','status','UPDATE') as status_update");
   assert.equal(customerPrivileges[0].table_update,false);
   assert.equal(customerPrivileges[0].tier_update,false);
-  assert.equal(customerPrivileges[0].status_update,true);
+  assert.equal(customerPrivileges[0].status_update,false, "customer lifecycle status is only writable through the audited RPC");
   await assert.rejects(()=>admin.unsafe("update public.customers set tier='vip' where id=$1",[localCustomer]),/permission denied/i);
+  await assert.rejects(()=>admin.unsafe("update public.customers set status='blocked' where id=$1",[localCustomer]),/permission denied/i);
+
+  // PostgreSQL acceptance for customer lifecycle: scoped command, optimistic concurrency,
+  // finite transitions, restoration, manager authorization and before/after audit evidence.
+  const lifecycleFreeze = await rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"approved","frozen","CI lifecycle: temporary account freeze"]);
+  assert.deepEqual(
+    {customer_id:lifecycleFreeze.customer_id,previous_status:lifecycleFreeze.previous_status,status:lifecycleFreeze.status,changed:lifecycleFreeze.changed},
+    {customer_id:localCustomer,previous_status:"approved",status:"frozen",changed:true},
+  );
+
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"frozen","rejected","CI invalid transition"]),
+    /invalid customer status transition/i);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"approved","archived","CI stale expected state"]),
+    /customer status changed since directory loaded/i);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [foreignCustomer,"approved","frozen","CI lifecycle cross tenant"]),
+    /customer not found in current organization/i);
+  await assert.rejects(()=>rpc(customer,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"frozen","approved","CI customer cannot administer lifecycle"]),
+    /customer manager permission required to change customer status/i);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"frozen","approved"," "]),
+    /reason must contain between 3 and 500 characters/i);
+
+  const lifecycleArchive = await rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"frozen","archived","CI lifecycle: archive after review"]);
+  assert.equal(lifecycleArchive.status,"archived");
+  const lifecycleRestore = await rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"archived","restore","CI lifecycle: restore archived account"]);
+  assert.equal(lifecycleRestore.previous_status,"archived");
+  assert.equal(lifecycleRestore.status,"frozen",
+    "restore returns to the last known non-archived state rather than inventing a default");
+
+  const lifecycleApproval = await rpc(admin,
+    "select public.set_admin_customer_status($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"frozen","approved","CI lifecycle: restore active service"]);
+  assert.equal(lifecycleApproval.status,"approved");
+  const lifecycleAudit = await root.unsafe(
+    "select organization_id,actor_id,action,entity_type,entity_id,old_value,new_value " +
+    "from public.audit_logs where organization_id=$1 and action='customer.status_changed' and entity_id=$2 order by created_at,id",
+    [org,localCustomer]);
+  assert.equal(lifecycleAudit.length,4,"each successful lifecycle transition is audited exactly once");
+  assert.ok(lifecycleAudit.every(row => row.organization_id===org && row.action==="customer.status_changed" && row.entity_type==="customer"));
+  assert.equal(lifecycleAudit[0].old_value.status,"approved");
+  assert.equal(lifecycleAudit[0].new_value.status,"frozen");
+  assert.equal(lifecycleAudit[0].new_value.reason,"CI lifecycle: temporary account freeze");
+  assert.equal(lifecycleAudit[1].old_value.status,"frozen");
+  assert.equal(lifecycleAudit[1].new_value.status,"archived");
+  assert.equal(lifecycleAudit[2].old_value.status,"archived");
+  assert.equal(lifecycleAudit[2].new_value.status,"frozen");
+  assert.equal(lifecycleAudit[2].new_value.restored_from_archive,true);
+  assert.equal(lifecycleAudit[3].old_value.status,"frozen");
+  assert.equal(lifecycleAudit[3].new_value.status,"approved");
+  const foreignLifecycleAudit = await root.unsafe(
+    "select id from public.audit_logs where action='customer.status_changed' and entity_id=$1",
+    [foreignCustomer]);
+  assert.equal(foreignLifecycleAudit.length,0,"a cross-tenant lifecycle command cannot mutate or audit the foreign customer");
+  process.stdout.write("PASS customer lifecycle RPC: legal transitions, archive restore, reason/audit, tenant scope, stale state, denied role and no direct status DML\\n");
 
 
   const category = await rpc(
