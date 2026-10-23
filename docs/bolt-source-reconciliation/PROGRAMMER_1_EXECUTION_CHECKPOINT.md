@@ -5,17 +5,17 @@
 - Status: IN_PROGRESS
 - Branch / PR: `p1/remaining-work-execution-20261023` / [PR #66](https://github.com/Report-Engainall/Nasr1/pull/66)
 - Base main SHA: `76baf9dbe7860a764abc18e75835abb8750d56a3`
-- Code/test HEAD before this checkpoint: `5931e2fe879887c7d7bd6439ca07623efd91b945`
-- P1-01 category rename: PR #50 candidate `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; Core CI PASS; browser proof externally blocked before assertions by GHCR rate limit.
+- Current code/test HEAD before this checkpoint: `02abf1763a6c085901f19be55a7dda41ab70f753`
+- P1-01 category rename: PR #50 candidate `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; Core CI PASS; browser proof externally blocked by GHCR rate limit.
 - P1-02 password recovery: PR #44 candidate `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`; Core CI PASS; reset-route-specific browser proof NOT_RUN.
 - P1-03a order-detail retry: Core CI [39905102470](https://github.com/Report-Engainall/Nasr1/actions/runs/39905102470) PASS on exact SHA `16bfe4f96513753dc145dfec17a020f121e1f711`.
-- P1-03b reorder template from order details: existing `save_reorder_template` RPC; UUID/quantity validation, approved quantities, source-order link, malformed response fail-closed, and immediate duplicate-click guard. Tests in `src/test/customer-order-detail-retry.test.tsx`.
-- P1-03c company invite acceptance: token removed from URL before network request; in-memory retry preserved. Test in `src/test/customer-company-members-page.test.tsx`.
-- P1-03d customer activation acceptance: path token removed before network request; in-memory retry preserved. Test in `src/test/customer-activation-invitations-page.test.tsx`.
-- P1-04 customer activation dialog: `src/components/CustomerActivationInvitationDialog.tsx` now uses an immediate in-flight ref to prevent rapid duplicate invite creation (server revokes a previous pending link when a new one is created). New regression test batches two submits before rerender and asserts one server call in `src/test/customer-activation-invitations-dialog.test.tsx`.
-- Latest code/test SHA: `5931e2fe879887c7d7bd6439ca07623efd91b945`; exact-head Core CI result pending at last readback. Older SHA runs do not prove this head.
-- Browser proof for the specific retry/double-submit controls: NOT_RUN. Production proof: NOT_RUN.
-- Next action: verify Core CI for the checkpoint's resulting SHA; fix only evidenced failures, then continue with the next unowned commercial-admin function.
+- P1-03b reorder template: `src/components/CustomerOrders.tsx` reuses `save_reorder_template`, validates source order items and approved quantities, and blocks duplicate submits. Tests: `src/test/customer-order-detail-retry.test.tsx`.
+- P1-03c/d invite-token cleanup: company and customer activation links remove bearer tokens from the visible URL before network calls and preserve in-memory retry. Tests: `src/test/customer-company-members-page.test.tsx`, `src/test/customer-activation-invitations-page.test.tsx`.
+- P1-04 duplicate invite guard: `src/components/CustomerActivationInvitationDialog.tsx` uses an immediate in-flight ref so rapid repeated submit cannot supersede the first invitation; test added in `src/test/customer-activation-invitations-dialog.test.tsx`.
+- P1-05 unknown-state protection: same dialog now hides/disables creation until the server-backed invitation workspace loads; a failed load shows a retry action and does not call create. Regression test added to the same dialog test file.
+- Exact-head Core CI for combined code/tests `02abf1763a6c085901f19be55a7dda41ab70f753`: pending at checkpoint time. Do not cite tests from earlier SHA as proof for this head.
+- Browser proof for new retry/double-submit controls: NOT_RUN. Production proof: NOT_RUN.
+- Next action: verify exact-head Core CI on the resulting checkpoint SHA, fix any observed failing test/build step only, then continue the next independently owned commercial screen.
 
 ## Recent execution history
 
@@ -45,3 +45,6 @@ The customer activation handler now removes the path token from the visible addr
 
 ### 2026-10-23 — P1-04 — IMPLEMENTED; exact-head CI pending
 The customer activation dialog used only React `busy` state to suppress duplicate submits. Concurrent clicks before rerender could call the server twice; the server supersedes a prior pending invitation, which can make the first copied link immediately invalid. Added a synchronous `useRef` in-flight guard and a component test dispatching two submit clicks in one batched event, asserting exactly one call. Changed `src/components/CustomerActivationInvitationDialog.tsx` and `src/test/customer-activation-invitations-dialog.test.tsx`. No server contract or migration changed.
+
+### 2026-10-23 — P1-05 — IMPLEMENTED; exact-head CI pending
+The customer activation invitation dialog previously showed the creation form when the workspace lookup failed; since `workspace` remained null, the UI could not confirm that the customer was not already linked. Creation now fails closed until workspace state has been successfully loaded, and the error state offers explicit retry. Added regression test for load failure, denial of create, and recovery after retry. Changed `src/components/CustomerActivationInvitationDialog.tsx` and `src/test/customer-activation-invitations-dialog.test.tsx`. No backend/RPC/migration changed.
