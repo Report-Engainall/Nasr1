@@ -2,21 +2,23 @@
 
 - **المستودع:** `Report-Engainall/Nasr1`
 - **CURRENT_BRANCH:** `p1/admin-product-singleflight-20261023`
-- **MAIN_SHA / BASE_SHA:** `1c21fa6d81009dc8924d26b6f7addd5c976c0cb7`؛ PR #100 مدمج في هذا الرأس.
-- **HEAD_SHA للكود والاختبارات المثبتة:** `71196f78f793caf2874c0db8fade309b16873602`.
-- **LAST_COMPLETED_TASK_ID:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001`.
-- **PR #97:** [منع الإرسال المكرر لنموذج المنتج](https://github.com/Report-Engainall/Nasr1/pull/97) — OPEN / DRAFT / NOT MERGED، وفرعه ليس متأخرًا عن `main` وفق المقارنة الحية قبل هذه الدفعة.
-- **التغيير المنفّذ:** أضيف اختبار انحدار إلى `src/test/admin-product-double-submit.test.tsx` يغطي فشل تحديث المنتج، بقاء رسالة الخادم ظاهرة، عدم إظهار نجاح مبكر، وإمكانية إعادة المحاولة الناجحة مع التحقق من استدعاء التحديث مرتين وعدم استدعاء الإنشاء.
-- **Core CI على SHA المطابق:** [run 39996761435 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39996761435).
-- **P2 Playwright على SHA نفسه:** [run 39996761441 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39996761441). نجح سموك الواجهة العامة ومسار Supabase المحلي المعزول مع PostgreSQL 17/Chromium. اختبار حساب العميل المستضاف وعزل المؤسسة `SKIPPED` بسبب حاجز بيانات الاعتماد الخارجية؛ ليس PASS.
-- **حدود الإثبات:** اختبار المكوّن ضمن Core اجتاز على الرأس الدقيق. لا توجد جلسة متصفح مخصصة لنموذج المنتج نفسه (`NOT RUN`). إثبات الإنتاج `NOT RUN`.
-- **المراجعة:** لا توجد مراجعة مستقلة رسمية مسجلة لـ#97؛ محاولة CodeRabbit وصلت إلى حد المعدل. يظل Draft وغير مدمج إلى أن تُسجل مراجعة مستقلة معتمدة.
-- **PR #102:** مهمة منفصلة لاسترداد حالة hydration وقائمة التصدير؛ OPEN / DRAFT وغير مدمجة، والرأس المثبت `d83db9e07ab836ff6755d7088e4fa8027b268dd1` اجتاز Core [39993981567](https://github.com/Report-Engainall/Nasr1/actions/runs/39993981567) وP2 [39993981590](https://github.com/Report-Engainall/Nasr1/actions/runs/39993981590). لا يُعاد تنفيذها داخل #97.
-- **فحص مستقل لخصوصية السعر على main:** `Storefront.tsx` يربط إظهار أسعار البطاقات/التفاصيل بإعداد الخادم، والسلة ومراجعة الطلب تستخدمان معاينة تسعير خادمية؛ اختبارات الإخفاء والحمولات غير السليمة والإخفاق مغلقة بأمان. لم يُجرَ تعديل غير مبرر لهذا المسار.
-- **الملفات المملوكة والمحمية:** لم تُعدّل ملفات P2 المركزية أو migrations/RPC/RLS/API/workflows، ولم تُعدل مسارات P3 في #89 أو `src/routeTree.gen.ts`. التغيير البرمجي فقط ضمن اختبار P1، إضافةً إلى تحديث هذا التقرير ونقطة الاستئناف.
-- **NEXT_ACTION:** انتظار وفحص Core وP2 على SHA الناتج عن تحديث التقرير؛ ثم إبقاء #97 Draft حتى المراجعة المستقلة. عند وصول ملاحظات، أصلح ما يثبت منها وأعد بوابات الرأس النهائي. لا كتابة إلى `main` ولا دمج دون المراجعة المطلوبة.
-- **MERGE_STATUS:** #97 OPEN / DRAFT / NOT MERGED؛ #102 OPEN / DRAFT / NOT MERGED.
-- **UPDATED_AT:** 2026-10-23 20:40 +03:00.
+- **BASE_SHA / live MAIN_SHA:** `2908079abd76e1a84cc4449d65b6b01cdfc63482`; PR branch is synchronized with current `main` (`behind_by=0`).
+- **LAST_TESTED_CODE_HEAD_SHA:** `148e4ce4a6eaef66a511bc4c950991736d09e442`.
+- **المهمة:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001` — منع الإرسال المكرر للإنشاء والتحديث، وإظهار فشل الخادم مع السماح بإعادة المحاولة، وإغلاق الحفظ عند فشل جلب التصنيفات إلى أن تنجح إعادة المحاولة.
+- **Core CI — SUCCESS على SHA المطابق:** [run 39997706494](https://github.com/Report-Engainall/Nasr1/actions/runs/39997706494) على `148e4ce4a6eaef66a511bc4c950991736d09e442`.
+- **P2 Playwright — SUCCESS على SHA نفسه:** [run 39997706603](https://github.com/Report-Engainall/Nasr1/actions/runs/39997706603). نجح سموك الواجهة العامة وقبول Chromium مع Supabase/PostgreSQL 17 المحلي المعزول. اختبار عميل مستضاف وعزل المؤسسة كان `SKIPPED` بسبب بوابة الاعتمادات الخارجية، وليس PASS.
+- **تغطية المنتج المثبتة في Core:** منع الإنشاء المكرر عند ضغطتين قبل إعادة التصيير؛ منع التحديث المكرر بالطريقة نفسها؛ بقاء رسائل فشل الإنشاء/التحديث وإمكانية إعادة المحاولة؛ منع الكتابة عند فشل التصنيفات حتى نجاح إعادة التحميل؛ وعدم إعلان النجاح قبل إقرار الخادم.
+- **حدود الإثبات:** اختبار المتصفح المخصص لنافذة المنتج `NOT RUN`؛ اختبار حساب العميل المستضاف `SKIPPED / BLOCKED_EXTERNAL`؛ إثبات الإنتاج `NOT RUN`.
+- **المراجعة:** لا توجد مراجعة مستقلة مسجلة بعد. طلب CodeRabbit السابق حُجب بسبب rate limit؛ أُرسل طلب مراجعة جديد مرتبط بالرأس المختبر في [comment 6371255618](https://github.com/Report-Engainall/Nasr1/pull/97#issuecomment-6371255618).
+- **PR #97:** [منع الإرسال المكرر لنموذج المنتج](https://github.com/Report-Engainall/Nasr1/pull/97) — OPEN / DRAFT / NOT MERGED، ولا يُحوّل إلى Ready ولا يدمج قبل المراجعة المستقلة المطلوبة.
+- **الملفات الوظيفية:** `src/components/AghbariApp.tsx` و`src/test/admin-product-double-submit.test.tsx`. تحديث هذه الجلسة يعيد مصالحة checkpoint/report فقط؛ لا توجد تغييرات وظيفية إضافية في هذه الدفعة.
+- **FILES_CHANGED لهذه الدفعة:** `docs/bolt-source-reconciliation/PROGRAMMER_1_EXECUTION_CHECKPOINT.md`; `docs/bolt-source-reconciliation/PROGRAMMER_1_CURRENT_REPORT.md`.
+- **NEXT_ACTION:** التحقق من Core وP2 Playwright على SHA الجديد الذي سينشأ من دفعة التوثيق هذه، ثم مراجعة CodeRabbit/المراجع المستقل على أحدث رأس. أصلح ملاحظات مثبتة فقط ولا تدّعِ نجاح SHA آخر.
+- **MERGE_STATUS:** #97 OPEN / DRAFT / NOT MERGED.
+- **UPDATED_AT:** 2026-10-23T20:52:00+03:00.
+
+> Exact-head evidence recorded above is for functional SHA `148e4ce4a6eaef66a511bc4c950991736d09e442`. The checkpoint/report commit created by this update is a distinct SHA and must receive its own Actions readback before being labeled `TESTED_EXACT_SHA`.
+
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 
