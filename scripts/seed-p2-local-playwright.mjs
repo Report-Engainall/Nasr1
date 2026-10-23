@@ -16,7 +16,7 @@ const projectId = process.env.P2_LOCAL_SUPABASE_PROJECT_ID ?? "";
 const apiPort = Number(api.port);
 const databasePort = Number(database.port);
 const isLoopback = (url) => ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
-const isIsolatedProject = /^p2-local-e2e-\\d+-\\d+$/.test(projectId);
+const isIsolatedProject = /^p2-local-e2e-\d+-\d+$/.test(projectId);
 if (
   api.protocol !== "http:" ||
   database.protocol !== "postgres:" && database.protocol !== "postgresql:" ||
