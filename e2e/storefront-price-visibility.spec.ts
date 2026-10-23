@@ -74,7 +74,15 @@ test("Chromium verifies fail-closed product card and detail price visibility", a
 });
 
 
-type PricingPreviewMode = "visible" | "hidden" | "malformed" | "error";
+type PricingPreviewMode =
+  | "visible"
+  | "hidden"
+  | "malformed"
+  | "missing-payload"
+  | "missing-unit-price"
+  | "missing-line-total"
+  | "missing-total"
+  | "error";
 
 const previewProductId = "a1000000-0000-0000-0000-000000000011";
 const previewUnitPrice = 43210;
@@ -115,7 +123,7 @@ function previewSession() {
   };
 }
 
-function serverPreview(surface: "cart" | "orders", mode: PricingPreviewMode) {
+function serverPreview(surface: "cart" | "orders", mode: PricingPreviewMode): Record<string, unknown> | null {
   if (mode === "hidden") {
     return {
       visible: false,
@@ -152,23 +160,31 @@ function serverPreview(surface: "cart" | "orders", mode: PricingPreviewMode) {
       customer_tier_label: "شريحة سرية",
     };
   }
-  return {
+  if (mode === "missing-payload") return null;
+
+  const item: Record<string, unknown> = {
+    product_id: previewProductId,
+    name: "صنف اختبار سياسة إظهار السعر",
+    item_code: "PRICE-POLICY-CI-011",
+    unit: "كرتون",
+    quantity: 2,
+    unit_price: previewUnitPrice,
+    line_total: previewLineTotal,
+  };
+  const response: Record<string, unknown> = {
     visible: true,
     surface,
-    items: [{
-      product_id: previewProductId,
-      name: "صنف اختبار سياسة إظهار السعر",
-      item_code: "PRICE-POLICY-CI-011",
-      unit: "كرتون",
-      quantity: 2,
-      unit_price: previewUnitPrice,
-      line_total: previewLineTotal,
-    }],
+    items: [item],
     item_count: 1,
     currency: "YER",
     total_amount: previewTotal,
     customer_tier_visible: false,
   };
+
+  if (mode === "missing-unit-price") delete item.unit_price;
+  if (mode === "missing-line-total") delete item.line_total;
+  if (mode === "missing-total") delete response.total_amount;
+  return response;
 }
 
 async function installPricingPreviewRoutes(
@@ -246,7 +262,17 @@ async function expectNoHiddenPriceLeak(page: Page) {
   const body = page.locator("body");
   const visibleText = await body.innerText();
   const serializedDom = await body.evaluate((element) => element.innerHTML);
-  for (const secret of ["987654", "1975308", "شريحة سرية"]) {
+  // Check both raw backend fixtures and the ar-YE localized numerals rendered by production.
+  // The renderer can use Arabic-Indic digits and Arabic thousands separators, so raw-only
+  // assertions would miss a real visual/DOM price disclosure.
+  const secrets = [
+    "987654",
+    "1975308",
+    new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 0 }).format(987654),
+    new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 0 }).format(1975308),
+    "شريحة سرية",
+  ];
+  for (const secret of secrets) {
     expect(visibleText).not.toContain(secret);
     expect(serializedDom).not.toContain(secret);
   }
@@ -296,18 +322,37 @@ test("Chromium suppresses monetary fields when the server preview is hidden or m
   await expect(order.getByRole("status")).toContainText("لم يسمح إعداد الخادم بعرض الأسعار");
   await expect(cart.locator(".sf-order-pricing-total")).toHaveCount(0);
   await expect(order.locator(".sf-order-pricing-total")).toHaveCount(0);
+  await expect(cart.locator(".sf-order-pricing-unit")).toHaveCount(0);
+  await expect(order.locator(".sf-order-pricing-unit")).toHaveCount(0);
+  await expect(cart.locator(".sf-order-pricing-line-total")).toHaveCount(0);
+  await expect(order.locator(".sf-order-pricing-line-total")).toHaveCount(0);
   await expectNoHiddenPriceLeak(page);
 
-  mode = "malformed";
-  await cart.getByTestId("cart-policy-disable").click();
-  await cart.getByTestId("cart-policy-enable").click();
-  await order.getByTestId("order-policy-disable").click();
-  await order.getByTestId("order-policy-enable").click();
-  await expect(cart.getByRole("alert")).toContainText("تم إخفاء المبالغ");
-  await expect(order.getByRole("alert")).toContainText("تم إخفاء المبالغ");
-  await expect(cart.locator(".sf-order-pricing-total")).toHaveCount(0);
-  await expect(order.locator(".sf-order-pricing-total")).toHaveCount(0);
-  await expectNoHiddenPriceLeak(page);
+  // A mismatched item_count and incomplete server payloads must all fail closed in Chromium.
+  const invalidModes: PricingPreviewMode[] = [
+    "malformed",
+    "missing-payload",
+    "missing-unit-price",
+    "missing-line-total",
+    "missing-total",
+  ];
+  for (const invalidMode of invalidModes) {
+    mode = invalidMode;
+    await cart.getByTestId("cart-policy-disable").click();
+    await cart.getByTestId("cart-policy-enable").click();
+    await order.getByTestId("order-policy-disable").click();
+    await order.getByTestId("order-policy-enable").click();
+
+    await expect(cart.getByRole("alert")).toContainText("تم إخفاء المبالغ");
+    await expect(order.getByRole("alert")).toContainText("تم إخفاء المبالغ");
+    await expect(cart.locator(".sf-order-pricing-total")).toHaveCount(0);
+    await expect(order.locator(".sf-order-pricing-total")).toHaveCount(0);
+    await expect(cart.locator(".sf-order-pricing-unit")).toHaveCount(0);
+    await expect(order.locator(".sf-order-pricing-unit")).toHaveCount(0);
+    await expect(cart.locator(".sf-order-pricing-line-total")).toHaveCount(0);
+    await expect(order.locator(".sf-order-pricing-line-total")).toHaveCount(0);
+    await expectNoHiddenPriceLeak(page);
+  }
 });
 
 test("Chromium retries failed server price previews without showing local or stale monetary values", async ({ page }) => {
@@ -331,3 +376,37 @@ test("Chromium retries failed server price previews without showing local or sta
   await expect(cart.locator(".sf-order-pricing-total")).toBeVisible();
   await expect(order.locator(".sf-order-pricing-total")).toBeVisible();
 });
+
+test("Chromium removes previously visible prices when the next approved preview fails", async ({ page }) => {
+  let mode: PricingPreviewMode = "visible";
+  await installPricingPreviewRoutes(page, () => mode);
+  await page.goto("/e2e/fixtures/storefront-price-visibility.html");
+  await expect(page.getByTestId("fixture-ready")).toBeVisible();
+
+  const cart = page.getByTestId("cart-preview");
+  const order = page.getByTestId("order-preview");
+  await cart.getByTestId("cart-policy-enable").click();
+  await order.getByTestId("order-policy-enable").click();
+  await expect(cart.locator(".sf-order-pricing-total")).toBeVisible();
+  await expect(order.locator(".sf-order-pricing-total")).toBeVisible();
+  await expect(cart.locator(".sf-order-pricing-unit")).toBeVisible();
+  await expect(order.locator(".sf-order-pricing-line-total")).toBeVisible();
+
+  // The previous successful preview is now stale. A subsequent server error must remove
+  // all monetary DOM rather than leaving the last known amount on screen.
+  mode = "error";
+  await cart.getByTestId("cart-policy-disable").click();
+  await cart.getByTestId("cart-policy-enable").click();
+  await order.getByTestId("order-policy-disable").click();
+  await order.getByTestId("order-policy-enable").click();
+
+  await expect(cart.getByRole("alert")).toContainText("تم إخفاء المبالغ");
+  await expect(order.getByRole("alert")).toContainText("تم إخفاء المبالغ");
+  for (const surface of [cart, order]) {
+    await expect(surface.locator(".sf-order-pricing-total")).toHaveCount(0);
+    await expect(surface.locator(".sf-order-pricing-unit")).toHaveCount(0);
+    await expect(surface.locator(".sf-order-pricing-line-total")).toHaveCount(0);
+  }
+  await expectNoHiddenPriceLeak(page);
+});
+
