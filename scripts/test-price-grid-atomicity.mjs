@@ -77,12 +77,26 @@ async function expectFailure(label, operation, pattern) {
   assert.match(String(error.message), pattern, label + " must fail for the expected reason");
   return error;
 }
+function isLoopbackHostname(hostname) {
+  return ["localhost", "127.0.0.1", "[::1]"].includes(hostname.toLowerCase());
+}
+function requireLocalEndpoint(url, label, allowedProtocols) {
+  if (
+    !allowedProtocols.includes(url.protocol) ||
+    !isLoopbackHostname(url.hostname) ||
+    !url.port ||
+    Number(url.port) < 1 ||
+    Number(url.port) > 65535
+  ) {
+    throw new Error(label + " must use an explicit port on a loopback-only local endpoint.");
+  }
+}
 async function main() {
   const connectionString=requiredEnv("TEST_DATABASE_URL");
+  const databaseUrl=new URL(connectionString);
   const apiUrl=new URL(requiredEnv("E2E_SUPABASE_URL"));
-  if (apiUrl.protocol!=="http:" || !["localhost","127.0.0.1"].includes(apiUrl.hostname) || apiUrl.port!=="54321") {
-    throw new Error("Price-grid acceptance is restricted to local Supabase only.");
-  }
+  requireLocalEndpoint(apiUrl, "E2E_SUPABASE_URL", ["http:"]);
+  requireLocalEndpoint(databaseUrl, "TEST_DATABASE_URL", ["postgres:", "postgresql:"]);
   const orgId="a0000000-0000-0000-0000-000000000001";
   const managerEmail=requiredEnv("E2E_MANAGER_EMAIL").toLowerCase();
   const customerEmail=requiredEnv("E2E_EMAIL").toLowerCase();
