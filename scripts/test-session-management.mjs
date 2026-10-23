@@ -39,7 +39,7 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
   );
   await db.unsafe(
     "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now()-interval '2 days',now()-interval '1 minute',now()-interval '30 seconds',null,'Admin test browser','192.0.2.10'::inet),($3,$4,now()-interval '1 day',now()-interval '2 minutes',now()-interval '1 minute',null,'Staff test browser','192.0.2.11'::inet),($5,$6,now()-interval '3 days',now()-interval '4 minutes',now()-interval '3 minutes',null,'Target test browser','192.0.2.12'::inet),($7,$8,now()-interval '4 days',now()-interval '5 minutes',now()-interval '4 minutes',null,'Foreign tenant browser','192.0.2.13'::inet),($9,$6,now()-interval '9 days',now()-interval '9 days',now()-interval '9 days',now()-interval '1 day','Expired test browser','192.0.2.14'::inet) on conflict(id) do nothing",
-    [adminSession,adminAuth,staffSession,staffAuth,targetSession,targetAuth,foreignSession,foreignAdminAuth,expiredSession,targetAuth],
+    [adminSession,adminAuth,staffSession,staffAuth,targetSession,targetAuth,foreignSession,foreignAdminAuth,expiredSession],
   );
 
   await db.unsafe("reset role");
