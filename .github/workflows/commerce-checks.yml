@@ -303,13 +303,41 @@ jobs:
             exit 1
           }
       - name: Browser price visibility acceptance (Chromium; local fixture; no backend writes)
+        timeout-minutes: 18
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/pw-price-policy"
           npm install --prefix "$RUNNER_TEMP/pw-price-policy" --no-save --no-package-lock --no-audit --no-fund @playwright/test@1.63.0
           mkdir -p node_modules/@playwright
           ln -s "$RUNNER_TEMP/pw-price-policy/node_modules/@playwright/test" node_modules/@playwright/test
-          "$RUNNER_TEMP/pw-price-policy/node_modules/.bin/playwright" install --with-deps chromium
+          "$RUNNER_TEMP/pw-price-policy/node_modules/.bin/playwright" install chromium
+
+          browser_dir="$HOME/.cache/ms-playwright"
+          browser_bins="$(find "$browser_dir" -type f \( -name chrome -o -name chrome-headless-shell \) -perm -111 -print)"
+          if [ -z "$browser_bins" ]; then
+            echo "::error title=Chromium install failed::No executable Chromium browser was found in $browser_dir."
+            exit 1
+          fi
+          missing=""
+          while IFS= read -r browser; do
+            [ -n "$browser" ] || continue
+            ldd_output="$RUNNER_TEMP/price-policy-ldd-$(basename "$browser").txt"
+            if ! ldd "$browser" > "$ldd_output" 2>&1; then
+              missing="${missing}${browser}: ldd failed; "
+              continue
+            fi
+            unresolved="$(awk '/not found/ { print $1 }' "$ldd_output" | paste -sd ',' -)"
+            if [ -n "$unresolved" ]; then
+              missing="${missing}${browser}: ${unresolved}; "
+            fi
+          done <<< "$browser_bins"
+          if [ -n "$missing" ]; then
+            echo "::warning title=Chromium system libraries missing::Installing OS packages only because ldd found unresolved libraries."
+            printf '%s\n' "$missing"
+            timeout 8m "$RUNNER_TEMP/pw-price-policy/node_modules/.bin/playwright" install-deps chromium
+          else
+            echo "All linked system libraries for Chromium are present; skipped redundant apt package installation."
+          fi
 
           VITE_SUPABASE_URL=https://ci-placeholder.supabase.co \
           VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ci_placeholder \
