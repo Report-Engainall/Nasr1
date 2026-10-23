@@ -134,8 +134,11 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
       }
       const parsed = rows.filter((row): row is OrganizationSession => row !== null);
       const ids = new Set<string>();
-      if (parsed.some((row) => ids.has(row.session_id) || !ids.add(row.session_id))) {
-        throw new Error('أعاد الخادم معرّفات جلسات مكررة؛ أُوقف عرض القائمة لحين إعادة التحميل.');
+      for (const row of parsed) {
+        if (ids.has(row.session_id)) {
+          throw new Error('أعاد الخادم معرّفات جلسات مكررة؛ أُوقف عرض القائمة لحين إعادة التحميل.');
+        }
+        ids.add(row.session_id);
       }
       setOrganizationSessions(parsed);
     } catch {
