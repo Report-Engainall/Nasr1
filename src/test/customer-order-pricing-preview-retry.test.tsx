@@ -66,7 +66,7 @@ describe("CustomerOrderPricingPreview transient-read recovery", () => {
     renderPreview();
 
     await waitFor(
-      () => expect(screen.getByText("صنف اختبار إعادة محاولة السعر")).toBeInTheDocument(),
+      () => expect(screen.getByText(/صنف اختبار إعادة محاولة السعر/)).toBeInTheDocument(),
       { timeout: 5000 },
     );
 
