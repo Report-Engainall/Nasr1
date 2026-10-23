@@ -33,7 +33,7 @@ async function setIdentity(authUserId, email, sessionId = authUserId, registerSe
   }
 }
 
-async function expectFailure(label, action, pattern) {
+async function expectFailure(label, action, pattern, expectedSqlState) {
   let caught;
   try {
     await action();
@@ -42,6 +42,7 @@ async function expectFailure(label, action, pattern) {
   }
   assert.ok(caught, label + " should fail");
   if (pattern) assert.match(String(caught.message), pattern, label + " should fail for the expected reason");
+  if (expectedSqlState) assert.equal(caught.code, expectedSqlState, label + " should raise SQLSTATE " + expectedSqlState);
 }
 
 async function main() {
@@ -991,6 +992,7 @@ async function main() {
     "customer lifecycle RPC cannot target another organization",
     () => customerLifecycleCommand(lifecycleIds.foreignLifecycle, "pending", "approved", "CI foreign tenant"),
     /customer not found in current organization/i,
+    "42501",
   );
 
   const tierChange = (await db.unsafe(
@@ -1024,6 +1026,7 @@ async function main() {
     "customer tier RPC cannot target another organization",
     () => db.unsafe("select public.set_admin_customer_tier($1::uuid,'retail','wholesale','CI foreign tier')", [lifecycleIds.foreignTier]),
     /customer not found in current organization/i,
+    "42501",
   );
 
   await db.unsafe("reset role");
