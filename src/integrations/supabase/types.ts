@@ -1925,6 +1925,13 @@ export type Database = {
         };
         Returns: Json;
       };
+      fetch_general_journal_reversal_links: {
+        Args: { p_entry_ids: string[] };
+        Returns: Array<{
+          original_journal_entry_id: string;
+          reversal_journal_entry_id: string;
+        }>;
+      };
       transfer_inventory_batch: {
         Args: {
           p_destination_warehouse_id: string;
