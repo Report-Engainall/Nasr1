@@ -1,25 +1,24 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T23:24+03:00
-LAST_COMPLETED_TASK_ID: P3-PR89-MAIN-SYNC-001 — checked the current main and PR #89 change sets for conflicts; the comparison found no changed-path overlap. Current-head acceptance must be rerun after sync.
+UPDATED_AT: 2026-10-23T23:39:04+03:00
+LAST_COMPLETED_TASK_ID: P3-PR89-EXACT-HEAD-ACCEPT-002 — PR #89 is aligned with live main and its application merge SHA `4a98ce832d7c23940945dbf8baf45d5cb7cee19c` passed Core and P2 Playwright; independent human approval remains a merge gate.
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 6815b00781412bd98cbdd9fb660e475e4540b543
-HEAD_SHA: b68937683a3c99fd9904664d028ee0fb5b12ac37 (pre-sync #89 head; its merge child needs its own Core/P2 results.)
-ROUTES_COVERED: #89 catalog/category/collections/offers/search/reset-password/reports and guest cart/checkout price privacy; #105 /addresses and /company/contacts; #114 /company/members; #115 invitations; #117 /statement; #120 /orders/$id; #121 inventory of 60 non-root routes; #122 /wishlist; #125 /compare. Full all-route browser UAT: NOT RUN.
-FILES_CHANGED: Safe merge transaction applies the P3 delta to live main after zero-overlap validation. P3's owned delta contains route/UI/tests/reports; latest P2 changes are kept. No P2 central-state/backend files or P1 generated route-tree file edited by P3.
+HEAD_SHA: 4a98ce832d7c23940945dbf8baf45d5cb7cee19c (accepted application merge SHA before this documentation-only refresh; independently validate the new report child SHA.)
+ROUTES_COVERED: #89 category/collections/offers/search/reset-password/reports and guest cart/checkout price privacy; #105 /addresses and /company/contacts; #114 /company/members; #115 invitation acceptance; #117 /statement; #120 /orders/$id; #121 all 60 non-root routes inventoried; #122 /wishlist; #125 /compare; #130 /offline local-cache privacy, customer scope and sync retry. Full all-route browser UAT: NOT RUN.
+FILES_CHANGED: Only P3 checkpoint/report are modified by this status unit. The #89 branch was synchronized to current main using a merge commit after a zero-overlap change-path comparison. No P2 central files/backend contracts or P1 shared UI/generated route tree were modified.
 TESTS_RUN_WITH_RESULTS:
-- Pre-sync #89 head `b68937683a3c99fd9904664d028ee0fb5b12ac37`: Core [40019446413 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40019446413); P2 [40019446484 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40019446484) at last read. Those checks are not PASS.
-- Previous #89 head `ba778b5059652e778fd32bf494d4cbd4150fa0b0`: Core [40017356748 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40017356748); P2 [40017356741 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40017356741). Local Supabase/PostgreSQL 17 and public UI smoke succeeded; hosted credential-gated order/tenant job SKIPPED, not PASS.
-- PR #125 head `015c53f9dd01d0149641da1ed98897f48ca0317a`: Core [40017082640 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40017082640); P2 [40017082651 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40017082651) with public smoke/infrastructure/local Supabase PostgreSQL 17 SUCCESS; hosted order/tenant SKIPPED.
-- Post-sync #89 merge SHA: NOT YET RUN/READ; re-run acceptance after sync and do not transfer prior SHA outcomes.
-FAILED_OR_SKIPPED: Hosted order/tenant acceptance remains SKIPPED, not PASS; all-route browser UAT and production acceptance NOT RUN. Independent human approval missing.
-LOCKED_PATHS: P2 central execution state, official matrix, WORK_COORDINATION, EXECUTION_LOG and backend/RPC/migration/RLS; P1 shared UI/generated route tree. No locked path intentionally changed by P3.
-DEFECTS_FOUND: `/admin/exports` runtime reachability/role-denial/error-retry/completed-download remains NOT_PROVEN and P1-owned. Prior #122/#125 checks are SHA-bounded and do not establish hosted or all-route coverage.
-HANDOFF_TO_P1_OR_P2: P1 to prove `/admin/exports` via supported route generation; P2 to incorporate route inventory evidence in the official matrix/state only. P3 has not edited P2 central paths.
+- #89 application merge SHA `4a98ce832d7c23940945dbf8baf45d5cb7cee19c`: Core [40020216430 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020216430); P2 Playwright [40020216359 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020216359). Public UI smoke and infrastructure gate SUCCESS; local Supabase/PostgreSQL 17 order persistence, cross-tenant denial, returns/credit memo, audited Onyx XLSX, print acceptance, customer-manager financial privacy/audit, and central session authorization/revocation all SUCCESS. Hosted credential-gated order/tenant job [120642569307 SKIPPED](https://github.com/Report-Engainall/Nasr1/actions/runs/40020216359/job/120642569307), not PASS.
+- #130 exact head `f0653d81a1a7ae6264d948f3c44fbe656437b49a`: Core [40019899573 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40019899573); P2 [40019898309 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40019898309). Public smoke, infrastructure, local Supabase/PostgreSQL 17 tests SUCCESS. Hosted job [120642002548 SKIPPED](https://github.com/Report-Engainall/Nasr1/actions/runs/40019898309/job/120642002548), not PASS.
+- The documentation-only child built from this status refresh requires its own exact-head Core/P2 results; the above application checks do not transfer to it.
+FAILED_OR_SKIPPED: Hosted external credential-gated workflows are SKIPPED, not PASS. All-route browser UAT and production acceptance remain NOT RUN. No independent human approval recorded for #89.
+LOCKED_PATHS: P2 canonical state/official matrix/WORK_COORDINATION/EXECUTION_LOG and backend/RPC/migration/RLS; P1 shared UI/generated route tree. P3 did not edit those paths.
+DEFECTS_FOUND: `/admin/exports` runtime deep-link, role-denial, error/retry and completed-download remains NOT_PROVEN and P1-owned. The /offline route acceptance in #130 is targeted and does not replace full route UAT.
+HANDOFF_TO_P1_OR_P2: P1 to prove `/admin/exports` with supported route generation; P2 to incorporate source-backed route evidence only in the official matrix/state. No competing matrix created.
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
-MERGE_STATUS: #89 OPEN/UNMERGED; there is no independent human APPROVE submission, and CodeRabbit COMMENTED is not approval. #125 remains open/unmerged.
-BLOCKERS: New merge SHA acceptance, independent human review/approval, authorized hosted credentials, all-route browser UAT and production acceptance.
-NEXT_ACTION: Verify the newly pushed merge SHA's terminal Core/P2 outcomes, then request independent review and continue P3 route acceptance on isolated paths.
+MERGE_STATUS: #89 OPEN/UNMERGED; independent maintainer APPROVE missing. CodeRabbit COMMENTED is not approval. #130 OPEN/READY FOR REVIEW/UNMERGED.
+BLOCKERS: Independent review/approval, authorized hosted E2E credentials, full all-route browser UAT and production acceptance.
+NEXT_ACTION: Verify exact-head Core/P2 results for the new docs-only child SHA; post current evidence in the PR and request independent human review. Do not merge without independent approval.
 
 ## Historical execution evidence
 
