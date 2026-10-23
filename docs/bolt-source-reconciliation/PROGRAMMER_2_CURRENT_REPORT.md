@@ -1,23 +1,23 @@
 # تحديث P2 الحي — 23 أكتوبر 2026
 
-الحالة في هذا القسم أولوية على السجل التاريخي أدناه، وكل اختبار يخص SHA الذي نفذ عليه فعلًا.
+هذا القسم هو الحالة الأحدث؛ لا تُنسب نتائج SHA سابق إلى الرأس الحالي.
 
 - **المستودع:** `Report-Engainall/Nasr1`.
-- **main:** `59547c7d683cefd65cab445b97219aa701021676`; التغيير الأخير أصلح قبول دعوات العميل عند انتهاء الصلاحية أثناء الطلب، في ملفات P1 لا تتقاطع مع SQL إدارة الجلسات.
-- **PR #71:** مدمج؛ نجاح النسخ/الاستعادة كان إلى قاعدة محلية معزولة PostgreSQL 17 فقط، وليس استعادة إنتاجية أو قياس RTO/RPO.
-- **PR #82:** OPEN؛ نتائج Core/P2 السابقة على `8e70899...` لا تغطي main الحالي ويجب مزامنتها وإعادة القبول قبل أي قرار.
-- **PR #83:** OPEN/Draft، الرأس الحالي `9079ffa7dc56051f29f5ab344dd4522e208cb841`، base `59547c7d683cefd65cab445b97219aa701021676`. دمج Git عادي يضم آخر main؛ لا قوة دفع.
-- **Core CI:** [run 39960901244](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901244) = **SUCCESS** على الرأس `9079ffa...`. اجتازت اختبارات الوحدة، تطبيق migrations وقبول PostgreSQL 17 بما فيها إدارة الجلسات، اختبارات invitation expiry/stock audit/async export/import idempotency/import snapshot/storefront favorites/backup-restore، lint/build/preview/dev وChromium price-visibility.
-- **P2 Playwright:** [run 39960901154](https://github.com/Report-Engainall/Nasr1/actions/runs/39960901154) = **IN PROGRESS** عند آخر قراءة. Public read-only UI smoke = **SUCCESS** على الرأس نفسه. مسار local Supabase/PostgreSQL 17 لإنشاء المستخدمين المؤقتين واختبار الطلبات وعزل المؤسسة قيد التشغيل، وكانت آخر خطوة معلقة بدء خدمات Supabase المعزولة. الاختبار المستضاف تجاوز بسبب غياب الاعتمادات المطلوبة؛ لا Browser Proof لمصادقة مستضافة ولا Production Proof.
-- **سبب فشل اختبار P2 السابق:** على `b7830ef...` نجحت مهاجرات Supabase المحلية ثم رفض `scripts/seed-p2-local-playwright.mjs` الاتصال لأن workflow يحدد DB port 55432 لتجنب التعارض والfixture كان يفرض 54322. عُدّل الحارس إلى API loopback port 54321 وDB loopback port 55432 فقط؛ الرأس الحالي `9079ffa...` يعيد هذا الاختبار.
-- **عائق الحزم:** HTTP 429 متكرر من Lovable Artifact Registry حُل بتوجيه Bun صراحةً إلى npm العام، إعادة محاولة محدودة فقط لأخطاء 429، وتغيير 97 عنوان tarball في `bun.lock` مع الاحتفاظ بإصدارات الحزم و721 بصمة SHA-512. دليل Core الحالي أن frozen-lockfile والتثبيت وكل خطواته اللاحقة نجحت.
-- **عقد الجلسات في #83:** `list_organization_sessions(p_limit)` يتطلب مدير مؤسسة فعالًا ويعرض جلسات فعالة لحسابات نشطة داخل المؤسسة دون أسرار، مع التدقيق. `revoke_organization_session(p_session_id)` يرفض الجلسة الحالية أو أي جلسة أخرى تخص حساب المدير نفسه؛ أضيف اختبار يثبت بقاء جلستي المدير بعد رفض العملية. `revoke_other_auth_sessions()` إجراء ذاتي محدود بـ`auth.uid()` يحافظ على الجلسة الحالية، يحذف جلساته الأخرى، ويرجع IDs/count ويسجل حدث تدقيق واحد. اختبارات PostgreSQL 17 على SHA `9079ffa...` نجحت ضمن Core.
-- **تكامل P1:** تعليق على [PR #88](https://github.com/Report-Engainall/Nasr1/pull/88) وضح أن `DeviceManagement.tsx` تعرض الجلسة المحلية وتستخدم `supabase.auth.signOut({scope:'others'})`، ولا تثبت دمج واجهة عرض/إلغاء جلسات المؤسسة عبر RPC. P2 لم يعدّل ملفات الواجهة المقفلة لـP1.
-- **الفجوة المالية التالية FIN-INVOICE-001:** `fetch_staff_receivables_aging` تخصم المدفوعات ولكن لا تطرح الإشعارات الدائنة المنشورة، بينما `get_customer_account_statement()` يتعامل مع `posted` ويستبعد `reversed`. بعد إغلاق #83 ثم مزامنة #82 واختباره، أصلح التقرير القائم مع فصل العملات ومنع العد المزدوج واختبارات PostgreSQL 17؛ لا تبنِ دفترًا ثانيًا.
-- **BLOCKED_EXTERNAL:** Onyx live/target import وWhatsApp Business API الرسمي حتى تتوفر اعتمادات مخوّلة واستجابة فعلية؛ **NOT RUN:** استعادة إنتاجية وRTO/RPO.
+- **main:** `59547c7d683cefd65cab445b97219aa701021676`.
+- **PR #71:** مدمج؛ إثبات الاستعادة يخص قاعدة اختبار محلية PostgreSQL 17 فقط، ولا يثبت استعادة إنتاجية أو RTO/RPO.
+- **PR #82:** OPEN؛ يجب مزامنته مع main الحالي وإعادة اختبارات القبول قبل قرار دمج.
+- **PR #83:** OPEN/Draft، رأس `91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`، base `59547c7d683cefd65cab445b97219aa701021676`. أحدث main أُدخل بدمج Git عادي بلا force-push.
+- **Core الحالي:** [run 39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) = **IN PROGRESS**؛ آخر خطوة معلومة Unit tests. Core نجح كاملًا في التشغيل السابق على الرأس `9079ffa...`، لكن الإصلاح الحالي في اختبار استلام المشتريات يحتاج إعادة تحقق.
+- **P2 الحالي:** [run 39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) = **IN PROGRESS**. يعيد public UI smoke، وبعدها يبدأ local Supabase/PostgreSQL 17 order/tenant critical path. التشغيل السابق على `9079ffa...` فشل داخل `scripts/test-purchase-receipt-accounting.mjs` فقط لأن هذا الاختبار فرض DB port 54322، بينما workflow المحلي يستخدم 55432. صحّح الرأس الحالي الاستعمال إلى `validateCashExpenseEndpoints` المشترك الذي يقيّد المضيف إلى loopback والمنفذ صريحًا صالحًا؛ النتيجة النهائية لم تظهر بعد.
+- **حل تنزيل التبعيات:** سجلات CI أثبتت HTTP 429 من Lovable artifact registry؛ أضيف backoff محدود لأخطاء 429 فقط، و`--registry=https://registry.npmjs.org` صراحةً في Core/P2، وتم تحديث 97 tarball URLs في `bun.lock` إلى npm العام مع الحفاظ على الإصدارات و721 SHA-512 integrity values. فحص القفل المجمد والتثبيت اجتازا في تشغيلات سابقة.
+- **عقد الجلسات:** `list_organization_sessions` يتطلب مدير مؤسسة فعالًا ويكشف جلسات الحسابات النشطة في المؤسسة فقط دون أسرار، مع تدقيق العرض؛ `revoke_organization_session` يرفض الجلسة الحالية وأي جلسة أخرى للمدير نفسه؛ `revoke_other_auth_sessions()` يسمح للمستخدم بإلغاء جلساته الأخرى فقط ويبقي الحالية ويرجع IDs/count ويسجل حدث تدقيق. جميع اختبارات PostgreSQL 17 لهذا التغيير نجحت في Core على `9079ffa...`؛ أعِد إثباتها على الرأس الحالي قبل الدمج.
+- **حدود E2E:** فحوص القراءة العامة نجحت على بعض الرؤوس السابقة، لكن قبول الطلبات وعزل المؤسسة يتطلب نجاح Job المحلي في P2 الحالي. اختبارات الحسابات المستضافة تتجاوز بسبب عدم توفر أسرار البيئة، ولا تُعامل كنجاح متصفح أو إنتاج.
+- **تنسيق P1:** التعليق على [PR #88](https://github.com/Report-Engainall/Nasr1/pull/88) أوضح أن `DeviceManagement.tsx` لا تثبت حتى الآن دمج RPCs لقائمة جلسات المؤسسة وإلغاء جلسة مستخدم آخر. لا يغيّر P2 واجهة P1. **Browser Proof للوحة المؤسسة: NOT PROVEN**.
+- **FIN-INVOICE-001 التالية:** `fetch_staff_receivables_aging` يخصم المدفوعات لكنه لا يخصم الإشعارات الدائنة المنشورة، بينما `get_customer_account_statement()` يراعي `posted` ويستبعد `reversed`. بعد إغلاق #83 ثم مزامنة/قبول #82، أصلح تقرير الذمم الحالي مع فصل العملات، منع العد المزدوج، واختبارات PostgreSQL 17؛ لا تنشئ دفترًا عامًا ثانيًا.
+- **BLOCKED_EXTERNAL:** Onyx live/target import وWhatsApp Business API حتى تُستخدم اعتمادات مخولة وتظهر استجابة فعلية. **NOT RUN:** استعادة إنتاجية وRTO/RPO.
 
 **NEXT_TASK_ID:** `AUTH-CENTRAL-SESSION-BACKEND-P2`.  
-**NEXT_ACTION:** حسم P2 local Supabase/tenant acceptance على `9079ffa...`، وإصلاح أي فشل محدد، ثم مراجعة SECURITY DEFINER والتكامل مع #88. لا دمج #83 حتى يصبح Core وP2 المطلوبان ناجحين على رأس نهائي واحد. بعدها مزامنة #82 واختبارها من جديد.
+**NEXT_ACTION:** إكمال CI الحالي على `91c87e0...`؛ إصلاح أي فشل جديد بدليل من الخطوات؛ ثم مراجعة SECURITY DEFINER وتكامل #88. لا تدمج #83 دون Core وP2 ناجحين على SHA نهائي واحد. بعدها مزامنة #82 وإعادة اختباره.
 
 
 ---
