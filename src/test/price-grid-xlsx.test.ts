@@ -66,8 +66,18 @@ describe('price grid XLSX workbook', () => {
       .trimEnd()
       .split('\r\n')
       .map(line => line.split(',').map(cell => cell.startsWith('"') ? cell.slice(1, -1).replace(/""/g, '"') : cell));
+    const workbook = buildPriceGridXlsx(cases);
+    const workbookText = new TextDecoder().decode(await blobBytes(workbook));
+    // Assert actual OOXML numeric cells, not only parser read-back (which also returns text cells as strings).
+    for (const [cell, value] of [
+      ['J2', '-1.250'], ['K2', '0.000'], ['L2', '-2.500'],
+      ['J3', '0.000'], ['K3', '0.000'], ['L3', '0.000'],
+      ['J4', '3.125'], ['K4', '1.125'], ['L4', '2.000'],
+    ]) {
+      expect(workbookText).toContain('<c r="' + cell + '" t="n"><v>' + value + '</v></c>');
+    }
     const xlsxRecords: string[][] = [];
-    await parseXlsxFirstWorksheet(buildPriceGridXlsx(cases), values => { xlsxRecords.push(values); });
+    await parseXlsxFirstWorksheet(workbook, values => { xlsxRecords.push(values); });
 
     const csvStock = csvRows.slice(1).map(record => record.slice(9, 14));
     const xlsxStock = xlsxRecords.slice(1).map(record => record.slice(9, 14));
