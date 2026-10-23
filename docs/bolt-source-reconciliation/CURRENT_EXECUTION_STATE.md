@@ -1,5 +1,5 @@
 # الحالة التنفيذية الحالية الوحيدة — Nasr1 / متجر الأغبري
-## قراءة Git الحية — 2026-10-23T17:20:00+03:00
+## قراءة Git الحية — 2026-10-23T17:25:00+03:00
 
 هذا هو مؤشر الاستئناف المركزي الوحيد. لا تستخرج NEXT_TASK_ID من تقارير تاريخية؛ اجعل هذا القسم مرجع التنفيذ الجاري. رأس main والحالات أدناه تم التحقق منها من GitHub.
 
@@ -11,14 +11,14 @@
 
 ### المهمة الأساسية الحالية — AUTH-CENTRAL-SESSION-BACKEND-P2
 - PR [#83](https://github.com/Report-Engainall/Nasr1/pull/83), الفرع `feat/p2-central-session-backend-20261023`.
-- `HEAD_SHA=8b4135131533114d3d6efa023f6ddb4c8032384f`; `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`; OPEN/Draft; not merged.
-- Core CI [run 39968149759](https://github.com/Report-Engainall/Nasr1/actions/runs/39968149759) = IN_PROGRESS on this exact head. P2 Playwright [run 39968149719](https://github.com/Report-Engainall/Nasr1/actions/runs/39968149719) = QUEUED on this exact head; don't transfer earlier-head evidence.
-- Prior head `d2706613906ab401a28628de101a500b8b80b2d5` passed Core [39966420997](https://github.com/Report-Engainall/Nasr1/actions/runs/39966420997) with `PASS central session management`. Its P2 [39966421033](https://github.com/Report-Engainall/Nasr1/actions/runs/39966421033) stalled at `playwright install-deps chromium` for a cache hit and did not reach a terminal result.
-- Workflow change in `8b413513...`: both Chromium paths now install the browser separately, inspect cached browser executables with `ldd`, and call apt-backed `playwright install-deps` only if libraries are missing; fallback is bounded to eight minutes. It is implemented but not validated until the exact-head Core/P2 complete.
-- Root cause before this: `1f60e27...` Core omitted `accountant` and failed; fixed on `d270661...` with `admin/manager/accountant` preserved and a live session gate through `current_profile_id()`. `d270661...` Core passed.
-- Earlier P2 failure on `9079ffa...` was local PostgreSQL port mismatch (`55432` vs `54322`), corrected in `91c87e0...` using the loopback-only endpoint guard.
-- Session RPCs list/revoke tenant-bounded active sessions without exposing secrets; listing/revoking is audited; self-bulk revoke preserves the current session. The live `auth.sessions` row is required by canonical profile/tenant identity. Keep #83 open until exact-head P2 passes and security review is complete.
-- Current `main=f7565aefd7af6033d169167d1bebb3dc5cd248ce` is one P1 documentation-only commit ahead of this PR base. After tests terminate, update the branch non-force to the current main and rerun Core/P2 on the final SHA.
+- `HEAD_SHA=338e6504941506ef2c65e6a488f1f88fe4931425`; `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`; OPEN/Draft; not merged.
+- Current exact-head Core [run 39968531790](https://github.com/Report-Engainall/Nasr1/actions/runs/39968531790) = QUEUED; P2 [run 39968531845](https://github.com/Report-Engainall/Nasr1/actions/runs/39968531845) = PENDING. No exact-head pass yet.
+- Prior head `d2706613906ab401a28628de101a500b8b80b2d5` passed Core [39966420997](https://github.com/Report-Engainall/Nasr1/actions/runs/39966420997) with `PASS central session management`. The P2 job stalled during `playwright install-deps chromium`; head `8b413513...` then proved the public UI smoke SUCCESS and proceeded to the local Supabase job, but its overall Core/P2 did not reach terminal conclusions before the workflow was updated again.
+- Workflow correction now covers all three Chromium sites: P2 public smoke, P2 local Supabase, and Core price-visibility acceptance. Browser binaries are installed separately; `ldd` checks linked system libraries; apt-backed `playwright install-deps chromium` runs only if missing libraries are detected and is bounded to eight minutes. The workflow fix is implemented, but needs exact-head CI proof.
+- Root cause before this: `1f60e27...` Core omitted `accountant`; fixed on `d270661...` with `admin/manager/accountant` preserved and live session guard through `current_profile_id()`. Prior Core on `d270661...` passed and its SQL logs include central session acceptance.
+- Earlier P2 failure on `9079ffa...` was the local PostgreSQL port mismatch (`55432` vs `54322`), corrected in `91c87e0...` via loopback-only endpoint validation.
+- Session RPCs list/revoke tenant-bounded active sessions without secrets; listing/revoking is audited; self-bulk revoke preserves the current session; canonical profile/tenant scope now requires live `auth.sessions` row matching JWT.
+- Current `main=f7565aefd7af6033d169167d1bebb3dc5cd248ce` is one P1 documentation-only commit ahead of this PR base. After exact-head tests reach terminal PASS, update branch to main non-forcibly and rerun Core/P2 on the new final SHA.
 - لا تدمج #83 قبل Core وP2 النهائيين على الرأس النهائي ومراجعة العقد. PR #88 واجهة P1 تابعة للعقد وليست متكاملة نهائيًا قبل دمجه.
 
 ### مسار مالي موازٍ مستقل — FIN-INVOICE-001
@@ -48,14 +48,14 @@
 - `MAIN_SHA=f7565aefd7af6033d169167d1bebb3dc5cd248ce`
 - `CURRENT_BRANCH=feat/p2-central-session-backend-20261023`
 - `BASE_SHA=59547c7d683cefd65cab445b97219aa701021676`
-- `HEAD_SHA=8b4135131533114d3d6efa023f6ddb4c8032384f`
-- `TASK_STATUS=IMPLEMENTED; prior d270661 Core PASS with P2 hung; latest 8b413513 Core IN_PROGRESS / P2 QUEUED`
+- `HEAD_SHA=338e6504941506ef2c65e6a488f1f88fe4931425`
+- `TASK_STATUS=IMPLEMENTED; d270661 Core PASS; 8b413513 public UI smoke PASS but overall checks nonterminal; current 338e650 Core QUEUED / P2 PENDING`
 - `FILES_CHANGED=28 paths in PR #83; latest functional fix scripts/test-purchase-receipt-accounting.mjs`
-- `TESTS_RUN=Core 39966420997 SUCCESS on d270661 incl. PASS central session management; current Core 39968149759 IN_PROGRESS and P2 39968149719 QUEUED on 8b413513; main Core 39966840332 IN_PROGRESS on f7565a`
-- `TESTS_FAILED_OR_SKIPPED=Core on 1f60e27 omitted accountant role and failed; fixed in d270661 and Core passed. P2 d270661 stalled at apt-backed install-deps; workflow cache path fixed in 8b413513, exact-head validation pending. Hosted-account E2E SKIPPED for missing external non-production credentials`
+- `TESTS_RUN=Core 39966420997 PASS on d270661 incl. PASS central session management; 8b413513 P2 public UI smoke PASS but overall checks nonterminal; current Core 39968531790 QUEUED and P2 39968531845 PENDING on 338e650; main Core 39966840332 IN_PROGRESS on f7565a`
+- `TESTS_FAILED_OR_SKIPPED=Core on 1f60e27 omitted accountant role, fixed in d270661. d270661 P2 stalled at apt install-deps; workflow optimized in 8b413513 then also Core price-visibility install optimized in 338e650. Current exact-head validation queued/pending. Hosted-account E2E SKIPPED without external non-production credentials`
 - `MERGE_STATUS=NOT MERGED`
 - `EXTERNAL_BLOCKERS=Onyx live sync/target import, official WhatsApp API, production DR`
 - `LOCKED_PATHS=.github/workflows/*, bun.lock, scripts/test-database-migrations.mjs and session-related test fixtures in PR #83; matrix/WORK_COORDINATION under PR #43`
 - `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`
-- `NEXT_ACTION=finish Core/P2 on 8b413513; merge current main f7565a into branch non-forcibly; rerun both on final SHA; merge only after PASS; update/retest PR95 afterward`
-- `UPDATED_AT=2026-10-23T17:20:00+03:00`
+- `NEXT_ACTION=finish Core/P2 on 338e650; merge current main f7565a into branch non-forcibly; rerun both on final SHA; merge only after PASS; update/retest PR95 afterward`
+- `UPDATED_AT=2026-10-23T17:25:00+03:00`
