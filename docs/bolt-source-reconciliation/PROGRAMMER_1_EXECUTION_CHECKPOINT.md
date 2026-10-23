@@ -5,7 +5,7 @@
 - Status: IN_PROGRESS
 - Branch / PR: `p1/remaining-work-execution-20261023` / [PR #66](https://github.com/Report-Engainall/Nasr1/pull/66)
 - Base main SHA: `76baf9dbe7860a764abc18e75835abb8750d56a3`
-- Verified code/test HEAD: `1797822aff47c310dcd9e54441b5dcc8b4cfbbf4` — Core CI [39907278863](https://github.com/Report-Engainall/Nasr1/actions/runs/39907278863) SUCCESS on this exact SHA (unit tests, PostgreSQL 17, lint, build, smoke and Chromium price-visibility acceptance; 24/24 steps).
+- Last verified Core CI: [39907278863](https://github.com/Report-Engainall/Nasr1/actions/runs/39907278863) SUCCESS on exact SHA `1797822aff47c310dcd9e54441b5dcc8b4cfbbf4` (24/24 steps). Newer head `b9d5af63a84e670ef972604f8f0560c8848fcb8d` had one test-only failure: the audit label assertion matched both the table cell and the filter option. The next commit will assert those roles separately; exact-head CI pending.
 - P1-01 category rename: PR #50 candidate `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; Core CI PASS; browser assertion step externally blocked by GHCR rate limit.
 - P1-02 password recovery: PR #44 candidate `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`; Core CI PASS; reset-route-specific browser proof NOT_RUN.
 - P1-03a order-detail retry: Core CI [39905102470](https://github.com/Report-Engainall/Nasr1/actions/runs/39905102470) PASS on SHA `16bfe4f96513753dc145dfec17a020f121e1f711`.
@@ -64,3 +64,6 @@ The previous Core CI failed one assertion in `src/test/admin-audit-log.test.tsx`
 
 ### 2026-10-23 — P1-08 — IMPLEMENTED; next exact-head CI pending
 The existing audited category rename RPC records action `catalog.category_renamed`, but the admin audit view displayed this important business operation as a raw technical identifier. Added the Arabic action label “إعادة تسمية تصنيف” and extended `src/test/admin-audit-log.test.tsx` to assert that a real row with this action renders the friendly label. No RPC, migration, P2-owned file, or audit payload was changed. This batch is committed together with the checkpoint update; CI must run on the new branch SHA.
+
+### 2026-10-23 — P1-08 test correction — IMPLEMENTED; exact-head CI pending
+The new audit-label assertion matched two valid renderings of `إعادة تسمية تصنيف` (the row cell and the filter option). Changed the test to assert each role explicitly with `getByRole("cell")` and `getByRole("option")`. The component label matches the server event identifier `catalog.category_renamed`; no application change was necessary for this failure. Exact-head CI must confirm the correction.

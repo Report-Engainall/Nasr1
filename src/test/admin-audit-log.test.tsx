@@ -113,7 +113,8 @@ describe("admin audit log pagination", () => {
     render(<AdminAuditLog />);
 
     expect(await screen.findByText("aaaaaaaa")).toBeInTheDocument();
-    expect(screen.getByText("إعادة تسمية تصنيف")).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "إعادة تسمية تصنيف" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "إعادة تسمية تصنيف" })).toBeInTheDocument();
     expect(screen.getByText(/إجمالي السجلات في المؤسسة: ٤٥٠/)).toBeInTheDocument();
     expect(mocks.requests[0].range).toEqual([0, 199]);
     expect(mocks.requests[0].options).toEqual({ count: "exact" });
