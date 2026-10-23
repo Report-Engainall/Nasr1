@@ -2556,9 +2556,33 @@ async function main() {
   );
   await setIdentity(legacyMemberAuthUserId,"ci-legacy-member@example.test");
   await db.unsafe("set role authenticated");
-  await expectFailure("expired company invitations cannot be accepted",
+  const companySecurityExpiredAcceptance=await db.unsafe(
+    "select public.accept_customer_company_invitation($1::text) as result",[companySecurityExpiredToken]);
+  assert.deepEqual(companySecurityExpiredAcceptance[0].result,{
+    status:"expired",
+    error:"انتهت صلاحية الدعوة؛ اطلب رابطًا جديدًا",
+  },"an expired legacy invitation returns a committed expired result rather than throwing and rolling back");
+  const expiredCompanyScope=await db.unsafe(
+    "select public.current_customer_id() as customer_id,public.current_customer_can('orders.read') as can_read");
+  assert.equal(expiredCompanyScope[0].customer_id,null,"expired invitation grants no company scope");
+  assert.equal(expiredCompanyScope[0].can_read,false,"expired invitation grants no customer capabilities");
+  await db.unsafe("reset role");
+  const companySecurityExpiredState=await db.unsafe(
+    "select status from public.customer_company_invitations where token_hash=md5($1::text)",[companySecurityExpiredToken]);
+  assert.equal(companySecurityExpiredState[0]?.status,"expired","expiry status persists after acceptance RPC");
+  const companySecurityExpiredAudit=await db.unsafe(
+    "select actor_id,new_value from public.audit_logs where organization_id=$1::uuid " +
+    "and entity_type='customer_company_invitation' and action='customer_company_invitation.expired' " +
+    "and entity_id=(select id from public.customer_company_invitations where token_hash=md5($2::text))",
+    [organizationId,companySecurityExpiredToken]);
+  assert.equal(companySecurityExpiredAudit.length,1,"expired legacy invitation creates exactly one audit event");
+  assert.equal(companySecurityExpiredAudit[0].actor_id,legacyMemberProfileId,"expiry audit attributes the invited actor");
+  assert.equal(companySecurityExpiredAudit[0].new_value.status,"expired");
+  await setIdentity(legacyMemberAuthUserId,"ci-legacy-member@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure("expired company invitation token cannot be replayed",
     ()=>db.unsafe("select public.accept_customer_company_invitation($1::text)",[companySecurityExpiredToken]),
-    /انتهت صلاحية الدعوة/i);
+    /الدعوة غير موجودة أو استُخدمت أو أُلغيت/i);
   await db.unsafe("reset role");
 
   await setIdentity(authUserId,"ci-customer-one@example.test");
