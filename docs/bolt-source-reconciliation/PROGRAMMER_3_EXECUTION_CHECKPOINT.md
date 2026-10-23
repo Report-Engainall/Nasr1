@@ -1,11 +1,11 @@
 # P3 execution checkpoint — Nasr1
 
-UPDATED_AT: 2026-10-23T17:01:39.588+03:00
-LAST_COMPLETED_TASK_ID: P3-CATEGORY-LOADING-REGRESSION-016 (added a distinct loading-state regression and corrected the failure-test name; exact-head CI pending)
+UPDATED_AT: 2026-10-23T17:05:19.795+03:00
+LAST_COMPLETED_TASK_ID: P3-RESET-PASSWORD-FLOW-017 (five reset-password form regressions committed; exact-head CI pending)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: 4cd6860c8ad06ba03f84d4a7dbe923ab76ea7c36 (latest application-code/test commit; this checkpoint/report synchronization will add documentation-only commits, whose resulting branch head must be validated separately)
-ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route wiring/component tests only; full route acceptance remains open
+HEAD_SHA: b8259e42a75aa06ea9c23069372c877b9112040f (application/test SHA; report/checkpoint commits are documentation-only successors and require their own CI readback)
+ROUTES_COVERED: /reset-password (functional form acceptance: short-password validation, expired-session response, network rejection, wait-for-server-ack navigation, duplicate-submit guard); /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route wiring/component tests only; full route acceptance remains open
 FILES_CHANGED:
 - src/components/StorefrontCollectionsPage.tsx
 - src/routes/admin_.reports.tsx
@@ -33,6 +33,7 @@ FILES_CHANGED:
 - src/test/advanced-storefront-search.test.tsx
 - src/components/Storefront.tsx
 - src/test/storefront-price-visibility-ui.test.tsx
+- src/test/reset-password-route.test.tsx
 - docs/bolt-source-reconciliation/PROGRAMMER_3_EXECUTION_CHECKPOINT.md
 - docs/bolt-source-reconciliation/PROGRAMMER_3_CURRENT_REPORT.md
 TESTS_RUN_WITH_RESULTS:
@@ -50,6 +51,7 @@ TESTS_RUN_WITH_RESULTS:
 - Latest code/test SHA `a4be9ff155d70dc971b19a45b0859e655e446bf4` adds advanced-search loading/retry behavior and four tests. Core [39963467338](https://github.com/Report-Engainall/Nasr1/actions/runs/39963467338) was IN_PROGRESS at container initialization; P2 [39963467553](https://github.com/Report-Engainall/Nasr1/actions/runs/39963467553) was PENDING. Docs synchronization adds another SHA and its own current-head checks.
 - Latest P3 code/test SHA `add4f49413ccc450d61fd0533615a472679443e2`: Core [39964711803](https://github.com/Report-Engainall/Nasr1/actions/runs/39964711803) was IN_PROGRESS and P2 Playwright [39964711930](https://github.com/Report-Engainall/Nasr1/actions/runs/39964711930) PENDING at 16:52 +03. These runs precede the documentation-only commits below; inspect exact docs-head jobs separately. Local `git ls-remote` failed with `Could not resolve host: github.com`, so local unit tests are NOT RUN.
 - Exact application/test SHA `4cd6860c8ad06ba03f84d4a7dbe923ab76ea7c36` adds a distinct loading-state regression in `src/test/storefront-price-visibility-ui.test.tsx` (and renames the prior error-path test accurately). `fetch_commit_workflow_runs` had not surfaced a workflow run for this SHA at readback; only the CodeRabbit status was present. Local tests remain NOT RUN because GitHub DNS resolution fails in this runtime. Re-read the resulting documentation-head Core/P2 workflows after saving this checkpoint.
+- SHA `b8259e42a75aa06ea9c23069372c877b9112040f` adds five tests in `src/test/reset-password-route.test.tsx`. At readback Core [39966520265](https://github.com/Report-Engainall/Nasr1/actions/runs/39966520265) was IN_PROGRESS and P2 [39966520115](https://github.com/Report-Engainall/Nasr1/actions/runs/39966520115) PENDING. The CI result for this SHA is not yet final. Local test execution is NOT RUN due `git ls-remote` failure (`Could not resolve host: github.com`). The documentation updates below will produce a new branch head whose workflows must be checked independently.
 TESTS_FAILED_OR_SKIPPED:
 - Core 39961737329 on SHA 39638915... failed 7 harness assertions; fixed in d076794e...; subsequent Core run 39962755869 on code SHA 8663... completed SUCCESS.
 - P2 39961737301 failed on HTTP 429; P2 39962755831 was cancelled before local-Supabase browser completion; later P2 39963003108 had public smoke success and local-Supabase still in progress at last readback.
@@ -71,6 +73,7 @@ DEFECTS_FOUND:
 - P3-ROUTE-INVENTORY-002 / P1-ROUTE-TREE-EXPORT-001: generated tree omits admin_.exports; P1 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365137817.
 - `P3-CATALOG-CATEGORY-RETRY-015`: `src/components/Storefront.tsx` now announces category loading and exposes the source error with `role=alert`, plus a labeled retry button; name/SKU search stays available. Regression coverage asserts the message, retry callback, and search availability.
 - `P3-CATEGORY-LOADING-REGRESSION-016`: added an independent loading-state case with category data absent and `loading=true`. It asserts the Arabic `role=status` copy is present, the alert/retry button do not appear before a failure occurs, and text search remains enabled. Renamed the previous test to explicitly describe the error/retry path. Code/test SHA `4cd6860c8ad06ba03f84d4a7dbe923ab76ea7c36`; exact-head CI pending.
+- `P3-RESET-PASSWORD-FLOW-017`: added `src/test/reset-password-route.test.tsx` against the real route component (mocking only Supabase and the router boundary). It covers short input rejected before RPC, expired recovery session with no navigation, transport rejection and form unlock, navigation only after successful server acknowledgment, and prevention of duplicate submit while the request is pending. No auth route or server contract was changed.
 HANDOFF_TO_P1_OR_P2:
 - P1: generator-backed route tree repair and direct /admin/exports proof; remaining 19 locked admin null fallbacks; no changes to P1 AghbariApp/auth/invitation/order-history paths.
 - P2: route-to-source mapping in existing matrix, backend/RPC/migration ownership and package-cache HTTP 429 in P2 Playwright.
@@ -80,4 +83,4 @@ BLOCKERS:
 - Exact-head Core/P2 for this batch pending.
 - P2 dependency cache HTTP 429 on previous SHA, even after retry.
 - Local checkout DNS failure; all-route browser UAT/production proof NOT RUN.
-NEXT_ACTION: poll Core and P2 Playwright for application/test SHA 4cd6860c8ad06ba03f84d4a7dbe923ab76ea7c36 and the documentation successor; inspect every job conclusion, repair any real failure, then continue the next independent P3 acceptance gap. Never merge #89 without green required checks at the final head and independent formal review.
+NEXT_ACTION: inspect Core #39966520265 and P2 #39966520115 on application/test SHA b8259e42a75aa06ea9c23069372c877b9112040f and inspect the documentation successor’s exact-head runs; fix test/build failures before moving to another independent P3 acceptance gap. Keep PR #89 open until required final-head checks pass and an independent formal review is recorded.
