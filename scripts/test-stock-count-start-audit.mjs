@@ -25,6 +25,7 @@ let passed = false;
 async function setAdminIdentity() {
   await commandDb.unsafe("reset role").catch(() => {});
   roleEstablished = false;
+  await commandDb.unsafe("insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now(),now(),now(),null,'CI isolated session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null", [adminAuthUserId, adminAuthUserId]);
   await commandDb.unsafe(
     "select set_config('request.jwt.claim.sub', $1, false)",
     [adminAuthUserId],
@@ -36,6 +37,7 @@ async function setAdminIdentity() {
       email,
       email_confirmed_at: new Date().toISOString(),
       role: "authenticated",
+      session_id: adminAuthUserId,
     })],
   );
   await commandDb.unsafe("set role authenticated");

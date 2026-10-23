@@ -1901,7 +1901,13 @@ export type Database = {
         p_product_ids: string[]; p_promotion_id: string | null; p_start_date: string; p_title: string
       }; Returns: string }
       set_promotion_active: { Args: { p_is_active: boolean; p_promotion_id: string }; Returns: string }
-      current_profile_id: { Args: never; Returns: string }
+      current_auth_session_id: { Args: never; Returns: string | null }
+      current_profile_id: { Args: never; Returns: string | null }
+      current_organization_id: { Args: never; Returns: string | null }
+      get_current_tenant_context: { Args: never; Returns: Json }
+      list_organization_sessions: { Args: { p_limit?: number }; Returns: Json }
+      revoke_organization_session: { Args: { p_session_id: string }; Returns: Json }
+      revoke_other_auth_sessions: { Args: never; Returns: Json }
       customer_respond_to_quote: {
         Args: { p_accept: boolean; p_quote_id: string }
         Returns: undefined

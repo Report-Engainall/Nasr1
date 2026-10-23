@@ -94,7 +94,27 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
       - name: Install app dependencies from the verified Bun lockfile
-        run: bun install --frozen-lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            log_file="$RUNNER_TEMP/bun-install-attempt-${attempt}.log"
+            if bun install --frozen-lockfile --registry=https://registry.npmjs.org 2>&1 | tee "$log_file"; then
+              echo "Frozen-lockfile dependency installation succeeded on attempt ${attempt}."
+              exit 0
+            fi
+            if ! grep -Eiq '429|Too Many Requests|rate.?limit' "$log_file"; then
+              echo "::error::Dependency installation failed for a non-rate-limit reason; not retrying."
+              exit 1
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error title=Package registry throttling::HTTP 429 persisted after three bounded attempts."
+              exit 1
+            fi
+            delay=$((attempt * 20))
+            echo "::warning::Package cache returned HTTP 429; retrying after ${delay}s (attempt ${attempt}/3)."
+            sleep "$delay"
+          done
       - name: Install pinned Playwright runner outside the project lockfile
         shell: bash
         run: |
@@ -176,7 +196,27 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
       - name: Install app dependencies from the verified Bun lockfile
-        run: bun install --frozen-lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            log_file="$RUNNER_TEMP/bun-install-attempt-${attempt}.log"
+            if bun install --frozen-lockfile --registry=https://registry.npmjs.org 2>&1 | tee "$log_file"; then
+              echo "Frozen-lockfile dependency installation succeeded on attempt ${attempt}."
+              exit 0
+            fi
+            if ! grep -Eiq '429|Too Many Requests|rate.?limit' "$log_file"; then
+              echo "::error::Dependency installation failed for a non-rate-limit reason; not retrying."
+              exit 1
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error title=Package registry throttling::HTTP 429 persisted after three bounded attempts."
+              exit 1
+            fi
+            delay=$((attempt * 20))
+            echo "::warning::Package cache returned HTTP 429; retrying after ${delay}s (attempt ${attempt}/3)."
+            sleep "$delay"
+          done
       - name: Install pinned Playwright runner outside the project lockfile
         shell: bash
         run: |
@@ -190,14 +230,41 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-chromium-1.63.0-v1
-      - name: Install Chromium and OS dependencies
+      - name: Install Chromium browser
         if: steps.chromium-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 15
-        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright install --with-deps chromium"
-      - name: Install Chromium OS dependencies from cached browser
-        if: steps.chromium-cache.outputs.cache-hit == 'true'
-        timeout-minutes: 15
-        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright install-deps chromium"
+        timeout-minutes: 8
+        run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright install chromium"
+      - name: Verify Chromium OS dependencies and install only if missing
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser_dir="$HOME/.cache/ms-playwright"
+          browser_bins="$(find "$browser_dir" -type f \( -name chrome -o -name chrome-headless-shell \) -perm -111 -print)"
+          if [ -z "$browser_bins" ]; then
+            echo "::error title=Chromium cache invalid::No executable Chromium browser was found in $browser_dir."
+            exit 1
+          fi
+          missing=""
+          while IFS= read -r browser; do
+            [ -n "$browser" ] || continue
+            ldd_output="$RUNNER_TEMP/chromium-ldd-$(basename "$browser").txt"
+            if ! ldd "$browser" > "$ldd_output" 2>&1; then
+              missing="${missing}${browser}: ldd failed; "
+              continue
+            fi
+            unresolved="$(awk '/not found/ { print $1 }' "$ldd_output" | paste -sd ',' -)"
+            if [ -n "$unresolved" ]; then
+              missing="${missing}${browser}: ${unresolved}; "
+            fi
+          done <<< "$browser_bins"
+          if [ -n "$missing" ]; then
+            echo "::warning title=Chromium system libraries missing::Installing OS packages only because ldd found unresolved libraries."
+            printf '%s\n' "$missing"
+            timeout 8m "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright" install-deps chromium
+          else
+            echo "All linked system libraries for cached Chromium executables are present; skipped redundant apt package installation."
+          fi
       - name: Build exact source with isolated non-routable placeholder configuration
         env:
           VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
@@ -287,7 +354,27 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
       - name: Install app dependencies from the verified Bun lockfile
-        run: bun install --frozen-lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            log_file="$RUNNER_TEMP/bun-install-attempt-${attempt}.log"
+            if bun install --frozen-lockfile --registry=https://registry.npmjs.org 2>&1 | tee "$log_file"; then
+              echo "Frozen-lockfile dependency installation succeeded on attempt ${attempt}."
+              exit 0
+            fi
+            if ! grep -Eiq '429|Too Many Requests|rate.?limit' "$log_file"; then
+              echo "::error::Dependency installation failed for a non-rate-limit reason; not retrying."
+              exit 1
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error title=Package registry throttling::HTTP 429 persisted after three bounded attempts."
+              exit 1
+            fi
+            delay=$((attempt * 20))
+            echo "::warning::Package cache returned HTTP 429; retrying after ${delay}s (attempt ${attempt}/3)."
+            sleep "$delay"
+          done
       - name: Install pinned Supabase CLI
         uses: supabase/setup-cli@v3
         with:
@@ -305,14 +392,41 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-chromium-1.63.0-v1
-      - name: Install Chromium and OS dependencies
+      - name: Install Chromium browser
         if: steps.chromium-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 15
-        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install --with-deps chromium"
-      - name: Install Chromium OS dependencies from cached browser
-        if: steps.chromium-cache.outputs.cache-hit == 'true'
-        timeout-minutes: 15
-        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install-deps chromium"
+        timeout-minutes: 8
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright install chromium"
+      - name: Verify Chromium OS dependencies and install only if missing
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser_dir="$HOME/.cache/ms-playwright"
+          browser_bins="$(find "$browser_dir" -type f \( -name chrome -o -name chrome-headless-shell \) -perm -111 -print)"
+          if [ -z "$browser_bins" ]; then
+            echo "::error title=Chromium cache invalid::No executable Chromium browser was found in $browser_dir."
+            exit 1
+          fi
+          missing=""
+          while IFS= read -r browser; do
+            [ -n "$browser" ] || continue
+            ldd_output="$RUNNER_TEMP/chromium-ldd-$(basename "$browser").txt"
+            if ! ldd "$browser" > "$ldd_output" 2>&1; then
+              missing="${missing}${browser}: ldd failed; "
+              continue
+            fi
+            unresolved="$(awk '/not found/ { print $1 }' "$ldd_output" | paste -sd ',' -)"
+            if [ -n "$unresolved" ]; then
+              missing="${missing}${browser}: ${unresolved}; "
+            fi
+          done <<< "$browser_bins"
+          if [ -n "$missing" ]; then
+            echo "::warning title=Chromium system libraries missing::Installing OS packages only because ldd found unresolved libraries."
+            printf '%s\n' "$missing"
+            timeout 8m "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright" install-deps chromium
+          else
+            echo "All linked system libraries for cached Chromium executables are present; skipped redundant apt package installation."
+          fi
       - name: Verify local-only container runtime
         run: docker info
       - name: Prepare isolated migration copy for order and tenant acceptance
@@ -325,6 +439,9 @@ jobs:
           test -f "$local_project/supabase/config.toml"
           test -d "$local_project/supabase/migrations"
           sed -i '1s/.*/project_id = "p2-local-e2e"/' "$local_project/supabase/config.toml"
+          # Avoid the default 54322 host DB port, which can already be occupied by another job-local service.
+          sed -i '/^\[db\]$/a port = 55432\nshadow_port = 55430' "$local_project/supabase/config.toml"
+          grep -q '^port = 55432$' "$local_project/supabase/config.toml"
           if [ ! -f "$local_project/supabase/migrations/20261018100000_product_image_storage.sql" ]; then
             echo "Expected Storage-only migration not found; refusing to claim the scoped migration set." >&2
             exit 1
@@ -458,6 +575,22 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/finance-task-print.spec.ts"
+      - name: Run customer-manager authorization, financial privacy and audit acceptance in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/customer-manager-authorization.spec.ts"
+      - name: Seed P1 local device-session fixtures when the session acceptance suite is present
+        if: ${{ hashFiles('e2e/device-session-management.spec.ts') != '' && hashFiles('scripts/seed-p1-device-session-playwright.mjs') != '' }}
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: node scripts/seed-p1-device-session-playwright.mjs
+      - name: Run central device-session authorization and immediate-revocation Chromium acceptance
+        if: ${{ hashFiles('e2e/device-session-management.spec.ts') != '' && hashFiles('scripts/seed-p1-device-session-playwright.mjs') != '' }}
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/device-session-management.spec.ts"
       - name: Record proof boundary
         if: always()
         shell: bash
@@ -469,6 +602,8 @@ jobs:
             echo "- It proves the exact checked-out SHA's browser order path and cross-tenant denial only if the Playwright test step passes."
             echo "- It also proves the manager order-detail -> server audit RPC -> 27-column XLSX download only if the dedicated Onyx export browser step passes."
             echo "- It proves finance invoice/statement/credit-memo and operational task printing by role only if finance-task-print.spec.ts completes; customer print UI must remain absent."
+            echo "- It proves customer-manager directory privacy, audited tier/status changes, activation invitation, restricted direct routes, and negative RPC/table-read boundaries only if customer-manager-authorization.spec.ts completes."
+            echo "- Server-backed multi-device inventory and individually revocable sessions are not covered by this UI/browser acceptance."
             echo "- No hosted Supabase project, production secret, remote migration, or production write is used."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Stop local application and Supabase

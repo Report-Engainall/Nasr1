@@ -3,18 +3,32 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import postgres from "postgres";
 import { runOrderInputHardeningAcceptance } from "./test-order-input-hardening.mjs";
+import { runSessionManagementAcceptance } from "./test-session-management.mjs";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) throw new Error("TEST_DATABASE_URL is required for isolated database migration tests.");
 
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
-async function setIdentity(authUserId, email) {
+async function setIdentity(authUserId, email, sessionId = authUserId, registerSession = true) {
+  // Test identities must seed Auth session rows with the elevated fixture connection role,
+  // then restore the caller's PostgreSQL role so existing RLS assertions remain meaningful.
+  const priorRole = (await db.unsafe("select current_setting('role', true) as role"))[0]?.role;
+  if (registerSession) {
+    await db.unsafe("reset role");
+    await db.unsafe(
+      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now(),now(),now(),null,'CI isolated session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+      [sessionId, authUserId],
+    );
+  }
   await db.unsafe("select set_config('request.jwt.claim.sub', $1, false)", [authUserId]);
-  // Confirmation is read from auth.users.email_confirmed_at in PostgreSQL, never forged into JWT claims.
+  // Auth email confirmation stays sourced from auth.users; session_id models the signed JWT claim.
   await db.unsafe("select set_config('request.jwt.claims', $1, false)", [
-    JSON.stringify({ sub: authUserId, email, role: "authenticated" }),
+    JSON.stringify({ sub: authUserId, email, role: "authenticated", session_id: sessionId }),
   ]);
+  if (["authenticated", "anon", "service_role"].includes(priorRole)) {
+    await db.unsafe("set role " + priorRole);
+  }
 }
 
 async function expectFailure(label, action, pattern) {
@@ -39,6 +53,16 @@ async function main() {
       id uuid primary key,
       email text,
       email_confirmed_at timestamptz
+    );
+    create table if not exists auth.sessions (
+      id uuid primary key,
+      user_id uuid not null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      refreshed_at timestamp,
+      not_after timestamptz,
+      user_agent text,
+      ip inet
     );
     create or replace function auth.uid() returns uuid
       language sql stable
@@ -2775,7 +2799,7 @@ async function main() {
   await setIdentity(unconfirmedMemberAuthUserId,"ci-unconfirmed-member@example.test");
   // Simulate a stale/incorrect positive claim: the persistent auth.users row remains unconfirmed.
   await db.unsafe("select set_config('request.jwt.claims', $1, false)",[
-    JSON.stringify({sub:unconfirmedMemberAuthUserId,email:"ci-unconfirmed-member@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated"}),
+    JSON.stringify({sub:unconfirmedMemberAuthUserId,email:"ci-unconfirmed-member@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated",session_id:unconfirmedMemberAuthUserId}),
   ]);
   await db.unsafe("set role authenticated");
   await expectFailure("company invitation rejects unconfirmed auth.users even if the JWT says confirmed",
@@ -3437,7 +3461,7 @@ async function main() {
     await connection.unsafe("select set_config('application_name',$1,false)", [appName]);
     await connection.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [staffAuthUserId]);
     await connection.unsafe("select set_config('request.jwt.claims',$1,false)", [
-      JSON.stringify({ sub: staffAuthUserId, email: "admin@aghbari.ye", role: "authenticated" }),
+      JSON.stringify({ sub: staffAuthUserId, email: "admin@aghbari.ye", role: "authenticated", session_id: staffAuthUserId }),
     ]);
     await connection.unsafe("set role authenticated");
   };
@@ -4717,6 +4741,21 @@ async function main() {
   const customerManagerActivationCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-07'", [organizationId]))[0].id;
 
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("reset role");
+  // Exercise token generation, storage and acceptance with pgcrypto outside public, as in Supabase projects.
+  const pgcryptoBeforeRow = (await db.unsafe(
+    "select n.nspname as schema from pg_catalog.pg_extension e join pg_catalog.pg_namespace n on n.oid=e.extnamespace where e.extname='pgcrypto'",
+  ))[0];
+  const pgcryptoSchemaBeforeActivation = pgcryptoBeforeRow?.schema;
+  assert.ok(pgcryptoSchemaBeforeActivation, "PostgreSQL 17 acceptance requires pgcrypto");
+  await db.unsafe("create schema if not exists extensions");
+  if (pgcryptoSchemaBeforeActivation !== "extensions") {
+    await db.unsafe("alter extension pgcrypto set schema extensions");
+  }
+  const pgcryptoSchemaDuringActivation = (await db.unsafe(
+    "select n.nspname as schema from pg_catalog.pg_extension e join pg_catalog.pg_namespace n on n.oid=e.extnamespace where e.extname='pgcrypto'",
+  ))[0]?.schema;
+  assert.equal(pgcryptoSchemaDuringActivation, "extensions", "activation flow must support pgcrypto installed outside public");
   await db.unsafe("set role authenticated");
   const createActivationInvite = async (customerId, email) => {
     const result = await db.unsafe(
@@ -4740,7 +4779,8 @@ async function main() {
     "select token_hash from public.customer_activation_invitations where id=$1",
     [validInvitation.invitation_id],
   ))[0];
-  const computedTokenHash = (await db.unsafe("select encode(digest($1::text,'sha256'),'hex') as hash", [validInvitation.token]))[0].hash;
+  assert.match(validInvitation.token, /^[0-9a-f]{64}$/i, "activation bearer token uses 256 bits represented as 64 hex characters");
+  const computedTokenHash = (await db.unsafe("select pg_catalog.encode(extensions.digest($1::text,'sha256'),'hex') as hash", [validInvitation.token]))[0].hash;
   assert.equal(tokenHashRow.token_hash, computedTokenHash, "only the SHA-256 digest of the bearer token is persisted");
   assert.notEqual(tokenHashRow.token_hash, validInvitation.token, "raw bearer token is not stored in the token_hash column");
   await db.unsafe("update public.customer_activation_invitations set expires_at=now()-interval '1 minute' where id=$1", [expiredInvitation.invitation_id]);
@@ -4895,7 +4935,13 @@ async function main() {
   assert.ok(activationAudit.some(row => row.action === "customer_activation_invitation.accepted"));
   const revokeAudit = await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=$2", [organizationId, revokedInvitation.invitation_id]);
   assert.ok(revokeAudit.some(row => row.action === "customer_activation_invitation.revoked"), "revocation is audited");
-  process.stdout.write("PASS customer activation invitations: auth.users confirmation/email, tenant and role guards, hash-only token, no direct table DML, one-use/replay, expiry/revoke and audit trail\n");
+  process.stdout.write("PASS customer activation invitations: auth.users confirmation/email, tenant and role guards, SHA-256-only token storage, pgcrypto-in-extensions, one-use/replay, expiry/revoke and audit trail\\n");
+  // Restore the isolated test database's extension placement before subsequent acceptance modules.
+  await db.unsafe("reset role");
+  if (pgcryptoSchemaBeforeActivation !== "extensions") {
+    const safeSchema = '"' + pgcryptoSchemaBeforeActivation.replace(/"/g, '""') + '"';
+    await db.unsafe(`alter extension pgcrypto set schema ${safeSchema}`);
+  }
 
   // SRC-011 / ORDER-INPUT-0011: test every adversarial customer/staff payload against isolated PostgreSQL fixtures.
   // Separate sessions ensure JWT role state cannot leak across actors.
@@ -4920,6 +4966,7 @@ async function main() {
     ]);
   }
 
+  await runSessionManagementAcceptance({ db, setIdentity, expectFailure });
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }
 

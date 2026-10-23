@@ -110,7 +110,7 @@ describe("organization role management through admin settings", () => {
     expect(within(card!).getByText("حسابك الحالي محمي من التعديل المباشر.")).toBeInTheDocument();
     expect(within(card!).getByLabelText("مدير النظام")).toBeDisabled();
     expect(within(card!).queryByRole("button", { name: "حفظ الأدوار" })).toBeNull();
-    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc.mock.calls.some(([name]) => name === "set_organization_user_roles")).toBe(false);
   });
 
   it("surfaces server rejection when a change would remove the last active administrator", async () => {

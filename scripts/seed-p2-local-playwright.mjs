@@ -8,8 +8,8 @@ const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
 const connectionString = requiredEnv("TEST_DATABASE_URL");
 const githubEnv = requiredEnv("GITHUB_ENV");
 
-// This fixture is deliberately constrained to the stock local Supabase ports.
-// It must never create test identities or inventory against a hosted/production project.
+// Keep fixtures local-only. The P2 workflow explicitly remaps PostgreSQL from
+// the default 54322 to 55432 to avoid collisions with other job-local services.
 const api = new URL(apiUrl);
 const database = new URL(connectionString);
 if (
@@ -17,9 +17,9 @@ if (
   !["localhost", "127.0.0.1"].includes(api.hostname) ||
   api.port !== "54321" ||
   !["localhost", "127.0.0.1"].includes(database.hostname) ||
-  database.port !== "54322"
+  database.port !== "55432"
 ) {
-  throw new Error("P2 browser fixtures may only run against local Supabase at 127.0.0.1:54321 and PostgreSQL 54322.");
+  throw new Error("P2 browser fixtures require local Supabase at 127.0.0.1:54321 and the isolated PostgreSQL port 55432.");
 }
 
 const organizationId = "a0000000-0000-0000-0000-000000000001";
@@ -30,9 +30,13 @@ const runKey = (process.env.GITHUB_RUN_ID || "local") + "-" + randomUUID().slice
 const passwordA = randomUUID().replaceAll("-", "") + "Aa1!";
 const passwordB = randomUUID().replaceAll("-", "") + "Bb2!";
 const managerPassword = randomUUID().replaceAll("-", "") + "Mm3!";
+const customerManagerPassword = randomUUID().replaceAll("-", "") + "Cm4!";
 const emailA = "p2.local.e2e.a." + runKey + "@example.test";
 const emailB = "p2.local.e2e.b." + runKey + "@example.test";
 const managerEmail = "p2.local.e2e.manager." + runKey + "@example.test";
+const customerManagerEmail = "p2.local.e2e.customer-manager." + runKey + "@example.test";
+const customerManagerTargetName = "P2 Local E2E Invite Target";
+const customerManagerTargetEmail = "p2.local.e2e.invite." + runKey + "@example.test";
 const companyMemberPassword = randomUUID().replaceAll("-", "") + "Cc4!";
 const companyMemberEmail = "p2.local.e2e.member." + runKey + "@example.test";
 const expiredInvitationToken = randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", "");
@@ -68,17 +72,19 @@ async function createConfirmedUser(email, password, fullName) {
 
 async function main() {
   // Mask every ephemeral identity/credential before the next Actions step echoes inherited env.
-  for (const value of [emailA, passwordA, emailB, passwordB, managerEmail, managerPassword, companyMemberEmail, companyMemberPassword, expiredInvitationToken, apiUrl, publishableKey, serviceRoleKey, connectionString]) {
+  for (const value of [emailA, passwordA, emailB, passwordB, managerEmail, managerPassword, customerManagerEmail, customerManagerPassword, customerManagerTargetEmail, companyMemberEmail, companyMemberPassword, expiredInvitationToken, apiUrl, publishableKey, serviceRoleKey, connectionString]) {
     process.stdout.write("::add-mask::" + value + String.fromCharCode(10));
   }
   const userAId = await createConfirmedUser(emailA, passwordA, "P2 Local E2E Customer A");
   const userBId = await createConfirmedUser(emailB, passwordB, "P2 Local E2E Customer B");
   const managerUserId = await createConfirmedUser(managerEmail, managerPassword, "P2 Local E2E Manager");
   const companyMemberUserId = await createConfirmedUser(companyMemberEmail, companyMemberPassword, "P2 Local E2E Company Member");
+  const customerManagerUserId = await createConfirmedUser(customerManagerEmail, customerManagerPassword, "P2 Local E2E Customer Manager");
   let profileAId;
   let profileBId;
   let managerProfileId;
   let companyMemberProfileId;
+  let customerManagerProfileId;
   let returnReceivableAccountId;
   let returnRevenueAccountId;
   const suffix = runKey.replaceAll("-", "").slice(-12);
@@ -121,10 +127,11 @@ async function main() {
     profileBId = await upsertProfile(userBId, foreignOrganizationId, "P2 Local E2E Customer B", emailB);
     managerProfileId = await upsertProfile(managerUserId, organizationId, "P2 Local E2E Manager", managerEmail);
     companyMemberProfileId = await upsertProfile(companyMemberUserId, organizationId, "P2 Local E2E Company Member", companyMemberEmail);
+    customerManagerProfileId = await upsertProfile(customerManagerUserId, organizationId, "P2 Local E2E Customer Manager", customerManagerEmail);
     await tx.unsafe(
-      "insert into public.user_roles(profile_id,role) values($1::uuid,'customer'),($2::uuid,'customer'),($3::uuid,'manager'),($4::uuid,'customer') " +
+      "insert into public.user_roles(profile_id,role) values($1::uuid,'customer'),($2::uuid,'customer'),($3::uuid,'manager'),($4::uuid,'customer'),($5::uuid,'customer_manager') " +
       "on conflict(profile_id,role) do nothing",
-      [profileAId, profileBId, managerProfileId, companyMemberProfileId],
+      [profileAId, profileBId, managerProfileId, companyMemberProfileId, customerManagerProfileId],
     );
     await tx.unsafe(
       "insert into public.customers(" +
@@ -138,6 +145,12 @@ async function main() {
         foreignOrganizationId, profileBId, "P2E2EB" + suffix, "P2 Local E2E Customer B", "P2 Local E2E Customer B",
         "771234568", emailB,
       ],
+    );
+
+    await tx.unsafe(
+      "insert into public.customers(organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier,credit_limit,current_balance,status,approved_at) " +
+      "values($1::uuid,NULL,$2,$3,$4,$5,$6,'retail',0,0,'approved',pg_catalog.now())",
+      [organizationId, "P2E2EI" + suffix, customerManagerTargetName, customerManagerTargetName, "771234569", customerManagerTargetEmail],
     );
 
     const expiredInvitationRows = await tx.unsafe(
@@ -249,6 +262,12 @@ async function main() {
     "E2E_CUSTOMER_NAME=P2 Local E2E Customer A",
     "E2E_MANAGER_EMAIL=" + managerEmail,
     "E2E_MANAGER_PASSWORD=" + managerPassword,
+    "E2E_CUSTOMER_MANAGER_EMAIL=" + customerManagerEmail,
+    "E2E_CUSTOMER_MANAGER_PASSWORD=" + customerManagerPassword,
+    "E2E_CUSTOMER_MANAGER_PROFILE_ID=" + customerManagerProfileId,
+    "E2E_CUSTOMER_MANAGER_TARGET_NAME=" + customerManagerTargetName,
+    "E2E_CUSTOMER_MANAGER_TARGET_EMAIL=" + customerManagerTargetEmail,
+    "E2E_CUSTOMER_MANAGER_ORGANIZATION_ID=" + organizationId,
     "E2E_COMPANY_MEMBER_EMAIL=" + companyMemberEmail,
     "E2E_COMPANY_MEMBER_PASSWORD=" + companyMemberPassword,
     "E2E_EXPIRED_COMPANY_INVITE_TOKEN=" + expiredInvitationToken,
@@ -267,7 +286,7 @@ async function main() {
   process.stdout.write(
     "P2_LOCAL_E2E_FIXTURES_READY organizationA=" + organizationId +
     " organizationB=" + foreignOrganizationId +
-    " confirmedUsers=4 expiredCompanyInvitationSeeded=true customerReturnOrder=" + returnOrderNumber +
+    " confirmedUsers=5 customerManagerSeeded=true inviteTargetSeeded=true expiredCompanyInvitationSeeded=true customerReturnOrder=" + returnOrderNumber +
     " catalogProduct=" + productId + " stock=100 localOnly=true\n",
   );
 }
