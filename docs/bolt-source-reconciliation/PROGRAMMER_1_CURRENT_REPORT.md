@@ -1,22 +1,31 @@
-# تقرير الحالة التنفيذي — المبرمج 1 / إدارة جلسات الأجهزة المركزية
+# تقرير الحالة التنفيذي — P1 / واجهات العميل والتجارة والإدارة
 
-- **المستودع:** `Report-Engainall/Nasr1`
-- **فرع P1 الحالي:** `p1/central-device-session-ui-20261023`
-- **PR الحالي:** [#88 — Draft/open، غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/88)
-- **BASE_SHA لإعادة التكامل:** `8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2`
-- **رأس الميزة قبل إعادة التكامل:** `0d51e2090951e1dab80d4fbdf8e92bcfbb256de8`
-- **آخر رأس وظيفي مختبَر بدقة:** `5114ea8227f570662533219af1dc3a013cd49f75` — Core CI **SUCCESS** [39981579136](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579136)؛ P2 Playwright **SUCCESS** [39981579236](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579236)، بما يشمل Chromium/Supabase المحلي لاختبار صلاحية وإلغاء الجلسة فورًا.
-- **المهمة:** `P1-DEVICE-SESSION-MGMT-UI-001` — ربط إدارة الأجهزة والجلسات بعقد الخادم، ورفض بيانات الجلسات غير الصحيحة، وحماية الجلسة الحالية، واشتراط إقرار مطابق من الخادم قبل إظهار نجاح الإلغاء.
-- **الاختبارات المثبتة على الرأس السابق فقط:** Core CI [39977276920 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276920)؛ P2 Playwright [39977276972 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276972). خطوة Chromium الخاصة بتفويض إدارة الجلسات والإلغاء الفوري نجحت مع Supabase محلي معزول.
-- **المتبقي:** التحقق من CI على commit التوثيق الحالي؛ اختبار الحساب الخارجي تخطّاه حاجز الاعتماد؛ الإنتاج NOT RUN.
-- **الملفات في صافي التغيير المقصود:** هذا التقرير ونقطة الاستئناف وواجهة الجلسات واختبارها وأدوات/اختبارات Playwright الخاصة بـP1.
-- **NEXT_ACTION:** فحص Core وP2 Playwright على رأس commit التوثيق الحالي. إذا نجحا وظل صافي الملفات ضمن ملكية P1، اجعل PR #88 جاهزًا وادمجه عبر GitHub ثم تحقق من SHA الدمج وCI الخاص بـ`main`.
-- **حدود الإثبات:** نجاح المتصفح المحلي يخص تدفق الجلسات الذي اختُبر؛ لا يثبت الحسابات الخارجية أو الإنتاج.
+- **المستودع:** `Report-Engainall/Nasr1`.
+- **المهمة:** `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` — منع الإرسال المكرر في نموذج المنتج.
+- **PR #97:** [منع الإرسال المكرر لنموذج المنتج](https://github.com/Report-Engainall/Nasr1/pull/97) — `OPEN / DRAFT / NOT MERGED`.
+- **CURRENT_BRANCH:** `p1/admin-product-singleflight-20261023`; **MAIN_SHA / BASE_SHA:** `391e25847c7cc7fb2ba5f77164600455db04abfd`.
+- **HEAD_SHA / آخر رأس كامل الفحوص قبل هذه الدفعة التوثيقية:** `3f8f77ddcced2d6fb21a58b7f49aa931a3101d56`.
+- **Core CI:** [40016875827 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016875827) على SHA أعلاه.
+- **P2 Playwright:** [40016875908 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016875908) على SHA نفسه؛ public browser smoke والقبول المحلي المعزول عبر Supabase/PostgreSQL 17 نجحا.
+- **القبول الخارجي:** hosted customer-order/tenant-isolation `SKIPPED / BLOCKED_EXTERNAL` لغياب اعتمادات non-production مخصصة؛ لا يُحسب نجاحًا. اختبار متصفح مخصص لـProductModal والإثبات الإنتاجي `NOT RUN`.
+- **صافي الفرق المصالح:** PR base هو `main` الحالي وGit compare يؤكد `ahead_by=27`, `behind_by=0` وأربعة ملفات فقط (مكوّن المنتج، اختباره، وتقريرا P1). تمت مصالحة البيانات الظاهرة في PR API.
+- **المتابعة المستقلة:** PR #124 [أسماء روابط تفاصيل الطلبات](https://github.com/Report-Engainall/Nasr1/pull/124)، SHA `78b3403aac010495bbb21fb47b4436bb8787070d`؛ Core [40016712064 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016712064) وP2 [40016712103 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016712103) على SHA واحد. فحص العميل المستضاف تخطّى بوابة الاعتمادات؛ لا ادعاء بإثبات إنتاجي أو متصفح موثق لهذه الجزئية.
+- **المراجعة الرسمية:** لا توجد مراجعة مستقلة مخولة مسجلة لـ#97 أو #124؛ أبقِ الطلبين Draft وغير مدمجين.
+- **NEXT_ACTION:** `P1-PR97-INDEPENDENT-REVIEW-001` — احصل على مراجعة maintainer مخول، ثم أعد التحقق من main والفرق والبوابات قبل أي دمج. تابع أعمال P1 المستقلة في فروعها وPRs القائمة دون لمس ملكية P2/P3.
+- **UPDATED_AT:** `2026-10-23T20:13:00Z`.
 
-> الأقسام التالية تحتفظ بالسجل التاريخي من تكاملات سابقة؛ هذا الملخص هو نقطة الاستئناف الحالية لهذا الفرع.
+## P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001 — سجل التنفيذ
 
+تمت مزامنة فرع PR #97 مع `main` الحالي بعملية merge عادية تحفظ التاريخ. حارس `useRef` يمنع عمليتي إنشاء/تحديث متزامنتين قبل إعادة التصيير؛ فشل الخادم يبقى ظاهرًا ويمكن إعادة المحاولة، وتُمنع الكتابة إذا تعذّر تحميل التصنيفات حتى تنجح إعادة المحاولة. الاختبارات المركّبية في `src/test/admin-product-double-submit.test.tsx` تغطي الحالات المذكورة.
+
+- Core [40016875827 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016875827) وP2 [40016875908 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016875908) على SHA `3f8f77ddcced2d6fb21a58b7f49aa931a3101d56`.
+- Hosted customer E2E `SKIPPED / BLOCKED_EXTERNAL`; ProductModal-specific browser proof and production proof `NOT RUN`.
+- PR #97 يظل Draft حتى وجود مراجعة مستقلة مخولة؛ نجاح CI لا يساوي اعتماد مراجعة.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
+
+
+
 
 - **الحالة:** مندمج ومختبر. [PR #3](https://github.com/Report-Engainall/Nasr1/pull/3) أُغلق بالدمج؛ [PR #2](https://github.com/Report-Engainall/Nasr1/pull/2) المكرر بقي مغلقًا دون دمج.
 - **الرأس الذي اختُبر:** `01ef17b05c2bf507003efccbb897f76318e0df02`.
