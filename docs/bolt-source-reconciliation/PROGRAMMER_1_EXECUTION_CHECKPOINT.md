@@ -126,3 +126,20 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/90
 - MERGE_STATUS: PR #90 OPEN; PR #84 MERGED; PR #88 remains Draft and blocked on P2 PR #83.
 - UPDATED_AT: 2026-10-23T15:40+03:00
+
+
+## Latest resume — P1 central device/session UI — 2026-10-23T16:19:11.592+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-UI-SYNC-MAIN-001` (integrated the current main tip into the existing PR branch without changing P2-owned paths).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `59547c7d683cefd65cab445b97219aa701021676` (main tip verified before integration).
+- HEAD_SHA: `f7839b615282a1627804fce360d6ceda5fe56e48` (functional merge/sync commit; checkpoint/report update is a documentation-only child).
+- LAST_CONFIRMED_TESTS: exact HEAD `f7839b615282a1627804fce360d6ceda5fe56e48` Core run [39959906007](https://github.com/Report-Engainall/Nasr1/actions/runs/39959906007) failed before tests at dependency installation: multiple package downloads from `europe-west1/4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache` returned HTTP 429. This is an infrastructure/rate-limit failure, not evidence of a code-test failure. Re-run of the failed job was requested; its result is pending. P2 Playwright [39959905948](https://github.com/Report-Engainall/Nasr1/actions/runs/39959905948) was still running at last read; its public smoke and authenticated external-account coverage must be read separately. The authenticated customer order/tenant job was skipped, not passed.
+- FAILED_OR_NOT_RUN_TESTS: no unit, PostgreSQL, lint, build or preview/browser application assertions ran in Core run 39959906007 because installation failed. Authenticated external customer-session browser proof remains NOT RUN/BLOCKED_EXTERNAL until valid isolated fixtures are supplied. No production proof.
+- FILES_CHANGED: `src/components/DeviceManagement.tsx`, `src/test/device-management.test.tsx`; branch sync used main tree plus the two P1-owned file revisions only. Compared with current main, the PR diff remains limited to these two paths.
+- LOCKED_PATHS: P2-owned migrations, RPC, RLS, generated DB types, Auth enforcement, and P2-owned workflow/fixture files. No P2-owned path was edited.
+- NEXT_ACTION: read the Core rerun and P2 Playwright conclusions for the newest exact branch SHA; if the dependency 429 recurs, determine whether the workflow can use an approved non-paid public registry/cache path without weakening lockfile verification. Fix only failures attributable to this branch. Keep #88 partial until P2 PR #83 is merged and the integrated contract passes; then run the required server-backed browser acceptance.
+- BLOCKER: transient npm-cache registry HTTP 429 blocked Core checks; P2 server contract #83 remains open and is required for end-to-end session management.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: OPEN / NOT READY — backend contract #83 and exact-head acceptance still required.
+- UPDATED_AT: 2026-10-23T16:19:11.592+03:00

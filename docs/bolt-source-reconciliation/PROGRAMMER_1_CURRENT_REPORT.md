@@ -576,3 +576,34 @@
 - **Branch and base evidence:** P1 branch `p1/validate-customer-invitation-response-20261023`; PR #90 original base `0396b29aeab8c09c430df0063821251208a38477`. Main at inspection start was `d3a27dc9c4b209e61bf6b3b9a54ceb8b4a26974d`; PR #84 then merged as `cb72f35de524af82f63bbbcebec97213464921ed`. Initial compare showed PR #90 branch was 11 commits behind pre-merge main, therefore final acceptance must rely on current PR workflow and exact post-merge CI rather than historical green statuses.
 - **Files touched by this execution:** `src/lib/customer-activation-invitations.ts`, `src/test/customer-activation-invitations.test.ts`, `docs/bolt-source-reconciliation/PROGRAMMER_1_EXECUTION_CHECKPOINT.md`, `docs/bolt-source-reconciliation/PROGRAMMER_1_CURRENT_REPORT.md`. No P2-owned migration/RPC/RLS/API/E2E path modified.
 - **NEXT_ACTION:** verify newest PR #90 Core + P2 results and main CI for `cb72f35...`; fix failures if any; then merge #90 only after current-base acceptance and verify the new main SHA. PR #88 remains Draft until P2 PR #83 is accepted and integrated. Authenticated production proof remains NOT RUN.
+
+
+## P1 central device/session UI — live execution update (2026-10-23T16:19:11.592+03:00)
+
+**Task:** `P1-DEVICE-SESSION-UI-SYNC-MAIN-001` / `P1-DEVICE-SESSION-MGMT-001`  
+**Branch / PR:** `p1/central-device-session-ui-20261023` / [PR #88](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**BASE_SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
+**Functional HEAD:** `f7839b615282a1627804fce360d6ceda5fe56e48`
+
+### Completed in this unit
+- Fast-forwarded the existing PR branch by a merge commit whose first parent is the verified current `main` SHA and whose second parent is the prior PR head. This removed the 13-commit behind/diverged condition without rewriting published history.
+- Verified the updated branch compares to `main` as `ahead`, `ahead_by=10`, `behind_by=0`; the code diff is confined to `src/components/DeviceManagement.tsx` and `src/test/device-management.test.tsx`.
+- Existing UI test coverage includes server-backed listing, exact-target revocation acknowledgement, duplicate-action prevention, network retry, malformed server contract rejection, RPC failure, non-admin denial, and separation of account-level versus organization-level sign-out. No parallel page/backend implementation was introduced.
+
+### Verification (exact SHA)
+- Core CI [run 39959906007](https://github.com/Report-Engainall/Nasr1/actions/runs/39959906007) on `f7839b615282a1627804fce360d6ceda5fe56e48`: **FAIL before tests** at `bun install --frozen-lockfile` because package archive downloads from the configured Lovable npm cache returned HTTP 429. Unit/PostgreSQL/lint/build steps were skipped; this is not a code PASS or FAIL.
+- A failed-job retry was requested for run 39959906007; outcome pending when this report entry was written.
+- P2 Playwright [run 39959905948](https://github.com/Report-Engainall/Nasr1/actions/runs/39959905948) on the same functional HEAD was in progress at last read; authenticated customer order/tenant test was skipped. No authenticated session-revocation browser proof or production proof is claimed.
+- PR #83 remains the dependency for server-side tenant-scoped session inventory and selective revocation. Until it is integrated, #88 must remain PARTIAL and must not claim end-to-end session management.
+
+### Files changed
+- `src/components/DeviceManagement.tsx`
+- `src/test/device-management.test.tsx`
+- This report and `PROGRAMMER_1_EXECUTION_CHECKPOINT.md` for resume evidence only.
+
+### Next action
+Read the exact-head Core retry and P2 Playwright results. Resolve only a proven code failure; if the dependency registry is still throttling, use an approved fallback that preserves the frozen lockfile and do not weaken dependency-integrity checks. Coordinate after #83 is merged and run the integrated UI/API/browser acceptance before recommending merge.
+
+**LOCKED_PATHS:** P2-owned SQL migrations, RPC/RLS, Auth enforcement, generated database types and workflow fixtures — unchanged.  
+**BLOCKER:** npm cache HTTP 429 and open backend dependency #83.  
+**STATUS:** branch synchronized to main; acceptance pending; PR #88 not ready to merge.
