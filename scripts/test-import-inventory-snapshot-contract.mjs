@@ -277,6 +277,106 @@ async function main() {
     const afterFinalize = await snapshotStock();
     assert.deepEqual(afterFinalize, beforeFinalize, "generic import finalization must not mutate stock balances or movement ledger");
 
+    // DQS-001: prove edge-case quality scores from persisted staging rows, the finalize response,
+    // import_jobs.data_quality_score/quality_breakdown and the ready snapshot all agree.
+    await db.unsafe("reset role");
+    const unconstrainedProfileRows = await db.unsafe(
+      "insert into public.import_profiles(" +
+        "organization_id,profile_name,report_type,source,version,required_columns,optional_columns," +
+        "matching_key,merge_strategy,is_full_dataset,status,created_by,published_at" +
+      ") values($1,$2,'inventory_stock','ci',1,'[]'::jsonb,'[]'::jsonb," +
+        "'item_code','manual_review',false,'active',$3,now()) returning id",
+      [organizationId, "CI DQS Unconstrained " + suffix, managerProfileId],
+    );
+    const unconstrainedProfileId = unconstrainedProfileRows[0].id;
+    await db.unsafe("set role authenticated");
+    await setIdentity();
+
+    async function assertPersistedQualityCase(input) {
+      const createdRows = await db.unsafe(
+        "select public.create_import_job($1,$2,$3,$4,$5::uuid,$6,$7) as result",
+        [input.fileName, input.fileHash, 2048, "inventory_stock", input.profileId, "2026-10", "ci"],
+      );
+      const job = asJson(createdRows[0].result);
+      await db.unsafe(
+        "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) " +
+          "values($1,1,'valid',$2::jsonb,'[]'::jsonb)",
+        [job.id, db.json(input.data)],
+      );
+      const sessionRows = await db.unsafe("select public.create_import_upload_session($1::uuid) as result", [job.id]);
+      const session = asJson(sessionRows[0].result);
+      assert.equal(session.total_chunks, 1, "a DQS fixture must have one complete upload chunk");
+      await db.unsafe(
+        "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
+        [session.id, 0, 0, 2048, input.chunkHash],
+      );
+
+      const measuredRows = await db.unsafe(
+        "select public.calculate_import_job_quality($1::uuid) as result",
+        [job.id],
+      );
+      const measured = asJson(measuredRows[0].result);
+      assert.equal(Number(measured.score), input.expectedScore, input.label + ": server score");
+      for (const [component, expected] of Object.entries(input.expectedComponents)) {
+        assert.equal(Number(measured.components[component]), expected, input.label + ": " + component);
+      }
+
+      const finalizedRows = await db.unsafe(
+        "select public.finalize_import_job($1::uuid,$2) as result",
+        [job.id, "new_version"],
+      );
+      const finalized = asJson(finalizedRows[0].result);
+      assert.equal(finalized.status, "completed", input.label + ": accepted status");
+      assert.equal(Number(finalized.data_quality_score), input.expectedScore, input.label + ": finalize score");
+      assert.deepEqual(finalized.quality.components, measured.components, input.label + ": finalize breakdown must match pre-finalization score");
+
+      const persistedRows = await readAsOwner(
+        "select j.status,j.data_quality_score::integer as score,j.quality_breakdown," +
+          "s.status as snapshot_status,s.data_quality_score::integer as snapshot_score,s.quality_breakdown as snapshot_breakdown " +
+          "from public.import_jobs j left join public.onyx_snapshots s on s.source_import_job_id=j.id " +
+          "where j.id=$1::uuid",
+        [job.id],
+      );
+      assert.equal(persistedRows.length, 1, input.label + ": persisted job row");
+      assert.equal(persistedRows[0].status, "completed", input.label + ": persisted job status");
+      assert.equal(Number(persistedRows[0].score), input.expectedScore, input.label + ": persisted job score");
+      assert.deepEqual(asJson(persistedRows[0].quality_breakdown), measured.components, input.label + ": persisted job breakdown");
+      assert.equal(persistedRows[0].snapshot_status, "ready", input.label + ": snapshot ready status");
+      assert.equal(Number(persistedRows[0].snapshot_score), input.expectedScore, input.label + ": snapshot score");
+      assert.deepEqual(asJson(persistedRows[0].snapshot_breakdown), measured.components, input.label + ": snapshot breakdown");
+    }
+
+    await assertPersistedQualityCase({
+      label: "empty required columns with missing key/date, numeric/null scalars, and an unscored cost field",
+      profileId: unconstrainedProfileId,
+      fileName: "CI DQS unconstrained " + suffix + ".csv",
+      fileHash: "e".repeat(64),
+      chunkHash: "f".repeat(64),
+      data: { quantity: 2, revenue: null, price: 4, cost: "not-a-scored-number" },
+      expectedScore: 80,
+      expectedComponents: {
+        completeness: 100, validity: 100, uniqueness: 0, consistency: 100, temporal_referential_integrity: 100,
+      },
+    });
+    await assertPersistedQualityCase({
+      label: "space-separated date, numeric/null scalars and unscored cost field",
+      profileId,
+      fileName: "CI DQS date-format " + suffix + ".csv",
+      fileHash: "1".repeat(64),
+      chunkHash: "2".repeat(64),
+      data: { item_code: itemChanged, quantity: 2, revenue: null, price: 4, cost: "not-a-scored-number", date: "12 31 2025" },
+      expectedScore: 80,
+      expectedComponents: {
+        completeness: 100, validity: 100, uniqueness: 100, consistency: 100, temporal_referential_integrity: 0,
+      },
+    });
+
+    process.stdout.write(
+      "PASS persisted DQS parity: PostgreSQL score/components match finalize response, import-job persistence and ready Onyx snapshot for both edge cases.\\n",
+    );
+
+
+
     const comparisonRows = await db.unsafe(
       "select public.run_inventory_reconciliation($1::uuid) as result",
       [finalized.snapshot_id],

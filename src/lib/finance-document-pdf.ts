@@ -17,8 +17,9 @@ export type CustomerStatementInvoice = {
   due_at?: string | null;
   currency: string;
   total_amount: number | string;
-  /** Full-ledger payment aggregates returned by the authorized statement RPC. */
+  /** Full-ledger aggregates returned by the authorized statement RPC. */
   paid_amount?: number | string;
+  credit_memo_amount?: number | string;
   outstanding_amount?: number | string;
 };
 
@@ -29,10 +30,21 @@ export type CustomerStatementPayment = {
   paid_at: string;
 };
 
+export type CustomerStatementCreditMemo = {
+  id: string;
+  invoice_id: string;
+  invoice_number: string;
+  memo_number: string;
+  currency: string;
+  total_amount: number | string;
+  posted_at: string;
+};
+
 export type CustomerStatementCurrencySummaryPayload = {
   currency: string;
   invoiced: string | number;
   paid: string | number;
+  credited: string | number;
   outstanding: string | number;
   overdue_invoice_count: number;
   overdue_outstanding: string | number;
@@ -43,6 +55,7 @@ export type CustomerStatementCurrencySummaryPayload = {
 export type CustomerStatementPayload = {
   invoices?: CustomerStatementInvoice[];
   payments?: CustomerStatementPayment[];
+  credits?: CustomerStatementCreditMemo[];
   summary?: unknown;
   summary_as_of_utc?: unknown;
 };
@@ -51,6 +64,7 @@ export type CustomerStatementCurrencySummary = {
   currency: string;
   invoiced: bigint;
   paid: bigint;
+  credited: bigint;
   outstanding: bigint;
   overdueInvoiceCount: number;
   overdueOutstanding: bigint;
@@ -121,6 +135,7 @@ export function resolveCustomerStatementInvoiceStatus(
   invoice: Pick<CustomerStatementInvoice, "status" | "due_at" | "total_amount">,
   paidAmount: bigint,
   generatedAt: Date,
+  creditedAmount = 0n,
 ): string {
   if (invoice.status === "void") return "ملغاة";
 
@@ -128,22 +143,24 @@ export function resolveCustomerStatementInvoiceStatus(
   if (invoice.status === "paid" || (total > 0n && paidAmount >= total)) {
     return "مدفوعة";
   }
+  const outstanding = total > paidAmount + creditedAmount ? total - paidAmount - creditedAmount : 0n;
+  if (outstanding === 0n && creditedAmount > 0n) return "مسوّاة بإشعار دائن";
 
   const dueAtMs = invoice.due_at ? Date.parse(invoice.due_at) : Number.NaN;
   const generatedAtMs = generatedAt.getTime();
   const dueUtcDate = Number.isFinite(dueAtMs) ? new Date(dueAtMs).toISOString().slice(0, 10) : "";
   const generatedUtcDate = Number.isFinite(generatedAtMs) ? new Date(generatedAtMs).toISOString().slice(0, 10) : "";
   const isOverdue =
-    total > paidAmount &&
+    outstanding > 0n &&
     dueUtcDate !== "" &&
     generatedUtcDate !== "" &&
     dueUtcDate < generatedUtcDate;
 
   if (isOverdue) {
-    return paidAmount > 0n ? "متأخرة جزئيًا" : "متأخرة";
+    return paidAmount > 0n || creditedAmount > 0n ? "متأخرة جزئيًا" : "متأخرة";
   }
   if (invoice.status === "partially_paid") return "مدفوعة جزئيًا";
-  if (invoice.status === "overdue") return paidAmount > 0n ? "متأخرة جزئيًا" : "متأخرة";
+  if (invoice.status === "overdue") return paidAmount > 0n || creditedAmount > 0n ? "متأخرة جزئيًا" : "متأخرة";
   return "مستحقة";
 }
 
@@ -241,11 +258,12 @@ function drawTableHeader(page: PDFPage, font: PDFFont, y: number) {
     color: TINT,
   });
   drawArabic(page, font, "الحالة", PAGE_WIDTH - 43, y, 8, BRAND, 58);
-  drawArabic(page, font, "المتبقي", 458, y, 8, BRAND, 70);
-  drawArabic(page, font, "المدفوع", 366, y, 8, BRAND, 70);
-  drawArabic(page, font, "الإجمالي", 275, y, 8, BRAND, 70);
-  drawArabic(page, font, "رقم الفاتورة", 183, y, 8, BRAND, 85);
-  drawArabic(page, font, "الإصدار / الاستحقاق", 91, y, 7, BRAND, 90);
+  drawArabic(page, font, "المتبقي", 460, y, 8, BRAND, 65);
+  drawArabic(page, font, "الدائن", 380, y, 8, BRAND, 60);
+  drawArabic(page, font, "المدفوع", 295, y, 8, BRAND, 60);
+  drawArabic(page, font, "الإجمالي", 210, y, 8, BRAND, 60);
+  drawArabic(page, font, "رقم الفاتورة", 120, y, 7.5, BRAND, 82);
+  drawArabic(page, font, "الإصدار / الاستحقاق", 43, y, 6.5, BRAND, 78);
   drawRule(page, y - 8);
 }
 
@@ -279,10 +297,12 @@ export function normalizeCustomerStatementCurrencySummary(input: unknown): Custo
     seenCurrencies.add(currency);
     const invoiced = moneyToMinorUnits(row.invoiced);
     const paid = moneyToMinorUnits(row.paid);
+    if (row.credited === undefined) throw new Error("Statement summary is missing posted-credit totals.");
+    const credited = moneyToMinorUnits(row.credited);
     const outstanding = moneyToMinorUnits(row.outstanding);
     const overdueOutstanding = moneyToMinorUnits(row.overdue_outstanding);
     const unknownDueDateOutstanding = moneyToMinorUnits(row.unknown_due_date_outstanding);
-    if ([invoiced, paid, outstanding, overdueOutstanding, unknownDueDateOutstanding].some((n) => n < 0n)) {
+    if ([invoiced, paid, credited, outstanding, overdueOutstanding, unknownDueDateOutstanding].some((n) => n < 0n)) {
       throw new Error("Statement summary contains a negative monetary balance.");
     }
     if (overdueOutstanding + unknownDueDateOutstanding > outstanding) {
@@ -292,6 +312,7 @@ export function normalizeCustomerStatementCurrencySummary(input: unknown): Custo
       currency,
       invoiced,
       paid,
+      credited,
       outstanding,
       overdueInvoiceCount: parseNonNegativeCount(row.overdue_invoice_count, "overdue invoice count"),
       overdueOutstanding,
@@ -305,6 +326,7 @@ export function normalizeCustomerStatementCurrencySummary(input: unknown): Custo
 function validatePayload(payload: unknown): {
   invoices: CustomerStatementInvoice[];
   payments: CustomerStatementPayment[];
+  credits: CustomerStatementCreditMemo[];
   summary?: CustomerStatementCurrencySummary[];
   summaryAsOf?: Date;
 } {
@@ -312,7 +334,12 @@ function validatePayload(payload: unknown): {
   const candidate = payload as CustomerStatementPayload;
   const invoices = Array.isArray(candidate.invoices) ? candidate.invoices : [];
   const payments = Array.isArray(candidate.payments) ? candidate.payments : [];
-  if (invoices.length > 200 || payments.length > 500) throw new Error("Statement exceeded the configured document size limit.");
+  const credits = candidate.credits === undefined
+    ? []
+    : Array.isArray(candidate.credits) ? candidate.credits : (() => { throw new Error("Statement credit details are not an array."); })();
+  if (invoices.length > 200 || payments.length > 500 || credits.length > 500) {
+    throw new Error("Statement exceeded the configured document size limit.");
+  }
 
   for (const invoice of invoices) {
     if (!invoice || typeof invoice.id !== "string" || typeof invoice.invoice_number !== "string" ||
@@ -320,12 +347,19 @@ function validatePayload(payload: unknown): {
       throw new Error("Statement contains an incomplete invoice record.");
     }
     normalizeCurrency(invoice.currency);
-    if (moneyToMinorUnits(invoice.total_amount) < 0n) throw new Error("Statement contains a negative invoice total.");
-    if (invoice.paid_amount !== undefined && moneyToMinorUnits(invoice.paid_amount) < 0n) {
-      throw new Error("Statement contains a negative recorded payment total.");
-    }
-    if (invoice.outstanding_amount !== undefined && moneyToMinorUnits(invoice.outstanding_amount) < 0n) {
-      throw new Error("Statement contains a negative outstanding amount.");
+    const total = moneyToMinorUnits(invoice.total_amount);
+    const paid = invoice.paid_amount === undefined ? 0n : moneyToMinorUnits(invoice.paid_amount);
+    const credited = invoice.credit_memo_amount === undefined ? 0n : moneyToMinorUnits(invoice.credit_memo_amount);
+    if (total < 0n) throw new Error("Statement contains a negative invoice total.");
+    if (paid < 0n || credited < 0n) throw new Error("Statement contains a negative invoice payment or credit aggregate.");
+    const expectedOutstanding = invoice.status === "void" || total <= paid + credited
+      ? 0n
+      : total - paid - credited;
+    if (invoice.outstanding_amount !== undefined) {
+      const suppliedOutstanding = moneyToMinorUnits(invoice.outstanding_amount);
+      if (suppliedOutstanding < 0n || suppliedOutstanding !== expectedOutstanding) {
+        throw new Error("Statement invoice aggregates do not reconcile with posted credits and payments.");
+      }
     }
   }
   for (const payment of payments) {
@@ -334,12 +368,25 @@ function validatePayload(payload: unknown): {
     }
     if (moneyToMinorUnits(payment.amount) <= 0n) throw new Error("Statement contains a non-positive payment amount.");
   }
-  if (candidate.summary === undefined) return { invoices, payments };
+  const creditIds = new Set<string>();
+  for (const credit of credits) {
+    if (!credit || typeof credit.id !== "string" || !credit.id.trim() || creditIds.has(credit.id) ||
+        typeof credit.invoice_id !== "string" || !credit.invoice_id.trim() ||
+        typeof credit.invoice_number !== "string" || !credit.invoice_number.trim() ||
+        typeof credit.memo_number !== "string" || !credit.memo_number.trim() ||
+        typeof credit.posted_at !== "string" || !Number.isFinite(Date.parse(credit.posted_at))) {
+      throw new Error("Statement contains an incomplete or duplicate credit memo.");
+    }
+    normalizeCurrency(credit.currency);
+    if (moneyToMinorUnits(credit.total_amount) <= 0n) throw new Error("Statement contains a non-positive credit memo.");
+    creditIds.add(credit.id);
+  }
+  if (candidate.summary === undefined) return { invoices, payments, credits };
   const summary = normalizeCustomerStatementCurrencySummary(candidate.summary);
   if (typeof candidate.summary_as_of_utc !== "string" || !Number.isFinite(Date.parse(candidate.summary_as_of_utc))) {
     throw new Error("Statement summary is missing its valid as-of timestamp.");
   }
-  return { invoices, payments, summary, summaryAsOf: new Date(candidate.summary_as_of_utc) };
+  return { invoices, payments, credits, summary, summaryAsOf: new Date(candidate.summary_as_of_utc) };
 }
 
 export function buildCustomerStatementCurrencySummary(
@@ -354,7 +401,10 @@ export function buildCustomerStatementCurrencySummary(
   const invoiceById = new Map(invoices.map((invoice) => [invoice.id, invoice]));
   const paidByInvoice = new Map<string, bigint>();
   for (const payment of payments) {
-    if (!invoiceById.has(payment.invoice_id)) continue;
+    const invoice = invoiceById.get(payment.invoice_id);
+    if (!invoice) continue;
+    // Invoice rows returned by the RPC include the authoritative all-ledger paid aggregate.
+    if (invoice.paid_amount !== undefined) continue;
     paidByInvoice.set(
       payment.invoice_id,
       (paidByInvoice.get(payment.invoice_id) ?? 0n) + moneyToMinorUnits(payment.amount),
@@ -369,6 +419,7 @@ export function buildCustomerStatementCurrencySummary(
       currency,
       invoiced: 0n,
       paid: 0n,
+      credited: 0n,
       outstanding: 0n,
       overdueInvoiceCount: 0,
       overdueOutstanding: 0n,
@@ -382,13 +433,23 @@ export function buildCustomerStatementCurrencySummary(
   for (const invoice of invoices) {
     const currency = normalizeCurrency(invoice.currency);
     const total = moneyToMinorUnits(invoice.total_amount);
-    const paid = paidByInvoice.get(invoice.id) ?? 0n;
-    const current = getTotals(currency);
+    if (total < 0n) throw new Error("Statement contains a negative invoice total.");
     if (invoice.status === "void") continue;
 
+    const paid = invoice.paid_amount !== undefined
+      ? moneyToMinorUnits(invoice.paid_amount)
+      : paidByInvoice.get(invoice.id) ?? 0n;
+    const credited = invoice.credit_memo_amount === undefined ? 0n : moneyToMinorUnits(invoice.credit_memo_amount);
+    if (paid < 0n || credited < 0n) throw new Error("Statement contains a negative payment or credit aggregate.");
+    const outstanding = total > paid + credited ? total - paid - credited : 0n;
+    if (invoice.outstanding_amount !== undefined && moneyToMinorUnits(invoice.outstanding_amount) !== outstanding) {
+      throw new Error("Statement invoice aggregates do not reconcile with posted credits and payments.");
+    }
+
+    const current = getTotals(currency);
     current.invoiced += total;
     current.paid += paid;
-    const outstanding = total > paid ? total - paid : 0n;
+    current.credited += credited;
     current.outstanding += outstanding;
     if (outstanding === 0n) continue;
 
@@ -400,7 +461,7 @@ export function buildCustomerStatementCurrencySummary(
     if (!Number.isFinite(dueAtMs)) {
       current.unknownDueDateInvoiceCount += 1;
       current.unknownDueDateOutstanding += outstanding;
-    } else if (dueAtMs < asOfMs) {
+    } else if (new Date(dueAtMs).toISOString().slice(0, 10) < new Date(asOfMs).toISOString().slice(0, 10)) {
       current.overdueInvoiceCount += 1;
       current.overdueOutstanding += outstanding;
     }
@@ -422,7 +483,7 @@ export async function buildCustomerStatementPdf(
   fontBytes: Uint8Array,
   generatedAt = new Date(),
 ): Promise<Uint8Array> {
-  const { invoices, payments, summary: authoritativeSummary, summaryAsOf } = validatePayload(response);
+  const { invoices, payments, credits, summary: authoritativeSummary, summaryAsOf } = validatePayload(response);
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   const font = await pdf.embedFont(fontBytes, { subset: false });
@@ -458,8 +519,10 @@ export async function buildCustomerStatementPdf(
     drawLtr(page, font, totals.currency, 48, summaryY - 2, 8, BRAND, 50);
     drawArabic(page, font, "الفواتير", 235, summaryY - 2, 8, MUTED, 70);
     drawLtr(page, font, minorUnitsToText(totals.invoiced), 175, summaryY - 2, 8, INK, 72);
-    drawArabic(page, font, "المدفوع", 345, summaryY - 2, 8, MUTED, 70);
-    drawLtr(page, font, minorUnitsToText(totals.paid), 285, summaryY - 2, 8, INK, 72);
+    drawArabic(page, font, "المدفوع", 405, summaryY - 2, 8, MUTED, 70);
+    drawLtr(page, font, minorUnitsToText(totals.paid), 345, summaryY - 2, 8, INK, 72);
+    drawArabic(page, font, "الدائن", 345, summaryY - 15, 7.2, MUTED, 70);
+    drawLtr(page, font, minorUnitsToText(totals.credited), 285, summaryY - 15, 7.2, INK, 72);
     drawArabic(page, font, "المتبقي", 520, summaryY - 2, 8, MUTED, 55);
     drawLtr(page, font, minorUnitsToText(totals.outstanding), 438, summaryY - 2, 8, INK, 75);
 
@@ -473,8 +536,8 @@ export async function buildCustomerStatementPdf(
     page,
     font,
     authoritativeSummary
-      ? "ملخص الأرصدة من دفتر العميل الكامل؛ التفاصيل المعروضة بحد 200 فاتورة/500 دفعة."
-      : "الملخص للسجلات المعادة فقط؛ الحد 200 فاتورة/500 دفعة. العملات منفصلة.",
+      ? "ملخص الأرصدة من دفتر العميل الكامل بعد طرح الإشعارات الدائنة المرحّلة؛ التفاصيل بحد 200 فاتورة/500 دفعة/500 إشعار."
+      : "الملخص للسجلات المعادة فقط؛ تفاصيل الفواتير والدفعات والإشعارات الدائنة محدودة. العملات منفصلة.",
     PAGE_WIDTH - 40,
     summaryY - 2,
     7.2,
@@ -499,17 +562,20 @@ export async function buildCustomerStatementPdf(
     const total = moneyToMinorUnits(invoice.total_amount);
     const paid = paidByInvoice.get(invoice.id) ?? 0n;
     const invoicePaid = invoice.paid_amount !== undefined ? moneyToMinorUnits(invoice.paid_amount) : paid;
-    const outstanding = invoice.status === "void"
+    const credited = invoice.credit_memo_amount === undefined ? 0n : moneyToMinorUnits(invoice.credit_memo_amount);
+    const calculatedOutstanding = invoice.status === "void" || total <= invoicePaid + credited
       ? 0n
-      : invoice.outstanding_amount !== undefined
-        ? moneyToMinorUnits(invoice.outstanding_amount)
-        : total > invoicePaid ? total - invoicePaid : 0n;
+      : total - invoicePaid - credited;
+    const outstanding = invoice.outstanding_amount !== undefined
+      ? moneyToMinorUnits(invoice.outstanding_amount)
+      : calculatedOutstanding;
 
-    drawArabic(page, font, resolveCustomerStatementInvoiceStatus(invoice, invoicePaid, agingAsOf), PAGE_WIDTH - 43, y, 8, INK, 65);
-    drawLtr(page, font, minorUnitsToText(outstanding), 420, y, 8, INK, 65);
-    drawLtr(page, font, `${currency} ${minorUnitsToText(invoicePaid)}`, 323, y, 7.5, INK, 85);
-    drawLtr(page, font, `${currency} ${minorUnitsToText(total)}`, 230, y, 7.5, INK, 82);
-    drawLtr(page, font, cleanLabel(invoice.invoice_number, 32), 143, y, 7.5, INK, 82);
+    drawArabic(page, font, resolveCustomerStatementInvoiceStatus(invoice, invoicePaid, agingAsOf, credited), PAGE_WIDTH - 43, y, 8, INK, 65);
+    drawLtr(page, font, minorUnitsToText(outstanding), 460, y, 8, INK, 65);
+    drawLtr(page, font, minorUnitsToText(credited), 380, y, 7.5, INK, 65);
+    drawLtr(page, font, minorUnitsToText(invoicePaid), 295, y, 7.5, INK, 65);
+    drawLtr(page, font, `${currency} ${minorUnitsToText(total)}`, 210, y, 7.5, INK, 82);
+    drawLtr(page, font, cleanLabel(invoice.invoice_number, 32), 120, y, 7.5, INK, 82);
     drawLtr(page, font, formatFinanceDocumentDate(invoice.issued_at), 43, y + 4, 7.1, INK, 82);
     drawLtr(page, font, formatFinanceDocumentDate(invoice.due_at), 43, y - 7, 6.8, MUTED, 82);
     drawRule(page, y - 13);
@@ -574,7 +640,46 @@ export async function buildCustomerStatementPdf(
     drawArabic(page, font, "لا توجد دفعات مسجلة للفواتير المعروضة.", PAGE_WIDTH - 40, y, 8, MUTED, 250);
   }
 
-  if (isCustomerStatementPossiblyPartial(invoices.length, payments.length)) {
+  if (credits.length > 0) {
+    if (y < 170) {
+      page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+      pages.push(page);
+      drawDocumentHeader(page, font, generatedAt);
+      y = PAGE_HEIGHT - 135;
+    }
+    drawArabic(page, font, "الإشعارات الدائنة المرحّلة", PAGE_WIDTH - 40, y - 10, 10, BRAND, 230);
+    y -= 35;
+    page.drawRectangle({ x: 40, y: y - 7, width: PAGE_WIDTH - 80, height: 25, color: TINT });
+    drawArabic(page, font, "رقم الإشعار", PAGE_WIDTH - 43, y, 8, BRAND, 105);
+    drawArabic(page, font, "رقم الفاتورة", 365, y, 8, BRAND, 95);
+    drawArabic(page, font, "العملة والمبلغ", 225, y, 8, BRAND, 110);
+    drawArabic(page, font, "تاريخ الترحيل", 125, y, 8, BRAND, 90);
+    drawRule(page, y - 8);
+    y -= 30;
+    for (const credit of credits) {
+      if (y < 84) {
+        page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+        pages.push(page);
+        drawDocumentHeader(page, font, generatedAt);
+        y = PAGE_HEIGHT - 135;
+        page.drawRectangle({ x: 40, y: y - 7, width: PAGE_WIDTH - 80, height: 25, color: TINT });
+        drawArabic(page, font, "رقم الإشعار", PAGE_WIDTH - 43, y, 8, BRAND, 105);
+        drawArabic(page, font, "رقم الفاتورة", 365, y, 8, BRAND, 95);
+        drawArabic(page, font, "العملة والمبلغ", 225, y, 8, BRAND, 110);
+        drawArabic(page, font, "تاريخ الترحيل", 125, y, 8, BRAND, 90);
+        drawRule(page, y - 8);
+        y -= 30;
+      }
+      drawLtr(page, font, cleanLabel(credit.memo_number, 36), 430, y, 7.5, INK, 105);
+      drawLtr(page, font, cleanLabel(credit.invoice_number, 32), 320, y, 7.5, INK, 95);
+      drawLtr(page, font, `${normalizeCurrency(credit.currency)} ${minorUnitsToText(moneyToMinorUnits(credit.total_amount))}`, 190, y, 7.5, INK, 115);
+      drawLtr(page, font, formatFinanceDocumentDate(credit.posted_at), 88, y, 7.5, INK, 90);
+      drawRule(page, y - 7);
+      y -= 22;
+    }
+  }
+
+  if (isCustomerStatementPossiblyPartial(invoices.length, payments.length, credits.length)) {
     if (y < 90) {
       page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
       pages.push(page);
@@ -584,7 +689,7 @@ export async function buildCustomerStatementPdf(
     drawArabic(
       page,
       font,
-      "ملاحظة: يعرض هذا المستند أحدث 200 فاتورة و500 دفعة كحد أقصى وفق حدود قراءة النظام.",
+      "ملاحظة: يعرض هذا المستند أحدث 200 فاتورة و500 دفعة و500 إشعار دائن كحد أقصى؛ ملخص الأرصدة من دفتر العميل الكامل عند توفره.",
       PAGE_WIDTH - 40,
       y - 8,
       7.5,

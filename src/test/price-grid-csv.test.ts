@@ -50,6 +50,29 @@ describe('price grid CSV export', () => {
     expect(csv).toContain("\"'+CMD|payload\"");
     expect(csv).toContain("'=HYPERLINK");
   });
+  it('round-trips quoted delimiters, escaped quotes, and embedded newlines without shifting price columns', () => {
+    const richRow = { ...row, name: 'شركة "الأغبري"، فرع 2\nالمخزن الخلفي' };
+    const csv = buildPriceGridCsv([richRow]);
+    const parsed = parsePriceGridCsv(csv, [richRow]);
+    expect(parsed.itemCount).toBe(1);
+    expect(parsed.drafts[row.id]).toEqual({
+      basePrice: '100', wholesaleOfWholesale: '90.5', wholesale: '95', retail: '110.25',
+    });
+  });
+
+  it('rejects malformed quote boundaries instead of silently normalizing price data', () => {
+    const csv = buildPriceGridCsv([row]);
+    expect(() => parsePriceGridCsv(csv.replace('"00001234"', '0000"1234'), [row]))
+      .toThrow(/علامة اقتباس داخل حقل غير مقتبس/);
+    expect(() => parsePriceGridCsv(csv.replace('"90.50"', '"90.50"trailing'), [row]))
+      .toThrow(/نص غير مسموح به بعد إغلاق علامة الاقتباس/);
+
+    const rowStart = csv.indexOf('"aef00000-0000-4000-8000-000000000001"');
+    const truncated = csv.slice(0, rowStart) + '"aef00000-0000-4000-8000-000000000001';
+    expect(() => parsePriceGridCsv(truncated, [row]))
+      .toThrow(/حقل نصي غير مغلق بعلامة اقتباس/);
+  });
+
   it('preserves valid negative numeric stock values without treating them as untrusted formula text', () => {
     const csv = buildPriceGridCsv([{
       ...row,

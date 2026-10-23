@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import {
   fetchAiAlerts, fetchAiTasks, fetchNotifications, fetchOrders, fetchOrderItems,
+  fetchOnyxSnapshots, type OnyxSnapshotSummary,
   fetchSettings, fetchSuppliers, fetchAdminStorefrontAnnouncements, saveStorefrontAnnouncement,
   markAllNotificationsRead, markNotificationRead, resolveAiAlert, toggleAiTaskStatus,
   updateOrderStatus, reviewOrderLines, updateSetting, createSupplier,
@@ -224,9 +225,40 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
+  const [exportSnapshots, setExportSnapshots] = useState<OnyxSnapshotSummary[]>([]);
+  const [exportSnapshotsLoading, setExportSnapshotsLoading] = useState(true);
+  const [exportSnapshotsError, setExportSnapshotsError] = useState('');
+  const [exportSnapshotsRefreshKey, setExportSnapshotsRefreshKey] = useState(0);
+  const [selectedExportSnapshotId, setSelectedExportSnapshotId] = useState('');
+  const exportRequestKey = useRef<string | null>(null);
   const [customerNote, setCustomerNote] = useState('');
   const [reviewMessage, setReviewMessage] = useState('');
   const quantityInputs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  useEffect(() => {
+    let active = true;
+    setExportSnapshotsLoading(true);
+    setExportSnapshotsError('');
+    void fetchOnyxSnapshots()
+      .then((snapshots) => {
+        if (!active) return;
+        // Only saved inventory snapshots are candidates for item-code/external-ID matching.
+        const inventorySnapshots = snapshots.filter((snapshot) =>
+          snapshot.report_type === 'inventory_stock' || snapshot.report_type === 'inventory',
+        );
+        setExportSnapshots(inventorySnapshots);
+        setSelectedExportSnapshotId((current) =>
+          inventorySnapshots.some((snapshot) => snapshot.id === current) ? current : '',
+        );
+      })
+      .catch((cause: unknown) => {
+        if (!active) return;
+        setExportSnapshots([]);
+        setExportSnapshotsError(cause instanceof Error ? cause.message : 'تعذر تحميل لقطات المصدر من المؤسسة الحالية.');
+      })
+      .finally(() => { if (active) setExportSnapshotsLoading(false); });
+    return () => { active = false; };
+  }, [exportSnapshotsRefreshKey]);
 
   useEffect(() => {
     if (!items) return;
@@ -424,8 +456,14 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
       onNotice('لا يمكن تصدير هذا الطلب للمحاسبة قبل اكتمال الاعتماد وتحميل البنود.');
       return;
     }
+    if (exportSnapshotsLoading || exportSnapshotsError) {
+      onNotice('تحقق من تحميل لقطات المصدر أولًا؛ تعذر التحميل لا يُعامل على أنه عدم وجود لقطة.');
+      return;
+    }
     setExportBusy(true);
     try {
+      const requestKey = exportRequestKey.current ?? crypto.randomUUID();
+      exportRequestKey.current = requestKey;
       const workbookInput = {
         orderId: order.id,
         orderNumber: order.order_number,
@@ -434,6 +472,7 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
         customerCode: order.customer?.customer_code ?? '',
         customerName: order.customer?.business_name ?? '',
         items,
+        sourceSnapshotId: selectedExportSnapshotId || null,
       };
       // Validate the workbook before writing a durable audit event.
       let bytes = buildOnyxOrderWorkbook(workbookInput);
@@ -443,6 +482,8 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
       const { data: auditId, error: auditError } = await supabase.rpc('record_onyx_order_export', {
         p_order_id: order.id,
         p_item_count: items.length,
+        p_source_snapshot_id: selectedExportSnapshotId || null,
+        p_request_key: requestKey,
       });
       if (auditError || typeof auditId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(auditId)) {
         throw new Error('تعذر تسجيل حدث التصدير في سجل التدقيق المركزي؛ لم يبدأ تنزيل الملف.');
@@ -462,6 +503,9 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
+      // Only discard the idempotency key after the download action was initiated.
+      // RPC/network failures keep the same key for a safe retry.
+      exportRequestKey.current = null;
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       onNotice('تم إعداد ملف XLSX وتسجيل حدث التصدير. لم يُثبت بعد اكتمال تنزيل المتصفح أو توافق الملف مع إصدار أونكس المستهدف.');
     } catch (cause) {
@@ -475,8 +519,24 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     description="راجع البنود والكميات والأسعار، ثم احفظ المسودة واعتمدها في معاملة واحدة قبل تأكيد الطلب."
     icon={Package} note="" toolbar={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       <Button variant="secondary" onClick={goBack} disabled={blocked || busy}><ChevronLeft size={16} /> رجوع</Button>
-      <Button disabled={!canExportOnyxOrder || exportBusy} onClick={downloadOnyxWorkbook}><Download size={16} /> {exportBusy ? 'جارٍ تسجيل حدث التصدير...' : 'تنزيل XLSX للأونكس'}</Button>
+      <Button disabled={!canExportOnyxOrder || exportBusy || exportSnapshotsLoading || Boolean(exportSnapshotsError)} onClick={downloadOnyxWorkbook}><Download size={16} /> {exportBusy ? 'جارٍ تسجيل حدث التصدير...' : 'تنزيل XLSX للأونكس'}</Button>
     </div>}>
+    {order && <section className="panel" style={{ marginTop: 12, padding: 14 }}>
+      <label htmlFor="onyx-export-source-snapshot" style={{ display: 'block', fontWeight: 800, marginBottom: 6 }}>لقطة المخزون المصدرية لربط تصدير الطلب</label>
+      <select id="onyx-export-source-snapshot" aria-label="لقطة مصدر أونكس للتصدير" value={selectedExportSnapshotId}
+        disabled={exportSnapshotsLoading || Boolean(exportSnapshotsError) || exportBusy}
+        onChange={(event) => { setSelectedExportSnapshotId(event.target.value); exportRequestKey.current = null; }}
+        style={{ ...field, maxWidth: 760 }}>
+        <option value="">لا تربط هذا التصدير بلقطة محفوظة</option>
+        {exportSnapshots.map((snapshot) => <option key={snapshot.id} value={snapshot.id}>
+          {snapshot.source_file_name || 'ملف بلا اسم'} · {snapshot.report_type} · {snapshot.created_at} · {snapshot.source_file_hash.slice(0, 12)}…
+        </option>)}
+      </select>
+      {exportSnapshotsLoading && <p role="status" style={{ ...quiet, marginTop: 8 }}>جار تحميل لقطات المصدر من المؤسسة الفعالة…</p>}
+      {exportSnapshotsError && <div role="alert" style={{ marginTop: 8 }}><p>{exportSnapshotsError}</p><Button variant="secondary" onClick={() => setExportSnapshotsRefreshKey((value) => value + 1)}>إعادة تحميل لقطات المصدر</Button></div>}
+      {!exportSnapshotsLoading && !exportSnapshotsError && selectedExportSnapshotId && <p style={{ ...quiet, marginTop: 8 }}>سيُسجل مع التصدير معرّف اللقطة وبصمتها ودفعة الاستيراد، مع نتيجة مطابقة مستقلة لكل بند. البند غير المطابق أو المكرر لن يُنسب تلقائيًا إلى معرّف خارجي.</p>}
+      {!exportSnapshotsLoading && !exportSnapshotsError && !selectedExportSnapshotId && <p role="note" style={{ ...quiet, marginTop: 8 }}>لم يتم ربط لقطة. سيُسجل ذلك صراحةً، ولن تُستنتج معرّفات مصدر أو مزامنة حية.</p>}
+    </section>}
     {order && !canExportOnyxOrder && <p className="privacy-note" role="status" style={{ marginTop: 12 }}>
       تصدير المحاسبة متاح بعد اعتماد الطلب وإكمال مراجعة الكميات والأسعار. لا تُصدّر المسودة غير المعتمدة كمستند محاسبي.
     </p>}
