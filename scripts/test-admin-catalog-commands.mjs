@@ -27,10 +27,17 @@ const customer = postgres(url, { max: 1, prepare: false });
 const raceConnections = Array.from({ length: 4 }, () => postgres(url, { max: 1, prepare: false }));
 
 async function ident(connection, id, email) {
+  // This helper is called between role-scoped commands. Seed the test session only
+  // while using the privileged fixture role; application roles never write auth.sessions.
+  await connection.unsafe("reset role").catch(() => {});
+  await connection.unsafe(
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI admin catalog session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+    [id],
+  );
   await connection.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [id]);
   await connection.unsafe(
     "select set_config('request.jwt.claims',$1,false)",
-    [JSON.stringify({ sub: id, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" })],
+    [JSON.stringify({ sub: id, email, email_confirmed_at: new Date().toISOString(), role: "authenticated", session_id: id })],
   );
   await connection.unsafe("set role authenticated");
 }
