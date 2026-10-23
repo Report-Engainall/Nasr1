@@ -377,6 +377,10 @@ async function main() {
     ),
     /payment idempotency key reused with different payload/i,
   );
+  // Direct table reads are intentionally denied to authenticated clients. Inspect the
+  // persisted fingerprint with the privileged fixture connection, then restore the
+  // authenticated role before continuing the RPC concurrency tests.
+  await db.unsafe("reset role");
   const firstKeyRows = await db.unsafe(
     "select id::text as id,request_fingerprint from public.customer_payments where organization_id=$1::uuid and invoice_id=$2::uuid and idempotency_key=$3::uuid",
     [organizationId,idempotencyTestInvoiceId,tenantScopedPaymentKey],
@@ -384,6 +388,7 @@ async function main() {
   assert.equal(firstKeyRows.length,1,"an identical retry cannot create a second payment row");
   assert.equal(firstKeyRows[0].id,firstIdempotentPaymentId);
   assert.match(firstKeyRows[0].request_fingerprint,/^[0-9a-f]{64}$/,"canonical request fingerprint is persisted as SHA-256");
+  await db.unsafe("set role authenticated");
 
   // Two simultaneous sessions submit a fresh identical request key. The second waits on the
   // request-key advisory lock, then replays the original committed row rather than inserting.
