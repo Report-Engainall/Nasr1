@@ -156,6 +156,36 @@ describe("finance PDF source integration — authoritative financial rendering",
     expect(pdf.getPageCount()).toBeGreaterThan(0);
   });
 
+  it("renders the customer tier label when the server explicitly allows it, even with monetary values hidden", async () => {
+    const invoice = {
+      id: "11111111-1111-4111-8111-111111111111",
+      invoice_number: "INV-TIER-001",
+      customer_id: "22222222-2222-4222-8222-222222222222",
+      status: "issued",
+      issued_at: "2026-10-01T00:00:00.000Z",
+      due_at: "2026-10-31T00:00:00.000Z",
+      currency: "YER",
+    };
+    const lines = [{
+      id: "33333333-3333-4333-8333-333333333333",
+      item_code: "SKU-TIER-01",
+      description: "صنف دون سعر ظاهر",
+      unit: "قطعة",
+      quantity: "2",
+    }];
+    const customer = { customer_code: "C-TIER", business_name: "عميل الاختبار", tier_label: "الجملة" };
+    const hiddenTierBytes = await buildCustomerInvoicePdf(
+      invoice, lines, customer, loadArabicDocumentFont(), generatedAt, false, false,
+    );
+    const visibleTierBytes = await buildCustomerInvoicePdf(
+      invoice, lines, customer, loadArabicDocumentFont(), generatedAt, false, true,
+    );
+    const pdf = await PDFDocument.load(visibleTierBytes);
+    expect(pdf.getPageCount()).toBeGreaterThan(0);
+    expect(hiddenTierBytes.byteLength).toBeGreaterThan(1000);
+    expect(visibleTierBytes.byteLength).toBeGreaterThan(hiddenTierBytes.byteLength);
+  });
+
   it("refuses to represent mismatched invoice totals as a successful PDF", async () => {
     await expect(buildCustomerInvoicePdf(
       {
