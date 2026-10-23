@@ -432,12 +432,19 @@ async function main() {
       "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,$5::uuid,$6::text,$7::integer,$8::text,$9::text,null::text,null::text)",
       ["inventory_pull","succeeded",organizationId,matchedSnapshotId,lateBoundId,"5".repeat(64),200,"CI-ONYX-LATE-"+suffix,"6".repeat(64)]
     );
-    const lateBoundRow = await db.unsafe(
-      "select status,snapshot_id from public.onyx_live_sync_attempts where id=$1::uuid",
-      [lateBoundId],
+    await setIdentity(managerAuthId, "onyx-evidence-manager-" + suffix + "@example.test");
+    const lateBoundEvidenceRows = await db.unsafe(
+      "select public.get_onyx_live_sync_attempt_evidence($1::uuid) as payload",
+      [matchedSnapshotId],
     );
-    assert.equal(lateBoundRow[0].status,"succeeded");
-    assert.equal(lateBoundRow[0].snapshot_id,matchedSnapshotId,"an inventory-pull result may bind the produced snapshot exactly once");
+    const lateBoundAttempt = asJson(lateBoundEvidenceRows[0].payload).last_sync_attempt;
+    assert.equal(lateBoundAttempt.id,lateBoundId,"the evidence RPC must identify the attempt that produced the snapshot");
+    assert.equal(lateBoundAttempt.status,"succeeded");
+    assert.equal(lateBoundAttempt.snapshot_id,matchedSnapshotId,"an inventory-pull result may bind the produced snapshot exactly once");
+    await db.unsafe("reset role");
+    await db.unsafe("select set_config('request.jwt.claim.role','service_role',false)");
+    await db.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({role:"service_role"})]);
+    await db.unsafe("set role service_role");
     const failStart = await db.unsafe(
       "select public.record_onyx_live_sync_attempt($1::text,$2::text,$3::uuid,$4::uuid,null::uuid,null::uuid,$5::text,null::integer,null::text,null::text,null::text,null::text) as id",
       ["inventory_pull","started",organizationId,matchedSnapshotId,"3".repeat(64)]
