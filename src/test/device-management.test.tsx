@@ -281,6 +281,52 @@ describe('central device and session management', () => {
     expect(host?.querySelector('button[aria-label="إبطال جلسة موظف الاختبار"]')).toBeNull();
   });
 
+  it('prevents duplicate self-session revocation requests on rapid repeated clicks', async () => {
+    const onNotice = mocks.onNotice;
+    const revokedIds = [OTHER_SESSION_ID];
+    let resolveRevocation: (value: { data: unknown; error: null }) => void = () => {
+      throw new Error('bulk revocation RPC was not started');
+    };
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'list_organization_sessions') return { data: sessions, error: null };
+      if (name === 'revoke_other_auth_sessions') {
+        sessions = sessions.filter((row) => row.session_id === CURRENT_SESSION_ID);
+        return await new Promise<{ data: unknown; error: null }>((resolve) => {
+          resolveRevocation = resolve;
+        });
+      }
+      return { data: null, error: { message: 'unexpected RPC' } };
+    });
+    await mount();
+
+    await act(async () => {
+      const button = host?.querySelector<HTMLButtonElement>(
+        'button[aria-label="تسجيل الخروج من الأجهزة الأخرى"]',
+      );
+      button?.click();
+      button?.click();
+      await Promise.resolve();
+    });
+
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === 'revoke_other_auth_sessions')).toHaveLength(1);
+
+    await act(async () => {
+      resolveRevocation({
+        data: {
+          current_session_id: CURRENT_SESSION_ID,
+          revoked_count: revokedIds.length,
+          revoked_session_ids: revokedIds,
+          revoked_at: '2026-10-23T10:16:00.000Z',
+        },
+        error: null,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === 'revoke_other_auth_sessions')).toHaveLength(1);
+    expect(onNotice).toHaveBeenCalledWith(expect.stringContaining('1 جلسة أخرى لهذا الحساب'));
+  });
+
   it('uses the server-owned self-scoped RPC to revoke other sessions and preserves the current session', async () => {
     const onNotice = mocks.onNotice;
     mocks.rpc.mockImplementation(async (name: string) => {
