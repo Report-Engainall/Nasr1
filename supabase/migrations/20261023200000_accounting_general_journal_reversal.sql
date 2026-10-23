@@ -356,7 +356,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $$
 DECLARE
   v_actor uuid := public.current_profile_id();
   v_org uuid;
@@ -404,7 +404,7 @@ BEGIN
     pg_catalog.jsonb_build_object('status','void','entry_number',v_entry.entry_number::text,'reason',v_reason));
   RETURN pg_catalog.jsonb_build_object('id',v_entry.id,'status',v_entry.status,'replayed',false);
 END;
-$;
+$$;
 REVOKE ALL ON FUNCTION public.void_general_journal_draft(uuid,text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.void_general_journal_draft(uuid,text) TO authenticated;
 
