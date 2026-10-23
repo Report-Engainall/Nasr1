@@ -95,6 +95,27 @@ test("customer manager: directory privacy, audited customer commands, activation
   test.setTimeout(180_000);
   assertLoopbackOnly();
   const db = postgres(DATABASE_URL, { max: 1, prepare: false, idle_timeout: 5 });
+  // Retries reuse this job's local database; normalize only the synthetic fixture before each attempt.
+  // assertLoopbackOnly() above forbids this direct setup/teardown against a hosted or production database.
+  const resetCustomerA = await db`
+    update public.customers
+    set tier = 'wholesale', status = 'approved',
+        approved_at = coalesce(approved_at, now()), updated_at = now()
+    where organization_id = ${ORGANIZATION_ID}::uuid
+      and business_name = 'P2 Local E2E Customer A'
+    returning id
+  `;
+  expect(resetCustomerA).toHaveLength(1);
+  await db`
+    update public.customer_activation_invitations
+    set status = 'revoked', revoked_at = coalesce(revoked_at, now()), updated_at = now()
+    where organization_id = ${ORGANIZATION_ID}::uuid
+      and status = 'pending'
+      and customer_id in (
+        select id from public.customers
+        where organization_id = ${ORGANIZATION_ID}::uuid and business_name = ${TARGET_NAME}
+      )
+  `;
   const managerContext = await browser.newContext();
   const managerPage = await managerContext.newPage();
   const browserErrors: string[] = [];
@@ -282,13 +303,25 @@ test("customer manager: directory privacy, audited customer commands, activation
     await managerPage.getByLabel("حالة العميل الجديدة").selectOption(String(initialCustomerA[0].status));
     await managerPage.getByLabel("سبب تغيير الحالة").fill("P2 E2E acceptance: restore seeded lifecycle status");
     await managerPage.getByRole("button", { name: "حفظ تغيير الحالة" }).click();
-    await expect(managerPage.getByRole("status").filter({ hasText: "تم تغيير حالة العميل إلى" })).toBeVisible({ timeout: 20_000 });
+    await expect.poll(async () => {
+      const restored = await db`
+        select status from public.customers
+        where id = ${customerA[0].id}::uuid
+      `;
+      return restored[0]?.status;
+    }, { timeout: 20_000, intervals: [100, 250, 500, 1_000] }).toBe(initialCustomerA[0].status);
 
     await restoreRow.getByRole("button", { name: "تغيير الشريحة" }).click();
     await managerPage.getByLabel("شريحة العميل الجديدة").selectOption(String(initialCustomerA[0].tier));
     await managerPage.getByLabel("سبب تغيير الشريحة").fill("P2 E2E acceptance: restore seeded pricing tier");
     await managerPage.getByRole("button", { name: "حفظ تغيير الشريحة" }).click();
-    await expect(managerPage.getByRole("status").filter({ hasText: "تم تحديث شريحة العميل وتسجيل السبب في سجل التدقيق" })).toBeVisible({ timeout: 20_000 });
+    await expect.poll(async () => {
+      const restored = await db`
+        select tier from public.customers
+        where id = ${customerA[0].id}::uuid
+      `;
+      return restored[0]?.tier;
+    }, { timeout: 20_000, intervals: [100, 250, 500, 1_000] }).toBe(initialCustomerA[0].tier);
 
     for (const route of ["/admin/finance", "/admin/orders", "/admin/devices", "/admin/audit", "/admin/settings"]) {
       await managerPage.goto(route);
@@ -374,6 +407,24 @@ test("customer manager: directory privacy, audited customer commands, activation
       contentType: "application/json",
     });
   } finally {
+    // Keep shared synthetic fixtures clean even if a UI assertion fails; never runs off loopback.
+    await db`
+      update public.customers
+      set tier = 'wholesale', status = 'approved',
+          approved_at = coalesce(approved_at, now()), updated_at = now()
+      where organization_id = ${ORGANIZATION_ID}::uuid
+        and business_name = 'P2 Local E2E Customer A'
+    `.catch(() => []);
+    await db`
+      update public.customer_activation_invitations
+      set status = 'revoked', revoked_at = coalesce(revoked_at, now()), updated_at = now()
+      where organization_id = ${ORGANIZATION_ID}::uuid
+        and status = 'pending'
+        and customer_id in (
+          select id from public.customers
+          where organization_id = ${ORGANIZATION_ID}::uuid and business_name = ${TARGET_NAME}
+        )
+    `.catch(() => []);
     await managerContext.close();
     await db.end({ timeout: 5 }).catch(() => {});
   }
