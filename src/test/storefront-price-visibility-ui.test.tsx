@@ -505,4 +505,35 @@ describe("customer price visibility UI acceptance", () => {
     expect(failed.host.querySelector('.sf-order-pricing-total')).toBeNull();
     expect(failed.host.textContent).not.toContain(formatServerAmount(2468));
   });
+  
+  describe("public storefront deep-link acceptance", () => {
+    it.each([
+      { path: "/categories", heading: "تصنيفات المنتجات" },
+      { path: "/collections", heading: "تصنيفات المنتجات" },
+      { path: "/offers", heading: "العروض المنشورة" },
+      { path: "/search/advanced", heading: "البحث المتقدم" },
+    ])("mounts the actual route for a direct URL: $path", async ({ path, heading }) => {
+      const mount = await mountAt(path);
+      await flushEffects();
+
+      expect(mount.host.querySelector("h1")?.textContent).toContain(heading);
+      expect(mount.host.textContent).not.toContain("Application error");
+      await unmount(mount);
+    });
+
+    it.each(["/catalog?q=Rice", "/search?q=Rice"])(
+      "preserves direct URL search state on %s",
+      async (path) => {
+        const mount = await mountAt(path);
+        await flushEffects();
+
+        const input = mount.host.querySelector<HTMLInputElement>(".sf-search input");
+        expect(input).not.toBeNull();
+        expect(input?.value).toBe("Rice");
+        expect(mount.host.textContent).toContain("Rice");
+        await unmount(mount);
+      },
+    );
+  });
+
 });
