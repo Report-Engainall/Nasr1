@@ -57,6 +57,8 @@ DECLARE
   v_profile uuid:=public.current_profile_id();
   v_email text:=pg_catalog.lower(pg_catalog.btrim(coalesce(auth.jwt()->>'email','')));
   v_confirmed_email text;
+  v_crypto_schema text;
+  v_token_sha256 text;
   v_invitation public.customer_company_invitations%ROWTYPE;
   v_org uuid;
   v_roles text[];
@@ -72,10 +74,24 @@ BEGIN
   IF coalesce(p_token,'') !~ '^[0-9a-fA-F]{64}$' THEN
     RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='رابط الدعوة غير صالح';
   END IF;
+  -- Supabase installs pgcrypto outside public in some projects; resolve the actual extension schema.
+  SELECT n.nspname INTO v_crypto_schema
+    FROM pg_catalog.pg_extension e
+    JOIN pg_catalog.pg_namespace n ON n.oid=e.extnamespace
+   WHERE e.extname='pgcrypto';
+  IF v_crypto_schema IS NULL
+     OR pg_catalog.to_regprocedure(pg_catalog.format('%I.digest(text,text)',v_crypto_schema)) IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='55000',MESSAGE='pgcrypto SHA-256 digest function is unavailable';
+  END IF;
+  EXECUTE pg_catalog.format(
+    'SELECT pg_catalog.encode(%I.digest($1::text, ''sha256''), ''hex'')',
+    v_crypto_schema
+  ) INTO v_token_sha256 USING pg_catalog.lower(p_token);
+
   SELECT i.* INTO v_invitation
     FROM public.customer_company_invitations i
    WHERE i.token_hash IN (
-     pg_catalog.encode(public.digest(pg_catalog.lower(p_token),'sha256'),'hex'),
+     v_token_sha256,
      pg_catalog.md5(pg_catalog.lower(p_token))
    )
    FOR UPDATE;
