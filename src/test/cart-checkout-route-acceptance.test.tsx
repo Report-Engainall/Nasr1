@@ -332,7 +332,8 @@ describe("customer cart and checkout real route acceptance", () => {
   it("blocks submission after validation failure, then keeps failure visible and only confirms after server acknowledgement", async () => {
     mocks.user = CUSTOMER;
     mocks.cartLines = [{ product_id: PRODUCT_ID, quantity: 2 }];
-    mocks.validationFailures = 1;
+    // Keep automatic revalidation fail-closed until the test explicitly clicks Retry.
+    mocks.validationFailures = 50;
     mocks.submitFailures = 1;
     await mountRoute("/checkout");
 
@@ -343,6 +344,7 @@ describe("customer cart and checkout real route acceptance", () => {
     expect(submit?.disabled).toBe(true);
     expect(mocks.submitCalls).toHaveLength(0);
 
+    mocks.validationFailures = 0;
     await clickButtonContaining("إعادة التحقق");
     expect(host?.querySelector('[role="alert"]')).toBeNull();
     expect(host?.textContent).toContain("صنف السلة");
