@@ -1,19 +1,18 @@
-# تقرير الحالة التنفيذي — المبرمج 1 / إدارة جلسات الأجهزة المركزية
+# تقرير الحالة التنفيذي — P1 / منع التكرار في إنشاء المنتج
 
 - **المستودع:** `Report-Engainall/Nasr1`
-- **فرع P1 الحالي:** `p1/central-device-session-ui-20261023`
-- **PR الحالي:** [#88 — Draft/open، غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/88)
-- **BASE_SHA لإعادة التكامل:** `8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2`
-- **رأس الميزة قبل إعادة التكامل:** `0d51e2090951e1dab80d4fbdf8e92bcfbb256de8`
-- **آخر رأس وظيفي مختبَر بدقة:** `5114ea8227f570662533219af1dc3a013cd49f75` — Core CI **SUCCESS** [39981579136](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579136)؛ P2 Playwright **SUCCESS** [39981579236](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579236)، بما يشمل Chromium/Supabase المحلي لاختبار صلاحية وإلغاء الجلسة فورًا.
-- **المهمة:** `P1-DEVICE-SESSION-MGMT-UI-001` — ربط إدارة الأجهزة والجلسات بعقد الخادم، ورفض بيانات الجلسات غير الصحيحة، وحماية الجلسة الحالية، واشتراط إقرار مطابق من الخادم قبل إظهار نجاح الإلغاء.
-- **الاختبارات المثبتة على الرأس السابق فقط:** Core CI [39977276920 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276920)؛ P2 Playwright [39977276972 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276972). خطوة Chromium الخاصة بتفويض إدارة الجلسات والإلغاء الفوري نجحت مع Supabase محلي معزول.
-- **المتبقي:** التحقق من CI على commit التوثيق الحالي؛ اختبار الحساب الخارجي تخطّاه حاجز الاعتماد؛ الإنتاج NOT RUN.
-- **الملفات في صافي التغيير المقصود:** هذا التقرير ونقطة الاستئناف وواجهة الجلسات واختبارها وأدوات/اختبارات Playwright الخاصة بـP1.
-- **NEXT_ACTION:** فحص Core وP2 Playwright على رأس commit التوثيق الحالي. إذا نجحا وظل صافي الملفات ضمن ملكية P1، اجعل PR #88 جاهزًا وادمجه عبر GitHub ثم تحقق من SHA الدمج وCI الخاص بـ`main`.
-- **حدود الإثبات:** نجاح المتصفح المحلي يخص تدفق الجلسات الذي اختُبر؛ لا يثبت الحسابات الخارجية أو الإنتاج.
+- **فرع P1:** `p1/admin-product-singleflight-20261023`
+- **PR الحالي:** [#97 — Draft/open](https://github.com/Report-Engainall/Nasr1/pull/97)
+- **BASE_SHA:** `c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99` — main بعد دمج واجهة الجلسات PR #88.
+- **المهمة المكتملة السابقة:** `P1-DEVICE-SESSION-MGMT-UI-001`، دُمجت في `c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99`. Core CI [39982277415 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39982277415) وP2 Playwright [39982277637 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39982277637)، بما في ذلك اختبار محلي لـSupabase/Chromium يثبت التفويض وإلغاء الجلسة فورًا.
+- **المهمة الحالية:** `P1-ADMIN-PRODUCT-SINGLEFLIGHT-001` — منع تكرار إنشاء المنتج بسبب إرسال نموذج مرتين قبل إعادة الرسم.
+- **دليل الرأس السابق للميزة:** `a90e524060b3362d2fd49b34576eaa61fbea7c04`: Core CI [39982049908 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39982049908)؛ P2 Playwright [39982049932 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39982049932). تغطي الاختبارات إرسالًا متزامنًا مرتين، وفشل الكتابة ثم إعادة المحاولة، ومنع الحفظ عند فشل تحميل التصنيفات.
+- **حدود الإثبات:** رأس الدمج الجديد فوق main يحتاج اختبارات مطابقة مستقلة. اختبار الحساب الخارجي تخطّاه حاجز الاعتماد؛ الإنتاج NOT RUN.
+- **صافي الملفات المقصود:** `src/components/AghbariApp.tsx`، `src/test/admin-product-double-submit.test.tsx`، نقطة الاستئناف والتقرير الحالي.
+- **NEXT_ACTION:** أعد التكامل فوق main بعد دمج #88، ثم شغّل Core وP2 Playwright على الرأس الناتج. لا تدمج قبل نجاح الفحوص على نفس SHA والتحقق من diff الحالي.
+- **MERGE_STATUS:** #88 MERGED؛ #97 Draft/open.
 
-> الأقسام التالية تحتفظ بالسجل التاريخي من تكاملات سابقة؛ هذا الملخص هو نقطة الاستئناف الحالية لهذا الفرع.
+> تم الاحتفاظ بالتقرير التاريخي أدناه؛ هذا الملخص يصف نقطة الاستئناف الحالية فقط.
 
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
