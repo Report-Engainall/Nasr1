@@ -31,4 +31,43 @@ describe("general ledger financial-statement UI", () => {
     expect(screen.getByRole("heading", { name: "دفتر الأستاذ العام" })).toBeInTheDocument();
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
+  it("creates a manual reversal draft through the tenant-scoped RPC and refreshes the ledger", async () => {
+    mocks.roles=["admin"];
+    const entry = {
+      id:"manual-journal-1", entry_number:"123", entry_date:"2026-10-23",
+      description:"CI documented manual journal", source_type:"manual", source_reference:null,
+      status:"posted", created_at:"2026-10-23T10:00:00Z", posted_at:"2026-10-23T10:00:00Z",
+      debit_total:"125.50", credit_total:"125.50",
+      lines:[
+        {line_number:1,account_id:"expense",account_code:"5000",account_name:"مصروفات تشغيل",debit:"125.50",credit:"0.00",memo:"original debit"},
+        {line_number:2,account_id:"cash",account_code:"1000",account_name:"النقدية",debit:"0.00",credit:"125.50",memo:"original credit"},
+      ],
+    };
+    let reversalLinks: Array<{original_journal_entry_id:string;reversal_journal_entry_id:string}> = [];
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "fetch_general_ledger") return {data:{...payload,entries:[entry],entry_count:1,has_more:false},error:null};
+      if (name === "fetch_general_journal_reversal_links") return {data:reversalLinks,error:null};
+      if (name === "reverse_general_journal_entry") {
+        reversalLinks=[{original_journal_entry_id:"manual-journal-1",reversal_journal_entry_id:"reversal-journal-1"}];
+        return {data:{original_journal_entry_id:"manual-journal-1",reversal_journal_entry_id:"reversal-journal-1",entry_number:"124",status:"draft",replayed:false},error:null};
+      }
+      if (name === "fetch_cash_expense_accounting_inbox") return {data:{items:[],total_count:0,has_more:false,limit:50,offset:0},error:null};
+      return {data:payload,error:null};
+    });
+    vi.spyOn(window,"prompt").mockReturnValue("Documented correction for original journal");
+    vi.stubGlobal("crypto",{randomUUID:()=> "12345678-1234-4234-8234-123456789abc"});
+    render(<GeneralLedgerWorkspace />);
+    const action=await screen.findByRole("button",{name:/إنشاء مسودة عكس/});
+    fireEvent.click(action);
+    expect(await screen.findByText("تم إنشاء مسودة عكس؛ لن يتغير الميزان حتى الترحيل.")).toBeInTheDocument();
+    const reversalCall=mocks.rpc.mock.calls.find(([name])=>name==="reverse_general_journal_entry");
+    expect(reversalCall?.[1]).toEqual({
+      p_entry_id:"manual-journal-1",
+      p_reason:"Documented correction for original journal",
+      p_idempotency_key:"12345678-1234-4234-8234-123456789abc",
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("fetch_general_journal_reversal_links",{p_entry_ids:["manual-journal-1"]});
+    await screen.findByText("لهذا القيد مسودة عكس أو عكس مرحّل؛ مُنع التكرار.");
+    expect(screen.queryByRole("button",{name:/إنشاء مسودة عكس/})).not.toBeInTheDocument();
+  });
 });
