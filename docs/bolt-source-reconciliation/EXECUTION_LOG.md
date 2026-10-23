@@ -1111,3 +1111,9 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **Regression:** extended `src/test/admin-reports-route-wiring.test.ts` with the semantic loading-state assertion.
 - **Commits:** implementation `7069bb884343dc65336109d584d9554949182f28`; test `70c7daf91bfd7d973a72951d27e8afed868e25ca`.
 - **Acceptance:** final SHA CI pending; browser proof not run locally.
+## P3 exact-SHA CI failure and correction — 2026-10-23
+
+- **Observed run:** Core workflow `39952433128` on SHA `15382ad4b28a4092a6ec6489beb0538368abc8c9` failed in unit tests: 136/137 files and 847/848 assertions passed. Subsequent database, lint, build and smoke steps were skipped because the test step failed.
+- **Failure:** `src/test/admin-reports-route-forecast.test.tsx` expected `executive-store-analytics` from the outer route wrapper. That test mocked `AdminApp` as an empty stub and therefore depended on the duplicate analytics mount being removed in `P3-REPORT-DUP-003`; the real `Reports` implementation inside `AghbariApp.tsx` already mounts `ExecutiveStoreAnalytics` once.
+- **Correction:** updated the route test to verify the route selects `initialView="reports"`, retains the export link, and does not itself duplicate the analytics mount. Separate `src/test/admin-reports-route-wiring.test.ts` verifies the actual `Reports` source has exactly one analytics mount and the route exposes the Arabic semantic loading state.
+- **Current state:** corrective test commit `13a58976fc61ebc682418b152581cb67fde2d4c7`; CI must be rerun on the resulting final PR head. The prior run remains a recorded failure and is not overwritten by any later pass.
