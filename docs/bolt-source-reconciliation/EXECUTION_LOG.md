@@ -1138,3 +1138,8 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - P2 central WorkCoordination, current-state pointer, acceptance matrix, report and log updated sequentially on this feature branch. All new branch test gates are still NOT RUN; no PASS claimed.
 - NEXT_ACTION: finish diff review, open PR against main, wait for exact-head Core and P2 local PostgreSQL/Playwright terminal results, fix evidenced failures, merge only after required gates/review, then record the exact post-merge main SHA/results.
 
+## Exact-main baseline CI terminal result — 2026-10-23T21:56:00+03:00
+
+- Core run [40006315985](https://github.com/Report-Engainall/Nasr1/actions/runs/40006315985) completed SUCCESS on exact main merge SHA `cd303b7fe0f263c9f62ed97f10202e9895465273`, tree `51aa49eb36bbf6227c42612e35b1bf03e6b3360a).
+- P2 run `40006269156` remains IN_PROGRESS on the distinct PR #111 head `64632871573b0d655051df9ac795c4cc76b68069`; no exact-main P2 run is confirmed. Do not transfer that state to the merge SHA.
+- Active payment branch is still untested; the successful current-main Core result is baseline only and does not cover the unmerged payment migration or payment retry code.
