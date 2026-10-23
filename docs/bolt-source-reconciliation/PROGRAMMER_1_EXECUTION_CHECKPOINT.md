@@ -239,3 +239,22 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: #88 Draft/open; #83 Draft/open; #82 open/P2-owned; checkpoint/report PR #93 open and not merged due CI setup failure.
 - UPDATED_AT: 2026-10-23T16:35+03:00
+
+
+## Active resume — admin product form single-flight fix — 2026-10-23T17:43+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` (implementation + regression tests committed; exact-head CI pending).
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c`.
+- HEAD_SHA (functional commit): `ffb973cd3ba9a1b27a0068812c39622a452ca9c7`; next checkpoint/report commit will advance HEAD. At next session read this checkpoint first, then resolve the live branch SHA and its Actions.
+- CHANGE: exported the existing `ProductModal` for focused component acceptance; added a synchronous `saveInFlight` ref guard so two click events before React rerender do not issue duplicate `createProduct`/`updateProduct` requests. Added `src/test/admin-product-double-submit.test.tsx` for rapid duplicate submission and a rejected-create followed by safe retry. Existing server service/RPC contracts unchanged.
+- FILES_CHANGED: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`.
+- LAST_CONFIRMED_TESTS: main after P2 central-session integration Core [39969622689](https://github.com/Report-Engainall/Nasr1/actions/runs/39969622689) SUCCESS on base `bd0d2df489e40b2dc5f83882d90565c7799a448c`. Product form fix itself has no exact-head result yet.
+- FAILED_OR_NOT_RUN_TESTS: test-and-build / Core CI for `ffb973cd3ba9a1b27a0068812c39622a452ca9c7` not terminal when this report was written. No local command was run.
+- LOCKED_PATHS: P2 `src/lib/api.ts`, RPC/migrations/RLS/types/workflows; shared `CURRENT_EXECUTION_STATE.md` / `WORK_COORDINATION.md`; no P3-owned paths from #89 changed. #89 changes Storefront, advanced search, collections/offers, and admin reports; it does not change `src/components/AghbariApp.tsx`.
+- COORDINATED_WORK: PR #88 central-session UI has sync commit `a1dd49ec92476ece80102ed3dd677e82257e1211` based on integrated backend/main; its new exact-head Core/P2 runs were in progress when recorded. Dedicated browser session acceptance remains NOT_PROVEN because the P2 workflow does not invoke the P1 session spec.
+- NEXT_ACTION: verify exact-head Core for this branch. Fix failures from logs, not guesses; then open a narrow PR and only merge when Core and required test checks pass. After that return to #88 and require a P2-owned invocation of `e2e/device-session-management.spec.ts` against the now-integrated backend before calling central device/session management complete.
+- BLOCKER: none for product-form implementation; exact-head CI pending. Session E2E runner integration is a separate P2-owned blocker.
+- PR_URL: pending creation after exact-head checks.
+- MERGE_STATUS: branch work in progress; no PR yet.
+- UPDATED_AT: 2026-10-23T17:43+03:00

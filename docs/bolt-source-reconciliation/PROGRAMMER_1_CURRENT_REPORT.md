@@ -639,3 +639,24 @@
 - P2 PR #83 live head `b7830efa562021e0139736a33d0235037cd8f976` has Core [39959552835 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39959552835) while P2 [39959552757](https://github.com/Report-Engainall/Nasr1/actions/runs/39959552757) remained in progress. P2's central-session backend still is not in main, so #88 must stay Draft even if UI/Core tests are green.
 - Documentation PR #93 remains open. Its previous head `0fb97ce055da170fab2173a53462ce5eafae0508` Core and P2 attempts failed at dependency installation with HTTP 429 before test execution; no docs PR merge is claimed.
 - NEXT_ACTION: verify both workflows on exact #88 head `f7839b...`, then resume after P2 #83 integration and require actual local Supabase/Chromium session-contract acceptance. Main SHA remains `59547c...` at this checkpoint.
+
+
+## P1 — admin product form duplicate submission guard — 2026-10-23T17:43+03:00
+
+### Root cause
+The existing admin `ProductModal` only disabled its submit button through React's `saving` state. Two click events delivered before the component rerender could enter `save()` twice and issue duplicate product writes. The existing customer modal already uses a synchronous in-flight guard, but the product modal did not.
+
+### Fix and tests
+- Added a `useRef` single-flight lock set before the first await and released in `finally`; it does not change the existing server contract or create/update payload.
+- Added a focused test mounting the existing component and dispatching two immediate click events while the first create RPC promise is unresolved; expected service call count is exactly one.
+- Added a failure/retry test: the first create rejects and shows an alert; the guard releases; a second create succeeds and calls `onSaved` once.
+- Commit: `ffb973cd3ba9a1b27a0068812c39622a452ca9c7`; exact-head Core/Playwright results pending. Main baseline Core was green at [39969622689](https://github.com/Report-Engainall/Nasr1/actions/runs/39969622689) for `bd0d2df489e40b2dc5f83882d90565c7799a448c`.
+
+### Ownership / next action
+This change is separate from PR #88 session UI and from P3 PR #89. No P2 service/RPC/workflow file changed; #89 does not modify `src/components/AghbariApp.tsx`. Read the new branch’s exact SHA checks, fix any concrete failure, and open a narrow PR. Keep #88 Draft until its dedicated browser spec is wired by P2 and proves selective revocation against the integrated session contract.
+
+**Branch:** `p1/admin-product-singleflight-20261023`  
+**BASE_SHA:** `bd0d2df489e40b2dc5f83882d90565c7799a448c`  
+**FUNCTIONAL_HEAD_SHA:** `ffb973cd3ba9a1b27a0068812c39622a452ca9c7`  
+**FILES:** `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`  
+**STATUS:** Implemented; exact-head CI pending.
