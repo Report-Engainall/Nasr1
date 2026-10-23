@@ -1,10 +1,10 @@
 # P3 execution checkpoint — Nasr1
 
-UPDATED_AT: 2026-10-23T16:55:00+03:00
-LAST_COMPLETED_TASK_ID: P3-CATALOG-CATEGORY-RETRY-015 (category source error/retry implemented; regression committed; exact-head CI pending)
+UPDATED_AT: 2026-10-23T17:01:39.588+03:00
+LAST_COMPLETED_TASK_ID: P3-CATEGORY-LOADING-REGRESSION-016 (added a distinct loading-state regression and corrected the failure-test name; exact-head CI pending)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: add4f49413ccc450d61fd0533615a472679443e2 (application code+test SHA before report/checkpoint-only commits)
+HEAD_SHA: 4cd6860c8ad06ba03f84d4a7dbe923ab76ea7c36 (latest application-code/test commit; this checkpoint/report synchronization will add documentation-only commits, whose resulting branch head must be validated separately)
 ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route wiring/component tests only; full route acceptance remains open
 FILES_CHANGED:
 - src/components/StorefrontCollectionsPage.tsx
@@ -49,6 +49,7 @@ TESTS_RUN_WITH_RESULTS:
 - Docs SHA `ef2944351fe887c0c12e896ab52c67fe9965f2e4`: Core [39963003111](https://github.com/Report-Engainall/Nasr1/actions/runs/39963003111) completed SUCCESS. P2 [39963003108](https://github.com/Report-Engainall/Nasr1/actions/runs/39963003108) had public UI smoke SUCCESS; local-Supabase order/tenant isolation was still in progress at its browser dependency setup at latest readback.
 - Latest code/test SHA `a4be9ff155d70dc971b19a45b0859e655e446bf4` adds advanced-search loading/retry behavior and four tests. Core [39963467338](https://github.com/Report-Engainall/Nasr1/actions/runs/39963467338) was IN_PROGRESS at container initialization; P2 [39963467553](https://github.com/Report-Engainall/Nasr1/actions/runs/39963467553) was PENDING. Docs synchronization adds another SHA and its own current-head checks.
 - Latest P3 code/test SHA `add4f49413ccc450d61fd0533615a472679443e2`: Core [39964711803](https://github.com/Report-Engainall/Nasr1/actions/runs/39964711803) was IN_PROGRESS and P2 Playwright [39964711930](https://github.com/Report-Engainall/Nasr1/actions/runs/39964711930) PENDING at 16:52 +03. These runs precede the documentation-only commits below; inspect exact docs-head jobs separately. Local `git ls-remote` failed with `Could not resolve host: github.com`, so local unit tests are NOT RUN.
+- Exact application/test SHA `4cd6860c8ad06ba03f84d4a7dbe923ab76ea7c36` adds a distinct loading-state regression in `src/test/storefront-price-visibility-ui.test.tsx` (and renames the prior error-path test accurately). `fetch_commit_workflow_runs` had not surfaced a workflow run for this SHA at readback; only the CodeRabbit status was present. Local tests remain NOT RUN because GitHub DNS resolution fails in this runtime. Re-read the resulting documentation-head Core/P2 workflows after saving this checkpoint.
 TESTS_FAILED_OR_SKIPPED:
 - Core 39961737329 on SHA 39638915... failed 7 harness assertions; fixed in d076794e...; subsequent Core run 39962755869 on code SHA 8663... completed SUCCESS.
 - P2 39961737301 failed on HTTP 429; P2 39962755831 was cancelled before local-Supabase browser completion; later P2 39963003108 had public smoke success and local-Supabase still in progress at last readback.
@@ -68,7 +69,8 @@ DEFECTS_FOUND:
 - P3-ADVANCED-SEARCH-STATE-014: `/search/advanced` now announces category loading, exposes a retry button when the category read fails, and keeps text search available on that error path. Added four regressions: loading announcement/disabled selector, error and retry plus text search, empty-submit validation and active top-level categories, and navigation with category/known-stock filters. Exact-SHA CI is pending.
 - P3-ROUTE-INVENTORY-001: 61 route sources; 50 UI/root sources not explicit in the existing matrix files. P2 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365043277.
 - P3-ROUTE-INVENTORY-002 / P1-ROUTE-TREE-EXPORT-001: generated tree omits admin_.exports; P1 handoff: https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365137817.
-- `P3-CATALOG-CATEGORY-RETRY-015`: `src/components/Storefront.tsx` now announces category loading and exposes the source error with `role=alert`, plus a labeled retry button; name/SKU search stays available. Regression coverage in `src/test/storefront-price-visibility-ui.test.tsx` asserts the message, retry callback, and search availability.
+- `P3-CATALOG-CATEGORY-RETRY-015`: `src/components/Storefront.tsx` now announces category loading and exposes the source error with `role=alert`, plus a labeled retry button; name/SKU search stays available. Regression coverage asserts the message, retry callback, and search availability.
+- `P3-CATEGORY-LOADING-REGRESSION-016`: added an independent loading-state case with category data absent and `loading=true`. It asserts the Arabic `role=status` copy is present, the alert/retry button do not appear before a failure occurs, and text search remains enabled. Renamed the previous test to explicitly describe the error/retry path. Code/test SHA `4cd6860c8ad06ba03f84d4a7dbe923ab76ea7c36`; exact-head CI pending.
 HANDOFF_TO_P1_OR_P2:
 - P1: generator-backed route tree repair and direct /admin/exports proof; remaining 19 locked admin null fallbacks; no changes to P1 AghbariApp/auth/invitation/order-history paths.
 - P2: route-to-source mapping in existing matrix, backend/RPC/migration ownership and package-cache HTTP 429 in P2 Playwright.
@@ -78,4 +80,4 @@ BLOCKERS:
 - Exact-head Core/P2 for this batch pending.
 - P2 dependency cache HTTP 429 on previous SHA, even after retry.
 - Local checkout DNS failure; all-route browser UAT/production proof NOT RUN.
-NEXT_ACTION: inspect Core run 39964711803 and P2 run 39964711930 for code/test SHA add4f49413ccc450d61fd0533615a472679443e2, inspect the docs-head runs from this synchronization, and fix any actual failure before continuing with the next independent P3 screen gap. Do not merge PR #89 until required current-head checks are green and formal independent review is recorded.
+NEXT_ACTION: poll Core and P2 Playwright for application/test SHA 4cd6860c8ad06ba03f84d4a7dbe923ab76ea7c36 and the documentation successor; inspect every job conclusion, repair any real failure, then continue the next independent P3 acceptance gap. Never merge #89 without green required checks at the final head and independent formal review.
