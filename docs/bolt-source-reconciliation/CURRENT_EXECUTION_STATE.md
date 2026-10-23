@@ -1,13 +1,13 @@
 # الحالة التنفيذية الحالية الوحيدة — Nasr1 / P2
-LAST_RECONCILED_AT=2026-10-23T21:47:31+03:00
+LAST_RECONCILED_AT=2026-10-23T21:54:00+03:00
 
 ## حقيقة Git الحالية
 REPOSITORY=Report-Engainall/Nasr1
 CURRENT_BRANCH=main (مرجع قراءة فقط؛ لا كتابة مباشرة على main)
-MAIN_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
-MAIN_TREE=15f30663a80ba9ff2e83c2057f15ed489eed92be
-MAIN_CURRENT_CI=SUCCESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40005590004 (exact merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac)
-LAST_MERGED_PR=#110 — archive-derived bounded retry for read-only customer pricing preview; merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac; tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09 has the same tree SHA 15f30663a80ba9ff2e83c2057f15ed489eed92be
+MAIN_SHA=cd303b7fe0f263c9f62ed97f10202e9895465273
+MAIN_TREE=51aa49eb36bbf6227c42612e35b1bf03e6b3360a
+MAIN_CURRENT_CI=IN_PROGRESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40006315985 (exact main SHA cd303b7fe0f263c9f62ed97f10202e9895465273); exact-main P2 = NOT RUN
+LAST_MERGED_PR=#111 — uploaded Bolt archive reconciliation documentation; merge SHA cd303b7fe0f263c9f62ed97f10202e9895465273 (docs-only). Previous PR #110 pricing retry remains integrated; exact PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09 Core 40004970539 SUCCESS and P2 40004970599 SUCCESS; exact merge SHA 03ac6c5 Core 40005590004 SUCCESS.
 PR110_CORE_CI=SUCCESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40004970539 (exact tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09)
 PR110_P2_CI=SUCCESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40004970599 (exact tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09)
 PR110_HOSTED_CUSTOMER_E2E=SKIPPED (dedicated non-production credentials unavailable; not PASS)
@@ -41,13 +41,19 @@ LAST_COMPLETED_PR=https://github.com/Report-Engainall/Nasr1/pull/110
 LAST_COMPLETED_PR_HEAD=b6d99a91958b43e7cd90164a104c8c0a5bc1bd09
 LAST_COMPLETED_MERGE_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
 NEXT_TASK_ID=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD
-CURRENT_BRANCH=main (read-only reference; new work requires a branch and PR)
-BASE_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
-HEAD_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
-TASK_STATUS=NEXT_ACTION
-NEXT_ACTION=Close the duplicate-payment gap. customer_payments currently has no persisted idempotency key, and the UI calls record_customer_payment without a request key. Add a tenant-scoped unique idempotency key plus canonical request fingerprint. Same key and same payload must replay the original saved payment; same key with changed payload must fail; concurrent same-key requests must not duplicate. Preserve request key across ambiguous client retries. Keep same invoice advisory lock shared with posted-credit posting; inspect RPC grants, signatures, all call sites and prevent an unintended old overload. Add PostgreSQL 17 tests for replay, changed-payload conflict, concurrent same-key calls and cross-tenant isolation, plus React retry regression. Do not create a second ledger/payment engine.
-NEXT_ACTION_EVIDENCE=PR #110 exact tested head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09: Core 40004970539 SUCCESS and P2 40004970599 SUCCESS; hosted customer E2E SKIPPED, not PASS. Merge commit 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac has identical tree 15f30663a80ba9ff2e83c2057f15ed489eed92be; main Core run 40005590004 SUCCESS on exact merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac. No P2 run was observed on the merge SHA; P2 evidence remains attached to exact tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09, whose tree matches the merge tree.
-UPDATED_AT=2026-10-23T21:47:31+03:00
+CURRENT_BRANCH=p2/payment-idempotency-current-main-20261023b (feature branch; main is read-only)
+BASE_SHA=cd303b7fe0f263c9f62ed97f10202e9895465273
+HEAD_SHA=d7d1e84df769f6921e46440167c1cfb0cdd1310c (pre-state-update feature snapshot; reread final PR head after this commit)
+TASK_STATUS=IMPLEMENTED; EXACT-HEAD CI NOT RUN
+NEXT_ACTION=Review final PR diff; open PR from p2/payment-idempotency-current-main-20261023b to main; run Core and P2 Critical Paths on one exact PR head; inspect terminal jobs for PostgreSQL 17 migration acceptance, unit/component tests and local browser flows; fix root causes before merge; merge via PR only after review and required jobs pass; then verify exact merge SHA and current-main CI/P2. Do not create a second ledger/payment engine.
+NEXT_ACTION_EVIDENCE=PR #110 tested head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09 Core 40004970539/P2 40004970599 SUCCESS; its merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac Core 40005590004 SUCCESS. PR #111 docs-only merge SHA cd303b7fe0f263c9f62ed97f10202e9895465273 Core 40006315985 is IN_PROGRESS; exact-main P2 NOT RUN. Payment branch has not run CI yet. Hosted customer E2E for previous release was SKIPPED, not PASS.
+FILES_CHANGED=20261023235900_customer_payment_idempotency.sql; CustomerWorkflows.tsx; Supabase types.ts; CustomerWorkflows.finance.test.tsx; test-staff-receivables-aging-credit-memo-parity.mjs; test-database-migrations.mjs; WORK_COORDINATION.md
+TESTS_RUN_WITH_RESULTS=NOT RUN on current implementation branch
+FAILED_OR_SKIPPED=No implementation-branch test result yet; hosted credential-gated E2E remains BLOCKED_EXTERNAL
+MERGE_STATUS=PR not created; no merge claimed
+BLOCKERS=Await exact-head CI after PR creation; hosted customer E2E credentials are unavailable but do not block local PG17/browser tests
+LOCKED_PATHS=20261023235900_customer_payment_idempotency.sql; CustomerWorkflows.tsx; types.ts; CustomerWorkflows.finance.test.tsx; test-staff-receivables-aging-credit-memo-parity.mjs; test-database-migrations.mjs
+UPDATED_AT=2026-10-23T21:54:00+03:00
 
 ## Evidence rules
 Allowed statuses: IMPLEMENTED, INTEGRATED, TESTED_EXACT_SHA, BROWSER_PROVEN, PRODUCTION_PROVEN, CLOSED_WITH_EVIDENCE, BLOCKED_EXTERNAL, NOT RUN. A skipped job is not PASS. Never transfer PASS between SHAs. Local DB/browser evidence is not production proof.
