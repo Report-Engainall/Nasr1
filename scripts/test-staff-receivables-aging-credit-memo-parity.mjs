@@ -444,6 +444,10 @@ async function main() {
   assert.equal(concurrentReplay.ok,true,"a concurrent identical retry must resolve to the saved result");
   assert.equal(concurrentReplay.paymentId,firstIdempotentConcurrentId,
     "both concurrent callers receive the same payment id");
+  // Direct payment rows are not readable by authenticated clients; inspect this
+  // persistence assertion using the privileged isolated-test connection before seeding
+  // the cross-tenant fixture.
+  await db.unsafe("reset role");
   const concurrentKeyRows = await db.unsafe(
     "select id::text as id from public.customer_payments where organization_id=$1::uuid and invoice_id=$2::uuid and idempotency_key=$3::uuid",
     [organizationId,idempotencyTestInvoiceId,concurrentIdempotencyKey],
@@ -452,7 +456,6 @@ async function main() {
 
   // The same request key may exist in a different organization without exposing/replaying
   // the first organization's payment; every lookup and uniqueness constraint is tenant-scoped.
-  await db.unsafe("reset role");
   const secondOrganizationId = randomUUID();
   const secondAuthId = randomUUID();
   const secondProfileId = randomUUID();
