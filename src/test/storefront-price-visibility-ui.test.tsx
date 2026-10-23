@@ -4,6 +4,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatCurrency } from "@/lib/format";
+import { storefrontCategorySlug } from "@/lib/storefront-slugs";
 
 const mocks = vi.hoisted(() => ({
   fetchProducts: vi.fn(),
@@ -534,6 +535,54 @@ describe("customer price visibility UI acceptance", () => {
         await unmount(mount);
       },
     );
+    it("resolves a published category slug through the generated router", async () => {
+      const category = {
+        id: "a1000000-0000-4000-8000-000000000111",
+        name: "أغذية معلبة",
+        name_en: null,
+        parent_id: null,
+        is_active: true,
+      };
+      const slug = storefrontCategorySlug({ id: category.id, name: category.name, name_en: category.name_en });
+      mocks.categoryResult = { data: [category], loading: false, error: null, refetch: vi.fn() };
+
+      const mount = await mountAt(`/category/${slug}`);
+      await flushEffects();
+
+      expect(mount.host.querySelector("h1")?.textContent).toContain(category.name);
+      expect(mount.host.textContent).not.toContain("التصنيف غير موجود");
+      expect(mount.host.textContent).not.toContain("Application error");
+      await unmount(mount);
+    });
+
+    it("resolves a subcategory slug through the generated router beneath its published parent", async () => {
+      const parent = {
+        id: "a1000000-0000-4000-8000-000000000222",
+        name: "مشروبات",
+        name_en: null,
+        parent_id: null,
+        is_active: true,
+      };
+      const child = {
+        id: "a1000000-0000-4000-8000-000000000333",
+        name: "عصائر",
+        name_en: null,
+        parent_id: parent.id,
+        is_active: true,
+      };
+      const parentSlug = storefrontCategorySlug({ id: parent.id, name: parent.name, name_en: parent.name_en });
+      const childSlug = storefrontCategorySlug({ id: child.id, name: child.name, name_en: child.name_en });
+      mocks.categoryResult = { data: [parent, child], loading: false, error: null, refetch: vi.fn() };
+
+      const mount = await mountAt(`/category/${parentSlug}/subcategory/${childSlug}`);
+      await flushEffects();
+
+      expect(mount.host.querySelector("h1")?.textContent).toContain(child.name);
+      expect(mount.host.textContent).toContain(parent.name + " / تصنيف فرعي");
+      expect(mount.host.textContent).not.toContain("Application error");
+      await unmount(mount);
+    });
+
   });
 
 });
