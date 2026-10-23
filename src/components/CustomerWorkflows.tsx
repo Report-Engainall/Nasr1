@@ -2564,7 +2564,7 @@ export function StaffFinancePage() {
         setError("تعذر تسجيل الدفعة: " + reason + ". أعد المحاولة بالقيم نفسها.");
         return;
       }
-      // Only a non-empty payment id is an acknowledgement; clear only this completed request.
+      // Only a well-formed UUID payment identifier is an acknowledgement; clear this completed request.
       if (paymentRequestKeysRef.current.get(requestFingerprint) === idempotencyKey) {
         paymentRequestKeysRef.current.delete(requestFingerprint);
       }
