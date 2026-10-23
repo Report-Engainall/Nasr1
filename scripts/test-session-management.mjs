@@ -96,6 +96,8 @@ export async function runSessionManagementAcceptance({ db, setIdentity, expectFa
   ))[0].result;
   assert.equal(revoked.session_id, targetSession);
   assert.equal(revoked.revoked, true, "success is returned only after deletion of the Auth session row");
+  // Inspect the protected Auth table only after leaving the application role.
+  await db.unsafe("reset role");
   const removed = await db.unsafe("select id from auth.sessions where id=$1", [targetSession]);
   assert.equal(removed.length, 0, "single-session revocation deletes exactly the selected server session");
 
