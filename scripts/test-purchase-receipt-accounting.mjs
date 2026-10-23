@@ -42,8 +42,9 @@ async function findProfile(email) {
 }
 async function setIdentity(authUserId, email) {
   await db.unsafe("reset role");
+  await db.unsafe("insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now(),now(),now(),null,'CI isolated session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null", [authUserId, authUserId]);
   await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [authUserId]);
-  await db.unsafe("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: authUserId, email, role: "authenticated" })]);
+  await db.unsafe("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: authUserId, email, role: "authenticated", session_id: authUserId })]);
   await db.unsafe("set role authenticated");
 }
 async function rpcJson(sql, args) { return asJson((await db.unsafe(sql, args))[0].result); }
