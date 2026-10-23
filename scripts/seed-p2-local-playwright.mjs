@@ -150,7 +150,7 @@ async function main() {
     await tx.unsafe(
       "insert into public.customers(organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier,credit_limit,current_balance,status,approved_at) " +
       "values($1::uuid,NULL,$2,$3,$4,$5,$6,'retail',0,0,'approved',pg_catalog.now())",
-      [organizationId, "P2E2EI" + suffix, customerManagerTargetName, customerManagerTargetName, "P2 Local E2E Invite Target", "771234569", customerManagerTargetEmail],
+      [organizationId, "P2E2EI" + suffix, customerManagerTargetName, customerManagerTargetName, "771234569", customerManagerTargetEmail],
     );
 
     const expiredInvitationRows = await tx.unsafe(
