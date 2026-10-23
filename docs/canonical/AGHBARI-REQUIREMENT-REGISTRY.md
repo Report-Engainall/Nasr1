@@ -169,3 +169,10 @@ Current-main reconciliation performed as a merge commit must preserve P1’s cus
 - **الإصلاح:** أزيل تركيب التحليلات الإضافي من غلاف المسار؛ بقي مكوّن التقرير الموحد داخل شاشة `Reports` القائمة. لم أعدّل ملف shell المملوك للتكامل.
 - **الاختبار:** `src/test/admin-reports-route-wiring.test.ts` يثبت أن المسار لا يركب المكوّن مباشرة وأن `Reports` يحتوي تركيبًا واحدًا.
 - **الحالة:** `IMPLEMENTED; REGRESSION_TEST_ADDED; FINAL_SHA_CI_PENDING`.
+
+### `P3-REPORT-LOAD-004` — حالة تحميل واضحة لمسار التقارير
+
+- **الفجوة:** كان مسار `/admin/reports` يحدد `ClientOnly fallback={null}`، ما يؤدي إلى منطقة فارغة بدل حالة تحميل يمكن فهمها وإعلانها لقارئ الشاشة أثناء تهيئة الواجهة.
+- **الإصلاح:** أضيف fallback عربي `role="status"` باتجاه RTL: «جار تحميل التقارير...».
+- **اختبار الانحدار:** `src/test/admin-reports-route-wiring.test.ts` يتحقق من وجود النص والدور الدلالي.
+- **الحالة:** `IMPLEMENTED; REGRESSION_TEST_ADDED; FINAL_SHA_CI_PENDING`؛ إثبات المتصفح غير منفذ محليًا.
