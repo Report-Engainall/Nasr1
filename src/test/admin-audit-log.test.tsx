@@ -143,7 +143,8 @@ describe("admin audit log pagination", () => {
     mocks.user = { roles: ["customer"] };
     render(<AdminAuditLog />);
 
-    expect(await screen.findByText("سجل التدقيق متاح للمدير ومدير النظام فقط.")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("الصلاحية غير متاحة");
+    expect(screen.getByText("تقتصر قراءة سجل التدقيق على مدير المؤسسة ومدير النظام، ويفرض الخادم النطاق نفسه بواسطة RLS.")).toBeInTheDocument();
     expect(mocks.from).not.toHaveBeenCalled();
   });
 });
