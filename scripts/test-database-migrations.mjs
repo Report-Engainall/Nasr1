@@ -33,7 +33,7 @@ async function setIdentity(authUserId, email, sessionId = authUserId, registerSe
   }
 }
 
-async function expectFailure(label, action, pattern) {
+async function expectFailure(label, action, pattern, expectedSqlState) {
   let caught;
   try {
     await action();
@@ -42,6 +42,7 @@ async function expectFailure(label, action, pattern) {
   }
   assert.ok(caught, label + " should fail");
   if (pattern) assert.match(String(caught.message), pattern, label + " should fail for the expected reason");
+  if (expectedSqlState) assert.equal(caught.code, expectedSqlState, label + " should raise SQLSTATE " + expectedSqlState);
 }
 
 async function main() {
@@ -867,6 +868,18 @@ async function main() {
     );
     lifecycleIds[fixture.key] = rows[0].id;
   }
+
+  // Snapshot both cross-tenant command targets before invoking either RPC as the tenant admin.
+  // Compare the complete relevant row after both denials so a rejected request cannot silently mutate it.
+  const foreignCustomerIds = [lifecycleIds.foreignLifecycle, lifecycleIds.foreignTier];
+  const foreignRowsBefore = await db.unsafe(
+    "select id::text as id, organization_id::text as organization_id, status, tier, " +
+    "approved_at::text as approved_at, updated_at::text as updated_at " +
+    "from public.customers where id = any($1::uuid[]) order by id",
+    [foreignCustomerIds],
+  );
+  assert.equal(foreignRowsBefore.length, 2, "fixture setup must include both foreign-tenant target rows");
+
   await db.unsafe(
     "delete from public.audit_logs where entity_type='customer' and entity_id=any($1::uuid[]) " +
     "and action in ('customer.status_changed','customer.tier_changed')",
@@ -991,6 +1004,7 @@ async function main() {
     "customer lifecycle RPC cannot target another organization",
     () => customerLifecycleCommand(lifecycleIds.foreignLifecycle, "pending", "approved", "CI foreign tenant"),
     /customer not found in current organization/i,
+    "42501",
   );
 
   const tierChange = (await db.unsafe(
@@ -1024,9 +1038,34 @@ async function main() {
     "customer tier RPC cannot target another organization",
     () => db.unsafe("select public.set_admin_customer_tier($1::uuid,'retail','wholesale','CI foreign tier')", [lifecycleIds.foreignTier]),
     /customer not found in current organization/i,
+    "42501",
   );
 
   await db.unsafe("reset role");
+
+  const foreignRowsAfter = await db.unsafe(
+    "select id::text as id, organization_id::text as organization_id, status, tier, " +
+    "approved_at::text as approved_at, updated_at::text as updated_at " +
+    "from public.customers where id = any($1::uuid[]) order by id",
+    [foreignCustomerIds],
+  );
+  assert.deepEqual(
+    foreignRowsAfter,
+    foreignRowsBefore,
+    "cross-tenant tier/status denials must leave foreign customer rows unchanged, including status, tier, approved_at and updated_at",
+  );
+  const foreignMutationAudits = await db.unsafe(
+    "select count(*)::int as count from public.audit_logs " +
+    "where entity_type='customer' and entity_id=any($1::uuid[]) " +
+    "and action in ('customer.status_changed','customer.tier_changed')",
+    [foreignCustomerIds],
+  );
+  assert.equal(
+    foreignMutationAudits[0].count,
+    0,
+    "cross-tenant tier/status denials must not write mutation audit rows for foreign customers",
+  );
+
   const lifecycleAuditRows = await db.unsafe(
     "select organization_id,actor_id,old_value,new_value from public.audit_logs " +
     "where organization_id=$1 and entity_type='customer' and entity_id=$2 and action='customer.status_changed' " +

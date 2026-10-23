@@ -1,7 +1,7 @@
 # P3 route acceptance register — Nasr1
 
 Repository: Report-Engainall/Nasr1  
-Source baseline: main b48a4b2e8ae09e87432b49dab591a23e1be651c6  
+Source baseline: main 16a3d23e558696700bccbb3dbf9ea75b0fccf745  
 Generated route tree: src/routeTree.gen.ts  
 Inventory size: 61 source modules under src/routes, including the root shell; 60 non-root page/API modules below.  
 Purpose: P3-owned traceability artifact supporting ROUTES-001. This does not replace P2's canonical acceptance matrix and does not close ROUTES-001 by itself.
@@ -61,16 +61,16 @@ Routes and mounted UI below were derived from live route source wrappers. Contra
 | /customer/activate/$token | src/routes/customer.activate.$token.tsx | CustomerActivationInvitationPage | Activation token service contract mapping pending | PROVEN_TARGETED | PR #116 tests real route token forwarding, token removal from visible URL, server rejection/retry, malformed-token rejection, and guest/staff denial before RPC. Hosted credential-gated job is SKIPPED |
 | /forgot-password | src/routes/forgot-password.tsx | Login recovery mode | Supabase Auth recovery through Login | PARTIAL | Route/loading tests; hosted email flow not proven |
 | /invite/$token | src/routes/invite.$token.tsx | CompanyInvitationAcceptancePage | Invitation acceptance service; token held in memory after URL removal | PROVEN_TARGETED | PR #115 exact-head route tests |
-| /invoices | src/routes/invoices.tsx | CustomerInvoicesPage | Invoice list/detail service mapping pending | PARTIAL | Finance/component checks; direct invoice-route auth/retry pending |
+| /invoices | src/routes/invoices.tsx | CustomerInvoicesPage | customer_invoices list + get_customer_invoice_pdf RPC | PROVEN_TARGETED | PR #137 HEAD `2eb853033bb99162118f034e55b332b82a73de00`; Core [40038126564 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038126564), P2 [40038126587 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038126587); 5 targeted route tests. Hosted customer/tenant job SKIPPED; not full production UAT |
 | /login | src/routes/login.tsx | Login | Supabase Auth sign-in | PARTIAL | Core route/loading checks; hosted session lifecycle pending |
 | /offers | src/routes/offers.tsx | StorefrontOffersPage | Public offers/catalog service mapping pending | PARTIAL | PR #89 offer component tests; full route flow pending |
 | /offline | src/routes/offline.tsx | OfflineWorkspacePage | Offline persistence/sync contract mapping pending | PROVEN_TARGETED | PR #130 tests the real route, public-cache sanitization, profile-mismatch rejection with draft preservation/no RPC, and local-sync failure/retry recovery. Hosted credential-gated job is SKIPPED |
 | /orders | src/routes/orders.tsx | Outlet parent layout | Parent wrapper for listing/detail routes | PARTIAL | Layout registration; child flows tracked separately |
-| /orders/ | src/routes/orders.index.tsx | MyOrders | CustomerOrders order-list reads | PARTIAL | General order persistence checks; listing auth/error/retry pending |
+| /orders/ | src/routes/orders.index.tsx | MyOrders | CustomerOrders order-list reads | PROVEN_TARGETED | PR #136 HEAD `d0aeb127311ee435c4ec21aea1654798f2ab8897`; Core [40038213565 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038213565), P2 [40038213559 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038213559); 4 targeted tests for guest gate, query error/retry, unknown/empty count and pagination/privacy. Hosted customer/tenant job SKIPPED; not full production UAT |
 | /orders/$id | src/routes/orders.$id.tsx | OrderInvoice | orders, order_items, order_status_history, customers | PROVEN_TARGETED | PR #120 guest gate, visible error/retry, unauthorized/not-found state |
 | /product/$id | src/routes/product.$id.tsx | Storefront | Product detail and server-authoritative pricing | PARTIAL | Product/price component tests; full detail journey pending |
 | /products | src/routes/products.tsx | Storefront | Product listing/search and authoritative pricing | PARTIAL | Price visibility tests; list route UAT pending |
-| /quotes | src/routes/quotes.tsx | QuoteWorkspacePage | Quote/RFQ service mapping pending | PARTIAL | Source/Core checks; dedicated rendered route acceptance missing |
+| /quotes | src/routes/quotes.tsx | QuoteWorkspacePage | `get_storefront_product_prices` + `request_sales_quote` | PARTIAL | PR #139 current candidate HEAD `314f957a5802e0aa15381e5e901e0713a3b3ba2e`; initial Core caught a test assertion mismatch (not an app failure); corrected assertion is in CI rerun [Core 40038762495](https://github.com/Report-Engainall/Nasr1/actions/runs/40038762495) / [P2 40038762639](https://github.com/Report-Engainall/Nasr1/actions/runs/40038762639). Keep PARTIAL until both runs finish SUCCESS on this exact SHA; hosted job SKIPPED |
 | /register | src/routes/register.tsx | Login registration mode | Supabase Auth registration | PARTIAL | Route checks; email verification lifecycle pending |
 | /reorder | src/routes/reorder.tsx | ReorderWorkspacePage | Reorder service mapping pending | PARTIAL | No dedicated end-to-end reorder proof |
 | /reset-password | src/routes/reset-password.tsx | Inline reset form | Supabase Auth password update/session recovery | PROVEN_TARGETED | PR #89 reset-password regression tests |
@@ -99,13 +99,22 @@ The SHAs below were read live on 2026-10-24. Core and P2 links correspond to run
 
 No PR is claimed merged. The ten implementation PRs remain open/unmerged pending independent maintainer review. PR #121 is a documentation-only source register and needs its own exact-current-head CI readback after this register revision. Hosted credential-gated tests marked SKIPPED are not PASS. Full all-route browser UAT and production acceptance remain NOT RUN. PR #113 remains closed/unmerged as duplicate only if its unique contact-route test is preserved by #105.
 
+
+## Current P3 route test additions — exact-head evidence (2026-10-24)
+
+| PR | HEAD SHA | Scope | Core | P2 Playwright | Qualification |
+|---|---|---|---|---|---|
+| [#136](https://github.com/Report-Engainall/Nasr1/pull/136) | `d0aeb127311ee435c4ec21aea1654798f2ab8897` | `/orders/` guest gate, failed read/retry, count semantics, pagination and financial-data non-rendering | [40038213565 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038213565) | [40038213559 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038213559) | Targeted route tests pass; hosted customer/tenant E2E SKIPPED, not PASS |
+| [#137](https://github.com/Report-Engainall/Nasr1/pull/137) | `2eb853033bb99162118f034e55b332b82a73de00` | `/invoices` guest gate, list failure/retry, empty state, redacted detail and fail-closed malformed protected payload | [40038126564 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038126564) | [40038126587 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038126587) | 5 targeted tests pass; hosted customer/tenant E2E SKIPPED, not PASS |
+| [#139](https://github.com/Report-Engainall/Nasr1/pull/139) | `314f957a5802e0aa15381e5e901e0713a3b3ba2e` | `/quotes` tenant gate, product-read retry, price fail-closed and RPC failure/success | [40038762495](https://github.com/Report-Engainall/Nasr1/actions/runs/40038762495) | [40038762639](https://github.com/Report-Engainall/Nasr1/actions/runs/40038762639) | **Pending terminal results at register edit time**; do not elevate route status or claim PASS until exact SHA results are both SUCCESS; hosted customer/tenant E2E is SKIPPED |
+
 ## Highest-priority open gaps
 
 1. P1: /admin/exports runtime acceptance. The route tree registers it and the source wrapper mounts AsyncExportCenter, but this is registration only. Deep-link load, role denial, export failure/retry and completed download remain NOT_PROVEN.
 2. P1/P2: admin route-family contracts. Most admin routes mount AdminApp(initialView=...). The wrapper does not prove each view's service/RPC, role/tenant guard, error/retry behavior or rendered screen.
 3. P2: invoice PDF API route. Source declares get_customer_invoice_pdf(p_invoice_id), auth helper and UUID validation; direct HTTP tests for 400/403/404/500 and PDF headers are not proven here.
 4. P2: statement PDF API route. Source declares get_customer_account_statement and auth helper; direct HTTP success/error acceptance is still unproven.
-5. P3: remaining customer listing/workflow routes. /orders/ listing, /invoices, /quotes, /reorder, /product/$id and /products still need direct route journeys for auth, empty/error/retry, and browser navigation. /wishlist, /compare, /offline and /customer/activate/$token now have targeted route evidence, not full production acceptance.
+5. P3: remaining customer listing/workflow routes. `/orders/` and `/invoices` now have targeted rendered-route tests; broader end-to-end and production journeys remain unproven. `/quotes` is awaiting exact-head CI on PR #139; `/reorder`, `/product/$id` and `/products` still need dedicated route journeys for auth, empty/error/retry and browser navigation. `/wishlist`, `/compare`, `/offline` and `/customer/activate/$token` have targeted route evidence, not full production acceptance.
 6. External boundary: hosted customer-order/tenant E2E jobs are SKIPPED because authorized credentials are unavailable. Do not close production integration requirements using local database evidence.
 
 ## Ownership and handoff
