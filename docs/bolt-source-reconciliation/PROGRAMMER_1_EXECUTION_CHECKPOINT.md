@@ -1,56 +1,19 @@
-# P1 Execution Checkpoint — live resume record
-
-## Current state — 2026-10-23 — P1 storefront cart/order price privacy, exact-head acceptance
-
-- `LAST_COMPLETED_TASK_ID=P1-STOREFRONT-ORDER-PRICE-BROWSER-001`.
-- `REPOSITORY=Report-Engainall/Nasr1`.
-- `CURRENT_BRANCH=p1/storefront-order-price-browser-20261023`; `LAST_TESTED_CODE_HEAD_SHA=HEAD_SHA=05e4b0eaaee3dade67f2ca763c4f101d475226c6`.
-- `BASE_SHA=MAIN_SHA=cd303b7fe0f263c9f62ed97f10202e9895465273`; PR #107 is synchronized with main (`behind_by=0`, merge base equals main).
-- `CHECKPOINT_STORAGE_BRANCH=p1/admin-product-singleflight-20261023` — this P1-owned checkpoint/report pair is updated through the already-open PR #97, not through a duplicate documentation PR. The branch parent before this record commit is `24263ffcb333e94f3350daf7c8e5de805151a512`; the documentation-only successor must receive its own exact-head CI readback.
-- `TASK_STATUS=TESTED_EXACT_SHA`; `BROWSER_PROVEN` is limited to the stated local-fixture Chromium flow.
-- **Core CI — TESTED_EXACT_SHA / SUCCESS:** [run 40008732247](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732247), completed on `05e4b0eaaee3dade67f2ca763c4f101d475226c6`. Unit tests, isolated PostgreSQL 17 workflows, lint/build, preview/dev smoke, and Chromium price visibility all passed; the four price-visibility tests passed.
-- **P2 Playwright — TESTED_EXACT_SHA / SUCCESS:** [run 40008732216, attempt 2](https://github.com/Report-Engainall/Nasr1/actions/runs/40008732216), completed on the same SHA. Public read-only UI smoke and isolated local Supabase/PostgreSQL 17 Chromium acceptance passed.
-- `FAILED_OR_SKIPPED`: hosted customer-order/tenant-isolation job `SKIPPED / BLOCKED_EXTERNAL` due unavailable external non-production credentials; production proof `NOT RUN`. First P2 public-smoke attempt failed during local Wrangler preview launch; only that failed job was rerun and the retry passed.
-- `FILES_CHANGED` for #107: `e2e/storefront-price-visibility.spec.ts` plus existing `src/test/storefront-price-visibility-harness.tsx`; no migrations/RPC/RLS, P2 central-state/matrix/coordination, or P3-owned route/report files changed.
-- `PR_URL=https://github.com/Report-Engainall/Nasr1/pull/107`; `MERGE_STATUS=OPEN / DRAFT / NOT MERGED`.
-- **Independent review:** `BLOCKED_EXTERNAL`; live GitHub review query returned zero formal reviews for #107, and #97 is also still Draft without an authorized independent approval. Do not self-approve, mark ready, or merge any of these requests based solely on green CI.
-- `LOCKED_PATHS`: P2-owned SQL/RPC/RLS/migrations/API/finance/inventory/Onyx/workflows and central `CURRENT_EXECUTION_STATE.md`, acceptance matrix, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`; P3-owned PR #89/category/report acceptance and route-acceptance matrix; generated `src/routeTree.gen.ts`.
-- `NEXT_ACTION=P1-REVIEW-GATE-001`: prioritize obtaining an authorized independent maintainer review for existing PR #97, then keep #107/#102 Draft until independently reviewed. If that external gate remains unavailable, continue only with a newly evidenced, independent P1-owned UI defect; do not repeat merged PR #66/#75/#84/#88/#99/#106 work or open a duplicate PR.
-- `UPDATED_AT=2026-10-23T22:13:00+03:00`.
-
-## Current state — 2026-10-23 — P1 admin product duplicate-submit guard
+## Current state — 2026-10-23 — P1 product single-flight, current-main reconciliation
 
 - `REPOSITORY=Report-Engainall/Nasr1`; `TASK_ID=LAST_COMPLETED_TASK_ID=P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001`.
 - `CURRENT_BRANCH=p1/admin-product-singleflight-20261023`; `PR_URL=https://github.com/Report-Engainall/Nasr1/pull/97`.
-- `BASE_SHA=MAIN_SHA=391e25847c7cc7fb2ba5f77164600455db04abfd`.
-- `HEAD_SHA=TESTED_EXACT_SHA=a0d117452e567c5a2bedea2fda1417a24b19fc58` (current code+main integration head; this documentation update will create a new head that needs its own exact-SHA CI).
-- The branch was synchronized by a regular merge commit with parents current `main` then the prior PR branch. No direct write to `main`, force-push, reset, or history rewrite occurred.
-- **Actual branch net diff vs current `main`:** four P1 paths only: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, and these two P1-owned checkpoint/report files.
-- **Core CI — SUCCESS on exact `a0d117...`:** [run 40016108720](https://github.com/Report-Engainall/Nasr1/actions/runs/40016108720).
-- **P2 Playwright — SUCCESS on the same exact SHA:** [run 40016108724](https://github.com/Report-Engainall/Nasr1/actions/runs/40016108724). Public read-only UI smoke and isolated local Supabase/PostgreSQL 17 browser acceptance passed. The hosted customer-order/tenant-isolation job was `SKIPPED` because dedicated external non-production credentials were unavailable; this is not hosted-account proof.
-- ProductModal-specific browser proof: `NOT RUN`; component tests cover rapid duplicate create/update, retries after server failure, and category-load failure/retry. `PRODUCTION_PROVEN=NOT RUN`.
-- **Review gate:** GitHub returned zero formal review submissions and zero inline review threads at last read. PR #97 remains `OPEN / DRAFT / NOT MERGED`; do not self-approve, mark ready, or merge until an authorized independent maintainer review is recorded.
-- **PR metadata discrepancy:** live `main...head` comparison reports `ahead_by=26`, `behind_by=0`, and four changed paths, but the PR REST metadata still reports `changed_files=15` and exposes inherited P2 paths. Treat the PR as merge-blocked until this discrepancy is reconciled; do not infer a safe PR diff from either stale cached field alone.
-- `LOCKED_PATHS`: P2-owned `CURRENT_EXECUTION_STATE.md`, acceptance matrix, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`, finance/SQL/RPC/RLS/migrations/services; P3-owned PR #89 route/report acceptance files; generated `src/routeTree.gen.ts`; other active PR-owned paths.
-- `NEXT_ACTION=P1-PR97-REVIEW-AND-DIFF-RECONCILIATION-001`: reconcile GitHub PR base/files metadata against the exact live compare and obtain authorized independent maintainer review. Keep Draft/unmerged until both gates clear. Continue independent P1 PR #124 validation in parallel without touching #97 files.
-- `UPDATED_AT=2026-10-23T20:08:00Z`.
-
-## Current state — 2026-10-23 — P1 admin product single-flight acceptance
-
-- `REPOSITORY=Report-Engainall/Nasr1`; `TASK_ID=LAST_COMPLETED_TASK_ID=P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001`.
-- `CURRENT_BRANCH=p1/admin-product-singleflight-20261023`; `PR_URL=https://github.com/Report-Engainall/Nasr1/pull/97`.
-- `MAIN_SHA=BASE_SHA=391e25847c7cc7fb2ba5f77164600455db04abfd`.
-- `TESTED_EXACT_SHA=HEAD_SHA=3f8f77ddcced2d6fb21a58b7f49aa931a3101d56`. This is the latest fully checked code+checkpoint/report head before this final checkpoint refresh; the new documentation-only commit must receive its own exact-head readback.
-- Branch was synchronized with current main via a regular two-parent merge. No direct main write, force-push, reset, or history rewrite occurred.
-- **PR #97 actual diff reconciled:** PR base SHA now equals current main; live compare reports `ahead_by=27`, `behind_by=0`, and exactly four P1 paths: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, `docs/bolt-source-reconciliation/PROGRAMMER_1_EXECUTION_CHECKPOINT.md`, `docs/bolt-source-reconciliation/PROGRAMMER_1_CURRENT_REPORT.md`.
-- **Core CI — SUCCESS on exact `3f8f77...`:** [run 40016875827](https://github.com/Report-Engainall/Nasr1/actions/runs/40016875827). Unit tests, isolated PostgreSQL 17 acceptance, lint/build, preview/dev smoke and Chromium price-visibility acceptance completed.
-- **P2 Playwright — SUCCESS on the same exact SHA:** [run 40016875908](https://github.com/Report-Engainall/Nasr1/actions/runs/40016875908). Public read-only browser smoke and local Supabase/PostgreSQL 17 order persistence and tenant-denial acceptance completed successfully. Hosted customer-order/tenant-isolation remained `SKIPPED / BLOCKED_EXTERNAL` due absent dedicated non-production credentials.
+- `MAIN_SHA=BASE_SHA=271de9ac23d6fd092db5a77c15bcf191249fd40d`.
+- `TESTED_EXACT_SHA=HEAD_SHA=87a2ff8d38cf050c10dda50e92b9e2fd97941898`. The next report/checkpoint-only commit creates a new head; run its own checks before reusing any PASS claim.
+- The PR branch was synchronized with latest main using a regular two-parent merge; main's P2 payment-idempotency changes were retained. No direct main writes, force-push, reset, or history rewrite occurred.
+- **Live diff reconciled:** PR base now equals main. Git compare reports `ahead_by=29`, `behind_by=0`, exactly four changed files: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`, and the P1 checkpoint/report files.
+- **Core CI — SUCCESS on exact `87a2ff8...`:** [run 40018287119](https://github.com/Report-Engainall/Nasr1/actions/runs/40018287119). Unit tests, isolated PostgreSQL 17 acceptance, lint/build, and smoke tests completed.
+- **P2 Playwright — SUCCESS on the same exact SHA:** [run 40018287061](https://github.com/Report-Engainall/Nasr1/actions/runs/40018287061). Public read-only Chromium smoke and local Supabase/PostgreSQL 17 browser acceptance completed successfully. Hosted customer-order/tenant-isolation was `SKIPPED / BLOCKED_EXTERNAL` because dedicated non-production credentials are not available.
 - ProductModal-specific browser proof: `NOT RUN`; `PRODUCTION_PROVEN=NOT RUN`.
-- **Independent follow-up PR #124:** [customer order link accessibility](https://github.com/Report-Engainall/Nasr1/pull/124), tested implementation SHA `78b3403aac010495bbb21fb47b4436bb8787070d`; Core [40016712064 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016712064) and P2 [40016712103 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016712103) on that exact same SHA. Hosted customer-order/tenant-isolation was `SKIPPED / BLOCKED_EXTERNAL`; production proof and authenticated browser proof specific to the accessible-link change remain `NOT RUN`. PR #124 is Draft and unmerged.
-- **Formal review gate:** no authorized independent review submission or inline review thread has been recorded for PR #97 or #124. PR #97 remains `OPEN / DRAFT / NOT MERGED`. Do not mark ready or merge either PR based solely on green CI.
-- `LOCKED_PATHS`: P2-owned `CURRENT_EXECUTION_STATE.md`, acceptance matrix, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`, finance/SQL/RPC/RLS/migrations/services; P3-owned PR #89 route/report acceptance files; generated `src/routeTree.gen.ts`; other active PR-owned paths.
-- `NEXT_ACTION=P1-PR97-INDEPENDENT-REVIEW-001`: obtain authorized independent maintainer review for PR #97; keep it Draft/unmerged until review is present. After review, recheck live main and exact diff/required checks before merge. Continue independent P1 work only in its existing PR/branch, without modifying P2/P3-locked files.
-- `UPDATED_AT=2026-10-23T20:13:00Z`.
+- **Independent P1 work synchronized with current main:** PR #124 customer-order accessible links, PR #107 storefront price privacy browser acceptance, PR #102 export hydration fallback, and PR #119 customer-manager E2E each have a new merge head on base `271de9...`; their exact-head CI results must be read separately.
+- **Review gate:** zero authorized independent formal reviews on PR #97 or #124 at last read. #97 remains `OPEN / DRAFT / NOT MERGED`; the repository owner is the PR author, and the one other checked account has read-only permission. Do not self-approve or merge without authorized independent review.
+- `LOCKED_PATHS`: P2-owned `CURRENT_EXECUTION_STATE.md`, matrix, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`, finance/SQL/RPC/RLS/migrations/services; P3-owned PR #89/route-report acceptance; generated `src/routeTree.gen.ts`; other active PR-owned paths.
+- `NEXT_ACTION=P1-PR124-EXACT-HEAD-ACCEPTANCE-001`: verify new Core/P2 terminal results on PR #124 head `72b0545b7c211647c1d44722be98596bcda9714d`; then continue through the existing synchronized P1 PRs without overlapping file ownership. Keep #97 pending independent review.
+- `UPDATED_AT=2026-10-23T20:23:00Z`.
 
 ## Recent execution history
 

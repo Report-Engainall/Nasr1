@@ -1,26 +1,25 @@
 # تقرير الحالة التنفيذي — P1 / واجهات العميل والتجارة والإدارة
 
 - **المستودع:** `Report-Engainall/Nasr1`.
-- **المهمة:** `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` — منع الإرسال المكرر في نموذج المنتج.
-- **PR #97:** [منع الإرسال المكرر لنموذج المنتج](https://github.com/Report-Engainall/Nasr1/pull/97) — `OPEN / DRAFT / NOT MERGED`.
-- **CURRENT_BRANCH:** `p1/admin-product-singleflight-20261023`; **MAIN_SHA / BASE_SHA:** `391e25847c7cc7fb2ba5f77164600455db04abfd`.
-- **HEAD_SHA / آخر رأس كامل الفحوص قبل هذه الدفعة التوثيقية:** `3f8f77ddcced2d6fb21a58b7f49aa931a3101d56`.
-- **Core CI:** [40016875827 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016875827) على SHA أعلاه.
-- **P2 Playwright:** [40016875908 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016875908) على SHA نفسه؛ public browser smoke والقبول المحلي المعزول عبر Supabase/PostgreSQL 17 نجحا.
-- **القبول الخارجي:** hosted customer-order/tenant-isolation `SKIPPED / BLOCKED_EXTERNAL` لغياب اعتمادات non-production مخصصة؛ لا يُحسب نجاحًا. اختبار متصفح مخصص لـProductModal والإثبات الإنتاجي `NOT RUN`.
-- **صافي الفرق المصالح:** PR base هو `main` الحالي وGit compare يؤكد `ahead_by=27`, `behind_by=0` وأربعة ملفات فقط (مكوّن المنتج، اختباره، وتقريرا P1). تمت مصالحة البيانات الظاهرة في PR API.
-- **المتابعة المستقلة:** PR #124 [أسماء روابط تفاصيل الطلبات](https://github.com/Report-Engainall/Nasr1/pull/124)، SHA `78b3403aac010495bbb21fb47b4436bb8787070d`؛ Core [40016712064 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016712064) وP2 [40016712103 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016712103) على SHA واحد. فحص العميل المستضاف تخطّى بوابة الاعتمادات؛ لا ادعاء بإثبات إنتاجي أو متصفح موثق لهذه الجزئية.
-- **المراجعة الرسمية:** لا توجد مراجعة مستقلة مخولة مسجلة لـ#97 أو #124؛ أبقِ الطلبين Draft وغير مدمجين.
-- **NEXT_ACTION:** `P1-PR97-INDEPENDENT-REVIEW-001` — احصل على مراجعة maintainer مخول، ثم أعد التحقق من main والفرق والبوابات قبل أي دمج. تابع أعمال P1 المستقلة في فروعها وPRs القائمة دون لمس ملكية P2/P3.
-- **UPDATED_AT:** `2026-10-23T20:13:00Z`.
+- **المهمة:** `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001` — حارس الإرسال المتزامن لنموذج المنتج.
+- **PR #97:** [fix(admin): prevent duplicate product submissions](https://github.com/Report-Engainall/Nasr1/pull/97) — `OPEN / DRAFT / NOT MERGED`.
+- **MAIN_SHA / BASE_SHA:** `271de9ac23d6fd092db5a77c15bcf191249fd40d`.
+- **HEAD_SHA / آخر رأس مختبر بدقة قبل دفعة التوثيق:** `87a2ff8d38cf050c10dda50e92b9e2fd97941898`.
+- **Core CI:** [40018287119 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40018287119) على الرأس الدقيق أعلاه.
+- **P2 Playwright:** [40018287061 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40018287061) على SHA نفسه؛ public UI smoke والقبول المحلي المعزول عبر Supabase/PostgreSQL 17 نجحا.
+- **الحدود:** hosted customer-order/tenant-isolation `SKIPPED / BLOCKED_EXTERNAL` لغياب اعتمادات non-production؛ ProductModal-specific browser proof و`PRODUCTION_PROVEN` = `NOT RUN`.
+- **الفرق المصالح:** PR base = main، الفرع synchronized (`behind_by=0`) وصافي التغيير أربعة ملفات P1 فقط: نموذج المنتج، اختبار الانحدار، وتقريرا P1.
+- **بوابة المراجعة:** لا توجد مراجعة مستقلة مخولة مسجلة؛ أبقِ #97 Draft وغير مدمج.
+- **العمل التالي:** `P1-PR124-EXACT-HEAD-ACCEPTANCE-001` — احسم Core وP2 Playwright على الرأس الحالي لـ#124، ثم تابع فحوص طلبات P1 المفتوحة الأخرى التي تمت مزامنتها مع main.
+- **UPDATED_AT:** `2026-10-23T20:23:00Z`.
 
 ## P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001 — سجل التنفيذ
 
-تمت مزامنة فرع PR #97 مع `main` الحالي بعملية merge عادية تحفظ التاريخ. حارس `useRef` يمنع عمليتي إنشاء/تحديث متزامنتين قبل إعادة التصيير؛ فشل الخادم يبقى ظاهرًا ويمكن إعادة المحاولة، وتُمنع الكتابة إذا تعذّر تحميل التصنيفات حتى تنجح إعادة المحاولة. الاختبارات المركّبية في `src/test/admin-product-double-submit.test.tsx` تغطي الحالات المذكورة.
+تمت مزامنة الفرع مع main عبر merge commit عادي يحافظ على سجل الفرعين. `ProductModal` يستخدم حارس `useRef` متزامنًا لمنع طلبات إنشاء/تحديث مزدوجة قبل إعادة التصيير. أخطاء الخادم تبقى ظاهرة، وتتحرر الحماية للسماح بإعادة المحاولة بعد الفشل؛ فشل تحميل التصنيفات يمنع الكتابة حتى إعادة تحميل ناجحة.
 
-- Core [40016875827 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016875827) وP2 [40016875908 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40016875908) على SHA `3f8f77ddcced2d6fb21a58b7f49aa931a3101d56`.
-- Hosted customer E2E `SKIPPED / BLOCKED_EXTERNAL`; ProductModal-specific browser proof and production proof `NOT RUN`.
-- PR #97 يظل Draft حتى وجود مراجعة مستقلة مخولة؛ نجاح CI لا يساوي اعتماد مراجعة.
+- Core [40018287119 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40018287119) وP2 [40018287061 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40018287061) على SHA `87a2ff8d38cf050c10dda50e92b9e2fd97941898`.
+- لم يحدث اتصال إنتاجي. Hosted customer E2E بقي `SKIPPED / BLOCKED_EXTERNAL`.
+- لا دمج قبل المراجعة المستقلة المخولة.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
 
