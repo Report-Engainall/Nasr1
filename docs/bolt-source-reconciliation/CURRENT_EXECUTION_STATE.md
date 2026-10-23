@@ -1,5 +1,5 @@
 # الحالة التنفيذية الحالية الوحيدة — Nasr1 / P2
-LAST_RECONCILED_AT=2026-10-23T21:47:00+03:00
+LAST_RECONCILED_AT=2026-10-23T21:48:00+03:00
 
 ## حقيقة Git الحالية
 REPOSITORY=Report-Engainall/Nasr1
@@ -25,7 +25,7 @@ LAST_COMPLETED_MERGE_SHA=46a5fbb379d908328e5e2136eec3190a32e148f7
 NEXT_TASK_ID=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD
 CURRENT_BRANCH=p2/payment-idempotency-current-main-20261023
 BASE_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
-HEAD_SHA=de8d65981ef7d99266bd517bf3510cda3959bd51 (pre-state-update snapshot; reread final branch head after remaining sequential doc writes and before CI)
+HEAD_SHA=0b5019d4fe0919e7d2f46db62ca821e5e97cb6d5 (pre-state-update snapshot; reread the final branch head after this state commit before creating the PR)
 TASK_STATUS=IMPLEMENTED; EXACT-HEAD CI NOT RUN
 FILES_CHANGED=supabase/migrations/20261023240000_customer_payment_idempotency.sql; src/components/CustomerWorkflows.tsx; src/integrations/supabase/types.ts; src/components/CustomerWorkflows.finance.test.tsx; scripts/test-staff-receivables-aging-credit-memo-parity.mjs; scripts/test-database-migrations.mjs
 TESTS_RUN_WITH_RESULTS=NOT RUN on current payment branch. Current main Core run 40005590004 is IN_PROGRESS on exact SHA 03ac6c5 and is unrelated to this feature branch.
@@ -34,7 +34,7 @@ MERGE_STATUS=No payment PR yet; do not merge until exact-head Core and P2 local 
 BLOCKED_EXTERNAL=Hosted credential-dependent customer E2E is blocked by absent dedicated non-production credentials; local PG17 acceptance and local browser work are available in CI.
 LOCKED_PATHS=20261023240000_customer_payment_idempotency.sql; CustomerWorkflows.tsx; Supabase types.ts; CustomerWorkflows.finance.test.tsx; test-staff-receivables-aging-credit-memo-parity.mjs; test-database-migrations.mjs
 NEXT_ACTION=Finish exact diff and RPC-call-site review; create PR from p2/payment-idempotency-current-main-20261023 against the current main; inspect both final workflow results and fix any root cause; merge through PR only when Core and P2 gates pass; re-read the resulting main SHA and exact-main Core/P2 state before moving to the next acceptance gap.
-UPDATED_AT=2026-10-23T21:47:00+03:00
+UPDATED_AT=2026-10-23T21:48:00+03:00
 
 ## Evidence rules
 Allowed statuses: IMPLEMENTED, INTEGRATED, TESTED_EXACT_SHA, BROWSER_PROVEN, PRODUCTION_PROVEN, CLOSED_WITH_EVIDENCE, BLOCKED_EXTERNAL, NOT RUN. A skipped job is not PASS. Never transfer PASS between SHAs. Local DB/browser evidence is not production proof.
