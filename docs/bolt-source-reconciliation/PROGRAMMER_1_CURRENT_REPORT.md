@@ -607,3 +607,32 @@ Read the exact-head Core retry and P2 Playwright results. Resolve only a proven 
 **LOCKED_PATHS:** P2-owned SQL migrations, RPC/RLS, Auth enforcement, generated database types and workflow fixtures — unchanged.  
 **BLOCKER:** npm cache HTTP 429 and open backend dependency #83.  
 **STATUS:** branch synchronized to main; acceptance pending; PR #88 not ready to merge.
+
+
+## P1 duplicate session-row rejection acceptance — 2026-10-23T16:25+03:00
+
+**Task ID:** `P1-DEVICE-SESSION-DUPLICATE-ROW-ACCEPTANCE-001`  
+**Repository/branch:** `Report-Engainall/Nasr1` / `p1/central-device-session-ui-20261023`  
+**PR:** [#88 — server-backed device session controls](https://github.com/Report-Engainall/Nasr1/pull/88)  
+**Base SHA:** `59547c7d683cefd65cab445b97219aa701021676`  
+**Code/test SHA:** `73864a23839d75f275e44bc52893f0533383033e`
+
+### Implementation
+Added a focused regression test to `src/test/device-management.test.tsx`. The mock server returns two inventory entries with the same `session_id`; the expected behavior is a visible error alert and fail-closed clearing of all entries, including both display names. The UI implementation already rejects duplicate IDs, so this closes a test gap without duplicating implementation or touching backend contracts.
+
+### Actual verification state
+- Core CI [run 39960886831](https://github.com/Report-Engainall/Nasr1/actions/runs/39960886831): **QUEUED** on the exact code/test head at checkpoint time.
+- P2 Playwright [run 39960886827](https://github.com/Report-Engainall/Nasr1/actions/runs/39960886827): **PENDING** at checkpoint time.
+- Previous Core run [39959906007](https://github.com/Report-Engainall/Nasr1/actions/runs/39959906007) failed before tests at package installation due to repeated HTTP 429 responses from the configured Lovable npm cache; unit, PostgreSQL, lint/build and smoke checks were skipped. Previous P2 run [39959905948](https://github.com/Report-Engainall/Nasr1/actions/runs/39959905948) was cancelled. Neither is a pass for the new change.
+- No local test execution is claimed in this connector-only change workflow; wait for the exact-head Actions conclusions before closing the task.
+
+### Files changed
+- `src/test/device-management.test.tsx` (new test only in this unit).
+- `PROGRAMMER_1_EXECUTION_CHECKPOINT.md` and this report appended for resumption.
+
+### Next action / release condition
+Read exact-head CI results on the final branch SHA after the checkpoint commit. Retry transient package-cache 429 failures without bypassing the frozen lockfile or changing test assertions. Then wait for P2 PR #83 to land, test this UI against the integrated backend, and require authenticated isolated-browser evidence of list scoping, selective revocation, audit readback and denial of later protected requests before recommending a merge.
+
+**LOCKED_PATHS:** P2 migrations/RPC/RLS/types/workflows and P3 acceptance files — unchanged.  
+**BLOCKER:** exact-head CI and authenticated browser acceptance pending; P2 #83 is still open.  
+**STATUS:** implemented regression test; test result pending; PR #88 not ready to merge.

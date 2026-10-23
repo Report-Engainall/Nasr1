@@ -143,3 +143,20 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: OPEN / NOT READY — backend contract #83 and exact-head acceptance still required.
 - UPDATED_AT: 2026-10-23T16:19:11.592+03:00
+
+
+## Latest resume — duplicate server-session inventory acceptance — 2026-10-23T16:25+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-DUPLICATE-ROW-ACCEPTANCE-001` (added the missing regression test for duplicate server session identifiers).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `59547c7d683cefd65cab445b97219aa701021676` (current main at branch synchronization).
+- HEAD_SHA: `73864a23839d75f275e44bc52893f0533383033e` (exact code/test SHA; this checkpoint commit is a docs-only child).
+- LAST_CONFIRMED_TESTS: no application tests have completed on `73864a23839d75f275e44bc52893f0533383033e` yet. Exact-head Core run [39960886831](https://github.com/Report-Engainall/Nasr1/actions/runs/39960886831) is QUEUED; P2 Playwright [39960886827](https://github.com/Report-Engainall/Nasr1/actions/runs/39960886827) is PENDING. CodeRabbit status is SUCCESS (review bot status only, not test evidence).
+- FAILED_OR_NOT_RUN_TESTS: the prior functional head Core run [39959906007](https://github.com/Report-Engainall/Nasr1/actions/runs/39959906007) failed during dependency installation because the configured Lovable npm cache returned HTTP 429; no test/build/DB steps ran. The prior P2 Playwright run [39959905948](https://github.com/Report-Engainall/Nasr1/actions/runs/39959905948) concluded CANCELLED; customer-order/tenant acceptance was SKIPPED. The cancelled/failing earlier run is not success evidence for this head.
+- FILES_CHANGED: `src/test/device-management.test.tsx` adds a regression test where the server returns duplicate `session_id` values and asserts the UI fails closed, reports an alert, and renders neither record. Earlier P1 branch edits remain in `src/components/DeviceManagement.tsx`; this task makes no application implementation change.
+- LOCKED_PATHS: P2-owned migrations, RPC, RLS, generated database types, Auth enforcement, P2 workflow/fixture files; shared `CURRENT_EXECUTION_STATE.md` and `WORK_COORDINATION.md`; P3 acceptance files. None were edited.
+- NEXT_ACTION: read terminal Core and P2 results for exact current branch HEAD (after this checkpoint commit, the new SHA also needs its own CI). If dependency download fails again with HTTP 429, record the exact runner evidence and retry safely; do not weaken Bun frozen-lockfile verification. Keep PR #88 PARTIAL until P2 PR #83 merges and an authenticated isolated-browser run proves selected-session revocation plus denial on a subsequent protected request.
+- BLOCKER: exact-head CI pending; dependency cache returned HTTP 429 on the prior head; P2 backend contract PR #83 remains open.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: OPEN / NOT READY — exact-head CI and server-backed browser acceptance still required.
+- UPDATED_AT: 2026-10-23T16:25+03:00
