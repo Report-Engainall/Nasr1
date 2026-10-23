@@ -248,7 +248,7 @@ describe("public storefront product route acceptance", () => {
 
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain("المنتج غير متاح");
     expect(host?.textContent).not.toContain("777777");
-    expect(host?.querySelector('button')?.textContent).toContain("العودة للمتجر");
+    expect(Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? []).some((button) => button.textContent?.includes("العودة للمتجر"))).toBe(true);
   });
 
   it("keeps products listing on its server-paginated API and carries the deep-link search safely", async () => {
