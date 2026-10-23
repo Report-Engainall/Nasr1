@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle, Ban, CalendarClock, Clock3, LogOut, MonitorSmartphone,
   RefreshCw, ShieldCheck, UserRound,
@@ -114,6 +114,7 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
   const [action, setAction] = useState<'others' | 'current' | string | null>(null);
   const [error, setError] = useState('');
   const [sessionsError, setSessionsError] = useState('');
+  const revocationInFlight = useRef(false);
 
   const loadOrganizationSessions = useCallback(async () => {
     if (!canManageOrganizationSessions) {
@@ -213,9 +214,11 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
   }
 
   async function revokeOrganizationSession(target: OrganizationSession) {
-    if (!canManageOrganizationSessions || target.is_current_session || action !== null) return;
+    if (!canManageOrganizationSessions || target.is_current_session || action !== null || revocationInFlight.current) return;
     if (!window.confirm('إبطال جلسة ' + target.display_name + (target.email ? ' (' + target.email + ')' : '') + '؟ ستُرفض طلبات التطبيق التي تعتمد على هذه الجلسة بعد تأكيد الخادم.')) return;
-
+    // Lock synchronously before awaiting the RPC so duplicate events cannot revoke twice.
+    if (revocationInFlight.current) return;
+    revocationInFlight.current = true;
     setAction(target.session_id);
     setSessionsError('');
     try {
@@ -235,6 +238,7 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
     } catch {
       setSessionsError('تعذر تأكيد إبطال الجلسة المحددة. لم تُعرض رسالة نجاح؛ أعد تحميل السجل وتحقق من الحالة قبل المحاولة مجددًا.');
     } finally {
+      revocationInFlight.current = false;
       setAction(null);
     }
   }
