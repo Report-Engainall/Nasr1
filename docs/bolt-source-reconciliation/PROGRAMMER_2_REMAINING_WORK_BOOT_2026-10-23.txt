@@ -21,6 +21,10 @@
 - لا تعتمد على route أو component أو migration وحدها كدليل اكتمال. المطلوب عقد فعلي وصلاحيات وفشل صريح واختبار على SHA محدد.
 - اختبارات الواجهة الشاملة عبر Bolt New مؤجلة حتى إكمال كود P1 وP2.
 
+## 2.1 تغطية الوثيقة الأصلية كاملة
+
+راجع جميع أقسام `AGHBARI-MASTER-PROJECT-SPECIFICATION.md` بندًا بندًا ضمن مجال P2، وليس فقط الـPRs المفتوحة أو الصفوف الحالية في المصفوفة. اربط كل مطلب بواجهة/خدمة/RPC/schema/RLS/role/tenant واختبار وإثبات، ثم سجّل حالته. أي متطلب من الوثيقة غير موجود في المصفوفة يجب إضافته بعد قفل الملف وتعيين المالك. صنّف الحالة COMPLETE/PROVEN أو PARTIAL أو WEAK أو DISCONNECTED أو MISSING — BACKEND EXISTS أو MISSING — NO VERIFIED CONTRACT أو BLOCKED EXTERNALLY. لا تستعد Bolt أو أرشيفاته في أي مرحلة.
+
 ## 2. نطاق التنفيذ: إكمال الوثيقة الأصلية فقط
 
 الهدف هو إغلاق المتطلبات الوظيفية غير المنجزة في `docs/canonical/AGHBARI-MASTER-PROJECT-SPECIFICATION.md`، وفق `docs/canonical/AGHBARI-REQUIREMENT-REGISTRY.md` ومصفوفة القبول وسجلات التنفيذ الحية.
