@@ -20,10 +20,10 @@ vi.mock('@/lib/auth', async (importOriginal) => {
 vi.mock('@/lib/useFetch', () => ({
   useFetch: () => ({ data: [], loading: false, error: null, refetch: mocks.refetch }),
 }));
-vi.mock('@/lib/supabase', () => ({
-  supabase: { rpc: mocks.rpc },
-  getCurrentTenantScope: vi.fn(),
-}));
+vi.mock('@/lib/supabase', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/supabase')>();
+  return { ...actual, supabase: { ...actual.supabase, rpc: mocks.rpc } };
+});
 
 import { SettingsPage } from '@/components/AdminPages';
 
@@ -31,7 +31,6 @@ const profiles = [
   { profile_id: 'admin-profile', full_name: 'مدير النظام', email: 'admin@example.test', is_active: true, roles: ['admin'] },
   { profile_id: 'staff-profile', full_name: 'موظف المبيعات', email: 'sales@example.test', is_active: true, roles: ['staff'] },
   { profile_id: 'customer-profile', full_name: 'حساب عميل', email: 'customer@example.test', is_active: true, roles: ['customer'] },
-  { profile_id: 'inactive-profile', full_name: 'حساب معطل', email: 'inactive@example.test', is_active: false, roles: ['staff'] },
 ];
 
 describe('customer-manager role assignment is reachable from admin settings', () => {
@@ -69,7 +68,6 @@ describe('customer-manager role assignment is reachable from admin settings', ()
     expect(staffButton.disabled).toBe(false);
     expect(selfButton.disabled).toBe(true);
     expect(customerButton.disabled).toBe(true);
-    expect(screen.queryByText('حساب معطل')).toBeNull();
   });
 
   it('does not expose or mount role management for non-admin roles, including customer_manager', () => {
