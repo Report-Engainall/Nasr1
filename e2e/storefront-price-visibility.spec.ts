@@ -265,11 +265,18 @@ async function expectNoHiddenPriceLeak(page: Page) {
   // Check both raw backend fixtures and the ar-YE localized numerals rendered by production.
   // The renderer can use Arabic-Indic digits and Arabic thousands separators, so raw-only
   // assertions would miss a real visual/DOM price disclosure.
+  const formatter = new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 0 });
+  // Include both denied fixture values and the valid-preview values: an incomplete payload
+  // must not leak even the amounts that would be approved only with a complete response.
+  const monetarySecrets = [...new Set([
+    987654,
+    1975308,
+    previewUnitPrice,
+    previewLineTotal,
+    previewTotal,
+  ])];
   const secrets = [
-    "987654",
-    "1975308",
-    new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 0 }).format(987654),
-    new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 0 }).format(1975308),
+    ...monetarySecrets.flatMap((amount) => [String(amount), formatter.format(amount)]),
     "شريحة سرية",
   ];
   for (const secret of secrets) {
