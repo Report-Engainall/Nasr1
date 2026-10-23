@@ -68,7 +68,7 @@ const customerRoutes = [
   { label: "registration", route: RegisterRoute, expected: "جار تحميل إنشاء الحساب..." },
   { label: "quotes workspace", route: QuotesRoute, expected: "جار تحميل عروض الأسعار..." },
   { label: "reorder workspace", route: ReorderRoute, expected: "جار تحميل قائمة إعادة الطلب..." },
-  { label: "storefront home", route: StoreRoute, expected: "جار تحميل المتجر...", expectedTag: "MAIN" },
+  { label: "storefront home", route: StoreRoute, expected: "جار تحميل المتجر..." },
   { label: "delivery addresses", route: AddressesRoute, expected: "جارٍ تحميل عناوين التوصيل..." },
   { label: "cart", route: CartRoute, expected: "جار تحميل السلة..." },
   { label: "catalog", route: CatalogRoute, expected: "جار تحميل الكتالوج..." },
@@ -88,10 +88,7 @@ describe("customer route hydration loading states", () => {
     const component = (route as unknown as RouteWithComponent).options.component;
     render(createElement(component));
     const status = screen.getByRole("status");
-    if ("expectedTag" in customerRoutes.find((item) => item.route === route)!) {
-      const expectedTag = customerRoutes.find((item) => item.route === route)!.expectedTag;
-      expect(status.tagName).toBe(expectedTag);
-    }
+    if (route === StoreRoute) expect(status.tagName).toBe("MAIN");
     expect(status).toHaveAttribute("dir", "rtl");
     expect(status).toHaveTextContent(expected);
   });
