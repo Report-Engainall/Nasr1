@@ -62,8 +62,12 @@ function zipStored(parts: Array<{name:string; text:string}>): Uint8Array {
 function textCell(ref:string,value:string):string {
   return '<c r="'+ref+'" t="inlineStr"><is><t xml:space="preserve">'+xmlEscape(value)+'</t></is></c>';
 }
-function numberCell(ref:string,value:number,decimals=2):string {
-  if(!Number.isFinite(value)||value<0||value>999999999999) throw new Error('لا يمكن تصدير قيمة سعر/مخزون خارج النطاق.');
+function numberCell(ref:string,value:number,decimals=2,allowNegative=false):string {
+  // Price and reorder thresholds remain non-negative; stock figures must preserve a real negative
+  // balance as numeric evidence, matching CSV export instead of silently refusing or stringifying it.
+  if(!Number.isFinite(value)||(!allowNegative&&value<0)||(allowNegative&&value< -999999999999)||value>999999999999) {
+    throw new Error('لا يمكن تصدير قيمة سعر/مخزون خارج النطاق.');
+  }
   return '<c r="'+ref+'" t="n"><v>'+value.toFixed(decimals)+'</v></c>';
 }
 /** Export only persisted server rows. Untrusted identifiers and labels are inline strings, never formula cells. */
@@ -82,7 +86,8 @@ export function buildPriceGridXlsx(rows: readonly ProductPriceGridRow[]): Blob {
       if (value === null) return textCell(ref,'');
       if (typeof value !== 'number') return textCell(ref,value);
       const decimals = colIndex >= 9 && colIndex <= 11 ? 3 : colIndex >= 12 ? 0 : 2;
-      return numberCell(ref,value,decimals);
+      const allowNegativeStock = colIndex >= 9 && colIndex <= 11;
+      return numberCell(ref,value,decimals,allowNegativeStock);
     }).join('');
     return '<row r="'+(rowIndex+1)+'">'+cells+'</row>';
   }).join('');

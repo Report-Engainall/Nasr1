@@ -55,6 +55,31 @@ describe('price grid XLSX workbook', () => {
     expect(text).toContain('&quot;https://invalid.example&quot;');
   });
 
+  it('preserves negative stock quantities as numeric cells and round-trips them without changing their sign', async () => {
+    const negativeStock = {
+      ...row,
+      quantity_on_hand_total: -1.25,
+      quantity_available_total: -2.5,
+    };
+    const workbook = buildPriceGridXlsx([negativeStock]);
+    const bytes = await blobBytes(workbook);
+    const workbookText = new TextDecoder().decode(bytes);
+
+    // J/L are stock measures; these must remain OOXML numeric cells, not spreadsheet-safe text.
+    expect(workbookText).toContain('<c r="J2" t="n"><v>-1.250</v></c>');
+    expect(workbookText).toContain('<c r="L2" t="n"><v>-2.500</v></c>');
+
+    const records: string[][] = [];
+    await parseXlsxFirstWorksheet(workbook, values => { records.push(values); });
+    expect(records[1][9]).toBe('-1.250');
+    expect(records[1][11]).toBe('-2.500');
+  });
+
+  it('continues to reject negative financial prices rather than treating them as stock measures', () => {
+    expect(() => buildPriceGridXlsx([{ ...row, base_price: -1 }])).toThrow('لا يمكن تصدير قيمة سعر/مخزون خارج النطاق.');
+    expect(() => buildPriceGridXlsx([{ ...row, price_retail: -0.01 }])).toThrow('لا يمكن تصدير قيمة سعر/مخزون خارج النطاق.');
+  });
+
   it('rejects malformed price cells using the exact same validator as CSV', async () => {
     const records: string[][] = [];
     await parseXlsxFirstWorksheet(buildPriceGridXlsx([row]), values => { records.push(values); });
