@@ -765,6 +765,7 @@ export async function buildCustomerInvoicePdf(
   fontBytes: Uint8Array,
   generatedAt = new Date(),
   financialDetailsVisible = true,
+  customerTierVisible = false,
 ): Promise<Uint8Array> {
   if (!invoiceInput || typeof invoiceInput !== "object") {
     throw new Error("Invoice record is not an object.");
@@ -820,6 +821,10 @@ export async function buildCustomerInvoicePdf(
     customerInput && typeof customerInput === "object"
       ? (customerInput as CustomerInvoiceCustomerDocument)
       : {};
+  const customerTierLabel = customerTierVisible && typeof customer.tier_label === "string"
+    ? cleanLabel(customer.tier_label, 24)
+    : "";
+  const customerTierLabelVisible = customerTierVisible && customerTierLabel.trim().length > 0;
 
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
@@ -861,10 +866,15 @@ export async function buildCustomerInvoicePdf(
   );
   drawArabic(page, font, "رمز العميل", PAGE_WIDTH - 40, PAGE_HEIGHT - 258, 8, MUTED, 85);
   drawLtr(page, font, cleanLabel(customer.customer_code, 32), PAGE_WIDTH - 145, PAGE_HEIGHT - 258, 9, INK, 120);
+  if (customerTierLabelVisible) {
+    drawArabic(page, font, "فئة العميل", 300, PAGE_HEIGHT - 280, 8, MUTED, 70);
+    drawArabic(page, font, customerTierLabel, 220, PAGE_HEIGHT - 280, 8, INK, 75);
+  }
 
-  drawArabic(page, font, financialDetailsVisible ? "تفاصيل الأصناف والمبالغ" : "تفاصيل الأصناف", PAGE_WIDTH - 40, PAGE_HEIGHT - 296, 10, BRAND, 190);
+  const itemSectionHeadingY = PAGE_HEIGHT - (customerTierLabelVisible ? 318 : 296);
+  drawArabic(page, font, financialDetailsVisible ? "تفاصيل الأصناف والمبالغ" : "تفاصيل الأصناف", PAGE_WIDTH - 40, itemSectionHeadingY, 10, BRAND, 190);
   if (!financialDetailsVisible) {
-    drawArabic(page, font, "تم إخفاء الأسعار والإجماليات وفق إعدادات المتجر.", PAGE_WIDTH - 47, PAGE_HEIGHT - 310, 8, MUTED, 300);
+    drawArabic(page, font, "تم إخفاء الأسعار والإجماليات وفق إعدادات المتجر.", PAGE_WIDTH - 47, itemSectionHeadingY - 14, 8, MUTED, 300);
   }
   const drawItemsHeader = (targetPage: PDFPage, y: number) => {
     targetPage.drawRectangle({
@@ -885,8 +895,8 @@ export async function buildCustomerInvoicePdf(
     drawRule(targetPage, y - 8);
   };
 
-  drawItemsHeader(page, PAGE_HEIGHT - 320);
-  let y = PAGE_HEIGHT - 350;
+  drawItemsHeader(page, itemSectionHeadingY - 24);
+  let y = itemSectionHeadingY - 54;
   for (const [lineIndex, line] of lines.entries()) {
     if (y < 80) {
       page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
