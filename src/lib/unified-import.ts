@@ -184,19 +184,80 @@ export async function hashFileSha256(file: Blob, onProgress?: (processedBytes: n
   return digest.digestHex();
 }
 
+const ARABIC_DIACRITICS = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g;
+
+function normalizeHeaderToken(value: string): string {
+  return value
+    .trim()
+    .normalize("NFKC")
+    .replace(/\u0640/g, "")
+    .replace(ARABIC_DIACRITICS, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .toLocaleLowerCase("ar")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export const DEFAULT_SYNONYMS: Record<string, string> = {
-  'الصنف': 'item_code', 'رمز الصنف': 'item_code', 'الكود': 'item_code', 'sku': 'item_code', 'code': 'item_code',
-  'اسم الصنف': 'product_name', 'المنتج': 'product_name', 'اسم المنتج': 'product_name', 'name': 'product_name',
-  'الكمية': 'quantity', 'الرصيد': 'quantity', 'المخزون': 'quantity', 'qty': 'quantity', 'quantity': 'quantity',
-  'العميل': 'customer_code', 'كود العميل': 'customer_code', 'customer': 'customer_code',
-  'المورد': 'supplier_code', 'كود المورد': 'supplier_code', 'supplier': 'supplier_code',
-  'الإيراد': 'revenue', 'المبيعات': 'revenue', 'sales': 'revenue', 'revenue': 'revenue',
-  'السعر': 'price', 'التكلفة': 'cost', 'التاريخ': 'date', 'date': 'date',
+  "الصنف": "item_code",
+  "رمز الصنف": "item_code",
+  "الكود": "item_code",
+  "item_code": "item_code",
+  "sku": "item_code",
+  "code": "item_code",
+  "اسم الصنف": "product_name",
+  "المنتج": "product_name",
+  "اسم المنتج": "product_name",
+  "الاسم": "product_name",
+  "name": "product_name",
+  "product_name": "product_name",
+  "الكمية": "quantity",
+  "الرصيد": "quantity",
+  "المخزون": "quantity",
+  "qty": "quantity",
+  "quantity": "quantity",
+  "العميل": "customer_code",
+  "كود العميل": "customer_code",
+  "customer": "customer_code",
+  "المورد": "supplier_code",
+  "كود المورد": "supplier_code",
+  "supplier": "supplier_code",
+  "الإيراد": "revenue",
+  "المبيعات": "revenue",
+  "sales": "revenue",
+  "revenue": "revenue",
+  "السعر": "price",
+  "price": "price",
+  "التكلفة": "cost",
+  "cost": "cost",
+  "التاريخ": "date",
+  "date": "date",
+  "الباركود": "barcode",
+  "barcode": "barcode",
+  "الوحدة": "unit",
+  "unit": "unit",
+  "الفئة": "category_name",
+  "category": "category_name",
+  "description": "description",
+  "الوصف": "description",
 };
 
+const NORMALIZED_DEFAULT_SYNONYMS = new Map(
+  Object.entries(DEFAULT_SYNONYMS).map(([key, canonical]) => [normalizeHeaderToken(key), canonical]),
+);
+
 export function normalizeHeader(value: string, synonyms: Record<string, string> = DEFAULT_SYNONYMS): string {
-  const cleaned = value.trim().toLocaleLowerCase('ar').replace(/[ـ_-]+/g, ' ').replace(/\s+/g, ' ');
-  return synonyms[cleaned] ?? cleaned.replace(/\s/g, '_');
+  const cleaned = normalizeHeaderToken(value);
+  const canonical = synonyms === DEFAULT_SYNONYMS
+    ? NORMALIZED_DEFAULT_SYNONYMS.get(cleaned)
+    : synonyms[cleaned] ?? Object.entries(synonyms).find(([key]) => normalizeHeaderToken(key) === cleaned)?.[1];
+
+  return canonical ?? cleaned
+    .replace(/[^\p{L}\p{N}_]/gu, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
 }
 
 export type ParsedImportRow = {
@@ -503,21 +564,30 @@ export class DataQualityAccumulator {
     const key = String(row.data[this.matchingKey] ?? '').trim();
     if (key) this.keys.add(key);
 
-    const numericFields = ['quantity','revenue','price','cost'];
+    // Keep this set in parity with public.calculate_import_job_quality(uuid) in PostgreSQL.
+    const numericFields = ['quantity','revenue','price'];
     const consistent = numericFields.every((field) => {
       const value = row.data[field];
-      return value === undefined || value === '' || (typeof value === 'string' && /^-?[0-9]+(?:\.[0-9]+)?$/.test(value));
+      // PostgreSQL ->> stringifies JSON numeric scalars; NULL and empty text are both unscored.
+      if (value === undefined || value === null || value === '') return true;
+      return /^-?[0-9]+([.][0-9]+)?$/.test(String(value));
     });
     if (consistent) this.consistentRows += 1;
 
-    const date = String(row.data.date ?? '').trim();
-    const dateOkay = !date || /^([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}[/. -][0-9]{2}[/. -][0-9]{4})$/.test(date);
-    if (key && dateOkay) this.temporalReferentialRows += 1;
+    // PostgreSQL treats only NULL/empty as a missing date; whitespace is a malformed value.
+    // This component is date-format-only on the server and does not depend on the matching key.
+    const date = String(row.data.date ?? '');
+    const serverDatePattern = new RegExp('^([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}[/.-][0-9]{2}[/.-][0-9]{4})$');
+    const dateOkay = date === '' || serverDatePattern.test(date);
+    if (dateOkay) this.temporalReferentialRows += 1;
   }
 
   result(): QualityResult {
     const pct = (value: number) => this.total ? (value / this.total) * 100 : 0;
-    const completeness = this.total ? (this.completeFields / Math.max(this.requiredFieldCount, 1)) * 100 : 0;
+    // The server treats an explicitly empty required_columns list as unconstrained completeness.
+    const completeness = !this.total ? 0 : this.requiredColumns.length === 0
+      ? 100
+      : (this.completeFields / Math.max(this.requiredFieldCount, 1)) * 100;
     const validity = pct(this.validRows);
     const uniqueness = this.total ? (this.keys.size / this.total) * 100 : 0;
     const consistency = pct(this.consistentRows);

@@ -24,6 +24,7 @@ type CustomerOrderLine = Pick<OrderItem, 'id' | 'item_code' | 'product_name_snap
   approved_quantity?: number;
 };
 import { Login } from '@/components/Login';
+import { CustomerReturnRequest } from '@/components/CustomerReturnRequest';
 
 export const STATUS_LABELS: Record<string, string> = {
   draft: 'مسودة', pending: 'بانتظار المراجعة', confirmed: 'مؤكد', processing: 'قيد التجهيز',
@@ -181,6 +182,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
           {history.length > 0 && <ol>{history.map((h) => <li key={h.id}>{STATUS_LABELS[h.to_status] ?? h.to_status} — {formatDate(h.created_at)}</li>)}</ol>}
         </section>
       </article>
+      <CustomerReturnRequest orderId={order.id} orderStatus={order.status} />
     </Shell>
   );
 }

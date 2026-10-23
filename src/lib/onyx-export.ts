@@ -1,3 +1,5 @@
+import { BUSINESS_BRAND_NAME } from "./brand";
+
 /**
  * Actual XLSX/OOXML writer using ZIP store entries, with no third-party spreadsheet dependency.
  * First worksheet has the exact 27 reference columns. The second carries the order/customer header.
@@ -28,6 +30,10 @@ export type OnyxOrderWorkbookInput = {
   customerCode: string;
   customerName: string;
   items: readonly OnyxExportItem[];
+  /** Source snapshot selected by the active staff member; null means no source was linked. */
+  sourceSnapshotId?: string | null;
+  /** Persisted audit row created before the browser starts downloading this XLSX. */
+  exportAuditId?: string;
 };
 
 type CellValue = string | number | null | undefined;
@@ -225,9 +231,12 @@ function workbookFiles(input: OnyxOrderWorkbookInput): { name: string; content: 
   const detailRows = buildOnyxDetailRows(input);
   const headerRows: CellValue[][] = [
     ['الحقل', 'القيمة'],
-    ['النظام المصدر', 'Aghbari Commerce'],
+    ['النظام المصدر', BUSINESS_BRAND_NAME],
     ['رقم الطلب', input.orderNumber],
     ['المعرف الداخلي للطلب', input.orderId],
+    ['معرف سجل التدقيق المركزي', input.exportAuditId ?? 'غير متاح قبل تسجيل حدث التصدير'],
+    ['معرف لقطة مصدر أونكس المختارة', input.sourceSnapshotId ?? 'لم يتم ربط لقطة مصدر'],
+    ['تنبيه تتبع المصدر', input.sourceSnapshotId ? 'مطابقة كل بند ونتيجة الربط موثقة في سجل تدقيق التصدير' : 'لم يحدد المستخدم لقطة مصدر؛ لا تفترض مطابقة خارجية'],
     ['تاريخ الطلب', input.orderCreatedAt],
     ['حالة الطلب', input.orderStatus],
     ['رقم العميل', input.customerCode],
@@ -262,12 +271,12 @@ function workbookFiles(input: OnyxOrderWorkbookInput): { name: string; content: 
     '</Relationships>';
   const coreProperties = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
-    '<dc:title>متجر الأغبري — ' + xmlEscape(input.orderNumber) + '</dc:title><dc:creator>Aghbari Commerce</dc:creator>' +
+    '<dc:title>' + xmlEscape(BUSINESS_BRAND_NAME + ' — ' + input.orderNumber) + '</dc:title><dc:creator>' + xmlEscape(BUSINESS_BRAND_NAME) + '</dc:creator>' +
     '<dc:subject>Onyx import layout draft; compatibility not certified</dc:subject>' +
     '<dcterms:created xsi:type="dcterms:W3CDTF">' + new Date().toISOString() + '</dcterms:created></cp:coreProperties>';
   const appProperties = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">' +
-    '<Application>Aghbari Commerce</Application><TitlesOfParts><vt:vector size="2" baseType="lpstr">' +
+    '<Application>' + xmlEscape(BUSINESS_BRAND_NAME) + '</Application><TitlesOfParts><vt:vector size="2" baseType="lpstr">' +
     '<vt:lpstr>تفاصيل الأصناف</vt:lpstr><vt:lpstr>رأس المستند</vt:lpstr></vt:vector></TitlesOfParts></Properties>';
   return [
     { name: '[Content_Types].xml', content: contentTypes },

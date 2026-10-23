@@ -9,6 +9,8 @@ import {
   type OnyxSnapshotAnalytics, type OnyxSnapshotRow, type OnyxSnapshotSummary,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { OnyxInventoryReconciliationActions } from "@/components/OnyxInventoryReconciliationActions";
+import { OnyxSnapshotSourceEvidencePanel } from "@/components/OnyxSnapshotSourceEvidencePanel";
 
 type ReconciliationResult = {
   run_id: string;
@@ -196,6 +198,8 @@ export function OnyxSnapshotCenter({ onBack }: { onBack?: () => void }) {
             </div>}
           </section>
 
+          {selectedId && <OnyxSnapshotSourceEvidencePanel snapshotId={selectedId} />}
+
           {detailError && <div className="onyx-alert" role="alert"><AlertTriangle size={18} /> {detailError}</div>}
           {detailLoading ? <div className="panel onyx-empty" role="status">جارٍ تحليل اللقطة المحددة…</div> : analytics && metrics ? (
             <>
@@ -232,6 +236,8 @@ export function OnyxSnapshotCenter({ onBack }: { onBack?: () => void }) {
                   </div>}
                 </article>
               </section>
+
+              <OnyxInventoryReconciliationActions snapshotId={selectedId} />
 
               <section className="panel">
                 <div className="onyx-section-heading"><div><h2>أعلى الأصناف حسب بيانات المصدر</h2><p>القيم كما أعادتها تحليلات قاعدة البيانات؛ ليست تقرير مبيعات Onyx الخارجي المباشر.</p></div></div>

@@ -12,6 +12,7 @@ import type { PurchaseOrder } from '@/lib/purchase-orders';
 import type { ProductWithInventory, Supplier } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
+import { PurchaseReceiptAccountingWorkspace } from '@/components/PurchaseReceiptAccountingWorkspace';
 
 type WarehouseOption = { id: string; name: string; code: string | null };
 type DraftLine = { productId: string; quantity: string; unitCost: string };
@@ -317,7 +318,8 @@ export function PurchaseOrdersPage() {
                 </div>}
                 {selectedOrder.status==='cancelled'&&<p className="po-error">أُلغي هذا الأمر. السبب المسجل: {selectedOrder.cancellation_reason||'غير مسجل'}</p>}
                 {selectedOrder.status==='received'&&<p className="po-notice"><CheckCircle2 size={15} style={{verticalAlign:'middle',marginInlineEnd:5}}/>تم استلام الكميات المطلوبة كاملة؛ مهمة أمين المخزن مرتبطة بالحدث ومغلقة خادميًا.</p>}
-                {selectedOrder.status==='draft'&&<p className="po-muted">المسودة لا تؤثر على المخزون. الإرسال ينشئ مهمة استلام واحدة؛ لا يتغير الرصيد إلا بعد إيصال فعلي.</p>}
+                {selectedOrder.status==='draft'&&<p className="po-muted">المسودة لا تؤثر على المخزون. الإرسال ينشئ مهمة استلام واحدة؛ لا يتغير الرصيد قبل الاستلام الفعلي.</p>}
+                <PurchaseReceiptAccountingWorkspace purchaseOrderId={selectedOrder.id} />
               </section>
             }
           </div>

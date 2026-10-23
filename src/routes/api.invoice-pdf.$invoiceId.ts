@@ -40,9 +40,19 @@ export const Route = createFileRoute("/api/invoice-pdf/$invoiceId")({
           invoice?: unknown;
           lines?: unknown;
           customer?: unknown;
-          financial_details_visible?: boolean;
+          financial_details_visible?: unknown;
+          customer_tier_visible?: unknown;
         } | null;
-        if (!payload?.invoice || !Array.isArray(payload.lines) || !payload.customer || typeof payload.financial_details_visible !== "boolean") {
+        const customerRecord = payload?.customer && typeof payload.customer === "object" && !Array.isArray(payload.customer)
+          ? payload.customer as Record<string, unknown>
+          : null;
+        const tierPayloadValid = payload?.customer_tier_visible === true
+          ? typeof customerRecord?.tier_label === "string" && customerRecord.tier_label.trim().length > 0
+          : payload?.customer_tier_visible === false &&
+            Boolean(customerRecord && !Object.prototype.hasOwnProperty.call(customerRecord, "tier_label"));
+        if (!payload?.invoice || !Array.isArray(payload.lines) || !customerRecord ||
+            typeof payload.financial_details_visible !== "boolean" ||
+            typeof payload.customer_tier_visible !== "boolean" || !tierPayloadValid) {
           return financeDocumentError(503, "أعاد الخادم بيانات فاتورة غير مكتملة؛ لم يتم إنشاء المستند.");
         }
 
@@ -50,10 +60,11 @@ export const Route = createFileRoute("/api/invoice-pdf/$invoiceId")({
           const bytes = await buildCustomerInvoicePdf(
             payload.invoice,
             payload.lines,
-            payload.customer,
+            customerRecord,
             loadArabicDocumentFont(),
             undefined,
             payload.financial_details_visible,
+            payload.customer_tier_visible as boolean,
           );
           return pdfResponse(bytes, "aghbari-invoice.pdf");
         } catch {

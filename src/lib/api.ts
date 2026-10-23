@@ -149,22 +149,35 @@ async function fetchStaffProductById(id: string): Promise<Product> {
 export async function createProduct(p: Partial<Product>): Promise<Product> {
   const { organizationId: orgId } = await getCurrentTenantScope();
   const productId = typeof p.id === 'string' && p.id ? p.id : crypto.randomUUID();
-  const { error } = await supabase
+  // Only the non-sensitive id is returned by the write. Resolve product fields through the staff-only RPC.
+  const { data: inserted, error } = await supabase
     .from('products')
-    .insert({ ...p, id: productId, organization_id: orgId });
+    .insert({ ...p, id: productId, organization_id: orgId })
+    .select('id')
+    .single();
   if (error) throw error;
-  return fetchStaffProductById(productId);
+  if (!inserted?.id || inserted.id !== productId) {
+    throw new Error('تعذر تأكيد إنشاء الصنف من قاعدة البيانات.');
+  }
+  return fetchStaffProductById(inserted.id);
 }
 
 export async function updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
   const { organizationId: orgId } = await getCurrentTenantScope();
-  const { error } = await supabase
+  // RLS/tenant filters can produce a zero-row write without a database error: never report this as success.
+  // Return only the safe id column; product financial fields remain behind fetch_staff_products.
+  const { data: updated, error } = await supabase
     .from('products')
     .update(updates)
     .eq('id', id)
-    .eq('organization_id', orgId);
+    .eq('organization_id', orgId)
+    .select('id')
+    .maybeSingle();
   if (error) throw error;
-  return fetchStaffProductById(id);
+  if (!updated?.id || updated.id !== id) {
+    throw new Error('لم يُحفظ تعديل الصنف؛ الصنف غير موجود في المؤسسة الحالية أو لا تملك صلاحية تعديله.');
+  }
+  return fetchStaffProductById(updated.id);
 }
 
 export async function uploadProductImage(productId: string, image: Blob): Promise<string> {
@@ -366,10 +379,26 @@ export async function reviewOrderLines(
   };
 }
 
+const ORDER_STATUS_VALUES = new Set([
+  'draft', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled',
+]);
+
 export async function updateOrderStatus(id: string, status: string): Promise<void> {
-  // The database transition trigger validates the state change and writes status history atomically.
-  const { error } = await supabase.from('orders').update({ status }).eq('id', id);
+  // Reject unknown values locally; the database trigger remains authoritative for legal transitions.
+  if (!ORDER_STATUS_VALUES.has(status)) throw new Error('حالة الطلب غير مدعومة.');
+
+  // PostgREST can return no row without an error when no row is visible to this tenant/RLS scope.
+  // Ask only for the granted id column and never report success without the exact row acknowledgement.
+  const { data: updated, error } = await supabase
+    .from('orders')
+    .update({ status })
+    .eq('id', id)
+    .select('id')
+    .maybeSingle();
   if (error) throw error;
+  if (!updated?.id || updated.id !== id) {
+    throw new Error('لم يؤكد الخادم تحديث حالة الطلب؛ قد يكون الطلب غير موجود في المؤسسة الحالية أو أن الانتقال غير مسموح.');
+  }
 }
 
 export async function createOrder(order: {
@@ -1068,9 +1097,15 @@ export async function createImportJob(input: {
   profileId?: string | null;
   periodKey?: string | null;
   sourceSystem?: string;
+  /** Stable for retries of one logical import attempt; a new intentional version gets a fresh key. */
+  requestKey?: string;
+  /** The user-selected duplicate intent is part of the idempotency payload, not file identity. */
+  intent?: "replace" | "merge" | "new_version";
 }): Promise<ImportJob> {
   // Tenant identity is derived by the database from auth.uid(); no organization_id comes from the browser.
-  const { data, error } = await supabase.rpc('create_import_job', {
+  // Reuse the supplied key for transport retries; UI starts a fresh key for each intentional operation.
+  const { data, error } = await supabase.rpc('create_import_job_idempotent', {
+    p_request_key: input.requestKey ?? crypto.randomUUID(),
     p_file_name: input.fileName,
     p_file_hash: input.fileHash,
     p_file_size: input.fileSize,
@@ -1078,6 +1113,7 @@ export async function createImportJob(input: {
     p_profile_id: input.profileId ?? null,
     p_period_key: input.periodKey ?? null,
     p_source_system: input.sourceSystem ?? 'manual',
+    p_intent: input.intent ?? 'new_version',
   });
   if (error) throw error;
   return data as ImportJob;

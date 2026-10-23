@@ -1,0 +1,33 @@
+# رسالة إقلاع P1 — دمج المصادر فقط — 22 أكتوبر 2026
+
+المستودع الوحيد القابل للتعديل: https://github.com/Report-Engainall/Nasr1
+الفرع المرجعي: main
+حالة P1: متوقف مؤقتًا بتوجيه المالك. لا تبدأ تنفيذًا جديدًا ولا تعدّل الملفات المملوكة لـP1 حتى يصدر استئناف صريح.
+
+## نقطة الدخول الإلزامية عند الاستئناف
+اقرأ بهذا الترتيب:
+1. docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md — مؤشر الاستئناف الديناميكي الوحيد.
+2. docs/bolt-source-reconciliation/FULL_APPLICATION_PARALLEL_EXECUTION_MANDATE_2026-10-22.md — خطة التنفيذ الشاملة.
+3. docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv — مصفوفة الشاشات والقبول.
+4. docs/bolt-source-reconciliation/WORK_COORDINATION.md — أقفال الملفات والملكية.
+5. docs/bolt-source-reconciliation/PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt — سياق P1 التاريخي وأدلة المهام.
+6. docs/bolt-source-reconciliation/SOURCE_INTEGRATION_LEDGER.csv وREADY_TO_REUSE_FILE_AUDIT.csv.
+7. القسم المحدد فقط من docs/canonical/AGHBARI-MASTER-PROJECT-SPECIFICATION.md.
+
+## المسؤولية عند الاستئناف
+- دمج القدرات الناقصة المفيدة من مصادر القراءة المعتمدة في Nasr1 فقط. المستودعات المانحة للقراءة فقط؛ لا تكتب إليها.
+- ابدأ من main والـPRs والـCI الحية، لا من SHA تاريخي أو وصف قديم.
+- لا تنقل SQL أو React Router قديمًا كما هو إذا تعارض مع مخطط Nasr1 أو TanStack Router أو RLS/tenant model. انقل الوظيفة فقط مع سجل مصدر وقرار مسبب واختبار.
+- لا تعد فحص/فك الأرشيفات المحسومة إلا بوجود فجوة محددة مثبتة.
+- ملفات أدلة P1: PROGRAMMER_1_CURRENT_REPORT.md، PROGRAMMER_1_SINGLE_BOOT_ENTRYPOINT.txt، SOURCE_INTEGRATION_LEDGER.csv، READY_TO_REUSE_FILE_AUDIT.csv. هذه المسارات ضمن PR #31 المفتوح؛ اقرأ diff وحالته قبل تعديلها، ولا تكتب فوق عمل غير مدمج.
+- لا تعدّل مسارًا مقفولًا لـP2. إذا ظهر تداخل، سجّل تسليم ملكية صريحًا في WORK_COORDINATION.md قبل التغيير.
+- لا تكتب مباشرة إلى main. لا reset ولا clean ولا force-push. لا تدمج PRs المتداخلة بالتوازي.
+
+## حالة موثقة عند إعداد الرسالة
+- PRs #18 و#26 و#29 و#32 و#34 و#38 مدمجة؛ اقرأ metadata الحية عند بدء جلسة فعلية.
+- كتالوج الموظفين 0007 مغلق بدليل PostgreSQL 17: SHA 18b0c8a8f3f03a3f5ad188357690223e3749628f / Actions 39647895468. لا تعِد فتحه بلا regression مثبت.
+- تسعير بطاقات/تفاصيل المنتجات متصل بسياسة الإظهار ومثبت باختبارات سابقة. PR #38 أضاف اختبار UI للسلة وcheckout.
+- رأس main المرصود: 0395367d869d0d63fba669940a92eeca0ae3e893. Core Actions 39789165220 كان IN_PROGRESS، واختبار Chromium الخاص بإظهار السعر كان آخر خطوة قيد التنفيذ عند القراءة. أعد قراءة الحالة الحية ولا ترث PASS قبل إتمامها.
+
+## تسليم P1
+لكل ميزة: task ID، مسارات المصدر والهدف، قرار ADAPT/ALREADY_PRESENT/EXCLUDED وسببه، blob/SHA، الواجهة والخدمة وDB/RLS/RPC/route التي تغيرت، الاختبارات الفعلية ونتيجة CI المطابقة للرأس، والفجوات التي ما زالت NOT RUN/BLOCKED_EXTERNAL. لا تنتج تقريرًا بدل تغيير قابل للاختبار.

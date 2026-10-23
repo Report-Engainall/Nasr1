@@ -1,12 +1,95 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_IMPORT_COLUMNS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ROWS, MAX_IMPORT_CELL_CHARS,
-  StreamingCsvParser, applyImportProfileRules, shouldPersistParsedImportRow, stableJsonStringify,
-  validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
+  StreamingCsvParser, DataQualityAccumulator, applyImportProfileRules, shouldPersistParsedImportRow, stableJsonStringify,
+  normalizeHeader, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
   type VerifiedImportChunk,
 } from "@/lib/unified-import";
 
 describe("unified import safety contracts", () => {
+  it("matches PostgreSQL DQS when cost is not a scored numeric field", () => {
+    const quality = new DataQualityAccumulator(["item_code"], "item_code");
+    quality.add({
+      row_number: 2,
+      data: { item_code: "SKU-1", quantity: 2, revenue: null, price: 4, cost: "cost unavailable" },
+      status: "valid",
+      errors: [],
+    });
+    expect(quality.result()).toMatchObject({
+      score: 100,
+      completeness: 100,
+      validity: 100,
+      uniqueness: 100,
+      consistency: 100,
+      temporalReferentialIntegrity: 100,
+      label: "excellent",
+    });
+  });
+
+  it("treats an explicit empty required-column list as full completeness like PostgreSQL", () => {
+    const quality = new DataQualityAccumulator([], "item_code");
+    quality.add({
+      row_number: 2,
+      data: {},
+      status: "valid",
+      errors: [],
+    });
+    expect(quality.result()).toMatchObject({
+      score: 80,
+      completeness: 100,
+      validity: 100,
+      uniqueness: 0,
+      consistency: 100,
+      temporalReferentialIntegrity: 100,
+      label: "acceptable",
+    });
+  });
+
+  it("scores the date component independently of the matching key and accepts a missing date", () => {
+    const quality = new DataQualityAccumulator(["item_code"], "item_code");
+    quality.add({
+      row_number: 2,
+      data: {},
+      status: "valid",
+      errors: [],
+    });
+    expect(quality.result()).toMatchObject({
+      completeness: 0,
+      uniqueness: 0,
+      temporalReferentialIntegrity: 100,
+      score: 60,
+      label: "warning",
+    });
+  });
+
+  it("rejects date separators accepted by the UI but rejected by PostgreSQL", () => {
+    const quality = new DataQualityAccumulator(["item_code"], "item_code");
+    quality.add({
+      row_number: 2,
+      data: { item_code: "SKU-1", date: "12 31 2025" },
+      status: "valid",
+      errors: [],
+    });
+    expect(quality.result()).toMatchObject({
+      score: 80,
+      temporalReferentialIntegrity: 0,
+    });
+  });
+
+  it("does not trim whitespace-only date values into a valid missing date", () => {
+    const quality = new DataQualityAccumulator(["item_code"], "item_code");
+    quality.add({
+      row_number: 2,
+      data: { item_code: "SKU-1", date: " " },
+      status: "valid",
+      errors: [],
+    });
+    expect(quality.result()).toMatchObject({
+      score: 80,
+      temporalReferentialIntegrity: 0,
+    });
+  });
+
   it("keeps explicit file, row, column and cell limits", () => {
     expect(MAX_IMPORT_FILE_BYTES).toBe(100 * 1024 * 1024);
     expect(MAX_IMPORT_ROWS).toBe(100_000);
@@ -26,6 +109,15 @@ describe("unified import safety contracts", () => {
     expect(() => validateVerifiedImportChunkPrefix([], 0, 4)).toThrow("حجم الملف");
     expect(() => validateVerifiedImportChunkPrefix([], MAX_IMPORT_FILE_BYTES + 1, 4)).toThrow("حجم الملف");
     expect(() => validateVerifiedImportChunkPrefix([chunks[0], chunks[1]], 4, 4)).toThrow("أكثر من حجم الملف");
+  });
+
+  it("normalizes Unicode and Arabic header variants without losing canonical business fields", () => {
+    expect(normalizeHeader("  ｂａｒｃｏｄｅ  ")).toBe("barcode");
+    expect(normalizeHeader("اَلْبَارْكود")).toBe("barcode");
+    expect(normalizeHeader("الوَحْـدَة")).toBe("unit");
+    expect(normalizeHeader("الفِئَة")).toBe("category_name");
+    expect(normalizeHeader("الإيراد")).toBe("revenue");
+    expect(normalizeHeader("إسم الصّنف", { "اسم الصنف": "external_item_key" })).toBe("external_item_key");
   });
 
   it("preserves leading-zero business identifiers and rejects invalid numeric syntax", () => {

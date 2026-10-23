@@ -34,10 +34,13 @@ import {
   isCustomerStatementPossiblyPartial,
   summarizeCustomerInvoiceStatuses,
   summarizeCustomerOrderStatuses,
+  parseCustomerStatementCreditMemos,
+  type CustomerStatementCreditMemo,
   type InvoiceAmount,
   type PaymentAmount,
 } from "@/lib/commerce-utils";
 import { fetchProducts, fetchResolvedProductPrices } from "@/lib/api";
+import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
 import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
@@ -57,6 +60,9 @@ type Invoice = {
   subtotal?: number | string;
   tax_amount?: number | string;
   total_amount?: number | string;
+  paid_amount?: number | string;
+  credit_memo_amount?: number | string;
+  outstanding_amount?: number | string;
 };
 
 type ReceivablesAgingBucket = "current" | "days_1_30" | "days_31_60" | "days_61_90" | "over_90" | "unknown_due_date";
@@ -151,6 +157,15 @@ function formatInvoiceMoney(value: number | string | undefined, currency: string
       : Number.NaN;
   if (!Number.isFinite(amount) || amount < 0) return "غير متاح";
   return `${new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 2 }).format(amount)} ${currency}`;
+}
+
+function isValidInvoiceMoney(value: unknown): value is number | string {
+  const amount = typeof value === "number"
+    ? value
+    : typeof value === "string" && value.trim()
+      ? Number(value)
+      : Number.NaN;
+  return Number.isFinite(amount) && amount >= 0;
 }
 type Product = {
   id: string;
@@ -372,7 +387,7 @@ function Invoices() {
     customer_code: string;
     business_name: string;
     contact_name: string | null;
-    tier_label?: string | null;
+    tier_label: string | null;
   } | null>(null);
   const [invoiceOrder, setInvoiceOrder] = useState<{
     quantity_review_required: boolean;
@@ -422,23 +437,51 @@ function Invoices() {
         .maybeSingle(),
     ]);
     const payload = invoicePayloadResult.data as {
-      invoice?: InvoiceFinancialSummary & { id?: string };
+      invoice?: Invoice & { id?: string };
       lines?: InvoiceLine[];
       customer?: {
         customer_code?: string | null;
         business_name?: string | null;
         contact_name?: string | null;
-        tier_label?: string | null;
+        tier_label?: unknown;
       };
-      financial_details_visible?: boolean;
-      customer_tier_visible?: boolean;
+      financial_details_visible?: unknown;
+      customer_tier_visible?: unknown;
     } | null;
+    const invoice = payload?.invoice;
+    const lines = payload?.lines;
+    const hasVisibleFinancialValues = Boolean(
+      invoice &&
+      isValidInvoiceMoney(invoice.subtotal) &&
+      isValidInvoiceMoney(invoice.tax_amount) &&
+      isValidInvoiceMoney(invoice.total_amount) &&
+      Array.isArray(lines) &&
+      lines.every((line) => isValidInvoiceMoney(line.unit_price) && isValidInvoiceMoney(line.line_total)),
+    );
+    const hiddenPayloadOmitsFinancialValues = Boolean(
+      invoice &&
+      !("subtotal" in invoice) &&
+      !("tax_amount" in invoice) &&
+      !("total_amount" in invoice) &&
+      Array.isArray(lines) &&
+      lines.every((line) => !("unit_price" in line) && !("line_total" in line)),
+    );
+    const policyShapeValid = payload?.financial_details_visible === true
+      ? hasVisibleFinancialValues
+      : payload?.financial_details_visible === false && hiddenPayloadOmitsFinancialValues;
+    const tierPolicyShapeValid = payload?.customer_tier_visible === true
+      ? typeof payload.customer?.tier_label === "string" && payload.customer.tier_label.trim().length > 0
+      : payload?.customer_tier_visible === false &&
+        Boolean(payload.customer && !Object.prototype.hasOwnProperty.call(payload.customer, "tier_label"));
     const payloadValid = Boolean(
-      payload?.invoice &&
-      payload.invoice.id === i.id &&
-      Array.isArray(payload.lines) &&
-      payload.customer &&
-      typeof payload.financial_details_visible === "boolean",
+      invoice &&
+      invoice.id === i.id &&
+      typeof invoice.currency === "string" &&
+      invoice.currency.length > 0 &&
+      Array.isArray(lines) &&
+      payload?.customer &&
+      policyShapeValid &&
+      tierPolicyShapeValid,
     );
     if (invoicePayloadResult.error || orderResult.error || !payloadValid || !payload) {
       setError("تعذر تحميل تفاصيل الفاتورة ومبالغها المصرح بها. تحقق من صلاحية الفاتورة ونشر مخطط المالية.");
@@ -450,15 +493,18 @@ function Invoices() {
       setInvoiceOrder(null);
     } else {
       setError("");
-      setItems(payload.lines ?? []);
+      const financialVisible = payload.financial_details_visible === true;
+      setFinancialDetailsVisible(financialVisible);
+      setItems((payload.lines ?? []).map((line) => financialVisible
+        ? line
+        : { id: line.id, item_code: line.item_code, description: line.description, unit: line.unit, quantity: line.quantity }));
       setChosenCustomer({
         customer_code: payload.customer?.customer_code ?? "",
         business_name: payload.customer?.business_name ?? "",
         contact_name: payload.customer?.contact_name ?? null,
-        tier_label: payload.customer_tier_visible === true ? payload.customer?.tier_label ?? null : null,
+        tier_label: payload.customer_tier_visible === true ? payload.customer.tier_label as string : null,
       });
-      setFinancialDetailsVisible(payload.financial_details_visible === true);
-      setChosenFinancials(payload.financial_details_visible === true ? {
+      setChosenFinancials(financialVisible ? {
         currency: payload.invoice!.currency,
         subtotal: payload.invoice!.subtotal!,
         tax_amount: payload.invoice!.tax_amount!,
@@ -653,7 +699,9 @@ function Invoices() {
                   {chosenCustomer?.business_name ?? chosenCustomer?.contact_name ?? "—"}
                 </strong>
               </div>
-              {chosenCustomer?.tier_label && <div>فئة العميل: <strong>{chosenCustomer.tier_label}</strong></div>}
+              {chosenCustomer?.tier_label && (
+                <div>فئة العميل: <strong>{chosenCustomer.tier_label}</strong></div>
+              )}
             </div>
             <div>
               <strong>{chosen.invoice_number}</strong>
@@ -679,14 +727,21 @@ function Invoices() {
                     <td style={{ padding: 10 }}>{l.description}</td>
                     <td>{l.item_code ?? "—"}</td>
                     <td>{formatNumber(Number(l.quantity))} {l.unit ?? ""}</td>
-                    {financialDetailsVisible && <><td>{formatInvoiceMoney(l.unit_price, chosenFinancials?.currency ?? chosen.currency)}</td><td>{formatInvoiceMoney(l.line_total, chosenFinancials?.currency ?? chosen.currency)}</td></>}
+                    {financialDetailsVisible && <>
+                      <td>{formatInvoiceMoney(l.unit_price, chosenFinancials?.currency ?? chosen.currency)}</td>
+                      <td>{formatInvoiceMoney(l.line_total, chosenFinancials?.currency ?? chosen.currency)}</td>
+                    </>}
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-          {!detailBusy && !financialDetailsVisible && <p role="note" style={{ ...card, marginTop: 14, color: quiet.color }}>أخفت إدارة المتجر الأسعار والإجماليات في الفاتورة؛ تبقى بيانات الفاتورة وبنود الكميات متاحة.</p>}
-          {!detailBusy && financialDetailsVisible && chosenFinancials && (
+          {!detailBusy && !financialDetailsVisible && (
+            <p role="status" data-testid="invoice-prices-hidden" style={{ marginTop: 14, ...quiet }}>
+              الأسعار والإجماليات مخفية في هذه الفاتورة وفق إعدادات المتجر.
+            </p>
+          )}
+          {!detailBusy && chosenFinancials && (
             <div style={{ ...card, marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
               <div><span style={quiet}>الإجمالي الفرعي</span><strong style={{ display: "block", marginTop: 6 }}>{formatInvoiceMoney(chosenFinancials.subtotal, chosenFinancials.currency)}</strong></div>
               <div><span style={quiet}>الضريبة</span><strong style={{ display: "block", marginTop: 6 }}>{formatInvoiceMoney(chosenFinancials.tax_amount, chosenFinancials.currency)}</strong></div>
@@ -741,6 +796,8 @@ function formatAccountMoney(value: number | string, currency: string): string {
 function Statement() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<(PaymentAmount & { paid_at?: string })[]>([]);
+  const [credits, setCredits] = useState<CustomerStatementCreditMemo[]>([]);
+  const [statementSummary, setStatementSummary] = useState<unknown>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -748,18 +805,36 @@ function Statement() {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    const r = await supabase.rpc("get_customer_account_statement");
-    if (r.error) setError("تعذر قراءة كشف الحساب. تحقق من نشر مخطط المالية.");
-    else {
-      const payload = (r.data ?? {}) as {
-        invoices?: Invoice[];
-        payments?: (PaymentAmount & { id?: string; paid_at?: string })[];
+    try {
+      const r = await supabase.rpc("get_customer_account_statement");
+      if (r.error) throw new Error("تعذر قراءة كشف الحساب. تحقق من نشر مخطط المالية.");
+      if (!r.data || typeof r.data !== "object") throw new Error("استجابة كشف الحساب غير مكتملة.");
+      const payload = r.data as {
+        invoices?: unknown;
+        payments?: unknown;
+        credits?: unknown;
+        summary?: unknown;
       };
-      setInvoices(payload.invoices ?? []);
-      setPayments(payload.payments ?? []);
+      if (!Array.isArray(payload.invoices) || payload.invoices.length > 200 ||
+          !Array.isArray(payload.payments) || payload.payments.length > 500) {
+        throw new Error("تفاصيل كشف الحساب غير صالحة أو تجاوزت حدود القراءة.");
+      }
+      const parsedCredits = parseCustomerStatementCreditMemos(payload.credits);
+      setInvoices(payload.invoices as Invoice[]);
+      setPayments(payload.payments as (PaymentAmount & { id?: string; paid_at?: string })[]);
+      setCredits(parsedCredits);
+      setStatementSummary(Object.prototype.hasOwnProperty.call(payload, "summary") ? payload.summary : undefined);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر قراءة بيانات كشف الحساب.");
+      setInvoices([]);
+      setPayments([]);
+      setCredits([]);
+      setStatementSummary(undefined);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
+
   const downloadStatementPdf = useCallback(async () => {
     setPdfBusy(true);
     setPdfError("");
@@ -816,10 +891,10 @@ function Statement() {
     void load();
   }, [load]);
   const totals = useMemo(
-    () => summarizeAccount(invoices as InvoiceAmount[], payments),
-    [invoices, payments],
+    () => summarizeAccount(invoices as InvoiceAmount[], payments, statementSummary),
+    [invoices, payments, statementSummary],
   );
-  const statementMayBePartial = isCustomerStatementPossiblyPartial(invoices.length, payments.length);
+  const statementMayBePartial = isCustomerStatementPossiblyPartial(invoices.length, payments.length, credits.length);
   return (
     <WorkspaceShell title="كشف الحساب" subtitle="ملخص من الفواتير والمدفوعات المسجلة فقط.">
       <div
@@ -846,7 +921,12 @@ function Statement() {
           )}
           {statementMayBePartial && (
             <p role="status" style={{ ...quiet, color: "#9b4e22", marginBottom: 12 }}>
-              تنبيه اكتمال البيانات: يعرض هذا الملخص أحدث 200 فاتورة و500 دفعة كحد أقصى؛ قد لا تمثل الأرقام إجمالي السجل الكامل.
+              تنبيه اكتمال التفاصيل: يعرض كشف الحساب بحد أقصى 200 فاتورة و500 دفعة و500 إشعار دائن. ملخص الأرصدة أعلاه من دفتر العميل الكامل عند توفر ملخص الخادم.
+            </p>
+          )}
+          {statementSummary !== undefined && totals.valid && (
+            <p role="status" style={{ ...quiet, marginBottom: 12 }}>
+              إجماليات الرصيد محسوبة من دفتر العميل الكامل لكل عملة؛ قوائم التفاصيل أدناه محدودة للقراءة والطباعة.
             </p>
           )}
           {totals.valid ? (
@@ -862,6 +942,7 @@ function Statement() {
                         [
                           ["إجمالي الفواتير", currencyBalance.invoiced],
                           ["المدفوع المسجل", currencyBalance.paid],
+                          ["الإشعارات الدائنة", currencyBalance.credited],
                           ["المتبقي المستحق", currencyBalance.outstanding],
                         ] as const
                       ).map(([label, value]) => (
@@ -895,6 +976,7 @@ function Statement() {
                   <th>المستند</th>
                   <th>الإجمالي</th>
                   <th>المدفوع</th>
+                  <th>الإشعارات الدائنة</th>
                   <th>المتبقي</th>
                   <th>الحالة</th>
                 </tr>
@@ -910,15 +992,18 @@ function Statement() {
                       </td>
                       <td>{balance.valid ? formatAccountMoney(balance.total, balance.currency) : "غير متاح"}</td>
                       <td>{balance.valid ? formatAccountMoney(balance.paid, balance.currency) : "غير متاح"}</td>
+                      <td>{balance.valid ? formatAccountMoney(balance.credited, balance.currency) : "غير متاح"}</td>
                       <td>{balance.valid ? formatAccountMoney(balance.outstanding, balance.currency) : "غير متاح"}</td>
                       <td>
-                        {i.status === "paid"
-                          ? "مدفوعة"
-                          : i.status === "partially_paid"
-                            ? "جزئيًا"
-                            : i.status === "void"
-                              ? "ملغاة"
-                              : "مستحقة"}
+                        {i.status === "void"
+                          ? "ملغاة"
+                          : balance.valid && balance.credited > 0 && balance.outstanding === 0 && i.status !== "paid"
+                            ? "مسوّاة بإشعار دائن"
+                            : i.status === "paid"
+                              ? "مدفوعة"
+                              : i.status === "partially_paid"
+                                ? "جزئيًا"
+                                : "مستحقة"}
                       </td>
                     </tr>
                   );
@@ -927,7 +1012,36 @@ function Statement() {
             </table>
             {!invoices.length && <p style={{ padding: 14 }}>لا توجد حركات مالية مسجلة.</p>}
           </section>
-          <p style={quiet}>عدد الدفعات المسجلة: {payments.length}.</p>
+          <section style={{ ...card, marginTop: 14 }}>
+            <h3 style={{ marginTop: 0 }}>الإشعارات الدائنة المرحّلة</h3>
+            {credits.length ? (
+              <div style={{ overflowX: "auto" }}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr style={{ textAlign: "right", background: "#f4f8f9" }}>
+                      <th style={{ padding: 10 }}>رقم الإشعار</th>
+                      <th>الفاتورة الأصلية</th>
+                      <th>تاريخ الترحيل</th>
+                      <th>العملة والمبلغ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {credits.map((credit) => (
+                      <tr key={credit.id} style={{ borderTop: "1px solid #edf2f3" }}>
+                        <td style={{ padding: 10 }}><strong>{credit.memo_number}</strong></td>
+                        <td>{credit.invoice_number}</td>
+                        <td>{formatDateShort(credit.posted_at)}</td>
+                        <td>{formatAccountMoney(credit.total_amount, credit.currency)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p style={quiet}>لا توجد إشعارات دائنة مرحّلة ضمن تفاصيل القراءة الحالية.</p>
+            )}
+          </section>
+          <p style={quiet}>عدد الدفعات المسجلة: {payments.length}؛ الإشعارات الدائنة المعروضة: {credits.length}.</p>
         </>
       )}
     </WorkspaceShell>
@@ -2429,6 +2543,7 @@ export function StaffFinancePage() {
         <h1 style={{ fontSize: 24, margin: 0 }}>الفواتير والتحصيل</h1>
         <p style={quiet}>تسجيل دفعة فعلية من خلال أمر خادمي يتحقق من المتبقي داخل معاملة واحدة.</p>
       </header>
+      <FinanceDocumentPrintActions />
       {message && (
         <div role="status" style={card}>
           {message}

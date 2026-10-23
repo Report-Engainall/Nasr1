@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { supabase } from './supabase';
+import { getAuthEmailRedirectUrl } from './auth-redirect';
 
 export type AuthUser = { id: string; profileId: string; email: string; name: string; roles: string[]; isStaff: boolean };
 
@@ -90,9 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: email.trim(), password,
         options: {
           // Keep the verified invitation token through email confirmation; redirects are limited to this fixed in-app path.
-          emailRedirectTo: window.location.pathname === '/company/accept-invitation' && new URLSearchParams(window.location.search).has('token')
-            ? `${window.location.origin}${window.location.pathname}${window.location.search}`
-            : `${window.location.origin}/login`,
+          emailRedirectTo: getAuthEmailRedirectUrl(
+            window.location.origin,
+            window.location.pathname,
+            window.location.search,
+          ),
           data: { full_name: fullName.trim() },
         },
       });

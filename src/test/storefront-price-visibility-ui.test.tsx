@@ -17,17 +17,29 @@ const mocks = vi.hoisted(() => ({
     {
       id: "product-1",
       name: "Rice",
+      name_en: null,
       item_code: "SKU-001",
+      sku: null,
       barcode: null,
+      category_id: null,
+      brand_id: null,
       description: "اختبار الخصوصية",
       unit: "carton",
+      image_url: null,
+      is_active: true,
+      is_featured: false,
+      sort_order: 0,
+      price_wholesale_of_wholesale: 1000,
+      price_wholesale: 1100,
+      price_retail: 1234,
       base_price: 99000,
       display_price: 1234,
       cost_price: 600,
+      stock_quantity: 20,
+      reserved_quantity: 0,
+      min_stock_level: 0,
       min_stock: 0,
       status: "active",
-      category_id: null,
-      image_url: null,
       created_at: "2026-01-01T00:00:00Z",
       retail_price: 1234,
       wholesale_price: 1100,
@@ -63,7 +75,9 @@ vi.mock("@/lib/useFetch", () => ({
     if (fetcher === mocks.fetchStorefrontPromotions) return { data: [], loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchSettingsMap) return { data: mocks.settings, loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchStorefrontAnnouncements) return { data: [], loading: false, error: null, refetch: vi.fn() };
-    return { data: null, loading: false, error: null, refetch: vi.fn() };
+    // Storefront passes async query wrappers for the current full/paged catalog reads,
+    // so the fallback must provide the concrete snapshot shape that the component consumes.
+    return { data: { mode: "full", items: mocks.products }, loading: false, error: null, refetch: vi.fn() };
   },
 }));
 
@@ -114,6 +128,14 @@ function validPricing(surface: "cart" | "orders") {
     total_amount: 2468,
     customer_tier_visible: false,
   };
+}
+
+function formatServerAmount(amount: number): string {
+  return new Intl.NumberFormat("ar-YE", {
+    style: "currency",
+    currency: "YER",
+    maximumFractionDigits: 3,
+  }).format(amount);
 }
 
 function validCartValidation() {
@@ -251,7 +273,7 @@ describe("customer price visibility UI acceptance", () => {
 
     expect(mount.host.textContent).toContain("Rice");
     expect(mount.host.textContent).not.toContain("سعر الوحدة:");
-    expect(mount.host.querySelector('[aria-label="إجمالي السلة"]')).toBeNull();
+    expect(mount.host.querySelector('.sf-order-pricing-total')).toBeNull();
     expect(mount.host.textContent).not.toContain(formatCurrency(777777));
     expect(mocks.rpc.mock.calls.some(([name]) => name === "preview_customer_order_pricing")).toBe(false);
   });
@@ -264,9 +286,9 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
 
     expect(mount.host.textContent).toContain("سعر الوحدة:");
-    expect(mount.host.querySelector('[aria-label="إجمالي السلة"]')).not.toBeNull();
-    expect(mount.host.textContent).toContain(formatCurrency(1234));
-    expect(mount.host.textContent).toContain(formatCurrency(2468));
+    expect(mount.host.querySelector('.sf-order-pricing-total')).not.toBeNull();
+    expect(mount.host.textContent).toContain(formatServerAmount(1234));
+    expect(mount.host.textContent).toContain(formatServerAmount(2468));
   });
 
   it("does not render financial keys from a server-hidden cart preview", async () => {
@@ -290,8 +312,8 @@ describe("customer price visibility UI acceptance", () => {
 
     expect(mount.host.textContent).not.toContain("سعر الوحدة:");
     expect(mount.host.textContent).not.toContain("إجمالي السلة");
-    expect(mount.host.textContent).not.toContain(formatCurrency(2468));
-    expect(mount.host.textContent).toContain("تبقى المبالغ مخفية");
+    expect(mount.host.textContent).not.toContain(formatServerAmount(2468));
+    expect(mount.host.textContent).toContain("لم يسمح إعداد الخادم بعرض الأسعار على هذه الشاشة؛ لم تُعرض أي مبالغ.");
   });
 
   it("fails closed when cart pricing RPC errors or returns malformed amounts", async () => {
@@ -306,7 +328,7 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
     expect(malformed.host.textContent).not.toContain("سعر الوحدة:");
     expect(malformed.host.textContent).not.toContain("إجمالي السلة");
-    expect(malformed.host.textContent).not.toContain(formatCurrency(2468));
+    expect(malformed.host.textContent).not.toContain(formatServerAmount(2468));
     await unmount(malformed);
 
     mocks.rpc.mockImplementation(async (name: string) => {
@@ -317,7 +339,7 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
     expect(failed.host.textContent).not.toContain("سعر الوحدة:");
     expect(failed.host.textContent).not.toContain("إجمالي السلة");
-    expect(failed.host.textContent).not.toContain(formatCurrency(2468));
+    expect(failed.host.textContent).not.toContain(formatServerAmount(2468));
   });
 
   it("keeps order-review amounts hidden while the order validation remains non-financial", async () => {
@@ -328,7 +350,7 @@ describe("customer price visibility UI acceptance", () => {
 
     expect(mount.host.textContent).toContain("ملخص الطلب");
     expect(mount.host.textContent).not.toContain("سعر الوحدة:");
-    expect(mount.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).toBeNull();
+    expect(mount.host.querySelector('.sf-order-pricing-total')).toBeNull();
     expect(mount.host.textContent).not.toContain(formatCurrency(777777));
     expect(mount.host.textContent).toContain("الأسعار والإجماليات مخفية في مراجعة الطلب");
     expect(mocks.rpc.mock.calls.some(([name]) => name === "validate_checkout_cart")).toBe(true);
@@ -348,9 +370,9 @@ describe("customer price visibility UI acceptance", () => {
     await flushEffects();
 
     expect(mount.host.textContent).toContain("سعر الوحدة:");
-    expect(mount.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).not.toBeNull();
-    expect(mount.host.textContent).toContain(formatCurrency(1234));
-    expect(mount.host.textContent).toContain(formatCurrency(2468));
+    expect(mount.host.querySelector('.sf-order-pricing-total')).not.toBeNull();
+    expect(mount.host.textContent).toContain(formatServerAmount(1234));
+    expect(mount.host.textContent).toContain(formatServerAmount(2468));
   });
 
   it("fails closed for hidden, malformed, or errored order-review pricing responses", async () => {
@@ -369,8 +391,8 @@ describe("customer price visibility UI acceptance", () => {
     const hidden = await mountAt("/checkout");
     await flushEffects();
     expect(hidden.host.textContent).not.toContain("سعر الوحدة:");
-    expect(hidden.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).toBeNull();
-    expect(hidden.host.textContent).not.toContain(formatCurrency(2468));
+    expect(hidden.host.querySelector('.sf-order-pricing-total')).toBeNull();
+    expect(hidden.host.textContent).not.toContain(formatServerAmount(2468));
     await unmount(hidden);
 
     mocks.rpc.mockImplementation(async (name: string) => {
@@ -383,8 +405,8 @@ describe("customer price visibility UI acceptance", () => {
     const malformed = await mountAt("/checkout");
     await flushEffects();
     expect(malformed.host.textContent).not.toContain("سعر الوحدة:");
-    expect(malformed.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).toBeNull();
-    expect(malformed.host.textContent).not.toContain(formatCurrency(2468));
+    expect(malformed.host.querySelector('.sf-order-pricing-total')).toBeNull();
+    expect(malformed.host.textContent).not.toContain(formatServerAmount(2468));
     await unmount(malformed);
 
     mocks.rpc.mockImplementation(async (name: string) => {
@@ -395,7 +417,7 @@ describe("customer price visibility UI acceptance", () => {
     const failed = await mountAt("/checkout");
     await flushEffects();
     expect(failed.host.textContent).not.toContain("سعر الوحدة:");
-    expect(failed.host.querySelector('[aria-label="إجمالي مراجعة الطلب"]')).toBeNull();
-    expect(failed.host.textContent).not.toContain(formatCurrency(2468));
+    expect(failed.host.querySelector('.sf-order-pricing-total')).toBeNull();
+    expect(failed.host.textContent).not.toContain(formatServerAmount(2468));
   });
 });

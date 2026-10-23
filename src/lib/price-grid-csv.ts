@@ -22,8 +22,28 @@ function spreadsheetSafeText(value: string): string {
   return /^\s*[=+\-@]/.test(value) ? "'" + value : value;
 }
 
-function csvCell(value: string | number | boolean | null): string {
-  const normalized = value === null ? '' : typeof value === 'string' ? spreadsheetSafeText(value) : String(value);
+type CsvFormattedNumber = { readonly __trustedCsvNumber: string };
+
+function formattedNumber(value: unknown, fractionDigits: number, fieldName: string): CsvFormattedNumber {
+  const numeric = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim() !== ''
+      ? Number(value)
+      : Number.NaN;
+  if (!Number.isFinite(numeric)) {
+    throw new Error('تعذر تصدير شبكة الأسعار: القيمة الرقمية غير صالحة في الحقل ' + fieldName + '.');
+  }
+  // This string came from a validated numeric field, not untrusted business text.
+  // Keep valid negative quantities numeric instead of escaping them as possible formulas.
+  return { __trustedCsvNumber: numeric.toFixed(fractionDigits) };
+}
+
+function csvCell(value: string | number | boolean | null | CsvFormattedNumber): string {
+  const trustedNumeric = typeof value === 'object' && value !== null && '__trustedCsvNumber' in value;
+  const normalized = value === null ? ''
+    : trustedNumeric ? value.__trustedCsvNumber
+    : typeof value === 'string' ? spreadsheetSafeText(value)
+    : String(value);
   return '"' + normalized.replace(/"/g, '""') + '"';
 }
 
@@ -34,20 +54,20 @@ function csvCell(value: string | number | boolean | null): string {
 export function buildPriceGridCsv(rows: readonly ProductPriceGridRow[]): string {
   const output = [PRICE_GRID_EXPORT_HEADERS.map(csvCell).join(',')];
   for (const row of rows) {
-    const values: (string | number | boolean | null)[] = [
+    const values: (string | number | boolean | null | CsvFormattedNumber)[] = [
       row.id,
       row.item_code,
       row.name,
       row.unit,
       row.is_active ? 'نشط' : 'موقوف',
-      Number(row.base_price).toFixed(2),
-      Number(row.price_wholesale_of_wholesale).toFixed(2),
-      Number(row.price_wholesale).toFixed(2),
-      Number(row.price_retail).toFixed(2),
-      row.quantity_on_hand_total === null ? null : Number(row.quantity_on_hand_total).toFixed(3),
-      row.quantity_reserved_total === null ? null : Number(row.quantity_reserved_total).toFixed(3),
-      row.quantity_available_total === null ? null : Number(row.quantity_available_total).toFixed(3),
-      row.reorder_point_total === null ? null : Number(row.reorder_point_total).toFixed(0),
+      formattedNumber(row.base_price, 2, 'base_price'),
+      formattedNumber(row.price_wholesale_of_wholesale, 2, 'price_wholesale_of_wholesale'),
+      formattedNumber(row.price_wholesale, 2, 'price_wholesale'),
+      formattedNumber(row.price_retail, 2, 'price_retail'),
+      row.quantity_on_hand_total === null ? null : formattedNumber(row.quantity_on_hand_total, 3, 'quantity_on_hand_total'),
+      row.quantity_reserved_total === null ? null : formattedNumber(row.quantity_reserved_total, 3, 'quantity_reserved_total'),
+      row.quantity_available_total === null ? null : formattedNumber(row.quantity_available_total, 3, 'quantity_available_total'),
+      row.reorder_point_total === null ? null : formattedNumber(row.reorder_point_total, 0, 'reorder_point_total'),
       row.inventory_warehouse_count,
     ];
     output.push(values.map(csvCell).join(','));
@@ -89,26 +109,68 @@ function parseCsvRecords(source: string): string[][] {
   let row: string[] = [];
   let field = '';
   let quoted = false;
+  let closedQuote = false;
   const text = source.replace(/^\uFEFF/, '');
+
   for (let i = 0; i < text.length; i += 1) {
     const char = text[i];
+
     if (quoted) {
-      if (char === '"' && text[i + 1] === '"') { field += '"'; i += 1; }
-      else if (char === '"') quoted = false;
-      else field += char;
-    } else if (char === '"' && field === '') {
+      if (char === '"' && text[i + 1] === '"') {
+        field += '"';
+        i += 1;
+      } else if (char === '"') {
+        quoted = false;
+        closedQuote = true;
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (closedQuote) {
+      if (char === ',') {
+        row.push(field);
+        field = '';
+        closedQuote = false;
+        continue;
+      }
+      if (char === '\r' || char === '\n') {
+        if (char === '\r' && text[i + 1] === '\n') i += 1;
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = '';
+        closedQuote = false;
+        continue;
+      }
+      throw new Error('ملف CSV يحتوي على نص غير مسموح به بعد إغلاق علامة الاقتباس.');
+    }
+
+    if (char === '"') {
+      if (field !== '') {
+        throw new Error('ملف CSV يحتوي على علامة اقتباس داخل حقل غير مقتبس.');
+      }
       quoted = true;
     } else if (char === ',') {
-      row.push(field); field = '';
+      row.push(field);
+      field = '';
     } else if (char === '\r' || char === '\n') {
       if (char === '\r' && text[i + 1] === '\n') i += 1;
-      row.push(field); rows.push(row); row = []; field = '';
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
     } else {
       field += char;
     }
   }
+
   if (quoted) throw new Error('ملف CSV يحتوي على حقل نصي غير مغلق بعلامة اقتباس.');
-  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  if (field !== '' || row.length || closedQuote) {
+    row.push(field);
+    rows.push(row);
+  }
   return rows.filter((record) => record.some((cell) => cell.trim() !== ''));
 }
 

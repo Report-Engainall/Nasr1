@@ -46,7 +46,7 @@ vi.mock("@/lib/useFetch", () => ({
     if (fetcher === mocks.fetchStorefrontPromotions) return { data: mocks.promotions, loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchSettingsMap) return { data: mocks.settings, loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchStorefrontAnnouncements) return { data: [], loading: false, error: null, refetch: vi.fn() };
-    return { data: null, loading: false, error: null, refetch: vi.fn() };
+    return { data: { mode: "full", items: mocks.products }, loading: false, error: null, refetch: vi.fn() };
   },
 }));
 

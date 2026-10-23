@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyOutboxProcessResult,
+  outboxFailureMessage,
   sanitizeOutboxErrorMessage,
 } from "../../supabase/functions/outbox-worker/logic";
 
@@ -49,4 +50,28 @@ describe("outbox worker logical RPC result handling", () => {
     expect(sanitizeOutboxErrorMessage(null)).toBe("Unclassified worker error");
     expect(sanitizeOutboxErrorMessage(new Error("x".repeat(700)))).toHaveLength(500);
   });
+});
+
+describe("outbox worker failure message wiring", () => {
+  it("redacts provider-sensitive values before persisting RPC errors", () => {
+    const message = outboxFailureMessage({
+      message: "failed for buyer@example.com +967 777 123 456; Bearer secret-token api_key=provider-secret https://api.example.test/?access_token=query-secret",
+    });
+    expect(message).not.toContain("buyer@example.com");
+    expect(message).not.toContain("777 123 456");
+    expect(message).not.toContain("secret-token");
+    expect(message).not.toContain("provider-secret");
+    expect(message).not.toContain("query-secret");
+    expect(message).toContain("[email redacted]");
+    expect(message).toContain("[number redacted]");
+    expect(message).toContain("[redacted]");
+  });
+
+  it.each([null, undefined, {}, { message: 42 }, { message: "   " }])(
+    "uses a safe fallback for absent or malformed RPC errors %#",
+    (error) => {
+      expect(outboxFailureMessage(error as { message?: unknown } | null | undefined))
+        .toBe("process_outbox_event returned no recognized status");
+    },
+  );
 });
