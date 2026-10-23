@@ -327,7 +327,8 @@ jobs:
           sed -i '1s/.*/project_id = "p2-local-e2e"/' "$local_project/supabase/config.toml"
           # Avoid the default 54322 host DB port, which can already be occupied by another job-local service.
           sed -i '/^\[db\]$/a port = 55432\nshadow_port = 55430' "$local_project/supabase/config.toml"
-          grep -q '^port = 55432          if [ ! -f "$local_project/supabase/migrations/20261018100000_product_image_storage.sql" ]; then
+          grep -q '^port = 55432$' "$local_project/supabase/config.toml"
+          if [ ! -f "$local_project/supabase/migrations/20261018100000_product_image_storage.sql" ]; then
             echo "Expected Storage-only migration not found; refusing to claim the scoped migration set." >&2
             exit 1
           fi
