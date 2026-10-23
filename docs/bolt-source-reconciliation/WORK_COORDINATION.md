@@ -1,21 +1,19 @@
 # سجل التنسيق — المرجع الحي
 
-## CLOSED P2 path lock — FIN-INVOICE-001 payment retry-key preservation — 2026-10-23T23:29:00+03:00
+## CLOSED — main-state reconciliation PR #126 — 2026-10-23T23:41:00+03:00
 
-- PR https://github.com/Report-Engainall/Nasr1/pull/123 is CLOSED/MERGED. Merge/main SHA: 271de9ac23d6fd092db5a77c15bcf191249fd40d; exact tested PR head: f7f0071a4a5437877e7da13dd1e83471ded3a610.
-- Core run 40017279766 and P2 run 40017279809 completed SUCCESS on the same exact PR head. Core push run 40017988386 completed SUCCESS on merge/main SHA 271de9ac23d6fd092db5a77c15bcf191249fd40d.
-- Hosted authenticated customer/tenant E2E was SKIPPED because dedicated non-production Supabase credentials and authorized cross-tenant accounts were unavailable. This remains BLOCKED_EXTERNAL, not PASS. Local isolated PostgreSQL 17/Supabase browser paths completed SUCCESS.
-- Verified fix: each unresolved payment payload retains a fingerprint-mapped idempotency key; null/empty/malformed payment UUID or RPC/transport error cannot report success or clear the key. Regression tests cover switching A -> B -> retry A and malformed/null acknowledgements.
-- Payment code lock released after merge: src/components/CustomerWorkflows.tsx and src/components/CustomerWorkflows.finance.test.tsx. No migration or RPC/security grant was added in #123. CodeRabbit was rate-limited; manual P2 review completed and no unresolved review threads remained at merge.
+- Main SHA 6815b00781412bd98cbdd9fb660e475e4540b543; Core push run 40019333142 SUCCESS on the exact SHA.
+- PR #126 exact head 2d1fddde5c8c9b3185dc19880ef5426129d28005 completed Core 40018779157 + P2 40018779193 SUCCESS. External customer/tenant E2E remains SKIPPED/BLOCKED_EXTERNAL.
 
-## NEXT P2 task — COMPANY-001-CURRENT-MAIN-ACCEPTANCE
+## ACTIVE P2 exclusive path lock — https://github.com/Report-Engainall/Nasr1/pull/127
 
-- Owner: P2. Re-read the live main SHA before opening the code branch; no direct main write.
-- Target: inspect existing company workspace routing, membership/invitation/address services and RLS/RPC, then implement only a current reproducible end-to-end gap.
-- Preserve merged fixes: #84 customer_manager role mapping; #90 invitation-expiry validation; #83/#88 central sessions. Verify only if touched or a regression is found.
-- Potential code paths are NOT LOCKED yet; don't invent a lock before identifying the actual route/component/service. After comparing open PRs, assign one exclusive P2 path lock and keep the five central P2 files serially owned only by P2.
-- Acceptance: same-tenant role allow/deny, customer-own/company-authorized address visibility, invitation create/revoke/expiry audit, PostgreSQL 17/RLS/RPC checks as applicable, and browser loading/error/retry proof. Require exact-head Core and P2 acceptance; no hosted PASS without dedicated authorized non-production test credentials.
-- No direct main writes, force-push, destructive reset, production DB writes, or live external calls.
+- Owner P2; base main 6815b00781412bd98cbdd9fb660e475e4540b543; branch feat/p2-company-workspace-acceptance-20261023; active PR [#127](https://github.com/Report-Engainall/Nasr1/pull/127).
+- Exclusive files: `src/lib/customer-addresses.ts`, `src/test/customer-addresses.test.ts`.
+- PR #127 originally validates fetched address row shape/UUID/country/timestamps. Current commit adds UUID validation for save acknowledgement plus pre-RPC edit/delete ID validation and tests, preserving row validation.
+- PR #129 overlaps the same paths. Its UUID contract fix is integrated into #127; close #129 without merge to prevent duplicate code/review. Do not keep two PRs modifying these paths.
+- Require Core + P2/PostgreSQL 17 terminal SUCCESS on the same latest #127 HEAD. Do not transfer runs from earlier #127/#129 heads.
+- No route, UI, routeTree, migration, RLS/grants or invitation/session scope changes. P1/P3 file ownership remains separate.
+- No direct main write, force-push, destructive reset, production DB write or live external API.
 
 ## المصالحة الحالية — 2026-10-23T21:47:31+03:00
 
