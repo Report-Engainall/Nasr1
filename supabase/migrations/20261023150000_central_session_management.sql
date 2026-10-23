@@ -143,7 +143,15 @@ BEGIN
   RETURN jsonb_build_object(
     'profile_id',v_profile_id,
     'organization_id',v_organization_id,
-    'warehouse_id',v_warehouse_id
+    'warehouse_id',v_warehouse_id,
+    'is_staff', EXISTS (
+      SELECT 1 FROM public.user_roles AS r
+      WHERE r.profile_id=v_profile_id AND r.role IN ('admin','manager','staff')
+    ),
+    'can_manage_customers', EXISTS (
+      SELECT 1 FROM public.user_roles AS r
+      WHERE r.profile_id=v_profile_id AND r.role IN ('admin','manager','customer_manager')
+    )
   );
 END
 $function$;
