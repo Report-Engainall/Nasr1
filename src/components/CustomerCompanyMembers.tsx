@@ -47,7 +47,7 @@ function CompanyMembersWorkspace(){
 export function CompanyInvitationAcceptancePage({initialToken}:{initialToken?:string}={}){
  const {user,ready}=useAuth();const [token,setToken]=useState(initialToken??"");const [loading,setLoading]=useState(false);const [error,setError]=useState("");const [accepted,setAccepted]=useState<{company_name:string;member_role:CompanyMemberRole}|null>(null);
  useEffect(()=>{setToken(initialToken??new URLSearchParams(window.location.search).get("token")??"");},[initialToken]);
- async function accept(){if(!token||loading)return;setLoading(true);setError("");try{const r=await acceptCompanyInvitation(token);setAccepted({company_name:r.company_name,member_role:r.member_role});window.history.replaceState(null,"","/company/accept-invitation");}catch(e){setError(e instanceof Error?e.message:"تعذر قبول الدعوة.");}finally{setLoading(false);}}
+ async function accept(){if(!token||loading)return;setLoading(true);setError("");try{window.history.replaceState(null,"","/company/accept-invitation");const r=await acceptCompanyInvitation(token);setAccepted({company_name:r.company_name,member_role:r.member_role});}catch(e){setError(e instanceof Error?e.message:"تعذر قبول الدعوة.");}finally{setLoading(false);}}
  if(!ready)return <main className="storefront" dir="rtl" role="status" style={{padding:24}}>جارٍ التحقق من الجلسة...</main>;
  if(!user)return <main className="storefront" dir="rtl" style={{minHeight:"100vh",padding:20}}><h1>قبول دعوة الشركة</h1><p>سجّل الدخول بالبريد المطابق للدعوة، ثم عد لقبولها.</p><Login onDone={()=>window.location.reload()}/></main>;
  if(user.isStaff)return <main className="storefront" dir="rtl" role="alert" style={{padding:24}}>الدعوة مخصصة لحساب عميل وليست حساب فريق الأغبري.</main>;
