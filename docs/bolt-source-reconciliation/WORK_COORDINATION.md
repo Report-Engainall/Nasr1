@@ -1,28 +1,15 @@
-# سجل التنسيق التاريخي — تحديثات 22 أكتوبر 2026
+# سجل التنسيق — المرجع الحي
 
-## تصحيح حاكم حي — 23 أكتوبر 2026
+## المصالحة الحالية — 2026-10-23T18:54:23+03:00
 
-هذا القسم هو المرجع الأحدث لحالة Git والتنسيق؛ أي SHA أو حالة قديمة في السجل أسفله تاريخية ولا تُعامل كحقيقة حية.
-
-- `main` الحالي الذي تم التحقق منه: `76baf9dbe7860a764abc18e75835abb8750d56a3`. لا كتابة مباشرة إلى `main`.
-- PR #54: `feat/p2-onyx-source-trace-mainline-20261022`. رأس الكود المثبت `52ae68f1f14d61d1fb13925a840c330cb70956e1`: Core CI PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39905763702 وP2 Playwright PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39905763717. وظيفة Supabase المحلية `120258001144` نجحت في PostgreSQL 17، الطلب/عزل المستأجر، المرتجعات والإشعارات الدائنة، تصدير Onyx XLSX، والطباعة المالية/التشغيلية. اعتماد الاختبار الخارجي منفصل وبقي SKIPPED.
-- رأس الفرع الحالي قد يكون أحدث من SHA الكود المختبَر بسبب تحديثات الوثائق في PR #54. لا يُعتبر رأس الوثائق المختبَر إلا بعد نجاح Actions على SHA النهائي للوثائق.
-- مؤشر الاستئناف الوحيد في `CURRENT_EXECUTION_STATE.md` هو `INV-009`. أُغلق `SRC-011` بدليل لأن التحقق من `SOURCE_INTEGRATION_LEDGER.csv` (قراءة فقط) يثبت أن تدفق إدخال الطلب الحالي أفضل من donor migration 0011؛ لا تنسخ SQL المصدر ولا تعدّل سجل P1.
-- PR #52 / INV-009 (`e7cc5fa6aa2a7e22eeedc3d8f179c0638712ad3f`): Core PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39842798167. P2 run https://github.com/Report-Engainall/Nasr1/actions/runs/39842798332 فشل قبل بدء الخدمات بسبب GHCR rate limiting؛ لا إثبات متصفح لهذا الرأس. حدّث الفرع بعد تكامل تحسينات مسار Supabase في PR #54، ثم أعد Core وP2 على SHA محدد.
-- PR #57 / انتهاء دعوة الشركة (`2c4dea9ef63d34a6cf104bee58a5998c5fcef128`): Core PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39904816444 وP2 Playwright PASS https://github.com/Report-Engainall/Nasr1/actions/runs/39904816431، بما فيه Supabase المحلي؛ اختبار الحساب الخارجي منفصل وبقي SKIPPED. هذا الفرع يتداخل مع `scripts/test-database-migrations.mjs` الذي يعدّله PR #54، لذلك يُحدّث ويختبر بعد دمج #54، وليس بالتوازي.
-- تسلسل الدمج: لا تُدمج أو تحدث فروعًا متداخلة بالتوازي. PR #54 هو الذي يحمل تحديث المسار المشترك `.github/workflows/p2-playwright-critical-paths.yml`؛ بعد حسمه حدّث واختبر PR #52 ثم PR #57 بالتتابع مع فحص التعارضات وإعادة تشغيل الاختبارات على SHA الجديد. مراجعة P1 المستقلة لم تُسجّل كنتيجة نهائية بعد.
-- لا اختبارات إنتاجية أو اتصال حيّ بـOnyx/WhatsApp. لا `PRODUCTION_PROVEN`، ولا نجاح خارجي ضمني، ولا تعديل لملفات ملكية P1.
-
-
-## قفل تنفيذ مؤقت — OPS-DR-001: اختبار النسخ الاحتياطي والاستعادة المعزولة — تحديث 23 أكتوبر 2026
-
-- **مالك التنفيذ الوحيد:** P2؛ الفرع `feat/p2-backup-restore-drill-20261022`. أساس الفرع السابق `008bc9a0b5c79dc1a973e4bc1b38d73a1a3dc747` قديم؛ يُحدّث بالتسلسل فوق `024c279a2d1c0226c662e5d916871f45534c7242` دون force-push.
-- **المسارات الحصرية:** `scripts/test-local-backup-restore.mjs` و`.github/workflows/commerce-checks.yml` لخطوة قبول واحدة. لا يشمل القفل صفحات التطبيق أو migrations أو RLS.
-- **القبول:** pg_dump مخصص من PostgreSQL 17 المحلي `aghbari_test`، استعادة إلى قاعدة مؤقتة، مقارنة تعداد المخطط والدوال والسياسات والمحفزات، أعداد الصفوف وبصمات مرتبة لقيم الصفوف في الجداول الحرجة، بصمة SHA-256 للأرشيف وقياس الزمن، ثم حذف قاعدة الاستعادة والمجلد المؤقت.
-- **حدود السلامة:** يرفض السكربت أي مضيف خارج loopback وأي اسم قاعدة مصدر غير `aghbari_test`. لا يستهدف قاعدة مستضافة أو إنتاجية؛ قياسات CI المعزول لا تثبت RTO/RPO للإنتاج.
-- **شرط الإغلاق:** لا يُغلق `OPS-DR-001` إلا بعد Core CI نهائي ناجح وP2 ناجح على SHA النهائي نفسه. تحرير القفل بعد تسجيل نتيجة دمج `main` وبصمة/مدة فعلية من سجل التشغيل.
-
----
+- Main 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2; tree 40fcbdf56ddb5a50badc3c4d42e3164bb7ecfb3e; Core CI 39980802016 SUCCESS on exact main SHA.
+- PR #99 merged with matching tested tree. Core 39976687601/P2 39976687945 PASS on tested head 4122ed10b6827c6e0d4b4aeb64c6578ea8cd4d08; order status history records correct sequence/actor and rejects false audit rows. External hosted customer E2E is SKIPPED, not pass.
+- #82/#83/#71/#52/#54/#90/#84/#94/#95/#96 merged. #43/#56 closed without merge; #98 closed as superseded by #82 and current forward migration; #92 closed as stale doc checkpoint. New docs branch from current main is docs/p2-live-reconciliation-20261023.
+- P1 owns PR #88 session UI/spec/seed/reports; latest head 5114ea8227f570662533219af1dc3a013cd49f75 has Core 39981579136/P2 39981579236 still running at checkpoint. Do not modify its locked UI/E2E/seed files. P3 owns catalog PR #89 paths; P1 owns product submission PR #97 paths.
+- P2 owns the central state/matrix/log/coordination/P2 report, database migrations/RPCs, official DB types and PostgreSQL acceptance. Update these central files serially, each by current blob SHA. Don't modify P1/P3-owned paths.
+- Next P2 task FIN-LEDGER-001-MANUAL-JOURNAL-REVERSAL on branch p2/general-ledger-reversal-20261023 base 8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2. Scope only posted manual/adjustment entries; use existing source-specific reversal workflows for invoices/payments/cash expenses/purchase receipts.
+- INV-009 local reconciliation closed with evidence; Onyx target live import/sync remains BLOCKED_EXTERNAL. OPS-DR-001 has isolated PG17 evidence only; no production restoration, RTO or RPO claim. Official WhatsApp requires authorized provider response/ID.
+- No direct main writes, force push, destructive reset/clean, duplicate ledger, or merge based on a skipped/pending job.
 
 ## سجل التنسيق الأصلي (للتاريخ فقط)
 
