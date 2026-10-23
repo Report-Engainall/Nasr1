@@ -925,3 +925,23 @@ Read current #88 Core + P2 runs by exact post-sync SHA. If green, hand the missi
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: #88 Draft/open; keep Draft until exact-head Core plus actual session-management Chromium acceptance pass.
 - UPDATED_AT: 2026-10-23T14:38:56.566Z
+
+
+## Latest live readback — Core PASS; session browser acceptance still not proven — 2026-10-23T14:44:49.787Z
+
+- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-LOCAL-ENDPOINT-GUARD-CODE` — seeder now supports the isolated local PostgreSQL port with a fail-closed localhost boundary; the new Vitest guard coverage is included in Core.
+- CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c` (PR #88 base recorded by GitHub at latest readback).
+- LAST_CODE_SHA: `7a3bc8a3e952c021bf122e484416b12ba2a82379`.
+- EXACT_HEAD_CI_READBACK_SHA: `b611b293ffc62e8f078fb3586148023ab6038aa5` (current PR #88 head before this status-note commit; contains no code changes after LAST_CODE_SHA).
+- LAST_CONFIRMED_TESTS: Core CI [run 39971452491](https://github.com/Report-Engainall/Nasr1/actions/runs/39971452491) **SUCCESS** on exact head `b611b293...`; this includes the unit test suite containing `src/test/p1-device-session-endpoints.test.ts`, build and configured Core gates. It does not establish the new session-management Chromium acceptance.
+- FAILED_OR_NOT_RUN_TESTS: P2 Playwright [run 39971452473](https://github.com/Report-Engainall/Nasr1/actions/runs/39971452473) was still **IN_PROGRESS** at readback. Jobs: authenticated external-account gate SUCCESS; public UI smoke SUCCESS; hosted-account customer-order job SKIPPED due its explicit credentials gate; isolated local Supabase order/tenant job IN_PROGRESS at “Start isolated local Supabase services”. This workflow does not invoke `scripts/seed-p1-device-session-playwright.mjs` or `e2e/device-session-management.spec.ts`, so central-session browser acceptance is **NOT PROVEN**, regardless of the generic P2 job's eventual result.
+- FILES_CHANGED since code SHA: only this checkpoint/report status bookkeeping. Code change files remain `scripts/lib/p1-device-session-endpoints.mjs`, `scripts/lib/p1-device-session-endpoints.d.mts`, `scripts/seed-p1-device-session-playwright.mjs`, `src/test/p1-device-session-endpoints.test.ts`, alongside pre-existing #88 UI/browser files.
+- LOCKED_PATHS: P2-owned `.github/workflows/p2-playwright-critical-paths.yml`, migrations/RPC/RLS/API/generated DB types, finance/inventory/services, `package.json`, `bun.lock`, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, shared acceptance matrix remain untouched.
+- NEXT_ACTION: P2 must wire the P1 seed and the two `device-session-management.spec.ts` tests into the isolated local Supabase/Chromium job after environment export/app startup. Handoff comment recorded on #88 as [comment 6367467756](https://github.com/Report-Engainall/Nasr1/pull/88#issuecomment-6367467756). Then run Core + this exact browser acceptance on the new head; only promote #88 after the session tests truly execute and pass.
+- BLOCKER: missing session-specific browser invocation in P2-owned workflow; this P1 branch cannot edit that locked file without ownership transfer. External hosted-account E2E remains NOT RUN/SKIPPED, not PASS.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 OPEN / DRAFT / NOT MERGE-READY.
+- INDEPENDENT_NEXT_CANDIDATE: PR #96 storefront admin-navigation gate has Core/P2 success on its exact head `844aebd2c63a479b02d5bb17c08d06180bd64f3d`, but its base is one main commit behind and it edits the same checkpoint/report files as #88. Do not merge it until it is brought onto current main, re-tested, and the shared documentation overlap is reconciled.
+- UPDATED_AT: 2026-10-23T14:44:49.787Z
