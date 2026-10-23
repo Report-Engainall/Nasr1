@@ -126,7 +126,7 @@ test.describe("central device-session management — real local Supabase", () =>
       await signIn(adminPage, adminEmail, adminPassword);
       await adminPage.goto("/admin/devices");
       await expect(adminPage.getByRole("heading", { name: "جلسات المؤسسة المسجلة خادميًا" })).toBeVisible();
-      const targetRow = adminPage.locator("article").filter({ hasText: targetEmail });
+      const targetRow = adminPage.locator('section[aria-labelledby="organization-session-list-title"] article').filter({ hasText: targetEmail });
       await expect(targetRow).toBeVisible();
       await expect(targetRow.getByText(revokedSessionId.slice(0, 8))).toBeVisible();
       await expect(targetRow.getByRole("button", { name: "إبطال جلسة " + targetName })).toBeEnabled();
@@ -142,7 +142,7 @@ test.describe("central device-session management — real local Supabase", () =>
       await expect(adminPage.getByText(/أكد الخادم إبطال الجلسة المحددة/)).toBeVisible();
       expect(confirmedDialog, "Revocation must require explicit browser confirmation.").toBe(true);
       await expect(targetRow).toHaveCount(0);
-      const currentAdminRow = adminPage.locator("article")
+      const currentAdminRow = adminPage.locator('section[aria-labelledby="organization-session-list-title"] article')
         .filter({ hasText: adminEmail })
         .filter({ hasText: "الجلسة الحالية" });
       await expect(currentAdminRow).toBeVisible();
@@ -171,7 +171,7 @@ test.describe("central device-session management — real local Supabase", () =>
 
       await currentPage.goto("/admin/devices");
       await expect(currentPage.getByRole("heading", { name: "جلسات المؤسسة المسجلة خادميًا" })).toBeVisible();
-      const siblingRow = currentPage.locator("article").filter({ hasText: siblingId.slice(0, 8) });
+      const siblingRow = currentPage.locator('section[aria-labelledby="organization-session-list-title"] article').filter({ hasText: siblingId.slice(0, 8) });
       await expect(siblingRow).toBeVisible();
       await expect(siblingRow.getByText("جلسة أخرى لحسابك")).toBeVisible();
       await expect(siblingRow.getByRole("button", { name: /جلسة جهاز|إبطال جلسة/ })).toBeDisabled();
@@ -179,7 +179,7 @@ test.describe("central device-session management — real local Supabase", () =>
       await currentPage.getByRole("button", { name: "تسجيل الخروج من الأجهزة الأخرى" }).click();
       await expect(currentPage.getByText(/أكد الخادم إبطال \d+ جلسة أخرى لهذا الحساب/)).toBeVisible();
       await expect(siblingRow).toHaveCount(0);
-      const currentRow = currentPage.locator("article")
+      const currentRow = currentPage.locator('section[aria-labelledby="organization-session-list-title"] article')
         .filter({ hasText: currentId.slice(0, 8) })
         .filter({ hasText: "الجلسة الحالية" });
       await expect(currentRow).toBeVisible();

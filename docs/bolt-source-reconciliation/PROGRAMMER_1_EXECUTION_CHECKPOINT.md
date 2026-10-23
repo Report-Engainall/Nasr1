@@ -547,3 +547,24 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: OPEN / DRAFT / NOT MERGE-READY until exact integrated session acceptance passes.
 - UPDATED_AT: 2026-10-23T18:05+03:00
+
+
+
+## Active resume — fix ambiguous nested-article locators in session browser acceptance — 2026-10-23T18:14+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-SESSION-FIXTURE-SEED-001` — isolated local Supabase session fixture seed passed on integrated head `d7def4dcf2b714a9a1d9ef0643fc32923cf52e5d`.
+- CURRENT_TASK_ID: `P1-DEVICE-SESSION-MGMT-001`.
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: `f9beca0553fc7e546415b42b83274898fcf9449a`.
+- HEAD_SHA_BEFORE_FIX: `d7def4dcf2b714a9a1d9ef0643fc32923cf52e5d`.
+- LAST_CONFIRMED_TESTS: Core #39975835128 SUCCESS on `d7def4dcf2b714a9a1d9ef0643fc32923cf52e5d`. P2 #39975835151 reached the new session test; P1 seed step #30 passed, but session step #31 failed before invoking revoke RPCs.
+- ROOT_CAUSE: the E2E used `page.locator("article")` on a page where the signed-in session summary is also an `article` and contains a separate organization-session section with nested session-row articles. The selector returned the parent and child rows and triggered Playwright strict-mode failures before the intended security actions. This is a P1 test locator defect; no server authorization failure has been observed yet.
+- FIX: scope all target/current/sibling row selectors to `section[aria-labelledby="organization-session-list-title"] article`, which limits the query to the server-backed organization-session rows and excludes the separate current-session summary card.
+- FILES_CHANGED: `e2e/device-session-management.spec.ts`, this checkpoint, this current report.
+- FAILED_OR_NOT_RUN_TESTS: the first integrated session browser attempt failed for ambiguous row selection; after this selector fix, fresh exact-head Core + P2 runs are required. Do not count the prior failing run as acceptance proof.
+- LOCKED_PATHS: P2 workflow/migrations/RPC/RLS/Auth/API/types/finance remain untouched; shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, shared acceptance matrix and P3 #89 paths untouched.
+- NEXT_ACTION: read exact live branch and CI; confirm the session seeder and session spec execute, then inspect both security assertions end-to-end. Fix the next evidence-backed failure in P1-owned test/UI only.
+- BLOCKER: repeated central session acceptance is pending after the locator fix.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: OPEN / DRAFT / NOT MERGE-READY.
+- UPDATED_AT: 2026-10-23T18:14+03:00

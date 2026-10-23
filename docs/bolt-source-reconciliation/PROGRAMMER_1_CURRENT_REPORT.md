@@ -1037,3 +1037,18 @@ Read current #88 Core + P2 runs by exact post-sync SHA. If green, hand the missi
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: OPEN / DRAFT / NOT MERGE-READY until exact integrated session acceptance passes.
 - UPDATED_AT: 2026-10-23T18:05+03:00
+
+
+
+## P1 live test correction — session E2E row selection was ambiguous — 2026-10-23T18:14+03:00
+
+**Head under test:** `d7def4dcf2b714a9a1d9ef0643fc32923cf52e5d`  
+**P2 run:** [39975835151](https://github.com/Report-Engainall/Nasr1/actions/runs/39975835151)  
+**Core run:** [39975835128](https://github.com/Report-Engainall/Nasr1/actions/runs/39975835128)  
+**Failure:** Playwright strict-mode violation at test locators using `page.locator("article")`. The current-session summary is itself an article, while the server-backed organization session list contains row articles under a separate labelled section. The locator matched multiple nested articles, so both scenarios failed before revocation behavior was reached. No backend authorization failure has yet been demonstrated.
+
+**Correction:** scope the session-row locators to `section[aria-labelledby="organization-session-list-title"] article` for target, current and sibling records. This changes only the P1-owned spec. The fixture seed succeeded (`P1_DEVICE_SESSION_FIXTURES_READY localOnly=true adminRole=true sameTenantManagerTarget=true credentialsMasked=true`); the session assertion must now be rerun on the new SHA.
+
+**Status:** `ROOT CAUSE CONFIRMED — LOCATOR FIX IMPLEMENTED — RETEST PENDING`  
+**Next:** inspect new exact-head Core and P2 runs; require P1 seed + central session Chromium tests to conclude success before making #88 ready.  
+**UPDATED_AT:** 2026-10-23T18:14+03:00
