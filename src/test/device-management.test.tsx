@@ -185,6 +185,20 @@ describe('central device and session management', () => {
     expect(mocks.rpc.mock.calls.filter(([name]) => name === 'list_organization_sessions')).toHaveLength(2);
   });
 
+  it('fails closed when the server returns duplicate session identifiers', async () => {
+    sessions = [
+      makeSession(CURRENT_SESSION_ID, 'مدير النظام', true),
+      makeSession(CURRENT_SESSION_ID, 'موظف مكرر', false),
+    ];
+    await mount();
+
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+      'تعذر تحميل قائمة الجلسات المركزية من الخادم',
+    );
+    expect(host?.textContent).not.toContain('مدير النظام');
+    expect(host?.textContent).not.toContain('موظف مكرر');
+  });
+
   it('fails closed when the server session-list contract is missing or malformed', async () => {
     mocks.rpc.mockResolvedValueOnce({
       data: { sessions: [sessions[0]] },
