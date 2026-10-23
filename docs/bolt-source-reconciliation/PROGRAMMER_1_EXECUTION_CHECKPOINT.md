@@ -1,20 +1,20 @@
 # P1 Execution Checkpoint — live resume record
 
-> The P1 implementer must update and commit this checkpoint after every task, every blocker, and before stopping. Keep a short current state and append a dated history item; do not rewrite or delete earlier evidence.
+> Update and commit this checkpoint after every task, blocker, and before stopping. Keep a concise current state and append dated history; do not erase prior evidence.
 
 ## Current state
 
 - Overall status: IN_PROGRESS
-- Current task: P1-02 — validate password-recovery protections and harden thrown-failure handling in PR #44.
-- Active implementation branch: `p1/remaining-work-execution-20261023`
-- Main SHA at task start: `76baf9dbe7860a764abc18e75835abb8750d56a3`
-- Execution branch HEAD before this checkpoint commit: `7a2e3721af8fadacfabf497773b4f7113d028e27`
-- P1-01 implementation candidate: PR [#50](https://github.com/Report-Engainall/Nasr1/pull/50), exact code head `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; implementation reviewed, no duplicate code created.
-- P1-02 implementation candidate: PR [#44](https://github.com/Report-Engainall/Nasr1/pull/44), latest exact head `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`.
-- P1-02 Core CI: [run 39904405152](https://github.com/Report-Engainall/Nasr1/actions/runs/39904405152) — IN_PROGRESS at the unit-test step at last readback; do not mark passed until it completes on the exact SHA.
-- P1-02 Playwright: [run 39904405190](https://github.com/Report-Engainall/Nasr1/actions/runs/39904405190) — PENDING at last readback; authenticated browser/production proof is not claimed.
+- Current task: P1-03 — storefront catalog search completeness and suggestions; start with the exact current search contract and file ownership before editing.
+- Active P1 implementation branch: `p1/remaining-work-execution-20261023`
+- Main SHA at assignment: `76baf9dbe7860a764abc18e75835abb8750d56a3`
+- Execution branch HEAD before this checkpoint commit: `c7ec6cdf5c6621d5ff7a4a107f9b133f34146769`
+- P1-01 candidate: PR [#50](https://github.com/Report-Engainall/Nasr1/pull/50), exact code head `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; Core CI/isolated PostgreSQL acceptance passed; authenticated browser step was BLOCKED_EXTERNAL by GHCR rate limiting before assertions.
+- P1-02 candidate: PR [#44](https://github.com/Report-Engainall/Nasr1/pull/44), exact code head `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6); latest Core CI [run 39904405152](https://github.com/Report-Engainall/Nasr1/actions/runs/39904405152) completed SUCCESS on this SHA, including unit tests, isolated PostgreSQL 17 acceptance, lint, build, preview/dev smoke and Chromium price-visibility acceptance.
+- P1-02 separate authenticated Playwright run [39904405190](https://github.com/Report-Engainall/Nasr1/actions/runs/39904405190) was still IN_PROGRESS at the last readback. It is not a browser sign-off for the password-reset route; final browser/UAT acceptance remains deferred.
+- Latest implementation/test SHA values must be read back for each task; older CI does not prove later code.
 - Last update: 2026-10-23
-- Next task: finish P1-02 exact-head CI readback; then start P1-03 with the storefront/customer screen group that has a confirmed gap.
+- Next task: P1-03
 
 ## Fixed task queue
 
@@ -44,19 +44,24 @@
 ### Initial checkpoint
 No P1 application-code work was executed by the initial documentation update. The main baseline and old PR/test reports must not be treated as proof for later heads.
 
-### 2026-10-23 — P1-01 — CLOSED_WITH_EVIDENCE (implementation acceptance; PR merge remains pending)
-- Base/live main SHA: `76baf9dbe7860a764abc18e75835abb8750d56a3`. Reviewed only task-related paths and PR #50, not the repository wholesale.
-- Root-cause/gap result: no additional code gap found in the existing PR #50 implementation. The Data Center uses the existing `renameAdminCatalogCategory` command, awaits the server response, fails closed on malformed/mismatched responses, refetches after success, and displays server errors. The RPC scopes actor and organization on the server, limits access to active admin/manager profiles, locks normalized tenant/parent/name keys, rejects archived categories and active duplicate names, updates only the name, and writes before/after audit values while preserving ID, parent, code and sort order.
-- PR #50 paths reviewed: `docs/bolt-source-reconciliation/WORK_COORDINATION.md`, `scripts/test-admin-catalog-commands.mjs`, `src/components/AghbariApp.tsx`, `src/lib/admin-catalog-commands.ts`, `src/test/admin-category-rename-command.test.ts`, `src/test/admin-category-rename-migration.test.ts`, `src/test/admin-category-ui-command-wiring.test.ts`, `supabase/migrations/20261022200000_admin_catalog_category_rename.sql`.
-- Tests: exact-head Core CI run 39836522643 SUCCESS on `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`; `package.json` test:db invokes the dedicated PostgreSQL category-command acceptance script. This is CI evidence read back from GitHub, not a local test run in this session.
-- Browser: run 39836522607 failed before authenticated browser assertions due to GHCR `toomanyrequests`; status BLOCKED_EXTERNAL, not BROWSER_PROVEN. Production proof NOT_RUN.
-- PR #50 is still open and is not merged into main. Its `WORK_COORDINATION.md` also intersects P2 PRs #40 and #48; merge sequencing must remain serialized and explicitly coordinated. No files owned by P2 were changed by this task.
-- Evidence: IMPLEMENTED=YES on PR #50 head; INTEGRATED=YES within that candidate branch, NOT_YET_MERGED_TO_MAIN; TESTED_EXACT_SHA=YES for Core CI/isolated DB; BROWSER_PROVEN=BLOCKED_EXTERNAL; PRODUCTION_PROVEN=NOT_RUN.
-- Next task: P1-02. First action was to compare the three specified security files against live main and inspect the existing PR #44 candidate.
+### 2026-10-23 — P1-01 — CLOSED_WITH_EVIDENCE (implementation acceptance; merge pending)
+- Live main SHA: `76baf9dbe7860a764abc18e75835abb8750d56a3`. Reviewed task paths and PR #50 only, not the repository wholesale.
+- No additional code gap found in PR #50. The Data Center uses existing `renameAdminCatalogCategory`, awaits the server response, fails closed on malformed/mismatched responses, refetches after success, and surfaces errors. The RPC derives the actor/organization server-side, limits execution to active admin/manager profiles, locks tenant/parent/name changes, rejects archived categories and active duplicates, updates only the name, and writes before/after audit values while preserving ID, parent, code and sort order.
+- PR #50 files reviewed: `WORK_COORDINATION.md`, `scripts/test-admin-catalog-commands.mjs`, `src/components/AghbariApp.tsx`, `src/lib/admin-catalog-commands.ts`, three category rename tests, and `supabase/migrations/20261022200000_admin_catalog_category_rename.sql`.
+- Exact-head Core CI [39836522643](https://github.com/Report-Engainall/Nasr1/actions/runs/39836522643) SUCCESS on `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`. `package.json` test:db invokes the category-command PostgreSQL acceptance script.
+- Authenticated browser run [39836522607](https://github.com/Report-Engainall/Nasr1/actions/runs/39836522607) was BLOCKED_EXTERNAL before browser assertions by GHCR `toomanyrequests`; not BROWSER_PROVEN. Production proof NOT_RUN.
+- PR #50 remains open and unmerged. Its `WORK_COORDINATION.md` also intersects P2 PRs #40/#48; merge order requires explicit serialization. No P2-owned files were edited.
+- Evidence: IMPLEMENTED=YES in PR #50; INTEGRATED=YES within candidate branch, NOT_YET_MERGED_TO_MAIN; TESTED_EXACT_SHA=YES for Core CI/isolated DB; BROWSER_PROVEN=BLOCKED_EXTERNAL; PRODUCTION_PROVEN=NOT_RUN.
 
-### 2026-10-23 — P1-02 — IN_PROGRESS
-- Root cause: live main has `noindex` only on forgot-password and lacks `nofollow`/referrer protection on the two routes. The existing PR #44 candidate adds route metadata and tests, but its submit handler did not catch a rejected `supabase.auth.updateUser({ password })` promise; an unexpected transport rejection could leave the button busy and no user-facing error.
-- Changed paths in the existing PR #44 branch: `src/routes/reset-password.tsx` now retains the authenticated Supabase update, handles returned errors without navigating, reports thrown failures, and resets busy state in `finally`; `src/test/password-reset-route-security.test.ts` adds a regression assertion for the thrown-failure and busy-state path. No route tree, auth contract, database, P2-owned file, or production setting was changed.
-- Code head: `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`. Core CI run 39904405152 is still running at last readback (unit tests in progress); Playwright run 39904405190 is pending. No local test was run and no CI PASS is claimed yet for this SHA.
-- Exact older candidate evidence is not reused as proof for the new SHA. Browser/production proof remains NOT_RUN until the final acceptance or an explicit external blocker is recorded.
-- Next action: read the conclusion for Core CI run 39904405152 on the exact head; if it fails, inspect the failing step/log and repair only the evidenced failure before advancing.
+### 2026-10-23 — P1-02 — CLOSED_WITH_EVIDENCE (merge pending; final browser acceptance deferred)
+- Live main had only `noindex` on forgot-password and lacked `nofollow`/referrer protection there; reset-password lacked both directives. PR #44 already contained the appropriate route metadata and a route-security regression test, so no duplicate routes or auth contract were created.
+- Confirmed additional code gap in the existing PR #44 candidate: `reset-password.tsx` handled Supabase's returned error but did not catch a rejected `updateUser({ password })` promise. Added a safe user-facing network failure message and `finally` cleanup for busy state while retaining the authenticated Supabase update flow and preventing navigation after returned errors. Extended `src/test/password-reset-route-security.test.ts` to assert the thrown-failure and cleanup path.
+- Changed paths on PR #44 branch: `src/routes/reset-password.tsx`, `src/test/password-reset-route-security.test.ts`. The existing candidate `src/routes/forgot-password.tsx` was read-only in this task. No database, route tree, `src/lib/api.ts`, or P2-owned path changed.
+- Exact code SHA: `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`. Core CI [39904405152](https://github.com/Report-Engainall/Nasr1/actions/runs/39904405152) SUCCESS on that exact SHA: unit tests, PostgreSQL 17 migration/workflow acceptance, lint, build, preview/dev smoke and Chromium price-visibility acceptance all passed.
+- Authenticated P2 Playwright run [39904405190](https://github.com/Report-Engainall/Nasr1/actions/runs/39904405190) was IN_PROGRESS at last readback. It is not proof of password-reset browser behavior; final authenticated browser/production proof remains NOT_RUN/deferred. PR #44 remains open and unmerged, so current main remains unchanged by this candidate.
+- Evidence: IMPLEMENTED=YES in PR #44; INTEGRATED=YES within candidate branch, NOT_YET_MERGED_TO_MAIN; TESTED_EXACT_SHA=YES for Core CI; BROWSER_PROVEN=NOT_RUN; PRODUCTION_PROVEN=NOT_RUN.
+
+### 2026-10-23 — P1-03 — IN_PROGRESS
+- Initial targeted review found a specific search-completeness gap in the current Storefront path: the pure search contract `ArabicCatalogSearchRecord` in `src/lib/commerce-utils.ts` declares only name, item_code and barcode, and the primary search input in `src/components/Storefront.tsx` has no suggestion dropdown. The original spec also requires SKU, description and brand search plus quick suggestions.
+- This is not yet an implementation conclusion: the main shop uses paged server search, so confirm the current existing `fetchStorefrontCatalogPage`/RPC search contract and current open-PR path ownership before editing. Do not fake suggestions from incomplete records or create a second catalog engine.
+- First action: read only `src/lib/storefront-catalog.ts`, the corresponding target-native search contract/acceptance, and open PRs touching `src/components/Storefront.tsx` or `src/lib/commerce-utils.ts`; extend the existing contract and add focused regression tests only if the gap is confirmed and the path is unowned.
