@@ -44,12 +44,15 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
   }
 
   const rawSearch = input.search ?? '';
-  // Allow a complete, validated email address to be searched without removing its separators.
-  // The allowlist excludes commas, parentheses, wildcards, and PostgREST filter operators.
-  const emailSearch = rawSearch.normalize('NFKC').trim().toLowerCase();
-  const isEmailSearch = emailSearch.length <= 254 &&
-    /^[a-z0-9._+-]+@[a-z0-9.-]+\.[a-z]{2,63}$/i.test(emailSearch);
-  const search = isEmailSearch ? emailSearch : normalizeCustomerDirectorySearch(rawSearch);
+  // Preserve partial email/domain input as well as complete addresses; otherwise punctuation
+  // such as "." and "@" would be stripped and make searches like "@example.com" impossible.
+  // This strict allowlist excludes PostgREST logic separators and filter operators.
+  const emailLikeSearch = rawSearch.normalize('NFKC').trim().toLowerCase();
+  const isEmailLikeSearch = emailLikeSearch.length <= 254 &&
+    !/\s/.test(emailLikeSearch) &&
+    /[@._]/.test(emailLikeSearch) &&
+    /^[a-z0-9._+@-]+$/i.test(emailLikeSearch);
+  const search = isEmailLikeSearch ? emailLikeSearch : normalizeCustomerDirectorySearch(rawSearch);
   const scope = await getCurrentTenantScope();
   if (!scope.isStaff || !scope.organizationId) {
     throw new Error('صلاحية موظف المؤسسة مطلوبة لفتح دليل العملاء.');
@@ -64,7 +67,9 @@ export async function fetchCustomerDirectoryPage(input: CustomerDirectoryRequest
       .order('id', { ascending: false });
 
     if (search) {
-      const pattern = `%${search}%`;
+      // Treat SQL LIKE wildcards as literal search characters, not user-controlled wildcards.
+      const escapedSearch = search.replace(/[\\%_]/g, '\\      const pattern = `%${search}%`;');
+      const pattern = `%${escapedSearch}%`;
       request = request.or([
         `business_name.ilike.${pattern}`,
         `contact_name.ilike.${pattern}`,

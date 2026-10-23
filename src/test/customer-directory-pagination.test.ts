@@ -88,14 +88,36 @@ describe('customer directory query contract', () => {
     expect(mocks.filters[0]).not.toContain('.eq.approved');
   });
 
-  it('searches contact details and preserves a validated full email query', async () => {
+  it('searches by customer name, contact, phone, and email using the tenant-scoped server query', async () => {
     await fetchCustomerDirectoryPage({ search: 'مسؤول المشتريات' });
-    expect(mocks.filters[0]).toContain('contact_name.ilike.%مسؤول المشتريات%');
-    expect(mocks.filters[0]).toContain('email.ilike.%مسؤول المشتريات%');
+    for (const field of ['business_name', 'contact_name', 'phone', 'email', 'customer_code']) {
+      expect(mocks.filters[0]).toContain(`${field}.ilike.%مسؤول المشتريات%`);
+    }
+    expect(mocks.equals).toContainEqual(['organization_id', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb']);
 
     await fetchCustomerDirectoryPage({ search: 'Buyer+Ops@example.test' });
     expect(mocks.filters[1]).toContain('email.ilike.%buyer+ops@example.test%');
     expect(mocks.filters[1]).not.toContain('status.eq');
+  });
+
+  it('supports partial email and domain searches and escapes LIKE wildcard characters', async () => {
+    await fetchCustomerDirectoryPage({ search: '@example.com' });
+    expect(mocks.filters[0]).toContain('email.ilike.%@example.com%');
+
+    await fetchCustomerDirectoryPage({ search: 'buyer_ops@example.test' });
+    expect(mocks.filters[1]).toContain('email.ilike.%buyer\\_ops@example.test%');
+
+    await fetchCustomerDirectoryPage({ search: 'gmail.com' });
+    expect(mocks.filters[2]).toContain('email.ilike.%gmail.com%');
+  });
+
+  it('returns customers with missing contact details and skips server filters for an empty query', async () => {
+    const sparseCustomer = { id: 'no-contact', business_name: 'سجل بلا بيانات اتصال', contact_name: null, phone: null, email: null };
+    mocks.defaultResponse = { data: [sparseCustomer], error: null, count: 1 };
+    const result = await fetchCustomerDirectoryPage({ search: '   ' });
+    expect(result.rows).toEqual([sparseCustomer]);
+    expect(mocks.filters).toHaveLength(0);
+    expect(mocks.selects[0].columns).toContain('contact_name,phone,email');
   });
 
   it('clamps an out-of-range page against the exact count after deletions', async () => {
