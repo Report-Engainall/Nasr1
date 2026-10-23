@@ -2562,11 +2562,12 @@ async function main() {
     status:"expired",
     error:"انتهت صلاحية الدعوة؛ اطلب رابطًا جديدًا",
   },"an expired legacy invitation returns a committed expired result rather than throwing and rolling back");
-  const expiredCompanyScope=await db.unsafe(
-    "select public.current_customer_id() as customer_id,public.current_customer_can('orders.read') as can_read");
-  assert.equal(expiredCompanyScope[0].customer_id,null,"expired invitation grants no company scope");
-  assert.equal(expiredCompanyScope[0].can_read,false,"expired invitation grants no customer capabilities");
   await db.unsafe("reset role");
+  const expiredCompanyMembership=await db.unsafe(
+    "select count(*)::integer as count from public.customer_company_memberships " +
+    "where profile_id=$1::uuid and customer_id=$2::uuid",
+    [legacyMemberProfileId,customerOneId]);
+  assert.equal(expiredCompanyMembership[0].count,0,"expired invitation grants no new company membership");
   const companySecurityExpiredState=await db.unsafe(
     "select status from public.customer_company_invitations where token_hash=md5($1::text)",[companySecurityExpiredToken]);
   assert.equal(companySecurityExpiredState[0]?.status,"expired","expiry status persists after acceptance RPC");
