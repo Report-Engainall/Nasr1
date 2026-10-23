@@ -302,7 +302,7 @@ jobs:
             cat /tmp/aghbari-manifest.json
             exit 1
           }
-      - name: Browser price visibility acceptance (Chromium; local fixture; no backend writes)
+      - name: Chromium price-privacy and admin-export route acceptance (local fixtures; no backend writes)
         timeout-minutes: 18
         run: |
           set -euo pipefail
@@ -363,5 +363,5 @@ jobs:
             exit 1
           fi
 
-          E2E_BASE_URL=http://127.0.0.1:5191 "$RUNNER_TEMP/pw-price-policy/node_modules/.bin/playwright" test --config=playwright.config.ts --reporter=list e2e/storefront-price-visibility.spec.ts
+          E2E_BASE_URL=http://127.0.0.1:5191 "$RUNNER_TEMP/pw-price-policy/node_modules/.bin/playwright" test --config=playwright.config.ts --reporter=list e2e/storefront-price-visibility.spec.ts e2e/admin-export-center-route.spec.ts
 
