@@ -54,6 +54,32 @@ describe("storefront category and catalog error states", () => {
     cleanup();
   });
 
+  it("excludes explicitly inactive products from published category counts", () => {
+    mocks.categoryResult = {
+      data: [{ id: "category-1", name: "الأرز", description: null, is_active: true }],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    mocks.productResult = {
+      data: [
+        { id: "hidden-1", category_id: "category-1", is_active: false, status: "active" },
+        { id: "hidden-2", category_id: "category-1", is_active: true, status: "inactive" },
+      ],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    mocks.useFetch.mockImplementation((fetcher: unknown) =>
+      fetcher === mocks.fetchCategories ? mocks.categoryResult : mocks.productResult,
+    );
+
+    render(<StorefrontCollectionsPage />);
+
+    expect(screen.getByText("لا توجد أصناف منشورة ضمن هذا التصنيف.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "تصفح التصنيف" })).toBeNull();
+  });
+
   it("identifies a product-catalog failure rather than blaming categories", () => {
     setQueryResults(null, "تعذر جلب كتالوج المنتجات");
 
