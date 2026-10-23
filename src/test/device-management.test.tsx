@@ -574,6 +574,45 @@ describe('central device and session management', () => {
     expect(button?.disabled).toBe(true);
   });
 
+  it('retains the session after local sign-out failure and permits a retry', async () => {
+    mocks.signOut
+      .mockRejectedValueOnce(new Error('network interrupted'))
+      .mockResolvedValueOnce({ error: null });
+    const onNotice = vi.fn();
+    await act(async () => {
+      root?.render(<DeviceManagement onNotice={onNotice} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const button = host?.querySelector<HTMLButtonElement>(
+      'button[aria-label="تسجيل الخروج من هذا الجهاز"]',
+    );
+    await act(async () => {
+      button?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+      'تعذر تسجيل الخروج من هذا الجهاز',
+    );
+    expect(host?.textContent).toContain('admin@example.test');
+    expect(onNotice).not.toHaveBeenCalled();
+    expect(button?.disabled).toBe(false);
+
+    await act(async () => {
+      button?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.signOut).toHaveBeenCalledTimes(2);
+    expect(mocks.signOut).toHaveBeenNthCalledWith(2, { scope: 'local' });
+    expect(onNotice).toHaveBeenCalledTimes(1);
+    expect(onNotice).toHaveBeenCalledWith('تم تسجيل الخروج من هذا الجهاز.');
+    expect(host?.textContent).not.toContain('admin@example.test');
+    expect(button?.disabled).toBe(true);
+  });
+
   it('uses local scope for current-device logout', async () => {
     const onNotice = vi.fn();
     await act(async () => {
