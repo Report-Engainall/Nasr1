@@ -1,10 +1,10 @@
-# تقرير P2 — الحالة التنفيذية الحية 2026-10-23T21:55:00+03:00
+# تقرير P2 — الحالة التنفيذية الحية 2026-10-23T21:57:00+03:00
 
 REPOSITORY=Report-Engainall/Nasr1
 MAIN_SHA=cd303b7fe0f263c9f62ed97f10202e9895465273
 MAIN_TREE=51aa49eb36bbf6227c42612e35b1bf03e6b3360a
-MAIN_CORE_CI=IN_PROGRESS — run 40006315985 on exact main SHA cd303b7fe0f263c9f62ed97f10202e9895465273.
-P2_ON_EXACT_MAIN_SHA=NOT RUN.
+MAIN_CORE_CI=SUCCESS — run 40006315985 on exact main SHA cd303b7fe0f263c9f62ed97f10202e9895465273.
+P2_ON_EXACT_MAIN_SHA=NOT RUN; P2 run 40006269156 is IN_PROGRESS on PR #111 head 64632871573b0d655051df9ac795c4cc76b68069, not on the exact merge SHA.
 CURRENT_BRANCH=p2/payment-idempotency-current-main-20261023b
 BASE_SHA=cd303b7fe0f263c9f62ed97f10202e9895465273
 HEAD_SHA=REREAD FINAL BRANCH REF AFTER CENTRAL DOC COMMITS AND BEFORE OPENING PR
@@ -35,7 +35,7 @@ Validation and risks:
 - Hosted customer E2E credentials remain BLOCKED_EXTERNAL, but they do not block local PostgreSQL 17 and local browser acceptance.
 
 NEXT_ACTION=Reread branch HEAD and diff; open PR to main; require terminal Core and P2 local Supabase/Playwright success on the same exact PR head; read failed/skipped job evidence and fix root causes; merge only after required gates and reviews clear; verify post-merge main SHA and its exact-SHA Core/P2 status before choosing the next task.
-UPDATED_AT=2026-10-23T21:55:00+03:00
+UPDATED_AT=2026-10-23T21:57:00+03:00
 
 ---
 
