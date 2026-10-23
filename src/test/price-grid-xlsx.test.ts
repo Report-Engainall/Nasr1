@@ -62,9 +62,9 @@ describe('price grid XLSX workbook', () => {
       { ...row, item_code: 'PARITY-POS', name: 'Positive stock', quantity_on_hand_total: 3.125, quantity_reserved_total: 1.125, quantity_available_total: 2, reorder_point_total: 4, inventory_warehouse_count: 2 },
     ];
     const csvRows = buildPriceGridCsv(cases)
-      .replace(/^\\uFEFF/, '')
+      .replace(/^\uFEFF/, '')
       .trimEnd()
-      .split('\\r\\n')
+      .split('\r\n')
       .map(line => line.split(',').map(cell => cell.startsWith('"') ? cell.slice(1, -1).replace(/""/g, '"') : cell));
     const xlsxRecords: string[][] = [];
     await parseXlsxFirstWorksheet(buildPriceGridXlsx(cases), values => { xlsxRecords.push(values); });
