@@ -7,3 +7,14 @@ export async function saveAdminCatalogProduct(id:string|null,p:AdminCatalogPaylo
 export async function archiveAdminCatalogProduct(id:string){if(!UUID.test(id))throw new Error('معرّف المنتج غير صالح.');const{data,error}=await supabase.rpc('archive_admin_catalog_product',{p_product_id:id});if(error)throw error;return data as{id:string;status:'inactive';archived:true};}
 export async function createAdminCatalogCategory(nameInput:string,parentId:string|null=null,codeInput:string|null=null){const name=nameInput.trim(),code=codeInput?.trim()||null;if(!name||name.length>100)throw new Error('اسم التصنيف مطلوب.');if(parentId!==null&&!UUID.test(parentId))throw new Error('معرّف التصنيف الأب غير صالح.');const{data,error}=await supabase.rpc('create_admin_catalog_category',{p_name:name,p_parent_id:parentId,p_code:code});if(error)throw error;return data as{id:string;name:string;created:boolean};}
 export async function archiveAdminCatalogCategory(id:string){if(!UUID.test(id))throw new Error('معرّف التصنيف غير صالح.');const{data,error}=await supabase.rpc('archive_admin_catalog_category',{p_category_id:id});if(error)throw error;if(!data||typeof data!=='object'||typeof data.id!=='string'||data.id.toLowerCase()!==id.toLowerCase()||data.is_active!==false||data.archived!==true)throw new Error('لم يؤكد الخادم أرشفة التصنيف.');return data as{id:string;is_active:false;archived:true};}
+
+export async function renameAdminCatalogCategory(id:string,nameInput:string){
+  if(!UUID.test(id))throw new Error('معرّف التصنيف غير صالح.');
+  const name=nameInput.trim();
+  if(!name||name.length>100)throw new Error('اسم التصنيف مطلوب ويجب ألا يتجاوز 100 حرف.');
+  const{data,error}=await supabase.rpc('rename_admin_catalog_category',{p_category_id:id,p_name:name});
+  if(error)throw error;
+  if(!data||typeof data!=='object'||typeof data.id!=='string'||data.id.toLowerCase()!==id.toLowerCase()||data.name!==name||typeof data.renamed!=='boolean')
+    throw new Error('لم يؤكد الخادم إعادة تسمية التصنيف.');
+  return data as{id:string;name:string;renamed:boolean};
+}
