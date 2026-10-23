@@ -14,9 +14,14 @@ const ACCOUNTANT_PRODUCT_ID = "e5555555-e555-4555-8555-e55555555555";
 const CATALOG_PRODUCT_ID = "a1000000-0000-0000-0000-000000000001";
 
 async function assumeUser(authUserId, email) {
+  await db.unsafe("reset role").catch(() => {});
+  await db.unsafe(
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI customer price session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+    [authUserId],
+  );
   await db.unsafe("select set_config('request.jwt.claim.sub', $1, true)", [authUserId]);
   await db.unsafe("select set_config('request.jwt.claims', $1, true)", [
-    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated" }),
+    JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated", session_id: authUserId }),
   ]);
   await db.unsafe("set local role authenticated");
 }
