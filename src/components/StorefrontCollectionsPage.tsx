@@ -11,6 +11,15 @@ export function StorefrontCollectionsPage() {
   const products = productsQuery.data ?? [];
   const loading = categoriesQuery.loading || productsQuery.loading;
   const error = categoriesQuery.error || productsQuery.error;
+  const errorTitle = categoriesQuery.error && productsQuery.error
+    ? "تعذر تحميل التصنيفات والكتالوج"
+    : categoriesQuery.error
+      ? "تعذر تحميل التصنيفات"
+      : "تعذر تحميل كتالوج المنتجات";
+  const errorDetails = [
+    categoriesQuery.error ? `التصنيفات: ${categoriesQuery.error}` : null,
+    productsQuery.error ? `الكتالوج: ${productsQuery.error}` : null,
+  ].filter((detail): detail is string => detail !== null).join(" — ");
 
   return <main className="storefront" dir="rtl" style={{ minHeight: "100vh", padding: 20, maxWidth: 1180, margin: "0 auto" }}>
     <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 22 }}>
@@ -22,7 +31,7 @@ export function StorefrontCollectionsPage() {
       <button type="button" className="btn outline" disabled={loading} onClick={() => { void categoriesQuery.refetch(); void productsQuery.refetch(); }}><RefreshCw size={15}/> تحديث البيانات</button>
     </header>
     {loading ? <div className="sf-empty" role="status">جار تحميل التصنيفات والكتالوج…</div>
-      : error ? <div className="sf-empty" role="alert"><strong>تعذر تحميل التصنيفات</strong><small>{error}</small><button type="button" className="sf-btn-secondary" onClick={() => { void categoriesQuery.refetch(); void productsQuery.refetch(); }}>إعادة المحاولة</button></div>
+      : error ? <div className="sf-empty" role="alert"><strong>{errorTitle}</strong><small>{errorDetails || error}</small><button type="button" className="sf-btn-secondary" onClick={() => { void categoriesQuery.refetch(); void productsQuery.refetch(); }}>إعادة المحاولة</button></div>
       : categories.length === 0 ? <div className="sf-empty" role="status"><Tags size={26}/><strong>لا توجد تصنيفات منشورة</strong><small>لا يوجد تصنيف نشط متاح للحساب الحالي.</small><Link to="/catalog">فتح الكتالوج الكامل</Link></div>
       : <section aria-label="التصنيفات المنشورة" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14 }}>
         {categories.map((category) => {
