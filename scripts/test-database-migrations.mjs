@@ -3137,6 +3137,161 @@ async function main() {
     /active staff organization|required|staff/i,
   );
   await db.unsafe("reset role");
+  // INV-STOCK-001: prove a real lock race between single-item transfer and a multi-item batch.
+  // A third PostgreSQL session holds the shared product row lock until both API calls are blocked.
+  await db.unsafe("reset role");
+  for (const [raceProduct, raceWarehouse, onHand, reserved] of [
+    [productId, testWarehouseId, 10, 2],
+    [productId, transferDestinationId, 0, 0],
+    [batchProductId, testWarehouseId, 10, 2],
+    [batchProductId, transferDestinationId, 0, 0],
+  ]) {
+    await db.unsafe(
+      "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) " +
+      "values($1,$2,$3,$4,1) on conflict(product_id,warehouse_id) do update " +
+      "set quantity_on_hand=excluded.quantity_on_hand,quantity_reserved=excluded.quantity_reserved,reorder_point=excluded.reorder_point",
+      [raceProduct, raceWarehouse, onHand, reserved],
+    );
+  }
+
+  const raceSingleKey = "ci-inventory-race-single-0001";
+  const raceBatchKey = "ci-inventory-race-batch-0001";
+  const raceBatchLines = [
+    { product_id: productId, quantity: 3 },
+    { product_id: batchProductId, quantity: 1 },
+  ];
+  const raceGate = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const raceSingle = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const raceBatch = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  let gateOpen = false;
+  const setRaceStaffIdentity = async (connection, appName) => {
+    await connection.unsafe("select set_config('application_name',$1,false)", [appName]);
+    await connection.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [staffAuthUserId]);
+    await connection.unsafe("select set_config('request.jwt.claims',$1,false)", [
+      JSON.stringify({ sub: staffAuthUserId, email: "admin@aghbari.ye", role: "authenticated" }),
+    ]);
+    await connection.unsafe("set role authenticated");
+  };
+  try {
+    await raceGate.unsafe("begin");
+    await raceGate.unsafe("select id from public.products where id=$1::uuid for update", [productId]);
+    gateOpen = true;
+    await Promise.all([
+      setRaceStaffIdentity(raceSingle, "ci-inventory-race-single"),
+      setRaceStaffIdentity(raceBatch, "ci-inventory-race-batch"),
+    ]);
+
+    const singleAttempt = raceSingle.unsafe(
+      "select public.transfer_inventory($1::uuid,$2::uuid,$3::uuid,$4::numeric,$5::text,$6::text) as result",
+      [productId, testWarehouseId, transferDestinationId, "6.000", "CI single-vs-batch stock race", raceSingleKey],
+    ).then((rows) => ({ kind: "single", ok: true, result: rows[0].result }))
+      .catch((error) => ({ kind: "single", ok: false, error }));
+    const batchAttempt = raceBatch.unsafe(
+      "select public.transfer_inventory_batch($1::uuid,$2::uuid,$3::text,$4::jsonb,$5::text) as result",
+      [testWarehouseId, transferDestinationId, raceBatchKey, raceBatch.json(raceBatchLines), "CI single-vs-batch stock race"],
+    ).then((rows) => ({ kind: "batch", ok: true, result: rows[0].result }))
+      .catch((error) => ({ kind: "batch", ok: false, error }));
+
+    let observedBothWaiting = false;
+    let lastWaitingCount = 0;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const waiting = await db.unsafe(
+        "select count(*)::int as count from pg_catalog.pg_stat_activity " +
+        "where application_name in ('ci-inventory-race-single','ci-inventory-race-batch') " +
+        "and state='active' and wait_event_type='Lock'",
+      );
+      lastWaitingCount = Number(waiting[0]?.count ?? 0);
+      if (lastWaitingCount === 2) {
+        observedBothWaiting = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(observedBothWaiting, true,
+      "both single-transfer and batch-transfer RPC sessions must be observed waiting on the held PostgreSQL row lock");
+    await raceGate.unsafe("commit");
+    gateOpen = false;
+
+    const [singleOutcome, batchOutcome] = await Promise.all([singleAttempt, batchAttempt]);
+    assert.equal(Number(singleOutcome.ok) + Number(batchOutcome.ok), 1,
+      "exactly one competing transfer may consume the shared available stock");
+    const rejectedOutcome = singleOutcome.ok ? batchOutcome : singleOutcome;
+    assert.match(String(rejectedOutcome.error?.message ?? ""), /insufficient available stock/i,
+      "the losing transfer must fail because the serialized source balance no longer has sufficient availability");
+
+    await db.unsafe("reset role");
+    const singleRows = await db.unsafe(
+      "select id,quantity from public.inventory_transfers where organization_id=$1 and idempotency_key=$2",
+      [organizationId, raceSingleKey],
+    );
+    const batchHeaders = await db.unsafe(
+      "select id,line_count from public.inventory_transfer_batches where organization_id=$1 and idempotency_key=$2",
+      [organizationId, raceBatchKey],
+    );
+    const batchRows = batchHeaders.length
+      ? await db.unsafe("select id,product_id,quantity from public.inventory_transfers where batch_id=$1::uuid order by product_id", [batchHeaders[0].id])
+      : [];
+    assert.equal(singleRows.length, singleOutcome.ok ? 1 : 0,
+      "single-transfer persistence must match the actual race winner");
+    assert.equal(batchHeaders.length, batchOutcome.ok ? 1 : 0,
+      "batch header must exist only when the batch wins");
+    assert.equal(batchRows.length, batchOutcome.ok ? 2 : 0,
+      "a losing batch must not leave partial transfer rows");
+
+    const allRaceTransferIds = [
+      ...singleRows.map((row) => row.id),
+      ...batchRows.map((row) => row.id),
+    ];
+    const movementRows = allRaceTransferIds.length
+      ? await db.unsafe(
+          "select reference_id,movement_type,quantity from public.inventory_movements " +
+          "where reference_type='inventory_transfer' and reference_id=any($1::uuid[])",
+          [allRaceTransferIds],
+        )
+      : [];
+    assert.equal(movementRows.length, allRaceTransferIds.length * 2,
+      "each persisted transfer has exactly one paired in/out movement and rejected attempts have none");
+
+    const raceBalances = await db.unsafe(
+      "select product_id,warehouse_id,quantity_on_hand,quantity_reserved,quantity_available from public.inventory_balances " +
+      "where product_id in ($1::uuid,$2::uuid) and warehouse_id in ($3::uuid,$4::uuid) order by product_id,warehouse_id",
+      [productId, batchProductId, testWarehouseId, transferDestinationId],
+    );
+    const raceBalanceFor = (pid, wid) => raceBalances.find((row) => row.product_id === pid && row.warehouse_id === wid);
+    for (const pid of [productId, batchProductId]) {
+      const source = raceBalanceFor(pid, testWarehouseId);
+      const destination = raceBalanceFor(pid, transferDestinationId);
+      assert.ok(source && destination, "both warehouse balances must remain present for each race product");
+      assert.ok(Number(source.quantity_on_hand) >= Number(source.quantity_reserved),
+        "source on-hand stock cannot fall below its reservation after the race");
+      assert.ok(Number(source.quantity_available) >= 0 && Number(destination.quantity_available) >= 0,
+        "the race cannot create negative available stock");
+      assert.equal(Number(source.quantity_on_hand) + Number(destination.quantity_on_hand), 10,
+        "the race conserves each product's on-hand quantity");
+      assert.equal(Number(source.quantity_reserved), 2, "source reservations are not transferred or consumed");
+      assert.equal(Number(destination.quantity_reserved), 0, "destination reservations are unchanged");
+    }
+
+    const raceAudit = await db.unsafe(
+      "select action,entity_type,entity_id from public.audit_logs where organization_id=$1 " +
+      "and ((entity_type='inventory_transfer' and entity_id=any($2::uuid[])) " +
+      "or (entity_type='inventory_transfer_batch' and entity_id=$3::uuid))",
+      [organizationId, allRaceTransferIds, batchHeaders[0]?.id ?? "00000000-0000-0000-0000-000000000000"],
+    );
+    assert.equal(raceAudit.length, 1, "only the winning single transfer or winning batch is audited");
+    assert.equal(raceAudit[0].action, singleOutcome.ok ? "inventory.transfer" : "inventory.transfer.batch");
+    process.stdout.write(
+      "PASS inventory transfer race: both PostgreSQL RPC sessions waited on a held product lock; exactly one single/batch transfer won, stock/reservations were conserved, rejected path left no partial rows or movements, and one audit event persisted\n",
+    );
+  } finally {
+    if (gateOpen) await raceGate.unsafe("rollback").catch(() => undefined);
+    await Promise.all([
+      raceGate.end({ timeout: 5 }).catch(() => undefined),
+      raceSingle.end({ timeout: 5 }).catch(() => undefined),
+      raceBatch.end({ timeout: 5 }).catch(() => undefined),
+    ]);
+  }
+
   // Restore the original single-transfer acceptance fixture before the reorder-point assertions below.
   await db.unsafe("reset role");
   await db.unsafe(
