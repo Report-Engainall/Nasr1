@@ -1126,3 +1126,14 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Main then advanced to `d81c9b34f819a53df7610937264c6fcb923c3f95` by adding only `docs/project-bolt-github-7sl6ykzz (5).zip`. Exact-current-main Core `40001438040` was IN_PROGRESS in PostgreSQL 17 migration acceptance at time of update; no PASS transferred to this SHA. P2 on exact current main is NOT RUN.
 - Released statement-credit lock: PR #62 merged at `024c279a2d1c0226c662e5d916871f45534c7242`. PR #40 is CLOSED and NOT MERGED; its old "open PR" note is historical only.
 - Next task: `FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD`. The live payment table has no persisted key and the UI sends none. Add identical-payload replay, changed-payload conflict, retry-key persistence, and concurrent replay/tenant isolation tests on PostgreSQL 17. Check all callers, overloads, grants and RLS; no parallel ledger/payment engine.
+
+## P2 current-main reconciliation and payment idempotency — 2026-10-23T21:48:00+03:00
+
+- Revalidated current main as `03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac`, tree `15f30663a80ba9ff2e83c2057f15ed489eed92be`. Main Core `40005590004` remains IN_PROGRESS on that exact SHA; main P2 on the exact merge SHA is NOT RUN.
+- PR #110 pricing preview retry merged at `03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac`; its tested PR head was `b6d99a91958b43e7cd90164a104c8c0a5bc1bd09`, with Core `40004970539` and P2 `40004970599` SUCCESS on that head only.
+- Earlier payment feature branch became five commits behind main; it was not opened as a PR. Created fresh `p2/payment-idempotency-current-main-20261023` from exact current main and ported only the six implementation/test paths, avoiding the pricing changes already merged.
+- Implemented tenant-scoped payment idempotency migration, exact-payload UI retry preservation, generated RPC type update, React regression tests, and PostgreSQL acceptance scenarios for replay, changed-payload rejection, concurrent identical requests, per-tenant key isolation, legacy-overload removal and grants.
+- Updated P2 central state, acceptance matrix, current report and work coordination sequentially on the fresh feature branch. New implementation status remains IMPLEMENTED, not tested: no Core, local PostgreSQL 17, or P2 Playwright result exists for this branch before PR.
+- No direct main writes, force-push, destructive reset or production database operations. Hosted customer E2E remains blocked by missing dedicated non-production credentials and is not represented as PASS.
+- NEXT_ACTION: inspect final branch diff, open a PR on latest main, verify required Jobs all reach terminal success on one exact final PR head, fix observed failures, merge only when eligible, then verify resulting main SHA and its exact-SHA CI.
+
