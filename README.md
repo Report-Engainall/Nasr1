@@ -6,15 +6,15 @@
 
 ## البدء محليًا
 
-المتطلبات: Node.js 22، وnpm، وبيئة Supabase اختبارية أو تطويرية منفصلة عن الإنتاج عند الحاجة لاختبار الخدمات.
+المتطلبات: Node.js 22 وBun، وبيئة Supabase اختبارية أو تطويرية منفصلة عن الإنتاج عند الحاجة لاختبار الخدمات.
 
 ```sh
 git clone https://github.com/Report-Engainall/Nasr1.git
 cd Nasr1
-npm install
+bun install --frozen-lockfile
 cp .env.example .env
 # املأ متغيري Supabase العامين من مشروع تطوير/اختبار مخوّل.
-npm run dev
+bun run dev
 ```
 
 لن يكتمل تشغيل التطبيق المتصل بالخدمات قبل إعداد `VITE_SUPABASE_URL` و`VITE_SUPABASE_PUBLISHABLE_KEY`. المفتاح القابل للنشر مصمم للاستخدام في العميل، لكنه لا يمنح أي صلاحية بحد ذاته؛ سياسات RLS وعقود RPC على الخادم هي حدود التفويض. لا تضع مفتاح `service_role` أو أي سر خادمي في متغير يبدأ بـ`VITE_`.
@@ -24,16 +24,16 @@ npm run dev
 ## أوامر التحقق
 
 ```sh
-npm run test
-npm run lint
-npm run typecheck
-npm run build
+bun run test
+bun run lint
+bun run typecheck
+bun run build
 ```
 
 قبول PostgreSQL 17 يحتاج قاعدة اختبار محلية ومعزولة فقط:
 
 ```sh
-TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/aghbari_test npm run test:db
+TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/aghbari_test bun run test:db
 ```
 
 لا تستخدم عنوان قاعدة إنتاج مع اختبارات الكتابة أو المهاجرات. مجموعة CI تشغّل أيضًا اختبارات قبول مخصصة مستقلة؛ ارجع إلى [سير عمل Core](./.github/workflows/commerce-checks.yml) و[سير عمل P2 Playwright](./.github/workflows/p2-playwright-critical-paths.yml) لحدود كل مجموعة. نتيجة اختبار تخص SHA واحد لا تثبت نتيجة SHA أحدث.
