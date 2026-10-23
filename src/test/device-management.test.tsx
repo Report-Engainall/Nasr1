@@ -131,6 +131,38 @@ describe('central device and session management', () => {
     expect(onNotice).toHaveBeenCalledWith(expect.stringContaining('أكد الخادم إبطال الجلسة المحددة'));
   });
 
+  it('does not issue duplicate revocation RPCs for rapid repeated clicks', async () => {
+    let finishRevocation: ((value: { data: unknown; error: null }) => void) | undefined;
+    mocks.rpc.mockImplementation((name: string) => {
+      if (name === 'list_organization_sessions') return Promise.resolve({ data: sessions, error: null });
+      if (name === 'revoke_organization_session') {
+        return new Promise((resolve) => { finishRevocation = resolve; });
+      }
+      return Promise.resolve({ data: null, error: { message: 'unexpected RPC' } });
+    });
+
+    await mount();
+    const revoke = host?.querySelector<HTMLButtonElement>(
+      'button[aria-label="إبطال جلسة موظف الاختبار"]',
+    );
+    expect(revoke).not.toBeNull();
+
+    await act(async () => {
+      revoke?.click();
+      revoke?.click();
+    });
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === 'revoke_organization_session')).toHaveLength(1);
+
+    await act(async () => {
+      finishRevocation?.({
+        data: { session_id: OTHER_SESSION_ID, revoked: true, revoked_at: '2026-10-23T10:16:00.000Z' },
+        error: null,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === 'revoke_organization_session')).toHaveLength(1);
+  });
+
   it('fails closed when the server session-list contract is missing or malformed', async () => {
     mocks.rpc.mockResolvedValueOnce({
       data: { sessions: [sessions[0]] },
