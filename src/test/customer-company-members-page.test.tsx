@@ -128,6 +128,34 @@ describe("customer company membership screens", () => {
     expect(window.location.search).toBe("");
   });
 
+  it("removes the bearer token before the acceptance request and preserves retry after a transient error", async () => {
+    window.history.replaceState(null, "", "/company/accept-invitation?token=" + TOKEN);
+    mocks.acceptInvite
+      .mockImplementationOnce(async (token: string) => {
+        expect(token).toBe(TOKEN);
+        expect(window.location.search).toBe("");
+        throw new Error("تعذر الاتصال مؤقتًا");
+      })
+      .mockResolvedValueOnce({
+        company_name: "شركة الأغبري",
+        member_role: "buyer",
+        status: "active",
+      });
+
+    const { CompanyInvitationAcceptancePage } = await import("@/components/CustomerCompanyMembers");
+    render(<CompanyInvitationAcceptancePage />);
+
+    const acceptButton = await screen.findByRole("button", { name: "قبول الدعوة والانضمام للشركة" });
+    fireEvent.click(acceptButton);
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر الاتصال مؤقتًا");
+    expect(window.location.search).toBe("");
+
+    fireEvent.click(screen.getByRole("button", { name: "قبول الدعوة والانضمام للشركة" }));
+    expect(await screen.findByText("تم تفعيل العضوية")).toBeInTheDocument();
+    expect(mocks.acceptInvite).toHaveBeenNthCalledWith(1, TOKEN);
+    expect(mocks.acceptInvite).toHaveBeenNthCalledWith(2, TOKEN);
+  });
+
   it("blocks staff from accepting a customer company invitation", async () => {
     mocks.auth = { ready: true, user: { isStaff: true } };
     const { CompanyInvitationAcceptancePage } = await import("@/components/CustomerCompanyMembers");
