@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   fetchStorefrontPromotions: vi.fn(),
   fetchSettingsMap: vi.fn(),
   fetchStorefrontAnnouncements: vi.fn(),
+  categoryResult: null as null | { data: unknown; loading: boolean; error: string | null; refetch: () => void },
   settings: {} as Record<string, unknown>,
   user: null as null | { isStaff: boolean; profileId?: string; name?: string },
   products: [
@@ -71,7 +72,7 @@ vi.mock("@/lib/api", () => ({
 vi.mock("@/lib/useFetch", () => ({
   useFetch: (fetcher: unknown) => {
     if (fetcher === mocks.fetchProducts) return { data: mocks.products, loading: false, error: null, refetch: vi.fn() };
-    if (fetcher === mocks.fetchCategories) return { data: [], loading: false, error: null, refetch: vi.fn() };
+    if (fetcher === mocks.fetchCategories) return mocks.categoryResult ?? { data: [], loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchStorefrontPromotions) return { data: [], loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchSettingsMap) return { data: mocks.settings, loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchStorefrontAnnouncements) return { data: [], loading: false, error: null, refetch: vi.fn() };
@@ -219,6 +220,7 @@ describe("customer price visibility UI acceptance", () => {
     window.localStorage.clear();
     mocks.products.splice(0, mocks.products.length, ...initialProducts);
     mocks.user = { isStaff: false, profileId: "customer-1", name: "Buyer" };
+    mocks.categoryResult = null;
     resetSettings();
     mocks.pricingResponse = null;
     mocks.rpc.mockReset().mockImplementation(async (name: string) => {
@@ -237,6 +239,29 @@ describe("customer price visibility UI acceptance", () => {
     mocks.user = null;
     mocks.pricingResponse = null;
     window.localStorage.clear();
+  });
+
+  it("shows a category loading state and retries a failed category read without blocking text search", async () => {
+    const refetch = vi.fn();
+    mocks.categoryResult = {
+      data: null,
+      loading: false,
+      error: "category source unavailable",
+      refetch,
+    };
+
+    const mount = await mountAt("/");
+    await flushEffects();
+
+    const categoryError = mount.host.querySelector('[role="alert"]');
+    expect(categoryError?.textContent).toContain("تعذر تحميل التصنيفات: category source unavailable");
+    const retry = mount.host.querySelector<HTMLButtonElement>('button[aria-label="إعادة تحميل التصنيفات"]');
+    expect(retry).not.toBeNull();
+    expect(retry?.disabled).toBe(false);
+    expect(mount.host.querySelector<HTMLInputElement>(".sf-search input")?.disabled).not.toBe(true);
+
+    act(() => retry?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
   it.each([false, true])("shows product-card and direct product-detail price according to the catalog setting (%s)", async (enabled) => {
