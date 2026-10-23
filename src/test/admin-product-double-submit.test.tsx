@@ -20,6 +20,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
+import type { ProductWithInventory } from "@/lib/types";
 import { ProductModal } from "@/components/AghbariApp";
 
 const savedProduct = {
@@ -30,6 +31,26 @@ const savedProduct = {
   category_id: null,
   status: "active",
   unit: "كرتون",
+};
+
+const existingProduct: ProductWithInventory = {
+  ...savedProduct,
+  name_en: null,
+  sku: null,
+  barcode: null,
+  brand_id: null,
+  description: null,
+  image_url: null,
+  is_active: true,
+  is_featured: false,
+  sort_order: 0,
+  price_wholesale_of_wholesale: 25,
+  price_wholesale: 25,
+  price_retail: 25,
+  stock_quantity: 0,
+  reserved_quantity: 0,
+  min_stock_level: 0,
+  display_price: 25,
 };
 
 function fillRequiredFields() {
@@ -80,6 +101,44 @@ describe("admin product form submission", () => {
       name: "منتج الاختبار",
       item_code: "TEST-001",
       base_price: 25,
+      category_id: null,
+      unit: "كرتون",
+      status: "active",
+    });
+  });
+
+  it("sends only one update request for rapid submits dispatched before rerender", async () => {
+    let finishUpdate: ((value: typeof savedProduct) => void) | undefined;
+    mocks.updateProduct.mockImplementationOnce(
+      () => new Promise<typeof savedProduct>((resolve) => { finishUpdate = resolve; }),
+    );
+    const onSaved = vi.fn();
+    render(<ProductModal product={existingProduct} onClose={vi.fn()} onSaved={onSaved} />);
+    fireEvent.change(screen.getByLabelText("اسم المنتج"), { target: { value: "منتج معدّل" } });
+    fireEvent.change(screen.getByLabelText("رمز المنتج"), { target: { value: "TEST-002" } });
+    fireEvent.change(screen.getByLabelText("السعر الأساسي"), { target: { value: "30.00" } });
+
+    const submit = screen.getByRole("button", { name: "حفظ المنتج" });
+    await waitFor(() => expect(submit).toBeEnabled());
+    await act(async () => {
+      submit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      submit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+
+    expect(mocks.updateProduct).toHaveBeenCalledTimes(1);
+    expect(mocks.createProduct).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finishUpdate?.(savedProduct);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(mocks.updateProduct).toHaveBeenCalledWith("product-created", {
+      name: "منتج معدّل",
+      item_code: "TEST-002",
+      base_price: 30,
       category_id: null,
       unit: "كرتون",
       status: "active",
