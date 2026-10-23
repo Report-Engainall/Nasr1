@@ -242,7 +242,7 @@ async function installPricingPreviewRoutes(
 }
 
 test("Chromium displays cart and order-review amounts only from complete server previews", async ({ page }) => {
-  let mode: PricingPreviewMode = "visible";
+  const mode: PricingPreviewMode = "visible";
   const requests: unknown[] = [];
   await installPricingPreviewRoutes(page, () => mode, (payload) => requests.push(payload));
   const response = await page.goto("/e2e/fixtures/storefront-price-visibility.html");
