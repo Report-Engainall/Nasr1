@@ -1,41 +1,49 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-24T01:37+03:00
-LAST_COMPLETED_TASK_ID: P3-LIVE-ACCEPTANCE-RECONCILIATION-003 — read live main/PR heads, exact-SHA Core/P2 workflows and reviewer records; corrected the stale source-backed route register in PR #121.
+UPDATED_AT: 2026-10-24T02:10+03:00
+LAST_COMPLETED_TASK_ID: P3-STOREFRONT-ROUTE-ACCEPTANCE-001 — targeted route acceptance now exists for /orders/, /invoices, /quotes, /reorder, /products and /product/$id; /cart and /checkout are being tested in PR #143.
 REPOSITORY: Report-Engainall/Nasr1
-MAIN_SHA_AT_LIVE_READ: b48a4b2e8ae09e87432b49dab591a23e1be651c6
-P3_BRANCH: p3/catalog-screen-error-states-20261023
-APPLICATION_SHA_LAST_VALIDATED_FOR_PR89: a36cc74085935a4e48965d19c3defb282dbb6a10
-ROUTE_SCOPE: #89 catalog/category/collections/offers/search/reset-password/reports and guest cart/checkout privacy; #105 addresses/company contacts; #114 company members; #115 invitation acceptance; #116 customer activation; #117 statement; #120 order detail; #121 source-backed route register; #122 wishlist; #125 compare; #130 offline.
-CURRENT_DECISION: No PR was merged. All 11 PRs are open/unmerged. Before the status-doc refresh, every implementation branch compared with live main at zero commits behind; the exact-head Core and P2 workflows on the listed implementation SHAs succeeded. Independent human maintainer approvals are not recorded. Do not merge until a different programmer completes the review gate.
-EXTERNAL_BOUNDARY: The hosted "Playwright customer order and tenant isolation" job is SKIPPED on every listed P2 run because credentials are unavailable; SKIPPED is not PASS. Local PostgreSQL 17 acceptance, public UI smoke and infrastructure gates succeeded. Full all-route browser UAT and production acceptance remain NOT RUN.
-REPORT-SHA RULE: The table records the previously validated application head for #89, not the documentation-only child created by this refresh. The new report/checkpoint commit must be read back from the live PR branch, and its own Core/P2 runs checked before it can be described as green. No earlier result transfers to that child.
+CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
+MAIN_SHA_AT_LIVE_READ: 16a3d23e558696700bccbb3dbf9ea75b0fccf745
+BASE_SHA: 16a3d23e558696700bccbb3dbf9ea75b0fccf745
+HEAD_SHA: ae3a0ecee6b84b7e180379df15327caea8bac45e (PR #89 application head before this documentation-only commit; verify final doc commit SHA after ref update)
+FILES_CHANGED: This documentation commit modifies only PROGRAMMER_3_EXECUTION_CHECKPOINT.md and PROGRAMMER_3_CURRENT_REPORT.md. Route acceptance tests stay on isolated PR branches.
+LOCKED_PATHS: P2 central execution state/matrix/work coordination/log and backend contracts; P1 active UI and /admin/exports runtime acceptance; generated src/routeTree.gen.ts.
+PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
+MERGE_STATUS: #89 and acceptance PRs remain OPEN/UNMERGED. No independent human approval has been recorded on exact current heads. P3 has not merged or self-approved any PR.
 
-## Live exact-head evidence snapshot
+## Exact-head evidence — completed targeted routes
 
-| PR | Validated HEAD SHA | Core run | P2 Playwright run | Qualification |
+| Route / PR | Application HEAD | Core CI | P2 Playwright | Qualification |
 |---|---|---|---|---|
-| [#89](https://github.com/Report-Engainall/Nasr1/pull/89) | `a36cc74085935a4e48965d19c3defb282dbb6a10` | [40026027445](https://github.com/Report-Engainall/Nasr1/actions/runs/40026027445) | [40026027463](https://github.com/Report-Engainall/Nasr1/actions/runs/40026027463) | Last code-bearing SHA before this report-only refresh; exact checks for the new child must be read from live Actions |
-| [#105](https://github.com/Report-Engainall/Nasr1/pull/105) | `599dbbe8fa1b7a799909d22ae6cff33ebb51cc9d` | [40025650590](https://github.com/Report-Engainall/Nasr1/actions/runs/40025650590) | [40025650684](https://github.com/Report-Engainall/Nasr1/actions/runs/40025650684) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
-| [#114](https://github.com/Report-Engainall/Nasr1/pull/114) | `167e8f22a74eb4cc6350896affd20db28b57052c` | [40025727440](https://github.com/Report-Engainall/Nasr1/actions/runs/40025727440) | [40025727413](https://github.com/Report-Engainall/Nasr1/actions/runs/40025727413) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
-| [#115](https://github.com/Report-Engainall/Nasr1/pull/115) | `855cd203145dcf3020e0bbac57b5188dfcedbb13` | [40025580420](https://github.com/Report-Engainall/Nasr1/actions/runs/40025580420) | [40025580423](https://github.com/Report-Engainall/Nasr1/actions/runs/40025580423) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
-| [#116](https://github.com/Report-Engainall/Nasr1/pull/116) | `e553157246b91199e3a8c83c88585654b1d194c6` | [40025757483](https://github.com/Report-Engainall/Nasr1/actions/runs/40025757483) | [40025757514](https://github.com/Report-Engainall/Nasr1/actions/runs/40025757514) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
-| [#117](https://github.com/Report-Engainall/Nasr1/pull/117) | `cb0a4b9509001d1db4d6560849ae1f051a0d7a0b` | [40025787855](https://github.com/Report-Engainall/Nasr1/actions/runs/40025787855) | [40025787857](https://github.com/Report-Engainall/Nasr1/actions/runs/40025787857) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
-| [#120](https://github.com/Report-Engainall/Nasr1/pull/120) | `f58b3830b443477e940d21b3a4ed166ef38404e3` | [40025816601](https://github.com/Report-Engainall/Nasr1/actions/runs/40025816601) | [40025816610](https://github.com/Report-Engainall/Nasr1/actions/runs/40025816610) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
-| [#121](https://github.com/Report-Engainall/Nasr1/pull/121) | `cbd2e32f54051447e70104ea1cac35df4f3d3f7d` | [40034584899](https://github.com/Report-Engainall/Nasr1/actions/runs/40034584899) | [40034584873](https://github.com/Report-Engainall/Nasr1/actions/runs/40034584873) | Register child CI was IN_PROGRESS/QUEUED at last poll; re-read both live runs; no prior SHA transfer |
-| [#122](https://github.com/Report-Engainall/Nasr1/pull/122) | `9f64a1342dcf97248e4570f447f358a08711819b` | [40025883623](https://github.com/Report-Engainall/Nasr1/actions/runs/40025883623) | [40025883529](https://github.com/Report-Engainall/Nasr1/actions/runs/40025883529) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
-| [#125](https://github.com/Report-Engainall/Nasr1/pull/125) | `04a0403a49ef6a10d110299ed95a8e44c6bc4dd8` | [40025913367](https://github.com/Report-Engainall/Nasr1/actions/runs/40025913367) | [40025913384](https://github.com/Report-Engainall/Nasr1/actions/runs/40025913384) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
-| [#130](https://github.com/Report-Engainall/Nasr1/pull/130) | `dd5158414f61cd88a687c24346215c421b9ee62c` | [40025941925](https://github.com/Report-Engainall/Nasr1/actions/runs/40025941925) | [40025941941](https://github.com/Report-Engainall/Nasr1/actions/runs/40025941941) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
+| PR #89 category/report work | ae3a0ecee6b84b7e180379df15327caea8bac45e | [40037838710 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40037838710) | [40037838636 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40037838636) | Synced with live main; review/merge awaits independent approval |
+| /orders/ — [PR #136](https://github.com/Report-Engainall/Nasr1/pull/136) | d0aeb127311ee435c4ec21aea1654798f2ab8897 | [40038213565 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038213565) | [40038213559 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038213559) | Four targeted tests: guest access, read error/retry, count semantics, pagination and financial non-rendering |
+| /invoices — [PR #137](https://github.com/Report-Engainall/Nasr1/pull/137) | 2eb853033bb99162118f034e55b332b82a73de00 | [40038126564 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038126564) | [40038126587 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038126587) | Five targeted tests: guest gate, list error/retry, empty state and hidden-finance payload handling |
+| /quotes — [PR #139](https://github.com/Report-Engainall/Nasr1/pull/139) | 314f957a5802e0aa15381e5e901e0713a3b3ba2e | [40038762495 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038762495) | [40038762639 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40038762639) | Four targeted tests: tenant gate, product retry, fail-closed pricing, RPC failure/ack |
+| /reorder — [PR #140](https://github.com/Report-Engainall/Nasr1/pull/140) | 1c2719c63832c464ab79fcab614004b1cfab3132 | [40039186864 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40039186864) | [40039186818 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40039186818) | Four tests for guest access, retry, authoritative pricing and save acknowledgement |
+| /products + /product/$id — [PR #141](https://github.com/Report-Engainall/Nasr1/pull/141) | df46f0d434d4bfdf54aa34598acc7578f8632005 | [40039983479 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40039983479) | [40039983459 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40039983459) | Five targeted tests; Core suite 142/142 files passed |
+| Route register — [PR #121](https://github.com/Report-Engainall/Nasr1/pull/121) | 5a81ca0fdde98fa1d31de33744987cf6757120f1 | [40040478068 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40040478068) | [40040478014 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40040478014) | These runs are for the preceding register revision, not its next child |
 
-## Outstanding acceptance/ownership
-- #89: 35 changed paths and 151 branch commits; inspect exact diff and review comments before approval. CodeRabbit's existing review is COMMENTED and dates from an older head; it is not an approval for the current head.
-- #105/#114/#115/#116/#117/#120/#122/#125/#130: test-only route acceptance; Core and runnable P2 jobs succeeded, while hosted authenticated E2E remains SKIPPED. Their targeted tests do not imply full production journeys.
-- #121: the source-backed register is updated to live main SHA `b48a4b2e8ae09e87432b49dab591a23e1be651c6`; its new doc commit `cbd2e32f54051447e70104ea1cac35df4f3d3f7d` had Core in progress and P2 queued at last poll. Re-read live Actions before calling it verified.
-- /admin/exports runtime authorization, failure/retry and completed download remain NOT_PROVEN and P1-owned. Do not edit `src/routeTree.gen.ts` directly.
-- Do not edit P2's canonical acceptance matrix, execution state, work coordination, execution log, RPCs, migrations or RLS. P2 owns final central reconciliation after PR merges.
+## In progress — exact current head must be read back
 
-## Required next gate
-Obtain an independent review on each exact current PR head, resolve any findings, and confirm that the head SHA has not moved before merge. Merge only one at a time through GitHub PR, reread main after each merge, and never count skipped hosted jobs as PASS.
+| PR | Candidate SHA | Core | P2 | State at report preparation |
+|---|---|---|---|---|
+| [#143 /cart + /checkout](https://github.com/Report-Engainall/Nasr1/pull/143) | d4807d05549f392aa305c7209e7033f0c965aaf9 | [40041285742](https://github.com/Report-Engainall/Nasr1/actions/runs/40041285742) | [40041285807](https://github.com/Report-Engainall/Nasr1/actions/runs/40041285807) | Both runs in progress; initial SHA failed two test assertions, then test expectation/settling was corrected on subsequent commits. Read latest SHA and terminal runs before claiming acceptance. |
+
+## Boundaries
+
+- The six routes listed above have targeted route proof only; these runs do not imply complete UAT for every control or production flow.
+- P2 local Supabase and PostgreSQL 17 tests passed on cited green runs. Hosted customer/order/tenant browser E2E is SKIPPED, not PASS.
+- No production credentials/writes or live external integration success are claimed.
+- Full all-route browser UAT and production acceptance remain NOT RUN.
+- /admin/exports runtime reachability and completed-download proof belongs to P1 and remains NOT_PROVEN in this P3 task.
+- PR #89, #121, #136, #137, #139, #140 and #141 remain open/unmerged pending independent review. PR #143 awaits its exact-head CI and independent review.
+
+FAILED_OR_SKIPPED: Previous failed CI iterations are retained as failures; latest candidate for PR #143 at draft time d4807d05549f392aa305c7209e7033f0c965aaf9 has two exact-head runs still running; hosted E2E skipped; full production UAT not run.
+BLOCKERS: Independent review/APPROVE missing; PR #143 exact-head CI still in progress; PR #121 still needs route status corrections and new exact-head CI.
+NEXT_ACTION: Read PR #143 terminal state; reconcile route register in one commit, rerun its Core and P2 workflows; read back the new checkpoint/report commit and current CI; request independent review before any merge.
+UPDATED_AT: 2026-10-24T02:10+03:00
+
 ## Historical execution evidence
 
 ## Historical execution unit — 2026-10-23T20:44:06+03:00
