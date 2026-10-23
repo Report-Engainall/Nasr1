@@ -1,26 +1,17 @@
-# تحديث P2 الحي — 23 أكتوبر 2026
+# تحديث P2 الحي — 23 أكتوبر 2026، 2026-10-23T16:47:00+03:00
 
-هذا القسم هو الحالة الأحدث؛ لا تُنسب نتائج SHA سابق إلى الرأس الحالي.
+هذا القسم هو الحالة الأحدث؛ الأقسام أدناه سجل تاريخي ولا تتغلب على Git/Actions الحية.
 
 - **المستودع:** `Report-Engainall/Nasr1`.
-- **main:** `59547c7d683cefd65cab445b97219aa701021676`.
-- **PR #71:** مدمج؛ إثبات الاستعادة يخص قاعدة اختبار محلية PostgreSQL 17 فقط، ولا يثبت استعادة إنتاجية أو RTO/RPO.
-- **PR #82:** OPEN؛ يجب مزامنته مع main الحالي وإعادة اختبارات القبول قبل قرار دمج.
-- **PR #83:** OPEN/Draft، رأس `91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`، base `59547c7d683cefd65cab445b97219aa701021676`. أحدث main أُدخل بدمج Git عادي بلا force-push.
-- **Core الحالي:** [run 39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) = **IN PROGRESS**؛ آخر خطوة معلومة Unit tests. Core نجح كاملًا في التشغيل السابق على الرأس `9079ffa...`، لكن الإصلاح الحالي في اختبار استلام المشتريات يحتاج إعادة تحقق.
-- **P2 الحالي:** [run 39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) = **IN PROGRESS**. يعيد public UI smoke، وبعدها يبدأ local Supabase/PostgreSQL 17 order/tenant critical path. التشغيل السابق على `9079ffa...` فشل داخل `scripts/test-purchase-receipt-accounting.mjs` فقط لأن هذا الاختبار فرض DB port 54322، بينما workflow المحلي يستخدم 55432. صحّح الرأس الحالي الاستعمال إلى `validateCashExpenseEndpoints` المشترك الذي يقيّد المضيف إلى loopback والمنفذ صريحًا صالحًا؛ النتيجة النهائية لم تظهر بعد.
-- **حل تنزيل التبعيات:** سجلات CI أثبتت HTTP 429 من Lovable artifact registry؛ أضيف backoff محدود لأخطاء 429 فقط، و`--registry=https://registry.npmjs.org` صراحةً في Core/P2، وتم تحديث 97 tarball URLs في `bun.lock` إلى npm العام مع الحفاظ على الإصدارات و721 SHA-512 integrity values. فحص القفل المجمد والتثبيت اجتازا في تشغيلات سابقة.
-- **عقد الجلسات:** `list_organization_sessions` يتطلب مدير مؤسسة فعالًا ويكشف جلسات الحسابات النشطة في المؤسسة فقط دون أسرار، مع تدقيق العرض؛ `revoke_organization_session` يرفض الجلسة الحالية وأي جلسة أخرى للمدير نفسه؛ `revoke_other_auth_sessions()` يسمح للمستخدم بإلغاء جلساته الأخرى فقط ويبقي الحالية ويرجع IDs/count ويسجل حدث تدقيق. جميع اختبارات PostgreSQL 17 لهذا التغيير نجحت في Core على `9079ffa...`؛ أعِد إثباتها على الرأس الحالي قبل الدمج.
-- **حدود E2E:** فحوص القراءة العامة نجحت على بعض الرؤوس السابقة، لكن قبول الطلبات وعزل المؤسسة يتطلب نجاح Job المحلي في P2 الحالي. اختبارات الحسابات المستضافة تتجاوز بسبب عدم توفر أسرار البيئة، ولا تُعامل كنجاح متصفح أو إنتاج.
-- **تنسيق P1:** التعليق على [PR #88](https://github.com/Report-Engainall/Nasr1/pull/88) أوضح أن `DeviceManagement.tsx` لا تثبت حتى الآن دمج RPCs لقائمة جلسات المؤسسة وإلغاء جلسة مستخدم آخر. لا يغيّر P2 واجهة P1. **Browser Proof للوحة المؤسسة: NOT PROVEN**.
-- **FIN-INVOICE-001 التالية:** `fetch_staff_receivables_aging` يخصم المدفوعات لكنه لا يخصم الإشعارات الدائنة المنشورة، بينما `get_customer_account_statement()` يراعي `posted` ويستبعد `reversed`. بعد إغلاق #83 ثم مزامنة/قبول #82، أصلح تقرير الذمم الحالي مع فصل العملات، منع العد المزدوج، واختبارات PostgreSQL 17؛ لا تنشئ دفترًا عامًا ثانيًا.
-- **BLOCKED_EXTERNAL:** Onyx live/target import وWhatsApp Business API حتى تُستخدم اعتمادات مخولة وتظهر استجابة فعلية. **NOT RUN:** استعادة إنتاجية وRTO/RPO.
-
-**NEXT_TASK_ID:** `AUTH-CENTRAL-SESSION-BACKEND-P2`.  
-**NEXT_ACTION:** إكمال CI الحالي على `91c87e0...`؛ إصلاح أي فشل جديد بدليل من الخطوات؛ ثم مراجعة SECURITY DEFINER وتكامل #88. لا تدمج #83 دون Core وP2 ناجحين على SHA نهائي واحد. بعدها مزامنة #82 وإعادة اختباره.
-
-
----
+- **main:** `59547c7d683cefd65cab445b97219aa701021676`; Core [39956957952](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952) = SUCCESS على هذا SHA.
+- **PR #83 — AUTH-CENTRAL-SESSION-BACKEND-P2:** OPEN/Draft، الفرع `feat/p2-central-session-backend-20261023`, head `91c87e003b5196eb9b5be02326e8aa52b3a3f4d3`, base `59547c7...`. Core [39961778913](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778913) = SUCCESS على الرأس نفسه. P2 [39961778847](https://github.com/Report-Engainall/Nasr1/actions/runs/39961778847) لم يصل لنتيجة نهائية: public UI smoke = SUCCESS، E2E hosted gate = SUCCESS لكن المسار يحتاج اعتمادات محلية غير متوفرة فبقي SKIPPED، ومسار local Supabase/PG17 ما زال يعمل عند تثبيت اعتمادات Chromium من المتصفح المحفوظ. لا تدمج #83 قبل نتيجة P2 النهائية ومراجعة SECURITY DEFINER.
+- الفشل السابق لـP2 على `9079ffa...` كان من اختبار استلام المشتريات الذي افترض DB port `54322` بدل المنفذ المحلي `55432`. أُصلح في commit `91c87e0...` باستخدام `validateCashExpenseEndpoints` المشترك. الإصلاح موجود؛ إعادة الإثبات النهائية على الرأس الحالي ما زالت قيد التشغيل.
+- **PR #95 — FIN-INVOICE-001 موازٍ مستقل:** OPEN/Draft، الفرع `feat/p2-fin-receivables-aging-credit-memo-20261023`, head `d2f904beeb14674cfed3501f5482734eaa76e34b`, base `59547c...`. يعالج خللًا محددًا في `fetch_staff_receivables_aging`: طرح الإشعارات الدائنة المنشورة المرتبطة بالفاتورة والمؤسسة بعد التحقق من العملة/المصدر، مع إبقاء المسودات والمعكوسات خارج الرصيد. Core [39963814368](https://github.com/Report-Engainall/Nasr1/actions/runs/39963814368) وP2 [39963814885](https://github.com/Report-Engainall/Nasr1/actions/runs/39963814885) قيد التشغيل وقت القراءة؛ قبول دقيق الرأس ليس PASS حتى الانتهاء.
+- **PR #82:** OPEN، head `8e70899...` مبني على `0396b29...` القديم. نجاحات Core/P2 السابقة لا تنتقل إلى main الحالي؛ حدّثه بعد دمج #83 ثم أعد الاختبار.
+- **PR #71:** merged. Core وP2 نجحا على head `09c052d...`; إثبات استعادة PostgreSQL 17 محلية معزولة فقط. لا RTO/RPO أو استعادة إنتاجية.
+- **تنظيف الحالة:** PR #91 أُغلق باعتباره نسخة قديمة تتعارض على مؤشر الاستئناف؛ PR #92 هو مسار تحديث الحالة/التقرير ومصدر الالتقاط الحالي.
+- **الترتيب:** `NEXT_TASK_ID=AUTH-CENTRAL-SESSION-BACKEND-P2`; بعد إغلاق #83 انتقل إلى `PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE`. مسار FIN-INVOICE-001 يعمل بالتوازي عبر PR #95 دون لمس ملفات #83 المقفلة.
+- **حدود الإثبات:** Onyx live sync واستيراد XLSX في Onyx وWhatsApp Business API الرسمي = `BLOCKED_EXTERNAL`; production restore = `NOT RUN`. لا بيانات مالية مخترعة ولا ادعاء اتصال حي.
 
 # تصحيح الحالة التنفيذية لـP2 — 22 أكتوبر 2026
 
