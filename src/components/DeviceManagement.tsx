@@ -31,8 +31,11 @@ type SessionRpc = (name: string, args?: Record<string, unknown>) => PromiseLike<
 
 // Session RPCs are introduced by the independently reviewed P2 migration. Keep the
 // name boundary typed locally so this frontend can be merged without pretending the
-// server endpoint already exists on main. At runtime every response is validated below.
-const callSessionRpc = supabase.rpc as unknown as SessionRpc;
+// server endpoint already exists on main. Resolve the Supabase client lazily so routes
+// that import DeviceManagement remain renderable in no-backend/unit-test environments.
+async function callSessionRpc(name: string, args?: Record<string, unknown>): Promise<SessionRpcResult> {
+  return await (supabase.rpc as unknown as SessionRpc)(name, args);
+}
 
 function browserLabel(userAgent: string): string {
   const platform = /Android/i.test(userAgent) ? 'Android'
