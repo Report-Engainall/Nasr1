@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { QueryClient } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { storefrontCategorySlug } from "@/lib/storefront-slugs";
+import { formatCurrency } from "@/lib/format";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   fetchPromotions: vi.fn(),
   fetchStorefrontPromotions: vi.fn(),
   fetchSettingsMap: vi.fn(),
+  settings: {} as Record<string, unknown>,
   fetchStorefrontAnnouncements: vi.fn(),
   categories: [{ id: "category-food", name: "مواد غذائية", description: "مواد غذائية أساسية", sort_order: 1, is_active: true }],
   promotions: [{ id: "promotion-1", title: "حملة السكر", description: "عرض منشور", discount_type: "percentage", discount_value: 10, product_ids: ["product-2"], category_ids: [], start_date: "2026-10-01", end_date: "2026-10-31", is_active: true, created_at: "2026-10-01T00:00:00Z" }],
@@ -19,10 +21,10 @@ const mocks = vi.hoisted(() => ({
   fetchCustomerAddresses: vi.fn(async () => []),
   acceptCompanyInvitation: vi.fn(async (_token: string) => ({ company_name: 'شركة الاختبار', member_role: 'buyer' as const })),
   products: [
-    { id: "product-1", name: "Rice", item_code: "SKU-001", barcode: null, description: null, unit: "carton", base_price: 1000, cost_price: 600, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1000, wholesale_price: 900, inventory: { id: "inv-1", product_id: "product-1", warehouse_id: "warehouse-1", quantity_on_hand: 20, quantity_reserved: 0, quantity_available: 20, reorder_point: 0 } },
-    { id: "product-2", name: "Sugar", item_code: "SKU-002", barcode: null, description: null, unit: "carton", base_price: 1200, cost_price: 800, min_stock: 0, status: "active", category_id: "category-food", category: { id: "category-food", name: "مواد غذائية" }, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1200, wholesale_price: 1100, inventory: { id: "inv-2", product_id: "product-2", warehouse_id: "warehouse-1", quantity_on_hand: 15, quantity_reserved: 0, quantity_available: 15, reorder_point: 0 } },
-    { id: "product-3", name: "Oil", item_code: "SKU-003", barcode: null, description: null, unit: "carton", base_price: 1500, cost_price: 1000, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1500, wholesale_price: 1400, inventory: { id: "inv-3", product_id: "product-3", warehouse_id: "warehouse-1", quantity_on_hand: 12, quantity_reserved: 0, quantity_available: 12, reorder_point: 0 } },
-    { id: "product-4", name: "Beans", item_code: "SKU-004", barcode: null, description: null, unit: "carton", base_price: 900, cost_price: 500, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 900, wholesale_price: 850, inventory: { id: "inv-4", product_id: "product-4", warehouse_id: "warehouse-1", quantity_on_hand: 9, quantity_reserved: 0, quantity_available: 9, reorder_point: 0 } },
+    { id: "product-1", name: "Rice", item_code: "SKU-001", barcode: null, description: null, unit: "carton", base_price: 1000, display_price: 1000, cost_price: 600, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1000, wholesale_price: 900, inventory: { id: "inv-1", product_id: "product-1", warehouse_id: "warehouse-1", quantity_on_hand: 20, quantity_reserved: 0, quantity_available: 20, reorder_point: 0 } },
+    { id: "product-2", name: "Sugar", item_code: "SKU-002", barcode: null, description: null, unit: "carton", base_price: 1200, display_price: 1200, cost_price: 800, min_stock: 0, status: "active", category_id: "category-food", category: { id: "category-food", name: "مواد غذائية" }, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1200, wholesale_price: 1100, inventory: { id: "inv-2", product_id: "product-2", warehouse_id: "warehouse-1", quantity_on_hand: 15, quantity_reserved: 0, quantity_available: 15, reorder_point: 0 } },
+    { id: "product-3", name: "Oil", item_code: "SKU-003", barcode: null, description: null, unit: "carton", base_price: 1500, display_price: 1500, cost_price: 1000, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 1500, wholesale_price: 1400, inventory: { id: "inv-3", product_id: "product-3", warehouse_id: "warehouse-1", quantity_on_hand: 12, quantity_reserved: 0, quantity_available: 12, reorder_point: 0 } },
+    { id: "product-4", name: "Beans", item_code: "SKU-004", barcode: null, description: null, unit: "carton", base_price: 900, display_price: 900, cost_price: 500, min_stock: 0, status: "active", category_id: null, image_url: null, created_at: "2026-01-01T00:00:00Z", retail_price: 900, wholesale_price: 850, inventory: { id: "inv-4", product_id: "product-4", warehouse_id: "warehouse-1", quantity_on_hand: 9, quantity_reserved: 0, quantity_available: 9, reorder_point: 0 } },
   ],
 }));
 
@@ -43,7 +45,7 @@ vi.mock("@/lib/useFetch", () => ({
     if (fetcher === mocks.fetchCategories) return { data: mocks.categories, loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchPromotions) return { data: [], loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchStorefrontPromotions) return { data: mocks.promotions, loading: false, error: null, refetch: vi.fn() };
-    if (fetcher === mocks.fetchSettingsMap) return { data: {}, loading: false, error: null, refetch: vi.fn() };
+    if (fetcher === mocks.fetchSettingsMap) return { data: mocks.settings, loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchStorefrontAnnouncements) return { data: [], loading: false, error: null, refetch: vi.fn() };
     return { data: { mode: "full", items: mocks.products }, loading: false, error: null, refetch: vi.fn() };
   },
@@ -118,6 +120,7 @@ describe("customer storefront saved discovery", () => {
     window.localStorage.clear();
     mocks.products.splice(0, mocks.products.length, ...initialProducts);
     mocks.rpc.mockReset().mockImplementation(async () => ({ data: null, error: null }));
+    mocks.settings = {};
     mocks.fetchCustomerAddresses.mockReset().mockResolvedValue([]);
   });
 
@@ -151,6 +154,22 @@ describe("customer storefront saved discovery", () => {
     expect(invite.host.textContent).toContain("تم تفعيل العضوية");
     expect(window.location.pathname).toBe("/company/accept-invitation");
     mocks.user = null;
+  });
+
+  it("hides catalog card amounts when the organization display setting is disabled", async () => {
+    mocks.settings = { show_price_on_cards: false };
+    const catalog = await mountAt("/products");
+    expect(catalog.host.querySelector(".sf-product-price")).toBeNull();
+    for (const amount of [1000, 1200, 1500, 900]) {
+      expect(catalog.host.textContent).not.toContain(formatCurrency(amount));
+    }
+  });
+
+  it("shows catalog amounts when the organization display setting is enabled", async () => {
+    mocks.settings = { show_price_on_cards: true };
+    const catalog = await mountAt("/products");
+    expect(catalog.host.querySelector(".sf-product-price")).not.toBeNull();
+    expect(catalog.host.textContent).toContain(formatCurrency(1000));
   });
 
   it("opens the catalog route directly and applies a URL search query to live products", async () => {
