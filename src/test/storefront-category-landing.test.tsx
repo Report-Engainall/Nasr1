@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,7 +24,7 @@ vi.mock("@/components/Storefront", () => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children, ...rest }: { to: unknown; children: React.ReactNode; [key: string]: unknown }) => (
+  Link: ({ to, children, ...rest }: { to: unknown; children: ReactNode; [key: string]: unknown }) => (
     <a href={typeof to === "string" ? to : "/"} {...rest}>{children}</a>
   ),
 }));
