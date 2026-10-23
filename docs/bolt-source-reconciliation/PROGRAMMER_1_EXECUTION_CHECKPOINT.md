@@ -126,3 +126,20 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/90
 - MERGE_STATUS: PR #90 OPEN; PR #84 MERGED; PR #88 remains Draft and blocked on P2 PR #83.
 - UPDATED_AT: 2026-10-23T15:40+03:00
+
+
+## Post-merge resume — 2026-10-23T15:53+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-INVITE-EXPIRY-90`
+- CURRENT_BRANCH: `p1/post-merge-resume-20261023`
+- BASE_SHA: `59547c7d683cefd65cab445b97219aa701021676` (main at the start of this documentation-only continuation branch).
+- HEAD_SHA: `59547c7d683cefd65cab445b97219aa701021676` (last confirmed application merge SHA; this record explicitly distinguishes application-tested code from subsequent resume-documentation commits).
+- LAST_CONFIRMED_TESTS: PR #90 final functional/source+test head `aff7fc76eaa48b3c4cebdb4eea6fb2e2860ea8f6`: Core [39955806806 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39955806806); P2 Playwright [39955806654 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39955806654). The local Supabase order/tenant, return, Onyx-export and print acceptance jobs passed in that run. The separate external customer-order/tenant job was `SKIPPED` by the external-credential gate. PR #90 merged by squash as `59547c7d683cefd65cab445b97219aa701021676`. Previous main integration SHA `cb72f35de524af82f63bbbcebec97213464921ed` passed Core [39955478215 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39955478215).
+- FAILED_OR_NOT_RUN_TESTS: post-merge main Core `test-and-build` run [39956957952](https://github.com/Report-Engainall/Nasr1/actions/runs/39956957952) is `IN_PROGRESS` at this checkpoint. No result is inferred until terminal. Production data, live email delivery and authenticated external-account E2E remain `NOT RUN / NOT PROVEN`. No Core/P2 workflow has yet been claimed for this new documentation-only branch head.
+- FILES_CHANGED: functional files already delivered and merged by #90: `src/lib/customer-activation-invitations.ts`, `src/test/customer-activation-invitations.test.ts`, and `src/test/customer-activation-invitations-dialog.test.tsx`; this continuation only updates `PROGRAMMER_1_EXECUTION_CHECKPOINT.md` and `PROGRAMMER_1_CURRENT_REPORT.md`.
+- LOCKED_PATHS: no edits to P2 migrations/RPC/RLS, `src/lib/api.ts`, finance/import/Onyx backend, P2 Playwright workflows, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, or shared acceptance matrix.
+- NEXT_ACTION: verify main CI run `39956957952` on exact SHA `59547c7d683cefd65cab445b97219aa701021676`. Do not change the conclusion based on an in-progress run. Then resume the central-session dependency in coordination with P2: PR #82 currently has head `8e70899da67d53f0acf221d7e4eeb1a8f2f1b591`, and PR #83 head `49ea0ce8936bf319a1941ea0ba0a1f03ebec9c3c`; both have become `mergeable=false` after main advanced, so P2 must merge-conflict-aware update and re-run exact-head Core + required local browser tests. Keep P1 PR #88 Draft until P2 contract #83 is integrated and proven. After that, update/revalidate #88 against new main and continue the next independent P1 screen gap.
+- BLOCKER: post-merge main CI is still running at the last read; #82/#83 need current-main integration owned by P2; #88 depends on #83 and must not be merged before integration. External authenticated customer account is unavailable and is not a passing result.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/90
+- MERGE_STATUS: PR #90 MERGED as `59547c7d683cefd65cab445b97219aa701021676`; PR #84 MERGED as `cb72f35de524af82f63bbbcebec97213464921ed`; P1 docs continuation PR for this branch to be opened separately.
+- UPDATED_AT: 2026-10-23T15:53+03:00
