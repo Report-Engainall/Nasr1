@@ -249,9 +249,9 @@ test("customer manager: directory privacy, audited customer commands, activation
     // Keep the non-5xx authorization contract as a failure, but don't let this
     // known status-mapping defect suppress independent same-tenant UI/audit checks below.
     expect.soft(
-      [400, 403, 404],
-      `Cross-tenant tier RPC must map the tenant denial to a non-5xx response; got HTTP ${foreignTierProbe.status}, code=${rpcErrorEnvelope.code ?? "unknown"}, message=${rpcErrorEnvelope.message}`,
-    ).toContain(foreignTierProbe.status);
+      foreignTierProbe.status,
+      `Cross-tenant tier RPC must map the tenant denial to HTTP 403; got HTTP ${foreignTierProbe.status}, code=${rpcErrorEnvelope.code ?? "unknown"}, message=${rpcErrorEnvelope.message}`,
+    ).toBe(403);
 
     await rowA.getByRole("button", { name: "تغيير الشريحة" }).click();
     await managerPage.getByLabel("شريحة العميل الجديدة").selectOption("vip");
