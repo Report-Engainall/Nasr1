@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ArrowRight, FileText, Package, Printer } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -5,6 +6,8 @@ import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatNumber } from '@/lib/format';
 import type { Order, OrderItem } from '@/lib/types';
+
+const CUSTOMER_ORDERS_PAGE_SIZE = 25;
 
 type CustomerOrderSummary = Pick<Order, 'id' | 'order_number' | 'status' | 'total_items' | 'created_at'> & {
   quantity_review_required?: boolean;
@@ -19,7 +22,7 @@ type CustomerOrderDocument = Pick<Order, 'id' | 'order_number' | 'customer_id' |
   customer_confirmed_at?: string | null;
   payment_request_status?: string;
 };
-type CustomerOrderLine = Pick<OrderItem, 'id' | 'item_code' | 'product_name_snapshot' | 'unit_snapshot' | 'quantity'> & {
+type CustomerOrderLine = Pick<OrderItem, 'id' | 'product_id' | 'item_code' | 'product_name_snapshot' | 'unit_snapshot' | 'quantity'> & {
   requested_quantity?: number;
   approved_quantity?: number;
 };
@@ -59,19 +62,81 @@ export function MyOrders() {
 }
 
 function MyOrdersInner() {
-  const { data, loading, error, refetch } = useFetch(async () => {
-    const { data, error } = await supabase.from('orders').select('id,order_number,status,total_items,created_at,quantity_review_required,customer_adjustment_note,customer_payment_requested_at,payment_request_status').order('created_at', { ascending: false });
-    if (error) throw new Error('تعذر تحميل الطلبات');
-    return data as CustomerOrderSummary[];
-  });
+  const [data, setData] = useState<CustomerOrderSummary[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      let query = supabase
+        .from('orders')
+        .select('id,order_number,status,total_items,created_at,quantity_review_required,customer_adjustment_note,customer_payment_requested_at,payment_request_status', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false });
+      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+      const { data: rows, error: queryError, count } = await query
+        .range((page - 1) * CUSTOMER_ORDERS_PAGE_SIZE, page * CUSTOMER_ORDERS_PAGE_SIZE - 1);
+      if (queryError) throw new Error('تعذر تحميل الطلبات');
+      if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) {
+        throw new Error('تعذر تأكيد إجمالي الطلبات. أعد المحاولة قبل الاعتماد على قائمة الطلبات.');
+      }
+      const nextPageCount = Math.max(1, Math.ceil(count / CUSTOMER_ORDERS_PAGE_SIZE));
+      setTotalCount(count);
+      if (page > nextPageCount) {
+        setData([]);
+        setPage(nextPageCount);
+        return;
+      }
+      setData((rows ?? []) as CustomerOrderSummary[]);
+    } catch (cause) {
+      setData(null);
+      setTotalCount(null);
+      setError(cause instanceof Error ? cause.message : 'تعذر تحميل الطلبات.');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, statusFilter]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const pageCount = totalCount === null ? 1 : Math.max(1, Math.ceil(totalCount / CUSTOMER_ORDERS_PAGE_SIZE));
   return (
     <Shell>
       <h1 style={{ fontSize: 26, margin: '0 0 6px' }}>طلباتي</h1>
       <p style={{ color: '#7a9398', margin: '0 0 20px' }}>كل الطلبات المرسلة من حسابك وحالتها الحالية</p>
+      <div className="no-print" style={{ ...card, marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label htmlFor="customer-orders-status-filter" style={{ fontWeight: 700 }}>تصفية حسب الحالة</label>
+        <select
+          id="customer-orders-status-filter"
+          aria-label="تصفية طلباتي حسب الحالة"
+          value={statusFilter}
+          disabled={loading}
+          onChange={(event) => {
+            setData(null);
+            setTotalCount(null);
+            setPage(1);
+            setStatusFilter(event.target.value);
+          }}
+          style={{ minWidth: 220, padding: 10, border: '1px solid #cbdad9', borderRadius: 9, background: '#fff' }}
+        >
+          <option value="all">كل الحالات</option>
+          {Object.entries(STATUS_LABELS).map(([status, label]) => <option key={status} value={status}>{label}</option>)}
+        </select>
+      </div>
       {loading && <p role="status">جارٍ تحميل الطلبات...</p>}
-      {error && <div style={card} role="alert">{error} <button className="sf-link" onClick={refetch}>إعادة المحاولة</button></div>}
-      {data && data.length === 0 && <div style={{ ...card, textAlign: 'center' }}><FileText size={32} /><p>لا توجد طلبات بعد.</p><Link to="/" className="sf-btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '10px 18px' }}>ابدأ التسوق</Link></div>}
-      {data && data.length > 0 && (
+      {!loading && !error && totalCount !== null && (
+        <p role="status" aria-label="إجمالي نتائج الطلبات">
+          {'إجمالي النتائج: ' + formatNumber(totalCount) + (statusFilter === 'all' ? ' طلب' : ' طلب بهذه الحالة')}
+        </p>
+      )}
+      {error && <div style={card} role="alert">{error} <button type="button" className="sf-link" onClick={() => void load()}>إعادة المحاولة</button></div>}
+      {data && data.length === 0 && totalCount === 0 && !loading && !error && <div style={{ ...card, textAlign: 'center' }}><FileText size={32} /><p>{statusFilter === 'all' ? 'لا توجد طلبات بعد.' : 'لا توجد طلبات بهذه الحالة.'}</p><Link to="/" className="sf-btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '10px 18px' }}>ابدأ التسوق</Link></div>}
+      {data && data.length > 0 && !error && (
         <div style={{ ...card, padding: 0, overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead><tr style={{ background: '#f4f8f9', textAlign: 'right' }}><th style={{ padding: 12 }}>رقم الطلب</th><th>التاريخ</th><th>الأصناف</th><th>الحالة</th><th /></tr></thead>
@@ -84,6 +149,11 @@ function MyOrdersInner() {
                 <td><Link to="/orders/$id" params={{ id: o.id }} className="sf-link">التفاصيل</Link></td>
               </tr>))}</tbody>
           </table>
+          {pageCount > 1 && <nav aria-label="صفحات الطلبات" style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center', padding: 12, flexWrap: 'wrap' }}>
+            <button type="button" className="sf-link" aria-label="صفحة الطلبات السابقة" onClick={() => { setData(null); setPage((value) => Math.max(1, value - 1)); }} disabled={loading || page <= 1}>السابق</button>
+            <span role="status" aria-label="صفحة الطلبات الحالية">{'صفحة ' + page + ' من ' + pageCount + ' — إجمالي النتائج: ' + totalCount}</span>
+            <button type="button" className="sf-link" aria-label="صفحة الطلبات التالية" onClick={() => { setData(null); setPage((value) => Math.min(pageCount, value + 1)); }} disabled={loading || page >= pageCount}>التالي</button>
+          </nav>}
         </div>
       )}
     </Shell>
@@ -91,15 +161,19 @@ function MyOrdersInner() {
 }
 
 export function OrderInvoice({ id }: { id: string }) {
-  return <Gate><OrderInvoiceInner id={id} /></Gate>;
+  return <Gate><OrderInvoiceInner key={id} id={id} /></Gate>;
 }
 
 function OrderInvoiceInner({ id }: { id: string }) {
   const { user } = useAuth();
-  const { data, loading, error } = useFetch(async () => {
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [templateSaved, setTemplateSaved] = useState(false);
+  const [templateFeedback, setTemplateFeedback] = useState<{ kind: 'error' | 'success'; message: string } | null>(null);
+  const templateSaveInFlightRef = useRef(false);
+  const { data, loading, error, refetch } = useFetch(async () => {
     const [o, i, h] = await Promise.all([
       supabase.from('orders').select('id,order_number,customer_id,status,total_items,notes,created_at,quantity_review_required,customer_adjustment_note,customer_payment_requested_at,customer_confirmed_at,payment_request_status,delivery_address_snapshot').eq('id', id).maybeSingle(),
-      supabase.from('order_items').select('id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity').eq('order_id', id),
+      supabase.from('order_items').select('id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,requested_quantity,approved_quantity').eq('order_id', id),
       supabase.from('order_status_history').select('id,to_status,created_at,notes').eq('order_id', id).order('created_at'),
     ]);
     if (o.error || i.error || h.error) throw new Error('تعذر تحميل الطلب');
@@ -115,16 +189,99 @@ function OrderInvoiceInner({ id }: { id: string }) {
   }, [id]);
 
   if (loading) return <Shell><p role="status">جارٍ تحميل الطلب...</p></Shell>;
-  if (error) return <Shell><div style={card} role="alert">{error}</div></Shell>;
+  if (error) return <Shell><div style={card} role="alert">{error} <button type="button" className="sf-link" aria-label="إعادة تحميل تفاصيل الطلب" onClick={() => void refetch()}>إعادة المحاولة</button></div></Shell>;
   if (!data?.order) return <Shell><div style={card}>الطلب غير موجود أو لا تملك صلاحية عرضه. <Link to="/orders" className="sf-link">طلباتي</Link></div></Shell>;
   const { order, items, history, customer } = data;
+
+  async function saveAsReorderTemplate() {
+    if (templateSaveInFlightRef.current || templateSaving || templateSaved) return;
+    templateSaveInFlightRef.current = true;
+    setTemplateSaving(true);
+    setTemplateFeedback(null);
+    try {
+      if (items.length < 1 || items.length > 100) {
+        throw new Error('لا يمكن حفظ قالب فارغ أو يحتوي على أكثر من 100 صنف.');
+      }
+
+      const productIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const lines = items.map((item) => {
+        if (typeof item.product_id !== 'string' || !productIdPattern.test(item.product_id)) {
+          throw new Error('لا يمكن حفظ القالب لأن أحد الأصناف لم يعد مرتبطًا بمنتج صالح.');
+        }
+        const quantity = Number(item.approved_quantity ?? item.quantity);
+        if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 10000) {
+          throw new Error('توجد كمية غير صالحة في الطلب؛ لم يُحفظ القالب.');
+        }
+        return { product_id: item.product_id, quantity };
+      });
+
+      const productIds = new Set(lines.map((line) => line.product_id.toLowerCase()));
+      if (productIds.size !== lines.length) {
+        throw new Error('يتضمن الطلب صنفًا مكررًا؛ لم يُحفظ القالب لتجنب تكرار الكميات.');
+      }
+
+      const templateName = ('إعادة طلب ' + String(order.order_number ?? '').trim()).slice(0, 100);
+      if (templateName.trim().length < 2) {
+        throw new Error('تعذر تحديد اسم صالح لقالب إعادة الطلب.');
+      }
+
+      // This existing RPC derives the customer and organization from the session,
+      // validates source-order ownership, and rejects products that are no longer active.
+      const { data: templateId, error: rpcError } = await supabase.rpc('save_reorder_template', {
+        p_name: templateName,
+        p_lines: lines,
+        p_source_order_id: order.id,
+      });
+      if (
+        rpcError
+        || typeof templateId !== 'string'
+        || !productIdPattern.test(templateId)
+      ) {
+        throw new Error('تعذر حفظ قالب إعادة الطلب. تحقق من صلاحيات الحساب وتوفر أصناف الطلب، ثم حاول مجددًا.');
+      }
+
+      setTemplateSaved(true);
+      setTemplateFeedback({
+        kind: 'success',
+        message: 'تم حفظ قالب مرتبط بالطلب ' + String(order.order_number ?? '') + '. عند تطبيقه ستُراجع الأسعار والتوفر الحاليان قبل إرسال طلب جديد.',
+      });
+    } catch (cause) {
+      setTemplateFeedback({
+        kind: 'error',
+        message: cause instanceof Error ? cause.message : 'تعذر حفظ قالب إعادة الطلب. حاول مجددًا.',
+      });
+    } finally {
+      templateSaveInFlightRef.current = false;
+      setTemplateSaving(false);
+    }
+  }
 
   return (
     <Shell>
       <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <Link to="/orders" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>كل الطلبات</Link>
+        <button
+          type="button"
+          className="sf-btn-secondary"
+          aria-label="حفظ كقالب إعادة الطلب"
+          disabled={templateSaving || templateSaved}
+          onClick={() => void saveAsReorderTemplate()}
+        >
+          {templateSaving ? 'جارٍ حفظ قالب إعادة الطلب...' : templateSaved ? 'تم حفظ قالب إعادة الطلب' : 'حفظ كقالب إعادة الطلب'}
+        </button>
         <button className="sf-btn-primary" onClick={() => window.print()}><Printer size={16} /> طباعة / حفظ PDF</button>
       </div>
+      {templateFeedback && (
+        <div
+          role={templateFeedback.kind === 'error' ? 'alert' : 'status'}
+          style={{ ...card, marginBottom: 16, borderColor: templateFeedback.kind === 'error' ? '#dfb5ad' : '#b7d9ce' }}
+        >
+          <p style={{ margin: 0 }}>{templateFeedback.message}</p>
+          {templateFeedback.kind === 'success' && (
+            <Link to="/reorder" className="sf-link" style={{ display: 'inline-flex', marginTop: 8 }}>فتح مساحة إعادة الطلب</Link>
+          )}
+        </div>
+      )}
       <article style={card} className="print-area">
         <header style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '2px solid #0b97a5', paddingBottom: 14 }}>
           <div><h1 style={{ margin: 0, color: '#0b7b89', fontSize: 24 }}>الأغبري</h1><small>شركة الأغبري للمواد الغذائية — صنعاء، اليمن</small></div>

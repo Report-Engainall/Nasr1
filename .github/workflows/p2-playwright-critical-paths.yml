@@ -401,6 +401,8 @@ jobs:
         env:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: node scripts/seed-p2-local-playwright.mjs
+      - name: Test local endpoint guard allow and deny cases
+        run: node scripts/test-local-endpoint-guard.mjs
       - name: Test atomic price grid writes, rollback, audit and stale-writer race
         run: node scripts/test-price-grid-atomicity.mjs
       - name: Test cash-expense source posting, idempotency and void/post concurrency

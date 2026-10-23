@@ -290,12 +290,95 @@ export async function createCustomer(c: Partial<Customer>): Promise<Customer> {
   return data;
 }
 
-export async function updateCustomerStatus(id: string, status: string): Promise<void> {
-  const { error } = await supabase
-    .from('customers')
-    .update({ status, approved_at: status === 'approved' ? new Date().toISOString() : null })
-    .eq('id', id);
+export type CustomerStatusChangeResult = {
+  customer_id: string;
+  previous_status: string;
+  status: string;
+  changed: boolean;
+};
+
+const CUSTOMER_LIFECYCLE_STATUSES = ['pending', 'approved', 'rejected', 'frozen', 'blocked', 'archived'] as const;
+const CUSTOMER_LIFECYCLE_COMMANDS = ['approved', 'rejected', 'frozen', 'blocked', 'archived', 'restore'] as const;
+
+export async function updateCustomerStatus(
+  id: string,
+  expectedStatus: string,
+  nextStatus: string,
+  reason: string,
+): Promise<CustomerStatusChangeResult> {
+  const customerId = typeof id === 'string' ? id.trim().toLowerCase() : '';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customerId)) {
+    throw new Error('معرّف العميل غير صالح.');
+  }
+  const normalizedExpected = typeof expectedStatus === 'string' ? expectedStatus.trim().toLowerCase() : '';
+  const normalizedNext = typeof nextStatus === 'string' ? nextStatus.trim().toLowerCase() : '';
+  const normalizedReason = typeof reason === 'string' ? reason.trim() : '';
+  if (!CUSTOMER_LIFECYCLE_STATUSES.includes(normalizedExpected as typeof CUSTOMER_LIFECYCLE_STATUSES[number])
+    || !CUSTOMER_LIFECYCLE_COMMANDS.includes(normalizedNext as typeof CUSTOMER_LIFECYCLE_COMMANDS[number])) {
+    throw new Error('انتقال حالة العميل غير صالح.');
+  }
+  if (normalizedReason.length < 3 || normalizedReason.length > 500) {
+    throw new Error('سبب تغيير الحالة مطلوب (3 إلى 500 حرف).');
+  }
+
+  const { data, error } = await supabase.rpc('set_admin_customer_status', {
+    p_customer_id: customerId,
+    p_expected_status: normalizedExpected,
+    p_status: normalizedNext,
+    p_reason: normalizedReason,
+  });
   if (error) throw error;
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)
+    || data.customer_id !== customerId
+    || data.previous_status !== normalizedExpected
+    || typeof data.status !== 'string'
+    || !CUSTOMER_LIFECYCLE_STATUSES.includes(data.status as typeof CUSTOMER_LIFECYCLE_STATUSES[number])
+    || typeof data.changed !== 'boolean'
+    || (normalizedNext !== 'restore' && data.status !== normalizedNext)
+    || (normalizedNext === 'restore' && data.status === 'archived')) {
+    throw new Error('لم يؤكد الخادم تحديث حالة العميل.');
+  }
+  return data as CustomerStatusChangeResult;
+}
+
+
+export type CustomerTierChangeResult = {
+  customer_id: string;
+  previous_tier: string;
+  tier: 'retail' | 'wholesale' | 'vip';
+  changed: boolean;
+};
+
+export async function updateCustomerTier(
+  id: string,
+  expectedTier: string,
+  nextTier: string,
+  reason: string,
+): Promise<CustomerTierChangeResult> {
+  const allowedTiers = ['retail', 'wholesale', 'vip'] as const;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error('معرّف العميل غير صالح.');
+  }
+  const normalizedExpected = typeof expectedTier === 'string' ? expectedTier.trim().toLowerCase() : '';
+  const normalizedTier = typeof nextTier === 'string' ? nextTier.trim().toLowerCase() : '';
+  const normalizedReason = typeof reason === 'string' ? reason.trim() : '';
+  if (!normalizedExpected || normalizedExpected.length > 32 || !allowedTiers.includes(normalizedTier as typeof allowedTiers[number])) {
+    throw new Error('شريحة العميل غير صالحة.');
+  }
+  if (normalizedReason.length < 3 || normalizedReason.length > 500) {
+    throw new Error('سبب تغيير الشريحة مطلوب (3 إلى 500 حرف).');
+  }
+  const { data, error } = await supabase.rpc('set_admin_customer_tier', {
+    p_customer_id: id, p_expected_tier: normalizedExpected, p_tier: normalizedTier, p_reason: normalizedReason,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)
+    || data.customer_id !== id || data.tier !== normalizedTier
+    || typeof data.previous_tier !== 'string' || typeof data.changed !== 'boolean') {
+    throw new Error('لم يؤكد الخادم تحديث شريحة العميل.');
+  }
+  return data as CustomerTierChangeResult;
 }
 
 // ─── Suppliers ───

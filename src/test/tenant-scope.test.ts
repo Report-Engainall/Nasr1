@@ -45,8 +45,9 @@ function expectedScope(
   organizationId = ORGANIZATION_ID,
   warehouseId: string | null = WAREHOUSE_ID,
   isStaff = false,
+  canManageCustomers = false,
 ): CurrentTenantScope {
-  return { profileId, organizationId, warehouseId, isStaff };
+  return { profileId, organizationId, warehouseId, isStaff, canManageCustomers };
 }
 
 describe("server-derived tenant scope", () => {

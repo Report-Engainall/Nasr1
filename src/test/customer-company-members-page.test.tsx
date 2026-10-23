@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { act, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -102,6 +102,91 @@ describe("customer company membership screens", () => {
     expect(linkField.value).toContain("/company/accept-invitation?token=" + TOKEN);
   });
 
+  it("creates only one invitation when two submit events arrive before the busy state rerenders", async () => {
+    const invitation = {
+      invitation_id: INVITATION_ID,
+      invited_email: "finance@example.test",
+      member_role: "finance",
+      invitation_token: TOKEN,
+      expires_at: "2026-10-27T10:00:00Z",
+    };
+    let resolveCreate: ((value: typeof invitation) => void) | undefined;
+    mocks.createInvite.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveCreate = resolve;
+    }));
+
+    const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");
+    render(<CustomerCompanyMembersPage />);
+
+    expect(await screen.findByText("سارة الأغبري")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("بريد العضو"), { target: { value: "finance@example.test" } });
+    fireEvent.change(screen.getByLabelText("الدور التجاري"), { target: { value: "finance" } });
+    const submit = await screen.findByRole("button", { name: "إنشاء رابط دعوة" });
+    const form = submit.closest("form");
+    expect(form).not.toBeNull();
+
+    await act(async () => {
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+
+    expect(mocks.createInvite).toHaveBeenCalledTimes(1);
+    expect(mocks.createInvite).toHaveBeenCalledWith("finance@example.test", "finance");
+
+    await act(async () => {
+      resolveCreate?.(invitation);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(await screen.findByText(/لم يُرسل بريد تلقائيًا؛ شارك الرابط يدويًا/)).toBeInTheDocument();
+  });
+
+  it("keeps invitation creation disabled until the company workspace is confirmed and supports retry", async () => {
+    mocks.fetchWorkspace
+      .mockReset()
+      .mockRejectedValueOnce(new Error("تعذر تحميل أعضاء الشركة"))
+      .mockResolvedValueOnce(workspace);
+
+    const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");
+    render(<CustomerCompanyMembersPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل أعضاء الشركة");
+    expect(screen.getByRole("button", { name: "إنشاء رابط دعوة" })).toBeDisabled();
+    expect(mocks.createInvite).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "تحديث" }));
+    expect(await screen.findByText("سارة الأغبري")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إنشاء رابط دعوة" })).toBeEnabled();
+    expect(mocks.createInvite).not.toHaveBeenCalled();
+  });
+
+  it("disables revocation against stale memberships if the workspace refresh fails", async () => {
+    mocks.fetchWorkspace
+      .mockReset()
+      .mockResolvedValueOnce(workspace)
+      .mockRejectedValueOnce(new Error("تعذر تحديث أعضاء الشركة"));
+
+    const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");
+    render(<CustomerCompanyMembersPage />);
+
+    expect(await screen.findByText("سارة الأغبري")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "إلغاء العضوية" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "إلغاء الدعوة" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "تحديث" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحديث أعضاء الشركة");
+
+    const revokeMemberButton = screen.getByRole("button", { name: "إلغاء العضوية" });
+    const revokeInvitationButton = screen.getByRole("button", { name: "إلغاء الدعوة" });
+    expect(revokeMemberButton).toBeDisabled();
+    expect(revokeInvitationButton).toBeDisabled();
+
+    fireEvent.click(revokeMemberButton);
+    fireEvent.click(revokeInvitationButton);
+    expect(mocks.revokeMember).not.toHaveBeenCalled();
+    expect(mocks.revokeInvitation).not.toHaveBeenCalled();
+  });
+
   it("revokes active members and pending invitations only through their explicit actions", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");
@@ -126,6 +211,34 @@ describe("customer company membership screens", () => {
     expect(mocks.acceptInvite).toHaveBeenCalledWith(TOKEN);
     expect(window.location.pathname).toBe("/company/accept-invitation");
     expect(window.location.search).toBe("");
+  });
+
+  it("removes the bearer token before the acceptance request and preserves retry after a transient error", async () => {
+    window.history.replaceState(null, "", "/company/accept-invitation?token=" + TOKEN);
+    mocks.acceptInvite
+      .mockImplementationOnce(async (token: string) => {
+        expect(token).toBe(TOKEN);
+        expect(window.location.search).toBe("");
+        throw new Error("تعذر الاتصال مؤقتًا");
+      })
+      .mockResolvedValueOnce({
+        company_name: "شركة الأغبري",
+        member_role: "buyer",
+        status: "active",
+      });
+
+    const { CompanyInvitationAcceptancePage } = await import("@/components/CustomerCompanyMembers");
+    render(<CompanyInvitationAcceptancePage />);
+
+    const acceptButton = await screen.findByRole("button", { name: "قبول الدعوة والانضمام للشركة" });
+    fireEvent.click(acceptButton);
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر الاتصال مؤقتًا");
+    expect(window.location.search).toBe("");
+
+    fireEvent.click(screen.getByRole("button", { name: "قبول الدعوة والانضمام للشركة" }));
+    expect(await screen.findByText("تم تفعيل العضوية")).toBeInTheDocument();
+    expect(mocks.acceptInvite).toHaveBeenNthCalledWith(1, TOKEN);
+    expect(mocks.acceptInvite).toHaveBeenNthCalledWith(2, TOKEN);
   });
 
   it("blocks staff from accepting a customer company invitation", async () => {

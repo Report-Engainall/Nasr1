@@ -1,3 +1,9 @@
+/** Renders only known money values; missing or invalid data must not become a zero balance. */
+export function formatCustomer360Money(value: unknown, currency = 'YER'): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'غير متاح';
+  return new Intl.NumberFormat('ar-YE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value) + ' ' + currency;
+}
+
 export type Customer360Order = {
   id: string;
   customer_id: string;

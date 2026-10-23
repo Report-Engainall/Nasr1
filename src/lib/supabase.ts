@@ -11,6 +11,7 @@ export type CurrentTenantScope = {
   organizationId: string;
   warehouseId: string | null;
   isStaff: boolean;
+  canManageCustomers: boolean;
 };
 
 export type StorefrontDataScope = Pick<CurrentTenantScope, 'organizationId' | 'warehouseId' | 'isStaff'>;
@@ -20,6 +21,7 @@ type TenantScopePayload = {
   organization_id?: unknown;
   warehouse_id?: unknown;
   is_staff?: unknown;
+  can_manage_customers?: unknown;
 };
 
 type PublicStorefrontScopePayload = {
@@ -68,7 +70,8 @@ export async function getCurrentTenantScope(): Promise<CurrentTenantScope> {
       !isUuid(payload.profile_id) ||
       !isUuid(payload.organization_id) ||
       (payload.warehouse_id !== null && !isUuid(payload.warehouse_id)) ||
-      typeof payload.is_staff !== 'boolean'
+      typeof payload.is_staff !== 'boolean' ||
+      (payload.can_manage_customers !== undefined && typeof payload.can_manage_customers !== 'boolean')
     ) {
       throw new Error('أعاد الخادم نطاق مؤسسة غير صالح؛ تم إيقاف العملية لحماية البيانات.');
     }
@@ -78,6 +81,7 @@ export async function getCurrentTenantScope(): Promise<CurrentTenantScope> {
       organizationId: payload.organization_id,
       warehouseId: payload.warehouse_id,
       isStaff: payload.is_staff,
+      canManageCustomers: payload.can_manage_customers === true,
     };
   })();
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Copy, Link2, Mail, RefreshCw, ShieldCheck, UserPlus, UserX, X } from "lucide-react";
 import {
   createCustomerActivationInvitation,
@@ -41,6 +41,7 @@ export function CustomerActivationInvitationDialog({
   const [inviteUrl, setInviteUrl] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const createInFlightRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,7 +59,8 @@ export function CustomerActivationInvitationDialog({
 
   async function createInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || loading || workspace?.is_linked) return;
+    if (createInFlightRef.current || busy || loading || workspace?.is_linked) return;
+    createInFlightRef.current = true;
     setBusy(true);
     setError("");
     setNotice("");
@@ -71,6 +73,7 @@ export function CustomerActivationInvitationDialog({
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر إنشاء رابط التفعيل.");
     } finally {
+      createInFlightRef.current = false;
       setBusy(false);
     }
   }
@@ -102,7 +105,7 @@ export function CustomerActivationInvitationDialog({
     }
   }
 
-  const canInvite = customer.status === "approved" && !workspace?.is_linked;
+  const canInvite = customer.status === "approved" && workspace !== null && !workspace.is_linked && !error;
 
   return (
     <div
@@ -136,7 +139,14 @@ export function CustomerActivationInvitationDialog({
 
         {loading ? (
           <p role="status" style={{ display: "flex", alignItems: "center", gap: 8 }}><RefreshCw size={16} /> جارٍ تحميل سجل دعوات العميل...</p>
-        ) : workspace?.is_linked ? (
+        ) : !workspace ? (
+          <div role="alert" style={{ padding: 14, border: "1px solid #e8b5b5", borderRadius: 11 }}>
+            تعذر التحقق من حالة ربط حساب العميل. لن يُسمح بإنشاء دعوة حتى يُحمّل سجل الدعوات بنجاح.
+            <button type="button" onClick={() => void load()} disabled={loading || busy} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginInlineStart: 10, border: "1px solid var(--border, #d5e1df)", borderRadius: 8, padding: "7px 9px", background: "transparent", cursor: "pointer" }}>
+              <RefreshCw size={14} /> إعادة المحاولة
+            </button>
+          </div>
+        ) : workspace.is_linked ? (
           <div role="status" style={{ padding: 14, border: "1px solid #b8d8c8", borderRadius: 11 }}>هذا السجل مرتبط بالفعل بحساب مستخدم. لا يمكن إنشاء دعوة تفعيل ثانية.</div>
         ) : (
           <form onSubmit={createInvite} style={{ display: "grid", gap: 12, padding: 16, border: "1px solid var(--border, #d9e3e2)", borderRadius: 12 }}>

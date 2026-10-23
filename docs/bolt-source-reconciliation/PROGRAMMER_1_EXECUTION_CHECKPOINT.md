@@ -1,43 +1,112 @@
 # P1 Execution Checkpoint — live resume record
 
-> The P1 implementer must copy this checkpoint into the active P1 implementation branch before coding, then update and commit it after every task, every blocker, and before stopping. Keep a short current state and append a dated history item; do not rewrite or delete earlier evidence.
+## Current state — 2026-10-23
 
-## Current state
+- Status: IN_PROGRESS.
+- Repository / branch / PR: `Report-Engainall/Nasr1` / `p1/remaining-work-execution-20261023` / [PR #66](https://github.com/Report-Engainall/Nasr1/pull/66).
+- PR #65 was merged first as `1a1c473ba9449af1671fe345eface1ed78583db6`. P1 was forward-integrated with current `main` at `a3a6da9345847ac43460e6376200d74fe8f170a2`, preserving P1 as first parent and `c451261681a56078118776649e031801752eade6` as main second parent. No direct write to `main`.
+- Requested original SHA `f858cf167c9d39c4be923c432128ba30d4d2b980`: Core [39910240078](https://github.com/Report-Engainall/Nasr1/actions/runs/39910240078) SUCCESS on exact SHA; P2 Playwright [39910240120](https://github.com/Report-Engainall/Nasr1/actions/runs/39910240120) CANCELLED on exact SHA. No browser PASS is inferred from Core CI.
+- Exact fixed feature head `61fd03c12d4a49cf986904cd74a585c1217628c5`: Core [39913654316](https://github.com/Report-Engainall/Nasr1/actions/runs/39913654316) SUCCESS and P2 Playwright [39913654453](https://github.com/Report-Engainall/Nasr1/actions/runs/39913654453) SUCCESS. Both are evidence only for `61fd03c...`, not later commits.
+- Tier command now exists in `supabase/migrations/20261023090000_admin_customer_tier_command.sql` and client wrapper `updateCustomerTier`. It requires active admin/manager in the tenant, valid tier, reason, and matching old tier under lock; emits before/after audit; blocks direct tier UPDATE. UI dialog is present in `src/components/AghbariApp.tsx` with API/UI/Postgres acceptance tests, but the old routed page was still bypassing it.
+- **Routed customer page correction (this batch; exact-head CI pending):** `src/App.tsx` routes `/admin/customers` to `src/pages/admin/AdminCustomers.tsx`; that legacy page used stale `customer_tier` numeric and direct table updates despite the canonical schema using `tier` text, and it bypassed the tenant-scoped directory. `AdminCustomers.tsx` now hosts the canonical `Customers` directory inside `AuthProvider` and renders its notices accessibly; the adapter test `src/test/admin-customers-route.test.tsx` verifies route mounting and accessible notice/close behavior. This removes that old direct-write UI from the active route rather than duplicating another customer service.
+- Concurrent P2 commit `624e85cd947b56e5282d78a1ae040a7ef0a0ecb2` expanded safe partial-email searches but malformed the wildcard-escape statement in `src/lib/customer-directory.ts`; fixed in `d4cdc75ef002258b9142614e58bd3453c78cd9a0`. Exact-head Core [39914410486](https://github.com/Report-Engainall/Nasr1/actions/runs/39914410486) was IN_PROGRESS and Playwright [39914410474](https://github.com/Report-Engainall/Nasr1/actions/runs/39914410474) PENDING at readback before this route batch.
+- Exact-head verification is now available for P1 head `7b4afd00a5abd26cf983ee5f82247ccd0e7c89f1`: Core CI [39918895865](https://github.com/Report-Engainall/Nasr1/actions/runs/39918895865) SUCCESS and P2 Playwright Critical Paths [39918895866](https://github.com/Report-Engainall/Nasr1/actions/runs/39918895866) SUCCESS. These results apply only to this SHA; full authenticated production-browser and production-database proof remain NOT_RUN.
+- Next action: read exact-head Core and Playwright results, fix only concrete failures, then proceed with the next P1 customer lifecycle gap. Avoid redoing directory paging/search, activation invites/memberships, Customer 360, order history, category, and audit work. Do not alter P2-locked customer workflow/storefront, finance, inventory, Onyx, or E2E files.
 
-- Overall status: NOT_STARTED
-- Current task: P1-01 — reconcile and finish the existing category-rename workflow in PR #50
-- Current implementation branch: NOT_CREATED_FOR_THIS_RUN
-- Base main SHA at assignment: 76baf9dbe7860a764abc18e75835abb8750d56a3
-- Latest implementation HEAD: NONE_FOR_THIS_RUN
-- Last verified test SHA: main baseline only; not evidence for new P1 changes
-- Last CI: https://github.com/Report-Engainall/Nasr1/actions/runs/39899984136 (main baseline only)
-- Last update: 2026-10-23
-- Next task: P1-01
+## Latest exact-head proof — 2026-10-23
 
-## Fixed task queue
+- Tested P1 source SHA: `7b4afd00a5abd26cf983ee5f82247ccd0e7c89f1`.
+- Core CI: **SUCCESS** — [39918895865](https://github.com/Report-Engainall/Nasr1/actions/runs/39918895865).
+- P2 Playwright Critical Paths: **SUCCESS** — [39918895866](https://github.com/Report-Engainall/Nasr1/actions/runs/39918895866).
+- This validates repository checks on that exact PR head only. It does not prove that all customer/admin workflows are browser-certified or that production data/migrations were exercised.
+- Current main at sync start: `52df650957c857cc32c21c8804e3f5e88f73d9e7`. The integration commit below preserves P1’s customer lifecycle changes plus main’s order-input acceptance and coordination/backup workflow updates. All checks must run again on the resulting integration SHA before the PR is considered merge-ready.
 
-1. P1-01: finish/reconcile category rename workflow already proposed in PR #50; do not build a duplicate.
-2. P1-02: close the bounded password-reset route metadata/security gap in PR #44 if it remains open on live main.
-3. P1-03: complete real client/storefront routes and actions from the original spec, in small screen groups.
-4. P1-04: complete commercial-admin routes/actions: products, categories, customers, companies/members, staff/roles, prices and order UI within P1 ownership.
-5. P1-05: close additional specification requirements within P1 ownership; source-ledger review only where it blocks an actual requirement.
-6. P1-06: run focused regression tests and exact-head CI for P1-owned changed paths; mark any manual browser/UAT work NOT_RUN until final acceptance.
+## Recent execution history
 
-## Required update format after every task
+### 2026-10-23 — P1-01 — CLOSED_WITH_EVIDENCE (merge pending)
+PR #50 uses the existing `renameAdminCatalogCategory` UI command and tenant-scoped RPC; audit, permission, duplicate-name and stable category identity behavior were reviewed. Exact-head Core CI run 39836522643 passed on `3301a3806ae7ffd62064b97b5796b12b2dd0eff9`. Browser run 39836522607 was BLOCKED_EXTERNAL before assertions by GHCR `toomanyrequests`; not BROWSER_PROVEN. No duplicate implementation was created.
 
-- Timestamp:
-- Task ID / status: DONE | IN_PROGRESS | BLOCKED | NOT_RUN
-- Active branch / base SHA / resulting HEAD SHA:
-- Root cause or exact gap:
-- Changed paths:
-- Tests actually run and result:
-- Exact CI links and conclusions:
-- Tests not run / blocker and verbatim error:
-- P2 handoff or file lock, if any:
-- Next task ID and first action:
-- Evidence status: IMPLEMENTED / INTEGRATED / TESTED_EXACT_SHA / BROWSER_PROVEN / PRODUCTION_PROVEN (mark each independently)
+### 2026-10-23 — P1-02 — CLOSED_WITH_EVIDENCE (merge pending)
+PR #44 adds `noindex, nofollow` and `no-referrer` to recovery/reset routes. Fixed a rejected Supabase `updateUser` promise path so it displays an error, does not navigate on failure, and always clears busy state. Added regression assertion in `src/test/password-reset-route-security.test.ts`. Core CI run 39904405152 passed on `365ccc7c9c8512b10b1f676cb9b73b20d54ad8e6`. Route-specific authenticated browser proof remains NOT_RUN.
 
-## History
+### 2026-10-23 — P1-03a — CLOSED_WITH_EVIDENCE
+In `src/components/CustomerOrders.tsx`, order detail now exposes an accessible retry using the existing `useFetch` refetch. Added `src/test/customer-order-detail-retry.test.tsx` for transient failure and recovery. Core CI run 39905102470 passed on exact SHA `16bfe4f96513753dc145dfec17a020f121e1f711` (24/24 steps). Retry-button browser proof remains NOT_RUN.
 
-### Initial checkpoint
-No P1 application-code work was executed by this documentation update. This file is a starting template only. The main baseline and old PR/test reports must not be treated as proof for later heads. The boot message has the task order and forbids broad repository rereads, Bolt archive recovery, and full Bolt New UAT before coding closure.
+### 2026-10-23 — P1-03b — IMPLEMENTED; exact-head CI pending
+Added a source-linked reorder-template action to customer order detail, reusing the current `save_reorder_template` RPC and its server-side customer/organization/source-order and active-product checks. No new migration or duplicate reorder engine was created. The client sends product IDs and approved quantities only; malformed product IDs/quantities and malformed RPC responses fail closed. A `useRef` in-flight guard prevents rapid duplicate calls before disabled state rerenders. The test now covers source-order RPC arguments, approved quantity selection, invalid product ID rejection, returned RPC error, and rapid double-click single-call behavior. Changed paths: `src/components/CustomerOrders.tsx`, `src/test/customer-order-detail-retry.test.tsx`. Core CI must be verified on the final post-checkpoint SHA before closing.
+
+### 2026-10-23 — P1-03b — IMPLEMENTED; CI pending on combined head
+Added source-linked reorder-template action to order details using existing `save_reorder_template`; server verifies customer/organization/source order and active products. Client validates product UUIDs and quantities, sends approved quantity and guards rapid double clicks. Test covers success, invalid identity, server error and double click. Core CI for exact code/test head `ac9002163dfd5d1fadb3f3caa7d15a3599149d9f` was pending at checkpoint time.
+
+### 2026-10-23 — P1-03c — IMPLEMENTED; CI pending on combined head
+The company-invitation acceptance handler now removes the bearer token from browser history before its network request, retaining the token in state so a rejected request can be retried without putting the token back in the URL. Added a regression test for token removal before the service call, error display, and successful retry. Changed `src/components/CustomerCompanyMembers.tsx` and `src/test/customer-company-members-page.test.tsx`. Core CI run `39906092356` is intended to cover this code/test head; result was still pending.
+
+### 2026-10-23 — P1-03c — IMPLEMENTED; exact-head CI pending
+The company-invitation acceptance handler now removes the bearer token from browser history before its network request while retaining token state for retry. Added a test for URL cleanup before service call, error display, and successful retry. Changed `src/components/CustomerCompanyMembers.tsx` and `src/test/customer-company-members-page.test.tsx`.
+
+### 2026-10-23 — P1-03d — IMPLEMENTED; exact-head CI pending
+The customer activation handler now removes the path token from the visible address before calling the server, while preserving in-memory token state for retry if the request fails. Added a test asserting token removal before the request and successful retry after a transient failure. Changed `src/components/CustomerActivationInvitationPage.tsx` and `src/test/customer-activation-invitations-page.test.tsx`. Exact-head CI must be verified on the final checkpoint SHA.
+
+### 2026-10-23 — P1-04 — IMPLEMENTED; exact-head CI pending
+The customer activation dialog used only React `busy` state to suppress duplicate submits. Concurrent clicks before rerender could call the server twice; the server supersedes a prior pending invitation, which can make the first copied link immediately invalid. Added a synchronous `useRef` in-flight guard and a component test dispatching two submit clicks in one batched event, asserting exactly one call. Changed `src/components/CustomerActivationInvitationDialog.tsx` and `src/test/customer-activation-invitations-dialog.test.tsx`. No server contract or migration changed.
+
+### 2026-10-23 — P1-05 — IMPLEMENTED; exact-head CI pending
+The customer activation invitation dialog previously showed the creation form when the workspace lookup failed; since `workspace` remained null, the UI could not confirm that the customer was not already linked. Creation now fails closed until workspace state has been successfully loaded, and the error state offers explicit retry. Added regression test for load failure, denial of create, and recovery after retry. Changed `src/components/CustomerActivationInvitationDialog.tsx` and `src/test/customer-activation-invitations-dialog.test.tsx`. No backend/RPC/migration changed.
+
+### 2026-10-23 — P1-06 — IMPLEMENTED; exact-head CI pending
+Category landing previously called `fetchProducts` to count products for one category, downloading the full product collection and counting in the browser. It now uses the existing paged storefront RPC contract with `pageSize: 1` and its server total; the result is keyed to the current category ID to prevent stale counts on navigation. Added tests for scoped count, no full product fetch, error, and retry. Changed `src/components/StorefrontCategoryLandingPage.tsx`, new `src/test/storefront-category-landing.test.tsx`. No shared P2-locked file or new RPC/migration changed.
+
+### 2026-10-23 — P1-07 — IMPLEMENTED; exact-head CI pending
+Audit history was hard-limited to the newest 200 events with no way to navigate older records. The screen now reads a tenant-scoped exact count and pages results with `range`, preserves the organization filter on every page, shows page navigation, and reports a missing total as an error instead of zero. Search explicitly states it is scoped to the current page. Added `src/test/admin-audit-log.test.tsx` for paging, tenant filter, missing-count fail-closed behavior, and role denial. Changed paths: `src/components/AdminAuditLog.tsx`, new `src/test/admin-audit-log.test.tsx`.
+
+### 2026-10-23 — P1-06/P1-07 — IMPLEMENTED; current-head CI pending
+Removed the full product fetch/count logic from `StorefrontCategoryLandingPage`; the existing paged `Storefront` now handles product results, category filtering, and true empty state. The prior CI root was a non-canonical slug in the new test and an extra paged RPC that interfered with the P2-locked discovery test mock. Rewrote only the new unlocked category-landing test to use `storefrontCategorySlug`, asserting correct delegation and category-load retry. Audit history pagination remains implemented in `AdminAuditLog` with tenant filters and exact count; dedicated acceptance is in `admin-audit-log.test.tsx`. Changed functional paths: `src/components/StorefrontCategoryLandingPage.tsx`, `src/test/storefront-category-landing.test.tsx`, `src/components/AdminAuditLog.tsx`, `src/test/admin-audit-log.test.tsx`.
+
+### 2026-10-23 — P1-07 regression adjustment — IMPLEMENTED; exact-head CI pending
+The previous Core CI failed one assertion in `src/test/admin-audit-log.test.tsx`: it expected an internal error message while the component renders an explicit access-denied panel. Updated the test to assert the actual visible access-denied heading/content and still verify that no audit query occurs for a customer role. No application code changed in this correction. New test SHA: `f90f424a2aed820351103aeb20bab6060f65047c`; CI not yet run on this SHA.
+
+
+### 2026-10-23 — P1-08 — IMPLEMENTED; next exact-head CI pending
+The existing audited category rename RPC records action `catalog.category_renamed`, but the admin audit view displayed this important business operation as a raw technical identifier. Added the Arabic action label “إعادة تسمية تصنيف” and extended `src/test/admin-audit-log.test.tsx` to assert that a real row with this action renders the friendly label. No RPC, migration, P2-owned file, or audit payload was changed. This batch is committed together with the checkpoint update; CI must run on the new branch SHA.
+
+### 2026-10-23 — P1-08 test correction — IMPLEMENTED; exact-head CI pending
+The new audit-label assertion matched two valid renderings of `إعادة تسمية تصنيف` (the row cell and the filter option). Changed the test to assert each role explicitly with `getByRole("cell")` and `getByRole("option")`. The component label matches the server event identifier `catalog.category_renamed`; no application change was necessary for this failure. Exact-head CI must confirm the correction.
+
+### 2026-10-23 — P1-09 — IMPLEMENTED; exact-head CI pending
+The company-member invitation form relied on React's `creating` state alone; two submit events before rerender could start two server requests for the same invite. Added a synchronous `useRef` in-flight guard so the second event is rejected before awaiting the RPC. Added a regression test that dispatches two submit events in one React batch and asserts one service call and a truthful server-backed success. Changed `src/components/CustomerCompanyMembers.tsx` and `src/test/customer-company-members-page.test.tsx`. The same batch includes the audit event-label assertion correction; CI must pass on the new head before it is closed.
+
+### 2026-10-23 — P1-10 — IMPLEMENTED; exact-head CI pending
+The company-members workspace previously left the invite form active when `fetchCompanyMembershipWorkspace` failed, despite lacking verified workspace/link state. Creation now returns before the RPC unless server-backed workspace data exists and the latest load has no error; the submit button is disabled under the same conditions. Added a regression test proving failed load prevents the service call and that retry restores the form only after the workspace is loaded. Changed `src/components/CustomerCompanyMembers.tsx` and `src/test/customer-company-members-page.test.tsx`.
+
+
+### 2026-10-23 — P1-11 — IMPLEMENTED; exact-head CI pending
+Added a status filter to the customer order-history page. The selected status is applied to the existing `orders` query before pagination, so the returned rows and exact count share the same filter. Changing the filter resets to page 1 and clears stale rows/count during loading; page navigation also clears old rows until the next response arrives. The empty state distinguishes “no orders” from “no orders in this status.” Extended `src/test/customer-orders-pagination.test.tsx` to assert the server-side status predicate, reset range, filtered count and removal of old rows. Changed `src/components/CustomerOrders.tsx` and `src/test/customer-orders-pagination.test.tsx`. CI must be read back on the resulting exact SHA.
+
+
+### 2026-10-23 — P1-11 test-driven correction — IMPLEMENTED; exact-head CI pending
+The first Core CI for status filtering ran 736/737 unit tests successfully. The only failure exposed a real UI gap: result count was only rendered in pagination controls, so a filtered set that fit one page showed no count. Added a separate count status line whenever the server confirms a count and the page is not loading/error; the filter-specific and all-orders labels are distinguished. Updated the test to assert the localized number. Paths remain `src/components/CustomerOrders.tsx` and `src/test/customer-orders-pagination.test.tsx`.
+
+### 2026-10-23 — P1-12 — IMPLEMENTED; exact-head CI pending
+Company-members cards previously left revoke actions enabled when a manual workspace refresh failed, allowing actions against stale membership/invitation rows. Revoke handlers now fail closed unless workspace data exists and the latest read has no error; both buttons use the same guard while loading/error is present. A regression test loads the workspace, forces refresh to fail, verifies both controls are disabled, and confirms no revoke service is called. Paths: `src/components/CustomerCompanyMembers.tsx`, `src/test/customer-company-members-page.test.tsx`. CI pending on the new current head.
+
+
+### 2026-10-23 — P1-13 — IMPLEMENTED; exact-head CI pending
+The admin customer-creation dialog relied on React's `saving` state alone. Two submit events dispatched before rerender could invoke `createCustomer` twice and create duplicate records. Added a synchronous in-flight ref guard before the first await; the guard is released in `finally` so a failed request can be retried. Exported the dialog component for isolated behavior testing. Added `src/test/customer-create-double-submit.test.tsx` covering batched rapid submit (one service call) and retry after failure. Functional paths changed: `src/components/AghbariApp.tsx`; test added: `src/test/customer-create-double-submit.test.tsx`. No migration or P2-owned file changed. Exact-head Core CI and Playwright results must be read on the commit created by this batch; browser/production proof is NOT RUN.
+
+
+### 2026-10-23 — P1-14 — IMPLEMENTED; exact-head CI pending
+Implemented least-privilege `customer_manager` role support against specification section 13.3. Added additive migration `20261023120000_customer_manager_role_scope.sql`: permits assigning the role; redefines tier/status commands to allow that role under existing tenant, row-lock, expected-state, reason and audit checks; adds `can_manage_customers` to tenant context; and adds a SECURITY DEFINER directory RPC returning non-financial customer fields. The role is deliberately not added to broad `public.is_staff()` and receives no direct customer-table read grant. Updated auth bootstrap and admin shell to restrict role-only sessions to customer management; the customer UI exposes tier/lifecycle actions but hides Customer 360 and financial columns. Added role-specific component coverage in `src/test/admin-customer-directory.test.tsx`. Not yet proven in P1-14: role-assignment UI, device management, browser and production paths. Activation invite management is handled by P1-15; each final CI result must match its exact SHA.
+
+
+### 2026-10-23 — P1-15 — IMPLEMENTED; exact-head CI pending
+Extended least-privilege customer_manager access to activation-link management with additive migration 20261023130000_customer_manager_activation_permissions.sql. Only existing create/list/revoke SECURITY DEFINER RPCs are redefined, each checking active identity, server-derived organization and explicit allowed roles including customer_manager. The customer acceptance RPC remains unchanged. The UI exposes the activation-link dialog to customer_manager. Added source-contract coverage and PostgreSQL acceptance for tenant-scoped non-financial directory, audited tier/status commands, invitation create/list/revoke, and denial of direct invitation-table reads. CI is pending on the final commit; browser and production proof remain NOT RUN.
+
+### 2026-10-23 — P1 role assignment and device/session controls — follow-up PR #75
+
+- Functional code head being validated: e9dd04d6a49ac4910e2a17d649485173ef486e66. Follow-up PR: https://github.com/Report-Engainall/Nasr1/pull/75. PR #66 was already merged at 066e5eb9054d599e611f1b110a2e94607bc672db, so the implementation remains on the existing P1 branch and is submitted separately; no alternate branch or direct main write was used.
+- Role assignment UI: src/components/CustomerManagerRoleAssignment.tsx is wired into the admin settings shell. It calls the existing list_organization_user_roles and set_organization_user_roles RPCs, disables self-edit, prevents mixing customer and internal roles, requires an explicit internal replacement role when removing the only customer_manager role, and shows success only after matching server confirmation. UI tests are in src/test/customer-manager-role-assignment.test.tsx. The existing PostgreSQL acceptance in scripts/test-database-migrations.mjs covers non-admin denial, unauthorized direct role writes, self-edit denial, cross-organization denial, incompatible role sets, assignment and audit evidence.
+- Device/session controls: src/components/DeviceManagement.tsx replaces the misleading customer-records-as-devices stub with current-browser session information and actual Supabase local sign-out / sign-out-other-sessions calls. It does not store access/refresh tokens or pretend that it can enumerate every device. Tests are in src/test/device-management.test.tsx.
+- Exact SHA test evidence at checkpoint time: Core run 39937170618 on e9dd04d6a49ac4910e2a17d649485173ef486e66 had passed unit tests, PostgreSQL 17 migrations/core acceptance, invitation expiry, stock-count audit, async export, import idempotency, inventory snapshot, storefront favourites, backup/restore, lint, build, preview smoke and dev-server smoke. The Core browser price-visibility step was still IN_PROGRESS. P2 run 39937170509 had its E2E infrastructure gate PASS; public UI smoke was still IN_PROGRESS during Chromium/OS dependency installation, and authenticated customer-order/tenant-isolation was SKIPPED / BLOCKED_EXTERNAL because the dedicated non-production E2E credentials and explicit test-write authorization were not configured. Do not convert these in-progress/skipped states into PASS.
+- Acceptance status: P1-CUST-MANAGER-ROLE-UI-001 is functionally implemented and its component tests passed; exact overall CI status is pending until the final browser steps conclude. Browser proof and production proof are NOT RUN/NOT PROVEN.
+- Acceptance status: P1-DEVICE-SESSION-MGMT-001 remains PARTIAL. Central organization/device inventory, login history, selective per-device revocation and single-/multi-device policy controls are not implemented. The active P2 path lock forbids adding the required SQL/RLS/RPC work in this batch; this is a coordination lock, not an external-service pass. P2 must explicitly release/coordinate that path, then P1 must implement server-persisted device/session records, tenant-safe commands, audit coverage and PostgreSQL/browser acceptance before marking the full requirement IMPLEMENTED.
+- This checkpoint records the code-head evidence above; this documentation commit creates a new SHA and therefore the latest Core/P2 runs must again be checked against the new exact head.
