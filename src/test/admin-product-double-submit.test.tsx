@@ -61,6 +61,7 @@ describe("admin product form submission", () => {
     fillRequiredFields();
 
     const submit = screen.getByRole("button", { name: "حفظ المنتج" });
+    await waitFor(() => expect(submit).toBeEnabled());
     await act(async () => {
       submit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
       submit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -124,11 +125,13 @@ describe("admin product form submission", () => {
     render(<ProductModal product={null} onClose={vi.fn()} onSaved={onSaved} />);
     fillRequiredFields();
 
-    fireEvent.click(screen.getByRole("button", { name: "حفظ المنتج" }));
+    const submit = screen.getByRole("button", { name: "حفظ المنتج" });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
     expect(await screen.findByRole("alert")).toHaveTextContent("تعذر حفظ المنتج");
     expect(onSaved).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "حفظ المنتج" }));
+    fireEvent.click(submit);
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(mocks.createProduct).toHaveBeenCalledTimes(2);
   });

@@ -471,8 +471,8 @@ export function ProductModal({ product, onClose, onSaved }: { product: ProductWi
   return <Modal title={product ? 'تعديل المنتج' : 'إضافة منتج'} onClose={() => { if (!saving) onClose(); }}>
     <Field label="اسم المنتج"><input value={name} onChange={(e) => setName(e.target.value)} maxLength={240} disabled={saving} /></Field>
     <div className="form-grid"><Field label="رمز المنتج"><input value={code} onChange={(e) => setCode(e.target.value)} maxLength={80} disabled={saving} /></Field><Field label="السعر الأساسي"><input type="number" min="0" max="999999999999.99" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} disabled={saving} /></Field></div>
+    {categoriesError && <div className="form-error" role="alert"><span>تعذر تحميل التصنيفات: {categoriesError}</span><Button variant="outline" onClick={() => void refetchCategories()} disabled={saving || categoriesLoading}>إعادة المحاولة</Button></div>}
     <Field label="التصنيف">
-      {categoriesError && <div className="form-error" role="alert"><span>تعذر تحميل التصنيفات: {categoriesError}</span><Button variant="outline" onClick={() => void refetchCategories()} disabled={saving || categoriesLoading}>إعادة المحاولة</Button></div>}
       <select value={category} onChange={(e) => setCategory(e.target.value)} disabled={saving || categoriesLoading || Boolean(categoriesError)}>
         <option value="">{categoriesLoading ? 'جار تحميل التصنيفات…' : categoriesError ? 'تعذر تحميل التصنيفات' : 'غير مصنف'}</option>
         {categories?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
