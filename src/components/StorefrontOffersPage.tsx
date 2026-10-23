@@ -28,7 +28,7 @@ export function StorefrontOffersPage() {
         {promotions.map((promotion) => {
           const productIds = promotion.product_ids ?? [];
           const categoryIds = promotion.category_ids ?? [];
-          const targetProducts = products.filter((product) => productIds.includes(product.id) || (product.category_id !== null && categoryIds.includes(product.category_id)));
+          const targetProducts = products.filter((product) => product.is_active !== false && product.status !== "inactive" && (productIds.includes(product.id) || (product.category_id !== null && categoryIds.includes(product.category_id))));
           const discountValue = Number(promotion.discount_value);
           const validDiscount = Number.isFinite(discountValue) && discountValue > 0;
           const discountLabel = !validDiscount ? "تفاصيل الخصم غير متاحة"
