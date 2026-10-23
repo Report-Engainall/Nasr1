@@ -67,6 +67,21 @@ async function expectDbFailure(label, operation, expectedPattern) {
 
 async function main() {
   await db.unsafe("reset role");
+  const paymentRpcBoundary = await db.unsafe(
+    "select " +
+    "pg_catalog.to_regprocedure('public.record_customer_payment(uuid,numeric,text,text,text)')::text as legacy_signature, " +
+    "pg_catalog.to_regprocedure('public.record_customer_payment(uuid,numeric,text,uuid,text,text)')::text as current_signature, " +
+    "pg_catalog.has_function_privilege('anon','public.record_customer_payment(uuid,numeric,text,uuid,text,text)','EXECUTE') as anon_can_execute, " +
+    "pg_catalog.has_function_privilege('authenticated','public.record_customer_payment(uuid,numeric,text,uuid,text,text)','EXECUTE') as authenticated_can_execute",
+  );
+  assert.equal(paymentRpcBoundary[0].legacy_signature,null,
+    "the old five-argument payment RPC must not remain callable without a request key");
+  assert.ok(paymentRpcBoundary[0].current_signature,
+    "the six-argument idempotent payment RPC must be installed");
+  assert.equal(paymentRpcBoundary[0].anon_can_execute,false,
+    "anonymous callers cannot execute the financial payment RPC");
+  assert.equal(paymentRpcBoundary[0].authenticated_can_execute,true,
+    "the authenticated role can invoke the guarded payment RPC");
   await db.unsafe(
     "insert into auth.users(id,email,email_confirmed_at) values($1::uuid,'ci-return-manager@example.test',pg_catalog.now()) " +
     "on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
@@ -203,14 +218,14 @@ async function main() {
   const overpaymentAmount = (Number(after.item.outstanding_amount) + 0.01).toFixed(2);
   await expectDbFailure(
     "record_customer_payment rejects a payment above outstanding after posted credits",
-    () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,'cash',null,$3::text)",
-      [source.invoice_id,overpaymentAmount,"CI must reject credit-adjusted overpayment"]),
+    () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,'cash',$4::uuid,null,$3::text)",
+      [source.invoice_id,overpaymentAmount,"CI must reject credit-adjusted overpayment",randomUUID()]),
     /payment exceeds invoice balance after posted credit memos/i,
   );
   await expectDbFailure(
     "record_customer_payment rejects more than two decimal places",
-    () => db.unsafe("select public.record_customer_payment($1::uuid,0.011::numeric,'cash',null,'precision guard')",
-      [source.invoice_id]),
+    () => db.unsafe("select public.record_customer_payment($1::uuid,0.011::numeric,'cash',$2::uuid,null,'precision guard')",
+      [source.invoice_id,randomUUID()]),
     /at most two decimal places/i,
   );
   assert.equal(Number(before.item.outstanding_amount)-Number(after.item.outstanding_amount),Number(draft.total_amount),
@@ -259,6 +274,7 @@ async function main() {
   await concurrentDb.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify(managerClaims)]);
   await concurrentDb.unsafe("set role authenticated");
 
+  const firstCollectorIdempotencyKey = randomUUID();
   let signalPaymentCreated;
   let signalPaymentFailed;
   const firstPaymentReady = new Promise((resolve,reject) => {
@@ -268,8 +284,8 @@ async function main() {
   const firstPaymentTransaction = db.begin(async (tx) => {
     try {
       const created = await tx.unsafe(
-        "select public.record_customer_payment($1::uuid,0.01::numeric,'cash',null,'CI concurrent first collector') as payment_id",
-        [source.invoice_id],
+        "select public.record_customer_payment($1::uuid,0.01::numeric,'cash',$2::uuid,null,'CI concurrent first collector') as payment_id",
+        [source.invoice_id,firstCollectorIdempotencyKey],
       );
       signalPaymentCreated(created[0].payment_id);
       await tx.unsafe("select pg_catalog.pg_sleep(4)");
@@ -281,8 +297,8 @@ async function main() {
   });
   const firstPaymentId = await firstPaymentReady;
   const competingPayment = concurrentDb.unsafe(
-    "select public.record_customer_payment($1::uuid,$2::numeric,'cash',null,'CI concurrent competing collector') as payment_id",
-    [source.invoice_id,openingBalance.toFixed(2)],
+    "select public.record_customer_payment($1::uuid,$2::numeric,'cash',$3::uuid,null,'CI concurrent competing collector') as payment_id",
+    [source.invoice_id,openingBalance.toFixed(2),randomUUID()],
   ).then(
     (rows) => ({ ok:true, paymentId:rows[0].payment_id }),
     (error) => ({ ok:false, error }),
@@ -322,6 +338,205 @@ async function main() {
     [organizationId,source.invoice_id,firstPaymentId],
   );
   assert.equal(raceAuditRows[0].count,1,"the successful concurrent payment persists once");
+
+  // FIN-INVOICE-001: create a dedicated invoice so retries are tested independently of the
+  // posted-credit balance/race fixture above.
+  await db.unsafe("reset role");
+  const idempotencyTestOrderId = randomUUID();
+  const idempotencyTestInvoiceId = randomUUID();
+  await db.unsafe(
+    "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,notes) " +
+    "values($1::uuid,$2::uuid,$3::uuid,$4,'draft',100,1,'CI payment idempotency acceptance')",
+    [idempotencyTestOrderId,organizationId,source.customer_id,"CI-PAY-IDEMP-"+suffix],
+  );
+  await db.unsafe(
+    "insert into public.customer_invoices(id,organization_id,customer_id,order_id,invoice_number,status,currency,subtotal,tax_amount,total_amount) " +
+    "values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,'issued','YER',100,0,100)",
+    [idempotencyTestInvoiceId,organizationId,source.customer_id,idempotencyTestOrderId,"CI-PAY-"+suffix],
+  );
+  await db.unsafe("set role authenticated");
+
+  const tenantScopedPaymentKey = randomUUID();
+  const firstIdempotentRaw = await db.unsafe(
+    "select public.record_customer_payment($1::uuid,10.00::numeric,'cash',$2::uuid,'CI idempotency reference','CI idempotency notes') as payment_id",
+    [idempotencyTestInvoiceId,tenantScopedPaymentKey],
+  );
+  const firstIdempotentPaymentId = firstIdempotentRaw[0].payment_id;
+  assert.ok(firstIdempotentPaymentId,"first idempotent request must persist and return a payment id");
+  const replayRaw = await db.unsafe(
+    "select public.record_customer_payment($1::uuid,10.00::numeric,'cash',$2::uuid,'CI idempotency reference','CI idempotency notes') as payment_id",
+    [idempotencyTestInvoiceId,tenantScopedPaymentKey],
+  );
+  assert.equal(replayRaw[0].payment_id,firstIdempotentPaymentId,
+    "same organization, key and canonical payload replay the original payment id");
+  await expectDbFailure(
+    "payment idempotency key must reject a changed amount",
+    () => db.unsafe(
+      "select public.record_customer_payment($1::uuid,11.00::numeric,'cash',$2::uuid,'CI idempotency reference','CI idempotency notes')",
+      [idempotencyTestInvoiceId,tenantScopedPaymentKey],
+    ),
+    /payment idempotency key reused with different payload/i,
+  );
+  // Direct table reads are intentionally denied to authenticated clients. Inspect the
+  // persisted fingerprint with the privileged fixture connection, then restore the
+  // authenticated role before continuing the RPC concurrency tests.
+  await db.unsafe("reset role");
+  const firstKeyRows = await db.unsafe(
+    "select id::text as id,request_fingerprint from public.customer_payments where organization_id=$1::uuid and invoice_id=$2::uuid and idempotency_key=$3::uuid",
+    [organizationId,idempotencyTestInvoiceId,tenantScopedPaymentKey],
+  );
+  assert.equal(firstKeyRows.length,1,"an identical retry cannot create a second payment row");
+  assert.equal(firstKeyRows[0].id,firstIdempotentPaymentId);
+  assert.match(firstKeyRows[0].request_fingerprint,/^[0-9a-f]{64}$/,"canonical request fingerprint is persisted as SHA-256");
+  await db.unsafe("set role authenticated");
+
+  // Two simultaneous sessions submit a fresh identical request key. The second waits on the
+  // request-key advisory lock, then replays the original committed row rather than inserting.
+  const concurrentIdempotencyKey = randomUUID();
+  let signalIdempotentCreated;
+  let signalIdempotentFailed;
+  const idempotentReady = new Promise((resolve,reject) => {
+    signalIdempotentCreated = resolve;
+    signalIdempotentFailed = reject;
+  });
+  const firstIdempotentTransaction = db.begin(async (tx) => {
+    try {
+      const created = await tx.unsafe(
+        "select public.record_customer_payment($1::uuid,15.00::numeric,'cash',$2::uuid,'CI concurrent idempotent reference','CI concurrent idempotent notes') as payment_id",
+        [idempotencyTestInvoiceId,concurrentIdempotencyKey],
+      );
+      signalIdempotentCreated(created[0].payment_id);
+      await tx.unsafe("select pg_catalog.pg_sleep(3)");
+      return created[0].payment_id;
+    } catch (error) {
+      signalIdempotentFailed(error);
+      throw error;
+    }
+  });
+  const firstIdempotentConcurrentId = await idempotentReady;
+  const idempotentReplayResult = concurrentDb.unsafe(
+    "select public.record_customer_payment($1::uuid,15.00::numeric,'cash',$2::uuid,'CI concurrent idempotent reference','CI concurrent idempotent notes') as payment_id",
+    [idempotencyTestInvoiceId,concurrentIdempotencyKey],
+  ).then(
+    (rows) => ({ok:true,paymentId:rows[0].payment_id}),
+    (error) => ({ok:false,error}),
+  );
+  let keyLockWaitObserved = false;
+  for (let attempt=0;attempt<60;attempt+=1) {
+    const waiting = await observerDb.unsafe(
+      "select exists(" +
+      "select 1 from pg_catalog.pg_stat_activity " +
+      "where pid<>pg_catalog.pg_backend_pid() and datname=pg_catalog.current_database() " +
+      "and query ilike '%record_customer_payment%' and state='active' " +
+      "and wait_event_type='Lock' and wait_event='advisory') as waiting",
+    );
+    if (waiting[0].waiting) {
+      keyLockWaitObserved = true;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve,50));
+  }
+  const committedIdempotentId = await firstIdempotentTransaction;
+  assert.equal(committedIdempotentId,firstIdempotentConcurrentId,
+    "the first concurrent identical payment request commits exactly once");
+  const concurrentReplay = await idempotentReplayResult;
+  assert.ok(keyLockWaitObserved,"the second session must wait on the tenant idempotency-key advisory lock");
+  assert.equal(concurrentReplay.ok,true,"a concurrent identical retry must resolve to the saved result");
+  assert.equal(concurrentReplay.paymentId,firstIdempotentConcurrentId,
+    "both concurrent callers receive the same payment id");
+  // Direct payment rows are not readable by authenticated clients; inspect this
+  // persistence assertion using the privileged isolated-test connection before seeding
+  // the cross-tenant fixture.
+  await db.unsafe("reset role");
+  const concurrentKeyRows = await db.unsafe(
+    "select id::text as id from public.customer_payments where organization_id=$1::uuid and invoice_id=$2::uuid and idempotency_key=$3::uuid",
+    [organizationId,idempotencyTestInvoiceId,concurrentIdempotencyKey],
+  );
+  assert.equal(concurrentKeyRows.length,1,"concurrent identical requests persist exactly one payment");
+
+  // The same request key may exist in a different organization without exposing/replaying
+  // the first organization's payment; every lookup and uniqueness constraint is tenant-scoped.
+  const secondOrganizationId = randomUUID();
+  const secondAuthId = randomUUID();
+  const secondProfileId = randomUUID();
+  const secondCustomerId = randomUUID();
+  const secondOrderId = randomUUID();
+  const secondInvoiceId = randomUUID();
+  const secondSessionId = randomUUID();
+  const secondEmail = "ci-payment-tenant-" + suffix + "@example.test";
+  await db.unsafe(
+    "insert into public.organizations(id,name,currency) values($1::uuid,'CI Payment Idempotency Tenant','YER')",
+    [secondOrganizationId],
+  );
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1::uuid,$2,pg_catalog.now())",
+    [secondAuthId,secondEmail],
+  );
+  await db.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1::uuid,$2::uuid,$3::uuid,'CI Payment Tenant Manager',$4,true)",
+    [secondProfileId,secondAuthId,secondOrganizationId,secondEmail],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1::uuid,'manager')",
+    [secondProfileId],
+  );
+  await db.unsafe(
+    "insert into public.customers(id,organization_id,customer_code,business_name,tier,status,approved_at) " +
+    "values($1::uuid,$2::uuid,$3,'CI Payment Tenant Customer','retail','approved',pg_catalog.now())",
+    [secondCustomerId,secondOrganizationId,"CI-PAY-CUST-"+suffix],
+  );
+  await db.unsafe(
+    "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,notes) " +
+    "values($1::uuid,$2::uuid,$3::uuid,$4,'draft',100,1,'CI payment tenant idempotency acceptance')",
+    [secondOrderId,secondOrganizationId,secondCustomerId,"CI-PAY-TENANT-"+suffix],
+  );
+  await db.unsafe(
+    "insert into public.customer_invoices(id,organization_id,customer_id,order_id,invoice_number,status,currency,subtotal,tax_amount,total_amount) " +
+    "values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,'issued','YER',100,0,100)",
+    [secondInvoiceId,secondOrganizationId,secondCustomerId,secondOrderId,"CI-PAY-TENANT-"+suffix],
+  );
+  await db.unsafe(
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+    "values($1::uuid,$2::uuid,pg_catalog.now(),pg_catalog.now(),pg_catalog.now(),null,'CI payment tenant idempotency','192.0.2.46'::inet)",
+    [secondSessionId,secondAuthId],
+  );
+  await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[secondAuthId]);
+  await db.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({
+    sub:secondAuthId,email:secondEmail,role:"authenticated",session_id:secondSessionId,
+  })]);
+  await db.unsafe("set role authenticated");
+  const secondTenantRaw = await db.unsafe(
+    "select public.record_customer_payment($1::uuid,10.00::numeric,'cash',$2::uuid,'CI idempotency reference','CI idempotency notes') as payment_id",
+    [secondInvoiceId,tenantScopedPaymentKey],
+  );
+  assert.notEqual(secondTenantRaw[0].payment_id,firstIdempotentPaymentId,
+    "a different organization can use the same UUID without replaying another tenant's payment");
+  await db.unsafe("reset role");
+  const tenantScopedRows = await db.unsafe(
+    "select organization_id::text as organization_id,id::text as id from public.customer_payments where idempotency_key=$1::uuid order by organization_id",
+    [tenantScopedPaymentKey],
+  );
+  assert.equal(tenantScopedRows.length,2,"the unique payment request key is scoped by organization");
+  assert.deepEqual(new Set(tenantScopedRows.map((row)=>row.organization_id)),new Set([organizationId,secondOrganizationId]));
+  assert.equal(tenantScopedRows.find((row)=>row.organization_id===organizationId)?.id,firstIdempotentPaymentId);
+  assert.equal(tenantScopedRows.find((row)=>row.organization_id===secondOrganizationId)?.id,secondTenantRaw[0].payment_id);
+
+  // A tenant cannot use another organization's saved key and invoice id to read/replay its payment.
+  await db.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[secondAuthId]);
+  await db.unsafe("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({
+    sub:secondAuthId,email:secondEmail,role:"authenticated",session_id:secondSessionId,
+  })]);
+  await db.unsafe("set role authenticated");
+  await expectDbFailure(
+    "tenant-scoped lookup cannot resolve an invoice/payment from another organization",
+    () => db.unsafe(
+      "select public.record_customer_payment($1::uuid,0.01::numeric,'cash',$2::uuid,null,'CI concurrent first collector')",
+      [source.invoice_id,firstCollectorIdempotencyKey],
+    ),
+    /active invoice not found in this organization/i,
+  );
+  await db.unsafe("reset role");
+
 
   // Ordinary staff must not read invoice/payment aggregates through a SECURITY DEFINER RPC.
   const staffAuthId = randomUUID();

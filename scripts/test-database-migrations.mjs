@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -1298,12 +1299,12 @@ async function main() {
 
   await expectFailure(
     "overpayment",
-    () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,$3,$4,$5)", [invoice.id, 500000, "cash", "CI-OVERPAY", "should reject"]),
+    () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)", [invoice.id, 500000, "cash", randomUUID(), "CI-OVERPAY", "should reject"]),
     /exceeds invoice balance/i,
   );
   await db.unsafe(
-    "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4,$5)",
-    [invoice.id, 100000, "transfer", "CI-PAY-001", "partial payment"],
+    "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)",
+    [invoice.id, 100000, "transfer", randomUUID(), "CI-PAY-001", "partial payment"],
   );
   const invoiceAfterPayment = await db.unsafe("select status from public.customer_invoices where id=$1", [invoice.id]);
   assert.equal(invoiceAfterPayment[0].status, "partially_paid");
@@ -1826,7 +1827,7 @@ async function main() {
   );
   await expectFailure(
     "ordinary staff cannot record customer payments",
-    () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,$3,$4,$5)", [invoice.id, 1, "cash", "CI-STAFF-PAY", "must be denied"]),
+    () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)", [invoice.id, 1, "cash", randomUUID(), "CI-STAFF-PAY", "must be denied"]),
     /finance permission required/i,
   );
   await expectFailure(
@@ -1923,7 +1924,7 @@ async function main() {
   );
   await expectFailure(
     "accountant payment command still validates invoice balance",
-    () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,$3,$4,$5)", [invoice.id, 500000, "cash", "CI-ACCOUNTANT-OVERPAY", "must fail balance check"]),
+    () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)", [invoice.id, 500000, "cash", randomUUID(), "CI-ACCOUNTANT-OVERPAY", "must fail balance check"]),
     /payment exceeds invoice balance/i,
   );
 
