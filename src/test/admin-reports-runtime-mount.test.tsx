@@ -27,7 +27,12 @@ vi.mock("@/lib/useFetch", async (importOriginal) => {
     ...actual,
     useFetch: (fetcher: unknown) => {
       if (fetcher === mocks.fetchDashboardStats) {
-        return { data: { totalSales: 0, orderCount: 0, lowStockCount: 0 }, loading: false, error: null, refetch: vi.fn() };
+        return {
+          data: { totalSales: 0, orderCount: 0, lowStockCount: 0 },
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+        };
       }
       if (fetcher === mocks.fetchProducts) {
         return { data: [], loading: false, error: null, refetch: vi.fn() };
@@ -51,7 +56,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 });
 
 vi.mock("@/components/ExecutiveStoreAnalytics", () => ({
-  ExecutiveStoreAnalytics: () => <section data-testid="executive-store-analytics">analytics test double</section>,
+  ExecutiveStoreAnalytics: () => (
+    <section data-testid="executive-store-analytics">analytics test double</section>
+  ),
 }));
 
 vi.mock("@/components/UnifiedOnyxAnalysisPanel", () => ({
