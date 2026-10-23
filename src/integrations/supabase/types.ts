@@ -1846,12 +1846,85 @@ export type Database = {
           },
         ]
       }
+      accounting_journal_reversals: {
+        Row: {
+          created_at: string
+          created_by_profile_id: string | null
+          id: string
+          idempotency_key: string
+          organization_id: string
+          original_journal_entry_id: string
+          payload_fingerprint: string
+          reason: string
+          reversal_journal_entry_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_profile_id?: string | null
+          id?: string
+          idempotency_key: string
+          organization_id: string
+          original_journal_entry_id: string
+          payload_fingerprint: string
+          reason: string
+          reversal_journal_entry_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_profile_id?: string | null
+          id?: string
+          idempotency_key?: string
+          organization_id?: string
+          original_journal_entry_id?: string
+          payload_fingerprint?: string
+          reason?: string
+          reversal_journal_entry_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_journal_reversals_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_reversals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_reversals_organization_id_original_journal_entry_id_fkey"
+            columns: ["organization_id", "original_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_journal_entries"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_reversals_organization_id_reversal_journal_entry_id_fkey"
+            columns: ["organization_id", "reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_journal_entries"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
 
+      reverse_general_journal_entry: {
+        Args: {
+          p_entry_id: string;
+          p_idempotency_key: string;
+          p_reason: string;
+        };
+        Returns: Json;
+      };
       transfer_inventory_batch: {
         Args: {
           p_destination_warehouse_id: string;
