@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { BookOpenCheck, Plus, RefreshCw, Printer, Send, Trash2, X } from "lucide-react";
+import { BookOpenCheck, Plus, RefreshCw, Printer, Send, Trash2, X, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { formatLedgerBalance, formatLedgerMoney, validateJournalDraft, type JournalDraftLine, type LedgerAccountType } from "@/lib/general-ledger";
@@ -10,7 +10,7 @@ import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintAc
 
 type Account = { id: string; code: string; name: string; account_type: LedgerAccountType; is_active: boolean; debit_total: string; credit_total: string };
 type JournalLine = { line_number: number; account_id: string; account_code: string; account_name: string; debit: string; credit: string; memo: string | null };
-type JournalEntry = { id: string; entry_number: string; entry_date: string; description: string; source_type: string; source_reference: string | null; status: "draft" | "posted" | "void"; created_at: string; posted_at: string | null; voided_at?: string | null; void_reason?: string | null; debit_total: string; credit_total: string; lines: JournalLine[] };
+type JournalEntry = { id: string; entry_number: string; entry_date: string; description: string; source_type: string; source_reference: string | null; status: "draft" | "posted" | "void"; created_at: string; posted_at: string | null; voided_at?: string | null; void_reason?: string | null; debit_total: string; credit_total: string; lines: JournalLine[]; isReversal?: boolean; hasReversal?: boolean };
 type LedgerPayload = { accounts: Account[]; entries: JournalEntry[]; entry_count: number; has_more: boolean; summary: { posted_entry_count: number; debit_total: string; credit_total: string }; };
 type Filters = { from: string; to: string; accountId: string };
 const ACCOUNT_TYPES: { value: LedgerAccountType; label: string }[] = [
@@ -84,6 +84,7 @@ export function GeneralLedgerWorkspace() {
   const [draftLines, setDraftLines] = useState<JournalDraftLine[]>([emptyLine(), emptyLine()]);
   const [showAccountForm, setShowAccountForm] = useState(false);
   const pendingKey = useRef<{ fingerprint: string; key: string } | null>(null);
+  const pendingReversalKeys = useRef<Map<string, { fingerprint: string; key: string }>>(new Map());
   const [statementRangeDraft, setStatementRangeDraft] = useState({ from: new Date().getFullYear() + "-01-01", to: today() });
   const [statementRange, setStatementRange] = useState({ from: new Date().getFullYear() + "-01-01", to: today() });
   const [statements, setStatements] = useState<FinancialStatementsReport | null>(null);
@@ -103,7 +104,28 @@ export function GeneralLedgerWorkspace() {
         p_offset: page * 50,
       });
       if (result.error) throw new Error("تعذر تحميل دفتر الأستاذ. تحقق من ترحيل المحاسبة وصلاحية الحساب.");
-      setPayload(readLedgerPayload(result.data));
+      const ledger = readLedgerPayload(result.data);
+      let reversalLinks: Array<{ original_journal_entry_id: string; reversal_journal_entry_id: string }> = [];
+      if (ledger.entries.length > 0) {
+        const reversalResult = await supabase.rpc("fetch_general_journal_reversal_links", {
+          p_entry_ids: ledger.entries.map((entry) => entry.id),
+        });
+        if (reversalResult.error || !Array.isArray(reversalResult.data)
+          || !reversalResult.data.every((link) => typeof link.original_journal_entry_id === "string" && typeof link.reversal_journal_entry_id === "string")) {
+          throw new Error("تعذر التحقق من روابط عكس القيود؛ تم إيقاف العرض احترازيًا.");
+        }
+        reversalLinks = reversalResult.data;
+      }
+      const reversedOriginalIds = new Set(reversalLinks.map((link) => link.original_journal_entry_id));
+      const reversalIds = new Set(reversalLinks.map((link) => link.reversal_journal_entry_id));
+      setPayload({
+        ...ledger,
+        entries: ledger.entries.map((entry) => ({
+          ...entry,
+          isReversal: reversalIds.has(entry.id),
+          hasReversal: reversedOriginalIds.has(entry.id),
+        })),
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل دفتر الأستاذ.");
       setPayload(null);
