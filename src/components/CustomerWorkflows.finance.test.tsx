@@ -133,6 +133,7 @@ describe("StaffFinancePage payment amount guard", () => {
       root.unmount();
     });
     container.remove();
+    vi.unstubAllGlobals();
   });
 
   it("uses the server-computed balance after posted credits to reject excess payments", async () => {
@@ -145,6 +146,73 @@ describe("StaffFinancePage payment amount guard", () => {
     ).toBe(false);
   });
 
+  it("reuses the same idempotency key after an ambiguous failure and exact-payload retry", async () => {
+    vi.stubGlobal("crypto", {
+      randomUUID: vi.fn().mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+    });
+    const defaultImplementation = rpcMock.getMockImplementation();
+    if (!defaultImplementation) throw new Error("Finance RPC test mock is not configured");
+    let paymentAttempts = 0;
+    rpcMock.mockImplementation(async (name: string, ...args: unknown[]) => {
+      if (name === "record_customer_payment") {
+        paymentAttempts += 1;
+        if (paymentAttempts === 1) {
+          return { data: null, error: { message: "network response was lost" } };
+        }
+        return { data: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", error: null };
+      }
+      return defaultImplementation(name, ...args);
+    });
+
+    await renderFinancePage();
+    await submitPayment("20.00");
+    expect(container.textContent).toContain("أعد المحاولة بالقيم نفسها");
+    await submitPayment("20.00");
+
+    const calls = rpcMock.mock.calls.filter(([name]) => name === "record_customer_payment");
+    expect(calls).toHaveLength(2);
+    expect(calls[0][1].p_idempotency_key).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(calls[1][1].p_idempotency_key).toBe(calls[0][1].p_idempotency_key);
+    expect(calls[1][1].p_amount).toBe(20);
+    expect(container.textContent).toContain("تم تسجيل الدفعة وتحديث حالة الفاتورة.");
+  });
+
+  it("generates a new idempotency key when a retry changes the request payload", async () => {
+    const keys = [
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    ];
+    vi.stubGlobal("crypto", {
+      randomUUID: vi.fn(() => {
+        const key = keys.shift();
+        if (!key) throw new Error("Unexpected UUID generation in test");
+        return key;
+      }),
+    });
+    const defaultImplementation = rpcMock.getMockImplementation();
+    if (!defaultImplementation) throw new Error("Finance RPC test mock is not configured");
+    let paymentAttempts = 0;
+    rpcMock.mockImplementation(async (name: string, ...args: unknown[]) => {
+      if (name === "record_customer_payment") {
+        paymentAttempts += 1;
+        if (paymentAttempts === 1) {
+          return { data: null, error: { message: "network response was lost" } };
+        }
+        return { data: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", error: null };
+      }
+      return defaultImplementation(name, ...args);
+    });
+
+    await renderFinancePage();
+    await submitPayment("20.00");
+    await submitPayment("21.00");
+    const calls = rpcMock.mock.calls.filter(([name]) => name === "record_customer_payment");
+    expect(calls).toHaveLength(2);
+    expect(calls[0][1].p_idempotency_key).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(calls[1][1].p_idempotency_key).toBe("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+    expect(calls[1][1].p_amount).toBe(21);
+  });
+
   it("submits an amount equal to the remaining balance", async () => {
     await renderFinancePage();
     await submitPayment("50.00");
@@ -154,6 +222,7 @@ describe("StaffFinancePage payment amount guard", () => {
       p_invoice_id: INVOICE_ID,
       p_amount: 50,
       p_payment_method: "cash",
+      p_idempotency_key: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
       p_reference: null,
       p_notes: null,
     });
