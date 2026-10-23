@@ -30,9 +30,15 @@ describe("password recovery and reset route security", () => {
     expect(resetRoute).toContain('createFileRoute("/reset-password")');
   });
 
-  it("updates the password through the authenticated Supabase session and does not navigate on failure", () => {
+  it("updates through the authenticated Supabase session and does not navigate on returned errors", () => {
     expect(resetRoute).toContain("supabase.auth.updateUser({ password })");
     expect(resetRoute).toMatch(/if\s*\(error\)\s*\{\s*setMsg\(/);
     expect(resetRoute).toMatch(/if\s*\(error\)[\s\S]*?return;[\s\S]*?void navigate\(\{\s*to:\s*"\/"\s*\}\)/);
+  });
+
+  it("catches thrown transport failures and always clears the busy state", () => {
+    expect(resetRoute).toMatch(/try\s*\{[\s\S]*?supabase\.auth\.updateUser\(\{ password \}\)/);
+    expect(resetRoute).toMatch(/catch\s*\{[\s\S]*?setMsg\("تعذر الاتصال بالخادم/);
+    expect(resetRoute).toMatch(/finally\s*\{\s*setBusy\(false\);\s*\}/);
   });
 });
