@@ -65,7 +65,14 @@ function schemaDataSignature(url) {
     (select count(*)::text from public.inventory_balances),
     (select count(*)::text from public.audit_logs),
     (select count(*)::text from public.inventory_movements),
-    (select count(*)::text from public.inventory_transfer_batches)
+    (select count(*)::text from public.inventory_transfer_batches),
+    (select md5(coalesce(string_agg(row_data, E'\n' order by row_data), '')) from (select to_jsonb(t)::text as row_data from public.organizations t) as backup_rows),
+    (select md5(coalesce(string_agg(row_data, E'\n' order by row_data), '')) from (select to_jsonb(t)::text as row_data from public.products t) as backup_rows),
+    (select md5(coalesce(string_agg(row_data, E'\n' order by row_data), '')) from (select to_jsonb(t)::text as row_data from public.orders t) as backup_rows),
+    (select md5(coalesce(string_agg(row_data, E'\n' order by row_data), '')) from (select to_jsonb(t)::text as row_data from public.inventory_balances t) as backup_rows),
+    (select md5(coalesce(string_agg(row_data, E'\n' order by row_data), '')) from (select to_jsonb(t)::text as row_data from public.audit_logs t) as backup_rows),
+    (select md5(coalesce(string_agg(row_data, E'\n' order by row_data), '')) from (select to_jsonb(t)::text as row_data from public.inventory_movements t) as backup_rows),
+    (select md5(coalesce(string_agg(row_data, E'\n' order by row_data), '')) from (select to_jsonb(t)::text as row_data from public.inventory_transfer_batches t) as backup_rows)
   )`;
   return runTool("psql", [
     "--no-psqlrc",
