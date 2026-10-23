@@ -563,7 +563,7 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
             <thead><tr><th>العميل</th><th>جهة الاتصال</th><th>الشريحة</th><th>الرصيد</th><th>الحد الائتماني</th><th>الحالة</th><th /></tr></thead>
             <tbody>{rows.map((c) => <tr key={c.id}>
               <td><strong>{c.business_name}</strong><small>{c.customer_code}</small></td>
-              <td>{c.contact_name ?? '—'}<small>{c.phone ?? '—'}</small></td>
+              <td>{c.contact_name ?? '—'}<small>{c.phone ?? '—'}</small><small>{c.email ?? '—'}</small></td>
               <td><span className="tier">{c.tier === 'vip' ? 'جملة الجملة' : c.tier === 'wholesale' ? 'جملة' : 'تجزئة'}</span></td>
               <td className={c.current_balance > 0 ? 'amount-danger' : ''}>{formatCurrency(c.current_balance)}</td>
               <td>{formatCurrency(c.credit_limit)}</td>

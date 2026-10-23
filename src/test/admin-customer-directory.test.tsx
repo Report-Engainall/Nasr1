@@ -30,7 +30,7 @@ import { Customers } from '@/components/AghbariApp';
 function customer(index: number) {
   return {
     id: `customer-${index}`, business_name: `متجر ${index}`, contact_name: 'مسؤول',
-    phone: `777000${String(index).padStart(3, '0')}`, email: null, customer_code: `CUST-${index}`,
+    phone: `777000${String(index).padStart(3, '0')}`, email: `buyer${index}@example.test`, customer_code: `CUST-${index}`,
     tier: 'retail', current_balance: 0, credit_limit: 0, status: 'approved', created_at: '2026-10-23T00:00:00Z',
   } as never;
 }
@@ -72,6 +72,7 @@ describe('admin customer directory paging', () => {
     });
     expect(host?.textContent).toContain('متجر 1');
     expect(host?.textContent).toContain('متجر 25');
+    expect(host?.textContent).toContain('buyer1@example.test');
     expect(host?.textContent).not.toContain('متجر 26');
     expect(host?.querySelector('[aria-label="إجمالي نتائج دليل العملاء"]')?.textContent).toContain('٣٠');
     expect(host?.querySelector<HTMLInputElement>('input[aria-label="البحث في دليل العملاء"]')?.maxLength).toBe(254);
