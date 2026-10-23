@@ -1,25 +1,41 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T20:44:49.696+00:00
-LAST_COMPLETED_TASK_ID: P3-PR89-LATEST-MAIN-SYNC-002 — #89's previous report child `a67c2d03fc6b70bc4d11283d81943d4795e63080` had terminal Core/P2 SUCCESS. Main advanced by five commits afterward; path comparison shows zero overlap, so P3 is resynchronizing before the final review request.
-CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
-BASE_SHA: d7a49d8ca7d968e2fc04307fb26313e54168410a
-HEAD_SHA: a67c2d03fc6b70bc4d11283d81943d4795e63080 (last fully tested before the second sync; the new sync child needs its own exact-head workflows.)
-ROUTES_COVERED: #89 catalog/category/collections/offers/search/reset-password/reports and guest cart/checkout privacy; #105 /addresses and /company/contacts; #114 /company/members; #115 invitation acceptance; #117 /statement; #120 /orders/$id; #121 inventory of 60 non-root routes; #122 /wishlist; #125 /compare; #130 /offline. Full all-route browser UAT: NOT RUN.
-FILES_CHANGED: This sync overlays P3's 35 changed route/test/report paths onto main `d7a49d8ca7d968e2fc04307fb26313e54168410a` after zero changed-path overlap with the latest seven-path main delta. P2 central state, work coordination, matrix, log, customer-address service/tests from current main are preserved. P3 did not edit P1 generated route tree or shared UI outside its existing #89 delta.
-TESTS_RUN_WITH_RESULTS:
-- Previous #89 SHA `a67c2d03fc6b70bc4d11283d81943d4795e63080`: Core [40020945768 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020945768), P2 [40020945851 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020945851); public smoke, infra gate and local Supabase/PostgreSQL 17 persistence and browser suites SUCCESS. Hosted credential-gated test [120645086091 SKIPPED](https://github.com/Report-Engainall/Nasr1/actions/runs/40020945851/job/120645086091), not PASS.
-- #130 `/offline` exact tested SHA `f0653d81a1a7ae6264d948f3c44fbe656437b49a`: Core [40019899573 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40019899573); P2 [40019898309 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40019898309) including local Supabase/PostgreSQL 17 acceptance; hosted E2E [120642002548 SKIPPED](https://github.com/Report-Engainall/Nasr1/actions/runs/40019898309/job/120642002548).
-- The new merge child of this sync needs its own fresh Core/P2 readback; no prior SHA acceptance transfers.
-FAILED_OR_SKIPPED: Hosted credential-gated end-to-end checks remain SKIPPED, not PASS. Full all-route browser UAT and production proof NOT RUN. Independent reviewer APPROVE missing.
-LOCKED_PATHS: P2 central state/matrix/coordination/log and backend services/RPC/migrations/RLS; P1 shared UI/generated route tree. No such path was modified by this status transaction.
-DEFECTS_FOUND: `/admin/exports` deep-link/authorization/error-retry/download proof remains NOT_PROVEN and owned by P1. #130 gives targeted /offline coverage only; comprehensive browser acceptance remains incomplete.
-HANDOFF_TO_P1_OR_P2: P1 to prove /admin/exports using supported route generation. P2 to incorporate new route and customer-address evidence into official central files only.
-PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
-MERGE_STATUS: #89 OPEN/UNMERGED with no independent human approval; #130 OPEN/READY FOR REVIEW but its base now trails main and must be synchronized before merge eligibility.
-BLOCKERS: New sync SHA Core/P2 terminal results, independent review/approval, hosted credentials and complete all-route/prod acceptance.
-NEXT_ACTION: Read exact-head Core/P2 outcomes on the new merge child, request independent review after gates pass, and then safely synchronize #130 with live main and rerun its gates.
+UPDATED_AT: 2026-10-24T01:37+03:00
+LAST_COMPLETED_TASK_ID: P3-LIVE-ACCEPTANCE-RECONCILIATION-003 — read live main/PR heads, exact-SHA Core/P2 workflows and reviewer records; corrected the stale source-backed route register in PR #121.
+REPOSITORY: Report-Engainall/Nasr1
+MAIN_SHA_AT_LIVE_READ: b48a4b2e8ae09e87432b49dab591a23e1be651c6
+P3_BRANCH: p3/catalog-screen-error-states-20261023
+APPLICATION_SHA_LAST_VALIDATED_FOR_PR89: a36cc74085935a4e48965d19c3defb282dbb6a10
+ROUTE_SCOPE: #89 catalog/category/collections/offers/search/reset-password/reports and guest cart/checkout privacy; #105 addresses/company contacts; #114 company members; #115 invitation acceptance; #116 customer activation; #117 statement; #120 order detail; #121 source-backed route register; #122 wishlist; #125 compare; #130 offline.
+CURRENT_DECISION: No PR was merged. All 11 PRs are open/unmerged. Before the status-doc refresh, every implementation branch compared with live main at zero commits behind; the exact-head Core and P2 workflows on the listed implementation SHAs succeeded. Independent human maintainer approvals are not recorded. Do not merge until a different programmer completes the review gate.
+EXTERNAL_BOUNDARY: The hosted "Playwright customer order and tenant isolation" job is SKIPPED on every listed P2 run because credentials are unavailable; SKIPPED is not PASS. Local PostgreSQL 17 acceptance, public UI smoke and infrastructure gates succeeded. Full all-route browser UAT and production acceptance remain NOT RUN.
+REPORT-SHA RULE: The table records the previously validated application head for #89, not the documentation-only child created by this refresh. The new report/checkpoint commit must be read back from the live PR branch, and its own Core/P2 runs checked before it can be described as green. No earlier result transfers to that child.
 
+## Live exact-head evidence snapshot
+
+| PR | Validated HEAD SHA | Core run | P2 Playwright run | Qualification |
+|---|---|---|---|---|
+| [#89](https://github.com/Report-Engainall/Nasr1/pull/89) | `a36cc74085935a4e48965d19c3defb282dbb6a10` | [40026027445](https://github.com/Report-Engainall/Nasr1/actions/runs/40026027445) | [40026027463] (https://github.com/Report-Engainall/Nasr1/actions/runs/40026027463) | Last code-bearing SHA before this report-only refresh; exact checks for the new child must be read from live Actions |
+| [#105](https://github.com/Report-Engainall/Nasr1/pull/105) | `599dbbe8fa1b7a799909d22ae6cff33ebb51cc9d` | [40025650590](https://github.com/Report-Engainall/Nasr1/actions/runs/40025650590) | [40025650684] (https://github.com/Report-Engainall/Nasr1/actions/runs/40025650684) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
+| [#114](https://github.com/Report-Engainall/Nasr1/pull/114) | `167e8f22a74eb4cc6350896affd20db28b57052c` | [40025727440](https://github.com/Report-Engainall/Nasr1/actions/runs/40025727440) | [40025727413] (https://github.com/Report-Engainall/Nasr1/actions/runs/40025727413) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
+| [#115](https://github.com/Report-Engainall/Nasr1/pull/115) | `855cd203145dcf3020e0bbac57b5188dfcedbb13` | [40025580420](https://github.com/Report-Engainall/Nasr1/actions/runs/40025580420) | [40025580423] (https://github.com/Report-Engainall/Nasr1/actions/runs/40025580423) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
+| [#116](https://github.com/Report-Engainall/Nasr1/pull/116) | `e553157246b91199e3a8c83c88585654b1d194c6` | [40025757483](https://github.com/Report-Engainall/Nasr1/actions/runs/40025757483) | [40025757514] (https://github.com/Report-Engainall/Nasr1/actions/runs/40025757514) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
+| [#117](https://github.com/Report-Engainall/Nasr1/pull/117) | `cb0a4b9509001d1db4d6560849ae1f051a0d7a0b` | [40025787855](https://github.com/Report-Engainall/Nasr1/actions/runs/40025787855) | [40025787857] (https://github.com/Report-Engainall/Nasr1/actions/runs/40025787857) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
+| [#120](https://github.com/Report-Engainall/Nasr1/pull/120) | `f58b3830b443477e940d21b3a4ed166ef38404e3` | [40025816601](https://github.com/Report-Engainall/Nasr1/actions/runs/40025816601) | [40025816610] (https://github.com/Report-Engainall/Nasr1/actions/runs/40025816610) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
+| [#121](https://github.com/Report-Engainall/Nasr1/pull/121) | `cbd2e32f54051447e70104ea1cac35df4f3d3f7d` | [40034584899](https://github.com/Report-Engainall/Nasr1/actions/runs/40034584899) | [40034584873] (https://github.com/Report-Engainall/Nasr1/actions/runs/40034584873) | Register child CI was IN_PROGRESS/QUEUED at last poll; re-read both live runs; no prior SHA transfer |
+| [#122](https://github.com/Report-Engainall/Nasr1/pull/122) | `9f64a1342dcf97248e4570f447f358a08711819b` | [40025883623](https://github.com/Report-Engainall/Nasr1/actions/runs/40025883623) | [40025883529] (https://github.com/Report-Engainall/Nasr1/actions/runs/40025883529) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
+| [#125](https://github.com/Report-Engainall/Nasr1/pull/125) | `04a0403a49ef6a10d110299ed95a8e44c6bc4dd8` | [40025913367](https://github.com/Report-Engainall/Nasr1/actions/runs/40025913367) | [40025913384] (https://github.com/Report-Engainall/Nasr1/actions/runs/40025913384) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
+| [#130](https://github.com/Report-Engainall/Nasr1/pull/130) | `dd5158414f61cd88a687c24346215c421b9ee62c` | [40025941925](https://github.com/Report-Engainall/Nasr1/actions/runs/40025941925) | [40025941941] (https://github.com/Report-Engainall/Nasr1/actions/runs/40025941941) | Core/P2 SUCCESS; hosted customer/tenant job SKIPPED |
+
+## Outstanding acceptance/ownership
+- #89: 35 changed paths and 151 branch commits; inspect exact diff and review comments before approval. CodeRabbit's existing review is COMMENTED and dates from an older head; it is not an approval for the current head.
+- #105/#114/#115/#116/#117/#120/#122/#125/#130: test-only route acceptance; Core and runnable P2 jobs succeeded, while hosted authenticated E2E remains SKIPPED. Their targeted tests do not imply full production journeys.
+- #121: the source-backed register is updated to live main SHA `b48a4b2e8ae09e87432b49dab591a23e1be651c6`; its new doc commit `cbd2e32f54051447e70104ea1cac35df4f3d3f7d` had Core in progress and P2 queued at last poll. Re-read live Actions before calling it verified.
+- /admin/exports runtime authorization, failure/retry and completed download remain NOT_PROVEN and P1-owned. Do not edit `src/routeTree.gen.ts` directly.
+- Do not edit P2's canonical acceptance matrix, execution state, work coordination, execution log, RPCs, migrations or RLS. P2 owns final central reconciliation after PR merges.
+
+## Required next gate
+Obtain an independent review on each exact current PR head, resolve any findings, and confirm that the head SHA has not moved before merge. Merge only one at a time through GitHub PR, reread main after each merge, and never count skipped hosted jobs as PASS.
 ## Historical execution evidence
 
 ## Historical execution unit — 2026-10-23T20:44:06+03:00

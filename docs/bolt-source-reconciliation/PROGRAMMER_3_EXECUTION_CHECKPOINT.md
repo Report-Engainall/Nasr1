@@ -1,25 +1,20 @@
 # P3 execution checkpoint — Nasr1
 
-UPDATED_AT: 2026-10-23T20:44:49.696+00:00
-LAST_COMPLETED_TASK_ID: P3-PR89-LATEST-MAIN-SYNC-002 — reconciled the five new live-main commits after a zero-overlap path comparison. The prior application merge SHA `a67c2d03fc6b70bc4d11283d81943d4795e63080` and its report-only child CI were green on exact SHA; this new merge child requires its own current-head checks.
-CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
-BASE_SHA: d7a49d8ca7d968e2fc04307fb26313e54168410a
-HEAD_SHA: a67c2d03fc6b70bc4d11283d81943d4795e63080 (last tested application/report SHA before this synchronization. A new merge child is being created and must be verified independently.)
-ROUTES_COVERED: #89 categories/collections/offers/search/reset-password/reports and guest cart/checkout price privacy; #105 /addresses and /company/contacts; #114 /company/members; #115 invitation acceptance; #117 /statement; #120 /orders/$id; #121 all 60 non-root route modules inventoried; #122 /wishlist; #125 /compare; #130 /offline local-cache privacy/profile scope/sync recovery. Full all-route browser UAT: NOT RUN.
-FILES_CHANGED: Sync keeps the complete P3 35-path delta (including both P3 reports) atop live main `d7a49d8ca7d968e2fc04307fb26313e54168410a`, using one merge commit. Main's seven-path change set (P2 central state/log/matrix/coordination and customer-address service/tests) has zero path overlap with the P3 delta and will be preserved. This unit changes only the two P3 reports beyond the existing feature delta; no P2-owned central file or P1-locked shared component/generated route tree is written.
-TESTS_RUN_WITH_RESULTS:
-- PR #89 pre-sync SHA `a67c2d03fc6b70bc4d11283d81943d4795e63080`: Core [run 40020945768 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020945768); P2 [run 40020945851 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020945851). Public smoke [120645043455 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020945851/job/120645043455), infrastructure gate [120645043210 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020945851/job/120645043210), and isolated local Supabase/PostgreSQL 17 acceptance [120645391783 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40020945851/job/120645391783). Credential-gated hosted order/tenant job [120645086091 SKIPPED](https://github.com/Report-Engainall/Nasr1/actions/runs/40020945851/job/120645086091), not PASS.
-- PR #130 `/offline` tested SHA `f0653d81a1a7ae6264d948f3c44fbe656437b49a`: Core [40019899573 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40019899573), P2 [40019898309 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40019898309), public smoke/infrastructure/local Supabase SUCCESS, hosted order/tenant [120642002548 SKIPPED](https://github.com/Report-Engainall/Nasr1/actions/runs/40019898309/job/120642002548), not PASS. #130 currently requires its own main-sync decision before merge because main advanced.
-- This new synchronization commit is a fresh SHA; previous test outcomes do not prove its acceptance. Read its new Core/P2 workflows to terminal results.
-FAILED_OR_SKIPPED: Hosted credential-gated end-to-end jobs remain SKIPPED, not PASS. All-route browser UAT and production acceptance NOT RUN. Independent human approval for #89 not recorded.
-LOCKED_PATHS: P2-owned `CURRENT_EXECUTION_STATE.md`, `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`, `WORK_COORDINATION.md`, `EXECUTION_LOG.md`, backend RPC/migration/RLS/service code; P1-owned shared UI and generated route tree. None of those paths are part of P3's changed-path set.
-DEFECTS_FOUND: `/admin/exports` runtime route/role-denial/error-retry/download proof remains NOT_PROVEN and P1-owned. PR #130 provides targeted offline-route acceptance; full screen/browser UAT remains incomplete.
-HANDOFF_TO_P1_OR_P2: P1 to prove `/admin/exports` using the supported TanStack route generator. P2 to ingest source-backed route coverage and the newer customer-address evidence in the official matrix/state only. P3 has not edited central P2 files.
-PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
-MERGE_STATUS: #89 OPEN/UNMERGED; no independent human APPROVE submission recorded (CodeRabbit COMMENTED is not approval). #130 OPEN/READY FOR REVIEW/UNMERGED, targeted CI passed on its tested SHA but base also needs reconciliation before merge.
-BLOCKERS: Exact-head Core/P2 on this new merge child; independent maintainer review/approval; hosted test credentials; complete all-route browser UAT and production acceptance.
-NEXT_ACTION: Verify Core/P2 on the new #89 merge child SHA, then add one final exact-head review request. Do not self-approve or merge; afterwards sync #130 to current main safely and rerun its own gates before treating it merge-ready.
+UPDATED_AT: 2026-10-24T01:37+03:00
+LAST_COMPLETED_TASK_ID: P3-LIVE-ACCEPTANCE-RECONCILIATION-003
+REPOSITORY: Report-Engainall/Nasr1
+LIVE_MAIN_SHA_AT_READ: b48a4b2e8ae09e87432b49dab591a23e1be651c6
+P3_BRANCH: p3/catalog-screen-error-states-20261023
+PR89_APPLICATION_SHA_LAST_VALIDATED: a36cc74085935a4e48965d19c3defb282dbb6a10
+REGISTER_UPDATE: PR #121 commit cbd2e32f54051447e70104ea1cac35df4f3d3f7d updated the baseline, route evidence for #116/#122/#125/#130, and exact-head CI links for all ten route implementation PRs. Its new Core/P2 runs must be re-read on the exact current branch head.
 
+STATE: All eleven PRs #89, #105, #114, #115, #116, #117, #120, #121, #122, #125, #130 remain OPEN/UNMERGED at the last live read. No independent human maintainer APPROVE was recorded. This P3 execution does not self-approve or merge them without a separate review.
+
+VALIDATION: The listed pre-refresh implementation SHAs have terminal Core SUCCESS and runnable P2 Playwright SUCCESS. Hosted customer/tenant E2E is SKIPPED, not PASS, because non-production credentials are unavailable. Full all-route browser UAT and production acceptance are NOT RUN. The new report/checkpoint child commit on this branch is documentation-only and needs its own exact-head Actions readback; prior checks do not transfer.
+
+OWNERSHIP: P3 owns these status documents and route register. P1 owns shared UI/generated route-tree and /admin/exports route proof. P2 owns central execution state, acceptance matrix, WORK_COORDINATION, EXECUTION_LOG, RPC/migration/RLS/backend contracts. P3 did not edit P2-owned files.
+
+NEXT: Re-read live SHA and CI after this documentation-only commit; obtain independent review of exact heads; resolve findings; merge qualified PRs sequentially via GitHub PR only; after each merge re-read main; hand exact GitHub evidence to P2 for final central reconciliation. Do not close the project while any PR is unmerged without a technical reason, human review missing, hosted gate skipped, or route acceptance still unproven.
 ## Historical execution unit — 2026-10-23T20:44:06+03:00
 
 - Task: `P3-STF-011-CART-CHECKOUT-BROWSER-001`.
