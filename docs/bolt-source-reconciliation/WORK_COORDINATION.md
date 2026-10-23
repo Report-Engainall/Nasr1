@@ -1,23 +1,20 @@
 # سجل التنسيق — المرجع الحي
 
-## CLOSED — central-state reconciliation PR #126 — 2026-10-23T23:34:00+03:00
+## CLOSED — central-state reconciliation PR #126 — 2026-10-23T23:37:00+03:00
 
-- PR #126 is merged at main SHA 6815b00781412bd98cbdd9fb660e475e4540b543. Exact PR head 2d1fddde5c8c9b3185dc19880ef5426129d28005 completed Core 40018779157 SUCCESS and P2 40018779193 SUCCESS.
-- Main Core run 40019333142 was IN_PROGRESS at this checkpoint on the exact merge SHA 6815b00781412bd98cbdd9fb660e475e4540b543; no terminal PASS is claimed yet.
-- External hosted customer/tenant acceptance remained SKIPPED/BLOCKED_EXTERNAL due lack of dedicated non-production credentials. Do not call this PASS.
+- PR #126 merged at 6815b00781412bd98cbdd9fb660e475e4540b543. Exact PR head 2d1fddde5c8c9b3185dc19880ef5426129d28005 completed Core 40018779157 SUCCESS and P2 40018779193 SUCCESS.
+- Core push run 40019333142 completed SUCCESS on exact main SHA 6815b00781412bd98cbdd9fb660e475e4540b543.
+- Hosted authenticated customer/tenant E2E was SKIPPED / BLOCKED_EXTERNAL due unavailable dedicated non-production credentials, not PASS.
 
-## ACTIVE P2 exclusive path lock — COMPANY-001-CUSTOMER-ADDRESS-UUID-CONTRACT — 2026-10-23T23:34:00+03:00
+## ACTIVE P2 exclusive path lock — COMPANY-001-CUSTOMER-ADDRESS-UUID-CONTRACT — 2026-10-23T23:37:00+03:00
 
-- Owner: P2. Repo Report-Engainall/Nasr1; branch p2/customer-address-uuid-contract-20261023; base 6815b00781412bd98cbdd9fb660e475e4540b543. Do not write directly to main.
-- Exclusive changed product paths: `src/lib/customer-addresses.ts`, `src/test/customer-addresses.test.ts`.
-- Actual contract gap: SQL `save_customer_address` returns UUID, while the client accepted arbitrary non-empty strings as save confirmation; optional edit/delete IDs were not UUID-validated before RPC.
-- Fix is intentionally service-contract scope only: validate UUID-shaped acknowledgement and optional edit/delete IDs; no UI route, generated route tree, migrations, RLS, grants or new table is part of this patch.
-- Regression cases: malformed save acknowledgement fails closed; malformed edit and delete IDs reject before RPC; existing valid UUID success and explicit delete boolean cases remain.
-- No concurrent open PR identified that owns these exact service/test paths; P3 open address work is route-acceptance tests only. P1 work is in unrelated storefront/admin paths.
-- Acceptance: inspect final diff; exact-head Core and P2/PostgreSQL 17 workflows both terminal SUCCESS on same final SHA; verify migration guards and existing tenant-scoped RLS/RPC through existing P2 workflow; hosted customer/tenant job remains BLOCKED_EXTERNAL if credentials are absent.
-- Release path lock only after merge and verification of the resulting main SHA and its current Core CI.
-- P2 owns and updates the five central documents sequentially/atomically: CURRENT_EXECUTION_STATE.md, REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv, PROGRAMMER_2_CURRENT_REPORT.md, WORK_COORDINATION.md and EXECUTION_LOG.md.
-- No production DB writes, force-push, destructive reset, live payment operation, live Onyx or live WhatsApp calls.
+- Owner P2; repository Report-Engainall/Nasr1; branch p2/customer-address-uuid-contract-20261023; base main SHA 6815b00781412bd98cbdd9fb660e475e4540b543; PR https://github.com/Report-Engainall/Nasr1/pull/129. No direct main writes.
+- Exclusive P2 code/test paths: `src/lib/customer-addresses.ts`, `src/test/customer-addresses.test.ts`. The first commit contains product code and regressions; this checkpoint commit adds central tracking and advances PR HEAD. Re-read latest PR HEAD before interpreting CI.
+- Verified gap: `save_customer_address` returns UUID, but the old client accepted arbitrary non-empty strings as success; edit/delete IDs lacked client format validation. Fix requires UUID acknowledgement and rejects invalid IDs before any RPC.
+- Scope intentionally excludes UI routes, routeTree, migrations, RLS policies, grants, and membership/invitation/session workflows.
+- Regression cases: malformed response fails closed; invalid edit and delete IDs issue no RPC; valid existing RPC confirmations stay covered.
+- Require Core and P2/PostgreSQL 17 to reach terminal SUCCESS on same final PR HEAD. Hosted customer/tenant E2E remains BLOCKED_EXTERNAL absent dedicated authorized test credentials.
+- Release this lock only after PR #129 is merged and its resulting main SHA/Core CI verified. Central P2 files remain single-owner and updated atomically on this branch.
 
 ## المصالحة الحالية — 2026-10-23T21:47:31+03:00
 

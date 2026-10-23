@@ -1207,3 +1207,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - No migration, RLS/policy/grant, service route, UI component or generated route tree changed.
 - Exact PR-head Core/P2 outcomes are pending after the atomic implementation + checkpoint commit; do not use prior SHA results as proof.
 - Hosted external cross-tenant E2E remains BLOCKED_EXTERNAL/SKIPPED if dedicated non-production credentials are not present.
+
+
+## P2 COMPANY-001 — main-state and PR checkpoint refresh — 2026-10-23T23:37:00+03:00
+
+- Live main SHA 6815b00781412bd98cbdd9fb660e475e4540b543; tree 28a1b4dd0084c88a2a7f22fd6dc38b3a21fb82a8; Core push run 40019333142 SUCCESS on that exact SHA.
+- Open PR https://github.com/Report-Engainall/Nasr1/pull/129; base 6815b00781412bd98cbdd9fb660e475e4540b543; product source/test change committed at 65d2d2b5223565fd40f36c9d6e95104da21488ce. Latest PR HEAD changes after this atomic central-doc refresh, so re-read PR HEAD and do not transfer existing run status to it.
+- Customer address service fix: save acknowledgement must be UUID; optional edit ID and delete ID must be UUID before RPC; malformed ack/ID regression added. No schema, RLS, route, or UI changes.
+- Current final-head Core/P2 acceptance remains pending after the docs commit. Hosted customer/tenant E2E remains BLOCKED_EXTERNAL if dedicated non-production credentials are unavailable.

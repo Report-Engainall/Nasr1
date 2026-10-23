@@ -1,38 +1,37 @@
-# تقرير P2 — الحالة التنفيذية الحية 2026-10-23T23:34:00+03:00
+# تقرير P2 — الحالة التنفيذية الحية 2026-10-23T23:37:00+03:00
 
 REPOSITORY=Report-Engainall/Nasr1
 MAIN_SHA=6815b00781412bd98cbdd9fb660e475e4540b543
 MAIN_TREE=28a1b4dd0084c88a2a7f22fd6dc38b3a21fb82a8
-MAIN_CORE=IN_PROGRESS at checkpoint: run 40019333142 is for the exact main merge SHA above; refresh its terminal result before making a PASS claim.
-LAST_MERGED_PR=#126 merged at 6815b00781412bd98cbdd9fb660e475e4540b543; its tested head 2d1fddde5c8c9b3185dc19880ef5426129d28005 passed Core 40018779157 and P2 40018779193.
+MAIN_CI=SUCCESS — push run 40019333142 completed SUCCESS on exact main SHA 6815b00781412bd98cbdd9fb660e475e4540b543.
+CURRENT_PR=https://github.com/Report-Engainall/Nasr1/pull/129
 CURRENT_BRANCH=p2/customer-address-uuid-contract-20261023
 BASE_SHA=6815b00781412bd98cbdd9fb660e475e4540b543
-HEAD_SHA=TO BE RECORDED AFTER ATOMIC COMMIT
-CURRENT_TASK=COMPANY-001-CUSTOMER-ADDRESS-UUID-CONTRACT
-TASK_STATUS=IMPLEMENTED; REGRESSION_TESTS_ADDED; EXACT_FINAL_HEAD_CI_PENDING
-CURRENT_PR=Not created yet; expected after the atomic code+checkpoint commit.
-LOCKED_PATHS=src/lib/customer-addresses.ts; src/test/customer-addresses.test.ts; P2 central state, matrix, report, coordination and execution log.
-MERGE_STATUS=Not merged. No direct main writes.
+CODE_AND_TEST_SHA=65d2d2b5223565fd40f36c9d6e95104da21488ce
+TASK_ID=COMPANY-001-CUSTOMER-ADDRESS-UUID-CONTRACT
+TASK_STATUS=IMPLEMENTED; REGRESSION_TESTS_ADDED; FINAL-HEAD CI PENDING
+MERGE_STATUS=OPEN; no main write.
+LOCKED_PATHS=src/lib/customer-addresses.ts; src/test/customer-addresses.test.ts; five central P2 files.
 
 ## Proven defect and bounded fix
 
-The live address migration defines `public.save_customer_address(...)` as returning UUID and `public.delete_customer_address(uuid)` as taking an UUID; server identity and tenant scope are derived in SQL. The service `src/lib/customer-addresses.ts` accepted any non-empty string from save RPC as success and passed arbitrary input IDs for edit/delete into RPCs. This can misrepresent a malformed server response as confirmed persistence and needlessly send malformed identifiers.
+The live migration `20261015130000_customer_address_book.sql` declares `public.save_customer_address(...)` as `RETURNS uuid`. The service previously treated any non-empty string as confirmed persistence and sent optional edit/delete IDs without UUID validation. The client now:
+- Requires the save RPC result to match UUID syntax before returning success.
+- Validates an optional edit ID and a deletion ID before invoking RPC.
+- Adds tests showing malformed save acknowledgements fail closed and malformed edit/delete IDs issue no RPC.
 
-This P2-only fix:
-- Requires the save RPC acknowledgement to match UUID syntax before returning success.
-- Validates optional address edit IDs before issuing save RPC, and deletion IDs before issuing delete RPC.
-- Adds regression tests for a malformed save acknowledgement and malformed edit/delete IDs, asserting invalid IDs trigger no RPC.
-- Makes no route, UI, migration, RLS, RPC implementation, or table-grant change. Existing server-side owner/tenant enforcement remains the source of truth.
+No route, UI component, migration, RLS policy, grants or membership/invitation/session contract changed. Existing server-side identity and tenant enforcement remains authoritative.
 
-## Exact-main checkpoint and pending gates
+## Exact-SHA proof boundary
 
-- Base main commit: 6815b00781412bd98cbdd9fb660e475e4540b543; main push Core run 40019333142 was IN_PROGRESS when this checkpoint was authored; no main-CI PASS is claimed until re-read.
-- PR #126 exact head 2d1fddde5c8c9b3185dc19880ef5426129d28005: Core run 40018779157 and P2 run 40018779193 both SUCCESS. Hosted authenticated customer/tenant E2E SKIPPED due absent dedicated non-production credentials.
-- This company's current branch must receive final-head Core and P2/PostgreSQL 17 acceptance. No code or test result is marked PASS in advance.
+- Live main SHA 6815b00781412bd98cbdd9fb660e475e4540b543, tree 28a1b4dd0084c88a2a7f22fd6dc38b3a21fb82a8; Core push run 40019333142 SUCCESS on that exact SHA.
+- PR #126 exact head 2d1fddde5c8c9b3185dc19880ef5426129d28005 passed Core 40018779157 and P2 40018779193.
+- PR #129 implementation/test commit 65d2d2b5223565fd40f36c9d6e95104da21488ce; the central docs refresh below changes its HEAD. Read PR #129 live after that commit, and only report test success if Core and P2 both complete SUCCESS on the same final HEAD.
+- Hosted customer/tenant E2E remains SKIPPED/BLOCKED_EXTERNAL if dedicated authorized non-production credentials are unavailable. It is not PASS.
 
 NEXT_TASK_ID=COMPANY-001-CUSTOMER-ADDRESS-UUID-CONTRACT
-NEXT_ACTION=Create the PR after the atomic commit; re-read its latest exact head and Core/P2 runs; diagnose any test failure at the changed source/test contract; merge only after required jobs reach terminal SUCCESS, then verify the new main SHA and its own Core status.
-UPDATED_AT=2026-10-23T23:34:00+03:00
+NEXT_ACTION=After the docs checkpoint commit, re-read PR #129 latest HEAD and both workflow runs. Verify the service regression test executed and Core/P2/PostgreSQL 17 completed successfully on that exact SHA; repair any evidenced issue, then merge through PR and check Core on resulting main SHA.
+UPDATED_AT=2026-10-23T23:37:00+03:00
 
 ---
 
