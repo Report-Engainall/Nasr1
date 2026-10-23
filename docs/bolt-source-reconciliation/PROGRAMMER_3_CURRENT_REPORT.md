@@ -1,6 +1,6 @@
 # P3 current execution report — Nasr1
 
-UPDATED_AT: 2026-10-23T17:05:19.795+03:00
+UPDATED_AT: 2026-10-23T17:12:29.167+03:00
 
 ## Git and current execution
 - Repository: Report-Engainall/Nasr1
@@ -24,6 +24,14 @@ UPDATED_AT: 2026-10-23T17:05:19.795+03:00
 - `P3-TEST-QUALITY-007`: category regression includes a published target-category item, inactive rows and an active other-category row; it asserts exact count/link. Removed a vacuous route-stub assertion and added the runtime Reports mount test.
 - `P3-CUST-ROUTE-LOAD-008`: `/login`, `/forgot-password`, `/register`, `/quotes`, and `/reorder` provide Arabic RTL `role="status"` hydration fallbacks; the shared parameterized test covers those routes alongside the seven prior routes.
 - `P3-STORE-HYDRATION-009`: root `/` previously had a blank `ClientOnly` fallback, leaving no visible or semantic loading state before hydration. It now has a semantic Arabic RTL main/status fallback and a parameterized regression test. Scope: `src/routes/index.tsx` and `src/test/customer-route-loading.test.tsx`.
+
+## Latest exact-head acceptance results — 2026-10-23
+
+- Tested branch SHA `259aabc6078d868e35087aa33924d4b044af8e5b`: Core [39966679379 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39966679379) and P2 [39966679223 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39966679223). Both runs target the same exact SHA.
+- Core unit/migration/PostgreSQL 17, backup/restore, lint, build, local preview/dev smoke, and Chromium price-visibility acceptance succeeded. P2 public read-only UI smoke plus local-Supabase Playwright succeeded for order persistence/cross-tenant denial, customer return/credit memo, audited Onyx order XLSX, and finance/operational printing.
+- Credential-gated external E2E and the separate credential-gated customer-order/tenant job were SKIPPED, not passed. No production or full all-route UAT is claimed. Browser interaction with the specific new category retry and reset-password flows remains NOT RUN; they have unit regression coverage only.
+- Main moved one docs-only commit to `f7565aefd7af6033d169167d1bebb3dc5cd248ce`; `compare_commits(main...p3/catalog-screen-error-states-20261023)` reported diverged, ahead 63 / behind 1, merge base `59547c7d...`. Current PR metadata says `mergeable=true`; no sync or merge was performed while awaiting formal review.
+- These results describe the last terminal-tested SHA above. The checkpoint/report commit that follows is documentation-only and must receive its own exact-head workflow readback.
 
 ## Latest independent P3 increment — P3-RESET-PASSWORD-FLOW-017
 
@@ -55,18 +63,18 @@ Local test execution was attempted but is blocked by environment DNS (`git ls-re
 - P2-owned shared matrix/state/coordination, backend contracts, RPCs, services and migrations were not edited.
 
 ## Mandatory execution checkpoint fields — current readback
-LAST_COMPLETED_TASK_ID: P3-RESET-PASSWORD-FLOW-017 (test implementation committed; acceptance pending exact-head CI)
+LAST_COMPLETED_TASK_ID: P3-RESET-PASSWORD-FLOW-017 (Core unit suite passed; full Core/P2 exact-head runs succeeded on documentation SHA 259aabc..., while later docs sync needs fresh verification)
 CURRENT_BRANCH: p3/catalog-screen-error-states-20261023
 BASE_SHA: 59547c7d683cefd65cab445b97219aa701021676
-HEAD_SHA: b8259e42a75aa06ea9c23069372c877b9112040f (latest application/test commit before documentation-only synchronization)
+HEAD_SHA: 259aabc6078d868e35087aa33924d4b044af8e5b (last fully tested branch head before this docs synchronization; application/test SHA b8259e42a75aa06ea9c23069372c877b9112040f)
 ROUTES_COVERED: /categories; /collections; /admin/reports; /orders/$id; /orders/; /invoices; /statement; /assistant; /barcode; /offline; /login; /forgot-password; /register; /quotes; /reorder; /; /addresses; /cart; /catalog; /checkout; /compare; /product/$id; /products; /search; /store; /wishlist; /offers; /search/advanced — targeted route/component tests, no all-route browser UAT
 FILES_CHANGED: src/routes/index.tsx; src/test/customer-route-loading.test.tsx; src/components/StorefrontOffersPage.tsx; src/test/storefront-offers.test.tsx; src/components/AdvancedStorefrontSearchPage.tsx; src/test/advanced-storefront-search.test.tsx; src/components/Storefront.tsx; src/test/storefront-price-visibility-ui.test.tsx; src/test/reset-password-route.test.tsx; P3 checkpoint/report
-TESTS_RUN_WITH_RESULTS: Exact code/test SHA `add4f49413ccc450d61fd0533615a472679443e2`: Core [39964711803] SUCCESS including unit tests, isolated PostgreSQL 17 acceptance, lint, build, preview/dev smoke and Chromium price-visibility acceptance; P2 [39964711930] public UI smoke SUCCESS but local-Supabase browser job CANCELLED and credential-gated E2E SKIPPED. The newer separate loading regression SHA `4cd6860...` had no workflow exposed on first lookup. Current application/test SHA `b8259e42a75aa06ea9c23069372c877b9112040f` Core [39966520265] is IN_PROGRESS and P2 [39966520115] PENDING. Local tests NOT RUN: DNS to github.com is unavailable. Check the documentation successor separately after this synchronization.
-TESTS_FAILED_OR_SKIPPED: Historical Core SHA `39638915...` failed seven route-test harness assertions; fixed later, and the complete Core workflow succeeded on `8663bd9...` for that code set. P2 on `add4f494...` had public smoke SUCCESS, local-Supabase browser job CANCELLED, credential-gated E2E SKIPPED; these are distinct outcomes, not a full P2 PASS. Latest SHA `b8259e42...` has pending/running CI; local tests, full-route UAT, and production acceptance NOT RUN.
+TESTS_RUN_WITH_RESULTS: Exact branch SHA `259aabc6078d868e35087aa33924d4b044af8e5b`: Core [39966679379 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39966679379), P2 [39966679223 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39966679223). Core passed unit tests, isolated PostgreSQL 17 workflow/migration tests, isolated backup/restore, lint, build, preview on port 4173, dev on port 5173, and Chromium price privacy. P2 public UI smoke and local Supabase acceptance passed: order persistence and cross-tenant denial, returns/review/receipt/credit memo, audited Onyx XLSX and finance/task print. Separate authenticated customer E2E (external credentials) is SKIPPED. Local manual runner NOT RUN because `git ls-remote` failed DNS resolution. Both results are on the same exact head; documentation update creates a new successor SHA that needs independent runs.
+TESTS_FAILED_OR_SKIPPED: Current tested SHA `259aabc...` has no failed Core or P2 jobs. `Playwright customer order and tenant isolation` was SKIPPED under the external-credential gate, while the distinct local-Supabase Chromium job succeeded on this same SHA. Local test execution, category-error Browser UAT, reset-password Browser UAT, and production acceptance remain NOT RUN.
 DEFECTS_FOUND: root / blank hydration fallback fixed; 23 route-loading assertions added; offers filter inactive products and report source-specific errors; advanced search now has category loading/retry states; full route acceptance remains open
 HANDOFF_TO_P1_OR_P2: P1 owns /admin/exports generated route registration and locked admin wrappers; P2 owns canonical route matrix/backend contracts and package-cache CI path (handoff https://github.com/Report-Engainall/Nasr1/pull/89#issuecomment-6365925364)
 PR_URL: https://github.com/Report-Engainall/Nasr1/pull/89
 MERGE_STATUS: OPEN; UNMERGED; formal independent review absent
 BLOCKERS: current code SHA Core/P2 checks pending; earlier HTTP 429 cache issue; P2 local-Supabase run on ef294... not yet terminal at last readback; full route browser UAT NOT RUN
-NEXT_ACTION: inspect terminal results for Core 39966520265 and P2 39966520115 on application/test SHA b8259e42a75aa06ea9c23069372c877b9112040f; then read the current documentation-successor checks, repair any concrete failure, and continue an independent unlocked P3 acceptance gap. PR #89 must remain open until final-head required checks pass and an independent formal review is recorded.
+NEXT_ACTION: inspect exact-head Core/P2 workflows for the new documentation successor after this checkpoint/report commit; then continue another independent P3 gap. Before PR #89 merge, synchronize latest main's one-commit documentation drift safely and require formal independent review plus green current-head checks. External credential E2E and browser-specific category-retry/reset-password UAT remain open.
 UPDATED_AT: 2026-10-23T16:50:00+03:00
