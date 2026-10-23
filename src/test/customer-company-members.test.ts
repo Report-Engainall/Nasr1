@@ -3,8 +3,14 @@ const mocks=vi.hoisted(()=>({rpc:vi.fn()}));vi.mock("@/lib/supabase",()=>({supab
 import {acceptCompanyInvitation,createCompanyInvitation,fetchCompanyMembershipWorkspace,revokeCompanyInvitation,revokeCompanyMember} from "@/lib/customer-company-members";
 const PROFILE="f4444444-4444-4444-8444-444444444444";const INVITE="d1111111-1111-4111-8111-111111111111";
 describe("company membership invitation contract",()=>{
- beforeEach(()=>{vi.clearAllMocks();mocks.rpc.mockResolvedValue({data:{invitation_id:INVITE,invited_email:"buyer@example.test",member_role:"buyer",invitation_token:"a".repeat(64),expires_at:"2026-10-22T00:00:00Z"},error:null});});
+ beforeEach(()=>{vi.clearAllMocks();mocks.rpc.mockResolvedValue({data:{invitation_id:INVITE,invited_email:"buyer@example.test",member_role:"buyer",invitation_token:"a".repeat(64),expires_at:"2099-10-22T00:00:00Z"},error:null});});
  it("creates an invitation without client-supplied tenant/customer identifiers",async()=>{await expect(createCompanyInvitation(" Buyer@Example.Test ","buyer")).resolves.toMatchObject({invited_email:"buyer@example.test",member_role:"buyer"});expect(mocks.rpc).toHaveBeenCalledWith("create_customer_company_invitation",{p_email:"buyer@example.test",p_member_role:"buyer"});expect(JSON.stringify(mocks.rpc.mock.calls[0])).not.toMatch(/organization_id|customer_id/);});
+ it("rejects malformed, non-date, and already-expired server invitation acknowledgements",async()=>{
+  for (const expires_at of ["not-a-date", "2000-01-01T00:00:00Z"]) {
+   mocks.rpc.mockResolvedValueOnce({data:{invitation_id:INVITE,invited_email:"buyer@example.test",member_role:"buyer",invitation_token:"a".repeat(64),expires_at},error:null});
+   await expect(createCompanyInvitation("buyer@example.test","buyer")).rejects.toThrow("موعد انتهاء مستقبلي");
+  }
+ });
  it("rejects malformed email and roles before RPC",async()=>{await expect(createCompanyInvitation("bad-email","buyer")).rejects.toThrow("بريدًا إلكترونيًا صحيحًا");await expect(createCompanyInvitation("buyer@example.test","owner" as never)).rejects.toThrow("دور عضو الشركة غير صالح");expect(mocks.rpc).not.toHaveBeenCalled();});
  it("requires explicit server confirmation for invitation acceptance",async()=>{mocks.rpc.mockResolvedValueOnce({data:{company_name:"الأغبري",member_role:"finance",status:"active"},error:null});await expect(acceptCompanyInvitation("a".repeat(64))).resolves.toEqual({company_name:"الأغبري",member_role:"finance",status:"active"});mocks.rpc.mockResolvedValueOnce({data:null,error:null});await expect(acceptCompanyInvitation("b".repeat(64))).rejects.toThrow("استجابة الخادم غير صالحة");});
  it("surfaces a server-confirmed expired invitation as an actionable error",async()=>{

@@ -1,39 +1,35 @@
-# تقرير P2 — الحالة التنفيذية الحية 2026-10-23T22:20:00+03:00
+# تقرير P2 — الحالة التنفيذية الحية 2026-10-23T23:41:00+03:00
 
 REPOSITORY=Report-Engainall/Nasr1
-MAIN_SHA=cd303b7fe0f263c9f62ed97f10202e9895465273
-MAIN_TREE=51aa49eb36bbf6227c42612e35b1bf03e6b3360a
-MAIN_CORE_CI=SUCCESS — run 40006315985 on exact base-main SHA cd303b7fe0f263c9f62ed97f10202e9895465273; base proof only.
-CURRENT_BRANCH=p2/payment-idempotency-current-main-20261023b
-BASE_SHA=cd303b7fe0f263c9f62ed97f10202e9895465273
-LAST_TESTED_HEAD_SHA=1ecfd0b343419e9745e5e8631ecea738c9f13862
-HEAD_SHA=REREAD AFTER THIS CHECKPOINT COMMIT; required tests on the resulting head are pending
-CURRENT_TASK=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD
-TASK_STATUS=TESTED_EXACT_SHA and local BROWSER_PROVEN on 1ecfd0b343419e9745e5e8631ecea738c9f13862; PR #112 OPEN; checkpoint-descendant retest pending
-PR_URL=https://github.com/Report-Engainall/Nasr1/pull/112
+MAIN_SHA=6815b00781412bd98cbdd9fb660e475e4540b543
+MAIN_TREE=28a1b4dd0084c88a2a7f22fd6dc38b3a21fb82a8
+MAIN_CORE_CI=SUCCESS — run 40019333142 on exact main SHA 6815b00781412bd98cbdd9fb660e475e4540b543.
+CURRENT_PR=https://github.com/Report-Engainall/Nasr1/pull/127
+CURRENT_BRANCH=feat/p2-company-workspace-acceptance-20261023
+BASE_SHA=6815b00781412bd98cbdd9fb660e475e4540b543
+TASK_ID=COMPANY-001-CUSTOMER-ADDRESS-VALIDATION
+TASK_STATUS=IMPLEMENTED; REGRESSION_TESTS_ADDED; FINAL-HEAD CORE/P2 PENDING
+MERGE_STATUS=OPEN; no direct main writes.
+LOCKED_PATHS=src/lib/customer-addresses.ts; src/test/customer-addresses.test.ts; five central P2 files.
 
-## Live implementation and exact-head evidence
+## Consolidated Company/address validation — existing PR #127
 
-The migration and client retry fix are implemented in the existing payment flow; no parallel ledger/payment engine is created.
+PR #127 already owns `src/lib/customer-addresses.ts` and its tests and validates fetched rows, UUID, country, default flag and timestamps. An additional PR #129 was found touching these same two files, so the UUID acknowledgement/ID prevalidation fix is being transferred into #127 and #129 will close without merge.
 
-- `supabase/migrations/20261023235900_customer_payment_idempotency.sql`: tenant-scoped UUID key and canonical SHA-256 request fingerprint; same key+same normalized payload replays the saved payment; changed payload is rejected; key requests serialize before the existing tenant+invoice settlement advisory lock; the legacy 5-argument RPC is removed; direct payment table access remains denied.
-- `src/components/CustomerWorkflows.tsx`: the payment form retains the key for an exact-payload retry after an ambiguous RPC failure; changing payload changes key; successful server acknowledgement clears the pending request.
-- `src/integrations/supabase/types.ts`, `src/components/CustomerWorkflows.finance.test.tsx`, `scripts/test-staff-receivables-aging-credit-memo-parity.mjs`, and `scripts/test-database-migrations.mjs` updated for the new RPC contract and retry/DB acceptance.
-- [PR #112](https://github.com/Report-Engainall/Nasr1/pull/112) is open and based on the current base SHA above.
+The additional gap: `save_customer_address` returns UUID, but the service accepted arbitrary non-empty strings as success; optional edit IDs and delete IDs were sent to RPC without UUID validation. The combined implementation requires UUID acknowledgement, rejects invalid edit/delete IDs before RPC, and adds regression coverage.
 
-## Exact-SHA results (the tested head is 1ecfd0b343419e9745e5e8631ecea738c9f13862, not the post-checkpoint commit)
+No UI routes, migration, RLS, grants or membership/invitation/session code changed.
 
-- Core [40009788759](https://github.com/Report-Engainall/Nasr1/actions/runs/40009788759) = SUCCESS on 1ecfd0b343419e9745e5e8631ecea738c9f13862. The completed job covered unit tests, applying all migrations/financial acceptance in isolated PostgreSQL 17, lint, build, production-preview/dev smoke, and Chromium price-visibility acceptance.
-- P2 [40009788309](https://github.com/Report-Engainall/Nasr1/actions/runs/40009788309) = SUCCESS on 1ecfd0b343419e9745e5e8631ecea738c9f13862. Public read-only Storefront Chromium smoke and the isolated local-Supabase/browser acceptance completed successfully: order persistence and cross-tenant denial; return/review/receipt/credit memo; audited Onyx XLSX; finance/operational-task printing; customer-manager authorization/financial privacy/audit; central device-session authorization/revocation.
-- The credential-dependent hosted customer order/tenant E2E job 120607612381 was SKIPPED due unavailable dedicated non-production credentials. That remains `BLOCKED_EXTERNAL`, not PASS, and is separate from the successful local Supabase Chromium flow.
-- No production database migrations, production writes, real payment processing, or live external Onyx/WhatsApp calls were performed.
-- Initial Core failures on obsolete commits were rooted in the test harness, not payment SQL: missing `randomUUID` import and direct audit SELECTs run under `authenticated`. Fixed by importing the Node crypto UUID helper and elevating only those fixture verification reads, restoring authenticated role before client-RPC concurrency, without broadening grants or table access. Core is now green at the exact tested head.
-- CodeRabbit review was explicitly triggered for exact tested head 1ecfd0b343419e9745e5e8631ecea738c9f13862; at this snapshot it has acknowledged the trigger but has not returned a completed formal review or findings. Manual review of the migration, RPC boundary, advisory-lock ordering, tenant scoping, retry key lifecycle, and test patches was performed; recheck bot output before merge.
+## Evidence boundary
 
-## Next action
-This checkpoint commit changes the PR head. Reread the live branch SHA and PR #112 after commit; wait for fresh Core and P2 workflows to reach terminal success on the resulting exact SHA; recheck CodeRabbit review; merge only via PR if no required review/CI gate is outstanding; then verify the post-merge main SHA and its corresponding CI.
+- Main 6815b00781412bd98cbdd9fb660e475e4540b543, Core run 40019333142 SUCCESS on exact main SHA.
+- PR #126 exact head 2d1fddde5c8c9b3185dc19880ef5426129d28005: Core 40018779157 + P2 40018779193 SUCCESS.
+- PR #127 current head changes after this atomic code+checkpoint commit; exact-head Core and P2/PostgreSQL 17 must reach terminal SUCCESS on the same latest SHA. Earlier results do not prove the combined patch.
+- Hosted customer/tenant E2E is SKIPPED/BLOCKED_EXTERNAL if authorized non-production credentials are unavailable; it is not PASS.
 
-UPDATED_AT=2026-10-23T22:20:00+03:00
+NEXT_TASK_ID=COMPANY-001-CUSTOMER-ADDRESS-VALIDATION
+NEXT_ACTION=Close PR #129 without merging after transfer; read current #127 HEAD; inspect latest exact-head Core/P2 statuses; fix evidenced defects; merge #127 through PR only after the gates succeed; verify main SHA and main Core.
+UPDATED_AT=2026-10-23T23:41:00+03:00
 
 ---
 
