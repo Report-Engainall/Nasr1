@@ -85,6 +85,37 @@ describe("admin product form submission", () => {
     });
   });
 
+  it("does not allow product save to proceed with an unresolved category lookup error", async () => {
+    mocks.fetchCategories
+      .mockRejectedValueOnce(new Error("فشل تحميل التصنيفات"))
+      .mockResolvedValueOnce([{ id: "category-1", name: "الحبوب" }]);
+    const onSaved = vi.fn();
+    render(<ProductModal product={null} onClose={vi.fn()} onSaved={onSaved} />);
+    fillRequiredFields();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("فشل تحميل التصنيفات");
+    const submit = screen.getByRole("button", { name: "حفظ المنتج" });
+    expect(submit).toBeDisabled();
+    expect(mocks.createProduct).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة" }));
+    await waitFor(() => expect(screen.getByRole("option", { name: "الحبوب" })).toBeTruthy());
+    expect(mocks.fetchCategories).toHaveBeenCalledTimes(2);
+    expect(submit).toBeEnabled();
+
+    fireEvent.change(screen.getByLabelText("التصنيف"), { target: { value: "category-1" } });
+    fireEvent.click(submit);
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(mocks.createProduct).toHaveBeenCalledWith({
+      name: "منتج الاختبار",
+      item_code: "TEST-001",
+      base_price: 25,
+      category_id: "category-1",
+      unit: "كرتون",
+      status: "active",
+    });
+  });
+
   it("releases the create guard after a failed request so the user can retry", async () => {
     mocks.createProduct
       .mockRejectedValueOnce(new Error("تعذر حفظ المنتج"))
