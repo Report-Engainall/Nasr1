@@ -115,7 +115,7 @@ function criticalBusinessDataSignature(url) {
   const fields = tables.map(([label, table]) =>
     "'" + label + "', jsonb_build_object(" +
       "'row_count', (SELECT count(*)::bigint FROM " + table + "), " +
-      "'rows_md5', (SELECT pg_catalog.md5(COALESCE(string_agg(row_data, pg_catalog.chr(10) ORDER BY row_data), '')) " +
+      "'rows_sha256', (SELECT public.customer_company_invitation_sha256(COALESCE(string_agg(row_data, pg_catalog.chr(10) ORDER BY row_data), '')) " +
         "FROM (SELECT pg_catalog.to_jsonb(t)::text AS row_data FROM " + table + " t) AS backup_rows))"
   );
   const sql = "SELECT pg_catalog.jsonb_build_object(" + fields.join(", ") + ")::text";
