@@ -1,12 +1,12 @@
 # الحالة التنفيذية الحالية الوحيدة — Nasr1 / P2
-LAST_RECONCILED_AT=2026-10-23T21:54:00+03:00
+LAST_RECONCILED_AT=2026-10-23T21:57:00+03:00
 
 ## حقيقة Git الحالية
 REPOSITORY=Report-Engainall/Nasr1
 CURRENT_BRANCH=main (مرجع قراءة فقط؛ لا كتابة مباشرة على main)
 MAIN_SHA=cd303b7fe0f263c9f62ed97f10202e9895465273
 MAIN_TREE=51aa49eb36bbf6227c42612e35b1bf03e6b3360a
-MAIN_CURRENT_CI=IN_PROGRESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40006315985 (exact main SHA cd303b7fe0f263c9f62ed97f10202e9895465273); exact-main P2 = NOT RUN
+MAIN_CURRENT_CI=SUCCESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40006315985 (exact main SHA cd303b7fe0f263c9f62ed97f10202e9895465273); exact-main P2 = NOT RUN. P2 run 40006269156 is IN_PROGRESS on PR #111 head 64632871573b0d655051df9ac795c4cc76b68069, not the merge SHA.
 LAST_MERGED_PR=#111 — uploaded Bolt archive reconciliation documentation; merge SHA cd303b7fe0f263c9f62ed97f10202e9895465273 (docs-only). Previous PR #110 pricing retry remains integrated; exact PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09 Core 40004970539 SUCCESS and P2 40004970599 SUCCESS; exact merge SHA 03ac6c5 Core 40005590004 SUCCESS.
 PR110_CORE_CI=SUCCESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40004970539 (exact tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09)
 PR110_P2_CI=SUCCESS — https://github.com/Report-Engainall/Nasr1/actions/runs/40004970599 (exact tested PR head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09)
@@ -43,17 +43,17 @@ LAST_COMPLETED_MERGE_SHA=03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac
 NEXT_TASK_ID=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD
 CURRENT_BRANCH=p2/payment-idempotency-current-main-20261023b (feature branch; main is read-only)
 BASE_SHA=cd303b7fe0f263c9f62ed97f10202e9895465273
-HEAD_SHA=d7d1e84df769f6921e46440167c1cfb0cdd1310c (pre-state-update feature snapshot; reread final PR head after this commit)
+HEAD_SHA=834e093e4dd68e232f8d2eee00c12ccfa789e647 (pre-state-refresh feature snapshot; reread final branch head after this state commit before opening PR)
 TASK_STATUS=IMPLEMENTED; EXACT-HEAD CI NOT RUN
 NEXT_ACTION=Review final PR diff; open PR from p2/payment-idempotency-current-main-20261023b to main; run Core and P2 Critical Paths on one exact PR head; inspect terminal jobs for PostgreSQL 17 migration acceptance, unit/component tests and local browser flows; fix root causes before merge; merge via PR only after review and required jobs pass; then verify exact merge SHA and current-main CI/P2. Do not create a second ledger/payment engine.
 NEXT_ACTION_EVIDENCE=PR #110 tested head b6d99a91958b43e7cd90164a104c8c0a5bc1bd09 Core 40004970539/P2 40004970599 SUCCESS; its merge SHA 03ac6c5f7e3dc792c252d9dd2ee1dd5ec3dfcdac Core 40005590004 SUCCESS. PR #111 docs-only merge SHA cd303b7fe0f263c9f62ed97f10202e9895465273 Core 40006315985 is IN_PROGRESS; exact-main P2 NOT RUN. Payment branch has not run CI yet. Hosted customer E2E for previous release was SKIPPED, not PASS.
-FILES_CHANGED=20261023235900_customer_payment_idempotency.sql; CustomerWorkflows.tsx; Supabase types.ts; CustomerWorkflows.finance.test.tsx; test-staff-receivables-aging-credit-memo-parity.mjs; test-database-migrations.mjs; WORK_COORDINATION.md
+FILES_CHANGED=20261023235900_customer_payment_idempotency.sql; src/components/CustomerWorkflows.tsx; src/integrations/supabase/types.ts; src/components/CustomerWorkflows.finance.test.tsx; scripts/test-staff-receivables-aging-credit-memo-parity.mjs; scripts/test-database-migrations.mjs; docs/bolt-source-reconciliation/WORK_COORDINATION.md; CURRENT_EXECUTION_STATE.md; REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv; PROGRAMMER_2_CURRENT_REPORT.md; EXECUTION_LOG.md
 TESTS_RUN_WITH_RESULTS=NOT RUN on current implementation branch
 FAILED_OR_SKIPPED=No implementation-branch test result yet; hosted credential-gated E2E remains BLOCKED_EXTERNAL
 MERGE_STATUS=PR not created; no merge claimed
 BLOCKERS=Await exact-head CI after PR creation; hosted customer E2E credentials are unavailable but do not block local PG17/browser tests
 LOCKED_PATHS=20261023235900_customer_payment_idempotency.sql; CustomerWorkflows.tsx; types.ts; CustomerWorkflows.finance.test.tsx; test-staff-receivables-aging-credit-memo-parity.mjs; test-database-migrations.mjs
-UPDATED_AT=2026-10-23T21:54:00+03:00
+UPDATED_AT=2026-10-23T21:57:00+03:00
 
 ## Evidence rules
 Allowed statuses: IMPLEMENTED, INTEGRATED, TESTED_EXACT_SHA, BROWSER_PROVEN, PRODUCTION_PROVEN, CLOSED_WITH_EVIDENCE, BLOCKED_EXTERNAL, NOT RUN. A skipped job is not PASS. Never transfer PASS between SHAs. Local DB/browser evidence is not production proof.
