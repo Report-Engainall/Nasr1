@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   fetchPage: vi.fn(),
   updateCustomerStatus: vi.fn(),
+  updateCustomerTier: vi.fn(),
   createCustomer: vi.fn(),
 }));
 
@@ -17,6 +18,7 @@ vi.mock('@/lib/api', () => ({
   fetchCategories: vi.fn(), fetchCustomers: vi.fn(), fetchDashboardStats: vi.fn(), fetchOrders: vi.fn(),
   fetchPricingRules: vi.fn(), fetchProducts: vi.fn(), setInventoryReorderPoint: vi.fn(),
   togglePricingRule: vi.fn(), transferInventory: vi.fn(), updateCustomerStatus: mocks.updateCustomerStatus,
+  updateCustomerTier: mocks.updateCustomerTier,
   updatePricingRule: vi.fn(), updateProduct: vi.fn(), uploadProductImage: vi.fn(), approvePricingRule: vi.fn(),
   previewCustomerTierPrice: vi.fn(),
 }));
@@ -40,6 +42,7 @@ describe('admin customer directory paging', () => {
   beforeEach(() => {
     mocks.fetchPage.mockReset();
     mocks.updateCustomerStatus.mockReset();
+    mocks.updateCustomerTier.mockReset();
     mocks.createCustomer.mockReset();
     mocks.fetchPage.mockImplementation(async ({ search, page, pageSize }: { search: string; page: number; pageSize: number }) => {
       const all = Array.from({ length: 30 }, (_, index) => customer(index + 1));
@@ -87,4 +90,40 @@ describe('admin customer directory paging', () => {
     });
     expect(mocks.fetchPage).toHaveBeenLastCalledWith({ search: '', page: 1, pageSize: 25 });
   });
+  it('requires a reason, submits the audited tier change, and refreshes the directory', async () => {
+    const onNotice = vi.fn();
+    mocks.updateCustomerTier.mockResolvedValue({ customer_id: 'customer-1', previous_tier: 'retail', tier: 'wholesale', changed: true });
+    await act(async () => {
+      root?.render(<Customers onNotice={onNotice} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const tierButton = [...(host?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent?.includes('تغيير الشريحة') && !button.disabled);
+    expect(tierButton).toBeTruthy();
+    await act(async () => { tierButton?.click(); });
+    const tierSelect = host?.querySelector<HTMLSelectElement>('select[aria-label="شريحة العميل الجديدة"]');
+    const reasonInput = host?.querySelector<HTMLTextAreaElement>('textarea[aria-label="سبب تغيير الشريحة"]');
+    const saveButton = [...(host?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent?.includes('حفظ تغيير الشريحة'));
+    expect(tierSelect).toBeTruthy();
+    expect(reasonInput).toBeTruthy();
+    expect(saveButton?.disabled).toBe(true);
+    await act(async () => {
+      if (tierSelect) {
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set?.call(tierSelect, 'wholesale');
+        tierSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      if (reasonInput) {
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(reasonInput, 'تحديث حسب حجم المشتريات');
+        reasonInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    expect(saveButton?.disabled).toBe(false);
+    await act(async () => { saveButton?.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(mocks.updateCustomerTier).toHaveBeenCalledWith('customer-1', 'retail', 'wholesale', 'تحديث حسب حجم المشتريات');
+    expect(mocks.fetchPage).toHaveBeenCalledTimes(2);
+    expect(onNotice).toHaveBeenCalledWith('تم تحديث شريحة العميل وتسجيل السبب في سجل التدقيق.');
+    expect(host?.textContent).not.toContain('حفظ تغيير الشريحة');
+  });
+
 });

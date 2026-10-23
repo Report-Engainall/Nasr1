@@ -97,6 +97,11 @@ async function cleanup() {
     [org, name, otherOrg, foreignName],
   ).catch(() => {});
   await root.unsafe(
+    "delete from public.audit_logs where organization_id=$1 and action='customer.tier_changed' and entity_id in " +
+      "(select id from public.customers where organization_id=$1 and customer_code='CI-P1-CATALOG-LOCAL-CUSTOMER')",
+    [org],
+  ).catch(() => {});
+  await root.unsafe(
     "delete from public.customers where organization_id=$1 and customer_code='CI-P1-CATALOG-LOCAL-CUSTOMER'",
     [org],
   ).catch(() => {});
@@ -171,6 +176,58 @@ async function main() {
 
   await ident(admin, adminAuth, "admin@aghbari.ye");
   await ident(customer, customerAuth, "customer@example.test");
+
+  const tierChange = await rpc(admin,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer, "retail", "wholesale", "CI test: customer moved to wholesale tier"]);
+  assert.deepEqual(
+    { customer_id:tierChange.customer_id, previous_tier:tierChange.previous_tier, tier:tierChange.tier, changed:tierChange.changed },
+    { customer_id:localCustomer, previous_tier:"retail", tier:"wholesale", changed:true });
+  const tierAuditRows=await root.unsafe(
+    "select organization_id,actor_id,action,entity_type,entity_id,old_value,new_value from public.audit_logs " +
+    "where organization_id=$1 and action='customer.tier_changed' and entity_id=$2",
+    [org,localCustomer]);
+  assert.equal(tierAuditRows.length,1);
+  assert.equal(tierAuditRows[0].organization_id,org);
+  assert.equal(tierAuditRows[0].action,"customer.tier_changed");
+  assert.equal(tierAuditRows[0].entity_type,"customer");
+  assert.equal(tierAuditRows[0].old_value.tier,"retail");
+  assert.equal(tierAuditRows[0].new_value.tier,"wholesale");
+  assert.equal(tierAuditRows[0].new_value.reason,"CI test: customer moved to wholesale tier");
+  assert.ok(tierAuditRows[0].actor_id);
+
+  const tierNoOp=await rpc(admin,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"wholesale","wholesale","CI no-op"]);
+  assert.equal(tierNoOp.changed,false);
+  const tierAuditCount=await root.unsafe(
+    "select count(*)::integer as count from public.audit_logs where action='customer.tier_changed' and entity_id=$1",
+    [localCustomer]);
+  assert.equal(tierAuditCount[0].count,1);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"wholesale","secret","CI invalid tier"]),/tier must be one of/i);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"wholesale","vip"," "]),/reason must contain/i);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"retail","vip","CI stale expected value"]),/tier changed|stale/i);
+  await assert.rejects(()=>rpc(admin,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [foreignCustomer,"retail","vip","CI cross tenant"]),/not found in current organization/i);
+  await assert.rejects(()=>rpc(customer,
+    "select public.set_admin_customer_tier($1::uuid,$2::text,$3::text,$4::text) result",
+    [localCustomer,"wholesale","vip","CI customer forbidden"]),/admin or manager permission required/i);
+  const customerPrivileges=await root.unsafe(
+    "select has_table_privilege('authenticated','public.customers','UPDATE') as table_update, " +
+    "has_column_privilege('authenticated','public.customers','tier','UPDATE') as tier_update, " +
+    "has_column_privilege('authenticated','public.customers','status','UPDATE') as status_update");
+  assert.equal(customerPrivileges[0].table_update,false);
+  assert.equal(customerPrivileges[0].tier_update,false);
+  assert.equal(customerPrivileges[0].status_update,true);
+  await assert.rejects(()=>admin.unsafe("update public.customers set tier='vip' where id=$1",[localCustomer]),/permission denied/i);
+
 
   const category = await rpc(
     admin,

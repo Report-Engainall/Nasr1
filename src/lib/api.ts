@@ -315,6 +315,45 @@ export async function updateCustomerStatus(id: string, status: string): Promise<
   }
 }
 
+
+export type CustomerTierChangeResult = {
+  customer_id: string;
+  previous_tier: string;
+  tier: 'retail' | 'wholesale' | 'vip';
+  changed: boolean;
+};
+
+export async function updateCustomerTier(
+  id: string,
+  expectedTier: string,
+  nextTier: string,
+  reason: string,
+): Promise<CustomerTierChangeResult> {
+  const allowedTiers = ['retail', 'wholesale', 'vip'] as const;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error('معرّف العميل غير صالح.');
+  }
+  const normalizedExpected = typeof expectedTier === 'string' ? expectedTier.trim().toLowerCase() : '';
+  const normalizedTier = typeof nextTier === 'string' ? nextTier.trim().toLowerCase() : '';
+  const normalizedReason = typeof reason === 'string' ? reason.trim() : '';
+  if (!normalizedExpected || normalizedExpected.length > 32 || !allowedTiers.includes(normalizedTier as typeof allowedTiers[number])) {
+    throw new Error('شريحة العميل غير صالحة.');
+  }
+  if (normalizedReason.length < 3 || normalizedReason.length > 500) {
+    throw new Error('سبب تغيير الشريحة مطلوب (3 إلى 500 حرف).');
+  }
+  const { data, error } = await supabase.rpc('set_admin_customer_tier', {
+    p_customer_id: id, p_expected_tier: normalizedExpected, p_tier: normalizedTier, p_reason: normalizedReason,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || Array.isArray(data)
+    || data.customer_id !== id || data.tier !== normalizedTier
+    || typeof data.previous_tier !== 'string' || typeof data.changed !== 'boolean') {
+    throw new Error('لم يؤكد الخادم تحديث شريحة العميل.');
+  }
+  return data as CustomerTierChangeResult;
+}
+
 // ─── Suppliers ───
 export async function fetchSuppliers(): Promise<Supplier[]> {
   const { organizationId: orgId } = await getCurrentTenantScope();
@@ -396,10 +435,26 @@ export async function reviewOrderLines(
   };
 }
 
+const ORDER_STATUS_VALUES = new Set([
+  'draft', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled',
+]);
+
 export async function updateOrderStatus(id: string, status: string): Promise<void> {
-  // The database transition trigger validates the state change and writes status history atomically.
-  const { error } = await supabase.from('orders').update({ status }).eq('id', id);
+  // Reject unknown values locally; the database trigger remains authoritative for legal transitions.
+  if (!ORDER_STATUS_VALUES.has(status)) throw new Error('حالة الطلب غير مدعومة.');
+
+  // PostgREST can return no row without an error when no row is visible to this tenant/RLS scope.
+  // Ask only for the granted id column and never report success without the exact row acknowledgement.
+  const { data: updated, error } = await supabase
+    .from('orders')
+    .update({ status })
+    .eq('id', id)
+    .select('id')
+    .maybeSingle();
   if (error) throw error;
+  if (!updated?.id || updated.id !== id) {
+    throw new Error('لم يؤكد الخادم تحديث حالة الطلب؛ قد يكون الطلب غير موجود في المؤسسة الحالية أو أن الانتقال غير مسموح.');
+  }
 }
 
 export async function createOrder(order: {

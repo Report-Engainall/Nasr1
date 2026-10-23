@@ -9,7 +9,7 @@ import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
   fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
-  updateCustomerStatus, updatePricingRule, updateProduct, uploadProductImage,
+  updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage,
   approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
@@ -482,6 +482,7 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
   const [modal, setModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [activationCustomer, setActivationCustomer] = useState<Customer | null>(null);
+  const [tierCustomer, setTierCustomer] = useState<Customer | null>(null);
   const [busyCustomerId, setBusyCustomerId] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const statusMutationRef = useRef<string | null>(null);
@@ -587,7 +588,8 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
               <td><span className={`badge ${c.status === 'approved' ? 'success' : c.status === 'pending' ? 'warning' : 'danger'}`}>{c.status === 'approved' ? 'معتمد' : c.status === 'pending' ? 'قيد المراجعة' : 'موقوف'}</span></td>
               <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {canReadCustomer360 && <Button variant="outline" onClick={() => setSelectedCustomer(c)}>ملف 360</Button>}
-                {canManageCustomerActivation && c.status === 'approved' && <Button variant="outline" onClick={() => setActivationCustomer(c)}>دعوة تفعيل</Button>}
+                {canReadCustomer360 && <Button variant="outline" onClick={() => setTierCustomer(c)}>تغيير الشريحة</Button>}
+                {canManageCustomerActivation && c.status === 'approved' && <Button variant="outline" onClick={() => setActivationCustomer(c)}>دعوة تفعيل</Button>
                 {c.status === 'pending' && <Button onClick={() => void status(c.id, 'approved')} disabled={busyCustomerId !== null}>{busyCustomerId === c.id ? 'جار الاعتماد...' : 'اعتماد'}</Button>}
               </div></td>
             </tr>)}</tbody>
@@ -603,6 +605,12 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
     </section>
     {selectedCustomer && <AdminCustomer360 customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />}
     {activationCustomer && <CustomerActivationInvitationDialog customer={activationCustomer} onClose={() => setActivationCustomer(null)} />}
+    {tierCustomer && <CustomerTierDialog customer={tierCustomer} onClose={() => setTierCustomer(null)} onSaved={() => {
+      setTierCustomer(null);
+      void load().then((refreshed) => onNotice(refreshed
+        ? 'تم تحديث شريحة العميل وتسجيل السبب في سجل التدقيق.'
+        : 'تم تحديث الشريحة، لكن تعذّر تحديث القائمة. اضغط تحديث للمزامنة.'));
+    }} />}
     {modal && <CustomerModal onClose={() => setModal(false)} onSaved={() => {
       setModal(false);
       setQuery('');
@@ -612,6 +620,55 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
       onNotice('تمت إضافة العميل');
     }} />}
   </>;
+}
+
+
+export function CustomerTierDialog({ customer, onClose, onSaved }: {
+  customer: Customer; onClose: () => void; onSaved: () => void;
+}) {
+  const currentTier = typeof customer.tier === 'string' ? customer.tier.trim().toLowerCase() : '';
+  const supportedTiers = ['retail', 'wholesale', 'vip'] as const;
+  const [tier, setTier] = useState(supportedTiers.includes(currentTier as typeof supportedTiers[number]) ? currentTier : 'retail');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submitInFlight = useRef(false);
+  async function save() {
+    if (submitInFlight.current || saving) return;
+    setError('');
+    const cleanReason = reason.trim();
+    if (tier === currentTier) { setError('اختر شريحة مختلفة عن الشريحة الحالية.'); return; }
+    if (cleanReason.length < 3 || cleanReason.length > 500) {
+      setError('سبب تغيير الشريحة مطلوب (3 إلى 500 حرف).'); return;
+    }
+    submitInFlight.current = true;
+    setSaving(true);
+    try {
+      await updateCustomerTier(customer.id, currentTier, tier, cleanReason);
+      onSaved();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر تحديث شريحة العميل.');
+      submitInFlight.current = false;
+    } finally { setSaving(false); }
+  }
+  return <Modal title={`تغيير شريحة ${customer.business_name}`} onClose={() => { if (!saving) onClose(); }}>
+    <p className="text-muted">يتطلب تغيير الشريحة صلاحية مدير أو مسؤول، مع تسجيل السبب والقيمة السابقة والجديدة في سجل التدقيق.</p>
+    <Field label="شريحة العميل الجديدة">
+      <select aria-label="شريحة العميل الجديدة" value={tier} onChange={(event) => setTier(event.target.value)} disabled={saving}>
+        <option value="retail">تجزئة</option><option value="wholesale">جملة</option><option value="vip">مميز</option>
+      </select>
+    </Field>
+    <Field label="سبب تغيير الشريحة">
+      <textarea aria-label="سبب تغيير الشريحة" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={3} disabled={saving} />
+    </Field>
+    {error && <div className="form-error" role="alert">{error}</div>}
+    <div className="modal-actions">
+      <Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button>
+      <Button onClick={() => void save()} disabled={saving || tier === currentTier || reason.trim().length < 3 || reason.trim().length > 500}>
+        {saving ? 'جار حفظ الشريحة...' : 'حفظ تغيير الشريحة'}
+      </Button>
+    </div>
+  </Modal>;
 }
 
 function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
