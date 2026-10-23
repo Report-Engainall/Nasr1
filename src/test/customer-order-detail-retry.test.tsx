@@ -4,8 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
+  rpc: vi.fn(),
   user: { name: "Buyer", isStaff: false },
   orderFailuresRemaining: 1,
+  orderItems: [] as Array<{ product_id: string | null; quantity: number; approved_quantity: number | null; requested_quantity: number }>,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -13,7 +15,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 vi.mock("@/lib/supabase", () => ({
-  supabase: { from: mocks.from },
+  supabase: { from: mocks.from, rpc: mocks.rpc },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -61,6 +63,7 @@ function makeQuery(table: string) {
         error: null,
       };
     }
+    if (table === "order_items") return { data: mocks.orderItems, error: null };
     return { data: [], error: null };
   };
 
@@ -85,6 +88,9 @@ describe("customer order detail retry", () => {
 
   beforeEach(() => {
     mocks.orderFailuresRemaining = 1;
+    mocks.orderItems = [];
+    mocks.rpc.mockReset();
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
     mocks.from.mockReset();
     mocks.from.mockImplementation((table: string) => makeQuery(table));
     host = document.createElement("div");
@@ -123,4 +129,91 @@ describe("customer order detail retry", () => {
     expect(mocks.from).toHaveBeenCalledWith("order_items");
     expect(mocks.from).toHaveBeenCalledWith("order_status_history");
   });
+  it("saves a source-linked reorder template using product IDs and approved quantities only", async () => {
+    const productId = "33333333-3333-4333-8333-333333333333";
+    const templateId = "44444444-4444-4444-8444-444444444444";
+    mocks.orderFailuresRemaining = 0;
+    mocks.orderItems = [{
+      product_id: productId,
+      quantity: 5,
+      requested_quantity: 5,
+      approved_quantity: 3,
+    }];
+    mocks.rpc.mockResolvedValueOnce({ data: templateId, error: null });
+
+    await act(async () => {
+      root?.render(<OrderInvoice id={ORDER_ID} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const saveButton = host?.querySelector<HTMLButtonElement>('button[aria-label="حفظ كقالب إعادة الطلب"]');
+    expect(saveButton).not.toBeNull();
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith("save_reorder_template", {
+      p_name: "إعادة طلب ORD-RETRY-001",
+      p_lines: [{ product_id: productId, quantity: 3 }],
+      p_source_order_id: ORDER_ID,
+    });
+    expect(host?.textContent).toContain("تم حفظ قالب مرتبط بالطلب ORD-RETRY-001");
+    expect(host?.textContent).toContain("فتح مساحة إعادة الطلب");
+    expect(host?.querySelector<HTMLButtonElement>('button[aria-label="حفظ كقالب إعادة الطلب"]')?.disabled).toBe(true);
+  });
+
+  it("does not call the server when an order line lacks a valid product identity", async () => {
+    mocks.orderFailuresRemaining = 0;
+    mocks.orderItems = [{
+      product_id: null,
+      quantity: 2,
+      requested_quantity: 2,
+      approved_quantity: 2,
+    }];
+
+    await act(async () => {
+      root?.render(<OrderInvoice id={ORDER_ID} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const saveButton = host?.querySelector<HTMLButtonElement>('button[aria-label="حفظ كقالب إعادة الطلب"]');
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("أحد الأصناف لم يعد مرتبطًا بمنتج صالح");
+  });
+
+  it("shows a truthful failure and allows retry when the reorder template RPC rejects the request", async () => {
+    const productId = "33333333-3333-4333-8333-333333333333";
+    mocks.orderFailuresRemaining = 0;
+    mocks.orderItems = [{
+      product_id: productId,
+      quantity: 2,
+      requested_quantity: 2,
+      approved_quantity: 2,
+    }];
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: new Error("permission denied") });
+
+    await act(async () => {
+      root?.render(<OrderInvoice id={ORDER_ID} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const saveButton = host?.querySelector<HTMLButtonElement>('button[aria-label="حفظ كقالب إعادة الطلب"]');
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تعذر حفظ قالب إعادة الطلب");
+    expect(host?.textContent).not.toContain("تم حفظ قالب مرتبط بالطلب");
+    expect(host?.querySelector<HTMLButtonElement>('button[aria-label="حفظ كقالب إعادة الطلب"]')?.disabled).toBe(false);
+  });
+
 });
