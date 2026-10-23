@@ -1,8 +1,5 @@
 # Aghbari Commerce — Requirement Registry and Execution Rules
 
-> **تصحيح هدف التنفيذ الحي — 23 أكتوبر 2026:** وجهة الكود الحالية الوحيدة هي `Report-Engainall/Nasr1`. أي مستودع أو SHA أو حالة تشغيل قديمة مذكورة في محتوى هذا السجل أدناه هي مرجع تاريخي وليست خط أساس حيًا. مصدر المسارات الفعلي هو إعداد TanStack Start في `vite.config.ts` مع `src/router.tsx` و`src/routeTree.gen.ts` وملفات `src/routes/`؛ لا يكفي استخدام `src/App.tsx` أو `src/main.tsx` وحدهما لجرد المسارات. تُستخدم `docs/bolt-source-reconciliation/INTERFACE_COMPLETION_MATRIX.csv` كملخص تغطية للواجهات، وتُستخدم `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` كسجل مهام فجوات القبول الجارية؛ يجب تحديث السجلين المتأثرين دون نسخ مصفوفة ثالثة. المسار `docs/canonical/AGHBARI-SCREEN-ACTION-COVERAGE.md` غير موجود على الرأس الذي فُحص، لذلك لم تُنشأ مصفوفة موازية.
-
-
 **Product:** متجر الأغبري | Aghbari Commerce  
 **Repository:** `Aghbari-Technologies/aghbari-commerce-evolved`  
 **Branch:** `main`  
@@ -142,44 +139,3 @@ The following features are committed on PR #66 and tested on exact source SHA `7
 Current-main reconciliation performed as a merge commit must preserve P1’s customer-lifecycle acceptance in `scripts/test-database-migrations.mjs` and main’s independent order-input hardening acceptance helper. The resulting combined SHA must receive its own Core and Playwright runs; neither current P1-head nor old main PASS is transferable.
 | P1-CUST-MANAGER-ROLE-UI-001 | src/components/CustomerManagerRoleAssignment.tsx; role-RPC UI test; PostgreSQL acceptance in scripts/test-database-migrations.mjs; current runs Core 39937170618 and P2 39937170509 were attached to code SHA e9dd04d6a49ac4910e2a17d649485173ef486e66. | IMPLEMENTED; UI_UNIT_TEST_PASS; POSTGRESQL_ROLE_ACCEPTANCE_PASS; overall Core/P2 pending their last active browser/dependency steps; browser and production proof NOT RUN. |
 | P1-DEVICE-SESSION-MGMT-001 | src/components/DeviceManagement.tsx and src/test/device-management.test.tsx; current-session metadata and real auth sign-out scopes only. | PARTIAL; UI_UNIT_TEST_PASS; central device inventory, login history, selective per-device revocation and session policy are NOT IMPLEMENTED because the active P2 path lock prohibits the required SQL/RLS/RPC work. P2 must release/coordinate the contract; P1 owns implementation and acceptance after release. |
-
-## إضافة تنفيذ P3 على Nasr1 — 23 أكتوبر 2026
-
-### `P3-CAT-ERR-001` — مصدر الخطأ الصحيح في شاشة التصنيفات
-
-- **الهدف:** `Report-Engainall/Nasr1`; فرع التنفيذ `p3/catalog-screen-error-states-20261023`.
-- **الدليل الأساسي:** رأس `main` عند بدء الدفعة `0396b29aeab8c09c430df0063821251208a38477`; تنفيذ المكوّن في commit `50660fb5e371da59fc25a0d5e34266247ff399f8`. تغييرات التوثيق تجعل رأس PR النهائي مختلفًا؛ لا تنقل نتيجة اختبار إلى رأس آخر.
-- **الفجوة:** كانت `StorefrontCollectionsPage` تعرض عنوان «تعذر تحميل التصنيفات» حتى عندما يفشل استعلام المنتجات/الكتالوج وحده، ما يوجه المستخدم إلى مصدر خطأ خاطئ.
-- **التغيير:** يحدد العنوان مصدر الفشل (التصنيفات، الكتالوج، أو كلاهما)، ويعرض التفاصيل المسماة لكل مصدر فاشل ويحافظ على زر إعادة المحاولة.
-- **الاختبار المضاف:** `src/test/storefront-collections.test.tsx` يغطي الحالات الثلاث المذكورة.
-- **الحالة:** `IMPLEMENTED`; الاختبارات المحلية `NOT RUN` لأن checkout محليًا غير متاح في بيئة التنفيذ؛ Core CI على رأس PR النهائي `PENDING` حتى قراءة نتائج Actions. لا توجد مطالبة بإثبات متصفح أو إنتاج لهذه الدفعة.
-- **نطاق المتابعة:** تظل مراجعة جميع المسارات والإجراءات ومتطلبات B2B أوسع من هذا الإصلاح؛ سجّل الإغلاق بندًا بندًا في مصفوفة القبول، ولا تعتبر هذا الإصلاح إغلاقًا عامًا لتجربة المتجر.
-
-### `P3-CAT-COUNT-002` — استبعاد المنتجات غير النشطة من العدّ المنشور
-
-- **الدليل:** `src/components/StorefrontCollectionsPage.tsx`; يعرض قسم التصنيفات عدد المنتجات المطابقة للتصنيف ويعتمد رابط التصفح على أن يكون العدد أكبر من صفر.
-- **الفجوة المثبتة:** كانت عملية العد تستبعد `status === "inactive"` فقط، وتتجاهل `is_active === false`؛ لذلك يمكن احتساب صنف غير نشط إذا بقيت حالته النصية `active`.
-- **الإصلاح:** يشترط العد أن يكون `is_active !== false` وأن لا تكون الحالة `inactive`. هذه معالجة لبيانات الواجهة الواردة ولا تمنح أي صلاحية إضافية للخادم.
-- **الاختبار:** إضافة اختبار يمرر منتجين غير نشطين بتمثيلين مختلفين ويتحقق من ظهور حالة «لا توجد أصناف منشورة» وعدم عرض رابط تصفح زائف.
-- **الحالة:** `IMPLEMENTED; TEST_ADDED; FINAL_SHA_CI_PENDING`. لا نحتسبها `PASS` قبل قراءة CI للرأس النهائي.
-
-### `P3-REPORT-DUP-003` — تكرار لوحة التحليلات في مسار التقارير
-
-- **الفجوة:** كان `src/routes/admin_.reports.tsx` يركّب `<AdminApp initialView="reports" />` ثم يركّب `<ExecutiveStoreAnalytics />` ثانية. تنفيذ `Reports` داخل `AghbariApp.tsx` يركّب التحليلات التنفيذية بالفعل، فيتكرر العرض في المسار نفسه.
-- **الإصلاح:** أزيل تركيب التحليلات الإضافي من غلاف المسار؛ بقي مكوّن التقرير الموحد داخل شاشة `Reports` القائمة. لم أعدّل ملف shell المملوك للتكامل.
-- **الاختبار:** `src/test/admin-reports-route-wiring.test.ts` يثبت أن المسار لا يركب المكوّن مباشرة وأن `Reports` يحتوي تركيبًا واحدًا.
-- **الحالة:** `IMPLEMENTED; REGRESSION_TEST_ADDED; FINAL_SHA_CI_PENDING`.
-
-### `P3-REPORT-LOAD-004` — حالة تحميل واضحة لمسار التقارير
-
-- **الفجوة:** كان مسار `/admin/reports` يحدد `ClientOnly fallback={null}`، ما يؤدي إلى منطقة فارغة بدل حالة تحميل يمكن فهمها وإعلانها لقارئ الشاشة أثناء تهيئة الواجهة.
-- **الإصلاح:** أضيف fallback عربي `role="status"` باتجاه RTL: «جار تحميل التقارير...».
-- **اختبار الانحدار:** `src/test/admin-reports-route-wiring.test.ts` يتحقق من وجود النص والدور الدلالي.
-- **الحالة:** `IMPLEMENTED; REGRESSION_TEST_ADDED; FINAL_SHA_CI_PENDING`؛ إثبات المتصفح غير منفذ محليًا.
-
-### `P1-ADMIN-ROUTE-LOADING-001` — حالات تحميل المسارات الإدارية المحجوبة بملكية التكامل
-
-- **نتيجة الجرد:** 19 ملفًا تحت `src/routes/` (`admin_.ai`, `audit`, `customers`, `data`, `devices`, `finance`, `inventory-transfers`, `notifications`, `offers`, `operations`, `pricing`, `products`, `purchase-orders`, `quotes`, `settings`, `stock-count`, `suppliers`, `tasks`, `exports`) تستخدم `ClientOnly fallback={null}` دون حالة تحميل دلالية في الغلاف.
-- **الأثر:** قد يرى المستخدم مساحة فارغة أثناء انتظار تهيئة العميل، بدل رسالة حالة تحميل عربية RTL.
-- **قرار الملكية:** لم تُعدّل هذه الملفات في دفعة P3 الحالية؛ وصف الملكية/تنسيق PR #83 يضع تكامل المسارات لدى P1. المطلوب تسليم واضح أو موافقة P1 ثم استخدام fallback موحد واختبار المسارات. مسار `/admin/reports` عولج مستقلًا في `P3-REPORT-LOAD-004`.
-- **الحالة:** `BLOCKED_P1_ROUTE_INTEGRATION_OWNERSHIP; NO_CODE_CHANGED`؛ لم يتم ادعاء نجاح أو تغطية متصفح.
