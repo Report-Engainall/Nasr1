@@ -660,3 +660,18 @@ This change is separate from PR #88 session UI and from P3 PR #89. No P2 service
 **FUNCTIONAL_HEAD_SHA:** `ffb973cd3ba9a1b27a0068812c39622a452ca9c7`  
 **FILES:** `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`  
 **STATUS:** Implemented; exact-head CI pending.
+
+
+## P1 — fail closed and retry when product categories cannot load — 2026-10-23T17:49+03:00
+
+The admin product modal previously used only `data` from `useFetch(fetchCategories)`; the loading/error/refetch state was discarded. A category API failure therefore rendered an apparently empty select with no retry path, and the product could be submitted without a confirmed category list. The modal now surfaces the actual fetch error in an accessible alert, presents a retry action, shows loading/error placeholder states, and keeps the category select and save button disabled until the lookup settles successfully. This preserves the existing service contract and prevents a save from proceeding against a hidden lookup failure.
+
+Test added in `src/test/admin-product-double-submit.test.tsx`: first fetch rejects, the error and disabled save are asserted, the retry button triggers a second fetch, a returned category is selected and the create payload is verified to include the chosen category ID. This joins the rapid duplicate-submit and failure-then-retry tests from the same PR.
+
+- Functional commit: `1c1d90858a4e45c2da1287e483b1c5027b388c0e`; exact-head Core/P2 checks pending.
+- Previous product code commit `ffb973cd3ba9a1b27a0068812c39622a452ca9c7` changed only the synchronous submit guard/export + initial tests. It is superseded; no PASS is claimed for it.
+- PR: [#97](https://github.com/Report-Engainall/Nasr1/pull/97), Draft pending exact-head test results.
+- Base: `bd0d2df489e40b2dc5f83882d90565c7799a448c`; files `src/components/AghbariApp.tsx` and `src/test/admin-product-double-submit.test.tsx`.
+- Scope isolation: no server API/RPC/migration or P2 workflow changes, and no P3 #89 file changes.
+
+**Next action:** read exact Core/P2 results for the latest #97 head; fix test/code from evidence and do not mark ready until all required checks pass.

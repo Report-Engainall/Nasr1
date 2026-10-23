@@ -258,3 +258,21 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: pending creation after exact-head checks.
 - MERGE_STATUS: branch work in progress; no PR yet.
 - UPDATED_AT: 2026-10-23T17:43+03:00
+
+
+## Active resume — product category load retry and fail-closed save — 2026-10-23T17:49+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-ADMIN-PRODUCT-CATEGORY-LOAD-RETRY-001` (code and acceptance committed; exact-head CI pending).
+- CURRENT_BRANCH: `p1/admin-product-singleflight-20261023`.
+- BASE_SHA: `bd0d2df489e40b2dc5f83882d90565c7799a448c`.
+- FUNCTIONAL_HEAD_SHA: `1c1d90858a4e45c2da1287e483b1c5027b388c0e`. This checkpoint-only commit supersedes it; resolve current branch head at the next launch.
+- FILES_CHANGED: `src/components/AghbariApp.tsx`, `src/test/admin-product-double-submit.test.tsx`; P1 checkpoint/report also updated. ProductModal now displays category-fetch errors with an accessible retry button and disables category selection/save while loading or failed; test expects retry to re-fetch choices and submits the selected category ID. The prior synchronous single-flight guard and two submit/retry regressions remain in this branch.
+- LAST_CONFIRMED_TESTS: base `bd0d2df489e40b2dc5f83882d90565c7799a448c` Core [39969622689](https://github.com/Report-Engainall/Nasr1/actions/runs/39969622689) SUCCESS. Functional product branch before category retry, `ffb973cd3ba9a1b27a0068812c39622a452ca9c7`, had Core/P2 runs started by PR #97, but these were not terminal; the category fix commit `1c1d908...` is not covered by them.
+- FAILED_OR_NOT_RUN_TESTS: exact-head Core + P2 Playwright for `1c1d908...` pending. No local test command was run. Product test has not been observed green yet.
+- LOCKED_PATHS: `src/lib/api.ts`, P2 RPC/migration/RLS/types and all workflows; shared `CURRENT_EXECUTION_STATE.md`/`WORK_COORDINATION.md`; P3 changed paths in #89. No locked file changed.
+- RELATED P1 #88: backend PR #83 is integrated at main `bd0d2df...`; #88 sync head `a1dd49ec92476ece80102ed3dd677e82257e1211` Core [39970504008](https://github.com/Report-Engainall/Nasr1/actions/runs/39970504008) SUCCESS and P2 Playwright [39970503979](https://github.com/Report-Engainall/Nasr1/actions/runs/39970503979) SUCCESS. Its dedicated session-browser spec is still not invoked by P2's workflow, so actual authenticated UI revocation remains NOT_PROVEN. P2 handoff after merge: comment [6367402258](https://github.com/Report-Engainall/Nasr1/pull/83#issuecomment-6367402258).
+- NEXT_ACTION: inspect exact current-head CI for the product branch, fix only concrete failures, then mark PR #97 ready only after checks are green. Next inspect remaining P1 screen gaps not owned by #89 or #95, while following #88 session-browser workflow handoff.
+- BLOCKER: exact-head CI pending for product form; P2 still must wire a separate browser run for #88 session tests.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/97
+- MERGE_STATUS: DRAFT / OPEN / NOT READY.
+- UPDATED_AT: 2026-10-23T17:49+03:00
