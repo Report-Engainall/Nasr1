@@ -382,8 +382,8 @@ BEGIN
       pg_catalog.strpos(pg_catalog.lower(coalesce(c.email,'')),pg_catalog.lower(v_search))>0 OR
       pg_catalog.strpos(pg_catalog.lower(coalesce(c.customer_code,'')),pg_catalog.lower(v_search))>0);
 
-  v_page_count := pg_catalog.greatest(1,pg_catalog.ceil(v_total::numeric/v_page_size)::integer);
-  v_page := pg_catalog.least(v_page,v_page_count);
+  v_page_count := GREATEST(1,pg_catalog.ceil(v_total::numeric/v_page_size)::integer);
+  v_page := LEAST(v_page,v_page_count);
 
   SELECT coalesce(
     pg_catalog.jsonb_agg(
