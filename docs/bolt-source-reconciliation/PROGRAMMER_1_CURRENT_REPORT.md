@@ -603,3 +603,12 @@
 - **Scope proof:** only P1-owned `src/components/DeviceManagement.tsx` and `src/test/device-management.test.tsx` changed in the UI branch. No P2 migration/RPC/RLS/API/types or E2E workflow path changed. New action regression remains unit-level until current-head workflows and the P2 backend dependency are resolved.
 - **Dependency:** P2 #83 still open; last live head `49ea0ce8936bf319a1941ea0ba0a1f03ebec9c3c`. PR #88 must stay Draft until the session backend is current-main integrated, its exact-head Core + local Supabase/Chromium acceptance passes, and the final UI branch is revalidated. No production session or authenticated customer-account acceptance is claimed.
 - **Resume:** inspect latest #88 exact-head runs; fix failures; then wait for P2 #83 integration and rebase/forward-integrate carefully from current main using no force-push.
+
+
+## 6.33 — Session-list retry test and external CI rate-limit diagnosis — 2026-10-23T16:15+03:00
+
+- Added regression `recovers from a network failure when the administrator retries the session list` to `src/test/device-management.test.tsx`. It verifies that list RPC rejection shows an accessible error, stale server rows are not retained, and Retry makes a second list call and restores server-returned data.
+- Current P1 UI PR #88 exact source/test head is now `7adeec2fa2490840aa213449a2d87f49b4e97b74`. The prior head `9310fbb76a7df9db9c45026d9b53053a9ab2d201` has an active Core run `39957639395`; P2 run `39957639394` first failed while installing app dependencies because many packages from the configured Lovable npm mirror returned HTTP 429. The failed job is being retried, but the prior run cannot prove the newly added network-retry test. Exact-current-head Core + P2 are pending/re-triggered after this test-only commit.
+- The network-retry UI code already fails closed and provides Retry; only its regression coverage was added in this batch. P1 session revocation was also synchronously guarded against duplicate clicks with a pending-RPC test in the predecessor commit.
+- No migration/RPC/RLS/API/E2E workflow or shared coordination file changed. Backend proof remains blocked on P2 #83; #88 must stay Draft.
+- NEXT_ACTION: read Core/P2 runs for exact `7adeec2...`, diagnose any specific assertion/build error; rerun past the external 429 dependency failure and verify the required jobs instead of accepting skipped jobs as passing.
