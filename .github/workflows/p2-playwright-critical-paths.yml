@@ -575,6 +575,22 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/finance-task-print.spec.ts"
+      - name: Run customer-manager authorization, financial privacy and audit acceptance in Chromium
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/customer-manager-authorization.spec.ts"
+      - name: Seed P1 local device-session fixtures when the session acceptance suite is present
+        if: ${{ hashFiles('e2e/device-session-management.spec.ts') != '' && hashFiles('scripts/seed-p1-device-session-playwright.mjs') != '' }}
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: node scripts/seed-p1-device-session-playwright.mjs
+      - name: Run central device-session authorization and immediate-revocation Chromium acceptance
+        if: ${{ hashFiles('e2e/device-session-management.spec.ts') != '' && hashFiles('scripts/seed-p1-device-session-playwright.mjs') != '' }}
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/device-session-management.spec.ts"
       - name: Record proof boundary
         if: always()
         shell: bash
@@ -586,6 +602,8 @@ jobs:
             echo "- It proves the exact checked-out SHA's browser order path and cross-tenant denial only if the Playwright test step passes."
             echo "- It also proves the manager order-detail -> server audit RPC -> 27-column XLSX download only if the dedicated Onyx export browser step passes."
             echo "- It proves finance invoice/statement/credit-memo and operational task printing by role only if finance-task-print.spec.ts completes; customer print UI must remain absent."
+            echo "- It proves customer-manager directory privacy, audited tier/status changes, activation invitation, restricted direct routes, and negative RPC/table-read boundaries only if customer-manager-authorization.spec.ts completes."
+            echo "- Server-backed multi-device inventory and individually revocable sessions are not covered by this UI/browser acceptance."
             echo "- No hosted Supabase project, production secret, remote migration, or production write is used."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Stop local application and Supabase

@@ -1,50 +1,50 @@
-# الحالة التنفيذية الحالية الوحيدة — متجر الأغبري | Nasr1
-## آخر قراءة مثبتة: 2026-10-23T18:03:00+03:00
+# الحالة التنفيذية الحالية الوحيدة — Nasr1 / P2
+آخر مصالحة مؤكدة: 2026-10-23T18:21:00+03:00
 
-هذا هو مؤشر الاستئناف الديناميكي الوحيد. السجلات الأقدم تاريخية ولا تعيد فتح عمل مدمج. لا كتابة مباشرة إلى `main` ولا force-push.
+## خط الأساس الحي
+REPOSITORY=Report-Engainall/Nasr1
+MAIN_SHA=78d8492a14ef025f53c8b669e44d622d95de525a
+MAIN_TREE=9d2e3728917dcd5080614244e400373b15b71647
+Core main run 39976494059 = SUCCESS على الرأس الحالي.
+#83 sessions merged; Core 39968857948 + P2 39968858140 passed on tested head dda512495c43f2fd84517635cd83421ef49e92c0 (tested tree equals merge tree).
+#95 receivables credit-memo parity merged; Core 39969721081 + P2 39969721208 passed on tested head f856a6cf284084953cbebfd2718cbf909ce3d17e, tree 4436aa7048f06a4d295217b2a13ca2b6ebc080bd.
+#96 staff-only storefront dashboard link merged.
+#82 customer_manager invitations merged at f9beca0553fc7e546415b42b83274898fcf9449a; Core 39974149475 + P2 39974149285 passed exact head 4437526cebed13717bd71c084df447696b18183a; Chromium invitation/org isolation/financial masking/audit passed. Forward pgcrypto migration 20261023190000 follows 20261023180000; historic migrations kept immutable.
+#94 org role-management settings acceptance merged at 78d8492a14ef025f53c8b669e44d622d95de525a; Core 39975696696 + P2 39975696915 passed exact head 5f51146c3623096548b33e2b107f8ce31cc6605a. #43 closed without merge; decision comment 6368171463.
 
-### خط الأساس الحي
-- المستودع: `Report-Engainall/Nasr1`.
-- `MAIN_SHA=5680bf08a08ed38af830fd2ced58f1eac8bece82`; شجرة main `ff6c23116f1428b00a00fde1d6c2aa04becdf9ee`. يتضمن هذا الرأس PR #83 (عقد الجلسات) و#95 (تقادم الذمم بعد الإشعارات الدائنة) و#96 (إظهار مدخل لوحة التحكم للموظفين فقط).
-- PR #83: Core [39968857948](https://github.com/Report-Engainall/Nasr1/actions/runs/39968857948) وP2 [39968858140](https://github.com/Report-Engainall/Nasr1/actions/runs/39968858140) = SUCCESS على SHA `dda512495c43f2fd84517635cd83421ef49e92c0` ذي الشجرة المطابقة لدمج PR83.
-- PR #95: Core [39969721081](https://github.com/Report-Engainall/Nasr1/actions/runs/39969721081) وP2 [39969721208](https://github.com/Report-Engainall/Nasr1/actions/runs/39969721208) = SUCCESS على الرأس `f856a6cf284084953cbebfd2718cbf909ce3d17e`؛ شجرته `4436aa...` مطابقة للشجرة التي دخلت main في #95.
-- **OPS-DR-001=CLOSED_WITH_EVIDENCE.** Core #39969721081 / job `120468865117`, "Verify isolated PostgreSQL 17 backup and restore" = SUCCESS على tree `4436aa...` المطابق لـmain في #95. Backup SHA-256 `59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1`; backup 394 ms; restore 1012 ms; total 4607 ms; 23 critical tables / 1048 rows; schema, routines, policies, triggers, row counts and critical data fingerprints matched; temporary restore DB dropped. إثبات بيئة CI المعزولة فقط؛ لا يثبت الإنتاج ولا RTO/RPO.
-- لا ادعاء `PRODUCTION_PROVEN`. اختبار UI المخصص لإدارة أجهزة #88 لم يثبت بعد.
+## NEXT_TASK_ID=ORD-001-ORDER-STATUS-AUDIT-ACCEPTANCE
+PR #99 branch p2/order-status-history-acceptance-20261023; BASE_SHA=78d8492a14ef025f53c8b669e44d622d95de525a; HEAD_SHA=4122ed10b6827c6e0d4b4aeb64c6578ea8cd4d08; tree 40fcbdf56ddb5a50badc3c4d42e3164bb7ecfb3e.
+Core run 39976687601 and P2 run 39976687945 were IN_PROGRESS at last read on that exact head. No merge before terminal pass.
+PR #99 is test-only: it proves ordered confirmed -> processing -> shipped -> delivered audit rows, changed_by equals the active staff profile, and rejected shipped -> cancelled does not write a false history record. PR #56 is closed without merge and is not proof of closure.
 
-### مؤشر الاستئناف الوحيد
-`NEXT_TASK_ID=PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE`
+## Local Onyx / INV-009
+INV-009=CLOSED_WITH_EVIDENCE for local reconciliation only. Core 39969721081/job 120468865117 passed test-onyx-reconciliation.mjs, test-onyx-reconciliation-concurrency.mjs, and test-onyx-source-evidence.mjs.
+Those three script SHAs are unchanged through main: d3c50351077779fb524e2f726c002a341d96062d; ab1b234b8d5b194a518f692e5538b0db48e60ab7; 181daf61a4384a23db348140d0d21d3c11786aff. Local tests cover atomic preview/apply/rollback, reservations, fingerprints, request/snapshot binding, concurrency, stale-preview rejection and audit.
+Real Onyx target import/live sync remains BLOCKED_EXTERNAL; local XLSX download is not target-import proof.
 
-### PR #82 — إصلاح المنفذ والدمج التقدمي؛ CI جديد
-- الفرع `feat/p2-customer-manager-e2e-authorization-20261023`.
-- `BASE_SHA=5680bf08a08ed38af830fd2ced58f1eac8bece82`.
-- `HEAD_SHA=4437526cebed13717bd71c084df447696b18183a`; tree `559802f1adfc4e7984c45e32e868a115e8d66280`. هذا الرأس يتضمن تحديث main الأخير، ومُنع force-push.
-- Core [39974149475](https://github.com/Report-Engainall/Nasr1/actions/runs/39974149475) وP2 [39974149285](https://github.com/Report-Engainall/Nasr1/actions/runs/39974149285) كانا QUEUED عند آخر قراءة، وكلاهما مرتبط بـ`4437526...`. لا دمج قبل نجاح الاثنين على SHA نفسه.
-- سبب فشل الرأس السابق `dbb554d...` مثبت في log P2 run 39973107081: `e2e/customer-manager-authorization.spec.ts` رفض منفذ PostgreSQL 55432 عند `assertLoopbackOnly`; لم يكن الفشل من صلاحيات المؤسسة. تم إصلاح الحارس لقبول 54322 أو 55432 فقط مع استمرار قصر المضيفين على `localhost/127.0.0.1`، وتستمر API على loopback:54321.
-- مهاجرة pgcrypto الأمامية `20261023190000_customer_activation_pgcrypto_schema.sql` تقع بعد `20261023180000_staff_receivables_aging_credit_memo_parity.sql`؛ لم يتم تعديل المهاجرة التاريخية `20261023130000`. المهاجرة الأمامية تعيد تعريف إنشاء/قبول الدعوة عبر امتداد pgcrypto المكتشف ديناميكيًا، وتحافظ على رمز عشوائي 32 بايت وتخزين SHA-256 فقط و`SECURITY DEFINER` و`search_path = ''`.
-- التعديل يشمل تعاقد الدعوات واختبار Chromium؛ Core نجح على الرأس السابق، لكن نتيجة P2 الحالية بعد الإصلاح الجديد تنتظر Actions.
+## OPS-DR-001
+CLOSED_WITH_EVIDENCE for isolated PostgreSQL 17 CI only. Core run 39969721081/job 120468865117 step Verify isolated PostgreSQL 17 backup and restore = SUCCESS.
+Backup SHA-256 59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1; backup 394 ms; restore 1012 ms; total 4607 ms; 23 tables/1048 rows; schema/routines/policies/triggers/row counts/critical hashes matched; temporary DB removed.
+Not production restore proof; no RTO/RPO claim.
 
-### اعتماديات متبقية
-- **#88 / P1-DEVICE-SESSION-MGMT-001:** ملكية P1 لواجهة `DeviceManagement.tsx` والـspec والـseed. P2 أدخل استدعاءً مشروطًا للاختبار في workflow. Seed P1 ما زال يطلب DB port 54322 مقابل 55432 في خدمة P2 المعزولة؛ تعليق التوجيه #88 رقم `6367191624` طلب قبول 55432 مع loopback فقط. لا تعدّل ملفات P1 المقفلة ولا تدّعِ BROWSER_PROVEN.
-- **INV-009:** PR #52 و#54 مدمجان؛ تحقق من الفجوات غير المغطاة على main بدل تكرار ميزة.
-- **ORD-001:** PR #56 مغلق دون دمج؛ يجب التحقق من الوضع الحقيقي للمعاملة على main.
-- **#43:** Draft وdirty، لا تدمج 48 ملفًا قديمًا؛ #94 اختبار بديل غير مدمج.
-- Onyx live sync/import وWhatsApp Business API الرسمي واستعادة الإنتاج: `BLOCKED_EXTERNAL` أو `NOT RUN` دون اعتماد مخول واستجابة موثقة.
+## P1-owned PR #88
+Latest head 1647ef42b85abae4d2668cc76ff276268c19d436; Core 39976651566 and P2 39976652003 were IN_PROGRESS at last read. Branch is one commit behind main.
+Validator e12a26d11facfd9851909f717f31c14551e6bea3 restricts API to HTTP loopback:54321 and DB to loopback:54322 or 55432. Comment 6368243449 asks P1 to merge current main non-forcibly and prove e2e/device-session-management.spec.ts actually passed rather than skipped.
+DeviceManagement.tsx, e2e/device-session-management.spec.ts, scripts/seed-p1-device-session-playwright.mjs and P1 resume/report files remain locked to P1. Do not claim BROWSER_PROVEN until the dedicated spec passes on final integrated SHA.
 
-### checkpoint الإلزامي
-```
-LAST_COMPLETED_TASK_ID=OPS-DR-001
-MAIN_SHA=5680bf08a08ed38af830fd2ced58f1eac8bece82
-CURRENT_BRANCH=feat/p2-customer-manager-e2e-authorization-20261023
-BASE_SHA=5680bf08a08ed38af830fd2ced58f1eac8bece82
-HEAD_SHA=4437526cebed13717bd71c084df447696b18183a
-TASK_STATUS=OPS-DR-001 CLOSED_WITH_EVIDENCE; PR82 IMPLEMENTED; NEW_CORE_AND_P2_QUEUED
-FILES_CHANGED=Customer-manager E2E loopback guard; forward pgcrypto migration; database acceptance and workflow integration
-TESTS_RUN=Previous head Core 39973107041 PASS; previous P2 39973107081 FAILED only because database port guard rejected 55432; latest Core 39974149475 and P2 39974149285 queued at checkpoint
-TESTS_FAILED_OR_SKIPPED=Previous P2 failure root cause fixed on new SHA; latest runs pending; hosted account E2E not claimed
-MERGE_STATUS=PR83, PR95, PR96 merged; PR82 open
-EXTERNAL_BLOCKERS=Onyx target import/live sync; official WhatsApp; production restore proof
-LOCKED_PATHS=P1 owns DeviceManagement component/spec/seed; P2 owns PR82 workflow/test/migrations
-NEXT_TASK_ID=PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE
-NEXT_ACTION=read Core 39974149475 and P2 39974149285 to terminal, fix only any failure on exact SHA, merge after both pass and security diff review
-UPDATED_AT=2026-10-23T18:03:00+03:00
-```
+## Required checkpoint
+LAST_COMPLETED_TASK_ID=ROLE-MANAGEMENT-UI-ACCEPTANCE
+MAIN_SHA=78d8492a14ef025f53c8b669e44d622d95de525a
+CURRENT_BRANCH=p2/order-status-history-acceptance-20261023
+BASE_SHA=78d8492a14ef025f53c8b669e44d622d95de525a
+HEAD_SHA=4122ed10b6827c6e0d4b4aeb64c6578ea8cd4d08
+TASK_STATUS=IMPLEMENTED; CORE_AND_P2_IN_PROGRESS_EXACT_SHA
+FILES_CHANGED=scripts/test-database-migrations.mjs
+TESTS_RUN=PR94 Core 39975696696/P2 39975696915 PASS; current main Core 39976494059 PASS; PR99 Core 39976687601/P2 39976687945 IN_PROGRESS
+TESTS_FAILED_OR_SKIPPED=PR99 results pending; PR88 dedicated browser result pending
+MERGE_STATUS=#82/#83/#94/#95/#96 merged; #43 closed without merge; #99 open; #88 open draft
+EXTERNAL_BLOCKERS=Onyx live import/sync; official WhatsApp Business API; production restore proof
+LOCKED_PATHS=P1 DeviceManagement UI/spec/seed/reports; P2 backend/migrations/database acceptance/central state
+NEXT_TASK_ID=ORD-001-ORDER-STATUS-AUDIT-ACCEPTANCE
+NEXT_ACTION=Read PR99 Core/P2 to terminal; fix only observed failures; merge only after current exact-head tests pass; keep PR88 proof separate
+UPDATED_AT=2026-10-23T18:21:00+03:00

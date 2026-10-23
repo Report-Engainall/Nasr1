@@ -1,20 +1,17 @@
 # سجل التنسيق — المرجع الحي
 
-## حالة التنسيق الملزمة — 2026-10-23T18:03:00+03:00
+## المصالحة الحالية — 2026-10-23T18:21:00+03:00
 
-- `main=5680bf08a08ed38af830fd2ced58f1eac8bece82`; tree `ff6c23116f1428b00a00fde1d6c2aa04becdf9ee`. #83 (session backend), #95 (credit memo aging), #96 (staff-only dashboard entry) merged.
-- `OPS-DR-001=CLOSED_WITH_EVIDENCE`: Core run 39969721081/job 120468865117 verifies the isolated PostgreSQL 17 backup/restore with SHA-256 `59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1`, measured 394ms dump, 1012ms restore, 4607ms total; 23 tables/1048 rows; schema/routines/policies/triggers/data fingerprints match; temporary DB cleaned. Tree `4436aa...` exactly matches the code tree merged in #95. No production proof.
-- **Active PR #82:** branch `feat/p2-customer-manager-e2e-authorization-20261023`; newest HEAD `4437526cebed13717bd71c084df447696b18183a`; BASE `5680bf08a08ed38af830fd2ced58f1eac8bece82`; Tree `559802f1adfc4e7984c45e32e868a115e8d66280`. Core 39974149475 / P2 39974149285 queued at checkpoint. Previous P2 run 39973107081 failed only because local test guard rejected port 55432; the fix allows DB ports 54322/55432 only on loopback and retains Supabase API loopback:54321. Do not merge until both current runs pass.
-- **Forward migration ordering:** pgcrypto repair at `20261023190000_customer_activation_pgcrypto_schema.sql`, after merged 23180000 receivables migration; historical 23130000 untouched.
-- **P1 lock for #88:** P1 owns `src/components/DeviceManagement.tsx`, `e2e/device-session-management.spec.ts`, and `scripts/seed-p1-device-session-playwright.mjs`. P2 owns only workflow call. The DB seed guard mismatch (54322 vs 55432) remains assigned to P1 under comment #88 `6367191624`; browser acceptance remains NOT PROVEN until the dedicated E2E passes.
-- **Inventory/Onyx:** #52 and #54 merged; inspect only the specific remaining invariants on current main. Live target import remains BLOCKED_EXTERNAL.
-- **Orders:** PR #56 closed without merge. ORD-001 is not closed; examine current main before creating a focused successor.
-- **Stale branch hygiene:** #43 remains Draft/dirty; never merge its 48-file branch wholesale. #94 is a separate test-only candidate.
-- Official WhatsApp API, actual Onyx live sync/import, and production restore remain BLOCKED_EXTERNAL or NOT RUN until real authorized responses are captured.
-- P2 owns shared state/matrix/coordination/log/report and must update them serially with expected-SHA checks. No direct main writes and no force-push.
+- Main 78d8492a14ef025f53c8b669e44d622d95de525a; tree 9d2e3728917dcd5080614244e400373b15b71647; Core run39976494059 SUCCESS.
+- #82/#83/#94/#95/#96 merged. #43 closed without merge; comment6368171463 explains supersession via #94.
+- OPS-DR-001 CLOSED_WITH_EVIDENCE isolated PG17 only: run39969721081/job120468865117; SHA256 59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1; 394/1012/4607ms; 23 tables/1048 rows; structure/data hashes match; temporary DB cleaned.
+- INV-009 local reconciliation/source/concurrency tests passed; test source SHAs unchanged; Onyx target import still BLOCKED_EXTERNAL.
+- PR99 current P2 gate: head4122ed10b6827c6e0d4b4aeb64c6578ea8cd4d08, base 78d8492a14ef025f53c8b669e44d622d95de525a, Core39976687601/P239976687945 in progress. Do not merge before both finish green.
+- PR88 P1: head1647ef42..., Core39976651566/P239976652003 in progress. Validator is loopback-only (API54321; DB54322/55432). P1 must merge current main non-force and prove its device-session spec executed and passed.
+- P1 owns device management UI/spec/seed/reports. P2 owns central state, matrix, log, coordination, report, backend/migrations/database tests. Updates to shared docs are serialized and expected-SHA guarded.
+- #52/#54 merged; #56 closed without merge and is not proof ORD-001 is complete. Live Onyx, official WhatsApp and production restore remain blocked/not run.
 
 ---
-
 ## سجل التنسيق الأصلي (للتاريخ فقط)
 
 

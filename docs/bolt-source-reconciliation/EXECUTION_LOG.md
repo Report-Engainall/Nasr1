@@ -1,3 +1,14 @@
+## P2 checkpoint — role acceptance merged; order audit PR in progress — 2026-10-23T18:21:00+03:00
+
+- main 78d8492a14ef025f53c8b669e44d622d95de525a; tree 9d2e3728917dcd5080614244e400373b15b71647; Core run 39976494059 SUCCESS.
+- #82/#83/#94/#95/#96 merged; #43 closed without merge. #94 Core/P2 39975696696/39975696915 pass on exact tested head 5f51146...
+- OPS-DR-001 isolated PG17 restore pass: run 39969721081/job 120468865117, backup SHA256 59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1, backup 394ms, restore 1012ms, total 4607ms, 23 tables/1048 rows, fingerprints match, temporary DB removed. No production claim.
+- INV-009 local reconcile/source/concurrency suites passed; source test files unchanged in current main; live Onyx target import remains blocked external.
+- PR #99 head 4122ed10b6827c6e0d4b4aeb64c6578ea8cd4d08/base 78d8492a14ef025f53c8b669e44d622d95de525a; Core 39976687601 and P2 39976687945 IN_PROGRESS. New assertions cover ordered order status history, active staff actor, and no false audit event on rejected cancellation.
+- PR #88 P1 head 1647ef42...; Core 39976651566/P2 39976652003 in progress; validator restricts ports to local loopback only. P1 asked to sync main non-force and pass the dedicated session browser spec.
+- This checkpoint supersedes older status below.
+
+---
 ## P2 checkpoint — latest invitation E2E rerun; isolated restore proof — 2026-10-23T18:03:00+03:00
 
 - Live main `5680bf08a08ed38af830fd2ced58f1eac8bece82`, tree `ff6c23116f1428b00a00fde1d6c2aa04becdf9ee`.

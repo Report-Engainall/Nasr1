@@ -9,6 +9,21 @@ const migrationPath = join(
   "20261020140000_customer_activation_invitations.sql",
 );
 const migration = readFileSync(migrationPath, "utf8");
+const currentPermissionMigrationPath = join(
+  process.cwd(),
+  "supabase",
+  "migrations",
+  "20261023130000_customer_manager_activation_permissions.sql",
+);
+const currentPermissionMigration = readFileSync(currentPermissionMigrationPath, "utf8");
+const cryptoMigrationPath = join(
+  process.cwd(),
+  "supabase",
+  "migrations",
+  "20261023190000_customer_activation_pgcrypto_schema.sql",
+);
+const cryptoMigration = readFileSync(cryptoMigrationPath, "utf8");
+
 
 const activationFunctions = [
   "create_customer_activation_invitation",
@@ -81,6 +96,22 @@ describe("customer activation invitation migration security contract", () => {
     );
     expect(migration).toMatch(/p_expires_hours < 1 OR p_expires_hours > 168/i);
     expect(migration).toMatch(/customer_activation_invitations_one_pending_customer_idx[\s\S]*?WHERE status='pending'/i);
+  });
+
+  it("uses a forward migration to repair token generation for already-applied permission migrations", () => {
+    expect(currentPermissionMigration).toMatch(/CREATE OR REPLACE FUNCTION public\.create_customer_activation_invitation\(/i);
+    expect(cryptoMigration).toMatch(/CREATE OR REPLACE FUNCTION public\.create_customer_activation_invitation\([\s\S]*?public\.customer_activation_invitation_random_token\(\)[\s\S]*?public\.customer_activation_invitation_sha256\(v_token\)/i);
+  });
+
+  it("resolves pgcrypto's installed schema for token creation and acceptance", () => {
+    expect(cryptoMigration).toMatch(/CREATE OR REPLACE FUNCTION public\.customer_activation_invitation_random_token\(\)/i);
+    expect(cryptoMigration).toMatch(/CREATE OR REPLACE FUNCTION public\.customer_activation_invitation_sha256\(p_token text\)/i);
+    expect(cryptoMigration).toMatch(/FROM pg_catalog\.pg_extension e[\s\S]*?e\.extname='pgcrypto'/i);
+    expect(cryptoMigration).toMatch(/%I\.gen_random_bytes\(32\)/i);
+    expect(cryptoMigration).toMatch(/%I\.digest\(\$1::text, ''sha256''\)/i);
+    expect(cryptoMigration).toMatch(/CREATE OR REPLACE FUNCTION public\.accept_customer_activation_invitation\(p_token text\)[\s\S]*?SET search_path = ''/i);
+    expect(cryptoMigration).toMatch(/WHERE i\.token_hash=public\.customer_activation_invitation_sha256\(pg_catalog\.lower\(pg_catalog\.btrim\(p_token\)\)\)/i);
+    expect(cryptoMigration).not.toMatch(/public\.gen_random_bytes\(|public\.digest\(/i);
   });
 
   it("validates confirmed email, tenant, customer eligibility and single-use state server-side", () => {

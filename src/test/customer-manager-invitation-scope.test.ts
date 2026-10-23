@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const invitationMigration = readFileSync(join(process.cwd(), "supabase", "migrations", "20261023130000_customer_manager_activation_permissions.sql"), "utf8");
+const cryptoMigration = readFileSync(join(process.cwd(), "supabase", "migrations", "20261023190000_customer_activation_pgcrypto_schema.sql"), "utf8");
 const roleMigration = readFileSync(join(process.cwd(), "supabase", "migrations", "20261023120000_customer_manager_role_scope.sql"), "utf8");
 
 describe("customer-manager activation invitation permissions", () => {
@@ -38,6 +39,15 @@ describe("customer-manager activation invitation permissions", () => {
     expect(invitationMigration).toMatch(/REVOKE ALL ON FUNCTION public\.create_customer_activation_invitation\(uuid,text,integer\) FROM PUBLIC,anon;/i);
     expect(invitationMigration).toMatch(/REVOKE ALL ON FUNCTION public\.list_customer_activation_invitations\(uuid\) FROM PUBLIC,anon;/i);
     expect(invitationMigration).toMatch(/REVOKE ALL ON FUNCTION public\.revoke_customer_activation_invitation\(uuid\) FROM PUBLIC,anon;/i);
-    expect(invitationMigration).toMatch(/public\.digest\(v_token, 'sha256'\)/i);
+    expect(cryptoMigration).toMatch(/CREATE OR REPLACE FUNCTION public\.create_customer_activation_invitation\([\s\S]*?public\.customer_activation_invitation_random_token\(\)[\s\S]*?public\.customer_activation_invitation_sha256\(v_token\)/i);
+    expect(cryptoMigration).toMatch(/CREATE OR REPLACE FUNCTION public\.customer_activation_invitation_random_token\(\)/i);
+    expect(cryptoMigration).toMatch(/CREATE OR REPLACE FUNCTION public\.customer_activation_invitation_sha256\(p_token text\)/i);
+    expect(cryptoMigration).toMatch(/FROM pg_catalog\.pg_extension e[\s\S]*?e\.extname='pgcrypto'/i);
+    expect(cryptoMigration).toMatch(/%I\.gen_random_bytes\(32\)/i);
+    expect(cryptoMigration).toMatch(/%I\.digest\(\$1::text, ''sha256''\)/i);
+    expect(cryptoMigration).toMatch(/REVOKE ALL ON FUNCTION public\.customer_activation_invitation_random_token\(\) FROM PUBLIC,anon,authenticated;/i);
+    expect(cryptoMigration).toMatch(/REVOKE ALL ON FUNCTION public\.customer_activation_invitation_sha256\(text\) FROM PUBLIC,anon,authenticated;/i);
+    expect(cryptoMigration).not.toMatch(/public\.gen_random_bytes\(/i);
+    expect(cryptoMigration).not.toMatch(/public\.digest\(/i);
   });
 });

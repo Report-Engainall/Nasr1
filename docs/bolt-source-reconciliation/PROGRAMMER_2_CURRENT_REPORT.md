@@ -1,35 +1,31 @@
-# تحديث P2 الحي — 2026-10-23T18:03:00+03:00
+# تقرير P2 — الحالة الحية 2026-10-23T18:21:00+03:00
 
-## الحالة الحالية قبل السجل التاريخي
-- `main=5680bf08a08ed38af830fd2ced58f1eac8bece82`; tree `ff6c23116f1428b00a00fde1d6c2aa04becdf9ee`. PR #83 sessions, #95 receivables credit memo, and #96 staff-only dashboard navigation are merged.
-- PR #83 Core 39968857948 + P2 39968858140 passed exact tested tree; PR #95 Core 39969721081 + P2 39969721208 passed on `f856a6c...`, with tested tree exactly matching main.
-- **OPS-DR-001=CLOSED_WITH_EVIDENCE** from Core #39969721081 job `120468865117`; local PostgreSQL 17 backup SHA256 `59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1`, backup 394 ms, restore 1012 ms, total 4607 ms; 23 critical tables / 1048 rows; structure and critical-data fingerprints matched; temporary DB dropped. Isolated-CI-only, not production.
-- PR #82 latest head `4437526cebed13717bd71c084df447696b18183a`, base `5680bf08a08ed38af830fd2ced58f1eac8bece82`, tree `559802f1adfc4e7984c45e32e868a115e8d66280`. The previous P2 run 39973107081 failed because the browser test rejected loopback DB port 55432; guard now explicitly accepts only 54322 or 55432 on localhost/127.0.0.1. Latest Core 39974149475 and P2 39974149285 were QUEUED. No merge until both pass on latest exact SHA.
-- Fix uses forward migration `20261023190000_customer_activation_pgcrypto_schema.sql`, after merged 23180000; historical migration 23130000 stays unchanged.
-- #88 session UI remains owned by P1; session-specific Chromium test not proven. P1 seed guard mismatch remains open in comment 6367191624.
-- #52/#54 merged; Onyx target import/live integration remains external. #56 order PR closed but not merged.
+main=78d8492a14ef025f53c8b669e44d622d95de525a / tree=9d2e3728917dcd5080614244e400373b15b71647; Core main run 39976494059 SUCCESS.
+PR #82 customer_manager and #83 session contracts, #94 organization-role settings, #95 credit memo aging, and #96 staff dashboard entry are merged. #43 closed without merge; comment 6368171463.
+PR #99 is current priority: head 4122ed10b6827c6e0d4b4aeb64c6578ea8cd4d08, base 78d8492a14ef025f53c8b669e44d622d95de525a; Core 39976687601/P2 39976687945 in progress; test adds order-history transition sequence, staff actor attribution and false-cancellation-history denial.
+OPS-DR-001 closed with isolated PG17 CI evidence: SHA256 59d58847641f4a66b76421477f85bd9ae06734baad419f283569d8dff27f9be1; backup 394ms; restore 1012ms; total 4607ms; 23 tables/1048 rows; structural/data hashes matched and temporary DB dropped. Not production proof.
+INV-009 local reconciliation suites passed; relevant script SHAs unchanged. Target Onyx import/live sync stays BLOCKED_EXTERNAL.
+PR #88 P1 current head 1647ef42...; Core 39976651566/P2 39976652003 in progress. Endpoint guard is local-only but dedicated device-session Chromium test must pass on final main-synced head before BROWSER_PROVEN.
+PR #56 is closed without merge; ORD-001 cannot be closed solely from its state.
 
 ## checkpoint
-```
-LAST_COMPLETED_TASK_ID=OPS-DR-001
-MAIN_SHA=5680bf08a08ed38af830fd2ced58f1eac8bece82
-CURRENT_BRANCH=feat/p2-customer-manager-e2e-authorization-20261023
-BASE_SHA=5680bf08a08ed38af830fd2ced58f1eac8bece82
-HEAD_SHA=4437526cebed13717bd71c084df447696b18183a
-TASK_STATUS=OPS-DR CLOSED_WITH_EVIDENCE; PR82 CORE+P2 RUNS QUEUED
-FILES_CHANGED=PR82 customer-manager loopback guard, invitation forward migration, tests/workflow
-TESTS_RUN=Prior Core 39973107041 PASS; new Core 39974149475 and P2 39974149285 queued
-TESTS_FAILED_OR_SKIPPED=Prior P2 failed at loopback port guard; fixed on latest head; new results pending
-MERGE_STATUS=PR83/#95/#96 merged; PR82 open
-EXTERNAL_BLOCKERS=Onyx target import/live sync; official WhatsApp; production restore proof
-LOCKED_PATHS=P1 DeviceManagement UI/spec/seed; PR82 code paths pending latest exact-head CI
-NEXT_TASK_ID=PR82-CUSTOMER-MANAGER-AUTHORIZATION-ACCEPTANCE
-NEXT_ACTION=wait for current P2 run terminal status; fix real failures and merge only after Core+P2 pass
-UPDATED_AT=2026-10-23T18:03:00+03:00
-```
+LAST_COMPLETED_TASK_ID=ROLE-MANAGEMENT-UI-ACCEPTANCE
+MAIN_SHA=78d8492a14ef025f53c8b669e44d622d95de525a
+CURRENT_BRANCH=p2/order-status-history-acceptance-20261023
+BASE_SHA=78d8492a14ef025f53c8b669e44d622d95de525a
+HEAD_SHA=4122ed10b6827c6e0d4b4aeb64c6578ea8cd4d08
+TASK_STATUS=IMPLEMENTED; CORE_AND_P2_IN_PROGRESS_EXACT_SHA
+FILES_CHANGED=scripts/test-database-migrations.mjs
+TESTS_RUN=PR94 Core/P2 pass; PR99 Core/P2 in progress
+TESTS_FAILED_OR_SKIPPED=PR99 pending; P1 session E2E pending
+MERGE_STATUS=#82/#83/#94/#95/#96 merged; #43 closed; #99 open; #88 draft
+EXTERNAL_BLOCKERS=Onyx target import; official WhatsApp; production restore
+LOCKED_PATHS=P1 device management UI/spec/seed; P2 backend/database tests/checkpoint docs
+NEXT_TASK_ID=ORD-001-ORDER-STATUS-AUDIT-ACCEPTANCE
+NEXT_ACTION=read runs 39976687601 and 39976687945 to terminal; merge after exact-head pass
+UPDATED_AT=2026-10-23T18:21:00+03:00
 
 ---
-
 ## سجل P2 التاريخي (لا يحدد حالة التنفيذ الحالية)\n\n# تصحيح الحالة التنفيذية لـP2 — 22 أكتوبر 2026
 
 **مرجع أحدث من السجل التاريخي أدناه.** تقارير هذا الملف تحافظ على أحداثها القديمة؛ أي جملة في الأسفل تفيد بأن PR #18 أو #26 ما زال مفتوحًا، أو أن تكامل خصوصية أسعار Storefront لم يحدث، تعود إلى نقطة قراءة تاريخية ولا تمثل main الحالي.
