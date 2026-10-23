@@ -67,6 +67,21 @@ async function expectDbFailure(label, operation, expectedPattern) {
 
 async function main() {
   await db.unsafe("reset role");
+  const paymentRpcBoundary = await db.unsafe(
+    "select " +
+    "pg_catalog.to_regprocedure('public.record_customer_payment(uuid,numeric,text,text,text)')::text as legacy_signature, " +
+    "pg_catalog.to_regprocedure('public.record_customer_payment(uuid,numeric,text,uuid,text,text)')::text as current_signature, " +
+    "pg_catalog.has_function_privilege('anon','public.record_customer_payment(uuid,numeric,text,uuid,text,text)','EXECUTE') as anon_can_execute, " +
+    "pg_catalog.has_function_privilege('authenticated','public.record_customer_payment(uuid,numeric,text,uuid,text,text)','EXECUTE') as authenticated_can_execute",
+  );
+  assert.equal(paymentRpcBoundary[0].legacy_signature,null,
+    "the old five-argument payment RPC must not remain callable without a request key");
+  assert.ok(paymentRpcBoundary[0].current_signature,
+    "the six-argument idempotent payment RPC must be installed");
+  assert.equal(paymentRpcBoundary[0].anon_can_execute,false,
+    "anonymous callers cannot execute the financial payment RPC");
+  assert.equal(paymentRpcBoundary[0].authenticated_can_execute,true,
+    "the authenticated role can invoke the guarded payment RPC");
   await db.unsafe(
     "insert into auth.users(id,email,email_confirmed_at) values($1::uuid,'ci-return-manager@example.test',pg_catalog.now()) " +
     "on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
