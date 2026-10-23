@@ -106,7 +106,7 @@ describe("StaffFinancePage payment amount guard", () => {
         return { data: FINANCE_DATA, error: null };
       }
       if (name === "record_customer_payment") {
-        return { data: { success: true }, error: null };
+        return { data: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", error: null };
       }
       if (name === "fetch_staff_receivables_aging") {
         return {
