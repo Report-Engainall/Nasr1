@@ -2554,6 +2554,10 @@ async function main() {
     "insert into public.customer_company_invitations(organization_id,customer_id,invited_email,member_role,token_hash,status,invited_by,expires_at) values($1,$2,$3,'viewer',md5($4),'pending',$5,now()-interval '1 minute')",
     [organizationId,customerOneId,"ci-legacy-member@example.test",companySecurityExpiredToken,profileId],
   );
+  const companySecurityMembershipCountBeforeExpiry=await db.unsafe(
+    "select count(*)::integer as count from public.customer_company_memberships " +
+    "where profile_id=$1::uuid and customer_id=$2::uuid",
+    [legacyMemberProfileId,customerOneId]);
   await setIdentity(legacyMemberAuthUserId,"ci-legacy-member@example.test");
   await db.unsafe("set role authenticated");
   const companySecurityExpiredAcceptance=await db.unsafe(
@@ -2563,11 +2567,15 @@ async function main() {
     error:"انتهت صلاحية الدعوة؛ اطلب رابطًا جديدًا",
   },"an expired legacy invitation returns a committed expired result rather than throwing and rolling back");
   await db.unsafe("reset role");
-  const expiredCompanyMembership=await db.unsafe(
+  const companySecurityMembershipCountAfterExpiry=await db.unsafe(
     "select count(*)::integer as count from public.customer_company_memberships " +
     "where profile_id=$1::uuid and customer_id=$2::uuid",
     [legacyMemberProfileId,customerOneId]);
-  assert.equal(expiredCompanyMembership[0].count,0,"expired invitation grants no new company membership");
+  assert.equal(
+    companySecurityMembershipCountAfterExpiry[0].count,
+    companySecurityMembershipCountBeforeExpiry[0].count,
+    "expired invitation must not add a company membership to the invitee",
+  );
   const companySecurityExpiredState=await db.unsafe(
     "select status from public.customer_company_invitations where token_hash=md5($1::text)",[companySecurityExpiredToken]);
   assert.equal(companySecurityExpiredState[0]?.status,"expired","expiry status persists after acceptance RPC");
