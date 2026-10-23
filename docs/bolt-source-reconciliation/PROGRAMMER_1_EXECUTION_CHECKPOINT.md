@@ -204,3 +204,20 @@ Extended least-privilege customer_manager access to activation-link management w
 - PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
 - MERGE_STATUS: #88 Draft/open; #83 P2-owned/open; checkpoint/report PR #93 open. Main `59547c7d...` post-merge Core run `39956957952` SUCCESS remains proven.
 - UPDATED_AT: 2026-10-23T16:22+03:00
+
+
+## P1 exact-session-acknowledgement regression — 2026-10-23T16:27+03:00
+
+- LAST_COMPLETED_TASK_ID: `P1-INVITE-EXPIRY-90`; CURRENT_TASK_ID: `P1-SESSION-REVOCATION-EXACT-ACK-TEST` (new test committed; CI pending).
+- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
+- BASE_SHA: original PR #88 base `0396b29aeab8c09c430df0063821251208a38477`; current main anchor `59547c7d683cefd65cab445b97219aa701021676`.
+- HEAD_SHA: `5f500eb2129f5745bb924beb06e6a4764ab9a0e0`.
+- LAST_CONFIRMED_TESTS: predecessor head `7adeec2fa2490840aa213449a2d87f49b4e97b74` Core [39958053579 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39958053579), including network-list failure/retry and rapid-revoke double-click regression. The new mismatched-acknowledgement test is only on `5f500eb...`; Core [39959076957](https://github.com/Report-Engainall/Nasr1/actions/runs/39959076957) and P2 [39959076848](https://github.com/Report-Engainall/Nasr1/actions/runs/39959076848) were queued at record time.
+- FAILED_OR_NOT_RUN_TESTS: no test result is claimed for `5f500eb...` yet. P2 dependency-install runs on prior heads repeatedly failed with HTTP 429 from the Lovable npm mirror; local Supabase/Chromium acceptance was skipped where dependency installation failed.
+- FILES_CHANGED: only `src/test/device-management.test.tsx` in this unit. It verifies a success-shaped RPC result for another session ID does not trigger success notice and hides potentially stale session rows.
+- LOCKED_PATHS: no P2 migration/RPC/RLS/API/lockfile/workflow, shared `CURRENT_EXECUTION_STATE.md`, `WORK_COORDINATION.md`, or shared matrix changes.
+- NEXT_ACTION: run Core and P2 on `5f500eb...`; fix concrete code/test failures. P2 test must actually execute local Supabase/Chromium, not skip, before #88 can graduate from Draft after PR #83 is integrated.
+- BLOCKER: recurring HTTP 429 from external Lovable package mirror prevents P2 test setup; P2 PR #83 current head `5c0367b631a80cc13d10ba5219d3f1966d0185ec` has separate current-head Core/P2 checks in progress.
+- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88
+- MERGE_STATUS: #88 Draft/open; #83 Draft/open; checkpoint PR #93 open, with its previous run failing at dependency install due same HTTP 429.
+- UPDATED_AT: 2026-10-23T16:27+03:00
