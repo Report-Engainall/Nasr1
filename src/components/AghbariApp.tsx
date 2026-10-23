@@ -595,9 +595,9 @@ export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
           {rows.length === 0 && <Empty text={appliedSearch ? 'لا توجد نتائج مطابقة للبحث.' : 'لا يوجد عملاء مسجلون.'} />}
         </TableWrap>
         {pageCount > 1 && <nav aria-label="صفحات دليل العملاء" style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center', padding: 12, flexWrap: 'wrap' }}>
-          <Button variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={loading || page <= 1} aria-label="صفحة العملاء السابقة">السابق</Button>
+          <button type="button" className="btn outline" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={loading || page <= 1} aria-label="صفحة العملاء السابقة">السابق</button>
           <span role="status" aria-label="صفحة دليل العملاء الحالية">{'صفحة ' + page + ' من ' + pageCount}</span>
-          <Button variant="outline" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={loading || page >= pageCount} aria-label="صفحة العملاء التالية">التالي</Button>
+          <button type="button" className="btn outline" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={loading || page >= pageCount} aria-label="صفحة العملاء التالية">التالي</button>
         </nav>}
       </>}
     </section>
