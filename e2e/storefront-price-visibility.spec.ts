@@ -222,7 +222,6 @@ async function installPricingPreviewRoutes(
       } catch {
         // Request assertions prove the client sends identity and quantity only.
       }
-      recordRequest?.(requestBody);
       if (getMode() === "error") {
         await route.fulfill({
           status: 400,
@@ -234,6 +233,8 @@ async function installPricingPreviewRoutes(
             hint: null,
           }),
         });
+        // Count only after the fixture has returned the RPC response, not when the request arrives.
+        recordRequest?.(requestBody);
         return;
       }
       if (requestBody.p_surface !== "cart" && requestBody.p_surface !== "orders") {
@@ -242,6 +243,7 @@ async function installPricingPreviewRoutes(
           contentType: "application/json",
           body: JSON.stringify({ code: "22023", message: "invalid preview surface" }),
         });
+        recordRequest?.(requestBody);
         return;
       }
       await route.fulfill({
@@ -249,6 +251,7 @@ async function installPricingPreviewRoutes(
         contentType: "application/json",
         body: JSON.stringify(serverPreview(requestBody.p_surface, getMode())),
       });
+      recordRequest?.(requestBody);
       return;
     }
 
