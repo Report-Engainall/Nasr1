@@ -1,24 +1,30 @@
-# تقرير P2 — الحالة الحية 2026-10-23T19:55:00+03:00
+# تقرير P2 — الحالة الحية 2026-10-23T21:17:51+03:00
 
 REPOSITORY=Report-Engainall/Nasr1
-MAIN_SHA=15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb; MAIN_TREE=539b6073bbefacd3d569d667b913748f2466ab67
-PR #101 MERGED at 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb; PR head df18dd58a0f0f74a420f55d6e14c0e352af8f7b0.
-Main Core run 39990714405 = SUCCESS on exact main SHA 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb.
-PR-head Core 39990033594 = SUCCESS and P2 Playwright 39990033892 = SUCCESS on exact PR head df18dd58a0f0f74a420f55d6e14c0e352af8f7b0. The P2 tree hash is 539b6073bbefacd3d569d667b913748f2466ab67, matching current main's tree; however, the P2 workflow itself did not run on the exact merge commit SHA, so MAIN_P2_EXACT_SHA=NOT RUN.
-CodeRabbit’s major linked-reversal-draft finding is fixed in a forward migration and covered in the PostgreSQL 17 database acceptance. Core previously caught malformed SQL dollar quoting on a6fb9b4; corrected on df18dd58a0f0f74a420f55d6e14c0e352af8f7b0, then exact-head Core/P2 passed. Review thread resolved. No claim of independent human approval.
-The hosted customer-account E2E step 120539173603 was SKIPPED for missing dedicated non-production credentials; not PASS. No production writes or live external service calls.
+MAIN_SHA=d81c9b34f819a53df7610937264c6fcb923c3f95; MAIN_TREE=8107f52d4d6c61845b95ed7226c5c7f03038a484
+MAIN_CORE_CI=IN_PROGRESS — run 40001438040 on exact current main SHA. Previous merge SHA 5dbb01f7cf2ac054212abc6f3ec34af1b1fe99df passed Core run 40001179290 on that exact merge SHA. Do not transfer this PASS to d81c9b34f819a53df7610937264c6fcb923c3f95.
+P2 on exact current main SHA = NOT RUN. PR #104 exact tested head 7f1110d95d26ece5d516b7267904a4f3f397f6ef: Core 40000512625 SUCCESS, P2 40000512706 SUCCESS. Hosted customer credential-dependent job 120575459434 was SKIPPED, not PASS.
+The only source delta after the PR #104 merge is the Bolt archive `docs/project-bolt-github-7sl6ykzz (5).zip`; current main Core is not terminal yet.
 
 ## FIN-LEDGER-001 — integrated
-- The reversal lifecycle uses the existing accounting journal: only posted manual/adjustment source entries may be reversed; draft reversal and explicit separate posting; balanced mirrored lines; tenant/role checks; audit, concurrency and idempotency protection.
-- The UI retains the same idempotency key if server mutation succeeded but refresh failed. Added regression test in src/test/general-journal-reversal-action.test.tsx.
-- void_general_journal_draft now rejects voiding a linked reversal draft while preserving ordinary unlinked-draft cancellation; PostgreSQL 17 acceptance verifies denial leaves the linked draft retryable.
-- PR: https://github.com/Report-Engainall/Nasr1/pull/101
-- Merge commit: 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb
-- Exact main Core: https://github.com/Report-Engainall/Nasr1/actions/runs/39990714405 SUCCESS.
-- Exact PR-head Core: https://github.com/Report-Engainall/Nasr1/actions/runs/39990033594 SUCCESS. Exact PR-head P2: https://github.com/Report-Engainall/Nasr1/actions/runs/39990033892 SUCCESS.
+- PR #101 manual journal reversal merged at 15a3c10fa5f5aa29dc59f2cf732950cddaa0efcb.
+- PR #103 proves in PostgreSQL 17 that `p_limit/p_offset` bound only ledger entry details, while account totals and summary aggregate across the full posted ledger. Merged at 2908079abd76e1a84cc4449d65b6b01cdfc63482; exact PR head 3a95de8991c3609349a56f4a102f147e0f9587e8 Core 39993605159 and P2 39993605124 SUCCESS.
+- Reuse the existing accounting journal; no second ledger/reversal engine.
 
-## NEXT_TASK_ID=FIN-INVOICE-001-SUMMARY-PAGINATION-NO-DOUBLE-COUNT
-Verify with synthetic PostgreSQL 17 fixtures that fetch_general_ledger pagination limits only entry detail, while summary totals and account aggregates remain complete and do not double-count. Current implementation aggregates accounts/summary separately from the LIMIT/OFFSET detail subquery; existing DB coverage is too small to prove behavior beyond the page cap. Add a meaningful regression test before altering correct SQL.
+## FIN-INVOICE-001 — partial; balance correction integrated
+- PR #104 merged at 5dbb01f7cf2ac054212abc6f3ec34af1b1fe99df from tested PR head 7f1110d95d26ece5d516b7267904a4f3f397f6ef.
+- Exact PR-head Core 40000512625 SUCCESS and P2 Playwright 40000512706 SUCCESS; Core 40001179290 SUCCESS on the exact merge SHA.
+- Payment RPC and posted-credit journal posting share a tenant+invoice advisory lock. Server rejects payments exceeding invoice total minus saved payments and source/currency-valid posted credits, validates ≤2 decimal places, and restricts finance RPC to finance roles. Finance data returns authoritative full-ledger paid/credit/outstanding aggregates apart from bounded details; UI fails closed if outstanding is absent/malformed.
+- PostgreSQL 17 covers role denial, balance reconciliation, precision rejection and a two-session race: second session waits on advisory lock then its over-collection is denied; exactly one payment persists. Local Chromium customer return/review/receipt/credit memo and financial privacy checks succeeded.
+- Hosted customer job 120575459434 SKIPPED due missing dedicated non-production credentials; not PASS. No live production monetary writes, Onyx sync or WhatsApp call claimed.
+- NEXT_TASK_ID=FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD. The payment table has no persisted idempotency key and current UI does not pass one, leaving an ambiguous retry at risk of duplicate collection if balance remains. Add tenant+key uniqueness, request fingerprint, identical-payload replay, changed-payload conflict, preserved retry key and PostgreSQL 17 concurrent/cross-tenant tests.
+
+## FIN-EXPENSE-001 and FIN-CREDIT-001
+- Cash-expense source posting/idempotency/void-post concurrency acceptance passed in full Core on PR #104's exact tested head.
+- Source-linked customer return/credit memo flow passed local Chromium on the exact PR #104 head. Production monetary effects are not claimed.
+
+## Next action
+Implement `FIN-INVOICE-001-PAYMENT-IDEMPOTENCY-REPLAY-GUARD` on a fresh feature branch based on current main, after inspecting all payment RPC call sites, grants, schema and migration ordering.
 
 ---
 
