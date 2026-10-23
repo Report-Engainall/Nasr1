@@ -258,6 +258,8 @@ export async function runGeneralLedgerReversalAcceptance({
   } finally {
     await Promise.all([c.end({ timeout: 5 }).catch(() => {}), d.end({ timeout: 5 }).catch(() => {})]);
   }
+  // Inspect private mapping data with the database owner, not the authenticated client role.
+  await db.unsafe("reset role");
   const competingLinks = await db.unsafe(
     "select count(*)::integer as count from public.accounting_journal_reversals where organization_id=$1::uuid and original_journal_entry_id=$2::uuid",
     [organizationId, competingOriginal.id],
