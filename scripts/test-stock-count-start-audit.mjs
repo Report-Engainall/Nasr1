@@ -247,13 +247,62 @@ async function main() {
     );
   }
   await commandDb.unsafe("savepoint stock_count_late_balance_guard");
-  await assert.rejects(
-    commandDb.unsafe("select public.complete_stock_count($1::uuid)", [lateSession.id]),
-    /inventory balance set changed after the count snapshot/i,
+  const lateFinalizeError = await commandDb
+    .unsafe("select public.complete_stock_count($1::uuid)", [lateSession.id])
+    .then(() => null, (error) => error);
+  assert.ok(
+    lateFinalizeError,
     "a newly created active warehouse balance must invalidate the count snapshot",
+  );
+  assert.equal(
+    lateFinalizeError.code,
+    "40001",
+    "a changed stock-count balance set must fail with serialization SQLSTATE 40001",
+  );
+  assert.match(
+    lateFinalizeError.message,
+    /inventory balance set changed after the count snapshot/i,
   );
   await commandDb.unsafe("rollback to savepoint stock_count_late_balance_guard");
   await commandDb.unsafe("release savepoint stock_count_late_balance_guard");
+
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const staleSessionRows = await commandDb.unsafe(
+    "select status,completed_at,completed_by from public.stock_count_sessions " +
+      "where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId, lateSession.id],
+  );
+  assert.equal(staleSessionRows.length, 1);
+  assert.equal(
+    staleSessionRows[0].status,
+    "open",
+    "failed stock-count finalization must leave the session open for explicit cancellation",
+  );
+  assert.equal(staleSessionRows[0].completed_at, null);
+  assert.equal(staleSessionRows[0].completed_by, null);
+
+  const partialMovementRows = await commandDb.unsafe(
+    "select count(*)::integer as count from public.inventory_movements " +
+      "where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [lateSession.id],
+  );
+  assert.equal(
+    Number(partialMovementRows[0]?.count ?? 0),
+    0,
+    "failed stock-count finalization must not leave partial inventory movements",
+  );
+  const partialCompletionAuditRows = await commandDb.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+      "where organization_id=$1::uuid and action='inventory.stock_count.completed' and entity_id=$2::uuid",
+    [organizationId, lateSession.id],
+  );
+  assert.equal(
+    Number(partialCompletionAuditRows[0]?.count ?? 0),
+    0,
+    "failed stock-count finalization must not leave a completion audit event",
+  );
+
   await setAdminIdentity();
   const cancelledLate = await commandDb.unsafe(
     "select public.cancel_stock_count($1::uuid,$2::text) as result",
@@ -329,6 +378,6 @@ try {
 
 if (passed && process.exitCode !== 1) {
   console.log(
-    "PASS stock-count audit and variance tasks: tenant/profile-bound idempotent start; one task for non-zero variance; zero-variance suppression; refresh idempotency; transaction rollback leaves no fixture changes",
+    "PASS stock-count audit and variance tasks: tenant/profile-bound idempotent start; late-balance finalization rejects with SQLSTATE 40001 and leaves no partial session/movement/audit changes; one task for non-zero variance; zero-variance suppression; refresh idempotency; transaction rollback leaves no fixture changes",
   );
 }
