@@ -2516,6 +2516,10 @@ async function main() {
     ["CI import contiguous chunks.csv", "b".repeat(64), multiChunkFileSize, "unified_import", "2026-02", "ci"],
   );
   const multiChunkJob = multiChunkJobResult[0].result;
+  await db.unsafe(
+    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'rejected',$2::jsonb,$3::jsonb)",
+    [multiChunkJob.id, db.json({ item_code: "000999", quantity: "not-a-number" }), db.json(["الحقل quantity يجب أن يكون رقمًا صالحًا"])],
+  );
   const multiChunkSessionResult = await db.unsafe(
     "select public.create_import_upload_session($1::uuid) as result",
     [multiChunkJob.id],
@@ -2582,7 +2586,15 @@ async function main() {
   assert.equal(safelyFailedImport[0].result.changed, true, "a nonterminal interrupted job must be reconciled to failed");
   assert.equal(safelyFailedImport[0].result.terminal, false);
   assert.equal(safelyFailedImport[0].result.status, "failed");
-  assert.equal(safelyFailedImport[0].result.processed_rows, 0, "failure counts must derive from persisted rows, not stale client counters");
+  assert.equal(safelyFailedImport[0].result.processed_rows, 1, "failure counts must derive from persisted rows, not stale client counters");
+  assert.equal(safelyFailedImport[0].result.failed_rows, 1, "persisted rejected rows must be reconciled into failed_rows");
+  const persistedRowError = await db.unsafe(
+    "select row_number,errors from public.import_job_rows where import_job_id=$1::uuid and status='rejected' order by row_number limit 1",
+    [multiChunkJob.id],
+  );
+  assert.equal(persistedRowError[0].row_number, 1);
+  assert.equal(persistedRowError[0].errors[0], "الحقل quantity يجب أن يكون رقمًا صالحًا",
+    "a rejected row must retain its actionable failure reason for the UI");
 
   const finalMultiChunk = await db.unsafe(
     "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
