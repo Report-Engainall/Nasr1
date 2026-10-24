@@ -7,7 +7,7 @@
 - **Exact tested #190 head:** `5becc27a3f32896b1814aab80433ba7b8c8008ae`; Core 40127113576, async-export PostgreSQL 17 40127113568 and P2 40127113571 all SUCCESS. The authenticated hosted customer E2E job remains SKIPPED because the authorized credential gate is not configured.
 - **Exact inventory artifact:** `public-rpc-function-inventory-3d68de8c657e92c2a0fc1a75f787be2862951ea7` from run 40127113568; summary `functions=310 matched=310 unmatched=0 migration_files=135`. It verifies source mapping for the isolated tested tree, not the full semantic security of each function.
 - **Remaining audit:** API-OPS is PARTIAL; 179 callable RPC candidates remain to be checked against role/tenant boundaries, mutation side effects, idempotency/retry and audit invariants. Do not repeat completed batches without a real coverage gap.
-- **Post-merge verification:** current main Core 40127500733 was IN_PROGRESS at last poll; PostgreSQL 17 run 40127500750 completed SUCCESS on exact SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Do not claim the full release gate until Core is terminal.
+- **Post-merge verification:** current main Core run 40127500733 and PostgreSQL 17 run 40127500750 both completed SUCCESS on exact SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Exact-main P2 was not separately observed; #190's P2 pass is on its tested PR head.
 - **Owner authorization:** ready work may be merged under the owner's explicit authorization; old review-required notes below are historical. Keep exact-head CI, migration ordering, clean merge and post-merge verification.
 
 ## NEXT ACTION — P1
