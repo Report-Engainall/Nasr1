@@ -195,12 +195,111 @@ async function main() {
   assert.equal(Number(withDraft.item.outstanding_amount),Number(before.item.outstanding_amount),
     "draft credit memos do not reduce outstanding invoices");
 
-  const postedRaw = await db.unsafe(
-    "select public.post_general_journal_entry($1::uuid) as result",
-    [draft.journal_entry_id],
+  // FIN-INVOICE-001: a payment racing a credit-memo journal post must serialize
+  // on the same invoice lock; a payment equal to the pre-credit balance must not
+  // slip through after the credit wins the lock.
+  const preCreditOutstanding = Number(before.item.outstanding_amount);
+  const creditAmount = Number(draft.total_amount);
+  assert.ok(Number.isFinite(preCreditOutstanding) && preCreditOutstanding > 0,
+    "the concurrency fixture requires a positive pre-credit invoice balance");
+  assert.ok(Number.isFinite(creditAmount) && creditAmount > 0 && creditAmount < preCreditOutstanding,
+    "the prepared credit must be positive and fit within the invoice balance");
+  const creditRaceSessionId = randomUUID();
+  const creditRaceHasSessionTable = (await concurrentDb.unsafe(
+    "select pg_catalog.to_regclass('auth.sessions') is not null as present",
+  ))[0].present;
+  const creditRaceClaims = {
+    sub: managerAuthId,
+    email: "ci-return-manager@example.test",
+    role: "authenticated",
+  };
+  if (creditRaceHasSessionTable) {
+    await concurrentDb.unsafe(
+      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+      "values($1::uuid,$2::uuid,pg_catalog.now(),pg_catalog.now(),pg_catalog.now(),null,'CI payment versus credit-post race','192.0.2.46'::inet) " +
+      "on conflict(id) do update set user_id=excluded.user_id,updated_at=excluded.updated_at,refreshed_at=excluded.refreshed_at,not_after=null",
+      [creditRaceSessionId, managerAuthId],
+    );
+    creditRaceClaims.session_id = creditRaceSessionId;
+  }
+  await concurrentDb.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [managerAuthId]);
+  await concurrentDb.unsafe("select set_config('request.jwt.claims',$1,false)", [JSON.stringify(creditRaceClaims)]);
+  await concurrentDb.unsafe("set role authenticated");
+
+  const rejectedRacePaymentKey = randomUUID();
+  let signalCreditPostReady;
+  let rejectCreditPostReady;
+  const creditPostReady = new Promise((resolve,reject) => {
+    signalCreditPostReady = resolve;
+    rejectCreditPostReady = reject;
+  });
+  const creditPostTransaction = db.begin(async (tx) => {
+    const postRows = await tx.unsafe(
+      "select public.post_general_journal_entry($1::uuid) as result",
+      [draft.journal_entry_id],
+    );
+    const postResult = asJson(postRows[0].result);
+    signalCreditPostReady(postResult);
+    // Keep the posting transaction open after the trigger acquires the invoice lock,
+    // so the independent payment session must wait before it checks the new balance.
+    await tx.unsafe("select pg_catalog.pg_sleep(4)");
+    return postResult;
+  }).then(
+    (result) => ({ ok:true, result }),
+    (error) => {
+      rejectCreditPostReady(error);
+      return { ok:false, error };
+    },
   );
-  const posted = asJson(postedRaw[0].result);
+  const posted = await creditPostReady;
   assert.equal(posted.status,"posted","the source-linked balanced journal must post before the credit affects aging");
+
+  const competingPayment = concurrentDb.unsafe(
+    "select public.record_customer_payment($1::uuid,$2::numeric,'cash',$3::uuid,null,'CI racing payment must not bypass posted credit') as payment_id",
+    [source.invoice_id, preCreditOutstanding.toFixed(2), rejectedRacePaymentKey],
+  ).then(
+    (rows) => ({ ok:true, paymentId:rows[0].payment_id }),
+    (error) => ({ ok:false, error }),
+  );
+  let creditRaceAdvisoryWaitObserved = false;
+  for (let attempt=0; attempt<60; attempt+=1) {
+    const waiting = await observerDb.unsafe(
+      "select exists(" +
+      "select 1 from pg_catalog.pg_stat_activity " +
+      "where pid<>pg_catalog.pg_backend_pid() and datname=pg_catalog.current_database() " +
+      "and query ilike '%record_customer_payment%' and state='active' " +
+      "and wait_event_type='Lock' and wait_event='advisory') as waiting",
+    );
+    if (waiting[0].waiting) {
+      creditRaceAdvisoryWaitObserved = true;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve,50));
+  }
+  const committedCreditPost = await creditPostTransaction;
+  assert.equal(committedCreditPost.ok,true,
+    "the source-linked credit-memo posting transaction must commit without error");
+  assert.equal(committedCreditPost.result.status,"posted");
+  const competingPaymentResult = await competingPayment;
+  assert.ok(creditRaceAdvisoryWaitObserved,
+    "the independent payment must be observed waiting on the shared invoice advisory lock");
+  assert.equal(competingPaymentResult.ok,false,
+    "a payment equal to the pre-credit balance must be rejected after credit posting commits");
+  assert.match(
+    String(competingPaymentResult.error?.message || ""),
+    /payment exceeds invoice balance after posted credit memos/i,
+    "the racing payment must fail specifically at the authoritative posted-credit balance guard",
+  );
+  const rejectedRacePersistence = await observerDb.unsafe(
+    "select count(*)::integer as count from public.customer_payments " +
+    "where organization_id=$1::uuid and invoice_id=$2::uuid and idempotency_key=$3::uuid",
+    [organizationId, source.invoice_id, rejectedRacePaymentKey],
+  );
+  assert.equal(rejectedRacePersistence[0].count,0,
+    "rejected payment race must not persist a payment row");
+  process.stdout.write(
+    "PASS invoice payment vs credit posting race: PostgreSQL advisory wait observed, credit commits once, pre-credit full-balance payment rejected with no payment row\\n",
+  );
   const after = await receivablesItem(source.invoice_id);
   assert.equal(Number(after.item.credit_memo_amount)-Number(before.item.credit_memo_amount),Number(draft.total_amount),
     "the posted credit increases the invoice credit-memo aggregate by its source amount");
