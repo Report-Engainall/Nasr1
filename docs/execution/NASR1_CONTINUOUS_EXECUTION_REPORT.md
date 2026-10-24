@@ -4,7 +4,7 @@
 **Repository:** `Report-Engainall/Nasr1`  
 **Production reference:** `main` only  
 **Main SHA:** `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`  
-**Current release gate:** Core [40127500733](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500733) remained IN_PROGRESS at last poll. PostgreSQL 17 [40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750) completed SUCCESS on this exact main SHA.
+**Current-main verification:** Core [40127500733](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500733) and PostgreSQL 17 [40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750) both completed SUCCESS on this exact main SHA. No exact-main P2 run was observed; #190's P2 passed on its tested PR head.
 
 ## Latest execution truth
 
@@ -17,7 +17,7 @@
 
 ## Next execution actions
 
-1. Poll main Core [40127500733](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500733) to a terminal result; PG17 [40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750) already passed.
+1. Core [40127500733](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500733) and PG17 [40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750) passed on main; finish exact-head Core/P2 for the documentation PR.
 2. Finish exact-head Core/P2 on the clean-main documentation branch; merge only after successful required checks.
 3. Continue the 179-function semantic review in source-backed batches with explicit allow/deny, tenant isolation, no-side-effect, idempotency and audit assertions.
 4. Re-run completed code only for a reproduced failure; keep external/prod gates NOT RUN/SKIPPED/BLOCKED_EXTERNAL without real authorized proof.
