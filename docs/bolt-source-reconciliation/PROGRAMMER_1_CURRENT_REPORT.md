@@ -1,3 +1,40 @@
+# P1 LIVE RESUME UPDATE — 24 October 2026
+
+**Canonical resume pointer:** `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` and the acceptance matrix. This P1 report supplements, and does not replace, that pointer.
+
+- **Current main:** `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; PR #190 merged.
+- **P1-sensitive merged work:** #158 payment/audit atomicity and credit-memo race denial; #162 valid-only DQS scoring; #179 import identity/resume/recovery/rollback; #180 tenant-scoped import finalization; #181 stock-count snapshot rejection; #188 quote decision guard; #189 inventory batch idempotency; #190 streamed request limits and async-export authorization acceptance.
+- **PR #190 exact-head proof:** Core 40127113576, PostgreSQL 17 inventory/async-export 40127113568 and P2 local Supabase/public UI 40127113571 passed at `5becc27a3f32896b1814aab80433ba7b8c8008ae`. Hosted authenticated customer E2E is SKIPPED due the credential gate.
+- **Inventory artifact:** `public-rpc-function-inventory-3d68de8c657e92c2a0fc1a75f787be2862951ea7`; `functions=310 matched=310 unmatched=0 migration_files=135`. This proves catalog/source mapping on the isolated tested tree, not semantic authorization correctness for each RPC.
+- **Post-merge gates:** Core run 40127500733 and PostgreSQL 17 run 40127500750 were IN_PROGRESS at the last poll on main `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; refresh with actual terminal results before release-level PASS.
+- **Remaining semantic work:** API-OPS remains PARTIAL: 179 callable RPC candidates still need source-backed role/tenant, mutation side effect, idempotency/retry and audit review. Do not repeat completed acceptance batches absent a concrete coverage gap.
+- **Owner authorization:** ready merges are explicitly authorized by the owner. Historical reviewer-required notes below are superseded; exact-head CI, migration order, clean merge and post-merge verification remain the technical gates.
+
+## NEXT ACTION — P1
+1. Confirm current-main Core and PostgreSQL 17 results on `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`.
+2. Continue bounded semantic RPC contract review with explicit allow/deny and no-side-effect acceptance.
+3. Keep production migrations/writes, Onyx, WhatsApp, hosted E2E and live AI provider activity unclaimed without authorized proof.
+
+---
+
+# Historical P1 execution log
+Historical P1 entries below are retained for traceability; their SHAs and pending-approval statements do not override the live status above.
+
+
+---
+
+# Historical P1 execution log
+Old P1 entries below are retained for provenance; their SHAs, pending approvals and next actions do not override the live status above.
+
+
+---
+
+# Historical P1 execution log
+The detailed P1 history below is retained for traceability; its checkpoint SHAs and old pending-approval statements do not override this live summary.
+
+
+---
+
 # تقرير الحالة التنفيذي — المبرمج 1 / إدارة جلسات الأجهزة المركزية
 
 - **المستودع:** `Report-Engainall/Nasr1`
