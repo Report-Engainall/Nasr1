@@ -739,13 +739,6 @@ async function main() {
   );
   assert.equal(paymentAuditRows[0].count,1,"concurrent payment creates one source-linked audit event");
   await db.unsafe("set role authenticated");
-  const paymentAuditRows = await db.unsafe(
-    "select count(*)::integer as count from public.audit_logs " +
-    "where organization_id=$1::uuid and action='customer_payment.recorded' and entity_id=$2::uuid",
-    [organizationId,concurrentPaymentId],
-  );
-  assert.equal(paymentAuditRows[0].count,1,"concurrent payment creates one source-linked audit event");
-  await db.unsafe("set role authenticated");
 
   const postedPostingTasks = await db.unsafe(
     "select task_role,status,completed_at,resolution_note from public.ai_tasks " +
