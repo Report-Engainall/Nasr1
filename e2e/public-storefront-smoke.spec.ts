@@ -450,7 +450,7 @@ test("admin export URL reaches the hydrated export center in Chromium without ba
 
   const response = await page.goto("/admin/exports");
   expect(response?.status(), "The direct export URL must resolve to an application response.").toBe(200);
-  await expect(page).toHaveURL(/\\/admin\\/exports\\/?$/);
+  await expect(page).toHaveURL(/\/admin\/exports\/?$/);
 
   // The first heading exists in the ClientOnly fallback; these additional controls prove hydration.
   await expect(
