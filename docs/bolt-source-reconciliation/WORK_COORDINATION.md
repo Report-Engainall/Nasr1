@@ -1,23 +1,30 @@
 # WORK COORDINATION — LIVE STATUS — 24 October 2026
 
-Repository: `Report-Engainall/Nasr1`; only production reference: `main`.
-Last verified main SHA: `653f4d764041a8751c41e75a492fed0cc6edea63`.
+Repository: `Report-Engainall/Nasr1`; only production branch `main`.
+Latest verified main SHA: `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`.
 
 ## Current merge and acceptance truth
 
-- **Merged and retained:** #184, #174, #175, #164, #165, #166, #168, #158, #162, #178, #180, #181, #179, #155, #156, #159, #160, #170, #188, #187, #189, #186. Exact merge SHAs and exact-head evidence are recorded in `CURRENT_EXECUTION_STATE.md`; do not recreate these changes absent a new demonstrated regression.
-- **#190 API-OPS port:** head `5becc27a3f32896b1814aab80433ba7b8c8008ae`; Core run 40127113576 PASS, async-export PostgreSQL 17 run 40127113568 PASS, P2 public UI PASS; local Supabase order/tenant job 120971091911 still IN_PROGRESS at last status read. Hosted authenticated customer E2E is SKIPPED. Keep the PR open until all required exact-head gates are terminal; then merge and verify the new main SHA.
-- **#192 documentation refresh:** live state, matrix, continuous report and this P1/coordination supplement are being reconciled to current-main merges. Its checks must be rerun on the last documentation commit; do not transfer old check results to the new head.
-- **Owner authority:** owner explicitly authorized merging ready changes. The historical no-independent-review statements below are not current gates. Continue to enforce migration ordering, exact-head CI, tenant-safe tests, clean merge, and post-merge status checks.
-- **API-OPS remains PARTIAL:** previous catalog inventory mapped 304/304 public objects; 179 callable RPC candidates still require source-backed semantic coverage. The new stream bounds/export checks/inventory artifact improve the lane but do not close all 179 contracts.
-- **Do not claim:** hosted customer E2E, production writes/migrations/deployment/restore, real Onyx synchronization/import, WhatsApp delivery or live AI provider work without real authorized results.
-- **Parallel ownership:** keep database/security/transaction acceptance and source-ledger ownership boundaries intact; update the canonical checkpoint rather than creating another resume pointer.
+- **Merged:** #184, #174, #175, #164, #165, #166, #168, #158, #162, #178, #180, #181, #179, #155, #156, #159, #160, #170, #188, #187, #189, #186 and #190. Use `CURRENT_EXECUTION_STATE.md` for commit/run evidence; do not recreate these features without a demonstrated regression.
+- **PR #190 current-main port:** merged as `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Exact PR-head Core 40127113576, async-export PostgreSQL 17 40127113568, and P2 40127113571 passed. Hosted customer/tenant E2E skipped due the external credential gate.
+- **Post-merge CI:** Core run 40127500733 and PostgreSQL 17 run 40127500750 were still IN_PROGRESS on main `e467c782bec0e19ddab6c5ddaa72aaa073d7283b` at the last poll. They must reach SUCCESS before the post-merge main gate is marked PASS.
+- **Inventory artifact:** `public-rpc-function-inventory-3d68de8c657e92c2a0fc1a75f787be2862951ea7` from PR merge-tree run 40127113568 reports 310/310 matched, 0 unmatched and 135 migration files. This is source mapping evidence for the isolated test tree, not full semantic authorization proof.
+- **API-OPS remains PARTIAL:** 179 callable RPC candidates still require source-backed semantic review. Bound request streams and async-export authorization coverage are merged, but that does not close the RPC audit.
+- **Owner authorization:** owner explicitly authorized ready merges. Old review approval restrictions below are historical; retain technical safety gates (exact-head tests, ordered migrations, clean merge, main verification).
+- **Do not claim:** production writes/deployment/restore, real Onyx import/sync, WhatsApp delivery, live AI provider calls, or hosted authenticated customer E2E without real authorized results.
+- **Parallel ownership:** preserve database/security/transaction checks and update the canonical pointer rather than creating another conflicting resume checkpoint.
 
-## NEXT_ACTION
-1. Finish #190 local Supabase acceptance, merge on passing exact head, then verify current-main Core/P2.
-2. Finish #192 on its final edited head and merge after its fresh checks pass.
-3. Continue remaining RPC semantic batches without repeating the completed async-export and inventory idempotency work.
-4. Keep route acceptance states evidence-based; unknown/unavailable values are not zero, and skipped hosted tests are not PASS.
+## NEXT ACTION
+1. Verify Core and PostgreSQL 17 on the exact merged main SHA above; repair only concrete failures.
+2. Finish the final-head checks for PR #192 and merge if Core/P2 pass.
+3. Continue measured RPC semantic review without repeating completed export/idempotency paths.
+4. Keep route status tied to specific tests; route registration alone is not route acceptance.
+
+---
+
+## Historical coordination snapshots
+Entries below are retained for provenance. Historical SHA, review, merge order, and active-front statements apply only to their recorded snapshot.
+
 
 ---
 
