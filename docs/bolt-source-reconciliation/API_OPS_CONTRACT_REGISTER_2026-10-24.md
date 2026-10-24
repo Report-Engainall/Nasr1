@@ -398,3 +398,40 @@
 4. Preserve merge sequence #147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #172; no merge without independent approval.
 5. Next batch: Storage RLS/signed-download policies and customer return/credit-memo RPCs; use source plus PostgreSQL 17 allow/deny and concurrency evidence.
 6. Hosted authenticated E2E, production migrations/restore, deployment, live Onyx/WhatsApp/AI remain BLOCKED_EXTERNAL/NOT RUN without authorized evidence.
+ 
+## AUTHORITATIVE ADDENDUM — 2026-10-24 21:02 +03:00 — Asynchronous export RPC family
+
+**Exact source and test evidence (PR #142 head `a4fa6f3a331bf1f02a7ff720f90c1c2e461ccb1c`):** Core run [40119888408 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40119888408), including the dedicated “Verify tenant-scoped asynchronous export lifecycle under PostgreSQL 17” step; P2 run [40119888434 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40119888434). The P2 run's hosted authenticated customer-order job was `SKIPPED`; the isolated local Supabase acceptance and its shutdown completed successfully. These results apply only to that SHA, not a later documentation commit.
+
+Sources:
+- Migration: `supabase/migrations/20261020240000_async_export_jobs.sql`.
+- Database acceptance: `scripts/test-async-export-jobs.mjs`; it runs as its own PostgreSQL 17 CI step in `.github/workflows/commerce-checks.yml`. It is intentionally **not** duplicated in `npm run test:db`.
+- Download boundary: `supabase/functions/async-export-download/index.ts`; it obtains owner-authorized, unexpired artifact metadata through `get_my_async_export_download` then requests a short-lived (60-second) signed URL and disables caching.
+- Worker boundary: `supabase/functions/async-export-worker/index.ts`; bounds the request body at 4 KiB, rejects invalid UTF-8/JSON, validates the worker secret without a normal string-equality comparison, and relies on database lease/claim/complete/fail contracts.
+
+| RPC | Effective source contract | Local acceptance evidence |
+|---|---|---|
+| `request_async_export_job(text,jsonb,text)` | Authenticated active profile; tenant and requester derived server-side; only `admin`, `manager`, `accountant`; only `orders_csv`; exact date-filter allowlist; bounded date range/key; same-key replay returns same job, changed payload is rejected; queue audit written transactionally. | Accepted job and same-key replay; changed filters reject; customer role rejects; foreign organization filters reject. |
+| `list_my_async_export_jobs(integer)` | Authenticated active staff profile; role allowlist; limit 1–50; rows restricted to current organization **and requester**. | Own job appears; foreign job cannot be enumerated. |
+| `get_my_async_export_download(uuid)` | Authenticated active staff profile and role allowlist; exact job owner + organization; state must be `ready`, expiry in future, artifact path present; otherwise returns no metadata. | Foreign download returns `NULL`; expired or cleaned artifact is not downloadable; own ready job returns its scoped artifact path. |
+| `cancel_my_async_export_job(uuid)` | Role/tenant/requester-scoped; queued/retry jobs may cancel; foreign ID is deliberately reported as not found; state change is audited. | Own cancellation tested; foreign cancellation rejects with not-found semantics and does not mutate the foreign row. |
+| `claim_my_async_export_job(uuid,text)` | Authenticated, active, allowed staff role; claim constrained by tenant/requester and due queued/retry status; leases are bounded; retry ceiling is five attempts. | Foreign job claim returns zero rows without changing status, attempt count or lease; customer role cannot claim. No UI/application caller was found by repository code search, so product usage remains **UNVERIFIED** although the RPC's authorization contract is tested. |
+| `claim_async_export_jobs(text,integer,integer,uuid)` | Trusted `service_role`/privileged worker only; bounded batch and lease duration; row locking uses `FOR UPDATE SKIP LOCKED`; expired leases are recovered, retry count capped. | A caller running as `authenticated` is denied; a trusted worker claims atomically and attempt/retry progression is tested. |
+| `complete_async_export_job(uuid,text,text,text,text,bigint,text,integer)` | Trusted worker only; matching unexpired lease required; exact tenant/job object path, expected filename/content type, bounded byte size/row count and SHA-256 format; completion and audit persisted. | Wrong worker denied; matching worker completes; ready state and audit verified. |
+| `fail_async_export_job(uuid,text,text)` | Trusted worker and matching live lease; enumerated failure codes only; backoff and five-attempt cap; terminal failure audit. | Retry progression and terminal failure at attempt five verified. |
+| `sweep_expired_async_export_jobs(integer)` | Trusted worker only; bounded sweep; marks expired artifacts and returns the exact storage path under row lock. | Expiry sweep returns the expected path; cleanup clears metadata only for the matching expired path. |
+| `clear_expired_async_export_artifact(uuid,text)` | Trusted worker only; exact job, `expired` state and path must match before clearing artifact metadata. | Correct path clears metadata; subsequent download returns no artifact. |
+
+### Disposition
+
+- **PASS — source and isolated PostgreSQL 17 contract acceptance** for the tested request/list/get/cancel, claim/complete/fail/sweep/cleanup family at the exact head above. The current branch's added assertions cover foreign-cancel no-op, foreign-claim no-op, customer-role claim denial, and the trusted-worker-only queue claim.
+- **UNVERIFIED** — `claim_my_async_export_job` has no application caller located in the checked repository; retain it only if an authenticated staff-claim path is an intended supported feature.
+- **NOT RUN / BLOCKED_EXTERNAL** — production deployment configuration for `ASYNC_EXPORT_WORKER_SECRET`, real storage signing/download, and an actual deployed worker/queue. The local signed-URL implementation and test fixtures are not evidence of a production storage request.
+- **API-OPS-001 remains PARTIAL overall.** The 304/304 catalog/source mapping is not the same as semantic review of every RPC: 179 callable RPC candidates were previously identified. This batch covers the async-export family only and must not be represented as closing the remaining RPC review.
+
+## NEXT ACTION — exact next step after this addendum
+
+1. This addendum advances PR #142's branch head. Run Core and P2 again on the new exact head; the passing results above belong to `a4fa6f3a331bf1f02a7ff720f90c1c2e461ccb1c` only.
+2. Continue semantic review of the remaining RPCs, prioritizing storage RLS/signed-download policies and invitation/return/accounting authorization paths; do not repeat the completed async-export test.
+3. Refresh the single canonical resume PR #152 after the #142 checks terminate; then rerun Core and P2 on the resulting final #152 head.
+4. Do not merge without an independent submitted review. Keep hosted customer E2E and production integration marked `SKIPPED`/`BLOCKED_EXTERNAL` unless authorized evidence becomes available.
