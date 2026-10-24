@@ -1,3 +1,21 @@
+# LIVE GITHUB RECONCILIATION OVERRIDE — 2026-10-24
+
+**This block supersedes conflicting live-state claims below.** Historical entries are retained for audit, but their PR state, base SHA, and CI claims are not current unless they match the exact current head noted here.
+
+- **Repository:** `Report-Engainall/Nasr1`; **current `main` SHA confirmed by GitHub compare:** `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`.
+- **PR #133:** MERGED. Statements below claiming it is open or still awaiting its documentation merge are historical and superseded.
+- **PR #134:** OPEN; head `296453bd6d71817e0b78e4a752f0dff889ef5ec3`; Core and P2 workflow runs are terminal SUCCESS on this exact head. It proves concurrent same-key batch replay in isolated CI, but remains unmerged and has no submitted independent review.
+- **PR #142:** OPEN; head `3122133586d7eff57ecba4c082ee72edd5108d8e`; latest Core and P2 runs were still IN_PROGRESS when checked. Do not mark this head tested until both are terminal on this exact SHA. Its 304/304 source mapping is not completion of the 179-candidate RPC semantic review.
+- **PR #144:** MERGED. **PR #145:** MERGED. **PR #146:** MERGED. Their prior open/unmerged references below are historical.
+- **PR #147:** OPEN; current head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`; Core and P2 are terminal SUCCESS on this exact SHA. Earlier direct PostgreSQL 17 evidence attached to SHA `5b351a544f412a48c0d5466b91b000c51100c889` must not be transferred to this changed head unless a matching exact-head run is verified. Independent review and authorized merge remain outstanding.
+- **Closed duplicate PRs:** #148 is replaced by #164; #149 by #165; #150 by #166; #151 by #168. Replacement PR comments confirm byte-identical changed-file blobs and the replacement branches are based on current main. Do not reopen or merge stale-base copies. PR #167 is also closed as a duplicate of #162; continue DQS work on #162.
+- **Replacement PRs:** #164 head `65e7be92e9a9a7461b2e64326f6de7f639b74d04`; #165 head `b405fc4902e90bd0cc0dfc47c96e8e563620ccea`; #166 head `10d38b2a3de7b30e675494c71f8f86a0e9903ff5`; #168 head `425fe17ff16fdf00bab4c6e85a3bb9bc72413116`. Core, P2, and each dedicated PostgreSQL 17 workflow are terminal SUCCESS for these exact heads. All remain OPEN/UNMERGED and need independent review and migration-order validation.
+- **Review policy:** GitHub review APIs returned no submitted human reviews for #134, #142, #147, #164, #165, #166 or #168. Requested reviewers and CodeRabbit status are not approval.
+- **Migration sequence for pending NULL-decision guards:** #147 (13:30) → #164 (14:00) → #165 (14:30) → #166 (14:45) → #168 (14:50). Keep version uniqueness and dependencies; verify each exact merge SHA and run Core/P2 after each authorized merge.
+- **Current next action:** (1) poll #142 Core/P2 on `3122133586d7eff57ecba4c082ee72edd5108d8e`; (2) continue per-RPC semantic review against current main and exact migration definitions; (3) preserve #134's concurrency assertion when reconciling shared database-test changes; (4) do not claim current-main Core PASS unless its workflow run is verified on `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`.
+- **External evidence boundary:** hosted customer/tenant E2E, live Onyx import, WhatsApp delivery, production secrets, deployment, and production restore remain unproven unless separately evidenced. A skipped job is not PASS.
+
+---
 # NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026
 
 - **Repository:** `Report-Engainall/Nasr1`; `main` remains the only production reference.
