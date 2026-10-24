@@ -17,8 +17,13 @@ describe('unified import end-to-end acceptance contracts', () => {
     expect(importer).toContain('sourceSystem,');
     expect(importer).toContain('useState("manual")');
     expect(importer).toContain('source_system: selectedSource');
+    expect(importer).toContain('external_source_reference: selectedExternalSourceReference');
+    expect(importer).toContain('externalSourceReference: selectedExternalSourceReference');
     expect(importer).toContain('sourceSystem: selectedSource,');
     expect(importer).toContain('sourceSystem: string;');
+    expect(api).toContain('p_external_source_reference: input.externalSourceReference?.trim() || null');
+    expect(api).toContain("rollback_import_snapshot");
+    expect(finalizeGuard).toContain("external_source_reference', v_external_source_reference");
   });
 
   it('rejects missing required headers and invalid UTF-8 before attempting finalization', () => {
@@ -57,6 +62,26 @@ describe('unified import end-to-end acceptance contracts', () => {
     expect(finalizeGuard).toContain('finalize_import_job_without_manifest_guard');
     expect(dbAcceptance).toContain('reject snapshot finalization while an upload manifest is missing its final chunk');
     expect(dbAcceptance).toContain('reject finalization of a cancelled import with a complete upload manifest');
+  });
+
+  it('reconciles fail state atomically and does not downgrade a terminal result after a lost response', () => {
+    expect(api).toContain("supabase.rpc('fail_import_job_safely'");
+    expect(importer).toContain('failImportJobSafely(job.id, failureSummary)');
+    expect(importer).toContain('لم تُحوّل إلى فشل ولم يُكرر الاعتماد');
+    expect(finalizeGuard).toContain("'rolled_back')");
+    expect(dbAcceptance).toContain('CI_LOST_FINALIZE_RESPONSE');
+  });
+
+  it('rolls back the latest snapshot by archiving it, retaining rows and writing one auditable event', () => {
+    expect(importer).toContain('rollbackImportSnapshot(job.id, reason)');
+    expect(importer).toContain('سبب التراجع');
+    expect(finalizeGuard).toContain("public.rollback_import_snapshot");
+    expect(finalizeGuard).toContain("'import.snapshot_rolled_back'");
+    expect(finalizeGuard).toContain("SET status='archived'");
+    expect(finalizeGuard).not.toMatch(/DELETE\\s+FROM\\s+public\\.onyx_snapshot_rows/i);
+    expect(finalizeGuard).not.toMatch(/DELETE\\s+FROM\\s+public\\.import_job_rows/i);
+    expect(dbAcceptance).toContain('CI regression: validate audited rollback without deleting snapshot rows');
+    expect(dbAcceptance).toContain('missing keys in a partial source are not deletion instructions');
   });
 
   it('keeps cancelled or failed staging separate from live snapshots and never purges history as rollback', () => {
