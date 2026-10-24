@@ -31,15 +31,28 @@ export function AsyncExportCenter() {
   const [submitting, setSubmitting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [loadError, setLoadError] = useState('');
   const keyRef = useRef<string | null>(null);
   const locked = useRef(false);
   const refresh = useCallback(async () => {
     if (locked.current) return;
     locked.current = true;
     setLoading(true);
-    try { setJobs(await listMyAsyncExportJobs(30)); }
-    catch (e) { setNotice({ kind: "error", text: e instanceof Error ? e.message : "تعذر تحديث سجل التصدير." }); }
-    finally { setLoading(false); locked.current = false; }
+    setLoadError('');
+    try {
+      const latestJobs = await listMyAsyncExportJobs(30);
+      setJobs(latestJobs);
+      setLoadError('');
+    } catch (e) {
+      // Never leave an older job snapshot visible as if it were the current server state.
+      setJobs([]);
+      const message = e instanceof Error ? e.message : "تعذر تحديث سجل التصدير.";
+      setLoadError(message);
+      setNotice({ kind: "error", text: message });
+    } finally {
+      setLoading(false);
+      locked.current = false;
+    }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
   const active = jobs.some((j) => ["queued", "processing", "retry"].includes(j.status));
@@ -124,7 +137,7 @@ export function AsyncExportCenter() {
             {["queued","retry"].includes(job.status) && <button type="button" onClick={() => void retry(job)} disabled={busy === job.job_id} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-xs font-semibold disabled:opacity-60"><RefreshCw size={14}/> تنبيه العامل</button>}
             {["queued","retry"].includes(job.status) && <button type="button" onClick={() => void cancel(job)} disabled={busy === job.job_id} className="inline-flex items-center gap-1 rounded-md border border-rose-200 px-3 py-2 text-xs text-rose-700 disabled:opacity-60"><XCircle size={14}/> إلغاء</button>}
           </div></td>
-        </tr>)}{jobs.length === 0 && <tr><td colSpan={6} className="px-4 py-12 text-center">{loading ? "جارٍ تحميل السجل…" : "لا توجد طلبات تصدير حتى الآن"}</td></tr>}</tbody>
+        </tr>)}{jobs.length === 0 && <tr><td colSpan={6} className="px-4 py-12 text-center" role={loadError ? "alert" : "status"}>{loading ? "جارٍ تحميل السجل…" : loadError ? "تعذر تأكيد حالة سجل التصدير. اضغط «تحديث السجل» لإعادة المحاولة؛ لم تُعرض بيانات قديمة." : "لا توجد طلبات تصدير حتى الآن"}</td></tr>}</tbody>
       </table></div>
       <p className="text-xs leading-5 text-muted-foreground">تُنظَّف الملفات بعد انتهاء صلاحيتها. رابط التنزيل موقّع لمدة 60 ثانية فقط ولا يفتح الوصول العام.</p>
     </section>
