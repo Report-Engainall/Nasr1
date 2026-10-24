@@ -180,7 +180,7 @@ function collectFunctionDeclarations(source, filename) {
       throw new Error("Unclosed argument list in ALTER FUNCTION RENAME in " + filename + " near " + match[1]);
     }
     const suffix = source.slice(closeIndex + 1);
-    const renamed = suffix.match(/^\s+RENAME\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/i);
+    const renamed = suffix.match(/^\s+RENAME\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)\s*'?\s*;/i);
     renameRegex.lastIndex = closeIndex + 1;
     if (!renamed) continue;
     found.push({
@@ -202,6 +202,14 @@ assert.equal(
   typeSignature(declarationSmoke.slice(declarationOpen + 1, declarationClose)),
   "uuid,numeric(15,3),timestamptz,text",
   "signature scanner must preserve all typed arguments while removing defaults",
+);
+assert.equal(
+  collectFunctionDeclarations(
+    "DO $block$ BEGIN EXECUTE 'ALTER FUNCTION public.refresh_operational_tasks() RENAME TO refresh_operational_tasks_pre_purchase_v1'; END $block$;",
+    "parser-smoke.sql",
+  ).some((item) => item.name === "refresh_operational_tasks_pre_purchase_v1" && item.types === ""),
+  true,
+  "signature scanner must recognize renamed functions inside dynamically quoted migration SQL",
 );
 
 const declarations = new Map();
