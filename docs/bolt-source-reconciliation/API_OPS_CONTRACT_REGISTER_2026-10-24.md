@@ -87,6 +87,18 @@
 
 **الحالة:** `PARTIAL` — اكتشاف موثق وإصلاح مقترح اجتاز Core/P2 على الرأس المحدد؛ الدمج والمراجعة وإثبات RPC المباشر ما زالت مفتوحة.
 
+## الدفعة الدلالية الرابعة — رفض NULL في انتقال حالة المهمة التشغيلية (OPEN; CI pending)
+
+**الاكتشاف:** `public.update_operational_task_status(p_task_id, p_status, p_resolution_note)` كان يتحقق باستخدام `IF p_status NOT IN (...)`. إذا كانت `p_status` تساوي `NULL`، تصبح نتيجة الشرط `NULL` وليست `TRUE`؛ فيتجاوز المدخل حاجز التحقق ويتقدم إلى محاولة التحديث. قيد قاعدة البيانات قد يرفض التغيير لاحقًا، لكن العقد لا يضمن خطأ مدخلات واضحًا ومستقرًا قبل قراءة المهمة/قفلها.
+
+**المعالجة:** [PR #148](https://github.com/Report-Engainall/Nasr1/pull/148) يضيف migration أمامية `20261024140000_operational_task_status_reject_null.sql` بشرط صريح `p_status IS NULL OR p_status NOT IN (...)` مع SQLSTATE `22023` قبل البحث عن المهمة والقفل والتحديث. يحتفظ بتفويض المؤسسة والدور والموظف المعيّن وانتقالات الحالة وسجل التدقيق.
+
+**اختبار حالي:** أُضيف `src/test/operational-task-null-status-migration.test.ts` لإثبات وجود الحارس وترتيبه قبل قراءة الصف والتحديث، مع التحقق من بقاء ضوابط الصلاحية والتدقيق. Core [40106419430](https://github.com/Report-Engainall/Nasr1/actions/runs/40106419430) وP2 [40106419440](https://github.com/Report-Engainall/Nasr1/actions/runs/40106419440) كانا قيد التنفيذ على SHA `3988adbaa6a8aa22ae8562a7a7fdd98a63dbe36a` عند إعداد هذا التحديث.
+
+**حد القبول:** هذا اختبار عقد مصدر، وليس إثباتًا لتشغيل RPC مباشرة على PostgreSQL 17. تبقى نتيجة Core/P2 النهائية، واختبار runtime المباشر، والمراجعة المستقلة والدمج مطلوبة. يجب ترتيب دمج migration `20261024140000` بعد #144 ثم #145 ثم #147؛ لا يُدمج #148 قبل استيفاء ترتيب migrations.
+
+**الحالة:** `PARTIAL` — إصلاح أمامي واختبار عقد أُرسلا إلى PR؛ التنفيذ على قاعدة اختبار مباشرة والدمج لم يثبتا بعد.
+
 ## اختبارات تثبتها Core الحالية
 
 على `main` SHA `16a3d23e558696700bccbb3dbf9ea75b0fccf745`, Core run [40035355209](https://github.com/Report-Engainall/Nasr1/actions/runs/40035355209) انتهى `SUCCESS`. سجل القبول يتضمن:
