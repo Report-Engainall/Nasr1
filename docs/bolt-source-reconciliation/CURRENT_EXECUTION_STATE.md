@@ -21,6 +21,8 @@
 - **#180 — tenant-scope legacy finalizer:** head `f31e3547e99b085fb0b8db0b2be098809acac247`; PostgreSQL 17 `40118418761`, Core `40118418698`, and local P2 `40118418782` SUCCESS. Foreign-tenant denial also asserts staged rows and audit rows do not change. Hosted E2E is SKIPPED.
 - **#182 — duplicate status reconciliation draft:** CLOSED without merge after its useful P1 status details were ported into this canonical #152 branch; avoid competing edits to CURRENT_EXECUTION_STATE and the matrix.
 
+- **PR #184 — price-grid decimal validation:** head `22fa3d1a9d9f9463c93a06588e15391171c3d82e`, branch `fix/p2-price-grid-decimal-validation-20261024`, open/unmerged; independent review requested from `adnanabderab2016-sys`. Core [40120485585](https://github.com/Report-Engainall/Nasr1/actions/runs/40120485585) is terminal SUCCESS on this exact head, including unit tests, PostgreSQL 17 migration/workflow acceptance, lint, build, build/dev-server smoke and Chromium price-visibility acceptance. P2 [40120485586](https://github.com/Report-Engainall/Nasr1/actions/runs/40120485586) has public UI smoke SUCCESS and infrastructure gate SUCCESS; local Supabase acceptance [job 120950906236](https://github.com/Report-Engainall/Nasr1/actions/runs/40120485586/job/120950906236) is still IN_PROGRESS at checkpoint. Authenticated hosted customer/tenant acceptance was SKIPPED, not PASS. Do not merge until the P2 run is terminal and independent review/policy requirements are met.
+
 ### Integration constraints and evidence boundaries
 - Apply migrations in timestamp/dependency order: #180 legacy tenant-scoped finalizer (`20261024160000`) before #179 verified-manifest finalizer (`20261024170000`). Preserve the agreed chain **#147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #172**, then integrate stacked #181 under its parent. Reconcile shared test assertions after each base change; rerun required gates on final resulting SHA.
 - Keep #155's CSV/XLSX work in one PR because both signed-stock and XML-control fixes touch the same files. #183 is CLOSED unmerged; its code was copied into #155, which owns CI acceptance.
@@ -28,11 +30,12 @@
 - Build success alone does not prove database correctness or authorization. An open PR is not a merge; old-SHA checks and requested reviewer assignments are not current acceptance evidence.
 
 ## NEXT ACTION — FIRST STEP ON RESUME
-1. Request independent review for #155 on head `fd7944fc2a322676d3a8cf3cff08fe64f9ccc934`; its Core `40120144157` and local P2 `40120144155` are terminal SUCCESS, while hosted customer E2E is SKIPPED.
-2. Obtain independent review for #134, #142, #147, #155, #158, #162, #179 and #180; merge only when review policy and ordered migration checks are satisfied.
-3. Rerun required Core/P2 gates on the new #152 checkpoint head after this document update; do not transfer old-head PASS.
-4. Continue #142 semantic security review for the remaining 179 RPC candidates and add evidence per reviewed contract.
-5. Integrate #181 with parent #172 only under ordered review, then rerun exact-head Core/P2/PostgreSQL 17 and prove SQLSTATE `40001` plus zero partial stock/audit/session side effects.
+1. - Poll PR #184's exact-head P2 local Supabase acceptance (run 40120485586, job 120950906236); record only its terminal result. Core 40120485585 is SUCCESS on the same head; P2 public UI smoke is SUCCESS, while hosted customer/tenant E2E is SKIPPED. Keep PR #184 open until required review is submitted and merge policy is satisfied.
+2. Request independent review for #155 on head `fd7944fc2a322676d3a8cf3cff08fe64f9ccc934`; its Core `40120144157` and local P2 `40120144155` are terminal SUCCESS, while hosted customer E2E is SKIPPED.
+3. Obtain independent review for #134, #142, #147, #155, #158, #162, #179 and #180; merge only when review policy and ordered migration checks are satisfied.
+4. Rerun required Core/P2 gates on the new #152 checkpoint head after this document update; do not transfer old-head PASS.
+5. Continue #142 semantic security review for the remaining 179 RPC candidates and add evidence per reviewed contract.
+6. Integrate #181 with parent #172 only under ordered review, then rerun exact-head Core/P2/PostgreSQL 17 and prove SQLSTATE `40001` plus zero partial stock/audit/session side effects.
 
 
 ## HISTORICAL ACTIVE READ — 2026-10-24 20:40 +03:00 (superseded by the authoritative read above)
@@ -65,11 +68,11 @@
 - Production migration/restore, deployment, hosted authenticated customer E2E, live Onyx, official WhatsApp, and live AI access remain NOT RUN/BLOCKED_EXTERNAL absent authorized evidence.
 
 ## NEXT ACTION — FIRST STEP ON RESUME
-1. Poll Core/P2 for #142 at `7f95daa2511936ecccd548bc871f1e9d7e85e9f5` and P2 #175 at `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`; repair only a proven failure.
-2. Verify and merge no PR until the required independent approval exists; keep #152 as the single checkpoint PR and close #176 after this content is preserved.
-3. Continue #142 semantic RPC review beyond the source inventory, particularly storage access grants, worker lease enforcement, and remaining customer/company/invitation deny tests.
-4. Execute ordered migration integration #147 → #164 → #165 → #166 → #168 → #158 → #162 → #172, running current-head CI after every update and merge.
-5. After #142/#175 terminal results are known, refresh all checkpoint files/matrix once and rerun exact-head Core/P2.
+2. Poll Core/P2 for #142 at `7f95daa2511936ecccd548bc871f1e9d7e85e9f5` and P2 #175 at `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`; repair only a proven failure.
+3. Verify and merge no PR until the required independent approval exists; keep #152 as the single checkpoint PR and close #176 after this content is preserved.
+4. Continue #142 semantic RPC review beyond the source inventory, particularly storage access grants, worker lease enforcement, and remaining customer/company/invitation deny tests.
+5. Execute ordered migration integration #147 → #164 → #165 → #166 → #168 → #158 → #162 → #172, running current-head CI after every update and merge.
+6. After #142/#175 terminal results are known, refresh all checkpoint files/matrix once and rerun exact-head Core/P2.
 
 ---
 
@@ -94,11 +97,11 @@
 
 ## NEXT ACTION — FIRST STEP ON RESUME
 
-1. Poll PR #162 P2 run `40113018801` to terminal on exact head `e5ca28bb81a605f4e6628baa7abbdc1b5c7216f8`; repair only an evidence-backed failure.
-2. Refresh #152 to this checkpoint and latest main, then run Core/P2 on the final docs branch and request/obtain independent review.
-3. Obtain independent review for #147, #134, #142, #155, #156, #157, #158, #159, #160, and #162; merge only after the specific exact-head gates and repository policy allow.
-4. Once #147 is approved/merged, reconcile #148, #149, #150, #151 sequentially and re-run each exact-head acceptance gate.
-5. Continue the 179-RPC semantic review and split/reconcile the unique nonduplicate work in #118; do not mark project complete while any critical acceptance requirement remains PARTIAL, UNVERIFIED, or BLOCKED_EXTERNAL.
+2. Poll PR #162 P2 run `40113018801` to terminal on exact head `e5ca28bb81a605f4e6628baa7abbdc1b5c7216f8`; repair only an evidence-backed failure.
+3. Refresh #152 to this checkpoint and latest main, then run Core/P2 on the final docs branch and request/obtain independent review.
+4. Obtain independent review for #147, #134, #142, #155, #156, #157, #158, #159, #160, and #162; merge only after the specific exact-head gates and repository policy allow.
+5. Once #147 is approved/merged, reconcile #148, #149, #150, #151 sequentially and re-run each exact-head acceptance gate.
+6. Continue the 179-RPC semantic review and split/reconcile the unique nonduplicate work in #118; do not mark project complete while any critical acceptance requirement remains PARTIAL, UNVERIFIED, or BLOCKED_EXTERNAL.
 
 ## Superseded checkpoint — 2026-10-24 19:24/19:25 (retained for historical evidence)
 
@@ -114,11 +117,11 @@
 - `main` was not edited directly by this session; documentation work is isolated on branch `p2/refresh-live-execution-checkpoint-20261024`.
 
 ## NEXT ACTION — FIRST STEP ON RESUME
-1. Poll PR #153 Core run 40111408262 and P2 run 40111408235 until terminal on exact head `43f7b8d40d5865a879063fc34594101abadc8de6`; fix only a proven failure and preserve both analytics and quote-decision steps.
-2. Once #153 is green and review/merge rules permit, merge #153, verify merge SHA and current-main CI, then close superseded #147.
-3. Port #148 onto the latest main after #153; run Core, P2 and PostgreSQL 17, review it, merge only when permitted. Repeat sequentially for #149, #150 and #151.
-4. Reconcile #134 to latest main preserving all concurrent batch idempotency and current security assertions, then rerun exact-head Core/P2/PG17.
-5. Continue #142's remaining 179 callable RPC semantic reviews and the open P1/P3 route/admin acceptance PRs; do not stop at the NULL-state fixes.
+2. Poll PR #153 Core run 40111408262 and P2 run 40111408235 until terminal on exact head `43f7b8d40d5865a879063fc34594101abadc8de6`; fix only a proven failure and preserve both analytics and quote-decision steps.
+3. Once #153 is green and review/merge rules permit, merge #153, verify merge SHA and current-main CI, then close superseded #147.
+4. Port #148 onto the latest main after #153; run Core, P2 and PostgreSQL 17, review it, merge only when permitted. Repeat sequentially for #149, #150 and #151.
+5. Reconcile #134 to latest main preserving all concurrent batch idempotency and current security assertions, then rerun exact-head Core/P2/PG17.
+6. Continue #142's remaining 179 callable RPC semantic reviews and the open P1/P3 route/admin acceptance PRs; do not stop at the NULL-state fixes.
 6. Do not claim hosted E2E, Onyx, WhatsApp, AI-provider live integration, production restore, or deployment as successful without actual authorized evidence.
 
 ---
