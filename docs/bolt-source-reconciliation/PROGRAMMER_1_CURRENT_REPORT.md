@@ -1,23 +1,24 @@
 # P1 LIVE RESUME UPDATE — 24 October 2026
 
-**The canonical execution checkpoint is PR #152. This report describes P1 ownership; it is not a second resume pointer. Keep its claims synchronized with CURRENT_EXECUTION_STATE.md and the acceptance matrix.**
+**Canonical execution checkpoint:** PR #152. This report is P1 handover context, not a second resume pointer. Sync with `CURRENT_EXECUTION_STATE.md` and the acceptance matrix.
 
-- Main: `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; exact-head main check `40111286682` SUCCESS. No direct writes to main.
-- #134 head `f141391968fefd9f568624cdfb98be935d7c9da6`: Core `40118402370` and P2 `40118402229` SUCCESS; inventory batch concurrency proves one canonical batch and no duplicate transfer/audit effects. Review outstanding.
-- #142 head `a4fa6f3a331bf1f02a7ff720f90c1c2e461ccb1c`: Core `40119888408` and P2 `40119888434` SUCCESS. Bounded 2 KiB JSON-delete body handling is included. API-OPS remains PARTIAL until the 179 callable RPC candidates have semantic authorization/tenant/role/input/output/effect/idempotency/concurrency/audit review and allow/deny evidence.
-- #147 head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`: Core `40111802394` / P2 `40111802434` SUCCESS; Core logs prove exact-head PostgreSQL 17 quote decision acceptance. #158 head `afc685636df26ce9b35e84ffc9565f552c3c2d7e`: Core `40118708860`, PG17 `40118708851`, P2 `40118708956` SUCCESS; concurrency produces one payment and one audit row. #162 head `e5ca28bb81a605f4e6628baa7abbdc1b5c7216f8`: PG17 `40113018797`, Core `40113018846`, P2 `40113018801` SUCCESS and scores only explicitly valid rows.
-- #172 head `682761625993a203b5795daa953632f131ae886a`: Core `40115029836` / P2 `40115029831` SUCCESS. Draft #181 adds SQLSTATE and no-side-effect assertions; it needs integration and exact-head retesting.
-- #179 head `4f34704fe2b6cf63942f6cf6b3532ef780130a91`: Core `40119746804` / local P2 `40119746870` SUCCESS. Its finalizer requires matching source/config fingerprints, uses idempotent job creation, and refuses success if an older matching ready snapshot remains. #180 must apply before #179 by migration timestamp.
-- #180 head `f31e3547e99b085fb0b8db0b2be098809acac247`: dedicated PostgreSQL 17 `40118418761`, Core `40118418698`, local P2 `40118418782` SUCCESS; a foreign-tenant denial cannot change staged import or audit rows.
-- #155 head `fd7944fc2a322676d3a8cf3cff08fe64f9ccc934` combines signed stock-metric export parity with XML 1.0 control sanitization. Core `40120144157` and local P2 `40120144155` are terminal SUCCESS on this exact head. #183 was closed unmerged after porting its XML fix into #155; hosted customer E2E remains SKIPPED.
-- Hosted authenticated customer/tenant E2E remains SKIPPED; no production Onyx import, production writes/migrations, WhatsApp delivery, live AI provider, deployment or restore is proven. A reviewer assignment is not approval.
+- **main:** `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; no direct main writes.
+- **#134:** head `f141391968fefd9f568624cdfb98be935d7c9da6`; Core 40118402370/P2 40118402229 SUCCESS. PG17 acceptance proves same-key batch identity/no duplicate movements or audit and reservation preservation. Independent review pending.
+- **#142:** latest head `15cf88c43d29dc5c37ba1b61f1d82a277e40fbf3`; Core 40121198299 and P2 40121198330 IN_PROGRESS at last poll. API-OPS remains PARTIAL: 304/304 public runtime objects mapped, but 179 callable RPC candidates need semantic authorization/tenant/effect/retry/idempotency/audit checks. Do not reuse prior-head PASS.
+- **#147:** head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`; Core 40111802394/P2 40111802434 SUCCESS; Core log proves PostgreSQL 17 quote-decision runtime acceptance. Independent review pending.
+- **#152:** current pre-update head `720c08a56f17c3bf80e106233167a1793cb80426` had Core 40121187166 IN_PROGRESS and P2 40121187312 PENDING. This report/matrix/state update creates a new head; require fresh exact-head Core/P2. #182 is closed duplicate; keep #152 as the only checkpoint.
+- **#158:** head `56b49d3ee4e5e6d2f73e884742361ad50e02f290`; Core 40120412751/P2 40120412721/PG17 40120412714 SUCCESS. PG17 proves concurrent same-key replay persists one canonical payment and one audit, plus payment-versus-credit-memo race rejects excess payment with no payment/audit side effects. Hosted E2E remains SKIPPED.
+- **#162:** head `e5ca28bb81a605f4e6628baa7abbdc1b5c7216f8`; PG17 40113018797/Core 40113018846/P2 40113018801 SUCCESS; only explicitly `valid` rows receive validity points. Review and integrated migration-stack validation pending.
+- **#181 canonical stock-count snapshot fix; #172 superseded:** head `02c5781274b20fd4c9942fafcdd64d2e61661bb0`; Core 40120660535/P2 40120660534 SUCCESS. PostgreSQL 17 assertions prove SQLSTATE 40001, open session/no completion metadata, no movement/completion audit, and unchanged on-hand/reserved balances. #172 is CLOSED without merge; do not recreate it.
+- **#155/#179/#180/#184:** their recorded exact-head gates remain as described in the canonical checkpoint; preserve #180 before #179 and revalidate after any stack change.
+- **Merge rule:** no independent submitted approval is recorded for the named open candidates. A reviewer assignment and CI success are not approval. Hosted authenticated customer/tenant E2E, live Onyx import, WhatsApp, live AI-provider calls, production mutation/deployment/restore remain unproven or SKIPPED.
 
 ## NEXT ACTION — P1
-1. Request independent review for #155; its exact-head Core and local P2 gates passed, while hosted customer E2E remains SKIPPED.
-2. Obtain independent submitted review for the security/transaction PRs; CI alone is insufficient for merge.
-3. Continue semantic review of the remaining 179 RPC candidates in #142.
-4. Integrate #181 with #172, then rerun exact-head Core/P2/PostgreSQL 17.
-5. Preserve migration order #180 before #179 and #147 → #164 → #165 → #166 → #168 → #158 → #162 → #172; keep this report aligned with the canonical checkpoint.
+1. Poll #142 Core/P2 on exact head `15cf88c43d29dc5c37ba1b61f1d82a277e40fbf3`; fix only a proven failure and re-run all required gates on any changed SHA.
+2. Poll #152 on its new exact head after this documentation update; wait for terminal Core/P2 success there before claiming the checkpoint passes.
+3. Obtain independent submitted reviews for #134/#142/#147/#152/#158/#162/#181; do not merge without policy approval.
+4. Continue semantic analysis and allow/deny tests for the remaining 179 callable RPC candidates. Keep API-OPS PARTIAL until the measured review matrix closes.
+5. Preserve migration order: #147 → #164 → #165 → #166 → #168 → #158 → #162 → #180 → #181 → #179. Revalidate the complete integrated stack at the final SHA.
 
 ---
 
