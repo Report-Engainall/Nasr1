@@ -2756,7 +2756,7 @@ async function main() {
     [partialMergeJob.id, db.json({ item_code: "000127", product_name: "Tea", quantity: "1", revenue: "5", price: "5", date: "2026-01-03" })],
   );
   await db.unsafe(
-    \`update public.import_jobs
+    `update public.import_jobs
         set error_summary=jsonb_build_object(
           'processing_config_fingerprint', repeat('f',64),
           'source_file_hash', file_hash,
@@ -2764,7 +2764,7 @@ async function main() {
           'source_system', source_system,
           'no_raw_file_retained', true
         )
-      where id=$1::uuid\`,
+      where id=$1::uuid`,
     [partialMergeJob.id],
   );
   const finalizedPartialMerge = await db.unsafe(
