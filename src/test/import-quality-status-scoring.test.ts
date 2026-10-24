@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(
-  fileURLToPath(new URL("../../supabase/migrations/20261024153000_import_quality_valid_row_scoring.sql", import.meta.url)),
+  join(process.cwd(), "supabase/migrations/20261024153000_import_quality_valid_row_scoring.sql"),
   "utf8",
 );
 
