@@ -1341,12 +1341,60 @@ async function main() {
     () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)", [invoice.id, 500000, "cash", randomUUID(), "CI-OVERPAY", "should reject"]),
     /exceeds invoice balance/i,
   );
-  await db.unsafe(
-    "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)",
-    [invoice.id, 100000, "transfer", randomUUID(), "CI-PAY-001", "partial payment"],
+  const runtimeAuditPaymentIdempotencyKey = randomUUID();
+  const runtimeAuditPaymentActorId = (await db.unsafe("select public.current_profile_id() as id"))[0].id;
+  const runtimeAuditPaymentInsert = await db.unsafe(
+    "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6) as id",
+    [invoice.id, 100000, "transfer", runtimeAuditPaymentIdempotencyKey, "CI-PAY-001", "partial payment"],
   );
+  const runtimeAuditPaymentId = runtimeAuditPaymentInsert[0].id;
+  assert.ok(runtimeAuditPaymentId, "customer payment RPC must return the committed payment ID");
+
+  const runtimeAuditPaymentRequestReplay = await db.unsafe(
+    "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6) as id",
+    [invoice.id, 100000, "transfer", runtimeAuditPaymentIdempotencyKey, "CI-PAY-001", "partial payment"],
+  );
+  assert.equal(runtimeAuditPaymentRequestReplay[0].id, runtimeAuditPaymentId,
+    "an identical payment request must replay the original payment");
+
+  await expectFailure(
+    "payment idempotency key cannot be reused with a changed payload",
+    () => db.unsafe(
+      "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)",
+      [invoice.id, 100001, "transfer", runtimeAuditPaymentIdempotencyKey, "CI-PAY-001", "partial payment"],
+    ),
+    /payment idempotency key reused with different payload/i,
+    "22023",
+  );
+
+  await db.unsafe("reset role");
+  const runtimeAuditPaymentEvents = await db.unsafe(
+    "select organization_id,actor_id,action,entity_type,entity_id,new_value from public.audit_logs where organization_id=$1 and action='customer_payment.recorded' and entity_id=$2::uuid",
+    [organizationId, runtimeAuditPaymentId],
+  );
+  assert.equal(runtimeAuditPaymentEvents.length, 1,
+    "an identical retry must not produce a second customer-payment audit event");
+  const runtimeAuditPaymentEvent = runtimeAuditPaymentEvents[0];
+  assert.equal(runtimeAuditPaymentEvent.organization_id, organizationId);
+  assert.equal(runtimeAuditPaymentEvent.actor_id, runtimeAuditPaymentActorId);
+  assert.equal(runtimeAuditPaymentEvent.action, "customer_payment.recorded");
+  assert.equal(runtimeAuditPaymentEvent.entity_type, "customer_payment");
+  assert.equal(runtimeAuditPaymentEvent.entity_id, runtimeAuditPaymentId);
+  assert.equal(runtimeAuditPaymentEvent.new_value.invoice_id, invoice.id);
+  assert.equal(runtimeAuditPaymentEvent.new_value.customer_id, invoice.customer_id);
+  assert.equal(Number(runtimeAuditPaymentEvent.new_value.amount), 100000);
+  assert.equal(runtimeAuditPaymentEvent.new_value.currency, invoice.currency);
+  assert.equal(runtimeAuditPaymentEvent.new_value.payment_method, "transfer");
+  assert.equal(runtimeAuditPaymentEvent.new_value.idempotency_key_present, true);
+  assert.equal(Object.hasOwn(runtimeAuditPaymentEvent.new_value, "idempotency_key"), false,
+    "audit must not expose the raw idempotency key");
+  assert.equal(Object.hasOwn(runtimeAuditPaymentEvent.new_value, "notes"), false,
+    "audit must not copy payment notes into the event");
+
+  await db.unsafe("set role authenticated");
   const invoiceAfterPayment = await db.unsafe("select status from public.customer_invoices where id=$1", [invoice.id]);
   assert.equal(invoiceAfterPayment[0].status, "partially_paid");
+  process.stdout.write("PASS customer payment runtime audit: tenant/actor/source fields persisted, idempotent replay emits one audit, changed payload rejected, sensitive key/notes excluded\\n");
 
   // Receivables aging is computed from the full tenant-scoped invoice/payment ledger, not browser totals.
   const agingSnapshot = await db.unsafe(
@@ -4899,12 +4947,12 @@ async function main() {
   assert.equal(paymentDraft.status, "draft");
   assert.equal(Number(paymentDraft.amount), Number(paymentSource.amount));
   const paymentJournalId = paymentDraft.journal_entry_id;
-  const paymentReplay = (await db.unsafe(
+  const runtimeAuditPaymentReplay = (await db.unsafe(
     "select public.create_customer_payment_journal_draft($1::uuid,$2::uuid,$3::uuid) as result",
     [paymentSource.id, altSettlementAccountId, "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdc2"],
   ))[0].result;
-  assert.equal(paymentReplay.journal_entry_id, paymentJournalId);
-  assert.equal(paymentReplay.replayed, true);
+  assert.equal(runtimeAuditPaymentReplay.journal_entry_id, paymentJournalId);
+  assert.equal(runtimeAuditPaymentReplay.replayed, true);
   await expectFailure(
     "payment source cannot be remapped to a different settlement account after draft creation",
     () => db.unsafe(
