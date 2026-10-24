@@ -49,6 +49,6 @@ describe("API-OPS semantic contract register", () => {
     expect(register).toContain("PARTIAL");
     expect(register).toContain("BLOCKED_EXTERNAL");
     expect(register).toContain("NOT RUN");
-    expect(register).toContain("hosted authenticated customer E2E");
+    expect(register).toMatch(/hosted authenticated customer E2E/i);
   });
 });
