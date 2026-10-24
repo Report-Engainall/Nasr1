@@ -1,3 +1,15 @@
+# P2 LIVE EXECUTION UPDATE — 2026-10-24T15:12:00Z — quote-test correction pushed
+
+- Target repository: `Report-Engainall/Nasr1`; main reference SHA remains `16a3d23e558696700bccbb3dbf9ea75b0fccf745`.
+- **PR #144** exact head `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`: Core [40105249828 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249828) and P2 [40105249827 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249827), both on the same SHA. Still OPEN/UNMERGED, independent reviewer requested and no submitted review; no merge authorization.
+- **PR #147** now points to `ff59c6144cec2e78864a0c35f96140d333f376ca`. The first Core run [40105583244 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/40105583244) was caused by a test regex requiring the exact grammar “decision is required” while the SQL message said “decision are required”; migration behavior was not the failure. Corrected the matcher at `ff59c6144cec2e78864a0c35f96140d333f376ca`. Latest Core [40105725672](https://github.com/Report-Engainall/Nasr1/actions/runs/40105725672) and P2 [40105725585](https://github.com/Report-Engainall/Nasr1/actions/runs/40105725585) were IN_PROGRESS on this same SHA at checkpoint. Until both finish SUCCESS, #147 is UNVERIFIED.
+- #147 adds a forward migration `20261024130000_customer_quote_response_explicit_decision.sql`: it rejects NULL quote ID or NULL accept/reject decision before mutation; keeps `quotes.manage`, active customer, customer ownership and quoted-state guards; execution remains for `authenticated` only. Source-contract tests exist; direct PostgreSQL runtime call with NULL remains a follow-up after the concurrent #134/#144 test-file overlap is reconciled.
+- **Shared-file dependency:** PR #134 and #144 both edit `scripts/test-database-migrations.mjs`. After #144 receives independent review and authorized merge, reconcile #134 against new main preserving both sets of assertions, then rerun Core/P2 on exact final head. Do not treat its earlier exact-SHA test success as evidence for a changed head.
+- #145 remains dependent on #144; its hidden-price NULL migration is timestamp `20261024120000`, so merge/validate #145 before #147's timestamp `20261024130000`. Previous #145 Core/P2 success was on historical SHA `7c82b051ed0bda11c944e4fe08ecf4a117060ed5` only.
+- API-OPS-001 remains PARTIAL: 304/304 public runtime objects mapped; 179 callable RPC candidates still need semantic review. The quote-response defect is one specific finding, not completion of that audit. Hosted customer/tenant, real Onyx, WhatsApp, production migrations/restore remain unproven without authorized external evidence.
+
+---
+
 # P2 LIVE EXECUTION UPDATE — 2026-10-24T15:09:10Z — exact-head pricing checks passed
 
 - Target: `Report-Engainall/Nasr1`; main baseline remains `16a3d23e558696700bccbb3dbf9ea75b0fccf745`.
