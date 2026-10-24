@@ -2430,7 +2430,7 @@ async function main() {
   assert.equal(importJob.raw_file_retained, false, "raw files must not be retained");
 
   const importReplay = await db.unsafe(
-    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6::uuid,$7,$8,$9) as result",
+    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
     importRequestArgs,
   );
   assert.equal(importReplay[0].result.id, importJob.id, "retrying the identical request key must replay the original batch");
@@ -2442,8 +2442,17 @@ async function main() {
   await expectFailure(
     "reject import request-key reuse with a changed file identity",
     () => db.unsafe(
-      "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6::uuid,$7,$8,$9) as result",
+      "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
       [importRequestKey, "different.csv", "b".repeat(64), 500, "onyx_stock", "ONYX-BATCH-2026-01-A", null, "2026-01", "ci", "new_version"],
+    ),
+    /مفتاح محاولة الاستيراد مستخدم لعملية أو حمولة مختلفة/i,
+    "22023",
+  );
+  await expectFailure(
+    "reject reuse of the same request key when the external source batch reference changes",
+    () => db.unsafe(
+      "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+      [importRequestKey, "CI Onyx.stock.final.csv", "a".repeat(64), 500, "onyx_stock", "ONYX-BATCH-2026-01-B", null, "2026-01", "ci", "new_version"],
     ),
     /مفتاح محاولة الاستيراد مستخدم لعملية أو حمولة مختلفة/i,
     "22023",
