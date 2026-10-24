@@ -1,7 +1,7 @@
 # P3 route acceptance register — Nasr1
 
 Repository: Report-Engainall/Nasr1  
-Source baseline for this refresh: main e467c782bec0e19ddab6c5ddaa72aaa073d7283b (24 October 2026)  
+Live checkpoint main SHA: 12b622326f8a95575994ef1afae43f69fdf854b1 after PR #198 (24 October 2026); historical route evidence below retains the SHA it was tested against  
 Generated route tree: src/routeTree.gen.ts  
 Inventory size: 61 source modules under src/routes, including the root shell; 60 non-root page/API modules below.  
 Purpose: route-to-evidence traceability for ROUTES-001. This does not replace the canonical acceptance matrix or imply every full production journey is proven.
@@ -13,6 +13,14 @@ Purpose: route-to-evidence traceability for ROUTES-001. This does not replace th
 - NOT_PROVEN — only source/route-tree registration was found, without dedicated rendered-route acceptance evidence.
 - SKIPPED hosted checks are not PASS. A route can have local targeted evidence while hosted/external proof remains unproven.
 
+
+## Live reconciliation — post-merge #198 (24 October 2026)
+
+- **Current main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1`; main post-merge Core [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) completed SUCCESS on exact main SHA; the run includes isolated PostgreSQL 17 migration/core-workflow acceptance and build/browser smoke.
+- **PR #198 route-mount acceptance:** exact head `67ea3d0d20216697cf35d70e54897d6128c50176`, Core [40130584912](https://github.com/Report-Engainall/Nasr1/actions/runs/40130584912) SUCCESS and P2 [40130584867](https://github.com/Report-Engainall/Nasr1/actions/runs/40130584867) SUCCESS; merged as `12b622326f8a95575994ef1afae43f69fdf854b1`.
+- The new test mounts 22 admin entrypoints using the generated `src/routeTree.gen.ts` and asserts intended view wiring plus special wrappers/workspaces, returns drawers, and the reports-to-exports link. This is **route-mount evidence only**. It does not certify each screen's live data actions, permissions for every role, error/empty behavior, production writes, or hosted customer journeys.
+- Admin rows formerly marked `NOT_PROVEN — Route registration only` are downgraded to `PARTIAL` only where #198 directly adds mount evidence; detailed screen/service acceptance remains an open gate unless separately evidenced below.
+- Hosted customer/tenant E2E remains SKIPPED/BLOCKED_EXTERNAL without approved hosted fixtures. Onyx/WhatsApp/AI-provider live calls and production operations remain unproven.
 
 ## Live reconciliation — 24 October 2026 (post-merge #190)
 
@@ -37,20 +45,20 @@ Routes and mounted UI below were derived from live route source wrappers. Contra
 | /admin/devices | src/routes/admin_.devices.tsx | AdminApp initialView=devices | Device/session contract mapping pending | NOT_PROVEN | No direct route acceptance |
 | /admin/exports | src/routes/admin_.exports.tsx | AsyncExportCenter | Async export service/job history and result download; service-side tenant guard | PROVEN_TARGETED | PR #186 current-main integration: direct Chromium navigation to `/admin/exports`, hydration into the real export center and required controls are asserted without external backend writes; Core/P2/local Supabase passed on tested head 5fb59d4a... Hosted customer role flow remains SKIPPED |
 | /admin/finance | src/routes/admin_.finance.tsx | AdminApp finance + CustomerReturnOperationsDrawer | Finance/returns backend contracts are P2-owned | PARTIAL | Local finance workflows pass; route-specific UI flow pending |
-| /admin/inventory-transfers | src/routes/admin_.inventory-transfers.tsx | AdminApp initialView=inventory-transfers | Inventory transfer contract pending | NOT_PROVEN | Route registration only |
-| /admin/notifications | src/routes/admin_.notifications.tsx | AdminApp initialView=notifications | Notification service mapping pending | NOT_PROVEN | Route registration only |
+| /admin/inventory-transfers | src/routes/admin_.inventory-transfers.tsx | AdminApp initialView=inventory-transfers | Inventory transfer contract pending | PARTIAL | PR #198 proves route wrapper/mount and intended AdminApp view; per-screen data/actions/role/error-state proof remains pending |
+| /admin/notifications | src/routes/admin_.notifications.tsx | AdminApp initialView=notifications | Notification service mapping pending | PARTIAL | PR #198 proves route wrapper/mount and intended AdminApp view; per-screen data/actions/role/error-state proof remains pending |
 | /admin/offers | src/routes/admin_.offers.tsx | AdminApp initialView=offers | Admin offers read/write contract pending | NOT_PROVEN | Public offers tests do not prove admin route |
-| /admin/operations | src/routes/admin_.operations.tsx | AdminApp initialView=operations | Operations view contracts pending | NOT_PROVEN | Route registration only |
+| /admin/operations | src/routes/admin_.operations.tsx | AdminApp initialView=operations | Operations view contracts pending | PARTIAL | PR #198 proves route wrapper/mount and intended AdminApp view; per-screen data/actions/role/error-state proof remains pending |
 | /admin/orders | src/routes/admin_.orders.tsx | AdminApp orders + CustomerReturnOperationsDrawer | Admin orders/returns contracts P2-owned | PARTIAL | Local order/return tests exist; route-specific UI proof pending |
 | /admin/pricing | src/routes/admin_.pricing.tsx | AdminApp initialView=pricing | Server price authority contract P2-owned | NOT_PROVEN | No direct route acceptance |
 | /admin/products | src/routes/admin_.products.tsx | AdminApp initialView=products | Product admin contract pending | NOT_PROVEN | Storefront tests do not prove admin route |
 | /admin/purchase-orders | src/routes/admin_.purchase-orders.tsx | AdminApp initialView=purchase-orders | Purchase workflow contracts P2-owned | PARTIAL | Core/PostgreSQL checks; direct route proof pending |
-| /admin/quotes | src/routes/admin_.quotes.tsx | AdminApp initialView=quotes | Quote admin contract pending | NOT_PROVEN | Route registration only |
+| /admin/quotes | src/routes/admin_.quotes.tsx | AdminApp initialView=quotes | Quote admin contract pending | PARTIAL | PR #198 proves route wrapper/mount and intended AdminApp view; per-screen data/actions/role/error-state proof remains pending |
 | /admin/reports | src/routes/admin_.reports.tsx | AdminApp reports + ExecutiveStoreAnalytics (single mount) | Report/forecast component data calls | PROVEN_TARGETED | PR #186 preserves the analytics mount inside AdminApp and tests route wiring/runtime mount/forecast contract; duplicate mount was removed after exact-head CI identified the context error. Not production analytics UAT |
-| /admin/settings | src/routes/admin_.settings.tsx | AdminApp initialView=settings | Settings read/write contract pending | NOT_PROVEN | Route registration only |
+| /admin/settings | src/routes/admin_.settings.tsx | AdminApp initialView=settings | Settings read/write contract pending | PARTIAL | PR #198 proves route wrapper/mount and intended AdminApp view; per-screen data/actions/role/error-state proof remains pending |
 | /admin/stock-count | src/routes/admin_.stock-count.tsx | AdminApp initialView=stock-count | Stock-count/inventory contracts P2-owned | PARTIAL | Core audit tests; rendered route acceptance pending |
-| /admin/suppliers | src/routes/admin_.suppliers.tsx | AdminApp initialView=suppliers | Supplier service mapping pending | NOT_PROVEN | Route registration only |
-| /admin/tasks | src/routes/admin_.tasks.tsx | AdminApp initialView=tasks | Task/queue contract mapping pending | NOT_PROVEN | Route registration only |
+| /admin/suppliers | src/routes/admin_.suppliers.tsx | AdminApp initialView=suppliers | Supplier service mapping pending | PARTIAL | PR #198 proves route wrapper/mount and intended AdminApp view; per-screen data/actions/role/error-state proof remains pending |
+| /admin/tasks | src/routes/admin_.tasks.tsx | AdminApp initialView=tasks | Task/queue contract mapping pending | PARTIAL | PR #198 proves route wrapper/mount and intended AdminApp view; per-screen data/actions/role/error-state proof remains pending |
 | /api/invoice-pdf/$invoiceId | src/routes/api.invoice-pdf.$invoiceId.ts | Server PDF GET handler | get_customer_invoice_pdf; auth helper; UUID validation | PARTIAL | Source guards exist; HTTP-level status/header tests not proven here |
 | /api/statement-pdf | src/routes/api.statement-pdf.ts | Server PDF GET handler | get_customer_account_statement; auth helper | PARTIAL | Source error/auth handling; direct PDF response acceptance pending |
 | /assistant | src/routes/assistant.tsx | CommerceAssistantPage | Assistant service/API mapping pending | NOT_PROVEN | No direct route acceptance |
