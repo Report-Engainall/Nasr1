@@ -400,7 +400,7 @@ describe("customer quote workspace tenant boundary", () => {
     const syncedSafe = JSON.parse(window.localStorage.getItem("aghbari:catalog:v1") || "[]");
     expect(mocks.fetchProducts).toHaveBeenCalledTimes(1);
     expect(syncedSafe).toHaveLength(1);
-    expect(syncedSafe[0].base_price).toBe(0);
+    expect(syncedSafe[0]).not.toHaveProperty("base_price");
     expect(syncedSafe[0]).not.toHaveProperty("display_price");
     expect(syncedSafe[0]).not.toHaveProperty("cost_price");
     expect(syncedSafe[0]).not.toHaveProperty("retail_price");
