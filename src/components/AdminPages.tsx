@@ -33,10 +33,52 @@ type IconType = LucideIcon;
 export function Notifications({ onNotice }: { onNotice: (m: string) => void }) {
   const { data, loading, error, refetch } = useFetch(fetchNotifications);
   const unread = data?.filter((n) => !n.is_read).length ?? 0;
-  async function readAll() { try { await markAllNotificationsRead(); refetch(); onNotice('تم تعليم الكل كمقروء'); } catch (e) { onNotice(e instanceof Error ? e.message : 'خطأ'); } }
-  async function readOne(id: string) { try { await markNotificationRead(id); refetch(); } catch { /* ignore */ } }
-  return <AdminPage eyebrow="النظام" title="التنبيهات" description="كل رسائل النظام والتنبيهات في مكان واحد" icon={Bell} note={`${data?.length ?? 0} تنبيه — ${unread} غير مقروء`} toolbar={<><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button>{unread > 0 && <Button onClick={readAll}>تعليم الكل كمقروء</Button>}</>}>
-    {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <div className="notif-list">{data?.map((n: Notification) => <div className={`notif-row ${n.is_read ? 'read' : ''}`} key={n.id} onClick={() => !n.is_read && readOne(n.id)}><span className={`notif-type ${n.type}`}><Bell size={16} /></span><div><strong>{n.title}</strong><p>{n.body ?? '—'}</p><small>{timeAgo(n.created_at)}</small></div>{!n.is_read && <span className="notif-dot" />}</div>)}</div>}
+  async function readAll() {
+    try {
+      await markAllNotificationsRead();
+      await refetch();
+      onNotice('تم تعليم الكل كمقروء');
+    } catch (e) {
+      onNotice(e instanceof Error ? e.message : 'تعذر تعليم التنبيهات كمقروءة');
+    }
+  }
+  async function readOne(id: string) {
+    try {
+      await markNotificationRead(id);
+      await refetch();
+    } catch (e) {
+      onNotice(e instanceof Error ? e.message : 'تعذر تعليم التنبيه كمقروء');
+    }
+  }
+  return <AdminPage
+    eyebrow="النظام"
+    title="التنبيهات"
+    description="كل رسائل النظام والتنبيهات في مكان واحد"
+    icon={Bell}
+    note={data ? `${data.length} تنبيه — ${unread} غير مقروء` : 'عدد التنبيهات غير متاح'}
+    toolbar={<><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button>{unread > 0 && <Button onClick={readAll}>تعليم الكل كمقروء</Button>}</>}
+  >
+    {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !data ?
+      <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> :
+      data.length === 0 ? <Empty text="لا توجد تنبيهات حالياً." /> :
+      <div className="notif-list">{data.map((n: Notification) => <div
+        className={`notif-row ${n.is_read ? 'read' : ''}`}
+        key={n.id}
+        role={!n.is_read ? 'button' : undefined}
+        tabIndex={!n.is_read ? 0 : undefined}
+        aria-label={!n.is_read ? `تعليم التنبيه كمقروء: ${n.title}` : undefined}
+        onClick={() => !n.is_read && readOne(n.id)}
+        onKeyDown={(event) => {
+          if (!n.is_read && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            readOne(n.id);
+          }
+        }}
+      >
+        <span className={`notif-type ${n.type}`}><Bell size={16} /></span>
+        <div><strong>{n.title}</strong><p>{n.body ?? '—'}</p><small>{timeAgo(n.created_at)}</small></div>
+        {!n.is_read && <span className="notif-dot" />}
+      </div>)}</div>}
   </AdminPage>;
 }
 
