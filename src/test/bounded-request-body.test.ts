@@ -8,7 +8,7 @@ const routes = [
   { name: "AI gateway", path: "supabase/functions/ai-gateway/index.ts", cap: 4096 },
   { name: "outbox worker", path: "supabase/functions/outbox-worker/index.ts", cap: 4096 },
   { name: "async export worker", path: "supabase/functions/async-export-worker/index.ts", cap: 4096 },
-  { name: "async export download", path: "supabase/functions/async-export-download/index.ts", cap: 2048 },
+  { name: "async export download", path: "supabase/functions/async-export-download/index.ts", readerPath: "src/lib/async-export-download-handler.ts", cap: 2048 },
   { name: "product image JSON delete", path: "supabase/functions/product-image-upload/index.ts", cap: 2048 },
 ];
 
@@ -65,10 +65,13 @@ describe("bounded streaming Edge Function request bodies", () => {
     expect(await readBoundedTextBody(null, 1)).toEqual({ ok: true, text: "" });
   });
 
-  it.each(routes)("$name uses the bounded streaming reader and byte cap", ({ path, cap }) => {
+  it.each(routes)("$name uses the bounded streaming reader and byte cap", ({ path, readerPath, cap }) => {
     const source = readFileSync(join(root, path), "utf8");
-    expect(source).toContain("readBoundedTextBody(request.body");
-    expect(source).toContain(`readBoundedTextBody(request.body, ${cap}, request.headers.get("content-length"))`);
+    const readerSource = readFileSync(join(root, readerPath ?? path), "utf8");
+    expect(readerSource).toContain("readBoundedTextBody");
+    expect(readerSource).toMatch(new RegExp(
+      `readBoundedTextBody\\(\\s*request\\.body\\s*,\\s*${cap},\\s*request\\.headers\\.get\\("content-length"\\)\\s*\\)`,
+    ));
     expect(source).not.toContain("request.text()");
     expect(source).not.toContain("request.json()");
   });
