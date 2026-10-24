@@ -1,13 +1,14 @@
-# P2 Coordination Update — 2026-10-24 — exact-head validation complete for PR #145
+# P2 Coordination Update — 2026-10-24 — exact-head validation for PR #145 and #146
 
 - Authoritative repository/branch: `Report-Engainall/Nasr1`, `main` SHA `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; no direct-main writes.
-- Central-file ownership remains P2-only for `CURRENT_EXECUTION_STATE.md`, `PROGRAMMER_2_CURRENT_REPORT.md`, `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`, `WORK_COORDINATION.md`, and `EXECUTION_LOG.md`. Changes in this checkpoint are one atomic commit on this branch.
-- PR #145 head `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`: Core [40100874921 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874921) and P2 [40100874931 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874931) on the same exact SHA. The disabled-price contract returns NULL/absent fields, does not produce a zero sentinel, and keeps raw financial fields out of public product DTO/cache surfaces.
-- PR #145 remains OPEN / UNMERGED pending independent review. It depends on PR #144: merge #144 before #145 so the live-session/membership-guarded customer order-pricing preview RPC remains present. Do not merge around this dependency.
-- PR #144 head `9fc736db3fc451731a94105d6e707a5c83fbf019` has prior exact-head Core 40044350881 / P2 40044350890 SUCCESS, but remains OPEN and no independent APPROVED review is recorded. PR #142 remains open awaiting review.
-- P2 exact-head local Supabase/Chromium acceptance passed order persistence + cross-tenant denial, returns/credit memo, Onyx XLSX export, finance/task print, customer-manager financial privacy/audit, and device-session authorization/immediate revocation. Hosted credential-gated customer/tenant Playwright remains SKIPPED, not PASS.
-- `API-OPS-001` remains PARTIAL: source inventory proven, 179 RPC candidates still require semantic review. Continue finance-first review after closeout of the hidden-price gate, use the source in PR #142, and do not recreate completed #100/#101/#127/#131.
-- Any new PR/checkpoint must name exact branch/head/base, changed files, terminal exact-head run IDs, and explicitly record skipped/blocked cases.
+- P2 owns this execution state, programmer report, acceptance matrix, work coordination and execution log; this docs update will be one atomic commit on `p2/reconcile-18-prs-live-main-20261024`.
+- PR #145 exact head `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`: Core [40100874921 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874921), P2 [40100874931 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874931). Hidden customer prices are absent/null rather than zero; public catalog/cache/workflow DTOs exclude financial fields unless server-authorized.
+- PR #146 exact head `3150691725f97d7f892fcb2aed0edae898c839be`: Core [40101794869 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40101794869), P2 [40101794970 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40101794970). Its migration authorizes before import-quality job lookup, scopes by active organization, and equalizes foreign-vs-unknown ID errors; regression assertions ran in PostgreSQL 17.
+- #145 and #146 both remain OPEN / UNMERGED pending independent review. #145 depends on PR #144; merge #144 first so the live-session/customer-membership authorization for order-pricing preview is preserved.
+- PR #144 remains OPEN without a recorded independent APPROVED review (prior exact-head Core 40044350881/P2 40044350890 passed on `9fc736db3fc451731a94105d6e707a5c83fbf019`). PR #142 API-OPS contract register remains OPEN.
+- API-OPS-001 is still PARTIAL: 304/304 public runtime functions/procedures mapped; 179 candidate RPC contracts await semantic review. Continue finance-first review, but validate actual call chains and helper guards before treating automated inventory flags as vulnerabilities.
+- External hosted customer/tenant Playwright remains SKIPPED due to unavailable dedicated credentials; local Supabase authenticated checks passed. Do not treat SKIPPED as PASS.
+- The new docs descendant requires fresh Core/P2 on its own exact SHA. Keep all changes off `main` until the proper reviewer/merge process.
 ---
 
 ## Historical coordination snapshot — superseded by current P2 coordination update above

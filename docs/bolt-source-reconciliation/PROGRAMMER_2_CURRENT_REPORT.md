@@ -1,27 +1,31 @@
-# P2 Current Report — 2026-10-24 — validated hidden-price contract
+# P2 Current Report — 2026-10-24 — exact-head evidence updated
 
-**TASK_ID:** `STF-012 / API-OPS-001`  
-**TASK_STATUS:** `STF-012 IMPLEMENTED + CORE/P2 TESTED EXACT SHA; PR OPEN / REVIEW PENDING`; `API-OPS-001 PARTIAL`  
+**TASK_ID:** `STF-012 / API-OPS-001 / P2-IMPORT-QUALITY-TENANT-SCOPE-001`  
+**TASK_STATUS:** `STF-012 IMPLEMENTED + EXACT-HEAD CORE/P2 PASS`; `P2-IMPORT-QUALITY-TENANT-SCOPE-001 IMPLEMENTED + EXACT-HEAD CORE/P2 PASS`; `API-OPS-001 PARTIAL`  
 **REPOSITORY:** `Report-Engainall/Nasr1`  
 **MAIN_SHA:** `16a3d23e558696700bccbb3dbf9ea75b0fccf745`  
-**CURRENT_BRANCH:** `p2/reconcile-18-prs-live-main-20261024`  
-**CURRENT_PR:** [#133](https://github.com/Report-Engainall/Nasr1/pull/133)  
-**CODE_PR:** [#145](https://github.com/Report-Engainall/Nasr1/pull/145)  
-**CODE_HEAD:** `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`  
-**CORE:** [40100874921 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874921) on exact code head  
-**P2:** [40100874931 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874931) on exact code head  
-**LOCKED_PATHS:** this report, central execution state, coordination, execution log and acceptance matrix; P2-only, edited as one atomic docs commit  
-**NEXT_ACTION:** independent review and merge-order gate (#144 before #145); afterward re-read main, update/rebase the remaining contract and run checks against the exact resulting SHA. Continue semantic RPC review by financial risk once this gate is resolved.
+**CENTRAL_BRANCH:** `p2/reconcile-18-prs-live-main-20261024`  
+**CENTRAL_PR:** [#133](https://github.com/Report-Engainall/Nasr1/pull/133)  
+**HIDDEN-PRICE PR:** [#145](https://github.com/Report-Engainall/Nasr1/pull/145)  
+**IMPORT-QUALITY SECURITY PR:** [#146](https://github.com/Report-Engainall/Nasr1/pull/146)  
+**LATEST CODE SHA:** `3150691725f97d7f892fcb2aed0edae898c839be`  
+**CORE:** [40101794869 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40101794869) on the exact latest code SHA  
+**P2:** [40101794970 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40101794970) on the exact latest code SHA  
+**NEXT_ACTION:** get independent review; merge PR #144 before #145; keep #146 isolated until its review gate; after each authorized merge re-read main and run Core/P2 on the exact resulting SHA.
 
-## Latest tested implementation: hidden catalog price sentinel
+## Latest verified implementation — import-quality tenant privacy (PR #146)
 
-- Root cause: `get_storefront_product_prices` returned numeric zero while `show_price_on_cards=false`; API/cache/customer workflow paths could interpret or retain that synthetic value.
-- Database repair in PR #145: guarded catalog price RPC returns SQL NULL for the explicit hidden-price state; public catalog page omits `base_price` for customers while retaining it only for authorized staff; it returns JSON null for hidden `display_price`.
-- Client repair: customer catalog projections and workflow DTOs are explicit allowlists; the price map types NULL distinctly from malformed/missing data; cache and pending-cart records omit inaccessible monetary fields; quote, reorder, barcode and assistant screens label hidden prices as unavailable rather than zero.
-- Regression evidence: Core and P2 terminal SUCCESS on exact SHA `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`. Local authenticated order/tenant, customer return/credit memo, Onyx XLSX, finance/task print, customer-manager privacy/audit and device-session revocation tests passed. Hosted credential-gated customer/tenant job is SKIPPED, not PASS.
-- Merge dependency: PR #144 remains open/unapproved; it supplies the companion live-session and membership authorization for customer order-pricing preview. Keep #145 open and merge it only after #144 and independent review.
-- No production database, live provider, or direct `main` write was used.
+- Root cause: `calculate_import_job_quality(uuid)` queried `import_jobs` by ID before the authorization branch; a non-staff or cross-tenant caller could distinguish an existing foreign job ID from a nonexistent one via different error outcomes.
+- Fix in `supabase/migrations/20261024130000_import_quality_tenant_scoped_lookup.sql`: authorize a live active staff profile before any job lookup, bind the lookup to the active organization, and bind import profile lookup to the same organization.
+- Regression evidence: test-database-migrations asserts that customer foreign/unknown IDs both receive 42501 authorization denial and in-tenant staff foreign/unknown IDs both receive the same P0002 tenant-scoped not-found response.
+- Exact-head proof: Core 40101794869 and P2 40101794970 are terminal SUCCESS on `3150691725f97d7f892fcb2aed0edae898c839be`.
+- Proof boundary: hosted authenticated customer/tenant Playwright remains SKIPPED; isolated local-Supabase authenticated acceptance passed. No production behavior is claimed.
 
+## Prior verified implementation — hidden catalog price sentinel (PR #145)
+
+- Root cause and fix are recorded in the historical section below and PR #145.
+- Exact tested code SHA `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`: Core 40100874921 SUCCESS and P2 40100874931 SUCCESS.
+- Merge dependency: #144 must merge before #145; all PRs remain open until independent review.
 ---
 
 ## Historical snapshot — previous P2 live reconciliation (superseded by latest update above)

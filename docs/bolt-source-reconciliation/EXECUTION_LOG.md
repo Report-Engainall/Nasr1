@@ -1,3 +1,15 @@
+## P2 execution record — import quality tenant-scope repair — 2026-10-24
+
+- Code PR #146: https://github.com/Report-Engainall/Nasr1/pull/146
+- Tested source head: `3150691725f97d7f892fcb2aed0edae898c839be`; base main `16a3d23e558696700bccbb3dbf9ea75b0fccf745`.
+- Core [40101794869 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40101794869) and P2 [40101794970 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40101794970), same exact SHA.
+- Root cause: `calculate_import_job_quality(uuid)` read the job by ID before authorization. Fix authenticates/authorizes active staff before lookup and scopes both job and import-profile queries to the active organization.
+- Regression test: customer foreign vs unknown job IDs both return the same 42501 denial; authorized staff foreign vs unknown job IDs both return the same tenant-scoped P0002 error. PostgreSQL 17 migration/core acceptance passed.
+- Exact-head P2 also passed local Supabase migration/guards, price-grid rollback/audit/stale-writer race, cash expense and purchase receipt source-posting checks, Chromium order/tenant denial, returns/credit memo, Onyx XLSX, finance/task printing, customer-manager privacy/audit, and central session revocation.
+- Hosted customer/tenant Playwright remains SKIPPED; local isolated-Supabase authenticated acceptance passed. No production data/provider activity or direct main write.
+
+---
+
 ## P2 execution record — hidden catalog price sentinel repair — 2026-10-24
 
 - Code repository: `Report-Engainall/Nasr1`; base `main` SHA `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; code PR #145 remains OPEN/UNMERGED.
