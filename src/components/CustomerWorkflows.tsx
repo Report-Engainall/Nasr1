@@ -173,7 +173,7 @@ type Product = {
   item_code: string;
   barcode?: string | null;
   unit: string;
-  base_price: number | string;
+  base_price?: number | string | null;
   status?: string;
   image_url?: string | null;
 };
@@ -214,9 +214,30 @@ type AssistantProductRow = {
   item_code: string;
   barcode: string | null;
   unit: string;
-  base_price: number | string;
+  base_price?: number | string | null;
   status: string;
 };
+
+function resolvedProductPriceLabel(value: unknown): string {
+  const amount =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number(value)
+        : Number.NaN;
+  return Number.isFinite(amount) && amount >= 0
+    ? formatCurrency(amount)
+    : "السعر غير متاح";
+}
+
+function withResolvedProductPrice<T extends { id: string }>(
+  product: T,
+  price: number | null | undefined,
+): T & { base_price?: number | null } {
+  return price === null || price === undefined
+    ? { ...product }
+    : { ...product, base_price: price };
+}
 
 const card: React.CSSProperties = {
   background: "var(--card, #fff)",
@@ -1096,7 +1117,7 @@ function Quotes() {
       try {
         const rows = (p.data ?? []) as Array<{ id: string; [key: string]: unknown }>;
         const priceMap = await fetchResolvedProductPrices(rows.map((row) => row.id));
-        setProducts(rows.map((row) => ({ ...row, base_price: priceMap.get(row.id)! })) as Product[]);
+        setProducts(rows.map((row) => withResolvedProductPrice(row, priceMap.get(row.id))) as Product[]);
       } catch (priceError) {
         setProducts([]);
         setError(priceError instanceof Error ? priceError.message : "تعذر تحميل سعر فئة حسابك.");
@@ -1225,7 +1246,7 @@ function Quotes() {
                 <div>
                   <strong>{p.name}</strong>
                   <div style={quiet}>
-                    {p.item_code} · {p.unit} · السعر الحالي {formatCurrency(Number(p.base_price))}
+                    {p.item_code} · {p.unit} · السعر الحالي {resolvedProductPriceLabel(p.base_price)}
                   </div>
                 </div>
                 <input
@@ -1395,7 +1416,7 @@ function Reorder() {
       try {
         const rows = (p.data ?? []) as Array<{ id: string; [key: string]: unknown }>;
         const priceMap = await fetchResolvedProductPrices(rows.map((row) => row.id));
-        setProducts(rows.map((row) => ({ ...row, base_price: priceMap.get(row.id)! })) as Product[]);
+        setProducts(rows.map((row) => withResolvedProductPrice(row, priceMap.get(row.id))) as Product[]);
       } catch (priceError) {
         setProducts([]);
         setError(priceError instanceof Error ? priceError.message : "تعذر تحميل سعر فئة حسابك.");
@@ -1523,7 +1544,7 @@ function Reorder() {
               <div>
                 <strong>{p.name}</strong>
                 <div style={quiet}>
-                  {p.item_code} · {formatCurrency(Number(p.base_price))}
+                  {p.item_code} · {resolvedProductPriceLabel(p.base_price)}
                 </div>
               </div>
               <input
@@ -1640,7 +1661,7 @@ function Barcode() {
       else {
         try {
           const priceMap = await fetchResolvedProductPrices([r.data.id]);
-          setProduct({ ...r.data, base_price: priceMap.get(r.data.id)! } as Product);
+          setProduct(withResolvedProductPrice(r.data, priceMap.get(r.data.id)) as Product);
         } catch (priceError) {
           setError(priceError instanceof Error ? priceError.message : "تعذر تحميل سعر فئة حسابك.");
         }
@@ -1781,7 +1802,7 @@ function Barcode() {
               رمز الصنف: {product.item_code} · الباركود: {product.barcode ?? "غير مسجل"}
             </p>
             <strong style={{ fontSize: 22, color: "#087f8d" }}>
-              {formatCurrency(Number(product.base_price))}
+              {resolvedProductPriceLabel(product.base_price)}
             </strong>
             <span style={{ marginInlineStart: 8 }}>/ {product.unit}</span>
             <div style={{ marginTop: 14 }}>
@@ -1876,10 +1897,9 @@ function Assistant() {
           )
           .slice(0, 8);
         const priceMap = await fetchResolvedProductPrices(matches.map((product) => product.id));
-        const hits = matches.map((product) => ({
-          ...product,
-          base_price: priceMap.get(product.id)!,
-        })) as AssistantProductRow[];
+        const hits = matches.map((product) =>
+          withResolvedProductPrice(product, priceMap.get(product.id)),
+        ) as AssistantProductRow[];
         setAnswer(
           hits.length
             ? "نتائج من الكتالوج:\n" +
@@ -1890,7 +1910,7 @@ function Assistant() {
                       " (" +
                       p.item_code +
                       ") — " +
-                      formatCurrency(Number(p.base_price)) +
+                      resolvedProductPriceLabel(p.base_price) +
                       "/" +
                       p.unit,
                   )
