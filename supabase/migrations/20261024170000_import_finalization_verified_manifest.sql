@@ -59,6 +59,13 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='دفعة الاستيراد تفتقر إلى جلسة رفع وهوية ملف موثقتين';
   END IF;
 
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      v_org::text || ':' || COALESCE(v_job.profile_id::text,'<null>') || ':' || COALESCE(v_job.period_key,'<null>'),
+      0
+    )
+  );
+
   SELECT s.* INTO v_session
     FROM public.import_upload_sessions s
    WHERE s.id=v_job.upload_session_id
@@ -183,7 +190,8 @@ BEGIN
          OR v_session.file_name IS DISTINCT FROM v_job.file_name
          OR v_session.profile_id IS DISTINCT FROM v_job.profile_id
          OR v_session.profile_version IS DISTINCT FROM v_job.profile_version
-         OR v_session.period_key IS DISTINCT FROM v_job.period_key THEN
+         OR v_session.period_key IS DISTINCT FROM v_job.period_key
+         OR v_session.external_source_reference IS DISTINCT FROM v_job.external_source_reference THEN
         RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='جلسة الرفع لا تطابق هوية دفعة الاستيراد';
       END IF;
       RETURN pg_catalog.to_jsonb(v_session);
@@ -352,6 +360,13 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='دفعة الاستيراد غير موجودة في المؤسسة النشطة';
   END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      v_org::text || ':' || COALESCE(v_job.profile_id::text,'<null>') || ':' || COALESCE(v_job.period_key,'<null>'),
+      0
+    )
+  );
 
   IF v_job.status='rolled_back' THEN
     SELECT s.* INTO v_snapshot
