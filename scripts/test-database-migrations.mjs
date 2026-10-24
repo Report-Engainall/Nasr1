@@ -2434,6 +2434,24 @@ async function main() {
     importRequestArgs,
   );
   assert.equal(importReplay[0].result.id, importJob.id, "retrying the identical request key must replay the original batch");
+  await expectFailure(
+    "reject a non-idempotent direct RPC for import-job creation",
+    () => db.unsafe(
+      "select public.create_import_job($1,$2,$3,$4,$5::uuid,$6,$7) as result",
+      ["CI direct job creation bypass.csv", "e".repeat(64), 100, "onyx_stock", null, "2026-01", "onyx_pro"],
+    ),
+    /permission denied for function create_import_job/i,
+    "42501",
+  );
+  await expectFailure(
+    "require an external source reference for non-manual import sources",
+    () => db.unsafe(
+      "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+      [randomUUID(), "CI missing source reference.csv", "e".repeat(64), 100, "onyx_stock", null, null, "2026-01", "onyx_pro", "new_version"],
+    ),
+    /مرجع المصدر الخارجي\/رقم الدفعة مطلوب/i,
+    "22023",
+  );
   const importJobCountAfterReplay = await db.unsafe(
     "select count(*)::integer as count from public.import_jobs where organization_id=$1 and file_hash=$2 and period_key=$3",
     [organizationId, "a".repeat(64), "2026-01"],
