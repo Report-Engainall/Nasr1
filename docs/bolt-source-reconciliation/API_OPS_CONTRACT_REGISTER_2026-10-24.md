@@ -12,7 +12,7 @@
 - **Owner authority:** the owner explicitly authorized this integration and ready merges; older no-approval text in historical snapshots is superseded. Exact-head CI, migration order and post-merge confirmation remain technical gates.
 - **External boundaries:** hosted customer E2E is SKIPPED; production mutation/deployment/restore, real Onyx import/sync, WhatsApp delivery and live AI-provider calls are not claimed.
 
-## LIVE EXECUTION ADDENDUM — 24 October 2026 (after #198 merge)
+## LIVE EXECUTION CHECKPOINT — 24 October 2026 (after PR #198 merge)
 
 - **Current main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1` after #198; post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) completed SUCCESS on exact main SHA; isolated PostgreSQL 17 migration/core-workflow acceptance, unit, lint, build, preview and Chromium checks all passed. Earlier `e467c782bec0e19ddab6c5ddaa72aaa073d7283b` remains the tree used for the last documented 310/310 catalog inventory.
 - **#196 export parity:** merged at `6f73438bb1c2e90bd3daffde0701df29b3df8553`; exact-head Core 40130250564 and P2 40130250519 passed; post-merge Core 40130620987 passed on that merge SHA.
@@ -25,7 +25,7 @@
 
 ## NEXT_ACTION
 
-1. Confirm terminal Core on current main `12b622326f8a95575994ef1afae43f69fdf854b1` (run 40130981792). Exact-head Core/P2 for #198 both passed before merge.
+1. Current main Core run 40130981792 completed SUCCESS on exact SHA `12b622326f8a95575994ef1afae43f69fdf854b1`; re-run the release gate after subsequent code-bearing merges.
 2. Keep the 310/310 source mapping artifact associated with its exact tested tree; regenerate from a later tested main tree before replacing it as current evidence.
 3. Continue semantic review of the remaining 179 RPC candidates in bounded, source-backed batches. API-OPS does not close on discovery coverage alone.
 4. Preserve authorization-denial/no-side-effect and idempotency/audit acceptance as the contract matrix advances.
