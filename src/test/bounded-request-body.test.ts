@@ -70,7 +70,7 @@ describe("bounded streaming Edge Function request bodies", () => {
     const readerSource = readFileSync(join(root, readerPath ?? path), "utf8");
     expect(readerSource).toContain("readBoundedTextBody");
     expect(readerSource).toMatch(new RegExp(
-      `readBoundedTextBody\\(\\s*request\\.body\\s*,\\s*${cap},\\s*request\\.headers\\.get\\("content-length"\\)\\s*\\)`,
+      `readBoundedTextBody\\(\\s*request\\.body\\s*,\\s*${cap},\\s*request\\.headers\\.get\\("content-length"\\)\\s*,?\\s*\\)`,
     ));
     expect(source).not.toContain("request.text()");
     expect(source).not.toContain("request.json()");
