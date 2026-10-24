@@ -2507,6 +2507,18 @@ async function main() {
   );
   assert.equal(secondMultiChunk[0].result.verified_chunks, 2);
   assert.equal(secondMultiChunk[0].result.complete, false);
+  await expectFailure(
+    "reject snapshot finalization while an upload manifest is missing its final chunk",
+    () => db.unsafe("select public.finalize_import_job($1::uuid,$2) as result", [multiChunkJob.id, "new_version"]),
+    /لم يكتمل رفع الملف|شرائح الملف غير مكتمل/i,
+    "22023",
+  );
+  const incompleteFinalizationState = await db.unsafe(
+    "select status from public.import_jobs where id=$1::uuid",
+    [multiChunkJob.id],
+  );
+  assert.equal(incompleteFinalizationState[0].status, "staging", "incomplete upload must remain an unfinalized staging job");
+
   const finalMultiChunk = await db.unsafe(
     "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
     [multiChunkSession.id, 2, uploadChunkBytes * 2, uploadFinalChunkBytes, "3".repeat(64)],
@@ -2519,6 +2531,30 @@ async function main() {
   );
   assert.equal(multiChunkState[0].verified_chunks, 3);
   assert.equal(multiChunkState[0].status, "uploaded");
+
+  // A complete manifest cannot turn a cancelled job into a committed snapshot.
+  await db.unsafe(
+    `update public.import_jobs
+        set status='cancelled',
+            error_summary=jsonb_build_object(
+              'processing_config_fingerprint', repeat('f',64),
+              'source_file_hash', file_hash,
+              'period_key', period_key
+            )
+      where id=$1::uuid`,
+    [multiChunkJob.id],
+  );
+  await expectFailure(
+    "reject finalization of a cancelled import with a complete upload manifest",
+    () => db.unsafe("select public.finalize_import_job($1::uuid,$2) as result", [multiChunkJob.id, "new_version"]),
+    /حالة الدفعة لا تسمح بالاعتماد/i,
+    "22023",
+  );
+  const cancelledSnapshot = await db.unsafe(
+    "select id from public.onyx_snapshots where source_import_job_id=$1::uuid and status='ready'",
+    [multiChunkJob.id],
+  );
+  assert.equal(cancelledSnapshot.length, 0, "cancelled staging must never publish a ready snapshot");
 
   // Security regression: the quality RPC must authorize before looking up a job ID
   // and scope staff lookups to their own tenant, so foreign IDs cannot be enumerated.
@@ -2592,6 +2628,16 @@ async function main() {
   );
   assert.equal(duplicateProbe[0].result.duplicate, true, "same tenant/profile/hash/period must be reported as a duplicate");
 
+  await db.unsafe(
+    `update public.import_jobs
+        set error_summary=coalesce(error_summary,'{}'::jsonb) || jsonb_build_object(
+          'processing_config_fingerprint', repeat('e',64),
+          'source_file_hash', file_hash,
+          'period_key', period_key
+        )
+      where id=$1::uuid`,
+    [importJob.id],
+  );
   const finalizedImport = await db.unsafe(
     "select public.finalize_import_job($1::uuid,$2) as result",
     [importJob.id, "new_version"],
