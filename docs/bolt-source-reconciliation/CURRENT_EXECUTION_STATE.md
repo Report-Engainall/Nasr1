@@ -1,3 +1,16 @@
+# P2 LIVE EXECUTION UPDATE — 2026-10-24T15:01:05Z — PR #144 acceptance repair
+
+- Authoritative repository: `Report-Engainall/Nasr1`; `main` remains `16a3d23e558696700bccbb3dbf9ea75b0fccf745`. No direct `main` writes.
+- Resumption pointer: [`docs/execution/NASR1_CONTINUOUS_EXECUTION_REPORT.md`](../execution/NASR1_CONTINUOUS_EXECUTION_REPORT.md). This is being established on the documentation reconciliation branch and must not be mistaken for a merged-main artifact until PR #133 is reviewed and merged.
+- PR #144’s previous head `5635bfc315fbfe03f7213926e1ddf860c4d18b13` had Core run [40103240144 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/40103240144), while P2 run [40103240165 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40103240165). Core PostgreSQL 17 acceptance stopped at the accountant/base-price boundary: the fixture was not an approved customer, but the test expected it to resolve a customer-tier price. The implementation correctly failed closed.
+- Test-only repair saved on PR #144 branch `fix/p2-price-rpc-live-session-membership-20261024`, commit `4cd7b86c5ea7d161495c4c7a689c90477aacaf32`: the accountant fixture now expects denial without approved customer context, and the test explicitly asserts an active `buyer` membership receives only the same server-derived tier price through `get_storefront_product_prices` as the owning customer.
+- Latest exact-head Core [40104995234](https://github.com/Report-Engainall/Nasr1/actions/runs/40104995234) and P2 [40104995244](https://github.com/Report-Engainall/Nasr1/actions/runs/40104995244) were `IN_PROGRESS` at this checkpoint on the same SHA `4cd7b86c5ea7d161495c4c7a689c90477aacaf32`. Therefore #144 remains `UNVERIFIED`, OPEN and UNMERGED. Do not merge until both runs become terminal SUCCESS on the final head and the independent review requirement is satisfied.
+- PR #145 remains dependent on #144. Its earlier exact-head Core/P2 runs (40100874921/40100874931 on `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`) are historical evidence only and do not authorize merge before #144.
+- PR #146 earlier exact-head Core/P2 passed (40101794869/40101794970 on `3150691725f97d7f892fcb2aed0edae898c839be`), but remains OPEN pending independent review. PR #142 remains PARTIAL: 304/304 public runtime objects are mapped; 179 RPC candidates still need semantic review of identity, tenant, role, inputs/outputs, mutations, idempotency, error contract and race behavior.
+- No hosted authenticated customer/tenant E2E, live Onyx import/sync, WhatsApp delivery, production migration or production restore is claimed; any external credential gate stays `BLOCKED_EXTERNAL` or `SKIPPED`, never `PASS`.
+
+---
+
 # P2 LIVE EXECUTION UPDATE — 2026-10-24 — PR #145 and #146 exact-head validation
 
 **This block supersedes previous live snapshots below.** Historic entries remain for audit, but their SHA and CI states must not be treated as current.

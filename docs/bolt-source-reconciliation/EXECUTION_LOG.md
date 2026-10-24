@@ -1287,3 +1287,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - #118: Core [40026679121](https://github.com/Report-Engainall/Nasr1/actions/runs/40026679121) and P2 [40026678990](https://github.com/Report-Engainall/Nasr1/actions/runs/40026678990) SUCCESS on `1ab496e444c696b1ed491c3cf9eb01ebebf56709`; current diff is exactly the three export files; formal review list empty; hosted E2E skipped is not PASS.
 - Independent approvals are missing across the assigned 18. Automated CodeRabbit `COMMENTED` events and owner comments are not approval. Merge sequence is #131 -> refresh/test #119 -> reconcile shared #89/#102/#124 file -> remaining PRs after review. #127 is already merged at `d7a49d8ca7d968e2fc04307fb26313e54168410a`; #129 and #132 are closed without merge and must not be recreated without a proven missing unique change.
 - No production database was touched, no direct main write was made, and no skipped hosted check is counted as PASS. The checkpoint PR and its final-head checks remain pending.
+
+
+## P2 execution record — PR #144 acceptance repair — 2026-10-24T15:01:05Z
+
+- Existing PR #144 head `5635bfc315fbfe03f7213926e1ddf860c4d18b13`: Core [40103240144 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/40103240144); P2 [40103240165 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40103240165).
+- Error was `customer membership lacks permission to resolve catalog prices` from the price RPC during the accountant-overlap boundary assertion. The fixture had no approved customer identity; expecting a customer tier price was invalid. The fail-closed implementation was retained.
+- Updated `scripts/test-customer-price-visibility.mjs` on PR #144 branch; commit `4cd7b86c5ea7d161495c4c7a689c90477aacaf32`. Accountant-without-customer now expects denial, and buyer membership is explicitly checked through both order preview and product-card price RPC for same-tier results.
+- Latest Core run [40104995234](https://github.com/Report-Engainall/Nasr1/actions/runs/40104995234) and P2 run [40104995244](https://github.com/Report-Engainall/Nasr1/actions/runs/40104995244) were IN_PROGRESS on the same SHA at this checkpoint. Status is UNVERIFIED, not PASS; no merge claimed.
+- Resume by reading the terminal status/logs for both exact-head runs, repair any evidenced regression, then satisfy independent review before merging. PR #145 remains ordered after #144.
