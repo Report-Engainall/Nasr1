@@ -430,6 +430,7 @@ export function validateCsvRow(
   headers: string[],
   rowNumber: number,
   matchingKey?: string,
+  requiredFields: readonly string[] = [],
 ): ParsedImportRow {
   const data: Record<string, unknown> = {};
   const errors: string[] = [];
@@ -454,6 +455,15 @@ export function validateCsvRow(
     errors.push(matchingKey && !standardIdentityKeys.includes(matchingKey)
       ? `مفتاح المطابقة الإلزامي "${matchingKey}" مفقود أو فارغ`
       : 'مفتاح الهوية التجاري مطلوب (رمز الصنف أو العميل أو المورد)');
+  }
+  // Profile-required values must be present in each row, not only in the header.
+  // The matching-key branch above emits the more specific identity error for that field.
+  for (const field of new Set(requiredFields)) {
+    if (field === matchingKey) continue;
+    const value = data[field];
+    if (value === undefined || (typeof value === 'string' && value.trim() === '')) {
+      errors.push(`الحقل الإلزامي "${field}" مفقود أو فارغ`);
+    }
   }
   for (const field of ['quantity','revenue','price','cost']) {
     const value = data[field];
@@ -678,7 +688,7 @@ function parseXlsxSharedStrings(xml: string): string[] {
   return values;
 }
 
-type XlsxStyles = { numberFormats: Map<number, string>; cellStyleFormats: number[] };
+export type XlsxStyles = { numberFormats: Map<number, string>; cellStyleFormats: number[] };
 
 function parseXlsxStyles(xml: string): XlsxStyles {
   const numberFormats = new Map<number, string>();
@@ -710,7 +720,7 @@ function excelSerialToIso(value: string, date1904: boolean): string {
   return serial % 1 === 0 ? iso.slice(0, 10) : iso.replace(/\.000Z$/, 'Z');
 }
 
-function formatXlsxNumber(value: string, styleIndex: number, styles: XlsxStyles, date1904: boolean): string {
+export function formatXlsxNumber(value: string, styleIndex: number, styles: XlsxStyles, date1904: boolean): string {
   const numFmtId = styles.cellStyleFormats[styleIndex] ?? 0;
   const customCode = styles.numberFormats.get(numFmtId);
   const builtInDate = (numFmtId >= 14 && numFmtId <= 22) || (numFmtId >= 45 && numFmtId <= 47);
@@ -873,7 +883,7 @@ export async function parseXlsxFirstWorksheet(
         throw new Error('حجم مكون XLSX المخزن لا يطابق الفهرس أو يتجاوز الحد الآمن.');
       }
       expandedBytes += plainBytes.byteLength;
-      return new TextDecoder('utf-8', { fatal: false }).decode(plainBytes);
+      return new TextDecoder('utf-8', { fatal: true }).decode(plainBytes);
     }
     let stream: ReadableStream<Uint8Array>;
     {
@@ -885,7 +895,7 @@ export async function parseXlsxFirstWorksheet(
       }
     }
     const reader = stream.getReader();
-    const decoder = new TextDecoder('utf-8', { fatal: false });
+    const decoder = new TextDecoder('utf-8', { fatal: true });
     const parts: string[] = [];
     let actualBytes = 0;
     try {
