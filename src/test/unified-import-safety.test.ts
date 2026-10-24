@@ -149,6 +149,15 @@ describe("unified import safety contracts", () => {
     );
     expect(missingExternalId.status).toBe("rejected");
     expect(missingExternalId.errors).toContain('مفتاح المطابقة الإلزامي "source_external_id" مفقود أو فارغ');
+
+    const missingConfiguredItemCode = validateCsvRow(
+      ["", "CUSTOMER-9"],
+      ["item_code", "customer_code"],
+      4,
+      "item_code",
+    );
+    expect(missingConfiguredItemCode.status).toBe("rejected");
+    expect(missingConfiguredItemCode.errors).toContain('مفتاح المطابقة الإلزامي "item_code" مفقود أو فارغ');
   });
 
   it("rejects blank values for profile-required fields even when the required headers exist", () => {
