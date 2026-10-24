@@ -9,6 +9,7 @@ if (!connectionString) {
 
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
+/** Assert that a database action fails with the specified SQLSTATE. */
 async function expectSqlState(label, action, sqlState) {
   let caught;
   try {
@@ -20,6 +21,7 @@ async function expectSqlState(label, action, sqlState) {
   assert.equal(caught.code, sqlState, label + " must raise SQLSTATE " + sqlState);
 }
 
+/** Verify tenant-scoped payment auditing, idempotent replay, and rejection of changed payloads on PostgreSQL 17. */
 async function main() {
   await db.unsafe("reset role");
 
