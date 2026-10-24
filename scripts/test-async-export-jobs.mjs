@@ -109,6 +109,35 @@ async function main() {
   const firstList = await rpc(first, "select public.list_my_async_export_jobs(50) as result");
   assert.ok(firstList.some((row) => row.job_id === created.job_id), "actor can enumerate own job");
   assert.ok(!firstList.some((row) => row.job_id === foreignCreated.job_id), "tenant owner cannot enumerate foreign job");
+  const foreignBefore = await admin.unsafe(
+    "select status,attempt_count,lease_owner from public.async_export_jobs where id=$1::uuid",
+    [foreignCreated.job_id],
+  );
+  assert.equal(foreignBefore.length, 1, "foreign export fixture must exist");
+  await assert.rejects(
+    () => rpc(first, "select public.cancel_my_async_export_job($1::uuid) as result", [foreignCreated.job_id]),
+    /export job not found/,
+    "a tenant owner cannot cancel a foreign export job",
+  );
+  const foreignClaim = await first.unsafe(
+    "select id from public.claim_my_async_export_job($1::uuid,$2::text)",
+    [foreignCreated.job_id, "ci-foreign-claim-attempt"],
+  );
+  assert.equal(foreignClaim.length, 0, "an authenticated claimant cannot acquire another tenant's job");
+  const foreignAfter = await admin.unsafe(
+    "select status,attempt_count,lease_owner from public.async_export_jobs where id=$1::uuid",
+    [foreignCreated.job_id],
+  );
+  assert.deepEqual(foreignAfter[0], foreignBefore[0], "foreign cancel/claim attempts must have no side effects");
+  await assert.rejects(
+    () => rpc(customer, "select public.claim_my_async_export_job($1::uuid,$2::text) as result", [created.job_id, "ci-customer-claim"]),
+    /export worker claim denied/,
+    "customer role cannot claim an export worker lease",
+  );
+  await denied(
+    "authenticated service worker queue claim",
+    () => first.unsafe("select id from public.claim_async_export_jobs($1,1,300,$2::uuid)", ["ci-untrusted-worker", created.job_id]),
+  );
   const foreignDownload = await rpc(first, "select public.get_my_async_export_download($1::uuid) as result", [foreignCreated.job_id]);
   assert.equal(foreignDownload, null, "download RPC must not disclose a foreign job");
 
