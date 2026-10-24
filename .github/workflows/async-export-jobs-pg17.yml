@@ -57,6 +57,23 @@ jobs:
         run: bun install --frozen-lockfile --registry=https://registry.npmjs.org
       - name: Apply all migrations and run current PostgreSQL acceptance suite
         run: npm run test:db
+      - name: Generate exact-head PostgreSQL 17 public RPC/function inventory
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/generate-public-rpc-contract-inventory.mjs | tee /tmp/public-rpc-contract-inventory.md
+          grep -Eq '^RPC_INVENTORY_SUMMARY functions=[0-9]+ matched=[0-9]+ unmatched=0 migration_files=[0-9]+      - name: Verify async export idempotency, worker race, stale lease and expiry on PostgreSQL 17
+        run: node scripts/test-async-export-jobs.mjs
+      - name: Verify import request-key concurrency, payload conflict and direct-table denial on PostgreSQL 17
+        run: node scripts/test-import-job-idempotency.mjs
+ /tmp/public-rpc-contract-inventory.md
+      - name: Upload exact-head public RPC/function inventory artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-rpc-function-inventory-${{ github.sha }}
+          path: /tmp/public-rpc-contract-inventory.md
+          if-no-files-found: error
+          retention-days: 14
       - name: Verify async export idempotency, worker race, stale lease and expiry on PostgreSQL 17
         run: node scripts/test-async-export-jobs.mjs
       - name: Verify import request-key concurrency, payload conflict and direct-table denial on PostgreSQL 17
