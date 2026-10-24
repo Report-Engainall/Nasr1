@@ -711,11 +711,13 @@ async function main() {
   const balanceRacePaymentId = balanceRaceWinners[0].value[0].id;
   assert.ok(balanceRacePaymentId,"the successful competing payment returns its persisted payment ID");
 
+  await db.unsafe("reset role");
   const paymentAuditCount = await db.unsafe(
     "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='customer_payment.recorded' and entity_id in ($2::uuid,$3::uuid)",
     [organizationId,concurrentPaymentId,balanceRacePaymentId],
   );
   assert.equal(paymentAuditCount[0].count,2,"only the two committed payment sources emit audit rows");
+  await db.unsafe("set role authenticated");
   const reconciledSettlementRows = await db.unsafe(
     "select coalesce(sum(cp.amount),0)::text as paid,"+
     "(select coalesce(sum(cm.total_amount),0) from public.customer_return_credit_memos cm " +
@@ -729,12 +731,14 @@ async function main() {
   assert.equal(Number(reconciledSettlementRows[0].credited),125,"the posted credit remains source-linked at 125.00");
   assert.ok(Number(reconciledSettlementRows[0].paid)+Number(reconciledSettlementRows[0].credited)<=500,
     "competing payments and credit postings never exceed the invoice total");
+  await db.unsafe("reset role");
   const paymentAuditRows = await db.unsafe(
     "select count(*)::integer as count from public.audit_logs " +
     "where organization_id=$1::uuid and action='customer_payment.recorded' and entity_id=$2::uuid",
     [organizationId,concurrentPaymentId],
   );
   assert.equal(paymentAuditRows[0].count,1,"concurrent payment creates one source-linked audit event");
+  await db.unsafe("set role authenticated");
 
   const postedPostingTasks = await db.unsafe(
     "select task_role,status,completed_at,resolution_note from public.ai_tasks " +
