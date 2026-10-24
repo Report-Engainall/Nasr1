@@ -33,6 +33,7 @@ type DuplicatePrompt = {
   profileId: string | null;
   periodKey: string | null;
   sourceSystem: string;
+  externalSourceReference: string | null;
   duplicate: DuplicateResult;
 };
 
@@ -66,6 +67,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
   const [profileId, setProfileId] = useState("");
   const [periodKey, setPeriodKey] = useState("");
   const [sourceSystem, setSourceSystem] = useState("manual");
+  const [externalSourceReference, setExternalSourceReference] = useState("");
   const [qualityPreview, setQualityPreview] = useState<QualityResult | null>(null);
   const [duplicatePrompt, setDuplicatePrompt] = useState<DuplicatePrompt | null>(null);
   const [rowErrorState, setRowErrorState] = useState<{ jobId: string; rows: ImportRowErrorDetail[]; loading: boolean; error: string } | null>(null);
@@ -107,6 +109,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
     selectedProfile: string | null = activeProfileId,
     selectedPeriod: string | null = periodKey.trim() || null,
     selectedSource: string = sourceSystem,
+    selectedExternalSourceReference: string | null = existingJob?.external_source_reference ?? (
+      selectedSource === "manual" ? null : externalSourceReference.trim() || null
+    ),
   ) {
     if (runningRef.current) return;
     runningRef.current = true;
@@ -119,7 +124,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
     setProcessed(0);
     setQualityPreview(null);
     let job: ImportJob | null = existingJob ?? null;
-    let uploadSession: { id: string; import_job_id: string; organization_id: string; profile_id: string | null; profile_version: number | null; period_key: string | null; chunk_size_bytes: number; total_chunks: number; verified_chunks: number; status: string; file_hash: string; file_size: number } | null = null;
+    let uploadSession: { id: string; import_job_id: string; organization_id: string; profile_id: string | null; profile_version: number | null; period_key: string | null; external_source_reference: string | null; chunk_size_bytes: number; total_chunks: number; verified_chunks: number; status: string; file_hash: string; file_size: number } | null = null;
     let processingConfigFingerprint: string | null = null;
     let checkpointFingerprintPersisted = false;
 
@@ -139,6 +144,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           profileId: selectedProfile,
           periodKey: selectedPeriod,
           sourceSystem: selectedSource,
+          externalSourceReference: selectedExternalSourceReference,
           intent: action,
         });
         job = await createImportJob({
@@ -149,6 +155,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           profileId: selectedProfile,
           periodKey: selectedPeriod,
           sourceSystem: selectedSource,
+          externalSourceReference: selectedExternalSourceReference,
           requestKey: requestAttempt.requestKey,
           intent: action,
         });
@@ -216,6 +223,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
         reportType: profile?.report_type ?? null,
         source: profile?.source ?? null,
         sourceSystem: selectedSource,
+        externalSourceReference: selectedExternalSourceReference,
         requiredColumns,
         optionalColumns: profile?.optional_columns ?? [],
         ignoredColumns: [...ignoredColumns].sort(),
@@ -238,7 +246,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
       }
       if ((uploadSession.profile_id ?? null) !== (selectedProfile ?? null) ||
           (uploadSession.profile_version ?? null) !== (profile?.version ?? null) ||
-          (uploadSession.period_key ?? null) !== (selectedPeriod ?? null)) {
+          (uploadSession.period_key ?? null) !== (selectedPeriod ?? null) ||
+          (uploadSession.external_source_reference ?? null) !== (selectedExternalSourceReference ?? null)) {
         throw new Error("هوية الملف التعريفي أو إصداره أو الفترة لا تطابق جلسة الرفع. أوقفنا الاستئناف حتى لا تختلط نتائج دفعتين.");
       }
       if (uploadSession.chunk_size_bytes !== UPLOAD_CHUNK_BYTES ||
@@ -455,6 +464,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           processing_config_fingerprint: processingConfigFingerprint,
           period_key: selectedPeriod,
           source_system: selectedSource,
+          external_source_reference: selectedExternalSourceReference,
           parser: extension === "csv" ? "streaming-csv" : "xlsx-first-visible-sheet",
           worksheet_name: xlsxWorksheetName,
           processing_chunk_rows: PROCESSING_CHUNK_ROWS,
@@ -558,13 +568,15 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           profileId: activeProfileId,
           periodKey: periodKey.trim() || null,
           sourceSystem,
+          externalSourceReference: sourceSystem === "manual" ? null : externalSourceReference.trim() || null,
           duplicate,
         });
         setStage(null);
         setStatusMessage("وجد المحرك ملفًا بنفس البصمة للملف التعريفي والفترة المحددين. اختر الإجراء قبل المتابعة.");
         return;
       }
-      await processFile(file, fileHash, "new_version", undefined, activeProfileId, periodKey.trim() || null, sourceSystem);
+      await processFile(file, fileHash, "new_version", undefined, activeProfileId, periodKey.trim() || null, sourceSystem,
+        sourceSystem === "manual" ? null : externalSourceReference.trim() || null);
     } catch (cause) {
       setStage(null);
       setErrorMessage(cause instanceof Error ? cause.message : "تعذر قراءة بصمة الملف.");
@@ -587,10 +599,15 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
         setErrorMessage("لا توجد دفعة غير مكتملة قابلة للاستئناف لهذا الملف.");
         return;
       }
-      await processFile(pending.file, pending.fileHash, "new_version", openJob, pending.profileId, pending.periodKey, openJob.source_system ?? pending.sourceSystem);
+      await processFile(
+        pending.file, pending.fileHash, "new_version", openJob, pending.profileId, pending.periodKey,
+        openJob.source_system ?? pending.sourceSystem,
+        openJob.external_source_reference ?? pending.externalSourceReference,
+      );
       return;
     }
-    await processFile(pending.file, pending.fileHash, action, undefined, pending.profileId, pending.periodKey, pending.sourceSystem);
+    await processFile(pending.file, pending.fileHash, action, undefined, pending.profileId, pending.periodKey,
+      pending.sourceSystem, pending.externalSourceReference);
   }
 
   async function resumeFromHistory(event: ChangeEvent<HTMLInputElement>, job: ImportJob & { upload_session_id?: string | null }) {
@@ -607,7 +624,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
         setErrorMessage("بصمة الملف لا تطابق الدفعة السابقة؛ اختر الملف الأصلي نفسه.");
         return;
       }
-      await processFile(file, fileHash, "new_version", job, job.profile_id ?? activeProfileId, job.period_key ?? null, job.source_system ?? sourceSystem);
+      await processFile(file, fileHash, "new_version", job, job.profile_id ?? activeProfileId, job.period_key ?? null,
+        job.source_system ?? sourceSystem, job.external_source_reference ?? null);
     } catch (cause) {
       setErrorMessage(cause instanceof Error ? cause.message : "تعذر استئناف الدفعة.");
     }
@@ -683,6 +701,11 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
               </select>
               <small>يحفظ هذا الاختيار هوية المصدر في سجل الدفعة فقط؛ لا يبدأ مزامنة حية أو اتصالًا خارجيًا.</small>
             </label>
+            {sourceSystem !== "manual" && <label className="form-field"><span>مرجع المصدر الخارجي / رقم الدفعة</span>
+              <input value={externalSourceReference} onChange={(event) => setExternalSourceReference(event.target.value)}
+                maxLength={200} placeholder="معرّف الدفعة في Onyx أو ERP أو ملف المورد" />
+              <small>حتى 200 حرف. يدخل المرجع في هوية الطلب وبصمة المعالجة وسجل الدفعة؛ لا تُرسل أي مزامنة خارجية.</small>
+            </label>}
             <label className="form-field"><span>الملف التعريفي</span>
               <select value={profileId} onChange={(event) => setProfileId(event.target.value)}>
                 <option value="">الملف الموحد (تلقائي)</option>
@@ -707,7 +730,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
 
         {duplicatePrompt && <section className="panel" role="alert" style={{ gridColumn: "1 / -1", borderColor: "#d8c17a" }}>
           <h2>تم اكتشاف ملف مطابق</h2>
-          <p>الاسم: <strong>{duplicatePrompt.file.name}</strong> • SHA-256: <code>{duplicatePrompt.fileHash.slice(0, 20)}…</code> • دفعات سابقة: {duplicatePrompt.duplicate.jobs.length} • لقطات: {duplicatePrompt.duplicate.snapshots.length}</p>
+          <p>الاسم: <strong>{duplicatePrompt.file.name}</strong> • SHA-256: <code>{duplicatePrompt.fileHash.slice(0, 20)}…</code> • المصدر: {duplicatePrompt.sourceSystem} • مرجع المصدر: {duplicatePrompt.externalSourceReference ?? "غير محدد"} • دفعات سابقة: {duplicatePrompt.duplicate.jobs.length} • لقطات: {duplicatePrompt.duplicate.snapshots.length}</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button variant="outline" onClick={() => void resolveDuplicate("ignore")}>تجاهل</Button>
             {duplicatePrompt.duplicate.jobs.some((item) => ["staging", "failed"].includes(item.status) && Boolean(item.upload_session_id)) &&
