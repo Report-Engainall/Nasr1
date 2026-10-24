@@ -19,15 +19,15 @@ describe("available-stock low-stock metric", () => {
     ])).toBe(2);
   });
 
-  it("does not treat an unknown reorder threshold as zero", () => {
+  it("marks a low-stock count incomplete when any reorder threshold is unknown", () => {
     expect(countLowStockBalances([
       { quantity_available: 0, reorder_point: null },
       { quantity_available: 1, reorder_point: null },
       { quantity_available: 0, reorder_point: 0 },
-    ])).toBe(1);
+    ])).toBeNull();
   });
 
-  it("skips incomplete or invalid snapshots instead of inventing zero stock", () => {
+  it("marks incomplete or invalid snapshots as unavailable rather than publishing a partial count", () => {
     expect(countLowStockBalances([
       { quantity_available: undefined, reorder_point: 8 },
       { quantity_available: "4", reorder_point: 8 },
@@ -35,7 +35,7 @@ describe("available-stock low-stock metric", () => {
       { quantity_available: 4, reorder_point: -1 },
       { quantity_available: Number.POSITIVE_INFINITY, reorder_point: 8 },
       { quantity_available: -1, reorder_point: 8 },
-    ])).toBe(1);
+    ])).toBeNull();
   });
 
   it("returns zero for an empty result set", () => {
