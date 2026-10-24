@@ -2,8 +2,12 @@
 
 **Canonical resume pointer:** `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` and the acceptance matrix. This report supplements, and does not replace, the canonical pointer.
 
-- **Current main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1` after PR #198; post-merge Core run 40130981792 completed SUCCESS on exact main; isolated PostgreSQL 17, build, preview and Chromium acceptance also passed.
+- **Current main merge SHA:** `4192a2f8825079f169a9412ac4a2347f4f82cce8` after PR #202. Post-merge Core 40132572775 was IN_PROGRESS at last poll; #200 post-merge Core 40132426205 completed SUCCESS.
 - **Recent P2/verification merges:** #196 export unknown-value acceptance merged as `6f73438bb1c2e90bd3daffde0701df29b3df8553` with exact-head Core/P2 and post-merge Core PASS; #197 valid-only DQS row-status matrix merged as `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb` with exact-head Core/P2 and post-merge Core PASS; #198 22-admin-route mount acceptance merged as `12b622326f8a95575994ef1afae43f69fdf854b1` with exact-head Core/P2 PASS.
+- **#200 payment audit:** merged `d0d12fde72e2ce60dd089b188573ae3143f19727`; exact-head Core/P2 passed and post-merge Core 40132426205 SUCCESS.
+- **#202 PDF API contracts:** merged `4192a2f8825079f169a9412ac4a2347f4f82cce8`; exact-head Core 40132224605/P2 40132224621 PASS; post-merge Core 40132572775 was IN_PROGRESS at last poll.
+- **#201 payment/credit race:** latest head `f46ae0971effbf56ab6d3a6d0a829888a84c9cb2`; Core 40132522340/P2 40132522308 were IN_PROGRESS. Previous test-only permission failure was addressed with RESET ROLE before the invoice aggregate read.
+
 - **P1-sensitive merged work:** #158 payment/audit atomicity and credit-memo race denial; #162 valid-only DQS scoring; #179 import identity/resume/recovery/rollback; #180 tenant-scoped import finalization; #181 stock-count snapshot atomicity; #188 quote response explicit decision guard; #189 inventory batch idempotency; #190 request streaming limits and export worker authorization acceptance.
 - **Exact tested #190 head:** `5becc27a3f32896b1814aab80433ba7b8c8008ae`; Core 40127113576, async-export PostgreSQL 17 40127113568 and P2 40127113571 all SUCCESS. The authenticated hosted customer E2E job remains SKIPPED because the authorized credential gate is not configured.
 - **Exact inventory artifact:** `public-rpc-function-inventory-3d68de8c657e92c2a0fc1a75f787be2862951ea7` from run 40127113568; summary `functions=310 matched=310 unmatched=0 migration_files=135`. It verifies source mapping for the isolated tested tree, not the full semantic security of each function.
@@ -12,7 +16,7 @@
 - **Owner authorization:** ready work may be merged under the owner's explicit authorization; old review-required notes below are historical. Keep exact-head CI, migration ordering, clean merge and post-merge verification.
 
 ## NEXT ACTION — P1
-1. Keep the verified Core/isolated-PG17 result tied to main `12b622326f8a95575994ef1afae43f69fdf854b1`; rerun it after later code changes and repair only a proved failure.
+1. Confirm terminal post-merge Core 40132572775 on main `4192a2f8825079f169a9412ac4a2347f4f82cce8`; PR #201 stays open until exact-head Core/P2 pass.
 2. Continue bounded, source-backed semantic review of the remaining RPCs with explicit allow/deny and no-side-effect acceptance.
 3. Keep production migrations, Onyx writes, WhatsApp, hosted E2E and live AI provider calls unclaimed without authorized execution evidence.
 
