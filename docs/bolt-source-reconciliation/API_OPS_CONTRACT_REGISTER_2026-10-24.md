@@ -1,23 +1,47 @@
 # سجل عقود API والمهام الخلفية — Nasr1
 
-**لقطة المصدر:** `Report-Engainall/Nasr1`، `main` عند `16a3d23e558696700bccbb3dbf9ea75b0fccf745` (24 أكتوبر 2026).  
+## LIVE EXECUTION CHECKPOINT — 24 October 2026 23:05 +03:00
+
+- **Repository:** `Report-Engainall/Nasr1`; production reference remains `main`.
+- **Verified current main SHA:** `653f4d764041a8751c41e75a492fed0cc6edea63`. This is later than the previous `73547627697fecb8882c594880645200505d095d` baseline and includes the #189 and #186 merges below.
+- **Owner authorization:** the owner explicitly authorized this integration and merging of ready work. Do not wait for an invented review prerequisite; technical release gates still require exact-head CI, ordered unique migrations, clean merge ancestry, and verification of the resulting main SHA.
+- **Latest confirmed merges:** PR #189 merged at `0d7f153cf6a7c8ac70b439f2ad15e479e3d80d47` (concurrent inventory-batch same-key idempotency); PR #186 merged at `653f4d764041a8751c41e75a492fed0cc6edea63` (storefront route recovery, customer order keyboard access, checkout price privacy, export hydration). Do not recreate either feature set without a reproduced current-main regression.
+- **Exact PR-head test evidence:** #189 Core [40126581054](https://github.com/Report-Engainall/Nasr1/actions/runs/40126581054) + P2 [40126581094](https://github.com/Report-Engainall/Nasr1/actions/runs/40126581094) passed on tested head `43e153dc374d9f72823a354d710c0f362e4a068a`; #186 Core [40126529526](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529526) / [40126529676](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529676) + P2 [40126529735](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529735) passed on tested head `5fb59d4a2093f242461aa5aaa0f50ad34b4d5223`.
+- **Post-merge main CI:** connected status and run lookup did not return a terminal Core/P2 result tied exactly to `653f4d764041a8751c41e75a492fed0cc6edea63`. It remains **UNVERIFIED**, not assumed PASS.
+- **Current API-OPS port:** PR #193 `fix(api-ops): enforce streamed request byte caps and refresh RPC evidence` is based directly on current main and carries the bounded streaming reader, current-head PostgreSQL acceptance, and generated inventory artifact. Its exact final-head Core/P2/PG17 checks must finish before merge. PR #190 and #142 are duplicate/stale source branches and must not both be merged.
+- **Catalog scope:** the prior isolated PG17 snapshot mapped 304/304 public objects to source and left 179 callable RPC candidates requiring semantic review. That is inventory/discovery coverage, not completion of their semantic authorization contracts. The committed inventory is explicitly historical; CI regenerates the current exact-head artifact.
+- **External limits:** hosted customer/tenant E2E is `SKIPPED/BLOCKED_EXTERNAL` without authorized non-production credentials. Production migrations/restore, live Onyx sync, WhatsApp delivery, and real-provider AI are not claimed without actual authorized evidence.
+
+## NEXT_ACTION
+
+1. Poll Core/P2 and the dedicated PostgreSQL 17 acceptance workflow on PR #193's final SHA; fix failures from the exact logs, not from stale branches.
+2. Inspect the generated `public-rpc-function-inventory-<sha>` artifact from that exact run and resolve unmatched sources if any.
+3. Continue semantic review of the 179 callable RPC candidates by bounded batches, with negative tests for role/tenant isolation, idempotency, mutation side effects, and audit consistency.
+4. Merge only when the final exact-head checks pass and repository merge rules allow it; record the returned merge SHA, then verify current-main checks.
+5. Keep hosted/prod/external gates `NOT RUN` or `BLOCKED_EXTERNAL` until supported proof exists.
+
+---
+
+**لقطة المصدر التاريخية:** `main` عند `16a3d23e558696700bccbb3dbf9ea75b0fccf745`؛ لا تعتبرها وصفًا للحالة الحالية.  
 **الحالة:** `PARTIAL` — سجل مداخل Edge Functions الخمسة موثق، وأصبح جرد كتالوج PostgreSQL 17 ومطابقة مصدر/منح الدوال العامة مختبرًا على SHA محدد (304/304، بلا مصادر غير معروفة). ما زالت المراجعة الدلالية لكل RPC مرشحة مفتوحة، كما أن أسرار الإنتاج والموصلات الخارجية غير مثبتة.
 
 
 
-## AUTHORITATIVE RECONCILIATION — 2026-10-24 23:05 +03:00
+## HISTORICAL RECONCILIATION — 2026-10-24 20:34 +03:00
 
-- Current live `main` SHA: `653f4d764041a8751c41e75a492fed0cc6edea63`. PR #189 merged the current-main concurrent inventory batch idempotency acceptance; PR #186 merged storefront route recovery, customer-order keyboard access, checkout price privacy, and export hydration.
-- The original #142 branch is stale (41 commits ahead / 22 behind current main) and must not be merged directly. This register and the remaining current-main code port must be validated on a fresh main descendant.
-- Prior snapshot: 304/304 public runtime objects were source-mapped; 179 callable RPC candidates remain for semantic review. **The static file `PUBLIC_RPC_FUNCTION_INVENTORY_2026-10-24.md` is a historical PostgreSQL 17 snapshot on SHA `672749855d733f691ab59de878420a210108fbbe`, not evidence for the current main tree.** The current CI generator step produces a new exact-head inventory.
-- The current-main port adds a shared streamed UTF-8 byte reader for AI gateway, outbox worker, async-export worker/download and JSON product-image delete; it rejects oversized streamed bodies, cancels the stream, and rejects malformed UTF-8. Required unit/source tests and current-head PostgreSQL export authorization assertions run in CI.
-- Exact PR-head results and post-merge evidence must remain distinct. For reference, #189 Core [40126581054](https://github.com/Report-Engainall/Nasr1/actions/runs/40126581054) and P2 [40126581094](https://github.com/Report-Engainall/Nasr1/actions/runs/40126581094) passed on its tested head before merge; #186 Core [40126529526](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529526) / [40126529676](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529676) and P2 [40126529735](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529735) passed on its PR head. Exact current-main post-merge CI on `653f4d764041a8751c41e75a492fed0cc6edea63` was not confirmed by the connected status lookup.
-- ## NEXT_ACTION
-  1. Poll Core/P2 on the exact PR head and fix only a reproduced failure.
-  2. Regenerate inventory against the migrated isolated PostgreSQL 17 database in CI; do not treat the committed historical snapshot as current.
-  3. Continue semantic review for the 179 callable RPC candidates in bounded batches with explicit allow/deny, tenant, mutation, idempotency, and audit evidence.
-  4. Do not bypass repository-enforced checks; owner authorization does not turn an unfinished CI run into a PASS.
-- Hosted customer E2E, production migrations/restore, deployment, and live Onyx/WhatsApp/AI remain NOT RUN or BLOCKED_EXTERNAL absent authorized evidence.
+- Live `main` SHA is `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`. The merged baseline #133, #135–#141 and #143–#146 remains the source of truth; do not recreate without a new regression.
+- 304/304 public objects are mapped; 179 callable RPC candidates still require semantic review. Batches 8–10 are documented; batch 11 adds source-backed company invitation and address contracts and existing acceptance evidence.
+- #142 last tested head `25deecf9b6fa94f6e8fa1b2acd26c55b36c0ead8` passed Core [40115494628](https://github.com/Report-Engainall/Nasr1/actions/runs/40115494628) and P2 [40115494634](https://github.com/Report-Engainall/Nasr1/actions/runs/40115494634). This batch changes its head; rerun exact-head checks before accepting.
+- #163 exact head `1ea3227ad7649947cafc1ee8488b1d6a4c0b6b66`: Core/P2 [40115321226](https://github.com/Report-Engainall/Nasr1/actions/runs/40115321226) / [40115321235](https://github.com/Report-Engainall/Nasr1/actions/runs/40115321235) PASS. Hosted authenticated customer/tenant E2E remains SKIPPED.
+- #169 exact head `d6ef27f09a2c73c0dae74d1be2c7768c1577fe40`: Core/P2 [40115015672](https://github.com/Report-Engainall/Nasr1/actions/runs/40115015672) / [40115015539](https://github.com/Report-Engainall/Nasr1/actions/runs/40115015539) PASS; the keyboard-only customer order-detail E2E from #124 remains preserved.
+- #172 exact head `682761625993a203b5795daa953632f131ae886a`: Core/P2 [40115029836](https://github.com/Report-Engainall/Nasr1/actions/runs/40115029836) / [40115029831](https://github.com/Report-Engainall/Nasr1/actions/runs/40115029831) PASS; stale active warehouse balance sets are rejected and count lines have actor/audit metadata. Rebase/retest after migration prerequisites.
+- #174 exact head `e0ca64f8f66203615eb74bf778f85f59156f2f62`: Core/P2 [40115104136](https://github.com/Report-Engainall/Nasr1/actions/runs/40115104136) / [40115104172](https://github.com/Report-Engainall/Nasr1/actions/runs/40115104172) PASS; route test checks generated declarations.
+- #175 exact head `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`: Core [40115637333](https://github.com/Report-Engainall/Nasr1/actions/runs/40115637333) PASS; P2 [40115637423](https://github.com/Report-Engainall/Nasr1/actions/runs/40115637423) was still running at latest poll. Test expectation uses Arabic digit `٥`, matching the locale, without weakening production formatting.
+- Migration review/merge sequence remains #147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #172. #148–#151 and #107/#119/#124/#167 were verified closed after matching file content was preserved in their current-base replacements.
+- Historical review note superseded: the repository owner has explicitly authorized this integration. Retain exact-head CI, migration ordering, clean-merge and post-merge verification as technical release gates.
+- Hosted customer E2E, production migrations/restore, deployment, live Onyx/WhatsApp/AI remain NOT RUN or BLOCKED_EXTERNAL absent authorized proof.
+
+
 
 ## قواعد مشتركة
 
@@ -160,7 +184,7 @@
 
 
 
-## AUTHORITATIVE RECONCILIATION — 2026-10-24 20:08 +03:00
+## HISTORICAL RECONCILIATION — 2026-10-24 20:08 +03:00
 
 - Live `main` is `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`, not the older `16a3d23e...` captured in historical notes below.
 - Catalog and privilege inventory evidence remains scoped to its recorded tested SHA: 304/304 public objects mapped, zero unknown-source rows. This does **not** complete semantic review of 179 callable RPC candidates.
@@ -388,7 +412,7 @@
 5. عقد السعر المخفي في الكتالوج: **CLOSED_WITH_EVIDENCE** عبر [PR #145](https://github.com/Report-Engainall/Nasr1/pull/145)، المدمج على main بعد #144. العقد الجديد يعيد NULL/غياب السعر بدل sentinel صفري، مع قائمة حقول مسموحة تمنع تسرب base/tier price والتكلفة والهامش. لا تعد استخدام حالة `unit_price=0` التاريخية كحالة حالية؛ افحص regression فقط إذا ظهر مستهلك جديد أو انحدار مثبت.  
 6. **DQS follow-up identified on merged #146:** `calculate_import_job_quality` currently scores each row as 100% valid whenever `status <> 'rejected'`. The base schema declares `import_job_rows.status` as free text defaulting to `pending` and no CHECK constraint, so `pending` or `invalid` rows can incorrectly earn validity points. Existing PG17 tests exercise `valid` rows and impossible dates but do not test pending/invalid status semantics. **OPEN — implement a forward migration after the outstanding 13:30–14:50 migration sequence and add PostgreSQL 17 assertions for `valid`, `invalid`, `pending`, and `rejected` statuses.** The current main does not yet include that follow-up fix.
 
-## NEXT_ACTION
+## HISTORICAL NEXT_ACTION (superseded by the live checkpoint above)
 
 1. Poll P2 on #175 exact head `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`; Core already passed. Repair only a proven failure.
 2. Poll Core/P2 on the new #142 head after batch 11; previous #142 results do not transfer.
