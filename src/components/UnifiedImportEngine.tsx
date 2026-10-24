@@ -109,9 +109,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
     selectedProfile: string | null = activeProfileId,
     selectedPeriod: string | null = periodKey.trim() || null,
     selectedSource: string = sourceSystem,
-    selectedExternalSourceReference: string | null = existingJob?.external_source_reference ?? (
-      selectedSource === "manual" ? null : externalSourceReference.trim() || null
-    ),
+    selectedExternalSourceReference: string | null = existingJob
+      ? (existingJob.external_source_reference ?? null)
+      : selectedSource === "manual" ? null : externalSourceReference.trim() || null,
   ) {
     if (runningRef.current) return;
     runningRef.current = true;
@@ -549,6 +549,10 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
     if (file.size === 0) { setErrorMessage('الملف فارغ. اختر ملفًا يحتوي على بيانات.'); return; }
     if (file.size > MAX_IMPORT_FILE_BYTES) {
       setErrorMessage("حجم الملف يتجاوز الحد المسموح 100MB.");
+      return;
+    }
+    if (sourceSystem !== "manual" && !externalSourceReference.trim()) {
+      setErrorMessage("مرجع المصدر الخارجي/رقم الدفعة مطلوب عند الاستيراد من Onyx Pro أو ERP أو ملف مورد؛ لم يتم إنشاء دفعة.");
       return;
     }
     setErrorMessage("");
