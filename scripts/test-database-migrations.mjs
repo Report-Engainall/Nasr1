@@ -2880,6 +2880,65 @@ async function main() {
     [importJob.id],
   );
   assert.equal(readySnapshotCountAfterFailureReplay[0].count, 1, "failure recovery must not duplicate or remove a committed snapshot");
+
+  // Full-dataset replacement requires independent server-side evidence in both profile and job.
+  await db.unsafe(
+    "update public.import_profiles set is_full_dataset=true where id=$1::uuid and organization_id=$2::uuid",
+    [importJob.profile_id, organizationId],
+  );
+  const fullReplaceJobCreated = await db.unsafe(
+    "select public.create_import_job($1,$2,$3,$4,$5::uuid,$6,$7) as result",
+    ["CI complete Onyx.inventory.csv", "d".repeat(64), 100, "onyx_stock", importJob.profile_id, "2026-01", "ci"],
+  );
+  const fullReplaceJob = fullReplaceJobCreated[0].result;
+  const fullReplaceSessionCreated = await db.unsafe(
+    "select public.create_import_upload_session($1::uuid) as result",
+    [fullReplaceJob.id],
+  );
+  const fullReplaceSession = fullReplaceSessionCreated[0].result;
+  const fullReplaceChunk = await db.unsafe(
+    "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
+    [fullReplaceSession.id, 0, 0, 100, "9".repeat(64)],
+  );
+  assert.equal(fullReplaceChunk[0].result.complete, true);
+  await db.unsafe(
+    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb)",
+    [fullReplaceJob.id, db.json({ item_code: "000128", product_name: "Complete snapshot item", quantity: "4", revenue: "40", price: "10", date: "2026-01-04" })],
+  );
+  await db.unsafe(
+    "update public.import_jobs set error_summary=jsonb_build_object('processing_config_fingerprint', repeat('a',64), 'source_file_hash', file_hash, 'period_key', period_key, 'source_system', source_system, 'external_source_reference', external_source_reference, 'is_full_dataset', true, 'no_raw_file_retained', true) where id=$1::uuid",
+    [fullReplaceJob.id],
+  );
+  const fullReplaceFinalized = await db.unsafe(
+    "select public.finalize_import_job($1::uuid,$2) as result",
+    [fullReplaceJob.id, "replace"],
+  );
+  assert.equal(fullReplaceFinalized[0].result.status, "completed",
+    "an active, version-matched full-dataset profile with persisted full-source attestation may replace");
+  const oldSnapshotAfterFullReplace = await db.unsafe(
+    "select status from public.onyx_snapshots where id=$1::uuid",
+    [finalizedImport[0].result.snapshot_id],
+  );
+  assert.equal(oldSnapshotAfterFullReplace[0].status, "archived",
+    "successful full-dataset replacement archives prior live data only after the new snapshot is ready");
+  const oldSnapshotHistoryAfterReplace = await db.unsafe(
+    "select count(*)::integer as count from public.onyx_snapshot_rows where snapshot_id=$1::uuid",
+    [finalizedImport[0].result.snapshot_id],
+  );
+  assert.equal(oldSnapshotHistoryAfterReplace[0].count, 2,
+    "archiving a replaced snapshot retains its rows as auditable history");
+  const readySnapshotCountAfterFullReplace = await db.unsafe(
+    "select count(*)::integer as count from public.onyx_snapshots where organization_id=$1::uuid and profile_id=$2::uuid and period_key='2026-01' and status='ready'",
+    [organizationId, importJob.profile_id],
+  );
+  assert.equal(readySnapshotCountAfterFullReplace[0].count, 1,
+    "only the replaced full-dataset snapshot remains ready for this tenant/profile/period");
+  const replacementAudit = await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_id=$1::uuid and action='import.snapshot_replaced'",
+    [finalizedImport[0].result.snapshot_id],
+  );
+  assert.equal(replacementAudit[0].count, 1, "retiring the prior live snapshot records an audit event");
+
   process.stdout.write("PASS import profile, tenant-scoped synonyms, resumable chunk manifest, duplicate detection, DQS finalization and full-snapshot Onyx analytics\n");
 
   // The rule UI must reuse the existing deterministic pricing engine and reset to base price
