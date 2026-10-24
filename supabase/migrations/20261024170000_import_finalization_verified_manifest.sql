@@ -158,8 +158,8 @@ BEGIN
    FOR UPDATE;
   IF NOT FOUND OR v_job.file_hash IS NULL OR v_job.file_size IS NULL
      OR v_job.file_size < 1 OR v_job.file_size > 104857600
-     OR v_job.file_hash !~ '^[0-9a-f]{64}
- THEN
+     OR pg_catalog.length(v_job.file_hash) <> 64 OR v_job.file_hash ~ '[^0-9a-f]'
+  THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='دفعة الاستيراد غير صالحة';
   END IF;
 
@@ -183,10 +183,8 @@ BEGIN
   END IF;
 
   v_file_type := CASE
-    WHEN coalesce(v_job.file_name,'') ~ '\.[^.]+
-
-      THEN pg_catalog.lower(pg_catalog.substring(v_job.file_name from '\.([^.]+)
-))
+    WHEN pg_catalog.position('.' in coalesce(v_job.file_name,'')) > 0
+      THEN pg_catalog.lower(pg_catalog.reverse(pg_catalog.split_part(pg_catalog.reverse(v_job.file_name),'.',1)))
     ELSE 'unknown'
   END;
 
