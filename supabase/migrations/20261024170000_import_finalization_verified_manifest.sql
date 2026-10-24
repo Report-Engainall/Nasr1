@@ -113,7 +113,8 @@ BEGIN
   -- if column mapping or validation rules changed between attempts.
   IF coalesce(v_job.error_summary->>'processing_config_fingerprint','') !~ '^[0-9a-f]{64}$'
      OR v_job.error_summary->>'source_file_hash' IS DISTINCT FROM v_job.file_hash
-     OR v_job.error_summary->>'period_key' IS DISTINCT FROM v_job.period_key THEN
+     OR v_job.error_summary->>'period_key' IS DISTINCT FROM v_job.period_key
+     OR v_job.error_summary->>'source_system' IS DISTINCT FROM v_job.source_system THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='بصمة إعدادات المعالجة أو الفترة غير مثبتة على الدفعة؛ أعد المعالجة من الملف الأصلي';
   END IF;
 
@@ -183,7 +184,7 @@ BEGIN
   END IF;
 
   v_file_type := CASE
-    WHEN pg_catalog.position('.' in coalesce(v_job.file_name,'')) > 0
+    WHEN pg_catalog.strpos(coalesce(v_job.file_name,''), '.') > 0
       THEN pg_catalog.lower(pg_catalog.reverse(pg_catalog.split_part(pg_catalog.reverse(v_job.file_name),'.',1)))
     ELSE 'unknown'
   END;
