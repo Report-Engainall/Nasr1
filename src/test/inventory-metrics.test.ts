@@ -19,10 +19,11 @@ describe("available-stock low-stock metric", () => {
     ])).toBe(2);
   });
 
-  it("treats a null threshold as zero without losing out-of-stock items", () => {
+  it("does not treat an unknown reorder threshold as zero", () => {
     expect(countLowStockBalances([
       { quantity_available: 0, reorder_point: null },
       { quantity_available: 1, reorder_point: null },
+      { quantity_available: 0, reorder_point: 0 },
     ])).toBe(1);
   });
 
