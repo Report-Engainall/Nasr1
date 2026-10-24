@@ -6,6 +6,7 @@ const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) throw new Error("TEST_DATABASE_URL is required for receivables aging credit-memo acceptance.");
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const concurrentDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const creditRaceDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const observerDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
 const organizationId = "a0000000-0000-0000-0000-000000000001";
@@ -205,7 +206,7 @@ async function main() {
   assert.ok(Number.isFinite(creditAmount) && creditAmount > 0 && creditAmount < preCreditOutstanding,
     "the prepared credit must be positive and fit within the invoice balance");
   const creditRaceSessionId = randomUUID();
-  const creditRaceHasSessionTable = (await concurrentDb.unsafe(
+  const creditRaceHasSessionTable = (await creditRaceDb.unsafe(
     "select pg_catalog.to_regclass('auth.sessions') is not null as present",
   ))[0].present;
   const creditRaceClaims = {
@@ -214,7 +215,7 @@ async function main() {
     role: "authenticated",
   };
   if (creditRaceHasSessionTable) {
-    await concurrentDb.unsafe(
+    await creditRaceDb.unsafe(
       "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
       "values($1::uuid,$2::uuid,pg_catalog.now(),pg_catalog.now(),pg_catalog.now(),null,'CI payment versus credit-post race','192.0.2.46'::inet) " +
       "on conflict(id) do update set user_id=excluded.user_id,updated_at=excluded.updated_at,refreshed_at=excluded.refreshed_at,not_after=null",
@@ -222,9 +223,9 @@ async function main() {
     );
     creditRaceClaims.session_id = creditRaceSessionId;
   }
-  await concurrentDb.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [managerAuthId]);
-  await concurrentDb.unsafe("select set_config('request.jwt.claims',$1,false)", [JSON.stringify(creditRaceClaims)]);
-  await concurrentDb.unsafe("set role authenticated");
+  await creditRaceDb.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [managerAuthId]);
+  await creditRaceDb.unsafe("select set_config('request.jwt.claims',$1,false)", [JSON.stringify(creditRaceClaims)]);
+  await creditRaceDb.unsafe("set role authenticated");
 
   const rejectedRacePaymentKey = randomUUID();
   let signalCreditPostReady;
@@ -254,7 +255,7 @@ async function main() {
   const posted = await creditPostReady;
   assert.equal(posted.status,"posted","the source-linked balanced journal must post before the credit affects aging");
 
-  const competingPayment = concurrentDb.unsafe(
+  const competingPayment = creditRaceDb.unsafe(
     "select public.record_customer_payment($1::uuid,$2::numeric,'cash',$3::uuid,null,'CI racing payment must not bypass posted credit') as payment_id",
     [source.invoice_id, preCreditOutstanding.toFixed(2), rejectedRacePaymentKey],
   ).then(
@@ -673,6 +674,7 @@ main().catch((error) => {
   await Promise.all([
     db.end({ timeout: 5 }).catch(() => {}),
     concurrentDb.end({ timeout: 5 }).catch(() => {}),
+    creditRaceDb.end({ timeout: 5 }).catch(() => {}),
     observerDb.end({ timeout: 5 }).catch(() => {}),
   ]);
 });
