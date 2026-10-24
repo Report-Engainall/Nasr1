@@ -1,4 +1,4 @@
-> **Current integration note — 24 October 2026:** this report preserves the source inventory's historical rows and exact historical run references. It is not a live-main PASS. Current exact-head inventory evidence is produced by `scripts/generate-public-rpc-contract-inventory.mjs` in CI and retained as the `public-rpc-function-inventory-<sha>` artifact. Semantic RPC review remains PARTIAL until every candidate has a source-backed contract and negative acceptance evidence.
+> **Latest verified current-main inventory — 24 October 2026:** PostgreSQL 17 run [40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750) completed SUCCESS on exact main SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Artifact `public-rpc-function-inventory-e467c782bec0e19ddab6c5ddaa72aaa073d7283b` reports `functions=310 matched=310 unmatched=0 migration_files=135`. This verifies catalog-to-source mapping on the isolated current-main CI tree, not semantic authorization of each RPC. API-OPS remains PARTIAL with 179 callable candidates to review.
 
 # Public PostgreSQL RPC/function inventory — 24 October 2026
 
