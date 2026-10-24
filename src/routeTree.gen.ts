@@ -457,6 +457,7 @@ export interface FileRoutesByTo {
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/data': typeof AdminDataRoute
   '/admin/devices': typeof AdminDevicesRoute
+  '/admin/exports': typeof AdminExportsRoute
   '/admin/finance': typeof AdminFinanceRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/offers': typeof AdminOffersRoute
