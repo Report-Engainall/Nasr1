@@ -1209,6 +1209,7 @@ export async function createImportJob(input: {
   profileId?: string | null;
   periodKey?: string | null;
   sourceSystem?: string;
+  externalSourceReference?: string | null;
   /** Stable for retries of one logical import attempt; a new intentional version gets a fresh key. */
   requestKey?: string;
   /** The user-selected duplicate intent is part of the idempotency payload, not file identity. */
@@ -1222,6 +1223,7 @@ export async function createImportJob(input: {
     p_file_hash: input.fileHash,
     p_file_size: input.fileSize,
     p_job_type: input.jobType,
+    p_external_source_reference: input.externalSourceReference?.trim() || null,
     p_profile_id: input.profileId ?? null,
     p_period_key: input.periodKey ?? null,
     p_source_system: input.sourceSystem ?? 'manual',
@@ -1237,6 +1239,7 @@ export async function createImportUploadSession(jobId: string) {
   return data as {
     id: string; import_job_id: string; organization_id: string;
     profile_id: string | null; profile_version: number | null; period_key: string | null;
+    external_source_reference: string | null;
     chunk_size_bytes: number; total_chunks: number; verified_chunks: number;
     status: string; file_hash: string; file_size: number;
   };
