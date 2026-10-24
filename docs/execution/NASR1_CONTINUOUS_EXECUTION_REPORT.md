@@ -1,5 +1,17 @@
 # NASR1 Continuous Execution Report
 
+## ACTIVE CHECKPOINT — 2026-10-24 19:18 +03:00 (supersedes historical status claims below)
+
+- Repository: `Report-Engainall/Nasr1`; live `main` SHA `3e1b6ee1da77f3f4c12bfa6c389fdb6a9cfb9e96`; Core/test-and-build [40110719200 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40110719200) on that exact SHA.
+- Confirmed merged: #133 (merge SHA `f6dd9358ff680597ce7d9096428dad788e0f4767`), #144 (merge SHA `2c569e320111237ebeccffc992fcca74e75112b6`), #145 (merge/current-main SHA `3e1b6ee1da77f3f4c12bfa6c389fdb6a9cfb9e96`), and #135–#141 plus #143. No duplicate work on these PRs unless a current regression is demonstrated.
+- #146 current head `f98684645a4ae4d13b398d38340296fc8842b5d9` has Core [40110926680](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926680) and P2 [40110926679](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926679) still IN_PROGRESS at the last live read. No submitted independent review was present. Hosted customer E2E is SKIPPED, not PASS.
+- #142 register head `0b8eab56970f1485f86535edf7b66d1c1bddae90` passed Core [40107811311](https://github.com/Report-Engainall/Nasr1/actions/runs/40107811311) and P2 [40107811295](https://github.com/Report-Engainall/Nasr1/actions/runs/40107811295), but API-OPS remains PARTIAL: 304/304 runtime objects source-mapped; 179 callable RPC candidates still need semantic review.
+- #147–#151 have Core/P2 success on the recorded exact heads; #148–#151 also have PG17 success. All remain open/unmerged pending independent review and dependency/base reconciliation. #147 currently reports non-mergeable against stale base. #134 has historical tests only and must be reconciled with current main/#146 before re-running.
+- NEXT ACTION — FIRST STEP ON RESUME: poll #146 Core/P2 until terminal on `f98684645a4ae4d13b398d38340296fc8842b5d9`; fix only a proven failure. Then secure independent review and merge per policy; update/reconcile #147–#151 sequentially, and bring #134 to current main while preserving its concurrency test. Continue remaining acceptance items after those dependencies. Keep production/Onyx/WhatsApp/hosted-E2E gates explicitly unverified without external evidence.
+
+---
+
+## Historical checkpoint below (retained as evidence; do not use old statuses as current)
 **Checkpoint:** 2026-10-24 — live GitHub recheck after adding PRs #147–#151  
 **Repository:** `Report-Engainall/Nasr1`  
 **Production reference:** `main` only  
