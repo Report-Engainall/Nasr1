@@ -1304,3 +1304,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Corrected that actual failing test at commit `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`: accountant with no approved customer context must be denied storefront price lookup; existing finance data assertions remain in place. The preceding test commit `4cd7b86c5ea7d161495c4c7a689c90477aacaf32` adds explicit accepted-buyer product-card-price coverage and closes a stale accountant-overlap price expectation in `scripts/test-customer-price-visibility.mjs`.
 - Latest Core [40105249828](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249828) and P2 [40105249827](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249827) are `IN_PROGRESS` on exact SHA `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71` at checkpoint. No PASS or merge claimed.
 - Next: inspect both terminal results, correct any proved new failure, then satisfy independent review before merge.
+
+
+## P2 execution record — pricing gates accepted; quote edge fix opened — 2026-10-24T15:09:10Z
+
+- PR #144 exact head `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`: Core run 40105249828 SUCCESS and P2 run 40105249827 SUCCESS. Root cause was a stale finance-only accountant expectation in `scripts/test-database-migrations.mjs`; corrected test now asserts authorization denial with no approved customer context. PR #144 remains open; no independent review submitted, so no merge.
+- Shared-file sequencing recorded: PR #134 and #144 both edit `scripts/test-database-migrations.mjs`. After #144 merge, reconcile #134's idempotency/concurrency checks with the accountant boundary assertions and rerun Core/P2 on the final head.
+- PR #147 opened on head `c6ec7a03ea43a935694e253a48e1e9258cd79da5`: migration `20261024130000_customer_quote_response_explicit_decision.sql` rejects NULL quote ID/decision, preserves tenant/customer/status guards, and has three source-contract regression tests. Core 40105583244/P2 40105582703 were IN_PROGRESS at checkpoint. SQL runtime test in the shared database script remains a sequenced follow-up after #134/#144 test-file overlap is resolved.
+- PR #145 remains dependent on #144 and must precede #147 migration in merge order because it uses migration version `20261024120000...`.

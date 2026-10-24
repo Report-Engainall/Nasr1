@@ -1,3 +1,15 @@
+# P2 LIVE EXECUTION UPDATE — 2026-10-24T15:09:10Z — exact-head pricing checks passed
+
+- Target: `Report-Engainall/Nasr1`; main baseline remains `16a3d23e558696700bccbb3dbf9ea75b0fccf745`.
+- **PR #144** current head `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`: Core [40105249828 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249828), P2 [40105249827 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249827), both on the same exact SHA. #144 remains OPEN/UNMERGED, with reviewer `adnanabderab2016-sys` requested but no submitted review. This is test acceptance, not merge authorization.
+- **Known shared-file dependency:** PR #134 and PR #144 both touch `scripts/test-database-migrations.mjs`. Do not merge or rebase blindly: after #144 is approved/merged, reconcile #134 onto the latest main, preserve its same-key batch-concurrency test and the #144 accountant fail-closed assertions, then rerun both required gates on #134’s resulting exact head.
+- **PR #145** hidden-price NULL/allowlist work remains open; Core/P2 previously passed on `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`, but it must be rebased/validated after #144 is merged. PR #146 remains open/review-gated despite earlier exact-head test success.
+- **PR #147** opened for the separately confirmed quote RPC edge case: null `p_accept` would fall through SQL `CASE` to `rejected`. Migration `20261024130000_customer_quote_response_explicit_decision.sql` rejects null IDs/decisions before mutation, retaining customer capability/ownership/status checks; three source-contract tests were added. Head `c6ec7a03ea43a935694e253a48e1e9258cd79da5`; Core [40105583244](https://github.com/Report-Engainall/Nasr1/actions/runs/40105583244) and P2 [40105582703](https://github.com/Report-Engainall/Nasr1/actions/runs/40105582703) were IN_PROGRESS at checkpoint. Its migration version is after #145’s `20261024120000_storefront_hidden_price_null_contract.sql`; keep merge order consistent.
+- API-OPS-001 remains PARTIAL: 304/304 exposed runtime objects were mapped, but 179 callable RPC candidates still need semantic review. The quote-decision issue is one specific fix found during semantic inspection, not evidence that the 179-candidate review is complete.
+- Hosted customer/tenant journeys, real Onyx import/sync, WhatsApp delivery, production migrations and production restore remain unproven until authorized live evidence exists. No such success is claimed.
+
+---
+
 # P2 LIVE EXECUTION UPDATE — 2026-10-24T15:04:00Z — correcting the actual Core acceptance failure
 
 - Repository: `Report-Engainall/Nasr1`; authoritative `main` remains `16a3d23e558696700bccbb3dbf9ea75b0fccf745`. No direct writes to main.

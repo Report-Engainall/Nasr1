@@ -1,49 +1,51 @@
 # NASR1 Continuous Execution Report
 
-**Last checkpoint:** 2026-10-24T15:04:00Z  
+**Checkpoint:** 2026-10-24T15:09:10Z  
 **Repository:** `Report-Engainall/Nasr1`  
-**Authoritative main reference:** `16a3d23e558696700bccbb3dbf9ea75b0fccf745`  
-**Code PR:** [#144](https://github.com/Report-Engainall/Nasr1/pull/144)  
-**Code branch:** `fix/p2-price-rpc-live-session-membership-20261024`  
-**Current code head:** `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`  
-**Central report branch:** `p2/reconcile-18-prs-live-main-20261024`, PR [#133](https://github.com/Report-Engainall/Nasr1/pull/133)
+**Main reference:** `16a3d23e558696700bccbb3dbf9ea75b0fccf745`  
+**Primary current code PR:** [#144](https://github.com/Report-Engainall/Nasr1/pull/144)  
+**Pricing fix head:** `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`  
+**Separate quote RPC fix:** [#147](https://github.com/Report-Engainall/Nasr1/pull/147), head `c6ec7a03ea43a935694e253a48e1e9258cd79da5`  
+**Resume branch:** `p2/reconcile-18-prs-live-main-20261024`, documentation PR [#133](https://github.com/Report-Engainall/Nasr1/pull/133)
 
-## Confirmed last execution point
+## Latest accepted evidence
 
-PR #144's previous code head `4cd7b86c5ea7d161495c4c7a689c90477aacaf32` failed Core run [40104995234](https://github.com/Report-Engainall/Nasr1/actions/runs/40104995234) while P2 run [40104995244](https://github.com/Report-Engainall/Nasr1/actions/runs/40104995244) was cancelled after a newer push. The failure was in `scripts/test-database-migrations.mjs` at the older accountant-price assertion (approximately lines 1948–1953), not in the isolated customer price visibility test. The finance-only accountant fixture has no approved customer profile/membership and therefore must be denied access to the customer storefront price RPC. The production guard correctly failed closed; the old assertion expected a price and was inconsistent with that contract.
+### PR #144 — storefront session and membership authorization
+The actual failure was a stale expectation in `scripts/test-database-migrations.mjs`: finance-only accountant without approved customer identity expected a customer storefront price. The RPC correctly denied this with SQLSTATE 42501. The test was corrected to expect denial and existing accountant financial access assertions were preserved.
 
-Commit `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71` updates that database acceptance assertion to expect an authorization denial, while keeping accountant finance-data assertions unchanged. The preceding commit `4cd7b86c5ea7d161495c4c7a689c90477aacaf32` adds a direct successful buyer-membership product-card pricing assertion and hardens the separate accountant-overlap test. Production SQL was not changed by these two test-only updates.
+- Code head `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`
+- Core [40105249828 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249828)
+- P2 [40105249827 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249827)
+- PR #144 remains OPEN/UNMERGED. Reviewer `adnanabderab2016-sys` is requested, but no formal review has been submitted. Do not bypass independent review/branch protection.
 
-### Latest exact-head checks
+### Shared file coordination
+PR #134 and PR #144 both modify `scripts/test-database-migrations.mjs`. After #144 is approved and merged, rebase/reconcile #134 onto latest main, preserving both its concurrent transfer batch/idempotency assertions and #144's accountant fail-closed assertions. Run Core and P2 on the reconciled final head; do not mark the earlier #134 passes as evidence for a new SHA.
 
-- Core: [40105249828](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249828) — `IN_PROGRESS` at checkpoint.
-- P2: [40105249827](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249827) — `IN_PROGRESS` at checkpoint.
-- Status for #144: `UNVERIFIED` until both finish successfully on exactly `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`.
-- PR #144: OPEN/UNMERGED; independent review API contained no submitted reviews when checked. No merge claimed.
-- PR #145: must not merge before #144. Previous Core/P2 runs 40100874921/40100874931 on `7c82b051ed0bda11c944e4fe08ecf4a117060ed5` are historical proof for that head only; it remains open and review-gated.
-- PR #146: prior exact-head Core/P2 runs 40101794869/40101794970 passed on `3150691725f97d7f892fcb2aed0edae898c839be`; still open and independent-review-gated.
-- PR #142: API-OPS-001 remains PARTIAL. 304/304 public runtime objects are source mapped, but 179 callable RPC candidates require semantic auth/tenant/role/input/output/idempotency/concurrency/error/audit review.
-- Hosted customer/tenant E2E skipped for missing authorized non-production credentials; it is not PASS. Real Onyx/WhatsApp calls, production deployment/migrations, and production restore are not claimed.
+### PR #145 — hidden price sentinel removal
+PR #145 remains OPEN; previous Core/P2 passed on head `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`, but this is historical head-specific evidence. It must rebase and pass both gates after #144 is merged, then receive independent review. Merge #145 before #147's later-version migration to avoid migration order hazards.
 
-## Mandatory resume procedure
+### PR #147 — explicit quote response decision
+A semantic inspection found that SQL `CASE WHEN p_accept THEN 'accepted' ELSE 'rejected' END` can treat NULL as rejection. PR #147 adds forward migration `20261024130000_customer_quote_response_explicit_decision.sql` with explicit null input validation before mutation, retaining customer capability, ownership and quoted-state checks, plus source-contract tests.
 
-1. Read this file, then `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`, `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`, and `WORK_COORDINATION.md`.
-2. Inspect runs **40105249828** and **40105249827**; both must have terminal SUCCESS on `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`. If one fails, inspect the precise failed step/log and repair that cause only.
-3. Re-read live PR #144 head/reviews after the tests. Merge only with both exact-head workflows successful and independent review/branch-policy requirements satisfied.
-4. Only after #144 is merged, reconcile and validate #145 against the resulting main; then review/merge #145 if gates pass. Resolve independent review of #146 without bundling it into pricing.
-5. Continue PR #142 semantic audit and exact-head work across #134–#143. Prioritize the remaining 179 RPC candidates by financial mutations, export/import, inventory and tenant-facing operations. Do not repeat merged PR #127 or recreate duplicate work.
-6. Continue Issues #76 and #77: invitations and company scope; inventory transfer concurrency/idempotency; staged import/resume/rollback; DQS; CSV/XLSX formula safety, leading zeros and negative metrics; ledger/invoices/payments/expenses; executive analytics; AI usage/tenant scope; operational task generation/printing; PWA cache limits; backup/restore definition integrity; Onyx's versioned 27-column export and authorized target import; official WhatsApp status; deployment gates.
-7. Keep external credentials, hosted customer E2E, Onyx target acceptance, WhatsApp delivery, production migrations and production restore marked `BLOCKED_EXTERNAL`, `SKIPPED` or `NOT RUN` until actual authorized evidence is available.
-8. Record every meaningful change/test in this report and the central state/matrix. Do not claim an unconfirmed commit, push, merge, test or deployment.
+- Head `c6ec7a03ea43a935694e253a48e1e9258cd79da5`
+- Core [40105583244](https://github.com/Report-Engainall/Nasr1/actions/runs/40105583244) — IN_PROGRESS at checkpoint
+- P2 [40105582703](https://github.com/Report-Engainall/Nasr1/actions/runs/40105582703) — IN_PROGRESS at checkpoint
+- Reviewer `adnanabderab2016-sys` requested. A direct PostgreSQL runtime test for null decisions is still due after reconciling the shared database test script from #134/#144; current source-contract tests do not replace that runtime evidence.
 
-## Safety and quality rules
+## Remaining work and limits
 
-- Only `Report-Engainall/Nasr1` is the project target. Use feature branches/PRs and preserve main.
-- Do not rebuild the app or create parallel accounting/task/print engines.
-- Do not weaken RLS/RPC guards to satisfy a test; update a stale test if it contradicts the intended fail-closed contract.
-- Never map unknown values to zero, expose hidden prices via numeric sentinels, fabricate financial results, or treat skipped tests as passed.
-- CI evidence is SHA-specific.
+- PR #142 / API-OPS-001 remains PARTIAL: 304/304 public runtime objects were mapped to sources, but 179 RPC candidates still need semantic contract review. The quote bug is one specific result of that ongoing review, not completion of the full audit.
+- PR #146 remains open/review-pending despite historical exact-head Core/P2 success; update/revalidate if rebased.
+- Continue #136–#143 customer route acceptance; for any new head, use its own Core/P2 evidence and keep hosted customer/tenant E2E marked SKIPPED if no authorized credentials are available.
+- Continue Issues #76 and #77: company/customer membership; transfer concurrency; staged imports/resume/rollback; DQS; CSV/XLSX formula safety and leading-zero preservation; ledger/invoices/payments/expenses; executive analytics; AI tenant/audit usage; operational tasks/printing; PWA offline limits; backup/restore definition checks; Onyx 27-column export and authorized target acceptance; official WhatsApp delivery status; runtime/deployment gates.
+- Do not claim real Onyx import, WhatsApp send, production migration/restore, hosted authenticated E2E, or deployment without authorized environment evidence.
+
+## Rules
+Use feature branches/PRs, preserve main, never weaken RLS/RPC guards to satisfy tests, never map unknown values to zero, and never claim success from an older commit. Do not rebuild or duplicate existing engines.
 
 ## NEXT ACTION — FIRST STEP ON RESUME
 
-Read the final state/logs for Core run **40105249828** and P2 run **40105249827** on exact commit `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`. Repair only a proven failure. If both pass, verify the independent review gate for #144 and continue its authorized merge route, then move to #145. Do not begin a new full audit; continue from these exact runs.
+1. Read the live status/logs for PR #147 Core run **40105583244** and P2 run **40105582703** on exact SHA `c6ec7a03ea43a935694e253a48e1e9258cd79da5`; fix only evidenced failures.
+2. Check PR #144 remains on exact SHA `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71` with both Core/P2 passing and obtain independent review. After authorized merge, reconcile PR #134's shared test file.
+3. Rebase PR #145 onto post-#144 main, rerun exact-head gates and obtain independent review. Preserve migration order before merging #147.
+4. Add direct PostgreSQL NULL-decision runtime acceptance into the database test suite once the #134/#144 shared-file overlap is reconciled, then finish the outstanding API-OPS semantic RPC review and remaining acceptance tasks.
