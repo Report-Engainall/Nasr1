@@ -1,3 +1,19 @@
+# LIVE COORDINATION CHECKPOINT — 2026-10-24 19:18 +03:00 (authoritative; historical notes below)
+
+- Main SHA is `3e1b6ee1da77f3f4c12bfa6c389fdb6a9cfb9e96`; exact main Core/test-and-build run [40110719200](https://github.com/Report-Engainall/Nasr1/actions/runs/40110719200) succeeded.
+- PR #133 merged as `f6dd9358ff680597ce7d9096428dad788e0f4767`; PR #144 merged as `2c569e320111237ebeccffc992fcca74e75112b6`; PR #145 merged as/current main `3e1b6ee1da77f3f4c12bfa6c389fdb6a9cfb9e96`. PRs #135–#141 and #143 are also closed by merge. Do not use historical statements below saying these remain open.
+- PR #146 current head `f98684645a4ae4d13b398d38340296fc8842b5d9` is based on current main; Core [40110926680](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926680) and P2 [40110926679](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926679) were in progress at last live check. The two public UI/auth-infrastructure jobs succeeded; hosted customer E2E was skipped. No submitted independent review was found.
+- PR #142 register head `0b8eab56970f1485f86535edf7b66d1c1bddae90` passed Core [40107811311](https://github.com/Report-Engainall/Nasr1/actions/runs/40107811311) and P2 [40107811295](https://github.com/Report-Engainall/Nasr1/actions/runs/40107811295). API-OPS-001 remains PARTIAL: 304/304 runtime objects source-mapped but 179 callable RPCs need semantic review.
+- PR #147–#151 latest recorded Core/P2 checks succeeded on their exact heads; #148–#151 also have PostgreSQL 17 success. They remain open and #147 reports non-mergeable because it has not been brought through current dependency order. Do not merge out of order or infer merged status from check success.
+- PR #134 old exact-head checks passed, but the shared database acceptance file needs reconciliation with current main and #146 before the checks count for a new head.
+- **NEXT ACTION:** poll #146 Core/P2 until terminal. If a check fails, inspect the failed job and repair the proven defect. Request/obtain independent review before merging. Once #146 is accepted and merged, update #147–#151 in migration timestamp order and reconcile #134 without dropping the concurrency test or the price/RPC authorization assertions. Continue route acceptance PRs #89, #97, #102, #105, #107, #114–#125, #130 and the remaining open P1/P3 work without reopening merged tasks.
+- External gates remain blocked/unverified without credentials or environment evidence: hosted tenant/customer E2E, real Onyx import/sync, WhatsApp delivery, live AI provider secrets, production deployment/migrations/restore.
+- Checkpoint changes are on `p2/refresh-live-execution-checkpoint-20261024`; do not write directly to main.
+
+---
+
+# Historical coordination log (retain evidence; use live checkpoint above for current state)
+
 # P2 LIVE EXECUTION UPDATE — 2026-10-24T15:12:00Z — quote-test correction pushed
 
 - Target repository: `Report-Engainall/Nasr1`; main reference SHA remains `16a3d23e558696700bccbb3dbf9ea75b0fccf745`.
