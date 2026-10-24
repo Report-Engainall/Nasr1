@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_IMPORT_COLUMNS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ROWS, MAX_IMPORT_CELL_CHARS,
   StreamingCsvParser, DataQualityAccumulator, applyImportProfileRules, shouldPersistParsedImportRow, stableJsonStringify,
-  normalizeHeader, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
-  type VerifiedImportChunk,
+  formatXlsxNumber, normalizeHeader, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
+  type VerifiedImportChunk, type XlsxStyles,
 } from "@/lib/unified-import";
 
 describe("unified import safety contracts", () => {
@@ -149,6 +149,33 @@ describe("unified import safety contracts", () => {
     );
     expect(missingExternalId.status).toBe("rejected");
     expect(missingExternalId.errors).toContain('مفتاح المطابقة الإلزامي "source_external_id" مفقود أو فارغ');
+  });
+
+  it("rejects blank values for profile-required fields even when the required headers exist", () => {
+    const row = validateCsvRow(
+      ["000125", "   ", "2"],
+      ["item_code", "product_name", "quantity"],
+      5,
+      "item_code",
+      ["item_code", "product_name"],
+    );
+    expect(row.status).toBe("rejected");
+    expect(row.data.item_code).toBe("000125");
+    expect(row.errors).toContain('الحقل الإلزامي "product_name" مفقود أو فارغ');
+  });
+
+  it("preserves leading zeros in numeric XLSX cells when the workbook declares a zero-padded format", () => {
+    const styles: XlsxStyles = {
+      numberFormats: new Map([[164, "000000"]]),
+      cellStyleFormats: [164],
+    };
+    expect(formatXlsxNumber("125", 0, styles, false)).toBe("000125");
+    expect(formatXlsxNumber("000125", 0, styles, false)).toBe("000125");
+    const ordinaryNumberFormat: XlsxStyles = {
+      numberFormats: new Map([[165, "0.00"]]),
+      cellStyleFormats: [165],
+    };
+    expect(formatXlsxNumber("125", 0, ordinaryNumberFormat, false)).toBe("125");
   });
 
   it("rejects overlong cells rather than silently truncating accepted values", () => {
