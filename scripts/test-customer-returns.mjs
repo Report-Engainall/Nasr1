@@ -673,8 +673,60 @@ async function main() {
   );
   assert.equal(settlementRows.length,1);
   assert.equal(Number(settlementRows[0].invoice_total),500);
-  assert.equal(Number(settlementRows[0].paid),100);
-  assert.equal(Number(settlementRows[0].credited),125);
+  // Two distinct payments racing for the remaining balance must not both win.
+  // After the earlier payment (100) and credit memo (125), only 275 remains on this 500 invoice.
+  const balanceRaceRacer = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  let balanceRaceResults;
+  try {
+    await balanceRaceRacer.unsafe("reset role").catch(()=>{});
+    await balanceRaceRacer.unsafe(
+      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI invoice balance race session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+      [managerAuthId],
+    );
+    await balanceRaceRacer.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[managerAuthId]);
+    await balanceRaceRacer.unsafe("select set_config('request.jwt.claims',$1,false)",[
+      JSON.stringify({sub:managerAuthId,email:"ci-return-manager@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated",session_id:managerAuthId}),
+    ]);
+    await balanceRaceRacer.unsafe("set role authenticated");
+    balanceRaceResults = await Promise.allSettled([
+      db.unsafe(
+        "select public.record_customer_payment($1::uuid,$2::numeric,$3::text,$4::uuid,$5::text,$6::text) as id",
+        [sourceInvoiceId,200,"cash",randomUUID(),"CI-RET-BALANCE-RACE-A","competing payment A"],
+      ),
+      balanceRaceRacer.unsafe(
+        "select public.record_customer_payment($1::uuid,$2::numeric,$3::text,$4::uuid,$5::text,$6::text) as id",
+        [sourceInvoiceId,200,"cash",randomUUID(),"CI-RET-BALANCE-RACE-B","competing payment B"],
+      ),
+    ]);
+  } finally {
+    await balanceRaceRacer.end({timeout:5}).catch(()=>{});
+  }
+  const balanceRaceWinners = balanceRaceResults.filter(result=>result.status==="fulfilled");
+  const balanceRaceLosers = balanceRaceResults.filter(result=>result.status==="rejected");
+  assert.equal(balanceRaceWinners.length,1,"exactly one concurrent payment may consume the remaining invoice balance");
+  assert.equal(balanceRaceLosers.length,1,"the overpayment competitor must be rejected after the settlement lock");
+  assert.match(String(balanceRaceLosers[0].reason?.message),/payment exceeds invoice balance after posted credit memos/i);
+  const balanceRacePaymentId = balanceRaceWinners[0].value[0].id;
+  assert.ok(balanceRacePaymentId,"the successful competing payment returns its persisted payment ID");
+
+  const paymentAuditCount = await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='customer_payment.recorded' and entity_id in ($2::uuid,$3::uuid)",
+    [organizationId,concurrentPaymentId,balanceRacePaymentId],
+  );
+  assert.equal(paymentAuditCount[0].count,2,"only the two committed payment sources emit audit rows");
+  const reconciledSettlementRows = await db.unsafe(
+    "select coalesce(sum(cp.amount),0)::text as paid,"+
+    "(select coalesce(sum(cm.total_amount),0) from public.customer_return_credit_memos cm " +
+    " where cm.organization_id=i.organization_id and cm.invoice_id=i.id and cm.customer_id=i.customer_id and cm.status='posted')::text as credited " +
+    "from public.customer_invoices i left join public.customer_payments cp " +
+    " on cp.organization_id=i.organization_id and cp.invoice_id=i.id and cp.customer_id=i.customer_id " +
+    "where i.organization_id=$1::uuid and i.id=$2::uuid group by i.organization_id,i.id,i.customer_id",
+    [organizationId,sourceInvoiceId],
+  );
+  assert.equal(Number(reconciledSettlementRows[0].paid),300,"the accepted payments total 300.00");
+  assert.equal(Number(reconciledSettlementRows[0].credited),125,"the posted credit remains source-linked at 125.00");
+  assert.ok(Number(reconciledSettlementRows[0].paid)+Number(reconciledSettlementRows[0].credited)<=500,
+    "competing payments and credit postings never exceed the invoice total");
   assert.ok(Number(settlementRows[0].paid)+Number(settlementRows[0].credited)<=Number(settlementRows[0].invoice_total),
     "concurrent payment and credit posting may not exceed the invoice balance");
   const paymentAuditRows = await db.unsafe(
@@ -777,7 +829,7 @@ async function main() {
   assert.equal(Number(postedSourceCredit.total_amount),125,"printed source credit amount matches the authorized memo");
   assert.equal(Number(staffYER.credited) - Number(beforeYER.credited),125,
     "posting the source credit increases the full-ledger credited total by exactly the source amount");
-  assert.equal(Number(beforeYER.outstanding) - Number(staffYER.outstanding),225,
+  assert.equal(Number(beforeYER.outstanding) - Number(staffYER.outstanding),425,
     "concurrent payment plus source credit reduce the full-ledger outstanding total by their combined source amounts");
 
   await db.unsafe("reset role");
@@ -843,7 +895,7 @@ async function main() {
   const agedSourceInvoice = aging.items.find((row) => row.id === sourceInvoiceId);
   assert.ok(agedSourceInvoice,"staff aging page includes the source invoice at limit 500");
   assert.equal(Number(agedSourceInvoice.credit_memo_amount),125,"staff aging applies the posted source credit");
-  assert.equal(Number(agedSourceInvoice.outstanding_amount),275,"receivable aging includes the concurrent 100.00 payment and 125.00 posted credit");
+  assert.equal(Number(agedSourceInvoice.outstanding_amount),75,"receivable aging includes the concurrent 100.00 payment and 125.00 posted credit");
   await db.unsafe("reset role");
 
   await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
@@ -1011,7 +1063,7 @@ async function main() {
   const invoiceAfter=statementAfter.invoices.find(x=>x.id===sourceInvoiceId);
   assert.ok(invoiceAfter);
   assert.equal(Number(invoiceAfter.credit_memo_amount),0);
-  assert.equal(Number(invoiceAfter.outstanding_amount),400,"reversal restores the 125.00 credit but does not reverse the 100.00 payment");
+  assert.equal(Number(invoiceAfter.outstanding_amount),200,"reversal restores the 125.00 credit while preserving the 300.00 received payments");
   assert.equal(statementAfter.credits.some(x=>x.id===preparedCredit.credit_memo_id),false);
   const queueAfter=asJson((await db.unsafe("select public.fetch_customer_return_credit_memo_queue(50) as result"))[0].result);
   const returnAfter=queueAfter.requests.find(x=>x.request_id===firstRequest.request_id);
