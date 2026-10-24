@@ -16,7 +16,7 @@ Purpose: route-to-evidence traceability for ROUTES-001. This does not replace th
 
 ## Live reconciliation — post-merge #198 (24 October 2026)
 
-- **Current main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1`; main post-merge Core [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) was IN_PROGRESS at the last poll. Do not treat that run as terminal PASS until it completes.
+- **Current main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1`; main post-merge Core [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) completed SUCCESS on exact main SHA; the run includes isolated PostgreSQL 17 migration/core-workflow acceptance and build/browser smoke.
 - **PR #198 route-mount acceptance:** exact head `67ea3d0d20216697cf35d70e54897d6128c50176`, Core [40130584912](https://github.com/Report-Engainall/Nasr1/actions/runs/40130584912) SUCCESS and P2 [40130584867](https://github.com/Report-Engainall/Nasr1/actions/runs/40130584867) SUCCESS; merged as `12b622326f8a95575994ef1afae43f69fdf854b1`.
 - The new test mounts 22 admin entrypoints using the generated `src/routeTree.gen.ts` and asserts intended view wiring plus special wrappers/workspaces, returns drawers, and the reports-to-exports link. This is **route-mount evidence only**. It does not certify each screen's live data actions, permissions for every role, error/empty behavior, production writes, or hosted customer journeys.
 - Admin rows formerly marked `NOT_PROVEN — Route registration only` are downgraded to `PARTIAL` only where #198 directly adds mount evidence; detailed screen/service acceptance remains an open gate unless separately evidenced below.
