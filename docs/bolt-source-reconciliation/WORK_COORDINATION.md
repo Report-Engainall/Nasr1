@@ -1,7 +1,7 @@
 # WORK COORDINATION — LIVE STATUS — 24 October 2026
 
 Repository: `Report-Engainall/Nasr1`; only production branch `main`.
-Latest main merge SHA: `12b622326f8a95575994ef1afae43f69fdf854b1` after PR #198. Post-merge Core run 40130981792 was IN_PROGRESS at the last poll; confirm its terminal result before marking main release gate green.
+Latest main merge SHA: `12b622326f8a95575994ef1afae43f69fdf854b1` after PR #198. Post-merge Core run 40130981792 completed SUCCESS on exact main SHA; isolated PostgreSQL 17 migration/core acceptance, lint, build, preview smoke and Chromium price-visibility checks passed.
 
 ## Current merge and acceptance truth
 
@@ -9,7 +9,7 @@ Latest main merge SHA: `12b622326f8a95575994ef1afae43f69fdf854b1` after PR #198.
 - **PR #190 current-main port:** merged as `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Exact PR-head Core 40127113576, async-export PostgreSQL 17 40127113568, and P2 40127113571 passed. Hosted customer/tenant E2E skipped due the external credential gate.
 - **Historical baseline CI:** Core 40127500733 and PostgreSQL 17 40127500750 passed on the exact older main SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; those runs are not evidence for later main commits.
 - **Recent exact-head results:** #196 Core 40130250564/P2 40130250519 PASS; post-merge Core 40130620987 PASS on merge SHA `6f73438bb1c2e90bd3daffde0701df29b3df8553`. #197 Core 40130345683/P2 40130345655 PASS; post-merge Core 40130696335 PASS on merge SHA `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb`. #198 Core 40130584912/P2 40130584867 PASS on exact PR head; merge SHA `12b622326f8a95575994ef1afae43f69fdf854b1`.
-- **Current main gate:** run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) was IN_PROGRESS at the last poll on exact current main `12b622326f8a95575994ef1afae43f69fdf854b1`; wait for terminal outcome. Hosted customer/tenant E2E remains skipped by external credential gate.
+- **Current main gate:** run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) completed SUCCESS on exact current main `12b622326f8a95575994ef1afae43f69fdf854b1`, including isolated PostgreSQL 17 and browser/build smoke. Hosted customer/tenant E2E remains skipped by external credential gate.
 - **Inventory artifact:** `public-rpc-function-inventory-3d68de8c657e92c2a0fc1a75f787be2862951ea7` from PR merge-tree run 40127113568 reports 310/310 matched, 0 unmatched and 135 migration files. This is source mapping evidence for the isolated test tree, not full semantic authorization proof.
 - **API-OPS remains PARTIAL:** 179 callable RPC candidates still require source-backed semantic review. Bound request streams and async-export authorization coverage are merged, but that does not close the RPC audit.
 - **Owner authorization:** owner explicitly authorized ready merges. Old review approval restrictions below are historical; retain technical safety gates (exact-head tests, ordered migrations, clean merge, main verification).
@@ -17,7 +17,7 @@ Latest main merge SHA: `12b622326f8a95575994ef1afae43f69fdf854b1` after PR #198.
 - **Parallel ownership:** preserve database/security/transaction checks and update the canonical pointer rather than creating another conflicting resume checkpoint. Live docs reconciliation is on branch `docs/live-state-and-acceptance-20261024`; changes must target only documentation files and must not overwrite later main updates.
 
 ## NEXT ACTION
-1. Confirm terminal Core run 40130981792 on main SHA `12b622326f8a95575994ef1afae43f69fdf854b1`; repair only a concrete, reproduced failure.
+1. Current-main Core run 40130981792 is SUCCESS on SHA `12b622326f8a95575994ef1afae43f69fdf854b1`. For later main commits, re-run the exact release gate and repair only a concrete, reproduced failure.
 2. Finish exact-head Core/P2 for the clean-main documentation replacement branch and merge only if they pass; the original #192 branch is stale/conflicted after #190.
 3. Continue measured RPC semantic review without repeating completed export/idempotency paths.
 4. Keep route status tied to specific tests; route registration alone is not route acceptance.
