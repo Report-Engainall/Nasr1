@@ -4,6 +4,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatCurrency } from "@/lib/format";
+import { storefrontCategorySlug } from "@/lib/storefront-slugs";
 
 const mocks = vi.hoisted(() => ({
   fetchProducts: vi.fn(),
@@ -11,6 +12,12 @@ const mocks = vi.hoisted(() => ({
   fetchStorefrontPromotions: vi.fn(),
   fetchSettingsMap: vi.fn(),
   fetchStorefrontAnnouncements: vi.fn(),
+  categoryResult: null as null | {
+    data: unknown;
+    loading: boolean;
+    error: string | null;
+    refetch: () => void;
+  },
   settings: {} as Record<string, unknown>,
   user: null as null | { isStaff: boolean; profileId?: string; name?: string },
   products: [
@@ -71,7 +78,7 @@ vi.mock("@/lib/api", () => ({
 vi.mock("@/lib/useFetch", () => ({
   useFetch: (fetcher: unknown) => {
     if (fetcher === mocks.fetchProducts) return { data: mocks.products, loading: false, error: null, refetch: vi.fn() };
-    if (fetcher === mocks.fetchCategories) return { data: [], loading: false, error: null, refetch: vi.fn() };
+    if (fetcher === mocks.fetchCategories) return mocks.categoryResult ?? { data: [], loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchStorefrontPromotions) return { data: [], loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchSettingsMap) return { data: mocks.settings, loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchStorefrontAnnouncements) return { data: [], loading: false, error: null, refetch: vi.fn() };
@@ -219,6 +226,7 @@ describe("customer price visibility UI acceptance", () => {
     window.localStorage.clear();
     mocks.products.splice(0, mocks.products.length, ...initialProducts);
     mocks.user = { isStaff: false, profileId: "customer-1", name: "Buyer" };
+    mocks.categoryResult = null;
     resetSettings();
     mocks.pricingResponse = null;
     mocks.rpc.mockReset().mockImplementation(async (name: string) => {
@@ -237,6 +245,46 @@ describe("customer price visibility UI acceptance", () => {
     mocks.user = null;
     mocks.pricingResponse = null;
     window.localStorage.clear();
+  });
+
+  it("announces category loading while the category service has no data yet", async () => {
+    mocks.categoryResult = {
+      data: null,
+      loading: true,
+      error: null,
+      refetch: vi.fn(),
+    };
+
+    const mount = await mountAt("/");
+    await flushEffects();
+
+    expect(mount.host.querySelector('[role="status"]')?.textContent).toContain("جار تحميل التصنيفات...");
+    expect(mount.host.querySelector('[role="alert"]')?.textContent ?? "").not.toContain("تعذر تحميل التصنيفات");
+    expect(mount.host.querySelector('button[aria-label="إعادة تحميل التصنيفات"]')).toBeNull();
+    expect(mount.host.querySelector<HTMLInputElement>(".sf-search input")?.disabled).not.toBe(true);
+  });
+
+  it("shows a source-specific category error, retries it, and keeps text search available", async () => {
+    const refetch = vi.fn();
+    mocks.categoryResult = {
+      data: null,
+      loading: false,
+      error: "category source unavailable",
+      refetch,
+    };
+
+    const mount = await mountAt("/");
+    await flushEffects();
+
+    const categoryError = mount.host.querySelector('[role="alert"]');
+    expect(categoryError?.textContent).toContain("تعذر تحميل التصنيفات: category source unavailable");
+    const retry = mount.host.querySelector<HTMLButtonElement>('button[aria-label="إعادة تحميل التصنيفات"]');
+    expect(retry).not.toBeNull();
+    expect(retry?.disabled).toBe(false);
+    expect(mount.host.querySelector<HTMLInputElement>(".sf-search input")?.disabled).not.toBe(true);
+
+    act(() => retry?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
   it.each([false, true])("shows product-card and direct product-detail price according to the catalog setting (%s)", async (enabled) => {
@@ -333,7 +381,9 @@ describe("customer price visibility UI acceptance", () => {
     await unmount(malformed);
 
     mocks.rpc.mockImplementation(async (name: string) => {
-      if (name === "preview_customer_order_pricing") return { data: null, error: { message: "pricing unavailable" } };
+      if (name === "preview_customer_order_pricing") {
+        return { data: null, error: { message: "pricing unavailable" } };
+      }
       return { data: null, error: null };
     });
     const failed = await mountAt("/cart");
@@ -341,6 +391,47 @@ describe("customer price visibility UI acceptance", () => {
     expect(failed.host.textContent).not.toContain("سعر الوحدة:");
     expect(failed.host.textContent).not.toContain("إجمالي السلة");
     expect(failed.host.textContent).not.toContain(formatServerAmount(2468));
+  });
+
+  it("prevents same-tick duplicate checkout submits until the server acknowledges the first", async () => {
+    window.sessionStorage.clear();
+    seedCustomerCart();
+    let resolveOrder!: (value: { data: unknown; error: null }) => void;
+    const pendingOrder = new Promise<{ data: unknown; error: null }>((resolve) => { resolveOrder = resolve; });
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "validate_checkout_cart") return { data: validCartValidation(), error: null };
+      if (name === "submit_customer_order") return pendingOrder;
+      return { data: null, error: null };
+    });
+
+    const mount = await mountAt("/checkout");
+    await flushEffects();
+
+    const phone = mount.host.querySelector<HTMLInputElement>('input[placeholder="7XX XXX XXX"]');
+    expect(phone).not.toBeNull();
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(phone, "777123456");
+      phone!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await flushEffects();
+
+    const confirm = mount.host.querySelector<HTMLButtonElement>(".sf-checkout-actions .sf-btn-primary");
+    expect(confirm).not.toBeNull();
+    expect(confirm?.disabled).toBe(false);
+    act(() => {
+      confirm!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      confirm!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === "submit_customer_order")).toHaveLength(1);
+    expect(mount.host.textContent).not.toContain("PO-001");
+    await act(async () => {
+      resolveOrder({ data: { id: "order-1", order_number: "PO-001", status: "pending" }, error: null });
+      await pendingOrder;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mount.host.textContent).toContain("PO-001");
   });
 
   it("keeps order-review amounts hidden while the order validation remains non-financial", async () => {
@@ -411,7 +502,9 @@ describe("customer price visibility UI acceptance", () => {
     await unmount(malformed);
 
     mocks.rpc.mockImplementation(async (name: string) => {
-      if (name === "preview_customer_order_pricing") return { data: null, error: { message: "pricing unavailable" } };
+      if (name === "preview_customer_order_pricing") {
+        return { data: null, error: { message: "pricing unavailable" } };
+      }
       if (name === "validate_checkout_cart") return { data: validCartValidation(), error: null };
       return { data: null, error: null };
     });
@@ -421,4 +514,83 @@ describe("customer price visibility UI acceptance", () => {
     expect(failed.host.querySelector('.sf-order-pricing-total')).toBeNull();
     expect(failed.host.textContent).not.toContain(formatServerAmount(2468));
   });
+
+  describe("public storefront deep-link acceptance", () => {
+    it.each([
+      { path: "/categories", heading: "تصنيفات المنتجات" },
+      { path: "/collections", heading: "تصنيفات المنتجات" },
+      { path: "/offers", heading: "العروض المنشورة" },
+      { path: "/search/advanced", heading: "البحث المتقدم" },
+    ])("mounts the actual route for a direct URL: $path", async ({ path, heading }) => {
+      const mount = await mountAt(path);
+      await flushEffects();
+
+      expect(mount.host.querySelector("h1")?.textContent).toContain(heading);
+      expect(mount.host.textContent).not.toContain("Application error");
+      await unmount(mount);
+    });
+
+    it.each(["/catalog?q=Rice", "/search?q=Rice"])(
+      "preserves direct URL search state on %s",
+      async (path) => {
+        const mount = await mountAt(path);
+        await flushEffects();
+
+        const input = mount.host.querySelector<HTMLInputElement>(".sf-search input");
+        expect(input).not.toBeNull();
+        expect(input?.value).toBe("Rice");
+        expect(mount.host.textContent).toContain("Rice");
+        await unmount(mount);
+      },
+    );
+    it("resolves a published category slug through the generated router", async () => {
+      const category = {
+        id: "a1000000-0000-4000-8000-000000000111",
+        name: "أغذية معلبة",
+        name_en: null,
+        parent_id: null,
+        is_active: true,
+      };
+      const slug = storefrontCategorySlug({ id: category.id, name: category.name, name_en: category.name_en });
+      mocks.categoryResult = { data: [category], loading: false, error: null, refetch: vi.fn() };
+
+      const mount = await mountAt(`/category/${slug}`);
+      await flushEffects();
+
+      expect(mount.host.querySelector("h1")?.textContent).toContain(category.name);
+      expect(mount.host.textContent).not.toContain("التصنيف غير موجود");
+      expect(mount.host.textContent).not.toContain("Application error");
+      await unmount(mount);
+    });
+
+    it("resolves a subcategory slug through the generated router beneath its published parent", async () => {
+      const parent = {
+        id: "a1000000-0000-4000-8000-000000000222",
+        name: "مشروبات",
+        name_en: null,
+        parent_id: null,
+        is_active: true,
+      };
+      const child = {
+        id: "a1000000-0000-4000-8000-000000000333",
+        name: "عصائر",
+        name_en: null,
+        parent_id: parent.id,
+        is_active: true,
+      };
+      const parentSlug = storefrontCategorySlug({ id: parent.id, name: parent.name, name_en: parent.name_en });
+      const childSlug = storefrontCategorySlug({ id: child.id, name: child.name, name_en: child.name_en });
+      mocks.categoryResult = { data: [parent, child], loading: false, error: null, refetch: vi.fn() };
+
+      const mount = await mountAt(`/category/${parentSlug}/subcategory/${childSlug}`);
+      await flushEffects();
+
+      expect(mount.host.querySelector("h1")?.textContent).toContain(child.name);
+      expect(mount.host.textContent).toContain(parent.name + " / تصنيف فرعي");
+      expect(mount.host.textContent).not.toContain("Application error");
+      await unmount(mount);
+    });
+
+  });
+
 });
