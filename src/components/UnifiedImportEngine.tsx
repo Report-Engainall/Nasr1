@@ -1,13 +1,14 @@
 import { Fragment, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Check, FileDown, Pause, Play, RefreshCw, ShieldCheck, Upload, XCircle } from "lucide-react";
 import {
-  cancelImportUploadSession, createImportJob, createImportUploadSession, failImportJobSafely, fetchCentralSynonyms, fetchImportJobs, fetchImportProfiles,
+  cancelImportUploadSession, createImportJob, createImportUploadSession, failImportJobSafely, fetchCentralSynonyms, fetchImportJobs, fetchImportProfiles, rollbackImportSnapshot,
   fetchImportUploadChunks, fetchImportRowErrors, findImportDuplicate, finalizeImportJob, insertImportRows, recordImportUploadChunk, updateImportJob,
   type ImportRowErrorDetail,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { completeImportRequestKey, getOrCreateImportRequestKey } from "@/lib/import-request-key";
 import { useFetch } from "@/lib/useFetch";
+import { useAuth } from "@/lib/auth";
 import { formatNumber } from "@/lib/format";
 import { AdminPage, Button, Empty, ErrorBox, Loading, TableWrap } from "@/components/AdminPages";
 import {
@@ -51,6 +52,8 @@ function delay(ms: number): Promise<void> {
 }
 
 export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice: (message: string) => void; refreshVersion?: number }) {
+  const { user } = useAuth();
+  const canRollbackImport = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
   const { data: jobs, loading, error, refetch } = useFetch(fetchImportJobs, [refreshVersion]);
   const { data: profiles } = useFetch(fetchImportProfiles, [refreshVersion]);
   const { data: storedSynonyms } = useFetch(fetchCentralSynonyms, [refreshVersion]);
@@ -610,6 +613,34 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
     }
   }
 
+  async function rollbackJob(job: ImportJob) {
+    if (!canRollbackImport || !["completed", "completed_with_warnings"].includes(job.status)) return;
+    const reason = window.prompt("اكتب سبب التراجع عن أحدث لقطة لهذه الدفعة (3 إلى 1000 حرف):", "");
+    if (reason === null) return;
+    if (reason.trim().length < 3 || reason.trim().length > 1000) {
+      setErrorMessage("سبب التراجع مطلوب ويجب أن يكون بين 3 و1000 حرف.");
+      return;
+    }
+    if (!window.confirm("سيؤرشف النظام اللقطة الجاهزة الأحدث المرتبطة بهذه الدفعة فقط، مع الاحتفاظ بجميع الصفوف وسجل التدقيق. لا يمكن أرشفة لقطة أقدم إذا كانت هناك لقطة أحدث. هل تتابع؟")) return;
+    setErrorMessage("");
+    setStatusMessage("جارٍ التحقق من صلاحية التراجع وحالة أحدث لقطة على الخادم…");
+    try {
+      const result = await rollbackImportSnapshot(job.id, reason);
+      await refetch();
+      setStatusMessage(
+        result.alreadyRolledBack
+          ? "سبق تنفيذ التراجع عن هذه الدفعة؛ أكد الخادم بقاء اللقطة مؤرشفة والصفوف التاريخية محفوظة."
+          : "تمت أرشفة اللقطة " + (result.snapshotVersion === null ? "" : "رقم " + formatNumber(result.snapshotVersion) + " ") +
+            "وسُجل سبب التراجع وهوية المنفذ في سجل التدقيق. لم تُحذف صفوف اللقطة أو دفعة الاستيراد.",
+      );
+      onNotice(result.alreadyRolledBack ? "التراجع مسجل مسبقًا؛ لم تتكرر العملية." : "تم التراجع الآمن عن لقطة الاستيراد مع الاحتفاظ بالتاريخ.");
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "تعذر التراجع الآمن عن لقطة الاستيراد.";
+      setErrorMessage(message);
+      setStatusMessage("لم يتم تأكيد التراجع. بقيت الصفوف التاريخية محفوظة؛ راجع أحدث حالة على الخادم قبل إعادة المحاولة.");
+    }
+  }
+
   async function toggleRowErrors(job: ImportJob) {
     const previous = rowErrorState;
     const requestId = ++rowErrorRequestId.current;
@@ -713,12 +744,12 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
         <section className="panel import-jobs-panel">
           <div className="panel-head"><div><h2>سجل الدفعات</h2><p>البصمة والميتا والنتائج دون حفظ الملفات الخام</p></div><Button variant="outline" onClick={refetch}><RefreshCw size={15} /> تحديث</Button></div>
           {loading ? <Loading /> : error ? <ErrorBox message={error} /> : jobs?.length ? <TableWrap><table>
-            <thead><tr><th>الملف</th><th>المصدر</th><th>الحالة</th><th>DQS</th><th>الصفوف</th><th>التاريخ</th><th>الاستئناف</th><th>أخطاء الصفوف</th></tr></thead>
+            <thead><tr><th>الملف</th><th>المصدر</th><th>الحالة</th><th>DQS</th><th>الصفوف</th><th>التاريخ</th><th>الاستئناف</th><th>أخطاء الصفوف</th>{canRollbackImport && <th>التراجع</th>}</tr></thead>
             <tbody>{jobs.map((job) => <Fragment key={job.id}>
               <tr>
                 <td><strong>{job.file_name ?? "—"}</strong><small>{job.file_hash?.slice(0, 16) ?? "—"}…</small></td>
                 <td>{job.source_system || "manual"}</td>
-                <td><span className={"badge " + (job.status === "completed" ? "success" : job.status === "rejected" ? "danger" : "warning")}>{job.status === "manual_mapping_required" ? "تعيين يدوي" : job.status === "manual_review" ? "مراجعة بشرية" : job.status}</span></td>
+                <td><span className={"badge " + (job.status === "completed" ? "success" : ["rejected", "failed", "cancelled", "rolled_back"].includes(job.status) ? "danger" : "warning")}>{job.status === "manual_mapping_required" ? "تعيين يدوي" : job.status === "manual_review" ? "مراجعة بشرية" : job.status === "rolled_back" ? "تم التراجع مع حفظ التاريخ" : job.status}</span></td>
                 <td>{job.data_quality_score == null ? "—" : job.data_quality_score + "/100 (" + (qualityPreview?.score === job.data_quality_score ? qualityPreview.label : job.data_quality_score >= 90 ? "ممتاز" : job.data_quality_score >= 75 ? "مقبول" : job.data_quality_score >= 50 ? "تحذير" : "مرفوض") + ")"}</td>
                 <td>{formatNumber(job.processed_rows)} / {formatNumber(job.total_rows)}</td>
                 <td>{new Date(job.created_at).toLocaleDateString("ar")}</td>
@@ -728,8 +759,10 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
                   <Button variant="outline" onClick={() => void toggleRowErrors(job)}>
                     {rowErrorState?.jobId === job.id && !rowErrorState.loading ? "إخفاء التفاصيل" : "عرض الأسباب"}
                   </Button>}</td>
+                {canRollbackImport && <td>{["completed", "completed_with_warnings"].includes(job.status) &&
+                  <Button variant="outline" onClick={() => void rollbackJob(job)}>تراجع آمن</Button>}</td>}
               </tr>
-              {rowErrorState?.jobId === job.id && <tr><td colSpan={8} style={{ whiteSpace: "normal", minWidth: 320 }}>
+              {rowErrorState?.jobId === job.id && <tr><td colSpan={canRollbackImport ? 9 : 8} style={{ whiteSpace: "normal", minWidth: 320 }}>
                 {rowErrorState.loading ? <Loading /> : rowErrorState.error ? <ErrorBox message={rowErrorState.error} /> : rowErrorState.rows.length === 0
                   ? <Empty text="لا توجد صفوف مرفوضة مسجلة لهذه الدفعة؛ قد يكون الفشل حدث قبل اكتمال قراءة الصفوف." />
                   : <div><strong>أسباب رفض الصفوف (أول {rowErrorState.rows.length} صف)</strong><ol>{rowErrorState.rows.map((row) => {
