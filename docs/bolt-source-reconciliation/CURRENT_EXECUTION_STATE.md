@@ -1,40 +1,40 @@
 # NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026
 
-## AUTHORITATIVE ACTIVE READ — 2026-10-24 20:29 +03:00
+## AUTHORITATIVE ACTIVE READ — 2026-10-24 20:40 +03:00
 
-### 1) Last confirmed execution point
-Repository: `Report-Engainall/Nasr1`. Current `main` SHA: `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; Main Core run [40111286682](https://github.com/Report-Engainall/Nasr1/actions/runs/40111286682) passed on that SHA. No direct writes to `main` and no production data changes were made by this execution.
+### Last confirmed repository state
+- Repository: `Report-Engainall/Nasr1`; current `main` SHA `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`. Main Core run `40111286682` passed on that exact SHA.
+- Merged baseline: #133, #135–#141, #143–#146. Do not recreate absent a new regression.
 
-### 2) Completed in this execution
-- Reconciled and preserved the existing merged baseline: #133, #135–#141, #143–#146. Do not recreate these absent a proven regression.
-- Verified duplicate source blobs and closed stale duplicates: #148→#164, #149→#165, #150→#166, #151→#168, #107→#170, #119→#173, #124→#169 after transferring keyboard acceptance, and #167→#162. Each closure was re-read from GitHub to confirm `state=closed`; the matching test/code blobs were verified before closing.
-- #163 latest head `1ea3227ad7649947cafc1ee8488b1d6a4c0b6b66`: Core [40115321226 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40115321226), P2 [40115321235 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40115321235). The nested subcategory route now delegates to Outlet; checkout prevents duplicate submissions; route failures are recoverable. Hosted authenticated customer/tenant E2E remains SKIPPED.
-- #169 exact head `d6ef27f09a2c73c0dae74d1be2c7768c1577fe40`: Core [40115015672 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40115015672), P2 [40115015539 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40115015539). Unique customer order-detail keyboard navigation acceptance was transferred from #124 and preserved.
-- #172 exact head `682761625993a203b5795daa953632f131ae886a`: Core [40115029836 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40115029836), P2 [40115029831 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40115029831). The new SQL guards against a changed active warehouse-balance set after stock-count snapshot creation, serializes against balance writers, and records `counted_by` plus old/new count audit details.
-- #174 exact head `e0ca64f8f66203615eb74bf778f85f59156f2f62`: Core [40115104136 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40115104136), P2 [40115104172 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40115104172). Its admin-route test reads generated route declarations instead of assuming a runtime `routeTree.children` property.
-- #158 exact head `6007cb03089a72aefe55483d1b4ea888fd3bf381`: Core [40114325627 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40114325627), P2 [40114325623 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40114325623), payment audit PostgreSQL 17 [40114325569 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40114325569).
-- #152 current PR head before this update `d82d367f792a24a152f646fbe9158db1eb10019b`: Core [40115185009 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40115185009), P2 [40115185014 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40115185014). This checkpoint change creates a new head; previous results do not transfer.
+### Verified work in current execution
+- Closed duplicate requests only after comparing file blobs and preserving unique coverage: #148→#164, #149→#165, #150→#166, #151→#168, #107→#170, #119→#173, #124→#169 (keyboard E2E transferred), #167→#162. The API has been re-read confirming closures.
+- #163 latest head `1ea3227ad7649947cafc1ee8488b1d6a4c0b6b66`: Core `40115321226` and P2 `40115321235` PASS. Nested subcategory route uses Outlet; checkout is single-flight and error states recover. Authenticated hosted customer E2E remains SKIPPED.
+- #169 head `d6ef27f09a2c73c0dae74d1be2c7768c1577fe40`: Core `40115015672` and P2 `40115015539` PASS, including the keyboard-only customer-order acceptance preserved from #124.
+- #172 head `682761625993a203b5795daa953632f131ae886a`: Core `40115029836` and P2 `40115029831` PASS; guards changed inventory balance sets since stock-count snapshot and tracks `counted_by` + before/after audit. Must retest after ordered migration integration.
+- #174 head `e0ca64f8f66203615eb74bf778f85f59156f2f62`: Core `40115104136` and P2 `40115104172` PASS; route-registration test reads generated declarations.
+- #158 head `6007cb03089a72aefe55483d1b4ea888fd3bf381`: Core `40114325627`, P2 `40114325623`, payment audit PG17 `40114325569` PASS.
+- #152 checkpoint PR previous head `bcb5ef0900d5b6287aeb082f80404205d4113ed0`: Core `40115767188` and P2 `40115767192` PASS. This edit creates a new head; results must be rerun.
 
-### 3) Current open work and exact-head gates
-- #134 `296453bd6d71817e0b78e4a752f0dff889ef5ec3`: Core/P2 [40112078912](https://github.com/Report-Engainall/Nasr1/actions/runs/40112078912) / [40112078914](https://github.com/Report-Engainall/Nasr1/actions/runs/40112078914) PASS; concurrent same-idempotency batch test exists; independent review pending.
-- #142 API-OPS register exact head `25deecf9b6fa94f6e8fa1b2acd26c55b36c0ead8`: Core [40115494628](https://github.com/Report-Engainall/Nasr1/actions/runs/40115494628) and P2 [40115494634](https://github.com/Report-Engainall/Nasr1/actions/runs/40115494634) IN_PROGRESS at last poll. Semantic review now includes batches for stock-count, finance/payment/journal reversal, import chunk contiguity, asynchronous export worker leases, and customer lifecycle. Inventory maps 304/304 public objects; full semantic review of the 179 callable RPC candidates remains PARTIAL.
-- Ordered migrations: #147 exact head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a` Core/P2 [40111802394](https://github.com/Report-Engainall/Nasr1/actions/runs/40111802394) / [40111802434](https://github.com/Report-Engainall/Nasr1/actions/runs/40111802434) PASS; #164 `65e7be92e9a9a7461b2e64326f6de7f639b74d04` Core/P2/PG17 PASS; #165 `b405fc4902e90bd0cc0dfc47c96e8e563620ccea` Core/P2/PG17 PASS; #166 `10d38b2a3de7b30e675494c71f8f86a0e9903ff5` Core/P2/PG17 PASS; #168 `425fe17ff16fdf00bab4c6e85a3bb9bc72413116` prior Core/P2/PG17 PASS; #158 exact head above PASS; #162 `e5ca28bb81a605f4e6628baa7abbdc1b5c7216f8` prior Core/P2/PG17 PASS. Rebase/retest on each final integrated SHA. Integration order: **#147 → #164 → #165 → #166 → #168 → #158 → #162 → #172**.
-- #175 latest exact head `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`: Core [40115637333](https://github.com/Report-Engainall/Nasr1/actions/runs/40115637333) and P2 [40115637423](https://github.com/Report-Engainall/Nasr1/actions/runs/40115637423) IN_PROGRESS at last poll. Prior Core failed on a test expectation only: Arabic locale returns `٥` while the test expected ASCII `5`; the expectation was corrected without weakening the production formatting. Await fresh exact-head results.
-- #155–#157, #159–#160, #170–#171, #173 have recorded Core/P2 passes on the listed heads. Review pending. All hosted authenticated customer E2E jobs remain SKIPPED, not PASS.
+### Current exact-head gates
+- #142 API-OPS register current head `7f95daa2511936ecccd548bc871f1e9d7e85e9f5`: Core `40116260315` and P2 `40116260420` are running. Prior head `3122133586d7eff57ecba4c082ee72edd5108d8e` failed only because the test expected lowercase `hosted authenticated customer E2E` while the register uses uppercase `Hosted ...`; test now uses a case-insensitive regex. Do not mark PASS until both latest runs finish.
+- #175 dashboard unknown-as-zero fix head `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`: Core `40115637333` PASS. P2 `40115637423` remains IN_PROGRESS; its public Playwright smoke job is running and hosted customer tenant E2E was skipped. An earlier Core failure was only ASCII `5` vs locale-correct Arabic `٥`; the expectation was corrected, production formatting was not changed.
+- #147 head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`: Core `40111802394` and P2 `40111802434` PASS. The older PostgreSQL 17 runtime proof points to SHA `5b351a544f412a48c0d5466b91b000c51100c889`; do not transfer that proof to the current head. Independent review and exact-head runtime evidence remain open if required.
+- #164 `65e7be92e9a9a7461b2e64326f6de7f639b74d04`, #165 `b405fc4902e90bd0cc0dfc47c96e8e563620ccea`, #166 `10d38b2a3de7b30e675494c71f8f86a0e9903ff5`: Core/P2/PG17 passed on recorded heads. #168 `425fe17ff16fdf00bab4c6e85a3bb9bc72413116`: earlier Core/P2/PG17 passed. #162 `e5ca28bb81a605f4e6628baa7abbdc1b5c7216f8`: Core/P2/PG17 passed on that SHA; explicit `valid` only gets validity credit. All must be retested after relevant migrations merge.
+- #134 head `296453bd6d71817e0b78e4a752f0dff889ef5ec3`: Core `40112078912` and P2 `40112078914` PASS; same-key concurrent batch idempotency test exists.
+- #155–#160, #170–#171, #173 had recorded Core/P2 passes on their noted heads; review pending. These results do not transfer after any head change.
 
-### 4) Independent review and external blockers
-Review requests were sent to the available independent account; no formal APPROVED review was present in the latest review query. Do not self-approve through another linked account and do not merge without actual independent approval plus exact-head required gates.
-External/production proofs not supplied: hosted authenticated customer/tenant E2E, production migration/restore, live Onyx import/sync, official WhatsApp delivery, live AI provider secrets, and deployment. Record each as BLOCKED_EXTERNAL or NOT RUN. Local CI does not prove them.
-
-### 5) Repository/worktree safety
-All active changes in this update are on branch `p2/refresh-live-execution-checkpoint-20261024` and PR #152; no direct `main` changes, force push, history rewrite, or destructive cleanup. No local uncommitted working-tree state exists in this GitHub-only execution context.
+### Canonical checkpoint and review
+- #176 opened a second PR touching only `CURRENT_EXECUTION_STATE.md`; its override is older than the live read above and conflicts with the broader checkpoint in #152. #152 remains canonical; ported the only useful nuance: #147's historic PG17 run belongs to old SHA and is not current-head evidence. Close #176 as duplicate after confirming no other unique file changes.
+- Independent review requests were sent to `adnanabderab2016-sys`; no actual APPROVED review is recorded. A reviewer request or CodeRabbit pass is not human approval. Do not merge without the required independent review and exact-head gates.
+- Migration order: **#147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #172**. Rebase and rerun Core/P2/PG17 on each final integrated SHA.
+- Production migration/restore, deployment, hosted authenticated customer E2E, live Onyx, official WhatsApp, and live AI access remain NOT RUN/BLOCKED_EXTERNAL absent authorized evidence.
 
 ## NEXT ACTION — FIRST STEP ON RESUME
-1. Poll #142 Core/P2 at `25deecf9b6fa94f6e8fa1b2acd26c55b36c0ead8` and #175 at `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`; fix only a proven failure and rerun on the new exact SHA.
-2. Confirm #152's new checkpoint commit and Core/P2 after this write; update the checkpoint again only after #142/#175 terminal results are known.
-3. Obtain actual independent review for #134, #142, #147, #152, #155–#166, #169–#175. Reviewer requests are not approval.
-4. Reconcile and integrate migrations in order #147 → #164 → #165 → #166 → #168 → #158 → #162 → #172; after every base change rerun required gates and verify the merge SHA.
-5. Continue semantic review of remaining callable RPCs and the remaining open screen/function acceptance matrix; do not call the project complete until essential criteria are evidenced.
+1. Poll Core/P2 for #142 at `7f95daa2511936ecccd548bc871f1e9d7e85e9f5` and P2 #175 at `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`; repair only a proven failure.
+2. Verify and merge no PR until the required independent approval exists; keep #152 as the single checkpoint PR and close #176 after this content is preserved.
+3. Continue #142 semantic RPC review beyond the source inventory, particularly storage access grants, worker lease enforcement, and remaining customer/company/invitation deny tests.
+4. Execute ordered migration integration #147 → #164 → #165 → #166 → #168 → #158 → #162 → #172, running current-head CI after every update and merge.
+5. After #142/#175 terminal results are known, refresh all checkpoint files/matrix once and rerun exact-head Core/P2.
 
 ---
 
