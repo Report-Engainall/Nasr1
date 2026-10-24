@@ -14,7 +14,7 @@
 
 ## LIVE EXECUTION ADDENDUM — 24 October 2026 (after #198 merge)
 
-- **Current main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1` after #198; post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) was QUEUED at last poll. Earlier `e467c782bec0e19ddab6c5ddaa72aaa073d7283b` remains the tree used for the last documented 310/310 catalog inventory.
+- **Current main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1` after #198; post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) was IN_PROGRESS at last poll. Earlier `e467c782bec0e19ddab6c5ddaa72aaa073d7283b` remains the tree used for the last documented 310/310 catalog inventory.
 - **#196 export parity:** merged at `6f73438bb1c2e90bd3daffde0701df29b3df8553`; exact-head Core 40130250564 and P2 40130250519 passed; post-merge Core 40130620987 passed on that merge SHA.
 - **#197 DQS statuses:** merged at `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb`; exact-head Core 40130345683 and P2 40130345655 passed; post-merge Core 40130696335 completed SUCCESS.
 - **#198 admin route mount acceptance:** merged as `12b622326f8a95575994ef1afae43f69fdf854b1`; exact head `67ea3d0d20216697cf35d70e54897d6128c50176` passed Core 40130584912 and P2 40130584867. The tests verify mount/link/wrapper for 22 admin URLs; they do not close all per-screen behavior, role/data workflows, hosted E2E, or production UAT.
