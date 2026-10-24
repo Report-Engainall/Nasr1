@@ -1,8 +1,8 @@
-> **HISTORICAL SNAPSHOT — DO NOT USE AS CURRENT-MAIN EVIDENCE.** This inventory was generated from an isolated PostgreSQL 17 database for source SHA `672749855d733f691ab59de878420a210108fbbe`. Current main is `653f4d764041a8751c41e75a492fed0cc6edea63`; later migrations may change the function set, source mapping, and effective ACLs. Regenerate using `scripts/generate-public-rpc-contract-inventory.mjs` in the current-head CI run before relying on any row below.
+> **Current integration note — 24 October 2026, 23:05 +03:00:** this report preserves historical source/ACL rows and their historical run references; it is not a live-main PASS. Current main is `653f4d764041a8751c41e75a492fed0cc6edea63`. Current exact-head inventory evidence is produced by `scripts/generate-public-rpc-contract-inventory.mjs` in the dedicated PostgreSQL 17 CI run and retained as the `public-rpc-function-inventory-<sha>` artifact. Semantic RPC review remains PARTIAL until every candidate has a source-backed contract and negative acceptance evidence.
 
 # Public PostgreSQL RPC/function inventory — 24 October 2026
 
-**Evidence status:** PASS — generated from the exact isolated PostgreSQL 17 test database after applying the complete migration tree.
+**Evidence status:** HISTORICAL PASS on the source SHA below only; not evidence for the current main SHA. The current workflow regenerates and uploads a fresh exact-head artifact.
 **Repository:** `Report-Engainall/Nasr1`
 **Base main SHA:** `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`
 **Source/CI head SHA:** `3cadb973c5e5b539b271cc71e233030ee7408bc9`
