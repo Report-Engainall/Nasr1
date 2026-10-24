@@ -59,3 +59,5 @@ jobs:
         run: npm run test:db
       - name: Verify async export idempotency, worker race, stale lease and expiry on PostgreSQL 17
         run: node scripts/test-async-export-jobs.mjs
+      - name: Verify import request-key concurrency, payload conflict and direct-table denial on PostgreSQL 17
+        run: node scripts/test-import-job-idempotency.mjs
