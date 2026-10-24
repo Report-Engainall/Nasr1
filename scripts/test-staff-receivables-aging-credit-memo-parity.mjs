@@ -7,6 +7,8 @@ if (!connectionString) throw new Error("TEST_DATABASE_URL is required for receiv
 const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const concurrentDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const observerDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const creditMemoRaceDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const settlementGateDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
 const organizationId = "a0000000-0000-0000-0000-000000000001";
 const customerProfileId = "f1111111-1111-4111-8111-111111111111";
@@ -195,12 +197,179 @@ async function main() {
   assert.equal(Number(withDraft.item.outstanding_amount),Number(before.item.outstanding_amount),
     "draft credit memos do not reduce outstanding invoices");
 
-  const postedRaw = await db.unsafe(
-    "select public.post_general_journal_entry($1::uuid) as result",
-    [draft.journal_entry_id],
+  // FIN-INVOICE-001: a payment and posted credit memo share one invoice settlement lock.
+  // Hold that lock, queue the real journal-post operation first, then queue a payment that
+  // would fit before the credit but exceed the receivable after the credit is posted.
+  const creditMemoRaceSessionId = randomUUID();
+  const creditMemoRaceHasSessionTable = (await creditMemoRaceDb.unsafe(
+    "select pg_catalog.to_regclass('auth.sessions') is not null as present",
+  ))[0].present;
+  const creditMemoRaceClaims = {
+    sub: managerAuthId,
+    email: "ci-return-manager@example.test",
+    role: "authenticated",
+  };
+  if (creditMemoRaceHasSessionTable) {
+    await creditMemoRaceDb.unsafe(
+      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+        "values($1::uuid,$2::uuid,pg_catalog.now(),pg_catalog.now(),pg_catalog.now(),null,'CI payment vs credit memo race','192.0.2.46'::inet) " +
+        "on conflict(id) do update set user_id=excluded.user_id,updated_at=excluded.updated_at,refreshed_at=excluded.refreshed_at,not_after=null",
+      [creditMemoRaceSessionId, managerAuthId],
+    );
+    creditMemoRaceClaims.session_id = creditMemoRaceSessionId;
+  }
+  await creditMemoRaceDb.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [managerAuthId]);
+  await creditMemoRaceDb.unsafe("select set_config('request.jwt.claims',$1,false)", [
+    JSON.stringify(creditMemoRaceClaims),
+  ]);
+  await creditMemoRaceDb.unsafe("select set_config('application_name',$1,false)", [
+    "ci-payment-v-creditmemo-race",
+  ]);
+  await creditMemoRaceDb.unsafe("set role authenticated");
+
+  const outstandingBeforeCreditCents = Math.round(Number(withDraft.item.outstanding_amount) * 100);
+  const creditAmountCents = Math.round(Number(draft.total_amount) * 100);
+  const racePaymentAmountCents = outstandingBeforeCreditCents - creditAmountCents + 1;
+  assert.ok(creditAmountCents > 0, "the race needs a positive posted credit memo");
+  assert.ok(
+    racePaymentAmountCents > 0 && racePaymentAmountCents <= outstandingBeforeCreditCents,
+    "the competing payment must be valid before posting the credit but exceed the remaining balance afterward",
   );
-  const posted = asJson(postedRaw[0].result);
-  assert.equal(posted.status,"posted","the source-linked balanced journal must post before the credit affects aging");
+  const racePaymentAmount = (racePaymentAmountCents / 100).toFixed(2);
+  const racePaymentKey = randomUUID();
+  const racePaymentReference = "CI payment-v-credit-memo " + suffix;
+
+  let settlementGateOpen = false;
+  let creditPostAttempt;
+  let competingPaymentAttempt;
+  try {
+    await settlementGateDb.unsafe("begin");
+    settlementGateOpen = true;
+    await settlementGateDb.unsafe(
+      "select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended($1::text,0))",
+      [organizationId + ":customer-invoice-settlement:" + source.invoice_id],
+    );
+
+    creditPostAttempt = db.begin(async (tx) => {
+      await tx.unsafe("select set_config('application_name',$1,true)", ["ci-credit-memo-post-race"]);
+      const rows = await tx.unsafe(
+        "select public.post_general_journal_entry($1::uuid) as result",
+        [draft.journal_entry_id],
+      );
+      return asJson(rows[0].result);
+    }).then(
+      (result) => ({ ok: true, result }),
+      (error) => ({ ok: false, error }),
+    );
+
+    let creditMemoAdvisoryWaitObserved = false;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const waiting = await observerDb.unsafe(
+        "select exists(select 1 from pg_catalog.pg_stat_activity " +
+          "where application_name='ci-credit-memo-post-race' and state='active' " +
+          "and wait_event_type='Lock' and wait_event='advisory' " +
+          "and query ilike '%post_general_journal_entry%') as waiting",
+      );
+      if (waiting[0].waiting) {
+        creditMemoAdvisoryWaitObserved = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(
+      creditMemoAdvisoryWaitObserved,
+      true,
+      "credit-memo posting must reach and wait on the shared invoice settlement lock",
+    );
+
+    competingPaymentAttempt = creditMemoRaceDb.unsafe(
+      "select public.record_customer_payment($1::uuid,$2::numeric,'cash',$3::uuid,$4::text,$5::text) as payment_id",
+      [
+        source.invoice_id,
+        racePaymentAmount,
+        racePaymentKey,
+        racePaymentReference,
+        "Must roll back because the earlier queued credit consumes the receivable",
+      ],
+    ).then(
+      (rows) => ({ ok: true, paymentId: rows[0].payment_id }),
+      (error) => ({ ok: false, error }),
+    );
+
+    let paymentAdvisoryWaitObserved = false;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const waiting = await observerDb.unsafe(
+        "select exists(select 1 from pg_catalog.pg_stat_activity " +
+          "where application_name='ci-payment-v-creditmemo-race' and state='active' " +
+          "and wait_event_type='Lock' and wait_event='advisory' " +
+          "and query ilike '%record_customer_payment%') as waiting",
+      );
+      if (waiting[0].waiting) {
+        paymentAdvisoryWaitObserved = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(
+      paymentAdvisoryWaitObserved,
+      true,
+      "payment must queue behind the already-waiting credit-memo posting on the same invoice lock",
+    );
+
+    await settlementGateDb.unsafe("commit");
+    settlementGateOpen = false;
+
+    const creditPostResult = await creditPostAttempt;
+    assert.equal(creditPostResult.ok, true, "credit-memo posting must win the shared-lock race");
+    const posted = creditPostResult.result;
+    assert.equal(
+      posted.status,
+      "posted",
+      "the source-linked balanced journal must post before the credit affects aging",
+    );
+    const competingPaymentResult = await competingPaymentAttempt;
+    assert.equal(
+      competingPaymentResult.ok,
+      false,
+      "payment that was valid before the credit must be rejected after the credit commits",
+    );
+    assert.match(
+      String(competingPaymentResult.error?.message || ""),
+      /payment exceeds invoice balance after posted credit memos/i,
+    );
+
+    const persistedRacingPayments = await observerDb.unsafe(
+      "select id from public.customer_payments where organization_id=$1::uuid " +
+        "and invoice_id=$2::uuid and idempotency_key=$3::uuid",
+      [organizationId, source.invoice_id, racePaymentKey],
+    );
+    assert.equal(
+      persistedRacingPayments.length,
+      0,
+      "rejected post-credit payment must leave no customer_payments row",
+    );
+    const racingPaymentAudit = await observerDb.unsafe(
+      "select id from public.audit_logs where organization_id=$1::uuid " +
+        "and action='customer_payment.recorded' and entity_type='customer_payment' " +
+        "and new_value->>'reference'=$2",
+      [organizationId, racePaymentReference],
+    );
+    assert.equal(
+      racingPaymentAudit.length,
+      0,
+      "rejected post-credit payment must leave no payment audit event",
+    );
+    process.stdout.write(
+      "PASS payment-vs-credit-memo race: credit posting wins the shared invoice lock, the later payment is rejected, and no payment/audit side effects remain\\n",
+    );
+  } finally {
+    if (settlementGateOpen) await settlementGateDb.unsafe("rollback").catch(() => {});
+    if (creditPostAttempt || competingPaymentAttempt) {
+      await Promise.allSettled(
+        [creditPostAttempt, competingPaymentAttempt].filter(Boolean),
+      );
+    }
+  }
   const after = await receivablesItem(source.invoice_id);
   assert.equal(Number(after.item.credit_memo_amount)-Number(before.item.credit_memo_amount),Number(draft.total_amount),
     "the posted credit increases the invoice credit-memo aggregate by its source amount");
@@ -575,5 +744,7 @@ main().catch((error) => {
     db.end({ timeout: 5 }).catch(() => {}),
     concurrentDb.end({ timeout: 5 }).catch(() => {}),
     observerDb.end({ timeout: 5 }).catch(() => {}),
+    creditMemoRaceDb.end({ timeout: 5 }).catch(() => {}),
+    settlementGateDb.end({ timeout: 5 }).catch(() => {}),
   ]);
 });

@@ -1,0 +1,59 @@
+name: Customer payment audit PostgreSQL 17 acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261024151500_customer_payment_record_audit.sql"
+      - "scripts/test-customer-payment-audit.mjs"
+      - "src/test/customer-payment-audit-migration.test.ts"
+      - ".github/workflows/customer-payment-audit-pg17.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261024151500_customer_payment_record_audit.sql"
+      - "scripts/test-customer-payment-audit.mjs"
+      - "src/test/customer-payment-audit-migration.test.ts"
+      - ".github/workflows/customer-payment-audit-pg17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  customer-payment-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aghbari_test
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: aghbari_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aghbari_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install Bun for frozen-lockfile verification
+        uses: oven-sh/setup-bun@v2
+      - name: Verify frozen dependency lockfile
+        run: bun install --frozen-lockfile --registry=https://registry.npmjs.org --dry-run
+      - name: Use Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install dependencies from the verified lockfile
+        run: bun install --frozen-lockfile --registry=https://registry.npmjs.org
+      - name: Apply migrations and run the existing isolated PostgreSQL 17 acceptance suite
+        run: npm run test:db
+      - name: Verify customer payment audit and idempotent replay on PostgreSQL 17
+        run: node scripts/test-customer-payment-audit.mjs
