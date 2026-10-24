@@ -70,7 +70,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
   const [externalSourceReference, setExternalSourceReference] = useState("");
   const [qualityPreview, setQualityPreview] = useState<QualityResult | null>(null);
   const [duplicatePrompt, setDuplicatePrompt] = useState<DuplicatePrompt | null>(null);
-  const [rowErrorState, setRowErrorState] = useState<{ jobId: string; rows: ImportRowErrorDetail[]; loading: boolean; error: string } | null>(null);
+  const [rowErrorState, setRowErrorState] = useState<{ jobId: string; rows: ImportRowErrorDetail[]; loading: boolean; error: string; offset: number; hasMore: boolean } | null>(null);
   const rowErrorRequestId = useRef(0);
   const pausedRef = useRef(false);
   const cancelRef = useRef(false);
@@ -670,19 +670,45 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
       setRowErrorState(null);
       return;
     }
-    setRowErrorState({ jobId: job.id, rows: [], loading: true, error: "" });
+    setRowErrorState({ jobId: job.id, rows: [], loading: true, error: "", offset: 0, hasMore: false });
     try {
-      const rows = await fetchImportRowErrors(job.id, 100);
+      const rows = await fetchImportRowErrors(job.id, 100, 0);
       if (requestId === rowErrorRequestId.current) {
-        setRowErrorState({ jobId: job.id, rows, loading: false, error: "" });
+        setRowErrorState({ jobId: job.id, rows, loading: false, error: "", offset: rows.length, hasMore: rows.length === 100 });
       }
     } catch (cause) {
       if (requestId === rowErrorRequestId.current) {
         setRowErrorState({
-          jobId: job.id,
-          rows: [],
-          loading: false,
+          jobId: job.id, rows: [], loading: false,
           error: cause instanceof Error ? cause.message : "تعذر تحميل أسباب رفض الصفوف.",
+          offset: 0, hasMore: false,
+        });
+      }
+    }
+  }
+
+  async function loadMoreRowErrors(job: ImportJob) {
+    const previous = rowErrorState;
+    if (!previous || previous.jobId !== job.id || previous.loading || !previous.hasMore) return;
+    const requestId = ++rowErrorRequestId.current;
+    setRowErrorState({ ...previous, loading: true, error: "" });
+    try {
+      const nextRows = await fetchImportRowErrors(job.id, 100, previous.offset);
+      if (requestId === rowErrorRequestId.current) {
+        setRowErrorState({
+          jobId: job.id,
+          rows: [...previous.rows, ...nextRows],
+          loading: false,
+          error: "",
+          offset: previous.offset + nextRows.length,
+          hasMore: nextRows.length === 100,
+        });
+      }
+    } catch (cause) {
+      if (requestId === rowErrorRequestId.current) {
+        setRowErrorState({
+          ...previous, loading: false,
+          error: cause instanceof Error ? cause.message : "تعذر تحميل صفحة أخطاء الصفوف التالية.",
         });
       }
     }
@@ -791,14 +817,22 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
                   <Button variant="outline" onClick={() => void rollbackJob(job)}>تراجع آمن</Button>}</td>}
               </tr>
               {rowErrorState?.jobId === job.id && <tr><td colSpan={canRollbackImport ? 9 : 8} style={{ whiteSpace: "normal", minWidth: 320 }}>
-                {rowErrorState.loading ? <Loading /> : rowErrorState.error ? <ErrorBox message={rowErrorState.error} /> : rowErrorState.rows.length === 0
+                {rowErrorState.loading && rowErrorState.rows.length === 0 ? <Loading /> : rowErrorState.error && rowErrorState.rows.length === 0 ? <ErrorBox message={rowErrorState.error} /> : rowErrorState.rows.length === 0
                   ? <Empty text="لا توجد صفوف مرفوضة مسجلة لهذه الدفعة؛ قد يكون الفشل حدث قبل اكتمال قراءة الصفوف." />
-                  : <div><strong>أسباب رفض الصفوف (أول {rowErrorState.rows.length} صف)</strong><ol>{rowErrorState.rows.map((row) => {
+                  : <div>
+                    <strong>أسباب رفض الصفوف (المحمّل {formatNumber(rowErrorState.rows.length)} صفًا)</strong>
+                    <ol>{rowErrorState.rows.map((row) => {
                       const messages = Array.isArray(row.errors)
                         ? row.errors.filter((message): message is string => typeof message === "string" && message.trim().length > 0)
                         : typeof row.errors === "string" && row.errors.trim() ? [row.errors] : [];
                       return <li key={row.row_number}><strong>الصف {formatNumber(row.row_number)}:</strong> {messages.length ? messages.join("؛ ") : "لم يسجل الخادم سببًا نصيًا لهذا الصف."}</li>;
-                    })}</ol>{rowErrorState.rows.length === 100 && <small>المعروض محدود بأول 100 صف مرفوض؛ بقية الصفوف محفوظة في الدفعة.</small>}</div>}
+                    })}</ol>
+                    {rowErrorState.error && <ErrorBox message={rowErrorState.error} />}
+                    {rowErrorState.loading && <Loading />}
+                    {rowErrorState.hasMore && <Button variant="outline" disabled={rowErrorState.loading} onClick={() => void loadMoreRowErrors(job)}>
+                      {rowErrorState.loading ? "جارٍ تحميل المزيد…" : "تحميل 100 سبب إضافي"}
+                    </Button>}
+                  </div>}
               </td></tr>}
             </Fragment>)}</tbody>
           </table></TableWrap> : <Empty text="لا توجد دفعات مستوردة بعد" />}
