@@ -31,7 +31,7 @@ async function readWithRetry<T>(operation: () => PromiseLike<SupabaseReadOutcome
 export async function fetchResolvedProductPrices(
   productIds: string[],
   quantity = 1,
-): Promise<Map<string, number>> {
+): Promise<Map<string, number | null>> {
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10000) {
     throw new Error("الكمية المطلوبة لاحتساب السعر غير صالحة.");
   }
@@ -58,6 +58,10 @@ export async function fetchResolvedProductPrices(
     for (const row of data as Array<{ product_id?: unknown; unit_price?: unknown }>) {
       if (typeof row.product_id !== "string" || !chunk.includes(row.product_id) || prices.has(row.product_id)) {
         throw new Error("أعاد الخادم نتيجة أسعار غير متطابقة؛ أُخفيت الأسعار لحماية الحساب.");
+      }
+      if (row.unit_price === null) {
+        prices.set(row.product_id, null);
+        continue;
       }
       const price = Number(row.unit_price);
       if (!Number.isFinite(price) || price < 0) {
@@ -124,7 +128,10 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
 
   return (products as Product[]).map((p) => {
     const displayPrice = isStaff ? Number(p.base_price) : customerPriceMap?.get(p.id);
-    if (displayPrice === undefined || !Number.isFinite(displayPrice) || displayPrice < 0) {
+    if (
+      displayPrice === undefined ||
+      (displayPrice !== null && (!Number.isFinite(displayPrice) || displayPrice < 0))
+    ) {
       throw new Error("تعذر التحقق من سعر فئة حسابك لهذا الصنف؛ لم يُعرض سعر بديل.");
     }
 
@@ -153,7 +160,7 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
 
     return {
       ...productFields,
-      display_price: displayPrice,
+      ...(displayPrice === null ? {} : { display_price: displayPrice }),
       inventory: invMap.get(p.id),
       category: catMap.get(p.category_id || ''),
     } as unknown as ProductWithInventory;
