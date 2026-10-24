@@ -109,7 +109,13 @@ jobs:
         run: |
           set -o pipefail
           node scripts/generate-public-rpc-contract-inventory.mjs | tee /tmp/public-rpc-contract-inventory.md
-          grep -Eq '^RPC_INVENTORY_SUMMARY functions=[0-9]+ matched=[0-9]+ unmatched=0 migration_files=[0-9]+
+          grep -Eq '^RPC_INVENTORY_SUMMARY functions=[0-9]+ matched=[0-9]+ unmatched=0 migration_files=[0-9]+$' /tmp/public-rpc-contract-inventory.md
+      - name: Upload exact-head public RPC/function inventory artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-rpc-function-inventory-${{ github.sha }}
+          path: /tmp/public-rpc-contract-inventory.md
+          if-no-files-found: error
       # The repository-wide Prettier rule currently reports thousands of pre-existing formatting errors.
       # Keep ESLint correctness rules enabled here and do not let that legacy formatting backlog hide build results.
       - name: Lint (excluding repository-wide Prettier formatting rule)
