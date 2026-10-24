@@ -332,7 +332,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
         if (values.length > MAX_IMPORT_COLUMNS) throw new Error("صف البيانات تجاوز حد الأعمدة.");
         if (dataRows >= MAX_IMPORT_ROWS) throw new Error("تجاوز الملف الحد الأقصى " + MAX_IMPORT_ROWS + " صف.");
         dataRows += 1;
-        const baseRow: ParsedImportRow = validateCsvRow(values, headers, dataRows + 1, matchingKey);
+        const baseRow: ParsedImportRow = validateCsvRow(values, headers, dataRows + 1, matchingKey, requiredColumns);
         const parsed: ParsedImportRow = applyImportProfileRules(baseRow, transformations, validations);
         quality?.add(parsed);
         // Already-verified upload chunks have their structured rows committed before their
