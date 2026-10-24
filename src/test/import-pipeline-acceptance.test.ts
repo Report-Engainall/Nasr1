@@ -72,8 +72,15 @@ describe('unified import end-to-end acceptance contracts', () => {
     expect(finalizeGuard).toContain('v_total_bytes <> v_session.file_size');
     expect(finalizeGuard).toContain('processing_config_fingerprint');
     expect(finalizeGuard).toContain('finalize_import_job_without_manifest_guard');
+    expect(finalizeGuard).toContain("IF p_duplicate_action = 'replace' THEN");
+    expect(finalizeGuard).toContain("v_profile.is_full_dataset IS DISTINCT FROM true");
+    expect(finalizeGuard).toContain("v_job.error_summary->>'is_full_dataset' IS DISTINCT FROM 'true'");
+    expect(finalizeGuard).toContain("'import.snapshot_replaced'");
+    expect(importer).toContain('is_full_dataset: profile?.is_full_dataset === true');
+    expect(importer).toContain('الاستبدال الكامل محظور');
     expect(dbAcceptance).toContain('reject snapshot finalization while an upload manifest is missing its final chunk');
     expect(dbAcceptance).toContain('reject finalization of a cancelled import with a complete upload manifest');
+    expect(dbAcceptance).toContain('reject replacing a ready snapshot with a profile that is not classified as a full dataset');
   });
 
   it('reconciles fail state atomically and does not downgrade a terminal result after a lost response', () => {
