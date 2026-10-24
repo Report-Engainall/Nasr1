@@ -1,34 +1,47 @@
-> **الهدف الحالي للتنفيذ (18 أكتوبر 2026):** جميع تعديلات الكود تتم فقط في [Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1) على main. أي روابط أدناه إلى مشروع Aghbari-Technologies/Lovable سياق تاريخي وليست هدفًا حاليًا ولا دليل نشر. ابدأ من [ملف الإقلاع التنفيذي](./docs/bolt-source-reconciliation/BOLT_SINGLE_ENTRYPOINT_MASTER_HANDOFF_REPLACEMENT_2026-10-18.md).
+# متجر الأغبري | Aghbari Commerce
 
----
+المستودع التنفيذي المعتمد للتطبيق هو **[Report-Engainall/Nasr1](https://github.com/Report-Engainall/Nasr1)**. حافظ على قاعدة البيانات والمهاجرات والشيفرة الحالية، ونفّذ أي تغيير برمجي عبر فرع عمل وطلب دمج؛ لا تنشئ مشروعًا موازيًا ولا تكتب مباشرة إلى `main`.
 
-# Aghbari Commerce Elevated
+هذا المستودع يحتوي تطبيق React/Vite/TanStack Start، وخدمات Supabase، ومهاجرات PostgreSQL، واختبارات الوحدة وقبول قاعدة البيانات والمتصفح. لا يُعد وجود رابط تاريخي في الوثائق دليلًا على أن نسخة إنتاج منشورة أو متزامنة حاليًا.
 
-اشتي اقوم باكمالة عندكم وعرض الواجهات وكل شئ وتطويرة الى اعلى مستوى. الملف المضغوط project-bolt-sb1-b5g7dtki.zip يحتوي مشروع Aghbari Commerce | الأغبري الحالي (كود Vite + React + TypeScript + Supabase migrations) — استخدمه كأساس كامل دون حذف أو إعادة بناء من الصفر. الملف النصي المرفق هو وثيقة المواصفات الرئيسية (MASTER SPEC) الملزمة التي يجب اتباعها حرفياً: استراتيجية INSPECT → UNDERSTAND → PRESERVE → COMPLETE → CONNECT → IMPROVE → TEST → FIX → POLISH، الهوية الأغبري فقط، العربية RTL كلغة افتراضية، منع الـ placeholders والبيانات الوهمية، الربط الحقيقي بـ Supabase، وإكمال شجرة المنتج الكاملة (متجر العميل التجاري B2B + لوحة تحكم الإدارة + قدرات المؤسسة المتقدمة) بأفضل التقنيات الممكنة. بعد التنفيذ أعرض الواجهات وأنشر المشروع مباشرة.
+## البدء محليًا
 
-This project was built with [Lovable](https://lovable.dev).
-
-**Live app**: https://aghbari-commerce-evolved.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/851f6f5c-d23d-45a6-9568-1452d5cfdd73).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Canonical project memory and session recovery
-
-Start new or resumed work from [PROJECT_MEMORY.md](./PROJECT_MEMORY.md), then read [the session resume prompt](./ops/AGHBARI-SESSION-RESUME.md), [latest execution state](./ops/AGHBARI-LATEST-EXECUTION-STATE.md), [requirement registry](./docs/canonical/AGHBARI-REQUIREMENT-REGISTRY.md), and [execution mandate](./docs/canonical/AGHBARI-EXECUTION-MANDATE.md). The full owner-provided specification is preserved at [AGHBARI-MASTER-PROJECT-SPECIFICATION.md](./docs/canonical/AGHBARI-MASTER-PROJECT-SPECIFICATION.md). Always verify the live `main` SHA and CI before continuing; saved SHAs are history, not a substitute for checking current state.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+المتطلبات: Node.js 22 وBun، وبيئة Supabase اختبارية أو تطويرية منفصلة عن الإنتاج عند الحاجة لاختبار الخدمات.
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+git clone https://github.com/Report-Engainall/Nasr1.git
+cd Nasr1
+bun install --frozen-lockfile
+cp .env.example .env
+# املأ متغيري Supabase العامين من مشروع تطوير/اختبار مخوّل.
+bun run dev
 ```
+
+لن يكتمل تشغيل التطبيق المتصل بالخدمات قبل إعداد `VITE_SUPABASE_URL` و`VITE_SUPABASE_PUBLISHABLE_KEY`. المفتاح القابل للنشر مصمم للاستخدام في العميل، لكنه لا يمنح أي صلاحية بحد ذاته؛ سياسات RLS وعقود RPC على الخادم هي حدود التفويض. لا تضع مفتاح `service_role` أو أي سر خادمي في متغير يبدأ بـ`VITE_`.
+
+تفاصيل الإعداد، مهاجرات قاعدة البيانات، والاختبارات موجودة في [دليل البيئة والتشغيل](./docs/DEPLOYMENT_AND_ENVIRONMENT.md).
+
+## أوامر التحقق
+
+```sh
+bun run test
+bun run lint
+bun run typecheck
+bun run build
+```
+
+قبول PostgreSQL 17 يحتاج قاعدة اختبار محلية ومعزولة فقط:
+
+```sh
+TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/aghbari_test bun run test:db
+```
+
+لا تستخدم عنوان قاعدة إنتاج مع اختبارات الكتابة أو المهاجرات. مجموعة CI تشغّل أيضًا اختبارات قبول مخصصة مستقلة؛ ارجع إلى [سير عمل Core](./.github/workflows/commerce-checks.yml) و[سير عمل P2 Playwright](./.github/workflows/p2-playwright-critical-paths.yml) لحدود كل مجموعة. نتيجة اختبار تخص SHA واحد لا تثبت نتيجة SHA أحدث.
+
+## الاستئناف والتنفيذ
+
+- اقرأ `AGENTS.md` ثم [الحالة التنفيذية المركزية](./docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md) ومصفوفة القبول الحالية.
+- تحقق من رأس `main` ونتائج Actions المطابقة قبل اختيار `NEXT_ACTION`.
+- لا تعِد تنفيذ الأعمال المدمجة إلا عند وجود انحدار موثق؛ لا تصف `SKIPPED` أو `BLOCKED_EXTERNAL` بأنها `PASS`.
+- Onyx Pro وWhatsApp Business API وأي اختبارات حسابات مستضافة تحتاج اعتمادًا مصرحًا واستجابة فعلية من البيئة الهدف. دون ذلك تبقى `BLOCKED_EXTERNAL`; الاختبارات المحلية لا تثبت اتصال الإنتاج.
+- لا تُستخدم بيانات إنتاجية في الاختبارات، ولا تُنشر أسرار أو بيانات عميل في سجلات CI.

@@ -1,3 +1,73 @@
+## P2 execution record — import quality tenant-scope repair — 2026-10-24
+
+- Code PR #146: https://github.com/Report-Engainall/Nasr1/pull/146
+- Tested source head: `3150691725f97d7f892fcb2aed0edae898c839be`; base main `16a3d23e558696700bccbb3dbf9ea75b0fccf745`.
+- Core [40101794869 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40101794869) and P2 [40101794970 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40101794970), same exact SHA.
+- Root cause: `calculate_import_job_quality(uuid)` read the job by ID before authorization. Fix authenticates/authorizes active staff before lookup and scopes both job and import-profile queries to the active organization.
+- Regression test: customer foreign vs unknown job IDs both return the same 42501 denial; authorized staff foreign vs unknown job IDs both return the same tenant-scoped P0002 error. PostgreSQL 17 migration/core acceptance passed.
+- Exact-head P2 also passed local Supabase migration/guards, price-grid rollback/audit/stale-writer race, cash expense and purchase receipt source-posting checks, Chromium order/tenant denial, returns/credit memo, Onyx XLSX, finance/task printing, customer-manager privacy/audit, and central session revocation.
+- Hosted customer/tenant Playwright remains SKIPPED; local isolated-Supabase authenticated acceptance passed. No production data/provider activity or direct main write.
+
+---
+
+## P2 execution record — hidden catalog price sentinel repair — 2026-10-24
+
+- Code repository: `Report-Engainall/Nasr1`; base `main` SHA `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; code PR #145 remains OPEN/UNMERGED.
+- Code head: `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`.
+- Exact-head Core [40100874921](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874921) SUCCESS; exact-head P2 [40100874931](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874931) SUCCESS.
+- Root cause fixed: hidden prices used numeric zero as a sentinel; a missing price could be rendered or persisted as an amount, and a customer workflow helper could pass raw response fields back into the public object.
+- Fix: price RPC returns SQL NULL; customer catalog page excludes `base_price` from client payload while keeping an authorized staff-only projection; API, typed catalog, cache, pending cart and customer quote/reorder/barcode/assistant workflows preserve explicit price absence and use public allowlists; regression tests cover the old sentinel and malformed/raw payload cases.
+- Verified exact-head acceptance: unit suite; migration + PostgreSQL 17 core suite; invitation expiry/audit; stock-count exactly-once audit; asynchronous export; import concurrency/idempotency and inventory snapshot; saved products; backup/restore; Lint; Build; production/dev smoke; Chromium price visibility; local Supabase endpoint guards; atomic price grid rollback/audit/stale-writer race; cash expense/accounting restrictions; purchase receipt accounting restrictions; authenticated order persistence and tenant denial; returns/credit memo; Onyx XLSX; finance/task print; customer-manager financial privacy/audit; central device-session authorization and immediate revocation.
+- Proof boundary: the credential-gated hosted customer/tenant Playwright job is SKIPPED, not PASS; the local isolated-Supabase authenticated E2E passed. No production behavior, production DB write, or live provider action is claimed.
+- Merge gate: PR #144 is still OPEN and lacks recorded independent approval; PR #145 must not merge ahead of #144. No direct main write was made.
+
+---
+
+## P2 execution record — 2026-10-24 live Git reconciliation
+
+- Live `main`: `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; no main writes.
+- Catalog inventory: source SHA `672749855d733f691ab59de878420a210108fbbe`; 120 migrations, 304/304 runtime public objects mapped, zero unmatched; Core 40042438869 and P2 40042438851 SUCCESS exact source SHA.
+- Storefront pricing authorization: PR #144 head `9fc736db3fc451731a94105d6e707a5c83fbf019`; Core 40044350881 and P2 40044350890 SUCCESS exact head. Test now asserts accepted company buyer tier, finance-only denial, and live session revocation using PostgreSQL savepoints for independent rejection scenarios.
+- Test-failure record: PR #144 previous SHA `48c963b6624c296f8c902cb65c12ca4e63c7b918` Core FAILURE because its test's first expected SQL error aborted the enclosing transaction; not a product regression. The failure was corrected and later exact SHA passed.
+- PR #142 latest docs head `d3f0c41d8330c0ac30ff13c122e19e34d31f5825`: Core [40044835801](https://github.com/Report-Engainall/Nasr1/actions/runs/40044835801) and P2 [40044835894](https://github.com/Report-Engainall/Nasr1/actions/runs/40044835894) both terminal SUCCESS on exact SHA; PR open awaiting review.
+- PR #133 central-doc head `8b1f6d75a5c25a63e9bebe6c90b3c53cae26b0a7`: Core 40045052185 and P2 40045052224 SUCCESS exact SHA; this reconciliation commit creates a new docs descendant and needs fresh checks. Hosted customer E2E remains SKIPPED/BLOCKED_EXTERNAL. No provider/production claim.
+
+---
+
+
+
+## P2 latest exact-head execution evidence — 2026-10-24T02:25:19+03:00
+
+- Main `16a3d23e558696700bccbb3dbf9ea75b0fccf745`, tree `7dc8d72c0ece57777cc5e3337d1f8b416870697a`; Core [40035355209](https://github.com/Report-Engainall/Nasr1/actions/runs/40035355209) SUCCESS on exact main SHA.
+- PR #119 head `a1a17bcf9ae320ea39680421a83e4b32deef3c67`: Core [40036273431](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273431) and P2 [40036273465](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273465) both SUCCESS exact head after #131 merge.
+- PR #134 head `387db64bfa6686ab08d4707d88b7aea3f9c6ff41`: Core [40037207461](https://github.com/Report-Engainall/Nasr1/actions/runs/40037207461) and P2 [40037207264](https://github.com/Report-Engainall/Nasr1/actions/runs/40037207264) SUCCESS exact head; same-key concurrent batch requests produce one creation and one replay without double movement/audit.
+- PR #135 head `982768af887384217353151134e23c18f6bcb030`: Core [40038517615](https://github.com/Report-Engainall/Nasr1/actions/runs/40038517615) and P2 [40038517499](https://github.com/Report-Engainall/Nasr1/actions/runs/40038517499) SUCCESS exact head; PostgreSQL 17 tests current customer schema, tenant/role denial, sales/trend boundaries and cancellation exclusions.
+- PR #138 head `3015b4f35857c756e9fde05e47fef6ed1c513510`: Core [40038957424](https://github.com/Report-Engainall/Nasr1/actions/runs/40038957424) and P2 [40038957490](https://github.com/Report-Engainall/Nasr1/actions/runs/40038957490) SUCCESS exact head; README, no-secret env example, Bun install and deployment/environment guide.
+- PR #118 remains open pending formal review despite exact head Core 40035579224/P2 40035578462 SUCCESS and only three intended CSV/XLSX/test files.
+- PR #133 previous head `2728d7c6d14b7e18d60d9cf22cae6eadea70c238` had Core [40037504255](https://github.com/Report-Engainall/Nasr1/actions/runs/40037504255) / P2 [40037504475](https://github.com/Report-Engainall/Nasr1/actions/runs/40037504475) terminal SUCCESS on that exact SHA. This new documentation commit needs fresh exact-head CI.
+- Formal review APIs are empty for #133/#134/#135/#138; do not merge without authorized independent approval. Hosted customer/tenant E2E, live Onyx target import/sync, WhatsApp delivery, production deployment and production restore remain SKIPPED/BLOCKED_EXTERNAL/NOT PROVEN.
+
+
+## P2 live reconciliation and concurrent inventory idempotency — 2026-10-24T02:03:00+03:00
+
+- Main remains `16a3d23e558696700bccbb3dbf9ea75b0fccf745` / tree `7dc8d72c0ece57777cc5e3337d1f8b416870697a`; Core 40035355209 is SUCCESS on exact main SHA.
+- #131 is merged. P1 PR #119 Core 40036273431 and P2 40036273465 are terminal SUCCESS on the same head `a1a17bcf9ae320ea39680421a83e4b32deef3c67`; hosted customer/tenant E2E remains SKIPPED/BLOCKED_EXTERNAL.
+- PR #127 address validation is merged at `d7a49d8ca7d968e2fc04307fb26313e54168410a`; do not repeat. DQS PR #70 is merged and exact-head Core/P2 runs 39914838897/39914838852 passed.
+- Direct compare shows PR #118 has only three intended files changed against current main, ahead 5/behind 0; head `bf23b0d04d49cdd1218e75e72d22c97a0e8c3673` Core 40035579224 and P2 40035578462 SUCCESS; formal review missing.
+- PR #134 adds isolated PostgreSQL 17 same-key concurrent batch idempotency proof. Core 40037207461 and P2 40037207264 were QUEUED on exact head `387db64bfa6686ab08d4707d88b7aea3f9c6ff41`; no PASS claimed.
+- PR #133 previous docs head `ede749f27847efe5ffe3d53bad4476ed822aff99` passed Core 40036690415 and P2 40036690420. This update changes the docs head; reread live CI and review status before closure.
+- Hosted E2E and live Onyx/WhatsApp integrations remain BLOCKED_EXTERNAL without authorized non-production access and actual provider responses. No production writes performed.
+## P2 live reconciliation — 2026-10-24T01:48:00+03:00
+
+- Re-read live main SHA `16a3d23e558696700bccbb3dbf9ea75b0fccf745`, tree `7dc8d72c0ece57777cc5e3337d1f8b416870697a`; Core run [40035355209](https://github.com/Report-Engainall/Nasr1/actions/runs/40035355209) is terminal SUCCESS on that exact SHA.
+- PR #131 is merged into main at `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; it corrects tenant-scope denial to SQLSTATE 42501/HTTP 403 without changing cross-tenant data or its audit state. Do not recreate it.
+- PR #119 current head is `a1a17bcf9ae320ea39680421a83e4b32deef3c67`; Core [40036273431](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273431) SUCCESS and P2 [40036273465](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273465) was IN_PROGRESS at reconciliation. Treat the result as pending until terminal; if it fails, inspect the job log and repair only the evidenced root cause.
+- PR #118 current head `bf23b0d04d49cdd1218e75e72d22c97a0e8c3673`: Core [40035579224](https://github.com/Report-Engainall/Nasr1/actions/runs/40035579224) and P2 [40035578462](https://github.com/Report-Engainall/Nasr1/actions/runs/40035578462) are terminal SUCCESS. It remains OPEN / UNMERGED with no formal review recorded; do not bypass review gating.
+- PR #133 central docs are being refreshed against main `16a3d23e558696700bccbb3dbf9ea75b0fccf745`. The previously successful runs 40034694219/40034694221 belong to the previous documentation head and are not evidence for the new commit. Require current-head Core and P2 results and an authorized independent review before merge.
+- Hosted customer/tenant E2E skipped for missing non-production credentials remains `BLOCKED_EXTERNAL`, not PASS. No production writes or live third-party integration claims.
+
+---
+
 ## P2 current exact-head validation — 2026-10-23T19:40:00+03:00
 
 - Main c22ba48b2f44f4b752e3f5c5df78f0cc792b0a99, tree ce3773a9c69ca2ee9acc2daa3fc759753bd4cdd9; Core 39983210712 PASS on exact main SHA.
@@ -1206,3 +1276,47 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Latest #127 head changes through the atomic code+central commit; final-head Core/P2 remain pending. Do not use old head results.
 - Hosted tenant E2E remains BLOCKED_EXTERNAL/SKIPPED without dedicated authorized non-production credentials; no production writes.
 
+
+
+## P2 live GitHub reconciliation — 2026-10-24T01:30:00+03:00
+
+- Re-read GitHub `main`: SHA `b48a4b2e8ae09e87432b49dab591a23e1be651c6`, tree `b457c13a78b91f85cf175a11adfda5095d5271db`; Core [40021821444](https://github.com/Report-Engainall/Nasr1/actions/runs/40021821444) completed SUCCESS on that exact SHA.
+- Compared the full assigned set of 18 PR heads with current main: all are OPEN / UNMERGED and show `behind_by=0`. Exact tested-head SHA and Core/P2 run IDs are preserved in `PROGRAMMER_2_CURRENT_REPORT.md` and as 18 `GITHUB-PR-###` records in the acceptance matrix.
+- 17 exact heads have terminal Core + P2 SUCCESS. #119: Core [40022445712](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445712) SUCCESS; P2 [40022445722](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445722) FAILURE on `a70e2775d1be01f89a315b241c147147fd1183fb`. The dependency is #131; do not weaken its HTTP/tenant-isolation assertion.
+- #131: Core [40024841272](https://github.com/Report-Engainall/Nasr1/actions/runs/40024841272) and P2 [40024841182](https://github.com/Report-Engainall/Nasr1/actions/runs/40024841182) SUCCESS on `f88d72e497eed851c425dfaa7b9eeca1291ee411`; formal review list empty; hosted customer/tenant E2E skipped due missing dedicated non-production credentials.
+- #118: Core [40026679121](https://github.com/Report-Engainall/Nasr1/actions/runs/40026679121) and P2 [40026678990](https://github.com/Report-Engainall/Nasr1/actions/runs/40026678990) SUCCESS on `1ab496e444c696b1ed491c3cf9eb01ebebf56709`; current diff is exactly the three export files; formal review list empty; hosted E2E skipped is not PASS.
+- Independent approvals are missing across the assigned 18. Automated CodeRabbit `COMMENTED` events and owner comments are not approval. Merge sequence is #131 -> refresh/test #119 -> reconcile shared #89/#102/#124 file -> remaining PRs after review. #127 is already merged at `d7a49d8ca7d968e2fc04307fb26313e54168410a`; #129 and #132 are closed without merge and must not be recreated without a proven missing unique change.
+- No production database was touched, no direct main write was made, and no skipped hosted check is counted as PASS. The checkpoint PR and its final-head checks remain pending.
+
+
+## P2 execution record — PR #144 acceptance repair — 2026-10-24T15:01:05Z
+
+- Existing PR #144 head `5635bfc315fbfe03f7213926e1ddf860c4d18b13`: Core [40103240144 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/40103240144); P2 [40103240165 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40103240165).
+- Error was `customer membership lacks permission to resolve catalog prices` from the price RPC during the accountant-overlap boundary assertion. The fixture had no approved customer identity; expecting a customer tier price was invalid. The fail-closed implementation was retained.
+- Updated `scripts/test-customer-price-visibility.mjs` on PR #144 branch; commit `4cd7b86c5ea7d161495c4c7a689c90477aacaf32`. Accountant-without-customer now expects denial, and buyer membership is explicitly checked through both order preview and product-card price RPC for same-tier results.
+- Latest Core run [40104995234](https://github.com/Report-Engainall/Nasr1/actions/runs/40104995234) and P2 run [40104995244](https://github.com/Report-Engainall/Nasr1/actions/runs/40104995244) were IN_PROGRESS on the same SHA at this checkpoint. Status is UNVERIFIED, not PASS; no merge claimed.
+- Resume by reading the terminal status/logs for both exact-head runs, repair any evidenced regression, then satisfy independent review before merging. PR #145 remains ordered after #144.
+
+
+## P2 execution record — correct actual storefront-price denial assertion — 2026-10-24T15:04:00Z
+
+- Previous exact head `4cd7b86c5ea7d161495c4c7a689c90477aacaf32`: Core run 40104995234 failed; the log identified the stale expectation in `scripts/test-database-migrations.mjs` around lines 1948–1953. The finance-only accountant did not have an approved customer identity/membership, so the storefront customer-pricing RPC correctly returned SQLSTATE 42501.
+- Corrected that actual failing test at commit `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`: accountant with no approved customer context must be denied storefront price lookup; existing finance data assertions remain in place. The preceding test commit `4cd7b86c5ea7d161495c4c7a689c90477aacaf32` adds explicit accepted-buyer product-card-price coverage and closes a stale accountant-overlap price expectation in `scripts/test-customer-price-visibility.mjs`.
+- Latest Core [40105249828](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249828) and P2 [40105249827](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249827) are `IN_PROGRESS` on exact SHA `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71` at checkpoint. No PASS or merge claimed.
+- Next: inspect both terminal results, correct any proved new failure, then satisfy independent review before merge.
+
+
+## P2 execution record — pricing gates accepted; quote edge fix opened — 2026-10-24T15:09:10Z
+
+- PR #144 exact head `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`: Core run 40105249828 SUCCESS and P2 run 40105249827 SUCCESS. Root cause was a stale finance-only accountant expectation in `scripts/test-database-migrations.mjs`; corrected test now asserts authorization denial with no approved customer context. PR #144 remains open; no independent review submitted, so no merge.
+- Shared-file sequencing recorded: PR #134 and #144 both edit `scripts/test-database-migrations.mjs`. After #144 merge, reconcile #134's idempotency/concurrency checks with the accountant boundary assertions and rerun Core/P2 on the final head.
+- PR #147 opened on head `c6ec7a03ea43a935694e253a48e1e9258cd79da5`: migration `20261024130000_customer_quote_response_explicit_decision.sql` rejects NULL quote ID/decision, preserves tenant/customer/status guards, and has three source-contract regression tests. Core 40105583244/P2 40105582703 were IN_PROGRESS at checkpoint. SQL runtime test in the shared database script remains a sequenced follow-up after #134/#144 test-file overlap is resolved.
+- PR #145 remains dependent on #144 and must precede #147 migration in merge order because it uses migration version `20261024120000...`.
+
+
+## P2 execution record — PR #147 matcher correction — 2026-10-24T15:12:00Z
+
+- PR #144 SHA `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`: Core 40105249828 SUCCESS and P2 40105249827 SUCCESS on exact same SHA; open/review-pending.
+- PR #147 first Core 40105583244 failed only the source-test regex because it hardcoded “is required” while SQL message used “are required”. Corrected matcher to accept either grammar and pushed `ff59c6144cec2e78864a0c35f96140d333f376ca`.
+- New exact-head Core 40105725672 and P2 40105725585 were IN_PROGRESS at checkpoint on `ff59c6144cec2e78864a0c35f96140d333f376ca`; #147 remains UNVERIFIED until terminal exact-head results. Do not close out the first failed run as passing.
+- Runtime PostgreSQL NULL decision test deferred until PR #134/#144 overlap in `scripts/test-database-migrations.mjs` can be reconciled. Preserve migration ordering #144 → #145 → #147 and require independent review.

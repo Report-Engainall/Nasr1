@@ -74,12 +74,24 @@ export interface InventoryBalance {
 }
 
 /** Product read model returned by the server-derived catalog API. */
-export type ProductWithInventory = Product & {
+/**
+ * Catalog read model shared by staff and customer views. Financial product fields are
+ * optional because public catalog records intentionally omit them rather than using 0
+ * as a sentinel for inaccessible prices. A display price is present only when resolved.
+ */
+export type ProductWithInventory = Omit<
+  Product,
+  'price_wholesale_of_wholesale' | 'price_wholesale' | 'price_retail' | 'base_price'
+> & {
   organization_id?: string;
   status?: string;
   created_at?: string;
   updated_at?: string;
-  display_price: number;
+  price_wholesale_of_wholesale?: number;
+  price_wholesale?: number;
+  price_retail?: number;
+  base_price?: number;
+  display_price?: number;
   inventory?: InventoryBalance;
   category?: Category;
 };
