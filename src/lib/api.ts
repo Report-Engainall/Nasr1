@@ -1781,7 +1781,12 @@ export async function fetchImportJobs(): Promise<ImportJob[]> {
 
 export async function fetchImportRows(jobId: string): Promise<ImportJobRow[]> {
   const { data, error } = await supabase.from('import_job_rows').select('*').eq('import_job_id', jobId).order('row_number').limit(100000);
-  if (error) throw error;export async function fetchDashboardStats() {
+  if (error) throw error;
+  return data as ImportJobRow[];
+}
+
+// ─── Dashboard stats ───
+export async function fetchDashboardStats() {
   const { organizationId: orgId, warehouseId } = await getCurrentTenantScope();
   const [products, customers, orders, alerts, lowStock] = await Promise.all([
     supabase.from('products').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'active'),
