@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const migrationPath = fileURLToPath(
-  new URL("../../supabase/migrations/20261024151500_customer_payment_record_audit.sql", import.meta.url),
+const migration = readFileSync(
+  join(process.cwd(), "supabase/migrations/20261024151500_customer_payment_record_audit.sql"),
+  "utf8",
 );
-const migration = readFileSync(migrationPath, "utf8");
 
 describe("customer payment audit migration contract", () => {
   it("uses a privileged trigger with an empty search path and one INSERT-only event", () => {
