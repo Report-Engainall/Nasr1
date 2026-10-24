@@ -260,6 +260,12 @@ async function main() {
     );
     await assumeUser(CUSTOMER_AUTH_ID, originalCustomerEmail);
     await assertDatabaseRejects(
+      "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],1)",
+      [[CATALOG_PRODUCT_ID]],
+      /customer membership lacks permission to resolve catalog prices/i,
+      "finance member cannot resolve product-card prices",
+    );
+    await assertDatabaseRejects(
       "select public.preview_customer_order_pricing($1::jsonb,'cart') as result",
       [items],
       /customer membership lacks permission for requested price preview/i,
@@ -283,6 +289,30 @@ async function main() {
     await db.unsafe(
       "update public.profiles set auth_user_id=$2,email=$3 where id=$1",
       [CUSTOMER_PROFILE_ID, CUSTOMER_AUTH_ID, originalCustomerEmail],
+    );
+    await assumeUser(CUSTOMER_AUTH_ID, originalCustomerEmail);
+    await db.unsafe("reset role");
+    const originalCustomerState = await db.unsafe(
+      "select id,status from public.customers where profile_id=$1 and organization_id=$2",
+      [CUSTOMER_PROFILE_ID, ORG_ID],
+    );
+    assert.equal(originalCustomerState.length, 1, "direct customer status fixture must exist");
+    assert.equal(originalCustomerState[0].status, "approved", "direct customer starts approved");
+    await db.unsafe(
+      "update public.customers set status='pending',updated_at=now() where id=$1",
+      [originalCustomerState[0].id],
+    );
+    await assumeUser(CUSTOMER_AUTH_ID, originalCustomerEmail);
+    await assertDatabaseRejects(
+      "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],1)",
+      [[CATALOG_PRODUCT_ID]],
+      /approved customer required to resolve catalog prices/i,
+      "unapproved direct customer cannot resolve protected product-card prices",
+    );
+    await db.unsafe("reset role");
+    await db.unsafe(
+      "update public.customers set status=$2,updated_at=now() where id=$1",
+      [originalCustomerState[0].id, originalCustomerState[0].status],
     );
     await assumeUser(CUSTOMER_AUTH_ID, originalCustomerEmail);
     await db.unsafe("reset role");
