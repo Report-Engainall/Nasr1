@@ -15,7 +15,7 @@ describe('unified import end-to-end acceptance contracts', () => {
   it('persists the actual selected source system in request identity, job metadata, and processing fingerprint', () => {
     expect(importer).toContain('sourceSystem: selectedSource');
     expect(importer).toContain('sourceSystem,');
-    expect(importer).toContain('sourceSystem: "manual"');
+    expect(importer).toContain('useState("manual")');
     expect(importer).toContain('source_system: selectedSource');
     expect(importer).toContain('sourceSystem: selectedSource,');
     expect(importer).toContain('sourceSystem: string;');
