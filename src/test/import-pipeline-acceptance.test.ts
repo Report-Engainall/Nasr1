@@ -42,8 +42,10 @@ describe('unified import end-to-end acceptance contracts', () => {
     expect(importer).toContain('fetchImportRowErrors(job.id, 100)');
     expect(importer).toContain('أسباب رفض الصفوف');
     expect(api).toContain(".eq('status', 'rejected')");
-    expect(api).toContain(".limit(limit)");
+    expect(api).toContain(".range(offset, offset + limit - 1)");
     expect(importer).toContain('لم يسجل الخادم سببًا نصيًا لهذا الصف');
+    expect(importer).toContain('loadMoreRowErrors(job)');
+    expect(api).toContain('offset = 0');
   });
 
   it('lets the same verified original XLSX be selected for safe resume', () => {
