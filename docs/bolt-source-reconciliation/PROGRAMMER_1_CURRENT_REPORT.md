@@ -1,20 +1,25 @@
 # P1 LIVE RESUME UPDATE — 24 October 2026
 
-**Canonical resume pointer:** `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` and its matching acceptance matrix. This P1 report is a handover supplement, not a competing pointer.
+**Canonical resume pointer:** `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` and the acceptance matrix. This report supplements, and does not replace, the canonical pointer.
 
-- **Repository/main:** `Report-Engainall/Nasr1`; current main at last verified read: `653f4d764041a8751c41e75a492fed0cc6edea63`.
-- **Merged P1-relevant protections:** #158 payment audit and serialized credit-memo race rejection; #162 explicit-valid DQS; #179 import source identity/resume/recovery/rollback; #180 tenant-scoped finalizer; #181 stock-count stale-snapshot atomic rejection; #188 customer quote response NULL guard with forward migration `20261024180000`; #189 concurrent same-key stock-batch idempotency acceptance.
-- **#190 current API-OPS port:** exact head `5becc27a3f32896b1814aab80433ba7b8c8008ae`; Core 40127113576 PASS and async-export PG17 40127113568 PASS. P2 public UI passed; local Supabase order/tenant isolation was IN_PROGRESS at last poll. Hosted customer E2E remains SKIPPED. Do not merge until remaining required check is terminal success and the head matches the evidence.
-- **Security/API scope:** shared streamed UTF-8 byte caps protect the AI gateway, async-export worker/download, outbox worker and product-image JSON metadata; async-export authorization regression tests assert that foreign cancel/claim attempts have no side effects and customers cannot acquire worker leases. Exact-head RPC inventory output is being wired into CI. This does not finish the semantic audit.
-- **Remaining semantic scope:** API-OPS is PARTIAL; 179 callable RPC candidates still require measured role, tenant, mutation, idempotency/retry, and audit review. Do not re-run completed batches without a concrete coverage gap.
-- **Owner authorization:** the owner has authorized the integration and merging of ready PRs. Historical “review required before merge” statements below are stale. Keep only technical safety gates: exact-head passing CI, ordered migrations, clean merge, and post-merge verification.
-- **External boundaries:** production data changes, production migrations/deployment/restore, real Onyx import, WhatsApp delivery, live model-provider execution and hosted authenticated customer E2E are not claimed without real authorized evidence.
+- **Current main:** `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; PR #190 is merged.
+- **P1-sensitive merged work:** #158 payment/audit atomicity and credit-memo race denial; #162 valid-only DQS scoring; #179 import identity/resume/recovery/rollback; #180 tenant-scoped import finalization; #181 stock-count snapshot atomicity; #188 quote response explicit decision guard; #189 inventory batch idempotency; #190 request streaming limits and export worker authorization acceptance.
+- **Exact tested #190 head:** `5becc27a3f32896b1814aab80433ba7b8c8008ae`; Core 40127113576, async-export PostgreSQL 17 40127113568 and P2 40127113571 all SUCCESS. The authenticated hosted customer E2E job remains SKIPPED because the authorized credential gate is not configured.
+- **Exact inventory artifact:** `public-rpc-function-inventory-3d68de8c657e92c2a0fc1a75f787be2862951ea7` from run 40127113568; summary `functions=310 matched=310 unmatched=0 migration_files=135`. It verifies source mapping for the isolated tested tree, not the full semantic security of each function.
+- **Remaining audit:** API-OPS is PARTIAL; 179 callable RPC candidates remain to be checked against role/tenant boundaries, mutation side effects, idempotency/retry and audit invariants. Do not repeat completed batches without a real coverage gap.
+- **Post-merge verification:** current main Core 40127500733 and PostgreSQL 17 run 40127500750 were IN_PROGRESS at last read. Record their terminal results against `e467c782bec0e19ddab6c5ddaa72aaa073d7283b` before a release-level PASS claim.
+- **Owner authorization:** ready work may be merged under the owner's explicit authorization; old review-required notes below are historical. Keep exact-head CI, migration ordering, clean merge and post-merge verification.
 
 ## NEXT ACTION — P1
-1. Confirm the last required #190 local Supabase check and current head; merge only after success.
-2. Verify current-main Core/P2 after #190, then refresh this report with the actual merge SHA.
-3. Continue bounded semantic review of remaining RPC contracts; preserve tenant-denial/no-side-effect PostgreSQL tests.
-4. Keep data/secret/production writes out of CI and local acceptance.
+1. Confirm current-main Core/PostgreSQL 17 results and repair only a proved failure.
+2. Continue bounded, source-backed semantic review of the remaining RPCs with explicit allow/deny and no-side-effect acceptance.
+3. Keep production migrations, Onyx writes, WhatsApp, hosted E2E and live AI provider calls unclaimed without authorized execution evidence.
+
+---
+
+# Historical P1 execution log
+Old P1 entries below are retained for provenance; their SHAs, pending approvals and next actions do not override the live status above.
+
 
 ---
 
