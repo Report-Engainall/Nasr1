@@ -76,6 +76,25 @@ async function applyInventory(commandId, idem) {
   return asJson(rows[0].result);
 }
 
+async function persistProcessingFingerprint(jobId) {
+  const rows = await db.unsafe(
+    `update public.import_jobs
+        set error_summary=coalesce(error_summary,'{}'::jsonb) || jsonb_build_object(
+          'processing_config_fingerprint', repeat('a',64),
+          'source_file_hash', file_hash,
+          'period_key', period_key,
+          'source_system', source_system,
+          'external_source_reference', external_source_reference,
+          'is_full_dataset', false,
+          'no_raw_file_retained', true
+        )
+      where id=$1::uuid
+      returning id`,
+    [jobId],
+  );
+  assert.equal(rows.length, 1, "the authenticated tenant must persist its import processing fingerprint");
+}
+
 async function rollbackInventory(commandId, idem, reason = "P1 compensating rollback acceptance") {
   const rows = await db.unsafe(
     "select public.rollback_onyx_inventory_reconciliation($1::uuid,$2::text,$3::text) as result",
@@ -241,6 +260,7 @@ async function main() {
       [session.id, 0, 0, 2048, chunkHash],
     );
     assert.equal(recorded[0].result.complete, true, "only a complete contiguous upload manifest may be finalized");
+    await persistProcessingFingerprint(job.id);
 
     const beforeFinalize = await snapshotStock();
     const finalizedRows = await db.unsafe(
@@ -324,6 +344,7 @@ async function main() {
         "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
         [session.id, 0, 0, 2048, input.chunkHash],
       );
+      await persistProcessingFingerprint(job.id);
 
       const measuredRows = await db.unsafe(
         "select public.calculate_import_job_quality($1::uuid) as result",
