@@ -39,7 +39,7 @@ describe('unified import end-to-end acceptance contracts', () => {
   });
 
   it('shows persisted row rejection reasons instead of leaving errors hidden in JSON only', () => {
-    expect(importer).toContain('fetchImportRowErrors(job.id, 100)');
+    expect(importer).toContain('fetchImportRowErrors(job.id, 100, 0)');
     expect(importer).toContain('أسباب رفض الصفوف');
     expect(api).toContain(".eq('status', 'rejected')");
     expect(api).toContain(".range(offset, offset + limit - 1)");
