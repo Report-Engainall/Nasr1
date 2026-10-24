@@ -5,16 +5,23 @@
 
 
 
-## AUTHORITATIVE RECONCILIATION — 2026-10-24 20:08 +03:00
+## AUTHORITATIVE RECONCILIATION — 2026-10-24 20:15 +03:00
 
-- Live `main` is `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`, not the older `16a3d23e...` captured in historical notes below.
-- Catalog and privilege inventory evidence remains scoped to its recorded tested SHA: 304/304 public objects mapped, zero unknown-source rows. This does **not** complete semantic review of 179 callable RPC candidates.
-- #147 quote decision: Core/P2 PASS on exact head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`; awaits independent review and ordered merge.
-- #148/#149/#150 are **CLOSED_DUPLICATE**; changed file blobs were verified byte-identical to current-main-based #164/#165/#166 respectively. Use only #164→#165→#166 after #147, with Core/P2/PG17 passing on each present head and independent review still pending.
-- #151 remains based on an old main SHA; refresh and rerun Core/P2/PG17 after preceding migrations. #162 is the selected DQS status-scoring fix; Core/P2/PG17 passed on its recorded head `e5ca28bb...`, but it must be refreshed and retested after the ordered migration sequence. Duplicate #167 is closed.
-- #163 storefront recovery / nested subcategory routing: Core and P2 passed on exact head `17b2b434d5a4f1845959e9c8eb41a85530234b10`; hosted customer E2E remains skipped, not PASS.
-- #172 stock-count snapshot completeness and per-line attribution is open at exact head `58a7d4aaa6e9c6707d6b05c31f539aa456bbdfc8`; Core `40114555238` and P2 `40114554880` are running, so the new SQL and regression tests remain UNVERIFIED until both complete successfully.
-- Do not claim production secrets, live AI/Onyx/WhatsApp connectivity, production migrations/backups, deployment, or hosted customer tenant-isolation testing without external evidence.
+- Live `main` remains `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`. Merged PRs #133, #135–#141, #143–#146 must not be recreated without a newly proven regression.
+- Inventory evidence remains 304/304 public objects mapped. That source map is not semantic acceptance of the 179 callable RPC candidates.
+- #147 exact head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a` passed Core/P2; independent review and ordered merge remain pending.
+- #148/#149/#150 closed as exact duplicate of #164/#165/#166 after checking every changed file blob. #151 is now closed as exact duplicate of current-main #168; both migration + workflow + test file blobs were identical. Migration sequence continues through #168, not stale #151.
+- #164/#165/#166 current-main migrations (operational task, promotion, announcement NULL state fail-closed) each passed Core/P2/PG17 on their recorded exact heads; independent review pending. Order: #147 → #164 → #165 → #166 → #168 → #162 → #172. Retest every head after rebase/integration.
+- #162 DQS follow-up exact head `e5ca28bb81a605f4e6628baa7abbdc1b5c7216f8` passed Core/P2/PG17; only explicitly `valid` rows receive validity credit. Refresh and retest after the ordered migration sequence; #167 is closed as duplicate.
+- #163 storefront recovery exact head `17b2b434d5a4f1845959e9c8eb41a85530234b10` passed Core/P2; hosted customer/tenant E2E skipped, not PASS.
+- #169 now includes unique customer-orders keyboard accessibility E2E coverage transferred from old #124; latest head `d6ef27f09a2c73c0dae74d1be2c7768c1577fe40` has Core/P2 running after this transferred test. #124, #107, #119, and #151 are closed only after all changed-file content was preserved and blob-checked against #169/#170/#173/#168.
+- #168, #169, #170, #171, and #173 had exact-head Core/P2 PASS before the later #169 test addition; #169's latest head needs its own fresh success. #174 adds an admin export route mapping; its current head `e0ca64f8f66203615eb74bf778f85f59156f2f62` has Core/P2 running after correcting an invalid runtime `routeTree.children` assumption in its test.
+- #172 stock-count snapshot guard and line attribution now has latest head `682761625993a203b5795daa953632f131ae886a`; it adds serialization of `inventory_balances` writers, a fail-closed snapshot-set test, and `counted_by` + per-line audit assertions. Core `40115029836` / P2 `40115029831` are running on this latest head; prior head test results are not transferable.
+- #152 checkpoint documentation passed Core/P2 on exact head `6389e51f274c38c56920d9a7d575c089a8e940a0`; because this register and #169/#172/#174 have moved, the checkpoint must be refreshed again after those gates settle.
+- All touched/open PRs were submitted for independent review request, but no submitted approval is recorded at this read. No merge claim is made.
+- Production secrets, production migrations/restore, live Onyx import, official WhatsApp delivery, live AI provider access, deployment, and hosted authenticated customer E2E remain NOT RUN / BLOCKED_EXTERNAL without authorized evidence.
+
+
 
 ## قواعد مشتركة
 
@@ -313,6 +320,27 @@
 الخلل في `calculate_import_job_quality(uuid)` لا يزال غير موجود إصلاحه في `main` حتى دمج التسلسل المعتمد. #162 يضيف الإصلاح والاختبارات، وقد اجتاز Core/P2/PG17 على الرأس `e5ca28bb81a605f4e6628baa7abbdc1b5c7216f8`، لكن الحالة الصحيحة قبل التحديث/إعادة الاختبار هي **OPEN — PR tested, independent review and ordered integration pending**, وليس “لم يتم تنفيذ شيء” ولا PASS للإنتاج. #167 أُغلق كنسخة مكررة من #162.
 
 
+## الدفعة الدلالية التاسعة — التحصيل، ترحيل مصادر المالية، والمصروفات والعكس (مراجعة مصدر؛ القبول المتكامل جزئي)
+
+المصادر: `20261023235900_customer_payment_idempotency.sql`، `20261023220000_customer_payment_credit_balance_guard.sql`، `20261020030000_accounting_customer_source_posting.sql`، `20261020020000_accounting_source_posting.sql`، `20261023200000_accounting_general_journal_reversal.sql`، `20261019100000_finance_cash_expenses.sql`.
+
+| RPC / trigger | الهوية/المؤسسة والمنح | قيود الإدخال والأثر التجاري | التكرار والتزامن والتدقيق | الحالة |
+|---|---|---|---|---|
+| `record_customer_payment(uuid,numeric,text,uuid,text,text)` | SECURITY DEFINER، `search_path=''`; يتطلب `auth.uid()`، profile نشطًا مطابقًا لـ`auth_user_id`، `can_manage_finance()`، ومؤسسة مشتقة من profile الخادم. استعلام الفاتورة مقيّد بـ`id + organization_id`. التنفيذ ممنوح لـ`authenticated` فقط بعد سحب PUBLIC/anon. | يرفض invoice/key المفقودين والكمية null/غير finite/≤0/غير مقربة إلى خانتين، ويقيد طريقة الدفع ويقص reference/notes. يتحقق من الفاتورة غير الملغاة، عملة وائتمانات الفاتورة، والمدفوعات/الائتمانات المنشورة، ويرفض تجاوز الرصيد المتبقي. يعيد UUID الدفع بعد كتابة واحدة؛ لا يرحّل قيد الأستاذ تلقائيًا. | مفتاح تكرار scoped بالمؤسسة + fingerprint لحمولة invoice/amount/method/reference/notes؛ إعادة الحمولة نفسها ترجع سجل الدفع نفسه، واختلاف الحمولة يرفض. بعدها يستخدم advisory lock خاص بتسوية الفاتورة، متوافقًا مع قفل ترحيل credit memo، قبل حساب الرصيد وإدخال الدفع. | **مراجعة مصدر إيجابية؛ اختبارات سباق متكاملة للدفع مقابل ترحيل credit memo لا تزال شرط قبول واضحًا على الرأس النهائي.** |
+| `create_customer_invoice_journal_draft` | profile نشط ومؤسسة حالية و`can_manage_finance()`; invoice والحسابات يجب أن تخص المؤسسة نفسها؛ الحسابات نشطة ومتوافقة النوع (receivable asset، revenue، tax liability). | يرفض الفاتورة void، ويقصر الترحيل الحالي على YER حتى تعتمد سياسة FX؛ يتحقق من subtotal + tax = total ومكونات الضريبة. ينشئ draft بسطور مدين/دائن متوازنة وسجل مصدر وتدقيق؛ الترحيل النهائي عملية منفصلة ومصرح بها. | advisory lock على invoice، fingerprint للحقول المصدرية ومخطط الحسابات، ويرجع القيد الموجود إذا تطابق fingerprint؛ يرفض key مستخدمًا لعملية أخرى. | **مراجعة مصدر؛ اختبار PG17 للتزامن/العملة/إعادة المحاولة يجب ربطه بالرأس المقبول.** |
+| `create_customer_payment_journal_draft` | finance staff نشط، الدفع والفاتورة والحسابات ضمن المؤسسة نفسها؛ يلزم حساب تسوية asset نشط وفاتورة YER لها قيد منشور. | ينشئ مسودة قيد مرتبطة بمصدر الدفع؛ يتحقق من عدم تجاوز إجمالي المدفوعات إجمالي الفاتورة، ولا يعتمد تحديث رصيد محاسبي قبل الترحيل الصريح. | advisory lock على payment ID، fingerprint للمبلغ/العملة/الفاتورة والحسابات؛ يمنع mapping مختلفًا لقيد قائم أو إعادة استخدام مفتاح قيد آخر، ويكتب audit. | **مراجعة مصدر؛ يلزم إثبات اختبارات race مع الترحيل/الإلغاء على PG17.** |
+| `record_cash_expense` / `void_cash_expense` | التسجيل: profile نشط و`can_manage_finance()`; الإبطال: دور مدير/مسؤول مخول، ومصروف من المؤسسة نفسها؛ revoke PUBLIC/anon مع grant authenticated. | يرفض المفتاح المفقود/المدخلات المالية غير الصحيحة؛ إبطال المسودة يغيّر حالتها مع audit، وإبطال مصروف منشور ينشئ قيد عكس مصدره داخل المعاملة، لا يمحو تاريخ الترحيل. | unique tenant/idempotency key وpayload conflict check عند التسجيل؛ `FOR UPDATE` على المصروف عند الإبطال؛ audit للإنشاء/الإبطال/العكس. Trigger عكس المصروف المنشور يراجع وجود قيد مصدر منشور ويعيد التوازن. | **مراجعة مصدر؛ يلزم قبول متكامل لسباق الإبطال مع الترحيل وإثبات عدم التكرار.** |
+| `reverse_general_journal_entry(uuid,text,uuid)` | profile نشط في المؤسسة و`operational_tasks_can_manage()`؛ القيد الأصلي مطلوب في نفس المؤسسة. GRANT authenticated only. | السبب 5–500 حرف؛ يسمح بعكس قيود manual/adjustment المنشورة فقط، ويرفض القيود المرتبطة بمصدر حتى تستخدم سير العكس الخاص بها. يتأكد من وجود 2+ سطور ومن توازن مدين/دائن قبل إنشاء مسودة عكس بأسطر متعاكسة، ثم يتطلب ترحيلًا صريحًا. | advisory lock بمفتاح المؤسسة/idempotency؛ يرفض إعادة المفتاح بحمولة مختلفة، ويمنع العكس المزدوج للقيد نفسه، ويكتب سجل reversal والـaudit. Trigger الترحيل يربط العكس بالأصل ويتحقق من التوازن والمبالغ والحسابات قبل الترحيل. | **مراجعة مصدر؛ PG17 يجب أن يثبت استدعاءين متزامنين على المفتاح نفسه، وكذلك مفتاحين مختلفين للقيد الأصلي الواحد.** |
+| `fetch_staff_finance_data()` | finance staff نشط ومؤسسة من profile؛ لا يقبل tenant parameter من العميل. | يبني JSON للفواتير والمدفوعات مع tenant filters وjoins على organization/customer/invoice، ويحتسب الائتمانات المنشورة في مجاميع التسوية. | يستعمل إجماليات مجمعة في الخادم، لكن قائمة المدفوعات محدودة إلى 1000 سجل دون cursor ظاهر في هذه الدالة؛ لا يجوز اعتبارها قبولًا لتصفح سجل كامل أو مجموع صفحات دون عقد pagination/aggregation مستقل. | **PARTIAL — حد 1000 معروف؛ أثبت اكتمال المؤشرات ومجموع كل الصفحات قبل إغلاق FIN-INVOICE-001.** |
+
+### Acceptance gaps for this batch
+
+1. اختبارات PostgreSQL 17 يجب أن تغطي منافسة دفعين يتشاركان آخر رصيد، دفع مقابل credit memo posting، نفس idempotency key مع نفس/مختلف payload، وتنافس عكسين على القيد الأصلي نفسه؛ يجب أن تكون assertions على UUID مصدر/قيد واحد وسجلات audit وإجماليات دفتر الأستاذ، لا على SQLSTATE وحده.
+2. يجب اختبار منع الموظف المالي غير المخول والعميل والضيف ومستخدم مؤسسة أخرى قبل القراءة/التعديل، والتأكد من منح EXECUTE الفعلية في `pg_proc/pg_roles` مقابل عقد الدوال.
+3. يجب أن تغطي معاملة العكس: القيد الأصلي يبقى منشورًا؛ العكس draft حتى الترحيل الصريح؛ لا يجوز حذف أو تعديل سطور التاريخ المنشور، ويجب أن تتوازن القيود بالعملة نفسها.
+4. `fetch_staff_finance_data` يعرض حتى 1000 دفعة؛ يلزم pagination أو تجميعات خادم متفق عليها حتى لا يُعرض رصيد/تقرير كامل مبنيًا على أول 1000 فقط.
+
+
 ## الفجوات المفتوحة صراحة
 
 1. مطابقة الكتالوج العام بالمصدر ورصد منح EXECUTE الفعلية: **TESTED_EXACT_SHA** على `672749855d733f691ab59de878420a210108fbbe`، 304/304 كائنات و0 مصادر مجهولة ([الفهرس](./PUBLIC_RPC_FUNCTION_INVENTORY_2026-10-24.md)). التدقيق الدلالي لكل 179 مرشح RPC واختبارات الرفض/العزل/التكرار/التدقيق: **OPEN / PARTIAL**.
@@ -324,8 +352,8 @@
 
 ## NEXT_ACTION
 
-1. Poll Core/P2 for #172 current head `58a7d4aaa6e9c6707d6b05c31f539aa456bbdfc8`; inspect any failing PostgreSQL/route test and repair only a proven defect. Do not transfer pre-audit-migration test results to this head.
-2. Obtain independent review for #142 itself after the semantic batch update; the update changes the docs SHA and must be rerun through exact-head Core/P2.
-3. Preserve migration sequence #147 → #164 → #165 → #166 → refresh/test #151 → refresh/test #162 → #172 (snapshot guard then line audit).
-4. Continue semantic review for the remaining 179 callable RPC candidates in bounded batches: finance/posting and reversal, inventory/import/export, then customer/company/invitations. For each, record trusted auth, tenant, role, input bounds, output and errors, business side effects, idempotency/concurrency, audit, real grants, and allow/deny acceptance.
-5. Keep production secrets, hosted customer E2E, live Onyx, WhatsApp delivery, AI provider connectivity, backup/restore and deployment explicitly BLOCKED_EXTERNAL/NOT RUN without authorized environment evidence.
+1. Poll exact-head Core/P2 for #172 (`682761625993a203b5795daa953632f131ae886a`), #169 (`d6ef27f09a2c73c0dae74d1be2c7768c1577fe40`), and #174 (`e0ca64f8f66203615eb74bf778f85f59156f2f62`); fix only proven failures and rerun every changed SHA.
+2. Update the single checkpoint PR #152 after those runs settle; record the closed duplicates (#107/#119/#124/#151), #169's transferred keyboard test, and #172's final dual-migration acceptance.
+3. Preserve migration integration order #147 → #164 → #165 → #166 → #168 → refresh/retest #162 → #172. Do not apply old-base #151 or duplicate #148–#150.
+4. Continue semantic review of remaining RPC candidates after batches 8–9; focus next on import/exports and customer/company/invitation access controls, including actual grant and deny tests.
+5. No merge until exact-head gates, independent review approval, migration order and repository policy are satisfied. Hosted production access, live Onyx/WhatsApp/AI, restore/deployment remain BLOCKED_EXTERNAL/NOT RUN without authorized evidence.
