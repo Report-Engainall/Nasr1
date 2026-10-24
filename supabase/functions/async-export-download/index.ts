@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { readBoundedTextBody } from "../_shared/bounded-body.ts";
 
 type Runtime = { env: { get(name: string): string | undefined }; serve(handler: (request: Request) => Response | Promise<Response>): void };
 const runtime = (globalThis as unknown as { Deno?: Runtime }).Deno;
@@ -28,12 +29,14 @@ if (runtime) runtime.serve(async (request) => {
   if (!url || !anonKey || !serviceKey) return reply({ error: "download_not_configured" }, 503);
   if (!token) return reply({ error: "unauthorized" }, 401);
 
+  const bodyRead = await readBoundedTextBody(request.body, 2048, request.headers.get("content-length"));
+  if (!bodyRead.ok) {
+    if (bodyRead.reason === "too_large") return reply({ error: "request_too_large" }, 413);
+    return reply({ error: bodyRead.reason === "invalid_utf8" ? "invalid_json" : "invalid_request" }, 400);
+  }
   let body: unknown;
-  try {
-    const raw = await request.text();
-    if (raw.length > 2048) return reply({ error: "request_too_large" }, 413);
-    body = JSON.parse(raw);
-  } catch { return reply({ error: "invalid_json" }, 400); }
+  try { body = JSON.parse(bodyRead.text); }
+  catch { return reply({ error: "invalid_json" }, 400); }
   if (!body || typeof body !== "object" || Array.isArray(body)
       || Object.keys(body).some((key) => key !== "job_id")
       || !isUuid((body as Record<string, unknown>).job_id)) {
