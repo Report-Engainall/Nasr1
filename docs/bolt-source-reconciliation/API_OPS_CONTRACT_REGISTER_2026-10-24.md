@@ -75,17 +75,19 @@
 
 **حد الإثبات:** تم اختبار هذه الحالات محليًا ببيانات اصطناعية. لا يوجد اختبار حساب العميل/المؤسسة المستضاف لأن بوابة E2E الخارجية ظلت `SKIPPED`; ولا يثبت هذا الإصلاح صحة كل الـ179 مرشح RPC أو إعداد أسرار الإنتاج. لا تزال مراجعة السعر الصفري كسنتينل في استجابة كتالوج مخفي السعر مسألة عقد منفصلة مفتوحة.
 
-## الدفعة الدلالية الثالثة — قرار قبول/رفض عرض السعر لا يقبل NULL (OPEN; exact-head CI PASS)
+## الدفعة الدلالية الثالثة — قرار قبول/رفض عرض السعر لا يقبل NULL (PARTIAL; direct PG17 runtime case passed)
 
-**الاكتشاف من مراجعة العقد:** دالة `public.customer_respond_to_quote(p_quote_id uuid, p_accept boolean)` في قاعدة `main` تستخدم انتقالًا من نمط `CASE WHEN p_accept THEN 'accepted' ELSE 'rejected' END`. في PostgreSQL، قيمة Boolean المفقودة `NULL` لا تعني رفضًا صريحًا؛ بل تدخل فرع `ELSE`، ما يجعل استدعاء RPC غير صالح قادرًا على تحويل العرض إلى `rejected` بدل رفض المدخل.
+**الاكتشاف من مراجعة العقد:** دالة `public.customer_respond_to_quote(p_quote_id uuid, p_accept boolean)` في `main` كانت تستخدم `CASE WHEN p_accept THEN 'accepted' ELSE 'rejected' END`. في PostgreSQL، قيمة Boolean المفقودة `NULL` تدخل فرع `ELSE`؛ ما كان يسمح لاستدعاء RPC غير صالح بتحويل العرض إلى `rejected` بدل رفض المدخل.
 
-**معالجة الكود المقترحة:** [PR #147](https://github.com/Report-Engainall/Nasr1/pull/147) يضيف migration أمامية `20261024130000_customer_quote_response_explicit_decision.sql` ترفض `p_quote_id IS NULL` أو `p_accept IS NULL` قبل أي تحديث، برمز `22023`. ويحافظ على `quotes.manage`، وهوية العميل النشطة وملكية العرض وحالة `quoted`، ويقصر EXECUTE على `authenticated` مع سحب المنح من `PUBLIC, anon`.
+**المعالجة:** [PR #147](https://github.com/Report-Engainall/Nasr1/pull/147) يضيف migration أمامية `20261024130000_customer_quote_response_explicit_decision.sql` ترفض `p_quote_id IS NULL` أو `p_accept IS NULL` قبل أي تحديث، برمز `22023`. ويحافظ على `quotes.manage` وهوية العميل النشطة وملكية العرض وحالة `quoted`، ويقصر EXECUTE على `authenticated` مع سحب المنح من `PUBLIC, anon`.
 
-**دليل CI الحالي على SHA واحد:** PR #147 head `ff59c6144cec2e78864a0c35f96140d333f376ca` — Core [40105725672 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40105725672) وP2 [40105725585 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40105725585). الطلب ما زال مفتوحًا وغير مدمج، والمراجعة المستقلة غير مسجلة؛ لذلك لا يُنسب هذا الإصلاح إلى `main`.
+**إثبات PostgreSQL 17 المباشر:** PR #147 الحالي `c44ef53d93ade1c3930a87e219edaf58c2c92955` — Core [40106259411 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40106259411). سجل التنفيذ يحتوي على:
+`PASS customer quote decision runtime: NULL UUID/boolean rejected with 22023 and no mutation; explicit false and true persist their requested transitions.`
+وهذا يثبت أن NULL لكل من UUID والقرار يُرفض بـ`22023` دون تغيير العرض، وأن `false` و`true` الصريحين يحفظان الانتقال الصحيح، في قاعدة PostgreSQL 17 المعزولة.
 
-**القبول المتبقي:** أضف إثبات PostgreSQL 17 مباشرًا لاستدعاء NULL وللرفض/القبول الصريح قبل إغلاق بند العقد. يُنفذ هذا الاختبار بعد مصالحة تداخل `scripts/test-database-migrations.mjs` بين #134 و#144، أو في ملف اختبار مستقل لا يتداخل مع الملف المشترك. لا يُدّعى اختبار مستضاف أو إنتاجي.
+**حالة الدمج والحدود:** #147 ما زال مفتوحًا وغير مدمج؛ بوابة P2 [40106259392](https://github.com/Report-Engainall/Nasr1/actions/runs/40106259392) كانت لا تزال قيد التنفيذ عند هذا التحديث، ولم تُسجّل مراجعة مستقلة. لذلك لا ننقل إثبات Core وحده إلى `PASS` نهائي للطلب، ولا ندعي اختبار العميل المستضاف أو الإنتاج. يجب دمج #144 ثم #145 قبل #147 بسبب اعتماد الجلسة الحية وترتيب migrations.
 
-**الحالة:** `PARTIAL` — اكتشاف موثق وإصلاح مقترح اجتاز Core/P2 على الرأس المحدد؛ الدمج والمراجعة وإثبات RPC المباشر ما زالت مفتوحة.
+**الحالة:** `PARTIAL` — عيب محدد، إصلاح، واختبار PostgreSQL 17 مباشر مثبت على SHA محدد؛ بوابة P2 والمراجعة المستقلة والدمج والتحقق من رأس الدمج ما زالت مفتوحة.
 
 ## الدفعة الدلالية الرابعة — رفض NULL في انتقال حالة المهمة التشغيلية (OPEN; CI pending)
 
