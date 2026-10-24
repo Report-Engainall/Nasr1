@@ -8,6 +8,10 @@ const db = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 
 const ORG_ID = "a0000000-0000-0000-0000-000000000001";
 const CUSTOMER_PROFILE_ID = "f1111111-1111-4111-8111-111111111111";
 const CUSTOMER_AUTH_ID = "11111111-1111-4111-8111-111111111111";
+const MEMBER_PROFILE_ID = "f1111111-1111-4111-8111-111111111112";
+const MEMBER_AUTH_ID = "11111111-1111-4111-8111-111111111112";
+const FINANCE_MEMBER_PROFILE_ID = "f1111111-1111-4111-8111-111111111113";
+const FINANCE_MEMBER_AUTH_ID = "11111111-1111-4111-8111-111111111113";
 const ADMIN_PROFILE_ID = "f0000000-0000-0000-0000-000000000001";
 const ADMIN_AUTH_ID = "33333333-3333-4333-8333-333333333333";
 const ACCOUNTANT_PRODUCT_ID = "e5555555-e555-4555-8555-e55555555555";
@@ -157,6 +161,7 @@ async function main() {
     );
     assert.equal(visibleCardPrice.length, 1);
     assert.ok(Number(visibleCardPrice[0].unit_price) > 0, "enabled catalog price returns an active customer-tier price");
+    let directCustomerTierUnitPrice;
     for (const surface of ["cart", "orders"]) {
       const result = await db.unsafe(
         "select public.preview_customer_order_pricing($1::jsonb,$2::text) as result",
@@ -166,6 +171,7 @@ async function main() {
       assert.equal(payload?.visible, true, surface + " pricing becomes visible after authorized server setting change");
       assert.ok(Array.isArray(payload?.items) && payload.items.length === 1, surface + " should return server-priced lines");
       assert.ok(Number(payload.items[0].unit_price) > 0);
+      if (surface === "cart") directCustomerTierUnitPrice = Number(payload.items[0].unit_price);
       assert.ok(Number(payload.total_amount) > 0);
       assert.equal(payload.customer_tier_visible, true);
       assert.equal(payload.customer_tier_label, "الجملة");
@@ -194,7 +200,78 @@ async function main() {
     assert.equal(accountantPrice.length, 1);
     assert.equal(Number(accountantPrice[0].unit_price), 1234, "accountant role denies raw base price even when another role row overlaps");
 
-    process.stdout.write("PASS customer price privacy: server-side visibility, no masked monetary JSON, authorized settings, accountant write denial, overlapping-role base-price boundary.\n");
+    // Accepted company buyers must resolve the owning company's tier, not retail fallback.
+    await db.unsafe("reset role");
+    await db.unsafe(
+      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI company buyer','ci-company-buyer@example.test',true)",
+      [MEMBER_PROFILE_ID, MEMBER_AUTH_ID, ORG_ID],
+    );
+    await db.unsafe(
+      "insert into public.user_roles(profile_id,role) values($1,'customer') on conflict(profile_id,role) do nothing",
+      [MEMBER_PROFILE_ID],
+    );
+    await db.unsafe(
+      "insert into public.customer_company_memberships(organization_id,customer_id,profile_id,member_role,status,invited_by) values($1,(select c.id from public.customers c where c.profile_id=$2 and c.organization_id=$1),$3,'buyer','active',$2)",
+      [ORG_ID, CUSTOMER_PROFILE_ID, MEMBER_PROFILE_ID],
+    );
+    await assumeUser(MEMBER_AUTH_ID, "ci-company-buyer@example.test");
+    const memberPreviewResult = await db.unsafe(
+      "select public.preview_customer_order_pricing($1::jsonb,'cart') as result",
+      [items],
+    );
+    const memberPreview = memberPreviewResult[0]?.result;
+    assert.equal(memberPreview?.visible, true, "active buyer membership may preview cart prices");
+    assert.equal(memberPreview?.customer_tier_label, "الجملة", "company buyer resolves the owner's approved price tier");
+    assert.equal(
+      Number(memberPreview?.items?.[0]?.unit_price),
+      directCustomerTierUnitPrice,
+      "company buyer receives the same server-derived tier price as the owning customer",
+    );
+
+    // Finance-only company members may read financial documents but cannot resolve catalog/cart or order-review pricing.
+    await db.unsafe("reset role");
+    await db.unsafe(
+      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI company finance','ci-company-finance@example.test',true)",
+      [FINANCE_MEMBER_PROFILE_ID, FINANCE_MEMBER_AUTH_ID, ORG_ID],
+    );
+    await db.unsafe(
+      "insert into public.user_roles(profile_id,role) values($1,'customer') on conflict(profile_id,role) do nothing",
+      [FINANCE_MEMBER_PROFILE_ID],
+    );
+    await db.unsafe(
+      "insert into public.customer_company_memberships(organization_id,customer_id,profile_id,member_role,status,invited_by) values($1,(select c.id from public.customers c where c.profile_id=$2 and c.organization_id=$1),$3,'finance','active',$2)",
+      [ORG_ID, CUSTOMER_PROFILE_ID, FINANCE_MEMBER_PROFILE_ID],
+    );
+    await assumeUser(FINANCE_MEMBER_AUTH_ID, "ci-company-finance@example.test");
+    await assert.rejects(
+      db.unsafe("select public.preview_customer_order_pricing($1::jsonb,'cart') as result", [items]),
+      /customer membership lacks permission for requested price preview/i,
+      "finance member cannot resolve catalog prices",
+    );
+    await assert.rejects(
+      db.unsafe("select public.preview_customer_order_pricing($1::jsonb,'orders') as result", [items]),
+      /customer membership lacks permission for requested price preview/i,
+      "finance member cannot resolve order-review prices",
+    );
+
+    // Delete the server-side session while retaining JWT claims to simulate a revoked but unexpired access token.
+    await db.unsafe("reset role");
+    await assumeUser(CUSTOMER_AUTH_ID, "ci-customer-one@example.test");
+    await db.unsafe("reset role");
+    await db.unsafe("delete from auth.sessions where id=$1 and user_id=$1", [CUSTOMER_AUTH_ID]);
+    await db.unsafe("set local role authenticated");
+    await assert.rejects(
+      db.unsafe("select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],1)", [[CATALOG_PRODUCT_ID]]),
+      /active profile and organization required to resolve catalog prices/i,
+      "revoked session cannot call catalog price resolver with a stale authenticated JWT",
+    );
+    await assert.rejects(
+      db.unsafe("select public.preview_customer_order_pricing($1::jsonb,'cart') as result", [items]),
+      /active profile and organization required/i,
+      "revoked session cannot call customer pricing preview with a stale authenticated JWT",
+    );
+
+    process.stdout.write("PASS customer price privacy: hidden payloads, live-session revocation, tenant-bound membership tier, capability-scoped previews, authorized settings and base-price boundaries.\n");
   } finally {
     await db.unsafe("reset role").catch(() => {});
     await db.unsafe("rollback").catch(() => {});
