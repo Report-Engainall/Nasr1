@@ -1,3 +1,18 @@
+# P1 LIVE RESUME UPDATE — 24 October 2026
+
+**This block supersedes older status and next-action claims in the historical P1 report below. It does not erase the audit trail or create a second resume pointer.**
+
+- Repository: `Report-Engainall/Nasr1`; production reference: `main`; verified main SHA: `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`. Do not reuse Core PASS from older main `16a3d23e...`.
+- **Inventory batch idempotency — PR #134:** latest exact head `f141391968fefd9f568624cdfb98be935d7c9da6`. Added four PostgreSQL 17 assertions preserving the source and destination reserved quantities across concurrent same-key replay. Core [40118402370 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40118402370) and P2 [40118402229 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40118402229). PR remains open and no independent human review is recorded. Hosted customer/tenant E2E skipped, not passed.
+- **API-OPS — PR #142:** head `77f338753a6fad8d0f9b4942e480c8be85782d3e`; Core [40117461570 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40117461570) and P2 [40117461572 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40117461572). Source object mapping is 304/304, but the full semantic review of 179 callable RPC candidates remains open. A prior unit-test wording failure was fixed and the newer head passed.
+- **Payment audit — PR #158:** the current head `afc685636df26ce9b35e84ffc9565f552c3c2d7e` adds a true concurrent same-key `record_customer_payment` acceptance: two authenticated calls overlap while the invoice row is locked, then must return one canonical payment ID and persist exactly one payment plus one audit row. Core [40118708860](https://github.com/Report-Engainall/Nasr1/actions/runs/40118708860), P2 [40118708956](https://github.com/Report-Engainall/Nasr1/actions/runs/40118708956), and PostgreSQL 17 [40118708851](https://github.com/Report-Engainall/Nasr1/actions/runs/40118708851) were QUEUED at the last poll. Earlier-head PASS cannot be reused for this new test.
+- **DQS follow-up — PR #162:** canonical owner for the current status-scoring defect; pending/invalid rows must not receive validity points. Do not add a duplicate migration.
+- Merged work: #133, #144, #145, #146. Closed duplicates #148/#149/#150/#151 are replaced by #164/#165/#166/#168. Keep the migration chain #147 → #164 → #165 → #166 → #168 → #158 and respect later dependency ordering for #162/#172. PR #147 needs exact-head PostgreSQL 17 evidence in addition to its cited Core/P2 results; prior-SHA results do not transfer.
+- **Next P1 action:** poll #158's three exact-head jobs; diagnose and fix any proved failure; rerun every required gate after each code change; then request independent review. Continue remaining RPC authorization/tenant/input/output/error/idempotency/audit semantic checks. Do not merge without independent submitted approval and policy-compliant ordering.
+- **Evidence boundary:** no production writes were made. Local PostgreSQL 17 and Supabase acceptance do not prove hosted customer E2E, live Onyx, WhatsApp delivery, production secrets, deployment, or production restore. Mark these SKIPPED/BLOCKED_EXTERNAL or NOT PROVEN unless new authorized evidence exists.
+
+---
+
 # تقرير الحالة التنفيذي — المبرمج 1 / إدارة جلسات الأجهزة المركزية
 
 - **المستودع:** `Report-Engainall/Nasr1`
