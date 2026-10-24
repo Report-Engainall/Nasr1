@@ -173,6 +173,12 @@ describe("public catalog privacy and tenant query contract", () => {
         description: null,
         unit: "unit",
         base_price: 99000,
+        price_wholesale_of_wholesale: 89000,
+        price_wholesale: 92000,
+        price_retail: 95000,
+        cost_price: 50000,
+        unit_cost: 50000,
+        margin: 45000,
         status: "active",
         image_url: null,
         created_at: "",
@@ -187,8 +193,18 @@ describe("public catalog privacy and tenant query contract", () => {
     const rows = await fetchProducts();
     expect(rows).toHaveLength(1);
     expect(rows[0].display_price).toBe(37000);
-    expect(rows[0].base_price).toBe(0);
-    expect(queryFor("products").columns).not.toMatch(/base_price/i);
+    for (const key of [
+      "base_price",
+      "price_wholesale_of_wholesale",
+      "price_wholesale",
+      "price_retail",
+      "cost_price",
+      "unit_cost",
+      "margin",
+    ]) {
+      expect(rows[0]).not.toHaveProperty(key);
+    }
+    expect(queryFor("products").columns).not.toMatch(/base_price|cost_price|price_wholesale|price_retail/i);
     expect(mocks.rpc).toHaveBeenCalledWith("get_storefront_product_prices", {
       p_product_ids: ["public-product-1"],
       p_quantity: 1,
@@ -196,7 +212,45 @@ describe("public catalog privacy and tenant query contract", () => {
     const cached = sanitizePublicCatalogCache(rows);
     expect(cached).toHaveLength(1);
     expect(cached[0]).not.toHaveProperty("display_price");
-    expect(cached[0].base_price).toBe(0);
+    for (const key of [
+      "base_price",
+      "price_wholesale_of_wholesale",
+      "price_wholesale",
+      "price_retail",
+      "cost_price",
+      "unit_cost",
+      "margin",
+    ]) {
+      expect(cached[0]).not.toHaveProperty(key);
+    }
+  });
+
+  it("omits display_price when the server explicitly disables catalog prices", async () => {
+    mocks.responses.products = {
+      data: [{
+        id: "public-product-hidden",
+        organization_id: ORGANIZATION_ID,
+        category_id: null,
+        name: "Hidden price product",
+        item_code: "PUB-HIDDEN",
+        barcode: null,
+        description: null,
+        unit: "unit",
+        status: "active",
+        image_url: null,
+        created_at: "",
+      }],
+      error: null,
+    };
+    mocks.rpc.mockResolvedValueOnce({
+      data: [{ product_id: "public-product-hidden", unit_price: null }],
+      error: null,
+    });
+
+    const rows = await fetchProducts();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).not.toHaveProperty("display_price");
+    expect(rows[0]).not.toHaveProperty("base_price");
   });
 
   it("fails closed if the pricing RPC omits a product price", async () => {

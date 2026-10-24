@@ -1945,12 +1945,14 @@ async function main() {
   assert.ok(accountantRoleContext[0].roles.includes("accountant"), "accountant profile must carry the accountant role");
   assert.ok(!accountantRoleContext[0].roles.some((role) => ["admin","manager","staff"].includes(role)),
     "finance-only accountant fixture must not inherit operational roles");
-  const accountantResolvedPrices = await db.unsafe(
-    "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],$2::numeric)",
-    [[accountantPriceProductId], 1],
+  await expectFailure(
+    "finance-only accountant without customer membership cannot resolve storefront prices",
+    () => db.unsafe(
+      "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],$2::numeric)",
+      [[accountantPriceProductId], 1],
+    ),
+    /customer membership lacks permission to resolve catalog prices/i,
   );
-  assert.equal(accountantResolvedPrices.length, 1, "accountant can resolve a display price through the safe storefront API");
-  assert.equal(Number(accountantResolvedPrices[0].unit_price), 1234, "accountant must not receive raw base price 99000");
   const accountantFinanceResult = await db.unsafe("select public.fetch_staff_finance_data() as result");
   const accountantInvoice = accountantFinanceResult[0].result.invoices.find((row) => row.id === invoice.id);
   assert.equal(Number(accountantInvoice.total_amount), 370000, "accountant may read the authorized invoice financial snapshot");
@@ -2517,6 +2519,72 @@ async function main() {
   );
   assert.equal(multiChunkState[0].verified_chunks, 3);
   assert.equal(multiChunkState[0].status, "uploaded");
+
+  // Security regression: the quality RPC must authorize before looking up a job ID
+  // and scope staff lookups to their own tenant, so foreign IDs cannot be enumerated.
+  await db.unsafe("reset role");
+  const foreignQualityJobResult = await db.unsafe(
+    `insert into public.import_jobs(
+       organization_id,job_type,file_name,file_hash,file_size,status,created_by
+     ) values($1,'onyx_stock','CI foreign quality privacy probe.csv',$2,500,'pending',$3)
+     returning id`,
+    [otherOrganizationId, "e".repeat(64), foreignProfileId],
+  );
+  const foreignQualityJobId = foreignQualityJobResult[0].id;
+  const unknownQualityJobId = randomUUID();
+
+  const qualityScoreJobResult = await db.unsafe(
+    `insert into public.import_jobs(
+       organization_id,job_type,file_name,file_hash,file_size,status,created_by,profile_id
+     ) values($1,'onyx_stock','CI DQS impossible-date semantics.csv',$2,600,'pending',$3,$4)
+     returning id`,
+    [organizationId, "d".repeat(64), operationsStaffProfileId, importJob.profile_id],
+  );
+  const qualityScoreJobId = qualityScoreJobResult[0].id;
+  await db.unsafe(
+    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb),($1,2,'valid',$3::jsonb,'[]'::jsonb)",
+    [
+      qualityScoreJobId,
+      db.json({ item_code: "DQS-INVALID-DATE-1", quantity: "1", revenue: "10", price: "10", date: "2026-02-31" }),
+      db.json({ item_code: "DQS-VALID-DATE-2", quantity: "1", revenue: "10", price: "10", date: "2024-02-29" }),
+    ],
+  );
+
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customer cannot distinguish an existing foreign import job from an unknown job",
+    () => db.unsafe("select public.calculate_import_job_quality($1::uuid)", [foreignQualityJobId]),
+    /not authorized to calculate import quality/i,
+    "42501",
+  );
+  await expectFailure(
+    "customer receives the same import-quality denial for an unknown job ID",
+    () => db.unsafe("select public.calculate_import_job_quality($1::uuid)", [unknownQualityJobId]),
+    /not authorized to calculate import quality/i,
+    "42501",
+  );
+
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "staff cannot distinguish a foreign import job from an unknown job",
+    () => db.unsafe("select public.calculate_import_job_quality($1::uuid)", [foreignQualityJobId]),
+    /import job not found in active organization/i,
+    "P0002",
+  );
+  await expectFailure(
+    "staff receives the same result for an unknown import job ID",
+    () => db.unsafe("select public.calculate_import_job_quality($1::uuid)", [unknownQualityJobId]),
+    /import job not found in active organization/i,
+    "P0002",
+  );
+  const qualityScore = await db.unsafe("select public.calculate_import_job_quality($1::uuid) as result", [qualityScoreJobId]);
+  assert.equal(qualityScore[0]?.result?.total_rows, 2, "quality score counts both rows from the scoped job");
+  assert.equal(Number(qualityScore[0]?.result?.components?.temporal_referential_integrity), 50,
+    "an impossible calendar date scores invalid while the real leap-day date scores valid");
+  process.stdout.write("PASS import quality RPC: tenant-scoped IDs, denial parity, and impossible-date scoring\\n");
 
   const duplicateProbe = await db.unsafe(
     "select public.find_import_duplicate($1,$2::uuid,$3) as result",
