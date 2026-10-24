@@ -278,7 +278,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           : "استئناف آمن: سيعاد بناء حالة قراءة CSV محليًا، وتُتجاوز كتابة الشرائح المؤكدة، ويستمر الحفظ من أول شريحة غير مؤكدة.");
       }
       const parser = new StreamingCsvParser();
-      const decoder = new TextDecoder("utf-8", { fatal: false });
+      const decoder = new TextDecoder("utf-8", { fatal: true });
       let headers: string[] | null = null;
       let quality: DataQualityAccumulator | null = null;
       let currentChunkNumber = -1;
@@ -308,6 +308,11 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           if (new Set(headers.filter(Boolean)).size !== headers.filter(Boolean).length) {
             throw new Error("يوجد أكثر من عنوان يتحول إلى العمود نفسه بعد التطبيع؛ راجع قاموس المرادفات.");
           }
+          const requiredHeaderSet = new Set([...requiredColumns, matchingKey]);
+          const missingRequiredHeaders = [...requiredHeaderSet].filter((field) => !headers!.includes(field));
+          if (missingRequiredHeaders.length > 0) {
+            throw new Error("الملف يفتقد أعمدة إلزامية للملف التعريفي الحالي: " + missingRequiredHeaders.join("، ") + ". صحح صف العناوين أو اختر ملفًا تعريفيًا مطابقًا؛ لم يتم اعتماد أي بيانات.");
+          }
           setStage("mapping");
           quality = new DataQualityAccumulator(requiredColumns.length ? requiredColumns : [matchingKey], matchingKey);
           return;
@@ -315,7 +320,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
         if (values.length > MAX_IMPORT_COLUMNS) throw new Error("صف البيانات تجاوز حد الأعمدة.");
         if (dataRows >= MAX_IMPORT_ROWS) throw new Error("تجاوز الملف الحد الأقصى " + MAX_IMPORT_ROWS + " صف.");
         dataRows += 1;
-        const baseRow: ParsedImportRow = validateCsvRow(values, headers, dataRows + 1);
+        const baseRow: ParsedImportRow = validateCsvRow(values, headers, dataRows + 1, matchingKey);
         const parsed: ParsedImportRow = applyImportProfileRules(baseRow, transformations, validations);
         quality?.add(parsed);
         // Already-verified upload chunks have their structured rows committed before their
