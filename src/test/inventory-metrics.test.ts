@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countLowStockBalances } from "@/lib/inventory-metrics";
+import { countLowStockBalances, getInventoryAvailabilityStatus } from "@/lib/inventory-metrics";
 
 describe("available-stock low-stock metric", () => {
   it("uses sellable availability after reservations, not gross on-hand quantity", () => {
@@ -19,14 +19,15 @@ describe("available-stock low-stock metric", () => {
     ])).toBe(2);
   });
 
-  it("treats a null threshold as zero without losing out-of-stock items", () => {
+  it("marks a low-stock count incomplete when any reorder threshold is unknown", () => {
     expect(countLowStockBalances([
       { quantity_available: 0, reorder_point: null },
       { quantity_available: 1, reorder_point: null },
-    ])).toBe(1);
+      { quantity_available: 0, reorder_point: 0 },
+    ])).toBeNull();
   });
 
-  it("skips incomplete or invalid snapshots instead of inventing zero stock", () => {
+  it("marks incomplete or invalid snapshots as unavailable rather than publishing a partial count", () => {
     expect(countLowStockBalances([
       { quantity_available: undefined, reorder_point: 8 },
       { quantity_available: "4", reorder_point: 8 },
@@ -34,10 +35,25 @@ describe("available-stock low-stock metric", () => {
       { quantity_available: 4, reorder_point: -1 },
       { quantity_available: Number.POSITIVE_INFINITY, reorder_point: 8 },
       { quantity_available: -1, reorder_point: 8 },
-    ])).toBe(1);
+    ])).toBeNull();
   });
 
   it("returns zero for an empty result set", () => {
     expect(countLowStockBalances([])).toBe(0);
+  });
+});
+
+
+describe("inventory availability display status", () => {
+  it("returns unknown when either the stock balance or threshold is unavailable", () => {
+    expect(getInventoryAvailabilityStatus(undefined, 5)).toBe('unknown');
+    expect(getInventoryAvailabilityStatus(0, null)).toBe('unknown');
+    expect(getInventoryAvailabilityStatus(Number.NaN, 5)).toBe('unknown');
+  });
+
+  it("labels only measured stock at or below an observed threshold as low", () => {
+    expect(getInventoryAvailabilityStatus(0, 0)).toBe('low');
+    expect(getInventoryAvailabilityStatus(-2, 3)).toBe('low');
+    expect(getInventoryAvailabilityStatus(4, 3)).toBe('adequate');
   });
 });
