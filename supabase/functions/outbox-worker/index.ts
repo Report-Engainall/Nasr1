@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { readBoundedTextBody } from "../_shared/bounded-body.ts";
 import { classifyOutboxProcessResult, outboxFailureMessage } from "./logic.ts";
 
 type WorkerRuntime = {
@@ -41,13 +42,12 @@ if (runtime) {
     const serviceKey = runtime.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!url || !serviceKey) return json({ error: "worker_not_configured" }, 503);
 
-    let bodyText = "";
-    try {
-      bodyText = await request.text();
-    } catch {
-      return json({ error: "invalid_request" }, 400);
+    const bodyRead = await readBoundedTextBody(request.body, 4096, request.headers.get("content-length"));
+    if (!bodyRead.ok) {
+      if (bodyRead.reason === "too_large") return json({ error: "request_too_large" }, 413);
+      return json({ error: bodyRead.reason === "invalid_utf8" ? "invalid_json" : "invalid_request" }, 400);
     }
-    if (bodyText.length > 4096) return json({ error: "request_too_large" }, 413);
+    const bodyText = bodyRead.text;
 
     let payload: unknown = {};
     if (bodyText.trim()) {
