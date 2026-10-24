@@ -1,3 +1,14 @@
+## P2 execution record — 2026-10-24 live Git reconciliation
+
+- Live `main`: `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; no main writes.
+- Catalog inventory: source SHA `672749855d733f691ab59de878420a210108fbbe`; 120 migrations, 304/304 runtime public objects mapped, zero unmatched; Core 40042438869 and P2 40042438851 SUCCESS exact source SHA.
+- Storefront pricing authorization: PR #144 head `9fc736db3fc451731a94105d6e707a5c83fbf019`; Core 40044350881 and P2 40044350890 SUCCESS exact head. Test now asserts accepted company buyer tier, finance-only denial, and live session revocation using PostgreSQL savepoints for independent rejection scenarios.
+- Test-failure record: PR #144 previous SHA `48c963b6624c296f8c902cb65c12ca4e63c7b918` Core FAILURE because its test's first expected SQL error aborted the enclosing transaction; not a product regression. The failure was corrected and later exact SHA passed.
+- PR #142 new docs head `d3f0c41d8330c0ac30ff13c122e19e34d31f5825`: Core 40044835801 and P2 40044835894 were IN_PROGRESS at this log entry; no terminal PASS transferred from older docs heads.
+- Hosted customer E2E remains SKIPPED/BLOCKED_EXTERNAL. No provider/production claim.
+
+---
+
 
 
 ## P2 latest exact-head execution evidence — 2026-10-24T02:25:19+03:00

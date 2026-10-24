@@ -1,4 +1,20 @@
-# الحالة التنفيذية الحالية الوحيدة — Nasr1 / P2
+# P2 LIVE EXECUTION UPDATE — 2026-10-24 live Git reconciliation
+
+**This block supersedes the older reconciliation snapshots below.** P2 has refreshed the source inventory and verified the new security repair; do not treat older PR heads as current tests.
+
+- Repository: `Report-Engainall/Nasr1`; live `main` SHA: `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; main Core [40035355209](https://github.com/Report-Engainall/Nasr1/actions/runs/40035355209) is terminal `SUCCESS` on that exact main SHA.
+- PR #100 central state was merged; PR #101 manual ledger-reversal cycle was merged. Do not recreate either task unless a documented regression appears.
+- `API-OPS-001` remains `PARTIAL`: 120 ordered migrations yielded 304 public runtime functions/procedures, 304/304 mapped to a migration or extension, zero unknown sources; 179 public functions remain RPC candidates for semantic review. Saved evidence: [inventory](./PUBLIC_RPC_FUNCTION_INVENTORY_2026-10-24.md) from tested source SHA `672749855d733f691ab59de878420a210108fbbe`, Core [40042438869](https://github.com/Report-Engainall/Nasr1/actions/runs/40042438869) and P2 [40042438851](https://github.com/Report-Engainall/Nasr1/actions/runs/40042438851) both terminal `SUCCESS` on that exact source SHA.
+- PR #142 [API-OPS contract register](https://github.com/Report-Engainall/Nasr1/pull/142) is OPEN for independent review. Its latest documentation head `d3f0c41d8330c0ac30ff13c122e19e34d31f5825` has Core [40044835801](https://github.com/Report-Engainall/Nasr1/actions/runs/40044835801) and P2 [40044835894](https://github.com/Report-Engainall/Nasr1/actions/runs/40044835894) still `IN_PROGRESS` at this reconciliation; earlier-head successes do not certify this documentation descendant.
+- PR #144 [live-session and membership authorization for storefront price RPCs](https://github.com/Report-Engainall/Nasr1/pull/144) is OPEN and not merged. Tested source SHA `9fc736db3fc451731a94105d6e707a5c83fbf019`: Core [40044350881](https://github.com/Report-Engainall/Nasr1/actions/runs/40044350881) and P2 Playwright [40044350890](https://github.com/Report-Engainall/Nasr1/actions/runs/40044350890) are terminal `SUCCESS` on the exact same SHA. The tests prove buyer membership pricing uses the owning tier, finance-only membership cannot preview cart/order prices, and server-side session revocation denies both price RPCs while old JWT claims remain.
+- PR #144 has reviewer `adnanabderab2016-sys` requested; do not merge before authorized approval and merge-eligibility checks.
+- Hosted customer/account E2E is `SKIPPED / BLOCKED_EXTERNAL` without dedicated credentials, not PASS. Onyx Pro live import/sync, WhatsApp provider calls, production secrets, and production recovery remain unproven.
+- Current unresolved contract question: `get_storefront_product_prices` returns numeric `unit_price=0` as a hidden-price sentinel. Existing UI tests verify it is suppressed in the DOM; preserve the contract for now and review all consumers before changing the payload.
+- Immediate next action: wait for both PR #142 exact-head workflows to reach terminal state; then continue semantic review of remaining RPC candidates by risk domain (finance first, then inventory/import/export, then identity/customer/roles). Never claim PASS from an earlier SHA, and do not write directly to `main`.
+
+---
+
+## HISTORICAL SNAPSHOT — superseded by P2 LIVE EXECUTION UPDATE above
 LAST_RECONCILED_AT=2026-10-24T02:26:50+03:00
 
 ## حقيقة Git الحية
@@ -14,7 +30,7 @@ CURRENT_PR=https://github.com/Report-Engainall/Nasr1/pull/133
 CURRENT_PR_HEAD=Re-read live PR #133 after this documentation commit; earlier-head CI does not prove the descendant.
 No direct main writes, force-push, destructive reset or production DB writes.
 
-## AUTHORITATIVE LIVE RECONCILIATION — 2026-10-24T02:26:50+03:00
+## HISTORICAL RECONCILIATION SNAPSHOT — superseded by P2 LIVE EXECUTION UPDATE above
 
 This live block supersedes older snapshot metadata below; historical entries are retained and must not be read as current Git state.
 

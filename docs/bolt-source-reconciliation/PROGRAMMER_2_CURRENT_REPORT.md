@@ -1,6 +1,40 @@
-# P2 — تقرير المصالحة الحية لمجموعة PRs — 2026-10-24T02:26:50+03:00
+# P2 — Live execution report — 2026-10-24 live Git reconciliation
 
-## AUTHORITATIVE LIVE RECONCILIATION — 2026-10-24T02:26:50+03:00
+**TASK_ID:** `API-OPS-001`  
+**TASK_STATUS:** `PARTIAL` — inventory proven; semantic audit continues  
+**MAIN_SHA:** `16a3d23e558696700bccbb3dbf9ea75b0fccf745`  
+**CURRENT_BRANCH:** `p2/reconcile-18-prs-live-main-20261024`  
+**BASE_SHA:** `b588aa919239b6632e263e7b7991300908e54d2b` (pre-update parent; fresh checks are required for this descendant)  
+**HEAD_SHA:** Re-read live PR #133 head after this update; the prior head must not be treated as tested.  
+**PR_URL:** https://github.com/Report-Engainall/Nasr1/pull/133  
+**LOCKED_PATHS:** `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md; docs/bolt-source-reconciliation/PROGRAMMER_2_CURRENT_REPORT.md; docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv; docs/bolt-source-reconciliation/WORK_COORDINATION.md; docs/bolt-source-reconciliation/EXECUTION_LOG.md` — P2-only, edited sequentially in one commit.  
+**UPDATED_AT:** 2026-10-24 live Git reconciliation
+
+## Completed execution units
+
+| Unit | Exact tested source SHA | Evidence | Status |
+|---|---|---|---|
+| Public PostgreSQL catalog inventory | `672749855d733f691ab59de878420a210108fbbe` | 120 migrations; 304/304 mapped; zero unmatched. Core [40042438869](https://github.com/Report-Engainall/Nasr1/actions/runs/40042438869) and P2 [40042438851](https://github.com/Report-Engainall/Nasr1/actions/runs/40042438851) SUCCESS. | `TESTED_EXACT_SHA` |
+| Storefront live-session + customer membership price RPC repair | `9fc736db3fc451731a94105d6e707a5c83fbf019` | Core [40044350881](https://github.com/Report-Engainall/Nasr1/actions/runs/40044350881) and P2 [40044350890](https://github.com/Report-Engainall/Nasr1/actions/runs/40044350890) SUCCESS on the same SHA. | `TESTED_EXACT_SHA`; PR #144 open/review requested |
+| Updated API-OPS register in PR #142 | Latest head `d3f0c41d8330c0ac30ff13c122e19e34d31f5825` | Core [40044835801](https://github.com/Report-Engainall/Nasr1/actions/runs/40044835801), P2 [40044835894](https://github.com/Report-Engainall/Nasr1/actions/runs/40044835894). | `IN_PROGRESS` at reconciliation; refresh exact-head results before closure |
+
+## Failures preserved honestly
+
+- Earlier PR #144 head `48c963b6624c296f8c902cb65c12ca4e63c7b918` had Core failure caused by the acceptance script continuing after a SQL error aborted the transaction. The server correctly denied finance-member pricing. The test was fixed with savepoint/rollback isolation and reuse of a pre-existing Auth identity; the subsequent exact head `9fc736d...` passed both Core and P2.
+- Hosted customer-account E2E is `SKIPPED / BLOCKED_EXTERNAL`, not PASS.
+
+## NEXT_ACTION
+
+1. Wait for PR #142 Core and P2 on its current head to finish; update this record only after reading both terminal results on the same SHA.
+2. Keep PR #144 open until independent approval; verify it remains mergeable and rerun only if its source changes.
+3. Continue the API-OPS semantic review using the saved inventory; the 179 candidate functions are not all semantically audited. Next priority is financial RPC idempotency, tenant checks, locking, source provenance and negative tests, then inventory/import/export, then customer/identity/member roles.
+4. Keep numeric zero price-sentinel contract review open until all callers are traced; hosted E2E, provider integration, and production-secret readiness remain `BLOCKED_EXTERNAL`.
+
+--- 
+
+## HISTORICAL REPORT SNAPSHOT — superseded by current P2 live report above
+
+## HISTORICAL RECONCILIATION SNAPSHOT — superseded by current P2 live report above
 
 This live block supersedes older snapshot metadata below; historical entries are retained and must not be read as current Git state.
 
