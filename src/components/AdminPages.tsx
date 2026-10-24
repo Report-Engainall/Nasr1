@@ -692,15 +692,62 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
 export function Suppliers({ onNotice }: { onNotice: (m: string) => void }) {
   const { data, loading, error, refetch } = useFetch(fetchSuppliers);
   const [modal, setModal] = useState(false);
-  return <AdminPage eyebrow="إدارة البيانات" title="الموردون" description="إدارة دليل الموردين وجهات الاتصال" icon={Package} note={`${data?.length ?? 0} مورد`} toolbar={<><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => setModal(true)}><Plus size={17} /> إضافة مورد</Button></>}>
-    {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table><thead><tr><th>المورد</th><th>جهة الاتصال</th><th>الهاتف</th><th>البريد</th><th>الحالة</th></tr></thead><tbody>{data?.map((s: Supplier) => <tr key={s.id}><td><strong>{s.name}</strong><small>{s.supplier_code}</small></td><td>{s.contact_name ?? '—'}</td><td>{s.phone ?? '—'}</td><td>{s.email ?? '—'}</td><td><span className={`badge ${s.status === 'active' ? 'success' : 'warning'}`}>{s.status}</span></td></tr>)}</tbody></table></TableWrap>}
-    {modal && <SupplierModal onClose={() => setModal(false)} onSaved={() => { setModal(false); refetch(); onNotice('تمت إضافة المورد'); }} />}
+  return <AdminPage
+    eyebrow="إدارة البيانات"
+    title="الموردون"
+    description="إدارة دليل الموردين وجهات الاتصال"
+    icon={Package}
+    note={data ? `${data.length} مورد` : 'عدد الموردين غير متاح'}
+    toolbar={<><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => setModal(true)}><Plus size={17} /> إضافة مورد</Button></>}
+  >
+    {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !data ?
+      <Empty text="تعذر التحقق من دليل الموردين؛ حدّث البيانات." /> :
+      data.length === 0 ? <Empty text="لا يوجد موردون مسجلون حتى الآن." /> :
+      <TableWrap><table><thead><tr><th>المورد</th><th>جهة الاتصال</th><th>الهاتف</th><th>البريد</th><th>الحالة</th></tr></thead><tbody>{data.map((s: Supplier) => <tr key={s.id}><td><strong>{s.name}</strong><small>{s.supplier_code ?? '—'}</small></td><td>{s.contact_name ?? '—'}</td><td>{s.phone ?? '—'}</td><td>{s.email ?? '—'}</td><td><span className={`badge ${s.status === 'active' ? 'success' : 'warning'}`}>{s.status}</span></td></tr>)}</tbody></table></TableWrap>}
+    {modal && <SupplierModal onClose={() => setModal(false)} onSaved={() => { setModal(false); void refetch(); onNotice('تمت إضافة المورد'); }} />}
   </AdminPage>;
 }
 function SupplierModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [name, setName] = useState(''); const [contact, setContact] = useState(''); const [phone, setPhone] = useState(''); const [error, setError] = useState('');
-  async function save() { if (!name.trim()) { setError('اسم المورد مطلوب'); return; } try { await createSupplier({ name, contact_name: contact, phone, supplier_code: `SUP-${Date.now().toString().slice(-5)}`, status: 'active' }); onSaved(); } catch (e) { setError(e instanceof Error ? e.message : 'خطأ'); } }
-  return <Modal title="إضافة مورد" onClose={onClose}><Field label="اسم المورد"><input value={name} onChange={(e) => setName(e.target.value)} /></Field><div className="form-grid"><Field label="جهة الاتصال"><input value={contact} onChange={(e) => setContact(e.target.value)} /></Field><Field label="الهاتف"><input value={phone} onChange={(e) => setPhone(e.target.value)} /></Field></div>{error && <div className="form-error">{error}</div>}<div className="modal-actions"><Button variant="outline" onClick={onClose}>إلغاء</Button><Button onClick={save}>حفظ</Button></div></Modal>;
+  const [name, setName] = useState('');
+  const [contact, setContact] = useState('');
+  const [phone, setPhone] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const cleanName = name.trim();
+    if (!cleanName) { setError('اسم المورد مطلوب'); return; }
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      await createSupplier({
+        name: cleanName,
+        contact_name: contact.trim() || null,
+        phone: phone.trim() || null,
+        supplier_code: `SUP-${Date.now().toString().slice(-5)}`,
+        status: 'active',
+      });
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'تعذر حفظ المورد');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <Modal title="إضافة مورد" onClose={onClose}>
+    <Field label="اسم المورد"><input value={name} onChange={(e) => setName(e.target.value)} disabled={saving} required /></Field>
+    <div className="form-grid">
+      <Field label="جهة الاتصال"><input value={contact} onChange={(e) => setContact(e.target.value)} disabled={saving} /></Field>
+      <Field label="الهاتف"><input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={saving} /></Field>
+    </div>
+    {error && <div className="form-error" role="alert">{error}</div>}
+    <div className="modal-actions">
+      <Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button>
+      <Button onClick={save} disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ'}</Button>
+    </div>
+  </Modal>;
 }
 
 export function Devices({ onNotice }: { onNotice: (m: string) => void }) {
