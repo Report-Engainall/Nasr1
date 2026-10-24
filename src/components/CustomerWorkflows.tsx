@@ -230,17 +230,32 @@ function resolvedProductPriceLabel(value: unknown): string {
     : "السعر غير متاح";
 }
 
-function withResolvedProductPrice<T extends { id: string }>(
-  product: T,
+function withResolvedProductPrice(
+  product: {
+    id: string;
+    name?: unknown;
+    item_code?: unknown;
+    barcode?: unknown;
+    unit?: unknown;
+    status?: unknown;
+    image_url?: unknown;
+  },
   price: number | null | undefined,
-): Omit<T, "base_price"> & { base_price?: number } {
-  // A raw/base price from any caller is never authoritative for customer views.
-  // Remove it first, then attach only a numeric price resolved by the server.
-  const safeProduct = { ...product } as T & { base_price?: unknown };
-  delete safeProduct.base_price;
-  return (price === null || price === undefined
+): Product {
+  // Build a new public DTO; do not spread the raw customer query/RPC payload, which may
+  // contain confidential tier prices, costs or margins if a future selection is broadened.
+  const safeProduct: Product = {
+    id: product.id,
+    name: typeof product.name === "string" ? product.name : "",
+    item_code: typeof product.item_code === "string" ? product.item_code : "",
+    barcode: typeof product.barcode === "string" ? product.barcode : null,
+    unit: typeof product.unit === "string" ? product.unit : "",
+    status: typeof product.status === "string" ? product.status : undefined,
+    image_url: typeof product.image_url === "string" ? product.image_url : null,
+  };
+  return price === null || price === undefined
     ? safeProduct
-    : { ...safeProduct, base_price: price }) as Omit<T, "base_price"> & { base_price?: number };
+    : { ...safeProduct, base_price: price };
 }
 
 const card: React.CSSProperties = {
