@@ -189,6 +189,7 @@ export interface ImportProfile {
   normalization_rules?: unknown;
   matching_key?: string | null;
   merge_strategy?: string | null;
+  is_full_dataset?: boolean;
   created_at?: string;
   updated_at?: string;
 }
