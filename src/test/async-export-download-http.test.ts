@@ -3,7 +3,7 @@ import {
   createAsyncExportDownloadHandler,
   type AsyncExportDownloadAdminClient,
   type AsyncExportDownloadUserClient,
-} from "@/lib/async-export-download-handler";
+} from "../../supabase/functions/_shared/async-export-download-handler.ts";
 
 const mocks = vi.hoisted(() => ({
   env: {} as Record<string, string | undefined>,
