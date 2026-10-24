@@ -45,6 +45,7 @@ DECLARE
   v_org uuid;
   v_job public.import_jobs%ROWTYPE;
   v_session public.import_upload_sessions%ROWTYPE;
+  v_profile public.import_profiles%ROWTYPE;
   v_chunk_count integer;
   v_min_chunk integer;
   v_max_chunk integer;
@@ -151,6 +152,29 @@ BEGIN
      OR v_job.error_summary->>'source_system' IS DISTINCT FROM v_job.source_system
      OR v_job.error_summary->>'external_source_reference' IS DISTINCT FROM v_job.external_source_reference THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='بصمة إعدادات المعالجة أو الفترة غير مثبتة على الدفعة؛ أعد المعالجة من الملف الأصلي';
+  END IF;
+
+  -- Replacing a published snapshot means treating the incoming file as a complete dataset.
+  -- Do not let a partial upload silently make previously live keys disappear from the newest snapshot.
+  IF p_duplicate_action = 'replace' THEN
+    IF v_job.profile_id IS NULL THEN
+      RAISE EXCEPTION USING ERRCODE='22023',
+        MESSAGE='الاستبدال الكامل مرفوض: لا توجد هوية ملف تعريفي موثقة تثبت اكتمال المصدر؛ استخدم الدمج أو نسخة جديدة';
+    END IF;
+
+    SELECT ip.* INTO v_profile
+      FROM public.import_profiles ip
+     WHERE ip.id=v_job.profile_id
+       AND ip.organization_id=v_org
+       AND ip.status='active'
+     FOR SHARE;
+    IF NOT FOUND
+       OR v_profile.version IS DISTINCT FROM v_job.profile_version
+       OR v_profile.is_full_dataset IS DISTINCT FROM true
+       OR v_job.error_summary->>'is_full_dataset' IS DISTINCT FROM 'true' THEN
+      RAISE EXCEPTION USING ERRCODE='22023',
+        MESSAGE='الاستبدال الكامل مرفوض: الملف التعريفي والدفعة لا يثبتان أن الملف يحتوي على مجموعة بيانات كاملة؛ لم تتغير اللقطة السابقة. استخدم الدمج أو نسخة جديدة';
+    END IF;
   END IF;
 
   -- All writes made by the snapshot builder run in this RPC transaction. If it raises,
