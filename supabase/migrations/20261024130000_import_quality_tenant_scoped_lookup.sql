@@ -3,6 +3,58 @@
 -- a caller cannot distinguish a foreign job ID from a nonexistent one.
 BEGIN;
 
+-- Validate calendar dates rather than treating regex-shaped impossible dates as valid.
+CREATE OR REPLACE FUNCTION public.is_valid_import_quality_date(p_value text)
+RETURNS boolean
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = ''
+AS $$
+DECLARE
+  v_value text := pg_catalog.btrim(p_value);
+  v_year integer;
+  v_month integer;
+  v_day integer;
+  v_max_day integer;
+BEGIN
+  IF v_value IS NULL OR v_value = '' THEN RETURN NULL; END IF;
+
+  IF v_value ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN
+    v_year := pg_catalog.substr(v_value,1,4)::integer;
+    v_month := pg_catalog.substr(v_value,6,2)::integer;
+    v_day := pg_catalog.substr(v_value,9,2)::integer;
+  ELSIF v_value ~ '^[0-9]{2}[/.-][0-9]{2}[/.-][0-9]{4}$' THEN
+    IF pg_catalog.substr(v_value,3,1) <> pg_catalog.substr(v_value,6,1) THEN
+      RETURN false;
+    END IF;
+    v_day := pg_catalog.substr(v_value,1,2)::integer;
+    v_month := pg_catalog.substr(v_value,4,2)::integer;
+    v_year := pg_catalog.substr(v_value,7,4)::integer;
+  ELSE
+    RETURN false;
+  END IF;
+
+  IF v_year < 1 OR v_month < 1 OR v_month > 12 OR v_day < 1 THEN
+    RETURN false;
+  END IF;
+
+  IF v_month = 2 THEN
+    v_max_day := CASE
+      WHEN v_year % 400 = 0 OR (v_year % 4 = 0 AND v_year % 100 <> 0) THEN 29
+      ELSE 28
+    END;
+  ELSIF v_month IN (4,6,9,11) THEN
+    v_max_day := 30;
+  ELSE
+    v_max_day := 31;
+  END IF;
+
+  RETURN v_day <= v_max_day;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.is_valid_import_quality_date(text) FROM PUBLIC, anon, authenticated;
+
+
 CREATE OR REPLACE FUNCTION public.calculate_import_job_quality(p_job_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -66,10 +118,9 @@ BEGIN
              nullif(r.data->>'price','') IS NULL OR (r.data->>'price') ~ '^-?[0-9]+([.][0-9]+)?$'
            ) THEN 100.0 ELSE 0.0 END),0),
          coalesce(avg(CASE
-           WHEN nullif(r.data->>'date','') IS NULL THEN 100.0
-           WHEN (r.data->>'date') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-             OR (r.data->>'date') ~ '^[0-9]{2}[/.-][0-9]{2}[/.-][0-9]{4}$'
-             THEN 100.0 ELSE 0.0 END),0)
+           WHEN nullif(pg_catalog.btrim(coalesce(r.data->>'date','')),'') IS NULL THEN 100.0
+           WHEN public.is_valid_import_quality_date(pg_catalog.btrim(r.data->>'date')) IS TRUE THEN 100.0
+           ELSE 0.0 END),0)
     INTO v_total,v_valid,v_unique,v_consistent,v_temporal
     FROM public.import_job_rows r
    WHERE r.import_job_id=v_job.id;
