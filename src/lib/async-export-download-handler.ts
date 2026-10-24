@@ -105,13 +105,14 @@ export function createAsyncExportDownloadHandler(deps: AsyncExportDownloadDepend
         return reply({ error: "export_not_ready_or_expired" }, 404);
       }
 
-      const nowMs = (deps.now ?? Date.now)();
+      const signingStartedMs = (deps.now ?? Date.now)();
       const jobExpiryMs = Date.parse(job.expires_at);
-      if (!Number.isFinite(jobExpiryMs) || jobExpiryMs <= nowMs) {
+      if (!Number.isFinite(jobExpiryMs) || jobExpiryMs <= signingStartedMs) {
         return reply({ error: "export_not_ready_or_expired" }, 404);
       }
-      // A signed object link must never outlive the job's own expiry.
-      const ttlSeconds = Math.min(60, Math.floor((jobExpiryMs - nowMs) / 1000));
+      // Leave a one-second transit margin, then verify the remaining job lifetime
+      // after signing so a slow Storage response cannot return an overlong link.
+      const ttlSeconds = Math.min(60, Math.floor((jobExpiryMs - signingStartedMs - 1000) / 1000));
       if (ttlSeconds < 1) return reply({ error: "export_not_ready_or_expired" }, 404);
 
       const admin = deps.createAdminClient(url, serviceKey);
@@ -123,7 +124,11 @@ export function createAsyncExportDownloadHandler(deps: AsyncExportDownloadDepend
       if (signedError || !signed?.signedUrl) {
         return reply({ error: "download_link_creation_failed" }, 500);
       }
-      const expiresAt = new Date(Math.min(nowMs + ttlSeconds * 1000, jobExpiryMs)).toISOString();
+      const signingFinishedMs = (deps.now ?? Date.now)();
+      if (Math.floor((jobExpiryMs - signingFinishedMs) / 1000) < ttlSeconds) {
+        return reply({ error: "export_not_ready_or_expired" }, 404);
+      }
+      const expiresAt = new Date(Math.min(signingStartedMs + ttlSeconds * 1000, jobExpiryMs)).toISOString();
       return reply({
         job_id: job.job_id,
         download_url: signed.signedUrl,
