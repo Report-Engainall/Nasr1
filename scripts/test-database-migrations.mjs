@@ -2477,6 +2477,16 @@ async function main() {
   assert.equal(importSession[0].result.total_chunks, 1, "a small source file should create one upload manifest chunk");
   assert.equal(importSession[0].result.file_type, "csv", "the upload session must use the last filename suffix, not the second dot-delimited segment");
   assert.equal(importSession[0].result.external_source_reference, "ONYX-BATCH-2026-01-A", "upload session must retain the same external source reference");
+  await db.unsafe("update public.import_jobs set external_source_reference=$2 where id=$1::uuid",
+    [importJob.id, "ONYX-BATCH-2026-01-OTHER"]);
+  await expectFailure(
+    "reject a session whose external source batch reference no longer matches its import job",
+    () => db.unsafe("select public.create_import_upload_session($1::uuid)", [importJob.id]),
+    /جلسة الرفع لا تطابق هوية دفعة الاستيراد/i,
+    "22023",
+  );
+  await db.unsafe("update public.import_jobs set external_source_reference=$2 where id=$1::uuid",
+    [importJob.id, "ONYX-BATCH-2026-01-A"]);
   const chunkHash = "c".repeat(64);
   const recordedChunk = await db.unsafe(
     "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
