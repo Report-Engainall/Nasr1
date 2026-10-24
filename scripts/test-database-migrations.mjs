@@ -2697,6 +2697,98 @@ async function main() {
   assert.equal(Number(onyxAnalytics[0].result.metrics.quantity_total), 15, "quantity KPI must include every snapshot row");
   assert.equal(Number(onyxAnalytics[0].result.metrics.revenue_total), 600, "revenue KPI must include every snapshot row");
   assert.equal(onyxAnalytics[0].result.forecast_status, "Forecast Unavailable: Insufficient Historical Data");
+
+  // Partial imports must preserve every absent key from the previous ready snapshot.
+  const partialMergeJobResult = await db.unsafe(
+    "select public.create_import_job($1,$2,$3,$4,$5::uuid,$6,$7) as result",
+    ["CI partial Onyx.stock.csv", "b".repeat(64), 100, "onyx_stock", importJob.profile_id, "2026-01", "ci"],
+  );
+  const partialMergeJob = partialMergeJobResult[0].result;
+  const partialMergeSessionResult = await db.unsafe(
+    "select public.create_import_upload_session($1::uuid) as result",
+    [partialMergeJob.id],
+  );
+  const partialMergeSession = partialMergeSessionResult[0].result;
+  assert.equal(partialMergeSession.file_type, "csv", "the filename's final extension identifies the source format");
+  const partialMergeChunk = await db.unsafe(
+    "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
+    [partialMergeSession.id, 0, 0, 100, "f".repeat(64)],
+  );
+  assert.equal(partialMergeChunk[0].result.complete, true);
+  await db.unsafe(
+    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb)",
+    [partialMergeJob.id, db.json({ item_code: "000127", product_name: "Tea", quantity: "1", revenue: "5", price: "5", date: "2026-01-03" })],
+  );
+  await db.unsafe(
+    \`update public.import_jobs
+        set error_summary=jsonb_build_object(
+          'processing_config_fingerprint', repeat('f',64),
+          'source_file_hash', file_hash,
+          'period_key', period_key,
+          'source_system', source_system,
+          'no_raw_file_retained', true
+        )
+      where id=$1::uuid\`,
+    [partialMergeJob.id],
+  );
+  const finalizedPartialMerge = await db.unsafe(
+    "select public.finalize_import_job($1::uuid,$2) as result",
+    [partialMergeJob.id, "merge"],
+  );
+  assert.equal(finalizedPartialMerge[0].result.status, "completed", "a valid partial import can publish through the established merge contract");
+  assert.equal(Number(finalizedPartialMerge[0].result.row_count), 3, "the merge must retain two old keys absent from the partial file");
+  const mergedCanonicalKeys = await db.unsafe(
+    "select canonical_key from public.onyx_snapshot_rows where snapshot_id=$1::uuid order by canonical_key",
+    [finalizedPartialMerge[0].result.snapshot_id],
+  );
+  assert.deepEqual(mergedCanonicalKeys.map((row) => row.canonical_key), ["000125", "000126", "000127"],
+    "missing keys in a partial source are not deletion instructions");
+  const priorSnapshotStillReady = await db.unsafe(
+    "select status from public.onyx_snapshots where id=$1::uuid",
+    [finalizedImport[0].result.snapshot_id],
+  );
+  assert.equal(priorSnapshotStillReady[0].status, "ready", "a merge must not alter the prior snapshot's history");
+
+  // Rollback archives only the latest published snapshot; it never deletes imported/snapshot rows.
+  const rollbackResult = await db.unsafe(
+    "select public.rollback_import_snapshot($1::uuid,$2) as result",
+    [partialMergeJob.id, "CI regression: validate audited rollback without deleting snapshot rows"],
+  );
+  assert.equal(rollbackResult[0].result.rolled_back, true);
+  assert.equal(rollbackResult[0].result.status, "rolled_back");
+  assert.equal(rollbackResult[0].result.snapshot_status, "archived");
+  assert.equal(rollbackResult[0].result.snapshot_rows_retained, true);
+  const archivedSnapshotRows = await db.unsafe(
+    "select count(*)::integer as count from public.onyx_snapshot_rows where snapshot_id=$1::uuid",
+    [finalizedPartialMerge[0].result.snapshot_id],
+  );
+  assert.equal(archivedSnapshotRows[0].count, 3, "rollback must retain every row as auditable history");
+  const snapshotRollbackAudit = await db.unsafe(
+    "select organization_id,actor_id,action,entity_type,entity_id,new_value from public.audit_logs where entity_id=$1::uuid and action='import.snapshot_rolled_back'",
+    [finalizedPartialMerge[0].result.snapshot_id],
+  );
+  assert.equal(snapshotRollbackAudit.length, 1, "rollback must emit exactly one audit record");
+  assert.equal(snapshotRollbackAudit[0].organization_id, organizationId);
+  assert.equal(snapshotRollbackAudit[0].action, "import.snapshot_rolled_back");
+  assert.equal(snapshotRollbackAudit[0].entity_type, "onyx_snapshot");
+  assert.equal(snapshotRollbackAudit[0].new_value.status, "archived");
+  assert.equal(snapshotRollbackAudit[0].new_value.snapshot_rows_retained, true);
+  const rollbackReplay = await db.unsafe(
+    "select public.rollback_import_snapshot($1::uuid,$2) as result",
+    [partialMergeJob.id, "CI retry after simulated lost rollback response"],
+  );
+  assert.equal(rollbackReplay[0].result.already_rolled_back, true, "lost rollback response must replay instead of archiving/auditing twice");
+  const rollbackAuditCount = await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_id=$1::uuid and action='import.snapshot_rolled_back'",
+    [finalizedPartialMerge[0].result.snapshot_id],
+  );
+  assert.equal(rollbackAuditCount[0].count, 1, "rollback replay must not duplicate the audit event");
+  const rolledBackFailureReplay = await db.unsafe(
+    "select public.fail_import_job_safely($1::uuid,$2::jsonb) as result",
+    [partialMergeJob.id, db.json({ code: "CI_LOST_ROLLBACK_RESPONSE", message: "retry after rollback" })],
+  );
+  assert.equal(rolledBackFailureReplay[0].result.status, "rolled_back");
+  assert.equal(rolledBackFailureReplay[0].result.changed, false, "failure recovery must not downgrade rolled-back status");
   const terminalFailureReplay = await db.unsafe(
     "select public.fail_import_job_safely($1::uuid,$2::jsonb) as result",
     [importJob.id, db.json({ code: "CI_LOST_FINALIZE_RESPONSE", message: "simulated response loss after committed finalization" })],
