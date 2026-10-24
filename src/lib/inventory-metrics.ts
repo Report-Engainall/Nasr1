@@ -12,7 +12,7 @@ export function countLowStockBalances(rows: readonly InventoryMetricBalance[]): 
 
   for (const row of rows) {
     const available = row.quantity_available;
-    const threshold = row.reorder_point === null ? 0 : row.reorder_point;
+    const threshold = row.reorder_point;
 
     if (typeof available !== "number" || !Number.isFinite(available)) continue;
     if (typeof threshold !== "number" || !Number.isFinite(threshold) || threshold < 0) continue;
