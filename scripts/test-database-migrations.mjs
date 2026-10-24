@@ -2512,8 +2512,8 @@ async function main() {
   const uploadFinalChunkBytes = 7;
   const multiChunkFileSize = uploadChunkBytes * 2 + uploadFinalChunkBytes;
   const multiChunkJobResult = await db.unsafe(
-    "select public.create_import_job($1,$2,$3,$4,null,$5,$6) as result",
-    ["CI import contiguous chunks.csv", "b".repeat(64), multiChunkFileSize, "unified_import", "2026-02", "ci"],
+    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+    [randomUUID(), "CI import contiguous chunks.csv", "b".repeat(64), multiChunkFileSize, "unified_import", "CI-MULTI-CHUNK-BATCH", null, "2026-02", "ci", "new_version"],
   );
   const multiChunkJob = multiChunkJobResult[0].result;
   await db.unsafe(
@@ -2741,8 +2741,8 @@ async function main() {
   );
   // Partial imports must preserve every absent key from the previous ready snapshot.
   const partialMergeJobResult = await db.unsafe(
-    "select public.create_import_job($1,$2,$3,$4,$5::uuid,$6,$7) as result",
-    ["CI partial Onyx.stock.csv", "b".repeat(64), 100, "onyx_stock", importJob.profile_id, "2026-01", "ci"],
+    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+    [randomUUID(), "CI partial Onyx.stock.csv", "b".repeat(64), 100, "onyx_stock", "CI-PARTIAL-MERGE-BATCH", importJob.profile_id, "2026-01", "ci", "new_version"],
   );
   const partialMergeJob = partialMergeJobResult[0].result;
   const partialMergeSessionResult = await db.unsafe(
@@ -2887,8 +2887,8 @@ async function main() {
     [importJob.profile_id, organizationId],
   );
   const fullReplaceJobCreated = await db.unsafe(
-    "select public.create_import_job($1,$2,$3,$4,$5::uuid,$6,$7) as result",
-    ["CI complete Onyx.inventory.csv", "d".repeat(64), 100, "onyx_stock", importJob.profile_id, "2026-01", "ci"],
+    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+    [randomUUID(), "CI complete Onyx.inventory.csv", "d".repeat(64), 100, "onyx_stock", "CI-FULL-REPLACE-BATCH", importJob.profile_id, "2026-01", "ci", "new_version"],
   );
   const fullReplaceJob = fullReplaceJobCreated[0].result;
   const fullReplaceSessionCreated = await db.unsafe(
