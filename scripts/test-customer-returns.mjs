@@ -663,7 +663,7 @@ async function main() {
   assert.equal(postedCreditJournal.status,"posted","source guard permits the balanced credit memo posting");
 
   const settlementRows = await db.unsafe(
-    "select i.total_amount::text as invoice_total,coalesce(sum(distinct cp.amount),0)::text as paid, " +
+    "select i.total_amount::text as invoice_total,coalesce(sum(cp.amount),0)::text as paid, " +
     "(select coalesce(sum(cm.total_amount),0) from public.customer_return_credit_memos cm " +
     " where cm.organization_id=i.organization_id and cm.invoice_id=i.id and cm.customer_id=i.customer_id and cm.status='posted')::text as credited " +
     "from public.customer_invoices i left join public.customer_payments cp " +
