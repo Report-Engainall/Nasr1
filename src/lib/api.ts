@@ -31,7 +31,7 @@ async function readWithRetry<T>(operation: () => PromiseLike<SupabaseReadOutcome
 export async function fetchResolvedProductPrices(
   productIds: string[],
   quantity = 1,
-): Promise<Map<string, number>> {
+): Promise<Map<string, number | null>> {
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10000) {
     throw new Error("الكمية المطلوبة لاحتساب السعر غير صالحة.");
   }
@@ -40,7 +40,7 @@ export async function fetchResolvedProductPrices(
   if (uniqueIds.some((id) => typeof id !== "string" || !id.length)) {
     throw new Error("تعذر التحقق من هوية أحد الأصناف.");
   }
-  const prices = new Map<string, number>();
+  const prices = new Map<string, number | null>();
   for (let offset = 0; offset < uniqueIds.length; offset += 500) {
     const chunk = uniqueIds.slice(offset, offset + 500);
     let data: unknown;
@@ -58,6 +58,10 @@ export async function fetchResolvedProductPrices(
     for (const row of data as Array<{ product_id?: unknown; unit_price?: unknown }>) {
       if (typeof row.product_id !== "string" || !chunk.includes(row.product_id) || prices.has(row.product_id)) {
         throw new Error("أعاد الخادم نتيجة أسعار غير متطابقة؛ أُخفيت الأسعار لحماية الحساب.");
+      }
+      if (row.unit_price === null) {
+        prices.set(row.product_id, null);
+        continue;
       }
       const price = Number(row.unit_price);
       if (!Number.isFinite(price) || price < 0) {
@@ -124,17 +128,42 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
 
   return (products as Product[]).map((p) => {
     const displayPrice = isStaff ? Number(p.base_price) : customerPriceMap?.get(p.id);
-    if (displayPrice === undefined || !Number.isFinite(displayPrice) || displayPrice < 0) {
-      throw new Error("تعذر التحقق من سعر فئة الحساب لهذا الصنف؛ لم يُعرض سعر بديل.");
+    if (
+      displayPrice === undefined ||
+      (displayPrice !== null && (!Number.isFinite(displayPrice) || displayPrice < 0))
+    ) {
+      throw new Error("تعذر التحقق من سعر فئة حسابك لهذا الصنف؛ لم يُعرض سعر بديل.");
     }
+
+    // Do not spread a customer query result: explicit projection is a second privacy
+    // boundary if a later query change or mocked response contains internal financial keys.
+    const staffProduct = p as Product & {
+      organization_id?: string;
+      status?: string;
+      created_at?: string;
+    };
+    const productFields: Record<string, unknown> = isStaff
+      ? { ...p, base_price: Number(p.base_price) }
+      : {
+          id: p.id,
+          organization_id: staffProduct.organization_id,
+          category_id: p.category_id,
+          name: p.name,
+          item_code: p.item_code,
+          barcode: p.barcode,
+          description: p.description,
+          unit: p.unit,
+          status: staffProduct.status,
+          image_url: p.image_url,
+          created_at: staffProduct.created_at,
+        };
+
     return {
-      ...p,
-      // Never send the generic base price to customer sessions or persist it as a storefront price.
-      base_price: isStaff ? Number(p.base_price) : 0,
-      display_price: displayPrice,
+      ...productFields,
+      ...(displayPrice === null ? {} : { display_price: displayPrice }),
       inventory: invMap.get(p.id),
       category: catMap.get(p.category_id || ''),
-    };
+    } as unknown as ProductWithInventory;
   });
 }
 

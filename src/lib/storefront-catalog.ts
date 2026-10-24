@@ -29,8 +29,14 @@ function parseProduct(value: unknown): ProductWithInventory {
     throw new Error('وصل سجل كتالوج غير صالح من الخادم؛ لم يُعرض.');
   }
 
-  const displayPrice = finiteNumber(row.display_price, Number.NaN);
-  if (!Number.isFinite(displayPrice) || displayPrice < 0) {
+  // NULL is the explicit server decision to hide catalog pricing; a missing property is malformed.
+  if (row.display_price === undefined) {
+    throw new Error('استجابة السعر من الخادم غير مكتملة؛ لم يُعرض سعر بديل.');
+  }
+  const displayPrice = row.display_price === null
+    ? undefined
+    : finiteNumber(row.display_price, Number.NaN);
+  if (displayPrice !== undefined && (!Number.isFinite(displayPrice) || displayPrice < 0)) {
     throw new Error('تعذر التحقق من السعر المعتمد لهذا الصنف؛ لم يُعرض سعر بديل.');
   }
 
@@ -64,16 +70,12 @@ function parseProduct(value: unknown): ProductWithInventory {
     is_active: row.is_active === true,
     is_featured: row.is_featured === true,
     sort_order: finiteNumber(row.sort_order),
-    price_wholesale_of_wholesale: 0,
-    price_wholesale: 0,
-    price_retail: 0,
-    base_price: finiteNumber(row.base_price),
     stock_quantity: finiteNumber(row.stock_quantity),
     reserved_quantity: 0,
     min_stock_level: 0,
     status: typeof row.status === 'string' ? row.status : 'active',
     created_at: typeof row.created_at === 'string' ? row.created_at : '',
-    display_price: displayPrice,
+    ...(displayPrice === undefined ? {} : { display_price: displayPrice }),
     inventory,
   };
 }
