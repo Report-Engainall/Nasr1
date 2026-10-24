@@ -1,50 +1,22 @@
-# P1 Current Report — live reconciliation 2026-10-24
+# تقرير الحالة التنفيذي — المبرمج 1 / إدارة جلسات الأجهزة المركزية
 
-- Repository: `Report-Engainall/Nasr1`; owner branch: `p1/admin-product-singleflight-20261023`; active PR #97.
-- Live `main` / PR base: `16a3d23e558696700bccbb3dbf9ea75b0fccf745`.
-- P1 task `P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001`: implemented in `src/components/AghbariApp.tsx` with a synchronous `useRef` single-flight guard, visible server errors, retry after failure, and fail-closed category lookup state. Regression coverage in `src/test/admin-product-double-submit.test.tsx` covers duplicate create/update, category recovery, and failed save/update retry.
-- Functional/test head `6dfe404b51a414ae953cfeb765b6a58ea2874264`: Core [40035835482 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035835482) and P2 [40035835461 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035835461) both passed on the same SHA. The subsequent checkpoint-only commit `a90bb513e0b07bf04e1fd842b72d2368d868c0ed` does **not** inherit those passes.
-- This current-report-only commit is also documentation-only and advances PR #97's HEAD. Read live PR metadata after this commit and run Core plus P2 on that exact resulting SHA; record terminal outcomes before treating #97 as ready to merge. The workflow trigger requires the P3-owned authenticated GitHub workflow procedure, as delegated by the team; no claim is made that CI ran on this report update.
-- PR #97 remains OPEN / UNMERGED. Authorized independent human approval is NOT RECORDED; reviewer `adnanabderab2016-sys` is requested. Outdated CodeRabbit formatting threads are resolved after checking the current source/test are formatted and prior exact functional-head CI passed.
-- PR #119 exact head `a1a17bcf9ae320ea39680421a83e4b32deef3c67`: Core [40036273431 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273431), P2 [40036273465 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40036273465); logs confirm the exact `e2e/customer-manager-authorization.spec.ts` ran and passed. PR is ready for review; formal independent approval remains outstanding.
-- PR #107 exact head `6ee0eb1df7872e44c3d116dd0990c6f959773184`: Core [40035843139 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035843139), P2 [40035843245 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035843245); five Chromium price-visibility assertions passed.
-- PR #124 exact head `95e0073e6d9db5e4c1a386866cb63d926249fdf9`: Core [40035851261 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035851261), P2 [40035851352 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035851352); Chromium Tab-navigation and Arabic accessible-name test passed.
-- PR #102 exact head `999d4c5cef2ef58e73ed50d535a29e6f1120a1ad`: Core [40035839468 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035839468), P2 [40035839465 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035839465); Chromium export hydration test for `/admin/exports` passed.
-- In #107/#124/#102, hosted credential-gated customer/tenant E2E remains `SKIPPED / BLOCKED_EXTERNAL`, not PASS; production proof is NOT RUN. Formal human approval remains outstanding on all three.
-- No new PRs were created and no P2-owned SQL/RPC/RLS/migrations/workflows or central state/matrix/coordination files were changed. P3-owned #89 routes/files were not changed.
-- NEXT_ACTION: P3 triggers Core and P2 on the exact post-report PR #97 HEAD and records terminal results; independently review #97 and #119 when exact-head checks are ready. Keep all P1 PRs unmerged until an authorized independent reviewer records a formal decision; then merge eligible PRs serially and verify post-merge main CI.
-- Updated: 2026-10-24.
+- **المستودع:** `Report-Engainall/Nasr1`
+- **فرع P1 الحالي:** `p1/central-device-session-ui-20261023`
+- **PR الحالي:** [#88 — Draft/open، غير مدمج](https://github.com/Report-Engainall/Nasr1/pull/88)
+- **BASE_SHA لإعادة التكامل:** `8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2`
+- **رأس الميزة قبل إعادة التكامل:** `0d51e2090951e1dab80d4fbdf8e92bcfbb256de8`
+- **آخر رأس وظيفي مختبَر بدقة:** `5114ea8227f570662533219af1dc3a013cd49f75` — Core CI **SUCCESS** [39981579136](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579136)؛ P2 Playwright **SUCCESS** [39981579236](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579236)، بما يشمل Chromium/Supabase المحلي لاختبار صلاحية وإلغاء الجلسة فورًا.
+- **المهمة:** `P1-DEVICE-SESSION-MGMT-UI-001` — ربط إدارة الأجهزة والجلسات بعقد الخادم، ورفض بيانات الجلسات غير الصحيحة، وحماية الجلسة الحالية، واشتراط إقرار مطابق من الخادم قبل إظهار نجاح الإلغاء.
+- **الاختبارات المثبتة على الرأس السابق فقط:** Core CI [39977276920 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276920)؛ P2 Playwright [39977276972 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/39977276972). خطوة Chromium الخاصة بتفويض إدارة الجلسات والإلغاء الفوري نجحت مع Supabase محلي معزول.
+- **المتبقي:** التحقق من CI على commit التوثيق الحالي؛ اختبار الحساب الخارجي تخطّاه حاجز الاعتماد؛ الإنتاج NOT RUN.
+- **الملفات في صافي التغيير المقصود:** هذا التقرير ونقطة الاستئناف وواجهة الجلسات واختبارها وأدوات/اختبارات Playwright الخاصة بـP1.
+- **NEXT_ACTION:** فحص Core وP2 Playwright على رأس commit التوثيق الحالي. إذا نجحا وظل صافي الملفات ضمن ملكية P1، اجعل PR #88 جاهزًا وادمجه عبر GitHub ثم تحقق من SHA الدمج وCI الخاص بـ`main`.
+- **حدود الإثبات:** نجاح المتصفح المحلي يخص تدفق الجلسات الذي اختُبر؛ لا يثبت الحسابات الخارجية أو الإنتاج.
 
----
+> الأقسام التالية تحتفظ بالسجل التاريخي من تكاملات سابقة؛ هذا الملخص هو نقطة الاستئناف الحالية لهذا الفرع.
 
-# تقرير الحالة التنفيذي — P1 / واجهات العميل والتجارة والإدارة
-
-- المستودع: Report-Engainall/Nasr1.
-- الفرع: p1/admin-product-singleflight-20261023.
-- MAIN_SHA / BASE_SHA: b48a4b2e8ae09e87432b49dab591a23e1be651c6.
-- رأس العمل المختبر قبل هذه الدفعة التوثيقية: 30795c3d370ae6044a6ba83fd2c97fdf60781d97. الرأس الناتج عن تحديث التقارير يحتاج فحوصه الخاصة؛ لا تنقل إليه نجاحات الرأس السابق.
-- PR #97: Core [40024340859 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024340859) وP2 [40024340801 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024340801) على SHA نفسه. الفرق أربعة ملفات P1 فقط؛ hosted customer/tenant E2E SKIPPED / BLOCKED_EXTERNAL، وProductModal-specific browser proof والإنتاج NOT RUN.
-- PR #124: الرأس 671c12ff75449009e90aebbcd3f2926d13421e46؛ Core [40024250407 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024250407) وP2 [40024250291 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024250291) على SHA نفسه.
-- PR #107: الرأس 7becbdc71f2fb7ef1202578157ca0617a0b93356؛ Core [40023658718 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40023658718) وP2 [40023658606 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40023658606) على SHA نفسه.
-- PR #102: الرأس 64e35ea154d83c14472a887c9ec9abd733f8cb16؛ Core [40025905333 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40025905333) وP2 [40025905186 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40025905186). صافي الفرق أربعة ملفات واجهة/اختبار P1 فقط؛ لا تعديل لسير العمل المشترك أو ملف E2E الإضافي.
-- PR #119: الرأس a70e2775d1be01f89a315b241c147147fd1183fb؛ Core [40022445712 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445712)، بينما P2 [40022445722 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/40022445722): رفض المؤسسة الأخرى يعيد HTTP 500 / P0002. اختبار P1 ما زال يفشل عن قصد على هذا العقد، ولا يعتبر حماية الصف من التغيير كافيًا لإعلان PASS.
-- PR #131 في ملكية P2: الرأس f88d72e497eed851c425dfaa7b9eeca1291ee411؛ Core [40024841272 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024841272) وP2 [40024841182 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40024841182). الإصلاح يعيد SQLSTATE 42501 للرفض العابر للمؤسسات مع الحفاظ على صلاحية customer_manager داخل المؤسسة الصحيحة، لكنه لم يُدمج بعد.
-- المراجعة: لا توجد موافقة مستقلة مخولة لـ#97/#107/#119/#124/#131؛ تعليقات #102 لا تعادل APPROVE. لم يدمج P1 أي طلب.
-- NEXT_ACTION: P1-PR119-RETEST-AFTER-P2-131-MERGE-001 — بعد المراجعة المستقلة ودمج #131، أعد مزامنة #119 مع main وشغّل Core وP2 على SHA واحد.
-- UPDATED_AT: 2026-10-23T21:30:00Z.
-
-## P1-ADMIN-PRODUCT-DOUBLE-SUBMIT-001 — سجل التنفيذ
-
-تمت مزامنة الفرع مع main عبر merge commit عادي يحافظ على سجل الفرعين. `ProductModal` يستخدم حارس `useRef` متزامنًا لمنع طلبات إنشاء/تحديث مزدوجة قبل إعادة التصيير. أخطاء الخادم تبقى ظاهرة، وتتحرر الحماية للسماح بإعادة المحاولة بعد الفشل؛ فشل تحميل التصنيفات يمنع الكتابة حتى إعادة تحميل ناجحة.
-
-- Core [40018287119 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40018287119) وP2 [40018287061 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40018287061) على SHA `87a2ff8d38cf050c10dda50e92b9e2fd97941898`.
-- لم يحدث اتصال إنتاجي. Hosted customer E2E بقي `SKIPPED / BLOCKED_EXTERNAL`.
-- لا دمج قبل المراجعة المستقلة المخولة.
 
 ## 1. إغلاق تحويل المخزون متعدد الأصناف
-
-
-
 
 - **الحالة:** مندمج ومختبر. [PR #3](https://github.com/Report-Engainall/Nasr1/pull/3) أُغلق بالدمج؛ [PR #2](https://github.com/Report-Engainall/Nasr1/pull/2) المكرر بقي مغلقًا دون دمج.
 - **الرأس الذي اختُبر:** `01ef17b05c2bf507003efccbb897f76318e0df02`.

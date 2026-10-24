@@ -30,8 +30,7 @@ function pendingCartProduct(productId: string): ProductWithInventory {
   return {
     id: productId, name: 'صنف محفوظ — جار تحديث بياناته', name_en: null, item_code: '', sku: null, barcode: null,
     category_id: null, brand_id: null, unit: 'وحدة', description: null, image_url: null, is_active: false, is_featured: false,
-    sort_order: 0, price_wholesale_of_wholesale: 0, price_wholesale: 0, price_retail: 0, base_price: 0,
-    stock_quantity: 0, reserved_quantity: 0, min_stock_level: 0, status: 'pending', display_price: 0,
+    sort_order: 0, stock_quantity: 0, reserved_quantity: 0, min_stock_level: 0, status: 'pending',
   };
 }
 type StoreView = 'shop' | 'product' | 'wishlist' | 'compare' | 'matrix' | 'cart' | 'checkout' | 'confirm';
