@@ -28,6 +28,7 @@ import {
 } from '@/components/AdminPages';
 import { OperationsCenter } from '@/components/OperationsCenter';
 import { buildBusinessSignals, buildBusinessStatusBreakdown } from '@/lib/business-intelligence';
+import { dashboardAverageOrderDisplay, dashboardSalesDisplay } from '@/lib/dashboard-metrics';
 import { PricingGrid } from '@/components/PricingGrid';
 import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
@@ -241,22 +242,31 @@ export function AdminApp({ initialView = 'dashboard' }: { initialView?: View }) 
 function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
   const { data: stats, loading, error, refetch } = useFetch(fetchDashboardStats);
   const { data: alerts } = useFetch(fetchAiAlerts);
-  const { data: products } = useFetch(fetchProducts);
+  const { data: products, loading: productsLoading, error: productsError } = useFetch(fetchProducts);
   if (loading) return <><Heading eyebrow="مركز التشغيل" title="لوحة المعلومات" description="صورة مباشرة لأداء الأعمال اليومي" icon={LayoutDashboard} /><Loading /></>;
   if (error) return <ErrorBox message={error} />;
-  const lowStock = products?.filter((p) => (p.inventory?.quantity_available ?? 0) <= (p.inventory?.reorder_point ?? p.min_stock)).slice(0, 4) ?? [];
+  const lowStock = products?.filter((product) => {
+    const quantity = product.inventory?.quantity_available;
+    const reorderPoint = product.inventory?.reorder_point ?? product.min_stock;
+    return typeof quantity === 'number' && Number.isFinite(quantity)
+      && typeof reorderPoint === 'number' && Number.isFinite(reorderPoint)
+      && quantity <= reorderPoint;
+  }).slice(0, 4) ?? [];
+  const salesValue = stats ? dashboardSalesDisplay(stats, formatCurrency) : 'غير متاح';
+  const processingValue = stats ? formatNumber(stats.processingCount) : 'غير متاح';
+  const lowStockValue = !stats || stats.lowStockCount === null ? 'غير متاح' : formatNumber(stats.lowStockCount);
   const cards = [
-    ['المبيعات المسجلة', formatCurrency(stats?.totalSales ?? 0), 'إجمالي الطلبات', CircleDollarSign, 'teal'],
-    ['الطلبات', formatNumber(stats?.orderCount ?? 0), 'كل الطلبات المسجلة', ShoppingCart, 'blue'],
-    ['العملاء', formatNumber(stats?.customerCount ?? 0), 'حسابات العملاء', Users, 'cyan'],
-    ['المنتجات النشطة', formatNumber(stats?.productCount ?? 0), 'في الكتالوج', Box, 'green'],
-    ['قيد المعالجة', formatNumber(stats?.processingCount ?? 0), 'تحتاج متابعة', Activity, 'orange'],
-    ['مخزون منخفض', formatNumber(stats?.lowStockCount ?? 0), 'يحتاج إعادة طلب', AlertTriangle, 'red'],
+    ['المبيعات المسجلة', salesValue, 'إجمالي الطلبات', CircleDollarSign, 'teal'],
+    ['الطلبات', stats ? formatNumber(stats.orderCount) : 'غير متاح', 'كل الطلبات المسجلة', ShoppingCart, 'blue'],
+    ['العملاء', stats ? formatNumber(stats.customerCount) : 'غير متاح', 'حسابات العملاء', Users, 'cyan'],
+    ['المنتجات النشطة', stats ? formatNumber(stats.productCount) : 'غير متاح', 'في الكتالوج', Box, 'green'],
+    ['قيد المعالجة', processingValue, 'تحتاج متابعة', Activity, 'orange'],
+    ['مخزون منخفض', lowStockValue, 'يحتاج إعادة طلب', AlertTriangle, 'red'],
   ] as const;
   return <>
     <div className="hero"><div><span className="hero-kicker">نظرة تنفيذية مباشرة</span><h1>قرارات أفضل، بتشغيل أذكى</h1><p>تتابع الأغبري الطلبات والمخزون والعملاء في مكان واحد، مع مؤشرات واضحة تساعدك على التحرك بسرعة.</p></div><Button onClick={refetch} variant="secondary"><RefreshCw size={16} /> تحديث البيانات</Button></div>
     <div className="stats-grid">{cards.map(([label, value, note, Icon, color]) => <article className={`stat-card ${color}`} key={label}><div className="stat-top"><Icon size={22} /><span>{note}</span></div><small>{label}</small><strong>{value}</strong></article>)}</div>
-    <div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h2>تنبيهات التشغيل</h2><p>أهم ما يحتاج انتباهك الآن</p></div><Button variant="outline" onClick={() => onNavigate('ai')}>مركز الذكاء <ChevronLeft size={15} /></Button></div>{alerts?.filter((a) => !a.is_resolved).slice(0, 4).map((alert) => <div className="alert-row" key={alert.id}><span className={`severity ${alert.severity}`}><AlertTriangle size={16} /></span><div><strong>{alert.title}</strong><p>{alert.body}</p></div><ChevronLeft size={16} /></div>) ?? <Empty text="لا توجد تنبيهات نشطة" />}</section><section className="panel"><div className="panel-head"><div><h2>الأصناف التي تحتاج متابعة</h2><p>حسب حد إعادة الطلب</p></div><Button variant="outline" onClick={() => onNavigate('products')}>إدارة المنتجات</Button></div>{lowStock.length ? lowStock.map((product) => <div className="stock-row" key={product.id}><div className="product-avatar"><Package size={17} /></div><div><strong>{product.name}</strong><span>{product.item_code}</span></div><b className={(product.inventory?.quantity_available ?? 0) === 0 ? 'critical' : ''}>{formatNumber(product.inventory?.quantity_available ?? 0)} {product.unit}</b></div>) : <Empty text="المخزون ضمن الحدود الآمنة" />}</section></div>
+    <div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h2>تنبيهات التشغيل</h2><p>أهم ما يحتاج انتباهك الآن</p></div><Button variant="outline" onClick={() => onNavigate('ai')}>مركز الذكاء <ChevronLeft size={15} /></Button></div>{alerts?.filter((a) => !a.is_resolved).slice(0, 4).map((alert) => <div className="alert-row" key={alert.id}><span className={`severity ${alert.severity}`}><AlertTriangle size={16} /></span><div><strong>{alert.title}</strong><p>{alert.body}</p></div><ChevronLeft size={16} /></div>) ?? <Empty text="لا توجد تنبيهات نشطة" />}</section><section className="panel"><div className="panel-head"><div><h2>الأصناف التي تحتاج متابعة</h2><p>حسب حد إعادة الطلب</p></div><Button variant="outline" onClick={() => onNavigate('products')}>إدارة المنتجات</Button></div>{productsLoading ? <Loading /> : productsError ? <ErrorBox message={productsError} /> : !products ? <Empty text="بيانات المخزون غير متاحة؛ لم يتم اعتبارها صفرًا." /> : lowStock.length ? lowStock.map((product) => <div className="stock-row" key={product.id}><div className="product-avatar"><Package size={17} /></div><div><strong>{product.name}</strong><span>{product.item_code}</span></div><b className={product.inventory?.quantity_available === 0 ? 'critical' : ''}>{formatNumber(product.inventory?.quantity_available as number)} {product.unit}</b></div>) : stats?.lowStockCount === null ? <Empty text="لم يتم تحديد مستودع؛ تعذر الجزم بأن المخزون ضمن الحدود الآمنة." /> : <Empty text="لا توجد أصناف منخفضة المخزون ضمن بيانات المستودع الحالية." />}</section></div>
     <section className="quick-panel"><div><Sparkline /><strong>تشغيل مترابط من لوحة واحدة</strong><p>افتح أي وحدة لإدارة التفاصيل وتحديث البيانات مباشرة.</p></div><div className="quick-links">{nav.slice(1, 7).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => onNavigate(id)}><Icon size={17} />{label}</button>)}</div></section>
   </>;
 }
@@ -1160,12 +1170,14 @@ function Offers({ onNotice }: { onNotice: (m: string) => void }) { return <Promo
 
 function Reports() {
   const { data: stats, loading, error } = useFetch(fetchDashboardStats);
-  const { data: products } = useFetch(fetchProducts);
+  const { data: products, loading: productsLoading, error: productsError } = useFetch(fetchProducts);
   const { data: orders, loading: ordersLoading, error: ordersError } = useFetch(fetchOrders);
   const signals = useMemo(() => buildBusinessSignals(orders ?? []), [orders]);
   const statusBreakdown = useMemo(() => buildBusinessStatusBreakdown(orders ?? []), [orders]);
   const inventoryValue = useMemo(() => {
-    if (!products) return 'غير متاح';
+    if (productsLoading) return 'جارٍ تحميل بيانات المخزون…';
+    if (productsError) return 'غير متاح — تعذر تحميل بيانات المخزون';
+    if (!products) return 'غير متاح — لم يتم تأكيد البيانات';
     let total = 0;
     for (const product of products) {
       const price = product.base_price;
@@ -1175,17 +1187,18 @@ function Reports() {
         typeof quantity !== 'number' || !Number.isFinite(quantity)
       ) return 'غير متاح';
       total += price * quantity;
+      if (!Number.isFinite(total) || Math.abs(total) > Number.MAX_SAFE_INTEGER) return 'غير متاح — تعذر جمع القيمة بأمان';
     }
     return formatCurrency(total);
-  }, [products]);
+  }, [products, productsLoading, productsError]);
   return <>
     <Heading eyebrow="التحليل التنفيذي" title="التقارير الذكية" description="مؤشرات قابلة للتنفيذ مبنية على البيانات التشغيلية الحالية" icon={BarChart3} />
     <div className="report-hero"><div><span>ملخص الأداء</span><h2>الأغبري في أرقام</h2><p>تتحدث المؤشرات من قاعدة البيانات مباشرة.</p></div><TrendingUp size={50} /></div>
     {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <div className="report-grid">
-      <ReportMetric label="إجمالي المبيعات" value={formatCurrency(stats?.totalSales ?? 0)} icon={CircleDollarSign} />
-      <ReportMetric label="متوسط قيمة الطلب" value={formatCurrency((stats?.totalSales ?? 0) / Math.max(stats?.orderCount ?? 1, 1))} icon={ShoppingCart} />
+      <ReportMetric label="إجمالي المبيعات" value={stats ? dashboardSalesDisplay(stats, formatCurrency) : 'غير متاح'} icon={CircleDollarSign} />
+      <ReportMetric label="متوسط قيمة الطلب" value={stats ? dashboardAverageOrderDisplay(stats, formatCurrency) : 'غير متاح'} icon={ShoppingCart} />
       <ReportMetric label="قيمة المخزون المعروضة" value={inventoryValue} icon={Package} />
-      <ReportMetric label="الأصناف منخفضة المخزون" value={formatNumber(stats?.lowStockCount ?? 0)} icon={AlertTriangle} />
+      <ReportMetric label="الأصناف منخفضة المخزون" value={!stats || stats.lowStockCount === null ? 'غير متاح' : formatNumber(stats.lowStockCount)} icon={AlertTriangle} />
     </div>}
     <div style={{ marginTop: 16 }}><UnifiedOnyxAnalysisPanel /></div>
     <ExecutiveStoreAnalytics />
@@ -1213,7 +1226,7 @@ function Reports() {
         </tbody></table></TableWrap>}
       <p className="report-note" style={{ marginTop: 10 }}>النسب من مجموعة الطلبات المحمّلة فقط. إذا احتوى وضعٌ ما على مبلغ غير صالح، يبقى عدد الطلبات ظاهرًا وتُحجب القيمة المالية لذلك الوضع.</p>
     </section>
-    <section className="panel report-note"><FileText size={21} /><div><h2>قرار اليوم</h2><p>{(stats?.lowStockCount ?? 0) > 0 ? 'ابدأ بمراجعة الأصناف منخفضة المخزون قبل استقبال الطلبات الجديدة.' : 'المخزون ضمن الحدود الآمنة. ركّز على نمو المبيعات والعملاء الجدد.'}</p></div></section>
+    <section className="panel report-note"><FileText size={21} /><div><h2>قرار اليوم</h2><p>{!stats || stats.lowStockCount === null ? 'تعذر إصدار قرار موثوق للمخزون؛ تحقق من ارتباط المستودع واكتمال قراءة الأرصدة أولًا.' : stats.lowStockCount > 0 ? 'ابدأ بمراجعة الأصناف منخفضة المخزون قبل استقبال الطلبات الجديدة.' : 'لا توجد أصناف أقل من حدود إعادة الطلب في المستودع الذي تم التحقق منه. ركّز على مراجعة المبيعات والعملاء.'}</p></div></section>
   </>;
 }
 function ReportMetric({ label, value, icon: Icon }: { label: string; value: string; icon: IconType }) { return <article className="report-metric"><Icon size={23} /><span>{label}</span><strong>{value}</strong></article>; }
