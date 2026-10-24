@@ -35,8 +35,8 @@ describe('dashboard KPI evidence integrity', () => {
     expect(metrics.totalSales).toBeNull();
     expect(metrics.invalidOrderAmountCount).toBe(5);
     expect(metrics.totalSalesIssue).toBe('invalid_amount');
-    expect(dashboardSalesDisplay(metrics, currency)).toBe('غير مكتمل — 5 مبلغ غير صالح');
-    expect(dashboardAverageOrderDisplay(metrics, currency)).toBe('غير مكتمل — 5 مبلغ غير صالح');
+    expect(dashboardSalesDisplay(metrics, currency)).toBe('غير مكتمل — ٥ مبلغ غير صالح');
+    expect(dashboardAverageOrderDisplay(metrics, currency)).toBe('غير مكتمل — ٥ مبلغ غير صالح');
   });
 
   it('keeps a complete numeric total including a valid zero amount', () => {
