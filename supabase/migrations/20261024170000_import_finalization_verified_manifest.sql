@@ -46,6 +46,9 @@ DECLARE
   v_job public.import_jobs%ROWTYPE;
   v_session public.import_upload_sessions%ROWTYPE;
   v_profile public.import_profiles%ROWTYPE;
+  v_result jsonb;
+  v_new_snapshot uuid;
+  v_prior_snapshot public.onyx_snapshots%ROWTYPE;
   v_chunk_count integer;
   v_min_chunk integer;
   v_max_chunk integer;
@@ -180,7 +183,55 @@ BEGIN
   -- All writes made by the snapshot builder run in this RPC transaction. If it raises,
   -- job status and snapshot changes roll back together; intentional manual_review/rejected
   -- returns remain explicit terminal decisions with no ready snapshot.
-  RETURN public.finalize_import_job_without_manifest_guard(p_job_id, p_duplicate_action);
+  v_result := public.finalize_import_job_without_manifest_guard(p_job_id, p_duplicate_action);
+
+  -- Only after the replacement has produced a completed ready snapshot do we retire
+  -- prior snapshots in the same tenant/profile/period. A rejected/manual-review result
+  -- never archives the previously live snapshot.
+  IF p_duplicate_action = 'replace' AND v_result->>'status' = 'completed' THEN
+    v_new_snapshot := NULLIF(v_result->>'snapshot_id','')::uuid;
+    IF v_new_snapshot IS NULL THEN
+      RAISE EXCEPTION USING ERRCODE='40001',
+        MESSAGE='اعتمد الاستبدال دون إعادة معرّف اللقطة؛ تم إلغاء المعاملة لحماية اللقطة السابقة';
+    END IF;
+
+    FOR v_prior_snapshot IN
+      SELECT s.*
+        FROM public.onyx_snapshots s
+       WHERE s.organization_id=v_org
+         AND s.profile_id=v_job.profile_id
+         AND s.period_key IS NOT DISTINCT FROM v_job.period_key
+         AND s.status='ready'
+         AND s.id IS DISTINCT FROM v_new_snapshot
+       ORDER BY s.snapshot_version
+       FOR UPDATE
+    LOOP
+      UPDATE public.onyx_snapshots
+         SET status='archived'
+       WHERE id=v_prior_snapshot.id
+         AND organization_id=v_org
+         AND status='ready';
+
+      INSERT INTO public.audit_logs(
+        organization_id,actor_id,action,entity_type,entity_id,old_value,new_value,created_at
+      )
+      VALUES(
+        v_org,v_actor,'import.snapshot_replaced','onyx_snapshot',v_prior_snapshot.id,
+        pg_catalog.jsonb_build_object(
+          'status','ready','source_import_job_id',v_prior_snapshot.source_import_job_id,
+          'source_file_hash',v_prior_snapshot.source_file_hash,
+          'snapshot_version',v_prior_snapshot.snapshot_version,'row_count',v_prior_snapshot.row_count
+        ),
+        pg_catalog.jsonb_build_object(
+          'status','archived','replacement_snapshot_id',v_new_snapshot,
+          'replacement_import_job_id',v_job.id,'reason','explicit replace of a verified full dataset'
+        ),
+        pg_catalog.now()
+      );
+    END LOOP;
+  END IF;
+
+  RETURN v_result;
 END;
 $function$;
 
