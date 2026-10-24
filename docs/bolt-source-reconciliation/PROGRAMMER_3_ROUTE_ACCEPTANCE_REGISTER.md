@@ -17,7 +17,7 @@ Purpose: route-to-evidence traceability for ROUTES-001. This does not replace th
 ## Live reconciliation — 24 October 2026 (post-merge #190)
 
 - **Current main:** `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. PR #186 is merged and includes route recovery, customer-order accessibility/pagination and browser deep-link/hydration acceptance for `/admin/exports`; PR #187 is merged with statement authorization/fail-closed and cross-tenant manager-denial coverage.
-- **Latest current-main release gate:** Core run 40127500733 was IN_PROGRESS at last poll; PostgreSQL 17 run 40127500750 completed SUCCESS on exact main SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. The full release gate remains pending Core.
+- **Latest current-main release gate:** Core run 40127500733 and PostgreSQL 17 run 40127500750 both completed SUCCESS on exact main SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. The hosted customer/tenant journey remains SKIPPED/BLOCKED_EXTERNAL without authorized test credentials; do not conflate it with local Core/PG17 acceptance.
 - **PR #190 security acceptance:** exact head `5becc27a3f32896b1814aab80433ba7b8c8008ae` passed Core, P2/local Supabase and async-export PostgreSQL 17. It is now merged as `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; hosted authenticated customer E2E remained SKIPPED.
 - `PROVEN_TARGETED` denotes targeted route evidence, not complete production UAT. External customer/tenant journeys, production writes, Onyx synchronization, WhatsApp delivery and live AI use remain unproven without actual authorized evidence.
 
