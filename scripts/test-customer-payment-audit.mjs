@@ -179,10 +179,9 @@ async function main() {
     "raw idempotency key must not be stored in audit data",
   );
   process.stdout.write(
-    "PASS customer payment audit: tenant/invoice/customer match, active finance actor, one event per idempotent write, payload conflict rejection, no raw key or notes\\n",
+    "PASS customer payment audit: tenant/invoice/customer match, active finance actor, one event per idempotent write, payload conflict rejection, no raw key or notes\n",
   );
 }
-
 
 main()
   .catch((error) => {
@@ -195,7 +194,7 @@ main()
       stack: error?.stack,
     };
     process.stderr.write(
-      "CUSTOMER_PAYMENT_AUDIT_ACCEPTANCE_FAILED " + JSON.stringify(details) + "\\n",
+      "CUSTOMER_PAYMENT_AUDIT_ACCEPTANCE_FAILED " + JSON.stringify(details) + "\n",
     );
     process.exitCode = 1;
   })
