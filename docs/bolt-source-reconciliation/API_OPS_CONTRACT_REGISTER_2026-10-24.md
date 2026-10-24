@@ -1,6 +1,8 @@
 # سجل عقود API والمهام الخلفية — Nasr1
 
-## LIVE EXECUTION CHECKPOINT — 24 October 2026 (after PR #190)
+## HISTORICAL EXECUTION CHECKPOINT — PR #190 baseline (24 October 2026)
+
+> This section records the earlier e467 baseline; it is not the live checkpoint after PRs #194, #196 and #197. See the addendum below for newer merge/test evidence.
 
 - **Repository:** `Report-Engainall/Nasr1`; production reference: `main`.
 - **Verified main merge:** PR #190 merged at `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Exact PR-head Core 40127113576, async-export PostgreSQL 17 40127113568 and P2 40127113571 passed.
@@ -9,6 +11,17 @@
 - **Status:** `PARTIAL`. 179 callable RPC candidates still require source-backed review of authentication/role, tenant scope, mutation effects, idempotency, retry and audit consistency.
 - **Owner authority:** the owner explicitly authorized this integration and ready merges; older no-approval text in historical snapshots is superseded. Exact-head CI, migration order and post-merge confirmation remain technical gates.
 - **External boundaries:** hosted customer E2E is SKIPPED; production mutation/deployment/restore, real Onyx import/sync, WhatsApp delivery and live AI-provider calls are not claimed.
+
+## LIVE EXECUTION ADDENDUM — 24 October 2026 (after #196 and #197; #198 gate active)
+
+- **Current main pointer at this addendum:** `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb`; earlier `e467c782bec0e19ddab6c5ddaa72aaa073d7283b` remains the source tree used for the last documented 310/310 catalog inventory.
+- **#196 export parity:** merged at `6f73438bb1c2e90bd3daffde0701df29b3df8553`; exact-head Core 40130250564 and P2 40130250519 passed; post-merge Core 40130620987 passed on that merge SHA.
+- **#197 DQS statuses:** merged at `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb`; exact-head Core 40130345683 and P2 40130345655 passed. Post-merge Core 40130696335 was pending terminal completion at last poll.
+- **#198 admin route mount acceptance:** open at head `67ea3d0d20216697cf35d70e54897d6128c50176`; Core 40130584912 passed; P2 40130584867 was still in progress. The tests verify mount/link/wrapper for 22 admin URLs; they do not close all per-screen behavior, role/data workflows, hosted E2E, or production UAT.
+- **Owner authorization:** owner authorizes ready merges without separate review; exact-head CI and post-merge state checks remain required.
+- **Still PARTIAL:** 179 callable RPC semantic contracts remain; hosted customer/tenant E2E, live Onyx/WhatsApp/AI providers, production DB/deploy/restore are not proven.
+
+---
 
 ## NEXT_ACTION
 
@@ -409,7 +422,7 @@
 3. اتصال AI بمزوّد فعلي: لا يُدّعى دون اعتماد صالح واستجابة فعلية. غياب المفتاح ينتج fallback/خطأ صريحًا.
 4. اختبارات حساب العميل/المؤسسة المستضافة: **BLOCKED_EXTERNAL** إذا لم تتوفر اعتمادات اختبار غير إنتاجية مخولة.
 5. عقد السعر المخفي في الكتالوج: **CLOSED_WITH_EVIDENCE** عبر [PR #145](https://github.com/Report-Engainall/Nasr1/pull/145)، المدمج على main بعد #144. العقد الجديد يعيد NULL/غياب السعر بدل sentinel صفري، مع قائمة حقول مسموحة تمنع تسرب base/tier price والتكلفة والهامش. لا تعد استخدام حالة `unit_price=0` التاريخية كحالة حالية؛ افحص regression فقط إذا ظهر مستهلك جديد أو انحدار مثبت.  
-6. **DQS follow-up identified on merged #146:** `calculate_import_job_quality` currently scores each row as 100% valid whenever `status <> 'rejected'`. The base schema declares `import_job_rows.status` as free text defaulting to `pending` and no CHECK constraint, so `pending` or `invalid` rows can incorrectly earn validity points. Existing PG17 tests exercise `valid` rows and impossible dates but do not test pending/invalid status semantics. **OPEN — implement a forward migration after the outstanding 13:30–14:50 migration sequence and add PostgreSQL 17 assertions for `valid`, `invalid`, `pending`, and `rejected` statuses.** The current main does not yet include that follow-up fix.
+6. **DQS status-scoring verification — implementation already merged; regression acceptance now merged.** Migration `20261024153000_import_quality_valid_row_scoring.sql` makes only `status = 'valid'` contribute validity points; all other states, including `invalid`, `pending`, `rejected`, and unrecognized values, score zero. PR #197 added a PostgreSQL 17 five-row status matrix asserting `total_rows=5` and validity component `20`. Exact PR head `4ec6a660f57947064376154c74d1e311bde57f4e` passed Core run [40130345683](https://github.com/Report-Engainall/Nasr1/actions/runs/40130345683) and P2 run [40130345655](https://github.com/Report-Engainall/Nasr1/actions/runs/40130345655); it merged as `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb`. Post-merge Core run [40130696335](https://github.com/Report-Engainall/Nasr1/actions/runs/40130696335) was still in progress at the last status check. Do not duplicate the migration; confirm the post-merge run reaches a terminal success.
 
 ## HISTORICAL NEXT_ACTION (superseded by the live checkpoint above)
 
