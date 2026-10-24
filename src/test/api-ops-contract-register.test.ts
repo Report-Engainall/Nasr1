@@ -12,10 +12,11 @@ const register = readFileSync(registerPath, "utf8");
 
 describe("API-OPS semantic contract register", () => {
   it("keeps one authoritative live checkpoint and a concrete resume action", () => {
-    expect(register).toContain("AUTHORITATIVE RECONCILIATION");
+    expect(register).toContain("LIVE EXECUTION CHECKPOINT");
     expect(register).toContain("## NEXT_ACTION");
-    expect(register).toContain("Poll Core/P2");
-    expect(register).toContain("Do not bypass repository-enforced checks");
+    expect(register).toContain("exact-head CI");
+    expect(register).toContain("the owner explicitly authorized this integration");
+    expect(register).not.toContain("Do not merge without actual approval");
   });
 
   it("records semantic review beyond source-name inventory", () => {
