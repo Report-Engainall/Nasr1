@@ -3685,6 +3685,14 @@ async function main() {
     assert.equal(Number(concurrentBalanceFor(productId, transferDestinationId).quantity_on_hand), 3);
     assert.equal(Number(concurrentBalanceFor(batchProductId, testWarehouseId).quantity_on_hand), 9);
     assert.equal(Number(concurrentBalanceFor(batchProductId, transferDestinationId).quantity_on_hand), 1);
+    assert.equal(Number(concurrentBalanceFor(productId, testWarehouseId).quantity_reserved), 2,
+      "batch transfer must preserve source reservations for the first product");
+    assert.equal(Number(concurrentBalanceFor(productId, transferDestinationId).quantity_reserved), 0,
+      "batch transfer must not manufacture destination reservations for the first product");
+    assert.equal(Number(concurrentBalanceFor(batchProductId, testWarehouseId).quantity_reserved), 2,
+      "idempotent replay must preserve reservations for the second product");
+    assert.equal(Number(concurrentBalanceFor(batchProductId, transferDestinationId).quantity_reserved), 0,
+      "idempotent replay must not manufacture destination reservations for the second product");
   } finally {
     if (sameKeyGateOpen) await sameKeyGate.unsafe("rollback").catch(() => {});
     if (sameKeyFirstAttempt || sameKeySecondAttempt) {
