@@ -2553,6 +2553,14 @@ async function main() {
     [multiChunkJob.id],
   );
   assert.equal(incompleteFinalizationState[0].status, "staging", "incomplete upload must remain an unfinalized staging job");
+  const safelyFailedImport = await db.unsafe(
+    "select public.fail_import_job_safely($1::uuid,$2::jsonb) as result",
+    [multiChunkJob.id, db.json({ code: "CI_INTERRUPTED_IMPORT", message: "synthetic interruption" })],
+  );
+  assert.equal(safelyFailedImport[0].result.changed, true, "a nonterminal interrupted job must be reconciled to failed");
+  assert.equal(safelyFailedImport[0].result.terminal, false);
+  assert.equal(safelyFailedImport[0].result.status, "failed");
+  assert.equal(safelyFailedImport[0].result.processed_rows, 0, "failure counts must derive from persisted rows, not stale client counters");
 
   const finalMultiChunk = await db.unsafe(
     "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
@@ -2689,6 +2697,20 @@ async function main() {
   assert.equal(Number(onyxAnalytics[0].result.metrics.quantity_total), 15, "quantity KPI must include every snapshot row");
   assert.equal(Number(onyxAnalytics[0].result.metrics.revenue_total), 600, "revenue KPI must include every snapshot row");
   assert.equal(onyxAnalytics[0].result.forecast_status, "Forecast Unavailable: Insufficient Historical Data");
+  const terminalFailureReplay = await db.unsafe(
+    "select public.fail_import_job_safely($1::uuid,$2::jsonb) as result",
+    [importJob.id, db.json({ code: "CI_LOST_FINALIZE_RESPONSE", message: "simulated response loss after committed finalization" })],
+  );
+  assert.equal(terminalFailureReplay[0].result.changed, false, "failure recovery must not mutate a terminal job");
+  assert.equal(terminalFailureReplay[0].result.terminal, true);
+  assert.equal(terminalFailureReplay[0].result.status, "completed");
+  assert.equal(terminalFailureReplay[0].result.snapshot_id, finalizedImport[0].result.snapshot_id,
+    "recovering from a lost finalization response must preserve the exact committed snapshot");
+  const readySnapshotCountAfterFailureReplay = await db.unsafe(
+    "select count(*)::integer as count from public.onyx_snapshots where source_import_job_id=$1::uuid and status='ready'",
+    [importJob.id],
+  );
+  assert.equal(readySnapshotCountAfterFailureReplay[0].count, 1, "failure recovery must not duplicate or remove a committed snapshot");
   process.stdout.write("PASS import profile, tenant-scoped synonyms, resumable chunk manifest, duplicate detection, DQS finalization and full-snapshot Onyx analytics\n");
 
   // The rule UI must reuse the existing deterministic pricing engine and reset to base price
