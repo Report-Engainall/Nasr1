@@ -23,7 +23,7 @@ const staff = postgres(connectionString, { max: 1, prepare: false });
 const foreign = postgres(connectionString, { max: 1, prepare: false });
 let jobId = null;
 
-async function setIdentity(db, authUserId, email, sessionId) {
+async function setIdentity(db, authUserId, email, sessionId, assumeAuthenticatedRole = true) {
   await db.unsafe("reset role").catch(() => {});
   await db.unsafe(
     "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
@@ -35,7 +35,7 @@ async function setIdentity(db, authUserId, email, sessionId) {
   await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
     JSON.stringify({ sub: authUserId, email, role: "authenticated", session_id: sessionId }),
   ]);
-  await db.unsafe("set role authenticated");
+  if (assumeAuthenticatedRole) await db.unsafe("set role authenticated");
 }
 
 async function cleanup() {
@@ -95,10 +95,13 @@ async function main() {
   assert.equal(owner[0].is_active, true);
   assert.equal(owner[0].is_admin, true);
 
-  await setIdentity(staff, staffAuthUserId, staffEmail, staffSessionId);
+  // Keep the foreign caller on the authenticated role for the security assertion.
   await setIdentity(foreign, foreignAuthUserId, foreignEmail, foreignSessionId);
-
-  const createdRows = await staff.unsafe(
+  // Fixture creation uses the privileged test connection with the source tenant's JWT/profile.
+  // The legacy nine-argument create_import_job_idempotent grant is intentionally revoked by the
+  // source-aware import migration; this test must remain valid after #179 is integrated.
+  await setIdentity(admin, staffAuthUserId, staffEmail, staffSessionId, false);
+  const createdRows = await admin.unsafe(
     "select public.create_import_job_idempotent($1::uuid,$2::text,$3::text,$4::bigint,$5::text,$6::uuid,$7::text,$8::text,$9::text) as result",
     [requestKey, fileName, fileHash, 512, "unified_import", null, "ci-finalizer-2026-10", "ci-finalizer-scope", "new_version"],
   );
