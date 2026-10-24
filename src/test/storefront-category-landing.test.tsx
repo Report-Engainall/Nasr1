@@ -77,4 +77,64 @@ describe("storefront category landing", () => {
     expect(mocks.fetchProducts).not.toHaveBeenCalled();
     expect(mocks.fetchCategories).toHaveBeenCalledTimes(2);
   });
+  it("announces category loading while the category service is still pending", () => {
+    mocks.fetchCategories.mockReturnValue(new Promise(() => {}));
+
+    render(<StorefrontCategoryLandingPage categorySlug={CATEGORY_SLUG} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("جار التحقق من التصنيف وتحميل الأصناف المنشورة");
+    expect(screen.queryByTestId("category-storefront")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("renders a valid subcategory only under its actual active parent", async () => {
+    const child = {
+      id: "22222222-2222-4222-8222-222222222222",
+      name: "معلبات",
+      name_en: null,
+      parent_id: CATEGORY.id,
+      is_active: true,
+    };
+    const childSlug = storefrontCategorySlug({ id: child.id, name: child.name, name_en: child.name_en });
+    mocks.fetchCategories.mockResolvedValueOnce([CATEGORY, child]);
+
+    render(<StorefrontCategoryLandingPage categorySlug={CATEGORY_SLUG} subcategorySlug={childSlug} />);
+
+    expect(await screen.findByRole("heading", { name: "معلبات" })).toBeInTheDocument();
+    expect(screen.getByTestId("category-storefront")).toHaveAttribute("data-category-id", child.id);
+    expect(screen.getByText("مواد غذائية / تصنيف فرعي")).toBeInTheDocument();
+    expect(mocks.fetchProducts).not.toHaveBeenCalled();
+  });
+
+  it("rejects a subcategory whose parent does not match the route", async () => {
+    const otherParent = {
+      id: "33333333-3333-4333-8333-333333333333",
+      name: "مستلزمات منزلية",
+      name_en: null,
+      parent_id: null,
+      is_active: true,
+    };
+    const mismatchedChild = {
+      id: "44444444-4444-4444-8444-444444444444",
+      name: "صنف فرعي غير مطابق",
+      name_en: null,
+      parent_id: otherParent.id,
+      is_active: true,
+    };
+    const childSlug = storefrontCategorySlug({
+      id: mismatchedChild.id,
+      name: mismatchedChild.name,
+      name_en: mismatchedChild.name_en,
+    });
+    mocks.fetchCategories.mockResolvedValueOnce([CATEGORY, otherParent, mismatchedChild]);
+
+    render(<StorefrontCategoryLandingPage categorySlug={CATEGORY_SLUG} subcategorySlug={childSlug} />);
+
+    expect(await screen.findByText("التصنيف غير موجود")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("التصنيف غير موجود");
+    expect(screen.getByRole("link", { name: "العودة إلى التصنيفات" })).toHaveAttribute("href", "/categories");
+    expect(screen.queryByTestId("category-storefront")).not.toBeInTheDocument();
+    expect(mocks.fetchProducts).not.toHaveBeenCalled();
+  });
+
 });
