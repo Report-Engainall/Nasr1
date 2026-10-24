@@ -134,6 +134,29 @@ async function main() {
       [sessionId, lines[index].product_id, counted],
     );
   }
+  // Each physical line entry records the authenticated actor and a before/after audit event.
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const lineAuditRows = await commandDb.unsafe(
+    "select actor_id::text as actor_id,entity_id::text as entity_id,old_value,new_value " +
+    "from public.audit_logs where organization_id=$1::uuid " +
+    "and action='inventory.stock_count.line_counted' and new_value->>'session_id'=$2::text " +
+    "order by created_at,entity_id",
+    [organizationId, sessionId],
+  );
+  assert.equal(lineAuditRows.length, lines.length, "each count-line write is audited exactly once");
+  assert.ok(lineAuditRows.every(row => row.actor_id === adminProfileId), "every count-line audit stores the active profile, not auth user ID");
+  assert.ok(lineAuditRows.every(row => row.new_value?.counted_by === adminProfileId), "audit payload attributes each current quantity to the active profile");
+  assert.ok(lineAuditRows.every(row => row.new_value?.session_id === sessionId), "count-line audit payload is bound to the same snapshot");
+  assert.ok(lineAuditRows.every(row => row.new_value?.product_id && row.new_value?.counted_quantity !== undefined), "audit payload records product and counted quantity");
+  const countedByRows = await commandDb.unsafe(
+    "select count(*)::integer as count from public.stock_count_lines " +
+    "where organization_id=$1::uuid and session_id=$2::uuid and counted_by=$3::uuid",
+    [organizationId, sessionId, adminProfileId],
+  );
+  assert.equal(countedByRows[0]?.count, lines.length, "stored counted_by matches the signed-in active profile on every line");
+  await setAdminIdentity();
+
   const completedRows = await commandDb.unsafe(
     "select public.complete_stock_count($1::uuid) as result",
     [sessionId],
@@ -175,7 +198,149 @@ async function main() {
   assert.equal(refreshedTaskRows[0].count, 1, "task refresh does not duplicate source-linked variance tasks");
   assert.equal(refreshedTaskRows[0].status, "pending", "refresh preserves the open warehouse follow-up");
 
-  // A second source-backed count with zero variance must not create noise in the task inbox.
+  
+  // A balance created after the snapshot must invalidate finalization, even if every
+  // pre-existing line still matches. Purchase receiving can create this previously absent row.
+  await setAdminIdentity();
+  const lateRows = await commandDb.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+    [warehouseId, "ci-stock-count-late-balance-" + randomUUID(), "CI late-balance snapshot guard"],
+  );
+  const lateSession = lateRows[0]?.result;
+  assert.ok(lateSession?.id, "late-balance scenario starts a fresh count snapshot");
+
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const lateProductId = randomUUID();
+  const lateItemCode = "CI-STOCK-SNAPSHOT-" + randomUUID().replace(/-/g, "").slice(0, 20);
+  await commandDb.unsafe(
+    "insert into public.products(id,organization_id,name,item_code,unit,status) values($1::uuid,$2::uuid,$3,$4,$5,'active')",
+    [lateProductId, organizationId, "CI stock-count late-balance fixture", lateItemCode, "unit"],
+  );
+  const lateBalance = await commandDb.unsafe(
+    "select id from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+    [lateProductId, warehouseId],
+  );
+  if (lateBalance.length === 0) {
+    await commandDb.unsafe(
+      "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) values($1::uuid,$2::uuid,3,0,0)",
+      [lateProductId, warehouseId],
+    );
+  } else {
+    await commandDb.unsafe(
+      "update public.inventory_balances set quantity_on_hand=3,quantity_reserved=0,last_movement_at=now(),updated_at=now() where product_id=$1::uuid and warehouse_id=$2::uuid",
+      [lateProductId, warehouseId],
+    );
+  }
+
+  await setAdminIdentity();
+  const lateLines = await commandDb.unsafe(
+    "select product_id,expected_quantity::text as expected_quantity from public.stock_count_lines " +
+    "where organization_id=$1::uuid and session_id=$2::uuid order by product_id",
+    [organizationId, lateSession.id],
+  );
+  assert.ok(lateLines.length > 0);
+  for (const line of lateLines) {
+    await commandDb.unsafe(
+      "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+      [lateSession.id, line.product_id, Number(line.expected_quantity)],
+    );
+  }
+
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const lateSnapshotProductIds = lateLines.map((line) => line.product_id);
+  const lateSnapshotBalancesBefore = await commandDb.unsafe(
+    "select product_id::text as product_id, quantity_on_hand::text as quantity_on_hand, " +
+      "quantity_reserved::text as quantity_reserved from public.inventory_balances " +
+      "where warehouse_id=$1::uuid and product_id=any($2::uuid[]) order by product_id",
+    [warehouseId, lateSnapshotProductIds],
+  );
+  assert.equal(
+    lateSnapshotBalancesBefore.length,
+    lateSnapshotProductIds.length,
+    "every pre-existing snapshot product must have a balance before failed finalization",
+  );
+  await setAdminIdentity();
+
+  await commandDb.unsafe("savepoint stock_count_late_balance_guard");
+  const lateFinalizeError = await commandDb
+    .unsafe("select public.complete_stock_count($1::uuid)", [lateSession.id])
+    .then(() => null, (error) => error);
+  assert.ok(
+    lateFinalizeError,
+    "a newly created active warehouse balance must invalidate the count snapshot",
+  );
+  assert.equal(
+    lateFinalizeError.code,
+    "40001",
+    "a changed stock-count balance set must fail with serialization SQLSTATE 40001",
+  );
+  assert.match(
+    lateFinalizeError.message,
+    /inventory balance set changed after the count snapshot/i,
+  );
+  await commandDb.unsafe("rollback to savepoint stock_count_late_balance_guard");
+  await commandDb.unsafe("release savepoint stock_count_late_balance_guard");
+
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const lateSnapshotBalancesAfter = await commandDb.unsafe(
+    "select product_id::text as product_id, quantity_on_hand::text as quantity_on_hand, " +
+      "quantity_reserved::text as quantity_reserved from public.inventory_balances " +
+      "where warehouse_id=$1::uuid and product_id=any($2::uuid[]) order by product_id",
+    [warehouseId, lateSnapshotProductIds],
+  );
+  assert.deepEqual(
+    lateSnapshotBalancesAfter,
+    lateSnapshotBalancesBefore,
+    "failed snapshot finalization must not alter any pre-existing on-hand or reserved balances",
+  );
+  const staleSessionRows = await commandDb.unsafe(
+    "select status,completed_at,completed_by from public.stock_count_sessions " +
+      "where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId, lateSession.id],
+  );
+  assert.equal(staleSessionRows.length, 1);
+  assert.equal(
+    staleSessionRows[0].status,
+    "open",
+    "failed stock-count finalization must leave the session open for explicit cancellation",
+  );
+  assert.equal(staleSessionRows[0].completed_at, null);
+  assert.equal(staleSessionRows[0].completed_by, null);
+
+  const partialMovementRows = await commandDb.unsafe(
+    "select count(*)::integer as count from public.inventory_movements " +
+      "where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [lateSession.id],
+  );
+  assert.equal(
+    Number(partialMovementRows[0]?.count ?? 0),
+    0,
+    "failed stock-count finalization must not leave partial inventory movements",
+  );
+  const partialCompletionAuditRows = await commandDb.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+      "where organization_id=$1::uuid and action='inventory.stock_count.completed' and entity_id=$2::uuid",
+    [organizationId, lateSession.id],
+  );
+  assert.equal(
+    Number(partialCompletionAuditRows[0]?.count ?? 0),
+    0,
+    "failed stock-count finalization must not leave a completion audit event",
+  );
+
+  await setAdminIdentity();
+  const cancelledLate = await commandDb.unsafe(
+    "select public.cancel_stock_count($1::uuid,$2::text) as result",
+    [lateSession.id, "Post-snapshot balance change; take a new count"],
+  );
+  assert.equal(cancelledLate[0]?.result.status, "cancelled", "stale count is explicitly cancelled after the failed finalization");
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+
+// A second source-backed count with zero variance must not create noise in the task inbox.
   await setAdminIdentity();
   const noVarianceKey = "ci-stock-count-no-variance-" + randomUUID();
   const secondRows = await commandDb.unsafe(
@@ -241,6 +406,6 @@ try {
 
 if (passed && process.exitCode !== 1) {
   console.log(
-    "PASS stock-count audit and variance tasks: tenant/profile-bound idempotent start; one task for non-zero variance; zero-variance suppression; refresh idempotency; transaction rollback leaves no fixture changes",
+    "PASS stock-count audit and variance tasks: tenant/profile-bound idempotent start; stale snapshot rejects with SQLSTATE 40001 and leaves sessions, movements, audits, on-hand and reserved balances unchanged; one task for non-zero variance; zero-variance suppression; refresh idempotency; transaction rollback leaves no fixture changes",
   );
 }
