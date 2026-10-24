@@ -379,7 +379,7 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
           const qty = p.inventory?.quantity_available ?? 0;
           const low = qty <= (p.inventory?.reorder_point ?? p.min_stock);
           return <tr key={p.id}>
-            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{formatNumber(qty)} {p.unit}</td>
+            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td>{formatCurrency(p.base_price)}</td><td>{formatNumber(qty)} {p.unit}</td>
             <td><span className={'badge ' + (low ? 'warning' : 'success')}>{low ? 'منخفض' : 'متوفر'}</span></td>
             <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button>{canManageReorderPoint && <Button variant="outline" onClick={() => openThreshold(p)}>حد إعادة الطلب</Button>}</div></td>
             <td><div className="row-actions"><button aria-label={'تعديل ' + p.name} onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button><button aria-label={'حذف ' + p.name} onClick={() => remove(p)}><Trash2 size={15} /></button></div></td>
@@ -411,8 +411,21 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
     </Modal>}
   </>;
 }
-function ProductModal({ product, onClose, onSaved }: { product: ProductWithInventory | null; onClose: () => void; onSaved: (message?: string) => void }) {
-  const { data: categories } = useFetch(fetchCategories);
+export function ProductModal({
+  product,
+  onClose,
+  onSaved,
+}: {
+  product: ProductWithInventory | null;
+  onClose: () => void;
+  onSaved: (message?: string) => void;
+}) {
+  const {
+    data: categories,
+    loading: categoriesLoading,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useFetch(fetchCategories);
   const [name, setName] = useState(product?.name ?? '');
   const [code, setCode] = useState(product?.item_code ?? '');
   const [price, setPrice] = useState(String(product?.base_price ?? ''));
@@ -421,6 +434,8 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
   const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // React state alone does not block two click events dispatched before a rerender.
+  const saveInFlight = useRef(false);
 
   useEffect(() => {
     if (!imageFile) { setImagePreview(product?.image_url ?? null); return; }
@@ -438,9 +453,11 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
   }
 
   async function save() {
+    if (saveInFlight.current || saving) return;
     if (!name.trim() || !code.trim() || !price) { setError('أكمل الحقول المطلوبة'); return; }
     const priceValue = Number(price);
     if (!Number.isFinite(priceValue) || priceValue < 0 || priceValue > 999999999999.99) { setError('السعر الأساسي غير صالح.'); return; }
+    saveInFlight.current = true;
     setSaving(true); setError('');
     let productSaved = false;
     try {
@@ -461,19 +478,108 @@ function ProductModal({ product, onClose, onSaved }: { product: ProductWithInven
     } catch (cause) {
       if (productSaved) onSaved('تم حفظ بيانات المنتج؛ تعذر تأكيد اكتمال العملية. أعد تحديث القائمة قبل التكرار.');
       else setError(cause instanceof Error ? cause.message : 'تعذر حفظ المنتج.');
-    } finally { setSaving(false); }
+    } finally {
+      saveInFlight.current = false;
+      setSaving(false);
+    }
   }
 
-  return <Modal title={product ? 'تعديل المنتج' : 'إضافة منتج'} onClose={() => { if (!saving) onClose(); }}>
-    <Field label="اسم المنتج"><input value={name} onChange={(e) => setName(e.target.value)} maxLength={240} disabled={saving} /></Field>
-    <div className="form-grid"><Field label="رمز المنتج"><input value={code} onChange={(e) => setCode(e.target.value)} maxLength={80} disabled={saving} /></Field><Field label="السعر الأساسي"><input type="number" min="0" max="999999999999.99" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} disabled={saving} /></Field></div>
-    <Field label="التصنيف"><select value={category} onChange={(e) => setCategory(e.target.value)} disabled={saving}><option value="">غير مصنف</option>{categories?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-    <Field label="صورة المنتج (JPG / PNG / WebP، بحد أقصى 8 ميغابايت)"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { chooseImage(e.currentTarget.files?.[0] ?? null); e.currentTarget.value = ''; }} disabled={saving} /></Field>
-    {imagePreview && <div style={{ display: 'flex', justifyContent: 'center', padding: 8, border: '1px solid var(--border, #e2e8f0)', borderRadius: 12 }}><img src={imagePreview} alt={'معاينة صورة ' + name} style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8 }} /></div>}
-    {imageFile && <p className="text-muted">ستُضغط الصورة إلى WebP بحد أقصى 1600×1600 وتُرفع إلى مساحة صور الكتالوج للمؤسسة.</p>}
-    {error && <div className="form-error" role="alert">{error}</div>}
-    <div className="modal-actions"><Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button><Button onClick={() => void save()} disabled={saving}>{saving ? 'جار الحفظ والرفع...' : 'حفظ المنتج'}</Button></div>
-  </Modal>;
+  return (
+    <Modal
+      title={product ? 'تعديل المنتج' : 'إضافة منتج'}
+      onClose={() => {
+        if (!saving) onClose();
+      }}
+    >
+      <Field label="اسم المنتج">
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={240} disabled={saving} />
+      </Field>
+      <div className="form-grid">
+        <Field label="رمز المنتج">
+          <input value={code} onChange={(e) => setCode(e.target.value)} maxLength={80} disabled={saving} />
+        </Field>
+        <Field label="السعر الأساسي">
+          <input
+            type="number"
+            min="0"
+            max="999999999999.99"
+            step="0.01"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            disabled={saving}
+          />
+        </Field>
+      </div>
+      {categoriesError && (
+        <div className="form-error" role="alert">
+          <span>تعذر تحميل التصنيفات: {categoriesError}</span>
+          <Button
+            variant="outline"
+            onClick={() => void refetchCategories()}
+            disabled={saving || categoriesLoading}
+          >
+            إعادة المحاولة
+          </Button>
+        </div>
+      )}
+      <Field label="التصنيف">
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          disabled={saving || categoriesLoading || Boolean(categoriesError)}
+        >
+          <option value="">
+            {categoriesLoading ? 'جار تحميل التصنيفات…' : categoriesError ? 'تعذر تحميل التصنيفات' : 'غير مصنف'}
+          </option>
+          {categories?.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="صورة المنتج (JPG / PNG / WebP، بحد أقصى 8 ميغابايت)">
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={(e) => {
+            chooseImage(e.currentTarget.files?.[0] ?? null);
+            e.currentTarget.value = '';
+          }}
+          disabled={saving}
+        />
+      </Field>
+      {imagePreview && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            padding: 8,
+            border: '1px solid var(--border, #e2e8f0)',
+            borderRadius: 12,
+          }}
+        >
+          <img
+            src={imagePreview}
+            alt={'معاينة صورة ' + name}
+            style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8 }}
+          />
+        </div>
+      )}
+      {imageFile && (
+        <p className="text-muted">
+          ستُضغط الصورة إلى WebP بحد أقصى 1600×1600 وتُرفع إلى مساحة صور الكتالوج للمؤسسة.
+        </p>
+      )}
+      {error && <div className="form-error" role="alert">{error}</div>}
+      <div className="modal-actions">
+        <Button variant="outline" onClick={onClose} disabled={saving}>إلغاء</Button>
+        <Button onClick={() => void save()} disabled={saving || categoriesLoading || Boolean(categoriesError)}>
+          {saving ? 'جار الحفظ والرفع...' : 'حفظ المنتج'}
+        </Button>
+      </div>
+    </Modal>
+  );
 }
 
 export function Customers({ onNotice }: { onNotice: (m: string) => void }) {
@@ -1164,27 +1270,13 @@ function Reports() {
   const { data: orders, loading: ordersLoading, error: ordersError } = useFetch(fetchOrders);
   const signals = useMemo(() => buildBusinessSignals(orders ?? []), [orders]);
   const statusBreakdown = useMemo(() => buildBusinessStatusBreakdown(orders ?? []), [orders]);
-  const inventoryValue = useMemo(() => {
-    if (!products) return 'غير متاح';
-    let total = 0;
-    for (const product of products) {
-      const price = product.base_price;
-      const quantity = product.inventory?.quantity_available;
-      if (
-        typeof price !== 'number' || !Number.isFinite(price) ||
-        typeof quantity !== 'number' || !Number.isFinite(quantity)
-      ) return 'غير متاح';
-      total += price * quantity;
-    }
-    return formatCurrency(total);
-  }, [products]);
   return <>
     <Heading eyebrow="التحليل التنفيذي" title="التقارير الذكية" description="مؤشرات قابلة للتنفيذ مبنية على البيانات التشغيلية الحالية" icon={BarChart3} />
     <div className="report-hero"><div><span>ملخص الأداء</span><h2>الأغبري في أرقام</h2><p>تتحدث المؤشرات من قاعدة البيانات مباشرة.</p></div><TrendingUp size={50} /></div>
     {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <div className="report-grid">
       <ReportMetric label="إجمالي المبيعات" value={formatCurrency(stats?.totalSales ?? 0)} icon={CircleDollarSign} />
       <ReportMetric label="متوسط قيمة الطلب" value={formatCurrency((stats?.totalSales ?? 0) / Math.max(stats?.orderCount ?? 1, 1))} icon={ShoppingCart} />
-      <ReportMetric label="قيمة المخزون المعروضة" value={inventoryValue} icon={Package} />
+      <ReportMetric label="قيمة المخزون المعروضة" value={formatCurrency((products ?? []).reduce((sum, p) => sum + p.base_price * (p.inventory?.quantity_available ?? 0), 0))} icon={Package} />
       <ReportMetric label="الأصناف منخفضة المخزون" value={formatNumber(stats?.lowStockCount ?? 0)} icon={AlertTriangle} />
     </div>}
     <div style={{ marginTop: 16 }}><UnifiedOnyxAnalysisPanel /></div>
