@@ -150,13 +150,13 @@ describe("async export download HTTP handler", () => {
     );
     expect(mocks.getMyDownload).toHaveBeenCalledWith(jobId);
     expect(mocks.createAdminClient).toHaveBeenCalledWith("https://project.example.test", "service-test-key");
-    expect(mocks.createSignedUrl).toHaveBeenCalledWith(jobPath, 35, "orders.csv");
+    expect(mocks.createSignedUrl).toHaveBeenCalledWith(jobPath, 34, "orders.csv");
     expect(await json(response)).toEqual({
       job_id: jobId,
       download_url: signedUrl,
       file_name: "orders.csv",
-      expires_at: new Date(nowMs + 35_000).toISOString(),
-      ttl_seconds: 35,
+      expires_at: new Date(nowMs + 34_000).toISOString(),
+      ttl_seconds: 34,
     });
   });
 
