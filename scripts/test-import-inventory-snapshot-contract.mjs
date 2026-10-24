@@ -188,9 +188,17 @@ async function main() {
     await setIdentity();
     await db.unsafe("set role authenticated");
 
+    await expectFailure(
+      "legacy import creation RPC is not directly callable after idempotency hardening",
+      () => db.unsafe(
+        "select public.create_import_job($1,$2,$3,$4,$5::uuid,$6,$7)",
+        ["CI direct import create denial " + suffix + ".csv", fileHash, 2048, "inventory_stock", profileId, "2026-10", "manual"],
+      ),
+      /permission denied for function create_import_job/i,
+    );
     const created = await db.unsafe(
-      "select public.create_import_job($1,$2,$3,$4,$5::uuid,$6,$7) as result",
-      ["CI inventory snapshot " + suffix + ".csv", fileHash, 2048, "inventory_stock", profileId, "2026-10", "ci"],
+      "select public.create_import_job_idempotent($1::uuid,$2::text,$3::text,$4::bigint,$5::text,$6::text,$7::uuid,$8::text,$9::text,$10::text) as result",
+      [uuid(), "CI inventory snapshot " + suffix + ".csv", fileHash, 2048, "inventory_stock", null, profileId, "2026-10", "manual", "new_version"],
     );
     const job = created[0].result;
     assert.equal(job.organization_id, organizationId, "import job must be bound to the authenticated organization");
@@ -300,8 +308,8 @@ async function main() {
 
     async function assertPersistedQualityCase(input) {
       const createdRows = await db.unsafe(
-        "select public.create_import_job($1,$2,$3,$4,$5::uuid,$6,$7) as result",
-        [input.fileName, input.fileHash, 2048, "inventory_stock", input.profileId, "2026-10", "ci"],
+        "select public.create_import_job_idempotent($1::uuid,$2::text,$3::text,$4::bigint,$5::text,$6::text,$7::uuid,$8::text,$9::text,$10::text) as result",
+        [uuid(), input.fileName, input.fileHash, 2048, "inventory_stock", null, input.profileId, "2026-10", "manual", "new_version"],
       );
       const job = asJson(createdRows[0].result);
       await db.unsafe(
