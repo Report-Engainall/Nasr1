@@ -2518,6 +2518,51 @@ async function main() {
   assert.equal(multiChunkState[0].verified_chunks, 3);
   assert.equal(multiChunkState[0].status, "uploaded");
 
+  // Security regression: the quality RPC must authorize before looking up a job ID
+  // and scope staff lookups to their own tenant, so foreign IDs cannot be enumerated.
+  await db.unsafe("reset role");
+  const foreignQualityJobResult = await db.unsafe(
+    `insert into public.import_jobs(
+       organization_id,job_type,file_name,file_hash,file_size,status,created_by
+     ) values($1,'onyx_stock','CI foreign quality privacy probe.csv',$2,500,'pending',$3)
+     returning id`,
+    [otherOrganizationId, "e".repeat(64), foreignProfileId],
+  );
+  const foreignQualityJobId = foreignQualityJobResult[0].id;
+  const unknownQualityJobId = randomUUID();
+
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customer cannot distinguish an existing foreign import job from an unknown job",
+    () => db.unsafe("select public.calculate_import_job_quality($1::uuid)", [foreignQualityJobId]),
+    /not authorized to calculate import quality/i,
+    "42501",
+  );
+  await expectFailure(
+    "customer receives the same import-quality denial for an unknown job ID",
+    () => db.unsafe("select public.calculate_import_job_quality($1::uuid)", [unknownQualityJobId]),
+    /not authorized to calculate import quality/i,
+    "42501",
+  );
+
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "staff cannot distinguish a foreign import job from an unknown job",
+    () => db.unsafe("select public.calculate_import_job_quality($1::uuid)", [foreignQualityJobId]),
+    /import job not found in active organization/i,
+    "P0002",
+  );
+  await expectFailure(
+    "staff receives the same result for an unknown import job ID",
+    () => db.unsafe("select public.calculate_import_job_quality($1::uuid)", [unknownQualityJobId]),
+    /import job not found in active organization/i,
+    "P0002",
+  );
+  process.stdout.write("PASS import quality RPC: authorization-before-lookup and tenant-scoped IDs prevent cross-tenant existence disclosure\\n");
+
   const duplicateProbe = await db.unsafe(
     "select public.find_import_duplicate($1,$2::uuid,$3) as result",
     ["a".repeat(64), importJob.profile_id, "2026-01"],
