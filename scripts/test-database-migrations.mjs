@@ -2899,14 +2899,33 @@ async function main() {
   );
   assert.equal(readySnapshotCountAfterFailureReplay[0].count, 1, "failure recovery must not duplicate or remove a committed snapshot");
 
-  // Full-dataset replacement requires independent server-side evidence in both profile and job.
-  await db.unsafe(
-    "update public.import_profiles set is_full_dataset=true where id=$1::uuid and organization_id=$2::uuid",
+  // Full-dataset replacement uses a separate immutable profile fixture; active profile rows
+  // must never be edited in place to change their classification.
+  await db.unsafe("reset role");
+  const fullDatasetProfileCreated = await db.unsafe(
+    `insert into public.import_profiles (
+       organization_id,profile_name,report_type,source,version,required_columns,optional_columns,
+       ignored_columns,synonyms,transformation_rules,validation_rules,matching_key,merge_strategy,
+       date_rules,is_full_dataset,status,created_by,published_at
+     )
+     select ip.organization_id,
+            ip.profile_name || ' CI full dataset ' || substr(gen_random_uuid()::text,1,8),
+            ip.report_type,ip.source,1,ip.required_columns,ip.optional_columns,ip.ignored_columns,
+            ip.synonyms,ip.transformation_rules,ip.validation_rules,ip.matching_key,ip.merge_strategy,
+            ip.date_rules,true,'active',ip.created_by,now()
+       from public.import_profiles ip
+      where ip.id=$1::uuid and ip.organization_id=$2::uuid
+     returning id,version,status,is_full_dataset`,
     [importJob.profile_id, organizationId],
   );
+  assert.equal(fullDatasetProfileCreated.length, 1, "CI must create a separate full-dataset profile fixture");
+  const fullDatasetProfile = fullDatasetProfileCreated[0];
+  assert.equal(fullDatasetProfile.status, "active");
+  assert.equal(fullDatasetProfile.is_full_dataset, true);
+  await db.unsafe("set role authenticated");
   const fullReplaceJobCreated = await db.unsafe(
     "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
-    [randomUUID(), "CI complete Onyx.inventory.csv", "d".repeat(64), 100, "onyx_stock", "CI-FULL-REPLACE-BATCH", importJob.profile_id, "2026-01", "ci", "new_version"],
+    [randomUUID(), "CI complete Onyx.inventory.csv", "d".repeat(64), 100, "onyx_stock", "CI-FULL-REPLACE-BATCH", fullDatasetProfile.id, "2026-01", "ci", "new_version"],
   );
   const fullReplaceJob = fullReplaceJobCreated[0].result;
   const fullReplaceSessionCreated = await db.unsafe(
