@@ -1,37 +1,18 @@
-# ACTIVE COORDINATION CHECKPOINT — 2026-10-24 19:18 +03:00
+# ACTIVE COORDINATION CHECKPOINT — 2026-10-24 19:24 +03:00
 
-This block supersedes older statuses further down when they conflict. Repository: `Report-Engainall/Nasr1`; main SHA verified live as `3e1b6ee1da77f3f4c12bfa6c389fdb6a9cfb9e96`. Core/test-and-build run [40110719200 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40110719200) on that exact main SHA.
+Supersedes conflicting historic states below. Current `main`: `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; #146 merged at this SHA with Core [40110926680 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926680) and P2 [40110926679 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926679). Current-main CI still needs verification after this merge SHA.
 
-- Merged: #133 (merge `f6dd9358ff680597ce7d9096428dad788e0f4767`), #144 (merge `2c569e320111237ebeccffc992fcca74e75112b6`), #145 (merge/current main `3e1b6ee1da77f3f4c12bfa6c389fdb6a9cfb9e96`), and #135–#141, #143. Do not recreate.
-- #146 current head `f98684645a4ae4d13b398d38340296fc8842b5d9` now has Core [40110926680 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926680) and P2 [40110926679 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926679), both exact-head. Hosted customer E2E is SKIPPED. No submitted independent review is recorded.
-- #142 current register head `0b8eab56970f1485f86535edf7b66d1c1bddae90`: Core [40107811311 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40107811311), P2 [40107811295 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40107811295). API-OPS remains PARTIAL because semantic review of 179 callable RPC candidates is incomplete.
-- #147, #148, #149, #150 and #151 have exact-recorded-head Core/P2 successes; #148–#151 also have PG17 success. They are still open and need current-base reconciliation plus formal independent review. #147 is marked non-mergeable against stale base.
-- #134 historical exact head `387db64bfa6686ab08d4707d88b7aea3f9c6ff41` passed Core/P2, but its shared `scripts/test-database-migrations.mjs` must be reconciled with current main and #146 before any new acceptance claim.
-- No evidence of production database writes, hosted customer/tenant journeys, live Onyx import, WhatsApp delivery, live AI provider secrets, production restore or deployment is established here.
+- Merged and do not recreate: #133, #144, #145, #146, #135–#141, #143.
+- Found and corrected a specific coverage regression in original #147: it replaced, rather than added alongside, the executive analytics step in `.github/workflows/commerce-checks.yml`. Replacement #153 on current main retains analytics and adds the quote decision test. Awaiting exact-head CI.
+- #148–#151 have earlier successful recorded heads but are stale relative to #146; check/update one by one in migration order.
+- #142 is tested at its documented exact head, but 179 callable RPCs still need semantic review.
+- #134 contains the required concurrent same-key batch test, but its historical tests must be rerun after reconciling to latest main.
+- Hosted user E2E skipped is not PASS. No proof of live Onyx, WhatsApp, AI provider or production restore/deployment is claimed.
 
 ## NEXT ACTION — FIRST STEP ON RESUME
-1. Get an authorized independent review for #146. If merge is permitted by repository policy after review, merge it and verify the merge SHA plus required checks.
-2. Reconcile #134 onto latest main after #146, preserving both concurrency and security assertions; rerun exact-head Core/P2/PG17.
-3. Advance #147–#151 in migration order after updating each branch to the real latest main, run all required gates on each final SHA, and get independent review before merging.
-4. Continue semantic RPC audit #142 and the still-open storefront/admin/customer routes (#89, #97, #102, #105, #107, #114–#125, #130, #118, #124) without repeating already merged acceptance tasks.
-5. Continue remaining open requirements from the central matrix, updating evidence and status per task.
+Poll #153 exact-head Core/P2. Merge only after gates and applicable review rules pass; close #147 only after the replacement is accepted. Then advance #148–#151 sequentially, reconcile #134, and continue the outstanding semantic RPC and P1/P3 acceptance work.
 ---
 
-# LIVE COORDINATION CHECKPOINT — 2026-10-24 19:18 +03:00 (authoritative; historical notes below)
-
-- Main SHA is `3e1b6ee1da77f3f4c12bfa6c389fdb6a9cfb9e96`; exact main Core/test-and-build run [40110719200](https://github.com/Report-Engainall/Nasr1/actions/runs/40110719200) succeeded.
-- PR #133 merged as `f6dd9358ff680597ce7d9096428dad788e0f4767`; PR #144 merged as `2c569e320111237ebeccffc992fcca74e75112b6`; PR #145 merged as/current main `3e1b6ee1da77f3f4c12bfa6c389fdb6a9cfb9e96`. PRs #135–#141 and #143 are also closed by merge. Do not use historical statements below saying these remain open.
-- PR #146 current head `f98684645a4ae4d13b398d38340296fc8842b5d9` is based on current main; Core [40110926680](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926680) and P2 [40110926679](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926679) were in progress at last live check. The two public UI/auth-infrastructure jobs succeeded; hosted customer E2E was skipped. No submitted independent review was found.
-- PR #142 register head `0b8eab56970f1485f86535edf7b66d1c1bddae90` passed Core [40107811311](https://github.com/Report-Engainall/Nasr1/actions/runs/40107811311) and P2 [40107811295](https://github.com/Report-Engainall/Nasr1/actions/runs/40107811295). API-OPS-001 remains PARTIAL: 304/304 runtime objects source-mapped but 179 callable RPCs need semantic review.
-- PR #147–#151 latest recorded Core/P2 checks succeeded on their exact heads; #148–#151 also have PostgreSQL 17 success. They remain open and #147 reports non-mergeable because it has not been brought through current dependency order. Do not merge out of order or infer merged status from check success.
-- PR #134 old exact-head checks passed, but the shared database acceptance file needs reconciliation with current main and #146 before the checks count for a new head.
-- **NEXT ACTION:** poll #146 Core/P2 until terminal. If a check fails, inspect the failed job and repair the proven defect. Request/obtain independent review before merging. Once #146 is accepted and merged, update #147–#151 in migration timestamp order and reconcile #134 without dropping the concurrency test or the price/RPC authorization assertions. Continue route acceptance PRs #89, #97, #102, #105, #107, #114–#125, #130 and the remaining open P1/P3 work without reopening merged tasks.
-- External gates remain blocked/unverified without credentials or environment evidence: hosted tenant/customer E2E, real Onyx import/sync, WhatsApp delivery, live AI provider secrets, production deployment/migrations/restore.
-- Checkpoint changes are on `p2/refresh-live-execution-checkpoint-20261024`; do not write directly to main.
-
----
-
-# Historical coordination log (retain evidence; use live checkpoint above for current state)
 
 # P2 LIVE EXECUTION UPDATE — 2026-10-24T15:12:00Z — quote-test correction pushed
 
