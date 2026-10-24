@@ -7,7 +7,7 @@ ALTER TABLE public.import_upload_sessions
 
 DO $constraints$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname='import_jobs_external_source_reference_check') THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid='public.import_jobs'::regclass AND conname='import_jobs_external_source_reference_check') THEN
     ALTER TABLE public.import_jobs
       ADD CONSTRAINT import_jobs_external_source_reference_check
       CHECK (external_source_reference IS NULL OR (
@@ -15,7 +15,7 @@ BEGIN
         AND pg_catalog.length(external_source_reference) BETWEEN 1 AND 200
       ));
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname='import_upload_sessions_external_source_reference_check') THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid='public.import_upload_sessions'::regclass AND conname='import_upload_sessions_external_source_reference_check') THEN
     ALTER TABLE public.import_upload_sessions
       ADD CONSTRAINT import_upload_sessions_external_source_reference_check
       CHECK (external_source_reference IS NULL OR (
