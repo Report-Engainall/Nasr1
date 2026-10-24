@@ -16,7 +16,7 @@ async function main() {
       "from public.profiles p join public.user_roles r on r.profile_id=p.id and r.role in ('admin','manager','staff') " +
       "join public.import_jobs j on j.organization_id=p.organization_id " +
       "where lower(p.email)='admin@aghbari.ye' and p.is_active=true " +
-      "and j.source_file_name='CI DQS impossible-date semantics.csv' " +
+      "and j.file_name='CI DQS impossible-date semantics.csv' " +
       "order by j.id limit 1",
   );
   assert.equal(fixtures.length, 1, "isolated migration fixtures must contain the scoped DQS quality job and active staff profile");
