@@ -12,7 +12,7 @@
 
 ## NEXT_ACTION
 
-1. Confirm the terminal Core result for main `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; PostgreSQL 17 and exact-main inventory already passed.
+1. Core and PostgreSQL 17 both passed on main `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; finish exact-head Core/P2 on the clean-main docs PR.
 2. Keep the 310/310 source mapping artifact associated with its exact tested tree; regenerate from a later tested main tree before replacing it as current evidence.
 3. Continue semantic review of the remaining 179 RPC candidates in bounded, source-backed batches. API-OPS does not close on discovery coverage alone.
 4. Preserve authorization-denial/no-side-effect and idempotency/audit acceptance as the contract matrix advances.
