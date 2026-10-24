@@ -80,6 +80,11 @@ BEGIN
  PERFORM pg_catalog.pg_advisory_xact_lock(
   pg_catalog.hashtextextended(v_org::text||':purchase-receiving-warehouse:'||v_session.warehouse_id::text,0)
  );
+ -- Other balance writers, including transfers, do not all acquire the purchase-receiving advisory key.
+ -- Take the table lock before locking individual balance rows so no writer can insert a new
+ -- product/warehouse balance between the snapshot-set check and the final adjustments.
+ -- Stock counts are infrequent; correctness requires a consistent balance set for this transaction.
+ LOCK TABLE public.inventory_balances IN EXCLUSIVE MODE;
  -- Lock existing balance rows in stable order before comparing the snapshot set.
  PERFORM 1
   FROM public.products p
