@@ -45,6 +45,9 @@ describe("AI gateway fallback outcome contract", () => {
       expect(bodyOf(name)).toContain("public.ai_usage_reservations");
       expect(bodyOf(name)).toContain("ERRCODE='42501'");
     }
-    expect(bodyOf("complete_ai_gateway_usage_v2")).toContain("p_usage_measurement_status='unknown'");
+    const v2 = bodyOf("complete_ai_gateway_usage_v2");
+    expect(v2).toContain("p_usage_measurement_status='measured'");
+    expect(v2).toContain("p_usage_measurement_status='partial'");
+    expect(v2).toContain("unknown usage cannot claim measured tokens");
   });
 });
