@@ -75,31 +75,43 @@
 
 **حد الإثبات:** تم اختبار هذه الحالات محليًا ببيانات اصطناعية. لا يوجد اختبار حساب العميل/المؤسسة المستضاف لأن بوابة E2E الخارجية ظلت `SKIPPED`; ولا يثبت هذا الإصلاح صحة كل الـ179 مرشح RPC أو إعداد أسرار الإنتاج. لا تزال مراجعة السعر الصفري كسنتينل في استجابة كتالوج مخفي السعر مسألة عقد منفصلة مفتوحة.
 
-## الدفعة الدلالية الثالثة — قرار قبول/رفض عرض السعر لا يقبل NULL (PARTIAL; direct PG17 runtime case passed)
+## الدفعة الدلالية الثالثة — قرار قبول/رفض عرض السعر لا يقبل NULL (PARTIAL; PG17 runtime passed on current head)
 
-**الاكتشاف من مراجعة العقد:** دالة `public.customer_respond_to_quote(p_quote_id uuid, p_accept boolean)` في `main` كانت تستخدم `CASE WHEN p_accept THEN 'accepted' ELSE 'rejected' END`. في PostgreSQL، قيمة Boolean المفقودة `NULL` تدخل فرع `ELSE`؛ ما كان يسمح لاستدعاء RPC غير صالح بتحويل العرض إلى `rejected` بدل رفض المدخل.
+**الاكتشاف:** `public.customer_respond_to_quote(p_quote_id uuid, p_accept boolean)` كانت تستخدم `CASE WHEN p_accept THEN 'accepted' ELSE 'rejected' END`. في PostgreSQL، `NULL` يدخل فرع `ELSE`؛ ولذلك كان يمكن أن يحوّل استدعاء RPC غير صالح العرض إلى `rejected`.
 
-**المعالجة:** [PR #147](https://github.com/Report-Engainall/Nasr1/pull/147) يضيف migration أمامية `20261024130000_customer_quote_response_explicit_decision.sql` ترفض `p_quote_id IS NULL` أو `p_accept IS NULL` قبل أي تحديث، برمز `22023`. ويحافظ على `quotes.manage` وهوية العميل النشطة وملكية العرض وحالة `quoted`، ويقصر EXECUTE على `authenticated` مع سحب المنح من `PUBLIC, anon`.
+**المعالجة:** [PR #147](https://github.com/Report-Engainall/Nasr1/pull/147) يستخدم migration فريدة `20261024133000_customer_quote_response_explicit_decision.sql`، بعد migration #146، ويرفض `p_quote_id IS NULL` أو `p_accept IS NULL` قبل التحديث باستخدام SQLSTATE `22023`. يحافظ على `quotes.manage`، والهوية النشطة وملكية العرض والحالة `quoted`، ويمنح EXECUTE إلى `authenticated` فقط.
 
-**إثبات PostgreSQL 17 المباشر:** PR #147 الحالي `c44ef53d93ade1c3930a87e219edaf58c2c92955` — Core [40106259411 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40106259411). سجل التنفيذ يحتوي على:
+**إثبات رأس PR الحالي:** SHA `5b351a544f412a48c0d5466b91b000c51100c889`. Core [40106804073 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40106804073)، وسجل الوظيفة يحتوي:
 `PASS customer quote decision runtime: NULL UUID/boolean rejected with 22023 and no mutation; explicit false and true persist their requested transitions.`
-وهذا يثبت أن NULL لكل من UUID والقرار يُرفض بـ`22023` دون تغيير العرض، وأن `false` و`true` الصريحين يحفظان الانتقال الصحيح، في قاعدة PostgreSQL 17 المعزولة.
+هذا الاختبار يعمل على PostgreSQL 17 معزول. P2 [40106804081](https://github.com/Report-Engainall/Nasr1/actions/runs/40106804081) كان قيد التنفيذ عند هذا التحديث.
 
-**حالة الدمج والحدود:** #147 ما زال مفتوحًا وغير مدمج؛ بوابة P2 [40106259392](https://github.com/Report-Engainall/Nasr1/actions/runs/40106259392) كانت لا تزال قيد التنفيذ عند هذا التحديث، ولم تُسجّل مراجعة مستقلة. لذلك لا ننقل إثبات Core وحده إلى `PASS` نهائي للطلب، ولا ندعي اختبار العميل المستضاف أو الإنتاج. يجب دمج #144 ثم #145 قبل #147 بسبب اعتماد الجلسة الحية وترتيب migrations.
+**تصحيح تعارض migration:** استخدم #146 إصدار `20261024130000` بالفعل؛ أزيل اسم #147 القديم `20261024130000_customer_quote_response_explicit_decision.sql` ونُقل إلى `20261024133000_customer_quote_response_explicit_decision.sql`. يجب أن تبقى الإصدارات فريدة عند تجميع الفروع.
 
-**الحالة:** `PARTIAL` — عيب محدد، إصلاح، واختبار PostgreSQL 17 مباشر مثبت على SHA محدد؛ بوابة P2 والمراجعة المستقلة والدمج والتحقق من رأس الدمج ما زالت مفتوحة.
+**الحالة:** `PARTIAL` — Core واختبار PG17 المباشر ناجحان على الرأس الحالي؛ P2 والمراجعة المستقلة والدمج والتحقق من رأس الدمج ما زالت مفتوحة. لم يثبت اختبار العميل المستضاف أو الإنتاج، وبوابة customer/tenant E2E الخارجية ليست PASS.
 
-## الدفعة الدلالية الرابعة — رفض NULL في انتقال حالة المهمة التشغيلية (OPEN; CI pending)
+## الدفعة الدلالية الرابعة — رفض NULL في انتقال حالة المهمة التشغيلية (PARTIAL; PG17 runtime passed)
 
-**الاكتشاف:** `public.update_operational_task_status(p_task_id, p_status, p_resolution_note)` كان يتحقق باستخدام `IF p_status NOT IN (...)`. إذا كانت `p_status` تساوي `NULL`، تصبح نتيجة الشرط `NULL` وليست `TRUE`؛ فيتجاوز المدخل حاجز التحقق ويتقدم إلى محاولة التحديث. قيد قاعدة البيانات قد يرفض التغيير لاحقًا، لكن العقد لا يضمن خطأ مدخلات واضحًا ومستقرًا قبل قراءة المهمة/قفلها.
+**الاكتشاف:** `public.update_operational_task_status(p_task_id, p_status, p_resolution_note)` كانت تستخدم `IF p_status NOT IN (...)`; عند `NULL`، لا يصبح الشرط `TRUE`، فيتجاوز المدخل حاجز التحقق ويصل إلى محاولة التحديث.
 
-**المعالجة:** [PR #148](https://github.com/Report-Engainall/Nasr1/pull/148) يضيف migration أمامية `20261024140000_operational_task_status_reject_null.sql` بشرط صريح `p_status IS NULL OR p_status NOT IN (...)` مع SQLSTATE `22023` قبل البحث عن المهمة والقفل والتحديث. يحتفظ بتفويض المؤسسة والدور والموظف المعيّن وانتقالات الحالة وسجل التدقيق.
+**المعالجة:** [PR #148](https://github.com/Report-Engainall/Nasr1/pull/148) يضيف `20261024140000_operational_task_status_reject_null.sql`، ويرفض الحالة الفارغة أو غير المدعومة بـ`22023` قبل البحث عن المهمة والقفل والتحديث. يحتفظ بضوابط المؤسسة والدور والتعيين والانتقالات والتدقيق.
 
-**اختبار حالي:** أُضيف `src/test/operational-task-null-status-migration.test.ts` لإثبات وجود الحارس وترتيبه قبل قراءة الصف والتحديث، مع التحقق من بقاء ضوابط الصلاحية والتدقيق. Core [40106419430](https://github.com/Report-Engainall/Nasr1/actions/runs/40106419430) وP2 [40106419440](https://github.com/Report-Engainall/Nasr1/actions/runs/40106419440) كانا قيد التنفيذ على SHA `3988adbaa6a8aa22ae8562a7a7fdd98a63dbe36a` عند إعداد هذا التحديث.
+**إثبات PostgreSQL 17 المباشر:** SHA `fbc34727822416c6521cd9bae841c8d0df0261c6` — PG17 runtime [40106736232 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40106736232)، وسجل التنفيذ يؤكد:
+`PASS operational task status PG17 runtime: NULL/unsupported status raise 22023 before mutation; valid transition and single audit remain intact.`
+Core [40106736245 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40106736245). P2 [40106736237](https://github.com/Report-Engainall/Nasr1/actions/runs/40106736237) كان قيد التنفيذ عند تحديث هذا السجل.
 
-**حد القبول:** هذا اختبار عقد مصدر، وليس إثباتًا لتشغيل RPC مباشرة على PostgreSQL 17. تبقى نتيجة Core/P2 النهائية، واختبار runtime المباشر، والمراجعة المستقلة والدمج مطلوبة. يجب ترتيب دمج migration `20261024140000` بعد #144 ثم #145 ثم #147؛ لا يُدمج #148 قبل استيفاء ترتيب migrations.
+**الحالة:** `PARTIAL` — Core واختبار PG17 المباشر ناجحان؛ P2 والمراجعة المستقلة والدمج والتحقق على رأس الدمج لا تزال مطلوبة.
 
-**الحالة:** `PARTIAL` — إصلاح أمامي واختبار عقد أُرسلا إلى PR؛ التنفيذ على قاعدة اختبار مباشرة والدمج لم يثبتا بعد.
+## الدفعة الدلالية الخامسة — قرار حالة الترويج لا يقبل NULL (OPEN; exact-head CI running)
+
+**الاكتشاف:** `public.save_promotion(..., p_is_active boolean)` و`public.set_promotion_active(p_promotion_id, p_is_active)` كانتا تستبدلان `NULL` بـ`false`. في طلب تبديل الحالة، قد يؤدي المدخل غير الصالح إلى تعطيل ترويج قائم وتسجيل حدث `promotion.deactivated` بدل رفض الطلب.
+
+**المعالجة:** [PR #149](https://github.com/Report-Engainall/Nasr1/pull/149) يضيف migration `20261024143000_promotion_null_active_decision.sql`؛ يرفض `p_is_active IS NULL` بحالة `22023` قبل إنشاء/تحديث الترويج أو البحث عن صف الترويج وقفله، ويزيل تحويل `NULL` إلى `false`. يحافظ على صلاحيات admin/manager وعزل المؤسسة والتدقيق.
+
+**الاختبارات:** أضيف `src/test/promotion-null-active-decision.test.ts`، و`scripts/test-promotion-null-active-decision.mjs`، وworkflow مستقل PostgreSQL 17. على SHA `21fabc9ecaf11fb3f22737e11070d23e83cb1872` كانت Core [40107006299](https://github.com/Report-Engainall/Nasr1/actions/runs/40107006299)، وP2 [40107006338](https://github.com/Report-Engainall/Nasr1/actions/runs/40107006338)، وPG17 [40107006365](https://github.com/Report-Engainall/Nasr1/actions/runs/40107006365) قيد التنفيذ؛ لم تُثبت نتيجة PASS حتى الآن.
+
+**الحالة:** `PARTIAL` — تغيير برمجي واختبارات قُدمت إلى PR، والقبول ينتظر نتائج الرأس النهائي والمراجعة والدمج.
+
+**ترتيب migrations بعد المصالحة:** #144 (`11:00`) → #145 (`12:00`) → #146 (`13:00`) → #147 (`13:30`) → #148 (`14:00`) → #149 (`14:30`). لا تدمج طلبًا دون مراجعة مستقلة وبوابات القبول المطلوبة، وبعد أي تغيير للرأس يجب إعادة الاختبارات عليه.
 
 ## اختبارات تثبتها Core الحالية
 
