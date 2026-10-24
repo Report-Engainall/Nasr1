@@ -4,10 +4,10 @@
 
 - **Repository:** `Report-Engainall/Nasr1`; production reference: `main`.
 - **Verified main merge:** PR #190 merged at `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Exact PR-head Core 40127113576, async-export PostgreSQL 17 40127113568 and P2 40127113571 passed.
-- **Post-merge current-main runs:** Core 40127500733 and PostgreSQL 17 40127500750 were IN_PROGRESS at the latest poll. These must reach terminal PASS before release-level main validation is claimed.
+- **Post-merge current-main runs:** Core [40127500733](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500733) and PostgreSQL 17 [40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750) both completed SUCCESS on exact main SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. No exact-main P2 run was observed; PR #190's P2 passed on its tested head.
 - **Completed inventory evidence:** artifact `public-rpc-function-inventory-3d68de8c657e92c2a0fc1a75f787be2862951ea7`, Actions run 40127113568, generated `RPC_INVENTORY_SUMMARY functions=310 matched=310 unmatched=0 migration_files=135`. This is catalog/source mapping evidence for the isolated PR merge tree; it is not semantic authorization proof for each RPC.
 - **Status:** `PARTIAL`. 179 callable RPC candidates still require source-backed review of authentication/role, tenant scope, mutation effects, idempotency, retry and audit consistency.
-- **Owner authority:** owner explicitly authorized ready merges; older no-approval text in historical snapshots is superseded. Exact-head CI, migration order and post-merge confirmation remain technical gates.
+- **Owner authority:** the owner explicitly authorized this integration and ready merges; older no-approval text in historical snapshots is superseded. Exact-head CI, migration order and post-merge confirmation remain technical gates.
 - **External boundaries:** hosted customer E2E is SKIPPED; production mutation/deployment/restore, real Onyx import/sync, WhatsApp delivery and live AI-provider calls are not claimed.
 
 ## NEXT_ACTION
