@@ -9,6 +9,7 @@ const routes = [
   { name: "outbox worker", path: "supabase/functions/outbox-worker/index.ts", cap: 4096 },
   { name: "async export worker", path: "supabase/functions/async-export-worker/index.ts", cap: 4096 },
   { name: "async export download", path: "supabase/functions/async-export-download/index.ts", cap: 2048 },
+  { name: "product image JSON delete", path: "supabase/functions/product-image-upload/index.ts", cap: 2048 },
 ];
 
 describe("bounded streaming Edge Function request bodies", () => {
@@ -69,5 +70,6 @@ describe("bounded streaming Edge Function request bodies", () => {
     expect(source).toContain("readBoundedTextBody(request.body");
     expect(source).toContain(`readBoundedTextBody(request.body, ${cap}, request.headers.get("content-length"))`);
     expect(source).not.toContain("request.text()");
+    expect(source).not.toContain("request.json()");
   });
 });
