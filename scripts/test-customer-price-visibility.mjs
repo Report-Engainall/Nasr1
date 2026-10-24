@@ -195,19 +195,20 @@ async function main() {
     assert.equal(visibleInvoice?.customer?.tier_label, "الجملة", "authorized invoice payload should include only the server-approved tier label");
     assert.ok(Number(visibleInvoice?.invoice?.total_amount) > 0, "authorized invoice payload includes amounts after setting change");
 
-    // Even an accidentally overlapping manager + accountant profile may never receive products.base_price.
+    // An accountant must never acquire staff base-price access from an overlapping manager role.
+    // This fixture has no approved customer identity, so customer-price resolution must fail closed.
     await db.unsafe("reset role");
     await db.unsafe(
       "insert into public.user_roles(profile_id,role) values($1,'manager') on conflict(profile_id,role) do nothing",
       [accountant[0].id],
     );
     await assumeUser(accountant[0].auth_user_id, "ci-accountant@example.test");
-    const accountantPrice = await db.unsafe(
+    await assertDatabaseRejects(
       "select unit_price from public.get_storefront_product_prices($1::uuid[],1)",
       [[ACCOUNTANT_PRODUCT_ID]],
+      /customer membership lacks permission to resolve catalog prices/i,
+      "accountant with an overlapping manager role and no approved customer context cannot read prices",
     );
-    assert.equal(accountantPrice.length, 1);
-    assert.equal(Number(accountantPrice[0].unit_price), 1234, "accountant role denies raw base price even when another role row overlaps");
 
     // Reuse the existing Auth identity for the membership tests. The local fixture has
     // no extra auth.users records, and auth.sessions correctly enforces its user_id FK.
@@ -249,6 +250,16 @@ async function main() {
       Number(memberPreview?.items?.[0]?.unit_price),
       directCustomerTierUnitPrice,
       "company buyer receives the same server-derived tier price as the owning customer",
+    );
+    const memberCardPrice = await db.unsafe(
+      "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],1)",
+      [[CATALOG_PRODUCT_ID]],
+    );
+    assert.equal(memberCardPrice.length, 1, "active buyer membership may resolve product-card pricing");
+    assert.equal(
+      Number(memberCardPrice[0].unit_price),
+      directCustomerTierUnitPrice,
+      "company buyer receives only the owning customer's server-derived tier price",
     );
 
     // Finance members lack catalog.read and orders.create. Each expected SQL error is
