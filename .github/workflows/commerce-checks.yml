@@ -109,6 +109,7 @@ jobs:
           set -o pipefail
           node scripts/generate-public-rpc-contract-inventory.mjs | tee /tmp/public-rpc-contract-inventory.md
           grep -Eq '^RPC_INVENTORY_SUMMARY functions=[0-9]+ matched=[0-9]+ unmatched=0 migration_files=[0-9]+$' /tmp/public-rpc-contract-inventory.md
+
       # The repository-wide Prettier rule currently reports thousands of pre-existing formatting errors.
       # Keep ESLint correctness rules enabled here and do not let that legacy formatting backlog hide build results.
       - name: Lint (excluding repository-wide Prettier formatting rule)
@@ -372,3 +373,4 @@ jobs:
           fi
 
           E2E_BASE_URL=http://127.0.0.1:5191 "$RUNNER_TEMP/pw-price-policy/node_modules/.bin/playwright" test --config=playwright.config.ts --reporter=list e2e/storefront-price-visibility.spec.ts
+
