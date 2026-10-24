@@ -26,7 +26,11 @@ describe('unified import end-to-end acceptance contracts', () => {
     expect(finalizeGuard).toContain("external_source_reference', v_external_source_reference");
     expect(finalizeGuard).toContain("conrelid='public.import_jobs'::regclass");
     expect(finalizeGuard).toContain("conrelid='public.import_upload_sessions'::regclass");
+    expect(finalizeGuard).toContain("REVOKE ALL ON FUNCTION public.create_import_job(text,text,bigint,text,uuid,text,text) FROM PUBLIC, anon, authenticated");
     expect(finalizeGuard).toContain("REVOKE ALL ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,uuid,text,text,text) FROM PUBLIC, anon, authenticated");
+    expect(finalizeGuard).toContain("v_source_system <> 'manual' AND v_external_source_reference IS NULL");
+    expect(dbAcceptance).toContain("reject a non-idempotent direct RPC for import-job creation");
+    expect(dbAcceptance).toContain("require an external source reference for non-manual import sources");
   });
 
   it('rejects missing required headers and invalid UTF-8 before attempting finalization', () => {
