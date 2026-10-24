@@ -1,7 +1,7 @@
 # NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026 (after PR #198)
 
 - **Repository:** `Report-Engainall/Nasr1`; `main` is the only production reference.
-- **Latest main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1` — PR #198 merged. Post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) was IN_PROGRESS at the last poll, so main post-merge Core is pending terminal confirmation.
+- **Latest main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1` — PR #198 merged. Post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) completed SUCCESS on the exact main SHA. The job also passed unit tests, isolated PostgreSQL 17 migration/core-workflow acceptance, lint, build, production-preview smoke, dev-server smoke, and Chromium price-visibility acceptance.
 - **PR #194 — documentation reconciliation:** merged as `8ed955789cdff49f300af3fa79524782877928bc`. Its Core/P2 checks passed on pre-merge head `a2eabfd382271dc10fef96286e772778d43adfcb`.
 - **PR #196 — CSV/XLSX unknown stock:** merged as `6f73438bb1c2e90bd3daffde0701df29b3df8553`. Exact head `0ca8deb99d42d57d56544d3e6fb3770d2a3494c4` passed Core [40130250564](https://github.com/Report-Engainall/Nasr1/actions/runs/40130250564) and P2 [40130250519](https://github.com/Report-Engainall/Nasr1/actions/runs/40130250519); local Supabase order/tenant acceptance passed; hosted customer/tenant E2E was SKIPPED. Post-merge Core [40130620987](https://github.com/Report-Engainall/Nasr1/actions/runs/40130620987) passed on exact merge SHA.
 - **PR #197 — DQS status semantics:** merged as `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb`. Exact head `4ec6a660f57947064376154c74d1e311bde57f4e` passed Core [40130345683](https://github.com/Report-Engainall/Nasr1/actions/runs/40130345683) and P2 [40130345655](https://github.com/Report-Engainall/Nasr1/actions/runs/40130345655); post-merge Core [40130696335](https://github.com/Report-Engainall/Nasr1/actions/runs/40130696335) later completed SUCCESS on the exact merge SHA. Five row states are tested and only explicit `valid` earns validity points.
@@ -14,8 +14,8 @@
 
 ## NEXT ACTION
 
-1. Confirm terminal outcome of post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) on main `12b622326f8a95575994ef1afae43f69fdf854b1`.
-2. No open PRs were observed after #198 merged. Continue with the outstanding route behavior and RPC semantic audit only where an acceptance gap is evidenced; avoid reimplementing merged import/export/security work.
+1. Post-merge Core run 40130981792 is SUCCESS on exact main `12b622326f8a95575994ef1afae43f69fdf854b1`, including PostgreSQL 17 and browser-preview checks. Keep the docs reconciliation separate and merge only after its own exact-head gate.
+2. No code PRs remained open immediately after #198 merged; the current documentation reconciliation is being staged on `docs/live-state-and-acceptance-20261024`. Continue with screen-level behavior and RPC semantic audit only where an evidenced gap remains.
 3. Refresh this checkpoint after the next code-bearing merge and keep exact SHA evidence beside each status.
 4. Continue to label hosted E2E, real Onyx/WhatsApp/AI, and production operations as blocked/unproven until the real authorized run exists.
 
