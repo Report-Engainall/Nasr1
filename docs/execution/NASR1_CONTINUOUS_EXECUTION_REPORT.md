@@ -1,17 +1,17 @@
 # NASR1 Continuous Execution Report
 
-**Latest checkpoint:** 24 October 2026 — PRs #196 (export blanks), #197 (DQS status matrix), and #198 (admin route mounts) merged; post-merge Core for current main is being verified  
+**Latest checkpoint:** 24 October 2026 — PRs #196 (export blanks), #197 (DQS status matrix), and #198 (admin route mounts) merged; post-merge Core for current main is terminal SUCCESS  
 **Repository:** `Report-Engainall/Nasr1`  
 **Production reference:** `main` only  
 **Main SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1` (PR #198 merge)  
-**Current-main verification:** post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) was IN_PROGRESS at last poll on exact main SHA `12b622326f8a95575994ef1afae43f69fdf854b1`. #198 exact-head Core/P2 both passed before merge; hosted customer/tenant E2E was skipped.
+**Current-main verification:** post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) completed SUCCESS on exact main SHA `12b622326f8a95575994ef1afae43f69fdf854b1`; its job passed unit tests, isolated PostgreSQL 17 migrations/core workflows, lint, build, production preview/dev smoke and Chromium price-visibility acceptance. #198 exact-head Core/P2 both passed before merge; hosted customer/tenant E2E was skipped.
 
 ## Latest execution truth — after PR #198
 
 - **PR #196 — unknown stock export parity:** merged as `6f73438bb1c2e90bd3daffde0701df29b3df8553`; exact-head Core 40130250564/P2 40130250519 PASS; post-merge Core 40130620987 SUCCESS. CSV/XLSX tests preserve blank unknown values and the leading-zero product code; this is not proof of live Onyx target import.
 - **PR #197 — DQS row statuses:** merged as `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb`; exact-head Core 40130345683/P2 40130345655 PASS; post-merge Core 40130696335 SUCCESS. Only explicit `valid` rows earn validity points across five tested row statuses.
 - **PR #198 — admin route mount acceptance:** merged as `12b622326f8a95575994ef1afae43f69fdf854b1`; exact-head Core 40130584912/P2 40130584867 PASS. Test mounts 22 admin URLs and verifies intended wrapper/component wiring; per-screen action/data/role acceptance is still separate.
-- **Current-main gate:** Core run 40130981792 was IN_PROGRESS on the exact current main SHA at last poll. Verify its terminal status before marking the post-merge release gate green. Historical e467 Core/PG17 and RPC inventory results remain historical evidence only.
+- **Current-main gate:** Core run 40130981792 completed SUCCESS on exact current main SHA. This closes the post-merge Core/isolated-PG17 gate for the 12b622... main commit; it does not close hosted external integration or the semantic audit. Historical e467 Core/PG17 and RPC inventory results remain historical evidence only.
 - **Boundaries:** 179 callable RPC candidates remain for semantic review; hosted authenticated customer/tenant E2E, real Onyx/WhatsApp/AI calls and production mutations/deploy/restore remain unproven.
 
 ## Historical baseline — PR #190
@@ -27,7 +27,7 @@
 
 ## Next execution actions
 
-1. Confirm terminal post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) on `12b622326f8a95575994ef1afae43f69fdf854b1`.
+1. Preserve the verified current-main gate at `12b622326f8a95575994ef1afae43f69fdf854b1`; run the same gate again after any later code-bearing main merge.
 2. Finish exact-head Core/P2 on the clean-main documentation branch; merge only after successful required checks.
 3. Continue the 179-function semantic review in source-backed batches with explicit allow/deny, tenant isolation, no-side-effect, idempotency and audit assertions.
 4. Re-run completed code only for a reproduced failure; keep external/prod gates NOT RUN/SKIPPED/BLOCKED_EXTERNAL without real authorized proof.
