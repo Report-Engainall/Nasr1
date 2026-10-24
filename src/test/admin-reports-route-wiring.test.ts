@@ -14,7 +14,7 @@ describe("admin reports analytics wiring", () => {
     expect(route).toContain('createFileRoute("/admin_/reports")');
     expect(route).toContain('<AdminApp initialView="reports" />');
     expect(route).not.toContain("ExecutiveStoreAnalytics");
-    expect(route).toMatch(/role="status">\s*جار تحميل التقارير\.\.\./);
+    expect(route).toMatch(/role="status"[^>]*>\s*جار تحميل التقارير\.\.\./);
     expect(reportsImplementation).not.toBe("");
     expect(reportsImplementation.match(/<ExecutiveStoreAnalytics\s*\/>/g) ?? []).toHaveLength(1);
   });
