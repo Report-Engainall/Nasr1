@@ -1,4 +1,25 @@
-## AUTHORITATIVE ACTIVE READ — 2026-10-24 20:29 +03:00
+## AUTHORITATIVE ACTIVE READ — 2026-10-24 20:44 +03:00
+
+Repository `Report-Engainall/Nasr1`; `main` SHA `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`, Core `40111286682 SUCCESS` on that exact SHA. No direct writes to `main`.
+
+- Merged baseline: #133, #135–#141, #143–#146; do not recreate without a proven regression. #148–#151 are closed stale-base duplicates preserved by #164/#165/#166/#168; #167 duplicates #162; #176 is a duplicate checkpoint PR and #152 remains canonical.
+- #134 head `296453bd6d71817e0b78e4a752f0dff889ef5ec3`: Core `40112078912 PASS`, P2 `40112078914 PASS`; concurrent same-key batch test is present; review pending.
+- #142 head `77f338753a6fad8d0f9b4942e480c8be85782d3e`: Core `40116260315` / P2 `40116260420` were running. API-OPS remains PARTIAL (304/304 public objects mapped; 179 RPC candidates still need semantic review).
+- #147 head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`: Core/P2 `40111802394`/`40111802434` PASS. PG17 evidence `5b351a544f412a48c0d5466b91b000c51100c889` is on an older head, not current-head proof.
+- #152 previous head `84c0e0a7a21d0c0add7284b67315f6872c390d78` Core/P2 succeeded; this checkpoint update advances the branch, so new exact-head gates are mandatory. Keep this as the single canonical resume PR.
+- #175 head `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`: Core PASS; P2 `40115637423` was in progress.
+- #177 head `a165b6753a9357bbf736675ec1c7fadc8a08c58b`: Core/P2 PASS. #178 head `4e815b9325ecf1f0da6980e79a604f5f752b963d`: Core and PG17 PASS, P2 in progress. #179 head `a84599d02be02ce9a30f1e06166c45b710a2bc95`: Core in progress, P2 pending.
+- Ordered migration integration remains #147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #172. `scripts/test-database-migrations.mjs` is shared; preserve all P1/P2 assertions and never replace it wholesale.
+- Human independent approvals must be verified from submitted review records; requested reviewers/bot comments do not count. Hosted customer E2E, production restore/deploy/migrations, live Onyx, WhatsApp and live AI remain skipped/blocked without authorized evidence.
+
+## NEXT ACTION — FIRST STEP ON RESUME
+1. Poll #142 Core/P2 and #175 P2 on their current exact heads.
+2. Poll #178 P2 and #179 Core/P2; inspect actual logs, fix only proven failures, and do not carry PASS across SHAs.
+3. Run Core/P2 on the final updated #152 head, then obtain independent review and merge only under repository policy.
+4. Continue semantic review of the remaining RPC candidates and integrate migrations in the required order, rerunning all gates after each base change.
+
+---
+## HISTORICAL ACTIVE READ — 2026-10-24 20:29 +03:00 (superseded by the authoritative read above)
 
 ### 1) Last confirmed execution point
 Repository: `Report-Engainall/Nasr1`. Current `main` SHA: `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; Main Core run [40111286682](https://github.com/Report-Engainall/Nasr1/actions/runs/40111286682) passed on that SHA. No direct writes to `main` and no production data changes were made by this execution.
