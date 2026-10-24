@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { readBoundedTextBody } from "../_shared/bounded-body.ts";
 import {
   hasAllowedProductImageRole,
   isSafeProductImageRequest,
@@ -88,8 +89,15 @@ if (runtime) runtime.serve(async (request) => {
   let bytes: Uint8Array | undefined;
 
   if (contentType === "application/json") {
+    // Delete requests carry metadata only; enforce a byte cap and reject malformed UTF-8.
+    const bodyRead = await readBoundedTextBody(request.body, 2048, request.headers.get("content-length"));
+    if (!bodyRead.ok) {
+      if (bodyRead.reason === "too_large") return reply({ error: "request_too_large" }, 413);
+      if (bodyRead.reason === "invalid_utf8") return reply({ error: "invalid_utf8" }, 400);
+      return reply({ error: "invalid_request_body" }, 400);
+    }
     let body: unknown;
-    try { body = await request.json(); } catch { return reply({ error: "invalid_json" }, 400); }
+    try { body = JSON.parse(bodyRead.text); } catch { return reply({ error: "invalid_json" }, 400); }
     if (!body || typeof body !== "object" || Array.isArray(body)) return reply({ error: "invalid_request" }, 400);
     const value = body as Record<string, unknown>;
     if (value.action !== "delete") return reply({ error: "invalid_action" }, 400);
