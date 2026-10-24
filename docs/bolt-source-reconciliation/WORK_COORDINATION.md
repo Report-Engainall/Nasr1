@@ -5,10 +5,10 @@ This top section supersedes stale P2 task indicators further below.
 - Authoritative repository and branch: `Report-Engainall/Nasr1`, `main` SHA `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; no direct-main writes.
 - Central-file ownership: P2 alone owns `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`, `docs/bolt-source-reconciliation/PROGRAMMER_2_CURRENT_REPORT.md`, `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`, `docs/bolt-source-reconciliation/WORK_COORDINATION.md`, `docs/bolt-source-reconciliation/EXECUTION_LOG.md`; current reconciliation commit is sequential and changes no P1/P3 source paths.
 - #100 and #101 are merged; neither should be recreated.
-- #142 owns the API-OPS register and complete catalog snapshot, not application code. Latest docs SHA `d3f0c41d8330c0ac30ff13c122e19e34d31f5825`; Core 40044835801 and P2 40044835894 are `IN_PROGRESS` here. Wait for terminal outcomes before closing that docs unit.
+- #142 owns the API-OPS register and complete catalog snapshot, not application code. Latest docs SHA `d3f0c41d8330c0ac30ff13c122e19e34d31f5825`; Core 40044835801 and P2 40044835894 both terminal `SUCCESS` on that exact SHA. The PR is still open awaiting review, not merged.
 - #144 owns the app-code fix for live session-bound identity and membership-based customer pricing. Exact head `9fc736db3fc451731a94105d6e707a5c83fbf019`, Core 40044350881/P2 40044350890 both `SUCCESS`; independent review requested, not merged.
 - External blockers stay external: hosted customer E2E is skipped without authorized test credentials; no live provider or production secret has been proven.
-- Next P2 owner action: use the saved catalog instead of re-enumerating it; complete high-risk semantic RPC review, keep the zero-price sentinel contract open, and reconcile terminal PR #142 actions before the next task.
+- PR #133 central-doc head `8b1f6d75a5c25a63e9bebe6c90b3c53cae26b0a7` passed Core 40045052185 and P2 40045052224 exact SHA; this status refresh is a doc-only descendant that requires fresh CI. Next P2 action: continue high-risk semantic RPC review, preserve the zero-price sentinel contract question as OPEN, and keep all three PRs open until independent reviewer approval.
 - Any new PR/checkpoint must name exact branch/head/base, changed files, final test run IDs and explicit skipped/blocked cases.
 
 ---

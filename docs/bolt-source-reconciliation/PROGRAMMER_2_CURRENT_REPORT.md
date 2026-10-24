@@ -16,7 +16,7 @@
 |---|---|---|---|
 | Public PostgreSQL catalog inventory | `672749855d733f691ab59de878420a210108fbbe` | 120 migrations; 304/304 mapped; zero unmatched. Core [40042438869](https://github.com/Report-Engainall/Nasr1/actions/runs/40042438869) and P2 [40042438851](https://github.com/Report-Engainall/Nasr1/actions/runs/40042438851) SUCCESS. | `TESTED_EXACT_SHA` |
 | Storefront live-session + customer membership price RPC repair | `9fc736db3fc451731a94105d6e707a5c83fbf019` | Core [40044350881](https://github.com/Report-Engainall/Nasr1/actions/runs/40044350881) and P2 [40044350890](https://github.com/Report-Engainall/Nasr1/actions/runs/40044350890) SUCCESS on the same SHA. | `TESTED_EXACT_SHA`; PR #144 open/review requested |
-| Updated API-OPS register in PR #142 | Latest head `d3f0c41d8330c0ac30ff13c122e19e34d31f5825` | Core [40044835801](https://github.com/Report-Engainall/Nasr1/actions/runs/40044835801), P2 [40044835894](https://github.com/Report-Engainall/Nasr1/actions/runs/40044835894). | `IN_PROGRESS` at reconciliation; refresh exact-head results before closure |
+| Updated API-OPS register in PR #142 | Latest head `d3f0c41d8330c0ac30ff13c122e19e34d31f5825` | Core [40044835801](https://github.com/Report-Engainall/Nasr1/actions/runs/40044835801) and P2 [40044835894](https://github.com/Report-Engainall/Nasr1/actions/runs/40044835894) terminal SUCCESS exact head. | `TESTED_EXACT_SHA`; PR open awaiting review |
 
 ## Failures preserved honestly
 
@@ -25,9 +25,9 @@
 
 ## NEXT_ACTION
 
-1. Wait for PR #142 Core and P2 on its current head to finish; update this record only after reading both terminal results on the same SHA.
+1. PR #142 latest documented head `d3f0c41d8330c0ac30ff13c122e19e34d31f5825` now has terminal Core/P2 SUCCESS on that exact SHA (40044835801/40044835894); wait only for reviewer approval, do not recreate its tests or claim the next docs descendant is already tested.
 2. Keep PR #144 open until independent approval; verify it remains mergeable and rerun only if its source changes.
-3. Continue the API-OPS semantic review using the saved inventory; the 179 candidate functions are not all semantically audited. Next priority is financial RPC idempotency, tenant checks, locking, source provenance and negative tests, then inventory/import/export, then customer/identity/member roles.
+3. PR #133 head `8b1f6d75a5c25a63e9bebe6c90b3c53cae26b0a7` had Core 40045052185 and P2 40045052224 SUCCESS on that exact SHA; this latest central documentation update will create a new head and requires fresh CI. Continue the API-OPS semantic review using the saved inventory; the 179 candidate functions are not all semantically audited. Next priority is financial RPC idempotency, tenant checks, locking, source provenance and negative tests, then inventory/import/export, then customer/identity/member roles.
 4. Keep numeric zero price-sentinel contract review open until all callers are traced; hosted E2E, provider integration, and production-secret readiness remain `BLOCKED_EXTERNAL`.
 
 --- 
