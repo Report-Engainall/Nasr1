@@ -1341,12 +1341,58 @@ async function main() {
     () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)", [invoice.id, 500000, "cash", randomUUID(), "CI-OVERPAY", "should reject"]),
     /exceeds invoice balance/i,
   );
-  await db.unsafe(
-    "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)",
-    [invoice.id, 100000, "transfer", randomUUID(), "CI-PAY-001", "partial payment"],
+  const paymentIdempotencyKey = randomUUID();
+  const paymentActorId = (await db.unsafe("select public.current_profile_id() as id"))[0].id;
+  const paymentInsert = await db.unsafe(
+    "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6) as id",
+    [invoice.id, 100000, "transfer", paymentIdempotencyKey, "CI-PAY-001", "partial payment"],
   );
+  const recordedPaymentId = paymentInsert[0].id;
+  assert.ok(recordedPaymentId, "customer payment RPC must return the committed payment ID");
+
+  const paymentReplay = await db.unsafe(
+    "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6) as id",
+    [invoice.id, 100000, "transfer", paymentIdempotencyKey, "CI-PAY-001", "partial payment"],
+  );
+  assert.equal(paymentReplay[0].id, recordedPaymentId,
+    "an identical payment request must replay the original payment");
+
+  await expectFailure(
+    "payment idempotency key cannot be reused with a changed payload",
+    () => db.unsafe(
+      "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)",
+      [invoice.id, 100001, "transfer", paymentIdempotencyKey, "CI-PAY-001", "partial payment"],
+    ),
+    /payment idempotency key reused with different payload/i,
+    "22023",
+  );
+
+  const paymentAuditEvents = await db.unsafe(
+    "select organization_id,actor_id,action,entity_type,entity_id,new_value from public.audit_logs where organization_id=$1 and action='customer_payment.recorded' and entity_id=$2::uuid",
+    [organizationId, recordedPaymentId],
+  );
+  assert.equal(paymentAuditEvents.length, 1,
+    "an identical retry must not produce a second customer-payment audit event");
+  const paymentAudit = paymentAuditEvents[0];
+  assert.equal(paymentAudit.organization_id, organizationId);
+  assert.equal(paymentAudit.actor_id, paymentActorId);
+  assert.equal(paymentAudit.action, "customer_payment.recorded");
+  assert.equal(paymentAudit.entity_type, "customer_payment");
+  assert.equal(paymentAudit.entity_id, recordedPaymentId);
+  assert.equal(paymentAudit.new_value.invoice_id, invoice.id);
+  assert.equal(paymentAudit.new_value.customer_id, invoice.customer_id);
+  assert.equal(Number(paymentAudit.new_value.amount), 100000);
+  assert.equal(paymentAudit.new_value.currency, invoice.currency);
+  assert.equal(paymentAudit.new_value.payment_method, "transfer");
+  assert.equal(paymentAudit.new_value.idempotency_key_present, true);
+  assert.equal(Object.hasOwn(paymentAudit.new_value, "idempotency_key"), false,
+    "audit must not expose the raw idempotency key");
+  assert.equal(Object.hasOwn(paymentAudit.new_value, "notes"), false,
+    "audit must not copy payment notes into the event");
+
   const invoiceAfterPayment = await db.unsafe("select status from public.customer_invoices where id=$1", [invoice.id]);
   assert.equal(invoiceAfterPayment[0].status, "partially_paid");
+  process.stdout.write("PASS customer payment runtime audit: tenant/actor/source fields persisted, idempotent replay emits one audit, changed payload rejected, sensitive key/notes excluded\\n");
 
   // Receivables aging is computed from the full tenant-scoped invoice/payment ledger, not browser totals.
   const agingSnapshot = await db.unsafe(
