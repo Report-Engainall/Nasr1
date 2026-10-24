@@ -3,5 +3,5 @@ import { QuoteWorkspacePage } from "@/components/CustomerWorkflows";
 
 export const Route = createFileRoute("/quotes")({
   head: () => ({ meta: [{ title: "عروض الأسعار | الأغبري" }, { name: "robots", content: "noindex" }] }),
-  component: () => <ClientOnly fallback={null}><QuoteWorkspacePage /></ClientOnly>,
+  component: () => <ClientOnly fallback={<main className="storefront" dir="rtl" role="status">جار تحميل عروض الأسعار...</main>}><QuoteWorkspacePage /></ClientOnly>,
 });

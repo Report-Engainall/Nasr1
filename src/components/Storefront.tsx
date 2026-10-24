@@ -92,7 +92,12 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   });
   const cachedProductsRef = useRef(cachedProducts);
   const products = isPagedView ? (liveProducts ?? []) : (liveProducts ?? cachedProducts);
-  const { data: categories, error: categoriesError } = useFetch(fetchCategories);
+  const {
+    data: categories,
+    loading: categoriesLoading,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useFetch(fetchCategories);
   const { data: promotions } = useFetch(fetchStorefrontPromotions);
   const { data: settings } = useFetch(fetchSettingsMap);
   const { data: storefrontAnnouncements, error: storefrontAnnouncementsError } = useFetch(fetchStorefrontAnnouncements);
@@ -505,7 +510,48 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
       {productsError && products.length > 0 && <div role="status" style={{ padding: '10px 16px', background: '#fff9e9', color: '#7c4a05', borderBottom: '1px solid #ead7a8', textAlign: 'center', fontSize: 12, fontWeight: 700 }}>
         تعذر تحديث الكتالوج؛ تظهر نسخة محفوظة قديمة وقد تختلف الأسعار والأرصدة. <button type="button" onClick={() => void refetchProducts()} disabled={productsLoading} style={{ textDecoration: 'underline', marginInlineStart: 8 }}>إعادة المحاولة</button>
       </div>}
-      {categoriesError && <div role="status" style={{ padding: '8px 16px', color: '#7c4a05', textAlign: 'center', fontSize: 12 }}>تعذر تحميل التصنيفات؛ يمكنك البحث بالاسم أو رمز الصنف مؤقتًا.</div>}
+      {categoriesLoading && !categories && (
+        <div
+          role="status"
+          style={{
+            padding: '8px 16px',
+            color: '#42666b',
+            textAlign: 'center',
+            fontSize: 12,
+          }}
+        >
+          جار تحميل التصنيفات...
+        </div>
+      )}
+      {categoriesError && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            gap: 10,
+            padding: '8px 16px',
+            color: '#7c4a05',
+            textAlign: 'center',
+            fontSize: 12,
+          }}
+        >
+          <span>
+            تعذر تحميل التصنيفات: {categoriesError}. يمكنك البحث بالاسم أو رمز الصنف مؤقتًا.
+          </span>
+          <button
+            type="button"
+            className="sf-btn-secondary"
+            aria-label="إعادة تحميل التصنيفات"
+            disabled={categoriesLoading}
+            onClick={() => void refetchCategories()}
+          >
+            {categoriesLoading ? 'جار إعادة تحميل التصنيفات...' : 'إعادة تحميل التصنيفات'}
+          </button>
+        </div>
+      )}
 
       <main className="sf-main">
         {view === 'shop' && (
@@ -883,6 +929,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     [cart],
   );
   const idempotencyRef = useRef<{ signature: string; key: string } | null>(null);
+  const submitInFlightRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -976,12 +1023,15 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
   }
 
   async function submit() {
+    // Button disabled state updates after React commits; guard the same-tick duplicate event too.
+    if (submitInFlightRef.current) return;
     if (!user) { setError('سجّل الدخول أو أنشئ حساباً لإتمام الطلب'); return; }
     if (name.trim().length < 2 || phone.trim().length < 6) { setError('الاسم ورقم الهاتف مطلوبان'); return; }
     if (previewLoading || !cartValidation) { setError('لا يمكن تسجيل الطلب حتى ينجح التحقق من أصناف السلة وسياسة التسعير. أعد المحاولة.'); return; }
+    submitInFlightRef.current = true;
     setSubmitting(true); setError('');
-    const requestKey = getIdempotencyKey();
     try {
+      const requestKey = getIdempotencyKey();
       const { data, error: rpcError } = await supabase.rpc('submit_customer_order', {
         _items: cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity })),
         _notes: notes.trim(), _business_name: business.trim(), _contact_name: name.trim(), _phone: phone.trim(),
@@ -1003,7 +1053,10 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
       onComplete({ id: result.id, order_number: result.order_number });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'تعذر إرسال الطلب');
-    } finally { setSubmitting(false); }
+    } finally {
+      submitInFlightRef.current = false;
+      setSubmitting(false);
+    }
   }
 
   return (

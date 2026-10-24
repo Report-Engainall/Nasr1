@@ -15,5 +15,5 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  return <ClientOnly fallback={null}><Login onDone={() => void navigate({ to: "/" })} /></ClientOnly>;
+  return <ClientOnly fallback={<main className="storefront" dir="rtl" role="status">جار تحميل تسجيل الدخول...</main>}><Login onDone={() => void navigate({ to: "/" })} /></ClientOnly>;
 }
