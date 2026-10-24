@@ -1836,14 +1836,6 @@ export async function fetchDashboardStats() {
   };
 }
 
-
-
-    alertCount: alerts.count || 0,
-    lowStockCount,
-  };
-}
-
-
 // ─── Tenant-scoped store executive analytics ───
 // Aggregates the full authorized dataset in PostgreSQL; never derive company-wide trends
 // from a truncated browser page or a caller-supplied organization id.
