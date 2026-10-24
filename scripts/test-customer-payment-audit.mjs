@@ -70,6 +70,7 @@ async function main() {
 
   const idempotencyKey = randomUUID();
   const reference = "CI-PAYMENT-AUDIT-ACCEPTANCE";
+  let createdPaymentId;
   const args = [
     invoice.invoice_id,
     "1.00",
@@ -87,7 +88,8 @@ async function main() {
       "select public.record_customer_payment($1::uuid,$2::numeric,$3::text,$4::uuid,$5::text,$6::text)::text as id",
       args,
     );
-    assert.equal(firstRows[0].id, replayRows[0].id, "idempotent replay must return the original payment ID");
+    createdPaymentId = firstRows[0].id;
+    assert.equal(createdPaymentId, replayRows[0].id, "idempotent replay must return the original payment ID");
 
     await expectSqlState(
       "same idempotency key with a changed amount",
@@ -107,7 +109,7 @@ async function main() {
     [actor.organization_id, idempotencyKey],
   );
   assert.equal(persistedPayments.length, 1, "same-key replay must persist exactly one payment");
-  assert.equal(persistedPayments[0].id, firstPaymentIdFrom(persistedPayments), "payment row has a stable ID");
+  assert.equal(persistedPayments[0].id, createdPaymentId, "stored payment ID matches the RPC result");
 
   const paymentId = persistedPayments[0].id;
   assert.equal(persistedPayments[0].created_by, actor.profile_id, "payment actor is derived from the active finance session");
@@ -136,9 +138,6 @@ async function main() {
   process.stdout.write("PASS customer payment audit: tenant/invoice/customer match, active finance actor, one event per idempotent write, payload conflict rejection, no raw key or notes\n");
 }
 
-function firstPaymentIdFrom(rows) {
-  return rows[0]?.id;
-}
 
 main()
   .catch((error) => {
