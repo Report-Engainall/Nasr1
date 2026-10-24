@@ -71,6 +71,18 @@ describe('price grid', () => {
     await waitFor(() => expect(notice).toHaveBeenCalledWith(expect.stringContaining('1 صنفًا')));
   });
 
+  it('accepts valid two-decimal prices such as 0.29 and 0.58 without floating-point false rejection', async () => {
+    render(<PricingGrid onNotice={vi.fn()} />);
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'سكر أبيض — السعر الأساسي' }), { target: { value: '0.29' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'سكر أبيض — التجزئة' }), { target: { value: '0.58' } });
+    fireEvent.click(screen.getByRole('button', { name: /معاينة التغييرات/ }));
+    expect(screen.getByLabelText('معاينة التغييرات قبل الحفظ')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'اعتماد وحفظ الدفعة' }));
+    await waitFor(() => expect(mocks.saveProductPriceGrid).toHaveBeenCalledWith([
+      expect.objectContaining({ basePrice: 0.29, priceRetail: 0.58 }),
+    ]));
+  });
+
   it('exports only saved server rows, not uncommitted drafts', () => {
     render(<PricingGrid onNotice={vi.fn()} />);
     fireEvent.change(screen.getByRole('spinbutton', { name: 'سكر أبيض — السعر الأساسي' }), { target: { value: '101' } });

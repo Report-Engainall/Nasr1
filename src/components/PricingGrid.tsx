@@ -5,6 +5,7 @@ import { downloadPriceGridXlsx } from '@/lib/price-grid-xlsx';
 import { parseXlsxFirstWorksheet } from '@/lib/unified-import';
 import { fetchAdminProductPriceGrid, saveProductPriceGrid, type ProductPriceGridChange, type ProductPriceGridRow } from '@/lib/api';
 import { useFetch } from '@/lib/useFetch';
+import { parsePriceGridInput } from '@/lib/price-grid-money';
 
 type PriceKey = 'base_price' | 'price_wholesale_of_wholesale' | 'price_wholesale' | 'price_retail';
 type DraftKey = 'basePrice' | 'wholesaleOfWholesale' | 'wholesale' | 'retail';
@@ -66,10 +67,9 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
       for (const field of PRICE_FIELDS) {
         const oldValue = Number(row[field.source] ?? 0);
         const raw = rawValue(row, field);
-        const userEdited = drafts[row.id]?.[field.draft] !== undefined;
-        const newValue = Number(raw);
+        const newValue = parsePriceGridInput(raw);
         before[field.source] = oldValue;
-        if (userEdited && (raw.trim() === '' || !Number.isFinite(newValue) || newValue < 0 || newValue > 999999999999 || Math.round(newValue * 100) !== newValue * 100)) {
+        if (newValue === null) {
           setFormError('الأسعار يجب أن تكون أرقامًا غير سالبة وبحد أقصى منزلتين عشريتين، من دون ترك خلايا فارغة.');
           return null;
         }

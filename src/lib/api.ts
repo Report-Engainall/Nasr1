@@ -7,6 +7,7 @@ import { retryRead } from './retry';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
 import { validateCustomerInput } from './customer-input';
 import { validateInventoryTransferBatchInput, type InventoryTransferBatchInput } from './inventory-transfer-batch';
+import { isValidPriceAmount } from './price-grid-money';
 import type {
   Product, Category, Customer, Supplier, Order, OrderItem,
   InventoryBalance, PricingRule, CreatePricingRuleInput, Promotion, AiAlert, AiTask, Notification,
@@ -1111,7 +1112,7 @@ export async function fetchAdminProductPriceGrid(): Promise<ProductPriceGridRow[
         throw new Error('السعر ' + key + ' غير متاح في بيانات الخادم؛ لم يُستبدل بصفر.');
       }
       const n = Number(value);
-      if (!Number.isFinite(n) || n < 0 || Math.round(n * 100) !== n * 100) throw new Error('أعاد الخادم قيمة سعر غير صالحة: ' + key);
+      if (!isValidPriceAmount(n)) throw new Error('أعاد الخادم قيمة سعر غير صالحة: ' + key);
       return n;
     };
     const quantity = (key: string): number | null => {
@@ -1175,7 +1176,7 @@ export async function saveProductPriceGrid(changes: ProductPriceGridChange[]): P
     seen.add(item.id);
     const values = [item.expectedBasePrice,item.expectedPriceWholesaleOfWholesale,item.expectedPriceWholesale,item.expectedPriceRetail,
       item.basePrice,item.priceWholesaleOfWholesale,item.priceWholesale,item.priceRetail];
-    if (values.some((value) => !Number.isFinite(value) || value < 0 || Math.round(value * 100) !== value * 100)) {
+    if (values.some((value) => !isValidPriceAmount(value))) {
       throw new Error('الأسعار يجب أن تكون أرقامًا غير سالبة وبحد أقصى منزلتين عشريتين.');
     }
   }
