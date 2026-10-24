@@ -2734,6 +2734,11 @@ async function main() {
   assert.equal(Number(onyxAnalytics[0].result.metrics.revenue_total), 600, "revenue KPI must include every snapshot row");
   assert.equal(onyxAnalytics[0].result.forecast_status, "Forecast Unavailable: Insufficient Historical Data");
 
+  // The active profile explicitly remains partial; replace must fail closed on the server.
+  await db.unsafe(
+    "update public.import_profiles set is_full_dataset=false where id=$1::uuid and organization_id=$2::uuid",
+    [importJob.profile_id, organizationId],
+  );
   // Partial imports must preserve every absent key from the previous ready snapshot.
   const partialMergeJobResult = await db.unsafe(
     "select public.create_import_job($1,$2,$3,$4,$5::uuid,$6,$7) as result",
@@ -2762,11 +2767,32 @@ async function main() {
           'source_file_hash', file_hash,
           'period_key', period_key,
           'source_system', source_system,
+          'external_source_reference', external_source_reference,
+          'is_full_dataset', false,
           'no_raw_file_retained', true
         )
       where id=$1::uuid`,
     [partialMergeJob.id],
   );
+  await expectFailure(
+    "reject replacing a ready snapshot with a profile that is not classified as a full dataset",
+    () => db.unsafe("select public.finalize_import_job($1::uuid,$2) as result", [partialMergeJob.id, "replace"]),
+    /الاستبدال الكامل مرفوض/i,
+    "22023",
+  );
+  const snapshotAfterRejectedPartialReplace = await db.unsafe(
+    "select status from public.onyx_snapshots where id=$1::uuid",
+    [finalizedImport[0].result.snapshot_id],
+  );
+  assert.equal(snapshotAfterRejectedPartialReplace[0].status, "ready",
+    "rejected partial replacement must not archive or mutate the previous live snapshot");
+  const keysAfterRejectedPartialReplace = await db.unsafe(
+    "select canonical_key from public.onyx_snapshot_rows where snapshot_id=$1::uuid order by canonical_key",
+    [finalizedImport[0].result.snapshot_id],
+  );
+  assert.deepEqual(keysAfterRejectedPartialReplace.map((row) => row.canonical_key), ["000125", "000126"],
+    "absence from a partial file must not remove source keys from the previously live snapshot");
+
   const finalizedPartialMerge = await db.unsafe(
     "select public.finalize_import_job($1::uuid,$2) as result",
     [partialMergeJob.id, "merge"],
