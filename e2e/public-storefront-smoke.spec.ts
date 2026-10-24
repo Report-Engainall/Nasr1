@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { storefrontCategorySlug } from "../src/lib/storefront-slugs";
 
 test("public storefront and login routes render without external backend writes", async ({ page }) => {
   const pageErrors: string[] = [];
@@ -36,8 +37,11 @@ test("subcategory deep link renders the child category screen", async ({ page })
   const organizationId = "11111111-1111-4111-8111-111111111111";
   const parentId = "a1000000-0000-4000-8000-000000000222";
   const childId = "a1000000-0000-4000-8000-000000000333";
-  const parentSlug = `beverages--${parentId}`;
-  const childSlug = `juices--${childId}`;
+  const parentCategory = { id: parentId, name: "Beverages", name_en: "Beverages" };
+  const childCategory = { id: childId, name: "Juices", name_en: "Juices" };
+  // Use the same production slug contract as category cards; hard-coded slugs drift when normalization changes.
+  const parentSlug = storefrontCategorySlug(parentCategory);
+  const childSlug = storefrontCategorySlug(childCategory);
   const headers = {
     "access-control-allow-origin": "*",
     "access-control-allow-headers":
