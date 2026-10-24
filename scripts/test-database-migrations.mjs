@@ -2549,6 +2549,24 @@ async function main() {
       db.json({ item_code: "DQS-VALID-DATE-2", quantity: "1", revenue: "10", price: "10", date: "2024-02-29" }),
     ],
   );
+  const qualityStatusJobResult = await db.unsafe(
+    `insert into public.import_jobs(
+       organization_id,job_type,file_name,file_hash,file_size,status,created_by,profile_id
+     ) values($1,'onyx_stock','CI DQS row-status validity.csv',$2,700,'pending',$3,$4)
+     returning id`,
+    [organizationId, "f".repeat(64), operationsStaffProfileId, importJob.profile_id],
+  );
+  const qualityStatusJobId = qualityStatusJobResult[0].id;
+  await db.unsafe(
+    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb),($1,2,'pending',$3::jsonb,'[]'::jsonb),($1,3,'invalid',$4::jsonb,'[]'::jsonb),($1,4,'rejected',$5::jsonb,'[]'::jsonb)",
+    [
+      qualityStatusJobId,
+      db.json({ item_code: "DQS-STATUS-VALID", quantity: "1", revenue: "10", price: "10", date: "2024-02-29" }),
+      db.json({ item_code: "DQS-STATUS-PENDING", quantity: "1", revenue: "10", price: "10", date: "2024-02-29" }),
+      db.json({ item_code: "DQS-STATUS-INVALID", quantity: "1", revenue: "10", price: "10", date: "2024-02-29" }),
+      db.json({ item_code: "DQS-STATUS-REJECTED", quantity: "1", revenue: "10", price: "10", date: "2024-02-29" }),
+    ],
+  );
 
   await setIdentity(authUserId, "ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
@@ -2584,6 +2602,14 @@ async function main() {
   assert.equal(qualityScore[0]?.result?.total_rows, 2, "quality score counts both rows from the scoped job");
   assert.equal(Number(qualityScore[0]?.result?.components?.temporal_referential_integrity), 50,
     "an impossible calendar date scores invalid while the real leap-day date scores valid");
+  const qualityStatusScore = await db.unsafe(
+    "select public.calculate_import_job_quality($1::uuid) as result",
+    [qualityStatusJobId],
+  );
+  assert.equal(qualityStatusScore[0]?.result?.total_rows, 4);
+  assert.equal(Number(qualityStatusScore[0]?.result?.components?.validity), 25,
+    "only a row explicitly marked valid contributes to DQS validity; pending, invalid and rejected do not");
+  process.stdout.write("PASS DQS validity accepts only explicit valid row status\\n");
   process.stdout.write("PASS import quality RPC: tenant-scoped IDs, denial parity, and impossible-date scoring\\n");
 
   const duplicateProbe = await db.unsafe(
