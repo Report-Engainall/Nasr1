@@ -215,7 +215,7 @@ export interface ImportJob {
   data_quality_score: number | null;
   quality_breakdown?: Record<string, unknown> | null;
   upload_session_id?: string | null;
-  error_summary?: string | null;
+  error_summary?: Record<string, unknown> | null;
   started_at?: string | null;
   completed_at?: string | null;
   created_by?: string | null;
