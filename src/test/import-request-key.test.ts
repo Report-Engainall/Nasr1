@@ -59,6 +59,7 @@ describe("import request key persistence", () => {
         "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
         "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
       ];
       return keys[generated - 1] ?? "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
     };
@@ -67,11 +68,16 @@ describe("import request key persistence", () => {
     const merge = await getOrCreateImportRequestKey({ ...identity, intent: "merge" }, { storage, createRequestKey });
     const changedFile = await getOrCreateImportRequestKey({ ...identity, fileHash: "b".repeat(64) }, { storage, createRequestKey });
     const anotherActor = await getOrCreateImportRequestKey({ ...identity, actorId: "22222222-2222-4222-8222-222222222222" }, { storage, createRequestKey });
+    const changedExternalBatch = await getOrCreateImportRequestKey(
+      { ...identity, sourceSystem: "onyx_pro", externalSourceReference: "ONYX-BATCH-2026-01-B" },
+      { storage, createRequestKey },
+    );
 
     expect(merge.requestKey).not.toBe(first.requestKey);
     expect(changedFile.requestKey).not.toBe(first.requestKey);
     expect(anotherActor.requestKey).not.toBe(first.requestKey);
-    expect(new Set([first.requestKey, merge.requestKey, changedFile.requestKey, anotherActor.requestKey]).size).toBe(4);
+    expect(changedExternalBatch.requestKey).not.toBe(first.requestKey);
+    expect(new Set([first.requestKey, merge.requestKey, changedFile.requestKey, anotherActor.requestKey, changedExternalBatch.requestKey]).size).toBe(5);
   });
 
   it("expires a stale key instead of reusing an old import attempt", async () => {
