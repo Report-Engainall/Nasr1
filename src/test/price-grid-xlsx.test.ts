@@ -58,8 +58,8 @@ describe('price grid XLSX workbook', () => {
   it('removes XML 1.0-forbidden controls from exported product text', async () => {
     const hostile = {
       ...row,
-      item_code: "00\\u000101234",
-      name: "سكر\\u0000 أبيض\\u0007",
+      item_code: "00\u000101234",
+      name: "سكر\u0000 أبيض\u0007",
     };
     const records: string[][] = [];
     await parseXlsxFirstWorksheet(buildPriceGridXlsx([hostile]), values => { records.push(values); });
