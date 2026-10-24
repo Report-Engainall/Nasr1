@@ -618,6 +618,10 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = '22023',
       MESSAGE = 'مرجع المصدر الخارجي لا يتجاوز 200 حرف';
   END IF;
+  IF v_source_system <> 'manual' AND v_external_source_reference IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'مرجع المصدر الخارجي/رقم الدفعة مطلوب لغير الرفع اليدوي';
+  END IF;
 
   SELECT p.organization_id INTO v_org
     FROM public.profiles AS p
@@ -721,6 +725,8 @@ BEGIN
 END;
 $function$;
 
+REVOKE ALL ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,uuid,text,text,text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.create_import_job(text,text,bigint,text,uuid,text,text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,uuid,text,text,text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,text,uuid,text,text,text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,text,uuid,text,text,text) TO authenticated;
