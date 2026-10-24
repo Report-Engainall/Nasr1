@@ -2411,20 +2411,22 @@ async function main() {
     "a".repeat(64),
     500,
     "onyx_stock",
+    "ONYX-BATCH-2026-01-A",
     null,
     "2026-01",
     "ci",
     "new_version",
   ];
   const importCreated = await db.unsafe(
-    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6::uuid,$7,$8,$9) as result",
+    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
     importRequestArgs,
   );
   const importJob = importCreated[0].result;
   assert.equal(importJob.organization_id, organizationId, "import tenant must be derived from authenticated staff");
   assert.ok(importJob.profile_id, "import should attach a versioned profile");
   assert.equal(importJob.file_name, "CI Onyx.stock.final.csv", "the original filename remains attached to the batch");
-  assert.equal(importJob.source_system, "ci", "the external source identity must be persisted on the batch");
+  assert.equal(importJob.source_system, "ci", "the external source system must be persisted on the batch");
+  assert.equal(importJob.external_source_reference, "ONYX-BATCH-2026-01-A", "external source/batch reference must be persisted on the batch");
   assert.equal(importJob.raw_file_retained, false, "raw files must not be retained");
 
   const importReplay = await db.unsafe(
@@ -2441,7 +2443,7 @@ async function main() {
     "reject import request-key reuse with a changed file identity",
     () => db.unsafe(
       "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6::uuid,$7,$8,$9) as result",
-      [importRequestKey, "different.csv", "b".repeat(64), 500, "onyx_stock", null, "2026-01", "ci", "new_version"],
+      [importRequestKey, "different.csv", "b".repeat(64), 500, "onyx_stock", "ONYX-BATCH-2026-01-A", null, "2026-01", "ci", "new_version"],
     ),
     /مفتاح محاولة الاستيراد مستخدم لعملية أو حمولة مختلفة/i,
     "22023",
@@ -2465,6 +2467,7 @@ async function main() {
   const importSession = await db.unsafe("select public.create_import_upload_session($1::uuid) as result", [importJob.id]);
   assert.equal(importSession[0].result.total_chunks, 1, "a small source file should create one upload manifest chunk");
   assert.equal(importSession[0].result.file_type, "csv", "the upload session must use the last filename suffix, not the second dot-delimited segment");
+  assert.equal(importSession[0].result.external_source_reference, "ONYX-BATCH-2026-01-A", "upload session must retain the same external source reference");
   const chunkHash = "c".repeat(64);
   const recordedChunk = await db.unsafe(
     "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
@@ -2676,7 +2679,9 @@ async function main() {
         set error_summary=coalesce(error_summary,'{}'::jsonb) || jsonb_build_object(
           'processing_config_fingerprint', repeat('e',64),
           'source_file_hash', file_hash,
-          'period_key', period_key
+          'period_key', period_key,
+          'source_system', source_system,
+          'external_source_reference', external_source_reference
         )
       where id=$1::uuid`,
     [importJob.id],
