@@ -146,7 +146,7 @@ function MyOrdersInner() {
                 <td>{formatDate(o.created_at)}</td>
                 <td>{formatNumber(o.total_items)}</td>
                 <td><span className="sf-detail-category">{STATUS_LABELS[o.status] ?? o.status}</span>{o.quantity_review_required && <strong style={{ display: 'block', color: '#9a5b13', marginTop: 5 }}>تنبيه: الطلب بانتظار اعتماد التعديلات.</strong>}{o.customer_payment_requested_at && o.payment_request_status === 'requested' && <small style={{ display: 'block', color: '#17684d', marginTop: 5 }}>يرجى متابعة تعليمات السداد في تفاصيل الطلب.</small>}</td>
-                <td><Link to="/orders/$id" params={{ id: o.id }} className="sf-link">التفاصيل</Link></td>
+                <td><Link to="/orders/$id" params={{ id: o.id }} className="sf-link" aria-label={`تفاصيل الطلب ${o.order_number}`}>التفاصيل</Link></td>
               </tr>))}</tbody>
           </table>
           {pageCount > 1 && <nav aria-label="صفحات الطلبات" style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center', padding: 12, flexWrap: 'wrap' }}>
