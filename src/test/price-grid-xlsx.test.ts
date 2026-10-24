@@ -104,6 +104,30 @@ describe('price grid XLSX workbook', () => {
     }
   });
 
+  it('keeps unknown stock measures blank in CSV and XLSX while preserving zero-padded item codes', async () => {
+    const unknownStock = {
+      ...row,
+      item_code: '00000007',
+      quantity_on_hand_total: null,
+      quantity_reserved_total: null,
+      quantity_available_total: null,
+      reorder_point_total: null,
+    };
+
+    const csvRecords = buildPriceGridCsv([unknownStock])
+      .replace(/^\uFEFF/, '')
+      .trimEnd()
+      .split('\r\n')
+      .map(line => line.split(',').map(cell => cell.startsWith('"') ? cell.slice(1, -1).replace(/""/g, '"') : cell));
+    expect(csvRecords[1][1]).toBe('00000007');
+    expect(csvRecords[1].slice(9)).toEqual(['', '', '', '', '2']);
+
+    const xlsxRecords: string[][] = [];
+    await parseXlsxFirstWorksheet(buildPriceGridXlsx([unknownStock]), values => { xlsxRecords.push(values); });
+    expect(xlsxRecords[1][1]).toBe('00000007');
+    expect(xlsxRecords[1].slice(9)).toEqual(['', '', '', '', '2']);
+  });
+
   it('removes XML 1.0-forbidden controls from exported product text', async () => {
     const hostile = {
       ...row,
