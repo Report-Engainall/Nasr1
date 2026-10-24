@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Check, FileDown, Pause, Play, RefreshCw, ShieldCheck, Upload, XCircle } from "lucide-react";
 import {
-  cancelImportUploadSession, createImportJob, createImportUploadSession, fetchCentralSynonyms, fetchImportJobs, fetchImportProfiles,
+  cancelImportUploadSession, createImportJob, createImportUploadSession, failImportJobSafely, fetchCentralSynonyms, fetchImportJobs, fetchImportProfiles,
   fetchImportUploadChunks, fetchImportRowErrors, findImportDuplicate, finalizeImportJob, insertImportRows, recordImportUploadChunk, updateImportJob,
   type ImportRowErrorDetail,
 } from "@/lib/api";
@@ -477,11 +477,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "تعذر معالجة الملف.";
       setStage(null);
-      setErrorMessage(message);
       if (job) {
         try {
           const failureSummary: Record<string, unknown> = {
-            ...((job.error_summary ?? {}) as Record<string, unknown>),
             code: "IMPORT_PROCESSING_FAILED",
             message,
             resumable: true,
@@ -490,8 +488,38 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           if (checkpointFingerprintPersisted && processingConfigFingerprint) {
             failureSummary.processing_config_fingerprint = processingConfigFingerprint;
           }
-          await updateImportJob(job.id, { status: "failed", error_summary: failureSummary });
-        } catch { /* preserve the original error */ }
+          const reconciled = await failImportJobSafely(job.id, failureSummary);
+          if (reconciled.terminal) {
+            // The finalize/cancel RPC may have committed while its response was lost.
+            // Keep the server's terminal result; never mark it failed or create another snapshot.
+            setErrorMessage("");
+            const snapshotText = reconciled.snapshotId ? " • Snapshot " + reconciled.snapshotId : "";
+            setStatusMessage(
+              reconciled.status === "completed" || reconciled.status === "completed_with_warnings"
+                ? "أكد الخادم أن الدفعة انتهت بالفعل بالحالة " + reconciled.status + snapshotText + ". لم تُعد العملية ولم تُكرر آثارها."
+                : "أكد الخادم الحالة النهائية " + reconciled.status + " لهذه الدفعة. لم تتم إعادة اعتمادها تلقائيًا.",
+            );
+            onNotice("حُفظت الحالة النهائية الموجودة للدفعة؛ لم تُحوّل إلى فشل ولم يُكرر الاعتماد.");
+          } else {
+            setErrorMessage(message);
+            setStatusMessage(
+              "حُفظ الفشل كحالة قابلة للاستئناف، وصالح الخادم عدد الصفوف المحفوظة: " +
+              (reconciled.processedRows === null ? "غير متاح" : formatNumber(reconciled.processedRows)) +
+              "، والمرفوض: " +
+              (reconciled.failedRows === null ? "غير متاح" : formatNumber(reconciled.failedRows)) +
+              ". استخدم الملف الأصلي نفسه للاستئناف.",
+            );
+          }
+        } catch (reconcileError) {
+          setErrorMessage(message);
+          setStatusMessage(
+            "تعذر تأكيد حالة الدفعة بعد الفشل: " +
+            (reconcileError instanceof Error ? reconcileError.message : "خطأ غير معروف") +
+            ". لا تبدأ نسخة بديلة قبل تحديث سجل الدفعات والتحقق من الحالة على الخادم.",
+          );
+        }
+      } else {
+        setErrorMessage(message);
       }
       await refetch();
     } finally {
