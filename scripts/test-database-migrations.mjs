@@ -1367,6 +1367,7 @@ async function main() {
     "22023",
   );
 
+  await db.unsafe("reset role");
   const paymentAuditEvents = await db.unsafe(
     "select organization_id,actor_id,action,entity_type,entity_id,new_value from public.audit_logs where organization_id=$1 and action='customer_payment.recorded' and entity_id=$2::uuid",
     [organizationId, recordedPaymentId],
@@ -1390,6 +1391,7 @@ async function main() {
   assert.equal(Object.hasOwn(paymentAudit.new_value, "notes"), false,
     "audit must not copy payment notes into the event");
 
+  await db.unsafe("set role authenticated");
   const invoiceAfterPayment = await db.unsafe("select status from public.customer_invoices where id=$1", [invoice.id]);
   assert.equal(invoiceAfterPayment[0].status, "partially_paid");
   process.stdout.write("PASS customer payment runtime audit: tenant/actor/source fields persisted, idempotent replay emits one audit, changed payload rejected, sensitive key/notes excluded\\n");
