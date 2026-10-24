@@ -77,6 +77,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
   const runningRef = useRef(false);
 
   const activeProfileId = profileId || (profiles ?? []).find((p: ImportProfile) => p.profile_name === "Unified CSV" && p.status === "active")?.id || null;
+  const selectedImportProfile = (profiles ?? []).find((profile: ImportProfile) => profile.id === activeProfileId);
   const synonymMap = useMemo(() => {
     const result: Record<string, string> = { ...DEFAULT_SYNONYMS };
     const normalizeSource = (value: string) => value.trim().toLocaleLowerCase("ar").replace(/[ـ_-]+/g, " ").replace(/\s+/g, " ");
@@ -462,6 +463,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           profile_id: selectedProfile,
           profile_version: profile?.version ?? null,
           processing_config_fingerprint: processingConfigFingerprint,
+          is_full_dataset: profile?.is_full_dataset === true,
           period_key: selectedPeriod,
           source_system: selectedSource,
           external_source_reference: selectedExternalSourceReference,
@@ -744,6 +746,11 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
                   <option key={profile.id} value={profile.id}>{profile.profile_name} — v{profile.version}</option>,
                 )}
               </select>
+              <small role="status">
+                {selectedImportProfile?.is_full_dataset === true
+                  ? "هذا الملف التعريفي مصنف كمجموعة كاملة. سيظل الخادم يتحقق من الإصدار وبصمة المعالجة قبل السماح بالاستبدال."
+                  : "هذا الملف التعريفي غير مثبت كمجموعة كاملة؛ الاستبدال الكامل محظور. استخدم «دمج» أو «نسخة جديدة» حتى لا تختفي سجلات غائبة عن ملف جزئي."}
+              </small>
             </label>
             <label className="form-field"><span>الفترة (اختياري)</span>
               <input value={periodKey} onChange={(event) => setPeriodKey(event.target.value)} maxLength={120} placeholder="مثال: 2026-01 أو 2026-Q1" />
