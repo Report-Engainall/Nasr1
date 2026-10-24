@@ -1,3 +1,19 @@
+# LIVE COORDINATION CHECKPOINT — 2026-10-24 19:25 +03:00 (authoritative; replace previous active checkpoint)
+
+- Live main `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a` is the actual merge SHA of #146. Independent reviewer `adnanabderab2016-sys` approved exact PR head `f98684645a4ae4d13b398d38340296fc8842b5d9`; Core 40110926680 and P2 40110926679 passed on that head. Hosted customer E2E was SKIPPED.
+- The main merge-SHA workflow was IN_PROGRESS at last poll; no claim of post-merge CI pass yet.
+- Merged: #133, #144, #145, #146, #135–#141, #143. Do not recreate without proof of regression.
+- #147 refreshed to current main in branch `fix/p2-explicit-customer-quote-decision-20261024`, head `68ecab1edaf13077799761a1310ade7a5969c4cf`; Core 40111365360 / P2 40111365359 in progress; reviewer requested, no review submitted yet.
+- #148–#151 remain stale-base PRs. Update and test only in the required sequence after predecessor merge; don’t transfer old-head PASS.
+- #142 API-OPS is PARTIAL (304/304 source mapped, 179 callable RPC contracts still need semantic review). #134 has a historic concurrent batch acceptance test but must be reconciled with current main and #146 changes without losing any assertions.
+- #152 is the resume-doc PR. Its latest branch head and exact-head CI need verification after this checkpoint refresh.
+- **NEXT ACTION — FIRST STEP ON RESUME:** poll #147 Core/P2 on exact head; fix proven failures only. Then obtain independent approval and merge. After that refresh/test/review/merge #148 through #151 in migration order. Reconcile #134. Continue the 179-RPC semantic review and the still-open customer/routes/finance acceptance work.
+- Hosted E2E, Onyx live import, WhatsApp delivery, live AI secrets, production deployment/migrations/restore remain unverified external gates. No production writes are claimed.
+
+---
+
+# Historical coordination log (retain evidence only; live checkpoint above supersedes old active statuses)
+
 # ACTIVE COORDINATION CHECKPOINT — 2026-10-24 19:24 +03:00
 
 Supersedes conflicting historic states below. Current `main`: `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; #146 merged at this SHA with Core [40110926680 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926680) and P2 [40110926679 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926679). Current-main CI still needs verification after this merge SHA.
