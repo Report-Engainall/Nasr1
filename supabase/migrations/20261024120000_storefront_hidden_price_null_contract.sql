@@ -121,7 +121,7 @@ GRANT EXECUTE ON FUNCTION public.get_storefront_product_prices(uuid[],numeric) T
 COMMENT ON FUNCTION public.get_storefront_product_prices(uuid[],numeric) IS
   'Returns only caller-specific prices from the current customer tier. When show_price_on_cards is disabled, customer RPC calls return NULL for unit_price, never a numeric sentinel; raw tier-price rows remain inaccessible to browser roles.';
 
--- The public catalog RPC omits base_price for all callers. The display_price key is JSON null
+-- The public catalog RPC omits base_price for customers and returns it only to authorized staff. The display_price key is JSON null
 -- when show_price_on_cards is disabled, letting the client distinguish hidden from malformed data.
 CREATE OR REPLACE FUNCTION public.get_storefront_catalog_page(
   p_search text DEFAULT NULL,
@@ -286,7 +286,10 @@ BEGIN
                   'quantity_available', r.quantity_available
                 )
               END
-          )
+          ) || CASE WHEN v_is_staff
+               THEN pg_catalog.jsonb_build_object('base_price', prices.unit_price)
+               ELSE '{}'::jsonb
+             END
           ORDER BY r.name, r.id
         )
         FROM page_rows r
@@ -310,4 +313,4 @@ $function$;
 REVOKE ALL ON FUNCTION public.get_storefront_catalog_page(text, uuid, integer, integer, boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_storefront_catalog_page(text, uuid, integer, integer, boolean) TO anon, authenticated;
 COMMENT ON FUNCTION public.get_storefront_catalog_page(text, uuid, integer, integer, boolean) IS
-  'Tenant-scoped catalog page. The payload never emits base_price; display_price is NULL, not zero, when show_price_on_cards is disabled.';
+  'Tenant-scoped catalog page. Customer payloads omit base_price; authorized staff receive only the base price resolved through the pricing RPC. Hidden customer display_price is NULL, not zero.';
