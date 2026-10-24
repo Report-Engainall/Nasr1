@@ -2899,8 +2899,9 @@ async function main() {
   );
   assert.equal(readySnapshotCountAfterFailureReplay[0].count, 1, "failure recovery must not duplicate or remove a committed snapshot");
 
-  // Full-dataset replacement uses a separate immutable profile fixture; active profile rows
-  // must never be edited in place to change their classification.
+  // Active import-profile versions are immutable. Create a dedicated full-dataset profile
+  // before staging any snapshots, then prove replacement only archives a prior snapshot from
+  // that same profile/period after the replacement snapshot is ready.
   await db.unsafe("reset role");
   const fullDatasetProfileCreated = await db.unsafe(
     `insert into public.import_profiles (
@@ -2923,56 +2924,102 @@ async function main() {
   assert.equal(fullDatasetProfile.status, "active");
   assert.equal(fullDatasetProfile.is_full_dataset, true);
   await db.unsafe("set role authenticated");
-  const fullReplaceJobCreated = await db.unsafe(
-    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
-    [randomUUID(), "CI complete Onyx.inventory.csv", "d".repeat(64), 100, "onyx_stock", "CI-FULL-REPLACE-BATCH", fullDatasetProfile.id, "2026-01", "ci", "new_version"],
+
+  const createFullDatasetImport = async ({ requestKey, fileName, fileHash, externalSourceReference, chunkHash, itemCode, productName }) => {
+    const created = await db.unsafe(
+      "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+      [requestKey, fileName, fileHash, 100, "onyx_stock", externalSourceReference,
+        fullDatasetProfile.id, "2026-01", "ci", "new_version"],
+    );
+    const job = created[0].result;
+    const sessionCreated = await db.unsafe(
+      "select public.create_import_upload_session($1::uuid) as result",
+      [job.id],
+    );
+    const session = sessionCreated[0].result;
+    const chunk = await db.unsafe(
+      "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
+      [session.id, 0, 0, 100, chunkHash],
+    );
+    assert.equal(chunk[0].result.complete, true, "full-dataset fixture upload must have a complete manifest");
+    await db.unsafe(
+      "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb)",
+      [job.id, db.json({ item_code: itemCode, product_name: productName, quantity: "4", revenue: "40", price: "10", date: "2026-01-04" })],
+    );
+    await db.unsafe(
+      "update public.import_jobs set error_summary=jsonb_build_object('processing_config_fingerprint', repeat('a',64), 'source_file_hash', file_hash, 'period_key', period_key, 'source_system', source_system, 'external_source_reference', external_source_reference, 'is_full_dataset', true, 'no_raw_file_retained', true) where id=$1::uuid",
+      [job.id],
+    );
+    return job.id;
+  };
+
+  const fullDatasetSeedJobId = await createFullDatasetImport({
+    requestKey: randomUUID(),
+    fileName: "CI complete Onyx.inventory seed.csv",
+    fileHash: "c".repeat(64),
+    externalSourceReference: "CI-FULL-REPLACE-SEED",
+    chunkHash: "8".repeat(64),
+    itemCode: "000127",
+    productName: "Prior complete snapshot item",
+  });
+  const fullDatasetSeedResult = await db.unsafe(
+    "select public.finalize_import_job($1::uuid,$2) as result",
+    [fullDatasetSeedJobId, "new_version"],
   );
-  const fullReplaceJob = fullReplaceJobCreated[0].result;
-  const fullReplaceSessionCreated = await db.unsafe(
-    "select public.create_import_upload_session($1::uuid) as result",
-    [fullReplaceJob.id],
+  assert.equal(fullDatasetSeedResult[0].result.status, "completed",
+    "a complete dataset must publish a baseline snapshot before replacement is evaluated");
+  const fullDatasetPriorSnapshotId = fullDatasetSeedResult[0].result.snapshot_id;
+  assert.ok(fullDatasetPriorSnapshotId, "baseline full-dataset publication must return its snapshot id");
+  const priorFullDatasetSnapshot = await db.unsafe(
+    "select status from public.onyx_snapshots where id=$1::uuid",
+    [fullDatasetPriorSnapshotId],
   );
-  const fullReplaceSession = fullReplaceSessionCreated[0].result;
-  const fullReplaceChunk = await db.unsafe(
-    "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
-    [fullReplaceSession.id, 0, 0, 100, "9".repeat(64)],
-  );
-  assert.equal(fullReplaceChunk[0].result.complete, true);
-  await db.unsafe(
-    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb)",
-    [fullReplaceJob.id, db.json({ item_code: "000128", product_name: "Complete snapshot item", quantity: "4", revenue: "40", price: "10", date: "2026-01-04" })],
-  );
-  await db.unsafe(
-    "update public.import_jobs set error_summary=jsonb_build_object('processing_config_fingerprint', repeat('a',64), 'source_file_hash', file_hash, 'period_key', period_key, 'source_system', source_system, 'external_source_reference', external_source_reference, 'is_full_dataset', true, 'no_raw_file_retained', true) where id=$1::uuid",
-    [fullReplaceJob.id],
-  );
+  assert.equal(priorFullDatasetSnapshot[0].status, "ready");
+
+  const fullReplaceJobId = await createFullDatasetImport({
+    requestKey: randomUUID(),
+    fileName: "CI complete Onyx.inventory.csv",
+    fileHash: "d".repeat(64),
+    externalSourceReference: "CI-FULL-REPLACE-BATCH",
+    chunkHash: "9".repeat(64),
+    itemCode: "000128",
+    productName: "Replacement complete snapshot item",
+  });
   const fullReplaceFinalized = await db.unsafe(
     "select public.finalize_import_job($1::uuid,$2) as result",
-    [fullReplaceJob.id, "replace"],
+    [fullReplaceJobId, "replace"],
   );
   assert.equal(fullReplaceFinalized[0].result.status, "completed",
     "an active, version-matched full-dataset profile with persisted full-source attestation may replace");
+  const replacementSnapshotId = fullReplaceFinalized[0].result.snapshot_id;
+  assert.ok(replacementSnapshotId && replacementSnapshotId !== fullDatasetPriorSnapshotId,
+    "replacement publishes a distinct ready snapshot");
   const oldSnapshotAfterFullReplace = await db.unsafe(
     "select status from public.onyx_snapshots where id=$1::uuid",
-    [finalizedImport[0].result.snapshot_id],
+    [fullDatasetPriorSnapshotId],
   );
   assert.equal(oldSnapshotAfterFullReplace[0].status, "archived",
     "successful full-dataset replacement archives prior live data only after the new snapshot is ready");
   const oldSnapshotHistoryAfterReplace = await db.unsafe(
     "select count(*)::integer as count from public.onyx_snapshot_rows where snapshot_id=$1::uuid",
-    [finalizedImport[0].result.snapshot_id],
+    [fullDatasetPriorSnapshotId],
   );
-  assert.equal(oldSnapshotHistoryAfterReplace[0].count, 2,
+  assert.equal(oldSnapshotHistoryAfterReplace[0].count, 1,
     "archiving a replaced snapshot retains its rows as auditable history");
+  const replacementSnapshotState = await db.unsafe(
+    "select status from public.onyx_snapshots where id=$1::uuid",
+    [replacementSnapshotId],
+  );
+  assert.equal(replacementSnapshotState[0].status, "ready");
   const readySnapshotCountAfterFullReplace = await db.unsafe(
     "select count(*)::integer as count from public.onyx_snapshots where organization_id=$1::uuid and profile_id=$2::uuid and period_key='2026-01' and status='ready'",
-    [organizationId, importJob.profile_id],
+    [organizationId, fullDatasetProfile.id],
   );
   assert.equal(readySnapshotCountAfterFullReplace[0].count, 1,
-    "only the replaced full-dataset snapshot remains ready for this tenant/profile/period");
+    "only the replacement full-dataset snapshot remains ready for this tenant/profile/period");
   const replacementAudit = await db.unsafe(
     "select count(*)::integer as count from public.audit_logs where entity_id=$1::uuid and action='import.snapshot_replaced'",
-    [finalizedImport[0].result.snapshot_id],
+    [fullDatasetPriorSnapshotId],
   );
   assert.equal(replacementAudit[0].count, 1, "retiring the prior live snapshot records an audit event");
 
