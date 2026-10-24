@@ -379,7 +379,7 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
           const qty = p.inventory?.quantity_available ?? 0;
           const low = qty <= (p.inventory?.reorder_point ?? p.min_stock);
           return <tr key={p.id}>
-            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td>{formatCurrency(p.base_price)}</td><td>{formatNumber(qty)} {p.unit}</td>
+            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{formatNumber(qty)} {p.unit}</td>
             <td><span className={'badge ' + (low ? 'warning' : 'success')}>{low ? 'منخفض' : 'متوفر'}</span></td>
             <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button>{canManageReorderPoint && <Button variant="outline" onClick={() => openThreshold(p)}>حد إعادة الطلب</Button>}</div></td>
             <td><div className="row-actions"><button aria-label={'تعديل ' + p.name} onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button><button aria-label={'حذف ' + p.name} onClick={() => remove(p)}><Trash2 size={15} /></button></div></td>
@@ -1164,13 +1164,27 @@ function Reports() {
   const { data: orders, loading: ordersLoading, error: ordersError } = useFetch(fetchOrders);
   const signals = useMemo(() => buildBusinessSignals(orders ?? []), [orders]);
   const statusBreakdown = useMemo(() => buildBusinessStatusBreakdown(orders ?? []), [orders]);
+  const inventoryValue = useMemo(() => {
+    if (!products) return 'غير متاح';
+    let total = 0;
+    for (const product of products) {
+      const price = product.base_price;
+      const quantity = product.inventory?.quantity_available;
+      if (
+        typeof price !== 'number' || !Number.isFinite(price) ||
+        typeof quantity !== 'number' || !Number.isFinite(quantity)
+      ) return 'غير متاح';
+      total += price * quantity;
+    }
+    return formatCurrency(total);
+  }, [products]);
   return <>
     <Heading eyebrow="التحليل التنفيذي" title="التقارير الذكية" description="مؤشرات قابلة للتنفيذ مبنية على البيانات التشغيلية الحالية" icon={BarChart3} />
     <div className="report-hero"><div><span>ملخص الأداء</span><h2>الأغبري في أرقام</h2><p>تتحدث المؤشرات من قاعدة البيانات مباشرة.</p></div><TrendingUp size={50} /></div>
     {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <div className="report-grid">
       <ReportMetric label="إجمالي المبيعات" value={formatCurrency(stats?.totalSales ?? 0)} icon={CircleDollarSign} />
       <ReportMetric label="متوسط قيمة الطلب" value={formatCurrency((stats?.totalSales ?? 0) / Math.max(stats?.orderCount ?? 1, 1))} icon={ShoppingCart} />
-      <ReportMetric label="قيمة المخزون المعروضة" value={formatCurrency((products ?? []).reduce((sum, p) => sum + p.base_price * (p.inventory?.quantity_available ?? 0), 0))} icon={Package} />
+      <ReportMetric label="قيمة المخزون المعروضة" value={inventoryValue} icon={Package} />
       <ReportMetric label="الأصناف منخفضة المخزون" value={formatNumber(stats?.lowStockCount ?? 0)} icon={AlertTriangle} />
     </div>}
     <div style={{ marginTop: 16 }}><UnifiedOnyxAnalysisPanel /></div>
