@@ -1,9 +1,9 @@
 # NASR1 Continuous Execution Report
 
-**Latest checkpoint:** 24 October 2026 — PRs #196 (export blanks), #197 (DQS status matrix), and #198 (admin route mounts) merged; post-merge Core for current main is terminal SUCCESS  
+**Latest checkpoint:** 24 October 2026 — PR #199 docs, #200 payment-audit runtime and #202 PDF HTTP contracts merged; PR #201 payment/credit race remains in CI; post-merge Core after #202 is pending terminal completion  
 **Repository:** `Report-Engainall/Nasr1`  
 **Production reference:** `main` only  
-**Main SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1` (PR #198 merge)  
+**Main SHA:** `4192a2f8825079f169a9412ac4a2347f4f82cce8` (PR #202 merge)  
 **Current-main verification:** post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) completed SUCCESS on exact main SHA `12b622326f8a95575994ef1afae43f69fdf854b1`; its job passed unit tests, isolated PostgreSQL 17 migrations/core workflows, lint, build, production preview/dev smoke and Chromium price-visibility acceptance. #198 exact-head Core/P2 both passed before merge; hosted customer/tenant E2E was skipped.
 
 ## Latest execution truth — after PR #198
@@ -16,6 +16,13 @@
 
 ## Historical baseline — PR #190
 
+## Latest execution truth — after PR #200 and #202
+
+- **PR #200 — payment audit/idempotency runtime acceptance:** merged as `d0d12fde72e2ce60dd089b188573ae3143f19727`; exact-head Core 40132041281/P2 40132041279 PASS; post-merge Core 40132426205 SUCCESS. PostgreSQL 17 acceptance proves identical replay, changed-payload rejection and one source-linked audit row.
+- **PR #202 — PDF API HTTP contracts:** merged as `4192a2f8825079f169a9412ac4a2347f4f82cce8`; exact-head Core 40132224605/P2 40132224621 PASS; post-merge Core 40132572775 was IN_PROGRESS at last poll.
+- **PR #201 — payment/credit memo race:** OPEN at latest head `f46ae0971effbf56ab6d3a6d0a829888a84c9cb2`; Core 40132522340/P2 40132522308 were IN_PROGRESS at last poll. An earlier test-only permission failure was corrected by resetting role before the aggregate invoice read. Do not merge until latest-head checks pass.
+- **External boundaries:** hosted authenticated customer/tenant E2E remains SKIPPED; live Onyx/WhatsApp/AI and production database/deploy operations remain unproven. API-OPS 179 callable RPC candidates remain PARTIAL.
+
 ## Historical execution truth (baseline snapshot)
 
 - PR #190 merged at `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Its exact-head Core [40127113576](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113576), PostgreSQL 17 [40127113568](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113568), and P2 [40127113571](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113571) passed. Hosted authenticated customer E2E is skipped by its external-credential gate.
@@ -27,7 +34,7 @@
 
 ## Next execution actions
 
-1. Preserve the verified current-main gate at `12b622326f8a95575994ef1afae43f69fdf854b1`; run the same gate again after any later code-bearing main merge.
+1. Confirm terminal post-merge Core run 40132572775 on `4192a2f8825079f169a9412ac4a2347f4f82cce8`; finish #201 only after exact-head Core/P2 both pass.
 2. Finish exact-head Core/P2 on the clean-main documentation branch; merge only after successful required checks.
 3. Continue the 179-function semantic review in source-backed batches with explicit allow/deny, tenant isolation, no-side-effect, idempotency and audit assertions.
 4. Re-run completed code only for a reproduced failure; keep external/prod gates NOT RUN/SKIPPED/BLOCKED_EXTERNAL without real authorized proof.
