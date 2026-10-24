@@ -425,7 +425,12 @@ export function applyImportProfileRules(
   };
 }
 
-export function validateCsvRow(values: string[], headers: string[], rowNumber: number): ParsedImportRow {
+export function validateCsvRow(
+  values: string[],
+  headers: string[],
+  rowNumber: number,
+  matchingKey?: string,
+): ParsedImportRow {
   const data: Record<string, unknown> = {};
   const errors: string[] = [];
   if (values.length > MAX_IMPORT_COLUMNS) errors.push(`عدد الأعمدة يتجاوز ${MAX_IMPORT_COLUMNS}`);
@@ -438,11 +443,17 @@ export function validateCsvRow(values: string[], headers: string[], rowNumber: n
       errors.push(`الخلية ${headers[index]} تتجاوز ${MAX_IMPORT_CELL_CHARS} حرف`);
       continue;
     }
-    // Keep identifiers as strings to preserve leading zeros (e.g. SKU 000125).
+    // Keep all business/source identifiers as strings; never parse their leading zeros away.
     data[headers[index]] = value.trim();
   }
-  if (!String(data.item_code ?? '').trim() && !String(data.customer_code ?? '').trim() && !String(data.supplier_code ?? '').trim()) {
-    errors.push('مفتاح الهوية التجاري مطلوب (رمز الصنف أو العميل أو المورد)');
+  const standardIdentityKeys = ['item_code', 'customer_code', 'supplier_code'];
+  const identityKeys = matchingKey && !standardIdentityKeys.includes(matchingKey)
+    ? [matchingKey]
+    : standardIdentityKeys;
+  if (!identityKeys.some((field) => String(data[field] ?? '').trim().length > 0)) {
+    errors.push(matchingKey && !standardIdentityKeys.includes(matchingKey)
+      ? `مفتاح المطابقة الإلزامي "${matchingKey}" مفقود أو فارغ`
+      : 'مفتاح الهوية التجاري مطلوب (رمز الصنف أو العميل أو المورد)');
   }
   for (const field of ['quantity','revenue','price','cost']) {
     const value = data[field];
