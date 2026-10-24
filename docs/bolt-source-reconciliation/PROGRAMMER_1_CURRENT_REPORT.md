@@ -1,3 +1,29 @@
+# P1 LIVE RESUME UPDATE — 24 October 2026
+
+**Canonical resume pointer:** `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` and its matching acceptance matrix. This P1 report is a handover supplement, not a competing pointer.
+
+- **Repository/main:** `Report-Engainall/Nasr1`; current main at last verified read: `653f4d764041a8751c41e75a492fed0cc6edea63`.
+- **Merged P1-relevant protections:** #158 payment audit and serialized credit-memo race rejection; #162 explicit-valid DQS; #179 import source identity/resume/recovery/rollback; #180 tenant-scoped finalizer; #181 stock-count stale-snapshot atomic rejection; #188 customer quote response NULL guard with forward migration `20261024180000`; #189 concurrent same-key stock-batch idempotency acceptance.
+- **#190 current API-OPS port:** exact head `5becc27a3f32896b1814aab80433ba7b8c8008ae`; Core 40127113576 PASS and async-export PG17 40127113568 PASS. P2 public UI passed; local Supabase order/tenant isolation was IN_PROGRESS at last poll. Hosted customer E2E remains SKIPPED. Do not merge until remaining required check is terminal success and the head matches the evidence.
+- **Security/API scope:** shared streamed UTF-8 byte caps protect the AI gateway, async-export worker/download, outbox worker and product-image JSON metadata; async-export authorization regression tests assert that foreign cancel/claim attempts have no side effects and customers cannot acquire worker leases. Exact-head RPC inventory output is being wired into CI. This does not finish the semantic audit.
+- **Remaining semantic scope:** API-OPS is PARTIAL; 179 callable RPC candidates still require measured role, tenant, mutation, idempotency/retry, and audit review. Do not re-run completed batches without a concrete coverage gap.
+- **Owner authorization:** the owner has authorized the integration and merging of ready PRs. Historical “review required before merge” statements below are stale. Keep only technical safety gates: exact-head passing CI, ordered migrations, clean merge, and post-merge verification.
+- **External boundaries:** production data changes, production migrations/deployment/restore, real Onyx import, WhatsApp delivery, live model-provider execution and hosted authenticated customer E2E are not claimed without real authorized evidence.
+
+## NEXT ACTION — P1
+1. Confirm the last required #190 local Supabase check and current head; merge only after success.
+2. Verify current-main Core/P2 after #190, then refresh this report with the actual merge SHA.
+3. Continue bounded semantic review of remaining RPC contracts; preserve tenant-denial/no-side-effect PostgreSQL tests.
+4. Keep data/secret/production writes out of CI and local acceptance.
+
+---
+
+# Historical P1 execution log
+The detailed P1 history below is retained for traceability; its checkpoint SHAs and old pending-approval statements do not override this live summary.
+
+
+---
+
 # تقرير الحالة التنفيذي — المبرمج 1 / إدارة جلسات الأجهزة المركزية
 
 - **المستودع:** `Report-Engainall/Nasr1`
