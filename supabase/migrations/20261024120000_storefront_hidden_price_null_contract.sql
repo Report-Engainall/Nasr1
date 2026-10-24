@@ -59,17 +59,18 @@ BEGIN
     END IF;
     IF NOT v_is_staff THEN
       v_customer_id := public.current_customer_id();
-      IF v_customer_id IS NOT NULL THEN
-        SELECT c.status, c.tier INTO v_customer_status, v_tier
-          FROM public.customers c WHERE c.id = v_customer_id AND c.organization_id = v_organization_id;
-        IF NOT FOUND OR v_customer_status IS DISTINCT FROM 'approved' THEN
-          v_tier := 'retail';
-        ELSE
-          v_tier := COALESCE(NULLIF(v_tier,''),'retail');
-        END IF;
-      ELSE
-        v_tier := 'retail';
+      IF v_customer_id IS NULL OR NOT public.current_customer_can('catalog.read') THEN
+        RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='customer membership lacks permission to resolve catalog prices';
       END IF;
+
+      SELECT c.status, c.tier INTO v_customer_status, v_tier
+        FROM public.customers c
+       WHERE c.id = v_customer_id
+         AND c.organization_id = v_organization_id;
+      IF NOT FOUND OR v_customer_status IS DISTINCT FROM 'approved' THEN
+        RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='approved customer required to resolve catalog prices';
+      END IF;
+      v_tier := COALESCE(NULLIF(v_tier,''),'retail');
     END IF;
   END IF;
 
