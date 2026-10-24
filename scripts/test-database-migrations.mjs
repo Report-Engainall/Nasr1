@@ -2542,11 +2542,14 @@ async function main() {
   );
   const qualityScoreJobId = qualityScoreJobResult[0].id;
   await db.unsafe(
-    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb),($1,2,'valid',$3::jsonb,'[]'::jsonb)",
+    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb),($1,2,'valid',$3::jsonb,'[]'::jsonb),($1,3,'invalid',$4::jsonb,'[]'::jsonb),($1,4,'pending',$5::jsonb,'[]'::jsonb),($1,5,'rejected',$6::jsonb,'[]'::jsonb)",
     [
       qualityScoreJobId,
       db.json({ item_code: "DQS-INVALID-DATE-1", quantity: "1", revenue: "10", price: "10", date: "2026-02-31" }),
       db.json({ item_code: "DQS-VALID-DATE-2", quantity: "1", revenue: "10", price: "10", date: "2024-02-29" }),
+      db.json({ item_code: "DQS-STATUS-INVALID", quantity: "1", revenue: "10", price: "10" }),
+      db.json({ item_code: "DQS-STATUS-PENDING", quantity: "1", revenue: "10", price: "10" }),
+      db.json({ item_code: "DQS-STATUS-REJECTED", quantity: "1", revenue: "10", price: "10" }),
     ],
   );
 
@@ -2581,9 +2584,11 @@ async function main() {
     "P0002",
   );
   const qualityScore = await db.unsafe("select public.calculate_import_job_quality($1::uuid) as result", [qualityScoreJobId]);
-  assert.equal(qualityScore[0]?.result?.total_rows, 2, "quality score counts both rows from the scoped job");
-  assert.equal(Number(qualityScore[0]?.result?.components?.temporal_referential_integrity), 50,
-    "an impossible calendar date scores invalid while the real leap-day date scores valid");
+  assert.equal(qualityScore[0]?.result?.total_rows, 5, "quality score counts all five scoped rows");
+  assert.equal(Number(qualityScore[0]?.result?.components?.validity), 40,
+    "only the two explicitly valid rows earn validity points; invalid, pending, and rejected rows score zero");
+  assert.equal(Number(qualityScore[0]?.result?.components?.temporal_referential_integrity), 80,
+    "the impossible date scores invalid while the valid leap-day and three absent dates score according to the contract");
   process.stdout.write("PASS import quality RPC: tenant-scoped IDs, denial parity, and impossible-date scoring\\n");
 
   const duplicateProbe = await db.unsafe(
