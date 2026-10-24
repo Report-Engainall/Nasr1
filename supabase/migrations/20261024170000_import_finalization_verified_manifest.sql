@@ -458,4 +458,161 @@ GRANT EXECUTE ON FUNCTION public.rollback_import_snapshot(uuid,text) TO authenti
 COMMENT ON FUNCTION public.rollback_import_snapshot(uuid,text) IS
   'Archives only the newest ready tenant-owned snapshot for a completed import, retains all imported/snapshot rows and writes an audit event; repeated requests replay the rolled-back result.';
 
+
+-- Identity-aware overload: external source references participate in the server-side
+-- idempotency payload and are persisted before the request-key claim commits.
+CREATE OR REPLACE FUNCTION public.create_import_job_idempotent(
+  p_request_key uuid,
+  p_file_name text,
+  p_file_hash text,
+  p_file_size bigint,
+  p_job_type text,
+  p_external_source_reference text,
+  p_profile_id uuid DEFAULT NULL,
+  p_period_key text DEFAULT NULL,
+  p_source_system text DEFAULT 'manual',
+  p_intent text DEFAULT 'new_version'
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_actor uuid := public.current_profile_id();
+  v_org uuid;
+  v_payload jsonb;
+  v_claimed_key uuid;
+  v_existing public.import_job_request_keys%ROWTYPE;
+  v_job jsonb;
+  v_job_id uuid;
+  v_job_row public.import_jobs%ROWTYPE;
+  v_period_key text := NULLIF(pg_catalog.left(COALESCE(p_period_key, ''), 120), '');
+  v_source_system text := pg_catalog.left(COALESCE(NULLIF(p_source_system, ''), 'manual'), 80);
+  v_external_source_reference text := NULLIF(pg_catalog.btrim(COALESCE(p_external_source_reference, '')), '');
+BEGIN
+  IF auth.uid() IS NULL OR v_actor IS NULL OR NOT public.is_staff() THEN
+    RAISE EXCEPTION USING ERRCODE = '42501',
+      MESSAGE = 'إذن استيراد البيانات مطلوب';
+  END IF;
+  IF p_request_key IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'مفتاح محاولة الاستيراد مطلوب';
+  END IF;
+  IF COALESCE(p_intent, '') NOT IN ('replace', 'merge', 'new_version') THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'نية استيراد غير صالحة';
+  END IF;
+  IF pg_catalog.length(v_external_source_reference) > 200 THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'مرجع المصدر الخارجي لا يتجاوز 200 حرف';
+  END IF;
+
+  SELECT p.organization_id INTO v_org
+    FROM public.profiles AS p
+   WHERE p.id = v_actor
+     AND p.auth_user_id = auth.uid()
+     AND p.is_active = true;
+  IF v_org IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '42501',
+      MESSAGE = 'المؤسسة المرتبطة بالحساب غير صالحة';
+  END IF;
+
+  v_payload := pg_catalog.jsonb_build_object(
+    'file_name', p_file_name,
+    'file_hash', p_file_hash,
+    'file_size', p_file_size,
+    'job_type', p_job_type,
+    'requested_profile_id', p_profile_id,
+    'period_key', v_period_key,
+    'source_system', v_source_system,
+    'external_source_reference', v_external_source_reference,
+    'intent', p_intent
+  );
+
+  INSERT INTO public.import_job_request_keys (
+    organization_id, actor_profile_id, request_key, request_payload
+  )
+  VALUES (v_org, v_actor, p_request_key, v_payload)
+  ON CONFLICT (organization_id, actor_profile_id, request_key) DO NOTHING
+  RETURNING request_key INTO v_claimed_key;
+
+  IF v_claimed_key IS NULL THEN
+    SELECT k.* INTO v_existing
+      FROM public.import_job_request_keys AS k
+     WHERE k.organization_id = v_org
+       AND k.actor_profile_id = v_actor
+       AND k.request_key = p_request_key
+     FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION USING ERRCODE = '40001',
+        MESSAGE = 'تعذر حسم مفتاح محاولة الاستيراد؛ أعد المحاولة بالمفتاح نفسه';
+    END IF;
+    IF v_existing.request_payload IS DISTINCT FROM v_payload THEN
+      RAISE EXCEPTION USING ERRCODE = '22023',
+        MESSAGE = 'مفتاح محاولة الاستيراد مستخدم لعملية أو حمولة مختلفة';
+    END IF;
+    IF v_existing.import_job_id IS NULL THEN
+      RAISE EXCEPTION USING ERRCODE = '40001',
+        MESSAGE = 'محاولة الاستيراد لم تكتمل؛ أعد المحاولة بالمفتاح نفسه';
+    END IF;
+    SELECT pg_catalog.to_jsonb(j) INTO v_job
+      FROM public.import_jobs AS j
+     WHERE j.id = v_existing.import_job_id
+       AND j.organization_id = v_org
+       AND j.created_by = v_actor;
+    IF v_job IS NULL THEN
+      RAISE EXCEPTION USING ERRCODE = '40001',
+        MESSAGE = 'تعذر استرجاع دفعة الاستيراد المرتبطة بمفتاح المحاولة';
+    END IF;
+    RETURN v_job;
+  END IF;
+
+  v_job := public.create_import_job(
+    p_file_name,
+    p_file_hash,
+    p_file_size,
+    p_job_type,
+    p_profile_id,
+    v_period_key,
+    v_source_system
+  );
+  v_job_id := (v_job ->> 'id')::uuid;
+  IF v_job_id IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0001',
+      MESSAGE = 'تعذر إنشاء دفعة الاستيراد';
+  END IF;
+
+  UPDATE public.import_jobs
+     SET external_source_reference = v_external_source_reference
+   WHERE id = v_job_id
+     AND organization_id = v_org
+     AND created_by = v_actor
+  RETURNING * INTO v_job_row;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = '40001',
+      MESSAGE = 'تعذر تثبيت هوية المصدر الخارجي على دفعة الاستيراد';
+  END IF;
+
+  UPDATE public.import_job_request_keys
+     SET import_job_id = v_job_id
+   WHERE organization_id = v_org
+     AND actor_profile_id = v_actor
+     AND request_key = p_request_key
+     AND request_payload = v_payload
+     AND import_job_id IS NULL;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = '40001',
+      MESSAGE = 'تعذر تثبيت دفعة الاستيراد لمفتاح المحاولة';
+  END IF;
+
+  RETURN pg_catalog.to_jsonb(v_job_row);
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,text,uuid,text,text,text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,text,uuid,text,text,text) TO authenticated;
+COMMENT ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,text,uuid,text,text,text) IS
+  'Atomically creates/replays one import batch per tenant/actor/request key while binding the external source reference into the request payload and persisted job metadata.';
+
 COMMIT;
