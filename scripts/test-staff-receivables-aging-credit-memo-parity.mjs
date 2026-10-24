@@ -299,7 +299,7 @@ async function main() {
   assert.equal(rejectedRacePersistence[0].count,0,
     "rejected payment race must not persist a payment row");
   process.stdout.write(
-    "PASS invoice payment vs credit posting race: PostgreSQL advisory wait observed, credit commits once, pre-credit full-balance payment rejected with no payment row\\n",
+    "PASS invoice payment vs credit posting race: PostgreSQL advisory wait observed, credit commits once, pre-credit full-balance payment rejected with no payment row\n",
   );
   const after = await receivablesItem(source.invoice_id);
   assert.equal(Number(after.item.credit_memo_amount)-Number(before.item.credit_memo_amount),Number(draft.total_amount),
