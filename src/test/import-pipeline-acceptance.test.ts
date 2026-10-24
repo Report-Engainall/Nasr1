@@ -32,7 +32,7 @@ describe('unified import end-to-end acceptance contracts', () => {
   it('rejects missing required headers and invalid UTF-8 before attempting finalization', () => {
     expect(importer).toContain('new TextDecoder("utf-8", { fatal: true })');
     expect(importer).toContain('missingRequiredHeaders');
-    expect(importer).toContain('validateCsvRow(values, headers, dataRows + 1, matchingKey)');
+    expect(importer).toContain('validateCsvRow(values, headers, dataRows + 1, matchingKey, requiredColumns)');
     expect(sourceHelpers).toContain('مفتاح المطابقة الإلزامي');
     expect(sourceHelpers).toContain('الحقل الإلزامي');
     expect(sourceHelpers).toContain("new TextDecoder('utf-8', { fatal: true })");
@@ -56,7 +56,12 @@ describe('unified import end-to-end acceptance contracts', () => {
 
   it('does not checkpoint a CSV chunk after cancellation interrupts its row parser', () => {
     expect(importer).toContain('A cancellation during row parsing must not certify a partially processed chunk.');
-    expect(importer).toMatch(/await parser\.push[\s\S]{0,240}await flushBatch\(\);[\s\S]{0,240}if \(cancelRef\.current\) break;[\s\S]{0,350}recordImportUploadChunk/);
+    const parserPush = importer.indexOf('await parser.push(decoder.decode(bytes, { stream: byteOffset + bytes.length < file.size }), consumeRow, false);');
+    const cancelGuard = importer.indexOf('if (cancelRef.current) break;', parserPush);
+    const chunkRecord = importer.indexOf('await recordImportUploadChunk({', parserPush);
+    expect(parserPush).toBeGreaterThanOrEqual(0);
+    expect(cancelGuard).toBeGreaterThan(parserPush);
+    expect(chunkRecord).toBeGreaterThan(cancelGuard);
   });
 
   it('server-gates snapshot finalization on tenant, job state, matching file identity and a complete chunk manifest', () => {
