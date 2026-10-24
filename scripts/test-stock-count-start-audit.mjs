@@ -246,6 +246,23 @@ async function main() {
       [lateSession.id, line.product_id, Number(line.expected_quantity)],
     );
   }
+
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const lateSnapshotProductIds = lateLines.map((line) => line.product_id);
+  const lateSnapshotBalancesBefore = await commandDb.unsafe(
+    "select product_id::text as product_id, quantity_on_hand::text as quantity_on_hand, " +
+      "quantity_reserved::text as quantity_reserved from public.inventory_balances " +
+      "where warehouse_id=$1::uuid and product_id=any($2::uuid[]) order by product_id",
+    [warehouseId, lateSnapshotProductIds],
+  );
+  assert.equal(
+    lateSnapshotBalancesBefore.length,
+    lateSnapshotProductIds.length,
+    "every pre-existing snapshot product must have a balance before failed finalization",
+  );
+  await setAdminIdentity();
+
   await commandDb.unsafe("savepoint stock_count_late_balance_guard");
   const lateFinalizeError = await commandDb
     .unsafe("select public.complete_stock_count($1::uuid)", [lateSession.id])
@@ -268,6 +285,17 @@ async function main() {
 
   await commandDb.unsafe("reset role");
   roleEstablished = false;
+  const lateSnapshotBalancesAfter = await commandDb.unsafe(
+    "select product_id::text as product_id, quantity_on_hand::text as quantity_on_hand, " +
+      "quantity_reserved::text as quantity_reserved from public.inventory_balances " +
+      "where warehouse_id=$1::uuid and product_id=any($2::uuid[]) order by product_id",
+    [warehouseId, lateSnapshotProductIds],
+  );
+  assert.deepEqual(
+    lateSnapshotBalancesAfter,
+    lateSnapshotBalancesBefore,
+    "failed snapshot finalization must not alter any pre-existing on-hand or reserved balances",
+  );
   const staleSessionRows = await commandDb.unsafe(
     "select status,completed_at,completed_by from public.stock_count_sessions " +
       "where organization_id=$1::uuid and id=$2::uuid",
@@ -378,6 +406,6 @@ try {
 
 if (passed && process.exitCode !== 1) {
   console.log(
-    "PASS stock-count audit and variance tasks: tenant/profile-bound idempotent start; late-balance finalization rejects with SQLSTATE 40001 and leaves no partial session/movement/audit changes; one task for non-zero variance; zero-variance suppression; refresh idempotency; transaction rollback leaves no fixture changes",
+    "PASS stock-count audit and variance tasks: tenant/profile-bound idempotent start; stale snapshot rejects with SQLSTATE 40001 and leaves sessions, movements, audits, on-hand and reserved balances unchanged; one task for non-zero variance; zero-variance suppression; refresh idempotency; transaction rollback leaves no fixture changes",
   );
 }
