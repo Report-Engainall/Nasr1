@@ -10,6 +10,8 @@ export type ImportRequestIdentity = {
   profileId: string | null;
   periodKey: string | null;
   sourceSystem: string;
+  /** External ERP/Onyx/supplier batch reference; local identity only, validated again by the server. */
+  externalSourceReference?: string | null;
   intent: ImportRequestIntent;
 };
 
@@ -60,6 +62,7 @@ function stableIdentity(identity: ImportRequestIdentity): string {
     profileId: identity.profileId ?? null,
     periodKey: identity.periodKey ?? null,
     sourceSystem: identity.sourceSystem || "manual",
+    externalSourceReference: identity.externalSourceReference?.trim() || null,
     intent: identity.intent,
   });
 }
