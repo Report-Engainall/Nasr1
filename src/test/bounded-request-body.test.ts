@@ -8,7 +8,7 @@ const routes = [
   { name: "AI gateway", path: "supabase/functions/ai-gateway/index.ts", cap: 4096 },
   { name: "outbox worker", path: "supabase/functions/outbox-worker/index.ts", cap: 4096 },
   { name: "async export worker", path: "supabase/functions/async-export-worker/index.ts", cap: 4096 },
-  { name: "async export download", path: "supabase/functions/async-export-download/index.ts", readerPath: "src/lib/async-export-download-handler.ts", cap: 2048 },
+  { name: "async export download", path: "supabase/functions/async-export-download/index.ts", readerPath: "supabase/functions/_shared/async-export-download-handler.ts", cap: 2048 },
   { name: "product image JSON delete", path: "supabase/functions/product-image-upload/index.ts", cap: 2048 },
 ];
 
