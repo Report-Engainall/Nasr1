@@ -435,3 +435,47 @@ Sources:
 2. Continue semantic review of the remaining RPCs, prioritizing storage RLS/signed-download policies and invitation/return/accounting authorization paths; do not repeat the completed async-export test.
 3. Refresh the single canonical resume PR #152 after the #142 checks terminate; then rerun Core and P2 on the resulting final #152 head.
 4. Do not merge without an independent submitted review. Keep hosted customer E2E and production integration marked `SKIPPED`/`BLOCKED_EXTERNAL` unless authorized evidence becomes available.
+
+ 
+## AUTHORITATIVE ADDENDUM — bounded request bodies, image storage boundary, and exact RPC provenance
+
+**Source/check evidence as of exact tested head `4409b6e46666582b72f189f23d59d1647dda64b4`:**
+- Core [run 40122041686 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40122041686). Its exact-head PostgreSQL 17 inventory output was `RPC_INVENTORY_SUMMARY functions=305 matched=305 unmatched=0 migration_files=124`.
+- P2 [run 40122041581 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40122041581). The local Supabase order-persistence and tenant-isolation job succeeded. Hosted customer E2E was `SKIPPED`; this is not a production credentialed result.
+- These are historical results for the SHA above. This addendum will advance PR #142, so its new head requires new Core/P2 gates.
+
+### Exact source provenance for RPC/function inventory
+
+The generator `scripts/generate-public-rpc-contract-inventory.mjs` now parses function argument lists with balanced parentheses and quote handling, removes defaults without dropping nested type modifiers, understands `ALTER FUNCTION ... RENAME TO` statements embedded in dynamically quoted migration SQL, and maps a live catalog signature only to an exact migration `name + normalized argument signature`. The fallback that accepted the sole same-name candidate despite a signature mismatch is removed. Inline regression assertions cover `numeric(15,3)`, nested `now()`, quoted commas/parentheses and the dynamic rename to `refresh_operational_tasks_pre_purchase_v1()`. Current inventory: 305/305 source-mapped across 124 migration files, with zero unmatched. This establishes source provenance only; it is not equivalent to semantic authorization review of every function.
+
+### API-OPS review batch — bounded request bodies and product-image storage
+
+**Shared bounded-body contract**
+Source: `supabase/functions/_shared/bounded-body.ts`; tests: `src/test/bounded-request-body.test.ts`.
+- `Content-Length` is only an early-rejection hint; streamed bytes are counted and over-limit streams are cancelled without reading further chunks.
+- UTF-8 decoding is fatal; malformed sequences return `invalid_utf8`, stream failures return `unreadable`, and no-body requests yield an explicit empty body.
+- Unit acceptance covers within-limit Arabic UTF-8, streamed oversize/cancellation, declared oversize without a pull, malformed UTF-8 and null body. Static route assertions forbid `request.text()`/`request.json()` buffering and require bounded reader wiring.
+- Source-wired limits: AI gateway 4 KiB, outbox worker 4 KiB, async-export worker 4 KiB, async-export download 2 KiB, and product-image JSON deletion 2 KiB. This is verified in repository unit tests on the exact head above.
+
+**Product image upload/delete boundary**
+Sources: `supabase/functions/product-image-upload/index.ts`; `src/lib/product-image-security.ts`; `src/lib/product-image-security.test.ts`; migrations `20261018100000_product_image_storage.sql`, `20261018110000_product_image_storage_policy_scope.sql`, and `20261018120000_product_image_edge_upload_boundary.sql`.
+- The bucket is an explicitly public catalog-asset bucket limited to WebP and 8 MiB; that public read is intentional for storefront images, not proof that arbitrary tenant uploads are authorized.
+- The edge handler checks HTTP method, required service configuration, Bearer token via Supabase Auth, profile bound to `auth_user_id`, active profile and organization, and role allowlist (`admin`, `manager`, `staff`) before service-role storage use.
+- Upload requires a valid UUID product header, verifies that the product belongs to the active organization, reads a bounded byte stream, validates RIFF/WEBP signature and exact embedded payload size, and derives the object path from server-side organization/product UUIDs and a generated random UUID. Upload is `upsert:false`.
+- JSON deletion is capped at 2 KiB, requires valid UTF-8/JSON and `action=delete`, validates exact `organization/product/uuid.webp` object path, and re-checks product ownership before removing the object.
+- The storage-boundary migration removes direct browser DML policies and revokes `INSERT/UPDATE/DELETE` on `storage.objects` from `PUBLIC`, `anon` and `authenticated`; uploads/deletes are intended to pass through the authenticated Edge Function.
+
+### Acceptance disposition and limits
+
+- **PASS — source-backed request-size/UTF-8 helper contract and route wiring** at the exact tested head; **PASS — helper unit tests** on that head.
+- **PASS — source review of product image tenant/role/path/size checks and direct-storage DML revocation**; helper tests cover UUID/path traversal, tenant/product path mismatch, WebP signature and role allowlist.
+- **UNVERIFIED — direct Edge handler integration tests for product-image upload/delete**; helper tests do not exercise a live Deno handler with mocked Auth/Storage, and no production storage upload/delete was run.
+- **NOT RUN / BLOCKED_EXTERNAL — deployed storage service, real signed URL/object lifecycle and production edge-secret configuration.** The local acceptance run is not deployment proof.
+- **API-OPS-001 remains PARTIAL.** Exact signature provenance is now 305/305, but the semantic review queue is not closed for every callable RPC/background worker. The async-export family above is one reviewed batch, not completion of the overall RPC task.
+
+## NEXT ACTION — resume after this addendum
+
+1. Re-run Core and P2 against the new #142 head; the successes cited above belong only to `4409b6e46666582b72f189f23d59d1647dda64b4`.
+2. Continue the semantic review queue on the next unreviewed high-risk family (customer/company invitations and activation, customer returns/credit memos, then accounting posting/reversal); bind each review to the current migration and exact tests.
+3. Refresh the central checkpoint only through PR #152 after this head's gates terminate; test the final checkpoint head again.
+4. Do not merge without a submitted independent approval. Hosted customer E2E, deployed storage, Onyx, WhatsApp and live AI remain `SKIPPED`/`BLOCKED_EXTERNAL` without authorized evidence.
