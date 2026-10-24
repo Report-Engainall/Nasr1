@@ -18,6 +18,7 @@ const admin = postgres(url, { max: 1, prepare: false });
 const first = postgres(url, { max: 1, prepare: false });
 const foreign = postgres(url, { max: 1, prepare: false });
 const customer = postgres(url, { max: 1, prepare: false });
+const raceWorker = postgres(url, { max: 1, prepare: false });
 
 async function identity(db, authUser, email) {
   await db.unsafe("reset role").catch(() => {});
@@ -120,6 +121,74 @@ async function main() {
     "update public.async_export_jobs set status='ready' where id=$1", [created.job_id],
   ));
 
+  // P1 acceptance: two independent database sessions must never claim the same queued export job.
+  const raceJob = await createJob(first, prefix + "RACE-CLAIM");
+  assert.ok(raceJob?.job_id, "race fixture must be persisted before competing worker claims");
+  const raceWorkers = ["ci-async-export-race-a", "ci-async-export-race-b"];
+  const [raceClaimsA, raceClaimsB] = await Promise.all([
+    admin.unsafe(
+      "select id::text as id,organization_id::text as organization_id,lease_owner,attempt_count,status " +
+        "from public.claim_async_export_jobs($1,1,300,$2::uuid)",
+      [raceWorkers[0], raceJob.job_id],
+    ),
+    raceWorker.unsafe(
+      "select id::text as id,organization_id::text as organization_id,lease_owner,attempt_count,status " +
+        "from public.claim_async_export_jobs($1,1,300,$2::uuid)",
+      [raceWorkers[1], raceJob.job_id],
+    ),
+  ]);
+  assert.equal(raceClaimsA.length + raceClaimsB.length, 1,
+    "two concurrent workers must yield exactly one claim for the same queued job");
+  const raceWinner = raceClaimsA[0] || raceClaimsB[0];
+  assert.equal(raceWinner.id, raceJob.job_id);
+  assert.equal(raceWinner.status, "processing");
+  assert.equal(raceWinner.attempt_count, 1, "concurrent claims must increment the attempt count only once");
+  assert.ok(raceWorkers.includes(raceWinner.lease_owner), "stored lease owner must be the winning worker");
+
+  // The previous worker must be unable to publish an artifact after its lease expires.
+  const raceObjectPath = org + "/" + raceJob.job_id + "/orders.csv";
+  const raceSha = "b".repeat(64);
+  const expiredLeaseUpdate = await admin.unsafe(
+    "update public.async_export_jobs set lease_expires_at=now()-interval '1 second' " +
+      "where id=$1::uuid and status='processing' and lease_owner=$2 returning id",
+    [raceJob.job_id, raceWinner.lease_owner],
+  );
+  assert.equal(expiredLeaseUpdate.length, 1, "test must expire the exact winning worker lease");
+  await assert.rejects(
+    () => admin.unsafe(
+      "select public.complete_async_export_job($1::uuid,$2::text,$3::text,'orders.csv','text/csv',100,$4::text,1)",
+      [raceJob.job_id, raceWinner.lease_owner, raceObjectPath, raceSha],
+    ),
+    /async export worker lease mismatch/,
+    "an expired worker cannot mark the export ready",
+  );
+
+  const recoveryWorker = "ci-async-export-recovery";
+  const recoveredClaims = await admin.unsafe(
+    "select id::text as id,organization_id::text as organization_id,lease_owner,attempt_count,status " +
+      "from public.claim_async_export_jobs($1,1,300,$2::uuid)",
+    [recoveryWorker, raceJob.job_id],
+  );
+  assert.equal(recoveredClaims.length, 1, "worker may reclaim a job after the prior lease expires");
+  assert.equal(recoveredClaims[0].id, raceJob.job_id);
+  assert.equal(recoveredClaims[0].lease_owner, recoveryWorker);
+  assert.equal(recoveredClaims[0].status, "processing");
+  assert.equal(recoveredClaims[0].attempt_count, 2,
+    "expired lease recovery must count as the next bounded attempt");
+  const recoveredComplete = await rpc(admin,
+    "select public.complete_async_export_job($1::uuid,$2::text,$3::text,'orders.csv','text/csv',100,$4::text,1) as result",
+    [raceJob.job_id, recoveryWorker, raceObjectPath, raceSha],
+  );
+  assert.equal(recoveredComplete.status, "ready",
+    "the current lease owner can finish the recovered export");
+  const raceAudit = await admin.unsafe(
+    "select action from public.audit_logs where organization_id=$1::uuid and entity_id=$2::uuid " +
+      "and action in ('async_export.queued','async_export.ready') order by action",
+    [org, raceJob.job_id],
+  );
+  assert.deepEqual(raceAudit.map((row) => row.action), ["async_export.queued", "async_export.ready"],
+    "concurrent claim and recovery must still produce one queued event and one ready event");
+
   const claimed = await admin.unsafe(
     "select id,organization_id,lease_owner,attempt_count from public.claim_async_export_jobs($1,1,300,$2::uuid)",
     ["ci-async-export-worker-primary", created.job_id],
@@ -192,7 +261,7 @@ async function main() {
 }
 main().finally(async () => {
   await cleanup();
-  await Promise.all([admin.end(), first.end(), foreign.end(), customer.end()]);
+  await Promise.all([admin.end(), first.end(), foreign.end(), customer.end(), raceWorker.end()]);
 }).catch((error) => {
   console.error("ASYNC_EXPORT_JOBS_FAILED:", error?.message ?? error);
   process.exitCode = 1;
