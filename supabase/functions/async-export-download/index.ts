@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { createAsyncExportDownloadHandler } from "../../../src/lib/async-export-download-handler.ts";
+import { createAsyncExportDownloadHandler } from "../_shared/async-export-download-handler.ts";
 
 type Runtime = {
   env: { get(name: string): string | undefined };
