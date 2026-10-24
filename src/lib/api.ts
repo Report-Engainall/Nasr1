@@ -1767,8 +1767,15 @@ export async function insertImportRows(jobId: string, rows: Array<{ rowNumber: n
 }
 
 export async function updateImportJob(id: string, updates: Partial<ImportJob>): Promise<void> {
-  const { error } = await supabase.from('import_jobs').update(updates).eq('id', id);
+  if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error('معرّف دفعة الاستيراد غير صالح؛ لم يتم حفظ التحديث.');
+  }
+  // RLS may make a write affect zero rows without a PostgREST error; require a returned row.
+  const { data, error } = await supabase.from('import_jobs').update(updates).eq('id', id).select('id').maybeSingle();
   if (error) throw error;
+  if (!data?.id || data.id !== id) {
+    throw new Error('لم يؤكد الخادم حفظ تحديث دفعة الاستيراد؛ تحقق من المؤسسة والصلاحيات قبل المتابعة.');
+  }
 }
 
 export async function fetchImportJobs(): Promise<ImportJob[]> {
@@ -1782,6 +1789,27 @@ export async function fetchImportRows(jobId: string): Promise<ImportJobRow[]> {
   const { data, error } = await supabase.from('import_job_rows').select('*').eq('import_job_id', jobId).order('row_number').limit(100000);
   if (error) throw error;
   return data as ImportJobRow[];
+}
+
+export type ImportRowErrorDetail = { row_number: number; errors: unknown };
+
+export async function fetchImportRowErrors(jobId: string, limit = 100): Promise<ImportRowErrorDetail[]> {
+  if (typeof jobId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
+    throw new Error('معرّف دفعة الاستيراد غير صالح لعرض أخطاء الصفوف.');
+  }
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+    throw new Error('حد عرض أخطاء الصفوف يجب أن يكون بين 1 و500.');
+  }
+  // The RLS policy scopes these rows through their parent import job and active organization.
+  const { data, error } = await supabase
+    .from('import_job_rows')
+    .select('row_number,errors')
+    .eq('import_job_id', jobId)
+    .eq('status', 'rejected')
+    .order('row_number', { ascending: true })
+    .limit(limit);
+  if (error) throw new Error('تعذر قراءة أسباب رفض الصفوف من الدفعة الحالية.');
+  return (data ?? []).map((row) => ({ row_number: row.row_number, errors: row.errors }));
 }
 
 // ─── Dashboard stats ───
