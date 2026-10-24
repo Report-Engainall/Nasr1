@@ -1,5 +1,41 @@
 # LIVE REFRESH — 24 October 2026, 18:35 UTC (authoritative; supersedes older status snapshots below)
 
+## AUTHORITATIVE LIVE RECONCILIATION — 24 October 2026
+
+Repository `Report-Engainall/Nasr1`; only production branch is `main`. Latest live read: `main` = `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; Core run [40111286682 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40111286682) is tied to that SHA. No direct main writes.
+
+### Current acceptance and merge truth
+- **#142 API-OPS-001** — exact head `21083e8e26e219f0c3fbe05885b23f77f29a151d`; Core [40122507298 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40122507298), P2 [40122507287 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40122507287). Generator output: `functions=305 matched=305 unmatched=0 migration_files=124`, with exact name + normalized signature matching and no name-only fallback. The async-export RPC family has source-backed allow/deny acceptance; bounded-body and product-image storage boundaries were reviewed. Overall API-OPS remains **PARTIAL**: 179 callable RPC candidates are not yet semantically reviewed one-by-one. Hosted customer E2E is `SKIPPED`; deployed storage/worker behavior is not claimed. Independent approval is still absent.
+- **#134 inventory batch idempotency** — head `f141391968fefd9f568624cdfb98be935d7c9da6`; Core `40118402370 SUCCESS`, P2 `40118402229 SUCCESS`. Same-key concurrent batch requests return one canonical batch and do not duplicate stock/audit effects. Independent approval pending.
+- **#147 quote decision** — head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`; Core `40111802394 SUCCESS`, P2 `40111802434 SUCCESS`. Current-head dedicated PostgreSQL 17 proof was not confirmed in this read; older PG17 evidence must not be transferred. Independent approval pending.
+- **#155/#156/#157/#159/#160/#163/#169/#170/#174** — retain the current exact-head evidence in the acceptance matrix; these are not merge-complete merely because CI passed. Review/overlap and hosted-E2E limits remain applicable.
+- **#158 customer payment audit** — head `56b49d3ee4e5e6d2f73e884742361ad50e02f290`; Core `40120412751 SUCCESS`, P2 `40120412721 SUCCESS`, PostgreSQL 17 `40120412714 SUCCESS`. The recorded review is `COMMENTED`, not `APPROVED`; integration remains sequenced after #168.
+- **#162 DQS validity** — head `e5ca28bb81a605f4e6628baa7abbdc1b5c7216f8`; historical Core/P2/PG17 runs `40113018846` / `40113018801` / `40113018797` passed that SHA. Refresh/retest after the migration dependencies before merge.
+- **#175** — head `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`, Core `40115637333 SUCCESS`, P2 `40115637423 SUCCESS`.
+- **#177** — head `a165b6753a9357bbf736675ec1c7fadc8a08c58b`, Core/P2 success on that head (`40116744981` / `40116744968`).
+- **#178** — head `4e815b9325ecf1f0da6980e79a604f5f752b963d`, Core/P2/PG17 success on that head (`40117273030` / `40117273120` / `40117273060`).
+- **#179 source identity/resume/rollback** — head `4f34704fe2b6cf63942f6cf6b3532ef780130a91`, Core `40119746804 SUCCESS`, P2 `40119746870 SUCCESS`; hosted authenticated customer E2E is skipped. The test now verifies immutable full-dataset profile creation and same-profile replacement history. Independent approval pending.
+- **#180 import finalizer tenant scope** — head `f31e3547e99b085fb0b8db0b2be098809acac247`, Core `40118418698 SUCCESS`, P2 `40118418782 SUCCESS`, PostgreSQL 17 `40118418761 SUCCESS`. Cross-tenant finalization is rejected without side effects. Independent approval pending.
+- **#181 atomic stock-count acceptance** — head `02c5781274b20fd4c9942fafcdd64d2e61661bb0`, Core `40120660535 SUCCESS`, P2 `40120660534 SUCCESS`. It supersedes #172, which is closed unmerged. Independent approval pending.
+- **#184 two-decimal price validation** — head `22fa3d1a9d9f9463c93a06588e15391171c3d82e`, Core `40120485585 SUCCESS`, P2 `40120485586 SUCCESS`. It preserves valid two-decimal amounts and rejects invalid precision/exponent/negative input. Independent approval pending.
+- **#152 is the single canonical checkpoint PR**. Its pre-update head was `4a6457c07c1fe9aaa635c83e4ccb4d632a9af90d`, Core/P2 passed as `40122272156` / `40122272166`. This reconciliation changes the documentation head; those PASS results do not certify the new commit. Rerun Core and P2 on the final updated #152 head.
+
+### Duplicate and dependency handling
+- #133 and #135–#141 and #143–#146 remain merged; do not recreate their fixes unless a regression is proven.
+- #148–#151 are closed stale-base duplicates; their canonical follow-ups are #164/#165/#166/#168. #167 duplicates #162. #172 is superseded by #181. #176 is a duplicate checkpoint; #183 was ported into #155. Do not reopen/recreate these work.
+- Required migration integration order: **#147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #180 → #181 → #179**. Preserve all assertions in `scripts/test-database-migrations.mjs`; after each base-changing integration, run combined Core/P2/PostgreSQL 17 on the exact resulting head.
+- No submitted independent `APPROVED` review is recorded for the open PRs listed above. A requested reviewer or `COMMENTED` review is not approval; do not merge around this policy gate.
+- Production migration/deployment/restore, live Onyx target import, WhatsApp delivery, deployed worker/storage, live AI calls and hosted customer E2E remain `NOT RUN` / `SKIPPED` / `BLOCKED_EXTERNAL` without authorized direct evidence.
+
+## NEXT ACTION — FIRST STEP ON RESUME
+1. Run Core and P2 on the final new head of this PR #152 after the state/matrix/coordination/report update. The previously passing #152 SHA is historical now.
+2. Obtain an independent submitted approval for each merge candidate; merge only when policy, reviews, dependency order, and exact-head checks pass.
+3. Continue the remaining 179-candidate semantic RPC review at the exact current migration source, prioritizing customer/company invitations and activation, returns/credit memos, accounting posting/reversal and storage authorization. Do not repeat the completed async-export batch.
+4. After each ordered migration merge, inspect the actual merge SHA and rerun combined Core/P2/PostgreSQL 17; update the matrix only from live evidence.
+
+---
+
+
 - **Production reference:** `main` remains `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; exact-main Core [40111286682](https://github.com/Report-Engainall/Nasr1/actions/runs/40111286682) = SUCCESS. No direct writes to `main`.
 - **#181 is the only canonical stock-count snapshot PR; #172 is CLOSED without merge as superseded.** PR-file comparison confirmed both migrations and the snapshot-balance contract test from #172 are present in #181, with stronger SQLSTATE `40001` and zero-partial-side-effect assertions. #181 exact head `02c5781274b20fd4c9942fafcdd64d2e61661bb0`: Core [40120660535](https://github.com/Report-Engainall/Nasr1/actions/runs/40120660535) and P2 [40120660534](https://github.com/Report-Engainall/Nasr1/actions/runs/40120660534) = SUCCESS.
 - **P1/P2 high-risk candidates with exact-head successful gates:** #158 payment auditing (PG17 [40120412714](https://github.com/Report-Engainall/Nasr1/actions/runs/40120412714), Core [40120412751](https://github.com/Report-Engainall/Nasr1/actions/runs/40120412751), P2 [40120412721](https://github.com/Report-Engainall/Nasr1/actions/runs/40120412721)); #184 two-decimal price validation (Core [40120485585](https://github.com/Report-Engainall/Nasr1/actions/runs/40120485585), P2 [40120485586](https://github.com/Report-Engainall/Nasr1/actions/runs/40120485586)); #155 negative stock measurements in export (Core [40120144157](https://github.com/Report-Engainall/Nasr1/actions/runs/40120144157), P2 [40120144155](https://github.com/Report-Engainall/Nasr1/actions/runs/40120144155)); #177 payment/credit posting race (Core [40116744981](https://github.com/Report-Engainall/Nasr1/actions/runs/40116744981), P2 [40116744968](https://github.com/Report-Engainall/Nasr1/actions/runs/40116744968)); #178 import idempotency/async-export worker race (PG17 [40117273060](https://github.com/Report-Engainall/Nasr1/actions/runs/40117273060), Core [40117273030](https://github.com/Report-Engainall/Nasr1/actions/runs/40117273030), P2 [40117273120](https://github.com/Report-Engainall/Nasr1/actions/runs/40117273120)).
@@ -19,7 +55,7 @@
 
 # NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026
 
-## AUTHORITATIVE ACTIVE READ — 2026-10-24 (live reconciliation)
+## HISTORICAL ACTIVE READ — 2026-10-24 (superseded by the authoritative reconciliation above)
 
 ### Production reference and merge truth
 - Repository `Report-Engainall/Nasr1`; the only production reference is `main`. Live main SHA: `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; exact-head main check `40111286682` was SUCCESS. No direct writes to main.
