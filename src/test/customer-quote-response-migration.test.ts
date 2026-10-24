@@ -24,7 +24,7 @@ describe("customer quote response explicit-decision migration", () => {
     expect(invalidInputGuard).toBeGreaterThan(-1);
     expect(update).toBeGreaterThan(invalidInputGuard);
     expect(functionSource).toMatch(
-      /IF p_quote_id IS NULL OR p_accept IS NULL THEN[\s\S]*?ERRCODE='22023'[\s\S]*?explicit accept or reject decision is required/i,
+      /IF p_quote_id IS NULL OR p_accept IS NULL THEN[\s\S]*?ERRCODE='22023'[\s\S]*?explicit accept or reject decision (?:is|are) required/i,
     );
   });
 
