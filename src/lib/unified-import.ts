@@ -425,7 +425,13 @@ export function applyImportProfileRules(
   };
 }
 
-export function validateCsvRow(values: string[], headers: string[], rowNumber: number): ParsedImportRow {
+export function validateCsvRow(
+  values: string[],
+  headers: string[],
+  rowNumber: number,
+  matchingKey?: string,
+  requiredFields: readonly string[] = [],
+): ParsedImportRow {
   const data: Record<string, unknown> = {};
   const errors: string[] = [];
   if (values.length > MAX_IMPORT_COLUMNS) errors.push(`عدد الأعمدة يتجاوز ${MAX_IMPORT_COLUMNS}`);
@@ -438,11 +444,25 @@ export function validateCsvRow(values: string[], headers: string[], rowNumber: n
       errors.push(`الخلية ${headers[index]} تتجاوز ${MAX_IMPORT_CELL_CHARS} حرف`);
       continue;
     }
-    // Keep identifiers as strings to preserve leading zeros (e.g. SKU 000125).
+    // Keep all business/source identifiers as strings; never parse their leading zeros away.
     data[headers[index]] = value.trim();
   }
-  if (!String(data.item_code ?? '').trim() && !String(data.customer_code ?? '').trim() && !String(data.supplier_code ?? '').trim()) {
+  const standardIdentityKeys = ['item_code', 'customer_code', 'supplier_code'];
+  if (matchingKey) {
+    if (!String(data[matchingKey] ?? '').trim()) {
+      errors.push(`مفتاح المطابقة الإلزامي "${matchingKey}" مفقود أو فارغ`);
+    }
+  } else if (!standardIdentityKeys.some((field) => String(data[field] ?? '').trim().length > 0)) {
     errors.push('مفتاح الهوية التجاري مطلوب (رمز الصنف أو العميل أو المورد)');
+  }
+  // Profile-required values must be present in each row, not only in the header.
+  // The matching-key branch above emits the more specific identity error for that field.
+  for (const field of new Set(requiredFields)) {
+    if (field === matchingKey) continue;
+    const value = data[field];
+    if (value === undefined || (typeof value === 'string' && value.trim() === '')) {
+      errors.push(`الحقل الإلزامي "${field}" مفقود أو فارغ`);
+    }
   }
   for (const field of ['quantity','revenue','price','cost']) {
     const value = data[field];
@@ -667,7 +687,7 @@ function parseXlsxSharedStrings(xml: string): string[] {
   return values;
 }
 
-type XlsxStyles = { numberFormats: Map<number, string>; cellStyleFormats: number[] };
+export type XlsxStyles = { numberFormats: Map<number, string>; cellStyleFormats: number[] };
 
 function parseXlsxStyles(xml: string): XlsxStyles {
   const numberFormats = new Map<number, string>();
@@ -699,7 +719,7 @@ function excelSerialToIso(value: string, date1904: boolean): string {
   return serial % 1 === 0 ? iso.slice(0, 10) : iso.replace(/\.000Z$/, 'Z');
 }
 
-function formatXlsxNumber(value: string, styleIndex: number, styles: XlsxStyles, date1904: boolean): string {
+export function formatXlsxNumber(value: string, styleIndex: number, styles: XlsxStyles, date1904: boolean): string {
   const numFmtId = styles.cellStyleFormats[styleIndex] ?? 0;
   const customCode = styles.numberFormats.get(numFmtId);
   const builtInDate = (numFmtId >= 14 && numFmtId <= 22) || (numFmtId >= 45 && numFmtId <= 47);
@@ -862,7 +882,11 @@ export async function parseXlsxFirstWorksheet(
         throw new Error('حجم مكون XLSX المخزن لا يطابق الفهرس أو يتجاوز الحد الآمن.');
       }
       expandedBytes += plainBytes.byteLength;
-      return new TextDecoder('utf-8', { fatal: false }).decode(plainBytes);
+      try {
+        return new TextDecoder('utf-8', { fatal: true }).decode(plainBytes);
+      } catch {
+        throw new Error('محتوى XLSX يحتوي على ترميز UTF-8 غير صالح؛ تم رفض الملف قبل الاعتماد.');
+      }
     }
     let stream: ReadableStream<Uint8Array>;
     {
@@ -874,7 +898,7 @@ export async function parseXlsxFirstWorksheet(
       }
     }
     const reader = stream.getReader();
-    const decoder = new TextDecoder('utf-8', { fatal: false });
+    const decoder = new TextDecoder('utf-8', { fatal: true });
     const parts: string[] = [];
     let actualBytes = 0;
     try {
@@ -886,9 +910,19 @@ export async function parseXlsxFirstWorksheet(
           await reader.cancel();
           throw new Error('محتوى XLSX بعد فك الضغط تجاوز الحجم المعلن أو الحد الآمن.');
         }
-        parts.push(decoder.decode(result.value, { stream: true }));
+        try {
+          parts.push(decoder.decode(result.value, { stream: true }));
+        } catch {
+          await reader.cancel();
+          throw new Error('محتوى XLSX يحتوي على ترميز UTF-8 غير صالح؛ تم رفض الملف قبل الاعتماد.');
+        }
       }
-      parts.push(decoder.decode());
+      try {
+        parts.push(decoder.decode());
+      } catch {
+        await reader.cancel();
+        throw new Error('نهاية مكون XLSX تحتوي على ترميز UTF-8 غير صالح؛ تم رفض الملف قبل الاعتماد.');
+      }
     } finally {
       reader.releaseLock();
     }

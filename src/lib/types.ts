@@ -189,6 +189,7 @@ export interface ImportProfile {
   normalization_rules?: unknown;
   matching_key?: string | null;
   merge_strategy?: string | null;
+  is_full_dataset?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -203,17 +204,19 @@ export interface ImportJob {
   file_size?: number;
   job_type?: string;
   source_system?: string | null;
+  external_source_reference?: string | null;
   period_key: string | null;
   status: string;
   total_rows: number;
   processed_rows: number;
+  failed_rows?: number;
   accepted_rows?: number;
   rejected_rows?: number;
   duplicate_rows?: number;
   data_quality_score: number | null;
   quality_breakdown?: Record<string, unknown> | null;
   upload_session_id?: string | null;
-  error_summary?: string | null;
+  error_summary?: Record<string, unknown> | null;
   started_at?: string | null;
   completed_at?: string | null;
   created_by?: string | null;

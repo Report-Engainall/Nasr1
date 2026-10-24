@@ -1211,6 +1211,7 @@ export async function createImportJob(input: {
   profileId?: string | null;
   periodKey?: string | null;
   sourceSystem?: string;
+  externalSourceReference?: string | null;
   /** Stable for retries of one logical import attempt; a new intentional version gets a fresh key. */
   requestKey?: string;
   /** The user-selected duplicate intent is part of the idempotency payload, not file identity. */
@@ -1224,6 +1225,7 @@ export async function createImportJob(input: {
     p_file_hash: input.fileHash,
     p_file_size: input.fileSize,
     p_job_type: input.jobType,
+    p_external_source_reference: input.externalSourceReference?.trim() || null,
     p_profile_id: input.profileId ?? null,
     p_period_key: input.periodKey ?? null,
     p_source_system: input.sourceSystem ?? 'manual',
@@ -1239,6 +1241,7 @@ export async function createImportUploadSession(jobId: string) {
   return data as {
     id: string; import_job_id: string; organization_id: string;
     profile_id: string | null; profile_version: number | null; period_key: string | null;
+    external_source_reference: string | null;
     chunk_size_bytes: number; total_chunks: number; verified_chunks: number;
     status: string; file_hash: string; file_size: number;
   };
@@ -1769,9 +1772,70 @@ export async function insertImportRows(jobId: string, rows: Array<{ rowNumber: n
 }
 
 export async function updateImportJob(id: string, updates: Partial<ImportJob>): Promise<void> {
-  const { error } = await supabase.from('import_jobs').update(updates).eq('id', id);
+  if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error('معرّف دفعة الاستيراد غير صالح؛ لم يتم حفظ التحديث.');
+  }
+  // RLS may make a write affect zero rows without a PostgREST error; require a returned row.
+  const { data, error } = await supabase.from('import_jobs').update(updates).eq('id', id).select('id').maybeSingle();
   if (error) throw error;
+  if (!data?.id || data.id !== id) {
+    throw new Error('لم يؤكد الخادم حفظ تحديث دفعة الاستيراد؛ تحقق من المؤسسة والصلاحيات قبل المتابعة.');
+  }
 }
+
+export type SafeImportFailureResult = {
+  jobId: string;
+  status: string;
+  changed: boolean;
+  terminal: boolean;
+  totalRows: number | null;
+  processedRows: number | null;
+  failedRows: number | null;
+  snapshotId: string | null;
+};
+
+/**
+ * Atomic tenant-scoped failure bookkeeping. Server returns terminal state unchanged if
+ * finalization committed but the network response was lost; never downgrade it locally.
+ */
+export async function failImportJobSafely(
+  jobId: string,
+  errorSummary: Record<string, unknown>,
+): Promise<SafeImportFailureResult> {
+  if (typeof jobId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
+    throw new Error('معرّف دفعة الاستيراد غير صالح؛ لم تُعدّل الحالة.');
+  }
+  if (!errorSummary || typeof errorSummary !== 'object' || Array.isArray(errorSummary)
+      || new TextEncoder().encode(JSON.stringify(errorSummary)).byteLength > 20_000) {
+    throw new Error('ملخص فشل الاستيراد غير صالح أو كبير جدًا.');
+  }
+  const { data, error } = await supabase.rpc('fail_import_job_safely', {
+    p_job_id: jobId,
+    p_error_summary: errorSummary,
+  });
+  if (error) throw new Error('تعذر تأكيد حالة دفعة الاستيراد بعد الفشل؛ تحقق من السجل قبل إعادة المحاولة.');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('أعاد الخادم استجابة غير صالحة لمصالحة حالة دفعة الاستيراد.');
+  }
+  const result = data as Record<string, unknown>;
+  if (result.job_id !== jobId || typeof result.status !== 'string'
+      || typeof result.changed !== 'boolean' || typeof result.terminal !== 'boolean') {
+    throw new Error('استجابة مصالحة حالة الاستيراد لا تطابق الدفعة المطلوبة.');
+  }
+  const optionalCount = (value: unknown): number | null =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+  return {
+    jobId,
+    status: result.status,
+    changed: result.changed,
+    terminal: result.terminal,
+    totalRows: optionalCount(result.total_rows),
+    processedRows: optionalCount(result.processed_rows),
+    failedRows: optionalCount(result.failed_rows),
+    snapshotId: typeof result.snapshot_id === 'string' ? result.snapshot_id : null,
+  };
+}
+
 
 export async function fetchImportJobs(): Promise<ImportJob[]> {
   // Tenant-scoped RLS filters rows from the authenticated profile, not a browser-provided org ID.
@@ -1784,6 +1848,77 @@ export async function fetchImportRows(jobId: string): Promise<ImportJobRow[]> {
   const { data, error } = await supabase.from('import_job_rows').select('*').eq('import_job_id', jobId).order('row_number').limit(100000);
   if (error) throw error;
   return data as ImportJobRow[];
+}
+
+export type RollbackImportSnapshotResult = {
+  jobId: string;
+  snapshotId: string;
+  status: 'rolled_back';
+  snapshotStatus: 'archived';
+  rolledBack: boolean;
+  alreadyRolledBack: boolean;
+  snapshotVersion: number | null;
+  auditId: string | null;
+  snapshotRowsRetained: boolean;
+};
+
+export async function rollbackImportSnapshot(jobId: string, reason: string): Promise<RollbackImportSnapshotResult> {
+  if (typeof jobId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
+    throw new Error('معرّف دفعة الاستيراد غير صالح للتراجع.');
+  }
+  const normalizedReason = typeof reason === 'string' ? reason.trim() : '';
+  if (normalizedReason.length < 3 || normalizedReason.length > 1000) {
+    throw new Error('سبب التراجع مطلوب ويجب أن يكون بين 3 و1000 حرف.');
+  }
+  const { data, error } = await supabase.rpc('rollback_import_snapshot', {
+    p_job_id: jobId,
+    p_reason: normalizedReason,
+  });
+  if (error) throw new Error(error.message || 'تعذر التراجع عن لقطة الاستيراد.');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('استجابة التراجع غير صالحة؛ لم يتم تأكيد الأرشفة.');
+  }
+  const result = data as Record<string, unknown>;
+  if (result.job_id !== jobId || typeof result.snapshot_id !== 'string'
+      || result.status !== 'rolled_back' || result.snapshot_status !== 'archived'
+      || typeof result.rolled_back !== 'boolean' || typeof result.already_rolled_back !== 'boolean') {
+    throw new Error('لم يؤكد الخادم التراجع الآمن عن اللقطة المطلوبة.');
+  }
+  return {
+    jobId,
+    snapshotId: result.snapshot_id,
+    status: 'rolled_back',
+    snapshotStatus: 'archived',
+    rolledBack: result.rolled_back,
+    alreadyRolledBack: result.already_rolled_back,
+    snapshotVersion: typeof result.snapshot_version === 'number' ? result.snapshot_version : null,
+    auditId: typeof result.audit_id === 'string' ? result.audit_id : null,
+    snapshotRowsRetained: result.snapshot_rows_retained === true || result.already_rolled_back === true,
+  };
+}
+
+export type ImportRowErrorDetail = { row_number: number; errors: unknown };
+
+export async function fetchImportRowErrors(jobId: string, limit = 100, offset = 0): Promise<ImportRowErrorDetail[]> {
+  if (typeof jobId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
+    throw new Error('معرّف دفعة الاستيراد غير صالح لعرض أخطاء الصفوف.');
+  }
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+    throw new Error('حد عرض أخطاء الصفوف يجب أن يكون بين 1 و500.');
+  }
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100_000) {
+    throw new Error('موضع عرض أخطاء الصفوف غير صالح.');
+  }
+  // The RLS policy scopes these rows through their parent import job and active organization.
+  const { data, error } = await supabase
+    .from('import_job_rows')
+    .select('row_number,errors')
+    .eq('import_job_id', jobId)
+    .eq('status', 'rejected')
+    .order('row_number', { ascending: true })
+    .range(offset, offset + limit - 1);
+  if (error) throw new Error('تعذر قراءة أسباب رفض الصفوف من الدفعة الحالية.');
+  return (data ?? []).map((row) => ({ row_number: row.row_number, errors: row.errors }));
 }
 
 // ─── Dashboard stats ───

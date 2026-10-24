@@ -1,12 +1,14 @@
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Fragment, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Check, FileDown, Pause, Play, RefreshCw, ShieldCheck, Upload, XCircle } from "lucide-react";
 import {
-  cancelImportUploadSession, createImportJob, createImportUploadSession, fetchCentralSynonyms, fetchImportJobs, fetchImportProfiles,
-  fetchImportUploadChunks, findImportDuplicate, finalizeImportJob, insertImportRows, recordImportUploadChunk, updateImportJob,
+  cancelImportUploadSession, createImportJob, createImportUploadSession, failImportJobSafely, fetchCentralSynonyms, fetchImportJobs, fetchImportProfiles, rollbackImportSnapshot,
+  fetchImportUploadChunks, fetchImportRowErrors, findImportDuplicate, finalizeImportJob, insertImportRows, recordImportUploadChunk, updateImportJob,
+  type ImportRowErrorDetail,
 } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { completeImportRequestKey, getOrCreateImportRequestKey } from "@/lib/import-request-key";
 import { useFetch } from "@/lib/useFetch";
+import { useAuth } from "@/lib/auth";
 import { formatNumber } from "@/lib/format";
 import { AdminPage, Button, Empty, ErrorBox, Loading, TableWrap } from "@/components/AdminPages";
 import {
@@ -30,6 +32,8 @@ type DuplicatePrompt = {
   fileHash: string;
   profileId: string | null;
   periodKey: string | null;
+  sourceSystem: string;
+  externalSourceReference: string | null;
   duplicate: DuplicateResult;
 };
 
@@ -49,6 +53,8 @@ function delay(ms: number): Promise<void> {
 }
 
 export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice: (message: string) => void; refreshVersion?: number }) {
+  const { user } = useAuth();
+  const canRollbackImport = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
   const { data: jobs, loading, error, refetch } = useFetch(fetchImportJobs, [refreshVersion]);
   const { data: profiles } = useFetch(fetchImportProfiles, [refreshVersion]);
   const { data: storedSynonyms } = useFetch(fetchCentralSynonyms, [refreshVersion]);
@@ -60,13 +66,18 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
   const [statusMessage, setStatusMessage] = useState("");
   const [profileId, setProfileId] = useState("");
   const [periodKey, setPeriodKey] = useState("");
+  const [sourceSystem, setSourceSystem] = useState("manual");
+  const [externalSourceReference, setExternalSourceReference] = useState("");
   const [qualityPreview, setQualityPreview] = useState<QualityResult | null>(null);
   const [duplicatePrompt, setDuplicatePrompt] = useState<DuplicatePrompt | null>(null);
+  const [rowErrorState, setRowErrorState] = useState<{ jobId: string; rows: ImportRowErrorDetail[]; loading: boolean; error: string; offset: number; hasMore: boolean } | null>(null);
+  const rowErrorRequestId = useRef(0);
   const pausedRef = useRef(false);
   const cancelRef = useRef(false);
   const runningRef = useRef(false);
 
   const activeProfileId = profileId || (profiles ?? []).find((p: ImportProfile) => p.profile_name === "Unified CSV" && p.status === "active")?.id || null;
+  const selectedImportProfile = (profiles ?? []).find((profile: ImportProfile) => profile.id === activeProfileId);
   const synonymMap = useMemo(() => {
     const result: Record<string, string> = { ...DEFAULT_SYNONYMS };
     const normalizeSource = (value: string) => value.trim().toLocaleLowerCase("ar").replace(/[ـ_-]+/g, " ").replace(/\s+/g, " ");
@@ -98,6 +109,10 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
     existingJob?: ImportJob & { upload_session_id?: string | null },
     selectedProfile: string | null = activeProfileId,
     selectedPeriod: string | null = periodKey.trim() || null,
+    selectedSource: string = sourceSystem,
+    selectedExternalSourceReference: string | null = existingJob
+      ? (existingJob.external_source_reference ?? null)
+      : selectedSource === "manual" ? null : externalSourceReference.trim() || null,
   ) {
     if (runningRef.current) return;
     runningRef.current = true;
@@ -110,7 +125,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
     setProcessed(0);
     setQualityPreview(null);
     let job: ImportJob | null = existingJob ?? null;
-    let uploadSession: { id: string; import_job_id: string; organization_id: string; profile_id: string | null; profile_version: number | null; period_key: string | null; chunk_size_bytes: number; total_chunks: number; verified_chunks: number; status: string; file_hash: string; file_size: number } | null = null;
+    let uploadSession: { id: string; import_job_id: string; organization_id: string; profile_id: string | null; profile_version: number | null; period_key: string | null; external_source_reference: string | null; chunk_size_bytes: number; total_chunks: number; verified_chunks: number; status: string; file_hash: string; file_size: number } | null = null;
     let processingConfigFingerprint: string | null = null;
     let checkpointFingerprintPersisted = false;
 
@@ -129,7 +144,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           jobType: "unified_import",
           profileId: selectedProfile,
           periodKey: selectedPeriod,
-          sourceSystem: "manual",
+          sourceSystem: selectedSource,
+          externalSourceReference: selectedExternalSourceReference,
           intent: action,
         });
         job = await createImportJob({
@@ -139,7 +155,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           jobType: "unified_import",
           profileId: selectedProfile,
           periodKey: selectedPeriod,
-          sourceSystem: "manual",
+          sourceSystem: selectedSource,
+          externalSourceReference: selectedExternalSourceReference,
           requestKey: requestAttempt.requestKey,
           intent: action,
         });
@@ -206,6 +223,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
         profileVersion: profile?.version ?? null,
         reportType: profile?.report_type ?? null,
         source: profile?.source ?? null,
+        sourceSystem: selectedSource,
+        externalSourceReference: selectedExternalSourceReference,
         requiredColumns,
         optionalColumns: profile?.optional_columns ?? [],
         ignoredColumns: [...ignoredColumns].sort(),
@@ -228,7 +247,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
       }
       if ((uploadSession.profile_id ?? null) !== (selectedProfile ?? null) ||
           (uploadSession.profile_version ?? null) !== (profile?.version ?? null) ||
-          (uploadSession.period_key ?? null) !== (selectedPeriod ?? null)) {
+          (uploadSession.period_key ?? null) !== (selectedPeriod ?? null) ||
+          (uploadSession.external_source_reference ?? null) !== (selectedExternalSourceReference ?? null)) {
         throw new Error("هوية الملف التعريفي أو إصداره أو الفترة لا تطابق جلسة الرفع. أوقفنا الاستئناف حتى لا تختلط نتائج دفعتين.");
       }
       if (uploadSession.chunk_size_bytes !== UPLOAD_CHUNK_BYTES ||
@@ -265,14 +285,13 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
       });
       checkpointFingerprintPersisted = true;
       const verifiedChunks = new Set(verifiedChunkNumbers);
-      if (extension === "xlsx" && verifiedChunks.size > 0) {
-        throw new Error("هذه الدفعة لها شرائح XLSX مؤكدة جزئيًا. لا يمكن استئناف XLSX الجزئي بأمان في هذه النسخة؛ اختر «إنشاء نسخة جديدة» بعد مراجعة السجل.");
-      }
       if (verifiedChunks.size > 0) {
-        setStatusMessage("استئناف آمن: سيعاد بناء حالة قراءة CSV محليًا، وتُتجاوز كتابة الشرائح المؤكدة، ويستمر الحفظ من أول شريحة غير مؤكدة.");
+        setStatusMessage(extension === "xlsx"
+          ? "استئناف XLSX آمن: ستعاد قراءة الورقة كاملة من الملف المطابق، وتُحدّث الصفوف بمفتاح الدفعة ورقم الصف دون إنشاء صفوف مكررة، ثم تُراجع بصمات الشرائح المحفوظة."
+          : "استئناف آمن: سيعاد بناء حالة قراءة CSV محليًا، وتُتجاوز كتابة الشرائح المؤكدة، ويستمر الحفظ من أول شريحة غير مؤكدة.");
       }
       const parser = new StreamingCsvParser();
-      const decoder = new TextDecoder("utf-8", { fatal: false });
+      const decoder = new TextDecoder("utf-8", { fatal: true });
       let headers: string[] | null = null;
       let quality: DataQualityAccumulator | null = null;
       let currentChunkNumber = -1;
@@ -302,6 +321,11 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           if (new Set(headers.filter(Boolean)).size !== headers.filter(Boolean).length) {
             throw new Error("يوجد أكثر من عنوان يتحول إلى العمود نفسه بعد التطبيع؛ راجع قاموس المرادفات.");
           }
+          const requiredHeaderSet = new Set([...requiredColumns, matchingKey]);
+          const missingRequiredHeaders = [...requiredHeaderSet].filter((field) => !headers!.includes(field));
+          if (missingRequiredHeaders.length > 0) {
+            throw new Error("الملف يفتقد أعمدة إلزامية للملف التعريفي الحالي: " + missingRequiredHeaders.join("، ") + ". صحح صف العناوين أو اختر ملفًا تعريفيًا مطابقًا؛ لم يتم اعتماد أي بيانات.");
+          }
           setStage("mapping");
           quality = new DataQualityAccumulator(requiredColumns.length ? requiredColumns : [matchingKey], matchingKey);
           return;
@@ -309,7 +333,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
         if (values.length > MAX_IMPORT_COLUMNS) throw new Error("صف البيانات تجاوز حد الأعمدة.");
         if (dataRows >= MAX_IMPORT_ROWS) throw new Error("تجاوز الملف الحد الأقصى " + MAX_IMPORT_ROWS + " صف.");
         dataRows += 1;
-        const baseRow: ParsedImportRow = validateCsvRow(values, headers, dataRows + 1);
+        const baseRow: ParsedImportRow = validateCsvRow(values, headers, dataRows + 1, matchingKey, requiredColumns);
         const parsed: ParsedImportRow = applyImportProfileRules(baseRow, transformations, validations);
         quality?.add(parsed);
         // Already-verified upload chunks have their structured rows committed before their
@@ -338,6 +362,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           const chunkHash = new IncrementalSha256().update(bytes).digestHex();
           await parser.push(decoder.decode(bytes, { stream: byteOffset + bytes.length < file.size }), consumeRow, false);
           await flushBatch();
+          // A cancellation during row parsing must not certify a partially processed chunk.
+          // Its rows are upserted by row number on retry, so leaving the chunk unverified is safe.
+          if (cancelRef.current) break;
           if (verifiedChunks.has(chunkNumber)) {
             const checkpoint = uploadManifest[chunkNumber];
             if (!checkpoint || checkpoint.chunk_hash !== chunkHash) {
@@ -436,7 +463,10 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           profile_id: selectedProfile,
           profile_version: profile?.version ?? null,
           processing_config_fingerprint: processingConfigFingerprint,
+          is_full_dataset: profile?.is_full_dataset === true,
           period_key: selectedPeriod,
+          source_system: selectedSource,
+          external_source_reference: selectedExternalSourceReference,
           parser: extension === "csv" ? "streaming-csv" : "xlsx-first-visible-sheet",
           worksheet_name: xlsxWorksheetName,
           processing_chunk_rows: PROCESSING_CHUNK_ROWS,
@@ -462,11 +492,9 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "تعذر معالجة الملف.";
       setStage(null);
-      setErrorMessage(message);
       if (job) {
         try {
           const failureSummary: Record<string, unknown> = {
-            ...((job.error_summary ?? {}) as Record<string, unknown>),
             code: "IMPORT_PROCESSING_FAILED",
             message,
             resumable: true,
@@ -475,8 +503,38 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           if (checkpointFingerprintPersisted && processingConfigFingerprint) {
             failureSummary.processing_config_fingerprint = processingConfigFingerprint;
           }
-          await updateImportJob(job.id, { status: "failed", error_summary: failureSummary });
-        } catch { /* preserve the original error */ }
+          const reconciled = await failImportJobSafely(job.id, failureSummary);
+          if (reconciled.terminal) {
+            // The finalize/cancel RPC may have committed while its response was lost.
+            // Keep the server's terminal result; never mark it failed or create another snapshot.
+            setErrorMessage("");
+            const snapshotText = reconciled.snapshotId ? " • Snapshot " + reconciled.snapshotId : "";
+            setStatusMessage(
+              reconciled.status === "completed" || reconciled.status === "completed_with_warnings"
+                ? "أكد الخادم أن الدفعة انتهت بالفعل بالحالة " + reconciled.status + snapshotText + ". لم تُعد العملية ولم تُكرر آثارها."
+                : "أكد الخادم الحالة النهائية " + reconciled.status + " لهذه الدفعة. لم تتم إعادة اعتمادها تلقائيًا.",
+            );
+            onNotice("حُفظت الحالة النهائية الموجودة للدفعة؛ لم تُحوّل إلى فشل ولم يُكرر الاعتماد.");
+          } else {
+            setErrorMessage(message);
+            setStatusMessage(
+              "حُفظ الفشل كحالة قابلة للاستئناف، وصالح الخادم عدد الصفوف المحفوظة: " +
+              (reconciled.processedRows === null ? "غير متاح" : formatNumber(reconciled.processedRows)) +
+              "، والمرفوض: " +
+              (reconciled.failedRows === null ? "غير متاح" : formatNumber(reconciled.failedRows)) +
+              ". استخدم الملف الأصلي نفسه للاستئناف.",
+            );
+          }
+        } catch (reconcileError) {
+          setErrorMessage(message);
+          setStatusMessage(
+            "تعذر تأكيد حالة الدفعة بعد الفشل: " +
+            (reconcileError instanceof Error ? reconcileError.message : "خطأ غير معروف") +
+            ". لا تبدأ نسخة بديلة قبل تحديث سجل الدفعات والتحقق من الحالة على الخادم.",
+          );
+        }
+      } else {
+        setErrorMessage(message);
       }
       await refetch();
     } finally {
@@ -495,6 +553,10 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
       setErrorMessage("حجم الملف يتجاوز الحد المسموح 100MB.");
       return;
     }
+    if (sourceSystem !== "manual" && !externalSourceReference.trim()) {
+      setErrorMessage("مرجع المصدر الخارجي/رقم الدفعة مطلوب عند الاستيراد من Onyx Pro أو ERP أو ملف مورد؛ لم يتم إنشاء دفعة.");
+      return;
+    }
     setErrorMessage("");
     setStatusMessage("");
     setStage("reading");
@@ -511,13 +573,16 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           fileHash,
           profileId: activeProfileId,
           periodKey: periodKey.trim() || null,
+          sourceSystem,
+          externalSourceReference: sourceSystem === "manual" ? null : externalSourceReference.trim() || null,
           duplicate,
         });
         setStage(null);
         setStatusMessage("وجد المحرك ملفًا بنفس البصمة للملف التعريفي والفترة المحددين. اختر الإجراء قبل المتابعة.");
         return;
       }
-      await processFile(file, fileHash, "new_version", undefined, activeProfileId, periodKey.trim() || null);
+      await processFile(file, fileHash, "new_version", undefined, activeProfileId, periodKey.trim() || null, sourceSystem,
+        sourceSystem === "manual" ? null : externalSourceReference.trim() || null);
     } catch (cause) {
       setStage(null);
       setErrorMessage(cause instanceof Error ? cause.message : "تعذر قراءة بصمة الملف.");
@@ -540,10 +605,15 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
         setErrorMessage("لا توجد دفعة غير مكتملة قابلة للاستئناف لهذا الملف.");
         return;
       }
-      await processFile(pending.file, pending.fileHash, "new_version", openJob, pending.profileId, pending.periodKey);
+      await processFile(
+        pending.file, pending.fileHash, "new_version", openJob, pending.profileId, pending.periodKey,
+        openJob.source_system ?? pending.sourceSystem,
+        openJob.external_source_reference ?? pending.externalSourceReference,
+      );
       return;
     }
-    await processFile(pending.file, pending.fileHash, action, undefined, pending.profileId, pending.periodKey);
+    await processFile(pending.file, pending.fileHash, action, undefined, pending.profileId, pending.periodKey,
+      pending.sourceSystem, pending.externalSourceReference);
   }
 
   async function resumeFromHistory(event: ChangeEvent<HTMLInputElement>, job: ImportJob & { upload_session_id?: string | null }) {
@@ -560,9 +630,89 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
         setErrorMessage("بصمة الملف لا تطابق الدفعة السابقة؛ اختر الملف الأصلي نفسه.");
         return;
       }
-      await processFile(file, fileHash, "new_version", job, job.profile_id ?? activeProfileId, job.period_key ?? null);
+      await processFile(file, fileHash, "new_version", job, job.profile_id ?? activeProfileId, job.period_key ?? null,
+        job.source_system ?? sourceSystem, job.external_source_reference ?? null);
     } catch (cause) {
       setErrorMessage(cause instanceof Error ? cause.message : "تعذر استئناف الدفعة.");
+    }
+  }
+
+  async function rollbackJob(job: ImportJob) {
+    if (!canRollbackImport || !["completed", "completed_with_warnings"].includes(job.status)) return;
+    const reason = window.prompt("اكتب سبب التراجع عن أحدث لقطة لهذه الدفعة (3 إلى 1000 حرف):", "");
+    if (reason === null) return;
+    if (reason.trim().length < 3 || reason.trim().length > 1000) {
+      setErrorMessage("سبب التراجع مطلوب ويجب أن يكون بين 3 و1000 حرف.");
+      return;
+    }
+    if (!window.confirm("سيؤرشف النظام اللقطة الجاهزة الأحدث المرتبطة بهذه الدفعة فقط، مع الاحتفاظ بجميع الصفوف وسجل التدقيق. لا يمكن أرشفة لقطة أقدم إذا كانت هناك لقطة أحدث. هل تتابع؟")) return;
+    setErrorMessage("");
+    setStatusMessage("جارٍ التحقق من صلاحية التراجع وحالة أحدث لقطة على الخادم…");
+    try {
+      const result = await rollbackImportSnapshot(job.id, reason);
+      await refetch();
+      setStatusMessage(
+        result.alreadyRolledBack
+          ? "سبق تنفيذ التراجع عن هذه الدفعة؛ أكد الخادم بقاء اللقطة مؤرشفة والصفوف التاريخية محفوظة."
+          : "تمت أرشفة اللقطة " + (result.snapshotVersion === null ? "" : "رقم " + formatNumber(result.snapshotVersion) + " ") +
+            "وسُجل سبب التراجع وهوية المنفذ في سجل التدقيق. لم تُحذف صفوف اللقطة أو دفعة الاستيراد.",
+      );
+      onNotice(result.alreadyRolledBack ? "التراجع مسجل مسبقًا؛ لم تتكرر العملية." : "تم التراجع الآمن عن لقطة الاستيراد مع الاحتفاظ بالتاريخ.");
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "تعذر التراجع الآمن عن لقطة الاستيراد.";
+      setErrorMessage(message);
+      setStatusMessage("لم يتم تأكيد التراجع. بقيت الصفوف التاريخية محفوظة؛ راجع أحدث حالة على الخادم قبل إعادة المحاولة.");
+    }
+  }
+
+  async function toggleRowErrors(job: ImportJob) {
+    const previous = rowErrorState;
+    const requestId = ++rowErrorRequestId.current;
+    if (previous?.jobId === job.id && !previous.loading) {
+      setRowErrorState(null);
+      return;
+    }
+    setRowErrorState({ jobId: job.id, rows: [], loading: true, error: "", offset: 0, hasMore: false });
+    try {
+      const rows = await fetchImportRowErrors(job.id, 100, 0);
+      if (requestId === rowErrorRequestId.current) {
+        setRowErrorState({ jobId: job.id, rows, loading: false, error: "", offset: rows.length, hasMore: rows.length === 100 });
+      }
+    } catch (cause) {
+      if (requestId === rowErrorRequestId.current) {
+        setRowErrorState({
+          jobId: job.id, rows: [], loading: false,
+          error: cause instanceof Error ? cause.message : "تعذر تحميل أسباب رفض الصفوف.",
+          offset: 0, hasMore: false,
+        });
+      }
+    }
+  }
+
+  async function loadMoreRowErrors(job: ImportJob) {
+    const previous = rowErrorState;
+    if (!previous || previous.jobId !== job.id || previous.loading || !previous.hasMore) return;
+    const requestId = ++rowErrorRequestId.current;
+    setRowErrorState({ ...previous, loading: true, error: "" });
+    try {
+      const nextRows = await fetchImportRowErrors(job.id, 100, previous.offset);
+      if (requestId === rowErrorRequestId.current) {
+        setRowErrorState({
+          jobId: job.id,
+          rows: [...previous.rows, ...nextRows],
+          loading: false,
+          error: "",
+          offset: previous.offset + nextRows.length,
+          hasMore: nextRows.length === 100,
+        });
+      }
+    } catch (cause) {
+      if (requestId === rowErrorRequestId.current) {
+        setRowErrorState({
+          ...previous, loading: false,
+          error: cause instanceof Error ? cause.message : "تعذر تحميل صفحة أخطاء الصفوف التالية.",
+        });
+      }
     }
   }
 
@@ -574,6 +724,21 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           <h2>رفع ملف للمعالجة</h2>
           <p>يدعم CSV وملفات XLSX الجدولية (الورقة المرئية الأولى). صيغة XLS الثنائية وPDF تبقيان في مسار التعيين اليدوي؛ لا تُخترع بيانات غير مستخرجة.</p>
           <div className="form-grid">
+            <label className="form-field"><span>مصدر البيانات</span>
+              <select value={sourceSystem} disabled={stage !== null || Boolean(duplicatePrompt)} onChange={(event) => { setSourceSystem(event.target.value); setExternalSourceReference(""); }}>
+                <option value="manual">رفع يدوي</option>
+                <option value="onyx_pro">Onyx Pro</option>
+                <option value="external_erp">نظام ERP خارجي</option>
+                <option value="supplier_feed">ملف مورد</option>
+              </select>
+              <small>يحفظ هذا الاختيار هوية المصدر في سجل الدفعة فقط؛ لا يبدأ مزامنة حية أو اتصالًا خارجيًا.</small>
+            </label>
+            {sourceSystem !== "manual" && <label className="form-field"><span>مرجع المصدر الخارجي / رقم الدفعة</span>
+              <input value={externalSourceReference} disabled={stage !== null || Boolean(duplicatePrompt)}
+                onChange={(event) => setExternalSourceReference(event.target.value)}
+                maxLength={200} required placeholder="معرّف الدفعة في Onyx أو ERP أو ملف المورد" />
+              <small>حتى 200 حرف. يدخل المرجع في هوية الطلب وبصمة المعالجة وسجل الدفعة؛ لا تُرسل أي مزامنة خارجية.</small>
+            </label>}
             <label className="form-field"><span>الملف التعريفي</span>
               <select value={profileId} onChange={(event) => setProfileId(event.target.value)}>
                 <option value="">الملف الموحد (تلقائي)</option>
@@ -581,6 +746,11 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
                   <option key={profile.id} value={profile.id}>{profile.profile_name} — v{profile.version}</option>,
                 )}
               </select>
+              <small role="status">
+                {selectedImportProfile?.is_full_dataset === true
+                  ? "هذا الملف التعريفي مصنف كمجموعة كاملة. سيظل الخادم يتحقق من الإصدار وبصمة المعالجة قبل السماح بالاستبدال."
+                  : "هذا الملف التعريفي غير مثبت كمجموعة كاملة؛ الاستبدال الكامل محظور. استخدم «دمج» أو «نسخة جديدة» حتى لا تختفي سجلات غائبة عن ملف جزئي."}
+              </small>
             </label>
             <label className="form-field"><span>الفترة (اختياري)</span>
               <input value={periodKey} onChange={(event) => setPeriodKey(event.target.value)} maxLength={120} placeholder="مثال: 2026-01 أو 2026-Q1" />
@@ -598,7 +768,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
 
         {duplicatePrompt && <section className="panel" role="alert" style={{ gridColumn: "1 / -1", borderColor: "#d8c17a" }}>
           <h2>تم اكتشاف ملف مطابق</h2>
-          <p>الاسم: <strong>{duplicatePrompt.file.name}</strong> • SHA-256: <code>{duplicatePrompt.fileHash.slice(0, 20)}…</code> • دفعات سابقة: {duplicatePrompt.duplicate.jobs.length} • لقطات: {duplicatePrompt.duplicate.snapshots.length}</p>
+          <p>الاسم: <strong>{duplicatePrompt.file.name}</strong> • SHA-256: <code>{duplicatePrompt.fileHash.slice(0, 20)}…</code> • المصدر: {duplicatePrompt.sourceSystem} • مرجع المصدر: {duplicatePrompt.externalSourceReference ?? "غير محدد"} • دفعات سابقة: {duplicatePrompt.duplicate.jobs.length} • لقطات: {duplicatePrompt.duplicate.snapshots.length}</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button variant="outline" onClick={() => void resolveDuplicate("ignore")}>تجاهل</Button>
             {duplicatePrompt.duplicate.jobs.some((item) => ["staging", "failed"].includes(item.status) && Boolean(item.upload_session_id)) &&
@@ -635,16 +805,43 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
         <section className="panel import-jobs-panel">
           <div className="panel-head"><div><h2>سجل الدفعات</h2><p>البصمة والميتا والنتائج دون حفظ الملفات الخام</p></div><Button variant="outline" onClick={refetch}><RefreshCw size={15} /> تحديث</Button></div>
           {loading ? <Loading /> : error ? <ErrorBox message={error} /> : jobs?.length ? <TableWrap><table>
-            <thead><tr><th>الملف</th><th>الحالة</th><th>DQS</th><th>الصفوف</th><th>التاريخ</th><th>الاستئناف</th></tr></thead>
-            <tbody>{jobs.map((job) => <tr key={job.id}>
-              <td><strong>{job.file_name ?? "—"}</strong><small>{job.file_hash?.slice(0, 16) ?? "—"}…</small></td>
-              <td><span className={"badge " + (job.status === "completed" ? "success" : job.status === "rejected" ? "danger" : "warning")}>{job.status === "manual_mapping_required" ? "تعيين يدوي" : job.status === "manual_review" ? "مراجعة بشرية" : job.status}</span></td>
-              <td>{job.data_quality_score == null ? "—" : job.data_quality_score + "/100 (" + (qualityPreview?.score === job.data_quality_score ? qualityPreview.label : job.data_quality_score >= 90 ? "ممتاز" : job.data_quality_score >= 75 ? "مقبول" : job.data_quality_score >= 50 ? "تحذير" : "مرفوض") + ")"}</td>
-              <td>{formatNumber(job.processed_rows)} / {formatNumber(job.total_rows)}</td>
-              <td>{new Date(job.created_at).toLocaleDateString("ar")}</td>
-              <td>{["staging", "failed"].includes(job.status) && job.upload_session_id &&
-                <label className="sf-link" style={{ cursor: "pointer" }}>اختر الملف الأصلي<input type="file" accept=".csv" style={{ display: "none" }} onChange={(event) => void resumeFromHistory(event, job)} /></label>}</td>
-            </tr>)}</tbody>
+            <thead><tr><th>الملف</th><th>المصدر</th><th>الحالة</th><th>DQS</th><th>الصفوف</th><th>التاريخ</th><th>الاستئناف</th><th>أخطاء الصفوف</th>{canRollbackImport && <th>التراجع</th>}</tr></thead>
+            <tbody>{jobs.map((job) => <Fragment key={job.id}>
+              <tr>
+                <td><strong>{job.file_name ?? "—"}</strong><small>{job.file_hash?.slice(0, 16) ?? "—"}…</small></td>
+                <td>{job.source_system || "manual"}<small>{job.external_source_reference || "لا يوجد مرجع خارجي"}</small></td>
+                <td><span className={"badge " + (job.status === "completed" ? "success" : ["rejected", "failed", "cancelled", "rolled_back"].includes(job.status) ? "danger" : "warning")}>{job.status === "manual_mapping_required" ? "تعيين يدوي" : job.status === "manual_review" ? "مراجعة بشرية" : job.status === "rolled_back" ? "تم التراجع مع حفظ التاريخ" : job.status}</span></td>
+                <td>{job.data_quality_score == null ? "—" : job.data_quality_score + "/100 (" + (qualityPreview?.score === job.data_quality_score ? qualityPreview.label : job.data_quality_score >= 90 ? "ممتاز" : job.data_quality_score >= 75 ? "مقبول" : job.data_quality_score >= 50 ? "تحذير" : "مرفوض") + ")"}</td>
+                <td>{formatNumber(job.processed_rows)} / {formatNumber(job.total_rows)}</td>
+                <td>{new Date(job.created_at).toLocaleDateString("ar")}</td>
+                <td>{["staging", "failed"].includes(job.status) && job.upload_session_id &&
+                  <label className="sf-link" style={{ cursor: "pointer" }}>اختر الملف الأصلي<input type="file" accept=".csv,.xlsx" style={{ display: "none" }} onChange={(event) => void resumeFromHistory(event, job)} /></label>}</td>
+                <td>{(Number(job.failed_rows ?? 0) > 0 || ["failed", "rejected"].includes(job.status)) &&
+                  <Button variant="outline" onClick={() => void toggleRowErrors(job)}>
+                    {rowErrorState?.jobId === job.id && !rowErrorState.loading ? "إخفاء التفاصيل" : "عرض الأسباب"}
+                  </Button>}</td>
+                {canRollbackImport && <td>{["completed", "completed_with_warnings"].includes(job.status) &&
+                  <Button variant="outline" onClick={() => void rollbackJob(job)}>تراجع آمن</Button>}</td>}
+              </tr>
+              {rowErrorState?.jobId === job.id && <tr><td colSpan={canRollbackImport ? 9 : 8} style={{ whiteSpace: "normal", minWidth: 320 }}>
+                {rowErrorState.loading && rowErrorState.rows.length === 0 ? <Loading /> : rowErrorState.error && rowErrorState.rows.length === 0 ? <ErrorBox message={rowErrorState.error} /> : rowErrorState.rows.length === 0
+                  ? <Empty text="لا توجد صفوف مرفوضة مسجلة لهذه الدفعة؛ قد يكون الفشل حدث قبل اكتمال قراءة الصفوف." />
+                  : <div>
+                    <strong>أسباب رفض الصفوف (المحمّل {formatNumber(rowErrorState.rows.length)} صفًا)</strong>
+                    <ol>{rowErrorState.rows.map((row) => {
+                      const messages = Array.isArray(row.errors)
+                        ? row.errors.filter((message): message is string => typeof message === "string" && message.trim().length > 0)
+                        : typeof row.errors === "string" && row.errors.trim() ? [row.errors] : [];
+                      return <li key={row.row_number}><strong>الصف {formatNumber(row.row_number)}:</strong> {messages.length ? messages.join("؛ ") : "لم يسجل الخادم سببًا نصيًا لهذا الصف."}</li>;
+                    })}</ol>
+                    {rowErrorState.error && <ErrorBox message={rowErrorState.error} />}
+                    {rowErrorState.loading && <Loading />}
+                    {rowErrorState.hasMore && <Button variant="outline" disabled={rowErrorState.loading} onClick={() => void loadMoreRowErrors(job)}>
+                      {rowErrorState.loading ? "جارٍ تحميل المزيد…" : "تحميل 100 سبب إضافي"}
+                    </Button>}
+                  </div>}
+              </td></tr>}
+            </Fragment>)}</tbody>
           </table></TableWrap> : <Empty text="لا توجد دفعات مستوردة بعد" />}
         </section>
       </div>

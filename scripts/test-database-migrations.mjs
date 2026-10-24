@@ -2404,14 +2404,77 @@ async function main() {
   process.stdout.write("PASS Onyx export audit: server-derived actor/tenant, approved-order guard, row-count validation, central audit persistence and cross-tenant/customer denial\\n");
   process.stdout.write("PASS order-review approval, stale/unapproved confirmation guard, one-order price override, invoice and payment-request lifecycle\\n");
 
+  const importRequestKey = randomUUID();
+  const importRequestArgs = [
+    importRequestKey,
+    "CI Onyx.stock.final.csv",
+    "a".repeat(64),
+    500,
+    "onyx_stock",
+    "ONYX-BATCH-2026-01-A",
+    null,
+    "2026-01",
+    "ci",
+    "new_version",
+  ];
   const importCreated = await db.unsafe(
-    "select public.create_import_job($1,$2,$3,$4,null,$5,$6) as result",
-    ["CI Onyx stock.csv", "a".repeat(64), 500, "onyx_stock", "2026-01", "ci"],
+    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+    importRequestArgs,
   );
   const importJob = importCreated[0].result;
   assert.equal(importJob.organization_id, organizationId, "import tenant must be derived from authenticated staff");
   assert.ok(importJob.profile_id, "import should attach a versioned profile");
+  assert.equal(importJob.file_name, "CI Onyx.stock.final.csv", "the original filename remains attached to the batch");
+  assert.equal(importJob.source_system, "ci", "the external source system must be persisted on the batch");
+  assert.equal(importJob.external_source_reference, "ONYX-BATCH-2026-01-A", "external source/batch reference must be persisted on the batch");
   assert.equal(importJob.raw_file_retained, false, "raw files must not be retained");
+
+  const importReplay = await db.unsafe(
+    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+    importRequestArgs,
+  );
+  assert.equal(importReplay[0].result.id, importJob.id, "retrying the identical request key must replay the original batch");
+  await expectFailure(
+    "reject a non-idempotent direct RPC for import-job creation",
+    () => db.unsafe(
+      "select public.create_import_job($1,$2,$3,$4,$5::uuid,$6,$7) as result",
+      ["CI direct job creation bypass.csv", "e".repeat(64), 100, "onyx_stock", null, "2026-01", "onyx_pro"],
+    ),
+    /permission denied for function create_import_job/i,
+    "42501",
+  );
+  await expectFailure(
+    "require an external source reference for non-manual import sources",
+    () => db.unsafe(
+      "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+      [randomUUID(), "CI missing source reference.csv", "e".repeat(64), 100, "onyx_stock", null, null, "2026-01", "onyx_pro", "new_version"],
+    ),
+    /مرجع المصدر الخارجي\/رقم الدفعة مطلوب/i,
+    "22023",
+  );
+  const importJobCountAfterReplay = await db.unsafe(
+    "select count(*)::integer as count from public.import_jobs where organization_id=$1 and file_hash=$2 and period_key=$3",
+    [organizationId, "a".repeat(64), "2026-01"],
+  );
+  assert.equal(importJobCountAfterReplay[0].count, 1, "request replay must not create a second import job");
+  await expectFailure(
+    "reject import request-key reuse with a changed file identity",
+    () => db.unsafe(
+      "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+      [importRequestKey, "different.csv", "b".repeat(64), 500, "onyx_stock", "ONYX-BATCH-2026-01-A", null, "2026-01", "ci", "new_version"],
+    ),
+    /مفتاح محاولة الاستيراد مستخدم لعملية أو حمولة مختلفة/i,
+    "22023",
+  );
+  await expectFailure(
+    "reject reuse of the same request key when the external source batch reference changes",
+    () => db.unsafe(
+      "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+      [importRequestKey, "CI Onyx.stock.final.csv", "a".repeat(64), 500, "onyx_stock", "ONYX-BATCH-2026-01-B", null, "2026-01", "ci", "new_version"],
+    ),
+    /مفتاح محاولة الاستيراد مستخدم لعملية أو حمولة مختلفة/i,
+    "22023",
+  );
 
   const importRows = [
     { item_code: "000125", product_name: "Rice", quantity: "5", revenue: "150", date: "2026-01-01" },
@@ -2430,6 +2493,18 @@ async function main() {
 
   const importSession = await db.unsafe("select public.create_import_upload_session($1::uuid) as result", [importJob.id]);
   assert.equal(importSession[0].result.total_chunks, 1, "a small source file should create one upload manifest chunk");
+  assert.equal(importSession[0].result.file_type, "csv", "the upload session must use the last filename suffix, not the second dot-delimited segment");
+  assert.equal(importSession[0].result.external_source_reference, "ONYX-BATCH-2026-01-A", "upload session must retain the same external source reference");
+  await db.unsafe("update public.import_jobs set external_source_reference=$2 where id=$1::uuid",
+    [importJob.id, "ONYX-BATCH-2026-01-OTHER"]);
+  await expectFailure(
+    "reject a session whose external source batch reference no longer matches its import job",
+    () => db.unsafe("select public.create_import_upload_session($1::uuid)", [importJob.id]),
+    /جلسة الرفع لا تطابق هوية دفعة الاستيراد/i,
+    "22023",
+  );
+  await db.unsafe("update public.import_jobs set external_source_reference=$2 where id=$1::uuid",
+    [importJob.id, "ONYX-BATCH-2026-01-A"]);
   const chunkHash = "c".repeat(64);
   const recordedChunk = await db.unsafe(
     "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
@@ -2455,10 +2530,14 @@ async function main() {
   const uploadFinalChunkBytes = 7;
   const multiChunkFileSize = uploadChunkBytes * 2 + uploadFinalChunkBytes;
   const multiChunkJobResult = await db.unsafe(
-    "select public.create_import_job($1,$2,$3,$4,null,$5,$6) as result",
-    ["CI import contiguous chunks.csv", "b".repeat(64), multiChunkFileSize, "unified_import", "2026-02", "ci"],
+    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+    [randomUUID(), "CI import contiguous chunks.csv", "b".repeat(64), multiChunkFileSize, "unified_import", "CI-MULTI-CHUNK-BATCH", null, "2026-02", "ci", "new_version"],
   );
   const multiChunkJob = multiChunkJobResult[0].result;
+  await db.unsafe(
+    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'rejected',$2::jsonb,$3::jsonb)",
+    [multiChunkJob.id, db.json({ item_code: "000999", quantity: "not-a-number" }), db.json(["الحقل quantity يجب أن يكون رقمًا صالحًا"])],
+  );
   const multiChunkSessionResult = await db.unsafe(
     "select public.create_import_upload_session($1::uuid) as result",
     [multiChunkJob.id],
@@ -2507,6 +2586,34 @@ async function main() {
   );
   assert.equal(secondMultiChunk[0].result.verified_chunks, 2);
   assert.equal(secondMultiChunk[0].result.complete, false);
+  await expectFailure(
+    "reject snapshot finalization while an upload manifest is missing its final chunk",
+    () => db.unsafe("select public.finalize_import_job($1::uuid,$2) as result", [multiChunkJob.id, "new_version"]),
+    /لم يكتمل رفع الملف|شرائح الملف غير مكتمل/i,
+    "22023",
+  );
+  const incompleteFinalizationState = await db.unsafe(
+    "select status from public.import_jobs where id=$1::uuid",
+    [multiChunkJob.id],
+  );
+  assert.equal(incompleteFinalizationState[0].status, "staging", "incomplete upload must remain an unfinalized staging job");
+  const safelyFailedImport = await db.unsafe(
+    "select public.fail_import_job_safely($1::uuid,$2::jsonb) as result",
+    [multiChunkJob.id, db.json({ code: "CI_INTERRUPTED_IMPORT", message: "synthetic interruption" })],
+  );
+  assert.equal(safelyFailedImport[0].result.changed, true, "a nonterminal interrupted job must be reconciled to failed");
+  assert.equal(safelyFailedImport[0].result.terminal, false);
+  assert.equal(safelyFailedImport[0].result.status, "failed");
+  assert.equal(safelyFailedImport[0].result.processed_rows, 1, "failure counts must derive from persisted rows, not stale client counters");
+  assert.equal(safelyFailedImport[0].result.failed_rows, 1, "persisted rejected rows must be reconciled into failed_rows");
+  const persistedRowError = await db.unsafe(
+    "select row_number,errors from public.import_job_rows where import_job_id=$1::uuid and status='rejected' order by row_number limit 1",
+    [multiChunkJob.id],
+  );
+  assert.equal(persistedRowError[0].row_number, 1);
+  assert.equal(persistedRowError[0].errors[0], "الحقل quantity يجب أن يكون رقمًا صالحًا",
+    "a rejected row must retain its actionable failure reason for the UI");
+
   const finalMultiChunk = await db.unsafe(
     "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
     [multiChunkSession.id, 2, uploadChunkBytes * 2, uploadFinalChunkBytes, "3".repeat(64)],
@@ -2519,6 +2626,30 @@ async function main() {
   );
   assert.equal(multiChunkState[0].verified_chunks, 3);
   assert.equal(multiChunkState[0].status, "uploaded");
+
+  // A complete manifest cannot turn a cancelled job into a committed snapshot.
+  await db.unsafe(
+    `update public.import_jobs
+        set status='cancelled',
+            error_summary=jsonb_build_object(
+              'processing_config_fingerprint', repeat('f',64),
+              'source_file_hash', file_hash,
+              'period_key', period_key
+            )
+      where id=$1::uuid`,
+    [multiChunkJob.id],
+  );
+  await expectFailure(
+    "reject finalization of a cancelled import with a complete upload manifest",
+    () => db.unsafe("select public.finalize_import_job($1::uuid,$2) as result", [multiChunkJob.id, "new_version"]),
+    /حالة الدفعة لا تسمح بالاعتماد/i,
+    "22023",
+  );
+  const cancelledSnapshot = await db.unsafe(
+    "select id from public.onyx_snapshots where source_import_job_id=$1::uuid and status='ready'",
+    [multiChunkJob.id],
+  );
+  assert.equal(cancelledSnapshot.length, 0, "cancelled staging must never publish a ready snapshot");
 
   // Security regression: the quality RPC must authorize before looking up a job ID
   // and scope staff lookups to their own tenant, so foreign IDs cannot be enumerated.
@@ -2592,6 +2723,18 @@ async function main() {
   );
   assert.equal(duplicateProbe[0].result.duplicate, true, "same tenant/profile/hash/period must be reported as a duplicate");
 
+  await db.unsafe(
+    `update public.import_jobs
+        set error_summary=coalesce(error_summary,'{}'::jsonb) || jsonb_build_object(
+          'processing_config_fingerprint', repeat('e',64),
+          'source_file_hash', file_hash,
+          'period_key', period_key,
+          'source_system', source_system,
+          'external_source_reference', external_source_reference
+        )
+      where id=$1::uuid`,
+    [importJob.id],
+  );
   const finalizedImport = await db.unsafe(
     "select public.finalize_import_job($1::uuid,$2) as result",
     [importJob.id, "new_version"],
@@ -2608,6 +2751,302 @@ async function main() {
   assert.equal(Number(onyxAnalytics[0].result.metrics.quantity_total), 15, "quantity KPI must include every snapshot row");
   assert.equal(Number(onyxAnalytics[0].result.metrics.revenue_total), 600, "revenue KPI must include every snapshot row");
   assert.equal(onyxAnalytics[0].result.forecast_status, "Forecast Unavailable: Insufficient Historical Data");
+
+  // The active profile explicitly remains partial; replace must fail closed on the server.
+  await db.unsafe(
+    "update public.import_profiles set is_full_dataset=false where id=$1::uuid and organization_id=$2::uuid",
+    [importJob.profile_id, organizationId],
+  );
+  // Partial imports must preserve every absent key from the previous ready snapshot.
+  const partialMergeJobResult = await db.unsafe(
+    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+    [randomUUID(), "CI partial Onyx.stock.csv", "b".repeat(64), 100, "onyx_stock", "CI-PARTIAL-MERGE-BATCH", importJob.profile_id, "2026-01", "ci", "new_version"],
+  );
+  const partialMergeJob = partialMergeJobResult[0].result;
+  const partialMergeSessionResult = await db.unsafe(
+    "select public.create_import_upload_session($1::uuid) as result",
+    [partialMergeJob.id],
+  );
+  const partialMergeSession = partialMergeSessionResult[0].result;
+  assert.equal(partialMergeSession.file_type, "csv", "the filename's final extension identifies the source format");
+  const partialMergeChunk = await db.unsafe(
+    "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
+    [partialMergeSession.id, 0, 0, 100, "f".repeat(64)],
+  );
+  assert.equal(partialMergeChunk[0].result.complete, true);
+  await db.unsafe(
+    "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb)",
+    [partialMergeJob.id, db.json({ item_code: "000127", product_name: "Tea", quantity: "1", revenue: "5", price: "5", date: "2026-01-03" })],
+  );
+  await db.unsafe(
+    `update public.import_jobs
+        set error_summary=jsonb_build_object(
+          'processing_config_fingerprint', repeat('f',64),
+          'source_file_hash', file_hash,
+          'period_key', period_key,
+          'source_system', source_system,
+          'external_source_reference', external_source_reference,
+          'is_full_dataset', false,
+          'no_raw_file_retained', true
+        )
+      where id=$1::uuid`,
+    [partialMergeJob.id],
+  );
+  await expectFailure(
+    "reject replacing a ready snapshot with a profile that is not classified as a full dataset",
+    () => db.unsafe("select public.finalize_import_job($1::uuid,$2) as result", [partialMergeJob.id, "replace"]),
+    /الاستبدال الكامل مرفوض/i,
+    "22023",
+  );
+  const snapshotAfterRejectedPartialReplace = await db.unsafe(
+    "select status from public.onyx_snapshots where id=$1::uuid",
+    [finalizedImport[0].result.snapshot_id],
+  );
+  assert.equal(snapshotAfterRejectedPartialReplace[0].status, "ready",
+    "rejected partial replacement must not archive or mutate the previous live snapshot");
+  const keysAfterRejectedPartialReplace = await db.unsafe(
+    "select canonical_key from public.onyx_snapshot_rows where snapshot_id=$1::uuid order by canonical_key",
+    [finalizedImport[0].result.snapshot_id],
+  );
+  assert.deepEqual(keysAfterRejectedPartialReplace.map((row) => row.canonical_key), ["000125", "000126"],
+    "absence from a partial file must not remove source keys from the previously live snapshot");
+
+  const finalizedPartialMerge = await db.unsafe(
+    "select public.finalize_import_job($1::uuid,$2) as result",
+    [partialMergeJob.id, "merge"],
+  );
+  assert.equal(finalizedPartialMerge[0].result.status, "completed", "a valid partial import can publish through the established merge contract");
+  assert.equal(Number(finalizedPartialMerge[0].result.row_count), 3, "the merge must retain two old keys absent from the partial file");
+  const mergedCanonicalKeys = await db.unsafe(
+    "select canonical_key from public.onyx_snapshot_rows where snapshot_id=$1::uuid order by canonical_key",
+    [finalizedPartialMerge[0].result.snapshot_id],
+  );
+  assert.deepEqual(mergedCanonicalKeys.map((row) => row.canonical_key), ["000125", "000126", "000127"],
+    "missing keys in a partial source are not deletion instructions");
+  const priorSnapshotStillReady = await db.unsafe(
+    "select status from public.onyx_snapshots where id=$1::uuid",
+    [finalizedImport[0].result.snapshot_id],
+  );
+  assert.equal(priorSnapshotStillReady[0].status, "ready", "a merge must not alter the prior snapshot's history");
+
+  // A staff-only operator may import data but cannot roll back a published snapshot.
+  await db.unsafe("reset role");
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "staff role cannot roll back a published import snapshot",
+    () => db.unsafe("select public.rollback_import_snapshot($1::uuid,$2) as result",
+      [partialMergeJob.id, "staff is not authorized to roll back a snapshot"]),
+    /التراجع عن لقطة الاستيراد متاح للمدير أو مدير النظام فقط/i,
+    "42501",
+  );
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+
+  // Rollback archives only the latest published snapshot; it never deletes imported/snapshot rows.
+  const rollbackResult = await db.unsafe(
+    "select public.rollback_import_snapshot($1::uuid,$2) as result",
+    [partialMergeJob.id, "CI regression: validate audited rollback without deleting snapshot rows"],
+  );
+  assert.equal(rollbackResult[0].result.rolled_back, true);
+  assert.equal(rollbackResult[0].result.status, "rolled_back");
+  assert.equal(rollbackResult[0].result.snapshot_status, "archived");
+  assert.equal(rollbackResult[0].result.snapshot_rows_retained, true);
+  const archivedSnapshotRows = await db.unsafe(
+    "select count(*)::integer as count from public.onyx_snapshot_rows where snapshot_id=$1::uuid",
+    [finalizedPartialMerge[0].result.snapshot_id],
+  );
+  assert.equal(archivedSnapshotRows[0].count, 3, "rollback must retain every row as auditable history");
+  const snapshotRollbackAudit = await db.unsafe(
+    "select organization_id,actor_id,action,entity_type,entity_id,new_value from public.audit_logs where entity_id=$1::uuid and action='import.snapshot_rolled_back'",
+    [finalizedPartialMerge[0].result.snapshot_id],
+  );
+  assert.equal(snapshotRollbackAudit.length, 1, "rollback must emit exactly one audit record");
+  assert.equal(snapshotRollbackAudit[0].organization_id, organizationId);
+  assert.equal(snapshotRollbackAudit[0].action, "import.snapshot_rolled_back");
+  assert.equal(snapshotRollbackAudit[0].entity_type, "onyx_snapshot");
+  assert.equal(snapshotRollbackAudit[0].new_value.status, "archived");
+  assert.equal(snapshotRollbackAudit[0].new_value.snapshot_rows_retained, true);
+  const rollbackReplay = await db.unsafe(
+    "select public.rollback_import_snapshot($1::uuid,$2) as result",
+    [partialMergeJob.id, "CI retry after simulated lost rollback response"],
+  );
+  assert.equal(rollbackReplay[0].result.already_rolled_back, true, "lost rollback response must replay instead of archiving/auditing twice");
+  const rollbackAuditCount = await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_id=$1::uuid and action='import.snapshot_rolled_back'",
+    [finalizedPartialMerge[0].result.snapshot_id],
+  );
+  assert.equal(rollbackAuditCount[0].count, 1, "rollback replay must not duplicate the audit event");
+  const rolledBackFailureReplay = await db.unsafe(
+    "select public.fail_import_job_safely($1::uuid,$2::jsonb) as result",
+    [partialMergeJob.id, db.json({ code: "CI_LOST_ROLLBACK_RESPONSE", message: "retry after rollback" })],
+  );
+  assert.equal(rolledBackFailureReplay[0].result.status, "rolled_back");
+  assert.equal(rolledBackFailureReplay[0].result.changed, false, "failure recovery must not downgrade rolled-back status");
+  const terminalFailureReplay = await db.unsafe(
+    "select public.fail_import_job_safely($1::uuid,$2::jsonb) as result",
+    [importJob.id, db.json({ code: "CI_LOST_FINALIZE_RESPONSE", message: "simulated response loss after committed finalization" })],
+  );
+  assert.equal(terminalFailureReplay[0].result.changed, false, "failure recovery must not mutate a terminal job");
+  assert.equal(terminalFailureReplay[0].result.terminal, true);
+  assert.equal(terminalFailureReplay[0].result.status, "completed");
+  assert.equal(terminalFailureReplay[0].result.snapshot_id, finalizedImport[0].result.snapshot_id,
+    "recovering from a lost finalization response must preserve the exact committed snapshot");
+  const readySnapshotCountAfterFailureReplay = await db.unsafe(
+    "select count(*)::integer as count from public.onyx_snapshots where source_import_job_id=$1::uuid and status='ready'",
+    [importJob.id],
+  );
+  assert.equal(readySnapshotCountAfterFailureReplay[0].count, 1, "failure recovery must not duplicate or remove a committed snapshot");
+
+  // Active import-profile versions are immutable. Create a dedicated full-dataset profile
+  // before staging any snapshots, then prove replacement only archives a prior snapshot from
+  // that same profile/period after the replacement snapshot is ready.
+  await db.unsafe("reset role");
+  const fullDatasetProfileCreated = await db.unsafe(
+    `insert into public.import_profiles (
+       organization_id,profile_name,report_type,source,version,required_columns,optional_columns,
+       ignored_columns,synonyms,transformation_rules,validation_rules,matching_key,merge_strategy,
+       date_rules,is_full_dataset,status,created_by,published_at
+     )
+     select ip.organization_id,
+            ip.profile_name || ' CI full dataset ' || substr(gen_random_uuid()::text,1,8),
+            ip.report_type,ip.source,1,ip.required_columns,ip.optional_columns,ip.ignored_columns,
+            ip.synonyms,ip.transformation_rules,ip.validation_rules,ip.matching_key,ip.merge_strategy,
+            ip.date_rules,true,'active',ip.created_by,now()
+       from public.import_profiles ip
+      where ip.id=$1::uuid and ip.organization_id=$2::uuid
+     returning id,version,status,is_full_dataset`,
+    [importJob.profile_id, organizationId],
+  );
+  assert.equal(fullDatasetProfileCreated.length, 1, "CI must create a separate full-dataset profile fixture");
+  const fullDatasetProfile = fullDatasetProfileCreated[0];
+  assert.equal(fullDatasetProfile.status, "active");
+  assert.equal(fullDatasetProfile.is_full_dataset, true);
+  await db.unsafe("set role authenticated");
+
+  const createFullDatasetImport = async ({ requestKey, fileName, fileHash, externalSourceReference, chunkHash, itemCode, productName }) => {
+    const created = await db.unsafe(
+      "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+      [requestKey, fileName, fileHash, 100, "onyx_stock", externalSourceReference,
+        fullDatasetProfile.id, "2026-01", "ci", "new_version"],
+    );
+    const job = created[0].result;
+    const sessionCreated = await db.unsafe(
+      "select public.create_import_upload_session($1::uuid) as result",
+      [job.id],
+    );
+    const session = sessionCreated[0].result;
+    const chunk = await db.unsafe(
+      "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
+      [session.id, 0, 0, 100, chunkHash],
+    );
+    assert.equal(chunk[0].result.complete, true, "full-dataset fixture upload must have a complete manifest");
+    await db.unsafe(
+      "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,1,'valid',$2::jsonb,'[]'::jsonb)",
+      [job.id, db.json({ item_code: itemCode, product_name: productName, quantity: "4", revenue: "40", price: "10", date: "2026-01-04" })],
+    );
+    await db.unsafe(
+      "update public.import_jobs set error_summary=jsonb_build_object('processing_config_fingerprint', repeat('a',64), 'source_file_hash', file_hash, 'period_key', period_key, 'source_system', source_system, 'external_source_reference', external_source_reference, 'is_full_dataset', true, 'no_raw_file_retained', true) where id=$1::uuid",
+      [job.id],
+    );
+    return job.id;
+  };
+
+  const fullDatasetSeedJobId = await createFullDatasetImport({
+    requestKey: randomUUID(),
+    fileName: "CI complete Onyx.inventory seed.csv",
+    fileHash: "c".repeat(64),
+    externalSourceReference: "CI-FULL-REPLACE-SEED",
+    chunkHash: "8".repeat(64),
+    itemCode: "000127",
+    productName: "Prior complete snapshot item",
+  });
+  const fullDatasetSeedResult = await db.unsafe(
+    "select public.finalize_import_job($1::uuid,$2) as result",
+    [fullDatasetSeedJobId, "new_version"],
+  );
+  assert.equal(fullDatasetSeedResult[0].result.status, "completed",
+    "a complete dataset must publish a baseline snapshot before replacement is evaluated");
+  const fullDatasetPriorSnapshotId = fullDatasetSeedResult[0].result.snapshot_id;
+  assert.ok(fullDatasetPriorSnapshotId, "baseline full-dataset publication must return its snapshot id");
+  const priorFullDatasetSnapshot = await db.unsafe(
+    "select status,organization_id::text as organization_id,profile_id::text as profile_id,period_key " +
+      "from public.onyx_snapshots where id=$1::uuid",
+    [fullDatasetPriorSnapshotId],
+  );
+  assert.equal(priorFullDatasetSnapshot[0].status, "ready");
+  assert.equal(priorFullDatasetSnapshot[0].organization_id, organizationId,
+    "baseline snapshot must retain its source tenant identity");
+  assert.equal(priorFullDatasetSnapshot[0].profile_id, fullDatasetProfile.id,
+    "baseline snapshot must retain the import profile used for replacement matching");
+  assert.equal(priorFullDatasetSnapshot[0].period_key, "2026-01",
+    "baseline snapshot must retain the import period used for replacement matching");
+
+  const fullReplaceJobId = await createFullDatasetImport({
+    requestKey: randomUUID(),
+    fileName: "CI complete Onyx.inventory.csv",
+    fileHash: "d".repeat(64),
+    externalSourceReference: "CI-FULL-REPLACE-BATCH",
+    chunkHash: "9".repeat(64),
+    itemCode: "000128",
+    productName: "Replacement complete snapshot item",
+  });
+  const replacementJobIdentity = await db.unsafe(
+    "select organization_id::text as organization_id,profile_id::text as profile_id,period_key,status " +
+      "from public.import_jobs where id=$1::uuid",
+    [fullReplaceJobId],
+  );
+  assert.equal(replacementJobIdentity.length, 1, "replacement import job must remain addressable in its tenant");
+  assert.equal(replacementJobIdentity[0].organization_id, organizationId);
+  assert.equal(replacementJobIdentity[0].profile_id, fullDatasetProfile.id,
+    "replacement job must use the exact profile required to select prior snapshots");
+  assert.equal(replacementJobIdentity[0].period_key, "2026-01",
+    "replacement job must use the exact period required to select prior snapshots");
+
+  const fullReplaceFinalized = await db.unsafe(
+    "select public.finalize_import_job($1::uuid,$2) as result",
+    [fullReplaceJobId, "replace"],
+  );
+  assert.equal(fullReplaceFinalized[0].result.status, "completed",
+    "an active, version-matched full-dataset profile with persisted full-source attestation may replace");
+  const replacementSnapshotId = fullReplaceFinalized[0].result.snapshot_id;
+  assert.ok(replacementSnapshotId && replacementSnapshotId !== fullDatasetPriorSnapshotId,
+    "replacement publishes a distinct ready snapshot");
+  const oldSnapshotAfterFullReplace = await db.unsafe(
+    "select status,organization_id::text as organization_id,profile_id::text as profile_id,period_key " +
+      "from public.onyx_snapshots where id=$1::uuid",
+    [fullDatasetPriorSnapshotId],
+  );
+  assert.equal(oldSnapshotAfterFullReplace[0].status, "archived",
+    "successful full-dataset replacement archives prior live data only after the new snapshot is ready " +
+      JSON.stringify({
+        old: oldSnapshotAfterFullReplace[0],
+        replacementJob: replacementJobIdentity[0],
+      }));
+  const oldSnapshotHistoryAfterReplace = await db.unsafe(
+    "select count(*)::integer as count from public.onyx_snapshot_rows where snapshot_id=$1::uuid",
+    [fullDatasetPriorSnapshotId],
+  );
+  assert.equal(oldSnapshotHistoryAfterReplace[0].count, 1,
+    "archiving a replaced snapshot retains its rows as auditable history");
+  const replacementSnapshotState = await db.unsafe(
+    "select status from public.onyx_snapshots where id=$1::uuid",
+    [replacementSnapshotId],
+  );
+  assert.equal(replacementSnapshotState[0].status, "ready");
+  const readySnapshotCountAfterFullReplace = await db.unsafe(
+    "select count(*)::integer as count from public.onyx_snapshots where organization_id=$1::uuid and profile_id=$2::uuid and period_key='2026-01' and status='ready'",
+    [organizationId, fullDatasetProfile.id],
+  );
+  assert.equal(readySnapshotCountAfterFullReplace[0].count, 1,
+    "only the replacement full-dataset snapshot remains ready for this tenant/profile/period");
+  const replacementAudit = await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_id=$1::uuid and action='import.snapshot_replaced'",
+    [fullDatasetPriorSnapshotId],
+  );
+  assert.equal(replacementAudit[0].count, 1, "retiring the prior live snapshot records an audit event");
+
   process.stdout.write("PASS import profile, tenant-scoped synonyms, resumable chunk manifest, duplicate detection, DQS finalization and full-snapshot Onyx analytics\n");
 
   // The rule UI must reuse the existing deterministic pricing engine and reset to base price

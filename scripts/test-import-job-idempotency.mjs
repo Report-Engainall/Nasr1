@@ -39,13 +39,14 @@ async function setStaffIdentity(client) {
 
 async function createJob(client, input) {
   const rows = await client.unsafe(
-    "select public.create_import_job_idempotent($1::uuid,$2::text,$3::text,$4::bigint,$5::text,$6::uuid,$7::text,$8::text,$9::text) as result",
+    "select public.create_import_job_idempotent($1::uuid,$2::text,$3::text,$4::bigint,$5::text,$6::text,$7::uuid,$8::text,$9::text,$10::text) as result",
     [
       input.requestKey,
       input.fileName,
       input.fileHash,
       input.fileSize,
       input.jobType,
+      input.externalSourceReference ?? null,
       input.profileId,
       input.periodKey,
       input.sourceSystem,
@@ -82,6 +83,7 @@ async function main() {
     profileId: null,
     periodKey: "ci-idempotency-2026-10",
     sourceSystem: "ci-request-idempotency",
+    externalSourceReference: `ci-source-${randomUUID()}`,
     intent: "new_version",
   };
 
@@ -101,12 +103,21 @@ async function main() {
   );
   assert.equal(claimRows[0].count, 1, "one request key must create exactly one claim");
   assert.equal(claimRows[0].job_id, first.id, "the private claim must point at the replayed job");
+  assert.equal(first.external_source_reference, base.externalSourceReference,
+    "the canonical import job must persist its external source identity");
 
   // A retry key is bound to the complete payload, not only the file hash.
   await assert.rejects(
     () => createJob(firstClient, { ...base, fileName: "different-payload.csv" }),
     /مفتاح محاولة الاستيراد مستخدم لعملية أو حمولة مختلفة/,
     "same key with a changed payload must be rejected",
+  );
+
+  // The external source reference is part of the server-side idempotency payload.
+  await assert.rejects(
+    () => createJob(firstClient, { ...base, externalSourceReference: "ci-source-different" }),
+    /مفتاح محاولة الاستيراد مستخدم لعملية أو حمولة مختلفة/,
+    "same key with a changed external source reference must be rejected",
   );
 
   // The same file may be deliberately imported again only with a fresh key and explicit intent.

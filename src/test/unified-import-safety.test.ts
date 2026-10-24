@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_IMPORT_COLUMNS, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ROWS, MAX_IMPORT_CELL_CHARS,
   StreamingCsvParser, DataQualityAccumulator, applyImportProfileRules, shouldPersistParsedImportRow, stableJsonStringify,
-  normalizeHeader, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
-  type VerifiedImportChunk,
+  formatXlsxNumber, normalizeHeader, validateCsvRow, validateImportProfileRules, validateVerifiedImportChunkPrefix,
+  type VerifiedImportChunk, type XlsxStyles,
 } from "@/lib/unified-import";
 
 describe("unified import safety contracts", () => {
@@ -128,6 +128,63 @@ describe("unified import safety contracts", () => {
     const invalid = validateCsvRow(["SKU-2", "صنف", "1e3"], ["item_code", "name", "quantity"], 3);
     expect(invalid.status).toBe("rejected");
     expect(invalid.errors.some((message) => message.includes("quantity"))).toBe(true);
+  });
+
+  it("preserves source external IDs as text and enforces a configured nonstandard matching key", () => {
+    const valid = validateCsvRow(
+      ["000007", "000125", "2"],
+      ["source_external_id", "item_code", "quantity"],
+      2,
+      "source_external_id",
+    );
+    expect(valid.status).toBe("valid");
+    expect(valid.data.source_external_id).toBe("000007");
+    expect(valid.data.item_code).toBe("000125");
+
+    const missingExternalId = validateCsvRow(
+      ["", "000125", "2"],
+      ["source_external_id", "item_code", "quantity"],
+      3,
+      "source_external_id",
+    );
+    expect(missingExternalId.status).toBe("rejected");
+    expect(missingExternalId.errors).toContain('مفتاح المطابقة الإلزامي "source_external_id" مفقود أو فارغ');
+
+    const missingConfiguredItemCode = validateCsvRow(
+      ["", "CUSTOMER-9"],
+      ["item_code", "customer_code"],
+      4,
+      "item_code",
+    );
+    expect(missingConfiguredItemCode.status).toBe("rejected");
+    expect(missingConfiguredItemCode.errors).toContain('مفتاح المطابقة الإلزامي "item_code" مفقود أو فارغ');
+  });
+
+  it("rejects blank values for profile-required fields even when the required headers exist", () => {
+    const row = validateCsvRow(
+      ["000125", "   ", "2"],
+      ["item_code", "product_name", "quantity"],
+      5,
+      "item_code",
+      ["item_code", "product_name"],
+    );
+    expect(row.status).toBe("rejected");
+    expect(row.data.item_code).toBe("000125");
+    expect(row.errors).toContain('الحقل الإلزامي "product_name" مفقود أو فارغ');
+  });
+
+  it("preserves leading zeros in numeric XLSX cells when the workbook declares a zero-padded format", () => {
+    const styles: XlsxStyles = {
+      numberFormats: new Map([[164, "000000"]]),
+      cellStyleFormats: [164],
+    };
+    expect(formatXlsxNumber("125", 0, styles, false)).toBe("000125");
+    expect(formatXlsxNumber("000125", 0, styles, false)).toBe("000125");
+    const ordinaryNumberFormat: XlsxStyles = {
+      numberFormats: new Map([[165, "0.00"]]),
+      cellStyleFormats: [165],
+    };
+    expect(formatXlsxNumber("125", 0, ordinaryNumberFormat, false)).toBe("125");
   });
 
   it("rejects overlong cells rather than silently truncating accepted values", () => {
