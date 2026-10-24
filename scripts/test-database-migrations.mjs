@@ -2971,10 +2971,17 @@ async function main() {
   const fullDatasetPriorSnapshotId = fullDatasetSeedResult[0].result.snapshot_id;
   assert.ok(fullDatasetPriorSnapshotId, "baseline full-dataset publication must return its snapshot id");
   const priorFullDatasetSnapshot = await db.unsafe(
-    "select status from public.onyx_snapshots where id=$1::uuid",
+    "select status,organization_id::text as organization_id,profile_id::text as profile_id,period_key " +
+      "from public.onyx_snapshots where id=$1::uuid",
     [fullDatasetPriorSnapshotId],
   );
   assert.equal(priorFullDatasetSnapshot[0].status, "ready");
+  assert.equal(priorFullDatasetSnapshot[0].organization_id, organizationId,
+    "baseline snapshot must retain its source tenant identity");
+  assert.equal(priorFullDatasetSnapshot[0].profile_id, fullDatasetProfile.id,
+    "baseline snapshot must retain the import profile used for replacement matching");
+  assert.equal(priorFullDatasetSnapshot[0].period_key, "2026-01",
+    "baseline snapshot must retain the import period used for replacement matching");
 
   const fullReplaceJobId = await createFullDatasetImport({
     requestKey: randomUUID(),
@@ -2985,6 +2992,18 @@ async function main() {
     itemCode: "000128",
     productName: "Replacement complete snapshot item",
   });
+  const replacementJobIdentity = await db.unsafe(
+    "select organization_id::text as organization_id,profile_id::text as profile_id,period_key,status " +
+      "from public.import_jobs where id=$1::uuid",
+    [fullReplaceJobId],
+  );
+  assert.equal(replacementJobIdentity.length, 1, "replacement import job must remain addressable in its tenant");
+  assert.equal(replacementJobIdentity[0].organization_id, organizationId);
+  assert.equal(replacementJobIdentity[0].profile_id, fullDatasetProfile.id,
+    "replacement job must use the exact profile required to select prior snapshots");
+  assert.equal(replacementJobIdentity[0].period_key, "2026-01",
+    "replacement job must use the exact period required to select prior snapshots");
+
   const fullReplaceFinalized = await db.unsafe(
     "select public.finalize_import_job($1::uuid,$2) as result",
     [fullReplaceJobId, "replace"],
@@ -2995,11 +3014,16 @@ async function main() {
   assert.ok(replacementSnapshotId && replacementSnapshotId !== fullDatasetPriorSnapshotId,
     "replacement publishes a distinct ready snapshot");
   const oldSnapshotAfterFullReplace = await db.unsafe(
-    "select status from public.onyx_snapshots where id=$1::uuid",
+    "select status,organization_id::text as organization_id,profile_id::text as profile_id,period_key " +
+      "from public.onyx_snapshots where id=$1::uuid",
     [fullDatasetPriorSnapshotId],
   );
   assert.equal(oldSnapshotAfterFullReplace[0].status, "archived",
-    "successful full-dataset replacement archives prior live data only after the new snapshot is ready");
+    "successful full-dataset replacement archives prior live data only after the new snapshot is ready " +
+      JSON.stringify({
+        old: oldSnapshotAfterFullReplace[0],
+        replacementJob: replacementJobIdentity[0],
+      }));
   const oldSnapshotHistoryAfterReplace = await db.unsafe(
     "select count(*)::integer as count from public.onyx_snapshot_rows where snapshot_id=$1::uuid",
     [fullDatasetPriorSnapshotId],
