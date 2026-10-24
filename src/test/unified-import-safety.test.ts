@@ -130,6 +130,27 @@ describe("unified import safety contracts", () => {
     expect(invalid.errors.some((message) => message.includes("quantity"))).toBe(true);
   });
 
+  it("preserves source external IDs as text and enforces a configured nonstandard matching key", () => {
+    const valid = validateCsvRow(
+      ["000007", "000125", "2"],
+      ["source_external_id", "item_code", "quantity"],
+      2,
+      "source_external_id",
+    );
+    expect(valid.status).toBe("valid");
+    expect(valid.data.source_external_id).toBe("000007");
+    expect(valid.data.item_code).toBe("000125");
+
+    const missingExternalId = validateCsvRow(
+      ["", "000125", "2"],
+      ["source_external_id", "item_code", "quantity"],
+      3,
+      "source_external_id",
+    );
+    expect(missingExternalId.status).toBe("rejected");
+    expect(missingExternalId.errors).toContain('مفتاح المطابقة الإلزامي "source_external_id" مفقود أو فارغ');
+  });
+
   it("rejects overlong cells rather than silently truncating accepted values", () => {
     const row = validateCsvRow(["SKU-3", "x".repeat(MAX_IMPORT_CELL_CHARS + 1)], ["item_code", "description"], 4);
     expect(row.status).toBe("rejected");
