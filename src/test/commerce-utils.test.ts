@@ -134,9 +134,11 @@ describe('commerce completion utilities', () => {
     expect(legacyPriceCache).toHaveLength(1);
     expect(legacyPriceCache[0]).not.toHaveProperty('base_price');
     expect(legacyPriceCache[0]).not.toHaveProperty('display_price');
-    expect(sanitizePublicCatalogCache([{
+    const malformedPriceCache = sanitizePublicCatalogCache([{
       id: 'bad', name: 'bad', item_code: 'x', unit: 'box', base_price: 'NaN',
-    }])).toMatchObject([{ base_price: 0 }]);
+    }]);
+    expect(malformedPriceCache).toHaveLength(1);
+    expect(malformedPriceCache[0]).not.toHaveProperty('base_price');
   });
 
   it('calculates totals only from persisted invoice and payment records', () => {
