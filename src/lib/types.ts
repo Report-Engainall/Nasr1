@@ -203,6 +203,7 @@ export interface ImportJob {
   file_size?: number;
   job_type?: string;
   source_system?: string | null;
+  external_source_reference?: string | null;
   period_key: string | null;
   status: string;
   total_rows: number;
