@@ -1,7 +1,7 @@
 # P3 route acceptance register — Nasr1
 
 Repository: Report-Engainall/Nasr1  
-Source baseline for this refresh: main 653f4d764041a8751c41e75a492fed0cc6edea63 (24 October 2026)  
+Source baseline for this refresh: main e467c782bec0e19ddab6c5ddaa72aaa073d7283b (24 October 2026)  
 Generated route tree: src/routeTree.gen.ts  
 Inventory size: 61 source modules under src/routes, including the root shell; 60 non-root page/API modules below.  
 Purpose: route-to-evidence traceability for ROUTES-001. This does not replace the canonical acceptance matrix or imply every full production journey is proven.
@@ -14,12 +14,12 @@ Purpose: route-to-evidence traceability for ROUTES-001. This does not replace th
 - SKIPPED hosted checks are not PASS. A route can have local targeted evidence while hosted/external proof remains unproven.
 
 
-## Live reconciliation — 24 October 2026
+## Live reconciliation — 24 October 2026 (post-merge #190)
 
-- The stale route table below is being carried forward as a traceability register; its prior SHAs and old CI links are historical unless tied to the current merged work below.
-- PR #186 is merged at `653f4d764041a8751c41e75a492fed0cc6edea63`. Its exact PR head `5fb59d4a2093f242461aa5aaa0f50ad34b4d5223` passed Core runs [40126529526](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529526) and [40126529676](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529676), public UI/local Supabase route acceptance on [P2 run 40126529735](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529735). The same change adds real-browser deep-link/hydration coverage for `/admin/exports`, route-loading/hydration tests, customer order pagination/accessibility and storefront recovery tests.
-- PR #187 is merged and carries current-main customer statement authorization/fail-closed and customer-manager cross-tenant acceptance. Its exact PR head passed Core/P2/local UI checks; the hosted credential-gated customer E2E remains SKIPPED.
-- `PROVEN_TARGETED` is deliberately narrower than production UAT. Authenticated hosted E2E, production writes, live Onyx synchronization/import, WhatsApp delivery and live AI provider use are not implied by the local CI rows.
+- **Current main:** `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. PR #186 is merged and includes route recovery, customer-order accessibility/pagination and browser deep-link/hydration acceptance for `/admin/exports`; PR #187 is merged with statement authorization/fail-closed and cross-tenant manager-denial coverage.
+- **Latest current-main release gate:** Core run 40127500733 and PostgreSQL 17 run 40127500750 were IN_PROGRESS at last poll. Do not describe post-merge checks as PASS until terminal.
+- **PR #190 security acceptance:** exact head `5becc27a3f32896b1814aab80433ba7b8c8008ae` passed Core, P2/local Supabase and async-export PostgreSQL 17. It is now merged as `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; hosted authenticated customer E2E remained SKIPPED.
+- `PROVEN_TARGETED` denotes targeted route evidence, not complete production UAT. External customer/tenant journeys, production writes, Onyx synchronization, WhatsApp delivery and live AI use remain unproven without actual authorized evidence.
 
 ## Route inventory and acceptance evidence (updated baseline; old PR links are historical)
 
