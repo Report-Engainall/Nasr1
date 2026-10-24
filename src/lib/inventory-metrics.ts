@@ -22,3 +22,19 @@ export function countLowStockBalances(rows: readonly InventoryMetricBalance[]): 
 
   return count;
 }
+
+
+export type InventoryAvailabilityStatus = 'low' | 'adequate' | 'unknown';
+
+/**
+ * Only compare observed sellable stock to an observed reorder threshold.
+ * A missing balance or threshold is not equivalent to zero stock or a zero threshold.
+ */
+export function getInventoryAvailabilityStatus(
+  available: unknown,
+  reorderPoint: unknown,
+): InventoryAvailabilityStatus {
+  if (typeof available !== 'number' || !Number.isFinite(available)) return 'unknown';
+  if (typeof reorderPoint !== 'number' || !Number.isFinite(reorderPoint) || reorderPoint < 0) return 'unknown';
+  return available <= reorderPoint ? 'low' : 'adequate';
+}
