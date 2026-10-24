@@ -5,22 +5,19 @@
 
 
 
-## AUTHORITATIVE RECONCILIATION — 2026-10-24 20:22 +03:00
+## AUTHORITATIVE RECONCILIATION — 2026-10-24 20:34 +03:00
 
-- Live `main` SHA remains `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`. #133, #135–#141, #143–#146 are already merged and must not be recreated without a new regression.
-- Catalog/privilege inventory is 304/304 public objects mapped; this is not semantic acceptance of the 179 callable RPC candidates.
-- #147 exact head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`: Core/P2 PASS; independent review and ordered merge pending.
-- #148/#149/#150 closed as exact blob duplicates of #164/#165/#166. #151 closed as exact blob duplicate of #168. #107/#119/#124 closed after preserving coverage in #170/#173/#169. #167 closed as duplicate of #162.
-- #164/#165/#166 current-base migrations passed Core/P2/PG17 on recorded heads; review pending. #168 replaces old #151. Migration order: #147 → #164 → #165 → #166 → #168 → refresh/retest #162 → #172.
-- #162 DQS validity fix passed Core/P2/PG17 on its old exact head `e5ca28bb...`; refresh/retest after earlier migrations integrate.
-- #163 storefront recovery passed Core/P2 at `17b2b434...`; hosted authenticated customer/tenant E2E remains SKIPPED, not PASS.
-- #169 latest head `d6ef27f09a2c73c0dae74d1be2c7768c1577fe40`: Core `40115015672` and P2 `40115015539` PASS, including transferred keyboard acceptance. Independent review pending.
-- #172 latest head `682761625993a203b5795daa953632f131ae886a`: Core `40115029836` PASS; P2 `40115029831` was still in progress at last poll. This head includes balance-table serialization and per-line count audit.
-- #174 latest head `e0ca64f8f66203615eb74bf778f85f59156f2f62`: Core `40115104136` PASS; P2 `40115104172` was still in progress at last poll. Route test now reads the generated tree rather than assuming `routeTree.children`.
-- #142 preceding doc head `e5bb7ef0404831f53eb3a1032a89798beb539b41` had Core/P2 in progress. This semantic batch changes SHA again; prior results do not transfer.
-- #152 checkpoint PR previously passed Core/P2 on `6389e51f274c38c56920d9a7d575c089a8e940a0`, but must be refreshed and retested after #169/#172/#174 settle.
-- Review requests were submitted; no independent approval was recorded in the latest review query. Do not merge without actual approval and exact-head gates.
-- Production migrations/secrets, hosted authenticated customer E2E, deployment, live Onyx/WhatsApp/AI and verified production restore remain NOT RUN / BLOCKED_EXTERNAL without authorized evidence.
+- Live `main` SHA is `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`. The merged baseline #133, #135–#141 and #143–#146 remains the source of truth; do not recreate without a new regression.
+- 304/304 public objects are mapped; 179 callable RPC candidates still require semantic review. Batches 8–10 are documented; batch 11 adds source-backed company invitation and address contracts and existing acceptance evidence.
+- #142 last tested head `25deecf9b6fa94f6e8fa1b2acd26c55b36c0ead8` passed Core [40115494628](https://github.com/Report-Engainall/Nasr1/actions/runs/40115494628) and P2 [40115494634](https://github.com/Report-Engainall/Nasr1/actions/runs/40115494634). This batch changes its head; rerun exact-head checks before accepting.
+- #163 exact head `1ea3227ad7649947cafc1ee8488b1d6a4c0b6b66`: Core/P2 [40115321226](https://github.com/Report-Engainall/Nasr1/actions/runs/40115321226) / [40115321235](https://github.com/Report-Engainall/Nasr1/actions/runs/40115321235) PASS. Hosted authenticated customer/tenant E2E remains SKIPPED.
+- #169 exact head `d6ef27f09a2c73c0dae74d1be2c7768c1577fe40`: Core/P2 [40115015672](https://github.com/Report-Engainall/Nasr1/actions/runs/40115015672) / [40115015539](https://github.com/Report-Engainall/Nasr1/actions/runs/40115015539) PASS; the keyboard-only customer order-detail E2E from #124 remains preserved.
+- #172 exact head `682761625993a203b5795daa953632f131ae886a`: Core/P2 [40115029836](https://github.com/Report-Engainall/Nasr1/actions/runs/40115029836) / [40115029831](https://github.com/Report-Engainall/Nasr1/actions/runs/40115029831) PASS; stale active warehouse balance sets are rejected and count lines have actor/audit metadata. Rebase/retest after migration prerequisites.
+- #174 exact head `e0ca64f8f66203615eb74bf778f85f59156f2f62`: Core/P2 [40115104136](https://github.com/Report-Engainall/Nasr1/actions/runs/40115104136) / [40115104172](https://github.com/Report-Engainall/Nasr1/actions/runs/40115104172) PASS; route test checks generated declarations.
+- #175 exact head `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`: Core [40115637333](https://github.com/Report-Engainall/Nasr1/actions/runs/40115637333) PASS; P2 [40115637423](https://github.com/Report-Engainall/Nasr1/actions/runs/40115637423) was still running at latest poll. Test expectation uses Arabic digit `٥`, matching the locale, without weakening production formatting.
+- Migration review/merge sequence remains #147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #172. #148–#151 and #107/#119/#124/#167 were verified closed after matching file content was preserved in their current-base replacements.
+- Independent review requests were sent but no formal approval had been recorded. Do not merge without actual approval and exact-head required gates.
+- Hosted customer E2E, production migrations/restore, deployment, live Onyx/WhatsApp/AI remain NOT RUN or BLOCKED_EXTERNAL absent authorized proof.
 
 
 
@@ -363,6 +360,27 @@
 5. قبول دورة العميل في الخدمة والواجهة المستضافة منفصل عن mocks واختبار المصدر.
 
 
+## الدفعة الدلالية الحادية عشرة — دعوات تفعيل العميل، عضويات الشركة، وعناوين التوصيل
+
+المصادر:
+- `20261020140000_customer_activation_invitations.sql`
+- `20261022130000_customer_company_invitation_sha256_auth_confirmation.sql`
+- `20261015130000_customer_address_book.sql`
+- `20261015160000_customer_company_memberships.sql`
+
+| العملية | عقد الحماية والأثر | اختبارات القبول الموجودة | الفجوة المتبقية |
+|---|---|---|---|
+| `create_customer_activation_invitation(uuid,text,integer)` / `list_customer_activation_invitations(uuid)` / `revoke_customer_activation_invitation(uuid)` | الموظف والمستخدم والمؤسسة تُشتق من profile نشط؛ العميل يُقفل بـ`FOR UPDATE` داخل المؤسسة؛ عمر الدعوة 1–168 ساعة؛ token عشوائي لا يخزن خامًا بل SHA-256؛ الدعوات السابقة المعلقة تُبطل؛ الإنشاء والإبطال يسجلان audit؛ المنح مقصورة على authenticated. | `customer-activation-invitations-migration.test.ts` و`customer-activation-invitations.test.ts` مع اختبارات صفحات/حوار ومسار. | يلزم قبول متكامل لدعوة تفعيل عميل عبر حسابين اصطناعيين منفصلين، إعادة استخدام الرمز، سباق إلغاء/قبول، تطابق البريد المؤكد، ومنع ارتباط العميل بحساب موجود. |
+| `accept_customer_activation_invitation(text)` | يرفض غير المصادق والملف الشخصي غير النشط والرمز غير الصحيح؛ يقفل profile والدعوة والعميل؛ يتحقق من المؤسسة النشطة ورسالة البريد المؤكد وكون الدعوة pending وغير منتهية؛ ينشئ الربط/الحالة ويكتب audit داخل المعاملة؛ replay لا يقبل حالة سابقة. | اختبار migration وservice يعملان على العقد العام، ومسار تفعيل الحساب مسجل في route tree. | يلزم سباق PostgreSQL 17 باستدعاءين للرمز نفسه، وتأكيد عدم إنشاء عضوية/ربط مزدوج، ورفض مؤسسة B دون اختلاف يكشف وجود الدعوة، وإثبات أن الفشل لا يترك حالة جزئية. |
+| `create_customer_company_invitation(text,text)` / `accept_customer_company_invitation(text)` | tenant من profile؛ قفل صف الشركة؛ أدوار العضوية محصورة في buyer/finance/viewer؛ token 64-hex؛ تخزين SHA-256 للدعوات الجديدة، وتوافق MD5 محصور بالدعوات القديمة المعلقة؛ القبول يتطلب وجود `auth.users.email_confirmed_at` وتطابق البريد المحفوظ؛ يمنع عضوية نشطة ثانية ويقفل الدعوة ويكتب audit. | `customer-company-invitation-security-migration.test.ts` يثبت SHA-256 للكتابة الجديدة، توافق MD5 القديمة، تحقق البريد من auth.users، grants/RLS/SECURITY DEFINER؛ `scripts/test-company-invitation-expiry.mjs` يثبت انتهاءً دائمًا مع audit، replay مرفوض، وعضوية بلا امتياز عند فشل التأكيد؛ `company-invitation-route-security.test.ts` يمنع indexing/Referer ويزيل bearer من URL بعد القبول. | يلزم اختبار سباق قبولين، قبول متزامن مع revoke، وتغيير حالة الدعوة أثناء طلبها؛ إضافة إلى جلسات مؤسسة A/B مع أدوار customer/manager. |
+| `list_customer_company_members()` / `revoke_customer_company_member(uuid)` / `revoke_customer_company_invitation(uuid)` | يستنتج الشركة من profile مالك العميل والمؤسسة الحالية؛ البحث/التحديث مقيدان بالعميل والمؤسسة والحالة؛ الإلغاء يكتب audit. قائمة الدعوات تحد آخر 100 سجل. | اختبار service/page، وexpiry migration script يغطي تنظيف الانتهاء في مسار المالك مع audit واحد. | حد 100 سجل بلا cursor معلن؛ يجب إما توثيق حد العرض أو إضافة pagination حتى لا يعتبر السجل الكامل. يلزم قبول cross-tenant وسباق revoke/accept/member-revoke. |
+| `save_customer_address(...)` / `delete_customer_address(uuid)` | SECURITY DEFINER مع `search_path=''`; يحدد customer من profile المصادق عليه لا من user-supplied customer/org ID؛ يقفل صف العميل ثم العناوين؛ قاعدة فريدة تضمن عنوانًا افتراضيًا واحدًا؛ RLS تمنع القراءة العابرة وتمنع المنح المباشرة للكتابة؛ audit للتعديل والحذف. | `customer-addresses.test.ts` يختبر حقول قراءة آمنة، UUID/هاتف/رمز دولة صالح، تنظيف الحقول، عدم إرسال معرف العميل/المؤسسة، acknowledgement UUID، أخطاء قاعدة البيانات، ورفض ادعاء نجاح حذف/حفظ بلا رد صحيح. | يلزم اختبار PG17 للكتابة المتزامنة لعنوان افتراضي، عنوان A مقابل محاولة تعديل/حذف من B، ومطابقة سجل التدقيق/المالك بعد إعادة المحاولة. |
+| `customer_addresses_own_read` / `customer_addresses_staff_read` وسياسات العضوية ذات الصلة | RLS تربط العنوان بالعميل والمؤسسة وprofile النشط؛ staff read مقيد بمؤسسة المستخدم النشط. لا تمنح authenticated write privileges مباشرة على جدول العناوين. | migration فيها assertion يفشل إذا حصل authenticated على INSERT/UPDATE/DELETE؛ service tests لا تمرر tenant/customer من المتصفح. | يلزم اختبار قاعدة بيانات يثبت deny لمسارات direct SQL من دور authenticated ومحاولة الوصول عبر tenant الآخر، وليس الاكتفاء بمطابقة نص migration. |
+
+### خلاصة قبول الدفعة الحادية عشرة
+المصدر يثبت وجود حواجز قوية حول tokens والعضويات والعناوين، واختبارات الوحدة/المهاجرات تغطي حالات ملموسة. لكنه لا يغلق بعد اختبارات السباق المتكامل لكل العمليات أو قبول جلسة المستخدم المستضافة. الحالة المناسبة لهذه العائلة: **PARTIAL — source contracts and several migration/unit tests verified; remaining cross-tenant/concurrency acceptance required**.
+
+
 ## الفجوات المفتوحة صراحة
 
 1. مطابقة الكتالوج العام بالمصدر ورصد منح EXECUTE الفعلية: **TESTED_EXACT_SHA** على `672749855d733f691ab59de878420a210108fbbe`، 304/304 كائنات و0 مصادر مجهولة ([الفهرس](./PUBLIC_RPC_FUNCTION_INVENTORY_2026-10-24.md)). التدقيق الدلالي لكل 179 مرشح RPC واختبارات الرفض/العزل/التكرار/التدقيق: **OPEN / PARTIAL**.
@@ -374,9 +392,9 @@
 
 ## NEXT_ACTION
 
-1. Poll Core/P2 for #172 (`682761625993a203b5795daa953632f131ae886a`) and #174 (`e0ca64f8f66203615eb74bf778f85f59156f2f62`); repair only evidence-backed failures and rerun.
-2. Verify #142 exact-head Core/P2 after semantic batches 8–10, then continue bounded semantic review of remaining callable RPC candidates.
-3. Refresh #152 after #172/#174 settle, recording latest heads and exact test results; rerun its new SHA.
-4. Preserve migration order #147 → #164 → #165 → #166 → #168 → refresh/retest #162 → #172. No merge without actual independent approval.
-5. Next semantic batch: validate actual Storage policies/grants and worker RPC EXECUTE privileges, then customer/company invitations and address mutation with cross-tenant deny tests.
-6. Production migrations, secrets, deployment, live Onyx/WhatsApp/AI and hosted authenticated customer E2E remain BLOCKED_EXTERNAL/NOT RUN without authorized evidence.
+1. Poll P2 on #175 exact head `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`; Core already passed. Repair only a proven failure.
+2. Poll Core/P2 on the new #142 head after batch 11; previous #142 results do not transfer.
+3. Update checkpoint PR #152 after #142/#175 terminal results and retest the exact new checkpoint head.
+4. Preserve merge sequence #147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #172; no merge without independent approval.
+5. Next batch: Storage RLS/signed-download policies and customer return/credit-memo RPCs; use source plus PostgreSQL 17 allow/deny and concurrency evidence.
+6. Hosted authenticated E2E, production migrations/restore, deployment, live Onyx/WhatsApp/AI remain BLOCKED_EXTERNAL/NOT RUN without authorized evidence.
