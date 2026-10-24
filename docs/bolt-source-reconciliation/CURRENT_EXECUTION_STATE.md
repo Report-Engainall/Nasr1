@@ -1,6 +1,39 @@
 # NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026
 
-## AUTHORITATIVE ACTIVE READ — 2026-10-24 20:40 +03:00
+## AUTHORITATIVE ACTIVE READ — 2026-10-24 20:44 +03:00
+
+### Live reference and merge truth
+- Repository: `Report-Engainall/Nasr1`; production reference is `main` only. Last confirmed `main` SHA: `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; Core run [40111286682 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40111286682) is tied to that exact SHA.
+- Merged baseline: #133, #135–#141, #143–#146. Do not recreate these changes without a proven regression. #144, #145 and #146 are already merged; preserve their storefront-price/session and tenant-scoped import-quality protections.
+- #148–#151 were closed as stale-base duplicates, not merged. Their canonical replacements are #164, #165, #166 and #168 respectively. #167 is a duplicate of #162. #176 is a documentation-only duplicate of this canonical #152 checkpoint. Do not reopen or recreate those duplicate branches.
+
+### Exact-head work currently being tracked
+- **#134 inventory batch idempotency** — head `296453bd6d71817e0b78e4a752f0dff889ef5ec3`; Core [40112078912 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40112078912) and P2 [40112078914 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40112078914). The same-key concurrent `transfer_inventory_batch` acceptance is present. Independent submitted review remains outstanding; keep this PR open until the required review and integration decision.
+- **#142 API-OPS-001** — current head `77f338753a6fad8d0f9b4942e480c8be85782d3e`; Core [40116260315](https://github.com/Report-Engainall/Nasr1/actions/runs/40116260315) and P2 [40116260420](https://github.com/Report-Engainall/Nasr1/actions/runs/40116260420) were `IN_PROGRESS` at the last live read. Do not claim acceptance until both finish on this exact head. Inventory is 304/304 runtime objects source-mapped, but 179 callable RPC candidates still need semantic review; API-OPS remains PARTIAL.
+- **#147 customer quote decision** — head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`; Core [40111802394 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40111802394) and P2 [40111802434 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40111802434). The dedicated PostgreSQL 17 runtime proof was recorded on older head `5b351a544f412a48c0d5466b91b000c51100c889`, so current-head PG17 evidence remains UNVERIFIED unless a matching run exists.
+- **#152 canonical checkpoint** — previous head `84c0e0a7a21d0c0add7284b67315f6872c390d78` had Core and P2 workflows complete with SUCCESS. The documentation update now being committed advances the head; rerun Core and P2 on the final new head before accepting this checkpoint. Keep #152 as the single resume/checkpoint PR; do not create another.
+- **#175 dashboard unknown-value integrity** — head `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`; Core [40115637333 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40115637333). P2 [40115637423](https://github.com/Report-Engainall/Nasr1/actions/runs/40115637423) remained in progress at last read. Missing, malformed and non-finite values must remain unavailable, not be converted to zero.
+- **#177 payment-versus-credit posting race** — head `a165b6753a9357bbf736675ec1c7fadc8a08c58b`; Core and P2 workflows report SUCCESS on that head. Keep its transaction-race assertions and verify formal review before merge.
+- **#178 import/export idempotency and worker recovery** — head `4e815b9325ecf1f0da6980e79a604f5f752b963d`; Core and PostgreSQL 17 acceptance SUCCESS, while P2 was still in progress at last read. Acceptance remains PARTIAL until the P2 run reaches a terminal result on this exact head.
+- **#179 import source identity/resume/rollback hardening** — head `a84599d02be02ce9a30f1e06166c45b710a2bc95`; Core was in progress and P2 pending at last read. No PASS claim until both required workflows finish on the final head.
+- **#158 customer payment audit** — head `6007cb03089a72aefe55483d1b4ea888fd3bf381`; Core `40114325627`, P2 `40114325623`, and PostgreSQL 17 `40114325569` passed on that recorded head. Its migration time is after #168 and before #162; refresh exact-head evidence after any base change.
+- **#162 DQS validity status** — head `e5ca28bb81a605f4e6628baa7abbdc1b5c7216f8`; recorded Core/P2/PG17 passes are historical to that SHA. Merge/integration must wait for prior migration dependencies and the combined stack must be retested.
+
+### Integration and evidence limits
+- Required ordered migration integration: **#147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #172**. After each base-changing integration, run the required Core/P2/PostgreSQL 17 gates on the exact resulting head and preserve all assertions in shared `scripts/test-database-migrations.mjs`; never replace that file wholesale.
+- No human approval is inferred from a reviewer request or bot comment. Merge only with the required independent submitted review, repository policy and exact-head gates. Do not write directly to `main`.
+- Hosted customer/tenant E2E is SKIPPED/BLOCKED_EXTERNAL where authorized non-production credentials are unavailable. Production migration/restore/deployment, real Onyx import, WhatsApp delivery and live AI provider calls remain NOT RUN/BLOCKED_EXTERNAL without direct authorized evidence.
+
+## NEXT ACTION — FIRST STEP ON RESUME
+1. Poll #142 Core/P2 on `77f338753a6fad8d0f9b4942e480c8be85782d3e` and #175 P2 on `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`; repair only a failure proven by the relevant log.
+2. Poll #178 P2 and #179 Core/P2; keep each task PARTIAL until the required gates are terminal on each PR's current exact head.
+3. Re-run Core and P2 on the updated final head of this #152 documentation PR; do not reuse the previous-head success.
+4. Continue #142 semantic review beyond source mapping, prioritizing effective grants/storage signed-download policies, worker leases/retry/idempotency, and customer/company/invitation authorization.
+5. Obtain independent review and integrate migrations in the documented order; after every base change, rerun exact-head checks, then verify the actual merge SHA and main CI.
+
+---
+
+## HISTORICAL ACTIVE READ — 2026-10-24 20:40 +03:00 (superseded by the authoritative read above)
 
 ### Last confirmed repository state
 - Repository: `Report-Engainall/Nasr1`; current `main` SHA `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`. Main Core run `40111286682` passed on that exact SHA.
