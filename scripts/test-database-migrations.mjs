@@ -2688,7 +2688,7 @@ async function main() {
     [organizationId, "c".repeat(64), operationsStaffProfileId, importJob.profile_id],
   );
   const qualityStatusJobId = qualityStatusJobResult[0].id;
-  const qualityStatusCases = ["valid", "invalid", "pending", "rejected", "unrecognized"] as const;
+  const qualityStatusCases = ["valid", "invalid", "pending", "rejected", "unrecognized"];
   for (const [index, status] of qualityStatusCases.entries()) {
     await db.unsafe(
       "insert into public.import_job_rows(import_job_id,row_number,status,data,errors) values($1,$2,$3,$4::jsonb,'[]'::jsonb)",
