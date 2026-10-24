@@ -1778,6 +1778,60 @@ export async function updateImportJob(id: string, updates: Partial<ImportJob>): 
   }
 }
 
+export type SafeImportFailureResult = {
+  jobId: string;
+  status: string;
+  changed: boolean;
+  terminal: boolean;
+  totalRows: number | null;
+  processedRows: number | null;
+  failedRows: number | null;
+  snapshotId: string | null;
+};
+
+/**
+ * Atomic tenant-scoped failure bookkeeping. Server returns terminal state unchanged if
+ * finalization committed but the network response was lost; never downgrade it locally.
+ */
+export async function failImportJobSafely(
+  jobId: string,
+  errorSummary: Record<string, unknown>,
+): Promise<SafeImportFailureResult> {
+  if (typeof jobId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
+    throw new Error('معرّف دفعة الاستيراد غير صالح؛ لم تُعدّل الحالة.');
+  }
+  if (!errorSummary || typeof errorSummary !== 'object' || Array.isArray(errorSummary)
+      || new TextEncoder().encode(JSON.stringify(errorSummary)).byteLength > 20_000) {
+    throw new Error('ملخص فشل الاستيراد غير صالح أو كبير جدًا.');
+  }
+  const { data, error } = await supabase.rpc('fail_import_job_safely', {
+    p_job_id: jobId,
+    p_error_summary: errorSummary,
+  });
+  if (error) throw new Error('تعذر تأكيد حالة دفعة الاستيراد بعد الفشل؛ تحقق من السجل قبل إعادة المحاولة.');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('أعاد الخادم استجابة غير صالحة لمصالحة حالة دفعة الاستيراد.');
+  }
+  const result = data as Record<string, unknown>;
+  if (result.job_id !== jobId || typeof result.status !== 'string'
+      || typeof result.changed !== 'boolean' || typeof result.terminal !== 'boolean') {
+    throw new Error('استجابة مصالحة حالة الاستيراد لا تطابق الدفعة المطلوبة.');
+  }
+  const optionalCount = (value: unknown): number | null =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+  return {
+    jobId,
+    status: result.status,
+    changed: result.changed,
+    terminal: result.terminal,
+    totalRows: optionalCount(result.total_rows),
+    processedRows: optionalCount(result.processed_rows),
+    failedRows: optionalCount(result.failed_rows),
+    snapshotId: typeof result.snapshot_id === 'string' ? result.snapshot_id : null,
+  };
+}
+
+
 export async function fetchImportJobs(): Promise<ImportJob[]> {
   // Tenant-scoped RLS filters rows from the authenticated profile, not a browser-provided org ID.
   const { data, error } = await supabase.from('import_jobs').select('*').order('created_at', { ascending: false }).limit(30);
