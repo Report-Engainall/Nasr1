@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { registerCustomerOrdersKeyboardAcceptance } from "./helpers/customer-orders-keyboard-test";
+
+registerCustomerOrdersKeyboardAcceptance();
 import { storefrontCategorySlug } from "../src/lib/storefront-slugs";
 
 test("public storefront and login routes render without external backend writes", async ({ page }) => {
