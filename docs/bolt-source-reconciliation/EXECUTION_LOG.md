@@ -1,3 +1,16 @@
+## P2 execution record — hidden catalog price sentinel repair — 2026-10-24
+
+- Code repository: `Report-Engainall/Nasr1`; base `main` SHA `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; code PR #145 remains OPEN/UNMERGED.
+- Code head: `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`.
+- Exact-head Core [40100874921](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874921) SUCCESS; exact-head P2 [40100874931](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874931) SUCCESS.
+- Root cause fixed: hidden prices used numeric zero as a sentinel; a missing price could be rendered or persisted as an amount, and a customer workflow helper could pass raw response fields back into the public object.
+- Fix: price RPC returns SQL NULL; customer catalog page excludes `base_price` from client payload while keeping an authorized staff-only projection; API, typed catalog, cache, pending cart and customer quote/reorder/barcode/assistant workflows preserve explicit price absence and use public allowlists; regression tests cover the old sentinel and malformed/raw payload cases.
+- Verified exact-head acceptance: unit suite; migration + PostgreSQL 17 core suite; invitation expiry/audit; stock-count exactly-once audit; asynchronous export; import concurrency/idempotency and inventory snapshot; saved products; backup/restore; Lint; Build; production/dev smoke; Chromium price visibility; local Supabase endpoint guards; atomic price grid rollback/audit/stale-writer race; cash expense/accounting restrictions; purchase receipt accounting restrictions; authenticated order persistence and tenant denial; returns/credit memo; Onyx XLSX; finance/task print; customer-manager financial privacy/audit; central device-session authorization and immediate revocation.
+- Proof boundary: the credential-gated hosted customer/tenant Playwright job is SKIPPED, not PASS; the local isolated-Supabase authenticated E2E passed. No production behavior, production DB write, or live provider action is claimed.
+- Merge gate: PR #144 is still OPEN and lacks recorded independent approval; PR #145 must not merge ahead of #144. No direct main write was made.
+
+---
+
 ## P2 execution record — 2026-10-24 live Git reconciliation
 
 - Live `main`: `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; no main writes.

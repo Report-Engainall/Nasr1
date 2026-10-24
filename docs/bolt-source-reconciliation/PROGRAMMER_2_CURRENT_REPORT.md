@@ -1,4 +1,30 @@
-# P2 — Live execution report — 2026-10-24 live Git reconciliation
+# P2 Current Report — 2026-10-24 — validated hidden-price contract
+
+**TASK_ID:** `STF-012 / API-OPS-001`  
+**TASK_STATUS:** `STF-012 IMPLEMENTED + CORE/P2 TESTED EXACT SHA; PR OPEN / REVIEW PENDING`; `API-OPS-001 PARTIAL`  
+**REPOSITORY:** `Report-Engainall/Nasr1`  
+**MAIN_SHA:** `16a3d23e558696700bccbb3dbf9ea75b0fccf745`  
+**CURRENT_BRANCH:** `p2/reconcile-18-prs-live-main-20261024`  
+**CURRENT_PR:** [#133](https://github.com/Report-Engainall/Nasr1/pull/133)  
+**CODE_PR:** [#145](https://github.com/Report-Engainall/Nasr1/pull/145)  
+**CODE_HEAD:** `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`  
+**CORE:** [40100874921 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874921) on exact code head  
+**P2:** [40100874931 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874931) on exact code head  
+**LOCKED_PATHS:** this report, central execution state, coordination, execution log and acceptance matrix; P2-only, edited as one atomic docs commit  
+**NEXT_ACTION:** independent review and merge-order gate (#144 before #145); afterward re-read main, update/rebase the remaining contract and run checks against the exact resulting SHA. Continue semantic RPC review by financial risk once this gate is resolved.
+
+## Latest tested implementation: hidden catalog price sentinel
+
+- Root cause: `get_storefront_product_prices` returned numeric zero while `show_price_on_cards=false`; API/cache/customer workflow paths could interpret or retain that synthetic value.
+- Database repair in PR #145: guarded catalog price RPC returns SQL NULL for the explicit hidden-price state; public catalog page omits `base_price` for customers while retaining it only for authorized staff; it returns JSON null for hidden `display_price`.
+- Client repair: customer catalog projections and workflow DTOs are explicit allowlists; the price map types NULL distinctly from malformed/missing data; cache and pending-cart records omit inaccessible monetary fields; quote, reorder, barcode and assistant screens label hidden prices as unavailable rather than zero.
+- Regression evidence: Core and P2 terminal SUCCESS on exact SHA `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`. Local authenticated order/tenant, customer return/credit memo, Onyx XLSX, finance/task print, customer-manager privacy/audit and device-session revocation tests passed. Hosted credential-gated customer/tenant job is SKIPPED, not PASS.
+- Merge dependency: PR #144 remains open/unapproved; it supplies the companion live-session and membership authorization for customer order-pricing preview. Keep #145 open and merge it only after #144 and independent review.
+- No production database, live provider, or direct `main` write was used.
+
+---
+
+## Historical snapshot — previous P2 live reconciliation (superseded by latest update above)
 
 **TASK_ID:** `API-OPS-001`  
 **TASK_STATUS:** `PARTIAL` — inventory proven; semantic audit continues  
