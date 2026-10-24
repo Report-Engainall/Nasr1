@@ -12,8 +12,8 @@
 - Prior snapshot: 304/304 public runtime objects were source-mapped; 179 callable RPC candidates remain for semantic review. **The static file `PUBLIC_RPC_FUNCTION_INVENTORY_2026-10-24.md` is a historical PostgreSQL 17 snapshot on SHA `672749855d733f691ab59de878420a210108fbbe`, not evidence for the current main tree.** The current CI generator step produces a new exact-head inventory.
 - The current-main port adds a shared streamed UTF-8 byte reader for AI gateway, outbox worker, async-export worker/download and JSON product-image delete; it rejects oversized streamed bodies, cancels the stream, and rejects malformed UTF-8. Required unit/source tests and current-head PostgreSQL export authorization assertions run in CI.
 - Exact PR-head results and post-merge evidence must remain distinct. For reference, #189 Core [40126581054](https://github.com/Report-Engainall/Nasr1/actions/runs/40126581054) and P2 [40126581094](https://github.com/Report-Engainall/Nasr1/actions/runs/40126581094) passed on its tested head before merge; #186 Core [40126529526](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529526) / [40126529676](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529676) and P2 [40126529735](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529735) passed on its PR head. Exact current-main post-merge CI on `653f4d764041a8751c41e75a492fed0cc6edea63` was not confirmed by the connected status lookup.
-- **NEXT_ACTION**
-  1. Poll current port Core/P2 on the exact PR head and fix only a reproduced failure.
+- ## NEXT_ACTION
+  1. Poll Core/P2 on the exact PR head and fix only a reproduced failure.
   2. Regenerate inventory against the migrated isolated PostgreSQL 17 database in CI; do not treat the committed historical snapshot as current.
   3. Continue semantic review for the 179 callable RPC candidates in bounded batches with explicit allow/deny, tenant, mutation, idempotency, and audit evidence.
   4. Do not bypass repository-enforced checks; owner authorization does not turn an unfinished CI run into a PASS.
