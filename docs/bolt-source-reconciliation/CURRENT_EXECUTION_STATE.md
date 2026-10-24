@@ -1,35 +1,27 @@
-# NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026 (after PR #197; PR #198 route gate active)
+# NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026 (after PR #198)
 
-- **Repository:** `Report-Engainall/Nasr1`; `main` remains the sole production reference.
-- **Current main SHA:** `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb` after merged PR #197. This replaces the stale live pointer to `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; the latter remains a historical baseline for the 310/310 source inventory.
-- **PR #194 — docs reconciliation:** merged as `8ed955789cdff49f300af3fa79524782877928bc`; its Core/P2 passed on exact pre-merge head `a2eabfd382271dc10fef96286e772778d43adfcb`. It did not itself prove runtime checks on the later main SHA.
-- **PR #196 — CSV/XLSX unknown-stock parity:** merged as `6f73438bb1c2e90bd3daffde0701df29b3df8553`. Exact PR head `0ca8deb99d42d57d56544d3e6fb3770d2a3494c4` passed Core [40130250564](https://github.com/Report-Engainall/Nasr1/actions/runs/40130250564) and P2 [40130250519](https://github.com/Report-Engainall/Nasr1/actions/runs/40130250519); local Supabase order/tenant acceptance passed, while hosted customer/tenant E2E was SKIPPED. Post-merge Core [40130620987](https://github.com/Report-Engainall/Nasr1/actions/runs/40130620987) completed SUCCESS on the exact merge SHA.
-- **PR #197 — DQS status semantics:** merged as `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb`. Exact PR head `4ec6a660f57947064376154c74d1e311bde57f4e` passed Core [40130345683](https://github.com/Report-Engainall/Nasr1/actions/runs/40130345683) and P2 [40130345655](https://github.com/Report-Engainall/Nasr1/actions/runs/40130345655). PostgreSQL 17 acceptance now covers valid/invalid/pending/rejected/unrecognized states and asserts only explicit `valid` rows contribute validity points. Post-merge Core [40130696335](https://github.com/Report-Engainall/Nasr1/actions/runs/40130696335) was still IN_PROGRESS at last poll; do not mark post-merge verification complete until terminal.
-- **PR #198 — admin route mounting:** open at head `67ea3d0d20216697cf35d70e54897d6128c50176`. Core run [40130584912](https://github.com/Report-Engainall/Nasr1/actions/runs/40130584912) completed SUCCESS on that exact head. P2 run [40130584867](https://github.com/Report-Engainall/Nasr1/actions/runs/40130584867) remained IN_PROGRESS, with public UI smoke and infrastructure gate passing, local Supabase order/tenant acceptance running, and hosted customer E2E SKIPPED. The test covers 22 admin route entrypoints through the generated TanStack route tree, including special workspace/drawer/link mounts; it proves route mounting, not every screen action or production workflow.
-- **DQS implementation:** already present in `supabase/migrations/20261024153000_import_quality_valid_row_scoring.sql`; no duplicate migration was added. #197 closes the previously missing non-valid status test coverage, not the implementation gap.
-- **API-OPS remains PARTIAL:** the last generated PostgreSQL 17 inventory on historical main SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b` found `functions=310 matched=310 unmatched=0 migration_files=135`. The merges #194/#196/#197 are documentation/test changes; the 179 callable RPC candidates still need semantic auth/tenant/idempotency/audit review.
-- **Owner authorization:** owner has authorized merge of ready work without a separate GitHub review. Exact-head test results, clean ancestry, migration ordering, and post-merge verification remain mandatory technical gates.
-- **External boundaries:** production writes/migrations/deploy/restore, live Onyx sync, WhatsApp delivery, live AI provider calls and hosted customer/tenant journeys are NOT RUN, SKIPPED, or BLOCKED_EXTERNAL unless an authorized real result exists.
+- **Repository:** `Report-Engainall/Nasr1`; `main` is the only production reference.
+- **Latest main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1` — PR #198 merged. Post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) was QUEUED at the last poll, so main post-merge Core is pending terminal confirmation.
+- **PR #194 — documentation reconciliation:** merged as `8ed955789cdff49f300af3fa79524782877928bc`. Its Core/P2 checks passed on pre-merge head `a2eabfd382271dc10fef96286e772778d43adfcb`.
+- **PR #196 — CSV/XLSX unknown stock:** merged as `6f73438bb1c2e90bd3daffde0701df29b3df8553`. Exact head `0ca8deb99d42d57d56544d3e6fb3770d2a3494c4` passed Core [40130250564](https://github.com/Report-Engainall/Nasr1/actions/runs/40130250564) and P2 [40130250519](https://github.com/Report-Engainall/Nasr1/actions/runs/40130250519); local Supabase order/tenant acceptance passed; hosted customer/tenant E2E was SKIPPED. Post-merge Core [40130620987](https://github.com/Report-Engainall/Nasr1/actions/runs/40130620987) passed on exact merge SHA.
+- **PR #197 — DQS status semantics:** merged as `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb`. Exact head `4ec6a660f57947064376154c74d1e311bde57f4e` passed Core [40130345683](https://github.com/Report-Engainall/Nasr1/actions/runs/40130345683) and P2 [40130345655](https://github.com/Report-Engainall/Nasr1/actions/runs/40130345655); post-merge Core [40130696335](https://github.com/Report-Engainall/Nasr1/actions/runs/40130696335) later completed SUCCESS on the exact merge SHA. Five row states are tested and only explicit `valid` earns validity points.
+- **PR #198 — admin route mounting:** merged as `12b622326f8a95575994ef1afae43f69fdf854b1`. Exact head `67ea3d0d20216697cf35d70e54897d6128c50176` passed Core [40130584912](https://github.com/Report-Engainall/Nasr1/actions/runs/40130584912) and P2 [40130584867](https://github.com/Report-Engainall/Nasr1/actions/runs/40130584867). Public UI smoke and local Supabase order/tenant acceptance passed; hosted customer/tenant E2E remained SKIPPED. The new test mounts 22 admin entrypoints through the generated TanStack route tree and checks intended screen/wrapper/link wiring. This does not certify every operation within every screen.
+- **Inventory evidence:** last generated PG17 catalog/source map is tied to historical main `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`: 310/310 functions matched, 0 unmatched, 135 migration files. Do not relabel that artifact as generated on current main without a new artifact.
+- **API-OPS remains PARTIAL:** 179 callable RPC candidates still need semantic auth/tenant/sided-effect/idempotency/retry/audit review. Route mounts and catalog matching are not substitutes for these checks.
+- **DQS implementation:** `supabase/migrations/20261024153000_import_quality_valid_row_scoring.sql` was already present; #197 adds missing non-valid status coverage, not a duplicate migration.
+- **Owner authority:** owner authorizes merges of ready changes without a separate GitHub review. Exact-head CI, clean ancestry, migration ordering and post-merge verification remain technical gates.
+- **External boundaries:** production database writes/migrations/deploy/restore, live Onyx sync, WhatsApp delivery, live AI provider calls and hosted customer/tenant journeys remain NOT RUN, SKIPPED or BLOCKED_EXTERNAL unless authorized real evidence exists.
 
 ## NEXT ACTION
 
-1. Core run `40127500733` and PostgreSQL 17 run `40127500750` are both terminal SUCCESS on exact current main. Finish exact-head Core/P2 on the clean-main docs PR and verify its merge.
-2. Finish exact-head Core/P2 on the clean documentation branch before merging; then verify the resulting main SHA.
-3. Continue semantic review of the remaining 179 callable RPCs in measured, source-backed batches. Do not repeat the completed bounded-body or export-idempotency implementation.
-4. Re-run import/DQS or route cases only if a current-main failure or a changed dependent contract proves a gap.
+1. Confirm terminal outcome of post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) on main `12b622326f8a95575994ef1afae43f69fdf854b1`.
+2. No open PRs were observed after #198 merged. Continue with the outstanding route behavior and RPC semantic audit only where an acceptance gap is evidenced; avoid reimplementing merged import/export/security work.
+3. Refresh this checkpoint after the next code-bearing merge and keep exact SHA evidence beside each status.
+4. Continue to label hosted E2E, real Onyx/WhatsApp/AI, and production operations as blocked/unproven until the real authorized run exists.
 
 ---
 
-## Historical execution log
-All material below is retained for traceability. Its SHA/status applies to the time recorded and does not override this live checkpoint.
-
-## Historical execution log
-Entries below are retained as historical context; their PASS/OPEN labels apply only to the SHA and time originally stated.
-
-## Historical execution log
-Entries below are retained as history. Their PASS/OPEN/IN_PROGRESS labels apply only to the SHA and time stated in each entry and do not supersede this live checkpoint.
-
----
+## HISTORICAL EXECUTION LOG
 
 # P2 LIVE EXECUTION UPDATE — 2026-10-24T15:12:00Z — quote-test correction pushed
 
