@@ -24,6 +24,9 @@ describe('unified import end-to-end acceptance contracts', () => {
     expect(api).toContain('p_external_source_reference: input.externalSourceReference?.trim() || null');
     expect(api).toContain("rollback_import_snapshot");
     expect(finalizeGuard).toContain("external_source_reference', v_external_source_reference");
+    expect(finalizeGuard).toContain("conrelid='public.import_jobs'::regclass");
+    expect(finalizeGuard).toContain("conrelid='public.import_upload_sessions'::regclass");
+    expect(finalizeGuard).toContain("REVOKE ALL ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,uuid,text,text,text) FROM PUBLIC, anon, authenticated");
   });
 
   it('rejects missing required headers and invalid UTF-8 before attempting finalization', () => {
@@ -31,6 +34,8 @@ describe('unified import end-to-end acceptance contracts', () => {
     expect(importer).toContain('missingRequiredHeaders');
     expect(importer).toContain('validateCsvRow(values, headers, dataRows + 1, matchingKey)');
     expect(sourceHelpers).toContain('مفتاح المطابقة الإلزامي');
+    expect(sourceHelpers).toContain('الحقل الإلزامي');
+    expect(sourceHelpers).toContain("new TextDecoder('utf-8', { fatal: true })");
   });
 
   it('shows persisted row rejection reasons instead of leaving errors hidden in JSON only', () => {
