@@ -9,11 +9,11 @@
 - #172 head `682761625993a203b5795daa953632f131ae886a`: Core `40115029836` / P2 `40115029831` SUCCESS. Draft #181 adds SQLSTATE and no-side-effect assertions; it needs integration and exact-head retesting.
 - #179 head `4f34704fe2b6cf63942f6cf6b3532ef780130a91`: Core `40119746804` / local P2 `40119746870` SUCCESS. Its finalizer requires matching source/config fingerprints, uses idempotent job creation, and refuses success if an older matching ready snapshot remains. #180 must apply before #179 by migration timestamp.
 - #180 head `f31e3547e99b085fb0b8db0b2be098809acac247`: dedicated PostgreSQL 17 `40118418761`, Core `40118418698`, local P2 `40118418782` SUCCESS; a foreign-tenant denial cannot change staged import or audit rows.
-- #155 head `fd7944fc2a322676d3a8cf3cff08fe64f9ccc934` combines signed stock-metric export parity with XML 1.0 control sanitization. Core `40120144157` and P2 `40120144155` were IN PROGRESS at last poll. #183 was closed unmerged after porting its XML fix into #155.
+- #155 head `fd7944fc2a322676d3a8cf3cff08fe64f9ccc934` combines signed stock-metric export parity with XML 1.0 control sanitization. Core `40120144157` and local P2 `40120144155` are terminal SUCCESS on this exact head. #183 was closed unmerged after porting its XML fix into #155; hosted customer E2E remains SKIPPED.
 - Hosted authenticated customer/tenant E2E remains SKIPPED; no production Onyx import, production writes/migrations, WhatsApp delivery, live AI provider, deployment or restore is proven. A reviewer assignment is not approval.
 
 ## NEXT ACTION — P1
-1. Poll #155 Core/P2 and fix only evidence-backed failures.
+1. Request independent review for #155; its exact-head Core and local P2 gates passed, while hosted customer E2E remains SKIPPED.
 2. Obtain independent submitted review for the security/transaction PRs; CI alone is insufficient for merge.
 3. Continue semantic review of the remaining 179 RPC candidates in #142.
 4. Integrate #181 with #172, then rerun exact-head Core/P2/PostgreSQL 17.
