@@ -30,7 +30,11 @@ async function main() {
       "from public.profiles p join public.user_roles r on r.profile_id=p.id and r.role='accountant' " +
       "where lower(p.email)='ci-accountant@example.test' and p.is_active=true limit 1",
   );
-  assert.equal(actorRows.length, 1, "migration acceptance fixtures must include an active finance accountant");
+  assert.equal(
+    actorRows.length,
+    1,
+    "migration acceptance fixtures must include an active finance accountant",
+  );
   const actor = actorRows[0];
 
   const invoiceRows = await db.unsafe(
@@ -49,7 +53,11 @@ async function main() {
       "order by i.created_at desc limit 1",
     [actor.organization_id],
   );
-  assert.equal(invoiceRows.length, 1, "isolated finance fixtures must contain an invoice with a positive receivable balance");
+  assert.equal(
+    invoiceRows.length,
+    1,
+    "isolated finance fixtures must contain an invoice with a positive receivable balance",
+  );
   const invoice = invoiceRows[0];
 
   const sessionId = randomUUID();
@@ -91,7 +99,11 @@ async function main() {
       args,
     );
     createdPaymentId = firstRows[0].id;
-    assert.equal(createdPaymentId, replayRows[0].id, "idempotent replay must return the original payment ID");
+    assert.equal(
+      createdPaymentId,
+      replayRows[0].id,
+      "idempotent replay must return the original payment ID",
+    );
 
     await expectSqlState(
       "same idempotency key with a changed amount",
@@ -110,11 +122,23 @@ async function main() {
       "from public.customer_payments where organization_id=$1::uuid and idempotency_key=$2::uuid",
     [actor.organization_id, idempotencyKey],
   );
-  assert.equal(persistedPayments.length, 1, "same-key replay must persist exactly one payment");
-  assert.equal(persistedPayments[0].id, createdPaymentId, "stored payment ID matches the RPC result");
+  assert.equal(
+    persistedPayments.length,
+    1,
+    "same-key replay must persist exactly one payment",
+  );
+  assert.equal(
+    persistedPayments[0].id,
+    createdPaymentId,
+    "stored payment ID matches the RPC result",
+  );
 
   const paymentId = persistedPayments[0].id;
-  assert.equal(persistedPayments[0].created_by, actor.profile_id, "payment actor is derived from the active finance session");
+  assert.equal(
+    persistedPayments[0].created_by,
+    actor.profile_id,
+    "payment actor is derived from the active finance session",
+  );
 
   const auditRows = await db.unsafe(
     "select id::text as id, organization_id::text as organization_id, actor_id::text as actor_id, " +
@@ -123,11 +147,20 @@ async function main() {
       "and entity_type='customer_payment' and entity_id=$2::uuid",
     [actor.organization_id, paymentId],
   );
-  assert.equal(auditRows.length, 1, "payment creation and idempotent replay must produce one audit row");
+  assert.equal(
+    auditRows.length,
+    1,
+    "payment creation and idempotent replay must produce one audit row",
+  );
   const audit = auditRows[0];
-  assert.equal(audit.actor_id, actor.profile_id, "audit actor is the authenticated finance profile");
+  assert.equal(
+    audit.actor_id,
+    actor.profile_id,
+    "audit actor is the authenticated finance profile",
+  );
   assert.deepEqual(audit.old_value, {});
-  const payload = typeof audit.new_value === "string" ? JSON.parse(audit.new_value) : audit.new_value;
+  const payload =
+    typeof audit.new_value === "string" ? JSON.parse(audit.new_value) : audit.new_value;
   assert.equal(payload.invoice_id, invoice.invoice_id);
   assert.equal(payload.customer_id, invoice.customer_id);
   assert.equal(payload.amount, "1.00");
@@ -135,9 +168,19 @@ async function main() {
   assert.equal(payload.payment_method, "other");
   assert.equal(payload.reference, reference);
   assert.equal(payload.idempotency_key_present, true);
-  assert.equal(Object.hasOwn(payload, "notes"), false, "free-form payment notes must not enter the audit payload");
-  assert.equal(JSON.stringify(payload).includes(idempotencyKey), false, "raw idempotency key must not be stored in audit data");
-  process.stdout.write("PASS customer payment audit: tenant/invoice/customer match, active finance actor, one event per idempotent write, payload conflict rejection, no raw key or notes\n");
+  assert.equal(
+    Object.hasOwn(payload, "notes"),
+    false,
+    "free-form payment notes must not enter the audit payload",
+  );
+  assert.equal(
+    JSON.stringify(payload).includes(idempotencyKey),
+    false,
+    "raw idempotency key must not be stored in audit data",
+  );
+  process.stdout.write(
+    "PASS customer payment audit: tenant/invoice/customer match, active finance actor, one event per idempotent write, payload conflict rejection, no raw key or notes\\n",
+  );
 }
 
 
@@ -151,7 +194,9 @@ main()
       hint: error?.hint,
       stack: error?.stack,
     };
-    process.stderr.write("CUSTOMER_PAYMENT_AUDIT_ACCEPTANCE_FAILED " + JSON.stringify(details) + "\n");
+    process.stderr.write(
+      "CUSTOMER_PAYMENT_AUDIT_ACCEPTANCE_FAILED " + JSON.stringify(details) + "\\n",
+    );
     process.exitCode = 1;
   })
   .finally(async () => {
