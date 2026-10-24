@@ -175,7 +175,72 @@ async function main() {
   assert.equal(refreshedTaskRows[0].count, 1, "task refresh does not duplicate source-linked variance tasks");
   assert.equal(refreshedTaskRows[0].status, "pending", "refresh preserves the open warehouse follow-up");
 
-  // A second source-backed count with zero variance must not create noise in the task inbox.
+  
+  // A balance created after the snapshot must invalidate finalization, even if every
+  // pre-existing line still matches. Purchase receiving can create this previously absent row.
+  await setAdminIdentity();
+  const lateRows = await commandDb.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+    [warehouseId, "ci-stock-count-late-balance-" + randomUUID(), "CI late-balance snapshot guard"],
+  );
+  const lateSession = lateRows[0]?.result;
+  assert.ok(lateSession?.id, "late-balance scenario starts a fresh count snapshot");
+
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const lateProductId = randomUUID();
+  const lateItemCode = "CI-STOCK-SNAPSHOT-" + randomUUID().replace(/-/g, "").slice(0, 20);
+  await commandDb.unsafe(
+    "insert into public.products(id,organization_id,name,item_code,unit,status) values($1::uuid,$2::uuid,$3,$4,$5,'active')",
+    [lateProductId, organizationId, "CI stock-count late-balance fixture", lateItemCode, "unit"],
+  );
+  const lateBalance = await commandDb.unsafe(
+    "select id from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+    [lateProductId, warehouseId],
+  );
+  if (lateBalance.length === 0) {
+    await commandDb.unsafe(
+      "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) values($1::uuid,$2::uuid,3,0,0)",
+      [lateProductId, warehouseId],
+    );
+  } else {
+    await commandDb.unsafe(
+      "update public.inventory_balances set quantity_on_hand=3,quantity_reserved=0,last_movement_at=now(),updated_at=now() where product_id=$1::uuid and warehouse_id=$2::uuid",
+      [lateProductId, warehouseId],
+    );
+  }
+
+  await setAdminIdentity();
+  const lateLines = await commandDb.unsafe(
+    "select product_id,expected_quantity::text as expected_quantity from public.stock_count_lines " +
+    "where organization_id=$1::uuid and session_id=$2::uuid order by product_id",
+    [organizationId, lateSession.id],
+  );
+  assert.ok(lateLines.length > 0);
+  for (const line of lateLines) {
+    await commandDb.unsafe(
+      "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+      [lateSession.id, line.product_id, Number(line.expected_quantity)],
+    );
+  }
+  await commandDb.unsafe("savepoint stock_count_late_balance_guard");
+  await assert.rejects(
+    commandDb.unsafe("select public.complete_stock_count($1::uuid)", [lateSession.id]),
+    /inventory balance set changed after the count snapshot/i,
+    "a newly created active warehouse balance must invalidate the count snapshot",
+  );
+  await commandDb.unsafe("rollback to savepoint stock_count_late_balance_guard");
+  await commandDb.unsafe("release savepoint stock_count_late_balance_guard");
+  await setAdminIdentity();
+  const cancelledLate = await commandDb.unsafe(
+    "select public.cancel_stock_count($1::uuid,$2::text) as result",
+    [lateSession.id, "Post-snapshot balance change; take a new count"],
+  );
+  assert.equal(cancelledLate[0]?.result.status, "cancelled", "stale count is explicitly cancelled after the failed finalization");
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+
+// A second source-backed count with zero variance must not create noise in the task inbox.
   await setAdminIdentity();
   const noVarianceKey = "ci-stock-count-no-variance-" + randomUUID();
   const secondRows = await commandDb.unsafe(
