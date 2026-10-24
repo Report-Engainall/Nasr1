@@ -9,9 +9,6 @@ const ORG_ID = "a0000000-0000-0000-0000-000000000001";
 const CUSTOMER_PROFILE_ID = "f1111111-1111-4111-8111-111111111111";
 const CUSTOMER_AUTH_ID = "11111111-1111-4111-8111-111111111111";
 const MEMBER_PROFILE_ID = "f1111111-1111-4111-8111-111111111112";
-const MEMBER_AUTH_ID = "11111111-1111-4111-8111-111111111112";
-const FINANCE_MEMBER_PROFILE_ID = "f1111111-1111-4111-8111-111111111113";
-const FINANCE_MEMBER_AUTH_ID = "11111111-1111-4111-8111-111111111113";
 const ADMIN_PROFILE_ID = "f0000000-0000-0000-0000-000000000001";
 const ADMIN_AUTH_ID = "33333333-3333-4333-8333-333333333333";
 const ACCOUNTANT_PRODUCT_ID = "e5555555-e555-4555-8555-e55555555555";
@@ -28,6 +25,18 @@ async function assumeUser(authUserId, email) {
     JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated", session_id: authUserId }),
   ]);
   await db.unsafe("set local role authenticated");
+}
+
+async function assertDatabaseRejects(query, params, expected, message) {
+  await db.unsafe("savepoint expected_database_rejection");
+  try {
+    await assert.rejects(db.unsafe(query, params), expected, message);
+  } finally {
+    // PostgreSQL aborts the current transaction after a failing statement. Restore the
+    // enclosing acceptance transaction so the next independent denial can be asserted.
+    await db.unsafe("rollback to savepoint expected_database_rejection");
+    await db.unsafe("release savepoint expected_database_rejection");
+  }
 }
 
 async function setVisibility(values) {
@@ -200,11 +209,25 @@ async function main() {
     assert.equal(accountantPrice.length, 1);
     assert.equal(Number(accountantPrice[0].unit_price), 1234, "accountant role denies raw base price even when another role row overlaps");
 
-    // Accepted company buyers must resolve the owning company's tier, not retail fallback.
+    // Reuse the existing Auth identity for the membership tests. The local fixture has
+    // no extra auth.users records, and auth.sessions correctly enforces its user_id FK.
     await db.unsafe("reset role");
+    const originalCustomerProfile = await db.unsafe(
+      "select email, auth_user_id from public.profiles where id=$1 and auth_user_id=$2",
+      [CUSTOMER_PROFILE_ID, CUSTOMER_AUTH_ID],
+    );
+    assert.equal(originalCustomerProfile.length, 1, "original customer profile must exist before membership transfer");
+    const originalCustomerEmail = originalCustomerProfile[0].email ?? "ci-customer-one@example.test";
+
+    // Move the existing auth identity temporarily to a company-member profile inside this
+    // enclosing transaction; all changes roll back in finally.
     await db.unsafe(
-      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI company buyer','ci-company-buyer@example.test',true)",
-      [MEMBER_PROFILE_ID, MEMBER_AUTH_ID, ORG_ID],
+      "update public.profiles set auth_user_id=null,email=null where id=$1 and auth_user_id=$2",
+      [CUSTOMER_PROFILE_ID, CUSTOMER_AUTH_ID],
+    );
+    await db.unsafe(
+      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI company member',$4,true)",
+      [MEMBER_PROFILE_ID, CUSTOMER_AUTH_ID, ORG_ID, originalCustomerEmail],
     );
     await db.unsafe(
       "insert into public.user_roles(profile_id,role) values($1,'customer') on conflict(profile_id,role) do nothing",
@@ -214,7 +237,7 @@ async function main() {
       "insert into public.customer_company_memberships(organization_id,customer_id,profile_id,member_role,status,invited_by) values($1,(select c.id from public.customers c where c.profile_id=$2 and c.organization_id=$1),$3,'buyer','active',$2)",
       [ORG_ID, CUSTOMER_PROFILE_ID, MEMBER_PROFILE_ID],
     );
-    await assumeUser(MEMBER_AUTH_ID, "ci-company-buyer@example.test");
+    await assumeUser(CUSTOMER_AUTH_ID, originalCustomerEmail);
     const memberPreviewResult = await db.unsafe(
       "select public.preview_customer_order_pricing($1::jsonb,'cart') as result",
       [items],
@@ -228,45 +251,52 @@ async function main() {
       "company buyer receives the same server-derived tier price as the owning customer",
     );
 
-    // Finance-only company members may read financial documents but cannot resolve catalog/cart or order-review pricing.
+    // Finance members lack catalog.read and orders.create. Each expected SQL error is
+    // isolated with a savepoint so the second denial still runs in the same transaction.
     await db.unsafe("reset role");
     await db.unsafe(
-      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI company finance','ci-company-finance@example.test',true)",
-      [FINANCE_MEMBER_PROFILE_ID, FINANCE_MEMBER_AUTH_ID, ORG_ID],
+      "update public.customer_company_memberships set member_role='finance',updated_at=now() where profile_id=$1 and organization_id=$2 and status='active'",
+      [MEMBER_PROFILE_ID, ORG_ID],
     );
-    await db.unsafe(
-      "insert into public.user_roles(profile_id,role) values($1,'customer') on conflict(profile_id,role) do nothing",
-      [FINANCE_MEMBER_PROFILE_ID],
-    );
-    await db.unsafe(
-      "insert into public.customer_company_memberships(organization_id,customer_id,profile_id,member_role,status,invited_by) values($1,(select c.id from public.customers c where c.profile_id=$2 and c.organization_id=$1),$3,'finance','active',$2)",
-      [ORG_ID, CUSTOMER_PROFILE_ID, FINANCE_MEMBER_PROFILE_ID],
-    );
-    await assumeUser(FINANCE_MEMBER_AUTH_ID, "ci-company-finance@example.test");
-    await assert.rejects(
-      db.unsafe("select public.preview_customer_order_pricing($1::jsonb,'cart') as result", [items]),
+    await assumeUser(CUSTOMER_AUTH_ID, originalCustomerEmail);
+    await assertDatabaseRejects(
+      "select public.preview_customer_order_pricing($1::jsonb,'cart') as result",
+      [items],
       /customer membership lacks permission for requested price preview/i,
       "finance member cannot resolve catalog prices",
     );
-    await assert.rejects(
-      db.unsafe("select public.preview_customer_order_pricing($1::jsonb,'orders') as result", [items]),
+    await assertDatabaseRejects(
+      "select public.preview_customer_order_pricing($1::jsonb,'orders') as result",
+      [items],
       /customer membership lacks permission for requested price preview/i,
       "finance member cannot resolve order-review prices",
     );
 
-    // Delete the server-side session while retaining JWT claims to simulate a revoked but unexpired access token.
+    // Restore the original customer identity, then delete its live Auth session while
+    // retaining the unexpired JWT claims to exercise immediate server-side revocation.
     await db.unsafe("reset role");
-    await assumeUser(CUSTOMER_AUTH_ID, "ci-customer-one@example.test");
+    await db.unsafe(
+      "delete from public.customer_company_memberships where profile_id=$1 and organization_id=$2",
+      [MEMBER_PROFILE_ID, ORG_ID],
+    );
+    await db.unsafe("delete from public.profiles where id=$1", [MEMBER_PROFILE_ID]);
+    await db.unsafe(
+      "update public.profiles set auth_user_id=$2,email=$3 where id=$1",
+      [CUSTOMER_PROFILE_ID, CUSTOMER_AUTH_ID, originalCustomerEmail],
+    );
+    await assumeUser(CUSTOMER_AUTH_ID, originalCustomerEmail);
     await db.unsafe("reset role");
     await db.unsafe("delete from auth.sessions where id=$1 and user_id=$1", [CUSTOMER_AUTH_ID]);
     await db.unsafe("set local role authenticated");
-    await assert.rejects(
-      db.unsafe("select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],1)", [[CATALOG_PRODUCT_ID]]),
+    await assertDatabaseRejects(
+      "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],1)",
+      [[CATALOG_PRODUCT_ID]],
       /active profile and organization required to resolve catalog prices/i,
       "revoked session cannot call catalog price resolver with a stale authenticated JWT",
     );
-    await assert.rejects(
-      db.unsafe("select public.preview_customer_order_pricing($1::jsonb,'cart') as result", [items]),
+    await assertDatabaseRejects(
+      "select public.preview_customer_order_pricing($1::jsonb,'cart') as result",
+      [items],
       /active profile and organization required/i,
       "revoked session cannot call customer pricing preview with a stale authenticated JWT",
     );
