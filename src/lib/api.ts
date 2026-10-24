@@ -1897,12 +1897,15 @@ export async function rollbackImportSnapshot(jobId: string, reason: string): Pro
 
 export type ImportRowErrorDetail = { row_number: number; errors: unknown };
 
-export async function fetchImportRowErrors(jobId: string, limit = 100): Promise<ImportRowErrorDetail[]> {
+export async function fetchImportRowErrors(jobId: string, limit = 100, offset = 0): Promise<ImportRowErrorDetail[]> {
   if (typeof jobId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
     throw new Error('معرّف دفعة الاستيراد غير صالح لعرض أخطاء الصفوف.');
   }
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
     throw new Error('حد عرض أخطاء الصفوف يجب أن يكون بين 1 و500.');
+  }
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100_000) {
+    throw new Error('موضع عرض أخطاء الصفوف غير صالح.');
   }
   // The RLS policy scopes these rows through their parent import job and active organization.
   const { data, error } = await supabase
@@ -1911,7 +1914,7 @@ export async function fetchImportRowErrors(jobId: string, limit = 100): Promise<
     .eq('import_job_id', jobId)
     .eq('status', 'rejected')
     .order('row_number', { ascending: true })
-    .limit(limit);
+    .range(offset, offset + limit - 1);
   if (error) throw new Error('تعذر قراءة أسباب رفض الصفوف من الدفعة الحالية.');
   return (data ?? []).map((row) => ({ row_number: row.row_number, errors: row.errors }));
 }
