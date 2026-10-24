@@ -1,24 +1,32 @@
-## AUTHORITATIVE ACTIVE READ — 2026-10-24 20:44 +03:00
+## AUTHORITATIVE ACTIVE READ — 2026-10-24 20:53 +03:00
 
-Repository `Report-Engainall/Nasr1`; `main` SHA `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`, Core `40111286682 SUCCESS` on that exact SHA. No direct writes to `main`.
+### Live reference and merge truth
+- Repository: `Report-Engainall/Nasr1`; production reference is `main` only. Live GitHub read confirms `main` SHA `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; current main check `40111286682` is SUCCESS on that exact SHA. No direct writes to `main`.
+- #133 is merged. Merged baseline includes #135–#141 and #143–#146. Do not recreate these changes absent a proven regression.
+- #148–#151 are CLOSED without merge and are not part of main. Their canonical replacement work is tracked in #164, #165, #166 and #168; #167 duplicates #162. Do not reopen stale-base duplicates or recreate their changes. #152 is the canonical checkpoint PR; do not create another resume pointer.
+- Independent review status: GitHub currently returns no submitted review for #134, #142, #147, #152, #179 or #180. Requested reviewers are not approvals. Do not merge on the strength of CI alone.
 
-- Merged baseline: #133, #135–#141, #143–#146; do not recreate without a proven regression. #148–#151 are closed stale-base duplicates preserved by #164/#165/#166/#168; #167 duplicates #162; #176 is a duplicate checkpoint PR and #152 remains canonical.
-- #134 head `296453bd6d71817e0b78e4a752f0dff889ef5ec3`: Core `40112078912 PASS`, P2 `40112078914 PASS`; concurrent same-key batch test is present; review pending.
-- #142 head `77f338753a6fad8d0f9b4942e480c8be85782d3e`: Core `40116260315` / P2 `40116260420` were running. API-OPS remains PARTIAL (304/304 public objects mapped; 179 RPC candidates still need semantic review).
-- #147 head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`: Core/P2 `40111802394`/`40111802434` PASS. PG17 evidence `5b351a544f412a48c0d5466b91b000c51100c889` is on an older head, not current-head proof.
-- #152 previous head `84c0e0a7a21d0c0add7284b67315f6872c390d78` Core/P2 succeeded; this checkpoint update advances the branch, so new exact-head gates are mandatory. Keep this as the single canonical resume PR.
-- #175 head `7de22e268fd5903ea6b589c0e3269c6d1b1c176c`: Core PASS; P2 `40115637423` was in progress.
-- #177 head `a165b6753a9357bbf736675ec1c7fadc8a08c58b`: Core/P2 PASS. #178 head `4e815b9325ecf1f0da6980e79a604f5f752b963d`: Core and PG17 PASS, P2 in progress. #179 head `a84599d02be02ce9a30f1e06166c45b710a2bc95`: Core in progress, P2 pending.
-- Ordered migration integration remains #147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #172. `scripts/test-database-migrations.mjs` is shared; preserve all P1/P2 assertions and never replace it wholesale.
-- Human independent approvals must be verified from submitted review records; requested reviewers/bot comments do not count. Hosted customer E2E, production restore/deploy/migrations, live Onyx, WhatsApp and live AI remain skipped/blocked without authorized evidence.
+### Exact-head verification
+- **#134 — inventory batch idempotency:** current head `296453bd6d71817e0b78e4a752f0dff889ef5ec3`. Core `40112078912` and P2 `40112078914` are SUCCESS on that exact head. The test covers concurrent calls using one tenant-scoped idempotency key and asserts one canonical batch plus no duplicated transfer/audit effects. Independent review is still missing. Hosted customer/tenant E2E is SKIPPED, not PASS.
+- **#142 — API-OPS-001:** current head `77f338753a6fad8d0f9b4942e480c8be85782d3e`; Core `40117461570` and P2 `40117461572` are SUCCESS on this exact head. The authenticated hosted customer/tenant job is SKIPPED. API-OPS remains PARTIAL: 304/304 public runtime objects are source-mapped, but 179 callable RPC candidates still need semantic review of active identity, tenant and role enforcement, grants, inputs/outputs, mutation effects, idempotency, errors, concurrency and auditing.
+- **#147 — customer quote response:** current head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`; current checks `40111802394` and `40111802434` are SUCCESS on that exact head. The dedicated PostgreSQL 17 proof at `5b351a544f412a48c0d5466b91b000c51100c889` is on an older SHA; exact-head PostgreSQL 17 acceptance is therefore UNVERIFIED. Independent submitted review is missing.
+- **#152 — canonical checkpoint:** current branch head `5e85c1a4327669d5540fb8df64f43bc10dd2f41e`. Its `test-and-build` run `40117885045`, local order/tenant acceptance, public smoke and infrastructure gate are SUCCESS on that exact head; the hosted authenticated customer/tenant job is SKIPPED. This edit advances the branch; all previous checks are historical for the new commit and must be rerun.
+- **#179 — import source identity, row errors, resume and rollback:** live PR head is `b67c5aab5449518987b495701f453dc07d585f0d`; check run `40118221153` is IN_PROGRESS on that exact SHA. Earlier results on other #179 heads do not apply.
+- **#180 — legacy import finalizer tenant scope:** live PR head is `670b88b44c3c5614bb085520964a71008cf497a7`. PostgreSQL 17 run `40118008217` and `test-and-build` `40118008202` are SUCCESS on the exact head. Local order/tenant Playwright run `40118008189` is still IN_PROGRESS; hosted authenticated customer/tenant E2E is SKIPPED. The migration changes the legacy one-argument `finalize_import_job(uuid)` to delegate to the tenant-scoped two-argument contract without resolving or locking a foreign job first. Do not mark full acceptance until the remaining exact-head gate is terminal.
+- **Main and PR evidence are separate:** a passing run on another SHA, a skipped hosted E2E, an open PR, or a requested review does not satisfy an unmet acceptance gate.
+
+### Integration and external evidence limits
+- Preserve migration order **#147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #172**. After every merge or rebase, reconcile shared database-test assertions and rerun all required Core/P2/PostgreSQL 17 gates on the final resulting SHA.
+- Never replace `scripts/test-database-migrations.mjs` wholesale; preserve existing assertions while reconciling overlapping changes.
+- Production migration/restore, deployment, hosted customer/tenant E2E, live Onyx import/sync, official WhatsApp delivery and live AI-provider calls remain NOT RUN or BLOCKED_EXTERNAL unless direct authorized evidence proves them.
 
 ## NEXT ACTION — FIRST STEP ON RESUME
-1. Poll #142 Core/P2 and #175 P2 on their current exact heads.
-2. Poll #178 P2 and #179 Core/P2; inspect actual logs, fix only proven failures, and do not carry PASS across SHAs.
-3. Run Core/P2 on the final updated #152 head, then obtain independent review and merge only under repository policy.
-4. Continue semantic review of the remaining RPC candidates and integrate migrations in the required order, rerunning all gates after each base change.
+1. Poll #179 run `40118221153` on exact head `b67c5aab5449518987b495701f453dc07d585f0d`; repair only a proven failure from its logs.
+2. Confirm #180 Playwright run `40118008189` is terminal on `670b88b44c3c5614bb085520964a71008cf497a7`; fix any evidenced failure and rerun all exact-head gates if the code changes.
+3. Rerun the required gates for the new #152 checkpoint head after this documentation update. Do not carry forward the old checkpoint head's PASS.
+4. Continue #142 semantic review across the remaining 179 callable RPC candidates; a source inventory is not a semantic security audit.
+5. Secure the required independent reviews, then integrate only in dependency order and verify the actual merge SHA plus CI on the resulting `main`.
 
----
 ## HISTORICAL ACTIVE READ — 2026-10-24 20:29 +03:00 (superseded by the authoritative read above)
 
 ### 1) Last confirmed execution point
