@@ -6,7 +6,7 @@ const migrationPath = join(
   process.cwd(),
   "supabase",
   "migrations",
-  "20261024130000_customer_quote_response_explicit_decision.sql",
+  "20261024133000_customer_quote_response_explicit_decision.sql",
 );
 const migration = readFileSync(migrationPath, "utf8");
 const functionStart = migration.indexOf("CREATE OR REPLACE FUNCTION public.customer_respond_to_quote");
