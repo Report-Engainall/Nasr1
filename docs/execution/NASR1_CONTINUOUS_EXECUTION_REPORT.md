@@ -1,17 +1,18 @@
 # NASR1 Continuous Execution Report
 
-**Latest live update:** 24 October 2026 — post-merge work after #186 and #189; API-OPS #190 in progress
+**Latest checkpoint:** 24 October 2026 — post-merge #190
 **Repository:** `Report-Engainall/Nasr1`
 **Production reference:** `main` only
-**Last verified main SHA:** `653f4d764041a8751c41e75a492fed0cc6edea63`
-**Active code PR:** [#190](https://github.com/Report-Engainall/Nasr1/pull/190) — bounded request streams, async-export deny/no-side-effect acceptance, exact-head RPC inventory artifact.
+**Main SHA:** `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`
+**Current release gate:** Core run [40127500733](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500733) and PostgreSQL 17 run [40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750) were IN_PROGRESS on this exact SHA at last poll.
 
-## Latest verified checkpoint
-- #186 and #189 are merged. Their Core, local acceptance and public UI checks passed on exact PR heads; see `CURRENT_EXECUTION_STATE.md` for the linked runs.
-- #190 at `5becc27a3f32896b1814aab80433ba7b8c8008ae`: Core [40127113576 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113576), async-export PostgreSQL 17 [40127113568 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113568), public UI smoke passed; local Supabase order/tenant job 120971091911 was in progress at last poll. Hosted authenticated E2E is skipped by its credential gate.
-- API-OPS is still PARTIAL: 179 callable RPC candidates remain to be reviewed semantically; exact-head inventory helps traceability but is not proof every contract is complete.
-- Owner authorized ready merges; old review-approval notes below are historical. Exact-head CI, migration order, safe merge and post-merge verification remain mandatory.
-- Production mutation/deployment, real Onyx import, WhatsApp delivery, live AI provider and hosted authenticated customer journey are not claimed.
+## Latest execution truth
+- PR #190 merged. Exact PR-head Core [40127113576](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113576), async-export PostgreSQL 17 [40127113568](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113568), and P2 [40127113571](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113571) passed. Hosted customer E2E skipped due the external credential gate.
+- The run artifact `public-rpc-function-inventory-3d68de8c657e92c2a0fc1a75f787be2862951ea7` reports `functions=310 matched=310 unmatched=0 migration_files=135` on the isolated tested merge tree. It does not certify the semantic behavior of each RPC.
+- API-OPS remains PARTIAL with 179 callable RPC candidates still needing semantic review.
+- Ready merges are authorized by the owner; exact-head tests, ordered migrations, clean merge and post-merge verification remain technical gates. No production or external-provider execution is claimed.
+
+## Historical execution snapshots — retained for traceability
 
 
 ## Historical execution snapshots — retained for traceability
