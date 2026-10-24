@@ -134,6 +134,29 @@ async function main() {
       [sessionId, lines[index].product_id, counted],
     );
   }
+  // Each physical line entry records the authenticated actor and a before/after audit event.
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const lineAuditRows = await commandDb.unsafe(
+    "select actor_id::text as actor_id,entity_id::text as entity_id,old_value,new_value " +
+    "from public.audit_logs where organization_id=$1::uuid " +
+    "and action='inventory.stock_count.line_counted' and new_value->>'session_id'=$2::text " +
+    "order by created_at,entity_id",
+    [organizationId, sessionId],
+  );
+  assert.equal(lineAuditRows.length, lines.length, "each count-line write is audited exactly once");
+  assert.ok(lineAuditRows.every(row => row.actor_id === adminProfileId), "every count-line audit stores the active profile, not auth user ID");
+  assert.ok(lineAuditRows.every(row => row.new_value?.counted_by === adminProfileId), "audit payload attributes each current quantity to the active profile");
+  assert.ok(lineAuditRows.every(row => row.new_value?.session_id === sessionId), "count-line audit payload is bound to the same snapshot");
+  assert.ok(lineAuditRows.every(row => row.new_value?.product_id && row.new_value?.counted_quantity !== undefined), "audit payload records product and counted quantity");
+  const countedByRows = await commandDb.unsafe(
+    "select count(*)::integer as count from public.stock_count_lines " +
+    "where organization_id=$1::uuid and session_id=$2::uuid and counted_by=$3::uuid",
+    [organizationId, sessionId, adminProfileId],
+  );
+  assert.equal(countedByRows[0]?.count, lines.length, "stored counted_by matches the signed-in active profile on every line");
+  await setAdminIdentity();
+
   const completedRows = await commandDb.unsafe(
     "select public.complete_stock_count($1::uuid) as result",
     [sessionId],
