@@ -125,16 +125,38 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
   return (products as Product[]).map((p) => {
     const displayPrice = isStaff ? Number(p.base_price) : customerPriceMap?.get(p.id);
     if (displayPrice === undefined || !Number.isFinite(displayPrice) || displayPrice < 0) {
-      throw new Error("تعذر التحقق من سعر فئة الحساب لهذا الصنف؛ لم يُعرض سعر بديل.");
+      throw new Error("تعذر التحقق من سعر فئة حسابك لهذا الصنف؛ لم يُعرض سعر بديل.");
     }
+
+    // Do not spread a customer query result: explicit projection is a second privacy
+    // boundary if a later query change or mocked response contains internal financial keys.
+    const staffProduct = p as Product & {
+      organization_id?: string;
+      status?: string;
+      created_at?: string;
+    };
+    const productFields: Record<string, unknown> = isStaff
+      ? { ...p, base_price: Number(p.base_price) }
+      : {
+          id: p.id,
+          organization_id: staffProduct.organization_id,
+          category_id: p.category_id,
+          name: p.name,
+          item_code: p.item_code,
+          barcode: p.barcode,
+          description: p.description,
+          unit: p.unit,
+          status: staffProduct.status,
+          image_url: p.image_url,
+          created_at: staffProduct.created_at,
+        };
+
     return {
-      ...p,
-      // Never send the generic base price to customer sessions or persist it as a storefront price.
-      base_price: isStaff ? Number(p.base_price) : 0,
+      ...productFields,
       display_price: displayPrice,
       inventory: invMap.get(p.id),
       category: catMap.get(p.category_id || ''),
-    };
+    } as unknown as ProductWithInventory;
   });
 }
 
