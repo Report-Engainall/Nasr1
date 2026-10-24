@@ -1,21 +1,23 @@
 # سجل عقود API والمهام الخلفية — Nasr1
 
-## LIVE EXECUTION CHECKPOINT — 24 October 2026 22:44 +03:00
+## LIVE EXECUTION CHECKPOINT — 24 October 2026 (after PR #190)
 
-- **Repository:** `Report-Engainall/Nasr1`; production reference remains `main`.
-- **Integration baseline at this port:** `73547627697fecb8882c594880645200505d095d`. This is a baseline stamp; read the live main ref and PR-specific check runs before each merge.
-- **Owner authorization:** the owner explicitly authorized this integration and merging of ready work. Older review-gate statements inside historical snapshots below are superseded; technical release gates remain exact-head CI, ordered unique migrations, clean merges, and verification of the resulting main SHA.
-- **Status:** `PARTIAL`. The earlier catalog inventory found 304/304 public objects with source mappings and left 179 callable RPC candidates for semantic review. That is discovery coverage, not proof the 179 contracts are fully reviewed.
-- **Current change set:** streaming byte-bounded UTF-8 request reading is being integrated for AI gateway, async export worker/download, outbox worker, and product-image JSON metadata; additional foreign-tenant export-job assertions and an exact-head inventory generator/artifact are added.
-- **Snapshot validity:** the historical RPC inventory and CI links below refer to their original source SHAs. The workflow in this change regenerates a fresh inventory on the exact tested SHA, asserts zero unmatched objects, and uploads it as a build artifact. Do not cite a historical inventory SHA as current evidence.
-- **External limits:** hosted authenticated customer/tenant tests remain `SKIPPED/BLOCKED_EXTERNAL` when authorized non-production credentials are unavailable. No production migrations, production writes, live Onyx import, WhatsApp delivery, or real-provider AI execution are claimed.
+- **Repository:** `Report-Engainall/Nasr1`; production reference: `main`.
+- **Verified main merge:** PR #190 merged at `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Exact PR-head Core 40127113576, async-export PostgreSQL 17 40127113568 and P2 40127113571 passed.
+- **Post-merge current-main runs:** Core [40127500733](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500733) and PostgreSQL 17 [40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750) both completed SUCCESS on exact main SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. No exact-main P2 run was observed; PR #190's P2 passed on its tested head.
+- **Completed inventory evidence:** artifact `public-rpc-function-inventory-3d68de8c657e92c2a0fc1a75f787be2862951ea7`, Actions run 40127113568, generated `RPC_INVENTORY_SUMMARY functions=310 matched=310 unmatched=0 migration_files=135`. This is catalog/source mapping evidence for the isolated PR merge tree; it is not semantic authorization proof for each RPC.
+- **Status:** `PARTIAL`. 179 callable RPC candidates still require source-backed review of authentication/role, tenant scope, mutation effects, idempotency, retry and audit consistency.
+- **Owner authority:** the owner explicitly authorized this integration and ready merges; older no-approval text in historical snapshots is superseded. Exact-head CI, migration order and post-merge confirmation remain technical gates.
+- **External boundaries:** hosted customer E2E is SKIPPED; production mutation/deployment/restore, real Onyx import/sync, WhatsApp delivery and live AI-provider calls are not claimed.
 
 ## NEXT_ACTION
 
-1. Require Core build/unit, PostgreSQL 17 inventory generation, local Supabase acceptance, and public UI smoke to pass on this PR's final head.
-2. Inspect and retain the uploaded `public-rpc-function-inventory-<sha>` artifact from that exact-head workflow run.
-3. Continue semantic review of the remaining callable RPC candidates, retaining negative tests for tenant isolation, idempotency, mutation side effects, and audit consistency.
-4. After merging, record the returned merge SHA and rerun current-main Core/P2 before refreshing the status checkpoint.
+1. Core and PostgreSQL 17 both passed on main `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; finish exact-head Core/P2 on the clean-main docs PR.
+2. Keep the 310/310 source mapping artifact associated with its exact tested tree; regenerate from a later tested main tree before replacing it as current evidence.
+3. Continue semantic review of the remaining 179 RPC candidates in bounded, source-backed batches. API-OPS does not close on discovery coverage alone.
+4. Preserve authorization-denial/no-side-effect and idempotency/audit acceptance as the contract matrix advances.
+
+---
 
 ---
 

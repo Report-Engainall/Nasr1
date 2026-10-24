@@ -1,28 +1,34 @@
-# NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026
+# NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026 (after PR #190)
 
-- **Repository:** `Report-Engainall/Nasr1`; `main` remains the only production reference.
-- **main SHA:** `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; Core [40035355209 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035355209) on that SHA.
-- **Current resume branch / PR:** `p2/reconcile-18-prs-live-main-20261024`, [PR #133](https://github.com/Report-Engainall/Nasr1/pull/133). Its prior head `bd5d8b04a2d29da6bdf1dd43a4d382123185c28e` passed Core [40107194250](https://github.com/Report-Engainall/Nasr1/actions/runs/40107194250) and P2 [40107194253](https://github.com/Report-Engainall/Nasr1/actions/runs/40107194253). This checkpoint/report/matrix update advances the branch again; require new exact-head Core/P2 before treating the new head as tested. PR #133 remains open and no independent review is recorded.
-- **PR #142 API-OPS register:** branch `docs/p2-api-ops-contract-register-20261024`; latest docs commit `0b8eab56970f1485f86535edf7b66d1c1bddae90`. Its previously tested head `18546ebe391dc74ae1d8473a42e251960ca94284` passed Core [40107091187](https://github.com/Report-Engainall/Nasr1/actions/runs/40107091187) and P2 [40107091080](https://github.com/Report-Engainall/Nasr1/actions/runs/40107091080). Register changes adding #150/#151 now require fresh exact-head gates. API-OPS remains PARTIAL: 304/304 public runtime objects mapped; 179 callable RPC candidates still need full semantic review.
-- **PR #144:** head `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`; Core [40105249828 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249828), P2 [40105249827 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249827). Open/unmerged; reviewer requested, no submitted review.
-- **PR #145:** head `7c82b051ed0bda11c944e4fe08ecf4a117060ed5`; historical Core [40100874921 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874921), P2 [40100874931 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40100874931) on that head only. Must update after #144. Open/unmerged; no independent review.
-- **PR #146:** head `3150691725f97d7f892fcb2aed0edae898c839be`; historical Core [40101794869 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40101794869), P2 [40101794970 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40101794970). Open/unmerged; shared test file overlap with #134/#144 needs controlled reconciliation.
-- **Migration version collision:** PR #146 owns version `20261024130000`; PR #147 was corrected to `20261024133000_customer_quote_response_explicit_decision.sql`. Keep migration timestamps unique.
-- **PR #147:** head `5b351a544f412a48c0d5466b91b000c51100c889`; Core [40106804073 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40106804073), P2 [40106804081 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40106804081). Core log proves PostgreSQL 17 runtime rejection of NULL quote ID/decision with SQLSTATE 22023 and no mutation, while explicit true/false transitions persist. Open/unmerged, no submitted independent review.
-- **PR #148:** head `fbc34727822416c6521cd9bae841c8d0df0261c6`; Core [40106736245 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40106736245), P2 [40106736237 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40106736237), PG17 [40106736232 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40106736232). NULL/unsupported status rejected before mutation; valid transition keeps one audit row. Open/unmerged.
-- **PR #149:** head `21fabc9ecaf11fb3f22737e11070d23e83cb1872`; Core [40107006299 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40107006299), P2 [40107006338 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40107006338), PG17 [40107006365 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40107006365). NULL promotion state rejected; no create/deactivation/audit side effect. Open/unmerged.
-- **PR #150:** head `1b22b83b3297c87c57b20c62336f16b772b613e4`; Core [40107350234 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40107350234), P2 [40107350238 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40107350238), PG17 [40107350314 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40107350314). NULL announcement state rejected on create/update with no mutation/audit; explicit false deactivates once. Open/unmerged.
-- **PR #151:** latest head `70c96242e28375bacde73d5a2b85ec538b982d5d` fixes a source-test matcher that failed because the test expected a literal `p_usage_measurement_status='unknown'` while the current SQL contract uses an ELSE branch. On this latest head, PG17 [40107756187 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40107756187). Core [40107756122](https://github.com/Report-Engainall/Nasr1/actions/runs/40107756122) was still in progress and P2 [40107756096](https://github.com/Report-Engainall/Nasr1/actions/runs/40107756096) was queued at checkpoint. Prior-head Core failed due to this test-only matcher; do not carry failure or PASS across SHAs.
-- **Required migration sequence:** #144 (11:00) → #145 (12:00) → #146 (13:00) → #147 (13:30) → #148 (14:00) → #149 (14:30) → #150 (14:45) → #151 (14:50).
-- **Merge/review status:** all PRs #133, #142, #144–#151 are open/unmerged in this checkpoint; reviewer requests are not approvals. Do not merge without independent submitted review, exact-head acceptance and authorization. Do not bypass policy or write directly to `main`.
-- **External/production limits:** hosted customer/tenant E2E has been `SKIPPED/BLOCKED_EXTERNAL` where authorized test credentials are unavailable. No claim of production mutation, Onyx live import, WhatsApp delivery, live AI credentials, hosted restore or deployment is supported by these CI results.
-- **NEXT ACTION — FIRST STEP ON RESUME**
-  1. Poll #151 runs Core 40107756122 and P2 40107756096 on head `70c96242...`; fix only any proven failure and rerun exact-head gates.
-  2. Poll #142 Core/P2 on new latest docs head `0b8eab56...` after the register update, then update this checkpoint if the head changes again.
-  3. Finish PR #133 report/matrix updates, then confirm Core/P2 on the final #133 head.
-  4. Continue review of the remaining RPC contract candidates and reconcile overlapping `scripts/test-database-migrations.mjs` changes from #134/#144/#146 without dropping tests.
-  5. Do not merge before independent reviews and required migration ordering; after every merge verify the actual merge SHA and Core/P2 on that merge head.
+- **Repository:** `Report-Engainall/Nasr1`; `main` is the sole production reference.
+- **Verified current main SHA:** `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. PR #190 merged here; PR #189 merged at `0d7f153cf6a7c8ac70b439f2ad15e479e3d80d47`; PR #186 merged at `653f4d764041a8751c41e75a492fed0cc6edea63`.
+- **PR #190 exact-head checks:** Core [40127113576](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113576), PostgreSQL 17 [40127113568](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113568), P2 [40127113571](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113571) all SUCCESS. Hosted customer/tenant E2E is SKIPPED due external credentials and is not PASS.
+- **Current-main PostgreSQL 17:** run [40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750) SUCCESS on exact SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Artifact `public-rpc-function-inventory-e467c782bec0e19ddab6c5ddaa72aaa073d7283b` reports `functions=310 matched=310 unmatched=0 migration_files=135`. This is catalog/source mapping evidence from isolated CI, not full semantic authorization proof.
+- **Current-main Core:** run [40127500733](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500733) completed SUCCESS on exact SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Together with PostgreSQL 17 run 40127500750 SUCCESS, Core and database acceptance are green on this main SHA; current-main P2 was not separately observed.
+- **Merged scope:** #184 price precision; #174 export route registration; #175 unknown metrics remain unknown; #164/#165/#166/#168 explicit decisions; #158 payment/audit atomicity; #162 DQS; #179 import identity/resume/rollback; #180 scoped finalizer; #181 stock-count atomicity; #155 signed export measurements; #156 duplicate product submission; #159/#160 customer/company route acceptance; #170 hidden-price privacy; #188 quote response; #187 customer statements/tenant denial; #189 concurrent inventory-batch idempotency; #186 storefront route/accessibility/export hydration; #190 bounded streamed bodies and async-export no-side-effect authorization.
+- **API-OPS is PARTIAL:** 310 public catalog entries are source-mapped; 179 callable RPC candidates remain for semantic review of role/tenant access, mutation effects, idempotency, retries and audits.
+- **Closed duplicate branches:** #142 and #193 were closed unmerged as superseded by #190; #134 was closed as duplicate of #189; #191 was closed as superseded. Avoid recreating these paths without a reproduced main regression.
+- **Docs handover:** latest P1 handover, P3 route register, coordination, central state/matrix, API-OPS register/inventory and report are being ported to a clean current-main branch. The previous #192 branch is based before #190 and has conflicts in API-OPS files; do not merge it as-is.
+- **Owner authorization:** the owner authorized ready merges. Exact-head checks, migration order, clean ancestry and verification of resulting main remain technical gates.
+- **External boundaries:** production DB writes/migrations/deployment/restore, live Onyx sync, WhatsApp delivery, live AI provider calls and hosted customer journeys remain NOT RUN/SKIPPED/BLOCKED_EXTERNAL unless authorized evidence exists.
 
+## NEXT ACTION
+
+1. Core run `40127500733` and PostgreSQL 17 run `40127500750` are both terminal SUCCESS on exact current main. Finish exact-head Core/P2 on the clean-main docs PR and verify its merge.
+2. Finish exact-head Core/P2 on the clean documentation branch before merging; then verify the resulting main SHA.
+3. Continue semantic review of the remaining 179 callable RPCs in measured, source-backed batches. Do not repeat the completed bounded-body or export-idempotency implementation.
+4. Re-run import/DQS or route cases only if a current-main failure or a changed dependent contract proves a gap.
+
+---
+
+## Historical execution log
+All material below is retained for traceability. Its SHA/status applies to the time recorded and does not override this live checkpoint.
+
+## Historical execution log
+Entries below are retained as historical context; their PASS/OPEN labels apply only to the SHA and time originally stated.
+
+## Historical execution log
+Entries below are retained as history. Their PASS/OPEN/IN_PROGRESS labels apply only to the SHA and time stated in each entry and do not supersede this live checkpoint.
 
 ---
 

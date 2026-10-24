@@ -1,3 +1,34 @@
+# P1 LIVE RESUME UPDATE — 24 October 2026
+
+**Canonical resume pointer:** `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` and the acceptance matrix. This report supplements, and does not replace, the canonical pointer.
+
+- **Current main:** `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; PR #190 is merged.
+- **P1-sensitive merged work:** #158 payment/audit atomicity and credit-memo race denial; #162 valid-only DQS scoring; #179 import identity/resume/recovery/rollback; #180 tenant-scoped import finalization; #181 stock-count snapshot atomicity; #188 quote response explicit decision guard; #189 inventory batch idempotency; #190 request streaming limits and export worker authorization acceptance.
+- **Exact tested #190 head:** `5becc27a3f32896b1814aab80433ba7b8c8008ae`; Core 40127113576, async-export PostgreSQL 17 40127113568 and P2 40127113571 all SUCCESS. The authenticated hosted customer E2E job remains SKIPPED because the authorized credential gate is not configured.
+- **Exact inventory artifact:** `public-rpc-function-inventory-3d68de8c657e92c2a0fc1a75f787be2862951ea7` from run 40127113568; summary `functions=310 matched=310 unmatched=0 migration_files=135`. It verifies source mapping for the isolated tested tree, not the full semantic security of each function.
+- **Remaining audit:** API-OPS is PARTIAL; 179 callable RPC candidates remain to be checked against role/tenant boundaries, mutation side effects, idempotency/retry and audit invariants. Do not repeat completed batches without a real coverage gap.
+- **Post-merge verification:** current main Core run 40127500733 and PostgreSQL 17 run 40127500750 both completed SUCCESS on exact SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Exact-main P2 was not separately observed; #190's P2 pass is on its tested PR head.
+- **Owner authorization:** ready work may be merged under the owner's explicit authorization; old review-required notes below are historical. Keep exact-head CI, migration ordering, clean merge and post-merge verification.
+
+## NEXT ACTION — P1
+1. Confirm current-main Core/PostgreSQL 17 results and repair only a proved failure.
+2. Continue bounded, source-backed semantic review of the remaining RPCs with explicit allow/deny and no-side-effect acceptance.
+3. Keep production migrations, Onyx writes, WhatsApp, hosted E2E and live AI provider calls unclaimed without authorized execution evidence.
+
+---
+
+# Historical P1 execution log
+Old P1 entries below are retained for provenance; their SHAs, pending approvals and next actions do not override the live status above.
+
+
+---
+
+# Historical P1 execution log
+The detailed P1 history below is retained for traceability; its checkpoint SHAs and old pending-approval statements do not override this live summary.
+
+
+---
+
 # تقرير الحالة التنفيذي — المبرمج 1 / إدارة جلسات الأجهزة المركزية
 
 - **المستودع:** `Report-Engainall/Nasr1`
