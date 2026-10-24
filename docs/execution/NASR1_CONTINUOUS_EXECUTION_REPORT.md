@@ -1,13 +1,20 @@
 # NASR1 Continuous Execution Report
 
-**Checkpoint:** 2026-10-24 23:05 Asia/Aden (20:05 UTC) — live reconciliation after merges #189 and #186
-**Repository:** `Report-Engainall/Nasr1`  
-**Production reference:** `main` only  
-**Main SHA:** `653f4d764041a8751c41e75a492fed0cc6edea63` (verified current remote `main`)
-**Resume branch:** `docs/p2-current-execution-reconcile-20261024T2305`
+**Latest live update:** 24 October 2026 — post-merge work after #186 and #189; API-OPS #190 in progress
+**Repository:** `Report-Engainall/Nasr1`
+**Production reference:** `main` only
+**Last verified main SHA:** `653f4d764041a8751c41e75a492fed0cc6edea63`
+**Active code PR:** [#190](https://github.com/Report-Engainall/Nasr1/pull/190) — bounded request streams, async-export deny/no-side-effect acceptance, exact-head RPC inventory artifact.
+
+## Latest verified checkpoint
+- #186 and #189 are merged. Their Core, local acceptance and public UI checks passed on exact PR heads; see `CURRENT_EXECUTION_STATE.md` for the linked runs.
+- #190 at `5becc27a3f32896b1814aab80433ba7b8c8008ae`: Core [40127113576 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113576), async-export PostgreSQL 17 [40127113568 PASS](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113568), public UI smoke passed; local Supabase order/tenant job 120971091911 was in progress at last poll. Hosted authenticated E2E is skipped by its credential gate.
+- API-OPS is still PARTIAL: 179 callable RPC candidates remain to be reviewed semantically; exact-head inventory helps traceability but is not proof every contract is complete.
+- Owner authorized ready merges; old review-approval notes below are historical. Exact-head CI, migration order, safe merge and post-merge verification remain mandatory.
+- Production mutation/deployment, real Onyx import, WhatsApp delivery, live AI provider and hosted authenticated customer journey are not claimed.
 
 
-## Live reconciliation — 2026-10-24 23:05 Asia/Aden (20:05 UTC)
+## Historical execution snapshots — retained for traceability
 
 ### Current main and verified merges
 - Current remote `main`: `653f4d764041a8751c41e75a492fed0cc6edea63`. PR #189 merged as `0d7f153cf6a7c8ac70b439f2ad15e479e3d80d47`; PR #186 merged as `653f4d764041a8751c41e75a492fed0cc6edea63`.
