@@ -4,18 +4,19 @@ export type InventoryMetricBalance = {
 };
 
 /**
- * Count low-stock rows from sellable stock, not gross on-hand stock.
- * Invalid snapshots are skipped rather than silently treated as zero.
+ * Count low-stock rows from sellable stock, not gross on-hand quantity.
+ * Any malformed/incomplete balance invalidates the aggregate, because a partial count
+ * can mislead purchasing as much as silently coercing an unknown quantity to zero.
  */
-export function countLowStockBalances(rows: readonly InventoryMetricBalance[]): number {
+export function countLowStockBalances(rows: readonly InventoryMetricBalance[]): number | null {
   let count = 0;
 
   for (const row of rows) {
     const available = row.quantity_available;
     const threshold = row.reorder_point;
 
-    if (typeof available !== "number" || !Number.isFinite(available)) continue;
-    if (typeof threshold !== "number" || !Number.isFinite(threshold) || threshold < 0) continue;
+    if (typeof available !== "number" || !Number.isFinite(available)) return null;
+    if (typeof threshold !== "number" || !Number.isFinite(threshold) || threshold < 0) return null;
 
     if (available <= threshold) count += 1;
   }
