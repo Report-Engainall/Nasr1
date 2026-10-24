@@ -11,7 +11,7 @@
 - **Owner authorization:** ready work may be merged under the owner's explicit authorization; old review-required notes below are historical. Keep exact-head CI, migration ordering, clean merge and post-merge verification.
 
 ## NEXT ACTION — P1
-1. Confirm Core run 40127500733 reaches a terminal result; PostgreSQL 17 and the exact-main inventory already passed.
+1. Confirm current-main Core/PostgreSQL 17 results and repair only a proved failure.
 2. Continue bounded, source-backed semantic review of the remaining RPCs with explicit allow/deny and no-side-effect acceptance.
 3. Keep production migrations, Onyx writes, WhatsApp, hosted E2E and live AI provider calls unclaimed without authorized execution evidence.
 
