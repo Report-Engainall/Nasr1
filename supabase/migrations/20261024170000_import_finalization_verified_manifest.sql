@@ -5,6 +5,27 @@ ALTER TABLE public.import_jobs
 ALTER TABLE public.import_upload_sessions
   ADD COLUMN IF NOT EXISTS external_source_reference text;
 
+DO $constraints$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname='import_jobs_external_source_reference_check') THEN
+    ALTER TABLE public.import_jobs
+      ADD CONSTRAINT import_jobs_external_source_reference_check
+      CHECK (external_source_reference IS NULL OR (
+        external_source_reference = pg_catalog.btrim(external_source_reference)
+        AND pg_catalog.length(external_source_reference) BETWEEN 1 AND 200
+      ));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname='import_upload_sessions_external_source_reference_check') THEN
+    ALTER TABLE public.import_upload_sessions
+      ADD CONSTRAINT import_upload_sessions_external_source_reference_check
+      CHECK (external_source_reference IS NULL OR (
+        external_source_reference = pg_catalog.btrim(external_source_reference)
+        AND pg_catalog.length(external_source_reference) BETWEEN 1 AND 200
+      ));
+  END IF;
+END;
+$constraints$;
+
 -- Keep the previous transactional snapshot builder as a private implementation.
 -- The public finalization command now enforces the verified upload manifest first.
 ALTER FUNCTION public.finalize_import_job(uuid, text)
@@ -625,6 +646,7 @@ BEGIN
 END;
 $function$;
 
+REVOKE ALL ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,uuid,text,text,text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,text,uuid,text,text,text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,text,uuid,text,text,text) TO authenticated;
 COMMENT ON FUNCTION public.create_import_job_idempotent(uuid,text,text,bigint,text,text,uuid,text,text,text) IS
