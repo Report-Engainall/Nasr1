@@ -29,6 +29,7 @@ import {
 import { OperationsCenter } from '@/components/OperationsCenter';
 import { buildBusinessSignals, buildBusinessStatusBreakdown } from '@/lib/business-intelligence';
 import { dashboardAverageOrderDisplay, dashboardSalesDisplay } from '@/lib/dashboard-metrics';
+import { getInventoryAvailabilityStatus } from '@/lib/inventory-metrics';
 import { PricingGrid } from '@/components/PricingGrid';
 import { AdminAuditLog } from '@/components/AdminAuditLog';
 import { AdminCustomer360 } from '@/components/AdminCustomer360';
@@ -248,9 +249,7 @@ function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
   const lowStock = products?.filter((product) => {
     const quantity = product.inventory?.quantity_available;
     const reorderPoint = product.inventory?.reorder_point ?? product.min_stock;
-    return typeof quantity === 'number' && Number.isFinite(quantity)
-      && typeof reorderPoint === 'number' && Number.isFinite(reorderPoint)
-      && quantity <= reorderPoint;
+    return getInventoryAvailabilityStatus(quantity, reorderPoint) === 'low';
   }).slice(0, 4) ?? [];
   const salesValue = stats ? dashboardSalesDisplay(stats, formatCurrency) : 'غير متاح';
   const processingValue = stats ? formatNumber(stats.processingCount) : 'غير متاح';
@@ -386,11 +385,13 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
       {loading ? <Loading /> : error ? <ErrorBox message={error} /> : <TableWrap><table>
         <thead><tr><th>المنتج</th><th>الرمز</th><th>التصنيف</th><th>السعر</th><th>المتاح</th><th>الحالة</th><th>إجراء المخزون</th><th /></tr></thead>
         <tbody>{rows.map((p) => {
-          const qty = p.inventory?.quantity_available ?? 0;
-          const low = qty <= (p.inventory?.reorder_point ?? p.min_stock);
+          const qty = p.inventory?.quantity_available;
+          const reorderPoint = p.inventory?.reorder_point ?? p.min_stock;
+          const stockStatus = getInventoryAvailabilityStatus(qty, reorderPoint);
+          const low = stockStatus === 'low';
           return <tr key={p.id}>
-            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{formatNumber(qty)} {p.unit}</td>
-            <td><span className={'badge ' + (low ? 'warning' : 'success')}>{low ? 'منخفض' : 'متوفر'}</span></td>
+            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{typeof qty === 'number' && Number.isFinite(qty) ? formatNumber(qty) + ' ' + p.unit : 'غير متاح'}</td>
+            <td><span className={'badge ' + (stockStatus === 'unknown' ? 'info' : low ? 'warning' : 'success')}>{stockStatus === 'unknown' ? 'غير متاح' : low ? 'منخفض' : 'متوفر'}</span></td>
             <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button>{canManageReorderPoint && <Button variant="outline" onClick={() => openThreshold(p)}>حد إعادة الطلب</Button>}</div></td>
             <td><div className="row-actions"><button aria-label={'تعديل ' + p.name} onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button><button aria-label={'حذف ' + p.name} onClick={() => remove(p)}><Trash2 size={15} /></button></div></td>
           </tr>;
