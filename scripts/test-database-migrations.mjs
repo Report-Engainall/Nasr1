@@ -2404,14 +2404,48 @@ async function main() {
   process.stdout.write("PASS Onyx export audit: server-derived actor/tenant, approved-order guard, row-count validation, central audit persistence and cross-tenant/customer denial\\n");
   process.stdout.write("PASS order-review approval, stale/unapproved confirmation guard, one-order price override, invoice and payment-request lifecycle\\n");
 
+  const importRequestKey = randomUUID();
+  const importRequestArgs = [
+    importRequestKey,
+    "CI Onyx.stock.final.csv",
+    "a".repeat(64),
+    500,
+    "onyx_stock",
+    null,
+    "2026-01",
+    "ci",
+    "new_version",
+  ];
   const importCreated = await db.unsafe(
-    "select public.create_import_job($1,$2,$3,$4,null,$5,$6) as result",
-    ["CI Onyx stock.csv", "a".repeat(64), 500, "onyx_stock", "2026-01", "ci"],
+    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6::uuid,$7,$8,$9) as result",
+    importRequestArgs,
   );
   const importJob = importCreated[0].result;
   assert.equal(importJob.organization_id, organizationId, "import tenant must be derived from authenticated staff");
   assert.ok(importJob.profile_id, "import should attach a versioned profile");
+  assert.equal(importJob.file_name, "CI Onyx.stock.final.csv", "the original filename remains attached to the batch");
+  assert.equal(importJob.source_system, "ci", "the external source identity must be persisted on the batch");
   assert.equal(importJob.raw_file_retained, false, "raw files must not be retained");
+
+  const importReplay = await db.unsafe(
+    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6::uuid,$7,$8,$9) as result",
+    importRequestArgs,
+  );
+  assert.equal(importReplay[0].result.id, importJob.id, "retrying the identical request key must replay the original batch");
+  const importJobCountAfterReplay = await db.unsafe(
+    "select count(*)::integer as count from public.import_jobs where organization_id=$1 and file_hash=$2 and period_key=$3",
+    [organizationId, "a".repeat(64), "2026-01"],
+  );
+  assert.equal(importJobCountAfterReplay[0].count, 1, "request replay must not create a second import job");
+  await expectFailure(
+    "reject import request-key reuse with a changed file identity",
+    () => db.unsafe(
+      "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6::uuid,$7,$8,$9) as result",
+      [importRequestKey, "different.csv", "b".repeat(64), 500, "onyx_stock", null, "2026-01", "ci", "new_version"],
+    ),
+    /مفتاح محاولة الاستيراد مستخدم لعملية أو حمولة مختلفة/i,
+    "22023",
+  );
 
   const importRows = [
     { item_code: "000125", product_name: "Rice", quantity: "5", revenue: "150", date: "2026-01-01" },
@@ -2430,6 +2464,7 @@ async function main() {
 
   const importSession = await db.unsafe("select public.create_import_upload_session($1::uuid) as result", [importJob.id]);
   assert.equal(importSession[0].result.total_chunks, 1, "a small source file should create one upload manifest chunk");
+  assert.equal(importSession[0].result.file_type, "csv", "the upload session must use the last filename suffix, not the second dot-delimited segment");
   const chunkHash = "c".repeat(64);
   const recordedChunk = await db.unsafe(
     "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
