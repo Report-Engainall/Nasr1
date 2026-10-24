@@ -272,7 +272,7 @@ describe("offline workspace real-route acceptance", () => {
       window.localStorage.getItem("aghbari:catalog:v1") || "[]",
     ) as Array<Record<string, unknown>>;
     expect(safeCatalog).toHaveLength(1);
-    expect(safeCatalog[0]).toMatchObject({ id: PRODUCT_ID, name: PRODUCT.name, base_price: 0 });
+    expect(safeCatalog[0]).toMatchObject({ id: PRODUCT_ID, name: PRODUCT.name });
     expect(safeCatalog[0]).not.toHaveProperty("base_price");
     expect(safeCatalog[0]).not.toHaveProperty("display_price");
     expect(safeCatalog[0]).not.toHaveProperty("cost_price");
