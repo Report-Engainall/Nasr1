@@ -55,6 +55,7 @@ DECLARE
   v_total_bytes bigint;
   v_bad_chunk boolean;
   v_expected_chunks integer;
+  v_remaining_prior_count integer := 0;
 BEGIN
   -- Resolve tenant and role before looking up the caller-supplied job/session IDs.
   IF auth.uid() IS NULL OR v_actor IS NULL OR NOT public.is_staff() THEN
@@ -229,6 +230,22 @@ BEGIN
         pg_catalog.now()
       );
     END LOOP;
+
+    -- Never report a successful replacement while an older snapshot for this exact
+    -- tenant/profile/period is still live. Fail closed so all writes above roll back
+    -- if an unexpected database invariant prevents retiring the prior snapshot.
+    SELECT count(*)::integer
+      INTO v_remaining_prior_count
+      FROM public.onyx_snapshots s
+     WHERE s.organization_id=v_org
+       AND s.profile_id=v_job.profile_id
+       AND s.period_key IS NOT DISTINCT FROM v_job.period_key
+       AND s.status='ready'
+       AND s.id IS DISTINCT FROM v_new_snapshot;
+    IF v_remaining_prior_count > 0 THEN
+      RAISE EXCEPTION USING ERRCODE='40001',
+        MESSAGE='استبدال اللقطة لم يتم: بقيت لقطة سابقة جاهزة للفترة والملف التعريفي؛ ألغيت المعاملة لحماية البيانات الحالية';
+    END IF;
   END IF;
 
   RETURN v_result;
