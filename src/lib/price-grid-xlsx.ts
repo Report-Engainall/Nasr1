@@ -5,7 +5,19 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const encoder = new TextEncoder();
 
 function xmlEscape(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+  // XLSX worksheet cells are XML 1.0 text. Strip forbidden control code points before
+  // escaping markup; otherwise a valid business label can produce a corrupt workbook.
+  const xmlSafe = Array.from(value).filter((character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint !== undefined && (
+      codePoint === 0x09 || codePoint === 0x0a || codePoint === 0x0d ||
+      (codePoint >= 0x20 && codePoint <= 0xd7ff) ||
+      (codePoint >= 0xe000 && codePoint <= 0xfffd) ||
+      (codePoint >= 0x10000 && codePoint <= 0x10ffff)
+    );
+  }).join('');
+  return xmlSafe.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
 function columnName(index: number): string {
   let n = index + 1;
