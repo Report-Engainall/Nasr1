@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countLowStockBalances } from "@/lib/inventory-metrics";
+import { countLowStockBalances, getInventoryAvailabilityStatus } from "@/lib/inventory-metrics";
 
 describe("available-stock low-stock metric", () => {
   it("uses sellable availability after reservations, not gross on-hand quantity", () => {
@@ -40,5 +40,20 @@ describe("available-stock low-stock metric", () => {
 
   it("returns zero for an empty result set", () => {
     expect(countLowStockBalances([])).toBe(0);
+  });
+});
+
+
+describe("inventory availability display status", () => {
+  it("returns unknown when either the stock balance or threshold is unavailable", () => {
+    expect(getInventoryAvailabilityStatus(undefined, 5)).toBe('unknown');
+    expect(getInventoryAvailabilityStatus(0, null)).toBe('unknown');
+    expect(getInventoryAvailabilityStatus(Number.NaN, 5)).toBe('unknown');
+  });
+
+  it("labels only measured stock at or below an observed threshold as low", () => {
+    expect(getInventoryAvailabilityStatus(0, 0)).toBe('low');
+    expect(getInventoryAvailabilityStatus(-2, 3)).toBe('low');
+    expect(getInventoryAvailabilityStatus(4, 3)).toBe('adequate');
   });
 });
