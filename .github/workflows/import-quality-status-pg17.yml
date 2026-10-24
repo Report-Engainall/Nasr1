@@ -1,0 +1,59 @@
+name: Import quality status scoring PostgreSQL 17 acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261024153000_import_quality_valid_row_scoring.sql"
+      - "scripts/test-import-quality-status-scoring.mjs"
+      - "src/test/import-quality-status-scoring.test.ts"
+      - ".github/workflows/import-quality-status-pg17.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261024153000_import_quality_valid_row_scoring.sql"
+      - "scripts/test-import-quality-status-scoring.mjs"
+      - "src/test/import-quality-status-scoring.test.ts"
+      - ".github/workflows/import-quality-status-pg17.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  import-quality-status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aghbari_test
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: aghbari_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aghbari_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install Bun for frozen-lockfile verification
+        uses: oven-sh/setup-bun@v2
+      - name: Verify frozen dependency lockfile
+        run: bun install --frozen-lockfile --registry=https://registry.npmjs.org --dry-run
+      - name: Use Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install dependencies from the verified lockfile
+        run: bun install --frozen-lockfile --registry=https://registry.npmjs.org
+      - name: Apply current migrations and run the PostgreSQL 17 acceptance suite
+        run: npm run test:db
+      - name: Verify only valid import rows score validity points
+        run: node scripts/test-import-quality-status-scoring.mjs
