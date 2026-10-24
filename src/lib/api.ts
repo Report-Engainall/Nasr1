@@ -1845,6 +1845,53 @@ export async function fetchImportRows(jobId: string): Promise<ImportJobRow[]> {
   return data as ImportJobRow[];
 }
 
+export type RollbackImportSnapshotResult = {
+  jobId: string;
+  snapshotId: string;
+  status: 'rolled_back';
+  snapshotStatus: 'archived';
+  rolledBack: boolean;
+  alreadyRolledBack: boolean;
+  snapshotVersion: number | null;
+  auditId: string | null;
+  snapshotRowsRetained: boolean;
+};
+
+export async function rollbackImportSnapshot(jobId: string, reason: string): Promise<RollbackImportSnapshotResult> {
+  if (typeof jobId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
+    throw new Error('معرّف دفعة الاستيراد غير صالح للتراجع.');
+  }
+  const normalizedReason = typeof reason === 'string' ? reason.trim() : '';
+  if (normalizedReason.length < 3 || normalizedReason.length > 1000) {
+    throw new Error('سبب التراجع مطلوب ويجب أن يكون بين 3 و1000 حرف.');
+  }
+  const { data, error } = await supabase.rpc('rollback_import_snapshot', {
+    p_job_id: jobId,
+    p_reason: normalizedReason,
+  });
+  if (error) throw new Error(error.message || 'تعذر التراجع عن لقطة الاستيراد.');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('استجابة التراجع غير صالحة؛ لم يتم تأكيد الأرشفة.');
+  }
+  const result = data as Record<string, unknown>;
+  if (result.job_id !== jobId || typeof result.snapshot_id !== 'string'
+      || result.status !== 'rolled_back' || result.snapshot_status !== 'archived'
+      || typeof result.rolled_back !== 'boolean' || typeof result.already_rolled_back !== 'boolean') {
+    throw new Error('لم يؤكد الخادم التراجع الآمن عن اللقطة المطلوبة.');
+  }
+  return {
+    jobId,
+    snapshotId: result.snapshot_id,
+    status: 'rolled_back',
+    snapshotStatus: 'archived',
+    rolledBack: result.rolled_back,
+    alreadyRolledBack: result.already_rolled_back,
+    snapshotVersion: typeof result.snapshot_version === 'number' ? result.snapshot_version : null,
+    auditId: typeof result.audit_id === 'string' ? result.audit_id : null,
+    snapshotRowsRetained: result.snapshot_rows_retained === true || result.already_rolled_back === true,
+  };
+}
+
 export type ImportRowErrorDetail = { row_number: number; errors: unknown };
 
 export async function fetchImportRowErrors(jobId: string, limit = 100): Promise<ImportRowErrorDetail[]> {
