@@ -56,7 +56,7 @@ export function Notifications({ onNotice }: { onNotice: (m: string) => void }) {
     description="كل رسائل النظام والتنبيهات في مكان واحد"
     icon={Bell}
     note={data ? `${data.length} تنبيه — ${unread} غير مقروء` : 'عدد التنبيهات غير متاح'}
-    toolbar={<><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button>{unread > 0 && <Button onClick={readAll}>تعليم الكل كمقروء</Button></>}
+    toolbar={<><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button>{unread > 0 && <Button onClick={readAll}>تعليم الكل كمقروء</Button>}</>}
   >
     {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !data ?
       <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> :
