@@ -24,14 +24,15 @@ function spreadsheetSafeText(value: string): string {
 
 type CsvFormattedNumber = { readonly __trustedCsvNumber: string };
 
-function formattedNumber(value: unknown, fractionDigits: number, fieldName: string): CsvFormattedNumber {
+function formattedNumber(value: unknown, fractionDigits: number, fieldName: string, allowNegative = false): CsvFormattedNumber {
   const numeric = typeof value === 'number'
     ? value
     : typeof value === 'string' && value.trim() !== ''
       ? Number(value)
       : Number.NaN;
-  if (!Number.isFinite(numeric)) {
-    throw new Error('تعذر تصدير شبكة الأسعار: القيمة الرقمية غير صالحة في الحقل ' + fieldName + '.');
+  if (!Number.isFinite(numeric) || numeric > 999999999999 ||
+      (!allowNegative && numeric < 0) || (allowNegative && numeric < -999999999999)) {
+    throw new Error('تعذر تصدير شبكة الأسعار: قيمة رقمية خارج النطاق في الحقل ' + fieldName + '.');
   }
   // This string came from a validated numeric field, not untrusted business text.
   // Keep valid negative quantities numeric instead of escaping them as possible formulas.
@@ -64,11 +65,11 @@ export function buildPriceGridCsv(rows: readonly ProductPriceGridRow[]): string 
       formattedNumber(row.price_wholesale_of_wholesale, 2, 'price_wholesale_of_wholesale'),
       formattedNumber(row.price_wholesale, 2, 'price_wholesale'),
       formattedNumber(row.price_retail, 2, 'price_retail'),
-      row.quantity_on_hand_total === null ? null : formattedNumber(row.quantity_on_hand_total, 3, 'quantity_on_hand_total'),
-      row.quantity_reserved_total === null ? null : formattedNumber(row.quantity_reserved_total, 3, 'quantity_reserved_total'),
-      row.quantity_available_total === null ? null : formattedNumber(row.quantity_available_total, 3, 'quantity_available_total'),
+      row.quantity_on_hand_total === null ? null : formattedNumber(row.quantity_on_hand_total, 3, 'quantity_on_hand_total', true),
+      row.quantity_reserved_total === null ? null : formattedNumber(row.quantity_reserved_total, 3, 'quantity_reserved_total', true),
+      row.quantity_available_total === null ? null : formattedNumber(row.quantity_available_total, 3, 'quantity_available_total', true),
       row.reorder_point_total === null ? null : formattedNumber(row.reorder_point_total, 0, 'reorder_point_total'),
-      row.inventory_warehouse_count,
+      formattedNumber(row.inventory_warehouse_count, 0, 'inventory_warehouse_count'),
     ];
     output.push(values.map(csvCell).join(','));
   }
