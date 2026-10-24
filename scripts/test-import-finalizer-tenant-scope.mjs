@@ -121,6 +121,15 @@ async function main() {
     [jobId],
   );
 
+  const initialImportRowCount = await admin.unsafe(
+    "select count(*)::integer as count from public.import_job_rows where import_job_id=$1::uuid",
+    [jobId],
+  );
+  const initialAuditCount = await admin.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_id=$1::uuid",
+    [jobId],
+  );
+
   await assert.rejects(
     () => foreign.unsafe("select public.finalize_import_job($1::uuid) as result", [jobId]),
     (error) =>
@@ -144,6 +153,19 @@ async function main() {
   );
   assert.equal(afterSnapshotCount[0].count, initialSnapshotCount[0].count,
     "a rejected foreign-tenant request cannot create an Onyx snapshot");
+
+  const afterImportRowCount = await admin.unsafe(
+    "select count(*)::integer as count from public.import_job_rows where import_job_id=$1::uuid",
+    [jobId],
+  );
+  assert.equal(afterImportRowCount[0].count, initialImportRowCount[0].count,
+    "a rejected foreign-tenant request cannot insert, change or remove staged import rows");
+  const afterAuditCount = await admin.unsafe(
+    "select count(*)::integer as count from public.audit_logs where entity_id=$1::uuid",
+    [jobId],
+  );
+  assert.equal(afterAuditCount[0].count, initialAuditCount[0].count,
+    "a rejected foreign-tenant request cannot create or remove audit records for the job");
 
   console.log("PASS import finalizer tenant scope: compatibility overload delegates to scoped contract; foreign tenant sees not-found and causes no state/snapshot mutation");
 }
