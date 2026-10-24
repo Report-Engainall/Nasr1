@@ -1,7 +1,7 @@
 # P3 route acceptance register — Nasr1
 
 Repository: Report-Engainall/Nasr1  
-Live checkpoint main SHA: 12b622326f8a95575994ef1afae43f69fdf854b1 after PR #198 (24 October 2026); historical route evidence below retains the SHA it was tested against  
+Live checkpoint main SHA: 4192a2f8825079f169a9412ac4a2347f4f82cce8 after PR #202 (24 October 2026); historical route evidence below retains the SHA it was tested against  
 Generated route tree: src/routeTree.gen.ts  
 Inventory size: 61 source modules under src/routes, including the root shell; 60 non-root page/API modules below.  
 Purpose: route-to-evidence traceability for ROUTES-001. This does not replace the canonical acceptance matrix or imply every full production journey is proven.
@@ -16,7 +16,7 @@ Purpose: route-to-evidence traceability for ROUTES-001. This does not replace th
 
 ## Live reconciliation — post-merge #198 (24 October 2026)
 
-- **Current main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1`; main post-merge Core [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) completed SUCCESS on exact main SHA; the run includes isolated PostgreSQL 17 migration/core-workflow acceptance and build/browser smoke.
+- **Current main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1`; main post-merge Core [40132572775](https://github.com/Report-Engainall/Nasr1/actions/runs/40132572775) was IN_PROGRESS on exact current main SHA at last poll.
 - **PR #198 route-mount acceptance:** exact head `67ea3d0d20216697cf35d70e54897d6128c50176`, Core [40130584912](https://github.com/Report-Engainall/Nasr1/actions/runs/40130584912) SUCCESS and P2 [40130584867](https://github.com/Report-Engainall/Nasr1/actions/runs/40130584867) SUCCESS; merged as `12b622326f8a95575994ef1afae43f69fdf854b1`.
 - The new test mounts 22 admin entrypoints using the generated `src/routeTree.gen.ts` and asserts intended view wiring plus special wrappers/workspaces, returns drawers, and the reports-to-exports link. This is **route-mount evidence only**. It does not certify each screen's live data actions, permissions for every role, error/empty behavior, production writes, or hosted customer journeys.
 - Admin rows formerly marked `NOT_PROVEN — Route registration only` are downgraded to `PARTIAL` only where #198 directly adds mount evidence; detailed screen/service acceptance remains an open gate unless separately evidenced below.
@@ -28,6 +28,14 @@ Purpose: route-to-evidence traceability for ROUTES-001. This does not replace th
 - **Latest current-main release gate:** Core run 40127500733 and PostgreSQL 17 run 40127500750 both completed SUCCESS on exact main SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. The hosted customer/tenant journey remains SKIPPED/BLOCKED_EXTERNAL without authorized test credentials; do not conflate it with local Core/PG17 acceptance.
 - **PR #190 security acceptance:** exact head `5becc27a3f32896b1814aab80433ba7b8c8008ae` passed Core, P2/local Supabase and async-export PostgreSQL 17. It is now merged as `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; hosted authenticated customer E2E remained SKIPPED.
 - `PROVEN_TARGETED` denotes targeted route evidence, not complete production UAT. External customer/tenant journeys, production writes, Onyx synchronization, WhatsApp delivery and live AI use remain unproven without actual authorized evidence.
+
+## LIVE EXECUTION CHECKPOINT — 24 October 2026 (after PR #202)
+
+- Current main SHA `4192a2f8825079f169a9412ac4a2347f4f82cce8`; post-merge Core 40132572775 was IN_PROGRESS at last poll.
+- PR #198 route mount coverage remains merged on `12b622326f8a95575994ef1afae43f69fdf854b1`; 22 admin entrypoints are covered for intended component/wrapper/link wiring only. Full per-screen actions/data/permissions and production UAT remain separate.
+- PR #202 PDF API contract tests are merged; exact-head Core 40132224605/P2 40132224621 passed, post-merge Core is pending terminal.
+- PR #201 is a financial concurrency gate, not route coverage; its Core/P2 runs are in progress on head `f46ae0971effbf56ab6d3a6d0a829888a84c9cb2`.
+- Hosted authenticated customer/tenant E2E remains SKIPPED; real Onyx/WhatsApp/AI and production operations are not claimed.
 
 ## Route inventory and acceptance evidence (updated baseline; old PR links are historical)
 
