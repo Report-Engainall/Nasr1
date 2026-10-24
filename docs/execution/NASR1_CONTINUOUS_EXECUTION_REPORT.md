@@ -16,7 +16,7 @@
 
 ## Historical baseline — PR #190
 
-## Latest execution truth
+## Historical execution truth (baseline snapshot)
 
 - PR #190 merged at `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Its exact-head Core [40127113576](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113576), PostgreSQL 17 [40127113568](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113568), and P2 [40127113571](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113571) passed. Hosted authenticated customer E2E is skipped by its external-credential gate.
 - Current-main PostgreSQL 17 generated `public-rpc-function-inventory-e467c782bec0e19ddab6c5ddaa72aaa073d7283b` with `functions=310 matched=310 unmatched=0 migration_files=135`. This is source-mapping evidence for the isolated CI tree, not semantic authorization proof for each RPC.
