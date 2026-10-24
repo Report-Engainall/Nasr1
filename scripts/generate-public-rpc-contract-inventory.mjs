@@ -108,46 +108,107 @@ function typeSignature(argumentsText) {
   return splitTopLevel(argumentsText).map(argumentType).join(",");
 }
 
-const declarations = new Map();
-const declarationsByName = new Map();
-for (const filename of migrations) {
-  const source = stripComments(await readFile(resolve(migrationDir, filename), "utf8"));
+function findMatchingParen(source, openIndex) {
+  if (source[openIndex] !== "(") return -1;
+  let depth = 0;
+  let quote = "";
+  let dollarQuote = "";
+  for (let i = openIndex; i < source.length; i += 1) {
+    const char = source[i];
+    if (dollarQuote) {
+      if (source.startsWith(dollarQuote, i)) {
+        i += dollarQuote.length - 1;
+        dollarQuote = "";
+      }
+      continue;
+    }
+    if (quote === "'") {
+      if (char === "'" && source[i + 1] === "'") { i += 1; continue; }
+      if (char === "'") quote = "";
+      continue;
+    }
+    if (quote === '"') {
+      if (char === '"' && source[i + 1] === '"') { i += 1; continue; }
+      if (char === '"') quote = "";
+      continue;
+    }
+    if (char === "'" || char === '"') { quote = char; continue; }
+    if (char === "$") {
+      const tag = source.slice(i).match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/);
+      if (tag) {
+        dollarQuote = tag[0];
+        i += dollarQuote.length - 1;
+        continue;
+      }
+    }
+    if (char === "(") depth += 1;
+    else if (char === ")") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
 
-  // Match schema-qualified declarations and functions created under the migration's
-  // effective search_path. Unqualified declarations are credited only when the name and
-  // signature also exist in the queried public runtime catalog.
-  const createRegex = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:(public)\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([\s\S]*?)\)\s*RETURNS\b/gi;
+function collectFunctionDeclarations(source, filename) {
+  const found = [];
+  const createRegex = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:(public)\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\(/gi;
   let match;
   while ((match = createRegex.exec(source)) !== null) {
-    const name = match[2].toLowerCase();
-    const types = typeSignature(match[3]);
-    const declaration = {
-      name,
-      types,
+    const openIndex = createRegex.lastIndex - 1;
+    const closeIndex = findMatchingParen(source, openIndex);
+    if (closeIndex < 0) {
+      throw new Error("Unclosed argument list in CREATE FUNCTION in " + filename + " near " + match[2]);
+    }
+    if (!/^\s*RETURNS\b/i.test(source.slice(closeIndex + 1))) {
+      createRegex.lastIndex = closeIndex + 1;
+      continue;
+    }
+    found.push({
+      name: match[2].toLowerCase(),
+      types: typeSignature(source.slice(openIndex + 1, closeIndex)),
       filename,
       sourceKind: match[1] ? "CREATE FUNCTION public" : "unqualified CREATE FUNCTION resolved against public runtime catalog",
-    };
-    declarations.set(name + "|" + types, declaration);
-    if (!declarationsByName.has(name)) declarationsByName.set(name, new Map());
-    declarationsByName.get(name).set(types, declaration);
+    });
+    createRegex.lastIndex = closeIndex + 1;
   }
-
-  // Historical operational-task implementations remain in pg_proc after a migration
-  // renames the previous function. Record ALTER FUNCTION RENAME as source provenance.
-  const renameRegex = /ALTER\s+FUNCTION\s+public\.([A-Za-z_][A-Za-z0-9_]*)\s*\(([\s\S]*?)\)\s+RENAME\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)\s*'?\s*;/gi;
+  const renameRegex = /ALTER\s+FUNCTION\s+public\.([A-Za-z_][A-Za-z0-9_]*)\s*\(/gi;
   while ((match = renameRegex.exec(source)) !== null) {
-    const previousName = match[1].toLowerCase();
-    const types = typeSignature(match[2]);
-    const renamedName = match[3].toLowerCase();
-    const declaration = {
-      name: renamedName,
-      types,
+    const openIndex = renameRegex.lastIndex - 1;
+    const closeIndex = findMatchingParen(source, openIndex);
+    if (closeIndex < 0) {
+      throw new Error("Unclosed argument list in ALTER FUNCTION RENAME in " + filename + " near " + match[1]);
+    }
+    const suffix = source.slice(closeIndex + 1);
+    const renamed = suffix.match(/^\s+RENAME\s+TO\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/i);
+    renameRegex.lastIndex = closeIndex + 1;
+    if (!renamed) continue;
+    found.push({
+      name: renamed[1].toLowerCase(),
+      types: typeSignature(source.slice(openIndex + 1, closeIndex)),
       filename,
-      sourceKind: "ALTER FUNCTION RENAME from public." + previousName,
-    };
-    declarations.set(renamedName + "|" + types, declaration);
-    if (!declarationsByName.has(renamedName)) declarationsByName.set(renamedName, new Map());
-    declarationsByName.get(renamedName).set(types, declaration);
+      sourceKind: "ALTER FUNCTION RENAME from public." + match[1].toLowerCase(),
+    });
+    renameRegex.lastIndex = closeIndex + 1 + renamed[0].length;
+  }
+  return found;
+}
+
+const declarationSmoke = "CREATE OR REPLACE FUNCTION public.__rpc_inventory_parser_smoke(p_id uuid, p_amount numeric(15,3), p_at timestamptz DEFAULT now(), p_note text DEFAULT 'x,y)') RETURNS jsonb";
+const declarationOpen = declarationSmoke.indexOf("(");
+const declarationClose = findMatchingParen(declarationSmoke, declarationOpen);
+assert.equal(declarationClose, declarationSmoke.lastIndexOf(")"), "signature scanner must respect nested/default-expression parentheses and quoted delimiters");
+assert.equal(
+  typeSignature(declarationSmoke.slice(declarationOpen + 1, declarationClose)),
+  "uuid,numeric(15,3),timestamptz,text",
+  "signature scanner must preserve all typed arguments while removing defaults",
+);
+
+const declarations = new Map();
+for (const filename of migrations) {
+  const source = stripComments(await readFile(resolve(migrationDir, filename), "utf8"));
+  for (const declaration of collectFunctionDeclarations(source, filename)) {
+    declarations.set(declaration.name + "|" + declaration.types, declaration);
   }
 }
 
@@ -199,11 +260,7 @@ const mappedRows = [];
 for (const row of rows) {
   const name = row.name.toLowerCase();
   const types = typeSignature(row.identity_args || "");
-  let source = declarations.get(name + "|" + types) || null;
-  if (!source) {
-    const candidates = declarationsByName.get(name);
-    if (candidates?.size === 1) source = [...candidates.values()][0];
-  }
+  const source = declarations.get(name + "|" + types) || null;
   const body = row.body || "";
   const config = Array.isArray(row.function_config) ? row.function_config.join("; ") : (row.function_config || "");
   const executeRoles = [
