@@ -3,6 +3,7 @@ import { parseStoreExecutiveAnalytics, type StoreExecutiveAnalytics } from './ex
 import { parseStaffCustomer360Summary, type StaffCustomer360Summary } from './customer-360-summary';
 import { parsePurchaseOrder, parsePurchaseOrders, type PurchaseOrder } from './purchase-orders';
 import { countLowStockBalances } from './inventory-metrics';
+import { summarizeDashboardOrders } from './dashboard-metrics';
 import { retryRead } from './retry';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
 import { validateCustomerInput } from './customer-input';
@@ -1780,12 +1781,7 @@ export async function fetchImportJobs(): Promise<ImportJob[]> {
 
 export async function fetchImportRows(jobId: string): Promise<ImportJobRow[]> {
   const { data, error } = await supabase.from('import_job_rows').select('*').eq('import_job_id', jobId).order('row_number').limit(100000);
-  if (error) throw error;
-  return data as ImportJobRow[];
-}
-
-// ─── Dashboard stats ───
-export async function fetchDashboardStats() {
+  if (error) throw error;export async function fetchDashboardStats() {
   const { organizationId: orgId, warehouseId } = await getCurrentTenantScope();
   const [products, customers, orders, alerts, lowStock] = await Promise.all([
     supabase.from('products').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'active'),
@@ -1794,25 +1790,49 @@ export async function fetchDashboardStats() {
     supabase.from('ai_alerts').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('is_resolved', false),
     warehouseId
       ? supabase.from('inventory_balances').select('quantity_available, reorder_point, product_id').eq('warehouse_id', warehouseId)
-      : Promise.resolve({ data: [], error: null }),
+      : Promise.resolve({ data: [] as Array<{ quantity_available: unknown; reorder_point: unknown }>, error: null }),
   ]);
 
-  if (lowStock.error) throw lowStock.error;
-  const lowStockCount = countLowStockBalances(
-    (lowStock.data ?? []) as Array<{ quantity_available: unknown; reorder_point: unknown }>
-  );
-
+  // A failed count query must not silently become a factual zero in the dashboard.
+  if (products.error) throw products.error;
+  if (customers.error) throw customers.error;
   if (orders.error) throw orders.error;
-  const ordersData = (orders.data || []) as Array<{ id: string; status: string; total_amount: number }>;
-  const totalSales = ordersData.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-  const processingCount = ordersData.filter((o) => o.status === 'processing' || o.status === 'pending').length;
+  if (alerts.error) throw alerts.error;
+  if (lowStock.error) throw lowStock.error;
+
+  const exactCount = (count: number | null, label: string): number => {
+    if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) {
+      throw new Error('لم يؤكد الخادم العدد الدقيق لـ' + label + '؛ لم يتم عرضه كصفر.');
+    }
+    return count;
+  };
+
+  if (warehouseId && !Array.isArray(lowStock.data)) {
+    throw new Error('لم يؤكد الخادم أرصدة المستودع الحالي؛ تعذر تحديد المخزون المنخفض.');
+  }
+
+  const orderMetrics = summarizeDashboardOrders(orders.data);
+  const lowStockCount = warehouseId
+    ? countLowStockBalances(
+      lowStock.data as Array<{ quantity_available: unknown; reorder_point: unknown }>
+    )
+    : null;
 
   return {
-    productCount: products.count || 0,
-    customerCount: customers.count || 0,
-    orderCount: ordersData.length,
-    totalSales,
-    processingCount,
+    productCount: exactCount(products.count, 'المنتجات النشطة'),
+    customerCount: exactCount(customers.count, 'العملاء'),
+    orderCount: orderMetrics.orderCount,
+    totalSales: orderMetrics.totalSales,
+    invalidOrderAmountCount: orderMetrics.invalidOrderAmountCount,
+    totalSalesIssue: orderMetrics.totalSalesIssue,
+    processingCount: orderMetrics.processingCount,
+    alertCount: exactCount(alerts.count, 'التنبيهات المفتوحة'),
+    lowStockCount,
+  };
+}
+
+
+
     alertCount: alerts.count || 0,
     lowStockCount,
   };
