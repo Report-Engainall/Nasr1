@@ -95,7 +95,15 @@ async function main() {
       [[CATALOG_PRODUCT_ID]],
     );
     assert.equal(hiddenCardPrice.length, 1, "hidden-price catalog still returns non-financial product identity");
-    assert.equal(Number(hiddenCardPrice[0].unit_price), 0, "disabled catalog price setting returns no actual customer amount");
+    assert.equal(hiddenCardPrice[0].unit_price, null, "disabled catalog prices return NULL rather than a misleading numeric zero");
+
+    const hiddenCatalogPageResult = await db.unsafe(
+      "select public.get_storefront_catalog_page(null::text,null::uuid,1,24,false) as result",
+    );
+    const hiddenCatalogProduct = hiddenCatalogPageResult[0]?.result?.items?.find((item) => item.id === CATALOG_PRODUCT_ID);
+    assert.ok(hiddenCatalogProduct, "hidden-price catalog page retains the product metadata");
+    assert.equal(hiddenCatalogProduct.display_price, null, "hidden catalog page expresses price absence as NULL");
+    assert.equal(Object.hasOwn(hiddenCatalogProduct, "base_price"), false, "public catalog page never emits the base_price key");
 
     for (const surface of ["cart", "orders"]) {
       const result = await db.unsafe(
@@ -157,6 +165,13 @@ async function main() {
     );
     assert.equal(visibleCardPrice.length, 1);
     assert.ok(Number(visibleCardPrice[0].unit_price) > 0, "enabled catalog price returns an active customer-tier price");
+    const visibleCatalogPageResult = await db.unsafe(
+      "select public.get_storefront_catalog_page(null::text,null::uuid,1,24,false) as result",
+    );
+    const visibleCatalogProduct = visibleCatalogPageResult[0]?.result?.items?.find((item) => item.id === CATALOG_PRODUCT_ID);
+    assert.ok(visibleCatalogProduct, "visible catalog page retains the product metadata");
+    assert.ok(Number(visibleCatalogProduct.display_price) > 0, "enabled catalog page emits a server-resolved display price");
+    assert.equal(Object.hasOwn(visibleCatalogProduct, "base_price"), false, "public catalog page never emits the raw base_price key");
     for (const surface of ["cart", "orders"]) {
       const result = await db.unsafe(
         "select public.preview_customer_order_pricing($1::jsonb,$2::text) as result",
