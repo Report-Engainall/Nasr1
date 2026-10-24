@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildPriceGridXlsx } from '@/lib/price-grid-xlsx';
-import { parsePriceGridRecords } from '@/lib/price-grid-csv';
+import { buildPriceGridCsv, parsePriceGridRecords } from '@/lib/price-grid-csv';
 import { parseXlsxFirstWorksheet } from '@/lib/unified-import';
 
 async function blobBytes(blob: Blob): Promise<Uint8Array> {
@@ -53,6 +53,68 @@ describe('price grid XLSX workbook', () => {
     expect(text).toContain('t="inlineStr"');
     expect(text).not.toContain('<f>');
     expect(text).toContain('&quot;https://invalid.example&quot;');
+  });
+
+  it('keeps CSV and XLSX stock metrics identical for negative, zero, and positive values', async () => {
+    const cases = [
+      { ...row, item_code: 'PARITY-NEG', name: 'Negative stock', quantity_on_hand_total: -1.25, quantity_reserved_total: 0, quantity_available_total: -2.5, reorder_point_total: 0, inventory_warehouse_count: 0 },
+      { ...row, item_code: 'PARITY-ZERO', name: 'Zero stock', quantity_on_hand_total: 0, quantity_reserved_total: 0, quantity_available_total: 0, reorder_point_total: 0, inventory_warehouse_count: 0 },
+      { ...row, item_code: 'PARITY-POS', name: 'Positive stock', quantity_on_hand_total: 3.125, quantity_reserved_total: 1.125, quantity_available_total: 2, reorder_point_total: 4, inventory_warehouse_count: 2 },
+    ];
+    const csvRows = buildPriceGridCsv(cases)
+      .replace(/^\uFEFF/, '')
+      .trimEnd()
+      .split('\r\n')
+      .map(line => line.split(',').map(cell => cell.startsWith('"') ? cell.slice(1, -1).replace(/""/g, '"') : cell));
+    const workbook = buildPriceGridXlsx(cases);
+    const workbookText = new TextDecoder().decode(await blobBytes(workbook));
+    // Assert actual OOXML numeric cells, not only parser read-back (which also returns text cells as strings).
+    for (const [cell, value] of [
+      ['J2', '-1.250'], ['K2', '0.000'], ['L2', '-2.500'],
+      ['J3', '0.000'], ['K3', '0.000'], ['L3', '0.000'],
+      ['J4', '3.125'], ['K4', '1.125'], ['L4', '2.000'],
+    ]) {
+      expect(workbookText).toContain('<c r="' + cell + '" t="n"><v>' + value + '</v></c>');
+    }
+    const xlsxRecords: string[][] = [];
+    await parseXlsxFirstWorksheet(workbook, values => { xlsxRecords.push(values); });
+
+    const csvStock = csvRows.slice(1).map(record => record.slice(9, 14));
+    const xlsxStock = xlsxRecords.slice(1).map(record => record.slice(9, 14));
+    expect(xlsxStock).toEqual(csvStock);
+    expect(xlsxStock).toEqual([
+      ['-1.250', '0.000', '-2.500', '0', '0'],
+      ['0.000', '0.000', '0.000', '0', '0'],
+      ['3.125', '1.125', '2.000', '4', '2'],
+    ]);
+  });
+
+  it('rejects negative prices, thresholds, warehouse counts and malformed numeric values in both exports', () => {
+    const invalidCases = [
+      { ...row, base_price: -1 },
+      { ...row, price_wholesale_of_wholesale: -0.01 },
+      { ...row, reorder_point_total: -1 },
+      { ...row, inventory_warehouse_count: -1 },
+      { ...row, quantity_on_hand_total: Number.NaN },
+      { ...row, quantity_available_total: -1_000_000_000_000 },
+    ];
+    for (const invalid of invalidCases) {
+      expect(() => buildPriceGridCsv([invalid])).toThrow();
+      expect(() => buildPriceGridXlsx([invalid])).toThrow();
+    }
+  });
+
+  it('removes XML 1.0-forbidden controls from exported product text', async () => {
+    const hostile = {
+      ...row,
+      item_code: "00\u000101234",
+      name: "سكر\u0000 أبيض\u0007",
+    };
+    const records: string[][] = [];
+    await parseXlsxFirstWorksheet(buildPriceGridXlsx([hostile]), values => { records.push(values); });
+    expect(records).toHaveLength(2);
+    expect(records[1][1]).toBe('0001234');
+    expect(records[1][2]).toBe('سكر أبيض');
   });
 
   it('rejects malformed price cells using the exact same validator as CSV', async () => {

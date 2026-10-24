@@ -5,7 +5,19 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const encoder = new TextEncoder();
 
 function xmlEscape(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+  // XLSX worksheet cells are XML 1.0 text. Strip forbidden control code points before
+  // escaping markup; otherwise a valid business label can produce a corrupt workbook.
+  const xmlSafe = Array.from(value).filter((character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint !== undefined && (
+      codePoint === 0x09 || codePoint === 0x0a || codePoint === 0x0d ||
+      (codePoint >= 0x20 && codePoint <= 0xd7ff) ||
+      (codePoint >= 0xe000 && codePoint <= 0xfffd) ||
+      (codePoint >= 0x10000 && codePoint <= 0x10ffff)
+    );
+  }).join('');
+  return xmlSafe.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
 function columnName(index: number): string {
   let n = index + 1;
@@ -62,8 +74,11 @@ function zipStored(parts: Array<{name:string; text:string}>): Uint8Array {
 function textCell(ref:string,value:string):string {
   return '<c r="'+ref+'" t="inlineStr"><is><t xml:space="preserve">'+xmlEscape(value)+'</t></is></c>';
 }
-function numberCell(ref:string,value:number,decimals=2):string {
-  if(!Number.isFinite(value)||value<0||value>999999999999) throw new Error('لا يمكن تصدير قيمة سعر/مخزون خارج النطاق.');
+function numberCell(ref:string,value:number,decimals=2,allowNegative=false):string {
+  // Only persisted stock measures may be signed; prices and thresholds stay non-negative.
+  if(!Number.isFinite(value)||(!allowNegative&&value<0)||(allowNegative&&value< -999999999999)||value>999999999999) {
+    throw new Error('لا يمكن تصدير قيمة سعر/مخزون خارج النطاق.');
+  }
   return '<c r="'+ref+'" t="n"><v>'+value.toFixed(decimals)+'</v></c>';
 }
 /** Export only persisted server rows. Untrusted identifiers and labels are inline strings, never formula cells. */
@@ -82,7 +97,8 @@ export function buildPriceGridXlsx(rows: readonly ProductPriceGridRow[]): Blob {
       if (value === null) return textCell(ref,'');
       if (typeof value !== 'number') return textCell(ref,value);
       const decimals = colIndex >= 9 && colIndex <= 11 ? 3 : colIndex >= 12 ? 0 : 2;
-      return numberCell(ref,value,decimals);
+      const allowNegativeStock = colIndex >= 9 && colIndex <= 11;
+      return numberCell(ref,value,decimals,allowNegativeStock);
     }).join('');
     return '<row r="'+(rowIndex+1)+'">'+cells+'</row>';
   }).join('');
