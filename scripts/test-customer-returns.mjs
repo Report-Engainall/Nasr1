@@ -662,6 +662,7 @@ async function main() {
   const postedCreditJournal = asJson(settlementResults[1][0].result);
   assert.equal(postedCreditJournal.status,"posted","source guard permits the balanced credit memo posting");
 
+  await db.unsafe("reset role");
   const settlementRows = await db.unsafe(
     "select i.total_amount::text as invoice_total,coalesce(sum(cp.amount),0)::text as paid, " +
     "(select coalesce(sum(cm.total_amount),0) from public.customer_return_credit_memos cm " +
@@ -675,6 +676,7 @@ async function main() {
   assert.equal(Number(settlementRows[0].invoice_total),500);
   assert.equal(Number(settlementRows[0].paid),100,"the first concurrent payment commits exactly once");
   assert.equal(Number(settlementRows[0].credited),125,"the posted credit is visible before the next payment race");
+  await db.unsafe("set role authenticated");
   // Two distinct payments racing for the remaining balance must not both win.
   // After the earlier payment (100) and credit memo (125), only 275 remains on this 500 invoice.
   const balanceRaceRacer = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
@@ -717,7 +719,6 @@ async function main() {
     [organizationId,concurrentPaymentId,balanceRacePaymentId],
   );
   assert.equal(paymentAuditCount[0].count,2,"only the two committed payment sources emit audit rows");
-  await db.unsafe("set role authenticated");
   const reconciledSettlementRows = await db.unsafe(
     "select coalesce(sum(cp.amount),0)::text as paid,"+
     "(select coalesce(sum(cm.total_amount),0) from public.customer_return_credit_memos cm " +
@@ -731,7 +732,13 @@ async function main() {
   assert.equal(Number(reconciledSettlementRows[0].credited),125,"the posted credit remains source-linked at 125.00");
   assert.ok(Number(reconciledSettlementRows[0].paid)+Number(reconciledSettlementRows[0].credited)<=500,
     "competing payments and credit postings never exceed the invoice total");
-  await db.unsafe("reset role");
+  const paymentAuditRows = await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+    "where organization_id=$1::uuid and action='customer_payment.recorded' and entity_id=$2::uuid",
+    [organizationId,concurrentPaymentId],
+  );
+  assert.equal(paymentAuditRows[0].count,1,"concurrent payment creates one source-linked audit event");
+  await db.unsafe("set role authenticated");
   const paymentAuditRows = await db.unsafe(
     "select count(*)::integer as count from public.audit_logs " +
     "where organization_id=$1::uuid and action='customer_payment.recorded' and entity_id=$2::uuid",
