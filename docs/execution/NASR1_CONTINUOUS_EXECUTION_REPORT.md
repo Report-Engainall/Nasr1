@@ -1,12 +1,41 @@
 # NASR1 Continuous Execution Report
 
-**Checkpoint:** 2026-10-24 — live GitHub recheck after adding PRs #147–#151  
+**Checkpoint:** 2026-10-24 22:43 Asia/Aden (19:43 UTC) — live readback against current main
 **Repository:** `Report-Engainall/Nasr1`  
 **Production reference:** `main` only  
-**Main SHA:** `16a3d23e558696700bccbb3dbf9ea75b0fccf745`  
-**Resume branch:** `p2/reconcile-18-prs-live-main-20261024`, PR [#133](https://github.com/Report-Engainall/Nasr1/pull/133)
+**Main SHA:** `73547627697fecb8882c594880645200505d095d` (verified as the current remote `main` head)
+**Resume branch:** `docs/p2-current-execution-reconcile-20261024T2243`
 
-## 1. Confirmed repository state
+
+## Live reconciliation — 2026-10-24 22:43 Asia/Aden (19:43 UTC)
+
+### Authoritative state
+- Current remote `main`: `73547627697fecb8882c594880645200505d095d`. The prior checkpoint SHA `16a3d23e558696700bccbb3dbf9ea75b0fccf745` is 32 commits behind. Core run 40035355209 applies only to that old SHA.
+- This execution pass has not verified a terminal Core/P2 run attached to `73547627697fecb8882c594880645200505d095d`. Current-main acceptance therefore remains **UNVERIFIED** until the exact SHA's runs are read back.
+- PR #187 and PR #188 have been merged at 19:42 UTC. PR #188 supersedes closed-unmerged #147; merged PRs #164–#166 and #168 supersede closed-unmerged #148–#151 respectively. Do not recreate those defects without a demonstrated regression.
+- PR #189 is the current-main port of concurrent inventory-batch idempotency. Its head `43e153dc374d9f72823a354d710c0f362e4a068a` is 1 commit ahead / 0 behind main. Core [40126581054](https://github.com/Report-Engainall/Nasr1/actions/runs/40126581054) and P2 [40126581094](https://github.com/Report-Engainall/Nasr1/actions/runs/40126581094) are still IN_PROGRESS at the recorded readback. #134 must not be merged alongside this port until its diff is proven non-duplicate.
+- PR #186's head `5fb59d4a2093f242461aa5aaa0f50ad34b4d5223` is diverged: 3 ahead / 2 behind main, 36 changed paths. Core runs [40126529526](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529526), [40126529676](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529676), and P2 [40126529735](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529735) are IN_PROGRESS; P2 [40126529563](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529563) was cancelled. Reconcile with current main before merging.
+- PR #142 has Core/P2 success on its head `21083e8e26e219f0c3fbe05885b23f77f29a151d`, but the branch diverges 41 ahead / 20 behind current main over 13 current-diff paths. Port the relevant changes to a fresh current-main branch and rerun checks rather than merging the stale branch.
+- The earlier documentation PR #152 is also stale (83 ahead / 20 behind, touching five central documents). This refresh is created from the current remote main; existing `WORK_COORDINATION.md` ownership entries remain untouched.
+
+### Remaining work and limits
+- API-OPS: 304/304 runtime objects are source-mapped; 179 callable RPC candidates remain for semantic auth/tenant/input/output/error/idempotency/retry/audit review. Do not label the entire workstream complete.
+- Import/DQS: rerun existing PostgreSQL 17 acceptance on current main because import/finalizer/quality work merged after the old 16a3 SHA; implement only failures reproduced on the new head.
+- Route/screen acceptance: #186 is the current integration front; test route/deep-link, loading/error/empty/unauthorized, checkout privacy and export hydration on one exact final head.
+- External proof remains separately blocked until real authorized evidence exists: authenticated customer-manager journeys require isolated non-production credentials; live Onyx/WhatsApp, production DB writes and hosted restore are not inferred from local CI.
+
+### Next execution sequence
+1. Poll #189 exact-head Core/P2; if both are terminal SUCCESS, attempt normal merge and verify the resulting main SHA and exact-main Core outcome.
+2. Reconcile #186 with current main and rerun all required gates on the resulting exact SHA.
+3. Port #142's current diff onto a new branch from current main and run Core/P2; continue the 179-function semantic audit in bounded batches.
+4. verify Core/P2 on current main `73547627697fecb8882c594880645200505d095d`; record actual run URLs/statuses when tied to this exact SHA.
+5. Keep previously merged work closed; reopen only on a current-tree regression or a newly evidenced uncovered contract.
+
+---
+
+## Historical checkpoint (superseded by live reconciliation above)
+
+### Earlier confirmed repository state
 
 - Main has not been modified directly. Main Core [40035355209 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035355209) is on SHA `16a3d23e558696700bccbb3dbf9ea75b0fccf745`.
 - PR #127 is already merged; PR #129 is closed unmerged. Neither is being recreated.
