@@ -375,7 +375,7 @@ describe("customer quote workspace tenant boundary", () => {
 
     const legacySafe = JSON.parse(window.localStorage.getItem("aghbari:catalog:v1") || "[]");
     expect(legacySafe).toHaveLength(1);
-    expect(legacySafe[0].base_price).toBe(0);
+    expect(legacySafe[0]).not.toHaveProperty("base_price");
     expect(legacySafe[0]).not.toHaveProperty("display_price");
     expect(legacySafe[0]).not.toHaveProperty("cost_price");
     expect(legacySafe[0]).not.toHaveProperty("retail_price");
