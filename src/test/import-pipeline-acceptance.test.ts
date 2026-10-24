@@ -78,8 +78,8 @@ describe('unified import end-to-end acceptance contracts', () => {
     expect(finalizeGuard).toContain("public.rollback_import_snapshot");
     expect(finalizeGuard).toContain("'import.snapshot_rolled_back'");
     expect(finalizeGuard).toContain("SET status='archived'");
-    expect(finalizeGuard).not.toMatch(/DELETE\\s+FROM\\s+public\\.onyx_snapshot_rows/i);
-    expect(finalizeGuard).not.toMatch(/DELETE\\s+FROM\\s+public\\.import_job_rows/i);
+    expect(finalizeGuard).not.toMatch(/DELETE\s+FROM\s+public\.onyx_snapshot_rows/i);
+    expect(finalizeGuard).not.toMatch(/DELETE\s+FROM\s+public\.import_job_rows/i);
     expect(dbAcceptance).toContain('CI regression: validate audited rollback without deleting snapshot rows');
     expect(dbAcceptance).toContain('missing keys in a partial source are not deletion instructions');
   });
