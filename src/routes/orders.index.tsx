@@ -11,5 +11,5 @@ export const Route = createFileRoute("/orders/")({
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: () => <ClientOnly fallback={null}><MyOrders /></ClientOnly>,
+  component: () => <ClientOnly fallback={<main className="storefront" dir="rtl" role="status">جار تحميل طلباتك...</main>}><MyOrders /></ClientOnly>,
 });

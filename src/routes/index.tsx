@@ -16,7 +16,7 @@ export const Route = createFileRoute("/")({
 function StorePage() {
   const navigate = useNavigate();
   return (
-    <ClientOnly fallback={<div className="storefront" dir="rtl" style={{ minHeight: "100vh" }} />}>
+    <ClientOnly fallback={<main className="storefront" dir="rtl" style={{ minHeight: "100vh" }} role="status">جار تحميل المتجر...</main>}>
       <Storefront onExit={() => void navigate({ to: "/admin" })} />
     </ClientOnly>
   );
