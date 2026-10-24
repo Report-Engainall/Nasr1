@@ -262,7 +262,7 @@ BEGIN
     FROM public.import_job_rows r
    WHERE r.import_job_id=v_job.id;
 
-  IF v_job.status IN ('completed','completed_with_warnings','rejected','manual_review','ignored_duplicate','cancelled') THEN
+  IF v_job.status IN ('completed','completed_with_warnings','rejected','manual_review','ignored_duplicate','cancelled','rolled_back') THEN
     SELECT s.id INTO v_snapshot
       FROM public.onyx_snapshots s
      WHERE s.source_import_job_id=v_job.id AND s.organization_id=v_org AND s.status='ready'
@@ -297,5 +297,158 @@ GRANT EXECUTE ON FUNCTION public.fail_import_job_safely(uuid,jsonb) TO authentic
 
 COMMENT ON FUNCTION public.fail_import_job_safely(uuid,jsonb) IS
   'Atomically reconciles persisted staging row counts and marks a nonterminal import failed; terminal finalization/cancellation states cannot be downgraded after a lost response.';
+
+
+-- Explicit rollback archives only the latest ready snapshot for an import job.
+-- Snapshot rows and import rows are retained for audit/replay; no live catalog/stock rows are deleted.
+CREATE OR REPLACE FUNCTION public.rollback_import_snapshot(
+  p_job_id uuid,
+  p_reason text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_actor uuid := public.current_profile_id();
+  v_org uuid;
+  v_job public.import_jobs%ROWTYPE;
+  v_snapshot public.onyx_snapshots%ROWTYPE;
+  v_latest public.onyx_snapshots%ROWTYPE;
+  v_reason text := pg_catalog.btrim(coalesce(p_reason,''));
+  v_audit_id uuid;
+BEGIN
+  IF auth.uid() IS NULL OR v_actor IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='تسجيل الدخول مطلوب للتراجع عن لقطة الاستيراد';
+  END IF;
+
+  SELECT p.organization_id INTO v_org
+    FROM public.profiles p
+   WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true;
+  IF v_org IS NULL OR NOT public.is_staff()
+     OR NOT EXISTS (
+       SELECT 1 FROM public.user_roles r
+        WHERE r.profile_id=v_actor AND r.role IN ('admin','manager')
+     ) THEN
+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='التراجع عن لقطة الاستيراد متاح للمدير أو مدير النظام فقط';
+  END IF;
+
+  IF pg_catalog.length(v_reason) < 3 OR pg_catalog.length(v_reason) > 1000 THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='سبب التراجع مطلوب ويجب أن يكون بين 3 و1000 حرف';
+  END IF;
+
+  SELECT j.* INTO v_job
+    FROM public.import_jobs j
+   WHERE j.id=p_job_id AND j.organization_id=v_org
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='دفعة الاستيراد غير موجودة في المؤسسة النشطة';
+  END IF;
+
+  IF v_job.status='rolled_back' THEN
+    SELECT s.* INTO v_snapshot
+      FROM public.onyx_snapshots s
+     WHERE s.source_import_job_id=v_job.id
+       AND s.organization_id=v_org
+       AND s.status='archived'
+     ORDER BY s.snapshot_version DESC
+     LIMIT 1;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION USING ERRCODE='P0001', MESSAGE='الدفعة معلّمة كمتراجع عنها لكن لم تُعثر على اللقطة المؤرشفة؛ يلزم تدقيق يدوي';
+    END IF;
+    RETURN pg_catalog.jsonb_build_object(
+      'job_id',v_job.id,'snapshot_id',v_snapshot.id,'status','rolled_back',
+      'snapshot_status','archived','rolled_back',false,'already_rolled_back',true,
+      'snapshot_version',v_snapshot.snapshot_version
+    );
+  END IF;
+
+  IF v_job.status NOT IN ('completed','completed_with_warnings') THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='لا يمكن التراجع إلا عن دفعة اعتمدت لقطة بنجاح';
+  END IF;
+
+  SELECT s.* INTO v_snapshot
+    FROM public.onyx_snapshots s
+   WHERE s.source_import_job_id=v_job.id
+     AND s.organization_id=v_org
+     AND s.status='ready'
+   ORDER BY s.snapshot_version DESC
+   LIMIT 1
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='لا توجد لقطة جاهزة مرتبطة بهذه الدفعة';
+  END IF;
+
+  SELECT s.* INTO v_latest
+    FROM public.onyx_snapshots s
+   WHERE s.organization_id=v_org
+     AND s.profile_id IS NOT DISTINCT FROM v_snapshot.profile_id
+     AND s.period_key IS NOT DISTINCT FROM v_snapshot.period_key
+     AND s.status='ready'
+   ORDER BY s.snapshot_version DESC
+   LIMIT 1
+   FOR UPDATE;
+  IF NOT FOUND OR v_latest.id IS DISTINCT FROM v_snapshot.id THEN
+    RAISE EXCEPTION USING ERRCODE='22023',
+      MESSAGE='توجد لقطة أحدث جاهزة لهذه الفترة والملف التعريفي؛ لا يمكن أرشفة لقطة أقدم قبل معالجة اللقطة الأحدث';
+  END IF;
+
+  UPDATE public.onyx_snapshots
+     SET status='archived'
+   WHERE id=v_snapshot.id
+     AND organization_id=v_org
+     AND status='ready'
+   RETURNING * INTO v_snapshot;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='تغيرت حالة اللقطة أثناء التراجع؛ لم يتم اعتماد التراجع';
+  END IF;
+
+  UPDATE public.import_jobs
+     SET status='rolled_back',
+         error_summary=coalesce(error_summary,'{}'::jsonb)
+           || pg_catalog.jsonb_build_object(
+             'rollback_status','completed',
+             'rollback_reason',v_reason,
+             'rollback_actor_profile_id',v_actor,
+             'rollback_snapshot_id',v_snapshot.id,
+             'rollback_at',pg_catalog.now(),
+             'no_snapshot_rows_deleted',true
+           )
+   WHERE id=v_job.id AND organization_id=v_org;
+
+  INSERT INTO public.audit_logs(
+    organization_id,actor_id,action,entity_type,entity_id,old_value,new_value,created_at
+  )
+  VALUES(
+    v_org,v_actor,'import.snapshot_rolled_back','onyx_snapshot',v_snapshot.id,
+    pg_catalog.jsonb_build_object(
+      'status','ready','source_import_job_id',v_job.id,
+      'source_file_hash',v_snapshot.source_file_hash,
+      'snapshot_version',v_snapshot.snapshot_version,
+      'row_count',v_snapshot.row_count
+    ),
+    pg_catalog.jsonb_build_object(
+      'status','archived','source_import_job_id',v_job.id,
+      'reason',v_reason,'snapshot_rows_retained',true
+    ),
+    pg_catalog.now()
+  )
+  RETURNING id INTO v_audit_id;
+
+  RETURN pg_catalog.jsonb_build_object(
+    'job_id',v_job.id,'snapshot_id',v_snapshot.id,'status','rolled_back',
+    'snapshot_status','archived','rolled_back',true,'already_rolled_back',false,
+    'snapshot_version',v_snapshot.snapshot_version,'audit_id',v_audit_id,
+    'snapshot_rows_retained',true
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.rollback_import_snapshot(uuid,text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.rollback_import_snapshot(uuid,text) TO authenticated;
+
+COMMENT ON FUNCTION public.rollback_import_snapshot(uuid,text) IS
+  'Archives only the newest ready tenant-owned snapshot for a completed import, retains all imported/snapshot rows and writes an audit event; repeated requests replay the rolled-back result.';
 
 COMMIT;
