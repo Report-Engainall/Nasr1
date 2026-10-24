@@ -1945,12 +1945,14 @@ async function main() {
   assert.ok(accountantRoleContext[0].roles.includes("accountant"), "accountant profile must carry the accountant role");
   assert.ok(!accountantRoleContext[0].roles.some((role) => ["admin","manager","staff"].includes(role)),
     "finance-only accountant fixture must not inherit operational roles");
-  const accountantResolvedPrices = await db.unsafe(
-    "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],$2::numeric)",
-    [[accountantPriceProductId], 1],
+  await expectFailure(
+    "finance-only accountant without customer membership cannot resolve storefront prices",
+    () => db.unsafe(
+      "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],$2::numeric)",
+      [[accountantPriceProductId], 1],
+    ),
+    /customer membership lacks permission to resolve catalog prices/i,
   );
-  assert.equal(accountantResolvedPrices.length, 1, "accountant can resolve a display price through the safe storefront API");
-  assert.equal(Number(accountantResolvedPrices[0].unit_price), 1234, "accountant must not receive raw base price 99000");
   const accountantFinanceResult = await db.unsafe("select public.fetch_staff_finance_data() as result");
   const accountantInvoice = accountantFinanceResult[0].result.invoices.find((row) => row.id === invoice.id);
   assert.equal(Number(accountantInvoice.total_amount), 370000, "accountant may read the authorized invoice financial snapshot");
