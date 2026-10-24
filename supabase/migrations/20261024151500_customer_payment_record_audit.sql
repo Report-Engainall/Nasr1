@@ -1,5 +1,6 @@
 BEGIN;
 
+-- Records a tenant-scoped audit event atomically after a customer payment insert and rejects invoice/customer/organization mismatches.
 CREATE OR REPLACE FUNCTION public.audit_customer_payment_recorded()
 RETURNS trigger
 LANGUAGE plpgsql
