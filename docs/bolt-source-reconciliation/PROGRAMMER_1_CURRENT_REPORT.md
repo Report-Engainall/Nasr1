@@ -2,17 +2,17 @@
 
 **Canonical resume pointer:** `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` and the acceptance matrix. This report supplements, and does not replace, the canonical pointer.
 
-- **Current main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1` after PR #198; post-merge Core run 40130981792 was IN_PROGRESS at last poll.
+- **Current main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1` after PR #198; post-merge Core run 40130981792 completed SUCCESS on exact main; isolated PostgreSQL 17, build, preview and Chromium acceptance also passed.
 - **Recent P2/verification merges:** #196 export unknown-value acceptance merged as `6f73438bb1c2e90bd3daffde0701df29b3df8553` with exact-head Core/P2 and post-merge Core PASS; #197 valid-only DQS row-status matrix merged as `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb` with exact-head Core/P2 and post-merge Core PASS; #198 22-admin-route mount acceptance merged as `12b622326f8a95575994ef1afae43f69fdf854b1` with exact-head Core/P2 PASS.
 - **P1-sensitive merged work:** #158 payment/audit atomicity and credit-memo race denial; #162 valid-only DQS scoring; #179 import identity/resume/recovery/rollback; #180 tenant-scoped import finalization; #181 stock-count snapshot atomicity; #188 quote response explicit decision guard; #189 inventory batch idempotency; #190 request streaming limits and export worker authorization acceptance.
 - **Exact tested #190 head:** `5becc27a3f32896b1814aab80433ba7b8c8008ae`; Core 40127113576, async-export PostgreSQL 17 40127113568 and P2 40127113571 all SUCCESS. The authenticated hosted customer E2E job remains SKIPPED because the authorized credential gate is not configured.
 - **Exact inventory artifact:** `public-rpc-function-inventory-3d68de8c657e92c2a0fc1a75f787be2862951ea7` from run 40127113568; summary `functions=310 matched=310 unmatched=0 migration_files=135`. It verifies source mapping for the isolated tested tree, not the full semantic security of each function.
 - **Remaining audit:** API-OPS is PARTIAL; 179 callable RPC candidates remain to be checked against role/tenant boundaries, mutation side effects, idempotency/retry and audit invariants. Do not repeat completed batches without a real coverage gap.
-- **Post-merge verification:** earlier Core 40127500733 and PostgreSQL 17 40127500750 passed on historical main `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; later main run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) was IN_PROGRESS on exact SHA `12b622326f8a95575994ef1afae43f69fdf854b1` at last poll. Do not transfer older PASS results to the current SHA.
+- **Post-merge verification:** earlier Core 40127500733 and PostgreSQL 17 40127500750 passed on historical main `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; later main run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) completed SUCCESS on exact SHA `12b622326f8a95575994ef1afae43f69fdf854b1`, including the isolated PostgreSQL 17 migration/core workflow and browser/build checks.
 - **Owner authorization:** ready work may be merged under the owner's explicit authorization; old review-required notes below are historical. Keep exact-head CI, migration ordering, clean merge and post-merge verification.
 
 ## NEXT ACTION — P1
-1. Confirm terminal Core run 40130981792 on exact main `12b622326f8a95575994ef1afae43f69fdf854b1`; repair only a proved failure.
+1. Keep the verified Core/isolated-PG17 result tied to main `12b622326f8a95575994ef1afae43f69fdf854b1`; rerun it after later code changes and repair only a proved failure.
 2. Continue bounded, source-backed semantic review of the remaining RPCs with explicit allow/deny and no-side-effect acceptance.
 3. Keep production migrations, Onyx writes, WhatsApp, hosted E2E and live AI provider calls unclaimed without authorized execution evidence.
 
