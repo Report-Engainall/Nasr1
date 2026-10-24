@@ -883,7 +883,11 @@ export async function parseXlsxFirstWorksheet(
         throw new Error('حجم مكون XLSX المخزن لا يطابق الفهرس أو يتجاوز الحد الآمن.');
       }
       expandedBytes += plainBytes.byteLength;
-      return new TextDecoder('utf-8', { fatal: true }).decode(plainBytes);
+      try {
+        return new TextDecoder('utf-8', { fatal: true }).decode(plainBytes);
+      } catch {
+        throw new Error('محتوى XLSX يحتوي على ترميز UTF-8 غير صالح؛ تم رفض الملف قبل الاعتماد.');
+      }
     }
     let stream: ReadableStream<Uint8Array>;
     {
@@ -907,9 +911,19 @@ export async function parseXlsxFirstWorksheet(
           await reader.cancel();
           throw new Error('محتوى XLSX بعد فك الضغط تجاوز الحجم المعلن أو الحد الآمن.');
         }
-        parts.push(decoder.decode(result.value, { stream: true }));
+        try {
+          parts.push(decoder.decode(result.value, { stream: true }));
+        } catch {
+          await reader.cancel();
+          throw new Error('محتوى XLSX يحتوي على ترميز UTF-8 غير صالح؛ تم رفض الملف قبل الاعتماد.');
+        }
       }
-      parts.push(decoder.decode());
+      try {
+        parts.push(decoder.decode());
+      } catch {
+        await reader.cancel();
+        throw new Error('نهاية مكون XLSX تحتوي على ترميز UTF-8 غير صالح؛ تم رفض الملف قبل الاعتماد.');
+      }
     } finally {
       reader.releaseLock();
     }
