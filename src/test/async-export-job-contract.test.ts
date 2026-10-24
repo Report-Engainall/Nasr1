@@ -13,6 +13,7 @@ const migration = readFileSync(
 );
 const worker = readFileSync(join(process.cwd(), "supabase/functions/async-export-worker/index.ts"), "utf8");
 const download = readFileSync(join(process.cwd(), "supabase/functions/async-export-download/index.ts"), "utf8");
+const downloadHandler = readFileSync(join(process.cwd(), "src/lib/async-export-download-handler.ts"), "utf8");
 const jobClient = readFileSync(join(process.cwd(), "src/lib/async-export-jobs.ts"), "utf8");
 
 describe("asynchronous order export contracts", () => {
@@ -78,9 +79,13 @@ describe("asynchronous order export contracts", () => {
     expect(worker).toMatch(/quantity_review_required/);
     expect(worker).toMatch(/ASYNC_EXPORT_MAX_ORDERS/);
     expect(worker).toMatch(/sha256Hex/);
+    expect(download).toContain("createAsyncExportDownloadHandler");
     expect(download).toMatch(/get_my_async_export_download/);
-    expect(download).toMatch(/createSignedUrl\(job\.artifact_path, 60/);
-    expect(download).toMatch(/ttl_seconds: 60/);
+    expect(downloadHandler).toMatch(/getMyAsyncExportDownload\(jobId\)/);
+    expect(downloadHandler).toMatch(/createSignedUrl\(\s*job\.artifact_path,\s*ttlSeconds,/);
+    expect(downloadHandler).toMatch(/Math\.min\(60, Math\.floor\(\(jobExpiryMs - signingStartedMs - 1000\) \/ 1000\)\)/);
+    expect(downloadHandler).toMatch(/ttl_seconds: ttlSeconds/);
+    expect(downloadHandler).toContain("readBoundedTextBody");
     expect(jobClient).toMatch(/request_async_export_job/);
     expect(jobClient).toMatch(/async-export-worker/);
     expect(jobClient).toMatch(/async-export-download/);
