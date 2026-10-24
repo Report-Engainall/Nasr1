@@ -1,5 +1,17 @@
 # NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026
 
+> **LIVE STATE OVERRIDE — refreshed 24 October 2026 after current GitHub verification.** This block supersedes historical open/merged statuses in the archived checkpoint details below. Use this top section as the current resume pointer; the remaining detail is retained as historical evidence, not as a live task list.
+
+- **Current production reference:** `main` SHA `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a` (this is the base SHA reported by PR #179 at creation). Do not transfer CI results from older SHAs to this SHA or any PR head.
+- **PR #133:** now closed and merged; its historical “open” statements below are stale and must not be followed.
+- **Previously merged pricing/import security fixes:** #144, #145 and #146 are already on the current main baseline; do not recreate their work unless a new regression is proven.
+- **Active import acceptance branch:** `fix/import-finalize-manifest-and-row-errors-20261024`, PR [#179](https://github.com/Report-Engainall/Nasr1/pull/179), base `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`. The initial code head before this checkpoint/matrix/report refresh was `75db49baa22ae6056c022d87d462599ab2c7b9e6`; read PR #179 for the final live head after documentation commits.
+- **Current import scope:** source/batch identity, request and file deduplication, required row-value validation, zero-preserving identifiers, strict CSV/XLSX decoding, resume fingerprint/manifest gates, visible/paged row errors, terminal-safe failure reconciliation, and audited idempotent rollback without deleting snapshot history.
+- **Acceptance:** Core and P2 must both complete successfully on the final PR #179 head. The new migration and PostgreSQL 17 regression script have not been claimed PASS until those exact-head workflows finish. Hosted Onyx/ERP import remains external and unproven without an authorized sandbox.
+- **Independent review:** reviewer `adnanabderab2016-sys` has been requested on PR #179; a request is not an approval.
+- **NEXT ACTION — FIRST STEP ON RESUME:** read PR #179's latest head SHA; run/check Core and P2 plus the isolated PostgreSQL 17 database acceptance; inspect any failure log and fix only the proven failing contract; update this pointer and the acceptance matrix on the same branch.
+
+
 - **Repository:** `Report-Engainall/Nasr1`; `main` remains the only production reference.
 - **main SHA:** `16a3d23e558696700bccbb3dbf9ea75b0fccf745`; Core [40035355209 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035355209) on that SHA.
 - **Current resume branch / PR:** `p2/reconcile-18-prs-live-main-20261024`, [PR #133](https://github.com/Report-Engainall/Nasr1/pull/133). Its prior head `bd5d8b04a2d29da6bdf1dd43a4d382123185c28e` passed Core [40107194250](https://github.com/Report-Engainall/Nasr1/actions/runs/40107194250) and P2 [40107194253](https://github.com/Report-Engainall/Nasr1/actions/runs/40107194253). This checkpoint/report/matrix update advances the branch again; require new exact-head Core/P2 before treating the new head as tested. PR #133 remains open and no independent review is recorded.
