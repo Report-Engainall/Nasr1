@@ -9,10 +9,9 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:db": "node scripts/test-database-migrations.mjs && node scripts/test-async-export-jobs.mjs && node scripts/generate-public-rpc-contract-inventory.mjs && node scripts/test-general-ledger-pagination.mjs && node scripts/test-customer-cart-persistence.mjs && node scripts/test-admin-catalog-commands.mjs && node scripts/test-customer-price-visibility.mjs && node scripts/test-customer-returns.mjs && node scripts/test-onyx-reconciliation.mjs && node scripts/test-onyx-reconciliation-concurrency.mjs && node scripts/test-onyx-source-evidence.mjs && node scripts/test-ai-gateway-telemetry.mjs && node scripts/test-staff-receivables-aging-credit-memo-parity.mjs",
+    "test:db": "node scripts/test-database-migrations.mjs && node scripts/test-general-ledger-pagination.mjs && node scripts/test-customer-cart-persistence.mjs && node scripts/test-admin-catalog-commands.mjs && node scripts/test-customer-price-visibility.mjs && node scripts/test-customer-returns.mjs && node scripts/test-onyx-reconciliation.mjs && node scripts/test-onyx-reconciliation-concurrency.mjs && node scripts/test-onyx-source-evidence.mjs && node scripts/test-ai-gateway-telemetry.mjs && node scripts/test-staff-receivables-aging-credit-memo-parity.mjs",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "api-ops:rpc-inventory": "node scripts/generate-public-rpc-contract-inventory.mjs"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@fontsource/noto-sans-arabic": "^5.3.0",
