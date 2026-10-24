@@ -104,6 +104,19 @@ describe('price grid XLSX workbook', () => {
     }
   });
 
+  it('removes XML 1.0-forbidden controls from exported product text', async () => {
+    const hostile = {
+      ...row,
+      item_code: "00\u000101234",
+      name: "سكر\u0000 أبيض\u0007",
+    };
+    const records: string[][] = [];
+    await parseXlsxFirstWorksheet(buildPriceGridXlsx([hostile]), values => { records.push(values); });
+    expect(records).toHaveLength(2);
+    expect(records[1][1]).toBe('0001234');
+    expect(records[1][2]).toBe('سكر أبيض');
+  });
+
   it('rejects malformed price cells using the exact same validator as CSV', async () => {
     const records: string[][] = [];
     await parseXlsxFirstWorksheet(buildPriceGridXlsx([row]), values => { records.push(values); });
