@@ -24,9 +24,9 @@ async function main() {
   await db.unsafe("reset role");
 
   const actorRows = await db.unsafe(
-    "select u.id::text as auth_user_id, u.email, p.id::text as profile_id, p.organization_id::text as organization_id " +
-      "from auth.users u join public.profiles p on p.auth_user_id=u.id " +
-      "where lower(u.email)='ci-accountant@example.test' and p.is_active=true limit 1",
+    "select p.auth_user_id::text as auth_user_id, p.email, p.id::text as profile_id, p.organization_id::text as organization_id " +
+      "from public.profiles p join public.user_roles r on r.profile_id=p.id and r.role='accountant' " +
+      "where lower(p.email)='ci-accountant@example.test' and p.is_active=true limit 1",
   );
   assert.equal(actorRows.length, 1, "migration acceptance fixtures must include an active finance accountant");
   const actor = actorRows[0];
