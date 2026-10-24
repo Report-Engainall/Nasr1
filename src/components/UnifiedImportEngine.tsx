@@ -697,7 +697,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           <p>يدعم CSV وملفات XLSX الجدولية (الورقة المرئية الأولى). صيغة XLS الثنائية وPDF تبقيان في مسار التعيين اليدوي؛ لا تُخترع بيانات غير مستخرجة.</p>
           <div className="form-grid">
             <label className="form-field"><span>مصدر البيانات</span>
-              <select value={sourceSystem} onChange={(event) => { setSourceSystem(event.target.value); setExternalSourceReference(""); }}>
+              <select value={sourceSystem} disabled={stage !== null || Boolean(duplicatePrompt)} onChange={(event) => { setSourceSystem(event.target.value); setExternalSourceReference(""); }}>
                 <option value="manual">رفع يدوي</option>
                 <option value="onyx_pro">Onyx Pro</option>
                 <option value="external_erp">نظام ERP خارجي</option>
@@ -706,7 +706,8 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
               <small>يحفظ هذا الاختيار هوية المصدر في سجل الدفعة فقط؛ لا يبدأ مزامنة حية أو اتصالًا خارجيًا.</small>
             </label>
             {sourceSystem !== "manual" && <label className="form-field"><span>مرجع المصدر الخارجي / رقم الدفعة</span>
-              <input value={externalSourceReference} onChange={(event) => setExternalSourceReference(event.target.value)}
+              <input value={externalSourceReference} disabled={stage !== null || Boolean(duplicatePrompt)}
+                onChange={(event) => setExternalSourceReference(event.target.value)}
                 maxLength={200} required placeholder="معرّف الدفعة في Onyx أو ERP أو ملف المورد" />
               <small>حتى 200 حرف. يدخل المرجع في هوية الطلب وبصمة المعالجة وسجل الدفعة؛ لا تُرسل أي مزامنة خارجية.</small>
             </label>}
