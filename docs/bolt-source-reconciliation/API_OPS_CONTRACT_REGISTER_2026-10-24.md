@@ -12,16 +12,16 @@
 - **Owner authority:** the owner explicitly authorized this integration and ready merges; older no-approval text in historical snapshots is superseded. Exact-head CI, migration order and post-merge confirmation remain technical gates.
 - **External boundaries:** hosted customer E2E is SKIPPED; production mutation/deployment/restore, real Onyx import/sync, WhatsApp delivery and live AI-provider calls are not claimed.
 
-## LIVE EXECUTION CHECKPOINT — 24 October 2026 (after PR #198 merge)
+## LIVE EXECUTION CHECKPOINT — 24 October 2026 (after PR #202 merge; PR #201 pending)
 
-- **Current main merge SHA:** `12b622326f8a95575994ef1afae43f69fdf854b1` after #198; post-merge Core run [40130981792](https://github.com/Report-Engainall/Nasr1/actions/runs/40130981792) completed SUCCESS on exact main SHA; isolated PostgreSQL 17 migration/core-workflow acceptance, unit, lint, build, preview and Chromium checks all passed. Earlier `e467c782bec0e19ddab6c5ddaa72aaa073d7283b` remains the tree used for the last documented 310/310 catalog inventory.
-- **#196 export parity:** merged at `6f73438bb1c2e90bd3daffde0701df29b3df8553`; exact-head Core 40130250564 and P2 40130250519 passed; post-merge Core 40130620987 passed on that merge SHA.
-- **#197 DQS statuses:** merged at `4ebb0368a58b1f3d8e93fd774a7f90cd82f56fbb`; exact-head Core 40130345683 and P2 40130345655 passed; post-merge Core 40130696335 completed SUCCESS.
-- **#198 admin route mount acceptance:** merged as `12b622326f8a95575994ef1afae43f69fdf854b1`; exact head `67ea3d0d20216697cf35d70e54897d6128c50176` passed Core 40130584912 and P2 40130584867. The tests verify mount/link/wrapper for 22 admin URLs; they do not close all per-screen behavior, role/data workflows, hosted E2E, or production UAT.
-- **Owner authorization:** owner authorizes ready merges without separate review; exact-head CI and post-merge state checks remain required.
-- **Still PARTIAL:** 179 callable RPC semantic contracts remain; hosted customer/tenant E2E, live Onyx/WhatsApp/AI providers, production DB/deploy/restore are not proven.
-
----
+- **Current main SHA:** `4192a2f8825079f169a9412ac4a2347f4f82cce8`; post-merge Core run [40132572775](https://github.com/Report-Engainall/Nasr1/actions/runs/40132572775) was IN_PROGRESS at last poll.
+- **PR #200 — payment audit runtime acceptance:** merged as `d0d12fde72e2ce60dd089b188573ae3143f19727`; exact head `0eef5d1efcb9acfbeb8b3727e2643f2ecc472eb1` passed Core 40132041281/P2 40132041279; post-merge Core 40132426205 SUCCESS. PostgreSQL 17 acceptance verifies real payment insertion, identical request replay, changed-payload rejection, exactly one persisted audit event with tenant/actor/source fields, and no raw idempotency key/payment notes in audit metadata.
+- **PR #202 — PDF HTTP contracts:** merged as `4192a2f8825079f169a9412ac4a2347f4f82cce8`; exact head `0f77d36669ade933e076ba2f53ec659ff6465a6a` passed Core 40132224605/P2 40132224621. Contract tests cover authorization/UUID validation, no-store/Vary headers, attachment metadata and safe forbidden/missing/source/render errors. Post-merge Core 40132572775 was IN_PROGRESS at last poll.
+- **PR #201 — invoice payment vs credit-memo race:** OPEN at head `f46ae0971effbf56ab6d3a6d0a829888a84c9cb2`; Core 40132522340/P2 40132522308 were IN_PROGRESS at last poll. An earlier head failed because a test queried invoice totals while role was `authenticated`; the current head resets role before aggregate read. No merge until latest-head Core/P2 terminate and pass.
+- **PR #199 — documentation reconciliation:** merged as `7708e8bc7b08ff4d0375cfe2aea5385c2ce0e943`; exact Core/P2 passed, post-merge Core 40132022030 SUCCESS.
+- **API-OPS remains PARTIAL:** 179 callable RPC candidates still need explicit source-backed role/tenant allow-deny, side-effect, idempotency/retry and audit review. These targeted checks do not close the full catalog.
+- **Catalog artifact is historical:** 310/310 functions matched, 0 unmatched, 135 migrations on historical SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; not newly generated on current main.
+- **External boundaries:** hosted customer/tenant E2E remains SKIPPED; production writes/migrations/deploy/restore and live Onyx/WhatsApp/AI calls remain NOT RUN/BLOCKED_EXTERNAL absent authorized evidence.
 
 ## NEXT_ACTION
 
