@@ -1,35 +1,39 @@
 # NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026
 
-# NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026
+## AUTHORITATIVE ACTIVE READ — 2026-10-24 (live reconciliation)
 
-## AUTHORITATIVE ACTIVE READ — 2026-10-24 20:53 +03:00
+### Production reference and merge truth
+- Repository `Report-Engainall/Nasr1`; the only production reference is `main`. Live main SHA: `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; exact-head main check `40111286682` was SUCCESS. No direct writes to main.
+- #133 and #144–#146 are merged; do not recreate these fixes absent a new, evidenced regression.
+- #148–#151 are closed without merge. Canonical replacements: #164, #165, #166 and #168; #167 duplicates #162. #183 was closed unmerged after its XML control-safety patch was ported into existing #155. Keep #152 as the single canonical execution checkpoint.
+- Live PR metadata shows review requests but no submitted independent approval has been verified for the work below. A reviewer assignment is not approval.
 
-### Live reference and merge truth
-- Repository: `Report-Engainall/Nasr1`; production reference is `main` only. Live GitHub read confirms `main` SHA `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`; current main check `40111286682` is SUCCESS on that exact SHA. No direct writes to `main`.
-- #133 is merged. Merged baseline includes #135–#141 and #143–#146. Do not recreate these changes absent a proven regression.
-- #148–#151 are CLOSED without merge and are not part of main. Their canonical replacement work is tracked in #164, #165, #166 and #168; #167 duplicates #162. Do not reopen stale-base duplicates or recreate their changes. #152 is the canonical checkpoint PR; do not create another resume pointer.
-- Independent review status: GitHub currently returns no submitted review for #134, #142, #147, #152, #179 or #180. Requested reviewers are not approvals. Do not merge on the strength of CI alone.
+### Exact-head acceptance evidence
+- **#134 — concurrent inventory batch idempotency:** head `f141391968fefd9f568624cdfb98be935d7c9da6`; Core `40118402370` and P2 `40118402229` SUCCESS on that exact head. PostgreSQL 17 acceptance verifies canonical batch identity and no duplicated transfer/audit effects. Hosted customer/tenant E2E is SKIPPED.
+- **#142 — API-OPS-001 / Edge Function contracts:** latest head `a4fa6f3a331bf1f02a7ff720f90c1c2e461ccb1c`; Core `40119888408` and P2 `40119888434` SUCCESS. The product-image JSON delete path uses a 2 KiB bounded stream with strict UTF-8, plus a regression source test. Full semantic authorization review remains PARTIAL: 304/304 public runtime objects source-mapped, but 179 callable RPC candidates still need analysis/testing for active identity, tenant and role enforcement, grants, parameters/results, errors, business effects, concurrency, idempotency and audit.
+- **#147 — customer quote decision guard:** head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`; Core `40111802394` and P2 `40111802434` SUCCESS. Core logs on this exact SHA prove PostgreSQL 17 quote-decision acceptance and executive analytics; NULL/unsupported decisions are rejected without mutation. Independent review remains outstanding.
+- **#152 — canonical checkpoint:** previous head `8680772daab788fc98a54d78fb284bcea58fa147` passed Core `40118330259` and local P2 `40118330212`; hosted customer/tenant E2E is SKIPPED. This documentation update will create a new head, so all previous #152 results become historical until required checks rerun on the new SHA.
+- **#155 — price-grid CSV/XLSX correctness:** head `fd7944fc2a322676d3a8cf3cff08fe64f9ccc934` now contains signed stock-metric parity plus XML 1.0-forbidden control-character sanitization and an XLSX round-trip regression test. Core `40120144157` and P2 `40120144155` were IN PROGRESS at the last live poll; do not mark PASS until terminal. Hosted customer/tenant E2E is SKIPPED.
+- **#158 — customer payment audit/concurrency:** head `afc685636df26ce9b35e84ffc9565f552c3c2d7e`; Core `40118708860`, dedicated PostgreSQL 17 `40118708851`, and P2 `40118708956` SUCCESS. Acceptance proves concurrent same-key payments resolve to one canonical ID, one payment row and one audit event. Hosted customer/tenant E2E is SKIPPED.
+- **#162 — DQS valid-row scoring:** head `e5ca28bb81a605f4e6628baa7abbdc1b5c7216f8`; PostgreSQL 17 `40113018797`, Core `40113018846`, and P2 `40113018801` SUCCESS. Only explicitly `valid` rows earn validity points. Open and review-gated.
+- **#172 / #181 — stock-count snapshot:** #172 head `682761625993a203b5795daa953632f131ae886a`; Core `40115029836` and P2 `40115029831` SUCCESS on that head. Draft #181 stacks rollback/SQLSTATE/no-side-effect assertions atop #172; those new assertions need exact-head gates after integration.
+- **#179 — import manifest, source identity, resume and rollback:** head `4f34704fe2b6cf63942f6cf6b3532ef780130a91`; Core `40119746804` and local P2 acceptance `40119746870` SUCCESS on that exact head. Tests now use idempotent import creation, persist processing/source fingerprints before finalization, validate replacement identity and fail closed if an old ready snapshot remains for the same tenant/profile/period. Hosted customer/tenant E2E is SKIPPED. Independent review is still required.
+- **#180 — tenant-scope legacy finalizer:** head `f31e3547e99b085fb0b8db0b2be098809acac247`; PostgreSQL 17 `40118418761`, Core `40118418698`, and local P2 `40118418782` SUCCESS. Foreign-tenant denial also asserts staged rows and audit rows do not change. Hosted E2E is SKIPPED.
+- **#182 — duplicate status reconciliation draft:** consolidate its useful P1 status details into this canonical checkpoint, then close it to avoid competing edits to CURRENT_EXECUTION_STATE and the matrix.
 
-### Exact-head verification
-- **#134 — inventory batch idempotency:** current head `296453bd6d71817e0b78e4a752f0dff889ef5ec3`. Core `40112078912` and P2 `40112078914` are SUCCESS on that exact head. The test covers concurrent calls using one tenant-scoped idempotency key and asserts one canonical batch plus no duplicated transfer/audit effects. Independent review is still missing. Hosted customer/tenant E2E is SKIPPED, not PASS.
-- **#142 — API-OPS-001:** current head `77f338753a6fad8d0f9b4942e480c8be85782d3e`; Core `40117461570` and P2 `40117461572` are SUCCESS on this exact head. The authenticated hosted customer/tenant job is SKIPPED. API-OPS remains PARTIAL: 304/304 public runtime objects are source-mapped, but 179 callable RPC candidates still need semantic review of active identity, tenant and role enforcement, grants, inputs/outputs, mutation effects, idempotency, errors, concurrency and auditing.
-- **#147 — customer quote response:** current head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`; current checks `40111802394` and `40111802434` are SUCCESS on that exact head. The dedicated PostgreSQL 17 proof at `5b351a544f412a48c0d5466b91b000c51100c889` is on an older SHA; exact-head PostgreSQL 17 acceptance is therefore UNVERIFIED. Independent submitted review is missing.
-- **#152 — canonical checkpoint:** current branch head `5e85c1a4327669d5540fb8df64f43bc10dd2f41e`. Its `test-and-build` run `40117885045`, local order/tenant acceptance, public smoke and infrastructure gate are SUCCESS on that exact head; the hosted authenticated customer/tenant job is SKIPPED. This edit advances the branch; all previous checks are historical for the new commit and must be rerun.
-- **#179 — import source identity, row errors, resume and rollback:** live PR head is `b67c5aab5449518987b495701f453dc07d585f0d`; check run `40118221153` is IN_PROGRESS on that exact SHA. Earlier results on other #179 heads do not apply.
-- **#180 — legacy import finalizer tenant scope:** live PR head is `670b88b44c3c5614bb085520964a71008cf497a7`. PostgreSQL 17 run `40118008217` and `test-and-build` `40118008202` are SUCCESS on the exact head. Local order/tenant Playwright run `40118008189` is still IN_PROGRESS; hosted authenticated customer/tenant E2E is SKIPPED. The migration changes the legacy one-argument `finalize_import_job(uuid)` to delegate to the tenant-scoped two-argument contract without resolving or locking a foreign job first. Do not mark full acceptance until the remaining exact-head gate is terminal.
-- **Main and PR evidence are separate:** a passing run on another SHA, a skipped hosted E2E, an open PR, or a requested review does not satisfy an unmet acceptance gate.
-
-### Integration and external evidence limits
-- Preserve migration order **#147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #172**. After every merge or rebase, reconcile shared database-test assertions and rerun all required Core/P2/PostgreSQL 17 gates on the final resulting SHA.
-- Never replace `scripts/test-database-migrations.mjs` wholesale; preserve existing assertions while reconciling overlapping changes.
-- Production migration/restore, deployment, hosted customer/tenant E2E, live Onyx import/sync, official WhatsApp delivery and live AI-provider calls remain NOT RUN or BLOCKED_EXTERNAL unless direct authorized evidence proves them.
+### Integration constraints and evidence boundaries
+- Apply migrations in timestamp/dependency order: #180 legacy tenant-scoped finalizer (`20261024160000`) before #179 verified-manifest finalizer (`20261024170000`). Preserve the agreed chain **#147 → #164 → #165 → #166 → #168 → #158 → refresh/retest #162 → #172**, then integrate stacked #181 under its parent. Reconcile shared test assertions after each base change; rerun required gates on final resulting SHA.
+- Keep #155's CSV/XLSX work in one PR because both signed-stock and XML-control fixes touch the same files. #183 is CLOSED unmerged; its code was copied into #155, which owns CI acceptance.
+- Do not call hosted customer E2E, live Onyx import, WhatsApp delivery, AI-provider calls, production deployment/migration or production restore PASS without direct authorized evidence. Present unavailable gates as SKIPPED/BLOCKED_EXTERNAL or NOT RUN.
+- Build success alone does not prove database correctness or authorization. An open PR is not a merge; old-SHA checks and requested reviewer assignments are not current acceptance evidence.
 
 ## NEXT ACTION — FIRST STEP ON RESUME
-1. Poll #179 run `40118221153` on exact head `b67c5aab5449518987b495701f453dc07d585f0d`; repair only a proven failure from its logs.
-2. Confirm #180 Playwright run `40118008189` is terminal on `670b88b44c3c5614bb085520964a71008cf497a7`; fix any evidenced failure and rerun all exact-head gates if the code changes.
-3. Rerun the required gates for the new #152 checkpoint head after this documentation update. Do not carry forward the old checkpoint head's PASS.
-4. Continue #142 semantic review across the remaining 179 callable RPC candidates; a source inventory is not a semantic security audit.
-5. Secure the required independent reviews, then integrate only in dependency order and verify the actual merge SHA plus CI on the resulting `main`.
+1. Poll #155 Core `40120144157` and P2 `40120144155` on head `fd7944fc2a322676d3a8cf3cff08fe64f9ccc934`; repair only failures proven by logs.
+2. Obtain independent review for #134, #142, #147, #155, #158, #162, #179 and #180; merge only when review policy and ordered migration checks are satisfied.
+3. Rerun required Core/P2 gates on the new #152 checkpoint head after this document update; do not transfer old-head PASS.
+4. Continue #142 semantic security review for the remaining 179 RPC candidates and add evidence per reviewed contract.
+5. Integrate #181 with parent #172 only under ordered review, then rerun exact-head Core/P2/PostgreSQL 17 and prove SQLSTATE `40001` plus zero partial stock/audit/session side effects.
+
 
 ## HISTORICAL ACTIVE READ — 2026-10-24 20:40 +03:00 (superseded by the authoritative read above)
 
