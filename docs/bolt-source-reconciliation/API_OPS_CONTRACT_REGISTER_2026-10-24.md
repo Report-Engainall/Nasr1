@@ -5,21 +5,22 @@
 
 
 
-## AUTHORITATIVE RECONCILIATION — 2026-10-24 20:15 +03:00
+## AUTHORITATIVE RECONCILIATION — 2026-10-24 20:22 +03:00
 
-- Live `main` remains `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`. Merged PRs #133, #135–#141, #143–#146 must not be recreated without a newly proven regression.
-- Inventory evidence remains 304/304 public objects mapped. That source map is not semantic acceptance of the 179 callable RPC candidates.
-- #147 exact head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a` passed Core/P2; independent review and ordered merge remain pending.
-- #148/#149/#150 closed as exact duplicate of #164/#165/#166 after checking every changed file blob. #151 is now closed as exact duplicate of current-main #168; both migration + workflow + test file blobs were identical. Migration sequence continues through #168, not stale #151.
-- #164/#165/#166 current-main migrations (operational task, promotion, announcement NULL state fail-closed) each passed Core/P2/PG17 on their recorded exact heads; independent review pending. Order: #147 → #164 → #165 → #166 → #168 → #162 → #172. Retest every head after rebase/integration.
-- #162 DQS follow-up exact head `e5ca28bb81a605f4e6628baa7abbdc1b5c7216f8` passed Core/P2/PG17; only explicitly `valid` rows receive validity credit. Refresh and retest after the ordered migration sequence; #167 is closed as duplicate.
-- #163 storefront recovery exact head `17b2b434d5a4f1845959e9c8eb41a85530234b10` passed Core/P2; hosted customer/tenant E2E skipped, not PASS.
-- #169 now includes unique customer-orders keyboard accessibility E2E coverage transferred from old #124; latest head `d6ef27f09a2c73c0dae74d1be2c7768c1577fe40` has Core/P2 running after this transferred test. #124, #107, #119, and #151 are closed only after all changed-file content was preserved and blob-checked against #169/#170/#173/#168.
-- #168, #169, #170, #171, and #173 had exact-head Core/P2 PASS before the later #169 test addition; #169's latest head needs its own fresh success. #174 adds an admin export route mapping; its current head `e0ca64f8f66203615eb74bf778f85f59156f2f62` has Core/P2 running after correcting an invalid runtime `routeTree.children` assumption in its test.
-- #172 stock-count snapshot guard and line attribution now has latest head `682761625993a203b5795daa953632f131ae886a`; it adds serialization of `inventory_balances` writers, a fail-closed snapshot-set test, and `counted_by` + per-line audit assertions. Core `40115029836` / P2 `40115029831` are running on this latest head; prior head test results are not transferable.
-- #152 checkpoint documentation passed Core/P2 on exact head `6389e51f274c38c56920d9a7d575c089a8e940a0`; because this register and #169/#172/#174 have moved, the checkpoint must be refreshed again after those gates settle.
-- All touched/open PRs were submitted for independent review request, but no submitted approval is recorded at this read. No merge claim is made.
-- Production secrets, production migrations/restore, live Onyx import, official WhatsApp delivery, live AI provider access, deployment, and hosted authenticated customer E2E remain NOT RUN / BLOCKED_EXTERNAL without authorized evidence.
+- Live `main` SHA remains `0bbaa6db9332fd0f812e00bd2b8fcda275fc5f3a`. #133, #135–#141, #143–#146 are already merged and must not be recreated without a new regression.
+- Catalog/privilege inventory is 304/304 public objects mapped; this is not semantic acceptance of the 179 callable RPC candidates.
+- #147 exact head `fc2a7d5eb08c9bc99d3d90cc869b2e5f0296618a`: Core/P2 PASS; independent review and ordered merge pending.
+- #148/#149/#150 closed as exact blob duplicates of #164/#165/#166. #151 closed as exact blob duplicate of #168. #107/#119/#124 closed after preserving coverage in #170/#173/#169. #167 closed as duplicate of #162.
+- #164/#165/#166 current-base migrations passed Core/P2/PG17 on recorded heads; review pending. #168 replaces old #151. Migration order: #147 → #164 → #165 → #166 → #168 → refresh/retest #162 → #172.
+- #162 DQS validity fix passed Core/P2/PG17 on its old exact head `e5ca28bb...`; refresh/retest after earlier migrations integrate.
+- #163 storefront recovery passed Core/P2 at `17b2b434...`; hosted authenticated customer/tenant E2E remains SKIPPED, not PASS.
+- #169 latest head `d6ef27f09a2c73c0dae74d1be2c7768c1577fe40`: Core `40115015672` and P2 `40115015539` PASS, including transferred keyboard acceptance. Independent review pending.
+- #172 latest head `682761625993a203b5795daa953632f131ae886a`: Core `40115029836` PASS; P2 `40115029831` was still in progress at last poll. This head includes balance-table serialization and per-line count audit.
+- #174 latest head `e0ca64f8f66203615eb74bf778f85f59156f2f62`: Core `40115104136` PASS; P2 `40115104172` was still in progress at last poll. Route test now reads the generated tree rather than assuming `routeTree.children`.
+- #142 preceding doc head `e5bb7ef0404831f53eb3a1032a89798beb539b41` had Core/P2 in progress. This semantic batch changes SHA again; prior results do not transfer.
+- #152 checkpoint PR previously passed Core/P2 on `6389e51f274c38c56920d9a7d575c089a8e940a0`, but must be refreshed and retested after #169/#172/#174 settle.
+- Review requests were submitted; no independent approval was recorded in the latest review query. Do not merge without actual approval and exact-head gates.
+- Production migrations/secrets, hosted authenticated customer E2E, deployment, live Onyx/WhatsApp/AI and verified production restore remain NOT RUN / BLOCKED_EXTERNAL without authorized evidence.
 
 
 
@@ -341,6 +342,27 @@
 4. `fetch_staff_finance_data` يعرض حتى 1000 دفعة؛ يلزم pagination أو تجميعات خادم متفق عليها حتى لا يُعرض رصيد/تقرير كامل مبنيًا على أول 1000 فقط.
 
 
+## الدفعة الدلالية العاشرة — الاستيراد المتقطع، طابور التصدير غير المتزامن، ودورة حياة العميل
+
+المصادر المطابقة لـ`main`: `20261018060000_import_upload_chunk_contiguity.sql` (`record_import_upload_chunk`)، `20261020180000_import_job_request_idempotency.sql` (`create_import_job_idempotent`)، `20261020240000_async_export_jobs.sql`، و`20261023100000_customer_lifecycle_command.sql` (`set_admin_customer_status`).
+
+| RPC / family | التفويض والنطاق | عقد الإدخال والأثر | التكرار والتزامن والتدقيق | حالة القبول |
+|---|---|---|---|---|
+| `record_import_upload_chunk(uuid,integer,bigint,integer,text)` | يستخرج المؤسسة من profile النشط الموافق لـ`auth.uid()` ويتطلب `is_staff()`; يقرأ جلسة الاستيراد بمعرفها والمؤسسة مع `FOR UPDATE`. التنفيذ للمصادق عليهم بعد سحب PUBLIC/anon. | يرفض الجلسات المغلقة/الملغاة/المنتهية؛ يتحقق من مدى رقم الشريحة وبصمة 64 hex والموضع والحجم، ويمنع تخطي الشرائح أو وجود فجوة في المقدمة. إعادة الشريحة الموجودة تقبل فقط إذا تطابق hash/offset/size. | قفل الجلسة يحمي تحديث verified_chunks من سباقين على الجلسة نفسها؛ لا يثبت ذلك وحده بصمة الملف الكامل أو ذرية commit/rollback. | مراجعة مصدر؛ اختبر جلسة من مؤسسة أخرى، شريحة مكررة بنفس/مختلف الحمولة، سباق نفس رقم الشريحة، وبصمة الملف النهائي والاستئناف. |
+| `create_import_job_idempotent(...)` | يتطلب المصادقة والموظف، ويشتق المؤسسة من profile النشط. مفتاح الطلب مركب من المؤسسة والفاعل وrequest_key. | يقيد intent إلى `replace/merge/new_version` ويبني payload موحدًا للملف والمصدر والربط والفترة والنية. | `INSERT ... ON CONFLICT DO NOTHING` ثم يقفل سجل المفتاح؛ الحمولة المتطابقة تعيد job الملتزم، والحمولة المختلفة ترفض، والسجل الذي لا يترجم إلى job يفشل بخطأ تعارض بدل النجاح الوهمي. | مراجعة مصدر؛ يلزم اختبار PG17 متزامن لنفس المفتاح مع حمولة متطابقة/مختلفة وإثبات job واحد وعزل المؤسسة. |
+| `request_async_export_job(text,jsonb)` | profile ومؤسسة نشطة، ودور admin/manager/accountant. لا يقبل tenant من العميل. التخزين في bucket خاص غير عام وحد ملف 25 MiB وCSV فقط. | يدعم `orders_csv`; يجب أن تكون filters object بتحويلي `date_from/date_to` فقط وتاريخين صالحين بمدى مرتب لا يتجاوز 366 يومًا. المفتاح 8–120 حرفًا من نمط محدد. | مفتاح unique بحسب المؤسسة/الفاعل مع request hash؛ التطابق يعيد job والاختلاف يرفض؛ يكتب audit عند الإنشاء. | مراجعة مصدر؛ تحقق من سياسات Storage ورابط التحميل الموقّع وتوافق metadata مع الملف النهائي. |
+| `list_my_async_export_jobs` / `get_my_async_export_download` / `cancel_my_async_export_job` | تربط الاستعلامات المؤسسة والفاعل وjob ID؛ لا يكفي job ID منفردًا. صلاحية الدور مطلوبة؛ أخطاء job الأجنبي/غير الموجود لا ينبغي أن تكشف وجوده. | سجل التصدير محدود 1–50؛ تنزيل الملف يتطلب job جاهزًا وartifact سليمًا؛ الإلغاء يخضع لحالات قابلة للإلغاء ويسجل التدقيق. | يجب أن يمنع الإلغاء العامل من الإكمال لاحقًا وأن يمنع استخدام artifact بعد انتهاء الصلاحية. | مراجعة مصدر؛ اختبر معرفًا أجنبيًا/غير موجود برسالة موحدة، وسباق cancel/claim/complete، وحذف artifact منتهي الصلاحية. |
+| `claim_async_export_jobs` / `complete_async_export_job` / `fail_async_export_job` / `sweep_expired_async_export_jobs` / `clear_expired_async_export_artifact` | تتطلب سياق `service_role` الموثوق ولا يجوز كشفها للعميل. تحدد حدود العامل: batch 1–10، lease 30–900 ثانية، sweep 1–200. | claim يستخدم `FOR UPDATE SKIP LOCKED`، ويحدد owner/expiry ويزيد attempts. complete يتحقق من worker والـlease ومن المسار `organization/job/orders.csv`; fail يستخدم retry bounded حتى خمس محاولات، ثم failed. | lease المنتهية تتحول إلى retry/failed؛ يجب التأكد من أن العامل القديم لا يستطيع complete بعد انتهاء lease، وأن التخزين والـDB لا يتباعدان. | مراجعة مصدر؛ يلزم اختبار عاملين متزامنين، expiry أثناء المعالجة، العامل القديم، خمس محاولات، وتطابق object storage مع حالة DB. |
+| `set_admin_customer_status(uuid,text,text,text)` | profile نشط في المؤسسة الحالية ودور admin/manager؛ customer يتم تحميله بـ`id + organization_id` مع `FOR UPDATE`. | يشترط سببًا، ويستعمل expected status لتفادي الكتابة فوق حالة أحدث. الاستعادة لا تتم إلا من archived وإلى آخر حالة سابقة مثبتة في audit؛ إذا غاب الدليل يرفض بدل التخمين. | الانتقالات والسبب والفاعل والحالتين القديمة والجديدة تكتب في audit. | مراجعة مصدر؛ اختبر رفض مؤسسة أخرى، وسباق expected-status، وarchive/restore مع غياب سجل سابق، وإعادة الطلب بسرعة. |
+
+### فجوات قبول متبقية
+1. يلزم تشغيل PostgreSQL 17 على تسلسل المهاجرات النهائي، بجلسات فعلية اصطناعية لمؤسستين وأدوار مختلفة؛ مراجعة المصدر ليست قبولًا متكاملًا.
+2. يلزم اختبار سياسة Storage والرابط الموقّع فعليًا؛ كون bucket خاصًا لا يثبت سلامة أذونات كل object.
+3. يجب أن يثبت الاختبار أن العامل لا يستكمل job بعد lease منتهية/إلغاء، وأن retries تقف عند خمس محاولات وأن owner/tenant/path لا تتغير.
+4. يجب اختبار idempotency عند الالتزام النهائي للاستيراد والتراجع، لا إنشاء job فقط، ومطابقة بصمة الملف والمقاطع عند الاستئناف.
+5. قبول دورة العميل في الخدمة والواجهة المستضافة منفصل عن mocks واختبار المصدر.
+
+
 ## الفجوات المفتوحة صراحة
 
 1. مطابقة الكتالوج العام بالمصدر ورصد منح EXECUTE الفعلية: **TESTED_EXACT_SHA** على `672749855d733f691ab59de878420a210108fbbe`، 304/304 كائنات و0 مصادر مجهولة ([الفهرس](./PUBLIC_RPC_FUNCTION_INVENTORY_2026-10-24.md)). التدقيق الدلالي لكل 179 مرشح RPC واختبارات الرفض/العزل/التكرار/التدقيق: **OPEN / PARTIAL**.
@@ -352,8 +374,9 @@
 
 ## NEXT_ACTION
 
-1. Poll exact-head Core/P2 for #172 (`682761625993a203b5795daa953632f131ae886a`), #169 (`d6ef27f09a2c73c0dae74d1be2c7768c1577fe40`), and #174 (`e0ca64f8f66203615eb74bf778f85f59156f2f62`); fix only proven failures and rerun every changed SHA.
-2. Update the single checkpoint PR #152 after those runs settle; record the closed duplicates (#107/#119/#124/#151), #169's transferred keyboard test, and #172's final dual-migration acceptance.
-3. Preserve migration integration order #147 → #164 → #165 → #166 → #168 → refresh/retest #162 → #172. Do not apply old-base #151 or duplicate #148–#150.
-4. Continue semantic review of remaining RPC candidates after batches 8–9; focus next on import/exports and customer/company/invitation access controls, including actual grant and deny tests.
-5. No merge until exact-head gates, independent review approval, migration order and repository policy are satisfied. Hosted production access, live Onyx/WhatsApp/AI, restore/deployment remain BLOCKED_EXTERNAL/NOT RUN without authorized evidence.
+1. Poll Core/P2 for #172 (`682761625993a203b5795daa953632f131ae886a`) and #174 (`e0ca64f8f66203615eb74bf778f85f59156f2f62`); repair only evidence-backed failures and rerun.
+2. Verify #142 exact-head Core/P2 after semantic batches 8–10, then continue bounded semantic review of remaining callable RPC candidates.
+3. Refresh #152 after #172/#174 settle, recording latest heads and exact test results; rerun its new SHA.
+4. Preserve migration order #147 → #164 → #165 → #166 → #168 → refresh/retest #162 → #172. No merge without actual independent approval.
+5. Next semantic batch: validate actual Storage policies/grants and worker RPC EXECUTE privileges, then customer/company invitations and address mutation with cross-tenant deny tests.
+6. Production migrations, secrets, deployment, live Onyx/WhatsApp/AI and hosted authenticated customer E2E remain BLOCKED_EXTERNAL/NOT RUN without authorized evidence.
