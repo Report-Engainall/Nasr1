@@ -1,3 +1,16 @@
+# P2 LIVE EXECUTION UPDATE — 2026-10-24T15:04:00Z — correcting the actual Core acceptance failure
+
+- Repository: `Report-Engainall/Nasr1`; authoritative `main` remains `16a3d23e558696700bccbb3dbf9ea75b0fccf745`. No direct writes to main.
+- PR #144 current code head: `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`, branch `fix/p2-price-rpc-live-session-membership-20261024`.
+- Root cause confirmed from Core run [40104995234](https://github.com/Report-Engainall/Nasr1/actions/runs/40104995234): the failing assertion was in `scripts/test-database-migrations.mjs` lines 1948–1953, not in the separate price-visibility script. A finance-only accountant fixture with no approved customer identity expected `get_storefront_product_prices` to return a customer-tier amount. The live-session/membership guard correctly returned SQLSTATE `42501`; the test expectation was stale and inconsistent with fail-closed authorization.
+- Corrective code commit `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71` replaces that stale expectation with an explicit denial assertion while retaining accountant finance-data assertions. The earlier test-only commit `4cd7b86c5ea7d161495c4c7a689c90477aacaf32` also added a direct accepted-buyer product-card pricing assertion and changed the separate no-customer accountant-overlap case to fail closed.
+- Latest exact-head Core run [40105249828](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249828) and P2 run [40105249827](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249827) were `IN_PROGRESS` at checkpoint on the same SHA `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`. #144 acceptance is `UNVERIFIED`, not PASS.
+- PR #144 remains OPEN/UNMERGED; no independent approval is recorded. Do not merge unless both exact-head gates finish SUCCESS and the required independent review/branch protection passes. PR #145 must remain after #144.
+- PR #146 previously passed Core/P2 on `3150691725f97d7f892fcb2aed0edae898c839be`, but remains OPEN and requires independent review. PR #142 semantic RPC review remains PARTIAL: 304/304 source-mapped objects; 179 RPC candidates still require per-function semantic review. Hosted customer/tenant E2E, live Onyx, WhatsApp, production migrations and production restore remain unproven/external-gated.
+- Resumption priority: inspect the terminal result/logs for runs 40105249828 and 40105249827 on `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`; only fix failures actually evidenced in those logs, then re-check PR #144 review status. Continue unrelated acceptance work in dependency order if the gates are still running.
+
+---
+
 # P2 LIVE EXECUTION UPDATE — 2026-10-24T15:01:05Z — PR #144 acceptance repair
 
 - Authoritative repository: `Report-Engainall/Nasr1`; `main` remains `16a3d23e558696700bccbb3dbf9ea75b0fccf745`. No direct `main` writes.

@@ -1296,3 +1296,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Updated `scripts/test-customer-price-visibility.mjs` on PR #144 branch; commit `4cd7b86c5ea7d161495c4c7a689c90477aacaf32`. Accountant-without-customer now expects denial, and buyer membership is explicitly checked through both order preview and product-card price RPC for same-tier results.
 - Latest Core run [40104995234](https://github.com/Report-Engainall/Nasr1/actions/runs/40104995234) and P2 run [40104995244](https://github.com/Report-Engainall/Nasr1/actions/runs/40104995244) were IN_PROGRESS on the same SHA at this checkpoint. Status is UNVERIFIED, not PASS; no merge claimed.
 - Resume by reading the terminal status/logs for both exact-head runs, repair any evidenced regression, then satisfy independent review before merging. PR #145 remains ordered after #144.
+
+
+## P2 execution record — correct actual storefront-price denial assertion — 2026-10-24T15:04:00Z
+
+- Previous exact head `4cd7b86c5ea7d161495c4c7a689c90477aacaf32`: Core run 40104995234 failed; the log identified the stale expectation in `scripts/test-database-migrations.mjs` around lines 1948–1953. The finance-only accountant did not have an approved customer identity/membership, so the storefront customer-pricing RPC correctly returned SQLSTATE 42501.
+- Corrected that actual failing test at commit `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71`: accountant with no approved customer context must be denied storefront price lookup; existing finance data assertions remain in place. The preceding test commit `4cd7b86c5ea7d161495c4c7a689c90477aacaf32` adds explicit accepted-buyer product-card-price coverage and closes a stale accountant-overlap price expectation in `scripts/test-customer-price-visibility.mjs`.
+- Latest Core [40105249828](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249828) and P2 [40105249827](https://github.com/Report-Engainall/Nasr1/actions/runs/40105249827) are `IN_PROGRESS` on exact SHA `2bf9cfedbc6d840a0da3fdffe7ddb106b9929a71` at checkpoint. No PASS or merge claimed.
+- Next: inspect both terminal results, correct any proved new failure, then satisfy independent review before merge.
