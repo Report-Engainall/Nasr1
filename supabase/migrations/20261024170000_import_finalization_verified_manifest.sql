@@ -130,4 +130,88 @@ GRANT EXECUTE ON FUNCTION public.finalize_import_job(uuid, text) TO authenticate
 COMMENT ON FUNCTION public.finalize_import_job(uuid, text) IS
   'Finalizes only a nonterminal tenant-owned import job with a matching complete SHA-256 upload manifest and persisted processing fingerprint; snapshot creation remains transactional.';
 
+
+-- Preserve the true final suffix in file metadata for names such as "stock.final.csv".
+CREATE OR REPLACE FUNCTION public.create_import_upload_session(p_job_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_actor uuid := public.current_profile_id();
+  v_org uuid;
+  v_job public.import_jobs%ROWTYPE;
+  v_session public.import_upload_sessions%ROWTYPE;
+  v_file_type text;
+BEGIN
+  SELECT p.organization_id INTO v_org
+    FROM public.profiles p
+   WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active=true;
+  IF v_org IS NULL OR NOT public.is_staff() THEN
+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='غير مصرح بإنشاء جلسة استيراد';
+  END IF;
+
+  SELECT j.* INTO v_job
+    FROM public.import_jobs j
+   WHERE j.id=p_job_id AND j.organization_id=v_org
+   FOR UPDATE;
+  IF NOT FOUND OR v_job.file_hash IS NULL OR v_job.file_size IS NULL
+     OR v_job.file_size < 1 OR v_job.file_size > 104857600
+     OR v_job.file_hash !~ '^[0-9a-f]{64}
+ THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='دفعة الاستيراد غير صالحة';
+  END IF;
+
+  IF v_job.upload_session_id IS NOT NULL THEN
+    SELECT s.* INTO v_session
+      FROM public.import_upload_sessions s
+     WHERE s.id=v_job.upload_session_id
+       AND s.organization_id=v_org
+       AND s.import_job_id=v_job.id;
+    IF FOUND THEN
+      IF v_session.file_hash IS DISTINCT FROM v_job.file_hash
+         OR v_session.file_size IS DISTINCT FROM v_job.file_size
+         OR v_session.file_name IS DISTINCT FROM v_job.file_name
+         OR v_session.profile_id IS DISTINCT FROM v_job.profile_id
+         OR v_session.profile_version IS DISTINCT FROM v_job.profile_version
+         OR v_session.period_key IS DISTINCT FROM v_job.period_key THEN
+        RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='جلسة الرفع لا تطابق هوية دفعة الاستيراد';
+      END IF;
+      RETURN pg_catalog.to_jsonb(v_session);
+    END IF;
+  END IF;
+
+  v_file_type := CASE
+    WHEN coalesce(v_job.file_name,'') ~ '\.[^.]+
+
+      THEN pg_catalog.lower(pg_catalog.substring(v_job.file_name from '\.([^.]+)
+))
+    ELSE 'unknown'
+  END;
+
+  INSERT INTO public.import_upload_sessions(
+    organization_id,import_job_id,profile_id,profile_version,created_by,file_name,file_type,file_size,
+    file_hash,period_key,chunk_size_bytes,total_chunks,status,retention_expires_at,raw_file_retained
+  )
+  VALUES(
+    v_org,v_job.id,v_job.profile_id,v_job.profile_version,v_actor,coalesce(v_job.file_name,'import.csv'),
+    v_file_type,v_job.file_size,v_job.file_hash,v_job.period_key,4194304,
+    ceil(v_job.file_size::numeric/4194304)::integer,'created',pg_catalog.now()+interval '30 days',false
+  )
+  RETURNING * INTO v_session;
+
+  UPDATE public.import_jobs
+     SET upload_session_id=v_session.id,
+         retention_expires_at=v_session.retention_expires_at,
+         raw_file_retained=false
+   WHERE id=v_job.id AND organization_id=v_org;
+
+  RETURN pg_catalog.to_jsonb(v_session);
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.create_import_upload_session(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.create_import_upload_session(uuid) TO authenticated;
+
 COMMIT;
