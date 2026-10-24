@@ -1,12 +1,40 @@
 # NASR1 Continuous Execution Report
 
-**Checkpoint:** 2026-10-24 — live GitHub recheck after adding PRs #147–#151  
+**Checkpoint:** 2026-10-24 23:05 Asia/Aden (20:05 UTC) — live reconciliation after merges #189 and #186
 **Repository:** `Report-Engainall/Nasr1`  
 **Production reference:** `main` only  
-**Main SHA:** `16a3d23e558696700bccbb3dbf9ea75b0fccf745`  
-**Resume branch:** `p2/reconcile-18-prs-live-main-20261024`, PR [#133](https://github.com/Report-Engainall/Nasr1/pull/133)
+**Main SHA:** `653f4d764041a8751c41e75a492fed0cc6edea63` (verified current remote `main`)
+**Resume branch:** `docs/p2-current-execution-reconcile-20261024T2305`
 
-## 1. Confirmed repository state
+
+## Live reconciliation — 2026-10-24 23:05 Asia/Aden (20:05 UTC)
+
+### Current main and verified merges
+- Current remote `main`: `653f4d764041a8751c41e75a492fed0cc6edea63`. PR #189 merged as `0d7f153cf6a7c8ac70b439f2ad15e479e3d80d47`; PR #186 merged as `653f4d764041a8751c41e75a492fed0cc6edea63`.
+- Exact PR-head checks passed before merge: #189 Core [40126581054](https://github.com/Report-Engainall/Nasr1/actions/runs/40126581054), P2 [40126581094](https://github.com/Report-Engainall/Nasr1/actions/runs/40126581094); #186 Core [40126529526](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529526) and [40126529676](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529676), P2 [40126529735](https://github.com/Report-Engainall/Nasr1/actions/runs/40126529735). These are PR-head checks, not post-merge SHA checks.
+- The connected current-main commit-status and PR-run lookup returned no exact-SHA post-merge result for `653f4d764041a8751c41e75a492fed0cc6edea63`; consequently the post-merge main CI gate is **UNVERIFIED** and must not be described as pass.
+- #134 is closed unmerged as a duplicate of #189. Its same-key race block is present on current main, and the original single-vs-batch race block remains in the same file.
+
+### Remaining active fronts
+- **#142 API-OPS:** historical exact-head Core/P2 passed at `21083e8e26e219f0c3fbe05885b23f77f29a151d`, but its branch is 41 ahead / 22 behind main over 13 paths. Port only still-needed body-limit/runtime and contract-register edits to a fresh current-main branch; rerun Core/P2. API-OPS remains PARTIAL: 304/304 exposed runtime objects are source-mapped, 179 callable RPC candidates still need semantic review.
+- **#152 docs:** stale branch is 83 ahead / 22 behind current main across five central docs. Do not merge as-is.
+- **#191 docs refresh:** stale base `73547627697fecb8882c594880645200505d095d` and now reports #186/#189 as pending; a replacement PR is being built from current main instead.
+- **Import/DQS:** rerun existing import profile, tenant scope, resumability, hash reconciliation, rollback and DQS PostgreSQL 17 acceptance on current main because newer import/finalizer/quality changes landed after the old `16a3` baseline. Add code only for a reproduced failure.
+- **Storefront/routes/exports:** #186 merged route recovery, customer-order keyboard access, checkout price privacy and export hydration. Verify the merge SHA; do not duplicate the feature batch.
+- **External proof:** authenticated customer-manager journeys require isolated non-production credentials; live Onyx target import/sync, official WhatsApp delivery, hosted restore and production database writes remain unproven without authorized results.
+
+### Next execution sequence
+1. Obtain actual Core/P2 results for the exact current main SHA `653f4d764041a8751c41e75a492fed0cc6edea63`, and repair only an evidenced failure.
+2. Port the remaining #142 diff from a new main descendant, rerun Core/P2, then continue semantic review of callable RPCs in bounded batches.
+3. Run existing current-main import/DQS acceptance; retain the existing implementation if it passes.
+4. Confirm route/export/checkout acceptance on the merge SHA and record any failing test by exact file and line.
+5. Close obsolete branches only when merged functionality or duplicate content is verified; do not inherit old SHA results.
+
+---
+
+## Historical checkpoint (superseded by live reconciliation above)
+
+### Earlier confirmed repository state
 
 - Main has not been modified directly. Main Core [40035355209 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40035355209) is on SHA `16a3d23e558696700bccbb3dbf9ea75b0fccf745`.
 - PR #127 is already merged; PR #129 is closed unmerged. Neither is being recreated.
