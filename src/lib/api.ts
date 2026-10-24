@@ -40,7 +40,7 @@ export async function fetchResolvedProductPrices(
   if (uniqueIds.some((id) => typeof id !== "string" || !id.length)) {
     throw new Error("تعذر التحقق من هوية أحد الأصناف.");
   }
-  const prices = new Map<string, number>();
+  const prices = new Map<string, number | null>();
   for (let offset = 0; offset < uniqueIds.length; offset += 500) {
     const chunk = uniqueIds.slice(offset, offset + 500);
     let data: unknown;
