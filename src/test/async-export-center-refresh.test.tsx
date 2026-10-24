@@ -56,7 +56,7 @@ describe('async export screen refresh failure', () => {
     render(<AsyncExportCenter />);
 
     expect(await screen.findByText('جاهز للتنزيل')).toBeInTheDocument();
-    expect(screen.getByText('orders.csv')).not.toBeInTheDocument();
+    expect(screen.queryByText('orders.csv')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /تحديث السجل/ }));
 
