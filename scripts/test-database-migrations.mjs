@@ -2763,6 +2763,21 @@ async function main() {
   );
   assert.equal(priorSnapshotStillReady[0].status, "ready", "a merge must not alter the prior snapshot's history");
 
+  // A staff-only operator may import data but cannot roll back a published snapshot.
+  await db.unsafe("reset role");
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "staff role cannot roll back a published import snapshot",
+    () => db.unsafe("select public.rollback_import_snapshot($1::uuid,$2) as result",
+      [partialMergeJob.id, "staff is not authorized to roll back a snapshot"]),
+    /التراجع عن لقطة الاستيراد متاح للمدير أو مدير النظام فقط/i,
+    "42501",
+  );
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+
   // Rollback archives only the latest published snapshot; it never deletes imported/snapshot rows.
   const rollbackResult = await db.unsafe(
     "select public.rollback_import_snapshot($1::uuid,$2) as result",
