@@ -673,6 +673,8 @@ async function main() {
   );
   assert.equal(settlementRows.length,1);
   assert.equal(Number(settlementRows[0].invoice_total),500);
+  assert.equal(Number(settlementRows[0].paid),100,"the first concurrent payment commits exactly once");
+  assert.equal(Number(settlementRows[0].credited),125,"the posted credit is visible before the next payment race");
   // Two distinct payments racing for the remaining balance must not both win.
   // After the earlier payment (100) and credit memo (125), only 275 remains on this 500 invoice.
   const balanceRaceRacer = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
@@ -727,8 +729,6 @@ async function main() {
   assert.equal(Number(reconciledSettlementRows[0].credited),125,"the posted credit remains source-linked at 125.00");
   assert.ok(Number(reconciledSettlementRows[0].paid)+Number(reconciledSettlementRows[0].credited)<=500,
     "competing payments and credit postings never exceed the invoice total");
-  assert.ok(Number(settlementRows[0].paid)+Number(settlementRows[0].credited)<=Number(settlementRows[0].invoice_total),
-    "concurrent payment and credit posting may not exceed the invoice balance");
   const paymentAuditRows = await db.unsafe(
     "select count(*)::integer as count from public.audit_logs " +
     "where organization_id=$1::uuid and action='customer_payment.recorded' and entity_id=$2::uuid",
@@ -895,7 +895,7 @@ async function main() {
   const agedSourceInvoice = aging.items.find((row) => row.id === sourceInvoiceId);
   assert.ok(agedSourceInvoice,"staff aging page includes the source invoice at limit 500");
   assert.equal(Number(agedSourceInvoice.credit_memo_amount),125,"staff aging applies the posted source credit");
-  assert.equal(Number(agedSourceInvoice.outstanding_amount),75,"receivable aging includes the concurrent 100.00 payment and 125.00 posted credit");
+  assert.equal(Number(agedSourceInvoice.outstanding_amount),75,"receivable aging reflects 300.00 payments and the posted 125.00 credit on the 500.00 invoice");
   await db.unsafe("reset role");
 
   await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
