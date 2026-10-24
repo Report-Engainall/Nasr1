@@ -1,0 +1,61 @@
+name: Async export jobs PostgreSQL 17 acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261020240000_async_export_jobs.sql"
+      - "scripts/test-async-export-jobs.mjs"
+      - ".github/workflows/async-export-jobs-pg17.yml"
+      - "bun.lock"
+      - "package.json"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/20261020240000_async_export_jobs.sql"
+      - "scripts/test-async-export-jobs.mjs"
+      - ".github/workflows/async-export-jobs-pg17.yml"
+      - "bun.lock"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  async-export-postgres17:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aghbari_test
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: aghbari_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aghbari_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install Bun for frozen-lockfile verification
+        uses: oven-sh/setup-bun@v2
+      - name: Verify frozen dependency lockfile
+        run: bun install --frozen-lockfile --registry=https://registry.npmjs.org --dry-run
+      - name: Use Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install dependencies from the verified lockfile
+        run: bun install --frozen-lockfile --registry=https://registry.npmjs.org
+      - name: Apply all migrations and run current PostgreSQL acceptance suite
+        run: npm run test:db
+      - name: Verify async export idempotency, worker race, stale lease and expiry on PostgreSQL 17
+        run: node scripts/test-async-export-jobs.mjs
