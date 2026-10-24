@@ -1350,11 +1350,11 @@ async function main() {
   const runtimeAuditPaymentId = runtimeAuditPaymentInsert[0].id;
   assert.ok(runtimeAuditPaymentId, "customer payment RPC must return the committed payment ID");
 
-  const runtimeAuditPaymentReplay = await db.unsafe(
+  const runtimeAuditPaymentRequestReplay = await db.unsafe(
     "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6) as id",
     [invoice.id, 100000, "transfer", runtimeAuditPaymentIdempotencyKey, "CI-PAY-001", "partial payment"],
   );
-  assert.equal(runtimeAuditPaymentReplay[0].id, runtimeAuditPaymentId,
+  assert.equal(runtimeAuditPaymentRequestReplay[0].id, runtimeAuditPaymentId,
     "an identical payment request must replay the original payment");
 
   await expectFailure(
