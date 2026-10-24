@@ -13,7 +13,7 @@ const migration = readFileSync(
 );
 const worker = readFileSync(join(process.cwd(), "supabase/functions/async-export-worker/index.ts"), "utf8");
 const download = readFileSync(join(process.cwd(), "supabase/functions/async-export-download/index.ts"), "utf8");
-const downloadHandler = readFileSync(join(process.cwd(), "src/lib/async-export-download-handler.ts"), "utf8");
+const downloadHandler = readFileSync(join(process.cwd(), "supabase/functions/_shared/async-export-download-handler.ts"), "utf8");
 const jobClient = readFileSync(join(process.cwd(), "src/lib/async-export-jobs.ts"), "utf8");
 
 describe("asynchronous order export contracts", () => {
