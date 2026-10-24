@@ -697,7 +697,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
           <p>يدعم CSV وملفات XLSX الجدولية (الورقة المرئية الأولى). صيغة XLS الثنائية وPDF تبقيان في مسار التعيين اليدوي؛ لا تُخترع بيانات غير مستخرجة.</p>
           <div className="form-grid">
             <label className="form-field"><span>مصدر البيانات</span>
-              <select value={sourceSystem} onChange={(event) => setSourceSystem(event.target.value)}>
+              <select value={sourceSystem} onChange={(event) => { setSourceSystem(event.target.value); setExternalSourceReference(""); }}>
                 <option value="manual">رفع يدوي</option>
                 <option value="onyx_pro">Onyx Pro</option>
                 <option value="external_erp">نظام ERP خارجي</option>
@@ -707,7 +707,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
             </label>
             {sourceSystem !== "manual" && <label className="form-field"><span>مرجع المصدر الخارجي / رقم الدفعة</span>
               <input value={externalSourceReference} onChange={(event) => setExternalSourceReference(event.target.value)}
-                maxLength={200} placeholder="معرّف الدفعة في Onyx أو ERP أو ملف المورد" />
+                maxLength={200} required placeholder="معرّف الدفعة في Onyx أو ERP أو ملف المورد" />
               <small>حتى 200 حرف. يدخل المرجع في هوية الطلب وبصمة المعالجة وسجل الدفعة؛ لا تُرسل أي مزامنة خارجية.</small>
             </label>}
             <label className="form-field"><span>الملف التعريفي</span>
@@ -775,7 +775,7 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
             <tbody>{jobs.map((job) => <Fragment key={job.id}>
               <tr>
                 <td><strong>{job.file_name ?? "—"}</strong><small>{job.file_hash?.slice(0, 16) ?? "—"}…</small></td>
-                <td>{job.source_system || "manual"}</td>
+                <td>{job.source_system || "manual"}<small>{job.external_source_reference || "لا يوجد مرجع خارجي"}</small></td>
                 <td><span className={"badge " + (job.status === "completed" ? "success" : ["rejected", "failed", "cancelled", "rolled_back"].includes(job.status) ? "danger" : "warning")}>{job.status === "manual_mapping_required" ? "تعيين يدوي" : job.status === "manual_review" ? "مراجعة بشرية" : job.status === "rolled_back" ? "تم التراجع مع حفظ التاريخ" : job.status}</span></td>
                 <td>{job.data_quality_score == null ? "—" : job.data_quality_score + "/100 (" + (qualityPreview?.score === job.data_quality_score ? qualityPreview.label : job.data_quality_score >= 90 ? "ممتاز" : job.data_quality_score >= 75 ? "مقبول" : job.data_quality_score >= 50 ? "تحذير" : "مرفوض") + ")"}</td>
                 <td>{formatNumber(job.processed_rows)} / {formatNumber(job.total_rows)}</td>
