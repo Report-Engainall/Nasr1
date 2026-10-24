@@ -1,3 +1,22 @@
+# ACTIVE COORDINATION CHECKPOINT — 2026-10-24 19:18 +03:00
+
+This block supersedes older statuses further down when they conflict. Repository: `Report-Engainall/Nasr1`; main SHA verified live as `3e1b6ee1da77f3f4c12bfa6c389fdb6a9cfb9e96`. Core/test-and-build run [40110719200 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40110719200) on that exact main SHA.
+
+- Merged: #133 (merge `f6dd9358ff680597ce7d9096428dad788e0f4767`), #144 (merge `2c569e320111237ebeccffc992fcca74e75112b6`), #145 (merge/current main `3e1b6ee1da77f3f4c12bfa6c389fdb6a9cfb9e96`), and #135–#141, #143. Do not recreate.
+- #146 current head `f98684645a4ae4d13b398d38340296fc8842b5d9` now has Core [40110926680 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926680) and P2 [40110926679 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40110926679), both exact-head. Hosted customer E2E is SKIPPED. No submitted independent review is recorded.
+- #142 current register head `0b8eab56970f1485f86535edf7b66d1c1bddae90`: Core [40107811311 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40107811311), P2 [40107811295 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40107811295). API-OPS remains PARTIAL because semantic review of 179 callable RPC candidates is incomplete.
+- #147, #148, #149, #150 and #151 have exact-recorded-head Core/P2 successes; #148–#151 also have PG17 success. They are still open and need current-base reconciliation plus formal independent review. #147 is marked non-mergeable against stale base.
+- #134 historical exact head `387db64bfa6686ab08d4707d88b7aea3f9c6ff41` passed Core/P2, but its shared `scripts/test-database-migrations.mjs` must be reconciled with current main and #146 before any new acceptance claim.
+- No evidence of production database writes, hosted customer/tenant journeys, live Onyx import, WhatsApp delivery, live AI provider secrets, production restore or deployment is established here.
+
+## NEXT ACTION — FIRST STEP ON RESUME
+1. Get an authorized independent review for #146. If merge is permitted by repository policy after review, merge it and verify the merge SHA plus required checks.
+2. Reconcile #134 onto latest main after #146, preserving both concurrency and security assertions; rerun exact-head Core/P2/PG17.
+3. Advance #147–#151 in migration order after updating each branch to the real latest main, run all required gates on each final SHA, and get independent review before merging.
+4. Continue semantic RPC audit #142 and the still-open storefront/admin/customer routes (#89, #97, #102, #105, #107, #114–#125, #130, #118, #124) without repeating already merged acceptance tasks.
+5. Continue remaining open requirements from the central matrix, updating evidence and status per task.
+---
+
 # LIVE COORDINATION CHECKPOINT — 2026-10-24 19:18 +03:00 (authoritative; historical notes below)
 
 - Main SHA is `3e1b6ee1da77f3f4c12bfa6c389fdb6a9cfb9e96`; exact main Core/test-and-build run [40110719200](https://github.com/Report-Engainall/Nasr1/actions/runs/40110719200) succeeded.
