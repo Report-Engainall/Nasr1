@@ -1,5 +1,10 @@
 BEGIN;
 
+ALTER TABLE public.import_jobs
+  ADD COLUMN IF NOT EXISTS external_source_reference text;
+ALTER TABLE public.import_upload_sessions
+  ADD COLUMN IF NOT EXISTS external_source_reference text;
+
 -- Keep the previous transactional snapshot builder as a private implementation.
 -- The public finalization command now enforces the verified upload manifest first.
 ALTER FUNCTION public.finalize_import_job(uuid, text)
@@ -70,6 +75,7 @@ BEGIN
      OR v_session.profile_id IS DISTINCT FROM v_job.profile_id
      OR v_session.profile_version IS DISTINCT FROM v_job.profile_version
      OR v_session.period_key IS DISTINCT FROM v_job.period_key
+     OR v_session.external_source_reference IS DISTINCT FROM v_job.external_source_reference
      OR v_session.raw_file_retained IS DISTINCT FROM false THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='هوية الملف أو الدفعة أو إعداداتها لا تطابق جلسة الرفع';
   END IF;
@@ -114,7 +120,8 @@ BEGIN
   IF coalesce(v_job.error_summary->>'processing_config_fingerprint','') !~ '^[0-9a-f]{64}$'
      OR v_job.error_summary->>'source_file_hash' IS DISTINCT FROM v_job.file_hash
      OR v_job.error_summary->>'period_key' IS DISTINCT FROM v_job.period_key
-     OR v_job.error_summary->>'source_system' IS DISTINCT FROM v_job.source_system THEN
+     OR v_job.error_summary->>'source_system' IS DISTINCT FROM v_job.source_system
+     OR v_job.error_summary->>'external_source_reference' IS DISTINCT FROM v_job.external_source_reference THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='بصمة إعدادات المعالجة أو الفترة غير مثبتة على الدفعة؛ أعد المعالجة من الملف الأصلي';
   END IF;
 
@@ -191,11 +198,11 @@ BEGIN
 
   INSERT INTO public.import_upload_sessions(
     organization_id,import_job_id,profile_id,profile_version,created_by,file_name,file_type,file_size,
-    file_hash,period_key,chunk_size_bytes,total_chunks,status,retention_expires_at,raw_file_retained
+    file_hash,period_key,external_source_reference,chunk_size_bytes,total_chunks,status,retention_expires_at,raw_file_retained
   )
   VALUES(
     v_org,v_job.id,v_job.profile_id,v_job.profile_version,v_actor,coalesce(v_job.file_name,'import.csv'),
-    v_file_type,v_job.file_size,v_job.file_hash,v_job.period_key,4194304,
+    v_file_type,v_job.file_size,v_job.file_hash,v_job.period_key,v_job.external_source_reference,4194304,
     ceil(v_job.file_size::numeric/4194304)::integer,'created',pg_catalog.now()+interval '30 days',false
   )
   RETURNING * INTO v_session;
