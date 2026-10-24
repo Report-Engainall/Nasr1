@@ -225,6 +225,34 @@ describe("public catalog privacy and tenant query contract", () => {
     }
   });
 
+  it("omits display_price when the server explicitly disables catalog prices", async () => {
+    mocks.responses.products = {
+      data: [{
+        id: "public-product-hidden",
+        organization_id: ORGANIZATION_ID,
+        category_id: null,
+        name: "Hidden price product",
+        item_code: "PUB-HIDDEN",
+        barcode: null,
+        description: null,
+        unit: "unit",
+        status: "active",
+        image_url: null,
+        created_at: "",
+      }],
+      error: null,
+    };
+    mocks.rpc.mockResolvedValueOnce({
+      data: [{ product_id: "public-product-hidden", unit_price: null }],
+      error: null,
+    });
+
+    const rows = await fetchProducts();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).not.toHaveProperty("display_price");
+    expect(rows[0]).not.toHaveProperty("base_price");
+  });
+
   it("fails closed if the pricing RPC omits a product price", async () => {
     mocks.responses.products = {
       data: [{
