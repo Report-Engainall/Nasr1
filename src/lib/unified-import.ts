@@ -448,13 +448,12 @@ export function validateCsvRow(
     data[headers[index]] = value.trim();
   }
   const standardIdentityKeys = ['item_code', 'customer_code', 'supplier_code'];
-  const identityKeys = matchingKey && !standardIdentityKeys.includes(matchingKey)
-    ? [matchingKey]
-    : standardIdentityKeys;
-  if (!identityKeys.some((field) => String(data[field] ?? '').trim().length > 0)) {
-    errors.push(matchingKey && !standardIdentityKeys.includes(matchingKey)
-      ? `مفتاح المطابقة الإلزامي "${matchingKey}" مفقود أو فارغ`
-      : 'مفتاح الهوية التجاري مطلوب (رمز الصنف أو العميل أو المورد)');
+  if (matchingKey) {
+    if (!String(data[matchingKey] ?? '').trim()) {
+      errors.push(`مفتاح المطابقة الإلزامي "${matchingKey}" مفقود أو فارغ`);
+    }
+  } else if (!standardIdentityKeys.some((field) => String(data[field] ?? '').trim().length > 0)) {
+    errors.push('مفتاح الهوية التجاري مطلوب (رمز الصنف أو العميل أو المورد)');
   }
   // Profile-required values must be present in each row, not only in the header.
   // The matching-key branch above emits the more specific identity error for that field.
