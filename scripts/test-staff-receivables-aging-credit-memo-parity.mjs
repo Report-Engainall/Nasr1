@@ -255,7 +255,7 @@ async function main() {
   const posted = await creditPostReady;
   assert.equal(posted.status,"posted","the source-linked balanced journal must post before the credit affects aging");
 
-  const competingPayment = creditRaceDb.unsafe(
+  const creditRacePayment = creditRaceDb.unsafe(
     "select public.record_customer_payment($1::uuid,$2::numeric,'cash',$3::uuid,null,'CI racing payment must not bypass posted credit') as payment_id",
     [source.invoice_id, preCreditOutstanding.toFixed(2), rejectedRacePaymentKey],
   ).then(
@@ -281,13 +281,13 @@ async function main() {
   assert.equal(committedCreditPost.ok,true,
     "the source-linked credit-memo posting transaction must commit without error");
   assert.equal(committedCreditPost.result.status,"posted");
-  const competingPaymentResult = await competingPayment;
+  const creditRacePaymentResult = await creditRacePayment;
   assert.ok(creditRaceAdvisoryWaitObserved,
     "the independent payment must be observed waiting on the shared invoice advisory lock");
-  assert.equal(competingPaymentResult.ok,false,
+  assert.equal(creditRacePaymentResult.ok,false,
     "a payment equal to the pre-credit balance must be rejected after credit posting commits");
   assert.match(
-    String(competingPaymentResult.error?.message || ""),
+    String(creditRacePaymentResult.error?.message || ""),
     /payment exceeds invoice balance after posted credit memos/i,
     "the racing payment must fail specifically at the authoritative posted-credit balance guard",
   );
