@@ -4,7 +4,7 @@
 - **Verified current main SHA:** `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. PR #190 merged here; PR #189 merged at `0d7f153cf6a7c8ac70b439f2ad15e479e3d80d47`; PR #186 merged at `653f4d764041a8751c41e75a492fed0cc6edea63`.
 - **PR #190 exact-head checks:** Core [40127113576](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113576), PostgreSQL 17 [40127113568](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113568), P2 [40127113571](https://github.com/Report-Engainall/Nasr1/actions/runs/40127113571) all SUCCESS. Hosted customer/tenant E2E is SKIPPED due external credentials and is not PASS.
 - **Current-main PostgreSQL 17:** run [40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750) SUCCESS on exact SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Artifact `public-rpc-function-inventory-e467c782bec0e19ddab6c5ddaa72aaa073d7283b` reports `functions=310 matched=310 unmatched=0 migration_files=135`. This is catalog/source mapping evidence from isolated CI, not full semantic authorization proof.
-- **Current-main Core:** run [40127500733](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500733) was still IN_PROGRESS at the latest job readback; do not claim the whole main release gate PASS until it finishes.
+- **Current-main Core:** run [40127500733](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500733) completed SUCCESS on exact SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`. Together with PostgreSQL 17 run 40127500750 SUCCESS, Core and database acceptance are green on this main SHA; current-main P2 was not separately observed.
 - **Merged scope:** #184 price precision; #174 export route registration; #175 unknown metrics remain unknown; #164/#165/#166/#168 explicit decisions; #158 payment/audit atomicity; #162 DQS; #179 import identity/resume/rollback; #180 scoped finalizer; #181 stock-count atomicity; #155 signed export measurements; #156 duplicate product submission; #159/#160 customer/company route acceptance; #170 hidden-price privacy; #188 quote response; #187 customer statements/tenant denial; #189 concurrent inventory-batch idempotency; #186 storefront route/accessibility/export hydration; #190 bounded streamed bodies and async-export no-side-effect authorization.
 - **API-OPS is PARTIAL:** 310 public catalog entries are source-mapped; 179 callable RPC candidates remain for semantic review of role/tenant access, mutation effects, idempotency, retries and audits.
 - **Closed duplicate branches:** #142 and #193 were closed unmerged as superseded by #190; #134 was closed as duplicate of #189; #191 was closed as superseded. Avoid recreating these paths without a reproduced main regression.
@@ -14,7 +14,7 @@
 
 ## NEXT ACTION
 
-1. Poll current-main Core run `40127500733` to its terminal result; the exact-main PostgreSQL 17 suite and inventory have passed.
+1. Core run `40127500733` and PostgreSQL 17 run `40127500750` are both terminal SUCCESS on exact current main. Finish exact-head Core/P2 on the clean-main docs PR and verify its merge.
 2. Finish exact-head Core/P2 on the clean documentation branch before merging; then verify the resulting main SHA.
 3. Continue semantic review of the remaining 179 callable RPCs in measured, source-backed batches. Do not repeat the completed bounded-body or export-idempotency implementation.
 4. Re-run import/DQS or route cases only if a current-main failure or a changed dependent contract proves a gap.
