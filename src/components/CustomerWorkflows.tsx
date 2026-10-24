@@ -233,10 +233,14 @@ function resolvedProductPriceLabel(value: unknown): string {
 function withResolvedProductPrice<T extends { id: string }>(
   product: T,
   price: number | null | undefined,
-): T & { base_price?: number | null } {
-  return price === null || price === undefined
-    ? { ...product }
-    : { ...product, base_price: price };
+): Omit<T, "base_price"> & { base_price?: number } {
+  // A raw/base price from any caller is never authoritative for customer views.
+  // Remove it first, then attach only a numeric price resolved by the server.
+  const safeProduct = { ...product } as T & { base_price?: unknown };
+  delete safeProduct.base_price;
+  return (price === null || price === undefined
+    ? safeProduct
+    : { ...safeProduct, base_price: price }) as Omit<T, "base_price"> & { base_price?: number };
 }
 
 const card: React.CSSProperties = {
