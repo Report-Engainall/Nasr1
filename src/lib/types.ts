@@ -208,6 +208,7 @@ export interface ImportJob {
   status: string;
   total_rows: number;
   processed_rows: number;
+  failed_rows?: number;
   accepted_rows?: number;
   rejected_rows?: number;
   duplicate_rows?: number;
