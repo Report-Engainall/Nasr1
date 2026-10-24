@@ -117,6 +117,130 @@ async function main() {
     await db.unsafe("reset role");
   }
 
+
+  // Prove the same idempotency key serializes two genuinely concurrent authenticated RPC calls.
+  // Hold the invoice row so the requests overlap inside PostgreSQL, then verify a single payment and audit event.
+  const concurrentIdempotencyKey = randomUUID();
+  const concurrentGate = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const concurrentFirst = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const concurrentSecond = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  let concurrentGateOpen = false;
+  let concurrentFirstAttempt;
+  let concurrentSecondAttempt;
+  const setConcurrentFinanceIdentity = async (connection, applicationName) => {
+    await connection.unsafe("select set_config('application_name',$1,false)", [applicationName]);
+    await connection.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [actor.auth_user_id]);
+    await connection.unsafe("select set_config('request.jwt.claims',$1,false)", [
+      JSON.stringify({
+        sub: actor.auth_user_id,
+        email: actor.email,
+        role: "authenticated",
+        session_id: sessionId,
+      }),
+    ]);
+    await connection.unsafe("set role authenticated");
+  };
+  try {
+    await Promise.all([
+      setConcurrentFinanceIdentity(concurrentFirst, "ci-payment-audit-same-key-a"),
+      setConcurrentFinanceIdentity(concurrentSecond, "ci-payment-audit-same-key-b"),
+    ]);
+    await concurrentGate.unsafe("begin");
+    concurrentGateOpen = true;
+    await concurrentGate.unsafe(
+      "select id from public.customer_invoices where id=$1::uuid for update",
+      [invoice.invoice_id],
+    );
+
+    const concurrentArgs = (connection) => [
+      invoice.invoice_id,
+      "0.25",
+      "other",
+      concurrentIdempotencyKey,
+      reference,
+      "must not be copied into an audit payload",
+    ];
+    const submitConcurrentPayment = (connection) =>
+      connection.unsafe(
+        "select public.record_customer_payment($1::uuid,$2::numeric,$3::text,$4::uuid,$5::text,$6::text)::text as id",
+        concurrentArgs(connection),
+      ).then((rows) => ({ ok: true, id: rows[0]?.id }))
+        .catch((error) => ({ ok: false, error }));
+    concurrentFirstAttempt = submitConcurrentPayment(concurrentFirst);
+    concurrentSecondAttempt = submitConcurrentPayment(concurrentSecond);
+
+    let observedBothPaymentSessionsWaiting = false;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const waiting = await db.unsafe(
+        "select count(*)::int as count from pg_catalog.pg_stat_activity " +
+          "where application_name in ('ci-payment-audit-same-key-a','ci-payment-audit-same-key-b') " +
+          "and state='active' and wait_event_type='Lock'",
+      );
+      if (Number(waiting[0]?.count ?? 0) === 2) {
+        observedBothPaymentSessionsWaiting = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(
+      observedBothPaymentSessionsWaiting,
+      true,
+      "same-key payment calls must overlap while blocked by the held invoice lock",
+    );
+
+    await concurrentGate.unsafe("commit");
+    concurrentGateOpen = false;
+    const [firstConcurrentPayment, secondConcurrentPayment] = await Promise.all([
+      concurrentFirstAttempt,
+      concurrentSecondAttempt,
+    ]);
+    assert.equal(firstConcurrentPayment.ok, true, "first concurrent payment request must succeed");
+    assert.equal(secondConcurrentPayment.ok, true, "same-key payment replay must succeed");
+    assert.equal(
+      firstConcurrentPayment.id,
+      secondConcurrentPayment.id,
+      "concurrent same-key requests must return the same canonical payment ID",
+    );
+
+    await db.unsafe("reset role");
+    const concurrentPayments = await db.unsafe(
+      "select id::text as id, organization_id::text as organization_id " +
+        "from public.customer_payments where organization_id=$1::uuid and idempotency_key=$2::uuid",
+      [actor.organization_id, concurrentIdempotencyKey],
+    );
+    assert.equal(
+      concurrentPayments.length,
+      1,
+      "concurrent same-key replay must persist exactly one customer payment",
+    );
+    assert.equal(concurrentPayments[0].id, firstConcurrentPayment.id);
+    const concurrentAuditRows = await db.unsafe(
+      "select id from public.audit_logs where organization_id=$1::uuid " +
+        "and action='customer_payment.recorded' and entity_type='customer_payment' " +
+        "and entity_id=$2::uuid",
+      [actor.organization_id, firstConcurrentPayment.id],
+    );
+    assert.equal(
+      concurrentAuditRows.length,
+      1,
+      "concurrent same-key replay must write exactly one payment audit event",
+    );
+    process.stdout.write(
+      "PASS customer payment audit concurrency: overlapping same-key requests return one payment ID and persist one payment plus one audit event\\n",
+    );
+  } finally {
+    if (concurrentGateOpen) await concurrentGate.unsafe("rollback").catch(() => {});
+    if (concurrentFirstAttempt || concurrentSecondAttempt) {
+      await Promise.allSettled(
+        [concurrentFirstAttempt, concurrentSecondAttempt].filter(Boolean),
+      );
+    }
+    await Promise.all([
+      concurrentGate.end({ timeout: 5 }),
+      concurrentFirst.end({ timeout: 5 }),
+      concurrentSecond.end({ timeout: 5 }),
+    ]);
+  }
   const persistedPayments = await db.unsafe(
     "select id::text as id, organization_id::text as organization_id, created_by::text as created_by " +
       "from public.customer_payments where organization_id=$1::uuid and idempotency_key=$2::uuid",
