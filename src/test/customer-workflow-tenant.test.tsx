@@ -295,6 +295,72 @@ describe("customer quote workspace tenant boundary", () => {
     expect(products.filters).toContainEqual({ column: "status", value: "active" });
   });
 
+  it("does not render a numeric zero when quote prices are explicitly hidden", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test", name: "CI Customer",
+      roles: ["customer"], isStaff: false,
+    };
+    mocks.fetchResolvedProductPrices.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, null])));
+    await mountQuoteWorkspace("/quotes");
+    expect(host?.textContent).toContain("السعر الحالي السعر غير متاح");
+    expect(host?.textContent).not.toContain("السعر الحالي ٠");
+  });
+
+  it("does not render a numeric zero when reorder-template prices are hidden", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test", name: "CI Customer",
+      roles: ["customer"], isStaff: false,
+    };
+    mocks.fetchResolvedProductPrices.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, null])));
+    await mountQuoteWorkspace("/reorder");
+    expect(host?.textContent).toContain("السعر غير متاح");
+    expect(host?.textContent).not.toContain("٠٫٠٠");
+  });
+
+  it("does not render a numeric zero when barcode lookup resolves a hidden price", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test", name: "CI Customer",
+      roles: ["customer"], isStaff: false,
+    };
+    mocks.fetchResolvedProductPrices.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, null])));
+    await mountQuoteWorkspace("/barcode");
+    const input = host?.querySelector<HTMLInputElement>('input[aria-label="رقم الباركود"]');
+    const form = input?.closest("form");
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(input, "SKU-001");
+      input?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host?.textContent).toContain("السعر غير متاح");
+    expect(host?.textContent).not.toContain("٠٫٠٠");
+  });
+
+  it("does not render a numeric zero when assistant catalog results hide prices", async () => {
+    mocks.user = {
+      id: USER_ID, profileId: PROFILE_ID, email: "ci-customer@example.test", name: "CI Customer",
+      roles: ["customer"], isStaff: false,
+    };
+    mocks.fetchResolvedProductPrices.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, null])));
+    await mountQuoteWorkspace("/assistant");
+    const input = host?.querySelector<HTMLTextAreaElement>("textarea");
+    const form = input?.closest("form");
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      setter?.call(input, "ابحث عن Rice");
+      input?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(host?.textContent).toContain("السعر غير متاح");
+    expect(host?.textContent).not.toContain("٠٫٠٠");
+  });
+
   it("denies a customer from the admin quotes route before any staff data read", async () => {
     mocks.user = {
       id: USER_ID,
