@@ -1,7 +1,7 @@
 # P3 route acceptance register — Nasr1
 
 Repository: Report-Engainall/Nasr1  
-Live checkpoint main SHA: fbf7d4878b440baacdf34f12c35459b24507b04d after PR #204 (25 October 2026); historical route evidence below retains the SHA it was tested against  
+Live checkpoint main SHA: bb67a4ae26285ed402ee0e9b8b945a8d0abe752c after merged P3 PR #207 (25 October 2026); historical route evidence below retains the SHA it was tested against  
 Generated route tree: src/routeTree.gen.ts  
 Inventory size: 61 source modules under src/routes, including the root shell; 60 non-root page/API modules below.  
 Purpose: route-to-evidence traceability for ROUTES-001. This does not replace the canonical acceptance matrix or imply every full production journey is proven.
@@ -14,16 +14,17 @@ Purpose: route-to-evidence traceability for ROUTES-001. This does not replace th
 - SKIPPED hosted checks are not PASS. A route can have local targeted evidence while hosted/external proof remains unproven.
 
 
-## Live reconciliation — current main after PR #204 (25 October 2026)
+## Live reconciliation — P3 merged and reverified on current main (25 October 2026)
 
-- **Current main SHA:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
-- **Exact-main Core:** [run 40134043235](https://github.com/Report-Engainall/Nasr1/actions/runs/40134043235) completed SUCCESS on this SHA. The job passed unit tests, all PostgreSQL 17 core acceptance commands including Onyx reconciliation/concurrency/source-evidence and import/export checks, lint/build, production-preview and dev-server smoke, and Chromium price-visibility acceptance.
-- **Async export download boundary:** current main contains the shared Edge HTTP handler and tests for authorization, bounded request bodies, malformed and expired artifacts, and conservative signed-link expiry. These are local test/CI contracts, not a live customer-role external E2E proof.
-- **Specialized workflow caveat:** Async export PostgreSQL 17 workflow [run 40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750) passed on older SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; it is not exact-current-SHA evidence because its path filter did not rerun for PR #204.
-- **Onyx Pro boundary:** existing snapshot provenance, request/response hashes, and sync-attempt state are persisted and tested. A real provider round-trip remains `NOT_PROVEN / BLOCKED_EXTERNAL` without approved non-production provider credentials and a verified API contract. Do not infer live sync from a saved snapshot or database acceptance.
-- **P3 regression fix under PR #207:** `src/lib/onyx-source-evidence.ts` validates UUID group structure for sync-attempt IDs and optional snapshot/order IDs. `src/test/onyx-source-evidence-contract.test.ts` now tests source/hash provenance, rejecting unsupported live-proof claims, cross-tenant evidence, absent identity, three malformed UUID placements, and one valid pending attempt. Test coverage was adapted selectively from the auxiliary source repo; no source implementation was copied. Exact-head CI is pending; do not mark the fix VERIFIED until the PR-head unit/core checks pass.
-- **Hosted customer/tenant Playwright:** remains `SKIPPED / BLOCKED_EXTERNAL` unless the workflow's dedicated non-production secret and explicit test-write confirmation gate succeeds.
-- Current status and next steps are tracked in [P3 execution checkpoint](PROGRAMMER_3_EXECUTION_CHECKPOINT.md).
+- **Current main SHA:** `bb67a4ae26285ed402ee0e9b8b945a8d0abe752c`; PR #207 merged successfully at [commit bb67a4a](https://github.com/Report-Engainall/Nasr1/commit/bb67a4ae26285ed402ee0e9b8b945a8d0abe752c).
+- **Exact PR-head CI:** Core [40152320592](https://github.com/Report-Engainall/Nasr1/actions/runs/40152320592) and P2 [40152320526](https://github.com/Report-Engainall/Nasr1/actions/runs/40152320526) both completed SUCCESS on the same SHA `6fd4eaed21d1490d020b4b3b4f76db6fa59db64c`.
+- **Post-merge proof:** Core [40152650423](https://github.com/Report-Engainall/Nasr1/actions/runs/40152650423) completed SUCCESS on exact current main SHA `bb67a4ae26285ed402ee0e9b8b945a8d0abe752c`.
+- **P3 code fix:** `src/lib/onyx-source-evidence.ts` now requires canonical UUID group structure for sync-attempt, optional snapshot and order IDs; malformed attempt IDs receive a direct validation error. This rejects malformed server payloads that the former hex/hyphen-only 36-character check admitted.
+- **Tests:** Unit suite 188 test files / 1,217 tests passed; the new Onyx source-evidence contract suite passed 10/10. PostgreSQL 17 reconciliation, two-session concurrency, source evidence/provenance, import idempotency, async-export lifecycle, lint, build, preview/dev smoke and price-visibility acceptance passed on the exact PR head and again in post-merge Core.
+- **P2 local browser proof:** In run 40152320526, local Supabase/PostgreSQL 17 acceptance passed for order persistence and cross-tenant denial, returns/credit memo, audited Onyx order XLSX export, finance/task printing, customer-manager authorization/privacy/audit, and central device-session revocation. The public no-write storefront smoke also passed. The separate hosted customer/tenant journey was SKIPPED by its explicit external-credentials gate; it is not claimed as passed.
+- **Onyx Pro real provider boundary:** still `NOT_PROVEN / BLOCKED_EXTERNAL`. Local reconciliation and saved-source evidence prove internal contracts only, not a real remote provider round-trip. Require an approved non-production endpoint, verified API contract and credentials before testing live synchronization.
+- **Test adaptation:** selective missing contract scenarios were adapted from auxiliary repo `Nasr-Adnan/Nasr-Adnan` at observed SHA `34702e670d80e80340d54683171238292099cbaa`. No source implementation or migration was copied.
+- Current P3 checkpoint and next action: [PROGRAMMER_3_EXECUTION_CHECKPOINT.md](PROGRAMMER_3_EXECUTION_CHECKPOINT.md).
 
 ## Live reconciliation — post-merge #198 (24 October 2026)
 
