@@ -1,25 +1,21 @@
 # P1 Execution Checkpoint — live resume record
 
-## Current state — 2026-10-25 04:40 +03:00
+## Current state — 2026-10-25 04:55 +03:00
 
-- **Status:** IN_PROGRESS — resumed against live GitHub state; no production operations performed.
-- **Repository:** `Report-Engainall/Nasr1`.
-- **Production reference:** `main`.
+- **Status:** IMPLEMENTED; exact-head CI/isolated PostgreSQL acceptance pending. Do not mark verified until current final SHA has terminal test evidence.
+- **Repository:** `Report-Engainall/Nasr1`; production reference is `main`.
 - **MAIN_SHA_AT_RESUME:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
 - **CURRENT_BRANCH:** `p1/payment-idempotency-audit-checkpoint-20261025`.
 - **BASE_SHA:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
-- **LAST_VERIFIED_MAIN_CHECK:** GitHub Actions run [40134043235](https://github.com/Report-Engainall/Nasr1/actions/runs/40134043235), job `test-and-build`, completed SUCCESS on exact SHA `fbf7d4878b440baacdf34f12c35459b24507b04d` at 2026-10-24T21:27:45Z.
-- **OPEN_PR_BASELINE:** Direct GitHub REST query returned no open pull requests at resume.
-- **STALE_CHECKPOINT_RECONCILIATION:** Previous P1 checkpoint still points to old branch `p1/central-device-session-ui-20261023` and PR #88, which is not open in the live repository. Do not resume that branch/PR blindly. Historical entries below are retained for provenance, not as current state.
-- **CODEBASE_EVIDENCE:** Current main has `supabase/functions/_shared/async-export-download-handler.ts`, bounded-body utilities, tenant-scoped product image upload, and `supabase/migrations/20261023235900_customer_payment_idempotency.sql`. These must be audited in place; do not reintroduce source-side files with different paths unless a real contract gap is proven.
-- **SCOPE_GUARD:** No production database changes, secrets, or production data accessed. No source archive file copied.
-- **LAST_COMPLETED_TASK_ID:** `P1-RESUME-LIVE-STATE-RECONCILIATION-20261025` — verified repository permissions/default branch, exact current main SHA, exact-head Core check, absence of open PRs, and existing checkpoint drift.
-- **FILES_CHANGED:** `docs/bolt-source-reconciliation/PROGRAMMER_1_EXECUTION_CHECKPOINT.md` only in this checkpoint commit.
-- **TESTS:** No new test run for a code change in this checkpoint commit yet. Existing `test-and-build` SUCCESS applies only to base SHA `fbf7d4878b440baacdf34f12c35459b24507b04d`, not this documentation branch.
-- **PR_URL:** Pending creation after checkpoint commit.
-- **NEXT_ACTION:** Audit `supabase/migrations/20261023235900_customer_payment_idempotency.sql` together with `20261024151500_customer_payment_record_audit.sql` and `scripts/test-customer-payment-audit.mjs`; verify tenant binding, identical-retry replay, changed-payload rejection, authorization, and audit atomicity. Make a code/test change only if a reproducible gap is found, then run the dedicated PostgreSQL 17 workflow and Core CI on the exact resulting SHA.
-- **BLOCKERS:** Hosted customer/tenant E2E requires external credentials; do not represent skipped hosted tests as passed. No production proof claimed.
-- **UPDATED_AT:** 2026-10-25 04:40 +03:00.
+- **PR_URL:** https://github.com/Report-Engainall/Nasr1/pull/206 (existing canonical P1 resume PR; now includes the code/test fix rather than docs only).
+- **Functional commits on this branch:** coordination/path reservation `0220a392ef060dbb870a6327393990d57a153234`; forward-only SQL guard `ba209fecfd137e21bc3666a4ce2eac39f59fd8eb`; regression test `a2f31f012ce74b71f8dc9f531bc245a67073a1f7`. This checkpoint update will create a newer documentation commit, so required checks must be read against the resulting final PR head.
+- **Evidence-backed issue:** `audit_customer_payment_recorded()` previously checked invoice/customer/organization consistency but did not verify that a non-null `NEW.created_by` profile belonged to `NEW.organization_id`. The existing payment RPC still enforces active finance identity and tenant-scoped idempotency. The added migration hardens the trigger against cross-tenant actor attribution without changing the payment RPC contract or historical migrations.
+- **New acceptance:** `scripts/test-customer-payment-audit.mjs` now attempts a trusted direct insert using a real profile from a different organization and requires SQLSTATE `23514`, zero persisted payment rows, and zero corresponding audit rows. The test is added but **has not yet been executed by this session**.
+- **FILES_CHANGED:** `docs/bolt-source-reconciliation/WORK_COORDINATION.md`; `supabase/migrations/20261025050000_customer_payment_audit_actor_tenant_guard.sql`; `scripts/test-customer-payment-audit.mjs`; this checkpoint.
+- **TESTS / CI:** Current exact-head Core and dedicated PostgreSQL 17 acceptance are **PENDING / NOT VERIFIED**. Main Core run [40134043235](https://github.com/Report-Engainall/Nasr1/actions/runs/40134043235) was SUCCESS on base SHA `fbf7d4878b440baacdf34f12c35459b24507b04d` only; it does not prove this branch. No test result is transferred across SHAs.
+- **NEXT_ACTION:** retrieve/await required Core and dedicated PostgreSQL 17 customer-payment-audit checks for the final SHA after this checkpoint commit; inspect failures/logs, repair only reproducible failures, rerun to terminal success, then verify merge eligibility and merge PR #206 only when all required gates are successful. After merge, verify the exact resulting `main` SHA and its post-merge Core check.
+- **BLOCKERS:** no verified run metadata for this latest branch SHA yet. Hosted customer/tenant E2E requires the external non-production credentials and must remain SKIPPED/BLOCKED_EXTERNAL if unavailable. No production DB writes or production proof claimed.
+- **UPDATED_AT:** 2026-10-25 04:55 +03:00.
 
 ## Recent execution history
 
