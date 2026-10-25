@@ -1161,8 +1161,8 @@ function localDateTimeValue(value?: string | null): string {
 }
 
 function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onClose: () => void; onSaved: () => Promise<void> | void }) {
-  const { data: products, loading: productsLoading } = useFetch(fetchProducts);
-  const { data: categories, loading: categoriesLoading } = useFetch(fetchCategories);
+  const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(fetchProducts);
+  const { data: categories, loading: categoriesLoading, error: categoriesError, refetch: refetchCategories } = useFetch(fetchCategories);
   const [name, setName] = useState(rule?.name ?? '');
   const [scopeType, setScopeType] = useState<CreatePricingRuleInput['scope_type']>(pricingRuleScopeForForm(rule));
   const [scopeValue, setScopeValue] = useState(rule?.scope_value ?? '');
@@ -1179,9 +1179,19 @@ function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onCl
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const scopeOptionsUnavailable = scopeType === 'product'
+    ? productsLoading || Boolean(productsError) || !products?.length
+    : scopeType === 'category'
+      ? categoriesLoading || Boolean(categoriesError) || !categories?.length
+      : false;
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
+    if (scopeOptionsUnavailable) {
+      setError('تعذر التحقق من خيارات نطاق القاعدة؛ أعد تحميل المنتجات أو التصنيفات قبل الحفظ.');
+      return;
+    }
     const amount = Number(adjustmentValue);
     const quantity = Number(minQuantity);
     const rank = Number(priority);
@@ -1240,12 +1250,18 @@ function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onCl
         <Field label="نطاق التطبيق"><select value={scopeType} onChange={(event) => { setScopeType(event.target.value as typeof scopeType); setScopeValue(''); }}><option value="default">كل الأصناف (افتراضي)</option><option value="all">كل الأصناف (عام)</option><option value="product">منتج محدد</option><option value="category">تصنيف محدد</option></select></Field>
         <Field label="الشريحة المستهدفة"><select value={targetTier} onChange={(event) => setTargetTier(event.target.value as typeof targetTier)}><option value="both">الجملة والتجزئة</option><option value="wholesale">الجملة</option><option value="retail">التجزئة</option></select></Field>
       </div>
-      {(scopeType === 'product' || scopeType === 'category') && <Field label={scopeType === 'product' ? 'المنتج' : 'التصنيف'}>
-        <select value={scopeValue} onChange={(event) => setScopeValue(event.target.value)} required disabled={scopeType === 'product' ? productsLoading : categoriesLoading}>
-          <option value="">{scopeType === 'product' ? (productsLoading ? 'جار تحميل المنتجات…' : 'اختر المنتج') : (categoriesLoading ? 'جار تحميل التصنيفات…' : 'اختر التصنيف')}</option>
-          {scopeType === 'product' ? (products ?? []).map((product) => <option key={product.id} value={product.id}>{product.name} · {product.item_code}</option>) : (categories ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-        </select>
-      </Field>}
+      {(scopeType === 'product' || scopeType === 'category') && <>
+        {scopeType === 'product' && productsError && <><ErrorBox message={productsError} /><Button type="button" variant="secondary" onClick={() => { void refetchProducts(); }}>إعادة تحميل المنتجات</Button></>}
+        {scopeType === 'category' && categoriesError && <><ErrorBox message={categoriesError} /><Button type="button" variant="secondary" onClick={() => { void refetchCategories(); }}>إعادة تحميل التصنيفات</Button></>}
+        {scopeType === 'product' && !productsLoading && !productsError && products?.length === 0 && <Empty text="لا توجد منتجات متاحة لاستخدامها في قاعدة تسعير." />}
+        {scopeType === 'category' && !categoriesLoading && !categoriesError && categories?.length === 0 && <Empty text="لا توجد تصنيفات متاحة لاستخدامها في قاعدة تسعير." />}
+        <Field label={scopeType === 'product' ? 'المنتج' : 'التصنيف'}>
+          <select value={scopeValue} onChange={(event) => setScopeValue(event.target.value)} required disabled={scopeOptionsUnavailable}>
+            <option value="">{scopeType === 'product' ? (productsLoading ? 'جار تحميل المنتجات…' : productsError ? 'تعذر تحميل المنتجات' : 'اختر المنتج') : (categoriesLoading ? 'جار تحميل التصنيفات…' : categoriesError ? 'تعذر تحميل التصنيفات' : 'اختر التصنيف')}</option>
+            {scopeType === 'product' ? (products ?? []).map((product) => <option key={product.id} value={product.id}>{product.name} · {product.item_code}</option>) : (categories ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+        </Field>
+      </>}
       <div className="form-grid">
         <Field label="طريقة الاحتساب"><select value={method} onChange={(event) => setMethod(event.target.value as typeof method)}><option value="add_percentage">نسبة إضافة % على الأساس</option><option value="margin_percentage">هامش ربح % من سعر البيع</option><option value="fixed_price">سعر ثابت</option><option value="add_subtract_amount">إضافة/خصم مبلغ (السالب للخصم)</option></select></Field>
         <Field label="أساس الحساب"><select value={baseSource} onChange={(event) => setBaseSource(event.target.value as typeof baseSource)}><option value="base_price">السعر الأساسي</option><option value="cost_price">التكلفة</option></select></Field>
@@ -1268,7 +1284,7 @@ function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onCl
       </div>
       <p style={{ color: '#71868a', fontSize: 12, lineHeight: 1.7 }}>{rule ? 'سيُحدّث المحرك هذه القاعدة ويزيد رقم إصدارها ويسجل التغيير، ثم يعيد احتساب الأسعار ضمن النطاق والشريحة والكمية والفترة المختارة.' : 'الحفظ لا يغيّر قائمة الأسعار يدويًا؛ قاعدة البيانات تحسب الجملة والتجزئة وتكتب سجل التدقيق. لا تُطبّق القاعدة إلا ضمن النطاق والشريحة والكمية والفترة المختارة.'}</p>
       {error && <div className="form-error" role="alert">{error}</div>}
-      <div className="modal-actions"><button type="button" className="btn outline" onClick={onClose} disabled={saving}>إلغاء</button><Button disabled={saving || ((scopeType === 'product' && productsLoading) || (scopeType === 'category' && categoriesLoading))}>{saving ? 'جارٍ الحفظ...' : rule ? 'حفظ التعديلات' : 'حفظ قاعدة التسعير'}</Button></div>
+      <div className="modal-actions"><button type="button" className="btn outline" onClick={onClose} disabled={saving}>إلغاء</button><Button disabled={saving || scopeOptionsUnavailable}>{saving ? 'جارٍ الحفظ...' : rule ? 'حفظ التعديلات' : 'حفظ قاعدة التسعير'}</Button></div>
     </form>
   </Modal>;
 }
