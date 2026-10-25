@@ -2,7 +2,7 @@
 
 ## Current state — 2026-10-25 04:45 +03:00
 
-- **Status:** IN_PROGRESS; live repository state and available test evidence reconciled. No production write or external Onyx connection was attempted.
+- **Status:** IN_PROGRESS; live repository state reconciled and a defensive-validation defect in Onyx sync-evidence parsing fixed with regression tests. No production write or external Onyx connection was attempted.
 - **Repository:** `Report-Engainall/Nasr1`; production reference is `main`.
 - **MAIN_SHA_AT_RESUME:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
 - **CURRENT_BRANCH:** `p3/acceptance-resume-and-onyx-evidence-20261025`.
@@ -13,9 +13,9 @@
 - **RECENT_EXPORT_CHANGE:** Main HEAD commit [fbf7d487](https://github.com/Report-Engainall/Nasr1/commit/fbf7d4878b440baacdf34f12c35459b24507b04d) carries PR #204 download HTTP-boundary and signed-link expiry work. The current-main Core job includes unit tests; the dedicated async-export PostgreSQL 17 workflow is path-filtered and last successful on older SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b` (run [40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750)). Do not relabel that specialized workflow result as exact-current-SHA evidence.
 - **ONYX_LIVE_SYNC:** `NOT_PROVEN / BLOCKED_EXTERNAL`. Existing `src/lib/onyx-source-evidence.ts` and DB acceptance scripts persist and validate evidence about attempts; saved-source and DB tests explicitly distinguish it from a live provider connection. There is no usable authorized provider credential or verified Onyx Pro API contract in this session. Do not invent an endpoint, send production data, or mark sync as successful without a real provider response.
 - **SOURCE_RECONCILIATION:** Do not copy from `Nasr-Adnan/Nasr-Adnan` while the tested current implementation covers the candidate. No new source file was imported in this checkpoint.
-- **FILES_CHANGED:** Checkpoint and P3 acceptance-register live pointer only; no runtime code changed in this documentation checkpoint.
-- **TESTS_RUN_BY_THIS_SESSION:** No test process ran locally because this execution environment cannot resolve github.com from shell networking. GitHub CI evidence above was fetched directly and is tied to its recorded SHA. New PR head must obtain fresh CI before merge.
-- **PR_URL:** To be populated after PR creation.
-- **NEXT_ACTION:** Open a P3 PR containing the current checkpoint/register update, verify Core and P2 results for the exact PR head, and merge only if both satisfy repository technical gates. In parallel, continue P3's remaining work only where an actual untested edge or defect is evidenced; obtain an approved non-production Onyx Pro endpoint/credential and documented API contract before attempting a real round-trip.
+- **FILES_CHANGED:** `src/lib/onyx-source-evidence.ts` (strict UUID group structure for sync-attempt ID, snapshot ID and order ID); new `src/test/onyx-source-evidence-contract.test.ts` (three malformed-UUID rejection cases plus valid pending-attempt case); this checkpoint and the route acceptance register. No migration, secret or production data changed.
+- **TESTS_RUN_BY_THIS_SESSION:** The new Vitest test was not run locally because shell networking cannot resolve github.com and this runtime has no cloned project checkout. The prior main CI result is baseline evidence only, not evidence for the new code. GitHub PR CI must execute the new regression test on the final code SHA; until then the fix is `IMPLEMENTED / CI_PENDING`, not verified.
+- **PR_URL:** https://github.com/Report-Engainall/Nasr1/pull/207 (now includes the code/test correction plus the checkpoint/register updates).
+- **NEXT_ACTION:** Verify Core and P2 status for the final PR #207 HEAD after the latest source/test/checkpoint commits. Require the unit test `Onyx source evidence UUID contracts` plus core PostgreSQL 17 acceptance to pass on that exact SHA; repair any failure before merge. Afterward, continue only with evidenced acceptance gaps and obtain an approved non-production Onyx Pro endpoint/credential plus API contract before attempting a real round-trip.
 - **BLOCKERS:** No approved non-production Onyx Pro API credentials/contract; no shell network to execute repository tests locally. Hosted customer/tenant E2E is credential-gated in the repository workflow and must remain SKIPPED/BLOCKED_EXTERNAL unless its explicit secret gate is satisfied.
-- **UPDATED_AT:** 2026-10-25 04:45 +03:00.
+- **UPDATED_AT:** 2026-10-25 04:51 +03:00.
