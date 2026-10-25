@@ -1,23 +1,27 @@
 # P1 Execution Checkpoint — live resume record
 
-## Current state — 2026-10-23 (reconciled with live refs)
+## Current state — 2026-10-25 05:15 +03:00
 
-- Status: IN_PROGRESS; device-session UI is implemented, and the branch is being reconciled with current main before merge.
-- Repository: `Report-Engainall/Nasr1`.
-- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
-- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88.
-- BASE_SHA: `8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2` (live main immediately before this integration commit).
-- FEATURE_HEAD_SHA_BEFORE_INTEGRATION: `0d51e2090951e1dab80d4fbdf8e92bcfbb256de8`.
-- HEAD_SHA (last tested functional/code head): `5114ea8227f570662533219af1dc3a013cd49f75`. Core CI and the P1 session-specific local-browser path passed on this exact SHA. This checkpoint-only commit will advance the branch; validate its resulting SHA before merge.
-- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001` — server-backed central device/session UI and guarded revocation plus component/browser acceptance are implemented.
-- LAST_CONFIRMED_TESTS on the integrated functional head `5114ea8227f570662533219af1dc3a013cd49f75`: Core CI **SUCCESS** [run 39981579136](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579136); P2 Playwright **SUCCESS** [run 39981579236](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579236). The local Supabase/Chromium job explicitly ran **central device-session authorization and immediate-revocation acceptance** and passed; public Storefront smoke passed.
-- FAILED_OR_NOT_RUN_TESTS: checks on the new current-main integration head are pending. The external customer-order/tenant-isolation job was skipped by its credential gate; this is not a session-management pass. Production proof is NOT RUN.
-- FILES_CHANGED in the intended net diff: this checkpoint/report plus `e2e/device-session-management.spec.ts`, the P1 session endpoint/seed helpers, `src/components/DeviceManagement.tsx`, and `src/test/device-management.test.tsx`.
-- LOCKED_PATHS: no P2-owned RPC, RLS, migration, `src/lib/api.ts`, or workflow changes are included in the intended net diff. P2 dependency PR #83 is merged into main; no backend ownership is claimed by P1.
-- NEXT_ACTION: verify Core and P2 Playwright checks on the checkpoint-only commit that follows the tested code SHA; if both reach terminal success and the net diff remains P1-owned, mark PR #88 ready and merge it, then verify the merge SHA and post-merge main CI.
-- BLOCKER: no remaining backend-contract blocker; only current checkpoint-commit exact-head CI is pending. External-account E2E remains gated by unavailable non-production credentials.
-- MERGE_STATUS: PR #88 remains Draft/open and not merged.
-- UPDATED_AT: 2026-10-23 18:50 +03:00.
+- **Status:** FUNCTIONAL_FIX_IMPLEMENTED; all relevant local acceptance/Core gates passed on the functional code/test head; ready for controlled PR merge after verifying the final branch head differs only by this checkpoint documentation update.
+- **Repository:** `Report-Engainall/Nasr1`; production reference `main`.
+- **MAIN_SHA_AT_RESUME / BASE_SHA:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
+- **CURRENT_BRANCH:** `p1/payment-idempotency-audit-checkpoint-20261025`.
+- **PR_URL:** https://github.com/Report-Engainall/Nasr1/pull/206.
+- **FUNCTIONAL_CODE_TEST_HEAD_SHA:** `18ee16f4f109d8f38f8e33bcdc7030bcff850fd8`.
+- **TESTED_PR_MERGE_CANDIDATE_SHA:** `09dc69d9aeaac79c4ac8306f8b1c2ad09f2912e9`, the GitHub-generated pull-request merge test tree combining functional head `18ee16f4f109d8f38f8e33bcdc7030bcff850fd8` with base `fbf7d4878b440baacdf34f12c35459b24507b04d`. Workflow run logs previously confirmed GitHub checks out the PR merge candidate, not the raw source head. This checkpoint commit itself is documentation-only; verify no source/test paths changed from functional head before merging.
+- **LAST_CONFIRMED_TESTS on candidate `09dc69d9aeaac79c4ac8306f8b1c2ad09f2912e9`:**
+  - Core `test-and-build` — **SUCCESS**, run [40152522191](https://github.com/Report-Engainall/Nasr1/actions/runs/40152522191), including unit tests, migrations, lint, build and smoke/browser acceptance.
+  - Customer payment audit PostgreSQL 17 — **SUCCESS**, run [40152522225](https://github.com/Report-Engainall/Nasr1/actions/runs/40152522225). The regression verifies SQLSTATE `23514`, the explicit actor-organization error message, and zero persisted payment/audit rows after rejection; existing idempotency replay, payload-conflict and concurrency assertions passed.
+  - Import finalizer PostgreSQL 17 — **SUCCESS**, run [40152522216](https://github.com/Report-Engainall/Nasr1/actions/runs/40152522216).
+  - P2 Playwright Critical Paths — overall **SUCCESS**, run [40152522219](https://github.com/Report-Engainall/Nasr1/actions/runs/40152522219). Public storefront smoke and local-Supabase authenticated order, cross-tenant denial, return/credit memo, export, finance privacy/audit and device-session acceptance passed. The separate hosted customer/tenant job was **SKIPPED** by the credential gate; do not represent it as passed.
+- **LAST_COMPLETED_TASK_ID:** `P1-CUSTOMER-PAYMENT-AUDIT-ACTOR-TENANT-GUARD`.
+- **IMPLEMENTED:** Added forward-only `supabase/migrations/20261025050000_customer_payment_audit_actor_tenant_guard.sql`; the database audit trigger now rejects a non-null payment actor profile from a different organization. Added isolated PostgreSQL regression assertions to `scripts/test-customer-payment-audit.mjs`. Normal payment RPC contract, tenant-scoped idempotency and financial settlement checks remain intact.
+- **FILES_CHANGED:** `supabase/migrations/20261025050000_customer_payment_audit_actor_tenant_guard.sql`; `scripts/test-customer-payment-audit.mjs`; `docs/bolt-source-reconciliation/WORK_COORDINATION.md`; this checkpoint.
+- **SELECTIVE_SOURCE_COMPARISON:** Named legacy helper paths `auth.ts`, `cors.ts`, `download-handler.ts`, `supabase-client.ts`, and `async-export-worker/logic.ts` were not available in either inspected tree under those paths; the target uses alternate implementation paths such as `async-export-download-handler.ts` and `async-export-worker/index.ts`. `product-image-upload/index.ts` has identical content SHA in both repos. No speculative source copy was performed. Analytics/Customer 360/batch-pricing migration comparison is **OPEN** because a complete source-side migration-path inventory was not established.
+- **SCOPE_GUARD:** No writes to production databases, no production secrets, no direct writes to `main`; no P2-owned UI/API files changed.
+- **NEXT_ACTION:** Re-read PR #206 after this docs-only checkpoint commit. Confirm its newest head differs from functional code/test head `18ee16f4f109d8f38f8e33bcdc7030bcff850fd8` only by the checkpoint file; then merge PR #206 using the observed exact head SHA and verify resulting `main` SHA plus post-merge Core CI. If any app/test source changed, require fresh exact-merge-candidate Core, customer-payment-audit PostgreSQL 17 and P2 gates before merge. After merge, continue P1 audit of RLS/RPC grants, cost/margin/pricing visibility and the still-open analytics/Customer 360/batch-pricing source comparison.
+- **BLOCKERS:** Hosted customer/tenant E2E remains skipped without approved non-production credentials; source-side migration inventory for analytics/Customer 360/batch pricing remains open. No production runtime proof claimed.
+- **UPDATED_AT:** 2026-10-25 05:15 +03:00.
 
 ## Recent execution history
 

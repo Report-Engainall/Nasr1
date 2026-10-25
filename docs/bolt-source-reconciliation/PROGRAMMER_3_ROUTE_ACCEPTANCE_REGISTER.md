@@ -1,7 +1,7 @@
 # P3 route acceptance register — Nasr1
 
 Repository: Report-Engainall/Nasr1  
-Live checkpoint main SHA: bb67a4ae26285ed402ee0e9b8b945a8d0abe752c after merged P3 PR #207 (25 October 2026); historical route evidence below retains the SHA it was tested against  
+P3 merge SHA: bb67a4ae26285ed402ee0e9b8b945a8d0abe752c (PR #207); latest main at checkpoint sync: 557103c71ffa001e76ab78f75cd3f25a200c173d (P1 payment-audit guard, Core run 40153137096 SUCCESS). Historical route evidence below retains the SHA it was tested against  
 Generated route tree: src/routeTree.gen.ts  
 Inventory size: 61 source modules under src/routes, including the root shell; 60 non-root page/API modules below.  
 Purpose: route-to-evidence traceability for ROUTES-001. This does not replace the canonical acceptance matrix or imply every full production journey is proven.
@@ -14,9 +14,9 @@ Purpose: route-to-evidence traceability for ROUTES-001. This does not replace th
 - SKIPPED hosted checks are not PASS. A route can have local targeted evidence while hosted/external proof remains unproven.
 
 
-## Live reconciliation — P3 merged and reverified on current main (25 October 2026)
+## P3 implementation merge and acceptance evidence (25 October 2026)
 
-- **Current main SHA:** `bb67a4ae26285ed402ee0e9b8b945a8d0abe752c`; PR #207 merged successfully at [commit bb67a4a](https://github.com/Report-Engainall/Nasr1/commit/bb67a4ae26285ed402ee0e9b8b945a8d0abe752c).
+- **P3 merge SHA:** `bb67a4ae26285ed402ee0e9b8b945a8d0abe752c`; PR #207 merged successfully at [commit bb67a4a](https://github.com/Report-Engainall/Nasr1/commit/bb67a4ae26285ed402ee0e9b8b945a8d0abe752c). Latest main advanced afterward to `557103c71ffa001e76ab78f75cd3f25a200c173d` in P1 PR #206; post-merge Core run [40153137096](https://github.com/Report-Engainall/Nasr1/actions/runs/40153137096) passed on that newer SHA.
 - **Exact PR-head CI:** Core [40152320592](https://github.com/Report-Engainall/Nasr1/actions/runs/40152320592) and P2 [40152320526](https://github.com/Report-Engainall/Nasr1/actions/runs/40152320526) both completed SUCCESS on the same SHA `6fd4eaed21d1490d020b4b3b4f76db6fa59db64c`.
 - **Post-merge proof:** Core [40152650423](https://github.com/Report-Engainall/Nasr1/actions/runs/40152650423) completed SUCCESS on exact current main SHA `bb67a4ae26285ed402ee0e9b8b945a8d0abe752c`.
 - **P3 code fix:** `src/lib/onyx-source-evidence.ts` now requires canonical UUID group structure for sync-attempt, optional snapshot and order IDs; malformed attempt IDs receive a direct validation error. This rejects malformed server payloads that the former hex/hyphen-only 36-character check admitted.
@@ -24,6 +24,7 @@ Purpose: route-to-evidence traceability for ROUTES-001. This does not replace th
 - **P2 local browser proof:** In run 40152320526, local Supabase/PostgreSQL 17 acceptance passed for order persistence and cross-tenant denial, returns/credit memo, audited Onyx order XLSX export, finance/task printing, customer-manager authorization/privacy/audit, and central device-session revocation. The public no-write storefront smoke also passed. The separate hosted customer/tenant journey was SKIPPED by its explicit external-credentials gate; it is not claimed as passed.
 - **Onyx Pro real provider boundary:** still `NOT_PROVEN / BLOCKED_EXTERNAL`. Local reconciliation and saved-source evidence prove internal contracts only, not a real remote provider round-trip. Require an approved non-production endpoint, verified API contract and credentials before testing live synchronization.
 - **Test adaptation:** selective missing contract scenarios were adapted from auxiliary repo `Nasr-Adnan/Nasr-Adnan` at observed SHA `34702e670d80e80340d54683171238292099cbaa`. No source implementation or migration was copied.
+- **Checkpoint PR #209 pre-sync gates:** Core [40152959295](https://github.com/Report-Engainall/Nasr1/actions/runs/40152959295) and P2 [40152959290](https://github.com/Report-Engainall/Nasr1/actions/runs/40152959290) are SUCCESS on old branch head `b0e0491aeedb4b10531c305846e395e4334c8d35`; the P2 local Supabase job's first attempt failed transiently on port `55432`, then attempt 2 passed all acceptance steps. These checks are historical after the base advanced and must rerun on the synchronized head.
 - Current P3 checkpoint and next action: [PROGRAMMER_3_EXECUTION_CHECKPOINT.md](PROGRAMMER_3_EXECUTION_CHECKPOINT.md).
 
 ## Live reconciliation — post-merge #198 (24 October 2026)

@@ -3,6 +3,14 @@
 Repository: `Report-Engainall/Nasr1`; only production branch `main`.
 Latest main merge SHA: `12b622326f8a95575994ef1afae43f69fdf854b1` after PR #198. Post-merge Core run 40130981792 completed SUCCESS on exact main SHA; isolated PostgreSQL 17 migration/core acceptance, lint, build, preview smoke and Chromium price-visibility checks passed.
 
+## P1 ownership reservation — customer payment audit actor tenant binding — 2026-10-25 04:50 +03
+
+- **P1 exclusive working paths:** `supabase/migrations/20261025050000_customer_payment_audit_actor_tenant_guard.sql` (forward-only trigger hardening) and `scripts/test-customer-payment-audit.mjs` (isolated PostgreSQL acceptance).
+- **Evidence-backed gap:** the current audit trigger checks invoice/organization/customer consistency but does not independently bind `NEW.created_by` to the payment organization. The normal RPC derives an authorized actor, but a privileged/direct database writer can otherwise create a cross-tenant actor attribution.
+- **Required acceptance:** mismatched-organization actor insertion must fail with SQLSTATE `23514`; afterward neither a payment row nor a `customer_payment.recorded` audit row may persist for that attempt.
+- No storefront/UI/API caller paths are being edited in this unit. P2/P3 should rely on the existing payment RPC contract; this new trigger rule is defense-in-depth at the database boundary.
+- Keep the change forward-only; do not edit an already-applied migration. Run the dedicated PostgreSQL 17 acceptance and Core gate on the exact final SHA before merge.
+
 ## Current merge and acceptance truth
 
 - **Merged:** #184, #174, #175, #164, #165, #166, #168, #158, #162, #178, #180, #181, #179, #155, #156, #159, #160, #170, #188, #187, #189, #186, #190, #194, #196, #197 and #198. PR #195 was closed as superseded by current-main export acceptance #196. Use `CURRENT_EXECUTION_STATE.md` for commit/run evidence; do not recreate these features without a demonstrated regression.
