@@ -19,6 +19,7 @@ async function expectSqlState(label, action, sqlState) {
   }
   assert.ok(caught, label + " must fail");
   assert.equal(caught.code, sqlState, label + " must raise SQLSTATE " + sqlState);
+  return caught;
 }
 
 /** Verify tenant-scoped payment auditing, idempotent replay, and rejection of changed payloads on PostgreSQL 17. */
@@ -317,7 +318,7 @@ async function main() {
   const crossTenantActorId = foreignActorRows[0].profile_id;
   const rejectedActorKey = randomUUID();
   const rejectedActorReference = "CI-ACTOR-TENANT-GUARD-" + randomUUID();
-  await expectSqlState(
+  const rejectedActorError = await expectSqlState(
     "payment audit rejects a cross-organization actor",
     () => db.unsafe(
       "insert into public.customer_payments(" +
@@ -333,6 +334,11 @@ async function main() {
       ],
     ),
     "23514",
+  );
+  assert.match(
+    String(rejectedActorError.message ?? ""),
+    /customer payment actor must belong to its organization/,
+    "cross-tenant rejection must come from the explicit actor-organization guard",
   );
   const rejectedPaymentRows = await db.unsafe(
     "select id from public.customer_payments where organization_id=$1::uuid and idempotency_key=$2::uuid",
