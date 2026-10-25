@@ -1,32 +1,37 @@
-# LIVE P2 CHECKPOINT — 2026-10-25T01:56Z — admin screen load-error recovery
+# LIVE P2 CHECKPOINT — 2026-10-25T02:03Z — admin and pricing-rule load-error recovery
 
-> Latest P2 checkpoint. Historical records below remain for provenance; use the live PR head and exact-SHA Actions, not historical results.
+> Newest P2 checkpoint for PR #208. Historical snapshots below remain for provenance. Always resolve the current main/head SHA and run statuses directly before merging.
 
 - Repository: Report-Engainall/Nasr1; production reference: main.
 - Main baseline at branch/PR creation: fbf7d4878b440baacdf34f12c35459b24507b04d.
+- Current main tip at checkpoint: bb67a4ae26285ed402ee0e9b8b945a8d0abe752c — P3 Onyx UUID-validation commit. Comparing current main to P2 head before this checkpoint: 7 commits ahead / 1 behind; current main's additional commit changes four P3-specific files, not P2 runtime files. GitHub reports PR #208 mergeable, but validate live mergeability again before merge.
 - P2 branch: p2/settings-load-error-recovery-20261025.
 - Application code commits:
-  - 9bf30151334c1709df0f93e444ba3e2d2dac72bf — SettingsPage reports settings fetch failure, blocks default-looking editable controls until successful load, and gives ErrorBox role="alert".
-  - d21b32f513a446a9fc37e45c8b4a28533cc4b131 — AI Center alerts/tasks show request errors and distinguish unavailable data from genuine empty lists.
-  - fe19a32f8e43faae46019380e03b80cf4abd5f93 — Dashboard alert failure is explicit; empty state only appears on a successful empty result; dashboard refresh refetches stats, alerts and products.
-- PR: #208 — https://github.com/Report-Engainall/Nasr1/pull/208. OPEN / NOT MERGED. Runtime changes: src/components/AdminPages.tsx and src/components/AghbariApp.tsx; this canonical checkpoint file is the third changed file. No database, migration, service, RPC or RLS files are changed.
-- Repository-side verification: read back the exact pushed source and reviewed the PR patches. No local build/lint/unit commands could be run in this session.
-- Exact-head Actions evidence at application-code head 4ce8b8719bbd725e68741cf45b7ab7aea99fbab2 (before this checkpoint commit): Core run 40152408165 was in_progress; P2 run 40152408192 was in_progress. P2's Authenticated E2E infrastructure gate was SUCCESS, public UI smoke was still in_progress, and hosted customer/tenant isolation was SKIPPED. These results do not certify the new checkpoint commit produced by this update.
-- After this documentation commit, read the actual current PR #208 head and inspect fresh Core/P2 runs on that exact SHA; do not rely on pre-checkpoint statuses.
-- P3 acceptance handoff (P2 must not edit src/test/*): add focused behavior tests in src/test/admin-screen-load-error-acceptance.test.tsx or the existing P3-owned suite:
-  1. SettingsPage: failed settings fetch -> role=alert with the error; no editable controls until a successful reload; refresh calls refetch.
-  2. AI Center: errors in alert/task requests render ErrorBox; only successful empty arrays show empty-state copy.
-  3. Dashboard: failed alert fetch does not show "no active alerts"; a successful empty response does; refresh invokes stats, alerts and products refetch.
-- External tooling limitation: Desktop Commander PC01 remains offline. Repository operations were performed through the authenticated GitHub connector, not the Edge session.
-- Merge gate: keep OPEN until focused P3 acceptance tests exist and required Core/P2 workflows pass on the final exact SHA; then verify the actual merge SHA on main.
+  - 9bf30151334c1709df0f93e444ba3e2d2dac72bf — SettingsPage surfaces failed settings fetches, blocks default-looking editable fields until successful load, and uses role="alert".
+  - d21b32f513a446a9fc37e45c8b4a28533cc4b131 — AI Center alert/task fetch failures and unavailable data are shown separately from true empty lists.
+  - fe19a32f8e43faae46019380e03b80cf4abd5f93 — Dashboard alert failure is explicit, empty state only appears after a successful empty result, and refresh refetches dashboard stats + alerts + products.
+  - e76055c73faf327404cc5a0152f68ccb451d8c14 — PricingRuleModal now surfaces product/category option-fetch errors, provides retry actions, presents true empty states, and disables saving when scope options are loading, failed, unavailable, or empty.
+- PR: #208 — https://github.com/Report-Engainall/Nasr1/pull/208. OPEN / NOT MERGED. After the latest code commit, runtime changes are in src/components/AdminPages.tsx and src/components/AghbariApp.tsx; this checkpoint file is the third change. No service, RPC, database, migration, or RLS files changed.
+- Repository-side validation: fetched each changed file from GitHub after writing it and verified the intended hooks, failure branches, retry handlers, empty-state handling, and save guards in source. No local build/lint/unit execution was possible; PC01/Desktop Commander remains offline.
+- Previous-head exact CI evidence (8308b478bc3c226db772a267e0f9db03f5013303):
+  - Core run 40152446552 completed SUCCESS.
+  - P2 run 40152446543 completed SUCCESS. Local-Supabase order persistence/cross-tenant denial, customer return and credit memo, Onyx XLSX export, finance/task print, customer-manager privacy/audit, and device-session authorization/revocation all passed.
+  - Hosted customer-order/tenant-isolation was SKIPPED because external credentials are not configured; never report this as a pass.
+  These results do NOT certify the new pricing-rule code commit or the checkpoint commit that follows this record. Fresh Actions on the final PR head are required.
+- P3 acceptance handoff: the dedicated UI state-recovery test file was not found on main. P3 owns src/test/*; P2 has not edited those files. Required tests:
+  1. SettingsPage: data=null, loading=false, error="network timeout" -> accessible role=alert; no editable settings before successful retry; refresh invokes refetch.
+  2. AI Center: alert/task request errors render ErrorBox, not empty-state copy; only successfully loaded empty arrays show true empty states.
+  3. Dashboard: failed alert fetch never renders "لا توجد تنبيهات نشطة"; a successful empty response does; refresh calls stats, alerts and products refetch functions.
+  4. PricingRuleModal: product/category lookup failure is surfaced with a working retry; empty successful lookup has its own message; saving a product/category rule is disabled until options are loaded and a valid target can be selected.
+- External tooling limitation: Desktop Commander PC01 is offline; authenticated GitHub connector was used for repository operations.
 
 ## NEXT_ACTION
 
-1. Read PR #208's live head SHA and fresh Action run IDs after this checkpoint update.
-2. Verify unit tests, PostgreSQL 17/core checks, lint, build, production-preview/dev-server smoke, and P2 public/local-Supabase jobs terminate on that exact SHA. Inspect logs for failures.
-3. Coordinate P3's tests above; do not claim focused UI regression coverage before the assertions are present and pass.
-4. Merge only after the targeted acceptance checks and required gates are green; verify the resulting merge SHA on main and record post-merge Actions.
-5. Continue with the next evidence-backed ROUTES-001 gap. Do not rebuild merged hidden-price protection, atomic pricing grid, invitation/activation, or route-mount work without a reproduced regression.
+1. Read the resulting PR #208 head SHA after this checkpoint commit.
+2. Observe Core and P2 Actions on that exact head; inspect only any failures, and don't reuse the prior 8308b478 results as if they applied to a newer SHA.
+3. Re-engage P3 on the open PR #208 (the previous handoff on PR #207 was posted just before it merged); do not add src/test/* from P2. Wait for the four focused behavior assertions above to be committed and passing.
+4. Before merge, compare against the then-current main (currently bb67a4ae…) and verify live mergeability; after merge, verify the actual merge SHA on main and inspect post-merge Actions. Keep hosted E2E marked SKIPPED until valid external credentials enable it.
+5. Continue with the next evidence-backed ROUTES-001 screen issue only after this unit is tested; don't recreate merged price visibility, atomic price grid, invitations, or route mounts absent a reproduced regression.
 ---
 
 # NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026 (after PR #198)
