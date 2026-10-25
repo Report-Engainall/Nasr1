@@ -1,23 +1,25 @@
 # P1 Execution Checkpoint — live resume record
 
-## Current state — 2026-10-23 (reconciled with live refs)
+## Current state — 2026-10-25 04:40 +03:00
 
-- Status: IN_PROGRESS; device-session UI is implemented, and the branch is being reconciled with current main before merge.
-- Repository: `Report-Engainall/Nasr1`.
-- CURRENT_BRANCH: `p1/central-device-session-ui-20261023`.
-- PR_URL: https://github.com/Report-Engainall/Nasr1/pull/88.
-- BASE_SHA: `8e48c592d06ee8bc35b73cfe89f5f0fd51c33ec2` (live main immediately before this integration commit).
-- FEATURE_HEAD_SHA_BEFORE_INTEGRATION: `0d51e2090951e1dab80d4fbdf8e92bcfbb256de8`.
-- HEAD_SHA (last tested functional/code head): `5114ea8227f570662533219af1dc3a013cd49f75`. Core CI and the P1 session-specific local-browser path passed on this exact SHA. This checkpoint-only commit will advance the branch; validate its resulting SHA before merge.
-- LAST_COMPLETED_TASK_ID: `P1-DEVICE-SESSION-MGMT-UI-001` — server-backed central device/session UI and guarded revocation plus component/browser acceptance are implemented.
-- LAST_CONFIRMED_TESTS on the integrated functional head `5114ea8227f570662533219af1dc3a013cd49f75`: Core CI **SUCCESS** [run 39981579136](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579136); P2 Playwright **SUCCESS** [run 39981579236](https://github.com/Report-Engainall/Nasr1/actions/runs/39981579236). The local Supabase/Chromium job explicitly ran **central device-session authorization and immediate-revocation acceptance** and passed; public Storefront smoke passed.
-- FAILED_OR_NOT_RUN_TESTS: checks on the new current-main integration head are pending. The external customer-order/tenant-isolation job was skipped by its credential gate; this is not a session-management pass. Production proof is NOT RUN.
-- FILES_CHANGED in the intended net diff: this checkpoint/report plus `e2e/device-session-management.spec.ts`, the P1 session endpoint/seed helpers, `src/components/DeviceManagement.tsx`, and `src/test/device-management.test.tsx`.
-- LOCKED_PATHS: no P2-owned RPC, RLS, migration, `src/lib/api.ts`, or workflow changes are included in the intended net diff. P2 dependency PR #83 is merged into main; no backend ownership is claimed by P1.
-- NEXT_ACTION: verify Core and P2 Playwright checks on the checkpoint-only commit that follows the tested code SHA; if both reach terminal success and the net diff remains P1-owned, mark PR #88 ready and merge it, then verify the merge SHA and post-merge main CI.
-- BLOCKER: no remaining backend-contract blocker; only current checkpoint-commit exact-head CI is pending. External-account E2E remains gated by unavailable non-production credentials.
-- MERGE_STATUS: PR #88 remains Draft/open and not merged.
-- UPDATED_AT: 2026-10-23 18:50 +03:00.
+- **Status:** IN_PROGRESS — resumed against live GitHub state; no production operations performed.
+- **Repository:** `Report-Engainall/Nasr1`.
+- **Production reference:** `main`.
+- **MAIN_SHA_AT_RESUME:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
+- **CURRENT_BRANCH:** `p1/payment-idempotency-audit-checkpoint-20261025`.
+- **BASE_SHA:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
+- **LAST_VERIFIED_MAIN_CHECK:** GitHub Actions run [40134043235](https://github.com/Report-Engainall/Nasr1/actions/runs/40134043235), job `test-and-build`, completed SUCCESS on exact SHA `fbf7d4878b440baacdf34f12c35459b24507b04d` at 2026-10-24T21:27:45Z.
+- **OPEN_PR_BASELINE:** Direct GitHub REST query returned no open pull requests at resume.
+- **STALE_CHECKPOINT_RECONCILIATION:** Previous P1 checkpoint still points to old branch `p1/central-device-session-ui-20261023` and PR #88, which is not open in the live repository. Do not resume that branch/PR blindly. Historical entries below are retained for provenance, not as current state.
+- **CODEBASE_EVIDENCE:** Current main has `supabase/functions/_shared/async-export-download-handler.ts`, bounded-body utilities, tenant-scoped product image upload, and `supabase/migrations/20261023235900_customer_payment_idempotency.sql`. These must be audited in place; do not reintroduce source-side files with different paths unless a real contract gap is proven.
+- **SCOPE_GUARD:** No production database changes, secrets, or production data accessed. No source archive file copied.
+- **LAST_COMPLETED_TASK_ID:** `P1-RESUME-LIVE-STATE-RECONCILIATION-20261025` — verified repository permissions/default branch, exact current main SHA, exact-head Core check, absence of open PRs, and existing checkpoint drift.
+- **FILES_CHANGED:** `docs/bolt-source-reconciliation/PROGRAMMER_1_EXECUTION_CHECKPOINT.md` only in this checkpoint commit.
+- **TESTS:** No new test run for a code change in this checkpoint commit yet. Existing `test-and-build` SUCCESS applies only to base SHA `fbf7d4878b440baacdf34f12c35459b24507b04d`, not this documentation branch.
+- **PR_URL:** Pending creation after checkpoint commit.
+- **NEXT_ACTION:** Audit `supabase/migrations/20261023235900_customer_payment_idempotency.sql` together with `20261024151500_customer_payment_record_audit.sql` and `scripts/test-customer-payment-audit.mjs`; verify tenant binding, identical-retry replay, changed-payload rejection, authorization, and audit atomicity. Make a code/test change only if a reproducible gap is found, then run the dedicated PostgreSQL 17 workflow and Core CI on the exact resulting SHA.
+- **BLOCKERS:** Hosted customer/tenant E2E requires external credentials; do not represent skipped hosted tests as passed. No production proof claimed.
+- **UPDATED_AT:** 2026-10-25 04:40 +03:00.
 
 ## Recent execution history
 
