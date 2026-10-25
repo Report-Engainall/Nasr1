@@ -1,32 +1,32 @@
-# LIVE P2 CHECKPOINT — 2026-10-25T01:54Z — admin screen load-error recovery
+# LIVE P2 CHECKPOINT — 2026-10-25T01:56Z — admin screen load-error recovery
 
-> Newest P2 checkpoint for PR #208. Historical snapshots below are retained for provenance only and must not override this live execution state.
+> Latest P2 checkpoint. Historical records below remain for provenance; use the live PR head and exact-SHA Actions, not historical results.
 
 - Repository: Report-Engainall/Nasr1; production reference: main.
-- Main baseline at branch creation: fbf7d4878b440baacdf34f12c35459b24507b04d.
+- Main baseline at branch/PR creation: fbf7d4878b440baacdf34f12c35459b24507b04d.
 - P2 branch: p2/settings-load-error-recovery-20261025.
-- P2 code commits:
-  - 9bf30151334c1709df0f93e444ba3e2d2dac72bf — SettingsPage now surfaces failed settings fetches and prevents default-looking editable controls before a successful load; ErrorBox is exposed as role="alert".
-  - d21b32f513a446a9fc37e45c8b4a28533cc4b131 — AI Center alert/task panels distinguish fetch errors and unavailable data from genuinely empty lists.
-  - fe19a32f8e43faae46019380e03b80cf4abd5f93 — Dashboard alert failures are explicit, genuine empty alerts render an empty-state message, and the refresh action refetches dashboard stats, alerts and products.
-- PR: #208 — https://github.com/Report-Engainall/Nasr1/pull/208. Open / not merged. Runtime changes are limited to src/components/AdminPages.tsx and src/components/AghbariApp.tsx; this checkpoint is docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md. No database, migration, service, RPC or RLS files changed.
-- Verification performed: fetched source from GitHub after each write; verified the settings/AI state branches, dashboard alert state, and all three refresh calls in the pushed branch. No local build/lint/unit execution was available in this session.
-- Prior-head CI evidence on 3726ba84b97dc26f81dc7ef4b54a63bf78475068: Core run 40152333495 was in_progress and P2 run 40152333476 was pending/queued at last read. Those runs predate the Dashboard commit fe19a32… and do NOT certify that code commit or the checkpoint commit below.
-- The checkpoint write itself advances PR HEAD. Always fetch the resulting live PR head from GitHub and inspect Core/P2 Actions for that exact SHA before merge; never infer that an earlier run applies to a later head.
-- P3 acceptance handoff (P2 does not edit src/test/*): add focused tests in src/test/admin-screen-load-error-acceptance.test.tsx or the existing P3-owned acceptance suite:
-  1. SettingsPage: failed settings fetch -> role=alert with the error; editable settings remain absent until successful reload; refresh calls refetch.
-  2. AI Center: alert/task fetch errors render ErrorBox; only successful empty arrays display empty-state labels.
-  3. Dashboard: failed alert fetch does not show "no active alerts"; successful empty alert data does; refresh invokes stats, alerts and products refetch functions.
-- External tooling limitation: Desktop Commander device PC01 is offline; GitHub repository changes were performed through the authenticated connector rather than the Edge browser session.
-- Merge state: OPEN / NOT MERGED. Do not call the unit complete until focused acceptance checks and required workflows succeed on the final exact head, then verify the actual merge SHA on main.
+- Application code commits:
+  - 9bf30151334c1709df0f93e444ba3e2d2dac72bf — SettingsPage reports settings fetch failure, blocks default-looking editable controls until successful load, and gives ErrorBox role="alert".
+  - d21b32f513a446a9fc37e45c8b4a28533cc4b131 — AI Center alerts/tasks show request errors and distinguish unavailable data from genuine empty lists.
+  - fe19a32f8e43faae46019380e03b80cf4abd5f93 — Dashboard alert failure is explicit; empty state only appears on a successful empty result; dashboard refresh refetches stats, alerts and products.
+- PR: #208 — https://github.com/Report-Engainall/Nasr1/pull/208. OPEN / NOT MERGED. Runtime changes: src/components/AdminPages.tsx and src/components/AghbariApp.tsx; this canonical checkpoint file is the third changed file. No database, migration, service, RPC or RLS files are changed.
+- Repository-side verification: read back the exact pushed source and reviewed the PR patches. No local build/lint/unit commands could be run in this session.
+- Exact-head Actions evidence at application-code head 4ce8b8719bbd725e68741cf45b7ab7aea99fbab2 (before this checkpoint commit): Core run 40152408165 was in_progress; P2 run 40152408192 was in_progress. P2's Authenticated E2E infrastructure gate was SUCCESS, public UI smoke was still in_progress, and hosted customer/tenant isolation was SKIPPED. These results do not certify the new checkpoint commit produced by this update.
+- After this documentation commit, read the actual current PR #208 head and inspect fresh Core/P2 runs on that exact SHA; do not rely on pre-checkpoint statuses.
+- P3 acceptance handoff (P2 must not edit src/test/*): add focused behavior tests in src/test/admin-screen-load-error-acceptance.test.tsx or the existing P3-owned suite:
+  1. SettingsPage: failed settings fetch -> role=alert with the error; no editable controls until a successful reload; refresh calls refetch.
+  2. AI Center: errors in alert/task requests render ErrorBox; only successful empty arrays show empty-state copy.
+  3. Dashboard: failed alert fetch does not show "no active alerts"; a successful empty response does; refresh invokes stats, alerts and products refetch.
+- External tooling limitation: Desktop Commander PC01 remains offline. Repository operations were performed through the authenticated GitHub connector, not the Edge session.
+- Merge gate: keep OPEN until focused P3 acceptance tests exist and required Core/P2 workflows pass on the final exact SHA; then verify the actual merge SHA on main.
 
 ## NEXT_ACTION
 
-1. Re-read PR #208 current head SHA after this checkpoint write.
-2. Capture the exact-head Core and P2 run IDs; verify unit tests, PostgreSQL 17/core checks, lint/build/smoke and P2 public/local-Supabase jobs reach terminal results on that SHA. Inspect logs on failure.
-3. Coordinate P3 to add the three focused behaviors above within test ownership; do not claim dedicated UI regression coverage before the assertions exist and pass.
-4. Merge only when P3 acceptance and required technical gates are green; verify merge SHA on main and record post-merge CI evidence.
-5. Continue with the next evidence-backed ROUTES-001 screen behavior gap without rebuilding already-integrated hidden-price protection, atomic pricing grid, customer invitation/activation or route-mount work absent a reproduced regression.
+1. Read PR #208's live head SHA and fresh Action run IDs after this checkpoint update.
+2. Verify unit tests, PostgreSQL 17/core checks, lint, build, production-preview/dev-server smoke, and P2 public/local-Supabase jobs terminate on that exact SHA. Inspect logs for failures.
+3. Coordinate P3's tests above; do not claim focused UI regression coverage before the assertions are present and pass.
+4. Merge only after the targeted acceptance checks and required gates are green; verify the resulting merge SHA on main and record post-merge Actions.
+5. Continue with the next evidence-backed ROUTES-001 gap. Do not rebuild merged hidden-price protection, atomic pricing grid, invitation/activation, or route-mount work without a reproduced regression.
 ---
 
 # NASR1 LIVE EXECUTION CHECKPOINT — 24 October 2026 (after PR #198)
