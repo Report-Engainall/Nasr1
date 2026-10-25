@@ -257,7 +257,7 @@ export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
 type OrderReviewDraft = { quantity: string; unitPrice: string; reason: string };
 
 export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { orderId: string; onBack: () => void; onNotice: (m: string) => void; onBlockedChange: (blocked: boolean) => void }) {
-  const { data: orders, refetch: refetchOrders } = useFetch(fetchOrders);
+  const { data: orders, loading: ordersLoading, error: ordersError, refetch: refetchOrders } = useFetch(fetchOrders);
   const { data: items, loading, error, refetch } = useFetch(() => fetchOrderItems(orderId), [orderId]);
   const order = orders?.find((o) => o.id === orderId);
   const canExportOnyxOrder = Boolean(
@@ -564,6 +564,8 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
       <Button variant="secondary" onClick={goBack} disabled={blocked || busy}><ChevronLeft size={16} /> رجوع</Button>
       <Button disabled={!canExportOnyxOrder || exportBusy || exportSnapshotsLoading || Boolean(exportSnapshotsError)} onClick={downloadOnyxWorkbook}><Download size={16} /> {exportBusy ? 'جارٍ تسجيل حدث التصدير...' : 'تنزيل XLSX للأونكس'}</Button>
     </div>}>
+    {ordersLoading && !orders ? <Loading /> : ordersError ? <ErrorBox message={ordersError} /> : !orders ? <Empty text="تعذر التحقق من بيانات الطلب؛ أعد المحاولة." /> : !order ? <Empty text="لم يتم العثور على الطلب المطلوب ضمن المؤسسة الحالية." /> : null}
+    {(ordersError || (!ordersLoading && !orders)) && <Button variant="secondary" onClick={() => { void refetchOrders(); }}>إعادة تحميل الطلب</Button>}
     {order && <section className="panel" style={{ marginTop: 12, padding: 14 }}>
       <label htmlFor="onyx-export-source-snapshot" style={{ display: 'block', fontWeight: 800, marginBottom: 6 }}>لقطة المخزون المصدرية لربط تصدير الطلب</label>
       <select id="onyx-export-source-snapshot" aria-label="لقطة مصدر أونكس للتصدير" value={selectedExportSnapshotId}
