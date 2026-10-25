@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export type OnyxLiveSyncAttempt = {
   id: string;
   operation: "inventory_pull" | "order_push";
@@ -78,7 +80,7 @@ function parseLiveSyncAttempt(value: unknown, field: string): OnyxLiveSyncAttemp
   const startedAt = value.started_at;
   const completedAt = value.completed_at;
   if (
-    typeof value.id !== "string" || !/^[0-9a-f-]{36}$/i.test(value.id) ||
+    typeof value.id !== "string" || !UUID_RE.test(value.id) ||
     (operation !== "inventory_pull" && operation !== "order_push") ||
     (status !== "started" && status !== "succeeded" && status !== "failed") ||
     typeof requestHash !== "string" || !/^[0-9a-f]{64}$/.test(requestHash) ||
@@ -100,7 +102,7 @@ function parseLiveSyncAttempt(value: unknown, field: string): OnyxLiveSyncAttemp
   }
   const nullableUuid = (candidate: unknown, name: string) => {
     if (candidate == null) return null;
-    if (typeof candidate !== "string" || !/^[0-9a-f-]{36}$/i.test(candidate)) {
+    if (typeof candidate !== "string" || !UUID_RE.test(candidate)) {
       throw new Error("معرّف محاولة مزامنة أونكس غير صالح: " + name);
     }
     return candidate;
