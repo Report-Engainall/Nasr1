@@ -1251,8 +1251,8 @@ function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onCl
         <Field label="الشريحة المستهدفة"><select value={targetTier} onChange={(event) => setTargetTier(event.target.value as typeof targetTier)}><option value="both">الجملة والتجزئة</option><option value="wholesale">الجملة</option><option value="retail">التجزئة</option></select></Field>
       </div>
       {(scopeType === 'product' || scopeType === 'category') && <>
-        {scopeType === 'product' && productsError && <><ErrorBox message={productsError} /><Button type="button" variant="secondary" onClick={() => { void refetchProducts(); }}>إعادة تحميل المنتجات</Button></>}
-        {scopeType === 'category' && categoriesError && <><ErrorBox message={categoriesError} /><Button type="button" variant="secondary" onClick={() => { void refetchCategories(); }}>إعادة تحميل التصنيفات</Button></>}
+        {scopeType === 'product' && productsError && <><ErrorBox message={productsError} /><button type="button" className="btn secondary" onClick={() => { void refetchProducts(); }}>إعادة تحميل المنتجات</button></>}
+        {scopeType === 'category' && categoriesError && <><ErrorBox message={categoriesError} /><button type="button" className="btn secondary" onClick={() => { void refetchCategories(); }}>إعادة تحميل التصنيفات</button></>}
         {scopeType === 'product' && !productsLoading && !productsError && products?.length === 0 && <Empty text="لا توجد منتجات متاحة لاستخدامها في قاعدة تسعير." />}
         {scopeType === 'category' && !categoriesLoading && !categoriesError && categories?.length === 0 && <Empty text="لا توجد تصنيفات متاحة لاستخدامها في قاعدة تسعير." />}
         <Field label={scopeType === 'product' ? 'المنتج' : 'التصنيف'}>
