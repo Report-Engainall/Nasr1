@@ -1,21 +1,25 @@
 # P1 Execution Checkpoint — live resume record
 
-## Current state — 2026-10-25 04:55 +03:00
+## Current state — 2026-10-25 05:03 +03:00
 
-- **Status:** IMPLEMENTED; exact-head CI/isolated PostgreSQL acceptance pending. Do not mark verified until current final SHA has terminal test evidence.
+- **Status:** FUNCTIONAL_FIX_IMPLEMENTED; test gates passed on the current code PR-head merge candidate; checkpoint-only refresh below creates a new PR head which must be checked before merge.
 - **Repository:** `Report-Engainall/Nasr1`; production reference is `main`.
-- **MAIN_SHA_AT_RESUME:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
+- **MAIN_SHA_AT_RESUME / BASE_SHA:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
+- **PR_URL:** https://github.com/Report-Engainall/Nasr1/pull/206.
 - **CURRENT_BRANCH:** `p1/payment-idempotency-audit-checkpoint-20261025`.
-- **BASE_SHA:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
-- **PR_URL:** https://github.com/Report-Engainall/Nasr1/pull/206 (existing canonical P1 resume PR; now includes the code/test fix rather than docs only).
-- **Functional commits on this branch:** coordination/path reservation `0220a392ef060dbb870a6327393990d57a153234`; forward-only SQL guard `ba209fecfd137e21bc3666a4ce2eac39f59fd8eb`; regression test `a2f31f012ce74b71f8dc9f531bc245a67073a1f7`. This checkpoint update will create a newer documentation commit, so required checks must be read against the resulting final PR head.
-- **Evidence-backed issue:** `audit_customer_payment_recorded()` previously checked invoice/customer/organization consistency but did not verify that a non-null `NEW.created_by` profile belonged to `NEW.organization_id`. The existing payment RPC still enforces active finance identity and tenant-scoped idempotency. The added migration hardens the trigger against cross-tenant actor attribution without changing the payment RPC contract or historical migrations.
-- **New acceptance:** `scripts/test-customer-payment-audit.mjs` now attempts a trusted direct insert using a real profile from a different organization and requires SQLSTATE `23514`, zero persisted payment rows, and zero corresponding audit rows. The test is added but **has not yet been executed by this session**.
-- **FILES_CHANGED:** `docs/bolt-source-reconciliation/WORK_COORDINATION.md`; `supabase/migrations/20261025050000_customer_payment_audit_actor_tenant_guard.sql`; `scripts/test-customer-payment-audit.mjs`; this checkpoint.
-- **TESTS / CI:** Current exact-head Core and dedicated PostgreSQL 17 acceptance are **PENDING / NOT VERIFIED**. Main Core run [40134043235](https://github.com/Report-Engainall/Nasr1/actions/runs/40134043235) was SUCCESS on base SHA `fbf7d4878b440baacdf34f12c35459b24507b04d` only; it does not prove this branch. No test result is transferred across SHAs.
-- **NEXT_ACTION:** retrieve/await required Core and dedicated PostgreSQL 17 customer-payment-audit checks for the final SHA after this checkpoint commit; inspect failures/logs, repair only reproducible failures, rerun to terminal success, then verify merge eligibility and merge PR #206 only when all required gates are successful. After merge, verify the exact resulting `main` SHA and its post-merge Core check.
-- **BLOCKERS:** no verified run metadata for this latest branch SHA yet. Hosted customer/tenant E2E requires the external non-production credentials and must remain SKIPPED/BLOCKED_EXTERNAL if unavailable. No production DB writes or production proof claimed.
-- **UPDATED_AT:** 2026-10-25 04:55 +03:00.
+- **PR_HEAD_SHA_TESTED:** `271f4a6f8d566486b6199799186ce72d000a3e3d`.
+- **TESTED_PR_MERGE_CANDIDATE_SHA:** `95f6a5016f7afaf6c5f33ff78c2520b45a6cfa8a` (GitHub's PR merge test tree combines tested head `271f4a6f8d566486b6199799186ce72d000a3e3d` with base `fbf7d4878b440baacdf34f12c35459b24507b04d`; confirmed in acceptance job checkout logs).
+- **LAST_CONFIRMED_TESTS on merge candidate `95f6a5016f7afaf6c5f33ff78c2520b45a6cfa8a`:**
+  - Dedicated customer-payment-audit PostgreSQL 17 — **SUCCESS**, run [40152190947](https://github.com/Report-Engainall/Nasr1/actions/runs/40152190947). Logs confirm the cross-tenant actor insert raised the intended SQLSTATE, with no payment or audit side effects; identical-key concurrency, replay and changed-payload rejection tests also passed.
+  - Core `test-and-build` — **SUCCESS**, run [40152190994](https://github.com/Report-Engainall/Nasr1/actions/runs/40152190994), including unit tests, migrations, lint, build and smoke/browser checks.
+  - Import-finalizer PostgreSQL 17 — **SUCCESS**, run [40152190942](https://github.com/Report-Engainall/Nasr1/actions/runs/40152190942).
+  - P2 Playwright — overall **SUCCESS**, run [40152190935](https://github.com/Report-Engainall/Nasr1/actions/runs/40152190935). Public UI smoke and local-Supabase authenticated order/tenant, return/credit, export, finance privacy, role and device-session browser acceptance passed. External hosted customer/tenant E2E was **SKIPPED** by its explicit credential gate; do not represent it as passed.
+- **LAST_COMPLETED_TASK_ID:** `P1-CUSTOMER-PAYMENT-AUDIT-ACTOR-TENANT-GUARD` — added a forward-only trigger hardening migration and regression coverage for cross-tenant actor attribution. Existing payment RPC signature, tenant-scoped idempotency/replay and financial settlement checks remain intact.
+- **FILES_CHANGED:** `supabase/migrations/20261025050000_customer_payment_audit_actor_tenant_guard.sql`; `scripts/test-customer-payment-audit.mjs`; `docs/bolt-source-reconciliation/WORK_COORDINATION.md`; this checkpoint file.
+- **SCOPE_GUARD:** No production DB writes, production secrets, or production data accessed. No changes were made directly to `main`; source repo was used for selective comparison only.
+- **NEXT_ACTION:** This checkpoint-only commit will advance the PR head. Re-read PR #206 head SHA and require Core, dedicated customer-payment-audit PostgreSQL 17 and P2 Playwright gates to reach terminal success for its resulting merge candidate. If green and mergeable, merge PR #206 with expected head SHA, then verify the resulting `main` SHA and post-merge Core CI. Repair only a failure reproduced on the newest SHA.
+- **BLOCKERS:** Hosted customer/tenant E2E credentials remain unavailable; this is an explicit partial proof boundary, not a blocker to the local isolated acceptance gates listed above. No production proof claimed.
+- **UPDATED_AT:** 2026-10-25 05:03 +03:00.
 
 ## Recent execution history
 
