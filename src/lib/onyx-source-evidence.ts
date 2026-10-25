@@ -79,8 +79,10 @@ function parseLiveSyncAttempt(value: unknown, field: string): OnyxLiveSyncAttemp
   const httpStatus = value.http_status;
   const startedAt = value.started_at;
   const completedAt = value.completed_at;
+  if (typeof value.id !== "string" || !UUID_RE.test(value.id)) {
+    throw new Error("معرّف محاولة مزامنة أونكس غير صالح: " + field + ".id");
+  }
   if (
-    typeof value.id !== "string" || !UUID_RE.test(value.id) ||
     (operation !== "inventory_pull" && operation !== "order_push") ||
     (status !== "started" && status !== "succeeded" && status !== "failed") ||
     typeof requestHash !== "string" || !/^[0-9a-f]{64}$/.test(requestHash) ||
