@@ -1,27 +1,26 @@
 # P1 Execution Checkpoint — live resume record
 
-## Current state — 2026-10-25 05:15 +03:00
+## Current state — 2026-10-25 05:20 +03:00
 
-- **Status:** FUNCTIONAL_FIX_IMPLEMENTED; all relevant local acceptance/Core gates passed on the functional code/test head; ready for controlled PR merge after verifying the final branch head differs only by this checkpoint documentation update.
+- **Status:** P1 security work unit `P1-CUSTOMER-PAYMENT-AUDIT-ACTOR-TENANT-GUARD` MERGED; continue broader P1 audit. Do not infer total P1 completion from this one change.
 - **Repository:** `Report-Engainall/Nasr1`; production reference `main`.
-- **MAIN_SHA_AT_RESUME / BASE_SHA:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
-- **CURRENT_BRANCH:** `p1/payment-idempotency-audit-checkpoint-20261025`.
-- **PR_URL:** https://github.com/Report-Engainall/Nasr1/pull/206.
-- **FUNCTIONAL_CODE_TEST_HEAD_SHA:** `18ee16f4f109d8f38f8e33bcdc7030bcff850fd8`.
-- **TESTED_PR_MERGE_CANDIDATE_SHA:** `09dc69d9aeaac79c4ac8306f8b1c2ad09f2912e9`, the GitHub-generated pull-request merge test tree combining functional head `18ee16f4f109d8f38f8e33bcdc7030bcff850fd8` with base `fbf7d4878b440baacdf34f12c35459b24507b04d`. Workflow run logs previously confirmed GitHub checks out the PR merge candidate, not the raw source head. This checkpoint commit itself is documentation-only; verify no source/test paths changed from functional head before merging.
-- **LAST_CONFIRMED_TESTS on candidate `09dc69d9aeaac79c4ac8306f8b1c2ad09f2912e9`:**
-  - Core `test-and-build` — **SUCCESS**, run [40152522191](https://github.com/Report-Engainall/Nasr1/actions/runs/40152522191), including unit tests, migrations, lint, build and smoke/browser acceptance.
-  - Customer payment audit PostgreSQL 17 — **SUCCESS**, run [40152522225](https://github.com/Report-Engainall/Nasr1/actions/runs/40152522225). The regression verifies SQLSTATE `23514`, the explicit actor-organization error message, and zero persisted payment/audit rows after rejection; existing idempotency replay, payload-conflict and concurrency assertions passed.
-  - Import finalizer PostgreSQL 17 — **SUCCESS**, run [40152522216](https://github.com/Report-Engainall/Nasr1/actions/runs/40152522216).
-  - P2 Playwright Critical Paths — overall **SUCCESS**, run [40152522219](https://github.com/Report-Engainall/Nasr1/actions/runs/40152522219). Public storefront smoke and local-Supabase authenticated order, cross-tenant denial, return/credit memo, export, finance privacy/audit and device-session acceptance passed. The separate hosted customer/tenant job was **SKIPPED** by the credential gate; do not represent it as passed.
-- **LAST_COMPLETED_TASK_ID:** `P1-CUSTOMER-PAYMENT-AUDIT-ACTOR-TENANT-GUARD`.
-- **IMPLEMENTED:** Added forward-only `supabase/migrations/20261025050000_customer_payment_audit_actor_tenant_guard.sql`; the database audit trigger now rejects a non-null payment actor profile from a different organization. Added isolated PostgreSQL regression assertions to `scripts/test-customer-payment-audit.mjs`. Normal payment RPC contract, tenant-scoped idempotency and financial settlement checks remain intact.
-- **FILES_CHANGED:** `supabase/migrations/20261025050000_customer_payment_audit_actor_tenant_guard.sql`; `scripts/test-customer-payment-audit.mjs`; `docs/bolt-source-reconciliation/WORK_COORDINATION.md`; this checkpoint.
-- **SELECTIVE_SOURCE_COMPARISON:** Named legacy helper paths `auth.ts`, `cors.ts`, `download-handler.ts`, `supabase-client.ts`, and `async-export-worker/logic.ts` were not available in either inspected tree under those paths; the target uses alternate implementation paths such as `async-export-download-handler.ts` and `async-export-worker/index.ts`. `product-image-upload/index.ts` has identical content SHA in both repos. No speculative source copy was performed. Analytics/Customer 360/batch-pricing migration comparison is **OPEN** because a complete source-side migration-path inventory was not established.
-- **SCOPE_GUARD:** No writes to production databases, no production secrets, no direct writes to `main`; no P2-owned UI/API files changed.
-- **NEXT_ACTION:** Re-read PR #206 after this docs-only checkpoint commit. Confirm its newest head differs from functional code/test head `18ee16f4f109d8f38f8e33bcdc7030bcff850fd8` only by the checkpoint file; then merge PR #206 using the observed exact head SHA and verify resulting `main` SHA plus post-merge Core CI. If any app/test source changed, require fresh exact-merge-candidate Core, customer-payment-audit PostgreSQL 17 and P2 gates before merge. After merge, continue P1 audit of RLS/RPC grants, cost/margin/pricing visibility and the still-open analytics/Customer 360/batch-pricing source comparison.
-- **BLOCKERS:** Hosted customer/tenant E2E remains skipped without approved non-production credentials; source-side migration inventory for analytics/Customer 360/batch pricing remains open. No production runtime proof claimed.
-- **UPDATED_AT:** 2026-10-25 05:15 +03:00.
+- **MAIN_SHA_AFTER_MERGE:** `557103c71ffa001e76ab78f75cd3f25a200c173d`.
+- **MERGED_PR:** https://github.com/Report-Engainall/Nasr1/pull/206 — verified `merged=true`, merge time `2026-10-25T02:05:40Z`.
+- **MERGE_COMMIT:** https://github.com/Report-Engainall/Nasr1/commit/557103c71ffa001e76ab78f75cd3f25a200c173d.
+- **WORKING_BRANCH:** `docs/p1-post-merge-checkpoint-20261025` — this checkpoint refresh is a separate docs-only PR, because policy prohibits direct writes to `main`.
+- **FUNCTIONAL_CHANGE:** Forward-only migration `supabase/migrations/20261025050000_customer_payment_audit_actor_tenant_guard.sql` adds a database-trigger guard requiring a non-null payment actor profile to belong to the payment organization. Wrong-tenant actor attempts raise SQLSTATE `23514` with an explicit actor-organization message; the failed insert leaves no payment row and no audit row. Existing invoice/customer/org checks, same-key idempotency, payload mismatch rejection and concurrency behavior were retained.
+- **MERGED_CHANGE_PATHS:** `supabase/migrations/20261025050000_customer_payment_audit_actor_tenant_guard.sql`; `scripts/test-customer-payment-audit.mjs`; `docs/bolt-source-reconciliation/WORK_COORDINATION.md`; this checkpoint.
+- **PRE-MERGE EXACT MERGE-CANDIDATE TESTS:**
+  - Core `test-and-build`: **SUCCESS**, run [40152840353](https://github.com/Report-Engainall/Nasr1/actions/runs/40152840353), merge candidate SHA `fa11dc807ccb90c0a3eb81a15cd9e2f504764dd0`.
+  - Customer-payment audit PostgreSQL 17: **SUCCESS**, run [40152840442](https://github.com/Report-Engainall/Nasr1/actions/runs/40152840442), same candidate.
+  - Import-finalizer PostgreSQL 17: **SUCCESS**, run [40152840356](https://github.com/Report-Engainall/Nasr1/actions/runs/40152840356), same candidate.
+  - P2 Playwright: **SUCCESS**, run [40152840317](https://github.com/Report-Engainall/Nasr1/actions/runs/40152840317). Read-only public storefront smoke and isolated local-Supabase authenticated browser acceptance passed. Hosted customer/tenant end-to-end was explicitly **SKIPPED** due missing authorized external test credentials.
+- **POST-MERGE CI PROOF:** Verified `main` is identical to merge SHA `557103c71ffa001e76ab78f75cd3f25a200c173d`. The connected Actions-run retrieval returned no push-triggered run records for that merge SHA and combined commit status returned an empty status list; therefore post-merge push CI is **NOT VERIFIED by this retrieval**, and must not be represented as passed. The four pre-merge merge-candidate gates above did pass.
+- **SELECTIVE SOURCE COMPARISON:** No speculative files were copied. Legacy paths `auth.ts`, `cors.ts`, `download-handler.ts`, `supabase-client.ts`, and `async-export-worker/logic.ts` were unavailable under those exact paths in the inspected trees; target alternatives exist, including `async-export-download-handler.ts` and `async-export-worker/index.ts`. `product-image-upload/index.ts` content SHA matched across repos. Analytics/Customer 360/batch-pricing migration inventory is still **OPEN**; indexed searches did not supply enough evidence to conclude parity.
+- **SCOPE_GUARD:** No production database writes, production secrets, or production data accessed. No direct writes to `main`.
+- **NEXT_ACTION:** (1) Verify post-merge Core CI on `557103c71ffa001e76ab78f75cd3f25a200c173d` via Actions/UI because the current integration only returned PR-triggered runs; (2) merge this docs-only checkpoint PR after its checks satisfy repository policy; (3) continue P1-01 by examining RLS, RPC grants/SECURITY DEFINER exposure and source-backed tests for hidden internal cost/margin/pricing leakage; (4) finish a grounded source-versus-target migration comparison for analytics, Customer 360 and batch pricing; (5) update this checkpoint after the next confirmed implementation/test unit.
+- **BLOCKERS:** External hosted customer/tenant E2E remains skipped without approved non-production credentials. Analytics/Customer 360/batch-price migration parity remains unverified. Overall P1 security audit is still IN_PROGRESS.
+- **UPDATED_AT:** 2026-10-25 05:20 +03:00.
 
 ## Recent execution history
 
