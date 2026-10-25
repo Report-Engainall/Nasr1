@@ -1,0 +1,21 @@
+# P3 Execution Checkpoint — live resume record
+
+## Current state — 2026-10-25 04:45 +03:00
+
+- **Status:** IN_PROGRESS; live repository state and available test evidence reconciled. No production write or external Onyx connection was attempted.
+- **Repository:** `Report-Engainall/Nasr1`; production reference is `main`.
+- **MAIN_SHA_AT_RESUME:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
+- **CURRENT_BRANCH:** `p3/acceptance-resume-and-onyx-evidence-20261025`.
+- **BASE_SHA:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
+- **LAST_MAIN_CI:** [Run 40134043235](https://github.com/Report-Engainall/Nasr1/actions/runs/40134043235) completed SUCCESS on the exact base SHA `fbf7d4878b440baacdf34f12c35459b24507b04d`.
+- **CI_STEPS_VERIFIED:** Unit tests; all database migration/core acceptance through `npm run test:db`; PostgreSQL 17 executive analytics; customer quote-decision acceptance; company-invitation expiry/audit; stock-count start audit; async-export lifecycle; import request-key concurrency; inventory snapshot contract; storefront favourites; isolated backup/restore; lint; build; production-preview smoke; dev-server smoke; Chromium price-visibility acceptance. Every listed step was `completed/success` in job [120991657410](https://github.com/Report-Engainall/Nasr1/actions/runs/40134043235/job/120991657410).
+- **P3_TEST_SCOPE_ON_BASE:** The `test:db` script includes `scripts/test-onyx-reconciliation.mjs`, `scripts/test-onyx-reconciliation-concurrency.mjs`, and `scripts/test-onyx-source-evidence.mjs`; package tests include import pipeline, import request-key, async-export download HTTP boundary, and Onyx export formula-injection contracts. The exact-main CI step `Apply all migrations to isolated PostgreSQL 17 and verify core workflows` passed, but CI step success is not a claim that a live external Onyx Pro service was contacted.
+- **RECENT_EXPORT_CHANGE:** Main HEAD commit [fbf7d487](https://github.com/Report-Engainall/Nasr1/commit/fbf7d4878b440baacdf34f12c35459b24507b04d) carries PR #204 download HTTP-boundary and signed-link expiry work. The current-main Core job includes unit tests; the dedicated async-export PostgreSQL 17 workflow is path-filtered and last successful on older SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b` (run [40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750)). Do not relabel that specialized workflow result as exact-current-SHA evidence.
+- **ONYX_LIVE_SYNC:** `NOT_PROVEN / BLOCKED_EXTERNAL`. Existing `src/lib/onyx-source-evidence.ts` and DB acceptance scripts persist and validate evidence about attempts; saved-source and DB tests explicitly distinguish it from a live provider connection. There is no usable authorized provider credential or verified Onyx Pro API contract in this session. Do not invent an endpoint, send production data, or mark sync as successful without a real provider response.
+- **SOURCE_RECONCILIATION:** Do not copy from `Nasr-Adnan/Nasr-Adnan` while the tested current implementation covers the candidate. No new source file was imported in this checkpoint.
+- **FILES_CHANGED:** Checkpoint and P3 acceptance-register live pointer only; no runtime code changed in this documentation checkpoint.
+- **TESTS_RUN_BY_THIS_SESSION:** No test process ran locally because this execution environment cannot resolve github.com from shell networking. GitHub CI evidence above was fetched directly and is tied to its recorded SHA. New PR head must obtain fresh CI before merge.
+- **PR_URL:** To be populated after PR creation.
+- **NEXT_ACTION:** Open a P3 PR containing the current checkpoint/register update, verify Core and P2 results for the exact PR head, and merge only if both satisfy repository technical gates. In parallel, continue P3's remaining work only where an actual untested edge or defect is evidenced; obtain an approved non-production Onyx Pro endpoint/credential and documented API contract before attempting a real round-trip.
+- **BLOCKERS:** No approved non-production Onyx Pro API credentials/contract; no shell network to execute repository tests locally. Hosted customer/tenant E2E is credential-gated in the repository workflow and must remain SKIPPED/BLOCKED_EXTERNAL unless its explicit secret gate is satisfied.
+- **UPDATED_AT:** 2026-10-25 04:45 +03:00.
