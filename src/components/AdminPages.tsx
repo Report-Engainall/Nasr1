@@ -108,8 +108,8 @@ const defaultAiGatewayDraft: AiGatewayDraft = {
 export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
   const { user } = useAuth();
   const canManageGateway = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const { data: alerts, loading: aLoading, refetch: rAlerts } = useFetch(fetchAiAlerts);
-  const { data: tasks, loading: tLoading, refetch: rTasks } = useFetch(fetchAiTasks);
+  const { data: alerts, loading: aLoading, error: aError, refetch: rAlerts } = useFetch(fetchAiAlerts);
+  const { data: tasks, loading: tLoading, error: tError, refetch: rTasks } = useFetch(fetchAiTasks);
   const [tab, setTab] = useState<'alerts' | 'tasks'>('alerts');
   const [gateway, setGateway] = useState<AiGatewayBudget | null>(null);
   const [draft, setDraft] = useState<AiGatewayDraft>(defaultAiGatewayDraft);
@@ -251,7 +251,7 @@ export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
       </>}
     </section>}
     <div className="ai-tabs"><button className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}><AlertTriangle size={16} /> التنبيهات</button><button className={tab === 'tasks' ? 'active' : ''} onClick={() => setTab('tasks')}><Check size={16} /> المهام</button></div>
-    {tab === 'alerts' ? (aLoading ? <Loading /> : <div className="ai-alert-list">{alerts?.filter((a: AiAlert) => !a.is_resolved).map((a: AiAlert) => <div className="ai-alert-row" key={a.id}><span className={`ai-severity ${a.severity}`}><AlertTriangle size={18} /></span><div><strong>{a.title}</strong><p>{a.body ?? '—'}</p><small>{timeAgo(a.created_at)}</small></div><Button variant="outline" onClick={() => resolve(a.id)}>حل</Button></div>)}{!alerts?.filter((a) => !a.is_resolved).length && <Empty text="لا توجد تنبيهات نشطة" />}</div>) : (tLoading ? <Loading /> : <div className="ai-task-list">{tasks?.filter((t: AiTask) => t.status !== 'completed').map((t: AiTask) => <div className="ai-task-row" key={t.id}><span className={`ai-priority ${t.priority}`} /><div><strong>{t.title}</strong><p>{t.description ?? '—'}</p><small>{timeAgo(t.created_at)}</small></div><div className="ai-task-actions"><Button variant="outline" onClick={() => taskAction(t.id, 'in_progress')}>بدء</Button><Button onClick={() => taskAction(t.id, 'completed')}>إنجاز</Button></div></div>)}{!tasks?.filter((t) => t.status !== 'completed').length && <Empty text="لا توجد مهام معلقة" />}</div>)}
+    {tab === 'alerts' ? (aLoading ? <Loading /> : aError ? <ErrorBox message={aError} /> : !alerts ? <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> : <div className="ai-alert-list">{alerts?.filter((a: AiAlert) => !a.is_resolved).map((a: AiAlert) => <div className="ai-alert-row" key={a.id}><span className={`ai-severity ${a.severity}`}><AlertTriangle size={18} /></span><div><strong>{a.title}</strong><p>{a.body ?? '—'}</p><small>{timeAgo(a.created_at)}</small></div><Button variant="outline" onClick={() => resolve(a.id)}>حل</Button></div>)}{!alerts?.filter((a) => !a.is_resolved).length && <Empty text="لا توجد تنبيهات نشطة" />}</div>) : (tLoading ? <Loading /> : tError ? <ErrorBox message={tError} /> : !tasks ? <Empty text="تعذر التحقق من المهام؛ حدّث البيانات." /> : <div className="ai-task-list">{tasks?.filter((t: AiTask) => t.status !== 'completed').map((t: AiTask) => <div className="ai-task-row" key={t.id}><span className={`ai-priority ${t.priority}`} /><div><strong>{t.title}</strong><p>{t.description ?? '—'}</p><small>{timeAgo(t.created_at)}</small></div><div className="ai-task-actions"><Button variant="outline" onClick={() => taskAction(t.id, 'in_progress')}>بدء</Button><Button onClick={() => taskAction(t.id, 'completed')}>إنجاز</Button></div></div>)}{!tasks?.filter((t) => t.status !== 'completed').length && <Empty text="لا توجد مهام معلقة" />}</div>)}
   </AdminPage>;
 }
 type OrderReviewDraft = { quantity: string; unitPrice: string; reason: string };
