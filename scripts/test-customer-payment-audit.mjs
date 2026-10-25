@@ -302,6 +302,62 @@ async function main() {
     false,
     "raw idempotency key must not be stored in audit data",
   );
+  // A privileged/direct database writer must not attribute a tenant-A payment
+  // to a profile owned by tenant B; the failed statement must roll back both writes.
+  const foreignActorRows = await db.unsafe(
+    "select p.id::text as profile_id from public.profiles p " +
+      "where p.organization_id is not null and p.organization_id <> $1::uuid limit 1",
+    [actor.organization_id],
+  );
+  assert.equal(
+    foreignActorRows.length,
+    1,
+    "isolated PostgreSQL fixtures must include a profile from another organization",
+  );
+  const crossTenantActorId = foreignActorRows[0].profile_id;
+  const rejectedActorKey = randomUUID();
+  const rejectedActorReference = "CI-ACTOR-TENANT-GUARD-" + randomUUID();
+  await expectSqlState(
+    "payment audit rejects a cross-organization actor",
+    () => db.unsafe(
+      "insert into public.customer_payments(" +
+        "organization_id,customer_id,invoice_id,amount,payment_method,reference,notes,paid_at,created_by,idempotency_key,request_fingerprint" +
+      ") values($1::uuid,$2::uuid,$3::uuid,0.25,'other',$4,null,now(),$5::uuid,$6::uuid,repeat('a',64)) returning id",
+      [
+        actor.organization_id,
+        invoice.customer_id,
+        invoice.invoice_id,
+        rejectedActorReference,
+        crossTenantActorId,
+        rejectedActorKey,
+      ],
+    ),
+    "23514",
+  );
+  const rejectedPaymentRows = await db.unsafe(
+    "select id from public.customer_payments where organization_id=$1::uuid and idempotency_key=$2::uuid",
+    [actor.organization_id, rejectedActorKey],
+  );
+  assert.equal(
+    rejectedPaymentRows.length,
+    0,
+    "cross-organization actor rejection must leave no customer payment row",
+  );
+  const rejectedAuditRows = await db.unsafe(
+    "select id from public.audit_logs where organization_id=$1::uuid " +
+      "and action='customer_payment.recorded' and entity_type='customer_payment' " +
+      "and new_value->>'reference'=$2",
+    [actor.organization_id, rejectedActorReference],
+  );
+  assert.equal(
+    rejectedAuditRows.length,
+    0,
+    "cross-organization actor rejection must leave no customer-payment audit event",
+  );
+  process.stdout.write(
+    "PASS customer payment audit actor tenant guard: cross-organization actor rejected with no payment or audit side effects\\n",
+  );
+
   process.stdout.write(
     "PASS customer payment audit: tenant/invoice/customer match, active finance actor, one event per idempotent write, payload conflict rejection, no raw key or notes\n",
   );
