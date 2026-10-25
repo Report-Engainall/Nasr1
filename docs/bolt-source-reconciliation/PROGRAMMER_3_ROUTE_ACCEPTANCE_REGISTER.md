@@ -1,7 +1,7 @@
 # P3 route acceptance register — Nasr1
 
 Repository: Report-Engainall/Nasr1  
-Live checkpoint main SHA: 12b622326f8a95575994ef1afae43f69fdf854b1 after PR #198 (24 October 2026); historical route evidence below retains the SHA it was tested against  
+Live checkpoint main SHA: fbf7d4878b440baacdf34f12c35459b24507b04d after PR #204 (25 October 2026); historical route evidence below retains the SHA it was tested against  
 Generated route tree: src/routeTree.gen.ts  
 Inventory size: 61 source modules under src/routes, including the root shell; 60 non-root page/API modules below.  
 Purpose: route-to-evidence traceability for ROUTES-001. This does not replace the canonical acceptance matrix or imply every full production journey is proven.
@@ -13,6 +13,16 @@ Purpose: route-to-evidence traceability for ROUTES-001. This does not replace th
 - NOT_PROVEN — only source/route-tree registration was found, without dedicated rendered-route acceptance evidence.
 - SKIPPED hosted checks are not PASS. A route can have local targeted evidence while hosted/external proof remains unproven.
 
+
+## Live reconciliation — current main after PR #204 (25 October 2026)
+
+- **Current main SHA:** `fbf7d4878b440baacdf34f12c35459b24507b04d`.
+- **Exact-main Core:** [run 40134043235](https://github.com/Report-Engainall/Nasr1/actions/runs/40134043235) completed SUCCESS on this SHA. The job passed unit tests, all PostgreSQL 17 core acceptance commands including Onyx reconciliation/concurrency/source-evidence and import/export checks, lint/build, production-preview and dev-server smoke, and Chromium price-visibility acceptance.
+- **Async export download boundary:** current main contains the shared Edge HTTP handler and tests for authorization, bounded request bodies, malformed and expired artifacts, and conservative signed-link expiry. These are local test/CI contracts, not a live customer-role external E2E proof.
+- **Specialized workflow caveat:** Async export PostgreSQL 17 workflow [run 40127500750](https://github.com/Report-Engainall/Nasr1/actions/runs/40127500750) passed on older SHA `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`; it is not exact-current-SHA evidence because its path filter did not rerun for PR #204.
+- **Onyx Pro boundary:** existing snapshot provenance, request/response hashes, and sync-attempt state are persisted and tested. A real provider round-trip remains `NOT_PROVEN / BLOCKED_EXTERNAL` without approved non-production provider credentials and a verified API contract. Do not infer live sync from a saved snapshot or database acceptance.
+- **Hosted customer/tenant Playwright:** remains `SKIPPED / BLOCKED_EXTERNAL` unless the workflow's dedicated non-production secret and explicit test-write confirmation gate succeeds.
+- Current status and next steps are tracked in [P3 execution checkpoint](PROGRAMMER_3_EXECUTION_CHECKPOINT.md).
 
 ## Live reconciliation — post-merge #198 (24 October 2026)
 
