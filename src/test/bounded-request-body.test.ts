@@ -9,7 +9,7 @@ const routes = [
   { name: "outbox worker", path: "supabase/functions/outbox-worker/index.ts", cap: 4096 },
   { name: "async export worker", path: "supabase/functions/async-export-worker/index.ts", cap: 4096 },
   { name: "async export download", path: "supabase/functions/async-export-download/index.ts", readerPath: "supabase/functions/_shared/async-export-download-handler.ts", cap: 2048 },
-  { name: "product image JSON delete", path: "supabase/functions/product-image-upload/index.ts", cap: 2048 },
+  { name: "product image JSON delete", path: "supabase/functions/product-image-upload/index.ts", readerPath: "supabase/functions/_shared/product-image-upload-handler.ts", cap: 2048 },
 ];
 
 describe("bounded streaming Edge Function request bodies", () => {
