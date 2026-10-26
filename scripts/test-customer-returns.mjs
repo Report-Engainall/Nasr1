@@ -775,15 +775,36 @@ async function main() {
   await db.unsafe("reset role");
   await setIdentity(managerAuthId,"ci-return-manager@example.test");
   await db.unsafe("set role authenticated");
-  const authoritativeInvoicePageRaw = await db.unsafe(
-    "select public.fetch_staff_finance_invoice_page($1::integer,$2::timestamptz,$3::uuid) as result",
-    [200,null,null],
-  );
-  const authoritativeInvoicePage = asJson(authoritativeInvoicePageRaw[0].result);
-  const authoritativeSourceInvoice = authoritativeInvoicePage.invoices.find(
-    (invoice) => invoice.id === sourceInvoiceId,
-  );
-  assert.ok(authoritativeSourceInvoice,"invoice ledger includes the source invoice from the finance fixture");
+  // Walk the stable keyset cursor until the source invoice is found. The test fixtures
+  // may contain more than one page; never assume the invoice under test is in page one.
+  let authoritativeSourceInvoice;
+  let authoritativeCursorIssuedAt = null;
+  let authoritativeCursorId = null;
+  let authoritativePagesScanned = 0;
+  while (authoritativePagesScanned < 10000) {
+    const authoritativeInvoicePageRaw = await db.unsafe(
+      "select public.fetch_staff_finance_invoice_page($1::integer,$2::timestamptz,$3::uuid) as result",
+      [200,authoritativeCursorIssuedAt,authoritativeCursorId],
+    );
+    const authoritativeInvoicePage = asJson(authoritativeInvoicePageRaw[0].result);
+    assert.ok(Array.isArray(authoritativeInvoicePage.invoices),
+      "invoice ledger cursor returns an invoice array");
+    assert.ok(typeof authoritativeInvoicePage.has_more === "boolean",
+      "invoice ledger cursor returns an explicit has_more flag");
+    authoritativeSourceInvoice = authoritativeInvoicePage.invoices.find(
+      (invoice) => invoice.id === sourceInvoiceId,
+    );
+    if (authoritativeSourceInvoice) break;
+    if (!authoritativeInvoicePage.has_more) break;
+    const lastInvoiceOnPage = authoritativeInvoicePage.invoices.at(-1);
+    assert.ok(lastInvoiceOnPage,
+      "invoice ledger must not claim more data when an invoice page is empty");
+    authoritativeCursorIssuedAt = lastInvoiceOnPage.issued_at;
+    authoritativeCursorId = lastInvoiceOnPage.id;
+    authoritativePagesScanned += 1;
+  }
+  assert.ok(authoritativeSourceInvoice,
+    "invoice ledger cursor traverses all pages until it reaches the source invoice under test");
   assert.equal(authoritativeSourceInvoice.paid_amount,settlementRows[0].paid,
     "invoice paid amount matches all persisted payments for that invoice");
   assert.equal(authoritativeSourceInvoice.credit_memo_amount,settlementRows[0].credited,
