@@ -5567,21 +5567,28 @@ async function main() {
       await client.unsafe("set role authenticated");
       await client.unsafe("select set_config('application_name',$1,false)",[paymentJournalApps[index]]);
     }));
+    // Use exact PostgreSQL backend PIDs, not application_name alone: other sessions can
+    // retain stale query text, causing this race gate to inspect the wrong activity row.
+    const paymentJournalBackendPids = await Promise.all(paymentJournalClients.map(async (client) =>
+      Number((await client.unsafe("select pg_catalog.pg_backend_pid() as pid"))[0].pid),
+    ));
     paymentJournalAttempts = Promise.allSettled(paymentJournalClients.map((client,index) => client.unsafe(
       "select public.create_customer_payment_journal_draft($1::uuid,$2::uuid,$3::uuid) as result",
       [paymentSource.id,altSettlementAccountId,index===0?paymentJournalKey:paymentJournalRaceKey],
     )));
     let bothPaymentJournalWritersWaiting = false;
     let paymentJournalActivity = [];
-    for (let attempt=0; attempt<120; attempt+=1) {
+    for (let attempt=0; attempt<400; attempt+=1) {
       paymentJournalActivity = await paymentJournalGate.unsafe(
-        "select application_name,state,wait_event_type,wait_event,left(query,180) as query " +
+        "select pid,application_name,state,wait_event_type,wait_event,left(query,180) as query " +
         "from pg_catalog.pg_stat_activity " +
-        "where application_name in ('ci-payment-journal-a','ci-payment-journal-b')",
+        "where pid = any($1::integer[])",
+        [paymentJournalBackendPids],
       );
-      bothPaymentJournalWritersWaiting = paymentJournalApps.every((applicationName) =>
+      bothPaymentJournalWritersWaiting = paymentJournalBackendPids.every((pid) =>
         paymentJournalActivity.some((row) =>
-          row.application_name===applicationName && row.state==="active" && row.wait_event_type==="Lock",
+          Number(row.pid)===pid && row.state==="active" && row.wait_event_type==="Lock" &&
+          String(row.query).includes("create_customer_payment_journal_draft"),
         ),
       );
       if (bothPaymentJournalWritersWaiting) break;
@@ -5594,6 +5601,7 @@ async function main() {
       assert.fail(
         "both payment-journal callers must be observed waiting on the source lock before gate release: " +
         JSON.stringify({
+          backend_pids:paymentJournalBackendPids,
           activity:paymentJournalActivity,
           outcomes:outcomes.map((outcome)=>outcome.status==="fulfilled"
             ? {ok:true}
