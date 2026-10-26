@@ -1,3 +1,15 @@
+# CURRENT EXECUTION ADDENDUM — 2026-10-26 — FIN-INVOICE-001
+
+- **Authoritative repository:** `Report-Engainall/Nasr1`; production reference remains `main`.
+- **Base verified before this change:** main `1c1ace5fa2d75994762496ddfd0257697a245429`; Core [40370380472 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40370380472) on that exact SHA. PR #234 is already merged and provides diagnosable payment-vs-credit settlement lock acceptance. Do not reimplement or overwrite that latest main test harness.
+- **Current change branch:** `fix/finance-invoice-pagination-20261026`. It adds a keyset-paginated finance invoice RPC, changes the staff finance UI to show server-authoritative full-history paid balances and load additional invoices, and adds UI/PostgreSQL acceptance tests for cursor traversal, invalid page limits, tenant scope, and reconciliation of paid/credited/outstanding amounts.
+- **Data integrity:** the new RPC derives tenant context from the authenticated active staff profile; it does not accept a tenant identifier from the client. Pages are bounded to 200; aggregates are based on the complete matching persisted payment and posted-credit records for each invoice. The older `fetch_staff_finance_data()` remains bounded and is no longer used by `StaffFinancePage` for its invoice/payment table.
+- **Current status:** implementation committed on a branch. No CI result is yet accepted for the final branch SHA; do not merge or call FIN-INVOICE-001 closed until Core PostgreSQL 17, unit/UI tests, lint/build and P2 checks are green on the exact same PR head. After merge, require successful Core on the exact merge SHA.
+- **External boundary:** hosted authenticated customer/tenant E2E, live Onyx Pro import/sync, official WhatsApp delivery, real AI-provider calls, production Storage mutations, and production migration/backup/restore are not proven merely by local isolated tests. Keep these marked `BLOCKED_EXTERNAL/SKIPPED` until authorized non-production or production evidence is supplied.
+- **NEXT_ACTION:** open PR from `fix/finance-invoice-pagination-20261026`, run Core and P2 on the final PR SHA, fix any migration/test/build failures, merge only after exact-head acceptance, and record the post-merge Core run. Continue the remaining API-OPS RPC and screen acceptance matrix only after this release gate closes.
+
+---
+
 # CURRENT EXECUTION STATE — 2026-10-26 — after PR #224
 
 **Authoritative resume pointer.** The sole product target is `Report-Engainall/Nasr1`; `main` is authoritative. Continue from this live block, and never repeat merged work without a reproducible regression.
