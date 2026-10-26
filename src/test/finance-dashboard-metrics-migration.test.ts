@@ -102,7 +102,7 @@ describe("staff dashboard finance-parity migration contract", () => {
     expect(acceptance).toContain("only the posted 125.00 credit memo");
     expect(acceptance).toContain("draft is excluded");
     expect(acceptance).toContain("YER and USD outstanding balances");
-    expect(acceptance).toContain("fails closed instead of producing a misleading KPI");
+    expect(acceptance).toContain("an inconsistent posted credit must fail closed instead of producing a misleading KPI");
     expect(acceptance).toContain("await db.unsafe(\"rollback\")");
   });
 
