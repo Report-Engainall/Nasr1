@@ -1,4 +1,19 @@
-# WORK COORDINATION — LIVE STATUS — 2026-10-26 after PR #251
+# WORK COORDINATION — LIVE STATUS — 2026-10-26 after PR #255
+
+**Single execution owner; only target `Report-Engainall/Nasr1`, delivery branch `main`.** Keep shared migration/test files sequentially merged, use isolated branches for independent work and exact-SHA acceptance.
+
+- **Current main SHA:** `1070ae9c0aa5efca611acde321f8108f51896ad6`, PR #255 merge. Dedicated import-finalizer PostgreSQL 17 run [40398087347 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40398087347) is terminal on this exact SHA. Core [40398087365](https://github.com/Report-Engainall/Nasr1/actions/runs/40398087365) remains IN_PROGRESS on this SHA and must be polled to terminal before release closure.
+- **PR #255:** added `scripts/test-database-migrations.mjs` to the dedicated import-finalizer PG17 workflow's PR/push path filters. Exact head `fe5e4de6b9fa18d4474ba2f95fbf03539fbab7b7` passed Core 40397372624, P2 40397372507 and dedicated finalizer 40397372460; post-merge dedicated run 40398087347 passed on main.
+- **PR #251:** merged at `3af89b5aad04d9dca3cad45eb02432d2663b008c`; exact-head Core/P2 40395688620/40395688803 SUCCESS; post-merge Core 40396394436 SUCCESS. Reserves physical PostgreSQL sessions for invoice/payment journal concurrency acceptance.
+- **PR #249:** merged at `c3feec40b11c31853f001ab14fa6ac8095dcacc5`; Core/P2 40393815811/40393815607 SUCCESS; post-merge Core 40394522356 SUCCESS. Confirms one source credit memo/journal/post link/task/audit for distinct-key races.
+- **PR #248:** merged at `d1374756659b37ab3bb526be0c96c3fefeec67bb`; Core/P2 40392506835/40392506840 SUCCESS; post-merge Core 40393211910 SUCCESS.
+- **Current source comparison:** target `Nasr1@1070ae9c0aa5efca611acde321f8108f51896ad6` vs source `Nasr-Adnan/Nasr-Adnan@34702e670d80e80340d54683171238292099cbaa`: 630 shared / 591 identical / 39 changed shared / 19 source-only / 247 target-only. Do not bulk-import duplicate ZIPs, seven literal 14-byte 404 blobs, old package lock, unsafe seed migrations or stale RPC definitions over the current tenant/session/schema guards.
+- **External boundaries:** hosted customer/tenant E2E stays SKIPPED without authorized non-production credentials; live Onyx Pro, WhatsApp, production AI provider and production deploy/restore are not proven.
+- **NEXT ACTION:** poll Core run 40398087365; once terminal, update this durable checkpoint and continue the first genuinely unclosed high-risk RPC/screen acceptance. Keep product status PARTIAL until the documented product requirements have evidence.
+
+---
+
+# HISTORICAL WORK COORDINATION CHECKPOINT — after PR #251 (superseded by the current addendum above)
 
 **Single execution owner; sole target `Report-Engainall/Nasr1`, delivery branch `main`.** Shared code paths and migrations remain sequentially merged; use isolated branches and exact-SHA CI.
 
