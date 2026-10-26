@@ -13,6 +13,17 @@ export type StaffCustomer360Summary = {
     average_days_between_orders: number | null;
     status_distribution: Array<{ status: string; count: number }>;
   };
+  recent_orders: Array<{
+    id: string; order_number: string; status: string; total_amount: number | null;
+    total_items: number | null; created_at: string;
+  }>;
+  recent_invoices: Array<{
+    id: string; invoice_number: string; status: string; issued_at: string | null; due_at: string | null;
+    currency: string; total_amount: number | null; paid_amount: number; outstanding_amount: number | null;
+  }>;
+  recent_payments: Array<{
+    id: string; invoice_id: string; amount: number; paid_at: string; payment_method: string | null;
+  }>;
   finance_by_currency: Array<{
     currency: string; invoice_count: number; invoiced_total: number | null; paid_total: number | null;
     outstanding_total: number | null; overdue_invoice_count: number; overdue_outstanding: number | null;
@@ -68,6 +79,11 @@ function nullableDate(value: unknown, label: string): string | null {
   if (!Number.isFinite(Date.parse(date))) throw new Error(`تاريخ ${label} غير صالح.`);
   return date;
 }
+function requiredDate(value: unknown, label: string): string {
+  const date = asText(value, label);
+  if (!Number.isFinite(Date.parse(date))) throw new Error(`تاريخ ${label} غير صالح.`);
+  return date;
+}
 function currencyCode(value: unknown, label: string): string {
   const text = asText(value, label).toUpperCase();
   if (!/^[A-Z]{3,8}$/.test(text)) throw new Error(`رمز العملة ${label} غير صالح.`);
@@ -82,6 +98,41 @@ export function parseStaffCustomer360Summary(value: unknown): StaffCustomer360Su
   const statusDistribution = asArray(rawOrders.status_distribution, 'توزيع حالات الطلبات').map((raw, index) => {
     const row = asObject(raw, `حالة الطلب ${index + 1}`);
     return { status: asText(row.status, 'حالة الطلب'), count: asInt(row.count, 'عدد الطلبات حسب الحالة') };
+  });
+  const recentOrders = asArray(root.recent_orders, 'آخر الطلبات').map((raw, index) => {
+    const row = asObject(raw, `الطلب الأخير ${index + 1}`);
+    return {
+      id: asText(row.id, 'معرّف الطلب الأخير'),
+      order_number: asText(row.order_number, 'رقم الطلب الأخير'),
+      status: asText(row.status, 'حالة الطلب الأخير'),
+      total_amount: nullableMoney(row.total_amount, 'إجمالي الطلب الأخير'),
+      total_items: nullableInt(row.total_items, 'عدد أصناف الطلب الأخير'),
+      created_at: requiredDate(row.created_at, 'تاريخ الطلب الأخير'),
+    };
+  });
+  const recentInvoices = asArray(root.recent_invoices, 'آخر الفواتير').map((raw, index) => {
+    const row = asObject(raw, `الفاتورة الأخيرة ${index + 1}`);
+    return {
+      id: asText(row.id, 'معرّف الفاتورة الأخيرة'),
+      invoice_number: asText(row.invoice_number, 'رقم الفاتورة الأخيرة'),
+      status: asText(row.status, 'حالة الفاتورة الأخيرة'),
+      issued_at: nullableDate(row.issued_at, 'تاريخ إصدار الفاتورة الأخيرة'),
+      due_at: nullableDate(row.due_at, 'تاريخ استحقاق الفاتورة الأخيرة'),
+      currency: currencyCode(row.currency, `عملة الفاتورة الأخيرة ${index + 1}`),
+      total_amount: nullableMoney(row.total_amount, 'إجمالي الفاتورة الأخيرة'),
+      paid_amount: asMoney(row.paid_amount, 'مدفوع الفاتورة الأخيرة'),
+      outstanding_amount: nullableMoney(row.outstanding_amount, 'متبقي الفاتورة الأخيرة'),
+    };
+  });
+  const recentPayments = asArray(root.recent_payments, 'آخر الدفعات').map((raw, index) => {
+    const row = asObject(raw, `الدفعة الأخيرة ${index + 1}`);
+    return {
+      id: asText(row.id, 'معرّف الدفعة الأخيرة'),
+      invoice_id: asText(row.invoice_id, 'فاتورة الدفعة الأخيرة'),
+      amount: asMoney(row.amount, 'مبلغ الدفعة الأخيرة'),
+      paid_at: requiredDate(row.paid_at, 'تاريخ الدفعة الأخيرة'),
+      payment_method: nullableText(row.payment_method, 'طريقة الدفع الأخيرة'),
+    };
   });
   const finance = asArray(root.finance_by_currency, 'ملخص الفواتير بالعملة').map((raw, index) => {
     const row = asObject(raw, `ملخص العملة ${index + 1}`);
@@ -152,6 +203,9 @@ export function parseStaffCustomer360Summary(value: unknown): StaffCustomer360Su
       average_days_between_orders: rawOrders.average_days_between_orders === null ? null : asMoney(rawOrders.average_days_between_orders, 'متوسط الأيام بين الطلبات'),
       status_distribution: statusDistribution,
     },
+    recent_orders: recentOrders,
+    recent_invoices: recentInvoices,
+    recent_payments: recentPayments,
     finance_by_currency: finance,
     top_products: topProducts,
     recommendations,

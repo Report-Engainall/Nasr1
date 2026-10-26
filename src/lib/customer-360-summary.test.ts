@@ -15,6 +15,19 @@ const valid = {
     average_days_between_orders: 8.5,
     status_distribution: [{ status: 'delivered', count: 2 }],
   },
+  recent_orders: [{
+    id: 'order-1', order_number: 'SO-001', status: 'delivered', total_amount: 600,
+    total_items: 3, created_at: '2026-10-19T12:00:00.000Z',
+  }],
+  recent_invoices: [{
+    id: 'invoice-1', invoice_number: 'INV-001', status: 'issued',
+    issued_at: '2026-10-19T12:00:00.000Z', due_at: '2026-10-20T12:00:00.000Z',
+    currency: 'YER', total_amount: 600, paid_amount: 250, outstanding_amount: 350,
+  }],
+  recent_payments: [{
+    id: 'payment-1', invoice_id: 'invoice-1', amount: 250,
+    paid_at: '2026-10-19T13:00:00.000Z', payment_method: 'cash',
+  }],
   finance_by_currency: [{
     currency: 'YER', invoice_count: 2, invoiced_total: 1500, paid_total: 1000, outstanding_total: 500,
     overdue_invoice_count: 1, overdue_outstanding: 300, unknown_due_date_invoice_count: 0,
@@ -45,6 +58,37 @@ describe('staff customer 360 summary parser', () => {
     expect(() => parseStaffCustomer360Summary({
       ...valid, finance_by_currency: [{ ...valid.finance_by_currency[0], outstanding_total: -1 }],
     })).toThrow(/قيمة المبلغ المتبقي المالية/);
+  });
+
+  it('preserves customer-scoped recent details with server-computed balances', () => {
+    const parsed = parseStaffCustomer360Summary(valid);
+    expect(parsed.recent_orders[0]).toEqual(valid.recent_orders[0]);
+    expect(parsed.recent_invoices[0]).toMatchObject({
+      invoice_number: 'INV-001', paid_amount: 250, outstanding_amount: 350,
+    });
+    expect(parsed.recent_payments[0]).toEqual(valid.recent_payments[0]);
+  });
+
+  it('rejects malformed recent-detail payloads rather than silently omitting them', () => {
+    expect(() => parseStaffCustomer360Summary({
+      ...valid,
+      recent_invoices: [{ ...valid.recent_invoices[0], currency: 'US    expect(parseStaffCustomer360Summary({
+      ...valid, order_summary: { ...valid.order_summary, non_cancelled_order_value: null },
+    }).order_summary.non_cancelled_order_value).toBeNull();
+    expect(() => parseStaffCustomer360Summary({
+      ...valid, order_summary: { ...valid.order_summary, days_since_last_order: -1 },
+    })).toThrow(/الأيام منذ آخر طلب/);
+    expect(() => parseStaffCustomer360Summary({
+      ...valid, generated_at: 'bad-date',
+    })).toThrow(/وقت إنشاء التقرير/);
+  });
+});
+ }],
+    })).toThrow(/رمز العملة/);
+    expect(() => parseStaffCustomer360Summary({
+      ...valid,
+      recent_payments: [{ ...valid.recent_payments[0], amount: -1 }],
+    })).toThrow(/القيمة المالية/);
   });
 
   it('keeps unknown totals null and rejects malformed dates/counts', () => {
