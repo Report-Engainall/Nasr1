@@ -3661,6 +3661,47 @@ async function main() {
   assert.equal(taskRefresh[0].result.organization_id, organizationId, "task refresh derives tenant from the authenticated administrator");
   assert.ok(Number(taskRefresh[0].result.source_records_refreshed) >= 1, "task refresh scans persisted source records");
 
+  // The refresh RPC mutates the task queue and is restricted to admins/managers.
+  // A customer must be denied before any task state or audit row can change.
+  await db.unsafe("reset role");
+  const taskStateBeforeCustomerRefresh = (await db.unsafe(
+    "select coalesce(jsonb_agg(jsonb_build_object(" +
+      "'id',id::text,'status',status,'updated_at',updated_at,'completed_at',completed_at," +
+      "'completed_by',completed_by::text,'source_event_key',source_event_key,'resolution_note',resolution_note) order by id),'[]'::jsonb) as state " +
+      "from public.ai_tasks where organization_id=$1::uuid",
+    [organizationId],
+  ))[0].state;
+  const taskAuditCountBeforeCustomerRefresh = (await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid",
+    [organizationId],
+  ))[0].count;
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customer cannot invoke the staff-only operational-task refresh RPC",
+    () => db.unsafe("select public.refresh_operational_tasks() as result"),
+    /administrator or manager permission required to refresh tasks/i,
+    "42501",
+  );
+  await db.unsafe("reset role");
+  const taskStateAfterCustomerRefresh = (await db.unsafe(
+    "select coalesce(jsonb_agg(jsonb_build_object(" +
+      "'id',id::text,'status',status,'updated_at',updated_at,'completed_at',completed_at," +
+      "'completed_by',completed_by::text,'source_event_key',source_event_key,'resolution_note',resolution_note) order by id),'[]'::jsonb) as state " +
+      "from public.ai_tasks where organization_id=$1::uuid",
+    [organizationId],
+  ))[0].state;
+  const taskAuditCountAfterCustomerRefresh = (await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid",
+    [organizationId],
+  ))[0].count;
+  assert.deepEqual(taskStateAfterCustomerRefresh, taskStateBeforeCustomerRefresh,
+    "denied customer refresh must leave every task and task-state field unchanged");
+  assert.equal(taskAuditCountAfterCustomerRefresh, taskAuditCountBeforeCustomerRefresh,
+    "denied customer refresh must not emit audit rows");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+
   const reviewKey = "order-review:" + staffCreatedOrder.id;
   const reviewBefore = await db.unsafe(
     "select id,task_role,status from public.ai_tasks where organization_id=$1 and source_event_key=$2",
