@@ -88,9 +88,10 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         </div>
 
         <h3 style={{ marginTop: 18 }}>ملخص الفواتير والتحصيل الكامل حسب العملة</h3>
-        {!summary.finance_by_currency.length ? <Empty text="لا توجد فواتير مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>العملة</th><th>الفواتير</th><th>إجمالي الفواتير</th><th>المسدّد</th><th>المتبقي</th><th>فواتير متأخرة</th><th>متأخرات</th></tr></thead><tbody>{summary.finance_by_currency.map((row) => <tr key={row.currency}>
+        {!summary.finance_by_currency.length ? <Empty text="لا توجد فواتير مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>العملة</th><th>الفواتير</th><th>إجمالي الفواتير</th><th>المسدّد</th><th>الإشعارات الدائنة المرحلة</th><th>المتبقي</th><th>فواتير متأخرة</th><th>متأخرات</th></tr></thead><tbody>{summary.finance_by_currency.map((row) => <tr key={row.currency}>
           <td>{row.currency}</td><td>{formatNumber(row.invoice_count)}</td>
           <td>{formatCustomer360Money(row.invoiced_total, row.currency)}</td><td>{formatCustomer360Money(row.paid_total, row.currency)}</td>
+          <td>{formatCustomer360Money(row.credit_memo_total, row.currency)}</td>
           <td>{formatCustomer360Money(row.outstanding_total, row.currency)}</td><td>{formatNumber(row.overdue_invoice_count)}</td>
           <td>{formatCustomer360Money(row.overdue_outstanding, row.currency)}</td>
         </tr>)}</tbody></table></TableWrap>}
@@ -123,7 +124,7 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         </section>
         <section className="panel">
           <h3>آخر الفواتير ({formatNumber(summary.recent_invoices.length)} معروضة)</h3>
-          {!summary.recent_invoices.length ? <Empty text="لا توجد فواتير مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>الفاتورة</th><th>الإصدار</th><th>الاستحقاق</th><th>الحالة</th><th>الإجمالي</th><th>المسدّد</th><th>المتبقي</th></tr></thead><tbody>{summary.recent_invoices.map((invoice) => <tr key={invoice.id}><td>{invoice.invoice_number}</td><td>{invoice.issued_at ? formatDateShort(invoice.issued_at) : 'غير محدد'}</td><td>{invoice.due_at ? formatDateShort(invoice.due_at) : 'غير محدد'}</td><td>{invoiceStatusLabel[invoice.status] ?? invoice.status}</td><td>{formatCustomer360Money(invoice.total_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.paid_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.outstanding_amount, invoice.currency)}</td></tr>)}</tbody></table></TableWrap>}
+          {!summary.recent_invoices.length ? <Empty text="لا توجد فواتير مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>الفاتورة</th><th>الإصدار</th><th>الاستحقاق</th><th>الحالة</th><th>الإجمالي</th><th>المسدّد</th><th>الإشعار الدائن المرحّل</th><th>المتبقي</th></tr></thead><tbody>{summary.recent_invoices.map((invoice) => <tr key={invoice.id}><td>{invoice.invoice_number}</td><td>{invoice.issued_at ? formatDateShort(invoice.issued_at) : 'غير محدد'}</td><td>{invoice.due_at ? formatDateShort(invoice.due_at) : 'غير محدد'}</td><td>{invoiceStatusLabel[invoice.status] ?? invoice.status}</td><td>{formatCustomer360Money(invoice.total_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.paid_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.credit_memo_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.outstanding_amount, invoice.currency)}</td></tr>)}</tbody></table></TableWrap>}
         </section>
         <section className="panel">
           <h3>آخر الدفعات ({formatNumber(summary.recent_payments.length)} معروضة)</h3>
