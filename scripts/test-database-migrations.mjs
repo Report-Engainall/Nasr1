@@ -2159,12 +2159,90 @@ async function main() {
     "purchase draft/submission and rejected over-receipt must not change on-hand inventory");
   await setIdentity(staffAuthUserId,"admin@aghbari.ye");
   await db.unsafe("set role authenticated");
-  const partialLines = db.json([{item_id:poItemId,quantity:1.25}]);
-  const partialReceiptResult = await db.unsafe(
-    "select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text) as result",
-    [purchaseOrder.id,partialLines,"CI partial physical receipt","ci-purchase-receipt-key-000001"],
-  );
-  const partialReceipt = partialReceiptResult[0].result;
+  const partialLines = [{item_id:poItemId,quantity:1.25}];
+  // Force two authenticated receivers to queue at the documented warehouse lock.
+  // The PO row lock means one caller may wait on the PO while the first waits on
+  // the warehouse key; require both sessions to be blocked before gate release.
+  const receiptRaceRacer = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  const receiptRaceGate = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  let receiptGateOpen = false;
+  let receiptAttempts;
+  let receiptRaceResults;
+  try {
+    await receiptRaceRacer.unsafe("reset role").catch(()=>{});
+    await receiptRaceRacer.unsafe(
+      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI purchase receipt race session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+      [staffAuthUserId],
+    );
+    await receiptRaceRacer.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[staffAuthUserId]);
+    await receiptRaceRacer.unsafe("select set_config('request.jwt.claims',$1,false)",[
+      JSON.stringify({sub:staffAuthUserId,email:"admin@aghbari.ye",role:"authenticated",session_id:staffAuthUserId}),
+    ]);
+    await receiptRaceRacer.unsafe("set role authenticated");
+    await db.unsafe("select set_config('application_name',$1,false)",["ci-po-receive-a"]);
+    await receiptRaceRacer.unsafe("select set_config('application_name',$1,false)",["ci-po-receive-b"]);
+    await receiptRaceGate.unsafe("begin");
+    receiptGateOpen = true;
+    await receiptRaceGate.unsafe(
+      "select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended($1::text,0))",
+      [organizationId + ":purchase-receiving-warehouse:" + receivingWarehouseId],
+    );
+    receiptAttempts = Promise.all([
+      db.unsafe(
+        "select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text) as result",
+        [purchaseOrder.id,db.json(partialLines),"CI partial physical receipt","ci-purchase-receipt-key-000001"],
+      ),
+      receiptRaceRacer.unsafe(
+        "select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text) as result",
+        [purchaseOrder.id,receiptRaceRacer.json(partialLines),"CI partial physical receipt","ci-purchase-receipt-key-000001"],
+      ),
+    ]);
+    let bothReceiptWritersWaiting = false;
+    let receiptActivitySnapshot = [];
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      receiptActivitySnapshot = await receiptRaceGate.unsafe(
+        "select application_name,state,wait_event_type,wait_event,left(query,180) as query " +
+        "from pg_catalog.pg_stat_activity " +
+        "where application_name in ('ci-po-receive-a','ci-po-receive-b')",
+      );
+      bothReceiptWritersWaiting = receiptActivitySnapshot.filter((row) =>
+        row.state === "active" && row.wait_event_type === "Lock"
+      ).length === 2;
+      if (bothReceiptWritersWaiting) break;
+      await new Promise((resolve) => setTimeout(resolve,25));
+    }
+    if (!bothReceiptWritersWaiting) {
+      await receiptRaceGate.unsafe("rollback");
+      receiptGateOpen = false;
+      const outcomes = await Promise.allSettled(receiptAttempts);
+      assert.fail("purchase receipt lock contention was not observed for both RPC calls: " + JSON.stringify({
+        activity:receiptActivitySnapshot,
+        outcomes:outcomes.map((outcome) => outcome.status === "fulfilled"
+          ? {ok:true}
+          : {ok:false,error:String(outcome.reason?.message ?? outcome.reason)}),
+      }));
+    }
+    await receiptRaceGate.unsafe("commit");
+    receiptGateOpen = false;
+    receiptRaceResults = await receiptAttempts;
+  } finally {
+    if (receiptGateOpen) await receiptRaceGate.unsafe("rollback").catch(()=>{});
+    if (receiptAttempts) await Promise.allSettled([receiptAttempts]);
+    await Promise.all([
+      receiptRaceGate.end({timeout:5}).catch(()=>{}),
+      receiptRaceRacer.end({timeout:5}).catch(()=>{}),
+    ]);
+  }
+  const receiptRaceValues = receiptRaceResults.map((rows) => rows[0].result);
+  assert.equal(receiptRaceValues.filter((result) => result.idempotent_replay === false).length,1,
+    "one concurrent purchase-receipt request creates the receipt");
+  assert.equal(receiptRaceValues.filter((result) => result.idempotent_replay === true).length,1,
+    "the identical concurrent request replays the committed receipt");
+  assert.equal(receiptRaceValues[0].receipt.id,receiptRaceValues[1].receipt.id,
+    "concurrent identical receipt requests return one canonical receipt ID");
+  const partialReceipt = receiptRaceValues.find((result) => result.idempotent_replay === false);
+  assert.ok(partialReceipt,"the race must identify the one original purchase receipt");
+  process.stdout.write("PASS purchase receipt concurrency: observed PostgreSQL lock contention returns one canonical receipt and a replay.\\n");
   assert.equal(partialReceipt.purchase_order.status,"partially_received");
   assert.equal(partialReceipt.idempotent_replay,false);
   assert.equal(Number(partialReceipt.purchase_order.items[0].quantity_received),1.25);
