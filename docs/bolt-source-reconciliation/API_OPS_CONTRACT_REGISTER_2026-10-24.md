@@ -2,7 +2,7 @@
 
 - **Current main SHA:** `28bcf9c4e02da53bfc4f5081fd1ac62e5ef5ade0`.
 - PR #212 merges the PostgreSQL 17 same-token invitation concurrency acceptance, exact corrected head `2f11053ef9960eec873855f04f1058f1a60bbdb2`; Core #40334736823 and P2 #40334736840 SUCCESS; post-merge Core #40335735688 SUCCESS on `ae2cd32d317f110c29b7a89002d651f9e07c063d`.
-- PR #214 merges rendered dashboard/pricing-rule interaction acceptance, exact head `a9453e48898ad54139585dd39b694fbd2f83a13c`; Core #40336375538 and P2 #40336375487 SUCCESS. Post-merge Core #40337122992 on `28bcf9c4e02da53bfc4f5081fd1ac62e5ef5ade0` was **IN_PROGRESS** when written; refresh to its terminal result before closing release verification.
+- PR #214 merges rendered dashboard/pricing-rule interaction acceptance, exact head `a9453e48898ad54139585dd39b694fbd2f83a13c`; Core #40336375538 and P2 #40336375487 SUCCESS. Post-merge Core #40337122992 on `28bcf9c4e02da53bfc4f5081fd1ac62e5ef5ade0` completed **SUCCESS**; the post-merge Core gate is closed for this SHA.
 - Invitation concurrency scope is explicit: same-token two-accept is now proven for customer activation and company membership. Cross-tenant A/B races, accept-vs-revoke races, other invitation/member races and live mail delivery remain open.
 - **API-OPS overall remains PARTIAL.** The previously identified 179 callable RPC semantic candidates are not closed by catalog/source mapping, UI tests, or this invitation batch. Continue source-backed authorization/tenant/mutation/idempotency/retry/audit review in bounded high-risk units.
 - Hosted authenticated customer/tenant E2E remains **SKIPPED/BLOCKED_EXTERNAL** without authorized non-production credentials. No production deployment, live Onyx, WhatsApp, or AI provider proof is claimed.
