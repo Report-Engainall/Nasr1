@@ -19,14 +19,15 @@ export type StaffCustomer360Summary = {
   }>;
   recent_invoices: Array<{
     id: string; invoice_number: string; status: string; issued_at: string | null; due_at: string | null;
-    currency: string; total_amount: number | null; paid_amount: number; outstanding_amount: number | null;
+    currency: string; total_amount: number | null; paid_amount: number; credit_memo_amount: number; outstanding_amount: number | null;
   }>;
   recent_payments: Array<{
     id: string; invoice_id: string; amount: number; paid_at: string; payment_method: string | null;
   }>;
   finance_by_currency: Array<{
     currency: string; invoice_count: number; invoiced_total: number | null; paid_total: number | null;
-    outstanding_total: number | null; overdue_invoice_count: number; overdue_outstanding: number | null;
+    credit_memo_total: number; outstanding_total: number | null;
+    overdue_invoice_count: number; overdue_outstanding: number | null;
     unknown_due_date_invoice_count: number; unknown_due_date_outstanding: number | null;
     invalid_total_amount_count: number;
   }>;
@@ -121,6 +122,7 @@ export function parseStaffCustomer360Summary(value: unknown): StaffCustomer360Su
       currency: currencyCode(row.currency, `عملة الفاتورة الأخيرة ${index + 1}`),
       total_amount: nullableMoney(row.total_amount, 'إجمالي الفاتورة الأخيرة'),
       paid_amount: asMoney(row.paid_amount, 'مدفوع الفاتورة الأخيرة'),
+      credit_memo_amount: asMoney(row.credit_memo_amount, 'الإشعارات الدائنة للفاتورة الأخيرة'),
       outstanding_amount: nullableMoney(row.outstanding_amount, 'متبقي الفاتورة الأخيرة'),
     };
   });
@@ -141,6 +143,7 @@ export function parseStaffCustomer360Summary(value: unknown): StaffCustomer360Su
       invoice_count: asInt(row.invoice_count, 'عدد الفواتير'),
       invoiced_total: nullableMoney(row.invoiced_total, 'إجمالي الفواتير'),
       paid_total: nullableMoney(row.paid_total, 'إجمالي المدفوع'),
+      credit_memo_total: asMoney(row.credit_memo_total, 'إجمالي الإشعارات الدائنة'),
       outstanding_total: nullableMoney(row.outstanding_total, 'المبلغ المتبقي'),
       overdue_invoice_count: asInt(row.overdue_invoice_count, 'عدد الفواتير المتأخرة'),
       overdue_outstanding: nullableMoney(row.overdue_outstanding, 'المبالغ المتأخرة'),
