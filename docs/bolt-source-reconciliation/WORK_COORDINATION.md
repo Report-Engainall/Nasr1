@@ -1,3 +1,18 @@
+# WORK COORDINATION — LIVE STATUS — 2026-10-26 after PR #251
+
+**Single execution owner; sole target `Report-Engainall/Nasr1`, delivery branch `main`.** Shared code paths and migrations remain sequentially merged; use isolated branches and exact-SHA CI.
+
+- **Current main:** `3af89b5aad04d9dca3cad45eb02432d2663b008c`, PR #251 merge.
+- **PR #248:** payment-journal lock observation fixed and merged at `d1374756659b37ab3bb526be0c96c3fefeec67bb`; PR-head Core/P2 passed, exact post-merge Core `40393211910` passed.
+- **PR #249:** return-credit memo distinct-key concurrency acceptance merged at `c3feec40b11c31853f001ab14fa6ac8095dcacc5`; exact-head Core/P2 passed, post-merge Core `40394522356` passed.
+- **PR #251:** invoice/payment race sessions pinned using postgres.js reserved clients; merged at `3af89b5aad04d9dca3cad45eb02432d2663b008c`. Exact-head Core `40395688620` and P2 `40395688803` passed on `378da8d59cf36a9f2b49a8de5351b33023315e36`. Post-merge Core `40396394436` completed SUCCESS on the exact merge SHA `3af89b5aad04d9dca3cad45eb02432d2663b008c`.
+- **What changed:** tests only. The fixes do not change production accounting, tenant, pricing, inventory, schema or RPC behavior. The failed `import-finalizer-tenant-scope-pg17` run `40394813862` was blocked earlier in the shared `npm run test:db` sequence by the flaky invoice race before its dedicated finalizer script ran. PR #250's attempt to add that same test to `test:db` was correctly closed unmerged because `.github/workflows/import-finalizer-tenant-scope-pg17.yml` already invokes it after `npm run test:db`; adding it to the same chain would duplicate expensive execution. Revalidate that dedicated workflow when its relevant trigger runs against a tree containing PR #251; do not claim the script itself passed in run `40394813862`.
+- **Current tree/source counts:** `Nasr1@3af89b5aad04d9dca3cad45eb02432d2663b008c` vs `Nasr-Adnan/Nasr-Adnan@34702e670d80e80340d54683171238292099cbaa`: 630 shared, 591 identical, 39 changed shared, 19 source-only, 247 target-only. Fourteen-byte `404: Not Found` blobs, unsafe legacy admin/password seed migrations, duplicate archives, and obsolete package-lock files are not to be imported.
+- **Already canonical in Nasr1:** newer schema-adapted executive analytics/Customer 360 and current storefront price/session/membership/NULL contract. Keep the target schema, TanStack/React routing, current Bun lockfile and current tenant guards; no wholesale source overwrite.
+- **External boundary:** hosted customer/tenant E2E remains SKIPPED without authorized non-production credentials; live Onyx, WhatsApp, AI-provider calls and production operations remain unproven.
+- **NEXT ACTION:** exact-main Core run `40396394436` is SUCCESS on `3af89b5aad04d9dca3cad45eb02432d2663b008c`. Resume the next uncovered high-risk RPC contract and remaining screen workflows using the canonical API-OPS register/matrix. Keep whole product PARTIAL until evidence closes the actual requirements.
+
+---
 # WORK COORDINATION — LIVE STATUS — 2026-10-26 after PR #224
 
 **Single execution owner.** `Report-Engainall/Nasr1` is the sole target and `main` the delivery branch. Use isolated branches, exact-SHA CI, selective source mapping and sequential merges for shared files.
