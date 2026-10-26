@@ -20,10 +20,6 @@ const mixedCurrencyInvoiceId = randomUUID();
 const email = "ci-dashboard-credit-parity-" + randomUUID() + "@example.test";
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
 
-function jsonValue(value) {
-  return typeof value === "string" ? JSON.parse(value) : value;
-}
-
 async function setAdminIdentity() {
   await db.unsafe("reset role");
   await db.unsafe(
