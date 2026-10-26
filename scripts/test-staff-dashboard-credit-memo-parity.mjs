@@ -28,7 +28,8 @@ async function setAdminIdentity() {
   await db.unsafe("reset role");
   await db.unsafe(
     "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
-      "values($1::uuid,$2::uuid,now(),now(),now(),null,'CI dashboard credit parity','127.0.0.1'::inet)",
+      "values($1::uuid,$2::uuid,now(),now(),now(),null,'CI dashboard credit parity','127.0.0.1'::inet) " +
+      "on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
     [sessionId, authUserId],
   );
   await db.unsafe("select set_config('request.jwt.claim.sub',$1,true)", [authUserId]);
