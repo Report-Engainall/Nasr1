@@ -1,3 +1,19 @@
+# WORK COORDINATION — LIVE STATUS — 2026-10-26 after PR #214
+
+**Single execution owner:** one responsible programmer owns product execution, change integration, and the canonical state pointer. Avoid overlapping edits, rebuilds of already merged features, or parallel ownership conflicts.
+
+- **Target:** `Report-Engainall/Nasr1`; `main` is authoritative. Current verified main SHA at this checkpoint: `28bcf9c4e02da53bfc4f5081fd1ac62e5ef5ade0` after PR #214.
+- **Merged #208:** admin data-load recovery; exact-head Core #40330044369/P2 #40330044465 PASS; post-merge Core #40330789179 PASS on `c04558d28d5cb97a87fa2f26948fcdab96020ed9`.
+- **Merged #212:** invitation acceptance concurrency proof on PostgreSQL 17; corrected exact head `2f11053ef9960eec873855f04f1058f1a60bbdb2`; Core #40334736823 SUCCESS, P2 #40334736840 SUCCESS; post-merge Core #40335735688 SUCCESS on `ae2cd32d317f110c29b7a89002d651f9e07c063d`.
+- **Merged #214:** rendered React interaction acceptance for Dashboard and PricingRuleModal; exact head `a9453e48898ad54139585dd39b694fbd2f83a13c`; Core #40336375538 SUCCESS, P2 #40336375487 SUCCESS; post-merge Core #40337122992 was IN_PROGRESS on exact merge `28bcf9c4e02da53bfc4f5081fd1ac62e5ef5ade0` when this checkpoint was prepared. Verify terminal status and record it before closing the release gate.
+- **Covered admin behavior:** SettingsPage hides editable defaults on load failure; AI Center distinguishes errors from successful empty lists; Dashboard refresh/error/empty behavior; PricingRuleModal retries failed product/category loads, distinguishes true empty scopes and blocks save when the scope cannot be verified; OrderDetail distinguishes load error from not-found and offers retry.
+- **Invitation concurrency proof boundary:** the new PG17 test forces two independent callers to wait on the same row-lock barrier and proves one winning acceptance, one rejection, one relationship and one audit for customer activation and company membership. Cross-tenant A/B races and accept-vs-revoke races remain open; email delivery remains external.
+- **Source reconciliation:** the exact-tree comparison found 630 shared paths, 598 identical blobs, 32 changed shared paths, 19 source-only paths and 236 target-only paths. Do not replace newer Nasr1 analytics, Customer 360, hardened batch price RPC, tier-aware ProductCard, framework or lockfile with legacy source equivalents. Do not import hard-coded admin identity/password setup.
+- **Current external boundaries:** hosted customer/tenant E2E SKIPPED for missing external credentials; production migration/deploy/restore, live Onyx import/sync, WhatsApp delivery and live AI-provider calls are NOT PROVEN.
+- **NEXT ACTION:** confirm run #40337122992; reconcile the screen-acceptance matrix and API-OPS contract register; continue the next unclosed high-risk RPC/transaction family. Overall product state remains **PARTIAL / IN PROGRESS** until the complete documented screen, API, permission, data and integration matrix is closed with evidence.
+
+---
+
 # WORK COORDINATION — LIVE STATUS — 2026-10-26 post-PR #208
 
 **Current source of truth:** `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` begins with the live 26 October resume pointer. Earlier status sections below preserve provenance and may contain superseded SHAs.
