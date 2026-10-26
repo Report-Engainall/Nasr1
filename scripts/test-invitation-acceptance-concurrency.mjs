@@ -645,7 +645,7 @@ async function main() {
     ),
   );
   let crossActivationState = (await admin.unsafe(
-    "select i.status,i.accepted_by::text as accepted_by,c.profile_id::text as customer_profile_id " +
+    "select i.status,i.accepted_by_profile_id::text as accepted_by,c.profile_id::text as customer_profile_id " +
       "from public.customer_activation_invitations i join public.customers c " +
       "on c.id=i.customer_id and c.organization_id=i.organization_id where i.id=$1::uuid",
     [crossActivationInvite.invitation_id],
@@ -692,7 +692,7 @@ async function main() {
     ),
   );
   crossActivationState = (await admin.unsafe(
-    "select i.status,i.accepted_by::text as accepted_by,c.profile_id::text as customer_profile_id " +
+    "select i.status,i.accepted_by_profile_id::text as accepted_by,c.profile_id::text as customer_profile_id " +
       "from public.customer_activation_invitations i join public.customers c " +
       "on c.id=i.customer_id and c.organization_id=i.organization_id where i.id=$1::uuid",
     [crossActivationInvite.invitation_id],
