@@ -5245,15 +5245,120 @@ async function main() {
   );
 
   const invoiceJournalKey = "abababab-abab-4bab-8bab-abababababd0";
-  const invoiceDraft = (await db.unsafe(
-    "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
-    [invoice.id, debitAccountId, creditAccountId, null, invoiceJournalKey],
-  ))[0].result;
-  assert.equal(invoiceDraft.status, "draft");
-  assert.equal(invoiceDraft.replayed, false);
-  assert.equal(invoiceDraft.source_id, invoice.id);
-  assert.equal(Number(invoiceDraft.amount), Number(invoiceSource.total_amount));
-  const invoiceJournalId = invoiceDraft.journal_entry_id;
+  const invoiceJournalRaceKey = "abababab-abab-4bab-8bab-abababababd3";
+
+  // FIN-INVOICE-JOURNAL-001: force two authenticated accountants to contend
+  // on the same invoice-journal advisory lock before the first source draft exists.
+  // Distinct request keys with one identical source mapping must create one canonical draft.
+  const invoiceJournalGate = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  const invoiceJournalClients = [
+    postgres(connectionString,{max:1,prepare:false,idle_timeout:5}),
+    postgres(connectionString,{max:1,prepare:false,idle_timeout:5}),
+  ];
+  const invoiceJournalApps = ["ci-invoice-journal-a","ci-invoice-journal-b"];
+  let invoiceJournalGateOpen = false;
+  let invoiceJournalAttempts;
+  let invoiceJournalResults;
+  try {
+    await invoiceJournalGate.unsafe("begin");
+    invoiceJournalGateOpen = true;
+    await invoiceJournalGate.unsafe(
+      "select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended($1::text || ':customer-invoice-journal:' || $2::text,0))",
+      [organizationId,invoice.id],
+    );
+    await Promise.all(invoiceJournalClients.map(async (client,index) => {
+      await client.unsafe("reset role").catch(()=>{});
+      const sessionId=randomUUID();
+      await client.unsafe(
+        "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+        "values($1,$2,now(),now(),now(),null,'CI customer invoice journal race','127.0.0.1'::inet) " +
+        "on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+        [sessionId,accountantAuthUserId],
+      );
+      await client.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[accountantAuthUserId]);
+      await client.unsafe("select set_config('request.jwt.claims',$1,false)",[
+        JSON.stringify({sub:accountantAuthUserId,email:"ci-accountant@example.test",role:"authenticated",session_id:sessionId}),
+      ]);
+      await client.unsafe("set role authenticated");
+      await client.unsafe("select set_config('application_name',$1,false)",[invoiceJournalApps[index]]);
+    }));
+    invoiceJournalAttempts=Promise.allSettled(invoiceJournalClients.map((client,index)=>client.unsafe(
+      "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
+      [invoice.id,debitAccountId,creditAccountId,null,index===0?invoiceJournalKey:invoiceJournalRaceKey],
+    )));
+    let bothInvoiceJournalWritersWaiting=false;
+    let invoiceJournalActivity=[];
+    for(let attempt=0;attempt<120;attempt+=1){
+      invoiceJournalActivity=await invoiceJournalGate.unsafe(
+        "select application_name,state,wait_event_type,wait_event,left(query,180) as query " +
+        "from pg_catalog.pg_stat_activity " +
+        "where application_name in ('ci-invoice-journal-a','ci-invoice-journal-b')",
+      );
+      bothInvoiceJournalWritersWaiting=invoiceJournalApps.every(applicationName=>
+        invoiceJournalActivity.some(row=>
+          row.application_name===applicationName && row.state==="active" && row.wait_event_type==="Lock",
+        ),
+      );
+      if(bothInvoiceJournalWritersWaiting) break;
+      await new Promise(resolve=>setTimeout(resolve,25));
+    }
+    if(!bothInvoiceJournalWritersWaiting){
+      await invoiceJournalGate.unsafe("rollback");
+      invoiceJournalGateOpen=false;
+      const outcomes=await invoiceJournalAttempts;
+      assert.fail(
+        "both invoice-journal callers must be observed waiting on the source lock before gate release: "+
+        JSON.stringify({
+          activity:invoiceJournalActivity,
+          outcomes:outcomes.map(outcome=>outcome.status==="fulfilled"
+            ? {ok:true}
+            : {ok:false,error:String(outcome.reason?.message ?? outcome.reason)}),
+        }),
+      );
+    }
+    await invoiceJournalGate.unsafe("commit");
+    invoiceJournalGateOpen=false;
+    invoiceJournalResults=await invoiceJournalAttempts;
+  } finally {
+    if(invoiceJournalGateOpen) await invoiceJournalGate.unsafe("rollback").catch(()=>{});
+    if(invoiceJournalAttempts) await Promise.allSettled([invoiceJournalAttempts]);
+    await Promise.all([
+      invoiceJournalGate.end({timeout:5}).catch(()=>{}),
+      ...invoiceJournalClients.map(client=>client.end({timeout:5}).catch(()=>{})),
+    ]);
+  }
+  assert.equal(invoiceJournalResults.filter(outcome=>outcome.status==="fulfilled").length,2,
+    "both same-source invoice journal requests should resolve: "+
+    JSON.stringify(invoiceJournalResults.map(outcome=>outcome.status==="rejected"
+      ? String(outcome.reason?.message ?? outcome.reason)
+      : {ok:true})));
+  const invoiceJournalValues=invoiceJournalResults.map(outcome=>outcome.status==="fulfilled"
+    ? outcome.value[0].result
+    : null);
+  assert.equal(invoiceJournalValues.filter(value=>value?.replayed===false).length,1,
+    "exactly one concurrent invoice-journal request should create the draft");
+  assert.equal(invoiceJournalValues.filter(value=>value?.replayed===true).length,1,
+    "the losing same-source invoice-journal request should replay the canonical draft");
+  assert.equal(invoiceJournalValues[0].journal_entry_id,invoiceJournalValues[1].journal_entry_id,
+    "concurrent same-source invoice requests must return one journal entry ID");
+  const invoiceDraft=invoiceJournalValues.find(value=>value?.replayed===false);
+  assert.ok(invoiceDraft,"the race must expose the one original invoice journal draft");
+  assert.equal(invoiceDraft.status,"draft");
+  assert.equal(invoiceDraft.source_id,invoice.id);
+  assert.equal(Number(invoiceDraft.amount),Number(invoiceSource.total_amount));
+  const invoiceJournalId=invoiceDraft.journal_entry_id;
+
+  await db.unsafe("reset role");
+  const invoiceJournalRaceAudit = await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+    "where organization_id=$1::uuid and action='accounting.customer_invoice_journal_draft_created' " +
+    "and entity_type='customer_invoice' and entity_id::text=$2::text",
+    [organizationId,invoice.id],
+  );
+  assert.equal(invoiceJournalRaceAudit[0].count,1,
+    "concurrent source invoice-journal requests must emit exactly one creation audit");
+  await setIdentity(accountantAuthUserId,"ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
   const invoiceReplay = (await db.unsafe(
     "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
     [invoice.id, debitAccountId, creditAccountId, null, "abababab-abab-4bab-8bab-abababababd1"],
