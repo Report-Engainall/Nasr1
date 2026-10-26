@@ -106,7 +106,7 @@ async function createPostedManualJournal(client, debitAccountId, creditAccountId
   ];
   const rows = await client.unsafe(
     "select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text) as result",
-    [key, new Date().toISOString().slice(0, 10), description, JSON.stringify(lines), "ci-generic-reversal-" + suffix + "-" + label],
+    [key, new Date().toISOString().slice(0, 10), description, client.json(lines), "ci-generic-reversal-" + suffix + "-" + label],
   );
   const draft = asJson(rows[0].result);
   assert.equal(draft.status, "draft", label + ": original journal must start as draft");
