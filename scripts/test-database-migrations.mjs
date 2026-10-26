@@ -2588,6 +2588,23 @@ async function main() {
     key, fileName, fileHash, 500, "onyx_stock", sourceReference,
     importJob.profile_id, "2026-04", "ci", "new_version",
   ];
+  const inspectImportRequestState = async (requestKey) => {
+    const priorRole = (await db.unsafe("select current_setting('role', true) as role"))[0]?.role;
+    await db.unsafe("reset role");
+    try {
+      return await db.unsafe(
+        "select count(*)::integer as key_count, count(j.id)::integer as job_count " +
+        "from public.import_job_request_keys k left join public.import_jobs j " +
+        "on j.id=k.import_job_id and j.organization_id=k.organization_id " +
+        "where k.organization_id=$1::uuid and k.actor_profile_id=$2::uuid and k.request_key=$3::uuid",
+        [organizationId, staffProfileId, requestKey],
+      );
+    } finally {
+      if (["authenticated", "anon", "service_role"].includes(priorRole)) {
+        await db.unsafe("set role " + priorRole);
+      }
+    }
+  };
   const sameImportRaceKey = randomUUID();
   const sameImportRacePayload = importRaceRequestArgs(
     sameImportRaceKey, "CI concurrent idempotent import.csv", "c".repeat(64), "CI-IMPORT-RACE-SAME",
@@ -2603,13 +2620,7 @@ async function main() {
     "identical concurrent requests must return one canonical import-job UUID");
   assert.equal(sameImportRaceResults[0].organization_id, organizationId);
   assert.equal(sameImportRaceResults[1].organization_id, organizationId);
-  const sameImportRaceRows = await db.unsafe(
-    "select count(*)::integer as key_count, count(j.id)::integer as job_count " +
-    "from public.import_job_request_keys k left join public.import_jobs j " +
-    "on j.id=k.import_job_id and j.organization_id=k.organization_id " +
-    "where k.organization_id=$1::uuid and k.actor_profile_id=$2::uuid and k.request_key=$3::uuid",
-    [organizationId, staffProfileId, sameImportRaceKey],
-  );
+  const sameImportRaceRows = await inspectImportRequestState(sameImportRaceKey);
   assert.equal(sameImportRaceRows[0].key_count, 1, "same-key race must persist one request claim");
   assert.equal(sameImportRaceRows[0].job_count, 1, "same-key race must persist one linked import job");
 
@@ -2633,13 +2644,7 @@ async function main() {
     /مفتاح محاولة الاستيراد مستخدم لعملية أو حمولة مختلفة/i);
   assert.equal(rejectedImportRace?.status === "rejected" ? rejectedImportRace.reason?.code : null, "22023",
     "changed-payload idempotency conflict must use SQLSTATE 22023");
-  const differentImportRaceRows = await db.unsafe(
-    "select count(*)::integer as key_count, count(j.id)::integer as job_count " +
-    "from public.import_job_request_keys k left join public.import_jobs j " +
-    "on j.id=k.import_job_id and j.organization_id=k.organization_id " +
-    "where k.organization_id=$1::uuid and k.actor_profile_id=$2::uuid and k.request_key=$3::uuid",
-    [organizationId, staffProfileId, differentImportRaceKey],
-  );
+  const differentImportRaceRows = await inspectImportRequestState(differentImportRaceKey);
   assert.equal(differentImportRaceRows[0].key_count, 1, "conflicting race must persist only the winning request claim");
   assert.equal(differentImportRaceRows[0].job_count, 1, "conflicting race must leave only one linked import job");
   process.stdout.write("PASS import-job request idempotency: observed same-key lock contention returns one canonical job; competing payload receives 22023 without a duplicate job.\\n");
