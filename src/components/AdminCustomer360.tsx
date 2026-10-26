@@ -76,7 +76,7 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
           <article className="report-metric"><Wallet size={20} /><span>الرصيد المسجل بالبطاقة</span><strong>{formatCustomer360Money(customer.current_balance, 'YER')}</strong></article>
           <article className="report-metric"><CreditCard size={20} /><span>الحد الائتماني المسجل</span><strong>{formatCustomer360Money(customer.credit_limit, 'YER')}</strong></article>
         </section>
-        {(projection.potentially_partial.invoices || projection.potentially_partial.payments) && <div className="form-error" role="status"><AlertTriangle size={16} /> قوائم تفاصيل الفواتير والدفعات على مستوى المؤسسة محدودة (حتى 500 فاتورة و1000 دفعة)، لذلك لا تشمل الجداول كل الحركات القديمة. إجماليات المبالغ والمتأخرات حسب العملة في الملخص التالي محسوبة خادميًا من دفتر العميل الكامل.</div>}
+        {projection.potentially_partial.payments && <div className="form-error" role="status"><AlertTriangle size={16} /> قائمة تفاصيل الدفعات المعروضة محدودة (حتى 1000 دفعة)، لذلك قد لا تشمل كل الحركات القديمة. ملخص الفواتير والتحصيل حسب العملة محسوب خادميًا من الدفتر الكامل، وتفاصيل الفواتير تعرض أحدث 20 فاتورة مع الإشعارات الدائنة المرحلة.</div>}
         <section className="panel">
           <h3>ملخص الحركات المعروضة</h3>
           <p>قيمة الطلبات غير الملغاة ضمن النتائج: <strong>{m?.non_cancelled_order_value === null ? 'غير متاحة بسبب مبلغ غير صالح أو تجاوز دقة الحساب' : formatCurrency(m?.non_cancelled_order_value ?? 0)}</strong></p>
@@ -96,9 +96,10 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         </div>
 
         <h3 style={{ marginTop: 18 }}>ملخص الفواتير والتحصيل الكامل حسب العملة</h3>
-        {!summary.finance_by_currency.length ? <Empty text="لا توجد فواتير مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>العملة</th><th>الفواتير</th><th>إجمالي الفواتير</th><th>المسدّد</th><th>المتبقي</th><th>فواتير متأخرة</th><th>متأخرات</th></tr></thead><tbody>{summary.finance_by_currency.map((row) => <tr key={row.currency}>
+        {!summary.finance_by_currency.length ? <Empty text="لا توجد فواتير مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>العملة</th><th>الفواتير</th><th>إجمالي الفواتير</th><th>المسدّد</th><th>الإشعارات الدائنة المرحلة</th><th>المتبقي</th><th>فواتير متأخرة</th><th>متأخرات</th></tr></thead><tbody>{summary.finance_by_currency.map((row) => <tr key={row.currency}>
           <td>{row.currency}</td><td>{formatNumber(row.invoice_count)}</td>
           <td>{formatCustomer360Money(row.invoiced_total, row.currency)}</td><td>{formatCustomer360Money(row.paid_total, row.currency)}</td>
+          <td>{formatCustomer360Money(row.credit_memo_total, row.currency)}</td>
           <td>{formatCustomer360Money(row.outstanding_total, row.currency)}</td><td>{formatNumber(row.overdue_invoice_count)}</td>
           <td>{formatCustomer360Money(row.overdue_outstanding, row.currency)}</td>
         </tr>)}</tbody></table></TableWrap>}
@@ -130,8 +131,8 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
           {!projection.orders.length ? <Empty text="لا توجد طلبات لهذا العميل." /> : <TableWrap><table><thead><tr><th>رقم الطلب</th><th>التاريخ</th><th>الحالة</th><th>الأصناف</th><th>الإجمالي</th></tr></thead><tbody>{projection.orders.map((order) => <tr key={order.id}><td>{order.order_number}</td><td>{formatDateShort(order.created_at)}</td><td>{order.status}</td><td>{order.total_items === null ? '—' : formatNumber(order.total_items)}</td><td>{order.total_amount === null ? 'غير متاح' : formatCurrency(order.total_amount)}</td></tr>)}</tbody></table></TableWrap>}
         </section>
         <section className="panel">
-          <h3>آخر الفواتير ({formatNumber(m?.invoice_count_loaded ?? 0)} فاتورة محمّلة)</h3>
-          {!projection.invoices.length ? <Empty text="لا توجد فواتير مسجلة لهذا العميل في نتيجة RPC الحالية." /> : <TableWrap><table><thead><tr><th>الفاتورة</th><th>الإصدار</th><th>الاستحقاق</th><th>الحالة</th><th>الإجمالي</th><th>المسدّد من الدفعات المحمّلة</th><th>المتبقي المحسوب</th></tr></thead><tbody>{projection.invoices.map((invoice) => <tr key={invoice.id}><td>{invoice.invoice_number}</td><td>{formatDateShort(invoice.issued_at)}</td><td>{invoice.due_at ? formatDateShort(invoice.due_at) : 'غير محدد'}</td><td>{invoiceStatusLabel[invoice.status] ?? invoice.status}</td><td>{formatCustomer360Money(invoice.total_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.paid_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.outstanding_amount, invoice.currency)}</td></tr>)}</tbody></table></TableWrap>}
+          <h3>آخر الفواتير ({formatNumber(summary?.recent_invoices.length ?? 0)} فاتورة من أحدث سجل العميل)</h3>
+          {!(summary?.recent_invoices.length) ? <Empty text="لا توجد فواتير مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>الفاتورة</th><th>الإصدار</th><th>الاستحقاق</th><th>الحالة</th><th>الإجمالي</th><th>المسدّد</th><th>الإشعار الدائن المرحّل</th><th>المتبقي</th></tr></thead><tbody>{(summary?.recent_invoices ?? []).map((invoice) => <tr key={invoice.id}><td>{invoice.invoice_number}</td><td>{invoice.issued_at ? formatDateShort(invoice.issued_at) : 'غير محدد'}</td><td>{invoice.due_at ? formatDateShort(invoice.due_at) : 'غير محدد'}</td><td>{invoiceStatusLabel[invoice.status] ?? invoice.status}</td><td>{formatCustomer360Money(invoice.total_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.paid_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.credit_memo_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.outstanding_amount, invoice.currency)}</td></tr>)}</tbody></table></TableWrap>}
         </section>
         <section className="panel">
           <h3>آخر الدفعات ({formatNumber(m?.payment_count_loaded ?? 0)} دفعة محمّلة)</h3>
