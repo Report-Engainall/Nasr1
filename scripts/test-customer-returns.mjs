@@ -587,18 +587,141 @@ async function main() {
   assert.ok(creditQueue.accounts.some((row) => row.id === receivableAccountId && row.account_type === "asset"));
   assert.ok(creditQueue.accounts.some((row) => row.id === revenueAccountId && row.account_type === "revenue"));
 
-  const creditIdempotencyKey = randomUUID();
-  const preparedCreditRaw = await db.unsafe(
-    "select public.prepare_customer_return_credit_memo($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
-    [firstRequest.request_id,receivableAccountId,revenueAccountId,null,creditIdempotencyKey],
+  // FIN-RETURN-CREDIT-PREPARE-001: prove source-lock serialization for concurrent
+  // requests with DIFFERENT idempotency keys. Same return/payload must still yield
+  // exactly one memo, source-linked journal draft, posting link, accountant task and audit.
+  const creditIdempotencyKeys = [randomUUID(),randomUUID()];
+  const creditMemoRacer = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  const creditMemoGate = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  const creditMemoApps = ["ci-return-credit-prepare-a","ci-return-credit-prepare-b"];
+  let creditMemoGateOpen = false;
+  let creditMemoAttempts;
+  let creditMemoRaceResults;
+  let creditMemoBackendPids = [];
+  try {
+    await creditMemoGate.unsafe("begin");
+    creditMemoGateOpen = true;
+    await creditMemoGate.unsafe(
+      "select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended($1::text || ':return-credit-memo:' || $2::text,0))",
+      [organizationId,firstRequest.request_id],
+    );
+    await db.unsafe("select set_config('application_name',$1,false)",[creditMemoApps[0]]);
+    const creditMemoSessionId = randomUUID();
+    await creditMemoRacer.unsafe(
+      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+      "values($1,$2,now(),now(),now(),null,'CI return credit memo concurrency','127.0.0.1'::inet) " +
+      "on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+      [creditMemoSessionId,managerAuthId],
+    );
+    await creditMemoRacer.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[managerAuthId]);
+    await creditMemoRacer.unsafe("select set_config('request.jwt.claims',$1,false)",[
+      JSON.stringify({
+        sub:managerAuthId,
+        email:"ci-return-manager@example.test",
+        email_confirmed_at:new Date().toISOString(),
+        role:"authenticated",
+        session_id:creditMemoSessionId,
+      }),
+    ]);
+    await creditMemoRacer.unsafe("set role authenticated");
+    await creditMemoRacer.unsafe("select set_config('application_name',$1,false)",[creditMemoApps[1]]);
+    creditMemoBackendPids = await Promise.all([db,creditMemoRacer].map(async (client) =>
+      Number((await client.unsafe("select pg_catalog.pg_backend_pid() as pid"))[0].pid),
+    ));
+    creditMemoAttempts = Promise.allSettled([db,creditMemoRacer].map((client,index) => client.unsafe(
+      "select public.prepare_customer_return_credit_memo($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
+      [firstRequest.request_id,receivableAccountId,revenueAccountId,null,creditIdempotencyKeys[index]],
+    )));
+    let bothCreditMemoWritersWaiting = false;
+    let creditMemoActivity = [];
+    for (let attempt=0;attempt<400;attempt+=1) {
+      creditMemoActivity = await creditMemoGate.unsafe(
+        "select pid,application_name,state,wait_event_type,wait_event,left(query,200) as query " +
+        "from pg_catalog.pg_stat_activity where pid=any($1::integer[])",
+        [creditMemoBackendPids],
+      );
+      bothCreditMemoWritersWaiting = creditMemoBackendPids.every((pid) =>
+        creditMemoActivity.some((row) =>
+          Number(row.pid)===pid && row.state==="active" && row.wait_event_type==="Lock" &&
+          String(row.query).includes("prepare_customer_return_credit_memo"),
+        ),
+      );
+      if (bothCreditMemoWritersWaiting) break;
+      await new Promise((resolve)=>setTimeout(resolve,25));
+    }
+    if (!bothCreditMemoWritersWaiting) {
+      await creditMemoGate.unsafe("rollback");
+      creditMemoGateOpen = false;
+      const outcomes = await creditMemoAttempts;
+      assert.fail(
+        "both return-credit preparation RPCs must wait on the exact source lock before release: " +
+        JSON.stringify({
+          backend_pids:creditMemoBackendPids,
+          activity:creditMemoActivity,
+          outcomes:outcomes.map((outcome)=>outcome.status==="fulfilled"
+            ? {ok:true}
+            : {ok:false,error:String(outcome.reason?.message ?? outcome.reason)}),
+        }),
+      );
+    }
+    await creditMemoGate.unsafe("commit");
+    creditMemoGateOpen = false;
+    creditMemoRaceResults = await creditMemoAttempts;
+  } finally {
+    if (creditMemoGateOpen) await creditMemoGate.unsafe("rollback").catch(()=>{});
+    if (creditMemoAttempts) await Promise.allSettled([creditMemoAttempts]);
+    await Promise.all([
+      creditMemoRacer.end({timeout:5}).catch(()=>{}),
+      creditMemoGate.end({timeout:5}).catch(()=>{}),
+    ]);
+  }
+  assert.equal(
+    creditMemoRaceResults.filter((outcome)=>outcome.status==="fulfilled").length,
+    2,
+    "both same-payload finance requests must resolve without a duplicate source write",
   );
-  const preparedCredit = asJson(preparedCreditRaw[0].result);
+  const creditMemoRaceParsed = creditMemoRaceResults.map((outcome) => asJson(outcome.value[0].result));
+  const creditMemoCreatorIndex = creditMemoRaceParsed.findIndex((result)=>result.replayed===false);
+  assert.notEqual(creditMemoCreatorIndex,-1,"exactly one concurrent request creates the return credit memo");
+  const creditMemoReplayIndex = creditMemoCreatorIndex===0 ? 1 : 0;
+  const preparedCredit = creditMemoRaceParsed[creditMemoCreatorIndex];
+  const concurrentCreditReplay = creditMemoRaceParsed[creditMemoReplayIndex];
+  const creditIdempotencyKey = creditIdempotencyKeys[creditMemoCreatorIndex];
+  assert.equal(concurrentCreditReplay.replayed,true,"the competing distinct-key request resolves as a replay of the canonical memo");
+  assert.equal(concurrentCreditReplay.credit_memo_id,preparedCredit.credit_memo_id);
+  assert.equal(concurrentCreditReplay.journal_entry_id,preparedCredit.journal_entry_id);
   assert.equal(preparedCredit.status,"draft","credit memo starts as a draft");
   assert.equal(preparedCredit.journal_status,"draft","linked ledger entry starts as a draft");
   assert.equal(Number(preparedCredit.subtotal_amount),125,"returned 1.25 of 5 invoice units credits 125.00 of a 500.00 line");
   assert.equal(Number(preparedCredit.tax_amount),0);
   assert.equal(Number(preparedCredit.total_amount),125);
   assert.equal(preparedCredit.replayed,false);
+
+  const concurrentMemoRows = await db.unsafe(
+    "select count(*)::integer as count from public.customer_return_credit_memos " +
+    "where organization_id=$1::uuid and return_request_id=$2::uuid and status='draft'",
+    [organizationId,firstRequest.request_id],
+  );
+  assert.equal(concurrentMemoRows[0].count,1,"concurrent request keys must create one active memo for the physical return");
+  const concurrentPostingRows = await db.unsafe(
+    "select count(*)::integer as count from public.accounting_return_credit_memo_postings " +
+    "where organization_id=$1::uuid and credit_memo_id=$2::uuid",
+    [organizationId,preparedCredit.credit_memo_id],
+  );
+  assert.equal(concurrentPostingRows[0].count,1,"the memo links to one authoritative journal posting");
+  const concurrentJournalRows = await db.unsafe(
+    "select count(*)::integer as count from public.accounting_journal_entries " +
+    "where organization_id=$1::uuid and source_type='customer_return_credit_memo' and source_reference=$2::text",
+    [organizationId,preparedCredit.credit_memo_id],
+  );
+  assert.equal(concurrentJournalRows[0].count,1,"the source memo creates one journal draft");
+  const concurrentAuditRows = await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+    "where organization_id=$1::uuid and action='accounting.customer_return_credit_memo_draft_created' " +
+    "and entity_type='customer_return_credit_memo' and entity_id=$2::uuid",
+    [organizationId,preparedCredit.credit_memo_id],
+  );
+  assert.equal(concurrentAuditRows[0].count,1,"concurrent source-memo preparation must emit exactly one creation audit");
 
   const draftPostingTasks = await db.unsafe(
     "select task_role,status,source_entity_type,source_entity_id,task_payload,completed_at " +
