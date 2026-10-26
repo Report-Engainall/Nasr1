@@ -111,7 +111,7 @@ export function createProductImageUploadHandler(deps: ProductImageUploadDependen
     const anonKey = deps.getEnv("SUPABASE_ANON_KEY");
     const serviceKey = deps.getEnv("SUPABASE_SERVICE_ROLE_KEY");
     const authorization = request.headers.get("authorization") ?? "";
-    const token = /^Bearer\\s+(.+)$/i.exec(authorization)?.[1];
+    const token = /^Bearer\s+(.+)$/i.exec(authorization)?.[1];
     if (!url || !anonKey || !serviceKey) return reply({ error: "image_service_not_configured" }, 503);
     if (!token) return reply({ error: "unauthorized" }, 401);
 
