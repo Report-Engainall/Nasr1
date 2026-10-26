@@ -240,7 +240,7 @@ export function AdminApp({ initialView = 'dashboard' }: { initialView?: View }) 
   return <AppContent initialView={initialView} />;
 }
 
-function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
+export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
   const { data: stats, loading, error, refetch } = useFetch(fetchDashboardStats);
   const { data: alerts, loading: alertsLoading, error: alertsError, refetch: refetchAlerts } = useFetch(fetchAiAlerts);
   const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(fetchProducts);
@@ -1160,7 +1160,7 @@ function localDateTimeValue(value?: string | null): string {
   return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
-function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onClose: () => void; onSaved: () => Promise<void> | void }) {
+export function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onClose: () => void; onSaved: () => Promise<void> | void }) {
   const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(fetchProducts);
   const { data: categories, loading: categoriesLoading, error: categoriesError, refetch: refetchCategories } = useFetch(fetchCategories);
   const [name, setName] = useState(rule?.name ?? '');
