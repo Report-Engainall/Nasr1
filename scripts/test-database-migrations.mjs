@@ -5245,15 +5245,137 @@ async function main() {
   );
 
   const invoiceJournalKey = "abababab-abab-4bab-8bab-abababababd0";
-  const invoiceDraft = (await db.unsafe(
-    "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
-    [invoice.id, debitAccountId, creditAccountId, null, invoiceJournalKey],
-  ))[0].result;
+  const invoiceRaceSecondKey = randomUUID();
+  const invoiceRaceGate = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const invoiceRaceA = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const invoiceRaceB = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  let invoiceGateOpen = false;
+  let invoiceJournalAttempts;
+  let invoiceRaceResults;
+  const setInvoiceJournalIdentity = async (client, applicationName) => {
+    await client.unsafe("reset role").catch(() => {});
+    const sessionId = randomUUID();
+    await client.unsafe(
+      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+        "values($1,$2,now(),now(),now(),null,'CI invoice-journal concurrency session','127.0.0.1'::inet) " +
+        "on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+      [sessionId, staffAuthUserId],
+    );
+    await client.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [staffAuthUserId]);
+    await client.unsafe("select set_config('request.jwt.claims',$1,false)", [
+      JSON.stringify({
+        sub: staffAuthUserId,
+        email: "admin@aghbari.ye",
+        role: "authenticated",
+        session_id: sessionId,
+      }),
+    ]);
+    await client.unsafe("set role authenticated");
+    await client.unsafe("select set_config('application_name',$1,false)", [applicationName]);
+  };
+  const captureInvoiceJournalResult = (promise) => promise
+    .then((rows) => ({ ok: true, result: rows[0].result }))
+    .catch((error) => ({
+      ok: false,
+      error: {
+        message: String(error?.message ?? error),
+        code: error?.code ?? null,
+        detail: error?.detail ?? null,
+      },
+    }));
+  try {
+    await Promise.all([
+      setInvoiceJournalIdentity(invoiceRaceA, "ci-invoice-journal-race-a"),
+      setInvoiceJournalIdentity(invoiceRaceB, "ci-invoice-journal-race-b"),
+    ]);
+    await invoiceRaceGate.unsafe("begin");
+    invoiceGateOpen = true;
+    await invoiceRaceGate.unsafe(
+      "select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended($1::text,0))",
+      [organizationId + ":customer-invoice-journal:" + invoice.id],
+    );
+    invoiceJournalAttempts = Promise.all([
+      captureInvoiceJournalResult(invoiceRaceA.unsafe(
+        "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
+        [invoice.id, debitAccountId, creditAccountId, null, invoiceJournalKey],
+      )),
+      captureInvoiceJournalResult(invoiceRaceB.unsafe(
+        "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
+        [invoice.id, debitAccountId, creditAccountId, null, invoiceRaceSecondKey],
+      )),
+    ]);
+
+    let bothInvoiceWritersWaiting = false;
+    let invoiceActivitySnapshot = [];
+    await db.unsafe("reset role");
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      invoiceActivitySnapshot = await db.unsafe(
+        "select application_name,state,wait_event_type,wait_event,left(query,200) as query " +
+          "from pg_catalog.pg_stat_activity " +
+          "where application_name in ('ci-invoice-journal-race-a','ci-invoice-journal-race-b')",
+      );
+      bothInvoiceWritersWaiting = invoiceActivitySnapshot.filter((row) =>
+        row.state === "active" && row.wait_event_type === "Lock"
+      ).length === 2;
+      if (bothInvoiceWritersWaiting) break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    if (!bothInvoiceWritersWaiting) {
+      await invoiceRaceGate.unsafe("rollback");
+      invoiceGateOpen = false;
+      const outcomes = await invoiceJournalAttempts;
+      assert.fail("invoice journal lock contention was not observed for both RPC calls: " + JSON.stringify({
+        activity: invoiceActivitySnapshot,
+        outcomes: outcomes.map((item) => item.ok
+          ? { ok: true, journal_entry_id: item.result?.journal_entry_id, replayed: item.result?.replayed }
+          : { ok: false, error: item.error }),
+      }));
+    }
+
+    await invoiceRaceGate.unsafe("commit");
+    invoiceGateOpen = false;
+    invoiceRaceResults = await invoiceJournalAttempts;
+  } finally {
+    if (invoiceGateOpen) await invoiceRaceGate.unsafe("rollback").catch(() => {});
+    if (invoiceJournalAttempts) await Promise.allSettled([invoiceJournalAttempts]);
+    await Promise.all([
+      invoiceRaceGate.end({ timeout: 5 }).catch(() => {}),
+      invoiceRaceA.end({ timeout: 5 }).catch(() => {}),
+      invoiceRaceB.end({ timeout: 5 }).catch(() => {}),
+    ]);
+    await db.unsafe("set role authenticated");
+  }
+  const invoiceRaceFailures = invoiceRaceResults.filter((item) => !item.ok);
+  assert.equal(invoiceRaceFailures.length, 0,
+    "both same-source invoice journal calls must succeed: " + JSON.stringify(invoiceRaceFailures));
+  const invoiceRaceValues = invoiceRaceResults.map((item) => item.result);
+  assert.equal(invoiceRaceValues.length, 2);
+  assert.equal(invoiceRaceValues.filter((item) => item.replayed === false).length, 1,
+    "one concurrent invoice journal call must create the source posting");
+  assert.equal(invoiceRaceValues.filter((item) => item.replayed === true).length, 1,
+    "the competing invoice journal call must replay the canonical source posting");
+  assert.equal(invoiceRaceValues[0].journal_entry_id, invoiceRaceValues[1].journal_entry_id,
+    "both invoice journal calls must return one canonical journal UUID");
+  const invoiceDraft = invoiceRaceValues.find((item) => item.replayed === false);
   assert.equal(invoiceDraft.status, "draft");
-  assert.equal(invoiceDraft.replayed, false);
   assert.equal(invoiceDraft.source_id, invoice.id);
   assert.equal(Number(invoiceDraft.amount), Number(invoiceSource.total_amount));
   const invoiceJournalId = invoiceDraft.journal_entry_id;
+  const invoiceJournalMappingCount = await db.unsafe(
+    "select count(*)::integer as count from public.accounting_customer_source_postings " +
+      "where organization_id=$1::uuid and source_type='customer_invoice' and source_id=$2::uuid and posting_kind='original'",
+    [organizationId, invoice.id],
+  );
+  assert.equal(invoiceJournalMappingCount[0].count, 1,
+    "concurrent invoice journal creation must persist exactly one source posting");
+  const invoiceJournalAuditCount = await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+      "where organization_id=$1::uuid and action='accounting.customer_invoice_journal_draft_created' and entity_id=$2::uuid",
+    [organizationId, invoice.id],
+  );
+  assert.equal(invoiceJournalAuditCount[0].count, 1,
+    "concurrent invoice journal creation must emit exactly one creation audit row");
+  process.stdout.write("PASS invoice journal concurrency: two authenticated requests contended on PostgreSQL locks and returned one source-linked draft and audit event.\\n");
   const invoiceReplay = (await db.unsafe(
     "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
     [invoice.id, debitAccountId, creditAccountId, null, "abababab-abab-4bab-8bab-abababababd1"],
