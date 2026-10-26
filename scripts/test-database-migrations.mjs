@@ -5324,10 +5324,13 @@ async function main() {
   // on the same invoice-journal advisory lock before the first source draft exists.
   // Distinct request keys with one identical source mapping must create one canonical draft.
   const invoiceJournalGate = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
-  const invoiceJournalClients = [
+  const invoiceJournalPools = [
     postgres(connectionString,{max:1,prepare:false,idle_timeout:5}),
     postgres(connectionString,{max:1,prepare:false,idle_timeout:5}),
   ];
+  // Reserve each physical backend for the entire race. A pooled connection can be
+  // returned/recycled between pg_backend_pid() and the following RPC, invalidating PID evidence.
+  const invoiceJournalClients = await Promise.all(invoiceJournalPools.map((pool)=>pool.reserve()));
   const invoiceJournalApps = ["ci-invoice-journal-a","ci-invoice-journal-b"];
   let invoiceJournalGateOpen = false;
   let invoiceJournalAttempts;
@@ -5355,8 +5358,8 @@ async function main() {
       await client.unsafe("set role authenticated");
       await client.unsafe("select set_config('application_name',$1,false)",[invoiceJournalApps[index]]);
     }));
-    // Track the actual two backends. application_name is retained for diagnostics, but a name-only
-    // lookup can mistake a stale/idle activity row for the query issued by that session.
+    // Track the actual two reserved backends. application_name is diagnostic only; reserved
+    // sessions guarantee each following RPC runs on the exact PID captured here.
     const invoiceJournalBackendPids=await Promise.all(invoiceJournalClients.map(async client=>
       Number((await client.unsafe("select pg_catalog.pg_backend_pid() as pid"))[0].pid),
     ));
@@ -5405,9 +5408,12 @@ async function main() {
   } finally {
     if(invoiceJournalGateOpen) await invoiceJournalGate.unsafe("rollback").catch(()=>{});
     if(invoiceJournalAttempts) await Promise.allSettled([invoiceJournalAttempts]);
+    for (const client of invoiceJournalClients) {
+      try { await client.release(); } catch { /* preserve the original acceptance error */ }
+    }
     await Promise.all([
       invoiceJournalGate.end({timeout:5}).catch(()=>{}),
-      ...invoiceJournalClients.map(client=>client.end({timeout:5}).catch(()=>{})),
+      ...invoiceJournalPools.map(pool=>pool.end({timeout:5}).catch(()=>{})),
     ]);
   }
   assert.equal(invoiceJournalResults.filter(outcome=>outcome.status==="fulfilled").length,2,
@@ -5536,10 +5542,13 @@ async function main() {
   // on the same source-payment advisory lock before either can create its draft.
   // Different request keys must still resolve to one source-linked journal and one audit.
   const paymentJournalGate = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
-  const paymentJournalClients = [
+  const paymentJournalPools = [
     postgres(connectionString,{max:1,prepare:false,idle_timeout:5}),
     postgres(connectionString,{max:1,prepare:false,idle_timeout:5}),
   ];
+  // Pin the observed backend PIDs across fixture setup and RPC execution; a normal pool
+  // may recycle a connection between separate autocommit statements.
+  const paymentJournalClients = await Promise.all(paymentJournalPools.map((pool)=>pool.reserve()));
   let paymentJournalGateOpen = false;
   let paymentJournalAttempts;
   let paymentJournalResults;
@@ -5615,9 +5624,12 @@ async function main() {
   } finally {
     if (paymentJournalGateOpen) await paymentJournalGate.unsafe("rollback").catch(()=>{});
     if (paymentJournalAttempts) await Promise.allSettled([paymentJournalAttempts]);
+    for (const client of paymentJournalClients) {
+      try { await client.release(); } catch { /* preserve the original acceptance error */ }
+    }
     await Promise.all([
       paymentJournalGate.end({timeout:5}).catch(()=>{}),
-      ...paymentJournalClients.map((client)=>client.end({timeout:5}).catch(()=>{})),
+      ...paymentJournalPools.map(pool=>pool.end({timeout:5}).catch(()=>{})),
     ]);
   }
   assert.equal(paymentJournalResults.filter((outcome)=>outcome.status==="fulfilled").length,2,
