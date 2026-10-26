@@ -103,6 +103,7 @@ type ReceivablesAgingReport = {
   items: ReceivablesAgingItem[];
 };
 const RECEIVABLES_AGING_PAGE_SIZE = 200;
+const STAFF_FINANCE_INVOICE_PAGE_SIZE = 200;
 const RECEIVABLES_AGING_BUCKET_LABELS: Record<ReceivablesAgingBucket, string> = {
   current: "غير متأخرة / مستحقة حاليًا",
   days_1_30: "1–30 يومًا",
@@ -2460,9 +2461,9 @@ export function StaffFinancePage() {
     user?.roles.some((role) => role === "admin" || role === "manager" || role === "accountant"),
   );
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [payments, setPayments] = useState<
-    (PaymentAmount & { paid_at?: string; payment_method?: string })[]
-  >([]);
+  const [invoiceTotal, setInvoiceTotal] = useState(0);
+  const [invoiceHasMore, setInvoiceHasMore] = useState(false);
+  const [loadingMoreInvoices, setLoadingMoreInvoices] = useState(false);
   const [invoiceId, setInvoiceId] = useState("");
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("cash");
@@ -2478,24 +2479,58 @@ export function StaffFinancePage() {
   const [agingOffset, setAgingOffset] = useState(0);
   const [agingLoading, setAgingLoading] = useState(false);
   const [agingError, setAgingError] = useState("");
-  const load = useCallback(async () => {
-    setLoading(true);
+  const loadInvoices = useCallback(async (
+    beforeIssuedAt: string | null,
+    beforeId: string | null,
+    append: boolean,
+  ) => {
+    if (append) setLoadingMoreInvoices(true);
+    else setLoading(true);
     setError("");
-    const r = await supabase.rpc("fetch_staff_finance_data");
-    if (r.error) {
-      setError("تعذر تحميل المالية. تأكد من نشر الترحيل وصلاحيات المحاسب/الإدارة.");
-      setInvoices([]);
-      setPayments([]);
-    } else {
+    try {
+      const r = await supabase.rpc("fetch_staff_finance_invoice_page", {
+        p_limit: STAFF_FINANCE_INVOICE_PAGE_SIZE,
+        p_before_issued_at: beforeIssuedAt,
+        p_before_id: beforeId,
+      });
+      if (r.error) throw new Error("تعذر تحميل الفواتير المالية. تحقق من نشر الترحيل وصلاحيات المحاسب/الإدارة.");
       const payload = (r.data ?? {}) as {
-        invoices?: Invoice[];
-        payments?: (PaymentAmount & { paid_at?: string; payment_method?: string })[];
+        invoices?: unknown;
+        total_invoices?: unknown;
+        limit?: unknown;
+        has_more?: unknown;
       };
-      setInvoices(payload.invoices ?? []);
-      setPayments(payload.payments ?? []);
+      if (
+        !Array.isArray(payload.invoices) ||
+        typeof payload.total_invoices !== "number" ||
+        !Number.isSafeInteger(payload.total_invoices) ||
+        payload.total_invoices < 0 ||
+        payload.limit !== STAFF_FINANCE_INVOICE_PAGE_SIZE ||
+        typeof payload.has_more !== "boolean" ||
+        payload.invoices.length > STAFF_FINANCE_INVOICE_PAGE_SIZE ||
+        (payload.has_more && payload.invoices.length === 0)
+      ) {
+        throw new Error("أعاد الخادم صفحة فواتير غير مكتملة؛ لم يتم استبدال البيانات الحالية.");
+      }
+      const page = payload.invoices as Invoice[];
+      setInvoices((current) => append ? [...current, ...page] : page);
+      setInvoiceTotal(payload.total_invoices);
+      setInvoiceHasMore(payload.has_more);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل الفواتير المالية.");
+      if (!append) {
+        setInvoices([]);
+        setInvoiceTotal(0);
+        setInvoiceHasMore(false);
+      }
+    } finally {
+      if (append) setLoadingMoreInvoices(false);
+      else setLoading(false);
     }
-    setLoading(false);
   }, []);
+  const load = useCallback(async () => {
+    await loadInvoices(null, null, false);
+  }, [loadInvoices]);
   const loadAging = useCallback(async (offset: number) => {
     setAgingLoading(true);
     setAgingError("");
@@ -2537,6 +2572,11 @@ export function StaffFinancePage() {
     if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(normalized)) return null;
     const cents = Math.round(Number(normalized) * 100);
     return Number.isSafeInteger(cents) && cents >= 0 ? cents / 100 : null;
+  };
+  const paidAmountLabel = (i: Invoice): string => {
+    if (i.paid_amount === undefined || i.paid_amount === null) return "غير متاح";
+    const amount = typeof i.paid_amount === "number" ? i.paid_amount : Number(String(i.paid_amount).trim());
+    return Number.isFinite(amount) && amount >= 0 ? formatCurrency(amount) : "غير متاح";
   };
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -2608,6 +2648,7 @@ export function StaffFinancePage() {
         paymentRequestKeysRef.current.delete(requestFingerprint);
       }
       setMessage("تم تسجيل الدفعة وتحديث حالة الفاتورة.");
+      setInvoiceId("");
       setAmount("");
       setReference("");
       setNotes("");
@@ -2741,13 +2782,7 @@ export function StaffFinancePage() {
                   <td style={{ padding: 12 }}>{i.invoice_number}</td>
                   <td>{formatDateShort(i.issued_at)}</td>
                   <td>{formatCurrency(Number(i.total_amount))}</td>
-                  <td>
-                    {formatCurrency(
-                      payments
-                        .filter((p) => p.invoice_id === i.id)
-                        .reduce((s, p) => s + Number(p.amount), 0),
-                    )}
-                  </td>
+                  <td>{paidAmountLabel(i)}</td>
                   <td>{formatCurrency(outstanding(i))}</td>
                   <td>{i.status}</td>
                 </tr>
@@ -2755,6 +2790,29 @@ export function StaffFinancePage() {
             </tbody>
           </table>
         </section>
+      )}
+      {!loading && (
+        <div
+          aria-label="ترقيم صفحات الفواتير"
+          style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}
+        >
+          <span style={quiet}>
+            تم تحميل {invoices.length.toLocaleString("ar-YE")} فاتورة من إجمالي {invoiceTotal.toLocaleString("ar-YE")} فاتورة
+          </span>
+          {invoiceHasMore && (
+            <button
+              type="button"
+              style={secondary}
+              disabled={loadingMoreInvoices}
+              onClick={() => {
+                const last = invoices[invoices.length - 1];
+                if (last) void loadInvoices(last.issued_at, last.id, true);
+              }}
+            >
+              {loadingMoreInvoices ? "جارٍ تحميل المزيد..." : "تحميل المزيد من الفواتير"}
+            </button>
+          )}
+        </div>
       )}
       <section className="receivables-aging-report" style={{ ...card, display: "grid", gap: 12 }}>
         <header>
