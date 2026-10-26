@@ -201,6 +201,40 @@ async function main() {
   const receivableAccountId = receivableAccountRows[0].id;
   const revenueAccountId = revenueAccountRows[0].id;
 
+  // Acceptance: invoice-ledger pages are complete across stable cursor boundaries,
+  // tenant-scoped, and expose server-computed balances rather than summing a capped list.
+  await db.unsafe("reset role");
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "finance invoice page rejects an invalid limit",
+    () => db.unsafe(
+      "select public.fetch_staff_finance_invoice_page($1::integer,$2::timestamptz,$3::uuid)",
+      [0,null,null],
+    ),
+    /invoice page limit must be/i,
+  );
+  const financePageOneRaw = await db.unsafe(
+    "select public.fetch_staff_finance_invoice_page($1::integer,$2::timestamptz,$3::uuid) as result",
+    [1,null,null],
+  );
+  const financePageOne = asJson(financePageOneRaw[0].result);
+  assert.equal(financePageOne.invoices.length,1,"invoice ledger returns exactly the requested first-page row");
+  assert.ok(financePageOne.total_invoices >= 2,"invoice ledger reports the full tenant invoice count");
+  assert.equal(financePageOne.limit,1,"invoice ledger echoes the accepted page limit");
+  assert.equal(financePageOne.has_more,true,"invoice ledger reports a next page when another invoice exists");
+  assert.equal(financePageOne.invoices[0].organization_id,organizationId,
+    "invoice page is scoped to the authenticated manager's server-derived organization");
+  const financePageTwoRaw = await db.unsafe(
+    "select public.fetch_staff_finance_invoice_page($1::integer,$2::timestamptz,$3::uuid) as result",
+    [1,financePageOne.invoices[0].issued_at,financePageOne.invoices[0].id],
+  );
+  const financePageTwo = asJson(financePageTwoRaw[0].result);
+  assert.equal(financePageTwo.invoices.length,1,"invoice ledger cursor returns the next row");
+  assert.notEqual(financePageTwo.invoices[0].id,financePageOne.invoices[0].id,
+    "invoice ledger cursor does not repeat the previous page's last invoice");
+  assert.equal(financePageTwo.invoices[0].organization_id,organizationId,
+    "every invoice page row stays in the authenticated manager's organization");
   await db.unsafe("reset role");
   await setIdentity(customerOneAuthId,"ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
@@ -737,6 +771,27 @@ async function main() {
     [organizationId,sourceInvoiceId],
   );
   assert.equal(settlementRows.length,1);
+
+  await db.unsafe("reset role");
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
+  await db.unsafe("set role authenticated");
+  const authoritativeInvoicePageRaw = await db.unsafe(
+    "select public.fetch_staff_finance_invoice_page($1::integer,$2::timestamptz,$3::uuid) as result",
+    [200,null,null],
+  );
+  const authoritativeInvoicePage = asJson(authoritativeInvoicePageRaw[0].result);
+  const authoritativeSourceInvoice = authoritativeInvoicePage.invoices.find(
+    (invoice) => invoice.id === sourceInvoiceId,
+  );
+  assert.ok(authoritativeSourceInvoice,"invoice ledger includes the source invoice from the finance fixture");
+  assert.equal(authoritativeSourceInvoice.paid_amount,settlementRows[0].paid,
+    "invoice paid amount matches all persisted payments for that invoice");
+  assert.equal(authoritativeSourceInvoice.credit_memo_amount,settlementRows[0].credited,
+    "invoice credit amount matches all posted source credit memos");
+  assert.equal(authoritativeSourceInvoice.outstanding_amount,
+    (Number(settlementRows[0].invoice_total)-Number(settlementRows[0].paid)-Number(settlementRows[0].credited)).toFixed(2),
+    "invoice outstanding amount reconciles to the complete payment and posted-credit ledgers");
+  await db.unsafe("reset role");
   assert.equal(Number(settlementRows[0].invoice_total),500);
   assert.equal(Number(settlementRows[0].paid),100,"the first concurrent payment commits exactly once");
   assert.equal(Number(settlementRows[0].credited),125,"the posted credit is visible before the next payment race");
