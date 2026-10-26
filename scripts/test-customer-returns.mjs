@@ -30,6 +30,35 @@ function asJson(value) {
   return value;
 }
 
+async function getStaffCustomer360(customerId) {
+  const rows = await db.unsafe("select public.get_staff_customer_360($1::uuid) as result", [customerId]);
+  assert.equal(rows.length, 1, "Customer 360 RPC returns one source-backed customer summary");
+  const summary = asJson(rows[0].result);
+  assert.ok(Array.isArray(summary.finance_by_currency), "Customer 360 returns full-ledger currency aggregates");
+  assert.ok(Array.isArray(summary.recent_invoices), "Customer 360 returns bounded recent invoice details");
+  return summary;
+}
+
+function findStaffCustomer360Invoice(summary, invoiceId, label) {
+  const invoice = summary.recent_invoices.find((row) => row.id === invoiceId);
+  assert.ok(invoice, label + ": source invoice must exist in the latest customer invoice window");
+  return invoice;
+}
+
+async function assertStaffCustomer360CreditTotal(summary, organizationId, customerId, currency, label) {
+  const expected = await db.unsafe(
+    "select coalesce(sum(cm.total_amount),0)::numeric(15,2)::text as amount " +
+    "from public.customer_return_credit_memos cm " +
+    "join public.customer_invoices ci on ci.id=cm.invoice_id and ci.organization_id=cm.organization_id and ci.customer_id=cm.customer_id " +
+    "where cm.organization_id=$1::uuid and cm.customer_id=$2::uuid and cm.status='posted' " +
+    "and cm.currency=ci.currency and ci.currency=$3 and ci.status<>'void'",
+    [organizationId, customerId, currency],
+  );
+  const row = summary.finance_by_currency.find((item) => item.currency === currency);
+  assert.ok(row, label + ": source currency aggregate must exist");
+  assert.equal(Number(row.credit_memo_total), Number(expected[0].amount), label + ": aggregate credit total matches persisted posted source memos");
+}
+
 async function main() {
   const organizationId = "a0000000-0000-0000-0000-000000000001";
   const otherOrganizationId = "a1111111-1111-4111-8111-111111111111";
@@ -697,6 +726,24 @@ async function main() {
   assert.equal(Number(preparedCredit.total_amount),125);
   assert.equal(preparedCredit.replayed,false);
 
+  // Draft credit memos must not reduce authoritative Customer 360 receivables.
+  const auditCountBeforeCustomer360Read = Number((await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid",
+    [organizationId],
+  ))[0].count);
+  const customer360Draft = await getStaffCustomer360(customerOne.id);
+  const customer360DraftInvoice = findStaffCustomer360Invoice(customer360Draft, sourceInvoiceId, "draft credit-memo Customer 360");
+  assert.equal(Number(customer360DraftInvoice.total_amount),500);
+  assert.equal(Number(customer360DraftInvoice.paid_amount),0);
+  assert.equal(Number(customer360DraftInvoice.credit_memo_amount),0,"draft memo is not applied to Customer 360");
+  assert.equal(Number(customer360DraftInvoice.outstanding_amount),500,"draft memo leaves the full invoice outstanding");
+  await assertStaffCustomer360CreditTotal(customer360Draft, organizationId, customerOne.id, "YER", "draft Customer 360");
+  const auditCountAfterCustomer360Read = Number((await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid",
+    [organizationId],
+  ))[0].count);
+  assert.equal(auditCountAfterCustomer360Read, auditCountBeforeCustomer360Read, "Customer 360 read is side-effect free");
+
   const concurrentMemoRows = await db.unsafe(
     "select count(*)::integer as count from public.customer_return_credit_memos " +
     "where organization_id=$1::uuid and return_request_id=$2::uuid and status='draft'",
@@ -769,6 +816,9 @@ async function main() {
   await db.unsafe("reset role");
   await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
   await db.unsafe("set role authenticated");
+  await expectFailure("customer cannot access the staff Customer 360 RPC",
+    () => db.unsafe("select public.get_staff_customer_360($1::uuid)",[customerOne.id]),
+    /صلاحية موظف نشط مطلوبة لفتح ملف العميل 360/i);
   await expectFailure("non-finance user cannot retrieve a credit memo print source",
     () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)",[preparedCredit.credit_memo_id]),
     /finance permission required/i);
@@ -778,6 +828,9 @@ async function main() {
   await db.unsafe("reset role");
   await setIdentity(managerAuthId,"ci-return-manager@example.test");
   await db.unsafe("set role authenticated");
+  await expectFailure("manager cannot retrieve Customer 360 from another organization",
+    () => db.unsafe("select public.get_staff_customer_360($1::uuid)",[foreignCustomerId]),
+    /العميل غير موجود ضمن المؤسسة الحالية/i);
 
   const beforeStatementRaw = await db.unsafe(
     "select public.get_staff_customer_account_statement($1::uuid) as result",[customerOne.id],
@@ -935,6 +988,14 @@ async function main() {
   assert.equal(authoritativeSourceInvoice.outstanding_amount,
     (Number(settlementRows[0].invoice_total)-Number(settlementRows[0].paid)-Number(settlementRows[0].credited)).toFixed(2),
     "invoice outstanding amount reconciles to the complete payment and posted-credit ledgers");
+
+  const customer360AfterCredit = await getStaffCustomer360(customerOne.id);
+  const customer360InvoiceAfterCredit = findStaffCustomer360Invoice(customer360AfterCredit, sourceInvoiceId, "posted credit-memo Customer 360");
+  assert.equal(Number(customer360InvoiceAfterCredit.paid_amount),100);
+  assert.equal(Number(customer360InvoiceAfterCredit.credit_memo_amount),125,"posted source credit reduces the Customer 360 invoice");
+  assert.equal(Number(customer360InvoiceAfterCredit.outstanding_amount),275,"Customer 360 outstanding subtracts payment and posted credit");
+  await assertStaffCustomer360CreditTotal(customer360AfterCredit, organizationId, customerOne.id, "YER", "posted Customer 360");
+
   await db.unsafe("reset role");
   assert.equal(Number(settlementRows[0].invoice_total),500);
   assert.equal(Number(settlementRows[0].paid),100,"the first concurrent payment commits exactly once");
@@ -995,6 +1056,16 @@ async function main() {
   assert.equal(Number(reconciledSettlementRows[0].credited),125,"the posted credit remains source-linked at 125.00");
   assert.ok(Number(reconciledSettlementRows[0].paid)+Number(reconciledSettlementRows[0].credited)<=500,
     "competing payments and credit postings never exceed the invoice total");
+
+  await db.unsafe("set role authenticated");
+  const customer360AfterPaymentRace = await getStaffCustomer360(customerOne.id);
+  const customer360InvoiceAfterPaymentRace = findStaffCustomer360Invoice(customer360AfterPaymentRace, sourceInvoiceId, "post-payment-race Customer 360");
+  assert.equal(Number(customer360InvoiceAfterPaymentRace.paid_amount),300);
+  assert.equal(Number(customer360InvoiceAfterPaymentRace.credit_memo_amount),125);
+  assert.equal(Number(customer360InvoiceAfterPaymentRace.outstanding_amount),75,"Customer 360 outstanding equals 500 minus 300 paid minus 125 posted credit");
+  await assertStaffCustomer360CreditTotal(customer360AfterPaymentRace, organizationId, customerOne.id, "YER", "post-payment-race Customer 360");
+  await db.unsafe("reset role");
+
   const paymentAuditRows = await db.unsafe(
     "select count(*)::integer as count from public.audit_logs " +
     "where organization_id=$1::uuid and action='customer_payment.recorded' and entity_id=$2::uuid",
@@ -1332,6 +1403,12 @@ async function main() {
   assert.equal(Number(invoiceAfter.credit_memo_amount),0);
   assert.equal(Number(invoiceAfter.outstanding_amount),200,"reversal restores the 125.00 credit while preserving the 300.00 received payments");
   assert.equal(statementAfter.credits.some(x=>x.id===preparedCredit.credit_memo_id),false);
+  const customer360AfterReversal = await getStaffCustomer360(customerOne.id);
+  const customer360InvoiceAfterReversal = findStaffCustomer360Invoice(customer360AfterReversal, sourceInvoiceId, "reversed credit-memo Customer 360");
+  assert.equal(Number(customer360InvoiceAfterReversal.paid_amount),300);
+  assert.equal(Number(customer360InvoiceAfterReversal.credit_memo_amount),0,"reversed memo no longer reduces Customer 360 receivables");
+  assert.equal(Number(customer360InvoiceAfterReversal.outstanding_amount),200);
+  await assertStaffCustomer360CreditTotal(customer360AfterReversal, organizationId, customerOne.id, "YER", "reversed Customer 360");
   const queueAfter=asJson((await db.unsafe("select public.fetch_customer_return_credit_memo_queue(50) as result"))[0].result);
   const returnAfter=queueAfter.requests.find(x=>x.request_id===firstRequest.request_id);
   assert.equal(returnAfter.credit_memo.status,"reversed");
