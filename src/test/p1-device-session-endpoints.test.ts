@@ -14,10 +14,14 @@ describe("P1 device-session local fixture endpoint guard", () => {
     expect(validateP1DeviceSessionEndpoints(API, ISOLATED_DATABASE).origin).toBe(API);
   });
 
+  it("accepts a dynamically allocated PostgreSQL port while retaining loopback-only access", () => {
+    expect(validateP1DeviceSessionEndpoints(API, "postgresql://postgres:postgres@127.0.0.1:55433/postgres").origin).toBe(API);
+  });
+
   it.each([
     ["remote Supabase API", "https://example.supabase.co", DEFAULT_DATABASE],
     ["non-loopback database", API, "postgresql://postgres:secret@db.example.test:55432/postgres"],
-    ["unexpected database port", API, "postgresql://postgres:secret@127.0.0.1:55433/postgres"],
+    ["invalid database port", API, "postgresql://postgres:secret@127.0.0.1:0/postgres"],
     ["database URL without the expected database", API, "postgresql://postgres:secret@127.0.0.1:55432/other"],
     ["API on a different port", "http://127.0.0.1:54322", DEFAULT_DATABASE],
     ["API URL with embedded credentials", "http://user:secret@127.0.0.1:54321", DEFAULT_DATABASE],
