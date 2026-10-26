@@ -282,6 +282,7 @@ async function main() {
   assert.equal(sameRows[0].source_type, "adjustment");
   assert.equal(sameRows[0].source_reference, sameOriginal);
   reversalLinkIds.push(sameRows[0].reversal_link_id);
+  entryIds.push(sameRows[0].reversal_journal_entry_id);
   await assertExactMirror(sameOriginal, sameRows[0].reversal_journal_entry_id, "same-key reversal");
   assert.equal(await reversalAuditCount(sameRows[0].reversal_link_id), 1,
     "same-key race writes exactly one reversal-draft audit event");
@@ -334,6 +335,7 @@ async function main() {
   assert.equal(distinctRows.length, 1, "different idempotency keys still yield one reversal link per original journal");
   assert.equal(distinctRows[0].reversal_journal_entry_id, distinctSuccesses[0].reversal_journal_entry_id);
   reversalLinkIds.push(distinctRows[0].reversal_link_id);
+  entryIds.push(distinctRows[0].reversal_journal_entry_id);
   await assertExactMirror(distinctOriginal, distinctRows[0].reversal_journal_entry_id, "distinct-key reversal");
   assert.equal(await reversalAuditCount(distinctRows[0].reversal_link_id), 1,
     "distinct-key race emits one reversal-draft audit event");
