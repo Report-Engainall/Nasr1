@@ -78,6 +78,59 @@ export async function runGeneralLedgerReversalAcceptance({
       [id, reason, key],
     ))[0].result);
   }
+  async function waitForReversalLockContenders(applicationPrefix, expectedCount, description) {
+    await db.unsafe("reset role");
+    try {
+      let observed = false;
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const waiting = await db.unsafe(
+          "select count(*)::integer as count from pg_catalog.pg_stat_activity " +
+          "where application_name like $1 and state='active' and wait_event_type='Lock'",
+          [applicationPrefix + "%"],
+        );
+        if (Number(waiting[0]?.count ?? 0) === expectedCount) {
+          observed = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      assert.equal(observed, true, description);
+    } finally {
+      await db.unsafe("set role authenticated");
+    }
+  }
+  async function runObservedJournalRace({ targetId, applicationPrefix, clients, invoke }) {
+    const gate = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+    let gateOpen = false;
+    let attemptsPromise;
+    try {
+      await gate.unsafe("begin");
+      gateOpen = true;
+      await gate.unsafe(
+        "select id from public.accounting_journal_entries where organization_id=$1::uuid and id=$2::uuid for update",
+        [organizationId, targetId],
+      );
+      await Promise.all(clients.map(async (client, index) => {
+        await setIdentityOn(client, staffAuthUserId, "admin@aghbari.ye");
+        await client.unsafe("select set_config('application_name',$1,false)", [
+          applicationPrefix + (index === 0 ? "a" : "b"),
+        ]);
+      }));
+      attemptsPromise = invoke(clients);
+      await waitForReversalLockContenders(
+        applicationPrefix,
+        clients.length,
+        "both concurrent reversal calls must be observed waiting on PostgreSQL locks before the source row is released",
+      );
+      await gate.unsafe("commit");
+      gateOpen = false;
+      return await attemptsPromise;
+    } finally {
+      if (gateOpen) await gate.unsafe("rollback").catch(() => {});
+      if (attemptsPromise) await Promise.allSettled([attemptsPromise]);
+      await gate.end({ timeout: 5 }).catch(() => {});
+    }
+  }
 
   const expenseAccountId = await createAccount("CI-REV-EXP-", "CI reversal expense", "expense");
   const cashAccountId = await createAccount("CI-REV-CASH-", "CI reversal cash", "asset");
@@ -235,7 +288,8 @@ export async function runGeneralLedgerReversalAcceptance({
   );
   assert.ok(journalAuditRows.some((row) => row.action === "accounting.journal_posted"));
 
-  // Competing authenticated sessions with the same idempotency key must produce one mapping and one result.
+  // Deterministically hold the original row so both same-key RPC sessions are
+  // observed waiting before release; Promise.all alone does not prove overlap.
   const concurrentOriginal = await createDraft(db, expenseAccountId, cashAccountId, randomUUID(), "P2 concurrent reversal source");
   assert.equal((await postJournal(db, concurrentOriginal.id)).status, "posted");
   const concurrentKey = randomUUID();
@@ -243,14 +297,15 @@ export async function runGeneralLedgerReversalAcceptance({
   const a = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const b = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   try {
-    await Promise.all([
-      setIdentityOn(a, staffAuthUserId, "admin@aghbari.ye"),
-      setIdentityOn(b, staffAuthUserId, "admin@aghbari.ye"),
-    ]);
-    const attempts = await Promise.all([
-      reverse(a, concurrentOriginal.id, concurrentReason, concurrentKey),
-      reverse(b, concurrentOriginal.id, concurrentReason, concurrentKey),
-    ]);
+    const attempts = await runObservedJournalRace({
+      targetId: concurrentOriginal.id,
+      applicationPrefix: "ci-gl-reversal-same-",
+      clients: [a, b],
+      invoke: ([clientA, clientB]) => Promise.all([
+        reverse(clientA, concurrentOriginal.id, concurrentReason, concurrentKey),
+        reverse(clientB, concurrentOriginal.id, concurrentReason, concurrentKey),
+      ]),
+    });
     assert.equal(attempts[0].reversal_journal_entry_id, attempts[1].reversal_journal_entry_id);
     assert.equal(attempts.filter((item) => item.replayed === false).length, 1);
     assert.equal(attempts.filter((item) => item.replayed === true).length, 1);
@@ -262,21 +317,24 @@ export async function runGeneralLedgerReversalAcceptance({
     [organizationId, concurrentOriginal.id],
   );
   assert.equal(concurrentLinks[0].count, 1, "race must not create duplicate reversal mapping rows");
-  
-  // Different idempotency keys racing against the same original must still create at most one reversal.
+
+  // Different keys must also overlap on the same posted source: exactly one
+  // reversal may win, with no partial second mapping or draft.
   const competingOriginal = await createDraft(db, expenseAccountId, cashAccountId, randomUUID(), "P2 competing reversal source");
   assert.equal((await postJournal(db, competingOriginal.id)).status, "posted");
   const c = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const d = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  let competing;
   try {
-    await Promise.all([
-      setIdentityOn(c, staffAuthUserId, "admin@aghbari.ye"),
-      setIdentityOn(d, staffAuthUserId, "admin@aghbari.ye"),
-    ]);
-    const competing = await Promise.allSettled([
-      reverse(c, competingOriginal.id, "First authorized competing reversal request", randomUUID()),
-      reverse(d, competingOriginal.id, "Second authorized competing reversal request", randomUUID()),
-    ]);
+    competing = await runObservedJournalRace({
+      targetId: competingOriginal.id,
+      applicationPrefix: "ci-gl-reversal-diff-",
+      clients: [c, d],
+      invoke: ([clientC, clientD]) => Promise.allSettled([
+        reverse(clientC, competingOriginal.id, "First authorized competing reversal request", randomUUID()),
+        reverse(clientD, competingOriginal.id, "Second authorized competing reversal request", randomUUID()),
+      ]),
+    });
     assert.equal(competing.filter((item) => item.status === "fulfilled").length, 1,
       "different idempotency keys racing on one original must create at most one reversal");
     assert.equal(competing.filter((item) => item.status === "rejected").length, 1,
@@ -295,5 +353,5 @@ export async function runGeneralLedgerReversalAcceptance({
 
 
   await db.unsafe("reset role");
-  process.stdout.write("PASS FIN-LEDGER-001 reversal: manual/adjustment scope, exact mirrored lines, explicit post, audit, tenant/RLS denial, source-linked path restriction, idempotency conflict/replay and concurrent exact retry\n");
+  process.stdout.write("PASS FIN-LEDGER-001 reversal: manual/adjustment scope, exact mirrored lines, explicit post, audit, tenant/RLS denial, source-linked path restriction, idempotency conflict/replay, and observed PostgreSQL lock contention for both same-key and competing-key races\n");
 }
