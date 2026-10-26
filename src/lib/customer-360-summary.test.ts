@@ -72,18 +72,7 @@ describe('staff customer 360 summary parser', () => {
   it('rejects malformed recent-detail payloads rather than silently omitting them', () => {
     expect(() => parseStaffCustomer360Summary({
       ...valid,
-      recent_invoices: [{ ...valid.recent_invoices[0], currency: 'US    expect(parseStaffCustomer360Summary({
-      ...valid, order_summary: { ...valid.order_summary, non_cancelled_order_value: null },
-    }).order_summary.non_cancelled_order_value).toBeNull();
-    expect(() => parseStaffCustomer360Summary({
-      ...valid, order_summary: { ...valid.order_summary, days_since_last_order: -1 },
-    })).toThrow(/الأيام منذ آخر طلب/);
-    expect(() => parseStaffCustomer360Summary({
-      ...valid, generated_at: 'bad-date',
-    })).toThrow(/وقت إنشاء التقرير/);
-  });
-});
- }],
+      recent_invoices: [{ ...valid.recent_invoices[0], currency: 'US$' }],
     })).toThrow(/رمز العملة/);
     expect(() => parseStaffCustomer360Summary({
       ...valid,
