@@ -5355,21 +5355,30 @@ async function main() {
       await client.unsafe("set role authenticated");
       await client.unsafe("select set_config('application_name',$1,false)",[invoiceJournalApps[index]]);
     }));
+    // Track the actual two backends. application_name is retained for diagnostics, but a name-only
+    // lookup can mistake a stale/idle activity row for the query issued by that session.
+    const invoiceJournalBackendPids=await Promise.all(invoiceJournalClients.map(async client=>
+      Number((await client.unsafe("select pg_catalog.pg_backend_pid() as pid"))[0].pid),
+    ));
     invoiceJournalAttempts=Promise.allSettled(invoiceJournalClients.map((client,index)=>client.unsafe(
       "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
       [invoice.id,debitAccountId,creditAccountId,null,index===0?invoiceJournalKey:invoiceJournalRaceKey],
     )));
     let bothInvoiceJournalWritersWaiting=false;
     let invoiceJournalActivity=[];
-    for(let attempt=0;attempt<120;attempt+=1){
+    // The local PG17 workflow can be busy during the migration suite; wait up to 10 seconds
+    // while requiring both exact backend PIDs to be executing the source RPC and blocked on a lock.
+    for(let attempt=0;attempt<400;attempt+=1){
       invoiceJournalActivity=await invoiceJournalGate.unsafe(
-        "select application_name,state,wait_event_type,wait_event,left(query,180) as query " +
+        "select pid,application_name,state,wait_event_type,wait_event,left(query,180) as query " +
         "from pg_catalog.pg_stat_activity " +
-        "where application_name in ('ci-invoice-journal-a','ci-invoice-journal-b')",
+        "where pid = any($1::integer[])",
+        [invoiceJournalBackendPids],
       );
-      bothInvoiceJournalWritersWaiting=invoiceJournalApps.every(applicationName=>
+      bothInvoiceJournalWritersWaiting=invoiceJournalBackendPids.every(pid=>
         invoiceJournalActivity.some(row=>
-          row.application_name===applicationName && row.state==="active" && row.wait_event_type==="Lock",
+          Number(row.pid)===pid && row.state==="active" && row.wait_event_type==="Lock" &&
+          String(row.query).includes("create_customer_invoice_journal_draft"),
         ),
       );
       if(bothInvoiceJournalWritersWaiting) break;
@@ -5382,6 +5391,7 @@ async function main() {
       assert.fail(
         "both invoice-journal callers must be observed waiting on the source lock before gate release: "+
         JSON.stringify({
+          backend_pids:invoiceJournalBackendPids,
           activity:invoiceJournalActivity,
           outcomes:outcomes.map(outcome=>outcome.status==="fulfilled"
             ? {ok:true}
