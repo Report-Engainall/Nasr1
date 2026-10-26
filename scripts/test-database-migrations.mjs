@@ -5477,7 +5477,6 @@ async function main() {
   assert.equal(runtimeAuditPaymentReplay.journal_entry_id,paymentJournalId);
   assert.equal(runtimeAuditPaymentReplay.replayed,true,
     "a later retry with a new request key should still replay the existing source mapping");
-  await db.unsafe("reset role");
   await expectFailure(
     "payment source cannot be remapped to a different settlement account after draft creation",
     () => db.unsafe(
