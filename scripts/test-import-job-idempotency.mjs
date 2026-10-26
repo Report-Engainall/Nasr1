@@ -120,6 +120,107 @@ async function main() {
     "same key with a changed external source reference must be rejected",
   );
 
+  // Race a matching request key with two distinct payloads. Both callers are
+  // forced to enter PostgreSQL and wait on the private request-claim table lock
+  // before release, after which exactly one payload may claim the key.
+  const conflictingRaceBase = {
+    ...base,
+    requestKey: randomUUID(),
+    fileName: "ci-import-conflict-" + randomUUID() + ".csv",
+    fileHash: sha256(randomUUID()),
+    periodKey: "ci-conflict-" + randomUUID(),
+    externalSourceReference: "ci-source-conflict-" + randomUUID(),
+  };
+  const conflictingRacePayload = {
+    ...conflictingRaceBase,
+    fileName: "ci-import-conflict-other-" + randomUUID() + ".csv",
+    externalSourceReference: "ci-source-conflict-other-" + randomUUID(),
+  };
+  await Promise.all([
+    firstClient.unsafe("select set_config('application_name',$1,false)", ["ci-import-payload-conflict-a"]),
+    secondClient.unsafe("select set_config('application_name',$1,false)", ["ci-import-payload-conflict-b"]),
+  ]);
+  const importConflictGate = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  let importConflictGateOpen = false;
+  let importConflictAttempts;
+  let importConflictResults;
+  let importConflictActivity = [];
+  try {
+    await importConflictGate.unsafe("begin");
+    importConflictGateOpen = true;
+    await importConflictGate.unsafe("lock table public.import_job_request_keys in share mode");
+    importConflictAttempts = Promise.allSettled([
+      createJob(firstClient, conflictingRaceBase),
+      createJob(secondClient, conflictingRacePayload),
+    ]);
+    let bothImportWritersWaiting = false;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      importConflictActivity = await db.unsafe(
+        "select application_name,state,wait_event_type,wait_event,left(query,180) as query " +
+          "from pg_catalog.pg_stat_activity " +
+          "where application_name in ('ci-import-payload-conflict-a','ci-import-payload-conflict-b')",
+      );
+      bothImportWritersWaiting = [
+        "ci-import-payload-conflict-a",
+        "ci-import-payload-conflict-b",
+      ].every((applicationName) => importConflictActivity.some((row) =>
+        row.application_name === applicationName &&
+        row.state === "active" &&
+        row.wait_event_type === "Lock"
+      ));
+      if (bothImportWritersWaiting) break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    if (!bothImportWritersWaiting) {
+      await importConflictGate.unsafe("rollback");
+      importConflictGateOpen = false;
+      importConflictResults = await importConflictAttempts;
+      assert.fail("both changed-payload import requests must be observed waiting on PostgreSQL locks before release: " +
+        JSON.stringify({
+          activity: importConflictActivity,
+          outcomes: importConflictResults.map((result) => result.status === "fulfilled"
+            ? { status: result.status, id: result.value.id }
+            : { status: result.status, error: String(result.reason?.message ?? result.reason) }),
+        }));
+    }
+    await importConflictGate.unsafe("commit");
+    importConflictGateOpen = false;
+    importConflictResults = await importConflictAttempts;
+  } finally {
+    if (importConflictGateOpen) await importConflictGate.unsafe("rollback").catch(() => {});
+    if (importConflictAttempts) await Promise.allSettled([importConflictAttempts]);
+    await importConflictGate.end({ timeout: 5 }).catch(() => {});
+  }
+  const importConflictSuccesses = importConflictResults.filter((result) => result.status === "fulfilled");
+  const importConflictFailures = importConflictResults.filter((result) => result.status === "rejected");
+  assert.equal(importConflictSuccesses.length, 1,
+    "different payloads racing for one request key must yield exactly one canonical job");
+  assert.equal(importConflictFailures.length, 1,
+    "the competing changed payload must be rejected rather than creating a second job");
+  assert.match(
+    String(importConflictFailures[0].reason?.message ?? importConflictFailures[0].reason),
+    /مفتاح محاولة الاستيراد مستخدم لعملية أو حمولة مختلفة/,
+    "the losing request must fail at the request-payload conflict guard",
+  );
+  const winningImportJob = importConflictSuccesses[0].value;
+  const conflictClaimRows = await db.unsafe(
+    "select count(*)::integer as count,min(import_job_id::text) as job_id,min(request_payload->>'file_name') as file_name " +
+      "from public.import_job_request_keys where organization_id=$1::uuid and actor_profile_id=$2::uuid and request_key=$3::uuid",
+    [organizationId, staffProfileId, conflictingRaceBase.requestKey],
+  );
+  assert.equal(conflictClaimRows[0].count, 1, "concurrent conflict must leave exactly one private request claim");
+  assert.equal(conflictClaimRows[0].job_id, winningImportJob.id,
+    "the surviving request claim must point at the single returned job");
+  assert.equal(conflictClaimRows[0].file_name, winningImportJob.file_name,
+    "the request payload stored with the claim must match the winning job identity");
+  const conflictJobRows = await db.unsafe(
+    "select count(*)::integer as count from public.import_jobs " +
+      "where organization_id=$1::uuid and created_by=$2::uuid and file_hash=$3 and period_key=$4",
+    [organizationId, staffProfileId, conflictingRaceBase.fileHash, conflictingRaceBase.periodKey],
+  );
+  assert.equal(conflictJobRows[0].count, 1,
+    "competing request payloads must not create a second import job for the same request identity");
+
   // The same file may be deliberately imported again only with a fresh key and explicit intent.
   const mergeAttempt = { ...base, requestKey: randomUUID(), intent: "merge" };
   const replaceAttempt = { ...base, requestKey: randomUUID(), intent: "replace" };
