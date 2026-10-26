@@ -15,9 +15,15 @@ export type StaffCustomer360Summary = {
   };
   finance_by_currency: Array<{
     currency: string; invoice_count: number; invoiced_total: number | null; paid_total: number | null;
-    outstanding_total: number | null; overdue_invoice_count: number; overdue_outstanding: number | null;
+    credit_memo_total: number; outstanding_total: number | null;
+    overdue_invoice_count: number; overdue_outstanding: number | null;
     unknown_due_date_invoice_count: number; unknown_due_date_outstanding: number | null;
     invalid_total_amount_count: number;
+  }>;
+  recent_invoices: Array<{
+    id: string; invoice_number: string; status: string; issued_at: string | null; due_at: string | null;
+    currency: string; total_amount: number | null; paid_amount: number;
+    credit_memo_amount: number; outstanding_amount: number | null;
   }>;
   top_products: Array<{
     item_code: string; product_name: string; quantity: number; sales: number | null; last_purchased_at: string | null;
@@ -90,12 +96,28 @@ export function parseStaffCustomer360Summary(value: unknown): StaffCustomer360Su
       invoice_count: asInt(row.invoice_count, 'عدد الفواتير'),
       invoiced_total: nullableMoney(row.invoiced_total, 'إجمالي الفواتير'),
       paid_total: nullableMoney(row.paid_total, 'إجمالي المدفوع'),
+      credit_memo_total: asMoney(row.credit_memo_total, 'إجمالي الإشعارات الدائنة'),
       outstanding_total: nullableMoney(row.outstanding_total, 'المبلغ المتبقي'),
       overdue_invoice_count: asInt(row.overdue_invoice_count, 'عدد الفواتير المتأخرة'),
       overdue_outstanding: nullableMoney(row.overdue_outstanding, 'المبالغ المتأخرة'),
       unknown_due_date_invoice_count: asInt(row.unknown_due_date_invoice_count, 'عدد الفواتير دون استحقاق'),
       unknown_due_date_outstanding: nullableMoney(row.unknown_due_date_outstanding, 'المبالغ ذات الاستحقاق غير المعروف'),
       invalid_total_amount_count: asInt(row.invalid_total_amount_count, 'عدد إجماليات الفواتير غير الصالحة'),
+    };
+  });
+  const recentInvoices = asArray(root.recent_invoices, 'أحدث الفواتير').map((raw, index) => {
+    const row = asObject(raw, `الفاتورة ${index + 1}`);
+    return {
+      id: asText(row.id, 'معرّف الفاتورة'),
+      invoice_number: asText(row.invoice_number, 'رقم الفاتورة'),
+      status: asText(row.status, 'حالة الفاتورة'),
+      issued_at: nullableDate(row.issued_at, 'تاريخ إصدار الفاتورة'),
+      due_at: nullableDate(row.due_at, 'تاريخ استحقاق الفاتورة'),
+      currency: currencyCode(row.currency, `عملة الفاتورة ${index + 1}`),
+      total_amount: nullableMoney(row.total_amount, 'إجمالي الفاتورة'),
+      paid_amount: asMoney(row.paid_amount, 'المسدّد من الفاتورة'),
+      credit_memo_amount: asMoney(row.credit_memo_amount, 'الإشعارات الدائنة للفاتورة'),
+      outstanding_amount: nullableMoney(row.outstanding_amount, 'المتبقي على الفاتورة'),
     };
   });
   const topProducts = asArray(root.top_products, 'أكثر منتجات العميل شراءً').map((raw, index) => {
@@ -153,6 +175,7 @@ export function parseStaffCustomer360Summary(value: unknown): StaffCustomer360Su
       status_distribution: statusDistribution,
     },
     finance_by_currency: finance,
+    recent_invoices: recentInvoices,
     top_products: topProducts,
     recommendations,
   };
