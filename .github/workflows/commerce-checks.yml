@@ -84,6 +84,13 @@ jobs:
             done
           fi
           exit "$db_status"
+      # The acceptance script only queries TEST_DATABASE_URL. Its Supabase URL input is checked by the loopback-only guard and is not contacted.
+      - name: Verify cash-expense source journal and post/void concurrency on PostgreSQL 17
+        env:
+          E2E_MANAGER_EMAIL: admin@aghbari.ye
+          E2E_EMAIL: ci-customer-one@example.test
+          E2E_SUPABASE_URL: http://127.0.0.1:54321
+        run: node scripts/test-cash-expense-journal-posting.mjs
       - name: Verify concurrent customer and company invitation acceptance on PostgreSQL 17
         run: node scripts/test-invitation-acceptance-concurrency.mjs
       - name: Verify customer address default concurrency and tenant ownership on PostgreSQL 17
