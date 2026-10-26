@@ -342,7 +342,8 @@ describe("product-image-upload Edge handler HTTP boundary", () => {
 
     const response = await h.handler(uploadRequest());
     expect(response.status).toBe(503);
-    expect(await json(response)).toEqual({ error: "image_service_unavailable" });
-    expect(JSON.stringify(await json(new Response(JSON.stringify({ error: "image_service_unavailable" })))).toContain("secret token")).toBe(false);
+    const payload = await json(response);
+    expect(payload).toEqual({ error: "image_service_unavailable" });
+    expect(JSON.stringify(payload)).not.toContain("secret token");
   });
 });
