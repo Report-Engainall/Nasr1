@@ -2777,6 +2777,7 @@ async function main() {
       .catch((error) => ({ ok: false, error }));
     chunkRaceAttemptA = registerChunk(chunkRaceA);
     chunkRaceAttemptB = registerChunk(chunkRaceB);
+    await db.unsafe("reset role");
     let observedBothChunkWritersWaiting = false;
     for (let attempt = 0; attempt < 120; attempt += 1) {
       const waiting = await db.unsafe(
