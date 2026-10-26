@@ -1,3 +1,21 @@
+# CURRENT EXECUTION ADDENDUM — 2026-10-26 — after PR #245 — stock-count balance-set acceptance
+
+- **Authoritative repository:** `Report-Engainall/Nasr1`; only execution target is `main`.
+- **Current verified main SHA:** `804136cc8c40c46fa550ae70dae4f7039072fa96`. Post-merge Core [40384359134 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40384359134). PR #245 merged at this SHA; its exact-head Core [40383636348 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40383636348) and P2 [40383636183 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40383636183).
+- **Recent accepted code/acceptance changes already merged:**
+  - PR #236: invoice ledger keyset pagination and server-computed full-history balances; current docs/MATRIX corrected from stale pending status.
+  - PR #237: concurrent purchase receipt idempotency acceptance.
+  - PR #239: concurrent invoice journal creation using distinct keys, one canonical source posting and audit.
+  - PR #244: different payloads racing for one import request key yield one job and one documented conflict; merged as `aff4aff8cbf3dc61785bf7cb6f92dd0d4815b1b9`.
+  - PR #245: wires `scripts/test-cash-expense-journal-posting.mjs` into default Core CI. The PostgreSQL 17 post/void race step passed on exact head and current-main post-merge Core passed.
+- **Current change branch:** `test/inventory-stock-count-balance-set-acceptance-20261026`, based on `804136cc8c40c46fa550ae70dae4f7039072fa96`. Added runtime PostgreSQL acceptance to the existing `scripts/test-database-migrations.mjs` stock-count section. It creates a same-tenant active product with no target-warehouse balance, starts and fills a count snapshot, creates the balance after snapshot time, and requires finalization to fail with the balance-set conflict while leaving the count open, emitting no adjustment movement/completion audit, and allowing exactly-once audited cancellation. The temporary fixture is removed at test end.
+- **Purpose:** this is not a new stock-count implementation; migration `20261024162000_stock_count_snapshot_balance_set_guard.sql` is already in main. The uncovered gap is a real PostgreSQL 17 runtime test for new/missing balance-set membership; a source-only unit test and a stale-quantity test alone do not prove it.
+- **Acceptance gate:** open one PR, run Core (full migrations, new PG17 test, lint/build/preview smoke) and P2 on the exact same final PR SHA. Fix failures before merge. After merge, require Core on the exact merge SHA. No production claims until this gate passes.
+- **Known external boundaries:** live Onyx Pro import/sync, official WhatsApp delivery, real AI provider responses, hosted customer activation/email, and hosted cross-tenant customer journeys remain `BLOCKED_EXTERNAL/SKIPPED` where authorized credentials and actual provider responses are not present.
+- **NEXT_ACTION:** open PR from `test/inventory-stock-count-balance-set-acceptance-20261026`; run exact-head Core/P2; correct the runtime test if it exposes a real migration defect; merge only after both pass; update this pointer with the exact merge SHA and post-merge Core result. Then take the next highest-risk unclosed API-OPS item; do not repeat accepted payment, invoice-journal, purchase-receipt, or cash-expense race tests.
+
+---
+
 # CURRENT EXECUTION ADDENDUM — 2026-10-26 — FIN-INVOICE-001
 
 - **Authoritative repository:** `Report-Engainall/Nasr1`; production reference remains `main`.
