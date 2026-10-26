@@ -1,3 +1,15 @@
+# CURRENT API-OPS ADDENDUM — 2026-10-26 — after PR #255 and docs refresh
+
+- **Current main SHA:** `66db57c3a50e1372c7dcc5e68b47b5674d16bc29` after PR #253. Post-merge Core [40398635908](https://github.com/Report-Engainall/Nasr1/actions/runs/40398635908) is IN_PROGRESS on this exact SHA; it must reach terminal status before the release gate is closed.
+- **Import finalizer scope gate:** PR #255 exact-head Core 40397372624, P2 40397372507 and dedicated PostgreSQL 17 40397372460 all SUCCESS. Merge SHA `1070ae9c0aa5efca611acde321f8108f51896ad6` then passed post-merge Core [40398087365](https://github.com/Report-Engainall/Nasr1/actions/runs/40398087365) and dedicated finalizer [40398087347](https://github.com/Report-Engainall/Nasr1/actions/runs/40398087347) on that exact SHA. The path filter now retriggers the dedicated finalizer workflow when `scripts/test-database-migrations.mjs` changes.
+- **Invoice/payment journal races:** PR #251 exact-head Core/P2 40395688620/40395688803 SUCCESS; post-merge Core 40396394436 SUCCESS on `3af89b5aad04d9dca3cad45eb02432d2663b008c`. Reserved PostgreSQL sessions now pin backends across identity, PID capture and RPC execution.
+- **Return-credit preparation race:** PR #249 exact-head Core/P2 40393815811/40393815607 SUCCESS; post-merge Core 40394522356 SUCCESS. Distinct idempotency keys racing on one received return are proved to yield one memo, journal/posting link, accountant task and audit.
+- **Payment journal acceptance:** PR #248 exact-head Core/P2 40392506835/40392506840 SUCCESS; post-merge Core 40393211910 SUCCESS.
+- **RPC remainder count:** the 179-candidate baseline and “176 remaining” status are historical; they predate newer accepted finance, returns, purchase receipt and operational contracts. Build a live candidate-to-acceptance map before publishing a current count. API-OPS remains PARTIAL until each callable RPC/Edge boundary has evidence for role/auth, tenant scope, input validation, idempotency, retries, audit and no-side-effect denial.
+- **External boundary:** hosted authenticated customer/tenant E2E remains SKIPPED/BLOCKED_EXTERNAL absent authorized non-production credentials; live Onyx Pro, WhatsApp, AI-provider calls and production operations remain unproven.
+
+---
+
 # CURRENT API-OPS ADDENDUM — 2026-10-26 — after PR #251
 
 - **Current main SHA:** `3af89b5aad04d9dca3cad45eb02432d2663b008c` after PR #251. Exact PR head `378da8d59cf36a9f2b49a8de5351b33023315e36`: Core [40395688620 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40395688620) and P2 [40395688803 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40395688803). Post-merge Core [40396394436 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40396394436) completed on the exact current SHA.
