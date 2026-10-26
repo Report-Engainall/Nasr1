@@ -630,8 +630,12 @@ async function main() {
   assert.ok(beforeYER,"YER customer ledger baseline exists before credit posting");
 
   // Acceptance: payment and source-credit posting serialize on the same invoice settlement lock.
-  // Both operations fit inside the 500.00 invoice balance; neither may observe an incomplete ledger state.
+  // Hold that exact advisory key so both authenticated calls must be observed waiting
+  // in PostgreSQL before release; Promise.all timing by itself is not race evidence.
   const settlementRacer = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  const settlementGate = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  let settlementGateOpen = false;
+  let settlementAttempts;
   let settlementResults;
   try {
     await settlementRacer.unsafe("reset role").catch(()=>{});
@@ -644,18 +648,78 @@ async function main() {
       JSON.stringify({sub:managerAuthId,email:"ci-return-manager@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated",session_id:managerAuthId}),
     ]);
     await settlementRacer.unsafe("set role authenticated");
-    settlementResults = await Promise.all([
-      db.unsafe(
+    await db.unsafe("select set_config('application_name',$1,false)",["ci-invoice-settlement-payment"]);
+    await settlementRacer.unsafe("select set_config('application_name',$1,false)",["ci-invoice-settlement-credit"]);
+    await settlementGate.unsafe("begin");
+    settlementGateOpen = true;
+    await settlementGate.unsafe(
+      "select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended($1::text,0))",
+      [organizationId + ":customer-invoice-settlement:" + sourceInvoiceId],
+    );
+    const captureSettlementOutcome = (queryPromise) => queryPromise
+      .then((rows) => ({ ok: true, rows }))
+      .catch((error) => ({
+        ok: false,
+        error: {
+          message: String(error?.message ?? error),
+          code: error?.code ?? null,
+          severity: error?.severity ?? null,
+          detail: error?.detail ?? null,
+          where: error?.where ?? null,
+        },
+      }));
+    settlementAttempts = Promise.all([
+      captureSettlementOutcome(db.unsafe(
         "select public.record_customer_payment($1::uuid,$2::numeric,$3::text,$4::uuid,$5::text,$6::text) as id",
         [sourceInvoiceId,100,"cash",randomUUID(),"CI-RET-CONCURRENT-PAY-001","payment concurrent with source-credit posting"],
-      ),
-      settlementRacer.unsafe(
+      )),
+      captureSettlementOutcome(settlementRacer.unsafe(
         "select public.post_general_journal_entry($1::uuid) as result",
         [preparedCredit.journal_entry_id],
-      ),
+      )),
     ]);
+    let bothSettlementWritersWaiting = false;
+    let settlementActivitySnapshot = [];
+    for (let attempt = 0; attempt < 160; attempt += 1) {
+      settlementActivitySnapshot = await settlementGate.unsafe(
+        "select application_name,state,wait_event_type,wait_event,left(query,180) as query " +
+        "from pg_catalog.pg_stat_activity " +
+        "where application_name in ('ci-invoice-settlement-payment','ci-invoice-settlement-credit')",
+      );
+      const waitingCount = settlementActivitySnapshot.filter((row) =>
+        row.state === "active" && row.wait_event_type === "Lock"
+      ).length;
+      if (waitingCount === 2) {
+        bothSettlementWritersWaiting = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve,25));
+    }
+    if (!bothSettlementWritersWaiting) {
+      await settlementGate.unsafe("rollback");
+      settlementGateOpen = false;
+      const outcomes = await settlementAttempts;
+      assert.fail("invoice settlement lock contention was not observed for both RPC calls: " + JSON.stringify({
+        activity: settlementActivitySnapshot,
+        outcomes: outcomes.map((item) => item.ok
+          ? { ok: true }
+          : { ok: false, error: item.error }),
+      }));
+    }
+    await settlementGate.unsafe("commit");
+    settlementGateOpen = false;
+    const settlementOutcomes = await settlementAttempts;
+    const settlementFailures = settlementOutcomes.filter((item) => !item.ok);
+    assert.equal(settlementFailures.length,0,
+      "both settlement calls must succeed after lock release: " + JSON.stringify(settlementFailures.map((item) => item.error)));
+    settlementResults = settlementOutcomes.map((item) => item.rows);
   } finally {
-    await settlementRacer.end({timeout:5}).catch(()=>{});
+    if (settlementGateOpen) await settlementGate.unsafe("rollback").catch(()=>{});
+    if (settlementAttempts) await Promise.allSettled([settlementAttempts]);
+    await Promise.all([
+      settlementGate.end({timeout:5}).catch(()=>{}),
+      settlementRacer.end({timeout:5}).catch(()=>{}),
+    ]);
   }
   const concurrentPaymentId = settlementResults[0][0].id;
   assert.ok(concurrentPaymentId,"concurrent payment request commits one payment ID");
