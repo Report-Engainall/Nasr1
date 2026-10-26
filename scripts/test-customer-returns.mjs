@@ -630,8 +630,12 @@ async function main() {
   assert.ok(beforeYER,"YER customer ledger baseline exists before credit posting");
 
   // Acceptance: payment and source-credit posting serialize on the same invoice settlement lock.
-  // Both operations fit inside the 500.00 invoice balance; neither may observe an incomplete ledger state.
+  // Hold that exact advisory key so both authenticated calls must be observed waiting
+  // in PostgreSQL before release; Promise.all timing by itself is not race evidence.
   const settlementRacer = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  const settlementGate = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  let settlementGateOpen = false;
+  let settlementAttempts;
   let settlementResults;
   try {
     await settlementRacer.unsafe("reset role").catch(()=>{});
@@ -644,7 +648,15 @@ async function main() {
       JSON.stringify({sub:managerAuthId,email:"ci-return-manager@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated",session_id:managerAuthId}),
     ]);
     await settlementRacer.unsafe("set role authenticated");
-    settlementResults = await Promise.all([
+    await db.unsafe("select set_config('application_name',$1,false)",["ci-invoice-settlement-payment"]);
+    await settlementRacer.unsafe("select set_config('application_name',$1,false)",["ci-invoice-settlement-credit"]);
+    await settlementGate.unsafe("begin");
+    settlementGateOpen = true;
+    await settlementGate.unsafe(
+      "select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended($1::text,0))",
+      [organizationId + ":customer-invoice-settlement:" + sourceInvoiceId],
+    );
+    settlementAttempts = Promise.all([
       db.unsafe(
         "select public.record_customer_payment($1::uuid,$2::numeric,$3::text,$4::uuid,$5::text,$6::text) as id",
         [sourceInvoiceId,100,"cash",randomUUID(),"CI-RET-CONCURRENT-PAY-001","payment concurrent with source-credit posting"],
@@ -654,8 +666,31 @@ async function main() {
         [preparedCredit.journal_entry_id],
       ),
     ]);
+    let bothSettlementWritersWaiting = false;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const waiting = await settlementGate.unsafe(
+        "select count(*)::integer as count from pg_catalog.pg_stat_activity " +
+        "where application_name in ('ci-invoice-settlement-payment','ci-invoice-settlement-credit') " +
+        "and state='active' and wait_event_type='Lock'",
+      );
+      if (Number(waiting[0]?.count ?? 0) === 2) {
+        bothSettlementWritersWaiting = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve,25));
+    }
+    assert.equal(bothSettlementWritersWaiting,true,
+      "payment and credit posting must both be observed waiting on the invoice settlement advisory lock before release");
+    await settlementGate.unsafe("commit");
+    settlementGateOpen = false;
+    settlementResults = await settlementAttempts;
   } finally {
-    await settlementRacer.end({timeout:5}).catch(()=>{});
+    if (settlementGateOpen) await settlementGate.unsafe("rollback").catch(()=>{});
+    if (settlementAttempts) await Promise.allSettled([settlementAttempts]);
+    await Promise.all([
+      settlementGate.end({timeout:5}).catch(()=>{}),
+      settlementRacer.end({timeout:5}).catch(()=>{}),
+    ]);
   }
   const concurrentPaymentId = settlementResults[0][0].id;
   assert.ok(concurrentPaymentId,"concurrent payment request commits one payment ID");
