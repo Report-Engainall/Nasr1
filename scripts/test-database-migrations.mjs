@@ -2525,6 +2525,127 @@ async function main() {
     "22023",
   );
 
+  // API-OPS-001: force real concurrent first-claim contention for import-job
+  // idempotency. Hold INSERTs into import_jobs after the first caller has claimed
+  // the request key; the second caller must be observed waiting on the same key.
+  const runObservedImportRequestRace = async ({ key, applicationPrefix, payloads }) => {
+    const gate = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+    const clients = [
+      postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 }),
+      postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 }),
+    ];
+    let gateOpen = false;
+    let roleReset = false;
+    let attemptsPromise;
+    try {
+      await gate.unsafe("begin");
+      gateOpen = true;
+      await gate.unsafe("lock table public.import_jobs in share mode");
+      await Promise.all(clients.map(async (connection, index) => {
+        const appName = applicationPrefix + (index === 0 ? "a" : "b");
+        await connection.unsafe("select set_config('application_name',$1,false)", [appName]);
+        await connection.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [staffAuthUserId]);
+        await connection.unsafe("select set_config('request.jwt.claims',$1,false)", [
+          JSON.stringify({ sub: staffAuthUserId, email: "admin@aghbari.ye", role: "authenticated", session_id: staffAuthUserId }),
+        ]);
+        await connection.unsafe("set role authenticated");
+      }));
+      attemptsPromise = Promise.allSettled(clients.map((connection, index) => connection.unsafe(
+        "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+        payloads[index],
+      )));
+      await db.unsafe("reset role");
+      roleReset = true;
+      let bothWritersWaiting = false;
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const waiting = await db.unsafe(
+          "select count(*)::integer as count from pg_catalog.pg_stat_activity " +
+          "where application_name like $1 and state='active' and wait_event_type='Lock'",
+          [applicationPrefix + "%"],
+        );
+        if (Number(waiting[0]?.count ?? 0) === 2) {
+          bothWritersWaiting = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      assert.equal(bothWritersWaiting, true,
+        "both import idempotency sessions must be observed waiting on PostgreSQL locks before release");
+      await gate.unsafe("commit");
+      gateOpen = false;
+      return await attemptsPromise;
+    } finally {
+      if (gateOpen) await gate.unsafe("rollback").catch(() => {});
+      if (attemptsPromise) await Promise.allSettled([attemptsPromise]);
+      if (roleReset) await db.unsafe("set role authenticated").catch(() => {});
+      await Promise.all([
+        ...clients.map((connection) => connection.end({ timeout: 5 }).catch(() => undefined)),
+        gate.end({ timeout: 5 }).catch(() => undefined),
+      ]);
+    }
+  };
+  const importRaceRequestArgs = (key, fileName, fileHash, sourceReference) => [
+    key, fileName, fileHash, 500, "onyx_stock", sourceReference,
+    importJob.profile_id, "2026-04", "ci", "new_version",
+  ];
+  const sameImportRaceKey = randomUUID();
+  const sameImportRacePayload = importRaceRequestArgs(
+    sameImportRaceKey, "CI concurrent idempotent import.csv", "c".repeat(64), "CI-IMPORT-RACE-SAME",
+  );
+  const sameImportRace = await runObservedImportRequestRace({
+    key: sameImportRaceKey,
+    applicationPrefix: "ci-import-idem-same-",
+    payloads: [sameImportRacePayload, sameImportRacePayload],
+  });
+  assert.deepEqual(sameImportRace.map((outcome) => outcome.status), ["fulfilled", "fulfilled"],
+    "two concurrent identical import-job requests must both succeed");
+  const sameImportRaceResults = sameImportRace.map((outcome) => outcome.value[0].result);
+  assert.equal(sameImportRaceResults[0].id, sameImportRaceResults[1].id,
+    "identical concurrent requests must return one canonical import-job UUID");
+  assert.equal(sameImportRaceResults[0].organization_id, organizationId);
+  assert.equal(sameImportRaceResults[1].organization_id, organizationId);
+  const sameImportRaceRows = await db.unsafe(
+    "select count(*)::integer as key_count, count(j.id)::integer as job_count " +
+    "from public.import_job_request_keys k left join public.import_jobs j " +
+    "on j.id=k.import_job_id and j.organization_id=k.organization_id " +
+    "where k.organization_id=$1::uuid and k.actor_profile_id=$2::uuid and k.request_key=$3::uuid",
+    [organizationId, staffProfileId, sameImportRaceKey],
+  );
+  assert.equal(sameImportRaceRows[0].key_count, 1, "same-key race must persist one request claim");
+  assert.equal(sameImportRaceRows[0].job_count, 1, "same-key race must persist one linked import job");
+
+  const differentImportRaceKey = randomUUID();
+  const differentImportRaceA = importRaceRequestArgs(
+    differentImportRaceKey, "CI concurrent import payload A.csv", "d".repeat(64), "CI-IMPORT-RACE-DIFFERENT-A",
+  );
+  const differentImportRaceB = importRaceRequestArgs(
+    differentImportRaceKey, "CI concurrent import payload B.csv", "e".repeat(64), "CI-IMPORT-RACE-DIFFERENT-B",
+  );
+  const differentImportRace = await runObservedImportRequestRace({
+    key: differentImportRaceKey,
+    applicationPrefix: "ci-import-idem-diff-",
+    payloads: [differentImportRaceA, differentImportRaceB],
+  });
+  assert.equal(differentImportRace.filter((outcome) => outcome.status === "fulfilled").length, 1,
+    "different concurrent payloads sharing one request key must have one winner");
+  assert.equal(differentImportRace.filter((outcome) => outcome.status === "rejected").length, 1,
+    "changed concurrent payload for the same key must be rejected");
+  const rejectedImportRace = differentImportRace.find((outcome) => outcome.status === "rejected");
+  assert.match(String(rejectedImportRace?.status === "rejected" ? (rejectedImportRace.reason?.message ?? rejectedImportRace.reason) : ""),
+    /مفتاح محاولة الاستيراد مستخدم لعملية أو حمولة مختلفة/i);
+  assert.equal(rejectedImportRace?.status === "rejected" ? rejectedImportRace.reason?.code : null, "22023",
+    "changed-payload idempotency conflict must use SQLSTATE 22023");
+  const differentImportRaceRows = await db.unsafe(
+    "select count(*)::integer as key_count, count(j.id)::integer as job_count " +
+    "from public.import_job_request_keys k left join public.import_jobs j " +
+    "on j.id=k.import_job_id and j.organization_id=k.organization_id " +
+    "where k.organization_id=$1::uuid and k.actor_profile_id=$2::uuid and k.request_key=$3::uuid",
+    [organizationId, staffProfileId, differentImportRaceKey],
+  );
+  assert.equal(differentImportRaceRows[0].key_count, 1, "conflicting race must persist only the winning request claim");
+  assert.equal(differentImportRaceRows[0].job_count, 1, "conflicting race must leave only one linked import job");
+  process.stdout.write("PASS import-job request idempotency: observed same-key lock contention returns one canonical job; competing payload receives 22023 without a duplicate job.\\n");
+
   const importRows = [
     { item_code: "000125", product_name: "Rice", quantity: "5", revenue: "150", date: "2026-01-01" },
     { item_code: "000126", product_name: "Sugar", quantity: "10", revenue: "450", date: "2026-01-02" },
