@@ -4,7 +4,7 @@ This note supersedes the source-comparison and next-action claims in the dated 2
 
 - The 26 October read-only cross-tree comparison is now complete for the source repository. Its exact SHAs and selective dispositions are recorded under `SELECTIVE_SOURCE_COMPARISON — CLOSED WITH EVIDENCE` below.
 - Do not copy source-only admin role/password migrations; do not replace newer target framework, tier-specific product pricing, live-session pricing RPC, analytics or Customer 360.
-- The current completion pointer is `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`. PR #208 was merged at `c04558d28d5cb97a87fa2f26948fcdab96020ed9`; pre-merge exact-head Core/P2 passed, while post-merge Core run 40330789179 was pending when this note was written.
+- The current completion pointer is `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`. PR #208 was merged at `c04558d28d5cb97a87fa2f26948fcdab96020ed9`; pre-merge exact-head Core/P2 passed and post-merge Core run 40330789179 later completed SUCCESS on the exact main merge SHA.
 - **Remaining blockers are external evidence only where that is actually true:** hosted authenticated customer E2E, production deployment/migration/restore, live Onyx/WhatsApp/AI provider behavior. Keep source/API/DB/UI work moving independently; do not mark these integrations PASS without runtime evidence.
 - **Next executable step:** resolve post-merge Core run 40330789179, then proceed to the next unaccepted API/transaction/screen item in the canonical acceptance matrix and update the live checkpoint with exact commit/test evidence.
 
