@@ -5340,21 +5340,144 @@ async function main() {
   );
 
   const paymentJournalKey = "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdc1";
+  const paymentJournalRaceKey = "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdc2";
   await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
   await db.unsafe("set role authenticated");
-  const paymentDraft = (await db.unsafe(
-    "select public.create_customer_payment_journal_draft($1::uuid,$2::uuid,$3::uuid) as result",
-    [paymentSource.id, altSettlementAccountId, paymentJournalKey],
-  ))[0].result;
-  assert.equal(paymentDraft.status, "draft");
-  assert.equal(Number(paymentDraft.amount), Number(paymentSource.amount));
+
+  // FIN-PAYMENT-JOURNAL-001: force two authenticated accountants to contend
+  // on the same source-payment advisory lock before either can create its draft.
+  // Different request keys must still resolve to one source-linked journal and one audit.
+  const paymentJournalGate = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+  const paymentJournalClients = [
+    postgres(connectionString,{max:1,prepare:false,idle_timeout:5}),
+    postgres(connectionString,{max:1,prepare:false,idle_timeout:5}),
+  ];
+  let paymentJournalGateOpen = false;
+  let paymentJournalAttempts;
+  let paymentJournalResults;
+  const paymentJournalApps = ["ci-payment-journal-a","ci-payment-journal-b"];
+  try {
+    await paymentJournalGate.unsafe("begin");
+    paymentJournalGateOpen = true;
+    await paymentJournalGate.unsafe(
+      "select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended($1::text || ':customer-payment-journal:' || $2::text,0))",
+      [organizationId,paymentSource.id],
+    );
+    await Promise.all(paymentJournalClients.map(async (client,index) => {
+      await client.unsafe("reset role").catch(()=>{});
+      const sessionId = randomUUID();
+      await client.unsafe(
+        "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+        "values($1,$2,now(),now(),now(),null,'CI customer payment journal race','127.0.0.1'::inet) " +
+        "on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+        [sessionId,accountantAuthUserId],
+      );
+      await client.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[accountantAuthUserId]);
+      await client.unsafe("select set_config('request.jwt.claims',$1,false)",[
+        JSON.stringify({sub:accountantAuthUserId,email:"ci-accountant@example.test",role:"authenticated",session_id:sessionId}),
+      ]);
+      await client.unsafe("set role authenticated");
+      await client.unsafe("select set_config('application_name',$1,false)",[paymentJournalApps[index]]);
+    }));
+    paymentJournalAttempts = Promise.allSettled(paymentJournalClients.map((client,index) => client.unsafe(
+      "select public.create_customer_payment_journal_draft($1::uuid,$2::uuid,$3::uuid) as result",
+      [paymentSource.id,altSettlementAccountId,index===0?paymentJournalKey:paymentJournalRaceKey],
+    )));
+    let bothPaymentJournalWritersWaiting = false;
+    let paymentJournalActivity = [];
+    for (let attempt=0; attempt<120; attempt+=1) {
+      paymentJournalActivity = await paymentJournalGate.unsafe(
+        "select application_name,state,wait_event_type,wait_event,left(query,180) as query " +
+        "from pg_catalog.pg_stat_activity " +
+        "where application_name in ('ci-payment-journal-a','ci-payment-journal-b')",
+      );
+      bothPaymentJournalWritersWaiting = paymentJournalApps.every((applicationName) =>
+        paymentJournalActivity.some((row) =>
+          row.application_name===applicationName && row.state==="active" && row.wait_event_type==="Lock",
+        ),
+      );
+      if (bothPaymentJournalWritersWaiting) break;
+      await new Promise((resolve)=>setTimeout(resolve,25));
+    }
+    if (!bothPaymentJournalWritersWaiting) {
+      await paymentJournalGate.unsafe("rollback");
+      paymentJournalGateOpen = false;
+      const outcomes = await paymentJournalAttempts;
+      assert.fail(
+        "both payment-journal callers must be observed waiting on the source lock before gate release: " +
+        JSON.stringify({
+          activity:paymentJournalActivity,
+          outcomes:outcomes.map((outcome)=>outcome.status==="fulfilled"
+            ? {ok:true}
+            : {ok:false,error:String(outcome.reason?.message ?? outcome.reason)}),
+        }),
+      );
+    }
+    await paymentJournalGate.unsafe("commit");
+    paymentJournalGateOpen = false;
+    paymentJournalResults = await paymentJournalAttempts;
+  } finally {
+    if (paymentJournalGateOpen) await paymentJournalGate.unsafe("rollback").catch(()=>{});
+    if (paymentJournalAttempts) await Promise.allSettled([paymentJournalAttempts]);
+    await Promise.all([
+      paymentJournalGate.end({timeout:5}).catch(()=>{}),
+      ...paymentJournalClients.map((client)=>client.end({timeout:5}).catch(()=>{})),
+    ]);
+  }
+  assert.equal(paymentJournalResults.filter((outcome)=>outcome.status==="fulfilled").length,2,
+    "both same-source payment journal requests should resolve: " +
+    JSON.stringify(paymentJournalResults.map((outcome)=>outcome.status==="rejected"
+      ? String(outcome.reason?.message ?? outcome.reason)
+      : {ok:true})));
+  const paymentJournalValues = paymentJournalResults.map((outcome)=>outcome.status==="fulfilled"
+    ? outcome.value[0].result
+    : null);
+  assert.equal(paymentJournalValues.filter((value)=>value?.replayed===false).length,1,
+    "exactly one concurrent payment-journal request should create the draft");
+  assert.equal(paymentJournalValues.filter((value)=>value?.replayed===true).length,1,
+    "the losing same-source request should replay the canonical draft");
+  assert.equal(paymentJournalValues[0].journal_entry_id,paymentJournalValues[1].journal_entry_id,
+    "concurrent same-source requests must return one journal entry ID");
+  const paymentDraft = paymentJournalValues.find((value)=>value.replayed===false);
+  assert.ok(paymentDraft,"the race must expose the one original payment journal draft");
+  assert.equal(paymentDraft.status,"draft");
+  assert.equal(Number(paymentDraft.amount),Number(paymentSource.amount));
   const paymentJournalId = paymentDraft.journal_entry_id;
+
+  await db.unsafe("reset role");
+  const paymentSourcePostingRaceRows = await db.unsafe(
+    "select sp.journal_entry_id,sp.idempotency_key,je.status " +
+    "from public.accounting_customer_source_postings sp " +
+    "join public.accounting_journal_entries je on je.id=sp.journal_entry_id and je.organization_id=sp.organization_id " +
+    "where sp.organization_id=$1::uuid and sp.source_type='customer_payment' and sp.source_id=$2::uuid and sp.posting_kind='original'",
+    [organizationId,paymentSource.id],
+  );
+  assert.equal(paymentSourcePostingRaceRows.length,1,
+    "payment journal race must persist exactly one source-link row");
+  assert.equal(paymentSourcePostingRaceRows[0].journal_entry_id,paymentJournalId);
+  assert.ok(
+    [paymentJournalKey,paymentJournalRaceKey].includes(String(paymentSourcePostingRaceRows[0].idempotency_key)),
+    "the sole source link retains the winning request's idempotency key",
+  );
+  assert.equal(paymentSourcePostingRaceRows[0].status,"draft");
+  const paymentJournalAuditRaceRows = await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+    "where organization_id=$1::uuid and action='accounting.customer_payment_journal_draft_created' " +
+    "and entity_type='customer_payment' and entity_id::text=$2::text",
+    [organizationId,paymentSource.id],
+  );
+  assert.equal(paymentJournalAuditRaceRows[0].count,1,
+    "the concurrent source-link race must write exactly one creation audit");
+  await setIdentity(accountantAuthUserId,"ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
   const runtimeAuditPaymentReplay = (await db.unsafe(
     "select public.create_customer_payment_journal_draft($1::uuid,$2::uuid,$3::uuid) as result",
-    [paymentSource.id, altSettlementAccountId, "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdc2"],
+    [paymentSource.id,altSettlementAccountId,"cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdc4"],
   ))[0].result;
-  assert.equal(runtimeAuditPaymentReplay.journal_entry_id, paymentJournalId);
-  assert.equal(runtimeAuditPaymentReplay.replayed, true);
+  assert.equal(runtimeAuditPaymentReplay.journal_entry_id,paymentJournalId);
+  assert.equal(runtimeAuditPaymentReplay.replayed,true,
+    "a later retry with a new request key should still replay the existing source mapping");
+  await db.unsafe("reset role");
   await expectFailure(
     "payment source cannot be remapped to a different settlement account after draft creation",
     () => db.unsafe(
