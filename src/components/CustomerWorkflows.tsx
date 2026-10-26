@@ -2797,7 +2797,7 @@ export function StaffFinancePage() {
           style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}
         >
           <span style={quiet}>
-            عرض {invoices.length.toLocaleString("ar-YE")} من {invoiceTotal.toLocaleString("ar-YE")} فاتورة
+            تم تحميل {invoices.length.toLocaleString("ar-YE")} فاتورة من إجمالي {invoiceTotal.toLocaleString("ar-YE")} فاتورة
           </span>
           {invoiceHasMore && (
             <button
