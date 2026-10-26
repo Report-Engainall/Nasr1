@@ -159,6 +159,93 @@ async function raceAcceptRpc({ label, table, lockRowId, rpcName, token, clients,
   }
 }
 
+
+async function raceAcceptVsRevoke({
+  label,
+  table,
+  invitationId,
+  token,
+  acceptRpc,
+  revokeRpc,
+  acceptClient,
+  revokeClient,
+  applicationNames,
+}) {
+  assert.ok(
+    ["customer_activation_invitations", "customer_company_invitations"].includes(table),
+    "accept/revoke race table must be allowlisted",
+  );
+  assert.ok(
+    ["accept_customer_activation_invitation", "accept_customer_company_invitation"].includes(acceptRpc),
+    "accept RPC must be allowlisted",
+  );
+  assert.ok(
+    ["revoke_customer_activation_invitation", "revoke_customer_company_invitation"].includes(revokeRpc),
+    "revoke RPC must be allowlisted",
+  );
+
+  let transactionOpen = false;
+  let outcomesPromise = null;
+  try {
+    await lockClient.unsafe("begin");
+    transactionOpen = true;
+    const lockedRows = await lockClient.unsafe(
+      "select id from public." + table + " where id=$1::uuid for update",
+      [invitationId],
+    );
+    assert.equal(lockedRows.length, 1, label + ": lock the target invitation before starting either operation");
+
+    outcomesPromise = Promise.allSettled([
+      acceptClient.unsafe(
+        "select public." + acceptRpc + "($1::text) as result",
+        [token],
+      ),
+      revokeClient.unsafe(
+        "select public." + revokeRpc + "($1::uuid) as result",
+        [invitationId],
+      ),
+    ]);
+    const barrier = await waitForBothConnectionsToBlock(applicationNames);
+    await lockClient.unsafe("commit");
+    transactionOpen = false;
+    const outcomes = await outcomesPromise;
+
+    assert.equal(
+      barrier.observed,
+      true,
+      label + ": accept and revoke must both wait on the same row-lock barrier before release. Observed: " +
+        JSON.stringify(barrier.rows),
+    );
+    const accepted = outcomes[0];
+    const revoked = outcomes[1];
+    assert.equal(
+      Number(accepted.status === "fulfilled") + Number(revoked.status === "fulfilled"),
+      1,
+      label + ": exactly one of accept/revoke must commit",
+    );
+    assert.equal(
+      Number(accepted.status === "rejected") + Number(revoked.status === "rejected"),
+      1,
+      label + ": the losing operation must observe the consumed invitation state and reject",
+    );
+
+    return {
+      outcomes,
+      acceptedWon: accepted.status === "fulfilled",
+      acceptResult: accepted.status === "fulfilled" ? accepted.value[0]?.result : null,
+      revokeResult: revoked.status === "fulfilled" ? revoked.value[0]?.result : null,
+      rejected: String(
+        (accepted.status === "rejected" ? accepted.reason : revoked.reason)?.message ??
+        (accepted.status === "rejected" ? accepted.reason : revoked.reason),
+      ),
+    };
+  } catch (error) {
+    if (transactionOpen) await lockClient.unsafe("rollback").catch(() => {});
+    if (outcomesPromise) await outcomesPromise.catch(() => {});
+    throw error;
+  }
+}
+
 async function main() {
   const health = await admin.unsafe(
     "select o.id::text as id from public.organizations o where o.id=$1::uuid and o.is_active=true",
@@ -321,8 +408,185 @@ async function main() {
   );
   assert.equal(companyAudit[0].count, 1, "only one company-membership acceptance audit event may persist");
 
+  // Accept-vs-revoke race for customer activation. The invitee and the staff
+  // revoker use independent Auth-backed PostgreSQL sessions; the invitation row
+  // is locked until both requests are observed waiting at the same lock barrier.
+  const activationRevokeAuthId = randomUUID();
+  const activationRevokeProfileId = randomUUID();
+  const activationRevokeEmail = "ci-activation-revoke-" + randomUUID().slice(0, 8) + "@example.test";
+  await seedIdentity({
+    profileId: activationRevokeProfileId,
+    authUserId: activationRevokeAuthId,
+    email: activationRevokeEmail,
+    fullName: "CI Activation Accept Revoke",
+  });
+  const activationRevokeCustomerId = await seedCustomer({
+    codePrefix: "ACTREV",
+    businessName: "CI Activation Accept Revoke",
+    email: activationRevokeEmail,
+    contactName: "CI Activation Accept Revoke",
+  });
+  await setIdentity(staffClient, staffAuthUserId, staffEmail, "ci-act-revoke-staff-" + randomUUID().slice(0, 8));
+  const activationRevokeInvite = (
+    await staffClient.unsafe(
+      "select public.create_customer_activation_invitation($1::uuid,$2::text,$3::integer) as result",
+      [activationRevokeCustomerId, activationRevokeEmail, 72],
+    )
+  )[0].result;
+  await setIdentity(
+    activationClients[0],
+    activationRevokeAuthId,
+    activationRevokeEmail,
+    "ci-act-revoke-accept-" + randomUUID().slice(0, 8),
+  );
+  const activationAcceptRevokeApps = [
+    "ci-act-race-accept-" + randomUUID().slice(0, 8),
+    "ci-act-race-revoke-" + randomUUID().slice(0, 8),
+  ];
+  await setIdentity(
+    activationClients[0],
+    activationRevokeAuthId,
+    activationRevokeEmail,
+    activationAcceptRevokeApps[0],
+  );
+  await setIdentity(staffClient, staffAuthUserId, staffEmail, activationAcceptRevokeApps[1]);
+  const activationAcceptRevokeRace = await raceAcceptVsRevoke({
+    label: "customer activation accept-vs-revoke",
+    table: "customer_activation_invitations",
+    invitationId: activationRevokeInvite.invitation_id,
+    token: activationRevokeInvite.token,
+    acceptRpc: "accept_customer_activation_invitation",
+    revokeRpc: "revoke_customer_activation_invitation",
+    acceptClient: activationClients[0],
+    revokeClient: staffClient,
+    applicationNames: activationAcceptRevokeApps,
+  });
+  const activationRevokeState = (await admin.unsafe(
+    "select i.status, i.accepted_by_profile_id::text as accepted_by, c.profile_id::text as customer_profile_id " +
+      "from public.customer_activation_invitations i join public.customers c " +
+      "on c.id=i.customer_id and c.organization_id=i.organization_id where i.id=$1::uuid",
+    [activationRevokeInvite.invitation_id],
+  ))[0];
+  assert.ok(activationRevokeState, "activation invite and source customer must remain present");
+  const activationAcceptedAudit = (await admin.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and entity_type='customer_activation_invitation' and entity_id=$2::uuid " +
+      "and action='customer_activation_invitation.accepted'",
+    [organizationId, activationRevokeInvite.invitation_id],
+  ))[0].count;
+  const activationRevokedAudit = (await admin.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and entity_type='customer_activation_invitation' and entity_id=$2::uuid " +
+      "and action='customer_activation_invitation.revoked'",
+    [organizationId, activationRevokeInvite.invitation_id],
+  ))[0].count;
+  if (activationAcceptRevokeRace.acceptedWon) {
+    assert.equal(activationAcceptRevokeRace.acceptResult.status, "active");
+    assert.equal(activationRevokeState.status, "accepted");
+    assert.equal(activationRevokeState.accepted_by, activationRevokeProfileId);
+    assert.equal(activationRevokeState.customer_profile_id, activationRevokeProfileId);
+    assert.equal(activationAcceptedAudit, 1);
+    assert.equal(activationRevokedAudit, 0);
+    assert.match(activationAcceptRevokeRace.rejected, /غير معلقة أو منتهية أو لا تتبع المؤسسة الحالية/i);
+  } else {
+    assert.equal(activationAcceptRevokeRace.revokeResult, true);
+    assert.equal(activationRevokeState.status, "revoked");
+    assert.equal(activationRevokeState.accepted_by, null);
+    assert.equal(activationRevokeState.customer_profile_id, null);
+    assert.equal(activationAcceptedAudit, 0);
+    assert.equal(activationRevokedAudit, 1);
+    assert.match(activationAcceptRevokeRace.rejected, /رابط التفعيل غير موجود أو منتهي أو مستخدم أو ملغى/i);
+  }
+
+  // Accept-vs-revoke race for company membership invitations. Only the winning
+  // transition may persist a membership/acceptance audit or a revocation audit.
+  const companyRevokeMemberAuthId = randomUUID();
+  const companyRevokeMemberProfileId = randomUUID();
+  const companyRevokeMemberEmail = "ci-company-revoke-" + randomUUID().slice(0, 8) + "@example.test";
+  await seedIdentity({
+    profileId: companyRevokeMemberProfileId,
+    authUserId: companyRevokeMemberAuthId,
+    email: companyRevokeMemberEmail,
+    fullName: "CI Company Accept Revoke",
+  });
+  await setIdentity(ownerClient, ownerAuthId, ownerEmail, "ci-company-revoke-owner-" + randomUUID().slice(0, 8));
+  const companyRevokeInvite = (
+    await ownerClient.unsafe(
+      "select public.create_customer_company_invitation($1::text,$2::text) as result",
+      [companyRevokeMemberEmail, "buyer"],
+    )
+  )[0].result;
+  const companyAcceptRevokeApps = [
+    "ci-company-race-accept-" + randomUUID().slice(0, 8),
+    "ci-company-race-revoke-" + randomUUID().slice(0, 8),
+  ];
+  await setIdentity(
+    companyClients[0],
+    companyRevokeMemberAuthId,
+    companyRevokeMemberEmail,
+    companyAcceptRevokeApps[0],
+  );
+  await setIdentity(ownerClient, ownerAuthId, ownerEmail, companyAcceptRevokeApps[1]);
+  const companyAcceptRevokeRace = await raceAcceptVsRevoke({
+    label: "customer company invitation accept-vs-revoke",
+    table: "customer_company_invitations",
+    invitationId: companyRevokeInvite.invitation_id,
+    token: companyRevokeInvite.invitation_token,
+    acceptRpc: "accept_customer_company_invitation",
+    revokeRpc: "revoke_customer_company_invitation",
+    acceptClient: companyClients[0],
+    revokeClient: ownerClient,
+    applicationNames: companyAcceptRevokeApps,
+  });
+  const companyRevokeState = (await admin.unsafe(
+    "select status, accepted_by::text as accepted_by from public.customer_company_invitations where id=$1::uuid",
+    [companyRevokeInvite.invitation_id],
+  ))[0];
+  assert.ok(companyRevokeState, "company invitation must remain present after the race");
+  const activeRevokeMemberships = await admin.unsafe(
+    "select id::text as id from public.customer_company_memberships where organization_id=$1::uuid " +
+      "and customer_id=$2::uuid and profile_id=$3::uuid and status='active'",
+    [organizationId, companyCustomerId, companyRevokeMemberProfileId],
+  );
+  const companyRevokeAudit = (await admin.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and entity_type='customer_company_invitation' and entity_id=$2::uuid " +
+      "and action='customer_company_invitation.revoked'",
+    [organizationId, companyRevokeInvite.invitation_id],
+  ))[0].count;
+  if (companyAcceptRevokeRace.acceptedWon) {
+    assert.equal(companyAcceptRevokeRace.acceptResult.status, "active");
+    assert.equal(companyRevokeState.status, "accepted");
+    assert.equal(companyRevokeState.accepted_by, companyRevokeMemberProfileId);
+    assert.equal(activeRevokeMemberships.length, 1, "accepted company invitation creates exactly one active membership");
+    const acceptanceAudit = (await admin.unsafe(
+      "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+        "and entity_type='customer_company_membership' and entity_id=$2::uuid " +
+        "and action='customer_company_invitation.accepted'",
+      [organizationId, activeRevokeMemberships[0].id],
+    ))[0].count;
+    assert.equal(acceptanceAudit, 1);
+    assert.equal(companyRevokeAudit, 0);
+    assert.match(companyAcceptRevokeRace.rejected, /الدعوة غير معلقة أو لا تتبع هذه الشركة/i);
+  } else {
+    assert.equal(companyAcceptRevokeRace.revokeResult, true);
+    assert.equal(companyRevokeState.status, "revoked");
+    assert.equal(companyRevokeState.accepted_by, null);
+    assert.equal(activeRevokeMemberships.length, 0, "revoked company invitation must not create a membership");
+    const acceptanceAudits = (await admin.unsafe(
+      "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+        "and entity_type='customer_company_membership' and action='customer_company_invitation.accepted' " +
+        "and entity_id in (select id from public.customer_company_memberships where customer_id=$2::uuid " +
+        "and profile_id=$3::uuid)",
+      [organizationId, companyCustomerId, companyRevokeMemberProfileId],
+    ))[0].count;
+    assert.equal(acceptanceAudits, 0);
+    assert.equal(companyRevokeAudit, 1);
+    assert.match(companyAcceptRevokeRace.rejected, /الدعوة غير موجودة أو استُخدمت أو أُلغيت/i);
+  }
+
   process.stdout.write(
-    "PASS invitation concurrency: customer activation and company membership serialize competing accepts; one winner, one rejection, one link/membership and one audit each\\n",
+    "PASS invitation concurrency: accept/accept and accept/revoke races serialize on PostgreSQL 17 with one winning transition, consistent ownership and exactly-once audit\\n",
   );
 }
 
