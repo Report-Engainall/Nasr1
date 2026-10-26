@@ -8,18 +8,19 @@ const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
 const connectionString = requiredEnv("TEST_DATABASE_URL");
 const githubEnv = requiredEnv("GITHUB_ENV");
 
-// Keep fixtures local-only. The P2 workflow explicitly remaps PostgreSQL from
-// the default 54322 to 55432 to avoid collisions with other job-local services.
+// Keep fixtures local-only. The P2 workflow allocates a free PostgreSQL host port
+// per run; accept that explicit loopback port instead of hard-coding a collision-prone value.
 const api = new URL(apiUrl);
 const database = new URL(connectionString);
+const databasePortIsValid = /^[1-9][0-9]{0,4}$/.test(database.port) && Number(database.port) <= 65535;
 if (
   api.protocol !== "http:" ||
   !["localhost", "127.0.0.1"].includes(api.hostname) ||
   api.port !== "54321" ||
   !["localhost", "127.0.0.1"].includes(database.hostname) ||
-  database.port !== "55432"
+  !databasePortIsValid
 ) {
-  throw new Error("P2 browser fixtures require local Supabase at 127.0.0.1:54321 and the isolated PostgreSQL port 55432.");
+  throw new Error("P2 browser fixtures require local Supabase at 127.0.0.1:54321 and a valid explicit PostgreSQL port on loopback.");
 }
 
 const organizationId = "a0000000-0000-0000-0000-000000000001";

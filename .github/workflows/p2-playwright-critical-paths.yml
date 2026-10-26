@@ -439,9 +439,13 @@ jobs:
           test -f "$local_project/supabase/config.toml"
           test -d "$local_project/supabase/migrations"
           sed -i '1s/.*/project_id = "p2-local-e2e"/' "$local_project/supabase/config.toml"
-          # Avoid the default 54322 host DB port, which can already be occupied by another job-local service.
-          sed -i '/^\[db\]$/a port = 55432\nshadow_port = 55430' "$local_project/supabase/config.toml"
-          grep -q '^port = 55432$' "$local_project/supabase/config.toml"
+          # Allocate DB and shadow ports dynamically: fixed host ports can collide with concurrent local test stacks.
+          read -r db_port shadow_port < <(node -e 'const net=require("node:net");const servers=[net.createServer(),net.createServer()];Promise.all(servers.map((server)=>new Promise((resolve)=>server.listen(0,"127.0.0.1",()=>resolve(server.address().port))))).then((ports)=>{console.log(ports.join(" "));servers.forEach((server)=>server.close());});')
+          test -n "$db_port" && test -n "$shadow_port" && test "$db_port" != "$shadow_port"
+          sed -i "/^\[db\]$/a port = ${db_port}\nshadow_port = ${shadow_port}" "$local_project/supabase/config.toml"
+          grep -q "^port = ${db_port}$" "$local_project/supabase/config.toml"
+          grep -q "^shadow_port = ${shadow_port}$" "$local_project/supabase/config.toml"
+          echo "- Allocated local PostgreSQL ports dynamically for this run (database $db_port, shadow $shadow_port) to prevent runner port collisions." >> "$GITHUB_STEP_SUMMARY"
           if [ ! -f "$local_project/supabase/migrations/20261018100000_product_image_storage.sql" ]; then
             echo "Expected Storage-only migration not found; refusing to claim the scoped migration set." >&2
             exit 1
