@@ -656,34 +656,63 @@ async function main() {
       "select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended($1::text,0))",
       [organizationId + ":customer-invoice-settlement:" + sourceInvoiceId],
     );
+    const captureSettlementOutcome = (queryPromise) => queryPromise
+      .then((rows) => ({ ok: true, rows }))
+      .catch((error) => ({
+        ok: false,
+        error: {
+          message: String(error?.message ?? error),
+          code: error?.code ?? null,
+          severity: error?.severity ?? null,
+          detail: error?.detail ?? null,
+          where: error?.where ?? null,
+        },
+      }));
     settlementAttempts = Promise.all([
-      db.unsafe(
+      captureSettlementOutcome(db.unsafe(
         "select public.record_customer_payment($1::uuid,$2::numeric,$3::text,$4::uuid,$5::text,$6::text) as id",
         [sourceInvoiceId,100,"cash",randomUUID(),"CI-RET-CONCURRENT-PAY-001","payment concurrent with source-credit posting"],
-      ),
-      settlementRacer.unsafe(
+      )),
+      captureSettlementOutcome(settlementRacer.unsafe(
         "select public.post_general_journal_entry($1::uuid) as result",
         [preparedCredit.journal_entry_id],
-      ),
+      )),
     ]);
     let bothSettlementWritersWaiting = false;
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-      const waiting = await settlementGate.unsafe(
-        "select count(*)::integer as count from pg_catalog.pg_stat_activity " +
-        "where application_name in ('ci-invoice-settlement-payment','ci-invoice-settlement-credit') " +
-        "and state='active' and wait_event_type='Lock'",
+    let settlementActivitySnapshot = [];
+    for (let attempt = 0; attempt < 160; attempt += 1) {
+      settlementActivitySnapshot = await settlementGate.unsafe(
+        "select application_name,state,wait_event_type,wait_event,left(query,180) as query " +
+        "from pg_catalog.pg_stat_activity " +
+        "where application_name in ('ci-invoice-settlement-payment','ci-invoice-settlement-credit')",
       );
-      if (Number(waiting[0]?.count ?? 0) === 2) {
+      const waitingCount = settlementActivitySnapshot.filter((row) =>
+        row.state === "active" && row.wait_event_type === "Lock"
+      ).length;
+      if (waitingCount === 2) {
         bothSettlementWritersWaiting = true;
         break;
       }
       await new Promise((resolve) => setTimeout(resolve,25));
     }
-    assert.equal(bothSettlementWritersWaiting,true,
-      "payment and credit posting must both be observed waiting on the invoice settlement advisory lock before release");
+    if (!bothSettlementWritersWaiting) {
+      await settlementGate.unsafe("rollback");
+      settlementGateOpen = false;
+      const outcomes = await settlementAttempts;
+      assert.fail("invoice settlement lock contention was not observed for both RPC calls: " + JSON.stringify({
+        activity: settlementActivitySnapshot,
+        outcomes: outcomes.map((item) => item.ok
+          ? { ok: true }
+          : { ok: false, error: item.error }),
+      }));
+    }
     await settlementGate.unsafe("commit");
     settlementGateOpen = false;
-    settlementResults = await settlementAttempts;
+    const settlementOutcomes = await settlementAttempts;
+    const settlementFailures = settlementOutcomes.filter((item) => !item.ok);
+    assert.equal(settlementFailures.length,0,
+      "both settlement calls must succeed after lock release: " + JSON.stringify(settlementFailures.map((item) => item.error)));
+    settlementResults = settlementOutcomes.map((item) => item.rows);
   } finally {
     if (settlementGateOpen) await settlementGate.unsafe("rollback").catch(()=>{});
     if (settlementAttempts) await Promise.allSettled([settlementAttempts]);
