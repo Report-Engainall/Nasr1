@@ -1,4 +1,14 @@
-# LIVE API-OPS ADDENDUM — 2026-10-26 after PR #214
+# LIVE API-OPS ADDENDUM — 2026-10-26 after PR #219
+
+- **Validated current main SHA:** `042434d26db80825abf03d07994f79e8fb20058a`. PR #219 added invitation accept-vs-revoke PostgreSQL 17 acceptance and merged at this SHA; post-merge Core [40342074138 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40342074138).
+- **PR #219 exact-head evidence:** tested head `ca894f986e532e486031a1f4a8f47aff5ea9e9b6`; Core #40341099667 SUCCESS and P2 #40341099671 SUCCESS. Both customer activation and customer-company invitation tests observed two independent Auth-backed operations blocked behind the same row lock, released the barrier, then asserted exactly one winning transition, a rejected loser, state/linkage consistency and a single appropriate audit event.
+- **Invitation contract status:** same-token accept-vs-accept is covered by #212; accept-vs-revoke is now covered by #219. Cross-tenant A/B accept/revoke authorization and proof of no side effects/audit on denial remain OPEN and should be the next bounded PostgreSQL 17 acceptance.
+- **Source tree proof:** target `Nasr1@042434d26db80825abf03d07994f79e8fb20058a` vs source `Nasr-Adnan/Nasr-Adnan@34702e670d80e80340d54683171238292099cbaa`: 630 shared paths, 594 identical, 36 changed shared, 19 source-only, 242 target-only. Four apparent source function/Edge implementation paths are 14-byte `404: Not Found` placeholders (shared blob `1becba2bb0a80e7b9b0a7715f15e56512a7e5f7e`) and are rejected for import.
+- **API-OPS overall remains PARTIAL.** The previously identified 179 callable RPC candidates still require source-backed authentication/role, tenant-scope, input/output, mutation, idempotency, retry, error and audit review. Catalog matching, route mounts, UI/source tests or build success alone do not close this work.
+- **External proof boundary:** hosted authenticated customer/tenant E2E remains **SKIPPED/BLOCKED_EXTERNAL** without authorized non-production credentials. No production deployment/migration/restore, live Onyx sync/import, WhatsApp delivery, production Storage call, or real AI provider call is claimed.
+- **Next action:** implement isolated PostgreSQL 17 cross-tenant invitation A/B denial and assert zero changes to invitation state, customer/profile links, active membership and audit rows; then continue the next high-risk transaction family.
+---
+## HISTORICAL API-OPS ADDENDUM — 2026-10-26 after PR #214
 
 - **Current main SHA:** `28bcf9c4e02da53bfc4f5081fd1ac62e5ef5ade0`.
 - PR #212 merges the PostgreSQL 17 same-token invitation concurrency acceptance, exact corrected head `2f11053ef9960eec873855f04f1058f1a60bbdb2`; Core #40334736823 and P2 #40334736840 SUCCESS; post-merge Core #40335735688 SUCCESS on `ae2cd32d317f110c29b7a89002d651f9e07c063d`.
