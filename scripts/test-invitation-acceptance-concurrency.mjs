@@ -26,6 +26,18 @@ const companyClients = [
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function expectAuthorizationDenied(label, action) {
+  let caught;
+  try {
+    await action();
+  } catch (error) {
+    caught = error;
+  }
+  assert.ok(caught, label + " must be denied");
+  assert.equal(caught.code, "42501", label + " must fail with authorization SQLSTATE 42501");
+  return caught;
+}
+
 async function setIdentity(client, authUserId, email, applicationName) {
   const sessionId = randomUUID();
   await client.unsafe("reset role");
@@ -48,7 +60,7 @@ async function setIdentity(client, authUserId, email, applicationName) {
   await client.unsafe("set role authenticated");
 }
 
-async function seedIdentity({ profileId, authUserId, email, fullName }) {
+async function seedIdentity({ profileId, authUserId, email, fullName, organizationId: identityOrganizationId = organizationId }) {
   await admin.unsafe(
     "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()) " +
       "on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
@@ -59,7 +71,7 @@ async function seedIdentity({ profileId, authUserId, email, fullName }) {
       "values($1,$2,$3,$4,$5,true) on conflict(id) do update set " +
       "auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id," +
       "full_name=excluded.full_name,email=excluded.email,is_active=true",
-    [profileId, authUserId, organizationId, fullName, email],
+    [profileId, authUserId, identityOrganizationId, fullName, email],
   );
   await admin.unsafe(
     "insert into public.user_roles(profile_id,role) values($1,'customer') on conflict(profile_id,role) do nothing",
@@ -67,7 +79,7 @@ async function seedIdentity({ profileId, authUserId, email, fullName }) {
   );
 }
 
-async function seedCustomer({ profileId = null, codePrefix, businessName, email, contactName }) {
+async function seedCustomer({ profileId = null, organizationId: customerOrganizationId = organizationId, codePrefix, businessName, email, contactName }) {
   const customerCode = "CI-RACE-" + codePrefix + "-" + randomUUID().replace(/-/g, "").slice(0, 12);
   const phone = "777" + randomUUID().replace(/-/g, "").slice(0, 7);
   const rows = await admin.unsafe(
@@ -75,7 +87,7 @@ async function seedCustomer({ profileId = null, codePrefix, businessName, email,
       "organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier," +
       "credit_limit,current_balance,status,approved_at" +
     ") values($1,$2,$3,$4,$5,$6,$7,'retail',0,0,'approved',now()) returning id",
-    [organizationId, profileId, customerCode, businessName, contactName, phone, email],
+    [customerOrganizationId, profileId, customerCode, businessName, contactName, phone, email],
   );
   assert.equal(rows.length, 1, "CI customer fixture must be created exactly once");
   return rows[0].id;
@@ -585,8 +597,218 @@ async function main() {
     assert.match(companyAcceptRevokeRace.rejected, /الدعوة غير موجودة أو استُخدمت أو أُلغيت/i);
   }
 
+
+  // Cross-tenant A/B acceptance: valid same-email invitations from tenant A must not be
+  // accepted or revoked by tenant B. Denials must preserve pending state and have no
+  // accepted/revoked audit, customer-profile linkage, or company membership side effects.
+  const tenantBOrganizationId = randomUUID();
+  await admin.unsafe(
+    "insert into public.organizations(id,name,is_active) values($1::uuid,$2,true)",
+    [tenantBOrganizationId, "CI Cross-Tenant Organization " + randomUUID().slice(0, 8)],
+  );
+
+  // Customer activation: a confirmed customer identity in B presents a valid A token.
+  const crossActivationEmail = "ci-cross-activation-" + randomUUID().slice(0, 8) + "@example.test";
+  const crossActivationCustomerId = await seedCustomer({
+    codePrefix: "CROSS-ACT",
+    businessName: "CI Cross-Tenant Activation Target",
+    email: crossActivationEmail,
+    contactName: "CI Cross-Tenant Activation",
+  });
+  await setIdentity(staffClient, staffAuthUserId, staffEmail, "ci-cross-activation-create-" + randomUUID().slice(0, 8));
+  const crossActivationInvite = (
+    await staffClient.unsafe(
+      "select public.create_customer_activation_invitation($1::uuid,$2::text,$3::integer) as result",
+      [crossActivationCustomerId, crossActivationEmail, 72],
+    )
+  )[0].result;
+  const crossActivationAuthId = randomUUID();
+  const crossActivationProfileId = randomUUID();
+  await seedIdentity({
+    profileId: crossActivationProfileId,
+    authUserId: crossActivationAuthId,
+    email: crossActivationEmail,
+    fullName: "CI Cross-Tenant Activation B",
+    organizationId: tenantBOrganizationId,
+  });
+  await setIdentity(
+    activationClients[0],
+    crossActivationAuthId,
+    crossActivationEmail,
+    "ci-cross-activation-accept-" + randomUUID().slice(0, 8),
+  );
+  await expectAuthorizationDenied(
+    "tenant B customer accepting tenant A activation invitation",
+    () => activationClients[0].unsafe(
+      "select public.accept_customer_activation_invitation($1::text) as result",
+      [crossActivationInvite.token],
+    ),
+  );
+  let crossActivationState = (await admin.unsafe(
+    "select i.status,i.accepted_by_profile_id::text as accepted_by,c.profile_id::text as customer_profile_id " +
+      "from public.customer_activation_invitations i join public.customers c " +
+      "on c.id=i.customer_id and c.organization_id=i.organization_id where i.id=$1::uuid",
+    [crossActivationInvite.invitation_id],
+  ))[0];
+  assert.ok(crossActivationState, "tenant A activation invitation and customer must remain present");
+  assert.equal(crossActivationState.status, "pending", "foreign tenant acceptance must preserve pending activation");
+  assert.equal(crossActivationState.accepted_by, null, "foreign tenant acceptance must not bind accepted_by");
+  assert.equal(crossActivationState.customer_profile_id, null, "foreign tenant acceptance must not link the A customer");
+  let crossActivationAudit = (await admin.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and entity_type='customer_activation_invitation' and entity_id=$2::uuid " +
+      "and action in ('customer_activation_invitation.accepted','customer_activation_invitation.revoked')",
+    [organizationId, crossActivationInvite.invitation_id],
+  ))[0].count;
+  assert.equal(crossActivationAudit, 0, "foreign tenant activation acceptance must not write accept/revoke audit");
+
+  // A staff identity in B also cannot revoke an A activation invitation by guessing its UUID.
+  const tenantBStaffAuthId = randomUUID();
+  const tenantBStaffProfileId = randomUUID();
+  const tenantBStaffEmail = "ci-cross-staff-" + randomUUID().slice(0, 8) + "@example.test";
+  await seedIdentity({
+    profileId: tenantBStaffProfileId,
+    authUserId: tenantBStaffAuthId,
+    email: tenantBStaffEmail,
+    fullName: "CI Cross-Tenant Staff B",
+    organizationId: tenantBOrganizationId,
+  });
+  await admin.unsafe("delete from public.user_roles where profile_id=$1::uuid", [tenantBStaffProfileId]);
+  await admin.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1::uuid,'staff')",
+    [tenantBStaffProfileId],
+  );
+  await setIdentity(
+    staffClient,
+    tenantBStaffAuthId,
+    tenantBStaffEmail,
+    "ci-cross-activation-revoke-" + randomUUID().slice(0, 8),
+  );
+  await expectAuthorizationDenied(
+    "tenant B staff revoking tenant A activation invitation",
+    () => staffClient.unsafe(
+      "select public.revoke_customer_activation_invitation($1::uuid) as result",
+      [crossActivationInvite.invitation_id],
+    ),
+  );
+  crossActivationState = (await admin.unsafe(
+    "select i.status,i.accepted_by_profile_id::text as accepted_by,c.profile_id::text as customer_profile_id " +
+      "from public.customer_activation_invitations i join public.customers c " +
+      "on c.id=i.customer_id and c.organization_id=i.organization_id where i.id=$1::uuid",
+    [crossActivationInvite.invitation_id],
+  ))[0];
+  assert.equal(crossActivationState.status, "pending", "foreign tenant revocation must preserve pending activation");
+  assert.equal(crossActivationState.accepted_by, null);
+  assert.equal(crossActivationState.customer_profile_id, null);
+  crossActivationAudit = (await admin.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and entity_type='customer_activation_invitation' and entity_id=$2::uuid " +
+      "and action in ('customer_activation_invitation.accepted','customer_activation_invitation.revoked')",
+    [organizationId, crossActivationInvite.invitation_id],
+  ))[0].count;
+  assert.equal(crossActivationAudit, 0, "foreign tenant activation revoke must not write accept/revoke audit");
+
+  // Company invitation: B's confirmed customer profile uses the exact invited email,
+  // so the organization check—not an email mismatch—must deny the acceptance.
+  const crossCompanyEmail = "ci-cross-company-" + randomUUID().slice(0, 8) + "@example.test";
+  await setIdentity(ownerClient, ownerAuthId, ownerEmail, "ci-cross-company-create-" + randomUUID().slice(0, 8));
+  const crossCompanyInvite = (
+    await ownerClient.unsafe(
+      "select public.create_customer_company_invitation($1::text,$2::text) as result",
+      [crossCompanyEmail, "buyer"],
+    )
+  )[0].result;
+  const crossCompanyInviteeAuthId = randomUUID();
+  const crossCompanyInviteeProfileId = randomUUID();
+  await seedIdentity({
+    profileId: crossCompanyInviteeProfileId,
+    authUserId: crossCompanyInviteeAuthId,
+    email: crossCompanyEmail,
+    fullName: "CI Cross-Tenant Company Invitee B",
+    organizationId: tenantBOrganizationId,
+  });
+  await setIdentity(
+    companyClients[0],
+    crossCompanyInviteeAuthId,
+    crossCompanyEmail,
+    "ci-cross-company-accept-" + randomUUID().slice(0, 8),
+  );
+  await expectAuthorizationDenied(
+    "tenant B customer accepting tenant A company invitation",
+    () => companyClients[0].unsafe(
+      "select public.accept_customer_company_invitation($1::text) as result",
+      [crossCompanyInvite.invitation_token],
+    ),
+  );
+  let crossCompanyState = (await admin.unsafe(
+    "select status,accepted_by::text as accepted_by from public.customer_company_invitations where id=$1::uuid",
+    [crossCompanyInvite.invitation_id],
+  ))[0];
+  assert.ok(crossCompanyState, "tenant A company invitation must remain present");
+  assert.equal(crossCompanyState.status, "pending", "foreign tenant company acceptance must preserve pending invitation");
+  assert.equal(crossCompanyState.accepted_by, null, "foreign tenant acceptance must not bind accepted_by");
+  let crossCompanyMemberships = await admin.unsafe(
+    "select id::text as id from public.customer_company_memberships " +
+      "where organization_id=$1::uuid and customer_id=$2::uuid and profile_id=$3::uuid and status='active'",
+    [organizationId, companyCustomerId, crossCompanyInviteeProfileId],
+  );
+  assert.equal(crossCompanyMemberships.length, 0, "foreign tenant acceptance must not create an active membership");
+  let crossCompanyAudit = (await admin.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and actor_id=$2::uuid and entity_type='customer_company_membership' " +
+      "and action='customer_company_invitation.accepted'",
+    [organizationId, crossCompanyInviteeProfileId],
+  ))[0].count;
+  assert.equal(crossCompanyAudit, 0, "foreign tenant company acceptance must not write acceptance audit");
+
+  // Even an authenticated owner in B may not revoke the pending invitation belonging to A.
+  const tenantBOwnerAuthId = randomUUID();
+  const tenantBOwnerProfileId = randomUUID();
+  const tenantBOwnerEmail = "ci-cross-owner-" + randomUUID().slice(0, 8) + "@example.test";
+  await seedIdentity({
+    profileId: tenantBOwnerProfileId,
+    authUserId: tenantBOwnerAuthId,
+    email: tenantBOwnerEmail,
+    fullName: "CI Cross-Tenant Company Owner B",
+    organizationId: tenantBOrganizationId,
+  });
+  const tenantBOwnerCustomerId = await seedCustomer({
+    organizationId: tenantBOrganizationId,
+    profileId: tenantBOwnerProfileId,
+    codePrefix: "CROSS-OWNER",
+    businessName: "CI Tenant B Customer Owner",
+    email: tenantBOwnerEmail,
+    contactName: "CI Tenant B Owner",
+  });
+  assert.ok(tenantBOwnerCustomerId, "tenant B owner fixture must be linked to its own customer");
+  await setIdentity(
+    ownerClient,
+    tenantBOwnerAuthId,
+    tenantBOwnerEmail,
+    "ci-cross-company-revoke-" + randomUUID().slice(0, 8),
+  );
+  await expectAuthorizationDenied(
+    "tenant B company owner revoking tenant A company invitation",
+    () => ownerClient.unsafe(
+      "select public.revoke_customer_company_invitation($1::uuid) as result",
+      [crossCompanyInvite.invitation_id],
+    ),
+  );
+  crossCompanyState = (await admin.unsafe(
+    "select status,accepted_by::text as accepted_by from public.customer_company_invitations where id=$1::uuid",
+    [crossCompanyInvite.invitation_id],
+  ))[0];
+  assert.equal(crossCompanyState.status, "pending", "foreign tenant revocation must preserve pending company invitation");
+  assert.equal(crossCompanyState.accepted_by, null);
+  crossCompanyAudit = (await admin.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and entity_id=$2::uuid and action='customer_company_invitation.revoked'",
+    [organizationId, crossCompanyInvite.invitation_id],
+  ))[0].count;
+  assert.equal(crossCompanyAudit, 0, "foreign tenant company revoke must not write revoke audit");
+
   process.stdout.write(
-    "PASS invitation concurrency: accept/accept and accept/revoke races serialize on PostgreSQL 17 with one winning transition, consistent ownership and exactly-once audit\\n",
+    "PASS invitation concurrency and tenant isolation: accept/accept, accept/revoke, and cross-tenant accept/revoke denials preserve ownership and exactly-once audit\\n",
   );
 }
 
