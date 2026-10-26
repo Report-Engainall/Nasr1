@@ -1,4 +1,4 @@
-# LIVE API-OPS ADDENDUM — 2026-10-26 after PR #214
+## HISTORICAL API-OPS ADDENDUM — 2026-10-26 after PR #214
 
 - **Current main SHA:** `28bcf9c4e02da53bfc4f5081fd1ac62e5ef5ade0`.
 - PR #212 merges the PostgreSQL 17 same-token invitation concurrency acceptance, exact corrected head `2f11053ef9960eec873855f04f1058f1a60bbdb2`; Core #40334736823 and P2 #40334736840 SUCCESS; post-merge Core #40335735688 SUCCESS on `ae2cd32d317f110c29b7a89002d651f9e07c063d`.
