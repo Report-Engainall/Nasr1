@@ -88,7 +88,7 @@ describe('staff customer 360 summary parser', () => {
     expect(() => parseStaffCustomer360Summary({
       ...valid,
       recent_payments: [{ ...valid.recent_payments[0], amount: -1 }],
-    })).toThrow(/القيمة المالية/);
+    })).toThrow(/المالية غير صالحة/);
   });
 
   it('keeps unknown totals null and rejects malformed dates/counts', () => {
