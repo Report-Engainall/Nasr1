@@ -4910,6 +4910,79 @@ async function main() {
   assert.equal((await db.unsafe("select status from public.stock_count_sessions where id=$1::uuid",[staleSession.id]))[0].status,"open");
   const cancelled=(await db.unsafe("select public.cancel_stock_count($1::uuid,$2::text) as result",[staleSession.id,"CI snapshot invalidated by a later movement"]))[0].result;
   assert.equal(cancelled.status,"cancelled");assert.equal((await db.unsafe("select id from public.audit_logs where organization_id=$1 and action='inventory.stock_count.cancelled' and entity_id=$2::uuid",[organizationId,staleSession.id])).length,1);
+  // BALANCE-SET-001: a balance row created after the physical-count snapshot must invalidate the whole count.
+  // This is different from the stale-quantity check above: the late product had no balance at snapshot time.
+  await db.unsafe("reset role");
+  const lateBalanceProductId=randomUUID();
+  const lateBalanceItemCode="CI-STOCK-LATE-"+randomUUID().replaceAll("-","").slice(0,12);
+  await db.unsafe(
+    "insert into public.products(id,organization_id,name,item_code,unit,base_price,status) values($1::uuid,$2::uuid,'CI late balance product',$3,'unit',1,'active')",
+    [lateBalanceProductId,organizationId,lateBalanceItemCode],
+  );
+  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const balanceSetSession=(await db.unsafe(
+    "select public.start_stock_count($1::uuid,$2::text,$3::text) as result",
+    [testWarehouseId,"ci-stock-count-balance-set-"+randomUUID(),"CI reject a balance added after snapshot"],
+  ))[0].result;
+  const balanceSetLines=await db.unsafe(
+    "select product_id,expected_quantity from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid order by product_id",
+    [organizationId,balanceSetSession.id],
+  );
+  assert.ok(balanceSetLines.length>0,"balance-set acceptance starts from a non-empty source snapshot");
+  assert.equal(
+    balanceSetLines.some(line=>line.product_id===lateBalanceProductId),
+    false,
+    "the late product without a target-warehouse balance must not be present in the snapshot",
+  );
+  for(const line of balanceSetLines){
+    await db.unsafe(
+      "select public.set_stock_count_line($1::uuid,$2::uuid,$3::numeric)",
+      [balanceSetSession.id,line.product_id,Number(line.expected_quantity).toFixed(3)],
+    );
+  }
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point) values($1::uuid,$2::uuid,4,0,0)",
+    [lateBalanceProductId,testWarehouseId],
+  );
+  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "stock-count finalization must reject a new balance created after the snapshot",
+    ()=>db.unsafe("select public.complete_stock_count($1::uuid)",[balanceSetSession.id]),
+    /inventory balance set changed after the count snapshot/i,
+  );
+  const rejectedBalanceSetStatus=(await db.unsafe(
+    "select status from public.stock_count_sessions where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId,balanceSetSession.id],
+  ))[0];
+  assert.equal(rejectedBalanceSetStatus.status,"open","failed finalization does not partially complete the count");
+  assert.equal(
+    (await db.unsafe("select id from public.audit_logs where organization_id=$1::uuid and action='inventory.stock_count.completed' and entity_id=$2::uuid",[organizationId,balanceSetSession.id])).length,
+    0,
+    "rejected balance-set change emits no completion audit",
+  );
+  assert.equal(
+    (await db.unsafe("select id from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid",[balanceSetSession.id])).length,
+    0,
+    "rejected balance-set change emits no partial adjustment movement",
+  );
+  const balanceSetCancelled=(await db.unsafe(
+    "select public.cancel_stock_count($1::uuid,$2::text) as result",
+    [balanceSetSession.id,"CI snapshot invalidated by a new warehouse balance"],
+  ))[0].result;
+  assert.equal(balanceSetCancelled.status,"cancelled");
+  assert.equal(
+    (await db.unsafe("select id from public.audit_logs where organization_id=$1::uuid and action='inventory.stock_count.cancelled' and entity_id=$2::uuid",[organizationId,balanceSetSession.id])).length,
+    1,
+    "explicit cancellation of the stale count is audited exactly once",
+  );
+  await db.unsafe("reset role");
+  await db.unsafe("delete from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",[lateBalanceProductId,testWarehouseId]);
+  await db.unsafe("delete from public.products where id=$1::uuid and organization_id=$2::uuid",[lateBalanceProductId,organizationId]);
+  process.stdout.write("PASS stock-count balance set: a newly created post-snapshot balance rejects finalization with no movement or completion audit; explicit cancel is audited\\n");
+
   process.stdout.write("PASS physical stock count: idempotent session, snapshot lines, audited variance adjustment and stale-balance rejection\\n");
 
   await db.unsafe("reset role");
