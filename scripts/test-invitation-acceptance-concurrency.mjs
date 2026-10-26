@@ -110,7 +110,7 @@ async function waitForBothConnectionsToBlock(applicationNames, timeoutMs = 7000)
 
 async function raceAcceptRpc({ label, table, lockRowId, rpcName, token, clients, applicationNames }) {
   assert.ok(
-    ["customer_activation_invitations", "customer_company_invitations"].includes(table),
+    ["profiles", "customer_activation_invitations", "customer_company_invitations"].includes(table),
     "race lock table must be allowlisted",
   );
   assert.ok(
