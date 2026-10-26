@@ -1,3 +1,19 @@
+# WORK COORDINATION — LIVE STATUS — 2026-10-26 post-PR #208
+
+**Current source of truth:** `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` begins with the live 26 October resume pointer. Earlier status sections below preserve provenance and may contain superseded SHAs.
+
+- **Target repo/branch:** `Report-Engainall/Nasr1` / `main`; latest verified merge SHA at checkpoint creation: `c04558d28d5cb97a87fa2f26948fcdab96020ed9`.
+- **Merged unit:** PR #208, admin load/recovery behavior plus focused acceptance tests, merged at 2026-10-26 13:27:51Z. Exact PR head `43f075c7e8c9a463ff802b731a8c54360810929d`: Core 40330044369 SUCCESS and P2 Playwright 40330044465 SUCCESS. Hosted customer/tenant E2E was SKIPPED.
+- **Post-merge check:** Core [40330789179](https://github.com/Report-Engainall/Nasr1/actions/runs/40330789179) on exact main merge SHA `c04558d28d5cb97a87fa2f26948fcdab96020ed9` was IN_PROGRESS when written. Do not transfer pre-merge CI PASS to post-merge main until this run terminates successfully.
+- **Owner operating mode:** one responsible programmer manages all paths and merges. Independent static/source review and test execution may overlap, but do not create overlapping edits to the same migration/service/component. No direct main writes, force pushes, destructive resets, or blanket source-repository copies.
+- **Source reconciliation at exact refs:** `Nasr-Adnan/Nasr-Adnan@34702e670d80e80340d54683171238292099cbaa` compared with `Nasr1@9abca38900b3c7ac7f0d4ebcf86c711e21dbc01b`: 630 shared paths; 598 same blob; 32 changed shared paths; 19 source-only; 236 target-only. Source-only legacy admin password/role seed migrations are rejected from transplant; the current Nasr1 architecture and tenant/security boundaries govern.
+- **No duplicate feature migrations:** executive analytics, staff Customer 360 and batch storefront pricing RPCs already exist in newer Nasr1 migrations; keep the live-session/membership guard and NULL-hidden-price contract. Source legacy ProductCard and framework dependencies do not replace the target's tier-aware React/TanStack implementation.
+- **Continuing high-priority gates:** security/transaction semantics and RPC grants; race/tenant/no-side-effect PG17 acceptance; all documented screen behaviors against real service/data/permissions; exact-head and post-merge CI. Use screen matrix/current docs if present; never treat route mounts, regex/source inventories or successful builds alone as full functional acceptance.
+- **Not proven externally:** hosted authenticated customer/tenant E2E, production migration/deploy/restore, actual Onyx sync/import, WhatsApp delivery, live AI provider API. Keep these SKIPPED/BLOCKED_EXTERNAL until valid authorized runtime evidence exists.
+- **NEXT ACTION:** resolve exact main post-merge run 40330789179; refresh the acceptance matrix/status checkpoint via a docs branch; proceed to the next unaccepted high-risk API/transaction family, without redoing already merged price-privacy, atomic price-grid, customer invitation, Customer 360, async-export, route-mount or admin-load-recovery implementations unless a concrete regression appears.
+
+---
+
 # WORK COORDINATION — LIVE STATUS — 24 October 2026
 
 Repository: `Report-Engainall/Nasr1`; only production branch `main`.
