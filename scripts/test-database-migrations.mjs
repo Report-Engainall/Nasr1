@@ -6,6 +6,7 @@ import postgres from "postgres";
 import { runOrderInputHardeningAcceptance } from "./test-order-input-hardening.mjs";
 import { runSessionManagementAcceptance } from "./test-session-management.mjs";
 import { runGeneralLedgerReversalAcceptance } from "./test-general-ledger-reversal.mjs";
+import { runCustomerCompanyInvitationRaceAcceptance } from "./test-customer-company-invitation-race.mjs";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) throw new Error("TEST_DATABASE_URL is required for isolated database migration tests.");
@@ -5765,6 +5766,10 @@ async function main() {
     foreignAuthUserId,
     foreignProfileId,
   });
+  // Distinct invitation rows accepted concurrently by one profile must still produce
+  // a single active company membership. The helper uses two real PostgreSQL sessions.
+  await runCustomerCompanyInvitationRaceAcceptance({ db, connectionString, organizationId });
+
   process.stdout.write("PASS: migrations applied, tier pricing, checkout idempotency, tenant isolation, quotations, reorder, invoices/payments, stock/pricing rules, outbox and AI gateway semantics.\n");
 }
 
