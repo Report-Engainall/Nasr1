@@ -190,7 +190,7 @@ async function main() {
   // Source invoice fixture for the fully received return: the credit must derive from this immutable YER invoice line.
   const invoiceFixtureRows = await db.unsafe(
     "insert into public.customer_invoices(organization_id,customer_id,order_id,invoice_number,status,issued_at,currency,subtotal,tax_amount,total_amount) " +
-    "values($1,$2,$3,$4,'issued',pg_catalog.now(),'YER',500,0,500) returning id",
+    "values($1,$2,$3,$4,'issued','2999-01-01 00:00:00+00'::timestamptz,'YER',500,0,500) returning id",
     [organizationId,customerOne.id,orderOneId,"INV-CI-RET-"+suffix],
   );
   const sourceInvoiceId = invoiceFixtureRows[0].id;
