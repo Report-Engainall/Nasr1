@@ -108,6 +108,9 @@ jobs:
         env:
           PGTOOLS_DOCKER: "true"
         run: node scripts/test-local-backup-restore.mjs
+      - name: Verify payment versus return-credit posting race on PostgreSQL 17
+        timeout-minutes: 5
+        run: node scripts/test-customer-payment-credit-posting-race.mjs
 
       # The repository-wide Prettier rule currently reports thousands of pre-existing formatting errors.
       # Keep ESLint correctness rules enabled here and do not let that legacy formatting backlog hide build results.
