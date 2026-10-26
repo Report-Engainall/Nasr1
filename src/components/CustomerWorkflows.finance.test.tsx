@@ -46,14 +46,9 @@ const FINANCE_DATA = {
       outstanding_amount: "50.00",
     },
   ],
-  payments: [
-    {
-      invoice_id: INVOICE_ID,
-      amount: "25.00",
-      paid_at: "2026-10-15T09:30:00.000Z",
-      payment_method: "cash",
-    },
-  ],
+  total_invoices: 1,
+  limit: 200,
+  has_more: false,
 };
 
 let container: HTMLDivElement;
@@ -102,7 +97,7 @@ describe("StaffFinancePage payment amount guard", () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     rpcMock.mockReset();
     rpcMock.mockImplementation(async (name: string) => {
-      if (name === "fetch_staff_finance_data") {
+      if (name === "fetch_staff_finance_invoice_page") {
         return { data: FINANCE_DATA, error: null };
       }
       if (name === "record_customer_payment") {
@@ -134,6 +129,65 @@ describe("StaffFinancePage payment amount guard", () => {
     });
     container.remove();
     vi.unstubAllGlobals();
+  });
+
+  it("uses stable cursor pagination and server-computed invoice totals", async () => {
+    const secondInvoice = {
+      ...FINANCE_DATA.invoices[0],
+      id: "44444444-4444-4444-8444-444444444444",
+      invoice_number: "INV-2026-002",
+      total_amount: "200.00",
+      paid_amount: "100.00",
+      credit_memo_amount: "0.00",
+      outstanding_amount: "100.00",
+    };
+    const defaultImplementation = rpcMock.getMockImplementation();
+    rpcMock.mockImplementation(async (name: string, args?: Record<string, unknown>) => {
+      if (name === "fetch_staff_finance_invoice_page") {
+        if (args?.p_before_id == null) {
+          return {
+            data: { ...FINANCE_DATA, total_invoices: 2, has_more: true },
+            error: null,
+          };
+        }
+        return {
+          data: { invoices: [secondInvoice], total_invoices: 2, limit: 200, has_more: false },
+          error: null,
+        };
+      }
+      return defaultImplementation
+        ? defaultImplementation(name)
+        : { data: null, error: { message: "Unexpected RPC in pagination test" } };
+    });
+
+    await renderFinancePage();
+
+    expect(rpcMock).toHaveBeenCalledWith("fetch_staff_finance_invoice_page", {
+      p_limit: 200,
+      p_before_issued_at: null,
+      p_before_id: null,
+    });
+    const loadMore = Array.from(container.querySelectorAll("button")).find((button) =>
+      (button.textContent ?? "").includes("تحميل المزيد من الفواتير"),
+    );
+    expect(loadMore).toBeTruthy();
+
+    await act(async () => {
+      loadMore?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("INV-2026-002");
+    expect(rpcMock).toHaveBeenCalledWith("fetch_staff_finance_invoice_page", {
+      p_limit: 200,
+      p_before_issued_at: FINANCE_DATA.invoices[0].issued_at,
+      p_before_id: INVOICE_ID,
+    });
+    const firstInvoiceRow = Array.from(container.querySelectorAll("table tbody tr")).find((row) =>
+      row.textContent?.includes("INV-2026-001"),
+    );
+    expect(firstInvoiceRow?.querySelectorAll("td")[3]?.textContent).not.toBe("");
   });
 
   it("uses the server-computed balance after posted credits to reject excess payments", async () => {
