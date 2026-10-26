@@ -108,8 +108,8 @@ const defaultAiGatewayDraft: AiGatewayDraft = {
 export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
   const { user } = useAuth();
   const canManageGateway = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const { data: alerts, loading: aLoading, refetch: rAlerts } = useFetch(fetchAiAlerts);
-  const { data: tasks, loading: tLoading, refetch: rTasks } = useFetch(fetchAiTasks);
+  const { data: alerts, loading: aLoading, error: aError, refetch: rAlerts } = useFetch(fetchAiAlerts);
+  const { data: tasks, loading: tLoading, error: tError, refetch: rTasks } = useFetch(fetchAiTasks);
   const [tab, setTab] = useState<'alerts' | 'tasks'>('alerts');
   const [gateway, setGateway] = useState<AiGatewayBudget | null>(null);
   const [draft, setDraft] = useState<AiGatewayDraft>(defaultAiGatewayDraft);
@@ -251,13 +251,13 @@ export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
       </>}
     </section>}
     <div className="ai-tabs"><button className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}><AlertTriangle size={16} /> التنبيهات</button><button className={tab === 'tasks' ? 'active' : ''} onClick={() => setTab('tasks')}><Check size={16} /> المهام</button></div>
-    {tab === 'alerts' ? (aLoading ? <Loading /> : <div className="ai-alert-list">{alerts?.filter((a: AiAlert) => !a.is_resolved).map((a: AiAlert) => <div className="ai-alert-row" key={a.id}><span className={`ai-severity ${a.severity}`}><AlertTriangle size={18} /></span><div><strong>{a.title}</strong><p>{a.body ?? '—'}</p><small>{timeAgo(a.created_at)}</small></div><Button variant="outline" onClick={() => resolve(a.id)}>حل</Button></div>)}{!alerts?.filter((a) => !a.is_resolved).length && <Empty text="لا توجد تنبيهات نشطة" />}</div>) : (tLoading ? <Loading /> : <div className="ai-task-list">{tasks?.filter((t: AiTask) => t.status !== 'completed').map((t: AiTask) => <div className="ai-task-row" key={t.id}><span className={`ai-priority ${t.priority}`} /><div><strong>{t.title}</strong><p>{t.description ?? '—'}</p><small>{timeAgo(t.created_at)}</small></div><div className="ai-task-actions"><Button variant="outline" onClick={() => taskAction(t.id, 'in_progress')}>بدء</Button><Button onClick={() => taskAction(t.id, 'completed')}>إنجاز</Button></div></div>)}{!tasks?.filter((t) => t.status !== 'completed').length && <Empty text="لا توجد مهام معلقة" />}</div>)}
+    {tab === 'alerts' ? (aLoading ? <Loading /> : aError ? <ErrorBox message={aError} /> : !alerts ? <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> : <div className="ai-alert-list">{alerts?.filter((a: AiAlert) => !a.is_resolved).map((a: AiAlert) => <div className="ai-alert-row" key={a.id}><span className={`ai-severity ${a.severity}`}><AlertTriangle size={18} /></span><div><strong>{a.title}</strong><p>{a.body ?? '—'}</p><small>{timeAgo(a.created_at)}</small></div><Button variant="outline" onClick={() => resolve(a.id)}>حل</Button></div>)}{!alerts?.filter((a) => !a.is_resolved).length && <Empty text="لا توجد تنبيهات نشطة" />}</div>) : (tLoading ? <Loading /> : tError ? <ErrorBox message={tError} /> : !tasks ? <Empty text="تعذر التحقق من المهام؛ حدّث البيانات." /> : <div className="ai-task-list">{tasks?.filter((t: AiTask) => t.status !== 'completed').map((t: AiTask) => <div className="ai-task-row" key={t.id}><span className={`ai-priority ${t.priority}`} /><div><strong>{t.title}</strong><p>{t.description ?? '—'}</p><small>{timeAgo(t.created_at)}</small></div><div className="ai-task-actions"><Button variant="outline" onClick={() => taskAction(t.id, 'in_progress')}>بدء</Button><Button onClick={() => taskAction(t.id, 'completed')}>إنجاز</Button></div></div>)}{!tasks?.filter((t) => t.status !== 'completed').length && <Empty text="لا توجد مهام معلقة" />}</div>)}
   </AdminPage>;
 }
 type OrderReviewDraft = { quantity: string; unitPrice: string; reason: string };
 
 export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { orderId: string; onBack: () => void; onNotice: (m: string) => void; onBlockedChange: (blocked: boolean) => void }) {
-  const { data: orders, refetch: refetchOrders } = useFetch(fetchOrders);
+  const { data: orders, loading: ordersLoading, error: ordersError, refetch: refetchOrders } = useFetch(fetchOrders);
   const { data: items, loading, error, refetch } = useFetch(() => fetchOrderItems(orderId), [orderId]);
   const order = orders?.find((o) => o.id === orderId);
   const canExportOnyxOrder = Boolean(
@@ -564,6 +564,8 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
       <Button variant="secondary" onClick={goBack} disabled={blocked || busy}><ChevronLeft size={16} /> رجوع</Button>
       <Button disabled={!canExportOnyxOrder || exportBusy || exportSnapshotsLoading || Boolean(exportSnapshotsError)} onClick={downloadOnyxWorkbook}><Download size={16} /> {exportBusy ? 'جارٍ تسجيل حدث التصدير...' : 'تنزيل XLSX للأونكس'}</Button>
     </div>}>
+    {ordersLoading && !orders ? <Loading /> : ordersError ? <ErrorBox message={ordersError} /> : !orders ? <Empty text="تعذر التحقق من بيانات الطلب؛ أعد المحاولة." /> : !order ? <Empty text="لم يتم العثور على الطلب المطلوب ضمن المؤسسة الحالية." /> : null}
+    {(ordersError || (!ordersLoading && !orders)) && <Button variant="secondary" onClick={() => { void refetchOrders(); }}>إعادة تحميل الطلب</Button>}
     {order && <section className="panel" style={{ marginTop: 12, padding: 14 }}>
       <label htmlFor="onyx-export-source-snapshot" style={{ display: 'block', fontWeight: 800, marginBottom: 6 }}>لقطة المخزون المصدرية لربط تصدير الطلب</label>
       <select id="onyx-export-source-snapshot" aria-label="لقطة مصدر أونكس للتصدير" value={selectedExportSnapshotId}
@@ -764,7 +766,7 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
   const { user } = useAuth();
   const canManageRoles = Boolean(user?.roles.includes('admin'));
   const canManageStorefrontContent = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
-  const { data: settings, loading, refetch } = useFetch(fetchSettings);
+  const { data: settings, loading, error, refetch } = useFetch(fetchSettings);
   const [tab, setTab] = useState<'general' | 'storefront' | 'appearance' | 'access' | 'announcements'>('general');
   const [saving, setSaving] = useState(false);
   const map = useMemo(() => { const m: Record<string, unknown> = {}; settings?.forEach((s: AdminSetting) => m[s.key] = s.value); return m; }, [settings]);
@@ -772,7 +774,7 @@ export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
   async function save(key: string, value: unknown, category: string) { setSaving(true); try { await updateSetting(key, value, category); refetch(); onNotice('تم حفظ الإعداد'); } catch (e) { onNotice(e instanceof Error ? e.message : 'خطأ'); } finally { setSaving(false); } }
 
   return <AdminPage eyebrow="النظام" title="الإعدادات العامة" description="تحكم كامل في إعدادات المتجر والمظهر" icon={Settings} note="" toolbar={<Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button>}>
-    {loading ? <Loading /> : <>
+    {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !settings ? <Empty text="تعذر التحقق من الإعدادات؛ حدّث البيانات." /> : <>
       <div className="settings-tabs"><button className={tab === 'general' ? 'active' : ''} onClick={() => setTab('general')}>عام</button><button className={tab === 'storefront' ? 'active' : ''} onClick={() => setTab('storefront')}>المتجر</button><button className={tab === 'appearance' ? 'active' : ''} onClick={() => setTab('appearance')}>المظهر</button>{canManageStorefrontContent && <button className={tab === 'announcements' ? 'active' : ''} onClick={() => setTab('announcements')}>إعلانات المتجر</button>}{canManageRoles && <button className={tab === 'access' ? 'active' : ''} onClick={() => setTab('access')}>المستخدمون والصلاحيات</button>}</div>
       {tab === 'general' && <SettingsPanel title="معلومات المتجر"><SettingInput label="اسم المتجر" value={(map.store_name as string) ?? ''} onSave={(v) => save('store_name', v, 'general')} saving={saving} /><SettingInput label="الوصف المختصر" value={(map.store_tagline as string) ?? ''} onSave={(v) => save('store_tagline', v, 'general')} saving={saving} /><SettingInput label="الهاتف" value={(map.store_phone as string) ?? ''} onSave={(v) => save('store_phone', v, 'general')} saving={saving} /><SettingInput label="البريد" value={(map.store_email as string) ?? ''} onSave={(v) => save('store_email', v, 'general')} saving={saving} /><SettingInput label="العنوان" value={(map.store_address as string) ?? ''} onSave={(v) => save('store_address', v, 'general')} saving={saving} /></SettingsPanel>}
       {tab === 'storefront' && <>
@@ -1078,7 +1080,7 @@ export function AdminPage({ eyebrow, title, description, icon: Icon, note, toolb
   return <><div className="heading"><div className="heading-icon"><Icon size={25} /></div><div><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></div></div>{(note || toolbar) && <div className="toolbar"><span className="toolbar-note">{note}</span><div className="toolbar-actions">{toolbar}</div></div>}{children}</>;
 }
 export function Loading() { return <div className="loading"><RefreshCw size={20} className="spin" /> جار تحميل البيانات...</div>; }
-export function ErrorBox({ message }: { message: string }) { return <div className="error-box"><AlertTriangle size={19} /> تعذر تحميل البيانات. {message}</div>; }
+export function ErrorBox({ message }: { message: string }) { return <div className="error-box" role="alert"><AlertTriangle size={19} /> تعذر تحميل البيانات. {message}</div>; }
 export function Empty({ text }: { text: string }) { return <div className="empty"><Database size={26} /><span>{text}</span></div>; }
 export function Button({ children, variant = 'primary', onClick, disabled }: { children: React.ReactNode; variant?: 'primary' | 'secondary' | 'outline' | 'danger'; onClick?: () => void; disabled?: boolean }) { return <button className={`btn ${variant}`} onClick={onClick} disabled={disabled}>{children}</button>; }
 export function TableWrap({ children }: { children: React.ReactNode }) { return <div className="table-wrap">{children}</div>; }

@@ -242,8 +242,8 @@ export function AdminApp({ initialView = 'dashboard' }: { initialView?: View }) 
 
 function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
   const { data: stats, loading, error, refetch } = useFetch(fetchDashboardStats);
-  const { data: alerts } = useFetch(fetchAiAlerts);
-  const { data: products, loading: productsLoading, error: productsError } = useFetch(fetchProducts);
+  const { data: alerts, loading: alertsLoading, error: alertsError, refetch: refetchAlerts } = useFetch(fetchAiAlerts);
+  const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(fetchProducts);
   if (loading) return <><Heading eyebrow="مركز التشغيل" title="لوحة المعلومات" description="صورة مباشرة لأداء الأعمال اليومي" icon={LayoutDashboard} /><Loading /></>;
   if (error) return <ErrorBox message={error} />;
   const lowStock = products?.filter((product) => {
@@ -263,9 +263,9 @@ function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
     ['مخزون منخفض', lowStockValue, 'يحتاج إعادة طلب', AlertTriangle, 'red'],
   ] as const;
   return <>
-    <div className="hero"><div><span className="hero-kicker">نظرة تنفيذية مباشرة</span><h1>قرارات أفضل، بتشغيل أذكى</h1><p>تتابع الأغبري الطلبات والمخزون والعملاء في مكان واحد، مع مؤشرات واضحة تساعدك على التحرك بسرعة.</p></div><Button onClick={refetch} variant="secondary"><RefreshCw size={16} /> تحديث البيانات</Button></div>
+    <div className="hero"><div><span className="hero-kicker">نظرة تنفيذية مباشرة</span><h1>قرارات أفضل، بتشغيل أذكى</h1><p>تتابع الأغبري الطلبات والمخزون والعملاء في مكان واحد، مع مؤشرات واضحة تساعدك على التحرك بسرعة.</p></div><Button onClick={() => { void refetch(); void refetchAlerts(); void refetchProducts(); }} variant="secondary"><RefreshCw size={16} /> تحديث البيانات</Button></div>
     <div className="stats-grid">{cards.map(([label, value, note, Icon, color]) => <article className={`stat-card ${color}`} key={label}><div className="stat-top"><Icon size={22} /><span>{note}</span></div><small>{label}</small><strong>{value}</strong></article>)}</div>
-    <div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h2>تنبيهات التشغيل</h2><p>أهم ما يحتاج انتباهك الآن</p></div><Button variant="outline" onClick={() => onNavigate('ai')}>مركز الذكاء <ChevronLeft size={15} /></Button></div>{alerts?.filter((a) => !a.is_resolved).slice(0, 4).map((alert) => <div className="alert-row" key={alert.id}><span className={`severity ${alert.severity}`}><AlertTriangle size={16} /></span><div><strong>{alert.title}</strong><p>{alert.body}</p></div><ChevronLeft size={16} /></div>) ?? <Empty text="لا توجد تنبيهات نشطة" />}</section><section className="panel"><div className="panel-head"><div><h2>الأصناف التي تحتاج متابعة</h2><p>حسب حد إعادة الطلب</p></div><Button variant="outline" onClick={() => onNavigate('products')}>إدارة المنتجات</Button></div>{productsLoading ? <Loading /> : productsError ? <ErrorBox message={productsError} /> : !products ? <Empty text="بيانات المخزون غير متاحة؛ لم يتم اعتبارها صفرًا." /> : lowStock.length ? lowStock.map((product) => <div className="stock-row" key={product.id}><div className="product-avatar"><Package size={17} /></div><div><strong>{product.name}</strong><span>{product.item_code}</span></div><b className={product.inventory?.quantity_available === 0 ? 'critical' : ''}>{formatNumber(product.inventory?.quantity_available as number)} {product.unit}</b></div>) : stats?.lowStockCount === null ? <Empty text="لم يتم تحديد مستودع؛ تعذر الجزم بأن المخزون ضمن الحدود الآمنة." /> : <Empty text="لا توجد أصناف منخفضة المخزون ضمن بيانات المستودع الحالية." />}</section></div>
+    <div className="dashboard-grid"><section className="panel"><div className="panel-head"><div><h2>تنبيهات التشغيل</h2><p>أهم ما يحتاج انتباهك الآن</p></div><Button variant="outline" onClick={() => onNavigate('ai')}>مركز الذكاء <ChevronLeft size={15} /></Button></div>{alertsLoading ? <Loading /> : alertsError ? <ErrorBox message={alertsError} /> : !alerts ? <Empty text="تعذر التحقق من التنبيهات؛ حدّث البيانات." /> : alerts.filter((a) => !a.is_resolved).length ? alerts?.filter((a) => !a.is_resolved).slice(0, 4).map((alert) => <div className="alert-row" key={alert.id}><span className={`severity ${alert.severity}`}><AlertTriangle size={16} /></span><div><strong>{alert.title}</strong><p>{alert.body}</p></div><ChevronLeft size={16} /></div>) : <Empty text="لا توجد تنبيهات نشطة" />}</section><section className="panel"><div className="panel-head"><div><h2>الأصناف التي تحتاج متابعة</h2><p>حسب حد إعادة الطلب</p></div><Button variant="outline" onClick={() => onNavigate('products')}>إدارة المنتجات</Button></div>{productsLoading ? <Loading /> : productsError ? <ErrorBox message={productsError} /> : !products ? <Empty text="بيانات المخزون غير متاحة؛ لم يتم اعتبارها صفرًا." /> : lowStock.length ? lowStock.map((product) => <div className="stock-row" key={product.id}><div className="product-avatar"><Package size={17} /></div><div><strong>{product.name}</strong><span>{product.item_code}</span></div><b className={product.inventory?.quantity_available === 0 ? 'critical' : ''}>{formatNumber(product.inventory?.quantity_available as number)} {product.unit}</b></div>) : stats?.lowStockCount === null ? <Empty text="لم يتم تحديد مستودع؛ تعذر الجزم بأن المخزون ضمن الحدود الآمنة." /> : <Empty text="لا توجد أصناف منخفضة المخزون ضمن بيانات المستودع الحالية." />}</section></div>
     <section className="quick-panel"><div><Sparkline /><strong>تشغيل مترابط من لوحة واحدة</strong><p>افتح أي وحدة لإدارة التفاصيل وتحديث البيانات مباشرة.</p></div><div className="quick-links">{nav.slice(1, 7).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => onNavigate(id)}><Icon size={17} />{label}</button>)}</div></section>
   </>;
 }
@@ -1161,8 +1161,8 @@ function localDateTimeValue(value?: string | null): string {
 }
 
 function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onClose: () => void; onSaved: () => Promise<void> | void }) {
-  const { data: products, loading: productsLoading } = useFetch(fetchProducts);
-  const { data: categories, loading: categoriesLoading } = useFetch(fetchCategories);
+  const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(fetchProducts);
+  const { data: categories, loading: categoriesLoading, error: categoriesError, refetch: refetchCategories } = useFetch(fetchCategories);
   const [name, setName] = useState(rule?.name ?? '');
   const [scopeType, setScopeType] = useState<CreatePricingRuleInput['scope_type']>(pricingRuleScopeForForm(rule));
   const [scopeValue, setScopeValue] = useState(rule?.scope_value ?? '');
@@ -1179,9 +1179,19 @@ function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onCl
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const scopeOptionsUnavailable = scopeType === 'product'
+    ? productsLoading || Boolean(productsError) || !products?.length
+    : scopeType === 'category'
+      ? categoriesLoading || Boolean(categoriesError) || !categories?.length
+      : false;
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
+    if (scopeOptionsUnavailable) {
+      setError('تعذر التحقق من خيارات نطاق القاعدة؛ أعد تحميل المنتجات أو التصنيفات قبل الحفظ.');
+      return;
+    }
     const amount = Number(adjustmentValue);
     const quantity = Number(minQuantity);
     const rank = Number(priority);
@@ -1240,12 +1250,18 @@ function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onCl
         <Field label="نطاق التطبيق"><select value={scopeType} onChange={(event) => { setScopeType(event.target.value as typeof scopeType); setScopeValue(''); }}><option value="default">كل الأصناف (افتراضي)</option><option value="all">كل الأصناف (عام)</option><option value="product">منتج محدد</option><option value="category">تصنيف محدد</option></select></Field>
         <Field label="الشريحة المستهدفة"><select value={targetTier} onChange={(event) => setTargetTier(event.target.value as typeof targetTier)}><option value="both">الجملة والتجزئة</option><option value="wholesale">الجملة</option><option value="retail">التجزئة</option></select></Field>
       </div>
-      {(scopeType === 'product' || scopeType === 'category') && <Field label={scopeType === 'product' ? 'المنتج' : 'التصنيف'}>
-        <select value={scopeValue} onChange={(event) => setScopeValue(event.target.value)} required disabled={scopeType === 'product' ? productsLoading : categoriesLoading}>
-          <option value="">{scopeType === 'product' ? (productsLoading ? 'جار تحميل المنتجات…' : 'اختر المنتج') : (categoriesLoading ? 'جار تحميل التصنيفات…' : 'اختر التصنيف')}</option>
-          {scopeType === 'product' ? (products ?? []).map((product) => <option key={product.id} value={product.id}>{product.name} · {product.item_code}</option>) : (categories ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-        </select>
-      </Field>}
+      {(scopeType === 'product' || scopeType === 'category') && <>
+        {scopeType === 'product' && productsError && <><ErrorBox message={productsError} /><button type="button" className="btn secondary" onClick={() => { void refetchProducts(); }}>إعادة تحميل المنتجات</button></>}
+        {scopeType === 'category' && categoriesError && <><ErrorBox message={categoriesError} /><button type="button" className="btn secondary" onClick={() => { void refetchCategories(); }}>إعادة تحميل التصنيفات</button></>}
+        {scopeType === 'product' && !productsLoading && !productsError && products?.length === 0 && <Empty text="لا توجد منتجات متاحة لاستخدامها في قاعدة تسعير." />}
+        {scopeType === 'category' && !categoriesLoading && !categoriesError && categories?.length === 0 && <Empty text="لا توجد تصنيفات متاحة لاستخدامها في قاعدة تسعير." />}
+        <Field label={scopeType === 'product' ? 'المنتج' : 'التصنيف'}>
+          <select value={scopeValue} onChange={(event) => setScopeValue(event.target.value)} required disabled={scopeOptionsUnavailable}>
+            <option value="">{scopeType === 'product' ? (productsLoading ? 'جار تحميل المنتجات…' : productsError ? 'تعذر تحميل المنتجات' : 'اختر المنتج') : (categoriesLoading ? 'جار تحميل التصنيفات…' : categoriesError ? 'تعذر تحميل التصنيفات' : 'اختر التصنيف')}</option>
+            {scopeType === 'product' ? (products ?? []).map((product) => <option key={product.id} value={product.id}>{product.name} · {product.item_code}</option>) : (categories ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+        </Field>
+      </>}
       <div className="form-grid">
         <Field label="طريقة الاحتساب"><select value={method} onChange={(event) => setMethod(event.target.value as typeof method)}><option value="add_percentage">نسبة إضافة % على الأساس</option><option value="margin_percentage">هامش ربح % من سعر البيع</option><option value="fixed_price">سعر ثابت</option><option value="add_subtract_amount">إضافة/خصم مبلغ (السالب للخصم)</option></select></Field>
         <Field label="أساس الحساب"><select value={baseSource} onChange={(event) => setBaseSource(event.target.value as typeof baseSource)}><option value="base_price">السعر الأساسي</option><option value="cost_price">التكلفة</option></select></Field>
@@ -1268,7 +1284,7 @@ function PricingRuleModal({ rule, onClose, onSaved }: { rule?: PricingRule; onCl
       </div>
       <p style={{ color: '#71868a', fontSize: 12, lineHeight: 1.7 }}>{rule ? 'سيُحدّث المحرك هذه القاعدة ويزيد رقم إصدارها ويسجل التغيير، ثم يعيد احتساب الأسعار ضمن النطاق والشريحة والكمية والفترة المختارة.' : 'الحفظ لا يغيّر قائمة الأسعار يدويًا؛ قاعدة البيانات تحسب الجملة والتجزئة وتكتب سجل التدقيق. لا تُطبّق القاعدة إلا ضمن النطاق والشريحة والكمية والفترة المختارة.'}</p>
       {error && <div className="form-error" role="alert">{error}</div>}
-      <div className="modal-actions"><button type="button" className="btn outline" onClick={onClose} disabled={saving}>إلغاء</button><Button disabled={saving || ((scopeType === 'product' && productsLoading) || (scopeType === 'category' && categoriesLoading))}>{saving ? 'جارٍ الحفظ...' : rule ? 'حفظ التعديلات' : 'حفظ قاعدة التسعير'}</Button></div>
+      <div className="modal-actions"><button type="button" className="btn outline" onClick={onClose} disabled={saving}>إلغاء</button><Button disabled={saving || scopeOptionsUnavailable}>{saving ? 'جارٍ الحفظ...' : rule ? 'حفظ التعديلات' : 'حفظ قاعدة التسعير'}</Button></div>
     </form>
   </Modal>;
 }
