@@ -2676,6 +2676,163 @@ async function main() {
   assert.equal(multiChunkState[0].verified_chunks, 3);
   assert.equal(multiChunkState[0].status, "uploaded");
 
+  // API-OPS-001: prove record_import_upload_chunk is tenant-bound and serializes
+  // two authenticated writers registering the same previously absent chunk.
+  const chunkRaceRequestKey = randomUUID();
+  const chunkRaceFileHash = randomUUID().replaceAll("-", "").repeat(2).slice(0, 64);
+  const chunkRaceSourceReference = "CI-CHUNK-RACE-" + randomUUID().slice(0, 8);
+  const chunkRaceJobResult = await db.unsafe(
+    "select public.create_import_job_idempotent($1::uuid,$2,$3,$4,$5,$6,$7::uuid,$8,$9,$10) as result",
+    [chunkRaceRequestKey, "CI chunk race.csv", chunkRaceFileHash, 500, "onyx_stock", chunkRaceSourceReference, null, "2026-03", "ci", "new_version"],
+  );
+  const chunkRaceJob = chunkRaceJobResult[0].result;
+  const chunkRaceSessionResult = await db.unsafe(
+    "select public.create_import_upload_session($1::uuid) as result",
+    [chunkRaceJob.id],
+  );
+  const chunkRaceSession = chunkRaceSessionResult[0].result;
+  assert.equal(chunkRaceSession.total_chunks, 1, "concurrency fixture must use a single missing chunk");
+
+  const chunkForeignAuthId = randomUUID();
+  const chunkForeignProfileId = randomUUID();
+  const chunkForeignEmail = "ci-import-chunk-foreign-" + randomUUID().slice(0, 8) + "@example.test";
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1::uuid,$2,pg_catalog.now())",
+    [chunkForeignAuthId, chunkForeignEmail],
+  );
+  await db.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1::uuid,$2::uuid,$3::uuid,'CI Foreign Import Manager',$4,true)",
+    [chunkForeignProfileId, chunkForeignAuthId, otherOrganizationId, chunkForeignEmail],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1::uuid,'manager')",
+    [chunkForeignProfileId],
+  );
+  const chunkSessionBeforeRows = await db.unsafe(
+    "select verified_chunks,status,updated_at::text as updated_at from public.import_upload_sessions where id=$1::uuid",
+    [chunkRaceSession.id],
+  );
+  const chunkRowsBefore = await db.unsafe(
+    "select count(*)::int as count from public.import_upload_chunks where session_id=$1::uuid",
+    [chunkRaceSession.id],
+  );
+  assert.equal(chunkRowsBefore[0].count, 0, "new upload manifest must start empty");
+  await setIdentity(chunkForeignAuthId, chunkForeignEmail);
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "foreign-organization manager cannot register a chunk against another tenant's upload session",
+    () => db.unsafe(
+      "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5)",
+      [chunkRaceSession.id, 0, 0, 500, "f".repeat(64)],
+    ),
+    /جلسة الاستيراد غير متاحة/i,
+    "22023",
+  );
+  await db.unsafe("reset role");
+  const chunkSessionAfterRows = await db.unsafe(
+    "select verified_chunks,status,updated_at::text as updated_at from public.import_upload_sessions where id=$1::uuid",
+    [chunkRaceSession.id],
+  );
+  const chunkRowsAfter = await db.unsafe(
+    "select count(*)::int as count from public.import_upload_chunks where session_id=$1::uuid",
+    [chunkRaceSession.id],
+  );
+  assert.deepEqual(chunkSessionAfterRows, chunkSessionBeforeRows,
+    "cross-tenant denial leaves the upload-session state and timestamps unchanged");
+  assert.equal(chunkRowsAfter[0].count, 0, "cross-tenant denial must not persist chunk metadata");
+
+  await db.unsafe("reset role");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const chunkRaceGate = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const chunkRaceA = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const chunkRaceB = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  let chunkRaceGateOpen = false;
+  let chunkRaceAttemptA;
+  let chunkRaceAttemptB;
+  const setChunkRaceStaffIdentity = async (connection, appName) => {
+    await connection.unsafe("select set_config('application_name',$1,false)", [appName]);
+    await connection.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [staffAuthUserId]);
+    await connection.unsafe("select set_config('request.jwt.claims',$1,false)", [
+      JSON.stringify({ sub: staffAuthUserId, email: "admin@aghbari.ye", role: "authenticated", session_id: staffAuthUserId }),
+    ]);
+    await connection.unsafe("set role authenticated");
+  };
+  try {
+    await Promise.all([
+      setChunkRaceStaffIdentity(chunkRaceA, "ci-import-chunk-race-a"),
+      setChunkRaceStaffIdentity(chunkRaceB, "ci-import-chunk-race-b"),
+    ]);
+    await chunkRaceGate.unsafe("begin");
+    chunkRaceGateOpen = true;
+    await chunkRaceGate.unsafe(
+      "select id from public.import_upload_sessions where id=$1::uuid for update",
+      [chunkRaceSession.id],
+    );
+    const registerChunk = (connection) => connection.unsafe(
+      "select public.record_import_upload_chunk($1::uuid,$2,$3,$4,$5) as result",
+      [chunkRaceSession.id, 0, 0, 500, "a".repeat(64)],
+    ).then((rows) => ({ ok: true, result: rows[0].result }))
+      .catch((error) => ({ ok: false, error }));
+    chunkRaceAttemptA = registerChunk(chunkRaceA);
+    chunkRaceAttemptB = registerChunk(chunkRaceB);
+    let observedBothChunkWritersWaiting = false;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const waiting = await db.unsafe(
+        "select count(*)::int as count from pg_catalog.pg_stat_activity " +
+        "where application_name in ('ci-import-chunk-race-a','ci-import-chunk-race-b') " +
+        "and state='active' and wait_event_type='Lock'",
+      );
+      if (Number(waiting[0]?.count ?? 0) === 2) {
+        observedBothChunkWritersWaiting = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(observedBothChunkWritersWaiting, true,
+      "both authenticated chunk RPC sessions must overlap while contending on the locked upload session");
+    await chunkRaceGate.unsafe("commit");
+    chunkRaceGateOpen = false;
+    const [chunkRaceOutcomeA, chunkRaceOutcomeB] = await Promise.all([chunkRaceAttemptA, chunkRaceAttemptB]);
+    assert.equal(chunkRaceOutcomeA.ok, true, "first concurrent upload-chunk registration must succeed");
+    assert.equal(chunkRaceOutcomeB.ok, true, "same-chunk concurrent replay must succeed");
+    for (const outcome of [chunkRaceOutcomeA, chunkRaceOutcomeB]) {
+      assert.equal(outcome.result.verified_chunks, 1, "concurrent calls return the canonical verified count");
+      assert.equal(outcome.result.total_chunks, 1);
+      assert.equal(outcome.result.complete, true);
+    }
+  } finally {
+    if (chunkRaceGateOpen) await chunkRaceGate.unsafe("rollback").catch(() => {});
+    if (chunkRaceAttemptA || chunkRaceAttemptB) {
+      await Promise.allSettled([chunkRaceAttemptA, chunkRaceAttemptB].filter(Boolean));
+    }
+    await Promise.all([
+      chunkRaceGate.end({ timeout: 5 }).catch(() => undefined),
+      chunkRaceA.end({ timeout: 5 }).catch(() => undefined),
+      chunkRaceB.end({ timeout: 5 }).catch(() => undefined),
+    ]);
+  }
+  await db.unsafe("reset role");
+  const persistedChunkRaceRows = await db.unsafe(
+    "select chunk_number,byte_offset,byte_size,chunk_hash from public.import_upload_chunks where session_id=$1::uuid order by chunk_number",
+    [chunkRaceSession.id],
+  );
+  const persistedChunkRaceSession = await db.unsafe(
+    "select verified_chunks,status from public.import_upload_sessions where id=$1::uuid",
+    [chunkRaceSession.id],
+  );
+  assert.equal(persistedChunkRaceRows.length, 1, "same-chunk concurrency creates exactly one manifest row");
+  assert.equal(persistedChunkRaceRows[0].chunk_number, 0);
+  assert.equal(persistedChunkRaceRows[0].byte_offset, "0");
+  assert.equal(persistedChunkRaceRows[0].byte_size, 500);
+  assert.equal(persistedChunkRaceRows[0].chunk_hash, "a".repeat(64));
+  assert.equal(persistedChunkRaceSession[0].verified_chunks, 1);
+  assert.equal(persistedChunkRaceSession[0].status, "uploaded");
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  process.stdout.write("PASS import upload chunks: cross-tenant denial is side-effect free and concurrent identical registrations persist one canonical chunk.\\n");
+
   // A complete manifest cannot turn a cancelled job into a committed snapshot.
   await db.unsafe(
     `update public.import_jobs
