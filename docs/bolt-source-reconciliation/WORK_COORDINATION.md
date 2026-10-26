@@ -10,7 +10,7 @@
 - **Current tree/source counts:** `Nasr1@3af89b5aad04d9dca3cad45eb02432d2663b008c` vs `Nasr-Adnan/Nasr-Adnan@34702e670d80e80340d54683171238292099cbaa`: 630 shared, 591 identical, 39 changed shared, 19 source-only, 247 target-only. Fourteen-byte `404: Not Found` blobs, unsafe legacy admin/password seed migrations, duplicate archives, and obsolete package-lock files are not to be imported.
 - **Already canonical in Nasr1:** newer schema-adapted executive analytics/Customer 360 and current storefront price/session/membership/NULL contract. Keep the target schema, TanStack/React routing, current Bun lockfile and current tenant guards; no wholesale source overwrite.
 - **External boundary:** hosted customer/tenant E2E remains SKIPPED without authorized non-production credentials; live Onyx, WhatsApp, AI-provider calls and production operations remain unproven.
-- **NEXT ACTION:** confirm exact-main run `40396394436`, then resume the next uncovered high-risk RPC contract and remaining screen workflows using the canonical API-OPS register/matrix. Keep whole product PARTIAL until evidence closes the actual requirements.
+- **NEXT ACTION:** exact-main Core run `40396394436` is SUCCESS on `3af89b5aad04d9dca3cad45eb02432d2663b008c`. Resume the next uncovered high-risk RPC contract and remaining screen workflows using the canonical API-OPS register/matrix. Keep whole product PARTIAL until evidence closes the actual requirements.
 
 ---
 # WORK COORDINATION — LIVE STATUS — 2026-10-26 after PR #224
