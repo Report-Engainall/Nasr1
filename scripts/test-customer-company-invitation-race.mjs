@@ -2,14 +2,6 @@ import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import postgres from "postgres";
 
-type Client = ReturnType<typeof postgres>;
-
-type Input = {
-  db: Client;
-  connectionString: string;
-  organizationId: string;
-};
-
 /**
  * PostgreSQL 17 integration acceptance for the single-active-company-membership invariant.
  *
@@ -23,7 +15,7 @@ export async function runCustomerCompanyInvitationRaceAcceptance({
   db,
   connectionString,
   organizationId,
-}: Input): Promise<void> {
+}) {
   const profileId = randomUUID();
   const authUserId = randomUUID();
   const email = `ci-company-invitation-race-${randomUUID().slice(0, 12)}@example.test`;
@@ -40,7 +32,7 @@ export async function runCustomerCompanyInvitationRaceAcceptance({
   let hashA: string | undefined;
   let hashB: string | undefined;
 
-  async function setCustomerSession(client: Client, sessionId: string) {
+  async function setCustomerSession(client, sessionId) {
     await client.unsafe("select set_config('request.jwt.claim.sub', $1, false)", [authUserId]);
     await client.unsafe("select set_config('request.jwt.claims', $1, false)", [
       JSON.stringify({
