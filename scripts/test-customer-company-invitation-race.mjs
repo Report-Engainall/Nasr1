@@ -27,10 +27,10 @@ export async function runCustomerCompanyInvitationRaceAcceptance({
   const sessionB = randomUUID();
   const first = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const second = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
-  let customerA: string | undefined;
-  let customerB: string | undefined;
-  let hashA: string | undefined;
-  let hashB: string | undefined;
+  let customerA;
+  let customerB;
+  let hashA;
+  let hashB;
 
   async function setCustomerSession(client, sessionId) {
     await client.unsafe("select set_config('request.jwt.claim.sub', $1, false)", [authUserId]);
