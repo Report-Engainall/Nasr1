@@ -630,26 +630,31 @@ async function main() {
   assert.ok(beforeYER,"YER customer ledger baseline exists before credit posting");
 
   // Acceptance: payment and source-credit posting serialize on the same invoice settlement lock.
-  // Hold that exact advisory key so both authenticated calls must be observed waiting
-  // in PostgreSQL before release; Promise.all timing by itself is not race evidence.
+  // Use one dedicated authenticated PostgreSQL session per writer so session identity and
+  // application_name cannot be inherited from the surrounding test's pooled connection.
+  const settlementPayment = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const settlementRacer = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const settlementGate = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   let settlementGateOpen = false;
   let settlementAttempts;
   let settlementResults;
   try {
-    await settlementRacer.unsafe("reset role").catch(()=>{});
-    await settlementRacer.unsafe(
-      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI invoice settlement race session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
-      [managerAuthId],
-    );
-    await settlementRacer.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[managerAuthId]);
-    await settlementRacer.unsafe("select set_config('request.jwt.claims',$1,false)",[
-      JSON.stringify({sub:managerAuthId,email:"ci-return-manager@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated",session_id:managerAuthId}),
-    ]);
-    await settlementRacer.unsafe("set role authenticated");
-    await db.unsafe("select set_config('application_name',$1,false)",["ci-invoice-settlement-payment"]);
-    await settlementRacer.unsafe("select set_config('application_name',$1,false)",["ci-invoice-settlement-credit"]);
+    for (const [client, applicationName] of [
+      [settlementPayment,"ci-invoice-settlement-payment"],
+      [settlementRacer,"ci-invoice-settlement-credit"],
+    ]) {
+      await client.unsafe("reset role").catch(()=>{});
+      await client.unsafe(
+        "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI invoice settlement race session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+        [managerAuthId],
+      );
+      await client.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[managerAuthId]);
+      await client.unsafe("select set_config('request.jwt.claims',$1,false)",[
+        JSON.stringify({sub:managerAuthId,email:"ci-return-manager@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated",session_id:managerAuthId}),
+      ]);
+      await client.unsafe("set role authenticated");
+      await client.unsafe("select set_config('application_name',$1,false)",[applicationName]);
+    }
     await settlementGate.unsafe("begin");
     settlementGateOpen = true;
     await settlementGate.unsafe(
@@ -657,7 +662,7 @@ async function main() {
       [organizationId + ":customer-invoice-settlement:" + sourceInvoiceId],
     );
     settlementAttempts = Promise.all([
-      db.unsafe(
+      settlementPayment.unsafe(
         "select public.record_customer_payment($1::uuid,$2::numeric,$3::text,$4::uuid,$5::text,$6::text) as id",
         [sourceInvoiceId,100,"cash",randomUUID(),"CI-RET-CONCURRENT-PAY-001","payment concurrent with source-credit posting"],
       ),
@@ -667,20 +672,26 @@ async function main() {
       ),
     ]);
     let bothSettlementWritersWaiting = false;
+    let settlementActivity = [];
     for (let attempt = 0; attempt < 120; attempt += 1) {
-      const waiting = await settlementGate.unsafe(
-        "select count(*)::integer as count from pg_catalog.pg_stat_activity " +
-        "where application_name in ('ci-invoice-settlement-payment','ci-invoice-settlement-credit') " +
-        "and state='active' and wait_event_type='Lock'",
+      settlementActivity = await settlementGate.unsafe(
+        "select application_name,state,wait_event_type,wait_event,left(query,180) as query " +
+        "from pg_catalog.pg_stat_activity " +
+        "where application_name in ('ci-invoice-settlement-payment','ci-invoice-settlement-credit') and state='active'",
       );
-      if (Number(waiting[0]?.count ?? 0) === 2) {
+      const paymentWaiting = settlementActivity.some((row) =>
+        row.application_name === "ci-invoice-settlement-payment" && row.wait_event_type === "Lock");
+      const creditWaiting = settlementActivity.some((row) =>
+        row.application_name === "ci-invoice-settlement-credit" && row.wait_event_type === "Lock");
+      if (paymentWaiting && creditWaiting) {
         bothSettlementWritersWaiting = true;
         break;
       }
       await new Promise((resolve) => setTimeout(resolve,25));
     }
     assert.equal(bothSettlementWritersWaiting,true,
-      "payment and credit posting must both be observed waiting on the invoice settlement advisory lock before release");
+      "payment and credit posting must both be observed waiting on PostgreSQL locks before release; observed activity: " +
+      JSON.stringify(settlementActivity));
     await settlementGate.unsafe("commit");
     settlementGateOpen = false;
     settlementResults = await settlementAttempts;
@@ -689,6 +700,7 @@ async function main() {
     if (settlementAttempts) await Promise.allSettled([settlementAttempts]);
     await Promise.all([
       settlementGate.end({timeout:5}).catch(()=>{}),
+      settlementPayment.end({timeout:5}).catch(()=>{}),
       settlementRacer.end({timeout:5}).catch(()=>{}),
     ]);
   }
