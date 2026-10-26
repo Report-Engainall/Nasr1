@@ -1,3 +1,18 @@
+# CURRENT EXECUTION ADDENDUM — 2026-10-26 — after PR #255 and docs refresh
+
+- **Authoritative repository/branch:** `Report-Engainall/Nasr1` / `main`.
+- **Current main SHA:** `66db57c3a50e1372c7dcc5e68b47b5674d16bc29` (PR #253 documentation refresh merged at this SHA). Post-merge Core [40398635908](https://github.com/Report-Engainall/Nasr1/actions/runs/40398635908) is IN_PROGRESS on this exact SHA. The result of prior Core on `1070ae9c0aa5efca611acde321f8108f51896ad6` must not be transferred to `66db57c3a50e1372c7dcc5e68b47b5674d16bc29`.
+- **PR #255 — import finalizer CI trigger:** merged at `1070ae9c0aa5efca611acde321f8108f51896ad6`. Exact-head Core [40397372624 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40397372624), P2 [40397372507 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40397372507) and dedicated Import finalizer PG17 [40397372460 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40397372460). Post-merge Core [40398087365 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40398087365) and dedicated import-finalizer [40398087347 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40398087347) both completed on the exact merge SHA `1070ae9c0aa5efca611acde321f8108f51896ad6`.
+- **PR #253 — documentation reconciliation:** merged as `66db57c3a50e1372c7dcc5e68b47b5674d16bc29`; its latest follow-up records the current PR #255 result. The Core run for this documentation merge SHA remains IN_PROGRESS as noted above.
+- **PR #251 — journal race sessions:** merged at `3af89b5aad04d9dca3cad45eb02432d2663b008c`; exact-head Core/P2 40395688620/40395688803 SUCCESS and post-merge Core 40396394436 SUCCESS.
+- **PR #249 — return-credit preparation race:** merged at `c3feec40b11c31853f001ab14fa6ac8095dcacc5`; exact-head Core/P2 40393815811/40393815607 SUCCESS and post-merge Core 40394522356 SUCCESS.
+- **PR #248 — payment-journal race observation:** merged at `d1374756659b37ab3bb526be0c96c3fefeec67bb`; exact-head Core/P2 40392506835/40392506840 SUCCESS and post-merge Core 40393211910 SUCCESS.
+- **Source reconciliation:** source `Nasr-Adnan/Nasr-Adnan@34702e670d80e80340d54683171238292099cbaa` is an older snapshot, not an overwrite target. The last full-tree comparison counted 630 shared paths, 591 identical, 39 changed shared, 19 source-only and 247 target-only; refresh that count only if a new full-tree comparison is run. Reject duplicate Bolt ZIP copies, literal 14-byte `404: Not Found` placeholders, obsolete package lock and older migrations instead of importing wholesale.
+- **External proof boundary:** hosted authenticated customer/tenant E2E stays SKIPPED without authorized non-production credentials. Live Onyx Pro, WhatsApp, production AI-provider calls and production deploy/migration/backup/restore are not claimed.
+- **Next action:** poll Core [40398635908](https://github.com/Report-Engainall/Nasr1/actions/runs/40398635908) to terminal on exact SHA `66db57c3a50e1372c7dcc5e68b47b5674d16bc29`; then continue the next genuinely unclosed high-risk API/RPC and remaining screen acceptance. Keep the product PARTIAL until the actual documented requirements are closed by evidence.
+
+---
+
 # CURRENT EXECUTION ADDENDUM — 2026-10-26 — after PR #251
 
 - **Authoritative repository/branch:** `Report-Engainall/Nasr1` / `main`.

@@ -1,4 +1,19 @@
-# WORK COORDINATION — LIVE STATUS — 2026-10-26 after PR #251
+# WORK COORDINATION — LIVE STATUS — 2026-10-26 after PR #255 and docs refresh
+
+**Single execution owner. Sole target: `Report-Engainall/Nasr1`; delivery branch: `main`.** Use selective transfer, preserve tenant/session/schema guards, and merge shared files only through isolated branches with exact-SHA CI.
+
+- **Current main SHA:** `66db57c3a50e1372c7dcc5e68b47b5674d16bc29`, PR #253 docs merge. Post-merge Core [40398635908](https://github.com/Report-Engainall/Nasr1/actions/runs/40398635908) is IN_PROGRESS on this exact SHA.
+- **PR #255:** exact-head Core 40397372624, P2 40397372507 and dedicated import-finalizer PG17 40397372460 SUCCESS. Merged at `1070ae9c0aa5efca611acde321f8108f51896ad6`; post-merge Core 40398087365 and dedicated finalizer 40398087347 both SUCCESS on that exact SHA.
+- **PR #251:** merged at `3af89b5aad04d9dca3cad45eb02432d2663b008c`; exact-head Core/P2 40395688620/40395688803 SUCCESS and post-merge Core 40396394436 SUCCESS.
+- **PR #249:** merged at `c3feec40b11c31853f001ab14fa6ac8095dcacc5`; exact-head Core/P2 40393815811/40393815607 SUCCESS and post-merge Core 40394522356 SUCCESS.
+- **PR #248:** merged at `d1374756659b37ab3bb526be0c96c3fefeec67bb`; exact-head Core/P2 40392506835/40392506840 SUCCESS and post-merge Core 40393211910 SUCCESS.
+- **Source snapshot:** `Nasr-Adnan/Nasr-Adnan@34702e670d80e80340d54683171238292099cbaa` is older than Nasr1. Last full-tree comparison: 630 shared / 591 identical / 39 changed shared / 19 source-only / 247 target-only. Avoid wholesale overwrite, duplicate ZIPs, 404 placeholders, obsolete package lock, unsafe seed migrations and stale RPC implementations.
+- **External boundary:** authenticated hosted customer/tenant E2E is SKIPPED without authorized non-production credentials; live Onyx Pro, WhatsApp, AI provider and production deploy/restore remain unproven.
+- **NEXT ACTION:** finish Core 40398635908 on exact SHA `66db57c3a50e1372c7dcc5e68b47b5674d16bc29`, then continue the highest-risk unresolved API/RPC or screen acceptance. Recount semantic RPC gaps from a current source-to-test map; product remains PARTIAL until requirements are actually proven.
+
+---
+
+# HISTORICAL WORK COORDINATION CHECKPOINT — after PR #251 (superseded by current addendum above)
 
 **Single execution owner; sole target `Report-Engainall/Nasr1`, delivery branch `main`.** Shared code paths and migrations remain sequentially merged; use isolated branches and exact-SHA CI.
 
