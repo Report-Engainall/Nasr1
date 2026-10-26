@@ -5366,19 +5366,26 @@ async function main() {
     )));
     let bothInvoiceJournalWritersWaiting=false;
     let invoiceJournalActivity=[];
-    // The local PG17 workflow can be busy during the migration suite; wait up to 10 seconds
-    // while requiring both exact backend PIDs to be executing the source RPC and blocked on a lock.
+    // pg_stat_activity.query can briefly lag behind a backend's lock wait during the
+    // long migration suite. Prove contention against this gate's exact advisory-lock key
+    // via pg_locks, correlated to both reserved backend PIDs; do not infer it from query text.
     for(let attempt=0;attempt<400;attempt+=1){
       invoiceJournalActivity=await invoiceJournalGate.unsafe(
-        "select pid,application_name,state,wait_event_type,wait_event,left(query,180) as query " +
-        "from pg_catalog.pg_stat_activity " +
-        "where pid = any($1::integer[])",
+        "select activity.pid,activity.application_name,activity.state,activity.wait_event_type,activity.wait_event," +
+        "left(activity.query,180) as query," +
+        "exists(select 1 from pg_catalog.pg_locks waiting_lock " +
+        "join pg_catalog.pg_locks gate_lock on gate_lock.pid=pg_catalog.pg_backend_pid() " +
+        "and gate_lock.locktype='advisory' and gate_lock.granted " +
+        "and gate_lock.classid=waiting_lock.classid and gate_lock.objid=waiting_lock.objid " +
+        "and gate_lock.objsubid=waiting_lock.objsubid " +
+        "where waiting_lock.pid=activity.pid and waiting_lock.locktype='advisory' and not waiting_lock.granted) " +
+        "as waiting_on_invoice_journal_gate " +
+        "from pg_catalog.pg_stat_activity activity where activity.pid=any($1::integer[])",
         [invoiceJournalBackendPids],
       );
       bothInvoiceJournalWritersWaiting=invoiceJournalBackendPids.every(pid=>
         invoiceJournalActivity.some(row=>
-          Number(row.pid)===pid && row.state==="active" && row.wait_event_type==="Lock" &&
-          String(row.query).includes("create_customer_invoice_journal_draft"),
+          Number(row.pid)===pid && row.waiting_on_invoice_journal_gate===true,
         ),
       );
       if(bothInvoiceJournalWritersWaiting) break;
@@ -5393,6 +5400,9 @@ async function main() {
         JSON.stringify({
           backend_pids:invoiceJournalBackendPids,
           activity:invoiceJournalActivity,
+          observed_gate_waiters:invoiceJournalActivity
+            .filter(row=>row.waiting_on_invoice_journal_gate===true)
+            .map(row=>({pid:row.pid,application_name:row.application_name})),
           outcomes:outcomes.map(outcome=>outcome.status==="fulfilled"
             ? {ok:true}
             : {ok:false,error:String(outcome.reason?.message ?? outcome.reason)}),
