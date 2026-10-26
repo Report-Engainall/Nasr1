@@ -2528,7 +2528,7 @@ async function main() {
   // API-OPS-001: force real concurrent first-claim contention for import-job
   // idempotency. Hold INSERTs into import_jobs after the first caller has claimed
   // the request key; the second caller must be observed waiting on the same key.
-  const runObservedImportRequestRace = async ({ key, applicationPrefix, payloads }) => {
+  const runObservedImportRequestRace = async ({ applicationPrefix, payloads }) => {
     const gate = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
     const clients = [
       postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 }),
@@ -2593,7 +2593,6 @@ async function main() {
     sameImportRaceKey, "CI concurrent idempotent import.csv", "c".repeat(64), "CI-IMPORT-RACE-SAME",
   );
   const sameImportRace = await runObservedImportRequestRace({
-    key: sameImportRaceKey,
     applicationPrefix: "ci-import-idem-same-",
     payloads: [sameImportRacePayload, sameImportRacePayload],
   });
@@ -2622,7 +2621,6 @@ async function main() {
     differentImportRaceKey, "CI concurrent import payload B.csv", "e".repeat(64), "CI-IMPORT-RACE-DIFFERENT-B",
   );
   const differentImportRace = await runObservedImportRequestRace({
-    key: differentImportRaceKey,
     applicationPrefix: "ci-import-idem-diff-",
     payloads: [differentImportRaceA, differentImportRaceB],
   });
