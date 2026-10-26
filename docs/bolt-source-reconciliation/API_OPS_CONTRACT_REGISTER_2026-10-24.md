@@ -1,3 +1,12 @@
+# LIVE API-OPS ADDENDUM — 2026-10-26 after PR #215
+
+- **Validated main application SHA:** `f628a5a59cc6ebcf93df5b9a2b7a5ed307d3b162`. Product-image HTTP boundary merged as `63b2ff7b15ab01604b063f0204219ed34e7b6d58`.
+- **PR #215 HTTP acceptance:** exact head `0b405d68cad2cc41d636663a9ec8145e06d1ac45` passed Core #40337316397 and P2 #40337316422. Post-merge Core #40338187110 SUCCESS on `63b2ff7b15ab01604b063f0204219ed34e7b6d58`; current validated main Core #40338867445 SUCCESS on `f628a5a59cc6ebcf93df5b9a2b7a5ed307d3b162`.
+- The tests exercise the injected handler's HTTP authorization/tenant/path decisions with controlled service doubles and bounded WebP request bodies. They do not prove that production Edge deployment, live storage credentials, or production object mutations were exercised.
+- **API-OPS overall remains PARTIAL.** Catalog/source mapping is not semantic authorization proof; the previously identified 179 callable RPC candidates still require source-backed auth/role, tenant, input/output, mutation, idempotency, retry, error, and audit review. Continue one bounded high-risk transaction family at a time.
+- Hosted authenticated customer/tenant E2E remains **SKIPPED/BLOCKED_EXTERNAL** without authorized non-production credentials. Live Onyx, WhatsApp, AI provider calls, and production deployment/migration/restore are not claimed.
+
+---
 ## HISTORICAL API-OPS ADDENDUM — 2026-10-26 after PR #214
 
 - **Current main SHA:** `28bcf9c4e02da53bfc4f5081fd1ac62e5ef5ade0`.
