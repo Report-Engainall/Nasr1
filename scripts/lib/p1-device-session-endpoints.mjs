@@ -1,5 +1,5 @@
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1"]);
-const ALLOWED_LOCAL_DATABASE_PORTS = new Set(["54322", "55432"]);
+const isValidLocalDatabasePort = (port) => /^[1-9][0-9]{0,4}$/.test(port) && Number(port) <= 65535;
 
 /**
  * Validate local-only endpoints before creating any synthetic device-session fixtures.
@@ -32,14 +32,14 @@ export function validateP1DeviceSessionEndpoints(apiUrl, connectionString) {
   const validDatabase =
     ["postgres:", "postgresql:"].includes(database.protocol) &&
     LOOPBACK_HOSTS.has(database.hostname) &&
-    ALLOWED_LOCAL_DATABASE_PORTS.has(database.port) &&
+    isValidLocalDatabasePort(database.port) &&
     database.pathname === "/postgres" &&
     !database.search &&
     !database.hash;
 
   if (!validApi || !validDatabase) {
     throw new Error(
-      "P1 device-session fixtures are local-only: Supabase API must use HTTP loopback port 54321 and PostgreSQL must use loopback port 54322 or 55432.",
+      "P1 device-session fixtures are local-only: Supabase API must use HTTP loopback port 54321 and PostgreSQL must use a valid explicit port on loopback.",
     );
   }
 
