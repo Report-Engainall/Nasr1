@@ -6,6 +6,10 @@ const migration = readFileSync(
   join(process.cwd(), "supabase/migrations/20261021170000_staff_dashboard_metrics_finance_parity.sql"),
   "utf8",
 );
+const creditMemoParity = readFileSync(
+  join(process.cwd(), "supabase/migrations/20261026170000_staff_dashboard_posted_credit_memo_parity.sql"),
+  "utf8",
+);
 const commerce = readFileSync(
   join(process.cwd(), "supabase/migrations/20261009010000_commerce_completion.sql"),
   "utf8",
@@ -77,6 +81,29 @@ describe("staff dashboard finance-parity migration contract", () => {
     expect(customerPostings).toContain("public.accounting_customer_source_postings");
     expect(customerPostings).toMatch(/public\.create_customer_payment_journal_draft\(/i);
     expect(commerce).not.toMatch(/CREATE\s+TABLE\s+(IF NOT EXISTS\s+)?public\.cash_accounts/i);
+  });
+
+  it("subtracts only posted, source-matched credit memos and fails closed on inconsistent sources", () => {
+    expect(creditMemoParity).toContain("public.customer_return_credit_memos");
+    expect(creditMemoParity).toMatch(/cm\.status\s*=\s*'posted'/i);
+    expect(creditMemoParity).toMatch(/ci\.customer_id\s*=\s*cm\.customer_id/i);
+    expect(creditMemoParity).toMatch(/cm\.currency\s+IS DISTINCT FROM\s+ci\.currency/i);
+    expect(creditMemoParity).toMatch(/i\.total_amount[\s\S]*?pbi\.paid_amount[\s\S]*?cbi\.credited_amount/i);
+    expect(creditMemoParity).toMatch(/count\(DISTINCT ib\.currency\).*?> 1/s);
+    expect(creditMemoParity).toMatch(/REVOKE ALL ON FUNCTION public\.get_staff_dashboard_metrics\(\) FROM PUBLIC, anon, authenticated/i);
+    expect(creditMemoParity).toMatch(/GRANT EXECUTE ON FUNCTION public\.get_staff_dashboard_metrics\(\) TO authenticated/i);
+  });
+
+  it("has an isolated PostgreSQL acceptance for dashboard credit-memo balances", () => {
+    const acceptance = readFileSync(
+      join(process.cwd(), "scripts/test-staff-dashboard-credit-memo-parity.mjs"),
+      "utf8",
+    );
+    expect(acceptance).toContain("only the posted 125.00 credit memo");
+    expect(acceptance).toContain("draft is excluded");
+    expect(acceptance).toContain("YER and USD outstanding balances");
+    expect(acceptance).toContain("fails closed instead of producing a misleading KPI");
+    expect(acceptance).toContain("await db.unsafe(\"rollback\")");
   });
 
   it("renders finance KPIs inside the existing executive analytics screen", () => {
