@@ -1,3 +1,15 @@
+# CURRENT API-OPS ADDENDUM — 2026-10-27 — after PR #293 merge
+
+- **Exclusive target:** `Report-Engainall/Nasr1` / `main`; latest merge SHA `69f224126f8a60ae3b8e31a3452f706a03a02507`. API-OPS remains **PARTIAL**; full release remains **NO-GO**.
+- **New verified contract — `get_customer_invoice_pdf(uuid)`:** PR [#293](https://github.com/Report-Engainall/Nasr1/pull/293) adds migration `20261027280000_customer_invoice_pdf_member_revocation_guard.sql`, makes the RPC `VOLATILE`, locks the tenant-scoped customer row `FOR SHARE`, and rechecks `invoices.read` after any wait. The extended acceptance in `scripts/test-customer-returns.mjs` proves own-invoice access before revocation and SQLSTATE `42501` after an owner revocation commits.
+- **Exact PR head:** `d3c600053d24fa29567c83ad759d048ee8601e91`. Core [40569293453 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40569293453), P2/local Supabase+Chromium [40569293220 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40569293220), and Import finalizer/PostgreSQL 17 [40569293443 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40569293443) are all terminal success on this exact head.
+- **Post-merge current main:** Import finalizer/PostgreSQL 17 [40570081832 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40570081832) on `69f224126f8a60ae3b8e31a3452f706a03a02507`; Core [40570081926](https://github.com/Report-Engainall/Nasr1/actions/runs/40570081926) was still IN_PROGRESS at last poll. Do not call the post-merge Core PASS until it is terminal.
+- **Existing guards reused, not duplicated:** #273 address/contact, #277 order creation, #279 quote/reorder, #283 persistent cart, #290 storefront prices, and #293 invoice PDF. The settlement race test isolation was corrected in #292. All changes remain within this repository.
+- **Release/operations limitations:** hosted authenticated customer/tenant E2E remains SKIPPED; live Onyx, official WhatsApp, live AI-provider receipts, production deploy/migration/rollback, and production backup/restore remain unproven. The acceptance matrix currently has **115 unique populated IDs**, no duplicate IDs, 18 DLV roll-up groups and 0/18 fully release-closed on a single candidate SHA.
+- **NEXT_ACTION:** once Core run 40570081926 is terminal on the current merge SHA, use the generated live RPC/Edge inventory to map each callable boundary to auth/role, tenant scope, validation, idempotency/retries, concurrency, audit and no-side-effect denial acceptance; choose and implement the next uncovered high-risk boundary rather than repeating an existing guard.
+
+---
+
 # CURRENT API-OPS ADDENDUM — 2026-10-27 — after PR #290
 
 - **Exclusive target:** `Report-Engainall/Nasr1` / `main`. Latest main merge SHA: `bd3326b552d689a69733d58df86e64e0081fdf1a` after PR [#290](https://github.com/Report-Engainall/Nasr1/pull/290). API-OPS remains **PARTIAL**; full production release remains **NO-GO**.
