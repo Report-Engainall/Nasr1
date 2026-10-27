@@ -22,6 +22,7 @@ let revokedMemberCustomerId = null;
 const admin = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const firstClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const secondClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const validationClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
 async function setIdentity(client, authUserId, email, useAuthenticatedRole = true) {
   await client.unsafe("reset role").catch(() => {});
@@ -69,7 +70,7 @@ async function waitForSavedProductsLock(monitor, applicationName, timeoutMs = 10
     if (rows.length) return rows[0];
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error("Saved-product mutation did not reach the customer-row membership-revocation lock barrier.");
+  throw new Error("RPC did not reach the customer-row membership-revocation lock barrier.");
 }
 
 async function main() {
@@ -180,19 +181,34 @@ async function main() {
     [organizationId, revokedMemberCustomerId, revokedMemberProfileId, secondProfileId],
   );
   await setIdentity(secondClient, revokedMemberAuthUserId, memberEmail);
+  await setIdentity(validationClient, revokedMemberAuthUserId, memberEmail);
   assert.equal((await savedState(secondClient, productId, true)).changed, true,
     "active buyer member can save an approved tenant product");
   assert.ok((await listSaved(secondClient)).includes(productId),
     "active buyer member can list their own saved products");
 
+  const activeValidationRows = await validationClient.unsafe(
+    "select public.validate_checkout_cart($1::jsonb) as result",
+    [validationClient.json([{ product_id: productId, quantity: 1 }])],
+  );
+  const activeValidation = activeValidationRows[0]?.result;
+  assert.equal(activeValidation?.valid, true, "active buyer member can validate a tenant product");
+  assert.equal(Number(activeValidation?.item_count), 1);
+  assert.equal(Number(activeValidation?.items?.[0]?.quantity), 1);
+  assert.ok(!("total_amount" in activeValidation), "checkout validation never returns a total");
+  assert.ok(!("unit_price" in activeValidation.items[0]), "checkout validation never returns a unit price");
+
   const owner = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
   const monitor = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
   const appName = "ci-saved-revoke-" + randomUUID().replace(/-/g, "").slice(0, 10);
+  const validationAppName = "ci-checkout-validate-revoke-" + randomUUID().replace(/-/g, "").slice(0, 8);
   let transactionOpen = false;
   let mutationOutcomePromise;
+  let validationOutcomePromise;
   try {
     await setIdentity(owner, secondAuthUserId, "ci-customer-two@example.test", false);
     await secondClient.unsafe("select set_config('application_name',$1,false)", [appName]);
+    await validationClient.unsafe("select set_config('application_name',$1,false)", [validationAppName]);
     const snapshot = async () => {
       const rows = await admin.unsafe(
         "select " +
@@ -226,17 +242,38 @@ async function main() {
       (rows) => ({ ok: true, rows }),
       (error) => ({ ok: false, error }),
     );
-    const blocked = await waitForSavedProductsLock(monitor, appName);
+    validationOutcomePromise = validationClient.unsafe(
+      "select public.validate_checkout_cart($1::jsonb) as result",
+      [validationClient.json([{ product_id: productId, quantity: 1 }])],
+    ).then(
+      (rows) => ({ ok: true, rows }),
+      (error) => ({ ok: false, error }),
+    );
+
+    const [blocked, validationBlocked] = await Promise.all([
+      waitForSavedProductsLock(monitor, appName),
+      waitForSavedProductsLock(monitor, validationAppName),
+    ]);
     assert.equal(blocked.wait_event_type, "Lock", "the in-flight favourite removal waits on the owner-held customer row");
+    assert.equal(validationBlocked.wait_event_type, "Lock", "the in-flight checkout validation waits on the owner-held customer row");
 
     await owner.unsafe("commit");
     transactionOpen = false;
     const outcome = await mutationOutcomePromise;
+    const validationOutcome = await validationOutcomePromise;
     assert.equal(outcome.ok, false,
       "an in-flight saved-product removal must be denied after membership revocation commits");
     assert.equal(outcome.error.code, "42501", "revoked member save/remove fails closed with SQLSTATE 42501");
     assert.match(String(outcome.error.message), /active customer membership with storefront catalog access is required/i,
       "rejection must come from the current membership/capability boundary");
+
+    assert.equal(validationOutcome.ok, false,
+      "in-flight checkout validation must reject after customer-company membership revocation");
+    assert.equal(validationOutcome.error.code, "42501",
+      "revoked member checkout validation fails closed with SQLSTATE 42501");
+    assert.match(String(validationOutcome.error.message),
+      /active customer membership with storefront catalog access is required/i,
+      "checkout validation rechecks the membership capability after waiting for the revocation lock");
 
     assert.deepEqual(await snapshot(), before,
       "revoked member cannot delete their saved product or create a removal audit");
@@ -252,6 +289,7 @@ async function main() {
   } finally {
     if (transactionOpen) await owner.unsafe("rollback").catch(() => {});
     if (mutationOutcomePromise) await mutationOutcomePromise.catch(() => {});
+    if (validationOutcomePromise) await validationOutcomePromise.catch(() => {});
     await Promise.all([
       owner.end({ timeout: 5 }).catch(() => {}),
       monitor.end({ timeout: 5 }).catch(() => {}),
@@ -269,7 +307,7 @@ try {
   process.stderr.write("STOREFRONT_SAVED_PRODUCTS_FAILED " + String(error?.stack ?? error) + "\n");
   process.exitCode = 1;
 } finally {
-  for (const client of [firstClient, secondClient]) {
+  for (const client of [firstClient, secondClient, validationClient]) {
     try { await client.unsafe("reset role"); } catch { /* connection may already be aborted */ }
   }
   try {
@@ -309,5 +347,5 @@ try {
     process.stderr.write("STOREFRONT_SAVED_PRODUCTS_CLEANUP_FAILED " + String(error?.message ?? error) + "\n");
     process.exitCode = 1;
   }
-  await Promise.all([admin.end(), firstClient.end(), secondClient.end()]);
+  await Promise.all([admin.end(), firstClient.end(), secondClient.end(), validationClient.end()]);
 }
