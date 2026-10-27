@@ -363,7 +363,7 @@ async function main() {
         idempotency_key, idempotency_payload_hash
       ) VALUES (
         p_organization_id, p_customer_id,
-        'ORD-CI-REVOKE-' || pg_catalog.replace(pg_catalog.gen_random_uuid()::text,'-',''),
+        'ORD-CI-' || pg_catalog.substr(pg_catalog.replace(pg_catalog.gen_random_uuid()::text,'-',''),1,16),
         'pending', 'test-only revocation race', p_profile_id, 'cash_on_delivery',
         'CI company member', 'CI revoked member', '7777654321',
         'ci-revoke-' || pg_catalog.replace(pg_catalog.gen_random_uuid()::text,'-',''),
