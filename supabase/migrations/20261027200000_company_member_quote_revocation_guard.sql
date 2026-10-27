@@ -56,6 +56,9 @@ BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='authenticated customer identity required';
   END IF;
+  IF public.is_staff() THEN
+    RETURN NEW;
+  END IF;
   v_profile := public.current_profile_id();
   IF v_profile IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='active customer profile required';
