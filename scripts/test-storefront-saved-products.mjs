@@ -277,14 +277,38 @@ try {
     try { await client.unsafe("reset role"); } catch { /* connection may already be aborted */ }
   }
   try {
+    const profileIds = [staffProfileId, secondProfileId, revokedMemberProfileId].filter(Boolean);
     await admin.unsafe(
       "delete from public.storefront_saved_products where organization_id=$1 and profile_id=any($2::uuid[]) and product_id=$3",
-      [organizationId, [staffProfileId, secondProfileId], productId],
+      [organizationId, profileIds, productId],
     );
     await admin.unsafe(
       "delete from public.audit_logs where organization_id=$1 and entity_type='storefront_saved_product' and entity_id=$2 and actor_id=any($3::uuid[])",
-      [organizationId, productId, [staffProfileId, secondProfileId]],
+      [organizationId, productId, profileIds],
     );
+    if (revokedMemberProfileId) {
+      await admin.unsafe(
+        "delete from public.audit_logs where organization_id=$1 and entity_type='customer_company_membership' " +
+          "and entity_id in (select id from public.customer_company_memberships where profile_id=$2::uuid)",
+        [organizationId, revokedMemberProfileId],
+      );
+      await admin.unsafe(
+        "delete from public.customer_company_memberships where profile_id=$1::uuid",
+        [revokedMemberProfileId],
+      );
+      await admin.unsafe(
+        "delete from public.user_roles where profile_id=$1::uuid",
+        [revokedMemberProfileId],
+      );
+      await admin.unsafe(
+        "delete from public.profiles where id=$1::uuid",
+        [revokedMemberProfileId],
+      );
+    }
+    if (revokedMemberAuthUserId) {
+      await admin.unsafe("delete from auth.sessions where user_id=$1::uuid", [revokedMemberAuthUserId]);
+      await admin.unsafe("delete from auth.users where id=$1::uuid", [revokedMemberAuthUserId]);
+    }
   } catch (error) {
     process.stderr.write("STOREFRONT_SAVED_PRODUCTS_CLEANUP_FAILED " + String(error?.message ?? error) + "\n");
     process.exitCode = 1;
