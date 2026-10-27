@@ -33,7 +33,7 @@ BEGIN
          AND p.organization_id = v_org AND p.is_active = true
      ) THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
-      MESSAGE = 'active customer profile and company membership required for persistent cart';
+      MESSAGE = 'active customer profile required for persistent cart';
   END IF;
 
   SELECT c.id, c.updated_at
@@ -102,7 +102,7 @@ BEGIN
          AND p.organization_id = v_org AND p.is_active = true
      ) THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
-      MESSAGE = 'active customer profile and company membership required for persistent cart';
+      MESSAGE = 'active customer profile required for persistent cart';
   END IF;
 
   IF p_items IS NULL OR pg_catalog.jsonb_typeof(p_items) IS DISTINCT FROM 'array'
