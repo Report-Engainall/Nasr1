@@ -123,6 +123,47 @@ async function main() {
     process.stdout.write("APPLIED " + name + "\n");
   }
 
+  // Product images are public catalog assets, but browser clients must never
+  // write directly to Storage. Only the authenticated Edge boundary may use
+  // the service-role client after it validates the active staff tenant/product.
+  const productImageBucket = await db.unsafe(`
+    select id, public, file_size_limit, allowed_mime_types
+      from storage.buckets
+     where id = 'product-images'
+  `);
+  assert.equal(productImageBucket.length, 1, "product-image bucket must exist after migrations");
+  assert.equal(productImageBucket[0].public, true, "product images remain publicly readable catalog assets");
+  assert.equal(Number(productImageBucket[0].file_size_limit), 8 * 1024 * 1024,
+    "product-image bucket must enforce the 8 MiB ceiling");
+  assert.deepEqual(productImageBucket[0].allowed_mime_types, ["image/webp"],
+    "product-image bucket must allow only WebP assets");
+
+  const productImageWritePrivileges = await db.unsafe(`
+    select role_name,
+           has_table_privilege(role_name, 'storage.objects', 'INSERT') as can_insert,
+           has_table_privilege(role_name, 'storage.objects', 'UPDATE') as can_update,
+           has_table_privilege(role_name, 'storage.objects', 'DELETE') as can_delete
+      from (values ('anon'), ('authenticated')) as roles(role_name)
+     order by role_name
+  `);
+  assert.equal(productImageWritePrivileges.length, 2, "check both anonymous and authenticated browser roles");
+  for (const privileges of productImageWritePrivileges) {
+    assert.equal(privileges.can_insert, false, privileges.role_name + " must not insert Storage objects directly");
+    assert.equal(privileges.can_update, false, privileges.role_name + " must not update Storage objects directly");
+    assert.equal(privileges.can_delete, false, privileges.role_name + " must not delete Storage objects directly");
+  }
+
+  const productImageWritePolicies = await db.unsafe(`
+    select policyname
+      from pg_policies
+     where schemaname = 'storage'
+       and tablename = 'objects'
+       and policyname in ('product_images_tenant_insert', 'product_images_tenant_delete')
+  `);
+  assert.equal(productImageWritePolicies.length, 0,
+    "legacy direct-write product-image policies must be removed; upload/delete uses the Edge boundary");
+  process.stdout.write("PASS product-image Storage browser write boundary and bucket constraints\n");
+
   // Isolate quantity-break assertions from the example promotions inserted by
   // the historical baseline migration. Those rows are not the campaign fixture
   // under test and otherwise reduce the tested gross price (sometimes to cost).
