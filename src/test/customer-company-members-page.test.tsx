@@ -77,6 +77,14 @@ describe("customer company membership screens", () => {
     window.history.replaceState(null, "", "/");
   });
 
+  it("clearly discloses that the invitation history is capped at the latest 100 records", async () => {
+    const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");
+    render(<CustomerCompanyMembersPage />);
+
+    expect(await screen.findByText(/يعرض هذا القسم آخر 100 دعوة فقط/)).toBeInTheDocument();
+    expect(screen.getByText(/لا تعتبر القائمة سجلًا تاريخيًا كاملًا/)).toBeInTheDocument();
+  });
+
   it("blocks staff from the customer membership workspace before any membership read", async () => {
     mocks.auth = { ready: true, user: { isStaff: true } };
     const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");
