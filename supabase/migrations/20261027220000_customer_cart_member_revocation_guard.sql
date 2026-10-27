@@ -267,7 +267,7 @@ GRANT EXECUTE ON FUNCTION public.get_customer_cart() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.sync_customer_cart(jsonb) TO authenticated;
 
 COMMENT ON FUNCTION public.get_customer_cart() IS
-  'Returns the authenticated customer's cart only while customer ownership or company membership is active; serializes reads against member revocation and returns no prices or totals.';
+  'Returns the authenticated customer cart only while customer ownership or company membership is active; serializes reads against member revocation and returns no prices or totals.';
 COMMENT ON FUNCTION public.sync_customer_cart(jsonb) IS
   'Atomically replaces the authenticated customer cart after strict tenant/product/quantity validation and serializes writes against company-member revocation.';
 
