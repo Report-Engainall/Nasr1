@@ -23,6 +23,7 @@ const admin = postgres(connectionString, { max: 1, prepare: false, idle_timeout:
 const firstClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const secondClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const validationClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const priceClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
 async function setIdentity(client, authUserId, email, useAuthenticatedRole = true) {
   await client.unsafe("reset role").catch(() => {});
@@ -182,6 +183,18 @@ async function main() {
   );
   await setIdentity(secondClient, revokedMemberAuthUserId, memberEmail);
   await setIdentity(validationClient, revokedMemberAuthUserId, memberEmail);
+  await setIdentity(priceClient, revokedMemberAuthUserId, memberEmail);
+
+  const activePriceRows = await priceClient.unsafe(
+    "select product_id, unit_price from public.get_storefront_product_prices($1::uuid[], $2::numeric)",
+    [[productId], 1],
+  );
+  assert.equal(activePriceRows.length, 1, "active buyer member can resolve the tenant catalog price row");
+  assert.equal(activePriceRows[0].product_id, productId);
+  assert.ok(activePriceRows[0].unit_price === null ||
+    (Number.isFinite(Number(activePriceRows[0].unit_price)) && Number(activePriceRows[0].unit_price) >= 0),
+    "price RPC returns either an intentionally hidden NULL or a valid server amount");
+
   assert.equal((await savedState(secondClient, productId, true)).changed, true,
     "active buyer member can save an approved tenant product");
   assert.ok((await listSaved(secondClient)).includes(productId),
@@ -202,13 +215,16 @@ async function main() {
   const monitor = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
   const appName = "ci-saved-revoke-" + randomUUID().replace(/-/g, "").slice(0, 10);
   const validationAppName = "ci-checkout-validate-revoke-" + randomUUID().replace(/-/g, "").slice(0, 8);
+  const priceAppName = "ci-catalog-price-revoke-" + randomUUID().replace(/-/g, "").slice(0, 8);
   let transactionOpen = false;
   let mutationOutcomePromise;
   let validationOutcomePromise;
+  let priceOutcomePromise;
   try {
     await setIdentity(owner, secondAuthUserId, "ci-customer-two@example.test", false);
     await secondClient.unsafe("select set_config('application_name',$1,false)", [appName]);
     await validationClient.unsafe("select set_config('application_name',$1,false)", [validationAppName]);
+    await priceClient.unsafe("select set_config('application_name',$1,false)", [priceAppName]);
     const snapshot = async () => {
       const rows = await admin.unsafe(
         "select " +
@@ -249,18 +265,28 @@ async function main() {
       (rows) => ({ ok: true, rows }),
       (error) => ({ ok: false, error }),
     );
+    priceOutcomePromise = priceClient.unsafe(
+      "select product_id, unit_price from public.get_storefront_product_prices($1::uuid[], $2::numeric)",
+      [[productId], 1],
+    ).then(
+      (rows) => ({ ok: true, rows }),
+      (error) => ({ ok: false, error }),
+    );
 
-    const [blocked, validationBlocked] = await Promise.all([
+    const [blocked, validationBlocked, priceBlocked] = await Promise.all([
       waitForSavedProductsLock(monitor, appName),
       waitForSavedProductsLock(monitor, validationAppName),
+      waitForSavedProductsLock(monitor, priceAppName),
     ]);
     assert.equal(blocked.wait_event_type, "Lock", "the in-flight favourite removal waits on the owner-held customer row");
     assert.equal(validationBlocked.wait_event_type, "Lock", "the in-flight checkout validation waits on the owner-held customer row");
+    assert.equal(priceBlocked.wait_event_type, "Lock", "the in-flight customer price resolution waits on the owner-held customer row");
 
     await owner.unsafe("commit");
     transactionOpen = false;
     const outcome = await mutationOutcomePromise;
     const validationOutcome = await validationOutcomePromise;
+    const priceOutcome = await priceOutcomePromise;
     assert.equal(outcome.ok, false,
       "an in-flight saved-product removal must be denied after membership revocation commits");
     assert.equal(outcome.error.code, "42501", "revoked member save/remove fails closed with SQLSTATE 42501");
@@ -274,6 +300,14 @@ async function main() {
     assert.match(String(validationOutcome.error.message),
       /active customer membership with storefront catalog access is required/i,
       "checkout validation rechecks the membership capability after waiting for the revocation lock");
+
+    assert.equal(priceOutcome.ok, false,
+      "in-flight catalog price resolution must reject after customer-company membership revocation");
+    assert.equal(priceOutcome.error.code, "42501",
+      "revoked member catalog pricing fails closed with SQLSTATE 42501");
+    assert.match(String(priceOutcome.error.message),
+      /customer membership lacks permission to resolve catalog prices/i,
+      "catalog pricing re-checks membership after waiting for the revocation lock");
 
     assert.deepEqual(await snapshot(), before,
       "revoked member cannot delete their saved product or create a removal audit");
@@ -290,6 +324,7 @@ async function main() {
     if (transactionOpen) await owner.unsafe("rollback").catch(() => {});
     if (mutationOutcomePromise) await mutationOutcomePromise.catch(() => {});
     if (validationOutcomePromise) await validationOutcomePromise.catch(() => {});
+    if (priceOutcomePromise) await priceOutcomePromise.catch(() => {});
     await Promise.all([
       owner.end({ timeout: 5 }).catch(() => {}),
       monitor.end({ timeout: 5 }).catch(() => {}),
@@ -297,7 +332,7 @@ async function main() {
   }
 
   process.stdout.write(
-    "PASS storefront saved products: profile/tenant isolation, idempotent save/remove, audit/direct-DML denial, and membership-revocation race leaves state unchanged\n",
+    "PASS storefront saved products, checkout validation and catalog pricing: profile/tenant isolation, idempotent state, no financial validation leakage, and membership-revocation races deny stale access\n",
   );
 }
 
@@ -307,7 +342,7 @@ try {
   process.stderr.write("STOREFRONT_SAVED_PRODUCTS_FAILED " + String(error?.stack ?? error) + "\n");
   process.exitCode = 1;
 } finally {
-  for (const client of [firstClient, secondClient, validationClient]) {
+  for (const client of [firstClient, secondClient, validationClient, priceClient]) {
     try { await client.unsafe("reset role"); } catch { /* connection may already be aborted */ }
   }
   try {
@@ -347,5 +382,5 @@ try {
     process.stderr.write("STOREFRONT_SAVED_PRODUCTS_CLEANUP_FAILED " + String(error?.message ?? error) + "\n");
     process.exitCode = 1;
   }
-  await Promise.all([admin.end(), firstClient.end(), secondClient.end(), validationClient.end()]);
+  await Promise.all([admin.end(), firstClient.end(), secondClient.end(), validationClient.end(), priceClient.end()]);
 }
