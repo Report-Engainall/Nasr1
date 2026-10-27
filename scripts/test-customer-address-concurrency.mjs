@@ -453,7 +453,7 @@ async function main() {
       "(select status from public.sales_quotes where id=$4::uuid) as quote_status, " +
       "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and actor_id=$3::uuid " +
         "and entity_type in ('customer_address','customer_company_contact','order')) as member_mutation_audits",
-    [organizationId, customerId, memberProfileId],
+    [organizationId, customerId, memberProfileId, quoteId],
   ))[0];
   assert.deepEqual(afterRevocationMutations, beforeRevocationMutations,
     "revoked in-flight address/contact writes must leave rows and member mutation audit unchanged");
@@ -538,7 +538,7 @@ async function main() {
     "denied cross-tenant address delete must not add or alter audit events");
 
   process.stdout.write(
-    "PASS customer/company-member revocation acceptance: address, contact and order writes are denied after the forced PostgreSQL 17 revocation lock barrier; no rows or mutation audits change; cross-tenant address read/update/delete is denied\n",
+    "PASS customer/company-member revocation acceptance: address, contact, order and quote writes are denied after the forced PostgreSQL 17 revocation lock barrier; no rows or mutation audits change; cross-tenant address read/update/delete is denied\n",
   );
 }
 
