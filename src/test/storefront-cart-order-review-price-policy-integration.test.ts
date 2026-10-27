@@ -39,4 +39,13 @@ describe("storefront cart and pre-submit order-review price policy wiring", () =
     expect(visibilityHelper).toContain("payload.visible !== true");
     expect(visibilityHelper).toContain("payload.surface !== expectedSurface");
   });
+
+  it("persists and verifies the same customer cart before invoking the atomic order command", () => {
+    const submit = storefront.slice(storefront.indexOf("async function submit()"));
+    expect(submit).toContain("saveCustomerCart(expectedCart)");
+    expect(submit).toContain("JSON.stringify(actualCart) !== JSON.stringify(expectedCart)");
+    expect(submit.indexOf("saveCustomerCart(expectedCart)")).toBeLessThan(submit.indexOf("supabase.rpc('submit_customer_order'"));
+    expect(submit).toContain("لم يُنشأ الطلب");
+  });
+
 });

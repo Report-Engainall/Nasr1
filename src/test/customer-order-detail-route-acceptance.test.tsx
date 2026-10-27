@@ -159,4 +159,79 @@ describe("customer order detail real route acceptance", () => {
 
     expect(host?.textContent).not.toContain("تأكيد طلب");
   });
+
+  it("re-reads persisted order status when the customer refreshes order details", async () => {
+    mocks.user = CUSTOMER;
+    const orderId = "33333333-3333-4333-8333-333333333333";
+    mocks.results = {
+      orders: {
+        data: [{
+          id: orderId,
+          order_number: "SO-TEST-001",
+          customer_id: CUSTOMER.profileId,
+          status: "pending",
+          total_items: 1,
+          notes: null,
+          created_at: "2026-10-28T00:00:00.000Z",
+          quantity_review_required: false,
+          customer_adjustment_note: null,
+          customer_payment_requested_at: null,
+          customer_confirmed_at: null,
+          payment_request_status: "none",
+          delivery_address_snapshot: null,
+        }],
+        error: null,
+      },
+      order_items: {
+        data: [{
+          id: "44444444-4444-4444-8444-444444444444",
+          product_id: "55555555-5555-4555-8555-555555555555",
+          item_code: "SKU-TEST-001",
+          product_name_snapshot: "صنف الاختبار",
+          unit_snapshot: "علبة",
+          quantity: 1,
+          requested_quantity: 1,
+          approved_quantity: 1,
+        }],
+        error: null,
+      },
+      order_status_history: {
+        data: [{ id: "hist-1", to_status: "pending", created_at: "2026-10-28T00:00:00.000Z", notes: null }],
+        error: null,
+      },
+      customers: {
+        data: [{ customer_code: "C-TEST-01", business_name: "شركة الاختبار", contact_name: null }],
+        error: null,
+      },
+    };
+
+    await mountOrderRoute();
+    expect(host?.textContent).toContain("الحالة: بانتظار المراجعة");
+
+    const refresh = host?.querySelector<HTMLButtonElement>(
+      'button[aria-label="تحديث حالة الطلب من الخادم"]',
+    );
+    expect(refresh).toBeDefined();
+
+    const existingOrder = mocks.results.orders.data[0] as Record<string, unknown>;
+    mocks.results.orders.data[0] = { ...existingOrder, status: "confirmed" };
+    mocks.results.order_status_history = {
+      data: [
+        { id: "hist-1", to_status: "pending", created_at: "2026-10-28T00:00:00.000Z", notes: null },
+        { id: "hist-2", to_status: "confirmed", created_at: "2026-10-28T00:01:00.000Z", notes: null },
+      ],
+      error: null,
+    };
+
+    await act(async () => {
+      refresh?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(host?.textContent).toContain("الحالة: مؤكد");
+    expect(mocks.from.mock.calls.filter(([table]) => table === "orders")).toHaveLength(2);
+  });
 });
