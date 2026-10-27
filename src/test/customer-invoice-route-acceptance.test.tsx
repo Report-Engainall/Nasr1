@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   invoices: [] as InvoiceRow[],
   invoiceReadFailures: 0,
+  invoiceCursorCalls: [] as string[],
   detailPayload: { data: null, error: null } as PayloadResult,
   orderDetail: { data: null, error: null } as { data: unknown; error: { message: string } | null },
   invoiceSelectCalls: [] as Array<{ columns: string; options: unknown }>,
@@ -97,13 +98,23 @@ function makeInvoice(overrides: Partial<InvoiceRow> = {}): InvoiceRow {
 }
 
 function makeInvoiceQuery() {
+  let rowLimit = 0;
+  let cursorFilter: string | null = null;
   const query = {
     select: vi.fn((columns: string, options?: unknown) => {
       mocks.invoiceSelectCalls.push({ columns, options });
       return query;
     }),
     order: vi.fn(() => query),
-    limit: vi.fn(() => query),
+    or: vi.fn((filter: string) => {
+      cursorFilter = filter;
+      mocks.invoiceCursorCalls.push(filter);
+      return query;
+    }),
+    limit: vi.fn((limit: number) => {
+      rowLimit = limit;
+      return query;
+    }),
     then: (
       resolve?: (value: ListResult) => unknown,
       reject?: (reason: unknown) => unknown,
@@ -113,7 +124,10 @@ function makeInvoiceQuery() {
         mocks.invoiceReadFailures -= 1;
         result = { data: null, error: { message: "synthetic invoice read failure" } };
       } else {
-        result = { data: mocks.invoices, error: null };
+        const cursorId = cursorFilter?.match(/id\.gt\.([0-9a-f-]{36})/i)?.[1];
+        const cursorIndex = cursorId ? mocks.invoices.findIndex((invoice) => invoice.id === cursorId) : -1;
+        const start = cursorId && cursorIndex >= 0 ? cursorIndex + 1 : 0;
+        result = { data: mocks.invoices.slice(start, start + rowLimit), error: null };
       }
       return Promise.resolve(result).then(resolve, reject);
     },
@@ -175,6 +189,7 @@ describe("customer invoices real route acceptance", () => {
     mocks.user = null;
     mocks.invoices = [];
     mocks.invoiceReadFailures = 0;
+    mocks.invoiceCursorCalls = [];
     mocks.detailPayload = { data: null, error: null };
     mocks.orderDetail = { data: null, error: null };
     mocks.invoiceSelectCalls = [];
@@ -262,6 +277,69 @@ describe("customer invoices real route acceptance", () => {
     expect(host?.textContent).toContain("لا توجد فواتير صادرة بعد.");
     expect(host?.textContent).not.toContain("987654");
     expect(host?.textContent).not.toContain("0.00");
+  });
+
+  it("loads customer invoices in stable cursor pages instead of stopping at 100", async () => {
+    mocks.user = CUSTOMER;
+    mocks.invoices = Array.from({ length: 101 }, (_, index) => {
+      const sequence = String(index + 1).padStart(3, "0");
+      const idSequence = String(index + 1).padStart(12, "0");
+      return makeInvoice({
+        id: `00000000-0000-4000-8000-${idSequence}`,
+        invoice_number: `INV-TEST-${sequence}`,
+        issued_at: new Date(Date.UTC(2026, 9, 27 - index, 10, 0, 0)).toISOString(),
+      });
+    });
+
+    await mountInvoiceRoute();
+
+    expect(host?.textContent).toContain("INV-TEST-001");
+    expect(host?.textContent).toContain("INV-TEST-100");
+    expect(host?.textContent).not.toContain("INV-TEST-101");
+    expect(host?.textContent).toContain("عرض فواتير أقدم");
+
+    await clickAndFlush(
+      Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? []).find((button) =>
+        button.textContent?.includes("عرض فواتير أقدم"),
+      ),
+    );
+
+    expect(mocks.invoiceCursorCalls).toEqual([
+      `issued_at.lt.${mocks.invoices[99].issued_at},and(issued_at.eq.${mocks.invoices[99].issued_at},id.gt.${mocks.invoices[99].id})`,
+    ]);
+    expect(host?.textContent).toContain("INV-TEST-101");
+    expect(host?.textContent).not.toContain("عرض فواتير أقدم");
+    expect(host?.textContent).not.toContain("987654");
+  });
+
+  it("retains invoices and retries the cursor after an older-page read fails", async () => {
+    mocks.user = CUSTOMER;
+    mocks.invoices = Array.from({ length: 101 }, (_, index) => {
+      const sequence = String(index + 1).padStart(3, "0");
+      const idSequence = String(index + 1).padStart(12, "0");
+      return makeInvoice({
+        id: `00000000-0000-4000-8000-${idSequence}`,
+        invoice_number: `INV-TEST-${sequence}`,
+        issued_at: new Date(Date.UTC(2026, 9, 27 - index, 10, 0, 0)).toISOString(),
+      });
+    });
+    await mountInvoiceRoute();
+    mocks.invoiceReadFailures = 1;
+
+    await clickAndFlush(
+      Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? []).find((button) =>
+        button.textContent?.includes("عرض فواتير أقدم"),
+      ),
+    );
+
+    expect(host?.textContent).toContain("INV-TEST-100");
+    expect(host?.textContent).not.toContain("INV-TEST-101");
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تعذر تحميل الفواتير الأقدم");
+
+    await clickAndFlush(host?.querySelector<HTMLButtonElement>('[role="alert"] button'));
+
+    expect(host?.querySelector('[role="alert"]')).toBeNull();
+    expect(host?.textContent).toContain("INV-TEST-101");
   });
 
   it("renders a server-approved hidden-finance invoice only when the payload omits protected fields", async () => {
