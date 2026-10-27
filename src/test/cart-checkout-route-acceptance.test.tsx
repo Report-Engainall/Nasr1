@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent } from "@testing-library/react";
 import { routeTree } from "@/routeTree.gen";
+import { saveCustomerCart } from "@/lib/customer-cart";
 
 type TestUser = {
   id: string;
@@ -370,5 +371,25 @@ describe("customer cart and checkout real route acceptance", () => {
     expect(host?.textContent).not.toContain("777777");
     expect(mocks.submitCalls).toHaveLength(2);
     expect(mocks.submitCalls[1].args._idempotency_key).toBe(firstKey);
+    expect(vi.mocked(saveCustomerCart).mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("fails closed when the current persistent cart cannot be saved before order submission", async () => {
+    mocks.user = CUSTOMER;
+    mocks.cartLines = [{ product_id: PRODUCT_ID, quantity: 2 }];
+    await mountRoute("/checkout");
+    const phone = host?.querySelector<HTMLInputElement>('input[placeholder="7XX XXX XXX"]');
+    expect(phone).toBeTruthy();
+    await act(async () => {
+      fireEvent.change(phone!, { target: { value: "777777777" } });
+    });
+    await flush();
+
+    vi.mocked(saveCustomerCart).mockRejectedValueOnce(new Error("synthetic persistent cart refusal"));
+    await clickButtonContaining("تأكيد الطلب");
+
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("synthetic persistent cart refusal");
+    expect(mocks.submitCalls).toHaveLength(0);
+    expect(host?.textContent).not.toContain("SO-TEST-001");
   });
 });

@@ -1031,6 +1031,20 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     submitInFlightRef.current = true;
     setSubmitting(true); setError('');
     try {
+      // The local draft can change just before the debounced background sync completes.
+      // Persist/read back the exact line set before submit so the deferred DB trigger can
+      // convert that same server-side cart atomically with the order.
+      if (!user.isStaff && user.profileId && user.roles?.includes('customer')) {
+        const expectedCart = checkoutItems
+          .map((line) => ({ product_id: line.product_id.toLowerCase(), quantity: line.quantity }))
+          .sort((a, b) => a.product_id.localeCompare(b.product_id));
+        const persistedCart = await saveCustomerCart(expectedCart);
+        const actualCart = [...persistedCart.items].sort((a, b) => a.product_id.localeCompare(b.product_id));
+        if (JSON.stringify(actualCart) !== JSON.stringify(expectedCart)) {
+          throw new Error('لم يؤكد الخادم حفظ جميع أصناف وكميات السلة الحالية؛ لم يُنشأ الطلب. أعد مزامنة السلة ثم حاول مجددًا.');
+        }
+      }
+
       const requestKey = getIdempotencyKey();
       const { data, error: rpcError } = await supabase.rpc('submit_customer_order', {
         _items: cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity })),
