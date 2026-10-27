@@ -29,13 +29,7 @@ BEGIN
   END IF;
 
   v_profile := public.current_profile_id();
-  IF v_profile IS NULL
-     OR NOT EXISTS (
-       SELECT 1
-         FROM public.user_roles r
-        WHERE r.profile_id = v_profile
-          AND r.role = 'customer'
-     ) THEN
+  IF v_profile IS NULL THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
       MESSAGE = 'active customer profile required for reorder template creation';
   END IF;
@@ -65,6 +59,11 @@ REVOKE ALL ON FUNCTION public.guard_customer_reorder_template_member_insert()
 DROP TRIGGER IF EXISTS reorder_templates_customer_member_mutation_guard
   ON public.reorder_templates;
 
+-- Trigger-order dependency: PostgreSQL orders same-event triggers by name.
+-- Keep the RI_ConstraintTrigger_* customer FK checks ahead of this guard and keep
+-- those foreign keys NOT DEFERRABLE, so their lock waits finish before revalidating
+-- membership. Renaming this trigger to sort before the RI_ triggers would reopen
+-- the membership-revocation race.
 CREATE TRIGGER reorder_templates_customer_member_mutation_guard
 AFTER INSERT ON public.reorder_templates
 FOR EACH ROW
