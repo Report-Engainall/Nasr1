@@ -17,6 +17,8 @@ const addressClients = [
 ];
 const foreignClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const orderClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const quoteClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const quoteLockClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function setIdentity(client, authUserId, email, applicationName) {
@@ -318,10 +320,14 @@ async function main() {
   const memberAddressApp = "ci-revoke-address-" + randomUUID().slice(0, 8);
   const memberContactApp = "ci-revoke-contact-" + randomUUID().slice(0, 8);
   const memberOrderApp = "ci-revoke-order-" + randomUUID().slice(0, 8);
+  const memberQuoteApp = "ci-revoke-quote-" + randomUUID().slice(0, 8);
+  const memberQuoteLockApp = "ci-revoke-quote-lock-" + randomUUID().slice(0, 8);
   await Promise.all([
     setIdentity(addressClients[1], memberAuthUserId, memberEmail, memberAddressApp),
     setIdentity(foreignClient, memberAuthUserId, memberEmail, memberContactApp),
     setIdentity(orderClient, memberAuthUserId, memberEmail, memberOrderApp),
+    setIdentity(quoteClient, memberAuthUserId, memberEmail, memberQuoteApp),
+    quoteLockClient.unsafe("select set_config($1,$2,false)", ["application_name", memberQuoteLockApp]),
   ]);
   const acceptedMembership = (await addressClients[1].unsafe(
     "select public.accept_customer_company_invitation($1::text) as result",
@@ -339,14 +345,21 @@ async function main() {
   assert.equal(preRevocationCapabilities.can_contact, true,
     "buyer membership may create company contacts before revocation");
 
+  const quoteId = (await admin.unsafe(
+    "insert into public.sales_quotes(organization_id,customer_id,quote_number,status,notes,created_by,quoted_at,valid_until) " +
+      "values($1::uuid,$2::uuid,$3,'quoted','CI member revocation race',$4::uuid,now(),now()+interval '7 days') returning id",
+    [organizationId, customerId, "CI-Q-" + randomUUID().slice(0, 8), customerProfileId],
+  ))[0].id;
+
   const beforeRevocationMutations = (await admin.unsafe(
     "select " +
       "(select count(*)::integer from public.customer_addresses where organization_id=$1::uuid and customer_id=$2::uuid) as addresses, " +
       "(select count(*)::integer from public.customer_company_contacts where organization_id=$1::uuid and customer_id=$2::uuid) as contacts, " +
       "(select count(*)::integer from public.orders where organization_id=$1::uuid and customer_id=$2::uuid and created_by=$3::uuid) as orders, " +
+      "(select status from public.sales_quotes where id=$4::uuid) as quote_status, " +
       "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and actor_id=$3::uuid " +
         "and entity_type in ('customer_address','customer_company_contact','order')) as member_mutation_audits",
-    [organizationId, customerId, memberProfileId],
+    [organizationId, customerId, memberProfileId, quoteId],
   ))[0];
 
   // Test-only SECURITY DEFINER command models the order INSERT boundary without a product fixture.
@@ -375,9 +388,13 @@ async function main() {
     GRANT EXECUTE ON FUNCTION public.ci_insert_customer_order_for_revocation_test(uuid,uuid,uuid) TO authenticated;
   `);
 
+  let quoteLockOpen = false;
   let revocationTxOpen = false;
   let pendingMemberWrites;
   try {
+    await quoteLockClient.unsafe("begin");
+    quoteLockOpen = true;
+    await quoteLockClient.unsafe("select id from public.sales_quotes where id=$1::uuid for update", [quoteId]);
     await addressClients[0].unsafe("begin");
     revocationTxOpen = true;
     const revoked = await addressClients[0].unsafe(
@@ -393,10 +410,13 @@ async function main() {
       saveCompanyContact(foreignClient, null, "CI Revoked In-flight Contact",
         "7777654321", memberEmail, false),
       attemptMemberOrderInsert(orderClient, organizationId, customerId, memberProfileId),
+      quoteClient.unsafe("select public.customer_respond_to_quote($1::uuid,true)", [quoteId]),
     ]);
-    const barrier = await waitForBothConnectionsToBlock([memberAddressApp, memberContactApp, memberOrderApp]);
+    const barrier = await waitForBothConnectionsToBlock([memberAddressApp, memberContactApp, memberOrderApp, memberQuoteApp]);
     await addressClients[0].unsafe("commit");
     revocationTxOpen = false;
+    await quoteLockClient.unsafe("commit");
+    quoteLockOpen = false;
     const outcomes = await pendingMemberWrites;
 
     assert.equal(
@@ -406,18 +426,21 @@ async function main() {
         JSON.stringify(barrier.rows),
     );
     for (const [index, outcome] of outcomes.entries()) {
-      const label = index === 0 ? "address mutation" : index === 1 ? "company-contact mutation" : "order insertion";
+      const label = index === 0 ? "address mutation" : index === 1 ? "company-contact mutation" : index === 2 ? "order insertion" : "quote response";
       assert.equal(outcome.status, "rejected",
         label + " must be denied when membership revocation commits while it is waiting");
       assert.equal(outcome.reason.code, "42501", label + " must fail with authorization SQLSTATE 42501");
       assert.match(String(outcome.reason.message),
         index === 2
           ? /company membership is no longer active or lacks order capability/i
-          : /company membership is no longer active or lacks mutation capability/i,
+          : index === 3
+            ? /company membership is no longer active or lacks quote capability/i
+            : /company membership is no longer active or lacks mutation capability/i,
         label + " must be denied by the write-boundary membership guard");
     }
   } catch (error) {
     if (revocationTxOpen) await addressClients[0].unsafe("rollback").catch(() => {});
+    if (quoteLockOpen) await quoteLockClient.unsafe("rollback").catch(() => {});
     if (pendingMemberWrites) await pendingMemberWrites.catch(() => {});
     throw error;
   }
@@ -427,6 +450,7 @@ async function main() {
       "(select count(*)::integer from public.customer_addresses where organization_id=$1::uuid and customer_id=$2::uuid) as addresses, " +
       "(select count(*)::integer from public.customer_company_contacts where organization_id=$1::uuid and customer_id=$2::uuid) as contacts, " +
       "(select count(*)::integer from public.orders where organization_id=$1::uuid and customer_id=$2::uuid and created_by=$3::uuid) as orders, " +
+      "(select status from public.sales_quotes where id=$4::uuid) as quote_status, " +
       "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and actor_id=$3::uuid " +
         "and entity_type in ('customer_address','customer_company_contact','order')) as member_mutation_audits",
     [organizationId, customerId, memberProfileId],
@@ -531,5 +555,7 @@ try {
     ...addressClients.map((client) => client.end({ timeout: 1 })),
     foreignClient.end({ timeout: 1 }),
     orderClient.end({ timeout: 1 }),
+    quoteClient.end({ timeout: 1 }),
+    quoteLockClient.end({ timeout: 1 }),
   ].map((close) => close.catch(() => {})));
 }
