@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { BUSINESS_BRAND_NAME, BUSINESS_META_DESCRIPTION, BUSINESS_PWA_THEME_COLOR } from "@/lib/brand";
 
 function NotFoundComponent() {
   return (
@@ -77,11 +78,19 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
+      { title: BUSINESS_BRAND_NAME },
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { name: "author", content: "Aghbari Commerce" },
+      { name: "author", content: BUSINESS_BRAND_NAME },
+      { name: "description", content: BUSINESS_META_DESCRIPTION },
+      { name: "theme-color", content: BUSINESS_PWA_THEME_COLOR },
       { property: "og:type", content: "website" },
+      { property: "og:site_name", content: BUSINESS_BRAND_NAME },
+      { property: "og:title", content: BUSINESS_BRAND_NAME },
+      { property: "og:description", content: BUSINESS_META_DESCRIPTION },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: BUSINESS_BRAND_NAME },
+      { name: "twitter:description", content: BUSINESS_META_DESCRIPTION },
     ],
     links: [
       {
