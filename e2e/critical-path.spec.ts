@@ -20,7 +20,7 @@ function captureBrowserDiagnostics(page: Page): BrowserDiagnostics {
     }
     if (
       /\/rest\/v1\/(orders|order_items|order_status_history|customers)$/i.test(pathname) ||
-      /\/rest\/v1\/rpc\/submit_customer_order$/i.test(pathname) ||
+      /\/rest\/v1\/rpc\/(submit_customer_order|review_order_lines)$/i.test(pathname) ||
       /\/auth\/v1\/token$/i.test(pathname)
     ) {
       diagnostics.criticalHttpErrors.push(
@@ -110,7 +110,9 @@ test("catalog → cart → order → refresh, then cross-organization read denia
   const passwordA = process.env.E2E_PASSWORD;
   const emailB = process.env.E2E_EMAIL_B;
   const passwordB = process.env.E2E_PASSWORD_B;
-  if (!emailA || !passwordA || !emailB || !passwordB) {
+  const managerEmail = process.env.E2E_MANAGER_EMAIL;
+  const managerPassword = process.env.E2E_MANAGER_PASSWORD;
+  if (!emailA || !passwordA || !emailB || !passwordB || !managerEmail || !managerPassword) {
     throw new Error("Both dedicated customer accounts are required. Runtime E2E must be recorded NOT RUN/BLOCKED_EXTERNAL when secrets are absent, never silently skipped.");
   }
 
@@ -120,6 +122,9 @@ test("catalog → cart → order → refresh, then cross-organization read denia
   const contextB = await browser.newContext();
   const pageB = await contextB.newPage();
   const diagnosticsB = captureBrowserDiagnostics(pageB);
+  const managerContext = await browser.newContext();
+  const managerPage = await managerContext.newPage();
+  const managerDiagnostics = captureBrowserDiagnostics(managerPage);
 
   try {
     await test.step("customer A: authenticate and create order through the real catalog and cart", async () => {
@@ -127,6 +132,29 @@ test("catalog → cart → order → refresh, then cross-organization read denia
     });
     const order = await test.step("customer A: persist order and verify it after a browser refresh", async () => {
       return createPersistedOrder(pageA);
+    });
+
+    await test.step("manager: approve the persisted customer order in the authorized admin workspace", async () => {
+      await signIn(managerPage, managerEmail, managerPassword);
+      await managerPage.goto("/admin/orders");
+      await expect(managerPage.getByRole("heading", { name: "الطلبات", exact: true })).toBeVisible({ timeout: 30_000 });
+      const orderRow = managerPage.getByRole("row").filter({ hasText: order.orderNumber });
+      await expect(orderRow, "The order submitted by customer A must be returned by the staff order query in the same tenant.").toBeVisible({ timeout: 30_000 });
+      await orderRow.getByRole("button", { name: "تفاصيل", exact: true }).click();
+      await expect(managerPage.getByRole("heading", { name: "الطلب #" + order.orderNumber, exact: true })).toBeVisible({ timeout: 30_000 });
+
+      const approve = managerPage.getByRole("button", { name: "اعتماد الكميات وتأكيد الطلب", exact: true });
+      await expect(approve, "Staff must use the controlled transactional order-review action rather than a direct optimistic status edit.").toBeEnabled({ timeout: 30_000 });
+      await approve.click();
+      await expect(managerPage.getByText(/تم اعتماد الطلب ذريًا/)).toBeVisible({ timeout: 45_000 });
+    });
+
+    await test.step("customer A: reread the saved status after manager approval", async () => {
+      const refresh = pageA.getByRole("button", { name: "تحديث حالة الطلب من الخادم", exact: true });
+      await expect(refresh).toBeVisible();
+      await refresh.click();
+      await expect(pageA.getByText(/الحالة:\s*مؤكد/)).toBeVisible({ timeout: 30_000 });
+      await expect(pageA.getByText("مؤكد", { exact: true })).toBeVisible();
     });
 
     await test.step("customer B: a separate organization's session cannot open customer A's order", async () => {
@@ -140,19 +168,24 @@ test("catalog → cart → order → refresh, then cross-organization read denia
     expect(diagnosticsA.criticalHttpErrors, "Customer A authentication/order API failures.").toEqual([]);
     expect(diagnosticsB.pageErrors, "Uncaught browser exceptions for customer B.").toEqual([]);
     expect(diagnosticsB.criticalHttpErrors, "Customer B authentication/order API failures.").toEqual([]);
+    expect(managerDiagnostics.pageErrors, "Uncaught browser exceptions in the authorized admin workflow.").toEqual([]);
+    expect(managerDiagnostics.criticalHttpErrors, "Admin order read/review RPC failures.").toEqual([]);
 
     await test.info().attach("p2-browser-proof.json", {
       body: JSON.stringify({
         result: "BROWSER_PROVEN",
         sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
-        criticalPath: "catalog -> cart -> server-validated order -> detail after refresh",
+        criticalPath: "catalog -> cart -> server-validated order -> admin transactional approval -> customer server readback",
         orderNumber: order.orderNumber,
         resourcePath: order.detailPath,
+        adminTransition: "pending -> confirmed",
+        customerReadbackAfterAdminTransition: true,
         tenantBVisibleOrderNumber: false,
       }),
       contentType: "application/json",
     });
   } finally {
+    await managerContext.close();
     await contextB.close();
     await contextA.close();
   }
