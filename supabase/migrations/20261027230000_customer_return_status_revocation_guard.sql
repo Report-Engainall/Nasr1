@@ -19,6 +19,7 @@ AS $function$
 DECLARE
   v_actor uuid := public.current_profile_id();
   v_org uuid;
+  v_customer_id uuid;
   v_customer public.customers%ROWTYPE;
   v_order public.orders%ROWTYPE;
   v_existing public.customer_return_requests%ROWTYPE;
@@ -44,11 +45,24 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='active customer profile required to request a return';
   END IF;
 
-  SELECT c.* INTO v_customer
+  -- Resolve the same candidate first, then lock/re-check that exact row. The second
+  -- predicate prevents the query from falling through to a different customer if the
+  -- chosen customer's status changes while the FOR SHARE lock is waiting.
+  SELECT c.id INTO v_customer_id
     FROM public.customers c
    WHERE c.profile_id = v_actor AND c.organization_id = v_org AND c.status = 'approved'
    ORDER BY c.created_at, c.id
-   LIMIT 1
+   LIMIT 1;
+  IF v_customer_id IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='approved customer account required to request a return';
+  END IF;
+
+  SELECT c.* INTO v_customer
+    FROM public.customers c
+   WHERE c.id = v_customer_id
+     AND c.profile_id = v_actor
+     AND c.organization_id = v_org
+     AND c.status = 'approved'
    FOR SHARE;
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='approved customer account required to request a return';
