@@ -6284,6 +6284,7 @@ async function main() {
     ["CI-ACT-05", "CI Expired Customer Record", "expired-client@example.test"],
     ["CI-ACT-06", "CI Revoked Customer Record", "revoked-client@example.test"],
     ["CI-ACT-07", "CI Customer Manager Activation Record", "customer-manager-activation@example.test"],
+    ["CI-ACT-08", "CI Activation Replacement Audit Record", "activation-replacement@example.test"],
   ];
   for (const [code, businessName, email] of activationCodes) {
     await db.unsafe(
@@ -6298,6 +6299,7 @@ async function main() {
   const expiredCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-05'", [organizationId]))[0].id;
   const revokedCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-06'", [organizationId]))[0].id;
   const customerManagerActivationCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-07'", [organizationId]))[0].id;
+  const activationReplacementCustomer = (await db.unsafe("select id from public.customers where organization_id=$1 and customer_code='CI-ACT-08'", [organizationId]))[0].id;
 
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   await db.unsafe("reset role");
@@ -6333,6 +6335,61 @@ async function main() {
   const revokedResult = await db.unsafe("select public.revoke_customer_activation_invitation($1::uuid) as revoked", [revokedInvitation.invitation_id]);
   assert.equal(revokedResult[0].revoked, true, "staff can revoke a pending tenant-scoped activation invitation");
   await db.unsafe("reset role");
+
+  // Replacing an outstanding activation link is itself a revocation and must leave an auditable actor/reason.
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const supersededInvitation = await createActivationInvite(
+    activationReplacementCustomer, "activation-replacement@example.test",
+  );
+  await db.unsafe("reset role");
+  // A different authorized operator replaces the prior link; the revocation audit must identify this actor.
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  const replacementInvitation = await createActivationInvite(
+    activationReplacementCustomer, "activation-replacement@example.test",
+  );
+  assert.notEqual(supersededInvitation.invitation_id, replacementInvitation.invitation_id,
+    "replacing an activation link creates a new one-time invitation");
+  await db.unsafe("reset role");
+
+  const replacementStates = await db.unsafe(
+    "select id::text as id,status,revoked_at is not null as has_revoked_at," +
+      "invited_by_profile_id::text as invited_by_profile_id " +
+      "from public.customer_activation_invitations where id=any($1::uuid[]) order by created_at,id",
+    [[supersededInvitation.invitation_id, replacementInvitation.invitation_id]],
+  );
+  const supersededState = replacementStates.find(row => row.id === supersededInvitation.invitation_id);
+  const replacementState = replacementStates.find(row => row.id === replacementInvitation.invitation_id);
+  assert.equal(supersededState?.status, "revoked", "the previous pending link is explicitly transitioned to revoked");
+  assert.equal(supersededState?.has_revoked_at, true, "the superseded link records its revocation time");
+  assert.equal(replacementState?.status, "pending", "only the new link remains pending");
+  const supersededAudit = await db.unsafe(
+    "select actor_id::text as actor_id,old_value,new_value from public.audit_logs " +
+      "where organization_id=$1::uuid and entity_type='customer_activation_invitation' " +
+      "and entity_id=$2::uuid and action='customer_activation_invitation.revoked'",
+    [organizationId, supersededInvitation.invitation_id],
+  );
+  assert.equal(supersededAudit.length, 1, "superseding a pending link writes exactly one revocation audit");
+  assert.equal(supersededAudit[0].actor_id, replacementState.invited_by_profile_id,
+    "replacement revocation audit identifies the operator who superseded the prior invitation");
+  assert.notEqual(supersededAudit[0].actor_id, supersededState.invited_by_profile_id,
+    "replacement audit actor is distinct from the prior invitation creator in this cross-operator case");
+  assert.equal(supersededAudit[0].old_value.status, "pending");
+  assert.equal(supersededAudit[0].new_value.status, "revoked");
+  assert.equal(supersededAudit[0].new_value.reason, "superseded_by_replacement_invitation");
+  const replacementCreatedAudit = await db.unsafe(
+    "select actor_id::text as actor_id,new_value from public.audit_logs " +
+      "where organization_id=$1::uuid and entity_type='customer_activation_invitation' " +
+      "and entity_id=$2::uuid and action='customer_activation_invitation.created'",
+    [organizationId, replacementInvitation.invitation_id],
+  );
+  assert.equal(replacementCreatedAudit.length, 1, "the replacement link creation is audited exactly once");
+  const replacementAuditText = JSON.stringify([supersededAudit, replacementCreatedAudit]);
+  assert.equal(replacementAuditText.includes(supersededInvitation.token), false,
+    "the superseded bearer token must never appear in audit values");
+  assert.equal(replacementAuditText.includes(replacementInvitation.token), false,
+    "the replacement bearer token must never appear in audit values");
 
   const tokenHashRow = (await db.unsafe(
     "select token_hash from public.customer_activation_invitations where id=$1",
@@ -6432,7 +6489,7 @@ async function main() {
 
   const createdAudit = await db.unsafe(
     "select action from public.audit_logs where organization_id=$1 and entity_type='customer_activation_invitation' and entity_id=any($2::uuid[])",
-    [organizationId, [validInvitation.invitation_id, unconfirmedInvitation.invitation_id, foreignScopeInvitation.invitation_id, staffRejectInvitation.invitation_id, expiredInvitation.invitation_id, revokedInvitation.invitation_id]],
+    [organizationId, [validInvitation.invitation_id, unconfirmedInvitation.invitation_id, foreignScopeInvitation.invitation_id, staffRejectInvitation.invitation_id, expiredInvitation.invitation_id, revokedInvitation.invitation_id, supersededInvitation.invitation_id, replacementInvitation.invitation_id]],
   );
   assert.ok(createdAudit.filter(row => row.action === "customer_activation_invitation.created").length >= 5,
     "creation of each invitation is audited");
