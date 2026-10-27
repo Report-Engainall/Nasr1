@@ -23,6 +23,7 @@ const quoteCreateClient = postgres(connectionString, { max: 1, prepare: false, i
 const quoteLockClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
 const cartClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
 const cartReadClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+const invitationAcceptClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function setIdentity(client, authUserId, email, applicationName) {
@@ -356,6 +357,7 @@ async function main() {
   const memberQuoteLockApp = "ci-revoke-quote-lock-" + randomUUID().slice(0, 8);
   const memberCartApp = "ci-revoke-cart-sync-" + randomUUID().slice(0, 8);
   const memberCartReadApp = "ci-revoke-cart-read-" + randomUUID().slice(0, 8);
+  const memberInvitationAcceptApp = "ci-revoke-invitation-accept-" + randomUUID().slice(0, 8);
   await Promise.all([
     setIdentity(addressClients[1], memberAuthUserId, memberEmail, memberAddressApp),
     setIdentity(foreignClient, memberAuthUserId, memberEmail, memberContactApp),
@@ -366,6 +368,7 @@ async function main() {
     quoteLockClient.unsafe("select set_config($1,$2,false)", ["application_name", memberQuoteLockApp]),
     setIdentity(cartClient, memberAuthUserId, memberEmail, memberCartApp),
     setIdentity(cartReadClient, memberAuthUserId, memberEmail, memberCartReadApp),
+    setIdentity(invitationAcceptClient, memberAuthUserId, memberEmail, memberInvitationAcceptApp),
   ]);
   const acceptedMembership = (await addressClients[1].unsafe(
     "select public.accept_customer_company_invitation($1::text) as result",
@@ -374,6 +377,51 @@ async function main() {
   assert.equal(acceptedMembership.customer_id, customerId,
     "member acceptance must be scoped to the owning customer");
   assert.equal(acceptedMembership.member_role, "buyer");
+
+  // Active members must not receive a new pending invite that could be used after
+  // revocation. Also seed a pre-existing invite to model legacy data and prove that
+  // revocation cancels it atomically with the membership state change.
+  const pendingInvitesBeforeActiveMemberInvite = Number((await admin.unsafe(
+    "select count(*)::integer as count from public.customer_company_invitations " +
+      "where customer_id=$1::uuid and organization_id=$2::uuid and invited_email=$3 and status='pending'",
+    [customerId, organizationId, memberEmail],
+  ))[0].count);
+  let activeMemberInviteError;
+  try {
+    await addressClients[0].unsafe(
+      "select public.create_customer_company_invitation($1::text,$2::text)",
+      [memberEmail, "buyer"],
+    );
+  } catch (error) {
+    activeMemberInviteError = error;
+  }
+  assert.ok(activeMemberInviteError, "owner must not create an invitation for a currently active company member");
+  assert.equal(activeMemberInviteError.code, "42501");
+  assert.match(String(activeMemberInviteError.message), /البريد الإلكتروني مرتبط بعضوية نشطة/);
+  const pendingInvitesAfterActiveMemberInvite = Number((await admin.unsafe(
+    "select count(*)::integer as count from public.customer_company_invitations " +
+      "where customer_id=$1::uuid and organization_id=$2::uuid and invited_email=$3 and status='pending'",
+    [customerId, organizationId, memberEmail],
+  ))[0].count);
+  assert.equal(pendingInvitesAfterActiveMemberInvite, pendingInvitesBeforeActiveMemberInvite,
+    "rejected invite-to-active-member attempt must not leave a pending invitation");
+
+  const legacyPendingToken = randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", "");
+  assert.match(legacyPendingToken, /^[0-9a-f]{64}$/i);
+  const legacyPendingInviteId = (await admin.unsafe(
+    "insert into public.customer_company_invitations(" +
+      "organization_id,customer_id,invited_email,member_role,token_hash,status,invited_by,expires_at) " +
+      "values($1::uuid,$2::uuid,lower(btrim($3)),'buyer',md5(lower($4)),'pending',$5::uuid,now()+interval '7 days') " +
+      "returning id",
+    [organizationId, customerId, memberEmail, legacyPendingToken, customerProfileId],
+  ))[0].id;
+  const acceptedInvitationAuditCountBeforeRevoke = Number((await admin.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+      "where organization_id=$1::uuid and actor_id=$2::uuid " +
+      "and action='customer_company_invitation.accepted' and entity_type='customer_company_membership'",
+    [organizationId, memberProfileId],
+  ))[0].count);
+
   const preRevocationCapabilities = (await addressClients[1].unsafe(
     "select public.current_customer_can('addresses.manage') as can_address, " +
       "public.current_customer_can('contacts.manage') as can_contact, " +
@@ -548,8 +596,12 @@ async function main() {
       quoteClient.unsafe("select public.customer_respond_to_quote($1::uuid,true)", [quoteId]),
       syncMemberCart(cartClient),
       readMemberCart(cartReadClient),
+      invitationAcceptClient.unsafe(
+        "select public.accept_customer_company_invitation($1::text) as result",
+        [legacyPendingToken],
+      ),
     ]);
-    const barrier = await waitForConnectionsToBlock([memberAddressApp, memberContactApp, memberOrderApp, memberReorderApp, memberQuoteCreateApp, memberQuoteApp, memberCartApp, memberCartReadApp]);
+    const barrier = await waitForConnectionsToBlock([memberAddressApp, memberContactApp, memberOrderApp, memberReorderApp, memberQuoteCreateApp, memberQuoteApp, memberCartApp, memberCartReadApp, memberInvitationAcceptApp]);
     await addressClients[0].unsafe("commit");
     revocationTxOpen = false;
     await quoteLockClient.unsafe("commit");
@@ -563,7 +615,7 @@ async function main() {
         JSON.stringify(barrier.rows),
     );
     for (const [index, outcome] of outcomes.entries()) {
-      const label = ["address mutation", "company-contact mutation", "order insertion", "reorder-template insertion", "quote request insertion", "quote response", "persistent cart sync", "persistent cart read"][index];
+      const label = ["address mutation", "company-contact mutation", "order insertion", "reorder-template insertion", "quote request insertion", "quote response", "persistent cart sync", "persistent cart read", "legacy invitation acceptance"][index];
       assert.equal(outcome.status, "rejected",
         label + " must be denied when membership revocation commits while it is waiting");
       assert.equal(outcome.reason.code, "42501", label + " must fail with authorization SQLSTATE 42501");
@@ -578,7 +630,9 @@ async function main() {
                 ? /company membership is no longer active or lacks quote capability/i
                 : index === 6 || index === 7
                   ? /company membership is no longer active for persistent cart/i
-                  : /company membership is no longer active or lacks mutation capability/i,
+                  : index === 8
+                    ? /الدعوة غير موجودة أو استُخدمت أو أُلغيت/
+                    : /company membership is no longer active or lacks mutation capability/i,
         label + " must be denied by the write-boundary membership guard");
     }
   } catch (error) {
@@ -606,6 +660,32 @@ async function main() {
     "revoked in-flight address/contact/order/reorder/quote-request/quote-response writes must leave rows and member mutation audit unchanged");
   assert.deepEqual(await cartSnapshot(), beforeRevocationCart,
     "revoked in-flight persistent-cart sync must not update the cart row, items, or audit events");
+
+  const revokedLegacyInvitation = (await admin.unsafe(
+    "select status from public.customer_company_invitations where id=$1::uuid",
+    [legacyPendingInviteId],
+  ))[0];
+  assert.equal(revokedLegacyInvitation.status, "revoked",
+    "member revocation must cancel a pending legacy invitation for that member's login email");
+  const revokedInvitationAudit = await admin.unsafe(
+    "select actor_id::text as actor_id from public.audit_logs " +
+      "where organization_id=$1::uuid and entity_type='customer_company_invitation' " +
+      "and entity_id=$2::uuid and action='customer_company_invitation.revoked_by_member_revocation'",
+    [organizationId, legacyPendingInviteId],
+  );
+  assert.equal(revokedInvitationAudit.length, 1,
+    "automatic invitation cancellation must have exactly one audit record");
+  assert.equal(revokedInvitationAudit[0].actor_id, customerProfileId,
+    "the owner who revoked the membership is the invitation-cancellation audit actor");
+  const acceptedInvitationAuditCountAfterRevoke = Number((await admin.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+      "where organization_id=$1::uuid and actor_id=$2::uuid " +
+      "and action='customer_company_invitation.accepted' and entity_type='customer_company_membership'",
+    [organizationId, memberProfileId],
+  ))[0].count);
+  assert.equal(acceptedInvitationAuditCountAfterRevoke, acceptedInvitationAuditCountBeforeRevoke,
+    "a stale invitation must not reactivate a revoked membership or add an acceptance audit");
+
   await expectDenied(
     "revoked company member cannot read the persistent cart",
     () => cartReadClient.unsafe("select public.get_customer_cart()"),
@@ -719,5 +799,6 @@ try {
     quoteLockClient.end({ timeout: 1 }),
     cartClient.end({ timeout: 1 }),
     cartReadClient.end({ timeout: 1 }),
+    invitationAcceptClient.end({ timeout: 1 }),
   ].map((close) => close.catch(() => {})));
 }
