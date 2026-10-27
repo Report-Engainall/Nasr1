@@ -16,6 +16,7 @@ const addressClients = [
   postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 }),
 ];
 const foreignClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const orderClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function setIdentity(client, authUserId, email, applicationName) {
@@ -129,6 +130,15 @@ async function saveCompanyContact(client, contactId, fullName, phone, email, isP
     [contactId, fullName, "CI Revocation Test", "Operations", phone, email, isPrimary],
   );
   assert.equal(rows.length, 1, "company contact RPC must return one result");
+  return rows[0].id;
+}
+
+async function attemptMemberOrderInsert(client, organizationId, customerId, profileId) {
+  const rows = await client.unsafe(
+    "select public.ci_insert_customer_order_for_revocation_test($1::uuid,$2::uuid,$3::uuid) as id",
+    [organizationId, customerId, profileId],
+  );
+  assert.equal(rows.length, 1, "test order command must return one row when the guard allows it");
   return rows[0].id;
 }
 
@@ -307,9 +317,11 @@ async function main() {
 
   const memberAddressApp = "ci-revoke-address-" + randomUUID().slice(0, 8);
   const memberContactApp = "ci-revoke-contact-" + randomUUID().slice(0, 8);
+  const memberOrderApp = "ci-revoke-order-" + randomUUID().slice(0, 8);
   await Promise.all([
     setIdentity(addressClients[1], memberAuthUserId, memberEmail, memberAddressApp),
     setIdentity(foreignClient, memberAuthUserId, memberEmail, memberContactApp),
+    setIdentity(orderClient, memberAuthUserId, memberEmail, memberOrderApp),
   ]);
   const acceptedMembership = (await addressClients[1].unsafe(
     "select public.accept_customer_company_invitation($1::text) as result",
@@ -331,10 +343,37 @@ async function main() {
     "select " +
       "(select count(*)::integer from public.customer_addresses where organization_id=$1::uuid and customer_id=$2::uuid) as addresses, " +
       "(select count(*)::integer from public.customer_company_contacts where organization_id=$1::uuid and customer_id=$2::uuid) as contacts, " +
+      "(select count(*)::integer from public.orders where organization_id=$1::uuid and customer_id=$2::uuid and created_by=$3::uuid) as orders, " +
       "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and actor_id=$3::uuid " +
-        "and entity_type in ('customer_address','customer_company_contact')) as member_mutation_audits",
+        "and entity_type in ('customer_address','customer_company_contact','order')) as member_mutation_audits",
     [organizationId, customerId, memberProfileId],
   ))[0];
+
+  // Test-only SECURITY DEFINER command models the order INSERT boundary without a product fixture.
+  // It preserves authenticated JWT claims; the production AFTER INSERT trigger must still reject it.
+  await admin.unsafe(String.raw`
+    CREATE OR REPLACE FUNCTION public.ci_insert_customer_order_for_revocation_test(
+      p_organization_id uuid, p_customer_id uuid, p_profile_id uuid
+    ) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $function$
+    DECLARE v_id uuid;
+    BEGIN
+      INSERT INTO public.orders(
+        organization_id, customer_id, order_number, status, notes, created_by,
+        payment_terms, business_name_snapshot, contact_name_snapshot, phone_snapshot,
+        idempotency_key, idempotency_payload_hash
+      ) VALUES (
+        p_organization_id, p_customer_id,
+        'ORD-CI-REVOKE-' || pg_catalog.replace(pg_catalog.gen_random_uuid()::text,'-',''),
+        'pending', 'test-only revocation race', p_profile_id, 'cash_on_delivery',
+        'CI company member', 'CI revoked member', '7777654321',
+        'ci-revoke-' || pg_catalog.replace(pg_catalog.gen_random_uuid()::text,'-',''),
+        pg_catalog.md5(pg_catalog.gen_random_uuid()::text)
+      ) RETURNING id INTO v_id;
+      RETURN v_id;
+    END;
+    $function$;
+    GRANT EXECUTE ON FUNCTION public.ci_insert_customer_order_for_revocation_test(uuid,uuid,uuid) TO authenticated;
+  `);
 
   let revocationTxOpen = false;
   let pendingMemberWrites;
@@ -353,8 +392,9 @@ async function main() {
         "Denied after revocation", false),
       saveCompanyContact(foreignClient, null, "CI Revoked In-flight Contact",
         "7777654321", memberEmail, false),
+      attemptMemberOrderInsert(orderClient, organizationId, customerId, memberProfileId),
     ]);
-    const barrier = await waitForBothConnectionsToBlock([memberAddressApp, memberContactApp]);
+    const barrier = await waitForBothConnectionsToBlock([memberAddressApp, memberContactApp, memberOrderApp]);
     await addressClients[0].unsafe("commit");
     revocationTxOpen = false;
     const outcomes = await pendingMemberWrites;
@@ -366,12 +406,14 @@ async function main() {
         JSON.stringify(barrier.rows),
     );
     for (const [index, outcome] of outcomes.entries()) {
-      const label = index === 0 ? "address mutation" : "company-contact mutation";
+      const label = index === 0 ? "address mutation" : index === 1 ? "company-contact mutation" : "order insertion";
       assert.equal(outcome.status, "rejected",
         label + " must be denied when membership revocation commits while it is waiting");
       assert.equal(outcome.reason.code, "42501", label + " must fail with authorization SQLSTATE 42501");
       assert.match(String(outcome.reason.message),
-        /company membership is no longer active or lacks mutation capability/i,
+        index === 2
+          ? /company membership is no longer active or lacks order capability/i
+          : /company membership is no longer active or lacks mutation capability/i,
         label + " must be denied by the write-boundary membership guard");
     }
   } catch (error) {
@@ -384,8 +426,9 @@ async function main() {
     "select " +
       "(select count(*)::integer from public.customer_addresses where organization_id=$1::uuid and customer_id=$2::uuid) as addresses, " +
       "(select count(*)::integer from public.customer_company_contacts where organization_id=$1::uuid and customer_id=$2::uuid) as contacts, " +
+      "(select count(*)::integer from public.orders where organization_id=$1::uuid and customer_id=$2::uuid and created_by=$3::uuid) as orders, " +
       "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and actor_id=$3::uuid " +
-        "and entity_type in ('customer_address','customer_company_contact')) as member_mutation_audits",
+        "and entity_type in ('customer_address','customer_company_contact','order')) as member_mutation_audits",
     [organizationId, customerId, memberProfileId],
   ))[0];
   assert.deepEqual(afterRevocationMutations, beforeRevocationMutations,
@@ -471,7 +514,7 @@ async function main() {
     "denied cross-tenant address delete must not add or alter audit events");
 
   process.stdout.write(
-    "PASS customer address acceptance: forced PostgreSQL 17 default-address race leaves exactly one default; cross-tenant read/update/delete is denied with no data or audit side effects\n",
+    "PASS customer/company-member revocation acceptance: address, contact and order writes are denied after the forced PostgreSQL 17 revocation lock barrier; no rows or mutation audits change; cross-tenant address read/update/delete is denied\n",
   );
 }
 
@@ -487,5 +530,6 @@ try {
     monitor.end({ timeout: 1 }),
     ...addressClients.map((client) => client.end({ timeout: 1 })),
     foreignClient.end({ timeout: 1 }),
+    orderClient.end({ timeout: 1 }),
   ].map((close) => close.catch(() => {})));
 }
