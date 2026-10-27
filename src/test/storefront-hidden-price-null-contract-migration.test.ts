@@ -12,12 +12,13 @@ const memberRevocationGuard = readFileSync(join(
 ), "utf8");
 
 describe("hidden storefront price RPC contract", () => {
-  it("uses NULL for hidden catalog prices in the live price resolver and catalog JSON", () => {
+  it("uses NULL for hidden catalog prices and keeps the catalog JSON contract explicit", () => {
     expect(hiddenPriceContract).toContain("SELECT p.id, NULL::numeric(15,2)");
     expect(hiddenPriceContract).toContain("'display_price', prices.unit_price");
     expect(hiddenPriceContract).toContain("Hidden storefront prices are absent values, never numeric zero sentinels.");
+    // This later migration replaces only the price resolver, not the catalog-page JSON function.
+    // Its runtime catalog-page contract is asserted separately by the PostgreSQL acceptance.
     expect(memberRevocationGuard).toContain("SELECT p.id, NULL::numeric(15,2)");
-    expect(memberRevocationGuard).toContain("'display_price', prices.unit_price");
     expect(memberRevocationGuard).not.toContain("SELECT p.id, 0::numeric(15,2)");
   });
 
