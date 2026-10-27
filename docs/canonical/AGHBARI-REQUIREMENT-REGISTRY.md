@@ -1,14 +1,32 @@
+## Current verified checkpoint after PR #296 — 2026-10-27
+
+- Main is at `9427e116cf28b039ec1ff02e0f57070c83de3943` after PR #296; PR #295 remains merged at `f90439c0b8c926600d9fff98b04c302553396000`.
+- PR #295 makes `preview_customer_order_pricing(jsonb,text)` serialize with member revocation and re-check authorization after lock waits; legacy `preview_order_pricing(jsonb)` is not directly executable by browser roles, while the safe checkout validator remains available without monetary/tier output.
+- Current main exact-SHA Core 40573716538, Import finalizer/PostgreSQL 17 40573716610, and async-export PostgreSQL 17 40573716644 are all terminal SUCCESS.
+- Current-main inventory artifact 12766956558 (`public-rpc-function-inventory-9427e116cf28b039ec1ff02e0f57070c83de3943`) reports **316 runtime functions/procedures, 316 source-matched, 0 unmatched, 154 migration files**. This is source mapping, not semantic authorization sign-off.
+- Matrix has **118 populated unique acceptance IDs**, 0 duplicate IDs, 18 delivery groups, and 0/18 groups fully release-closed. Overall completion percentage remains NOT COMPUTABLE.
+- **Release gate: NO-GO — FULL PRODUCTION RELEASE.** Hosted authenticated E2E is SKIPPED; live Onyx, official WhatsApp, live AI-provider, production migration/deploy/rollback, restore and owner approval remain unproven.
+
 # Aghbari Commerce — Requirement Registry and Execution Rules
 
 **Product:** متجر الأغبري | Aghbari Commerce  
 **Repository:** `Report-Engainall/Nasr1`  
 **Branch:** `main`  
 **Origin/provenance:** this registry was originally imported from `Aghbari-Technologies/aghbari-commerce-evolved`; that donor repository is not the active execution target for this task.
-**Latest main merge SHA:** `69f224126f8a60ae3b8e31a3452f706a03a02507` (PR #293 merged after #292). PR #293 exact-head `d3c600053d24fa29567c83ad759d048ee8601e91` passed Core [40569293453](https://github.com/Report-Engainall/Nasr1/actions/runs/40569293453), P2 [40569293220](https://github.com/Report-Engainall/Nasr1/actions/runs/40569293220), and Import finalizer/PG17 [40569293443](https://github.com/Report-Engainall/Nasr1/actions/runs/40569293443). Post-merge Import finalizer/PG17 [40570081832 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40570081832) is on exact main SHA; post-merge Core [40570081926 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40570081926) completed on the exact merge SHA. Hosted authenticated customer/tenant E2E remains **SKIPPED**; full-production gate remains **NO-GO**.
+**Latest main merge SHA:** `9427e116cf28b039ec1ff02e0f57070c83de3943` (PR #296 merged after PR #295 at `f90439c0b8c926600d9fff98b04c302553396000`). Current-main Core 40573716538, PostgreSQL 17 40573716610, and async-export PostgreSQL 17 40573716644 are terminal SUCCESS on this exact SHA. Current inventory artifact 12766956558 reports 316 functions, 316 matched, 0 unmatched and 154 migration files. Hosted customer/tenant E2E remains SKIPPED; full production gate remains NO-GO.
 **Canonical specification:** [AGHBARI-MASTER-PROJECT-SPECIFICATION.md](./AGHBARI-MASTER-PROJECT-SPECIFICATION.md)  
 **Technical supplement:** [Platform Intelligence requirements](../specs/PLATFORM-INTELLIGENCE-PRODUCTION-REQUIREMENTS-2026-10-09.md)
 
-## Measurable delivery roll-up and final release gate — 2026-10-27
+## Historical checkpoint after PR #295 — superseded by the current block above
+
+- PR #295 merged at `f90439c0b8c926600d9fff98b04c302553396000`.
+- `preview_customer_order_pricing(jsonb,text)` now locks the tenant-resolved customer and re-checks the surface capability after lock waits. Deterministic acceptance proves post-revocation requests fail with SQLSTATE `42501`.
+- Direct browser execution of `preview_order_pricing(jsonb)` is revoked from `PUBLIC`, `anon`, and `authenticated`; explicit `service_role` access remains. `validate_checkout_cart(jsonb)` still works and returns safe metadata without prices, totals, or tier.
+- Exact tested PR #295 head `0f2e89ec5e12f83daaa543f1d3ecda5458943bab`: Core `40572156893`, P2 `40572156932`, and PostgreSQL 17 `40572156959` SUCCESS. Post-merge main PostgreSQL 17 `40573052762` SUCCESS; post-merge Core `40573052628` remained IN_PROGRESS at checkpoint.
+- PR #296 is open for automated exact-SHA RPC/function inventory. Its recorded artifact reports 316 functions, 316 matched, 0 unmatched, 152 migration files; P2 passed but those checks started before the latest PR #295 main merge. Require current-base validation and post-merge evidence before calling it current-main complete.
+- Matrix target is 118 populated unique acceptance IDs, 0 duplicates, 18 delivery groups, 0/18 fully release-closed. Full production release remains NO-GO because hosted authenticated E2E is skipped and live external/prod operations are unproven.
+
+## Historical measurable delivery roll-up and final release gate — after PR #293 (superseded by this current checkpoint)
 
 The detailed acceptance definitions are maintained in the existing central matrix at `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`. This table registers stable IDs only; it is not a second resume cursor and does not automatically close any detailed acceptance row.
 
