@@ -1,3 +1,5 @@
+> **OVERRIDE — 28 OCTOBER 2026:** Before following historical priorities in this handoff, read [PRODUCT_DELIVERY_CLOSURE_PROTOCOL_2026-10-28.md](./PRODUCT_DELIVERY_CLOSURE_PROTOCOL_2026-10-28.md) and the authoritative current block at the top of `CURRENT_EXECUTION_STATE.md`. The prior “bounded RPC audit” next action is superseded as the whole-session goal. Security/API analysis remains valid when it unblocks a user journey, but execution must now close integrated product flows with connected UI, persistence/readback, tests and browser evidence, while advancing safe adjacent UI gaps. Use the existing matrix and single cursor only; no parallel plan/matrix.
+
 # نقطة الدخول التنفيذية الوحيدة — متجر الأغبري | Nasr1
 ## أمر حاكم بديل — 18 أكتوبر 2026 — استخراج المصادر والدمج الفعلي
 

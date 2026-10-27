@@ -1,3 +1,13 @@
+# CURRENT DELIVERY OVERRIDE — 2026-10-28
+
+This block supersedes stale checkpoint statements below until they are reconciled against the live main SHA. Last observed remote main in this review was `77b3f22d735b9ec674f7ec74ac137f7f94ac1e2f`; current main must be re-read at execution start. The checkpoint for `9427e116...` and its passing jobs is historical, not proof for later commits.
+
+The next execution is **DLV-004 integrated customer purchase journey**, with connected UI and applicable adjacent acceptance rows DLV-002/003/005/006. Do not spend the whole cycle on another broad RPC audit or an isolated guard unless that guard is a demonstrated blocker; preserve existing guards, complete the end-to-end journey and prove real persistence/readback. Use the existing acceptance matrix and release gate only. Hosted E2E and live integrations remain blocked/skipped until evidence exists; no status may be upgraded without it.
+
+The authoritative execution details and stop conditions are in [PRODUCT_DELIVERY_CLOSURE_PROTOCOL_2026-10-28.md](../bolt-source-reconciliation/PRODUCT_DELIVERY_CLOSURE_PROTOCOL_2026-10-28.md) and the top block of [CURRENT_EXECUTION_STATE.md](../bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md).
+
+---
+
 ## Current verified checkpoint after PR #296 — 2026-10-27
 
 - Main is at `9427e116cf28b039ec1ff02e0f57070c83de3943` after PR #296; PR #295 remains merged at `f90439c0b8c926600d9fff98b04c302553396000`.

@@ -1,3 +1,11 @@
+# CURRENT NASR1 OVERRIDE — 2026-10-28
+
+This file contains historical execution notes from earlier project states. For the active project, the only executable target is `Report-Engainall/Nasr1` on `main`; old SHAs, old donor-repository checkpoints and older next-task pointers are history, not current truth.
+
+Read [PRODUCT_DELIVERY_CLOSURE_PROTOCOL_2026-10-28.md](../bolt-source-reconciliation/PRODUCT_DELIVERY_CLOSURE_PROTOCOL_2026-10-28.md) and take the sole current task from [CURRENT_EXECUTION_STATE.md](../bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md). The active delivery goal supersedes a session being spent solely on RPC inventory/semantic audit: close integrated commerce journeys with backend, connected RTL UI, persistence/readback, and evidence; retain security work and continue safe product/UI work in parallel. Do not create a duplicate task cursor or acceptance matrix. Reconcile live `main` and exact-SHA CI before every action.
+
+---
+
 # التكليف التنفيذي الملزم — متجر الأغبري | Aghbari Commerce
 
 هذه الوثيقة تحفظ تعليمات المالك التنفيذية حتى بعد انقطاع الاتصال أو انتهاء الجلسة. الوثيقة الهندسية الكاملة المرجعية هي `AGHBARI-MASTER-PROJECT-SPECIFICATION.md` وتظل المصدر الحاكم للتفاصيل الفنية، كما أن `AGHBARI-REQUIREMENT-REGISTRY.md` هو سجل الفجوات الوحيد الذي يجب تحديثه بدل إعادة الاستكشاف.

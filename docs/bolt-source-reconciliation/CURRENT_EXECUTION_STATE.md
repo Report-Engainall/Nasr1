@@ -1,3 +1,22 @@
+# AUTHORITATIVE EXECUTION OVERRIDE — 2026-10-28 — PRODUCT DELIVERY CLOSURE
+
+**This block supersedes all older NEXT_ACTION instructions below, including the 2026-10-27 instruction to make the next session a bounded RPC semantic audit. Preserve historical records; do not execute a stale task cursor.**
+
+- **Repository:** `Report-Engainall/Nasr1`; **target:** `main`; **product:** متجر الأغبري | Aghbari Commerce.
+- **Last observed main SHA during this reconciliation:** `77b3f22d735b9ec674f7ec74ac137f7f94ac1e2f` ([commit](https://github.com/Report-Engainall/Nasr1/commit/77b3f22d735b9ec674f7ec74ac137f7f94ac1e2f)). Re-read remote main at execution start; never assume this remains the current SHA after this governance branch/PR.
+- **Prior checkpoint is stale:** the older checkpoint below points at `9427e116cf28b039ec1ff02e0f57070c83de3943`, before later merged work including PR #299. Its CI results are historical and must not be transferred to `77b3f22...` or any newer SHA.
+- **Current-SHA verification:** post-merge CI status for `77b3f22...` was not independently confirmed in this reconciliation. The commit message says the PR-head checks passed, but the merge/current-main SHA must be checked separately.
+- **Open PR observed:** PR [#298](https://github.com/Report-Engainall/Nasr1/pull/298), head `bbd9d8e2b8d00fb644ac3685e289e6b36f4511c2` against older base `9427e116...`. Re-check its live state and base/head before action; do not assume it remains open or mergeable.
+- **Acceptance baseline:** the matrix currently records 118 populated unique acceptance IDs, 18 delivery groups and historical 0/18 release-closed at the older candidate. This is a release-closure baseline only, not a product-completion percentage. Reconcile statuses/evidence to the current candidate.
+- **NEXT_TASK_ID:** `DLV-004` — integrated customer purchase journey. This is a product-delivery wave, not an isolated RPC task. Include the relevant existing rows DLV-002/003/005/006 and adjacent UI/proof work; do not mark unrelated rows complete.
+- **NEXT_ACTION:** read `docs/bolt-source-reconciliation/PRODUCT_DELIVERY_CLOSURE_PROTOCOL_2026-10-28.md`; reconcile exact current main and open PRs; then deliver a real connected customer-to-admin journey (authorized customer/catalog/pricing/cart/atomic idempotent order/admin readback/status/customer readback) with touched RTL UI, negative tenant/security cases, and real test/browser evidence. Continue safe adjacent UI work in the same cycle. An RPC-only or documentation-only cycle does not satisfy this task.
+- **Mandatory continuation:** if hosted credentials or an external provider block one proof, record the exact missing dependency and continue the local/browser/UI work that is not blocked. Do not wait idle for CI or external services when independent safe work exists.
+- **Delivery rule:** one integrated PR per coherent journey where practical, rather than one PR per tiny guard; still land urgent P0 fixes immediately. Preserve all existing correct security controls and avoid duplicate implementations.
+- **Cost guard:** free/current/local tools only; no paid service, API, model, subscription, or automatic billing without the owner's explicit approval.
+- **After the governance PR merges:** refresh this block with the resulting exact main SHA and terminal post-merge checks, then set the next task to the next actually open matrix row. Do not claim this governance PR alone advances code-level product completion.
+
+---
+
 # CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PR #296 merge
 
 **This block supersedes all older resume pointers below. Preserve historical entries; do not execute stale NEXT_ACTION values.**
