@@ -9,13 +9,14 @@ BEGIN;
 CREATE OR REPLACE FUNCTION public.get_customer_cart()
 RETURNS jsonb
 LANGUAGE plpgsql
-STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $function$
 DECLARE
   v_actor uuid := public.current_profile_id();
   v_org uuid := public.current_organization_id();
+  v_customer_id uuid;
+  v_locked_customer_id uuid;
   v_cart_id uuid;
   v_updated_at timestamptz;
   v_items jsonb := '[]'::jsonb;
@@ -34,6 +35,27 @@ BEGIN
      ) THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
       MESSAGE = 'active customer profile required for persistent cart';
+  END IF;
+
+  -- Serialize cart reads with membership revocation. If revocation holds the customer
+  -- row first, this read waits and re-checks membership after the lock is granted.
+  v_customer_id := public.current_customer_id();
+  IF v_customer_id IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '42501',
+      MESSAGE = 'company membership is no longer active for persistent cart';
+  END IF;
+
+  SELECT c.id
+    INTO v_locked_customer_id
+    FROM public.customers AS c
+   WHERE c.id = v_customer_id
+     AND c.organization_id = v_org
+   FOR SHARE;
+
+  IF v_locked_customer_id IS NULL
+     OR public.current_customer_id() IS DISTINCT FROM v_customer_id THEN
+    RAISE EXCEPTION USING ERRCODE = '42501',
+      MESSAGE = 'company membership is no longer active for persistent cart';
   END IF;
 
   SELECT c.id, c.updated_at
@@ -105,6 +127,27 @@ BEGIN
       MESSAGE = 'active customer profile required for persistent cart';
   END IF;
 
+  -- Lock and re-check membership before examining client-supplied product IDs.
+  -- This serializes cart reads/writes against the owner's FOR UPDATE revocation lock.
+  v_customer_id := public.current_customer_id();
+  IF v_customer_id IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '42501',
+      MESSAGE = 'company membership is no longer active for persistent cart';
+  END IF;
+
+  SELECT c.id
+    INTO v_locked_customer_id
+    FROM public.customers AS c
+   WHERE c.id = v_customer_id
+     AND c.organization_id = v_org
+   FOR SHARE;
+
+  IF v_locked_customer_id IS NULL
+     OR public.current_customer_id() IS DISTINCT FROM v_customer_id THEN
+    RAISE EXCEPTION USING ERRCODE = '42501',
+      MESSAGE = 'company membership is no longer active for persistent cart';
+  END IF;
+
   IF p_items IS NULL OR pg_catalog.jsonb_typeof(p_items) IS DISTINCT FROM 'array'
      OR pg_catalog.jsonb_array_length(p_items) > 100 THEN
     RAISE EXCEPTION USING ERRCODE = '22023',
@@ -166,29 +209,6 @@ BEGIN
     );
   END LOOP;
 
-  -- A customer-owned or company-member cart cannot be changed after revocation.
-  -- The owner's revoke RPC locks this same customer row FOR UPDATE. Taking FOR SHARE
-  -- here makes the two operations serialize. Re-check membership in a new statement
-  -- after any lock wait, because a revocation may have committed while we were waiting.
-  v_customer_id := public.current_customer_id();
-  IF v_customer_id IS NULL THEN
-    RAISE EXCEPTION USING ERRCODE = '42501',
-      MESSAGE = 'company membership is no longer active for persistent cart';
-  END IF;
-
-  SELECT c.id
-    INTO v_locked_customer_id
-    FROM public.customers AS c
-   WHERE c.id = v_customer_id
-     AND c.organization_id = v_org
-   FOR SHARE;
-
-  IF v_locked_customer_id IS NULL
-     OR public.current_customer_id() IS DISTINCT FROM v_customer_id THEN
-    RAISE EXCEPTION USING ERRCODE = '42501',
-      MESSAGE = 'company membership is no longer active for persistent cart';
-  END IF;
-
   -- Clearing a never-created cart is a no-op; do not create empty server rows.
   IF pg_catalog.jsonb_array_length(v_validated) = 0 THEN
     SELECT c.id INTO v_cart_id
@@ -247,7 +267,7 @@ GRANT EXECUTE ON FUNCTION public.get_customer_cart() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.sync_customer_cart(jsonb) TO authenticated;
 
 COMMENT ON FUNCTION public.get_customer_cart() IS
-  'Returns only the active authenticated customer profile cart while customer ownership or company membership is active; no prices or totals.';
+  'Returns the authenticated customer's cart only while customer ownership or company membership is active; serializes reads against member revocation and returns no prices or totals.';
 COMMENT ON FUNCTION public.sync_customer_cart(jsonb) IS
   'Atomically replaces the authenticated customer cart after strict tenant/product/quantity validation and serializes writes against company-member revocation.';
 
