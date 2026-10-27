@@ -104,6 +104,7 @@ type ReceivablesAgingReport = {
 };
 const RECEIVABLES_AGING_PAGE_SIZE = 200;
 const STAFF_FINANCE_INVOICE_PAGE_SIZE = 200;
+const CUSTOMER_INVOICE_PAGE_SIZE = 100;
 const RECEIVABLES_AGING_BUCKET_LABELS: Record<ReceivablesAgingBucket, string> = {
   current: "غير متأخرة / مستحقة حاليًا",
   days_1_30: "1–30 يومًا",
@@ -443,20 +444,72 @@ function Invoices() {
   const [busy, setBusy] = useState(true);
   const [detailBusy, setDetailBusy] = useState(false);
   const [error, setError] = useState("");
+  const [olderInvoicesError, setOlderInvoicesError] = useState("");
+  const [hasMoreInvoices, setHasMoreInvoices] = useState(false);
+  const [loadingOlderInvoices, setLoadingOlderInvoices] = useState(false);
+  const loadOlderInvoicesInFlightRef = useRef(false);
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState("");
   const load = useCallback(async () => {
     setBusy(true);
     setError("");
-    const r = await supabase
-      .from("customer_invoices")
-      .select("id,invoice_number,order_id,customer_id,status,issued_at,due_at,currency")
-      .order("issued_at", { ascending: false })
-      .limit(100);
-    if (r.error) setError("تعذر تحميل الفواتير. تأكد من نشر ترحيل قاعدة البيانات.");
-    else setRows((r.data ?? []) as Invoice[]);
-    setBusy(false);
+    setOlderInvoicesError("");
+    try {
+      const r = await supabase
+        .from("customer_invoices")
+        .select("id,invoice_number,order_id,customer_id,status,issued_at,due_at,currency")
+        .order("issued_at", { ascending: false })
+        .order("id", { ascending: true })
+        .limit(CUSTOMER_INVOICE_PAGE_SIZE + 1);
+      if (r.error) {
+        setError("تعذر تحميل الفواتير. تأكد من نشر ترحيل قاعدة البيانات.");
+        return;
+      }
+      const page = (r.data ?? []) as Invoice[];
+      setRows(page.slice(0, CUSTOMER_INVOICE_PAGE_SIZE));
+      setHasMoreInvoices(page.length > CUSTOMER_INVOICE_PAGE_SIZE);
+    } catch {
+      setError("تعذر تحميل الفواتير. تحقق من الاتصال ثم أعد المحاولة.");
+    } finally {
+      setBusy(false);
+    }
   }, []);
+  const loadOlderInvoices = useCallback(async () => {
+    if (loadOlderInvoicesInFlightRef.current || busy || loadingOlderInvoices || !hasMoreInvoices || rows.length === 0) return;
+    const cursor = rows[rows.length - 1];
+    if (!cursor.issued_at) {
+      setOlderInvoicesError("تعذر متابعة سجل الفواتير لأن تاريخ إصدار آخر فاتورة مفقود. حدّث القائمة أو راجع بيانات الفاتورة.");
+      return;
+    }
+    loadOlderInvoicesInFlightRef.current = true;
+    setLoadingOlderInvoices(true);
+    setOlderInvoicesError("");
+    try {
+      const r = await supabase
+        .from("customer_invoices")
+        .select("id,invoice_number,order_id,customer_id,status,issued_at,due_at,currency")
+        .or(`issued_at.lt.${cursor.issued_at},and(issued_at.eq.${cursor.issued_at},id.gt.${cursor.id})`)
+        .order("issued_at", { ascending: false })
+        .order("id", { ascending: true })
+        .limit(CUSTOMER_INVOICE_PAGE_SIZE + 1);
+      if (r.error) {
+        setOlderInvoicesError("تعذر تحميل الفواتير الأقدم. احتفظنا بالقائمة الحالية؛ أعد المحاولة.");
+        return;
+      }
+      const page = (r.data ?? []) as Invoice[];
+      const nextPage = page.slice(0, CUSTOMER_INVOICE_PAGE_SIZE);
+      setRows((current) => {
+        const knownIds = new Set(current.map((invoice) => invoice.id));
+        return [...current, ...nextPage.filter((invoice) => !knownIds.has(invoice.id))];
+      });
+      setHasMoreInvoices(page.length > CUSTOMER_INVOICE_PAGE_SIZE);
+    } catch {
+      setOlderInvoicesError("تعذر تحميل الفواتير الأقدم. احتفظنا بالقائمة الحالية؛ أعد المحاولة.");
+    } finally {
+      setLoadingOlderInvoices(false);
+      loadOlderInvoicesInFlightRef.current = false;
+    }
+  }, [busy, hasMoreInvoices, loadingOlderInvoices, rows]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -628,15 +681,15 @@ function Invoices() {
           marginBottom: 16,
         }}
       >
-        <span style={quiet}>{rows.length} فاتورة</span>
-        <button style={secondary} onClick={() => void load()}>
+        <span style={quiet}>{rows.length} فاتورة{hasMoreInvoices ? " محملة" : ""}</span>
+        <button style={secondary} disabled={busy || loadingOlderInvoices} onClick={() => void load()}>
           <RefreshCw size={15} /> تحديث
         </button>
       </div>
       {error && <ErrorBox message={error} retry={() => void load()} />}
-      {!busy && rows.length >= 100 && (
+      {!busy && hasMoreInvoices && (
         <p role="status" style={{ ...quiet, color: "#9b4e22", marginBottom: 12 }}>
-          تنبيه اكتمال البيانات: تعرض هذه الصفحة أحدث 100 فاتورة فقط؛ قد توجد فواتير أقدم خارج القائمة.
+          تعرض القائمة الأحدث أولًا. توجد فواتير أقدم يمكنك تحميلها دون فقد القائمة الحالية.
         </p>
       )}
       <section style={{ ...card, padding: 0, overflowX: "auto" }}>
@@ -690,6 +743,21 @@ function Invoices() {
           </table>
         )}
       </section>
+      {olderInvoicesError && (
+        <ErrorBox message={olderInvoicesError} retry={() => void loadOlderInvoices()} />
+      )}
+      {hasMoreInvoices && !busy && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+          <button
+            type="button"
+            style={secondary}
+            disabled={loadingOlderInvoices}
+            onClick={() => void loadOlderInvoices()}
+          >
+            {loadingOlderInvoices ? "جارٍ تحميل فواتير أقدم..." : "عرض فواتير أقدم"}
+          </button>
+        </div>
+      )}
       {chosen && (
         <section
           role="dialog"
