@@ -218,6 +218,155 @@ async function assertCustomerFreezeWinsReturnRequestRace({
   }
 }
 
+
+async function assertCustomerStatementMemberScopeAndRevocationRace({
+  organizationId,
+  customerId,
+  ownerProfileId,
+  ownerAuthUserId,
+  suffix,
+}) {
+  // Prior assertions deliberately impersonate authenticated roles on the shared fixture
+  // connection; reset to the database owner before seeding synthetic test identities.
+  await db.unsafe("reset role");
+
+  const financeProfileId = randomUUID();
+  const financeAuthUserId = randomUUID();
+  const viewerProfileId = randomUUID();
+  const viewerAuthUserId = randomUUID();
+  const financeEmail = "ci-statement-finance-" + suffix + "@example.test";
+  const viewerEmail = "ci-statement-viewer-" + suffix + "@example.test";
+
+  async function seedMember(profileId, authUserId, email, memberRole) {
+    await db.unsafe(
+      "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()) " +
+        "on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+      [authUserId, email],
+    );
+    await db.unsafe(
+      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
+        "values($1,$2,$3,$4,$5,true) on conflict(id) do update set " +
+        "auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id," +
+        "full_name=excluded.full_name,email=excluded.email,is_active=true",
+      [profileId, authUserId, organizationId, "CI statement " + memberRole, email],
+    );
+    await db.unsafe(
+      "insert into public.user_roles(profile_id,role) values($1,'customer') on conflict(profile_id,role) do nothing",
+      [profileId],
+    );
+    await db.unsafe(
+      "insert into public.customer_company_memberships(" +
+        "organization_id,customer_id,profile_id,member_role,status,invited_by,accepted_at" +
+      ") values($1::uuid,$2::uuid,$3::uuid,$4,'active',$5::uuid,now()) returning id",
+      [organizationId, customerId, profileId, memberRole, ownerProfileId],
+    );
+  }
+
+  await seedMember(financeProfileId, financeAuthUserId, financeEmail, "finance");
+  await seedMember(viewerProfileId, viewerAuthUserId, viewerEmail, "viewer");
+
+  // Finance members are explicitly authorized for statement.read, even though they do not
+  // own a row in public.customers. The returned statement must remain scoped to that company.
+  await db.unsafe("reset role");
+  await setIdentity(financeAuthUserId, financeEmail);
+  await db.unsafe("set role authenticated");
+  const financeRows = await db.unsafe("select public.get_customer_account_statement() as result");
+  const financeStatement = asJson(financeRows[0].result);
+  assert.ok(Array.isArray(financeStatement.invoices) && financeStatement.invoices.length > 0,
+    "active finance company member can read the linked customer's statement");
+  assert.ok(financeStatement.invoices.every((invoice) => invoice.customer_id === customerId),
+    "finance member statement contains only invoices for the linked company customer");
+  assert.ok(Array.isArray(financeStatement.payments), "finance member statement includes bounded payment detail");
+  assert.ok(Array.isArray(financeStatement.credits), "finance member statement includes posted credit-memo detail");
+  await db.unsafe("reset role");
+
+  // Viewer membership must not gain financial statement access merely because it is a customer profile.
+  await setIdentity(viewerAuthUserId, viewerEmail);
+  await db.unsafe("set role authenticated");
+  let viewerError;
+  try {
+    await db.unsafe("select public.get_customer_account_statement()");
+  } catch (error) {
+    viewerError = error;
+  }
+  assert.ok(viewerError, "viewer company member cannot read the financial account statement");
+  assert.equal(viewerError.code, "42501", "viewer statement access fails closed with a permission SQLSTATE");
+  assert.match(String(viewerError.message), /company member is not allowed to read the account statement/i,
+    "viewer denial comes from the statement.read capability boundary");
+  await db.unsafe("reset role");
+
+  // A finance read already in flight must not return the statement after owner revocation commits.
+  const owner = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+  const finance = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+  const monitor = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+  const appName = "ci-statement-revoke-" + randomUUID().replace(/-/g, "").slice(0, 10);
+  let transactionOpen = false;
+  let statementOutcomePromise;
+  try {
+    await setReturnRaceIdentity(owner, ownerAuthUserId, "ci-statement-owner@example.test",
+      "ci-statement-owner-" + suffix, false);
+    await setReturnRaceIdentity(finance, financeAuthUserId, financeEmail, appName, true);
+
+    await owner.unsafe("begin");
+    transactionOpen = true;
+    await owner.unsafe(
+      "select id from public.customers where id=$1::uuid and organization_id=$2::uuid for update",
+      [customerId, organizationId],
+    );
+    const revokedRows = await owner.unsafe(
+      "select public.revoke_customer_company_member($1::uuid) as revoked",
+      [financeProfileId],
+    );
+    assert.equal(revokedRows[0].revoked, true,
+      "the actual owner-facing member-revocation RPC revokes the finance member inside the held transaction");
+
+    statementOutcomePromise = finance.unsafe(
+      "select public.get_customer_account_statement() as result",
+    ).then(
+      (rows) => ({ ok: true, rows }),
+      (error) => ({ ok: false, error }),
+    );
+
+    const deadline = Date.now() + 10000;
+    let blocked;
+    while (Date.now() < deadline) {
+      const rows = await monitor.unsafe(
+        "select pid,wait_event_type,wait_event,state,query from pg_catalog.pg_stat_activity " +
+          "where application_name=$1 and state='active' and wait_event_type='Lock' limit 1",
+        [appName],
+      );
+      if (rows.length) { blocked = rows[0]; break; }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.ok(blocked, "in-flight statement must reach the deterministic customer-row revocation lock barrier");
+    assert.equal(blocked.wait_event_type, "Lock", "statement query is waiting on the owner-held customer row");
+
+    await owner.unsafe("commit");
+    transactionOpen = false;
+
+    const outcome = await statementOutcomePromise;
+    assert.equal(outcome.ok, false,
+      "statement read waiting behind owner revocation is denied after the member link is revoked");
+    assert.equal(outcome.error.code, "42501", "revoked in-flight statement read fails closed with SQLSTATE 42501");
+    assert.match(String(outcome.error.message), /company member is not allowed to read the account statement/i,
+      "statement capability is revalidated after waiting for the customer row lock");
+
+    const membershipRows = await monitor.unsafe(
+      "select status from public.customer_company_memberships where customer_id=$1::uuid and profile_id=$2::uuid",
+      [customerId, financeProfileId],
+    );
+    assert.equal(membershipRows[0]?.status, "revoked", "owner revocation persists for the exact tenant-scoped membership");
+  } finally {
+    if (transactionOpen) await owner.unsafe("rollback").catch(() => {});
+    if (statementOutcomePromise) await statementOutcomePromise.catch(() => {});
+    await Promise.all([
+      owner.end({ timeout: 5 }).catch(() => {}),
+      finance.end({ timeout: 5 }).catch(() => {}),
+      monitor.end({ timeout: 5 }).catch(() => {}),
+    ]);
+  }
+}
+
 async function main() {
   const organizationId = "a0000000-0000-0000-0000-000000000001";
   const otherOrganizationId = "a1111111-1111-4111-8111-111111111111";
@@ -1658,7 +1807,15 @@ async function main() {
     suffix,
   });
 
-  process.stdout.write("PASS customer returns: tenant ownership, delivered-order gate, line quantities, idempotent replay/conflict, direct-write denial, customer privacy, manager decisions/audit, customer-freeze race denial with no return side effects, warehouse inspection task, accountant denial, and no automatic stock movement.\n");
+  await assertCustomerStatementMemberScopeAndRevocationRace({
+    organizationId,
+    customerId: customerOne.id,
+    ownerProfileId: customerOneProfileId,
+    ownerAuthUserId: customerOneAuthId,
+    suffix,
+  });
+
+  process.stdout.write("PASS customer returns: tenant ownership, delivered-order gate, line quantities, idempotent replay/conflict, direct-write denial, customer privacy, manager decisions/audit, customer-freeze race denial with no return side effects, finance-member statement scope and post-revocation denial, warehouse inspection task, accountant denial, and no automatic stock movement.\n");
 }
 
 try {
