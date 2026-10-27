@@ -59,6 +59,165 @@ async function assertStaffCustomer360CreditTotal(summary, organizationId, custom
   assert.equal(Number(row.credit_memo_total), Number(expected[0].amount), label + ": aggregate credit total matches persisted posted source memos");
 }
 
+
+async function setReturnRaceIdentity(client, authUserId, email, applicationName, useAuthenticatedRole = false) {
+  const sessionId = randomUUID();
+  await client.unsafe("reset role").catch(() => {});
+  await client.unsafe(
+    "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+      "values($1,$2,now(),now(),now(),null,'CI customer-return status race','127.0.0.1'::inet) " +
+      "on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
+    [sessionId, authUserId],
+  );
+  await client.unsafe("select set_config('request.jwt.claim.sub',$1,false)", [authUserId]);
+  await client.unsafe(
+    "select set_config('request.jwt.claims',$1,false)",
+    [JSON.stringify({
+      sub: authUserId,
+      email,
+      email_confirmed_at: new Date().toISOString(),
+      role: "authenticated",
+      session_id: sessionId,
+    })],
+  );
+  await client.unsafe("select set_config('application_name',$1,false)", [applicationName]);
+  if (useAuthenticatedRole) await client.unsafe("set role authenticated");
+}
+
+async function waitForReturnStatusLock(monitor, applicationName, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const rows = await monitor.unsafe(
+      "select pid,wait_event_type,wait_event,state,query " +
+        "from pg_catalog.pg_stat_activity " +
+        "where application_name=$1 and state='active' and wait_event_type='Lock' limit 1",
+      [applicationName],
+    );
+    if (rows.length) return rows[0];
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("Customer return request did not reach the deterministic customer/order row-lock barrier.");
+}
+
+async function assertCustomerFreezeWinsReturnRequestRace({
+  organizationId,
+  customerId,
+  profileId,
+  authUserId,
+  managerAuthUserId,
+  productId,
+  suffix,
+}) {
+  const manager = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+  const customer = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+  const monitor = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+  const appName = "ci-return-status-race-" + randomUUID().replace(/-/g, "").slice(0, 10);
+  let transactionOpen = false;
+  let frozenCommitted = false;
+  let requestOutcomePromise;
+  let returnOrderId;
+  try {
+    const orderNumber = "CI-RET-STATUS-" + suffix;
+    const orderRows = await manager.unsafe(
+      "insert into public.orders(organization_id,customer_id,order_number,status,total_amount,total_items,notes,created_by) " +
+        "values($1::uuid,$2::uuid,$3,'delivered',100,1,'CI customer freeze/return race',$4::uuid) returning id",
+      [organizationId, customerId, orderNumber, profileId],
+    );
+    returnOrderId = orderRows[0].id;
+    const lineRows = await manager.unsafe(
+      "insert into public.order_items(order_id,product_id,item_code,product_name_snapshot,unit_snapshot," +
+        "quantity,requested_quantity,approved_quantity,unit_price_snapshot,discount_snapshot,line_total) " +
+        "values($1::uuid,$2::uuid,$3,'CI return status race item','piece',1,1,1,100,0,100) returning id",
+      [returnOrderId, productId, "CI-RET-STATUS-" + suffix],
+    );
+    const lineId = lineRows[0].id;
+
+    await setReturnRaceIdentity(manager, managerAuthUserId, "ci-return-manager@example.test",
+      "ci-return-status-admin-" + suffix, false);
+    await setReturnRaceIdentity(customer, authUserId, "ci-customer-one@example.test", appName, true);
+
+    const snapshot = async () => {
+      const rows = await manager.unsafe(
+        "select " +
+          "(select count(*)::integer from public.customer_return_requests r " +
+            "where r.organization_id=$1::uuid and r.order_id=$2::uuid) as request_count," +
+          "(select count(*)::integer from public.customer_return_request_items i " +
+            "join public.customer_return_requests r on r.organization_id=i.organization_id and r.id=i.return_request_id " +
+            "where r.organization_id=$1::uuid and r.order_id=$2::uuid) as item_count," +
+          "(select count(*)::integer from public.audit_logs a " +
+            "where a.organization_id=$1::uuid and a.entity_type='customer_return_request' " +
+            "and a.action='customer_return.requested' and a.new_value->>'order_id'=($2::uuid)::text) as audit_count",
+        [organizationId, returnOrderId],
+      );
+      return {
+        requests: rows[0].request_count,
+        items: rows[0].item_count,
+        requestAudits: rows[0].audit_count,
+      };
+    };
+    const before = await snapshot();
+
+    await manager.unsafe("begin");
+    transactionOpen = true;
+    await manager.unsafe(
+      "select id from public.customers where organization_id=$1::uuid and id=$2::uuid for update",
+      [organizationId, customerId],
+    );
+    await manager.unsafe(
+      "select id from public.orders where organization_id=$1::uuid and id=$2::uuid for update",
+      [organizationId, returnOrderId],
+    );
+    const freezeRows = await manager.unsafe(
+      "select public.set_admin_customer_status($1::uuid,'approved','frozen',$2::text) as result",
+      [customerId, "CI customer freeze wins return-request race"],
+    );
+    const frozen = asJson(freezeRows[0].result);
+    assert.equal(frozen.status, "frozen", "the real customer lifecycle RPC freezes the customer inside the held lock transaction");
+
+    requestOutcomePromise = customer.unsafe(
+      "select public.request_customer_return($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) as result",
+      [returnOrderId, customer.json([{ order_item_id: lineId, quantity: 1 }]),
+        "damaged", "Concurrent account freeze", "ci-return-freeze-" + suffix],
+    ).then(
+      (rows) => ({ ok: true, rows }),
+      (error) => ({ ok: false, error }),
+    );
+
+    const blocked = await waitForReturnStatusLock(monitor, appName);
+    assert.equal(blocked.wait_event_type, "Lock", "return submission must reach the forced lock barrier");
+
+    await manager.unsafe("commit");
+    transactionOpen = false;
+    frozenCommitted = true;
+
+    const outcome = await requestOutcomePromise;
+    assert.equal(outcome.ok, false,
+      "a return submission waiting behind a committed customer freeze must be rejected, not use stale approved status");
+    assert.equal(outcome.error.code, "42501", "revoked customer eligibility must fail closed with SQLSTATE 42501");
+    assert.match(String(outcome.error.message),
+      /approved customer account required to request a return/i,
+      "return submission must re-check approved status after the customer row lock wait");
+
+    const after = await snapshot();
+    assert.deepEqual(after, before,
+      "denied in-flight return submission must leave return requests, request items, and request audit unchanged");
+  } finally {
+    if (transactionOpen) await manager.unsafe("rollback").catch(() => {});
+    if (requestOutcomePromise) await requestOutcomePromise.catch(() => {});
+    if (frozenCommitted) {
+      await manager.unsafe(
+        "select public.set_admin_customer_status($1::uuid,'frozen','approved',$2::text)",
+        [customerId, "CI restore after customer return race"],
+      ).catch(() => {});
+    }
+    await Promise.all([
+      manager.end({ timeout: 5 }).catch(() => {}),
+      customer.end({ timeout: 5 }).catch(() => {}),
+      monitor.end({ timeout: 5 }).catch(() => {}),
+    ]);
+  }
+}
+
 async function main() {
   const organizationId = "a0000000-0000-0000-0000-000000000001";
   const otherOrganizationId = "a1111111-1111-4111-8111-111111111111";
@@ -1489,7 +1648,17 @@ async function main() {
     [firstRequest.request_id]))[0].count;
   assert.equal(stockAfter,stockBefore,"financial reversal creates no stock movement or cash refund");
 
-  process.stdout.write("PASS customer returns: tenant ownership, delivered-order gate, line quantities, idempotent replay/conflict, direct-write denial, customer privacy, manager decisions/audit, warehouse inspection task, accountant denial, and no automatic stock movement.\n");
+  await assertCustomerFreezeWinsReturnRequestRace({
+    organizationId,
+    customerId: customerOne.id,
+    profileId: customerOneProfileId,
+    authUserId: customerOneAuthId,
+    managerAuthUserId: managerAuthId,
+    productId,
+    suffix,
+  });
+
+  process.stdout.write("PASS customer returns: tenant ownership, delivered-order gate, line quantities, idempotent replay/conflict, direct-write denial, customer privacy, manager decisions/audit, customer-freeze race denial with no return side effects, warehouse inspection task, accountant denial, and no automatic stock movement.\n");
 }
 
 try {
