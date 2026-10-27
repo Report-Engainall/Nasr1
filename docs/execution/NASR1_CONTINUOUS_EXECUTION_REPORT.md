@@ -1,15 +1,15 @@
 # NASR1 Continuous Execution Report
 
-**Live checkpoint — 27 October 2026 — after PR #289; PR #290 in progress**
+**Live checkpoint — 27 October 2026 — after PR #290 merge**
 
-- **Exclusive target:** `Report-Engainall/Nasr1` / `main`.
-- **Latest main SHA observed:** `b194031732a5f225b26fa2e5e63c3d0104201085`; PR [#289](https://github.com/Report-Engainall/Nasr1/pull/289) is merged on this head.
-- **Post-merge CI:** current-main combined-status lookup returned no status records for `b194031732a5f225b26fa2e5e63c3d0104201085`. Main CI is **UNVERIFIED**; do not infer PASS from older PR heads.
-- **Current code PR:** [#290 — serialize storefront pricing with member revocation](https://github.com/Report-Engainall/Nasr1/pull/290), exact head `d6a35d2dfa4cb92ee6753b611f1bb47d8956174a`. Core [40563113789](https://github.com/Report-Engainall/Nasr1/actions/runs/40563113789) and P2 [40563113809](https://github.com/Report-Engainall/Nasr1/actions/runs/40563113809) are IN_PROGRESS. Import finalizer/PG17 [40563114239](https://github.com/Report-Engainall/Nasr1/actions/runs/40563114239) is SUCCESS but is not price-race acceptance. The price RPC must deny stale access after the customer-row revocation lock and preserve hidden price as NULL.
-- **P2 evidence boundary:** public UI smoke succeeded; local Supabase/Chromium tenant/order acceptance is in progress; authenticated hosted customer/tenant E2E is SKIPPED, not PASS.
-- **Delivery measurement:** current central matrix contains 115 unique acceptance IDs; canonical roll-up contains 18 delivery workstreams; 0/18 are fully release-closed on one nominated candidate SHA. Overall completion percentage is not computable from the current evidence because several detailed rows are historical, partial or externally blocked.
-- **Release decision:** **NO-GO — FULL PRODUCTION RELEASE**. Outstanding external/operational proof includes hosted authenticated customer/tenant E2E, live Onyx target sync, official WhatsApp delivery, live AI-provider behavior, production migration/deploy/rollback and backup/restore.
-- **NEXT_ACTION:** finish Core/P2 on PR #290's exact unchanged head; merge only after all applicable checks are terminal SUCCESS; verify the actual merge SHA's post-merge checks; then continue the next uncovered high-risk RPC and remeasure the gate.
+- **Exclusive target:** Report-Engainall/Nasr1 / main.
+- **Latest main SHA:** bd3326b552d689a69733d58df86e64e0081fdf1a; PR [#290](https://github.com/Report-Engainall/Nasr1/pull/290) is merged.
+- **Exact-head evidence on pre-merge commit d6a35d2dfa4cb92ee6753b611f1bb47d8956174a:** Core [40563113789 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40563113789), P2 [40563113809 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40563113809), Import finalizer/PG17 [40563114239 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40563114239). Local Supabase/Chromium order and tenant-isolation acceptance succeeded; hosted authenticated customer/tenant E2E was SKIPPED.
+- **Post-merge evidence:** Core [40564115580](https://github.com/Report-Engainall/Nasr1/actions/runs/40564115580) and Import finalizer/PG17 [40564115540](https://github.com/Report-Engainall/Nasr1/actions/runs/40564115540) are IN_PROGRESS on bd3326b552d689a69733d58df86e64e0081fdf1a; do not call them PASS before terminal completion.
+- **Security change:** customer price RPC serializes on the customer row against member revocation and re-checks approval/catalog.read after a lock wait; hidden customer price remains NULL, never zero.
+- **Delivery measurement:** 115 unique matrix acceptance IDs; 18 canonical delivery roll-up groups; 0/18 are fully release-closed on one nominated candidate SHA. Overall completion percentage is not computable until detailed rows are reconciled with exact-SHA evidence.
+- **Release decision:** **NO-GO — FULL PRODUCTION RELEASE**. Live Onyx sync, official WhatsApp delivery, live AI-provider behavior, hosted authenticated E2E, production deploy/migration/rollback and backup/restore remain unproven.
+- **NEXT_ACTION:** verify the current-main Core/PG17 runs above, then continue the next uncovered high-risk RPC and preserve evidence lineage.
 
 ---
 
