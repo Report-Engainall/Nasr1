@@ -423,7 +423,7 @@ async function main() {
     assert.equal(
       barrier.observed,
       true,
-      "both writes must reach the customer-row lock after the early capability check; observed=" +
+      "address, contact, order and quote requests must all be blocked at their row-lock barriers before revocation commits; observed=" +
         JSON.stringify(barrier.rows),
     );
     for (const [index, outcome] of outcomes.entries()) {
