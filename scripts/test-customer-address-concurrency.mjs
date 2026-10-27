@@ -21,6 +21,7 @@ const reorderClient = postgres(connectionString, { max: 1, prepare: false, idle_
 const quoteClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const quoteCreateClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const quoteLockClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const cartClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function setIdentity(client, authUserId, email, applicationName) {
@@ -162,6 +163,10 @@ async function attemptMemberQuoteRequestInsert(client, organizationId, customerI
   );
   assert.equal(rows.length, 1, "test quote-request command must return one row when the guard allows it");
   return rows[0].id;
+}
+
+async function syncMemberCart(client) {
+  return client.unsafe("select public.sync_customer_cart($1::jsonb)", [JSON.stringify([])]);
 }
 
 async function waitForConnectionsToBlock(applicationNames, timeoutMs = 10000) {
@@ -344,6 +349,7 @@ async function main() {
   const memberQuoteCreateApp = "ci-revoke-quote-create-" + randomUUID().slice(0, 8);
   const memberQuoteApp = "ci-revoke-quote-" + randomUUID().slice(0, 8);
   const memberQuoteLockApp = "ci-revoke-quote-lock-" + randomUUID().slice(0, 8);
+  const memberCartApp = "ci-revoke-cart-sync-" + randomUUID().slice(0, 8);
   await Promise.all([
     setIdentity(addressClients[1], memberAuthUserId, memberEmail, memberAddressApp),
     setIdentity(foreignClient, memberAuthUserId, memberEmail, memberContactApp),
@@ -352,6 +358,7 @@ async function main() {
     setIdentity(quoteCreateClient, memberAuthUserId, memberEmail, memberQuoteCreateApp),
     setIdentity(quoteClient, memberAuthUserId, memberEmail, memberQuoteApp),
     quoteLockClient.unsafe("select set_config($1,$2,false)", ["application_name", memberQuoteLockApp]),
+    setIdentity(cartClient, memberAuthUserId, memberEmail, memberCartApp),
   ]);
   const acceptedMembership = (await addressClients[1].unsafe(
     "select public.accept_customer_company_invitation($1::text) as result",
@@ -376,6 +383,32 @@ async function main() {
     "buyer membership may request quotes before revocation");
 
 
+
+  const cartId = (await admin.unsafe(
+    "insert into public.customer_carts(organization_id,profile_id,status,updated_at) " +
+      "values($1::uuid,$2::uuid,'active',now()-interval '1 minute') returning id",
+    [organizationId, memberProfileId],
+  ))[0].id;
+  const cartSnapshot = async () => {
+    const carts = await admin.unsafe(
+      "select id::text as id,organization_id::text as organization_id,profile_id::text as profile_id," +
+        "status,updated_at::text as updated_at from public.customer_carts where id=$1::uuid",
+      [cartId],
+    );
+    const items = await admin.unsafe(
+      "select id::text as id,organization_id::text as organization_id,cart_id::text as cart_id," +
+        "product_id::text as product_id,quantity,created_at::text as created_at,updated_at::text as updated_at " +
+        "from public.customer_cart_items where cart_id=$1::uuid order by id",
+      [cartId],
+    );
+    const audits = await admin.unsafe(
+      "select action,actor_id::text as actor_id,created_at::text as created_at " +
+        "from public.audit_logs where entity_type='customer_cart' and entity_id=$1::uuid order by created_at,action",
+      [cartId],
+    );
+    return { carts, items, audits };
+  };
+  const beforeRevocationCart = await cartSnapshot();
 
   const quoteId = (await admin.unsafe(
     "insert into public.sales_quotes(organization_id,customer_id,quote_number,status,notes,created_by,quoted_at,valid_until) " +
@@ -506,8 +539,9 @@ async function main() {
       attemptMemberReorderTemplateInsert(reorderClient, organizationId, customerId),
       attemptMemberQuoteRequestInsert(quoteCreateClient, organizationId, customerId, memberProfileId),
       quoteClient.unsafe("select public.customer_respond_to_quote($1::uuid,true)", [quoteId]),
+      syncMemberCart(cartClient),
     ]);
-    const barrier = await waitForConnectionsToBlock([memberAddressApp, memberContactApp, memberOrderApp, memberReorderApp, memberQuoteCreateApp, memberQuoteApp]);
+    const barrier = await waitForConnectionsToBlock([memberAddressApp, memberContactApp, memberOrderApp, memberReorderApp, memberQuoteCreateApp, memberQuoteApp, memberCartApp]);
     await addressClients[0].unsafe("commit");
     revocationTxOpen = false;
     await quoteLockClient.unsafe("commit");
@@ -521,7 +555,7 @@ async function main() {
         JSON.stringify(barrier.rows),
     );
     for (const [index, outcome] of outcomes.entries()) {
-      const label = ["address mutation", "company-contact mutation", "order insertion", "reorder-template insertion", "quote request insertion", "quote response"][index];
+      const label = ["address mutation", "company-contact mutation", "order insertion", "reorder-template insertion", "quote request insertion", "quote response", "persistent cart sync"][index];
       assert.equal(outcome.status, "rejected",
         label + " must be denied when membership revocation commits while it is waiting");
       assert.equal(outcome.reason.code, "42501", label + " must fail with authorization SQLSTATE 42501");
@@ -534,7 +568,9 @@ async function main() {
               ? /company membership is no longer active or lacks quote request capability/i
               : index === 5
                 ? /company membership is no longer active or lacks quote capability/i
-                : /company membership is no longer active or lacks mutation capability/i,
+                : index === 6
+                  ? /company membership is no longer active for persistent cart/i
+                  : /company membership is no longer active or lacks mutation capability/i,
         label + " must be denied by the write-boundary membership guard");
     }
   } catch (error) {
@@ -560,6 +596,13 @@ async function main() {
   ))[0];
   assert.deepEqual(afterRevocationMutations, beforeRevocationMutations,
     "revoked in-flight address/contact/order/reorder/quote-request/quote-response writes must leave rows and member mutation audit unchanged");
+  assert.deepEqual(await cartSnapshot(), beforeRevocationCart,
+    "revoked in-flight persistent-cart sync must not update the cart row, items, or audit events");
+  await expectDenied(
+    "revoked company member cannot read the persistent cart",
+    () => cartClient.unsafe("select public.get_customer_cart()"),
+    /active customer profile and company membership required for persistent cart/i,
+  );
 
   const membershipState = (await admin.unsafe(
     "select m.status, count(a.id)::integer as revoke_audit_count " +
@@ -645,7 +688,7 @@ async function main() {
     "denied cross-tenant address delete must not add or alter audit events");
 
   process.stdout.write(
-    "PASS customer/company-member revocation acceptance: address, contact, order, reorder-template, quote-request and quote-response writes are denied after the forced PostgreSQL 17 revocation lock barrier; no rows or mutation audits change; cross-tenant address read/update/delete is denied\n",
+    "PASS customer/company-member revocation acceptance: address, contact, order, reorder-template, quote-request, quote-response and persistent-cart mutations are denied after the forced PostgreSQL 17 revocation lock barrier; no rows or mutation audits change; revoked cart reads and cross-tenant address access are denied\n",
   );
 }
 
@@ -666,5 +709,6 @@ try {
     quoteClient.end({ timeout: 1 }),
     quoteCreateClient.end({ timeout: 1 }),
     quoteLockClient.end({ timeout: 1 }),
+    cartClient.end({ timeout: 1 }),
   ].map((close) => close.catch(() => {})));
 }
