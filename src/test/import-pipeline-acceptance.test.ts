@@ -9,6 +9,14 @@ const finalizeGuard = readFileSync(
   join(process.cwd(), 'supabase/migrations/20261024170000_import_finalization_verified_manifest.sql'),
   'utf8',
 );
+const failureMetadataGuard = readFileSync(
+  join(process.cwd(), 'supabase/migrations/20261027310000_import_failure_metadata_integrity.sql'),
+  'utf8',
+);
+const failureMetadataAcceptance = readFileSync(
+  join(process.cwd(), 'scripts/test-import-finalizer-tenant-scope.mjs'),
+  'utf8',
+);
 const dbAcceptance = readFileSync(join(process.cwd(), 'scripts/test-database-migrations.mjs'), 'utf8');
 
 describe('unified import end-to-end acceptance contracts', () => {
@@ -93,6 +101,16 @@ describe('unified import end-to-end acceptance contracts', () => {
     expect(importer).toContain('لم تُحوّل إلى فشل ولم يُكرر الاعتماد');
     expect(finalizeGuard).toContain("'rolled_back')");
     expect(dbAcceptance).toContain('CI_LOST_FINALIZE_RESPONSE');
+  });
+
+  it('keeps server-owned import identity and processing metadata immutable during failure reconciliation', () => {
+    expect(failureMetadataGuard).toContain('v_safe_error_summary');
+    expect(failureMetadataGuard).toContain('jsonb_strip_nulls');
+    expect(failureMetadataGuard).toContain("'processing fingerprint, period, or full-dataset metadata'");
+    expect(failureMetadataGuard).toContain('|| v_safe_error_summary');
+    expect(failureMetadataGuard).not.toContain('|| p_error_summary');
+    expect(failureMetadataAcceptance).toContain('client failure payload cannot overwrite the verified processing fingerprint');
+    expect(failureMetadataAcceptance).toContain('client failure payload cannot claim an incremental file is a complete dataset');
   });
 
   it('rolls back the latest snapshot by archiving it, retaining rows and writing one auditable event', () => {
