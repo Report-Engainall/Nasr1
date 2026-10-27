@@ -1,3 +1,16 @@
+## P1 execution record — persistent customer-cart revocation guard — 2026-10-27
+
+- Code PR #283: https://github.com/Report-Engainall/Nasr1/pull/283 — merged to `main` as `07fa889275526b2ba164784ba2fc6b2bbcc01e29`.
+- Changed files: `supabase/migrations/20261027220000_customer_cart_member_revocation_guard.sql` and `scripts/test-customer-address-concurrency.mjs`.
+- Root cause: persistent-cart RPCs checked for an active profile/customer role but did not serialize reads and writes against the same customer-row lock used by company-member revocation. A revocation could race with a cart operation.
+- Fix: both cart read and sync lock the current customer row `FOR SHARE`, re-check the customer scope after lock acquisition, and reject a revoked member with SQLSTATE `42501`. Sync retains bounded input, exact-field, quantity, product/tenant and no-price-output checks.
+- Concurrency acceptance: extended the existing PostgreSQL 17 revocation barrier to include an in-flight cart read and sync; confirmed both are denied after the owner revocation commits, with the cart row/items/audit snapshot unchanged. Preserved existing error-message contract; test binds an explicit JSONB empty array and keeps barrier sessions alive through setup.
+- Tested source SHA: `3bb70ec9f2a752cba80463a6653ad84cac4b59b2`; tested code tree `4fa8e1627d29cad017ada7aa6ac4a306fc58ecb9`. Exact-head Core [40551865127 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40551865127), P2 [40551865116 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40551865116), and PG17 [40551865300 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40551865300).
+- Post-merge SHA: `07fa889275526b2ba164784ba2fc6b2bbcc01e29`; same tree as tested head. **Post-merge CI = NOT VERIFIED** because no workflow run was returned for that merge SHA during this checkpoint.
+- Hosted authenticated customer/tenant E2E = **SKIPPED**. Live Onyx/WhatsApp/AI and production deployment/backup/restore evidence remain **BLOCKED_EXTERNAL / NOT RUN**. No production migration was applied.
+
+---
+
 ## P2 execution record — import quality tenant-scope repair — 2026-10-24
 
 - Code PR #146: https://github.com/Report-Engainall/Nasr1/pull/146
