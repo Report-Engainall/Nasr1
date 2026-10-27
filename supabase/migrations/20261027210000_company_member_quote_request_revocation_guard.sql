@@ -37,7 +37,8 @@ BEGIN
   END IF;
 
   IF NEW.created_by IS DISTINCT FROM v_profile THEN
-    RETURN NEW;
+    RAISE EXCEPTION USING ERRCODE = '42501',
+      MESSAGE = 'customer quote requests must be attributed to the authenticated customer profile';
   END IF;
 
   IF NEW.status IS DISTINCT FROM 'requested' THEN
