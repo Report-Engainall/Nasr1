@@ -33,7 +33,8 @@ BEGIN
        SELECT 1 FROM public.user_roles r
         WHERE r.profile_id = v_profile AND r.role = 'customer'
      ) THEN
-    RETURN NEW;
+    RAISE EXCEPTION USING ERRCODE = '42501',
+      MESSAGE = 'active customer profile required for quote requests';
   END IF;
 
   IF NEW.created_by IS DISTINCT FROM v_profile THEN
