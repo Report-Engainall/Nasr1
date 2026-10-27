@@ -395,6 +395,7 @@ describe("customer cart and checkout real route acceptance", () => {
     await clickButtonContaining("تأكيد الطلب");
 
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain("synthetic persistent cart refusal");
+    expect(host?.querySelector('[role="alert"]')?.getAttribute("aria-live")).toBe("assertive");
     expect(mocks.submitCalls).toHaveLength(0);
     expect(host?.textContent).not.toContain("SO-TEST-001");
 
