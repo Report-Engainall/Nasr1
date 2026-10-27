@@ -192,10 +192,6 @@ async function main() {
   let mutationOutcomePromise;
   try {
     await setIdentity(owner, secondAuthUserId, "ci-customer-two@example.test", false);
-    await admin.unsafe(
-      "select set_config('application_name',$1,false)",
-      ["ci-saved-products-admin-" + appName],
-    );
     await secondClient.unsafe("select set_config('application_name',$1,false)", [appName]);
     const snapshot = async () => {
       const rows = await admin.unsafe(
