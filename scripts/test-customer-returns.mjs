@@ -332,6 +332,41 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
   assert.equal(pricingBefore.visible, true, "buyer can obtain an explicitly enabled server-priced cart preview before revocation");
   assert.equal(pricingBefore.items.length, 1, "pre-revocation pricing preview includes the tenant-bound active product");
   assert.equal(typeof pricingBefore.items[0].unit_price, "number", "pre-revocation preview returns an actual numeric unit price");
+
+  // The legacy SECURITY DEFINER pricing function returns monetary values and must not be
+  // directly executable by anon/authenticated API roles. The public checkout validator
+  // remains callable and strips all monetary/tier fields before returning safe metadata.
+  const legacyRpcGrants = await db.unsafe(
+    "select has_function_privilege('anon','public.preview_order_pricing(jsonb)','EXECUTE') as anon_can_execute," +
+    "has_function_privilege('authenticated','public.preview_order_pricing(jsonb)','EXECUTE') as authenticated_can_execute," +
+    "has_function_privilege('service_role','public.preview_order_pricing(jsonb)','EXECUTE') as service_can_execute",
+  );
+  assert.equal(legacyRpcGrants[0].anon_can_execute, false,
+    "anonymous clients cannot invoke the legacy server-priced RPC directly");
+  assert.equal(legacyRpcGrants[0].authenticated_can_execute, false,
+    "authenticated customer clients cannot invoke the legacy server-priced RPC directly");
+  assert.equal(legacyRpcGrants[0].service_can_execute, true,
+    "the trusted server-role retains an explicit execution grant");
+  await expectFailure(
+    "authenticated customer cannot call the legacy monetary pricing RPC directly",
+    () => db.unsafe(
+      "select public.preview_order_pricing($1::jsonb)",
+      [JSON.stringify([{ product_id: productId, quantity: 1 }])],
+    ),
+    /permission denied for function preview_order_pricing/i,
+  );
+  const safeCheckoutRows = await db.unsafe(
+    "select public.validate_checkout_cart($1::jsonb) as result",
+    [JSON.stringify([{ product_id: productId, quantity: 1 }])],
+  );
+  const safeCheckout = asJson(safeCheckoutRows[0].result);
+  assert.equal(safeCheckout.valid, true, "the supported checkout validation RPC still works");
+  assert.equal(safeCheckout.pricing_verified, true, "checkout server validates the real price internally");
+  assert.equal(Object.hasOwn(safeCheckout, "total_amount"), false, "checkout validation does not disclose an order total");
+  assert.equal(Object.hasOwn(safeCheckout, "customer_tier"), false, "checkout validation does not disclose a price tier");
+  assert.equal(safeCheckout.items.length, 1);
+  assert.equal(Object.hasOwn(safeCheckout.items[0], "unit_price"), false, "safe checkout item omits unit price");
+  assert.equal(Object.hasOwn(safeCheckout.items[0], "line_total"), false, "safe checkout item omits line total");
   await db.unsafe("reset role");
 
   // Force finance statement, invoice PDF, and buyer pricing reads to the same customer-row
