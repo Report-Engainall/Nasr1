@@ -1,3 +1,26 @@
+# CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PR #293 merge
+
+**This block supersedes older resume pointers below; historical records are preserved, not current commands.**
+
+- **Exclusive target:** `Report-Engainall/Nasr1`, branch `main`; no other repository is in scope.
+- **LAST_MERGED_SHA:** `69f224126f8a60ae3b8e31a3452f706a03a02507`; PR [#293](https://github.com/Report-Engainall/Nasr1/pull/293) merged. Prior merge PR [#292](https://github.com/Report-Engainall/Nasr1/pull/292) is `ccaa3d37baa39591be195e660b6022833b8123bd).
+- **PR #292:** fixed the genuine invoice-settlement concurrency-test barrier by giving the two competing settlement RPCs separate physical PostgreSQL sessions. Exact head `2405911363ab0dad186d9fb6fc8a2f14e42bb706`; Core [40568199046 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40568199046), P2 [40568198938 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40568198938), followed by post-merge Core [40569078901 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40569078901) on `ccaa3d37baa39591be195e660b6022833b8123bd`.
+- **PR #293:** added forward migration `20261027280000_customer_invoice_pdf_member_revocation_guard.sql` and extended `scripts/test-customer-returns.mjs`. Invoice-PDF reads now lock the tenant-scoped customer row and re-check `invoices.read` after waiting. The deterministic PostgreSQL 17 race proves the member can read their own invoice before revocation and that an in-flight PDF read is rejected with SQLSTATE `42501` after revocation commits.
+- **TESTED_EXACT_SHA:** `d3c600053d24fa29567c83ad759d048ee8601e91`. Core [40569293453 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40569293453), P2 [40569293220 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40569293220), and Import finalizer/PostgreSQL 17 [40569293443 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40569293443) all passed on this exact PR head before merge.
+- **Post-merge evidence on `69f224126f8a60ae3b8e31a3452f706a03a02507`:** Core [40570081926 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40570081926) and Import finalizer/PostgreSQL 17 [40570081832 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40570081832) are both terminal SUCCESS on the exact current-main merge SHA.
+- **Scope limitations:** hosted authenticated customer/tenant E2E is SKIPPED (credentials/environment not provisioned for that job); this is not PASS. Live Onyx synchronization, official WhatsApp delivery, live AI-provider receipts, production deployment/migration/rollback, and production backup/restore are not proven.
+- **Acceptance counts:** existing CSV had 114 populated unique IDs plus one blank placeholder record; this change removes that blank record and adds `AUTHZ-MEMBER-INVOICE-PDF-001`, leaving **115 unique acceptance IDs**, 0 duplicate IDs, 18 DLV roll-up groups, and 0/18 groups fully release-closed on one nominated candidate SHA. Overall completion percentage remains **NOT COMPUTABLE** until all child evidence reconciles on one release candidate.
+- **Release gate:** `NO-GO — FULL PRODUCTION RELEASE`; do not change to GO based on PR-head CI alone or a skipped hosted test.
+- `LAST_VERIFIED_SHA=69f224126f8a60ae3b8e31a3452f706a03a02507` (remote main ref, post-merge Core and Import finalizer/PG17 all verified).
+- `MERGED_PR_URL=https://github.com/Report-Engainall/Nasr1/pull/293`
+- `TEST_RESULTS=PR-head Core/P2/PG17 SUCCESS on d3c600053d24fa29567c83ad759d048ee8601e91; post-merge Core 40570081926 SUCCESS and Import PG17 40570081832 SUCCESS on 69f224126f8a60ae3b8e31a3452f706a03a02507; hosted authenticated customer/tenant E2E SKIPPED.`
+- `COMPLETED_REQUIREMENTS=settlement lock-barrier test isolated sessions (PR #292); customer invoice PDF member-revocation lock/recheck with deterministic PostgreSQL 17 race (PR #293).`
+- `BLOCKED_REQUIREMENTS=hosted authenticated customer/tenant E2E; live external integrations and production operations listed above; overall release NO-GO.`
+- `NEXT_TASK_ID=GATE-001 / AUTHZ-MEMBER-INVOICE-PDF-001`
+- `NEXT_ACTION=Regenerate the current callable RPC/Edge inventory from main SHA 69f224126f8a60ae3b8e31a3452f706a03a02507, map each callable boundary to source-backed acceptance and exact-SHA evidence, and implement the next uncovered high-risk contract without duplicating existing member-revocation guards.`
+
+---
+
 # CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PR #290 merge
 
 - **Exclusive repository:** Report-Engainall/Nasr1; branch main. **LAST_MERGED_SHA:** bd3326b552d689a69733d58df86e64e0081fdf1a; PR [#290](https://github.com/Report-Engainall/Nasr1/pull/290) is merged.
