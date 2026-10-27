@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import postgres from "postgres";
 
 test.describe.configure({ retries: 0 });
 
@@ -112,7 +113,7 @@ test("catalog → cart → order → refresh, then cross-organization read denia
   const passwordB = process.env.E2E_PASSWORD_B;
   const managerEmail = process.env.E2E_MANAGER_EMAIL;
   const managerPassword = process.env.E2E_MANAGER_PASSWORD;
-  if (!emailA || !passwordA || !emailB || !passwordB || !managerEmail || !managerPassword) {
+  if (!emailA || !passwordA || !emailB || !passwordB) {
     throw new Error("Both dedicated customer accounts are required. Runtime E2E must be recorded NOT RUN/BLOCKED_EXTERNAL when secrets are absent, never silently skipped.");
   }
 
@@ -134,28 +135,123 @@ test("catalog → cart → order → refresh, then cross-organization read denia
       return createPersistedOrder(pageA);
     });
 
-    await test.step("manager: approve the persisted customer order in the authorized admin workspace", async () => {
-      await signIn(managerPage, managerEmail, managerPassword);
-      await managerPage.goto("/admin/orders");
-      await expect(managerPage.getByRole("heading", { name: "الطلبات", exact: true })).toBeVisible({ timeout: 30_000 });
-      const orderRow = managerPage.getByRole("row").filter({ hasText: order.orderNumber });
-      await expect(orderRow, "The order submitted by customer A must be returned by the staff order query in the same tenant.").toBeVisible({ timeout: 30_000 });
-      await orderRow.getByRole("button", { name: "تفاصيل", exact: true }).click();
-      await expect(managerPage.getByRole("heading", { name: "الطلب #" + order.orderNumber, exact: true })).toBeVisible({ timeout: 30_000 });
+    let managerTransitionProven = false;
+    let databaseReadbackProven = false;
+    if (managerEmail && managerPassword) {
+      await test.step("manager: approve the persisted customer order in the authorized admin workspace", async () => {
+        await signIn(managerPage, managerEmail, managerPassword);
+        await managerPage.goto("/admin/orders");
+        await expect(managerPage.getByRole("heading", { name: "الطلبات", exact: true })).toBeVisible({ timeout: 30_000 });
+        const orderRow = managerPage.getByRole("row").filter({ hasText: order.orderNumber });
+        await expect(orderRow, "The order submitted by customer A must be returned by the staff order query in the same tenant.").toBeVisible({ timeout: 30_000 });
+        await orderRow.getByRole("button", { name: "تفاصيل", exact: true }).click();
+        await expect(managerPage.getByRole("heading", { name: "الطلب #" + order.orderNumber, exact: true })).toBeVisible({ timeout: 30_000 });
 
-      const approve = managerPage.getByRole("button", { name: "اعتماد الكميات وتأكيد الطلب", exact: true });
-      await expect(approve, "Staff must use the controlled transactional order-review action rather than a direct optimistic status edit.").toBeEnabled({ timeout: 30_000 });
-      await approve.click();
-      await expect(managerPage.getByText(/تم اعتماد الطلب ذريًا/)).toBeVisible({ timeout: 45_000 });
-    });
+        const approve = managerPage.getByRole("button", { name: "اعتماد الكميات وتأكيد الطلب", exact: true });
+        await expect(approve, "Staff must use the controlled transactional order-review action rather than a direct optimistic status edit.").toBeEnabled({ timeout: 30_000 });
+        await approve.click();
+        await expect(managerPage.getByText(/تم اعتماد الطلب ذريًا/)).toBeVisible({ timeout: 45_000 });
+      });
+      managerTransitionProven = true;
 
-    await test.step("customer A: reread the saved status after manager approval", async () => {
-      const refresh = pageA.getByRole("button", { name: "تحديث حالة الطلب من الخادم", exact: true });
-      await expect(refresh).toBeVisible();
-      await refresh.click();
-      await expect(pageA.getByText(/الحالة:\s*مؤكد/)).toBeVisible({ timeout: 30_000 });
-      await expect(pageA.getByText("مؤكد", { exact: true })).toBeVisible();
-    });
+      await test.step("customer A: reread the saved status after manager approval", async () => {
+        const refresh = pageA.getByRole("button", { name: "تحديث حالة الطلب من الخادم", exact: true });
+        await expect(refresh).toBeVisible();
+        await refresh.click();
+        await expect(pageA.getByText(/الحالة:\s*مؤكد/)).toBeVisible({ timeout: 30_000 });
+        await expect(pageA.getByText("مؤكد", { exact: true })).toBeVisible();
+      });
+
+      if (process.env.TEST_DATABASE_URL) {
+        await test.step("isolated PostgreSQL: assert the same browser order, invoice, reservation, cart and status history", async () => {
+          const databaseUrl = process.env.TEST_DATABASE_URL!;
+          const databaseHost = new URL(databaseUrl).hostname;
+          if (!["localhost", "127.0.0.1"].includes(databaseHost)) {
+            throw new Error("Direct SQL acceptance is allowed only against the isolated loopback PostgreSQL fixture.");
+          }
+          const orderId = order.detailPath.split("/").filter(Boolean).at(-1);
+          if (!orderId || !/^[0-9a-f-]{36}$/i.test(orderId)) {
+            throw new Error("Could not resolve the persisted order UUID from the customer order detail route.");
+          }
+
+          const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
+          try {
+            const orders = await db.unsafe(
+              "select id::text,status,total_items,idempotency_key,created_by::text,organization_id::text,payment_request_status from public.orders where id=$1::uuid",
+              [orderId],
+            );
+            expect(orders, "Exactly one durable order row must exist for the browser-created UUID.").toHaveLength(1);
+            expect(orders[0].status).toBe("confirmed");
+            expect(orders[0].idempotency_key).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
+            expect(orders[0].payment_request_status).toBe("requested");
+
+            const lines = await db.unsafe(
+              "select count(*)::int as line_count, count(distinct product_id)::int as distinct_products, coalesce(sum(quantity),0)::numeric::text as total_quantity from public.order_items where order_id=$1::uuid",
+              [orderId],
+            );
+            expect(lines[0].line_count).toBe(1);
+            expect(lines[0].distinct_products).toBe(1);
+            expect(Number(lines[0].total_quantity)).toBeGreaterThan(0);
+
+            const reservations = await db.unsafe(
+              "select count(*)::int as movement_count, coalesce(sum(quantity),0)::numeric::text as total_quantity from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type='reserve'",
+              [orderId],
+            );
+            expect(reservations[0].movement_count).toBeGreaterThan(0);
+            expect(Number(reservations[0].total_quantity)).toBeCloseTo(Number(lines[0].total_quantity), 3);
+
+            const invoices = await db.unsafe(
+              "select count(*)::int as count from public.customer_invoices where order_id=$1::uuid",
+              [orderId],
+            );
+            expect(invoices[0].count, "Confirmation must issue exactly one invoice for the same order.").toBe(1);
+
+            const carts = await db.unsafe(
+              "select count(*)::int as count from public.customer_carts c join public.orders o on o.organization_id=c.organization_id and o.created_by=c.profile_id where o.id=$1::uuid and c.status='checked_out'",
+              [orderId],
+            );
+            expect(carts[0].count, "The source persistent customer cart must be atomically converted after order lines are saved.").toBe(1);
+
+            const confirmedHistory = await db.unsafe(
+              "select count(*)::int as count from public.order_status_history where order_id=$1::uuid and to_status='confirmed'",
+              [orderId],
+            );
+            expect(confirmedHistory[0].count).toBe(1);
+
+            const approvalAudit = await db.unsafe(
+              "select count(*)::int as count from public.audit_logs where entity_type='order' and entity_id=$1::uuid and action='order.review.approved'",
+              [orderId],
+            );
+            expect(approvalAudit[0].count).toBe(1);
+            databaseReadbackProven = true;
+          } finally {
+            await db.end({ timeout: 5 });
+          }
+        });
+      } else {
+        await test.info().attach("order-database-proof-boundary.json", {
+          body: JSON.stringify({
+            result: "NOT_RUN / BLOCKED_EXTERNAL",
+            missing: "TEST_DATABASE_URL for an authorized direct connection to the isolated PostgreSQL fixture",
+            sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+          }),
+          contentType: "application/json",
+        });
+      }
+    } else {
+      if (process.env.TEST_DATABASE_URL) {
+        throw new Error("The local PostgreSQL harness must provide its seeded E2E_MANAGER_EMAIL and E2E_MANAGER_PASSWORD for the integrated admin transition.");
+      }
+      await test.info().attach("admin-status-readback-proof-boundary.json", {
+        body: JSON.stringify({
+          result: "NOT_RUN / BLOCKED_EXTERNAL",
+          missing: ["E2E_MANAGER_EMAIL", "E2E_MANAGER_PASSWORD"],
+          detail: "Hosted customer/tenant E2E credentials do not provision a manager identity; the separate isolated-local harness is the required proof for the admin-to-customer status transition.",
+          sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+        }),
+        contentType: "application/json",
+      });
+    }
 
     await test.step("customer B: a separate organization's session cannot open customer A's order", async () => {
       await signIn(pageB, emailB, passwordB);
@@ -178,8 +274,9 @@ test("catalog → cart → order → refresh, then cross-organization read denia
         criticalPath: "catalog -> cart -> server-validated order -> admin transactional approval -> customer server readback",
         orderNumber: order.orderNumber,
         resourcePath: order.detailPath,
-        adminTransition: "pending -> confirmed",
-        customerReadbackAfterAdminTransition: true,
+        adminTransition: managerTransitionProven ? "pending -> confirmed" : "NOT_RUN / BLOCKED_EXTERNAL",
+        customerReadbackAfterAdminTransition: managerTransitionProven,
+        sameOrderDatabaseReadback: databaseReadbackProven,
         tenantBVisibleOrderNumber: false,
       }),
       contentType: "application/json",
