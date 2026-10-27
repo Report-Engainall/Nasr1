@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent } from "@testing-library/react";
 import { routeTree } from "@/routeTree.gen";
+import { saveCustomerCart } from "@/lib/customer-cart";
 
 type TestUser = {
   id: string;
@@ -54,6 +55,7 @@ const mocks = vi.hoisted(() => ({
   fetchAnnouncements: vi.fn(),
   fetchCatalogPage: vi.fn(),
   cartLines: [] as Array<{ product_id: string; quantity: number }>,
+  saveCartFailures: 0 as number,
   productReadFailures: 0,
   validationFailures: 0,
   submitFailures: 0,
@@ -86,10 +88,13 @@ vi.mock("@/lib/storefront-catalog", () => ({
 
 vi.mock("@/lib/customer-cart", () => ({
   fetchCustomerCart: vi.fn(async () => ({ items: mocks.cartLines, updated_at: null })),
-  saveCustomerCart: vi.fn(async (lines: Array<{ product_id: string; quantity: number }>) => ({
-    items: lines,
-    updated_at: null,
-  })),
+  saveCustomerCart: vi.fn(async (lines: Array<{ product_id: string; quantity: number }>) => {
+    if (mocks.saveCartFailures > 0) {
+      mocks.saveCartFailures -= 1;
+      throw new Error("synthetic persistent cart refusal");
+    }
+    return { items: lines, updated_at: null };
+  }),
 }));
 
 vi.mock("@/lib/offline-cart", () => ({
@@ -186,6 +191,7 @@ describe("customer cart and checkout real route acceptance", () => {
     vi.clearAllMocks();
     mocks.user = null;
     mocks.cartLines = [];
+    mocks.saveCartFailures = 0;
     mocks.productReadFailures = 0;
     mocks.validationFailures = 0;
     mocks.submitFailures = 0;
@@ -370,5 +376,49 @@ describe("customer cart and checkout real route acceptance", () => {
     expect(host?.textContent).not.toContain("777777");
     expect(mocks.submitCalls).toHaveLength(2);
     expect(mocks.submitCalls[1].args._idempotency_key).toBe(firstKey);
+    expect(vi.mocked(saveCustomerCart).mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("fails closed when the current persistent cart cannot be saved before order submission", async () => {
+    mocks.user = CUSTOMER;
+    mocks.cartLines = [{ product_id: PRODUCT_ID, quantity: 2 }];
+    await mountRoute("/checkout");
+    const phone = host?.querySelector<HTMLInputElement>('input[placeholder="7XX XXX XXX"]');
+    expect(phone).toBeTruthy();
+    await act(async () => {
+      fireEvent.change(phone!, { target: { value: "777777777" } });
+    });
+    await flush();
+
+    // Ensure server-side validation and address loading have settled before exercising the refusal path.
+    // The route may still be committing the final validation state on slower CI workers.
+    const submitButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("تأكيد الطلب"));
+    expect(submitButton).toBeTruthy();
+    for (let attempt = 0; attempt < 30 && submitButton!.disabled; attempt += 1) {
+      await flush();
+    }
+    expect(submitButton!.disabled).toBe(false);
+
+    // Fail all in-flight/background sync attempts as well as the explicit pre-submit write.
+    mocks.saveCartFailures = 20;
+    await act(async () => {
+      fireEvent.click(submitButton!);
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    });
+    await flush();
+
+    expect(vi.mocked(saveCustomerCart).mock.calls.length).toBeGreaterThan(0);
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("synthetic persistent cart refusal");
+    expect(host?.querySelector('[role="alert"]')?.getAttribute("aria-live")).toBe("assertive");
+    expect(mocks.submitCalls).toHaveLength(0);
+    expect(host?.textContent).not.toContain("SO-TEST-001");
+
+    mocks.saveCartFailures = 0;
+    await clickButtonContaining("تأكيد الطلب");
+    expect(host?.textContent).toContain("SO-TEST-001");
+    expect(mocks.submitCalls).toHaveLength(1);
   });
 });

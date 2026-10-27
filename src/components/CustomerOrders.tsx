@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, FileText, Package, Printer } from 'lucide-react';
+import { ArrowRight, FileText, Package, Printer, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
@@ -260,6 +260,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
     <Shell>
       <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <Link to="/orders" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>كل الطلبات</Link>
+        <button type="button" className="sf-btn-secondary" aria-label="تحديث حالة الطلب من الخادم" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث الحالة</button>
         <button
           type="button"
           className="sf-btn-secondary"
