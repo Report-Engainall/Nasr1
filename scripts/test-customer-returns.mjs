@@ -1199,24 +1199,20 @@ async function main() {
   // Acceptance: payment and source-credit posting serialize on the same invoice settlement lock.
   // Hold that exact advisory key so both authenticated calls must be observed waiting
   // in PostgreSQL before release; Promise.all timing by itself is not race evidence.
+  const settlementPayment = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const settlementRacer = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const settlementGate = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   let settlementGateOpen = false;
   let settlementAttempts;
   let settlementResults;
   try {
-    await settlementRacer.unsafe("reset role").catch(()=>{});
-    await settlementRacer.unsafe(
-      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI invoice settlement race session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
-      [managerAuthId],
-    );
-    await settlementRacer.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[managerAuthId]);
-    await settlementRacer.unsafe("select set_config('request.jwt.claims',$1,false)",[
-      JSON.stringify({sub:managerAuthId,email:"ci-return-manager@example.test",email_confirmed_at:new Date().toISOString(),role:"authenticated",session_id:managerAuthId}),
+    // Give each concurrent settlement RPC a dedicated physical PostgreSQL session.
+    // The shared db client may be idle in pg_stat_activity while its pool queues the call,
+    // producing a false-negative lock-barrier assertion even when both RPCs eventually succeed.
+    await Promise.all([
+      setReturnRaceIdentity(settlementPayment, managerAuthId, "ci-return-manager@example.test", "ci-invoice-settlement-payment", true),
+      setReturnRaceIdentity(settlementRacer, managerAuthId, "ci-return-manager@example.test", "ci-invoice-settlement-credit", true),
     ]);
-    await settlementRacer.unsafe("set role authenticated");
-    await db.unsafe("select set_config('application_name',$1,false)",["ci-invoice-settlement-payment"]);
-    await settlementRacer.unsafe("select set_config('application_name',$1,false)",["ci-invoice-settlement-credit"]);
     await settlementGate.unsafe("begin");
     settlementGateOpen = true;
     await settlementGate.unsafe(
@@ -1236,7 +1232,7 @@ async function main() {
         },
       }));
     settlementAttempts = Promise.all([
-      captureSettlementOutcome(db.unsafe(
+      captureSettlementOutcome(settlementPayment.unsafe(
         "select public.record_customer_payment($1::uuid,$2::numeric,$3::text,$4::uuid,$5::text,$6::text) as id",
         [sourceInvoiceId,100,"cash",randomUUID(),"CI-RET-CONCURRENT-PAY-001","payment concurrent with source-credit posting"],
       )),
@@ -1285,6 +1281,7 @@ async function main() {
     if (settlementAttempts) await Promise.allSettled([settlementAttempts]);
     await Promise.all([
       settlementGate.end({timeout:5}).catch(()=>{}),
+      settlementPayment.end({timeout:5}).catch(()=>{}),
       settlementRacer.end({timeout:5}).catch(()=>{}),
     ]);
   }
