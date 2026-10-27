@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -14,18 +15,22 @@ const secondAuthUserId = "22222222-2222-4222-8222-222222222222";
 const productId = "a1000000-0000-0000-0000-000000000001";
 const otherTenantProductId = "a1111111-1111-4111-8111-111111111112";
 
+let revokedMemberProfileId = null;
+let revokedMemberAuthUserId = null;
+let revokedMemberCustomerId = null;
+
 const admin = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const firstClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const secondClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 
-async function setIdentity(client, authUserId, email) {
+async function setIdentity(client, authUserId, email, useAuthenticatedRole = true) {
   await client.unsafe("reset role").catch(() => {});
   await client.unsafe("insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now(),now(),now(),null,'CI isolated session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null", [authUserId, authUserId]);
   await client.unsafe("select set_config('request.jwt.claim.sub', $1, false)", [authUserId]);
   await client.unsafe("select set_config('request.jwt.claims', $1, false)", [
     JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated", session_id: authUserId }),
   ]);
-  await client.unsafe("set role authenticated");
+  if (useAuthenticatedRole) await client.unsafe("set role authenticated");
 }
 
 async function expectDenied(label, action) {
@@ -51,6 +56,20 @@ async function listSaved(client) {
   const rows = await client.unsafe("select public.list_storefront_saved_products() as ids");
   assert.ok(Array.isArray(rows[0]?.ids), "list RPC must return a UUID array");
   return rows[0].ids;
+}
+
+async function waitForSavedProductsLock(monitor, applicationName, timeoutMs = 10000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const rows = await monitor.unsafe(
+      "select pid,wait_event_type,wait_event,state,query from pg_catalog.pg_stat_activity " +
+        "where application_name=$1 and state='active' and wait_event_type='Lock' limit 1",
+      [applicationName],
+    );
+    if (rows.length) return rows[0];
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("Saved-product mutation did not reach the customer-row membership-revocation lock barrier.");
 }
 
 async function main() {
@@ -130,8 +149,121 @@ async function main() {
   assert.equal(audit.filter((row) => row.action === "storefront.saved_product.added").length, 1, "only a genuine add is audited");
   assert.equal(audit.filter((row) => row.action === "storefront.saved_product.removed").length, 1, "only a genuine removal is audited");
 
+  // A revoked company member must lose the customer-owned storefront RPC even though
+  // the member profile remains active in the same tenant. The owner wins a customer-row
+  // lock race; the in-flight removal must wait, revalidate catalog.read, and make no write.
+  const customerRows = await admin.unsafe(
+    "select id from public.customers where profile_id=$1::uuid and organization_id=$2::uuid and status='approved' order by created_at,id limit 1",
+    [secondProfileId, organizationId],
+  );
+  assert.ok(customerRows[0]?.id, "second customer fixture must have an approved customer row for membership tests");
+  revokedMemberCustomerId = customerRows[0].id;
+  revokedMemberProfileId = randomUUID();
+  revokedMemberAuthUserId = randomUUID();
+  const memberEmail = "ci-saved-product-member-" + revokedMemberProfileId.slice(0, 8) + "@example.test";
+
+  await admin.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())",
+    [revokedMemberAuthUserId, memberEmail],
+  );
+  await admin.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI saved-products member',$4,true)",
+    [revokedMemberProfileId, revokedMemberAuthUserId, organizationId, memberEmail],
+  );
+  await admin.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'customer')",
+    [revokedMemberProfileId],
+  );
+  await admin.unsafe(
+    "insert into public.customer_company_memberships(organization_id,customer_id,profile_id,member_role,status,invited_by,accepted_at) " +
+      "values($1::uuid,$2::uuid,$3::uuid,'buyer','active',$4::uuid,now())",
+    [organizationId, revokedMemberCustomerId, revokedMemberProfileId, secondProfileId],
+  );
+  await setIdentity(secondClient, revokedMemberAuthUserId, memberEmail);
+  assert.equal((await savedState(secondClient, productId, true)).changed, true,
+    "active buyer member can save an approved tenant product");
+  assert.ok((await listSaved(secondClient)).includes(productId),
+    "active buyer member can list their own saved products");
+
+  const owner = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+  const monitor = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+  const appName = "ci-saved-revoke-" + randomUUID().replace(/-/g, "").slice(0, 10);
+  let transactionOpen = false;
+  let mutationOutcomePromise;
+  try {
+    await setIdentity(owner, secondAuthUserId, "ci-customer-two@example.test", false);
+    await admin.unsafe(
+      "select set_config('application_name',$1,false)",
+      ["ci-saved-products-admin-" + appName],
+    );
+    await secondClient.unsafe("select set_config('application_name',$1,false)", [appName]);
+    const snapshot = async () => {
+      const rows = await admin.unsafe(
+        "select " +
+          "(select count(*)::integer from public.storefront_saved_products where organization_id=$1::uuid and profile_id=$2::uuid and product_id=$3::uuid) as saved_count," +
+          "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and actor_id=$2::uuid " +
+            "and entity_type='storefront_saved_product' and entity_id=$3::uuid and action in ('storefront.saved_product.added','storefront.saved_product.removed')) as audit_count",
+        [organizationId, revokedMemberProfileId, productId],
+      );
+      return { saved: rows[0].saved_count, audits: rows[0].audit_count };
+    };
+    const before = await snapshot();
+    assert.deepEqual(before, { saved: 1, audits: 1 },
+      "member saved-product and audit rows form the pre-revocation baseline");
+
+    await owner.unsafe("begin");
+    transactionOpen = true;
+    await owner.unsafe(
+      "select id from public.customers where id=$1::uuid and organization_id=$2::uuid for update",
+      [revokedMemberCustomerId, organizationId],
+    );
+    const revokeRows = await owner.unsafe(
+      "select public.revoke_customer_company_member($1::uuid) as revoked",
+      [revokedMemberProfileId],
+    );
+    assert.equal(revokeRows[0].revoked, true, "the owner RPC revokes the exact active buyer membership");
+
+    mutationOutcomePromise = secondClient.unsafe(
+      "select public.set_storefront_saved_product($1::uuid,false) as result",
+      [productId],
+    ).then(
+      (rows) => ({ ok: true, rows }),
+      (error) => ({ ok: false, error }),
+    );
+    const blocked = await waitForSavedProductsLock(monitor, appName);
+    assert.equal(blocked.wait_event_type, "Lock", "the in-flight favourite removal waits on the owner-held customer row");
+
+    await owner.unsafe("commit");
+    transactionOpen = false;
+    const outcome = await mutationOutcomePromise;
+    assert.equal(outcome.ok, false,
+      "an in-flight saved-product removal must be denied after membership revocation commits");
+    assert.equal(outcome.error.code, "42501", "revoked member save/remove fails closed with SQLSTATE 42501");
+    assert.match(String(outcome.error.message), /active customer membership with storefront catalog access is required/i,
+      "rejection must come from the current membership/capability boundary");
+
+    assert.deepEqual(await snapshot(), before,
+      "revoked member cannot delete their saved product or create a removal audit");
+    let listError;
+    try {
+      await listSaved(secondClient);
+    } catch (error) {
+      listError = error;
+    }
+    assert.ok(listError, "saved-product listing is denied after company membership revocation");
+    assert.equal(listError.code, "42501", "post-revocation listing is denied with SQLSTATE 42501");
+    assert.match(String(listError.message), /active customer membership with storefront catalog access is required/i);
+  } finally {
+    if (transactionOpen) await owner.unsafe("rollback").catch(() => {});
+    if (mutationOutcomePromise) await mutationOutcomePromise.catch(() => {});
+    await Promise.all([
+      owner.end({ timeout: 5 }).catch(() => {}),
+      monitor.end({ timeout: 5 }).catch(() => {}),
+    ]);
+  }
+
   process.stdout.write(
-    "PASS storefront saved products: profile isolation, tenant isolation, idempotent save/remove, audit trail and direct-table denial\n",
+    "PASS storefront saved products: profile/tenant isolation, idempotent save/remove, audit/direct-DML denial, and membership-revocation race leaves state unchanged\n",
   );
 }
 
