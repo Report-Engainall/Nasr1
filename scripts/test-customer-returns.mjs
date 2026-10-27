@@ -419,13 +419,19 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
       JSON.stringify({ role: "service_role" }),
     ]);
     if (priorCardSettingRows.length > 0 && priorCardSettingRows[0].value_type === "boolean") {
-      // Restore only a valid Boolean setting. Old isolated fixtures may contain a JSON string
-      // ("true"/"false"), which the current DB guard correctly rejects; remove that invalid row
-      // to restore the canonical default rather than failing cleanup or persisting an invalid value.
+      // Cast through PostgreSQL BOOLEAN then TO_JSONB to restore an actual JSON boolean,
+      // not a JSON string. This satisfies the same trigger contract as production settings.
       await db.unsafe(
-        "update public.admin_settings set value=CASE " +
-          "WHEN pg_catalog.jsonb_typeof(value)='boolean' THEN value ELSE 'true'::jsonb END," +
-          "updated_at=pg_catalog.now() where organization_id=$1::uuid and key='show_price_on_cards'",
+        "update public.admin_settings set value=pg_catalog.to_jsonb($2::boolean),updated_at=pg_catalog.now() " +
+          "where organization_id=$1::uuid and key='show_price_on_cards'",
+        [organizationId, priorCardSettingRows[0].value_json],
+      );
+    } else if (priorCardSettingRows.length > 0) {
+      // Malformed legacy test values cannot be restored through the strict guard; normalize
+      // them to the documented default (visible) rather than leaving the test override in place.
+      await db.unsafe(
+        "update public.admin_settings set value='true'::jsonb,updated_at=pg_catalog.now() " +
+          "where organization_id=$1::uuid and key='show_price_on_cards'",
         [organizationId],
       );
     } else {
