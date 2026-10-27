@@ -1,4 +1,20 @@
-# CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PR #293 merge
+# CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PR #295 merge
+
+**This block supersedes all older resume pointers below. Preserve older entries as history; do not execute stale NEXT_ACTION values.**
+
+- **SCOPE:** `Report-Engainall/Nasr1` only; target branch `main`.
+- **LAST_VERIFIED_SHA:** `0f2e89ec5e12f83daaa543f1d3ecda5458943bab` (PR #295 exact tested head).
+- **LAST_MERGED_SHA:** `f90439c0b8c926600d9fff98b04c302553396000` (PR [#295](https://github.com/Report-Engainall/Nasr1/pull/295), merge SHA; parent `1d883edc8d8e5eff5bdf9c1b2ecd1f6cd68473a5`).
+- **MERGED_PR_URL:** https://github.com/Report-Engainall/Nasr1/pull/295
+- **TESTED_EXACT_SHA:** `0f2e89ec5e12f83daaa543f1d3ecda5458943bab`
+- **TEST_RESULTS:** Core [40572156893 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40572156893); P2 [40572156932 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40572156932); PostgreSQL 17 [40572156959 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40572156959). Post-merge main PostgreSQL 17 [40573052762 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40573052762); post-merge Core [40573052628](https://github.com/Report-Engainall/Nasr1/actions/runs/40573052628) was IN_PROGRESS at this checkpoint.
+- **COMPLETED_REQUIREMENTS:** `AUTHZ-MEMBER-PRICE-PREVIEW-001` (price preview rechecks capability after serialized revocation); `AUTHZ-LEGACY-PRICE-RPC-001` (no direct browser execution of monetary RPC, safe checkout output preserved); PR #293 invoice-PDF revocation boundary remains merged and tested.
+- **BLOCKED_REQUIREMENTS:** hosted authenticated customer/tenant E2E is SKIPPED; real Onyx, official WhatsApp delivery, live AI-provider operation, production deploy/migration/rollback, and production backup/restore still lack authorized live evidence. Full production release remains NO-GO.
+- **NEXT_ACTION:** verify terminal post-merge Core on SHA `f90439c0b8c926600d9fff98b04c302553396000`; validate the open PR [#296](https://github.com/Report-Engainall/Nasr1/pull/296) against latest main, inspect the generated exact-SHA RPC inventory, then select the next uncovered high-risk contract. Do not repeat merged invoice/cart/price-preview guards.
+
+---
+
+## Historical execution checkpoint — after PR #293 merge (superseded by the current block above)
 
 **This block supersedes older resume pointers below; historical records are preserved, not current commands.**
 
