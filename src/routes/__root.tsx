@@ -77,8 +77,8 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
-    title: BUSINESS_BRAND_NAME,
     meta: [
+      { title: BUSINESS_BRAND_NAME },
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "author", content: BUSINESS_BRAND_NAME },
