@@ -10,7 +10,7 @@
 - **Release decision:** **NO-GO — FULL PRODUCTION RELEASE**. Remaining proof includes the broader semantic audit, hosted authenticated customer/tenant E2E, live Onyx Pro, official WhatsApp delivery, live AI provider, production migration/deployment, and production backup/restore.
 - **Next action:** audit customer quote/reorder and other member-authorized mutations for revocation-vs-in-flight races; implement and test only demonstrated gaps. Keep exact-SHA test evidence and the NO-GO gate until all P0/P1 and external conditions are verified.
 
-en.
+---
 
 ## Historical baseline — PR #190
 
