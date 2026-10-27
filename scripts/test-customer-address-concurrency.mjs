@@ -601,7 +601,7 @@ async function main() {
   await expectDenied(
     "revoked company member cannot read the persistent cart",
     () => cartClient.unsafe("select public.get_customer_cart()"),
-    /active customer profile and company membership required for persistent cart/i,
+    /active customer profile required for persistent cart/i,
   );
 
   const membershipState = (await admin.unsafe(
