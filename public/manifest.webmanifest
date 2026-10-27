@@ -1,14 +1,14 @@
 {
   "name": "متجر الأغبري | Aghbari Commerce",
   "short_name": "متجر الأغبري",
-  "description": "منصة متجر الأغبري للتجارة بالجملة وإدارة الطلبات التجارية",
+  "description": "متجر الأغبري للتجارة بالجملة وإدارة الطلبات التجارية",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f6fafb",
-  "theme_color": "#087f8d",
+  "background_color": "#fffdf5",
+  "theme_color": "#14532d",
   "icons": [
     {
       "src": "/favicon.ico",
