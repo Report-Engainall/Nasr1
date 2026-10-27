@@ -1,3 +1,15 @@
+# CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PRs #273–#277
+
+- **Authoritative target:** `Report-Engainall/Nasr1`, branch `main`. **LAST_MERGED_SHA:** `75aabb2cf657e31be7dea9fd19fe1134d246290e` (PR #277). **Release gate remains `NO-GO — FULL PRODUCTION RELEASE`.**
+- **PR #273:** merged as `0939b5d8bcddae47bcbe53b45d4366c066b041d2`; authenticated address/contact mutations now revalidate active membership at the write boundary. Exact-head Core `40537129573`, P2 `40537129494`, and PostgreSQL 17 `40537129712` succeeded on `2a3475694c8ff7c5686a8a227aba2cea77fa810a`.
+- **PR #274:** documentation checkpoint merged as `6fffe89f03fc65898e366bca8621044790afb5bf`; exact-head Core `40538701089` and P2 `40538701091` succeeded on `ebfb99328a9754ec2ed891c9f9c2e3e0f9e006d7`. No post-merge workflow was returned for its merge SHA.
+- **PR #275:** invitation-history cap disclosure merged as `cba12a23098475012eca4e1af2bf5b1959af8948`; Core `40539234083` and P2 `40539234069` succeeded on `434020810e520d8bb9582f78d50ed5f6771adba6`. The UI now explicitly states it displays the latest 100 invitations only; older history is not paginated in this screen.
+- **PR #277:** customer-order mutation-boundary guard merged as `75aabb2cf657e31be7dea9fd19fe1134d246290e`; migration `20261027180000_company_member_order_revocation_guard.sql` revalidates active profile, tenant/customer scope and `orders.create` after the order INSERT/FK lock boundary. The forced PostgreSQL 17 acceptance now covers address, contact and order writes during membership revocation and verifies denial/no row or audit side effects.
+- **PR #277 exact-head evidence:** Core [40540561919 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40540561919), P2 [40540561801 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40540561801), and targeted PostgreSQL 17 [40540561601 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40540561601) on `c72fdb9a04f3eef17db66ba816914bc9e1929574`. The P2 hosted authenticated customer/tenant E2E remained **SKIPPED**; local Supabase/Chromium acceptance passed. No post-merge Core run/status was returned for `75aabb2cf657e31be7dea9fd19fe1134d246290e`; record **POST-MERGE CORE = NOT VERIFIED**.
+- **Next action:** continue the source-backed semantic review of remaining callable RPC/Edge contracts. Specifically inspect customer quote/reorder and other member-authorized mutations for the same revocation-vs-in-flight race; add a forced concurrency test only when the code path demonstrates the gap. Then close remaining P0/P1 release gates with exact-SHA Core/P2 and real authorized evidence for hosted customer/tenant E2E, Onyx Pro, official WhatsApp, live AI-provider behavior, production migration/deployment and backup/restore. Do not claim product release until these are evidenced.
+
+---
+
 # CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PR #273
 
 - **Sole target:** `Report-Engainall/Nasr1`, branch `main`. **LAST_MERGED_SHA:** `0939b5d8bcddae47bcbe53b45d4366c066b041d2` (PR #273 squash merge). PR #273 is verified merged: https://github.com/Report-Engainall/Nasr1/pull/273.
