@@ -9,14 +9,14 @@
 - **NEXT_ACTION:** complete PR #291's current exact-head Core/P2 checks; merge the documentation PR only if both are terminal SUCCESS and its head is unchanged. Then verify the resulting main SHA's post-merge Core/P2, preserve external gates as blocked until real evidence exists, and continue the next uncovered high-risk RPC/member-authorization contract.
 
 **Checkpoint fields**
-- LAST_VERIFIED_SHA: d6a35d2dfa4cb92ee6753b611f1bb47d8956174a (exact pre-merge head; successful Core/P2/PG17).
+- LAST_VERIFIED_SHA: d6a35d2dfa4cb92ee6753b611f1bb47d8956174a (exact pre-merge head; Core/P2 succeeded; separate import-finalizer/PG17 workflow passed its own scope, not the price-race-specific assertion).
 - LAST_MERGED_SHA: bd3326b552d689a69733d58df86e64e0081fdf1a.
 - MERGED_PR_URL: https://github.com/Report-Engainall/Nasr1/pull/290
 - TESTED_EXACT_SHA: d6a35d2dfa4cb92ee6753b611f1bb47d8956174a.
 - TEST_RESULTS: Core 40563113789 SUCCESS; P2 40563113809 SUCCESS (local race acceptance included); separate Import finalizer/PG17 40563114239 SUCCESS on exact PR head d6a35d2dfa4cb92ee6753b611f1bb47d8956174a; hosted auth E2E SKIPPED; post-merge Core 40564115580 SUCCESS and separate-scope Import finalizer/PG17 40564115540 SUCCESS on bd3326b552d689a69733d58df86e64e0081fdf1a.
 - COMPLETED_REQUIREMENTS: price RPC customer-row lock and post-wait membership recheck merged in #290; previously merged address/contact/order/quote/reorder/cart guards are preserved.
 - BLOCKED_REQUIREMENTS: post-merge Core on bd3326b552d689a69733d58df86e64e0081fdf1a is SUCCESS; the separate import-finalizer/PG17 workflow is SUCCESS in its import scope and is not a price-race-specific assertion; PR #291 exact-head checks and post-merge verification of the documentation merge remain pending; hosted authenticated E2E; live Onyx/WhatsApp/AI; production deployment/migration/rollback and backup/restore.
-- NEXT_ACTION: verify PR #291 exact-head Core/P2 checks; if both pass, merge the docs PR, then verify the resulting main SHA and continue the next uncovered high-risk RPC.
+- NEXT_ACTION: wait for PR #291 current-head Core/P2 terminal SUCCESS, merge the docs PR if checks pass and head SHA is unchanged, then verify post-merge Core on the resulting main SHA and continue the next uncovered high-risk RPC.
 
 ---
 
