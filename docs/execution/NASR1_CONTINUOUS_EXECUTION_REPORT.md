@@ -1,14 +1,15 @@
 # NASR1 Continuous Execution Report
 
-**Live checkpoint — 27 October 2026, after PR #279**
+**Live checkpoint — 27 October 2026 — after PR #290 merge**
 
-- **Authoritative target:** `Report-Engainall/Nasr1` / `main`.
-- **Latest merged security PR:** [#279 — guard company-member quote and reorder writes](https://github.com/Report-Engainall/Nasr1/pull/279), merge SHA `c78947f89f18e56c03dc64dee901d627e6873ee5`.
-- **Verified code scope:** membership revocation write-boundary guards now cover customer address/contact writes, order insertion, quote request insertion, quote acceptance/rejection and reorder-template creation. The PostgreSQL 17 lock-barrier acceptance proves the covered operations are denied after revocation without row/audit side effects; spoofed quote-request attribution is rejected.
-- **PR #279 exact-head checks:** Core [40546675667 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40546675667), P2 [40546676170 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40546676170), targeted PostgreSQL 17 [40546675974 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40546675974) on `5405c850382d23a675cda4edae57ab55703515bb`. Hosted authenticated E2E remained SKIPPED; local Supabase/Chromium acceptance passed. Post-merge Core on `c78947f89f18e56c03dc64dee901d627e6873ee5` is **NOT VERIFIED** by the connected workflow lookup.
-- **Other merges this run:** #273 address/contact guard, #274 execution checkpoint, #275 explicit latest-100 invitation history disclosure, #277 order guard and #278 checkpoint reconciliation. PR #281 was closed unmerged as a duplicate of #279.
-- **Release decision:** **NO-GO — FULL PRODUCTION RELEASE**. Remaining proof includes hosted authenticated customer/tenant E2E, live Onyx Pro sync, official WhatsApp delivery, live AI-provider behavior, production migration/deployment and backup/restore; broader product requirements still need acceptance evidence.
-- **Next action:** continue the source-backed semantic audit of remaining customer/member mutation RPCs and close all P0/P1 requirements. Maintain exact-SHA evidence and the NO-GO gate until every production condition is verified.
+- **Exclusive target:** Report-Engainall/Nasr1 / main.
+- **Latest main SHA:** bd3326b552d689a69733d58df86e64e0081fdf1a; PR [#290](https://github.com/Report-Engainall/Nasr1/pull/290) is merged.
+- **Exact-head evidence on pre-merge commit d6a35d2dfa4cb92ee6753b611f1bb47d8956174a:** Core [40563113789 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40563113789) and P2 [40563113809 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40563113809). The separate Import finalizer/PG17 run [40563114239 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40563114239) passed its own scope, not a price-race-specific suite. Local Supabase/Chromium order and tenant-isolation acceptance succeeded; hosted authenticated customer/tenant E2E was SKIPPED.
+- **Post-merge evidence:** Core [40564115580 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40564115580) passed on bd3326b552d689a69733d58df86e64e0081fdf1a. The separate Import finalizer/PG17 run [40564115540 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40564115540) passed its own scope and is not price-race-specific. PR #291 documentation Core/P2 checks are running on the latest docs head.
+- **Security change:** customer price RPC serializes on the customer row against member revocation and re-checks approval/catalog.read after a lock wait; hidden customer price remains NULL, never zero.
+- **Delivery measurement:** 115 unique matrix acceptance IDs; 18 canonical delivery roll-up groups; 0/18 are fully release-closed on one nominated candidate SHA. Overall completion percentage is not computable until detailed rows are reconciled with exact-SHA evidence.
+- **Release decision:** **NO-GO — FULL PRODUCTION RELEASE**. Live Onyx sync, official WhatsApp delivery, live AI-provider behavior, hosted authenticated E2E, production deploy/migration/rollback and backup/restore remain unproven.
+- **NEXT_ACTION:** verify PR #291 exact-head Core/P2 checks; merge documentation only after both pass, then verify the new main SHA before continuing the next uncovered high-risk RPC.
 
 ---
 
