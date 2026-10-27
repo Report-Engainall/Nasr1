@@ -46,6 +46,26 @@ describe("API-OPS semantic contract register", () => {
     }
   });
 
+
+  it("runs a source-mapped RPC inventory on exact current CI SHA", () => {
+    const packageJson = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
+      scripts?: Record<string, string>;
+    };
+    const workflow = readFileSync(
+      join(process.cwd(), ".github", "workflows", "commerce-checks.yml"),
+      "utf8",
+    );
+    expect(packageJson.scripts?.["api-ops:rpc-inventory"]).toBe(
+      "node scripts/generate-public-rpc-contract-inventory.mjs",
+    );
+    expect(workflow).toContain("Generate exact-head PostgreSQL RPC/function inventory");
+    expect(workflow).toContain('npm run api-ops:rpc-inventory > "$report"');
+    expect(workflow).toContain("unmatched=0");
+    expect(workflow).toContain("Upload exact-head RPC/function inventory");
+    expect(workflow).toContain("public-rpc-function-inventory-${{ github.sha }}");
+    expect(workflow).toContain("retention-days: 14");
+  });
+
   it("does not mislabel external evidence or partial acceptance as PASS", () => {
     expect(register).toContain("PARTIAL");
     expect(register).toContain("BLOCKED_EXTERNAL");
