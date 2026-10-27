@@ -1,6 +1,19 @@
+# CURRENT CHECKPOINT — 27 October 2026 — after PR #295 merge
+
+- **Exclusive target:** `Report-Engainall/Nasr1` / `main`; latest merge SHA `f90439c0b8c926600d9fff98b04c302553396000`.
+- **Actual code merge in this continuation:** PR [#295](https://github.com/Report-Engainall/Nasr1/pull/295) is merged at `f90439c0b8c926600d9fff98b04c302553396000`. It adds a serialized membership-revocation guard to `preview_customer_order_pricing(jsonb,text)`, and revokes browser-role direct execution of the legacy monetary RPC `preview_order_pricing(jsonb)` while retaining the safe `validate_checkout_cart(jsonb)` response contract.
+- **Exact-head evidence:** PR #295 head `0f2e89ec5e12f83daaa543f1d3ecda5458943bab`: Core [40572156893 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40572156893), P2 [40572156932 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40572156932), PostgreSQL 17 [40572156959 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40572156959). The deterministic DB acceptance verifies actual visible price before revocation, rejection with SQLSTATE `42501` after revocation, direct legacy-RPC denial, and safe checkout output without monetary/tier fields.
+- **Post-merge evidence on `f90439c0b8c926600d9fff98b04c302553396000`:** PostgreSQL 17 [40573052762 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40573052762). Core [40573052628](https://github.com/Report-Engainall/Nasr1/actions/runs/40573052628) was still in progress when this checkpoint was drafted; only mark it verified after checking its terminal state.
+- **Next active unit:** PR [#296](https://github.com/Report-Engainall/Nasr1/pull/296) automates exact-SHA RPC/function inventory in Core CI. The candidate artifact summary is `functions=316 matched=316 unmatched=0 migration_files=152`, uploaded as artifact ID `12767395370`; exact-run Core/PostgreSQL 17/P2 IDs are `40572633704/40572633631/40572633697`. Those checks ran before PR #295 updated main, so confirm the latest-base candidate/post-merge result before treating inventory as final-main evidence.
+- **Acceptance measurement:** matrix target is 118 populated unique IDs (115 existing + 2 PR #295 security contracts + 1 inventory automation contract); 0 duplicate IDs; 18 delivery groups; 0/18 groups fully release-closed on one candidate. Product percentage remains NOT COMPUTABLE until the candidate's child evidence reconciles.
+- **Release decision:** **NO-GO — FULL PRODUCTION RELEASE**. Hosted authenticated customer/tenant E2E remains SKIPPED. Live Onyx sync, official WhatsApp receipts, live AI provider, production migration/deployment/rollback, and production backup/restore are not proven.
+- **NEXT_ACTION:** verify post-merge Core on the exact current main SHA; then complete PR #296 on the latest base, inspect the actual inventory artifact, and implement the next real uncovered authorization or data-integrity gap without duplicating existing guards.
+
+---
+
 # NASR1 CONTINUOUS EXECUTION REPORT
 
-**Current checkpoint — 27 October 2026 — after PR #293 merge**
+**Historical checkpoint — 27 October 2026 — after PR #293 merge (superseded by the current block above)**
 
 - **Exclusive target:** `Report-Engainall/Nasr1` / `main`; latest merge SHA `69f224126f8a60ae3b8e31a3452f706a03a02507`.
 - **Actual code merges in this continuation:** PR [#292](https://github.com/Report-Engainall/Nasr1/pull/292), merge SHA `ccaa3d37baa39591be195e660b6022833b8123bd`, fixes the settlement concurrency acceptance by isolating physical PostgreSQL sessions; PR [#293](https://github.com/Report-Engainall/Nasr1/pull/293), merge SHA `69f224126f8a60ae3b8e31a3452f706a03a02507`, hardens customer invoice PDF against member revocation during a lock wait.
