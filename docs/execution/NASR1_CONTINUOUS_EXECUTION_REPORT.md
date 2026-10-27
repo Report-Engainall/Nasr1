@@ -5,11 +5,11 @@
 - **Exclusive target:** Report-Engainall/Nasr1 / main.
 - **Latest main SHA:** bd3326b552d689a69733d58df86e64e0081fdf1a; PR [#290](https://github.com/Report-Engainall/Nasr1/pull/290) is merged.
 - **Exact-head evidence on pre-merge commit d6a35d2dfa4cb92ee6753b611f1bb47d8956174a:** Core [40563113789 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40563113789) and P2 [40563113809 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40563113809). The separate Import finalizer/PG17 run [40563114239 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40563114239) passed its own scope, not a price-race-specific suite. Local Supabase/Chromium order and tenant-isolation acceptance succeeded; hosted authenticated customer/tenant E2E was SKIPPED.
-- **Post-merge evidence:** Core [40564115580](https://github.com/Report-Engainall/Nasr1/actions/runs/40564115580) and Import finalizer/PG17 [40564115540](https://github.com/Report-Engainall/Nasr1/actions/runs/40564115540) are IN_PROGRESS on bd3326b552d689a69733d58df86e64e0081fdf1a; do not call them PASS before terminal completion.
+- **Post-merge evidence:** Core [40564115580](https://github.com/Report-Engainall/Nasr1/actions/runs/40564115580) is IN_PROGRESS on bd3326b552d689a69733d58df86e64e0081fdf1a. The separate Import finalizer/PG17 run [40564115540](https://github.com/Report-Engainall/Nasr1/actions/runs/40564115540) is SUCCESS in its own scope and is not price-race-specific; current-main Core remains unverified.
 - **Security change:** customer price RPC serializes on the customer row against member revocation and re-checks approval/catalog.read after a lock wait; hidden customer price remains NULL, never zero.
 - **Delivery measurement:** 115 unique matrix acceptance IDs; 18 canonical delivery roll-up groups; 0/18 are fully release-closed on one nominated candidate SHA. Overall completion percentage is not computable until detailed rows are reconciled with exact-SHA evidence.
 - **Release decision:** **NO-GO — FULL PRODUCTION RELEASE**. Live Onyx sync, official WhatsApp delivery, live AI-provider behavior, hosted authenticated E2E, production deploy/migration/rollback and backup/restore remain unproven.
-- **NEXT_ACTION:** verify current-main Core run 40564115580, then continue the next uncovered high-risk RPC and preserve evidence lineage.
+- **NEXT_ACTION:** verify current-main Core run 40564115580 to terminal status, then continue the next uncovered high-risk RPC and preserve evidence lineage.
 
 ---
 
