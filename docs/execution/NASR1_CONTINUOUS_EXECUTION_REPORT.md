@@ -1,5 +1,18 @@
 # NASR1 Continuous Execution Report
 
+**Live checkpoint — 27 October 2026, after PR #273**
+
+- **Authoritative target:** `Report-Engainall/Nasr1` / `main`.
+- **Last merged PR:** [#273 — deny in-flight company-member writes after revocation](https://github.com/Report-Engainall/Nasr1/pull/273), squash merge SHA `0939b5d8bcddae47bcbe53b45d4366c066b041d2`.
+- **Change:** migration `20261027170000_company_member_revocation_mutation_guard.sql` guards authenticated row mutations on `customer_addresses` and `customer_company_contacts`; `scripts/test-customer-address-concurrency.mjs` forces the revocation/write lock barrier and verifies denial/no mutation for both address and contact writes.
+- **Exact PR-head checks:** Core [40537129573 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40537129573), P2 [40537129494 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40537129494), targeted PostgreSQL 17 [40537129712 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40537129712) on `2a3475694c8ff7c5686a8a227aba2cea77fa810a`. The connected Actions lookup returned no post-merge workflow run for `0939b5d8bcddae47bcbe53b45d4366c066b041d2`; **post-merge Core is NOT VERIFIED**.
+- **Release decision:** **NO-GO — FULL PRODUCTION RELEASE**. Hosted authenticated customer/tenant E2E remains skipped without authorized non-production credentials; real Onyx Pro sync, official WhatsApp delivery, live AI-provider calls, production migration/deployment and backup/restore are not proven.
+- **Next action:** resume the source-backed semantic audit in `docs/bolt-source-reconciliation/API_OPS_CONTRACT_REGISTER_2026-10-24.md` and `PUBLIC_RPC_FUNCTION_INVENTORY_2026-10-24.md`; choose the next unclosed high-risk contract, implement missing runtime protection/tests only where a gap is demonstrated, run exact-head Core/P2/targeted PostgreSQL 17, and separately verify the merge SHA. Do not repeat the already-covered invitation, stock-count, export-race or image-handler tests.
+
+---
+
+# NASR1 Continuous Execution Report
+
 **Latest checkpoint:** 24 October 2026 — PRs #196 (export blanks), #197 (DQS status matrix), and #198 (admin route mounts) merged; post-merge Core for current main is terminal SUCCESS  
 **Repository:** `Report-Engainall/Nasr1`  
 **Production reference:** `main` only  
