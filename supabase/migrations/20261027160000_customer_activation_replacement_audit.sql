@@ -1,5 +1,5 @@
 -- Preserve the complete audit trail when a new customer activation invitation supersedes a pending link.
--- Replaces only the existing creation RPC; tenant checks, customer locks, token hashing and grants remain unchanged.
+-- Keep the current pgcrypto-schema-aware token generation/hash helpers and tenant authorization contract.
 CREATE OR REPLACE FUNCTION public.create_customer_activation_invitation(
   p_customer_id uuid,
   p_email text,
@@ -85,7 +85,8 @@ BEGIN
     pg_catalog.now()
   FROM superseded AS s;
 
-  v_token := pg_catalog.encode(public.gen_random_bytes(32), 'hex');
+  -- Use schema-aware pgcrypto helpers; only the one-time token is returned to the authorized creator.
+  v_token := public.customer_activation_invitation_random_token();
   v_expires_at := pg_catalog.now() + pg_catalog.make_interval(hours => p_expires_hours);
   INSERT INTO public.customer_activation_invitations(
     organization_id, customer_id, invited_email, token_hash,
@@ -93,7 +94,7 @@ BEGIN
   )
   VALUES(
     v_org_id, v_customer.id, v_email,
-    pg_catalog.encode(public.digest(v_token, 'sha256'), 'hex'),
+    public.customer_activation_invitation_sha256(v_token),
     v_profile_id, v_expires_at
   )
   RETURNING id INTO v_invitation_id;
