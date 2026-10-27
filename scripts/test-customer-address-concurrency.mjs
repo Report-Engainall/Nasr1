@@ -318,14 +318,14 @@ async function main() {
   assert.equal(acceptedMembership.customer_id, customerId,
     "member acceptance must be scoped to the owning customer");
   assert.equal(acceptedMembership.member_role, "buyer");
-  assert.equal(
-    (await addressClients[1].unsafe(
-      "select public.current_customer_can('addresses.manage') as can_address, " +
-        "public.current_customer_can('contacts.manage') as can_contact",
-    ))[0].can_address,
-    true,
-    "buyer membership may create addresses before revocation",
-  );
+  const preRevocationCapabilities = (await addressClients[1].unsafe(
+    "select public.current_customer_can('addresses.manage') as can_address, " +
+      "public.current_customer_can('contacts.manage') as can_contact",
+  ))[0];
+  assert.equal(preRevocationCapabilities.can_address, true,
+    "buyer membership may create addresses before revocation");
+  assert.equal(preRevocationCapabilities.can_contact, true,
+    "buyer membership may create company contacts before revocation");
 
   const beforeRevocationMutations = (await admin.unsafe(
     "select " +
