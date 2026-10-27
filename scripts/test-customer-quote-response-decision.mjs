@@ -72,6 +72,7 @@ async function createQuotedQuote(suffix) {
 async function main() {
   const rejectedQuoteId = await createQuotedQuote("null-rejection-guard");
   const acceptedQuoteId = await createQuotedQuote("explicit-accept");
+  const staffRejectedQuoteId = await createQuotedQuote("staff-direct-rejection");
 
   await setIdentity(customerAuthUserId, customerEmail);
   await expectSqlState(
@@ -111,8 +112,23 @@ async function main() {
   row = await db.unsafe("select status from public.sales_quotes where id=$1", [acceptedQuoteId]);
   assert.equal(row[0]?.status, "accepted", "an explicit true decision must accept the quote");
 
+  await setIdentity(staffAuthUserId, staffEmail);
+  const staffProfile = await db.unsafe("select public.current_profile_id() as id");
+  assert.ok(staffProfile[0]?.id, "staff quote-response path must resolve the active staff profile");
+  const staffRejection = await db.unsafe(
+    "update public.sales_quotes set status='rejected', responded_by=$2::uuid, updated_at=now() " +
+      "where id=$1::uuid and status='quoted' returning id",
+    [staffRejectedQuoteId, staffProfile[0].id],
+  );
+  assert.equal(staffRejection.length, 1,
+    "authorized staff must retain the existing direct quote-rejection path");
+  await db.unsafe("reset role");
+  row = await db.unsafe("select status from public.sales_quotes where id=$1", [staffRejectedQuoteId]);
+  assert.equal(row[0]?.status, "rejected",
+    "staff direct quote rejection must persist despite the customer membership guard");
+
   process.stdout.write(
-    "PASS customer quote decision runtime: NULL UUID/boolean rejected with 22023 and no mutation; explicit false and true persist their requested transitions.\n",
+    "PASS customer quote decision runtime: NULL UUID/boolean rejected with 22023 and no mutation; explicit false/true customer decisions persist; authorized staff direct rejection remains available.\n",
   );
 }
 
