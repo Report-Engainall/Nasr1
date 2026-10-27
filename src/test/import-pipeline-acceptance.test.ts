@@ -106,7 +106,7 @@ describe('unified import end-to-end acceptance contracts', () => {
   it('keeps server-owned import identity and processing metadata immutable during failure reconciliation', () => {
     expect(failureMetadataGuard).toContain('v_safe_error_summary');
     expect(failureMetadataGuard).toContain('jsonb_strip_nulls');
-    expect(failureMetadataGuard).toContain("'processing fingerprint, period, or full-dataset metadata'");
+    expect(failureMetadataGuard).toContain('Client failure payloads cannot overwrite server-owned source identity, profile, processing fingerprint, period, or full-dataset metadata');
     expect(failureMetadataGuard).toContain('|| v_safe_error_summary');
     expect(failureMetadataGuard).not.toContain('|| p_error_summary');
     expect(failureMetadataAcceptance).toContain('client failure payload cannot overwrite the verified processing fingerprint');
