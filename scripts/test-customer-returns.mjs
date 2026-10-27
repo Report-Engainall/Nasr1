@@ -357,7 +357,7 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
   );
   const safeCheckoutRows = await db.unsafe(
     "select public.validate_checkout_cart($1::jsonb) as result",
-    [JSON.stringify([{ product_id: productId, quantity: 1 }])],
+    [db.json([{ product_id: productId, quantity: 1 }])],
   );
   const safeCheckout = asJson(safeCheckoutRows[0].result);
   assert.equal(safeCheckout.valid, true, "the supported checkout validation RPC still works");
