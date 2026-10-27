@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const legacyCss = readFileSync(new URL("../aghbari.css", import.meta.url), "utf8");
-const themeCss = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+const legacyCss = readFileSync("src/aghbari.css", "utf8");
+const themeCss = readFileSync("src/styles.css", "utf8");
 
 describe("Aghbari legacy dashboard/storefront theme integration", () => {
   it("loads legacy surfaces through the canonical design system", () => {
