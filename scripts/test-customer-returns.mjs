@@ -278,6 +278,19 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
     "finance member statement contains only invoices for the linked company customer");
   assert.ok(Array.isArray(financeStatement.payments), "finance member statement includes bounded payment detail");
   assert.ok(Array.isArray(financeStatement.credits), "finance member statement includes posted credit-memo detail");
+  const invoicePdfFixtures = await db.unsafe(
+    "select id from public.customer_invoices where organization_id=$1::uuid and customer_id=$2::uuid order by issued_at desc,id limit 1",
+    [organizationId, customerId],
+  );
+  assert.ok(invoicePdfFixtures.length > 0, "invoice PDF revocation acceptance has a real tenant-bound invoice fixture");
+  const memberInvoiceId = invoicePdfFixtures[0].id;
+  const memberInvoicePdfRows = await db.unsafe(
+    "select public.get_customer_invoice_pdf($1::uuid) as result",
+    [memberInvoiceId],
+  );
+  const memberInvoicePdf = asJson(memberInvoicePdfRows[0].result);
+  assert.equal(memberInvoicePdf.invoice.id, memberInvoiceId,
+    "active finance company member can read its own invoice PDF source before revocation");
   await db.unsafe("reset role");
 
   // Viewer membership must not gain financial statement access merely because it is a customer profile.
@@ -298,14 +311,20 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
   // A finance read already in flight must not return the statement after owner revocation commits.
   const owner = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
   const finance = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+  const financePdf = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
   const monitor = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
   const appName = "ci-statement-revoke-" + randomUUID().replace(/-/g, "").slice(0, 10);
+  const pdfAppName = appName + "-pdf";
   let transactionOpen = false;
   let statementOutcomePromise;
+  let invoicePdfOutcomePromise;
   try {
     await setReturnRaceIdentity(owner, ownerAuthUserId, "ci-statement-owner@example.test",
       "ci-statement-owner-" + suffix, false);
-    await setReturnRaceIdentity(finance, financeAuthUserId, financeEmail, appName, true);
+    await Promise.all([
+      setReturnRaceIdentity(finance, financeAuthUserId, financeEmail, appName, true),
+      setReturnRaceIdentity(financePdf, financeAuthUserId, financeEmail, pdfAppName, true),
+    ]);
 
     await owner.unsafe("begin");
     transactionOpen = true;
@@ -326,20 +345,32 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
       (rows) => ({ ok: true, rows }),
       (error) => ({ ok: false, error }),
     );
+    invoicePdfOutcomePromise = financePdf.unsafe(
+      "select public.get_customer_invoice_pdf($1::uuid) as result",
+      [memberInvoiceId],
+    ).then(
+      (rows) => ({ ok: true, rows }),
+      (error) => ({ ok: false, error }),
+    );
 
     const deadline = Date.now() + 10000;
     let blocked;
+    let blockedInvoicePdf;
     while (Date.now() < deadline) {
       const rows = await monitor.unsafe(
-        "select pid,wait_event_type,wait_event,state,query from pg_catalog.pg_stat_activity " +
-          "where application_name=$1 and state='active' and wait_event_type='Lock' limit 1",
-        [appName],
+        "select pid,application_name,wait_event_type,wait_event,state,query from pg_catalog.pg_stat_activity " +
+          "where application_name = any($1::text[]) and state='active' and wait_event_type='Lock'",
+        [[appName, pdfAppName]],
       );
-      if (rows.length) { blocked = rows[0]; break; }
+      blocked = rows.find((row) => row.application_name === appName);
+      blockedInvoicePdf = rows.find((row) => row.application_name === pdfAppName);
+      if (blocked && blockedInvoicePdf) break;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     assert.ok(blocked, "in-flight statement must reach the deterministic customer-row revocation lock barrier");
     assert.equal(blocked.wait_event_type, "Lock", "statement query is waiting on the owner-held customer row");
+    assert.ok(blockedInvoicePdf, "in-flight invoice PDF must reach the same deterministic customer-row revocation lock barrier");
+    assert.equal(blockedInvoicePdf.wait_event_type, "Lock", "invoice PDF query is waiting on the owner-held customer row");
 
     await owner.unsafe("commit");
     transactionOpen = false;
@@ -351,6 +382,14 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
     assert.match(String(outcome.error.message), /company member is not allowed to read the account statement/i,
       "statement capability is revalidated after waiting for the customer row lock");
 
+    const invoicePdfOutcome = await invoicePdfOutcomePromise;
+    assert.equal(invoicePdfOutcome.ok, false,
+      "invoice PDF read waiting behind owner revocation is denied after the member link is revoked");
+    assert.equal(invoicePdfOutcome.error.code, "42501",
+      "revoked in-flight invoice PDF read fails closed with SQLSTATE 42501");
+    assert.match(String(invoicePdfOutcome.error.message), /authenticated active customer with invoice-read permission required/i,
+      "invoice-read capability is revalidated after waiting for the customer row lock");
+
     const membershipRows = await monitor.unsafe(
       "select status from public.customer_company_memberships where customer_id=$1::uuid and profile_id=$2::uuid",
       [customerId, financeProfileId],
@@ -359,9 +398,11 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
   } finally {
     if (transactionOpen) await owner.unsafe("rollback").catch(() => {});
     if (statementOutcomePromise) await statementOutcomePromise.catch(() => {});
+    if (invoicePdfOutcomePromise) await invoicePdfOutcomePromise.catch(() => {});
     await Promise.all([
       owner.end({ timeout: 5 }).catch(() => {}),
       finance.end({ timeout: 5 }).catch(() => {}),
+      financePdf.end({ timeout: 5 }).catch(() => {}),
       monitor.end({ timeout: 5 }).catch(() => {}),
     ]);
   }
