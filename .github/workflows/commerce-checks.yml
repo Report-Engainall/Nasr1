@@ -84,6 +84,30 @@ jobs:
             done
           fi
           exit "$db_status"
+      - name: Generate exact-head PostgreSQL RPC/function inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/public-rpc-function-inventory.md"
+          npm run api-ops:rpc-inventory > "$report"
+          grep -Fxq "BEGIN_PUBLIC_RPC_CONTRACT_INVENTORY" "$report"
+          grep -Fxq "END_PUBLIC_RPC_CONTRACT_INVENTORY" "$report"
+          summary="$(grep '^RPC_INVENTORY_SUMMARY ' "$report" | tail -n 1)"
+          if [[ ! "$summary" =~ ^RPC_INVENTORY_SUMMARY\ functions=[0-9]+\ matched=[0-9]+\ unmatched=0\ migration_files=[0-9]+$ ]]; then
+            echo "::error::RPC/function inventory did not reconcile completely to migration source."
+            echo "$summary"
+            exit 1
+          fi
+          inventory_path="$RUNNER_TEMP/public-rpc-function-inventory-${GITHUB_SHA}.md"
+          cp "$report" "$inventory_path"
+          echo "$summary"
+      - name: Upload exact-head RPC/function inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-rpc-function-inventory-${{ github.sha }}
+          path: ${{ runner.temp }}/public-rpc-function-inventory-${{ github.sha }}.md
+          if-no-files-found: error
+          retention-days: 14
       # The acceptance script only queries TEST_DATABASE_URL. Its Supabase URL input is checked by the loopback-only guard and is not contacted.
       - name: Verify cash-expense source journal and post/void concurrency on PostgreSQL 17
         env:
