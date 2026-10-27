@@ -224,6 +224,7 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
   customerId,
   ownerProfileId,
   ownerAuthUserId,
+  productId,
   suffix,
 }) {
   // Prior assertions deliberately impersonate authenticated roles on the shared fixture
@@ -234,8 +235,11 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
   const financeAuthUserId = randomUUID();
   const viewerProfileId = randomUUID();
   const viewerAuthUserId = randomUUID();
+  const buyerProfileId = randomUUID();
+  const buyerAuthUserId = randomUUID();
   const financeEmail = "ci-statement-finance-" + suffix + "@example.test";
   const viewerEmail = "ci-statement-viewer-" + suffix + "@example.test";
+  const buyerEmail = "ci-pricing-buyer-" + suffix + "@example.test";
 
   async function seedMember(profileId, authUserId, email, memberRole) {
     await db.unsafe(
@@ -264,6 +268,7 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
 
   await seedMember(financeProfileId, financeAuthUserId, financeEmail, "finance");
   await seedMember(viewerProfileId, viewerAuthUserId, viewerEmail, "viewer");
+  await seedMember(buyerProfileId, buyerAuthUserId, buyerEmail, "buyer");
 
   // Finance members are explicitly authorized for statement.read, even though they do not
   // own a row in public.customers. The returned statement must remain scoped to that company.
@@ -308,22 +313,83 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
     "viewer denial comes from the statement.read capability boundary");
   await db.unsafe("reset role");
 
-  // A finance read already in flight must not return the statement after owner revocation commits.
+  // CI-only fixture setup: enable cart amounts for one active buyer so the race proves
+  // that a real monetary payload is available before revocation, then becomes denied.
+  await db.unsafe("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ role: "service_role" })]);
+  await db.unsafe(
+    "insert into public.admin_settings(organization_id,key,value,category,updated_at) " +
+      "values($1::uuid,'show_price_in_cart','true'::jsonb,'storefront',pg_catalog.now()) " +
+      "on conflict(organization_id,key) do update set value=excluded.value,updated_at=pg_catalog.now()",
+    [organizationId],
+  );
+  await setIdentity(buyerAuthUserId, buyerEmail);
+  await db.unsafe("set role authenticated");
+  const pricingBeforeRows = await db.unsafe(
+    "select public.preview_customer_order_pricing($1::jsonb,'cart') as result",
+    [JSON.stringify([{ product_id: productId, quantity: 1 }])],
+  );
+  const pricingBefore = asJson(pricingBeforeRows[0].result);
+  assert.equal(pricingBefore.visible, true, "buyer can obtain an explicitly enabled server-priced cart preview before revocation");
+  assert.equal(pricingBefore.items.length, 1, "pre-revocation pricing preview includes the tenant-bound active product");
+  assert.equal(typeof pricingBefore.items[0].unit_price, "number", "pre-revocation preview returns an actual numeric unit price");
+
+  // The legacy SECURITY DEFINER pricing function returns monetary values and must not be
+  // directly executable by anon/authenticated API roles. The public checkout validator
+  // remains callable and strips all monetary/tier fields before returning safe metadata.
+  const legacyRpcGrants = await db.unsafe(
+    "select has_function_privilege('anon','public.preview_order_pricing(jsonb)','EXECUTE') as anon_can_execute," +
+    "has_function_privilege('authenticated','public.preview_order_pricing(jsonb)','EXECUTE') as authenticated_can_execute," +
+    "has_function_privilege('service_role','public.preview_order_pricing(jsonb)','EXECUTE') as service_can_execute",
+  );
+  assert.equal(legacyRpcGrants[0].anon_can_execute, false,
+    "anonymous clients cannot invoke the legacy server-priced RPC directly");
+  assert.equal(legacyRpcGrants[0].authenticated_can_execute, false,
+    "authenticated customer clients cannot invoke the legacy server-priced RPC directly");
+  assert.equal(legacyRpcGrants[0].service_can_execute, true,
+    "the trusted server-role retains an explicit execution grant");
+  await expectFailure(
+    "authenticated customer cannot call the legacy monetary pricing RPC directly",
+    () => db.unsafe(
+      "select public.preview_order_pricing($1::jsonb)",
+      [JSON.stringify([{ product_id: productId, quantity: 1 }])],
+    ),
+    /permission denied for function preview_order_pricing/i,
+  );
+  const safeCheckoutRows = await db.unsafe(
+    "select public.validate_checkout_cart($1::jsonb) as result",
+    [db.json([{ product_id: productId, quantity: 1 }])],
+  );
+  const safeCheckout = asJson(safeCheckoutRows[0].result);
+  assert.equal(safeCheckout.valid, true, "the supported checkout validation RPC still works");
+  assert.equal(safeCheckout.pricing_verified, true, "checkout server validates the real price internally");
+  assert.equal(Object.hasOwn(safeCheckout, "total_amount"), false, "checkout validation does not disclose an order total");
+  assert.equal(Object.hasOwn(safeCheckout, "customer_tier"), false, "checkout validation does not disclose a price tier");
+  assert.equal(safeCheckout.items.length, 1);
+  assert.equal(Object.hasOwn(safeCheckout.items[0], "unit_price"), false, "safe checkout item omits unit price");
+  assert.equal(Object.hasOwn(safeCheckout.items[0], "line_total"), false, "safe checkout item omits line total");
+  await db.unsafe("reset role");
+
+  // Force finance statement, invoice PDF, and buyer pricing reads to the same customer-row
+  // lock barrier before the owner revokes their memberships inside that transaction.
   const owner = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
   const finance = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
   const financePdf = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+  const pricingPreview = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
   const monitor = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
   const appName = "ci-statement-revoke-" + randomUUID().replace(/-/g, "").slice(0, 10);
   const pdfAppName = appName + "-pdf";
+  const pricingAppName = appName + "-pricing";
   let transactionOpen = false;
   let statementOutcomePromise;
   let invoicePdfOutcomePromise;
+  let pricingOutcomePromise;
   try {
     await setReturnRaceIdentity(owner, ownerAuthUserId, "ci-statement-owner@example.test",
       "ci-statement-owner-" + suffix, false);
     await Promise.all([
       setReturnRaceIdentity(finance, financeAuthUserId, financeEmail, appName, true),
       setReturnRaceIdentity(financePdf, financeAuthUserId, financeEmail, pdfAppName, true),
+      setReturnRaceIdentity(pricingPreview, buyerAuthUserId, buyerEmail, pricingAppName, true),
     ]);
 
     await owner.unsafe("begin");
@@ -332,12 +398,6 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
       "select id from public.customers where id=$1::uuid and organization_id=$2::uuid for update",
       [customerId, organizationId],
     );
-    const revokedRows = await owner.unsafe(
-      "select public.revoke_customer_company_member($1::uuid) as revoked",
-      [financeProfileId],
-    );
-    assert.equal(revokedRows[0].revoked, true,
-      "the actual owner-facing member-revocation RPC revokes the finance member inside the held transaction");
 
     statementOutcomePromise = finance.unsafe(
       "select public.get_customer_account_statement() as result",
@@ -352,25 +412,49 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
       (rows) => ({ ok: true, rows }),
       (error) => ({ ok: false, error }),
     );
+    pricingOutcomePromise = pricingPreview.unsafe(
+      "select public.preview_customer_order_pricing($1::jsonb,'cart') as result",
+      [JSON.stringify([{ product_id: productId, quantity: 1 }])],
+    ).then(
+      (rows) => ({ ok: true, rows }),
+      (error) => ({ ok: false, error }),
+    );
 
     const deadline = Date.now() + 10000;
     let blocked;
     let blockedInvoicePdf;
+    let blockedPricePreview;
     while (Date.now() < deadline) {
       const rows = await monitor.unsafe(
         "select pid,application_name,wait_event_type,wait_event,state,query from pg_catalog.pg_stat_activity " +
           "where application_name = any($1::text[]) and state='active' and wait_event_type='Lock'",
-        [[appName, pdfAppName]],
+        [[appName, pdfAppName, pricingAppName]],
       );
       blocked = rows.find((row) => row.application_name === appName);
       blockedInvoicePdf = rows.find((row) => row.application_name === pdfAppName);
-      if (blocked && blockedInvoicePdf) break;
+      blockedPricePreview = rows.find((row) => row.application_name === pricingAppName);
+      if (blocked && blockedInvoicePdf && blockedPricePreview) break;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     assert.ok(blocked, "in-flight statement must reach the deterministic customer-row revocation lock barrier");
     assert.equal(blocked.wait_event_type, "Lock", "statement query is waiting on the owner-held customer row");
-    assert.ok(blockedInvoicePdf, "in-flight invoice PDF must reach the same deterministic customer-row revocation lock barrier");
+    assert.ok(blockedInvoicePdf, "in-flight invoice PDF must reach the same deterministic customer-row lock barrier");
     assert.equal(blockedInvoicePdf.wait_event_type, "Lock", "invoice PDF query is waiting on the owner-held customer row");
+    assert.ok(blockedPricePreview, "in-flight monetary pricing preview must reach the same deterministic customer-row lock barrier");
+    assert.equal(blockedPricePreview.wait_event_type, "Lock", "cart pricing preview is waiting on the owner-held customer row");
+
+    const revokedRows = await owner.unsafe(
+      "select public.revoke_customer_company_member($1::uuid) as revoked",
+      [financeProfileId],
+    );
+    assert.equal(revokedRows[0].revoked, true,
+      "the owner-facing member-revocation RPC revokes the finance member behind the held row lock");
+    const revokedBuyerRows = await owner.unsafe(
+      "select public.revoke_customer_company_member($1::uuid) as revoked",
+      [buyerProfileId],
+    );
+    assert.equal(revokedBuyerRows[0].revoked, true,
+      "the owner-facing member-revocation RPC revokes the pricing buyer behind the same row lock");
 
     await owner.unsafe("commit");
     transactionOpen = false;
@@ -390,19 +474,34 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
     assert.match(String(invoicePdfOutcome.error.message), /authenticated active customer with invoice-read permission required/i,
       "invoice-read capability is revalidated after waiting for the customer row lock");
 
+    const pricingOutcome = await pricingOutcomePromise;
+    assert.equal(pricingOutcome.ok, false,
+      "pricing preview waiting behind owner revocation is denied instead of returning stale unit prices and totals");
+    assert.equal(pricingOutcome.error.code, "42501",
+      "revoked in-flight pricing preview fails closed with SQLSTATE 42501");
+    assert.match(String(pricingOutcome.error.message), /customer membership lacks permission for requested price preview/i,
+      "pricing capability is revalidated after waiting for the customer row lock");
+
     const membershipRows = await monitor.unsafe(
       "select status from public.customer_company_memberships where customer_id=$1::uuid and profile_id=$2::uuid",
       [customerId, financeProfileId],
     );
-    assert.equal(membershipRows[0]?.status, "revoked", "owner revocation persists for the exact tenant-scoped membership");
+    assert.equal(membershipRows[0]?.status, "revoked", "finance revocation persists for the exact tenant-scoped membership");
+    const buyerMembershipRows = await monitor.unsafe(
+      "select status from public.customer_company_memberships where customer_id=$1::uuid and profile_id=$2::uuid",
+      [customerId, buyerProfileId],
+    );
+    assert.equal(buyerMembershipRows[0]?.status, "revoked", "pricing buyer revocation persists for the exact tenant-scoped membership");
   } finally {
     if (transactionOpen) await owner.unsafe("rollback").catch(() => {});
     if (statementOutcomePromise) await statementOutcomePromise.catch(() => {});
     if (invoicePdfOutcomePromise) await invoicePdfOutcomePromise.catch(() => {});
+    if (pricingOutcomePromise) await pricingOutcomePromise.catch(() => {});
     await Promise.all([
       owner.end({ timeout: 5 }).catch(() => {}),
       finance.end({ timeout: 5 }).catch(() => {}),
       financePdf.end({ timeout: 5 }).catch(() => {}),
+      pricingPreview.end({ timeout: 5 }).catch(() => {}),
       monitor.end({ timeout: 5 }).catch(() => {}),
     ]);
   }
@@ -1839,10 +1938,11 @@ async function main() {
     customerId: customerOne.id,
     ownerProfileId: customerOneProfileId,
     ownerAuthUserId: customerOneAuthId,
+    productId,
     suffix,
   });
 
-  process.stdout.write("PASS customer returns: tenant ownership, delivered-order gate, line quantities, idempotent replay/conflict, direct-write denial, customer privacy, manager decisions/audit, customer-freeze race denial with no return side effects, finance-member statement scope and post-revocation denial, warehouse inspection task, accountant denial, and no automatic stock movement.\n");
+  process.stdout.write("PASS customer returns: tenant ownership, delivered-order gate, line quantities, idempotent replay/conflict, direct-write denial, customer privacy, manager decisions/audit, customer-freeze race denial with no return side effects, finance-member statement scope, invoice PDF and cart-pricing post-revocation denial, warehouse inspection task, accountant denial, and no automatic stock movement.\n");
 }
 
 try {
