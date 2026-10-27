@@ -14,7 +14,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $function$
 DECLARE
-  v_profile uuid := public.current_profile_id();
+  v_profile uuid;
   v_customer_id uuid;
   v_organization_id uuid;
   v_capability text;
@@ -33,6 +33,8 @@ BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'authenticated customer identity required';
   END IF;
+
+  v_profile := public.current_profile_id();
 
   IF TG_TABLE_NAME = 'customer_addresses' THEN
     v_capability := 'addresses.manage';
