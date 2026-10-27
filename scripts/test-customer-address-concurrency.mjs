@@ -358,7 +358,8 @@ async function main() {
       "(select count(*)::integer from public.orders where organization_id=$1::uuid and customer_id=$2::uuid and created_by=$3::uuid) as orders, " +
       "(select status from public.sales_quotes where id=$4::uuid) as quote_status, " +
       "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and actor_id=$3::uuid " +
-        "and entity_type in ('customer_address','customer_company_contact','order')) as member_mutation_audits",
+        "and entity_type in ('customer_address','customer_company_contact','order')) as member_mutation_audits, " +
+      "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and entity_id=$4::uuid) as quote_audits",
     [organizationId, customerId, memberProfileId, quoteId],
   ))[0];
 
@@ -452,7 +453,8 @@ async function main() {
       "(select count(*)::integer from public.orders where organization_id=$1::uuid and customer_id=$2::uuid and created_by=$3::uuid) as orders, " +
       "(select status from public.sales_quotes where id=$4::uuid) as quote_status, " +
       "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and actor_id=$3::uuid " +
-        "and entity_type in ('customer_address','customer_company_contact','order')) as member_mutation_audits",
+        "and entity_type in ('customer_address','customer_company_contact','order')) as member_mutation_audits, " +
+      "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and entity_id=$4::uuid) as quote_audits",
     [organizationId, customerId, memberProfileId, quoteId],
   ))[0];
   assert.deepEqual(afterRevocationMutations, beforeRevocationMutations,
