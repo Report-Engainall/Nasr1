@@ -36,7 +36,8 @@ BEGIN
         WHERE r.profile_id = v_profile
           AND r.role = 'customer'
      ) THEN
-    RETURN NEW;
+    RAISE EXCEPTION USING ERRCODE = '42501',
+      MESSAGE = 'active customer profile required for reorder template creation';
   END IF;
 
   IF NOT EXISTS (
