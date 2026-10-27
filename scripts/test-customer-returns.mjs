@@ -372,7 +372,7 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
   // Prove hidden catalog prices are NULL in the actual PostgreSQL response, never a numeric zero sentinel.
   // Preserve the test tenant's prior setting so this acceptance cannot leak configuration into later checks.
   const priorCardSettingRows = await db.unsafe(
-    "select value::text as value_json from public.admin_settings " +
+    "select value::text as value_json, pg_catalog.jsonb_typeof(value) as value_type from public.admin_settings " +
       "where organization_id=$1::uuid and key='show_price_on_cards'",
     [organizationId],
   );
@@ -416,7 +416,10 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
     await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
       JSON.stringify({ role: "service_role" }),
     ]);
-    if (priorCardSettingRows.length > 0) {
+    if (priorCardSettingRows.length > 0 && priorCardSettingRows[0].value_type === "boolean") {
+      // Restore only a valid Boolean setting. Old isolated fixtures may contain a JSON string
+      // ("true"/"false"), which the current DB guard correctly rejects; remove that invalid row
+      // to restore the canonical default rather than failing cleanup or persisting an invalid value.
       await db.unsafe(
         "update public.admin_settings set value=$2::jsonb,updated_at=pg_catalog.now() " +
           "where organization_id=$1::uuid and key='show_price_on_cards'",
