@@ -8,20 +8,20 @@ if (!connectionString) {
 }
 
 const organizationId = "a0000000-0000-0000-0000-000000000001";
-const admin = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
-const lockClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
-const monitor = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const admin = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+const lockClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+const monitor = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
 const addressClients = [
-  postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 }),
-  postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 }),
+  postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 }),
+  postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 }),
 ];
-const foreignClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
-const orderClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
-const reorderClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
-const quoteClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
-const quoteCreateClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
-const quoteLockClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
-const cartClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const foreignClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+const orderClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+const reorderClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+const quoteClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+const quoteCreateClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+const quoteLockClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
+const cartClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function setIdentity(client, authUserId, email, applicationName) {
