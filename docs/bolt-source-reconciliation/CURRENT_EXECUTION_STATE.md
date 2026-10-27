@@ -1,3 +1,18 @@
+# CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PR #279
+
+- **Authoritative target:** `Report-Engainall/Nasr1`, branch `main`. **LAST_MERGED_SHA:** `c78947f89f18e56c03dc64dee901d627e6873ee5` (PR #279). **Release gate remains `NO-GO — FULL PRODUCTION RELEASE`.**
+- **PR #273:** merged `0939b5d8bcddae47bcbe53b45d4366c066b041d2`; guards authenticated address/contact writes after membership revocation. Exact-head Core `40537129573`, P2 `40537129494`, PostgreSQL 17 `40537129712` succeeded on `2a3475694c8ff7c5686a8a227aba2cea77fa810a`.
+- **PR #274:** execution checkpoint docs merged `6fffe89f03fc65898e366bca8621044790afb5bf`; exact-head Core `40538701089` and P2 `40538701091` succeeded on `ebfb99328a9754ec2ed891c9f9c2e3e0f9e006d7`.
+- **PR #275:** invitation-history cap disclosure merged `cba12a23098475012eca4e1af2bf5b1959af8948`; Core `40539234083` and P2 `40539234069` succeeded on `434020810e520d8bb9582f78d50ed5f6771adba6`. UI truthfully states only the latest 100 invitations are shown; older invitations are not paginated in this screen.
+- **PR #277:** merged `75aabb2cf657e31be7dea9fd19fe1134d246290e`; adds order insert guard after customer FK lock waits. Exact-head Core `40540561919`, P2 `40540561801`, PostgreSQL 17 `40540561601` succeeded on `c72fdb9a04f3eef17db66ba816914bc9e1929574`.
+- **PR #278:** execution checkpoint merged `20fcb9652f5374c27952baa8f4457a5f72fac824`; exact-head Core `40541933576` and P2 `40541933964` succeeded on `851140a576f827d58047cfb3f11eda5fbcfd24f6`. Hosted authenticated customer/tenant E2E remained skipped.
+- **PR #279:** merged `c78947f89f18e56c03dc64dee901d627e6873ee5`; guards customer quote request insertion, quote acceptance/rejection and reorder-template creation after lock waits, in addition to the already-merged address/contact/order guards. Its forced PostgreSQL 17 concurrency acceptance verifies denied writes leave quote/order/address/contact/reorder rows and audit snapshots unchanged; spoofed quote-request attribution is also denied.
+- **PR #279 exact-head evidence:** Core [40546675667 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40546675667), P2 [40546676170 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40546676170), and targeted PostgreSQL 17 [40546675974 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40546675974) on `5405c850382d23a675cda4edae57ab55703515bb`. The P2 hosted authenticated customer/tenant E2E remains **SKIPPED**; local Supabase/Chromium acceptance passed. No post-merge workflow was returned for `c78947f89f18e56c03dc64dee901d627e6873ee5`; **POST-MERGE CORE = NOT VERIFIED**.
+- **Duplicate control:** PR #281 was closed unmerged as a duplicate of #279 because the reorder guard and concurrency test were included in #279.
+- **Next action:** continue the source-backed semantic audit of remaining customer/member mutation RPCs and close all remaining P0/P1 requirements. Then collect authorized hosted customer/tenant E2E and real Onyx Pro, official WhatsApp, live AI-provider, production migration/deployment and backup/restore evidence. Do not change the release gate to GO without those proofs.
+
+---
+
 # CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PRs #273–#277 and #276
 
 - **Sole target:** `Report-Engainall/Nasr1`, branch `main`. **LATEST_MAIN_SHA / LAST_MERGED_SHA:** `aa14ef2408745884a5b109409bff87435f8e02b7` (PR #276). **Release gate:** `NO-GO — FULL PRODUCTION RELEASE`.

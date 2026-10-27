@@ -1,18 +1,14 @@
 # NASR1 Continuous Execution Report
 
-**Live checkpoint — 27 October 2026, after PRs #273–#277 and #276**
+**Live checkpoint — 27 October 2026, after PR #279**
 
 - **Authoritative target:** `Report-Engainall/Nasr1` / `main`.
-- **Latest merge:** [PR #276 — customer invoice history keyset pagination](https://github.com/Report-Engainall/Nasr1/pull/276), merge SHA `aa14ef2408745884a5b109409bff87435f8e02b7`.
-- **Invoice history change:** UI pagination uses `issued_at DESC, id ASC`, a bounded page size, retry after failure without clearing visible history, and ID de-duplication. List query returns metadata only; it does not introduce hidden prices or amounts into the customer invoice list.
-- **PR #276 exact-head acceptance:** Core [40540995286 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40540995286) and P2 [40540995368 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40540995368) on `4912540db7e7859362610f24971687d55bd47fb3`. Current-main post-merge Core [40541988621 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40541988621) completed on the exact merge SHA `aa14ef2408745884a5b109409bff87435f8e02b7`.
-- **PR #277 security race closure:** [merged at `75aabb2cf657e31be7dea9fd19fe1134d246290e`](https://github.com/Report-Engainall/Nasr1/pull/277). Exact-head Core [40540561919](https://github.com/Report-Engainall/Nasr1/actions/runs/40540561919), P2 [40540561801](https://github.com/Report-Engainall/Nasr1/actions/runs/40540561801), and PostgreSQL 17 [40540561601](https://github.com/Report-Engainall/Nasr1/actions/runs/40540561601) passed; post-merge Core [40541487935](https://github.com/Report-Engainall/Nasr1/actions/runs/40541487935) and PostgreSQL 17 [40541487890](https://github.com/Report-Engainall/Nasr1/actions/runs/40541487890) passed on the exact merge SHA. The test holds lock barriers while membership is revoked and proves address/contact/order writes are denied without persistent row or audit side effects.
-- **PRs #273–#275:** current status and exact SHA evidence are recorded in `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`; #274 and #275 also have exact post-merge Core success.
-- **Combined validation boundary:** current-main Core passed at `aa14ef2408745884a5b109409bff87435f8e02b7`; P2 passed on the exact PR heads for #276 and #277, but no combined current-main P2 run is recorded. Hosted authenticated customer/tenant E2E remains **SKIPPED**, not passed.
-- **Release decision:** **NO-GO — FULL PRODUCTION RELEASE**. Live Onyx Pro, official WhatsApp delivery, live AI-provider behavior, production migration/deployment and backup/restore/RPO/RTO still require real authorized evidence.
-- **Next action:** inspect `customer_respond_to_quote`, reorder, and other member-authorized write paths for revocation-vs-in-flight races; only add guards where the source reveals a real write-boundary gap, and prove the race with a deterministic PostgreSQL 17 test.
-
----
+- **Latest merged security PR:** [#279 — guard company-member quote and reorder writes](https://github.com/Report-Engainall/Nasr1/pull/279), merge SHA `c78947f89f18e56c03dc64dee901d627e6873ee5`.
+- **Verified code scope:** membership revocation write-boundary guards now cover customer address/contact writes, order insertion, quote request insertion, quote acceptance/rejection and reorder-template creation. The PostgreSQL 17 lock-barrier acceptance proves the covered operations are denied after revocation without row/audit side effects; spoofed quote-request attribution is rejected.
+- **PR #279 exact-head checks:** Core [40546675667 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40546675667), P2 [40546676170 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40546676170), targeted PostgreSQL 17 [40546675974 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40546675974) on `5405c850382d23a675cda4edae57ab55703515bb`. Hosted authenticated E2E remained SKIPPED; local Supabase/Chromium acceptance passed. Post-merge Core on `c78947f89f18e56c03dc64dee901d627e6873ee5` is **NOT VERIFIED** by the connected workflow lookup.
+- **Other merges this run:** #273 address/contact guard, #274 execution checkpoint, #275 explicit latest-100 invitation history disclosure, #277 order guard and #278 checkpoint reconciliation. PR #281 was closed unmerged as a duplicate of #279.
+- **Release decision:** **NO-GO — FULL PRODUCTION RELEASE**. Remaining proof includes hosted authenticated customer/tenant E2E, live Onyx Pro sync, official WhatsApp delivery, live AI-provider behavior, production migration/deployment and backup/restore; broader product requirements still need acceptance evidence.
+- **Next action:** continue the source-backed semantic audit of remaining customer/member mutation RPCs and close all P0/P1 requirements. Maintain exact-SHA evidence and the NO-GO gate until every production condition is verified.
 
 ---
 
