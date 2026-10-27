@@ -369,6 +369,81 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
   assert.equal(Object.hasOwn(safeCheckout.items[0], "line_total"), false, "safe checkout item omits line total");
   await db.unsafe("reset role");
 
+  // Prove hidden catalog prices are NULL in the actual PostgreSQL response, never a numeric zero sentinel.
+  // Preserve the test tenant's prior setting so this acceptance cannot leak configuration into later checks.
+  const priorCardSettingRows = await db.unsafe(
+    "select value::text as value_json, pg_catalog.jsonb_typeof(value) as value_type from public.admin_settings " +
+      "where organization_id=$1::uuid and key='show_price_on_cards'",
+    [organizationId],
+  );
+  await db.unsafe("select set_config('request.jwt.claim.role','service_role',false)");
+  await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
+    JSON.stringify({ role: "service_role" }),
+  ]);
+  await db.unsafe(
+    "insert into public.admin_settings(organization_id,key,value,category,updated_at) " +
+      "values($1::uuid,'show_price_on_cards','false'::jsonb,'storefront',pg_catalog.now()) " +
+      "on conflict(organization_id,key) do update set value=excluded.value,updated_at=pg_catalog.now()",
+    [organizationId],
+  );
+  try {
+    await setIdentity(buyerAuthUserId, buyerEmail);
+    await db.unsafe("set role authenticated");
+    const hiddenPriceRows = await db.unsafe(
+      "select product_id,unit_price from public.get_storefront_product_prices(ARRAY[$1::uuid],1)",
+      [productId],
+    );
+    assert.equal(hiddenPriceRows.length, 1, "hidden price RPC still identifies the requested active product");
+    assert.equal(hiddenPriceRows[0].unit_price, null,
+      "the live catalog price RPC emits SQL NULL, never 0.00, when price visibility is disabled");
+
+    const hiddenCatalogRows = await db.unsafe(
+      "select public.get_storefront_catalog_page(NULL::text,NULL::uuid,1,100,false) as result",
+    );
+    const hiddenCatalog = asJson(hiddenCatalogRows[0].result);
+    const hiddenCatalogItem = hiddenCatalog.items.find((item) => item.id === productId);
+    assert.ok(hiddenCatalogItem, "hidden-price catalog page includes the active tenant-scoped product");
+    assert.equal(hiddenCatalogItem.display_price, null,
+      "the live catalog JSON contract emits display_price:null rather than a zero sentinel");
+    assert.equal(Object.hasOwn(hiddenCatalogItem, "base_price"), false,
+      "customer catalog payload omits the staff-only base_price property");
+    assert.equal(Object.hasOwn(hiddenCatalogItem, "unit_cost"), false,
+      "customer catalog payload omits unit cost");
+    assert.equal(Object.hasOwn(hiddenCatalogItem, "margin"), false,
+      "customer catalog payload omits margin");
+
+  } finally {
+    await db.unsafe("reset role").catch(() => {});
+    await db.unsafe("select set_config('request.jwt.claim.role','service_role',false)");
+    await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
+      JSON.stringify({ role: "service_role" }),
+    ]);
+    if (priorCardSettingRows.length > 0 && priorCardSettingRows[0].value_type === "boolean") {
+      // Cast through PostgreSQL BOOLEAN then TO_JSONB to restore an actual JSON boolean,
+      // not a JSON string. This satisfies the same trigger contract as production settings.
+      await db.unsafe(
+        "update public.admin_settings set value=pg_catalog.to_jsonb($2::boolean),updated_at=pg_catalog.now() " +
+          "where organization_id=$1::uuid and key='show_price_on_cards'",
+        [organizationId, priorCardSettingRows[0].value_json],
+      );
+    } else if (priorCardSettingRows.length > 0) {
+      // Malformed legacy test values cannot be restored through the strict guard; normalize
+      // them to the documented default (visible) rather than leaving the test override in place.
+      await db.unsafe(
+        "update public.admin_settings set value='true'::jsonb,updated_at=pg_catalog.now() " +
+          "where organization_id=$1::uuid and key='show_price_on_cards'",
+        [organizationId],
+      );
+    } else {
+      await db.unsafe(
+        "delete from public.admin_settings where organization_id=$1::uuid and key='show_price_on_cards'",
+        [organizationId],
+      );
+    }
+    await setIdentity(buyerAuthUserId, buyerEmail);
+    await db.unsafe("reset role").catch(() => {});
+  }
+
   // Force finance statement, invoice PDF, and buyer pricing reads to the same customer-row
   // lock barrier before the owner revokes their memberships inside that transaction.
   const owner = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 60 });
