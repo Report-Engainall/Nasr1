@@ -390,10 +390,27 @@ describe("customer cart and checkout real route acceptance", () => {
     });
     await flush();
 
+    // Ensure server-side validation and address loading have settled before exercising the refusal path.
+    // The route may still be committing the final validation state on slower CI workers.
+    const submitButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("تأكيد الطلب"));
+    expect(submitButton).toBeTruthy();
+    for (let attempt = 0; attempt < 30 && submitButton!.disabled; attempt += 1) {
+      await flush();
+    }
+    expect(submitButton!.disabled).toBe(false);
+
     // Fail all in-flight/background sync attempts as well as the explicit pre-submit write.
     mocks.saveCartFailures = 20;
-    await clickButtonContaining("تأكيد الطلب");
+    await act(async () => {
+      fireEvent.click(submitButton!);
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    });
+    await flush();
 
+    expect(vi.mocked(saveCustomerCart).mock.calls.length).toBeGreaterThan(0);
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain("synthetic persistent cart refusal");
     expect(host?.querySelector('[role="alert"]')?.getAttribute("aria-live")).toBe("assertive");
     expect(mocks.submitCalls).toHaveLength(0);
