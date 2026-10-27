@@ -375,6 +375,27 @@ async function main() {
   assert.equal(preRevocationCapabilities.can_quote, true,
     "buyer membership may request quotes before revocation");
 
+  const quoteRequestAuditSnapshot = async () => (await admin.unsafe(
+    "select " +
+      "(select count(*)::integer from public.sales_quotes where organization_id=$1::uuid and customer_id=$2::uuid) as quotes, " +
+      "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and entity_type='sales_quote') as quote_audits",
+    [organizationId, customerId],
+  ))[0];
+  const beforeSpoofedQuoteRequest = await quoteRequestAuditSnapshot();
+  let spoofedQuoteRequestError;
+  try {
+    await attemptMemberQuoteRequestInsert(quoteCreateClient, organizationId, customerId, customerProfileId);
+  } catch (error) {
+    spoofedQuoteRequestError = error;
+  }
+  const afterSpoofedQuoteRequest = await quoteRequestAuditSnapshot();
+  assert.deepEqual(afterSpoofedQuoteRequest, beforeSpoofedQuoteRequest,
+    "quote request attributed to a different profile must leave no quote or audit side effects");
+  assert.ok(spoofedQuoteRequestError,
+    "active company member cannot attribute a quote request to another profile");
+  assert.equal(spoofedQuoteRequestError.code, "42501",
+    "spoofed quote-request actor must be denied by the server-side guard");
+
   const quoteId = (await admin.unsafe(
     "insert into public.sales_quotes(organization_id,customer_id,quote_number,status,notes,created_by,quoted_at,valid_until) " +
       "values($1::uuid,$2::uuid,$3,'quoted','CI member revocation race',$4::uuid,now(),now()+interval '7 days') returning id",
