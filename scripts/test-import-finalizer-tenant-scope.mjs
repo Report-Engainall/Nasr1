@@ -110,6 +110,83 @@ async function main() {
   jobId = created.id;
   assert.equal(created.organization_id, organizationId);
 
+  // Seed server-owned processing metadata, then attempt to overwrite it through the
+  // authenticated failure RPC. The RPC may save diagnostic code/message only.
+  const preservedSummary = {
+    processing_config_fingerprint: "a".repeat(64),
+    source_file_hash: fileHash,
+    period_key: "ci-finalizer-2026-10",
+    source_system: "ci-finalizer-scope",
+    external_source_reference: null,
+    is_full_dataset: false,
+    profile_id: null,
+    profile_version: null,
+    parser: "ci-finalizer-test",
+    processing_chunk_rows: 1000,
+    upload_chunk_bytes: 4194304,
+  };
+  await admin.unsafe(
+    "update public.import_jobs set error_summary=$2::jsonb where id=$1::uuid and organization_id=$3::uuid",
+    [jobId, admin.json(preservedSummary), organizationId],
+  );
+
+  await setIdentity(staff, staffAuthUserId, staffEmail, staffSessionId);
+  const failureRows = await staff.unsafe(
+    "select public.fail_import_job_safely($1::uuid,$2::jsonb) as result",
+    [jobId, staff.json({
+      code: "IMPORT_PROCESSING_FAILED",
+      message: "CI malicious failure-summary metadata test",
+      resumable: false,
+      no_raw_file_retained: false,
+      processing_config_fingerprint: "b".repeat(64),
+      source_file_hash: "f".repeat(64),
+      period_key: "forged-period",
+      source_system: "forged-source",
+      external_source_reference: "forged-external-reference",
+      is_full_dataset: true,
+      profile_id: foreignProfileId,
+      profile_version: 999,
+      parser: "forged-parser",
+      processing_chunk_rows: 1,
+      upload_chunk_bytes: 1,
+    })],
+  );
+  await staff.unsafe("reset role");
+  const failureResult = failureRows[0]?.result;
+  assert.equal(failureResult?.status, "failed", "failure reconciliation must still mark a nonterminal job failed");
+  assert.equal(failureResult?.terminal, false);
+
+  const preservedRows = await admin.unsafe(
+    "select status,error_summary from public.import_jobs where id=$1::uuid and organization_id=$2::uuid",
+    [jobId, organizationId],
+  );
+  assert.equal(preservedRows.length, 1);
+  assert.equal(preservedRows[0].status, "failed");
+  const savedSummary = preservedRows[0].error_summary;
+  assert.equal(savedSummary.processing_config_fingerprint, preservedSummary.processing_config_fingerprint,
+    "client failure payload cannot overwrite the verified processing fingerprint");
+  assert.equal(savedSummary.source_file_hash, fileHash,
+    "client failure payload cannot overwrite the source file identity");
+  assert.equal(savedSummary.period_key, preservedSummary.period_key,
+    "client failure payload cannot change the import period");
+  assert.equal(savedSummary.source_system, preservedSummary.source_system,
+    "client failure payload cannot change the source system");
+  assert.equal(savedSummary.external_source_reference, null,
+    "client failure payload cannot inject an external source identity");
+  assert.equal(savedSummary.is_full_dataset, false,
+    "client failure payload cannot claim an incremental file is a complete dataset");
+  assert.equal(savedSummary.profile_id, null);
+  assert.equal(savedSummary.profile_version, null);
+  assert.equal(savedSummary.parser, "ci-finalizer-test");
+  assert.equal(savedSummary.processing_chunk_rows, 1000);
+  assert.equal(savedSummary.upload_chunk_bytes, 4194304);
+  assert.equal(savedSummary.code, "IMPORT_PROCESSING_FAILED");
+  assert.equal(savedSummary.message, "CI malicious failure-summary metadata test",
+    "bounded failure diagnostics are still persisted");
+  assert.equal(savedSummary.resumable, true, "server controls resumability");
+  assert.equal(savedSummary.no_raw_file_retained, true, "server controls raw-file retention disclosure");
+  process.stdout.write("PASS import failure metadata integrity: client failure payload cannot overwrite server-owned processing fingerprint, source identity, profile, period, or full-dataset metadata\\n");
+
   const initial = await admin.unsafe(
     "select id,organization_id,created_by,status from public.import_jobs where id=$1::uuid",
     [jobId],
