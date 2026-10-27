@@ -988,6 +988,10 @@ async function main() {
   // requests with DIFFERENT idempotency keys. Same return/payload must still yield
   // exactly one memo, source-linked journal draft, posting link, accountant task and audit.
   const creditIdempotencyKeys = [randomUUID(),randomUUID()];
+  // Reserve one physical PostgreSQL session per contender. The main db client is
+  // reused by the broader acceptance suite, so its pg_stat_activity row can be stale
+  // while the client queues this RPC; never use it as a deterministic lock-barrier actor.
+  const creditMemoFirst = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const creditMemoRacer = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const creditMemoGate = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const creditMemoApps = ["ci-return-credit-prepare-a","ci-return-credit-prepare-b"];
@@ -1002,30 +1006,14 @@ async function main() {
       "select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended($1::text || ':return-credit-memo:' || $2::text,0))",
       [organizationId,firstRequest.request_id],
     );
-    await db.unsafe("select set_config('application_name',$1,false)",[creditMemoApps[0]]);
-    const creditMemoSessionId = randomUUID();
-    await creditMemoRacer.unsafe(
-      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
-      "values($1,$2,now(),now(),now(),null,'CI return credit memo concurrency','127.0.0.1'::inet) " +
-      "on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
-      [creditMemoSessionId,managerAuthId],
-    );
-    await creditMemoRacer.unsafe("select set_config('request.jwt.claim.sub',$1,false)",[managerAuthId]);
-    await creditMemoRacer.unsafe("select set_config('request.jwt.claims',$1,false)",[
-      JSON.stringify({
-        sub:managerAuthId,
-        email:"ci-return-manager@example.test",
-        email_confirmed_at:new Date().toISOString(),
-        role:"authenticated",
-        session_id:creditMemoSessionId,
-      }),
+    await Promise.all([
+      setReturnRaceIdentity(creditMemoFirst, managerAuthId, "ci-return-manager@example.test", creditMemoApps[0], true),
+      setReturnRaceIdentity(creditMemoRacer, managerAuthId, "ci-return-manager@example.test", creditMemoApps[1], true),
     ]);
-    await creditMemoRacer.unsafe("set role authenticated");
-    await creditMemoRacer.unsafe("select set_config('application_name',$1,false)",[creditMemoApps[1]]);
-    creditMemoBackendPids = await Promise.all([db,creditMemoRacer].map(async (client) =>
+    creditMemoBackendPids = await Promise.all([creditMemoFirst,creditMemoRacer].map(async (client) =>
       Number((await client.unsafe("select pg_catalog.pg_backend_pid() as pid"))[0].pid),
     ));
-    creditMemoAttempts = Promise.allSettled([db,creditMemoRacer].map((client,index) => client.unsafe(
+    creditMemoAttempts = Promise.allSettled([creditMemoFirst,creditMemoRacer].map((client,index) => client.unsafe(
       "select public.prepare_customer_return_credit_memo($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) as result",
       [firstRequest.request_id,receivableAccountId,revenueAccountId,null,creditIdempotencyKeys[index]],
     )));
@@ -1068,6 +1056,7 @@ async function main() {
     if (creditMemoGateOpen) await creditMemoGate.unsafe("rollback").catch(()=>{});
     if (creditMemoAttempts) await Promise.allSettled([creditMemoAttempts]);
     await Promise.all([
+      creditMemoFirst.end({timeout:5}).catch(()=>{}),
       creditMemoRacer.end({timeout:5}).catch(()=>{}),
       creditMemoGate.end({timeout:5}).catch(()=>{}),
     ]);
