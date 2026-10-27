@@ -67,6 +67,10 @@ async function createPersistedOrder(page: Page): Promise<{ orderNumber: string; 
 
   await expect(page.locator(".sf-cart-btn").first()).toContainText("1", { timeout: 10_000 });
   await page.goto("/cart");
+  await expect(
+    page.getByText("تم حفظ سلتك في حسابك؛ ستظهر عند الدخول من جهاز آخر.", { exact: true }),
+    "The authenticated cart must be durably synchronized before progressing to checkout.",
+  ).toBeVisible({ timeout: 30_000 });
   const checkout = page.getByRole("button", { name: "إتمام الطلب", exact: true });
   await expect(checkout, "The profile-scoped cart must restore when navigating between routes.").toBeEnabled({ timeout: 30_000 });
   await checkout.click();

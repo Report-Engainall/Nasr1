@@ -55,6 +55,7 @@ const mocks = vi.hoisted(() => ({
   fetchAnnouncements: vi.fn(),
   fetchCatalogPage: vi.fn(),
   cartLines: [] as Array<{ product_id: string; quantity: number }>,
+  saveCartFailures: 0 as number,
   productReadFailures: 0,
   validationFailures: 0,
   submitFailures: 0,
@@ -87,10 +88,13 @@ vi.mock("@/lib/storefront-catalog", () => ({
 
 vi.mock("@/lib/customer-cart", () => ({
   fetchCustomerCart: vi.fn(async () => ({ items: mocks.cartLines, updated_at: null })),
-  saveCustomerCart: vi.fn(async (lines: Array<{ product_id: string; quantity: number }>) => ({
-    items: lines,
-    updated_at: null,
-  })),
+  saveCustomerCart: vi.fn(async (lines: Array<{ product_id: string; quantity: number }>) => {
+    if (mocks.saveCartFailures > 0) {
+      mocks.saveCartFailures -= 1;
+      throw new Error("synthetic persistent cart refusal");
+    }
+    return { items: lines, updated_at: null };
+  }),
 }));
 
 vi.mock("@/lib/offline-cart", () => ({
@@ -187,6 +191,7 @@ describe("customer cart and checkout real route acceptance", () => {
     vi.clearAllMocks();
     mocks.user = null;
     mocks.cartLines = [];
+    mocks.saveCartFailures = 0;
     mocks.productReadFailures = 0;
     mocks.validationFailures = 0;
     mocks.submitFailures = 0;
@@ -385,11 +390,17 @@ describe("customer cart and checkout real route acceptance", () => {
     });
     await flush();
 
-    vi.mocked(saveCustomerCart).mockRejectedValueOnce(new Error("synthetic persistent cart refusal"));
+    // Fail all in-flight/background sync attempts as well as the explicit pre-submit write.
+    mocks.saveCartFailures = 20;
     await clickButtonContaining("تأكيد الطلب");
 
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain("synthetic persistent cart refusal");
     expect(mocks.submitCalls).toHaveLength(0);
     expect(host?.textContent).not.toContain("SO-TEST-001");
+
+    mocks.saveCartFailures = 0;
+    await clickButtonContaining("تأكيد الطلب");
+    expect(host?.textContent).toContain("SO-TEST-001");
+    expect(mocks.submitCalls).toHaveLength(1);
   });
 });
