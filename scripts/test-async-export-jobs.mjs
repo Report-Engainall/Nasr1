@@ -19,6 +19,10 @@ const first = postgres(url, { max: 1, prepare: false });
 const foreign = postgres(url, { max: 1, prepare: false });
 const customer = postgres(url, { max: 1, prepare: false });
 const raceWorker = postgres(url, { max: 1, prepare: false });
+const cancelRaceGatePool = postgres(url, { max: 1, prepare: false });
+const cancelRaceUserPool = postgres(url, { max: 1, prepare: false });
+const cancelRaceWorkerPool = postgres(url, { max: 1, prepare: false });
+const cancelClaimFirstPool = postgres(url, { max: 1, prepare: false });
 
 async function identity(db, authUser, email) {
   await db.unsafe("reset role").catch(() => {});
@@ -38,6 +42,23 @@ async function denied(label, action) {
   assert.ok(error, label + " must be denied");
   assert.match(String(error.message), /permission denied/i, label + " must fail by table privilege");
 }
+async function waitForLock(pid, queryNeedle, label) {
+  let lastActivity = [];
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    lastActivity = await admin.unsafe(
+      "select pid,state,wait_event_type,wait_event,left(query,240) as query " +
+        "from pg_catalog.pg_stat_activity where pid=$1::integer",
+      [pid],
+    );
+    if (lastActivity.some((row) =>
+      Number(row.pid) === pid && row.state === "active" &&
+      row.wait_event_type === "Lock" && String(row.query).includes(queryNeedle)
+    )) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.fail(label + ": expected a lock wait on the exact backend; observed " + JSON.stringify(lastActivity));
+}
+
 async function createJob(db, key, f = filters) {
   return rpc(db, "select public.request_async_export_job('orders_csv',$1::jsonb,$2::text) as result", [f, key]);
 }
@@ -259,6 +280,126 @@ async function main() {
   assert.equal(cancel.cancelled, true);
   assert.equal(cancel.status, "cancelled");
 
+  // P1 acceptance: cancellation and worker claim must serialize without a ghost export.
+  // Case A: cancellation holds the row first; FOR UPDATE SKIP LOCKED must not claim it.
+  // Case B: worker claim holds the row first; cancellation must report the live processing state,
+  // and only the current lease owner may complete it. These are controlled PostgreSQL 17 races.
+  const cancelFirstJob = await createJob(first, prefix + "CANCEL-CLAIM-CANCEL-FIRST");
+  const claimFirstJob = await createJob(first, prefix + "CANCEL-CLAIM-CLAIM-FIRST");
+  const cancelRaceGate = await cancelRaceGatePool.reserve();
+  const cancelRaceUser = await cancelRaceUserPool.reserve();
+  const cancelRaceWorker = await cancelRaceWorkerPool.reserve();
+  const claimFirstClient = await cancelClaimFirstPool.reserve();
+  let cancelGateOpen = false;
+  let claimFirstTransactionOpen = false;
+  let pendingCancellation = null;
+  try {
+    await identity(cancelRaceUser, actorAuth, "ci-async-export-admin@aghbari.ye");
+
+    await cancelRaceGate.unsafe("begin");
+    cancelGateOpen = true;
+    const cancelFirstLock = await cancelRaceGate.unsafe(
+      "select id from public.async_export_jobs where id=$1::uuid for update",
+      [cancelFirstJob.job_id],
+    );
+    assert.equal(cancelFirstLock.length, 1, "cancel-first race must lock its queued job");
+    await cancelRaceUser.unsafe("select set_config('application_name',$1,false)", ["ci-async-export-cancel-first"]);
+    const cancelFirstPid = Number((await cancelRaceUser.unsafe("select pg_catalog.pg_backend_pid() as pid"))[0].pid);
+    pendingCancellation = cancelRaceUser.unsafe(
+      "select public.cancel_my_async_export_job($1::uuid) as result",
+      [cancelFirstJob.job_id],
+    ).then((rows) => rows[0].result);
+    await waitForLock(cancelFirstPid, "cancel_my_async_export_job",
+      "cancel-first case must observe the caller blocked behind the exact locked export row");
+
+    const claimDuringCancel = await cancelRaceWorker.unsafe(
+      "select id::text as id,lease_owner,status,attempt_count " +
+        "from public.claim_async_export_jobs($1,1,300,$2::uuid)",
+      ["ci-async-export-cancel-race-worker", cancelFirstJob.job_id],
+    );
+    assert.equal(claimDuringCancel.length, 0,
+      "trusted worker must skip the row while cancellation owns its lock");
+    await cancelRaceGate.unsafe("commit");
+    cancelGateOpen = false;
+    const cancelFirstResult = await pendingCancellation;
+    pendingCancellation = null;
+    assert.equal(cancelFirstResult.cancelled, true, "cancellation wins when the queued row is serialized first");
+    assert.equal(cancelFirstResult.status, "cancelled");
+    const cancelFirstState = await admin.unsafe(
+      "select status,attempt_count,lease_owner,lease_expires_at from public.async_export_jobs where id=$1::uuid",
+      [cancelFirstJob.job_id],
+    );
+    assert.deepEqual(cancelFirstState[0], {
+      status: "cancelled", attempt_count: 0, lease_owner: null, lease_expires_at: null,
+    }, "a cancelled job must never acquire a worker lease or increment attempts");
+    const cancelFirstAudit = await admin.unsafe(
+      "select action from public.audit_logs where organization_id=$1::uuid and entity_id=$2::uuid " +
+        "and action in ('async_export.queued','async_export.cancelled','async_export.ready') order by " +
+        "case action when 'async_export.queued' then 1 when 'async_export.cancelled' then 2 when 'async_export.ready' then 3 else 4 end",
+      [org, cancelFirstJob.job_id],
+    );
+    assert.deepEqual(cancelFirstAudit.map((row) => row.action), ["async_export.queued","async_export.cancelled"],
+      "cancel-first race must create one cancellation event and no ready event");
+
+    // Case B: claim holds the source row in an open transaction; cancellation waits, then sees processing.
+    await cancelRaceUser.unsafe("select set_config('application_name',$1,false)", ["ci-async-export-cancel-during-claim"]);
+    const claimFirstCancelPid = Number((await cancelRaceUser.unsafe("select pg_catalog.pg_backend_pid() as pid"))[0].pid);
+    await claimFirstClient.unsafe("begin");
+    claimFirstTransactionOpen = true;
+    const claimFirstRows = await claimFirstClient.unsafe(
+      "select id::text as id,lease_owner,status,attempt_count " +
+        "from public.claim_async_export_jobs($1,1,300,$2::uuid)",
+      ["ci-async-export-claim-first-worker", claimFirstJob.job_id],
+    );
+    assert.equal(claimFirstRows.length, 1, "claim-first race must issue one real processing lease");
+    assert.equal(claimFirstRows[0].status, "processing");
+    assert.equal(claimFirstRows[0].attempt_count, 1);
+    pendingCancellation = cancelRaceUser.unsafe(
+      "select public.cancel_my_async_export_job($1::uuid) as result",
+      [claimFirstJob.job_id],
+    ).then((rows) => rows[0].result);
+    await waitForLock(claimFirstCancelPid, "cancel_my_async_export_job",
+      "claim-first case must observe cancellation waiting for the worker's exact row lock");
+    await claimFirstClient.unsafe("commit");
+    claimFirstTransactionOpen = false;
+    const cancelAfterClaim = await pendingCancellation;
+    pendingCancellation = null;
+    assert.equal(cancelAfterClaim.cancelled, false,
+      "a running job cannot be reported as cancelled after its worker lease has been granted");
+    assert.equal(cancelAfterClaim.status, "processing",
+      "cancellation response must expose the serialized processing state");
+    const claimFirstPath = org + "/" + claimFirstJob.job_id + "/orders.csv";
+    const claimFirstComplete = await rpc(cancelRaceWorker,
+      "select public.complete_async_export_job($1::uuid,$2::text,$3::text,'orders.csv','text/csv',100,$4::text,1) as result",
+      [claimFirstJob.job_id, "ci-async-export-claim-first-worker", claimFirstPath, "e".repeat(64)],
+    );
+    assert.equal(claimFirstComplete.status, "ready",
+      "the active lease owner may complete after cancellation correctly reports processing");
+    const claimFirstState = await admin.unsafe(
+      "select status,attempt_count,lease_owner,lease_expires_at from public.async_export_jobs where id=$1::uuid",
+      [claimFirstJob.job_id],
+    );
+    assert.equal(claimFirstState[0].status, "ready");
+    assert.equal(claimFirstState[0].attempt_count, 1);
+    assert.equal(claimFirstState[0].lease_owner, null);
+    assert.equal(claimFirstState[0].lease_expires_at, null);
+    const claimFirstAudit = await admin.unsafe(
+      "select action from public.audit_logs where organization_id=$1::uuid and entity_id=$2::uuid " +
+        "and action in ('async_export.queued','async_export.cancelled','async_export.ready') order by " +
+        "case action when 'async_export.queued' then 1 when 'async_export.cancelled' then 2 when 'async_export.ready' then 3 else 4 end",
+      [org, claimFirstJob.job_id],
+    );
+    assert.deepEqual(claimFirstAudit.map((row) => row.action), ["async_export.queued","async_export.ready"],
+      "claim-first race must not write a false cancellation audit");
+  } finally {
+    if (cancelGateOpen) await cancelRaceGate.unsafe("rollback").catch(() => {});
+    if (claimFirstTransactionOpen) await claimFirstClient.unsafe("rollback").catch(() => {});
+    if (pendingCancellation) await Promise.allSettled([pendingCancellation]);
+    for (const client of [cancelRaceGate,cancelRaceUser,cancelRaceWorker,claimFirstClient]) {
+      try { client.release(); } catch { /* preserve the original acceptance error */ }
+    }
+  }
+
   const retryJob = await createJob(first, prefix + "RETRY");
   let worker = "ci-async-export-retry";
   for (let attempt = 1; attempt <= 5; attempt += 1) {
@@ -290,7 +431,8 @@ async function main() {
 }
 main().finally(async () => {
   await cleanup();
-  await Promise.all([admin.end(), first.end(), foreign.end(), customer.end(), raceWorker.end()]);
+  await Promise.all([admin.end(), first.end(), foreign.end(), customer.end(), raceWorker.end(),
+    cancelRaceGatePool.end(), cancelRaceUserPool.end(), cancelRaceWorkerPool.end(), cancelClaimFirstPool.end()]);
 }).catch((error) => {
   console.error("ASYNC_EXPORT_JOBS_FAILED:", error?.message ?? error);
   process.exitCode = 1;
