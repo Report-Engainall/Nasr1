@@ -28,11 +28,7 @@ BEGIN
   END IF;
 
   v_profile := public.current_profile_id();
-  IF v_profile IS NULL
-     OR NOT EXISTS (
-       SELECT 1 FROM public.user_roles r
-        WHERE r.profile_id = v_profile AND r.role = 'customer'
-     ) THEN
+  IF v_profile IS NULL THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
       MESSAGE = 'active customer profile required for quote requests';
   END IF;
@@ -69,6 +65,11 @@ REVOKE ALL ON FUNCTION public.guard_customer_quote_request_member_insert()
   FROM PUBLIC, anon, authenticated;
 
 DROP TRIGGER IF EXISTS sales_quotes_customer_member_request_guard ON public.sales_quotes;
+-- Trigger-order dependency: PostgreSQL orders same-event triggers by name.
+-- Keep the RI_ConstraintTrigger_* customer FK checks ahead of this guard and keep
+-- those foreign keys NOT DEFERRABLE, so their lock waits finish before revalidating
+-- membership. Renaming this trigger to sort before the RI_ triggers would reopen
+-- the membership-revocation race.
 CREATE TRIGGER sales_quotes_customer_member_request_guard
 AFTER INSERT ON public.sales_quotes
 FOR EACH ROW EXECUTE FUNCTION public.guard_customer_quote_request_member_insert();
