@@ -21,11 +21,17 @@ DECLARE
 BEGIN
   -- Trusted jobs with no end-user identity may perform controlled maintenance.
   -- Authenticated requests must still prove current customer scope below.
-  IF auth.uid() IS NULL THEN
+  IF coalesce(auth.jwt()->>'role', '') = 'service_role'
+     OR (auth.uid() IS NULL AND session_user = 'postgres') THEN
+    -- A trusted service-role caller or direct PostgreSQL migration/admin session.
     IF TG_OP = 'DELETE' THEN
       RETURN OLD;
     END IF;
     RETURN NEW;
+  END IF;
+
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'authenticated customer identity required';
   END IF;
 
   IF TG_TABLE_NAME = 'customer_addresses' THEN
