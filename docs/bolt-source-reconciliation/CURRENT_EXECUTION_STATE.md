@@ -1,3 +1,24 @@
+# CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PR #283
+
+- **Exclusive repository:** `Report-Engainall/Nasr1`; default branch `main`. **LAST_MERGED_SHA:** `07fa889275526b2ba164784ba2fc6b2bbcc01e29` (PR #283 squash merge). **Release gate remains `NO-GO — FULL PRODUCTION RELEASE`.**
+- **PR #283 — persistent customer-cart membership revocation guard:** merged at 07fa889275526b2ba164784ba2fc6b2bbcc01e29: https://github.com/Report-Engainall/Nasr1/pull/283. The migration `20261027220000_customer_cart_member_revocation_guard.sql` now serializes both `get_customer_cart()` and `sync_customer_cart(jsonb)` against `revoke_customer_company_member()` through a shared customer-row lock; after lock waits, the functions re-check the active customer scope and fail with SQLSTATE `42501` if the membership was revoked. The sync path validates payloads before mutating the stored cart; the deterministic race acceptance verifies that revoked in-flight cart reads and writes are denied and that the cart/items/audit snapshot remains unchanged. No production migration or production data write was performed.
+- **Exact PR-head evidence only:** Core [40551865127 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40551865127), P2 [40551865116 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40551865116), and PostgreSQL 17 [40551865300 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40551865300), all on tested head `3bb70ec9f2a752cba80463a6653ad84cac4b59b2`. The merge commit has the same tree `4fa8e1627d29cad017ada7aa6ac4a306fc58ecb9` as the tested PR head, but GitHub returned **no post-merge workflow run** for merge SHA `07fa889275526b2ba164784ba2fc6b2bbcc01e29`; therefore **POST-MERGE CORE = NOT VERIFIED** and the pre-merge statuses must not be relabelled as post-merge results.
+- **P2 proof boundary:** the public storefront smoke and local authenticated Supabase/Chromium flow (including order persistence and cross-tenant denial, returns/credit memo, Onyx XLSX fixture flow, finance/task printing, customer-manager privacy/audit, and device-session revocation checks) succeeded on the exact PR head. The separate hosted authenticated customer/tenant job was **SKIPPED**; it is not a hosted or production pass.
+- **Previously merged member-write guards remain preserved:** #273 address/contact, #277 order insert and #279 quote/reorder protections. PR #283 adds the cart path rather than recreating those migrations or their existing tests.
+- **Outstanding release blockers:** hosted authenticated customer/tenant E2E with authorized non-production credentials; real Onyx Pro target sync/import receipt; official WhatsApp delivery receipt; live AI-provider runtime evidence; production migration/deploy/rollback evidence; and backup/restore proof with RPO/RTO. Keep `NO-GO` until all applicable release gates are met and signed off.
+
+**Checkpoint fields**
+- `LAST_VERIFIED_SHA`: `3bb70ec9f2a752cba80463a6653ad84cac4b59b2` (exact pre-merge head; successful Core/P2/PG17).
+- `LAST_MERGED_SHA`: `07fa889275526b2ba164784ba2fc6b2bbcc01e29`.
+- `MERGED_PR_URL`: https://github.com/Report-Engainall/Nasr1/pull/283
+- `TESTED_EXACT_SHA`: `3bb70ec9f2a752cba80463a6653ad84cac4b59b2`.
+- `TEST_RESULTS`: Core 40551865127 SUCCESS; P2 40551865116 SUCCESS; dedicated PostgreSQL 17 40551865300 SUCCESS, each on `3bb70ec9f2a752cba80463a6653ad84cac4b59b2`.
+- `COMPLETED_REQUIREMENTS`: active membership is re-checked after customer-row lock waits in persistent cart reads and writes; a deterministic PostgreSQL 17 race verifies fail-closed behavior, SQLSTATE, and no cart/audit side effects after revocation.
+- `BLOCKED_REQUIREMENTS`: post-merge Core not returned on `07fa889275526b2ba164784ba2fc6b2bbcc01e29`; hosted authenticated customer E2E skipped; live Onyx, official WhatsApp, AI runtime, production deploy/migration/rollback, and production backup/restore remain external evidence gates.
+- `NEXT_ACTION`: obtain an exact-main post-merge Core/PG17 result for `07fa889275526b2ba164784ba2fc6b2bbcc01e29` without relabelling PR-head results; then continue the source-backed semantic audit at the next genuinely unclosed high-risk RPC/member authorization boundary.
+
+---
+
 # CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PR #279
 
 - **Authoritative target:** `Report-Engainall/Nasr1`, branch `main`. **LAST_MERGED_SHA:** `c78947f89f18e56c03dc64dee901d627e6873ee5` (PR #279). **Release gate remains `NO-GO — FULL PRODUCTION RELEASE`.**
