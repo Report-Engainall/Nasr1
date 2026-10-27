@@ -121,6 +121,17 @@ async function saveAddress(client, addressId, label, street, isDefault = true) {
   return rows[0].id;
 }
 
+async function saveCompanyContact(client, contactId, fullName, phone, email, isPrimary = false) {
+  const rows = await client.unsafe(
+    "select public.save_customer_company_contact(" +
+      "$1::uuid,$2::text,$3::text,$4::text,$5::text,$6::text,$7::boolean" +
+    ") as id",
+    [contactId, fullName, "CI Revocation Test", "Operations", phone, email, isPrimary],
+  );
+  assert.equal(rows.length, 1, "company contact RPC must return one result");
+  return rows[0].id;
+}
+
 async function waitForBothConnectionsToBlock(applicationNames, timeoutMs = 10000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -258,6 +269,149 @@ async function main() {
     createAudits.every((row) => row.actor_id === customerProfileId),
     "each address audit must be attributed to the authenticated owner profile",
   );
+
+  // A member RPC can pass its early capability check, wait for the customer's
+  // row lock, and then resume after the owner commits a membership revocation.
+  // Exercise both address and company-contact writes in separate sessions so the
+  // PostgreSQL 17 lock barrier proves this is a real in-flight race, not sequential
+  // authorization after the membership has already been revoked.
+  const memberProfileId = randomUUID();
+  const memberAuthUserId = randomUUID();
+  const memberEmail = "ci-address-revoked-member-" + randomUUID().slice(0, 8) + "@example.test";
+  await admin.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()) " +
+      "on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [memberAuthUserId, memberEmail],
+  );
+  await admin.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
+      "values($1,$2,$3,$4,$5,true) on conflict(id) do update set " +
+      "auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id," +
+      "full_name=excluded.full_name,email=excluded.email,is_active=true",
+    [memberProfileId, memberAuthUserId, organizationId, "CI Revoked Member", memberEmail],
+  );
+  await admin.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'customer') " +
+      "on conflict(profile_id,role) do nothing",
+    [memberProfileId],
+  );
+
+  await setIdentity(addressClients[0], customerAuthId, customerEmail,
+    "ci-revoke-owner-" + randomUUID().slice(0, 8));
+  const memberInvite = (await addressClients[0].unsafe(
+    "select public.create_customer_company_invitation($1::text,$2::text) as result",
+    [memberEmail, "buyer"],
+  ))[0].result;
+  assert.match(memberInvite.invitation_token, /^[0-9a-f]{64}$/i,
+    "the owner-issued membership token must be well formed");
+
+  const memberAddressApp = "ci-revoke-address-" + randomUUID().slice(0, 8);
+  const memberContactApp = "ci-revoke-contact-" + randomUUID().slice(0, 8);
+  await Promise.all([
+    setIdentity(addressClients[1], memberAuthUserId, memberEmail, memberAddressApp),
+    setIdentity(foreignClient, memberAuthUserId, memberEmail, memberContactApp),
+  ]);
+  const acceptedMembership = (await addressClients[1].unsafe(
+    "select public.accept_customer_company_invitation($1::text) as result",
+    [memberInvite.invitation_token],
+  ))[0].result;
+  assert.equal(acceptedMembership.customer_id, customerId,
+    "member acceptance must be scoped to the owning customer");
+  assert.equal(acceptedMembership.member_role, "buyer");
+  const preRevocationCapabilities = (await addressClients[1].unsafe(
+    "select public.current_customer_can('addresses.manage') as can_address, " +
+      "public.current_customer_can('contacts.manage') as can_contact",
+  ))[0];
+  assert.equal(preRevocationCapabilities.can_address, true,
+    "buyer membership may create addresses before revocation");
+  assert.equal(preRevocationCapabilities.can_contact, true,
+    "buyer membership may create company contacts before revocation");
+
+  const beforeRevocationMutations = (await admin.unsafe(
+    "select " +
+      "(select count(*)::integer from public.customer_addresses where organization_id=$1::uuid and customer_id=$2::uuid) as addresses, " +
+      "(select count(*)::integer from public.customer_company_contacts where organization_id=$1::uuid and customer_id=$2::uuid) as contacts, " +
+      "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and actor_id=$3::uuid " +
+        "and entity_type in ('customer_address','customer_company_contact')) as member_mutation_audits",
+    [organizationId, customerId, memberProfileId],
+  ))[0];
+
+  let revocationTxOpen = false;
+  let pendingMemberWrites;
+  try {
+    await addressClients[0].unsafe("begin");
+    revocationTxOpen = true;
+    const revoked = await addressClients[0].unsafe(
+      "select public.revoke_customer_company_member($1::uuid) as result",
+      [memberProfileId],
+    );
+    assert.equal(revoked[0].result, true,
+      "the owner revocation should be pending but uncommitted while the member requests wait");
+
+    pendingMemberWrites = Promise.allSettled([
+      saveAddress(addressClients[1], null, "CI Revoked In-flight Address",
+        "Denied after revocation", false),
+      saveCompanyContact(foreignClient, null, "CI Revoked In-flight Contact",
+        "7777654321", memberEmail, false),
+    ]);
+    const barrier = await waitForBothConnectionsToBlock([memberAddressApp, memberContactApp]);
+    await addressClients[0].unsafe("commit");
+    revocationTxOpen = false;
+    const outcomes = await pendingMemberWrites;
+
+    assert.equal(
+      barrier.observed,
+      true,
+      "both writes must reach the customer-row lock after the early capability check; observed=" +
+        JSON.stringify(barrier.rows),
+    );
+    for (const [index, outcome] of outcomes.entries()) {
+      const label = index === 0 ? "address mutation" : "company-contact mutation";
+      assert.equal(outcome.status, "rejected",
+        label + " must be denied when membership revocation commits while it is waiting");
+      assert.equal(outcome.reason.code, "42501", label + " must fail with authorization SQLSTATE 42501");
+      assert.match(String(outcome.reason.message),
+        /company membership is no longer active or lacks mutation capability/i,
+        label + " must be denied by the write-boundary membership guard");
+    }
+  } catch (error) {
+    if (revocationTxOpen) await addressClients[0].unsafe("rollback").catch(() => {});
+    if (pendingMemberWrites) await pendingMemberWrites.catch(() => {});
+    throw error;
+  }
+
+  const afterRevocationMutations = (await admin.unsafe(
+    "select " +
+      "(select count(*)::integer from public.customer_addresses where organization_id=$1::uuid and customer_id=$2::uuid) as addresses, " +
+      "(select count(*)::integer from public.customer_company_contacts where organization_id=$1::uuid and customer_id=$2::uuid) as contacts, " +
+      "(select count(*)::integer from public.audit_logs where organization_id=$1::uuid and actor_id=$3::uuid " +
+        "and entity_type in ('customer_address','customer_company_contact')) as member_mutation_audits",
+    [organizationId, customerId, memberProfileId],
+  ))[0];
+  assert.deepEqual(afterRevocationMutations, beforeRevocationMutations,
+    "revoked in-flight address/contact writes must leave rows and member mutation audit unchanged");
+
+  const membershipState = (await admin.unsafe(
+    "select m.status, count(a.id)::integer as revoke_audit_count " +
+      "from public.customer_company_memberships m " +
+      "left join public.audit_logs a on a.organization_id=m.organization_id " +
+        "and a.entity_type='customer_company_membership' and a.entity_id=m.id " +
+        "and a.action='customer_company_member.revoked' and a.actor_id=$3::uuid " +
+      "where m.organization_id=$1::uuid and m.customer_id=$2::uuid and m.profile_id=$4::uuid " +
+      "group by m.status",
+    [organizationId, customerId, customerProfileId, memberProfileId],
+  ))[0];
+  assert.equal(membershipState.status, "revoked", "owner revocation must commit after the wait barrier");
+  assert.equal(membershipState.revoke_audit_count, 1, "owner revocation must have exactly one audit record");
+
+  const revokedScope = (await addressClients[1].unsafe(
+    "select public.current_customer_id() as customer_id, " +
+      "public.current_customer_can('addresses.manage') as can_address, " +
+      "public.current_customer_can('contacts.manage') as can_contact",
+  ))[0];
+  assert.equal(revokedScope.customer_id, null);
+  assert.equal(revokedScope.can_address, false);
+  assert.equal(revokedScope.can_contact, false);
 
   // Create a separate active customer in tenant B and try to mutate tenant A's
   // default address by UUID. Exact ownership-guard failures and stable snapshots
