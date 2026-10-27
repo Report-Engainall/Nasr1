@@ -185,8 +185,9 @@ describe("async export download HTTP handler", () => {
 
     expect(mocks.createSignedUrl).toHaveBeenCalledWith(jobPath, 34, "orders.csv");
     expect(response.status).toBe(404);
-    expect(await json(response)).toEqual({ error: "export_not_ready_or_expired" });
-    expect(JSON.stringify(await json(response))).not.toContain("token=secret");
+    const body = await json(response);
+    expect(body).toEqual({ error: "export_not_ready_or_expired" });
+    expect(JSON.stringify(body)).not.toContain("token=secret");
   });
 
   it("returns a generic unavailable response if the auth or storage client unexpectedly throws", async () => {
