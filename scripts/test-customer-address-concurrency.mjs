@@ -166,7 +166,7 @@ async function attemptMemberQuoteRequestInsert(client, organizationId, customerI
 }
 
 async function syncMemberCart(client) {
-  return client.unsafe("select public.sync_customer_cart($1::jsonb)", [JSON.stringify([])]);
+  return client.unsafe("select public.sync_customer_cart($1::jsonb)", [client.json([])]);
 }
 
 async function waitForConnectionsToBlock(applicationNames, timeoutMs = 10000) {
