@@ -220,6 +220,9 @@ async function assertCustomerFreezeWinsReturnRequestRace({
 
 
 async function assertCustomerStatementMemberScopeAndRevocationRace({
+  // Prior assertions deliberately impersonate authenticated roles on the shared fixture
+  // connection; reset to the database owner before seeding synthetic test identities.
+  await db.unsafe("reset role");
   organizationId,
   customerId,
   ownerProfileId,
