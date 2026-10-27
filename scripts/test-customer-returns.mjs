@@ -389,6 +389,57 @@ async function main() {
     [organizationId],
   );
   assert.equal(foreignWarehouseRows.length,1,"receipt acceptance requires a foreign-tenant warehouse fixture");
+
+  // Snapshot the entire source/receipt/movement/audit/task boundary before the
+  // foreign-warehouse request, then compare it after denial to prove the failed
+  // call has no partial business side effects.
+  const receiptBoundarySnapshotSql = `
+    select jsonb_build_object(
+      'request', (select to_jsonb(r) from public.customer_return_requests r where r.id=$1::uuid),
+      'items', coalesce((
+        select jsonb_agg(to_jsonb(i) order by i.id)
+          from public.customer_return_request_items i
+         where i.organization_id=$2::uuid and i.return_request_id=$1::uuid
+      ), '[]'::jsonb),
+      'receipts', coalesce((
+        select jsonb_agg(to_jsonb(h) order by h.id)
+          from public.customer_return_receipts h
+         where h.organization_id=$2::uuid and h.return_request_id=$1::uuid
+      ), '[]'::jsonb),
+      'receipt_movements', coalesce((
+        select jsonb_agg(to_jsonb(m) order by m.id)
+          from public.inventory_movements m
+          join public.customer_return_receipts h
+            on h.id=m.reference_id and h.organization_id=$2::uuid
+         where h.return_request_id=$1::uuid
+           and m.reference_type='customer_return_receipt'
+      ), '[]'::jsonb),
+      'request_movements', coalesce((
+        select jsonb_agg(to_jsonb(m) order by m.id)
+          from public.inventory_movements m
+          join public.customer_return_requests r
+            on r.id=m.reference_id and r.organization_id=$2::uuid
+         where m.reference_type='customer_return_request'
+           and m.reference_id=$1::uuid
+      ), '[]'::jsonb),
+      'audit', coalesce((
+        select jsonb_agg(to_jsonb(a) order by a.id)
+          from public.audit_logs a
+         where a.organization_id=$2::uuid and a.entity_id=$1::uuid
+      ), '[]'::jsonb),
+      'tasks', coalesce((
+        select jsonb_agg(to_jsonb(t) order by t.id)
+          from public.ai_tasks t
+         where t.organization_id=$2::uuid
+           and t.source_event_key='customer-return-receipt:' || $1::text
+      ), '[]'::jsonb)
+    ) as snapshot
+  `;
+  await db.unsafe("reset role");
+  const receiptBoundaryBeforeRows = await db.unsafe(receiptBoundarySnapshotSql, [firstRequest.request_id,organizationId]);
+  assert.equal(receiptBoundaryBeforeRows.length,1,"return receipt denial snapshot must resolve one source boundary");
+  const receiptBoundaryBefore = asJson(receiptBoundaryBeforeRows[0].snapshot);
+
   await db.unsafe("set role authenticated");
   await expectFailure(
     "return receipt cannot target another tenant's warehouse",
@@ -398,6 +449,15 @@ async function main() {
     ),
     /warehouse.*current organization/i,
   );
+  await db.unsafe("reset role");
+  const receiptBoundaryAfterRows = await db.unsafe(receiptBoundarySnapshotSql, [firstRequest.request_id,organizationId]);
+  const receiptBoundaryAfter = asJson(receiptBoundaryAfterRows[0].snapshot);
+  assert.deepEqual(
+    receiptBoundaryAfter,
+    receiptBoundaryBefore,
+    "foreign-tenant warehouse denial must not alter return source/lines, receipt records, stock movements, audit, or warehouse tasks",
+  );
+  await db.unsafe("set role authenticated");
 
   const firstReceiptLines = [{request_item_id:requestItemId,received_quantity:0.75,restockable_quantity:0.50}];
   const firstReceiptRaw = await db.unsafe(
