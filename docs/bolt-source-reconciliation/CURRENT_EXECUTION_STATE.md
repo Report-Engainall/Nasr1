@@ -1,3 +1,16 @@
+# CURRENT EXECUTION ADDENDUM — 2026-10-27 — measurable delivery matrix and final release decision gate
+
+- **Single target:** `Report-Engainall/Nasr1`; authoritative branch `main`.
+- **Latest main SHA observed at PR creation:** `4d0a5946c2a0418c0779c7081e2129a7c2f79ccf`. **Last explicitly recorded exact-SHA post-merge Core success:** `a46bd798a8a8f3e9e897b305b553562946e03cfc`, [run 40523197199 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40523197199). Do not transfer this result to a later SHA.
+- **Active PR:** [#267 — measurable delivery matrix and final decision gate](https://github.com/Report-Engainall/Nasr1/pull/267), branch `docs/measurable-delivery-release-gate-20261027`. At the last check, head `fc98f96dc180229ae8b03f7909099fc561a4b93f` had Core run [40526755761 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40526755761) and P2 run [40526755789 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40526755789). This checkpoint edit changes the PR head; do not treat those runs as validation of the new head.
+- **Scope:** the existing central matrix gains 18 measurable roll-up gates (`DLV-001..DLV-018`) plus `REL-GATE-002`; canonical specification section 20.3 defines GO / CONDITIONAL limited pilot / NO-GO; the existing requirement registry records stable IDs. No duplicate matrix or replacement specification is added.
+- **Matrix structure evidence:** 19 new acceptance IDs were checked for uniqueness/non-collision; all non-empty CSV rows have 8 columns; there are **111 data rows excluding the header**. This is structure validation only, not product/CI acceptance.
+- **Current release decision:** `NO-GO — FULL PRODUCTION RELEASE` on documented evidence. Hosted customer/tenant E2E remains SKIPPED; live Onyx Pro target import/sync, official WhatsApp delivery, real AI-provider calls, and production deploy/migration/backup/restore remain unproven. API-OPS and route roll-up still have open gaps.
+- **NEXT_ACTION:** fetch the new head of PR #267 after this edit; require terminal Core and P2 plus applicable PostgreSQL 17/targeted checks on that exact SHA. Fix failures without restarting completed work. Merge only when checks and repository policy permit, then verify post-merge checks on the exact merge SHA. Do not mark any `DLV-xxx` complete until its mapped child requirements have evidence.
+- **State rule:** keep latest known main distinct from the last verified CI SHA. Documentation changes do not prove product completion or production release.
+
+---
+
 # CURRENT EXECUTION ADDENDUM — 2026-10-27 — four verified merges and semantic theme integration
 
 - **Single execution target:** `Report-Engainall/Nasr1`; authoritative branch `main`. **Verified latest main SHA:** `a46bd798a8a8f3e9e897b305b553562946e03cfc`. Post-merge Core [40523197199 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40523197199) completed on this exact SHA.
