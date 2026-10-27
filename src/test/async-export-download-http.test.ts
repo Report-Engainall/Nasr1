@@ -172,6 +172,23 @@ describe("async export download HTTP handler", () => {
     expect(await json(failed)).toEqual({ error: "download_link_creation_failed" });
   });
 
+  it("withholds a signed URL when Storage signing latency leaves less than its advertised TTL", async () => {
+    mocks.getMyDownload.mockResolvedValueOnce({
+      data: { ...job, expires_at: new Date(nowMs + 35_000).toISOString() },
+      error: null,
+    });
+    // The first clock read chooses a 34-second TTL; Storage returns only after
+    // that URL would exceed the export's remaining lifetime.
+    mocks.now.mockReturnValueOnce(nowMs).mockReturnValueOnce(nowMs + 34_500);
+
+    const response = await handler(post(JSON.stringify({ job_id: jobId })));
+
+    expect(mocks.createSignedUrl).toHaveBeenCalledWith(jobPath, 34, "orders.csv");
+    expect(response.status).toBe(404);
+    expect(await json(response)).toEqual({ error: "export_not_ready_or_expired" });
+    expect(JSON.stringify(await json(await handler(post(JSON.stringify({ job_id: jobId }))))).not.toContain("token=secret");
+  });
+
   it("returns a generic unavailable response if the auth or storage client unexpectedly throws", async () => {
     mocks.authGetUser.mockRejectedValueOnce(new Error("upstream detail must not leak"));
     const authFailure = await handler(post(JSON.stringify({ job_id: jobId })));
