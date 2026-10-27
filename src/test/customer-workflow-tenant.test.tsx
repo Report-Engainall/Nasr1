@@ -714,7 +714,7 @@ describe("customer quote workspace tenant boundary", () => {
     expect(host?.textContent).not.toContain("25.00");
   });
 
-  it("warns when the customer invoice list reaches its 100-row read cap", async () => {
+  it("does not advertise more customer invoices when no 101st row is returned", async () => {
     mocks.user = {
       id: USER_ID,
       profileId: PROFILE_ID,
@@ -739,7 +739,8 @@ describe("customer quote workspace tenant boundary", () => {
     await mountQuoteWorkspace("/invoices");
 
     expect(host?.textContent).toContain("فواتيري");
-    expect(host?.textContent).toContain("عرض هذه الصفحة أحدث 100 فاتورة فقط");
+    expect(host?.textContent).not.toContain("عرض فواتير أقدم");
+    expect(host?.textContent).not.toContain("أحدث 100 فاتورة فقط");
   });
 
   it("fails closed when the authenticated server scope cannot be resolved", async () => {
