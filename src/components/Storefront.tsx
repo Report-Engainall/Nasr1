@@ -1148,7 +1148,7 @@ function OrderConfirm({ orderNo, orderId, onContinue }: { orderNo: string; order
 
 type MatrixFeedback = { kind: 'success' | 'error'; message: string };
 
-function QuickOrderMatrix({ products, quantities, feedback, onQuantityChange, onAddSelected, onBack, onCart }: {
+export function QuickOrderMatrix({ products, quantities, feedback, onQuantityChange, onAddSelected, onBack, onCart }: {
   products: ProductWithInventory[];
   quantities: Record<string, string>;
   feedback: MatrixFeedback | null;
@@ -1180,11 +1180,19 @@ function QuickOrderMatrix({ products, quantities, feedback, onQuantityChange, on
             </tr></thead>
             <tbody>{products.map((product) => {
               const available = Math.max(0, Math.floor(Number(product.inventory?.quantity_available ?? 0)));
+              const rawQuantity = quantities[product.id] ?? '';
+              const currentQuantity = /^\d+$/.test(rawQuantity) ? Number(rawQuantity) : 0;
               return <tr key={product.id} style={{ borderTop: '1px solid #edf2f3' }}>
                 <td style={{ padding: 12, fontWeight: 800 }}><div>{product.name}</div><small style={{ display: 'block', color: '#74888c', fontWeight: 500 }}>{product.category?.name ?? 'غير مصنف'}</small></td>
                 <td style={{ padding: 12, direction: 'ltr', textAlign: 'right' }}>{product.item_code}</td>
                 <td style={{ padding: 12, whiteSpace: 'nowrap' }}>{formatNumber(available)} {product.unit}</td>
-                <td style={{ padding: 12, minWidth: 110 }}><input type="number" inputMode="numeric" min={0} max={available} step={1} value={quantities[product.id] ?? ''} disabled={available <= 0} aria-label={`كمية ${product.name}`} onChange={(event) => { const value = event.target.value; if (value === '' || /^\d+$/.test(value)) onQuantityChange(product.id, value); }} style={{ width: 96, padding: '9px 10px', border: '1px solid #cfdddd', borderRadius: 9, background: available <= 0 ? '#f2f5f5' : '#fff', color: '#18383c' }} /></td>
+                <td style={{ padding: 12, minWidth: 160 }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <button type="button" aria-label={`تقليل كمية ${product.name}`} disabled={available <= 0 || currentQuantity <= 0} onClick={() => onQuantityChange(product.id, currentQuantity <= 1 ? '' : String(currentQuantity - 1))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Minus size={14} /></button>
+                    <input type="number" inputMode="numeric" min={1} max={available} step={1} value={rawQuantity} disabled={available <= 0} aria-label={`كمية ${product.name}`} onChange={(event) => { const value = event.target.value; if (value === '' || /^\d+$/.test(value)) onQuantityChange(product.id, value); }} style={{ width: 78, padding: '9px 8px', border: '1px solid #cfdddd', borderRadius: 9, background: available <= 0 ? '#f2f5f5' : '#fff', color: '#18383c', textAlign: 'center' }} />
+                    <button type="button" aria-label={`زيادة كمية ${product.name}`} disabled={available <= 0 || currentQuantity >= available} onClick={() => onQuantityChange(product.id, String(Math.min(available, currentQuantity + 1)))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Plus size={14} /></button>
+                  </div>
+                </td>
               </tr>;
             })}</tbody>
           </table>
