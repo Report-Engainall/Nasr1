@@ -1,4 +1,21 @@
-# CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PR #295 merge
+# CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PR #296 merge
+
+**This block supersedes all older resume pointers below. Preserve historical entries; do not execute stale NEXT_ACTION values.**
+
+- **SCOPE:** `Report-Engainall/Nasr1` only; target branch `main`.
+- **LAST_VERIFIED_SHA:** `9427e116cf28b039ec1ff02e0f57070c83de3943`.
+- **LAST_MERGED_SHA:** `9427e116cf28b039ec1ff02e0f57070c83de3943` (PR [#296](https://github.com/Report-Engainall/Nasr1/pull/296)); preceding PR #295 merge SHA `f90439c0b8c926600d9fff98b04c302553396000`.
+- **MERGED_PR_URL:** https://github.com/Report-Engainall/Nasr1/pull/296
+- **TESTED_EXACT_SHA:** `9427e116cf28b039ec1ff02e0f57070c83de3943`.
+- **TEST_RESULTS:** Core [40573716538 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40573716538); Import finalizer/PostgreSQL 17 [40573716610 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40573716610); async-export jobs/PostgreSQL 17 [40573716644 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40573716644). All terminal SUCCESS on the same exact current-main SHA.
+- **INVENTORY_EVIDENCE:** artifact ID `12766956558`, name `public-rpc-function-inventory-9427e116cf28b039ec1ff02e0f57070c83de3943`; summary `functions=316 matched=316 unmatched=0 migration_files=154`. This proves source mapping completeness, not semantic authorization for every RPC.
+- **COMPLETED_REQUIREMENTS:** `AUTHZ-MEMBER-PRICE-PREVIEW-001` (price preview fails closed after member revocation); `AUTHZ-LEGACY-PRICE-RPC-001` (direct browser execution of legacy monetary RPC revoked, safe checkout output preserved); `API-OPS-RPC-INVENTORY-001` (current-SHA inventory generated and uploaded); PR #293 invoice-PDF revocation boundary remains merged and tested.
+- **BLOCKED_REQUIREMENTS:** hosted authenticated customer/tenant E2E is SKIPPED; live Onyx, official WhatsApp delivery, live AI-provider operation, production deploy/migration/rollback, production backup/restore, and owner sign-off lack authorized evidence. Full production release remains NO-GO.
+- **NEXT_ACTION:** conduct a bounded semantic audit of the current 316-function inventory; implement the next concrete uncovered authorization, tenant-isolation, or no-side-effect gap only when source review shows one. Do not repeat already merged price, invoice-PDF, cart, or import guards.
+
+---
+
+## Historical execution checkpoint — after PR #295 merge (superseded by the current block above)
 
 **This block supersedes all older resume pointers below. Preserve older entries as history; do not execute stale NEXT_ACTION values.**
 
