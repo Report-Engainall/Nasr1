@@ -223,6 +223,58 @@ test("catalog → cart → order → refresh, then cross-organization read denia
               [orderId],
             );
             expect(approvalAudit[0].count).toBe(1);
+
+            const events = await db.unsafe(
+              "select id::text,event_type,status,idempotency_key from public.outbox_events where organization_id=(select organization_id from public.orders where id=$1::uuid) and aggregate_id=$1::uuid and event_type='OrderCreated'",
+              [orderId],
+            );
+            expect(events, "The same browser order must enqueue exactly one OrderCreated business event.").toHaveLength(1);
+            expect(events[0].idempotency_key).toBe("order-created:" + orderId);
+
+            const workerName = "p2-browser-e2e-" + (process.env.GITHUB_RUN_ID ?? "local");
+            const claimed = await db.unsafe(
+              "select id::text from public.claim_outbox_events($1::text,10,300,$2::uuid)",
+              [workerName, events[0].id],
+            );
+            expect(claimed, "The local trusted worker must claim the exact order event before processing it.").toHaveLength(1);
+
+            const processed = await db.unsafe(
+              "select public.process_outbox_event($1::uuid,$2::text) as result",
+              [events[0].id, workerName],
+            );
+            expect(processed[0].result.status).toBe("processed");
+            expect(Number(processed[0].result.notifications_created)).toBeGreaterThan(0);
+
+            const notificationCounts = await db.unsafe(
+              "select n.profile_id::text,count(*)::int as count from public.notifications n join public.orders o on o.organization_id=n.organization_id where o.id=$1::uuid and n.type='order' and n.title='طلب جديد' and n.body like '%'||o.order_number||'%' group by n.profile_id",
+              [orderId],
+            );
+            expect(notificationCounts.length, "The accepted order must notify at least one authorized staff recipient.").toBeGreaterThan(0);
+            expect(notificationCounts.every((row) => row.count === 1), "Each staff recipient must get at most one notification for this order.").toBe(true);
+
+            const managerNotifications = await db.unsafe(
+              "select n.id::text from public.notifications n join public.profiles p on p.id=n.profile_id join public.orders o on o.organization_id=n.organization_id where o.id=$1::uuid and p.email=$2 and n.type='order' and n.title='طلب جديد' and n.body like '%'||o.order_number||'%'",
+              [orderId, managerEmail!],
+            );
+            expect(managerNotifications, "The same-tenant manager must receive the order-created notification.").toHaveLength(1);
+
+            const duplicateProcess = await db.unsafe(
+              "select public.process_outbox_event($1::uuid,$2::text) as result",
+              [events[0].id, workerName],
+            );
+            expect(duplicateProcess[0].result.status).toBe("already_processed");
+
+            const deliveryReceipts = await db.unsafe(
+              "select count(*)::int as count from public.outbox_event_deliveries where event_id=$1::uuid and consumer_key='in_app_order_created'",
+              [events[0].id],
+            );
+            expect(deliveryReceipts[0].count).toBe(1);
+
+            const notificationCountsAfterReplay = await db.unsafe(
+              "select n.profile_id::text,count(*)::int as count from public.notifications n join public.orders o on o.organization_id=n.organization_id where o.id=$1::uuid and n.type='order' and n.title='طلب جديد' and n.body like '%'||o.order_number||'%' group by n.profile_id",
+              [orderId],
+            );
+            expect(notificationCountsAfterReplay).toEqual(notificationCounts);
             databaseReadbackProven = true;
           } finally {
             await db.end({ timeout: 5 });
@@ -277,6 +329,7 @@ test("catalog → cart → order → refresh, then cross-organization read denia
         adminTransition: managerTransitionProven ? "pending -> confirmed" : "NOT_RUN / BLOCKED_EXTERNAL",
         customerReadbackAfterAdminTransition: managerTransitionProven,
         sameOrderDatabaseReadback: databaseReadbackProven,
+        outboxNotificationExactlyOnceProven: databaseReadbackProven,
         tenantBVisibleOrderNumber: false,
       }),
       contentType: "application/json",
