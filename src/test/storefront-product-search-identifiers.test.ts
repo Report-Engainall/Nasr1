@@ -38,6 +38,8 @@ describe('persisted product search identifiers', () => {
     expect(migration).toContain('GRANT EXECUTE ON FUNCTION public.get_storefront_catalog_page');
     expect(migration).not.toContain("'price_wholesale',");
     expect(migration).not.toContain("'price_retail',");
+    expect(migration).not.toContain("'base_price', CASE WHEN v_is_staff THEN prices.unit_price ELSE 0 END");
+    expect(migration).toContain("THEN pg_catalog.jsonb_build_object('base_price', prices.unit_price)");
     expect(migration).toContain('GRANT SELECT (sku, name_en) ON TABLE public.products TO anon, authenticated');
   });
 

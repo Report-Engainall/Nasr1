@@ -202,7 +202,8 @@ BEGIN
     coalesce(
       (
         SELECT pg_catalog.jsonb_agg(
-          pg_catalog.jsonb_build_object(
+          (
+            pg_catalog.jsonb_build_object(
             'id', r.id,
             'organization_id', r.organization_id,
             'category_id', r.category_id,
@@ -218,7 +219,6 @@ BEGIN
             'is_active', true,
             'is_featured', false,
             'sort_order', 0,
-            'base_price', CASE WHEN v_is_staff THEN prices.unit_price ELSE 0 END,
             'stock_quantity', coalesce(r.inventory_quantity_on_hand,0),
             'reserved_quantity', 0,
             'min_stock_level', 0,
@@ -236,6 +236,10 @@ BEGIN
                   'quantity_available', r.quantity_available
                 )
               END
+            ) || CASE WHEN v_is_staff
+                 THEN pg_catalog.jsonb_build_object('base_price', prices.unit_price)
+                 ELSE '{}'::jsonb
+               END
           )
           ORDER BY r.name, r.id
         )
