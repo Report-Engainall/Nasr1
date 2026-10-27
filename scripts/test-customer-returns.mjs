@@ -417,8 +417,9 @@ async function main() {
       'request_movements', coalesce((
         select jsonb_agg(to_jsonb(m) order by m.id)
           from public.inventory_movements m
-         where m.organization_id=$2::uuid
-           and m.reference_type='customer_return_request'
+          join public.customer_return_requests r
+            on r.id=m.reference_id and r.organization_id=$2::uuid
+         where m.reference_type='customer_return_request'
            and m.reference_id=$1::uuid
       ), '[]'::jsonb),
       'audit', coalesce((
