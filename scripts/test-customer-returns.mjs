@@ -376,6 +376,7 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
       "where organization_id=$1::uuid and key='show_price_on_cards'",
     [organizationId],
   );
+  await db.unsafe("select set_config('request.jwt.claim.role','service_role',false)");
   await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
     JSON.stringify({ role: "service_role" }),
   ]);
@@ -413,6 +414,7 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
 
   } finally {
     await db.unsafe("reset role").catch(() => {});
+    await db.unsafe("select set_config('request.jwt.claim.role','service_role',false)");
     await db.unsafe("select set_config('request.jwt.claims',$1,false)", [
       JSON.stringify({ role: "service_role" }),
     ]);
@@ -421,9 +423,10 @@ async function assertCustomerStatementMemberScopeAndRevocationRace({
       // ("true"/"false"), which the current DB guard correctly rejects; remove that invalid row
       // to restore the canonical default rather than failing cleanup or persisting an invalid value.
       await db.unsafe(
-        "update public.admin_settings set value=$2::jsonb,updated_at=pg_catalog.now() " +
-          "where organization_id=$1::uuid and key='show_price_on_cards'",
-        [organizationId, priorCardSettingRows[0].value_json],
+        "update public.admin_settings set value=CASE " +
+          "WHEN pg_catalog.jsonb_typeof(value)='boolean' THEN value ELSE 'true'::jsonb END," +
+          "updated_at=pg_catalog.now() where organization_id=$1::uuid and key='show_price_on_cards'",
+        [organizationId],
       );
     } else {
       await db.unsafe(
