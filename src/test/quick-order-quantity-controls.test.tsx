@@ -60,7 +60,7 @@ describe("QuickOrderMatrix quantity controls", () => {
     const decrease = screen.getByRole("button", { name: "تقليل كمية صنف تجريبي" });
     const increase = screen.getByRole("button", { name: "زيادة كمية صنف تجريبي" });
 
-    expect(input).toHaveValue("");
+    expect((input as HTMLInputElement).value).toBe("");
     expect(decrease).toBeDisabled();
     expect(increase).not.toBeDisabled();
     fireEvent.click(increase);
