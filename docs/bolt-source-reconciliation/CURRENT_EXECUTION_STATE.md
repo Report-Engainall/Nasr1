@@ -1,3 +1,13 @@
+# CURRENT EXECUTION ADDENDUM — 2026-10-27 — after PR #273
+
+- **Sole target:** `Report-Engainall/Nasr1`, branch `main`. **LAST_MERGED_SHA:** `0939b5d8bcddae47bcbe53b45d4366c066b041d2` (PR #273 squash merge). PR #273 is verified merged: https://github.com/Report-Engainall/Nasr1/pull/273.
+- **PR #273 — in-flight company-member revocation guard:** adds `20261027170000_company_member_revocation_mutation_guard.sql` and extends `scripts/test-customer-address-concurrency.mjs`. At the row-mutation boundary, authenticated address/contact writes re-check active profile, current organization, customer ownership and capability; customer/organization transfer attempts are rejected. This is targeted protection for address/contact mutations, not proof every membership RPC is race-proof.
+- **Exact PR-head evidence:** Core run 40537129573 SUCCESS, P2 Playwright Critical Paths run 40537129494 SUCCESS, and Import finalizer tenant-scope PostgreSQL 17 run 40537129712 SUCCESS on PR head `2a3475694c8ff7c5686a8a227aba2cea77fa810a`. These are PR-head checks. The connected workflow-run lookup returned no post-merge run for merge SHA `0939b5d8bcddae47bcbe53b45d4366c066b041d2`; therefore **POST-MERGE CORE = NOT VERIFIED**.
+- **Release gate:** `NO-GO — FULL PRODUCTION RELEASE`. Hosted authenticated customer/tenant E2E remains skipped without authorized non-production credentials. Live Onyx Pro, official WhatsApp delivery, live AI-provider behavior, production migrations/deployment and backup/restore are not evidenced by this merge.
+- **Next action:** continue source-backed semantic review of callable RPC/Edge contracts from `docs/bolt-source-reconciliation/API_OPS_CONTRACT_REGISTER_2026-10-24.md` and `PUBLIC_RPC_FUNCTION_INVENTORY_2026-10-24.md`. Select the next genuinely unclosed high-risk contract; add positive/denial, tenant isolation, idempotency/concurrency, audit and unchanged-state assertions. Do not recreate already covered invitation races, stock-count balance-set, export cancellation/claim or product-image handler tests. Run exact-head Core/P2/targeted PostgreSQL 17, then separately verify CI on the exact merge SHA. Keep the release gate NO-GO until all P0/P1 and external acceptance conditions have evidence.
+
+---
+
 # CURRENT EXECUTION ADDENDUM — 2026-10-27 — after merges #268–#271
 
 - **Sole execution target:** `Report-Engainall/Nasr1`; authoritative branch `main`. **LATEST_MAIN_SHA / LAST_MERGED_SHA:** `784337a5ec31552c1bc7c17859b272eea5db3d28` (PR #270). **Product release gate:** `NO-GO — FULL PRODUCTION RELEASE`.
