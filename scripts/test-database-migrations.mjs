@@ -6342,6 +6342,10 @@ async function main() {
   const supersededInvitation = await createActivationInvite(
     activationReplacementCustomer, "activation-replacement@example.test",
   );
+  await db.unsafe("reset role");
+  // A different authorized operator replaces the prior link; the revocation audit must identify this actor.
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
   const replacementInvitation = await createActivationInvite(
     activationReplacementCustomer, "activation-replacement@example.test",
   );
@@ -6367,8 +6371,10 @@ async function main() {
     [organizationId, supersededInvitation.invitation_id],
   );
   assert.equal(supersededAudit.length, 1, "superseding a pending link writes exactly one revocation audit");
-  assert.equal(supersededAudit[0].actor_id, supersededState.invited_by_profile_id,
-    "replacement revocation audit identifies the authorized staff actor");
+  assert.equal(supersededAudit[0].actor_id, replacementState.invited_by_profile_id,
+    "replacement revocation audit identifies the operator who superseded the prior invitation");
+  assert.notEqual(supersededAudit[0].actor_id, supersededState.invited_by_profile_id,
+    "replacement audit actor is distinct from the prior invitation creator in this cross-operator case");
   assert.equal(supersededAudit[0].old_value.status, "pending");
   assert.equal(supersededAudit[0].new_value.status, "revoked");
   assert.equal(supersededAudit[0].new_value.reason, "superseded_by_replacement_invitation");
