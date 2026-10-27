@@ -381,6 +381,7 @@
 }
 .price-grid-file-input { display: none; }
 
+
 /* Legacy dashboard/storefront CSS follows the canonical green, gold and ivory theme. */
 :root {
   --aghbari-brand: var(--primary);
@@ -396,6 +397,7 @@
   --aghbari-text-muted: var(--muted-foreground);
   --aghbari-border: var(--border);
   --aghbari-deep-surface: var(--primary);
+  --aghbari-on-brand-surface: var(--primary-foreground);
   --aghbari-accent: var(--accent);
 }
 .dark {
@@ -403,4 +405,5 @@
   --aghbari-brand-medium-surface: var(--secondary);
   --aghbari-brand-hover-surface: var(--primary-foreground);
   --aghbari-deep-surface: var(--primary-foreground);
+  --aghbari-on-brand-surface: var(--primary);
 }
