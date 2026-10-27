@@ -35,11 +35,12 @@ const product: ProductWithInventory = {
   },
 };
 
-function renderMatrix(quantities: Record<string, string>, onQuantityChange = vi.fn()) {
+function renderMatrix(quantities: Record<string, string>, onQuantityChange = vi.fn(), alreadyInCart: Record<string, number> = {}) {
   const view = render(
     <QuickOrderMatrix
       products={[product]}
       quantities={quantities}
+      alreadyInCart={alreadyInCart}
       feedback={null}
       onQuantityChange={onQuantityChange}
       onAddSelected={vi.fn()}
@@ -73,6 +74,21 @@ describe("QuickOrderMatrix quantity controls", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "تقليل كمية صنف تجريبي" }));
     expect(onQuantityChange).toHaveBeenCalledWith("product-1", "2");
+  });
+
+  it("limits the new quantity to stock remaining after the existing cart quantity", () => {
+    const { onQuantityChange } = renderMatrix({}, vi.fn(), { "product-1": 2 });
+    const input = screen.getByRole("spinbutton", { name: "كمية صنف تجريبي" });
+    const increase = screen.getByRole("button", { name: "زيادة كمية صنف تجريبي" });
+    expect(input).toHaveAttribute("max", "1");
+    expect(increase).not.toBeDisabled();
+    fireEvent.click(increase);
+    expect(onQuantityChange).toHaveBeenCalledWith("product-1", "1");
+
+    cleanup();
+    renderMatrix({}, vi.fn(), { "product-1": 3 });
+    expect(screen.getByRole("spinbutton", { name: "كمية صنف تجريبي" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "زيادة كمية صنف تجريبي" })).toBeDisabled();
   });
 
   it("disables the input and both steppers when no stock is available", () => {
