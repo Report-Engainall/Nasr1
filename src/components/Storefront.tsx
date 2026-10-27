@@ -609,7 +609,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
               : <div className="sf-empty" role="alert"><strong>المنتج غير متاح</strong><small>تعذر العثور على المنتج ضمن الكتالوج الحالي.</small><button type="button" onClick={() => void navigate({ to: '/' })}>العودة للمتجر</button></div>)}
         {view === 'wishlist' && <CollectionView title="المفضلة" priceVisibilityPolicy={settings?.show_price_on_cards} icon={Heart} products={products.filter((p) => wishlist.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="لا توجد منتجات محفوظة في المفضلة ضمن الكتالوج الحالي" />}
         {view === 'compare' && <CollectionView title="مقارنة المنتجات" priceVisibilityPolicy={settings?.show_price_on_cards} icon={GitCompare} products={products.filter((p) => compare.includes(p.id))} wishlist={wishlist} compare={compare} loading={productsLoading} error={productsError} onRetry={() => void refetchProducts()} onOpen={openProduct} onAdd={addToCart} onWishlist={toggleWishlist} onCompare={toggleCompare} onBack={() => void navigate({ to: '/' })} empty="اختر حتى ثلاثة منتجات من الكتالوج للمقارنة" />}
-        {view === 'matrix' && <QuickOrderMatrix products={filtered} quantities={matrixQuantities} feedback={matrixFeedback} onQuantityChange={(id, value) => { setMatrixQuantities((previous) => ({ ...previous, [id]: value })); setMatrixFeedback(null); }} onAddSelected={addMatrixSelection} onBack={() => setView('shop')} onCart={() => void navigate({ to: '/cart' })} />}
+        {view === 'matrix' && <QuickOrderMatrix products={filtered} quantities={matrixQuantities} alreadyInCart={Object.fromEntries(cart.map((item) => [item.product.id, item.quantity]))} feedback={matrixFeedback} onQuantityChange={(id, value) => { setMatrixQuantities((previous) => ({ ...previous, [id]: value })); setMatrixFeedback(null); }} onAddSelected={addMatrixSelection} onBack={() => setView('shop')} onCart={() => void navigate({ to: '/cart' })} />}
 
         {view === 'cart' && (!cartRestored ? (
           <section className="sf-cart-page">
@@ -1148,9 +1148,10 @@ function OrderConfirm({ orderNo, orderId, onContinue }: { orderNo: string; order
 
 type MatrixFeedback = { kind: 'success' | 'error'; message: string };
 
-function QuickOrderMatrix({ products, quantities, feedback, onQuantityChange, onAddSelected, onBack, onCart }: {
+export function QuickOrderMatrix({ products, quantities, alreadyInCart = {}, feedback, onQuantityChange, onAddSelected, onBack, onCart }: {
   products: ProductWithInventory[];
   quantities: Record<string, string>;
+  alreadyInCart?: Record<string, number>;
   feedback: MatrixFeedback | null;
   onQuantityChange: (productId: string, value: string) => void;
   onAddSelected: () => void;
@@ -1180,11 +1181,20 @@ function QuickOrderMatrix({ products, quantities, feedback, onQuantityChange, on
             </tr></thead>
             <tbody>{products.map((product) => {
               const available = Math.max(0, Math.floor(Number(product.inventory?.quantity_available ?? 0)));
+              const remainingToAdd = Math.max(0, available - Math.max(0, Math.floor(Number(alreadyInCart[product.id] ?? 0))));
+              const rawQuantity = quantities[product.id] ?? '';
+              const currentQuantity = /^\d+$/.test(rawQuantity) ? Number(rawQuantity) : 0;
               return <tr key={product.id} style={{ borderTop: '1px solid #edf2f3' }}>
                 <td style={{ padding: 12, fontWeight: 800 }}><div>{product.name}</div><small style={{ display: 'block', color: '#74888c', fontWeight: 500 }}>{product.category?.name ?? 'غير مصنف'}</small></td>
                 <td style={{ padding: 12, direction: 'ltr', textAlign: 'right' }}>{product.item_code}</td>
                 <td style={{ padding: 12, whiteSpace: 'nowrap' }}>{formatNumber(available)} {product.unit}</td>
-                <td style={{ padding: 12, minWidth: 110 }}><input type="number" inputMode="numeric" min={0} max={available} step={1} value={quantities[product.id] ?? ''} disabled={available <= 0} aria-label={`كمية ${product.name}`} onChange={(event) => { const value = event.target.value; if (value === '' || /^\d+$/.test(value)) onQuantityChange(product.id, value); }} style={{ width: 96, padding: '9px 10px', border: '1px solid #cfdddd', borderRadius: 9, background: available <= 0 ? '#f2f5f5' : '#fff', color: '#18383c' }} /></td>
+                <td style={{ padding: 12, minWidth: 160 }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <button type="button" aria-label={`تقليل كمية ${product.name}`} disabled={remainingToAdd <= 0 || currentQuantity <= 0} onClick={() => onQuantityChange(product.id, currentQuantity <= 1 ? '' : String(currentQuantity - 1))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Minus size={14} /></button>
+                    <input type="number" inputMode="numeric" min={1} max={remainingToAdd} step={1} value={rawQuantity} disabled={remainingToAdd <= 0} aria-label={`كمية ${product.name}`} onChange={(event) => { const value = event.target.value; if (value === '' || /^\d+$/.test(value)) onQuantityChange(product.id, value); }} style={{ width: 78, padding: '9px 8px', border: '1px solid #cfdddd', borderRadius: 9, background: available <= 0 ? '#f2f5f5' : '#fff', color: '#18383c', textAlign: 'center' }} />
+                    <button type="button" aria-label={`زيادة كمية ${product.name}`} disabled={remainingToAdd <= 0 || currentQuantity >= remainingToAdd} onClick={() => onQuantityChange(product.id, String(Math.min(remainingToAdd, currentQuantity + 1)))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Plus size={14} /></button>
+                  </div>
+                </td>
               </tr>;
             })}</tbody>
           </table>
