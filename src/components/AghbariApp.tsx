@@ -9,8 +9,8 @@ import {
   createCustomer, createProduct, createPricingRule, deletePricingRule, deleteProduct, fetchAiAlerts,
   fetchActiveInventoryWarehouses, fetchInventoryReorderPoint, fetchCategories, fetchCustomers, fetchDashboardStats, fetchOrders, fetchPricingRules,
   fetchProducts, setInventoryReorderPoint, togglePricingRule, transferInventory,
-  updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage,
-  approvePricingRule, previewCustomerTierPrice,
+  updateCustomerStatus, updateCustomerTier, updatePricingRule, updateProduct, uploadProductImage, removeProductImage,
+  ProductImageCleanupError, approvePricingRule, previewCustomerTierPrice,
 } from '@/lib/api';
 import type { CustomerTierPricePreview } from '@/lib/api';
 import { archiveAdminCatalogCategory, createAdminCatalogCategory, renameAdminCatalogCategory } from '@/lib/admin-catalog-commands';
@@ -445,6 +445,7 @@ export function ProductModal({
   const [price, setPrice] = useState(String(product?.base_price ?? ''));
   const [category, setCategory] = useState(product?.category_id ?? '');
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [removeImageRequested, setRemoveImageRequested] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -452,18 +453,30 @@ export function ProductModal({
   const saveInFlight = useRef(false);
 
   useEffect(() => {
-    if (!imageFile) { setImagePreview(product?.image_url ?? null); return; }
+    if (!imageFile) { setImagePreview(removeImageRequested ? null : product?.image_url ?? null); return; }
     const preview = URL.createObjectURL(imageFile);
     setImagePreview(preview);
     return () => URL.revokeObjectURL(preview);
-  }, [imageFile, product?.image_url]);
+  }, [imageFile, product?.image_url, removeImageRequested]);
 
   function chooseImage(file: File | null) {
     setError('');
     if (!file) { setImageFile(null); return; }
     const issue = validateProductImageFile(file);
-    if (issue) { setImageFile(null); setError(issue); return; }
+    if (issue) { setImageFile(null); setRemoveImageRequested(false); setError(issue); return; }
+    setRemoveImageRequested(false);
     setImageFile(file);
+  }
+
+  function clearImageSelection() {
+    setError('');
+    if (imageFile) {
+      setImageFile(null);
+      setRemoveImageRequested(false);
+      return;
+    }
+    setRemoveImageRequested(Boolean(product?.image_url));
+    setImagePreview(null);
   }
 
   async function save() {
@@ -481,10 +494,25 @@ export function ProductModal({
       if (imageFile) {
         try {
           const webp = await toWebp(imageFile);
-          await uploadProductImage(saved.id, webp);
+          await uploadProductImage(saved.id, webp, product?.image_url);
         } catch (imageCause) {
+          if (imageCause instanceof ProductImageCleanupError && imageCause.imageLinked) {
+            onSaved('تم ربط الصورة الجديدة، لكن تعذر تنظيف الصورة السابقة من التخزين.');
+            return;
+          }
           const detail = imageCause instanceof Error ? imageCause.message : 'خطأ غير معروف أثناء رفع الصورة.';
           onSaved('تم حفظ بيانات المنتج، لكن لم تُربط الصورة: ' + detail);
+          return;
+        }
+      } else if (product && removeImageRequested) {
+        try {
+          await removeProductImage(saved.id, product.image_url ?? null);
+        } catch (imageCause) {
+          if (imageCause instanceof ProductImageCleanupError && !imageCause.imageLinked) {
+            onSaved('أُزيلت الصورة من سجل المنتج، لكن تعذر تنظيف ملفها من التخزين.');
+          } else {
+            onSaved('تم حفظ بيانات المنتج، لكن تعذر تأكيد إزالة الصورة. حدّث القائمة قبل تكرار العملية.');
+          }
           return;
         }
       }
@@ -584,11 +612,16 @@ export function ProductModal({
             borderRadius: 12,
           }}
         >
-          <img
-            src={imagePreview}
-            alt={'معاينة صورة ' + name}
-            style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8 }}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: '100%' }}>
+            <img
+              src={imagePreview}
+              alt={'معاينة صورة ' + name}
+              style={{ maxWidth: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8 }}
+            />
+            <Button variant="outline" onClick={clearImageSelection} disabled={saving}>
+              {imageFile ? 'إلغاء الصورة الجديدة' : 'إزالة الصورة الحالية'}
+            </Button>
+          </div>
         </div>
       )}
       {imageFile && (

@@ -16,6 +16,35 @@ export function isValidProductImageObjectPath(path: unknown, organizationId: str
     OBJECT_RE.test(pieces[2]);
 }
 
+/** Extract only a public image object that belongs to the expected tenant and product. */
+export function extractOwnedProductImageObjectPath(
+  publicUrl: unknown,
+  organizationId: string,
+  productId: string,
+): string | undefined {
+  if (typeof publicUrl !== "string" || publicUrl.length > 2048) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(publicUrl);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash) {
+    return undefined;
+  }
+  const marker = "/object/public/product-images/";
+  const markerIndex = parsed.pathname.lastIndexOf(marker);
+  if (markerIndex < 0) return undefined;
+  const path = parsed.pathname.slice(markerIndex + marker.length);
+  // UUID path segments must be literal; encoded separators or dot segments are never accepted.
+  try {
+    if (decodeURIComponent(path) !== path) return undefined;
+  } catch {
+    return undefined;
+  }
+  return isValidProductImageObjectPath(path, organizationId, productId) ? path : undefined;
+}
+
 export function isWebpPayload(bytes: Uint8Array): boolean {
   if (bytes.byteLength < 12) return false;
   const riffSize = (bytes[4] | (bytes[5] << 8) | (bytes[6] << 16) | (bytes[7] << 24)) >>> 0;
