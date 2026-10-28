@@ -289,7 +289,6 @@ BEGIN
     SELECT
       p.id, p.organization_id, p.category_id, p.name, p.name_en, p.item_code, p.sku,
       p.barcode, p.description, p.unit, p.image_url, p.status, p.created_at,
-      p.min_order_quantity, p.order_quantity_multiple,
       inv.id AS inventory_id,
       inv.quantity_on_hand AS inventory_quantity_on_hand,
       inv.quantity_available AS inventory_quantity_available,
@@ -395,8 +394,6 @@ BEGIN
             'stock_quantity', coalesce(r.inventory_quantity_on_hand,0),
             'reserved_quantity', 0,
             'min_stock_level', 0,
-            'min_order_quantity', r.min_order_quantity,
-            'order_quantity_multiple', r.order_quantity_multiple,
             'status', r.status,
             'created_at', r.created_at,
             'display_price', prices.unit_price,
@@ -440,6 +437,6 @@ REVOKE ALL ON FUNCTION public.get_storefront_catalog_page(text, uuid, integer, i
 GRANT EXECUTE ON FUNCTION public.get_storefront_catalog_page(text, uuid, integer, integer, boolean) TO anon, authenticated;
 
 COMMENT ON FUNCTION public.get_storefront_catalog_page(text, uuid, integer, integer, boolean) IS
-  'Tenant-scoped catalog search and pagination over item code, SKU, barcode, Arabic and English names, and description. Returns one caller-authorized display price only;
+  'Tenant-scoped catalog search and pagination over item code, SKU, barcode, Arabic and English names, and description. Returns one caller-authorized display price only; never exposes tier-price columns.';
 
 COMMIT;
