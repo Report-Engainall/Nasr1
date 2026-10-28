@@ -305,7 +305,7 @@ describe("public storefront product route acceptance", () => {
 
     expect(mocks.fetchCatalogPage).not.toHaveBeenCalled();
     expect(host?.textContent).not.toContain("PAGED-OTHER-SESSION-PRIVATE-CATALOG-SENTINEL");
-    expect(host?.querySelector('[role=\"alert\"]')?.textContent).toContain("تعذر تحميل الكتالوج");
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تعذر تحميل الكتالوج");
   });
 
   it("fails closed when the live Supabase session belongs to a different identity than the stale auth context", async () => {
