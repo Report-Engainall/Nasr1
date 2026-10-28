@@ -2085,11 +2085,36 @@ export function OfflineWorkspacePage() {
     </Gate>
   );
 }
+const OFFLINE_CATALOG_SYNC_AT_KEY = "aghbari:catalog:last-server-sync:v1";
+const OFFLINE_CATALOG_STALE_AFTER_MS = 24 * 60 * 60 * 1000;
+
+function getOfflineCatalogFreshness(value: unknown, now = Date.now()): { label: string; stale: boolean } {
+  const timestamp = typeof value === "string" ? Date.parse(value) : Number.NaN;
+  if (!Number.isFinite(timestamp) || timestamp > now + 5 * 60 * 1000) {
+    return { label: "آخر تحقق من الخادم: غير معروف", stale: false };
+  }
+  const age = Math.max(0, now - timestamp);
+  const minutes = Math.floor(age / 60_000);
+  const hours = Math.floor(age / 3_600_000);
+  const days = Math.floor(age / 86_400_000);
+  const relative = minutes < 1
+    ? "منذ أقل من دقيقة"
+    : minutes < 60
+      ? "منذ " + minutes + " دقيقة"
+      : hours < 24
+        ? "منذ " + hours + " ساعة"
+        : "منذ " + days + " يوم";
+  return {
+    label: "آخر تحقق من الخادم: " + relative,
+    stale: age >= OFFLINE_CATALOG_STALE_AFTER_MS,
+  };
+}
 function Offline() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
   const [cached, setCached] = useState(0);
+  const [lastCatalogSyncAt, setLastCatalogSyncAt] = useState<string | null>(null);
   const [cachedProducts, setCachedProducts] = useState<ReturnType<typeof sanitizePublicCatalogCache>>([]);
   const [draftLines, setDraftLines] = useState<ReturnType<typeof loadOfflineCartDraft>>([]);
   const [cartCount, setCartCount] = useState(0);
@@ -2107,6 +2132,7 @@ function Offline() {
       }
       // Rewrite cached products through the allowlist so staff-only pricing fields are purged.
       localStorage.setItem("aghbari:catalog:v1", JSON.stringify(safeCatalog));
+      setLastCatalogSyncAt(localStorage.getItem(OFFLINE_CATALOG_SYNC_AT_KEY));
       setCachedProducts(safeCatalog);
       setCached(safeCatalog.length);
       const lines = loadOfflineCartDraft(window.localStorage, user?.profileId);
@@ -2131,7 +2157,7 @@ function Offline() {
     };
   }, [refresh]);
   async function sync() {
-    if (!navigator.onLine) {
+    if (!online || !navigator.onLine) {
       setMessage("لا يوجد اتصال؛ ستظل النسخة المحلية محفوظة.");
       return;
     }
@@ -2140,6 +2166,9 @@ function Offline() {
     try {
       const rows = sanitizePublicCatalogCache(await fetchProducts());
       localStorage.setItem("aghbari:catalog:v1", JSON.stringify(rows));
+      const syncedAt = new Date().toISOString();
+      localStorage.setItem(OFFLINE_CATALOG_SYNC_AT_KEY, syncedAt);
+      setLastCatalogSyncAt(syncedAt);
       refresh();
       setMessage(
         "تم تحديث نسخة الكتالوج المحلية من الخادم: " +
@@ -2175,7 +2204,7 @@ function Offline() {
     }
   }
   async function restoreDraft() {
-    if (!online || !user?.profileId) {
+    if (!online || !navigator.onLine || !user?.profileId) {
       setMessage("استعادة المسودة تتطلب اتصالًا والتحقق من الحساب الحالي.");
       return;
     }
@@ -2229,6 +2258,12 @@ function Offline() {
         <div>
           <strong>{online ? "متصل بالإنترنت" : "غير متصل بالإنترنت"}</strong>
           <p style={quiet}>حالة اتصال الجهاز لا تضمن صحة قاعدة البيانات.</p>
+          <p style={quiet}>{getOfflineCatalogFreshness(lastCatalogSyncAt).label}</p>
+          {getOfflineCatalogFreshness(lastCatalogSyncAt).stale && (
+            <p role="alert" style={{ ...quiet, color: "#b45309" }}>
+              النسخة المحلية قديمة؛ حدّث الكتالوج عند توفر الاتصال قبل الاعتماد على بياناته.
+            </p>
+          )}
         </div>
       </div>
       <div
