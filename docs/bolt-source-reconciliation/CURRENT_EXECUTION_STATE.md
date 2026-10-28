@@ -1,3 +1,18 @@
+# AUTHORITATIVE EXECUTION OVERRIDE — 2026-10-28 — PR #304 MERGED / STRICT MAIN-ONLY CLEANUP
+
+**Checkpoint rule:** this header records the verified state at the time of this documentation change. Older blocks below are historical; always read current refs/checks before acting.
+
+- **Only product/repository:** `Report-Engainall/Nasr1` — متجر الأغبري | Aghbari Commerce. `main` is the sole integration target. No direct-main writes, no force-push, and no destructive branch cleanup without verifying unique work.
+- **Latest main before this documentation merge:** `2c016df236eede3c60ed1c1d41b6a7c09d349550`, PR [#304](https://github.com/Report-Engainall/Nasr1/pull/304) squash-merged. Its exact PR head `54d71295f2d2d95b82684e501e0e6cfb79ab3890` passed Core [40608682953 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40608682953) and P2 Playwright [40608683007 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40608683007). Post-merge Core [40694914725 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40694914725) passed on the same merge SHA. The merged tests inspect actual XLSX worksheet XML and reject internal cost/margin/foreign-tier sentinel leakage. This is one export-privacy proof, not all-channel privacy closure or live Onyx proof.
+- **Branch snapshot, captured 2026-10-28 13:12 UTC:** 310 refs, with per-ref tip SHAs and classifications in `BRANCH_CLEANUP_INVENTORY_2026-10-28.csv`: 200 merged-tip cleanup candidates, 77 closed-unmerged branches needing review, 8 advanced-tip branches needing review, 23 branches without PR provenance, one active review branch, and `main`. Counts describe the snapshot at that timestamp, not a claim that cleanup has run. No remote branch refs have been deleted.
+- **Branch governance finding:** the live GitHub branches API returned `protected=false` for `main`. The connected integration received HTTP 403 reading the branch-protection endpoint, so protection/rulesets are not independently confirmed. Do not state that `main` is protected; verify and enable required branch protection using an authorized owner session.
+- **Deletion blocker:** the connected GitHub actions expose branch listing/ref updates but no delete-ref action, and authorized workstation PC01 is offline. Available TinyFish profiles have no recorded GitHub sign-in. Branch deletion and settings changes remain unexecuted until an authorized GitHub UI/CLI session is available; do not claim completion.
+- **Release gate:** **NO-GO — FULL PRODUCTION RELEASE**. Hosted authenticated customer/tenant E2E remains SKIPPED because dedicated external fixtures/credentials are absent. Live Onyx sync, official WhatsApp delivery receipts, live AI-provider behavior, production deploy/migration/rollback, production backup/restore and owner sign-off remain unproven. SKIPPED is not PASS.
+- **NEXT_ACTION:** merge this reconciled documentation only when Core and P2 are terminal SUCCESS on its exact final head; then verify post-merge main checks. Continue the single-main cleanup: review closed-unmerged/advanced/no-provenance branches, merge only changes demonstrated to satisfy open requirements, then delete all non-main refs after verifying no necessary unique work; configure main protection; re-read the live refs and prove exactly one branch remains.
+- **Constraints:** Arabic-first RTL; no paid surprise billing; no fabricated orders/payments/stock/reports; preserve production data; no direct-main writes or force-push.
+
+---
+
 # AUTHORITATIVE EXECUTION OVERRIDE — 2026-10-28 — MAIN f4136e9be2542e5fc4f34ee849c58d24c5d71df5 + DLV-005 XLSX PRIVACY
 
 **This block supersedes stale resume pointers below. Preserve historical entries; always read live refs and exact tested SHAs before acting.**
