@@ -152,6 +152,9 @@ async function main() {
     assert.equal(foreignInvoiceError.message, unknownInvoiceError.message, "foreign and unknown invoice IDs must not reveal invoice existence");
     // Query the actual tenant-scoped catalog RPC using a canonical isolated fixture row.
     // All identifier edits occur inside this script's transaction and are rolled back below.
+    // Restore the admin JWT claims before fixture writes; RESET ROLE alone does not clear auth.uid().
+    await db.unsafe("reset role");
+    await assumeUser(ADMIN_AUTH_ID, "ci-audit-admin@example.test");
     await db.unsafe("reset role");
     const searchSuffix = randomUUID().replaceAll("-", "").slice(-12);
     const searchValues = {
@@ -203,6 +206,8 @@ async function main() {
 
     // Verify the persisted featured-first and explicit sort-order contract using the live
     // tenant-scoped catalog RPC, not a client-only array sort.
+    await db.unsafe("reset role");
+    await assumeUser(ADMIN_AUTH_ID, "ci-audit-admin@example.test");
     await db.unsafe("reset role");
     const featuredUpdates = await db.unsafe(
       "update public.products set is_featured=true,sort_order=0 where id=$1::uuid and organization_id=$2::uuid and status='active' returning id::text",
