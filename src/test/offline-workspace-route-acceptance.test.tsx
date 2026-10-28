@@ -81,8 +81,11 @@ vi.mock("@/lib/supabase", async (importOriginal) => {
 describe("offline workspace real-route acceptance", () => {
   let root: Root | undefined;
   let host: HTMLDivElement | undefined;
+  let initialOnline = true;
 
   beforeEach(() => {
+    initialOnline = window.navigator.onLine;
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: initialOnline });
     vi.clearAllMocks();
     window.localStorage.clear();
     mocks.user = {
@@ -112,6 +115,7 @@ describe("offline workspace real-route acceptance", () => {
     host?.remove();
     host = undefined;
     window.localStorage.clear();
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: initialOnline });
   });
 
   async function mountOfflineRoute() {
@@ -224,6 +228,57 @@ describe("offline workspace real-route acceptance", () => {
     expect(mocks.fetchProducts).not.toHaveBeenCalled();
     expect(JSON.parse(window.localStorage.getItem(storageKey) || "[]")).toEqual(draft);
     expect(mocks.supabaseRpc).not.toHaveBeenCalled();
+  });
+
+  it("shows cached catalog age and marks a cache stale after 24 hours until a successful refresh", async () => {
+    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    window.localStorage.setItem(
+      "aghbari:catalog:last-server-sync:v1",
+      new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+    );
+    await mountOfflineRoute();
+
+    await waitFor(() => {
+      expect(host?.textContent).toContain("آخر تحقق من الخادم: منذ ");
+      expect(host?.querySelector('[role="alert"]')?.textContent).toContain("النسخة المحلية قديمة");
+    });
+
+    await act(async () => {
+      findButton("تحديث الكتالوج المحلي").click();
+    });
+    await waitFor(() => {
+      expect(host?.textContent).toContain("تم تحديث نسخة الكتالوج المحلية من الخادم: 1 صنف");
+      expect(host?.querySelector('[role="alert"]')).toBeNull();
+    });
+    const lastSync = window.localStorage.getItem("aghbari:catalog:last-server-sync:v1");
+    expect(lastSync).not.toBeNull();
+    expect(Date.parse(lastSync!)).toBeGreaterThan(Date.now() - 5 * 60 * 1000);
+  });
+
+  it("allows only a local cart draft offline and blocks catalog refresh or server restoration", async () => {
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: false });
+    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    const draft = [{ product_id: PRODUCT_ID, quantity: 2 }];
+    window.localStorage.setItem(offlineCartStorageKey(PROFILE_ID), JSON.stringify(draft));
+
+    await mountOfflineRoute();
+
+    expect(host?.textContent).toContain("غير متصل بالإنترنت");
+    expect(findButton("تحديث الكتالوج المحلي").disabled).toBe(true);
+    expect(findButton("التحقق واستعادة السلة").disabled).toBe(true);
+
+    await act(async () => {
+      findButton("حفظ مسودة السلة").click();
+    });
+    await waitFor(() => {
+      expect(host?.textContent).toContain("لن يُرسل أي طلب ولن يُعتمد سعر أو مخزون");
+    });
+
+    expect(JSON.parse(window.localStorage.getItem(offlineCartStorageKey(PROFILE_ID)) || "[]")).toEqual(draft);
+    expect(mocks.fetchProducts).not.toHaveBeenCalled();
+    expect(mocks.getCurrentTenantScope).not.toHaveBeenCalled();
+    expect(mocks.supabaseRpc).not.toHaveBeenCalled();
+    expect(mocks.supabaseFrom).not.toHaveBeenCalled();
   });
 
   it("keeps the local catalog unchanged after sync failure and recovers on retry", async () => {
