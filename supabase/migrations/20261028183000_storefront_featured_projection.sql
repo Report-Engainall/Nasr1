@@ -67,7 +67,7 @@ BEGIN
 
   WITH matched AS MATERIALIZED (
     SELECT
-      p.id, p.organization_id, p.category_id, p.brand_id, p.name, p.name_en, p.item_code, p.sku,
+      p.id, p.organization_id, p.category_id, p.name, p.name_en, p.item_code, p.sku,
       p.barcode, p.description, p.unit, p.image_url, p.status, p.created_at,
       p.min_order_quantity, p.order_quantity_multiple, p.is_featured, p.sort_order,
       coalesce(inv.quantity_available, 0)::numeric AS quantity_available
@@ -161,7 +161,6 @@ BEGIN
             'item_code', r.item_code,
             'sku', r.sku,
             'barcode', r.barcode,
-            'brand_id', r.brand_id,
             'unit', r.unit,
             'description', r.description,
             'image_url', r.image_url,
