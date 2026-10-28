@@ -127,7 +127,7 @@ describe("QuickOrderMatrix quantity controls", () => {
     expect(validateQuickOrderLines([{ ...line, quantity: 1, already_in_cart: 3 }])).toMatchObject({
       valid: false, reason: "order_policy",
     });
-    expect(validateQuickOrderLines([{ ...line, quantity: 3, available: 4 }])).toMatchObject({
+    expect(validateQuickOrderLines([{ ...line, quantity: 3, available: 2 }])).toMatchObject({
       valid: false, reason: "insufficient_stock",
     });
   });
