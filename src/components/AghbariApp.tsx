@@ -443,6 +443,8 @@ export function ProductModal({
   const [sku, setSku] = useState(product?.sku ?? '');
   const [barcode, setBarcode] = useState(product?.barcode ?? '');
   const [price, setPrice] = useState(String(product?.base_price ?? ''));
+  const [minOrderQuantity, setMinOrderQuantity] = useState(String(product?.min_order_quantity ?? 1));
+  const [orderQuantityMultiple, setOrderQuantityMultiple] = useState(String(product?.order_quantity_multiple ?? 1));
   const [category, setCategory] = useState(product?.category_id ?? '');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [removeImageRequested, setRemoveImageRequested] = useState(false);
@@ -484,11 +486,15 @@ export function ProductModal({
     if (!name.trim() || !code.trim() || !price) { setError('أكمل الحقول المطلوبة'); return; }
     const priceValue = Number(price);
     if (!Number.isFinite(priceValue) || priceValue < 0 || priceValue > 999999999999.99) { setError('السعر الأساسي غير صالح.'); return; }
+    const minimumValue = Number(minOrderQuantity);
+    const multipleValue = Number(orderQuantityMultiple);
+    if (!Number.isSafeInteger(minimumValue) || minimumValue < 1 || minimumValue > 10000) { setError('الحد الأدنى للطلب يجب أن يكون عددًا صحيحًا بين 1 و10000.'); return; }
+    if (!Number.isSafeInteger(multipleValue) || multipleValue < 1 || multipleValue > 10000) { setError('مضاعف الكمية يجب أن يكون عددًا صحيحًا بين 1 و10000.'); return; }
     saveInFlight.current = true;
     setSaving(true); setError('');
     let productSaved = false;
     try {
-      const payload = { name: name.trim(), name_en: nameEn.trim() || null, item_code: code.trim(), sku: sku.trim() || null, barcode: barcode.trim() || null, base_price: priceValue, category_id: category || null, unit: product?.unit ?? 'كرتون', status: product?.status ?? 'active' };
+      const payload = { name: name.trim(), name_en: nameEn.trim() || null, item_code: code.trim(), sku: sku.trim() || null, barcode: barcode.trim() || null, base_price: priceValue, min_order_quantity: minimumValue, order_quantity_multiple: multipleValue, category_id: category || null, unit: product?.unit ?? 'كرتون', status: product?.status ?? 'active' };
       const saved = product ? await updateProduct(product.id, payload) : await createProduct(payload);
       productSaved = true;
       if (imageFile) {
@@ -575,6 +581,19 @@ export function ProductModal({
           </Button>
         </div>
       )}
+      <div className="form-grid">
+        <Field label="الحد الأدنى للطلب (عدد الوحدات)">
+          <input type="number" min="1" max="10000" step="1" inputMode="numeric" value={minOrderQuantity}
+            onChange={(e) => setMinOrderQuantity(e.target.value)} disabled={saving} />
+        </Field>
+        <Field label="مضاعف الكمية (حجم العبوة)">
+          <input type="number" min="1" max="10000" step="1" inputMode="numeric" value={orderQuantityMultiple}
+            onChange={(e) => setOrderQuantityMultiple(e.target.value)} disabled={saving} />
+        </Field>
+      </div>
+      <p style={{ margin: '-4px 0 12px', color: '#667b80', fontSize: 12, lineHeight: 1.7 }}>
+        يُسمح بالكمية من الحد الأدنى ثم بالزيادة بمقدار المضاعف. مثال: الحد 3 والمضاعف 2 يسمح بـ 3 و5 و7. يرفض الخادم أي طلب مخالف.
+      </p>
       <Field label="التصنيف">
         <select
           value={category}
