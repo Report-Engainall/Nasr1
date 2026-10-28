@@ -577,6 +577,8 @@ export function sanitizePublicCatalogCache(value: unknown): ProductWithInventory
       description: typeof product.description === 'string' ? product.description : null,
       unit: product.unit,
       status: typeof product.status === 'string' ? product.status : 'active',
+      min_order_quantity: Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1 && Number(product.min_order_quantity) <= 10000 ? Number(product.min_order_quantity) : 1,
+      order_quantity_multiple: Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1 && Number(product.order_quantity_multiple) <= 10000 ? Number(product.order_quantity_multiple) : 1,
       category_id: typeof product.category_id === 'string' ? product.category_id : null,
       image_url: typeof product.image_url === 'string' ? product.image_url : null,
       created_at: typeof product.created_at === 'string' ? product.created_at : '',
