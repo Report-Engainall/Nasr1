@@ -366,14 +366,30 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
   function addToCart(product: ProductWithInventory) {
+    const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
+      ? Number(product.min_order_quantity) : 1;
+    const multiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
+      ? Number(product.order_quantity_multiple) : 1;
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id);
-      if (existing) return prev.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { product, quantity: 1 }];
+      if (existing) return prev.map((i) => i.product.id === product.id
+        ? { ...i, quantity: i.quantity + multiple }
+        : i);
+      return [...prev, { product, quantity: minimum }];
     });
   }
   function updateQty(productId: string, delta: number) {
-    setCart((prev) => prev.map((i) => i.product.id === productId ? { ...i, quantity: Math.max(0, i.quantity + delta) } : i).filter((i) => i.quantity > 0));
+    setCart((prev) => prev.map((item) => {
+      if (item.product.id !== productId) return item;
+      const minimum = Number.isSafeInteger(item.product.min_order_quantity) && Number(item.product.min_order_quantity) >= 1
+        ? Number(item.product.min_order_quantity) : 1;
+      const multiple = Number.isSafeInteger(item.product.order_quantity_multiple) && Number(item.product.order_quantity_multiple) >= 1
+        ? Number(item.product.order_quantity_multiple) : 1;
+      const next = delta > 0
+        ? item.quantity + multiple
+        : item.quantity <= minimum ? 0 : Math.max(0, item.quantity - multiple);
+      return { ...item, quantity: next };
+    }).filter((item) => item.quantity > 0));
   }
   function removeFromCart(productId: string) { setCart((prev) => prev.filter((i) => i.product.id !== productId)); }
   function addMatrixSelection() {
@@ -388,13 +404,17 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
       quantity,
       available: Math.max(0, Math.floor(Number(product.inventory?.quantity_available ?? 0))),
       already_in_cart: cart.find((item) => item.product.id === product.id)?.quantity ?? 0,
+      min_order_quantity: product.min_order_quantity ?? 1,
+      order_quantity_multiple: product.order_quantity_multiple ?? 1,
     })));
     if (!validation.valid) {
       const message = validation.reason === 'empty'
         ? 'أدخل كمية صحيحة لصنف واحد على الأقل.'
         : validation.reason === 'invalid_quantity'
           ? `الكمية المطلوبة للصنف «${validation.product_name ?? ''}» غير صحيحة. أدخل عددًا صحيحًا أكبر من صفر.`
-          : `الكمية المطلوبة للصنف «${validation.product_name ?? ''}» تتجاوز المخزون الظاهر بما في ذلك الكمية الموجودة في السلة.`;
+          : validation.reason === 'order_policy'
+            ? `كمية الصنف «${validation.product_name ?? ''}» لا تطابق الحد الأدنى أو مضاعف العبوة المحدد.`
+            : `الكمية المطلوبة للصنف «${validation.product_name ?? ''}» تتجاوز المخزون الظاهر بما في ذلك الكمية الموجودة في السلة.`;
       setMatrixFeedback({ kind: 'error', message });
       return;
     }
@@ -825,7 +845,8 @@ export function ProductDetail({
           </div>
           <div className="sf-detail-facts">
             <div><strong>الوحدة</strong><span>{product.unit}</span></div>
-            <div><strong>الحد الأدنى</strong><span>حسب اتفاق العميل</span></div>
+            <div><strong>الحد الأدنى</strong><span>{formatNumber(product.min_order_quantity ?? 1)} {product.unit}</span></div>
+            {(product.order_quantity_multiple ?? 1) > 1 && <div><strong>مضاعف الطلب</strong><span>{formatNumber(product.order_quantity_multiple ?? 1)} {product.unit}</span></div>
             {pricePresentation.visible && <div><strong>السعر</strong><span>السعر الظاهر قبل تأكيد الطلب</span></div>}
           </div>
         </div>
@@ -1202,8 +1223,13 @@ export function QuickOrderMatrix({ products, quantities, alreadyInCart = {}, fee
             <tbody>{products.map((product) => {
               const available = Math.max(0, Math.floor(Number(product.inventory?.quantity_available ?? 0)));
               const remainingToAdd = Math.max(0, available - Math.max(0, Math.floor(Number(alreadyInCart[product.id] ?? 0))));
+              const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
+                ? Number(product.min_order_quantity) : 1;
+              const multiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
+                ? Number(product.order_quantity_multiple) : 1;
               const rawQuantity = quantities[product.id] ?? '';
               const currentQuantity = /^\d+$/.test(rawQuantity) ? Number(rawQuantity) : 0;
+              const nextIncrease = currentQuantity === 0 ? minimum : currentQuantity + multiple;
               return <tr key={product.id} style={{ borderTop: '1px solid #edf2f3' }}>
                 <td style={{ padding: 12, fontWeight: 800 }}>
                   <div>{product.name}</div>
@@ -1217,9 +1243,9 @@ export function QuickOrderMatrix({ products, quantities, alreadyInCart = {}, fee
                 <td style={{ padding: 12, whiteSpace: 'nowrap' }}>{formatNumber(available)} {product.unit}</td>
                 <td style={{ padding: 12, minWidth: 160 }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                    <button type="button" aria-label={`تقليل كمية ${product.name}`} disabled={remainingToAdd <= 0 || currentQuantity <= 0} onClick={() => onQuantityChange(product.id, currentQuantity <= 1 ? '' : String(currentQuantity - 1))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Minus size={14} /></button>
-                    <input type="number" inputMode="numeric" min={1} max={remainingToAdd} step={1} value={rawQuantity} disabled={remainingToAdd <= 0} aria-label={`كمية ${product.name}`} onChange={(event) => { const value = event.target.value; if (value === '' || /^\d+$/.test(value)) onQuantityChange(product.id, value); }} style={{ width: 78, padding: '9px 8px', border: '1px solid #cfdddd', borderRadius: 9, background: available <= 0 ? '#f2f5f5' : '#fff', color: '#18383c', textAlign: 'center' }} />
-                    <button type="button" aria-label={`زيادة كمية ${product.name}`} disabled={remainingToAdd <= 0 || currentQuantity >= remainingToAdd} onClick={() => onQuantityChange(product.id, String(Math.min(remainingToAdd, currentQuantity + 1)))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Plus size={14} /></button>
+                    <button type="button" aria-label={`تقليل كمية ${product.name}`} disabled={remainingToAdd < minimum || currentQuantity <= 0} onClick={() => { const next = currentQuantity <= minimum ? 0 : currentQuantity - multiple; onQuantityChange(product.id, next < minimum ? '' : String(next)); }} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Minus size={14} /></button>
+                    <input type="number" inputMode="numeric" min={minimum} max={remainingToAdd} step={multiple} value={rawQuantity} disabled={remainingToAdd < minimum} aria-label={`كمية ${product.name}`} onChange={(event) => { const value = event.target.value; if (value === '' || /^\d+$/.test(value)) onQuantityChange(product.id, value); }} style={{ width: 78, padding: '9px 8px', border: '1px solid #cfdddd', borderRadius: 9, background: available <= 0 ? '#f2f5f5' : '#fff', color: '#18383c', textAlign: 'center' }} />
+                    <button type="button" aria-label={`زيادة كمية ${product.name}`} disabled={remainingToAdd < minimum || nextIncrease > remainingToAdd} onClick={() => onQuantityChange(product.id, String(nextIncrease))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Plus size={14} /></button>
                   </div>
                 </td>
               </tr>;
