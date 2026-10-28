@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent } from "@testing-library/react";
 import { routeTree } from "@/routeTree.gen";
 
+// This file uses createRoot directly; opt into React's supported act() flushing contract.
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
 type TestUser = {
   id: string;
   profileId: string;
@@ -345,14 +348,12 @@ describe("public storefront product route acceptance", () => {
     expect(mocks.authListeners.size).toBeGreaterThan(0);
     await act(async () => {
       for (const notify of [...mocks.authListeners]) notify();
-      // Force React to commit the routed subtree under the new authenticated identity. This is
-      // intentionally a fresh route boundary so prior tenant state cannot survive the switch.
-      root?.render(<RouterProvider key="profile-b" router={router} />);
-      await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    await flush();
 
+    // ProductPage keys its storefront subtree to the live auth identity. React must commit
+    // that boundary before stale product data can remain visible.
     expect(host?.textContent).not.toContain("TENANT-A-ONLY-SENTINEL");
+    await flush();
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تعذر تحميل تفاصيل المنتج");
     expect(host?.textContent).not.toContain("TENANT-A-ONLY-SENTINEL");
   });
