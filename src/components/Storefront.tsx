@@ -171,12 +171,14 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const [mobileMenu, setMobileMenu] = useState(false);
   const [lastOrderNo, setLastOrderNo] = useState('');
   const [lastOrderId, setLastOrderId] = useState('');
+  // Store only the selected ID. Resolve product details from the current identity-bound
+  // catalog so stale tenant objects cannot survive while auth or network requests change.
   const [selectedProductState, setSelectedProductState] = useState<{
     identityKey: string;
-    product: ProductWithInventory | null;
-  }>({ identityKey: '', product: null });
-  const selectedProduct = selectedProductState.identityKey === storefrontIdentityKey
-    ? selectedProductState.product
+    productId: string | null;
+  }>({ identityKey: '', productId: null });
+  const selectedProduct = selectedProductState.identityKey === storefrontIdentityKey && selectedProductState.productId
+    ? products.find((product) => product.id === selectedProductState.productId) ?? null
     : null;
   const [wishlistState, setWishlistState] = useState<{ scopeKey: string; ids: string[] }>({ scopeKey: '', ids: [] });
   const wishlist = wishlistState.scopeKey === wishlistStorageKey ? wishlistState.ids : [];
@@ -332,7 +334,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
     if (initialView !== 'product' || !initialProductId || !products.length) return;
     setSelectedProductState({
       identityKey: storefrontIdentityKey,
-      product: products.find((product) => product.id === initialProductId) ?? null,
+      productId: products.some((product) => product.id === initialProductId) ? initialProductId : null,
     });
   }, [initialView, initialProductId, products, storefrontIdentityKey]);
 
