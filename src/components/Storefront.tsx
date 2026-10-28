@@ -747,7 +747,10 @@ export function ProductGrid({
     <div className="sf-product-grid">
       {products.map((product) => {
         const qty = product.inventory?.quantity_available ?? 0;
+        const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
+          ? Number(product.min_order_quantity) : 1;
         const out = qty <= 0;
+        const belowMinimum = qty > 0 && qty < minimum;
         const liked = wishlist.includes(product.id);
         const compared = compare.includes(product.id);
 
@@ -786,11 +789,11 @@ export function ProductGrid({
               <div className="sf-product-stock">
                 {out
                   ? <span className="sf-out">نفد المخزون</span>
-                  : <span className="sf-in">{formatNumber(qty)} متوفر</span>}
+                  : <span className={belowMinimum ? "sf-out" : "sf-in"}>{formatNumber(qty)} متوفر{belowMinimum ? ' — أقل من الحد الأدنى' : ''}</span>}
               </div>
             </button>
-            <button className="sf-add-btn" disabled={out} onClick={() => onAdd(product)}>
-              {out ? 'غير متوفر' : <><Plus size={16} /> أضف للسلة</>}
+            <button className="sf-add-btn" disabled={out || belowMinimum} onClick={() => onAdd(product)}>
+              {out ? 'غير متوفر' : belowMinimum ? 'الكمية المتاحة أقل من الحد الأدنى' : <><Plus size={16} /> أضف للسلة</>}
             </button>
           </article>
         );
@@ -819,6 +822,9 @@ export function ProductDetail({
   onCompare: () => void;
 }) {
   const quantity = product.inventory?.quantity_available ?? 0;
+  const minimumOrderQuantity = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
+    ? Number(product.min_order_quantity) : 1;
+  const belowMinimum = quantity > 0 && quantity < minimumOrderQuantity;
   const pricePresentation = resolveStorefrontPricePresentation(priceVisibilityPolicy, product.display_price);
 
   return (
@@ -843,11 +849,15 @@ export function ProductDetail({
             className="sf-detail-price"
             unitLabel={`لكل ${product.unit}`}
           />
-          <div className={`sf-detail-stock ${quantity > 0 ? 'available' : 'unavailable'}`}>
-            {quantity > 0 ? `متوفر حالياً: ${formatNumber(quantity)} ${product.unit}` : 'هذا المنتج غير متوفر حالياً'}
+          <div className={`sf-detail-stock ${quantity > 0 && !belowMinimum ? 'available' : 'unavailable'}`}>
+            {quantity <= 0
+              ? 'هذا المنتج غير متوفر حالياً'
+              : belowMinimum
+                ? `المتوفر (${formatNumber(quantity)} ${product.unit}) أقل من الحد الأدنى للطلب (${formatNumber(minimumOrderQuantity)} ${product.unit})`
+                : `متوفر حالياً: ${formatNumber(quantity)} ${product.unit}`}
           </div>
           <div className="sf-detail-actions">
-            <button className="sf-btn-primary" disabled={quantity <= 0} onClick={onAdd}><ShoppingCart size={17} /> إضافة إلى السلة</button>
+            <button className="sf-btn-primary" disabled={quantity < minimumOrderQuantity} onClick={onAdd}><ShoppingCart size={17} /> إضافة إلى السلة</button>
             <button className={`sf-icon-action ${inWishlist ? 'active' : ''}`} onClick={onWishlist}>
               <Heart size={18} fill={inWishlist ? 'currentColor' : 'none'} /> {inWishlist ? 'في المفضلة' : 'أضف للمفضلة'}
             </button>
