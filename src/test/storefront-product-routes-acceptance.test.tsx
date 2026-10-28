@@ -96,7 +96,7 @@ vi.mock("@/lib/saved-products", () => ({
   readPendingSavedProductChanges: vi.fn().mockReturnValue([]),
   savedProductCacheKey: vi.fn((profileId: string) => `test-saved:${profileId}`),
   setStorefrontSavedProduct: vi.fn(),
-  syncStorefrontSavedProducts: vi.fn().mockResolvedValue({ ids: [], pending: false }),
+  syncStorefrontSavedProducts: vi.fn().mockResolvedValue({ productIds: [], pendingCount: 0 }),
 }));
 
 vi.mock("@/lib/supabase", () => ({

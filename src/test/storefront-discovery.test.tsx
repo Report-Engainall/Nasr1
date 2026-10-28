@@ -47,7 +47,20 @@ vi.mock("@/lib/useFetch", () => ({
     if (fetcher === mocks.fetchStorefrontPromotions) return { data: mocks.promotions, loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchSettingsMap) return { data: mocks.settings, loading: false, error: null, refetch: vi.fn() };
     if (fetcher === mocks.fetchStorefrontAnnouncements) return { data: [], loading: false, error: null, refetch: vi.fn() };
-    return { data: { mode: "full", items: mocks.products }, loading: false, error: null, refetch: vi.fn() };
+    const currentUser = mocks.user as null | { id?: string; profileId?: string; roles?: string[]; isStaff?: boolean };
+    const identityKey = JSON.stringify({
+      authReady: true,
+      userId: currentUser?.id ?? null,
+      profileId: currentUser?.profileId ?? null,
+      roles: Array.isArray(currentUser?.roles) ? [...currentUser.roles].sort() : [],
+      isStaff: currentUser?.isStaff === true,
+    });
+    return {
+      data: { mode: "full", items: mocks.products, identityKey, publicCacheable: false },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
   },
 }));
 

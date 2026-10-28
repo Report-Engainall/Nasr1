@@ -46,9 +46,13 @@ describe('tenant-scoped server storefront pagination', () => {
     expect(migration).toContain('GRANT EXECUTE ON FUNCTION public.get_storefront_catalog_page');
   });
 
-  it('does not use or populate the shared legacy catalog cache for tenant-paged responses', () => {
-    expect(storefront).toContain('isPagedView ? (liveProducts ?? []) : (liveProducts ?? cachedProducts)');
-    expect(storefront).toContain("if (!liveProducts || productSnapshot?.mode === 'paged') return;");
+  it('binds retained catalog snapshots to the current session and keeps tenant-paged responses out of the public cache', () => {
+    expect(storefront).toContain("productSnapshot?.identityKey === storefrontIdentityKey");
+    expect(storefront).toContain("productSnapshot.publicCacheable !== true");
+    expect(storefront).toContain("productSnapshot.identityKey !== storefrontIdentityKey");
+    expect(storefront).toContain("PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2'");
+    expect(storefront).toContain("productSnapshot?.mode !== 'full'");
+    expect(storefront).toContain("if (!liveProducts");
     expect(storefront).not.toContain("previous.filter((product) => !incomingIds.has(product.id))");
   });
 
