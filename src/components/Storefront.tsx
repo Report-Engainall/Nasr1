@@ -37,6 +37,13 @@ function pendingCartProduct(productId: string): ProductWithInventory {
     sort_order: 0, stock_quantity: 0, reserved_quantity: 0, min_stock_level: 0, status: 'pending',
   };
 }
+
+function nextOrderQuantity(currentQuantity: number, minimum: number, multiple: number): number {
+  if (currentQuantity < minimum) return minimum;
+  return (currentQuantity - minimum) % multiple === 0
+    ? currentQuantity + multiple
+    : minimum + (Math.floor((currentQuantity - minimum) / multiple) + 1) * multiple;
+}
 type StoreView = 'shop' | 'product' | 'wishlist' | 'compare' | 'matrix' | 'cart' | 'checkout' | 'confirm';
 export type StorefrontInitialView = 'shop' | 'product' | 'wishlist' | 'compare' | 'cart' | 'checkout';
 
@@ -211,6 +218,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   }
   const [matrixQuantities, setMatrixQuantities] = useState<Record<string, string>>({});
   const [matrixFeedback, setMatrixFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
+  const [cartActionNotice, setCartActionNotice] = useState<string | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [lastOrderNo, setLastOrderNo] = useState('');
   const [lastOrderId, setLastOrderId] = useState('');
@@ -495,20 +503,51 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       ? Number(product.min_order_quantity) : 1;
     const multiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
       ? Number(product.order_quantity_multiple) : 1;
+    const available = typeof product.inventory?.quantity_available === 'number' && Number.isFinite(product.inventory.quantity_available)
+      ? Math.max(0, Math.floor(product.inventory.quantity_available))
+      : null;
+    const currentQuantity = cart.find((item) => item.product.id === product.id)?.quantity ?? 0;
+    const nextQuantity = nextOrderQuantity(currentQuantity, minimum, multiple);
+    if (available !== null && nextQuantity > available) {
+      setCartActionNotice(`لا يمكن إضافة «${product.name}»: الكمية التالية (${nextQuantity}) تتجاوز المتاح (${available} ${product.unit}).`);
+      return;
+    }
+
+    setCartActionNotice(null);
     setCart((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
+      const existing = prev.find((item) => item.product.id === product.id);
+      const latestCurrentQuantity = existing?.quantity ?? 0;
+      const latestNextQuantity = nextOrderQuantity(latestCurrentQuantity, minimum, multiple);
+      // Re-check inside the state update so rapid repeated clicks cannot overshoot stock.
+      if (available !== null && latestNextQuantity > available) return prev;
       if (existing) {
-        const nextQuantity = existing.quantity < minimum
-          ? minimum
-          : existing.quantity >= minimum && (existing.quantity - minimum) % multiple === 0
-            ? existing.quantity + multiple
-            : minimum + (Math.floor((existing.quantity - minimum) / multiple) + 1) * multiple;
-        return prev.map((item) => item.product.id === product.id ? { ...item, quantity: nextQuantity } : item);
+        return prev.map((item) => item.product.id === product.id
+          ? { ...item, quantity: latestNextQuantity }
+          : item);
       }
       return [...prev, { product, quantity: minimum }];
     });
   }
   function updateQty(productId: string, delta: number) {
+    const existingItem = cart.find((item) => item.product.id === productId);
+    if (!existingItem) return;
+    if (delta > 0) {
+      const minimum = Number.isSafeInteger(existingItem.product.min_order_quantity) && Number(existingItem.product.min_order_quantity) >= 1
+        ? Number(existingItem.product.min_order_quantity) : 1;
+      const multiple = Number.isSafeInteger(existingItem.product.order_quantity_multiple) && Number(existingItem.product.order_quantity_multiple) >= 1
+        ? Number(existingItem.product.order_quantity_multiple) : 1;
+      const availableRaw = existingItem.product.inventory?.quantity_available;
+      const available = typeof availableRaw === 'number' && Number.isFinite(availableRaw)
+        ? Math.max(0, Math.floor(availableRaw))
+        : null;
+      const next = nextOrderQuantity(existingItem.quantity, minimum, multiple);
+      if (available !== null && next > available) {
+        setCartActionNotice(`لا يمكن زيادة «${existingItem.product.name}»: الكمية التالية (${next}) تتجاوز المتاح (${available} ${existingItem.product.unit}).`);
+        return;
+      }
+    }
+
+    setCartActionNotice(null);
     setCart((prev) => prev.map((item) => {
       if (item.product.id !== productId) return item;
       const minimum = Number.isSafeInteger(item.product.min_order_quantity) && Number(item.product.min_order_quantity) >= 1
@@ -517,9 +556,12 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
         ? Number(item.product.order_quantity_multiple) : 1;
       let next = 0;
       if (delta > 0) {
-        next = item.quantity < minimum
-          ? minimum
-          : minimum + (Math.floor((item.quantity - minimum) / multiple) + 1) * multiple;
+        next = nextOrderQuantity(item.quantity, minimum, multiple);
+        const availableRaw = item.product.inventory?.quantity_available;
+        const available = typeof availableRaw === 'number' && Number.isFinite(availableRaw)
+          ? Math.max(0, Math.floor(availableRaw))
+          : null;
+        if (available !== null && next > available) return item;
       } else if (item.quantity > minimum) {
         next = minimum + Math.max(0, Math.ceil((item.quantity - minimum) / multiple) - 1) * multiple;
       }
@@ -627,6 +669,13 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
           <button className="sf-mobile-toggle" onClick={() => setMobileMenu(!mobileMenu)}><Menu size={22} /></button>
         </div>
       </header>
+
+      {cartActionNotice && (
+        <div role="alert" aria-live="assertive" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, padding: '10px 16px', color: '#8a2525', background: '#fff4f4', borderBottom: '1px solid #efc5c5', textAlign: 'center', fontSize: 12, fontWeight: 700 }}>
+          <span>{cartActionNotice}</span>
+          <button type="button" aria-label="إغلاق تنبيه المخزون" onClick={() => setCartActionNotice(null)} style={{ border: '1px solid #dba4a4', borderRadius: 14, padding: '3px 9px', background: '#fff', color: '#8a2525' }}>إغلاق</button>
+        </div>
+      )}
 
       {storefrontAnnouncementsError && <div className="sf-announcement-error" role="status">تعذر تحميل إعلانات المتجر الحالية؛ بقية الكتالوج متاحة.</div>}
       <StorefrontAnnouncementSlider announcements={storefrontAnnouncements ?? []} />

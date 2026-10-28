@@ -409,6 +409,31 @@ describe("public storefront product route acceptance", () => {
     expect(mocks.fetchProducts).toHaveBeenCalledTimes(2);
   });
 
+  it("does not allow repeated product-card adds to exceed the known available stock", async () => {
+    await mountRoute("/catalog");
+
+    for (let quantity = 1; quantity <= 7; quantity += 1) {
+      const addButton = host?.querySelector<HTMLButtonElement>(".sf-add-btn");
+      expect(addButton).toBeTruthy();
+      await act(async () => {
+        fireEvent.click(addButton!);
+      });
+      await flush();
+    }
+
+    expect(host?.querySelector(".sf-cart-btn")?.textContent).toContain("7");
+
+    const addButton = host?.querySelector<HTMLButtonElement>(".sf-add-btn");
+    expect(addButton).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(addButton!);
+    });
+    await flush();
+
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تتجاوز المتاح");
+    expect(host?.querySelector(".sf-cart-btn")?.textContent).toContain("7");
+  });
+
   it("shows a not-available state for an unknown deep-linked product ID", async () => {
     mocks.fetchProducts.mockResolvedValue([{ ...PRODUCT, id: "55555555-5555-4555-8555-555555555555" }]);
     await mountRoute(`/product/${PRODUCT_ID}`);
