@@ -1342,3 +1342,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Branch proof: live GitHub branches API returned exactly main at the time of verification. Re-check after the next main commit.
 - Scope limit: this is local regression and CI proof for the account-switch render boundary, not hosted authenticated customer/tenant E2E or production proof. DLV-005 remains OPEN/PARTIAL; full production release remains NO-GO.
 - NEXT_ACTION: continue direct API/RPC, role/tier/session, DOM/cache/PWA, PDF, XLSX, and print privacy acceptance, then return to remaining route/catalog/transaction-edge requirements in central matrix priority order.
+
+
+## 2026-10-28 — DLV-005 role/session and hidden-output privacy regression batch
+
+- `9858cbfc1044e2651e08e9e1fa7dae132cbaee0e`: preview identity key now includes authenticated user ID, profile ID, normalized role set, and staff capability; `AuthProvider` refreshes effective profile after `TOKEN_REFRESHED`. Added first-committed-DOM role-switch regression and auth-role-refresh test. Exact-head Aghbari Commerce checks 40721689973 SUCCESS and one-main cleanup 40721689780 SUCCESS. See https://github.com/Report-Engainall/Nasr1/commit/9858cbfc1044e2651e08e9e1fa7dae132cbaee0e
+- `0765a7a4532026e91a0c6f7c71148d05ccd0e899`: added PDF acceptance that hidden monetary/tier sentinels must not affect the generated invoice PDF, and Service Worker assertions that invoice PDF, customer pricing RPC, and async export endpoints are neither intercepted nor cached. Exact-head Aghbari Commerce run 40722351742 was IN_PROGRESS when recorded; one-main cleanup 40722352018 SUCCESS. See https://github.com/Report-Engainall/Nasr1/commit/0765a7a4532026e91a0c6f7c71148d05ccd0e899
+- Live branch API at `0765a7a` returned exactly one branch, `main`; GitHub reported `protected=false`. Do not claim main protection is configured.
+- Acceptance effect: DLV-005 remains OPEN/PARTIAL. Do not transfer the prior SHA's success to the newer test batch or this documentation checkpoint. Full production release stays NO-GO due unresolved hosted customer/tenant E2E and live/production integrations.
+- NEXT_ACTION: verify terminal exact-head checks on the newest main SHA. Correct any reproducible failure, then continue the next DLV-005 privacy channel; do not repeat accepted account-switch code or build a second ledger.

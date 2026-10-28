@@ -1,14 +1,17 @@
-# CURRENT DELIVERY OVERRIDE — 2026-10-28
+# CURRENT DELIVERY OVERRIDE — 2026-10-28 — MAIN-ONLY / DLV-005 ROLE-SESSION AND OUTPUT PRIVACY
 
-This block supersedes stale checkpoint statements below until the canonical state and matrix are reconciled against a new exact main SHA. Historical evidence remains historical and must not be transferred to a later SHA.
+This block is the single current registry override; older checkpoints below are historical and cannot override it.
 
-The verified code/test baseline is b7a958415ac95d2b9a7d7a6785ecaaf1a607abb3. It includes a privacy fix for customer price previews: the preview is keyed to authenticated profileId (or anonymous state), and a regression test verifies that the previous account's price and total are absent in the first committed render after switching accounts. Exact-head Aghbari Commerce checks 40717388214 succeeded (https://github.com/Report-Engainall/Nasr1/actions/runs/40717388214).
+The integrated code/test baseline is `0765a7a4532026e91a0c6f7c71148d05ccd0e899`. It adds a PDF privacy regression asserting that hidden monetary/tier sentinels do not change a customer invoice PDF, and service-worker regressions proving invoice PDF, pricing RPC, and async export endpoints are not intercepted or cached. Exact-head Aghbari Commerce run 40722351742 was IN_PROGRESS when this checkpoint was recorded; cleanup run 40722352018 is SUCCESS on the exact SHA. Do not mark the new tests passing until the commerce run is terminal SUCCESS.
 
-Immediate priority is DLV-005 cross-channel pricing/privacy, not reimplementing the already integrated DLV-004 purchase journey or repeating a broad RPC inventory. Complete the distinct unproven API/RPC, session/role/account-switch, DOM/cache/PWA, PDF, XLSX, and print boundaries. A passing leaf does not close DLV-005; the central acceptance matrix controls aggregate acceptance and release status.
+Previous role/session code commit `9858cbfc1044e2651e08e9e1fa7dae132cbaee0e` passed exact-head Aghbari Commerce checks 40721689973 and cleanup 40721689780. It invalidates the rendered pricing preview across authenticated user/profile/role/staff changes and refreshes effective profile roles on `TOKEN_REFRESHED`.
 
-Use docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md as the only dynamic resume cursor. Do not create branches, PRs, parallel matrices, or progress ledgers. main is the only GitHub branch and every bounded accepted batch requires exact-SHA verification.
+Immediate priority remains DLV-005 cross-channel privacy. Preserve all existing pricing, invoice-PDF, XLSX, cache, and print defenses; prove direct API/RPC, role/tier/session/logout, DOM/cache/PWA, PDF, XLSX and print separately. A passing leaf does not close the roll-up. Once exact-head tests settle, update the central matrix from evidence and move directly to the next open high-priority product flow.
 
-Current measurement: 118 populated unique acceptance IDs, 0 duplicate IDs, 18 canonical delivery groups, and 0/18 fully release-closed. Overall completion percentage remains NOT COMPUTABLE until required leaf evidence and roll-ups reconcile on one release candidate. Full production release remains NO-GO; hosted customer/tenant E2E and live/production integrations remain unproven.
+Use `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` as the only dynamic resume cursor and `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` as the only acceptance matrix. Do not create branches, PRs, parallel matrices or ledgers. Exactly one GitHub branch, `main`, was observed on SHA `0765a7a4532026e91a0c6f7c71148d05ccd0e899`; recheck after this checkpoint commit.
+
+Current measurement: 118 populated unique acceptance IDs, 0 duplicate IDs, 18 canonical delivery groups, 0/18 fully release-closed. Overall completion percentage remains NOT COMPUTABLE until required leaf evidence and roll-ups reconcile on one release candidate. Full production release remains NO-GO; hosted customer/tenant E2E and live/production integrations remain unproven.
+---
 ---
 
 ## Current verified checkpoint after PR #296 — 2026-10-27
