@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let unsubscribe: (() => void) | undefined;
     try {
       const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-        if (event === 'SIGNED_IN' || event === 'USER_UPDATED') setTimeout(() => { void refresh(); }, 0);
+        if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') setTimeout(() => { void refresh(); }, 0);
         if (event === 'SIGNED_OUT') setUser(null);
       });
       unsubscribe = () => sub.subscription.unsubscribe();

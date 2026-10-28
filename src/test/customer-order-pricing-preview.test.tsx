@@ -2,8 +2,25 @@ import { useLayoutEffect, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), profileId: "profile-1" }));
-vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { profileId: mocks.profileId } }) }));
+const mocks = vi.hoisted(() => ({
+  rpc: vi.fn(),
+  userId: "auth-user-1",
+  profileId: "profile-1" as string | null,
+  roles: ["customer"] as string[],
+  isStaff: false,
+}));
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({
+    user: mocks.profileId ? {
+      id: mocks.userId,
+      profileId: mocks.profileId,
+      email: "buyer@example.test",
+      name: "Buyer",
+      roles: mocks.roles,
+      isStaff: mocks.isStaff,
+    } : null,
+  }),
+}));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: mocks.rpc } }));
 
 import { CustomerOrderPricingPreview } from "@/components/CustomerOrderPricingPreview";
@@ -41,7 +58,10 @@ const visiblePayload = {
 };
 
 beforeEach(() => {
+  mocks.userId = "auth-user-1";
   mocks.profileId = "profile-1";
+  mocks.roles = ["customer"];
+  mocks.isStaff = false;
   profileSwitchSnapshots.length = 0;
   mocks.rpc.mockReset().mockResolvedValue({ data: visiblePayload, error: null });
 });
@@ -69,6 +89,26 @@ describe("CustomerOrderPricingPreview wired to the server RPC", () => {
 
     // Layout effects observe the committed DOM before passive effects can fetch a new preview.
     // The previous account's price must already be gone in this render.
+    const immediateSnapshot = profileSwitchSnapshots[snapshotIndex];
+    expect(immediateSnapshot).toContain("جار جلب مراجعة الأسعار من الخادم");
+    expect(immediateSnapshot).not.toContain("صنف تجريبي × 2");
+    expect(immediateSnapshot).not.toContain("الإجمالي");
+
+    expect(await screen.findByRole("region", { name: "ملخص أسعار السلة" })).toBeInTheDocument();
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("hides the previous price in the first committed render when the effective role set changes", async () => {
+    const { rerender } = render(<ProfileSwitchHarness revision={1} />);
+    expect(await screen.findByRole("region", { name: "ملخص أسعار السلة" })).toBeInTheDocument();
+    expect(screen.getByText("صنف تجريبي × 2")).toBeInTheDocument();
+
+    const snapshotIndex = profileSwitchSnapshots.length;
+    mocks.roles = ["customer", "manager"];
+    mocks.isStaff = true;
+    rerender(<ProfileSwitchHarness revision={2} />);
+
+    // Role changes must invalidate price-bearing committed markup before passive effects run.
     const immediateSnapshot = profileSwitchSnapshots[snapshotIndex];
     expect(immediateSnapshot).toContain("جار جلب مراجعة الأسعار من الخادم");
     expect(immediateSnapshot).not.toContain("صنف تجريبي × 2");

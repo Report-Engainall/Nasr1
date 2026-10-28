@@ -45,8 +45,14 @@ export function CustomerOrderPricingPreview({
     product_id: item.product_id,
     quantity: item.quantity,
   })));
-  // Bind the ready payload to the current account during render, before effects flush.
-  const requestSignature = surface + ":" + signature + ":" + (user?.profileId ?? "anonymous");
+  // Prices are identity-bound: invalidate the committed DOM when the session user, profile, or effective role set changes.
+  const identitySignature = JSON.stringify({
+    userId: user?.id ?? null,
+    profileId: user?.profileId ?? null,
+    roles: [...(user?.roles ?? [])].sort(),
+    isStaff: user?.isStaff === true,
+  });
+  const requestSignature = surface + ":" + signature + ":" + identitySignature;
 
   useEffect(() => {
     let active = true;
@@ -108,7 +114,7 @@ export function CustomerOrderPricingPreview({
     })();
 
     return () => { active = false; };
-  }, [requestSignature, signature, items.length, policyValue, surface, user?.profileId, retry]);
+  }, [requestSignature, signature, items.length, policyValue, surface, identitySignature, retry]);
 
   if (policyValue !== true || items.length === 0) return null;
 
