@@ -90,30 +90,43 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
         };
       }
 
-      // Only a confirmed anonymous response may populate the shared public cache.
-      // A missing/malformed session result is not proof that the caller is a guest.
-      let publicCacheable = false;
-      if (authReady && !user?.id && !user?.profileId) {
+      // Full-catalog REST reads are never attempted under an unresolved or ambiguous
+      // auth context. The browser session is authoritative; useAuth can briefly lag a
+      // token/account transition, so an active session with no resolved identity fails closed.
+      if (!authReady) {
+        return { mode: 'full', items: [], identityKey: storefrontIdentityKey, publicCacheable: false };
+      }
+
+      const anonymousContext = !user?.id && !user?.profileId;
+      if (anonymousContext) {
+        let sessionBefore;
         try {
-          const sessionBefore = await supabase.auth.getSession();
-          publicCacheable = !sessionBefore.error && sessionBefore.data?.session === null;
+          sessionBefore = await supabase.auth.getSession();
         } catch {
-          publicCacheable = false;
+          throw new Error('تعذر التحقق من جلسة المستخدم؛ أعد المحاولة بعد اكتمال المصادقة.');
+        }
+        if (sessionBefore.error || sessionBefore.data?.session !== null) {
+          throw new Error('جلسة المصادقة غير متزامنة مع هوية العرض؛ لم يتم تحميل بيانات الكتالوج.');
         }
       }
 
       const items = await fetchProducts();
-      if (publicCacheable) {
+      const publicCacheable = anonymousContext;
+      if (anonymousContext) {
+        let sessionAfter;
         try {
-          const sessionAfter = await supabase.auth.getSession();
-          publicCacheable =
-            !sessionAfter.error &&
-            sessionAfter.data?.session === null &&
-            authReady &&
-            !user?.id &&
-            !user?.profileId;
+          sessionAfter = await supabase.auth.getSession();
         } catch {
-          publicCacheable = false;
+          throw new Error('تعذر إعادة التحقق من جلسة المستخدم بعد تحميل الكتالوج.');
+        }
+        if (
+          sessionAfter.error ||
+          sessionAfter.data?.session !== null ||
+          !authReady ||
+          user?.id ||
+          user?.profileId
+        ) {
+          throw new Error('تغيرت جلسة المصادقة أثناء تحميل الكتالوج؛ أُهملت النتائج لمنع خلط المؤسسات.');
         }
       }
       return { mode: 'full', items, identityKey: storefrontIdentityKey, publicCacheable };

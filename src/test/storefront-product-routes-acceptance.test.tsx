@@ -241,6 +241,21 @@ describe("public storefront product route acceptance", () => {
     expect(mocks.fetchProducts).toHaveBeenCalledTimes(1);
   });
 
+  it("fails closed when Supabase has a live session but the auth context has no resolved identity", async () => {
+    mocks.user = null;
+    mocks.getSession.mockResolvedValue({
+      data: { session: { user: { id: "auth-user-unresolved" } } },
+      error: null,
+    });
+    mocks.fetchProducts.mockResolvedValue([{ ...PRODUCT, name: "LIVE-SESSION-PRIVATE-CATALOG-SENTINEL" }]);
+
+    await mountRoute(`/product/${PRODUCT_ID}`);
+
+    expect(mocks.fetchProducts).not.toHaveBeenCalled();
+    expect(host?.textContent).not.toContain("LIVE-SESSION-PRIVATE-CATALOG-SENTINEL");
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("جلسة المصادقة غير متزامنة");
+  });
+
   it("does not render an unscoped public cache when an authenticated tenant detail read fails", async () => {
     const stale = {
       ...PRODUCT,
