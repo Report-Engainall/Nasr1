@@ -49,14 +49,33 @@ function readSavedProductIds(key: string, maxItems: number): string[] {
   }
 }
 
-export function Storefront({ onExit, initialView = 'shop', initialProductId, initialQuery, initialCategoryId, initialAvailableOnly }: {
+type StorefrontProps = {
   onExit: () => void;
   initialView?: StorefrontInitialView;
   initialProductId?: string;
   initialQuery?: string;
   initialCategoryId?: string;
   initialAvailableOnly?: boolean;
-}) {
+};
+
+/**
+ * Remount all storefront-local data and UI state whenever the authenticated identity
+ * or effective role changes. Keep this boundary inside Storefront: route components
+ * may render outside AuthProvider in test/server route contexts.
+ */
+export function Storefront(props: StorefrontProps) {
+  const { user, ready } = useAuth();
+  const identityKey = JSON.stringify({
+    ready,
+    userId: user?.id ?? null,
+    profileId: user?.profileId ?? null,
+    roles: Array.isArray(user?.roles) ? [...user.roles].sort() : [],
+    isStaff: user?.isStaff === true,
+  });
+  return <StorefrontSession key={identityKey} {...props} />;
+}
+
+function StorefrontSession({ onExit, initialView = 'shop', initialProductId, initialQuery, initialCategoryId, initialAvailableOnly }: StorefrontProps) {
   const { user, ready: authReady } = useAuth();
   const effectiveRoles = Array.isArray(user?.roles) ? [...user.roles].sort() : [];
   const storefrontIdentityKey = JSON.stringify({
