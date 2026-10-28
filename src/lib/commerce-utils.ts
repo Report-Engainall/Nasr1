@@ -333,10 +333,12 @@ export type QuickOrderLineInput = {
   quantity: number;
   available: number;
   already_in_cart?: number;
+  min_order_quantity?: number;
+  order_quantity_multiple?: number;
 };
 export type QuickOrderValidation =
   | { valid: true }
-  | { valid: false; reason: 'empty' | 'invalid_quantity' | 'insufficient_stock'; product_name?: string };
+  | { valid: false; reason: 'empty' | 'invalid_quantity' | 'order_policy' | 'insufficient_stock'; product_name?: string };
 
 export function validateQuickOrderLines(lines: QuickOrderLineInput[]): QuickOrderValidation {
   if (lines.length === 0) return { valid: false, reason: 'empty' };
@@ -344,9 +346,20 @@ export function validateQuickOrderLines(lines: QuickOrderLineInput[]): QuickOrde
     if (!Number.isSafeInteger(line.quantity) || line.quantity <= 0) {
       return { valid: false, reason: 'invalid_quantity', product_name: line.product_name };
     }
+    const alreadyInCart = line.already_in_cart ?? 0;
+    const minimum = line.min_order_quantity ?? 1;
+    const multiple = line.order_quantity_multiple ?? 1;
+    if (!Number.isSafeInteger(alreadyInCart) || alreadyInCart < 0 ||
+        !Number.isSafeInteger(minimum) || minimum < 1 || minimum > 10000 ||
+        !Number.isSafeInteger(multiple) || multiple < 1 || multiple > 10000) {
+      return { valid: false, reason: 'invalid_quantity', product_name: line.product_name };
+    }
+    const resultingQuantity = alreadyInCart + line.quantity;
+    if (resultingQuantity < minimum || (resultingQuantity - minimum) % multiple !== 0) {
+      return { valid: false, reason: 'order_policy', product_name: line.product_name };
+    }
     if (!Number.isSafeInteger(line.available) || line.available < 0 ||
-        !Number.isSafeInteger(line.already_in_cart ?? 0) || (line.already_in_cart ?? 0) < 0 ||
-        line.available < (line.already_in_cart ?? 0) + line.quantity) {
+        line.available < resultingQuantity) {
       return { valid: false, reason: 'insufficient_stock', product_name: line.product_name };
     }
   }
