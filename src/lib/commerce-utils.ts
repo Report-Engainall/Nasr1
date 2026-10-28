@@ -544,10 +544,7 @@ export function sanitizePublicCatalogCache(value: unknown): ProductWithInventory
       const quantity = Number(row.quantity_available);
       if (typeof row.product_id === 'string' && row.product_id === product.id && Number.isFinite(quantity) && quantity >= 0) {
         inventory = {
-          id: typeof row.id === 'string' ? row.id : '',
           product_id: row.product_id,
-          warehouse_id: typeof row.warehouse_id === 'string' ? row.warehouse_id : '',
-          quantity_on_hand: Number.isFinite(Number(row.quantity_on_hand)) ? Number(row.quantity_on_hand) : quantity,
           quantity_available: quantity,
         };
       }

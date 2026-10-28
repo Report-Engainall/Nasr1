@@ -49,21 +49,21 @@ function parseProduct(value: unknown): ProductWithInventory {
 
   const rawInventory = asRecord(row.inventory);
   const inventory = rawInventory && rawInventory.product_id === row.id
-      && typeof rawInventory.warehouse_id === 'string'
+      && Number.isFinite(Number(rawInventory.quantity_available))
+      && Number(rawInventory.quantity_available) >= 0
     ? {
-        id: typeof rawInventory.id === 'string' ? rawInventory.id : '',
-        organization_id: typeof rawInventory.organization_id === 'string' ? rawInventory.organization_id : undefined,
+        // Public catalog payloads carry availability, not internal inventory identifiers.
+        id: '',
         product_id: row.id,
-        warehouse_id: rawInventory.warehouse_id,
-        quantity_on_hand: finiteNumber(rawInventory.quantity_on_hand),
+        warehouse_id: '',
+        quantity_on_hand: 0,
         quantity_reserved: 0,
-        quantity_available: finiteNumber(rawInventory.quantity_available),
+        quantity_available: Number(rawInventory.quantity_available),
       }
     : undefined;
 
   return {
     id: row.id,
-    organization_id: typeof row.organization_id === 'string' ? row.organization_id : undefined,
     name: row.name,
     name_en: typeof row.name_en === 'string' ? row.name_en : null,
     item_code: row.item_code,
@@ -77,7 +77,8 @@ function parseProduct(value: unknown): ProductWithInventory {
     is_active: row.is_active === true,
     is_featured: row.is_featured === true,
     sort_order: finiteNumber(row.sort_order),
-    stock_quantity: finiteNumber(row.stock_quantity),
+    // Public stock quantity is availability, never internal on-hand count.
+    stock_quantity: finiteNumber(row.stock_quantity, inventory?.quantity_available ?? 0),
     reserved_quantity: 0,
     min_stock_level: 0,
     min_order_quantity: minimumOrderQuantity,

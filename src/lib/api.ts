@@ -83,7 +83,7 @@ export async function fetchResolvedProductPrices(
 export async function fetchProducts(): Promise<ProductWithInventory[]> {
   const scope = await getStorefrontDataScope();
   const { organizationId: orgId, warehouseId, isStaff } = scope;
-  const publicProductColumns = 'id,organization_id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple';
+  const publicProductColumns = 'id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple';
   let products: Product[];
   if (isStaff) {
     // Sensitive product columns are not directly SELECTable by browser roles.
@@ -107,12 +107,27 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
   const inventory = warehouseId
     ? await readWithRetry(() => supabase
         .from('inventory_balances')
-        .select(isStaff ? '*' : 'id,product_id,warehouse_id,quantity_on_hand,quantity_available')
+        .select(isStaff ? '*' : 'product_id,quantity_available')
         .eq('warehouse_id', warehouseId))
     : [];
 
   const invMap = new Map<string, InventoryBalance>();
-  (inventory as unknown as InventoryBalance[] | null)?.forEach((inv) => invMap.set(inv.product_id, inv));
+  (inventory as unknown as Array<Record<string, unknown>> | null)?.forEach((row) => {
+    if (typeof row.product_id !== 'string') return;
+    if (isStaff) {
+      invMap.set(row.product_id, row as unknown as InventoryBalance);
+      return;
+    }
+    const available = Number(row.quantity_available);
+    invMap.set(row.product_id, {
+      id: '',
+      product_id: row.product_id,
+      warehouse_id: '',
+      quantity_on_hand: 0,
+      quantity_reserved: 0,
+      quantity_available: Number.isFinite(available) && available >= 0 ? available : 0,
+    });
+  });
 
   const categories = await retryRead(async () => {
     let query = supabase
@@ -141,7 +156,6 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
     // Do not spread a customer query result: explicit projection is a second privacy
     // boundary if a later query change or mocked response contains internal financial keys.
     const staffProduct = p as Product & {
-      organization_id?: string;
       status?: string;
       created_at?: string;
     };
@@ -149,7 +163,6 @@ export async function fetchProducts(): Promise<ProductWithInventory[]> {
       ? { ...p, base_price: Number(p.base_price), min_order_quantity: Number(p.min_order_quantity ?? 1), order_quantity_multiple: Number(p.order_quantity_multiple ?? 1) }
       : {
           id: p.id,
-          organization_id: staffProduct.organization_id,
           category_id: p.category_id,
           name: p.name,
           name_en: p.name_en,

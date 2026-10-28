@@ -143,6 +143,13 @@ async function main() {
       assert.equal(matchedProduct.name_en, searchValues.englishName, "catalog response returns the stored English name");
       assert.equal(matchedProduct.display_price, null, "search results preserve hidden-price policy");
       assert.equal(Object.hasOwn(matchedProduct, "base_price"), false, "search results omit raw base_price for a customer");
+      assert.equal(Object.hasOwn(matchedProduct, "organization_id"), false, "public catalog must not expose tenant organization identifiers");
+      assert.equal(Object.hasOwn(matchedProduct, "stock_quantity"), false, "public catalog must not expose physical on-hand quantities");
+      assert.ok(matchedProduct.inventory && typeof matchedProduct.inventory === "object", "catalog returns the public availability summary");
+      assert.equal(Object.hasOwn(matchedProduct.inventory, "organization_id"), false, "public inventory must not expose tenant identifiers");
+      assert.equal(Object.hasOwn(matchedProduct.inventory, "warehouse_id"), false, "public inventory must not expose warehouse identifiers");
+      assert.equal(Object.hasOwn(matchedProduct.inventory, "id"), false, "public inventory must not expose internal row identifiers");
+      assert.equal(Object.hasOwn(matchedProduct.inventory, "quantity_on_hand"), false, "public inventory must not expose physical on-hand quantities");
     }
 
     const items = JSON.stringify([{ product_id: CATALOG_PRODUCT_ID, quantity: 2 }]);

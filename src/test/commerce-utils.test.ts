@@ -95,6 +95,7 @@ describe('commerce completion utilities', () => {
       item_code: '000125',
       barcode: '628123',
       unit: 'carton',
+      organization_id: 'ORG-PRIVATE-IDENTIFIER',
       base_price: 1200,
       cost_price: 800,
       retail_price: 1200,
@@ -102,9 +103,10 @@ describe('commerce completion utilities', () => {
       min_stock: 50,
       internal_notes: 'should not persist',
       inventory: {
-        id: 'inv1',
+        id: 'INV-PRIVATE-IDENTIFIER',
+        organization_id: 'ORG-PRIVATE-IDENTIFIER',
         product_id: 'p1',
-        warehouse_id: 'wh1',
+        warehouse_id: 'WH-PRIVATE-IDENTIFIER',
         quantity_on_hand: 20,
         quantity_reserved: 4,
         quantity_available: 16,
@@ -119,6 +121,11 @@ describe('commerce completion utilities', () => {
     expect(safe).not.toHaveProperty('wholesale_price');
     expect(safe).not.toHaveProperty('min_stock');
     expect(safe).not.toHaveProperty('internal_notes');
+    expect(safe).not.toHaveProperty('organization_id');
+    expect(safe?.inventory).not.toHaveProperty('id');
+    expect(safe?.inventory).not.toHaveProperty('organization_id');
+    expect(safe?.inventory).not.toHaveProperty('warehouse_id');
+    expect(safe?.inventory).not.toHaveProperty('quantity_on_hand');
     expect(safe?.inventory).not.toHaveProperty('quantity_reserved');
     expect(safe?.inventory).not.toHaveProperty('reorder_point');
     expect(safe?.inventory).not.toHaveProperty('internal_movement_note');
