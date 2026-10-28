@@ -438,7 +438,10 @@ export function ProductModal({
     refetch: refetchCategories,
   } = useFetch(fetchCategories);
   const [name, setName] = useState(product?.name ?? '');
+  const [nameEn, setNameEn] = useState(product?.name_en ?? '');
   const [code, setCode] = useState(product?.item_code ?? '');
+  const [sku, setSku] = useState(product?.sku ?? '');
+  const [barcode, setBarcode] = useState(product?.barcode ?? '');
   const [price, setPrice] = useState(String(product?.base_price ?? ''));
   const [category, setCategory] = useState(product?.category_id ?? '');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -472,7 +475,7 @@ export function ProductModal({
     setSaving(true); setError('');
     let productSaved = false;
     try {
-      const payload = { name: name.trim(), item_code: code.trim(), base_price: priceValue, category_id: category || null, unit: product?.unit ?? 'كرتون', status: product?.status ?? 'active' };
+      const payload = { name: name.trim(), name_en: nameEn.trim() || null, item_code: code.trim(), sku: sku.trim() || null, barcode: barcode.trim() || null, base_price: priceValue, category_id: category || null, unit: product?.unit ?? 'كرتون', status: product?.status ?? 'active' };
       const saved = product ? await updateProduct(product.id, payload) : await createProduct(payload);
       productSaved = true;
       if (imageFile) {
@@ -505,6 +508,9 @@ export function ProductModal({
       <Field label="اسم المنتج">
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={240} disabled={saving} />
       </Field>
+      <Field label="اسم المنتج بالإنجليزية (اختياري)">
+        <input value={nameEn} onChange={(e) => setNameEn(e.target.value)} maxLength={240} disabled={saving} dir="auto" />
+      </Field>
       <div className="form-grid">
         <Field label="رمز المنتج">
           <input value={code} onChange={(e) => setCode(e.target.value)} maxLength={80} disabled={saving} />
@@ -519,6 +525,14 @@ export function ProductModal({
             onChange={(e) => setPrice(e.target.value)}
             disabled={saving}
           />
+        </Field>
+      </div>
+      <div className="form-grid">
+        <Field label="SKU (اختياري)">
+          <input value={sku} onChange={(e) => setSku(e.target.value)} maxLength={80} disabled={saving} dir="auto" />
+        </Field>
+        <Field label="الباركود (اختياري)">
+          <input value={barcode} onChange={(e) => setBarcode(e.target.value)} maxLength={120} disabled={saving} dir="auto" />
         </Field>
       </div>
       {categoriesError && (

@@ -744,7 +744,9 @@ export function ProductGrid({
             </div>
             <button className="sf-product-body sf-product-open" onClick={() => onOpen(product)}>
               <h3>{product.name}</h3>
+              {product.name_en ? <small dir="auto" style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 500 }}>{product.name_en}</small> : null}
               <p>{product.category?.name ?? 'غير مصنف'} · {product.item_code}</p>
+              {product.sku ? <small dir="ltr" style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 600, textAlign: 'right' }}>SKU: {product.sku}</small> : null}
               <StorefrontPricePresentation
                 policyValue={priceVisibilityPolicy}
                 serverUnitPrice={product.display_price}
@@ -795,11 +797,15 @@ export function ProductDetail({
       <div className="sf-detail-layout">
         <div className="sf-detail-image">
           {product.image_url ? <img src={product.image_url} alt={product.name} /> : <Package size={72} />}
-          <span className="sf-detail-code">SKU: {product.item_code}</span>
+          <span className="sf-detail-code">
+            {product.sku ? <span dir="ltr">SKU: {product.sku}</span> : <>رمز المنتج: <bdi>{product.item_code}</bdi></>}
+            {product.sku && product.item_code ? <> · رمز المنتج: <bdi>{product.item_code}</bdi></> : null}
+          </span>
         </div>
         <div className="sf-detail-content">
           <span className="sf-detail-category">{product.category?.name ?? 'غير مصنف'}</span>
           <h2>{product.name}</h2>
+          {product.name_en ? <p dir="auto" style={{ margin: '-4px 0 12px', color: '#5f777b', fontSize: 14, fontWeight: 500 }}>{product.name_en}</p> : null}
           <p className="sf-detail-description">{product.description || 'منتج متوفر للطلب بالجملة من متجر الأغبري.'}</p>
           <StorefrontPricePresentation
             policyValue={priceVisibilityPolicy}
@@ -1199,8 +1205,15 @@ export function QuickOrderMatrix({ products, quantities, alreadyInCart = {}, fee
               const rawQuantity = quantities[product.id] ?? '';
               const currentQuantity = /^\d+$/.test(rawQuantity) ? Number(rawQuantity) : 0;
               return <tr key={product.id} style={{ borderTop: '1px solid #edf2f3' }}>
-                <td style={{ padding: 12, fontWeight: 800 }}><div>{product.name}</div><small style={{ display: 'block', color: '#74888c', fontWeight: 500 }}>{product.category?.name ?? 'غير مصنف'}</small></td>
-                <td style={{ padding: 12, direction: 'ltr', textAlign: 'right' }}>{product.item_code}</td>
+                <td style={{ padding: 12, fontWeight: 800 }}>
+                  <div>{product.name}</div>
+                  {product.name_en ? <small dir="auto" style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 500 }}>{product.name_en}</small> : null}
+                  <small style={{ display: 'block', marginTop: 3, color: '#74888c', fontWeight: 500 }}>{product.category?.name ?? 'غير مصنف'}</small>
+                </td>
+                <td style={{ padding: 12, direction: 'ltr', textAlign: 'right' }}>
+                  <div>{product.item_code}</div>
+                  {product.sku ? <small style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 600 }}>SKU: {product.sku}</small> : null}
+                </td>
                 <td style={{ padding: 12, whiteSpace: 'nowrap' }}>{formatNumber(available)} {product.unit}</td>
                 <td style={{ padding: 12, minWidth: 160 }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
