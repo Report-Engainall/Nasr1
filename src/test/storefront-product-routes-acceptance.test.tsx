@@ -286,6 +286,28 @@ describe("public storefront product route acceptance", () => {
     expect(window.localStorage.getItem("aghbari:catalog:v1")).toBeNull();
   });
 
+  it("fails closed when a paged catalog read races with an account switch", async () => {
+    mocks.user = {
+      id: "auth-user-a",
+      profileId: "profile-a",
+      email: "tenant-a@example.test",
+      name: "Tenant A",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "auth-user-b" } } }, error: null });
+    mocks.fetchCatalogPage.mockResolvedValue({
+      ...PAGE,
+      items: [{ ...PRODUCT, name: "PAGED-OTHER-SESSION-PRIVATE-CATALOG-SENTINEL" }],
+    });
+
+    await mountRoute("/products?q=stale-session");
+
+    expect(mocks.fetchCatalogPage).not.toHaveBeenCalled();
+    expect(host?.textContent).not.toContain("PAGED-OTHER-SESSION-PRIVATE-CATALOG-SENTINEL");
+    expect(host?.querySelector('[role=\"alert\"]')?.textContent).toContain("تعذر تحميل الكتالوج");
+  });
+
   it("fails closed when the live Supabase session belongs to a different identity than the stale auth context", async () => {
     mocks.user = {
       id: "auth-user-a",

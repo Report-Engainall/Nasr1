@@ -95,25 +95,12 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
   const isPagedView = initialView === 'shop' && view === 'shop';
   const { data: productSnapshot, loading: productsLoading, error: productsError, refetch: refetchProducts } =
     useFetch<StorefrontProductsSnapshot>(async () => {
-      if (isPagedView) {
-        return {
-          mode: 'paged',
-          identityKey: storefrontIdentityKey,
-          ...await fetchStorefrontCatalogPage({
-            search: debouncedQuery,
-            categoryId: activeCat || null,
-            page: catalogPage,
-            pageSize: 24,
-            availableOnly,
-          }),
-        };
-      }
-
       // The Supabase session is authoritative. useAuth can briefly lag a sign-in,
-      // sign-out, account switch, or token refresh; never read under an identity mismatch.
-      if (!authReady) {
-        return { mode: 'full', items: [], identityKey: storefrontIdentityKey, publicCacheable: false };
-      }
+      // sign-out, account switch, or token refresh; all catalog modes fail closed on mismatch.
+      const emptySnapshot = (): StorefrontProductsSnapshot => isPagedView
+        ? { mode: 'paged', identityKey: storefrontIdentityKey, page: catalogPage, pageSize: 24, totalCount: 0, totalPages: 0, items: [] }
+        : { mode: 'full', items: [], identityKey: storefrontIdentityKey, publicCacheable: false };
+      if (!authReady) return emptySnapshot();
 
       const expectedAuthUserId = user?.id ?? null;
       const anonymousContext = !expectedAuthUserId && !user?.profileId;
@@ -123,8 +110,19 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
 
       const readSessionUserId = async () => {
         const response = await supabase.auth.getSession();
-        if (response.error) throw new Error('تعذر التحقق من جلسة المستخدم.');
+        if (!response || response.error) throw new Error('تعذر التحقق من جلسة المستخدم.');
         return response.data?.session?.user?.id ?? null;
+      };
+      const assertLiveIdentity = (sessionUserId: string | null, phase: 'before' | 'after') => {
+        if (
+          (anonymousContext && sessionUserId !== null) ||
+          (!anonymousContext && sessionUserId !== expectedAuthUserId) ||
+          (phase === 'after' && (!authReady || (user?.id ?? null) !== expectedAuthUserId))
+        ) {
+          throw new Error(phase === 'before'
+            ? 'جلسة المصادقة لا تطابق هوية العرض الحالية؛ لم يتم تحميل بيانات الكتالوج.'
+            : 'تغيرت جلسة المصادقة أثناء تحميل الكتالوج؛ أُهملت النتائج لمنع خلط المؤسسات.');
+        }
       };
 
       let sessionUserBefore: string | null;
@@ -133,32 +131,35 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
       } catch {
         throw new Error('تعذر التحقق من جلسة المستخدم؛ أعد المحاولة بعد اكتمال المصادقة.');
       }
-      if (
-        (anonymousContext && sessionUserBefore !== null) ||
-        (!anonymousContext && sessionUserBefore !== expectedAuthUserId)
-      ) {
-        throw new Error('جلسة المصادقة لا تطابق هوية العرض الحالية؛ لم يتم تحميل بيانات الكتالوج.');
+      assertLiveIdentity(sessionUserBefore, 'before');
+
+      if (isPagedView) {
+        const page = await fetchStorefrontCatalogPage({
+          search: debouncedQuery,
+          categoryId: activeCat || null,
+          page: catalogPage,
+          pageSize: 24,
+          availableOnly,
+        });
+        let sessionUserAfter: string | null;
+        try {
+          sessionUserAfter = await readSessionUserId();
+        } catch {
+          throw new Error('تعذر إعادة التحقق من جلسة المستخدم بعد تحميل الكتالوج.');
+        }
+        assertLiveIdentity(sessionUserAfter, 'after');
+        return { mode: 'paged', identityKey: storefrontIdentityKey, ...page };
       }
 
       const items = await fetchProducts();
-
       let sessionUserAfter: string | null;
       try {
         sessionUserAfter = await readSessionUserId();
       } catch {
         throw new Error('تعذر إعادة التحقق من جلسة المستخدم بعد تحميل الكتالوج.');
       }
-      if (
-        (anonymousContext && sessionUserAfter !== null) ||
-        (!anonymousContext && sessionUserAfter !== expectedAuthUserId) ||
-        !authReady ||
-        (user?.id ?? null) !== expectedAuthUserId
-      ) {
-        throw new Error('تغيرت جلسة المصادقة أثناء تحميل الكتالوج؛ أُهملت النتائج لمنع خلط المؤسسات.');
-      }
-
-      const publicCacheable = anonymousContext;
-      return { mode: 'full', items, identityKey: storefrontIdentityKey, publicCacheable };
+      assertLiveIdentity(sessionUserAfter, 'after');
+      return { mode: 'full', items, identityKey: storefrontIdentityKey, publicCacheable: anonymousContext };
     }, [view, catalogPage, debouncedQuery, activeCat, availableOnly, initialView, storefrontIdentityKey]);
   // useFetch retains its previous result while a new request is pending or fails.
   // Only use data produced under the current session/role identity.

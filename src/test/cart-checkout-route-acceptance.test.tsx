@@ -60,6 +60,7 @@ const mocks = vi.hoisted(() => ({
   validationFailures: 0,
   submitFailures: 0,
   rpc: vi.fn(),
+  getSession: vi.fn(),
   submitCalls: [] as Array<{ name: string; args: Record<string, unknown> }>,
 }));
 
@@ -118,7 +119,7 @@ vi.mock("@/lib/supabase", () => ({
   supabase: {
     rpc: mocks.rpc,
     from: vi.fn(),
-    auth: { getSession: vi.fn() },
+    auth: { getSession: mocks.getSession },
   },
 }));
 
@@ -190,6 +191,10 @@ describe("customer cart and checkout real route acceptance", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.user = null;
+    mocks.getSession.mockReset().mockImplementation(async () => ({
+      data: { session: mocks.user ? { user: { id: mocks.user.id } } : null },
+      error: null,
+    }));
     mocks.cartLines = [];
     mocks.saveCartFailures = 0;
     mocks.productReadFailures = 0;
