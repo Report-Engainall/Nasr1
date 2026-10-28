@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -102,6 +103,48 @@ async function main() {
 
     await db.unsafe("reset role");
     await assumeUser(CUSTOMER_AUTH_ID, "ci-customer-one@example.test");
+    // Search acceptance exercises the actual tenant-scoped RPC against a real isolated fixture row.
+    // The outer transaction is always rolled back; no catalog fixture changes persist.
+    await db.unsafe("reset role");
+    const searchSuffix = randomUUID().replaceAll("-", "").slice(-12);
+    const searchValues = {
+      sku: "SKUQ" + searchSuffix,
+      itemCode: "ITEMQ" + searchSuffix,
+      barcode: "BARQ" + searchSuffix,
+      englishName: "ENQ" + searchSuffix,
+      arabicName: "اسمبحث" + searchSuffix,
+      description: "DESCQ" + searchSuffix,
+    };
+    const updatedSearchProduct = await db.unsafe(
+      "update public.products set sku=$3,name_en=$4,item_code=$5,barcode=$6,name=$7,description=$8 " +
+      "where id=$1::uuid and organization_id=$2::uuid and status='active' returning id::text",
+      [CATALOG_PRODUCT_ID, ORG_ID, searchValues.sku, searchValues.englishName, searchValues.itemCode,
+       searchValues.barcode, searchValues.arabicName, searchValues.description],
+    );
+    assert.equal(updatedSearchProduct.length, 1, "search acceptance must update the canonical active fixture product");
+    await assumeUser(CUSTOMER_AUTH_ID, "ci-customer-one@example.test");
+
+    for (const [field, query] of [
+      ["item_code", searchValues.itemCode],
+      ["sku", searchValues.sku],
+      ["barcode", searchValues.barcode],
+      ["Arabic name", searchValues.arabicName],
+      ["English name", searchValues.englishName],
+      ["description", searchValues.description],
+    ]) {
+      const searchResult = await db.unsafe(
+        "select public.get_storefront_catalog_page($1::text,null::uuid,1,24,false) as result",
+        [query],
+      );
+      const result = searchResult[0]?.result;
+      const matchedProduct = result?.items?.find((item) => item.id === CATALOG_PRODUCT_ID);
+      assert.ok(matchedProduct, "catalog RPC must find the fixture by " + field);
+      assert.equal(matchedProduct.sku, searchValues.sku, "catalog response returns the stored SKU");
+      assert.equal(matchedProduct.name_en, searchValues.englishName, "catalog response returns the stored English name");
+      assert.equal(matchedProduct.display_price, null, "search results preserve hidden-price policy");
+      assert.equal(Object.hasOwn(matchedProduct, "base_price"), false, "search results omit raw base_price for a customer");
+    }
+
     const items = JSON.stringify([{ product_id: CATALOG_PRODUCT_ID, quantity: 2 }]);
     const hiddenCardPrice = await db.unsafe(
       "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],1)",
@@ -357,6 +400,7 @@ async function main() {
       "revoked session cannot call customer pricing preview with a stale authenticated JWT",
     );
 
+    process.stdout.write("PASS customer catalog search: item code, SKU, barcode, Arabic/English names and description; price privacy and authorization boundaries.\n");
     process.stdout.write("PASS customer price privacy: hidden payloads, live-session revocation, tenant-bound membership tier, capability-scoped previews, authorized settings and base-price boundaries.\n");
   } finally {
     await db.unsafe("reset role").catch(() => {});
