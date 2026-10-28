@@ -1,4 +1,4 @@
-import { act, type ReactNode } from "react";
+import { act, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
@@ -47,6 +47,7 @@ type CatalogResult = { items: ProductRow[]; totalCount: number; totalPages: numb
 
 const mocks = vi.hoisted(() => ({
   user: null as TestUser | null,
+  authListeners: new Set<() => void>(),
   getSession: vi.fn(),
   fetchProducts: vi.fn(),
   fetchCategories: vi.fn(),
@@ -59,13 +60,23 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth", () => ({
-  useAuth: () => ({
-    user: mocks.user,
-    ready: true,
-    loading: false,
-    configurationError: null,
-    signOut: vi.fn(),
-  }),
+  useAuth: () => {
+    const user = useSyncExternalStore(
+      (notify) => {
+        mocks.authListeners.add(notify);
+        return () => mocks.authListeners.delete(notify);
+      },
+      () => mocks.user,
+      () => mocks.user,
+    );
+    return {
+      user,
+      ready: true,
+      loading: false,
+      configurationError: null,
+      signOut: vi.fn(),
+    };
+  },
   AuthProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
@@ -149,6 +160,7 @@ describe("public storefront product route acceptance", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.user = null;
+    mocks.authListeners.clear();
     mocks.getSession.mockReset().mockResolvedValue({ data: { session: null }, error: null });
     mocks.detailReadFailures = 0;
     mocks.catalogReadFailures = 0;
@@ -316,10 +328,10 @@ describe("public storefront product route acceptance", () => {
     mocks.detailReadFailures = 1;
 
     await act(async () => {
-      root?.render(<RouterProvider router={router} />);
+      for (const notify of mocks.authListeners) notify();
     });
 
-    // Old product data must disappear in the first committed render after the identity switch.
+    // Auth context subscribers rerender independently of the router; stale product data must disappear immediately.
     expect(host?.textContent).not.toContain("TENANT-A-ONLY-SENTINEL");
 
     await flush();

@@ -52,7 +52,7 @@ describe('tenant-scoped server storefront pagination', () => {
     expect(storefront).toContain("productSnapshot.identityKey !== storefrontIdentityKey");
     expect(storefront).toContain("PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2'");
     expect(storefront).toContain("productSnapshot?.mode !== 'full'");
-    expect(storefront).toContain("if (!liveProducts");
+    expect(storefront).toContain("!liveProducts ||");
     expect(storefront).not.toContain("previous.filter((product) => !incomingIds.has(product.id))");
   });
 

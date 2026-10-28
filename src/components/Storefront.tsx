@@ -129,7 +129,9 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
       // The former v1 cache had no public/tenant provenance. Purge it rather than
       // risk showing a previous authenticated organization's stock on a later session.
       window.localStorage.removeItem('aghbari:catalog:v1');
-      const value = JSON.parse(window.localStorage.getItem(PUBLIC_CATALOG_CACHE_KEY) || '[]') as unknown;
+      const cachedRaw = window.localStorage.getItem(PUBLIC_CATALOG_CACHE_KEY);
+      if (cachedRaw === null) return [];
+      const value = JSON.parse(cachedRaw) as unknown;
       const safe = sanitizePublicCatalogCache(value);
       window.localStorage.setItem(PUBLIC_CATALOG_CACHE_KEY, JSON.stringify(safe));
       return safe;
