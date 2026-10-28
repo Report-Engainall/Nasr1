@@ -195,6 +195,23 @@ describe("admin product form submission", () => {
     expect(mocks.createProduct).not.toHaveBeenCalled();
   });
 
+  it.each(["اسم المنتج", "رمز المنتج", "السعر الأساسي"])(
+    "rejects a blank required field (%s) before issuing a product write",
+    async (field) => {
+      render(<ProductModal product={null} onClose={vi.fn()} onSaved={vi.fn()} />);
+      const submit = screen.getByRole("button", { name: "حفظ المنتج" });
+      await waitFor(() => expect(submit).toBeEnabled());
+
+      fillRequiredFields();
+      fireEvent.change(screen.getByLabelText(field), { target: { value: "" } });
+      fireEvent.click(submit);
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("أكمل الحقول المطلوبة");
+      expect(mocks.createProduct).not.toHaveBeenCalled();
+      expect(mocks.updateProduct).not.toHaveBeenCalled();
+    },
+  );
+
   it("does not allow product save to proceed with an unresolved category lookup error", async () => {
     mocks.fetchCategories
       .mockRejectedValueOnce(new Error("فشل تحميل التصنيفات"))
