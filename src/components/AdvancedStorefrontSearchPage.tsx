@@ -12,7 +12,7 @@ export function AdvancedStorefrontSearchPage() {
   const [categoryId, setCategoryId] = useState("");
   const [availableOnly, setAvailableOnly] = useState(false);
   const [formError, setFormError] = useState("");
-  const categories = (categoryQuery.data ?? []).filter((category) => category.is_active !== false && !category.parent_id);
+  const categories = (categoryQuery.data ?? []).filter((category) => category.is_active !== false);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const q = normalizeCatalogSearchQuery(query).trim();
@@ -40,7 +40,7 @@ export function AdvancedStorefrontSearchPage() {
       <label style={{ display: "grid", gap: 6 }}>التصنيف
         <select id="advanced-storefront-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={categoryQuery.loading || Boolean(categoryQuery.error)} style={{ width: "100%", padding: 12, border: "1px solid #cbdad9", borderRadius: 9 }}>
           <option value="">كل التصنيفات</option>
-          {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+          {categories.map(category => <option key={category.id} value={category.id}>{category.parent_id ? "↳ " : ""}{category.name}</option>)}
         </select>
       </label>
       {categoryQuery.loading && (

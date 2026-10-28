@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   fetchSettingsMap: vi.fn(),
   settings: {} as Record<string, unknown>,
   fetchStorefrontAnnouncements: vi.fn(),
-  categories: [{ id: "category-food", name: "مواد غذائية", description: "مواد غذائية أساسية", sort_order: 1, is_active: true }],
+  categories: [{ id: "category-food", name: "مواد غذائية", description: "مواد غذائية أساسية", sort_order: 1, is_active: true, parent_id: null as string | null }],
   promotions: [{ id: "promotion-1", title: "حملة السكر", description: "عرض منشور", discount_type: "percentage", discount_value: 10, product_ids: ["product-2"], category_ids: [], start_date: "2026-10-01", end_date: "2026-10-31", is_active: true, created_at: "2026-10-01T00:00:00Z" }],
   user: null as null | { isStaff: boolean; profileId?: string; name?: string },
   rpc: vi.fn(async (_name: string, _args?: unknown) => ({ data: null, error: null })),
@@ -247,6 +247,24 @@ describe("customer storefront saved discovery", () => {
     });
     expect(advanced.host.textContent).toContain("Sugar");
     expect(advanced.host.textContent).not.toContain("Beans");
+  });
+
+  
+  it("offers active child categories in advanced search and labels them as subcategories", async () => {
+    const originalCount = mocks.categories.length;
+    mocks.categories.push(
+      { id: "category-rice", name: "الأرز", description: "تصنيف فرعي", sort_order: 2, is_active: true, parent_id: "category-food" },
+      { id: "category-hidden-child", name: "تصنيف فرعي مخفي", description: "غير نشط", sort_order: 3, is_active: false, parent_id: "category-food" },
+    );
+    try {
+      const advanced = await mountAt("/search/advanced");
+      const categorySelect = advanced.host.querySelector<HTMLSelectElement>("#advanced-storefront-category");
+      expect(categorySelect?.querySelector('option[value="category-rice"]')?.textContent).toBe("↳ الأرز");
+      expect(categorySelect?.querySelector('option[value="category-hidden-child"]')).toBeNull();
+      await unmount(advanced);
+    } finally {
+      mocks.categories.splice(originalCount);
+    }
   });
 
 
