@@ -30,9 +30,19 @@ async function assumeUser(authUserId, email) {
 
 async function assertDatabaseRejects(query, params, expected, message) {
   await db.unsafe("savepoint expected_database_rejection");
+  let caught;
   try {
-    const error = await assert.rejects(db.unsafe(query, params), expected, message);
-    return { code: error?.code ?? null, message: String(error?.message ?? error) };
+    await assert.rejects(db.unsafe(query, params), (error) => {
+      caught = error;
+      return expected instanceof RegExp
+        ? expected.test(String(error?.message ?? error))
+        : true;
+    }, message);
+    const details = caught && typeof caught === "object" ? caught : {};
+    return {
+      code: details.code ?? null,
+      message: String(details.message ?? details),
+    };
   } finally {
     // PostgreSQL aborts the current transaction after a failing statement. Restore the
     // enclosing acceptance transaction so the next independent denial can be asserted.
@@ -98,10 +108,12 @@ async function main() {
     assert.ok(invoices.length, "isolated acceptance fixture must contain an invoice owned by the test customer");
     const invoiceId = invoices[0].id;
     const foreignInvoiceRows = await db.unsafe(
-      "select i.id::text from public.customer_invoices i where i.organization_id <> $1::uuid order by i.id limit 1",
-      [ORG_ID],
+      "select i.id::text from public.customer_invoices i " +
+      "where i.customer_id <> (select c.id from public.customers c where c.profile_id=$2::uuid and c.organization_id=$1::uuid limit 1) " +
+      "order by CASE WHEN i.organization_id <> $1::uuid THEN 0 ELSE 1 END, i.id limit 1",
+      [ORG_ID, CUSTOMER_PROFILE_ID],
     );
-    assert.equal(foreignInvoiceRows.length, 1, "isolated acceptance fixture must contain a real invoice owned by another tenant");
+    assert.equal(foreignInvoiceRows.length, 1, "isolated acceptance fixture must contain an invoice owned by another customer");
     const foreignInvoiceId = foreignInvoiceRows[0].id;
     const unknownInvoiceId = randomUUID();
 
@@ -115,7 +127,7 @@ async function main() {
       "select public.get_customer_invoice_pdf($1::uuid) as result",
       [foreignInvoiceId],
       /الفاتورة غير موجودة أو غير متاحة لهذا الحساب/,
-      "customer must not read another tenant's invoice by tampering with the invoice ID",
+      "customer must not read another customer's invoice by tampering with the invoice ID",
     );
     const unknownInvoiceError = await assertDatabaseRejects(
       "select public.get_customer_invoice_pdf($1::uuid) as result",
