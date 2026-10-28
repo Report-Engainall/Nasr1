@@ -102,7 +102,10 @@ describe("admin product form submission", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(mocks.createProduct).toHaveBeenCalledWith({
       name: "منتج الاختبار",
+      name_en: null,
       item_code: "TEST-001",
+      sku: null,
+      barcode: null,
       base_price: 25,
       category_id: null,
       unit: "كرتون",
@@ -143,7 +146,10 @@ describe("admin product form submission", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(mocks.updateProduct).toHaveBeenCalledWith("product-created", {
       name: "منتج معدّل",
+      name_en: null,
       item_code: "TEST-002",
+      sku: null,
+      barcode: null,
       base_price: 30,
       category_id: null,
       unit: "كرتون",
@@ -174,7 +180,10 @@ describe("admin product form submission", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(mocks.createProduct).toHaveBeenCalledWith({
       name: "منتج الاختبار",
+      name_en: null,
       item_code: "TEST-001",
+      sku: null,
+      barcode: null,
       base_price: 25,
       category_id: "category-1",
       unit: "كرتون",
@@ -219,7 +228,10 @@ describe("admin product form submission", () => {
     expect(mocks.updateProduct).toHaveBeenCalledTimes(2);
     expect(mocks.updateProduct).toHaveBeenNthCalledWith(1, "product-created", {
       name: "منتج الاختبار",
+      name_en: null,
       item_code: "TEST-001",
+      sku: null,
+      barcode: null,
       base_price: 25,
       category_id: null,
       unit: "كرتون",
