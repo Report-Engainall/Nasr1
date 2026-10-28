@@ -107,14 +107,27 @@ async function main() {
     );
     assert.ok(invoices.length, "isolated acceptance fixture must contain an invoice owned by the test customer");
     const invoiceId = invoices[0].id;
-    const foreignInvoiceRows = await db.unsafe(
-      "select i.id::text from public.customer_invoices i " +
-      "where i.customer_id <> (select c.id from public.customers c where c.profile_id=$2::uuid and c.organization_id=$1::uuid limit 1) " +
-      "order by CASE WHEN i.organization_id <> $1::uuid THEN 0 ELSE 1 END, i.id limit 1",
-      [ORG_ID, CUSTOMER_PROFILE_ID],
+    // Create a deterministic, other-customer invoice in this isolated transaction. Do not
+    // rely on unrelated fixture seed data containing a second customer invoice.
+    const foreignCustomerId = randomUUID();
+    const foreignOrderId = randomUUID();
+    const foreignInvoiceId = randomUUID();
+    const foreignSuffix = randomUUID().replaceAll("-", "").slice(0, 12);
+    await db.unsafe(
+      "insert into public.customers(id,organization_id,customer_code,business_name,tier,status,approved_at) " +
+      "values($1::uuid,$2::uuid,$3,$4,'retail','approved',statement_timestamp())",
+      [foreignCustomerId, ORG_ID, "CI-" + foreignSuffix, "CI Foreign invoice owner"],
     );
-    assert.equal(foreignInvoiceRows.length, 1, "isolated acceptance fixture must contain an invoice owned by another customer");
-    const foreignInvoiceId = foreignInvoiceRows[0].id;
+    await db.unsafe(
+      "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items) " +
+      "values($1::uuid,$2::uuid,$3::uuid,$4,'draft',0,0)",
+      [foreignOrderId, ORG_ID, foreignCustomerId, "CI-ORDER-" + foreignSuffix],
+    );
+    await db.unsafe(
+      "insert into public.customer_invoices(id,organization_id,customer_id,order_id,invoice_number,status,issued_at,currency,subtotal,tax_amount,total_amount) " +
+      "values($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,'issued',statement_timestamp(),'YER',0,0,0)",
+      [foreignInvoiceId, ORG_ID, foreignCustomerId, foreignOrderId, "CI-INVOICE-" + foreignSuffix],
+    );
     const unknownInvoiceId = randomUUID();
 
     // Every write is rolled back at the end; the suite runs only against CI's isolated PostgreSQL database.
