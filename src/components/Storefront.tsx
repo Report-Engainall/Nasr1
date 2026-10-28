@@ -26,7 +26,9 @@ import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSave
 const PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2';
 
 type CartItem = { product: ProductWithInventory; quantity: number };
-type StorefrontProductsSnapshot = ({ mode: 'paged' } & StorefrontCatalogPage) | { mode: 'full'; items: ProductWithInventory[] };
+type StorefrontProductsSnapshot =
+  | ({ mode: 'paged'; identityKey: string } & StorefrontCatalogPage)
+  | { mode: 'full'; items: ProductWithInventory[]; identityKey: string; publicCacheable: boolean };
 
 function pendingCartProduct(productId: string): ProductWithInventory {
   return {
@@ -56,6 +58,14 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   initialAvailableOnly?: boolean;
 }) {
   const { user, ready: authReady } = useAuth();
+  const effectiveRoles = Array.isArray(user?.roles) ? [...user.roles].sort() : [];
+  const storefrontIdentityKey = JSON.stringify({
+    authReady,
+    userId: user?.id ?? null,
+    profileId: user?.profileId ?? null,
+    roles: effectiveRoles,
+    isStaff: user?.isStaff === true,
+  });
   const navigate = useNavigate();
   const [view, setView] = useState<StoreView>(initialView);
   const [query, setQuery] = useState(() => normalizeCatalogSearchQuery(initialQuery ?? ''));
@@ -69,6 +79,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
       if (isPagedView) {
         return {
           mode: 'paged',
+          identityKey: storefrontIdentityKey,
           ...await fetchStorefrontCatalogPage({
             search: debouncedQuery,
             categoryId: activeCat || null,
@@ -78,10 +89,40 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
           }),
         };
       }
-      return { mode: 'full', items: await fetchProducts() };
-    }, [view, catalogPage, debouncedQuery, activeCat, availableOnly, initialView, user?.id, user?.profileId, user?.isStaff, user?.roles.join(',')]);
-  const liveProducts = productSnapshot && !productsError ? productSnapshot.items : null;
-  const pageInfo = productSnapshot?.mode === 'paged' && !productsError ? productSnapshot : null;
+
+      // Only a confirmed anonymous response may populate the shared public cache.
+      // A missing/malformed session result is not proof that the caller is a guest.
+      let publicCacheable = false;
+      if (authReady && !user?.id && !user?.profileId) {
+        try {
+          const sessionBefore = await supabase.auth.getSession();
+          publicCacheable = !sessionBefore.error && sessionBefore.data?.session === null;
+        } catch {
+          publicCacheable = false;
+        }
+      }
+
+      const items = await fetchProducts();
+      if (publicCacheable) {
+        try {
+          const sessionAfter = await supabase.auth.getSession();
+          publicCacheable =
+            !sessionAfter.error &&
+            sessionAfter.data?.session === null &&
+            authReady &&
+            !user?.id &&
+            !user?.profileId;
+        } catch {
+          publicCacheable = false;
+        }
+      }
+      return { mode: 'full', items, identityKey: storefrontIdentityKey, publicCacheable };
+    }, [view, catalogPage, debouncedQuery, activeCat, availableOnly, initialView, storefrontIdentityKey]);
+  // useFetch retains its previous result while a new request is pending or fails.
+  // Only use data produced under the current session/role identity.
+  const snapshotMatchesIdentity = productSnapshot?.identityKey === storefrontIdentityKey;
+  const liveProducts = productSnapshot && snapshotMatchesIdentity && !productsError ? productSnapshot.items : null;
+  const pageInfo = productSnapshot?.mode === 'paged' && snapshotMatchesIdentity && !productsError ? productSnapshot : null;
   const [cachedProducts, setCachedProducts] = useState<ProductWithInventory[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -128,7 +169,13 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const [mobileMenu, setMobileMenu] = useState(false);
   const [lastOrderNo, setLastOrderNo] = useState('');
   const [lastOrderId, setLastOrderId] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState<ProductWithInventory | null>(null);
+  const [selectedProductState, setSelectedProductState] = useState<{
+    identityKey: string;
+    product: ProductWithInventory | null;
+  }>({ identityKey: '', product: null });
+  const selectedProduct = selectedProductState.identityKey === storefrontIdentityKey
+    ? selectedProductState.product
+    : null;
   const [wishlistState, setWishlistState] = useState<{ scopeKey: string; ids: string[] }>({ scopeKey: '', ids: [] });
   const wishlist = wishlistState.scopeKey === wishlistStorageKey ? wishlistState.ids : [];
   const setWishlist = useCallback((next: string[] | ((previous: string[]) => string[])) => {
@@ -190,13 +237,26 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   }, []);
 
   useEffect(() => {
-    // Only cache a full public catalog after auth is ready and the server confirms
-    // there is no authenticated session. This prevents the auth/profile bootstrap
-    // race from writing tenant-scoped inventory into guest storage.
-    if (!liveProducts || productSnapshot?.mode === 'paged' || !authReady || user?.profileId) return;
+    // Only cache full-catalog data explicitly fetched for the current confirmed guest identity.
+    if (
+      !liveProducts ||
+      productSnapshot?.mode !== 'full' ||
+      productSnapshot.publicCacheable !== true ||
+      productSnapshot.identityKey !== storefrontIdentityKey ||
+      !authReady ||
+      user?.id ||
+      user?.profileId
+    ) return;
     let cancelled = false;
     void supabase.auth.getSession().then(({ data, error }) => {
-      if (cancelled || error || data?.session || user?.profileId) return;
+      if (
+        cancelled ||
+        error ||
+        data?.session !== null ||
+        !authReady ||
+        user?.id ||
+        user?.profileId
+      ) return;
       const safeCatalog = sanitizePublicCatalogCache(liveProducts);
       cachedProductsRef.current = safeCatalog;
       setCachedProducts(safeCatalog);
@@ -205,7 +265,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
       // If session provenance cannot be confirmed, do not populate shared cache.
     });
     return () => { cancelled = true; };
-  }, [liveProducts, productSnapshot?.mode, authReady, user?.profileId]);
+  }, [liveProducts, productSnapshot?.mode, productSnapshot?.publicCacheable, productSnapshot?.identityKey, storefrontIdentityKey, authReady, user?.id, user?.profileId]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -268,8 +328,11 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
 
   useEffect(() => {
     if (initialView !== 'product' || !initialProductId || !products.length) return;
-    setSelectedProduct(products.find((product) => product.id === initialProductId) ?? null);
-  }, [initialView, initialProductId, products]);
+    setSelectedProductState({
+      identityKey: storefrontIdentityKey,
+      product: products.find((product) => product.id === initialProductId) ?? null,
+    });
+  }, [initialView, initialProductId, products, storefrontIdentityKey]);
 
   useEffect(() => {
     if (isPagedView || productsLoading || productsError || !cartRestored || !cart.length) return;

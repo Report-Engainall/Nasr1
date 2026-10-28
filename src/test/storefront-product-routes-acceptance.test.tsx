@@ -289,6 +289,44 @@ describe("public storefront product route acceptance", () => {
     expect(mocks.fetchProducts).toHaveBeenCalledTimes(2);
   });
 
+  it("invalidates an already-rendered product immediately when the authenticated tenant changes", async () => {
+    mocks.user = {
+      id: "auth-user-a",
+      profileId: "profile-a",
+      email: "tenant-a@example.test",
+      name: "Tenant A",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "auth-user-a" } } }, error: null });
+    mocks.fetchProducts.mockResolvedValue([{ ...PRODUCT, name: "TENANT-A-ONLY-SENTINEL" }]);
+
+    const router = await mountRoute(`/product/${PRODUCT_ID}`);
+    expect(host?.textContent).toContain("TENANT-A-ONLY-SENTINEL");
+
+    mocks.user = {
+      id: "auth-user-b",
+      profileId: "profile-b",
+      email: "tenant-b@example.test",
+      name: "Tenant B",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "auth-user-b" } } }, error: null });
+    mocks.detailReadFailures = 1;
+
+    await act(async () => {
+      root?.render(<RouterProvider router={router} />);
+    });
+
+    // Old product data must disappear in the first committed render after the identity switch.
+    expect(host?.textContent).not.toContain("TENANT-A-ONLY-SENTINEL");
+
+    await flush();
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تعذر تحميل تفاصيل المنتج");
+    expect(host?.textContent).not.toContain("TENANT-A-ONLY-SENTINEL");
+  });
+
   it("shows a not-available state for an unknown deep-linked product ID", async () => {
     mocks.fetchProducts.mockResolvedValue([{ ...PRODUCT, id: "55555555-5555-4555-8555-555555555555" }]);
     await mountRoute(`/product/${PRODUCT_ID}`);
