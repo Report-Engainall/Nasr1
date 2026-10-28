@@ -21,6 +21,7 @@ import { CUSTOMER_STATUS_LABELS, ORDER_STATUS_LABELS, type Category, type Create
 import { useAuth } from '@/lib/auth';
 import { useNavigate } from '@tanstack/react-router';
 import { Login } from '@/components/Login';
+import { DashboardLoadError } from '@/components/DashboardLoadError';
 
 import {
   AiCenter, Field, Loading, ErrorBox, Empty, Button,
@@ -245,7 +246,13 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: View) => void }) {
   const { data: alerts, loading: alertsLoading, error: alertsError, refetch: refetchAlerts } = useFetch(fetchAiAlerts);
   const { data: products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useFetch(fetchProducts);
   if (loading) return <><Heading eyebrow="مركز التشغيل" title="لوحة المعلومات" description="صورة مباشرة لأداء الأعمال اليومي" icon={LayoutDashboard} /><Loading /></>;
-  if (error) return <ErrorBox message={error} />;
+  if (error) return <>
+    <Heading eyebrow="مركز التشغيل" title="لوحة المعلومات" description="صورة مباشرة لأداء الأعمال اليومي" icon={LayoutDashboard} />
+    <DashboardLoadError
+      message={error}
+      onRetry={() => { void refetch(); void refetchAlerts(); void refetchProducts(); }}
+    />
+  </>;
   const lowStock = products?.filter((product) => {
     const quantity = product.inventory?.quantity_available;
     const reorderPoint = product.inventory?.reorder_point ?? product.min_stock;
