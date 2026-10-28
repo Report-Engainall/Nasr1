@@ -40,6 +40,13 @@ function parseProduct(value: unknown): ProductWithInventory {
     throw new Error('تعذر التحقق من السعر المعتمد لهذا الصنف؛ لم يُعرض سعر بديل.');
   }
 
+  const minimumOrderQuantity = row.min_order_quantity === undefined ? 1 : finiteNumber(row.min_order_quantity, Number.NaN);
+  const orderQuantityMultiple = row.order_quantity_multiple === undefined ? 1 : finiteNumber(row.order_quantity_multiple, Number.NaN);
+  if (!Number.isSafeInteger(minimumOrderQuantity) || minimumOrderQuantity < 1 || minimumOrderQuantity > 10000 ||
+      !Number.isSafeInteger(orderQuantityMultiple) || orderQuantityMultiple < 1 || orderQuantityMultiple > 10000) {
+    throw new Error('سياسة الحد الأدنى ومضاعف الطلب للصنف غير صالحة؛ لم تُعرض بيانات كمية غير مؤكدة.');
+  }
+
   const rawInventory = asRecord(row.inventory);
   const inventory = rawInventory && rawInventory.product_id === row.id
       && typeof rawInventory.warehouse_id === 'string'
@@ -73,6 +80,8 @@ function parseProduct(value: unknown): ProductWithInventory {
     stock_quantity: finiteNumber(row.stock_quantity),
     reserved_quantity: 0,
     min_stock_level: 0,
+    min_order_quantity: minimumOrderQuantity,
+    order_quantity_multiple: orderQuantityMultiple,
     status: typeof row.status === 'string' ? row.status : 'active',
     created_at: typeof row.created_at === 'string' ? row.created_at : '',
     ...(displayPrice === undefined ? {} : { display_price: displayPrice }),

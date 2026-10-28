@@ -366,14 +366,40 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
   function addToCart(product: ProductWithInventory) {
+    const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
+      ? Number(product.min_order_quantity) : 1;
+    const multiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
+      ? Number(product.order_quantity_multiple) : 1;
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id);
-      if (existing) return prev.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { product, quantity: 1 }];
+      if (existing) {
+        const nextQuantity = existing.quantity < minimum
+          ? minimum
+          : existing.quantity >= minimum && (existing.quantity - minimum) % multiple === 0
+            ? existing.quantity + multiple
+            : minimum + (Math.floor((existing.quantity - minimum) / multiple) + 1) * multiple;
+        return prev.map((item) => item.product.id === product.id ? { ...item, quantity: nextQuantity } : item);
+      }
+      return [...prev, { product, quantity: minimum }];
     });
   }
   function updateQty(productId: string, delta: number) {
-    setCart((prev) => prev.map((i) => i.product.id === productId ? { ...i, quantity: Math.max(0, i.quantity + delta) } : i).filter((i) => i.quantity > 0));
+    setCart((prev) => prev.map((item) => {
+      if (item.product.id !== productId) return item;
+      const minimum = Number.isSafeInteger(item.product.min_order_quantity) && Number(item.product.min_order_quantity) >= 1
+        ? Number(item.product.min_order_quantity) : 1;
+      const multiple = Number.isSafeInteger(item.product.order_quantity_multiple) && Number(item.product.order_quantity_multiple) >= 1
+        ? Number(item.product.order_quantity_multiple) : 1;
+      let next = 0;
+      if (delta > 0) {
+        next = item.quantity < minimum
+          ? minimum
+          : minimum + (Math.floor((item.quantity - minimum) / multiple) + 1) * multiple;
+      } else if (item.quantity > minimum) {
+        next = minimum + Math.max(0, Math.ceil((item.quantity - minimum) / multiple) - 1) * multiple;
+      }
+      return { ...item, quantity: next };
+    }).filter((item) => item.quantity > 0));
   }
   function removeFromCart(productId: string) { setCart((prev) => prev.filter((i) => i.product.id !== productId)); }
   function addMatrixSelection() {
@@ -388,13 +414,17 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
       quantity,
       available: Math.max(0, Math.floor(Number(product.inventory?.quantity_available ?? 0))),
       already_in_cart: cart.find((item) => item.product.id === product.id)?.quantity ?? 0,
+      min_order_quantity: product.min_order_quantity ?? 1,
+      order_quantity_multiple: product.order_quantity_multiple ?? 1,
     })));
     if (!validation.valid) {
       const message = validation.reason === 'empty'
         ? 'أدخل كمية صحيحة لصنف واحد على الأقل.'
         : validation.reason === 'invalid_quantity'
           ? `الكمية المطلوبة للصنف «${validation.product_name ?? ''}» غير صحيحة. أدخل عددًا صحيحًا أكبر من صفر.`
-          : `الكمية المطلوبة للصنف «${validation.product_name ?? ''}» تتجاوز المخزون الظاهر بما في ذلك الكمية الموجودة في السلة.`;
+          : validation.reason === 'order_policy'
+            ? `كمية الصنف «${validation.product_name ?? ''}» لا تطابق الحد الأدنى أو مضاعف العبوة المحدد.`
+            : `الكمية المطلوبة للصنف «${validation.product_name ?? ''}» تتجاوز المخزون الظاهر بما في ذلك الكمية الموجودة في السلة.`;
       setMatrixFeedback({ kind: 'error', message });
       return;
     }
@@ -717,7 +747,10 @@ export function ProductGrid({
     <div className="sf-product-grid">
       {products.map((product) => {
         const qty = product.inventory?.quantity_available ?? 0;
+        const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
+          ? Number(product.min_order_quantity) : 1;
         const out = qty <= 0;
+        const belowMinimum = qty > 0 && qty < minimum;
         const liked = wishlist.includes(product.id);
         const compared = compare.includes(product.id);
 
@@ -756,11 +789,11 @@ export function ProductGrid({
               <div className="sf-product-stock">
                 {out
                   ? <span className="sf-out">نفد المخزون</span>
-                  : <span className="sf-in">{formatNumber(qty)} متوفر</span>}
+                  : <span className={belowMinimum ? "sf-out" : "sf-in"}>{formatNumber(qty)} متوفر{belowMinimum ? ' — أقل من الحد الأدنى' : ''}</span>}
               </div>
             </button>
-            <button className="sf-add-btn" disabled={out} onClick={() => onAdd(product)}>
-              {out ? 'غير متوفر' : <><Plus size={16} /> أضف للسلة</>}
+            <button className="sf-add-btn" disabled={out || belowMinimum} onClick={() => onAdd(product)}>
+              {out ? 'غير متوفر' : belowMinimum ? 'الكمية المتاحة أقل من الحد الأدنى' : <><Plus size={16} /> أضف للسلة</>}
             </button>
           </article>
         );
@@ -789,6 +822,9 @@ export function ProductDetail({
   onCompare: () => void;
 }) {
   const quantity = product.inventory?.quantity_available ?? 0;
+  const minimumOrderQuantity = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
+    ? Number(product.min_order_quantity) : 1;
+  const belowMinimum = quantity > 0 && quantity < minimumOrderQuantity;
   const pricePresentation = resolveStorefrontPricePresentation(priceVisibilityPolicy, product.display_price);
 
   return (
@@ -813,11 +849,15 @@ export function ProductDetail({
             className="sf-detail-price"
             unitLabel={`لكل ${product.unit}`}
           />
-          <div className={`sf-detail-stock ${quantity > 0 ? 'available' : 'unavailable'}`}>
-            {quantity > 0 ? `متوفر حالياً: ${formatNumber(quantity)} ${product.unit}` : 'هذا المنتج غير متوفر حالياً'}
+          <div className={`sf-detail-stock ${quantity > 0 && !belowMinimum ? 'available' : 'unavailable'}`}>
+            {quantity <= 0
+              ? 'هذا المنتج غير متوفر حالياً'
+              : belowMinimum
+                ? `المتوفر (${formatNumber(quantity)} ${product.unit}) أقل من الحد الأدنى للطلب (${formatNumber(minimumOrderQuantity)} ${product.unit})`
+                : `متوفر حالياً: ${formatNumber(quantity)} ${product.unit}`}
           </div>
           <div className="sf-detail-actions">
-            <button className="sf-btn-primary" disabled={quantity <= 0} onClick={onAdd}><ShoppingCart size={17} /> إضافة إلى السلة</button>
+            <button className="sf-btn-primary" disabled={quantity < minimumOrderQuantity} onClick={onAdd}><ShoppingCart size={17} /> إضافة إلى السلة</button>
             <button className={`sf-icon-action ${inWishlist ? 'active' : ''}`} onClick={onWishlist}>
               <Heart size={18} fill={inWishlist ? 'currentColor' : 'none'} /> {inWishlist ? 'في المفضلة' : 'أضف للمفضلة'}
             </button>
@@ -825,7 +865,8 @@ export function ProductDetail({
           </div>
           <div className="sf-detail-facts">
             <div><strong>الوحدة</strong><span>{product.unit}</span></div>
-            <div><strong>الحد الأدنى</strong><span>حسب اتفاق العميل</span></div>
+            <div><strong>الحد الأدنى</strong><span>{formatNumber(product.min_order_quantity ?? 1)} {product.unit}</span></div>
+            {(product.order_quantity_multiple ?? 1) > 1 && <div><strong>مضاعف الطلب</strong><span>{formatNumber(product.order_quantity_multiple ?? 1)} {product.unit}</span></div>}
             {pricePresentation.visible && <div><strong>السعر</strong><span>السعر الظاهر قبل تأكيد الطلب</span></div>}
           </div>
         </div>
@@ -1201,14 +1242,29 @@ export function QuickOrderMatrix({ products, quantities, alreadyInCart = {}, fee
             </tr></thead>
             <tbody>{products.map((product) => {
               const available = Math.max(0, Math.floor(Number(product.inventory?.quantity_available ?? 0)));
-              const remainingToAdd = Math.max(0, available - Math.max(0, Math.floor(Number(alreadyInCart[product.id] ?? 0))));
+              const alreadyOrdered = Math.max(0, Math.floor(Number(alreadyInCart[product.id] ?? 0)));
+              const remainingToAdd = Math.max(0, available - alreadyOrdered);
+              const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
+                ? Number(product.min_order_quantity) : 1;
+              const multiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
+                ? Number(product.order_quantity_multiple) : 1;
+              const nextAllowedTotal = alreadyOrdered < minimum
+                ? minimum
+                : minimum + (Math.floor((alreadyOrdered - minimum) / multiple) + 1) * multiple;
+              const minimumAddition = Math.max(1, nextAllowedTotal - alreadyOrdered);
               const rawQuantity = quantities[product.id] ?? '';
               const currentQuantity = /^\d+$/.test(rawQuantity) ? Number(rawQuantity) : 0;
+              const resultingQuantity = alreadyOrdered + currentQuantity;
+              const nextAllowedAfterCurrent = resultingQuantity < minimum
+                ? minimum
+                : minimum + (Math.floor((resultingQuantity - minimum) / multiple) + 1) * multiple;
+              const nextIncrease = nextAllowedAfterCurrent - alreadyOrdered;
               return <tr key={product.id} style={{ borderTop: '1px solid #edf2f3' }}>
                 <td style={{ padding: 12, fontWeight: 800 }}>
                   <div>{product.name}</div>
                   {product.name_en ? <small dir="auto" style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 500 }}>{product.name_en}</small> : null}
                   <small style={{ display: 'block', marginTop: 3, color: '#74888c', fontWeight: 500 }}>{product.category?.name ?? 'غير مصنف'}</small>
+                  {(minimum > 1 || multiple > 1) && <small style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 600 }}>الحد الأدنى {minimum} · تدرج الكمية {multiple}</small>}
                 </td>
                 <td style={{ padding: 12, direction: 'ltr', textAlign: 'right' }}>
                   <div>{product.item_code}</div>
@@ -1217,9 +1273,9 @@ export function QuickOrderMatrix({ products, quantities, alreadyInCart = {}, fee
                 <td style={{ padding: 12, whiteSpace: 'nowrap' }}>{formatNumber(available)} {product.unit}</td>
                 <td style={{ padding: 12, minWidth: 160 }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                    <button type="button" aria-label={`تقليل كمية ${product.name}`} disabled={remainingToAdd <= 0 || currentQuantity <= 0} onClick={() => onQuantityChange(product.id, currentQuantity <= 1 ? '' : String(currentQuantity - 1))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Minus size={14} /></button>
-                    <input type="number" inputMode="numeric" min={1} max={remainingToAdd} step={1} value={rawQuantity} disabled={remainingToAdd <= 0} aria-label={`كمية ${product.name}`} onChange={(event) => { const value = event.target.value; if (value === '' || /^\d+$/.test(value)) onQuantityChange(product.id, value); }} style={{ width: 78, padding: '9px 8px', border: '1px solid #cfdddd', borderRadius: 9, background: available <= 0 ? '#f2f5f5' : '#fff', color: '#18383c', textAlign: 'center' }} />
-                    <button type="button" aria-label={`زيادة كمية ${product.name}`} disabled={remainingToAdd <= 0 || currentQuantity >= remainingToAdd} onClick={() => onQuantityChange(product.id, String(Math.min(remainingToAdd, currentQuantity + 1)))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Plus size={14} /></button>
+                    <button type="button" aria-label={`تقليل كمية ${product.name}`} disabled={remainingToAdd < minimumAddition || currentQuantity <= 0} onClick={() => { const previousTotal = resultingQuantity <= minimum ? 0 : minimum + Math.max(0, Math.ceil((resultingQuantity - minimum) / multiple) - 1) * multiple; const next = previousTotal - alreadyOrdered; onQuantityChange(product.id, next < minimumAddition ? '' : String(next)); }} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Minus size={14} /></button>
+                    <input type="number" inputMode="numeric" min={minimumAddition} max={remainingToAdd} step={multiple} value={rawQuantity} disabled={remainingToAdd < minimumAddition} aria-label={`كمية ${product.name}`} onChange={(event) => { const value = event.target.value; if (value === '' || /^\d+$/.test(value)) onQuantityChange(product.id, value); }} style={{ width: 78, padding: '9px 8px', border: '1px solid #cfdddd', borderRadius: 9, background: available <= 0 ? '#f2f5f5' : '#fff', color: '#18383c', textAlign: 'center' }} />
+                    <button type="button" aria-label={`زيادة كمية ${product.name}`} disabled={remainingToAdd < minimumAddition || nextIncrease > remainingToAdd} onClick={() => onQuantityChange(product.id, String(nextIncrease))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Plus size={14} /></button>
                   </div>
                 </td>
               </tr>;
