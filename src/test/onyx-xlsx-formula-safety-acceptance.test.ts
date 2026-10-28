@@ -90,4 +90,37 @@ describe("Onyx XLSX formula-injection acceptance", () => {
     expect(findCell(header, "B11")).toContain('t="inlineStr"');
     expect(findCell(header, "B11")).toContain("=HYPERLINK(");
   });
+
+  it("does not serialize unexpected internal cost, margin, or foreign-tier fields into either Onyx worksheet", () => {
+    const base = makeOrder();
+    const unsafeInput = {
+      ...base,
+      items: base.items.map((item) => ({
+        ...item,
+        internal_cost_sentinel: "INTERNAL-COST-SENTINEL",
+        internal_margin_sentinel: "INTERNAL-MARGIN-SENTINEL",
+        foreign_tier_sentinel: "FOREIGN-TIER-SENTINEL",
+        internal_cost_amount: 987654.32,
+        foreign_tier_price: 876543.21,
+      })),
+    } as unknown as ExportInput;
+
+    const workbook = buildOnyxOrderWorkbook(unsafeInput);
+    const details = storedZipEntry(workbook, "xl/worksheets/sheet1.xml");
+    const header = storedZipEntry(workbook, "xl/worksheets/sheet2.xml");
+    for (const secret of [
+      "INTERNAL-COST-SENTINEL",
+      "INTERNAL-MARGIN-SENTINEL",
+      "FOREIGN-TIER-SENTINEL",
+      "987654.32",
+      "876543.21",
+    ]) {
+      expect(details).not.toContain(secret);
+      expect(header).not.toContain(secret);
+    }
+
+    // Authorized order quantity and approved/customer price columns remain present.
+    expect(details).toContain("000007");
+    expect(details).toContain("10");
+  });
 });

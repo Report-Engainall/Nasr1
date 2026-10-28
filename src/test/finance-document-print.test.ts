@@ -191,6 +191,62 @@ describe("finance document print contracts", () => {
     expect(doc.body.textContent).toContain("AGHBARI COMMERCE");
   });
 
+  it("drops unexpected internal cost, margin, and foreign-tier fields from staff invoice print output", () => {
+    const source = invoiceFixture();
+    const input = {
+      ...source,
+      invoice: {
+        ...source.invoice,
+        internal_cost_sentinel: "INTERNAL-COST-SENTINEL",
+        foreign_tier_sentinel: "FOREIGN-TIER-SENTINEL",
+      },
+      customer: {
+        ...source.customer,
+        internal_margin_sentinel: "INTERNAL-MARGIN-SENTINEL",
+        foreign_tier_sentinel: "FOREIGN-TIER-SENTINEL",
+      },
+      lines: source.lines.map((line) => ({
+        ...line,
+        internal_cost_sentinel: "INTERNAL-COST-SENTINEL",
+        internal_margin_sentinel: "INTERNAL-MARGIN-SENTINEL",
+        foreign_tier_sentinel: "FOREIGN-TIER-SENTINEL",
+        internal_cost_amount: "987654.32",
+      })),
+    };
+
+    const parsed = readStaffInvoicePrintPayload(input);
+    expect(Object.keys(parsed.invoice)).toEqual([
+      "id", "invoice_number", "status", "issued_at", "due_at", "currency",
+      "subtotal", "tax_amount", "total_amount",
+    ]);
+    expect(Object.keys(parsed.customer)).toEqual([
+      "id", "customer_code", "business_name", "contact_name",
+    ]);
+    expect(Object.keys(parsed.lines[0])).toEqual([
+      "id", "item_code", "description", "unit", "quantity", "unit_price", "line_total",
+    ]);
+    const serialized = JSON.stringify(parsed);
+    for (const secret of [
+      "INTERNAL-COST-SENTINEL",
+      "INTERNAL-MARGIN-SENTINEL",
+      "FOREIGN-TIER-SENTINEL",
+      "987654.32",
+    ]) {
+      expect(serialized).not.toContain(secret);
+    }
+
+    const doc = document.implementation.createHTMLDocument("");
+    renderStaffInvoiceDocument(doc, parsed, "مؤسسة الاختبار");
+    for (const secret of [
+      "INTERNAL-COST-SENTINEL",
+      "INTERNAL-MARGIN-SENTINEL",
+      "FOREIGN-TIER-SENTINEL",
+      "987654.32",
+    ]) {
+      expect(doc.body.textContent).not.toContain(secret);
+    }
+  });
+
   it("rejects legacy truncated statement payloads rather than printing an incomplete ledger", () => {
     const payload = statementFixture();
     payload.truncated.invoices = true;
