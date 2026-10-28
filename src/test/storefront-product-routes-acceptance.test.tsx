@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent } from "@testing-library/react";
 import { routeTree } from "@/routeTree.gen";
+import { loadOfflineCartDraft } from "@/lib/offline-cart";
 
 // This file uses createRoot directly; opt into React's supported act() flushing contract.
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -162,6 +163,7 @@ describe("public storefront product route acceptance", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(loadOfflineCartDraft).mockReturnValue([]);
     mocks.user = null;
     mocks.authListeners.clear();
     mocks.getSession.mockReset().mockResolvedValue({ data: { session: null }, error: null });
@@ -432,6 +434,25 @@ describe("public storefront product route acceptance", () => {
 
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تتجاوز المتاح");
     expect(host?.querySelector(".sf-cart-btn")?.textContent).toContain("7");
+  });
+
+  it("does not allow cart quantity increments to exceed the known available stock", async () => {
+    vi.mocked(loadOfflineCartDraft).mockReturnValue([{ product_id: PRODUCT_ID, quantity: 7 }]);
+    await mountRoute("/cart");
+    await flush();
+
+    expect(host?.querySelector(".sf-cart-qty span")?.textContent).toBe("7");
+    const increaseButton = host?.querySelector<HTMLButtonElement>(
+      'button[aria-label="زيادة كمية صنف اختبار"]',
+    );
+    expect(increaseButton).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(increaseButton!);
+    });
+    await flush();
+
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تتجاوز المتاح");
+    expect(host?.querySelector(".sf-cart-qty span")?.textContent).toBe("7");
   });
 
   it("shows a not-available state for an unknown deep-linked product ID", async () => {
