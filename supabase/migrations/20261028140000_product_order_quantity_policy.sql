@@ -220,8 +220,9 @@ BEGIN
   );
 END;
 $$;
-REVOKE ALL ON FUNCTION public.preview_order_pricing(jsonb) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.preview_order_pricing(jsonb) TO authenticated;
+-- The monetary preview is an internal SECURITY DEFINER dependency. Clients call
+-- validate_checkout_cart / authorized order RPCs, never this full monetary payload directly.
+REVOKE ALL ON FUNCTION public.preview_order_pricing(jsonb) FROM PUBLIC, anon, authenticated;
 
 
 CREATE OR REPLACE FUNCTION public.get_storefront_catalog_page(
