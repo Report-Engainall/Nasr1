@@ -1,3 +1,19 @@
+# AUTHORITATIVE EXECUTION OVERRIDE — 2026-10-28 — MAIN f4136e9be2542e5fc4f34ee849c58d24c5d71df5 + DLV-005 XLSX PRIVACY
+
+**This block supersedes stale resume pointers below. Preserve historical entries; always read live refs and exact tested SHAs before acting.**
+
+- **Product/repository:** `Report-Engainall/Nasr1` — متجر الأغبري | Aghbari Commerce. No direct writes to `main`.
+- **Main:** `f4136e9be2542e5fc4f34ee849c58d24c5d71df5`; post-merge Core [40607663980](https://github.com/Report-Engainall/Nasr1/actions/runs/40607663980) terminal SUCCESS on this exact SHA.
+- **PR #301 / DLV-004:** merged at `9ebc9e77249d4e763ed485603fbfe27c703ce23e`. Pre-merge Core [40604912298](https://github.com/Report-Engainall/Nasr1/actions/runs/40604912298) and local Supabase/Chromium P2 [40604912414](https://github.com/Report-Engainall/Nasr1/actions/runs/40604912414) passed persistent cart → atomic/idempotent order → same-tenant manager approval → customer server readback → tenant denial. Same-order invoice/reservation/history/audit/outbox/replay assertions ran only in isolated local PostgreSQL. Hosted authenticated E2E is SKIPPED.
+- **PR #302 / DLV-003:** merged at `908c5f2a91ccbb3087b465d93d82ad03b7ca724d`; adds optional persisted `sku`/`name_en`, tenant-safe six-field product search, admin editor/types and customer card/detail. Public raw `base_price` key is omitted.
+- **PR #303 / DLV-003 DB acceptance:** merged at `f4136e9be2542e5fc4f34ee849c58d24c5d71df5`. Pre-merge head `257f88d4db7614fdcb52791c2ab9bbd98118022d` passed Core [40607228602](https://github.com/Report-Engainall/Nasr1/actions/runs/40607228602) and P2 [40607228580](https://github.com/Report-Engainall/Nasr1/actions/runs/40607228580). DB acceptance searches item_code, SKU, barcode, Arabic name, English name and description on a rolled-back isolated product row; checks persisted fields and no raw base-price leak.
+- **PR #304 / DLV-005:** [PR link](https://github.com/Report-Engainall/Nasr1/pull/304), branch `test/dlv005-onyx-export-sensitive-field-boundary-20261028`. It extends actual Onyx XLSX browser acceptance to allow numeric values only in quantity and authorized approved-price cells; an adversarial writer unit test feeds internal-cost, raw-base-price, foreign-tier, purchase-cost and margin sentinels and asserts they are absent from the produced XML. Exact-head Core/PostgreSQL/P2 must finish successfully after this docs commit.
+- **Next:** close the cross-channel DLV-005 privacy evidence, complete DLV-002 full-route responsive RTL/error-state coverage, finish DLV-003 lifecycle/image upload/replace/remove checks, then proceed through the remaining stock, finance, Onyx, reporting and release-operation rows. Do not redo completed flows without new failing evidence.
+- **Release decision:** NO-GO until every required delivery group is COMPLETE_VERIFIED on one nominated SHA. Hosted authenticated E2E, production migration/rollback, backup/restore, deployment proof and owner sign-off remain open.
+- **Constraints:** free/local tools only; no paid service without approval; no fake orders/payments/stock/reports; no direct main writes or branch deletion.
+
+---
+
 # AUTHORITATIVE EXECUTION OVERRIDE — 2026-10-28 — CURRENT MAIN + DLV-003
 
 **This block supersedes old resume pointers below. Preserve history; always re-read current refs and CI before acting.**

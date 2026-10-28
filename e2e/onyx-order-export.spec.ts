@@ -102,6 +102,16 @@ test("manager order detail downloads the persisted-audit 27-column Onyx XLSX", a
   expect([...firstRow![1].matchAll(/<c\b/g)]).toHaveLength(27);
   expect([...itemRow![1].matchAll(/<c\b/g)]).toHaveLength(6);
   for (const ref of ["A2", "B2", "C2", "E2", "G2", "W2"]) expect(itemRow![1]).toContain(`r="${ref}"`);
+  const numericCellRefs = [...itemRow![1].matchAll(/<c r="([A-Z]+\d+)" t="n">/g)].map((match) => match[1]);
+  expect(
+    numericCellRefs,
+    "The actual XLSX item row may contain only its authorized quantity and approved unit-price numeric cells.",
+  ).toEqual(["E2", "G2"]);
+  const exportedXml = detailXml + "\n" + headerXml;
+  expect(
+    exportedXml,
+    "The downloaded artifact must not carry internal cost, margin, raw base-price or foreign-tier identifiers.",
+  ).not.toMatch(/(?:base_price|price_wholesale|price_retail|cost_price|purchase_price|unit_cost|profit_margin|gross_profit)/i);
   expect(detailXml).toContain('<autoFilter ref="A1:AA2"/>');
   expect(detailXml).toContain("P2-RET-001");
   expect(headerXml).toContain(orderNumber);
@@ -126,6 +136,8 @@ test("manager order detail downloads the persisted-audit 27-column Onyx XLSX", a
       orderNumber,
       downloadedFile: download.suggestedFilename(),
       worksheetColumnCount: 27,
+      numericItemCells: numericCellRefs,
+      sensitiveInternalFieldIdentifiersPresent: false,
       persistedAuditIdEmbedded: auditCell?.[1],
       sourceSnapshotSelected: false,
       targetOnyxCompatibility: "NOT_PROVEN / BLOCKED_EXTERNAL",

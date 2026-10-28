@@ -108,6 +108,39 @@ describe('Onyx order workbook draft', () => {
     expect(detailXml).toContain('سكر برازيلي');
   });
 
+  it('ignores unsupported internal cost, margin and foreign-tier values in XLSX item payloads', () => {
+    const untrustedItem = {
+      ...order.items[0],
+      base_price: 987654.321,
+      price_wholesale: 876543.219,
+      price_retail: 765432.198,
+      cost_price: 654321.987,
+      purchase_price: 543210.876,
+      unit_cost: 432109.765,
+      profit_margin: 321098.654,
+      gross_profit: 210987.543,
+      margin: 109876.432,
+    };
+    const bytes = buildOnyxOrderWorkbook({
+      ...order,
+      items: [untrustedItem] as unknown as typeof order.items,
+    });
+    const detailXml = storedZipEntry(bytes, 'xl/worksheets/sheet1.xml');
+    const headerXml = storedZipEntry(bytes, 'xl/worksheets/sheet2.xml');
+    const row = detailXml.match(/<row r="2"[^>]*>([\s\S]*?)<\/row>/);
+    expect(row).not.toBeNull();
+    const numericCellRefs = [...row![1].matchAll(/<c r="([A-Z]+\d+)" t="n">/g)].map((match) => match[1]);
+    expect(numericCellRefs).toEqual(["E2", "G2"]);
+    const xml = detailXml + headerXml;
+    for (const sentinel of [
+      "987654.321", "876543.219", "765432.198", "654321.987",
+      "543210.876", "432109.765", "321098.654", "210987.543", "109876.432",
+    ]) {
+      expect(xml).not.toContain(sentinel);
+    }
+    expect(xml).not.toMatch(/(?:base_price|price_wholesale|price_retail|cost_price|purchase_price|unit_cost|profit_margin|gross_profit)/i);
+  });
+
   it('rejects invalid quantities and prices instead of emitting blank accounting cells', () => {
     expect(() => buildOnyxDetailRows({
       ...order,
