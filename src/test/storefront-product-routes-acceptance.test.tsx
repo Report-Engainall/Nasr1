@@ -256,7 +256,7 @@ describe("public storefront product route acceptance", () => {
 
     expect(mocks.fetchProducts).not.toHaveBeenCalled();
     expect(host?.textContent).not.toContain("LIVE-SESSION-PRIVATE-CATALOG-SENTINEL");
-    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("جلسة المصادقة غير متزامنة");
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("جلسة المصادقة لا تطابق هوية العرض الحالية");
   });
 
   it("does not render an unscoped public cache when an authenticated tenant detail read fails", async () => {
@@ -373,7 +373,13 @@ describe("public storefront product route acceptance", () => {
       isStaff: false,
     };
     mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "auth-user-a" } } }, error: null });
-    mocks.fetchProducts.mockResolvedValue([{ ...PRODUCT, name: "TENANT-A-ONLY-SENTINEL" }]);
+    mocks.fetchProducts.mockImplementation(async () => {
+      if (mocks.detailReadFailures > 0) {
+        mocks.detailReadFailures -= 1;
+        throw new Error("synthetic product detail read failure after identity switch");
+      }
+      return [{ ...PRODUCT, name: "TENANT-A-ONLY-SENTINEL" }];
+    });
 
     const router = await mountRoute(`/product/${PRODUCT_ID}`);
     expect(host?.textContent).toContain("TENANT-A-ONLY-SENTINEL");
@@ -400,6 +406,7 @@ describe("public storefront product route acceptance", () => {
     await flush();
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تعذر تحميل تفاصيل المنتج");
     expect(host?.textContent).not.toContain("TENANT-A-ONLY-SENTINEL");
+    expect(mocks.fetchProducts).toHaveBeenCalledTimes(2);
   });
 
   it("shows a not-available state for an unknown deep-linked product ID", async () => {
