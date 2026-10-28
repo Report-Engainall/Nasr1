@@ -290,6 +290,7 @@ BEGIN
     SELECT
       p.id, p.organization_id, p.category_id, p.name, p.name_en, p.item_code, p.sku,
       p.barcode, p.description, p.unit, p.image_url, p.status, p.created_at,
+      p.min_order_quantity, p.order_quantity_multiple,
       inv.id AS inventory_id,
       inv.quantity_on_hand AS inventory_quantity_on_hand,
       inv.quantity_available AS inventory_quantity_available,
