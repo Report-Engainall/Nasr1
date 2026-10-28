@@ -201,6 +201,31 @@ async function main() {
       assert.equal(Object.hasOwn(matchedProduct.inventory, "quantity_on_hand"), false, "public inventory must not expose physical on-hand quantities");
     }
 
+    // Verify the persisted featured-first and explicit sort-order contract using the live
+    // tenant-scoped catalog RPC, not a client-only array sort.
+    await db.unsafe("reset role");
+    const featuredUpdates = await db.unsafe(
+      "update public.products set is_featured=true,sort_order=0 where id=$1::uuid and organization_id=$2::uuid and status='active' returning id::text",
+      [CATALOG_PRODUCT_ID, ORG_ID],
+    );
+    const nextFeaturedUpdates = await db.unsafe(
+      "update public.products set is_featured=true,sort_order=1 where id=$1::uuid and organization_id=$2::uuid and status='active' returning id::text",
+      [ACCOUNTANT_PRODUCT_ID, ORG_ID],
+    );
+    assert.equal(featuredUpdates.length, 1, "featured ordering fixture product must remain active");
+    assert.equal(nextFeaturedUpdates.length, 1, "secondary featured ordering fixture product must remain active");
+    await assumeUser(CUSTOMER_AUTH_ID, "ci-customer-one@example.test");
+    const orderedCatalogResult = await db.unsafe(
+      "select public.get_storefront_catalog_page(null::text,null::uuid,1,100,false) as result",
+    );
+    const orderedIds = (orderedCatalogResult[0]?.result?.items ?? []).map((item) => item.id);
+    assert.ok(orderedIds.includes(CATALOG_PRODUCT_ID), "catalog page includes the first featured ordering fixture");
+    assert.ok(orderedIds.includes(ACCOUNTANT_PRODUCT_ID), "catalog page includes the second featured ordering fixture");
+    assert.ok(
+      orderedIds.indexOf(CATALOG_PRODUCT_ID) < orderedIds.indexOf(ACCOUNTANT_PRODUCT_ID),
+      "catalog RPC orders featured products by persisted sort_order",
+    );
+
     const items = JSON.stringify([{ product_id: CATALOG_PRODUCT_ID, quantity: 2 }]);
     const hiddenCardPrice = await db.unsafe(
       "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],1)",
