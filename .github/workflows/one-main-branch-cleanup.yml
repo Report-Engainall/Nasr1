@@ -53,6 +53,8 @@ jobs:
           branch_file="${RUNNER_TEMP}/branches.tsv"
           pr_file="${RUNNER_TEMP}/pull-requests.tsv"
           main_sha="$(git rev-parse origin/main)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           deleted=0
           archived=0
           already_integrated=0
