@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
@@ -6,6 +7,20 @@ vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { profileId: mocks.profil
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: mocks.rpc } }));
 
 import { CustomerOrderPricingPreview } from "@/components/CustomerOrderPricingPreview";
+
+const profileSwitchSnapshots: string[] = [];
+
+function ProfileSwitchHarness({ revision }: { revision: number }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    profileSwitchSnapshots.push(hostRef.current?.textContent ?? "");
+  }, [revision]);
+  return (
+    <div ref={hostRef}>
+      <CustomerOrderPricingPreview items={items} policyValue={true} surface="cart" title="ملخص أسعار السلة" />
+    </div>
+  );
+}
 
 const items = [{ product_id: "product-1", quantity: 2 }];
 const visiblePayload = {
@@ -27,6 +42,7 @@ const visiblePayload = {
 
 beforeEach(() => {
   mocks.profileId = "profile-1";
+  profileSwitchSnapshots.length = 0;
   mocks.rpc.mockReset().mockResolvedValue({ data: visiblePayload, error: null });
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
@@ -40,6 +56,26 @@ describe("CustomerOrderPricingPreview wired to the server RPC", () => {
       p_items: [{ product_id: "product-1", quantity: 2 }],
       p_surface: "cart",
     });
+  });
+
+  it("hides the previous profile's price in the first committed render after account changes", async () => {
+    const { rerender } = render(<ProfileSwitchHarness revision={1} />);
+    expect(await screen.findByRole("region", { name: "ملخص أسعار السلة" })).toBeInTheDocument();
+    expect(screen.getByText("صنف تجريبي × 2")).toBeInTheDocument();
+
+    const snapshotIndex = profileSwitchSnapshots.length;
+    mocks.profileId = "profile-2";
+    rerender(<ProfileSwitchHarness revision={2} />);
+
+    // Layout effects observe the committed DOM before passive effects can fetch a new preview.
+    // The previous account's price must already be gone in this render.
+    const immediateSnapshot = profileSwitchSnapshots[snapshotIndex];
+    expect(immediateSnapshot).toContain("جار جلب مراجعة الأسعار من الخادم");
+    expect(immediateSnapshot).not.toContain("صنف تجريبي × 2");
+    expect(immediateSnapshot).not.toContain("الإجمالي");
+
+    expect(await screen.findByRole("region", { name: "ملخص أسعار السلة" })).toBeInTheDocument();
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
   });
 
   it("does not call the preview RPC or display prices when the policy is false or malformed", () => {
