@@ -326,6 +326,7 @@ describe("Arabic customer finance PDFs", () => {
       },
       fontBytes(),
       generatedAt,
+      true,
     );
 
     expect(new TextDecoder().decode(bytes.slice(0, 8))).toMatch(/^%PDF-1\./);
@@ -333,6 +334,54 @@ describe("Arabic customer finance PDFs", () => {
     const document = await PDFDocument.load(bytes);
     expect(document.getPageCount()).toBe(1);
     expect(document.getTitle()).toContain("INV-2026-001");
+  });
+
+  it("defaults customer invoice PDFs to hidden financial fields and prevents private values from changing the PDF", async () => {
+    const invoice = {
+      id: invoiceId,
+      invoice_number: "INV-2026-HIDDEN",
+      customer_id: "55555555-5555-4555-8555-555555555555",
+      status: "issued",
+      issued_at: "2026-10-15T09:00:00.000Z",
+      due_at: "2026-10-30T00:00:00.000Z",
+      currency: "YER",
+      subtotal: "777777.77",
+      tax_amount: "888888.88",
+      total_amount: "1666666.65",
+    };
+    const line = {
+      id: "66666666-6666-4666-8666-666666666666",
+      item_code: "000125",
+      description: "سكر أبيض",
+      unit: "كرتون",
+      quantity: "2",
+      unit_price: "999999.99",
+      line_total: "777777.77",
+    };
+    const customer = {
+      customer_code: "000042",
+      business_name: "متجر الاختبار",
+      contact_name: "مستخدم اختبار",
+      tier_label: "PRIVATE-WHOLESALE-TIER-SENTINEL",
+    };
+
+    // Omitting the financial visibility decision must be fail-closed. Changing monetary
+    // and tier data alone must not alter any bytes in the hidden customer PDF.
+    const hiddenWithSentinels = await buildCustomerInvoicePdf(
+      invoice, [line], customer, fontBytes(), generatedAt,
+    );
+    const hiddenWithDifferentValues = await buildCustomerInvoicePdf(
+      { ...invoice, subtotal: "1.00", tax_amount: "0.00", total_amount: "1.00" },
+      [{ ...line, unit_price: "0.50", line_total: "1.00" }],
+      { ...customer, tier_label: "PRIVATE-RETAIL-TIER-SENTINEL" },
+      fontBytes(), generatedAt, false, false,
+    );
+    expect(hiddenWithSentinels).toEqual(hiddenWithDifferentValues);
+
+    const explicitlyVisible = await buildCustomerInvoicePdf(
+      invoice, [line], customer, fontBytes(), generatedAt, true, false,
+    );
+    expect(explicitlyVisible).not.toEqual(hiddenWithSentinels);
   });
 
   it("rejects invoice PDFs when the source totals do not reconcile", async () => {
@@ -360,12 +409,12 @@ describe("Arabic customer finance PDFs", () => {
 
     await expect(buildCustomerInvoicePdf(
       { ...invoice, total_amount: "26.00", tax_amount: "0.00" },
-      [line], customer, fontBytes(), generatedAt,
+      [line], customer, fontBytes(), generatedAt, true,
     )).rejects.toThrow("subtotal plus tax does not equal the invoice total");
 
     await expect(buildCustomerInvoicePdf(
       invoice, [{ ...line, line_total: "24.00" }],
-      customer, fontBytes(), generatedAt,
+      customer, fontBytes(), generatedAt, true,
     )).rejects.toThrow("line totals do not equal the invoice subtotal");
   });
 
@@ -393,13 +442,13 @@ describe("Arabic customer finance PDFs", () => {
     const customer = { customer_code: "000042", business_name: "متجر الاختبار" };
 
     await expect(buildCustomerInvoicePdf(
-      { ...invoice, total_amount: "-1.00" }, [line], customer, fontBytes(), generatedAt,
+      { ...invoice, total_amount: "-1.00" }, [line], customer, fontBytes(), generatedAt, true,
     )).rejects.toThrow("negative monetary value");
     await expect(buildCustomerInvoicePdf(
-      invoice, [{ ...line, line_total: "-1.00" }], customer, fontBytes(), generatedAt,
+      invoice, [{ ...line, line_total: "-1.00" }], customer, fontBytes(), generatedAt, true,
     )).rejects.toThrow("negative monetary value");
     await expect(buildCustomerInvoicePdf(
-      { ...invoice, total_amount: undefined }, [line], customer, fontBytes(), generatedAt,
+      { ...invoice, total_amount: undefined }, [line], customer, fontBytes(), generatedAt, true,
     )).rejects.toThrow("non-standard monetary value");
   });
 
@@ -426,11 +475,11 @@ describe("Arabic customer finance PDFs", () => {
     };
     const customer = { customer_code: "000042", business_name: "متجر الاختبار" };
 
-    await expect(buildCustomerInvoicePdf(invoice, [line], customer, fontBytes(), generatedAt))
+    await expect(buildCustomerInvoicePdf(invoice, [line], customer, fontBytes(), generatedAt, true))
       .rejects.toThrow("Invoice subtotal plus tax does not equal the invoice total.");
 
     await expect(buildCustomerInvoicePdf(
-      { ...invoice, total_amount: "26.00" }, [line], customer, fontBytes(), generatedAt,
+      { ...invoice, total_amount: "26.00" }, [line], customer, fontBytes(), generatedAt, true,
     )).resolves.toBeInstanceOf(Uint8Array);
   });
 

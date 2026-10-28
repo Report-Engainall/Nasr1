@@ -764,7 +764,7 @@ export async function buildCustomerInvoicePdf(
   customerInput: unknown,
   fontBytes: Uint8Array,
   generatedAt = new Date(),
-  financialDetailsVisible = true,
+  financialDetailsVisible = false,
   customerTierVisible = false,
 ): Promise<Uint8Array> {
   if (!invoiceInput || typeof invoiceInput !== "object") {
