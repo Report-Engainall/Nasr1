@@ -117,6 +117,7 @@ describe("finance PDF source integration — authoritative financial rendering",
       { customer_code: "C-TEST", business_name: "عميل الاختبار" },
       loadArabicDocumentFont(),
       generatedAt,
+      true,
     );
 
     const pdf = await PDFDocument.load(bytes);
@@ -251,6 +252,7 @@ describe("finance PDF source integration — authoritative financial rendering",
       { customer_code: "C-TEST", business_name: "عميل الاختبار" },
       loadArabicDocumentFont(),
       generatedAt,
+      true,
     )).rejects.toThrow("Invoice subtotal plus tax does not equal the invoice total.");
 
     await expect(buildCustomerInvoicePdf(
@@ -275,6 +277,7 @@ describe("finance PDF source integration — authoritative financial rendering",
       {},
       loadArabicDocumentFont(),
       generatedAt,
+      true,
     )).rejects.toThrow("Invoice line totals do not equal the invoice subtotal.");
   });
 
