@@ -316,7 +316,7 @@ export async function runOrderInputHardeningAcceptance({
     for (const test of staffPolicyCases) {
       await expectRejected(
         "staff order: " + test.name,
-        () => staffAttempt((await root.unsafe("select id from public.customers where organization_id=$1 and profile_id=$2 and status='approved' limit 1", [org, customerProfileId]))[0].id, test.items, test.key),
+        () => staffAttempt(staffCustomerId, test.items, test.key),
         /الكمية لا تطابق الحد الأدنى أو مضاعف الطلب للصنف/,
       );
     }
