@@ -397,7 +397,7 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
           const stockStatus = getInventoryAvailabilityStatus(qty, reorderPoint);
           const low = stockStatus === 'low';
           return <tr key={p.id}>
-            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{typeof qty === 'number' && Number.isFinite(qty) ? formatNumber(qty) + ' ' + p.unit : 'غير متاح'}</td>
+            <td><strong>{p.name}</strong><small>{p.description ?? 'بدون وصف'}</small><small>{p.is_featured ? 'منتج مميز في واجهة المتجر' : 'عرض عادي'} · ترتيب الظهور: {formatNumber(p.sort_order ?? 0)}</small></td><td><code>{p.item_code}</code></td><td>{p.category?.name ?? 'غير مصنف'}</td><td>{typeof p.base_price === 'number' && Number.isFinite(p.base_price) ? formatCurrency(p.base_price) : 'غير متاح'}</td><td>{typeof qty === 'number' && Number.isFinite(qty) ? formatNumber(qty) + ' ' + p.unit : 'غير متاح'}</td>
             <td><span className={'badge ' + (stockStatus === 'unknown' ? 'info' : low ? 'warning' : 'success')}>{stockStatus === 'unknown' ? 'غير متاح' : low ? 'منخفض' : 'متوفر'}</span></td>
             <td><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><Button variant="outline" onClick={() => openTransfer(p)}><ArrowLeftRight size={15} /> نقل مخزون</Button>{canManageReorderPoint && <Button variant="outline" onClick={() => openThreshold(p)}>حد إعادة الطلب</Button>}</div></td>
             <td><div className="row-actions"><button aria-label={'تعديل ' + p.name} onClick={() => { setEditing(p); setModal(true); }}><Pencil size={15} /></button><button aria-label={'حذف ' + p.name} onClick={() => remove(p)}><Trash2 size={15} /></button></div></td>
@@ -449,6 +449,8 @@ export function ProductModal({
   const [code, setCode] = useState(product?.item_code ?? '');
   const [sku, setSku] = useState(product?.sku ?? '');
   const [barcode, setBarcode] = useState(product?.barcode ?? '');
+  const [isFeatured, setIsFeatured] = useState(product?.is_featured ?? false);
+  const [sortOrder, setSortOrder] = useState(String(product?.sort_order ?? 0));
   const [price, setPrice] = useState(String(product?.base_price ?? ''));
   const [minOrderQuantity, setMinOrderQuantity] = useState(String(product?.min_order_quantity ?? 1));
   const [orderQuantityMultiple, setOrderQuantityMultiple] = useState(String(product?.order_quantity_multiple ?? 1));
@@ -495,13 +497,15 @@ export function ProductModal({
     if (!Number.isFinite(priceValue) || priceValue < 0 || priceValue > 999999999999.99) { setError('السعر الأساسي غير صالح.'); return; }
     const minimumValue = Number(minOrderQuantity);
     const multipleValue = Number(orderQuantityMultiple);
+    const sortOrderValue = Number(sortOrder);
     if (!Number.isSafeInteger(minimumValue) || minimumValue < 1 || minimumValue > 10000) { setError('الحد الأدنى للطلب يجب أن يكون عددًا صحيحًا بين 1 و10000.'); return; }
     if (!Number.isSafeInteger(multipleValue) || multipleValue < 1 || multipleValue > 10000) { setError('مضاعف الكمية يجب أن يكون عددًا صحيحًا بين 1 و10000.'); return; }
+    if (sortOrder.trim() === '' || !Number.isSafeInteger(sortOrderValue) || sortOrderValue < 0 || sortOrderValue > 1000000000) { setError('ترتيب الظهور يجب أن يكون عددًا صحيحًا بين صفر ومليار.'); return; }
     saveInFlight.current = true;
     setSaving(true); setError('');
     let productSaved = false;
     try {
-      const payload = { name: name.trim(), name_en: nameEn.trim() || null, item_code: code.trim(), sku: sku.trim() || null, barcode: barcode.trim() || null, base_price: priceValue, min_order_quantity: minimumValue, order_quantity_multiple: multipleValue, category_id: category || null, unit: product?.unit ?? 'كرتون', status: product?.status ?? 'active' };
+      const payload = { name: name.trim(), name_en: nameEn.trim() || null, item_code: code.trim(), sku: sku.trim() || null, barcode: barcode.trim() || null, base_price: priceValue, min_order_quantity: minimumValue, order_quantity_multiple: multipleValue, category_id: category || null, is_featured: isFeatured, sort_order: sortOrderValue, unit: product?.unit ?? 'كرتون', status: product?.status ?? 'active' };
       const saved = product ? await updateProduct(product.id, payload) : await createProduct(payload);
       productSaved = true;
       if (imageFile) {
@@ -576,6 +580,22 @@ export function ProductModal({
           <input value={barcode} onChange={(e) => setBarcode(e.target.value)} maxLength={120} disabled={saving} dir="auto" />
         </Field>
       </div>
+      <div className="form-grid">
+        <Field label="ظهور المنتج في المتجر">
+          <select aria-label="ظهور المنتج في المتجر" value={isFeatured ? 'featured' : 'standard'}
+            onChange={(event) => setIsFeatured(event.target.value === 'featured')} disabled={saving}>
+            <option value="standard">عرض عادي</option>
+            <option value="featured">منتج مميز — يظهر أولًا</option>
+          </select>
+        </Field>
+        <Field label="ترتيب الظهور (الأقل أولًا)">
+          <input aria-label="ترتيب الظهور" type="number" min="0" max="1000000000" step="1" inputMode="numeric"
+            value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} disabled={saving} />
+        </Field>
+      </div>
+      <p style={{ margin: '-4px 0 12px', color: '#667b80', fontSize: 12, lineHeight: 1.7 }}>
+        تظهر المنتجات المميزة قبل المنتجات العادية؛ والرقم الأصغر يسبق الأكبر داخل المجموعة نفسها.
+      </p>
       {categoriesError && (
         <div className="form-error" role="alert">
           <span>تعذر تحميل التصنيفات: {categoriesError}</span>

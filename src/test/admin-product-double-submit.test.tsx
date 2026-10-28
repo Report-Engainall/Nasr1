@@ -110,6 +110,8 @@ describe("admin product form submission", () => {
       min_order_quantity: 1,
       order_quantity_multiple: 1,
       category_id: null,
+      is_featured: false,
+      sort_order: 0,
       unit: "كرتون",
       status: "active",
     });
@@ -156,9 +158,37 @@ describe("admin product form submission", () => {
       min_order_quantity: 1,
       order_quantity_multiple: 1,
       category_id: null,
+      is_featured: false,
+      sort_order: 0,
       unit: "كرتون",
       status: "active",
     });
+  });
+
+  it("persists the featured flag and numeric storefront order through the product update", async () => {
+    const onSaved = vi.fn();
+    render(<ProductModal product={existingProduct} onClose={vi.fn()} onSaved={onSaved} />);
+
+    fireEvent.change(screen.getByLabelText("ظهور المنتج في المتجر"), { target: { value: "featured" } });
+    fireEvent.change(screen.getByLabelText("ترتيب الظهور"), { target: { value: "7" } });
+    fireEvent.click(screen.getByRole("button", { name: "حفظ المنتج" }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(mocks.updateProduct).toHaveBeenCalledWith("product-created", expect.objectContaining({
+      is_featured: true,
+      sort_order: 7,
+    }));
+  });
+
+  it("rejects a fractional storefront order before issuing a product write", async () => {
+    render(<ProductModal product={existingProduct} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("ترتيب الظهور"), { target: { value: "1.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "حفظ المنتج" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("ترتيب الظهور يجب أن يكون عددًا صحيحًا");
+    expect(mocks.updateProduct).not.toHaveBeenCalled();
+    expect(mocks.createProduct).not.toHaveBeenCalled();
   });
 
   it("does not allow product save to proceed with an unresolved category lookup error", async () => {
@@ -192,6 +222,8 @@ describe("admin product form submission", () => {
       min_order_quantity: 1,
       order_quantity_multiple: 1,
       category_id: "category-1",
+      is_featured: false,
+      sort_order: 0,
       unit: "كرتون",
       status: "active",
     });
@@ -242,6 +274,8 @@ describe("admin product form submission", () => {
       min_order_quantity: 1,
       order_quantity_multiple: 1,
       category_id: null,
+      is_featured: false,
+      sort_order: 0,
       unit: "كرتون",
       status: "active",
     });
