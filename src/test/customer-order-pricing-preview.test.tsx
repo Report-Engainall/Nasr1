@@ -118,6 +118,25 @@ describe("CustomerOrderPricingPreview wired to the server RPC", () => {
     expect(mocks.rpc).toHaveBeenCalledTimes(2);
   });
 
+  it("hides the prior session's price in the first committed render after logout", async () => {
+    const { rerender } = render(<ProfileSwitchHarness revision={1} />);
+    expect(await screen.findByRole("region", { name: "ملخص أسعار السلة" })).toBeInTheDocument();
+    expect(screen.getByText("صنف تجريبي × 2")).toBeInTheDocument();
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+
+    const snapshotIndex = profileSwitchSnapshots.length;
+    mocks.profileId = null;
+    rerender(<ProfileSwitchHarness revision={2} />);
+
+    const immediateSnapshot = profileSwitchSnapshots[snapshotIndex];
+    expect(immediateSnapshot).toContain("جار جلب مراجعة الأسعار من الخادم");
+    expect(immediateSnapshot).not.toContain("صنف تجريبي × 2");
+    expect(immediateSnapshot).not.toContain("الإجمالي");
+
+    expect(await screen.findByText(/سجّل الدخول أولًا/)).toBeInTheDocument();
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
   it("does not call the preview RPC or display prices when the policy is false or malformed", () => {
     const { rerender } = render(<CustomerOrderPricingPreview items={items} policyValue={false} surface="cart" title="ملخص أسعار السلة" />);
     expect(screen.queryByText("صنف تجريبي × 2")).not.toBeInTheDocument();
