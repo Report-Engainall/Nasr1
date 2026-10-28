@@ -23,6 +23,8 @@ import { supabase } from '@/lib/supabase';
 import { fetchCustomerAddresses, type CustomerAddress } from '@/lib/customer-addresses';
 import { readPendingSavedProductChanges, savedProductCacheKey, setStorefrontSavedProduct, syncStorefrontSavedProducts } from '@/lib/saved-products';
 
+const PUBLIC_CATALOG_CACHE_KEY = 'aghbari:catalog:public:v2';
+
 type CartItem = { product: ProductWithInventory; quantity: number };
 type StorefrontProductsSnapshot = ({ mode: 'paged' } & StorefrontCatalogPage) | { mode: 'full'; items: ProductWithInventory[] };
 
@@ -77,21 +79,27 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
         };
       }
       return { mode: 'full', items: await fetchProducts() };
-    }, [view, catalogPage, debouncedQuery, activeCat, availableOnly, initialView]);
+    }, [view, catalogPage, debouncedQuery, activeCat, availableOnly, initialView, user?.id, user?.profileId, user?.isStaff, user?.roles.join(',')]);
   const liveProducts = productSnapshot && !productsError ? productSnapshot.items : null;
   const pageInfo = productSnapshot?.mode === 'paged' && !productsError ? productSnapshot : null;
   const [cachedProducts, setCachedProducts] = useState<ProductWithInventory[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
-      const value = JSON.parse(window.localStorage.getItem('aghbari:catalog:v1') || '[]') as unknown;
+      // The former v1 cache had no public/tenant provenance. Purge it rather than
+      // risk showing a previous authenticated organization's stock on a later session.
+      window.localStorage.removeItem('aghbari:catalog:v1');
+      const value = JSON.parse(window.localStorage.getItem(PUBLIC_CATALOG_CACHE_KEY) || '[]') as unknown;
       const safe = sanitizePublicCatalogCache(value);
-      // Rewrite legacy v1 cache immediately so staff-only fields from earlier builds are purged.
-      window.localStorage.setItem('aghbari:catalog:v1', JSON.stringify(safe));
+      window.localStorage.setItem(PUBLIC_CATALOG_CACHE_KEY, JSON.stringify(safe));
       return safe;
     } catch { return []; }
   });
   const cachedProductsRef = useRef(cachedProducts);
-  const products = isPagedView ? (liveProducts ?? []) : (liveProducts ?? cachedProducts);
+  // Shared public cache is guest-only. Authenticated or not-yet-resolved sessions
+  // must not fall back to globally cached products/inventory from another tenant.
+  const products = isPagedView || !authReady || Boolean(user?.profileId)
+    ? (liveProducts ?? [])
+    : (liveProducts ?? cachedProducts);
   const {
     data: categories,
     loading: categoriesLoading,
@@ -182,15 +190,22 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
   }, []);
 
   useEffect(() => {
-    // Never merge tenant-scoped server pages into the legacy shared v1 cache.
-    // Full-catalog views may continue to refresh the existing cache; paged shop
-    // views fail closed on a load error rather than rendering another tenant's cache.
-    if (!liveProducts || productSnapshot?.mode === 'paged') return;
-    const safeCatalog = sanitizePublicCatalogCache(liveProducts);
-    cachedProductsRef.current = safeCatalog;
-    setCachedProducts(safeCatalog);
-    try { window.localStorage.setItem('aghbari:catalog:v1', JSON.stringify(safeCatalog)); } catch { /* storage is optional */ }
-  }, [liveProducts, productSnapshot?.mode]);
+    // Only cache a full public catalog after auth is ready and the server confirms
+    // there is no authenticated session. This prevents the auth/profile bootstrap
+    // race from writing tenant-scoped inventory into guest storage.
+    if (!liveProducts || productSnapshot?.mode === 'paged' || !authReady || user?.profileId) return;
+    let cancelled = false;
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (cancelled || error || data?.session || user?.profileId) return;
+      const safeCatalog = sanitizePublicCatalogCache(liveProducts);
+      cachedProductsRef.current = safeCatalog;
+      setCachedProducts(safeCatalog);
+      try { window.localStorage.setItem(PUBLIC_CATALOG_CACHE_KEY, JSON.stringify(safeCatalog)); } catch { /* storage is optional */ }
+    }).catch(() => {
+      // If session provenance cannot be confirmed, do not populate shared cache.
+    });
+    return () => { cancelled = true; };
+  }, [liveProducts, productSnapshot?.mode, authReady, user?.profileId]);
 
   useEffect(() => {
     if (!authReady) return;

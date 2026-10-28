@@ -47,6 +47,7 @@ type CatalogResult = { items: ProductRow[]; totalCount: number; totalPages: numb
 
 const mocks = vi.hoisted(() => ({
   user: null as TestUser | null,
+  getSession: vi.fn(),
   fetchProducts: vi.fn(),
   fetchCategories: vi.fn(),
   fetchPromotions: vi.fn(),
@@ -99,7 +100,7 @@ vi.mock("@/lib/saved-products", () => ({
 }));
 
 vi.mock("@/lib/supabase", () => ({
-  supabase: { from: vi.fn(), rpc: vi.fn(), auth: { getSession: vi.fn() } },
+  supabase: { from: vi.fn(), rpc: vi.fn(), auth: { getSession: mocks.getSession } },
 }));
 
 const PRODUCT_ID = "22222222-2222-4222-8222-222222222222";
@@ -148,6 +149,7 @@ describe("public storefront product route acceptance", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.user = null;
+    mocks.getSession.mockReset().mockResolvedValue({ data: { session: null }, error: null });
     mocks.detailReadFailures = 0;
     mocks.catalogReadFailures = 0;
     mocks.fetchProducts.mockReset().mockImplementation(async () => {
@@ -225,6 +227,51 @@ describe("public storefront product route acceptance", () => {
     expect(host?.textContent).not.toContain("777777");
     expect(host?.textContent).not.toContain("0.00");
     expect(mocks.fetchProducts).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not render an unscoped public cache when an authenticated tenant detail read fails", async () => {
+    const stale = {
+      ...PRODUCT,
+      name: "OTHER-TENANT-CACHE-SENTINEL",
+      inventory: { ...PRODUCT.inventory, warehouse_id: "99999999-9999-4999-8999-999999999999" },
+    };
+    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([stale]));
+    window.localStorage.setItem("aghbari:catalog:public:v2", JSON.stringify([stale]));
+    mocks.user = {
+      id: "auth-user-1",
+      profileId: "profile-1",
+      email: "buyer@example.test",
+      name: "Buyer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "auth-user-1" } } }, error: null });
+    mocks.detailReadFailures = 1;
+
+    await mountRoute(`/product/${PRODUCT_ID}`);
+
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تعذر تحميل تفاصيل المنتج");
+    expect(host?.textContent).not.toContain("OTHER-TENANT-CACHE-SENTINEL");
+    expect(host?.textContent).not.toContain("99999999-9999-4999-8999-999999999999");
+    expect(window.localStorage.getItem("aghbari:catalog:v1")).toBeNull();
+  });
+
+  it("does not write authenticated tenant catalog data into the shared public cache", async () => {
+    mocks.user = {
+      id: "auth-user-1",
+      profileId: "profile-1",
+      email: "buyer@example.test",
+      name: "Buyer",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "auth-user-1" } } }, error: null });
+
+    await mountRoute(`/product/${PRODUCT_ID}`);
+
+    expect(host?.textContent).toContain("صنف اختبار");
+    expect(window.localStorage.getItem("aghbari:catalog:public:v2")).toBeNull();
+    expect(window.localStorage.getItem("aghbari:catalog:v1")).toBeNull();
   });
 
   it("fails visibly on a product detail read error and recovers through the rendered retry action", async () => {
