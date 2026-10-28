@@ -147,8 +147,11 @@ export function AuthScopedOutlet() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const effectiveRoles: string[] = user && Array.isArray(user.roles)
+    ? user.roles.filter((role): role is string => typeof role === "string")
+    : [];
   const identityKey = user
-    ? [user.id, user.profileId, user.isStaff ? "staff" : "customer", [...user.roles].sort().join("\u001e")].join("\u001f")
+    ? [user.id, user.profileId, user.isStaff ? "staff" : "customer", [...effectiveRoles].sort().join("\u001e")].join("\u001f")
     : "anonymous";
   const previousIdentityKey = useRef<string | undefined>(undefined);
 
