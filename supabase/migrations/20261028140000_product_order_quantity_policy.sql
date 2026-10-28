@@ -395,6 +395,8 @@ BEGIN
             'stock_quantity', coalesce(r.inventory_quantity_on_hand,0),
             'reserved_quantity', 0,
             'min_stock_level', 0,
+            'min_order_quantity', r.min_order_quantity,
+            'order_quantity_multiple', r.order_quantity_multiple,
             'status', r.status,
             'created_at', r.created_at,
             'display_price', prices.unit_price,
