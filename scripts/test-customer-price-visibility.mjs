@@ -31,7 +31,8 @@ async function assumeUser(authUserId, email) {
 async function assertDatabaseRejects(query, params, expected, message) {
   await db.unsafe("savepoint expected_database_rejection");
   try {
-    await assert.rejects(db.unsafe(query, params), expected, message);
+    const error = await assert.rejects(db.unsafe(query, params), expected, message);
+    return { code: error?.code ?? null, message: String(error?.message ?? error) };
   } finally {
     // PostgreSQL aborts the current transaction after a failing statement. Restore the
     // enclosing acceptance transaction so the next independent denial can be asserted.
@@ -96,6 +97,13 @@ async function main() {
     );
     assert.ok(invoices.length, "isolated acceptance fixture must contain an invoice owned by the test customer");
     const invoiceId = invoices[0].id;
+    const foreignInvoiceRows = await db.unsafe(
+      "select i.id::text from public.customer_invoices i where i.organization_id <> $1::uuid order by i.id limit 1",
+      [ORG_ID],
+    );
+    assert.equal(foreignInvoiceRows.length, 1, "isolated acceptance fixture must contain a real invoice owned by another tenant");
+    const foreignInvoiceId = foreignInvoiceRows[0].id;
+    const unknownInvoiceId = randomUUID();
 
     // Every write is rolled back at the end; the suite runs only against CI's isolated PostgreSQL database.
     await assumeUser(ADMIN_AUTH_ID, "ci-audit-admin@example.test");
@@ -103,6 +111,20 @@ async function main() {
 
     await db.unsafe("reset role");
     await assumeUser(CUSTOMER_AUTH_ID, "ci-customer-one@example.test");
+    const foreignInvoiceError = await assertDatabaseRejects(
+      "select public.get_customer_invoice_pdf($1::uuid) as result",
+      [foreignInvoiceId],
+      /الفاتورة غير موجودة أو غير متاحة لهذا الحساب/,
+      "customer must not read another tenant's invoice by tampering with the invoice ID",
+    );
+    const unknownInvoiceError = await assertDatabaseRejects(
+      "select public.get_customer_invoice_pdf($1::uuid) as result",
+      [unknownInvoiceId],
+      /الفاتورة غير موجودة أو غير متاحة لهذا الحساب/,
+      "unknown invoice IDs must fail with the same generic response as a foreign-tenant invoice",
+    );
+    assert.equal(foreignInvoiceError.code, unknownInvoiceError.code, "foreign and unknown invoice IDs must use the same SQL error code");
+    assert.equal(foreignInvoiceError.message, unknownInvoiceError.message, "foreign and unknown invoice IDs must not reveal invoice existence");
     // Query the actual tenant-scoped catalog RPC using a canonical isolated fixture row.
     // All identifier edits occur inside this script's transaction and are rolled back below.
     await db.unsafe("reset role");
