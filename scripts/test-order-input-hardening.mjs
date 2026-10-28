@@ -34,6 +34,8 @@ export async function runOrderInputHardeningAcceptance({
   const staffKeys = [];
   let inactiveProductId = null;
   let addressId = null;
+  let originalQuantityPolicy = null;
+  let quantityPolicyOverridden = false;
 
   const customerKey = (suffix) => {
     const value = "ci-p1-order-input-customer-" + suffix;
@@ -274,6 +276,57 @@ export async function runOrderInputHardeningAcceptance({
       );
     }
 
+    // Exercise the database-enforced MOQ/pack boundary through both public order paths.
+    // Restore the seeded product's original policy before leaving this isolated fixture.
+    const policyRows = await root.unsafe(
+      "select min_order_quantity, order_quantity_multiple from public.products where id=$1 and organization_id=$2",
+      [activeProductId, org],
+    );
+    assert.equal(policyRows.length, 1, "MOQ acceptance requires the existing active CI product");
+    originalQuantityPolicy = {
+      minOrderQuantity: Number(policyRows[0].min_order_quantity),
+      orderQuantityMultiple: Number(policyRows[0].order_quantity_multiple),
+    };
+    await root.unsafe(
+      "update public.products set min_order_quantity=2, order_quantity_multiple=4 where id=$1 and organization_id=$2",
+      [activeProductId, org],
+    );
+    quantityPolicyOverridden = true;
+
+    await customer.unsafe("reset role");
+    await setIdentity(customer, customerAuth, "ci-customer-one@example.test");
+    const customerPolicyCases = [
+      { name: "quantity below minimum order quantity", key: customerKey("below-moq"), items: itemsFor(activeProductId, 1) },
+      { name: "quantity violates pack multiple", key: customerKey("bad-pack-multiple"), items: itemsFor(activeProductId, 3) },
+    ];
+    for (const test of customerPolicyCases) {
+      await expectRejected(
+        "customer order: " + test.name,
+        () => customerAttempt(test.items, test.key),
+        /الكمية لا تطابق الحد الأدنى أو مضاعف الطلب للصنف/,
+      );
+    }
+
+    await admin.unsafe("reset role");
+    await setIdentity(admin, adminAuth, "admin@aghbari.ye");
+    const staffPolicyCases = [
+      { name: "quantity below minimum order quantity", key: staffKey("below-moq"), items: itemsFor(activeProductId, 1) },
+      { name: "quantity violates pack multiple", key: staffKey("bad-pack-multiple"), items: itemsFor(activeProductId, 3) },
+    ];
+    for (const test of staffPolicyCases) {
+      await expectRejected(
+        "staff order: " + test.name,
+        () => staffAttempt((await root.unsafe("select id from public.customers where organization_id=$1 and profile_id=$2 and status='approved' limit 1", [org, customerProfileId]))[0].id, test.items, test.key),
+        /الكمية لا تطابق الحد الأدنى أو مضاعف الطلب للصنف/,
+      );
+    }
+
+    await root.unsafe(
+      "update public.products set min_order_quantity=$3, order_quantity_multiple=$4 where id=$1 and organization_id=$2",
+      [activeProductId, org, originalQuantityPolicy.minOrderQuantity, originalQuantityPolicy.orderQuantityMultiple],
+    );
+    quantityPolicyOverridden = false;
+
     const allKeys = [...customerKeys, ...staffKeys];
     const persisted = await root.unsafe(
       "select count(*)::int as count from public.orders where idempotency_key=any($1::text[])",
@@ -282,11 +335,17 @@ export async function runOrderInputHardeningAcceptance({
     assert.equal(persisted[0].count, 0, "invalid customer/staff order payloads must roll back orders and not persist retry keys");
 
     console.log(
-      "PASS order input hardening: customer+staff reject 24 invalid payloads (shape, row count, IDs, missing/fractional/out-of-range quantities, aggregate cap, inactive/cross-tenant products, and payment terms) with no persisted orders",
+      "PASS order input hardening: customer+staff reject 28 invalid payloads (shape, row count, IDs, missing/fractional/out-of-range quantities, MOQ/pack multiple, aggregate cap, inactive/cross-tenant products, and payment terms) with no persisted orders",
     );
   } finally {
     await admin.unsafe("reset role").catch(() => {});
     await customer.unsafe("reset role").catch(() => {});
+    if (quantityPolicyOverridden && originalQuantityPolicy) {
+      await root.unsafe(
+        "update public.products set min_order_quantity=$3, order_quantity_multiple=$4 where id=$1 and organization_id=$2",
+        [activeProductId, org, originalQuantityPolicy.minOrderQuantity, originalQuantityPolicy.orderQuantityMultiple],
+      ).catch(() => {});
+    }
     const allKeys = [...customerKeys, ...staffKeys];
     const candidateOrders = await root.unsafe(
       "select id from public.orders where idempotency_key=any($1::text[])",
