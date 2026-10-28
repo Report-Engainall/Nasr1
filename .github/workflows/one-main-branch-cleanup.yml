@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - .github/workflows/one-main-branch-cleanup.yml
 
 permissions:
   contents: write
@@ -131,17 +129,31 @@ jobs:
           done < "$branch_file"
 
           remaining_branches="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq '.[].name' | sort -u)"
-          echo "## One-main-branch cleanup result" >> "$GITHUB_STEP_SUMMARY"
+          expected_file="${RUNNER_TEMP}/expected-branches.txt"
+          actual_file="${RUNNER_TEMP}/actual-branches.txt"
+          printf '%s\n' "main" > "$expected_file"
+          awk -F '\t' '$3 == "true" {print $1}' "$branch_file" >> "$expected_file"
+          awk -F '\t' -v repo="$GITHUB_REPOSITORY" '$3 == "main" && $5 == "open" && $6 == repo {print $1}' "$pr_file" >> "$expected_file"
+          sort -u -o "$expected_file" "$expected_file"
+          printf '%s\n' "$remaining_branches" | sort -u > "$actual_file"
+
+          echo "## Continuous main-branch hygiene result" >> "$GITHUB_STEP_SUMMARY"
           echo "- Branches deleted: $deleted" >> "$GITHUB_STEP_SUMMARY"
           echo "- Unique branch tips archived as recovery tags: $archived" >> "$GITHUB_STEP_SUMMARY"
           echo "- Branches whose tips were already integrated: $already_integrated" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Open-PR branches retained: $skipped_open" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Active same-repository PR branches retained temporarily: $skipped_open" >> "$GITHUB_STEP_SUMMARY"
           echo "- Protected branches retained: $skipped_protected" >> "$GITHUB_STEP_SUMMARY"
           echo '### Branches remaining' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "$remaining_branches" >> "$GITHUB_STEP_SUMMARY"
 
-          if [[ "$remaining_branches" != "main" ]]; then
-            echo "::error::Cleanup incomplete; main is not the only remaining branch. Review the summary and open-PR/protection skips."
+          if ! diff -u "$expected_file" "$actual_file"; then
+            echo "::error::Unexpected branch refs remain. Expected only main, protected refs, and active same-repository PR branches."
             exit 1
           fi
-          echo "VERIFIED: main is the only remaining branch."
+
+          active_or_protected="$(awk '$0 != "main" {count++} END {print count+0}' "$expected_file")"
+          if [[ "$active_or_protected" == "0" ]]; then
+            echo "VERIFIED: main is the only remaining branch."
+          else
+            echo "VERIFIED: only main plus $active_or_protected protected/active-PR branch ref(s) remain; merged/closed and inactive refs were removed."
+          fi
