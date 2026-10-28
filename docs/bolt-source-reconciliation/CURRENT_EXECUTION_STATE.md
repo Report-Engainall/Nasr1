@@ -1,3 +1,20 @@
+# AUTHORITATIVE EXECUTION OVERRIDE — 2026-10-28 — POST-PR #306 / STRICT BRANCH RECONCILIATION
+
+**This block supersedes stale resume instructions below.** Historical execution records remain historical; always read live refs and exact-head checks before the next merge.
+
+- **Single product/repository:** `Report-Engainall/Nasr1` — متجر الأغبري | Aghbari Commerce. Integration target is `main`; no direct-main writes or force-push.
+- **Current main before this documentation PR:** `c82f4d02de3d1af7ce1b32d0a9c8d5922c2c439f`. PR #304 merged at `2c016df236eede3c60ed1c1d41b6a7c09d349550`; PR #305 merged at `a429b757a37781dbf7cb73112f029d2821f9cdd2`; PR #306 merged at `c82f4d02de3d1af7ce1b32d0a9c8d5922c2c439f`.
+- **PR #306 — DLV-003 product image lifecycle:** exact head `e83cffac54e9d04a767b9803f576fb869d361d5d` passed Core [40696287005 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40696287005) and P2/local Supabase + Playwright [40696286689 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40696286689). The merged change adds authorized image removal, strict tenant/product path validation, link-new-before-delete-old replacement, unlink-before-delete on removal, compensation when URL linking is unconfirmed, and explicit cleanup-pending states. No live production storage or production database was used. Hosted authenticated customer/tenant E2E remains SKIPPED, not PASS.
+- **Post-merge main Core:** [run 40697140283](https://github.com/Report-Engainall/Nasr1/actions/runs/40697140283) status was `in_progress` when this checkpoint was refreshed; re-read its terminal conclusion before release decisions.
+- **Live branch snapshot:** `2026-10-28T13:34:24.217Z`, all four GitHub branches API pages: **311 refs** — 201 exact merged-PR-head candidates, 77 closed-unmerged refs needing unique-commit review, 9 advanced-tip refs needing review, 23 refs without PR provenance, and `main`. Full per-ref tip SHAs/actions are in `docs/bolt-source-reconciliation/BRANCH_CLEANUP_INVENTORY_2026-10-28.csv`. **No remote branch refs have been deleted**; these are snapshot classifications, not cleanup completion.
+- **Governance finding:** GitHub branches API reports `protected=false` for `main`; the connected integration cannot read branch-protection/ruleset endpoints (403). Do not claim branch protection is active. Verify and configure it in an authorized GitHub owner session.
+- **Physical deletion blocker:** the connected GitHub actions support listing and updating refs but expose no branch-delete operation; workstation PC01 is offline and available browser profiles have no saved GitHub sign-in. Thus the repository does not yet have one branch. Complete physical deletion only through authorized GitHub UI/CLI, after reviewing each unique commit and patch.
+- **Release:** `NO-GO — FULL PRODUCTION RELEASE`. Hosted authenticated customer/tenant E2E remains SKIPPED due absent dedicated credentials/fixtures. Live Onyx sync, official WhatsApp receipts, live AI-provider behavior, production deploy/migration/rollback, backup/restore and owner sign-off are still unproven.
+- **NEXT_ACTION:** validate and merge this checkpoint PR only after Core and P2 are terminal SUCCESS on its exact final SHA; recheck post-merge `main`. Continue remaining DLV-005 cross-channel privacy and DLV-002/DLV-003 route, filter, pagination and no-mock/demo acceptance. Then use authorized GitHub UI/CLI to account for any unique work, delete all non-main refs that are safe to delete, verify main protection, and confirm exactly one live branch.
+- **Constraints:** Arabic-first RTL; free/local tools only; no surprise billing; no fabricated commercial activity; preserve production data.
+
+---
+
 # AUTHORITATIVE EXECUTION OVERRIDE — 2026-10-28 — PR #304 MERGED / STRICT MAIN-ONLY CLEANUP
 
 **Checkpoint rule:** this header records the verified state at the time of this documentation change. Older blocks below are historical; always read current refs/checks before acting.

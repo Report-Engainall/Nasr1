@@ -1,14 +1,13 @@
-snapshot_utc,2026-10-28T13:12Z; refreshed against all 310 live branch heads after PR #304 merged
+snapshot_utc,"2026-10-28T13:34:24.217Z; refreshed from all four live GitHub branch API pages after PR #306 merged, before documentation reconciliation PR"
 repository,Report-Engainall/Nasr1
-main_sha,2c016df236eede3c60ed1c1d41b6a7c09d349550
-branch_count,310
-open_pr_count_at_snapshot,1
-closed_pr_count_in_api_pages,298
-classification_counts,"{""OPEN_PR_KEEP"":1,""MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE"":200,""CLOSED_UNMERGED_MANUAL_REVIEW"":77,""MERGED_PR_BUT_BRANCH_MOVED_CHECK_NEWER_COMMITS"":8,""NO_PR_EVIDENCE"":23,""DEFAULT_BRANCH_KEEP"":1}"
-
+main_sha,c82f4d02de3d1af7ce1b32d0a9c8d5922c2c439f
+branch_count,311
+open_pr_count_at_snapshot,0
+closed_pr_count_in_api_pages,300
+classification_counts,"{""MERGED_PR_BUT_BRANCH_MOVED_CHECK_NEWER_COMMITS"":9,""MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE"":201,""CLOSED_UNMERGED_MANUAL_REVIEW"":77,""NO_PR_EVIDENCE"":23,""DEFAULT_BRANCH_KEEP"":1}"
 main_protection_observation,GitHub branches API reports main protected=false; connected integration cannot read branch-protection endpoint (403); owner UI verification required
 branch_name,tip_sha,classification,related_prs,recommended_action
-captain/product-closure-mode-20261028,5f893fba7ef1f11d6d091ef0c9070999af86702b,OPEN_PR_KEEP,#300 MERGED; #305 OPEN,KEEP — active PR #305 depends on this branch
+captain/product-closure-mode-20261028,9956ce65caade788d9f318d19a490b6f44382b9f,MERGED_PR_BUT_BRANCH_MOVED_CHECK_NEWER_COMMITS,#305 MERGED,REVIEW — PR #305 was squash-merged; branch retains a distinct checkpoint/merge tip. Inspect unique commits and patches before deletion
 ci/generate-exact-sha-rpc-inventory-20261027,56c9660c8822f1160eafa4c795b1e37d332dcb2e,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#296 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
 ci/trigger-import-finalizer-on-db-test-changes-20261026,fe5e4de6b9fa18d4474ba2f95fbf03539fbab7b7,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#255 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
 docs-p1-ledger-reconcile-20261021,1ce15d7ee6f89a24385dbb6b15612c0265e7e368,CLOSED_UNMERGED_MANUAL_REVIEW,#31 CLOSED-UNMERGED,REVIEW — inspect unique commits and patches before cleanup
@@ -189,7 +188,7 @@ integration/purchasing-input-boundaries-20261020,52e4c34ab9997071d2512a107c7f6f1
 integration/restore-verified-brand-favicon-20261020,e0b0640b4e073082a775c581bd5a9b2f147b6fc0,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#19 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
 integration/storefront-export-current-main-head-20261024-v2,5fb59d4a2093f242461aa5aaa0f50ad34b4d5223,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#186 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
 integration/storefront-export-recovery-current-main-20261024,12c1d34bd7fb62145174ea38d77943454b838972,CLOSED_UNMERGED_MANUAL_REVIEW,#185 CLOSED-UNMERGED,REVIEW — inspect unique commits and patches before cleanup
-main,2c016df236eede3c60ed1c1d41b6a7c09d349550,DEFAULT_BRANCH_KEEP,,"KEEP — default integration branch; branch API reports protected=false, so protection must be verified separately"
+main,c82f4d02de3d1af7ce1b32d0a9c8d5922c2c439f,DEFAULT_BRANCH_KEEP,,KEEP — sole default integration branch; live API reports protected=false and protection must be verified by an authorized owner
 ops/parallel-completion-mandate-20261022,c24b9b7e75ae26dd2014410d24e0c2ae77b695b5,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#39 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
 p1/adapt-admin-category-rpc-20261022,56214b469261346574ab238b3abcf355eb66cfb3,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#47 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
 p1/admin-audit-stable-pagination-20261023,bf7bdb7643c568df23f236209dd9c6303860f39d,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#106 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
@@ -274,7 +273,7 @@ test/catalog-search-db-acceptance-20261028,257f88d4db7614fdcb52791c2ab9bbd981180
 test/current-main-customer-authorization-and-statement-20261024,5c00d0e9da05d6f0f2038d9491a60e70b8c6be38,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#187 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
 test/customer-company-invitation-race-20261026,4991cea618024435139413f8dd275c8b75f33140,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#213 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
 test/customer-return-credit-lock-barrier-20261027,08d29da69b62122039f43d84e89e68559bdb2684,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#289 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
-test/dlv005-onyx-export-sensitive-field-boundary-20261028,54d71295f2d2d95b82684e501e0e6cfb79ab3890,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#304 MERGED,CANDIDATE ONLY — PR #304 is merged; verify no unique commits and current ancestry before deleting
+test/dlv005-onyx-export-sensitive-field-boundary-20261028,54d71295f2d2d95b82684e501e0e6cfb79ab3890,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#304 MERGED,CANDIDATE ONLY — PR #304 XLSX privacy acceptance is merged; verify ancestry and unique commits before deleting
 test/finance-invoice-journal-concurrency-20261026,7ece9e81c7cdad253b6e3ecb458f379228544f12,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#239 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
 test/finance-invoice-journal-race-20261026,807c19cfeb752a3b01e844bf680e99c791cea8b1,CLOSED_UNMERGED_MANUAL_REVIEW,#240 CLOSED-UNMERGED,REVIEW — inspect unique commits and patches before cleanup
 test/finance-journal-reversal-concurrency-20261026,b13b38b6ca3f57d3e8c4ad326728aa61085eccbe,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#247 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
@@ -318,3 +317,4 @@ test/security-customer-address-concurrency-20261026,4f51fc5363eb7f8dbe42064f73e7
 test/security-operational-task-refresh-denial-20261026,f130be822b9ed1eb702aca0955fb68155c5954a3,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#222 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
 test/settlement-lock-barrier-connections-20261027,2405911363ab0dad186d9fb6fc8a2f14e42bb706,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#292 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
 test/storage-product-image-write-boundary-pg17-20261027,bd89759d283c684eedb3a2fcd5e5e35c944b5aa0,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#263 MERGED,CANDIDATE ONLY — re-check unique commits and ancestry in authorized UI/CLI before deleting
+fix/product-image-lifecycle-cleanup-20261028,e83cffac54e9d04a767b9803f576fb869d361d5d,MERGED_TIP_EXACT_SAFE_DELETE_CANDIDATE,#306 MERGED,CANDIDATE ONLY — PR #306 image lifecycle changes are merged; verify ancestry and unique commits before deleting
