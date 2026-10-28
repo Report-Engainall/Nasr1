@@ -1428,6 +1428,17 @@ async function main() {
       setReturnRaceIdentity(settlementPayment, managerAuthId, "ci-return-manager@example.test", "ci-invoice-settlement-payment", true),
       setReturnRaceIdentity(settlementRacer, managerAuthId, "ci-return-manager@example.test", "ci-invoice-settlement-credit", true),
     ]);
+    // Prove both dedicated physical sessions finished identity setup before launching either RPC.
+    // Without this warm-up, a cold backend under CI load can make the lock-barrier check race
+    // against the second connection's SET ROLE rather than the actual settlement statement.
+    const readySessions = await Promise.all([
+      settlementPayment.unsafe("select pg_catalog.pg_backend_pid() as pid, pg_catalog.current_setting('application_name') as app"),
+      settlementRacer.unsafe("select pg_catalog.pg_backend_pid() as pid, pg_catalog.current_setting('application_name') as app"),
+    ]);
+    assert.notEqual(readySessions[0][0].pid, readySessions[1][0].pid,
+      "payment and credit writers must use separate PostgreSQL backends");
+    assert.equal(readySessions[0][0].app, "ci-invoice-settlement-payment");
+    assert.equal(readySessions[1][0].app, "ci-invoice-settlement-credit");
     await settlementGate.unsafe("begin");
     settlementGateOpen = true;
     await settlementGate.unsafe(
@@ -1458,16 +1469,19 @@ async function main() {
     ]);
     let bothSettlementWritersWaiting = false;
     let settlementActivitySnapshot = [];
-    for (let attempt = 0; attempt < 160; attempt += 1) {
+    for (let attempt = 0; attempt < 400; attempt += 1) {
       settlementActivitySnapshot = await settlementGate.unsafe(
         "select application_name,state,wait_event_type,wait_event,left(query,180) as query " +
         "from pg_catalog.pg_stat_activity " +
         "where application_name in ('ci-invoice-settlement-payment','ci-invoice-settlement-credit')",
       );
-      const waitingCount = settlementActivitySnapshot.filter((row) =>
-        row.state === "active" && row.wait_event_type === "Lock"
-      ).length;
-      if (waitingCount === 2) {
+      const waitingWriters = settlementActivitySnapshot.filter((row) =>
+        row.state === "active"
+        && row.wait_event_type === "Lock"
+        && ((row.application_name === "ci-invoice-settlement-payment" && row.query?.includes("record_customer_payment"))
+          || (row.application_name === "ci-invoice-settlement-credit" && row.query?.includes("post_general_journal_entry")))
+      );
+      if (waitingWriters.length === 2) {
         bothSettlementWritersWaiting = true;
         break;
       }
@@ -1477,7 +1491,7 @@ async function main() {
       await settlementGate.unsafe("rollback");
       settlementGateOpen = false;
       const outcomes = await settlementAttempts;
-      assert.fail("invoice settlement lock contention was not observed for both RPC calls: " + JSON.stringify({
+      assert.fail("both invoice settlement RPC statements did not reach the shared advisory-lock barrier: " + JSON.stringify({
         activity: settlementActivitySnapshot,
         outcomes: outcomes.map((item) => item.ok
           ? { ok: true }
