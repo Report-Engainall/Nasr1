@@ -169,9 +169,11 @@ describe("admin product form submission", () => {
     const onSaved = vi.fn();
     render(<ProductModal product={existingProduct} onClose={vi.fn()} onSaved={onSaved} />);
 
+    const submit = screen.getByRole("button", { name: "حفظ المنتج" });
+    await waitFor(() => expect(submit).toBeEnabled());
     fireEvent.change(screen.getByLabelText("ظهور المنتج في المتجر"), { target: { value: "featured" } });
     fireEvent.change(screen.getByLabelText("ترتيب الظهور"), { target: { value: "7" } });
-    fireEvent.click(screen.getByRole("button", { name: "حفظ المنتج" }));
+    fireEvent.click(submit);
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(mocks.updateProduct).toHaveBeenCalledWith("product-created", expect.objectContaining({
@@ -183,8 +185,10 @@ describe("admin product form submission", () => {
   it("rejects a fractional storefront order before issuing a product write", async () => {
     render(<ProductModal product={existingProduct} onClose={vi.fn()} onSaved={vi.fn()} />);
 
+    const submit = screen.getByRole("button", { name: "حفظ المنتج" });
+    await waitFor(() => expect(submit).toBeEnabled());
     fireEvent.change(screen.getByLabelText("ترتيب الظهور"), { target: { value: "1.5" } });
-    fireEvent.click(screen.getByRole("button", { name: "حفظ المنتج" }));
+    fireEvent.click(submit);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("ترتيب الظهور يجب أن يكون عددًا صحيحًا");
     expect(mocks.updateProduct).not.toHaveBeenCalled();
