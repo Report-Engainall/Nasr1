@@ -372,9 +372,14 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
       ? Number(product.order_quantity_multiple) : 1;
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id);
-      if (existing) return prev.map((i) => i.product.id === product.id
-        ? { ...i, quantity: i.quantity + multiple }
-        : i);
+      if (existing) {
+        const nextQuantity = existing.quantity < minimum
+          ? minimum
+          : existing.quantity >= minimum && (existing.quantity - minimum) % multiple === 0
+            ? existing.quantity + multiple
+            : minimum + (Math.floor((existing.quantity - minimum) / multiple) + 1) * multiple;
+        return prev.map((item) => item.product.id === product.id ? { ...item, quantity: nextQuantity } : item);
+      }
       return [...prev, { product, quantity: minimum }];
     });
   }
@@ -385,9 +390,14 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
         ? Number(item.product.min_order_quantity) : 1;
       const multiple = Number.isSafeInteger(item.product.order_quantity_multiple) && Number(item.product.order_quantity_multiple) >= 1
         ? Number(item.product.order_quantity_multiple) : 1;
-      const next = delta > 0
-        ? item.quantity + multiple
-        : item.quantity <= minimum ? 0 : Math.max(0, item.quantity - multiple);
+      let next = 0;
+      if (delta > 0) {
+        next = item.quantity < minimum
+          ? minimum
+          : minimum + (Math.floor((item.quantity - minimum) / multiple) + 1) * multiple;
+      } else if (item.quantity > minimum) {
+        next = minimum + Math.max(0, Math.ceil((item.quantity - minimum) / multiple) - 1) * multiple;
+      }
       return { ...item, quantity: next };
     }).filter((item) => item.quantity > 0));
   }
@@ -1222,19 +1232,29 @@ export function QuickOrderMatrix({ products, quantities, alreadyInCart = {}, fee
             </tr></thead>
             <tbody>{products.map((product) => {
               const available = Math.max(0, Math.floor(Number(product.inventory?.quantity_available ?? 0)));
-              const remainingToAdd = Math.max(0, available - Math.max(0, Math.floor(Number(alreadyInCart[product.id] ?? 0))));
+              const alreadyOrdered = Math.max(0, Math.floor(Number(alreadyInCart[product.id] ?? 0)));
+              const remainingToAdd = Math.max(0, available - alreadyOrdered);
               const minimum = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
                 ? Number(product.min_order_quantity) : 1;
               const multiple = Number.isSafeInteger(product.order_quantity_multiple) && Number(product.order_quantity_multiple) >= 1
                 ? Number(product.order_quantity_multiple) : 1;
+              const nextAllowedTotal = alreadyOrdered < minimum
+                ? minimum
+                : minimum + (Math.floor((alreadyOrdered - minimum) / multiple) + 1) * multiple;
+              const minimumAddition = Math.max(1, nextAllowedTotal - alreadyOrdered);
               const rawQuantity = quantities[product.id] ?? '';
               const currentQuantity = /^\d+$/.test(rawQuantity) ? Number(rawQuantity) : 0;
-              const nextIncrease = currentQuantity === 0 ? minimum : currentQuantity + multiple;
+              const resultingQuantity = alreadyOrdered + currentQuantity;
+              const nextAllowedAfterCurrent = resultingQuantity < minimum
+                ? minimum
+                : minimum + (Math.floor((resultingQuantity - minimum) / multiple) + 1) * multiple;
+              const nextIncrease = nextAllowedAfterCurrent - alreadyOrdered;
               return <tr key={product.id} style={{ borderTop: '1px solid #edf2f3' }}>
                 <td style={{ padding: 12, fontWeight: 800 }}>
                   <div>{product.name}</div>
                   {product.name_en ? <small dir="auto" style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 500 }}>{product.name_en}</small> : null}
                   <small style={{ display: 'block', marginTop: 3, color: '#74888c', fontWeight: 500 }}>{product.category?.name ?? 'غير مصنف'}</small>
+                  {(minimum > 1 || multiple > 1) && <small style={{ display: 'block', marginTop: 3, color: '#62797e', fontWeight: 600 }}>الحد الأدنى {minimum} · تدرج الكمية {multiple}</small>}
                 </td>
                 <td style={{ padding: 12, direction: 'ltr', textAlign: 'right' }}>
                   <div>{product.item_code}</div>
@@ -1243,9 +1263,9 @@ export function QuickOrderMatrix({ products, quantities, alreadyInCart = {}, fee
                 <td style={{ padding: 12, whiteSpace: 'nowrap' }}>{formatNumber(available)} {product.unit}</td>
                 <td style={{ padding: 12, minWidth: 160 }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                    <button type="button" aria-label={`تقليل كمية ${product.name}`} disabled={remainingToAdd < minimum || currentQuantity <= 0} onClick={() => { const next = currentQuantity <= minimum ? 0 : currentQuantity - multiple; onQuantityChange(product.id, next < minimum ? '' : String(next)); }} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Minus size={14} /></button>
-                    <input type="number" inputMode="numeric" min={minimum} max={remainingToAdd} step={multiple} value={rawQuantity} disabled={remainingToAdd < minimum} aria-label={`كمية ${product.name}`} onChange={(event) => { const value = event.target.value; if (value === '' || /^\d+$/.test(value)) onQuantityChange(product.id, value); }} style={{ width: 78, padding: '9px 8px', border: '1px solid #cfdddd', borderRadius: 9, background: available <= 0 ? '#f2f5f5' : '#fff', color: '#18383c', textAlign: 'center' }} />
-                    <button type="button" aria-label={`زيادة كمية ${product.name}`} disabled={remainingToAdd < minimum || nextIncrease > remainingToAdd} onClick={() => onQuantityChange(product.id, String(nextIncrease))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Plus size={14} /></button>
+                    <button type="button" aria-label={`تقليل كمية ${product.name}`} disabled={remainingToAdd < minimumAddition || currentQuantity <= 0} onClick={() => { const previousTotal = resultingQuantity <= minimum ? 0 : minimum + Math.max(0, Math.ceil((resultingQuantity - minimum) / multiple) - 1) * multiple; const next = previousTotal - alreadyOrdered; onQuantityChange(product.id, next < minimumAddition ? '' : String(next)); }} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Minus size={14} /></button>
+                    <input type="number" inputMode="numeric" min={minimumAddition} max={remainingToAdd} step={multiple} value={rawQuantity} disabled={remainingToAdd < minimumAddition} aria-label={`كمية ${product.name}`} onChange={(event) => { const value = event.target.value; if (value === '' || /^\d+$/.test(value)) onQuantityChange(product.id, value); }} style={{ width: 78, padding: '9px 8px', border: '1px solid #cfdddd', borderRadius: 9, background: available <= 0 ? '#f2f5f5' : '#fff', color: '#18383c', textAlign: 'center' }} />
+                    <button type="button" aria-label={`زيادة كمية ${product.name}`} disabled={remainingToAdd < minimumAddition || nextIncrease > remainingToAdd} onClick={() => onQuantityChange(product.id, String(nextIncrease))} style={{ width: 32, height: 36, border: '1px solid #cfdddd', borderRadius: 8, background: '#f0f7f3', color: '#1d6048' }}><Plus size={14} /></button>
                   </div>
                 </td>
               </tr>;
