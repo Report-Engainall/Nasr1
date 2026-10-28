@@ -48,7 +48,7 @@ function TestRoot() {
 
 function IdentityProbe() {
   const { user, ready } = useAuth();
-  return <output>{!ready ? "auth-loading" : user?.id ?? "signed-out"}</output>;
+  return <output>{!ready ? "auth-loading" : user ? `${user.id}:${user.roles.join(",")}` : "signed-out"}</output>;
 }
 
 const TestRootRoute = createRootRoute()({ component: TestRoot });
@@ -96,7 +96,7 @@ describe("authentication-scoped query cache boundary", () => {
       history: createMemoryHistory({ initialEntries: ["/"] }),
     });
     render(<RouterProvider router={router} />);
-    await screen.findByText("auth-user-a");
+    await screen.findByText("auth-user-a:customer");
     await waitFor(() => expect(activeQueryClient.getQueryData(["private-finance"])).toBeUndefined());
     return router;
   }
@@ -112,7 +112,7 @@ describe("authentication-scoped query cache boundary", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    await screen.findByText("auth-user-b");
+    await screen.findByText("auth-user-b:manager");
     await waitFor(() => expect(activeQueryClient.getQueryData(["private-finance"])).toBeUndefined());
 
     activeQueryClient.setQueryData(["private-finance"], { sentinel: "TENANT-B-PRIVATE-BALANCE" });
@@ -134,7 +134,7 @@ describe("authentication-scoped query cache boundary", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    await screen.findByText("auth-user-a");
+    await screen.findByText("auth-user-a:manager");
     await waitFor(() => expect(activeQueryClient.getQueryData(["private-inventory"])).toBeUndefined());
   });
 });
