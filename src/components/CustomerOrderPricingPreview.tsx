@@ -45,6 +45,8 @@ export function CustomerOrderPricingPreview({
     product_id: item.product_id,
     quantity: item.quantity,
   })));
+  // Bind the ready payload to the current account during render, before effects flush.
+  const requestSignature = surface + ":" + signature + ":" + (user?.profileId ?? "anonymous");
 
   useEffect(() => {
     let active = true;
@@ -53,7 +55,6 @@ export function CustomerOrderPricingPreview({
       return () => { active = false; };
     }
 
-    const requestSignature = surface + ":" + signature;
     if (!user?.profileId) {
       setAttempt({ signature: requestSignature, status: "auth-required" });
       return () => { active = false; };
@@ -107,11 +108,10 @@ export function CustomerOrderPricingPreview({
     })();
 
     return () => { active = false; };
-  }, [signature, items.length, policyValue, surface, user?.profileId, retry]);
+  }, [requestSignature, signature, items.length, policyValue, surface, user?.profileId, retry]);
 
   if (policyValue !== true || items.length === 0) return null;
 
-  const requestSignature = surface + ":" + signature;
   const current = attempt?.signature === requestSignature ? attempt : null;
   const wrapperStyle = {
     marginTop: 12,
