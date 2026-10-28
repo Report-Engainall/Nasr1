@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProductWithInventory } from "@/lib/types";
+import { validateQuickOrderLines } from "@/lib/commerce-utils";
 import { QuickOrderMatrix } from "@/components/Storefront";
 
 const product: ProductWithInventory = {
@@ -89,6 +90,46 @@ describe("QuickOrderMatrix quantity controls", () => {
     renderMatrix({}, vi.fn(), { "product-1": 3 });
     expect(screen.getByRole("spinbutton", { name: "كمية صنف تجريبي" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "زيادة كمية صنف تجريبي" })).toBeDisabled();
+  });
+
+  it("steps from the configured minimum by the configured pack multiple", () => {
+    const policyProduct = { ...product, min_order_quantity: 3, order_quantity_multiple: 2 };
+    const onQuantityChange = vi.fn();
+    const view = render(
+      <QuickOrderMatrix products={[policyProduct]} quantities={{}} feedback={null}
+        onQuantityChange={onQuantityChange} onAddSelected={vi.fn()} onBack={vi.fn()} onCart={vi.fn()} />,
+    );
+    const input = screen.getByRole("spinbutton", { name: "كمية صنف تجريبي" });
+    const increase = screen.getByRole("button", { name: "زيادة كمية صنف تجريبي" });
+    expect(input).toHaveAttribute("min", "3");
+    expect(input).toHaveAttribute("step", "2");
+    fireEvent.click(increase);
+    expect(onQuantityChange).toHaveBeenLastCalledWith("product-1", "3");
+
+    view.rerender(
+      <QuickOrderMatrix products={[policyProduct]} quantities={{ "product-1": "3" }} feedback={null}
+        onQuantityChange={onQuantityChange} onAddSelected={vi.fn()} onBack={vi.fn()} onCart={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "زيادة كمية صنف تجريبي" }));
+    expect(onQuantityChange).toHaveBeenLastCalledWith("product-1", "5");
+    fireEvent.click(screen.getByRole("button", { name: "تقليل كمية صنف تجريبي" }));
+    expect(onQuantityChange).toHaveBeenLastCalledWith("product-1", "");
+  });
+
+  it("validates policy against the resulting cart quantity, not only the newly added amount", () => {
+    const policy = { min_order_quantity: 3, order_quantity_multiple: 2 };
+    const line = { product_id: "product-1", product_name: "صنف تجريبي", available: 10, ...policy };
+    expect(validateQuickOrderLines([{ ...line, quantity: 1 }])).toMatchObject({
+      valid: false, reason: "order_policy",
+    });
+    expect(validateQuickOrderLines([{ ...line, quantity: 3 }])).toEqual({ valid: true });
+    expect(validateQuickOrderLines([{ ...line, quantity: 2, already_in_cart: 3 }])).toEqual({ valid: true });
+    expect(validateQuickOrderLines([{ ...line, quantity: 1, already_in_cart: 3 }])).toMatchObject({
+      valid: false, reason: "order_policy",
+    });
+    expect(validateQuickOrderLines([{ ...line, quantity: 3, available: 4 }])).toMatchObject({
+      valid: false, reason: "insufficient_stock",
+    });
   });
 
   it("disables the input and both steppers when no stock is available", () => {
