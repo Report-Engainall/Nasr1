@@ -1316,8 +1316,10 @@ export type Database = {
           max_stock: number | null
           min_stock: number | null
           name: string
+          name_en: string | null
           organization_id: string
           status: string
+          sku: string | null
           unit: string
           updated_at: string
         }
@@ -1334,8 +1336,10 @@ export type Database = {
           max_stock?: number | null
           min_stock?: number | null
           name: string
+          name_en?: string | null
           organization_id: string
           status?: string
+          sku?: string | null
           unit?: string
           updated_at?: string
         }
@@ -1352,8 +1356,10 @@ export type Database = {
           max_stock?: number | null
           min_stock?: number | null
           name?: string
+          name_en?: string | null
           organization_id?: string
           status?: string
+          sku?: string | null
           unit?: string
           updated_at?: string
         }
