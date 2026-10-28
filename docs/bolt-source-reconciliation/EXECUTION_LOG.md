@@ -1333,3 +1333,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - PR #147 first Core 40105583244 failed only the source-test regex because it hardcoded “is required” while SQL message used “are required”. Corrected matcher to accept either grammar and pushed `ff59c6144cec2e78864a0c35f96140d333f376ca`.
 - New exact-head Core 40105725672 and P2 40105725585 were IN_PROGRESS at checkpoint on `ff59c6144cec2e78864a0c35f96140d333f376ca`; #147 remains UNVERIFIED until terminal exact-head results. Do not close out the first failed run as passing.
 - Runtime PostgreSQL NULL decision test deferred until PR #134/#144 overlap in `scripts/test-database-migrations.mjs` can be reconciled. Preserve migration ordering #144 → #145 → #147 and require independent review.
+
+## 2026-10-28 — DLV-005 account-switch price-preview isolation
+
+- Code change: commit aa977adba2106f163acaa96023170500b6d9811a binds the preview signature to the current profileId (or anonymous state), so a ready payload for another account cannot match after identity changes. Link: https://github.com/Report-Engainall/Nasr1/commit/aa977adba2106f163acaa96023170500b6d9811a
+- Regression acceptance: commit b7a958415ac95d2b9a7d7a6785ecaaf1a607abb3 adds a layout snapshot that checks the first committed DOM before passive effects and asserts the previous account's item and total are already absent. Link: https://github.com/Report-Engainall/Nasr1/commit/b7a958415ac95d2b9a7d7a6785ecaaf1a607abb3
+- Exact-SHA evidence: Aghbari Commerce checks 40717388214 SUCCESS on b7a958415ac95d2b9a7d7a6785ecaaf1a607abb3; unit tests, core PostgreSQL 17 acceptance, RPC inventory generation/upload, concurrency/import/finance acceptance, lint, build, production-preview and dev smoke, and Chromium price-visibility acceptance completed successfully. Main-only cleanup 40717388196 SUCCESS completed on the same SHA.
+- Branch proof: live GitHub branches API returned exactly main at the time of verification. Re-check after the next main commit.
+- Scope limit: this is local regression and CI proof for the account-switch render boundary, not hosted authenticated customer/tenant E2E or production proof. DLV-005 remains OPEN/PARTIAL; full production release remains NO-GO.
+- NEXT_ACTION: continue direct API/RPC, role/tier/session, DOM/cache/PWA, PDF, XLSX, and print privacy acceptance, then return to remaining route/catalog/transaction-edge requirements in central matrix priority order.

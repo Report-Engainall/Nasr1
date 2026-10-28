@@ -1,11 +1,14 @@
 # CURRENT DELIVERY OVERRIDE — 2026-10-28
 
-This block supersedes stale checkpoint statements below until they are reconciled against the live main SHA. Last observed remote main in this review was `77b3f22d735b9ec674f7ec74ac137f7f94ac1e2f`; current main must be re-read at execution start. The checkpoint for `9427e116...` and its passing jobs is historical, not proof for later commits.
+This block supersedes stale checkpoint statements below until the canonical state and matrix are reconciled against a new exact main SHA. Historical evidence remains historical and must not be transferred to a later SHA.
 
-The next execution is **DLV-004 integrated customer purchase journey**, with connected UI and applicable adjacent acceptance rows DLV-002/003/005/006. Do not spend the whole cycle on another broad RPC audit or an isolated guard unless that guard is a demonstrated blocker; preserve existing guards, complete the end-to-end journey and prove real persistence/readback. Use the existing acceptance matrix and release gate only. Hosted E2E and live integrations remain blocked/skipped until evidence exists; no status may be upgraded without it.
+The verified code/test baseline is b7a958415ac95d2b9a7d7a6785ecaaf1a607abb3. It includes a privacy fix for customer price previews: the preview is keyed to authenticated profileId (or anonymous state), and a regression test verifies that the previous account's price and total are absent in the first committed render after switching accounts. Exact-head Aghbari Commerce checks 40717388214 succeeded (https://github.com/Report-Engainall/Nasr1/actions/runs/40717388214).
 
-The authoritative execution details and stop conditions are in [PRODUCT_DELIVERY_CLOSURE_PROTOCOL_2026-10-28.md](../bolt-source-reconciliation/PRODUCT_DELIVERY_CLOSURE_PROTOCOL_2026-10-28.md) and the top block of [CURRENT_EXECUTION_STATE.md](../bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md).
+Immediate priority is DLV-005 cross-channel pricing/privacy, not reimplementing the already integrated DLV-004 purchase journey or repeating a broad RPC inventory. Complete the distinct unproven API/RPC, session/role/account-switch, DOM/cache/PWA, PDF, XLSX, and print boundaries. A passing leaf does not close DLV-005; the central acceptance matrix controls aggregate acceptance and release status.
 
+Use docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md as the only dynamic resume cursor. Do not create branches, PRs, parallel matrices, or progress ledgers. main is the only GitHub branch and every bounded accepted batch requires exact-SHA verification.
+
+Current measurement: 118 populated unique acceptance IDs, 0 duplicate IDs, 18 canonical delivery groups, and 0/18 fully release-closed. Overall completion percentage remains NOT COMPUTABLE until required leaf evidence and roll-ups reconcile on one release candidate. Full production release remains NO-GO; hosted customer/tenant E2E and live/production integrations remain unproven.
 ---
 
 ## Current verified checkpoint after PR #296 — 2026-10-27

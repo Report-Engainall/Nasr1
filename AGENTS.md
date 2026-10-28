@@ -1,11 +1,14 @@
-# EXECUTION OVERRIDE — 2026-10-28: PRODUCT DELIVERY CLOSURE
+# EXECUTION OVERRIDE — 2026-10-28: STRICT MAIN-ONLY PRODUCT DELIVERY
 
-For Nasr1, resolve any conflict with older instructions that say to push directly to `main`: use a feature branch → pull request → exact-head checks/review → merge → exact merge-SHA verification, consistent with `README.md` and the current handoff. Never push directly to `main`, force-push, or rewrite published history.
+For the only product repository Report-Engainall/Nasr1, main is the sole permitted GitHub branch. Do not create GitHub branches, pull requests, or additional repositories. Make bounded, conflict-free changes directly on main after relevant checks when the authorized write path permits it. Never force-push, rewrite published history, disable protection, or simulate progress by moving refs.
 
-Before executing any saved `NEXT_ACTION`, read [the product delivery closure protocol](docs/bolt-source-reconciliation/PRODUCT_DELIVERY_CLOSURE_PROTOCOL_2026-10-28.md). It supersedes historical instructions that make isolated RPC/API audits the whole session objective. Keep security work, but connect it to full product delivery and continue safe independent UI/journey work in the same execution cycle.
+If direct writes are denied by repository protection, use only an already-authorized merge path that does not create a durable branch. If no such path is available, preserve main, record the exact blocker, and continue independent work without claiming a commit or merge.
 
-**Current objective:** close the existing acceptance matrix through integrated customer/admin journeys, real persistence/readback, connected RTL UI, and reproducible tests. The first product wave is the transaction spine in DLV-004 with adjacent DLV-002/003/005/006/008 rows as applicable. Do not create a second matrix or task cursor. Update `CURRENT_EXECUTION_STATE.md` from the exact live main SHA at every session/merge. Never claim browser, hosted, or production proof unless it actually ran.
+Before executing any saved NEXT_ACTION, read the product delivery closure protocol and canonical execution state. Newer current blocks supersede historical pointers. Do not resume from old SHAs or repeat completed audits without a changed dependency, relevant code change, regression, or failed check.
 
+Current objective: close the existing acceptance matrix through connected customer/admin journeys, real persistence/readback, tenant authorization, privacy-safe outputs, and reproducible tests. The immediate workstream is DLV-005 cross-channel pricing privacy after the account-switch stale-preview fix; then take the next open high-priority matrix item. Do not recreate merged cart/checkout, catalog identifiers/search, or image lifecycle work.
+
+Keep only the canonical CURRENT_EXECUTION_STATE.md resume cursor, requirement registry, acceptance matrix, and execution log. Never create parallel ledgers or matrices. Update the canonical state from the exact live main SHA at each delivery and verify Actions on every new commit.
 ---
 
 <!-- LOVABLE:BEGIN -->
