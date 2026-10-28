@@ -93,8 +93,9 @@ describe("public catalog privacy and tenant query contract", () => {
 
     const products = queryFor("products");
     expect(products.columns).toBe(
-      "id,organization_id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple",
+      "id,category_id,name,name_en,item_code,sku,barcode,description,unit,status,image_url,created_at,min_order_quantity,order_quantity_multiple",
     );
+    expect(products.columns).not.toMatch(/organization_id|warehouse_id|quantity_on_hand/i);
     expect(products.columns).not.toMatch(/base_price|cost_price|retail_price|wholesale_price|purchase_cost/i);
     expect(products.filters).toContainEqual({
       column: "organization_id",
@@ -103,10 +104,8 @@ describe("public catalog privacy and tenant query contract", () => {
     expect(products.filters).toContainEqual({ column: "status", value: "active" });
 
     const inventory = queryFor("inventory_balances");
-    expect(inventory.columns).toBe(
-      "id,product_id,warehouse_id,quantity_on_hand,quantity_available",
-    );
-    expect(inventory.columns).not.toMatch(/quantity_reserved|reorder_point|cost/i);
+    expect(inventory.columns).toBe("product_id,quantity_available");
+    expect(inventory.columns).not.toMatch(/(^|,)id,|warehouse_id|quantity_on_hand|quantity_reserved|reorder_point|cost/i);
     expect(inventory.filters).toContainEqual({
       column: "warehouse_id",
       value: WAREHOUSE_ID,
@@ -185,6 +184,21 @@ describe("public catalog privacy and tenant query contract", () => {
       }],
       error: null,
     };
+    mocks.responses.inventory_balances = {
+      // Deliberately simulate a backend response with extra fields; the customer projection
+      // must not echo them even if the selected query later regresses or is mocked.
+      data: [{
+        id: "PRIVATE-INVENTORY-ROW",
+        organization_id: ORGANIZATION_ID,
+        product_id: "public-product-1",
+        warehouse_id: WAREHOUSE_ID,
+        quantity_on_hand: 140,
+        quantity_reserved: 16,
+        quantity_available: 124,
+        reorder_point: 24,
+      }],
+      error: null,
+    };
     mocks.rpc.mockResolvedValueOnce({
       data: [{ product_id: "public-product-1", unit_price: "37000.00" }],
       error: null,
@@ -193,6 +207,16 @@ describe("public catalog privacy and tenant query contract", () => {
     const rows = await fetchProducts();
     expect(rows).toHaveLength(1);
     expect(rows[0].display_price).toBe(37000);
+    expect(rows[0]).not.toHaveProperty("organization_id");
+    expect(rows[0].inventory).toMatchObject({
+      id: "",
+      product_id: "public-product-1",
+      warehouse_id: "",
+      quantity_on_hand: 0,
+      quantity_available: 124,
+    });
+    expect(rows[0].inventory).not.toHaveProperty("organization_id");
+    expect(rows[0].inventory).not.toHaveProperty("reorder_point");
     for (const key of [
       "base_price",
       "price_wholesale_of_wholesale",
@@ -212,6 +236,11 @@ describe("public catalog privacy and tenant query contract", () => {
     const cached = sanitizePublicCatalogCache(rows);
     expect(cached).toHaveLength(1);
     expect(cached[0]).not.toHaveProperty("display_price");
+    expect(cached[0]).not.toHaveProperty("organization_id");
+    expect(cached[0].inventory).toEqual({
+      product_id: "public-product-1",
+      quantity_available: 124,
+    });
     for (const key of [
       "base_price",
       "price_wholesale_of_wholesale",
