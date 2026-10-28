@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import {
   Outlet,
   Link,
@@ -8,7 +8,7 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -139,6 +139,34 @@ function AuthHealthNotice() {
   );
 }
 
+// Use layout effects in the browser so cached private data is removed before the next identity can paint;
+ // fall back to a passive effect during SSR.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+export function AuthScopedOutlet() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const identityKey = user
+    ? [user.id, user.profileId, user.isStaff ? "staff" : "customer", [...user.roles].sort().join("\u001e")].join("\u001f")
+    : "anonymous";
+  const previousIdentityKey = useRef<string | undefined>(undefined);
+
+  useIsomorphicLayoutEffect(() => {
+    const previous = previousIdentityKey.current;
+    previousIdentityKey.current = identityKey;
+    if (previous === undefined || previous === identityKey) return;
+
+    // TanStack Query data and mutation state may contain tenant-specific finance or inventory results.
+    // Drop all cached query state and force active route loaders to re-check the new auth context.
+    queryClient.clear();
+    void router.invalidate().catch(() => undefined);
+  }, [identityKey, queryClient, router]);
+
+  // Remount active route-local state on logout, account switch, profile change or effective-role change.
+  return <Outlet key={identityKey} />;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   useEffect(() => {
@@ -159,7 +187,7 @@ function RootComponent() {
             </Link>
           ))}
         </nav>
-        <Outlet />
+        <AuthScopedOutlet />
       </AuthProvider>
     </QueryClientProvider>
   );
