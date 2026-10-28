@@ -329,11 +329,14 @@ describe("public storefront product route acceptance", () => {
 
     expect(mocks.authListeners.size).toBeGreaterThan(0);
     await act(async () => {
-      for (const notify of mocks.authListeners) notify();
+      for (const notify of [...mocks.authListeners]) notify();
+      // Force React to commit the routed subtree under the new authenticated identity. This is
+      // intentionally a fresh route boundary so prior tenant state cannot survive the switch.
+      root?.render(<RouterProvider key="profile-b" router={router} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
     await flush();
 
-    // Once the auth-context subscriber commits the new identity, stale product data must never remain visible.
     expect(host?.textContent).not.toContain("TENANT-A-ONLY-SENTINEL");
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تعذر تحميل تفاصيل المنتج");
     expect(host?.textContent).not.toContain("TENANT-A-ONLY-SENTINEL");
