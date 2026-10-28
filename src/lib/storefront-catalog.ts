@@ -96,8 +96,13 @@ export async function fetchStorefrontCatalogPage(input: {
   pageSize?: number;
   availableOnly: boolean;
 }): Promise<StorefrontCatalogPage> {
-  const page = Math.max(1, Math.floor(input.page));
-  const pageSize = Math.min(100, Math.max(1, Math.floor(input.pageSize ?? 24)));
+  // Keep the client-side bounds aligned with the SECURITY DEFINER RPC contract, even for malformed runtime values.
+  const requestedPage = Number.isFinite(input.page) ? Math.floor(input.page) : 1;
+  const page = Math.min(100_000, Math.max(1, requestedPage));
+  const requestedPageSize = input.pageSize !== undefined && Number.isFinite(input.pageSize)
+    ? Math.floor(input.pageSize)
+    : 24;
+  const pageSize = Math.min(100, Math.max(1, requestedPageSize));
   const search = normalizeCatalogSearchQuery(input.search).slice(0, MAX_CATALOG_SEARCH_LENGTH);
   const { data, error } = await supabase.rpc('get_storefront_catalog_page', {
     p_search: search,
@@ -117,10 +122,15 @@ export async function fetchStorefrontCatalogPage(input: {
   const totalPages = finiteNumber(payload.total_pages, Number.NaN);
   const resolvedPage = finiteNumber(payload.page, Number.NaN);
   const resolvedPageSize = finiteNumber(payload.page_size, Number.NaN);
-  if (![totalCount, totalPages, resolvedPage, resolvedPageSize].every(Number.isFinite)
-      || totalCount < 0 || totalPages < 0 || resolvedPage < 1 || resolvedPageSize < 1
-      || items.length > resolvedPageSize) {
+  if (![totalCount, totalPages, resolvedPage, resolvedPageSize].every(Number.isSafeInteger)
+      || totalCount < 0 || totalPages < 0 || resolvedPage < 1 || resolvedPage > 100_000
+      || resolvedPageSize < 1 || resolvedPageSize > 100
+      || items.length > resolvedPageSize || items.length > totalCount) {
     throw new Error('بيانات ترقيم صفحات الكتالوج غير صالحة؛ لم تُعرض نتائج غير مؤكدة.');
+  }
+  const expectedTotalPages = totalCount === 0 ? 0 : Math.ceil(totalCount / resolvedPageSize);
+  if (totalPages !== expectedTotalPages || (totalCount === 0 && items.length !== 0)) {
+    throw new Error('بيانات ترقيم صفحات الكتالوج غير متسقة؛ لم تُعرض نتائج غير مؤكدة.');
   }
   return {
     page: resolvedPage,
