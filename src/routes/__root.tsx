@@ -144,15 +144,19 @@ function AuthHealthNotice() {
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export function AuthScopedOutlet() {
-  const { user } = useAuth();
+  const { user, sessionRevision = 0 } = useAuth();
   const queryClient = useQueryClient();
   const router = useRouter();
   const effectiveRoles: string[] = user && Array.isArray(user.roles)
     ? user.roles.filter((role): role is string => typeof role === "string")
     : [];
-  const identityKey = user
+  const identityScopeKey = user
     ? [user.id, user.profileId, user.isStaff ? "staff" : "customer", [...effectiveRoles].sort().join("\u001e")].join("\u001f")
     : "anonymous";
+  // A refreshed session may change server-derived organization/warehouse access while the
+  // profile and role tuple stays identical. Include the revision in the boundary key so cached
+  // queries and route-local state are cleared before that scope is allowed to paint.
+  const identityKey = [identityScopeKey, "session", sessionRevision].join("\u001f");
   const previousIdentityKey = useRef<string | undefined>(undefined);
 
   useIsomorphicLayoutEffect(() => {

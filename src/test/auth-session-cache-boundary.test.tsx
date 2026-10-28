@@ -136,4 +136,19 @@ describe("authentication-scoped query cache boundary", () => {
     await screen.findByText("auth-user-a:manager");
     await waitFor(() => expect(queryClient.getQueryData(["private-inventory"])).toBeUndefined());
   });
+
+  it("clears private cache on auth refresh when identity and roles stay unchanged", async () => {
+    const { queryClient } = await mountWithPrivateCache();
+    queryClient.setQueryData(["private-finance"], { sentinel: "PRE-REFRESH-PRIVATE-BALANCE" });
+
+    await act(async () => {
+      authMocks.listener?.("TOKEN_REFRESHED");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    await waitFor(() => expect(queryClient.getQueryData(["private-finance"])).toBeUndefined());
+    await screen.findByText("auth-user-a:customer");
+  });
+
 });

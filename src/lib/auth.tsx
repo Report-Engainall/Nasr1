@@ -6,6 +6,7 @@ export type AuthUser = { id: string; profileId: string; email: string; name: str
 
 type AuthContextType = {
   user: AuthUser | null;
+  sessionRevision: number;
   loading: boolean;
   ready: boolean;
   configurationError: string | null;
@@ -40,6 +41,8 @@ async function loadProfile(): Promise<AuthUser | null> {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  // Invalidate auth-scoped client state when server membership/scope may have changed.
+  const [sessionRevision, setSessionRevision] = useState(0);
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
   const [configurationError, setConfigurationError] = useState<string | null>(null);
@@ -52,7 +55,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let unsubscribe: (() => void) | undefined;
     try {
       const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-        if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') setTimeout(() => { void refresh(); }, 0);
+        // Identity/roles can remain unchanged while server-side company or warehouse access changes.
+        if (
+          event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT' ||
+          event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' ||
+          event === 'PASSWORD_RECOVERY' || event === 'MFA_CHALLENGE_VERIFIED'
+        ) {
+          setSessionRevision((revision) => revision + 1);
+        }
+        if (
+          event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED' ||
+          event === 'PASSWORD_RECOVERY' || event === 'MFA_CHALLENGE_VERIFIED'
+        ) {
+          setTimeout(() => { void refresh(); }, 0);
+        }
         if (event === 'SIGNED_OUT') setUser(null);
       });
       unsubscribe = () => sub.subscription.unsubscribe();
@@ -112,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => { await supabase.auth.signOut({ scope: 'local' }); setUser(null); }, []);
 
-  return <AuthContext.Provider value={{ user, loading, ready, configurationError, signIn, signUp, resetPassword, signOut }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, sessionRevision, loading, ready, configurationError, signIn, signUp, resetPassword, signOut }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
