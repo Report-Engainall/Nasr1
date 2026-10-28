@@ -1,3 +1,16 @@
+# CURRENT CHECKPOINT — 28 October 2026 — public catalog privacy
+
+- **Exclusive target:** `Report-Engainall/Nasr1` / `main`. Exact tested candidate SHA: `ef97370268cae66b123cf2509d567da58772f12d`.
+- **Code change on main:** commit [`42e8f228`](https://github.com/Report-Engainall/Nasr1/commit/42e8f228a5562977e19f06a49fef785650c10fef) adds the forward-only migration `supabase/migrations/20261028150000_storefront_catalog_privacy_projection.sql` and narrows the storefront API/parser/PWA cache projection. Public catalog payloads now omit `organization_id`, `warehouse_id`, inventory-row ID and physical `quantity_on_hand`; the public inventory summary carries only `product_id` and `quantity_available`. Internal tenant/warehouse values are retained only for server-side scoping.
+- **Test correction:** early candidate runs #2777/#2778 failed because `src/test/public-catalog-privacy.test.ts` still expected the now-forbidden columns. Commit [`ef973702`](https://github.com/Report-Engainall/Nasr1/commit/ef97370268cae66b123cf2509d567da58772f12d) updates the stale contract and adds an adversarial mock response proving that extra backend inventory fields are not echoed. No sensitive fields were restored to satisfy the old test.
+- **Exact-SHA verification:** [Aghbari Commerce checks #2779](https://github.com/Report-Engainall/Nasr1/actions/runs/40741309082) completed **SUCCESS** on `ef97370268cae66b123cf2509d567da58772f12d`: 204/204 test files and 1339/1339 tests passed; isolated PostgreSQL 17 migrations/core, accounting and invitation/address concurrency, analytics, import/export, inventory and favourites acceptance, backup/restore, lint, build, production-preview smoke, dev-server smoke and Chromium price-visibility acceptance all succeeded.
+- **Exact-SHA RPC inventory:** artifact [`public-rpc-function-inventory-ef97370268cae66b123cf2509d567da58772f12d`](https://github.com/Report-Engainall/Nasr1/actions/runs/40741309082) (ID `12839257624`): 319 runtime public functions/procedures, 319 source-matched, 0 unmatched, across 158 migration files. Matching source does not prove semantic authorization.
+- **Acceptance matrix:** added `STF-CATALOG-INVENTORY-PRIVACY-001`; DLV-005 and DLV-014 now record the concrete catalog/PWA privacy result but remain PARTIAL because PDF/XLSX/print, offline/logout/revocation, hosted authenticated tenant E2E, and other channels are not closed. DLV-015 remains PARTIAL pending semantic RPC review.
+- **Release decision:** **NO-GO — FULL PRODUCTION RELEASE** remains correct. Hosted customer/tenant E2E, live Onyx sync, official WhatsApp receipts, live AI provider, production deploy/migration/rollback/restore and owner sign-off remain unproven. Do not calculate a completion percentage from CI alone.
+- **NEXT_ACTION:** continue bounded semantic review of the exact inventory, beginning with one exposed data-bearing customer/finance RPC. Trace its body and effective ACL, prove role and tenant checks plus denied-no-side-effect behavior, and only commit a concrete uncovered fix with its targeted tests. Preserve the single-main workflow; do not recreate existing member-revocation guards.
+
+---
+
 # CURRENT CHECKPOINT — 28 October 2026 — auth/session cache boundary
 
 - **Exclusive target:** `Report-Engainall/Nasr1` / `main`. Latest code SHA: `2f855cb79911a659faca19d8b4ebb02635cc4f7f`.
