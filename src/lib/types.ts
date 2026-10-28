@@ -6,6 +6,8 @@ export interface Product {
   is_active: boolean; is_featured: boolean; sort_order: number;
   price_wholesale_of_wholesale: number; price_wholesale: number; price_retail: number; base_price: number;
   stock_quantity: number; reserved_quantity: number; min_stock_level: number;
+  /** Product-level order policy; defaults to 1 for pre-policy fixtures and transitional reads. */
+  min_order_quantity?: number; order_quantity_multiple?: number;
 }
 export interface Customer {
   id: string; user_id: string | null; full_name: string; company_name: string | null; phone: string;
