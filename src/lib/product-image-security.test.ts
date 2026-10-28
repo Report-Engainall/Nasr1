@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { extractOwnedProductImageObjectPath } from "./product-image-security";
 import {
   hasAllowedProductImageRole,
   isSafeProductImageRequest,
@@ -22,6 +23,23 @@ describe("server-authoritative product image security contract", () => {
     expect(isValidProductImageObjectPath(ORG + "/../../other/" + OBJECT + ".webp", ORG, PRODUCT)).toBe(false);
     expect(isValidProductImageObjectPath(ORG + "/" + PRODUCT + "/notes.txt", ORG, PRODUCT)).toBe(false);
   });
+  it("extracts only the HTTPS object URL owned by the expected tenant and product", () => {
+    const publicUrl = `https://project.example.test/storage/v1/object/public/product-images/${ORG}/${PRODUCT}/${OBJECT}.webp`;
+    expect(extractOwnedProductImageObjectPath(publicUrl, ORG, PRODUCT)).toBe(`${ORG}/${PRODUCT}/${OBJECT}.webp`);
+  });
+
+  it.each([
+    ["foreign organization", `https://project.example.test/storage/v1/object/public/product-images/b0000000-0000-0000-0000-000000000001/${PRODUCT}/${OBJECT}.webp`],
+    ["foreign product", `https://project.example.test/storage/v1/object/public/product-images/${ORG}/b1000000-0000-4000-8000-000000000002/${OBJECT}.webp`],
+    ["wrong bucket", `https://project.example.test/storage/v1/object/public/other-bucket/${ORG}/${PRODUCT}/${OBJECT}.webp`],
+    ["encoded path", `https://project.example.test/storage/v1/object/public/product-images/${ORG}/${PRODUCT}/%2e%2e%2f${OBJECT}.webp`],
+    ["HTTP URL", `http://project.example.test/storage/v1/object/public/product-images/${ORG}/${PRODUCT}/${OBJECT}.webp`],
+    ["query string", `https://project.example.test/storage/v1/object/public/product-images/${ORG}/${PRODUCT}/${OBJECT}.webp?token=secret`],
+    ["external legacy image", "https://images.example.test/legacy/product.png"],
+  ])("does not schedule cleanup for %s", (_case, value) => {
+    expect(extractOwnedProductImageObjectPath(value, ORG, PRODUCT)).toBeUndefined();
+  });
+
   it("checks actual WebP RIFF/WEBP signature and explicit byte ceiling", () => {
     const valid = new Uint8Array(12);
     valid.set([0x52,0x49,0x46,0x46], 0); valid.set([4,0,0,0], 4); valid.set([0x57,0x45,0x42,0x50], 8);
