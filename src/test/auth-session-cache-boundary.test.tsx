@@ -3,7 +3,7 @@ import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
-  createRootRoute,
+  createRootRouteWithContext,
   createRoute,
   createRouter,
   RouterProvider,
@@ -34,11 +34,10 @@ vi.mock("@/lib/supabase", () => ({
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { AuthScopedOutlet } from "@/routes/__root";
 
-let activeQueryClient: QueryClient;
-
 function TestRoot() {
+  const { queryClient } = TestRootRoute.useRouteContext();
   return (
-    <QueryClientProvider client={activeQueryClient}>
+    <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AuthScopedOutlet />
       </AuthProvider>
@@ -51,7 +50,7 @@ function IdentityProbe() {
   return <output>{!ready ? "auth-loading" : user ? `${user.id}:${user.roles.join(",")}` : "signed-out"}</output>;
 }
 
-const TestRootRoute = createRootRoute()({ component: TestRoot });
+const TestRootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({ component: TestRoot });
 const ProbeRoute = createRoute({
   getParentRoute: () => TestRootRoute,
   path: "/",
@@ -85,26 +84,26 @@ describe("authentication-scoped query cache boundary", () => {
 
   afterEach(() => {
     cleanup();
-    activeQueryClient?.clear();
   });
 
   async function mountWithPrivateCache() {
-    activeQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    activeQueryClient.setQueryData(["private-finance"], { sentinel: "TENANT-A-PRIVATE-BALANCE" });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(["private-finance"], { sentinel: "TENANT-A-PRIVATE-BALANCE" });
     const router = createRouter({
       routeTree: testRouteTree,
       history: createMemoryHistory({ initialEntries: ["/"] }),
+      context: { queryClient },
     });
     render(<RouterProvider router={router} />);
     await screen.findByText("auth-user-a:customer");
-    await waitFor(() => expect(activeQueryClient.getQueryData(["private-finance"])).toBeUndefined());
-    return router;
+    await waitFor(() => expect(queryClient.getQueryData(["private-finance"])).toBeUndefined());
+    return { router, queryClient };
   }
 
   it("clears cached private data on account switch and on logout", async () => {
-    await mountWithPrivateCache();
+    const { queryClient } = await mountWithPrivateCache();
 
-    activeQueryClient.setQueryData(["private-finance"], { sentinel: "TENANT-A-PRIVATE-BALANCE" });
+    queryClient.setQueryData(["private-finance"], { sentinel: "TENANT-A-PRIVATE-BALANCE" });
     authMocks.currentUserId = "auth-user-b";
     authMocks.roles = ["manager"];
     await act(async () => {
@@ -113,21 +112,21 @@ describe("authentication-scoped query cache boundary", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     await screen.findByText("auth-user-b:manager");
-    await waitFor(() => expect(activeQueryClient.getQueryData(["private-finance"])).toBeUndefined());
+    await waitFor(() => expect(queryClient.getQueryData(["private-finance"])).toBeUndefined());
 
-    activeQueryClient.setQueryData(["private-finance"], { sentinel: "TENANT-B-PRIVATE-BALANCE" });
+    queryClient.setQueryData(["private-finance"], { sentinel: "TENANT-B-PRIVATE-BALANCE" });
     authMocks.currentUserId = null;
     await act(async () => {
       authMocks.listener?.("SIGNED_OUT");
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     await screen.findByText("signed-out");
-    await waitFor(() => expect(activeQueryClient.getQueryData(["private-finance"])).toBeUndefined());
+    await waitFor(() => expect(queryClient.getQueryData(["private-finance"])).toBeUndefined());
   });
 
   it("clears cached data when effective roles change for the same account", async () => {
-    await mountWithPrivateCache();
-    activeQueryClient.setQueryData(["private-inventory"], { sentinel: "STAFF-ONLY-STOCK" });
+    const { queryClient } = await mountWithPrivateCache();
+    queryClient.setQueryData(["private-inventory"], { sentinel: "STAFF-ONLY-STOCK" });
     authMocks.roles = ["manager"];
     await act(async () => {
       authMocks.listener?.("TOKEN_REFRESHED");
@@ -135,6 +134,6 @@ describe("authentication-scoped query cache boundary", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     await screen.findByText("auth-user-a:manager");
-    await waitFor(() => expect(activeQueryClient.getQueryData(["private-inventory"])).toBeUndefined());
+    await waitFor(() => expect(queryClient.getQueryData(["private-inventory"])).toBeUndefined());
   });
 });
