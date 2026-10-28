@@ -286,6 +286,28 @@ describe("public storefront product route acceptance", () => {
     expect(window.localStorage.getItem("aghbari:catalog:v1")).toBeNull();
   });
 
+  it("fails closed when the live Supabase session belongs to a different identity than the stale auth context", async () => {
+    mocks.user = {
+      id: "auth-user-a",
+      profileId: "profile-a",
+      email: "tenant-a@example.test",
+      name: "Tenant A",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    mocks.getSession.mockResolvedValue({
+      data: { session: { user: { id: "auth-user-b" } } },
+      error: null,
+    });
+    mocks.fetchProducts.mockResolvedValue([{ ...PRODUCT, name: "OTHER-SESSION-PRIVATE-CATALOG-SENTINEL" }]);
+
+    await mountRoute(`/product/${PRODUCT_ID}`);
+
+    expect(mocks.fetchProducts).not.toHaveBeenCalled();
+    expect(host?.textContent).not.toContain("OTHER-SESSION-PRIVATE-CATALOG-SENTINEL");
+    expect(host?.querySelector('[role="alert"]')?.textContent).toContain("جلسة المصادقة لا تطابق هوية العرض");
+  });
+
   it("does not write authenticated tenant catalog data into the shared public cache", async () => {
     mocks.user = {
       id: "auth-user-1",

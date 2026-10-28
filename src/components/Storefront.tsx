@@ -90,45 +90,55 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
         };
       }
 
-      // Full-catalog REST reads are never attempted under an unresolved or ambiguous
-      // auth context. The browser session is authoritative; useAuth can briefly lag a
-      // token/account transition, so an active session with no resolved identity fails closed.
+      // The Supabase session is authoritative. useAuth can briefly lag a sign-in,
+      // sign-out, account switch, or token refresh; never read under an identity mismatch.
       if (!authReady) {
         return { mode: 'full', items: [], identityKey: storefrontIdentityKey, publicCacheable: false };
       }
 
-      const anonymousContext = !user?.id && !user?.profileId;
-      if (anonymousContext) {
-        let sessionBefore;
-        try {
-          sessionBefore = await supabase.auth.getSession();
-        } catch {
-          throw new Error('تعذر التحقق من جلسة المستخدم؛ أعد المحاولة بعد اكتمال المصادقة.');
-        }
-        if (sessionBefore.error || sessionBefore.data?.session !== null) {
-          throw new Error('جلسة المصادقة غير متزامنة مع هوية العرض؛ لم يتم تحميل بيانات الكتالوج.');
-        }
+      const expectedAuthUserId = user?.id ?? null;
+      const anonymousContext = !expectedAuthUserId && !user?.profileId;
+      if (!anonymousContext && !expectedAuthUserId) {
+        throw new Error('هوية المستخدم غير مكتملة؛ لم يتم تحميل بيانات الكتالوج.');
+      }
+
+      const readSessionUserId = async () => {
+        const response = await supabase.auth.getSession();
+        if (response.error) throw new Error('تعذر التحقق من جلسة المستخدم.');
+        return response.data?.session?.user?.id ?? null;
+      };
+
+      let sessionUserBefore: string | null;
+      try {
+        sessionUserBefore = await readSessionUserId();
+      } catch {
+        throw new Error('تعذر التحقق من جلسة المستخدم؛ أعد المحاولة بعد اكتمال المصادقة.');
+      }
+      if (
+        (anonymousContext && sessionUserBefore !== null) ||
+        (!anonymousContext && sessionUserBefore !== expectedAuthUserId)
+      ) {
+        throw new Error('جلسة المصادقة لا تطابق هوية العرض الحالية؛ لم يتم تحميل بيانات الكتالوج.');
       }
 
       const items = await fetchProducts();
-      const publicCacheable = anonymousContext;
-      if (anonymousContext) {
-        let sessionAfter;
-        try {
-          sessionAfter = await supabase.auth.getSession();
-        } catch {
-          throw new Error('تعذر إعادة التحقق من جلسة المستخدم بعد تحميل الكتالوج.');
-        }
-        if (
-          sessionAfter.error ||
-          sessionAfter.data?.session !== null ||
-          !authReady ||
-          user?.id ||
-          user?.profileId
-        ) {
-          throw new Error('تغيرت جلسة المصادقة أثناء تحميل الكتالوج؛ أُهملت النتائج لمنع خلط المؤسسات.');
-        }
+
+      let sessionUserAfter: string | null;
+      try {
+        sessionUserAfter = await readSessionUserId();
+      } catch {
+        throw new Error('تعذر إعادة التحقق من جلسة المستخدم بعد تحميل الكتالوج.');
       }
+      if (
+        (anonymousContext && sessionUserAfter !== null) ||
+        (!anonymousContext && sessionUserAfter !== expectedAuthUserId) ||
+        !authReady ||
+        (user?.id ?? null) !== expectedAuthUserId
+      ) {
+        throw new Error('تغيرت جلسة المصادقة أثناء تحميل الكتالوج؛ أُهملت النتائج لمنع خلط المؤسسات.');
+      }
+
+      const publicCacheable = anonymousContext;
       return { mode: 'full', items, identityKey: storefrontIdentityKey, publicCacheable };
     }, [view, catalogPage, debouncedQuery, activeCat, availableOnly, initialView, storefrontIdentityKey]);
   // useFetch retains its previous result while a new request is pending or fails.
