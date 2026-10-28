@@ -116,8 +116,8 @@ async function main() {
       description: "DESCQ" + searchSuffix,
     };
     const updatedSearchProduct = await db.unsafe(
-      "update public.products set sku=$3,name_en=$4,item_code=$5,barcode=$6,name=$7,description=$8 " +
-      "where id=$1::uuid and organization_id=$2::uuid and status='active' returning id::text",
+      "update public.products set sku=$3,name_en=$4,item_code=$5,barcode=$6,name=$7,description=$8,is_featured=true,sort_order=321 " +
+      "where id=$1::uuid and organization_id=$2::uuid and status='active' returning id::text,brand_id::text as brand_id",
       [CATALOG_PRODUCT_ID, ORG_ID, searchValues.sku, searchValues.englishName, searchValues.itemCode,
        searchValues.barcode, searchValues.arabicName, searchValues.description],
     );
@@ -139,6 +139,9 @@ async function main() {
       const result = searchResult[0]?.result;
       const matchedProduct = result?.items?.find((item) => item.id === CATALOG_PRODUCT_ID);
       assert.ok(matchedProduct, "catalog RPC must find the fixture by " + field);
+      assert.equal(matchedProduct.brand_id, updatedSearchProduct[0].brand_id, "catalog response preserves the persisted brand reference");
+      assert.equal(matchedProduct.is_featured, true, "catalog response preserves the persisted featured-products flag");
+      assert.equal(matchedProduct.sort_order, 321, "catalog response preserves the persisted storefront sort order");
       assert.equal(matchedProduct.sku, searchValues.sku, "catalog response returns the stored SKU");
       assert.equal(matchedProduct.name_en, searchValues.englishName, "catalog response returns the stored English name");
       assert.equal(matchedProduct.display_price, null, "search results preserve hidden-price policy");
