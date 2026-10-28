@@ -6,6 +6,7 @@ import { countLowStockBalances } from './inventory-metrics';
 import { summarizeDashboardOrders } from './dashboard-metrics';
 import { retryRead } from './retry';
 import { PRODUCT_IMAGE_MAX_BYTES } from './product-image';
+import { extractOwnedProductImageObjectPath } from './product-image-security';
 import { validateCustomerInput } from './customer-input';
 import { validateInventoryTransferBatchInput, type InventoryTransferBatchInput } from './inventory-transfer-batch';
 import { isValidPriceAmount } from './price-grid-money';
@@ -213,38 +214,125 @@ export async function updateProduct(id: string, updates: Partial<Product>): Prom
   return fetchStaffProductById(updated.id);
 }
 
-export async function uploadProductImage(productId: string, image: Blob): Promise<string> {
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (typeof productId !== 'string' || !uuidPattern.test(productId)) {
-    throw new Error('معرّف المنتج غير صالح؛ لم تُرفع الصورة.');
+export class ProductImageCleanupError extends Error {
+  constructor(message: string, readonly imageLinked: boolean) {
+    super(message);
+    this.name = "ProductImageCleanupError";
   }
-  if (!(image instanceof Blob) || image.type !== 'image/webp' || image.size < 1 || image.size > PRODUCT_IMAGE_MAX_BYTES) {
-    throw new Error('الصورة المحوّلة ليست WebP صالحًا أو تجاوزت حد 8 ميغابايت.');
+}
+
+async function deleteProductImageObject(productId: string, objectPath: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke("product-image-upload", {
+    body: { action: "delete", product_id: productId, object_path: objectPath },
+  });
+  if (error || data?.deleted !== true) {
+    throw new Error("تعذر تأكيد حذف ملف الصورة من التخزين.");
+  }
+}
+
+export async function uploadProductImage(
+  productId: string,
+  image: Blob,
+  previousImageUrl?: string | null,
+): Promise<string> {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (typeof productId !== "string" || !uuidPattern.test(productId)) {
+    throw new Error("معرّف المنتج غير صالح؛ لم تُرفع الصورة.");
+  }
+  if (!(image instanceof Blob) || image.type !== "image/webp" || image.size < 1 || image.size > PRODUCT_IMAGE_MAX_BYTES) {
+    throw new Error("الصورة المحوّلة ليست WebP صالحًا أو تجاوزت حد 8 ميغابايت.");
   }
   const scope = await getCurrentTenantScope();
-  if (!scope.isStaff) throw new Error('صلاحية إدارة المنتجات مطلوبة لرفع الصورة.');
+  if (!scope.isStaff) throw new Error("صلاحية إدارة المنتجات مطلوبة لرفع الصورة.");
 
-  const { data, error } = await supabase.functions.invoke('product-image-upload', {
+  const { data, error } = await supabase.functions.invoke("product-image-upload", {
     body: image,
-    headers: { 'content-type': 'image/webp', 'x-product-id': productId },
+    headers: { "content-type": "image/webp", "x-product-id": productId },
   });
-  if (error) throw new Error('تعذر رفع صورة المنتج آمنًا. تحقق من إعداد دالة product-image-upload.');
-  const publicUrl = typeof data?.public_url === 'string' ? data.public_url : '';
-  const objectPath = typeof data?.object_path === 'string' ? data.object_path : '';
+  if (error) throw new Error("تعذر رفع صورة المنتج آمنًا. تحقق من إعداد دالة product-image-upload.");
+  const publicUrl = typeof data?.public_url === "string" ? data.public_url : "";
+  const objectPath = typeof data?.object_path === "string" ? data.object_path : "";
   if (!/^https:\/\//i.test(publicUrl) || !objectPath) {
-    throw new Error('لم تُرجع خدمة الصور مسارًا ورابطًا صالحين؛ لم يُربط المنتج بالصورة.');
+    throw new Error("لم تُرجع خدمة الصور مسارًا ورابطًا صالحين؛ لم يُربط المنتج بالصورة.");
   }
+
+  const previousObjectPath = extractOwnedProductImageObjectPath(
+    previousImageUrl,
+    scope.organizationId,
+    productId,
+  );
   try {
-    await updateProduct(productId, { image_url: publicUrl });
+    const { data: updated, error: updateError } = await supabase
+      .from("products")
+      .update({ image_url: publicUrl })
+      .eq("id", productId)
+      .eq("organization_id", scope.organizationId)
+      .select("id")
+      .maybeSingle();
+    if (updateError || updated?.id !== productId) {
+      throw new Error("product_image_link_not_confirmed");
+    }
   } catch {
     try {
-      await supabase.functions.invoke('product-image-upload', {
-        body: { action: 'delete', product_id: productId, object_path: objectPath },
-      });
-    } catch { /* preserve the primary product update failure */ }
-    throw new Error('تعذر ربط صورة المنتج بالسجل؛ طُلب تنظيف الملف المؤقت.');
+      await deleteProductImageObject(productId, objectPath);
+    } catch { /* preserve the original image-link failure */ }
+    throw new Error("تعذر ربط صورة المنتج بالسجل؛ طُلب تنظيف الملف المؤقت.");
+  }
+
+  // The new URL is committed before the old object is removed; a cleanup failure must
+  // never delete the newly linked image or be reported as an upload/link failure.
+  if (previousObjectPath && previousObjectPath !== objectPath) {
+    try {
+      await deleteProductImageObject(productId, previousObjectPath);
+    } catch {
+      throw new ProductImageCleanupError(
+        "تم ربط الصورة الجديدة، لكن تعذر تنظيف الصورة السابقة من التخزين.",
+        true,
+      );
+    }
   }
   return publicUrl;
+}
+
+export async function removeProductImage(
+  productId: string,
+  currentImageUrl?: string | null,
+): Promise<void> {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (typeof productId !== "string" || !uuidPattern.test(productId)) {
+    throw new Error("معرّف المنتج غير صالح؛ لم تُزل الصورة.");
+  }
+  const scope = await getCurrentTenantScope();
+  if (!scope.isStaff) throw new Error("صلاحية إدارة المنتجات مطلوبة لإزالة الصورة.");
+
+  const objectPath = extractOwnedProductImageObjectPath(
+    currentImageUrl,
+    scope.organizationId,
+    productId,
+  );
+  const { data: updated, error } = await supabase
+    .from("products")
+    .update({ image_url: null })
+    .eq("id", productId)
+    .eq("organization_id", scope.organizationId)
+    .select("id")
+    .maybeSingle();
+  if (error || updated?.id !== productId) {
+    throw new Error("تعذر إزالة صورة المنتج من السجل؛ لم يُؤكد الخادم التعديل.");
+  }
+
+  // The record is now safely unlinked. If object cleanup fails, report that precise
+  // partial state so the UI does not claim that the image is still linked.
+  if (objectPath) {
+    try {
+      await deleteProductImageObject(productId, objectPath);
+    } catch {
+      throw new ProductImageCleanupError(
+        "أُزيلت الصورة من سجل المنتج، لكن تعذر تنظيف ملفها من التخزين.",
+        false,
+      );
+    }
+  }
 }
 
 export async function deleteProduct(id: string): Promise<void> {
