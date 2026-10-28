@@ -16,6 +16,7 @@ const staffAuthId = "33333333-3333-4333-8333-333333333333";
 const productId = "a1000000-0000-0000-0000-000000000001";
 const otherTenantProductId = "a1111111-1111-4111-8111-111111111112";
 const checkoutKeys = ["ci-p1-cart-checkout-mismatch-0001", "ci-p1-cart-checkout-valid-0001"];
+let originalOrderPolicy = null;
 
 const admin = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const first = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
@@ -49,6 +50,11 @@ async function syncCart(client, items) {
   const result = rows[0]?.result;
   assert.ok(result && Array.isArray(result.items), "customer cart sync RPC must return normalized persisted items");
   return result;
+}
+
+async function validateCart(client, items) {
+  const rows = await client.unsafe("select public.validate_checkout_cart($1::jsonb) as result", [client.json(items)]);
+  return rows[0]?.result;
 }
 
 async function expectDenied(label, action) {
@@ -104,6 +110,53 @@ async function main() {
   await setIdentity(firstConcurrent, customerOneAuthId, "ci-customer-one@example.test");
   await setIdentity(second, customerTwoAuthId, "ci-customer-two@example.test");
   await setIdentity(staff, staffAuthId, "admin@aghbari.ye");
+
+  // Exercise the product-level MOQ/multiple enforcement against real PostgreSQL
+  // through the same authenticated, non-financial checkout-validation RPC used by the UI.
+  const policyRows = await admin.unsafe(
+    "select min_order_quantity, order_quantity_multiple from public.products where id=$1 and organization_id=$2",
+    [productId, organizationId],
+  );
+  assert.equal(policyRows.length, 1, "quantity-policy fixture product must exist in the expected tenant");
+  originalOrderPolicy = policyRows[0];
+  await admin.unsafe(
+    "update public.products set min_order_quantity=2, order_quantity_multiple=3 where id=$1 and organization_id=$2",
+    [productId, organizationId],
+  );
+
+  const validPolicyResult = await validateCart(first, [{ product_id: productId, quantity: 2 }]);
+  assert.equal(validPolicyResult?.valid, true, "quantity equal to the configured minimum must validate");
+  assert.deepEqual(
+    validPolicyResult.items.map((line) => line.quantity),
+    [2],
+    "validation should return a safe normalized quantity",
+  );
+  assert.doesNotMatch(
+    JSON.stringify(validPolicyResult),
+    /unit_price|original_unit_price|line_total|total_amount|customer_tier|margin|cost_price/i,
+    "checkout validation must not return financial or tier data",
+  );
+
+  for (const [label, quantity] of [
+    ["zero", 0],
+    ["negative", -1],
+    ["fractional", 1.5],
+    ["below configured minimum", 1],
+    ["wrong multiple", 3],
+    ["wrong multiple above minimum", 4],
+    ["above maximum", 10001],
+  ]) {
+    await assert.rejects(
+      () => validateCart(first, [{ product_id: productId, quantity }]),
+      /quantity|الكمية/i,
+      `checkout must reject ${label} quantity (${quantity})`,
+    );
+  }
+  await admin.unsafe(
+    "update public.products set min_order_quantity=$3, order_quantity_multiple=$4 where id=$1 and organization_id=$2",
+    [productId, organizationId, originalOrderPolicy.min_order_quantity, originalOrderPolicy.order_quantity_multiple],
+  );
+  originalOrderPolicy = null;
 
   const firstSnapshot = await syncCart(first, [{ product_id: productId, quantity: 2 }]);
   assert.deepEqual(firstSnapshot.items, [{ product_id: productId, quantity: 2 }], "first sync persists the requested customer line");
@@ -214,6 +267,17 @@ try {
   process.stderr.write("CUSTOMER_CART_PERSISTENCE_FAILED " + String(error?.stack ?? error) + "\n");
   process.exitCode = 1;
 } finally {
+  if (originalOrderPolicy) {
+    try {
+      await admin.unsafe(
+        "update public.products set min_order_quantity=$3, order_quantity_multiple=$4 where id=$1 and organization_id=$2",
+        [productId, organizationId, originalOrderPolicy.min_order_quantity, originalOrderPolicy.order_quantity_multiple],
+      );
+    } catch (error) {
+      process.stderr.write("CUSTOMER_CART_POLICY_RESTORE_FAILED " + String(error?.message ?? error) + "\\n");
+      process.exitCode = 1;
+    }
+  }
   for (const client of [first, firstConcurrent, second, staff]) {
     try { await client.unsafe("reset role"); } catch { /* connection may already be aborted */ }
   }
