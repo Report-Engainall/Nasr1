@@ -139,6 +139,26 @@ describe("Aghbari PWA offline shell", () => {
     expect(worker.cachePut).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["customer invoice PDF", "https://aghbari.example/api/invoice-pdf/11111111-1111-4111-8111-111111111111"],
+    ["customer pricing RPC", "https://aghbari.example/rest/v1/rpc/preview_customer_order_pricing"],
+    ["asynchronous export download", "https://aghbari.example/functions/v1/async-export-download"],
+  ])("does not intercept or cache %s requests", async (_label, requestUrl) => {
+    const worker = await loadServiceWorker({
+      fetcher: async () => new Response("private response", { status: 200 }),
+    });
+    const respondWith = vi.fn();
+    worker.listeners.get("fetch")?.({
+      request: { method: "GET", url: requestUrl, mode: "cors" } as Request,
+      respondWith,
+    });
+
+    // Returning without respondWith leaves authentication-bound data network-authoritative.
+    expect(respondWith).not.toHaveBeenCalled();
+    expect(worker.cachesMock.match).not.toHaveBeenCalled();
+    expect(worker.cachesMock.open).not.toHaveBeenCalled();
+  });
+
   it("serves a cached asset without an unhandled rejection when the background refresh is offline", async () => {
     const cachedResponse = new Response("cached asset", { status: 200 });
     const worker = await loadServiceWorker({

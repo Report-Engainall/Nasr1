@@ -156,6 +156,54 @@ describe("finance PDF source integration — authoritative financial rendering",
     expect(pdf.getPageCount()).toBeGreaterThan(0);
   });
 
+  it("ignores monetary and tier fields supplied alongside a hidden customer invoice PDF", async () => {
+    const invoice = {
+      id: "11111111-1111-4111-8111-111111111111",
+      invoice_number: "INV-HIDDEN-BOUNDARY",
+      customer_id: "22222222-2222-4222-8222-222222222222",
+      status: "issued",
+      issued_at: "2026-10-01T00:00:00.000Z",
+      due_at: "2026-10-31T00:00:00.000Z",
+      currency: "YER",
+    };
+    const lines = [{
+      id: "33333333-3333-4333-8333-333333333333",
+      item_code: "SKU-HIDDEN-BOUNDARY",
+      description: "صنف اختبار السعر المخفي",
+      unit: "قطعة",
+      quantity: "2",
+    }];
+    const customer = { customer_code: "C-HIDDEN", business_name: "عميل الاختبار" };
+
+    const cleanPdf = await buildCustomerInvoicePdf(
+      invoice, lines, customer, loadArabicDocumentFont(), generatedAt, false, false,
+    );
+    const payloadWithSecretsPdf = await buildCustomerInvoicePdf(
+      {
+        ...invoice,
+        subtotal: "987654321.99",
+        tax_amount: "876543210.98",
+        total_amount: "1864197532.97",
+      },
+      [{
+        ...lines[0],
+        unit_price: "765432109.87",
+        line_total: "1530864219.74",
+      }],
+      { ...customer, tier_label: "PRIVATE-TIER-SENTINEL" },
+      loadArabicDocumentFont(),
+      generatedAt,
+      false,
+      false,
+    );
+
+    // Hidden fields must not influence the generated document at all.
+    expect(payloadWithSecretsPdf.byteLength).toBe(cleanPdf.byteLength);
+    const pdf = await PDFDocument.load(payloadWithSecretsPdf);
+    expect(pdf.getPageCount()).toBeGreaterThan(0);
+    expect(pdf.getTitle()).toContain("INV-HIDDEN-BOUNDARY");
+  });
+
   it("renders the customer tier label when the server explicitly allows it, even with monetary values hidden", async () => {
     const invoice = {
       id: "11111111-1111-4111-8111-111111111111",
