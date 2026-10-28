@@ -32,33 +32,34 @@ $constraints$;
 GRANT SELECT (min_order_quantity, order_quantity_multiple)
   ON TABLE public.products TO anon, authenticated;
 
-CREATE OR REPLACE FUNCTION public.customer_product_unit_price(
+CREATE OR REPLACE FUNCTION public.assert_product_order_quantity(
   p_product_id uuid,
   p_organization_id uuid,
-  p_tier text,
   p_quantity numeric
 )
-RETURNS numeric(15,2)
+RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $$
+AS $function$
 DECLARE
-  v_base_price numeric(15,2);
-  v_price numeric(15,2);
   v_min_order_quantity integer;
   v_order_quantity_multiple integer;
 BEGIN
-  IF p_quantity IS NULL OR p_quantity<=0 OR p_quantity>10000
-     OR p_quantity::text IN ('NaN','Infinity','-Infinity')
-     OR p_quantity <> pg_catalog.trunc(p_quantity) THEN
-    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='invalid pricing quantity';
+  IF p_quantity IS NULL OR p_quantity::text IN ('NaN','Infinity','-Infinity')
+     OR p_quantity <> pg_catalog.trunc(p_quantity)
+     OR p_quantity < 1 OR p_quantity > 10000 THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='الكمية يجب أن تكون عددًا صحيحًا بين 1 و10000';
   END IF;
-  SELECT p.base_price, p.min_order_quantity, p.order_quantity_multiple
-    INTO v_base_price, v_min_order_quantity, v_order_quantity_multiple
-    FROM public.products p
-   WHERE p.id=p_product_id AND p.organization_id=p_organization_id AND p.status='active';
-  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='product unavailable in this organization'; END IF;
+
+  SELECT p.min_order_quantity, p.order_quantity_multiple
+    INTO v_min_order_quantity, v_order_quantity_multiple
+    FROM public.products AS p
+   WHERE p.id = p_product_id
+     AND p.organization_id = p_organization_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='لا توجد سياسة كمية موثوقة لهذا الصنف ضمن المؤسسة الحالية';
+  END IF;
 
   IF p_quantity < v_min_order_quantity
      OR pg_catalog.mod(p_quantity - v_min_order_quantity, v_order_quantity_multiple) <> 0 THEN
@@ -66,29 +67,162 @@ BEGIN
       MESSAGE = 'الكمية لا تطابق الحد الأدنى أو مضاعف الطلب للصنف',
       DETAIL = pg_catalog.format('min_order_quantity=%s; order_quantity_multiple=%s', v_min_order_quantity, v_order_quantity_multiple);
   END IF;
+END
+$function$;
+REVOKE ALL ON FUNCTION public.assert_product_order_quantity(uuid,uuid,numeric) FROM PUBLIC, anon, authenticated;
 
-  SELECT pp.price INTO v_price
-    FROM public.product_prices pp
-   WHERE pp.product_id=p_product_id AND pp.tier=coalesce(nullif(p_tier,''),'retail')
-     AND pp.is_active AND pp.min_quantity<=p_quantity
-   ORDER BY pp.min_quantity DESC
-   LIMIT 1;
-  IF NOT FOUND AND coalesce(nullif(p_tier,''),'retail')<>'retail' THEN
-    SELECT pp.price INTO v_price
-      FROM public.product_prices pp
-     WHERE pp.product_id=p_product_id AND pp.tier='retail'
-       AND pp.is_active AND pp.min_quantity<=p_quantity
-     ORDER BY pp.min_quantity DESC
-     LIMIT 1;
+CREATE OR REPLACE FUNCTION public.guard_product_order_quantity()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_organization_id uuid;
+BEGIN
+  IF NEW.product_id IS NULL THEN
+    RETURN NEW;
   END IF;
-  IF NOT FOUND THEN v_price:=v_base_price; END IF;
-  IF v_price IS NULL OR v_price<0 OR v_price::text IN ('NaN','Infinity','-Infinity') THEN
-    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='invalid configured product price';
+
+  SELECT o.organization_id
+    INTO v_organization_id
+    FROM public.orders AS o
+   WHERE o.id = NEW.order_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE='23503', MESSAGE='order quantity policy requires a valid order';
   END IF;
-  RETURN pg_catalog.round(v_price,2);
+
+  PERFORM public.assert_product_order_quantity(NEW.product_id, v_organization_id, NEW.quantity);
+  RETURN NEW;
+END
+$function$;
+REVOKE ALL ON FUNCTION public.guard_product_order_quantity() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS order_items_product_quantity_policy ON public.order_items;
+CREATE TRIGGER order_items_product_quantity_policy
+  BEFORE INSERT OR UPDATE OF order_id, product_id, quantity
+  ON public.order_items
+  FOR EACH ROW
+  EXECUTE FUNCTION public.guard_product_order_quantity();
+
+CREATE OR REPLACE FUNCTION public.preview_order_pricing(_items jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_profile uuid := public.current_profile_id();
+  v_org uuid;
+  v_tier text := 'retail';
+  v_customer_status text := 'pending';
+  v_currency text := 'YER';
+  v_line jsonb;
+  v_aggregated record;
+  v_product public.products%ROWTYPE;
+  v_product_id uuid;
+  v_quantity numeric(15,3);
+  v_unit_price numeric(15,2);
+  v_line_total numeric(15,2);
+  v_discount_per_unit numeric(15,2) := 0;
+  v_promotion record;
+  v_total numeric(15,2):=0;
+  v_items jsonb:='[]'::jsonb;
+  v_count integer:=0;
+BEGIN
+  IF v_profile IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='sign in required'; END IF;
+  IF _items IS NULL OR pg_catalog.jsonb_typeof(_items)<>'array' THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='items must be an array';
+  END IF;
+  IF pg_catalog.jsonb_array_length(_items)<1 OR pg_catalog.jsonb_array_length(_items)>100 THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='cart must contain between 1 and 100 items';
+  END IF;
+
+  SELECT p.organization_id INTO v_org
+    FROM public.profiles p
+   WHERE p.id=v_profile AND p.auth_user_id=auth.uid() AND p.is_active;
+  IF v_org IS NULL OR NOT EXISTS(SELECT 1 FROM public.organizations o WHERE o.id=v_org AND o.is_active) THEN
+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='active organization context required';
+  END IF;
+
+  SELECT c.tier,c.status INTO v_tier,v_customer_status
+    FROM public.customers c
+   WHERE c.profile_id=v_profile AND c.organization_id=v_org
+   ORDER BY c.created_at LIMIT 1;
+  IF NOT FOUND THEN
+    v_tier:='retail';
+    v_customer_status:='pending';
+  END IF;
+  v_tier:=coalesce(nullif(v_tier,''),'retail');
+  IF v_customer_status<>'approved' THEN v_tier:='retail'; END IF;
+  SELECT o.currency INTO v_currency FROM public.organizations o WHERE o.id=v_org;
+
+  FOR v_line IN SELECT value FROM pg_catalog.jsonb_array_elements(_items) LOOP
+    BEGIN
+      v_product_id:=(v_line->>'product_id')::uuid;
+      v_quantity:=(v_line->>'quantity')::numeric;
+    EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range THEN
+      RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='invalid product id or quantity';
+    END;
+    IF v_product_id IS NULL OR v_quantity IS NULL OR v_quantity<>pg_catalog.trunc(v_quantity)
+       OR v_quantity<1 OR v_quantity>10000 THEN
+      RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='quantity must be a positive integer not exceeding 10000';
+    END IF;
+  END LOOP;
+
+  FOR v_aggregated IN
+    SELECT (entry.value->>'product_id')::uuid AS product_id,
+           sum((entry.value->>'quantity')::numeric)::numeric(15,3) AS quantity
+      FROM pg_catalog.jsonb_array_elements(_items) AS entry(value)
+     GROUP BY (entry.value->>'product_id')::uuid
+     ORDER BY (entry.value->>'product_id')::uuid
+  LOOP
+    v_product_id:=v_aggregated.product_id;
+    v_quantity:=v_aggregated.quantity;
+    IF v_quantity>10000 THEN
+      RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='aggregate quantity exceeds 10000 for one product';
+    END IF;
+    SELECT p.* INTO v_product
+      FROM public.products p
+     WHERE p.id=v_product_id AND p.organization_id=v_org AND p.status='active'
+     FOR SHARE;
+    IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='product is unavailable in this organization'; END IF;
+
+    PERFORM public.assert_product_order_quantity(v_product.id, v_org, v_quantity);
+    v_unit_price:=public.customer_product_unit_price(v_product.id,v_org,v_tier,v_quantity);
+    SELECT * INTO v_promotion
+      FROM public.resolve_active_promotion_price(v_product.id,v_org,v_unit_price);
+    v_discount_per_unit:=v_promotion.discount_per_unit;
+    v_line_total:=pg_catalog.round((v_unit_price-v_discount_per_unit)*v_quantity,2);
+    v_total:=v_total+v_line_total;
+    v_count:=v_count+1;
+    v_items:=v_items||pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+      'product_id',v_product.id,
+      'name',v_product.name,
+      'item_code',v_product.item_code,
+      'unit',v_product.unit,
+      'quantity',v_quantity,
+      'unit_price',pg_catalog.round(v_unit_price-v_discount_per_unit,2),
+      'original_unit_price',v_unit_price,
+      'discount_per_unit',v_discount_per_unit,
+      'discount_amount',pg_catalog.round(v_discount_per_unit*v_quantity,2),
+      'promotion_title',v_promotion.promotion_title,
+      'line_total',v_line_total
+    ));
+  END LOOP;
+
+  RETURN pg_catalog.jsonb_build_object(
+    'items',v_items,
+    'total_amount',v_total,
+    'currency',coalesce(v_currency,'YER'),
+    'customer_tier',v_tier,
+    'price_basis','server'
+  );
 END;
 $$;
-REVOKE ALL ON FUNCTION public.customer_product_unit_price(uuid,uuid,text,numeric) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.preview_order_pricing(jsonb) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.preview_order_pricing(jsonb) TO authenticated;
+
 
 CREATE OR REPLACE FUNCTION public.get_storefront_catalog_page(
   p_search text DEFAULT NULL,
