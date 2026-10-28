@@ -327,14 +327,14 @@ describe("public storefront product route acceptance", () => {
     mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "auth-user-b" } } }, error: null });
     mocks.detailReadFailures = 1;
 
+    expect(mocks.authListeners.size).toBeGreaterThan(0);
     await act(async () => {
       for (const notify of mocks.authListeners) notify();
     });
-
-    // Auth context subscribers rerender independently of the router; stale product data must disappear immediately.
-    expect(host?.textContent).not.toContain("TENANT-A-ONLY-SENTINEL");
-
     await flush();
+
+    // Once the auth-context subscriber commits the new identity, stale product data must never remain visible.
+    expect(host?.textContent).not.toContain("TENANT-A-ONLY-SENTINEL");
     expect(host?.querySelector('[role="alert"]')?.textContent).toContain("تعذر تحميل تفاصيل المنتج");
     expect(host?.textContent).not.toContain("TENANT-A-ONLY-SENTINEL");
   });
