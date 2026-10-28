@@ -1,0 +1,145 @@
+name: One-main-branch cleanup
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-main-branch-cleanup.yml
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: one-main-branch-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Archive unmerged work and remove excess branch refs
+    if: github.repository == 'Report-Engainall/Nasr1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main with full Git history
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Inventory branches and pull requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" \
+            --jq '.[] | [.name, .commit.sha, (.protected | tostring)] | @tsv' \
+            > "${RUNNER_TEMP}/branches.tsv"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls?state=all&per_page=100" \
+            --jq '.[] | [.head.ref, .head.sha, .base.ref, (.merged_at // ""), .state, (.head.repo.full_name // "")] | @tsv' \
+            > "${RUNNER_TEMP}/pull-requests.tsv"
+          echo "Branches found: $(wc -l < "${RUNNER_TEMP}/branches.tsv")" >> "$GITHUB_STEP_SUMMARY"
+          echo "Pull requests inspected: $(wc -l < "${RUNNER_TEMP}/pull-requests.tsv")" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive unique tips, then remove non-main branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch_file="${RUNNER_TEMP}/branches.tsv"
+          pr_file="${RUNNER_TEMP}/pull-requests.tsv"
+          main_sha="$(git rev-parse origin/main)"
+          deleted=0
+          archived=0
+          already_integrated=0
+          skipped_open=0
+          skipped_protected=0
+
+          while IFS= read -r row || [[ -n "$row" ]]; do
+            IFS=$'\t' read -r branch sha protected <<< "$row"
+            [[ -n "${branch:-}" ]] || continue
+            [[ "$branch" == "main" ]] && continue
+
+            if [[ "$protected" == "true" ]]; then
+              echo "SKIP protected branch: $branch" >> "$GITHUB_STEP_SUMMARY"
+              skipped_protected=$((skipped_protected + 1))
+              continue
+            fi
+
+            if awk -F '\t' -v b="$branch" -v repo="$GITHUB_REPOSITORY" \
+              '$1 == b && $3 == "main" && $5 == "open" && $6 == repo {found=1} END {exit !found}' "$pr_file"; then
+              echo "SKIP open-PR branch: $branch" >> "$GITHUB_STEP_SUMMARY"
+              skipped_open=$((skipped_open + 1))
+              continue
+            fi
+
+            git fetch --no-tags origin "refs/heads/$branch:refs/remotes/origin/$branch"
+            fetched_sha="$(git rev-parse "refs/remotes/origin/$branch")"
+            if [[ "$fetched_sha" != "$sha" ]]; then
+              echo "::error::Branch moved during cleanup inventory: $branch (inventory=$sha fetched=$fetched_sha). Rerun after re-inventory."
+              exit 1
+            fi
+
+            keep_archive=true
+            if git merge-base --is-ancestor "$sha" "$main_sha"; then
+              keep_archive=false
+              already_integrated=$((already_integrated + 1))
+            elif awk -F '\t' -v b="$branch" -v s="$sha" -v repo="$GITHUB_REPOSITORY" \
+              '$1 == b && $2 == s && $3 == "main" && $4 != "" && $5 == "closed" && $6 == repo {found=1} END {exit !found}' "$pr_file"; then
+              # The exact branch tip was merged to main (for example via squash), so its work is represented on main.
+              keep_archive=false
+              already_integrated=$((already_integrated + 1))
+            fi
+
+            if [[ "$keep_archive" == "true" ]]; then
+              archive_tag="recovery/branch-cleanup-2026-10-28/$branch"
+              if ! git check-ref-format "refs/tags/$archive_tag"; then
+                archive_tag="recovery/branch-cleanup-2026-10-28/$sha"
+              fi
+              if git ls-remote --exit-code --tags origin "refs/tags/$archive_tag" >/dev/null 2>&1; then
+                archive_tag="${archive_tag}-${sha:0:12}"
+              fi
+              if git ls-remote --exit-code --tags origin "refs/tags/$archive_tag" >/dev/null 2>&1; then
+                echo "::error::Archive tag already exists and will not be overwritten: $archive_tag"
+                exit 1
+              fi
+              git tag -a "$archive_tag" "$sha" -m "Recovery snapshot before single-main branch cleanup; original branch: $branch"
+              git push origin "refs/tags/$archive_tag"
+              archived_sha="$(git ls-remote origin "refs/tags/$archive_tag^{}" | awk 'NR == 1 {print $1}')"
+              if [[ "$archived_sha" != "$sha" ]]; then
+                echo "::error::Archive verification failed for $branch: expected $sha, got ${archived_sha:-missing}"
+                exit 1
+              fi
+              archived=$((archived + 1))
+              echo "ARCHIVED $branch -> $archive_tag ($sha)" >> "$GITHUB_STEP_SUMMARY"
+            fi
+
+            # Delete only after any unique tip is durably archived or known to be integrated.
+            git push origin --delete "$branch"
+            remaining="$(git ls-remote --heads origin "refs/heads/$branch")"
+            if [[ -n "$remaining" ]]; then
+              echo "::error::Remote branch still exists after deletion attempt: $branch"
+              exit 1
+            fi
+            deleted=$((deleted + 1))
+          done < "$branch_file"
+
+          remaining_branches="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq '.[].name' | sort -u)"
+          echo "## One-main-branch cleanup result" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branches deleted: $deleted" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Unique branch tips archived as recovery tags: $archived" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branches whose tips were already integrated: $already_integrated" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Open-PR branches retained: $skipped_open" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Protected branches retained: $skipped_protected" >> "$GITHUB_STEP_SUMMARY"
+          echo '### Branches remaining' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "$remaining_branches" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$remaining_branches" != "main" ]]; then
+            echo "::error::Cleanup incomplete; main is not the only remaining branch. Review the summary and open-PR/protection skips."
+            exit 1
+          fi
+          echo "VERIFIED: main is the only remaining branch."
