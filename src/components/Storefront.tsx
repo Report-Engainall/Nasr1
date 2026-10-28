@@ -866,7 +866,7 @@ export function ProductDetail({
           <div className="sf-detail-facts">
             <div><strong>الوحدة</strong><span>{product.unit}</span></div>
             <div><strong>الحد الأدنى</strong><span>{formatNumber(product.min_order_quantity ?? 1)} {product.unit}</span></div>
-            {(product.order_quantity_multiple ?? 1) > 1 && <div><strong>مضاعف الطلب</strong><span>{formatNumber(product.order_quantity_multiple ?? 1)} {product.unit}</span></div>
+            {(product.order_quantity_multiple ?? 1) > 1 && <div><strong>مضاعف الطلب</strong><span>{formatNumber(product.order_quantity_multiple ?? 1)} {product.unit}</span></div>}
             {pricePresentation.visible && <div><strong>السعر</strong><span>السعر الظاهر قبل تأكيد الطلب</span></div>}
           </div>
         </div>
