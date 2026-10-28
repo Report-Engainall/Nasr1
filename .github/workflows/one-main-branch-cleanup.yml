@@ -109,7 +109,7 @@ jobs:
               fi
               git tag -a "$archive_tag" "$sha" -m "Recovery snapshot before single-main branch cleanup; original branch: $branch"
               git push origin "refs/tags/$archive_tag"
-              archived_sha="$(git ls-remote origin "refs/tags/$archive_tag^{}" | awk 'NR == 1 {print $1}')"
+              archived_sha="$(git ls-remote --tags origin "refs/tags/$archive_tag" "refs/tags/$archive_tag^{}" | awk -v ref="refs/tags/$archive_tag^{}" '$2 == ref {print $1}')"
               if [[ "$archived_sha" != "$sha" ]]; then
                 echo "::error::Archive verification failed for $branch: expected $sha, got ${archived_sha:-missing}"
                 exit 1
