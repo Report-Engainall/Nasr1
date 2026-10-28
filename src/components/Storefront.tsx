@@ -265,7 +265,7 @@ export function Storefront({ onExit, initialView = 'shop', initialProductId, ini
       // If session provenance cannot be confirmed, do not populate shared cache.
     });
     return () => { cancelled = true; };
-  }, [liveProducts, productSnapshot?.mode, productSnapshot?.publicCacheable, productSnapshot?.identityKey, storefrontIdentityKey, authReady, user?.id, user?.profileId]);
+  }, [liveProducts, productSnapshot, storefrontIdentityKey, authReady, user?.id, user?.profileId]);
 
   useEffect(() => {
     if (!authReady) return;
