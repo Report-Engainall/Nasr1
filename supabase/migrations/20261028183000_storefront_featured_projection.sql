@@ -4,6 +4,16 @@
 -- physical on-hand counts, reservations, reorder thresholds, and financial source fields.
 BEGIN;
 
+-- The baseline products schema lacks these persisted storefront-discovery fields.
+-- Add them before the catalog RPC references them; defaults preserve existing rows.
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS is_featured boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0;
+
+CREATE INDEX IF NOT EXISTS products_storefront_featured_order_idx
+  ON public.products (organization_id, is_featured DESC, sort_order ASC, name ASC, id ASC)
+  WHERE status = 'active';
+
 CREATE OR REPLACE FUNCTION public.get_storefront_catalog_page(
   p_search text DEFAULT NULL,
   p_category_id uuid DEFAULT NULL,
@@ -136,7 +146,7 @@ BEGIN
   page_rows AS MATERIALIZED (
     SELECT *
     FROM matched
-    ORDER BY name, id
+    ORDER BY is_featured DESC, sort_order ASC, name, id
     OFFSET v_offset
     LIMIT v_page_size
   ),
@@ -183,7 +193,7 @@ BEGIN
                  ELSE '{}'::jsonb
                END
           )
-          ORDER BY r.name, r.id
+          ORDER BY r.is_featured DESC, r.sort_order ASC, r.name, r.id
         )
         FROM page_rows r
         JOIN page_prices prices ON prices.product_id = r.id
