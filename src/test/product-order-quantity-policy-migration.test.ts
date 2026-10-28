@@ -21,6 +21,8 @@ describe('product-level order quantity policy migration', () => {
     expect(migration).toMatch(/p_quantity < v_min_order_quantity[\s\S]*?pg_catalog\.mod\(p_quantity - v_min_order_quantity, v_order_quantity_multiple\) <> 0/i);
     expect(migration).toMatch(/CREATE TRIGGER order_items_product_quantity_policy[\s\S]*?BEFORE INSERT OR UPDATE OF order_id, product_id, quantity/i);
     expect(migration).toMatch(/PERFORM public\.assert_product_order_quantity\(v_product\.id, v_org, v_quantity\)[\s\S]*?v_unit_price:=public\.customer_product_unit_price/i);
+    expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.preview_order_pricing\(jsonb\) FROM PUBLIC, anon, authenticated/i);
+    expect(migration).not.toMatch(/GRANT EXECUTE ON FUNCTION public\.preview_order_pricing\(jsonb\) TO authenticated/i);
     expect(migration).toMatch(/REVOKE ALL ON FUNCTION public\.assert_product_order_quantity\(uuid,uuid,numeric\) FROM PUBLIC, anon, authenticated/i);
     expect(migration).not.toMatch(/CREATE OR REPLACE FUNCTION public\.customer_product_unit_price/i);
   });
