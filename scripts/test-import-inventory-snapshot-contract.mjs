@@ -19,6 +19,10 @@ const itemMatched = "CI-STOCK-B-" + suffix;
 const warehouseCode = "CI-WH-" + suffix;
 const warehouseName = "CI inventory snapshot " + suffix;
 const managerEmail = "ci-import-stock-" + suffix + "@example.test";
+const foreignOrganizationId = uuid();
+const foreignManagerProfileId = uuid();
+const foreignManagerAuthId = uuid();
+const foreignManagerEmail = "ci-import-stock-foreign-" + suffix + "@example.test";
 const fileHash = "a".repeat(64);
 const chunkHash = "c".repeat(64);
 
@@ -136,6 +140,37 @@ async function snapshotStock() {
   return { balances, movements };
 }
 
+async function snapshotImportRollbackBoundary(jobId, snapshotId) {
+  const jobs = await readAsOwner(
+    "select status,error_summary::text as error_summary,updated_at::text as updated_at " +
+      "from public.import_jobs where id=$1::uuid and organization_id=$2::uuid",
+    [jobId, organizationId],
+  );
+  const snapshots = await readAsOwner(
+    "select organization_id::text,status,snapshot_version::integer,row_count::integer,source_file_hash " +
+      "from public.onyx_snapshots where id=$1::uuid and organization_id=$2::uuid",
+    [snapshotId, organizationId],
+  );
+  const rows = await readAsOwner(
+    "select count(*)::integer as count from public.onyx_snapshot_rows " +
+      "where snapshot_id=$1::uuid and organization_id=$2::uuid",
+    [snapshotId, organizationId],
+  );
+  const audits = await readAsOwner(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and entity_type='onyx_snapshot' and entity_id=$2::uuid and action='import.snapshot_rolled_back'",
+    [organizationId, snapshotId],
+  );
+  assert.equal(jobs.length, 1, "rollback boundary fixture job remains in the owner tenant");
+  assert.equal(snapshots.length, 1, "rollback boundary fixture snapshot remains in the owner tenant");
+  return {
+    job: jobs[0],
+    snapshot: snapshots[0],
+    snapshotRowCount: Number(rows[0]?.count ?? 0),
+    rollbackAuditCount: Number(audits[0]?.count ?? 0),
+  };
+}
+
 async function main() {
   await db.unsafe("begin");
   const expectedQueryIndexes = [
@@ -176,6 +211,17 @@ async function main() {
       [staffProfileId, staffAuthId, organizationId, staffEmail],
     );
     await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'staff')", [staffProfileId]);
+    await db.unsafe(
+      "insert into public.organizations(id,name,currency,is_active) values($1,$2,'YER',true)",
+      [foreignOrganizationId, "CI import snapshot rollback foreign " + suffix],
+    );
+    const foreignManagerName = "CI Import Snapshot Rollback Foreign Manager " + suffix;
+    await db.unsafe(
+      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
+        "values($1,$2,$3,$4,$5,true)",
+      [foreignManagerProfileId, foreignManagerAuthId, foreignOrganizationId, foreignManagerName, foreignManagerEmail],
+    );
+    await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'manager')", [foreignManagerProfileId]);
     await db.unsafe(
       "insert into public.warehouses(id,organization_id,name,code,is_active) values($1,$2,$3,$4,true)",
       [warehouseId, organizationId, warehouseName, warehouseCode],
@@ -310,6 +356,42 @@ async function main() {
 
     const afterFinalize = await snapshotStock();
     assert.deepEqual(afterFinalize, beforeFinalize, "generic import finalization must not mutate stock balances or movement ledger");
+
+    // DLV-015 / AUTHZ-IMPORT-SNAPSHOT-ROLLBACK-001: rejected rollback calls must not archive a live snapshot.
+    const rollbackBaseline = await snapshotImportRollbackBoundary(job.id, finalized.snapshot_id);
+    assert.equal(rollbackBaseline.job.status, "completed", "rollback source job starts completed");
+    assert.equal(rollbackBaseline.snapshot.status, "ready", "rollback target starts as the current ready snapshot");
+    assert.equal(rollbackBaseline.snapshotRowCount, sourceRows.length, "all immutable snapshot rows exist before denial");
+    assert.equal(rollbackBaseline.rollbackAuditCount, 0, "fresh rollback fixture has no rollback audit");
+
+    await setIdentity(staffAuthId, staffEmail);
+    const staffRollbackError = await expectFailure(
+      "ordinary staff cannot roll back a published import snapshot",
+      () => db.unsafe("select public.rollback_import_snapshot($1::uuid,$2::text)", [job.id, "staff rollback denial"]),
+      /متاح للمدير أو مدير النظام فقط/i,
+    );
+    assert.equal(staffRollbackError.code, "42501", "same-tenant staff rollback denial uses SQLSTATE 42501");
+    assert.deepEqual(
+      await snapshotImportRollbackBoundary(job.id, finalized.snapshot_id),
+      rollbackBaseline,
+      "same-tenant staff denial leaves job, ready snapshot, immutable rows and audit unchanged",
+    );
+
+    await setIdentity(foreignManagerAuthId, foreignManagerEmail);
+    const foreignRollbackError = await expectFailure(
+      "foreign-tenant manager cannot roll back or discover the owner snapshot",
+      () => db.unsafe("select public.rollback_import_snapshot($1::uuid,$2::text)", [job.id, "foreign rollback denial"]),
+      /دفعة الاستيراد غير موجودة في المؤسسة النشطة/i,
+    );
+    assert.equal(foreignRollbackError.code, "P0002", "foreign-tenant rollback denial uses opaque SQLSTATE P0002");
+    assert.deepEqual(
+      await snapshotImportRollbackBoundary(job.id, finalized.snapshot_id),
+      rollbackBaseline,
+      "foreign-tenant denial leaves job, ready snapshot, immutable rows and audit unchanged",
+    );
+    await setIdentity();
+    await db.unsafe("set role authenticated");
+    process.stdout.write("PASS import snapshot rollback authorization: same-tenant staff 42501 and foreign manager P0002 preserve job/snapshot rows and produce no rollback audit.\n");
 
     // DQS-001: prove edge-case quality scores from persisted staging rows, the finalize response,
     // import_jobs.data_quality_score/quality_breakdown and the ready snapshot all agree.
