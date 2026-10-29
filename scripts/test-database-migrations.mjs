@@ -826,6 +826,75 @@ async function main() {
     [profileId, "ci-idempotency-key-000001"],
   );
   assert.equal(orderCount[0].count, 1, "a replay must not create a duplicate order");
+
+  // DLV-004: quantity minimums and pack multiples are enforced on the server, and
+  // rejected checkout attempts cannot create orders, outbox events or stock effects.
+  const quantityPolicyBeforeRows=await db.unsafe(
+    "select min_order_quantity,order_quantity_multiple from public.products where id=$1::uuid and organization_id=$2::uuid",
+    [productId,organizationId],
+  );
+  assert.equal(quantityPolicyBeforeRows.length,1,"quantity-policy fixture must resolve inside the current organization");
+  const quantityPolicyBefore=quantityPolicyBeforeRows[0];
+  const quantityPolicyKeys=[randomUUID(),randomUUID()];
+  const quantityPolicyStockBeforeRows=await db.unsafe(
+    "select quantity_on_hand,quantity_reserved,quantity_available from public.inventory_balances " +
+      "where product_id=$1::uuid and warehouse_id='d0000000-0000-0000-0000-000000000001'",
+    [productId],
+  );
+  let quantityPolicyStockBefore=quantityPolicyStockBeforeRows[0];
+  try {
+    await db.unsafe(
+      "update public.products set min_order_quantity=2,order_quantity_multiple=3 where id=$1::uuid and organization_id=$2::uuid",
+      [productId,organizationId],
+    );
+    await setIdentity(authUserId,"ci-customer-one@example.test");
+    await db.unsafe("set role authenticated");
+    await expectFailure(
+      "customer checkout rejects quantity below the server-owned minimum",
+      ()=>db.unsafe(
+        "select public.submit_customer_order($1::jsonb,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::uuid)",
+        [db.json([{product_id:productId,quantity:1}]),"CI MOQ below minimum","CI Company One","CI Customer One",
+          "7771111111","cash_on_delivery",quantityPolicyKeys[0],firstId],
+      ),
+      /الكمية لا تطابق الحد الأدنى أو مضاعف الطلب للصنف/i,
+    );
+    await expectFailure(
+      "customer checkout rejects quantity that violates the configured pack multiple",
+      ()=>db.unsafe(
+        "select public.submit_customer_order($1::jsonb,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::uuid)",
+        [db.json([{product_id:productId,quantity:4}]),"CI MOQ invalid multiple","CI Company One","CI Customer One",
+          "7771111111","cash_on_delivery",quantityPolicyKeys[1],firstId],
+      ),
+      /الكمية لا تطابق الحد الأدنى أو مضاعف الطلب للصنف/i,
+    );
+    await db.unsafe("reset role");
+    const rejectedPolicyOrders=await db.unsafe(
+      "select id,idempotency_key from public.orders where created_by=$1::uuid and idempotency_key=any($2::text[])",
+      [profileId,quantityPolicyKeys],
+    );
+    assert.equal(rejectedPolicyOrders.length,0,"invalid quantity attempts leave no persisted order/idempotency row");
+    const quantityPolicyStockAfterRows=await db.unsafe(
+      "select quantity_on_hand,quantity_reserved,quantity_available from public.inventory_balances " +
+        "where product_id=$1::uuid and warehouse_id='d0000000-0000-0000-0000-000000000001'",
+      [productId],
+    );
+    assert.equal(Number(quantityPolicyStockAfterRows[0].quantity_on_hand),Number(quantityPolicyStockBefore.quantity_on_hand),
+      "rejected quantity attempts preserve on-hand inventory");
+    assert.equal(Number(quantityPolicyStockAfterRows[0].quantity_reserved),Number(quantityPolicyStockBefore.quantity_reserved),
+      "rejected quantity attempts preserve reservations");
+    assert.equal(Number(quantityPolicyStockAfterRows[0].quantity_available),Number(quantityPolicyStockBefore.quantity_available),
+      "rejected quantity attempts preserve available-to-promise stock");
+  } finally {
+    await db.unsafe("reset role").catch(()=>{});
+    await db.unsafe(
+      "update public.products set min_order_quantity=$3::integer,order_quantity_multiple=$4::integer " +
+        "where id=$1::uuid and organization_id=$2::uuid",
+      [productId,organizationId,quantityPolicyBefore.min_order_quantity,quantityPolicyBefore.order_quantity_multiple],
+    );
+  }
+  await setIdentity(authUserId,"ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  process.stdout.write("PASS DLV-004 customer checkout enforces server-side minimum/pack multiples and rejects invalid quantities without order or stock side effects\\n");
   await db.unsafe("set role authenticated");
   await db.unsafe("reset role");
   await db.unsafe("update public.customer_addresses set address_line1='Street changed after order' where id=$1", [firstId]);
