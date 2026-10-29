@@ -2164,9 +2164,11 @@ function Offline() {
     }
     setSyncing(true);
     setMessage("");
+    let persistedRows: ReturnType<typeof sanitizePublicCatalogCache> | null = null;
     try {
       const rows = sanitizePublicCatalogCache(await fetchProducts());
       localStorage.setItem("aghbari:catalog:v1", JSON.stringify(rows));
+      persistedRows = rows;
       const syncedAt = new Date().toISOString();
       localStorage.setItem(OFFLINE_CATALOG_SYNC_AT_KEY, syncedAt);
       setLastCatalogSyncAt(syncedAt);
@@ -2177,7 +2179,17 @@ function Offline() {
           " صنف، مع أرصدة المخزون والتصنيفات المتاحة.",
       );
     } catch {
-      setMessage("تعذر تحديث الكتالوج؛ لم نغيّر النسخة المحلية.");
+      if (persistedRows) {
+        // The catalog write succeeded but its freshness marker did not; invalidate
+        // the old marker and render the persisted allowlisted data with unknown age.
+        try { localStorage.removeItem(OFFLINE_CATALOG_SYNC_AT_KEY); } catch { /* keep the UI fail-closed */ }
+        setCachedProducts(persistedRows);
+        setCached(persistedRows.length);
+        setLastCatalogSyncAt(null);
+        setMessage("حُفظت نسخة الكتالوج محليًا، لكن تعذر تثبيت وقت المزامنة؛ حداثتها غير مؤكدة. تحقق من الخادم قبل الاعتماد عليها.");
+      } else {
+        setMessage("تعذر تحديث الكتالوج؛ لم نغيّر النسخة المحلية.");
+      }
     } finally {
       setSyncing(false);
     }

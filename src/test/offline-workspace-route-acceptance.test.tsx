@@ -260,6 +260,42 @@ describe("offline workspace real-route acceptance", () => {
     });
   });
 
+  it("reports partial local persistence accurately when the freshness marker cannot be saved", async () => {
+    const refreshedProduct = { ...PRODUCT, name: "صنف بعد التحديث" };
+    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    mocks.fetchProducts.mockResolvedValue([refreshedProduct]);
+    await mountOfflineRoute();
+
+    const originalSetItem = window.localStorage.setItem.bind(window.localStorage);
+    const setItemSpy = vi.spyOn(window.localStorage, "setItem").mockImplementation((key, value) => {
+      if (key === "aghbari:catalog:last-server-sync:v1") {
+        throw new DOMException("storage quota unavailable", "QuotaExceededError");
+      }
+      return originalSetItem(key, value);
+    });
+
+    try {
+      await act(async () => {
+        findButton("تحديث الكتالوج المحلي").click();
+      });
+
+      await waitFor(() => {
+        expect(host?.textContent).toContain("حُفظت نسخة الكتالوج محليًا");
+        expect(host?.textContent).toContain("حداثتها غير مؤكدة");
+        expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+          "لم يتم التحقق من حداثة النسخة المحلية",
+        );
+      });
+
+      const stored = JSON.parse(window.localStorage.getItem("aghbari:catalog:v1") || "[]") as Array<{name?: string}>;
+      expect(stored[0]?.name).toBe("صنف بعد التحديث");
+      expect(window.localStorage.getItem("aghbari:catalog:last-server-sync:v1")).toBeNull();
+      expect(host?.textContent).not.toContain("لم نغيّر النسخة المحلية");
+    } finally {
+      setItemSpy.mockRestore();
+    }
+  });
+
   it("shows cached catalog age and marks a cache stale after 24 hours until a successful refresh", async () => {
     window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
     window.localStorage.setItem(
