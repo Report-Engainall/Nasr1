@@ -159,6 +159,30 @@ describe("Aghbari PWA offline shell", () => {
     expect(worker.cachesMock.open).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["final order submission", "POST", "https://aghbari.example/api/orders"],
+    ["financial payment", "POST", "https://aghbari.example/api/payments"],
+    ["stock movement", "PATCH", "https://aghbari.example/rest/v1/inventory_movements"],
+    ["cart mutation", "DELETE", "https://aghbari.example/rest/v1/customer_carts"],
+  ])("never intercepts or queues offline %s writes", async (_label, method, requestUrl) => {
+    const fetcher = vi.fn(async () => new Response("must remain network-authoritative", { status: 200 }));
+    const worker = await loadServiceWorker({ fetcher });
+    const respondWith = vi.fn();
+
+    worker.listeners.get("fetch")?.({
+      request: { method, url: requestUrl, mode: "cors" } as Request,
+      respondWith,
+    });
+
+    // A non-GET business mutation must fall through to the browser's network path;
+    // the service worker cannot turn it into an offline-accepted operation.
+    expect(respondWith).not.toHaveBeenCalled();
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(worker.cachesMock.match).not.toHaveBeenCalled();
+    expect(worker.cachesMock.open).not.toHaveBeenCalled();
+    expect(worker.cachePut).not.toHaveBeenCalled();
+  });
+
   it("serves a cached asset without an unhandled rejection when the background refresh is offline", async () => {
     const cachedResponse = new Response("cached asset", { status: 200 });
     const worker = await loadServiceWorker({
