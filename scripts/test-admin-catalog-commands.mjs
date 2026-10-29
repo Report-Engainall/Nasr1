@@ -422,6 +422,80 @@ async function main() {
 
 
 
+  const metadataPayload = {
+    ...payload,
+    expected_base_price: payload.base_price,
+    expected_price_wholesale_of_wholesale: payload.price_wholesale_of_wholesale,
+    expected_price_wholesale: payload.price_wholesale,
+    expected_price_retail: payload.price_retail,
+    name_en: "CI product English",
+    sku: "CI-P1-SKU-001",
+    is_featured: true,
+    sort_order: 7,
+    min_order_quantity: 2,
+    order_quantity_multiple: 2,
+  };
+  const metadataSave = await rpc(
+    admin,
+    "select public.save_admin_product_with_metadata($1::uuid,$2::jsonb) result",
+    [created.id, admin.json(metadataPayload)],
+  );
+  assert.equal(metadataSave.id, created.id, "metadata save returns the requested product");
+  assert.equal(metadataSave.created, false, "metadata save remains an edit");
+  assert.equal(metadataSave.metadata_updated, true, "changed metadata is reported");
+
+  const savedMetadata = await root.unsafe(
+    "select name_en,sku,is_featured,sort_order,min_order_quantity,order_quantity_multiple " +
+      "from public.products where id=$1 and organization_id=$2",
+    [created.id, org],
+  );
+  assert.deepEqual(savedMetadata[0], {
+    name_en: "CI product English",
+    sku: "CI-P1-SKU-001",
+    is_featured: true,
+    sort_order: 7,
+    min_order_quantity: 2,
+    order_quantity_multiple: 2,
+  }, "all supported editable product metadata persists");
+
+  const metadataAudit = await root.unsafe(
+    "select organization_id,actor_id,action,entity_type,entity_id,old_value,new_value " +
+      "from public.audit_logs where organization_id=$1 and entity_id=$2 " +
+      "and action='catalog.product_metadata_updated'",
+    [org, created.id],
+  );
+  assert.equal(metadataAudit.length, 1, "metadata change writes one audit event");
+  assert.ok(metadataAudit[0].actor_id, "metadata audit records the authenticated actor");
+  assert.equal(metadataAudit[0].action, "catalog.product_metadata_updated");
+  assert.equal(metadataAudit[0].old_value.sku, null);
+  assert.equal(metadataAudit[0].old_value.is_featured, false);
+  assert.equal(metadataAudit[0].new_value.name_en, "CI product English");
+  assert.equal(metadataAudit[0].new_value.sku, "CI-P1-SKU-001");
+  assert.equal(metadataAudit[0].new_value.min_order_quantity, 2);
+
+  await assert.rejects(
+    () => rpc(admin,
+      "select public.save_admin_product_with_metadata($1::uuid,$2::jsonb) result",
+      [created.id, admin.json({ ...metadataPayload, is_featured: "true" })]),
+    /product metadata fields are invalid/i,
+    "metadata type failures are rejected before core or metadata mutations",
+  );
+  const afterRejectedMetadata = await root.unsafe(
+    "select name_en,sku,is_featured,sort_order,min_order_quantity,order_quantity_multiple " +
+      "from public.products where id=$1 and organization_id=$2",
+    [created.id, org],
+  );
+  assert.deepEqual(afterRejectedMetadata[0], savedMetadata[0],
+    "invalid metadata leaves the previously saved row unchanged");
+
+  await assert.rejects(
+    () => rpc(admin,
+      "select public.save_admin_product_with_metadata($1::uuid,$2::jsonb) result",
+      [foreignProduct, admin.json(metadataPayload)]),
+    /product not found in organization/i,
+    "metadata save cannot address another tenant's product",
+  );
+
   const expectedSearchIndexes = [
     "products_org_item_code_trgm_idx",
     "products_org_name_trgm_idx",

@@ -212,21 +212,63 @@ export async function createProduct(p: Partial<Product>): Promise<Product> {
 }
 
 export async function updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
-  const { organizationId: orgId } = await getCurrentTenantScope();
-  // RLS/tenant filters can produce a zero-row write without a database error: never report this as success.
-  // Return only the safe id column; product financial fields remain behind fetch_staff_products.
-  const { data: updated, error } = await supabase
-    .from('products')
-    .update(updates)
-    .eq('id', id)
-    .eq('organization_id', orgId)
-    .select('id')
-    .maybeSingle();
-  if (error) throw error;
-  if (!updated?.id || updated.id !== id) {
-    throw new Error('لم يُحفظ تعديل الصنف؛ الصنف غير موجود في المؤسسة الحالية أو لا تملك صلاحية تعديله.');
+  await getCurrentTenantScope();
+  const current = await fetchStaffProductById(id);
+  const merged = { ...current, ...updates };
+  const editableStatus = (merged as Product & { status?: string }).status;
+
+  const currentPrices = [
+    current.base_price,
+    current.price_wholesale_of_wholesale,
+    current.price_wholesale,
+    current.price_retail,
+  ].map(Number);
+  const nextPrices = [
+    merged.base_price,
+    merged.price_wholesale_of_wholesale,
+    merged.price_wholesale,
+    merged.price_retail,
+  ].map(Number);
+  if (![...currentPrices, ...nextPrices].every(Number.isFinite)) {
+    throw new Error('تعذر التحقق من شبكة أسعار المنتج الحالية؛ لم تُحفظ أي تعديلات.');
   }
-  return fetchStaffProductById(updated.id);
+
+  // Product table UPDATE is intentionally revoked for authenticated users.
+  // One security-definer command applies core fields, price-grid optimistic
+  // concurrency, editable catalog metadata and audit atomically in PostgreSQL.
+  const payload = {
+    name: String(merged.name ?? ''),
+    item_code: String(merged.item_code ?? ''),
+    barcode: merged.barcode ?? null,
+    unit: String(merged.unit ?? ''),
+    description: merged.description ?? null,
+    category_id: merged.category_id ?? null,
+    base_price: nextPrices[0],
+    price_wholesale_of_wholesale: nextPrices[1],
+    price_wholesale: nextPrices[2],
+    price_retail: nextPrices[3],
+    status: editableStatus === 'inactive' || merged.is_active === false ? 'inactive' : 'active',
+    expected_base_price: currentPrices[0],
+    expected_price_wholesale_of_wholesale: currentPrices[1],
+    expected_price_wholesale: currentPrices[2],
+    expected_price_retail: currentPrices[3],
+    name_en: merged.name_en ?? null,
+    sku: merged.sku ?? null,
+    is_featured: merged.is_featured === true,
+    sort_order: Number(merged.sort_order ?? 0),
+    min_order_quantity: Number(merged.min_order_quantity ?? 1),
+    order_quantity_multiple: Number(merged.order_quantity_multiple ?? 1),
+  };
+  const { data, error } = await supabase.rpc('save_admin_product_with_metadata', {
+    p_product_id: id,
+    p_payload: payload,
+  });
+  if (error) throw error;
+  const result = data as { id?: unknown } | null;
+  if (!result || result.id !== id) {
+    throw new Error('لم يؤكد الخادم حفظ المنتج ضمن المؤسسة الحالية؛ حدّث القائمة قبل إعادة المحاولة.');
+  }
+  return fetchStaffProductById(id);
 }
 
 export class ProductImageCleanupError extends Error {
