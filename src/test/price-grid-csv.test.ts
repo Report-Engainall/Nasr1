@@ -103,7 +103,7 @@ describe('price grid CSV export', () => {
     } as typeof row;
 
     const csv = buildPriceGridCsv([untrustedRuntimeRow]);
-    const [header, data] = csv.replace(/^\\uFEFF/, '').trimEnd().split('\\r\\n');
+    const [header, data] = csv.replace(/^\uFEFF/, '').trimEnd().split(/\r?\n/);
 
     expect(header?.split(',')).toHaveLength(14);
     expect(data?.split(',')).toHaveLength(14);
