@@ -560,3 +560,63 @@ test("login supports keyboard-only focus and password-visibility control", async
   expect(pageErrors).toEqual([]);
 });
 
+
+test("customer navigation routes preserve metadata, RTL, and viewport fit", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  // This is a read-only browser acceptance: no production credentials and no backend writes.
+  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+    route.abort("blockedbyclient"),
+  );
+
+  const routes = [
+    { path: "/categories", title: "التصنيفات | متجر الأغبري" },
+    { path: "/collections", title: "التصنيفات | متجر الأغبري" },
+    { path: "/offers", title: "العروض | متجر الأغبري" },
+    { path: "/search/advanced", title: "البحث المتقدم | متجر الأغبري" },
+    { path: "/products?q=viewport-smoke", title: "المنتجات | متجر الأغبري" },
+    { path: "/search?q=viewport-smoke", title: "البحث | متجر الأغبري" },
+    { path: "/cart", title: "سلة المشتريات | الأغبري" },
+    { path: "/wishlist", title: "المفضلة | الأغبري" },
+    { path: "/compare", title: "مقارنة المنتجات | الأغبري" },
+    { path: "/register", title: "إنشاء حساب تجاري | الأغبري" },
+    { path: "/forgot-password", title: "استعادة كلمة المرور | الأغبري" },
+  ];
+
+  for (const viewport of [
+    { width: 360, height: 800 },
+    { width: 1280, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+
+    for (const route of routes) {
+      const response = await page.goto(route.path);
+      expect(response?.status(), `Direct navigation failed for ${route.path}`).toBe(200);
+      await expect(page).toHaveTitle(route.title);
+      await expect(
+        page.locator("h1, h2").first(),
+        `Expected an accessible page heading on ${route.path}`,
+      ).toBeVisible();
+
+      const layout = await page.evaluate(() => ({
+        lang: document.documentElement.lang.toLowerCase(),
+        direction: getComputedStyle(document.documentElement).direction,
+        viewportWidth: window.innerWidth,
+        documentWidth: Math.max(
+          document.documentElement.scrollWidth,
+          document.body.scrollWidth,
+        ),
+      }));
+      expect(layout.lang, `Wrong document language on ${route.path}`).toMatch(/^ar(?:-|$)/);
+      expect(layout.direction, `Wrong text direction on ${route.path}`).toBe("rtl");
+      expect(
+        layout.documentWidth,
+        `Horizontal overflow on ${route.path} at ${viewport.width}px viewport`,
+      ).toBeLessThanOrEqual(layout.viewportWidth + 1);
+    }
+  }
+
+  expect(pageErrors, "Customer navigation routes must not throw uncaught browser errors.").toEqual([]);
+});
+
