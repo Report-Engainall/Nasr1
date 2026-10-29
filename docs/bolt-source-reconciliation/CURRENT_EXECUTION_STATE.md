@@ -1,6 +1,25 @@
 # CURRENT EXECUTION STATE — 2026-10-30
 
-Single resume cursor. Read this file first. Detailed history remains in docs/execution/NASR1_CONTINUOUS_EXECUTION_REPORT.md; the acceptance matrix is the CSV.
+Single resume cursor. Read this file first. Detailed history remains in docs/execution/NASR1_CONTINUOUS_EXECUTION_REPORT.md; acceptance remains in the CSV matrix.
+
+- repository: Report-Engainall/Nasr1
+- branch: main only; no new branches or PRs.
+- current_main_sha: 8e60ed6b35a56278c4fdbaeafde4bff50ad6dfe5
+- last_verified_code_sha: 8e60ed6b35a56278c4fdbaeafde4bff50ad6dfe5 (test-only security regression; awaits exact-SHA terminal Core/P2/cleanup).
+- prior exact-head evidence on parent d87ace59530e4b8511fb4c6b1bd2c82b39ea5d61: Core 40975990443 SUCCESS; P2 40975990641 SUCCESS; cleanup 40975990427 SUCCESS. These are parent-SHA evidence, not proof for this new commit.
+- active_task_id: AGH-PRICE-PRIVACY-LEGACY-RPC-001.
+- change: scripts/test-database-migrations.mjs now asserts public.preview_order_pricing(jsonb) is not executable by anon/authenticated, remains executable by service_role, and actual anon/customer calls fail with permission denied.
+- root cause addressed: migration 20261027300000 revoked direct browser execution, but the existing PostgreSQL 17 acceptance did not explicitly assert effective role grants and direct-call denial.
+- code_commit: https://github.com/Report-Engainall/Nasr1/commit/8e60ed6b35a56278c4fdbaeafde4bff50ad6dfe5
+- exact_sha_checks: Core/P2/cleanup pending at checkpoint; read current Actions for this exact SHA before assigning TESTED_EXACT_SHA.
+- next_task_id: VERIFY-AGH-PRICE-PRIVACY-LEGACY-RPC-001-EXACT-SHA-CI.
+- next action: inspect terminal Core/P2/cleanup for 8e60ed6b35a56278c4fdbaeafde4bff50ad6dfe5. Fix the first evidenced failure only. If all pass, choose the next uncovered high-risk RPC from retained artifact 12940762864; do not regenerate the 330/330 inventory.
+- external blockers: hosted customer/order/tenant E2E remains SKIPPED/BLOCKED_EXTERNAL; live Onyx, WhatsApp delivery, live AI, production deploy/restore and owner sign-off remain unproven.
+- release_decision: NO-GO for full production release.
+- completed/no-repeat: import snapshot rollback authorization regression is present in scripts/test-import-inventory-snapshot-contract.mjs and step 23 passed on d87ace59530e4b8511fb4c6b1bd2c82b39ea5d61; cash-expense void authorization tests passed on their recorded exact SHA. Reopen only on regression/dependency change.
+
+Re-read main before each write; use expected_main_sha compare-and-swap only. Pending/cancelled workflows are not PASS. Never use production data for tests.
+
 
 - repository: Report-Engainall/Nasr1
 - branch: main only; no new branches or PRs.

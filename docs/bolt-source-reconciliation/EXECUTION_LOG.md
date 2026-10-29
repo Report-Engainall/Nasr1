@@ -1,3 +1,16 @@
+## P2 execution record — internal order-pricing RPC browser denial — 2026-10-30
+
+- Task: AGH-PRICE-PRIVACY-LEGACY-RPC-001.
+- Live base SHA: d87ace59530e4b8511fb4c6b1bd2c82b39ea5d61. Code commit: 8e60ed6b35a56278c4fdbaeafde4bff50ad6dfe5.
+- Changed path: scripts/test-database-migrations.mjs only.
+- Root cause: migration supabase/migrations/20261027300000_revoke_direct_legacy_order_pricing_rpc.sql revokes browser execution of public.preview_order_pricing(jsonb), but the PostgreSQL 17 acceptance suite did not explicitly prove effective anon/authenticated/service_role grants and actual denied calls.
+- Regression now asserts anon=false, authenticated=false, service_role=true for EXECUTE privilege; direct anon and customer calls must fail with permission denied. No production schema or data was changed.
+- Parent exact-head Core 40975990443, P2 40975990641, cleanup 40975990427 all SUCCESS on d87ace59530e4b8511fb4c6b1bd2c82b39ea5d61. Those results do not prove the new code commit. New exact-SHA workflows must reach terminal SUCCESS before status becomes TESTED_EXACT_SHA.
+- Next: VERIFY-AGH-PRICE-PRIVACY-LEGACY-RPC-001-EXACT-SHA-CI; then select the next uncovered destructive/high-risk RPC using retained inventory artifact 12940762864.
+- Hosted authenticated customer/order/tenant E2E remains SKIPPED/BLOCKED_EXTERNAL; production release remains NO-GO.
+
+---
+
 ## P2 checkpoint — import snapshot rollback authorization — 2026-10-30
 
 - Test implementation: commit e68db07266c74c30cae36c9088c3ef993b4c9ac1. Step 23 (“Verify inventory import snapshot contract without implicit stock mutation”) passed in Core run 40974837711, exact code SHA e68db07266c74c30cae36c9088c3ef993b4c9ac1. Link: https://github.com/Report-Engainall/Nasr1/actions/runs/40974837711. The aggregate Core run had not reached a terminal outcome at the time of this checkpoint and P2 run 40974837758 was CANCELLED when a newer main SHA arrived.
