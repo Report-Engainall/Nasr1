@@ -1346,7 +1346,7 @@ async function main() {
       "select public.get_customer_return_receipt_print_data($1::uuid)",
       [randomUUID()],
     ),
-    /receipt was not found in the active organization/i,
+    /receipt was not found in the active organization|manager or assigned warehouse task permission required to read this return receipt/i,
   );
   await db.unsafe("reset role");
   await expectFailure(
