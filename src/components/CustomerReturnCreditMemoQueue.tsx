@@ -412,7 +412,7 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
                   <strong>{memo.memo_number}</strong>
                   <span style={muted}>القيد {memo.journal_entry_number} ({memo.journal_status})</span>
                 </div>
-                {memo.status !== "reversed" && <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}><button type="button" style={button} disabled={busyId !== null || loading} onClick={() => void printMemo(memo)}><Printer size={16} /> طباعة الإشعار</button></div>}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}><button type="button" style={button} disabled={busyId !== null || loading} onClick={() => void printMemo(memo)}><Printer size={16} /> {memo.status === "reversed" ? "طباعة الإشعار ودليل العكس" : "طباعة الإشعار"}</button></div>
                 <p style={{ margin: 0, fontWeight: 800 }}>
                   قبل الضريبة: {money(memo.subtotal_amount,memo.currency)} · الضريبة: {money(memo.tax_amount,memo.currency)} · الإجمالي: {money(memo.total_amount,memo.currency)}
                 </p>
