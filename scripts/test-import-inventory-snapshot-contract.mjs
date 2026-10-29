@@ -62,6 +62,7 @@ async function expectFailure(label, action, pattern) {
   await db.unsafe("ROLLBACK TO SAVEPOINT inventory_reconciliation_expected_failure");
   await db.unsafe("RELEASE SAVEPOINT inventory_reconciliation_expected_failure");
   assert.ok(!pattern || pattern.test(String(caught.message)), label + " returned the wrong error: " + caught.message);
+  return caught;
 }
 
 async function previewInventory(snapshotId, idem, reason = "P1 finalized-import reconciliation acceptance") {
