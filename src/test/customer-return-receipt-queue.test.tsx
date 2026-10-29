@@ -88,7 +88,7 @@ const persistedPrintSnapshot = {
 describe("warehouse return receipt printing", () => {
   beforeEach(() => {
     let queueCalls = 0;
-    mocks.rpc.mockReset().mockImplementation(async (name: string) => {
+    mocks.rpc.mockReset().mockImplementation(async (name: string, args?: Record<string, unknown>) => {
       if (name === "list_customer_return_receipt_print_history") return { data: { receipts: [], has_more: false, limit: 50, offset: Number(args?.p_offset ?? 0) }, error: null };
       if (name === "list_customer_return_receipt_queue") {
         queueCalls += 1;
@@ -231,7 +231,7 @@ describe("warehouse return receipt printing", () => {
   });
 
   it("does not render a print button or pretend the receipt snapshot loaded when persisted totals disagree", async () => {
-    mocks.rpc.mockImplementation(async (name: string) => {
+    mocks.rpc.mockImplementation(async (name: string, args?: Record<string, unknown>) => {
       if (name === "list_customer_return_receipt_print_history") return { data: { receipts: [], has_more: false, limit: 50, offset: Number(args?.p_offset ?? 0) }, error: null };
       if (name === "list_customer_return_receipt_queue") return { data: queue, error: null };
       if (name === "receive_customer_return") return { data: mutationResult, error: null };

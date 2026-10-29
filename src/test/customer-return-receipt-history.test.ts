@@ -36,7 +36,7 @@ describe("persisted return receipt print history", () => {
       receipts: [validReceipt], has_more: false, limit: 0, offset: 0,
     })).toThrow(/سجل إيصالات محفوظة غير صالح/);
     expect(() => readCustomerReturnReceiptPrintHistory({
-      receipts: [validReceipt], has_more: false, limit: 50, offset: 0, offset: -1,
+      receipts: [validReceipt], has_more: false, limit: 50, offset: -1,
     })).toThrow(/سجل إيصالات محفوظة غير صالح/);
     expect(() => readCustomerReturnReceiptPrintHistory({
       receipts: [validReceipt, validReceipt], has_more: false, limit: 50, offset: 0,
@@ -45,7 +45,7 @@ describe("persisted return receipt print history", () => {
       receipts: [{ ...validReceipt, defective_quantity: 1 }], has_more: false, limit: 50, offset: 0,
     })).toThrow(/إجماليات إيصال محفوظ غير متسقة/);
     expect(() => readCustomerReturnReceiptPrintHistory({
-      receipts: [validReceipt], has_more: false, limit: 1, extra: "x",
+      receipts: [validReceipt], has_more: false, limit: 1, offset: 0, extra: "x",
     })).not.toThrow();
     expect(() => readCustomerReturnReceiptPrintHistory({
       receipts: [validReceipt, { ...validReceipt, receipt_id: "second" }],
