@@ -84,4 +84,49 @@ describe('price grid CSV export', () => {
     expect(csv).not.toContain('"\'-2.500"');
   });
 
+  it('emits the approved CSV schema only, excluding extra cost, margin, warehouse, and foreign-tenant fields', () => {
+    const untrustedRuntimeRow = {
+      ...row,
+      organization_id: 'FOREIGN_ORGANIZATION_SENTINEL',
+      warehouse_id: 'PRIVATE_WAREHOUSE_SENTINEL',
+      inventory_row_id: 'PRIVATE_INVENTORY_ID_SENTINEL',
+      cost_price: 'INTERNAL_COST_SENTINEL',
+      purchase_price: 'INTERNAL_PURCHASE_PRICE_SENTINEL',
+      unit_cost: 'INTERNAL_UNIT_COST_SENTINEL',
+      profit_margin: 'INTERNAL_PROFIT_MARGIN_SENTINEL',
+      gross_profit: 'INTERNAL_GROSS_PROFIT_SENTINEL',
+      margin: 'INTERNAL_MARGIN_SENTINEL',
+      display_price: 'DISPLAY_PRICE_SENTINEL',
+      foreign_tier_price: 'FOREIGN_TIER_PRICE_SENTINEL',
+      quantity_on_hand: 'RAW_ON_HAND_SENTINEL',
+      quantity_reserved: 'RAW_RESERVED_SENTINEL',
+    } as typeof row;
+
+    const csv = buildPriceGridCsv([untrustedRuntimeRow]);
+    const [header, data] = csv.replace(/^\\uFEFF/, '').trimEnd().split('\\r\\n');
+
+    expect(header?.split(',')).toHaveLength(14);
+    expect(data?.split(',')).toHaveLength(14);
+    expect(data).toContain('"00001234"');
+    expect(data).toContain('"100.00","90.50","95.00","110.25"');
+
+    for (const sentinel of [
+      'FOREIGN_ORGANIZATION_SENTINEL',
+      'PRIVATE_WAREHOUSE_SENTINEL',
+      'PRIVATE_INVENTORY_ID_SENTINEL',
+      'INTERNAL_COST_SENTINEL',
+      'INTERNAL_PURCHASE_PRICE_SENTINEL',
+      'INTERNAL_UNIT_COST_SENTINEL',
+      'INTERNAL_PROFIT_MARGIN_SENTINEL',
+      'INTERNAL_GROSS_PROFIT_SENTINEL',
+      'INTERNAL_MARGIN_SENTINEL',
+      'DISPLAY_PRICE_SENTINEL',
+      'FOREIGN_TIER_PRICE_SENTINEL',
+      'RAW_ON_HAND_SENTINEL',
+      'RAW_RESERVED_SENTINEL',
+    ]) {
+      expect(csv).not.toContain(sentinel);
+    }
+  });
+
 });
