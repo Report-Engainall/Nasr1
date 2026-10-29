@@ -1,3 +1,17 @@
+## LIVE CHECKPOINT — 2026-10-30 — purchase-order cancellation verified; cash-expense void authorization pending
+
+- **Base SHA:** 14e9cb703846708419c47ade22aa54ac3c7cdffd.
+- **Purchase-order cancellation proof:** Core 40972096292 SUCCESS on d8735de8f2cbb58df2d8e68c5452f972ae0df091, 35/35 steps including PostgreSQL 17: https://github.com/Report-Engainall/Nasr1/actions/runs/40972096292. Ordinary staff receives SQLSTATE 42501; foreign-tenant manager gets opaque 42501; order/cancellation fields, audit, receipts, movements and on-hand quantity remain unchanged.
+- **Previous-head checks:** on 863ccb5ab2362e65429c1ee5419e9be67416adbb, Core 40972415594 SUCCESS 35/35, P2 40972415377 SUCCESS (public UI smoke and local Supabase persistence/tenant checks), cleanup 40972415421 SUCCESS. Hosted customer/order/tenant E2E remained SKIPPED.
+- **New code commit:** 14e9cb703846708419c47ade22aa54ac3c7cdffd adds AGH-CASH-EXPENSE-VOID-SECURITY-001 in scripts/test-cash-expense-journal-posting.mjs. A same-tenant customer must be rejected with SQLSTATE 42501; a manager in another tenant must receive opaque P0002. Each rejection is followed by comparison of source status, void actor/time/reason/update time, cash_expense.voided audit count and accounting source-posting count to the pre-attempt state. Existing successful post/void concurrency and compensating reversal checks remain.
+- **Current candidate CI:** Core 40973093903 IN_PROGRESS; P2 40973094057 IN_PROGRESS; cleanup 40973093914 SUCCESS. Results are not yet final on this SHA.
+- **Earlier server proofs:** cancel_stock_count TESTED_EXACT_SHA on c5 via Core 40971449141 SUCCESS; cancel_purchase_order TESTED_EXACT_SHA on d873 via Core 40972096292 SUCCESS. DLV-007 and DLV-008 remain PARTIAL.
+- **Print/export:** unnamed customer selector/PDF fallback and targeted authorization/tenant checks passed on c9838d8; full role/template PDF/XLSX/print matrix remains OPEN.
+- **RPC inventory:** retain artifact 12940762864: https://github.com/Report-Engainall/Nasr1/actions/artifacts/12940762864. Source mapping is not semantic security proof.
+- **Next action:** publish this checkpoint only if main remains at the base; verify Core/P2 on the exact resulting SHA for cash-expense denials. Hosted E2E, live integrations, production operations and owner sign-off are unproven; release remains NO-GO.
+
+---
+
 ## LIVE CHECKPOINT — 2026-10-30 — stock-count boundary verified; purchase-order cancellation next
 
 - **Latest verified Core SHA:** `c5e35963dcb8afa1d04eb692a89ef6bc25e25d84`; Core [40971449141 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40971449141), 35/35 steps. The run includes the isolated PostgreSQL 17 stock-count start/cancel audit test (step 20 SUCCESS), lint, build, production preview smoke, dev server smoke and browser price acceptance. It proves the tested cancellation-denial scenarios only; it does not close the whole inventory lifecycle.
