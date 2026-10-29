@@ -1,3 +1,31 @@
+## LIVE CHECKPOINT — 2026-10-29 (financial print UUID fallback removed)
+
+**Repository:** `Report-Engainall/Nasr1`  
+**Execution branch:** `main` only  
+**Application change:** `8cbc23d515526bf9eba9de2c4b631a9075ab3727`  
+**Regression-test commit:** `fbf4b25f36a9c32906ffef4da71891dc47eb19f5`  
+**Acceptance-record update:** `0d4ee47eb81800886af22b77caf1f6daee77432b`  
+**CI status:** Not asserted for the new application/test candidate. No previous test result is carried forward to this SHA.
+
+### Implementation completed
+
+- Updated `src/lib/finance-document-print.ts`: invoice/account-statement print labeling no longer falls back to a customer's internal UUID when business name, contact name, and customer code are unavailable; the document now uses the Arabic fallback `عميل غير مسمى`.
+- Updated `src/test/finance-document-print.test.ts`: added a regression for both invoice and account-statement printable documents. It checks the safe customer label and confirms internal customer, invoice, item, credit, and payment UUIDs do not appear in the generated document HTML/title.
+- Updated the existing acceptance matrix rows `GATE-001`, `DLV-011`, and `DLV-ROLLUP-001`. No parallel tracker was created.
+
+### Acceptance state
+
+- `DLV-011` remains **OPEN**. One reproducible document privacy gap has been fixed and regression coverage added; this does not close the full role-by-template PDF/XLSX/print allowlist or hosted authenticated journeys.
+- `DLV-005` remains **PARTIAL** until the full server authorization/session/tier matrix is evidenced.
+- Delivery groups remain **0/18 fully release-closed**. A global completion percentage is not asserted.
+- Production release remains **NO-GO** while hosted authenticated E2E, actual Onyx Pro round-trip, official WhatsApp delivery receipts, live AI-provider operation, production deployment/rollback/restore evidence and owner approval remain unproven.
+
+### NEXT ACTION
+
+Continue directly on `main` with the next uncovered role/template output or server-side authorization boundary. Do not reimplement the completed export/print routes. Keep CI and hosted evidence tied to the exact candidate SHA; do not claim this candidate passed tests until its checks report terminal success.
+
+---
+
 ## LIVE CHECKPOINT — 2026-10-29 (warehouse return receipt and reversal evidence printing added)
 
 **Repository:** `Report-Engainall/Nasr1`  
