@@ -4,6 +4,18 @@ on:
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "supabase/**"
+      - "e2e/**"
+      - "scripts/test-*.mjs"
+      - "playwright.config.ts"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/p2-playwright-critical-paths.yml"
   workflow_dispatch:
 
 permissions:
