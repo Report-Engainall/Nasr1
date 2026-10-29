@@ -96,7 +96,306 @@ BEGIN
       MESSAGE = 'product metadata fields are invalid';
   END IF;
 
-  v_name_en := NULLIF(pg_catalog.btrim(p_payload->>'name_en'), '');
+  v_name_en := NULLIF(pg_catalog.regexp_replace(p_payload->>'name_en', '^[[:space:]]+|[[:space:]]+
+  v_sku := NULLIF(pg_catalog.regexp_replace(p_payload->>'sku', '^[[:space:]]+|[[:space:]]+
+  v_is_featured := (p_payload->>'is_featured')::boolean;
+
+  IF (v_name_en IS NOT NULL AND pg_catalog.length(v_name_en) > 240)
+     OR (v_sku IS NOT NULL AND pg_catalog.length(v_sku) > 80) THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'product metadata field length is invalid';
+  END IF;
+
+  BEGIN
+    v_sort_order_numeric := (p_payload->>'sort_order')::numeric;
+    v_min_order_quantity_numeric := (p_payload->>'min_order_quantity')::numeric;
+    v_order_quantity_multiple_numeric := (p_payload->>'order_quantity_multiple')::numeric;
+  EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'product metadata numeric fields are invalid';
+  END;
+
+  IF v_sort_order_numeric IS NULL
+     OR v_sort_order_numeric <> pg_catalog.trunc(v_sort_order_numeric)
+     OR v_sort_order_numeric < 0 OR v_sort_order_numeric > 1000000000
+     OR v_min_order_quantity_numeric IS NULL
+     OR v_min_order_quantity_numeric <> pg_catalog.trunc(v_min_order_quantity_numeric)
+     OR v_min_order_quantity_numeric < 1 OR v_min_order_quantity_numeric > 10000
+     OR v_order_quantity_multiple_numeric IS NULL
+     OR v_order_quantity_multiple_numeric <> pg_catalog.trunc(v_order_quantity_multiple_numeric)
+     OR v_order_quantity_multiple_numeric < 1 OR v_order_quantity_multiple_numeric > 10000 THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'product metadata numeric fields are outside the supported range';
+  END IF;
+
+  v_sort_order := v_sort_order_numeric::integer;
+  v_min_order_quantity := v_min_order_quantity_numeric::integer;
+  v_order_quantity_multiple := v_order_quantity_multiple_numeric::integer;
+
+  SELECT pg_catalog.jsonb_build_object(
+      'name_en', p.name_en,
+      'sku', p.sku,
+      'is_featured', p.is_featured,
+      'sort_order', p.sort_order,
+      'min_order_quantity', p.min_order_quantity,
+      'order_quantity_multiple', p.order_quantity_multiple
+    )
+    INTO v_before
+  FROM public.products AS p
+  WHERE p.id = p_product_id AND p.organization_id = o
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0002',
+      MESSAGE = 'product not found in organization';
+  END IF;
+
+  -- Reuse the canonical product/price command so expected price values, active
+  -- category validation, tenant role checks and core before/after audit stay authoritative.
+  v_core_payload := p_payload - v_metadata_fields;
+  v_core_result := public.save_admin_catalog_product(p_product_id, v_core_payload);
+
+  UPDATE public.products
+     SET name_en = v_name_en,
+         sku = v_sku,
+         is_featured = v_is_featured,
+         sort_order = v_sort_order,
+         min_order_quantity = v_min_order_quantity,
+         order_quantity_multiple = v_order_quantity_multiple
+   WHERE id = p_product_id AND organization_id = o
+  RETURNING pg_catalog.jsonb_build_object(
+      'name_en', name_en,
+      'sku', sku,
+      'is_featured', is_featured,
+      'sort_order', sort_order,
+      'min_order_quantity', min_order_quantity,
+      'order_quantity_multiple', order_quantity_multiple
+    ) INTO v_after;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0002',
+      MESSAGE = 'product not found in organization';
+  END IF;
+
+  v_metadata_changed := v_before IS DISTINCT FROM v_after;
+  IF v_metadata_changed THEN
+    INSERT INTO public.audit_logs(
+      organization_id, actor_id, action, entity_type, entity_id, old_value, new_value
+    ) VALUES (
+      o, v_actor, 'catalog.product_metadata_updated', 'product', p_product_id,
+      v_before, v_after
+    );
+  END IF;
+
+  RETURN coalesce(v_core_result, '{}'::jsonb)
+    || pg_catalog.jsonb_build_object('metadata_updated', v_metadata_changed);
+END
+$function$;
+
+REVOKE ALL ON FUNCTION public.save_admin_product_with_metadata(uuid,jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.save_admin_product_with_metadata(uuid,jsonb)
+  TO authenticated;
+, '', 'g'), '');
+  v_sku := NULLIF(pg_catalog.btrim(p_payload->>'sku'), '');
+  v_is_featured := (p_payload->>'is_featured')::boolean;
+
+  IF (v_name_en IS NOT NULL AND pg_catalog.length(v_name_en) > 240)
+     OR (v_sku IS NOT NULL AND pg_catalog.length(v_sku) > 80) THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'product metadata field length is invalid';
+  END IF;
+
+  BEGIN
+    v_sort_order_numeric := (p_payload->>'sort_order')::numeric;
+    v_min_order_quantity_numeric := (p_payload->>'min_order_quantity')::numeric;
+    v_order_quantity_multiple_numeric := (p_payload->>'order_quantity_multiple')::numeric;
+  EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'product metadata numeric fields are invalid';
+  END;
+
+  IF v_sort_order_numeric IS NULL
+     OR v_sort_order_numeric <> pg_catalog.trunc(v_sort_order_numeric)
+     OR v_sort_order_numeric < 0 OR v_sort_order_numeric > 1000000000
+     OR v_min_order_quantity_numeric IS NULL
+     OR v_min_order_quantity_numeric <> pg_catalog.trunc(v_min_order_quantity_numeric)
+     OR v_min_order_quantity_numeric < 1 OR v_min_order_quantity_numeric > 10000
+     OR v_order_quantity_multiple_numeric IS NULL
+     OR v_order_quantity_multiple_numeric <> pg_catalog.trunc(v_order_quantity_multiple_numeric)
+     OR v_order_quantity_multiple_numeric < 1 OR v_order_quantity_multiple_numeric > 10000 THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'product metadata numeric fields are outside the supported range';
+  END IF;
+
+  v_sort_order := v_sort_order_numeric::integer;
+  v_min_order_quantity := v_min_order_quantity_numeric::integer;
+  v_order_quantity_multiple := v_order_quantity_multiple_numeric::integer;
+
+  SELECT pg_catalog.jsonb_build_object(
+      'name_en', p.name_en,
+      'sku', p.sku,
+      'is_featured', p.is_featured,
+      'sort_order', p.sort_order,
+      'min_order_quantity', p.min_order_quantity,
+      'order_quantity_multiple', p.order_quantity_multiple
+    )
+    INTO v_before
+  FROM public.products AS p
+  WHERE p.id = p_product_id AND p.organization_id = o
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0002',
+      MESSAGE = 'product not found in organization';
+  END IF;
+
+  -- Reuse the canonical product/price command so expected price values, active
+  -- category validation, tenant role checks and core before/after audit stay authoritative.
+  v_core_payload := p_payload - v_metadata_fields;
+  v_core_result := public.save_admin_catalog_product(p_product_id, v_core_payload);
+
+  UPDATE public.products
+     SET name_en = v_name_en,
+         sku = v_sku,
+         is_featured = v_is_featured,
+         sort_order = v_sort_order,
+         min_order_quantity = v_min_order_quantity,
+         order_quantity_multiple = v_order_quantity_multiple
+   WHERE id = p_product_id AND organization_id = o
+  RETURNING pg_catalog.jsonb_build_object(
+      'name_en', name_en,
+      'sku', sku,
+      'is_featured', is_featured,
+      'sort_order', sort_order,
+      'min_order_quantity', min_order_quantity,
+      'order_quantity_multiple', order_quantity_multiple
+    ) INTO v_after;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0002',
+      MESSAGE = 'product not found in organization';
+  END IF;
+
+  v_metadata_changed := v_before IS DISTINCT FROM v_after;
+  IF v_metadata_changed THEN
+    INSERT INTO public.audit_logs(
+      organization_id, actor_id, action, entity_type, entity_id, old_value, new_value
+    ) VALUES (
+      o, v_actor, 'catalog.product_metadata_updated', 'product', p_product_id,
+      v_before, v_after
+    );
+  END IF;
+
+  RETURN coalesce(v_core_result, '{}'::jsonb)
+    || pg_catalog.jsonb_build_object('metadata_updated', v_metadata_changed);
+END
+$function$;
+
+REVOKE ALL ON FUNCTION public.save_admin_product_with_metadata(uuid,jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.save_admin_product_with_metadata(uuid,jsonb)
+  TO authenticated;
+, '', 'g'), '');
+  v_is_featured := (p_payload->>'is_featured')::boolean;
+
+  IF (v_name_en IS NOT NULL AND pg_catalog.length(v_name_en) > 240)
+     OR (v_sku IS NOT NULL AND pg_catalog.length(v_sku) > 80) THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'product metadata field length is invalid';
+  END IF;
+
+  BEGIN
+    v_sort_order_numeric := (p_payload->>'sort_order')::numeric;
+    v_min_order_quantity_numeric := (p_payload->>'min_order_quantity')::numeric;
+    v_order_quantity_multiple_numeric := (p_payload->>'order_quantity_multiple')::numeric;
+  EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'product metadata numeric fields are invalid';
+  END;
+
+  IF v_sort_order_numeric IS NULL
+     OR v_sort_order_numeric <> pg_catalog.trunc(v_sort_order_numeric)
+     OR v_sort_order_numeric < 0 OR v_sort_order_numeric > 1000000000
+     OR v_min_order_quantity_numeric IS NULL
+     OR v_min_order_quantity_numeric <> pg_catalog.trunc(v_min_order_quantity_numeric)
+     OR v_min_order_quantity_numeric < 1 OR v_min_order_quantity_numeric > 10000
+     OR v_order_quantity_multiple_numeric IS NULL
+     OR v_order_quantity_multiple_numeric <> pg_catalog.trunc(v_order_quantity_multiple_numeric)
+     OR v_order_quantity_multiple_numeric < 1 OR v_order_quantity_multiple_numeric > 10000 THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'product metadata numeric fields are outside the supported range';
+  END IF;
+
+  v_sort_order := v_sort_order_numeric::integer;
+  v_min_order_quantity := v_min_order_quantity_numeric::integer;
+  v_order_quantity_multiple := v_order_quantity_multiple_numeric::integer;
+
+  SELECT pg_catalog.jsonb_build_object(
+      'name_en', p.name_en,
+      'sku', p.sku,
+      'is_featured', p.is_featured,
+      'sort_order', p.sort_order,
+      'min_order_quantity', p.min_order_quantity,
+      'order_quantity_multiple', p.order_quantity_multiple
+    )
+    INTO v_before
+  FROM public.products AS p
+  WHERE p.id = p_product_id AND p.organization_id = o
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0002',
+      MESSAGE = 'product not found in organization';
+  END IF;
+
+  -- Reuse the canonical product/price command so expected price values, active
+  -- category validation, tenant role checks and core before/after audit stay authoritative.
+  v_core_payload := p_payload - v_metadata_fields;
+  v_core_result := public.save_admin_catalog_product(p_product_id, v_core_payload);
+
+  UPDATE public.products
+     SET name_en = v_name_en,
+         sku = v_sku,
+         is_featured = v_is_featured,
+         sort_order = v_sort_order,
+         min_order_quantity = v_min_order_quantity,
+         order_quantity_multiple = v_order_quantity_multiple
+   WHERE id = p_product_id AND organization_id = o
+  RETURNING pg_catalog.jsonb_build_object(
+      'name_en', name_en,
+      'sku', sku,
+      'is_featured', is_featured,
+      'sort_order', sort_order,
+      'min_order_quantity', min_order_quantity,
+      'order_quantity_multiple', order_quantity_multiple
+    ) INTO v_after;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0002',
+      MESSAGE = 'product not found in organization';
+  END IF;
+
+  v_metadata_changed := v_before IS DISTINCT FROM v_after;
+  IF v_metadata_changed THEN
+    INSERT INTO public.audit_logs(
+      organization_id, actor_id, action, entity_type, entity_id, old_value, new_value
+    ) VALUES (
+      o, v_actor, 'catalog.product_metadata_updated', 'product', p_product_id,
+      v_before, v_after
+    );
+  END IF;
+
+  RETURN coalesce(v_core_result, '{}'::jsonb)
+    || pg_catalog.jsonb_build_object('metadata_updated', v_metadata_changed);
+END
+$function$;
+
+REVOKE ALL ON FUNCTION public.save_admin_product_with_metadata(uuid,jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.save_admin_product_with_metadata(uuid,jsonb)
+  TO authenticated;
+, '', 'g'), '');
   v_sku := NULLIF(pg_catalog.btrim(p_payload->>'sku'), '');
   v_is_featured := (p_payload->>'is_featured')::boolean;
 
