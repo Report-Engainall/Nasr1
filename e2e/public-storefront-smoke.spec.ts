@@ -522,7 +522,7 @@ test("login supports keyboard-only focus and password-visibility control", async
   await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
 
   const email = page.getByLabel("البريد الإلكتروني");
-  const password = page.getByLabel("كلمة المرور");
+  const password = page.getByRole("textbox", { name: /كلمة المرور/ });
   await expect(email).toBeVisible();
 
   // Reach the field with real keyboard Tab navigation; do not call locator.focus().
@@ -538,6 +538,7 @@ test("login supports keyboard-only focus and password-visibility control", async
   });
   expect(emailFocus.outlineStyle).toBe("solid");
   expect(emailFocus.outlineWidth).toBeGreaterThanOrEqual(3);
+  expect(emailFocus.outlineColor).toBe("rgb(20, 83, 45)");
 
   await page.keyboard.press("Tab");
   await expect(password).toBeFocused();
@@ -551,6 +552,7 @@ test("login supports keyboard-only focus and password-visibility control", async
   });
   expect(toggleFocus.outlineStyle).toBe("solid");
   expect(toggleFocus.outlineWidth).toBeGreaterThanOrEqual(3);
+  expect(toggleFocus.outlineColor).toBe("rgb(20, 83, 45)");
 
   await page.keyboard.press("Enter");
   await expect(page.getByRole("button", { name: "إخفاء كلمة المرور" })).toBeFocused();
