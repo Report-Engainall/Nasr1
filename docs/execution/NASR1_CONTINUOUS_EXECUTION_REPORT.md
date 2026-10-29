@@ -1,3 +1,33 @@
+## LIVE CHECKPOINT — 2026-10-29 (statement PDF rejects incomplete RPC payloads)
+
+**Repository:** `Report-Engainall/Nasr1`  
+**Integration branch:** `main` only  
+**Previous main SHA:** `0ead2b082439944403616793c611a4f8859ca5fd`  
+**Current code/test candidate SHA:** `66ed055031f8fa9f6d1da0ab2ebe0a996f849221`  
+**Implementation commit:** [66ed055](https://github.com/Report-Engainall/Nasr1/commit/66ed055031f8fa9f6d1da0ab2ebe0a996f849221)  
+**Exact-head Aghbari Commerce checks:** [run 40943206938](https://github.com/Report-Engainall/Nasr1/actions/runs/40943206938) was `IN_PROGRESS` when this checkpoint was prepared. No terminal result is asserted.  
+**One-main-branch cleanup:** [run 40943206818](https://github.com/Report-Engainall/Nasr1/actions/runs/40943206818) `SUCCESS` on the exact candidate SHA.
+
+### Implementation delta
+
+- `src/lib/finance-document-pdf.ts`: `buildCustomerStatementPdf` now rejects a missing/non-array `invoices` or `payments` field instead of silently substituting an empty list and potentially generating a misleading blank account-statement PDF. Explicit empty arrays remain valid for a genuinely empty account. The legacy optional `credits` field remains backward-compatible.
+- `src/lib/finance-document-pdf.test.ts`: added regression assertions for both missing required arrays.
+- The change is directly tied to `DLV-011` (document field/payload acceptance) and `DLV-008` (source-authoritative financial statement output). It does not close either roll-up.
+
+### Evidence and acceptance state
+
+- The preceding exact-main candidate `0ead2b082439944403616793c611a4f8859ca5fd` completed [Aghbari run 40942315137](https://github.com/Report-Engainall/Nasr1/actions/runs/40942315137) with `SUCCESS`; this includes the corrected assigned-warehouse return-receipt authorization assertions.
+- The new PDF fix and test are committed on `66ed055031f8fa9f6d1da0ab2ebe0a996f849221`; its own Aghbari run is pending/in progress. No test outcome is transferred from another SHA.
+- The central acceptance matrix currently contains 122 unique populated task IDs, 18 delivery groups, and 0/18 fully release-closed groups. An overall completion percentage remains not computable until all required specification leaves are mapped to candidate-specific evidence.
+- `RET-PRINT-001` and `DLV-011` remain open pending the current exact-head result and the remaining role/template coverage. Full production release remains NO-GO: live Onyx Pro round-trip, official WhatsApp receipts, live AI operation, production deployment/rollback/restore, hosted authenticated customer/tenant journeys, and owner approval are not evidenced by this commit.
+
+### NEXT ACTION
+
+1. Read the terminal result for [Aghbari run 40943206938](https://github.com/Report-Engainall/Nasr1/actions/runs/40943206938), which targets exactly `66ed055031f8fa9f6d1da0ab2ebe0a996f849221`. If it fails, inspect the failed job and fix only the demonstrated cause; otherwise record this focused PDF contract fix as tested without closing the full document/security roll-up.
+2. Then continue on `main` to the next uncovered role/template output or server-side authorization boundary in `DLV-011`/`DLV-015`. Do not rebuild previously implemented finance PDFs, export engines, receipt printing, or executive XLSX reports.
+
+---
+
 ## LIVE CHECKPOINT — 2026-10-29 (warehouse return receipt reprints read persisted evidence)
 
 **Repository:** `Report-Engainall/Nasr1`  
