@@ -2006,6 +2006,14 @@ async function main() {
     "foreign-tenant finance role cannot enumerate another organization's credit-memo selector values");
   await setIdentity(managerAuthId,"ci-return-manager@example.test");
   await db.unsafe("set role authenticated");
+  // The unnamed-customer probe changes the selector sort key; restore a fresh baseline
+  // page before comparing OFFSET pagination against the same source state.
+  const restoredPrintOptionsRaw=await db.unsafe("select public.get_finance_document_print_options(500) as result");
+  printOptions=asJson(restoredPrintOptionsRaw[0].result);
+  assert.ok(printOptions.invoices.some((row)=>row.id===sourceInvoiceId),
+    "restored selector baseline still contains the source invoice");
+  assert.ok(printOptions.credit_memos.some((row)=>row.id===preparedCredit.credit_memo_id),
+    "restored selector baseline still contains the source credit memo");
 
   const printOptionsOffsetRaw = await db.unsafe(
     "select public.get_finance_document_print_options($1::integer,$2::integer) as result",[500,1],
