@@ -28,6 +28,135 @@ async function assumeUser(authUserId, email) {
   await db.unsafe("set local role authenticated");
 }
 
+async function testConcurrentCustomerMemberRevocation(memberProfile) {
+  const control = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const owner = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const member = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const ownerSessionId = randomUUID();
+  let membershipId = null;
+  let ownerTransactionOpen = false;
+  let memberTransactionOpen = false;
+  let pendingPrice = null;
+
+  async function assumeUserOn(connection, authUserId, email, sessionId) {
+    await connection.unsafe(
+      "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) " +
+      "values($1::uuid,$2::uuid,now(),now(),now(),null,'CI concurrent price revocation','127.0.0.1'::inet)",
+      [sessionId, authUserId],
+    );
+    await connection.unsafe("select set_config('request.jwt.claim.sub',$1,true)", [authUserId]);
+    await connection.unsafe("select set_config('request.jwt.claims',$1,true)", [
+      JSON.stringify({ sub: authUserId, email, email_confirmed_at: new Date().toISOString(), role: "authenticated", session_id: sessionId }),
+    ]);
+    await connection.unsafe("set local role authenticated");
+  }
+
+  try {
+    assert.ok(memberProfile?.id && memberProfile?.auth_user_id, "race fixture requires an authenticated member profile");
+    const customers = await control.unsafe(
+      "select id from public.customers where profile_id=$1::uuid and organization_id=$2::uuid and status='approved' order by created_at,id limit 1",
+      [CUSTOMER_PROFILE_ID, ORG_ID],
+    );
+    assert.equal(customers.length, 1, "race fixture requires the approved customer row");
+    const customerId = customers[0].id;
+
+    const priorMembership = await control.unsafe(
+      "select id from public.customer_company_memberships where profile_id=$1::uuid",
+      [memberProfile.id],
+    );
+    assert.equal(priorMembership.length, 0, "race member must not have a pre-existing company membership");
+
+    await control.unsafe("begin");
+    const inserted = await control.unsafe(
+      "insert into public.customer_company_memberships(organization_id,customer_id,profile_id,member_role,status,invited_by,accepted_at,created_at,updated_at) " +
+      "values($1::uuid,$2::uuid,$3::uuid,'buyer','active',$4::uuid,statement_timestamp(),statement_timestamp(),statement_timestamp()) returning id",
+      [ORG_ID, customerId, memberProfile.id, CUSTOMER_PROFILE_ID],
+    );
+    assert.equal(inserted.length, 1, "race fixture membership must insert");
+    membershipId = inserted[0].id;
+    await control.unsafe("commit");
+
+    await owner.unsafe("begin");
+    ownerTransactionOpen = true;
+    const locked = await owner.unsafe(
+      "select id from public.customers where id=$1::uuid and profile_id=$2::uuid for update",
+      [customerId, CUSTOMER_PROFILE_ID],
+    );
+    assert.equal(locked.length, 1, "owner must hold the company-row lock before the member price request begins");
+    await assumeUserOn(owner, CUSTOMER_AUTH_ID, "ci-customer-one@example.test", ownerSessionId);
+
+    await member.unsafe("begin");
+    memberTransactionOpen = true;
+    const memberSessionId = randomUUID();
+    await assumeUserOn(member, memberProfile.auth_user_id, "ci-accountant@example.test", memberSessionId);
+    const pidRows = await member.unsafe("select pg_catalog.pg_backend_pid() as pid");
+    const memberPid = Number(pidRows[0]?.pid);
+    assert.ok(Number.isSafeInteger(memberPid) && memberPid > 0, "member connection must have a PostgreSQL backend PID");
+
+    pendingPrice = member.unsafe(
+      "select product_id,unit_price from public.get_storefront_product_prices($1::uuid[],1)",
+      [[CATALOG_PRODUCT_ID]],
+    ).then((rows) => ({ rows }), (error) => ({ error }));
+
+    let waitingOnCompanyLock = false;
+    for (let attempt = 0; attempt < 400; attempt += 1) {
+      const activity = await control.unsafe(
+        "select state,wait_event_type,wait_event,query from pg_catalog.pg_stat_activity where pid=$1",
+        [memberPid],
+      );
+      if (
+        activity[0]?.state === "active" &&
+        activity[0]?.wait_event_type === "Lock" &&
+        String(activity[0]?.query ?? "").includes("get_storefront_product_prices")
+      ) {
+        waitingOnCompanyLock = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.ok(waitingOnCompanyLock, "price resolution must wait on the owner-held customer row lock before revocation is committed");
+
+    const revoked = await owner.unsafe(
+      "select public.revoke_customer_company_member($1::uuid) as revoked",
+      [memberProfile.id],
+    );
+    assert.equal(revoked[0]?.revoked, true, "owner revocation RPC must revoke the active company member");
+    await owner.unsafe("commit");
+    ownerTransactionOpen = false;
+
+    const outcome = await pendingPrice;
+    assert.ok(outcome.error, "a price request waiting during membership revocation must not return any price rows");
+    assert.match(
+      String(outcome.error?.message ?? outcome.error),
+      /customer membership lacks permission to resolve catalog prices/i,
+      "the resumed price request must re-check live membership after the revocation commits",
+    );
+    await member.unsafe("rollback");
+    memberTransactionOpen = false;
+    process.stdout.write("PASS storefront price/revocation race: pending price RPC was denied after owner revocation committed.\\n");
+  } finally {
+    if (ownerTransactionOpen) await owner.unsafe("rollback").catch(() => {});
+    if (pendingPrice) await Promise.race([
+      pendingPrice,
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
+    if (memberTransactionOpen) await member.unsafe("rollback").catch(() => {});
+    if (membershipId) {
+      await control.unsafe(
+        "delete from public.audit_logs where entity_type='customer_company_membership' and entity_id=$1::uuid and action='customer_company_member.revoked'",
+        [membershipId],
+      ).catch(() => {});
+      await control.unsafe("delete from public.customer_company_memberships where id=$1::uuid", [membershipId]).catch(() => {});
+    }
+    await control.unsafe("delete from auth.sessions where id=$1::uuid", [ownerSessionId]).catch(() => {});
+    await Promise.all([
+      control.end({ timeout: 5 }).catch(() => {}),
+      owner.end({ timeout: 5 }).catch(() => {}),
+      member.end({ timeout: 5 }).catch(() => {}),
+    ]);
+  }
+}
+
 async function assertDatabaseRejects(query, params, expected, message) {
   await db.unsafe("savepoint expected_database_rejection");
   let caught;
@@ -133,6 +262,10 @@ async function main() {
     // Every write is rolled back at the end; the suite runs only against CI's isolated PostgreSQL database.
     await assumeUser(ADMIN_AUTH_ID, "ci-audit-admin@example.test");
     await setVisibility({ cards: false, cart: false, orders: false, invoice: false, tier: false });
+
+    // The separate sessions commit an actual owner revocation while a price RPC is
+    // blocked behind the same customer-row lock; this proves the post-wait capability re-check.
+    await testConcurrentCustomerMemberRevocation(accountant[0]);
 
     await db.unsafe("reset role");
     await assumeUser(CUSTOMER_AUTH_ID, "ci-customer-one@example.test");
