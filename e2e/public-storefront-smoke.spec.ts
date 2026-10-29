@@ -534,7 +534,7 @@ test("login supports keyboard-only focus and password-visibility control", async
 
   const emailFocus = await email.evaluate((element) => {
     const style = getComputedStyle(element);
-    return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth) };
+    return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth), outlineColor: style.outlineColor };
   });
   expect(emailFocus.outlineStyle).toBe("solid");
   expect(emailFocus.outlineWidth).toBeGreaterThanOrEqual(3);
@@ -548,7 +548,7 @@ test("login supports keyboard-only focus and password-visibility control", async
   await expect(showPassword).toBeFocused();
   const toggleFocus = await showPassword.evaluate((element) => {
     const style = getComputedStyle(element);
-    return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth) };
+    return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth), outlineColor: style.outlineColor };
   });
   expect(toggleFocus.outlineStyle).toBe("solid");
   expect(toggleFocus.outlineWidth).toBeGreaterThanOrEqual(3);
