@@ -18,6 +18,7 @@ on:
       - "supabase/migrations/20261024160000_finalize_import_job_single_arg_scope.sql"
       - "scripts/test-import-finalizer-tenant-scope.mjs"
       - "scripts/test-database-migrations.mjs"
+      - "scripts/test-admin-catalog-commands.mjs"
       - ".github/workflows/import-finalizer-tenant-scope-pg17.yml"
       - "supabase/migrations/**"
       - "bun.lock"
