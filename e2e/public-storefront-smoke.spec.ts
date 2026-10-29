@@ -465,3 +465,48 @@ test("admin export URL reaches the hydrated export center in Chromium without ba
     "Direct navigation to /admin/exports must not produce uncaught browser errors.",
   ).toEqual([]);
 });
+
+test("public customer routes preserve RTL and fit mobile and desktop viewports", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+    route.abort("blockedbyclient"),
+  );
+
+  for (const viewport of [
+    { width: 360, height: 800 },
+    { width: 1280, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+
+    for (const route of ["/", "/catalog?q=viewport-smoke", "/login"]) {
+      await page.goto(route);
+      if (route === "/login") {
+        await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
+        await expect(page.getByLabel("البريد الإلكتروني")).toBeVisible();
+      } else {
+        await expect(page.locator(".sf-header")).toBeVisible();
+        await expect(page.getByRole("heading", { name: "المنتجات", exact: true })).toBeVisible();
+      }
+
+      const layout = await page.evaluate(() => ({
+        lang: document.documentElement.lang.toLowerCase(),
+        direction: getComputedStyle(document.documentElement).direction,
+        viewportWidth: window.innerWidth,
+        documentWidth: Math.max(
+          document.documentElement.scrollWidth,
+          document.body.scrollWidth,
+        ),
+      }));
+      expect(layout.lang).toMatch(/^ar(?:-|$)/);
+      expect(layout.direction).toBe("rtl");
+      expect(
+        layout.documentWidth,
+        `Horizontal overflow on ${route} at ${viewport.width}px viewport`,
+      ).toBeLessThanOrEqual(layout.viewportWidth + 1);
+    }
+  }
+
+  expect(pageErrors, "Public customer routes must not throw uncaught browser errors.").toEqual([]);
+});
+
