@@ -1390,7 +1390,7 @@ async function main() {
   await db.unsafe("set role authenticated");
   await expectFailure("customer cannot access the staff Customer 360 RPC",
     () => db.unsafe("select public.get_staff_customer_360($1::uuid)",[customerOne.id]),
-    /صلاحية موظف مخول ماليًا لفتح ملف العميل 360/i);
+    /صلاحية موظف مخول ماليًا مطلوبة لفتح ملف العميل 360/i);
   await expectFailure("non-finance user cannot retrieve a credit memo print source",
     () => db.unsafe("select public.get_customer_return_credit_memo_pdf($1::uuid)",[preparedCredit.credit_memo_id]),
     /finance permission required/i);
