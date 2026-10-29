@@ -1470,16 +1470,29 @@ async function main() {
     let bothSettlementWritersWaiting = false;
     let settlementActivitySnapshot = [];
     for (let attempt = 0; attempt < 400; attempt += 1) {
+      // pg_stat_activity.query can briefly retain the previous command while a
+      // dedicated backend is waiting in the PostgreSQL advisory-lock manager.
+      // Prove the wait from pg_locks and match the held gate lock by its exact
+      // key, rather than requiring a particular statement text/state snapshot.
       settlementActivitySnapshot = await settlementGate.unsafe(
-        "select application_name,state,wait_event_type,wait_event,left(query,180) as query " +
-        "from pg_catalog.pg_stat_activity " +
-        "where application_name in ('ci-invoice-settlement-payment','ci-invoice-settlement-credit')",
+        "select a.application_name,a.pid,a.state,a.wait_event_type,a.wait_event,left(a.query,180) as query," +
+        "l.locktype,l.classid::text as classid,l.objid::text as objid,l.objsubid,l.granted," +
+        "exists (select 1 from pg_catalog.pg_locks gate_lock " +
+        "where gate_lock.pid=pg_catalog.pg_backend_pid() and gate_lock.locktype='advisory' " +
+        "and gate_lock.granted and gate_lock.classid=l.classid and gate_lock.objid=l.objid " +
+        "and gate_lock.objsubid=l.objsubid) as blocked_by_gate " +
+        "from pg_catalog.pg_locks l join pg_catalog.pg_stat_activity a on a.pid=l.pid " +
+        "where a.application_name in ('ci-invoice-settlement-payment','ci-invoice-settlement-credit') " +
+        "and l.locktype='advisory' and not l.granted",
       );
       const waitingWriters = settlementActivitySnapshot.filter((row) =>
-        row.state === "active"
-        && row.wait_event_type === "Lock"
-        && ((row.application_name === "ci-invoice-settlement-payment" && row.query?.includes("record_customer_payment"))
-          || (row.application_name === "ci-invoice-settlement-credit" && row.query?.includes("post_general_journal_entry")))
+        row.wait_event_type === "Lock"
+        && row.wait_event === "advisory"
+        && row.locktype === "advisory"
+        && row.granted === false
+        && row.blocked_by_gate === true
+        && ((row.application_name === "ci-invoice-settlement-payment" && String(row.pid) === String(readySessions[0][0].pid))
+          || (row.application_name === "ci-invoice-settlement-credit" && String(row.pid) === String(readySessions[1][0].pid)))
       );
       if (waitingWriters.length === 2) {
         bothSettlementWritersWaiting = true;
