@@ -121,7 +121,7 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
       });
       if (rpcError) throw new Error(rpcError.message || "تعذر حفظ الاستلام الفعلي.");
       const result = readReturnReceiptMutationResult(data);
-      let persistedReceipt;
+      let persistedReceipt: ReturnType<typeof readCustomerReturnReceiptPrintData>;
       try {
         const { data: printData, error: printDataError } = await supabase.rpc(
           "get_customer_return_receipt_print_data",
