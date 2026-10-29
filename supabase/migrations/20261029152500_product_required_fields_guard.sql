@@ -19,40 +19,8 @@ BEGIN
       MESSAGE = 'product code is required';
   END IF;
 
-  NEW.name := pg_catalog.regexp_replace(NEW.name, '^[[:space:]]+|[[:space:]]+
-  NEW.item_code := pg_catalog.regexp_replace(NEW.item_code, '^[[:space:]]+|[[:space:]]+
-  RETURN NEW;
-END
-$function$;
-
-DROP TRIGGER IF EXISTS products_required_fields_guard ON public.products;
-CREATE TRIGGER products_required_fields_guard
-BEFORE INSERT OR UPDATE OF name, item_code ON public.products
-FOR EACH ROW
-EXECUTE FUNCTION public.enforce_product_required_fields();
-, '', 'g');
-  NEW.item_code := pg_catalog.btrim(NEW.item_code);
-  RETURN NEW;
-END
-$function$;
-
-DROP TRIGGER IF EXISTS products_required_fields_guard ON public.products;
-CREATE TRIGGER products_required_fields_guard
-BEFORE INSERT OR UPDATE OF name, item_code ON public.products
-FOR EACH ROW
-EXECUTE FUNCTION public.enforce_product_required_fields();
-, '', 'g');
-  RETURN NEW;
-END
-$function$;
-
-DROP TRIGGER IF EXISTS products_required_fields_guard ON public.products;
-CREATE TRIGGER products_required_fields_guard
-BEFORE INSERT OR UPDATE OF name, item_code ON public.products
-FOR EACH ROW
-EXECUTE FUNCTION public.enforce_product_required_fields();
-, '', 'g');
-  NEW.item_code := pg_catalog.btrim(NEW.item_code);
+  NEW.name := pg_catalog.regexp_replace(NEW.name, '^[[:space:]]+|[[:space:]]+$', '', 'g');
+  NEW.item_code := pg_catalog.regexp_replace(NEW.item_code, '^[[:space:]]+|[[:space:]]+$', '', 'g');
   RETURN NEW;
 END
 $function$;
