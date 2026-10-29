@@ -53,6 +53,30 @@ async function voidExpense(client, expenseId, reason) {
   return asJson((await client.unsafe("select public.void_cash_expense($1::uuid,$2::text) as result", [expenseId, reason]))[0].result);
 }
 
+async function snapshotExpenseVoidBoundary(expenseId) {
+  const source = await db.unsafe(
+    "select status,voided_by_profile_id::text as voided_by,voided_at::text as voided_at,void_reason,updated_at::text as updated_at " +
+      "from public.cash_expenses where organization_id=$1::uuid and id=$2::uuid",
+    [organizationId, expenseId],
+  );
+  assert.equal(source.length, 1, "void-boundary fixture remains in the owner tenant");
+  const audits = await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+      "and action='cash_expense.voided' and entity_type='cash_expense' and entity_id=$2::uuid",
+    [organizationId, expenseId],
+  );
+  const links = await db.unsafe(
+    "select count(*)::integer as count from public.accounting_source_postings " +
+      "where organization_id=$1::uuid and source_type='cash_expense' and source_id=$2::uuid",
+    [organizationId, expenseId],
+  );
+  return {
+    source: source[0],
+    voidAuditCount: Number(audits[0]?.count ?? 0),
+    sourcePostingCount: Number(links[0]?.count ?? 0),
+  };
+}
+
 async function main() {
   const managerRows = await db.unsafe("select id,auth_user_id,email from public.profiles where organization_id=$1::uuid and lower(email)=lower($2) and is_active=true", [organizationId, managerEmail]);
   assert.equal(managerRows.length, 1, "local fixture must contain exactly one active organization-scoped manager");
@@ -69,6 +93,7 @@ async function main() {
   const concurrentA = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const concurrentB = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const customerDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const foreignManagerDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   try {
     await setIdentity(managerDb, manager.auth_user_id, manager.email);
     await setIdentity(concurrentA, manager.auth_user_id, manager.email);
@@ -171,8 +196,58 @@ async function main() {
     }
     await setIdentity(customerDb, customer.auth_user_id, customer.email);
     await expectFailure("customer cannot prepare a cash-expense journal", () => createDraft(customerDb, expense.expense_id, expenseAccount, settlementAccount, randomUUID()), /finance permission required/i);
+
+    // AGH-CASH-EXPENSE-VOID-SECURITY-001: role and tenant denials must have no side effects.
+    const deniedVoidExpense = await recordExpense(
+      managerDb, randomUUID(), "P2 cash-expense void authorization boundary", "41.25",
+    );
+    const foreignOrganizationId = randomUUID();
+    const foreignManagerAuthId = randomUUID();
+    const foreignManagerProfileId = randomUUID();
+    const foreignManagerEmail = "ci-foreign-cash-manager-" + foreignManagerAuthId + "@example.test";
+    await db.unsafe(
+      "insert into public.organizations(id,name,currency) values($1,$2,'YER')",
+      [foreignOrganizationId, "CI Foreign Cash Expense Tenant " + foreignManagerAuthId],
+    );
+    await db.unsafe(
+      "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()) " +
+        "on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+      [foreignManagerAuthId, foreignManagerEmail],
+    );
+    await db.unsafe(
+      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Foreign Cash Manager',$4,true)",
+      [foreignManagerProfileId, foreignManagerAuthId, foreignOrganizationId, foreignManagerEmail],
+    );
+    await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'manager')", [foreignManagerProfileId]);
+
+    const deniedVoidBaseline = await snapshotExpenseVoidBoundary(deniedVoidExpense.expense_id);
+    assert.deepEqual(deniedVoidBaseline.source, {
+      status: "posted", voided_by: null, voided_at: null, void_reason: null,
+      updated_at: deniedVoidBaseline.source.updated_at,
+    }, "fresh void-boundary source starts posted and unvoided");
+
+    const customerVoidError = await expectFailure(
+      "customer cannot void a cash expense",
+      () => voidExpense(customerDb, deniedVoidExpense.expense_id, "customer unauthorized void"),
+      /administrator or manager permission required to void cash expense/i,
+    );
+    assert.equal(customerVoidError.code, "42501", "customer void denial uses SQLSTATE 42501");
+    assert.deepEqual(await snapshotExpenseVoidBoundary(deniedVoidExpense.expense_id), deniedVoidBaseline,
+      "customer denial leaves expense state, timestamps, audit and source postings unchanged");
+
+    await setIdentity(foreignManagerDb, foreignManagerAuthId, foreignManagerEmail);
+    const foreignVoidError = await expectFailure(
+      "foreign-tenant manager cannot void a cash expense or learn whether it exists",
+      () => voidExpense(foreignManagerDb, deniedVoidExpense.expense_id, "foreign manager unauthorized void"),
+      /expense not found in this organization/i,
+    );
+    assert.equal(foreignVoidError.code, "P0002", "cross-tenant void denial uses opaque P0002");
+    assert.deepEqual(await snapshotExpenseVoidBoundary(deniedVoidExpense.expense_id), deniedVoidBaseline,
+      "cross-tenant denial leaves expense state, timestamps, audit and source postings unchanged");
+
     process.stdout.write("PASS cash-expense source posting: PostgreSQL journal draft, immutable source link, balanced exact amounts, source/account mapping guard, concurrent draft idempotency, posted-ledger visibility, audit attribution, customer denial and post/void compensation race\n");
   } finally {
+    await foreignManagerDb.end({ timeout: 5 }).catch(() => {});
     await customerDb.end({ timeout: 5 }).catch(() => {});
     await concurrentB.end({ timeout: 5 }).catch(() => {});
     await concurrentA.end({ timeout: 5 }).catch(() => {});
