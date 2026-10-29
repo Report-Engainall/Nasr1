@@ -250,10 +250,12 @@ describe("offline workspace real-route acceptance", () => {
       root.render(<RouterProvider router={router} />);
     });
     await waitFor(() => {
+      // Gate replaces the offline workspace with the login screen on sign-out.
+      // No cached cart row or private product name may remain visible.
       expect(host?.querySelector("li")).toBeNull();
-      expect(host?.textContent).toContain(
-        "لا توجد مسودة محفوظة لهذا الحساب على هذا الجهاز.",
-      );
+      expect(host?.querySelector(".login-screen")).not.toBeNull();
+      expect(host?.textContent).not.toContain(PRODUCT.name);
+      expect(host?.textContent).not.toContain("صنف غير موجود في النسخة المحلية");
     });
 
     // The old draft stays in its own storage namespace, but is never rendered
