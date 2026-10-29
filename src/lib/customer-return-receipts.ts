@@ -151,6 +151,94 @@ export function createReturnReceiptIdempotencyKey(): string {
   return "return-receipt-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 24);
 }
 
+
+export interface CustomerReturnReceiptPrintLine {
+  item_code: string | null;
+  product_name: string;
+  unit: string | null;
+  received_quantity: number;
+  restockable_quantity: number;
+  defective_quantity: number;
+}
+
+export interface CustomerReturnReceiptPrintData {
+  receipt_number: string;
+  request_number: string;
+  order_number: string;
+  customer_name: string;
+  warehouse_name: string;
+  received_at: string;
+  notes: string | null;
+  received_line_count: number;
+  received_quantity: number;
+  restockable_quantity: number;
+  defective_quantity: number;
+  lines: CustomerReturnReceiptPrintLine[];
+}
+
+/**
+ * Parses the server-read, persisted receipt snapshot used for reprints.
+ * It deliberately projects only customer-facing receipt fields and validates
+ * the persisted line totals against the header summary before allowing print.
+ */
+export function readCustomerReturnReceiptPrintData(value: unknown): CustomerReturnReceiptPrintData {
+  if (!isRecord(value) || !Array.isArray(value.lines)) {
+    throw new Error("لم يرجع الخادم نسخة إيصال محفوظة صالحة للطباعة.");
+  }
+  const lines = value.lines.map((raw): CustomerReturnReceiptPrintLine => {
+    if (!isRecord(raw)) throw new Error("سطر في نسخة إيصال المرتجع غير صالح.");
+    const received = decimalQuantity(raw.received_quantity, "print.received_quantity");
+    const restockable = decimalQuantity(raw.restockable_quantity, "print.restockable_quantity");
+    const defective = decimalQuantity(raw.defective_quantity, "print.defective_quantity");
+    if (received <= 0 || restockable > received ||
+        Math.round((restockable + defective) * 1000) !== Math.round(received * 1000)) {
+      throw new Error("تقسيم الكمية المحفوظة بين الصالح والتالف غير متسق؛ تم منع الطباعة.");
+    }
+    return {
+      item_code: nullableText(raw.item_code),
+      product_name: requiredText(raw.product_name, "print.product_name"),
+      unit: nullableText(raw.unit),
+      received_quantity: received,
+      restockable_quantity: restockable,
+      defective_quantity: defective,
+    };
+  });
+  const receivedLineCount = value.received_line_count;
+  if (!Number.isSafeInteger(receivedLineCount) || typeof receivedLineCount !== "number" ||
+      receivedLineCount < 1 || receivedLineCount > 100 || lines.length !== receivedLineCount) {
+    throw new Error("عدد بنود نسخة الإيصال لا يطابق السجل المحفوظ؛ تم منع الطباعة.");
+  }
+  const receivedQuantity = decimalQuantity(value.received_quantity, "print.received_quantity");
+  const restockableQuantity = decimalQuantity(value.restockable_quantity, "print.restockable_quantity");
+  const defectiveQuantity = decimalQuantity(value.defective_quantity, "print.defective_quantity");
+  const toMilli = (quantity: number) => Math.round(quantity * 1000);
+  const sum = (field: keyof Pick<CustomerReturnReceiptPrintLine,
+    "received_quantity" | "restockable_quantity" | "defective_quantity">) =>
+    lines.reduce((total, line) => total + toMilli(line[field]), 0);
+  if (sum("received_quantity") !== toMilli(receivedQuantity) ||
+      sum("restockable_quantity") !== toMilli(restockableQuantity) ||
+      sum("defective_quantity") !== toMilli(defectiveQuantity) ||
+      toMilli(restockableQuantity + defectiveQuantity) !== toMilli(receivedQuantity)) {
+    throw new Error("إجماليات نسخة الإيصال لا تطابق تفاصيل الاستلام المحفوظة؛ تم منع الطباعة.");
+  }
+  const receivedAt = requiredText(value.received_at, "print.received_at");
+  if (!Number.isFinite(Date.parse(receivedAt))) throw new Error("وقت الاستلام المحفوظ غير صالح.");
+  return {
+    receipt_number: requiredText(value.receipt_number, "print.receipt_number"),
+    request_number: requiredText(value.request_number, "print.request_number"),
+    order_number: requiredText(value.order_number, "print.order_number"),
+    customer_name: requiredText(value.customer_name, "print.customer_name"),
+    warehouse_name: requiredText(value.warehouse_name, "print.warehouse_name"),
+    received_at: receivedAt,
+    notes: nullableText(value.notes),
+    received_line_count: receivedLineCount,
+    received_quantity: receivedQuantity,
+    restockable_quantity: restockableQuantity,
+    defective_quantity: defectiveQuantity,
+    lines,
+  };
+}
+
 export function readReturnReceiptMutationResult(value: unknown): {
   receipt_id: string;
   receipt_number: string;
