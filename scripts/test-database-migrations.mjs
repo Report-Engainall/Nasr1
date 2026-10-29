@@ -1578,44 +1578,80 @@ async function main() {
   assert.equal(Number(sourceBackedCreditMemoPrint.lines[0].invoice_unit_price), Number(sourceInvoiceItem.unit_price));
   assert.equal(Number(sourceBackedCreditMemoPrint.lines[0].credited_subtotal), Number(preparedPrintCreditMemo.subtotal_amount));
 
-  for (const [actorId, email, roleLabel] of [
-    [staffAuthUserId, "admin@aghbari.ye", "admin"],
-    [accountantAuthUserId, "ci-accountant@example.test", "accountant"],
-    [managerPrintAuthId, "ci-finance-print-manager@example.test", "manager"],
-  ]) {
+  // Runtime-check the latest SQL migration, not only its source text:
+  // blank both printable names for the source customer while keeping the linked
+  // invoice/credit memo intact, then verify selectors and PDF fallback for each
+  // finance role. Restore the fixture labels even if an assertion fails.
+  await db.unsafe("reset role");
+  const originalPrintCustomerLabels = (await db.unsafe(
+    "select business_name,contact_name from public.customers where id=$1 and organization_id=$2",
+    [customerOneId, organizationId],
+  ))[0];
+  assert.ok(originalPrintCustomerLabels, "finance print privacy fixture customer must exist");
+  await db.unsafe(
+    "update public.customers set business_name='',contact_name='' where id=$1 and organization_id=$2",
+    [customerOneId, organizationId],
+  );
+  try {
+    for (const [actorId, email, roleLabel] of [
+      [staffAuthUserId, "admin@aghbari.ye", "admin"],
+      [accountantAuthUserId, "ci-accountant@example.test", "accountant"],
+      [managerPrintAuthId, "ci-finance-print-manager@example.test", "manager"],
+    ]) {
+      await db.unsafe("reset role");
+      await setIdentity(actorId, email);
+      await db.unsafe("set role authenticated");
+      const options = (await db.unsafe(
+        "select public.get_finance_document_print_options($1::integer) as result", [100],
+      ))[0].result;
+      assert.equal(options.organization_name, issuerRows[0].name, roleLabel + " must receive issuer identity from the active organization");
+      assert.ok(options.customers.some((row) => row.id === customerOneId), roleLabel + " must receive current-tenant customers");
+      assert.ok(options.invoices.some((row) => row.id === invoice.id), roleLabel + " must receive the current-tenant invoice");
+      const unnamedInvoiceOption = options.invoices.find((row) => row.id === invoice.id);
+      assert.equal(unnamedInvoiceOption.customer_name, "عميل غير مسمى",
+        roleLabel + " invoice selector must use a customer-facing fallback when printable names are blank");
+      assert.notEqual(unnamedInvoiceOption.customer_name, customerOneId,
+        roleLabel + " invoice selector must never use the internal customer UUID as a display label");
+      assert.ok(options.credit_memos.some((row) => row.id === printCreditMemoId), roleLabel + " must receive the source-linked credit memo print option");
+      const unnamedCreditMemoOption = options.credit_memos.find((row) => row.id === printCreditMemoId);
+      assert.equal(unnamedCreditMemoOption.customer_name, "عميل غير مسمى",
+        roleLabel + " credit-memo selector must use a customer-facing fallback when printable names are blank");
+      assert.notEqual(unnamedCreditMemoOption.customer_name, customerOneId,
+        roleLabel + " credit-memo selector must never use the internal customer UUID as a display label");
+      const creditMemoPrint = (await db.unsafe(
+        "select public.get_customer_return_credit_memo_pdf($1::uuid) as result", [printCreditMemoId],
+      ))[0].result;
+      assert.equal(creditMemoPrint.memo.id, printCreditMemoId, roleLabel + " credit memo print must retain the persisted source ID");
+      assert.equal(creditMemoPrint.customer.name, "عميل غير مسمى",
+        roleLabel + " credit-memo PDF customer label must use the customer-facing fallback");
+      assert.notEqual(creditMemoPrint.customer.name, customerOneId,
+        roleLabel + " credit-memo PDF must not render an internal customer UUID");
+      assert.equal(creditMemoPrint.return_request.id, printReturnRequestId);
+      assert.equal(creditMemoPrint.invoice.id, invoice.id);
+      assert.equal(creditMemoPrint.journal.id, preparedPrintCreditMemo.journal_entry_id);
+      assert.equal(creditMemoPrint.lines.length, 1);
+      const invoicePrint = (await db.unsafe(
+        "select public.get_staff_customer_invoice_print_data($1::uuid) as result", [invoice.id],
+      ))[0].result;
+      assert.equal(invoicePrint.invoice.id, invoice.id, roleLabel + " invoice print must retain the persisted source ID");
+      assert.equal(Number(invoicePrint.invoice.total_amount), 370000, roleLabel + " invoice amount must match the database source");
+      assert.equal(invoicePrint.lines.length, 1, roleLabel + " invoice print must contain source lines");
+      assert.equal(Number(invoicePrint.lines[0].line_total), Number(invoicePrint.invoice.subtotal));
+      const statementPrint = (await db.unsafe(
+        "select public.get_staff_customer_account_statement($1::uuid) as result", [customerOneId],
+      ))[0].result;
+      const printedInvoice = statementPrint.invoices.find((row) => row.id === invoice.id);
+      assert.ok(printedInvoice, roleLabel + " statement must include the tenant's source invoice");
+      assert.equal(Number(printedInvoice.paid_amount), 100000);
+      assert.equal(Number(printedInvoice.outstanding_amount), 270000);
+      assert.equal(statementPrint.customer.id, customerOneId);
+    }
+  } finally {
     await db.unsafe("reset role");
-    await setIdentity(actorId, email);
-    await db.unsafe("set role authenticated");
-    const options = (await db.unsafe(
-      "select public.get_finance_document_print_options($1::integer) as result", [100],
-    ))[0].result;
-    assert.equal(options.organization_name, issuerRows[0].name, roleLabel + " must receive issuer identity from the active organization");
-    assert.ok(options.customers.some((row) => row.id === customerOneId), roleLabel + " must receive current-tenant customers");
-    assert.ok(options.invoices.some((row) => row.id === invoice.id), roleLabel + " must receive the current-tenant invoice");
-    assert.ok(options.credit_memos.some((row) => row.id === printCreditMemoId), roleLabel + " must receive the source-linked credit memo print option");
-    const creditMemoPrint = (await db.unsafe(
-      "select public.get_customer_return_credit_memo_pdf($1::uuid) as result", [printCreditMemoId],
-    ))[0].result;
-    assert.equal(creditMemoPrint.memo.id, printCreditMemoId, roleLabel + " credit memo print must retain the persisted source ID");
-    assert.equal(creditMemoPrint.return_request.id, printReturnRequestId);
-    assert.equal(creditMemoPrint.invoice.id, invoice.id);
-    assert.equal(creditMemoPrint.journal.id, preparedPrintCreditMemo.journal_entry_id);
-    assert.equal(creditMemoPrint.lines.length, 1);
-    const invoicePrint = (await db.unsafe(
-      "select public.get_staff_customer_invoice_print_data($1::uuid) as result", [invoice.id],
-    ))[0].result;
-    assert.equal(invoicePrint.invoice.id, invoice.id, roleLabel + " invoice print must retain the persisted source ID");
-    assert.equal(Number(invoicePrint.invoice.total_amount), 370000, roleLabel + " invoice amount must match the database source");
-    assert.equal(invoicePrint.lines.length, 1, roleLabel + " invoice print must contain source lines");
-    assert.equal(Number(invoicePrint.lines[0].line_total), Number(invoicePrint.invoice.subtotal));
-    const statementPrint = (await db.unsafe(
-      "select public.get_staff_customer_account_statement($1::uuid) as result", [customerOneId],
-    ))[0].result;
-    const printedInvoice = statementPrint.invoices.find((row) => row.id === invoice.id);
-    assert.ok(printedInvoice, roleLabel + " statement must include the tenant's source invoice");
-    assert.equal(Number(printedInvoice.paid_amount), 100000);
-    assert.equal(Number(printedInvoice.outstanding_amount), 270000);
-    assert.equal(statementPrint.customer.id, customerOneId);
+    await db.unsafe(
+      "update public.customers set business_name=$3,contact_name=$4 where id=$1 and organization_id=$2",
+      [customerOneId, organizationId, originalPrintCustomerLabels.business_name, originalPrintCustomerLabels.contact_name],
+    );
   }
 
   await db.unsafe("reset role");
@@ -1651,6 +1687,8 @@ async function main() {
   assert.equal(foreignOptions.organization_name, "Foreign organization", "foreign accountant must receive only the active foreign organization's issuer identity");
   assert.equal(foreignOptions.customers.some((row) => row.id === customerOneId), false, "foreign finance options must not expose another tenant's customers");
   assert.equal(foreignOptions.invoices.some((row) => row.id === invoice.id), false, "foreign finance options must not expose another tenant's invoices");
+  assert.equal(foreignOptions.credit_memos.some((row) => row.id === printCreditMemoId), false,
+    "foreign finance options must not expose another tenant's credit memos or customer labels");
   await expectFailure(
     "foreign-tenant accountant cannot print another organization's invoice",
     () => db.unsafe("select public.get_staff_customer_invoice_print_data($1::uuid)", [invoice.id]),
