@@ -247,6 +247,105 @@ describe("finance document print contracts", () => {
     }
   });
 
+  it("drops private organization, cost, margin, warehouse, and foreign-tier fields from staff statement print output", () => {
+    const source = statementFixture();
+    const input = {
+      ...source,
+      organization_id: "FOREIGN-ORG-STATEMENT-SENTINEL",
+      warehouse_id: "PRIVATE-STATEMENT-WAREHOUSE-SENTINEL",
+      cost_price: "INTERNAL-STATEMENT-COST-SENTINEL",
+      profit_margin: "INTERNAL-STATEMENT-MARGIN-SENTINEL",
+      foreign_tier_price: "FOREIGN-STATEMENT-TIER-SENTINEL",
+      customer: {
+        ...source.customer,
+        organization_id: "FOREIGN-CUSTOMER-ORGANIZATION-STATEMENT-SENTINEL",
+        cost_price: "INTERNAL-CUSTOMER-COST-STATEMENT-SENTINEL",
+        profit_margin: "INTERNAL-CUSTOMER-MARGIN-STATEMENT-SENTINEL",
+      },
+      invoices: source.invoices.map((invoice) => ({
+        ...invoice,
+        organization_id: "FOREIGN-INVOICE-ORGANIZATION-STATEMENT-SENTINEL",
+        cost_price: "INTERNAL-INVOICE-COST-STATEMENT-SENTINEL",
+        purchase_price: "INTERNAL-INVOICE-PURCHASE-STATEMENT-SENTINEL",
+        gross_profit: "INTERNAL-INVOICE-GROSS-PROFIT-STATEMENT-SENTINEL",
+        foreign_tier_price: "FOREIGN-INVOICE-TIER-STATEMENT-SENTINEL",
+      })),
+      payments: source.payments.map((payment) => ({
+        ...payment,
+        organization_id: "FOREIGN-PAYMENT-ORGANIZATION-STATEMENT-SENTINEL",
+        customer_id: "FOREIGN-CUSTOMER-PAYMENT-STATEMENT-SENTINEL",
+        cost_price: "INTERNAL-PAYMENT-COST-STATEMENT-SENTINEL",
+        profit_margin: "INTERNAL-PAYMENT-MARGIN-STATEMENT-SENTINEL",
+        foreign_tier_price: "FOREIGN-PAYMENT-TIER-STATEMENT-SENTINEL",
+        internal_cost_amount: "987654.32",
+      })),
+      credits: source.credits.map((credit) => ({
+        ...credit,
+        organization_id: "FOREIGN-CREDIT-ORGANIZATION-STATEMENT-SENTINEL",
+        warehouse_id: "PRIVATE-CREDIT-WAREHOUSE-STATEMENT-SENTINEL",
+        cost_price: "INTERNAL-CREDIT-COST-STATEMENT-SENTINEL",
+        unit_cost: "INTERNAL-CREDIT-UNIT-COST-STATEMENT-SENTINEL",
+        gross_profit: "INTERNAL-CREDIT-GROSS-PROFIT-STATEMENT-SENTINEL",
+        foreign_tier_price: "FOREIGN-CREDIT-TIER-STATEMENT-SENTINEL",
+        internal_credit_amount: "123456.78",
+      })),
+      summary: source.summary.map((row) => ({
+        ...row,
+        organization_id: "FOREIGN-SUMMARY-ORGANIZATION-STATEMENT-SENTINEL",
+        cost_price: "INTERNAL-SUMMARY-COST-STATEMENT-SENTINEL",
+        gross_profit: "INTERNAL-SUMMARY-GROSS-PROFIT-STATEMENT-SENTINEL",
+      })),
+    };
+
+    const parsed = readStaffStatementPrintPayload(input);
+    expect(parsed.customer.customer_code).toBe("000125");
+    expect(parsed.invoices[0].invoice_number).toBe("INV-0009");
+    expect(parsed.payments[0].reference).toBe("BANK-25");
+    expect(parsed.credits[0].memo_number).toBe("CRM-0001");
+
+    const secrets = [
+      "FOREIGN-ORG-STATEMENT-SENTINEL",
+      "PRIVATE-STATEMENT-WAREHOUSE-SENTINEL",
+      "INTERNAL-STATEMENT-COST-SENTINEL",
+      "INTERNAL-STATEMENT-MARGIN-SENTINEL",
+      "FOREIGN-STATEMENT-TIER-SENTINEL",
+      "FOREIGN-CUSTOMER-ORGANIZATION-STATEMENT-SENTINEL",
+      "INTERNAL-CUSTOMER-COST-STATEMENT-SENTINEL",
+      "INTERNAL-CUSTOMER-MARGIN-STATEMENT-SENTINEL",
+      "FOREIGN-INVOICE-ORGANIZATION-STATEMENT-SENTINEL",
+      "INTERNAL-INVOICE-COST-STATEMENT-SENTINEL",
+      "INTERNAL-INVOICE-PURCHASE-STATEMENT-SENTINEL",
+      "INTERNAL-INVOICE-GROSS-PROFIT-STATEMENT-SENTINEL",
+      "FOREIGN-INVOICE-TIER-STATEMENT-SENTINEL",
+      "FOREIGN-PAYMENT-ORGANIZATION-STATEMENT-SENTINEL",
+      "FOREIGN-CUSTOMER-PAYMENT-STATEMENT-SENTINEL",
+      "INTERNAL-PAYMENT-COST-STATEMENT-SENTINEL",
+      "INTERNAL-PAYMENT-MARGIN-STATEMENT-SENTINEL",
+      "FOREIGN-PAYMENT-TIER-STATEMENT-SENTINEL",
+      "PRIVATE-CREDIT-WAREHOUSE-STATEMENT-SENTINEL",
+      "FOREIGN-CREDIT-ORGANIZATION-STATEMENT-SENTINEL",
+      "INTERNAL-CREDIT-COST-STATEMENT-SENTINEL",
+      "INTERNAL-CREDIT-UNIT-COST-STATEMENT-SENTINEL",
+      "INTERNAL-CREDIT-GROSS-PROFIT-STATEMENT-SENTINEL",
+      "FOREIGN-CREDIT-TIER-STATEMENT-SENTINEL",
+      "FOREIGN-SUMMARY-ORGANIZATION-STATEMENT-SENTINEL",
+      "INTERNAL-SUMMARY-COST-STATEMENT-SENTINEL",
+      "INTERNAL-SUMMARY-GROSS-PROFIT-STATEMENT-SENTINEL",
+      "987654.32",
+      "123456.78",
+    ];
+    const serialized = JSON.stringify(parsed);
+    for (const secret of secrets) expect(serialized).not.toContain(secret);
+
+    const doc = document.implementation.createHTMLDocument("");
+    renderStaffStatementDocument(doc, parsed, "مؤسسة الاختبار");
+    expect(doc.body.textContent).toContain("INV-0009");
+    expect(doc.body.textContent).toContain("BANK-25");
+    expect(doc.body.textContent).toContain("CRM-0001");
+    for (const secret of secrets) expect(doc.body.textContent).not.toContain(secret);
+    expect(doc.documentElement.dir).toBe("rtl");
+  });
+
   it("rejects legacy truncated statement payloads rather than printing an incomplete ledger", () => {
     const payload = statementFixture();
     payload.truncated.invoices = true;
