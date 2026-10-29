@@ -262,6 +262,7 @@ function ProductActivityReport() {
             <article className="report-metric"><span>بطيء الحركة — 31 إلى 90 يومًا</span><strong>{formatNumber(data.summary.slow_moving_90_days)}</strong></article>
             <article className="report-metric"><span>راكد لأكثر من 90 يومًا</span><strong>{formatNumber(data.summary.stagnant_over_90_days)}</strong></article>
             <article className="report-metric"><span>لم يُبع سابقًا</span><strong>{formatNumber(data.summary.never_sold)}</strong></article>
+            <article className="report-metric"><span>أرصدة غير متاحة</span><strong>{formatNumber(data.summary.stock_unknown_count)}</strong><small>لا تُعامل الأرصدة المجهولة على أنها صفر.</small></article>
           </div>
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap', marginTop: 16 }}>
@@ -275,7 +276,11 @@ function ProductActivityReport() {
                 <option value="active_last_30_days">نشطة — آخر 30 يومًا</option>
               </select>
             </label>
-            <p className="report-note" style={{ margin: 0 }}>المعروض {formatNumber(visibleRows.length)} من {formatNumber(data.total_products)} صنفًا؛ ملف Excel يشمل التقرير كاملًا.</p>
+            <p className="report-note" style={{ margin: 0 }}>
+              {data.truncated
+                ? <>المعروض عينة من التقرير تصل إلى {formatNumber(data.returned_products)} صفًا من إجمالي {formatNumber(data.total_products)} صنفًا. لا يتاح تصدير Excel كامل من هذه العينة.</>
+                : <>المعروض {formatNumber(visibleRows.length)} من {formatNumber(data.total_products)} صنفًا؛ ملف Excel يشمل التقرير الكامل.</>}
+            </p>
           </div>
 
           {data.truncated ? <p className="report-note" role="alert" style={{ marginTop: 12 }}>تجاوز العدد حد التقرير البالغ 5000 صنف؛ عُطّل التصدير حتى لا ينتج ملف جزئي على أنه كامل.</p> : null}
