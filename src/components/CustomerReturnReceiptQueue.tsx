@@ -5,6 +5,7 @@ import {
   buildCustomerReturnReceiptLines,
   createReturnReceiptIdempotencyKey,
   readCustomerReturnReceiptQueue,
+  readCustomerReturnReceiptPrintData,
   readReturnReceiptMutationResult,
   type CustomerReturnReceiptDraft,
   type CustomerReturnReceiptQueue,
@@ -120,36 +121,57 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
       });
       if (rpcError) throw new Error(rpcError.message || "تعذر حفظ الاستلام الفعلي.");
       const result = readReturnReceiptMutationResult(data);
-      const warehouseName = queue.warehouses.find((warehouse) => warehouse.id === warehouseId)?.name ?? "مخزن الاستلام";
+      let persistedReceipt;
+      try {
+        const { data: printData, error: printDataError } = await supabase.rpc(
+          "get_customer_return_receipt_print_data",
+          { p_receipt_id: result.receipt_id },
+        );
+        if (printDataError) throw new Error(printDataError.message || "تعذر قراءة نسخة الإيصال المحفوظة.");
+        persistedReceipt = readCustomerReturnReceiptPrintData(printData);
+        const sameQuantity = (left: number, right: number) => Math.round(left * 1000) === Math.round(right * 1000);
+        if (
+          persistedReceipt.receipt_number !== result.receipt_number ||
+          persistedReceipt.received_line_count !== result.received_line_count ||
+          !sameQuantity(persistedReceipt.received_quantity, result.received_quantity) ||
+          !sameQuantity(persistedReceipt.restockable_quantity, result.restockable_quantity) ||
+          !sameQuantity(persistedReceipt.defective_quantity, result.defective_quantity)
+        ) {
+          throw new Error("ملخص نسخة الإيصال لا يطابق تأكيد عملية الاستلام؛ تم منع الطباعة.");
+        }
+      } catch {
+        const message = "تم حفظ الاستلام " + result.receipt_number +
+          " في الخادم، لكن تعذر تحميل تفاصيل الإيصال المحفوظة للطباعة. أعد المحاولة بالمفتاح نفسه؛ لا تنشئ عملية استلام جديدة.";
+        setError(message);
+        onNotice(message);
+        return;
+      }
       setSavedReceipt({
-        receiptNumber: result.receipt_number,
-        requestNumber: request.request_number,
-        orderNumber: request.order_number,
-        customerName: request.customer_name,
-        warehouseName,
-        generatedAt: new Date().toISOString(),
-        notes: (notes[request.id] ?? "").trim(),
-        receivedLineCount: result.received_line_count,
-        receivedQuantity: result.received_quantity,
-        restockableQuantity: result.restockable_quantity,
-        defectiveQuantity: result.defective_quantity,
-        lines: lines.map((line) => {
-          const item = request.items.find((candidate) => candidate.request_item_id === line.request_item_id);
-          return {
-            itemCode: item?.item_code ?? null,
-            productName: item?.product_name ?? "صنف غير متاح",
-            unit: item?.unit ?? null,
-            receivedQuantity: line.received_quantity,
-            restockableQuantity: line.restockable_quantity,
-            defectiveQuantity: Math.max(0, line.received_quantity - line.restockable_quantity),
-          };
-        }),
+        receiptNumber: persistedReceipt.receipt_number,
+        requestNumber: persistedReceipt.request_number,
+        orderNumber: persistedReceipt.order_number,
+        customerName: persistedReceipt.customer_name,
+        warehouseName: persistedReceipt.warehouse_name,
+        generatedAt: persistedReceipt.received_at,
+        notes: persistedReceipt.notes ?? "",
+        receivedLineCount: persistedReceipt.received_line_count,
+        receivedQuantity: persistedReceipt.received_quantity,
+        restockableQuantity: persistedReceipt.restockable_quantity,
+        defectiveQuantity: persistedReceipt.defective_quantity,
+        lines: persistedReceipt.lines.map((line) => ({
+          itemCode: line.item_code,
+          productName: line.product_name,
+          unit: line.unit,
+          receivedQuantity: line.received_quantity,
+          restockableQuantity: line.restockable_quantity,
+          defectiveQuantity: line.defective_quantity,
+        })),
       });
       onNotice(
-        "تم حفظ " + result.receipt_number + " — المستلم " +
-        result.received_quantity.toLocaleString("ar-YE") + "، الصالح للمخزون " +
-        result.restockable_quantity.toLocaleString("ar-YE") + "، والتالف " +
-        result.defective_quantity.toLocaleString("ar-YE") + ". " +
+        "تم حفظ " + persistedReceipt.receipt_number + " — المستلم " +
+        persistedReceipt.received_quantity.toLocaleString("ar-YE") + "، الصالح للمخزون " +
+        persistedReceipt.restockable_quantity.toLocaleString("ar-YE") + "، والتالف " +
+        persistedReceipt.defective_quantity.toLocaleString("ar-YE") + ". " +
         (result.idempotent_replay ? "أعيدت نتيجة العملية السابقة دون تكرار حركة المخزون." : "حُفظ سجل الاستلام وحركة المخزون الصالحة فقط."),
       );
       setDrafts((current) => { const next = { ...current }; delete next[request.id]; return next; });
