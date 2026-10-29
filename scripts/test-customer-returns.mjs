@@ -1197,14 +1197,20 @@ async function main() {
   const firstReceiptPage = asJson(firstReceiptPageRaw[0].result);
   assert.equal(firstReceiptPage.offset,0);
   assert.equal(firstReceiptPage.receipts.length,1);
-  assert.equal(firstReceiptPage.has_more,true,"first page advertises the remaining saved receipt");
+  assert.equal(firstReceiptPage.receipts[0].receipt_id,receiptHistory.receipts[0].receipt_id,
+    "first page starts with the newest saved receipt");
+  assert.equal(firstReceiptPage.has_more,receiptHistory.receipts.length>1,
+    "first-page continuation matches the actual tenant-scoped fixture record count");
   const olderReceiptPageRaw = await db.unsafe(
     "select public.list_customer_return_receipt_print_history(1,1) as result",
   );
   const olderReceiptPage = asJson(olderReceiptPageRaw[0].result);
   assert.equal(olderReceiptPage.offset,1);
   assert.equal(olderReceiptPage.receipts.length,1);
-  assert.equal(olderReceiptPage.has_more,false,"second page closes the two-receipt test fixture");
+  assert.equal(olderReceiptPage.receipts[0].receipt_id,receiptHistory.receipts[1].receipt_id,
+    "second page returns the next record in persisted history order");
+  assert.equal(olderReceiptPage.has_more,receiptHistory.receipts.length>2,
+    "second-page continuation reflects whether the fixture contains a third receipt");
   assert.notEqual(firstReceiptPage.receipts[0].receipt_id,olderReceiptPage.receipts[0].receipt_id,
     "adjacent pages do not repeat the same receipt");
   await expectFailure(
