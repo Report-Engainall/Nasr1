@@ -263,15 +263,23 @@ describe("offline workspace real-route acceptance", () => {
   it("reports partial local persistence accurately when the freshness marker cannot be saved", async () => {
     const refreshedProduct = { ...PRODUCT, name: "صنف بعد التحديث" };
     window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    window.localStorage.setItem(
+      "aghbari:catalog:last-server-sync:v1",
+      new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+    );
     mocks.fetchProducts.mockResolvedValue([refreshedProduct]);
     await mountOfflineRoute();
 
-    const originalSetItem = window.localStorage.setItem.bind(window.localStorage);
-    const setItemSpy = vi.spyOn(window.localStorage, "setItem").mockImplementation((key, value) => {
+    const originalSetItem = Storage.prototype.setItem;
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
       if (key === "aghbari:catalog:last-server-sync:v1") {
         throw new DOMException("storage quota unavailable", "QuotaExceededError");
       }
-      return originalSetItem(key, value);
+      return originalSetItem.call(this, key, value);
     });
 
     try {
@@ -287,6 +295,10 @@ describe("offline workspace real-route acceptance", () => {
         );
       });
 
+      expect(setItemSpy).toHaveBeenCalledWith(
+        "aghbari:catalog:last-server-sync:v1",
+        expect.any(String),
+      );
       const stored = JSON.parse(window.localStorage.getItem("aghbari:catalog:v1") || "[]") as Array<{name?: string}>;
       expect(stored[0]?.name).toBe("صنف بعد التحديث");
       expect(window.localStorage.getItem("aghbari:catalog:last-server-sync:v1")).toBeNull();
