@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ClipboardCheck, PackageCheck, Printer, RefreshCw, Warehouse } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
@@ -6,7 +6,9 @@ import {
   createReturnReceiptIdempotencyKey,
   readCustomerReturnReceiptQueue,
   readCustomerReturnReceiptPrintData,
+  readCustomerReturnReceiptPrintHistory,
   readReturnReceiptMutationResult,
+  type CustomerReturnReceiptHistoryEntry,
   type CustomerReturnReceiptDraft,
   type CustomerReturnReceiptQueue,
   type CustomerReturnReceiptRequest,
@@ -28,6 +30,30 @@ const button: React.CSSProperties = {
 };
 const primary: React.CSSProperties = { ...button, color: "#fff", background: "#176b55", borderColor: "#176b55" };
 const muted: React.CSSProperties = { margin: 0, color: "#64787c", fontSize: 13, lineHeight: 1.7 };
+
+function toSavedReturnReceipt(persistedReceipt: ReturnType<typeof readCustomerReturnReceiptPrintData>): SavedReturnReceipt {
+  return {
+    receiptNumber: persistedReceipt.receipt_number,
+    requestNumber: persistedReceipt.request_number,
+    orderNumber: persistedReceipt.order_number,
+    customerName: persistedReceipt.customer_name,
+    warehouseName: persistedReceipt.warehouse_name,
+    generatedAt: persistedReceipt.received_at,
+    notes: persistedReceipt.notes ?? "",
+    receivedLineCount: persistedReceipt.received_line_count,
+    receivedQuantity: persistedReceipt.received_quantity,
+    restockableQuantity: persistedReceipt.restockable_quantity,
+    defectiveQuantity: persistedReceipt.defective_quantity,
+    lines: persistedReceipt.lines.map((line) => ({
+      itemCode: line.item_code,
+      productName: line.product_name,
+      unit: line.unit,
+      receivedQuantity: line.received_quantity,
+      restockableQuantity: line.restockable_quantity,
+      defectiveQuantity: line.defective_quantity,
+    })),
+  };
+}
 
 type SavedReturnReceipt = {
   receiptNumber: string;
@@ -61,6 +87,33 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [savedReceipt, setSavedReceipt] = useState<SavedReturnReceipt | null>(null);
+  const [receiptHistory, setReceiptHistory] = useState<CustomerReturnReceiptHistoryEntry[]>([]);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyBusyId, setHistoryBusyId] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState("");
+  const historyRequestId = useRef(0);
+
+  const loadReceiptHistory = useCallback(async () => {
+    const requestId = ++historyRequestId.current;
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const { data, error: rpcError } = await supabase.rpc("list_customer_return_receipt_print_history", { p_limit: 50 });
+      if (rpcError) throw new Error(rpcError.message || "تعذر تحميل سجل إيصالات المرتجعات المحفوظة.");
+      const result = readCustomerReturnReceiptPrintHistory(data);
+      if (requestId !== historyRequestId.current) return;
+      setReceiptHistory(result.receipts);
+      setHistoryHasMore(result.has_more);
+    } catch {
+      if (requestId !== historyRequestId.current) return;
+      setReceiptHistory([]);
+      setHistoryHasMore(false);
+      setHistoryError("تعذر تحميل سجل الإيصالات من الخادم؛ لم تُستخدم بيانات محلية بديلة.");
+    } finally {
+      if (requestId === historyRequestId.current) setHistoryLoading(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,7 +132,44 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); void loadReceiptHistory(); }, [load, loadReceiptHistory]);
+
+  async function prepareHistoricalReceipt(receipt: CustomerReturnReceiptHistoryEntry) {
+    if (busyId !== null || historyBusyId !== null) return;
+    setHistoryBusyId(receipt.receipt_id);
+    setHistoryError("");
+    setSavedReceipt(null);
+    try {
+      const { data, error: rpcError } = await supabase.rpc(
+        "get_customer_return_receipt_print_data",
+        { p_receipt_id: receipt.receipt_id },
+      );
+      if (rpcError) throw new Error(rpcError.message || "تعذر قراءة الإيصال المحفوظ.");
+      const persisted = readCustomerReturnReceiptPrintData(data);
+      const sameQuantity = (left: number, right: number) => Math.round(left * 1000) === Math.round(right * 1000);
+      if (
+        persisted.receipt_number !== receipt.receipt_number ||
+        persisted.request_number !== receipt.request_number ||
+        persisted.order_number !== receipt.order_number ||
+        persisted.customer_name !== receipt.customer_name ||
+        persisted.warehouse_name !== receipt.warehouse_name ||
+        persisted.received_line_count !== receipt.received_line_count ||
+        !sameQuantity(persisted.received_quantity, receipt.received_quantity) ||
+        !sameQuantity(persisted.restockable_quantity, receipt.restockable_quantity) ||
+        !sameQuantity(persisted.defective_quantity, receipt.defective_quantity) ||
+        persisted.received_at !== receipt.received_at
+      ) {
+        throw new Error("تفاصيل الإيصال المعاد تحميله لا تطابق سجل الإيصالات المحفوظة؛ تم منع الطباعة.");
+      }
+      setSavedReceipt(toSavedReturnReceipt(persisted));
+      onNotice("تم تحميل الإيصال المحفوظ " + persisted.receipt_number + "؛ راجع النسخة ثم اضغط طباعة.");
+    } catch {
+      setSavedReceipt(null);
+      setHistoryError("تعذر تأكيد نسخة الإيصال المحفوظة للطباعة. أعد تحديث السجل؛ لم تُعرض نسخة قديمة.");
+    } finally {
+      setHistoryBusyId(null);
+    }
+  }
 
   function updateDraft(requestId: string, itemId: string, fieldName: keyof CustomerReturnReceiptDraft, value: string) {
     setDrafts((current) => ({
@@ -124,6 +214,7 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
       // The old printable receipt must not remain available after a new receipt has saved.
       // If its persisted snapshot cannot be fetched, fail closed instead of leaving stale print evidence.
       setSavedReceipt(null);
+      void loadReceiptHistory();
       let persistedReceipt: ReturnType<typeof readCustomerReturnReceiptPrintData>;
       try {
         const { data: printData, error: printDataError } = await supabase.rpc(
@@ -149,27 +240,7 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
         onNotice(message);
         return;
       }
-      setSavedReceipt({
-        receiptNumber: persistedReceipt.receipt_number,
-        requestNumber: persistedReceipt.request_number,
-        orderNumber: persistedReceipt.order_number,
-        customerName: persistedReceipt.customer_name,
-        warehouseName: persistedReceipt.warehouse_name,
-        generatedAt: persistedReceipt.received_at,
-        notes: persistedReceipt.notes ?? "",
-        receivedLineCount: persistedReceipt.received_line_count,
-        receivedQuantity: persistedReceipt.received_quantity,
-        restockableQuantity: persistedReceipt.restockable_quantity,
-        defectiveQuantity: persistedReceipt.defective_quantity,
-        lines: persistedReceipt.lines.map((line) => ({
-          itemCode: line.item_code,
-          productName: line.product_name,
-          unit: line.unit,
-          receivedQuantity: line.received_quantity,
-          restockableQuantity: line.restockable_quantity,
-          defectiveQuantity: line.defective_quantity,
-        })),
-      });
+      setSavedReceipt(toSavedReturnReceipt(persistedReceipt));
       onNotice(
         "تم حفظ " + persistedReceipt.receipt_number + " — المستلم " +
         persistedReceipt.received_quantity.toLocaleString("ar-YE") + "، الصالح للمخزون " +
@@ -243,7 +314,7 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
           {savedReceipt && <button type="button" style={primary} onClick={() => window.print()}>
             <Printer size={15} /> طباعة الإيصال {savedReceipt.receiptNumber}
           </button>}
-          <button type="button" style={button} onClick={() => void load()} disabled={loading || busyId !== null}>
+          <button type="button" style={button} onClick={() => { void load(); void loadReceiptHistory(); }} disabled={loading || historyLoading || busyId !== null || historyBusyId !== null}>
             <RefreshCw size={15} /> تحديث
           </button>
         </div>
@@ -314,6 +385,40 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
           </footer>
         </article>
       ))}
+
+      <section aria-labelledby="return-receipt-history-heading" style={{ display: "grid", gap: 10, paddingTop: 16, borderTop: "1px solid #e1e9ea" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <div>
+            <h3 id="return-receipt-history-heading" style={{ margin: 0, fontSize: 16 }}>سجل إيصالات الاستلام المحفوظة</h3>
+            <p style={muted}>إعادة تجهيز للطباعة من النسخة المحفوظة في قاعدة البيانات، لا من تفاصيل قائمة العمل الحالية.</p>
+          </div>
+          <button type="button" style={button} onClick={() => void loadReceiptHistory()} disabled={historyLoading || historyBusyId !== null || busyId !== null}>
+            <RefreshCw size={14} /> تحديث سجل الإيصالات
+          </button>
+        </div>
+        {historyLoading && <p role="status" style={muted}>جار تحميل سجل الإيصالات المحفوظة...</p>}
+        {historyError && <p role="alert" style={{ ...muted, color: "#a32929" }}>{historyError}</p>}
+        {!historyLoading && !historyError && receiptHistory.length === 0 && <p style={muted}>لا توجد إيصالات محفوظة متاحة لإعادة الطباعة.</p>}
+        {receiptHistory.map((receipt) => (
+          <article key={receipt.receipt_id} style={{ display: "grid", gap: 6, padding: 12, border: "1px solid #e1e9ea", borderRadius: 9 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <div>
+                <strong>{receipt.receipt_number}</strong>
+                <p style={muted}>طلب المرتجع {receipt.request_number} · الطلب الأصلي {receipt.order_number}</p>
+                <p style={muted}>العميل {receipt.customer_name} · المخزن {receipt.warehouse_name}</p>
+                <p style={muted}>{new Date(receipt.received_at).toLocaleString("ar-YE")} · {receipt.received_line_count} بند</p>
+                <p style={muted}>المستلم {receipt.received_quantity.toLocaleString("ar-YE")} · الصالح {receipt.restockable_quantity.toLocaleString("ar-YE")} · التالف {receipt.defective_quantity.toLocaleString("ar-YE")}</p>
+              </div>
+              <button type="button" style={button} disabled={busyId !== null || historyLoading || historyBusyId !== null}
+                aria-label={"إعادة تجهيز الإيصال للطباعة " + receipt.receipt_number}
+                onClick={() => void prepareHistoricalReceipt(receipt)}>
+                <Printer size={14} /> {historyBusyId === receipt.receipt_id ? "جار تحميل النسخة..." : "إعادة تجهيز للطباعة"}
+              </button>
+            </div>
+          </article>
+        ))}
+        {historyHasMore && <p style={muted}>يعرض السجل أحدث 50 إيصالًا فقط؛ الأقدم محفوظة في قاعدة البيانات ولم تُعرض ضمن هذه الصفحة.</p>}
+      </section>
     </section>
   );
 }

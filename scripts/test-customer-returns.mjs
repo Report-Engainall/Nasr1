@@ -1177,6 +1177,20 @@ async function main() {
   // Print evidence is re-read from persisted receipt/item snapshots, not rebuilt from client form state.
   await setIdentity(managerAuthId,"ci-return-manager@example.test");
   await db.unsafe("set role authenticated");
+  const receiptHistoryRaw = await db.unsafe(
+    "select public.list_customer_return_receipt_print_history(50) as result",
+  );
+  const receiptHistory = asJson(receiptHistoryRaw[0].result);
+  assert.equal(receiptHistory.limit,50,"receipt history limit is server-bounded");
+  assert.equal(receiptHistory.has_more,false,"fixture receipt history fits within the selected page");
+  const firstHistoryEntry = receiptHistory.receipts.find((row) => row.receipt_id === firstReceipt.receipt_id);
+  assert.ok(firstHistoryEntry,"the successfully saved receipt is available for historical reprint after leaving the queue");
+  assert.equal(firstHistoryEntry.receipt_number,firstReceipt.receipt_number);
+  assert.deepEqual(Object.keys(firstHistoryEntry).sort(),[
+    "receipt_id","receipt_number","request_number","order_number","customer_name","warehouse_name",
+    "received_at","received_line_count","received_quantity","restockable_quantity","defective_quantity",
+  ].sort(),"history result returns only the documented bounded receipt header allowlist");
+
   const firstPrintSnapshotRaw = await db.unsafe(
     "select public.get_customer_return_receipt_print_data($1::uuid) as result",
     [firstReceipt.receipt_id],
@@ -1257,6 +1271,11 @@ async function main() {
       [firstReceipt.receipt_id],
     ),
     /administrator or manager permission required to read a return receipt/i,
+  );
+  await expectFailure(
+    "ordinary customers cannot enumerate staff warehouse receipt print history",
+    () => db.unsafe("select public.list_customer_return_receipt_print_history(50)"),
+    /administrator or manager permission required to list warehouse return receipt history/i,
   );
   await expectFailure(
     "customers cannot access the finance return-credit queue",

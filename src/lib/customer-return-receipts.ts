@@ -268,3 +268,67 @@ export function readReturnReceiptMutationResult(value: unknown): {
     idempotent_replay: value.idempotent_replay,
   };
 }
+
+
+export interface CustomerReturnReceiptHistoryEntry {
+  receipt_id: string;
+  receipt_number: string;
+  request_number: string;
+  order_number: string;
+  customer_name: string;
+  warehouse_name: string;
+  received_at: string;
+  received_line_count: number;
+  received_quantity: number;
+  restockable_quantity: number;
+  defective_quantity: number;
+}
+
+export interface CustomerReturnReceiptPrintHistory {
+  receipts: CustomerReturnReceiptHistoryEntry[];
+  has_more: boolean;
+  limit: number;
+}
+
+export function readCustomerReturnReceiptPrintHistory(value: unknown): CustomerReturnReceiptPrintHistory {
+  if (!isRecord(value) || !Array.isArray(value.receipts) ||
+      typeof value.has_more !== "boolean" ||
+      typeof value.limit !== "number" || !Number.isSafeInteger(value.limit) ||
+      value.limit < 1 || value.limit > 100 || value.receipts.length > value.limit) {
+    throw new Error("أعاد الخادم سجل إيصالات محفوظة غير صالح.");
+  }
+  const seenIds = new Set<string>();
+  const receipts = value.receipts.map((raw): CustomerReturnReceiptHistoryEntry => {
+    if (!isRecord(raw)) throw new Error("سجل إيصال محفوظ غير صالح.");
+    const receiptId = requiredText(raw.receipt_id, "history.receipt_id");
+    if (seenIds.has(receiptId)) throw new Error("سجل الإيصالات يحتوي معرّفًا مكررًا؛ تم منع العرض.");
+    seenIds.add(receiptId);
+    const receivedAt = requiredText(raw.received_at, "history.received_at");
+    if (!Number.isFinite(Date.parse(receivedAt))) throw new Error("تاريخ إيصال محفوظ غير صالح.");
+    const lineCount = raw.received_line_count;
+    if (typeof lineCount !== "number" || !Number.isSafeInteger(lineCount) || lineCount < 1 || lineCount > 100) {
+      throw new Error("عدد بنود إيصال محفوظ غير صالح.");
+    }
+    const received = decimalQuantity(raw.received_quantity, "history.received_quantity");
+    const restockable = decimalQuantity(raw.restockable_quantity, "history.restockable_quantity");
+    const defective = decimalQuantity(raw.defective_quantity, "history.defective_quantity");
+    if (received <= 0 || restockable > received ||
+        Math.round((restockable + defective) * 1000) !== Math.round(received * 1000)) {
+      throw new Error("إجماليات إيصال محفوظ غير متسقة؛ تم منع إعادة الطباعة.");
+    }
+    return {
+      receipt_id: receiptId,
+      receipt_number: requiredText(raw.receipt_number, "history.receipt_number"),
+      request_number: requiredText(raw.request_number, "history.request_number"),
+      order_number: requiredText(raw.order_number, "history.order_number"),
+      customer_name: requiredText(raw.customer_name, "history.customer_name"),
+      warehouse_name: requiredText(raw.warehouse_name, "history.warehouse_name"),
+      received_at: receivedAt,
+      received_line_count: lineCount,
+      received_quantity: received,
+      restockable_quantity: restockable,
+      defective_quantity: defective,
+    };
+  });
+  return { receipts, has_more: value.has_more, limit: value.limit };
+}
