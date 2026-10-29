@@ -124,6 +124,27 @@ describe("TaskCenter role-boundary and print integration", () => {
     expect(screen.queryByRole("option", { name: "المحاسبة والتحصيل" })).not.toBeInTheDocument();
   });
 
+  it("does not print internal source entity UUIDs in the operational task register", async () => {
+    const internalSourceId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    setUser(["staff"]);
+    mocks.fetchOperationalTasks.mockResolvedValue([
+      task({
+        id: internalSourceId,
+        title: "مراجعة جرد المخزن",
+        task_role: "warehouse",
+        source_entity_type: "stock_count_sessions",
+      }),
+    ]);
+
+    render(<TaskCenter onNotice={vi.fn()} />);
+    await screen.findByRole("heading", { name: "مراجعة جرد المخزن" });
+
+    const printRoot = document.querySelector(".operational-task-print");
+    expect(printRoot).not.toBeNull();
+    expect(printRoot).toHaveTextContent("جلسة جرد");
+    expect(printRoot).not.toHaveTextContent(internalSourceId);
+  });
+
   it("keeps summary metrics inside the same role boundary as visible task rows", async () => {
     setUser(["staff"]);
     mocks.fetchOperationalTasks.mockResolvedValue([
