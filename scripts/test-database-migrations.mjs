@@ -519,7 +519,7 @@ async function main() {
   await expectFailure(
     "authenticated customers cannot use the staff customer 360 RPC",
     () => db.unsafe("select public.get_staff_customer_360($1::uuid)", [customerOneId]),
-    /active staff role required|staff role required|صلاحية موظف نشط مطلوبة|42501/i,
+    /active staff role required|staff role required|صلاحية موظف نشط مطلوبة|صلاحية موظف مخول ماليًا|42501/i,
   );
 
   // Authenticated customers may submit a cart, but must not enumerate the
