@@ -4007,6 +4007,32 @@ async function main() {
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   process.stdout.write("PASS product image storage boundary: public WebP catalog bucket, 8 MiB limit, direct browser writes denied; server Edge Function enforces tenant/product/role and WebP signature\\n");
 
+  // AGH-PRICE-PRIVACY-LEGACY-RPC-001: the internal pricing implementation must never be browser-callable.
+  const legacyPricingPrivileges = await db.unsafe(
+    "select has_function_privilege('anon','public.preview_order_pricing(jsonb)','EXECUTE') as anon_execute," +
+      "has_function_privilege('authenticated','public.preview_order_pricing(jsonb)','EXECUTE') as authenticated_execute," +
+      "has_function_privilege('service_role','public.preview_order_pricing(jsonb)','EXECUTE') as service_execute",
+  );
+  assert.equal(legacyPricingPrivileges[0].anon_execute, false, "anonymous users cannot execute internal order pricing");
+  assert.equal(legacyPricingPrivileges[0].authenticated_execute, false, "authenticated browser users cannot execute internal order pricing");
+  assert.equal(legacyPricingPrivileges[0].service_execute, true, "trusted service role retains internal order pricing access");
+
+  await db.unsafe("reset role");
+  await db.unsafe("set role anon");
+  await expectFailure(
+    "anonymous caller cannot execute internal order pricing",
+    () => db.unsafe("select public.preview_order_pricing('{}'::jsonb)"),
+    /permission denied/i,
+  );
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customer cannot execute internal order pricing",
+    () => db.unsafe("select public.preview_order_pricing('{}'::jsonb)"),
+    /permission denied/i,
+  );
+
   await db.unsafe("reset role");
   await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
   await db.unsafe("set role authenticated");
