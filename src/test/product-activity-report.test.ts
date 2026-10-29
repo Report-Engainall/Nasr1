@@ -33,7 +33,7 @@ describe("product activity report and XLSX output",()=>{
     expect(parsed.products[0].available_quantity).toBeNull();
   });
   it("rejects inconsistent summary totals and malformed stock values",()=>{
-    expect(()=>parseStoreProductActivityReport({...sample(),returned_products:2})).toThrow(/عدد صفوف التقرير/);
+    expect(()=>parseStoreProductActivityReport({...sample(),returned_products:2,truncated:true})).toThrow(/عدد صفوف التقرير/);
     expect(()=>parseStoreProductActivityReport({...sample(),summary:{...sample().summary,never_sold:0}})).toThrow(/ملخص تقرير حركة الأصناف/);
     expect(()=>parseStoreProductActivityReport({...sample(),products:sample().products.map((r,i)=>i===0?{...r,available_quantity:"0"}:r)})).toThrow(/رصيد المخزون/);
   });
