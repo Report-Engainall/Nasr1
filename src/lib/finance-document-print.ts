@@ -182,6 +182,13 @@ function customerLabel(customer: FinancePrintCustomer): string {
   // Internal UUIDs are authorization keys, not customer-facing document labels.
   return customer.business_name || customer.contact_name || customer.customer_code || "عميل غير مسمى";
 }
+function printableMemoCustomerLabel(value: unknown, fallbackValue: unknown): string {
+  const label = nullableText(value);
+  if (label && !UUID.test(label)) return label;
+  const fallback = nullableText(fallbackValue);
+  if (fallback && !UUID.test(fallback)) return fallback;
+  return "عميل غير مسمى";
+}
 function assertUUID(value: string, name: string): string {
   if (!UUID.test(value)) throw new Error("معرّف غير صالح في المستند: " + name);
   return value;
@@ -532,7 +539,7 @@ export function renderCreditMemoDocument(doc: Document, payload: PrintableCredit
   const main = addBase(doc, "الإشعار الدائن " + payload.memo.memo_number);
   const metadata: Array<[string, string]> = [
     ["المؤسسة المصدرة", issuerName],
-    ["العميل", payload.customer.name],
+    ["العميل", printableMemoCustomerLabel(payload.customer.name, payload.customer.contact_name)],
     ["الطلب", payload.invoice.order_number],
     ["الفاتورة الأصلية", payload.invoice.invoice_number],
     ["رقم الإشعار", payload.memo.memo_number],

@@ -150,6 +150,19 @@ describe("finance document print contracts", () => {
     })).toThrow(/يفتقد دليل قيد العكس المرحّل/);
   });
 
+  it("never renders an internal customer UUID as a credit memo customer label", () => {
+    const fixture = reversedCreditMemoFixture();
+    const parsed = readPrintableCreditMemo({
+      ...fixture,
+      customer: { id: customerId, name: customerId, contact_name: null },
+    });
+    const doc = document.implementation.createHTMLDocument("");
+    renderCreditMemoDocument(doc, parsed, "مؤسسة الاختبار");
+
+    expect(doc.body.textContent).toContain("عميل غير مسمى");
+    expect(doc.documentElement.outerHTML + doc.title).not.toContain(customerId);
+  });
+
   it("drops private organization, cost, margin, and foreign-tier fields from staff credit memo print output", () => {
     const source = reversedCreditMemoFixture();
     const input = {
