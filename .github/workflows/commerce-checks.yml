@@ -120,6 +120,12 @@ jobs:
           E2E_MANAGER_EMAIL: admin@aghbari.ye
           E2E_EMAIL: ci-customer-one@example.test
         run: node scripts/test-general-journal-reversal-concurrency.mjs
+      - name: Verify purchase receipt source-cost and balanced accounting on PostgreSQL 17
+        env:
+          E2E_MANAGER_EMAIL: admin@aghbari.ye
+          E2E_EMAIL: ci-customer-one@example.test
+          E2E_SUPABASE_URL: http://127.0.0.1:54321
+        run: node scripts/test-purchase-receipt-accounting.mjs
       - name: Verify concurrent customer and company invitation acceptance on PostgreSQL 17
         run: node scripts/test-invitation-acceptance-concurrency.mjs
       - name: Verify customer address default concurrency and tenant ownership on PostgreSQL 17
