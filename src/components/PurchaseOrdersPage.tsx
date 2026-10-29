@@ -53,12 +53,15 @@ export function PurchaseOrdersPage() {
   const [printMode,setPrintMode] = useState<'results'|'order'|null>(null);
 
   useEffect(() => {
-    if (!printMode) return;
     const resetPrintMode = () => setPrintMode(null);
     window.addEventListener('afterprint', resetPrintMode);
-    window.print();
     return () => window.removeEventListener('afterprint', resetPrintMode);
-  }, [printMode]);
+  }, []);
+
+  function startPrint(mode: 'results'|'order') {
+    setPrintMode(mode);
+    window.setTimeout(() => window.print(), 0);
+  }
 
   const load = useCallback(async () => {
     if (!canManage) { setLoading(false); return; }
@@ -268,7 +271,7 @@ export function PurchaseOrdersPage() {
         <div className="po-actions">
           <button className="btn secondary" type="button" onClick={()=>void load()} disabled={loading||busy}><RefreshCw size={16}/> تحديث</button>
           <button className="btn secondary" type="button" onClick={exportVisibleOrders} disabled={loading||busy||!visibleOrders.length}><FileSpreadsheet size={16}/> تصدير نتائج Excel</button>
-          <button className="btn outline" type="button" onClick={()=>setPrintMode('results')} disabled={!visibleOrders.length}><Printer size={16}/> طباعة النتائج</button>
+          <button className="btn outline" type="button" onClick={()=>startPrint('results')} disabled={!visibleOrders.length}><Printer size={16}/> طباعة النتائج</button>
           <button className="btn primary" type="button" onClick={()=>{setShowCreate((v)=>!v);setError('');}} disabled={busy}><Plus size={16}/>{showCreate?'إغلاق نموذج الشراء':'إنشاء مسودة أمر شراء'}</button>
         </div>
       </div>
@@ -335,7 +338,7 @@ export function PurchaseOrdersPage() {
                   {selectedOrder.status==='draft'&&<button className="btn primary" type="button" onClick={()=>void submitSelected()} disabled={busy}><Send size={15}/> اعتماد أمر الشراء للتوريد</button>}
                   {['submitted','partially_received'].includes(selectedOrder.status)&&<button className="btn primary" type="button" onClick={()=>void postReceipt()} disabled={busy}><PackageCheck size={15}/> ترحيل إيصال الاستلام</button>}
                   {['draft','submitted'].includes(selectedOrder.status)&&<button className="btn outline" type="button" onClick={()=>void cancelSelected()} disabled={busy}><Trash2 size={15}/> إلغاء أمر الشراء</button>}
-                  <button className="btn outline" type="button" onClick={()=>setPrintMode('order')} disabled={busy}><Printer size={15}/> طباعة الأمر</button>
+                  <button className="btn outline" type="button" onClick={()=>startPrint('order')} disabled={busy}><Printer size={15}/> طباعة الأمر</button>
                 </div>
                 {['submitted','partially_received'].includes(selectedOrder.status)&&<div className="no-print" style={{marginTop:16}}>
                   <h3>استلام فعلي (يمكن الاستلام على دفعات)</h3>
