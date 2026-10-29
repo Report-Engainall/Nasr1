@@ -2,7 +2,38 @@
 
 > **Single source of truth.** Update this file at every meaningful checkpoint: before starting a new task, after implementation, after tests, after merge, and when blocked. Do not restart discovery or repeat completed audits. Read only this file's newest **LIVE CHECKPOINT / NEXT ACTION** section first, verify the current main SHA and exact-SHA CI, then continue from the next incomplete acceptance item. Keep older entries as history; never let a historical SHA or status override live repository evidence.
 
-## LIVE CHECKPOINT — 2026-10-29 (Customer 360 Excel export accepted)
+## LIVE CHECKPOINT — 2026-10-29 (stock-count XLSX integrity verified; finance CI barrier test stabilized)
+
+**Verified at:** `2026-10-29T17:52:05Z`  
+**Repository / execution branch:** `Report-Engainall/Nasr1` / `main` only  
+**Exact tested application/code SHA:** `dba1d8eb062814f0e2c1d0dba3aff067cc75cc08`  
+**Aghbari Commerce CI:** [run 40924950053 — terminal SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40924950053)  
+**One-main cleanup:** [run 40924949954 — terminal SUCCESS on the same SHA](https://github.com/Report-Engainall/Nasr1/actions/runs/40924949954)
+
+### Completed and verified in this checkpoint
+
+1. **Recovered the exact-head CI failure without changing application behavior.** Run [40923245752](https://github.com/Report-Engainall/Nasr1/actions/runs/40923245752) failed in `scripts/test-customer-returns.mjs` because the settlement-lock test depended on the momentary `pg_stat_activity.state/query` snapshot. The two settlement RPCs both succeeded after releasing the test gate; the assertion incorrectly missed the second waiter. Commit [`3ae9829705f8f25017f5792e221289362fba57fd`](https://github.com/Report-Engainall/Nasr1/commit/3ae9829705f8f25017f5792e221289362fba57fd) now verifies the two dedicated backend PIDs waiting on the exact ungranted advisory lock held by the gate, using `pg_locks`. Exact-head run [40924155975](https://github.com/Report-Engainall/Nasr1/actions/runs/40924155975) passed.
+
+2. **Implemented warehouse stock-count Excel export.** `src/components/InventoryStockCountPage.tsx` exposes the saved stock-count snapshot export through `src/lib/stock-count-xlsx.ts`, with Arabic summary/detail worksheets. It retains leading-zero product codes; uses saved counts only; preserves unknown amounts as blank; escapes formula-like text; and omits private tenant, user, session, row and product identifiers from the workbook.
+
+3. **Added a source-consistency guard to that export.** Commit [`dba1d8eb062814f0e2c1d0dba3aff067cc75cc08`](https://github.com/Report-Engainall/Nasr1/commit/dba1d8eb062814f0e2c1d0dba3aff067cc75cc08) rejects export when the session's saved `counted_lines` differs from the number of detail rows with a saved actual count. The regression test in `src/lib/stock-count-xlsx.test.ts` covers the mismatch and prevents generating a contradictory summary.
+
+4. **Exact-SHA test evidence:** [run 40924950053](https://github.com/Report-Engainall/Nasr1/actions/runs/40924950053) passed **211/211 test files and 1,378/1,378 unit tests**. PostgreSQL 17 migration/workflow acceptance, RPC inventory generation/upload, finance/idempotency/concurrency, import/export, inventory stock-count and backup/restore checks, lint, build, preview/dev smoke and Chromium price-visibility acceptance completed successfully. The cleanup workflow also succeeded on the same code SHA.
+
+### Acceptance state — do not overstate completion
+
+- `DLV-007` remains **PARTIAL**: the stock-count export is implemented and accepted by exact-head CI, but full stock-movement/reservation/transfer lifecycle and real Onyx Pro round-trip remain unproven.
+- `DLV-005` remains **PARTIAL**: artifact-level price privacy and current code-level tests pass, but the full role/tier/session/API matrix and hosted authenticated authorization remain open.
+- `DLV-011` remains **OPEN**: the stock-count workbook adds warehouse-role output evidence, but all applicable role-by-template field allowlists and hosted authenticated output acceptance are not complete.
+- The central acceptance CSV currently contains **121 populated unique task IDs and 0 duplicates**. The 18 delivery groups have **0/18 fully release-closed**; an overall completion percentage remains **not computable** until mandatory specification leaves are mapped to candidate-specific evidence.
+- Full production release remains **NO-GO**. Hosted authenticated customer/tenant E2E, target-native Onyx acceptance, official WhatsApp delivery receipts, live AI-provider operation, production migration/deploy/rollback and restore evidence, and owner sign-off remain blocked or unverified.
+
+### NEXT ACTION
+
+Continue at the first uncovered `DLV-005` direct API/RPC role/tenant/tier/session boundary or `DLV-011` role/template output without equivalent artifact-level proof. Do not repeat the already accepted stock-count XLSX, purchase-order XLSX, Customer 360 XLSX, or previous statement/credit-memo PDF/print cases. Record new evidence here and in the existing matrix; do not create a parallel tracker.
+
+
+## HISTORICAL CHECKPOINT — 2026-10-29 (Customer 360 Excel export accepted; superseded by the newer code-tested checkpoint)
 
 - **Checkpoint timestamp (UTC):** 2026-10-29T17:19:58Z.
 - **Repository / only integration branch:** `Report-Engainall/Nasr1`, `main`. Exact tested code SHA: `088e42450dc2fe7dc72cc8f4a1b3ff3cd79af46b` ([commit](https://github.com/Report-Engainall/Nasr1/commit/088e42450dc2fe7dc72cc8f4a1b3ff3cd79af46b)).
