@@ -232,7 +232,10 @@ describe("offline workspace real-route acceptance", () => {
       isStaff: false,
     };
     await act(async () => {
-      root?.render(<RouterProvider router={router} />);
+      // The real AuthScopedOutlet remounts route-local UI when identity changes.
+      root?.unmount();
+      root = createRoot(host!);
+      root.render(<RouterProvider router={router} />);
     });
     await waitFor(() => {
       const row = host?.querySelector("li");
@@ -242,7 +245,9 @@ describe("offline workspace real-route acceptance", () => {
 
     mocks.user = null;
     await act(async () => {
-      root?.render(<RouterProvider router={router} />);
+      root?.unmount();
+      root = createRoot(host!);
+      root.render(<RouterProvider router={router} />);
     });
     await waitFor(() => {
       expect(host?.querySelector("li")).toBeNull();
