@@ -92,6 +92,12 @@ const distinctKeyClients = [
   postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 }),
 ];
 const customerClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+const foreignOrganizationId = randomUUID();
+const foreignOrganizationName = "CI Foreign Journal Reversal Tenant " + suffix;
+const foreignManagerAuthUserId = randomUUID();
+const foreignManagerProfileId = randomUUID();
+const foreignManagerEmail = "ci-journal-reversal-foreign-" + foreignManagerAuthUserId + "@example.test";
+const foreignManagerClient = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
 const sessionIds = [];
 const accountIds = [];
 const entryIds = [];
@@ -253,6 +259,32 @@ async function main() {
     setIdentity(client, manager, managerNamesDistinct[index], sessionIds)));
   await setIdentity(customerClient, customer, "ci-jrev-customer-" + suffix.slice(0, 5), sessionIds);
 
+  // Separate authenticated manager fixture: a cross-tenant journal identifier must remain opaque.
+  await admin.unsafe(
+    "insert into public.organizations(id,name,currency) values($1::uuid,$2,'YER')",
+    [foreignOrganizationId, foreignOrganizationName],
+  );
+  await admin.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1::uuid,$2,now()) " +
+      "on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [foreignManagerAuthUserId, foreignManagerEmail],
+  );
+  await admin.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
+      "values($1::uuid,$2::uuid,$3::uuid,$4,$5,true)",
+    [foreignManagerProfileId, foreignManagerAuthUserId, foreignOrganizationId, "CI Foreign Journal Reversal Manager " + suffix, foreignManagerEmail],
+  );
+  await admin.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1::uuid,'manager')",
+    [foreignManagerProfileId],
+  );
+  await setIdentity(
+    foreignManagerClient,
+    { auth_user_id: foreignManagerAuthUserId, email: foreignManagerEmail },
+    "ci-jrev-foreign-" + suffix.slice(0, 5),
+    sessionIds,
+  );
+
   const sameOriginal = await createPostedManualJournal(
     sameKeyClients[0], debitAccount[0].id, creditAccount[0].id, "same-key",
   );
@@ -310,6 +342,32 @@ async function main() {
   assert.equal(await reversalAuditCount(sameRows[0].reversal_link_id), 1,
     "customer denial must not create another audit event");
 
+  const foreignDenialBaseline = await reversalRows(sameOriginal);
+  const foreignDenialAuditCount = await reversalAuditCount(sameRows[0].reversal_link_id);
+  const foreignIdempotencyKey = randomUUID();
+  const foreignManagerError = await expectFailure(
+    "foreign-tenant manager cannot reverse or discover another organization's posted journal",
+    () => foreignManagerClient.unsafe(
+      "select public.reverse_general_journal_entry($1::uuid,$2::text,$3::uuid)",
+      [sameOriginal, "Foreign tenant reversal denial", foreignIdempotencyKey],
+    ),
+    /journal entry not found in this organization/i,
+    "P0002",
+  );
+  assert.equal(foreignManagerError.code, "P0002",
+    "foreign-tenant journal reversal denial must use opaque SQLSTATE P0002");
+  assert.deepEqual(await reversalRows(sameOriginal), foreignDenialBaseline,
+    "foreign-tenant denial leaves the owner's reversal link unchanged");
+  assert.equal(await reversalAuditCount(sameRows[0].reversal_link_id), foreignDenialAuditCount,
+    "foreign-tenant denial creates no additional owner-tenant reversal audit");
+  const foreignDeniedEntries = await admin.unsafe(
+    "select id::text as id,organization_id::text as organization_id from public.accounting_journal_entries " +
+      "where idempotency_key=$1::uuid",
+    [foreignIdempotencyKey],
+  );
+  assert.equal(foreignDeniedEntries.length, 0,
+    "foreign-tenant denial must not create a journal entry under the rejected idempotency key");
+
   const distinctOriginal = await createPostedManualJournal(
     distinctKeyClients[0], debitAccount[0].id, creditAccount[0].id, "distinct-key",
   );
@@ -350,7 +408,7 @@ async function main() {
     "creating a reversal draft preserves the original posted journals");
   process.stdout.write(
     "PASS PostgreSQL 17 generic journal reversal: same-key concurrent idempotency, distinct-key original uniqueness, " +
-    "blocked-session barrier, exact mirrored lines, draft-only status, customer denial and single audit per reversal\n",
+    "blocked-session barrier, exact mirrored lines, draft-only status, customer/foreign-tenant denial with no side effects, and single audit per reversal\n",
   );
 }
 
@@ -395,6 +453,13 @@ try {
     if (sessionIds.length) {
       await admin.unsafe("delete from auth.sessions where id=any($1::uuid[])", [sessionIds]);
     }
+    await admin.unsafe("delete from public.user_roles where profile_id=$1::uuid", [foreignManagerProfileId]);
+    await admin.unsafe("delete from public.profiles where id=$1::uuid", [foreignManagerProfileId]);
+    await admin.unsafe(
+      "delete from public.organizations where id=$1::uuid and name=$2",
+      [foreignOrganizationId, foreignOrganizationName],
+    );
+    await admin.unsafe("delete from auth.users where id=$1::uuid", [foreignManagerAuthUserId]);
   } catch (error) {
     console.error("CLEANUP_FAILED journal reversal acceptance fixtures:", String(error));
     process.exitCode = 1;
@@ -406,5 +471,6 @@ try {
     ...sameKeyClients.map((client) => client.end({ timeout: 5 }).catch(() => {})),
     ...distinctKeyClients.map((client) => client.end({ timeout: 5 }).catch(() => {})),
     customerClient.end({ timeout: 5 }).catch(() => {}),
+    foreignManagerClient.end({ timeout: 5 }).catch(() => {}),
   ]);
 }
