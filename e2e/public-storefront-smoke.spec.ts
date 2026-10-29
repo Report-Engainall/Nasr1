@@ -595,7 +595,7 @@ test("customer navigation routes preserve metadata, RTL, and viewport fit", asyn
       expect(response?.status(), `Direct navigation failed for ${route.path}`).toBe(200);
       await expect(page).toHaveTitle(route.title);
       await expect(
-        page.locator("h1, h2").first(),
+        page.locator("h1:visible, h2:visible").first(),
         `Expected an accessible page heading on ${route.path}`,
       ).toBeVisible();
 
