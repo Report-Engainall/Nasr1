@@ -89,20 +89,23 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
   const [savedReceipt, setSavedReceipt] = useState<SavedReturnReceipt | null>(null);
   const [receiptHistory, setReceiptHistory] = useState<CustomerReturnReceiptHistoryEntry[]>([]);
   const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyOffset, setHistoryOffset] = useState(0);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyBusyId, setHistoryBusyId] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState("");
   const historyRequestId = useRef(0);
 
-  const loadReceiptHistory = useCallback(async () => {
+  const loadReceiptHistory = useCallback(async (offset = 0) => {
     const requestId = ++historyRequestId.current;
     setHistoryLoading(true);
     setHistoryError("");
+    setHistoryOffset(offset);
     try {
-      const { data, error: rpcError } = await supabase.rpc("list_customer_return_receipt_print_history", { p_limit: 50 });
+      const { data, error: rpcError } = await supabase.rpc("list_customer_return_receipt_print_history", { p_limit: 50, p_offset: offset });
       if (rpcError) throw new Error(rpcError.message || "تعذر تحميل سجل إيصالات المرتجعات المحفوظة.");
       const result = readCustomerReturnReceiptPrintHistory(data);
       if (requestId !== historyRequestId.current) return;
+      if (result.offset !== offset) throw new Error("أعاد الخادم صفحة إيصالات مختلفة عن الصفحة المطلوبة.");
       setReceiptHistory(result.receipts);
       setHistoryHasMore(result.has_more);
     } catch {
@@ -214,7 +217,7 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
       // The old printable receipt must not remain available after a new receipt has saved.
       // If its persisted snapshot cannot be fetched, fail closed instead of leaving stale print evidence.
       setSavedReceipt(null);
-      void loadReceiptHistory();
+      void loadReceiptHistory(0);
       let persistedReceipt: ReturnType<typeof readCustomerReturnReceiptPrintData>;
       try {
         const { data: printData, error: printDataError } = await supabase.rpc(
@@ -392,7 +395,7 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
             <h3 id="return-receipt-history-heading" style={{ margin: 0, fontSize: 16 }}>سجل إيصالات الاستلام المحفوظة</h3>
             <p style={muted}>إعادة تجهيز للطباعة من النسخة المحفوظة في قاعدة البيانات، لا من تفاصيل قائمة العمل الحالية.</p>
           </div>
-          <button type="button" style={button} onClick={() => void loadReceiptHistory()} disabled={historyLoading || historyBusyId !== null || busyId !== null}>
+          <button type="button" style={button} onClick={() => void loadReceiptHistory(historyOffset)} disabled={historyLoading || historyBusyId !== null || busyId !== null}>
             <RefreshCw size={14} /> تحديث سجل الإيصالات
           </button>
         </div>
@@ -417,7 +420,19 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
             </div>
           </article>
         ))}
-        {historyHasMore && <p style={muted}>يعرض السجل أحدث 50 إيصالًا فقط؛ الأقدم محفوظة في قاعدة البيانات ولم تُعرض ضمن هذه الصفحة.</p>}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <p style={muted}>الصفحة {Math.floor(historyOffset / 50) + 1} · السجلات {historyOffset + 1}–{historyOffset + receiptHistory.length}</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" style={button} onClick={() => void loadReceiptHistory(Math.max(0, historyOffset - 50))}
+              disabled={historyLoading || historyBusyId !== null || busyId !== null || historyOffset === 0}>
+              السجلات الأحدث
+            </button>
+            <button type="button" style={button} onClick={() => void loadReceiptHistory(historyOffset + 50)}
+              disabled={historyLoading || historyBusyId !== null || busyId !== null || !historyHasMore}>
+              السجلات الأقدم
+            </button>
+          </div>
+        </div>
       </section>
     </section>
   );

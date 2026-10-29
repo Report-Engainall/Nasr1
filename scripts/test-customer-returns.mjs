@@ -1191,6 +1191,28 @@ async function main() {
     "received_at","received_line_count","received_quantity","restockable_quantity","defective_quantity",
   ].sort(),"history result returns only the documented bounded receipt header allowlist");
 
+  const firstReceiptPageRaw = await db.unsafe(
+    "select public.list_customer_return_receipt_print_history(1,0) as result",
+  );
+  const firstReceiptPage = asJson(firstReceiptPageRaw[0].result);
+  assert.equal(firstReceiptPage.offset,0);
+  assert.equal(firstReceiptPage.receipts.length,1);
+  assert.equal(firstReceiptPage.has_more,true,"first page advertises the remaining saved receipt");
+  const olderReceiptPageRaw = await db.unsafe(
+    "select public.list_customer_return_receipt_print_history(1,1) as result",
+  );
+  const olderReceiptPage = asJson(olderReceiptPageRaw[0].result);
+  assert.equal(olderReceiptPage.offset,1);
+  assert.equal(olderReceiptPage.receipts.length,1);
+  assert.equal(olderReceiptPage.has_more,false,"second page closes the two-receipt test fixture");
+  assert.notEqual(firstReceiptPage.receipts[0].receipt_id,olderReceiptPage.receipts[0].receipt_id,
+    "adjacent pages do not repeat the same receipt");
+  await expectFailure(
+    "receipt history offset has a strict upper bound",
+    () => db.unsafe("select public.list_customer_return_receipt_print_history(50,1000001)"),
+    /return receipt history offset must be between 0 and 1000000/i,
+  );
+
   const firstPrintSnapshotRaw = await db.unsafe(
     "select public.get_customer_return_receipt_print_data($1::uuid) as result",
     [firstReceipt.receipt_id],

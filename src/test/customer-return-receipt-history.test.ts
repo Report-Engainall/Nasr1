@@ -21,9 +21,11 @@ describe("persisted return receipt print history", () => {
       receipts: [validReceipt],
       has_more: true,
       limit: 50,
+      offset: 100,
       internal_debug_id: "MUST-BE-IGNORED",
     });
     expect(parsed.limit).toBe(50);
+    expect(parsed.offset).toBe(100);
     expect(parsed.has_more).toBe(true);
     expect(parsed.receipts).toEqual([validReceipt]);
     expect(JSON.stringify(parsed)).not.toContain("MUST-BE-IGNORED");
@@ -31,13 +33,16 @@ describe("persisted return receipt print history", () => {
 
   it("fails closed on invalid pagination, duplicate identities, and mismatched receipt totals", () => {
     expect(() => readCustomerReturnReceiptPrintHistory({
-      receipts: [validReceipt], has_more: false, limit: 0,
+      receipts: [validReceipt], has_more: false, limit: 0, offset: 0,
     })).toThrow(/سجل إيصالات محفوظة غير صالح/);
     expect(() => readCustomerReturnReceiptPrintHistory({
-      receipts: [validReceipt, validReceipt], has_more: false, limit: 50,
+      receipts: [validReceipt], has_more: false, limit: 50, offset: 0, offset: -1,
+    })).toThrow(/سجل إيصالات محفوظة غير صالح/);
+    expect(() => readCustomerReturnReceiptPrintHistory({
+      receipts: [validReceipt, validReceipt], has_more: false, limit: 50, offset: 0,
     })).toThrow(/معرّفًا مكررًا/);
     expect(() => readCustomerReturnReceiptPrintHistory({
-      receipts: [{ ...validReceipt, defective_quantity: 1 }], has_more: false, limit: 50,
+      receipts: [{ ...validReceipt, defective_quantity: 1 }], has_more: false, limit: 50, offset: 0,
     })).toThrow(/إجماليات إيصال محفوظ غير متسقة/);
     expect(() => readCustomerReturnReceiptPrintHistory({
       receipts: [validReceipt], has_more: false, limit: 1, extra: "x",
@@ -46,6 +51,7 @@ describe("persisted return receipt print history", () => {
       receipts: [validReceipt, { ...validReceipt, receipt_id: "second" }],
       has_more: false,
       limit: 1,
+      offset: 0,
     })).toThrow(/سجل إيصالات محفوظة غير صالح/);
   });
 });

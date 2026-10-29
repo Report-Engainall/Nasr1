@@ -288,13 +288,16 @@ export interface CustomerReturnReceiptPrintHistory {
   receipts: CustomerReturnReceiptHistoryEntry[];
   has_more: boolean;
   limit: number;
+  offset: number;
 }
 
 export function readCustomerReturnReceiptPrintHistory(value: unknown): CustomerReturnReceiptPrintHistory {
   if (!isRecord(value) || !Array.isArray(value.receipts) ||
       typeof value.has_more !== "boolean" ||
       typeof value.limit !== "number" || !Number.isSafeInteger(value.limit) ||
-      value.limit < 1 || value.limit > 100 || value.receipts.length > value.limit) {
+      value.limit < 1 || value.limit > 100 || value.receipts.length > value.limit ||
+      typeof value.offset !== "number" || !Number.isSafeInteger(value.offset) ||
+      value.offset < 0 || value.offset > 1_000_000) {
     throw new Error("أعاد الخادم سجل إيصالات محفوظة غير صالح.");
   }
   const seenIds = new Set<string>();
@@ -330,5 +333,5 @@ export function readCustomerReturnReceiptPrintHistory(value: unknown): CustomerR
       defective_quantity: defective,
     };
   });
-  return { receipts, has_more: value.has_more, limit: value.limit };
+  return { receipts, has_more: value.has_more, limit: value.limit, offset: value.offset };
 }

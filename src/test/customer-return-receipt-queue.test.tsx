@@ -43,6 +43,7 @@ const persistedHistory = {
   }],
   has_more: false,
   limit: 50,
+  offset: 0,
 };
 
 const mutationResult = {
@@ -88,7 +89,7 @@ describe("warehouse return receipt printing", () => {
   beforeEach(() => {
     let queueCalls = 0;
     mocks.rpc.mockReset().mockImplementation(async (name: string) => {
-      if (name === "list_customer_return_receipt_print_history") return { data: { receipts: [], has_more: false, limit: 50 }, error: null };
+      if (name === "list_customer_return_receipt_print_history") return { data: { receipts: [], has_more: false, limit: 50, offset: Number(args?.p_offset ?? 0) }, error: null };
       if (name === "list_customer_return_receipt_queue") {
         queueCalls += 1;
         return { data: queueCalls === 1 ? queue : { warehouses: queue.warehouses, requests: [] }, error: null };
@@ -131,7 +132,7 @@ describe("warehouse return receipt printing", () => {
     const secondReceiptId = "66666666-6666-4666-8666-666666666666";
     let receiveCalls = 0;
     mocks.rpc.mockImplementation(async (name: string, args?: Record<string, unknown>) => {
-      if (name === "list_customer_return_receipt_print_history") return { data: { receipts: [], has_more: false, limit: 50 }, error: null };
+      if (name === "list_customer_return_receipt_print_history") return { data: { receipts: [], has_more: false, limit: 50, offset: Number(args?.p_offset ?? 0) }, error: null };
       if (name === "list_customer_return_receipt_queue") return { data: queue, error: null };
       if (name === "receive_customer_return") {
         receiveCalls += 1;
@@ -186,7 +187,7 @@ describe("warehouse return receipt printing", () => {
     fireEvent.click(screen.getByRole("button", { name: /إعادة تجهيز الإيصال للطباعة RETREC-20261029-ABCDEF12/ }));
     await screen.findByRole("button", { name: /طباعة الإيصال RETREC-20261029-ABCDEF12/ });
 
-    expect(mocks.rpc).toHaveBeenCalledWith("list_customer_return_receipt_print_history", { p_limit: 50 });
+    expect(mocks.rpc).toHaveBeenCalledWith("list_customer_return_receipt_print_history", { p_limit: 50, p_offset: 0 });
     expect(mocks.rpc).toHaveBeenCalledWith("get_customer_return_receipt_print_data", { p_receipt_id: receiptId });
     const printable = container.querySelector<HTMLElement>(".return-receipt-print");
     expect(printable?.textContent).toContain("اسم العميل من سجل الإيصال");
@@ -195,9 +196,43 @@ describe("warehouse return receipt printing", () => {
     expect(printable?.innerHTML).not.toContain(receiptId);
   });
 
+  it("pages through older saved receipts using the server offset and keeps page boundaries exact", async () => {
+    const secondReceiptId = "66666666-6666-4666-8666-666666666666";
+    const olderHistory = {
+      receipts: [{ ...persistedHistory.receipts[0], receipt_id: secondReceiptId, receipt_number: "RETREC-20261028-OLDER0001" }],
+      has_more: false,
+      limit: 50,
+      offset: 50,
+    };
+    mocks.rpc.mockImplementation(async (name: string, args?: Record<string, unknown>) => {
+      if (name === "list_customer_return_receipt_queue") return { data: { warehouses: queue.warehouses, requests: [] }, error: null };
+      if (name === "list_customer_return_receipt_print_history") {
+        if (args?.p_offset === 50) return { data: olderHistory, error: null };
+        return { data: persistedHistory, error: null };
+      }
+      if (name === "get_customer_return_receipt_print_data") return { data: persistedPrintSnapshot, error: null };
+      return { data: null, error: { message: "unexpected RPC " + name } };
+    });
+    render(<CustomerReturnReceiptQueue onNotice={vi.fn()} />);
+    await screen.findByRole("button", { name: /السجلات الأقدم/ });
+    expect(screen.getByRole("button", { name: /السجلات الأقدم/ })).toBeEnabled();
+    expect(screen.getByText("RETREC-20261029-ABCDEF12")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /السجلات الأقدم/ }));
+    await screen.findByText("RETREC-20261028-OLDER0001");
+    expect(mocks.rpc).toHaveBeenCalledWith("list_customer_return_receipt_print_history", { p_limit: 50, p_offset: 50 });
+    expect(screen.queryByText("RETREC-20261029-ABCDEF12")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /السجلات الأحدث/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /السجلات الأقدم/ })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /السجلات الأحدث/ }));
+    await screen.findByText("RETREC-20261029-ABCDEF12");
+    expect(mocks.rpc).toHaveBeenCalledWith("list_customer_return_receipt_print_history", { p_limit: 50, p_offset: 0 });
+  });
+
   it("does not render a print button or pretend the receipt snapshot loaded when persisted totals disagree", async () => {
     mocks.rpc.mockImplementation(async (name: string) => {
-      if (name === "list_customer_return_receipt_print_history") return { data: { receipts: [], has_more: false, limit: 50 }, error: null };
+      if (name === "list_customer_return_receipt_print_history") return { data: { receipts: [], has_more: false, limit: 50, offset: Number(args?.p_offset ?? 0) }, error: null };
       if (name === "list_customer_return_receipt_queue") return { data: queue, error: null };
       if (name === "receive_customer_return") return { data: mutationResult, error: null };
       if (name === "get_customer_return_receipt_print_data") {
