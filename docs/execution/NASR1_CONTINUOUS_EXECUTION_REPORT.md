@@ -1,3 +1,17 @@
+## LIVE CHECKPOINT — 2026-10-30 — stock-count boundary verified; purchase-order cancellation next
+
+- **Latest verified Core SHA:** `c5e35963dcb8afa1d04eb692a89ef6bc25e25d84`; Core [40971449141 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40971449141), 35/35 steps. The run includes the isolated PostgreSQL 17 stock-count start/cancel audit test (step 20 SUCCESS), lint, build, production preview smoke, dev server smoke and browser price acceptance. It proves the tested cancellation-denial scenarios only; it does not close the whole inventory lifecycle.
+- **P2 on c5:** [40971449064](https://github.com/Report-Engainall/Nasr1/actions/runs/40971449064) public smoke SUCCESS, authenticated infrastructure gate SUCCESS, hosted customer/order/tenant E2E SKIPPED, local Supabase authenticated test still IN_PROGRESS when last observed (credit memo/return scenario). Cleanup [40971449096](https://github.com/Report-Engainall/Nasr1/actions/runs/40971449096) SUCCESS.
+- **Current main at next change base:** `e4d2209bf67952aecf8b6e24d9cb12b0f5a1fb5e`; a separate P1 commit added a real keyboard-only login/focus/password-visibility E2E and visible focus styling. Core [40971739122](https://github.com/Report-Engainall/Nasr1/actions/runs/40971739122) was IN_PROGRESS and cleanup [40971739048](https://github.com/Report-Engainall/Nasr1/actions/runs/40971739048) SUCCESS at checkpoint time. Keep that UI code untouched in P2's DB test change.
+- **New server-side test:** `scripts/test-database-migrations.mjs` now tests `cancel_purchase_order` for same-tenant ordinary staff (expect SQLSTATE `42501`) and a valid manager from another tenant (expect opaque SQLSTATE `42501`, “purchase order is not available in this organization”). A rejected cancellation must leave the draft status, cancelled actor/time/reason unchanged; create no cancellation audit, receipt or purchase-order movement; and leave on-hand quantity unchanged. An authorized admin cancellation follows the denials to retain positive-path coverage. This is IMPLEMENTED, not TESTED_EXACT_SHA until its new Core test run finishes.
+- **Earlier security proof:** `cancel_stock_count` denial/no-side-effect regression is TESTED_EXACT_SHA on c5 using Core's isolated PostgreSQL 17 step 20. DLV-007 remains PARTIAL.
+- **Finance/print reconciliation:** unnamed-customer selector/PDF fallback, admin/manager/accountant permissions, ordinary-staff/customer denial, and foreign-tenant isolation already existed and passed Core on c9838d8 (run [40945751611](https://github.com/Report-Engainall/Nasr1/actions/runs/40945751611)). DLV-011 remains OPEN for the full role/template PDF/XLSX/print output matrix and hosted journey proof.
+- **Existing inventory:** RPC source artifact [12929127056](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/12929127056/zip) maps 330/330 functions across 173 migrations; this does not establish semantic authorization proof.
+- **Acceptance now:** DLV-007 PARTIAL; DLV-008 PARTIAL; DLV-011 OPEN; DLV-015 PARTIAL. Hosted E2E, Onyx, WhatsApp, live AI, production operations and owner release approval remain unproven. Release NO-GO.
+- **Next action:** run Core on the exact new candidate and verify the purchase-order cancellation denials; get P2 and cleanup terminal results on the exact SHA. Then pick one next untested destructive RPC from the existing inventory.
+
+---
+
 ## LIVE CHECKPOINT — 2026-10-30 — stock-count cancellation security boundary (candidate verification pending)
 
 - **Repository/branch:** `Report-Engainall/Nasr1` / `main` only.

@@ -2361,6 +2361,105 @@ async function main() {
   );
   assert.equal(unknownCostPoResult[0].result.purchase_order.total_cost,null,"missing supplier cost must not be treated as zero");
   assert.equal(unknownCostPoResult[0].result.purchase_order.items[0].unit_cost,null);
+  // AGH-PURCHASE-CANCEL-SECURITY-001: rejection is tenant-safe and has no side effects.
+  const unknownCostPurchaseOrderId = unknownCostPoResult[0].result.purchase_order.id;
+  const foreignPurchaseManagerAuthId = randomUUID();
+  const foreignPurchaseManagerProfileId = randomUUID();
+  const foreignPurchaseManagerEmail = "ci-po-foreign-manager-" + foreignPurchaseManagerAuthId + "@example.test";
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()) " +
+      "on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [foreignPurchaseManagerAuthId, foreignPurchaseManagerEmail],
+  );
+  await db.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
+      "values($1,$2,$3,'CI Foreign Purchase Manager',$4,true)",
+    [foreignPurchaseManagerProfileId, foreignPurchaseManagerAuthId, otherOrganizationId, foreignPurchaseManagerEmail],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'manager')",
+    [foreignPurchaseManagerProfileId],
+  );
+
+  async function assertPurchaseOrderCancellationUnchanged(label) {
+    await db.unsafe("reset role").catch(() => {});
+    const orderRows = await db.unsafe(
+      "select status,cancelled_by::text as cancelled_by,cancelled_at::text as cancelled_at,cancellation_reason " +
+        "from public.purchase_orders where id=$1::uuid",
+      [unknownCostPurchaseOrderId],
+    );
+    assert.equal(orderRows.length, 1, label + ": purchase order remains present");
+    assert.deepEqual(orderRows[0], {
+      status: "draft",
+      cancelled_by: null,
+      cancelled_at: null,
+      cancellation_reason: null,
+    }, label + ": denied cancellation must preserve purchase-order state");
+    const auditRows = await db.unsafe(
+      "select count(*)::integer as count from public.audit_logs " +
+        "where organization_id=$1::uuid and action='purchase_order.cancelled' " +
+        "and entity_type='purchase_order' and entity_id=$2::uuid",
+      [organizationId, unknownCostPurchaseOrderId],
+    );
+    assert.equal(Number(auditRows[0]?.count ?? 0), 0, label + ": denied cancellation must not write a cancellation audit");
+    const receiptRows = await db.unsafe(
+      "select count(*)::integer as count from public.purchase_receipts where purchase_order_id=$1::uuid",
+      [unknownCostPurchaseOrderId],
+    );
+    assert.equal(Number(receiptRows[0]?.count ?? 0), 0, label + ": denied cancellation must not create a receipt");
+    const movementRows = await db.unsafe(
+      "select count(*)::integer as count from public.inventory_movements " +
+        "where reference_type='purchase_order' and reference_id=$1::uuid",
+      [unknownCostPurchaseOrderId],
+    );
+    assert.equal(Number(movementRows[0]?.count ?? 0), 0, label + ": denied cancellation must not create an inventory movement");
+    const balanceRows = await db.unsafe(
+      "select quantity_on_hand from public.inventory_balances where product_id=$1::uuid and warehouse_id=$2::uuid",
+      [productId, receivingWarehouseId],
+    );
+    assert.equal(balanceRows.length, 1, label + ": the inventory balance fixture remains present");
+    assert.equal(Number(balanceRows[0].quantity_on_hand), openingOnHand,
+      label + ": denied cancellation must not change on-hand inventory");
+  }
+
+  async function expectPurchaseOrderCancellationDenied(authId, identityEmail, label, expectedState, expectedMessage) {
+    await db.unsafe("reset role");
+    await setIdentity(authId, identityEmail);
+    await db.unsafe("set role authenticated");
+    await db.unsafe("begin");
+    await db.unsafe("savepoint purchase_order_cancel_denial");
+    const failure = await db.unsafe(
+      "select public.cancel_purchase_order($1::uuid,$2::text)",
+      [unknownCostPurchaseOrderId, "CI rejected cancel must not mutate"],
+    ).then(() => null, (error) => error);
+    await db.unsafe("rollback to savepoint purchase_order_cancel_denial");
+    await db.unsafe("release savepoint purchase_order_cancel_denial");
+    await db.unsafe("commit");
+    await db.unsafe("reset role");
+    assert.ok(failure, label + ": cancellation should be denied");
+    assert.equal(failure.code, expectedState, label + ": expected SQLSTATE");
+    assert.match(String(failure.message), expectedMessage, label + ": expected denial reason");
+    await assertPurchaseOrderCancellationUnchanged(label);
+  }
+
+  await expectPurchaseOrderCancellationDenied(
+    operationsStaffAuthUserId,
+    "ci-operations-staff@example.test",
+    "same-tenant ordinary staff cannot cancel a purchase order",
+    "42501",
+    /admin or manager role required to cancel purchase orders/i,
+  );
+  await expectPurchaseOrderCancellationDenied(
+    foreignPurchaseManagerAuthId,
+    foreignPurchaseManagerEmail,
+    "foreign-tenant manager cannot cancel or learn whether a purchase order exists",
+    "42501",
+    /purchase order is not available in this organization/i,
+  );
+
+  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
   const cancelledUnknownCost = await db.unsafe(
     "select public.cancel_purchase_order($1::uuid,$2::text) as result",
     [unknownCostPoResult[0].result.purchase_order.id,"CI cancel unused unknown-cost draft"],
