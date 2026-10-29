@@ -208,7 +208,7 @@ describe("warehouse return receipt printing", () => {
       if (name === "list_customer_return_receipt_queue") return { data: { warehouses: queue.warehouses, requests: [] }, error: null };
       if (name === "list_customer_return_receipt_print_history") {
         if (args?.p_offset === 50) return { data: olderHistory, error: null };
-        return { data: persistedHistory, error: null };
+        return { data: { ...persistedHistory, has_more: true }, error: null };
       }
       if (name === "get_customer_return_receipt_print_data") return { data: persistedPrintSnapshot, error: null };
       return { data: null, error: { message: "unexpected RPC " + name } };
