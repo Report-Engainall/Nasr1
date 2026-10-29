@@ -150,6 +150,102 @@ describe("finance document print contracts", () => {
     })).toThrow(/يفتقد دليل قيد العكس المرحّل/);
   });
 
+  it("drops private organization, cost, margin, and foreign-tier fields from staff credit memo print output", () => {
+    const source = reversedCreditMemoFixture();
+    const input = {
+      ...source,
+      organization_id: "FOREIGN-CREDIT-ORG-PRINT-SENTINEL",
+      warehouse_id: "PRIVATE-CREDIT-WAREHOUSE-PRINT-SENTINEL",
+      cost_price: "INTERNAL-CREDIT-COST-PRINT-SENTINEL",
+      profit_margin: "INTERNAL-CREDIT-MARGIN-PRINT-SENTINEL",
+      foreign_tier_price: "FOREIGN-CREDIT-TIER-PRINT-SENTINEL",
+      memo: {
+        ...source.memo,
+        organization_id: "FOREIGN-MEMO-ORG-PRINT-SENTINEL",
+        warehouse_id: "PRIVATE-MEMO-WAREHOUSE-PRINT-SENTINEL",
+        cost_price: "INTERNAL-MEMO-COST-PRINT-SENTINEL",
+        purchase_price: "INTERNAL-MEMO-PURCHASE-PRINT-SENTINEL",
+        gross_profit: "INTERNAL-MEMO-GROSS-PROFIT-PRINT-SENTINEL",
+        foreign_tier_price: "FOREIGN-MEMO-TIER-PRINT-SENTINEL",
+      },
+      customer: {
+        ...source.customer,
+        organization_id: "FOREIGN-CUSTOMER-ORG-PRINT-SENTINEL",
+        internal_margin: "INTERNAL-CUSTOMER-MARGIN-PRINT-SENTINEL",
+      },
+      invoice: {
+        ...source.invoice,
+        organization_id: "FOREIGN-INVOICE-ORG-PRINT-SENTINEL",
+        cost_price: "INTERNAL-INVOICE-COST-PRINT-SENTINEL",
+        unit_cost: "INTERNAL-INVOICE-UNIT-COST-PRINT-SENTINEL",
+        foreign_tier_price: "FOREIGN-INVOICE-TIER-PRINT-SENTINEL",
+      },
+      return_request: {
+        ...source.return_request,
+        organization_id: "FOREIGN-RETURN-ORG-PRINT-SENTINEL",
+        cost_price: "INTERNAL-RETURN-COST-PRINT-SENTINEL",
+      },
+      journal: {
+        ...source.journal,
+        organization_id: "FOREIGN-JOURNAL-ORG-PRINT-SENTINEL",
+        internal_cost: "INTERNAL-JOURNAL-COST-PRINT-SENTINEL",
+      },
+      lines: source.lines.map((line) => ({
+        ...line,
+        organization_id: "FOREIGN-LINE-ORG-PRINT-SENTINEL",
+        warehouse_id: "PRIVATE-LINE-WAREHOUSE-PRINT-SENTINEL",
+        cost_price: "INTERNAL-LINE-COST-PRINT-SENTINEL",
+        purchase_price: "INTERNAL-LINE-PURCHASE-PRINT-SENTINEL",
+        profit_margin: "INTERNAL-LINE-MARGIN-PRINT-SENTINEL",
+        foreign_tier_price: "FOREIGN-LINE-TIER-PRINT-SENTINEL",
+        internal_cost_amount: "987654.32",
+      })),
+    };
+
+    const parsed = readPrintableCreditMemo(input);
+    const serialized = JSON.stringify(parsed);
+    const secrets = [
+      "FOREIGN-CREDIT-ORG-PRINT-SENTINEL",
+      "PRIVATE-CREDIT-WAREHOUSE-PRINT-SENTINEL",
+      "INTERNAL-CREDIT-COST-PRINT-SENTINEL",
+      "INTERNAL-CREDIT-MARGIN-PRINT-SENTINEL",
+      "FOREIGN-CREDIT-TIER-PRINT-SENTINEL",
+      "FOREIGN-MEMO-ORG-PRINT-SENTINEL",
+      "PRIVATE-MEMO-WAREHOUSE-PRINT-SENTINEL",
+      "INTERNAL-MEMO-COST-PRINT-SENTINEL",
+      "INTERNAL-MEMO-PURCHASE-PRINT-SENTINEL",
+      "INTERNAL-MEMO-GROSS-PROFIT-PRINT-SENTINEL",
+      "FOREIGN-MEMO-TIER-PRINT-SENTINEL",
+      "FOREIGN-CUSTOMER-ORG-PRINT-SENTINEL",
+      "INTERNAL-CUSTOMER-MARGIN-PRINT-SENTINEL",
+      "FOREIGN-INVOICE-ORG-PRINT-SENTINEL",
+      "INTERNAL-INVOICE-COST-PRINT-SENTINEL",
+      "INTERNAL-INVOICE-UNIT-COST-PRINT-SENTINEL",
+      "FOREIGN-INVOICE-TIER-PRINT-SENTINEL",
+      "FOREIGN-RETURN-ORG-PRINT-SENTINEL",
+      "INTERNAL-RETURN-COST-PRINT-SENTINEL",
+      "FOREIGN-JOURNAL-ORG-PRINT-SENTINEL",
+      "INTERNAL-JOURNAL-COST-PRINT-SENTINEL",
+      "FOREIGN-LINE-ORG-PRINT-SENTINEL",
+      "PRIVATE-LINE-WAREHOUSE-PRINT-SENTINEL",
+      "INTERNAL-LINE-COST-PRINT-SENTINEL",
+      "INTERNAL-LINE-PURCHASE-PRINT-SENTINEL",
+      "INTERNAL-LINE-MARGIN-PRINT-SENTINEL",
+      "FOREIGN-LINE-TIER-PRINT-SENTINEL",
+      "987654.32",
+    ];
+    for (const secret of secrets) expect(serialized).not.toContain(secret);
+
+    const doc = document.implementation.createHTMLDocument("");
+    renderCreditMemoDocument(doc, parsed, "مؤسسة الاختبار");
+    expect(doc.body.textContent).toContain("CRM-REV-0001");
+    expect(doc.body.textContent).toContain("INV-0009");
+    expect(doc.body.textContent).toContain("Correction approved by finance.");
+    expect(doc.body.textContent).toContain("52");
+    for (const secret of secrets) expect(doc.body.textContent).not.toContain(secret);
+    expect(doc.documentElement.dir).toBe("rtl");
+  });
+
   it("rejects invoices whose source lines or tax do not reconcile", () => {
     const valid = readStaffInvoicePrintPayload(invoiceFixture());
     expect(valid.lines[0].item_code).toBe("000017");
