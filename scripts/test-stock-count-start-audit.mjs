@@ -22,26 +22,30 @@ let roleEstablished = false;
 let transactionOpen = false;
 let passed = false;
 
-async function setAdminIdentity() {
+async function setIdentity(authUserId, identityEmail) {
   await commandDb.unsafe("reset role").catch(() => {});
   roleEstablished = false;
-  await commandDb.unsafe("insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now(),now(),now(),null,'CI isolated session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null", [adminAuthUserId, adminAuthUserId]);
+  await commandDb.unsafe("insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$2,now(),now(),now(),null,'CI isolated session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null", [authUserId, authUserId]);
   await commandDb.unsafe(
     "select set_config('request.jwt.claim.sub', $1, false)",
-    [adminAuthUserId],
+    [authUserId],
   );
   await commandDb.unsafe(
     "select set_config('request.jwt.claims', $1, false)",
     [JSON.stringify({
-      sub: adminAuthUserId,
-      email,
+      sub: authUserId,
+      email: identityEmail,
       email_confirmed_at: new Date().toISOString(),
       role: "authenticated",
-      session_id: adminAuthUserId,
+      session_id: authUserId,
     })],
   );
   await commandDb.unsafe("set role authenticated");
   roleEstablished = true;
+}
+
+async function setAdminIdentity() {
+  await setIdentity(adminAuthUserId, email);
 }
 
 async function readStartAudit() {
@@ -55,6 +59,59 @@ async function readStartAudit() {
   );
   await setAdminIdentity();
   return rows;
+}
+
+async function assertCancellationUnchanged(targetSessionId, label) {
+  await commandDb.unsafe("reset role").catch(() => {});
+  roleEstablished = false;
+  const rows = await commandDb.unsafe(
+    "select status,cancelled_by::text as cancelled_by,cancelled_at::text as cancelled_at,cancellation_reason " +
+      "from public.stock_count_sessions where id=$1::uuid and organization_id=$2::uuid",
+    [targetSessionId, organizationId],
+  );
+  assert.equal(rows.length, 1, label + ": target session remains visible to the owning tenant");
+  assert.deepEqual(rows[0], {
+    status: "open",
+    cancelled_by: null,
+    cancelled_at: null,
+    cancellation_reason: null,
+  }, label + ": a denied cancellation must not change the session");
+  const auditRows = await commandDb.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+      "where organization_id=$1::uuid and action='inventory.stock_count.cancelled' and entity_id=$2::uuid",
+    [organizationId, targetSessionId],
+  );
+  assert.equal(Number(auditRows[0]?.count ?? 0), 0, label + ": denied cancellation must not create an audit event");
+  const movementRows = await commandDb.unsafe(
+    "select count(*)::integer as count from public.inventory_movements " +
+      "where reference_type='stock_count_session' and reference_id=$1::uuid",
+    [targetSessionId],
+  );
+  assert.equal(Number(movementRows[0]?.count ?? 0), 0, label + ": denied cancellation must not create stock movements");
+}
+
+async function expectCancellationDenied(
+  targetSessionId,
+  authUserId,
+  identityEmail,
+  label,
+  expectedSqlState,
+  expectedMessage,
+) {
+  await setIdentity(authUserId, identityEmail);
+  await commandDb.unsafe("savepoint stock_count_cancel_denial");
+  const caught = await commandDb
+    .unsafe("select public.cancel_stock_count($1::uuid,$2::text)", [
+      targetSessionId,
+      "CI denied cancellation must have no side effects",
+    ])
+    .then(() => null, (error) => error);
+  await commandDb.unsafe("rollback to savepoint stock_count_cancel_denial");
+  await commandDb.unsafe("release savepoint stock_count_cancel_denial");
+  assert.ok(caught, label + ": cancellation should be denied");
+  assert.equal(caught.code, expectedSqlState, label + ": denial SQLSTATE");
+  assert.match(String(caught.message), expectedMessage, label + ": denial reason");
+  await assertCancellationUnchanged(targetSessionId, label);
 }
 
 async function main() {
@@ -331,6 +388,57 @@ async function main() {
     "failed stock-count finalization must not leave a completion audit event",
   );
 
+  // Regression: a SECURITY DEFINER cancellation RPC must reject both a
+  // same-tenant non-manager and a foreign-tenant manager without side effects.
+  await commandDb.unsafe("reset role");
+  roleEstablished = false;
+  const foreignOrganizationId = randomUUID();
+  const foreignManagerProfileId = randomUUID();
+  const foreignManagerAuthId = randomUUID();
+  const localStaffProfileId = randomUUID();
+  const localStaffAuthId = randomUUID();
+  const foreignEmail = "ci-stock-foreign-manager-" + foreignManagerAuthId + "@example.test";
+  const localStaffEmail = "ci-stock-local-staff-" + localStaffAuthId + "@example.test";
+  await commandDb.unsafe(
+    "insert into public.organizations(id,name,currency,is_active) values($1,'CI Stock Count Foreign Tenant','YER',true)",
+    [foreignOrganizationId],
+  );
+  await commandDb.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()),($3,$4,now()) " +
+      "on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [foreignManagerAuthId, foreignEmail, localStaffAuthId, localStaffEmail],
+  );
+  await commandDb.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
+      "values($1,$2,$3,'CI Foreign Stock Manager',$4,true),($5,$6,$7,'CI Local Stock Staff',$8,true)",
+    [
+      foreignManagerProfileId, foreignManagerAuthId, foreignOrganizationId, foreignEmail,
+      localStaffProfileId, localStaffAuthId, organizationId, localStaffEmail,
+    ],
+  );
+  await commandDb.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'manager'),($2,'staff') " +
+      "on conflict(profile_id,role) do nothing",
+    [foreignManagerProfileId, localStaffProfileId],
+  );
+
+  await expectCancellationDenied(
+    lateSession.id,
+    localStaffAuthId,
+    localStaffEmail,
+    "same-tenant ordinary staff cannot cancel a stock count",
+    "42501",
+    /administrator or manager permission required/i,
+  );
+  await expectCancellationDenied(
+    lateSession.id,
+    foreignManagerAuthId,
+    foreignEmail,
+    "foreign-tenant manager cannot cancel or learn whether a stock count exists",
+    "22023",
+    /stock count is not open/i,
+  );
+
   await setAdminIdentity();
   const cancelledLate = await commandDb.unsafe(
     "select public.cancel_stock_count($1::uuid,$2::text) as result",
@@ -406,6 +514,6 @@ try {
 
 if (passed && process.exitCode !== 1) {
   console.log(
-    "PASS stock-count audit and variance tasks: tenant/profile-bound idempotent start; stale snapshot rejects with SQLSTATE 40001 and leaves sessions, movements, audits, on-hand and reserved balances unchanged; one task for non-zero variance; zero-variance suppression; refresh idempotency; transaction rollback leaves no fixture changes",
+    "PASS stock-count audit and cancellation boundaries: tenant/profile-bound idempotent start; same-tenant staff and foreign-tenant manager cancellation denials leave session, audit, and movement state unchanged; stale snapshot rejects with SQLSTATE 40001 and leaves inventory unchanged; non-zero variance creates one task, zero variance creates none; transaction rollback leaves no fixture changes",
   );
 }
