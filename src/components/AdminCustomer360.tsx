@@ -25,6 +25,7 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
   const loadCustomer360 = useCallback(async () => {
     setLoading(true);
     setError('');
+    setExportError('');
     try {
       const scope = await getCurrentTenantScope();
       const { data: scopedCustomer, error: scopedCustomerError } = await supabase
