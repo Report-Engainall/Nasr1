@@ -274,6 +274,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
       </div>
       {templateFeedback && (
         <div
+          className="no-print"
           role={templateFeedback.kind === 'error' ? 'alert' : 'status'}
           style={{ ...card, marginBottom: 16, borderColor: templateFeedback.kind === 'error' ? '#dfb5ad' : '#b7d9ce' }}
         >
@@ -340,7 +341,9 @@ function OrderInvoiceInner({ id }: { id: string }) {
           {history.length > 0 && <ol>{history.map((h) => <li key={h.id}>{STATUS_LABELS[h.to_status] ?? h.to_status} — {formatDate(h.created_at)}</li>)}</ol>}
         </section>
       </article>
-      <CustomerReturnRequest orderId={order.id} orderStatus={order.status} />
+      <div className="no-print">
+        <CustomerReturnRequest orderId={order.id} orderStatus={order.status} />
+      </div>
     </Shell>
   );
 }
