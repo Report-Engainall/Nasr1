@@ -129,6 +129,9 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       expect(memoNumber, "draft credit memo exposes its source document number").toBeTruthy();
       const taskTitle = "مراجعة وترحيل قيد الإشعار الدائن " + memoNumber;
       const tasksPage = await staffContext.newPage();
+      // A new tab may not inherit a session stored per-tab; authenticate the
+      // operational task view explicitly instead of relying on implicit carry-over.
+      await signIn(tasksPage, managerEmail, managerPassword);
       await tasksPage.goto("/admin/tasks");
       const openCreditTask = tasksPage.locator(".task-card").filter({ hasText: taskTitle });
       await expect(openCreditTask).toBeVisible();
