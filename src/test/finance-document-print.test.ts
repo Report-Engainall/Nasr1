@@ -287,6 +287,38 @@ describe("finance document print contracts", () => {
     expect(doc.body.textContent).toContain("AGHBARI COMMERCE");
   });
 
+  it("never exposes internal UUIDs when a customer has no printable name or code", () => {
+    const invoice = invoiceFixture();
+    const parsedInvoice = readStaffInvoicePrintPayload({
+      ...invoice,
+      customer: { id: customerId, customer_code: null, business_name: null, contact_name: null },
+    });
+    const invoiceDoc = document.implementation.createHTMLDocument("");
+    renderStaffInvoiceDocument(invoiceDoc, parsedInvoice, "مؤسسة الاختبار");
+
+    const statement = statementFixture();
+    const parsedStatement = readStaffStatementPrintPayload({
+      ...statement,
+      customer: { id: customerId, customer_code: null, business_name: null, contact_name: null },
+    });
+    const statementDoc = document.implementation.createHTMLDocument("");
+    renderStaffStatementDocument(statementDoc, parsedStatement, "مؤسسة الاختبار");
+
+    for (const doc of [invoiceDoc, statementDoc]) {
+      expect(doc.body.textContent).toContain("عميل غير مسمى");
+      const printableArtifact = doc.documentElement.outerHTML + doc.title;
+      for (const internalId of [
+        customerId,
+        invoiceId,
+        itemId,
+        "44444444-4444-4444-8444-444444444444",
+        "55555555-5555-4555-8555-555555555555",
+      ]) {
+        expect(printableArtifact).not.toContain(internalId);
+      }
+    }
+  });
+
   it("drops unexpected internal cost, margin, and foreign-tier fields from staff invoice print output", () => {
     const source = invoiceFixture();
     const input = {
