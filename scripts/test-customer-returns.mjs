@@ -1212,6 +1212,28 @@ async function main() {
     [organizationId,"customer-return-receipt:"+firstRequest.request_id],
   );
   assert.equal(completedReceiptTask[0]?.status,"completed","full receipt closes the linked warehouse task");
+
+  // The assigned warehouse worker retains reprint access to their own persisted receipts after task completion.
+  await db.unsafe("set role authenticated");
+  const staffPrintRaw = await db.unsafe(
+    "select public.get_customer_return_receipt_print_data($1::uuid) as result",
+    [firstReceipt.receipt_id],
+  );
+  const staffPrint = asJson(staffPrintRaw[0].result);
+  assert.equal(staffPrint.receipt_number,firstReceipt.receipt_number,
+    "the assigned physical receiver can retrieve their saved receipt snapshot after the queue task closes");
+  const staffHistoryRaw = await db.unsafe(
+    "select public.list_customer_return_receipt_print_history(50,0) as result",
+  );
+  const staffHistory = asJson(staffHistoryRaw[0].result);
+  assert.ok(staffHistory.receipts.some((row) => row.receipt_id === firstReceipt.receipt_id),
+    "assigned warehouse staff can find their completed receipt in persisted reprint history");
+  assert.ok(staffHistory.receipts.some((row) => row.receipt_id === secondReceipt.receipt_id),
+    "the same authenticated receiver can reprint its idempotently serialized second receipt");
+  assert.ok(!staffHistory.receipts.some((row) => row.request_number === unassignedRequest.request_number),
+    "warehouse history does not expose unreceived requests outside the worker's completed receipt records");
+  await db.unsafe("reset role");
+
   const queueAfterReceiptRaw = await db.unsafe("select public.list_customer_return_receipt_queue(50) as result");
   const queueAfterReceipt = asJson(queueAfterReceiptRaw[0].result);
   assert.ok(!queueAfterReceipt.requests.some((row) => row.id === firstRequest.request_id),"fully received return leaves pending queue");
