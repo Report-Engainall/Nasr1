@@ -67,6 +67,13 @@ describe("Arabic customer finance PDFs", () => {
     expect(document.getTitle()).toContain("كشف الحساب");
   });
 
+  it("fails closed when the statement RPC omits required invoice or payment arrays", async () => {
+    await expect(buildCustomerStatementPdf({}, new Uint8Array(), generatedAt))
+      .rejects.toThrow("Statement invoice details are not an array.");
+    await expect(buildCustomerStatementPdf({ invoices: [] }, new Uint8Array(), generatedAt))
+      .rejects.toThrow("Statement payment details are not an array.");
+  });
+
   it("summarizes overdue and unknown-due balances per currency from invoice payments", () => {
     const invoices = [
       { id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001", invoice_number: "INV-YER-OVERDUE", status: "issued", issued_at: "2026-10-01T00:00:00.000Z", due_at: "2026-10-10T00:00:00.000Z", currency: "YER", total_amount: "100.00" },

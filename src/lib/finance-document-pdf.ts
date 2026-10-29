@@ -332,8 +332,14 @@ function validatePayload(payload: unknown): {
 } {
   if (!payload || typeof payload !== "object") throw new Error("Statement response is not an object.");
   const candidate = payload as CustomerStatementPayload;
-  const invoices = Array.isArray(candidate.invoices) ? candidate.invoices : [];
-  const payments = Array.isArray(candidate.payments) ? candidate.payments : [];
+  const invoices = candidate.invoices;
+  const payments = candidate.payments;
+  if (!Array.isArray(invoices)) {
+    throw new Error("Statement invoice details are not an array.");
+  }
+  if (!Array.isArray(payments)) {
+    throw new Error("Statement payment details are not an array.");
+  }
   const credits = candidate.credits === undefined
     ? []
     : Array.isArray(candidate.credits) ? candidate.credits : (() => { throw new Error("Statement credit details are not an array."); })();
