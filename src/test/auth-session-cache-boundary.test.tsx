@@ -1,5 +1,5 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { act } from "react";
+import { act, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -47,7 +47,15 @@ function TestRoot() {
 
 function IdentityProbe() {
   const { user, ready } = useAuth();
-  return <output>{!ready ? "auth-loading" : user ? `${user.id}:${user.roles.join(",")}` : "signed-out"}</output>;
+  const [privateRouteState] = useState(() =>
+    user ? `${user.id}:private-route-state` : "anonymous:private-route-state",
+  );
+  return (
+    <>
+      <output>{!ready ? "auth-loading" : user ? `${user.id}:${user.roles.join(",")}` : "signed-out"}</output>
+      <output data-testid="private-route-state">{privateRouteState}</output>
+    </>
+  );
 }
 
 const TestRootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({ component: TestRoot });
@@ -96,6 +104,7 @@ describe("authentication-scoped query cache boundary", () => {
     });
     render(<RouterProvider router={router} />);
     await screen.findByText("auth-user-a:customer");
+    await screen.findByText("auth-user-a:private-route-state");
     await waitFor(() => expect(queryClient.getQueryData(["private-finance"])).toBeUndefined());
     return { router, queryClient };
   }
@@ -112,6 +121,7 @@ describe("authentication-scoped query cache boundary", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     await screen.findByText("auth-user-b:manager");
+    await screen.findByText("auth-user-b:private-route-state");
     await waitFor(() => expect(queryClient.getQueryData(["private-finance"])).toBeUndefined());
 
     queryClient.setQueryData(["private-finance"], { sentinel: "TENANT-B-PRIVATE-BALANCE" });
@@ -121,6 +131,7 @@ describe("authentication-scoped query cache boundary", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     await screen.findByText("signed-out");
+    await screen.findByText("anonymous:private-route-state");
     await waitFor(() => expect(queryClient.getQueryData(["private-finance"])).toBeUndefined());
   });
 
