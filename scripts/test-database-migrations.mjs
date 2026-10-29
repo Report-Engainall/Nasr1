@@ -1378,6 +1378,87 @@ async function main() {
   assert.equal(Number(stockAfterConfirm[0].quantity_reserved), 10, "confirmation should reserve inventory");
   assert.equal(Number(stockAfterConfirm[0].quantity_available), 538, "reservation must reduce available stock");
 
+  // DLV-007: cancellation of a confirmed order must release its reservation once.
+  // Seed the already-persisted reservation under the isolated DB owner so this test
+  // exercises the real cancellation guard/finalizer without confirming a second order
+  // or perturbing the primary customer's invoice/payment assertions.
+  const cancellationOrderId = randomUUID();
+  const cancellationOrderNumber = "CI-CANCEL-RES-" + cancellationOrderId.slice(0, 12).toUpperCase();
+  await db.unsafe("reset role");
+  const cancellationCustomerRows = await db.unsafe(
+    "select id from public.customers where organization_id=$1::uuid and profile_id=$2::uuid",
+    [organizationId, secondProfileId],
+  );
+  assert.equal(cancellationCustomerRows.length, 1, "cancellation reservation fixture uses the isolated second customer");
+  const cancellationBalanceBeforeRows = await db.unsafe(
+    "select quantity_on_hand,quantity_reserved,quantity_available from public.inventory_balances " +
+      "where product_id=$1::uuid and warehouse_id='d0000000-0000-0000-0000-000000000001'",
+    [productId],
+  );
+  assert.equal(cancellationBalanceBeforeRows.length, 1, "cancellation reservation fixture has one canonical stock balance");
+  const cancellationBalanceBefore = cancellationBalanceBeforeRows[0];
+  await db.unsafe(
+    "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,notes,created_by) " +
+      "values($1::uuid,$2::uuid,$3::uuid,$4,'confirmed',77000,2,'CI confirmed-order reservation cancellation',$5::uuid)",
+    [cancellationOrderId,organizationId,cancellationCustomerRows[0].id,cancellationOrderNumber,staffProfileId],
+  );
+  const cancellationBalanceReservedRows = await db.unsafe(
+    "update public.inventory_balances set quantity_reserved=quantity_reserved+2,last_movement_at=pg_catalog.now(),updated_at=pg_catalog.now() " +
+      "where product_id=$1::uuid and warehouse_id='d0000000-0000-0000-0000-000000000001' " +
+      "returning quantity_on_hand,quantity_reserved,quantity_available",
+    [productId],
+  );
+  assert.equal(Number(cancellationBalanceReservedRows[0].quantity_reserved),Number(cancellationBalanceBefore.quantity_reserved)+2,
+    "fixture represents a persisted two-unit reservation before cancellation");
+  await db.unsafe(
+    "insert into public.inventory_movements(product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by) " +
+      "values($1::uuid,'d0000000-0000-0000-0000-000000000001','reserve',2,$2::numeric,'order',$3::uuid,'CI seed persisted reservation for cancellation',$4::uuid)",
+    [productId,cancellationBalanceReservedRows[0].quantity_available,cancellationOrderId,staffProfileId],
+  );
+  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  const cancellationUpdate = await db.unsafe(
+    "update public.orders set status='cancelled' where id=$1::uuid returning status",
+    [cancellationOrderId],
+  );
+  assert.equal(cancellationUpdate.length,1);
+  assert.equal(cancellationUpdate[0].status,"cancelled","authorized staff can cancel a confirmed order");
+  await db.unsafe("reset role");
+  const cancellationBalanceAfterRows = await db.unsafe(
+    "select quantity_on_hand,quantity_reserved,quantity_available from public.inventory_balances " +
+      "where product_id=$1::uuid and warehouse_id='d0000000-0000-0000-0000-000000000001'",
+    [productId],
+  );
+  assert.equal(Number(cancellationBalanceAfterRows[0].quantity_on_hand),Number(cancellationBalanceBefore.quantity_on_hand),
+    "cancellation must not consume physical on-hand stock");
+  assert.equal(Number(cancellationBalanceAfterRows[0].quantity_reserved),Number(cancellationBalanceBefore.quantity_reserved),
+    "cancellation must release the entire reservation back to the pre-order balance");
+  assert.equal(Number(cancellationBalanceAfterRows[0].quantity_available),Number(cancellationBalanceBefore.quantity_available),
+    "cancellation must restore available-to-promise quantity exactly");
+  const cancellationMovements = await db.unsafe(
+    "select movement_type,quantity,created_by from public.inventory_movements " +
+      "where reference_type='order' and reference_id=$1::uuid order by id",
+    [cancellationOrderId],
+  );
+  assert.equal(cancellationMovements.filter((row)=>row.movement_type==="reserve").length,1,
+    "the order has one source reservation movement");
+  const releaseMovements=cancellationMovements.filter((row)=>row.movement_type==="release_reservation");
+  assert.equal(releaseMovements.length,1,"cancellation emits exactly one reservation-release movement");
+  assert.equal(Number(releaseMovements[0].quantity),2,"release movement reverses the full reserved quantity");
+  assert.equal(releaseMovements[0].created_by,staffProfileId,"reservation release is attributed to the staff actor");
+  assert.equal(cancellationMovements.filter((row)=>row.movement_type==="sale").length,0,
+    "cancelled order must never emit a stock-sale movement");
+  const cancellationHistory=await db.unsafe(
+    "select from_status,to_status,changed_by from public.order_status_history where order_id=$1::uuid and to_status='cancelled'",
+    [cancellationOrderId],
+  );
+  assert.equal(cancellationHistory.length,1,"cancellation produces exactly one status-history entry");
+  assert.equal(cancellationHistory[0].from_status,"confirmed");
+  assert.equal(cancellationHistory[0].changed_by,staffProfileId,"cancellation history records the authorized same-tenant actor");
+  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  process.stdout.write("PASS DLV-007 confirmed-order cancellation releases ATP reservation once, preserves on-hand stock, writes one release movement and records the staff actor\\n");
+
   await expectFailure(
     "overpayment",
     () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)", [invoice.id, 500000, "cash", randomUUID(), "CI-OVERPAY", "should reject"]),
