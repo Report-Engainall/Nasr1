@@ -36,9 +36,9 @@ export type OnyxOrderWorkbookInput = {
   exportAuditId?: string;
 };
 
-type CellValue = string | number | null | undefined;
+export type CellValue = string | number | null | undefined;
 
-function xmlEscape(value: string): string {
+export function xmlEscape(value: string): string {
   // Imported business text can contain XML 1.0-forbidden control code points.
   // Remove them before escaping so one dirty cell cannot invalidate the XLSX package.
   const xmlSafe = Array.from(value).filter((character) => {
@@ -96,7 +96,7 @@ function cellXml(reference: string, value: CellValue): string {
     xmlEscape(String(value)) + '</t></is></c>';
 }
 
-function worksheetXml(rows: readonly (readonly CellValue[])[], freezeFirstRow = false): string {
+export function worksheetXml(rows: readonly (readonly CellValue[])[], freezeFirstRow = false): string {
   const maxColumns = Math.max(1, ...rows.map((row) => row.length));
   const lastColumn = columnName(maxColumns - 1);
   const rowXml = rows.map((row, rowIndex) => '<row r="' + (rowIndex + 1) + '">' +
@@ -133,7 +133,7 @@ function crc32(bytes: Uint8Array): number {
 function write16(view: DataView, offset: number, value: number): void { view.setUint16(offset, value, true); }
 function write32(view: DataView, offset: number, value: number): void { view.setUint32(offset, value >>> 0, true); }
 
-function zipStore(files: readonly { name: string; content: string }[]): Uint8Array {
+export function zipStore(files: readonly { name: string; content: string }[]): Uint8Array {
   const encoder = new TextEncoder();
   const localParts: Uint8Array[] = [];
   const centralParts: Uint8Array[] = [];

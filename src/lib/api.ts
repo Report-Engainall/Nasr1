@@ -1,5 +1,6 @@
 import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supabase';
 import { parseStoreExecutiveAnalytics, type StoreExecutiveAnalytics } from './executive-analytics';
+import { parseStoreProductActivityReport, type StoreProductActivityReport } from './product-activity-report';
 import { parseStaffCustomer360Summary, type StaffCustomer360Summary } from './customer-360-summary';
 import { parsePurchaseOrder, parsePurchaseOrders, type PurchaseOrder } from './purchase-orders';
 import { countLowStockBalances } from './inventory-metrics';
@@ -2126,6 +2127,12 @@ export async function fetchStoreExecutiveAnalytics(): Promise<StoreExecutiveAnal
   const { data, error } = await supabase.rpc('get_store_executive_analytics');
   if (error) throw error;
   return parseStoreExecutiveAnalytics(data);
+}
+
+export async function fetchStoreProductActivityReport(): Promise<StoreProductActivityReport> {
+  const { data, error } = await supabase.rpc('get_store_product_activity_report');
+  if (error) throw error;
+  return parseStoreProductActivityReport(data);
 }
 
 

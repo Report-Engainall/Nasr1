@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { BarChart3, Package, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
 import { Empty, ErrorBox, Loading } from '@/components/AdminPages';
-import { fetchStoreExecutiveAnalytics } from '@/lib/api';
+import { fetchStoreExecutiveAnalytics, fetchStoreProductActivityReport } from '@/lib/api';
 import { StaffDashboardMetrics } from '@/components/StaffDashboardMetrics';
 import { buildSalesForecast, calculateWhatIfSales } from '@/lib/sales-forecast';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
+import { PRODUCT_ACTIVITY_STATUS_LABELS, type ProductActivityStatus } from '@/lib/product-activity-report';
+import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx';
 import { useFetch } from '@/lib/useFetch';
 
 function SalesForecastPanel({ points }: { points: ReadonlyArray<{ day: string; orders: number; sales: number }> }) {
@@ -212,8 +214,97 @@ export function ExecutiveStoreAnalytics() {
           </p>
         </>
       )}
+      <ProductActivityReport />
       <StaffDashboardMetrics />
     </section>
   );
 }
 
+
+function ProductActivityReport() {
+  const { data, loading, error, refetch } = useFetch(fetchStoreProductActivityReport);
+  const [filter, setFilter] = useState<ProductActivityStatus | 'all'>('stagnant_over_90_days');
+  const [exportError, setExportError] = useState<string | null>(null);
+  const visibleRows = data?.products.filter((product) => filter === 'all' || product.activity_status === filter) ?? [];
+  const quantity = (value: number) => new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 3 }).format(value);
+
+  function exportWorkbook() {
+    if (!data) return;
+    try {
+      setExportError(null);
+      downloadProductActivityWorkbookXlsx(data);
+    } catch (cause) {
+      setExportError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف Excel.');
+    }
+  }
+
+  return (
+    <section className="panel" style={{ marginTop: 20 }} aria-labelledby="product-activity-title">
+      <div className="panel-head">
+        <div>
+          <h2 id="product-activity-title">حركة الأصناف والركود</h2>
+          <p>نشاط 30 يومًا، حركة 31–90 يومًا، ركود أكثر من 90 يومًا، وأصناف لم تُبع — محسوبة في قاعدة البيانات.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn secondary" type="button" onClick={() => void refetch()} disabled={loading}>
+            <RefreshCw size={16} /> تحديث
+          </button>
+          <button className="btn primary" type="button" onClick={exportWorkbook} disabled={loading || !data || data.products.length === 0 || data.truncated}>
+            تنزيل Excel (.xlsx)
+          </button>
+        </div>
+      </div>
+
+      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !data ? <Empty text="تعذر الحصول على تقرير حركة الأصناف." /> : (
+        <>
+          <div className="report-grid">
+            <article className="report-metric"><span>نشط خلال آخر 30 يومًا</span><strong>{formatNumber(data.summary.active_last_30_days)}</strong></article>
+            <article className="report-metric"><span>بطيء الحركة — 31 إلى 90 يومًا</span><strong>{formatNumber(data.summary.slow_moving_90_days)}</strong></article>
+            <article className="report-metric"><span>راكد لأكثر من 90 يومًا</span><strong>{formatNumber(data.summary.stagnant_over_90_days)}</strong></article>
+            <article className="report-metric"><span>لم يُبع سابقًا</span><strong>{formatNumber(data.summary.never_sold)}</strong></article>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap', marginTop: 16 }}>
+            <label style={{ display: 'grid', gap: 6, minWidth: 240 }}>
+              <span>تصفية تقرير الحركة</span>
+              <select value={filter} onChange={(event) => setFilter(event.currentTarget.value as ProductActivityStatus | 'all')} style={{ minHeight: 40, padding: '8px 10px', border: '1px solid var(--border, #d6dfe4)', borderRadius: 8 }}>
+                <option value="all">كل الأصناف</option>
+                <option value="stagnant_over_90_days">الراكدة — أكثر من 90 يومًا</option>
+                <option value="never_sold">لم تُبع سابقًا</option>
+                <option value="slow_moving_90_days">بطيئة الحركة — 31 إلى 90 يومًا</option>
+                <option value="active_last_30_days">نشطة — آخر 30 يومًا</option>
+              </select>
+            </label>
+            <p className="report-note" style={{ margin: 0 }}>المعروض {formatNumber(visibleRows.length)} من {formatNumber(data.total_products)} صنفًا؛ ملف Excel يشمل التقرير كاملًا.</p>
+          </div>
+
+          {data.truncated ? <p className="report-note" role="alert" style={{ marginTop: 12 }}>تجاوز العدد حد التقرير البالغ 5000 صنف؛ عُطّل التصدير حتى لا ينتج ملف جزئي على أنه كامل.</p> : null}
+          {exportError ? <ErrorBox message={exportError} /> : null}
+
+          <div style={{ overflowX: 'auto', marginTop: 12 }}>
+            <table>
+              <thead><tr><th>كود الصنف</th><th>الصنف</th><th>حالة الحركة</th><th>مباع آخر 30 يومًا</th><th>مباع آخر 90 يومًا</th><th>آخر بيع</th><th>أيام منذ البيع</th><th>المتاح بالمخازن النشطة</th></tr></thead>
+              <tbody>{visibleRows.map((product) => (
+                <tr key={product.product_id}>
+                  <td>{product.item_code || 'دون رمز'}</td>
+                  <td><strong>{product.product_name}</strong><small style={{ display: 'block' }}>{product.unit} · {product.catalog_status === 'active' ? 'نشط بالكتالوج' : product.catalog_status === 'inactive' ? 'موقوف بالكتالوج' : product.catalog_status}</small></td>
+                  <td>{PRODUCT_ACTIVITY_STATUS_LABELS[product.activity_status]}</td>
+                  <td>{quantity(product.sold_quantity_last_30_days)}</td>
+                  <td>{quantity(product.sold_quantity_last_90_days)}</td>
+                  <td>{product.last_sold_at ? formatDateShort(product.last_sold_at) : 'لم يُسجل بيع'}</td>
+                  <td>{product.days_since_last_sale === null ? '—' : formatNumber(product.days_since_last_sale)}</td>
+                  <td>{product.available_quantity === null ? 'غير متاح' : quantity(product.available_quantity)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          {visibleRows.length === 0 ? <Empty text="لا توجد أصناف ضمن حالة الحركة المحددة." /> : null}
+          <p className="report-note" style={{ marginTop: 12 }}>
+            آخر تحديث: {formatDateShort(data.generated_at)}. المصدر هو بنود الطلبات المرتبطة بمعرّف الصنف؛ الطلبات الملغاة والمرفوضة لا تدخل في الحساب.
+            الرصيد يُجمع من المخازن النشطة بالمؤسسة؛ «غير متاح» لا يعني صفرًا. البنود التاريخية بلا معرّف صنف لا تُطابق تخمينيًا.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}

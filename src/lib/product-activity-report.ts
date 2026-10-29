@@ -1,0 +1,141 @@
+export type ProductActivityStatus =
+  | "active_last_30_days"
+  | "slow_moving_90_days"
+  | "stagnant_over_90_days"
+  | "never_sold";
+
+export type StoreProductActivityRow = {
+  product_id: string;
+  item_code: string;
+  product_name: string;
+  unit: string;
+  catalog_status: string;
+  activity_status: ProductActivityStatus;
+  sold_quantity_last_30_days: number;
+  sold_quantity_last_90_days: number;
+  last_sold_at: string | null;
+  days_since_last_sale: number | null;
+  available_quantity: number | null;
+};
+
+export type StoreProductActivityReport = {
+  generated_at: string;
+  recent_days: number;
+  slow_days: number;
+  total_products: number;
+  returned_products: number;
+  truncated: boolean;
+  summary: {
+    active_last_30_days: number;
+    slow_moving_90_days: number;
+    stagnant_over_90_days: number;
+    never_sold: number;
+    stock_unknown_count: number;
+  };
+  products: StoreProductActivityRow[];
+};
+
+export const PRODUCT_ACTIVITY_STATUS_LABELS: Record<ProductActivityStatus, string> = {
+  active_last_30_days: "نشط حديثًا — آخر 30 يومًا",
+  slow_moving_90_days: "بطيء الحركة — 31 إلى 90 يومًا",
+  stagnant_over_90_days: "راكد — أكثر من 90 يومًا",
+  never_sold: "لم يُبع سابقًا",
+};
+
+type RecordValue = Record<string, unknown>;
+
+function record(value: unknown, label: string): RecordValue {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("استجابة تقرير حركة الأصناف غير صالحة: " + label + ".");
+  }
+  return value as RecordValue;
+}
+
+function textValue(value: unknown, label: string, allowEmpty = false): string {
+  if (typeof value !== "string" || (!allowEmpty && value.trim() === "")) {
+    throw new Error("استجابة تقرير حركة الأصناف تفتقد " + label + ".");
+  }
+  return value;
+}
+
+function nonNegativeInteger(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error("قيمة غير صالحة في تقرير حركة الأصناف: " + label + ".");
+  }
+  return value;
+}
+
+function nonNegativeNumber(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 999999999999) {
+    throw new Error("قيمة غير صالحة في تقرير حركة الأصناف: " + label + ".");
+  }
+  return value;
+}
+
+const VALID_STATUSES = new Set<ProductActivityStatus>([
+  "active_last_30_days", "slow_moving_90_days", "stagnant_over_90_days", "never_sold",
+]);
+
+export function parseStoreProductActivityReport(value: unknown): StoreProductActivityReport {
+  const root = record(value, "الجذر");
+  const generatedAt = textValue(root.generated_at, "تاريخ الإنشاء");
+  if (!Number.isFinite(Date.parse(generatedAt))) throw new Error("تاريخ إنشاء تقرير حركة الأصناف غير صالح.");
+  const recentDays = nonNegativeInteger(root.recent_days, "نافذة النشاط");
+  const slowDays = nonNegativeInteger(root.slow_days, "نافذة الركود");
+  if (recentDays !== 30 || slowDays !== 90) throw new Error("نافذة تحليل حركة الأصناف لا تطابق العقد الحالي.");
+
+  const totalProducts = nonNegativeInteger(root.total_products, "إجمالي الأصناف");
+  const returnedProducts = nonNegativeInteger(root.returned_products, "عدد الصفوف");
+  if (returnedProducts > 5000 || returnedProducts > totalProducts) throw new Error("عدد صفوف تقرير حركة الأصناف خارج الحدود.");
+  if (typeof root.truncated !== "boolean" || root.truncated !== (totalProducts > returnedProducts)) {
+    throw new Error("علامة اكتمال تقرير حركة الأصناف غير متسقة.");
+  }
+
+  const s = record(root.summary, "الملخص");
+  const summary = {
+    active_last_30_days: nonNegativeInteger(s.active_last_30_days, "الأصناف النشطة حديثًا"),
+    slow_moving_90_days: nonNegativeInteger(s.slow_moving_90_days, "الأصناف بطيئة الحركة"),
+    stagnant_over_90_days: nonNegativeInteger(s.stagnant_over_90_days, "الأصناف الراكدة"),
+    never_sold: nonNegativeInteger(s.never_sold, "الأصناف التي لم تبع"),
+    stock_unknown_count: nonNegativeInteger(s.stock_unknown_count, "الأرصدة غير المتاحة"),
+  };
+  if (
+    summary.active_last_30_days + summary.slow_moving_90_days +
+      summary.stagnant_over_90_days + summary.never_sold !== totalProducts ||
+    summary.stock_unknown_count > totalProducts
+  ) throw new Error("ملخص تقرير حركة الأصناف لا يتطابق مع إجمالي المؤسسة.");
+
+  if (!Array.isArray(root.products)) throw new Error("قائمة الأصناف في التقرير غير صالحة.");
+  const products: StoreProductActivityRow[] = root.products.map((raw, index) => {
+    const row = record(raw, "الصنف " + (index + 1));
+    const status = textValue(row.activity_status, "حالة حركة الصنف");
+    if (!VALID_STATUSES.has(status as ProductActivityStatus)) throw new Error("حالة حركة صنف غير معروفة في التقرير.");
+    const lastSoldAt = row.last_sold_at === null ? null : textValue(row.last_sold_at, "تاريخ آخر بيع");
+    if (lastSoldAt !== null && !Number.isFinite(Date.parse(lastSoldAt))) throw new Error("تاريخ آخر بيع في تقرير حركة الأصناف غير صالح.");
+    const days = row.days_since_last_sale === null ? null : nonNegativeInteger(row.days_since_last_sale, "الأيام منذ آخر بيع");
+    if ((status === "never_sold") !== (lastSoldAt === null) || (lastSoldAt === null) !== (days === null)) {
+      throw new Error("تاريخ آخر بيع وتصنيف حركة الصنف غير متسقين.");
+    }
+    let available: number | null;
+    if (row.available_quantity === null) available = null;
+    else if (typeof row.available_quantity === "number" && Number.isFinite(row.available_quantity) && Math.abs(row.available_quantity) <= 999999999999) {
+      available = row.available_quantity;
+    } else throw new Error("رصيد المخزون في تقرير حركة الأصناف غير صالح.");
+    return {
+      product_id: textValue(row.product_id, "معرّف الصنف"),
+      item_code: textValue(row.item_code, "كود الصنف", true),
+      product_name: textValue(row.product_name, "اسم الصنف"),
+      unit: textValue(row.unit, "وحدة الصنف", true),
+      catalog_status: textValue(row.catalog_status, "حالة الكتالوج"),
+      activity_status: status as ProductActivityStatus,
+      sold_quantity_last_30_days: nonNegativeNumber(row.sold_quantity_last_30_days, "كمية 30 يومًا"),
+      sold_quantity_last_90_days: nonNegativeNumber(row.sold_quantity_last_90_days, "كمية 90 يومًا"),
+      last_sold_at: lastSoldAt,
+      days_since_last_sale: days,
+      available_quantity: available,
+    };
+  });
+  if (returnedProducts !== products.length) throw new Error("عدد صفوف التقرير لا يطابق عدد الأصناف المعادة.");
+  return { generated_at: generatedAt, recent_days: recentDays, slow_days: slowDays, total_products: totalProducts,
+    returned_products: returnedProducts, truncated: root.truncated, summary, products };
+}
