@@ -1,8 +1,39 @@
+## LIVE CHECKPOINT — 2026-10-29 (executive and transfer XLSX paths added; resume from this SHA)
+
+**Repository:** `Report-Engainall/Nasr1`  
+**Execution branch:** `main` only  
+**Current code SHA:** `80bc97ab4dadddaa5b223b29ae5960489588e9e3`  
+**Current code SHA acceptance:** Not asserted here. The most recent exact-head CI success known at this checkpoint is for the earlier SHA `44043840525a181567640330a7f47f3d7787eac3` (211/211 test files, 1,381/1,381 tests). Later commits below have been pushed to main, and their CI was deliberately not polled.
+
+### Implementation added after the previous accepted SHA
+
+1. **`3a189d0fc9aaf8afbb420be54a8ea7a9408bab81`** — added a two-session PostgreSQL price/revocation race acceptance to `scripts/test-customer-price-visibility.mjs`. It blocks a member's price RPC behind the owner-held customer-row lock, invokes the actual membership-revocation RPC, commits the revocation, and requires the waiting price read to reject. This test is added but its result is not claimed here.
+2. **`360d6c90a907b21f07b7cccf8d20166cf5854107` and `10d80137c464431f98d93779b32d731f2f5eea99`** — customer order print/PDF now hides the application shell and limits paper output to the saved order document; the reorder feedback and customer return-request workflow are excluded from the printable document.
+3. **`8bdd5863365a419d373703e9cd36080deb05eef2`** — executive product-activity reporting exposes the unknown-stock count and no longer claims that Excel covers the full organization when the report is truncated above 5,000 rows.
+4. **`c1930e9dbed8954878a760a4e33be037c56c5a5e`** — added a five-sheet executive analytics Excel export: KPI summary, daily sales, top products, top customers, and the seven-day forecast or the reason the forecast is unavailable. The export omits internal customer IDs, cost and margin fields.
+5. **`80bc97ab4dadddaa5b223b29ae5960489588e9e3`** — added a two-sheet Excel export for the filtered inventory-transfer history. It preserves item-code strings/leading zeros, records filter metadata and the 500-row source-window limit, and omits raw transfer, batch, warehouse and actor identifiers.
+6. Earlier in this execution, `44043840525a181567640330a7f47f3d7787eac3` removed raw source UUIDs from operational-task print output; `015b4f01c4acdad8bc64ed7a405c4d4b1b612a0f` added complete product-activity detail/summary reconciliation; `4afe6e8171c4574403f0e03c855ff57a20a4be4a` scoped purchase-order print output so an individual order does not print unrelated orders.
+
+### Release state — continue implementation, do not infer completion
+
+- `DLV-005`: **PARTIAL**. Existing hidden-price NULL/no-zero behavior, role/tier boundaries and session checks remain covered by code-level tests. The new concurrent member-revocation case is present, but its result and full hosted authenticated role/tier/session matrix are not claimed.
+- `DLV-007`: **PARTIAL**. Stock-count XLSX and its saved-count consistency guard are implemented; filtered inventory-transfer history XLSX is now present. Full movement/reservation/transfer lifecycle acceptance, production stock evidence and a real Onyx Pro round-trip remain open.
+- `DLV-010`: **PARTIAL**. Customer 360 and product-activity exports already exist; executive analytics XLSX now covers summary, sales trend, top products/customers and forecast state. Business UAT and hosted evidence remain open.
+- `DLV-011`: **OPEN**. Role-sensitive finance PDFs, task print, purchase-order print, customer-order print, stock-count print and transfer-history print/export have implementation changes, but the complete role-by-template payload allowlist and hosted authenticated output journeys are not closed.
+- The acceptance matrix currently has **121 populated task IDs, 121 unique, 0 duplicates, 18 delivery roll-up groups, and 0/18 groups fully release-closed**. A global completion percentage is **not computable** until every mandatory canonical specification leaf is mapped to candidate-specific evidence.
+- Production release remains **NO-GO** until hosted authenticated E2E, target-native Onyx acceptance, official WhatsApp delivery receipts, live AI-provider operation, production deploy/rollback/restore evidence and owner sign-off are supplied.
+
+### NEXT ACTION
+
+Continue code changes on `main` from `80bc97ab4dadddaa5b223b29ae5960489588e9e3`. Do not repeat already implemented stock-count XLSX, product-activity XLSX, customer 360 XLSX, executive analytics XLSX or inventory-transfer XLSX. Next prioritize uncovered `DLV-005` direct API/RPC authorization/session/revocation boundaries or missing `DLV-011` role/template outputs. Do not wait on, repeatedly poll or overstate GitHub Actions status.
+
+---
+
 # Aghbari Commerce — Continuous Execution Record
 
 > **Single source of truth.** Update this file at every meaningful checkpoint: before starting a new task, after implementation, after tests, after merge, and when blocked. Do not restart discovery or repeat completed audits. Read only this file's newest **LIVE CHECKPOINT / NEXT ACTION** section first, verify the current main SHA and exact-SHA CI, then continue from the next incomplete acceptance item. Keep older entries as history; never let a historical SHA or status override live repository evidence.
 
-## LIVE CHECKPOINT — 2026-10-29 (stock-count XLSX integrity verified; finance CI barrier test stabilized)
+## HISTORICAL CHECKPOINT — 2026-10-29 (stock-count XLSX integrity verified; superseded by the newer implementation checkpoint)
 
 **Verified at:** `2026-10-29T17:52:05Z`  
 **Repository / execution branch:** `Report-Engainall/Nasr1` / `main` only  
