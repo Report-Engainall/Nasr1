@@ -33,6 +33,19 @@ describe("product activity report and XLSX output",()=>{
     expect(parsed.products[0].available_quantity).toBeNull();
   });
   it("rejects inconsistent summary totals and malformed stock values",()=>{
+    const wrongClassification = sample();
+    wrongClassification.products[0] = {
+      ...wrongClassification.products[0],
+      activity_status: "stagnant_over_90_days",
+    };
+    expect(()=>parseStoreProductActivityReport(wrongClassification)).toThrow(/لا يتطابق مع الصفوف التفصيلية/);
+
+    const wrongUnknownStock = sample();
+    wrongUnknownStock.products[0] = {
+      ...wrongUnknownStock.products[0],
+      available_quantity: 0,
+    };
+    expect(()=>parseStoreProductActivityReport(wrongUnknownStock)).toThrow(/لا يتطابق مع الصفوف التفصيلية/);
     expect(()=>parseStoreProductActivityReport({...sample(),total_products:4,returned_products:2,truncated:true,summary:{...sample().summary,slow_moving_90_days:2}})).toThrow(/عدد صفوف التقرير/);
     expect(()=>parseStoreProductActivityReport({...sample(),summary:{...sample().summary,never_sold:0}})).toThrow(/ملخص تقرير حركة الأصناف/);
     expect(()=>parseStoreProductActivityReport({...sample(),products:sample().products.map((r,i)=>i===0?{...r,available_quantity:"0"}:r)})).toThrow(/رصيد المخزون/);

@@ -136,6 +136,28 @@ export function parseStoreProductActivityReport(value: unknown): StoreProductAct
     };
   });
   if (returnedProducts !== products.length) throw new Error("عدد صفوف التقرير لا يطابق عدد الأصناف المعادة.");
+  // A complete report must reconcile category and unknown-stock totals to the exact
+  // rows that will be shown/exported. A truncated report deliberately contains only
+  // a prefix of the rows, so its organization-wide summary must not be recomputed
+  // from that partial slice.
+  if (!root.truncated) {
+    const observed = {
+      active_last_30_days: products.filter((row) => row.activity_status === "active_last_30_days").length,
+      slow_moving_90_days: products.filter((row) => row.activity_status === "slow_moving_90_days").length,
+      stagnant_over_90_days: products.filter((row) => row.activity_status === "stagnant_over_90_days").length,
+      never_sold: products.filter((row) => row.activity_status === "never_sold").length,
+      stock_unknown_count: products.filter((row) => row.available_quantity === null).length,
+    };
+    if (
+      observed.active_last_30_days !== summary.active_last_30_days ||
+      observed.slow_moving_90_days !== summary.slow_moving_90_days ||
+      observed.stagnant_over_90_days !== summary.stagnant_over_90_days ||
+      observed.never_sold !== summary.never_sold ||
+      observed.stock_unknown_count !== summary.stock_unknown_count
+    ) {
+      throw new Error("ملخص تقرير حركة الأصناف لا يتطابق مع الصفوف التفصيلية.");
+    }
+  }
   return { generated_at: generatedAt, recent_days: recentDays, slow_days: slowDays, total_products: totalProducts,
     returned_products: returnedProducts, truncated: root.truncated, summary, products };
 }
