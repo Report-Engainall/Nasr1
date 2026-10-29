@@ -859,7 +859,7 @@ async function main() {
 
   // Seed a second approved-but-unassigned return to prove warehouse staff cannot inspect or receive another worker's task.
   await db.unsafe("reset role");
-  await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
+  await setIdentity(customerOneAuthId,"ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
   const unassignedRequestRaw = await db.unsafe(
     "select public.request_customer_return($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) as result",
