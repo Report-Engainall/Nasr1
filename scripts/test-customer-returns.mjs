@@ -1159,7 +1159,11 @@ async function main() {
   const firstPrintSnapshot = asJson(firstPrintSnapshotRaw[0].result);
   assert.equal(firstPrintSnapshot.receipt_number,firstReceipt.receipt_number,"reprint uses the persisted receipt document number");
   assert.equal(firstPrintSnapshot.request_number,firstRequest.request_number,"reprint resolves the saved source request number");
-  assert.equal(firstPrintSnapshot.order_number,firstRequest.order_number,"reprint resolves the original saved order number");
+  assert.equal(
+    firstPrintSnapshot.order_number,
+    receiptQueue.requests.find((row) => row.id === firstRequest.request_id)?.order_number,
+    "reprint resolves the original saved order number",
+  );
   assert.equal(firstPrintSnapshot.warehouse_name,receiptQueue.warehouses.find((row) => row.id === receiptWarehouseId)?.name,
     "reprint resolves the persisted receiving warehouse label");
   assert.equal(firstPrintSnapshot.received_line_count,1,"reprint line count is computed from saved receipt items");
