@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { PurchaseOrdersPage } from '@/components/PurchaseOrdersPage';
+const exportMocks=vi.hoisted(()=>({download:vi.fn()}));
+vi.mock('@/lib/purchase-orders-xlsx',()=>({downloadPurchaseOrdersWorkbookXlsx:exportMocks.download}));
 
 const mocks=vi.hoisted(()=>({
   fetchPurchaseOrders:vi.fn(),fetchSuppliers:vi.fn(),fetchProducts:vi.fn(),fetchActiveInventoryWarehouses:vi.fn(),
@@ -30,6 +32,7 @@ const submitted={...draft,status:'submitted',submitted_by:'manager-1',submitted_
 describe('purchase orders page',()=>{
   beforeEach(()=>{
     mocks.canManage=true;
+    exportMocks.download.mockReset().mockReturnValue(true);
     accountingMocks.rpc.mockReset().mockResolvedValue({data:{accounts:[],receipts:[]},error:null});
     mocks.fetchPurchaseOrders.mockReset().mockResolvedValue([draft]);
     mocks.fetchSuppliers.mockReset().mockResolvedValue([{id:'supplier-1',name:'مورد موثوق',supplier_code:'SUP-01',status:'active'}]);
@@ -52,6 +55,16 @@ describe('purchase orders page',()=>{
     fireEvent.click(screen.getByRole('button',{name:/اعتماد أمر الشراء للتوريد/}));
     expect(await screen.findByText(/تم اعتماد أمر الشراء داخل النظام/)).toBeInTheDocument();
     expect(mocks.submitPurchaseOrder).toHaveBeenCalledWith('po-1');
+  });
+
+  it('exports only the visible filtered purchase orders and reports the active filter',async()=>{
+    mocks.fetchPurchaseOrders.mockResolvedValueOnce([draft,submitted]);
+    render(<PurchaseOrdersPage/>);
+    expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('الحالة'),{target:{value:'submitted'}});
+    fireEvent.click(screen.getByRole('button',{name:/تصدير نتائج Excel/}));
+    expect(exportMocks.download).toHaveBeenCalledWith([submitted],'معتمد للتوريد');
+    expect(await screen.findByText(/تم تجهيز ملف Excel للنتائج الظاهرة/)).toBeInTheDocument();
   });
 
   it('does not call purchase APIs for an account without the manager/admin role',()=>{

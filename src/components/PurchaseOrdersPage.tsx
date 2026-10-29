@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, CheckCircle2, ClipboardList, PackageCheck, Plus, Printer,
+  AlertTriangle, CheckCircle2, ClipboardList, FileSpreadsheet, PackageCheck, Plus, Printer,
   RefreshCw, Send, Trash2, Warehouse,
 } from 'lucide-react';
 import {
@@ -13,6 +13,7 @@ import type { ProductWithInventory, Supplier } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { PurchaseReceiptAccountingWorkspace } from '@/components/PurchaseReceiptAccountingWorkspace';
+import { downloadPurchaseOrdersWorkbookXlsx } from '@/lib/purchase-orders-xlsx';
 
 type WarehouseOption = { id: string; name: string; code: string | null };
 type DraftLine = { productId: string; quantity: string; unitCost: string };
@@ -191,6 +192,22 @@ export function PurchaseOrdersPage() {
     } finally { setBusy(false); }
   }
 
+  function exportVisibleOrders() {
+    setError('');
+    setNotice('');
+    try {
+      const filterLabel = statusFilter === 'all' ? 'كل الحالات' : statusLabel[statusFilter];
+      const started = downloadPurchaseOrdersWorkbookXlsx(visibleOrders, filterLabel);
+      if (!started) {
+        setError('تنزيل ملف Excel غير متاح في هذه البيئة.');
+        return;
+      }
+      setNotice('تم تجهيز ملف Excel للنتائج الظاهرة وفق فلتر الحالة الحالي؛ التكاليف غير المسجلة بقيت فارغة.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف Excel لأوامر الشراء.');
+    }
+  }
+
   if (!canManage) return <section className="panel" dir="rtl"><h1>صلاحية إدارة المشتريات مطلوبة</h1><p>تقتصر أوامر الشراء وتكاليف الموردين على مدير النظام أو المدير. يفرض الخادم الصلاحية نفسها.</p></section>;
 
   return <section className="purchase-orders" dir="rtl">
@@ -239,6 +256,7 @@ export function PurchaseOrdersPage() {
       <div className="panel-head"><div><h2>متابعة التوريد</h2><p>الموردون والمخازن والأصناف من سجلات المؤسسة الحالية. لا توجد بيانات تجريبية.</p></div>
         <div className="po-actions">
           <button className="btn secondary" type="button" onClick={()=>void load()} disabled={loading||busy}><RefreshCw size={16}/> تحديث</button>
+          <button className="btn secondary" type="button" onClick={exportVisibleOrders} disabled={loading||busy||!visibleOrders.length}><FileSpreadsheet size={16}/> تصدير نتائج Excel</button>
           <button className="btn outline" type="button" onClick={()=>window.print()} disabled={!visibleOrders.length}><Printer size={16}/> طباعة النتائج</button>
           <button className="btn primary" type="button" onClick={()=>{setShowCreate((v)=>!v);setError('');}} disabled={busy}><Plus size={16}/>{showCreate?'إغلاق نموذج الشراء':'إنشاء مسودة أمر شراء'}</button>
         </div>
