@@ -202,6 +202,63 @@ describe("offline workspace real-route acceptance", () => {
     expect(mocks.fetchProducts).not.toHaveBeenCalled();
   });
 
+  it("never renders another profile's cached cart after account switch or logout", async () => {
+    const otherProfileId = "offline-customer-b";
+    const otherProductId = "66666666-6666-4666-8666-666666666666";
+    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    const firstProfileDraft = [{ product_id: PRODUCT_ID, quantity: 7 }];
+    const secondProfileDraft = [{ product_id: otherProductId, quantity: 1 }];
+    window.localStorage.setItem(
+      offlineCartStorageKey(PROFILE_ID),
+      JSON.stringify(firstProfileDraft),
+    );
+    window.localStorage.setItem(
+      offlineCartStorageKey(otherProfileId),
+      JSON.stringify(secondProfileDraft),
+    );
+
+    const router = await mountOfflineRoute();
+    await waitFor(() => {
+      const row = host?.querySelector("li");
+      expect(row?.textContent).toContain(PRODUCT.name);
+    });
+
+    mocks.user = {
+      id: "auth-user-b",
+      profileId: otherProfileId,
+      email: "offline-customer-b@example.test",
+      name: "عميل اختبار ب",
+      roles: ["customer"],
+      isStaff: false,
+    };
+    await act(async () => {
+      root?.render(<RouterProvider router={router} />);
+    });
+    await waitFor(() => {
+      const row = host?.querySelector("li");
+      expect(row?.textContent).toContain("صنف غير موجود في النسخة المحلية");
+      expect(row?.textContent).not.toContain(PRODUCT.name);
+    });
+
+    mocks.user = null;
+    await act(async () => {
+      root?.render(<RouterProvider router={router} />);
+    });
+    await waitFor(() => {
+      expect(host?.querySelector("li")).toBeNull();
+      expect(host?.textContent).toContain(
+        "لا توجد مسودة محفوظة لهذا الحساب على هذا الجهاز.",
+      );
+    });
+
+    // The old draft stays in its own storage namespace, but is never rendered
+    // for the other customer or for the anonymous signed-out state.
+    expect(JSON.parse(window.localStorage.getItem(offlineCartStorageKey(PROFILE_ID)) || "[]"))
+      .toEqual(firstProfileDraft);
+    expect(JSON.parse(window.localStorage.getItem(offlineCartStorageKey(otherProfileId)) || "[]"))
+      .toEqual(secondProfileDraft);
+  });
+
   it("refuses restoration when the server-resolved profile differs and preserves the draft", async () => {
     window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
     const draft = [{ product_id: PRODUCT_ID, quantity: 2 }];
