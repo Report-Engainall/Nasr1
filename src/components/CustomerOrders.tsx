@@ -258,6 +258,24 @@ function OrderInvoiceInner({ id }: { id: string }) {
 
   return (
     <Shell>
+      <style>{`@media print {
+        body * { visibility: hidden !important; }
+        .print-area, .print-area * { visibility: visible !important; }
+        .print-area {
+          position: absolute !important;
+          top: 0 !important;
+          right: 0 !important;
+          left: 0 !important;
+          width: auto !important;
+          max-width: none !important;
+          margin: 0 !important;
+          padding: 10mm !important;
+          border: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          background: #fff !important;
+        }
+      }`}</style>
       <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <Link to="/orders" className="sf-btn-secondary" style={{ textDecoration: 'none', padding: '10px 16px' }}>كل الطلبات</Link>
         <button type="button" className="sf-btn-secondary" aria-label="تحديث حالة الطلب من الخادم" onClick={() => void refetch()}><RefreshCw size={16} /> تحديث الحالة</button>
