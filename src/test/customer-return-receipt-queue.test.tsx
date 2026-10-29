@@ -108,6 +108,49 @@ describe("warehouse return receipt printing", () => {
     expect(onNotice).toHaveBeenCalledWith(expect.stringContaining("RETREC-20261029-ABCDEF12"));
   });
 
+  it("clears a previous print document when the next receipt saved but its snapshot cannot be reconciled", async () => {
+    const secondReceiptId = "66666666-6666-4666-8666-666666666666";
+    let receiveCalls = 0;
+    mocks.rpc.mockImplementation(async (name: string, args?: Record<string, unknown>) => {
+      if (name === "list_customer_return_receipt_queue") return { data: queue, error: null };
+      if (name === "receive_customer_return") {
+        receiveCalls += 1;
+        return {
+          data: {
+            ...mutationResult,
+            receipt_id: receiveCalls === 1 ? receiptId : secondReceiptId,
+            receipt_number: receiveCalls === 1 ? mutationResult.receipt_number : "RETREC-20261029-SECOND123",
+          },
+          error: null,
+        };
+      }
+      if (name === "get_customer_return_receipt_print_data") {
+        return {
+          data: args?.p_receipt_id === secondReceiptId
+            ? { ...persistedPrintSnapshot, receipt_number: "MISMATCHED-OLD-PRINT-SNAPSHOT" }
+            : persistedPrintSnapshot,
+          error: null,
+        };
+      }
+      return { data: null, error: { message: "unexpected RPC " + name } };
+    });
+
+    render(<CustomerReturnReceiptQueue onNotice={vi.fn()} />);
+    await screen.findByText("اسم الصنف من قائمة الطلبات");
+    fireEvent.change(screen.getByLabelText("الكمية المستلمة"), { target: { value: "1.25" } });
+    fireEvent.change(screen.getByLabelText("الصالح للمخزون"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: /تسجيل الاستلام والفحص/ }));
+    await screen.findByRole("button", { name: /طباعة الإيصال RETREC-20261029-ABCDEF12/ });
+
+    fireEvent.change(screen.getByLabelText("الكمية المستلمة"), { target: { value: "0.5" } });
+    fireEvent.change(screen.getByLabelText("الصالح للمخزون"), { target: { value: "0.25" } });
+    fireEvent.click(screen.getByRole("button", { name: /تسجيل الاستلام والفحص/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("تم حفظ الاستلام RETREC-20261029-SECOND123");
+    expect(screen.queryByRole("button", { name: /طباعة الإيصال/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("RETREC-20261029-ABCDEF12")).not.toBeInTheDocument();
+  });
+
   it("does not render a print button or pretend the receipt snapshot loaded when persisted totals disagree", async () => {
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === "list_customer_return_receipt_queue") return { data: queue, error: null };

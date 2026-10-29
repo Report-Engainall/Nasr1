@@ -121,6 +121,9 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
       });
       if (rpcError) throw new Error(rpcError.message || "تعذر حفظ الاستلام الفعلي.");
       const result = readReturnReceiptMutationResult(data);
+      // The old printable receipt must not remain available after a new receipt has saved.
+      // If its persisted snapshot cannot be fetched, fail closed instead of leaving stale print evidence.
+      setSavedReceipt(null);
       let persistedReceipt: ReturnType<typeof readCustomerReturnReceiptPrintData>;
       try {
         const { data: printData, error: printDataError } = await supabase.rpc(
