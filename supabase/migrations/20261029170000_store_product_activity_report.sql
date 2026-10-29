@@ -18,7 +18,7 @@ BEGIN
      AND p.auth_user_id = auth.uid()
      AND p.is_active;
 
-  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT COALESCE(public.is_staff(), false) THEN
+  IF auth.uid() IS NULL OR v_actor IS NULL OR v_org IS NULL OR NOT COALESCE(public.can_manage_finance(), false) THEN
     RAISE EXCEPTION USING ERRCODE = '42501',
       MESSAGE = 'لا تملك صلاحية قراءة تقرير حركة الأصناف للمؤسسة الحالية.';
   END IF;
