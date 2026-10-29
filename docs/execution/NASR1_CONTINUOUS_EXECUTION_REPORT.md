@@ -1,3 +1,48 @@
+## LIVE CHECKPOINT — 2026-10-29 (exact-head price-race, returns, RPC inventory and finance-print privacy passed)
+
+**Repository:** `Report-Engainall/Nasr1`  
+**Integration branch:** `main` only  
+**Current documentation HEAD before this checkpoint:** `7445f9ddfd070001927fea8409cfb97d0920b99e`  
+**Last full tested code SHA:** `cc02dbf47e518e38f04516857a05274f2d460af6` — [code commit](https://github.com/Report-Engainall/Nasr1/commit/cc02dbf47e518e38f04516857a05274f2d460af6)  
+**Exact-head Aghbari checks on code SHA cc02dbf:** [run 40944042923](https://github.com/Report-Engainall/Nasr1/actions/runs/40944042923) `SUCCESS`.  
+**PostgreSQL 17 import-finalizer tenant-scope check:** [run 40944042900](https://github.com/Report-Engainall/Nasr1/actions/runs/40944042900) `SUCCESS` on the same code SHA.  
+**One-main-branch cleanup:** [run 40944042710](https://github.com/Report-Engainall/Nasr1/actions/runs/40944042710) `SUCCESS` on the same code SHA.  
+**Aghbari checks for documentation-only HEAD 7445f9d:** [run 40944598797](https://github.com/Report-Engainall/Nasr1/actions/runs/40944598797) was `COMPLETED / SUCCESS` at checkpoint capture; do not assume a terminal result until it is observed.
+
+### Exact-head evidence captured from run 40944042923
+
+- Unit tests: **214/214 test files passed; 1,395/1,395 tests passed**.
+- PostgreSQL 17 migrations/core acceptance completed successfully. The price visibility script recorded:
+  - `PASS storefront price/revocation race`: a price request blocked on the customer row lock was denied after the owner committed membership revocation; no price rows were returned.
+  - `PASS customer price privacy`: hidden payloads, live-session revocation, tenant-bound membership tier, capability-scoped previews, authorized settings and base-price boundaries passed.
+  - `PASS customer returns`: tenant ownership, idempotent replay/conflict, direct-write denial, customer privacy, manager decisions/audit, customer-freeze race denial, finance-member statement scope, invoice PDF/cart-pricing post-revocation denial, warehouse task and no automatic stock movement passed.
+- The exact-SHA runtime RPC inventory reported **330 functions, 330 source-matched, 0 unmatched across 173 migration files**. Artifact: [public-rpc-function-inventory-cc02dbf](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/12927523765/zip). Inventory matching is not semantic authorization proof.
+- Lint, build, production-preview and dev-server smoke tests, plus browser price-visibility acceptance, passed on code SHA cc02dbf.
+- These are candidate-specific local/CI results, not hosted production UAT. Never transfer these results to a different SHA as if it had its own terminal green run.
+
+### Implementation now evidenced
+
+1. Statement PDF payload validation (commit [66ed055](https://github.com/Report-Engainall/Nasr1/commit/66ed055031f8fa9f6d1da0ab2ebe0a996f849221)) now rejects missing/non-array `invoices` and `payments` rather than generating a misleading blank statement. The exact code SHA run 40943206938 and subsequent code-bearing SHA cc02dbf both passed; legitimate empty arrays remain allowed.
+2. Finance invoice/credit-memo selectors and credit-memo PDFs now use `عميل غير مسمى` instead of internal customer UUIDs when printable business/contact names are absent. This is implemented in forward migration `20261029270000_staff_finance_print_customer_uuid_label_guard.sql` and renderer guard/tests in commit [cc02dbf](https://github.com/Report-Engainall/Nasr1/commit/cc02dbf47e518e38f04516857a05274f2d460af6). Historical migrations were left unchanged.
+3. Warehouse return receipt print snapshots are now tested through the whole migration/script suite on code SHA cc02dbf. The focused acceptance in `scripts/test-customer-returns.mjs` checks the persisted snapshot allowlist, denies foreign-tenant/ordinary-customer access, excludes internal IDs, and retains print-history paging and bounds.
+
+### Release / acceptance state
+
+- The central matrix currently has 122 populated task IDs, 18 DLV roll-up groups, and 0/18 fully release-closed groups. Overall completion percentage remains not computable from the available evidence.
+- `DLV-005`: the two-connection membership-revocation race and hidden-price/live-session boundaries are now `CI_SUCCESS_EXACT_SHA` on cc02dbf. Complete hosted authenticated user/tier/session journeys remain open.
+- `DLV-007`: return-receipt snapshot and assigned-warehouse/privacy checks have exact-SHA database/component evidence; stock reservation/movement/transfer lifecycle is still partial.
+- `DLV-008`: incomplete statement payload rejection and finance document privacy fixes passed, but the complete ledger/payment/credit reconciliation and role coverage remain partial.
+- `DLV-011`: these two concrete document defects are fixed and tested; the complete role-by-template PDF/XLSX/print matrix and hosted authenticated output journeys remain OPEN.
+- `DLV-015`: callable RPC inventory is fully source-matched for this candidate; semantic auth/tenant/idempotency review is still PARTIAL.
+- Actual Onyx Pro target round-trip, official WhatsApp receipt, live AI-provider operation, hosted authenticated production journeys, deployment/rollback/restore evidence, and owner approval remain external release gates. No live-provider success is claimed.
+
+### NEXT ACTION
+
+1. Resolve current-main Aghbari run [40944598797](https://github.com/Report-Engainall/Nasr1/actions/runs/40944598797) for exact docs HEAD 7445f9ddfd070001927fea8409cfb97d0920b99e; record its terminal outcome without transferring cc02dbf's result.
+2. After current-head validation, continue the next *unproven* callable authorization boundary from `DLV-015` or the remaining stock movement/reservation lifecycle in `DLV-007`, not another generic review. Do not repeat the already-passing price race, return receipt snapshot, finance-PDF payload, or UUID-label fixes.
+
+---
+
 ## LIVE CHECKPOINT — 2026-10-29 (statement payload fail-closed + finance-print UUID privacy)
 
 **Repository:** `Report-Engainall/Nasr1`  
