@@ -68,6 +68,22 @@ describe('purchase orders page',()=>{
     expect(await screen.findByText(/تم تجهيز ملف Excel للنتائج الظاهرة/)).toBeInTheDocument();
   });
 
+  it('prints the purchase-order results instead of hiding the result panel with the toolbar',async()=>{
+    const print = vi.spyOn(window,'print').mockImplementation(()=>{});
+    const {container}=render(<PurchaseOrdersPage/>);
+    expect(await screen.findByRole('button',{name:/PO-20261019-000001/})).toBeInTheDocument();
+    const layout=container.querySelector('.purchase-orders .po-layout');
+    expect(layout).not.toBeNull();
+    expect(layout?.closest('.no-print')).toBeNull();
+    expect(screen.getByLabelText('الحالة').closest('label')).toHaveClass('no-print');
+    fireEvent.click(screen.getByRole('button',{name:/طباعة النتائج/}));
+    expect(print).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button',{name:/PO-20261019-000001/}));
+    expect(await screen.findByRole('button',{name:/طباعة الأمر/})).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:/طباعة الأمر/}));
+    expect(print).toHaveBeenCalledTimes(2);
+  });
+
   it('does not call purchase APIs for an account without the manager/admin role',()=>{
     mocks.canManage=false;
     render(<PurchaseOrdersPage/>);

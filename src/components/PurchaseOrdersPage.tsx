@@ -293,10 +293,10 @@ export function PurchaseOrdersPage() {
       </div>
     </section>}
 
-    <div className="panel no-print">
+    <div className="panel">
       <div className="po-actions" style={{justifyContent:'space-between'}}>
         <h2>سجل أوامر الشراء</h2>
-        <label className="po-field">الحالة<select value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value as typeof statusFilter)}><option value="all">كل الحالات</option><option value="draft">مسودة</option><option value="submitted">مرسل للمورد</option><option value="partially_received">استلام جزئي</option><option value="received">مستلم بالكامل</option><option value="cancelled">ملغى</option></select></label>
+        <label className="po-field no-print">الحالة<select value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value as typeof statusFilter)}><option value="all">كل الحالات</option><option value="draft">مسودة</option><option value="submitted">مرسل للمورد</option><option value="partially_received">استلام جزئي</option><option value="received">مستلم بالكامل</option><option value="cancelled">ملغى</option></select></label>
       </div>
       {loading?<p role="status">جار تحميل سجلات التوريد…</p>:visibleOrders.length===0?<p className="po-muted">لا توجد أوامر شراء تطابق الفلتر الحالي.</p>:
         <div className="po-layout" style={{marginTop:12}}>
