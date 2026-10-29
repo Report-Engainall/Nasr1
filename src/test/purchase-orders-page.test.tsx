@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { PurchaseOrdersPage } from '@/components/PurchaseOrdersPage';
 const exportMocks=vi.hoisted(()=>({download:vi.fn()}));
 vi.mock('@/lib/purchase-orders-xlsx',()=>({downloadPurchaseOrdersWorkbookXlsx:exportMocks.download}));
@@ -68,20 +68,31 @@ describe('purchase orders page',()=>{
     expect(await screen.findByText(/تم تجهيز ملف Excel للنتائج الظاهرة/)).toBeInTheDocument();
   });
 
-  it('prints the purchase-order results instead of hiding the result panel with the toolbar',async()=>{
-    const print = vi.spyOn(window,'print').mockImplementation(()=>{});
+  it('prints only the requested result list or selected purchase order',async()=>{
+    const print=vi.spyOn(window,'print').mockImplementation(()=>{});
     const {container}=render(<PurchaseOrdersPage/>);
     expect(await screen.findByRole('button',{name:/PO-20261019-000001/})).toBeInTheDocument();
-    const layout=container.querySelector('.purchase-orders .po-layout');
-    expect(layout).not.toBeNull();
-    expect(layout?.closest('.no-print')).toBeNull();
+    const root=container.querySelector('.purchase-orders');
+    expect(root).not.toBeNull();
+    const style=container.querySelector('style')?.textContent??'';
+    expect(style).toContain('.purchase-orders.print-results .po-selected-order{display:none!important}');
+    expect(style).toContain('.purchase-orders.print-order .po-results-list,.purchase-orders.print-order .po-results-header{display:none!important}');
+    const resultList=container.querySelector('.po-results-list');
+    const orderDetail=container.querySelector('.po-selected-order');
+    expect(resultList).not.toBeNull();
+    expect(orderDetail).not.toBeNull();
+    expect(resultList?.closest('.no-print')).toBeNull();
     expect(screen.getByLabelText('الحالة').closest('label')).toHaveClass('no-print');
+
     fireEvent.click(screen.getByRole('button',{name:/طباعة النتائج/}));
-    expect(print).toHaveBeenCalledTimes(1);
+    await waitFor(()=>expect(print).toHaveBeenCalledTimes(1));
+    expect(root).toHaveClass('print-results');
+
     fireEvent.click(screen.getByRole('button',{name:/PO-20261019-000001/}));
     expect(await screen.findByRole('button',{name:/طباعة الأمر/})).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:/طباعة الأمر/}));
-    expect(print).toHaveBeenCalledTimes(2);
+    await waitFor(()=>expect(print).toHaveBeenCalledTimes(2));
+    expect(root).toHaveClass('print-order');
   });
 
   it('does not call purchase APIs for an account without the manager/admin role',()=>{

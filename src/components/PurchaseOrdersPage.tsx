@@ -50,6 +50,15 @@ export function PurchaseOrdersPage() {
   const [cancelReason,setCancelReason] = useState('');
   const [receiptNotes,setReceiptNotes] = useState('');
   const [receiveDrafts,setReceiveDrafts] = useState<Record<string,string>>({});
+  const [printMode,setPrintMode] = useState<'results'|'order'|null>(null);
+
+  useEffect(() => {
+    if (!printMode) return;
+    const resetPrintMode = () => setPrintMode(null);
+    window.addEventListener('afterprint', resetPrintMode);
+    window.print();
+    return () => window.removeEventListener('afterprint', resetPrintMode);
+  }, [printMode]);
 
   const load = useCallback(async () => {
     if (!canManage) { setLoading(false); return; }
@@ -210,7 +219,7 @@ export function PurchaseOrdersPage() {
 
   if (!canManage) return <section className="panel" dir="rtl"><h1>صلاحية إدارة المشتريات مطلوبة</h1><p>تقتصر أوامر الشراء وتكاليف الموردين على مدير النظام أو المدير. يفرض الخادم الصلاحية نفسها.</p></section>;
 
-  return <section className="purchase-orders" dir="rtl">
+  return <section className={'purchase-orders' + (printMode ? ' print-' + printMode : '')} dir="rtl">
     <style>{`
       .purchase-orders{display:grid;gap:16px;min-width:0}
       .purchase-orders .po-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -242,6 +251,8 @@ export function PurchaseOrdersPage() {
         body *{visibility:hidden!important}.purchase-orders,.purchase-orders *{visibility:visible!important}
         .purchase-orders{position:absolute;inset:0;width:100%;color:#000!important;background:#fff!important}
         .purchase-orders .no-print{display:none!important}.purchase-orders .po-layout{display:block}
+        .purchase-orders.print-results .po-selected-order{display:none!important}
+        .purchase-orders.print-order .po-results-list,.purchase-orders.print-order .po-results-header{display:none!important}
         .purchase-orders .po-card,.purchase-orders .panel{break-inside:avoid}
         .purchase-orders .po-table-wrap th,.purchase-orders .po-table-wrap td{color:#000!important;border-color:#999!important}
       }
@@ -257,7 +268,7 @@ export function PurchaseOrdersPage() {
         <div className="po-actions">
           <button className="btn secondary" type="button" onClick={()=>void load()} disabled={loading||busy}><RefreshCw size={16}/> تحديث</button>
           <button className="btn secondary" type="button" onClick={exportVisibleOrders} disabled={loading||busy||!visibleOrders.length}><FileSpreadsheet size={16}/> تصدير نتائج Excel</button>
-          <button className="btn outline" type="button" onClick={()=>window.print()} disabled={!visibleOrders.length}><Printer size={16}/> طباعة النتائج</button>
+          <button className="btn outline" type="button" onClick={()=>setPrintMode('results')} disabled={!visibleOrders.length}><Printer size={16}/> طباعة النتائج</button>
           <button className="btn primary" type="button" onClick={()=>{setShowCreate((v)=>!v);setError('');}} disabled={busy}><Plus size={16}/>{showCreate?'إغلاق نموذج الشراء':'إنشاء مسودة أمر شراء'}</button>
         </div>
       </div>
@@ -294,13 +305,13 @@ export function PurchaseOrdersPage() {
     </section>}
 
     <div className="panel">
-      <div className="po-actions" style={{justifyContent:'space-between'}}>
+      <div className="po-actions po-results-header" style={{justifyContent:'space-between'}}>
         <h2>سجل أوامر الشراء</h2>
         <label className="po-field no-print">الحالة<select value={statusFilter} onChange={(e)=>setStatusFilter(e.target.value as typeof statusFilter)}><option value="all">كل الحالات</option><option value="draft">مسودة</option><option value="submitted">مرسل للمورد</option><option value="partially_received">استلام جزئي</option><option value="received">مستلم بالكامل</option><option value="cancelled">ملغى</option></select></label>
       </div>
       {loading?<p role="status">جار تحميل سجلات التوريد…</p>:visibleOrders.length===0?<p className="po-muted">لا توجد أوامر شراء تطابق الفلتر الحالي.</p>:
         <div className="po-layout" style={{marginTop:12}}>
-          <div style={{display:'grid',gap:10}}>
+          <div className="po-results-list" style={{display:'grid',gap:10}}>
             {visibleOrders.map((order)=><button key={order.id} type="button" className="po-card" aria-current={selectedId===order.id?'true':'false'} onClick={()=>{setSelectedId(order.id);setCancelReason('');setReceiveDrafts({});setError('');}} style={{textAlign:'right',cursor:'pointer'}}>
               <div className="po-card-top"><strong>{order.purchase_order_number}</strong><span className={'po-status '+statusClass[order.status]}>{statusLabel[order.status]}</span></div>
               <strong>{order.supplier_name}</strong><span className="po-muted"><Warehouse size={13} style={{verticalAlign:'middle'}}/> {order.warehouse_name}</span>
@@ -308,7 +319,7 @@ export function PurchaseOrdersPage() {
               <div className="po-card-top"><span>التكلفة المسجلة</span><strong>{moneyText(order.total_cost)}</strong></div>
             </button>)}
           </div>
-          <div>
+          <div className="po-selected-order">
             {!selectedOrder?<div className="po-card"><ClipboardList size={28}/><strong>اختر أمر شراء لعرض بنوده وإجراءاته.</strong><span className="po-muted">الإرسال والاستلام يؤثران في المهام وحركات المخزون الحقيقية عبر RPC خادمية.</span></div>:
               <section className="panel" style={{padding:14}}>
                 <div className="po-card-top"><div><span className="po-muted">أمر الشراء</span><h2>{selectedOrder.purchase_order_number}</h2></div><span className={'po-status '+statusClass[selectedOrder.status]}>{statusLabel[selectedOrder.status]}</span></div>
@@ -324,9 +335,9 @@ export function PurchaseOrdersPage() {
                   {selectedOrder.status==='draft'&&<button className="btn primary" type="button" onClick={()=>void submitSelected()} disabled={busy}><Send size={15}/> اعتماد أمر الشراء للتوريد</button>}
                   {['submitted','partially_received'].includes(selectedOrder.status)&&<button className="btn primary" type="button" onClick={()=>void postReceipt()} disabled={busy}><PackageCheck size={15}/> ترحيل إيصال الاستلام</button>}
                   {['draft','submitted'].includes(selectedOrder.status)&&<button className="btn outline" type="button" onClick={()=>void cancelSelected()} disabled={busy}><Trash2 size={15}/> إلغاء أمر الشراء</button>}
-                  <button className="btn outline" type="button" onClick={()=>window.print()} disabled={busy}><Printer size={15}/> طباعة الأمر</button>
+                  <button className="btn outline" type="button" onClick={()=>setPrintMode('order')} disabled={busy}><Printer size={15}/> طباعة الأمر</button>
                 </div>
-                {['submitted','partially_received'].includes(selectedOrder.status)&&<div style={{marginTop:16}}>
+                {['submitted','partially_received'].includes(selectedOrder.status)&&<div className="no-print" style={{marginTop:16}}>
                   <h3>استلام فعلي (يمكن الاستلام على دفعات)</h3>
                   <p className="po-muted">أدخل الكمية المستلمة الآن لكل بند؛ الحقل الفارغ لا يُستلم. الخادم يعيد التحقق من الكميات المتبقية ويقفل رصيد المخزون داخل معاملة واحدة.</p>
                   <div className="po-table-wrap"><table><thead><tr><th>الصنف</th><th>المتبقي</th><th>كمية هذه الدفعة</th></tr></thead><tbody>
@@ -337,7 +348,7 @@ export function PurchaseOrdersPage() {
                 {selectedOrder.status==='cancelled'&&<p className="po-error">أُلغي هذا الأمر. السبب المسجل: {selectedOrder.cancellation_reason||'غير مسجل'}</p>}
                 {selectedOrder.status==='received'&&<p className="po-notice"><CheckCircle2 size={15} style={{verticalAlign:'middle',marginInlineEnd:5}}/>تم استلام الكميات المطلوبة كاملة؛ مهمة أمين المخزن مرتبطة بالحدث ومغلقة خادميًا.</p>}
                 {selectedOrder.status==='draft'&&<p className="po-muted">المسودة لا تؤثر على المخزون. الإرسال ينشئ مهمة استلام واحدة؛ لا يتغير الرصيد قبل الاستلام الفعلي.</p>}
-                <PurchaseReceiptAccountingWorkspace purchaseOrderId={selectedOrder.id} />
+                <div className="no-print"><PurchaseReceiptAccountingWorkspace purchaseOrderId={selectedOrder.id} /></div>
               </section>
             }
           </div>
