@@ -510,3 +510,51 @@ test("public customer routes preserve RTL and fit mobile and desktop viewports",
   expect(pageErrors, "Public customer routes must not throw uncaught browser errors.").toEqual([]);
 });
 
+
+test("login supports keyboard-only focus and password-visibility control", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+    route.abort("blockedbyclient"),
+  );
+
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
+
+  const email = page.getByLabel("البريد الإلكتروني");
+  const password = page.getByLabel("كلمة المرور");
+  await expect(email).toBeVisible();
+
+  // Reach the field with real keyboard Tab navigation; do not call locator.focus().
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (await email.evaluate((element) => document.activeElement === element)) break;
+    await page.keyboard.press("Tab");
+  }
+  await expect(email).toBeFocused();
+
+  const emailFocus = await email.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth) };
+  });
+  expect(emailFocus.outlineStyle).toBe("solid");
+  expect(emailFocus.outlineWidth).toBeGreaterThanOrEqual(3);
+
+  await page.keyboard.press("Tab");
+  await expect(password).toBeFocused();
+  await page.keyboard.press("Tab");
+
+  const showPassword = page.getByRole("button", { name: "إظهار كلمة المرور" });
+  await expect(showPassword).toBeFocused();
+  const toggleFocus = await showPassword.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { outlineStyle: style.outlineStyle, outlineWidth: Number.parseFloat(style.outlineWidth) };
+  });
+  expect(toggleFocus.outlineStyle).toBe("solid");
+  expect(toggleFocus.outlineWidth).toBeGreaterThanOrEqual(3);
+
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "إخفاء كلمة المرور" })).toBeFocused();
+  await expect(password).toHaveAttribute("type", "text");
+  expect(pageErrors).toEqual([]);
+});
+

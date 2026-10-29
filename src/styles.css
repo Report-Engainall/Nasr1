@@ -296,6 +296,7 @@
 .sf-announcement-controls { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; color: #385a4d; font-size: 11px; font-weight: 700; }
 .sf-announcement-controls button { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #c7d7ce; border-radius: 50%; background: #fff; color: #1d4e3d; cursor: pointer; }
 .sf-announcement-controls button:focus-visible, .sf-announcement-link:focus-visible { outline: 3px solid #b99347; outline-offset: 3px; }
+.login-form :is(input, button, a):focus-visible { outline: 3px solid #b99347; outline-offset: 3px; }
 .sf-announcement-error { margin: 10px 24px 0; border: 1px solid #efd6a7; border-radius: 10px; padding: 9px 12px; color: #754b13; background: #fff8e8; font-size: 12px; }
 .sf-announcement-manager { display: grid; gap: 16px; }
 .sf-announcement-manager-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
