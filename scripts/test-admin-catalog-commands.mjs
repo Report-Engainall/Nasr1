@@ -378,6 +378,25 @@ async function main() {
   );
   assert.ok(created.id && created.created, "product create returns a new ID");
 
+  // The database guard must normalize valid values as well as rejecting blank ones.
+  await root.unsafe(
+    "update public.products set name=$1,item_code=$2 where id=$3 and organization_id=$4",
+    ["  CI product normalized  ", "  " + code + "  ", created.id, org],
+  );
+  const normalizedRequiredFields = await root.unsafe(
+    "select name,item_code from public.products where id=$1 and organization_id=$2",
+    [created.id, org],
+  );
+  assert.deepEqual(
+    { name: normalizedRequiredFields[0]?.name, item_code: normalizedRequiredFields[0]?.item_code },
+    { name: "CI product normalized", item_code: code },
+    "the database guard trims accepted identifiers before persistence",
+  );
+  await root.unsafe(
+    "update public.products set name=$1,item_code=$2 where id=$3 and organization_id=$4",
+    ["CI product", code, created.id, org],
+  );
+
   // Required-field invariants must survive requests that bypass the React form.
   await assert.rejects(
     () => root.unsafe("update public.products set name=$1 where id=$2", ["   ", created.id]),
