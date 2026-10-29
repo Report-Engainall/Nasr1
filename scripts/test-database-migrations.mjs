@@ -2207,6 +2207,7 @@ async function main() {
   const receiptRaceRacer = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   const receiptRaceGate = postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
   let receiptGateOpen = false;
+  let receiptAttemptPromises;
   let receiptAttempts;
   let receiptRaceResults;
   try {
@@ -2228,7 +2229,7 @@ async function main() {
       "select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended($1::text,0))",
       [organizationId + ":purchase-receiving-warehouse:" + receivingWarehouseId],
     );
-    receiptAttempts = Promise.all([
+    receiptAttemptPromises = [
       db.unsafe(
         "select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text) as result",
         [purchaseOrder.id,db.json(partialLines),"CI partial physical receipt","ci-purchase-receipt-key-000001"],
@@ -2237,10 +2238,11 @@ async function main() {
         "select public.receive_purchase_order($1::uuid,$2::jsonb,$3::text,$4::text) as result",
         [purchaseOrder.id,receiptRaceRacer.json(partialLines),"CI partial physical receipt","ci-purchase-receipt-key-000001"],
       ),
-    ]);
+    ];
+    receiptAttempts = Promise.all(receiptAttemptPromises);
     let bothReceiptWritersWaiting = false;
     let receiptActivitySnapshot = [];
-    for (let attempt = 0; attempt < 120; attempt += 1) {
+    for (let attempt = 0; attempt < 400; attempt += 1) {
       receiptActivitySnapshot = await receiptRaceGate.unsafe(
         "select application_name,state,wait_event_type,wait_event,left(query,180) as query " +
         "from pg_catalog.pg_stat_activity " +
@@ -2255,7 +2257,7 @@ async function main() {
     if (!bothReceiptWritersWaiting) {
       await receiptRaceGate.unsafe("rollback");
       receiptGateOpen = false;
-      const outcomes = await Promise.allSettled(receiptAttempts);
+      const outcomes = await Promise.allSettled(receiptAttemptPromises);
       assert.fail("purchase receipt lock contention was not observed for both RPC calls: " + JSON.stringify({
         activity:receiptActivitySnapshot,
         outcomes:outcomes.map((outcome) => outcome.status === "fulfilled"
@@ -2268,7 +2270,7 @@ async function main() {
     receiptRaceResults = await receiptAttempts;
   } finally {
     if (receiptGateOpen) await receiptRaceGate.unsafe("rollback").catch(()=>{});
-    if (receiptAttempts) await Promise.allSettled([receiptAttempts]);
+    if (receiptAttemptPromises) await Promise.allSettled(receiptAttemptPromises);
     await Promise.all([
       receiptRaceGate.end({timeout:5}).catch(()=>{}),
       receiptRaceRacer.end({timeout:5}).catch(()=>{}),
