@@ -1964,7 +1964,7 @@ async function main() {
   assert.equal(originalNameRows.length,1,"the finance print fixture has one source customer");
   const originalNames = originalNameRows[0];
   await db.unsafe("reset role");
-  await db.unsafe("update public.customers set business_name=null,contact_name=null where id=$1::uuid",[customerOne.id]);
+  await db.unsafe("update public.customers set business_name='',contact_name=null where id=$1::uuid",[customerOne.id]);
   await setIdentity(managerAuthId,"ci-return-manager@example.test");
   await db.unsafe("set role authenticated");
   let printOptions;
