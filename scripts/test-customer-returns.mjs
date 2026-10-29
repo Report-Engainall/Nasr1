@@ -590,6 +590,9 @@ async function main() {
   const foreignCustomerProfileId = randomUUID();
   const foreignCustomerAuthId = randomUUID();
   const foreignCustomerEmail = "ci-foreign-finance-print-" + suffix + "@example.test";
+  const foreignFinanceProfileId = randomUUID();
+  const foreignFinanceAuthId = randomUUID();
+  const foreignFinanceEmail = "ci-foreign-finance-manager-" + suffix + "@example.test";
   const customerOneProfileId = "f1111111-1111-4111-8111-111111111111";
   const customerOneAuthId = "11111111-1111-4111-8111-111111111111";
   const customerTwoProfileId = "f2222222-2222-4222-8222-222222222222";
@@ -643,6 +646,18 @@ async function main() {
   await db.unsafe(
     "insert into public.user_roles(profile_id,role) values($1,'customer') on conflict(profile_id,role) do nothing",
     [foreignCustomerProfileId],
+  );
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,pg_catalog.now()) on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [foreignFinanceAuthId,foreignFinanceEmail],
+  );
+  await db.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Foreign Finance Manager',$4,true) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,full_name=excluded.full_name,email=excluded.email,is_active=true",
+    [foreignFinanceProfileId,foreignFinanceAuthId,otherOrganizationId,foreignFinanceEmail],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'manager') on conflict(profile_id,role) do nothing",
+    [foreignFinanceProfileId],
   );
 
   const customerRows = await db.unsafe(
@@ -1943,13 +1958,54 @@ async function main() {
   assert.equal(fullStatement.record_counts.credits,fullStatement.credits.length,"statement credit count matches returned details");
   assert.ok(fullStatement.record_counts.total <= 10000,"statement is within the safe print limit");
 
-  const printOptionsRaw = await db.unsafe("select public.get_finance_document_print_options(500) as result");
-  const printOptions = asJson(printOptionsRaw[0].result);
-  assert.ok(printOptions.customers.some((row) => row.id === customerOne.id),"finance print options include an own-organization customer");
-  assert.ok(printOptions.invoices.some((row) => row.id === sourceInvoiceId),"finance print options include the source invoice");
-  assert.ok(printOptions.credit_memos.some((row) => row.id === preparedCredit.credit_memo_id),"finance print options include the posted credit memo");
-  assert.ok(!printOptions.customers.some((row) => row.id === foreignCustomerId),"finance print options exclude foreign-organization customers");
-  assert.ok(!printOptions.invoices.some((row) => row.id === foreignInvoiceId),"finance print options exclude foreign-organization invoices");
+  const originalNameRows = await db.unsafe(
+    "select business_name,contact_name from public.customers where id=$1::uuid",[customerOne.id],
+  );
+  assert.equal(originalNameRows.length,1,"the finance print fixture has one source customer");
+  const originalNames = originalNameRows[0];
+  await db.unsafe("reset role");
+  await db.unsafe("update public.customers set business_name=null,contact_name=null where id=$1::uuid",[customerOne.id]);
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
+  await db.unsafe("set role authenticated");
+  let printOptions;
+  try {
+    const printOptionsRaw = await db.unsafe(
+      "select public.get_finance_document_print_options($1::integer,$2::integer) as result",[500,0],
+    );
+    printOptions = asJson(printOptionsRaw[0].result);
+    assert.ok(printOptions.customers.some((row) => row.id === customerOne.id),"finance print options include an own-organization customer");
+    assert.ok(printOptions.invoices.some((row) => row.id === sourceInvoiceId),"finance print options include the source invoice");
+    assert.ok(printOptions.credit_memos.some((row) => row.id === preparedCredit.credit_memo_id),"finance print options include the posted credit memo");
+    const unnamedInvoiceOption=printOptions.invoices.find((row)=>row.id===sourceInvoiceId);
+    const unnamedMemoOption=printOptions.credit_memos.find((row)=>row.id===preparedCredit.credit_memo_id);
+    assert.equal(unnamedInvoiceOption.customer_name,"عميل غير مسمى",
+      "invoice selector masks missing business/contact names with the safe display label");
+    assert.equal(unnamedMemoOption.customer_name,"عميل غير مسمى",
+      "credit-memo selector masks missing business/contact names with the safe display label");
+    assert.ok(!printOptions.customers.some((row) => row.id === foreignCustomerId),"finance print options exclude foreign-organization customers");
+    assert.ok(!printOptions.invoices.some((row) => row.id === foreignInvoiceId),"finance print options exclude foreign-organization invoices");
+  } finally {
+    await db.unsafe("reset role");
+    await db.unsafe(
+      "update public.customers set business_name=$2,contact_name=$3 where id=$1::uuid",
+      [customerOne.id,originalNames.business_name,originalNames.contact_name],
+    );
+    await setIdentity(managerAuthId,"ci-return-manager@example.test");
+    await db.unsafe("set role authenticated");
+  }
+  await setIdentity(foreignFinanceAuthId,foreignFinanceEmail);
+  await db.unsafe("set role authenticated");
+  const foreignTenantPrintOptions=asJson((await db.unsafe(
+    "select public.get_finance_document_print_options($1::integer,$2::integer) as result",[500,0],
+  ))[0].result);
+  assert.ok(!foreignTenantPrintOptions.customers.some((row)=>row.id===customerOne.id),
+    "foreign-tenant finance role cannot enumerate another organization's customer selector values");
+  assert.ok(!foreignTenantPrintOptions.invoices.some((row)=>row.id===sourceInvoiceId),
+    "foreign-tenant finance role cannot enumerate another organization's invoice selector values");
+  assert.ok(!foreignTenantPrintOptions.credit_memos.some((row)=>row.id===preparedCredit.credit_memo_id),
+    "foreign-tenant finance role cannot enumerate another organization's credit-memo selector values");
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
+  await db.unsafe("set role authenticated");
 
   const printOptionsOffsetRaw = await db.unsafe(
     "select public.get_finance_document_print_options($1::integer,$2::integer) as result",[500,1],
