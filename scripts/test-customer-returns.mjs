@@ -1209,6 +1209,14 @@ async function main() {
     /administrator or manager permission required to receive customer returns/i,
   );
   await expectFailure(
+    "ordinary customers cannot read a staff warehouse receipt print snapshot",
+    () => db.unsafe(
+      "select public.get_customer_return_receipt_print_data($1::uuid)",
+      [firstReceipt.receipt_id],
+    ),
+    /administrator or manager permission required to read a return receipt/i,
+  );
+  await expectFailure(
     "customers cannot access the finance return-credit queue",
     () => db.unsafe("select public.fetch_customer_return_credit_memo_queue(50)"),
     /finance permission required/i,
