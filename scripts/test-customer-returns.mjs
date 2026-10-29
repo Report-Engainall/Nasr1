@@ -1218,6 +1218,14 @@ async function main() {
     /receipt was not found in the active organization/i,
   );
   await db.unsafe("reset role");
+  await expectFailure(
+    "receipt-time print labels cannot be rewritten after the receipt is saved",
+    () => db.unsafe(
+      "update public.customer_return_receipts set warehouse_name_snapshot=$3 where id=$1::uuid and organization_id=$2::uuid",
+      [firstReceipt.receipt_id,organizationId,"FORGED-RECEIPT-WAREHOUSE-LABEL"],
+    ),
+    /receipt document label snapshots are immutable/i,
+  );
   await db.unsafe(
     "update public.orders set order_number=$3 where id=$1::uuid and organization_id=$2::uuid",
     [orderOneId,organizationId,persistedOrderNumber],
