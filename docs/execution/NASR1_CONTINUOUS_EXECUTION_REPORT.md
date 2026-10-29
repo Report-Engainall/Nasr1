@@ -1,3 +1,41 @@
+## LIVE CHECKPOINT — 2026-10-29 (purchase receipt concurrency diagnostics repaired; exact-head CI green)
+
+**Repository:** `Report-Engainall/Nasr1`  
+**Integration branch:** `main` only  
+**Code/test SHA:** `c9838d8ced1869b2fdbeee735160197edc81a16b`  
+**Code/test commit:** [c9838d8](https://github.com/Report-Engainall/Nasr1/commit/c9838d8ced1869b2fdbeee735160197edc81a16b)  
+**Aghbari Commerce checks:** [run 40945751611](https://github.com/Report-Engainall/Nasr1/actions/runs/40945751611) — `SUCCESS`, **35/35 steps**, exact SHA c9838d8.  
+**Independent PostgreSQL 17 import-finalizer tenant-scope check:** [run 40945751576](https://github.com/Report-Engainall/Nasr1/actions/runs/40945751576) — `SUCCESS`, 14/14 steps, exact SHA c9838d8.  
+**One-main-branch cleanup:** [run 40945751427](https://github.com/Report-Engainall/Nasr1/actions/runs/40945751427) — `SUCCESS`, 6/6 steps, exact SHA c9838d8.  
+**Latest test output:** 214/214 unit-test files passed; PostgreSQL 17 migration/core acceptance, inventory-transfer race, stock-count balance-set guard, inventory write boundary, purchase-receipt accounting, backup/restore, lint/build, and smoke/browser steps finished successfully.  
+**Exact-SHA RPC inventory:** [artifact 12929127056](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/12929127056/zip) — 330 functions, 330 source-matched, 0 unmatched across 173 migrations. Matching source definitions is not a substitute for semantic authorization proof.
+
+### New work completed and verified
+
+1. **Fixed a real CI diagnostic defect in the purchase-receipt concurrency test** (`scripts/test-database-migrations.mjs`). Earlier run [40945078735](https://github.com/Report-Engainall/Nasr1/actions/runs/40945078735) failed only after the receipt-race monitor missed both lock waits within three seconds; its error branch passed the aggregate `Promise.all(...)` Promise to `Promise.allSettled`, hiding the actual contention state behind `TypeError: object is not iterable`. Commit c9838d8 retains each of the two RPC promises, expands the bounded observation window to ten seconds, and settles each promise independently during diagnostics/cleanup. The exact-head PostgreSQL workflow now completes `SUCCESS`; the concurrency assertion is still enforced, not skipped.
+2. **Added the purchase receipt accounting acceptance to CI** in [commit 94791b2](https://github.com/Report-Engainall/Nasr1/commit/94791b2c0dfd96c3e0d636afac7618100a4ed2a9). The previously existing `scripts/test-purchase-receipt-accounting.mjs` was not run by `test:db` or the workflow. It now runs as a separate PostgreSQL 17 step and passed on SHA c9838d8: source-backed cost only, YER policy, balanced inventory/AP draft, durable source link, idempotent replay, customer denial, direct-write denial and unknown-cost rejection.
+3. **Stock transfer and stock-count concurrency evidence is green on c9838d8.** PostgreSQL acceptance reports that exactly one competing single/batch transfer wins, reservations are conserved, failed paths leave no partial rows/movements and exactly one audit event persists. The balance-set guard rejects a newly created post-snapshot balance without movement/completion audit; physical stock count idempotency, audited variance and stale-balance rejection also pass.
+4. **Previously fixed finance-document issues remain covered:** statement payloads fail closed when invoice/payment arrays are missing; invoice/credit-memo selector labels and credit-memo output do not fall back to internal customer UUIDs. Their code/test implementation remains in [66ed055](https://github.com/Report-Engainall/Nasr1/commit/66ed055031f8fa9f6d1da0ab2ebe0a996f849221) and [cc02dbf](https://github.com/Report-Engainall/Nasr1/commit/cc02dbf47e518e38f04516857a05274f2d460af6), and passed within the full c9838d8 run.
+
+### Acceptance / release state — do not overstate
+
+- The existing central matrix still has **122 populated task IDs, 18 DLV roll-up groups, and 0/18 fully release-closed groups**. An overall completion percentage is not computable from available evidence.
+- `DLV-005`: tested server-side price privacy and membership-revocation race remain green; hosted authenticated tier/session journeys are still open.
+- `DLV-007`: stock-count balance-set and single/batch transfer races, inventory write boundaries, and purchase receipt accounting passed. Full stock reservation/movement lifecycle and Onyx target integration are not closed.
+- `DLV-008`: focused statement payload and finance-print privacy fixes passed; full ledger/payment/credit reconciliation and role-specific outputs remain partial.
+- `DLV-009`: local import/export contract checks pass; a real Onyx Pro target round-trip is still `BLOCKED_EXTERNAL` until the target version, credentials and authorized test tenant are available.
+- `DLV-011`: specific PDF payload and UUID-label defects are fixed and tested; complete role-by-template PDF/XLSX/print acceptance and hosted authenticated output journeys remain open.
+- `DLV-015`: 330/330 runtime RPC functions match migration source on c9838d8; semantic role/tenant/no-side-effect/idempotency evidence is not complete for every callable function.
+- Official WhatsApp delivery receipts, live AI provider operation, hosted production journeys, production deployment/rollback/restore and owner approval are not proven by this code CI. Release stays NO-GO until those real gates are closed or explicitly excluded under the approved pilot policy.
+
+### NEXT ACTION
+
+1. This checkpoint update is documentation-only and will create a new `main` SHA. Verify the Aghbari workflow triggered by that exact checkpoint SHA; do not transfer c9838d8 results to another SHA without checking its own run.
+2. Then close a specific remaining `DLV-011` runtime gap: extend PostgreSQL acceptance for `get_finance_document_print_options` to prove the invoice/credit-memo selector uses `عميل غير مسمى` for a customer lacking printable business/contact names, and proves an ordinary customer or foreign-tenant request cannot obtain those staff selector values. Keep `DLV-011` open until every applicable role/template path has evidence.
+3. Do not repeat the already-passing purchase receipt accounting, transfer-race, stock-count balance-set, membership-revocation, statement missing-array, or credit-memo UUID-renderer tests unless a future code change affects them.
+
+---
+
 ## LIVE CHECKPOINT — 2026-10-29 (exact-head price-race, returns, RPC inventory and finance-print privacy passed)
 
 **Repository:** `Report-Engainall/Nasr1`  
