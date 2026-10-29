@@ -1,3 +1,16 @@
+## P2 execution record — import snapshot rollback authorization — 2026-10-30
+
+- Repository: Report-Engainall/Nasr1, main only.
+- First code commit: https://github.com/Report-Engainall/Nasr1/commit/7bef9e1229e1c5ea814a5f1fdcc1448642fe0cce. Core run 40974044403 FAILED in step 23, “Verify inventory import snapshot contract without implicit stock mutation.” The log identified SQL error: column import_jobs.updated_at does not exist.
+- Root cause was a test-only schema assumption, not a production schema failure. Fixed by commit https://github.com/Report-Engainall/Nasr1/commit/7a28f88c73ec229be1d0455e6b4d3b48ab20110d: query now snapshots import_jobs.created_at along with status and error_summary.
+- Test scope: same-tenant ordinary staff must receive SQLSTATE 42501 on public.rollback_import_snapshot; foreign-tenant manager must receive opaque P0002. The test compares job status/metadata/created_at, ready snapshot metadata, stored snapshot row count and rollback audit count before and after each denial.
+- Corrected exact-SHA CI state at checkpoint: Core 40974514133 IN_PROGRESS (https://github.com/Report-Engainall/Nasr1/actions/runs/40974514133), P2 40974514139 PENDING (https://github.com/Report-Engainall/Nasr1/actions/runs/40974514139), cleanup 40974514142 SUCCESS (https://github.com/Report-Engainall/Nasr1/actions/runs/40974514142). New rollback test status remains IMPLEMENTED; not yet TESTED_EXACT_SHA.
+- Retained RPC inventory artifact 12940762864 maps 330/330 functions across 173 migration files; it was not regenerated.
+- Completed prerequisite: cash-expense void authorization/no-side-effect suite passed Core 40973093903, P2 40973094057 and cleanup 40973093914 on exact SHA 14e9cb703846708419c47ade22aa54ac3c7cdffd.
+- Next task: VERIFY-AUTHZ-IMPORT-SNAPSHOT-ROLLBACK-001-EXACT-SHA-CI. Inspect corrected terminal runs; fix a concrete remaining failure, then choose another uncovered destructive RPC from the retained inventory.
+- Release: full production release remains NO-GO; hosted customer/order/tenant E2E, live external integrations, production deploy/restore and owner sign-off remain unproven.
+
+---
 ## P1 execution record — persistent customer-cart revocation guard — 2026-10-27
 
 - Code PR #283: https://github.com/Report-Engainall/Nasr1/pull/283 — merged to `main` as `07fa889275526b2ba164784ba2fc6b2bbcc01e29`.

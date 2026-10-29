@@ -1,3 +1,14 @@
+## LIVE CHECKPOINT — 2026-10-30 — rollback denial test corrected; exact-SHA CI pending
+
+- **Corrected code SHA:** 7a28f88c73ec229be1d0455e6b4d3b48ab20110d — https://github.com/Report-Engainall/Nasr1/commit/7a28f88c73ec229be1d0455e6b4d3b48ab20110d
+- **Failure and root cause:** code SHA 7bef9e1229e1c5ea814a5f1fdcc1448642fe0cce failed Core 40974044403 at the import-inventory snapshot acceptance because test helper snapshotImportRollbackBoundary queried import_jobs.updated_at, a column not present in that table. The test-only query is fixed to use created_at. No production schema or data was changed by this failure or fix.
+- **Regression still being verified:** public.rollback_import_snapshot role/tenant denial (ordinary staff 42501; foreign-tenant manager opaque P0002) plus pre/post state comparison for job metadata/creation time, ready snapshot metadata, persisted rows and rollback audit.
+- **Corrected candidate checks:** Core 40974514133 IN_PROGRESS, P2 40974514139 PENDING, cleanup 40974514142 SUCCESS on exact code SHA 7a28f88c73ec229be1d0455e6b4d3b48ab20110d. URLs: https://github.com/Report-Engainall/Nasr1/actions/runs/40974514133, https://github.com/Report-Engainall/Nasr1/actions/runs/40974514139, https://github.com/Report-Engainall/Nasr1/actions/runs/40974514142.
+- **Inventory:** retained artifact 12940762864 remains the source list; 330/330 functions source-mapped across 173 migration files. No inventory regeneration was performed.
+- **Next action:** check corrected exact-SHA Core/P2 terminal states, repair the first concrete failure, then select the next uncovered high-risk destructive RPC.
+- **Release decision:** full production release remains NO-GO while hosted customer/order/tenant E2E, live external integrations, production deploy/restore and owner sign-off are unproven.
+
+---
 ## LIVE CHECKPOINT — 2026-10-30 — purchase-order cancellation verified; cash-expense void authorization pending
 
 - **Base SHA:** 14e9cb703846708419c47ade22aa54ac3c7cdffd.
