@@ -1,6 +1,18 @@
-# AUTHORITATIVE EXECUTION OVERRIDE — 2026-10-28 — CURRENT MAIN ACCEPTANCE / SESSION-BOUND CATALOG
+# EXECUTION CURSOR REDIRECT — 2026-10-29 — SINGLE LIVE CHECKPOINT
 
-This is the live resume cursor and supersedes the stale NEXT_ACTION pointers in historical blocks below. Preserve those blocks as history; do not repeat completed work without new failing evidence.
+This file is retained for older links only. It is **not** the active task queue: resume from the newest **LIVE CHECKPOINT / NEXT ACTION** in `docs/execution/NASR1_CONTINUOUS_EXECUTION_REPORT.md`. This is the sole execution ledger; `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` is the sole acceptance matrix. Everything below this redirect is historical context and must not supersede the live checkpoint.
+
+- **Repository:** `Report-Engainall/Nasr1`; only integration branch: `main`.
+- **Last exact-tested runtime/code SHA:** `088e42450dc2fe7dc72cc8f4a1b3ff3cd79af46b`. [Aghbari Commerce run 40919660544 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40919660544) — 209/209 test files and 1370/1370 tests; PostgreSQL 17, RPC inventory, backup/restore, lint/build, preview/dev smoke and Chromium passed.
+- **Main-only cleanup:** [run 40919660696 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40919660696).
+- **Acceptance:** DLV-005 PARTIAL; DLV-007 PARTIAL; DLV-010 PARTIAL; DLV-011 OPEN. Full production release remains NO-GO pending hosted/external gates.
+- **Rule:** Do not create branches, PRs, alternate ledgers or competing live cursors. Do not rerun completed work without a concrete failing regression.
+
+---
+
+## Historical checkpoint (superseded) — 2026-10-28 — session-bound catalog
+
+Historical status only; its SHA and NEXT_ACTION have been superseded by the current live checkpoint in docs/execution/NASR1_CONTINUOUS_EXECUTION_REPORT.md.
 
 - **Repository/product:** `Report-Engainall/Nasr1` — متجر الأغبري | Aghbari Commerce. **Only integration branch:** `main`. No new branches, PRs or parallel repositories.
 - **Current main SHA:** `74c6dddb0f5c5f58bc0da53791ad922417981aab`.
@@ -17,7 +29,7 @@ This is the live resume cursor and supersedes the stale NEXT_ACTION pointers in 
 ---
 ---
 
-# AUTHORITATIVE EXECUTION OVERRIDE — 2026-10-28 — PR #304 MERGED / STRICT MAIN-ONLY CLEANUP
+## Historical checkpoint (superseded) — 2026-10-28 — PR #304 MERGED / STRICT MAIN-ONLY CLEANUP
 
 **Checkpoint rule:** this header records the verified state at the time of this documentation change. Older blocks below are historical; always read current refs/checks before acting.
 
@@ -32,7 +44,7 @@ This is the live resume cursor and supersedes the stale NEXT_ACTION pointers in 
 
 ---
 
-# AUTHORITATIVE EXECUTION OVERRIDE — 2026-10-28 — MAIN f4136e9be2542e5fc4f34ee849c58d24c5d71df5 + DLV-005 XLSX PRIVACY
+## Historical checkpoint (superseded) — 2026-10-28 — MAIN f4136e9be2542e5fc4f34ee849c58d24c5d71df5 + DLV-005 XLSX PRIVACY
 
 **This block supersedes stale resume pointers below. Preserve historical entries; always read live refs and exact tested SHAs before acting.**
 
@@ -48,7 +60,7 @@ This is the live resume cursor and supersedes the stale NEXT_ACTION pointers in 
 
 ---
 
-# AUTHORITATIVE EXECUTION OVERRIDE — 2026-10-28 — CURRENT MAIN + DLV-003
+## Historical checkpoint (superseded) — 2026-10-28 — CURRENT MAIN + DLV-003
 
 **This block supersedes old resume pointers below. Preserve history; always re-read current refs and CI before acting.**
 

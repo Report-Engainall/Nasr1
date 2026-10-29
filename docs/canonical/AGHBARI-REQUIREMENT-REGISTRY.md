@@ -1,16 +1,16 @@
-# CURRENT DELIVERY OVERRIDE — 2026-10-28 — MAIN-ONLY / DLV-005 ROLE-SESSION AND OUTPUT PRIVACY
+# CURRENT DELIVERY OVERRIDE — 2026-10-29 — CUSTOMER 360 XLSX ACCEPTED / MAIN-ONLY / SINGLE LEDGER
 
-This block is the single current registry override; older checkpoints below are historical and cannot override it.
+This is the current verified override. All entries below the next heading are historical and cannot supersede the live execution report.
 
-The integrated code/test baseline is `0765a7a4532026e91a0c6f7c71148d05ccd0e899`. It adds a PDF privacy regression asserting that hidden monetary/tier sentinels do not change a customer invoice PDF, and service-worker regressions proving invoice PDF, pricing RPC, and async export endpoints are not intercepted or cached. Exact-head Aghbari Commerce run 40722351742 was IN_PROGRESS when this checkpoint was recorded; cleanup run 40722352018 is SUCCESS on the exact SHA. Do not mark the new tests passing until the commerce run is terminal SUCCESS.
-
-Previous role/session code commit `9858cbfc1044e2651e08e9e1fa7dae132cbaee0e` passed exact-head Aghbari Commerce checks 40721689973 and cleanup 40721689780. It invalidates the rendered pricing preview across authenticated user/profile/role/staff changes and refreshes effective profile roles on `TOKEN_REFRESHED`.
-
-Immediate priority remains DLV-005 cross-channel privacy. Preserve all existing pricing, invoice-PDF, XLSX, cache, and print defenses; prove direct API/RPC, role/tier/session/logout, DOM/cache/PWA, PDF, XLSX and print separately. A passing leaf does not close the roll-up. Once exact-head tests settle, update the central matrix from evidence and move directly to the next open high-priority product flow.
-
-Use `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` as the only dynamic resume cursor and `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv` as the only acceptance matrix. Do not create branches, PRs, parallel matrices or ledgers. Exactly one GitHub branch, `main`, was observed on SHA `0765a7a4532026e91a0c6f7c71148d05ccd0e899`; recheck after this checkpoint commit.
-
-Current measurement: 118 populated unique acceptance IDs, 0 duplicate IDs, 18 canonical delivery groups, 0/18 fully release-closed. Overall completion percentage remains NOT COMPUTABLE until required leaf evidence and roll-ups reconcile on one release candidate. Full production release remains NO-GO; hosted customer/tenant E2E and live/production integrations remain unproven.
+- **Repository/product:** `Report-Engainall/Nasr1` — متجر الأغبري | Aghbari Commerce. **Only integration branch:** `main`.
+- **Exact tested runtime/code SHA:** `088e42450dc2fe7dc72cc8f4a1b3ff3cd79af46b`. [Aghbari Commerce run 40919660544 — terminal SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40919660544) passed **209/209 test files and 1370/1370 tests**. PostgreSQL 17 migrations/workflows, tenant/role authorization, RPC inventory, finance/concurrency/idempotency, export/import, backup/restore, lint, build, preview/dev smoke and Chromium price-visibility acceptance all passed. [One-main cleanup run 40919660696 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40919660696) on the same SHA.
+- **New accepted output:** `src/components/AdminCustomer360.tsx` exposes Customer 360 Excel; `src/lib/customer-360-xlsx.ts` builds eight worksheets from the existing authorized `get_staff_customer_360()` response. `src/lib/customer-360-xlsx.test.ts` validates full per-currency aggregate separation from the latest 20 details, unknown-as-blank, text identifiers, formula injection, no cost/margin leakage, and the bounded-detail contract.
+- **Failure transparency:** Core run 40919501907 failed on SHA `c10c0f4` due one mismatched Arabic assertion string. The string and reload error state were fixed in `088e42450dc2fe7dc72cc8f4a1b3ff3cd79af46b`; exact-head run 40919660544 is fully green.
+- **Acceptance:** `DLV-003` PARTIALLY VERIFIED; `DLV-005` PARTIAL; `DLV-007` PARTIAL; `DLV-010` PARTIAL; `DLV-011` OPEN. Customer 360 XLSX and product activity XLSX are accepted locally, but complete role-by-output acceptance and hosted UAT remain open.
+- **Sole ledger / sole matrix:** `docs/execution/NASR1_CONTINUOUS_EXECUTION_REPORT.md` is the only live checkpoint and NEXT_ACTION. `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` is a redirect only. The only matrix is `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
+- **Roll-up:** 118 populated unique IDs, zero duplicates, 18 delivery groups, zero fully release-closed. Overall completion percentage is NOT COMPUTABLE until leaf/group evidence reconciles. Full production release remains **NO-GO**.
+- **External gates:** authenticated hosted customer/tenant E2E, actual Onyx target-version round-trip, official WhatsApp delivery receipts, live AI-provider operation, production migration/deploy/rollback/restore evidence, and owner sign-off remain `BLOCKED_EXTERNAL` or `UNVERIFIED`.
+- **NEXT ACTION:** follow the latest live report checkpoint. Continue on the first uncovered DLV-005/DLV-011 direct API/RPC role/tenant/tier/session boundary or output role/template not already covered. Do not repeat accepted Customer 360 workbook tests or infer production readiness from CI.
 ---
 ---
 
