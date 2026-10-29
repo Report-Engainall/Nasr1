@@ -119,6 +119,19 @@ describe('inventory stock-count retry safety', () => {
     expect(screen.getByRole('status')).toHaveTextContent('استُعيدت الجلسة نفسها دون تكرارها.');
     expect(screen.getByText('SKU-001')).toBeInTheDocument();
   });
+  it('keeps internal session and product identifiers out of the operator-facing printable sheet', async () => {
+    const savedLine = { ...line, counted_quantity: 2, variance: -2, counted_at: '2026-10-19T10:10:00.000Z' };
+    const savedSession = { ...session, counted_lines: 1 };
+    mocks.fetchOpenStockCountForWarehouse.mockResolvedValueOnce(savedSession);
+    mocks.fetchStockCountLines.mockResolvedValueOnce([savedLine]);
+    const { container } = render(<InventoryStockCountPage />);
+    expect(await screen.findByText('جلسة الجرد المفتوحة')).toBeInTheDocument();
+    // These raw UUIDs were displayed in the print-visible region, unlike the XLSX export.
+    expect(container.textContent).not.toContain(sessionId);
+    expect(container.textContent).not.toContain(productId);
+    expect(screen.getByText('SKU-001')).toBeInTheDocument();
+  });
+
   it('exports the saved stock-count snapshot via the Excel action', async () => {
     const savedLine = { ...line, counted_quantity: 2, variance: -2, counted_at: '2026-10-19T10:10:00.000Z' };
     const savedSession = { ...session, counted_lines: 1 };
