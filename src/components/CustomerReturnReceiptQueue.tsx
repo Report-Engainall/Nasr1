@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ClipboardCheck, PackageCheck, RefreshCw, Warehouse } from "lucide-react";
+import { ClipboardCheck, PackageCheck, Printer, RefreshCw, Warehouse } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   buildCustomerReturnReceiptLines,
@@ -28,6 +28,28 @@ const button: React.CSSProperties = {
 const primary: React.CSSProperties = { ...button, color: "#fff", background: "#176b55", borderColor: "#176b55" };
 const muted: React.CSSProperties = { margin: 0, color: "#64787c", fontSize: 13, lineHeight: 1.7 };
 
+type SavedReturnReceipt = {
+  receiptNumber: string;
+  requestNumber: string;
+  orderNumber: string;
+  customerName: string;
+  warehouseName: string;
+  generatedAt: string;
+  notes: string;
+  receivedLineCount: number;
+  receivedQuantity: number;
+  restockableQuantity: number;
+  defectiveQuantity: number;
+  lines: Array<{
+    itemCode: string | null;
+    productName: string;
+    unit: string | null;
+    receivedQuantity: number;
+    restockableQuantity: number;
+    defectiveQuantity: number;
+  }>;
+};
+
 export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: string) => void }) {
   const [queue, setQueue] = useState<CustomerReturnReceiptQueue>({ warehouses: [], requests: [] });
   const [warehouseId, setWarehouseId] = useState("");
@@ -37,6 +59,7 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [savedReceipt, setSavedReceipt] = useState<SavedReturnReceipt | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,6 +120,31 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
       });
       if (rpcError) throw new Error(rpcError.message || "تعذر حفظ الاستلام الفعلي.");
       const result = readReturnReceiptMutationResult(data);
+      const warehouseName = queue.warehouses.find((warehouse) => warehouse.id === warehouseId)?.name ?? "مخزن الاستلام";
+      setSavedReceipt({
+        receiptNumber: result.receipt_number,
+        requestNumber: request.request_number,
+        orderNumber: request.order_number,
+        customerName: request.customer_name,
+        warehouseName,
+        generatedAt: new Date().toISOString(),
+        notes: (notes[request.id] ?? "").trim(),
+        receivedLineCount: result.received_line_count,
+        receivedQuantity: result.received_quantity,
+        restockableQuantity: result.restockable_quantity,
+        defectiveQuantity: result.defective_quantity,
+        lines: lines.map((line) => {
+          const item = request.items.find((candidate) => candidate.request_item_id === line.request_item_id);
+          return {
+            itemCode: item?.item_code ?? null,
+            productName: item?.product_name ?? "صنف غير متاح",
+            unit: item?.unit ?? null,
+            receivedQuantity: line.received_quantity,
+            restockableQuantity: line.restockable_quantity,
+            defectiveQuantity: Math.max(0, line.received_quantity - line.restockable_quantity),
+          };
+        }),
+      });
       onNotice(
         "تم حفظ " + result.receipt_number + " — المستلم " +
         result.received_quantity.toLocaleString("ar-YE") + "، الصالح للمخزون " +
@@ -119,6 +167,44 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
 
   return (
     <section style={panel} dir="rtl" aria-labelledby="return-receipt-heading">
+      <style>{`@page { size: A4 portrait; margin: 12mm; }
+      @media print {
+        body * { visibility: hidden !important; }
+        .return-receipt-print, .return-receipt-print * { visibility: visible !important; }
+        .return-receipt-print { position: absolute !important; inset: 0 !important; width: 100% !important; color: #172f32 !important; background: #fff !important; padding: 0 !important; }
+        .return-receipt-print table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 14px; }
+        .return-receipt-print th, .return-receipt-print td { border: 1px solid #aab9bb !important; padding: 7px; text-align: right; color: #172f32 !important; }
+      }`}</style>
+      {savedReceipt && <article className="return-receipt-print" dir="rtl" aria-label="نسخة إيصال المرتجع المحفوظ">
+        <header style={{ borderBottom: "2px solid #176b55", paddingBottom: 12, marginBottom: 14 }}>
+          <h1 style={{ margin: 0, fontSize: 23, color: "#176b55" }}>الأغبري</h1>
+          <h2 style={{ margin: "8px 0 4px", fontSize: 19 }}>إيصال استلام وفحص مرتجع</h2>
+          <p style={{ margin: 0 }}>رقم الإيصال: <strong>{savedReceipt.receiptNumber}</strong></p>
+          <p style={{ ...muted, marginTop: 4 }}>وقت إعداد النسخة المطبوعة: {new Date(savedReceipt.generatedAt).toLocaleString("ar-YE")}</p>
+        </header>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <p>طلب المرتجع: <strong>{savedReceipt.requestNumber}</strong></p>
+          <p>الطلب الأصلي: <strong>{savedReceipt.orderNumber}</strong></p>
+          <p>العميل: <strong>{savedReceipt.customerName}</strong></p>
+          <p>مخزن الاستلام: <strong>{savedReceipt.warehouseName}</strong></p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8, marginBlock: 12 }}>
+          <div style={{ border: "1px solid #ccd8d9", padding: 9 }}><small>إجمالي المستلم</small><h3 style={{ margin: "5px 0" }}>{savedReceipt.receivedQuantity.toLocaleString("ar-YE")}</h3></div>
+          <div style={{ border: "1px solid #ccd8d9", padding: 9 }}><small>الصالح للمخزون</small><h3 style={{ margin: "5px 0" }}>{savedReceipt.restockableQuantity.toLocaleString("ar-YE")}</h3></div>
+          <div style={{ border: "1px solid #ccd8d9", padding: 9 }}><small>التالف</small><h3 style={{ margin: "5px 0" }}>{savedReceipt.defectiveQuantity.toLocaleString("ar-YE")}</h3></div>
+        </div>
+        <table><thead><tr><th>كود الصنف</th><th>الصنف</th><th>المستلم</th><th>الصالح للمخزون</th><th>التالف</th></tr></thead>
+          <tbody>{savedReceipt.lines.map((line, index) => <tr key={index}>
+            <td>{line.itemCode ?? "غير مسجل"}</td><td>{line.productName}{line.unit ? " — " + line.unit : ""}</td>
+            <td>{line.receivedQuantity.toLocaleString("ar-YE")}</td><td>{line.restockableQuantity.toLocaleString("ar-YE")}</td><td>{line.defectiveQuantity.toLocaleString("ar-YE")}</td>
+          </tr>)}</tbody>
+        </table>
+        <p style={{ marginTop: 12 }}>عدد البنود المستلمة وفق نتيجة الخادم: <strong>{savedReceipt.receivedLineCount}</strong></p>
+        {savedReceipt.notes && <p style={{ marginTop: 8 }}>ملاحظة الاستلام: {savedReceipt.notes}</p>}
+        <p style={{ marginTop: 18, borderTop: "1px solid #ccd8d9", paddingTop: 9, fontSize: 10 }}>
+          المستند يثبت الاستلام والفحص المسجلين. لا ينشئ إشعارًا دائنًا أو قيدًا ماليًا، ولا يُعدّ إثباتًا لصرف أو رد مبلغ.
+        </p>
+      </article>}
       <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
           <h2 id="return-receipt-heading" style={{ margin: 0, fontSize: 19, display: "flex", alignItems: "center", gap: 8 }}>
@@ -128,9 +214,14 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
             يسجّل الموظف الكمية المستلمة ويحدد الصالح لإعادة المخزون. الباقي يسجّل تالفًا ولا يدخل الرصيد المتاح. لا يصدر إشعار دائن أو قيد محاسبي تلقائيًا.
           </p>
         </div>
-        <button type="button" style={button} onClick={() => void load()} disabled={loading || busyId !== null}>
-          <RefreshCw size={15} /> تحديث
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {savedReceipt && <button type="button" style={primary} onClick={() => window.print()}>
+            <Printer size={15} /> طباعة الإيصال {savedReceipt.receiptNumber}
+          </button>}
+          <button type="button" style={button} onClick={() => void load()} disabled={loading || busyId !== null}>
+            <RefreshCw size={15} /> تحديث
+          </button>
+        </div>
       </header>
 
       <label style={{ display: "grid", gap: 6, maxWidth: 540, fontSize: 13, fontWeight: 750 }}>
