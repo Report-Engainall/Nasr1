@@ -24,7 +24,7 @@ permissions:
 
 concurrency:
   group: p2-playwright-critical-paths-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   e2e-infrastructure-gate:
