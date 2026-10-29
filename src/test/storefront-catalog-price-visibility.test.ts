@@ -87,6 +87,46 @@ describe("storefront catalog price absence contract", () => {
     expect(result.items[0]).not.toHaveProperty("price_retail");
   });
 
+  it("derives public stock only from quantity_available and ignores raw inventory identifiers and on-hand counts", async () => {
+    rpc.mockResolvedValueOnce({
+      data: payload(1234, {
+        organization_id: "FOREIGN-ORGANIZATION-SENTINEL",
+        stock_quantity: 140,
+        inventory: {
+          id: "PRIVATE-INVENTORY-ROW-SENTINEL",
+          organization_id: "FOREIGN-INVENTORY-ORGANIZATION-SENTINEL",
+          product_id: "a1000000-0000-0000-0000-000000000001",
+          warehouse_id: "PRIVATE-WAREHOUSE-SENTINEL",
+          quantity_on_hand: 140,
+          quantity_reserved: 16,
+          quantity_available: 124,
+          reorder_point: 24,
+        },
+      }),
+      error: null,
+    });
+
+    const result = await fetchStorefrontCatalogPage({
+      search: "",
+      categoryId: null,
+      page: 1,
+      availableOnly: false,
+    });
+
+    expect(result.items[0].stock_quantity).toBe(124);
+    expect(result.items[0].inventory).toEqual({
+      id: "",
+      product_id: "a1000000-0000-0000-0000-000000000001",
+      warehouse_id: "",
+      quantity_on_hand: 0,
+      quantity_reserved: 0,
+      quantity_available: 124,
+    });
+    expect(result.items[0]).not.toHaveProperty("organization_id");
+    expect(result.items[0].inventory).not.toHaveProperty("organization_id");
+    expect(result.items[0].inventory).not.toHaveProperty("reorder_point");
+  });
+
   it("rejects missing display_price instead of treating it as zero", async () => {
     const data = payload(null);
     delete (data.items[0] as { display_price?: number | null }).display_price;

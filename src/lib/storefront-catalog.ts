@@ -78,7 +78,8 @@ function parseProduct(value: unknown): ProductWithInventory {
     is_featured: row.is_featured === true,
     sort_order: finiteNumber(row.sort_order),
     // Public stock quantity is availability, never internal on-hand count.
-    stock_quantity: finiteNumber(row.stock_quantity, inventory?.quantity_available ?? 0),
+    // Never trust a legacy/raw stock_quantity field: public UI may expose availability only.
+    stock_quantity: inventory?.quantity_available ?? 0,
     reserved_quantity: 0,
     min_stock_level: 0,
     min_order_quantity: minimumOrderQuantity,

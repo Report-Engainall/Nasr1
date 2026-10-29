@@ -8,6 +8,10 @@ const migration = readFileSync(
 );
 const service = readFileSync(join(process.cwd(), 'src/lib/storefront-catalog.ts'), 'utf8');
 const storefront = readFileSync(join(process.cwd(), 'src/components/Storefront.tsx'), 'utf8');
+const privacyProjection = readFileSync(
+  join(process.cwd(), "supabase/migrations/20261028150000_storefront_catalog_privacy_projection.sql"),
+  "utf8",
+);
 
 describe('tenant-scoped server storefront pagination', () => {
   it('derives tenant context and limits results to the current active organization', () => {
@@ -61,4 +65,15 @@ describe('tenant-scoped server storefront pagination', () => {
     expect(storefront).toContain('صفحة {pageInfo.page} من {pageInfo.totalPages}');
     expect(storefront).toContain('pageInfo.totalCount');
   });
+  it('keeps the latest public catalog inventory projection limited to product availability', () => {
+    expect(privacyProjection).toMatch(
+      /'inventory',\s*pg_catalog\.jsonb_build_object\(\s*'product_id', r\.id,\s*'quantity_available', r\.quantity_available\s*\)/,
+    );
+    expect(privacyProjection).not.toMatch(/'organization_id'\s*,\s*r\.organization_id/);
+    expect(privacyProjection).not.toMatch(/'warehouse_id'\s*,\s*v_warehouse_id/);
+    expect(privacyProjection).not.toMatch(/'id'\s*,\s*r\.inventory_id/);
+    expect(privacyProjection).not.toMatch(/'quantity_on_hand'\s*,/);
+    expect(privacyProjection).not.toMatch(/'stock_quantity'\s*,/);
+  });
+
 });
