@@ -1,3 +1,32 @@
+## LIVE CHECKPOINT — 2026-10-29 (warehouse return receipt reprints read persisted evidence)
+
+**Repository:** `Report-Engainall/Nasr1`  
+**Execution branch:** `main` only  
+**Code/test candidate before this documentation commit:** `22516e095f9788360f0b2f27c96b38c7d69ea862`  
+**CI status:** Aghbari Commerce checks for that candidate were queued when this checkpoint was prepared. No terminal test result is claimed for the new receipt-print path.
+
+### Implementation completed
+
+- Added migration `supabase/migrations/20261029190000_customer_return_receipt_print_snapshot.sql`, defining `public.get_customer_return_receipt_print_data(uuid)`. It derives the tenant and actor from the live server identity, requires the operational manager/admin capability, and returns a fixed allowlist built from the persisted receipt header and receipt-item snapshots. It omits receipt, tenant, warehouse, product and line UUIDs and has no cost/margin output fields.
+- Updated `src/components/CustomerReturnReceiptQueue.tsx`: after `receive_customer_return` confirms persistence, the component fetches the canonical print snapshot by the receipt ID, validates its line/summary totals against the mutation acknowledgement, and prints only the loaded snapshot. If snapshot loading fails after the mutation has committed, the UI explicitly says that the receipt **was saved** but its printable copy could not be loaded; it preserves the same idempotency key/draft for a safe retry instead of claiming the write failed or creating a new key.
+- Updated `src/lib/customer-return-receipts.ts` with a strict allowlist parser for the persisted snapshot. It checks line count, per-line restockable/defective partition, aggregate totals and date validity before enabling print.
+- Added focused unit coverage in `src/test/customer-return-receipts.test.ts`, component coverage in `src/test/customer-return-receipt-queue.test.tsx`, and PostgreSQL authorization/privacy assertions in `scripts/test-customer-returns.mjs`. The database acceptance checks snapshot fields and quantities, asserts private IDs and finance fields are absent, rejects mismatched/nonexistent records, and confirms ordinary customers cannot call the staff receipt-print RPC.
+- Kept the previously applied financial print fix: when customer display names and business code are absent, invoice/account-statement print uses `عميل غير مسمى`, not the internal UUID. Its regression covers both artifacts.
+
+### Acceptance state
+
+- New matrix row: `RET-PRINT-001` — implementation and test coverage added; exact-candidate CI is pending. Do not mark it closed until its run is terminal SUCCESS.
+- `DLV-007` remains **PARTIAL**: receipt reprint evidence is now server-persisted, but inventory/reservation/transfer lifecycle and actual Onyx Pro target round-trip remain open.
+- `DLV-011` remains **OPEN**: the receipt snapshot path and UUID fallback gap are addressed, but the complete role-by-template PDF/XLSX/print allowlist and hosted authenticated journeys remain incomplete.
+- `DLV-005` remains **PARTIAL**. Delivery groups remain **0/18 fully release-closed**. The matrix now has **122 populated unique IDs**, and a global completion percentage remains uncomputed.
+- Full production release remains **NO-GO** pending hosted authenticated E2E, actual Onyx Pro round-trip, official WhatsApp delivery receipts, live AI-provider operation, production deploy/rollback/restore evidence and owner approval.
+
+### NEXT ACTION
+
+Use the terminal result for the exact new main candidate; fix any reported regression before progressing. Then continue directly to the next uncovered role/template or server authorization gap. Do not rebuild completed exports or print routes, and do not turn missing hosted/external evidence into PASS.
+
+---
+
 ## LIVE CHECKPOINT — 2026-10-29 (financial print UUID fallback removed)
 
 **Repository:** `Report-Engainall/Nasr1`  
