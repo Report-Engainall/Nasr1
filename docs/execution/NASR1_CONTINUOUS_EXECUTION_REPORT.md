@@ -1,4 +1,32 @@
-## LIVE CHECKPOINT — 2026-10-29 (executive and transfer XLSX paths added; resume from this SHA)
+## LIVE CHECKPOINT — 2026-10-29 (warehouse return receipt and reversal evidence printing added)
+
+**Repository:** `Report-Engainall/Nasr1`  
+**Execution branch:** `main` only  
+**Current code SHA:** `7ddfbd8f66c7e2e7e4123bd694a89abfe34152de`  
+**CI status of this exact SHA:** Not asserted; latest code commits were not polled or represented as passing.
+
+### Implementation newly completed
+
+- `e23533871bf6d9d39a86ed1ce976db1d6b92e216` — warehouse staff can print the last successfully saved customer-return receipt after the `receive_customer_return` RPC returns the persisted receipt number and authoritative totals. The printable document includes request/order numbers, customer, receiving warehouse, sent line quantities, restockable/defective split and notes; it omits internal UUIDs and hides the live queue during print.
+- `7ddfbd8f66c7e2e7e4123bd694a89abfe34152de` — reversed credit memos can be reprinted using the existing financial RPC/parser and a label that makes reversal evidence explicit. No client-created journal entry is used.
+- Previous code in this checkpoint remains present: executive analytics XLSX (`c1930e9dbed8954878a760a4e33be037c56c5a5e`), filtered inventory-transfer XLSX (`80bc97ab4dadddaa5b223b29ae5960489588e9e3`), product-activity detail/summary reconciliation (`015b4f01c4acdad8bc64ed7a405c4d4b1b612a0f`), source UUID removal from task printing (`44043840525a181567640330a7f47f3d7787eac3)), and customer-order PDF scoping (`360d6c90a907b21f07b7cccf8d20166cf5854107`, `10d80137c464431f98d93779b32d731f2f5eea99`).
+
+### Acceptance state
+
+- `DLV-005`: **PARTIAL** — the real two-session price/revocation test exists, but its execution result and complete hosted authenticated role/tier/session matrix are not claimed.
+- `DLV-007`: **PARTIAL** — stock-count XLSX and filtered inventory-transfer XLSX exist; the full inventory movement/reservation/transfer lifecycle and actual target-native Onyx Pro round-trip remain open.
+- `DLV-010`: **PARTIAL** — customer 360, product activity and five-sheet executive analytics exports exist; business UAT and hosted evidence remain open.
+- `DLV-011`: **OPEN** — finance, purchase, customer-order, task, stock-count, transfer-history and warehouse return-receipt print/export paths have implementation, including reversal evidence print. Full role-by-template payload allowlists and hosted authenticated journeys remain incomplete.
+- The acceptance CSV retains **121 unique populated IDs, 0 duplicates, 18 delivery groups, and 0/18 fully release-closed groups**. A global completion percentage is still not computable until all mandatory canonical specification leaves are mapped to evidence.
+- Production release remains **NO-GO** pending hosted E2E, target-native Onyx, official WhatsApp receipts, live AI-provider operation, production deployment/rollback/restore evidence and owner approval.
+
+### NEXT ACTION
+
+Continue direct implementation on `main` from `7ddfbd8f66c7e2e7e4123bd694a89abfe34152de`; prioritize uncovered role/template outputs or direct server authorization boundaries. Do not repeat completed print/export paths, and do not claim a CI result for this current SHA.
+
+---
+
+## HISTORICAL CHECKPOINT — 2026-10-29 (executive and transfer XLSX paths added; superseded by the newer receipt/finance-print checkpoint)
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Execution branch:** `main` only  
