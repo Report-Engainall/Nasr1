@@ -1149,12 +1149,26 @@ async function main() {
   const queueAfterReceipt = asJson(queueAfterReceiptRaw[0].result);
   assert.ok(!queueAfterReceipt.requests.some((row) => row.id === firstRequest.request_id),"fully received return leaves pending queue");
 
-  // Reprint must retain the receiving-warehouse label captured at receipt creation,
-  // even after the live warehouse name changes.
+  // Reprint must preserve the receipt-time labels even if current master records change.
+  const savedRequestSource = receiptQueue.requests.find((row) => row.id === firstRequest.request_id);
+  assert.ok(savedRequestSource,"print snapshot acceptance has the approved request source");
+  const persistedRequestNumber = savedRequestSource.request_number;
+  const persistedOrderNumber = savedRequestSource.order_number;
+  const persistedCustomerName = savedRequestSource.customer_name;
   const persistedWarehouseName = receiptQueue.warehouses.find((row) => row.id === receiptWarehouseId)?.name;
   assert.ok(persistedWarehouseName,"print snapshot acceptance has a source warehouse label");
+  const renamedOrderNumber = persistedOrderNumber + "-CI-RENAMED";
+  const renamedCustomerName = persistedCustomerName + " CI renamed after receipt";
   const renamedWarehouseName = persistedWarehouseName + " CI renamed after receipt";
   await db.unsafe("reset role");
+  await db.unsafe(
+    "update public.orders set order_number=$3 where id=$1::uuid and organization_id=$2::uuid",
+    [orderOneId,organizationId,renamedOrderNumber],
+  );
+  await db.unsafe(
+    "update public.customers set business_name=$3 where id=$1::uuid and organization_id=$2::uuid",
+    [customerOne.id,organizationId,renamedCustomerName],
+  );
   await db.unsafe(
     "update public.warehouses set name=$3 where id=$1::uuid and organization_id=$2::uuid",
     [receiptWarehouseId,organizationId,renamedWarehouseName],
@@ -1169,14 +1183,11 @@ async function main() {
   );
   const firstPrintSnapshot = asJson(firstPrintSnapshotRaw[0].result);
   assert.equal(firstPrintSnapshot.receipt_number,firstReceipt.receipt_number,"reprint uses the persisted receipt document number");
-  assert.equal(firstPrintSnapshot.request_number,firstRequest.request_number,"reprint resolves the saved source request number");
-  assert.equal(
-    firstPrintSnapshot.order_number,
-    receiptQueue.requests.find((row) => row.id === firstRequest.request_id)?.order_number,
-    "reprint resolves the original saved order number",
-  );
+  assert.equal(firstPrintSnapshot.request_number,persistedRequestNumber,"reprint retains receipt-time request number");
+  assert.equal(firstPrintSnapshot.order_number,persistedOrderNumber,"reprint retains receipt-time order number after its live label changes");
+  assert.equal(firstPrintSnapshot.customer_name,persistedCustomerName,"reprint retains receipt-time customer name after the live name changes");
   assert.equal(firstPrintSnapshot.warehouse_name,persistedWarehouseName,
-    "reprint retains the warehouse label captured when the receipt was created, not the current mutable name");
+    "reprint retains the warehouse label captured at receipt creation after its live name changes");
   assert.equal(firstPrintSnapshot.received_line_count,1,"reprint line count is computed from saved receipt items");
   assert.equal(Number(firstPrintSnapshot.received_quantity),0.75);
   assert.equal(Number(firstPrintSnapshot.restockable_quantity),0.50);
@@ -1207,6 +1218,14 @@ async function main() {
     /receipt was not found in the active organization/i,
   );
   await db.unsafe("reset role");
+  await db.unsafe(
+    "update public.orders set order_number=$3 where id=$1::uuid and organization_id=$2::uuid",
+    [orderOneId,organizationId,persistedOrderNumber],
+  );
+  await db.unsafe(
+    "update public.customers set business_name=$3 where id=$1::uuid and organization_id=$2::uuid",
+    [customerOne.id,organizationId,persistedCustomerName],
+  );
   await db.unsafe(
     "update public.warehouses set name=$3 where id=$1::uuid and organization_id=$2::uuid",
     [receiptWarehouseId,organizationId,persistedWarehouseName],
