@@ -1,3 +1,37 @@
+## LIVE CHECKPOINT — 2026-10-29 (statement payload fail-closed + finance-print UUID privacy)
+
+**Repository:** `Report-Engainall/Nasr1`  
+**Integration branch:** `main` only  
+**Code candidate SHA:** `cc02dbf47e518e38f04516857a05274f2d460af6`  
+**Code commit:** [cc02dbf](https://github.com/Report-Engainall/Nasr1/commit/cc02dbf47e518e38f04516857a05274f2d460af6)  
+**Previous focused PDF fix:** [66ed055](https://github.com/Report-Engainall/Nasr1/commit/66ed055031f8fa9f6d1da0ab2ebe0a996f849221)  
+**Exact-head Aghbari checks for code SHA cc02dbf:** [run 40944042923](https://github.com/Report-Engainall/Nasr1/actions/runs/40944042923) was `IN_PROGRESS` at checkpoint capture; no pass is claimed.  
+**Independent PostgreSQL 17 import-finalizer test:** [run 40944042900](https://github.com/Report-Engainall/Nasr1/actions/runs/40944042900) `SUCCESS` on exact SHA `cc02dbf47e518e38f04516857a05274f2d460af6`.  
+**One-main-branch cleanup:** [run 40944042710](https://github.com/Report-Engainall/Nasr1/actions/runs/40944042710) `SUCCESS` on the same exact SHA.
+
+### Code changes now on main
+
+1. `src/lib/finance-document-pdf.ts` now fails closed when a statement RPC payload omits/non-array `invoices` or `payments`; genuinely empty arrays remain valid. Regression coverage is in `src/lib/finance-document-pdf.test.ts`. Exact-head Aghbari run `40943206938` for code SHA `66ed055031f8fa9f6d1da0ab2ebe0a996f849221` is `SUCCESS`; the subsequent docs-only candidate `88b7b082730dc26bd1464d283d861343cb681f60` also passed [run 40943394868](https://github.com/Report-Engainall/Nasr1/actions/runs/40943394868).
+2. New forward migration `supabase/migrations/20261029270000_staff_finance_print_customer_uuid_label_guard.sql` replaces three internal-UUID display fallbacks in finance invoice/memo selectors and credit-memo PDFs with `عميل غير مسمى`, preserving role/tenant checks, row reconciliation, reversal evidence, and authenticated execute grants. Historical migrations are unchanged.
+3. `src/lib/finance-document-print.ts` adds a renderer-level guard so stale/legacy credit-memo payloads cannot print a UUID as the customer name. `src/test/finance-document-print.test.ts` and new `src/test/finance-document-print-migration.test.ts` cover the behavior and migration security contract.
+4. The exact-head workflow on SHA cc02dbf is running unit tests and has not yet produced a terminal Aghbari result. Do not transfer success from SHA 66ed055 or 88b7b08 to cc02dbf.
+
+### Acceptance state
+
+- Central matrix refreshed from the existing 122 populated task IDs, 18 delivery groups, and 0/18 fully release-closed groups. An overall completion percentage remains not computable from current evidence.
+- `DLV-008` remains PARTIAL: statement output now rejects incomplete arrays, but complete ledger/payment/credit reconciliation and role coverage remain open.
+- `DLV-011` remains OPEN: two specific UUID/payload defects are addressed; full role-by-template PDF/XLSX/print acceptance and hosted authenticated output journeys remain incomplete.
+- `DLV-005` remains PARTIAL and `DLV-015` remains PARTIAL: server-selected tier/hidden-price membership revocation and callable-RPC semantic coverage still need exact-candidate evidence. The current Aghbari workflow must finish before its result is used.
+- Return receipt reprint code and assigned-warehouse authorization assertions passed on exact SHA `0ead2b082439944403616793c611a4f8859ca5fd` in [run 40942315137](https://github.com/Report-Engainall/Nasr1/actions/runs/40942315137); the latest overall CI for cc02dbf is still pending, so this checkpoint does not close the entire return/print roll-up.
+- Full release remains NO-GO while live Onyx Pro round-trip, official WhatsApp delivery receipts, production AI provider operation, hosted authenticated E2E, deployment/rollback/restore proof and owner approval remain unevidenced.
+
+### NEXT ACTION
+
+1. Resolve [Aghbari run 40944042923](https://github.com/Report-Engainall/Nasr1/actions/runs/40944042923) for exact SHA `cc02dbf47e518e38f04516857a05274f2d460af6`; inspect and repair only a concrete failed step if one appears.
+2. When the test result is available, record the actual terminal result against that SHA, then continue the next uncovered direct RPC authorization boundary in `DLV-005`/`DLV-015` or remaining role-template gap in `DLV-011`. Do not rebuild reports, receipt printing, or already-implemented finance PDF engines.
+
+---
+
 ## LIVE CHECKPOINT — 2026-10-29 (statement PDF rejects incomplete RPC payloads)
 
 **Repository:** `Report-Engainall/Nasr1`  
