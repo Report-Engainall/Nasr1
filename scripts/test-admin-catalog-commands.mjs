@@ -380,12 +380,12 @@ async function main() {
 
   // Required-field invariants must survive requests that bypass the React form.
   await assert.rejects(
-    () => admin.unsafe("update public.products set name=$1 where id=$2", ["   ", created.id]),
+    () => root.unsafe("update public.products set name=$1 where id=$2", ["   ", created.id]),
     /product name is required/i,
     "PostgreSQL rejects whitespace-only product names",
   );
   await assert.rejects(
-    () => admin.unsafe("update public.products set item_code=$1 where id=$2", [" \t ", created.id]),
+    () => root.unsafe("update public.products set item_code=$1 where id=$2", [" \t ", created.id]),
     /product code is required/i,
     "PostgreSQL rejects whitespace-only item codes",
   );
@@ -399,7 +399,7 @@ async function main() {
     "rejected writes do not change the previously valid product",
   );
   await assert.rejects(
-    () => admin.unsafe(
+    () => root.unsafe(
       "insert into public.products(organization_id,name,item_code,unit,status) values($1,$2,$3,'قطعة','active')",
       [org, "  ", "CI-P1-CAT-INVALID-NAME"],
     ),
@@ -407,7 +407,7 @@ async function main() {
     "PostgreSQL rejects direct inserts with a blank product name",
   );
   await assert.rejects(
-    () => admin.unsafe(
+    () => root.unsafe(
       "insert into public.products(organization_id,name,item_code,unit,status) values($1,$2,$3,'قطعة','active')",
       [org, "CI invalid code product", "  "],
     ),
