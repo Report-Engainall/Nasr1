@@ -142,7 +142,7 @@ async function snapshotStock() {
 
 async function snapshotImportRollbackBoundary(jobId, snapshotId) {
   const jobs = await readAsOwner(
-    "select status,error_summary::text as error_summary,updated_at::text as updated_at " +
+    "select status,error_summary::text as error_summary,created_at::text as created_at " +
       "from public.import_jobs where id=$1::uuid and organization_id=$2::uuid",
     [jobId, organizationId],
   );
