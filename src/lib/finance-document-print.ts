@@ -179,7 +179,8 @@ function readCustomer(value: unknown): FinancePrintCustomer {
   };
 }
 function customerLabel(customer: FinancePrintCustomer): string {
-  return customer.business_name || customer.contact_name || customer.customer_code || customer.id;
+  // Internal UUIDs are authorization keys, not customer-facing document labels.
+  return customer.business_name || customer.contact_name || customer.customer_code || "عميل غير مسمى";
 }
 function assertUUID(value: string, name: string): string {
   if (!UUID.test(value)) throw new Error("معرّف غير صالح في المستند: " + name);
