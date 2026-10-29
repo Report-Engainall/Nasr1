@@ -43,6 +43,9 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
 
   const customerContext = await browser.newContext();
   const staffContext = await browser.newContext();
+  // Keep task-page authentication isolated: re-authenticating in another tab
+  // must not change the finance dialog's per-tab session while it is open.
+  const tasksContext = await browser.newContext();
   const customer = await customerContext.newPage();
   const staff = await staffContext.newPage();
   const completedStages: string[] = [];
@@ -128,9 +131,9 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       const memoNumber = (await row.innerText()).match(/CRM-\d{8}-[A-F0-9]{8}/i)?.[0];
       expect(memoNumber, "draft credit memo exposes its source document number").toBeTruthy();
       const taskTitle = "مراجعة وترحيل قيد الإشعار الدائن " + memoNumber;
-      const tasksPage = await staffContext.newPage();
-      // A new tab may not inherit a session stored per-tab; authenticate the
-      // operational task view explicitly instead of relying on implicit carry-over.
+      const tasksPage = await tasksContext.newPage();
+      // Authenticate the operational task view in its own browser context so
+      // its session setup cannot reset the open finance dialog in staffContext.
       await signIn(tasksPage, managerEmail, managerPassword);
       await tasksPage.goto("/admin/tasks");
       const openCreditTask = tasksPage.locator(".task-card").filter({ hasText: taskTitle });
@@ -182,6 +185,7 @@ test("customer return request -> manager approval -> warehouse receipt -> post a
       contentType: "application/json",
     });
   } finally {
+    await tasksContext.close();
     await staffContext.close();
     await customerContext.close();
   }
