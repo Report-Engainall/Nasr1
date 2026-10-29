@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, Package, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
+import { BarChart3, FileSpreadsheet, Package, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
 import { Empty, ErrorBox, Loading } from '@/components/AdminPages';
 import { fetchStoreExecutiveAnalytics, fetchStoreProductActivityReport } from '@/lib/api';
 import { StaffDashboardMetrics } from '@/components/StaffDashboardMetrics';
@@ -7,6 +7,7 @@ import { buildSalesForecast, calculateWhatIfSales } from '@/lib/sales-forecast';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { PRODUCT_ACTIVITY_STATUS_LABELS, type ProductActivityStatus } from '@/lib/product-activity-report';
 import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx';
+import { downloadExecutiveAnalyticsWorkbookXlsx } from '@/lib/executive-analytics-xlsx';
 import { useFetch } from '@/lib/useFetch';
 
 function SalesForecastPanel({ points }: { points: ReadonlyArray<{ day: string; orders: number; sales: number }> }) {
@@ -107,7 +108,25 @@ function SalesForecastPanel({ points }: { points: ReadonlyArray<{ day: string; o
 
 export function ExecutiveStoreAnalytics() {
   const { data, loading, error, refetch } = useFetch(fetchStoreExecutiveAnalytics);
+  const [exportError, setExportError] = useState<string | null>(null);
   const maxDaySales = Math.max(1, ...(data?.sales_trend.map((day) => day.sales) ?? [0]));
+
+  function exportExecutiveWorkbook() {
+    if (!data) return;
+    try {
+      setExportError(null);
+      downloadExecutiveAnalyticsWorkbookXlsx({
+        generated_at: data.generated_at,
+        kpis: data.kpis,
+        sales_trend: data.sales_trend,
+        top_products: data.top_products,
+        top_customers: data.top_customers,
+        forecast: buildSalesForecast(data.sales_trend),
+      });
+    } catch (cause) {
+      setExportError(cause instanceof Error ? cause.message : 'تعذر تجهيز ملف التحليل التنفيذي.');
+    }
+  }
 
   return (
     <section className="panel" style={{ marginTop: 16 }}>
@@ -116,11 +135,17 @@ export function ExecutiveStoreAnalytics() {
           <h2>تحليل المبيعات الفعلية</h2>
           <p>مجاميع خادمية كاملة للمؤسسة الحالية، منفصلة عن تحليلات ملفات Onyx.</p>
         </div>
-        <button className="btn secondary" type="button" onClick={() => void refetch()}>
-          <RefreshCw size={16} /> تحديث التحليل
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn secondary" type="button" onClick={() => void refetch()} disabled={loading}>
+            <RefreshCw size={16} /> تحديث التحليل
+          </button>
+          <button className="btn primary" type="button" onClick={exportExecutiveWorkbook} disabled={loading || !data}>
+            <FileSpreadsheet size={16} /> تنزيل التحليل التنفيذي Excel
+          </button>
+        </div>
       </div>
 
+      {exportError ? <ErrorBox message={exportError} /> : null}
       {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !data ? <Empty text="لا توجد بيانات تحليل موثوقة لعرضها." /> : (
         <>
           <div className="report-grid">
