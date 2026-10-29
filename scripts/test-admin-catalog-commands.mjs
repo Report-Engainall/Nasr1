@@ -378,6 +378,48 @@ async function main() {
   );
   assert.ok(created.id && created.created, "product create returns a new ID");
 
+  // Required-field invariants must survive requests that bypass the React form.
+  await assert.rejects(
+    () => admin.unsafe("update public.products set name=$1 where id=$2", ["   ", created.id]),
+    /product name is required/i,
+    "PostgreSQL rejects whitespace-only product names",
+  );
+  await assert.rejects(
+    () => admin.unsafe("update public.products set item_code=$1 where id=$2", [" \t ", created.id]),
+    /product code is required/i,
+    "PostgreSQL rejects whitespace-only item codes",
+  );
+  const unchangedRequiredFields = await root.unsafe(
+    "select name,item_code from public.products where id=$1 and organization_id=$2",
+    [created.id, org],
+  );
+  assert.deepEqual(
+    { name: unchangedRequiredFields[0]?.name, item_code: unchangedRequiredFields[0]?.item_code },
+    { name: "CI product", item_code: code },
+    "rejected writes do not change the previously valid product",
+  );
+  await assert.rejects(
+    () => admin.unsafe(
+      "insert into public.products(organization_id,name,item_code,unit,status) values($1,$2,$3,'قطعة','active')",
+      [org, "  ", "CI-P1-CAT-INVALID-NAME"],
+    ),
+    /product name is required/i,
+    "PostgreSQL rejects direct inserts with a blank product name",
+  );
+  await assert.rejects(
+    () => admin.unsafe(
+      "insert into public.products(organization_id,name,item_code,unit,status) values($1,$2,$3,'قطعة','active')",
+      [org, "CI invalid code product", "  "],
+    ),
+    /product code is required/i,
+    "PostgreSQL rejects direct inserts with a blank product code",
+  );
+  const invalidProducts = await root.unsafe(
+    "select id from public.products where organization_id=$1 and item_code='CI-P1-CAT-INVALID-NAME'",
+    [org],
+  );
+  assert.equal(invalidProducts.length, 0, "a rejected product insert leaves no row");
+
 
 
   const expectedSearchIndexes = [
