@@ -218,7 +218,7 @@ describe("Arabic customer finance PDFs", () => {
     expect((await PDFDocument.load(bytes)).getTitle()).toContain("كشف الحساب");
   });
 
-  it("keeps customer statement PDF byte-identical when unknown cost, margin, organization, and foreign-tier fields are injected", async () => {
+  it("keeps customer statement PDF byte-identical when unknown private fields are injected into invoices, payments, and posted credit memos", async () => {
     const payload = {
       invoices: [{
         id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001",
@@ -234,6 +234,15 @@ describe("Arabic customer finance PDFs", () => {
         invoice_id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001",
         amount: "25.00",
         paid_at: "2026-10-12T00:00:00.000Z",
+      }],
+      credits: [{
+        id: "cccccccc-cccc-4ccc-8ccc-000000000001",
+        invoice_id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001",
+        invoice_number: "INV-STATEMENT-PRIVACY-01",
+        memo_number: "CM-STATEMENT-PRIVACY-01",
+        currency: "YER",
+        total_amount: "5.00",
+        posted_at: "2026-10-13T00:00:00.000Z",
       }],
     };
     const withPrivateFields = {
@@ -264,6 +273,19 @@ describe("Arabic customer finance PDFs", () => {
         margin: "INTERNAL-PAYMENT-MARGIN-SENTINEL",
         foreign_tier_price: "FOREIGN-PAYMENT-TIER-SENTINEL",
       })),
+      credits: payload.credits.map(credit => ({
+        ...credit,
+        organization_id: "FOREIGN-ORGANIZATION-CREDIT-SENTINEL",
+        customer_id: "FOREIGN-CUSTOMER-CREDIT-SENTINEL",
+        warehouse_id: "PRIVATE-CREDIT-WAREHOUSE-SENTINEL",
+        cost_price: "INTERNAL-CREDIT-COST-SENTINEL",
+        purchase_price: "INTERNAL-CREDIT-PURCHASE-SENTINEL",
+        unit_cost: "INTERNAL-CREDIT-UNIT-COST-SENTINEL",
+        profit_margin: "INTERNAL-CREDIT-MARGIN-SENTINEL",
+        gross_profit: "INTERNAL-CREDIT-GROSS-PROFIT-SENTINEL",
+        foreign_tier_price: "FOREIGN-CREDIT-TIER-SENTINEL",
+        display_price: "HIDDEN-CREDIT-DISPLAY-PRICE-SENTINEL",
+      })),
     };
     const changedPrivateFields = {
       ...withPrivateFields,
@@ -288,14 +310,27 @@ describe("Arabic customer finance PDFs", () => {
         margin: "111.11",
         foreign_tier_price: "000000.00",
       })),
+      credits: withPrivateFields.credits.map(credit => ({
+        ...credit,
+        organization_id: "OTHER-FOREIGN-ORGANIZATION",
+        customer_id: "OTHER-FOREIGN-CUSTOMER",
+        warehouse_id: "OTHER-PRIVATE-WAREHOUSE",
+        cost_price: "123456.78",
+        purchase_price: "234567.89",
+        unit_cost: "345678.90",
+        profit_margin: "456.78",
+        gross_profit: "567890.12",
+        foreign_tier_price: "678901.23",
+        display_price: "789012.34",
+      })),
     };
 
     const baselineBytes = await buildCustomerStatementPdf(payload, fontBytes(), generatedAt);
     const sentinelBytes = await buildCustomerStatementPdf(withPrivateFields, fontBytes(), generatedAt);
     const changedBytes = await buildCustomerStatementPdf(changedPrivateFields, fontBytes(), generatedAt);
 
-    // These are statement balances for the owning customer, so legitimate invoice
-    // and payment values stay visible. Only unrecognized extra fields must be inert.
+    // Invoice totals, payments and posted credits belong to this customer's ledger and
+    // remain visible. Unknown private fields must not affect any generated PDF byte.
     expect(sentinelBytes).toEqual(baselineBytes);
     expect(changedBytes).toEqual(baselineBytes);
     const statementPdf = await PDFDocument.load(sentinelBytes);
@@ -324,6 +359,16 @@ describe("Arabic customer finance PDFs", () => {
       "INTERNAL-PAYMENT-COST-SENTINEL",
       "INTERNAL-PAYMENT-MARGIN-SENTINEL",
       "FOREIGN-PAYMENT-TIER-SENTINEL",
+      "FOREIGN-ORGANIZATION-CREDIT-SENTINEL",
+      "FOREIGN-CUSTOMER-CREDIT-SENTINEL",
+      "PRIVATE-CREDIT-WAREHOUSE-SENTINEL",
+      "INTERNAL-CREDIT-COST-SENTINEL",
+      "INTERNAL-CREDIT-PURCHASE-SENTINEL",
+      "INTERNAL-CREDIT-UNIT-COST-SENTINEL",
+      "INTERNAL-CREDIT-MARGIN-SENTINEL",
+      "INTERNAL-CREDIT-GROSS-PROFIT-SENTINEL",
+      "FOREIGN-CREDIT-TIER-SENTINEL",
+      "HIDDEN-CREDIT-DISPLAY-PRICE-SENTINEL",
     ]) {
       expect(serializedPdf).not.toContain(sentinel);
     }
