@@ -1379,7 +1379,7 @@ async function main() {
       "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text)",
       [firstRequest.request_id,receiptWarehouseId,db.json([{request_item_id:requestItemId,received_quantity:0.1,restockable_quantity:0.1}]),"customer attempted physical receipt","ci-return-customer-receipt-denial-"+suffix],
     ),
-    /administrator or manager permission required to receive customer returns/i,
+    /administrator, manager, or assigned warehouse task permission required to receive customer returns/i,
   );
   await expectFailure(
     "ordinary customers cannot read a staff warehouse receipt print snapshot",
@@ -1387,12 +1387,12 @@ async function main() {
       "select public.get_customer_return_receipt_print_data($1::uuid)",
       [firstReceipt.receipt_id],
     ),
-    /administrator or manager permission required to read a return receipt/i,
+    /manager or assigned warehouse task permission required to read this return receipt/i,
   );
   await expectFailure(
     "ordinary customers cannot enumerate staff warehouse receipt print history",
     () => db.unsafe("select public.list_customer_return_receipt_print_history(50)"),
-    /administrator or manager permission required to list warehouse return receipt history/i,
+    /active operational staff permission required to list return receipt history/i,
   );
   await expectFailure(
     "customers cannot access the finance return-credit queue",
