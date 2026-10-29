@@ -188,6 +188,34 @@ async function main() {
   assert.equal(result.kpis.customers_last_30_days, 2, "recent-customer count is distinct and tenant-scoped");
   assert.equal(result.kpis.active_products, 5, "active product count is tenant-scoped");
 
+  const customer360Privilege = (await db.unsafe(
+    "select has_function_privilege('anon','public.get_staff_customer_360(uuid)','EXECUTE') as anon_can_execute, " +
+      "has_function_privilege('authenticated','public.get_staff_customer_360(uuid)','EXECUTE') as authenticated_can_execute"
+  ))[0];
+  assert.equal(customer360Privilege.anon_can_execute, false, "anonymous callers cannot execute Customer 360");
+  assert.equal(customer360Privilege.authenticated_can_execute, true, "authenticated callers reach the guarded Customer 360 RPC");
+  const customer360Summary = (await db.unsafe(
+    "select public.get_staff_customer_360($1::uuid) as result",
+    [customerA],
+  ))[0].result;
+  assert.equal(customer360Summary.customer.id, customerA, "finance-authorized staff can read their own tenant's Customer 360");
+  assert.equal(customer360Summary.customer.customer_code, customerACode);
+  assert.ok(Array.isArray(customer360Summary.finance_by_currency));
+  assert.ok(Array.isArray(customer360Summary.recent_orders));
+
+  let foreignCustomer360Denied = false;
+  await db.unsafe("savepoint before_foreign_customer_360_denial");
+  try {
+    await db.unsafe("select public.get_staff_customer_360($1::uuid)", [foreignCustomer]);
+  } catch (error) {
+    foreignCustomer360Denied = error?.code === "42501";
+    if (!foreignCustomer360Denied) throw error;
+    await db.unsafe("rollback to savepoint before_foreign_customer_360_denial");
+  } finally {
+    await db.unsafe("release savepoint before_foreign_customer_360_denial");
+  }
+  assert.equal(foreignCustomer360Denied, true, "finance-authorized staff cannot read a foreign-tenant Customer 360");
+
   assert.equal(result.sales_trend.length, 30, "trend must contain each of the 30 calendar days");
   const trendDays = result.sales_trend.map((row) => row.day);
   assert.deepEqual(trendDays, [...trendDays].sort(), "trend dates must be chronological and stable");
@@ -300,6 +328,18 @@ async function main() {
     await db.unsafe("release savepoint before_staff_activity_denial");
   }
   assert.equal(staffActivityDenied, true, "generic staff callers are denied product activity analytics");
+  await db.unsafe("savepoint before_staff_customer360_denial");
+  let staffCustomer360Denied = false;
+  try {
+    await db.unsafe("select public.get_staff_customer_360($1::uuid)", [customerA]);
+  } catch (error) {
+    staffCustomer360Denied = error?.code === "42501";
+    if (!staffCustomer360Denied) throw error;
+    await db.unsafe("rollback to savepoint before_staff_customer360_denial");
+  } finally {
+    await db.unsafe("release savepoint before_staff_customer360_denial");
+  }
+  assert.equal(staffCustomer360Denied, true, "generic staff callers cannot read customer balances, invoices, or payments");
 
   await db.unsafe("reset role");
   await db.unsafe("delete from public.user_roles where profile_id=$1::uuid", [ids.profile]);
@@ -330,6 +370,18 @@ async function main() {
     await db.unsafe("release savepoint before_customer_activity_denial");
   }
   assert.equal(customerActivityDenied, true, "customer-role callers are denied product activity analytics");
+  await db.unsafe("savepoint before_customer_customer360_denial");
+  let customerCustomer360Denied = false;
+  try {
+    await db.unsafe("select public.get_staff_customer_360($1::uuid)", [customerA]);
+  } catch (error) {
+    customerCustomer360Denied = error?.code === "42501";
+    if (!customerCustomer360Denied) throw error;
+    await db.unsafe("rollback to savepoint before_customer_customer360_denial");
+  } finally {
+    await db.unsafe("release savepoint before_customer_customer360_denial");
+  }
+  assert.equal(customerCustomer360Denied, true, "customer-role callers cannot invoke staff Customer 360");
   await db.unsafe("reset role");
 
   console.log("PASS tenant-scoped executive analytics; exact 30-day boundaries; cancellation exclusions; order/item/customer aggregates; role denial");
