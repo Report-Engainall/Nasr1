@@ -1,3 +1,15 @@
+## P2 checkpoint — import snapshot rollback authorization — 2026-10-30
+
+- Test implementation: commit e68db07266c74c30cae36c9088c3ef993b4c9ac1. Step 23 (“Verify inventory import snapshot contract without implicit stock mutation”) passed in Core run 40974837711, exact code SHA e68db07266c74c30cae36c9088c3ef993b4c9ac1. Link: https://github.com/Report-Engainall/Nasr1/actions/runs/40974837711. The aggregate Core run had not reached a terminal outcome at the time of this checkpoint and P2 run 40974837758 was CANCELLED when a newer main SHA arrived.
+- Latest main SHA: 2670bf7e69db2efe419cd386478b33e0b0656053. Fresh Core 40975098596 is IN_PROGRESS with focused step 23 still PENDING; P2 40975098653 PENDING; cleanup 40975098593 SUCCESS. Links: https://github.com/Report-Engainall/Nasr1/actions/runs/40975098596, https://github.com/Report-Engainall/Nasr1/actions/runs/40975098653, https://github.com/Report-Engainall/Nasr1/actions/runs/40975098593.
+- Root-cause fixes during test development: 7bef9e1229e1c5ea814a5f1fdcc1448642fe0cce queried nonexistent import_jobs.updated_at; 7a28f88c73ec229be1d0455e6b4d3b48ab20110d corrected to created_at but expectFailure did not return the caught exception; e68db07266c74c30cae36c9088c3ef993b4c9ac1 fixed the helper. Focused test step then passed on e68.
+- Test asserts ordinary staff is denied with SQLSTATE 42501 and foreign-tenant manager with opaque P0002; job status/error_summary/created_at, ready snapshot metadata, stored row count and rollback audit count remain unchanged after both denials.
+- Existing RPC inventory artifact 12940762864 retained; 330/330 functions map to source across 173 migration files. No inventory regeneration.
+- Previously completed prerequisite cash-expense void security tests passed Core/P2/cleanup on exact SHA 14e9cb703846708419c47ade22aa54ac3c7cdffd.
+- Next task: VERIFY-AUTHZ-IMPORT-SNAPSHOT-ROLLBACK-001-LATEST-MAIN-CI. Reverify on latest main; then select the next uncovered destructive RPC after terminal Core/P2 results.
+- Full production release remains NO-GO; hosted customer/order/tenant E2E, live integrations, production deployment/restore and owner sign-off remain unproven.
+
+---
 ## P2 execution record — import snapshot rollback authorization — 2026-10-30
 
 - Code SHA 7bef9e1229e1c5ea814a5f1fdcc1448642fe0cce added same-tenant staff/foreign-manager denial coverage; Core 40974044403 failed because import_jobs.updated_at does not exist. SHA 7a28f88c73ec229be1d0455e6b4d3b48ab20110d corrected the timestamp to created_at; Core 40974514133 then failed because expectFailure returned undefined. SHA e68db07266c74c30cae36c9088c3ef993b4c9ac1 now returns the verified caught error so SQLSTATE can be tested.

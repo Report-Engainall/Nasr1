@@ -1,3 +1,14 @@
+## LIVE CHECKPOINT — 2026-10-30 — import rollback authorization test passed its focused step; latest-main verification pending
+
+- **Focused proof:** test step 23, “Verify inventory import snapshot contract without implicit stock mutation,” completed SUCCESS in Core run 40974837711 on exact code SHA e68db07266c74c30cae36c9088c3ef993b4c9ac1: https://github.com/Report-Engainall/Nasr1/actions/runs/40974837711. That run's aggregate Core status was still IN_PROGRESS, and P2 run 40974837758 was CANCELLED when main advanced.
+- **Latest main:** 2670bf7e69db2efe419cd386478b33e0b0656053 (includes the code SHA plus a separate PWA test commit). Current Core 40975098596 IN_PROGRESS with step 23 pending, P2 40975098653 PENDING, cleanup 40975098593 SUCCESS. Links: https://github.com/Report-Engainall/Nasr1/actions/runs/40975098596, https://github.com/Report-Engainall/Nasr1/actions/runs/40975098653, https://github.com/Report-Engainall/Nasr1/actions/runs/40975098593.
+- **Test contract:** ordinary staff receives 42501; foreign-tenant manager receives opaque P0002 from public.rollback_import_snapshot; both denials preserve job status/error_summary/created_at, ready snapshot metadata, stored snapshot-row count and rollback audit count.
+- **Development corrections:** the first candidate queried a nonexistent import_jobs.updated_at; the second correction exposed that expectFailure did not return the caught error. Both test-only causes were corrected; focused test step subsequently passed on e68.
+- **Inventory:** retained artifact 12940762864, 330/330 runtime functions source-mapped across 173 migrations. No inventory regeneration.
+- **Next action:** verify the rollback test on the latest main SHA and terminal Core/P2 checks; fix any concrete failure, then choose the next uncovered destructive RPC.
+- **Release decision:** NO-GO until the overall required acceptance groups and external/production gates are evidenced.
+
+---
 ## LIVE CHECKPOINT — 2026-10-30 — import rollback authorization regression corrected; CI pending
 
 - **Current code SHA:** e68db07266c74c30cae36c9088c3ef993b4c9ac1 — https://github.com/Report-Engainall/Nasr1/commit/e68db07266c74c30cae36c9088c3ef993b4c9ac1
