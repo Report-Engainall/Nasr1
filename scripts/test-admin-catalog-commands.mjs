@@ -558,7 +558,7 @@ async function main() {
   // Four independent authenticated PostgreSQL sessions race the same staff-order idempotency key.
   // Exactly one must create a row; all other callers must replay that same committed order.
   await Promise.all(raceConnections.map((connection) => ident(connection, adminAuth, "admin@aghbari.ye")));
-  const raceItems = [{ product_id: created.id, quantity: 1 }];
+  const raceItems = [{ product_id: created.id, quantity: 2 }];
   const racePayload = (connection) => [
     localCustomer,
     connection.json(raceItems),
@@ -590,12 +590,12 @@ async function main() {
     [raceReplies[0].id],
   );
   assert.equal(racedItems[0].count, 1, "concurrent replay must not duplicate order items");
-  assert.equal(Number(racedItems[0].quantity), 1, "the persisted single order retains the normalized quantity");
+  assert.equal(Number(racedItems[0].quantity), 2, "the persisted single order retains a valid MOQ quantity");
   await assert.rejects(
     () => rpc(
       raceConnections[0],
       "select public.create_staff_order($1::uuid,$2::jsonb,$3,$4,$5) result",
-      [localCustomer, raceConnections[0].json([{ product_id: created.id, quantity: 2 }]),
+      [localCustomer, raceConnections[0].json([{ product_id: created.id, quantity: 4 }]),
         "CI concurrent staff-order idempotency", concurrentOrderKey, "cash_on_delivery"],
     ),
     /idempotency key was already used for a different order payload/i,
