@@ -56,6 +56,7 @@ describe('stock-count XLSX report',()=>{
     expect(()=>buildStockCountWorkbookXlsx(session,lines.slice(0,1),'المستودع الرئيسي')).toThrow(/لا يطابق اللقطة/);
     expect(()=>buildStockCountWorkbookXlsx({...session,total_lines:3},[...lines,{...lines[1]}],'المستودع الرئيسي')).toThrow(/تكرر صنف/);
     expect(()=>buildStockCountWorkbookXlsx({...session,status:'unknown' as never},lines,'المستودع الرئيسي')).toThrow(/حالة جلسة الجرد/);
+    expect(()=>buildStockCountWorkbookXlsx({...session,counted_lines:0},lines,'المستودع الرئيسي')).toThrow(/عدد العدود المحفوظة لا يطابق تفاصيل اللقطة/);
     expect(()=>buildStockCountWorkbookXlsx(session,lines,'المستودع الرئيسي','not-a-date')).toThrow(/وقت إنشاء ملف الجرد/);
   });
 });

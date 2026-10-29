@@ -67,6 +67,9 @@ function validate(
   if (!Number.isSafeInteger(session.counted_lines) || session.counted_lines < 0 || session.counted_lines > session.total_lines) {
     throw new Error('عدد الأسطر المعدودة في الجلسة غير صالح.');
   }
+  if (counted !== session.counted_lines) {
+    throw new Error('عدد العدود المحفوظة لا يطابق تفاصيل اللقطة؛ أوقف التصدير.');
+  }
   return { counted, uncounted: lines.length - counted };
 }
 function packageFiles(
