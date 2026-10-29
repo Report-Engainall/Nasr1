@@ -214,7 +214,7 @@ describe("warehouse return receipt printing", () => {
       return { data: null, error: { message: "unexpected RPC " + name } };
     });
     render(<CustomerReturnReceiptQueue onNotice={vi.fn()} />);
-    await screen.findByRole("button", { name: /السجلات الأقدم/ });
+    await screen.findByText("RETREC-20261029-ABCDEF12");
     expect(screen.getByRole("button", { name: /السجلات الأقدم/ })).toBeEnabled();
     expect(screen.getByText("RETREC-20261029-ABCDEF12")).toBeInTheDocument();
 
