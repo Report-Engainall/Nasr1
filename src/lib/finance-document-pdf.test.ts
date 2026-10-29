@@ -336,7 +336,7 @@ describe("Arabic customer finance PDFs", () => {
     expect(document.getTitle()).toContain("INV-2026-001");
   });
 
-  it("defaults customer invoice PDFs to hidden financial fields and prevents private values from changing the PDF", async () => {
+  it("defaults customer invoice PDFs to hidden financial fields and ignores cost, margin, organization, and foreign-tier sentinels", async () => {
     const invoice = {
       id: invoiceId,
       invoice_number: "INV-2026-HIDDEN",
@@ -362,26 +362,118 @@ describe("Arabic customer finance PDFs", () => {
       customer_code: "000042",
       business_name: "متجر الاختبار",
       contact_name: "مستخدم اختبار",
-      tier_label: "PRIVATE-WHOLESALE-TIER-SENTINEL",
     };
 
-    // Omitting the financial visibility decision must be fail-closed. Changing monetary
-    // and tier data alone must not alter any bytes in the hidden customer PDF.
-    const hiddenWithSentinels = await buildCustomerInvoicePdf(
+    // Extra input keys must not enter a hidden customer document, including through
+    // future database projections that accidentally spread staff/private columns.
+    const invoiceWithSentinels = {
+      ...invoice,
+      organization_id: "FOREIGN-ORGANIZATION-INVOICE-SENTINEL",
+      cost_price: "INTERNAL-INVOICE-COST-SENTINEL",
+      purchase_price: "INTERNAL-INVOICE-PURCHASE-SENTINEL",
+      margin_percentage: "INTERNAL-INVOICE-MARGIN-SENTINEL",
+      price_wholesale_of_wholesale: "FOREIGN-WHOLESALE-OF-WHOLESALE-SENTINEL",
+      price_wholesale: "FOREIGN-WHOLESALE-SENTINEL",
+      price_retail: "FOREIGN-RETAIL-SENTINEL",
+      hidden_price: "HIDDEN-INVOICE-PRICE-SENTINEL",
+    };
+    const lineWithSentinels = {
+      ...line,
+      organization_id: "FOREIGN-ORGANIZATION-LINE-SENTINEL",
+      warehouse_id: "PRIVATE-WAREHOUSE-LINE-SENTINEL",
+      cost_price: "INTERNAL-LINE-COST-SENTINEL",
+      purchase_price: "INTERNAL-LINE-PURCHASE-SENTINEL",
+      unit_cost: "INTERNAL-LINE-UNIT-COST-SENTINEL",
+      profit_margin: "INTERNAL-LINE-PROFIT-MARGIN-SENTINEL",
+      gross_profit: "INTERNAL-LINE-GROSS-PROFIT-SENTINEL",
+      foreign_tier_price: "FOREIGN-LINE-TIER-SENTINEL",
+      display_price: "HIDDEN-LINE-DISPLAY-PRICE-SENTINEL",
+    };
+    const customerWithSentinels = {
+      ...customer,
+      organization_id: "FOREIGN-ORGANIZATION-CUSTOMER-SENTINEL",
+      tier_label: "PRIVATE-WHOLESALE-TIER-SENTINEL",
+      tier: "PRIVATE-CUSTOMER-TIER-SENTINEL",
+      cost_price: "INTERNAL-CUSTOMER-COST-SENTINEL",
+      margin: "INTERNAL-CUSTOMER-MARGIN-SENTINEL",
+    };
+
+    // Omitting the financial visibility decision must fail closed. Prove the PDF is
+    // byte-identical to a sanitized baseline and does not change with altered secret values.
+    const hiddenBaseline = await buildCustomerInvoicePdf(
       invoice, [line], customer, fontBytes(), generatedAt,
     );
-    const hiddenWithDifferentValues = await buildCustomerInvoicePdf(
-      { ...invoice, subtotal: "1.00", tax_amount: "0.00", total_amount: "1.00" },
-      [{ ...line, unit_price: "0.50", line_total: "1.00" }],
-      { ...customer, tier_label: "PRIVATE-RETAIL-TIER-SENTINEL" },
+    const hiddenWithSentinels = await buildCustomerInvoicePdf(
+      invoiceWithSentinels, [lineWithSentinels], customerWithSentinels, fontBytes(), generatedAt,
+    );
+    const hiddenWithDifferentPrivateValues = await buildCustomerInvoicePdf(
+      {
+        ...invoiceWithSentinels,
+        organization_id: "OTHER-FOREIGN-ORGANIZATION",
+        cost_price: "999999.99",
+        margin_percentage: "999.99",
+        price_wholesale_of_wholesale: "888888.88",
+        price_wholesale: "777777.77",
+        price_retail: "666666.66",
+        hidden_price: "OTHER-HIDDEN-INVOICE-PRICE",
+        subtotal: "1.00",
+        tax_amount: "0.00",
+        total_amount: "1.00",
+      },
+      [{
+        ...lineWithSentinels,
+        organization_id: "OTHER-FOREIGN-ORGANIZATION",
+        cost_price: "555555.55",
+        unit_cost: "444444.44",
+        profit_margin: "333.33",
+        foreign_tier_price: "OTHER-FOREIGN-TIER",
+        unit_price: "0.50",
+        line_total: "1.00",
+      }],
+      {
+        ...customerWithSentinels,
+        organization_id: "OTHER-FOREIGN-ORGANIZATION",
+        tier_label: "PRIVATE-RETAIL-TIER-SENTINEL",
+        margin: "222.22",
+      },
       fontBytes(), generatedAt, false, false,
     );
-    expect(hiddenWithSentinels).toEqual(hiddenWithDifferentValues);
+
+    expect(hiddenWithSentinels).toEqual(hiddenBaseline);
+    expect(hiddenWithDifferentPrivateValues).toEqual(hiddenBaseline);
+    const serializedPdf = new TextDecoder().decode(hiddenWithSentinels);
+    for (const sentinel of [
+      "FOREIGN-ORGANIZATION-INVOICE-SENTINEL",
+      "INTERNAL-INVOICE-COST-SENTINEL",
+      "INTERNAL-INVOICE-PURCHASE-SENTINEL",
+      "INTERNAL-INVOICE-MARGIN-SENTINEL",
+      "FOREIGN-WHOLESALE-OF-WHOLESALE-SENTINEL",
+      "FOREIGN-WHOLESALE-SENTINEL",
+      "FOREIGN-RETAIL-SENTINEL",
+      "HIDDEN-INVOICE-PRICE-SENTINEL",
+      "FOREIGN-ORGANIZATION-LINE-SENTINEL",
+      "PRIVATE-WAREHOUSE-LINE-SENTINEL",
+      "INTERNAL-LINE-COST-SENTINEL",
+      "INTERNAL-LINE-PURCHASE-SENTINEL",
+      "INTERNAL-LINE-UNIT-COST-SENTINEL",
+      "INTERNAL-LINE-PROFIT-MARGIN-SENTINEL",
+      "INTERNAL-LINE-GROSS-PROFIT-SENTINEL",
+      "FOREIGN-LINE-TIER-SENTINEL",
+      "HIDDEN-LINE-DISPLAY-PRICE-SENTINEL",
+      "FOREIGN-ORGANIZATION-CUSTOMER-SENTINEL",
+      "PRIVATE-WHOLESALE-TIER-SENTINEL",
+      "PRIVATE-CUSTOMER-TIER-SENTINEL",
+      "INTERNAL-CUSTOMER-COST-SENTINEL",
+      "INTERNAL-CUSTOMER-MARGIN-SENTINEL",
+    ]) {
+      expect(serializedPdf).not.toContain(sentinel);
+    }
 
     const explicitlyVisible = await buildCustomerInvoicePdf(
-      invoice, [line], customer, fontBytes(), generatedAt, true, false,
+      invoice, [line], { ...customer, tier_label: "PRIVATE-WHOLESALE-TIER-SENTINEL" },
+      fontBytes(), generatedAt, true, false,
     );
-    expect(explicitlyVisible).not.toEqual(hiddenWithSentinels);
+    expect(explicitlyVisible).not.toEqual(hiddenBaseline);
   });
 
   it("rejects invoice PDFs when the source totals do not reconcile", async () => {
