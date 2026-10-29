@@ -1148,6 +1148,49 @@ async function main() {
   const queueAfterReceiptRaw = await db.unsafe("select public.list_customer_return_receipt_queue(50) as result");
   const queueAfterReceipt = asJson(queueAfterReceiptRaw[0].result);
   assert.ok(!queueAfterReceipt.requests.some((row) => row.id === firstRequest.request_id),"fully received return leaves pending queue");
+
+  // Print evidence is re-read from persisted receipt/item snapshots, not rebuilt from client form state.
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
+  await db.unsafe("set role authenticated");
+  const firstPrintSnapshotRaw = await db.unsafe(
+    "select public.get_customer_return_receipt_print_data($1::uuid) as result",
+    [firstReceipt.receipt_id],
+  );
+  const firstPrintSnapshot = asJson(firstPrintSnapshotRaw[0].result);
+  assert.equal(firstPrintSnapshot.receipt_number,firstReceipt.receipt_number,"reprint uses the persisted receipt document number");
+  assert.equal(firstPrintSnapshot.request_number,firstRequest.request_number,"reprint resolves the saved source request number");
+  assert.equal(firstPrintSnapshot.order_number,firstRequest.order_number,"reprint resolves the original saved order number");
+  assert.equal(firstPrintSnapshot.warehouse_name,receiptQueue.warehouses.find((row) => row.id === receiptWarehouseId)?.name,
+    "reprint resolves the persisted receiving warehouse label");
+  assert.equal(firstPrintSnapshot.received_line_count,1,"reprint line count is computed from saved receipt items");
+  assert.equal(Number(firstPrintSnapshot.received_quantity),0.75);
+  assert.equal(Number(firstPrintSnapshot.restockable_quantity),0.50);
+  assert.equal(Number(firstPrintSnapshot.defective_quantity),0.25);
+  assert.deepEqual(Object.keys(firstPrintSnapshot).sort(),[
+    "customer_name","defective_quantity","lines","notes","order_number","received_at",
+    "received_line_count","received_quantity","receipt_number","request_number",
+    "restockable_quantity","warehouse_name",
+  ].sort(),"receipt print RPC returns only its declared customer-facing allowlist, without internal record IDs");
+  assert.deepEqual(Object.keys(firstPrintSnapshot.lines[0]).sort(),[
+    "defective_quantity","item_code","product_name","received_quantity","restockable_quantity","unit",
+  ].sort(),"receipt line print RPC omits private product and receipt-item IDs and financial fields");
+  const serializedPrintSnapshot = JSON.stringify(firstPrintSnapshot);
+  for (const internalValue of [
+    organizationId,receiptWarehouseId,firstRequest.request_id,requestItemId,
+    firstReceipt.receipt_id,secondReceipt.receipt_id,
+  ]) {
+    assert.equal(serializedPrintSnapshot.includes(internalValue),false,
+      "persisted print snapshot must not expose internal id " + internalValue);
+  }
+
+  await expectFailure(
+    "return receipt print snapshot fails closed outside the active organization's receipt scope",
+    () => db.unsafe(
+      "select public.get_customer_return_receipt_print_data($1::uuid)",
+      [randomUUID()],
+    ),
+    /receipt was not found in the active organization/i,
+  );
   await db.unsafe("reset role");
 
   // Finance authorization, source-derived credit calculation, replay, balanced journal posting and statement balance.
