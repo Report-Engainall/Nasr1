@@ -2088,10 +2088,10 @@ export function OfflineWorkspacePage() {
 const OFFLINE_CATALOG_SYNC_AT_KEY = "aghbari:catalog:last-server-sync:v1";
 const OFFLINE_CATALOG_STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 
-function getOfflineCatalogFreshness(value: unknown, now = Date.now()): { label: string; stale: boolean } {
+function getOfflineCatalogFreshness(value: unknown, now = Date.now()): { label: string; stale: boolean; unknown: boolean } {
   const timestamp = typeof value === "string" ? Date.parse(value) : Number.NaN;
   if (!Number.isFinite(timestamp) || timestamp > now + 5 * 60 * 1000) {
-    return { label: "آخر تحقق من الخادم: غير معروف", stale: false };
+    return { label: "آخر تحقق من الخادم: غير معروف", stale: true, unknown: true };
   }
   const age = Math.max(0, now - timestamp);
   const minutes = Math.floor(age / 60_000);
@@ -2107,6 +2107,7 @@ function getOfflineCatalogFreshness(value: unknown, now = Date.now()): { label: 
   return {
     label: "آخر تحقق من الخادم: " + relative,
     stale: age >= OFFLINE_CATALOG_STALE_AFTER_MS,
+    unknown: false,
   };
 }
 function Offline() {
@@ -2248,6 +2249,7 @@ function Offline() {
       setSyncing(false);
     }
   }
+  const catalogFreshness = getOfflineCatalogFreshness(lastCatalogSyncAt);
   return (
     <WorkspaceShell
       title="العمل دون اتصال"
@@ -2258,10 +2260,12 @@ function Offline() {
         <div>
           <strong>{online ? "متصل بالإنترنت" : "غير متصل بالإنترنت"}</strong>
           <p style={quiet}>حالة اتصال الجهاز لا تضمن صحة قاعدة البيانات.</p>
-          <p style={quiet}>{getOfflineCatalogFreshness(lastCatalogSyncAt).label}</p>
-          {getOfflineCatalogFreshness(lastCatalogSyncAt).stale && (
+          <p style={quiet}>{catalogFreshness.label}</p>
+          {catalogFreshness.stale && (
             <p role="alert" style={{ ...quiet, color: "#b45309" }}>
-              النسخة المحلية قديمة؛ حدّث الكتالوج عند توفر الاتصال قبل الاعتماد على بياناته.
+              {catalogFreshness.unknown
+                ? "لم يتم التحقق من حداثة النسخة المحلية؛ حدّث الكتالوج عند توفر الاتصال قبل الاعتماد على بياناته."
+                : "النسخة المحلية قديمة؛ حدّث الكتالوج عند توفر الاتصال قبل الاعتماد على بياناته."}
             </p>
           )}
         </div>

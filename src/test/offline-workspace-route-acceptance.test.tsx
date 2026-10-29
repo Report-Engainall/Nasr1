@@ -230,6 +230,36 @@ describe("offline workspace real-route acceptance", () => {
     expect(mocks.supabaseRpc).not.toHaveBeenCalled();
   });
 
+  it("fails closed when the cached catalog has no verified server-sync timestamp", async () => {
+    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+
+    await mountOfflineRoute();
+
+    await waitFor(() => {
+      expect(host?.textContent).toContain("آخر تحقق من الخادم: غير معروف");
+      expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+        "لم يتم التحقق من حداثة النسخة المحلية",
+      );
+    });
+  });
+
+  it("fails closed when the cached catalog timestamp is implausibly far in the future", async () => {
+    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    window.localStorage.setItem(
+      "aghbari:catalog:last-server-sync:v1",
+      new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    );
+
+    await mountOfflineRoute();
+
+    await waitFor(() => {
+      expect(host?.textContent).toContain("آخر تحقق من الخادم: غير معروف");
+      expect(host?.querySelector('[role="alert"]')?.textContent).toContain(
+        "لم يتم التحقق من حداثة النسخة المحلية",
+      );
+    });
+  });
+
   it("shows cached catalog age and marks a cache stale after 24 hours until a successful refresh", async () => {
     window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
     window.localStorage.setItem(
