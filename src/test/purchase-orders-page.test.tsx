@@ -58,12 +58,13 @@ describe('purchase orders page',()=>{
   });
 
   it('exports only the visible filtered purchase orders and reports the active filter',async()=>{
-    mocks.fetchPurchaseOrders.mockResolvedValueOnce([draft,submitted]);
+    const submittedOrder={...submitted,id:'po-2',purchase_order_number:'PO-20261019-000002'};
+    mocks.fetchPurchaseOrders.mockResolvedValueOnce([draft,submittedOrder]);
     render(<PurchaseOrdersPage/>);
-    expect(await screen.findByText('PO-20261019-000001')).toBeInTheDocument();
+    expect(await screen.findByRole('button',{name:/PO-20261019-000001/})).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('الحالة'),{target:{value:'submitted'}});
     fireEvent.click(screen.getByRole('button',{name:/تصدير نتائج Excel/}));
-    expect(exportMocks.download).toHaveBeenCalledWith([submitted],'معتمد للتوريد');
+    expect(exportMocks.download).toHaveBeenCalledWith([submittedOrder],'معتمد للتوريد');
     expect(await screen.findByText(/تم تجهيز ملف Excel للنتائج الظاهرة/)).toBeInTheDocument();
   });
 

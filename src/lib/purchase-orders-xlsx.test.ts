@@ -125,8 +125,9 @@ describe('purchase order XLSX export', () => {
     expect(lines).not.toContain('<c r="I2"');
     expect(lines).toContain('0000125');
     expect(lines).toContain('+CMD|payload');
-    expect(lines).toContain('&quot;https://evil.invalid&quot;');
-    expect(lines).not.toMatch(/<f(?:\s|>)/);
+    expect(orders).toContain('=HYPERLINK');
+    expect(orders).toContain('&quot;https://evil.invalid&quot;');
+    expect((orders + lines)).not.toMatch(/<f(?:\s|>)/);
     for (const privateValue of ['org-private-must-not-export', 'supplier-private-id', 'warehouse-private-id', 'private-user-id', 'product-private-id', 'line-private-id']) {
       expect(orders + lines).not.toContain(privateValue);
     }
