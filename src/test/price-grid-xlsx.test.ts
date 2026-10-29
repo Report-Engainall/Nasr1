@@ -147,4 +147,56 @@ describe('price grid XLSX workbook', () => {
     records[1][5] = '-1';
     expect(() => parsePriceGridRecords(records, [row])).toThrow(/قيمة سعر غير صالحة/);
   });
+
+  it('emits only the approved price-grid XLSX fields, not cost, margin, or foreign-tenant metadata', async () => {
+    const untrustedRuntimeRow = {
+      ...row,
+      organization_id: 'FOREIGN_ORGANIZATION_SENTINEL',
+      warehouse_id: 'PRIVATE_WAREHOUSE_SENTINEL',
+      inventory_row_id: 'PRIVATE_INVENTORY_ID_SENTINEL',
+      cost_price: 'INTERNAL_COST_SENTINEL',
+      purchase_price: 'INTERNAL_PURCHASE_PRICE_SENTINEL',
+      unit_cost: 'INTERNAL_UNIT_COST_SENTINEL',
+      profit_margin: 'INTERNAL_PROFIT_MARGIN_SENTINEL',
+      gross_profit: 'INTERNAL_GROSS_PROFIT_SENTINEL',
+      margin: 'INTERNAL_MARGIN_SENTINEL',
+      display_price: 'DISPLAY_PRICE_SENTINEL',
+      foreign_tier_price: 'FOREIGN_TIER_PRICE_SENTINEL',
+      quantity_on_hand: 'RAW_ON_HAND_SENTINEL',
+      quantity_reserved: 'RAW_RESERVED_SENTINEL',
+    } as typeof row;
+
+    const workbook = buildPriceGridXlsx([untrustedRuntimeRow]);
+    const bytes = await blobBytes(workbook);
+    const xml = new TextDecoder().decode(bytes);
+    const records: string[][] = [];
+    await parseXlsxFirstWorksheet(workbook, values => { records.push(values); });
+
+    expect(records[0]).toEqual([
+      'معرف الصنف', 'كود الصنف', 'اسم الصنف', 'الوحدة', 'الحالة',
+      'السعر الأساسي', 'جملة الجملة', 'الجملة', 'التجزئة',
+      'إجمالي الرصيد الفعلي', 'إجمالي الكمية المحجوزة', 'إجمالي المتاح',
+      'إجمالي حد إعادة الطلب', 'عدد المخازن ذات الرصيد',
+    ]);
+    expect(records[1]).toHaveLength(14);
+    expect(records[1].slice(5, 9)).toEqual(['100.00', '90.50', '95.00', '110.25']);
+
+    for (const sentinel of [
+      'FOREIGN_ORGANIZATION_SENTINEL',
+      'PRIVATE_WAREHOUSE_SENTINEL',
+      'PRIVATE_INVENTORY_ID_SENTINEL',
+      'INTERNAL_COST_SENTINEL',
+      'INTERNAL_PURCHASE_PRICE_SENTINEL',
+      'INTERNAL_UNIT_COST_SENTINEL',
+      'INTERNAL_PROFIT_MARGIN_SENTINEL',
+      'INTERNAL_GROSS_PROFIT_SENTINEL',
+      'INTERNAL_MARGIN_SENTINEL',
+      'DISPLAY_PRICE_SENTINEL',
+      'FOREIGN_TIER_PRICE_SENTINEL',
+      'RAW_ON_HAND_SENTINEL',
+      'RAW_RESERVED_SENTINEL',
+    ]) {
+      expect(xml).not.toContain(sentinel);
+    }
+  });
 });
