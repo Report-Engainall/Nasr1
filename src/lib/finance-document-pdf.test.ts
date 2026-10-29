@@ -218,6 +218,117 @@ describe("Arabic customer finance PDFs", () => {
     expect((await PDFDocument.load(bytes)).getTitle()).toContain("كشف الحساب");
   });
 
+  it("keeps customer statement PDF byte-identical when unknown cost, margin, organization, and foreign-tier fields are injected", async () => {
+    const payload = {
+      invoices: [{
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001",
+        invoice_number: "INV-STATEMENT-PRIVACY-01",
+        status: "issued",
+        issued_at: "2026-10-01T00:00:00.000Z",
+        due_at: "2026-10-10T00:00:00.000Z",
+        currency: "YER",
+        total_amount: "100.00",
+      }],
+      payments: [{
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-000000000001",
+        invoice_id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001",
+        amount: "25.00",
+        paid_at: "2026-10-12T00:00:00.000Z",
+      }],
+    };
+    const withPrivateFields = {
+      ...payload,
+      organization_id: "FOREIGN-ORGANIZATION-STATEMENT-SENTINEL",
+      warehouse_id: "PRIVATE-STATEMENT-WAREHOUSE-SENTINEL",
+      cost_price: "INTERNAL-STATEMENT-COST-SENTINEL",
+      profit_margin: "INTERNAL-STATEMENT-MARGIN-SENTINEL",
+      foreign_tier_price: "FOREIGN-STATEMENT-TIER-SENTINEL",
+      invoices: payload.invoices.map(invoice => ({
+        ...invoice,
+        organization_id: "FOREIGN-ORGANIZATION-INVOICE-SENTINEL",
+        cost_price: "INTERNAL-INVOICE-COST-SENTINEL",
+        purchase_price: "INTERNAL-INVOICE-PURCHASE-SENTINEL",
+        unit_cost: "INTERNAL-INVOICE-UNIT-COST-SENTINEL",
+        profit_margin: "INTERNAL-INVOICE-MARGIN-SENTINEL",
+        gross_profit: "INTERNAL-INVOICE-GROSS-PROFIT-SENTINEL",
+        price_wholesale_of_wholesale: "FOREIGN-INVOICE-WHOLESALE-OF-WHOLESALE-SENTINEL",
+        price_wholesale: "FOREIGN-INVOICE-WHOLESALE-SENTINEL",
+        price_retail: "FOREIGN-INVOICE-RETAIL-SENTINEL",
+        display_price: "HIDDEN-INVOICE-DISPLAY-PRICE-SENTINEL",
+      })),
+      payments: payload.payments.map(payment => ({
+        ...payment,
+        organization_id: "FOREIGN-ORGANIZATION-PAYMENT-SENTINEL",
+        customer_id: "FOREIGN-CUSTOMER-PAYMENT-SENTINEL",
+        cost_price: "INTERNAL-PAYMENT-COST-SENTINEL",
+        margin: "INTERNAL-PAYMENT-MARGIN-SENTINEL",
+        foreign_tier_price: "FOREIGN-PAYMENT-TIER-SENTINEL",
+      })),
+    };
+    const changedPrivateFields = {
+      ...withPrivateFields,
+      organization_id: "OTHER-FOREIGN-ORGANIZATION",
+      cost_price: "999999.99",
+      profit_margin: "999.99",
+      foreign_tier_price: "888888.88",
+      invoices: withPrivateFields.invoices.map(invoice => ({
+        ...invoice,
+        organization_id: "OTHER-FOREIGN-ORGANIZATION",
+        cost_price: "777777.77",
+        purchase_price: "666666.66",
+        profit_margin: "555.55",
+        price_wholesale: "444444.44",
+        display_price: "333333.33",
+      })),
+      payments: withPrivateFields.payments.map(payment => ({
+        ...payment,
+        organization_id: "OTHER-FOREIGN-ORGANIZATION",
+        customer_id: "OTHER-FOREIGN-CUSTOMER",
+        cost_price: "222222.22",
+        margin: "111.11",
+        foreign_tier_price: "000000.00",
+      })),
+    };
+
+    const baselineBytes = await buildCustomerStatementPdf(payload, fontBytes(), generatedAt);
+    const sentinelBytes = await buildCustomerStatementPdf(withPrivateFields, fontBytes(), generatedAt);
+    const changedBytes = await buildCustomerStatementPdf(changedPrivateFields, fontBytes(), generatedAt);
+
+    // These are statement balances for the owning customer, so legitimate invoice
+    // and payment values stay visible. Only unrecognized extra fields must be inert.
+    expect(sentinelBytes).toEqual(baselineBytes);
+    expect(changedBytes).toEqual(baselineBytes);
+    const statementPdf = await PDFDocument.load(sentinelBytes);
+    expect(statementPdf.getTitle()).toContain("كشف الحساب");
+    expect(statementPdf.getPageCount()).toBeGreaterThanOrEqual(1);
+
+    const serializedPdf = new TextDecoder().decode(sentinelBytes);
+    for (const sentinel of [
+      "FOREIGN-ORGANIZATION-STATEMENT-SENTINEL",
+      "PRIVATE-STATEMENT-WAREHOUSE-SENTINEL",
+      "INTERNAL-STATEMENT-COST-SENTINEL",
+      "INTERNAL-STATEMENT-MARGIN-SENTINEL",
+      "FOREIGN-STATEMENT-TIER-SENTINEL",
+      "FOREIGN-ORGANIZATION-INVOICE-SENTINEL",
+      "INTERNAL-INVOICE-COST-SENTINEL",
+      "INTERNAL-INVOICE-PURCHASE-SENTINEL",
+      "INTERNAL-INVOICE-UNIT-COST-SENTINEL",
+      "INTERNAL-INVOICE-MARGIN-SENTINEL",
+      "INTERNAL-INVOICE-GROSS-PROFIT-SENTINEL",
+      "FOREIGN-INVOICE-WHOLESALE-OF-WHOLESALE-SENTINEL",
+      "FOREIGN-INVOICE-WHOLESALE-SENTINEL",
+      "FOREIGN-INVOICE-RETAIL-SENTINEL",
+      "HIDDEN-INVOICE-DISPLAY-PRICE-SENTINEL",
+      "FOREIGN-ORGANIZATION-PAYMENT-SENTINEL",
+      "FOREIGN-CUSTOMER-PAYMENT-SENTINEL",
+      "INTERNAL-PAYMENT-COST-SENTINEL",
+      "INTERNAL-PAYMENT-MARGIN-SENTINEL",
+      "FOREIGN-PAYMENT-TIER-SENTINEL",
+    ]) {
+      expect(serializedPdf).not.toContain(sentinel);
+    }
+  });
+
   it("paginates a statement with due-date rows without dropping invoices", async () => {
     const invoices = Array.from({ length: 45 }, (_, index) => ({
       id: "aaaaaaaa-aaaa-4aaa-8aaa-" + String(index + 1).padStart(12, "0"),
