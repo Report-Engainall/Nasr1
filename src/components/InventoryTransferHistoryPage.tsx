@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardList, Plus, Printer, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
+import { ClipboardList, FileSpreadsheet, Plus, Printer, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import {
   fetchActiveInventoryWarehouses, fetchInventoryTransferHistory, fetchInventoryTransferProducts,
   transferInventoryBatch, type InventoryTransferHistoryRow,
@@ -10,6 +10,7 @@ import {
   type InventoryTransferBatchDraft,
 } from '@/lib/inventory-transfer-batch';
 import { useAuth } from '@/lib/auth';
+import { downloadInventoryTransferHistoryWorkbookXlsx } from '@/lib/inventory-transfer-history-xlsx';
 
 type DraftLine = { productId: string; quantity: string };
 type TransferPreview = { signature: string; draft: ReturnType<typeof normalizeInventoryTransferBatchDraft> };
@@ -43,6 +44,7 @@ export function InventoryTransferHistoryPage() {
   const [warehouseFilter, setWarehouseFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [historyExportError, setHistoryExportError] = useState('');
 
   useEffect(() => {
     const rows = warehouses ?? [];
@@ -58,6 +60,24 @@ export function InventoryTransferHistoryPage() {
     () => (products ?? []).filter((product) => product.status === 'active').sort((a, b) => a.name.localeCompare(b.name, 'ar')),
     [products],
   );
+  function exportFilteredHistory() {
+    setHistoryExportError('');
+    try {
+      downloadInventoryTransferHistoryWorkbookXlsx(filteredHistory, {
+        generated_at: new Date().toISOString(),
+        search: search.trim(),
+        warehouse: warehouseFilter === 'all'
+          ? 'كل المستودعات'
+          : warehouses?.find((warehouse) => warehouse.id === warehouseFilter)?.name ?? 'مستودع محدد',
+        date_from: dateFrom,
+        date_to: dateTo,
+        source_limit: 500,
+      });
+    } catch (cause) {
+      setHistoryExportError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف Excel لسجل التحويلات.');
+    }
+  }
+
   const filteredHistory = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('ar');
     return (history ?? []).filter((row) => {
@@ -197,7 +217,11 @@ export function InventoryTransferHistoryPage() {
       </section>
       <section className="panel">
         <div className="panel-head inventory-transfer-no-print"><div><h2>الحركات المسجلة</h2><p className="text-muted">آخر 500 حركة في المؤسسة الحالية؛ يُطبّق التصفية على البيانات التي أرجعها الخادم.</p></div>
-          <div className="toolbar-actions"><button className="btn outline" onClick={() => setHistoryVersion((version) => version + 1)} disabled={historyLoading}><RefreshCw size={16} /> تحديث</button><button className="btn outline" onClick={() => window.print()} disabled={!filteredHistory.length}><Printer size={16} /> طباعة النتائج المفلترة</button></div>
+          <div className="toolbar-actions">
+            <button className="btn outline" onClick={() => setHistoryVersion((version) => version + 1)} disabled={historyLoading}><RefreshCw size={16} /> تحديث</button>
+            <button className="btn outline" onClick={exportFilteredHistory} disabled={historyLoading || !!historyError || !filteredHistory.length}><FileSpreadsheet size={16} /> تنزيل Excel للنتائج</button>
+            <button className="btn outline" onClick={() => window.print()} disabled={!filteredHistory.length}><Printer size={16} /> طباعة النتائج المفلترة</button>
+          </div>
         </div>
         <div className="form-grid inventory-transfer-no-print">
           <label>بحث في الحركات
@@ -212,6 +236,7 @@ export function InventoryTransferHistoryPage() {
           <label>إلى تاريخ<input aria-label="إلى تاريخ" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label>
         </div>
         {historyError && <div className="form-error" role="alert">{historyError}</div>}
+        {historyExportError && <div className="form-error" role="alert">{historyExportError}</div>}
         {historyLoading && <p className="text-muted">جار تحميل سجل التحويلات المحفوظة...</p>}
         <div className="inventory-transfer-print" dir="rtl">
           <div><h2>سجل تحويلات المخزون</h2><p>عدد الحركات المطابقة للفلاتر: {filteredHistory.length} — وقت الطباعة: {dateText(new Date().toISOString())}</p></div>
