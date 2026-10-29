@@ -1149,6 +1149,17 @@ async function main() {
   const queueAfterReceipt = asJson(queueAfterReceiptRaw[0].result);
   assert.ok(!queueAfterReceipt.requests.some((row) => row.id === firstRequest.request_id),"fully received return leaves pending queue");
 
+  // Reprint must retain the receiving-warehouse label captured at receipt creation,
+  // even after the live warehouse name changes.
+  const persistedWarehouseName = receiptQueue.warehouses.find((row) => row.id === receiptWarehouseId)?.name;
+  assert.ok(persistedWarehouseName,"print snapshot acceptance has a source warehouse label");
+  const renamedWarehouseName = persistedWarehouseName + " CI renamed after receipt";
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "update public.warehouses set name=$3 where id=$1::uuid and organization_id=$2::uuid",
+    [receiptWarehouseId,organizationId,renamedWarehouseName],
+  );
+
   // Print evidence is re-read from persisted receipt/item snapshots, not rebuilt from client form state.
   await setIdentity(managerAuthId,"ci-return-manager@example.test");
   await db.unsafe("set role authenticated");
@@ -1164,8 +1175,8 @@ async function main() {
     receiptQueue.requests.find((row) => row.id === firstRequest.request_id)?.order_number,
     "reprint resolves the original saved order number",
   );
-  assert.equal(firstPrintSnapshot.warehouse_name,receiptQueue.warehouses.find((row) => row.id === receiptWarehouseId)?.name,
-    "reprint resolves the persisted receiving warehouse label");
+  assert.equal(firstPrintSnapshot.warehouse_name,persistedWarehouseName,
+    "reprint retains the warehouse label captured when the receipt was created, not the current mutable name");
   assert.equal(firstPrintSnapshot.received_line_count,1,"reprint line count is computed from saved receipt items");
   assert.equal(Number(firstPrintSnapshot.received_quantity),0.75);
   assert.equal(Number(firstPrintSnapshot.restockable_quantity),0.50);
@@ -1196,6 +1207,10 @@ async function main() {
     /receipt was not found in the active organization/i,
   );
   await db.unsafe("reset role");
+  await db.unsafe(
+    "update public.warehouses set name=$3 where id=$1::uuid and organization_id=$2::uuid",
+    [receiptWarehouseId,organizationId,persistedWarehouseName],
+  );
 
   // Finance authorization, source-derived credit calculation, replay, balanced journal posting and statement balance.
   await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
