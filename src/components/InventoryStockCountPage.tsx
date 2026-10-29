@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Check, ClipboardCheck, Printer, RefreshCw, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Check, ClipboardCheck, FileSpreadsheet, Printer, RefreshCw, ShieldCheck } from 'lucide-react';
 import { cancelStockCount, completeStockCount, fetchActiveInventoryWarehouses, fetchOpenStockCountForWarehouse, fetchStockCountLines, setStockCountLine, startStockCount } from '@/lib/api';
 import type { ActiveInventoryWarehouse, InventoryStockCountLine, InventoryStockCountSession } from '@/lib/api';
+import { downloadStockCountWorkbookXlsx } from '@/lib/stock-count-xlsx';
 import { useAuth } from '@/lib/auth';
 const q = (v: number | null | undefined) => v == null || !Number.isFinite(Number(v)) ? '—' : new Intl.NumberFormat('ar-YE', { maximumFractionDigits: 3 }).format(Number(v));
 const idempotencyKey = () => 'stock-count-' + crypto.randomUUID().replace(/-/g, '');
@@ -106,6 +107,20 @@ export function InventoryStockCountPage() {
     } catch (e) { setError(e instanceof Error ? e.message : 'تعذر إلغاء الجلسة.'); }
     finally { setBusy(false); }
   }
+  async function exportWorkbook() {
+    if (!session) return;
+    const warehouse = warehouses.find((item) => item.id === session.warehouse_id);
+    if (!warehouse) { setError('تعذر تحديد المستودع المرتبط بلقطة الجرد.'); return; }
+    setError(''); setNotice('');
+    try {
+      const started = downloadStockCountWorkbookXlsx(session, lines, warehouse.name);
+      if (!started) { setError('تنزيل ملف Excel غير متاح في هذه البيئة.'); return; }
+      setNotice('تم تصدير لقطة الجرد والعدود المحفوظة فقط؛ أي تعديل لم يُحفظ غير مدرج في الملف.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف Excel للجرد.');
+    }
+  }
+
   return <section className="stock-count-page" dir="rtl">
     <style>{`
       @media print {
@@ -125,6 +140,7 @@ export function InventoryStockCountPage() {
         {!session && <label>ملاحظات بداية الجرد (اختياري)<input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} placeholder="سبب الجرد أو رقم محضر العد" disabled={busy || !warehouseId} /></label>}
         <div className="toolbar-actions stock-count-no-print">
           <button className="btn outline" onClick={() => setRefreshKey((v) => v + 1)} disabled={loading || busy}><RefreshCw size={16} /> تحديث</button>
+          {session && <button className="btn secondary stock-count-no-print" onClick={() => void exportWorkbook()} disabled={busy || savingLine !== null || !lines.length}><FileSpreadsheet size={16} /> تصدير الجرد إلى Excel</button>}
           {session && <button className="btn outline" onClick={() => window.print()} disabled={busy}><Printer size={16} /> طباعة ورقة الجرد</button>}
           {!session && <button className="btn primary" onClick={() => void begin()} disabled={loading || !warehouseId || busy}><ClipboardCheck size={16} /> بدء جلسة جرد فعلية</button>}
         </div>

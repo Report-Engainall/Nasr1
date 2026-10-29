@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { InventoryStockCountPage } from '@/components/InventoryStockCountPage';
+const exportMocks = vi.hoisted(() => ({ download: vi.fn() }));
+vi.mock('@/lib/stock-count-xlsx', () => ({ downloadStockCountWorkbookXlsx: exportMocks.download }));
 
 const mocks = vi.hoisted(() => ({
   cancelStockCount: vi.fn(),
@@ -80,6 +82,7 @@ describe('inventory stock-count retry safety', () => {
     mocks.fetchOpenStockCountForWarehouse.mockReset().mockResolvedValue(null);
     mocks.fetchStockCountLines.mockReset();
     mocks.startStockCount.mockReset();
+    exportMocks.download.mockReset().mockReturnValue(true);
     vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('6f1e2d3c-4b5a-6789-abcd-0123456789ef');
   });
 
@@ -116,4 +119,16 @@ describe('inventory stock-count retry safety', () => {
     expect(screen.getByRole('status')).toHaveTextContent('استُعيدت الجلسة نفسها دون تكرارها.');
     expect(screen.getByText('SKU-001')).toBeInTheDocument();
   });
+  it('exports the saved stock-count snapshot via the Excel action', async () => {
+    const savedLine = { ...line, counted_quantity: 2, variance: -2, counted_at: '2026-10-19T10:10:00.000Z' };
+    const savedSession = { ...session, counted_lines: 1 };
+    mocks.fetchOpenStockCountForWarehouse.mockResolvedValueOnce(savedSession);
+    mocks.fetchStockCountLines.mockResolvedValueOnce([savedLine]);
+    render(<InventoryStockCountPage />);
+    expect(await screen.findByText('جلسة الجرد المفتوحة')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /تصدير الجرد إلى Excel/ }));
+    expect(exportMocks.download).toHaveBeenCalledWith(savedSession, [savedLine], 'المستودع الرئيسي');
+    expect(await screen.findByRole('status')).toHaveTextContent('العدود المحفوظة فقط');
+  });
+
 });
