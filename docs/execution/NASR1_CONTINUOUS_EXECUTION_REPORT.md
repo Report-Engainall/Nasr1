@@ -1,3 +1,15 @@
+## LIVE CHECKPOINT — 2026-10-30 — import rollback authorization regression corrected; CI pending
+
+- **Current code SHA:** e68db07266c74c30cae36c9088c3ef993b4c9ac1 — https://github.com/Report-Engainall/Nasr1/commit/e68db07266c74c30cae36c9088c3ef993b4c9ac1
+- **Observed failure 1:** Core 40974044403 on 7bef9e1229e1c5ea814a5f1fdcc1448642fe0cce reported nonexistent import_jobs.updated_at; fixed to created_at in 7a28f88c73ec229be1d0455e6b4d3b48ab20110d.
+- **Observed failure 2:** Core 40974514133 on 7a28f88c73ec229be1d0455e6b4d3b48ab20110d reached the intended staff denial but failed while reading error.code because the helper did not return the caught error; fixed in e68db07266c74c30cae36c9088c3ef993b4c9ac1.
+- **Current candidate CI:** Core 40974837711 IN_PROGRESS (https://github.com/Report-Engainall/Nasr1/actions/runs/40974837711), P2 40974837758 PENDING (https://github.com/Report-Engainall/Nasr1/actions/runs/40974837758), cleanup 40974837686 SUCCESS (https://github.com/Report-Engainall/Nasr1/actions/runs/40974837686). Do not promote to TESTED_EXACT_SHA until terminal success.
+- **Test:** ordinary staff must receive 42501; foreign-tenant manager opaque P0002; both denials preserve job status/metadata/created_at, ready snapshot metadata, stored row count and rollback audit count. Isolated PostgreSQL 17 only.
+- **Inventory:** artifact 12940762864 retained; 330/330 runtime functions map to source across 173 migration files. No inventory regeneration.
+- **Next action:** verify exact-SHA Core/P2 for e68db07266c74c30cae36c9088c3ef993b4c9ac1, fix any real failure, then choose next uncovered high-risk destructive RPC.
+- **Release:** full production release remains NO-GO while hosted E2E, live integrations, production deploy/restore and owner sign-off are unproven.
+
+---
 ## LIVE CHECKPOINT — 2026-10-30 — rollback denial test corrected; exact-SHA CI pending
 
 - **Corrected code SHA:** 7a28f88c73ec229be1d0455e6b4d3b48ab20110d — https://github.com/Report-Engainall/Nasr1/commit/7a28f88c73ec229be1d0455e6b4d3b48ab20110d

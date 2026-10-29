@@ -1,5 +1,17 @@
 ## P2 execution record — import snapshot rollback authorization — 2026-10-30
 
+- Code SHA 7bef9e1229e1c5ea814a5f1fdcc1448642fe0cce added same-tenant staff/foreign-manager denial coverage; Core 40974044403 failed because import_jobs.updated_at does not exist. SHA 7a28f88c73ec229be1d0455e6b4d3b48ab20110d corrected the timestamp to created_at; Core 40974514133 then failed because expectFailure returned undefined. SHA e68db07266c74c30cae36c9088c3ef993b4c9ac1 now returns the verified caught error so SQLSTATE can be tested.
+- Changed file: scripts/test-import-inventory-snapshot-contract.mjs. Fixes are test-only; no production schema or data changed.
+- Intended acceptance: ordinary staff receives 42501 and foreign-tenant manager opaque P0002 from public.rollback_import_snapshot; after each rejection compare job status/error_summary/created_at, ready snapshot metadata, stored rows and rollback-audit count with baseline.
+- Current exact SHA e68db07266c74c30cae36c9088c3ef993b4c9ac1: Core 40974837711 IN_PROGRESS (https://github.com/Report-Engainall/Nasr1/actions/runs/40974837711), P2 40974837758 PENDING (https://github.com/Report-Engainall/Nasr1/actions/runs/40974837758), cleanup 40974837686 SUCCESS (https://github.com/Report-Engainall/Nasr1/actions/runs/40974837686). Status remains IMPLEMENTED, not TESTED_EXACT_SHA.
+- Retained RPC artifact 12940762864 maps 330/330 functions across 173 migrations; no regeneration: https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/12940762864/zip
+- Cash-expense void authorization/no-side-effects is separately complete on SHA 14e9cb703846708419c47ade22aa54ac3c7cdffd: Core 40973093903, P2 40973094057, cleanup 40973093914 all SUCCESS.
+- Next task: VERIFY-AUTHZ-IMPORT-SNAPSHOT-ROLLBACK-001-EXACT-SHA-CI; fix any current run failure, then select another uncovered destructive RPC.
+- Full production release remains NO-GO; hosted E2E, external integrations, production deploy/restore and owner sign-off remain unproven.
+
+---
+## P2 execution record — import snapshot rollback authorization — 2026-10-30
+
 - Repository: Report-Engainall/Nasr1, main only.
 - First code commit: https://github.com/Report-Engainall/Nasr1/commit/7bef9e1229e1c5ea814a5f1fdcc1448642fe0cce. Core run 40974044403 FAILED in step 23, “Verify inventory import snapshot contract without implicit stock mutation.” The log identified SQL error: column import_jobs.updated_at does not exist.
 - Root cause was a test-only schema assumption, not a production schema failure. Fixed by commit https://github.com/Report-Engainall/Nasr1/commit/7a28f88c73ec229be1d0455e6b4d3b48ab20110d: query now snapshots import_jobs.created_at along with status and error_summary.
