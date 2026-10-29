@@ -101,6 +101,32 @@ describe("finance document printing UI", () => {
   });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+  it("masks internal UUIDs from stale invoice and credit-memo selector payloads", async () => {
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "get_finance_document_print_options") return {
+        data: {
+          ...options,
+          invoices: options.invoices.map((row) => ({ ...row, customer_name: customerId })),
+          credit_memos: options.credit_memos.map((row) => ({ ...row, customer_name: customerId })),
+        },
+        error: null,
+      };
+      return { data: null, error: { message: "unexpected RPC " + name } };
+    });
+
+    render(<FinanceDocumentPrintActions />);
+
+    const invoiceOption = await screen.findByRole("option", { name: /INV-TEST-0009/ });
+    expect(invoiceOption).toHaveTextContent("عميل غير مسمى");
+    expect(invoiceOption.textContent).not.toContain(customerId);
+
+    fireEvent.change(screen.getByLabelText("نوع المستند المالي"), { target: { value: "credit_memo" } });
+    const creditMemoOption = await screen.findByRole("option", { name: /CRM-TEST-001/ });
+    expect(creditMemoOption).toHaveTextContent("عميل غير مسمى");
+    expect(creditMemoOption.textContent).not.toContain(customerId);
+    expect(document.body.textContent).not.toContain(customerId);
+  });
+
   it("prints a reconciled staff invoice from the server RPC", async () => {
     render(<FinanceDocumentPrintActions />);
     await screen.findByRole("option", { name: /INV-TEST-0009/ });

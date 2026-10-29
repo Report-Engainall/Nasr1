@@ -24,6 +24,13 @@ const button: React.CSSProperties = { border: "1px solid var(--border, #d6dfe4)"
 const primary: React.CSSProperties = { ...button, background: "var(--primary, #155e4a)", color: "#fff", borderColor: "transparent", fontWeight: 750 };
 const muted: React.CSSProperties = { color: "var(--muted-foreground, #66757b)", margin: 0, lineHeight: 1.7, fontSize: 12 };
 
+const INTERNAL_UUID_LABEL = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function printableOptionCustomerName(value: string | null | undefined): string {
+  const label = value?.trim();
+  return label && !INTERNAL_UUID_LABEL.test(label) ? label : "عميل غير مسمى";
+}
+
 function displayName(name: string | null, fallback: string | null): string {
   return name?.trim() || fallback?.trim() || "عميل بلا اسم مسجل";
 }
@@ -45,7 +52,7 @@ export function FinanceDocumentPrintActions() {
 
   const sources = useMemo(() => {
     if (kind === "invoice") return options.invoices.map((row) => ({
-      id: row.id, label: row.invoice_number + " — " + row.customer_name + " — " + row.currency + " — " + row.status,
+      id: row.id, label: row.invoice_number + " — " + printableOptionCustomerName(row.customer_name) + " — " + row.currency + " — " + row.status,
     }));
     if (kind === "statement") return options.customers.map((row) => ({
       id: row.id,
@@ -53,7 +60,7 @@ export function FinanceDocumentPrintActions() {
     }));
     return options.credit_memos.map((row) => ({
       id: row.id,
-      label: row.memo_number + " — " + row.customer_name + " — " + row.invoice_number + " — " + row.currency + " — " +
+      label: row.memo_number + " — " + printableOptionCustomerName(row.customer_name) + " — " + row.invoice_number + " — " + row.currency + " — " +
         (row.status === "draft" ? "مسودة" : row.status === "posted" ? "مُرحّل" : "معكوس ماليًا"),
     }));
   }, [kind, options]);
