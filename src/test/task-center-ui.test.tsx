@@ -105,6 +105,21 @@ describe("TaskCenter role-boundary and print integration", () => {
     else Reflect.deleteProperty(window, "print");
   });
 
+  it("shows warehouse receipt work to staff while keeping return approval management-only", async () => {
+    setUser(["staff"]);
+    const { unmount } = render(<TaskCenter onNotice={vi.fn()} />);
+    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+    expect(screen.getByTestId("return-receipt-queue")).toBeInTheDocument();
+    expect(screen.queryByTestId("return-review-queue")).not.toBeInTheDocument();
+    unmount();
+
+    setUser(["manager"]);
+    render(<TaskCenter onNotice={vi.fn()} />);
+    await screen.findByRole("heading", { name: "طلب عميل للتجهيز" });
+    expect(screen.getByTestId("return-review-queue")).toBeInTheDocument();
+    expect(screen.getByTestId("return-receipt-queue")).toBeInTheDocument();
+  });
+
   it("hides task roles outside a staff member's permission set from both the screen and print output", async () => {
     setUser(["staff"]);
     render(<TaskCenter onNotice={vi.fn()} />);

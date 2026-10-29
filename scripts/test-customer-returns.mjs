@@ -596,6 +596,9 @@ async function main() {
   const customerTwoAuthId = "22222222-2222-4222-8222-222222222222";
   const managerProfileId = "f7777777-7777-4777-8777-777777777777";
   const managerAuthId = "77777777-7777-4777-8777-777777777777";
+  const warehouseStaffProfileId = randomUUID();
+  const warehouseStaffAuthId = randomUUID();
+  const warehouseStaffEmail = "ci-warehouse-staff-" + suffix + "@example.test";
   const accountantProfileId = "f5555555-5555-4555-8555-555555555555";
   const accountantAuthId = "55555555-5555-4555-8555-555555555555";
   const productId = "a1000000-0000-0000-0000-000000000001";
@@ -607,6 +610,18 @@ async function main() {
   await db.unsafe(
     "insert into public.user_roles(profile_id,role) values($1,'manager') on conflict(profile_id,role) do nothing",
     [managerProfileId],
+  );
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,pg_catalog.now()) on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [warehouseStaffAuthId,warehouseStaffEmail],
+  );
+  await db.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Warehouse Staff',$4,true) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,full_name=excluded.full_name,email=excluded.email,is_active=true",
+    [warehouseStaffProfileId,warehouseStaffAuthId,organizationId,warehouseStaffEmail],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'staff') on conflict(profile_id,role) do nothing",
+    [warehouseStaffProfileId],
   );
   await db.unsafe(
     "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Return Accountant','ci-accountant@example.test',true) on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,is_active=true",
@@ -842,6 +857,20 @@ async function main() {
   assert.equal(ownSummary.returnable_items[0].remaining_quantity,3.75);
   assert.equal(ownSummary.requests[0].items[0].item_code,"000125","business codes preserve leading zeroes");
 
+  // Seed a second approved-but-unassigned return to prove warehouse staff cannot inspect or receive another worker's task.
+  await db.unsafe("reset role");
+  await setIdentity(customerTwoAuthId,"ci-customer-two@example.test");
+  await db.unsafe("set role authenticated");
+  const unassignedRequestRaw = await db.unsafe(
+    "select public.request_customer_return($1::uuid,$2::jsonb,$3::text,$4::text,$5::text) as result",
+    [orderTwoId,db.json([{order_item_id:lineTwoId,quantity:0.5}]),"damaged","Unassigned warehouse task fixture","ci-return-unassigned-"+suffix],
+  );
+  const unassignedRequest = asJson(unassignedRequestRaw[0].result);
+  assert.equal(unassignedRequest.status,"submitted");
+  await db.unsafe("reset role");
+  await setIdentity(customerOneAuthId,"ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+
   await expectFailure(
     "authenticated customers cannot directly insert return requests",
     () => db.unsafe(
@@ -871,6 +900,11 @@ async function main() {
   const approved = asJson(approvedRaw[0].result);
   assert.equal(approved.status,"approved");
   assert.equal(approved.idempotent_replay,false);
+  const unassignedApprovedRaw = await db.unsafe(
+    "select public.review_customer_return_request($1::uuid,'approved',$2::text) as result",
+    [unassignedRequest.request_id,"Approved but not assigned to this warehouse staff member"],
+  );
+  assert.equal(asJson(unassignedApprovedRaw[0].result).status,"approved");
   await db.unsafe("reset role");
 
   const receiptTask = await db.unsafe(
@@ -879,6 +913,17 @@ async function main() {
   );
   assert.equal(receiptTask.length,1,"approval creates one warehouse inspection task");
   assert.equal(receiptTask[0].task_role,"warehouse");
+  const unassignedReceiptTask = await db.unsafe(
+    "select id,task_role,status,assigned_to from public.ai_tasks where organization_id=$1 and source_event_key=$2",
+    [organizationId,"customer-return-receipt:"+unassignedRequest.request_id],
+  );
+  assert.equal(unassignedReceiptTask.length,1,"second approval creates an independent warehouse task");
+  assert.equal(unassignedReceiptTask[0].assigned_to,null,"the second warehouse task intentionally remains unassigned");
+  const assignTask = await db.unsafe(
+    "update public.ai_tasks set assigned_to=$3,updated_at=pg_catalog.now() where id=$1::uuid and organization_id=$2::uuid and task_role='warehouse' returning id",
+    [receiptTask[0].id,organizationId,warehouseStaffProfileId],
+  );
+  assert.equal(assignTask.length,1,"approved receipt task is assigned to the warehouse staff fixture");
   const reviewAudit = await db.unsafe(
     "select action,new_value->>'status' as new_status from public.audit_logs where organization_id=$1 and entity_id=$2::uuid and action='customer_return.reviewed'",
     [organizationId,firstRequest.request_id],
@@ -904,9 +949,29 @@ async function main() {
   const receiptQueueRaw = await db.unsafe("select public.list_customer_return_receipt_queue(50) as result");
   const receiptQueue = asJson(receiptQueueRaw[0].result);
   assert.ok(receiptQueue.warehouses.some((row) => row.id === receiptWarehouseId),"receipt queue only returns same-tenant active warehouses");
-  assert.ok(receiptQueue.requests.some((row) => row.id === firstRequest.request_id),"approved return appears in physical receipt queue");
+  assert.ok(receiptQueue.requests.some((row) => row.id === firstRequest.request_id),"approved return appears in manager physical receipt queue");
+  assert.ok(receiptQueue.requests.some((row) => row.id === unassignedRequest.request_id),"manager can see the unassigned approved return");
 
   await db.unsafe("reset role");
+  await setIdentity(warehouseStaffAuthId,warehouseStaffEmail);
+  await db.unsafe("set role authenticated");
+  const assignedStaffQueueRaw = await db.unsafe("select public.list_customer_return_receipt_queue(50) as result");
+  const assignedStaffQueue = asJson(assignedStaffQueueRaw[0].result);
+  assert.ok(assignedStaffQueue.requests.some((row) => row.id === firstRequest.request_id),
+    "warehouse staff sees the approved return assigned to their warehouse task");
+  assert.ok(!assignedStaffQueue.requests.some((row) => row.id === unassignedRequest.request_id),
+    "warehouse staff does not see another unassigned approved return");
+  await expectFailure(
+    "warehouse staff cannot physically receive an approved return not assigned to them",
+    () => db.unsafe(
+      "select public.receive_customer_return($1::uuid,$2::uuid,$3::jsonb,$4::text,$5::text)",
+      [unassignedRequest.request_id,receiptWarehouseId,db.json([{request_item_id:requestItemId,received_quantity:0.25,restockable_quantity:0.25}]),"unauthorized unassigned attempt","ci-return-unassigned-receive-"+suffix],
+    ),
+    /administrator, manager, or assigned warehouse task permission required/i,
+  );
+
+  await db.unsafe("reset role");
+  await setIdentity(managerAuthId,"ci-return-manager@example.test");
   const foreignWarehouseRows = await db.unsafe(
     "select id from public.warehouses where organization_id<>$1 and is_active order by id limit 1",
     [organizationId],
@@ -980,6 +1045,8 @@ async function main() {
     receiptBoundaryBefore,
     "foreign-tenant warehouse denial must not alter return source/lines, receipt records, stock movements, audit, or warehouse tasks",
   );
+  await db.unsafe("reset role");
+  await setIdentity(warehouseStaffAuthId,warehouseStaffEmail);
   await db.unsafe("set role authenticated");
 
   const firstReceiptLines = [{request_item_id:requestItemId,received_quantity:0.75,restockable_quantity:0.50}];
@@ -1106,7 +1173,7 @@ async function main() {
     assert.ok(receiptIds.includes(row.id));
     assert.equal(row.organization_id,organizationId,"receipt retains the source organization");
     assert.equal(row.return_request_id,firstRequest.request_id,"receipt retains the approved return reference");
-    assert.equal(row.received_by_auth_user_id,managerAuthId,"receipt issuer resolves to the authenticated manager");
+    assert.equal(row.received_by_auth_user_id,warehouseStaffAuthId,"receipt issuer resolves to the assigned warehouse staff user");
     assert.equal(row.warehouse_id,receiptWarehouseId,"receipt stays bound to the inspected warehouse");
     assert.match(row.receipt_number,/^RETREC-/,"receipt has a persistent document number");
   }
@@ -1127,7 +1194,7 @@ async function main() {
   for (const row of receiptAuditRows) {
     const header = receiptHeaders.find((candidate) => candidate.id === row.entity_id);
     assert.equal(row.organization_id,organizationId,"receipt audit stays in the same organization");
-    assert.equal(row.actor_auth_user_id,managerAuthId,"receipt audit records the actual issuing user");
+    assert.equal(row.actor_auth_user_id,warehouseStaffAuthId,"receipt audit records the actual issuing warehouse staff user");
     assert.equal(row.entity_type,"customer_return_receipt");
     assert.equal(row.request_number,firstRequest.request_number);
     assert.equal(row.warehouse_id,receiptWarehouseId);

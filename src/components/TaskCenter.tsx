@@ -307,7 +307,8 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       </table>
       <footer>تعرض هذه القائمة سجلات التشغيل الحالية؛ لا تُنشأ مواعيد غير مسجلة في المصدر.</footer>
     </div>
-    {canManage && <><CustomerReturnReviewQueue onNotice={onNotice} /><CustomerReturnReceiptQueue onNotice={onNotice} /></>}
+    {canManage && <CustomerReturnReviewQueue onNotice={onNotice} />}
+    {(canManage || roles.includes('staff')) && <CustomerReturnReceiptQueue onNotice={onNotice} />}
     {roles.some((role) => ['admin','manager','accountant'].includes(role)) && <CustomerReturnCreditMemoQueue onNotice={onNotice} />}
   </section>;
 }
