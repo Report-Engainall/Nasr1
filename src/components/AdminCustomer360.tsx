@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarClock, CreditCard, Printer, RefreshCw, ShoppingBag, Wallet } from 'lucide-react';
+import { CalendarClock, CreditCard, Download, Printer, RefreshCw, ShoppingBag, Wallet } from 'lucide-react';
 import { Button, Empty, ErrorBox, Loading, Modal, TableWrap } from '@/components/AdminPages';
 import { fetchStaffCustomer360Summary } from '@/lib/api';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import type { Customer } from '@/lib/types';
 import { getCurrentTenantScope, supabase } from '@/lib/supabase';
 import { formatCustomer360Money } from '@/lib/customer-360';
+import { downloadStaffCustomer360WorkbookXlsx } from '@/lib/customer-360-xlsx';
 import type { StaffCustomer360Summary } from '@/lib/customer-360-summary';
 
 const invoiceStatusLabel: Record<string, string> = {
@@ -19,6 +20,7 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
   const [summary, setSummary] = useState<StaffCustomer360Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [exportError, setExportError] = useState('');
 
   const loadCustomer360 = useCallback(async () => {
     setLoading(true);
@@ -57,8 +59,9 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
       <section className="panel">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
           <div><h2 style={{ margin: 0 }}>{customer.business_name}</h2><p>{customer.customer_code} · {customer.contact_name || 'جهة الاتصال غير محددة'}</p><p>{customer.phone || 'لا يوجد هاتف'} · {customer.email || 'لا يوجد بريد'}</p></div>
-          <div className="no-print" style={{ display: 'flex', gap: 6 }}><Button variant="secondary" onClick={() => void reload()} disabled={loading}><RefreshCw size={15} /> تحديث</Button><Button variant="outline" onClick={() => window.print()}><Printer size={15} /> طباعة</Button></div>
+          <div className="no-print" style={{ display: 'flex', gap: 6 }}><Button variant="secondary" onClick={() => void reload()} disabled={loading}><RefreshCw size={15} /> تحديث</Button><Button variant="outline" onClick={() => { if (!summary) return; setExportError(''); try { downloadStaffCustomer360WorkbookXlsx(summary); } catch (cause) { setExportError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف العميل 360.'); } }} disabled={loading || !summary}><Download size={15} /> تصدير Excel</Button><Button variant="outline" onClick={() => window.print()}><Printer size={15} /> طباعة</Button></div>
         </div>
+        {exportError && <p className="form-error" role="alert">{exportError}</p>}
         <p className="report-note">الرصيد والحد الائتماني أدناه هما القيم المسجلة في بطاقة العميل. إجماليات الطلبات والفوترة والتحصيل أدناه مجاميع خادمية كاملة؛ الجداول التفصيلية تعرض أحدث الحركات فقط، ولا تُنشأ فواتير أو دفعات تاريخية افتراضية.</p>
       </section>
       {loading ? <Loading /> : error ? <ErrorBox message={error} /> : summary && <>
