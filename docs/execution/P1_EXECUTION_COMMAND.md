@@ -1,5 +1,12 @@
 # P1 LIVE SESSION COMMAND — 2026-10-30 — MOBILE FOCUS + INTELLIGENCE WORKSPACE
 
+## P1 RESULT UPDATE — 2026-10-30 — FOCUS FAILURE RECONFIRMED ON CURRENT CODE
+- Exact Core on code SHA `9f76ead379fe52711bc8b9ed58a66605317bb68f`: [41020479004 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479004). Core price-visibility Chromium passed; this does not cover mobile drawer keyboard focus.
+- P2 [41020479040 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479040) on code SHA 9f76ead3: auth gate/public smoke, local Supabase migration, authenticated order persistence/cross-tenant denial, returns/review/receipt/credit memo and audited Onyx XLSX all PASSED. Finance/task print acceptance FAILED twice at `e2e/finance-task-print.spec.ts:69`: first `التنقل الإداري` button did not receive focus within 20 seconds. Invoice/statement/credit-memo/operational-task print assertions were NOT reached. Hosted customer/order/tenant is SKIPPED.
+- P1 production fix remains immediate in `src/components/AghbariApp.tsx`: focus first visible/enabled drawer navigation action only after open/render; preserve semantic nav label, Escape close, route-change close, and focus return to trigger. Do not change/soften the E2E test.
+- After patch, produce exact SHA + local/Chromium proof at 360px including initial focus, Escape, route close, restoration, and finance/task print acceptance. Then mount P3 components against real P2 server aggregate DTOs only. No fake values or browser tenant/actor/role.
+
+
 ## P1 LIVE OVERRIDE — 2026-10-30 — EXACT CORE PASS / MOBILE FOCUS STILL OPEN
 - Current observed remote main at this handoff: `9f76ead379fe52711bc8b9ed58a66605317bb68f`. Exact Core [41020479004 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479004) on this SHA includes Unit, isolated PG17, RPC inventory, backup/restore, lint, build, server smoke and Chromium price visibility. This does not close P1 UI work.
 - **Immediate P1 fix:** first visible button under navigation labelled `التنقل الإداري` must receive initial focus when mobile drawer opens. Failing proof: [P2 run 41020194728 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41020194728) on `3451e9be`; `e2e/finance-task-print.spec.ts:69`, test begins line 94, 20s focus timeout on first attempt and retry. Auth infrastructure/public smoke passed; local Supabase flow failed at focus; print assertions were not reached; hosted customer/order/tenant remained SKIPPED.

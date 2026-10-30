@@ -1,5 +1,15 @@
 # CURRENT P3 SESSION ENTRY — LIVE OVERRIDE 2026-10-30
 
+## P3 LIVE RESULT UPDATE — 2026-10-30 — P2 FINALIZED ON CODE SHA 9f76ead3
+- Exact main code SHA: `9f76ead379fe52711bc8b9ed58a66605317bb68f`; global docs cursor at time of update: `16511cd55776237df47871341e5337d4634c6460`.
+- Core [41020479004 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479004) on 9f76ead3: unit, PostgreSQL 17 acceptance/migrations, exact RPC inventory, backup/restore, lint, build, production/dev smoke and price-visibility Chromium all PASS.
+- P2 [41020479040 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479040) on the same code SHA: auth and public smoke PASS; local Supabase migrations PASS; authenticated order persistence/cross-tenant denial PASS; return/review/receipt/credit memo PASS; audited Onyx XLSX PASS; finance/task print FAIL twice at mobile first-item focus (20s timeout, e2e/finance-task-print.spec.ts:69); print assertions not reached; hosted tenant and optional customer-manager/device-session browser paths SKIPPED.
+- P1 mobile focus fix is still unintegrated; P2 server aggregate/outcome/AI/health/RBAC dependencies still unintegrated. No P1/P2 owner commits were available to merge.
+- The code SHA remains tested; the docs-only cursor Core [41021159462](https://github.com/Report-Engainall/Nasr1/actions/runs/41021159462) is IN_PROGRESS at last observation and must be polled without rerun. Cleanup 41021159709 SUCCESS.
+- Acceptance matrix integrity: 143 unique task IDs, 16 REF rows, 18 DLV groups, no duplicate IDs. All REF stay P1/P2 pending; no DLV roll-up closed; release NO-GO.
+- exact_next_command: poll `41021159462`; P1 fix focus; P2 deliver tenant aggregate and DecisionOutcome persistence after; integrate bounded patches using expected-main-SHA CAS.
+
+
 ## P3 LIVE OVERRIDE — 2026-10-30 — CURRENT EXACT CORE PASS
 - Current main/code SHA at resume: `9f76ead379fe52711bc8b9ed58a66605317bb68f`; only branch main; no open PRs.
 - Exact Core [41020479004 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479004) on this SHA. Unit, PG17 full migrations/workflows, exact RPC inventory, backup/restore, lint, build, production/dev smoke and price-visibility Chromium all passed. Cleanup 41020478974 also SUCCESS.

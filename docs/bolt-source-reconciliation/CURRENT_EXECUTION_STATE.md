@@ -1,4 +1,15 @@
-# CURRENT EXECUTION STATE — LIVE MAIN CURSOR — 2026-10-30 — CORE PASS ON 9f76ead3 / P1-P2 INTEGRATION OPEN
+# CURRENT EXECUTION STATE — LIVE MAIN CURSOR — 2026-10-30 — CORE PASS / P1 MOBILE FOCUS BLOCKER
+
+## LIVE RESULT CORRECTION — 2026-10-30 — P2 FINAL ON CODE SHA `9f76ead3`
+**Supersedes the previous line in this file that called P2 run 41020479040 IN_PROGRESS.**
+
+- Main currently has documentation cursor `16511cd55776237df47871341e5337d4634c6460`; code-bearing SHA remains `9f76ead379fe52711bc8b9ed58a66605317bb68f`.
+- Core on exact code SHA [41020479004 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479004) remains PASS for unit, full PostgreSQL 17 migrations and core workflows, RPC inventory, backup/restore, lint/build, smoke and price-visibility acceptance.
+- P2 [41020479040 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479040) completed on exact code SHA `9f76ead3`. Authenticated E2E infrastructure and public UI smoke SUCCESS; local Supabase migration/startup SUCCESS; authenticated order persistence and cross-tenant denial SUCCESS; return/review/receipt/credit memo flow SUCCESS; audited Onyx order XLSX export SUCCESS; finance-document and operational-task print test FAILURE on first attempt and retry at `e2e/finance-task-print.spec.ts:69` due first admin navigation button not focused (20s timeout). Invoice/statement/credit-memo/task print assertions were not reached. Hosted customer/order/tenant job SKIPPED. Customer-manager and device-session browser suites SKIPPED.
+- P1 owns mobile focus correction in `src/components/AghbariApp.tsx`; keep first-item focus, Escape, route-close and focus restoration assertions intact. No P1 patch is yet integrated.
+- Core [41021159462](https://github.com/Report-Engainall/Nasr1/actions/runs/41021159462) on the documentation-only cursor `16511cd55776237df47871341e5337d4634c6460` is IN_PROGRESS at last observation; do not transfer the previous Core PASS to it. Cleanup [41021159709 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41021159709) on the same doc cursor.
+- exact_next_command: poll existing run `41021159462`; meanwhile P1 must fix the focus behavior and P2 waits for that fix before the next finance/task print rerun. Hosted tenant remains SKIPPED, not PASS.
+
 
 ## LIVE MAIN OVERRIDE — 2026-10-30 — CURRENT CODE SHA `9f76ead379fe52711bc8b9ed58a66605317bb68f`
 **This block supersedes every older cursor, run status and next-action statement below it.** Historical entries remain for audit and must not be followed as current instructions.
