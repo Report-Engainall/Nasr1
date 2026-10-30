@@ -30,7 +30,7 @@ export function chooseFreeAiRoute(input:{
  const selected=[...input.providers].sort((a,b)=>a.provider.localeCompare(b.provider)||a.model.localeCompare(b.model)).find(provider=>{
   let reason="ELIGIBLE";
   if((providerCounts.get(providerKey(provider))??0)!==1)reason="DUPLICATE_PROVIDER_QUOTA_RECORD";
-  if(provider.quotaStatus!=="AVAILABLE")reason="QUOTA_"+provider.quotaStatus;
+  else if(provider.quotaStatus!=="AVAILABLE")reason="QUOTA_"+provider.quotaStatus;
   else if(!provider.freeTierConfirmed)reason="FREE_TIER_NOT_CONFIRMED";
   else if(!provider.zeroCostConfirmed||provider.inputRate!==0||provider.outputRate!==0)reason="COST_NOT_ZERO";
   else if(!provider.privacyReviewed||!provider.privacyAllowsQuestionOnly)reason="PRIVACY_NOT_APPROVED";
