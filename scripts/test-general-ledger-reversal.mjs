@@ -80,6 +80,25 @@ export async function runGeneralLedgerReversalAcceptance({
     ))[0].result);
   }
 
+  async function captureJournalDraftCreateDenialState(idempotencyKey) {
+    await db.unsafe("reset role");
+    try {
+      const rows = await db.unsafe(
+        "select jsonb_build_object(" +
+          "'entries',coalesce((select jsonb_agg(to_jsonb(e) order by e.id::text) from public.accounting_journal_entries e where e.organization_id=$1::uuid and e.idempotency_key=$2::uuid),'[]'::jsonb)," +
+          "'lines',coalesce((select jsonb_agg(to_jsonb(l) order by l.journal_entry_id::text,l.line_number) from public.accounting_journal_lines l where l.organization_id=$1::uuid and l.journal_entry_id in (select e.id from public.accounting_journal_entries e where e.organization_id=$1::uuid and e.idempotency_key=$2::uuid)),'[]'::jsonb)," +
+          "'reversal_links',coalesce((select jsonb_agg(to_jsonb(r) order by r.id::text) from public.accounting_journal_reversals r where r.organization_id=$1::uuid and (r.original_journal_entry_id in (select e.id from public.accounting_journal_entries e where e.organization_id=$1::uuid and e.idempotency_key=$2::uuid) or r.reversal_journal_entry_id in (select e.id from public.accounting_journal_entries e where e.organization_id=$1::uuid and e.idempotency_key=$2::uuid))),'[]'::jsonb)," +
+          "'audit',coalesce((select jsonb_agg(to_jsonb(a) order by a.id::text) from public.audit_logs a where a.organization_id=$1::uuid and a.entity_type='accounting_journal_entry' and a.entity_id in (select e.id from public.accounting_journal_entries e where e.organization_id=$1::uuid and e.idempotency_key=$2::uuid)),'[]'::jsonb)" +
+        ")::text as snapshot",
+        [organizationId, idempotencyKey],
+      );
+      assert.equal(rows.length, 1, "privileged journal-draft creation oracle must return one full-state snapshot");
+      return rows[0].snapshot;
+    } finally {
+      await db.unsafe("set role authenticated");
+    }
+  }
+
   async function captureJournalEntryPostDenialState(entryId) {
     await db.unsafe("reset role");
     try {
@@ -175,6 +194,47 @@ export async function runGeneralLedgerReversalAcceptance({
 
   const expenseAccountId = await createAccount("CI-REV-EXP-", "CI reversal expense", "expense");
   const cashAccountId = await createAccount("CI-REV-CASH-", "CI reversal cash", "asset");
+
+  // Ordinary same-tenant staff cannot create a manual draft or consume its idempotency key.
+  const staffDraftCreateKey = randomUUID();
+  const staffDraftCreateLines = [
+    { account_id: expenseAccountId, debit: "125.50", credit: "0", memo: "Staff draft creation denial" },
+    { account_id: cashAccountId, debit: "0", credit: "125.50", memo: "Staff draft creation denial" },
+  ];
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  const draftCreateStateBeforeDeniedStaffRequest = await captureJournalDraftCreateDenialState(staffDraftCreateKey);
+  await expectFailure(
+    "same-tenant ordinary staff cannot create a general journal draft",
+    () => db.unsafe(
+      "select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text) as result",
+      [staffDraftCreateKey, "2026-10-23", "P2 ordinary staff draft-creation denial", db.json(staffDraftCreateLines), null],
+    ),
+    /finance permission required to create a journal entry/i,
+    "42501",
+  );
+  const draftCreateStateAfterDeniedStaffRequest = await captureJournalDraftCreateDenialState(staffDraftCreateKey);
+  assert.equal(
+    draftCreateStateAfterDeniedStaffRequest,
+    draftCreateStateBeforeDeniedStaffRequest,
+    "ordinary-staff draft-creation denial must preserve journal entries, lines, reversal links and audit rows byte-for-byte",
+  );
+
+  // The denied staff attempt must not consume the idempotency key; an admin can use it once.
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  const authorizedDraftCreate = asJson((await db.unsafe(
+    "select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text) as result",
+    [staffDraftCreateKey, "2026-10-23", "P2 ordinary staff draft-creation denial", db.json(staffDraftCreateLines), null],
+  ))[0].result);
+  assert.equal(authorizedDraftCreate.status, "draft");
+  assert.equal(authorizedDraftCreate.replayed, false,
+    "admin must create the same payload after staff denial; denied staff request must not reserve the idempotency key");
+  const authorizedDraftReplay = asJson((await db.unsafe(
+    "select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text) as result",
+    [staffDraftCreateKey, "2026-10-23", "P2 ordinary staff draft-creation denial", db.json(staffDraftCreateLines), null],
+  ))[0].result);
+  assert.equal(authorizedDraftReplay.id, authorizedDraftCreate.id);
+  assert.equal(authorizedDraftReplay.replayed, true,
+    "the authorized retry must replay one draft rather than duplicate it");
 
   // Same-tenant ordinary staff cannot post a financially effective manual journal.
   const staffPostingDraft = await createDraft(
