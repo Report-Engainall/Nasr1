@@ -1,3 +1,16 @@
+## P3 LIVE CHECKPOINT — 2026-10-30 — STRICT EVIDENCE-BACKED DECISION OUTCOME
+- observed_code_sha: `7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b`; parent/base: `9ba831d89f894ccda3036b8908be7e86331bbb94`; branch `main` only. P3 change is committed and verified on GitHub; no local working copy changed.
+- Task: `REF-DECISION-OUTCOME-001` (bounded contract-hardening slice; not a DLV closure).
+- Commit: [`7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b`](https://github.com/Report-Engainall/Nasr1/commit/7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b).
+- Changed paths only: `types.ts` adds metric/evidence/scope/formula fields; `decision-outcome.ts` blocks MEASURED unless VERIFIED/COMPLETE/ACCEPTABLE, with valid period/as-of, formula provenance and unique evidence IDs and currency for monetary units; `decision-outcome.test.ts` adds 10 invalid metadata/scope/evidence cases and verified-zero acceptance; `P3_INTELLIGENCE_AGGREGATE_CONTRACT.md` requires P2 tenant-bound source verification.
+- Core [41022452845](https://github.com/Report-Engainall/Nasr1/actions/runs/41022452845) is IN_PROGRESS on exact 7c7d28c; Unit tests had started at last poll. P2 [41022452961](https://github.com/Report-Engainall/Nasr1/actions/runs/41022452961) is IN_PROGRESS on same SHA; public no-write smoke and auth gate passed, local Supabase/Chromium active, hosted customer/tenant SKIPPED. Cleanup [41022452854](https://github.com/Report-Engainall/Nasr1/actions/runs/41022452854) was IN_PROGRESS at first poll.
+- Predecessor docs cursor `9ba831d89f894ccda3036b8908be7e86331bbb94` Core [41022240078 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41022240078). That PASS is not transferable to 7c7d28c.
+- Latest completed P2 browser failure [41021594114](https://github.com/Report-Engainall/Nasr1/actions/runs/41021594114) reproduced first-item focus failure twice at `e2e/finance-task-print.spec.ts:69`; print assertions not reached, hosted tenant/customer-manager/device-session tests SKIPPED. P1 source remains one-shot immediate focus; P1 command now specifies visibility-aware repair without relaxing E2E.
+- Existing evidence passport, deterministic daily decisions, liquidity/cashflow/dead-stock/retention/replenishment/what-if/learning/AI policy/health/RBAC engines remain integrated; no duplicate engine created.
+- P2 pending: authenticated complete aggregate RPC/DTO; atomic DecisionOutcome persistence + tenant evidence verification/no-side-effect denial proof; free-only AI quota/privacy/fallback; health probes; canonical RBAC. P1 pending: 360px focus/Escape/route-close/return-focus fix and DTO-backed intelligence mounting.
+- Matrix: 143 populated IDs / 16 REF / 18 DLV groups / no duplicate IDs. Keep REF-DECISION-OUTCOME PARTIAL until P2 persistence + P1 mounting + exact-head proof pass; no DLV roll-up closes. Production NO-GO.
+- exact_next_command: poll existing Core `41022452845` and P2 `41022452961` on `7c7d28c`; repair only P3-owned failures and accept P1/P2 patches only with base/path/test proof.
+
 # P3 LIVE CHECKPOINT — 2026-10-30 — INTELLIGENCE DISPLAY BATCH INTEGRATED
 
 ## P3 LIVE OVERRIDE — 2026-10-30 — CURRENT CODE SHA `da7f7af886ab6c6b0ec42c10c0778c215da7fb4e`

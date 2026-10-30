@@ -1,3 +1,10 @@
+## P1 LIVE OVERRIDE — 2026-10-30 — MOBILE FIRST-ITEM FOCUS STILL BLOCKED
+- Source inspected on code SHA `7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b`; `src/components/AghbariApp.tsx` blob `b8eeff178266713abdf05493fd4ba834a2b50790` still has a one-shot `useEffect` calling `firstMobileNavItemRef.current?.focus()` immediately when `mobileNav` becomes true. The current behavior does not wait for confirmed visible/rendered drawer state or retry after visibility transition. Repair this focus sequencing; do not change P2 assertions.
+- Exact P2 run [41021594114 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41021594114) on `da7f7af8`: first `التنقل الإداري` navigation button remains inactive after 20s; first attempt and retry fail at `e2e/finance-task-print.spec.ts:69`. Finance invoice/statement/credit-memo/task print assertions were not reached. Hosted tenant, customer-manager and device-session browser paths were SKIPPED.
+- Focus only after the drawer is actually visible and its first visible/enabled action is in layout (e.g. animation-frame/transition-aware focus with cancellation/cleanup and explicit activeElement check). Preserve accessible navigation label, `aria-expanded`, Escape close, route-change close and focus restoration to trigger. Do not weaken or edit `e2e/finance-task-print.spec.ts`.
+- Exact current P2 workflow [41022452961](https://github.com/Report-Engainall/Nasr1/actions/runs/41022452961) is IN_PROGRESS on `7c7d28c`; public no-write smoke and auth gate passed, local Supabase/Chromium running, hosted tenant job SKIPPED. Poll this run; it is not proof of a focus fix.
+- After production patch, prove focus/Escape/route-close/return-focus at 360px, then rerun finance/task printing on that exact patch SHA. P1 owns `AghbariApp.tsx`; P2 retains the E2E spec. Only then mount P3 components using actual P2 DTOs; no fixtures, zero sentinels or client-supplied tenant/actor/role.
+
 # P1 LIVE SESSION COMMAND — 2026-10-30 — MOBILE FOCUS + INTELLIGENCE WORKSPACE
 
 ## P1 LIVE OVERRIDE — 2026-10-30 — RECONFIRMED FIRST-ITEM FOCUS FAILURE

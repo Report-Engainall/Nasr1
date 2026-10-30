@@ -1,3 +1,14 @@
+## LIVE MAIN CURSOR — 2026-10-30 — P3 MEASURED-OUTCOME HARDENING
+**Code-bearing main candidate observed immediately before this documentation checkpoint; re-read GitHub main before any subsequent write.**
+- Repository `Report-Engainall/Nasr1`; branch `main` only.
+- Code-bearing SHA `7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b`, parent `9ba831d89f894ccda3036b8908be7e86331bbb94`.
+- P3 bounded change [7c7d28c](https://github.com/Report-Engainall/Nasr1/commit/7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b): strengthens `DecisionMeasuredOutcome` and P2 source-evidence contract; no P1 routes or P2 backend/E2E files changed.
+- Exact Core [41022452845](https://github.com/Report-Engainall/Nasr1/actions/runs/41022452845) on 7c7d28c IN_PROGRESS (Unit tests active at last poll). Predecessor Core [41022240078 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41022240078) is only for 9ba831d; do not transfer PASS.
+- Exact P2 Playwright [41022452961](https://github.com/Report-Engainall/Nasr1/actions/runs/41022452961) IN_PROGRESS on 7c7d28c: public no-write smoke/auth gate passed, local Supabase/Chromium active, hosted tenant job SKIPPED. Prior [41021594114 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41021594114) failed mobile first-item focus at `e2e/finance-task-print.spec.ts:69`; print assertions not reached.
+- P1 owns `AghbariApp.tsx` focus repair; P2 owns server aggregates/RPC, outcome persistence, AI/privacy/quota, health and E2E; P3 owns engines/contracts/global cursor/CSV/integration.
+- Acceptance: keep all 16 REF dependencies visible; no DLV roll-up closed. Release NO-GO pending hosted tenant, integrations, production deployment/rollback/restore and owner approval.
+- exact_next_command: poll runs 41022452845 and 41022452961 on exact 7c7d28c; do not rerun active jobs.
+
 # CURRENT EXECUTION STATE — LIVE MAIN CURSOR — 2026-10-30 — CORE PASS / P1 MOBILE FOCUS BLOCKED
 
 ## LIVE MAIN OVERRIDE — 2026-10-30 — CODE SHA `da7f7af886ab6c6b0ec42c10c0778c215da7fb4e`

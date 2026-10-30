@@ -1621,3 +1621,11 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - Core [41021594088 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41021594088) on exact da7f7af8: Unit, PostgreSQL 17, backup/restore, Lint, Build, preview/dev smoke and price visibility all PASS.
 - P2 [41021594114 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41021594114) on same SHA: auth/public smoke, local Supabase startup/migrations, order persistence/tenant denial, returns/review/receipt/credit memo, audited Onyx XLSX PASS; finance/task printing FAILED twice at initial focus assertion e2e/finance-task-print.spec.ts:69; print assertions not reached. Hosted tenant and optional customer-manager/device-session tests SKIPPED. P1 owns focus fix.
 - Matrix remains 143 populated unique IDs / 16 REF / 18 DLV groups / no duplicate IDs. All REF remain P1/P2 dependent. No DLV roll-up closed; release NO-GO.
+
+## 2026-10-30 — P3 measured-outcome hardening — code SHA 7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b
+- P3 committed [7c7d28cb](https://github.com/Report-Engainall/Nasr1/commit/7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b) to main by expected-SHA CAS with force=false, base 9ba831d89f894ccda3036b8908be7e86331bbb94. Only types.ts, decision-outcome.ts, decision-outcome.test.ts and the P3→P2 aggregate contract changed.
+- MEASURED now requires verified/complete/acceptable metric data, formula ID/version, metric key/unit/currency as applicable, period/asOf/measuredAt and unique evidence references. Tests reject invalid status/completeness/quality/formula/time/period/evidence and accept verified zero.
+- Exact Core 41022452845 is IN_PROGRESS on the exact SHA; Unit tests had started. P2 Playwright 41022452961 IN_PROGRESS on same SHA; public smoke/auth gate PASS, local Supabase active, hosted tenant SKIPPED. No PASS transferred from predecessor.
+- P2 next: server aggregate and tenant-validated atomic outcome persistence, zero-paid AI/privacy/fallback, health probes and canonical RBAC. P1 next: focus sequencing repair in AghbariApp.tsx and live DTO UI mount. Prior P2 41021594114 confirmed mobile focus failure; finance print not reached.
+- REF-DECISION-OUTCOME-001 remains PARTIAL pending exact-head Core, P2 persistence and P1 mounting; no DLV closed; production NO-GO.
+
