@@ -4188,6 +4188,30 @@ async function main() {
     importRollbackStateBeforeDeniedStaffRequest,
     "same-tenant staff rollback denial must preserve the complete import job, staged rows, request keys, upload sessions/chunks, snapshots/snapshot rows and audit entries byte-for-byte",
   );
+
+  // A manager from another organization must receive opaque not-found and preserve the same state.
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1::uuid,'manager') on conflict(profile_id,role) do nothing",
+    [foreignProfileId],
+  );
+  await setIdentity(foreignAuthUserId, "foreign-ci-profile@example.test");
+  await db.unsafe("set role authenticated");
+  const importRollbackForeignStateBefore = await captureImportRollbackDenialState();
+  await expectFailure(
+    "foreign-tenant manager cannot roll back another organization's published snapshot",
+    () => db.unsafe("select public.rollback_import_snapshot($1::uuid,$2) as result",
+      [partialMergeJob.id, "foreign tenant snapshot rollback attempt"]),
+    /دفعة الاستيراد غير موجودة في المؤسسة النشطة/i,
+    "P0002",
+  );
+  const importRollbackForeignStateAfter = await captureImportRollbackDenialState();
+  assert.equal(
+    importRollbackForeignStateAfter,
+    importRollbackForeignStateBefore,
+    "foreign-tenant manager rollback denial must preserve the complete import job, rows, upload manifests, snapshots, snapshot rows and audit entries byte-for-byte",
+  );
+
   await db.unsafe("reset role");
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   await db.unsafe("set role authenticated");
