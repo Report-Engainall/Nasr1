@@ -1596,10 +1596,59 @@ async function main() {
   await db.unsafe("set role authenticated");
   process.stdout.write("PASS DLV-015 customer-payment authorization and tenant denials preserve invoice, balance, payment ledger and audit\\n");
 
+  // DLV-008-OVERPAYMENT-ATOMIC-DENIAL-001: an amount above the remaining invoice balance must not post partially.
+  const readOverpaymentNoSideEffectSnapshot = async () => {
+    await db.unsafe("reset role");
+    const rows = await db.unsafe(
+      "select jsonb_build_object(" +
+        "'invoice',to_jsonb(source_invoice)," +
+        "'customer',to_jsonb(source_customer)," +
+        "'payments',coalesce((" +
+          "select jsonb_agg(to_jsonb(source_payment) order by source_payment.id) " +
+          "from public.customer_payments source_payment " +
+          "where source_payment.organization_id=source_invoice.organization_id " +
+            "and source_payment.invoice_id=source_invoice.id" +
+        "),'[]'::jsonb)," +
+        "'audits',coalesce((" +
+          "select jsonb_agg(to_jsonb(source_audit) order by source_audit.created_at,source_audit.id) " +
+          "from public.audit_logs source_audit " +
+          "where source_audit.organization_id=source_invoice.organization_id and (" +
+            "source_audit.entity_id=any(array[source_invoice.id,source_customer.id]::uuid[]) or " +
+            "source_audit.new_value->>'invoice_id'=source_invoice.id::text or " +
+            "source_audit.old_value->>'invoice_id'=source_invoice.id::text" +
+          ")" +
+        "),'[]'::jsonb)" +
+      ")::text as snapshot " +
+      "from public.customer_invoices source_invoice " +
+      "join public.customers source_customer " +
+        "on source_customer.id=source_invoice.customer_id " +
+        "and source_customer.organization_id=source_invoice.organization_id " +
+      "where source_invoice.organization_id=$1::uuid and source_invoice.id=$2::uuid",
+      [organizationId, invoice.id],
+    );
+    assert.equal(rows.length, 1, "overpayment snapshot must resolve exactly one same-tenant invoice/customer pair");
+    return rows[0].snapshot;
+  };
+  const overpaymentBefore = await readOverpaymentNoSideEffectSnapshot();
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
   await expectFailure(
     "overpayment",
-    () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)", [invoice.id, 500000, "cash", randomUUID(), "CI-OVERPAY", "should reject"]),
+    () => db.unsafe(
+      "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)",
+      [invoice.id, 500000, "cash", randomUUID(), "CI-OVERPAY", "should reject"],
+    ),
     /exceeds invoice balance/i,
+  );
+  const overpaymentAfter = await readOverpaymentNoSideEffectSnapshot();
+  assert.equal(
+    overpaymentAfter,
+    overpaymentBefore,
+    "rejected overpayment leaves the complete invoice/customer rows, all invoice payments and all linked audit rows byte-for-byte unchanged",
+  );
+  await db.unsafe("set role authenticated");
+  process.stdout.write(
+    "PASS DLV-008-OVERPAYMENT-ATOMIC-DENIAL-001: over-invoice payment is rejected; full invoice/customer/payment/audit snapshot remains byte-for-byte unchanged\\n",
   );
   const runtimeAuditPaymentIdempotencyKey = randomUUID();
   const runtimeAuditPaymentActorId = (await db.unsafe("select public.current_profile_id() as id"))[0].id;
