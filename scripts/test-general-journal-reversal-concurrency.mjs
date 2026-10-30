@@ -285,6 +285,67 @@ async function main() {
     sessionIds,
   );
 
+  // A foreign-tenant manager must not void another organization's draft journal.
+  const voidDraftKey = randomUUID();
+  const voidDraftLines = [
+    { account_id: debitAccount[0].id, debit: "125.00", credit: "0", memo: "CI void-denial debit " + suffix },
+    { account_id: creditAccount[0].id, debit: "0", credit: "125.00", memo: "CI void-denial credit " + suffix },
+  ];
+  const voidDraftResult = await sameKeyClients[0].unsafe(
+    "select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text) as result",
+    [voidDraftKey, new Date().toISOString().slice(0, 10), "CI foreign tenant draft void denial " + suffix,
+      sameKeyClients[0].json(voidDraftLines), "ci-void-denial-" + suffix],
+  );
+  const ownerDraft = asJson(voidDraftResult[0].result);
+  assert.equal(ownerDraft.status, "draft", "void-denial fixture must start as an unposted draft");
+  assert.equal(ownerDraft.replayed, false, "void-denial fixture must be newly created");
+  entryIds.push(ownerDraft.id);
+
+  const snapshotForeignVoidDraftBoundary = async () => {
+    const entry = await admin.unsafe(
+      "select status,void_reason,voided_by_profile_id::text as voided_by_profile_id," +
+        "voided_at::text as voided_at,updated_at::text as updated_at " +
+        "from public.accounting_journal_entries where id=$1::uuid and organization_id=$2::uuid",
+      [ownerDraft.id, organizationId],
+    );
+    const lines = await admin.unsafe(
+      "select count(*)::integer as count,coalesce(sum(debit),0)::numeric(14,2)::text as debit_total," +
+        "coalesce(sum(credit),0)::numeric(14,2)::text as credit_total " +
+        "from public.accounting_journal_lines where journal_entry_id=$1::uuid and organization_id=$2::uuid",
+      [ownerDraft.id, organizationId],
+    );
+    const audit = await admin.unsafe(
+      "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
+        "and entity_type='accounting_journal_entry' and entity_id=$2::uuid " +
+        "and action='accounting.journal_draft_voided'",
+      [organizationId, ownerDraft.id],
+    );
+    assert.equal(entry.length, 1, "owner draft exists before and after the foreign-tenant attempt");
+    return { entry: entry[0], lines: lines[0], voidAuditCount: Number(audit[0].count) };
+  };
+  const voidDraftBaseline = await snapshotForeignVoidDraftBoundary();
+  assert.equal(voidDraftBaseline.entry.status, "draft");
+  assert.equal(voidDraftBaseline.entry.void_reason, null);
+  assert.equal(voidDraftBaseline.entry.voided_by_profile_id, null);
+  assert.equal(voidDraftBaseline.entry.voided_at, null);
+  assert.equal(voidDraftBaseline.voidAuditCount, 0);
+  const foreignVoidDraftError = await expectFailure(
+    "foreign-tenant manager cannot void another organization's draft journal",
+    () => foreignManagerClient.unsafe(
+      "select public.void_general_journal_draft($1::uuid,$2::text)",
+      [ownerDraft.id, "Foreign tenant draft void denial"],
+    ),
+    /journal entry not found in this organization/i,
+    "P0002",
+  );
+  assert.equal(foreignVoidDraftError.code, "P0002",
+    "foreign-tenant draft-void denial must use opaque SQLSTATE P0002");
+  assert.deepEqual(
+    await snapshotForeignVoidDraftBoundary(),
+    voidDraftBaseline,
+    "foreign-tenant draft-void denial preserves draft fields, journal lines and void-audit count",
+  );
+
   const sameOriginal = await createPostedManualJournal(
     sameKeyClients[0], debitAccount[0].id, creditAccount[0].id, "same-key",
   );
@@ -408,7 +469,7 @@ async function main() {
     "creating a reversal draft preserves the original posted journals");
   process.stdout.write(
     "PASS PostgreSQL 17 generic journal reversal: same-key concurrent idempotency, distinct-key original uniqueness, " +
-    "blocked-session barrier, exact mirrored lines, draft-only status, customer/foreign-tenant denial with no side effects, and single audit per reversal\n",
+    "blocked-session barrier, exact mirrored lines, draft-only status, customer/foreign-tenant reversal denial, foreign-tenant draft-void denial/no-side-effects, and single audit per reversal\n",
   );
 }
 
