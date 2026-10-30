@@ -16,9 +16,13 @@ const foreignEmail = "ci-finalizer-foreign-" + foreignProfileId + "@example.test
 const sameTenantCustomerProfileId = randomUUID();
 const sameTenantCustomerAuthUserId = randomUUID();
 const sameTenantCustomerEmail = "ci-finalizer-same-tenant-customer-" + sameTenantCustomerProfileId + "@example.test";
+const sameTenantEmployeeProfileId = randomUUID();
+const sameTenantEmployeeAuthUserId = randomUUID();
+const sameTenantEmployeeEmail = "ci-finalizer-same-tenant-employee-" + sameTenantEmployeeProfileId + "@example.test";
 const staffSessionId = randomUUID();
 const foreignSessionId = randomUUID();
 const sameTenantCustomerSessionId = randomUUID();
+const sameTenantEmployeeSessionId = randomUUID();
 const requestKey = randomUUID();
 const fileName = "ci-finalizer-" + randomUUID() + ".csv";
 const fileHash = createHash("sha256").update(randomUUID()).digest("hex");
@@ -26,6 +30,7 @@ const admin = postgres(connectionString, { max: 1, prepare: false });
 const staff = postgres(connectionString, { max: 1, prepare: false });
 const foreign = postgres(connectionString, { max: 1, prepare: false });
 const sameTenantCustomer = postgres(connectionString, { max: 1, prepare: false });
+const sameTenantEmployee = postgres(connectionString, { max: 1, prepare: false });
 let jobId = null;
 
 async function setIdentity(db, authUserId, email, sessionId, assumeAuthenticatedRole = true) {
@@ -56,9 +61,9 @@ async function cleanup() {
     await admin.unsafe("delete from public.audit_logs where entity_id=$1::uuid", [jobId]).catch(() => {});
     await admin.unsafe("delete from public.import_jobs where id=$1::uuid", [jobId]).catch(() => {});
   }
-  await admin.unsafe("delete from auth.sessions where id=any($1::uuid[])", [[staffSessionId, foreignSessionId, sameTenantCustomerSessionId]]).catch(() => {});
-  await admin.unsafe("delete from public.user_roles where profile_id=any($1::uuid[])", [[foreignProfileId, sameTenantCustomerProfileId]]).catch(() => {});
-  await admin.unsafe("delete from public.profiles where id=any($1::uuid[])", [[foreignProfileId, sameTenantCustomerProfileId]]).catch(() => {});
+  await admin.unsafe("delete from auth.sessions where id=any($1::uuid[])", [[staffSessionId, foreignSessionId, sameTenantCustomerSessionId, sameTenantEmployeeSessionId]]).catch(() => {});
+  await admin.unsafe("delete from public.user_roles where profile_id=any($1::uuid[])", [[foreignProfileId, sameTenantCustomerProfileId, sameTenantEmployeeProfileId]]).catch(() => {});
+  await admin.unsafe("delete from public.profiles where id=any($1::uuid[])", [[foreignProfileId, sameTenantCustomerProfileId, sameTenantEmployeeProfileId]]).catch(() => {});
   await admin.unsafe("delete from public.organizations where id=$1::uuid and name='CI Import Finalizer Foreign Tenant'", [foreignOrganizationId]).catch(() => {});
 }
 
@@ -102,6 +107,23 @@ async function main() {
   );
   assert.equal(sameTenantCustomerRoles.length, 0,
     "same-tenant customer fixture must have no staff/finance role assignments");
+
+  await admin.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
+      "values($1::uuid,$2::uuid,$3::uuid,'CI Import Finalizer Same-Tenant Employee',$4,true) " +
+      "on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,is_active=true,email=excluded.email",
+    [sameTenantEmployeeProfileId, sameTenantEmployeeAuthUserId, organizationId, sameTenantEmployeeEmail],
+  );
+  await admin.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1::uuid,'staff') on conflict(profile_id,role) do nothing",
+    [sameTenantEmployeeProfileId],
+  );
+  const sameTenantEmployeeRoles = await admin.unsafe(
+    "select role from public.user_roles where profile_id=$1::uuid order by role",
+    [sameTenantEmployeeProfileId],
+  );
+  assert.deepEqual(sameTenantEmployeeRoles.map(({ role }) => role), ["staff"],
+    "same-tenant employee fixture must have only the ordinary staff role, not admin or manager");
 
   const owner = await admin.unsafe(
     "select p.id,p.organization_id,p.is_active,exists(select 1 from public.user_roles r where r.profile_id=p.id and r.role='admin') as is_admin " +
@@ -312,7 +334,30 @@ async function main() {
     "same-tenant non-staff denial must preserve the complete import/upload/staging/snapshot/audit state byte-for-byte",
   );
 
-  console.log("PASS import finalizer semantic authorization: foreign tenant gets opaque not-found; same-tenant customer gets 42501; complete import/upload/staging/snapshot/audit snapshots remain byte-for-byte unchanged");
+  await setIdentity(sameTenantEmployee, sameTenantEmployeeAuthUserId, sameTenantEmployeeEmail, sameTenantEmployeeSessionId);
+  const sameTenantEmployeeIdentity = await sameTenantEmployee.unsafe(
+    "select public.current_profile_id()::text as profile_id",
+  );
+  assert.equal(sameTenantEmployeeIdentity.length, 1);
+  assert.equal(sameTenantEmployeeIdentity[0].profile_id, sameTenantEmployeeProfileId,
+    "same-tenant employee JWT must resolve to its own active profile");
+
+  const sameTenantEmployeeSnapshotBefore = await captureFinalizerState();
+  await assert.rejects(
+    () => sameTenantEmployee.unsafe("select public.finalize_import_job($1::uuid) as result", [jobId]),
+    (error) =>
+      error?.code === "42501" &&
+      /غير مصرح بإنهاء الاستيراد/.test(String(error.message)),
+    "same-tenant ordinary staff must receive SQLSTATE 42501 before the finalizer can inspect or mutate the batch",
+  );
+  const sameTenantEmployeeSnapshotAfter = await captureFinalizerState();
+  assert.equal(
+    sameTenantEmployeeSnapshotAfter,
+    sameTenantEmployeeSnapshotBefore,
+    "same-tenant ordinary-staff denial must preserve complete import/upload/staging/snapshot/audit state byte-for-byte",
+  );
+
+  console.log("PASS import finalizer semantic authorization: foreign tenant gets opaque not-found; same-tenant customer and ordinary staff get 42501; complete import/upload/staging/snapshot/audit snapshots remain byte-for-byte unchanged");
 }
 
 main().catch((error) => {
@@ -320,5 +365,5 @@ main().catch((error) => {
   process.exitCode = 1;
 }).finally(async () => {
   await cleanup();
-  await Promise.all([admin.end(), staff.end(), foreign.end(), sameTenantCustomer.end()]);
+  await Promise.all([admin.end(), staff.end(), foreign.end(), sameTenantCustomer.end(), sameTenantEmployee.end()]);
 });
