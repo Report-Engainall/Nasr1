@@ -65,13 +65,15 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
   const badScoped=validEntries.some(x=>x.entry.amount.currency===currency&&!x.valid);
   const duplicateScoped=input.entries.some(e=>duplicateEntryIds.has(e.id)&&e.amount.currency===currency);
   const dateCoverageValid=!input.entries.some(e=>!parseDay(e.dueDate)&&(!e.amount.currency||e.amount.currency===currency));
-  const complete=scheduleStatus==="VERIFIED"&&!badScoped&&!duplicateScoped&&dateCoverageValid;
+  const hasUnclassifiedCurrency=input.entries.some(e=>!e.amount.currency?.trim());
+  const complete=scheduleStatus==="VERIFIED"&&!badScoped&&!duplicateScoped&&dateCoverageValid&&!hasUnclassifiedCurrency;
   const baseWarnings=[
    ...(openingValid?[]:["OPENING_BALANCE_NOT_VERIFIED"]),
    ...(scheduleStatus==="VERIFIED"?[]:["SCHEDULE_SOURCE_NOT_COMPLETE_OR_VERIFIED"]),
    ...(badScoped?["SCHEDULE_ENTRY_NOT_VERIFIED"]:[]),
    ...(duplicateScoped?["DUPLICATE_SCHEDULE_ENTRY_ID"]:[]),
    ...(!dateCoverageValid?["INVALID_DUE_DATE"]:[]),
+   ...(hasUnclassifiedCurrency?["UNSCOPED_SCHEDULE_CURRENCY"]:[]),
   ];
   for(const horizon of [7,30,90] as const){
    const end=addDays(day,horizon),window=scoped.filter(x=>x.dueDate!==null&&x.dueDate>=day&&x.dueDate<end);

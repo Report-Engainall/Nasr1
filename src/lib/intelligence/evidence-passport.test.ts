@@ -25,4 +25,14 @@ describe("Evidence Passport",()=>{
   expect(conflict.metrics[0].status).toBe("UNVERIFIED");
  });
  it("downgrades evidence missing from the passport",()=>{const p=buildEvidencePassport({id:"p",generatedAt:"2026-10-30T07:06:00Z",asOf:"2026-10-30T07:00:00Z",evidenceRecords:[],metrics:[metric()]});expect(p.metrics[0].status).toBe("UNVERIFIED")});
+ it("does not verify metrics whose as-of or source period differs from the passport",()=>{
+  const stale=buildEvidencePassport({id:"p",generatedAt:"2026-10-30T07:06:00Z",asOf:"2026-10-30T07:00:00Z",evidenceRecords:[evidence()],metrics:[metric({asOf:"2026-10-29T07:00:00Z"})]});
+  expect(stale.metrics[0].status).toBe("NEEDS_REVIEW");expect(stale.metrics[0].warnings).toContain("METRIC_AS_OF_MISMATCH");
+  const wrongPeriod=buildEvidencePassport({id:"p",generatedAt:"2026-10-30T07:06:00Z",asOf:"2026-10-30T07:00:00Z",evidenceRecords:[evidence({period:{from:"2026-09-01",to:"2026-09-30"}})],metrics:[metric()]});
+  expect(wrongPeriod.metrics[0].status).toBe("NEEDS_REVIEW");expect(wrongPeriod.metrics[0].warnings).toContain("SOURCE_PERIOD_MISMATCH");
+ });
+ it("rejects source timestamps later than their metric as-of",()=>{
+  const p=buildEvidencePassport({id:"p",generatedAt:"2026-10-30T07:06:00Z",asOf:"2026-10-30T07:00:00Z",evidenceRecords:[evidence({sourceTimestamp:"2026-10-30T07:01:00Z"})],metrics:[metric()]});
+  expect(p.metrics[0].status).toBe("NEEDS_REVIEW");expect(p.metrics[0].warnings).toContain("SOURCE_TIMESTAMP_AFTER_METRIC_AS_OF");
+ });
 });

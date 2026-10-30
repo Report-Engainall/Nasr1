@@ -2,7 +2,7 @@ import type {DataCompleteness,EvidencePassport,EvidenceRecord,EvidenceStatus,Met
 export interface BuildEvidencePassportInput {id:string;generatedAt:string;asOf:string;evidenceRecords:EvidenceRecord[];metrics:MetricSnapshot[]}
 const validTime=(v:string)=>typeof v==="string"&&v.length>0&&Number.isFinite(Date.parse(v));
 const unique=(v:string[])=>[...new Set(v.filter(Boolean))];
-function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,duplicates:Set<string>):MetricSnapshot {
+function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,duplicates:Set<string>,expectedAsOf:string):MetricSnapshot {
  if(metric.status!=="VERIFIED") return metric;
  const ids=metric.lineage?.evidenceIds??[], warnings=[...(metric.warnings??[])];
  const downgrade=(status:EvidenceStatus,warning:string,completeness=metric.completeness):MetricSnapshot=>({...metric,status,completeness,warnings:unique([...warnings,warning])});
@@ -15,6 +15,11 @@ function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,dupl
  if(rs.some(s=>s.status==="UNVERIFIED"))return downgrade("UNVERIFIED","SOURCE_UNVERIFIED");
  if(rs.some(s=>s.status==="NEEDS_REVIEW"))return downgrade("NEEDS_REVIEW","SOURCE_NEEDS_REVIEW","PARTIAL");
  if(rs.some(s=>!validTime(s.sourceTimestamp)||!validTime(s.asOf)))return downgrade("NEEDS_REVIEW","SOURCE_TIMESTAMP_INVALID","PARTIAL");
+ if(metric.asOf!==expectedAsOf)return downgrade("NEEDS_REVIEW","METRIC_AS_OF_MISMATCH","PARTIAL");
+ if(rs.some(s=>s.asOf!==metric.asOf))return downgrade("NEEDS_REVIEW","SOURCE_AS_OF_MISMATCH","PARTIAL");
+ if(rs.some(s=>Date.parse(s.sourceTimestamp)>Date.parse(metric.asOf)))return downgrade("NEEDS_REVIEW","SOURCE_TIMESTAMP_AFTER_METRIC_AS_OF","PARTIAL");
+ if(metric.period&&rs.some(s=>!s.period||s.period.from!==metric.period?.from||s.period.to!==metric.period?.to))
+  return downgrade("NEEDS_REVIEW","SOURCE_PERIOD_MISMATCH","PARTIAL");
  if(rs.some(s=>s.completeness!=="COMPLETE"))return downgrade("NEEDS_REVIEW","SOURCE_INCOMPLETE","PARTIAL");
  if(rs.some(s=>s.quality!=="ACCEPTABLE"))return downgrade(rs.some(s=>s.quality==="INVALID")?"UNVERIFIED":"NEEDS_REVIEW","SOURCE_QUALITY_NOT_ACCEPTABLE","PARTIAL");
  if(metric.completeness!=="COMPLETE")return downgrade("NEEDS_REVIEW","METRIC_INCOMPLETE","PARTIAL");
@@ -46,7 +51,8 @@ function completenessRollup(metrics:MetricSnapshot[]):DataCompleteness {
 export function buildEvidencePassport(input:BuildEvidencePassportInput):EvidencePassport {
  const records=new Map<string,EvidenceRecord>(),duplicates=new Set<string>();
  for(const record of input.evidenceRecords){if(records.has(record.id))duplicates.add(record.id);else records.set(record.id,record)}
- const metrics=input.metrics.map(m=>normalize(m,records,duplicates));
+ if(!validTime(input.generatedAt)||!validTime(input.asOf))throw new Error("generatedAt and asOf must be valid timestamps");
+ const metrics=input.metrics.map(m=>normalize(m,records,duplicates,input.asOf));
  const warnings=unique([...input.evidenceRecords.flatMap(r=>r.warnings??[]),...metrics.flatMap(m=>m.warnings??[]),...(duplicates.size?["DUPLICATE_EVIDENCE_RECORD_ID"]:[])]);
  return {id:input.id,generatedAt:input.generatedAt,asOf:input.asOf,status:statusRollup(metrics.map(m=>m.status)),completeness:completenessRollup(metrics),evidenceRecords:input.evidenceRecords,metrics,warnings};
 }
