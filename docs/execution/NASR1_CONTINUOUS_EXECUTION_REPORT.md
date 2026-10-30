@@ -534,3 +534,13 @@ Keep migration versions unique and preserve dependency order:
 - P2 order/tenant, returns/credit memo, real Onyx XLSX, finance/task printing, customer-manager privacy/audit and device-session revocation all passed. Hosted customer/order/tenant E2E remains `SKIPPED`.
 - Exact-head RPC inventory [12949205362](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/12949205362/zip): 330/330 source-matched, 174 migrations. DLV-015 remains PARTIAL; no production DB touched.
 - Sole next task: `DLV-011-FINANCE-PRINT-RPC-ALLOWLIST-001` — exact server JSON key allowlists for finance print payload RPCs across admin/manager/accountant, in `scripts/test-database-migrations.mjs` only.
+
+## 2026-10-30 — DLV-011 exact finance print contract and combined security acceptance
+
+- **Exact code SHA:** `eb83f6cd8824449ef3a1cbf2b5b55c823fdf517d` on `main`.
+- **New database proof:** exact JSON key sets for finance selector, invoice PDF, account statement and credit-memo PDF at root/nested rows across admin/manager/accountant. A source-linked draft credit memo is temporarily posted via the accounting journal RPC inside a test transaction; real statement credit row, amount and invoice credit/outstanding/currency summary are checked; transaction then rolls back.
+- **Adjacent role-security proof:** repository writer's `eb83f6c` adds denial/no-mutation assertions for self-role changes, foreign-tenant profile assignment, invalid customer+accountant combination, unsupported and duplicate role arrays. Profile, roles and role-change audit snapshots remain equal after denial.
+- **Exact-head Actions:** Core [40991758166 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40991758166), P2 local Supabase/Chromium [40991758229 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40991758229), Import finalizer PG17 [40991758251 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40991758251), cleanup [40991758252 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40991758252).
+- **Inventory artifact:** [12948614805](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/12948614805/zip) — 330 runtime public functions, 330/330 source matched, 0 unmatched, 174 migrations; structural map only.
+- **Proof boundary:** hosted customer/order/tenant Playwright is `SKIPPED`; local Supabase/Chromium is not hosted or production proof. DLV-007/008/011/015 remain PARTIAL; no production DB used.
+- **Sole next task:** `DLV-007-REORDER-POINT-STAFF-DENIAL-001` — unauthorized ordinary staff attempt to change reorder point must return `42501` and leave inventory balance, purchasing AI task and audit history unchanged. P2 file owner: `scripts/test-database-migrations.mjs`.
