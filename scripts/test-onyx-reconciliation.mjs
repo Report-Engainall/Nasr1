@@ -319,7 +319,6 @@ async function main() {
       );
     };
     const staffEmail = "onyx-staff-" + suffix + "@example.test";
-    const foreignManagerEmail = "onyx-foreign-manager-" + suffix + "@example.test";
     await expectOnyxCommandDenied(
       staffAuthId,staffEmail,"ordinary staff cannot apply an Onyx reconciliation command",
       () => apply(command.command_id,key()),/administrator or manager permission required to apply Onyx stock reconciliation/i,
