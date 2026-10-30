@@ -10,4 +10,16 @@ describe("source-backed system health",()=>{
  it("marks stale or missing evidence as unknown",()=>expect(buildSystemHealthSnapshot({asOf:at,requiredComponents:["db"],probes:[probe("db",{checkedAt:"2026-10-28T00:00:00Z"})],evidenceRecords:[ev]}).components[0].status).toBe("UNKNOWN"));
  it("does not mark an empty required-probe catalog healthy",()=>expect(buildSystemHealthSnapshot({asOf:at,requiredComponents:[],probes:[],evidenceRecords:[]}).status).toBe("UNKNOWN"));
  it("does not upgrade an unavailable dependency",()=>expect(buildSystemHealthSnapshot({asOf:at,requiredComponents:["db"],probes:[probe("db",{status:"UNAVAILABLE"})],evidenceRecords:[ev]}).status).toBe("UNAVAILABLE"));
+ it("does not trust a duplicate evidence ID when one copy is verified",()=>{
+  const conflicting={...ev,status:"UNVERIFIED" as const};
+  const result=buildSystemHealthSnapshot({asOf:at,requiredComponents:["db"],probes:[probe("db")],evidenceRecords:[ev,conflicting]});
+  expect(result.status).toBe("UNKNOWN");
+  expect(result.components[0].warnings).toContain("HEALTH_EVIDENCE_AMBIGUOUS");
+ });
+ it("rejects source evidence timestamps later than the probe checkedAt",()=>{
+  const future={...ev,sourceTimestamp:"2026-10-30T07:00:01Z"};
+  const result=buildSystemHealthSnapshot({asOf:at,requiredComponents:["db"],probes:[probe("db")],evidenceRecords:[future]});
+  expect(result.status).toBe("UNKNOWN");
+  expect(result.components[0].warnings).toContain("HEALTH_EVIDENCE_MISSING_OR_UNVERIFIED");
+ });
 });
