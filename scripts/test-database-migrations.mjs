@@ -1529,6 +1529,73 @@ async function main() {
   await db.unsafe("set role authenticated");
   process.stdout.write("PASS DLV-007 confirmed-order cancellation releases ATP reservation once, preserves on-hand stock, writes one release movement and records the staff actor\\n");
 
+  // DLV-015: customer-payment recording is a monetary write boundary. Authorization
+  // and tenant denials must preserve the invoice, customer balance, payment ledger and audit.
+  const readPaymentAuthorizationBoundary = async () => {
+    await db.unsafe("reset role");
+    const rows = await db.unsafe(
+      "select i.status as invoice_status,i.total_amount::text as invoice_total," +
+        "c.current_balance::text as customer_balance," +
+        "(select count(*)::integer from public.customer_payments cp where cp.organization_id=i.organization_id and cp.invoice_id=i.id) as payment_count," +
+        "(select coalesce(sum(cp.amount),0)::text from public.customer_payments cp where cp.organization_id=i.organization_id and cp.invoice_id=i.id) as paid_amount," +
+        "(select count(*)::integer from public.audit_logs al where al.organization_id=i.organization_id " +
+          "and al.action='customer_payment.recorded' and al.entity_type='customer_payment' " +
+          "and al.new_value->>'invoice_id'=i.id::text) as payment_audit_count " +
+        "from public.customer_invoices i join public.customers c " +
+          "on c.id=i.customer_id and c.organization_id=i.organization_id " +
+        "where i.id=$1::uuid and i.organization_id=$2::uuid",
+      [invoice.id, organizationId],
+    );
+    assert.equal(rows.length, 1, "payment authorization snapshot resolves the same-tenant invoice");
+    return rows[0];
+  };
+  const paymentAuthorizationBaseline = await readPaymentAuthorizationBoundary();
+  const customerDeniedPaymentKey = randomUUID();
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customer cannot record a payment against an invoice",
+    () => db.unsafe(
+      "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)",
+      [invoice.id, 1000, "cash", customerDeniedPaymentKey, "CI-CUSTOMER-DENIED", "must not be recorded"],
+    ),
+    /finance permission required to record customer payments/i,
+    "42501",
+  );
+  assert.deepEqual(
+    await readPaymentAuthorizationBoundary(),
+    paymentAuthorizationBaseline,
+    "customer payment denial leaves invoice, customer balance, payment rows and payment audit unchanged",
+  );
+
+  // This actor has manager capability, but only in a different organization. The target
+  // invoice must remain opaque and no financial side effect may be written.
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'manager') on conflict(profile_id,role) do nothing",
+    [foreignProfileId],
+  );
+  await setIdentity(foreignAuthUserId, "foreign-ci-profile@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "foreign-tenant manager cannot record a payment against another organization's invoice",
+    () => db.unsafe(
+      "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)",
+      [invoice.id, 1000, "cash", randomUUID(), "CI-FOREIGN-DENIED", "must not be recorded"],
+    ),
+    /active invoice not found in this organization/i,
+    "P0002",
+  );
+  assert.deepEqual(
+    await readPaymentAuthorizationBoundary(),
+    paymentAuthorizationBaseline,
+    "foreign-tenant payment denial leaves invoice, customer balance, payment rows and payment audit unchanged",
+  );
+  await db.unsafe("reset role");
+  await db.unsafe("delete from public.user_roles where profile_id=$1 and role='manager'", [foreignProfileId]);
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  process.stdout.write("PASS DLV-015 customer-payment authorization and tenant denials preserve invoice, balance, payment ledger and audit\\n");
+
   await expectFailure(
     "overpayment",
     () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)", [invoice.id, 500000, "cash", randomUUID(), "CI-OVERPAY", "should reject"]),
