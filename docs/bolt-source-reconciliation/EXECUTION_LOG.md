@@ -1636,3 +1636,7 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - P1 one-shot focus source remains unpatched. P2 tenant aggregate/outcome persistence, AI/privacy/quota, health and canonical RBAC pending.
 - CSV separator repaired and validated: 143 data records, 8 columns each, 143 unique IDs, 16 REF, 18 DLV plus rollup. Docs Core 41022861275 on parent 4c0918c was IN_PROGRESS; cleanup 41022861203 SUCCESS. No DLV close; release NO-GO.
 
+
+## 2026-10-30 — documentation CI correction
+- Docs-only SHA 4c0918c Core 41022861275 completed SUCCESS on exact SHA; current docs cursor observed bf5a5023d4e9870c23c2b546069a4aad230510b9 had Core 41023269485 IN_PROGRESS (Unit tests active) and cleanup 41023269477 SUCCESS.
+- App code remains SHA 7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b with Core 41022452845 SUCCESS; P2 41022452961 FAILURE on mobile initial focus. No P1/P2 code delivery; no DLV close.

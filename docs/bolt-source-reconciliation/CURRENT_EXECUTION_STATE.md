@@ -1,3 +1,9 @@
+## P2/P3 DOCUMENTATION CI CORRECTION — 2026-10-30
+- Docs cursor `4c0918c6a0536e13cf94f90ae0c83487a88adbbe`: Core [41022861275 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41022861275) completed on that exact SHA. This run is documentation-only; P3 code proof remains Core 41022452845 SUCCESS on code SHA 7c7d28c.
+- Latest docs cursor observed before this note: `bf5a5023d4e9870c23c2b546069a4aad230510b9`; exact docs Core [41023269485](https://github.com/Report-Engainall/Nasr1/actions/runs/41023269485) is IN_PROGRESS on that SHA (Unit tests active at last poll); cleanup [41023269477 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41023269477). Poll the existing run only; do not transfer predecessor PASS.
+- Exact app-code P2 result remains [41022452961 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41022452961) on code SHA 7c7d28c due initial mobile nav focus; print acceptance not reached; hosted/customer-manager/device-session skipped.
+- Resume from the current remote `main` head; app-code SHA remains 7c7d28c unless a newer code commit is observed.
+
 ## LIVE RESULT OVERRIDE — 2026-10-30 — EXACT CODE CORE PASS / P2 MOBILE FOCUS FAILURE
 **Observed main parent before this docs correction: `4c0918c6a0536e13cf94f90ae0c83487a88adbbe`; code-bearing SHA: `7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b`. Re-read live main before next mutation.**
 - Core [41022452845 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41022452845) on exact 7c7d28c: all Unit, PG17, RPC inventory, finance/inventory/import, backup/restore, lint/build/smoke and Chromium price-visibility steps passed.
