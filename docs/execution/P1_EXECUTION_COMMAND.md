@@ -1,4 +1,12 @@
 # P1 LIVE SESSION COMMAND — 2026-10-30 — MOBILE FOCUS + INTELLIGENCE WORKSPACE
+
+## P1 LIVE HANDOFF — 2026-10-30 — P3 INTELLIGENCE + MOBILE ACCESSIBILITY
+- Remote main at handoff: `6d25c8c1ff3010996c1fcfce52a1fe0f580d65be`; current code-bearing SHA `b522716`. Read the global live override first; do not follow stale historical task pointers below.
+- **Immediate P1 execution:** repair first-item focus after the mobile admin drawer opens in `src/components/AghbariApp.tsx`. Preserve accessible name, visibility state, initial focus, Escape close, route-change close and focus restoration to the trigger. Do not weaken assertions. The failing proof is P2 run `41017608501` on b522716, `e2e/finance-task-print.spec.ts:69`; invoice/statement/operational-task print assertions were not reached. P1 owns production focus code; P2 owns E2E spec.
+- Then mount the intelligence workspace using imports from `@/components/intelligence`: ActionCard, EvidencePassport, LiquiditySummary, CashflowForecastCard, DeadStockCard, ReplenishmentCard. Use only server-derived P2 aggregate DTOs. Until a DTO exists, state is UNAVAILABLE; never pass mock/fixture values, zero sentinels, browser tenant/actor/role or invented totals.
+- Required states: loading, empty, error, retry, unavailable, ready; preserve source lineage/warnings, priority, owner, expiry, CTA and optional amount/currency. Keep per-currency sections separate and expose expected outcome / proof.
+- **Acceptance proof:** mobile viewport 360px + keyboard focus/Escape/return-focus + route close; real DTO wiring plus component/browser assertions and exact SHA; rerun finance/task printing only after focus passes. Hosted tenant tests stay SKIPPED until authorized credentials and writes exist.
+- Do not edit `src/lib/intelligence/**`, P3 contracts or P1/P2 governance ledger. No image rescan.
 Current main docs cursor: `31d1bef20a2dfe909e92078c94de8c07545d4348`; code SHA: `b52271629f054f5d9750e2d4dbf247e22c90f8c7`. P3 has published the typed presentation components on main: `LiquiditySummary`, `CashflowForecastCard`, `DeadStockCard`, `ReplenishmentCard` and shared state/evidence panels. Import from `@/components/intelligence`; full component contract: `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`.
 
 ## P1 actions

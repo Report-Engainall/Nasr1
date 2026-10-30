@@ -1,4 +1,15 @@
 # P3 LIVE CHECKPOINT — 2026-10-30 — INTELLIGENCE DISPLAY BATCH INTEGRATED
+
+## P3 LIVE RESUME OVERRIDE — 2026-10-30
+- expected_main_sha_at_resume: `6d25c8c1ff3010996c1fcfce52a1fe0f580d65be`; code-bearing SHA: `b52271629f054f5d9750e2d4dbf247e22c90f8c7`.
+- P3 engines/contracts/components are already integrated. Do not reimplement REF-DAILY-DECISIONS-001 or REF-EVIDENCE-PASSPORT-001; do not re-extract images/archives or repeat RPC inventories.
+- Exact Core: `41018520349 SUCCESS` on docs-only SHA `31d1bef20a2dfe909e92078c94de8c07545d4348`; PG17 step and unit tests passed. Run `41018275584 SUCCESS` on docs-only SHA `47865baa7e62aa6a0c0c07d345a6e39639346cee` also passed. The earlier `41017608436 FAILURE` on code SHA b522716 is historical; later two tests used the same code tree and did not reproduce it. No source-code repair was introduced between those runs. Current exact main Core `41018827283` remains IN_PROGRESS on `6d25c8c1ff3010996c1fcfce52a1fe0f580d65be`; poll it, never infer its result.
+- Current P2 Playwright blocker remains `41017608501 FAILURE`: first mobile nav item did not receive focus; print assertions were not reached; hosted customer/order/tenant was SKIPPED. P1 owns production focus fix. No newer P2 browser run or P1 integration commit is present.
+- P2 dependencies: authenticated full-history aggregate/RPC, atomic outcome event persistence/idempotency/audit, free-only quota/privacy enforcement, live health probes, canonical server RBAC. Contract remains `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`.
+- P1 dependencies: mount ActionCard/EvidencePassport/LiquiditySummary/CashflowForecastCard/DeadStockCard/ReplenishmentCard against real P2 DTOs, with loading/empty/error/retry/unavailable states. Contract remains `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`.
+- All 16 REF rows remain P3_IMPLEMENTED with P1/P2 dependencies; no DLV roll-up is closed. Release NO-GO.
+- exact_next_command: poll `41018827283`; after it completes, take only the next P1/P2 owner commit/patch, inspect changed owned paths, and integrate with expected-main-SHA CAS.
+
 - Repository: `Report-Engainall/Nasr1`; only branch: `main`.
 - Current observed main SHA: `b52271629f054f5d9750e2d4dbf247e22c90f8c7`.
 - Existing P3 intelligence engine batches remain integrated: `a23c0b5cea98730f59093aa2f3e8f658509eddb4`, `3f6838157acfbd0999597a8e3dc50369484d587d`, `bd19b04e41e1d65e0f4d7427fb086f74bf457378`, `643d2821ab0483acc12ef21abc453a0c745f2865`.
