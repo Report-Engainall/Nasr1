@@ -1,31 +1,42 @@
 # CURRENT EXECUTION STATE — 2026-10-30
 
-**Sole live resume cursor.** Read this file first. Follow docs/execution/CONTINUOUS_PARALLEL_EXECUTION_PROTOCOL.md; P1/P2 instructions are in P1_EXECUTION_COMMAND.md and P2_EXECUTION_COMMAND.md. Do not perform a repository-wide rescan on resume. The detailed chronology is in `docs/bolt-source-reconciliation/EXECUTION_LOG.md` and `docs/execution/NASR1_CONTINUOUS_EXECUTION_REPORT.md`; requirement definitions live in `docs/canonical/AGHBARI-REQUIREMENT-REGISTRY.md`; acceptance status lives only in `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
+**Sole live resume cursor.** Read this file first. Follow `docs/execution/CONTINUOUS_PARALLEL_EXECUTION_PROTOCOL.md`. Do not rescan the repository or regenerate the 330-RPC inventory. Detailed evidence remains in `EXECUTION_LOG.md`; acceptance remains in `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
 
-## Parallel execution protocol — active for this batch
+## Active batch — P2 API-OPS semantic authorization and no-side-effect proofs
 
-- P1/P2 contract: docs/execution/CONTINUOUS_PARALLEL_EXECUTION_PROTOCOL.md.
-- P1 copy/paste order: docs/execution/P1_EXECUTION_COMMAND.md; P2 copy/paste order: docs/execution/P2_EXECUTION_COMMAND.md.
-- P1 subordinate checkpoint: docs/execution/P1_CHECKPOINT.md; this file remains the only global resume cursor.
-- Timebox: 180 minutes. Shared target: at least three existing detailed CSV acceptance rows closed with exact-SHA evidence.
-- Code-bearing main SHA: `f6bc9ca0ef9f47292093651b7bfcc298a5b7f518` — P2 DLV-008 source-currency test (latest application code; subsequent main movement is P1 checkpoint-only); last verified P2 code SHA: `f6a3a9355dc25b37ca14364c0f19af8587121be7` (DLV-008 overpayment exact Core/P2/PG17/cleanup SUCCESS).
-- P1 PWA/cache/cart acceptance remains verified on `ee1b843`; DLV-017 keyboard/focus slice is TESTED_EXACT_SHA on `d238805d7b7e4ba61ae0287d1a6ac773dab30d94` (Core `40998781849`, P2 `40998769174`, cleanup `40998769422` SUCCESS). P2 DLV-007 and DLV-015 denials remain accepted on `7fe83d3` and `cbbe9d0`; DLV-008 overpayment is verified on `f6a3a93`; source-currency acceptance corrected after CI exposed transaction-abort and 200-row-detail assumptions; latest candidate f6bc awaits CI.
+- Repository: `Report-Engainall/Nasr1`; branch: `main` only; no branches or PRs.
+- **P2 code SHA:** `5e53622b66de3947758b14026432953560b267bb`.
+- **Live main at this cursor update:** `102ac69c94c2ca87edbee96222216cf19ff431b5`; the intervening commit changed only P1-owned `docs/execution/P1_CHECKPOINT.md`. No P2 code path changed.
+- **Last verified database SHA:** `5e53622b66de3947758b14026432953560b267bb`.
+- **PostgreSQL 17:** [41003314472 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41003314472), exact P2 code SHA above. Both `npm run test:db` baseline acceptance and focused import-finalizer tenant-scope test completed SUCCESS.
+- **Core:** [41003314314 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41003314314), same exact P2 code SHA; Unit tests, migrations/Core, lint/build/smoke completed.
+- **One-main cleanup:** [41003314373 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41003314373), same exact P2 code SHA.
+- **P2 Playwright:** [41003314335 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41003314335), same exact P2 code SHA. Authenticated-E2E infrastructure gate SUCCESS; public UI Chromium smoke SUCCESS; local Supabase/Chromium order-persistence and tenant-isolation job IN_PROGRESS; hosted customer/order/tenant test SKIPPED because dedicated hosted credentials and explicit non-production write approval are absent. SKIPPED is not a pass.
+- No production DB writes, live Onyx/WhatsApp/AI calls, paid service, or secrets were used.
 
-- repository: `Report-Engainall/Nasr1`
-- branch: `main` only; do not create branches or PRs.
-- current_main_code_sha: `f6bc9ca0ef9f47292093651b7bfcc298a5b7f518` — P2 source-currency test uses SAVEPOINT isolation, existing tenant-scoped keyset invoice pages beyond the 200-row detail cap and exact integer-cent summary deltas; exact-SHA CI pending.
-- last_verified_code_sha: `f6a3a9355dc25b37ca14364c0f19af8587121be7` — DLV-008 overpayment denial PASS; Core `40997134235`, P2 `40997134220`, PG17 `40997134243`, cleanup `40997134312` SUCCESS on the same SHA; this is not multi-currency verification.
-- state update base: `557a9c09af1b5bc5b7d78a10c205bafe8a05f4aa`; reread live main and compare owned paths before every write; fast-forward/CAS only.
-- active_task_id: `DLV-008-INVOICE-PAYMENT-MULTICURRENCY-SETTLEMENT-002` — IMPLEMENTED / CI_PENDING on code SHA `f6bc9ca0ef9f47292093651b7bfcc298a5b7f518`: source-linked `40.25` USD payment; USD audit; source invoice located through existing paginated finance API; USD aggregate exact-cent deltas; YER aggregate unchanged; no-FX denial snapshot verified in SAVEPOINT; outer fixture rollback checked.
-- next_task_id: `API-OPS-001` — after exact-SHA DLV-008 verification, select the next uncovered high-risk callable mutation boundary from its existing matrix row; do not regenerate the 330/330 source inventory.
-- next action (P1, immediate): continue uncovered DLV-002 route/state accessibility and performance acceptance from P1_CHECKPOINT.md. The DLV-017 dialog keyboard/focus slice is verified on `d238805`; full route coverage/P75/P95 acceptance remains OPEN. P2 does not modify P1-owned paths.
-- P2 DLV-007 result: `TESTED_EXACT_SHA` on `7fe83d3c35a2b8c5b28012c0207c3eb8e3468159`. Ordinary same-tenant staff got `42501`; inventory balance, full stockKey purchasing task and all reorder-point audit snapshots were byte-identical. Core [40996058928 SUCCESS], P2 [40996059052 SUCCESS], PG17 [40996058730 SUCCESS], cleanup [40996059066 SUCCESS].
-- owner: P1 owns P1 route/components/browser acceptance; P2 owns DLV-008/015 finance/inventory RPC acceptance and all service/backend/migration/script/central evidence files.
-- reserved_files: P1 `src/components/**`, `src/routes/**`, `src/styles.css`, assigned UI tests only; P2 `scripts/test-database-migrations.mjs`, `supabase/**`, service logic, `CURRENT_EXECUTION_STATE.md`, CSV matrix and `EXECUTION_LOG.md`.
-- write_lease_holder: none.
-- expected_main_sha: `557a9c09af1b5bc5b7d78a10c205bafe8a05f4aa` (P1 checkpoint-only movement after code SHA f6bc9ca); exact_next_command: inspect Core `41000407674`, P2 `41000407635`, PG17 `41000407668`, cleanup `41000407659` for exact code SHA `f6bc9ca0ef9f47292093651b7bfcc298a5b7f518`; do not dispatch duplicates or transfer results across SHAs.
-- last code changes: P1 admin-audit test `5e1339b` has one RTL assertion mismatch (English expected, Arabic rendered) on a0f7; P2 DLV-007 denial `7fe83d3`; DLV-015 payment denial `cbbe9d0`; DLV-008 overpayment denial `f6a3a93` (TESTED_EXACT_SHA) and source-currency test refinements `240b5ff` → `a0f7` (SAVEPOINT) → `7f525` (keyset pages) → `f6bc` (exact-cent deltas), current evidence pending; no migration changed.
-- earlier test correction: `9061d6d` added customer-denied journal-posting/no-side-effect acceptance; `b96b7cd` corrected the test to read RLS-protected state from the privileged fixture role. Do not repeat absent regression.
+## Implemented and exact-SHA PostgreSQL 17 verified on 5e53622
+
+1. **DLV-007 reorder-point denial** was already accepted on `7fe83d3`; not repeated.
+2. **Import finalization approval guard:** migration `20261030010100_import_finalizer_manager_approval_guard.sql` restricts snapshot approval to active `admin/manager` roles. The prior `is_staff()` check admitted ordinary staff.
+   - Same-tenant ordinary staff and customer receive `42501`; foreign-tenant caller receives opaque `P0002`.
+   - Admin and manager pass the role gate and reach verified-manifest validation (`22023`); snapshots remain unchanged. Successful publication still requires a valid upload manifest.
+3. **Import rollback:** same-tenant ordinary staff receives `42501`; foreign-tenant manager receives opaque `P0002`. Both denials compare the full import job, staged rows, request keys, upload sessions/chunks, snapshots, snapshot rows and audit entries byte-for-byte before/after.
+4. **General-ledger posting:** same-tenant ordinary staff cannot post a balanced draft (`42501)); full entry/lines/reversal-links/audit snapshots remain identical. Admin then posts the same draft successfully.
+5. **General-ledger void:** same-tenant ordinary staff cannot void a draft (`42501)); complete mutation snapshot remains identical.
+6. **General-ledger reversal:** same-tenant ordinary staff cannot reverse a posted manual journal (`42501)); original/reversal entries, lines, mapping and audit snapshots remain identical.
+
+No extra migration was needed for rollback or general-ledger post/void/reversal; their existing guards were correct and the acceptance evidence was missing.
+
+## Resume coordination
+
+- `active_task_id`: `API-OPS-001` — targeted semantic authorization is improved, but the historical 330/330 source mapping is not a complete semantic permission matrix.
+- `next_task_id`: `AUTHZ-GL-DRAFT-STAFF-DENIAL-001`.
+- `exact_next_command`: in `scripts/test-general-ledger-reversal.mjs`, create a manual draft as admin, switch to a profile whose only role is `staff`, call `create_general_journal_draft` with a new idempotency key and valid balanced payload, require SQLSTATE `42501`, and compare full accounting-entry, line, idempotency/reversal-link and audit snapshots before/after. Restore admin identity safely. Add no migration unless the guard fails. Run Core/PG17/P2 on one resulting SHA.
+- P2 owns `supabase/**`, `scripts/**`, service logic and these central evidence files. P1 owns `src/components/**`, `src/routes/**`, `src/styles.css` and assigned UI tests. Do not edit P1-owned paths.
+- Reserved/shared files: do not change package/lock/workflows/router root without a real dependency and separately coordinated owner.
+- Retry policy: at most two attempts for the same failure/diagnosis; then isolate/fix or use a safe alternative and move on.
+- External blockers: hosted customer E2E, live Onyx Pro round-trip, official WhatsApp delivery receipt, live AI provider response, production deploy/restore/rollback and owner sign-off remain `BLOCKED_EXTERNAL` or `UNVERIFIED`.
+- Full production release remains `NO-GO`; no overall completion percentage is computable from partial acceptance evidence.
 
 ## Historical exact-SHA verification — code SHA eb83f6c only
 
