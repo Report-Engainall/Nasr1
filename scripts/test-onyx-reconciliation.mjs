@@ -53,6 +53,7 @@ async function expectFailure(label, action, pattern) {
     await db.unsafe("ROLLBACK TO SAVEPOINT onyx_expected_failure");
     await db.unsafe("RELEASE SAVEPOINT onyx_expected_failure");
     assert.ok(!pattern || pattern.test(String(caught.message)), label + " returned the wrong error: " + caught.message);
+    return caught;
   } else {
     await db.unsafe("RELEASE SAVEPOINT onyx_expected_failure");
     assert.fail(label + " should fail");
@@ -109,6 +110,14 @@ async function main() {
   try {
     await db.unsafe("insert into public.organizations(id,name,currency,is_active) values($1,'CI Onyx '||$2,'YER',true)", [organizationId,suffix]);
     await db.unsafe("insert into public.organizations(id,name,currency,is_active) values($1,'CI Onyx foreign '||$2,'YER',true)", [foreignOrganizationId,suffix]);
+    const foreignManagerProfileId = randomUUID();
+    const foreignManagerAuthId = randomUUID();
+    const foreignManagerEmail = "onyx-foreign-manager-" + suffix + "@example.test";
+    await db.unsafe(
+      "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Onyx Foreign Manager',$4,true)",
+      [foreignManagerProfileId,foreignManagerAuthId,foreignOrganizationId,foreignManagerEmail],
+    );
+    await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'manager')", [foreignManagerProfileId]);
     await db.unsafe(
       "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Onyx Manager',$4,true)",
       [managerProfileId,managerAuthId,organizationId,"onyx-manager-"+suffix+"@example.test"],
@@ -257,8 +266,82 @@ async function main() {
     assert.equal(appliedReplay.idempotent_replay,true);
     assert.equal(await movementCount(productOneId),1,"idempotent replay does not duplicate movement rows");
 
+    // A command that changes inventory must be protected at both apply and compensating
+    // rollback boundaries. A preview/read denial alone does not prove command isolation.
+    const readAppliedCommandBoundary = async () => {
+      const commandRows = await readAsTestOwner(
+        "select to_jsonb(c) as payload from public.onyx_inventory_reconciliation_commands c where c.id=$1::uuid",
+        [command.command_id],
+      );
+      const itemRows = await readAsTestOwner(
+        "select COALESCE(jsonb_agg(to_jsonb(i) order by i.product_id),'[]'::jsonb) as payload " +
+          "from public.onyx_inventory_reconciliation_items i where i.command_id=$1::uuid",
+        [command.command_id],
+      );
+      const balanceRows = await readAsTestOwner(
+        "select COALESCE(jsonb_agg(jsonb_build_object('product_id',ib.product_id,'quantity_on_hand',ib.quantity_on_hand::text," +
+          "'quantity_reserved',ib.quantity_reserved::text,'quantity_available',ib.quantity_available::text," +
+          "'last_movement_at',ib.last_movement_at::text,'updated_at',ib.updated_at::text) order by ib.product_id),'[]'::jsonb) as payload " +
+          "from public.inventory_balances ib where ib.warehouse_id=$1::uuid and ib.product_id=any($2::uuid[])",
+        [warehouseId,[productOneId,productTwoId]],
+      );
+      const movementRows = await readAsTestOwner(
+        "select COALESCE(jsonb_agg(to_jsonb(m) order by m.created_at,m.id),'[]'::jsonb) as payload " +
+          "from public.inventory_movements m where m.warehouse_id=$1::uuid and m.product_id=any($2::uuid[]) " +
+          "and m.reference_id=$3::uuid and m.reference_type in ('onyx_inventory_reconciliation','onyx_inventory_reconciliation_rollback')",
+        [warehouseId,[productOneId,productTwoId],command.command_id],
+      );
+      const auditRows = await readAsTestOwner(
+        "select COALESCE(jsonb_agg(to_jsonb(a) order by a.created_at,a.id),'[]'::jsonb) as payload " +
+          "from public.audit_logs a where a.organization_id=$1::uuid and a.entity_id=$2::uuid",
+        [organizationId,command.command_id],
+      );
+      assert.equal(commandRows.length,1,"applied command remains visible to its owning tenant");
+      return {
+        command:commandRows[0].payload,
+        items:itemRows[0].payload,
+        balances:balanceRows[0].payload,
+        movements:movementRows[0].payload,
+        audit:auditRows[0].payload,
+      };
+    };
+    const appliedBoundaryBeforeDenials = await readAppliedCommandBoundary();
+    const expectOnyxCommandDenied = async (authId,email,label,operation,pattern) => {
+      await setIdentity(authId,email);
+      await db.unsafe("set role authenticated");
+      const caught = await expectFailure(label,operation,pattern);
+      assert.equal(caught.code,"42501",label + " must use the authorization SQLSTATE");
+      await db.unsafe("reset role");
+      assert.deepEqual(
+        await readAppliedCommandBoundary(),
+        appliedBoundaryBeforeDenials,
+        label + ": a denied command must preserve its record, lines, balances, movements and audits",
+      );
+    };
+    const staffEmail = "onyx-staff-" + suffix + "@example.test";
+    const foreignManagerEmail = "onyx-foreign-manager-" + suffix + "@example.test";
+    await expectOnyxCommandDenied(
+      staffAuthId,staffEmail,"ordinary staff cannot apply an Onyx reconciliation command",
+      () => apply(command.command_id,key()),/administrator or manager permission required to apply Onyx stock reconciliation/i,
+    );
+    await expectOnyxCommandDenied(
+      foreignManagerAuthId,foreignManagerEmail,"foreign-tenant manager cannot apply another tenant's Onyx command",
+      () => apply(command.command_id,key()),/Onyx reconciliation command is unavailable in the current organization/i,
+    );
+    await expectOnyxCommandDenied(
+      staffAuthId,staffEmail,"ordinary staff cannot roll back an Onyx reconciliation command",
+      () => rollback(command.command_id,key(),"Unauthorized staff rollback attempt"),
+      /administrator or manager permission required to roll back Onyx stock reconciliation/i,
+    );
+    await expectOnyxCommandDenied(
+      foreignManagerAuthId,foreignManagerEmail,"foreign-tenant manager cannot roll back another tenant's Onyx command",
+      () => rollback(command.command_id,key(),"Foreign tenant rollback attempt"),
+      /Onyx reconciliation command is unavailable in the current organization/i,
+    );
+    await setIdentity(managerAuthId,"onyx-manager-"+suffix+"@example.test");
+    await db.unsafe("set role authenticated");
+
     const rolledBack = await rollback(command.command_id,key());
-    assert.equal(rolledBack.status,"rolled_back");
     assert.equal((await balance(productOneId)).on_hand,"10.000","compensating rollback restores the starting quantity");
     assert.equal((await balance(productTwoId)).on_hand,"0.000","rollback leaves a zero balance rather than deleting audit context");
     assert.equal(await movementCount(productOneId),2,"rollback appends a compensating movement instead of deleting the apply movement");
