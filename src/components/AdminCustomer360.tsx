@@ -9,6 +9,9 @@ import { formatCustomer360Money } from '@/lib/customer-360';
 import { downloadStaffCustomer360WorkbookXlsx } from '@/lib/customer-360-xlsx';
 import type { StaffCustomer360Summary } from '@/lib/customer-360-summary';
 
+const CUSTOMER_SCOPE_BLOCKED_MESSAGE = 'العميل غير موجود في المؤسسة الحالية؛ تم إيقاف عرض ملفه.';
+const CUSTOMER360_LOAD_ERROR_MESSAGE = 'تعذر تحميل ملف العميل. تحقق من الاتصال والصلاحية ثم أعد المحاولة.';
+
 const invoiceStatusLabel: Record<string, string> = {
   issued: 'صادرة',
   partially_paid: 'مدفوعة جزئيًا',
@@ -23,6 +26,7 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
   const [exportError, setExportError] = useState('');
 
   const loadCustomer360 = useCallback(async () => {
+    setSummary(null);
     setLoading(true);
     setError('');
     setExportError('');
@@ -36,13 +40,13 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         .maybeSingle();
       if (scopedCustomerError) throw scopedCustomerError;
       if (!scopedCustomer || scopedCustomer.id !== customer.id) {
-        throw new Error('العميل غير موجود في المؤسسة الحالية؛ تم إيقاف عرض ملفه.');
+        throw new Error(CUSTOMER_SCOPE_BLOCKED_MESSAGE);
       }
       const customerSummary = await fetchStaffCustomer360Summary(customer.id);
       setSummary(customerSummary);
     } catch (cause) {
       setSummary(null);
-      setError(cause instanceof Error ? cause.message : 'تعذر تحميل ملف العميل.');
+      setError(cause instanceof Error && cause.message === CUSTOMER_SCOPE_BLOCKED_MESSAGE ? CUSTOMER_SCOPE_BLOCKED_MESSAGE : CUSTOMER360_LOAD_ERROR_MESSAGE);
     } finally {
       setLoading(false);
     }
@@ -55,12 +59,12 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
   }
 
   const overdueInvoiceCount = summary?.finance_by_currency.reduce((total, row) => total + row.overdue_invoice_count, 0) ?? 0;
-  return <Modal title={'ملف العميل 360 — ' + customer.business_name} onClose={onClose}>
+  return <Modal title={summary ? 'ملف العميل 360 — ' + summary.customer.business_name : 'ملف العميل 360'} onClose={onClose}>
     <div style={{ display: 'grid', gap: 14, maxHeight: '75vh', overflowY: 'auto', padding: 2 }}>
       <section className="panel">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-          <div><h2 style={{ margin: 0 }}>{customer.business_name}</h2><p>{customer.customer_code} · {customer.contact_name || 'جهة الاتصال غير محددة'}</p><p>{customer.phone || 'لا يوجد هاتف'} · {customer.email || 'لا يوجد بريد'}</p></div>
-          <div className="no-print" style={{ display: 'flex', gap: 6 }}><Button variant="secondary" onClick={() => void reload()} disabled={loading}><RefreshCw size={15} /> تحديث</Button><Button variant="outline" onClick={() => { if (!summary) return; setExportError(''); try { downloadStaffCustomer360WorkbookXlsx(summary); } catch (cause) { setExportError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف العميل 360.'); } }} disabled={loading || !summary}><Download size={15} /> تصدير Excel</Button><Button variant="outline" onClick={() => window.print()}><Printer size={15} /> طباعة</Button></div>
+          {summary ? <div><h2 style={{ margin: 0 }}>{summary.customer.business_name}</h2><p>{summary.customer.customer_code} · {summary.customer.contact_name || 'جهة الاتصال غير محددة'}</p><p>{summary.customer.phone || 'لا يوجد هاتف'} · {summary.customer.email || 'لا يوجد بريد'}</p></div> : <div><h2 style={{ margin: 0 }}>ملف العميل 360</h2></div>}
+          <div className="no-print" style={{ display: 'flex', gap: 6 }}><Button variant="secondary" onClick={() => void reload()} disabled={loading}><RefreshCw size={15} /> تحديث</Button><Button variant="outline" onClick={() => { if (!summary) return; setExportError(''); try { downloadStaffCustomer360WorkbookXlsx(summary); } catch (cause) { setExportError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف العميل 360.'); } }} disabled={loading || !summary}><Download size={15} /> تصدير Excel</Button><Button variant="outline" onClick={() => window.print()} disabled={loading || !summary}><Printer size={15} /> طباعة</Button></div>
         </div>
         {exportError && <p className="form-error" role="alert">{exportError}</p>}
         <p className="report-note">الرصيد والحد الائتماني أدناه هما القيم المسجلة في بطاقة العميل. إجماليات الطلبات والفوترة والتحصيل أدناه مجاميع خادمية كاملة؛ الجداول التفصيلية تعرض أحدث الحركات فقط، ولا تُنشأ فواتير أو دفعات تاريخية افتراضية.</p>
@@ -69,8 +73,8 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         <section className="report-grid">
           <article className="report-metric"><ShoppingBag size={20} /><span>إجمالي الطلبات</span><strong>{formatNumber(summary.order_summary.order_count)}</strong></article>
           <article className="report-metric"><CalendarClock size={20} /><span>طلبات قيد المعالجة</span><strong>{formatNumber(summary.order_summary.pending_order_count)}</strong></article>
-          <article className="report-metric"><Wallet size={20} /><span>الرصيد المسجل بالبطاقة</span><strong>{formatCustomer360Money(customer.current_balance, 'YER')}</strong></article>
-          <article className="report-metric"><CreditCard size={20} /><span>الحد الائتماني المسجل</span><strong>{formatCustomer360Money(customer.credit_limit, 'YER')}</strong></article>
+          <article className="report-metric"><Wallet size={20} /><span>الرصيد المسجل بالبطاقة</span><strong>{formatCustomer360Money(summary.customer.current_balance, 'YER')}</strong></article>
+          <article className="report-metric"><CreditCard size={20} /><span>الحد الائتماني المسجل</span><strong>{formatCustomer360Money(summary.customer.credit_limit, 'YER')}</strong></article>
         </section>
         <p className="report-note" role="status">تفاصيل الجداول أدناه تقتصر على أحدث 20 حركة لهذا العميل؛ إجماليات الفوترة والتحصيل والمتأخرات محسوبة خادميًا من دفتر العميل الكامل.</p>
         <section className="panel">

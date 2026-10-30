@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StaffCustomer360Summary } from "@/lib/customer-360-summary";
 import type { Customer } from "@/lib/types";
 
 const mocks = vi.hoisted(() => ({
   fetchSummary: vi.fn(),
+  scopedCustomerId: "customer-360-1" as string | null,
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -20,7 +21,7 @@ vi.mock("@/lib/supabase", () => ({
         select: vi.fn(),
         eq: vi.fn(),
         maybeSingle: vi.fn(async () => ({
-          data: { id: "customer-360-1" },
+          data: mocks.scopedCustomerId ? { id: mocks.scopedCustomerId } : null,
           error: null,
         })),
       };
@@ -62,6 +63,8 @@ const customer = {
   user_id: "user-360-1",
   full_name: "عميل الاختبار",
   company_name: "مؤسسة الاختبار",
+  business_name: "مؤسسة الاختبار",
+  contact_name: "اسم جهة الاتصال السري",
   phone: "777000111",
   email: null,
   address: null,
@@ -137,6 +140,7 @@ const summary: StaffCustomer360Summary = {
 
 describe("Admin Customer 360 source-lineage display", () => {
   beforeEach(() => {
+    mocks.scopedCustomerId = "customer-360-1";
     mocks.fetchSummary.mockReset().mockResolvedValue(summary);
   });
 
@@ -164,4 +168,34 @@ describe("Admin Customer 360 source-lineage display", () => {
     expect(fullLedgerOverdueCount).toHaveTextContent("count:2");
     expect(within(dialog).queryByText(/فواتير: count:0/)).not.toBeInTheDocument();
   });
+
+  it("does not render caller-provided customer identity when the active tenant scope rejects the customer", async () => {
+    mocks.scopedCustomerId = "foreign-customer-2";
+    render(<AdminCustomer360 customer={customer} onClose={vi.fn()} />);
+
+    const dialog = await screen.findByRole("dialog", { name: "ملف العميل 360" });
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("العميل غير موجود في المؤسسة الحالية؛ تم إيقاف عرض ملفه.");
+    expect(within(dialog).queryByText("مؤسسة الاختبار")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("اسم جهة الاتصال السري")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("777000111")).not.toBeInTheDocument();
+    expect(mocks.fetchSummary).not.toHaveBeenCalled();
+  });
+
+  it("redacts service diagnostics, clears stale details, and recovers through the visible retry action", async () => {
+    mocks.fetchSummary
+      .mockRejectedValueOnce(new Error("permission denied for function fetch_staff_customer_360_summary; internal SQL detail"))
+      .mockResolvedValueOnce(summary);
+    render(<AdminCustomer360 customer={customer} onClose={vi.fn()} />);
+
+    const dialog = await screen.findByRole("dialog", { name: "ملف العميل 360" });
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent("تعذر تحميل ملف العميل. تحقق من الاتصال والصلاحية ثم أعد المحاولة.");
+    expect(alert).not.toHaveTextContent("fetch_staff_customer_360_summary");
+    expect(within(dialog).queryByText("مؤسسة الاختبار")).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /تحديث/ }));
+    expect(await within(dialog).findByText("مؤسسة الاختبار")).toBeInTheDocument();
+    expect(mocks.fetchSummary).toHaveBeenCalledTimes(2);
+  });
+
 });
