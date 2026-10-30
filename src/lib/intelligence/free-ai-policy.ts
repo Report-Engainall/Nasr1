@@ -7,13 +7,15 @@ export interface FreeProviderQuota {
  verifiedAt:string;sourceEvidenceId:string;cooldownUntil:string|null;
 }
 export interface SanitizedQuestion {ok:boolean;question?:string}
+export interface FreeQuotaEvidence {id:string;status:"VERIFIED"|"NEEDS_REVIEW"|"UNVERIFIED"|"UNAVAILABLE";asOf:string;completeness:"COMPLETE"|"PARTIAL"|"UNKNOWN";quality:"ACCEPTABLE"|"WARNINGS"|"INVALID"|"UNKNOWN"}
 export interface AiRouteDecision {
  mode:AiExecutionMode;provider:AiProvider|null;model:string|null;reason:"FREE_PROVIDER_AVAILABLE"|"ALL_FREE_QUOTAS_UNAVAILABLE"|"NO_RULE_ENGINE"|"UNSAFE_QUESTION";
  attemptedProviders:Array<{provider:AiProvider;model:string;reason:string}>;paidSpendLimit:0;question:string|null;
 }
 /** The only provider payload is the sanitized question; no customer, ledger, stock, margin or tenant DTO is accepted here. */
 export function chooseFreeAiRoute(input:{
- question:unknown;sanitize:(question:unknown)=>SanitizedQuestion;asOf:string;providers:FreeProviderQuota[];ruleEngineAvailable:boolean;
+ question:unknown;sanitize:(question:unknown)=>SanitizedQuestion;asOf:string;providers:FreeProviderQuota[];
+ quotaEvidence:FreeQuotaEvidence[];ruleEngineAvailable:boolean;
 }):AiRouteDecision {
  const sanitized=input.sanitize(input.question),fallback=input.ruleEngineAvailable?"RULE_BASED":"MODEL_UNAVAILABLE";
  if(!sanitized.ok||!sanitized.question?.trim())return {mode:fallback,provider:null,model:null,
@@ -28,8 +30,13 @@ export function chooseFreeAiRoute(input:{
   else if(!provider.privacyReviewed||!provider.privacyAllowsQuestionOnly)reason="PRIVACY_NOT_APPROVED";
   else if(provider.quotaRemaining===null||!Number.isSafeInteger(provider.quotaRemaining)||provider.quotaRemaining<=0)reason="QUOTA_REMAINING_UNKNOWN_OR_EMPTY";
   else if(!provider.model.trim()||!provider.sourceEvidenceId.trim())reason="MODEL_OR_EVIDENCE_MISSING";
-  else if(!Number.isFinite(Date.parse(provider.verifiedAt))||now-Date.parse(provider.verifiedAt)>86400000||Date.parse(provider.verifiedAt)>now)reason="PROVIDER_VERIFICATION_STALE";
-  else if(provider.cooldownUntil&&Number.isFinite(Date.parse(provider.cooldownUntil))&&Date.parse(provider.cooldownUntil)>now)reason="PROVIDER_COOLDOWN";
+  else {
+   const evidence=input.quotaEvidence.find(record=>record.id===provider.sourceEvidenceId);
+   if(!evidence||evidence.status!=="VERIFIED"||evidence.completeness!=="COMPLETE"||evidence.quality!=="ACCEPTABLE"||evidence.asOf!==provider.verifiedAt)
+    reason="FREE_QUOTA_EVIDENCE_NOT_VERIFIED";
+  }
+  if(reason==="ELIGIBLE"&&(!Number.isFinite(Date.parse(provider.verifiedAt))||now-Date.parse(provider.verifiedAt)>86400000||Date.parse(provider.verifiedAt)>now))reason="PROVIDER_VERIFICATION_STALE";
+  else if(reason==="ELIGIBLE"&&provider.cooldownUntil&&Number.isFinite(Date.parse(provider.cooldownUntil))&&Date.parse(provider.cooldownUntil)>now)reason="PROVIDER_COOLDOWN";
   attemptedProviders.push({provider:provider.provider,model:provider.model,reason});
   return reason==="ELIGIBLE";
  });

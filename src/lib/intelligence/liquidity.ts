@@ -62,7 +62,9 @@ export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnaps
   const collections=metricValue(position.expectedCollections,index,position.currency,input.asOf,input.period);
   const obligations=metricValue(position.dueObligations,index,position.currency,input.asOf,input.period);
   const required=[available,collections,obligations],status=duplicate?"NEEDS_REVIEW":statusOf(required);
-  const net=status==="VERIFIED"&&available.value!==null&&collections.value!==null&&obligations.value!==null?available.value+collections.value-obligations.value:null;
+  const rawNet=status==="VERIFIED"&&available.value!==null&&collections.value!==null&&obligations.value!==null?available.value+collections.value-obligations.value:null;
+  const net=rawNet!==null&&Number.isFinite(rawNet)&&Math.abs(rawNet)<=Number.MAX_SAFE_INTEGER?rawNet:null;
+  if(rawNet!==null&&net===null)warnings.push(position.currency+":LIQUIDITY_ARITHMETIC_OVERFLOW");
   const overdue=metricValue(position.overdueReceivables,index,position.currency,input.asOf,input.period);
   const stock=metricValue(position.stagnantStockCost,index,position.currency,input.asOf,input.period);
   const aging=(position.receivableAging??[]).map(item=>{

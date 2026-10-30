@@ -20,6 +20,7 @@ export function evaluateDecisionLearning(input:LearningEvaluationInput):Learning
  const passport=buildEvidencePassport({id:"learning:"+input.id,generatedAt:input.measuredAt,asOf:input.measuredAt,evidenceRecords:input.evidenceRecords,metrics:[input.expected,input.actual]});
  const [expected,actual]=passport.metrics,warnings:string[]=[];
  if(expected.status!=="VERIFIED"||actual.status!=="VERIFIED")warnings.push("EXPECTED_OR_ACTUAL_NOT_VERIFIED");
+ if(expected.asOf!==input.measuredAt||actual.asOf!==input.measuredAt)warnings.push("MEASUREMENT_AS_OF_MISMATCH");
  if(expected.key!==actual.key)warnings.push("METRIC_KEY_MISMATCH");
  if(expected.unit!==actual.unit)warnings.push("UNIT_MISMATCH");
  if(expected.currency!==actual.currency)warnings.push("CURRENCY_MISMATCH");
