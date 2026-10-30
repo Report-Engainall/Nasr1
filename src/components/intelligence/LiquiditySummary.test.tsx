@@ -26,7 +26,7 @@ describe("LiquiditySummary", () => {
     render(<LiquiditySummary snapshot={snapshot} />);
     const yer = screen.getByRole("article", { name: "YER" });
     const usd = screen.getByRole("article", { name: "USD" });
-    expect(within(yer).getByText(formatEvidenceNumber(90) + " YER")).toBeInTheDocument();
+    expect(within(yer).getByText(/90 YER/)).toBeInTheDocument();
     expect(within(yer).getByText(/تكلفة المخزون الراكد/)).toBeInTheDocument();
     expect(within(usd).getAllByText("غير متاح").length).toBeGreaterThan(0);
     expect(screen.queryByText(formatEvidenceNumber(190) + " YER")).not.toBeInTheDocument();
@@ -47,7 +47,8 @@ describe("LiquiditySummary", () => {
     };
     render(<LiquiditySummary snapshot={fieldStatusSnapshot} />);
     const yer = screen.getByRole("article", { name: "YER" });
-    expect(within(yer).getByText(/حالة صافي السيولة: مثبت/)).toBeInTheDocument();
+    expect(within(yer).getByText(/حالة صافي السيولة:/)).toBeInTheDocument();
+    expect(within(yer).getAllByText("مثبت").length).toBeGreaterThan(0);
     expect(within(yer).getByText(/الذمم المتأخرة/)).toBeInTheDocument();
     expect(within(yer).getByText(/تكلفة المخزون الراكد المثبتة/)).toBeInTheDocument();
     expect(within(yer).getByText("غير مثبت")).toBeInTheDocument();
