@@ -1,3 +1,26 @@
+# CURRENT EXECUTION STATE — LIVE MAIN CURSOR — 2026-10-30
+> **Authoritative resume SHA:** `643d2821ab0483acc12ef21abc453a0c745f2865` on `Report-Engainall/Nasr1:main`. Re-read main before any write; only P3 integrates to main with CAS/force=false.
+> **Exact-head Core:** [41014174530 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174530) on `643d2821ab0483acc12ef21abc453a0c745f2865`. Unit tests, full isolated PostgreSQL 17 migrations/core acceptance, exact-head RPC inventory, journal/receipt/invitation/address/analytics/import/favourites/backup-restore acceptance, lint, build, preview/dev smoke and Chromium price-visibility all SUCCESS.
+> **Exact-head P2:** [41014174609 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174609) on `643d2821ab0483acc12ef21abc453a0c745f2865`. Authenticated E2E infrastructure gate and public UI smoke SUCCESS; local Supabase/Chromium order + tenant acceptance is currently at finance document/task-print acceptance; hosted customer/order/tenant sub-job is SKIPPED (not PASS).
+> **Exact-head cleanup:** [41014174522 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174522) on `643d2821ab0483acc12ef21abc453a0c745f2865`.
+> **Previous engine fix:** [41014051434 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014051434) on `bd19b04e41e1d65e0f4d7427fb086f74bf457378`; its Core result is historical for that ancestor, while the current Core success above proves the full descendant tree.
+> **Current P3 code commits on main:** `bd19b04e41e1d65e0f4d7427fb086f74bf457378` (learning test correction, what-if blank/overflow gates, AI cooldown fail-closed/determinism); `643d2821ab0483acc12ef21abc453a0c745f2865` (canonical server RBAC matrix contract/tests and P2 contract update).
+>
+> ## Live work allocation — resume here
+> - **P3 / integration:** intelligence pure modules and component contracts are in main. Continue exact-head P2 polling; then inspect P2 delivery against `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`. No PASS transfer across SHAs. Keep one-main/CAS, no branches, no force.
+> - **P2 / immediate:** finish the currently-running P2 workflow `41014174609` on this SHA; hosted tenant journey remains SKIPPED. The reproducible prior browser failure is `e2e/finance-task-print.spec.ts:51`: role locator cannot find a deliberately hidden sidebar. P2 must use `page.locator('#admin-sidebar')`, assert Arabic `aria-label`, CSS hidden/visible states, keyboard focus, Escape and focus restoration; preserve every assertion. Then deliver the server-derived full-history tenant aggregate, atomic decision outcome/idempotency/audit persistence, free-only AI enforcement/quota reservation/privacy, fresh health probes and canonical RBAC snapshot per the P3 contract. Do not accept browser tenantId/actor/role/capabilities.
+> - **P1 / immediate:** no remaining traditional P1 leaf was found in the current matrix outside already integrated items; the live P1 allocation is REF UI integration. Build the P1-owned workspace/route composition using `ActionCard` and `EvidencePassport`; wire only the P2-backed aggregate response. Implement loading/empty/error/retry/unavailable states first. Keep amount/currency optional, display currencies separately, label What-if as SIMULATED, route decision actions through P2 persistence, and never supply fixture metrics or client-side permissions.
+> - **Acceptance:** existing matrix only; 143 populated task IDs and 18 DLV groups remain. All 16 REF rows retain `P3_IMPLEMENTED / CI_PENDING / P1_P2_PENDING` until the exact-head dependent work is evidenced. No DLV roll-up is closed here.
+> - **Release:** NO-GO. Hosted customer/tenant, actual Onyx Pro round-trip, official WhatsApp delivery, live AI response, production deploy/migration/rollback/restore and owner sign-off are not proven.
+>
+> ## Exact next commands
+> 1. Poll existing [Core 41014174530](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174530) and [P2 41014174609](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174609); both are already terminal/active as reported above—do not duplicate either.
+> 2. On P2 completion, if the current locator failure recurs, fix only `e2e/finance-task-print.spec.ts` and re-run the focused test plus P2 workflow on one exact SHA.
+> 3. P2 then implements the aggregate/persistence contract; P1 mounts the DTO and components; P3 integrates each owner commit after changed-path and duplicate-task review.
+>
+> **Historical detail below is retained for traceability only. All old SHA pointers, stale run IDs, task cursors and next actions in the archived body are superseded by this live cursor.**
+
+---
 # CURRENT EXECUTION STATE — 2026-10-30 — AUTHORITATIVE RESUME SNAPSHOT
 > **P3 current execution cursor (2026-10-30):** live `main` = `2761904cfa661ac4fd221d9b2ff801cd970aaad8`. Exact-head Core: no Core workflow returned for this exact SHA. This status applies only to the exact SHA above; ancestor PASS results are not transferable. P3 source engines are implemented; P1 route mounting and P2 authenticated tenant aggregate/persistence remain separate acceptance dependencies. No DLV roll-up is closed.
 

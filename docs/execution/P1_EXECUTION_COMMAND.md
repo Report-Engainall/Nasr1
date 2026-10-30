@@ -1,3 +1,23 @@
+# P1 LIVE SESSION COMMAND — 2026-10-30
+Current main base: `643d2821ab0483acc12ef21abc453a0c745f2865`. Exact Core [41014174530 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174530) and cleanup [41014174522 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174522) are on this exact SHA. P2 [41014174609 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174609) is on this exact SHA; do not duplicate it. Hosted customer/order/tenant is SKIPPED and must not be represented as PASS.
+
+## التنفيذ المطلوب الآن — REF UI integration
+1. Read only the first 80 lines of `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`, this command, and `docs/execution/P1_CHECKPOINT.md`; verify main and inspect only changed P1 paths.
+2. Use existing P3 components:
+   `import { ActionCard, EvidencePassport } from "@/components/intelligence";`
+   and the public types:
+   `ActionCardProps, EvidencePassportProps`.
+3. Build/mount the P1-owned intelligence workspace/route composition against the P2 response contract `src/lib/intelligence/aggregate-contract.ts` and `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`. It must preserve loading, empty, error+retry, unavailable and ready states. Do not fabricate an RPC name or send tenantId/role/capability from browser.
+4. Render only server-returned verified/partial evidence and actual decision candidates. Keep amounts/currency optional, display each currency separately, null as “غير متاح”, What-if as SIMULATED with assumptions/constraints/baseline, and do not locally mutate decision lifecycle or grant RBAC. CTAs call only the P2-published command.
+5. Add direct route/component regression tests for state transitions, missing DTO, null impact/currency, evidence states and no client-side fabricated values. Run targeted tests; record exact code SHA and screenshots/runtime proof. Do not rerun Customer 360 work or scan the reference gallery.
+6. If P2 aggregate service is not yet merged, finish the reusable UI composition with an explicit UNAVAILABLE state and strict typed props; do not connect legacy dashboard aggregates that lack full source/formula lineage as if they were verified intelligence.
+
+P1 ownership: `src/components/**`, `src/routes/**`, `src/styles.css`, `AghbariApp.tsx`, UI tests under `src/test/**`, except P3-reserved intelligence components and P2-owned service/e2e paths. Do not push main. Commit locally and report Task ID, base/result SHA, changed paths, targeted test results, blocker, and exact next command to P3.
+
+**Exact next command:** implement the P1-owned intelligence workspace component using ActionCard/EvidencePassport imports and the typed `IntelligenceAggregateResponse`; create the first route mount only when the server DTO is available, otherwise preserve UNAVAILABLE and add the focused no-mock state test.
+
+---
+
 # CURRENT P1 SESSION ENTRY — LIVE OVERRIDE 2026-10-30
 Read the first 80 lines of `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` and `docs/execution/P1_CHECKPOINT.md`; the live allocation there overrides the historical handoff below. Resume from code SHA `a23c0b5cea98730f59093aa2f3e8f658509eddb4`; P3 Core run `41010611128` is IN_PROGRESS on that SHA, poll it; do not duplicate. P1's old Customer 360 CI run `41004028451` already completed SUCCESS and its UI slice is integrated; do not repeat it. Continue the first uncovered UI acceptance leaf under DLV-002/003 from the existing CSV, implement the real UI state + focused regression test. P1 owns routes/components/styles and src/test UI tests except P3-reserved intelligence paths. P2 owns e2e/**/backend, P3 owns intelligence and global governance. P3's components are now available via `import { ActionCard, EvidencePassport } from '@/components/intelligence'`; read `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`. Mount only P2-backed aggregate data; no local mock metrics or synthetic decisions. Preserve worktrees/dirty files, inspect changed paths only, checkpoint every 10 minutes. Do not execute any stale NEXT ACTION lower in this file.
 

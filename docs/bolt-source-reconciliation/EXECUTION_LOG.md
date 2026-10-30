@@ -1,3 +1,16 @@
+## P3 integration record — 2026-10-30 — exact-head intelligence hardening and Core acceptance
+- Main/base/result SHA: `643d2821ab0483acc12ef21abc453a0c745f2865` (CAS fast-forward from `bd19b04e41e1d65e0f4d7427fb086f74bf457378`; remote main re-read confirmed).
+- Code deltas:
+  - `bd19b04e41e1d65e0f4d7427fb086f74bf457378`: fixed `learning-loop.test.ts` ReferenceError by using defined `ev`; scenario baseline strings now require non-empty numeric syntax; outcome learning withholds overflow; free-AI route rejects invalid cooldown dates and sorts candidate provider/model deterministically.
+  - `643d2821ab0483acc12ef21abc453a0c745f2865`: extended `rbac-contract.ts` with an evidence-backed canonical role × capability × resource × operation × tenant-scope × sensitivity view; added mapping-invalid/conflict coverage; updated P2 aggregate contract with the exact canonical catalog DTO. This is display/inspection only; DB/RLS/RPC remains sole authorization.
+- Exact-head Core: [41014174530 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174530) on SHA `643d2821ab0483acc12ef21abc453a0c745f2865`. Unit tests, PostgreSQL 17, exact-head RPC inventory, finance/inventory/import/tenant analytics, backup/restore, lint, build, preview/dev smoke and Chromium price visibility all passed.
+- Exact-head one-main cleanup: [41014174522 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174522) same SHA.
+- Exact-head P2: [41014174609 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174609) same SHA. Infrastructure and public smoke SUCCESS; local Supabase Chromium step still running; hosted tenant E2E SKIPPED. Do not report P2 overall PASS.
+- Acceptance: all 16 REF rows retain `P3_IMPLEMENTED / CI_PENDING / P1_P2_PENDING` pending P1 route mounting and P2 aggregates/outcome persistence/gateway/health/RBAC. No DLV roll-up closed. Production release remains NO-GO.
+- Next: poll P2 41014174609; P1 builds the typed workspace using committed `ActionCard`/`EvidencePassport`; P2 delivers server contract and P3 integrates each commit separately after checks.
+
+---
+
 ## P2 execution record — internal order-pricing RPC browser denial — 2026-10-30
 
 - Task: AGH-PRICE-PRIVACY-LEGACY-RPC-001.

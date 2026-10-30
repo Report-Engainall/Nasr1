@@ -1,3 +1,25 @@
+# P3 LIVE CHECKPOINT — 2026-10-30 — AUTHORITATIVE
+- Repository: `Report-Engainall/Nasr1`; only branch: `main`.
+- Current resume/base SHA: `643d2821ab0483acc12ef21abc453a0c745f2865` (remotely read and verified immediately before this checkpoint commit).
+- Owner: P3 intelligence engines, cross-stream contracts, integration, global state, acceptance CSV and execution log.
+- Completed P3 commits on main:
+  - `a23c0b5cea98730f59093aa2f3e8f658509eddb4`: initial Evidence Passport/daily decisions/types/ActionCard/EvidencePassport and P1/P2 contracts.
+  - `3f6838157acfbd0999597a8e3dc50369484d587d`: liquidity, cashflow, dead stock, retention, replenishment, what-if, decision lifecycle, learning, free-AI policy, system health and RBAC contracts.
+  - `bd19b04e41e1d65e0f4d7427fb086f74bf457378`: fixed learning-loop regression test helper `evidence`→`ev`; What-if rejects blank/whitespace/non-numeric baseline; learning variance and percentage overflow are withheld; free-AI invalid cooldown fails closed and provider selection sorts deterministically.
+  - `643d2821ab0483acc12ef21abc453a0c745f2865`: canonical RBAC role × capability × resource × operation × tenant scope × sensitivity presentation matrix, conflict/unknown-mapping tests, P2 DTO contract update.
+- Exact-head Core [41014174530 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174530) on `643d2821ab0483acc12ef21abc453a0c745f2865`: Unit Tests PASS; isolated PostgreSQL 17 full acceptance PASS; exact-head RPC inventory generated/uploaded; journal/receipt/invitation/address/tenant analytics/quote/import/favourites/backup-restore acceptance PASS; lint/build/preview/dev smoke/Chromium price-visibility PASS.
+- Exact-head cleanup [41014174522 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174522) on `643d2821ab0483acc12ef21abc453a0c745f2865`.
+- Exact-head P2 [41014174609 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174609): authenticated E2E infra SUCCESS; public UI smoke SUCCESS; local Supabase order/tenant workflow is in finance/task print browser step; hosted customer/order/tenant SKIPPED (not PASS).
+- Known P2 previous root cause: run [41013629372 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41013629372), SHA `2761904cfa661ac4fd221d9b2ff801cd970aaad8`, failed only at `e2e/finance-task-print.spec.ts:51` because hidden sidebar was queried by accessible complementary role. Use `#admin-sidebar`, preserve aria-label, hidden/visible, focus, Escape and return-focus assertions. Current P2 run is already in progress; poll it before retry.
+- P2 integration remains pending: full server-derived tenant aggregate, decision outcome atomic persistence/idempotency/audit, actual free quota reservation/privacy enforcement/429 cooldown, real system probes, canonical RBAC payload. Contract: `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`.
+- P1 integration remains pending: route/workspace composition using `ActionCard` and `EvidencePassport` from `@/components/intelligence`, actual P2 DTO only, visible null/unavailable/loading/error/retry states, separate currencies, scenario SIMULATED label, lifecycle actions through P2.
+- REF matrix: all 16 rows remain `P3_IMPLEMENTED / CI_PENDING / P1_P2_PENDING` until respective integration evidence; Core is now PASS on current SHA but P1/P2 dependencies remain open. No DLV roll-up is closed.
+- Release: **NO-GO**; hosted tenant journey SKIPPED; actual Onyx Pro round-trip, official WhatsApp delivery receipt, live AI provider, production operations and owner sign-off remain unverified.
+- Exact next command: poll existing P2 run `41014174609`; on failure inspect the exact failed job log, repair the P2-owned path, then consume the resulting owner commit through one-by-one CAS merge. Do not duplicate Core `41014174530`.
+- This live override supersedes every historical next action below.
+
+---
+
 # LIVE RESUME OVERRIDE — 2026-10-30 — SUPERSEDES ALL OLDER P3 NEXT ACTIONS
 - Resume base: code-bearing main `a23c0b5cea98730f59093aa2f3e8f658509eddb4`. Core run `41010611128` is IN_PROGRESS on this exact SHA; poll it. The earlier `41007817600` and cleanup `41007817667` passed only on ancestor `af0d73aa50a73ebc6c86fb02977296f3e106d2e0`; do not transfer those results.
 - P3 is sole Integration Captain and sole owner of CURRENT_EXECUTION_STATE, the existing acceptance CSV/registry/EXECUTION_LOG/master spec/protocol, integration queue and P3 checkpoint. Do not create a parallel ledger.
