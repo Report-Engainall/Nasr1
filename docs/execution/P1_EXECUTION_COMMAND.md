@@ -1,5 +1,5 @@
 # P1 LIVE SESSION COMMAND — 2026-10-30 — MOBILE FOCUS + INTELLIGENCE WORKSPACE
-Current main SHA: `b52271629f054f5d9750e2d4dbf247e22c90f8c7`. P3 has published the typed presentation components on main: `LiquiditySummary`, `CashflowForecastCard`, `DeadStockCard`, `ReplenishmentCard` and shared state/evidence panels. Import from `@/components/intelligence`; full component contract: `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`.
+Current main docs cursor: `31d1bef20a2dfe909e92078c94de8c07545d4348`; code SHA: `b52271629f054f5d9750e2d4dbf247e22c90f8c7`. P3 has published the typed presentation components on main: `LiquiditySummary`, `CashflowForecastCard`, `DeadStockCard`, `ReplenishmentCard` and shared state/evidence panels. Import from `@/components/intelligence`; full component contract: `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`.
 
 ## P1 actions
 1. Repair first-item focus after mobile admin drawer opens in `src/components/AghbariApp.tsx`. P2 exact browser failure [41014864616](https://github.com/Report-Engainall/Nasr1/actions/runs/41014864616) on 68fccf: at `e2e/finance-task-print.spec.ts:69`, drawer visible/labelled, but first navigation item does not receive focus.

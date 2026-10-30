@@ -10,7 +10,7 @@
 - P2 owns `scripts/**` concurrency barrier, tenant-safe aggregate/persistence, AI quota/privacy enforcement, health probes and server RBAC. Do not edit P2 paths from P3.
 - Acceptance CSV: 143 task IDs / 18 DLV groups / 16 REF entries. All 16 REF remain `P3_IMPLEMENTED / CI_PENDING / P1_P2_PENDING`; no DLV rollup is closed.
 - Release gate remains **NO-GO**: hosted tenant, Onyx Pro round-trip, official WhatsApp, live AI, production operations and owner sign-off remain unproven.
-- `exact_next_command`: poll P2 run 41017608501; require P2 to repair deterministic PG17 receipt lock-observation barrier without weakening concurrency/idempotency. In parallel P1 repairs mobile focus; P2 ships aggregate/atomic outcome backend. Then P3 refreshes cursor/integrates tested owner batches.
+- `exact_next_command`: P1 repairs first-item mobile drawer focus; P2 repairs PG17 receipt-race session readiness/barrier and delivers server aggregates/atomic outcome commands. Current Core runs: 41018275584 on 47865baa and 41018520349 on 31d1bef were both IN_PROGRESS at last observation; check exact SHA before transferring evidence.
 - Integration queue: no new P1/P2 owner patch received; P3's four presentation components are on main but full Core is blocked by the P2 PG17 test failure.
 
 ---

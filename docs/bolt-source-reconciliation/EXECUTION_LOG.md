@@ -1,3 +1,13 @@
+## Final P2 test result and current Core watch — 2026-10-30
+- Current main docs cursor before this update: `31d1bef20a2dfe909e92078c94de8c07545d4348`; code SHA: `b52271629f054f5d9750e2d4dbf247e22c90f8c7`.
+- P2 run [41017608501 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41017608501): auth gate/public smoke SUCCESS; local order persistence/cross-tenant denial, returns/credit memo, Onyx XLSX export SUCCESS. Mobile drawer focus assertion failed at `e2e/finance-task-print.spec.ts:69`; finance/task print assertions were not reached; hosted customer/order/tenant SKIPPED.
+- Core [41017608436 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41017608436) on code SHA b522716 failed in P2 PG17 receipt-race barrier at script line 3105 after Unit tests completed. Both RPC results were successful after gate release; P2 must fix connection readiness/sample timing without weakening concurrency/idempotency assertions.
+- Core [41018275584](https://github.com/Report-Engainall/Nasr1/actions/runs/41018275584) on docs SHA 47865baa had progressed through PG17 backup/restore and other DB acceptance; at last poll Lint was in progress. Core [41018520349](https://github.com/Report-Engainall/Nasr1/actions/runs/41018520349) on docs SHA 31d1bef was in Unit tests. Both are independent SHA runs; poll each recorded run, never transfer PASS.
+- P1 owns the production mobile drawer first-focus correction. P2 owns the concurrency test harness and backend DTO/persistence/AI/privacy/health/RBAC. P3 does not edit either reserved file area.
+- exact_next_command: P1 repair focus and prove 360px keyboard behavior; P2 fix PG17 race barrier and deliver tenant aggregate; poll Core runs before the next integration.
+ 
+---
+ 
 ## P2 run 41017608501 final result — 2026-10-30 — exact SHA b52271629f054f5d9750e2d4dbf247e22c90f8c7
 - [P2 Playwright Critical Paths 41017608501 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41017608501). Authenticated infrastructure and public UI smoke passed; local PostgreSQL/Supabase path passed order persistence and cross-tenant denial, returns/credit memo, and audited Onyx XLSX export.
 - The Chromium test failed at `e2e/finance-task-print.spec.ts:69`: after the admin drawer opened and passed label/expanded/visibility checks, the first navigation button remained inactive; `toBeFocused()` timed out at 20s. The failure occurred in the helper invoked by the finance print test. The invoice/statement/task print-specific assertions were not reached and must not be marked pass or fail.
