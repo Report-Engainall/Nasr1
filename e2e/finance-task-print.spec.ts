@@ -41,6 +41,55 @@ async function printPopup(page: Page, printButton: Locator, expectedText: string
   await popup.close();
 }
 
+async function assertAdminMobileNavigation(page: Page): Promise<void> {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto("/admin");
+  const trigger = page.locator(".mobile-menu");
+  const sidebar = page.getByRole("complementary", { name: "القائمة الإدارية" });
+  await expect(trigger, "The authenticated admin shell must expose a mobile navigation control.").toBeVisible();
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(sidebar).toHaveCSS("visibility", "hidden");
+
+  const mobileFit = await page.evaluate(() => ({
+    lang: document.documentElement.lang.toLowerCase(),
+    direction: getComputedStyle(document.documentElement).direction,
+    viewportWidth: window.innerWidth,
+    documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+  }));
+  expect(mobileFit.lang).toMatch(/^ar(?:-|$)/);
+  expect(mobileFit.direction).toBe("rtl");
+  expect(mobileFit.documentWidth, "The admin dashboard must not overflow at 360px.").toBeLessThanOrEqual(mobileFit.viewportWidth + 1);
+
+  await trigger.click();
+  const navigation = page.getByRole("navigation", { name: "التنقل الإداري" });
+  const firstItem = navigation.locator("button").first();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await expect(sidebar).toHaveCSS("visibility", "visible");
+  await expect(firstItem).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(trigger).toBeFocused();
+  await expect(sidebar).toHaveCSS("visibility", "hidden");
+
+  await trigger.click();
+  const productsItem = navigation.getByRole("button", { name: "إدارة المنتجات" });
+  await expect(productsItem).toBeVisible();
+  await productsItem.click();
+  await expect(page).toHaveURL(/\/admin\/products\/?$/);
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(trigger).toBeFocused();
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(sidebar).toHaveCSS("visibility", "visible");
+  await expect(trigger).toBeHidden();
+  const desktopFit = await page.evaluate(() => ({
+    viewportWidth: window.innerWidth,
+    documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+  }));
+  expect(desktopFit.documentWidth, "The admin product route must not overflow at 1280px.").toBeLessThanOrEqual(desktopFit.viewportWidth + 1);
+}
+
 test("authorized finance documents and operational-task print remain tenant-scoped in the real UI", async ({ browser }) => {
   const managerEmail = requiredEnv("E2E_MANAGER_EMAIL");
   const managerPassword = requiredEnv("E2E_MANAGER_PASSWORD");
@@ -64,6 +113,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
 
   try {
     await signIn(manager, managerEmail, managerPassword);
+    await assertAdminMobileNavigation(manager);
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
@@ -127,6 +177,12 @@ test("authorized finance documents and operational-task print remain tenant-scop
         result: "BROWSER_PROVEN",
         sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
         isolatedLocalOnly: true,
+        adminMobileNavigation: "BROWSER_PROVEN",
+        adminDrawerFocusAndEscape: true,
+        adminNavigationClosesDrawer: true,
+        adminMobileViewportWidth: 360,
+        adminDesktopViewportWidth: 1280,
+        adminViewportOverflow: false,
         invoicePrinted: true,
         fullStatementPrinted: true,
         postedOrReversedCreditMemoPrintAttempted: true,
