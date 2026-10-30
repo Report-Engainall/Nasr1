@@ -20,9 +20,21 @@ function sameEvent(a:DecisionOutcomeEventRecord,b:DecisionOutcomeEvent):boolean 
   JSON.stringify(a.measuredOutcome??null)===JSON.stringify(b.measuredOutcome??null);
 }
 function validMeasurement(m:DecisionMeasuredOutcome|undefined):boolean {
- const monetary=m?.unit==="CURRENCY"||m?.unit==="CURRENCY_PER_UNIT";
- return Boolean(m&&m.value!==null&&Number.isFinite(m.value)&&m.unit.trim()&&Number.isFinite(Date.parse(m.measuredAt))&&
-  m.evidenceIds.length>0&&m.evidenceIds.every(id=>id.trim())&&(!monetary||Boolean(m.currency?.trim())));
+ if(!m)return false;
+ const monetary=m.unit==="CURRENCY"||m.unit==="CURRENCY_PER_UNIT";
+ const asOf=Date.parse(m.asOf),measuredAt=Date.parse(m.measuredAt);
+ const periodValid=m.period===null||
+  (Number.isFinite(Date.parse(m.period.from))&&Number.isFinite(Date.parse(m.period.to))&&
+   Date.parse(m.period.from)<=Date.parse(m.period.to));
+ const evidenceIds=Array.isArray(m.evidenceIds)?m.evidenceIds:[];
+ return Boolean(
+  m.metricKey.trim()&&Number.isFinite(m.value)&&m.unit.trim()&&
+  m.status==="VERIFIED"&&m.completeness==="COMPLETE"&&m.quality==="ACCEPTABLE"&&
+  Number.isFinite(asOf)&&Number.isFinite(measuredAt)&&asOf<=measuredAt&&periodValid&&
+  m.formulaId.trim()&&m.formulaVersion.trim()&&
+  evidenceIds.length>0&&new Set(evidenceIds).size===evidenceIds.length&&evidenceIds.every(id=>typeof id==="string"&&id.trim())&&
+  (!monetary||Boolean(m.currency?.trim()))
+ );
 }
 /** Pure transition policy only; P2 must persist actor, tenant, idempotency, version and audit atomically. */
 export function transitionDecisionOutcome(outcome:DecisionOutcome,event:DecisionOutcomeEvent):DecisionTransitionResult {
