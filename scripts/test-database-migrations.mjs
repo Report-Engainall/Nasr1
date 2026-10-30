@@ -7952,7 +7952,7 @@ async function main() {
   }
 
   await runSessionManagementAcceptance({ db, setIdentity, expectFailure });
-  // PostgreSQL 17 suite covers staff-denied posting/reversal and complete before/after snapshots.
+  // PostgreSQL 17 suite covers staff-denied posting/void/reversal and complete before/after snapshots.
   await runGeneralLedgerReversalAcceptance({
     db,
     setIdentity,
