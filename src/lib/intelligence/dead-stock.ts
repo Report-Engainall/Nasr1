@@ -126,6 +126,7 @@ export function buildDeadStockReport(input:{
  });
  const noPopulationEvidence=items.length===0;
  const warnings=[...new Set([...items.flatMap(item=>item.warnings),...(noPopulationEvidence?["NO_PRODUCT_POPULATION_EVIDENCE"]:[])])];
- const status:EvidenceStatus=noPopulationEvidence?"UNAVAILABLE":items.every(item=>item.movementStatus==="VERIFIED")?"VERIFIED":"NEEDS_REVIEW";
+ const statuses=items.map(item=>item.movementStatus);
+ const status:EvidenceStatus=noPopulationEvidence?"UNAVAILABLE":statuses.includes("UNVERIFIED")?"UNVERIFIED":statuses.includes("UNAVAILABLE")?"UNAVAILABLE":statuses.includes("NEEDS_REVIEW")?"NEEDS_REVIEW":"VERIFIED";
  return {id:input.id,asOf:input.asOf,period:input.period,ruleId:rule.id,ruleVersion:rule.version,status,items,totalsByCurrency,warnings};
 }

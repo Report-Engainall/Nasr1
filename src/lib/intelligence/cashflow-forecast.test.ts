@@ -28,6 +28,8 @@ describe("scheduled cash-flow forecast",()=>{
  it("withholds projection for unknown due dates",()=>{
   const r=buildCashflowForecast(base([entry("a","INFLOW","next Friday",20)]));
   expect(r.points[0].projectedBalance).toBeNull();
+  expect(r.points[0].status).toBe("NEEDS_REVIEW");
+  expect(r.points[0].scheduleComplete).toBe(false);
   expect(r.points[0].warnings).toContain("INVALID_DUE_DATE");
  });
 });

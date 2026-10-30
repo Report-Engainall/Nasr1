@@ -81,7 +81,7 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
    const projected=complete&&openingValid?(openingValue as number)+knownInflow-knownOutflow:null;
    let status:EvidenceStatus="VERIFIED";
    if(!openingValid)status=opening.status==="UNVERIFIED"?"UNVERIFIED":opening.status==="UNAVAILABLE"?"UNAVAILABLE":"NEEDS_REVIEW";
-   else if(!complete)status=scheduleStatus;
+   else if(!complete)status=scheduleStatus==="VERIFIED"?"NEEDS_REVIEW":scheduleStatus;
    const sources=[opening,...window.flatMap(x=>x.metric?[x.metric]:[])];
    const evidenceIds=[...new Set(sources.flatMap(m=>m.lineage.evidenceIds))];
    const formulaVersions=[...new Set(sources.map(m=>m.lineage.formulaId+"@"+m.lineage.formulaVersion))];

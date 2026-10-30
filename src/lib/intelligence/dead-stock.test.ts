@@ -33,4 +33,10 @@ describe("dead-stock engine",()=>{
   expect(r.totalsByCurrency).toEqual([]);
   expect(r.warnings).toContain("NO_PRODUCT_POPULATION_EVIDENCE");
  });
+ it("preserves an UNVERIFIED item status in the report roll-up",()=>{
+  const p={productRef:"P-005",lastMovementAt:"not-a-valid-date",movementCoverage:{status:"VERIFIED" as const,period,completeness:"COMPLETE" as const,quality:"ACCEPTABLE" as const,evidenceIds:["mv"]},availableQuantity:metric("qty","QUANTITY",2),quantityUnit:"EA",unitCost:null,soldQuantityWindow:null,averageInventoryWindow:null};
+  const r=buildDeadStockReport({id:"d",asOf,period,evidenceRecords:[evidence("mv"),evidence("qty")],products:[p],rule});
+  expect(r.items[0].movementStatus).toBe("UNVERIFIED");
+  expect(r.status).toBe("UNVERIFIED");
+ });
 });

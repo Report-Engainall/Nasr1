@@ -1,5 +1,5 @@
 import {buildEvidencePassport} from "./evidence-passport";
-import type {DecisionCandidate,DecisionImpact,DecisionImpactStatus,DecisionPriority,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
+import type {DecisionCandidate,DecisionImpact,DecisionImpactStatus,DecisionPriority,EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
 export type DecisionOperator="GTE"|"GT"|"LTE"|"LT"|"EQ";
 export type ImpactOperation="IDENTITY"|"SUM"|"PRODUCT";
 export interface ImpactFormula {id:string;version:string;operation:ImpactOperation;metricKeys:string[];resultUnit:string}
@@ -21,7 +21,7 @@ function meets(value:number,op:DecisionOperator,threshold:number):boolean {
  switch(op){case "GTE":return value>=threshold;case "GT":return value>threshold;case "LTE":return value<=threshold;case "LT":return value<threshold;case "EQ":return value===threshold}
 }
 const withheld=(rule:DecisionRule,reason:WithheldDecisionReason,status:EvidenceStatus|null,explanation:string):WithheldDecision=>({ruleId:rule.id,metricKey:rule.metricKey,reason,evidenceStatus:status,explanation});
-function impactFor(formula:ImpactFormula|undefined,index:Map<string,MetricSnapshot[]>):{impact:DecisionImpact|null;status:DecisionImpactStatus;reason:string|null} {
+function impactFor(formula:ImpactFormula|undefined,index:Map<string,MetricSnapshot[]>,anchor:MetricSnapshot):{impact:DecisionImpact|null;status:DecisionImpactStatus;reason:string|null} {
  if(!formula)return {impact:null,status:"NOT_CONFIGURED",reason:"NO_APPROVED_IMPACT_FORMULA"};
  if(!formula.id.trim()||!formula.version.trim()||!formula.resultUnit.trim()||!formula.metricKeys.length||
   (formula.operation==="IDENTITY"&&formula.metricKeys.length!==1)||(formula.operation==="PRODUCT"&&formula.metricKeys.length!==2)||
@@ -30,8 +30,10 @@ function impactFor(formula:ImpactFormula|undefined,index:Map<string,MetricSnapsh
  for(const key of formula.metricKeys){const rows=index.get(key)??[];if(rows.length!==1)return {impact:null,status:"WITHHELD",reason:"IMPACT_SOURCE_MISSING"};
   const m=rows[0];if(m.status!=="VERIFIED"||m.completeness!=="COMPLETE"||m.quality!=="ACCEPTABLE"||m.value===null||!m.lineage.evidenceIds.length)
    return {impact:null,status:"WITHHELD",reason:"IMPACT_NOT_VERIFIED"};sources.push(m)}
+ const samePeriod=(a:EvidencePeriod|null,b:EvidencePeriod|null)=>a===null||b===null?a===b:a.from===b.from&&a.to===b.to;
+ if(sources.some(m=>m.asOf!==anchor.asOf||!samePeriod(m.period,anchor.period)))return {impact:null,status:"WITHHELD",reason:"IMPACT_SCOPE_MISMATCH"};
  const values=sources.map(m=>numeric(m.value));if(values.some(v=>v===null))return {impact:null,status:"WITHHELD",reason:"IMPACT_NOT_VERIFIED"};
- const currencySources=sources.filter(m=>m.unit==="CURRENCY");
+ const currencySources=sources.filter(m=>m.unit==="CURRENCY"||m.unit==="CURRENCY_PER_UNIT");
  if(currencySources.some(m=>!m.currency?.trim()))return {impact:null,status:"WITHHELD",reason:"CURRENCY_MISMATCH"};
  const currencies=[...new Set(currencySources.map(m=>m.currency as string))];
  if(currencies.length>1)return {impact:null,status:"WITHHELD",reason:"CURRENCY_MISMATCH"};
@@ -46,7 +48,7 @@ function impactFor(formula:ImpactFormula|undefined,index:Map<string,MetricSnapsh
  if(formula.operation==="SUM")value=n.reduce((a,b)=>a+b,0);
  if(formula.operation==="PRODUCT")value=n[0]*n[1];
  if(!Number.isFinite(value)||Math.abs(value)>Number.MAX_SAFE_INTEGER)return {impact:null,status:"WITHHELD",reason:"INVALID_IMPACT_FORMULA"};
- if(formula.resultUnit==="CURRENCY"&&currencies.length!==1)return {impact:null,status:"WITHHELD",reason:"CURRENCY_MISMATCH"};
+ if((formula.resultUnit==="CURRENCY"||formula.resultUnit==="CURRENCY_PER_UNIT")&&currencies.length!==1)return {impact:null,status:"WITHHELD",reason:"CURRENCY_MISMATCH"};
  return {impact:{value,unit:formula.resultUnit,...(currencies.length===1?{currency:currencies[0]}:{}),formulaId:formula.id,formulaVersion:formula.version,sourceMetricIds:sources.map(m=>m.id)},status:"CALCULATED",reason:null};
 }
 function expiry(at:string,days:number|undefined):string|null {
@@ -82,7 +84,7 @@ export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisio
   const value=numeric(metric.value);if(value===null){reasons.push(withheld(rule,"UNKNOWN_VALUE",metric.status,"Metric is unknown or nonnumeric; it was not converted to zero."));continue}
   if(metric.unit==="CURRENCY"&&!metric.currency?.trim()){reasons.push(withheld(rule,"CURRENCY_MISMATCH",metric.status,"Currency is not identified."));continue}
   if(!meets(value,rule.operator,rule.threshold))continue;
-  const impact=impactFor(rule.impactFormula,index);
+  const impact=impactFor(rule.impactFormula,index,metric);
   const related=(rule.impactFormula?.metricKeys??[]).flatMap(key=>index.get(key)??[]);
   const proofMetrics=[metric,...related],evidenceIds=[...new Set(proofMetrics.flatMap(m=>m.lineage.evidenceIds))];
   const formulaVersions=[...new Set(proofMetrics.map(m=>m.lineage.formulaId+"@"+m.lineage.formulaVersion))];

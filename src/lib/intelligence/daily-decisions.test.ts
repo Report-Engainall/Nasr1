@@ -15,4 +15,16 @@ describe("daily decision engine",()=>{
  it("refuses to add different currencies",()=>{const usd=metric({id:"u",key:"cash.usd",value:100,unit:"CURRENCY",currency:"USD",lineage:{...metric().lineage,evidenceIds:["ev-2"]}}),yer=metric({id:"y",key:"cash.yer",value:5000,unit:"CURRENCY",currency:"YER",lineage:{...metric().lineage,evidenceIds:["ev-3"]}});const r=buildDailyDecisions(input({metrics:[metric(),usd,yer],evidenceRecords:[evidence(),{...evidence("ev-2"),currency:"USD"},{...evidence("ev-3"),currency:"YER"}],rules:[rule({impactFormula:{id:"total",version:"1",operation:"SUM",metricKeys:["cash.usd","cash.yer"],resultUnit:"CURRENCY"}})]}));expect(r.candidates[0].impact).toBeNull();expect(r.candidates[0].impactReason).toBe("CURRENCY_MISMATCH");expect(r.candidates[0].proof.evidenceIds).toEqual(["ev-1","ev-2","ev-3"])});
  it("calculates impact only with an explicit versioned formula",()=>{const r=buildDailyDecisions(input({rules:[rule({impactFormula:{id:"pending-count",version:"2",operation:"IDENTITY",metricKeys:["orders.pending"],resultUnit:"COUNT"}})]}));expect(r.candidates[0].impact).toMatchObject({value:7,formulaVersion:"2"});expect(r.candidates[0].impactStatus).toBe("CALCULATED")});
  it("omits a candidate when threshold is not met and rejects invalid clock input",()=>{expect(buildDailyDecisions(input({metrics:[metric({value:2})]})).candidates).toEqual([]);expect(()=>buildDailyDecisions({...input(),generatedAt:"bad-date"})).toThrow()});
+ it("does not sum per-unit monetary impacts across currencies",()=>{
+  const usd=metric({id:"u",key:"unit-cost.usd",value:5,unit:"CURRENCY_PER_UNIT",currency:"USD",lineage:{...metric().lineage,evidenceIds:["ev-usd"]}});
+  const yer=metric({id:"y",key:"unit-cost.yer",value:1200,unit:"CURRENCY_PER_UNIT",currency:"YER",lineage:{...metric().lineage,evidenceIds:["ev-yer"]}});
+  const r=buildDailyDecisions(input({metrics:[metric(),usd,yer],evidenceRecords:[evidence(),{...evidence("ev-usd"),currency:"USD"},{...evidence("ev-yer"),currency:"YER"}],rules:[rule({impactFormula:{id:"unit-cost-total",version:"1",operation:"SUM",metricKeys:["unit-cost.usd","unit-cost.yer"],resultUnit:"CURRENCY_PER_UNIT"}})]}));
+  expect(r.candidates[0].impact).toBeNull();expect(r.candidates[0].impactStatus).toBe("WITHHELD");expect(r.candidates[0].impactReason).toBe("CURRENCY_MISMATCH");
+ });
+ it("withholds impact across different metric periods",()=>{
+  const priorPeriod={from:"2026-09-01",to:"2026-09-30"};
+  const prior=metric({id:"prior",key:"orders.prior",value:3,period:priorPeriod,lineage:{...metric().lineage,evidenceIds:["ev-prior"]}});
+  const r=buildDailyDecisions(input({metrics:[metric(),prior],evidenceRecords:[evidence(),{...evidence("ev-prior"),period:priorPeriod}],rules:[rule({impactFormula:{id:"period-sum",version:"1",operation:"SUM",metricKeys:["orders.pending","orders.prior"],resultUnit:"COUNT"}})]}));
+  expect(r.candidates[0].impact).toBeNull();expect(r.candidates[0].impactStatus).toBe("WITHHELD");expect(r.candidates[0].impactReason).toBe("IMPACT_SCOPE_MISMATCH");
+ });
 });
