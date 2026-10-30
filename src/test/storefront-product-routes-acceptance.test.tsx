@@ -273,6 +273,20 @@ describe("public storefront product route acceptance", () => {
     expect(findCompareButton()?.getAttribute("aria-pressed")).toBe("false");
   });
 
+  it("fails closed when product inventory is unknown instead of reporting zero stock", async () => {
+    mocks.fetchProducts.mockResolvedValue([{ ...PRODUCT, inventory: undefined, description: null }]);
+    await mountRoute(`/product/${PRODUCT_ID}`);
+
+    expect(host?.textContent).toContain("تعذر التحقق من الكمية المتاحة لهذا المنتج.");
+    expect(host?.textContent).not.toContain("هذا المنتج غير متوفر حالياً");
+    expect(host?.textContent).toContain("لا يوجد وصف متاح لهذا المنتج.");
+    expect(host?.textContent).not.toContain("منتج متوفر للطلب بالجملة من متجر الأغبري.");
+    const addButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("إضافة إلى السلة"));
+    expect(addButton).toBeTruthy();
+    expect(addButton?.disabled).toBe(true);
+  });
+
   it("prevents adding a product when available stock is below its minimum order quantity", async () => {
     mocks.fetchProducts.mockResolvedValue([{ ...PRODUCT, min_order_quantity: 9 }]);
     await mountRoute(`/product/${PRODUCT_ID}`);

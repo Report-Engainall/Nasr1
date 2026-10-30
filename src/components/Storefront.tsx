@@ -995,10 +995,13 @@ export function ProductDetail({
   onWishlist: () => void;
   onCompare: () => void;
 }) {
-  const quantity = product.inventory?.quantity_available ?? 0;
+  const rawAvailableQuantity = product.inventory?.quantity_available;
+  const quantityKnown = typeof rawAvailableQuantity === 'number' &&
+    Number.isFinite(rawAvailableQuantity) && rawAvailableQuantity >= 0;
+  const quantity = quantityKnown ? Math.floor(rawAvailableQuantity) : 0;
   const minimumOrderQuantity = Number.isSafeInteger(product.min_order_quantity) && Number(product.min_order_quantity) >= 1
     ? Number(product.min_order_quantity) : 1;
-  const belowMinimum = quantity > 0 && quantity < minimumOrderQuantity;
+  const belowMinimum = quantityKnown && quantity > 0 && quantity < minimumOrderQuantity;
   const pricePresentation = resolveStorefrontPricePresentation(priceVisibilityPolicy, product.display_price);
 
   return (
@@ -1016,22 +1019,24 @@ export function ProductDetail({
           <span className="sf-detail-category">{product.category?.name ?? 'غير مصنف'}</span>
           <h2>{product.name}</h2>
           {product.name_en ? <p dir="auto" style={{ margin: '-4px 0 12px', color: '#5f777b', fontSize: 14, fontWeight: 500 }}>{product.name_en}</p> : null}
-          <p className="sf-detail-description">{product.description || 'منتج متوفر للطلب بالجملة من متجر الأغبري.'}</p>
+          <p className="sf-detail-description">{product.description || 'لا يوجد وصف متاح لهذا المنتج.'}</p>
           <StorefrontPricePresentation
             policyValue={priceVisibilityPolicy}
             serverUnitPrice={product.display_price}
             className="sf-detail-price"
             unitLabel={`لكل ${product.unit}`}
           />
-          <div className={`sf-detail-stock ${quantity > 0 && !belowMinimum ? 'available' : 'unavailable'}`}>
-            {quantity <= 0
-              ? 'هذا المنتج غير متوفر حالياً'
-              : belowMinimum
-                ? `المتوفر (${formatNumber(quantity)} ${product.unit}) أقل من الحد الأدنى للطلب (${formatNumber(minimumOrderQuantity)} ${product.unit})`
-                : `متوفر حالياً: ${formatNumber(quantity)} ${product.unit}`}
+          <div className={`sf-detail-stock ${quantityKnown && quantity > 0 && !belowMinimum ? 'available' : 'unavailable'}`} role="status" aria-live="polite">
+            {!quantityKnown
+              ? 'تعذر التحقق من الكمية المتاحة لهذا المنتج. أعد تحميل تفاصيل المنتج قبل الإضافة.'
+              : quantity <= 0
+                ? 'هذا المنتج غير متوفر حالياً'
+                : belowMinimum
+                  ? `المتوفر (${formatNumber(quantity)} ${product.unit}) أقل من الحد الأدنى للطلب (${formatNumber(minimumOrderQuantity)} ${product.unit})`
+                  : `متوفر حالياً: ${formatNumber(quantity)} ${product.unit}`}
           </div>
           <div className="sf-detail-actions">
-            <button type="button" className="sf-btn-primary" disabled={quantity < minimumOrderQuantity} onClick={onAdd}><ShoppingCart size={17} /> إضافة إلى السلة</button>
+            <button type="button" className="sf-btn-primary" disabled={!quantityKnown || quantity < minimumOrderQuantity} onClick={onAdd}><ShoppingCart size={17} /> إضافة إلى السلة</button>
             <button type="button" className={`sf-icon-action ${inWishlist ? 'active' : ''}`} aria-pressed={inWishlist} onClick={onWishlist}>
               <Heart size={18} fill={inWishlist ? 'currentColor' : 'none'} /> {inWishlist ? 'في المفضلة' : 'أضف للمفضلة'}
             </button>
