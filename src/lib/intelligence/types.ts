@@ -12,7 +12,7 @@ export interface EvidenceRecord {
 }
 export interface MetricLineage {evidenceIds:string[];calculatedAt:string;formulaId:string;formulaVersion:string;transformations:string[]}
 export interface MetricSnapshot {
- id:string;key:string;value:number|string|null;unit:MetricUnit;currency?:string;status:EvidenceStatus;
+ id:string;key:string;value:number|string|null;unit:MetricUnit;currency?:string;unitOfMeasure?:string;status:EvidenceStatus;
  completeness:DataCompleteness;quality:DataQuality;period:EvidencePeriod|null;asOf:string;lineage:MetricLineage;warnings:string[];
 }
 export interface EvidencePassport {

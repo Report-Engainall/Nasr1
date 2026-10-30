@@ -45,7 +45,7 @@ Renders ACTIVE/SLOW_MOVING/STAGNANT/ZERO_MOVEMENT/UNKNOWN classification and its
 - `state?: loading | empty | error | unavailable | ready`
 - `onRetry?: () => void`
 
-Renders ATP, reorder point, demand, supplier lead-time demand, target and proposed quantity with status/warnings/evidence. The current engine contract does not return a UOM, so the component explicitly does not invent one. It is a recommendation-only display; it never creates a purchase order. `automaticPurchase` remains false.
+Renders ATP, reorder point, demand, supplier lead-time demand, target and proposed quantity with status/warnings/evidence. The proposed quantity is displayed with `quantityUnit` only when every quantity source UOM is verified to match the product's canonical unit; missing UOM is NEEDS_REVIEW and mismatch is UNVERIFIED, both withholding the quantity. It is a recommendation-only display; it never creates a purchase order. `automaticPurchase` remains false.
 
 ## Integration and safety
 P1 owns route mounting, tenant-safe request orchestration and interactions. Consume the P2 server DTO only; do not pass browser-supplied tenantId, actor, role or capabilities. Keep currencies separate. Scenario outputs are SIMULATED and never accounting facts. Decision lifecycle actions must call a P2-published command, not mutate local state. Null is unknown, never zero. AI must never receive raw PII or commercial source records.

@@ -6,7 +6,7 @@ export interface ReplenishmentProductInput {
  supplierLeadTimeDays:MetricSnapshot;minimumOrderQuantity?:MetricSnapshot|null;orderMultiple?:MetricSnapshot|null;quantityUnit:string;
 }
 export interface ReplenishmentRecommendation {
- productRef:string;status:EvidenceStatus;action:"RECOMMEND"|"NO_ACTION"|"WITHHELD";availableToPromise:number|null;
+ productRef:string;status:EvidenceStatus;action:"RECOMMEND"|"NO_ACTION"|"WITHHELD";quantityUnit:string|null;availableToPromise:number|null;
  reorderPoint:number|null;dailyDemand:number|null;leadTimeDemand:number|null;targetStock:number|null;recommendedQuantity:number|null;
  formulaId:string;formulaVersion:string;evidenceIds:string[];warnings:string[];automaticPurchase:false;
 }
@@ -37,7 +37,19 @@ export function buildReplenishmentRecommendations(input:{
    const source=index.get(metric.id);if(!source)return {value:null,status:"UNVERIFIED",metric:null};
    if(source.status!=="VERIFIED"||source.completeness!=="COMPLETE"||source.quality!=="ACCEPTABLE"||source.asOf!==input.asOf||source.unit!==unit||!source.lineage.evidenceIds.length)
     return {value:null,status:source.status==="VERIFIED"?"NEEDS_REVIEW":source.status,metric:source};
-   if((unit==="QUANTITY"&&source.period&&(source.period.from!==input.period.from||source.period.to!==input.period.to))||
+   if(unit==="QUANTITY"){
+    if(!product.quantityUnit.trim()||!source.unitOfMeasure?.trim()){
+     warnings.push("QUANTITY_UOM_MISSING");
+     return {value:null,status:"NEEDS_REVIEW",metric:source};
+    }
+    if(source.unitOfMeasure.trim()!==product.quantityUnit.trim()){
+     warnings.push("QUANTITY_UOM_MISMATCH");
+     return {value:null,status:"UNVERIFIED",metric:source};
+    }
+   }
+   if((metric.id===product.soldQuantityWindow.id&&
+       (!source.period||source.period.from!==input.period.from||source.period.to!==input.period.to))||
+      (unit==="QUANTITY"&&source.period&&(source.period.from!==input.period.from||source.period.to!==input.period.to))||
       (unit==="DAYS"&&source.period!==null))return {value:null,status:"NEEDS_REVIEW",metric:source};
    const value=numeric(source.value);return value===null||value<0?{value:null,status:"NEEDS_REVIEW",metric:source}:{value,status:"VERIFIED",metric:source};
   };
@@ -45,11 +57,11 @@ export function buildReplenishmentRecommendations(input:{
   const optional=[product.minimumOrderQuantity?read(product.minimumOrderQuantity,"QUANTITY"):null,product.orderMultiple?read(product.orderMultiple,"QUANTITY"):null];
   const required=[atp,rop,sold,lead],bad=required.find(r=>r.status!=="VERIFIED")??optional.find(r=>r&&r.status!=="VERIFIED");
   if(bad){warnings.push("REQUIRED_OR_CONFIGURED_INPUT_NOT_VERIFIED");return {
-   productRef:product.productRef,status:bad.status,action:"WITHHELD",availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
+   productRef:product.productRef,status:bad.status,action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
    recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
   }}
   if(required.some(r=>r.value===null)||optional.some(r=>r&&r.value===null)){warnings.push("UNKNOWN_INPUT");return {
-   productRef:product.productRef,status:"NEEDS_REVIEW",action:"WITHHELD",availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
+   productRef:product.productRef,status:"NEEDS_REVIEW",action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
    recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
   }}
   const dailyDemand=(sold.value as number)/periodDays,leadDemand=dailyDemand*(lead.value as number),target=Math.max(rop.value as number,leadDemand);
@@ -59,12 +71,12 @@ export function buildReplenishmentRecommendations(input:{
   if(multiple!==null&&multiple>0&&recommended>0)recommended=Math.ceil(recommended/multiple)*multiple;
   const safe=[dailyDemand,leadDemand,target,recommended].every(n=>Number.isFinite(n)&&Math.abs(n)<=Number.MAX_SAFE_INTEGER);
   if(!safe){warnings.push("RECOMMENDED_QUANTITY_OVERFLOW");return {
-   productRef:product.productRef,status:"NEEDS_REVIEW",action:"WITHHELD",availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
+   productRef:product.productRef,status:"NEEDS_REVIEW",action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
    recommendedQuantity:null,formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
   }}
   return {
    productRef:product.productRef,status:"VERIFIED",action:recommended>0?"RECOMMEND":"NO_ACTION",
-   availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand,leadTimeDemand:leadDemand,targetStock:target,recommendedQuantity:recommended,
+   quantityUnit:product.quantityUnit.trim(),availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand,leadTimeDemand:leadDemand,targetStock:target,recommendedQuantity:recommended,
    formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
   };
  });

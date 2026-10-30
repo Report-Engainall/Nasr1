@@ -6,9 +6,9 @@ import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishme
 
 const recommendations: ReplenishmentRecommendation[] = [
   { productRef: "SKU-LOW", status: "VERIFIED", action: "RECOMMEND", availableToPromise: 2, reorderPoint: 8, dailyDemand: 2, leadTimeDemand: 6,
-    targetStock: 8, recommendedQuantity: 6, formulaId: "inventory.replenishment-target", formulaVersion: "1.0.0", evidenceIds: ["e1"], warnings: [], automaticPurchase: false },
+    targetStock: 8, recommendedQuantity: 6, quantityUnit: "EA", formulaId: "inventory.replenishment-target", formulaVersion: "1.0.0", evidenceIds: ["e1"], warnings: [], automaticPurchase: false },
   { productRef: "SKU-UNKNOWN", status: "NEEDS_REVIEW", action: "WITHHELD", availableToPromise: null, reorderPoint: 8, dailyDemand: null, leadTimeDemand: null,
-    targetStock: null, recommendedQuantity: null, formulaId: "inventory.replenishment-target", formulaVersion: "1.0.0", evidenceIds: [], warnings: ["UNKNOWN_INPUT"], automaticPurchase: false },
+    targetStock: null, recommendedQuantity: null, quantityUnit: null, formulaId: "inventory.replenishment-target", formulaVersion: "1.0.0", evidenceIds: [], warnings: ["UNKNOWN_INPUT"], automaticPurchase: false },
 ];
 
 describe("ReplenishmentCard", () => {
@@ -17,7 +17,7 @@ describe("ReplenishmentCard", () => {
     const known = screen.getByRole("article", { name: "SKU-LOW" });
     const unknown = screen.getByRole("article", { name: "SKU-UNKNOWN" });
     const recommendedLabel = within(known).getByText(/الكمية الموصى بها/);
-    expect(recommendedLabel.parentElement).toHaveTextContent(formatEvidenceNumber(6));
+    expect(recommendedLabel.parentElement).toHaveTextContent(formatEvidenceNumber(6) + " EA");
     expect(within(unknown).getAllByText("غير متاح").length).toBeGreaterThan(0);
     expect(screen.getByText(/لا ينشئ هذا العرض أمر شراء/)).toBeInTheDocument();
   });

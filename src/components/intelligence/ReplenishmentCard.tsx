@@ -42,7 +42,7 @@ export function ReplenishmentCard({ recommendations, state = "ready", onRetry }:
               <div><dt className="text-xs text-muted-foreground">الطلب اليومي المحسوب</dt><dd>{formatEvidenceNumber(item.dailyDemand)}</dd></div>
               <div><dt className="text-xs text-muted-foreground">طلب مهلة التوريد</dt><dd>{formatEvidenceNumber(item.leadTimeDemand)}</dd></div>
               <div><dt className="text-xs text-muted-foreground">المخزون المستهدف</dt><dd>{formatEvidenceNumber(item.targetStock)}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">الكمية الموصى بها (وحدة الصنف غير متاحة في العقد)</dt><dd className="font-semibold">{item.status === "VERIFIED" ? formatEvidenceNumber(item.recommendedQuantity) : "غير متاح"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">الكمية الموصى بها</dt><dd className="font-semibold">{item.status === "VERIFIED" && item.quantityUnit ? formatEvidenceNumber(item.recommendedQuantity) + " " + item.quantityUnit : "غير متاح"}</dd></div>
             </dl>
             <footer className="mt-3 border-t pt-3 text-xs text-muted-foreground">
               <p>المعادلة: {item.formulaId}@{item.formulaVersion} · الشراء التلقائي: ممنوع</p>
