@@ -429,7 +429,7 @@ describe("customer cart and checkout real route acceptance", () => {
 
     expect(mocks.submitCalls).toHaveLength(1);
     expect(vi.mocked(saveCustomerCart).mock.calls).toHaveLength(savesBeforeDifferentPayload);
-    expect(host?.textContent).toContain("أدخل بيانات الطلب السابق نفسها");
+    expect(host?.textContent).toContain("أعد بياناتها نفسها أولًا");
     expect(host?.textContent).not.toContain("SO-TEST-001");
 
     await act(async () => {
