@@ -5801,6 +5801,81 @@ async function main() {
     () => db.unsafe("select public.set_inventory_reorder_point($1::uuid,$2::uuid,$3::integer,$4::text)", [productId,foreignTransferWarehouseRows[0].id,25,"cross tenant threshold"]),
     /warehouse|مستودع|organization/i,
   );
+  // DLV-007-REORDER-POINT-STAFF-DENIAL-001: ordinary same-tenant staff cannot alter purchasing policy.
+  // Resolve the Auth identity from the privileged fixture connection; do not trust a copied profile UUID.
+  await db.unsafe("reset role");
+  const reorderPointStaffIdentityRows = await db.unsafe(
+    "select auth_user_id::text as auth_user_id from public.profiles " +
+      "where id=$1::uuid and organization_id=$2::uuid and is_active=true",
+    [operationsStaffProfileId, organizationId],
+  );
+  assert.equal(reorderPointStaffIdentityRows.length, 1,
+    "the ordinary staff profile must resolve to exactly one active same-tenant Auth identity");
+  const resolvedReorderPointStaffAuthUserId = reorderPointStaffIdentityRows[0].auth_user_id;
+  assert.equal(resolvedReorderPointStaffAuthUserId, operationsStaffAuthUserId,
+    "the fixture profile must resolve to its expected Auth user");
+
+  const readReorderPointDenialSnapshots = async () => {
+    // The fixture connection reads every snapshot with its privileged database role.
+    await db.unsafe("reset role");
+    const balances = await db.unsafe(
+      "select jsonb_build_object(" +
+        "'reorder_point',balance.reorder_point," +
+        "'on_hand',balance.quantity_on_hand," +
+        "'reserved',balance.quantity_reserved," +
+        "'available',balance.quantity_available," +
+        "'updated_at',balance.updated_at" +
+        ")::text as snapshot from public.inventory_balances balance where balance.id=$1::uuid",
+      [stockBalance[0].id],
+    );
+    const tasks = await db.unsafe(
+      "select to_jsonb(task)::text as snapshot from public.ai_tasks task " +
+        "where task.organization_id=$1::uuid and task.source_event_key=$2::text order by task.id",
+      [organizationId, stockKey],
+    );
+    const audits = await db.unsafe(
+      "select to_jsonb(audit)::text as snapshot from public.audit_logs audit " +
+        "where audit.organization_id=$1::uuid and audit.action='inventory.reorder_point.updated' " +
+        "and audit.entity_id=$2::uuid order by audit.created_at,audit.id",
+      [organizationId, stockBalance[0].id],
+    );
+    assert.equal(balances.length, 1, "the target inventory balance must exist for the protected snapshot");
+    assert.equal(tasks.length, 1, "the stockKey must resolve to its single purchasing task");
+    return {
+      balance: balances[0].snapshot,
+      tasks: tasks.map((row) => row.snapshot),
+      audits: audits.map((row) => row.snapshot),
+    };
+  };
+
+  const reorderPointStaffBefore = await readReorderPointDenialSnapshots();
+  await setIdentity(resolvedReorderPointStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  try {
+    await expectFailure(
+      "ordinary same-tenant staff cannot change the inventory reorder point",
+      () => db.unsafe(
+        "select public.set_inventory_reorder_point($1::uuid,$2::uuid,$3::integer,$4::text)",
+        [productId, testWarehouseId, 30, "unauthorized staff policy change"],
+      ),
+      /administrator or manager permission required/i,
+      "42501",
+    );
+  } finally {
+    // Restore the manager identity even when the denial assertion itself fails.
+    await db.unsafe("reset role");
+    await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  }
+  const reorderPointStaffAfter = await readReorderPointDenialSnapshots();
+  assert.deepEqual(
+    reorderPointStaffAfter,
+    reorderPointStaffBefore,
+    "staff reorder-point denial must leave balance policy/quantities/timestamp, purchasing task row, and every reorder-point audit entry byte-for-byte unchanged",
+  );
+  await db.unsafe("set role authenticated");
+  process.stdout.write(
+    "PASS DLV-007-REORDER-POINT-STAFF-DENIAL-001: ordinary same-tenant staff receives SQLSTATE 42501; balance, purchasing task and full reorder-point audit snapshots are byte-for-byte unchanged\\n",
+  );
   process.stdout.write("PASS inventory write boundary and reorder point: direct balance/ledger DML denied, manager RPC audited, no-op idempotent, purchasing threshold task lifecycle correct, invalid/cross-tenant requests rejected\\n");
   // AGH-STOCK-COUNT-001: idempotent sessions, snapshot variance, audit and stale-balance protection.
   const countSession=(await db.unsafe("select public.start_stock_count($1::uuid,$2::text,$3::text) as result",[testWarehouseId,"ci-stock-count-key-000001","CI physical count snapshot"]))[0].result;
