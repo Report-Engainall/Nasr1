@@ -56,4 +56,26 @@ describe("per-currency liquidity",()=>{
   expect(r.positions[1].status).toBe("UNVERIFIED");
   expect(r.positions[1].netAvailableLiquidity).toBeNull();
  });
+ it("exposes field-level evidence states without invalidating independently verified net liquidity",()=>{
+  const cash=metric("cash","cash",50,"YER");
+  const collections=metric("collections","collections",10,"YER");
+  const obligations=metric("obligations","payables",5,"YER");
+  const overdue=metric("overdue","overdue",12,"USD");
+  const stock=metric("stock","stagnant-cost",80,"YER",{status:"UNVERIFIED"});
+  const result=buildLiquiditySnapshot({
+   id:"field-status",generatedAt:asOf,asOf,period,
+   evidenceRecords:[evidence("cash","YER"),evidence("collections","YER"),evidence("obligations","YER"),evidence("overdue","USD"),evidence("stock","YER")],
+   currencies:[{currency:"YER",availableBalance:cash,expectedCollections:collections,dueObligations:obligations,
+    overdueReceivables:overdue,stagnantStockCost:stock}],
+  });
+  const position=result.positions[0];
+  expect(position).toMatchObject({
+   status:"VERIFIED",completeness:"COMPLETE",netAvailableLiquidity:55,
+   availableBalance:50,availableBalanceStatus:"VERIFIED",
+   expectedCollections:10,expectedCollectionsStatus:"VERIFIED",
+   dueObligations:5,dueObligationsStatus:"VERIFIED",
+   overdueReceivables:null,overdueReceivablesStatus:"UNVERIFIED",
+   stagnantStockExposure:null,stagnantStockExposureStatus:"UNVERIFIED",
+  });
+ });
 });

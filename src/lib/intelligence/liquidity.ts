@@ -9,9 +9,14 @@ export interface LiquidityCurrencyInput {
 export interface BuildLiquidityInput {id:string;generatedAt:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];currencies:LiquidityCurrencyInput[]}
 export interface LiquidityLineage {metricIds:string[];evidenceIds:string[];formulaVersions:string[]}
 export interface LiquidityPosition {
- currency:string;asOf:string;period:EvidencePeriod;status:EvidenceStatus;completeness:DataCompleteness;
- availableBalance:number|null;expectedCollections:number|null;overdueReceivables:number|null;dueObligations:number|null;
- netAvailableLiquidity:number|null;stagnantStockExposure:number|null;
+ currency:string;asOf:string;period:EvidencePeriod;
+ /** Status/completeness describe netAvailableLiquidity only; field statuses below govern each component amount. */
+ status:EvidenceStatus;completeness:DataCompleteness;
+ availableBalance:number|null;availableBalanceStatus:EvidenceStatus;
+ expectedCollections:number|null;expectedCollectionsStatus:EvidenceStatus;
+ overdueReceivables:number|null;overdueReceivablesStatus:EvidenceStatus;
+ dueObligations:number|null;dueObligationsStatus:EvidenceStatus;
+ netAvailableLiquidity:number|null;stagnantStockExposure:number|null;stagnantStockExposureStatus:EvidenceStatus;
  receivableAging:Array<{bucket:string;amount:number|null;status:EvidenceStatus}>;
  formulaId:string;formulaVersion:string;lineage:LiquidityLineage;warnings:string[];
 }
@@ -84,8 +89,12 @@ export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnaps
   warnings.push(...positionWarnings.map(w=>position.currency+":"+w));
   return {
    currency:position.currency,asOf:input.asOf,period:input.period,status,completeness:status==="VERIFIED"?"COMPLETE":"PARTIAL",
-   availableBalance:available.value,expectedCollections:collections.value,overdueReceivables:overdue.value,dueObligations:obligations.value,
-   netAvailableLiquidity:duplicate?null:net,stagnantStockExposure:stock.value,receivableAging:aging,
+   availableBalance:available.value,availableBalanceStatus:available.status,
+   expectedCollections:collections.value,expectedCollectionsStatus:collections.status,
+   overdueReceivables:overdue.value,overdueReceivablesStatus:overdue.status,
+   dueObligations:obligations.value,dueObligationsStatus:obligations.status,
+   netAvailableLiquidity:duplicate?null:net,stagnantStockExposure:stock.value,stagnantStockExposureStatus:stock.status,
+   receivableAging:aging,
    formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,lineage:{metricIds,evidenceIds,formulaVersions},warnings:positionWarnings,
   };
  });

@@ -9,10 +9,14 @@ const snapshot: LiquiditySnapshot = {
   period: { from: "2026-10-01", to: "2026-10-30" }, warnings: [],
   positions: [
     { currency: "YER", asOf: "2026-10-30T07:00:00Z", period: { from: "2026-10-01", to: "2026-10-30" }, status: "VERIFIED", completeness: "COMPLETE",
-      availableBalance: 100, expectedCollections: 20, overdueReceivables: null, dueObligations: 30, netAvailableLiquidity: 90, stagnantStockExposure: null,
+      availableBalance: 100, availableBalanceStatus: "VERIFIED", expectedCollections: 20, expectedCollectionsStatus: "VERIFIED",
+      overdueReceivables: null, overdueReceivablesStatus: "UNAVAILABLE", dueObligations: 30, dueObligationsStatus: "VERIFIED",
+      netAvailableLiquidity: 90, stagnantStockExposure: null, stagnantStockExposureStatus: "UNAVAILABLE",
       receivableAging: [], formulaId: "liquidity.net-available", formulaVersion: "1.0.0", lineage: { metricIds: ["m1"], evidenceIds: ["e1"], formulaVersions: ["cash@1"] }, warnings: [] },
     { currency: "USD", asOf: "2026-10-30T07:00:00Z", period: { from: "2026-10-01", to: "2026-10-30" }, status: "NEEDS_REVIEW", completeness: "PARTIAL",
-      availableBalance: null, expectedCollections: 5, overdueReceivables: null, dueObligations: null, netAvailableLiquidity: null, stagnantStockExposure: null,
+      availableBalance: null, availableBalanceStatus: "UNAVAILABLE", expectedCollections: 5, expectedCollectionsStatus: "VERIFIED",
+      overdueReceivables: null, overdueReceivablesStatus: "UNAVAILABLE", dueObligations: null, dueObligationsStatus: "UNAVAILABLE",
+      netAvailableLiquidity: null, stagnantStockExposure: null, stagnantStockExposureStatus: "UNAVAILABLE",
       receivableAging: [], formulaId: "liquidity.net-available", formulaVersion: "1.0.0", lineage: { metricIds: ["m2"], evidenceIds: [], formulaVersions: [] }, warnings: ["DUE_OBLIGATION_UNAVAILABLE"] },
   ],
 };
@@ -26,6 +30,28 @@ describe("LiquiditySummary", () => {
     expect(within(yer).getByText(/تكلفة المخزون الراكد/)).toBeInTheDocument();
     expect(within(usd).getAllByText("غير متاح").length).toBeGreaterThan(0);
     expect(screen.queryByText(formatEvidenceNumber(190) + " YER")).not.toBeInTheDocument();
+  });
+
+  it("shows each supplemental metric's evidence state independently of net liquidity", () => {
+    const fieldStatusSnapshot: LiquiditySnapshot = {
+      ...snapshot,
+      positions: [{
+        ...snapshot.positions[0],
+        status: "VERIFIED",
+        completeness: "COMPLETE",
+        overdueReceivables: null,
+        overdueReceivablesStatus: "UNVERIFIED",
+        stagnantStockExposure: null,
+        stagnantStockExposureStatus: "NEEDS_REVIEW",
+      }],
+    };
+    render(<LiquiditySummary snapshot={fieldStatusSnapshot} />);
+    const yer = screen.getByRole("article", { name: "YER" });
+    expect(within(yer).getByText(/حالة صافي السيولة: مثبت/)).toBeInTheDocument();
+    expect(within(yer).getByText(/الذمم المتأخرة/)).toBeInTheDocument();
+    expect(within(yer).getByText(/تكلفة المخزون الراكد المثبتة/)).toBeInTheDocument();
+    expect(within(yer).getByText("غير مثبت")).toBeInTheDocument();
+    expect(within(yer).getByText("يحتاج مراجعة")).toBeInTheDocument();
   });
 
   it("does not turn a missing snapshot into an empty numeric report", () => {
