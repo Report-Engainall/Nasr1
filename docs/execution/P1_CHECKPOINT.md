@@ -4,21 +4,22 @@
 
 ## Current checkpoint
 
-- updated_at_utc: `2026-10-30T03:27:30.000Z`
+- updated_at_utc: `2026-10-30T03:32:00.000Z`
 - owner: P1
-- current_main_sha: `015fba9a08a90aa0b70fa7e724a5648faa6d09fa` (P1 invitation UI fix merged on main; exact-SHA Core/P2 runs queued and not yet verified)
+- current_main_sha: `8d38d3cbf8b315484206d850423631b231df0bfd` (P1 test-selector correction merged; exact-SHA Core/P2/cleanup runs queued or pending)
 - verified_code_sha: `cbbe9d02750f38e8006f501bd17adc884b70c603` (prior verified code SHA; P1 invitation code SHA `015fba9` remains CI_PENDING)
 - task_id: `P1-CUSTOMER-MANAGER-INVITATION-001`
-- task_status: `IMPLEMENTED / CI_PENDING` on `015fba9a08a90aa0b70fa7e724a5648faa6d09fa`. P1 invitation refresh-state regression fixed; Core and P2 workflows are queued. Prior three UI rows remain verified on `7fe83d3`; do not transfer those proofs or any CI pass to this new code SHA until exact-head runs complete.
+- task_status: `IMPLEMENTED / RETRY_1_CI_PENDING` on `8d38d3cbf8b315484206d850423631b231df0bfd`. First exact-SHA Core attempt on `015fba9` ran 217 files / 1422 tests: 216 files and 1421 tests passed; one new customer-switch test failed because `findByRole('alert')` matched both intended alert elements. The component behavior was not implicated; assertion narrowed to the exact error text. Revalidation is pending on this SHA.
 - reserved_paths: P1-owned route/component/UI tests only for subsequent tasks; P2 owns `scripts/**`, `src/lib/api.ts`, `src/lib/supabase.ts`, migrations, the global cursor, CSV matrix and execution log. Do not modify those paths without reassignment.
-- commit_sha: `015fba9a08a90aa0b70fa7e724a5648faa6d09fa` — `fix(customers): hide stale invitation state after failed refresh`; current main is this code SHA.
-- exact_next_action: inspect existing Core run `40997643056` and P2 run `40997643088` on exact SHA `015fba9`; no duplicate workflow. Resolve only a proven failure in P1-owned component/test files, then checkpoint terminal evidence.
+- commit_sha: `8d38d3cbf8b315484206d850423631b231df0bfd` — `test(customers): target invitation refresh failure message`; preceding component fix is `015fba9a08a90aa0b70fa7e724a5648faa6d09fa`.
+- exact_next_action: inspect existing Core `40997956792`, P2 `40997956850`, and cleanup `40997956785` for exact SHA `8d38d3c`; no duplicate workflow. Resolve only any proven failure in the two P1-owned paths.
 
 ## Completed work — newest first
 
 | UTC | Task ID | Status | Base SHA | Result SHA | Changed files | Exact tests/results | Evidence |
 |---|---|---|---|---|---|---|---|
 | 2026-10-30T03:27:30.000Z | P1-CUSTOMER-MANAGER-INVITATION-001 | IMPLEMENTED / CI_PENDING | `42bf13a52210c8dc3997d2293c3174c9d3da22df` | `015fba9a08a90aa0b70fa7e724a5648faa6d09fa` | `src/components/CustomerActivationInvitationDialog.tsx`; `src/test/customer-activation-invitations-dialog.test.tsx` | Added two regression tests (successful revoke + failed list refresh hides stale pending state; customer switch cannot display previous customer's invite). Exact-head Core `40997643056` queued; P2 `40997643088` queued. | [Commit](https://github.com/Report-Engainall/Nasr1/commit/015fba9a08a90aa0b70fa7e724a5648faa6d09fa) · [Core](https://github.com/Report-Engainall/Nasr1/actions/runs/40997643056) · [P2](https://github.com/Report-Engainall/Nasr1/actions/runs/40997643088) |
+| 2026-10-30T03:32:00.000Z | P1-CUSTOMER-MANAGER-INVITATION-001 | RETRY_1 / ASSERTION_CORRECTED / CI_PENDING | `015fba9a08a90aa0b70fa7e724a5648faa6d09fa` | `8d38d3cbf8b315484206d850423631b231df0bfd` | `src/test/customer-activation-invitations-dialog.test.tsx` | Core 40997643056 on base SHA: 216/217 files, 1421/1422 tests passed; one failure was an ambiguous role query matching two intended alerts. Replaced it with exact-text lookup. New Core 40997956792 and P2 40997956850 are pending. | [Base Core failure](https://github.com/Report-Engainall/Nasr1/actions/runs/40997643056) · [New Core](https://github.com/Report-Engainall/Nasr1/actions/runs/40997956792) · [New P2](https://github.com/Report-Engainall/Nasr1/actions/runs/40997956850) |
 | 2026-10-30T03:11:31.464Z | VERIFY-PWA-CACHE-AND-CART-SCOPE-EE1B843 | COMPLETE / TESTED_EXACT_SHA | `15269cbf30f281591d5e7ff2ceda866bf38d284c` | `ee1b84303e5fc18b46bed0b37a880a306e06d5d8` | `src/routes/__root.tsx`; `src/components/CustomerWorkflows.tsx`; `src/lib/offline-catalog-cache.ts`; `src/lib/offline-catalog-cache.test.ts`; `src/lib/supabase.ts`; `src/lib/supabase-tenant-scope.test.ts`; `src/test/auth-session-cache-boundary.test.tsx`; `src/test/customer-workflow-tenant.test.tsx`; `src/test/offline-workspace-route-acceptance.test.tsx` | Core `40995284940` SUCCESS; P2 local Supabase/Chromium `40995284968` SUCCESS; one-main cleanup `40995284973` SUCCESS, all on exact code SHA `ee1b843`. Unit suite: 217/217 files and 1420/1420 tests passed. Core run `40995493763` also SUCCESS on current docs-only head `3b45235`. | [Core exact code SHA](https://github.com/Report-Engainall/Nasr1/actions/runs/40995284940) · [P2 local acceptance](https://github.com/Report-Engainall/Nasr1/actions/runs/40995284968) · [Cleanup](https://github.com/Report-Engainall/Nasr1/actions/runs/40995284973) · [Core current docs head](https://github.com/Report-Engainall/Nasr1/actions/runs/40995493763) |
 
 ## What was verified
@@ -43,13 +44,12 @@
 
 ## In progress / uncommitted work
 
-- Files: none; component and UI test are committed in `015fba9a08a90aa0b70fa7e724a5648faa6d09fa`.
-- Current command/process: none in this session; exact-head GitHub Actions Core `40997643056` queued and P2 `40997643088` queued; check existing runs before any new workflow.
-- Last output/failure: no test failure observed yet; CI has not started executing.
-- Root cause: after a successful server revoke, a failed follow-up workspace read left the previous pending invitation in local React state and rendered it as still pending, with a live revoke button. Workspace data was not bound to customer ID and overlapping reads were not invalidated.
-- Fix: bind the accepted workspace to its customer ID; use monotonically increasing load request IDs; hide previously confirmed invitation rows while a refresh is active or failed; keep the successful revoke notice visible; prevent revoking a row outside the currently verified workspace; reset the old share URL when the dialog's customer changes.
-- Tests added: successful revoke followed by failed list refresh must not show the stale pending row/action, then a successful retry must show the revoked status; changing customer must not reveal prior customer's email or activation link.
-- Safe resume instruction: fetch current main once, compare only changed paths if moved, then inspect the existing Core/P2 run IDs above for SHA `015fba9`. No reset/clean or duplicate workflows.
+- Files: none; component fix committed in `015fba9`; test assertion correction committed in `8d38d3c`.
+- Current command/process: no local process. Existing exact-SHA Core `40997956792` queued, P2 `40997956850` pending, cleanup `40997956785` queued; inspect those runs, do not duplicate.
+- Last failure: Core run `40997643056` failed only `src/test/customer-activation-invitations-dialog.test.tsx` at the second new test's `findByRole("alert")`. The dialog intentionally rendered two alerts: the general workspace-load error and the fail-closed no-workspace retry panel. Assertion changed to `findByText("تعذر تحميل سجل الدعوات للعميل الآخر")`; no production logic change was required for this test-only correction.
+- Root cause in product: stale local invitation workspace could be shown after a successful revoke followed by refresh failure; customer switch could also keep old workspace state. Fixed in `015fba9` with customer-bound workspace, request sequencing, stale-row suppression and guard on revoke; two regression tests added.
+- Attempt count for the same test failure: 1. The assertion correction is committed; wait for exact-SHA revalidation.
+- Safe resume instruction: fetch main once, compare only paths if it moved, then inspect Core/P2/cleanup for `8d38d3c`.
 - Do not discard: no uncommitted changes remain.
 
 ## REQUEST TO P2 — API/backend contract
