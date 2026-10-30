@@ -1,3 +1,27 @@
+# P1 LIVE CHECKPOINT — 2026-10-30 — CURRENT MAIN SYNC FOR DLV-002
+
+- task_id: `DLV-002 / ROUTES-001 — mobile admin drawer focus across open, route remount and close`.
+- status: `IMPLEMENTED_PENDING_EXACT_SHA_CI`.
+- latest_main_sha_at_sync: `8272e539554fa6c51ce2a4e4a1d1d6b255f53278`.
+- branch pre-sync SHA: `12bdad8cd62d95d36fd35a5cb6fd6b8f035fb91a`.
+- main merge commit: `41b13c21479257102e414f782a9242231ed9eb22`, parents are P1 branch SHA `12bdad8c` and main SHA `8272e539`; branch updated non-force with expected-head lease.
+- Latest-main non-overlap changes included:
+  - `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`
+  - `src/lib/intelligence/free-ai-policy.test.ts`
+  - `src/lib/intelligence/free-ai-policy.ts`
+  - `src/lib/intelligence/system-health.test.ts`
+  - `src/lib/intelligence/system-health.ts`
+- P1 implementation commit: `51bca41c094bc07af9b6463724c086f7491a9488`; P1 runtime test commits: `62423634` (transition-aware initial focus) and `b001becd` (new-route focus after route remount); static compatibility assertion commit: `4be7c18d`; checkpoint and main-sync commits recorded in the branch history.
+- Root cause found by unchanged P2 E2E: separate `/admin_/*` file routes remount `AdminApp`; focusing the old trigger before navigation causes it to be detached. P1 now waits for the navigation promise, then resolves the currently mounted visible `.mobile-menu[aria-controls="admin-sidebar"]` and focuses that node. The test simulates replacement of the detached trigger before navigation completes.
+- Evidence from previous heads (not transferable):
+  - `41025182161` on `7970e4d`: initial focus was fixed but failed route-change restoration at `e2e/finance-task-print.spec.ts:82`.
+  - `41025563411` on `e27cedc`: same route-remount focus failure at line 82; local Supabase/Chromium used; hosted cross-tenant journey SKIPPED.
+  - `41025181975` on `7970e4d`: 237/238 files, 1540/1541 tests; only stale string assertion failed and was repaired.
+  - `41025563359` on `e27cedc`: Core SUCCESS before the route-remount restoration commit; not evidence for current head.
+- Exact next command: after this checkpoint commit, read branch HEAD and poll Core + P2 checks for that exact SHA. P2 assertions to verify without editing E2E: first drawer focus, Escape focus restore, navigation to a new `/admin_/*` route and focus on new trigger, desktop resize, finance/task print/authorization path. Do not call SKIPPED PASS.
+- Path boundaries maintained: P1 component and tests + P1 checkpoint only; no `e2e/**`, API/backend/auth, `supabase/**`, `scripts/**`, P3 logic ownership, shared matrix/global state, production, secrets, or local workspace edits.
+
+---
 # P1 LIVE CHECKPOINT — 2026-10-30 — MERGED LATEST MAIN INTO DLV-002 WORK BRANCH
 
 - task_id: `DLV-002 / ROUTES-001 — mobile drawer initial focus + route-remount focus restore`.
