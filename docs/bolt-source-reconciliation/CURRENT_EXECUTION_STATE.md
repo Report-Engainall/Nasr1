@@ -1,24 +1,50 @@
-# CURRENT EXECUTION STATE — 2026-10-30
+# CURRENT EXECUTION STATE — 2026-10-30 — AUTHORITATIVE RESUME SNAPSHOT
 
-## THREE-AGENT ACTIVE OVERRIDE — 2026-10-30 (supersedes prior P1/P2-only active assignment)
+## 1) Live repository snapshot
+- Repository: `Report-Engainall/Nasr1`; remote branch: `main` only. GitHub returned no open pull requests.
+- **Resume code base observed on main:** `cf4418bd6bb5ea1b901663bfef3cc430ce6e049f`.
+- Current-main Core workflow: [41006802574 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41006802574) on the exact SHA above.
+- Current-main one-main cleanup: [41006802669 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41006802669) on the exact SHA above.
+- The current main commit adds three-agent governance, the free-only AI policy and the permanent visual reference gallery. It is a documentation/reference update; it does **not** claim new application behavior or release readiness.
+- GitHub reports `main` as the only branch. Do not create remote branches/PRs, force-push, reset, or delete another programmer's work.
 
-- Repository: `Report-Engainall/Nasr1`; remote branch: `main` only; exact integration base SHA: `6e73fdd0f9fe1a327763e2457a7c45ebdb28d89a`. Re-fetch before every push and use expected-SHA CAS.
-- P3 is the sole global resume-cursor owner and integration captain. P1/P2 update their per-agent checkpoints only; they do not edit this cursor, central CSV or EXECUTION_LOG.
-- P1 active task: resume DLV-010 from `docs/execution/P1_CHECKPOINT.md`; inspect/poll Core run `41004028451` for source SHA `9f5d3af8e4f57bd758f3eb779cb6971be0a7d829`; do not duplicate it. Compare only P1-owned changed paths, then continue the first OPEN DLV-010 UI row.
-- P2 active task: `AUTHZ-GL-DRAFT-STAFF-DENIAL-001` only if it remains OPEN in the current acceptance CSV; otherwise select the next uncovered high-risk finance/security row. P2 checkpoint: `docs/execution/P2_CHECKPOINT.md`.
-- P3 active task: `REF-DAILY-DECISIONS-001` + `REF-EVIDENCE-PASSPORT-001`; build pure deterministic types/engine/tests in P3-owned paths, request tenant-safe aggregate contract from P2, and deliver Action Card props/import contract to P1. P3 checkpoint: `docs/execution/P3_CHECKPOINT.md`.
-- Workstreams W01–W10 continue concurrently where path/dependency boundaries allow. P1 owns UI; P2 backend/data/security; P3 intelligence and integration/governance.
-- Integration queue starts EMPTY. Use detached local worktrees from this base when available; local commits integrate sequentially through P3. P3 alone pushes main. No simultaneous Git pushes or overlapping file edits; use explicit path lease if worktrees are unavailable.
-- Permanent reference gallery: `docs/reference-app/README.md`, images `sheet_01.jpg`…`sheet_07.jpg`, 84 source screenshots summarized in seven visual sheets. Do not re-extract archive or ask owner to resend.
-- 16 REF-* acceptance items are appended to the existing central CSV; original DLV-001..018 remain unchanged. No duplicate matrix/ledger.
-- Free-only AI: deterministic code first; official authorized free API quota only; paid spend=0, no paid model/fallback/billing/Auto-Recharge; no account rotation or quota evasion; ChatGPT Free consumer UI is not API. No sensitive raw business data to external free model.
-- Handoff status: scope/docs/gallery only. No new code behavior, passing tests or release readiness is implied. Full release remains NO-GO until REL-GATE-002.
-- Every agent checkpoints each 10 minutes and after commit/failure/interruption with exact next command, local commit/dirty paths, run IDs, retry count and blocker. No rescan; max two attempts for same root cause.
+## 2) Exact evidence and unresolved blocker
+- P1's Customer 360 source-lineage UI slice is included in main. Its Core run [41004028451 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41004028451) proves SHA `9f5d3af8e4f57bd758f3eb779cb6971be0a7d829`; do not poll or rerun that completed workflow. Current-main Core 41006802574 is also green.
+- The latest P2 local Supabase/Chromium workflow [41006679265 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41006679265) ran on parent SHA `63918d1af702f938353892f9fc9efd9709b9bf57`. The failing test is `e2e/finance-task-print.spec.ts:51`: Playwright's `getByRole('complementary', { name: 'القائمة الإدارية' })` cannot locate the deliberately `visibility:hidden` sidebar while the mobile drawer is closed. The DOM exposes stable `#admin-sidebar` with `aria-label="القائمة الإدارية"`. Fix the P2-owned test locator to `page.locator('#admin-sidebar')`, assert its accessible label and hidden/visible CSS states, and preserve focus/Escape/route-close checks. Do not change the production component unless a separate UI defect is reproduced.
+- In that P2 workflow, authenticated-E2E infrastructure and public UI smoke passed; the local Supabase/Chromium job failed at the hidden-sidebar locator; hosted customer/order/tenant was SKIPPED because dedicated hosted credentials/approval were absent. SKIPPED is not PASS. This is a browser-test blocker, not evidence of a database authorization failure.
+- The immediately following main commit `cf4418b` is documentation-only; the failing E2E file was not changed by it. P2 must re-run the P2 Playwright workflow after the locator correction on one exact new SHA.
+- Acceptance remains open: DLV-001 through DLV-018 and their roll-up. DLV-002, DLV-003, DLV-010 and DLV-017 remain not globally closed. The existing CSV contains 143 unique populated task IDs, including the 16 REF-* reference-parity requirements. Keep this single CSV; do not create another matrix.
+- Full production release remains **NO-GO**. No overall completion percentage is computable from partial evidence.
 
+## 3) Active work allocation — these are the only live next tasks
+- **P1 — UI/product journeys:** continue the first uncovered P1-owned acceptance leaf under DLV-002 / DLV-003, beginning with a route-level customer/admin state gap (loading, empty, error, retry or unauthorized) found in the existing focused tests and screen. Add a direct regression test and improve the real UI only where needed. The P1 Customer 360 slice already passed Core; do not repeat it or edit `e2e/**`, backend files or P3-reserved intelligence components.
+- **P2 — backend/database/security/browser integration:** own DLV-017's failed P2 browser acceptance first. In `e2e/finance-task-print.spec.ts`, replace the hidden sidebar role lookup with the stable `#admin-sidebar` locator; assert `aria-label="القائمة الإدارية"`, closed `visibility:hidden`, opened `visibility:visible`, keyboard focus/Escape and return focus. Do not weaken the assertion or change the live UI merely to satisfy the test. Then rerun P2 Playwright on the exact resulting SHA. After it passes, respond to P3's secure aggregate request and continue the highest-risk OPEN P2 row from the existing CSV (tenant/security → finance/ledger → inventory/atomic orders → import/Onyx → health/backup).
+- **P3 — business intelligence / integration captain:** implement `REF-DAILY-DECISIONS-001` and `REF-EVIDENCE-PASSPORT-001` first as typed, deterministic, tested capabilities. Use verified signals/source fields only; never invent money, stock, customer causes, confidence or outcomes. Request a tenant-safe aggregate DTO/RPC from P2 and send a stable Action Card props/import contract to P1. Then continue the remaining REF-* requirements in dependency order.
+- W01–W10 remain parallel workstreams, not ten separate branches. P1 owns UI, P2 owns backend/data/security and `e2e/**`, P3 owns intelligence and global integration/governance.
+
+## 4) Automatic resume / change-detection algorithm (mandatory)
+1. Read only this file's first 80 lines, the role's execution command and its checkpoint. The live allocation above overrides historical task pointers below.
+2. Run `git fetch origin main`, `git status --short --branch`, `git rev-parse HEAD`, `git rev-parse origin/main`, and `git worktree list --porcelain` once. Never assume a saved SHA is still HEAD.
+3. Compare the saved resume SHA to `origin/main` with `git diff --name-status <saved-sha>..origin/main`. Inspect only paths changed since that SHA which intersect your ownership. If only governance/checkpoint files moved, reconcile the cursor and continue; do not rediscover the app or repeat completed inventories.
+4. Inspect your own checkpoint and all listed local worktrees for uncommitted paths, local commits and in-progress tasks before editing. Preserve dirty work. Never `reset`, `clean`, force-push, discard, overwrite or stash another programmer's work.
+5. Poll already-recorded workflow run IDs first. If a run is IN_PROGRESS, poll that same run. If SUCCESS, retain evidence and continue. If FAILED, open failed job logs and identify the root cause before retrying. Maximum two attempts for the same root cause, then use the safest alternative and move on.
+6. Before taking a task, confirm its ID exists in the current acceptance CSV and is still OPEN/PARTIAL/BLOCKED with an executable local slice. The former pointer `AUTHZ-GL-DRAFT-STAFF-DENIAL-001` is **not present** in the current CSV; do not execute it. Existing AUTHZ GL post/void/reversal rows already have exact-SHA evidence on `5e53622`.
+7. Use a separate detached worktree per programmer from the observed base SHA when available. P1/P2 commit locally and update only their own checkpoint. P3 alone owns the integration queue and remote `main`; integrate one commit at a time after ownership and duplicate-work checks, then run required checks on the merged SHA.
+8. Checkpoint at least every 10 minutes and immediately after a task, commit, test failure, quota interruption or network loss. Record UTC, task ID, base/result SHA, dirty paths/local commit, run IDs, root cause, retries, blockers, cross-programmer contracts and one executable `exact_next_command`.
+9. A local dirty tree or local commit is recoverable in the same workspace but is **not** remotely durable until P3 integrates it. Never claim it is on GitHub before the remote SHA confirms it.
+10. If a task is externally blocked, record the exact missing dependency and continue the next independent safe task. Do not let one blocked integration stop the other workstreams.
+
+## 5) Global ownership and truth rules
+- P3 alone owns this global cursor, the existing acceptance CSV, requirement registry, execution log, master specification, protocol, reference gallery, command files and integration queue.
+- P1 owns `docs/execution/P1_CHECKPOINT.md`; P2 owns `docs/execution/P2_CHECKPOINT.md`; P3 owns `docs/execution/P3_CHECKPOINT.md` and consolidates global state.
+- The reference images are design/feature references only. Do not copy the other app's identity, customer data, financial figures or errors. All 84 source images remain available through seven committed contact sheets in `docs/reference-app/images/`.
+- AI policy: paid spend = 0; no paid model/provider/fallback, billing method or auto-recharge. Deterministic/local logic first; official free API quota only when actually available and authorized. No account rotation or quota evasion. ChatGPT Free consumer UI is not an API. No raw PII, private price tiers, costs/margins, payment or customer financial data may be sent to external free models. When free quotas are exhausted, continue with deterministic code and label `RULE_BASED` / `MODEL_UNAVAILABLE` honestly.
+- Proof labels remain distinct: IMPLEMENTED ≠ TESTED ≠ BROWSER_PROVEN ≠ HOSTED_PROVEN ≠ PRODUCTION_PROVEN. Never move a PASS from one SHA to another.
+- Global release decision: **NO-GO** until REL-GATE-002 is satisfied.
 
 **Sole live resume cursor.** Read this file first. Follow `docs/execution/CONTINUOUS_PARALLEL_EXECUTION_PROTOCOL.md`. Do not rescan the repository or regenerate the 330-RPC inventory. Detailed evidence remains in `EXECUTION_LOG.md`; acceptance remains in `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
 
-## Active batch — P2 API-OPS semantic authorization and no-side-effect proofs
+## Historical batch — P2 API-OPS semantic authorization and no-side-effect proofs (verified on SHA 5e53622; do not use its old NEXT ACTION)
 
 - Repository: `Report-Engainall/Nasr1`; branch: `main` only; no branches or PRs.
 - **P2 code SHA:** `5e53622b66de3947758b14026432953560b267bb`.
