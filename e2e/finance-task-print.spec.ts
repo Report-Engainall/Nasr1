@@ -45,9 +45,10 @@ async function assertAdminMobileNavigation(page: Page): Promise<void> {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto("/admin");
   const trigger = page.locator(".mobile-menu");
-  const sidebar = page.getByRole("complementary", { name: "القائمة الإدارية" });
+  const sidebar = page.locator("#admin-sidebar");
   await expect(trigger, "The authenticated admin shell must expose a mobile navigation control.").toBeVisible();
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(sidebar).toHaveAttribute("aria-label", "القائمة الإدارية");
   await expect(sidebar).toHaveCSS("visibility", "hidden");
 
   const mobileFit = await page.evaluate(() => ({
