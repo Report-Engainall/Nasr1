@@ -184,11 +184,16 @@ describe("admin mobile navigation runtime acceptance", () => {
     await waitFor(() => expect(document.activeElement).toBe(firstItem));
   });
 
-  it("closes the drawer and returns focus after selecting a navigation destination", async () => {
+  it("restores focus to the new route trigger after admin navigation remounts the app", async () => {
+    let completeNavigation: (() => void) | undefined;
+    mocks.navigate.mockImplementation(
+      () => new Promise<void>((resolve) => { completeNavigation = resolve; }),
+    );
+
     render(<AdminApp initialView="settings" />);
 
-    const trigger = screen.getByRole("button", { name: "فتح القائمة الإدارية" });
-    fireEvent.click(trigger);
+    const oldTrigger = screen.getByRole("button", { name: "فتح القائمة الإدارية" });
+    fireEvent.click(oldTrigger);
     const nav = screen.getByRole("navigation", { name: "التنقل الإداري" });
     const settings = Array.from(nav.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("الإعدادات"),
@@ -198,8 +203,16 @@ describe("admin mobile navigation runtime acceptance", () => {
     await waitFor(() => expect(document.activeElement).toBe(nav.querySelector("button")));
     fireEvent.click(settings!);
 
-    await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "false"));
-    expect(document.activeElement).toBe(trigger);
+    await waitFor(() => expect(oldTrigger).toHaveAttribute("aria-expanded", "false"));
+    expect(document.activeElement).toBe(oldTrigger);
+
+    // Separate admin file routes remount AdminApp. Replace the old trigger to
+    // model the new route's DOM before its navigation promise resolves.
+    const replacementTrigger = oldTrigger.cloneNode(true) as HTMLButtonElement;
+    oldTrigger.replaceWith(replacementTrigger);
+    completeNavigation?.();
+
+    await waitFor(() => expect(document.activeElement).toBe(replacementTrigger));
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/admin/settings" });
   });
 });
