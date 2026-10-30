@@ -80,6 +80,25 @@ export async function runGeneralLedgerReversalAcceptance({
     ))[0].result);
   }
 
+  async function captureJournalEntryPostDenialState(entryId) {
+    await db.unsafe("reset role");
+    try {
+      const rows = await db.unsafe(
+        "select jsonb_build_object(" +
+          "'entry',(select to_jsonb(e) from public.accounting_journal_entries e where e.organization_id=$1::uuid and e.id=$2::uuid)," +
+          "'lines',coalesce((select jsonb_agg(to_jsonb(l) order by to_jsonb(l)::text) from public.accounting_journal_lines l where l.organization_id=$1::uuid and l.journal_entry_id=$2::uuid),'[]'::jsonb)," +
+          "'reversal_links',coalesce((select jsonb_agg(to_jsonb(r) order by to_jsonb(r)::text) from public.accounting_journal_reversals r where r.organization_id=$1::uuid and (r.original_journal_entry_id=$2::uuid or r.reversal_journal_entry_id=$2::uuid)),'[]'::jsonb)," +
+          "'audit',coalesce((select jsonb_agg(to_jsonb(a) order by to_jsonb(a)::text) from public.audit_logs a where a.organization_id=$1::uuid and a.entity_type='accounting_journal_entry' and a.entity_id=$2::uuid),'[]'::jsonb)" +
+        ")::text as snapshot",
+        [organizationId, entryId],
+      );
+      assert.equal(rows.length, 1, "privileged journal-post oracle must return one full-state snapshot");
+      return rows[0].snapshot;
+    } finally {
+      await db.unsafe("set role authenticated");
+    }
+  }
+
   async function captureJournalReversalDenialState(originalId, reversalId) {
     await db.unsafe("reset role");
     try {
@@ -156,6 +175,32 @@ export async function runGeneralLedgerReversalAcceptance({
 
   const expenseAccountId = await createAccount("CI-REV-EXP-", "CI reversal expense", "expense");
   const cashAccountId = await createAccount("CI-REV-CASH-", "CI reversal cash", "asset");
+
+  // Same-tenant ordinary staff cannot post a financially effective manual journal.
+  const staffPostingDraft = await createDraft(
+    db, expenseAccountId, cashAccountId, randomUUID(), "P2 ordinary staff posting must be denied",
+  );
+  assert.equal(staffPostingDraft.status, "draft");
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  const postingStateBeforeDeniedStaffRequest = await captureJournalEntryPostDenialState(staffPostingDraft.id);
+  await expectFailure(
+    "same-tenant ordinary staff cannot post a general journal draft",
+    () => postJournal(db, staffPostingDraft.id),
+    /finance permission required to post a journal entry/i,
+    "42501",
+  );
+  const postingStateAfterDeniedStaffRequest = await captureJournalEntryPostDenialState(staffPostingDraft.id);
+  assert.equal(
+    postingStateAfterDeniedStaffRequest,
+    postingStateBeforeDeniedStaffRequest,
+    "ordinary-staff posting denial must preserve the complete journal entry, journal lines, reversal links and audit rows byte-for-byte",
+  );
+
+  // Restore the finance-capable admin and prove the exact same draft remains postable.
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  const authorizedPosting = await postJournal(db, staffPostingDraft.id);
+  assert.equal(authorizedPosting.status, "posted");
+  assert.equal(authorizedPosting.replayed, false);
   const originalDraft = await createDraft(db, expenseAccountId, cashAccountId, randomUUID());
   assert.equal(originalDraft.status, "draft");
   assert.equal((await postJournal(db, originalDraft.id)).status, "posted");
