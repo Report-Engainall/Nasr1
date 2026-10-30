@@ -2,9 +2,10 @@
 
 ## 1) Live repository snapshot
 - Repository: `Report-Engainall/Nasr1`; remote branch: `main` only. GitHub returned no open pull requests.
-- **Resume code base observed on main:** `cf4418bd6bb5ea1b901663bfef3cc430ce6e049f`.
-- Current-main Core workflow: [41006802574 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41006802574) on the exact SHA above.
-- Current-main one-main cleanup: [41006802669 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41006802669) on the exact SHA above.
+- **Latest main SHA observed before this cursor refresh:** `af0d73aa50a73ebc6c86fb02977296f3e106d2e0` (P1/P2/P3 checkpoints and execution commands were reconciled on this SHA; product code base is unchanged from `cf4418bd6bb5ea1b901663bfef3cc430ce6e049f`).
+- Latest Core workflow: [41007817600 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41007817600) on exact SHA `af0d73aa50a73ebc6c86fb02977296f3e106d2e0`; poll this run, do not duplicate it.
+- Latest one-main cleanup: [41007817667 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41007817667) on exact SHA `af0d73aa50a73ebc6c86fb02977296f3e106d2e0`; poll this run, do not duplicate it.
+- Prior code/doc head `cf4418bd6bb5ea1b901663bfef3cc430ce6e049f` passed Core [41006802574](https://github.com/Report-Engainall/Nasr1/actions/runs/41006802574) and cleanup [41006802669](https://github.com/Report-Engainall/Nasr1/actions/runs/41006802669).
 - The current main commit adds three-agent governance, the free-only AI policy and the permanent visual reference gallery. It is a documentation/reference update; it does **not** claim new application behavior or release readiness.
 - GitHub reports `main` as the only branch. Do not create remote branches/PRs, force-push, reset, or delete another programmer's work.
 
