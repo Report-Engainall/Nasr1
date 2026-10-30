@@ -228,7 +228,7 @@ describe("admin audit actual deep route acceptance", () => {
 
     await mountAuditDeepLink(["manager"]);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("audit route read unavailable");
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل سجل التدقيق.");
     fireEvent.click(screen.getByRole("button", { name: "تحديث" }));
 
     expect(await screen.findByRole("cell", { name: "إضافة عنوان عميل" })).toBeInTheDocument();
