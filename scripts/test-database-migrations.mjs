@@ -44,6 +44,7 @@ async function expectFailure(label, action, pattern, expectedSqlState) {
   assert.ok(caught, label + " should fail");
   if (pattern) assert.match(String(caught.message), pattern, label + " should fail for the expected reason");
   if (expectedSqlState) assert.equal(caught.code, expectedSqlState, label + " should raise SQLSTATE " + expectedSqlState);
+  return caught;
 }
 
 async function main() {
@@ -1962,7 +1963,136 @@ async function main() {
   const paidCapInvoice = cappedInvoiceRows.find((row) => row.invoice_number === "CI-CAP-INVOICE-0205");
   assert.ok(oldestCapInvoice && paidCapInvoice,"cap fixture should include oldest and fully reconciled boundary invoices");
 
-  const cappedPayments = await db.unsafe(
+  // FIN-INVOICE-001 / DLV-008: prove the server-side finance ledger's keyset cursor
+  // returns every tenant invoice exactly once across multiple pages and fails closed
+  // on malformed cursors or oversized limits.
+  await db.unsafe("reset role");
+  const expectedFinanceInvoiceCount = Number((await db.unsafe(
+    "select count(*)::integer as count from public.customer_invoices where organization_id=$1::uuid",
+    [organizationId],
+  ))[0].count);
+  assert.ok(expectedFinanceInvoiceCount >= 206,
+    "pagination acceptance requires the original invoice plus all 205 deterministic cap-fixture invoices");
+
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  const readFinanceInvoicePage = async (limit, beforeIssuedAt = null, beforeId = null) => {
+    const rows = await db.unsafe(
+      "select public.fetch_staff_finance_invoice_page($1::integer,$2::timestamptz,$3::uuid) as result",
+      [limit, beforeIssuedAt, beforeId],
+    );
+    return rows[0]?.result;
+  };
+  const financeInvoicePages = [];
+  let pageCursorIssuedAt = null;
+  let pageCursorId = null;
+  let invoicePaginationTerminated = false;
+  for (let pageIndex = 0; pageIndex < 10; pageIndex += 1) {
+    const page = await readFinanceInvoicePage(100, pageCursorIssuedAt, pageCursorId);
+    assert.ok(page && Array.isArray(page.invoices),
+      "finance invoice page " + (pageIndex + 1) + " must return a validated page object");
+    assert.equal(page.limit, 100, "finance invoice page must echo the enforced page size");
+    assert.equal(Number(page.total_invoices), expectedFinanceInvoiceCount,
+      "every page must report the full tenant invoice count, not only the current page");
+    assert.equal(typeof page.has_more, "boolean", "pagination continuation must be an explicit boolean");
+    assert.ok(page.invoices.length <= 100, "the server must never return more than the requested page limit");
+    for (const row of page.invoices) {
+      assert.equal(row.organization_id, organizationId,
+        "financial invoice pages must contain only invoices from the actor's active organization");
+      assert.ok(typeof row.issued_at === "string" && row.issued_at.length > 0,
+        "each cursor row must include the server-issued timestamp");
+    }
+    financeInvoicePages.push(page);
+    if (!page.has_more) {
+      invoicePaginationTerminated = true;
+      break;
+    }
+    assert.equal(page.invoices.length, 100,
+      "a page marked as having more records must fill its requested size");
+    const last = page.invoices[page.invoices.length - 1];
+    assert.ok(last?.id && last.issued_at, "continuation must be based on the final returned row");
+    pageCursorIssuedAt = last.issued_at;
+    pageCursorId = last.id;
+  }
+  assert.equal(invoicePaginationTerminated, true,
+    "keyset pagination must terminate within the bounded number of pages");
+  assert.ok(financeInvoicePages.length >= 3,
+    "the deterministic fixture must exercise at least three invoice pages");
+  const pagedFinanceInvoices = financeInvoicePages.flatMap((page) => page.invoices);
+  const pagedFinanceInvoiceIds = pagedFinanceInvoices.map((row) => row.id);
+  assert.equal(pagedFinanceInvoices.length, expectedFinanceInvoiceCount,
+    "concatenating all pages must return every current-tenant invoice");
+  assert.equal(new Set(pagedFinanceInvoiceIds).size, expectedFinanceInvoiceCount,
+    "keyset pagination must not duplicate or skip invoices between pages");
+  assert.ok(pagedFinanceInvoiceIds.includes(oldestCapInvoice.id),
+    "the oldest invoice must remain reachable beyond the first finance page");
+  assert.ok(pagedFinanceInvoiceIds.includes(paidCapInvoice.id),
+    "the newest boundary invoice must remain reachable on the first finance page");
+  for (let index = 1; index < pagedFinanceInvoices.length; index += 1) {
+    const prior = pagedFinanceInvoices[index - 1];
+    const current = pagedFinanceInvoices[index];
+    const priorTime = Date.parse(prior.issued_at);
+    const currentTime = Date.parse(current.issued_at);
+    assert.ok(priorTime > currentTime || (priorTime === currentTime && prior.id.toLowerCase() < current.id.toLowerCase()),
+      "finance invoice pages must preserve issued_at DESC, id ASC ordering across page boundaries");
+  }
+
+  const invalidFinanceInvoiceRequests = [
+    ["null limit", null, null, null],
+    ["zero limit", 0, null, null],
+    ["limit above 200", 201, null, null],
+    ["timestamp without ID cursor", 100, financeInvoicePages[0].invoices[0].issued_at, null],
+    ["ID without timestamp cursor", 100, null, financeInvoicePages[0].invoices[0].id],
+  ];
+  for (const [label, limit, beforeAt, beforeId] of invalidFinanceInvoiceRequests) {
+    await expectFailure(
+      "finance invoice pagination rejects " + label,
+      () => readFinanceInvoicePage(limit, beforeAt, beforeId),
+      /invoice page limit must be 1\.\.200 and both cursor fields must be null or present/i,
+      "22023",
+    );
+  }
+
+  await db.unsafe("reset role");
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "ordinary operational staff cannot read the finance invoice ledger page",
+    () => readFinanceInvoicePage(100),
+    /finance permission required to read invoice ledger pages/i,
+    "42501",
+  );
+  await db.unsafe("reset role");
+  await setIdentity(authUserId, "ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customers cannot read the staff finance invoice ledger page",
+    () => readFinanceInvoicePage(100),
+    /finance permission required to read invoice ledger pages/i,
+    "42501",
+  );
+
+  await db.unsafe("reset role");
+  const foreignFinanceScope = await db.unsafe(
+    "select p.organization_id::text as organization_id from public.profiles p " +
+      "where p.auth_user_id=$1::uuid and p.is_active=true",
+    [foreignFinanceAuthId],
+  );
+  assert.equal(foreignFinanceScope.length, 1,
+    "foreign finance scope fixture must resolve one active finance actor");
+  assert.notEqual(foreignFinanceScope[0].organization_id, organizationId,
+    "foreign finance actor must belong to a distinct organization");
+  await setIdentity(foreignFinanceAuthId, "ci-foreign-finance-print@example.test");
+  await db.unsafe("set role authenticated");
+  const foreignFinancePage = await readFinanceInvoicePage(100);
+  assert.ok(foreignFinancePage.invoices.every((row) => row.organization_id === foreignFinanceScope[0].organization_id),
+    "foreign accountant sees only invoices belonging to the foreign active organization");
+  assert.equal(foreignFinancePage.invoices.some((row) => row.id === invoice.id), false,
+    "foreign accountant cannot discover the current tenant's invoice IDs");
+  await db.unsafe("reset role");
+  process.stdout.write("PASS finance invoice pagination: all rows once across keyset pages, stable ordering, limit/cursor rejection, finance-role denial and tenant isolation\\n");
+
+  const cappedPayments = await db.unsafe(`
     `INSERT INTO public.customer_payments(
        organization_id,customer_id,invoice_id,amount,payment_method,reference,paid_at
      )
