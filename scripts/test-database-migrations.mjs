@@ -5779,12 +5779,59 @@ async function main() {
   // Read audit entries while the privileged manager identity is still active.
   const ledgerAudit=await db.unsafe("select action from public.audit_logs where organization_id=$1 and entity_type='accounting_journal_entry' and entity_id=$2::uuid order by action",[organizationId,journalId]);
   assert.deepEqual(ledgerAudit.map((row)=>row.action),["accounting.journal_draft_created","accounting.journal_posted"]);
+
+  // AGH-GL-POST-AUTH-ATOMIC-001: an authenticated customer must not post a balanced
+  // finance draft, and denial must leave the journal header, lines and audit trail unchanged.
+  const deniedPostingDraft=(await db.unsafe(
+    "select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text) as result",
+    [randomUUID(),"2026-10-18","CI customer-denied posting journal",ledgerLines,"CI-GL-DENIED-POST-01"],
+  ))[0].result;
+  assert.equal(deniedPostingDraft.status,"draft");
+  assert.equal(deniedPostingDraft.replayed,false);
+  const deniedPostingJournalId=deniedPostingDraft.id;
+  await db.unsafe("reset role");
+  const postExecutePrivileges=(await db.unsafe(
+    "select has_function_privilege('anon','public.post_general_journal_entry(uuid)','EXECUTE') as anon_can_execute, " +
+    "has_function_privilege('authenticated','public.post_general_journal_entry(uuid)','EXECUTE') as authenticated_can_execute",
+  ))[0];
+  assert.equal(postExecutePrivileges.anon_can_execute,false,"anonymous role must not execute journal posting");
+  assert.equal(postExecutePrivileges.authenticated_can_execute,true,"the authenticated role reaches the RPC-level finance guard");
   await db.unsafe("reset role");
   await setIdentity(accountantAuthUserId,"ci-accountant@example.test");
   await db.unsafe("set role authenticated");
   await db.unsafe("reset role");
   await setIdentity(authUserId,"ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
+  const deniedPostBaseline=(await db.unsafe(
+    "select e.status,e.posted_by_profile_id::text as posted_by,e.posted_at::text as posted_at,e.updated_at::text as updated_at, " +
+    "(select count(*)::integer from public.accounting_journal_lines l where l.organization_id=e.organization_id and l.journal_entry_id=e.id) as line_count, " +
+    "(select count(*)::integer from public.audit_logs a where a.organization_id=e.organization_id and a.entity_id=e.id and a.action='accounting.journal_posted') as posted_audit_count " +
+    "from public.accounting_journal_entries e where e.organization_id=$1::uuid and e.id=$2::uuid",
+    [organizationId,deniedPostingJournalId],
+  ))[0];
+  assert.equal(deniedPostBaseline.status,"draft");
+  assert.equal(deniedPostBaseline.posted_by,null);
+  assert.equal(deniedPostBaseline.posted_at,null);
+  assert.equal(deniedPostBaseline.line_count,2);
+  await expectFailure(
+    "customer cannot post a balanced general journal",
+    () => db.unsafe("select public.post_general_journal_entry($1::uuid) as result",[deniedPostingJournalId]),
+    /finance permission required to post a journal entry/i,
+    "42501",
+  );
+  const deniedPostAfter=(await db.unsafe(
+    "select e.status,e.posted_by_profile_id::text as posted_by,e.posted_at::text as posted_at,e.updated_at::text as updated_at, " +
+    "(select count(*)::integer from public.accounting_journal_lines l where l.organization_id=e.organization_id and l.journal_entry_id=e.id) as line_count, " +
+    "(select count(*)::integer from public.audit_logs a where a.organization_id=e.organization_id and a.entity_id=e.id and a.action='accounting.journal_posted') as posted_audit_count " +
+    "from public.accounting_journal_entries e where e.organization_id=$1::uuid and e.id=$2::uuid",
+    [organizationId,deniedPostingJournalId],
+  ))[0];
+  assert.deepEqual(deniedPostAfter,deniedPostBaseline,
+    "customer posting denial must preserve draft status, posting actor/time, updated_at, all lines and posted audit count");
+  assert.equal((await db.unsafe("select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and entity_id=$2::uuid and action='accounting.journal_posted'",[organizationId,deniedPostingJournalId]))[0].count,0,
+    "denied customer posting must not emit a journal-posted audit event");
+  assert.equal((await db.unsafe("select count(*)::integer as count from public.accounting_journal_entries where organization_id=$1::uuid and id=$2::uuid and status='draft'",[organizationId,deniedPostingJournalId]))[0].count,1,
+    "denied customer posting leaves the original draft addressable and unchanged");
   assert.equal((await db.unsafe("select id from public.accounting_accounts where id=$1::uuid",[debitAccountId])).length,0,"customer cannot read the accounting chart");
   await expectFailure(
     "customer cannot call the general-ledger RPC",
