@@ -672,6 +672,16 @@ test("critical admin routes preserve direct navigation, RTL, and mobile viewport
     { path: "/admin/exports", title: "تصدير الطلبات | متجر الأغبري" },
     { path: "/admin/stock-count", title: "الجرد الفعلي للمخزون | متجر الأغبري" },
     { path: "/admin/tasks", title: "المهام التشغيلية | متجر الأغبري" },
+    { path: "/admin/audit", title: "سجل التدقيق | متجر الأغبري" },
+    { path: "/admin/operations", title: "العمليات | الأغبري" },
+    { path: "/admin/notifications", title: "التنبيهات | الأغبري" },
+    { path: "/admin/suppliers", title: "الموردون | الأغبري" },
+    { path: "/admin/settings", title: "الإعدادات | الأغبري" },
+    { path: "/admin/quotes", title: "عروض الأسعار | لوحة الإدارة" },
+    { path: "/admin/ai", title: "مركز الذكاء | الأغبري" },
+    { path: "/admin/devices", title: "أجهزة العملاء | الأغبري" },
+    { path: "/admin/inventory-transfers", title: "سجل تحويلات المخزون | متجر الأغبري" },
+    { path: "/admin/purchase-orders", title: "أوامر الشراء | متجر الأغبري" },
   ];
 
   for (const viewport of [{ width: 360, height: 800 }, { width: 1280, height: 800 }]) {
