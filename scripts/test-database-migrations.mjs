@@ -2037,6 +2037,42 @@ async function main() {
       "finance invoice pages must preserve issued_at DESC, id ASC ordering across page boundaries");
   }
 
+  // Compare every returned balance with an independently aggregated source-of-truth query.
+  // This catches page-boundary correctness that still returns wrong totals, credits or currency.
+  const invoiceBalanceOracle = await db.unsafe(
+    "select ci.id::text as id,ci.currency," +
+      "ci.total_amount::numeric(15,2)::text as total_amount," +
+      "coalesce(pay.paid_amount,0)::numeric(15,2)::text as paid_amount," +
+      "coalesce(credits.credit_memo_amount,0)::numeric(15,2)::text as credit_memo_amount," +
+      "case when ci.status='void' then 0 else greatest(" +
+        "ci.total_amount-coalesce(pay.paid_amount,0)-coalesce(credits.credit_memo_amount,0),0) " +
+      "end::numeric(15,2)::text as outstanding_amount " +
+      "from public.customer_invoices ci " +
+      "left join lateral (" +
+        "select sum(cp.amount)::numeric(15,2) as paid_amount from public.customer_payments cp " +
+        "where cp.organization_id=ci.organization_id and cp.invoice_id=ci.id and cp.customer_id=ci.customer_id" +
+      ") pay on true " +
+      "left join lateral (" +
+        "select sum(cm.total_amount)::numeric(15,2) as credit_memo_amount " +
+        "from public.customer_return_credit_memos cm " +
+        "where cm.organization_id=ci.organization_id and cm.invoice_id=ci.id and cm.customer_id=ci.customer_id " +
+          "and cm.status='posted' and cm.currency=ci.currency" +
+      ") credits on true " +
+      "where ci.organization_id=$1::uuid order by ci.issued_at desc,ci.id asc",
+    [organizationId],
+  );
+  assert.equal(invoiceBalanceOracle.length,expectedFinanceInvoiceCount,
+    "independent finance balance oracle covers every tenant invoice");
+  const expectedBalanceByInvoiceId = new Map(invoiceBalanceOracle.map((row) => [row.id,row]));
+  for (const row of pagedFinanceInvoices) {
+    const expected = expectedBalanceByInvoiceId.get(row.id);
+    assert.ok(expected,"every page row must have a matching saved invoice source");
+    for (const field of ["currency","total_amount","paid_amount","credit_memo_amount","outstanding_amount"]) {
+      assert.equal(row[field],expected[field],
+        "invoice " + row.id + " " + field + " must match the saved invoice/payment/posted-credit source aggregate");
+    }
+  }
+
   const invalidFinanceInvoiceRequests = [
     ["null limit", null, null, null],
     ["zero limit", 0, null, null],
