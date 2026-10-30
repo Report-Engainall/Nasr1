@@ -1,5 +1,16 @@
 # P3 LIVE CHECKPOINT — 2026-10-30 — INTELLIGENCE DISPLAY BATCH INTEGRATED
 
+## P3 LIVE OVERRIDE — 2026-10-30 — CURRENT EXACT CORE PASS
+- Current main/code SHA at resume: `9f76ead379fe52711bc8b9ed58a66605317bb68f`; only branch main; no open PRs.
+- Exact Core [41020479004 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479004) on this SHA. Unit, PG17 full migrations/workflows, exact RPC inventory, backup/restore, lint, build, production/dev smoke and price-visibility Chromium all passed. Cleanup 41020478974 also SUCCESS.
+- P3 commits: `5c1c3e63` empty dead-stock evidence fix; `3451e9be` per-unit currency and period-safe decision impacts, cashflow invalid-date review state, dead-stock severity rollup; `193c8141` evidence passport as-of/source period/timestamp scope and unknown-currency cashflow withholding; `9f76ead3` correction to the cashflow test assertion. Intermediate 193c Core failed its test due the test assertion itself; 9f76 fixes it and has full Core PASS.
+- P2 run [41020479040](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479040) on current SHA is IN_PROGRESS at last poll: auth gate/public UI smoke SUCCESS; hosted customer/order/tenant SKIPPED; local Supabase authenticated order/cross-tenant Chromium flow active. Poll, do not duplicate.
+- P1 blocker remains mobile first-item focus; P2 run [41020194728 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41020194728) on 3451 proves 20s focus timeout on first attempt/retry at finance-task-print.spec.ts:69. No P1 production patch has been delivered.
+- PG17 receipt race observation failed on 5c1 (41019708261), then passed unchanged on 3451 (41020194758) and current 9f76 (41020479004). Track as intermittent historical harness race; no false claim of a repair.
+- 143 populated unique task IDs, 16 REF rows, 18 DLV groups, no duplicate IDs. REF engines exist and pass Core, but P1 component integration and P2 aggregates/persistence/AI/health/RBAC dependencies remain open. No DLV rollup closed; release NO-GO.
+- exact_next_command: poll P2 run 41020479040 on `9f76ead379fe52711bc8b9ed58a66605317bb68f`; then inspect only new P1/P2-owned bounded patches and integrate via expected-SHA CAS.
+
+
 ## P3 CURSOR REFRESH — 2026-10-30 — CURRENT REMOTE MAIN
 - observed_main_before_pointer_update: `3f54e9917779ebb35407882afa1c0f5ba88408d8` (documentation-only); code-bearing SHA remains `b52271629f054f5d9750e2d4dbf247e22c90f8c7`.
 - Exact Core `41018827283 SUCCESS` on `6d25c8c1ff3010996c1fcfce52a1fe0f580d65be`, including unit tests, PostgreSQL 17 acceptance, RPC inventory, backup/restore, lint/build and smoke.
