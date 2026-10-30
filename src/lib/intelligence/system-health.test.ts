@@ -8,5 +8,6 @@ describe("source-backed system health",()=>{
  it("reports healthy only when required probes are fresh and verified",()=>expect(buildSystemHealthSnapshot({asOf:at,requiredComponents:["db"],probes:[probe("db")],evidenceRecords:[ev]}).status).toBe("HEALTHY"));
  it("keeps a missing required component UNKNOWN",()=>expect(buildSystemHealthSnapshot({asOf:at,requiredComponents:["db","storage"],probes:[probe("db")],evidenceRecords:[ev]}).status).toBe("UNKNOWN"));
  it("marks stale or missing evidence as unknown",()=>expect(buildSystemHealthSnapshot({asOf:at,requiredComponents:["db"],probes:[probe("db",{checkedAt:"2026-10-28T00:00:00Z"})],evidenceRecords:[ev]}).components[0].status).toBe("UNKNOWN"));
+ it("does not mark an empty required-probe catalog healthy",()=>expect(buildSystemHealthSnapshot({asOf:at,requiredComponents:[],probes:[],evidenceRecords:[]}).status).toBe("UNKNOWN"));
  it("does not upgrade an unavailable dependency",()=>expect(buildSystemHealthSnapshot({asOf:at,requiredComponents:["db"],probes:[probe("db",{status:"UNAVAILABLE"})],evidenceRecords:[ev]}).status).toBe("UNAVAILABLE"));
 });

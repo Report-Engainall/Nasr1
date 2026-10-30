@@ -28,7 +28,9 @@ export function buildSalesScenario(input:{id:string;createdAt:string;asOf:string
  if(!assumptionsValid)limitations.push("SCENARIO_ASSUMPTION_OUT_OF_BOUNDS_OR_INCOMPLETE");
  const factor=assumptionsValid?input.assumptions.reduce((value,a)=>value*(1+a.changePercent/100),1):NaN;
  const change=(factor-1)*100;
- const result=baselineValid&&assumptionsValid&&Number.isFinite(change)?calculateWhatIfSales(base,change):null;
+ const combinedWithinBounds=Number.isFinite(change)&&limitsValid&&change>=limits.minimumChangePercent&&change<=limits.maximumChangePercent&&change>=-100&&change<=500;
+ if(assumptionsValid&&!combinedWithinBounds)limitations.push("COMPOUNDED_SCENARIO_OUT_OF_BOUNDS");
+ const result=baselineValid&&assumptionsValid&&combinedWithinBounds?calculateWhatIfSales(base,change):null;
  if(baselineValid&&assumptionsValid&&result===null)limitations.push("SCENARIO_RESULT_UNSAFE");
  const valid=result!==null&&limitations.length===0;
  return {id:input.id,baselineId:metric.id,createdAt:input.createdAt,asOf:input.asOf,currency:input.currency,

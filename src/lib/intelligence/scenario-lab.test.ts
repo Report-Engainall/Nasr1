@@ -12,6 +12,9 @@ const build=(change:number)=>buildSalesScenario({id:"s1",createdAt:asOf,asOf,cur
 describe("what-if scenario wrapper",()=>{
  it("uses the existing forecast and calculator while preserving the baseline",()=>expect(build(10)).toMatchObject({status:"SIMULATED",baseline:700,result:770,currency:"YER",accountingFact:false,assumptionBoundary:"USER_SUPPLIED"}));
  it("withholds assumptions outside the configured bounds",()=>expect(build(101)).toMatchObject({status:"WITHHELD",baseline:700,result:null}));
+ it("withholds compounded assumptions beyond the total constraint",()=>{const result=buildSalesScenario({id:"s",createdAt:asOf,asOf,currency:"YER",forecast,baselineMetric:metric,evidenceRecords:[evidence],
+  assumptions:[{id:"a",label:"a",changePercent:60,owner:"x"},{id:"b",label:"b",changePercent:60,owner:"x"}],constraints:{minimumChangePercent:-50,maximumChangePercent:100}});
+  expect(result.status).toBe("WITHHELD");expect(result.result).toBeNull()});
  it("withholds a forecast baseline without verified source lineage",()=>expect(buildSalesScenario({id:"s",createdAt:asOf,asOf,currency:"YER",forecast,baselineMetric:{...metric,status:"UNVERIFIED"},evidenceRecords:[evidence],
   assumptions:[{id:"a",label:"test",changePercent:5,owner:"analyst"}],constraints:{minimumChangePercent:-100,maximumChangePercent:500}}).result).toBeNull());
 });

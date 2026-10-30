@@ -8,7 +8,7 @@ export interface FreeProviderQuota {
 }
 export interface SanitizedQuestion {ok:boolean;question?:string}
 export interface AiRouteDecision {
- mode:AiExecutionMode;provider:AiProvider|null;model:string|null;reason:"FREE_PROVIDER_AVAILABLE"|"ALL_FREE_QUOTAS_UNAVAILABLE"|"NO_RULE_ENGINE";
+ mode:AiExecutionMode;provider:AiProvider|null;model:string|null;reason:"FREE_PROVIDER_AVAILABLE"|"ALL_FREE_QUOTAS_UNAVAILABLE"|"NO_RULE_ENGINE"|"UNSAFE_QUESTION";
  attemptedProviders:Array<{provider:AiProvider;model:string;reason:string}>;paidSpendLimit:0;question:string|null;
 }
 /** The only provider payload is the sanitized question; no customer, ledger, stock, margin or tenant DTO is accepted here. */
@@ -17,7 +17,7 @@ export function chooseFreeAiRoute(input:{
 }):AiRouteDecision {
  const sanitized=input.sanitize(input.question),fallback=input.ruleEngineAvailable?"RULE_BASED":"MODEL_UNAVAILABLE";
  if(!sanitized.ok||!sanitized.question?.trim())return {mode:fallback,provider:null,model:null,
-  reason:input.ruleEngineAvailable?"ALL_FREE_QUOTAS_UNAVAILABLE":"NO_RULE_ENGINE",attemptedProviders:[],paidSpendLimit:0,question:null};
+  reason:"UNSAFE_QUESTION",attemptedProviders:[],paidSpendLimit:0,question:null};
  const now=Date.parse(input.asOf);if(!Number.isFinite(now))throw new Error("asOf must be valid");
  const attemptedProviders:Array<{provider:AiProvider;model:string;reason:string}>=[];
  const selected=input.providers.find(provider=>{

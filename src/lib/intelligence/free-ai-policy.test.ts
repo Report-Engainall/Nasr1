@@ -12,6 +12,6 @@ describe("free quota AI router",()=>{
    expect(route([provider(p)]).mode).toBe("RULE_BASED");
  });
  it("returns MODEL_UNAVAILABLE when no free provider and no rule engine exist",()=>expect(route([],false)).toMatchObject({mode:"MODEL_UNAVAILABLE",paidSpendLimit:0}));
- it("blocks unsafe questions before provider selection",()=>expect(chooseFreeAiRoute({question:"user@example.com",sanitize,asOf:at,providers:[provider()],ruleEngineAvailable:true})).toMatchObject({mode:"RULE_BASED",question:null}));
+ it("blocks unsafe questions before provider selection",()=>expect(chooseFreeAiRoute({question:"user@example.com",sanitize,asOf:at,providers:[provider()],ruleEngineAvailable:true})).toMatchObject({mode:"RULE_BASED",reason:"UNSAFE_QUESTION",question:null}));
  it("produces prompt-free and secret-free operations telemetry",()=>expect(summarizeAiOperations(at,[{id:"1",provider:"gemini",mode:"MODEL",status:"FAILED",reasonCode:"provider_timeout",occurredAt:at,elapsedMs:200}])).toMatchObject({failed:1,containsPrompts:false,containsSecrets:false,errorCodes:["provider_timeout"]}));
 });

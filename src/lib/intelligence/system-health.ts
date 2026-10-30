@@ -12,6 +12,7 @@ export interface SystemHealthSnapshot {asOf:string;status:HealthStatus;component
 /** A missing, stale or unverified required probe prevents global HEALTHY. */
 export function buildSystemHealthSnapshot(input:{asOf:string;requiredComponents:string[];probes:SystemHealthProbe[];evidenceRecords:EvidenceRecord[]}):SystemHealthSnapshot {
  const now=Date.parse(input.asOf);if(!Number.isFinite(now))throw new Error("asOf must be valid");
+ if(input.requiredComponents.length===0)return {asOf:input.asOf,status:"UNKNOWN",components:[],evidenceRecords:input.evidenceRecords,warnings:["NO_REQUIRED_HEALTH_COMPONENTS"]};
  const evidence=new Map(input.evidenceRecords.map(e=>[e.id,e])),byName=new Map<string,SystemHealthProbe[]>();
  for(const p of input.probes){const rows=byName.get(p.component)??[];rows.push(p);byName.set(p.component,rows)}
  const components:SystemHealthComponent[]=[];
