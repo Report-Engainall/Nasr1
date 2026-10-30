@@ -7029,19 +7029,174 @@ async function main() {
     "insert into public.customer_invoice_items(organization_id,invoice_id,product_id,item_code,description,unit,quantity,unit_price,line_total) values($1,$2,$3,'CI-TAX-LINE','CI source tax invoice line','unit',1,100.00,100.00)",
     [organizationId, taxInvoiceId, productId],
   );
-  await db.unsafe("update public.customer_invoices set currency='USD' where id=$1::uuid", [taxInvoiceId]);
-  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
-  await db.unsafe("set role authenticated");
-  await expectFailure(
-    "foreign-currency invoice is not converted without an explicit FX policy",
-    () => db.unsafe(
-      "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid)",
-      [taxInvoiceId, debitAccountId, creditAccountId, taxLiabilityAccountId, "efefefef-efef-4fef-8fef-efefefefefe1"],
-    ),
-    /only active YER invoices can be journaled until a documented FX policy exists/i,
-  );
+  // DLV-008-INVOICE-PAYMENT-MULTICURRENCY-SETTLEMENT-002:
+  // A payment inherits currency only from its tenant-scoped invoice; no implicit FX conversion is allowed.
+  // All temporary USD state is enclosed in a rollback transaction so the YER accounting fixture remains canonical.
+  const usdPaymentIdempotencyKey = randomUUID();
+  let usdPaymentId;
   await db.unsafe("reset role");
-  await db.unsafe("update public.customer_invoices set currency='YER' where id=$1::uuid", [taxInvoiceId]);
+  await db.unsafe("begin");
+  try {
+    await db.unsafe("update public.customer_invoices set currency='USD' where id=$1::uuid", [taxInvoiceId]);
+
+    const readForeignCurrencyJournalDenialSnapshot = async () => {
+      await db.unsafe("reset role");
+      const rows = await db.unsafe(
+        "select jsonb_build_object(" +
+          "'invoice',to_jsonb(source_invoice)," +
+          "'customer',to_jsonb(source_customer)," +
+          "'payments',coalesce((" +
+            "select jsonb_agg(to_jsonb(source_payment) order by source_payment.id) " +
+            "from public.customer_payments source_payment " +
+            "where source_payment.organization_id=source_invoice.organization_id " +
+              "and source_payment.invoice_id=source_invoice.id" +
+          "),'[]'::jsonb)," +
+          "'audits',coalesce((" +
+            "select jsonb_agg(to_jsonb(source_audit) order by source_audit.created_at,source_audit.id) " +
+            "from public.audit_logs source_audit " +
+            "where source_audit.organization_id=source_invoice.organization_id and (" +
+              "source_audit.entity_id=any(array[source_invoice.id,source_customer.id]::uuid[]) or " +
+              "source_audit.new_value->>'invoice_id'=source_invoice.id::text or " +
+              "source_audit.old_value->>'invoice_id'=source_invoice.id::text" +
+            ")" +
+          "),'[]'::jsonb)" +
+        ")::text as snapshot " +
+        "from public.customer_invoices source_invoice " +
+        "join public.customers source_customer " +
+          "on source_customer.id=source_invoice.customer_id " +
+          "and source_customer.organization_id=source_invoice.organization_id " +
+        "where source_invoice.organization_id=$1::uuid and source_invoice.id=$2::uuid",
+        [organizationId, taxInvoiceId],
+      );
+      assert.equal(rows.length, 1, "foreign-currency denial snapshot resolves exactly one tenant invoice/customer");
+      return rows[0].snapshot;
+    };
+
+    const foreignCurrencyDenialBefore = await readForeignCurrencyJournalDenialSnapshot();
+    await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+    await db.unsafe("set role authenticated");
+    await expectFailure(
+      "foreign-currency invoice is not converted without an explicit FX policy",
+      () => db.unsafe(
+        "select public.create_customer_invoice_journal_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid)",
+        [taxInvoiceId, debitAccountId, creditAccountId, taxLiabilityAccountId, "efefefef-efef-4fef-8fef-efefefefefe1"],
+      ),
+      /only active YER invoices can be journaled until a documented FX policy exists/i,
+    );
+    const foreignCurrencyDenialAfter = await readForeignCurrencyJournalDenialSnapshot();
+    assert.equal(
+      foreignCurrencyDenialAfter,
+      foreignCurrencyDenialBefore,
+      "foreign-currency accounting denial leaves invoice/customer/payment/audit rows byte-for-byte unchanged",
+    );
+
+    await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+    await db.unsafe("set role authenticated");
+    const statementBeforeUsdPayment = (await db.unsafe(
+      "select public.get_staff_customer_account_statement($1::uuid) as result",
+      [customerOneId],
+    ))[0].result;
+    const yerSummaryBeforeUsdPayment = statementBeforeUsdPayment.summary.find((row) => row.currency === "YER");
+    assert.ok(yerSummaryBeforeUsdPayment, "the customer statement must retain its existing YER currency bucket");
+
+    usdPaymentId = (await db.unsafe(
+      "select public.record_customer_payment($1::uuid,$2::numeric,$3::text,$4::uuid,$5::text,$6::text)::text as id",
+      [taxInvoiceId, "40.25", "transfer", usdPaymentIdempotencyKey, "CI-USD-SOURCE-CURRENCY", "exact-decimal USD settlement"],
+    ))[0].id;
+    assert.match(usdPaymentId, /^[0-9a-f-]{36}$/i, "source-linked USD settlement returns its canonical payment ID");
+
+    await db.unsafe("reset role");
+    const persistedUsdPayment = await db.unsafe(
+      "select payment.id::text as id,payment.invoice_id::text as invoice_id," +
+        "payment.organization_id::text as organization_id,payment.customer_id::text as customer_id," +
+        "payment.amount::text as amount,invoice.currency " +
+      "from public.customer_payments payment " +
+      "join public.customer_invoices invoice " +
+        "on invoice.id=payment.invoice_id and invoice.organization_id=payment.organization_id " +
+        "and invoice.customer_id=payment.customer_id " +
+      "where payment.id=$1::uuid",
+      [usdPaymentId],
+    );
+    assert.equal(persistedUsdPayment.length, 1, "the USD payment must persist exactly once against its source invoice");
+    assert.equal(persistedUsdPayment[0].invoice_id, taxInvoiceId);
+    assert.equal(persistedUsdPayment[0].organization_id, organizationId);
+    assert.equal(persistedUsdPayment[0].customer_id, customerOneId);
+    assert.equal(persistedUsdPayment[0].amount, "40.25", "numeric settlement preserves exact two-decimal precision");
+    assert.equal(persistedUsdPayment[0].currency, "USD", "payment currency is inherited from the source invoice");
+
+    const usdPaymentAudit = await db.unsafe(
+      "select actor_id::text as actor_id,new_value from public.audit_logs " +
+        "where organization_id=$1::uuid and action='customer_payment.recorded' " +
+        "and entity_type='customer_payment' and entity_id=$2::uuid",
+      [organizationId, usdPaymentId],
+    );
+    assert.equal(usdPaymentAudit.length, 1, "the source-linked USD payment writes exactly one audit row");
+    assert.equal(usdPaymentAudit[0].actor_id, accountantProfileId);
+    assert.equal(usdPaymentAudit[0].new_value.invoice_id, taxInvoiceId);
+    assert.equal(usdPaymentAudit[0].new_value.amount, "40.25");
+    assert.equal(usdPaymentAudit[0].new_value.currency, "USD");
+    assert.equal(usdPaymentAudit[0].new_value.payment_method, "transfer");
+    assert.equal(usdPaymentAudit[0].new_value.idempotency_key_present, true);
+    assert.equal(Object.hasOwn(usdPaymentAudit[0].new_value, "idempotency_key"), false);
+    assert.equal(Object.hasOwn(usdPaymentAudit[0].new_value, "notes"), false);
+
+    await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+    await db.unsafe("set role authenticated");
+    const statementAfterUsdPayment = (await db.unsafe(
+      "select public.get_staff_customer_account_statement($1::uuid) as result",
+      [customerOneId],
+    ))[0].result;
+    const usdInvoiceStatement = statementAfterUsdPayment.invoices.find((row) => row.id === taxInvoiceId);
+    assert.ok(usdInvoiceStatement, "the customer statement must include its source USD invoice");
+    assert.equal(usdInvoiceStatement.currency, "USD");
+    assert.equal(usdInvoiceStatement.total_amount, "115.00");
+    assert.equal(usdInvoiceStatement.paid_amount, "40.25");
+    assert.equal(usdInvoiceStatement.outstanding_amount, "74.75");
+    const usdPaymentStatement = statementAfterUsdPayment.payments.find((row) => row.id === usdPaymentId);
+    assert.ok(usdPaymentStatement, "the customer statement must include the saved source USD payment");
+    assert.equal(usdPaymentStatement.currency, "USD");
+    assert.equal(usdPaymentStatement.amount, "40.25");
+    const usdSummary = statementAfterUsdPayment.summary.find((row) => row.currency === "USD");
+    assert.ok(usdSummary, "statement aggregates must retain a distinct USD bucket");
+    assert.equal(usdSummary.invoiced, "115.00");
+    assert.equal(usdSummary.paid, "40.25");
+    assert.equal(usdSummary.outstanding, "74.75");
+    const yerSummaryAfterUsdPayment = statementAfterUsdPayment.summary.find((row) => row.currency === "YER");
+    assert.deepEqual(
+      yerSummaryAfterUsdPayment,
+      yerSummaryBeforeUsdPayment,
+      "a USD payment must not change the customer's YER statement bucket",
+    );
+    process.stdout.write(
+      "PASS DLV-008-INVOICE-PAYMENT-MULTICURRENCY-SETTLEMENT-002: exact-decimal payment follows the source USD invoice, audit and statement preserve USD, YER totals remain isolated, and unsupported FX journal posting fails without side effects\\n",
+    );
+  } finally {
+    await db.unsafe("rollback");
+    await db.unsafe("reset role");
+    await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+    await db.unsafe("set role authenticated");
+  }
+
+  await db.unsafe("reset role");
+  const rolledBackUsdFixture = await db.unsafe(
+    "select invoice.currency,count(payment.id)::int as payment_count " +
+      "from public.customer_invoices invoice " +
+      "left join public.customer_payments payment " +
+        "on payment.invoice_id=invoice.id and payment.organization_id=invoice.organization_id " +
+      "where invoice.organization_id=$1::uuid and invoice.id=$2::uuid " +
+      "group by invoice.currency",
+    [organizationId, taxInvoiceId],
+  );
+  assert.equal(rolledBackUsdFixture.length, 1);
+  assert.equal(rolledBackUsdFixture[0].currency, "YER", "the temporary USD source currency must be rolled back");
+  assert.equal(rolledBackUsdFixture[0].payment_count, 0, "the temporary USD payment must not leak into later accounting fixtures");
+  const rolledBackUsdAudit = await db.unsafe(
+    "select id from public.audit_logs where organization_id=$1::uuid " +
+      "and action='customer_payment.recorded' and entity_type='customer_payment' and entity_id=$2::uuid",
+    [organizationId, usdPaymentId ?? "00000000-0000-0000-0000-000000000000"],
+  );
+  assert.equal(rolledBackUsdAudit.length, 0, "the temporary USD audit event must roll back with its payment");
+
   await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
   await db.unsafe("set role authenticated");
   const taxDraft = (await db.unsafe(
