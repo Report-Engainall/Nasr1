@@ -1822,6 +1822,35 @@ async function main() {
       const options = (await db.unsafe(
         "select public.get_finance_document_print_options($1::integer) as result", [100],
       ))[0].result;
+      const assertExactJsonKeys = (value, expectedKeys, label) => {
+        assert.ok(value && typeof value === "object" && !Array.isArray(value),
+          roleLabel + " " + label + " must be a JSON object");
+        assert.deepEqual(
+          Object.keys(value).sort(),
+          [...expectedKeys].sort(),
+          roleLabel + " " + label + " must contain exactly the approved server fields",
+        );
+      };
+      assertExactJsonKeys(options, [
+        "organization_name", "customers", "customers_has_more",
+        "invoices", "invoices_has_more", "credit_memos", "credit_memos_has_more",
+        "limit", "offset",
+      ], "finance selector");
+      for (const row of options.customers) {
+        assertExactJsonKeys(row, ["id", "customer_code", "business_name", "contact_name"],
+          "finance selector customer row");
+      }
+      for (const row of options.invoices) {
+        assertExactJsonKeys(row, [
+          "id", "invoice_number", "customer_id", "customer_name", "status", "issued_at", "currency",
+        ], "finance selector invoice row");
+      }
+      for (const row of options.credit_memos) {
+        assertExactJsonKeys(row, [
+          "id", "memo_number", "customer_id", "customer_name", "invoice_number",
+          "status", "created_at", "currency", "total_amount",
+        ], "finance selector credit-memo row");
+      }
       assert.equal(options.organization_name, issuerRows[0].name, roleLabel + " must receive issuer identity from the active organization");
       assert.ok(options.customers.some((row) => row.id === customerOneId), roleLabel + " must receive current-tenant customers");
       assert.ok(options.invoices.some((row) => row.id === invoice.id), roleLabel + " must receive the current-tenant invoice");
@@ -1839,6 +1868,30 @@ async function main() {
       const creditMemoPrint = (await db.unsafe(
         "select public.get_customer_return_credit_memo_pdf($1::uuid) as result", [printCreditMemoId],
       ))[0].result;
+      assertExactJsonKeys(creditMemoPrint,
+        ["memo", "customer", "invoice", "return_request", "journal", "lines"],
+        "credit-memo PDF");
+      assertExactJsonKeys(creditMemoPrint.memo, [
+        "id", "memo_number", "status", "currency", "subtotal_amount", "tax_amount",
+        "total_amount", "created_at", "posted_at", "reversed_at", "reversal_reason",
+        "reversal_journal_entry_number", "reversal_journal_status",
+      ], "credit-memo PDF memo");
+      assertExactJsonKeys(creditMemoPrint.customer, ["id", "name", "contact_name"],
+        "credit-memo PDF customer");
+      assertExactJsonKeys(creditMemoPrint.invoice, [
+        "id", "invoice_number", "currency", "issued_at", "subtotal", "tax_amount",
+        "total_amount", "order_number",
+      ], "credit-memo PDF invoice");
+      assertExactJsonKeys(creditMemoPrint.return_request,
+        ["id", "request_number", "status", "created_at"], "credit-memo PDF return request");
+      assertExactJsonKeys(creditMemoPrint.journal,
+        ["id", "entry_number", "status", "entry_date"], "credit-memo PDF journal");
+      for (const line of creditMemoPrint.lines) {
+        assertExactJsonKeys(line, [
+          "id", "item_code", "description", "unit", "returned_quantity",
+          "credited_subtotal", "invoice_quantity", "invoice_unit_price", "invoice_line_total",
+        ], "credit-memo PDF line");
+      }
       assert.equal(creditMemoPrint.memo.id, printCreditMemoId, roleLabel + " credit memo print must retain the persisted source ID");
       assert.equal(creditMemoPrint.customer.name, "عميل غير مسمى",
         roleLabel + " credit-memo PDF customer label must use the customer-facing fallback");
@@ -1851,6 +1904,18 @@ async function main() {
       const invoicePrint = (await db.unsafe(
         "select public.get_staff_customer_invoice_print_data($1::uuid) as result", [invoice.id],
       ))[0].result;
+      assertExactJsonKeys(invoicePrint, ["invoice", "customer", "lines"], "staff invoice PDF");
+      assertExactJsonKeys(invoicePrint.invoice, [
+        "id", "invoice_number", "status", "issued_at", "due_at", "currency",
+        "subtotal", "tax_amount", "total_amount",
+      ], "staff invoice PDF invoice");
+      assertExactJsonKeys(invoicePrint.customer,
+        ["id", "customer_code", "business_name", "contact_name"], "staff invoice PDF customer");
+      for (const line of invoicePrint.lines) {
+        assertExactJsonKeys(line, [
+          "id", "item_code", "description", "unit", "quantity", "unit_price", "line_total",
+        ], "staff invoice PDF line");
+      }
       assert.equal(invoicePrint.invoice.id, invoice.id, roleLabel + " invoice print must retain the persisted source ID");
       assert.equal(Number(invoicePrint.invoice.total_amount), 370000, roleLabel + " invoice amount must match the database source");
       assert.equal(invoicePrint.lines.length, 1, roleLabel + " invoice print must contain source lines");
@@ -1858,6 +1923,39 @@ async function main() {
       const statementPrint = (await db.unsafe(
         "select public.get_staff_customer_account_statement($1::uuid) as result", [customerOneId],
       ))[0].result;
+      assertExactJsonKeys(statementPrint, [
+        "customer", "invoices", "payments", "credits", "summary_as_of_utc", "summary", "truncated",
+      ], "staff account statement");
+      assertExactJsonKeys(statementPrint.customer,
+        ["id", "customer_code", "business_name", "contact_name"], "staff statement customer");
+      for (const row of statementPrint.invoices) {
+        assertExactJsonKeys(row, [
+          "id", "invoice_number", "status", "issued_at", "due_at", "currency",
+          "subtotal", "tax_amount", "total_amount", "paid_amount",
+          "credit_memo_amount", "outstanding_amount",
+        ], "staff statement invoice row");
+      }
+      for (const row of statementPrint.payments) {
+        assertExactJsonKeys(row, [
+          "id", "invoice_id", "invoice_number", "currency", "amount", "paid_at",
+          "payment_method", "reference",
+        ], "staff statement payment row");
+      }
+      for (const row of statementPrint.credits) {
+        assertExactJsonKeys(row, [
+          "id", "memo_number", "invoice_id", "invoice_number", "currency",
+          "subtotal_amount", "tax_amount", "total_amount", "created_at", "posted_at",
+        ], "staff statement credit-memo row");
+      }
+      for (const row of statementPrint.summary) {
+        assertExactJsonKeys(row, [
+          "currency", "invoiced", "paid", "credited", "outstanding",
+          "overdue_invoice_count", "overdue_outstanding",
+          "unknown_due_date_invoice_count", "unknown_due_date_outstanding",
+        ], "staff statement currency summary");
+      }
+      assertExactJsonKeys(statementPrint.truncated, ["invoices", "payments", "credits"],
+        "staff statement truncation metadata");
       const printedInvoice = statementPrint.invoices.find((row) => row.id === invoice.id);
       assert.ok(printedInvoice, roleLabel + " statement must include the tenant's source invoice");
       assert.equal(Number(printedInvoice.paid_amount), 100000);
