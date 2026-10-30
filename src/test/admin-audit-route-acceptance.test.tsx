@@ -180,6 +180,44 @@ describe("admin audit actual deep route acceptance", () => {
     vi.restoreAllMocks();
   });
 
+  it("keeps the route in loading state until the first tenant scope and audit read resolve", async () => {
+    let resolveScope!: (value: {
+      profileId: string;
+      organizationId: string;
+      warehouseId: null;
+      isStaff: true;
+    }) => void;
+    mocks.getScope.mockReturnValue(new Promise((resolve) => {
+      resolveScope = resolve;
+    }));
+    mocks.responses = [{ data: [makeRow()], count: 1, error: null }];
+
+    await mountAuditDeepLink(["manager"]);
+
+    expect(screen.getByRole("status")).toHaveTextContent("جارٍ التحميل...");
+    expect(screen.queryByText("لا توجد سجلات مطابقة للفلاتر الحالية.")).not.toBeInTheDocument();
+
+    resolveScope({
+      profileId: "11111111-1111-4111-8111-111111111111",
+      organizationId,
+      warehouseId: null,
+      isStaff: true,
+    });
+
+    expect(await screen.findByRole("cell", { name: "إعادة تسمية تصنيف" })).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("does not expose thrown scope diagnostics in the audit error UI", async () => {
+    mocks.getScope.mockRejectedValue(new Error("private database connection details"));
+    await mountAuditDeepLink(["manager"]);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("تعذر تحميل سجل التدقيق. حاول التحديث.");
+    expect(alert).not.toHaveTextContent("private database connection details");
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
   it("opens the real audit screen from a direct URL and renders a tenant-scoped event", async () => {
     mocks.responses = [{ data: [makeRow()], count: 1, error: null }];
 

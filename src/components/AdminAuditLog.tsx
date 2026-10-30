@@ -37,7 +37,7 @@ export function AdminAuditLog() {
   const { user } = useAuth();
   const canReadAudit = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const [rows, setRows] = useState<AuditLogRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
@@ -75,8 +75,9 @@ export function AdminAuditLog() {
         return;
       }
       setRows((data ?? []) as AuditLogRow[]);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'تعذر تحميل سجل التدقيق.');
+    } catch {
+      // Keep database/network diagnostics out of the audit UI; provide a safe, actionable message.
+      setError('تعذر تحميل سجل التدقيق. حاول التحديث.');
       setRows([]);
       setTotalCount(null);
     } finally {
