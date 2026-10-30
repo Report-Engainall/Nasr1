@@ -27,4 +27,11 @@ describe('Admin Customer 360 data boundary', () => {
     expect(source).toContain("'غير متاح'");
     expect(source).not.toContain('recommendation.overdue_invoice_count ?? 0');
   });
+
+  it('does not invent a payment invoice number or currency outside the recent invoice window', () => {
+    expect(source).toContain("relatedInvoice?.invoice_number ?? 'خارج أحدث 20 فاتورة'");
+    expect(source).toContain("'غير متاح — عملة الفاتورة خارج أحدث 20 فاتورة'");
+    expect(source).not.toContain('payment.invoice_id.slice(0, 8)');
+    expect(source).not.toContain("?.currency ?? 'YER'");
+  });
 });

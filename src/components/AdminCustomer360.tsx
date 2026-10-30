@@ -134,7 +134,15 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         </section>
         <section className="panel">
           <h3>آخر الدفعات ({formatNumber(summary.recent_payments.length)} معروضة)</h3>
-          {!summary.recent_payments.length ? <Empty text="لا توجد دفعات مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>التاريخ</th><th>الفاتورة</th><th>طريقة الدفع</th><th>المبلغ</th></tr></thead><tbody>{summary.recent_payments.map((payment) => <tr key={payment.id}><td>{formatDateShort(payment.paid_at)}</td><td>{summary.recent_invoices.find((invoice) => invoice.id === payment.invoice_id)?.invoice_number ?? payment.invoice_id.slice(0, 8)}</td><td>{payment.payment_method ?? 'غير محددة'}</td><td>{formatCustomer360Money(payment.amount, summary.recent_invoices.find((invoice) => invoice.id === payment.invoice_id)?.currency ?? 'YER')}</td></tr>)}</tbody></table></TableWrap>}
+          {!summary.recent_payments.length ? <Empty text="لا توجد دفعات مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>التاريخ</th><th>الفاتورة</th><th>طريقة الدفع</th><th>المبلغ</th></tr></thead><tbody>{summary.recent_payments.map((payment) => {
+            const relatedInvoice = summary.recent_invoices.find((invoice) => invoice.id === payment.invoice_id);
+            return <tr key={payment.id}>
+              <td>{formatDateShort(payment.paid_at)}</td>
+              <td>{relatedInvoice?.invoice_number ?? 'خارج أحدث 20 فاتورة'}</td>
+              <td>{payment.payment_method ?? 'غير محددة'}</td>
+              <td>{relatedInvoice ? formatCustomer360Money(payment.amount, relatedInvoice.currency) : 'غير متاح — عملة الفاتورة خارج أحدث 20 فاتورة'}</td>
+            </tr>;
+          })}</tbody></table></TableWrap>}
         </section>
       </>}
     </div>
