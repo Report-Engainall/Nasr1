@@ -1,3 +1,12 @@
+## LIVE RESULT OVERRIDE — 2026-10-30 — EXACT CODE CORE PASS / P2 MOBILE FOCUS FAILURE
+**Observed main parent before this docs correction: `4c0918c6a0536e13cf94f90ae0c83487a88adbbe`; code-bearing SHA: `7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b`. Re-read live main before next mutation.**
+- Core [41022452845 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41022452845) on exact 7c7d28c: all Unit, PG17, RPC inventory, finance/inventory/import, backup/restore, lint/build/smoke and Chromium price-visibility steps passed.
+- P2 [41022452961 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41022452961) same SHA: local authenticated data flows and Onyx passed; finance/task printing failed twice at initial mobile navigation focus (`e2e/finance-task-print.spec.ts:69`, expected focused/received inactive); print assertions not reached; hosted tenant/customer-manager/device-session skipped.
+- P1 one-shot focus defect remains unpatched; P2 aggregate/outcome persistence, free-only AI/privacy, health and RBAC remain pending. P3 measured-outcome contract hardened and exact-head Core passed.
+- Authoritative matrix separator repaired in-place and validated: 143 records, 8 columns each, 143 unique IDs, 16 REF, 18 DLV + rollup. No DLV close.
+- Parent docs Core [41022861275](https://github.com/Report-Engainall/Nasr1/actions/runs/41022861275) IN_PROGRESS on 4c0918c; cleanup [41022861203 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41022861203). Do not transfer code PASS to the docs SHA.
+- exact_next_command: poll 41022861275; integrate only tested P1/P2 changes using expected-main-SHA CAS. Release NO-GO.
+
 ## LIVE MAIN CURSOR — 2026-10-30 — P3 MEASURED-OUTCOME HARDENING
 **Code-bearing main candidate observed immediately before this documentation checkpoint; re-read GitHub main before any subsequent write.**
 - Repository `Report-Engainall/Nasr1`; branch `main` only.

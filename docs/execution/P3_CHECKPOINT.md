@@ -1,3 +1,12 @@
+## P3 EXACT-HEAD RESULT — 2026-10-30 — CORE PASS / P2 FOCUS FAIL
+- Code SHA `7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b`; P3 commit [7c7d28c](https://github.com/Report-Engainall/Nasr1/commit/7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b), base 9ba831d89f894ccda3036b8908be7e86331bbb94.
+- Core [41022452845 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41022452845) on exact SHA: Unit, PG17 migrations/workflows, RPC inventory, finance/inventory/import, backup/restore, lint/build, preview/dev smoke and price-visibility all PASS.
+- P2 [41022452961 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41022452961) exact same SHA: local migrations, endpoint guard, price/cash/receipt, order/cross-tenant, returns/credit memo and Onyx XLSX PASS; finance/task print failed twice with first mobile nav item unfocused after 20s at `e2e/finance-task-print.spec.ts:69`; print assertions not reached. Hosted tenant/customer-manager/device-session SKIPPED.
+- P3 MEASURED now requires VERIFIED+COMPLETE+ACCEPTABLE, metric/unit/currency, formula/version, asOf/period/measuredAt and unique evidenceIds; 10 negative variants rejected and verified zero accepted. P2 must resolve those IDs against same-tenant sources before persistence. Not equivalent to completed P2 DB integration.
+- P1 one-shot immediate focus remains unpatched. P2 aggregate/outcome persistence/AI/health/RBAC remain open. No DLV roll-up close; production NO-GO.
+- Parent docs cursor `4c0918c6a0536e13cf94f90ae0c83487a88adbbe`; Core [41022861275](https://github.com/Report-Engainall/Nasr1/actions/runs/41022861275) IN_PROGRESS at last poll; cleanup 41022861203 SUCCESS. Poll only existing run.
+- exact_next_command: poll docs Core 41022861275, then accept only tested P1 focus and P2 aggregate/outcome patches with exact base SHA and denial evidence; integrate by expected-SHA CAS.
+
 ## P3 LIVE CHECKPOINT — 2026-10-30 — STRICT EVIDENCE-BACKED DECISION OUTCOME
 - observed_code_sha: `7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b`; parent/base: `9ba831d89f894ccda3036b8908be7e86331bbb94`; branch `main` only. P3 change is committed and verified on GitHub; no local working copy changed.
 - Task: `REF-DECISION-OUTCOME-001` (bounded contract-hardening slice; not a DLV closure).

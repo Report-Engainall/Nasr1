@@ -1629,3 +1629,10 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - P2 next: server aggregate and tenant-validated atomic outcome persistence, zero-paid AI/privacy/fallback, health probes and canonical RBAC. P1 next: focus sequencing repair in AghbariApp.tsx and live DTO UI mount. Prior P2 41021594114 confirmed mobile focus failure; finance print not reached.
 - REF-DECISION-OUTCOME-001 remains PARTIAL pending exact-head Core, P2 persistence and P1 mounting; no DLV closed; production NO-GO.
 
+
+## 2026-10-30 — P3 exact-head Core PASS / P2 focus failure — SHA 7c7d28c
+- Core 41022452845 SUCCESS on exact 7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b: Unit, PG17, RPC inventory, finance/inventory/import, backup/restore, lint/build/smoke and Chromium price visibility PASS.
+- P2 41022452961 FAILURE on same SHA: local order/tenant, returns/credit memo, receipt and Onyx XLSX PASS; finance/task print failed twice at e2e/finance-task-print.spec.ts:69 (20s, expected focused/received inactive); print assertions not reached; hosted/customer-manager/device-session SKIPPED.
+- P1 one-shot focus source remains unpatched. P2 tenant aggregate/outcome persistence, AI/privacy/quota, health and canonical RBAC pending.
+- CSV separator repaired and validated: 143 data records, 8 columns each, 143 unique IDs, 16 REF, 18 DLV plus rollup. Docs Core 41022861275 on parent 4c0918c was IN_PROGRESS; cleanup 41022861203 SUCCESS. No DLV close; release NO-GO.
+
