@@ -53,6 +53,19 @@ async function voidExpense(client, expenseId, reason) {
   return asJson((await client.unsafe("select public.void_cash_expense($1::uuid,$2::text) as result", [expenseId, reason]))[0].result);
 }
 
+async function snapshotExpenseRecordBoundary(idempotencyKey) {
+  const rows = await db.unsafe(
+    "select jsonb_build_object(" +
+      "'expenses',coalesce((select jsonb_agg(to_jsonb(e) order by e.id::text) from public.cash_expenses e where e.organization_id=$1::uuid and e.idempotency_key=$2::uuid),'[]'::jsonb)," +
+      "'audit',coalesce((select jsonb_agg(to_jsonb(a) order by a.id::text) from public.audit_logs a where a.organization_id=$1::uuid and a.action='cash_expense.recorded' and a.entity_type='cash_expense' and a.entity_id in (select e.id from public.cash_expenses e where e.organization_id=$1::uuid and e.idempotency_key=$2::uuid)),'[]'::jsonb)," +
+      "'source_postings',coalesce((select jsonb_agg(to_jsonb(p) order by p.id::text) from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id in (select e.id from public.cash_expenses e where e.organization_id=$1::uuid and e.idempotency_key=$2::uuid)),'[]'::jsonb)" +
+    ")::text as snapshot",
+    [organizationId, idempotencyKey],
+  );
+  assert.equal(rows.length, 1, "privileged expense-record oracle must return a full source and audit snapshot");
+  return rows[0].snapshot;
+}
+
 async function snapshotExpenseVoidBoundary(expenseId) {
   const source = await db.unsafe(
     "select status,voided_by_profile_id::text as voided_by,voided_at::text as voided_at,void_reason,updated_at::text as updated_at " +
@@ -127,7 +140,37 @@ async function main() {
     await setIdentity(concurrentA, manager.auth_user_id, manager.email);
     await setIdentity(concurrentB, manager.auth_user_id, manager.email);
     const expenseKey = randomUUID();
-    const expense = await recordExpense(managerDb, expenseKey, "P2 expense journal acceptance", "125.50");
+
+    // AUTHZ-GL-CASH-EXPENSE-RECORD-STAFF-DENIAL-001:
+    // a same-tenant ordinary staff denial must not create source, audit or posting rows,
+    // and must not consume the payload-bound idempotency key.
+    const expenseDescription = "P2 expense journal acceptance";
+    await setIdentity(staffDb, staffAuthId, staffEmail);
+    const expenseRecordBeforeDenial = await snapshotExpenseRecordBoundary(expenseKey);
+    const staffRecordError = await expectFailure(
+      "same-tenant ordinary staff cannot record a cash expense",
+      () => recordExpense(staffDb, expenseKey, expenseDescription, "125.50"),
+      /finance permission required to record cash expense/i,
+    );
+    assert.equal(staffRecordError.code, "42501", "ordinary-staff cash-expense record denial uses SQLSTATE 42501");
+    assert.equal(
+      await snapshotExpenseRecordBoundary(expenseKey),
+      expenseRecordBeforeDenial,
+      "ordinary-staff record denial preserves expense, source-posting and audit rows byte-for-byte",
+    );
+
+    await setIdentity(managerDb, manager.auth_user_id, manager.email);
+    const expense = await recordExpense(managerDb, expenseKey, expenseDescription, "125.50");
+    assert.equal(expense.status, "posted");
+    assert.equal(expense.replayed, false, "manager can use the same idempotency key after staff denial");
+    const expenseReplay = await recordExpense(managerDb, expenseKey, expenseDescription, "125.50");
+    assert.equal(expenseReplay.expense_id, expense.expense_id);
+    assert.equal(expenseReplay.replayed, true);
+    const recordedAudit = await db.unsafe(
+      "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid and action='cash_expense.recorded' and entity_type='cash_expense' and entity_id=$2::uuid",
+      [organizationId, expense.expense_id],
+    );
+    assert.equal(recordedAudit[0].count, 1, "manager create and replay emit one source audit record");
     assert.equal(expense.status, "posted");
     assert.equal(expense.replayed, false);
     const expenseReplay = await recordExpense(managerDb, expenseKey, "P2 expense journal acceptance", "125.50");
