@@ -23,4 +23,16 @@ describe("free quota AI router",()=>{
   expect(route([first,second]).model).toBe("a-model");
   expect(route([second,first]).model).toBe("a-model");
  });
+ it("fails closed when duplicate records claim the same provider/model quota",()=>{
+  const first=provider({model:"same-free-model",quotaRemaining:100});
+  const conflicting=provider({model:"same-free-model",quotaRemaining:0,quotaStatus:"EXHAUSTED"});
+  expect(route([first,conflicting])).toMatchObject({mode:"RULE_BASED",provider:null,paidSpendLimit:0,
+   attemptedProviders:[{reason:"DUPLICATE_PROVIDER_QUOTA_RECORD"},{reason:"DUPLICATE_PROVIDER_QUOTA_RECORD"}]});
+  expect(route([conflicting,first])).toMatchObject({mode:"RULE_BASED",provider:null,paidSpendLimit:0});
+ });
+ it("rejects ambiguous duplicate quota evidence IDs even when one copy is verified",()=>{
+  const conflictingEvidence=[...quotaEvidence,{...quotaEvidence[0],status:"UNVERIFIED" as const}];
+  const result=chooseFreeAiRoute({question:"public question",sanitize,asOf:at,providers:[provider()],quotaEvidence:conflictingEvidence,ruleEngineAvailable:true});
+  expect(result).toMatchObject({mode:"RULE_BASED",provider:null,paidSpendLimit:0,attemptedProviders:[{reason:"QUOTA_EVIDENCE_AMBIGUOUS"}]});
+ });
 });
