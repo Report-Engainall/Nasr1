@@ -1424,7 +1424,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
           {recoveringAttempt && !ambiguousSubmit && <p className="sf-form-error" role="status">توجد محاولة طلب سابقة لم يصل تأكيدها بعد. أدخل بيانات الطلب نفسها لإعادة المحاولة؛ لا تُنشئ طلبًا جديدًا قبل حسمها.</p>}
           {previewError && <div className="sf-form-error" role="alert">{previewError} <button className="sf-link" type="button" onClick={() => setPreviewRetry((n) => n + 1)}>إعادة التحقق</button></div>}
           {error && <div className="sf-form-error" role="alert" aria-live="assertive">{error}</div>}
-          {ambiguousSubmit && <p role="status">بيانات الطلب مقفلة لحماية المحاولة غير المحسومة. أعد إرسال الطلب نفسه أو افتح «طلباتي» للتحقق من ظهور الطلب.</p>}
+          {ambiguousSubmit && <p role="status">بيانات الطلب مقفلة لحماية المحاولة غير المحسومة. أعد إرسال الطلب نفسه أو <Link to="/orders" className="sf-link">افتح طلباتي للتحقق من ظهور الطلب</Link>. سيبقى مفتاح المحاولة محفوظًا أثناء التحقق.</p>}
           <div className="sf-checkout-actions"><button className="sf-btn-secondary" onClick={onBack} disabled={submitting || ambiguousSubmit}>رجوع</button><button className="sf-btn-primary" onClick={submit} disabled={submitting || previewLoading || deliveryAddressesLoading || !cartValidation}>{submitting ? 'جار الإرسال...' : previewLoading ? 'جارٍ التحقق من السلة...' : deliveryAddressesLoading ? 'جارٍ تحميل عناوين التوصيل...' : ambiguousSubmit || recoveringAttempt ? 'إعادة محاولة تأكيد الطلب نفسه' : 'تأكيد الطلب'}</button></div>
         </div>
         <aside className="sf-checkout-summary">

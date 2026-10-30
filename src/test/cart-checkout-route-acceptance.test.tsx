@@ -410,6 +410,7 @@ describe("customer cart and checkout real route acceptance", () => {
     await clickButtonContaining("تأكيد الطلب");
 
     expect(host?.textContent).toContain("لم يصل تأكيد نهائي لنتيجة الطلب.");
+    expect(host?.querySelector<HTMLAnchorElement>('a[href="/orders"]')?.textContent).toContain("افتح طلباتي للتحقق من ظهور الطلب");
     expect(mocks.submitCalls).toHaveLength(1);
     const firstKey = mocks.submitCalls[0].args._idempotency_key;
 
