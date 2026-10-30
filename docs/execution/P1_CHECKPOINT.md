@@ -1,3 +1,18 @@
+# P1 FINAL EVIDENCE — 2026-10-30 — DLV-002 VERIFIED ON CURRENT CODE SHA
+
+- task_id: `DLV-002 / ROUTES-001 — mobile admin drawer focus across open, route remount and close`.
+- code_sha: `f381bac426140d0ad3dbc7861b463c8018ff56a1`.
+- base_main_sha: `00cfbe8f0791b3872d733a9653fe660de29eee53`.
+- pull_request: `https://github.com/Report-Engainall/Nasr1/pull/312` (open, mergeable, four changed paths; P3 is sole integrator).
+- Core exact-SHA workflow: `41026957332` SUCCESS on `f381bac4`; 238/238 test files and 1,554/1,554 unit tests PASS. P1 runtime navigation test 3/3; admin navigation contract test 4/4; P3 free-AI policy test 10/10 after P3 main fix. PostgreSQL 17 migrations/core, exact RPC inventory, cash expense posting/idempotency/concurrency, journal reversal, purchase receipt accounting, invite/address concurrency/expiry, tenant analytics, quote decisions, stock-count audit, async export, import idempotency/snapshot, storefront favourites, backup/restore, lint, build, production preview smoke, dev 5173 smoke and browser price visibility all SUCCESS.
+- P2 exact-SHA workflow: `41026957475` SUCCESS on `f381bac4`; public UI smoke SUCCESS; authenticated E2E infrastructure gate SUCCESS; local Supabase/Chromium job `123968618132` SUCCESS; teardown and authenticated artifacts upload SUCCESS. Local steps PASS: migrations PostgreSQL 17, ephemeral tenant fixtures, endpoint guard allow/deny, price grid rollback/audit/stale-writer, cash expense posting/idempotency/void concurrency, purchase receipt source accounting, exact build/launch, authenticated order persistence + cross-tenant denial, return/review/receipt/credit memo, audited Onyx XLSX, finance document + operational task print (includes mobile initial/return focus), customer-manager authorization/financial privacy/audit, device-session authorization/immediate revocation.
+- Explicit proof boundary: hosted Playwright customer/order/tenant workflow is `SKIPPED` (not PASS). The successful local Supabase tenant-isolation/denial proof is not a substitute for hosted authenticated tier/session acceptance. DLV-005/DLV-011 matrix-wide role×template and hosted journeys remain open where already recorded.
+- P1 change paths (unchanged): `src/components/AghbariApp.tsx`, `src/test/admin-mobile-navigation-acceptance.test.tsx`, `src/test/storefront-admin-navigation-access.test.ts`, `docs/execution/P1_CHECKPOINT.md`. P1 initial focus waits for drawer visibility and motion completion, bounded/cancelled polling; route navigation restores focus to currently mounted menu trigger after remount. P2 `e2e/**` was not modified.
+- P3 duplicate free-AI quota mismatch was found in Core on SHA `851c82a`; P3 fixed `src/lib/intelligence/free-ai-policy.ts` in main `00cfbe8`, and the P1 branch merged that main commit. Exact Core on `f381bac4` now confirms P3 test 10/10 and all project tests pass. P1 did not edit P3 code.
+- checkpoint update itself is documentation-only and creates a new branch head; run fresh Core/P2 on that resulting exact SHA before P3 merge. Do not transfer `41026957332`/`41026957475` to the documentation commit.
+- exact_next_command: after checkpoint commit, read the new PR head; verify Core and P2 workflows triggered on that exact SHA. If both succeed, hand PR #312 to P3 with task ID, base/result SHA, four files, Core/P2 URLs, SKIPPED hosted boundary, and ask P3 to merge. Do not merge or push main from P1.
+
+---
 # P1 LIVE CHECKPOINT — 2026-10-30 — P3 FREE-AI POLICY REGRESSION FOUND AND SYNCED
 
 - task_id: `DLV-002 / ROUTES-001 — mobile drawer focus lifecycle`.
