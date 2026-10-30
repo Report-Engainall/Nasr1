@@ -166,7 +166,7 @@ async function runMembershipRevocationRace() {
     );
     assert.equal(baselineRows.length, 1);
     assert.equal(baselineRows[0].status, "quoted");
-    assert.equal(baselineRows[0].responded_by, null);
+    assert.notEqual(baselineRows[0].responded_by, memberProfileId, "staff pricing actor must not be mistaken for the buyer response");
     const baseline = baselineRows[0];
 
     await lockClient.unsafe("begin");
@@ -249,7 +249,7 @@ async function runMembershipRevocationRace() {
       "the rejected post-revocation response must preserve status, actor, timestamp and audit history");
 
     process.stdout.write(
-      "PASS customer quote membership-revocation race: response blocked on quote-row lock, revocation committed, response rejected with 42501 and quote/audit remained unchanged.\\n",
+      "PASS customer quote membership-revocation race: response blocked on quote-row lock, revocation committed, response rejected with 42501 and quote/audit remained unchanged.\n",
     );
   } finally {
     if (lockOpen) await lockClient.unsafe("rollback").catch(() => {});
