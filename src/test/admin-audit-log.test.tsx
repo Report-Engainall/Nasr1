@@ -144,7 +144,7 @@ describe("admin audit log pagination", () => {
     mocks.responses = [{ data: [], count: null, error: null }];
     render(<AdminAuditLog />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("لم يؤكد الخادم العدد الإجمالي لسجل التدقيق.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل سجل التدقيق. حاول التحديث.");
     expect(screen.queryByText(/إجمالي السجلات في المؤسسة: ٠/)).not.toBeInTheDocument();
   });
 
