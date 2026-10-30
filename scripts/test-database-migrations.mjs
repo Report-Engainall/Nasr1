@@ -7075,6 +7075,8 @@ async function main() {
     const foreignCurrencyDenialBefore = await readForeignCurrencyJournalDenialSnapshot();
     await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
     await db.unsafe("set role authenticated");
+    // Expected SQL errors abort their transaction; isolate this policy denial so the outer fixture can continue.
+    await db.unsafe("savepoint foreign_currency_journal_denial");
     await expectFailure(
       "foreign-currency invoice is not converted without an explicit FX policy",
       () => db.unsafe(
@@ -7083,6 +7085,8 @@ async function main() {
       ),
       /only active YER invoices can be journaled until a documented FX policy exists/i,
     );
+    await db.unsafe("rollback to savepoint foreign_currency_journal_denial");
+    await db.unsafe("release savepoint foreign_currency_journal_denial");
     const foreignCurrencyDenialAfter = await readForeignCurrencyJournalDenialSnapshot();
     assert.equal(
       foreignCurrencyDenialAfter,
