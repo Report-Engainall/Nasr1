@@ -160,7 +160,8 @@ describe("Admin Customer 360 source-lineage display", () => {
 
     const dialog = await screen.findByRole("dialog", { name: /ملف العميل 360/ });
     expect(await within(dialog).findByText(/فواتير: غير متاح/)).toBeInTheDocument();
-    expect(within(dialog).getByText("فواتير متأخرة من الدفتر الكامل: count:2")).toBeInTheDocument();
+    const fullLedgerOverdueCount = within(dialog).getByText(/فواتير متأخرة من الدفتر الكامل:/);
+    expect(fullLedgerOverdueCount).toHaveTextContent("count:2");
     expect(within(dialog).queryByText(/فواتير: count:0/)).not.toBeInTheDocument();
   });
 });
