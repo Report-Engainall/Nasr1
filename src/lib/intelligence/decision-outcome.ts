@@ -20,8 +20,9 @@ function sameEvent(a:DecisionOutcomeEventRecord,b:DecisionOutcomeEvent):boolean 
   JSON.stringify(a.measuredOutcome??null)===JSON.stringify(b.measuredOutcome??null);
 }
 function validMeasurement(m:DecisionMeasuredOutcome|undefined):boolean {
+ const monetary=m?.unit==="CURRENCY"||m?.unit==="CURRENCY_PER_UNIT";
  return Boolean(m&&m.value!==null&&Number.isFinite(m.value)&&m.unit.trim()&&Number.isFinite(Date.parse(m.measuredAt))&&
-  m.evidenceIds.length>0&&m.evidenceIds.every(id=>id.trim())&&(m.unit!=="CURRENCY"||Boolean(m.currency?.trim())));
+  m.evidenceIds.length>0&&m.evidenceIds.every(id=>id.trim())&&(!monetary||Boolean(m.currency?.trim())));
 }
 /** Pure transition policy only; P2 must persist actor, tenant, idempotency, version and audit atomically. */
 export function transitionDecisionOutcome(outcome:DecisionOutcome,event:DecisionOutcomeEvent):DecisionTransitionResult {

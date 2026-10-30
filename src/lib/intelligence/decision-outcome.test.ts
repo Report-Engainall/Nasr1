@@ -24,4 +24,14 @@ describe("decision outcome transitions",()=>{
   expect(step(review.outcome,event("APPROVE",2))).toMatchObject({ok:false,reason:"MISSING_REASON"});
   expect(step(initial(),event("ASSIGN",1,{owner:"ops"}))).toMatchObject({ok:false,reason:"INVALID_TRANSITION"});
  });
+ it("requires currency for currency-per-unit measured outcomes",()=>{
+  let outcome=initial();
+  const events=[event("SUBMIT_FOR_REVIEW",1),event("APPROVE",2,{reason:"approved"}),event("ASSIGN",3,{owner:"ops"}),
+   event("START_EXECUTION",4),event("COMPLETE_EXECUTION",5)];
+  for(const e of events){const result=step(outcome,e);if(!result.ok)throw new Error("pre-measure transition failed");outcome=result.outcome;}
+  expect(step(outcome,event("MEASURE",6,{measuredOutcome:{value:12,unit:"CURRENCY_PER_UNIT",measuredAt:at,evidenceIds:["actual-1"]}})))
+   .toMatchObject({ok:false,reason:"INVALID_MEASUREMENT"});
+  expect(step(outcome,event("MEASURE",7,{measuredOutcome:{value:12,unit:"CURRENCY_PER_UNIT",currency:"YER",measuredAt:at,evidenceIds:["actual-1"]}})))
+   .toMatchObject({ok:true,duplicate:false,outcome:{measuredOutcome:{currency:"YER"}}});
+ });
 });

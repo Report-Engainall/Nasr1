@@ -61,10 +61,12 @@ export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnaps
   const available=metricValue(position.availableBalance,index,position.currency,input.asOf,input.period,true);
   const collections=metricValue(position.expectedCollections,index,position.currency,input.asOf,input.period);
   const obligations=metricValue(position.dueObligations,index,position.currency,input.asOf,input.period);
-  const required=[available,collections,obligations],status=duplicate?"NEEDS_REVIEW":statusOf(required);
-  const rawNet=status==="VERIFIED"&&available.value!==null&&collections.value!==null&&obligations.value!==null?available.value+collections.value-obligations.value:null;
-  const net=rawNet!==null&&Number.isFinite(rawNet)&&Math.abs(rawNet)<=Number.MAX_SAFE_INTEGER?rawNet:null;
-  if(rawNet!==null&&net===null)warnings.push(position.currency+":LIQUIDITY_ARITHMETIC_OVERFLOW");
+  const required=[available,collections,obligations],baseStatus=statusOf(required);
+  const rawNet=!duplicate&&baseStatus==="VERIFIED"&&available.value!==null&&collections.value!==null&&obligations.value!==null?
+   available.value+collections.value-obligations.value:null;
+  const arithmeticUnsafe=rawNet!==null&&(!Number.isFinite(rawNet)||Math.abs(rawNet)>Number.MAX_SAFE_INTEGER);
+  const status:EvidenceStatus=arithmeticUnsafe?"NEEDS_REVIEW":duplicate&&baseStatus==="VERIFIED"?"NEEDS_REVIEW":baseStatus;
+  const net=arithmeticUnsafe?null:rawNet;
   const overdue=metricValue(position.overdueReceivables,index,position.currency,input.asOf,input.period);
   const stock=metricValue(position.stagnantStockCost,index,position.currency,input.asOf,input.period);
   const aging=(position.receivableAging??[]).map(item=>{
@@ -75,7 +77,8 @@ export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnaps
   const evidenceIds=[...new Set(metricList.flatMap(m=>m.lineage.evidenceIds))];
   const formulaVersions=[...new Set(metricList.map(m=>m.lineage.formulaId+"@"+m.lineage.formulaVersion))];
   const positionWarnings=[
-   ...(duplicate?["DUPLICATE_CURRENCY_POSITION"]:[]),...available.warnings,...collections.warnings,...obligations.warnings,
+   ...(duplicate?["DUPLICATE_CURRENCY_POSITION"]:[]),...(arithmeticUnsafe?["LIQUIDITY_ARITHMETIC_OVERFLOW"]:[]),
+   ...available.warnings,...collections.warnings,...obligations.warnings,
    ...overdue.warnings,...stock.warnings,...aging.flatMap((a,i)=>a.status==="VERIFIED"?[]:["AGING_BUCKET_"+(i+1)+"_NOT_VERIFIED"]),
   ];
   warnings.push(...positionWarnings.map(w=>position.currency+":"+w));
