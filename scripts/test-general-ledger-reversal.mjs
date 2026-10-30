@@ -201,6 +201,30 @@ export async function runGeneralLedgerReversalAcceptance({
   const authorizedPosting = await postJournal(db, staffPostingDraft.id);
   assert.equal(authorizedPosting.status, "posted");
   assert.equal(authorizedPosting.replayed, false);
+
+  // The same ordinary staff member must also be unable to void a separate manual draft.
+  const staffVoidDraft = await createDraft(
+    db, expenseAccountId, cashAccountId, randomUUID(), "P2 ordinary staff void must be denied",
+  );
+  assert.equal(staffVoidDraft.status, "draft");
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  const voidStateBeforeDeniedStaffRequest = await captureJournalEntryPostDenialState(staffVoidDraft.id);
+  await expectFailure(
+    "same-tenant ordinary staff cannot void a general journal draft",
+    () => db.unsafe(
+      "select public.void_general_journal_draft($1::uuid,$2::text)",
+      [staffVoidDraft.id, "staff cannot void this journal draft"],
+    ),
+    /administrator or manager permission required to void a journal draft/i,
+    "42501",
+  );
+  const voidStateAfterDeniedStaffRequest = await captureJournalEntryPostDenialState(staffVoidDraft.id);
+  assert.equal(
+    voidStateAfterDeniedStaffRequest,
+    voidStateBeforeDeniedStaffRequest,
+    "ordinary-staff void denial must preserve the journal entry, lines, reversal links and audit rows byte-for-byte",
+  );
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
   const originalDraft = await createDraft(db, expenseAccountId, cashAccountId, randomUUID());
   assert.equal(originalDraft.status, "draft");
   assert.equal((await postJournal(db, originalDraft.id)).status, "posted");
