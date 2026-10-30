@@ -225,6 +225,41 @@ describe("admin audit actual deep route acceptance", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("moves between bounded organization-scoped audit pages through the real pager", async () => {
+    mocks.responses = [
+      { data: [makeRow("audit-page-1")], count: 401, error: null },
+      { data: [makeRow("audit-page-2", "customer_address.created")], count: 401, error: null },
+      { data: [makeRow("audit-page-1-return")], count: 401, error: null },
+    ];
+
+    await mountAuditDeepLink(["manager"]);
+
+    expect(await screen.findByRole("cell", { name: "إعادة تسمية تصنيف" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "صفحة سجل التدقيق" })).toHaveTextContent("صفحة 1 من 3");
+
+    fireEvent.click(screen.getByRole("button", { name: "التالي" }));
+
+    expect(await screen.findByRole("cell", { name: "إضافة عنوان عميل" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "صفحة سجل التدقيق" })).toHaveTextContent("صفحة 2 من 3");
+
+    fireEvent.click(screen.getByRole("button", { name: "السابق" }));
+
+    expect(await screen.findByRole("cell", { name: "إعادة تسمية تصنيف" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "صفحة سجل التدقيق" })).toHaveTextContent("صفحة 1 من 3");
+    expect(mocks.requests.map((request) => request.range)).toEqual([
+      [0, 199],
+      [200, 399],
+      [0, 199],
+    ]);
+    expect(mocks.requests).toHaveLength(3);
+    for (const request of mocks.requests) {
+      expect(request.filters).toContainEqual({
+        column: "organization_id",
+        value: organizationId,
+      });
+    }
+  });
+
   it("exposes a route-level read error and retries into the real audit result", async () => {
     mocks.responses = [
       { data: null, count: null, error: { message: "audit route read unavailable" } },
