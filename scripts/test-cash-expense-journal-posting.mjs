@@ -101,20 +101,20 @@ async function snapshotExpenseVoidBoundary(expenseId, tenantId = organizationId)
   const journals = journalIds.length ? await db.unsafe(
     "select to_jsonb(j)::text as row_json from public.accounting_journal_entries j " +
       "where j.organization_id=$1::uuid and j.id=any($2::uuid[]) order by j.id::text",
-    [organizationId, journalIds],
+    [tenantId, journalIds],
   ) : [];
   const journalLines = journalIds.length ? await db.unsafe(
     "select to_jsonb(l)::text as row_json from public.accounting_journal_lines l " +
       "where l.organization_id=$1::uuid and l.journal_entry_id=any($2::uuid[]) " +
       "order by l.journal_entry_id::text,l.line_number",
-    [organizationId, journalIds],
+    [tenantId, journalIds],
   ) : [];
   const reversals = journalIds.length ? await db.unsafe(
     "select to_jsonb(r)::text as row_json,r.id::text as reversal_id " +
       "from public.accounting_journal_reversals r where r.organization_id=$1::uuid " +
       "and (r.original_journal_entry_id=any($2::uuid[]) or r.reversal_journal_entry_id=any($2::uuid[])) " +
       "order by r.id::text",
-    [organizationId, journalIds],
+    [tenantId, journalIds],
   ) : [];
   const reversalIds = reversals.map(({ reversal_id }) => reversal_id);
   const auditRows = await db.unsafe(
@@ -124,7 +124,7 @@ async function snapshotExpenseVoidBoundary(expenseId, tenantId = organizationId)
       "(a.entity_type='accounting_journal_entry' and a.entity_id=any($3::uuid[])) or " +
       "(a.entity_type='accounting_journal_reversal' and a.entity_id=any($4::uuid[]))" +
       ") order by a.id::text",
-    [organizationId, expenseId, journalIds, reversalIds],
+    [tenantId, expenseId, journalIds, reversalIds],
   );
   const completeState = JSON.stringify({
     expense: expenseRows.map(({ row_json }) => row_json),
