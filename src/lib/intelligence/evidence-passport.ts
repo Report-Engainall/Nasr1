@@ -17,9 +17,15 @@ function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,dupl
  if(rs.some(s=>!validTime(s.sourceTimestamp)||!validTime(s.asOf)))return downgrade("NEEDS_REVIEW","SOURCE_TIMESTAMP_INVALID","PARTIAL");
  if(rs.some(s=>s.completeness!=="COMPLETE"))return downgrade("NEEDS_REVIEW","SOURCE_INCOMPLETE","PARTIAL");
  if(rs.some(s=>s.quality!=="ACCEPTABLE"))return downgrade(rs.some(s=>s.quality==="INVALID")?"UNVERIFIED":"NEEDS_REVIEW","SOURCE_QUALITY_NOT_ACCEPTABLE","PARTIAL");
+ if(metric.completeness!=="COMPLETE")return downgrade("NEEDS_REVIEW","METRIC_INCOMPLETE","PARTIAL");
+ if(metric.quality!=="ACCEPTABLE")return downgrade(metric.quality==="INVALID"?"UNVERIFIED":"NEEDS_REVIEW","METRIC_QUALITY_NOT_ACCEPTABLE","PARTIAL");
  if(metric.value===null||!validTime(metric.asOf)||!validTime(metric.lineage.calculatedAt)||!metric.lineage.formulaId.trim()||!metric.lineage.formulaVersion.trim())
   return downgrade("NEEDS_REVIEW","METRIC_METADATA_INCOMPLETE","PARTIAL");
- if(metric.unit==="CURRENCY"&&!metric.currency?.trim())return downgrade("NEEDS_REVIEW","CURRENCY_NOT_IDENTIFIED","PARTIAL");
+ if(metric.unit==="CURRENCY"){
+  if(!metric.currency?.trim())return downgrade("NEEDS_REVIEW","CURRENCY_NOT_IDENTIFIED","PARTIAL");
+  if(rs.some(s=>!s.currency?.trim()))return downgrade("NEEDS_REVIEW","SOURCE_CURRENCY_MISSING","PARTIAL");
+  if(rs.some(s=>s.currency!==metric.currency))return downgrade("UNVERIFIED","SOURCE_CURRENCY_CONFLICT","PARTIAL");
+ }
  return {...metric,warnings:unique(warnings)};
 }
 function statusRollup(statuses:EvidenceStatus[]):EvidenceStatus {

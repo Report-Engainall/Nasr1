@@ -18,5 +18,11 @@ describe("Evidence Passport",()=>{
  it("preserves null rather than converting unknown to zero",()=>{const p=buildEvidencePassport({id:"p",generatedAt:"2026-10-30T07:06:00Z",asOf:"2026-10-30T07:00:00Z",evidenceRecords:[evidence()],metrics:[metric({value:null})]});expect(p.metrics[0].value).toBeNull();expect(p.metrics[0].status).toBe("NEEDS_REVIEW")});
  it("marks incomplete sources for review and keeps completeness partial",()=>{const p=buildEvidencePassport({id:"p",generatedAt:"2026-10-30T07:06:00Z",asOf:"2026-10-30T07:00:00Z",evidenceRecords:[evidence({completeness:"PARTIAL"})],metrics:[metric()]});expect(p.metrics[0].status).toBe("NEEDS_REVIEW");expect(p.metrics[0].completeness).toBe("PARTIAL")});
  it("requires a currency code for money metrics",()=>{const p=buildEvidencePassport({id:"p",generatedAt:"2026-10-30T07:06:00Z",asOf:"2026-10-30T07:00:00Z",evidenceRecords:[evidence()],metrics:[metric({unit:"CURRENCY"})]});expect(p.metrics[0].status).toBe("NEEDS_REVIEW")});
+ it("requires currency lineage and rejects conflicting source currencies",()=>{
+  const missing=buildEvidencePassport({id:"p",generatedAt:"2026-10-30T07:06:00Z",asOf:"2026-10-30T07:00:00Z",evidenceRecords:[evidence()],metrics:[metric({unit:"CURRENCY",currency:"YER"})]});
+  expect(missing.metrics[0].status).toBe("NEEDS_REVIEW");
+  const conflict=buildEvidencePassport({id:"p",generatedAt:"2026-10-30T07:06:00Z",asOf:"2026-10-30T07:00:00Z",evidenceRecords:[evidence({currency:"USD"})],metrics:[metric({unit:"CURRENCY",currency:"YER"})]});
+  expect(conflict.metrics[0].status).toBe("UNVERIFIED");
+ });
  it("downgrades evidence missing from the passport",()=>{const p=buildEvidencePassport({id:"p",generatedAt:"2026-10-30T07:06:00Z",asOf:"2026-10-30T07:00:00Z",evidenceRecords:[],metrics:[metric()]});expect(p.metrics[0].status).toBe("UNVERIFIED")});
 });

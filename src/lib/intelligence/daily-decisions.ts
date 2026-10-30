@@ -38,6 +38,9 @@ function impactFor(formula:ImpactFormula|undefined,index:Map<string,MetricSnapsh
  if(formula.operation==="SUM"&&(new Set(sources.map(m=>m.unit)).size!==1))return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
  if(formula.operation==="IDENTITY"&&formula.resultUnit!==sources[0].unit)return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
  if(formula.operation==="SUM"&&formula.resultUnit!==sources[0].unit)return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
+ if(formula.operation==="PRODUCT"&&currencySources.length===2)return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
+ if(formula.operation==="PRODUCT"&&currencySources.length===1&&formula.resultUnit!=="CURRENCY")return {impact:null,status:"WITHHELD",reason:"UNIT_MISMATCH"};
+ if(formula.operation==="PRODUCT"&&currencySources.length===0&&formula.resultUnit==="CURRENCY")return {impact:null,status:"WITHHELD",reason:"CURRENCY_MISMATCH"};
  let value=0;const n=values as number[];
  if(formula.operation==="IDENTITY")value=n[0];
  if(formula.operation==="SUM")value=n.reduce((a,b)=>a+b,0);
@@ -72,6 +75,7 @@ export function buildDailyDecisions(input:BuildDailyDecisionsInput):DailyDecisio
   if(rows.length>1){const first=rows[0],conflict=rows.some(m=>m.value!==first.value||m.currency!==first.currency||m.status!==first.status);
    reasons.push(withheld(rule,conflict?"CONFLICTING_SIGNALS":"DUPLICATE_METRIC",null,conflict?"Conflicting metric snapshots exist.":"Duplicate metric snapshots exist."));continue}
   const metric=rows[0];
+  if(metric.status==="NEEDS_REVIEW"&&metric.value===null){reasons.push(withheld(rule,"UNKNOWN_VALUE",metric.status,"Metric value is null/unknown; no zero was substituted."));continue}
   if(!metric.lineage.evidenceIds.length){reasons.push(withheld(rule,"NO_SOURCE",metric.status,"Metric has no evidence lineage."));continue}
   if(metric.status!=="VERIFIED"){const r=statusReason(metric.status);reasons.push(withheld(rule,r.reason,metric.status,r.message));continue}
   if(metric.completeness!=="COMPLETE"||metric.quality!=="ACCEPTABLE"){reasons.push(withheld(rule,"INCOMPLETE_DATA",metric.status,"Metric quality or completeness gate failed."));continue}
