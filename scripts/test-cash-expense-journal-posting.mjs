@@ -66,36 +66,36 @@ async function snapshotExpenseRecordBoundary(idempotencyKey) {
   return rows[0].snapshot;
 }
 
-async function snapshotExpenseVoidBoundary(expenseId) {
+async function snapshotExpenseVoidBoundary(expenseId, tenantId = organizationId) {
   const source = await db.unsafe(
     "select status,voided_by_profile_id::text as voided_by,voided_at::text as voided_at,void_reason,updated_at::text as updated_at " +
       "from public.cash_expenses where organization_id=$1::uuid and id=$2::uuid",
-    [organizationId, expenseId],
+    [tenantId, expenseId],
   );
   assert.equal(source.length, 1, "void-boundary fixture remains in the owner tenant");
   const audits = await db.unsafe(
     "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid " +
       "and action='cash_expense.voided' and entity_type='cash_expense' and entity_id=$2::uuid",
-    [organizationId, expenseId],
+    [tenantId, expenseId],
   );
   const links = await db.unsafe(
     "select count(*)::integer as count from public.accounting_source_postings " +
       "where organization_id=$1::uuid and source_type='cash_expense' and source_id=$2::uuid",
-    [organizationId, expenseId],
+    [tenantId, expenseId],
   );
 
   // Keep each linked table snapshot separate so SQL remains reviewable and deterministic.
   const expenseRows = await db.unsafe(
     "select to_jsonb(e)::text as row_json from public.cash_expenses e " +
       "where e.organization_id=$1::uuid and e.id=$2::uuid",
-    [organizationId, expenseId],
+    [tenantId, expenseId],
   );
   const postingRows = await db.unsafe(
     "select to_jsonb(p)::text as row_json,p.journal_entry_id::text as journal_id " +
       "from public.accounting_source_postings p " +
       "where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid " +
       "order by p.id::text",
-    [organizationId, expenseId],
+    [tenantId, expenseId],
   );
   const journalIds = postingRows.map(({ journal_id }) => journal_id).filter(Boolean);
   const journals = journalIds.length ? await db.unsafe(
@@ -363,6 +363,61 @@ async function main() {
     assert.equal(foreignVoidError.code, "P0002", "cross-tenant void denial uses opaque P0002");
     assert.deepEqual(await snapshotExpenseVoidBoundary(deniedVoidExpense.expense_id), deniedVoidBaseline,
       "cross-tenant denial leaves expense state, timestamps, audit and source postings unchanged");
+
+    // AUTHZ-DLV-015-CASH-EXPENSE-READ-TENANT-001: finance-list read is role-gated,
+    // tenant-scoped, and side-effect free for both the caller and the other tenant.
+    const foreignListedExpense = await recordExpense(
+      foreignManagerDb,
+      randomUUID(),
+      "P2 foreign-tenant expense read isolation",
+      "19.50",
+    );
+    const localReadSnapshot = await snapshotExpenseVoidBoundary(expense.expense_id);
+    const foreignReadSnapshot = await snapshotExpenseVoidBoundary(foreignListedExpense.expense_id, foreignOrganizationId);
+
+    await setIdentity(staffDb, staffAuthId, staffEmail);
+    const staffListError = await expectFailure(
+      "same-tenant ordinary staff cannot read the cash-expense finance list",
+      () => staffDb.unsafe("select public.fetch_staff_cash_expenses(100,0,null,null,null,'all') as result"),
+      /finance permission required to read cash expenses/i,
+    );
+    assert.equal(staffListError.code, "42501", "ordinary-staff cash-expense list denial uses SQLSTATE 42501");
+
+    await setIdentity(customerDb, customer.auth_user_id, customer.email);
+    const customerListError = await expectFailure(
+      "customer cannot read the cash-expense finance list",
+      () => customerDb.unsafe("select public.fetch_staff_cash_expenses(100,0,null,null,null,'all') as result"),
+      /finance permission required to read cash expenses/i,
+    );
+    assert.equal(customerListError.code, "42501", "customer cash-expense list denial uses SQLSTATE 42501");
+
+    await setIdentity(managerDb, manager.auth_user_id, manager.email);
+    const localExpenseList = asJson((await managerDb.unsafe(
+      "select public.fetch_staff_cash_expenses(100,0,null,null,null,'all') as result",
+    ))[0].result);
+    assert.ok(localExpenseList.items.some((item) => item.id === expense.expense_id),
+      "authorized finance manager sees the local tenant expense");
+    assert.equal(localExpenseList.items.some((item) => item.id === foreignListedExpense.expense_id), false,
+      "local finance list never exposes a foreign-tenant expense");
+
+    await setIdentity(foreignManagerDb, foreignManagerAuthId, foreignManagerEmail);
+    const foreignExpenseList = asJson((await foreignManagerDb.unsafe(
+      "select public.fetch_staff_cash_expenses(100,0,null,null,null,'all') as result",
+    ))[0].result);
+    assert.equal(foreignExpenseList.total_count, 1,
+      "fresh foreign tenant contains only its own finance fixture expense");
+    assert.deepEqual(foreignExpenseList.items.map((item) => item.id), [foreignListedExpense.expense_id],
+      "foreign finance manager sees its own expense and no local-tenant records");
+    assert.equal(foreignExpenseList.items.some((item) => item.id === expense.expense_id), false,
+      "foreign finance list never exposes a local-tenant expense");
+
+    assert.deepEqual(await snapshotExpenseVoidBoundary(expense.expense_id), localReadSnapshot,
+      "staff/customer denials and finance-list reads leave local expense, postings, journals and audit byte-for-byte unchanged");
+    assert.deepEqual(
+      await snapshotExpenseVoidBoundary(foreignListedExpense.expense_id, foreignOrganizationId),
+      foreignReadSnapshot,
+      "tenant-scoped finance-list reads leave foreign expense, postings, journals and audit byte-for-byte unchanged",
+    );
 
     process.stdout.write("PASS cash-expense source posting: PostgreSQL journal draft, immutable source link, balanced exact amounts, source/account mapping guard, concurrent draft idempotency, posted-ledger visibility, audit attribution, customer denial and post/void compensation race\n");
   } finally {
