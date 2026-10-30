@@ -1,17 +1,17 @@
-# P3 LIVE CHECKPOINT — 2026-10-30 — FOCUS FAILURE RECONCILED
-- Repository: Report-Engainall/Nasr1; only branch: main.
-- Main/base read for this checkpoint: e99c56b6c509a8a7d2e87cd207bcc228c0d5a4c5 (P3 documentation tip); code-bearing head: 68fccfaff3192f934661a2bdc8d48aed155b0457.
-- Exact Core 41014864610 SUCCESS on code SHA 68fccf and 41016302836 SUCCESS on docs SHA e99c56b. Cleanup 41014864572 SUCCESS on 68fccf and 41016302630 SUCCESS on e99c56b. These runs verify core unit/test/build, not hosted acceptance.
-- P3 engines and focused tests are present and pass the Core workflow on exact code SHA 68fccf. Integrated batches: a23c0b5cea98730f59093aa2f3e8f658509eddb4, 3f6838157acfbd0999597a8e3dc50369484d587d, bd19b04e41e1d65e0f4d7427fb086f74bf457378, 643d2821ab0483acc12ef21abc453a0c745f2865.
-- P2 run 41014864616 FAILURE on 68fccf. Sidebar ID locator and aria-label/expanded/visibility gates pass. Failure is focus assertion at e2e/finance-task-print.spec.ts:69: first admin navigation button remains inactive after drawer opens (job 123929100573). Failure happens before finance document/operational-task print assertions. Auth infrastructure/public smoke and preceding local Supabase/Chromium acceptance stages passed. Hosted tenant, customer-manager and device-session suites remain SKIPPED.
-- Screenshot/error context/trace in artifact p2-local-authenticated-e2e-41014864616-68fccfaff3192f934661a2bdc8d48aed155b0457 confirm the drawer is visible, but Playwright never observes focus on the first navigation button.
-- P1 owns the UI fix in src/components/AghbariApp.tsx; current useEffect([mobileNav]) focus call does not survive the actual open transition. P1 must correct post-visible focus scheduling/target and verify document.activeElement. Preserve Escape-close and focus-return. P2 owns the test and must not remove/relax the assertion.
-- P1 intelligence workspace/route composition remains pending. P3 component barrel still exports only ActionCard and EvidencePassport; liquidity summary, 7/30/90 forecast display, dead-stock and replenishment card contracts/tests remain an open P3-owned implementation slice.
-- P2 tenant-safe aggregate, atomic DecisionOutcome persistence/idempotency/audit, free-only quota/privacy enforcement, live health probes and server canonical RBAC DTO remain pending.
-- All 16 REF rows in the authoritative 143-ID / 18-DLV CSV remain P3_IMPLEMENTED / CI_PENDING / P1_P2_PENDING; no DLV roll-up is closed.
-- Release remains **NO-GO**: hosted tenant path, target Onyx Pro, WhatsApp, live AI, production operations and owner approval are not evidenced.
-- exact_next_command: P1 repairs first-item focus without deleting keyboard checks; P2 reruns unchanged focus/finance/task-print Playwright suite; P3 implements/tests missing typed intelligence display components while P2 builds server aggregate.
-- Integration queue: no new owner patch received; P2 locator correction is on main but focus check remains failed.
+# P3 LIVE CHECKPOINT — 2026-10-30 — INTELLIGENCE DISPLAY BATCH INTEGRATED
+- Repository: `Report-Engainall/Nasr1`; only branch: `main`.
+- Current observed main SHA: `b52271629f054f5d9750e2d4dbf247e22c90f8c7`.
+- Existing P3 intelligence engine batches remain integrated: `a23c0b5cea98730f59093aa2f3e8f658509eddb4`, `3f6838157acfbd0999597a8e3dc50369484d587d`, `bd19b04e41e1d65e0f4d7427fb086f74bf457378`, `643d2821ab0483acc12ef21abc453a0c745f2865`.
+- Newly integrated P3 presentation components: `32c2fe451bb783af2a76388e9811ffb52ec28e7f`; refinement `8ccc68aaf8ea65718b35c1fc9f5b23c54a6988ce`; final cashflow-horizon assertion `b52271629f054f5d9750e2d4dbf247e22c90f8c7`. Exports now include LiquiditySummary, CashflowForecastCard, DeadStockCard, ReplenishmentCard alongside ActionCard/EvidencePassport. Contract: `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`.
+- Component behavior: per-currency display with no FX; null stays unavailable; stock cost is not deducted from cash; dead-stock exposure only if verified; cashflow 7/30/90 scheduled values without invented collection rates; replenishment does not create a purchase; state panel has loading/empty/error/retry/unavailable/ready.
+- Exact Core [41017608436 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41017608436) on `b52271629f054f5d9750e2d4dbf247e22c90f8c7`. Unit-test stage passed; PostgreSQL 17 migration acceptance failed at `scripts/test-database-migrations.mjs:3105` because both receipt RPC sessions were not observed as active lock waiters in the same sample. One session waited on advisory lock; the other remained in `set_config`/transactionid wait; after gate release both RPCs returned success. This is a P2-owned test orchestration/observation issue, not proven duplicate receipt. P3 components are not identified as cause.
+- P2 [41017608501](https://github.com/Report-Engainall/Nasr1/actions/runs/41017608501) on same SHA: infra and public smoke SUCCESS; local Supabase/Chromium completed order/cross-tenant denial, return/credit memo, and Onyx XLSX export; finance document/task print IN_PROGRESS at last observation; hosted customer/order/tenant SKIPPED. Poll this same run.
+- P1 owns the still-open first-nav-item focus defect in `AghbariApp.tsx` evidenced by P2 41014864616 (68fccf). Do not edit P1 paths or weaken P2 accessibility tests. P1 workspace/route mounting remains pending.
+- P2 owns `scripts/**` concurrency barrier, tenant-safe aggregate/persistence, AI quota/privacy enforcement, health probes and server RBAC. Do not edit P2 paths from P3.
+- Acceptance CSV: 143 task IDs / 18 DLV groups / 16 REF entries. All 16 REF remain `P3_IMPLEMENTED / CI_PENDING / P1_P2_PENDING`; no DLV rollup is closed.
+- Release gate remains **NO-GO**: hosted tenant, Onyx Pro round-trip, official WhatsApp, live AI, production operations and owner sign-off remain unproven.
+- `exact_next_command`: poll P2 run 41017608501; require P2 to repair deterministic PG17 receipt lock-observation barrier without weakening concurrency/idempotency. In parallel P1 repairs mobile focus; P2 ships aggregate/atomic outcome backend. Then P3 refreshes cursor/integrates tested owner batches.
+- Integration queue: no new P1/P2 owner patch received; P3's four presentation components are on main but full Core is blocked by the P2 PG17 test failure.
 
 ---
 

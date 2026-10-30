@@ -1,14 +1,15 @@
-# P1 LIVE SESSION COMMAND — 2026-10-30 — MOBILE FOCUS + INTELLIGENCE UI
-Current P3 docs base: e99c56b6c509a8a7d2e87cd207bcc228c0d5a4c5; application/test code head: 68fccfaff3192f934661a2bdc8d48aed155b0457. Core 41014864610 SUCCESS passed on 68fccf. P2 41014864616 FAILURE on the same SHA reached the open drawer but failed because its first nav button was not focused.
+# P1 LIVE SESSION COMMAND — 2026-10-30 — MOBILE FOCUS + INTELLIGENCE WORKSPACE
+Current main SHA: `b52271629f054f5d9750e2d4dbf247e22c90f8c7`. P3 has published the typed presentation components on main: `LiquiditySummary`, `CashflowForecastCard`, `DeadStockCard`, `ReplenishmentCard` and shared state/evidence panels. Import from `@/components/intelligence`; full component contract: `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md`.
 
-## تنفيذ P1 المطلوب الآن — P1 UI ownership
-1. Fix the actual mobile admin drawer focus in src/components/AghbariApp.tsx. Current code calls firstMobileNavItemRef.current?.focus() in useEffect([mobileNav]), but browser test observes the drawer visible and the first button still inactive. Inspect timing/target after the .sidebar.open render; schedule focus after the visible commit (layout/rAF approach as appropriate, with animation-frame cleanup) and prove document.activeElement is the first visible nav button.
-2. Keep accessibility behavior complete: menu trigger has aria-expanded/controls, first item receives focus on open, Escape closes and returns focus to trigger, and selecting a route closes the drawer and restores focus. Do NOT remove toBeFocused or change the E2E expectation to a weaker visibility check.
-3. Add focused UI regression for opening/closing the drawer at 360px. Deliver paths, commit SHA, targeted test/CI, screenshot or trace evidence and exact next command to P3; do not push main.
-4. Intelligence route/workspace remains a separate open P1 slice. Use only P3's exported ActionCard and EvidencePassport until more P3 components are published. Keep real aggregate-backed metrics UNAVAILABLE until P2 publishes the server DTO; no mock/fixture business values.
-5. Do not modify P3 intelligence paths, e2e/**, P2 backend/API or central P3 files.
+## P1 actions
+1. Repair first-item focus after mobile admin drawer opens in `src/components/AghbariApp.tsx`. P2 exact browser failure [41014864616](https://github.com/Report-Engainall/Nasr1/actions/runs/41014864616) on 68fccf: at `e2e/finance-task-print.spec.ts:69`, drawer visible/labelled, but first navigation item does not receive focus.
+2. Preserve accessibility behavior: aria-expanded/controls, first item focus on open, Escape closes, focus returns to trigger, route selection closes and restores focus. Do NOT remove/weaken P2's `toBeFocused` assertion.
+3. Add focused 360px UI regression. Deliver commit/patch SHA, changed paths, tests and browser trace to P3; do not push main.
+4. Mount new P3 components in the intelligence workspace/route using only real P2 server aggregate DTO. Preserve loading/empty/error/retry/unavailable/ready states. No fixtures, invented totals, browser-supplied tenant/actor/role/capabilities, zero for unknown or currency merging. Keep data UNAVAILABLE until P2 publishes the server response.
+5. Mount ActionCard/EvidencePassport and the new finance/inventory summaries without creating an alternate permission source. CTAs call P2-published authorized operations only.
+6. Do not modify `src/lib/intelligence/**`, `src/components/intelligence/**`, `e2e/**`, `scripts/**` or P2 backend/RPC paths.
 
-**Exact next command:** repair post-open focus of the first mobile admin nav button in AghbariApp.tsx; keep P2 Playwright accessibility assertions unchanged and attach a focused regression result.
+**Exact next command:** fix first-item mobile focus and prove activeElement at 360px while preserving Escape/return-focus; then mount P3 component contract against server DTO once P2 delivers it.
 
 ---
 

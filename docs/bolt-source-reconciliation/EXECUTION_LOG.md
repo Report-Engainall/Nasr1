@@ -1,3 +1,15 @@
+## P3 component delivery and P2 PG17 evidence — 2026-10-30 — main b52271629f054f5d9750e2d4dbf247e22c90f8c7
+- P3 UI batch integrated on main: `32c2fe451bb783af2a76388e9811ffb52ec28e7f`; accessible labels/locale-aware assertions `8ccc68aaf8ea65718b35c1fc9f5b23c54a6988ce`; cashflow horizon test `b52271629f054f5d9750e2d4dbf247e22c90f8c7`. Exports: LiquiditySummary, CashflowForecastCard, DeadStockCard, ReplenishmentCard and shared state/evidence components. Contract: docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md.
+- Component tests reached/passed Core Unit tests on exact SHA b522716; overall Core [41017608436 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41017608436) was later blocked by PG17 database acceptance at scripts/test-database-migrations.mjs:3105.
+- Root cause: receipt-race harness did not observe both active lock waiters simultaneously; ci-po-receive-a waited on warehouse advisory lock; ci-po-receive-b remained in set_config/transactionid wait; after gate release both RPC outcomes were successful. P2 must ensure connections are initialized/ready before invoking RPCs and preserve real concurrent two-session lock/idempotency checks; P3 does not edit scripts/**.
+- P2 [41017608501](https://github.com/Report-Engainall/Nasr1/actions/runs/41017608501) on b522716: authenticated infra/public smoke SUCCESS; local Supabase/Chromium passed order persistence/cross-tenant denial, returns/credit memo and Onyx XLSX export; finance document/task print IN_PROGRESS at last observation; hosted customer/order/tenant SKIPPED.
+- Prior P2 mobile focus defect [41014864616](https://github.com/Report-Engainall/Nasr1/actions/runs/41014864616) on 68fccf remains P1 UI responsibility in AghbariApp.tsx: first mobile nav button not focused after drawer opens. P2 retains keyboard assertions.
+- P1 workspace/route mounting remains pending; P2 tenant-safe aggregate, decision outcome persistence, AI quota/privacy, health probes and RBAC server DTO remain pending.
+- Matrix is still the sole 143-ID / 18-DLV / 16-REF acceptance source; all 16 REF statuses remain P3_IMPLEMENTED / CI_PENDING / P1_P2_PENDING; no DLV rollup closed; release NO-GO.
+- exact_next_command: P2 repairs PG17 receipt-race readiness/barrier and polls existing P2 run; P1 fixes mobile focus and mounts against actual DTO; P2 delivers aggregate backend; P3 integrates only evidence-backed owner batches.
+
+---
+
 ## P3 evidence reconciliation — 2026-10-30 — exact-head P2 focus failure
 - Main base read before this update: e99c56b6c509a8a7d2e87cd207bcc228c0d5a4c5; P2 E2E code SHA: 68fccfaff3192f934661a2bdc8d48aed155b0457.
 - Exact Core PASS: [41014864610](https://github.com/Report-Engainall/Nasr1/actions/runs/41014864610) on 68fccf; docs-head Core PASS: [41016302836](https://github.com/Report-Engainall/Nasr1/actions/runs/41016302836) on e99c56b. Cleanup PASS: [41014864572](https://github.com/Report-Engainall/Nasr1/actions/runs/41014864572) on 68fccf and [41016302630](https://github.com/Report-Engainall/Nasr1/actions/runs/41016302630) on e99c56b.
