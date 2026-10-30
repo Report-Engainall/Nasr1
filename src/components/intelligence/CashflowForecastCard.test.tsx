@@ -21,7 +21,7 @@ describe("CashflowForecastCard", () => {
     const yer = screen.getByRole("article", { name: "YER" });
     const usd = screen.getByRole("article", { name: "USD" });
     expect(within(yer).getAllByText("7 يومًا")).toHaveLength(1);
-    expect(within(yer).getByText(formatEvidenceNumber(110) + " YER")).toBeInTheDocument();
+    expect(within(yer).getAllByText(formatEvidenceNumber(110) + " YER")).toHaveLength(3);
     expect(within(usd).getAllByText("غير متاح").length).toBeGreaterThan(0);
     expect(screen.queryByText(formatEvidenceNumber(210) + " YER")).not.toBeInTheDocument();
   });
