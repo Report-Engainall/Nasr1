@@ -1,3 +1,25 @@
+# P1 LIVE CHECKPOINT — 2026-10-30 — DLV-002 MOBILE DRAWER FOCUS + ROUTE REMOUNT
+
+- task_id: `DLV-002 / ROUTES-001 — mobile admin drawer initial focus and route-change focus restoration`.
+- status: `IMPLEMENTED_PENDING_EXACT_SHA_CI`.
+- base_main_sha: `d26a2ad735d6610836d2aeb06889ad9f9c19dcf1`.
+- branch: `p1/dlv-002-mobile-drawer-focus-20261030`.
+- latest implementation commit: `51bca41c094bc07af9b6463724c086f7491a9488` — transition-aware first-item focus plus restore focus to newly mounted route trigger after navigation resolves.
+- latest regression-test commits: `b001becd0af1ecaad9acd16cc067b19dd7173c5a` and `59a9af7180491bca1b3d7f87c36d62454e59a5ab`.
+- latest known PR head before this checkpoint update: branch HEAD to be re-read after commit; do not reuse prior SHA for proof.
+- paths:
+  - `src/components/AghbariApp.tsx`: bounded visibility/animation-aware focus scheduling; cancellation when closed/unmounted; Escape close and trigger focus restore; route navigation waits for navigation promise, then focuses visible trigger in the newly mounted AdminApp (avoids stale-node focus).
+  - `src/test/admin-mobile-navigation-acceptance.test.tsx`: animation delay regression; route remount regression swaps old trigger for new route trigger before resolving navigation and verifies focus targets replacement.
+  - `src/test/storefront-admin-navigation-access.test.ts`: replace obsolete one-shot source check with assertions for visibility/animation/cancellation and route-remount restoration.
+- P2 evidence:
+  - old P2 run `41025182161` on earlier head `7970e4d6739e8aecae9019c7753050bf36561d20`: public read-only smoke SUCCESS; authenticated hosted path SKIPPED; local Supabase / Chromium completed FAILURE in `e2e/finance-task-print.spec.ts:82` because route navigation unmounted the old `.mobile-menu` trigger after immediate focus restoration. The initial first-item focus assertion at line 69 passed in this run; failure moved to focus restoration after route change. Keep E2E unchanged.
+  - earlier Core run `41025181975` on `7970e4d`: 237/238 files and 1540/1541 tests passed; sole failure was the stale static assertion expecting the deleted immediate-focus source line. Static test was corrected in `4be7c18d`.
+  - prior Core run `41025563359` and P2 run `41025563411` target predecessor head `e27cedc4958d82ce00e3e40297d84a65d3084f02`; do not transfer their outcomes to the current branch head.
+- exact next action: poll Core and P2 workflows for the latest branch HEAD after this checkpoint commit. For P2, inspect exact local Supabase Chromium job including both `e2e/finance-task-print.spec.ts:69` (initial focus), `:82` (focus restoration after route change), Escape restoration, responsive desktop transition, then printing/authorization assertions. Never modify `e2e/**` to manufacture a pass.
+- owner boundaries respected: no `e2e/**`, `supabase/**`, `scripts/**`, API/backend/auth, P3 intelligence, global state/matrix/log, production environment, or local workspace changes.
+
+---
+
 # P1 LIVE CHECKPOINT — 2026-10-30 — DLV-002 MOBILE DRAWER FOCUS
 
 - task_id: `DLV-002 / ROUTES-001 — mobile admin drawer first-action focus`.
