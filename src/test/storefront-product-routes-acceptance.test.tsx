@@ -239,9 +239,11 @@ describe("public storefront product route acceptance", () => {
   it("announces wishlist and comparison toggle state on the real product detail route", async () => {
     await mountRoute(`/product/${PRODUCT_ID}`);
 
-    const findWishlistButton = () => Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+    const detailActions = host?.querySelector(".sf-detail-actions");
+    expect(detailActions).not.toBeNull();
+    const findWishlistButton = () => Array.from(detailActions?.querySelectorAll<HTMLButtonElement>("button") ?? [])
       .find((button) => button.textContent?.includes("أضف للمفضلة") || button.textContent?.includes("في المفضلة"));
-    const findCompareButton = () => Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+    const findCompareButton = () => Array.from(detailActions?.querySelectorAll<HTMLButtonElement>("button") ?? [])
       .find((button) => button.textContent?.includes("مقارنة") || button.textContent?.includes("في المقارنة"));
 
     expect(findWishlistButton()?.getAttribute("aria-pressed")).toBe("false");
