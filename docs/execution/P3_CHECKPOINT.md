@@ -1,3 +1,14 @@
+# LIVE RESUME OVERRIDE — 2026-10-30 — SUPERSEDES ALL OLDER P3 NEXT ACTIONS
+- Resume base: main `353588f5df5f36cfb6b7caaef5d067bd28371251`. Core run `41007651137` is IN_PROGRESS on this exact SHA; poll it. Cleanup `41007651120` is SUCCESS.
+- P3 is sole Integration Captain and sole owner of CURRENT_EXECUTION_STATE, the existing acceptance CSV/registry/EXECUTION_LOG/master spec/protocol, integration queue and P3 checkpoint. Do not create a parallel ledger.
+- First implement `REF-DAILY-DECISIONS-001` + `REF-EVIDENCE-PASSPORT-001` in P3-owned intelligence paths: typed source/evidence/metric/decision contracts, deterministic ranking/impact rules and focused tests. Use existing verified facts only; unknown remains unknown.
+- Send P2 a structured tenant-safe aggregate DTO/RPC request (tenant/role, sources, period/as-of, currency, formulas/version, completeness/quality, SQLSTATE/error, audit and no-side-effect denial evidence). Send P1 a stable ActionCard props/import contract and states (verified/review/unavailable, priority, value optionality, owner, expiry, CTA, loading/empty/error).
+- Continue REF-LIQUIDITY/CASHFLOW/DEAD-STOCK/RETENTION/REPLENISHMENT/WHATIF/DECISION-OUTCOME/LEARNING and REF-AI/HEALTH/RBAC in dependency order. Coordinate; do not edit P1 routes or P2 SQL/API paths.
+- Integrate one owner commit at a time after path and duplicate-work review. P1/P2 never push remote main. Verify Core/P2/PG17 or targeted checks on the exact merged SHA. No branch/PR creation.
+- This live block supersedes the historical P3 handoff below. Read global CURRENT_EXECUTION_STATE first.
+
+---
+
 # P3 — Durable Intelligence & Integration Checkpoint
 
 هذا checkpoint خاص بـP3؛ المؤشر العالمي الوحيد هو `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`، والمصفوفة الوحيدة هي CSV الحالية.

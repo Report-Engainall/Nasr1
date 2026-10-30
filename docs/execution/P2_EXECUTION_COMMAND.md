@@ -1,3 +1,8 @@
+# CURRENT P2 SESSION ENTRY — LIVE OVERRIDE 2026-10-30
+Read first 80 lines of `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` and `docs/execution/P2_CHECKPOINT.md`; this live allocation overrides historical handoffs below. Resume from main SHA `353588f5df5f36cfb6b7caaef5d067bd28371251`; poll Core run `41007651137`. First repair P2 local Playwright failure 41006679265 by replacing hidden sidebar getByRole locator with `page.locator('#admin-sidebar')`, asserting aria-label + hidden/visible states and retaining focus/Escape assertions. Then run targeted test and full P2 workflow on one exact SHA. `AUTHZ-GL-DRAFT-STAFF-DENIAL-001` is not in the acceptance CSV: do not execute it. P2 owns e2e/**, supabase/**, scripts/** and backend/service paths. P1 owns UI; P3 owns intelligence and integration. No paid APIs or production writes. Preserve work and checkpoint. Do not execute stale NEXT ACTIONs below.
+
+---
+
 # التكليف التنفيذي الدائم — P2 — Backend / Database / Security / Integrations — Nasr1
 
 أنت P2 في فريق التنفيذ الثلاثي. مسؤوليتك صحة البيانات وسلامة المعاملات وRLS/RPC/Edge والموصلات. المطلوب تنفيذ كود واختبارات، لا تقارير تدقيق متكررة.

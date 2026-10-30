@@ -1,3 +1,13 @@
+# LIVE RESUME OVERRIDE — 2026-10-30 — SUPERSEDES ALL OLDER P1 NEXT ACTIONS
+- Resume base: main `353588f5df5f36cfb6b7caaef5d067bd28371251`. Current-main Core run `41007651137` is IN_PROGRESS on this exact SHA; poll this run, do not duplicate it. One-main cleanup `41007651120` is SUCCESS on the same SHA.
+- The saved P1 Customer 360 source-lineage work already passed Core on `9f5d3af8e4f57bd758f3eb779cb6971be0a7d829`; do not re-run/poll it. It is integrated. DLV-010 stays PARTIAL overall.
+- Next: select the first uncovered P1-owned OPEN/PARTIAL UI acceptance leaf under DLV-002/003 from the existing CSV. Inspect only its screen + focused test; implement the real missing loading/empty/error/retry/unauthorized state and direct regression test. No full scan, no repeat Customer 360 work.
+- P1 owns routes/components/styles and UI tests in src/test, except P3-reserved intelligence paths. Do not touch e2e/** (P2), supabase/scripts/API services (P2), P3 intelligence code, or central documents.
+- Reconcile current main and worktrees before editing; preserve dirty work. Record your exact next command and test result in this checkpoint every 10 minutes and at interruption.
+- This block supersedes the historical P1 task pointer below. Read global CURRENT_EXECUTION_STATE first.
+
+---
+
 # P1 — Durable Work Checkpoint
 
 هذا سجل تقدم فرعي لـP1 فقط؛ ليس مؤشراً عالمياً. المؤشر الوحيد هو `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`. P2 وحده يحدّث المؤشر العالمي ومصفوفة القبول وسجل التنفيذ.

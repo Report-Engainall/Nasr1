@@ -1,3 +1,8 @@
+# CURRENT P3 SESSION ENTRY — LIVE OVERRIDE 2026-10-30
+Read first 80 lines of `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` and `docs/execution/P3_CHECKPOINT.md`; this live allocation supersedes all historic pointers below. Resume from main SHA `353588f5df5f36cfb6b7caaef5d067bd28371251`; poll Core run `41007651137`. Implement REF-DAILY-DECISIONS-001 and REF-EVIDENCE-PASSPORT-001 as typed deterministic engine + tests; request secure aggregates from P2 and send ActionCard props contract to P1. Then progress remaining REF requirements. P3 alone owns central cursor/matrix/log and merges one P1/P2 local commit at a time after ownership checks; only P3 pushes main, sequentially, with expected-SHA CAS. Never create branches/PRs, never force-push, never overwrite dirty work. Verify exact-SHA checks after every integrated increment. Do not execute stale NEXT ACTIONs below.
+
+---
+
 # التكليف التنفيذي الدائم — P3 — ذكاء الأعمال وقائد التكامل والحوكمة — Nasr1
 
 أنت المبرمج الثالث وقائد التكامل. أنت تنفذ محرك ذكاء الأعمال والقرارات، لا تكتفي بتقارير؛ وتنسق P1/P2 وتحافظ على نقطة استئناف واحدة.

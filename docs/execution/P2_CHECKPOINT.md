@@ -1,3 +1,14 @@
+# LIVE RESUME OVERRIDE — 2026-10-30 — SUPERSEDES ALL OLDER P2 NEXT ACTIONS
+- Resume base: main `353588f5df5f36cfb6b7caaef5d067bd28371251`. Core run `41007651137` is IN_PROGRESS on this SHA; poll it. Cleanup `41007651120` is SUCCESS on this SHA.
+- Do NOT execute `AUTHZ-GL-DRAFT-STAFF-DENIAL-001`: this ID is absent from the current acceptance CSV. Existing GL post/void/reversal staff-denial rows already have exact-SHA evidence on `5e53622b66de3947758b14026432953560b267bb`.
+- First task: repair the P2-owned DLV-017 acceptance failure in [P2 run 41006679265](https://github.com/Report-Engainall/Nasr1/actions/runs/41006679265), parent SHA `63918d1af702f938353892f9fc9efd9709b9bf57`. In `e2e/finance-task-print.spec.ts`, getByRole cannot find the intentionally hidden mobile sidebar. Use stable `page.locator('#admin-sidebar')`; assert its Arabic aria-label, hidden/visible CSS states, focus, Escape and focus restoration. Do not weaken checks or modify P1 production UI without separate evidence.
+- In that run the infrastructure gate/public smoke passed; local Supabase/Chromium failed on this locator; hosted customer/tenant E2E was SKIPPED (not PASS). This is currently a test-locator failure, not a proven DB authorization failure.
+- After correction run focused Playwright then the full P2 workflow on the resulting exact SHA. Poll recorded runs before starting duplicates. Then answer P3's tenant-safe aggregate contract request and continue highest-risk open P2 acceptance rows.
+- P2 owns e2e/**, supabase/**, scripts/**, service/API/auth files and non-P3 src/lib. Do not touch P1 routes/components/styles or P3 intelligence modules/central ledger.
+- This live block supersedes the invalid historical P2 pointer below. Read global CURRENT_EXECUTION_STATE first.
+
+---
+
 # P2 — Durable Backend Checkpoint
 
 ملف خاص بـP2، وليس مؤشراً عالمياً. المؤشر الوحيد: `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`. سجل القبول الوحيد هو CSV الحالي.
