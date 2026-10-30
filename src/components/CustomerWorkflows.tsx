@@ -2142,26 +2142,28 @@ function Offline() {
     }
     try {
       clearLegacyOfflineCatalogCache(window.localStorage);
-      if (!localStorage.getItem(catalogScopeKey)) {
+      const hasVerifiedScope = Boolean(localStorage.getItem(catalogScopeKey));
+      if (!hasVerifiedScope) {
         clearOfflineCatalogCache(window.localStorage, user?.profileId);
-        setLastCatalogSyncAt(null);
-        setCachedProducts([]);
-        setCached(0);
-        return;
       }
       let safeCatalog: ReturnType<typeof sanitizePublicCatalogCache> = [];
-      try {
-        safeCatalog = sanitizePublicCatalogCache(
-          JSON.parse(localStorage.getItem(catalogKey) || "[]"),
-        );
-      } catch {
-        localStorage.removeItem(catalogKey);
+      const storedCatalog = hasVerifiedScope ? localStorage.getItem(catalogKey) : null;
+      if (storedCatalog !== null) {
+        try {
+          safeCatalog = sanitizePublicCatalogCache(JSON.parse(storedCatalog));
+        } catch {
+          localStorage.removeItem(catalogKey);
+        }
+        // Rewrite only an existing catalog through the allowlist; do not create
+        // an empty cache entry when the previous scope was invalidated.
+        if (localStorage.getItem(catalogKey) !== null) {
+          localStorage.setItem(catalogKey, JSON.stringify(safeCatalog));
+        }
       }
-      // Rewrite cached products through the allowlist so staff-only pricing fields are purged.
-      localStorage.setItem(catalogKey, JSON.stringify(safeCatalog));
-      setLastCatalogSyncAt(localStorage.getItem(catalogSyncKey));
+      setLastCatalogSyncAt(hasVerifiedScope ? localStorage.getItem(catalogSyncKey) : null);
       setCachedProducts(safeCatalog);
       setCached(safeCatalog.length);
+      // Cart drafts are profile-scoped independently from catalog authorization.
       const lines = loadOfflineCartDraft(window.localStorage, user?.profileId);
       setDraftLines(lines);
       setCartCount(lines.reduce((sum, line) => sum + line.quantity, 0));
@@ -2184,6 +2186,10 @@ function Offline() {
         return;
       }
       setOnline(true);
+      // Do not keep painting tenant-derived rows while the fresh scope is resolved.
+      setLastCatalogSyncAt(null);
+      setCachedProducts([]);
+      setCached(0);
       if (!user?.profileId) {
         refresh();
         return;
@@ -2191,7 +2197,7 @@ function Offline() {
       try {
         const scope = await getCurrentTenantScope({ forceRefresh: true });
         if (scope.profileId !== user.profileId) {
-          throw new Error("تعذر مطابقة نطاق الحساب الحالي.");
+          throw new Error("تغير نطاق الحساب الحالي؛ لم نعرض الكتالوج المحلي.");
         }
         const scopeMatches = reconcileOfflineCatalogScope(window.localStorage, scope);
         if (!active || currentRevision !== revision) return;
@@ -2199,13 +2205,16 @@ function Offline() {
         if (!scopeMatches) {
           setMessage("تغير نطاق المؤسسة أو المستودع؛ أُزيل الكتالوج المحلي السابق. حدّث الكتالوج من الخادم.");
         }
-      } catch {
+      } catch (error) {
         if (!active || currentRevision !== revision) return;
         clearOfflineCatalogCache(window.localStorage, user.profileId);
         setLastCatalogSyncAt(null);
         setCachedProducts([]);
         setCached(0);
-        setMessage("تعذر التحقق من نطاق المؤسسة والمستودع؛ لم نعرض الكتالوج المحلي.");
+        const profileMismatch = error instanceof Error && error.message.includes("نطاق الحساب");
+        setMessage(profileMismatch
+          ? "تغير نطاق الحساب؛ لم نعرض الكتالوج المحلي."
+          : "تعذر التحقق من نطاق المؤسسة والمستودع؛ لم نعرض الكتالوج المحلي.");
       }
     };
     const on = () => { setOnline(true); void verifyAndRefresh(); };

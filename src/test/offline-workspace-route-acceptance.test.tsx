@@ -244,6 +244,12 @@ describe("offline workspace real-route acceptance", () => {
       roles: ["customer"],
       isStaff: false,
     };
+    mocks.getCurrentTenantScope.mockResolvedValue({
+      profileId: otherProfileId,
+      organizationId: "offline-org-b",
+      warehouseId: null,
+      isStaff: false,
+    });
     await act(async () => {
       // The real AuthScopedOutlet remounts route-local UI when identity changes.
       root?.unmount();

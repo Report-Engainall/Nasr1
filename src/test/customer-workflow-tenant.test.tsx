@@ -4,6 +4,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { routeTree } from "@/routeTree.gen";
+import { offlineCatalogCacheKeys, offlineCatalogScopeFingerprint } from "@/lib/offline-catalog-cache";
 
 const mocks = vi.hoisted(() => ({
   user: null as null | {
@@ -433,13 +434,24 @@ describe("customer quote workspace tenant boundary", () => {
       roles: ["staff"],
       isStaff: true,
     };
-    // Simulate a legacy cache written by a staff session before the allowlist was wired in.
+    // A previously scoped staff cache is re-sanitized before use; a global legacy
+    // cache is retired and is never trusted as belonging to the active tenant.
+    const cacheKeys = offlineCatalogCacheKeys(PROFILE_ID)!;
+    const serverScope = {
+      profileId: PROFILE_ID,
+      organizationId: ORGANIZATION_ID,
+      warehouseId: null,
+      isStaff: false,
+    };
     window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([unsafeRow]));
+    window.localStorage.setItem(cacheKeys.catalogKey, JSON.stringify([unsafeRow]));
+    window.localStorage.setItem(cacheKeys.scopeKey, offlineCatalogScopeFingerprint(serverScope));
     mocks.fetchProducts.mockResolvedValueOnce([unsafeRow]);
 
     await mountQuoteWorkspace("/offline");
 
-    const legacySafe = JSON.parse(window.localStorage.getItem("aghbari:catalog:v1") || "[]");
+    expect(window.localStorage.getItem("aghbari:catalog:v1")).toBeNull();
+    const legacySafe = JSON.parse(window.localStorage.getItem(cacheKeys.catalogKey) || "[]");
     expect(legacySafe).toHaveLength(1);
     expect(legacySafe[0]).not.toHaveProperty("base_price");
     expect(legacySafe[0]).not.toHaveProperty("display_price");
@@ -463,7 +475,7 @@ describe("customer quote workspace tenant boundary", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const syncedSafe = JSON.parse(window.localStorage.getItem("aghbari:catalog:v1") || "[]");
+    const syncedSafe = JSON.parse(window.localStorage.getItem(cacheKeys.catalogKey) || "[]");
     expect(mocks.fetchProducts).toHaveBeenCalledTimes(1);
     expect(syncedSafe).toHaveLength(1);
     expect(syncedSafe[0]).not.toHaveProperty("base_price");
