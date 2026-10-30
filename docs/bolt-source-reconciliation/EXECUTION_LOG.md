@@ -1465,3 +1465,19 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **No-side-effect implementation:** privileged before/after snapshots serialize the complete invoice row, customer row, every payment row for that invoice, and all audit rows attached to the invoice/customer or linked by invoice ID. The denial is accepted only when every serialized snapshot is byte-for-byte identical.
 - **CI status:** Core/P2/PG17/cleanup runs for `cbbe9d02750f38e8006f501bd17adc884b70c603` are triggered or pending; do not mark TESTED_EXACT_SHA until all required final evidence is recorded. No migration changed.
 - **NEXT_TASK:** after the exact-SHA denial proof, select the next open detailed DLV-008 invoice/payment allocation or DLV-015 high-impact mutation boundary; preserve the accepted DLV-007 no-repeat case.
+
+
+## 2026-10-30 — DLV-015 ordinary-staff payment denial (TESTED_EXACT_SHA)
+
+- **Code SHA:** `cbbe9d02750f38e8006f501bd17adc884b70c603`; base `7fe83d3c35a2b8c5b28012c0207c3eb8e3468159`; only code path changed: `scripts/test-database-migrations.mjs`.
+- **Acceptance:** ordinary same-tenant staff invoked `record_customer_payment` for a one-unit cash payment; the RPC returned SQLSTATE `42501`.
+- **No-side-effect proof:** privileged snapshots serialized complete invoice/customer rows, all payment rows for the invoice and audit rows attached to the invoice/customer or linked by invoice ID; before/after structures were byte-for-byte identical.
+- **Exact-SHA evidence:** Core [40996667761 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40996667761), P2 local Supabase/Chromium [40996667698 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40996667698), import-finalizer PostgreSQL 17 [40996667757 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40996667757), cleanup [40996667712 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40996667712). All checked out exact code SHA `cbbe9d0`.
+- **Proof boundary:** hosted customer/order/tenant Playwright was `SKIPPED`; no hosted/production behavior is claimed.
+
+## 2026-10-30 — DLV-008 overpayment atomic denial (IMPLEMENTED / CI_PENDING)
+
+- **Base SHA:** `439efb73cbd24feafe5ea4f96446ea31276dfe88`. **Code SHA:** `f6a3a9355dc25b37ca14364c0f19af8587121be7`; only code path changed: `scripts/test-database-migrations.mjs`.
+- **Acceptance implementation:** a `500000` payment is rejected against the `370000` invoice. A privileged snapshot serializes the full invoice and customer rows, every payment row for that invoice and all audit rows tied to the invoice/customer or linked by invoice ID; rejection is accepted only if the before/after JSON snapshot is byte-for-byte identical.
+- **CI status:** Core/P2/PG17/cleanup for `f6a3a9355dc25b37ca14364c0f19af8587121be7` pending; do not claim tested until exact-SHA evidence is final. No migration or production write.
+- **NEXT_TASK:** after verification, continue exact-decimal source-linked multi-currency invoice/payment allocation under DLV-008, preserving all accepted no-repeat financial tests.
