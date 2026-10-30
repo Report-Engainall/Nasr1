@@ -2627,20 +2627,103 @@ async function main() {
     "admin may list accountant accounts within the organization");
   assert.ok(!listedRows.some((row) => row.profile_id === foreignProfileId),
     "admin user listing must not include another organization's profiles");
-  await expectFailure(
+  const snapshotRoleAssignmentState = async (targetProfileId) => {
+    await db.unsafe("reset role");
+    const rows = await db.unsafe(`
+      select p.id, p.organization_id, p.auth_user_id, p.is_active,
+             coalesce(
+               array_agg(r.role order by r.role) filter (where r.role is not null),
+               ARRAY[]::text[]
+             ) as roles,
+             coalesce((
+               select jsonb_agg(
+                 jsonb_build_object(
+                   'organization_id', a.organization_id,
+                   'actor_id', a.actor_id,
+                   'old_value', a.old_value,
+                   'new_value', a.new_value,
+                   'created_at', a.created_at
+                 ) order by a.created_at
+               )
+               from public.audit_logs a
+               where a.entity_type = 'profile'
+                 and a.entity_id = p.id
+                 and a.action = 'user.roles.changed'
+             ), '[]'::jsonb) as role_change_audit
+        from public.profiles p
+        left join public.user_roles r on r.profile_id = p.id
+       where p.id = $1
+       group by p.id
+    `, [targetProfileId]);
+    assert.equal(rows.length, 1, "role-denial fixture profile must exist for before/after verification");
+    return {
+      profile: {
+        id: rows[0].id,
+        organization_id: rows[0].organization_id,
+        auth_user_id: rows[0].auth_user_id,
+        is_active: rows[0].is_active,
+      },
+      roles: rows[0].roles,
+      role_change_audit: rows[0].role_change_audit,
+    };
+  };
+  const assertDeniedRoleChangeHasNoMutation = async (label, targetProfileId, requestedRoles, pattern, sqlState) => {
+    const before = await snapshotRoleAssignmentState(targetProfileId);
+    await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+    await db.unsafe("set role authenticated");
+    await expectFailure(
+      label,
+      () => db.unsafe(
+        "select public.set_organization_user_roles($1::uuid,$2::text[])",
+        [targetProfileId, requestedRoles],
+      ),
+      pattern,
+      sqlState,
+    );
+    const after = await snapshotRoleAssignmentState(targetProfileId);
+    assert.deepEqual(
+      after,
+      before,
+      label + " must preserve target profile, role assignments, and role-change audit history",
+    );
+    await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+    await db.unsafe("set role authenticated");
+  };
+
+  await assertDeniedRoleChangeHasNoMutation(
     "administrator cannot change their own roles through role-management RPC",
-    () => db.unsafe("select public.set_organization_user_roles($1::uuid,$2::text[])", [staffProfileId, "{staff}"]),
+    staffProfileId,
+    "{staff}",
     /cannot change their own roles/i,
+    "42501",
   );
-  await expectFailure(
+  await assertDeniedRoleChangeHasNoMutation(
     "administrator cannot assign a role outside the organization",
-    () => db.unsafe("select public.set_organization_user_roles($1::uuid,$2::text[])", [foreignProfileId, "{accountant}"]),
+    foreignProfileId,
+    "{accountant}",
     /outside the current organization/i,
+    "42501",
   );
-  await expectFailure(
+  await assertDeniedRoleChangeHasNoMutation(
     "customer role cannot be combined with operational/accountant roles",
-    () => db.unsafe("select public.set_organization_user_roles($1::uuid,$2::text[])", [secondProfileId, "{customer,accountant}"]),
+    secondProfileId,
+    "{customer,accountant}",
     /customer role cannot be combined/i,
+    "22023",
+  );
+  await assertDeniedRoleChangeHasNoMutation(
+    "administrator cannot assign an unsupported elevated role",
+    secondProfileId,
+    "{superadmin}",
+    /unsupported user role/i,
+    "22023",
+  );
+  await assertDeniedRoleChangeHasNoMutation(
+    "administrator cannot submit duplicate roles",
+    secondProfileId,
+    "{staff,staff}",
+    /duplicate user roles are not allowed/i,
+    "22023",
   );
   const assignedAccountant = await db.unsafe(
     "select public.set_organization_user_roles($1::uuid,$2::text[]) as result",
