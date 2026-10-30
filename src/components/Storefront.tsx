@@ -1031,11 +1031,11 @@ export function ProductDetail({
                 : `متوفر حالياً: ${formatNumber(quantity)} ${product.unit}`}
           </div>
           <div className="sf-detail-actions">
-            <button className="sf-btn-primary" disabled={quantity < minimumOrderQuantity} onClick={onAdd}><ShoppingCart size={17} /> إضافة إلى السلة</button>
-            <button className={`sf-icon-action ${inWishlist ? 'active' : ''}`} onClick={onWishlist}>
+            <button type="button" className="sf-btn-primary" disabled={quantity < minimumOrderQuantity} onClick={onAdd}><ShoppingCart size={17} /> إضافة إلى السلة</button>
+            <button type="button" className={`sf-icon-action ${inWishlist ? 'active' : ''}`} aria-pressed={inWishlist} onClick={onWishlist}>
               <Heart size={18} fill={inWishlist ? 'currentColor' : 'none'} /> {inWishlist ? 'في المفضلة' : 'أضف للمفضلة'}
             </button>
-            <button className={`sf-icon-action ${inCompare ? 'active' : ''}`} onClick={onCompare}><GitCompare size={18} /> مقارنة</button>
+            <button type="button" className={`sf-icon-action ${inCompare ? 'active' : ''}`} aria-pressed={inCompare} onClick={onCompare}><GitCompare size={18} /> {inCompare ? 'في المقارنة' : 'مقارنة'}</button>
           </div>
           <div className="sf-detail-facts">
             <div><strong>الوحدة</strong><span>{product.unit}</span></div>

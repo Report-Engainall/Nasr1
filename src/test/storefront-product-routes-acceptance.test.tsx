@@ -236,6 +236,51 @@ describe("public storefront product route acceptance", () => {
     await flush();
   }
 
+  it("announces wishlist and comparison toggle state on the real product detail route", async () => {
+    await mountRoute(`/product/${PRODUCT_ID}`);
+
+    const findWishlistButton = () => Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("أضف للمفضلة") || button.textContent?.includes("في المفضلة"));
+    const findCompareButton = () => Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("مقارنة") || button.textContent?.includes("في المقارنة"));
+
+    expect(findWishlistButton()?.getAttribute("aria-pressed")).toBe("false");
+    expect(findCompareButton()?.getAttribute("aria-pressed")).toBe("false");
+
+    await act(async () => {
+      fireEvent.click(findWishlistButton()!);
+      fireEvent.click(findCompareButton()!);
+    });
+    await flush();
+
+    expect(findWishlistButton()?.textContent).toContain("في المفضلة");
+    expect(findWishlistButton()?.getAttribute("aria-pressed")).toBe("true");
+    expect(findCompareButton()?.textContent).toContain("في المقارنة");
+    expect(findCompareButton()?.getAttribute("aria-pressed")).toBe("true");
+
+    await act(async () => {
+      fireEvent.click(findWishlistButton()!);
+      fireEvent.click(findCompareButton()!);
+    });
+    await flush();
+
+    expect(findWishlistButton()?.getAttribute("aria-pressed")).toBe("false");
+    expect(findCompareButton()?.textContent).toContain("مقارنة");
+    expect(findCompareButton()?.textContent).not.toContain("في المقارنة");
+    expect(findCompareButton()?.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("prevents adding a product when available stock is below its minimum order quantity", async () => {
+    mocks.fetchProducts.mockResolvedValue([{ ...PRODUCT, min_order_quantity: 9 }]);
+    await mountRoute(`/product/${PRODUCT_ID}`);
+
+    expect(host?.textContent).toContain("أقل من الحد الأدنى للطلب");
+    const addButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("إضافة إلى السلة"));
+    expect(addButton).toBeTruthy();
+    expect(addButton?.disabled).toBe(true);
+  });
+
   it("loads a deep-linked product by exact route ID without exposing a hidden customer price", async () => {
     const router = await mountRoute(`/product/${PRODUCT_ID}`);
 
