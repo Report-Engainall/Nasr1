@@ -29,19 +29,37 @@ function num(value:number|string|null):number|null {
  if(typeof value!=="string"||! /^\d+(?:\.\d+)?$/.test(value.trim()))return null;
  const result=Number(value);return Number.isFinite(result)&&result<=Number.MAX_SAFE_INTEGER?result:null;
 }
+function coverageSafeInteger(value:number):boolean {return Number.isSafeInteger(value)&&value>=0;}
+
 /** Uses unique customer records for retention counts and separate currency rows for sales focus. */
 export function buildCustomerRetentionReport(input:{
  id:string;asOf:string;period:EvidencePeriod;previousPeriod:EvidencePeriod;evidenceRecords:EvidenceRecord[];
  coverage:CustomerRetentionCoverage;customers:CustomerRetentionRecord[];salesByCurrency:CustomerRetentionSaleRecord[];
 }):CustomerRetentionReport {
  const asOfDay=day(input.asOf.slice(0,10));if(asOfDay===null)throw new Error("asOf must contain an ISO day");
- const uniqueCustomers=new Set(input.customers.map(c=>c.customerRef));
- const uniqueSales=new Set(input.salesByCurrency.map(s=>s.customerRef+"|"+s.currency));
+ const customerRefs=input.customers.map(c=>c.customerRef);
+ const uniqueCustomers=new Set(customerRefs);
+ const uniqueSales=new Set(input.salesByCurrency.map(s=>JSON.stringify([s.customerRef,s.currency])));
+ const customerPopulationValid=customerRefs.every(ref=>typeof ref==="string"&&ref.trim().length>0);
+ const salesRowsValid=input.salesByCurrency.every(s=>typeof s.customerRef==="string"&&s.customerRef.trim().length>0&&
+  typeof s.currency==="string"&&s.currency.trim().length>0&&uniqueCustomers.has(s.customerRef));
+ const countsValid=[coverageSafeInteger(input.coverage.expectedCustomerCount),coverageSafeInteger(input.coverage.returnedCustomerCount),
+  coverageSafeInteger(input.coverage.expectedSalesRecordCount),coverageSafeInteger(input.coverage.returnedSalesRecordCount)].every(Boolean);
  const coverage=input.coverage;
- const fullCoverage=coverage.status==="VERIFIED"&&coverage.completeness==="COMPLETE"&&coverage.quality==="ACCEPTABLE"&&!coverage.truncated&&
-  coverage.expectedCustomerCount===coverage.returnedCustomerCount&&coverage.returnedCustomerCount===input.customers.length&&uniqueCustomers.size===input.customers.length&&
-  coverage.expectedSalesRecordCount===coverage.returnedSalesRecordCount&&coverage.returnedSalesRecordCount===input.salesByCurrency.length&&uniqueSales.size===input.salesByCurrency.length&&
-  coverage.evidenceIds.length>0&&coverage.evidenceIds.every(id=>input.evidenceRecords.some(e=>e.id===id&&e.status==="VERIFIED"&&e.completeness==="COMPLETE"&&e.quality==="ACCEPTABLE"));
+ const coverageEvidenceIds=coverage.evidenceIds;
+ const coverageEvidenceMap=new Map<string,EvidenceRecord[]>(),asOfTime=Date.parse(input.asOf);
+ for(const e of input.evidenceRecords){const group=coverageEvidenceMap.get(e.id)??[];group.push(e);coverageEvidenceMap.set(e.id,group);}
+ const coverageEvidenceValid=coverageEvidenceIds.length>0&&new Set(coverageEvidenceIds).size===coverageEvidenceIds.length&&
+  Number.isFinite(asOfTime)&&coverageEvidenceIds.every(id=>{
+   const matches=coverageEvidenceMap.get(id)??[];
+   return matches.length===1&&matches[0].status==="VERIFIED"&&matches[0].completeness==="COMPLETE"&&matches[0].quality==="ACCEPTABLE"&&
+    matches[0].asOf===input.asOf&&Number.isFinite(Date.parse(matches[0].sourceTimestamp))&&Date.parse(matches[0].sourceTimestamp)<=asOfTime;
+  });
+ const fullCoverage=coverage.status==="VERIFIED"&&coverage.completeness==="COMPLETE"&&coverage.quality==="ACCEPTABLE"&&!coverage.truncated&&countsValid&&
+  customerPopulationValid&&salesRowsValid&&coverage.expectedCustomerCount===coverage.returnedCustomerCount&&
+  coverage.returnedCustomerCount===input.customers.length&&uniqueCustomers.size===input.customers.length&&
+  coverage.expectedSalesRecordCount===coverage.returnedSalesRecordCount&&coverage.returnedSalesRecordCount===input.salesByCurrency.length&&
+  uniqueSales.size===input.salesByCurrency.length&&coverageEvidenceValid;
  const metrics=[...input.customers.flatMap(c=>[c.ordersCurrentPeriod,c.ordersPreviousPeriod]),...input.salesByCurrency.map(s=>s.sales)];
  const passport=buildEvidencePassport({id:"retention:"+input.asOf,generatedAt:input.asOf,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
  const counts=new Map<string,number>();for(const metric of passport.metrics)counts.set(metric.id,(counts.get(metric.id)??0)+1);
@@ -61,7 +79,7 @@ export function buildCustomerRetentionReport(input:{
   const age=lastDay!==null?Math.floor((asOfDay-lastDay)/86400000):null;
   let activity:CustomerRetentionReport["customers"][number]["activity"]="UNKNOWN";
   if(age!==null&&age>=0)activity=age<=30?"ACTIVE":age<=60?"COOLING":age<=90?"AT_RISK":"INACTIVE";
-  else if(customer.lastOrderAt===null)activity="NO_ORDER_DATE";
+  else if(customer.lastOrderAt===null&&current===0&&previous===0)activity="NO_ORDER_DATE";
   return {customerRef:customer.customerRef,orderCountCurrent:current,orderCountPrevious:previous,lastOrderAt:customer.lastOrderAt,
    daysSinceLastOrder:age,activity,repeatCustomer:current===null?null:current>=2,status:current!==null&&previous!==null&&activity!=="UNKNOWN"?"VERIFIED" as const:"NEEDS_REVIEW" as const};
  });
