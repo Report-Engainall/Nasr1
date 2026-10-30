@@ -10,7 +10,8 @@ const base=(entries:CashflowScheduledEntry[]=[])=>({id:"f",generatedAt:asOf,asOf
 describe("scheduled cash-flow forecast",()=>{
  it("calculates the 7/30/90-day windows from actual dated events only",()=>{
   const r=buildCashflowForecast(base([entry("a","INFLOW","2026-11-01",20),entry("b","OUTFLOW","2026-11-05",5),entry("c","INFLOW","2026-11-20",10),entry("d","OUTFLOW","2026-12-01",5),entry("e","INFLOW","2026-12-20",7)]));
-  expect(r.points.map(p=>[p.horizonDays,p.projectedBalance])).toEqual([[7,115],[30,120],[90,127]]);
+  // Each forecast window is [asOf, asOf + horizonDays); the Dec 1 payment is outside the 30-day window.
+  expect(r.points.map(p=>[p.horizonDays,p.projectedBalance])).toEqual([[7,115],[30,125],[90,127]]);
  });
  it("keeps currency groups separate",()=>{
   const usd=metric("usd-open","cash.opening",100,"USD"),usdIn=entry("usd-in","INFLOW","2026-11-01",15,"USD");
