@@ -282,6 +282,15 @@ describe("customer cart and checkout real route acceptance", () => {
     return router;
   }
 
+  async function unmountRoute() {
+    if (root) {
+      await act(async () => root?.unmount());
+      root = undefined;
+    }
+    host?.remove();
+    host = undefined;
+  }
+
   async function clickButtonContaining(label: string) {
     const button = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
       .find((candidate) => candidate.textContent?.includes(label));
@@ -370,9 +379,11 @@ describe("customer cart and checkout real route acceptance", () => {
     await flush();
 
     await clickButtonContaining("تأكيد الطلب");
-    expect(host?.textContent).toContain("synthetic order submission refusal");
+    expect(host?.textContent).toContain("لم يصل تأكيد نهائي لنتيجة الطلب.");
     expect(host?.textContent).not.toContain("SO-TEST-001");
     expect(mocks.submitCalls).toHaveLength(1);
+    const lockedPhone = host?.querySelector<HTMLInputElement>('input[placeholder="7XX XXX XXX"]');
+    expect(lockedPhone?.disabled).toBe(true);
     const firstKey = mocks.submitCalls[0].args._idempotency_key;
     expect(firstKey).toEqual(expect.stringMatching(/^[A-Za-z0-9_-]{16,128}$/));
 
@@ -382,6 +393,51 @@ describe("customer cart and checkout real route acceptance", () => {
     expect(mocks.submitCalls).toHaveLength(2);
     expect(mocks.submitCalls[1].args._idempotency_key).toBe(firstKey);
     expect(vi.mocked(saveCustomerCart).mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("recovers an ambiguous checkout after reload and refuses a different payload", async () => {
+    mocks.user = CUSTOMER;
+    mocks.cartLines = [{ product_id: PRODUCT_ID, quantity: 2 }];
+    mocks.submitFailures = 1;
+    await mountRoute("/checkout");
+
+    const firstPhone = host?.querySelector<HTMLInputElement>('input[placeholder="7XX XXX XXX"]');
+    expect(firstPhone).toBeTruthy();
+    await act(async () => {
+      fireEvent.change(firstPhone!, { target: { value: "777777777" } });
+    });
+    await flush();
+    await clickButtonContaining("تأكيد الطلب");
+
+    expect(host?.textContent).toContain("لم يصل تأكيد نهائي لنتيجة الطلب.");
+    expect(mocks.submitCalls).toHaveLength(1);
+    const firstKey = mocks.submitCalls[0].args._idempotency_key;
+
+    await unmountRoute();
+    await mountRoute("/checkout");
+
+    expect(host?.textContent).toContain("توجد محاولة طلب سابقة لم يصل تأكيدها بعد.");
+    const recoveredPhone = host?.querySelector<HTMLInputElement>('input[placeholder="7XX XXX XXX"]');
+    expect(recoveredPhone?.disabled).toBe(false);
+    await act(async () => {
+      fireEvent.change(recoveredPhone!, { target: { value: "771111111" } });
+    });
+    await flush();
+    await clickButtonContaining("تأكيد الطلب");
+
+    expect(mocks.submitCalls).toHaveLength(1);
+    expect(host?.textContent).toContain("أدخل بيانات الطلب السابق نفسها");
+    expect(host?.textContent).not.toContain("SO-TEST-001");
+
+    await act(async () => {
+      fireEvent.change(recoveredPhone!, { target: { value: "777777777" } });
+    });
+    await flush();
+    await clickButtonContaining("تأكيد الطلب");
+
+    expect(host?.textContent).toContain("SO-TEST-001");
+    expect(mocks.submitCalls).toHaveLength(2);
+    expect(mocks.submitCalls[1].args._idempotency_key).toBe(firstKey);
   });
 
   it("fails closed when the current persistent cart cannot be saved before order submission", async () => {

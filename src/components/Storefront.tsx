@@ -1125,6 +1125,25 @@ type CheckoutValidation = {
   pricing_verified: true;
 };
 
+const CHECKOUT_ATTEMPT_STORAGE_KEY = 'aghbari:checkout-attempt:v1';
+type StoredCheckoutAttempt = { signature: string; key: string };
+
+function readStoredCheckoutAttempt(profileId: string | undefined): StoredCheckoutAttempt | null {
+  if (!profileId || typeof window === 'undefined') return null;
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem(CHECKOUT_ATTEMPT_STORAGE_KEY) || 'null') as {
+      signature?: unknown;
+      key?: unknown;
+    } | null;
+    if (!saved || typeof saved.signature !== 'string' || typeof saved.key !== 'string' ||
+      !/^[A-Za-z0-9_-]{16,128}$/.test(saved.key)) return null;
+    const signature = JSON.parse(saved.signature) as { profile_id?: unknown };
+    return signature.profile_id === profileId ? { signature: saved.signature, key: saved.key } : null;
+  } catch {
+    return null;
+  }
+}
+
 function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: CartItem[]; priceVisibilityPolicy: unknown; onBack: () => void; onComplete: (order: { id: string; order_number: string }) => void }) {
   const { user } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
@@ -1152,6 +1171,8 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
   const idempotencyRef = useRef<{ signature: string; key: string } | null>(null);
   const submitInFlightRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
+  const [ambiguousSubmit, setAmbiguousSubmit] = useState(false);
+  const [recoveringAttempt, setRecoveringAttempt] = useState(() => Boolean(readStoredCheckoutAttempt(user?.profileId)));
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -1223,23 +1244,33 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     return () => { active = false; };
   }, [checkoutItems, user?.profileId, previewRetry]);
 
-  function getIdempotencyKey() {
+  function getIdempotencyKey(): string | null {
     const items = cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity })).sort((a, b) => a.product_id.localeCompare(b.product_id));
     const signature = JSON.stringify({ profile_id: user?.profileId, payment_terms: paymentTerms, items, contact_name: name.trim(), business_name: business.trim(), phone: phone.trim(), notes: notes.trim(), delivery_address_id: deliveryAddressId || null });
-    if (idempotencyRef.current?.signature === signature) return idempotencyRef.current.key;
-    const storageKey = 'aghbari:checkout-attempt:v1';
-    try {
-      const saved = JSON.parse(window.sessionStorage.getItem(storageKey) || 'null') as { signature?: unknown; key?: unknown } | null;
-      if (saved?.signature === signature && typeof saved.key === 'string' && /^[A-Za-z0-9_-]{16,128}$/.test(saved.key)) {
-        idempotencyRef.current = { signature, key: saved.key };
-        return saved.key;
+    const activeAttempt = idempotencyRef.current;
+    if (activeAttempt) {
+      if (activeAttempt.signature === signature) return activeAttempt.key;
+      setRecoveringAttempt(true);
+      setError('هناك طلب سابق لم تصل نتيجة تأكيده. لا يمكن إرسال بيانات مختلفة قبل حسم المحاولة السابقة؛ أعد إدخال بياناتها نفسها ثم أعد المحاولة.');
+      return null;
+    }
+    const saved = readStoredCheckoutAttempt(user?.profileId);
+    if (saved) {
+      if (saved.signature !== signature) {
+        setRecoveringAttempt(true);
+        setError('توجد محاولة طلب محفوظة لم تصل نتيجة تأكيدها. أدخل بيانات الطلب السابق نفسها لإعادة المحاولة الآمنة؛ لن ننشئ طلبًا جديدًا ببيانات مختلفة.');
+        return null;
       }
-    } catch { /* session storage is best-effort; the component ref still protects in-page retries */ }
+      idempotencyRef.current = saved;
+      setRecoveringAttempt(false);
+      setAmbiguousSubmit(true);
+      return saved.key;
+    }
     const key = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : 'checkout_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2);
     idempotencyRef.current = { signature, key };
-    try { window.sessionStorage.setItem(storageKey, JSON.stringify({ signature, key })); } catch { /* optional persistence */ }
+    try { window.sessionStorage.setItem(CHECKOUT_ATTEMPT_STORAGE_KEY, JSON.stringify({ signature, key })); } catch { /* in-page ref still protects retries when session storage is unavailable */ }
     return key;
   }
 
@@ -1251,6 +1282,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     if (previewLoading || !cartValidation) { setError('لا يمكن تسجيل الطلب حتى ينجح التحقق من أصناف السلة وسياسة التسعير. أعد المحاولة.'); return; }
     submitInFlightRef.current = true;
     setSubmitting(true); setError('');
+    let requestWasSent = false;
     try {
       // The local draft can change just before the debounced background sync completes.
       // Persist/read back the exact line set before submit so the deferred DB trigger can
@@ -1267,27 +1299,38 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
       }
 
       const requestKey = getIdempotencyKey();
+      if (!requestKey) return;
+      requestWasSent = true;
       const { data, error: rpcError } = await supabase.rpc('submit_customer_order', {
         _items: cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity })),
         _notes: notes.trim(), _business_name: business.trim(), _contact_name: name.trim(), _phone: phone.trim(),
         _payment_terms: paymentTerms, _idempotency_key: requestKey,
         _delivery_address_id: deliveryAddressId || null,
       });
-      if (rpcError) throw new Error(rpcError.message || 'تعذر إرسال الطلب');
       const result = data as { id?: unknown; order_number?: unknown; status?: unknown } | null;
-      if (!result || typeof result.id !== 'string' || !result.id || typeof result.order_number !== 'string' || !result.order_number ||
+      if (rpcError || !result || typeof result.id !== 'string' || !result.id || typeof result.order_number !== 'string' || !result.order_number ||
         'total_amount' in result || 'unit_price' in result || 'line_total' in result) {
-        throw new Error('استجابة الخادم غير مكتملة أو تحتوي بيانات مالية غير مسموحة؛ راجع طلباتي قبل إعادة الإرسال.');
+        // The server may have committed before an error or malformed acknowledgement reached the browser.
+        // Keep the attempt key and require exact-payload replay instead of risking a second order.
+        setAmbiguousSubmit(true);
+        setError('لم يصل تأكيد نهائي لنتيجة الطلب. أعد المحاولة بالبيانات نفسها؛ سيُستخدم مفتاح المحاولة نفسه لمنع إنشاء طلب مكرر.');
+        return;
       }
       try {
-        const storageKey = 'aghbari:checkout-attempt:v1';
-        const saved = JSON.parse(window.sessionStorage.getItem(storageKey) || 'null') as { key?: unknown } | null;
-        if (saved?.key === requestKey) window.sessionStorage.removeItem(storageKey);
+        const saved = JSON.parse(window.sessionStorage.getItem(CHECKOUT_ATTEMPT_STORAGE_KEY) || 'null') as { key?: unknown } | null;
+        if (saved?.key === requestKey) window.sessionStorage.removeItem(CHECKOUT_ATTEMPT_STORAGE_KEY);
       } catch { /* request is already confirmed; cleanup is best-effort */ }
       idempotencyRef.current = null;
+      setAmbiguousSubmit(false);
+      setRecoveringAttempt(false);
       onComplete({ id: result.id, order_number: result.order_number });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'تعذر إرسال الطلب');
+    } catch (cause) {
+      if (requestWasSent) {
+        setAmbiguousSubmit(true);
+        setError('انقطع الاتصال قبل وصول تأكيد نهائي للطلب. لا تغيّر بياناته؛ أعد المحاولة نفسها حتى نتحقق من نتيجته دون إنشاء طلب مكرر.');
+      } else {
+        setError(cause instanceof Error ? cause.message : 'تعذر إرسال الطلب');
+      }
     } finally {
       submitInFlightRef.current = false;
       setSubmitting(false);
@@ -1299,9 +1342,9 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
       <h2>إتمام الطلب</h2>
       <div className="sf-checkout-layout">
         <div className="sf-checkout-form">
-          <label className="sf-form-field"><span>الاسم الكامل *</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="اسمك الكامل" /></label>
-          <label className="sf-form-field"><span>رقم الهاتف *</span><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="7XX XXX XXX" /></label>
-          <label className="sf-form-field"><span>اسم المنشأة</span><input value={business} onChange={(e) => setBusiness(e.target.value)} placeholder="اسم المتجر أو الشركة" /></label>
+          <label className="sf-form-field"><span>الاسم الكامل *</span><input value={name} disabled={submitting || ambiguousSubmit} onChange={(e) => setName(e.target.value)} placeholder="اسمك الكامل" /></label>
+          <label className="sf-form-field"><span>رقم الهاتف *</span><input value={phone} disabled={submitting || ambiguousSubmit} onChange={(e) => setPhone(e.target.value)} placeholder="7XX XXX XXX" /></label>
+          <label className="sf-form-field"><span>اسم المنشأة</span><input value={business} disabled={submitting || ambiguousSubmit} onChange={(e) => setBusiness(e.target.value)} placeholder="اسم المتجر أو الشركة" /></label>
 
           <div className="sf-form-field">
             <label htmlFor="checkout-delivery-address"><span>عنوان التوصيل</span></label>
@@ -1309,7 +1352,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
               id="checkout-delivery-address"
               value={deliveryAddressId}
               onChange={(event) => setDeliveryAddressId(event.target.value)}
-              disabled={deliveryAddressesLoading || submitting}
+              disabled={deliveryAddressesLoading || submitting || ambiguousSubmit}
               style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: '1px solid #d8e8e8', borderRadius: 10, background: '#fff', color: '#18383c' }}
             >
               <option value="">بدون عنوان محفوظ — سأؤكد تفاصيل التوصيل لاحقًا</option>
@@ -1336,14 +1379,16 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
             )}
           </div>
           <fieldset className="sf-form-field" style={{ border: '1px solid #d8e8e8', borderRadius: 12, padding: 12, margin: 0 }}><legend style={{ padding: '0 6px', fontWeight: 800 }}>شروط الدفع</legend>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}><input type="radio" name="paymentTerms" value="cash_on_delivery" checked={paymentTerms === 'cash_on_delivery'} onChange={() => setPaymentTerms('cash_on_delivery')} /> الدفع عند الاستلام</label>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="radio" name="paymentTerms" value="credit" checked={paymentTerms === 'credit'} onChange={() => setPaymentTerms('credit')} /> الدفع الآجل وفق حد الائتمان المعتمد</label>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}><input type="radio" name="paymentTerms" value="cash_on_delivery" checked={paymentTerms === 'cash_on_delivery'} disabled={submitting || ambiguousSubmit} onChange={() => setPaymentTerms('cash_on_delivery')} /> الدفع عند الاستلام</label>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="radio" name="paymentTerms" value="credit" checked={paymentTerms === 'credit'} disabled={submitting || ambiguousSubmit} onChange={() => setPaymentTerms('credit')} /> الدفع الآجل وفق حد الائتمان المعتمد</label>
             <small style={{ color: '#71868a' }}>يتحقق الخادم من اعتماد حسابك وحد الائتمان عند اختيار الدفع الآجل.</small>
           </fieldset>
-          <label className="sf-form-field"><span>ملاحظات</span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="أي ملاحظات على الطلب..." /></label>
+          <label className="sf-form-field"><span>ملاحظات</span><textarea value={notes} disabled={submitting || ambiguousSubmit} onChange={(e) => setNotes(e.target.value)} placeholder="أي ملاحظات على الطلب..." /></label>
+          {recoveringAttempt && !ambiguousSubmit && <p className="sf-form-error" role="status">توجد محاولة طلب سابقة لم يصل تأكيدها بعد. أدخل بيانات الطلب نفسها لإعادة المحاولة؛ لا تُنشئ طلبًا جديدًا قبل حسمها.</p>}
           {previewError && <div className="sf-form-error" role="alert">{previewError} <button className="sf-link" type="button" onClick={() => setPreviewRetry((n) => n + 1)}>إعادة التحقق</button></div>}
           {error && <div className="sf-form-error" role="alert" aria-live="assertive">{error}</div>}
-          <div className="sf-checkout-actions"><button className="sf-btn-secondary" onClick={onBack}>رجوع</button><button className="sf-btn-primary" onClick={submit} disabled={submitting || previewLoading || deliveryAddressesLoading || !cartValidation}>{submitting ? 'جار الإرسال...' : previewLoading ? 'جارٍ التحقق من السلة...' : deliveryAddressesLoading ? 'جارٍ تحميل عناوين التوصيل...' : 'تأكيد الطلب'}</button></div>
+          {ambiguousSubmit && <p role="status">بيانات الطلب مقفلة لحماية المحاولة غير المحسومة. أعد إرسال الطلب نفسه أو افتح «طلباتي» للتحقق من ظهور الطلب.</p>}
+          <div className="sf-checkout-actions"><button className="sf-btn-secondary" onClick={onBack} disabled={submitting || ambiguousSubmit}>رجوع</button><button className="sf-btn-primary" onClick={submit} disabled={submitting || previewLoading || deliveryAddressesLoading || !cartValidation}>{submitting ? 'جار الإرسال...' : previewLoading ? 'جارٍ التحقق من السلة...' : deliveryAddressesLoading ? 'جارٍ تحميل عناوين التوصيل...' : ambiguousSubmit || recoveringAttempt ? 'إعادة محاولة تأكيد الطلب نفسه' : 'تأكيد الطلب'}</button></div>
         </div>
         <aside className="sf-checkout-summary">
           <h3>ملخص الطلب</h3>
