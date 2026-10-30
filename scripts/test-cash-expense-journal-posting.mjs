@@ -83,23 +83,63 @@ async function snapshotExpenseVoidBoundary(expenseId) {
       "where organization_id=$1::uuid and source_type='cash_expense' and source_id=$2::uuid",
     [organizationId, expenseId],
   );
-  const fullState = await db.unsafe(
-    "select jsonb_build_object(" +
-      "'expense',(select to_jsonb(e) from public.cash_expenses e where e.organization_id=$1::uuid and e.id=$2::uuid)," +
-      "'source_postings',coalesce((select jsonb_agg(to_jsonb(p) order by p.id::text) from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid),'[]'::jsonb)," +
-      "'journals',coalesce((select jsonb_agg(to_jsonb(j) order by j.id::text) from public.accounting_journal_entries j where j.organization_id=$1::uuid and j.id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid)),'[]'::jsonb)," +
-      "'journal_lines',coalesce((select jsonb_agg(to_jsonb(l) order by l.journal_entry_id::text,l.line_number) from public.accounting_journal_lines l where l.organization_id=$1::uuid and l.journal_entry_id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid)),'[]'::jsonb)," +
-      "'reversals',coalesce((select jsonb_agg(to_jsonb(r) order by r.id::text) from public.accounting_journal_reversals r where r.organization_id=$1::uuid and (r.original_journal_entry_id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid) or r.reversal_journal_entry_id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid))),'[]'::jsonb)," +
-      "'audit',coalesce((select jsonb_agg(to_jsonb(a) order by a.id::text) from public.audit_logs a where a.organization_id=$1::uuid and ((a.entity_type='cash_expense' and a.entity_id=$2::uuid) or (a.entity_type='accounting_journal_entry' and a.entity_id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid)) or (a.entity_type='accounting_journal_reversal' and a.entity_id in (select r.id from public.accounting_journal_reversals r where r.organization_id=$1::uuid and (r.original_journal_entry_id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid) or r.reversal_journal_entry_id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid))))),'[]'::jsonb)" +
-    "))::text as snapshot",
+
+  // Keep each linked table snapshot separate so SQL remains reviewable and deterministic.
+  const expenseRows = await db.unsafe(
+    "select to_jsonb(e)::text as row_json from public.cash_expenses e " +
+      "where e.organization_id=$1::uuid and e.id=$2::uuid",
     [organizationId, expenseId],
   );
-  assert.equal(fullState.length, 1, "privileged expense-void oracle must return a complete linked-state snapshot");
+  const postingRows = await db.unsafe(
+    "select to_jsonb(p)::text as row_json,p.journal_entry_id::text as journal_id " +
+      "from public.accounting_source_postings p " +
+      "where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid " +
+      "order by p.id::text",
+    [organizationId, expenseId],
+  );
+  const journalIds = postingRows.map(({ journal_id }) => journal_id).filter(Boolean);
+  const journals = journalIds.length ? await db.unsafe(
+    "select to_jsonb(j)::text as row_json from public.accounting_journal_entries j " +
+      "where j.organization_id=$1::uuid and j.id=any($2::uuid[]) order by j.id::text",
+    [organizationId, journalIds],
+  ) : [];
+  const journalLines = journalIds.length ? await db.unsafe(
+    "select to_jsonb(l)::text as row_json from public.accounting_journal_lines l " +
+      "where l.organization_id=$1::uuid and l.journal_entry_id=any($2::uuid[]) " +
+      "order by l.journal_entry_id::text,l.line_number",
+    [organizationId, journalIds],
+  ) : [];
+  const reversals = journalIds.length ? await db.unsafe(
+    "select to_jsonb(r)::text as row_json,r.id::text as reversal_id " +
+      "from public.accounting_journal_reversals r where r.organization_id=$1::uuid " +
+      "and (r.original_journal_entry_id=any($2::uuid[]) or r.reversal_journal_entry_id=any($2::uuid[])) " +
+      "order by r.id::text",
+    [organizationId, journalIds],
+  ) : [];
+  const reversalIds = reversals.map(({ reversal_id }) => reversal_id);
+  const auditRows = await db.unsafe(
+    "select to_jsonb(a)::text as row_json from public.audit_logs a " +
+      "where a.organization_id=$1::uuid and (" +
+      "(a.entity_type='cash_expense' and a.entity_id=$2::uuid) or " +
+      "(a.entity_type='accounting_journal_entry' and a.entity_id=any($3::uuid[])) or " +
+      "(a.entity_type='accounting_journal_reversal' and a.entity_id=any($4::uuid[]))" +
+      ") order by a.id::text",
+    [organizationId, expenseId, journalIds, reversalIds],
+  );
+  const completeState = JSON.stringify({
+    expense: expenseRows.map(({ row_json }) => row_json),
+    sourcePostings: postingRows.map(({ row_json }) => row_json),
+    journals: journals.map(({ row_json }) => row_json),
+    journalLines: journalLines.map(({ row_json }) => row_json),
+    reversals: reversals.map(({ row_json }) => row_json),
+    audit: auditRows.map(({ row_json }) => row_json),
+  });
+
   return {
     source: source[0],
     voidAuditCount: Number(audits[0]?.count ?? 0),
     sourcePostingCount: Number(links[0]?.count ?? 0),
-    completeState: fullState[0].snapshot,
+    completeState,
   };
 }
 
