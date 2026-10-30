@@ -1448,3 +1448,20 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - **RPC inventory:** artifact [12948614805](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/12948614805/zip): 330 runtime functions, 330/330 source-matched, 0 unmatched, 174 migrations; structural mapping is not semantic closure.
 - **Proof boundary:** hosted customer/order/tenant Playwright was `SKIPPED`; local Supabase/Chromium is not hosted E2E or production proof. DLV-007/008/011/015 remain PARTIAL.
 - **NEXT_TASK:** `DLV-007-REORDER-POINT-STAFF-DENIAL-001` — ordinary same-tenant staff attempts `set_inventory_reorder_point`; require `42501` and unchanged balance, purchasing task and audit snapshots in isolated PostgreSQL 17. P2 owns `scripts/test-database-migrations.mjs`; no migration unless a regression proves a DB defect.
+
+
+## 2026-10-30 — DLV-007 ordinary-staff reorder-point denial (TESTED_EXACT_SHA)
+
+- **Code SHA:** `7fe83d3c35a2b8c5b28012c0207c3eb8e3468159`; parent `af0c01984fd6aa7e31f4aa11827cb07859a32dc0`; only code path changed: `scripts/test-database-migrations.mjs`.
+- **Acceptance:** resolved `operationsStaffProfileId` to the active same-tenant `auth_user_id` through the privileged fixture connection, invoked `set_inventory_reorder_point(...,30,'unauthorized staff policy change')` as ordinary staff, required `42501`, and restored admin identity in `finally`.
+- **No-side-effect proof:** privileged JSON snapshots compare byte-for-byte for `inventory_balances` reorder point/on-hand/reserved/available/updated_at, the complete `ai_tasks` row matching `stockKey`, and every `inventory.reorder_point.updated` audit row.
+- **Exact-SHA evidence:** Core [40996058928 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40996058928); job log contains `PASS DLV-007-REORDER-POINT-STAFF-DENIAL-001`. P2 local Supabase/Chromium [40996059052 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40996059052); import-finalizer PostgreSQL 17 [40996058730 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40996058730); one-main cleanup [40996059066 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40996059066). All four runs checked out the exact SHA above.
+- **Proof boundary:** hosted customer/order/tenant Playwright was `SKIPPED` because dedicated non-production credentials/write approval were unavailable. This is `BLOCKED_EXTERNAL`, not PASS. No production or migration write occurred.
+
+## 2026-10-30 — DLV-015 ordinary-staff payment denial snapshots (IMPLEMENTED / CI_PENDING)
+
+- **Base SHA:** `7fe83d3c35a2b8c5b28012c0207c3eb8e3468159`. **Code SHA:** `cbbe9d02750f38e8006f501bd17adc884b70c603`; only code path changed: `scripts/test-database-migrations.mjs`.
+- **Acceptance implementation:** ordinary same-tenant staff invokes `record_customer_payment` for a one-unit cash payment; the test now requires SQLSTATE `42501` rather than checking only the error message.
+- **No-side-effect implementation:** privileged before/after snapshots serialize the complete invoice row, customer row, every payment row for that invoice, and all audit rows attached to the invoice/customer or linked by invoice ID. The denial is accepted only when every serialized snapshot is byte-for-byte identical.
+- **CI status:** Core/P2/PG17/cleanup runs for `cbbe9d02750f38e8006f501bd17adc884b70c603` are triggered or pending; do not mark TESTED_EXACT_SHA until all required final evidence is recorded. No migration changed.
+- **NEXT_TASK:** after the exact-SHA denial proof, select the next open detailed DLV-008 invoice/payment allocation or DLV-015 high-impact mutation boundary; preserve the accepted DLV-007 no-repeat case.
