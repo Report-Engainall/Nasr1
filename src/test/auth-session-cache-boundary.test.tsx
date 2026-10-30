@@ -33,6 +33,7 @@ vi.mock("@/lib/supabase", () => ({
 
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { AuthScopedOutlet } from "@/routes/__root";
+import { offlineCatalogCacheKeys } from "@/lib/offline-catalog-cache";
 
 function TestRoot() {
   const { queryClient } = TestRootRoute.useRouteContext();
@@ -68,6 +69,7 @@ const testRouteTree = TestRootRoute.addChildren([ProbeRoute]);
 
 describe("authentication-scoped query cache boundary", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     authMocks.currentUserId = "auth-user-a";
     authMocks.roles = ["customer"];
     authMocks.listener = undefined;
@@ -92,6 +94,7 @@ describe("authentication-scoped query cache boundary", () => {
 
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
   });
 
   async function mountWithPrivateCache() {
@@ -111,6 +114,12 @@ describe("authentication-scoped query cache boundary", () => {
 
   it("clears cached private data on account switch and on logout", async () => {
     const { queryClient } = await mountWithPrivateCache();
+    const customerACatalogKeys = offlineCatalogCacheKeys("profile-auth-user-a")!;
+    window.localStorage.setItem("aghbari:catalog:v1", "legacy-private-catalog");
+    window.localStorage.setItem("aghbari:catalog:last-server-sync:v1", "legacy-private-time");
+    window.localStorage.setItem(customerACatalogKeys.catalogKey, "private-catalog-a");
+    window.localStorage.setItem(customerACatalogKeys.lastServerSyncKey, "private-catalog-a-time");
+    window.localStorage.setItem(customerACatalogKeys.scopeKey, "private-scope-a");
 
     queryClient.setQueryData(["private-finance"], { sentinel: "TENANT-A-PRIVATE-BALANCE" });
     authMocks.currentUserId = "auth-user-b";
@@ -123,8 +132,17 @@ describe("authentication-scoped query cache boundary", () => {
     await screen.findByText("auth-user-b:manager");
     await screen.findByText("auth-user-b:private-route-state");
     await waitFor(() => expect(queryClient.getQueryData(["private-finance"])).toBeUndefined());
+    expect(window.localStorage.getItem(customerACatalogKeys.catalogKey)).toBeNull();
+    expect(window.localStorage.getItem(customerACatalogKeys.lastServerSyncKey)).toBeNull();
+    expect(window.localStorage.getItem(customerACatalogKeys.scopeKey)).toBeNull();
+    expect(window.localStorage.getItem("aghbari:catalog:v1")).toBeNull();
+    expect(window.localStorage.getItem("aghbari:catalog:last-server-sync:v1")).toBeNull();
 
     queryClient.setQueryData(["private-finance"], { sentinel: "TENANT-B-PRIVATE-BALANCE" });
+    const customerBCatalogKeys = offlineCatalogCacheKeys("profile-auth-user-b")!;
+    window.localStorage.setItem(customerBCatalogKeys.catalogKey, "private-catalog-b");
+    window.localStorage.setItem(customerBCatalogKeys.lastServerSyncKey, "private-catalog-b-time");
+    window.localStorage.setItem(customerBCatalogKeys.scopeKey, "private-scope-b");
     authMocks.currentUserId = null;
     await act(async () => {
       authMocks.listener?.("SIGNED_OUT");
@@ -133,6 +151,9 @@ describe("authentication-scoped query cache boundary", () => {
     await screen.findByText("signed-out");
     await screen.findByText("anonymous:private-route-state");
     await waitFor(() => expect(queryClient.getQueryData(["private-finance"])).toBeUndefined());
+    expect(window.localStorage.getItem(customerBCatalogKeys.catalogKey)).toBeNull();
+    expect(window.localStorage.getItem(customerBCatalogKeys.lastServerSyncKey)).toBeNull();
+    expect(window.localStorage.getItem(customerBCatalogKeys.scopeKey)).toBeNull();
   });
 
   it("does not let an older profile refresh overwrite a newly signed-in account", async () => {

@@ -14,6 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { BUSINESS_BRAND_NAME, BUSINESS_META_DESCRIPTION, BUSINESS_PWA_THEME_COLOR } from "@/lib/brand";
+import { clearLegacyOfflineCatalogCache, clearOfflineCatalogCache } from "@/lib/offline-catalog-cache";
 
 function NotFoundComponent() {
   return (
@@ -158,17 +159,35 @@ export function AuthScopedOutlet() {
   // queries and route-local state are cleared before that scope is allowed to paint.
   const identityKey = [identityScopeKey, "session", sessionRevision].join("\u001f");
   const previousIdentityKey = useRef<string | undefined>(undefined);
+  const previousIdentityScopeKey = useRef<string | undefined>(undefined);
+  const previousProfileId = useRef<string | undefined>(undefined);
 
   useIsomorphicLayoutEffect(() => {
     const previous = previousIdentityKey.current;
+    const previousScope = previousIdentityScopeKey.current;
+    const departingProfileId = previousProfileId.current;
     previousIdentityKey.current = identityKey;
+    previousIdentityScopeKey.current = identityScopeKey;
+    previousProfileId.current = user?.profileId;
     if (previous === undefined || previous === identityKey) return;
+
+    // A session revision can change server-derived tenant access without changing profile/roles.
+    // When offline we cannot revalidate that scope, so invalidate the last cached catalog before paint.
+    if (
+      typeof window !== "undefined" &&
+      (previousScope !== identityScopeKey || !navigator.onLine)
+    ) {
+      clearLegacyOfflineCatalogCache(window.localStorage);
+      if (departingProfileId) {
+        clearOfflineCatalogCache(window.localStorage, departingProfileId);
+      }
+    }
 
     // TanStack Query data and mutation state may contain tenant-specific finance or inventory results.
     // Drop all cached query state and force active route loaders to re-check the new auth context.
     queryClient.clear();
     void router.invalidate().catch(() => undefined);
-  }, [identityKey, queryClient, router]);
+  }, [identityKey, identityScopeKey, user?.profileId, queryClient, router]);
 
   // Remount active route-local state on logout, account switch, profile change or effective-role change.
   return <Outlet key={identityKey} />;

@@ -41,7 +41,7 @@ function isUuid(value: unknown): value is string {
  * Resolves identity scope on the server from auth.uid(); client-supplied IDs are not trusted.
  * The result is only a convenience filter. PostgreSQL RLS remains the authorization boundary.
  */
-export async function getCurrentTenantScope(): Promise<CurrentTenantScope> {
+export async function getCurrentTenantScope(options: { forceRefresh?: boolean } = {}): Promise<CurrentTenantScope> {
   if (!tenantScopeAuthListenerRegistered) {
     supabase.auth.onAuthStateChange(() => {
       tenantScopeCache = undefined;
@@ -53,6 +53,8 @@ export async function getCurrentTenantScope(): Promise<CurrentTenantScope> {
   if (sessionError) throw new Error('تعذر التحقق من جلسة الحساب.');
   const userId = sessionData.session?.user.id;
   if (!userId) throw new Error('يجب تسجيل الدخول لتحديد نطاق المؤسسة.');
+
+  if (options.forceRefresh) tenantScopeCache = undefined;
 
   if (tenantScopeCache?.userId === userId) {
     return tenantScopeCache.pending;

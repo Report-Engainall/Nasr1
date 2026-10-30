@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { waitFor } from "@testing-library/react";
 import { routeTree } from "@/routeTree.gen";
 import { offlineCartStorageKey } from "@/lib/offline-cart";
+import { offlineCatalogCacheKeys, offlineCatalogScopeFingerprint } from "@/lib/offline-catalog-cache";
 
 type TestUser = {
   id: string;
@@ -17,6 +18,10 @@ type TestUser = {
 };
 
 const PROFILE_ID = "offline-customer-a";
+const PROFILE_CATALOG_KEYS = offlineCatalogCacheKeys(PROFILE_ID)!;
+const CATALOG_CACHE_KEY = PROFILE_CATALOG_KEYS.catalogKey;
+const CATALOG_SYNC_KEY = PROFILE_CATALOG_KEYS.lastServerSyncKey;
+const CATALOG_SCOPE_KEY = PROFILE_CATALOG_KEYS.scopeKey;
 const ORGANIZATION_ID = "offline-org-a";
 const PRODUCT_ID = "55555555-5555-4555-8555-555555555555";
 const PRODUCT = {
@@ -100,7 +105,15 @@ describe("offline workspace real-route acceptance", () => {
     mocks.getCurrentTenantScope.mockReset().mockResolvedValue({
       profileId: PROFILE_ID,
       organizationId: ORGANIZATION_ID,
+      warehouseId: null,
+      isStaff: false,
     });
+    window.localStorage.setItem(CATALOG_SCOPE_KEY, offlineCatalogScopeFingerprint({
+      profileId: PROFILE_ID,
+      organizationId: ORGANIZATION_ID,
+      warehouseId: null,
+      isStaff: false,
+    }));
     mocks.supabaseFrom.mockReset();
     mocks.supabaseRpc.mockReset();
     mocks.getSession.mockReset().mockResolvedValue({ data: { session: null }, error: null });
@@ -148,7 +161,7 @@ describe("offline workspace real-route acceptance", () => {
 
   it("sanitizes cached catalog pricing and renders only the active customer's local draft", async () => {
     window.localStorage.setItem(
-      "aghbari:catalog:v1",
+      CATALOG_CACHE_KEY,
       JSON.stringify([
         {
           ...PRODUCT,
@@ -183,7 +196,7 @@ describe("offline workspace real-route acceptance", () => {
     expect(host?.textContent).not.toContain("333333");
 
     const safeCatalog = JSON.parse(
-      window.localStorage.getItem("aghbari:catalog:v1") || "[]",
+      window.localStorage.getItem(CATALOG_CACHE_KEY) || "[]",
     ) as Array<Record<string, unknown>>;
     expect(safeCatalog).toHaveLength(1);
     expect(safeCatalog[0]).toMatchObject({ id: PRODUCT_ID, name: PRODUCT.name });
@@ -205,7 +218,7 @@ describe("offline workspace real-route acceptance", () => {
   it("never renders another profile's cached cart after account switch or logout", async () => {
     const otherProfileId = "offline-customer-b";
     const otherProductId = "66666666-6666-4666-8666-666666666666";
-    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    window.localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify([PRODUCT]));
     const firstProfileDraft = [{ product_id: PRODUCT_ID, quantity: 7 }];
     const secondProfileDraft = [{ product_id: otherProductId, quantity: 1 }];
     window.localStorage.setItem(
@@ -267,7 +280,7 @@ describe("offline workspace real-route acceptance", () => {
   });
 
   it("refuses restoration when the server-resolved profile differs and preserves the draft", async () => {
-    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    window.localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify([PRODUCT]));
     const draft = [{ product_id: PRODUCT_ID, quantity: 2 }];
     const storageKey = offlineCartStorageKey(PROFILE_ID);
     window.localStorage.setItem(storageKey, JSON.stringify(draft));
@@ -295,7 +308,7 @@ describe("offline workspace real-route acceptance", () => {
   });
 
   it("fails closed when the cached catalog has no verified server-sync timestamp", async () => {
-    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    window.localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify([PRODUCT]));
 
     await mountOfflineRoute();
 
@@ -308,9 +321,9 @@ describe("offline workspace real-route acceptance", () => {
   });
 
   it("fails closed when the cached catalog timestamp is implausibly far in the future", async () => {
-    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    window.localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify([PRODUCT]));
     window.localStorage.setItem(
-      "aghbari:catalog:last-server-sync:v1",
+      CATALOG_SYNC_KEY,
       new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     );
 
@@ -326,9 +339,9 @@ describe("offline workspace real-route acceptance", () => {
 
   it("reports partial local persistence accurately when the freshness marker cannot be saved", async () => {
     const refreshedProduct = { ...PRODUCT, name: "صنف بعد التحديث" };
-    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    window.localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify([PRODUCT]));
     window.localStorage.setItem(
-      "aghbari:catalog:last-server-sync:v1",
+      CATALOG_SYNC_KEY,
       new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
     );
     mocks.fetchProducts.mockResolvedValue([refreshedProduct]);
@@ -340,7 +353,7 @@ describe("offline workspace real-route acceptance", () => {
       key: string,
       value: string,
     ) {
-      if (key === "aghbari:catalog:last-server-sync:v1") {
+      if (key === CATALOG_SYNC_KEY) {
         throw new DOMException("storage quota unavailable", "QuotaExceededError");
       }
       return originalSetItem.call(this, key, value);
@@ -360,12 +373,12 @@ describe("offline workspace real-route acceptance", () => {
       });
 
       expect(setItemSpy).toHaveBeenCalledWith(
-        "aghbari:catalog:last-server-sync:v1",
+        CATALOG_SYNC_KEY,
         expect.any(String),
       );
-      const stored = JSON.parse(window.localStorage.getItem("aghbari:catalog:v1") || "[]") as Array<{name?: string}>;
+      const stored = JSON.parse(window.localStorage.getItem(CATALOG_CACHE_KEY) || "[]") as Array<{name?: string}>;
       expect(stored[0]?.name).toBe("صنف بعد التحديث");
-      expect(window.localStorage.getItem("aghbari:catalog:last-server-sync:v1")).toBeNull();
+      expect(window.localStorage.getItem(CATALOG_SYNC_KEY)).toBeNull();
       expect(host?.textContent).not.toContain("لم نغيّر النسخة المحلية");
     } finally {
       setItemSpy.mockRestore();
@@ -373,9 +386,9 @@ describe("offline workspace real-route acceptance", () => {
   });
 
   it("shows cached catalog age and marks a cache stale after 24 hours until a successful refresh", async () => {
-    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    window.localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify([PRODUCT]));
     window.localStorage.setItem(
-      "aghbari:catalog:last-server-sync:v1",
+      CATALOG_SYNC_KEY,
       new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
     );
     await mountOfflineRoute();
@@ -392,14 +405,14 @@ describe("offline workspace real-route acceptance", () => {
       expect(host?.textContent).toContain("تم تحديث نسخة الكتالوج المحلية من الخادم: 1 صنف");
       expect(host?.querySelector('[role="alert"]')).toBeNull();
     });
-    const lastSync = window.localStorage.getItem("aghbari:catalog:last-server-sync:v1");
+    const lastSync = window.localStorage.getItem(CATALOG_SYNC_KEY);
     expect(lastSync).not.toBeNull();
     expect(Date.parse(lastSync!)).toBeGreaterThan(Date.now() - 5 * 60 * 1000);
   });
 
   it("allows only a local cart draft offline and blocks catalog refresh or server restoration", async () => {
     Object.defineProperty(window.navigator, "onLine", { configurable: true, value: false });
-    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    window.localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify([PRODUCT]));
     const draft = [{ product_id: PRODUCT_ID, quantity: 2 }];
     window.localStorage.setItem(offlineCartStorageKey(PROFILE_ID), JSON.stringify(draft));
 
@@ -431,10 +444,10 @@ describe("offline workspace real-route acceptance", () => {
         cost_price: 888888,
       },
     ];
-    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify(originalCatalog));
+    window.localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(originalCatalog));
     await mountOfflineRoute();
 
-    const storedBeforeSync = window.localStorage.getItem("aghbari:catalog:v1");
+    const storedBeforeSync = window.localStorage.getItem(CATALOG_CACHE_KEY);
     mocks.fetchProducts
       .mockReset()
       .mockRejectedValueOnce(new Error("synthetic offline catalog failure"))
@@ -450,7 +463,7 @@ describe("offline workspace real-route acceptance", () => {
         "تعذر تحديث الكتالوج؛ لم نغيّر النسخة المحلية.",
       );
     });
-    expect(window.localStorage.getItem("aghbari:catalog:v1")).toBe(storedBeforeSync);
+    expect(window.localStorage.getItem(CATALOG_CACHE_KEY)).toBe(storedBeforeSync);
 
     await act(async () => {
       findButton("تحديث الكتالوج المحلي").dispatchEvent(
@@ -466,7 +479,7 @@ describe("offline workspace real-route acceptance", () => {
     expect(host?.querySelector('[role="alert"]')).toBeNull();
 
     const safeCatalog = JSON.parse(
-      window.localStorage.getItem("aghbari:catalog:v1") || "[]",
+      window.localStorage.getItem(CATALOG_CACHE_KEY) || "[]",
     ) as Array<Record<string, unknown>>;
     expect(safeCatalog).toHaveLength(1);
     expect(safeCatalog[0]).toMatchObject({ id: PRODUCT_ID, name: PRODUCT.name });
@@ -474,4 +487,75 @@ describe("offline workspace real-route acceptance", () => {
     expect(safeCatalog[0]).not.toHaveProperty("display_price");
     expect(safeCatalog[0]).not.toHaveProperty("cost_price");
   });
+
+  it("discards a legacy global catalog instead of showing it to the active account", async () => {
+    window.localStorage.setItem("aghbari:catalog:v1", JSON.stringify([PRODUCT]));
+    window.localStorage.setItem("aghbari:catalog:last-server-sync:v1", new Date().toISOString());
+
+    await mountOfflineRoute();
+
+    expect(host?.textContent).not.toContain(PRODUCT.name);
+    expect(window.localStorage.getItem("aghbari:catalog:v1")).toBeNull();
+    expect(window.localStorage.getItem("aghbari:catalog:last-server-sync:v1")).toBeNull();
+  });
+
+  it("discards a scoped catalog with no verified tenant marker while offline", async () => {
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: false });
+    window.localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify([PRODUCT]));
+    window.localStorage.setItem(CATALOG_SYNC_KEY, new Date().toISOString());
+    window.localStorage.removeItem(CATALOG_SCOPE_KEY);
+
+    await mountOfflineRoute();
+
+    expect(host?.textContent).not.toContain(PRODUCT.name);
+    expect(window.localStorage.getItem(CATALOG_CACHE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(CATALOG_SYNC_KEY)).toBeNull();
+  });
+
+  it("discards cached rows when the same profile moves to another organization or warehouse", async () => {
+    window.localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify([PRODUCT]));
+    window.localStorage.setItem(CATALOG_SYNC_KEY, new Date().toISOString());
+    mocks.getCurrentTenantScope.mockResolvedValue({
+      profileId: PROFILE_ID,
+      organizationId: "offline-org-b",
+      warehouseId: "offline-warehouse-b",
+      isStaff: false,
+    });
+
+    await mountOfflineRoute();
+
+    await waitFor(() => expect(window.localStorage.getItem(CATALOG_CACHE_KEY)).toBeNull());
+    expect(window.localStorage.getItem(CATALOG_SYNC_KEY)).toBeNull();
+    expect(host?.textContent).not.toContain(PRODUCT.name);
+    expect(window.localStorage.getItem(CATALOG_SCOPE_KEY)).not.toBeNull();
+  });
+
+  it("does not persist catalog rows when the tenant scope changes during sync", async () => {
+    let resolveProducts!: (rows: typeof PRODUCT[]) => void;
+    mocks.fetchProducts.mockReturnValueOnce(new Promise<typeof PRODUCT[]>((resolve) => {
+      resolveProducts = resolve;
+    }));
+
+    await mountOfflineRoute();
+    await act(async () => {
+      findButton("تحديث الكتالوج المحلي").click();
+    });
+    await waitFor(() => expect(mocks.fetchProducts).toHaveBeenCalledTimes(1));
+
+    mocks.getCurrentTenantScope.mockResolvedValue({
+      profileId: "offline-customer-b",
+      organizationId: "offline-org-b",
+      warehouseId: null,
+      isStaff: false,
+    });
+    await act(async () => {
+      resolveProducts([PRODUCT]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(host?.textContent).toContain("تغير نطاق الحساب أو المستودع"));
+    expect(window.localStorage.getItem(CATALOG_CACHE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(CATALOG_SYNC_KEY)).toBeNull();
+  });
+
 });

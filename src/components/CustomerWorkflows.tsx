@@ -47,6 +47,13 @@ import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
 import { fetchCustomerAddresses, saveCustomerAddress, deleteCustomerAddress, type CustomerAddress, type CustomerAddressInput } from "@/lib/customer-addresses";
 import { fetchCustomerCompanyContacts, saveCustomerCompanyContact, deleteCustomerCompanyContact, type CustomerCompanyContact, type CustomerCompanyContactInput } from "@/lib/customer-company-contacts";
 import { loadOfflineCartDraft, mergeOfflineCartDraft, saveOfflineCartDraft } from "@/lib/offline-cart";
+import {
+  clearLegacyOfflineCatalogCache,
+  clearOfflineCatalogCache,
+  offlineCatalogCacheKeys,
+  offlineCatalogScopeFingerprint,
+  reconcileOfflineCatalogScope,
+} from "@/lib/offline-catalog-cache";
 
 type Invoice = {
   id: string;
@@ -2085,7 +2092,6 @@ export function OfflineWorkspacePage() {
     </Gate>
   );
 }
-const OFFLINE_CATALOG_SYNC_AT_KEY = "aghbari:catalog:last-server-sync:v1";
 const OFFLINE_CATALOG_STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 
 function getOfflineCatalogFreshness(value: unknown, now = Date.now()): { label: string; stale: boolean; unknown: boolean } {
@@ -2113,6 +2119,10 @@ function getOfflineCatalogFreshness(value: unknown, now = Date.now()): { label: 
 function Offline() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const offlineCatalogKeys = offlineCatalogCacheKeys(user?.profileId);
+  const catalogKey = offlineCatalogKeys?.catalogKey ?? null;
+  const catalogSyncKey = offlineCatalogKeys?.lastServerSyncKey ?? null;
+  const catalogScopeKey = offlineCatalogKeys?.scopeKey ?? null;
   const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
   const [cached, setCached] = useState(0);
   const [lastCatalogSyncAt, setLastCatalogSyncAt] = useState<string | null>(null);
@@ -2122,18 +2132,34 @@ function Offline() {
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
   const refresh = useCallback(() => {
+    if (!catalogKey || !catalogSyncKey || !catalogScopeKey) {
+      setLastCatalogSyncAt(null);
+      setCachedProducts([]);
+      setCached(0);
+      setDraftLines([]);
+      setCartCount(0);
+      return;
+    }
     try {
+      clearLegacyOfflineCatalogCache(window.localStorage);
+      if (!localStorage.getItem(catalogScopeKey)) {
+        clearOfflineCatalogCache(window.localStorage, user?.profileId);
+        setLastCatalogSyncAt(null);
+        setCachedProducts([]);
+        setCached(0);
+        return;
+      }
       let safeCatalog: ReturnType<typeof sanitizePublicCatalogCache> = [];
       try {
         safeCatalog = sanitizePublicCatalogCache(
-          JSON.parse(localStorage.getItem("aghbari:catalog:v1") || "[]"),
+          JSON.parse(localStorage.getItem(catalogKey) || "[]"),
         );
       } catch {
-        localStorage.removeItem("aghbari:catalog:v1");
+        localStorage.removeItem(catalogKey);
       }
       // Rewrite cached products through the allowlist so staff-only pricing fields are purged.
-      localStorage.setItem("aghbari:catalog:v1", JSON.stringify(safeCatalog));
-      setLastCatalogSyncAt(localStorage.getItem(OFFLINE_CATALOG_SYNC_AT_KEY));
+      localStorage.setItem(catalogKey, JSON.stringify(safeCatalog));
+      setLastCatalogSyncAt(localStorage.getItem(catalogSyncKey));
       setCachedProducts(safeCatalog);
       setCached(safeCatalog.length);
       const lines = loadOfflineCartDraft(window.localStorage, user?.profileId);
@@ -2145,32 +2171,94 @@ function Offline() {
       setDraftLines([]);
       setCartCount(0);
     }
-  }, [user?.profileId]);
+  }, [catalogKey, catalogSyncKey, catalogScopeKey, user?.profileId]);
   useEffect(() => {
-    const on = () => setOnline(true),
-      off = () => setOnline(false);
+    let active = true;
+    let revision = 0;
+    const verifyAndRefresh = async () => {
+      const currentRevision = ++revision;
+      if (!navigator.onLine) {
+        setOnline(false);
+        refresh();
+        setMessage("وضع القراءة دون اتصال: لا يمكن إعادة التحقق من صلاحيات المؤسسة أو المستودع قبل عودة الخادم.");
+        return;
+      }
+      setOnline(true);
+      if (!user?.profileId) {
+        refresh();
+        return;
+      }
+      try {
+        const scope = await getCurrentTenantScope({ forceRefresh: true });
+        if (scope.profileId !== user.profileId) {
+          throw new Error("تعذر مطابقة نطاق الحساب الحالي.");
+        }
+        const scopeMatches = reconcileOfflineCatalogScope(window.localStorage, scope);
+        if (!active || currentRevision !== revision) return;
+        refresh();
+        if (!scopeMatches) {
+          setMessage("تغير نطاق المؤسسة أو المستودع؛ أُزيل الكتالوج المحلي السابق. حدّث الكتالوج من الخادم.");
+        }
+      } catch {
+        if (!active || currentRevision !== revision) return;
+        clearOfflineCatalogCache(window.localStorage, user.profileId);
+        setLastCatalogSyncAt(null);
+        setCachedProducts([]);
+        setCached(0);
+        setMessage("تعذر التحقق من نطاق المؤسسة والمستودع؛ لم نعرض الكتالوج المحلي.");
+      }
+    };
+    const on = () => { setOnline(true); void verifyAndRefresh(); };
+    const off = () => {
+      revision += 1;
+      setOnline(false);
+      refresh();
+      setMessage("وضع القراءة دون اتصال: الصلاحيات الحالية لا يمكن إعادة التحقق منها دون الخادم.");
+    };
     window.addEventListener("online", on);
     window.addEventListener("offline", off);
-    refresh();
+    void verifyAndRefresh();
     return () => {
+      active = false;
+      revision += 1;
       window.removeEventListener("online", on);
       window.removeEventListener("offline", off);
     };
-  }, [refresh]);
+  }, [refresh, user?.profileId]);
   async function sync() {
     if (!online || !navigator.onLine) {
       setMessage("لا يوجد اتصال؛ ستظل النسخة المحلية محفوظة.");
+      return;
+    }
+    if (!catalogKey || !catalogSyncKey || !catalogScopeKey || !user?.profileId) {
+      setMessage("تعذر تحديد حساب صالح لحفظ نسخة الكتالوج المحلية.");
       return;
     }
     setSyncing(true);
     setMessage("");
     let persistedRows: ReturnType<typeof sanitizePublicCatalogCache> | null = null;
     try {
+      const scopeBeforeSync = await getCurrentTenantScope({ forceRefresh: true });
+      if (scopeBeforeSync.profileId !== user.profileId) {
+        throw new Error("تغير نطاق الحساب؛ لم نحفظ نسخة الكتالوج.");
+      }
+      reconcileOfflineCatalogScope(window.localStorage, scopeBeforeSync);
+      if (localStorage.getItem(catalogScopeKey) !== offlineCatalogScopeFingerprint(scopeBeforeSync)) {
+        throw new Error("تغير نطاق الحساب أو تعذر تثبيته؛ لم نحفظ النسخة.");
+      }
       const rows = sanitizePublicCatalogCache(await fetchProducts());
-      localStorage.setItem("aghbari:catalog:v1", JSON.stringify(rows));
+      const scopeAfterSync = await getCurrentTenantScope({ forceRefresh: true });
+      if (
+        offlineCatalogScopeFingerprint(scopeAfterSync) !==
+        offlineCatalogScopeFingerprint(scopeBeforeSync)
+      ) {
+        clearOfflineCatalogCache(window.localStorage, user.profileId);
+        throw new Error("تغير نطاق الحساب أو المستودع أثناء التحديث؛ لم نحفظ النسخة.");
+      }
+      localStorage.setItem(catalogKey, JSON.stringify(rows));
       persistedRows = rows;
       const syncedAt = new Date().toISOString();
-      localStorage.setItem(OFFLINE_CATALOG_SYNC_AT_KEY, syncedAt);
+      localStorage.setItem(catalogSyncKey, syncedAt);
       setLastCatalogSyncAt(syncedAt);
       refresh();
       setMessage(
@@ -2178,17 +2266,24 @@ function Offline() {
           rows.length +
           " صنف، مع أرصدة المخزون والتصنيفات المتاحة.",
       );
-    } catch {
+    } catch (error) {
       if (persistedRows) {
-        // The catalog write succeeded but its freshness marker did not; invalidate
-        // the old marker and render the persisted allowlisted data with unknown age.
-        try { localStorage.removeItem(OFFLINE_CATALOG_SYNC_AT_KEY); } catch { /* keep the UI fail-closed */ }
+        try { localStorage.removeItem(catalogSyncKey); } catch { /* keep the UI fail-closed */ }
         setCachedProducts(persistedRows);
         setCached(persistedRows.length);
         setLastCatalogSyncAt(null);
         setMessage("حُفظت نسخة الكتالوج محليًا، لكن تعذر تثبيت وقت المزامنة؛ حداثتها غير مؤكدة. تحقق من الخادم قبل الاعتماد عليها.");
       } else {
-        setMessage("تعذر تحديث الكتالوج؛ لم نغيّر النسخة المحلية.");
+        const scopeChanged = error instanceof Error && error.message.includes("تغير نطاق");
+        if (scopeChanged && user?.profileId) {
+          clearOfflineCatalogCache(window.localStorage, user.profileId);
+          setLastCatalogSyncAt(null);
+          setCachedProducts([]);
+          setCached(0);
+        }
+        setMessage(scopeChanged
+          ? "تغير نطاق الحساب أو المستودع أثناء التحديث؛ مُسحت النسخة المحلية القديمة."
+          : "تعذر تحديث الكتالوج؛ لم نغيّر النسخة المحلية.");
       }
     } finally {
       setSyncing(false);
@@ -2224,7 +2319,7 @@ function Offline() {
     setSyncing(true);
     setMessage("");
     try {
-      const scope = await getCurrentTenantScope();
+      const scope = await getCurrentTenantScope({ forceRefresh: true });
       if (scope.profileId !== user.profileId) {
         throw new Error("تغير نطاق الحساب؛ لم نستعد المسودة.");
       }
