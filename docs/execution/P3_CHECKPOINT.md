@@ -1,5 +1,14 @@
 # P3 LIVE CHECKPOINT — 2026-10-30 — INTELLIGENCE DISPLAY BATCH INTEGRATED
 
+## P3 CURSOR REFRESH — 2026-10-30 — CURRENT REMOTE MAIN
+- observed_main_before_pointer_update: `3f54e9917779ebb35407882afa1c0f5ba88408d8` (documentation-only); code-bearing SHA remains `b52271629f054f5d9750e2d4dbf247e22c90f8c7`.
+- Exact Core `41018827283 SUCCESS` on `6d25c8c1ff3010996c1fcfce52a1fe0f580d65be`, including unit tests, PostgreSQL 17 acceptance, RPC inventory, backup/restore, lint/build and smoke.
+- Current Core `41019366359 IN_PROGRESS` on exact `3f54e9917779ebb35407882afa1c0f5ba88408d8`; cleanup `41019366286 SUCCESS` on exact same SHA. Poll run 41019366359 only; do not rerun.
+- No P1/P2 code patch or PR was visible at this cursor. P2 browser blocker remains 41017608501: mobile first-nav focus fails; print assertions not reached; hosted tenant test SKIPPED. P1 owns the production focus fix. P2 server aggregate/outcome/AI/privacy/health/RBAC work remains outstanding.
+- Matrix integrity verified after prior commit: 143 populated IDs, 143 unique IDs, 16 REF rows, no duplicate IDs. All 16 REF have P1/P2 dependency status; no DLV roll-up closes. Release remains NO-GO.
+- exact_next_command: poll `41019366359` on `3f54e9917779ebb35407882afa1c0f5ba88408d8`; then take only a delivered P1/P2 bounded patch and integrate using expected-SHA CAS.
+
+
 ## P3 LIVE RESUME OVERRIDE — 2026-10-30
 - expected_main_sha_at_resume: `6d25c8c1ff3010996c1fcfce52a1fe0f580d65be`; code-bearing SHA: `b52271629f054f5d9750e2d4dbf247e22c90f8c7`.
 - P3 engines/contracts/components are already integrated. Do not reimplement REF-DAILY-DECISIONS-001 or REF-EVIDENCE-PASSPORT-001; do not re-extract images/archives or repeat RPC inventories.

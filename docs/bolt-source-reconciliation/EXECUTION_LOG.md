@@ -1590,3 +1590,10 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - P2 browser 41017608501 FAILURE on b522716: drawer first navigation focus failure at e2e/finance-task-print.spec.ts:69; finance/task print assertions not reached; hosted tenant test SKIPPED. P1 owns production focus repair. No newer P2 browser run/owner patch visible.
 - P3 confirmed all 16 REF implementations and their component modules/contracts are present. Matrix updated with exact CI boundary; all 16 remain P1/P2-pending. No DLV rollup closed. Release remains NO-GO.
 - exact_next_command: poll Core 41018827283 on 6d25c8c1ff3010996c1fcfce52a1fe0f580d65be; then integrate only new P1/P2 owner commits by expected-main-SHA CAS. P2 next deliverable is tenant-safe full-history aggregate + atomic DecisionOutcome persistence; P1 next deliverable is mobile focus repair + live DTO-backed intelligence mounting.
+
+## P3 cursor refresh — 2026-10-30 — base 3f54e9917779ebb35407882afa1c0f5ba88408d8
+- Current remote main read before this doc-only cursor update: 3f54e9917779ebb35407882afa1c0f5ba88408d8. Code-bearing tree remains b52271629f054f5d9750e2d4dbf247e22c90f8c7.
+- Core 41018827283 SUCCESS on exact prior cursor 6d25c8c1ff3010996c1fcfce52a1fe0f580d65be; unit, isolated PG17, RPC inventory, backup/restore, lint, build and smoke steps completed.
+- Current Core 41019366359 IN_PROGRESS on exact SHA 3f54e9917779ebb35407882afa1c0f5ba88408d8; cleanup 41019366286 SUCCESS on the same SHA. Poll only the existing run.
+- Acceptance matrix verified: 143 populated unique IDs, 16 REF rows, no duplicate IDs. All REF rows remain P1/P2-dependent; no DLV roll-up closed. P2 browser focus remains failed on 41017608501; print assertions not reached, hosted tenant path SKIPPED.
+- exact_next_command: poll Core 41019366359 on 3f54e9917779ebb35407882afa1c0f5ba88408d8; next P1 patch is mobile drawer focus + DTO-backed intelligence mount; next P2 patch is server aggregates/outcome persistence with no-side-effect denial tests.
