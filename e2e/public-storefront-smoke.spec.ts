@@ -620,3 +620,78 @@ test("customer navigation routes preserve metadata, RTL, and viewport fit", asyn
   expect(pageErrors, "Customer navigation routes must not throw uncaught browser errors.").toEqual([]);
 });
 
+test("customer account and offline routes preserve direct navigation, RTL, and viewport fit", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+    route.abort("blockedbyclient"),
+  );
+
+  const routes = [
+    { path: "/addresses", title: "عناوين التوصيل | الأغبري" },
+    { path: "/orders/", title: "طلباتي | الأغبري" },
+    { path: "/invoices", title: "الفواتير | الأغبري" },
+    { path: "/statement", title: "كشف الحساب | الأغبري" },
+    { path: "/offline", title: "العمل دون اتصال | الأغبري" },
+  ];
+
+  for (const viewport of [{ width: 360, height: 800 }, { width: 1280, height: 800 }]) {
+    await page.setViewportSize(viewport);
+    for (const route of routes) {
+      const response = await page.goto(route.path);
+      expect(response?.status(), `Direct navigation failed for ${route.path}`).toBe(200);
+      await expect(page).toHaveTitle(route.title);
+      const layout = await page.evaluate(() => ({
+        lang: document.documentElement.lang.toLowerCase(),
+        direction: getComputedStyle(document.documentElement).direction,
+        viewportWidth: window.innerWidth,
+        documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      }));
+      expect(layout.lang, `Wrong document language on ${route.path}`).toMatch(/^ar(?:-|$)/);
+      expect(layout.direction, `Wrong text direction on ${route.path}`).toBe("rtl");
+      expect(layout.documentWidth, `Horizontal overflow on ${route.path} at ${viewport.width}px viewport`)
+        .toBeLessThanOrEqual(layout.viewportWidth + 1);
+    }
+  }
+  expect(pageErrors, "Customer account and offline routes must not throw uncaught browser errors.").toEqual([]);
+});
+
+test("critical admin routes preserve direct navigation, RTL, and mobile viewport fit", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+    route.abort("blockedbyclient"),
+  );
+
+  const routes = [
+    { path: "/admin", title: "لوحة تحكم الأغبري | مركز التشغيل" },
+    { path: "/admin/products", title: "إدارة المنتجات | الأغبري" },
+    { path: "/admin/pricing", title: "التسعير والمخزون | الأغبري" },
+    { path: "/admin/finance", title: "الفواتير والتحصيل | لوحة الإدارة" },
+    { path: "/admin/reports", title: "التقارير | الأغبري" },
+    { path: "/admin/exports", title: "تصدير الطلبات | متجر الأغبري" },
+    { path: "/admin/stock-count", title: "الجرد الفعلي للمخزون | متجر الأغبري" },
+    { path: "/admin/tasks", title: "المهام التشغيلية | متجر الأغبري" },
+  ];
+
+  for (const viewport of [{ width: 360, height: 800 }, { width: 1280, height: 800 }]) {
+    await page.setViewportSize(viewport);
+    for (const route of routes) {
+      const response = await page.goto(route.path);
+      expect(response?.status(), `Direct navigation failed for ${route.path}`).toBe(200);
+      await expect(page).toHaveTitle(route.title);
+      const layout = await page.evaluate(() => ({
+        lang: document.documentElement.lang.toLowerCase(),
+        direction: getComputedStyle(document.documentElement).direction,
+        viewportWidth: window.innerWidth,
+        documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      }));
+      expect(layout.lang, `Wrong document language on ${route.path}`).toMatch(/^ar(?:-|$)/);
+      expect(layout.direction, `Wrong text direction on ${route.path}`).toBe("rtl");
+      expect(layout.documentWidth, `Horizontal overflow on ${route.path} at ${viewport.width}px viewport`)
+        .toBeLessThanOrEqual(layout.viewportWidth + 1);
+    }
+  }
+  expect(pageErrors, "Critical admin routes must not throw uncaught browser errors.").toEqual([]);
+});
+
