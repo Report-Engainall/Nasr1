@@ -3,7 +3,7 @@ export type EvidenceStatus=(typeof EVIDENCE_STATUSES)[number];
 export type DataCompleteness="COMPLETE"|"PARTIAL"|"UNKNOWN";
 export type DataQuality="ACCEPTABLE"|"WARNINGS"|"INVALID"|"UNKNOWN";
 export type EvidenceSourceKind="TABLE"|"RPC"|"IMPORT_SNAPSHOT"|"LEDGER"|"MOVEMENT"|"SYSTEM_PROBE"|"MANUAL";
-export type MetricUnit="COUNT"|"RATIO"|"CURRENCY"|"QUANTITY"|"DAYS"|"TEXT";
+export type MetricUnit="COUNT"|"RATIO"|"CURRENCY"|"CURRENCY_PER_UNIT"|"QUANTITY"|"DAYS"|"TEXT";
 export interface EvidencePeriod {from:string;to:string}
 export interface EvidenceSource {kind:EvidenceSourceKind;name:string;recordId?:string;version?:string}
 export interface EvidenceRecord {

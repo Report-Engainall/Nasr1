@@ -5,12 +5,15 @@ export interface IntelligenceAggregateAuthorization {tenantScope:"SERVER_RESOLVE
 export interface IntelligenceAggregateError {code:string;message:string;sqlState?:string}
 export interface CashflowScheduleEntry {id:string;direction:"INFLOW"|"OUTFLOW";dueDate:string;amount:MetricSnapshot}
 export interface CashflowScheduleAggregate {status:EvidenceStatus;completeness:DataCompleteness;quality:DataQuality;entries:CashflowScheduleEntry[];warnings:string[]}
+export interface InventoryMovementAggregate {productRef:string;lastMovementAt:string|null;movementStatus:EvidenceStatus;period:{from:string;to:string};evidenceIds:string[]}
+export interface CustomerRetentionAggregate {customerRef:string;currency:string;ordersCurrentPeriod:MetricSnapshot;ordersPreviousPeriod:MetricSnapshot;salesCurrentPeriod:MetricSnapshot;lastOrderAt:string|null}
 export interface IntelligenceAggregateBase {
  requestId:string;asOf:string;period:{from:string;to:string};currency:string|null;
  authorization:IntelligenceAggregateAuthorization;sourceTables:string[];evidenceRecords:EvidenceRecord[];metrics:MetricSnapshot[];
  formulaVersions:string[];completeness:DataCompleteness;quality:DataQuality;warnings:string[];
  errors:IntelligenceAggregateError[];sqlState:string|null;sideEffects:"NONE";cashflowSchedule?:CashflowScheduleAggregate;
+ inventoryMovements?:InventoryMovementAggregate[];customerRetention?:{status:EvidenceStatus;completeness:DataCompleteness;quality:DataQuality;expectedCustomerCount:number;returnedCustomerCount:number;truncated:boolean;customers:CustomerRetentionAggregate[];evidenceIds:string[]};
 }
 export type IntelligenceAggregateResponse=
  |(IntelligenceAggregateBase&{status:"OK"|"PARTIAL"})
- |(Omit<IntelligenceAggregateBase,"metrics"|"evidenceRecords"|"cashflowSchedule">&{status:"UNAVAILABLE"|"DENIED"|"ERROR";metrics:[];evidenceRecords:[];cashflowSchedule?:undefined});
+ |(Omit<IntelligenceAggregateBase,"metrics"|"evidenceRecords"|"cashflowSchedule"|"inventoryMovements"|"customerRetention">&{status:"UNAVAILABLE"|"DENIED"|"ERROR";metrics:[];evidenceRecords:[];cashflowSchedule?:undefined;inventoryMovements?:undefined;customerRetention?:undefined});

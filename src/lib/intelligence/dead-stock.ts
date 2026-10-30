@@ -1,0 +1,129 @@
+import {buildEvidencePassport} from "./evidence-passport";
+import type {EvidencePeriod,EvidenceRecord,EvidenceStatus,MetricSnapshot} from "./types";
+
+export type DeadStockClass="ACTIVE"|"SLOW_MOVING"|"STAGNANT"|"ZERO_MOVEMENT"|"UNKNOWN";
+export interface DeadStockRule {id:string;version:string;activeWithinDays:number;stagnantAfterDays:number;lowTurnoverRatio:number;turnoverWindowDays:number}
+export interface DeadStockProductInput {
+ productRef:string;lastMovementAt:string|null;
+ movementCoverage:{status:EvidenceStatus;period:EvidencePeriod;completeness:"COMPLETE"|"PARTIAL"|"UNKNOWN";quality:"ACCEPTABLE"|"WARNINGS"|"INVALID"|"UNKNOWN";evidenceIds:string[]};
+ availableQuantity:MetricSnapshot;quantityUnit:string;
+ unitCost:MetricSnapshot|null;costQuantityUnit?:string;
+ soldQuantityWindow:MetricSnapshot|null;averageInventoryWindow:MetricSnapshot|null;
+}
+export interface DeadStockProductResult {
+ productRef:string;classification:DeadStockClass;daysSinceMovement:number|null;lowTurnover:boolean|null;turnoverRatio:number|null;
+ availableQuantity:number|null;unitCost:number|null;currency:string|null;financialExposure:number|null;exposureStatus:EvidenceStatus;
+ movementStatus:EvidenceStatus;formulaId:string;formulaVersion:string;evidenceIds:string[];warnings:string[];
+}
+export interface DeadStockReport {
+ id:string;asOf:string;period:EvidencePeriod;ruleId:string;ruleVersion:string;
+ status:EvidenceStatus;items:DeadStockProductResult[];totalsByCurrency:Array<{currency:string;exposure:number|null;verifiedItems:number;withheldItems:number}>;
+ warnings:string[];
+}
+const EXPOSURE_FORMULA="dead-stock.exposure";
+const EXPOSURE_VERSION="1.0.0";
+function isoDay(value:string):number|null {
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
+ const time=Date.parse(value+"T00:00:00.000Z");
+ return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value?time:null;
+}
+function numberValue(value:number|string|null):number|null {
+ if(typeof value==="number")return Number.isFinite(value)&&Math.abs(value)<=Number.MAX_SAFE_INTEGER?value:null;
+ if(typeof value!=="string"||! /^-?\d+(?:\.\d+)?$/.test(value.trim()))return null;
+ const result=Number(value);return Number.isFinite(result)&&Math.abs(result)<=Number.MAX_SAFE_INTEGER?result:null;
+}
+function metricIndex(metrics:MetricSnapshot[]):Map<string,MetricSnapshot> {
+ const counts=new Map<string,number>();for(const m of metrics)counts.set(m.id,(counts.get(m.id)??0)+1);
+ const out=new Map<string,MetricSnapshot>();for(const m of metrics)if(counts.get(m.id)===1)out.set(m.id,m);return out;
+}
+function checkMetric(metric:MetricSnapshot|null,index:Map<string,MetricSnapshot>,unit:string,asOf:string,period?:EvidencePeriod):{metric:MetricSnapshot|null;value:number|null;status:EvidenceStatus} {
+ if(!metric)return {metric:null,value:null,status:"UNAVAILABLE"};
+ const source=index.get(metric.id);if(!source)return {metric:null,value:null,status:"UNVERIFIED"};
+ if(source.status!=="VERIFIED"||source.completeness!=="COMPLETE"||source.quality!=="ACCEPTABLE"||source.unit!==unit||source.asOf!==asOf||!source.lineage.evidenceIds.length)
+  return {metric:source,value:null,status:source.status==="VERIFIED"?"NEEDS_REVIEW":source.status};
+ if(period&&(!source.period||source.period.from!==period.from||source.period.to!==period.to))return {metric:source,value:null,status:"NEEDS_REVIEW"};
+ const value=numberValue(source.value);if(value===null||value<0)return {metric:source,value:null,status:"NEEDS_REVIEW"};
+ return {metric:source,value,status:"VERIFIED"};
+}
+function coverageValid(item:DeadStockProductInput,asOf:string,days:number,evidence:Map<string,EvidenceRecord>):boolean {
+ const end=isoDay(asOf.slice(0,10)),from=isoDay(item.movementCoverage.period.from),to=isoDay(item.movementCoverage.period.to);
+ if(end===null||from===null||to===null||to<end||from>end-(days-1)*86400000)return false;
+ if(item.movementCoverage.status!=="VERIFIED"||item.movementCoverage.completeness!=="COMPLETE"||item.movementCoverage.quality!=="ACCEPTABLE"||!item.movementCoverage.evidenceIds.length)return false;
+ return item.movementCoverage.evidenceIds.every(id=>{
+  const record=evidence.get(id);
+  return Boolean(record&&record.status==="VERIFIED"&&record.completeness==="COMPLETE"&&record.quality==="ACCEPTABLE"&&record.asOf===asOf);
+ });
+}
+/** Movement classification is never made from a partial movement window; cost exposure is independently evidence-gated. */
+export function buildDeadStockReport(input:{
+ id:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];products:DeadStockProductInput[];rule:DeadStockRule;
+}):DeadStockReport {
+ if(!Number.isFinite(Date.parse(input.asOf)))throw new Error("asOf must be a valid timestamp");
+ const {rule}=input;
+ if(!rule.id.trim()||!rule.version.trim()||!Number.isInteger(rule.activeWithinDays)||rule.activeWithinDays<0||
+  !Number.isInteger(rule.stagnantAfterDays)||rule.stagnantAfterDays<=rule.activeWithinDays||
+  !Number.isInteger(rule.turnoverWindowDays)||rule.turnoverWindowDays<1||!Number.isFinite(rule.lowTurnoverRatio)||rule.lowTurnoverRatio<0)
+  throw new Error("invalid dead-stock rule");
+ const metrics=input.products.flatMap(p=>[p.availableQuantity,...(p.unitCost?[p.unitCost]:[]),...(p.soldQuantityWindow?[p.soldQuantityWindow]:[]),...(p.averageInventoryWindow?[p.averageInventoryWindow]:[])]);
+ const passport=buildEvidencePassport({id:"dead-stock:"+input.asOf,generatedAt:input.asOf,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics});
+ const index=metricIndex(passport.metrics),evidence=new Map<string,EvidenceRecord>();
+ for(const record of input.evidenceRecords)if(!evidence.has(record.id))evidence.set(record.id,record);
+ const items=input.products.map(product=>{
+  const warnings:string[]=[],historyOkay=coverageValid(product,input.asOf,rule.turnoverWindowDays,evidence);
+  const current=isoDay(input.asOf.slice(0,10)),movement=product.lastMovementAt?Date.parse(product.lastMovementAt):null;
+  let classification:DeadStockClass="UNKNOWN",daysSinceMovement:number|null=null,movementStatus:EvidenceStatus=historyOkay?"VERIFIED":"NEEDS_REVIEW";
+  if(!historyOkay)warnings.push("MOVEMENT_HISTORY_NOT_COMPLETE_OR_VERIFIED");
+  else if(product.lastMovementAt===null){classification="ZERO_MOVEMENT";}
+  else if(movement===null||!Number.isFinite(movement)||movement> (current??0)+86400000){
+   movementStatus="UNVERIFIED";warnings.push("LAST_MOVEMENT_TIMESTAMP_INVALID");
+  }else{
+   const movementDay=isoDay(product.lastMovementAt.slice(0,10));
+   if(movementDay===null||current===null||movementDay>current){movementStatus="UNVERIFIED";warnings.push("LAST_MOVEMENT_TIMESTAMP_INVALID");}
+   else{
+    daysSinceMovement=Math.floor((current-movementDay)/86400000);
+    classification=daysSinceMovement<=rule.activeWithinDays?"ACTIVE":daysSinceMovement<rule.stagnantAfterDays?"SLOW_MOVING":"STAGNANT";
+   }
+  }
+  const sold=checkMetric(product.soldQuantityWindow,index,"QUANTITY",input.asOf,input.period);
+  const average=checkMetric(product.averageInventoryWindow,index,"QUANTITY",input.asOf,input.period);
+  let turnoverRatio:number|null=null,lowTurnover:boolean|null=null;
+  if(sold.status==="VERIFIED"&&average.status==="VERIFIED"&&average.value!==null&&sold.value!==null&&average.value>0){
+   turnoverRatio=sold.value/average.value;
+   if(Number.isFinite(turnoverRatio)){lowTurnover=turnoverRatio<rule.lowTurnoverRatio;}
+   else warnings.push("TURNOVER_RATIO_OVERFLOW");
+  }else warnings.push("TURNOVER_RATIO_UNAVAILABLE");
+  const qty=checkMetric(product.availableQuantity,index,"QUANTITY",input.asOf,input.period);
+  const cost=checkMetric(product.unitCost,index,"CURRENCY_PER_UNIT",input.asOf,input.period);
+  let exposure:number|null=null,exposureStatus:EvidenceStatus="UNAVAILABLE",currency:string|null=null,unitCost:number|null=null;
+  if(product.unitCost){
+   const source=cost.metric;
+   if(qty.status==="VERIFIED"&&cost.status==="VERIFIED"&&source?.currency&&source.currency.trim()&&product.costQuantityUnit===product.quantityUnit&&qty.value!==null&&cost.value!==null){
+    const calculated=qty.value*cost.value;
+    if(Number.isFinite(calculated)&&Math.abs(calculated)<=Number.MAX_SAFE_INTEGER){
+     exposure=calculated;exposureStatus="VERIFIED";currency=source.currency;unitCost=cost.value;
+    }else{exposureStatus="NEEDS_REVIEW";warnings.push("EXPOSURE_OVERFLOW");}
+   }else{
+    exposureStatus=qty.status==="UNVERIFIED"||cost.status==="UNVERIFIED"?"UNVERIFIED":"NEEDS_REVIEW";
+    warnings.push(product.costQuantityUnit!==product.quantityUnit?"COST_QUANTITY_UNIT_MISMATCH":"VERIFIED_COST_OR_QUANTITY_UNAVAILABLE");
+   }
+  }else warnings.push("UNIT_COST_NOT_AVAILABLE");
+  const evidenceIds=[...new Set([
+   ...product.movementCoverage.evidenceIds,...product.availableQuantity.lineage.evidenceIds,
+   ...(product.unitCost?.lineage.evidenceIds??[]),...(product.soldQuantityWindow?.lineage.evidenceIds??[]),
+   ...(product.averageInventoryWindow?.lineage.evidenceIds??[]),
+  ])];
+  if(!historyOkay)classification="UNKNOWN";
+  return {
+   productRef:product.productRef,classification,daysSinceMovement,lowTurnover,turnoverRatio,
+   availableQuantity:qty.value,unitCost,currency,financialExposure:exposure,exposureStatus,movementStatus,
+   formulaId:EXPOSURE_FORMULA,formulaVersion:EXPOSURE_VERSION,evidenceIds,warnings,
+  };
+ });
+ const currencies=[...new Set(items.map(item=>item.currency).filter((c):c is string=>Boolean(c)))];
+ const totalsByCurrency=currencies.map(currency=>{
+  const group=items.filter(item=>item.currency===currency),unknown=group.some(item=>item.financialExposure===null);
+  return {currency,exposure:unknown?null:group.reduce((sum,item)=>sum+(item.financialExposure??0),0),verifiedItems:group.filter(item=>item.exposureStatus==="VERIFIED").length,withheldItems:group.filter(item=>item.exposureStatus!=="VERIFIED").length};
+ });
+ const warnings=[...new Set(items.flatMap(item=>item.warnings))];
+ return {id:input.id,asOf:input.asOf,period:input.period,ruleId:rule.id,ruleVersion:rule.version,status:items.every(item=>item.movementStatus==="VERIFIED")?"VERIFIED":"NEEDS_REVIEW",items,totalsByCurrency,warnings};
+}

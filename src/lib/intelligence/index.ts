@@ -4,3 +4,6 @@ export * from "./daily-decisions";
 export * from "./aggregate-contract";
 export * from "./liquidity";
 export * from "./cashflow-forecast";
+export * from "./dead-stock";
+export * from "./replenishment";
+export * from "./customer-retention";

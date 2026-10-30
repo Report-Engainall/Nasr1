@@ -1,30 +1,24 @@
 # P3 → P2 — Tenant-safe Intelligence Aggregate Contract
 
-**Acceptance:** REF-EVIDENCE-PASSPORT-001, REF-DAILY-DECISIONS-001, REF-LIQUIDITY-001 and REF-CASHFLOW-FORECAST-001, then retention and inventory intelligence.  
-**Type contract:** src/lib/intelligence/aggregate-contract.ts.
+**Acceptance:** daily decisions, evidence passport, liquidity, cashflow, dead-stock, customer retention and replenishment intelligence. Type contract: src/lib/intelligence/aggregate-contract.ts.
 
-## Request
-Request fields are requestId, metricKeys, period.from/to, asOf and optional currency filter. Do not accept a client-supplied tenantId, role, capability, source table or formula override. Resolve tenant scope and effective role/capabilities only from authenticated server identity and existing database authorization.
+## Request and authorization
+Request carries requestId, metricKeys, period.from/to, asOf and optional currency. Never accept a caller-supplied tenantId, role, capability, source table or formula override. Resolve tenant scope, effective role and capabilities exclusively from the authenticated server-side identity and existing canonical database authorization.
 
-## Success DTO
-Return status OK/PARTIAL, request ID, asOf, period, currency and sideEffects=NONE; server-resolved tenant scope and effective role/capabilities; source tables/RPCs/import snapshots and safe record references; evidence source timestamps, period, currency, status, completeness, quality and warnings; metric snapshots with nullable value, unit/currency, formula ID/version, calculation timestamp and evidence IDs; formula versions, completeness/quality, warnings and safe errors/SQLSTATE.
+## Common success DTO
+Return status OK/PARTIAL, request ID, asOf, period, currency, sideEffects=NONE; server-resolved tenant scope/effective role/capabilities; exact source tables/RPCs/import snapshots and safe record references; evidence timestamps, period, currency, status, completeness, quality/warnings; nullable metric snapshots with units, formula ID/version, calculation timestamp and evidence IDs; formula versions, completeness/quality, safe errors and SQLSTATE. Aggregates cover the full authorized tenant period, not the first UI page. Null is unknown, never zero. Keep currencies separate.
 
-For liquidity, include separate metric keys for available balance, scheduled/expected collections, overdue receivables, due supplier obligations, receivable-aging buckets and stagnant-stock cost. Return every monetary metric as its own currency-scoped snapshot; never combine currencies. Stagnant-stock cost is supplemental exposure and must not be subtracted from cash liquidity.
+## Liquidity and cashflow
+Liquidity metric keys: available balance, expected/overdue collections, due obligations, receivable aging buckets, stagnant-stock cost. Each money metric has its own currency-scoped snapshot. Stagnant stock cost is supplemental exposure and is never subtracted from liquid cash.
+Cashflow includes cashflowSchedule with status/completeness/quality and each actual scheduled receipt/payment (opaque ID, INFLOW/OUTFLOW, dueDate and amount MetricSnapshot with source lineage/currency/asOf/formula). Cover full authorized scope through 90 days. Partial coverage, unknown dates or amounts suppress projected balance. No assumed collection percentages, invented expenses or sales extrapolation.
 
-For cash flow, include cashflowSchedule with schedule status/completeness/quality and one entry per actual scheduled receipt/payment: opaque entry ID, direction INFLOW/OUTFLOW, dueDate, and an amount MetricSnapshot with source lineage, currency, asOf and formula version. This schedule must cover the complete authorized tenant scope through the 90-day horizon. Invalid or unknown dates/amounts and partial coverage suppress projected balances. Do not assume collection percentages, invent expenses or extrapolate sales.
+## Dead stock and replenishment
+Return inventoryMovements for the full tenant scope and requested lookback: product reference, last movement timestamp (nullable only when a complete covered period proves no movement), movement status, covered period and evidence IDs. Include verified ATP/available quantity, reorder point, sold quantity in the demand window, supplier lead-time days, optional minimum order quantity/order multiple, average inventory and unit cost. Unit cost is CURRENCY_PER_UNIT with explicit currency and UOM; only P3 calculates exposure after quantity UOM matches the cost basis. Missing cost is unavailable, not zero.
+Replenishment inputs must cover full movement history and lead-time sources. The recommendation is informational; P3 never creates a purchase order.
 
-Aggregates must cover the complete authorized tenant period, not the first UI page. Null means unknown/unavailable, never zero.
+## Customer retention
+Return customerRetention with status/completeness/quality, total expected and returned customer counts, truncated flag, and all customers for the period (not paginated): opaque customerRef, currency, current-period order count, previous-period order count, current-period sales MetricSnapshot, last order timestamp. If expected and returned counts differ, if truncated, or if any source is partial, P3 withholds overall retention/concentration KPIs. Sales concentration is computed separately by currency. Never send customer name/phone/email in this analytic DTO; no inferred churn causes.
 
-## Denial and failure
-Use DENIED for authorization failure, UNAVAILABLE for absent sources and ERROR for execution failure. Return safe codes/messages/SQLSTATE only. Denied calls must have no side effects: compare before/after domain and audit snapshots. No foreign-tenant identifiers or unredacted PII.
-
-## P2 acceptance
-1. Tenant identity is server-derived; a caller cannot select another tenant.
-2. Use existing canonical roles/capabilities and RLS/RPC policy; do not create a parallel permissions model.
-3. Calculate full-history scoped aggregates with source lineage, formula/version, currency and quality/completeness.
-4. Prove same-tenant role allow/deny and opaque cross-tenant denial.
-5. Prove byte-identical domain and audit snapshots on denied operations.
-6. PostgreSQL 17 cases: empty, partial, missing value, stale source, mixed currencies, bad formula version, schedule due-date coverage, SQLSTATE and error redaction.
-7. No fabricated values, fallback currency, zero sentinel or unverified-to-verified promotion.
-
-P2 records task ID, exact SHA, service/RPC, safe request/response, source tables, role matrix, SQLSTATE/no-side-effect evidence, PG17 run URL and exact next command in its checkpoint. P2 does not push main; P3 integrates.
+## Denial/failure proof
+Use DENIED, UNAVAILABLE or ERROR with safe error code/message and SQLSTATE. Denial has no side effects: compare before/after domain and audit snapshots byte-for-byte. No cross-tenant identifiers, SQL or PII.
+P2 acceptance: authenticated server tenant derivation; existing canonical permission/RLS/RPC rules; full history; proof same-tenant role allow/deny and opaque foreign-tenant denial; PostgreSQL 17 tests for empty, partial, missing, stale, currency mismatch, invalid formula, bad dates, SQLSTATE, error redaction and no-side-effect denial. Log exact code SHA, service/RPC, source tables, role/capability matrix, PG17 run, SQLSTATE and exact next command in P2 checkpoint. P2 does not push main; P3 integrates.
