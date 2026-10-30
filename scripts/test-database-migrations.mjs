@@ -5764,6 +5764,37 @@ async function main() {
   assert.equal(voidedDraft.replayed,false);
   const replayVoided=(await db.unsafe("select public.void_general_journal_draft($1::uuid,$2::text) as result",[voidDraftEntry.id,"duplicate draft created in error"]))[0].result;
   assert.equal(replayVoided.replayed,true);
+
+  // AGH-GL-POST-STATE-001: a void journal must be rejected before posting DML.
+  const voidPostingBaseline=(await db.unsafe(
+    "select e.status,e.posted_by_profile_id::text as posted_by,e.posted_at::text as posted_at," +
+    "e.voided_by_profile_id::text as voided_by,e.voided_at::text as voided_at,e.void_reason,e.updated_at::text as updated_at," +
+    "(select count(*)::integer from public.accounting_journal_lines l where l.organization_id=e.organization_id and l.journal_entry_id=e.id) as line_count," +
+    "(select count(*)::integer from public.audit_logs a where a.organization_id=e.organization_id and a.entity_id=e.id) as audit_count " +
+    "from public.accounting_journal_entries e where e.organization_id=$1::uuid and e.id=$2::uuid",
+    [organizationId,voidDraftEntry.id],
+  ))[0];
+  assert.equal(voidPostingBaseline.status,"void");
+  assert.equal(voidPostingBaseline.posted_by,null);
+  assert.equal(voidPostingBaseline.posted_at,null);
+  await expectFailure(
+    "voided journal cannot be posted",
+    () => db.unsafe("select public.post_general_journal_entry($1::uuid) as result",[voidDraftEntry.id]),
+    /only draft journal entries can be posted/i,
+    "22023",
+  );
+  const voidPostingAfter=(await db.unsafe(
+    "select e.status,e.posted_by_profile_id::text as posted_by,e.posted_at::text as posted_at," +
+    "e.voided_by_profile_id::text as voided_by,e.voided_at::text as voided_at,e.void_reason,e.updated_at::text as updated_at," +
+    "(select count(*)::integer from public.accounting_journal_lines l where l.organization_id=e.organization_id and l.journal_entry_id=e.id) as line_count," +
+    "(select count(*)::integer from public.audit_logs a where a.organization_id=e.organization_id and a.entity_id=e.id) as audit_count " +
+    "from public.accounting_journal_entries e where e.organization_id=$1::uuid and e.id=$2::uuid",
+    [organizationId,voidDraftEntry.id],
+  ))[0];
+  assert.deepEqual(voidPostingAfter,voidPostingBaseline,
+    "a void journal posting denial must preserve terminal state, cancellation metadata, lines, timestamp and audit history");
+  process.stdout.write("PASS general journal state guard: posted replay remains idempotent; void journals reject with 22023 and no mutations\\n");
+
   await expectFailure(
     "voided journal draft reason is immutable",
     () => db.unsafe("select public.void_general_journal_draft($1::uuid,$2::text)",[voidDraftEntry.id,"changed reason"]),
