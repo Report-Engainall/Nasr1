@@ -1,3 +1,125 @@
+# P1 FINAL EVIDENCE — 2026-10-30 — DLV-002 VERIFIED ON CURRENT CODE SHA
+
+- task_id: `DLV-002 / ROUTES-001 — mobile admin drawer focus across open, route remount and close`.
+- code_sha: `f381bac426140d0ad3dbc7861b463c8018ff56a1`.
+- base_main_sha: `00cfbe8f0791b3872d733a9653fe660de29eee53`.
+- pull_request: `https://github.com/Report-Engainall/Nasr1/pull/312` (open, mergeable, four changed paths; P3 is sole integrator).
+- Core exact-SHA workflow: `41026957332` SUCCESS on `f381bac4`; 238/238 test files and 1,554/1,554 unit tests PASS. P1 runtime navigation test 3/3; admin navigation contract test 4/4; P3 free-AI policy test 10/10 after P3 main fix. PostgreSQL 17 migrations/core, exact RPC inventory, cash expense posting/idempotency/concurrency, journal reversal, purchase receipt accounting, invite/address concurrency/expiry, tenant analytics, quote decisions, stock-count audit, async export, import idempotency/snapshot, storefront favourites, backup/restore, lint, build, production preview smoke, dev 5173 smoke and browser price visibility all SUCCESS.
+- P2 exact-SHA workflow: `41026957475` SUCCESS on `f381bac4`; public UI smoke SUCCESS; authenticated E2E infrastructure gate SUCCESS; local Supabase/Chromium job `123968618132` SUCCESS; teardown and authenticated artifacts upload SUCCESS. Local steps PASS: migrations PostgreSQL 17, ephemeral tenant fixtures, endpoint guard allow/deny, price grid rollback/audit/stale-writer, cash expense posting/idempotency/void concurrency, purchase receipt source accounting, exact build/launch, authenticated order persistence + cross-tenant denial, return/review/receipt/credit memo, audited Onyx XLSX, finance document + operational task print (includes mobile initial/return focus), customer-manager authorization/financial privacy/audit, device-session authorization/immediate revocation.
+- Explicit proof boundary: hosted Playwright customer/order/tenant workflow is `SKIPPED` (not PASS). The successful local Supabase tenant-isolation/denial proof is not a substitute for hosted authenticated tier/session acceptance. DLV-005/DLV-011 matrix-wide role×template and hosted journeys remain open where already recorded.
+- P1 change paths (unchanged): `src/components/AghbariApp.tsx`, `src/test/admin-mobile-navigation-acceptance.test.tsx`, `src/test/storefront-admin-navigation-access.test.ts`, `docs/execution/P1_CHECKPOINT.md`. P1 initial focus waits for drawer visibility and motion completion, bounded/cancelled polling; route navigation restores focus to currently mounted menu trigger after remount. P2 `e2e/**` was not modified.
+- P3 duplicate free-AI quota mismatch was found in Core on SHA `851c82a`; P3 fixed `src/lib/intelligence/free-ai-policy.ts` in main `00cfbe8`, and the P1 branch merged that main commit. Exact Core on `f381bac4` now confirms P3 test 10/10 and all project tests pass. P1 did not edit P3 code.
+- checkpoint update itself is documentation-only and creates a new branch head; run fresh Core/P2 on that resulting exact SHA before P3 merge. Do not transfer `41026957332`/`41026957475` to the documentation commit.
+- exact_next_command: after checkpoint commit, read the new PR head; verify Core and P2 workflows triggered on that exact SHA. If both succeed, hand PR #312 to P3 with task ID, base/result SHA, four files, Core/P2 URLs, SKIPPED hosted boundary, and ask P3 to merge. Do not merge or push main from P1.
+
+---
+# P1 LIVE CHECKPOINT — 2026-10-30 — P3 FREE-AI POLICY REGRESSION FOUND AND SYNCED
+
+- task_id: `DLV-002 / ROUTES-001 — mobile drawer focus lifecycle`.
+- status: `P1_IMPLEMENTED; LOCAL_P2_BROWSER_PASS_ON_CODE_SHA; FINAL_CORE_BLOCKED_BY_P3_TEST_BEFORE_FIX; REVERIFY_AFTER_P3_SYNC`.
+- P1 source/test head before P3 correction: `851c82a80ff8969fb43db9b8680c67ada6c70335`.
+- Core run `41026514614` on `851c82a`: Unit tests FAILED 1/238 files; 1,553/1,554 tests passed. The only failure was P3-owned `src/lib/intelligence/free-ai-policy.test.ts:29` (`fails closed when duplicate records claim the same provider/model quota`): second attempted provider reason expected `DUPLICATE_PROVIDER_QUOTA_RECORD`, actual `QUOTA_EXHAUSTED`. P1 tests and remaining 237 files passed. P1 did not modify P3-owned source/tests.
+- P3 then merged main commit `00cfbe8f0791b3872d733a9653fe660de29eee53`, changing only `src/lib/intelligence/free-ai-policy.ts` (duplicate quota record handling). P1 feature branch incorporated this latest-main change via non-forced merge commit `06325f48abae290ecd4683d267f94775153f768a`, parented by previous P1 head `851c82a` and main `00cfbe8f`.
+- P2 local Chromium workflow `41026090788` completed SUCCESS on code head `53d59b4f3b8b684145f278e2e7d5f1ac70e6b27b`; the local Supabase/Chromium job passed order/cross-tenant denial, customer returns/credit memo, audited Onyx XLSX, finance document/task print, customer-manager authorization/financial privacy/audit, and device-session immediate-revocation. Public smoke and infrastructure gate passed; hosted authenticated cross-tenant journey was SKIPPED, not PASS.
+- P2 run `41026514290` on pre-P3-correction head `851c82a` was running; treat it as predecessor only after this new branch head.
+- Core run `41026067495` on source/test SHA `59a9af7180491bca1b3d7f87c36d62454e59a5ab` passed 238/238 files and 1,550/1,550 tests; it includes transition-aware and route-remount focus regressions, but predates main sync.
+- Exact next action: read branch HEAD after this checkpoint commit and poll Core + P2 triggered by this exact SHA. Verify P3 free-AI quota duplicate regression is fixed in the merged P3 code; P1 owns only UI/tests and must not edit `src/lib/intelligence/**`. P2 must pass again on the exact final head.
+- P1 boundaries maintained: do not modify `e2e/**`, `supabase/**`, `scripts/**`, API/auth, P3 files, central matrix/global state, production, secrets, or local workspace.
+
+---
+# P1 LIVE CHECKPOINT — 2026-10-30 — CURRENT MAIN SYNC FOR DLV-002
+
+- task_id: `DLV-002 / ROUTES-001 — mobile admin drawer focus across open, route remount and close`.
+- status: `IMPLEMENTED_PENDING_EXACT_SHA_CI`.
+- latest_main_sha_at_sync: `8272e539554fa6c51ce2a4e4a1d1d6b255f53278`.
+- branch pre-sync SHA: `12bdad8cd62d95d36fd35a5cb6fd6b8f035fb91a`.
+- main merge commit: `41b13c21479257102e414f782a9242231ed9eb22`, parents are P1 branch SHA `12bdad8c` and main SHA `8272e539`; branch updated non-force with expected-head lease.
+- Latest-main non-overlap changes included:
+  - `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`
+  - `src/lib/intelligence/free-ai-policy.test.ts`
+  - `src/lib/intelligence/free-ai-policy.ts`
+  - `src/lib/intelligence/system-health.test.ts`
+  - `src/lib/intelligence/system-health.ts`
+- P1 implementation commit: `51bca41c094bc07af9b6463724c086f7491a9488`; P1 runtime test commits: `62423634` (transition-aware initial focus) and `b001becd` (new-route focus after route remount); static compatibility assertion commit: `4be7c18d`; checkpoint and main-sync commits recorded in the branch history.
+- Root cause found by unchanged P2 E2E: separate `/admin_/*` file routes remount `AdminApp`; focusing the old trigger before navigation causes it to be detached. P1 now waits for the navigation promise, then resolves the currently mounted visible `.mobile-menu[aria-controls="admin-sidebar"]` and focuses that node. The test simulates replacement of the detached trigger before navigation completes.
+- Evidence from previous heads (not transferable):
+  - `41025182161` on `7970e4d`: initial focus was fixed but failed route-change restoration at `e2e/finance-task-print.spec.ts:82`.
+  - `41025563411` on `e27cedc`: same route-remount focus failure at line 82; local Supabase/Chromium used; hosted cross-tenant journey SKIPPED.
+  - `41025181975` on `7970e4d`: 237/238 files, 1540/1541 tests; only stale string assertion failed and was repaired.
+  - `41025563359` on `e27cedc`: Core SUCCESS before the route-remount restoration commit; not evidence for current head.
+- Exact next command: after this checkpoint commit, read branch HEAD and poll Core + P2 checks for that exact SHA. P2 assertions to verify without editing E2E: first drawer focus, Escape focus restore, navigation to a new `/admin_/*` route and focus on new trigger, desktop resize, finance/task print/authorization path. Do not call SKIPPED PASS.
+- Path boundaries maintained: P1 component and tests + P1 checkpoint only; no `e2e/**`, API/backend/auth, `supabase/**`, `scripts/**`, P3 logic ownership, shared matrix/global state, production, secrets, or local workspace edits.
+
+---
+# P1 LIVE CHECKPOINT — 2026-10-30 — MERGED LATEST MAIN INTO DLV-002 WORK BRANCH
+
+- task_id: `DLV-002 / ROUTES-001 — mobile drawer initial focus + route-remount focus restore`.
+- status: `IMPLEMENTED_PENDING_FINAL_BASE_EXACT_SHA_CI`.
+- latest_main_sha: `9a0facd1f394126f6f2ede232784e6db5e69183d`.
+- previous_p1_head: `53d59b4f3b8b684145f278e2e7d5f1ac70e6b27b`.
+- merge_commit: `8cf451ee5ca0b929aad59b5a787abed3070afa1a` (parents: P1 head `53d59b4f` + latest main `9a0facd1`; non-forced fast-forward branch update).
+- Main-only intervening paths merged into this feature branch (no overlap with P1 changes):
+  - `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`
+  - `src/lib/intelligence/customer-retention.test.ts`
+  - `src/lib/intelligence/customer-retention.ts`
+  - `src/lib/intelligence/dead-stock.test.ts`
+  - `src/lib/intelligence/dead-stock.ts`
+- P1 paths remain: `src/components/AghbariApp.tsx`, `src/test/admin-mobile-navigation-acceptance.test.tsx`, `src/test/storefront-admin-navigation-access.test.ts`, `docs/execution/P1_CHECKPOINT.md`.
+- Route-remount regression: `admin-mobile-navigation-acceptance.test.tsx` replaces the old menu trigger to model the destination route's newly mounted trigger before the navigation promise resolves; asserts the replacement receives focus. The implementation returns focus to the current route's visible mobile trigger after router navigation resolves, not to the detached old node.
+- Old-head exact evidence is not transferable:
+  - Core `41025563359` SUCCESS on `e27cedc` (before route-remount fix).
+  - P2 `41025563411` was running on `e27cedc`; it is predecessor evidence only.
+  - P2 `41025182161` FAILURE on `7970e4d`, caused by focus staying on the old trigger which was removed during route remount; initial focus into the drawer did pass.
+  - Core `41025181975` FAILURE on `7970e4d` was due one stale test assertion requiring the deleted immediate-focus source string; corrected on branch.
+- exact_next_command: update this checkpoint with its resulting commit SHA, then poll new Core and P2 runs after branch merge commit + checkpoint update. Exact final-head checks must include the mobile drawer initial focus, Escape restoration, route-change new-trigger restoration, desktop resize, and finance/task print/browser authorization paths. Keep `e2e/**` unchanged; do not accept hosted SKIPPED as PASS.
+- no changes to main, local workspace, `e2e/**`, backend/API/auth, P3 engine ownership, or shared global state/matrix/log.
+
+---
+
+# P1 LIVE CHECKPOINT — 2026-10-30 — DLV-002 MOBILE DRAWER FOCUS + ROUTE REMOUNT
+
+- task_id: `DLV-002 / ROUTES-001 — mobile admin drawer initial focus and route-change focus restoration`.
+- status: `IMPLEMENTED_PENDING_EXACT_SHA_CI`.
+- base_main_sha: `d26a2ad735d6610836d2aeb06889ad9f9c19dcf1`.
+- branch: `p1/dlv-002-mobile-drawer-focus-20261030`.
+- latest implementation commit: `51bca41c094bc07af9b6463724c086f7491a9488` — transition-aware first-item focus plus restore focus to newly mounted route trigger after navigation resolves.
+- latest regression-test commits: `b001becd0af1ecaad9acd16cc067b19dd7173c5a` and `59a9af7180491bca1b3d7f87c36d62454e59a5ab`.
+- latest known PR head before this checkpoint update: branch HEAD to be re-read after commit; do not reuse prior SHA for proof.
+- paths:
+  - `src/components/AghbariApp.tsx`: bounded visibility/animation-aware focus scheduling; cancellation when closed/unmounted; Escape close and trigger focus restore; route navigation waits for navigation promise, then focuses visible trigger in the newly mounted AdminApp (avoids stale-node focus).
+  - `src/test/admin-mobile-navigation-acceptance.test.tsx`: animation delay regression; route remount regression swaps old trigger for new route trigger before resolving navigation and verifies focus targets replacement.
+  - `src/test/storefront-admin-navigation-access.test.ts`: replace obsolete one-shot source check with assertions for visibility/animation/cancellation and route-remount restoration.
+- P2 evidence:
+  - old P2 run `41025182161` on earlier head `7970e4d6739e8aecae9019c7753050bf36561d20`: public read-only smoke SUCCESS; authenticated hosted path SKIPPED; local Supabase / Chromium completed FAILURE in `e2e/finance-task-print.spec.ts:82` because route navigation unmounted the old `.mobile-menu` trigger after immediate focus restoration. The initial first-item focus assertion at line 69 passed in this run; failure moved to focus restoration after route change. Keep E2E unchanged.
+  - earlier Core run `41025181975` on `7970e4d`: 237/238 files and 1540/1541 tests passed; sole failure was the stale static assertion expecting the deleted immediate-focus source line. Static test was corrected in `4be7c18d`.
+  - prior Core run `41025563359` and P2 run `41025563411` target predecessor head `e27cedc4958d82ce00e3e40297d84a65d3084f02`; do not transfer their outcomes to the current branch head.
+- exact next action: poll Core and P2 workflows for the latest branch HEAD after this checkpoint commit. For P2, inspect exact local Supabase Chromium job including both `e2e/finance-task-print.spec.ts:69` (initial focus), `:82` (focus restoration after route change), Escape restoration, responsive desktop transition, then printing/authorization assertions. Never modify `e2e/**` to manufacture a pass.
+- owner boundaries respected: no `e2e/**`, `supabase/**`, `scripts/**`, API/backend/auth, P3 intelligence, global state/matrix/log, production environment, or local workspace changes.
+
+---
+
+# P1 LIVE CHECKPOINT — 2026-10-30 — DLV-002 MOBILE DRAWER FOCUS
+
+- task_id: `DLV-002 / ROUTES-001 — mobile admin drawer first-action focus`.
+- status: `IMPLEMENTED_PENDING_EXACT_SHA_CI`.
+- observed_main_head: `d26a2ad735d6610836d2aeb06889ad9f9c19dcf1`.
+- branch: `p1/dlv-002-mobile-drawer-focus-20261030`.
+- code_commit_sha: `4be7c18ddfce3204bc8bceb2fa818c7960a51dce` (adds transition-aware focus regression assertion; UI code remains `8cd88895dc3477a17987b152ceb31c9818d0378f`; no local working copy edited).
+- base_sha: `d26a2ad735d6610836d2aeb06889ad9f9c19dcf1`.
+- changed_paths:
+  - `src/components/AghbariApp.tsx`: replace immediate focus with visibility/opacity and Web Animations API transition-aware focus; schedule frame checks with 2-second bound; cancel pending checks on close/unmount; retain Escape close and trigger focus restoration.
+  - `src/test/admin-mobile-navigation-acceptance.test.tsx`: regression proves focus stays on the trigger while drawer animation is active and moves to first navigation action only after motion completes; preserve existing Escape and destination-close/return-focus checks.
+  - `src/test/storefront-admin-navigation-access.test.ts`: replace brittle source-string assertion for the removed one-shot focus call with checks for visibility, active-motion gating, cancellable polling and focus target.
+
+- exact tests: `admin mobile navigation runtime acceptance` (3/3 PASS on first head `7970e4d`; included delayed-transition regression); whole Core unit run failed 237/238 files, 1540/1541 tests solely because `storefront-admin-navigation-access.test.ts` required the obsolete immediate-focus source string. That assertion is now changed to verify transition-aware implementation invariants. Exact-head CI on updated commit `4be7c18d` is pending; no full-suite PASS claimed.
+- P2/Core candidate workflows `41024527658` and `41024527683` run on `1500b2592b8bdb6d7c2b75b3818a3e18cf5c9eb2`, not this P1 SHA; do not transfer their results.
+- ownership: only P1-owned component and `src/test/**`; did not modify `e2e/**`, API/backend, P3 intelligence files or central state/matrix/log.
+- initial PR head `7970e4d6739e8aecae9019c7753050bf36561d20` Core `41025181975` FAILURE: 237/238 files and 1540/1541 tests passed; only stale static assertion in `storefront-admin-navigation-access.test.ts` failed because it expected the deleted one-shot focus line. Focused runtime suite on that head passed all 3 tests. Fix commit `4be7c18ddfce3204bc8bceb2fa818c7960a51dce` updates that P1-owned assertion without editing P2 E2E.
+- initial P2 `41025182161` is still running on old head `7970e4d`; local Supabase job started and will not be transferred to the updated head. Public UI smoke PASS, external hosted infrastructure path SKIPPED. Re-run the exact PR P2 workflow for the updated head.
+- exact_next_command: poll Core/P2 exact-head workflows triggered by `4be7c18d` (after checkpoint-only commit, use final branch HEAD); repair only failures in P1-owned paths and retain P2 browser assertions unchanged. Then hand off exact SHA, PR, files, and evidence to P3 for merge.
+
+---
+
 # LIVE RESUME OVERRIDE — 2026-10-30 — SUPERSEDES ALL OLDER P1 NEXT ACTIONS
 - Resume base: main `353588f5df5f36cfb6b7caaef5d067bd28371251`. Current-main Core run `41007651137` is IN_PROGRESS on this exact SHA; poll this run, do not duplicate it. One-main cleanup `41007651120` is SUCCESS on the same SHA.
 - The saved P1 Customer 360 source-lineage work already passed Core on `9f5d3af8e4f57bd758f3eb779cb6971be0a7d829`; do not re-run/poll it. It is integrated. DLV-010 stays PARTIAL overall.

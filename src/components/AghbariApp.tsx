@@ -117,8 +117,34 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const [navigationBlocked, setNavigationBlocked] = useState(false);
   const showNotice = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(null), 2800); };
   const closeMobileNav = () => {
+    const wasOpen = mobileNav;
     setMobileNav(false);
-    mobileMenuButtonRef.current?.focus();
+    if (wasOpen) mobileMenuButtonRef.current?.focus({ preventScroll: true });
+    return wasOpen;
+  };
+  const navigateAdmin = (id: View, restoreMobileFocus: boolean) => {
+    const navigation = navigate({ to: adminPaths[id] as never });
+    if (!restoreMobileFocus) return;
+
+    // Admin pages are separate file routes and may remount AdminApp. Restore
+    // focus against the current route's trigger only after navigation commits.
+    void Promise.resolve(navigation).then(() => {
+      const restoreCurrentTrigger = () => {
+        const trigger = document.querySelector<HTMLButtonElement>(
+          '.mobile-menu[aria-controls="admin-sidebar"]',
+        );
+        if (!trigger || trigger.disabled) return;
+        const triggerStyle = window.getComputedStyle(trigger);
+        if (triggerStyle.display === 'none' || triggerStyle.visibility === 'hidden') return;
+        trigger.focus({ preventScroll: true });
+      };
+
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(restoreCurrentTrigger);
+      } else {
+        window.setTimeout(restoreCurrentTrigger, 0);
+      }
+    });
   };
   const setMode = (_m: 'storefront') => {
     if (navigationBlocked) { showNotice('اعتمد كميات وأسعار الطلب أو ألغِ المسودة قبل مغادرة مراجعة الطلب.'); return; }
@@ -128,7 +154,58 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
 
   useEffect(() => {
     if (!mobileNav) return;
-    firstMobileNavItemRef.current?.focus();
+
+    let cancelled = false;
+    let scheduledFrame: number | null = null;
+    let attempts = 0;
+
+    const requestFrame = (callback: FrameRequestCallback) => {
+      if (typeof window.requestAnimationFrame === 'function') {
+        return window.requestAnimationFrame(callback);
+      }
+      return window.setTimeout(() => callback(window.performance.now()), 16);
+    };
+
+    const cancelFrame = (frameId: number) => {
+      if (typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(frameId);
+      } else {
+        window.clearTimeout(frameId);
+      }
+    };
+
+    const focusWhenDrawerIsReady = () => {
+      scheduledFrame = null;
+      if (cancelled) return;
+
+      const firstItem = firstMobileNavItemRef.current;
+      const sidebar = firstItem?.closest<HTMLElement>('#admin-sidebar');
+      if (!firstItem || !sidebar || !sidebar.isConnected || firstItem.disabled) return;
+
+      const sidebarStyle = window.getComputedStyle(sidebar);
+      const isVisible = sidebarStyle.display !== 'none' &&
+        sidebarStyle.visibility !== 'hidden' &&
+        Number(sidebarStyle.opacity || '1') > 0;
+      const hasActiveMotion = typeof sidebar.getAnimations === 'function' &&
+        sidebar.getAnimations({ subtree: true }).some(
+          (animation) => animation.playState === 'running' || animation.playState === 'pending',
+        );
+
+      if (isVisible && !hasActiveMotion) {
+        firstItem.focus({ preventScroll: true });
+        if (document.activeElement === firstItem) return;
+      }
+
+      // A drawer transition can temporarily reject focus. Recheck after the
+      // browser has applied visibility/layout changes; stop after two seconds.
+      if (attempts < 120) {
+        attempts += 1;
+        scheduledFrame = requestFrame(focusWhenDrawerIsReady);
+      }
+    };
+
+    scheduledFrame = requestFrame(focusWhenDrawerIsReady);
+
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
@@ -136,7 +213,11 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
       mobileMenuButtonRef.current?.focus();
     };
     window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
+    return () => {
+      cancelled = true;
+      if (scheduledFrame !== null) cancelFrame(scheduledFrame);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
   }, [mobileNav]);
 
   useEffect(() => {
@@ -167,8 +248,8 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
     }
     setView(id);
     setOrderDetailId(null);
-    setMobileNav(false);
-    void navigate({ to: adminPaths[id] as never });
+    const restoreMobileFocus = closeMobileNav();
+    navigateAdmin(id, restoreMobileFocus);
   };
 
   if (!ready) return <div className="login-screen" dir="rtl"><div style={{ margin: 'auto' }}><Loading /></div></div>;
@@ -187,7 +268,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
       <aside id="admin-sidebar" aria-label="القائمة الإدارية" className={`sidebar ${mobileNav ? 'open' : ''}`}>
         <div className="brand" onClick={() => setMode('storefront')} style={{ cursor: 'pointer' }}><div className="brand-icon"><Activity size={22} /></div><div><strong>الأغبري</strong><span>منصة التوزيع الذكية</span></div></div>
         <div className="user-card"><div className="avatar">{user.name.charAt(0)}</div><div><strong>{user.name}</strong><span>{isCustomerManagerOnly ? 'مسؤول العملاء' : isFinanceOnly ? 'المحاسبة' : user.roles.includes('admin') ? 'مدير النظام' : user.roles.includes('manager') ? 'مدير' : 'فريق الأغبري'}</span></div><span className="online-dot" /></div>
-        <nav aria-label="التنقل الإداري">{visibleNav.map(({ id, label, icon: Icon }, index) => <button type="button" ref={index === 0 ? firstMobileNavItemRef : undefined} key={id} className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined} aria-disabled={navigationBlocked || undefined} onClick={() => { if (navigationBlocked) { showNotice('اعتمد كميات وأسعار الطلب أو ألغِ المسودة قبل الانتقال إلى قسم آخر.'); return; } setView(id); setOrderDetailId(null); closeMobileNav(); void navigate({ to: adminPaths[id] as never }); }}><Icon size={18} /><span>{label}</span></button>)}</nav>
+        <nav aria-label="التنقل الإداري">{visibleNav.map(({ id, label, icon: Icon }, index) => <button type="button" ref={index === 0 ? firstMobileNavItemRef : undefined} key={id} className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined} aria-disabled={navigationBlocked || undefined} onClick={() => { if (navigationBlocked) { showNotice('اعتمد كميات وأسعار الطلب أو ألغِ المسودة قبل الانتقال إلى قسم آخر.'); return; } setView(id); setOrderDetailId(null); const restoreMobileFocus = closeMobileNav(); navigateAdmin(id, restoreMobileFocus); }}><Icon size={18} /><span>{label}</span></button>)}</nav>
         <div className="sidebar-bottom"><button onClick={() => setMode('storefront')}><Store size={18} /> عرض المتجر</button><button onClick={() => { if (navigationBlocked) { showNotice('لا يمكن تسجيل الخروج قبل اعتماد تغييرات الطلب أو إلغائها.'); return; } void signOut(); }}><LogOut size={18} /> خروج</button><div className="secure"><span /> النظام متصل وآمن</div></div>
       </aside>
       <main className="main">

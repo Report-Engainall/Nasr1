@@ -34,7 +34,16 @@ describe("storefront dashboard navigation access", () => {
   it("closes the mobile menu with Escape, restores focus, and hides the closed drawer from keyboard navigation", () => {
     expect(adminApp).toContain("if (event.key !== 'Escape') return;");
     expect(adminApp).toContain("mobileMenuButtonRef.current?.focus()");
-    expect(adminApp).toContain("firstMobileNavItemRef.current?.focus()");
+    expect(adminApp).toContain("const focusWhenDrawerIsReady = () =>");
+    expect(adminApp).toContain("const isVisible =");
+    expect(adminApp).toContain("const hasActiveMotion =");
+    expect(adminApp).toContain("firstItem.focus({ preventScroll: true })");
+    expect(adminApp).toContain("animation.playState === 'running' || animation.playState === 'pending'");
+    expect(adminApp).toContain("cancelled = true");
+    expect(adminApp).toContain("const navigateAdmin = (id: View, restoreMobileFocus: boolean) =>");
+    expect(adminApp).toContain("'.mobile-menu[aria-controls=\"admin-sidebar\"]'");
+    expect(adminApp).toContain("Promise.resolve(navigation).then(() =>");
+    expect(adminApp).toContain("const restoreMobileFocus = closeMobileNav()");
     expect(adminStyles).toContain("visibility: hidden; transition: transform .25s ease, visibility 0s linear .25s;");
     expect(adminStyles).toContain(".sidebar.open { transform: translateX(0); visibility: visible;");
   });

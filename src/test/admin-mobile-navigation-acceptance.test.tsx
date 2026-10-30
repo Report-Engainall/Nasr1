@@ -155,11 +155,45 @@ describe("admin mobile navigation runtime acceptance", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it("closes the drawer and returns focus after selecting a navigation destination", async () => {
+  it("waits for the mobile drawer transition to finish before focusing its first action", async () => {
     render(<AdminApp initialView="settings" />);
 
     const trigger = screen.getByRole("button", { name: "فتح القائمة الإدارية" });
+    const sidebar = screen.getByRole("complementary", { name: "القائمة الإدارية" });
+    const nav = screen.getByRole("navigation", { name: "التنقل الإداري" });
+    const firstItem = nav.querySelector("button");
+    expect(firstItem).not.toBeNull();
+
+    let transitionRunning = true;
+    let animationChecks = 0;
+    Object.defineProperty(sidebar, "getAnimations", {
+      configurable: true,
+      value: () => {
+        animationChecks += 1;
+        return transitionRunning ? [{ playState: "running" } as Animation] : [];
+      },
+    });
+
+    trigger.focus();
     fireEvent.click(trigger);
+
+    await waitFor(() => expect(animationChecks).toBeGreaterThan(0));
+    expect(document.activeElement).toBe(trigger);
+
+    transitionRunning = false;
+    await waitFor(() => expect(document.activeElement).toBe(firstItem));
+  });
+
+  it("restores focus to the new route trigger after admin navigation remounts the app", async () => {
+    let completeNavigation: (() => void) | undefined;
+    mocks.navigate.mockImplementation(
+      () => new Promise<void>((resolve) => { completeNavigation = resolve; }),
+    );
+
+    render(<AdminApp initialView="settings" />);
+
+    const oldTrigger = screen.getByRole("button", { name: "فتح القائمة الإدارية" });
+    fireEvent.click(oldTrigger);
     const nav = screen.getByRole("navigation", { name: "التنقل الإداري" });
     const settings = Array.from(nav.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("الإعدادات"),
@@ -169,8 +203,16 @@ describe("admin mobile navigation runtime acceptance", () => {
     await waitFor(() => expect(document.activeElement).toBe(nav.querySelector("button")));
     fireEvent.click(settings!);
 
-    await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "false"));
-    expect(document.activeElement).toBe(trigger);
+    await waitFor(() => expect(oldTrigger).toHaveAttribute("aria-expanded", "false"));
+    expect(document.activeElement).toBe(oldTrigger);
+
+    // Separate admin file routes remount AdminApp. Replace the old trigger to
+    // model the new route's DOM before its navigation promise resolves.
+    const replacementTrigger = oldTrigger.cloneNode(true) as HTMLButtonElement;
+    oldTrigger.replaceWith(replacementTrigger);
+    completeNavigation?.();
+
+    await waitFor(() => expect(document.activeElement).toBe(replacementTrigger));
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/admin/settings" });
   });
 });
