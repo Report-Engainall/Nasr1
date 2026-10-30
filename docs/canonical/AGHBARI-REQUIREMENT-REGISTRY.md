@@ -218,3 +218,31 @@ The following P1 customer/admin features were merged in PR #66 at `066e5eb9054d5
 PR #66 is already integrated; no re-merge is required. The current canonical main checkpoint is `e467c782bec0e19ddab6c5ddaa72aaa073d7283b`, with Core 40127500733 and PostgreSQL 17 40127500750 both SUCCESS. Do not transfer a historical P2 PASS to current main or claim hosted customer/tenant E2E when that job is skipped.
 | P1-CUST-MANAGER-ROLE-UI-001 | `src/components/CustomerManagerRoleAssignment.tsx`; role-RPC UI test and PostgreSQL acceptance previously passed on code SHA `e9dd04d6a49ac4910e2a17d649485173ef486e66` (Core 39937170618 / P2 39937170509). | `PARTIAL / HISTORICAL UI+PG ACCEPTANCE`; PR #43 is CLOSED_UNMERGED and current-main exact browser/role-management boundary proof is not established by that old branch. Follow up in issues [#76](https://github.com/Report-Engainall/Nasr1/issues/76) and [#77](https://github.com/Report-Engainall/Nasr1/issues/77); do not claim full browser proof. |
 | P1-DEVICE-SESSION-MGMT-001 | `src/components/DeviceManagement.tsx` and `src/test/device-management.test.tsx`; current-session metadata and real auth sign-out scopes only. | `PARTIAL`; central device inventory, login history, selective per-device revocation and session policy are NOT IMPLEMENTED; this remains P1-owned and must be coordinated with P2's SQL/RLS/RPC path. |
+
+
+## Approved reference-parity requirements — 2026-10-30
+
+These 16 requirements extend the existing registry and the existing acceptance matrix. They map into W06/W08/W09/W10 and do not create a new DLV group or a parallel tracker.
+
+| Requirement ID | Required capability | Responsibility split | Initial state |
+|---|---|---|---|
+| `REF-LIQUIDITY-001` | Executive liquidity dashboard | P3 lead; P2 data contract; P1 UI | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-DAILY-DECISIONS-001` | Daily executive decision cards | P3 lead; P2 secure aggregates; P1 mount/UX | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-DECISION-OUTCOME-001` | Decision approval, execution and measured outcome | P3 workflow contract; P2 persistence/authorization; P1 UI | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-CASHFLOW-FORECAST-001` | Cash flow forecast 7/30/90 days | P3 deterministic forecast; P2 source aggregates; P1 UX | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-DEAD-STOCK-001` | Dead stock and working capital exposure | P3 rule engine; P2 inventory/cost contract; P1 view | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-CUSTOMER-RETENTION-001` | Customer concentration and retention | P3 analytics; P2 full-source aggregates; P1 dashboard UX | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-REPLENISHMENT-001` | Replenishment recommendations | P3 recommendation rules; P2 ATP/PO sources; P1 UX | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-EVIDENCE-PASSPORT-001` | Evidence Passport and metric lineage | P3 lead; P2 source DTO; P1 render | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-WHATIF-LAB-001` | Constrained what-if scenario lab | P3 deterministic calculations; P2 persistence contract if required; P1 controls | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-FREE-AI-ROUTER-001` | Free-only multi-provider quota router | P2 gateway/adapters; P3 policy; P1 controls | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-AI-PRIVACY-001` | External AI data classification and egress policy | P2 server enforcement; P3 policy; P1 states | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-AI-FALLBACK-001` | Deterministic fallback when all free quota is exhausted | P2 routing; P3 rule engine; P1 display | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-AI-OPS-001` | Provider/quota operations console | P3 product contract; P2 server status; P1 UX | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-SYSTEM-HEALTH-001` | System health and error center | P2 probes; P3 contract/evidence; P1 interface | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-RBAC-MATRIX-001` | Explainable role capability matrix | P2 permission contract; P3 capability catalog; P1 UI | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+| `REF-LEARNING-LOOP-001` | Recommendation outcome learning and calibration | P3 lead; P2 persistence; P1 view | `APPROVED_SCOPE / NOT IMPLEMENTED` |
+
+All REF-* entries remain OPEN until code, real data contracts, authorization, appropriate tests and exact-SHA evidence exist. Documentation approval is not implementation proof. The reference gallery `docs/reference-app/README.md` contains seven boards for all 84 provided screenshots; images are design inspiration only, not evidence of the reference app's backend correctness.
+
+The AI cost cap is zero. Use deterministic logic first, official authorized free quotas only, and no paid fallback/Auto-Recharge. ChatGPT Free consumer UI is not an API allowance. Do not send confidential raw business/financial data or PII to external free-tier models.

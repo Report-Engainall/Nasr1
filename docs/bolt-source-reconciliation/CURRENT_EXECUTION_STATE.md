@@ -1,5 +1,21 @@
 # CURRENT EXECUTION STATE — 2026-10-30
 
+## THREE-AGENT ACTIVE OVERRIDE — 2026-10-30 (supersedes prior P1/P2-only active assignment)
+
+- Repository: `Report-Engainall/Nasr1`; remote branch: `main` only; exact integration base SHA: `6e73fdd0f9fe1a327763e2457a7c45ebdb28d89a`. Re-fetch before every push and use expected-SHA CAS.
+- P3 is the sole global resume-cursor owner and integration captain. P1/P2 update their per-agent checkpoints only; they do not edit this cursor, central CSV or EXECUTION_LOG.
+- P1 active task: resume DLV-010 from `docs/execution/P1_CHECKPOINT.md`; inspect/poll Core run `41004028451` for source SHA `9f5d3af8e4f57bd758f3eb779cb6971be0a7d829`; do not duplicate it. Compare only P1-owned changed paths, then continue the first OPEN DLV-010 UI row.
+- P2 active task: `AUTHZ-GL-DRAFT-STAFF-DENIAL-001` only if it remains OPEN in the current acceptance CSV; otherwise select the next uncovered high-risk finance/security row. P2 checkpoint: `docs/execution/P2_CHECKPOINT.md`.
+- P3 active task: `REF-DAILY-DECISIONS-001` + `REF-EVIDENCE-PASSPORT-001`; build pure deterministic types/engine/tests in P3-owned paths, request tenant-safe aggregate contract from P2, and deliver Action Card props/import contract to P1. P3 checkpoint: `docs/execution/P3_CHECKPOINT.md`.
+- Workstreams W01–W10 continue concurrently where path/dependency boundaries allow. P1 owns UI; P2 backend/data/security; P3 intelligence and integration/governance.
+- Integration queue starts EMPTY. Use detached local worktrees from this base when available; local commits integrate sequentially through P3. P3 alone pushes main. No simultaneous Git pushes or overlapping file edits; use explicit path lease if worktrees are unavailable.
+- Permanent reference gallery: `docs/reference-app/README.md`, images `sheet_01.jpg`…`sheet_07.jpg`, 84 source screenshots summarized in seven visual sheets. Do not re-extract archive or ask owner to resend.
+- 16 REF-* acceptance items are appended to the existing central CSV; original DLV-001..018 remain unchanged. No duplicate matrix/ledger.
+- Free-only AI: deterministic code first; official authorized free API quota only; paid spend=0, no paid model/fallback/billing/Auto-Recharge; no account rotation or quota evasion; ChatGPT Free consumer UI is not API. No sensitive raw business data to external free model.
+- Handoff status: scope/docs/gallery only. No new code behavior, passing tests or release readiness is implied. Full release remains NO-GO until REL-GATE-002.
+- Every agent checkpoints each 10 minutes and after commit/failure/interruption with exact next command, local commit/dirty paths, run IDs, retry count and blocker. No rescan; max two attempts for same root cause.
+
+
 **Sole live resume cursor.** Read this file first. Follow `docs/execution/CONTINUOUS_PARALLEL_EXECUTION_PROTOCOL.md`. Do not rescan the repository or regenerate the 330-RPC inventory. Detailed evidence remains in `EXECUTION_LOG.md`; acceptance remains in `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
 
 ## Active batch — P2 API-OPS semantic authorization and no-side-effect proofs

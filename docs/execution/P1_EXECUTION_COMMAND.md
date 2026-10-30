@@ -1,61 +1,45 @@
-# التكليف التنفيذي الوحيد — P1 — متجر الأغبري Nasr1
+# التكليف التنفيذي الدائم — P1 — واجهة وتجربة متجر الأغبري Nasr1
 
-نفّذ الآن، وليس تقريراً أو خطة. اقرأ فقط بهذا الترتيب:
-1. أول 60 سطراً من docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md.
-2. docs/execution/CONTINUOUS_PARALLEL_EXECUTION_PROTOCOL.md.
-3. هذا الملف.
-4. docs/execution/P1_CHECKPOINT.md لاستعادة آخر موضع عمل.
+أنت P1 في فريق التنفيذ الثلاثي P1/P2/P3. المطلوب كود واختبارات وتدفقات حقيقية، لا تقرير ولا إعادة بناء.
 
-المستودع Report-Engainall/Nasr1، الفرع main فقط، لا branches ولا PRs. الحد 180 دقيقة. هدف الدفعة إغلاق ثلاثة صفوف قبول تفصيلية على الأقل من CSV بأدلة حقيقية. لا تعِد استكشاف المشروع.
+## استئناف إلزامي — لا تعِد البحث
+1. اقرأ أول 80 سطراً فقط من `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`.
+2. اقرأ `docs/execution/CONTINUOUS_PARALLEL_EXECUTION_PROTOCOL.md` وملفك هذا.
+3. اقرأ `docs/execution/P1_CHECKPOINT.md` لاستعادة الموضع الدقيق.
+4. تحقق من SHA الرئيسي وActions مرة واحدة. طابق SHA المحفوظ؛ إذا تحرك، قارن paths التي تغيرت فقط.
+5. نفّذ `exact_next_command` المحفوظ. لا تبدأ architecture audit ولا repository-wide scan.
+6. معرض الصور الثابت: `docs/reference-app/README.md`. راجع صور المجال المرتبط بالمهمة فقط؛ لا تطلب الأرشيف مجدداً ولا تعِد فكّه.
 
-## أول مهمة مباشرة
+## أول مهمة استئناف محفوظة
+استأنف DLV-010 من P1_CHECKPOINT:
+- افحص Core run `41004028451` على SHA `9f5d3af8e4f57bd758f3eb779cb6971be0a7d829`، واستعلم عن نفس run إن لم ينته؛ لا تكرره.
+- P2 run `41004028314` كان ملغى بسبب تعارض concurrency ولم يصل إلى الوظائف؛ لا تعتبره PASS ولا تنقل نتيجة P2 من `d3159bc` إلى `9f5d3af`.
+- قارن ملفات P1 المتغيرة على main فقط ثم أكمل أول بند DLV-010 مفتوح ومملوك لـP1.
 
-تحقق من إصلاحات النطاق offline catalog/cart/account switching على آخر main. نقطة الرصد عند إعداد هذا التكليف هي ee1b84303e5fc18b46bed0b37a880a306e06d5d8، وتتضمن تغييرات متتابعة:
-- 81716e9: كاش الكتالوج scoped بالمستخدم والمؤسسة والمستودع.
-- 15269cb: الحفاظ على مسودات السلة المستقلة ومواءمة اختبارات النطاق.
-- ee1b843: مسح كاش الحساب الخارج والداخل عند تبديل الحساب دون اتصال.
+## الملكية
+- تملك `src/routes/**`, `src/styles.css`, `src/components/**` افتراضياً، واختبارات الواجهة في `src/test/**`.
+- يستثنى من ملكيتك مسارات P3: `src/components/intelligence/**`, `src/lib/intelligence/**`, `src/components/ExecutiveStoreAnalytics.tsx`, `src/components/StaffDashboardMetrics.tsx`, `src/components/AdminCustomer360.tsx`, `src/components/TaskCenter.tsx`, `src/lib/business-intelligence.ts`, `src/lib/sales-forecast.ts`, `src/lib/executive-analytics.ts`, `src/lib/customer-360-summary.ts` واختباراتها المباشرة.
+- تملك `AghbariApp.tsx` وroutes لتركيب وحدات P3. لا تعدل ملفات P3؛ اطلب Component API/props واضحاً في P3_CHECKPOINT.
+- ممنوع تعديل `supabase/**`, `scripts/**`, `src/lib/api.ts`, `src/lib/supabase.ts`, `src/lib/auth.tsx`, مكتبات P3، المؤشر العالمي، CSV، registry أو EXECUTION_LOG.
+- عند احتياج API اكتب REQUEST TO P2 داخل P1_CHECKPOINT: task ID، route/action، payload/response، tenant/role، error/SQLSTATE، idempotency/audit/side effects، acceptance test. لا تنشئ mock كبديل عن عقد خادمي.
 
-آخر SHA موثق الاختبار في المؤشر القديم هو eb83f6c؛ لا تنقل نجاحه إلى هذه التغييرات. تحقق من رأس main الحالي مرة واحدة قبل التنفيذ؛ إذا تقدم، افحص فقط هذه الملفات المتغيرة.
+## مهمات UI في المسارات العشرة
+اعمل على صفوف UI المفتوحة في المصفوفة المركزية فقط:
+- W02–W05: routes/identity/catalog/cart/checkout/membership/offline.
+- W06–W07: المخزون والمالية والمشتريات والاستيراد/Onyx UI.
+- W08–W09: Customer/Executive dashboards وتقارير/AI/WhatsApp UX؛ استورد وحدات P3 بعد استلام props contract.
+- W10: route states/accessibility/responsive/performance/health/handover UI.
+اجعل RTL عربياً صحيحاً، واهتم بالهواتف والشاشات الكبيرة وkeyboard/screen readers. لكل شاشة loading/empty/error/retry/unauthorized/success/offline حيث يلزم. لا تعرض success قبل server readback.
 
-الملفات المعروفة:
-- src/routes/__root.tsx
-- src/components/CustomerWorkflows.tsx
-- src/lib/offline-catalog-cache.ts
-- src/lib/offline-catalog-cache.test.ts
-- src/lib/supabase-tenant-scope.test.ts
-- src/test/auth-session-cache-boundary.test.tsx
-- src/test/customer-workflow-tenant.test.tsx
-- src/test/offline-workspace-route-acceptance.test.tsx
+## العمل المرجعي المضاف
+راجع معرض `docs/reference-app/README.md` عند الحاجة. المطلوب ليس نسخ تصميم مرجعي أو ألوانه حرفياً؛ بل استلهام وضوح مركز القيادة، Action Cards، التقارير، الإعدادات، المهام، والصحة مع هوية الأغبري. لا تنسخ أرقام الصور أو بياناتها أو أخطاءها.
 
-نفّذ الاختبارات المركزة:
-    npm test -- src/lib/offline-catalog-cache.test.ts src/lib/supabase-tenant-scope.test.ts src/test/auth-session-cache-boundary.test.tsx src/test/customer-workflow-tenant.test.tsx src/test/offline-workspace-route-acceptance.test.tsx
-    npm run typecheck
-    npm run build
+## حفظ العمل والتنسيق
+- حدّث `docs/execution/P1_CHECKPOINT.md` كل 10 دقائق أو بعد كل task/commit/failure أو قبل انقطاع متوقع.
+- سجل UTC، task ID، base/result SHA، paths المحجوزة، ملفات dirty، local commit، أمر الاختبار والنتيجة، CI run IDs/links، root cause/retry count، contract request، blocker، exact_next_command.
+- استخدم detached local worktree عند توافره. أنشئ commits صغيرة محلية ولا تدفع main؛ P3 هو الوحيد الذي يدمج ويدفع إلى main. لا تستخدم git index مشتركة بالتزامن.
+- عند نفاد الرصيد أو انقطاع الإنترنت احتفظ بالعمل كما هو وحدث checkpoint؛ لا reset/clean/stash/delete. لا تقل إن التقدم محفوظ في GitHub إذا لم يصل فعلاً.
 
-تحقق من CI الموجود على SHA نفسه قبل تشغيل أي workflow جديد. أصلح regression المثبتة فقط في ملفاتك. حافظ على مسودات السلة؛ لا تمسحها لإجبار الاختبار على النجاح.
-
-## نطاق UI لبقية المسارات
-
-- W02: DLV-002/ROUTES-001/IDENTITY-001 — customer/admin routes، RTL، navigation، responsive، loading/empty/error/retry/unauthorized/success، PWA/brand.
-- W03: DLV-003 — product lifecycle/search/detail/admin UI.
-- W04: DLV-004 — cart/checkout/retry/ambiguous response UX.
-- W05: DLV-005/006/014 — registration/approval/sessions/device/offline UI.
-- W07/W08: DLV-009/010 — import/export screens، Customer 360، analytics.
-- W09: DLV-011/012/013 — print/PDF/AI/WhatsApp user-facing flows and explicit unavailable states.
-- W10: DLV-017/018 — accessibility/keyboard/contrast/responsive/handover UI.
-
-اختر فقط متطلبات تفصيلية مفتوحة في CSV وتجنب No-repeat set. استخدم Task IDs الموجودة، لا تنشئ ID بديل.
-
-## ملكية الملفات
-
-مسموح لك: src/components/**, src/routes/**, src/styles.css, UI tests within src/test/**, assigned e2e/**.
-ممنوع: supabase/**, scripts/**, src/lib/api.ts, src/lib/supabase.ts, RLS/RPC/Edge, CURRENT_EXECUTION_STATE, matrix CSV, EXECUTION_LOG.
-عند الحاجة لعقد API، اكتب في REQUEST TO P2 في P1_CHECKPOINT.md العملية والطلب والاستجابة والـtenant/role/error/idempotency/audit والاختبار. لا تنشئ خدمة بديلة. استمر في مسار واجهة مستقل.
-
-## حفظ التقدم
-
-بعد كل task/commit/failure وبحد أقصى 10 دقائق، حدّث P1_CHECKPOINT.md: Task ID، base/result SHA، الملفات، أمر الاختبار والنتيجة، root cause، رابط CI، الملفات التي لا تزال غير ملتزمة، والعين next command. لا تلمس المؤشر المركزي؛ P2 يملكه ويحدّثه.
-ادفع fast-forward عادياً فقط إلى main. إذا تحرك main، قارن المسارات الجديدة وأعد ترتيب commit على رأسه إن كانت التغييرات منفصلة. لا force/reset/clean ولا حذف عمل غير ملتزم به.
-حد أقصى محاولتان للفشل نفسه؛ بعدها وثق السبب، أكمل البديل الممكن، وسجّل الخارجي BLOCKED_EXTERNAL ثم انتقل. لا خدمات مدفوعة ولا أسرار في commits.
-
-**في نهاية الدفعة:** سلّم ما أُغلق من صفوف قبول بأدلة exact-SHA، مع commit والملفات والاختبارات وروابطها، وسبب أي صف لم يغلق، وNEXT ACTION واحد. ابدأ فوراً بالمهمة الأولى.
+## منع الدوران والإغلاق
+لا تعِد inventory أو full scan أو tests مقبولة بلا regression/dependency change. محاولتان لنفس السبب ثم حل آمن/بديل وانتقل.
+سلّم P3: acceptance IDs، paths، local commit SHA، tests، browser/runtime proof status، طلب P2، blocker، وNEXT EXACT COMMAND. لا تستخدم COMPLETE بلا دليل exact SHA.

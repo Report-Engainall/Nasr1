@@ -1,3 +1,17 @@
+# THREE-AGENT OVERRIDE — 2026-10-30
+
+This newest instruction supersedes all older P1/P2-only ownership statements below. Nasr1 uses exactly three parallel programmers: P1 (UI/product journeys), P2 (backend/database/security/data integrations), P3 (business intelligence/decision engine/integration captain). Remote GitHub branch remains main-only: no permanent feature branches, no PRs, no force-push, no reset/clean and no deletion of uncommitted work.
+
+P3 alone owns `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`, the existing acceptance CSV, requirement registry, EXECUTION_LOG, master specification, protocol and integration queue. P1 updates only `docs/execution/P1_CHECKPOINT.md`; P2 updates only `docs/execution/P2_CHECKPOINT.md`; P3 updates `docs/execution/P3_CHECKPOINT.md` and consolidates the global state. File ownership is defined in protocol section 11.
+
+Every session reads only the first 80 global-state lines, its own command and checkpoint, then starts at the saved exact_next_command. No repository-wide rediscovery, no repeat 330-RPC inventory, no re-extracting the reference RAR. Checkpoints every 10 minutes and after commit/failure/interruption. Two attempts maximum for same root cause, then safe fallback and continue. P3 is the only remote-main integration/push owner and uses expected-SHA CAS; verify exact-SHA Actions after integration.
+
+AI policy: zero paid spend, no paid provider/model/fallback, no auto-recharge or billing method. Deterministic/local logic first, authorized official free API quotas only after checking current account/model limits and data terms. No account rotation or quota evasion. ChatGPT Free consumer UI is not an API. Never send raw PII, private pricing, cost/margins, payments or customer finance data to external free models. When all free quotas are exhausted, continue with deterministic code and explicitly label RULE_BASED/MODEL_UNAVAILABLE.
+
+Reference gallery: `docs/reference-app/README.md`, images under `docs/reference-app/images/`. It is design/feature reference only, not evidence of correctness. Do not copy identity, screenshot figures, customer data or errors into Nasr1.
+
+---
+
 # EXECUTION OVERRIDE — 2026-10-28: STRICT MAIN-ONLY PRODUCT DELIVERY
 
 For the only product repository Report-Engainall/Nasr1, main is the sole permitted GitHub branch. Do not create GitHub branches, pull requests, or additional repositories. Make bounded, conflict-free changes directly on main after relevant checks when the authorized write path permits it. Never force-push, rewrite published history, disable protection, or simulate progress by moving refs.

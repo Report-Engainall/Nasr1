@@ -94,3 +94,73 @@
 ## 10. تعريف الإغلاق
 
 صف القبول لا يغلق إلا بتنفيذ مدمج، وعقد وبيانات وصلاحيات صحيحة، واختبار مناسب على SHA الدقيق، ورفض بلا side effects عند الحاجة، وحالة واجهة صحيحة، ودليل قابل للفتح. لا يغلق DLV roll-up قبل صفوفه التابعة. REL-GATE-002 يبقى NO-GO حتى تحقق شروط الوثيقة الأصلية؛ لا تخفض المعايير لإرضاء الوقت.
+
+
+## 11. أمر نافذ — التشغيل الثلاثي P1/P2/P3 والاستئناف الدائم (2026-10-30)
+هذا القسم أحدث من أي توزيع ثنائي أقدم. الفريق الآن ثلاثة مبرمجين. لا يغيّر المستودع التنفيذي: `Report-Engainall/Nasr1` والفرع البعيد الوحيد `main`.
+
+### 11.1 الملكية المنفردة ومنع التعارض
+| الدور | الملكية الأساسية | الملفات المحجوزة |
+|---|---|---|
+| P1 — UX/UI/Product journeys | واجهة العميل والإدارة، routes، RTL، accessibility، responsive، حالات التحميل/الفراغ/الخطأ/retry/offline، ربط الشاشات | `src/routes/**`, `src/styles.css`, `src/components/**` افتراضياً، UI tests في `src/test/**`؛ يستثنى حجز P3 أدناه |
+| P2 — Backend/Data/Security | SQL/migrations/RLS/RPC/Edge، المعاملات، المخزون، المالية، الاستيراد، Onyx/WhatsApp contracts، AI gateway/provider adapters | `supabase/**`, `scripts/**`, `src/lib/api.ts`, `src/lib/supabase.ts`, `src/lib/auth.tsx`, و`src/lib/**` باستثناء مسارات P3 |
+| P3 — Intelligence/Decision/Integration Captain | ذكاء الأعمال والقرار والسيولة والتنبؤ ومصدر الدليل والتعلم، مرجع الصور، الوثائق المركزية، integration queue وglobal resume | `docs/**` المركزية، `AGENTS.md`, `src/components/intelligence/**`, `src/lib/intelligence/**`, `src/components/ExecutiveStoreAnalytics.tsx`, `src/components/StaffDashboardMetrics.tsx`, `src/components/AdminCustomer360.tsx`, `src/components/TaskCenter.tsx`, `src/lib/business-intelligence.ts`, `src/lib/sales-forecast.ts`, `src/lib/executive-analytics.ts`, `src/lib/customer-360-summary.ts` والاختبارات المخصصة لهذه المكونات/المكتبات. |
+
+P1 يملك `AghbariApp.tsx` وroutes وتركيب الشاشات؛ P3 يسلم Component API/props إلى P1 ولا يعدل ملفات التركيب. P3 لا يلمس API أو RPC أو Edge؛ يرسل عقداً إلى P2. P2 لا يعدل components/routes أو ملفات الذكاء المحجوزة. أي ملف مشترك جديد يسجل في lease واحد قبل التعديل.
+
+### 11.2 تقسيم العمل على 10 مسارات
+| المسار | P1 | P2 | P3 |
+|---|---|---|---|
+| W01 الحوكمة/التتبع | أدلة UX والمتصفح | أدلة DB/API/SHA | registry/matrix/state/log/coverage |
+| W02 الهوية والمسارات | RTL/navigation/PWA UX | Auth/RLS/profile/tenant/session | التتبع/القبول |
+| W03 الكتالوج | تفاصيل/بحث/منتجات/صور | schema/RPC/RLS/storage/search | quality signals عند الحاجة |
+| W04 السلة والطلبات | cart/checkout/recovery UX | atomic order/reservations/idempotency | قياس outcome |
+| W05 العضوية والجلسات | registration/approval/devices/offline UI | invitations/membership/revocation/scope | privacy evidence |
+| W06 المخزون والمالية | المخزون/المشتريات/الفواتير UI | ATP/ledger/payments/currency/locks/RLS | liquidity/dead-stock/replenishment decisions |
+| W07 الاستيراد وOnyx | upload/preview/history/export UX | chunks/hash/DQS/staging/reconcile/contracts | source lineage/passport |
+| W08 التحليلات | عرض وتركيب التقارير | tenant-safe aggregation/RPC | analytics/forecast/decisions/learning |
+| W09 AI/communications | assistant/settings/WhatsApp states | free quota adapters/AI gateway/privacy/outbox/receipts | deterministic policy/action cards |
+| W10 API/ops/release | accessibility/performance/health UI | semantic authorization/health probes/backup/restore | evidence/runbooks/release governance |
+
+كل workstream يعمل على المهام المفتوحة فقط من المصفوفة؛ لا يوجد عشرة فروع، بل عشرة مسارات عمل متوازية بملاك ومهام. يستمر كل مبرمج في مسار مستقل حين ينتظر عقداً من الآخر.
+
+### 11.3 نموذج التزامن والدمج
+- GitHub remote main فقط؛ ممنوع إنشاء فروع أو PRs دائمة أو مستودعات أخرى.
+- الأفضل: detached local worktree لكل مبرمج على base SHA المسجل؛ لا تنشأ refs بعيدة. commits محلية صغيرة من ملفات المالك فقط.
+- P3 هو Integration Captain الوحيد. يراجع checkpoints وdiffs/leases، يدمج commits محلياً بالتتابع، يمنع الدمج المكرر، ثم يشغل الاختبارات على الشجرة الموحدة.
+- لا push متزامن. P3 وحده يحدّث remote main باستخدام fast-forward/CAS وexpected SHA. عند CAS rejection: fetch واحد، قارن paths التي تحركت فقط، لا تعاود discovery.
+- إذا لم تتوفر worktrees: مشاركة مساحة العمل مشروطة بملف lease ومسار واحد لكل مبرمج؛ git index/commit/push عملية متسلسلة وليست متزامنة.
+- package.json/lockfiles/workflows/router generated files لا يلمسها إلا مالك محدد مسبقاً (P2) وبعد إعلان الحاجة لـP3. لا تضف dependency لمجرد تحسين بصري.
+
+### 11.4 ثلاثة checkpoints ومؤشر عالمي واحد
+- Global resume cursor الوحيد: `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`، يملكه P3.
+- P1 checkpoint: `docs/execution/P1_CHECKPOINT.md` (موجود).
+- P2 checkpoint: `docs/execution/P2_CHECKPOINT.md`.
+- P3 checkpoint: `docs/execution/P3_CHECKPOINT.md`.
+- P1/P2 لا يعدلان المصفوفة أو سجل التنفيذ المركزي أو المؤشر العالمي؛ يسجلان التقدم والطلبات في ملف كل منهما. P3 يدمجها في السجل المركزي. لا تنشئ memory/ledger/matrix ثانية.
+- checkpoint كل 10 دقائق كحد أقصى، وبعد task/commit/failure، وقبل أي انقطاع متوقع. احتفظ بالعمل غير الملتزم ولا تمسحه.
+- كل checkpoint: UTC, task ID, state, base/result SHA, reserved paths, working tree changes/local commit, tests and results, CI run IDs/links, root cause, retry count, blocker, request to another programmer, integration status, **exact next command**.
+
+### 11.5 استئناف خلال دقيقة ومنع إعادة الاستكشاف
+1. اقرأ أول 80 سطراً فقط من CURRENT_EXECUTION_STATE.
+2. اقرأ ملف تكليف دورك ثم checkpoint الخاص بك.
+3. راجع معرض الصور `docs/reference-app/README.md` فقط عند بداية session جديدة أو task مرجعي، ولا تعِد استخراج الأرشيف.
+4. تحقق من main SHA وActions لنفس SHA مرة واحدة. إذا تطابق SHA المحفوظ، نفذ exact_next_command؛ إذا تحرك، قارن قائمة paths المتغيرة وافحص المرتبط بمهمتك فقط.
+5. اقرأ ملفات أخرى فقط إذا كان checkpoint يسجل عقداً ناقصاً/سبباً محدداً. يمنع rescan الشامل، إعادة جرد RPC 330، وطلب إعادة الملفات من المالك.
+6. افحص Actions المسجلة قبل تشغيل أخرى. IN_PROGRESS تعني polling لنفس run لا بدء نسخة ثانية.
+7. محاولتان لنفس root cause فقط؛ بعدها إصلاح واحد أو بديل مكافئ للجزء القابل للتنفيذ، وثّق المتبقي BLOCKED/UNVERIFIED، ثم انتقل إلى مهمة مستقلة.
+8. عائق خارجي لا يوقف كامل المشروع: نفذ contract/fixtures المحلي الآمن، سجل الجزء الخارجي وحده BLOCKED_EXTERNAL، تابع بقية العمل.
+
+### 11.6 سياسة التكلفة والخصوصية
+- التكلفة المدفوعة = صفر. لا paid provider/model/fallback ولا billing method ولا Auto-Recharge.
+- deterministic code هو الأساس. free APIs فقط بعد التحقق من الموديل والحصة وشروط البيانات. ChatGPT Free UI ليس API ولا يجوز automation/cookie extraction.
+- لا تتجاوز quotas بتعدد الحسابات أو تدوير مفاتيح. احترم 429 وRetry-After وcooldown. عند نفاد كل free quota يعود المسار إلى قواعد محلية معلّمة RULE_BASED.
+- يمنع نقل PII والأسعار الخاصة والتكلفة والهوامش وكشوف الحساب والأرقام المالية الخام إلى مزود خارجي؛ سياسة مزود مجهولة = disabled.
+- لا كتابة على production أو إرسال واتساب/طلب/دفعة/مزامنة حية دون credentials وتصريح مستقل.
+
+### 11.7 متطلبات التسليم لكل مبرمج
+P1: acceptance IDs، paths، local commit, UI test/browser proof، API contract requests.
+P2: acceptance IDs، migration/RPC/API, PG17/security/transaction tests, exact SHA, privacy/tenant proof.
+P3: deterministic engine/evidence, integration queue, merged SHA, exact CI and matrix/cursor/log update.
+لا يعتبر commit أو شاشة أو CI على SHA سابق إغلاقاً. هدف الدفعة إغلاق 3 صفوف قبول تفصيلية إن سمحت الأدلة؛ وإن منع حاجز مثبت ذلك يسجل العدد الحقيقي دون ادعاء.
+

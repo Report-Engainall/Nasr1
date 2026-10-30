@@ -108,3 +108,7 @@
 - Error semantics: cached catalog is not rendered when revalidation fails.
 - Test proof / SHA: Core `40995284940` and P2 `40995284968` SUCCESS on `ee1b84303e5fc18b46bed0b37a880a306e06d5d8`.
 - P1 may integrate at: existing `/offline` route; no further service contract change requested.
+
+
+## Three-agent ownership override — 2026-10-30
+P1 continues UI ownership and this checkpoint only. P2 owns backend/API/security. P3 owns the intelligence reserved files, global cursor, matrix and central execution log. See section 11 of CONTINUOUS_PARALLEL_EXECUTION_PROTOCOL.md. P1 must not edit global CURRENT_EXECUTION_STATE, CSV or EXECUTION_LOG. Gallery is docs/reference-app/README.md; no archive re-extraction.
