@@ -110,7 +110,7 @@ describe('central device and session management', () => {
     expect(host?.textContent).toContain('مدير النظام');
     expect(host?.textContent).toContain('موظف الاختبار');
     expect(host?.textContent).toContain('عنوان الشبكة');
-    expect(mocks.rpc).toHaveBeenCalledWith('list_organization_sessions', { p_limit: 100 });
+    expect(mocks.rpc).toHaveBeenCalledWith('list_organization_sessions', { p_limit: 200 });
 
     const currentRevoke = host?.querySelector<HTMLButtonElement>(
       'button[aria-label="إبطال جلسة مدير النظام"]',
