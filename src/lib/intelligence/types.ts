@@ -31,8 +31,9 @@ export interface DecisionCandidate {
 export type DecisionOutcomeState="PROPOSED"|"IN_REVIEW"|"APPROVED"|"REJECTED"|"ASSIGNED"|"EXECUTING"|"EXECUTED"|"MEASURED";
 export interface DecisionActor {id:string;role:string}
 export interface DecisionMeasuredOutcome {value:number|null;unit:string;currency?:string;measuredAt:string;evidenceIds:string[]}
+export interface DecisionOutcomeEventRecord {id:string;idempotencyKey:string;type:string;actor:DecisionActor;at:string;reason?:string;owner?:string;measuredOutcome?:DecisionMeasuredOutcome}
 export interface DecisionOutcome {
  id:string;candidateId:string;version:number;state:DecisionOutcomeState;proposedBy:DecisionActor;owner:string;
  expectedOutcome:string;reason:string|null;createdAt:string;approvedAt:string|null;approvedBy:DecisionActor|null;
- assignedAt:string|null;executedAt:string|null;measuredOutcome:DecisionMeasuredOutcome|null;
+ assignedAt:string|null;executedAt:string|null;measuredOutcome:DecisionMeasuredOutcome|null;eventKeys:string[];history:DecisionOutcomeEventRecord[];
 }
