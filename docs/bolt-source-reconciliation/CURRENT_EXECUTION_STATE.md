@@ -1,5 +1,7 @@
 # CURRENT EXECUTION STATE — 2026-10-30 — AUTHORITATIVE RESUME SNAPSHOT
 
+> **P3 live cursor:** application code reviewed against main `e0915690c25f579d80bda0fcc7c41b4b92e7559a`. Exact-head Actions observed at cursor: One-main-branch cleanup #41013287453 completed/success; Aghbari Commerce checks #41013287473 in_progress/PENDING; P2 Playwright Critical Paths #41013287475 in_progress/PENDING. Do not transfer PASS from ancestor SHAs. P3 REF engines exist; all listed rows remain open for current-head CI and P1/P2 integration. This note is a cursor refresh, not a release gate.
+
 ## 1) Live repository snapshot
 - Repository: `Report-Engainall/Nasr1`; remote branch: `main` only. GitHub returned no open pull requests.
 - **Current code-bearing main SHA:** `a23c0b5cea98730f59093aa2f3e8f658509eddb4` (P3 evidence/decision engine batch; verify this exact SHA for code acceptance).

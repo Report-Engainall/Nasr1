@@ -53,3 +53,7 @@ Read the first 80 lines of `docs/bolt-source-reconciliation/CURRENT_EXECUTION_ST
 ## P3 intelligence integration addendum — current contracts
 Import ActionCard and EvidencePassport from @/components/intelligence. P3 pure modules are exported from @/lib/intelligence. P1 owns routes, navigation, state orchestration and event callbacks. Do not change AghbariApp.tsx from P3.
 Mount the P2 tenant-safe DTO only. Display separate currency cards; show no total across currencies. Preserve all evidence states and null values. Scenario outputs must be visibly labeled SIMULATED and must not look like ledger values. Decision lifecycle events call P2 persistence, never local state mutation. Learning compares only verified same-unit/currency/period values. AI UI shows provider availability/fallback reason but no keys, prompts, or raw commercial data. Health cards show per-probe evidence/freshness. RBAC views are explanatory and use the server canonical permission catalog only.
+
+
+## P3 handoff — pending consumer integration
+Mount the committed ActionCard and EvidencePassport components using the contracts in docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md. P3 engines/types are exported from @/lib/intelligence. Consume tenant-scoped DTOs only. Do not use demo data, do not flatten currencies, preserve UNAVAILABLE/null states, label scenario results SIMULATED, and route lifecycle actions through P2 persistence. Update P1_CHECKPOINT with exact SHA, screenshots/UI tests and exact next command; do not rescan the 84 reference images.

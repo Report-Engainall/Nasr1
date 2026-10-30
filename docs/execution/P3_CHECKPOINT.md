@@ -38,3 +38,14 @@
 - Integration status: merged/pushed to main and remotely verified; acceptance stays IMPLEMENTED / CI_PENDING pending exact Core and dependent P2/P1 evidence.
 - Blockers: P2's existing hidden-sidebar Playwright locator failure and hosted credential/approval gap remain separate; neither invalidates the P3 engine unit contracts, nor can either be called PASS.
 - exact_next_command: poll run `41010611128` on SHA `a23c0b5cea98730f59093aa2f3e8f658509eddb4`; inspect only intelligence TypeScript/test diagnostics if it fails, otherwise record exact-SHA Core result and continue to the P2 aggregate implementation.
+
+
+## P3 continuation cursor — 2026-10-30
+- Base/main SHA read immediately before this governance write: `e0915690c25f579d80bda0fcc7c41b4b92e7559a`.
+- Exact-head workflow observations: `One-main-branch cleanup` #41013287453: completed/success (https://github.com/Report-Engainall/Nasr1/actions/runs/41013287453); `Aghbari Commerce checks` #41013287473: in_progress/PENDING (https://github.com/Report-Engainall/Nasr1/actions/runs/41013287473); `P2 Playwright Critical Paths` #41013287475: in_progress/PENDING (https://github.com/Report-Engainall/Nasr1/actions/runs/41013287475)
+- P3 implemented source modules: Evidence Passport, daily deterministic decisions, per-currency liquidity, scheduled cashflow, dead-stock classification/exposure, complete-population retention, replenishment recommendations, what-if scenario wrapper, decision outcome state machine, outcome variance/learning evaluation, free-only AI route policy, safe AI operations summary, evidence-backed system health and canonical RBAC reader.
+- The exact first engine Core PASS is run `41011061800` on SHA `618f3bf0d584e0e26c4bb1fc7edec927329ab053`; this is historical ancestor evidence and is not a PASS for the current head.
+- The earlier liquidity/cashflow run `41011523565` failed because the expected 30-day fixture value was 120 instead of the correct 125. The expected value was corrected on a descendant; only a successful run on a descendant can close that CI gap.
+- Matrix rows updated to IMPLEMENTED / CI_PENDING / P1_P2_PENDING. No DLV roll-up closed.
+- P1 must mount the component contracts and prove actual route/UI state against P2 DTOs. P2 must deliver server-derived tenant aggregates, transactional decision outcome persistence, provider quota reservation/privacy controls, live probes and canonical RBAC, with no-side-effect denial proof.
+- exact_next_command: `gh run list --branch main --commit e0915690c25f579d80bda0fcc7c41b4b92e7559a --limit 10 --json databaseId,name,status,conclusion,headSha`.
