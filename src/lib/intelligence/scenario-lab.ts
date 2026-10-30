@@ -8,11 +8,19 @@ export interface ScenarioResult {
  assumptions:SalesScenarioAssumption[];result:number|null;changeAmount:number|null;status:"SIMULATED"|"WITHHELD";
  formulaId:string;formulaVersion:string;sourceEvidenceIds:string[];assumptionBoundary:"USER_SUPPLIED";accountingFact:false;limitations:string[];
 }
+function numericBaseline(value:number|string|null):number|null {
+ if(typeof value==="number")return Number.isFinite(value)&&value>=0&&value<=Number.MAX_SAFE_INTEGER?value:null;
+ if(typeof value!=="string")return null;
+ const normalized=value.trim();
+ if(!/^\d+(?:\.\d+)?$/.test(normalized))return null;
+ const parsed=Number(normalized);
+ return Number.isFinite(parsed)&&parsed>=0&&parsed<=Number.MAX_SAFE_INTEGER?parsed:null;
+}
 /** Reuses the existing forecast and bounded what-if calculator. No ledger or persistence side effects. */
 export function buildSalesScenario(input:{id:string;createdAt:string;asOf:string;currency:string;forecast:SalesForecastResult;
  baselineMetric:MetricSnapshot;evidenceRecords:EvidenceRecord[];assumptions:SalesScenarioAssumption[];constraints:ScenarioConstraint}):ScenarioResult {
  const passport=buildEvidencePassport({id:"scenario:"+input.id,generatedAt:input.createdAt,asOf:input.asOf,evidenceRecords:input.evidenceRecords,metrics:[input.baselineMetric]});
- const metric=passport.metrics[0],base=typeof metric.value==="number"?metric.value:typeof metric.value==="string"?Number(metric.value):NaN;
+ const metric=passport.metrics[0],base=numericBaseline(metric.value);
  const limits=input.constraints,limitsValid=Number.isFinite(limits.minimumChangePercent)&&Number.isFinite(limits.maximumChangePercent)&&
   limits.minimumChangePercent>=-100&&limits.maximumChangePercent<=500&&limits.minimumChangePercent<=limits.maximumChangePercent;
  const baselineValid=metric.status==="VERIFIED"&&metric.completeness==="COMPLETE"&&metric.quality==="ACCEPTABLE"&&metric.unit==="CURRENCY"&&

@@ -17,4 +17,11 @@ describe("what-if scenario wrapper",()=>{
   expect(result.status).toBe("WITHHELD");expect(result.result).toBeNull()});
  it("withholds a forecast baseline without verified source lineage",()=>expect(buildSalesScenario({id:"s",createdAt:asOf,asOf,currency:"YER",forecast,baselineMetric:{...metric,status:"UNVERIFIED"},evidenceRecords:[evidence],
   assumptions:[{id:"a",label:"test",changePercent:5,owner:"analyst"}],constraints:{minimumChangePercent:-100,maximumChangePercent:500}}).result).toBeNull());
+
+ it.each(["", "   ", "not-a-number"])("does not coerce unknown baseline text %j to zero",value=>{
+  const result=buildSalesScenario({id:"invalid-baseline",createdAt:asOf,asOf,currency:"YER",forecast,
+   baselineMetric:{...metric,value},evidenceRecords:[evidence],assumptions:[{id:"a",label:"test",changePercent:5,owner:"analyst"}],
+   constraints:{minimumChangePercent:-100,maximumChangePercent:500}});
+  expect(result).toMatchObject({status:"WITHHELD",baseline:null,result:null,changeAmount:null});
+ });
 });

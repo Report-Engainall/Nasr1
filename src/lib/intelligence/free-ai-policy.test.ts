@@ -16,4 +16,11 @@ describe("free quota AI router",()=>{
  it("requires source-backed verified quota evidence",()=>expect(chooseFreeAiRoute({question:"public question",sanitize,asOf:at,providers:[provider()],quotaEvidence:[],ruleEngineAvailable:true})).toMatchObject({mode:"RULE_BASED",paidSpendLimit:0}));
  it("blocks unsafe questions before provider selection",()=>expect(chooseFreeAiRoute({question:"user@example.com",sanitize,asOf:at,providers:[provider()],quotaEvidence,ruleEngineAvailable:true})).toMatchObject({mode:"RULE_BASED",reason:"UNSAFE_QUESTION",question:null}));
  it("produces prompt-free and secret-free operations telemetry",()=>expect(summarizeAiOperations(at,[{id:"1",provider:"gemini",mode:"MODEL",status:"FAILED",reasonCode:"provider_timeout",occurredAt:at,elapsedMs:200}])).toMatchObject({failed:1,containsPrompts:false,containsSecrets:false,errorCodes:["provider_timeout"]}));
+
+ it("rejects invalid cooldown timestamps instead of failing open",()=>expect(route([provider({cooldownUntil:"not-a-date"})])).toMatchObject({mode:"RULE_BASED",attemptedProviders:[{reason:"PROVIDER_COOLDOWN_INVALID"}]}));
+ it("selects the same model deterministically regardless of provider input order",()=>{
+  const first=provider({model:"z-model"}),second=provider({model:"a-model"});
+  expect(route([first,second]).model).toBe("a-model");
+  expect(route([second,first]).model).toBe("a-model");
+ });
 });

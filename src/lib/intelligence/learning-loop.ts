@@ -28,8 +28,20 @@ export function evaluateDecisionLearning(input:LearningEvaluationInput):Learning
  if(!input.expectedRuleId.trim()||!input.expectedRuleVersion.trim()||!input.currentRuleId.trim()||!input.currentRuleVersion.trim())warnings.push("RULE_VERSION_MISSING");
  const left=numberValue(expected.value),right=numberValue(actual.value);
  if(left===null||right===null)warnings.push("UNKNOWN_EXPECTED_OR_ACTUAL_VALUE");
- const valid=warnings.length===0&&left!==null&&right!==null,variance=valid?(right as number)-(left as number):null;
- const percent=valid&&left!==0?((right as number)-(left as number))/Math.abs(left as number)*100:null;
+ let valid=warnings.length===0&&left!==null&&right!==null;
+ let variance:number|null=null,percent:number|null=null;
+ if(valid){
+  const candidate=(right as number)-(left as number);
+  const candidatePercent=left!==0?candidate/Math.abs(left as number)*100:null;
+  if(!Number.isFinite(candidate)||Math.abs(candidate)>Number.MAX_SAFE_INTEGER||
+    (candidatePercent!==null&&(!Number.isFinite(candidatePercent)||Math.abs(candidatePercent)>Number.MAX_SAFE_INTEGER))){
+   warnings.push("OUTCOME_ARITHMETIC_UNSAFE");
+   valid=false;
+  }else{
+   variance=candidate;
+   percent=candidatePercent;
+  }
+ }
  const status:EvidenceStatus=valid?"VERIFIED":expected.status==="UNVERIFIED"||actual.status==="UNVERIFIED"?"UNVERIFIED":"NEEDS_REVIEW";
  return {id:input.id,status,metricKey:expected.key,unit:expected.unit,...(expected.currency?{currency:expected.currency}:{}),
   expectedValue:valid?left:null,actualValue:valid?right:null,variance,variancePercent:percent!==null&&Number.isFinite(percent)?percent:null,

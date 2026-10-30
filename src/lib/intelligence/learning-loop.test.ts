@@ -15,9 +15,19 @@ describe("learning outcome measurement",()=>{
  it("withholds variance when snapshots are not measured at the outcome timestamp",()=>{
   const expected=metric("e",10,"COUNT"),actual=metric("a",8,"COUNT");
   const mismatched={...actual,asOf:"2026-10-29T07:00:00Z"};
-  const result=evaluateDecisionLearning({id:"l",measuredAt:at,evidenceRecords:[evidence("e"),evidence("a")],expected,actual:mismatched,
+  const result=evaluateDecisionLearning({id:"l",measuredAt:at,evidenceRecords:[ev("e"),ev("a")],expected,actual:mismatched,
    expectedRuleId:"r",expectedRuleVersion:"1",currentRuleId:"r",currentRuleVersion:"1"});
   expect(result.variance).toBeNull();expect(result.warnings).toContain("MEASUREMENT_AS_OF_MISMATCH");
  });
  it("does not divide percentage variance by zero",()=>expect(run(metric("e",0,"COUNT"),metric("a",5,"COUNT")).variancePercent).toBeNull());
+
+ it("withholds arithmetic overflow rather than returning an unsafe variance",()=>{
+  const result=run(metric("e",-Number.MAX_SAFE_INTEGER,"CURRENCY","YER"),metric("a",Number.MAX_SAFE_INTEGER,"CURRENCY","YER"));
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.expectedValue).toBeNull();
+  expect(result.actualValue).toBeNull();
+  expect(result.variance).toBeNull();
+  expect(result.variancePercent).toBeNull();
+  expect(result.warnings).toContain("OUTCOME_ARITHMETIC_UNSAFE");
+ });
 });

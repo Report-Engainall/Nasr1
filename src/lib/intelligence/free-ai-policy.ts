@@ -22,7 +22,7 @@ export function chooseFreeAiRoute(input:{
   reason:"UNSAFE_QUESTION",attemptedProviders:[],paidSpendLimit:0,question:null};
  const now=Date.parse(input.asOf);if(!Number.isFinite(now))throw new Error("asOf must be valid");
  const attemptedProviders:Array<{provider:AiProvider;model:string;reason:string}>=[];
- const selected=input.providers.find(provider=>{
+ const selected=[...input.providers].sort((a,b)=>a.provider.localeCompare(b.provider)||a.model.localeCompare(b.model)).find(provider=>{
   let reason="ELIGIBLE";
   if(provider.quotaStatus!=="AVAILABLE")reason="QUOTA_"+provider.quotaStatus;
   else if(!provider.freeTierConfirmed)reason="FREE_TIER_NOT_CONFIRMED";
@@ -36,7 +36,8 @@ export function chooseFreeAiRoute(input:{
     reason="FREE_QUOTA_EVIDENCE_NOT_VERIFIED";
   }
   if(reason==="ELIGIBLE"&&(!Number.isFinite(Date.parse(provider.verifiedAt))||now-Date.parse(provider.verifiedAt)>86400000||Date.parse(provider.verifiedAt)>now))reason="PROVIDER_VERIFICATION_STALE";
-  else if(reason==="ELIGIBLE"&&provider.cooldownUntil&&Number.isFinite(Date.parse(provider.cooldownUntil))&&Date.parse(provider.cooldownUntil)>now)reason="PROVIDER_COOLDOWN";
+  else if(reason==="ELIGIBLE"&&provider.cooldownUntil!==null&&!Number.isFinite(Date.parse(provider.cooldownUntil)))reason="PROVIDER_COOLDOWN_INVALID";
+  else if(reason==="ELIGIBLE"&&provider.cooldownUntil&&Date.parse(provider.cooldownUntil)>now)reason="PROVIDER_COOLDOWN";
   attemptedProviders.push({provider:provider.provider,model:provider.model,reason});
   return reason==="ELIGIBLE";
  });
