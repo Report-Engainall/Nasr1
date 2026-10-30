@@ -99,6 +99,23 @@ export async function runGeneralLedgerReversalAcceptance({
     }
   }
 
+  async function captureAccountingAccountCreateDenialState(code) {
+    await db.unsafe("reset role");
+    try {
+      const rows = await db.unsafe(
+        "select jsonb_build_object(" +
+          "'accounts',coalesce((select jsonb_agg(to_jsonb(a) order by a.id::text) from public.accounting_accounts a where a.organization_id=$1::uuid and a.code=$2),'[]'::jsonb)," +
+          "'audit',coalesce((select jsonb_agg(to_jsonb(a) order by a.id::text) from public.audit_logs a where a.organization_id=$1::uuid and a.action='accounting.account_created' and a.entity_type='accounting_account' and a.entity_id in (select account.id from public.accounting_accounts account where account.organization_id=$1::uuid and account.code=$2)),'[]'::jsonb)" +
+        ")::text as snapshot",
+        [organizationId, code],
+      );
+      assert.equal(rows.length, 1, "privileged chart-of-accounts oracle must return one full-state snapshot");
+      return rows[0].snapshot;
+    } finally {
+      await db.unsafe("set role authenticated");
+    }
+  }
+
   async function captureJournalEntryPostDenialState(entryId) {
     await db.unsafe("reset role");
     try {
@@ -194,6 +211,50 @@ export async function runGeneralLedgerReversalAcceptance({
 
   const expenseAccountId = await createAccount("CI-REV-EXP-", "CI reversal expense", "expense");
   const cashAccountId = await createAccount("CI-REV-CASH-", "CI reversal cash", "asset");
+
+  // Same-tenant ordinary staff cannot create a chart-of-accounts row or audit entry.
+  // The exact account code remains available to the administrator after the denial.
+  const staffAccountCode = `CI-STAFF-DENY-${suffix}`;
+  const staffAccountName = `CI denied account ${suffix}`;
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  const accountStateBeforeDeniedStaffRequest = await captureAccountingAccountCreateDenialState(staffAccountCode);
+  await expectFailure(
+    "same-tenant ordinary staff cannot create a chart-of-accounts account",
+    () => db.unsafe(
+      "select public.create_accounting_account($1::text,$2::text,$3::text,null,null) as result",
+      [staffAccountCode, staffAccountName, "expense"],
+    ),
+    /finance permission required to manage the chart of accounts/i,
+    "42501",
+  );
+  const accountStateAfterDeniedStaffRequest = await captureAccountingAccountCreateDenialState(staffAccountCode);
+  assert.equal(
+    accountStateAfterDeniedStaffRequest,
+    accountStateBeforeDeniedStaffRequest,
+    "ordinary-staff chart-of-accounts denial must preserve account and audit snapshots byte-for-byte",
+  );
+
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  const authorizedStaffDeniedAccount = asJson((await db.unsafe(
+    "select public.create_accounting_account($1::text,$2::text,$3::text,null,null) as result",
+    [staffAccountCode, staffAccountName, "expense"],
+  ))[0].result);
+  assert.equal(authorizedStaffDeniedAccount.code, staffAccountCode);
+  assert.equal(authorizedStaffDeniedAccount.replayed, false,
+    "admin must create the same account code after staff denial; denial must not reserve the code");
+  const authorizedStaffDeniedAccountReplay = asJson((await db.unsafe(
+    "select public.create_accounting_account($1::text,$2::text,$3::text,null,null) as result",
+    [staffAccountCode, staffAccountName, "expense"],
+  ))[0].result);
+  assert.equal(authorizedStaffDeniedAccountReplay.id, authorizedStaffDeniedAccount.id);
+  assert.equal(authorizedStaffDeniedAccountReplay.replayed, true,
+    "authorized retry must replay the existing account rather than duplicate it");
+  const authorizedAccountAudit = await db.unsafe(
+    "select action from public.audit_logs where organization_id=$1::uuid and entity_type='accounting_account' and entity_id=$2::uuid and action='accounting.account_created'",
+    [organizationId, authorizedStaffDeniedAccount.id],
+  );
+  assert.equal(authorizedAccountAudit.length, 1,
+    "authorized account creation must emit exactly one audit entry across replay");
 
   // Ordinary same-tenant staff cannot create a manual draft or consume its idempotency key.
   const staffDraftCreateKey = randomUUID();
