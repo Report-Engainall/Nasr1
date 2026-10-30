@@ -5796,12 +5796,6 @@ async function main() {
   ))[0];
   assert.equal(postExecutePrivileges.anon_can_execute,false,"anonymous role must not execute journal posting");
   assert.equal(postExecutePrivileges.authenticated_can_execute,true,"the authenticated role reaches the RPC-level finance guard");
-  await db.unsafe("reset role");
-  await setIdentity(accountantAuthUserId,"ci-accountant@example.test");
-  await db.unsafe("set role authenticated");
-  await db.unsafe("reset role");
-  await setIdentity(authUserId,"ci-customer-one@example.test");
-  await db.unsafe("set role authenticated");
   const deniedPostBaseline=(await db.unsafe(
     "select e.status,e.posted_by_profile_id::text as posted_by,e.posted_at::text as posted_at,e.updated_at::text as updated_at, " +
     "(select count(*)::integer from public.accounting_journal_lines l where l.organization_id=e.organization_id and l.journal_entry_id=e.id) as line_count, " +
@@ -5813,12 +5807,19 @@ async function main() {
   assert.equal(deniedPostBaseline.posted_by,null);
   assert.equal(deniedPostBaseline.posted_at,null);
   assert.equal(deniedPostBaseline.line_count,2);
+  await db.unsafe("reset role");
+  await setIdentity(accountantAuthUserId,"ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
+  await db.unsafe("reset role");
+  await setIdentity(authUserId,"ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
   await expectFailure(
     "customer cannot post a balanced general journal",
     () => db.unsafe("select public.post_general_journal_entry($1::uuid) as result",[deniedPostingJournalId]),
     /finance permission required to post a journal entry/i,
     "42501",
   );
+  await db.unsafe("reset role");
   const deniedPostAfter=(await db.unsafe(
     "select e.status,e.posted_by_profile_id::text as posted_by,e.posted_at::text as posted_at,e.updated_at::text as updated_at, " +
     "(select count(*)::integer from public.accounting_journal_lines l where l.organization_id=e.organization_id and l.journal_entry_id=e.id) as line_count, " +
@@ -5832,6 +5833,7 @@ async function main() {
     "denied customer posting must not emit a journal-posted audit event");
   assert.equal((await db.unsafe("select count(*)::integer as count from public.accounting_journal_entries where organization_id=$1::uuid and id=$2::uuid and status='draft'",[organizationId,deniedPostingJournalId]))[0].count,1,
     "denied customer posting leaves the original draft addressable and unchanged");
+  await db.unsafe("set role authenticated");
   assert.equal((await db.unsafe("select id from public.accounting_accounts where id=$1::uuid",[debitAccountId])).length,0,"customer cannot read the accounting chart");
   await expectFailure(
     "customer cannot call the general-ledger RPC",
