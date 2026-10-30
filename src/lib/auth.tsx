@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { supabase } from './supabase';
 import { getAuthEmailRedirectUrl } from './auth-redirect';
 
@@ -43,12 +43,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   // Invalidate auth-scoped client state when server membership/scope may have changed.
   const [sessionRevision, setSessionRevision] = useState(0);
+  // Ignore profile reads that finish after a newer auth event changed the session scope.
+  const refreshGeneration = useRef(0);
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
   const [configurationError, setConfigurationError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    try { setUser(await loadProfile()); } catch { setUser(null); } finally { setReady(true); }
+    const generation = ++refreshGeneration.current;
+    try {
+      const nextUser = await loadProfile();
+      if (generation === refreshGeneration.current) setUser(nextUser);
+    } catch {
+      if (generation === refreshGeneration.current) setUser(null);
+    } finally {
+      if (generation === refreshGeneration.current) setReady(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -61,11 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' ||
           event === 'PASSWORD_RECOVERY' || event === 'MFA_CHALLENGE_VERIFIED'
         ) {
+          // Invalidate any in-flight profile read before processing this session boundary.
+          refreshGeneration.current += 1;
           setSessionRevision((revision) => revision + 1);
         }
         if (
-          event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED' ||
-          event === 'PASSWORD_RECOVERY' || event === 'MFA_CHALLENGE_VERIFIED'
+          event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'USER_UPDATED' ||
+          event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY' ||
+          event === 'MFA_CHALLENGE_VERIFIED'
         ) {
           setTimeout(() => { void refresh(); }, 0);
         }

@@ -135,6 +135,126 @@ describe("authentication-scoped query cache boundary", () => {
     await waitFor(() => expect(queryClient.getQueryData(["private-finance"])).toBeUndefined());
   });
 
+  it("does not let an older profile refresh overwrite a newly signed-in account", async () => {
+    await mountWithPrivateCache();
+    authMocks.rpc.mockClear();
+
+    let resolveOldProfile!: (value: {
+      data: { profile_id: string; full_name: string; email: string; roles: string[] };
+      error: null;
+    }) => void;
+    const oldProfile = new Promise<{
+      data: { profile_id: string; full_name: string; email: string; roles: string[] };
+      error: null;
+    }>((resolve) => { resolveOldProfile = resolve; });
+    authMocks.rpc.mockImplementationOnce(() => oldProfile);
+
+    act(() => authMocks.listener?.("TOKEN_REFRESHED"));
+    await waitFor(() => expect(authMocks.rpc).toHaveBeenCalledTimes(1));
+
+    authMocks.currentUserId = "auth-user-b";
+    authMocks.roles = ["manager"];
+    act(() => authMocks.listener?.("SIGNED_IN"));
+    await screen.findByText("auth-user-b:manager");
+
+    resolveOldProfile({
+      data: {
+        profile_id: "profile-auth-user-a",
+        full_name: "auth-user-a",
+        email: "auth-user-a@example.test",
+        roles: ["customer"],
+      },
+      error: null,
+    });
+    await act(async () => {
+      await oldProfile;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(screen.getByText("auth-user-b:manager")).toBeInTheDocument();
+    expect(screen.queryByText("auth-user-a:customer")).not.toBeInTheDocument();
+  });
+
+  it("does not restore an authenticated identity when a profile read resolves after logout", async () => {
+    await mountWithPrivateCache();
+    authMocks.rpc.mockClear();
+
+    let resolveOldProfile!: (value: {
+      data: { profile_id: string; full_name: string; email: string; roles: string[] };
+      error: null;
+    }) => void;
+    const oldProfile = new Promise<{
+      data: { profile_id: string; full_name: string; email: string; roles: string[] };
+      error: null;
+    }>((resolve) => { resolveOldProfile = resolve; });
+    authMocks.rpc.mockImplementationOnce(() => oldProfile);
+
+    act(() => authMocks.listener?.("TOKEN_REFRESHED"));
+    await waitFor(() => expect(authMocks.rpc).toHaveBeenCalledTimes(1));
+
+    authMocks.currentUserId = null;
+    act(() => authMocks.listener?.("SIGNED_OUT"));
+    await screen.findByText("signed-out");
+
+    resolveOldProfile({
+      data: {
+        profile_id: "profile-auth-user-a",
+        full_name: "auth-user-a",
+        email: "auth-user-a@example.test",
+        roles: ["customer"],
+      },
+      error: null,
+    });
+    await act(async () => {
+      await oldProfile;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(screen.getByText("signed-out")).toBeInTheDocument();
+    expect(screen.queryByText("auth-user-a:customer")).not.toBeInTheDocument();
+  });
+
+  it("refreshes on INITIAL_SESSION and ignores the prior identity's pending profile read", async () => {
+    await mountWithPrivateCache();
+    authMocks.rpc.mockClear();
+
+    let resolveOldProfile!: (value: {
+      data: { profile_id: string; full_name: string; email: string; roles: string[] };
+      error: null;
+    }) => void;
+    const oldProfile = new Promise<{
+      data: { profile_id: string; full_name: string; email: string; roles: string[] };
+      error: null;
+    }>((resolve) => { resolveOldProfile = resolve; });
+    authMocks.rpc.mockImplementationOnce(() => oldProfile);
+
+    act(() => authMocks.listener?.("TOKEN_REFRESHED"));
+    await waitFor(() => expect(authMocks.rpc).toHaveBeenCalledTimes(1));
+
+    authMocks.currentUserId = "auth-user-b";
+    authMocks.roles = ["manager"];
+    act(() => authMocks.listener?.("INITIAL_SESSION"));
+    await screen.findByText("auth-user-b:manager");
+    await waitFor(() => expect(authMocks.rpc).toHaveBeenCalledTimes(2));
+
+    resolveOldProfile({
+      data: {
+        profile_id: "profile-auth-user-a",
+        full_name: "auth-user-a",
+        email: "auth-user-a@example.test",
+        roles: ["customer"],
+      },
+      error: null,
+    });
+    await act(async () => {
+      await oldProfile;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(screen.getByText("auth-user-b:manager")).toBeInTheDocument();
+    expect(screen.queryByText("auth-user-a:customer")).not.toBeInTheDocument();
+  });
+
   it("clears cached data when effective roles change for the same account", async () => {
     const { queryClient } = await mountWithPrivateCache();
     queryClient.setQueryData(["private-inventory"], { sentinel: "STAFF-ONLY-STOCK" });
