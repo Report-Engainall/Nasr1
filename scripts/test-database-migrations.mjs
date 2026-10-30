@@ -1800,17 +1800,34 @@ async function main() {
   // blank both printable names for the source customer while keeping the linked
   // invoice/credit memo intact, then verify selectors and PDF fallback for each
   // finance role. Restore the fixture labels even if an assertion fails.
-  await db.unsafe("reset role");
-  const originalPrintCustomerLabels = (await db.unsafe(
-    "select business_name,contact_name from public.customers where id=$1 and organization_id=$2",
-    [customerOneId, organizationId],
-  ))[0];
-  assert.ok(originalPrintCustomerLabels, "finance print privacy fixture customer must exist");
-  await db.unsafe(
-    "update public.customers set business_name='',contact_name='' where id=$1 and organization_id=$2",
-    [customerOneId, organizationId],
-  );
+  // Post the source-linked draft only inside a transaction so the statement
+  // contract sees a real posted credit row for every finance role; rollback below
+  // restores the draft and all ledger/customer/audit effects for later tests.
+  await db.unsafe("begin");
+  let originalPrintCustomerLabels;
   try {
+    await db.unsafe("reset role");
+    await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+    await db.unsafe("set role authenticated");
+    const temporaryPrintCreditPosting = (await db.unsafe(
+      "select public.post_general_journal_entry($1::uuid) as result",
+      [preparedPrintCreditMemo.journal_entry_id],
+    ))[0].result;
+    assert.equal(temporaryPrintCreditPosting.status, "posted",
+      "source-backed print fixture must produce a real posted credit memo for statement output");
+    assert.equal(temporaryPrintCreditPosting.replayed, false,
+      "temporary statement fixture posting must be the first posting in its isolated transaction");
+
+    await db.unsafe("reset role");
+    originalPrintCustomerLabels = (await db.unsafe(
+      "select business_name,contact_name from public.customers where id=$1 and organization_id=$2",
+      [customerOneId, organizationId],
+    ))[0];
+    assert.ok(originalPrintCustomerLabels, "finance print privacy fixture customer must exist");
+    await db.unsafe(
+      "update public.customers set business_name='',contact_name='' where id=$1 and organization_id=$2",
+      [customerOneId, organizationId],
+    );
     for (const [actorId, email, roleLabel] of [
       [staffAuthUserId, "admin@aghbari.ye", "admin"],
       [accountantAuthUserId, "ci-accountant@example.test", "accountant"],
@@ -1959,15 +1976,33 @@ async function main() {
       const printedInvoice = statementPrint.invoices.find((row) => row.id === invoice.id);
       assert.ok(printedInvoice, roleLabel + " statement must include the tenant's source invoice");
       assert.equal(Number(printedInvoice.paid_amount), 100000);
-      assert.equal(Number(printedInvoice.outstanding_amount), 270000);
+      const statementCreditMemo = statementPrint.credits.find((row) => row.id === printCreditMemoId);
+      assert.ok(statementCreditMemo, roleLabel + " statement must include the real posted source credit memo");
+      assert.equal(Number(statementCreditMemo.total_amount), Number(preparedPrintCreditMemo.total_amount));
+      assert.equal(Number(printedInvoice.credit_memo_amount), Number(preparedPrintCreditMemo.total_amount));
+      assert.equal(
+        Number(printedInvoice.outstanding_amount),
+        Math.max(Number(printedInvoice.total_amount) - Number(printedInvoice.paid_amount) - Number(printedInvoice.credit_memo_amount), 0),
+        roleLabel + " statement outstanding must reconcile invoice less saved payment and posted credit",
+      );
+      const statementCurrencySummary = statementPrint.summary.find((row) => row.currency === printedInvoice.currency);
+      assert.ok(statementCurrencySummary, roleLabel + " statement must include the source invoice currency summary");
+      assert.equal(Number(statementCurrencySummary.credited), Number(preparedPrintCreditMemo.total_amount));
+      assert.equal(Number(statementCurrencySummary.outstanding), Number(printedInvoice.outstanding_amount));
       assert.equal(statementPrint.customer.id, customerOneId);
     }
   } finally {
     await db.unsafe("reset role");
-    await db.unsafe(
-      "update public.customers set business_name=$3,contact_name=$4 where id=$1 and organization_id=$2",
-      [customerOneId, organizationId, originalPrintCustomerLabels.business_name, originalPrintCustomerLabels.contact_name],
-    );
+    try {
+      if (originalPrintCustomerLabels) {
+        await db.unsafe(
+          "update public.customers set business_name=$3,contact_name=$4 where id=$1 and organization_id=$2",
+          [customerOneId, organizationId, originalPrintCustomerLabels.business_name, originalPrintCustomerLabels.contact_name],
+        );
+      }
+    } finally {
+      await db.unsafe("rollback");
+    }
   }
 
   await db.unsafe("reset role");
