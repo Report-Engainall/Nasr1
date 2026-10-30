@@ -6,13 +6,14 @@ export interface IntelligenceAggregateError {code:string;message:string;sqlState
 export interface CashflowScheduleEntry {id:string;direction:"INFLOW"|"OUTFLOW";dueDate:string;amount:MetricSnapshot}
 export interface CashflowScheduleAggregate {status:EvidenceStatus;completeness:DataCompleteness;quality:DataQuality;entries:CashflowScheduleEntry[];warnings:string[]}
 export interface InventoryMovementAggregate {productRef:string;lastMovementAt:string|null;movementStatus:EvidenceStatus;period:{from:string;to:string};evidenceIds:string[]}
-export interface CustomerRetentionAggregate {customerRef:string;currency:string;ordersCurrentPeriod:MetricSnapshot;ordersPreviousPeriod:MetricSnapshot;salesCurrentPeriod:MetricSnapshot;lastOrderAt:string|null}
+export interface CustomerRetentionAggregate {customerRef:string;ordersCurrentPeriod:MetricSnapshot;ordersPreviousPeriod:MetricSnapshot;lastOrderAt:string|null}
+export interface CustomerRetentionSalesAggregate {customerRef:string;currency:string;sales:MetricSnapshot}
 export interface IntelligenceAggregateBase {
  requestId:string;asOf:string;period:{from:string;to:string};currency:string|null;
  authorization:IntelligenceAggregateAuthorization;sourceTables:string[];evidenceRecords:EvidenceRecord[];metrics:MetricSnapshot[];
  formulaVersions:string[];completeness:DataCompleteness;quality:DataQuality;warnings:string[];
  errors:IntelligenceAggregateError[];sqlState:string|null;sideEffects:"NONE";cashflowSchedule?:CashflowScheduleAggregate;
- inventoryMovements?:InventoryMovementAggregate[];customerRetention?:{status:EvidenceStatus;completeness:DataCompleteness;quality:DataQuality;expectedCustomerCount:number;returnedCustomerCount:number;truncated:boolean;customers:CustomerRetentionAggregate[];evidenceIds:string[]};
+ inventoryMovements?:InventoryMovementAggregate[];customerRetention?:{status:EvidenceStatus;completeness:DataCompleteness;quality:DataQuality;expectedCustomerCount:number;returnedCustomerCount:number;expectedSalesRecordCount:number;returnedSalesRecordCount:number;truncated:boolean;customers:CustomerRetentionAggregate[];salesByCurrency:CustomerRetentionSalesAggregate[];evidenceIds:string[]};
 }
 export type IntelligenceAggregateResponse=
  |(IntelligenceAggregateBase&{status:"OK"|"PARTIAL"})

@@ -21,7 +21,7 @@ function normalize(metric:MetricSnapshot,records:Map<string,EvidenceRecord>,dupl
  if(metric.quality!=="ACCEPTABLE")return downgrade(metric.quality==="INVALID"?"UNVERIFIED":"NEEDS_REVIEW","METRIC_QUALITY_NOT_ACCEPTABLE","PARTIAL");
  if(metric.value===null||!validTime(metric.asOf)||!validTime(metric.lineage.calculatedAt)||!metric.lineage.formulaId.trim()||!metric.lineage.formulaVersion.trim())
   return downgrade("NEEDS_REVIEW","METRIC_METADATA_INCOMPLETE","PARTIAL");
- if(metric.unit==="CURRENCY"){
+ if(metric.unit==="CURRENCY"||metric.unit==="CURRENCY_PER_UNIT"){
   if(!metric.currency?.trim())return downgrade("NEEDS_REVIEW","CURRENCY_NOT_IDENTIFIED","PARTIAL");
   if(rs.some(s=>!s.currency?.trim()))return downgrade("NEEDS_REVIEW","SOURCE_CURRENCY_MISSING","PARTIAL");
   if(rs.some(s=>s.currency!==metric.currency))return downgrade("UNVERIFIED","SOURCE_CURRENCY_CONFLICT","PARTIAL");

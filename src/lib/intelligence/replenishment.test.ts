@@ -14,8 +14,9 @@ describe("replenishment recommendations",()=>{
   expect(r).toMatchObject({status:"VERIFIED",action:"RECOMMEND",availableToPromise:5,reorderPoint:20,dailyDemand:1,leadTimeDemand:15,targetStock:20,recommendedQuantity:15,automaticPurchase:false});
  });
  it("withholds when a required evidence field is unverified",()=>{
-  const result=build({lead:metric("lead",15,"DAYS",null)}),r=result.recommendations[0];
-  expect(r.status).toBe("VERIFIED");
+  const lead={...metric("lead",15,"DAYS",null),status:"UNVERIFIED" as const};
+  const result=build({lead}),r=result.recommendations[0];
+  expect(r.status).toBe("UNVERIFIED");expect(r.action).toBe("WITHHELD");expect(r.recommendedQuantity).toBeNull();
  });
  it("does not purchase automatically when ATP is adequate",()=>{
   const result=build({atp:metric("atp",50,"QUANTITY")});
