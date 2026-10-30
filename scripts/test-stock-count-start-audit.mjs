@@ -439,6 +439,104 @@ async function main() {
     /stock count is not open/i,
   );
 
+  // Finalization is the destructive inventory boundary, so prove that role/tenant
+  // denials are atomic too; rejection must not apply even one variance or audit row.
+  const snapshotCompletionBoundary = async () => {
+    await commandDb.unsafe("reset role").catch(() => {});
+    roleEstablished = false;
+    const sessionRows = await commandDb.unsafe(
+      "select status,counted_lines::integer as counted_lines,total_lines::integer as total_lines," +
+        "completed_by::text as completed_by,completed_at::text as completed_at," +
+        "cancelled_by::text as cancelled_by,cancelled_at::text as cancelled_at " +
+        "from public.stock_count_sessions where organization_id=$1::uuid and id=$2::uuid",
+      [organizationId, lateSession.id],
+    );
+    assert.equal(sessionRows.length, 1, "completion authorization fixture remains tenant-owned");
+    const lineRows = await commandDb.unsafe(
+      "select product_id::text as product_id,counted_quantity::text as counted_quantity," +
+        "counted_by::text as counted_by,variance::text as variance," +
+        "completed_quantity::text as completed_quantity,completed_at::text as completed_at " +
+        "from public.stock_count_lines where organization_id=$1::uuid and session_id=$2::uuid " +
+        "order by product_id",
+      [organizationId, lateSession.id],
+    );
+    const balanceRows = await commandDb.unsafe(
+      "select ib.product_id::text as product_id,ib.quantity_on_hand::text as quantity_on_hand," +
+        "ib.quantity_reserved::text as quantity_reserved,ib.quantity_available::text as quantity_available," +
+        "ib.last_movement_at::text as last_movement_at " +
+        "from public.inventory_balances ib join public.products p on p.id=ib.product_id " +
+        "where p.organization_id=$1::uuid and ib.warehouse_id=$2::uuid order by ib.product_id",
+      [organizationId, warehouseId],
+    );
+    const movementRows = await commandDb.unsafe(
+      "select id::text as id,product_id::text as product_id,movement_type,quantity::text as quantity," +
+        "balance_after::text as balance_after,created_by::text as created_by " +
+        "from public.inventory_movements where reference_type='stock_count_session' and reference_id=$1::uuid " +
+        "order by id",
+      [lateSession.id],
+    );
+    const auditRows = await commandDb.unsafe(
+      "select id::text as id,actor_id::text as actor_id,action,entity_type,entity_id::text as entity_id," +
+        "old_value::text as old_value,new_value::text as new_value,created_at::text as created_at " +
+        "from public.audit_logs where organization_id=$1::uuid " +
+        "and (entity_id=$2::uuid or new_value->>'session_id'=$2::text) order by created_at,id",
+      [organizationId, lateSession.id],
+    );
+    const taskRows = await commandDb.unsafe(
+      "select id::text as id,status,task_payload::text as task_payload " +
+        "from public.ai_tasks where organization_id=$1::uuid and source_event_key=$2 order by id",
+      [organizationId, "stock-count-variance:" + lateSession.id],
+    );
+    return {
+      session: sessionRows[0],
+      lines: lineRows,
+      balances: balanceRows,
+      movements: movementRows,
+      audit: auditRows,
+      tasks: taskRows,
+    };
+  };
+  const completionBoundaryBefore = await snapshotCompletionBoundary();
+  assert.equal(completionBoundaryBefore.session.status, "open",
+    "snapshot-invalidated stock count remains open before authorization checks");
+  const expectCompletionDenied = async (
+    authUserId,
+    identityEmail,
+    label,
+    expectedSqlState,
+    expectedMessage,
+  ) => {
+    await setIdentity(authUserId, identityEmail);
+    await commandDb.unsafe("savepoint stock_count_completion_denial");
+    const caught = await commandDb
+      .unsafe("select public.complete_stock_count($1::uuid)", [lateSession.id])
+      .then(() => null, (error) => error);
+    await commandDb.unsafe("rollback to savepoint stock_count_completion_denial");
+    await commandDb.unsafe("release savepoint stock_count_completion_denial");
+    assert.ok(caught, label + ": stock-count finalization should be denied");
+    assert.equal(caught.code, expectedSqlState, label + ": denial SQLSTATE");
+    assert.match(String(caught.message), expectedMessage, label + ": denial reason");
+    assert.deepEqual(
+      await snapshotCompletionBoundary(),
+      completionBoundaryBefore,
+      label + ": denied finalization must not change session/lines, any warehouse balance, movement, audit or task state",
+    );
+  };
+  await expectCompletionDenied(
+    localStaffAuthId,
+    localStaffEmail,
+    "same-tenant ordinary staff cannot finalize a stock count",
+    "42501",
+    /administrator or manager permission required to finalize a stock count/i,
+  );
+  await expectCompletionDenied(
+    foreignManagerAuthId,
+    foreignEmail,
+    "foreign-tenant manager cannot finalize or discover another organization's stock count",
+    "22023",
+    /stock count is not open/i,
+  );
+
   await setAdminIdentity();
   const cancelledLate = await commandDb.unsafe(
     "select public.cancel_stock_count($1::uuid,$2::text) as result",
