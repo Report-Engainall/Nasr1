@@ -1,4 +1,19 @@
-# CURRENT EXECUTION STATE — LIVE MAIN CURSOR — 2026-10-30 — CORE PASS / P1 MOBILE FOCUS BLOCKER
+# CURRENT EXECUTION STATE — LIVE MAIN CURSOR — 2026-10-30 — CORE PASS / P1 MOBILE FOCUS BLOCKED
+
+## LIVE MAIN OVERRIDE — 2026-10-30 — CODE SHA `da7f7af886ab6c6b0ec42c10c0778c215da7fb4e`
+**This record supersedes all earlier status lines below.**
+
+- Remote repository `Report-Engainall/Nasr1`; branch `main` only; no PR or P1/P2 owner patch is waiting for integration. Exact code/main SHA before this documentation update: `da7f7af886ab6c6b0ec42c10c0778c215da7fb4e`.
+- **P3 code batches:** `5c1c3e63` empty dead-stock population -> UNAVAILABLE; `3451e9be` currency-safe/per-unit decision impacts, period scope checks, invalid cashflow schedule -> NEEDS_REVIEW and dead-stock severity rollup; `193c8141` Evidence Passport as-of/source timestamp/period validation and unknown-currency cashflow withholding; `9f76ead3` test assertion correction; `da7f7af8` liquidity arithmetic overflow status, duplicate-currency severity preservation and currency-required CURRENCY_PER_UNIT measured outcome. These changed only P3 intelligence modules/tests.
+- **Exact-head Core [41021594088 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41021594088):** on `da7f7af886ab6c6b0ec42c10c0778c215da7fb4e`, Unit tests PASS; PostgreSQL 17 migrations/workflow acceptance PASS; PG17 backup/restore PASS; Lint PASS; Build PASS; production/dev smoke PASS; Chromium price-visibility PASS. Cleanup [41021594129 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41021594129) on the same SHA.
+- **Exact-head P2 [41021594114 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41021594114):** authenticated infrastructure/public UI smoke PASS; local Supabase start/migrations PASS; authenticated order persistence and cross-tenant denial PASS; customer return/review/receipt/credit memo PASS; audited Onyx XLSX export PASS; finance/task print FAILED on first attempt and retry because the first admin navigation button did not receive focus (20s) at `e2e/finance-task-print.spec.ts:69`; print assertions not reached. Hosted customer/order/tenant test SKIPPED; customer-manager and device-session suites SKIPPED. This is P1-owned UI focus, not a P3 engine failure.
+- Previous same blocker [41020479040 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479040) on code SHA 9f76ead3 shows the identical mobile-focus assertion. P1 fix has not landed.
+- **PG17 receipt observation history:** [41019708261 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41019708261) on 5c1c3e63 was an intermittent P2 lock-observation race at scripts/test-database-migrations.mjs:3105. It passed unchanged on 3451, 9f76 and current da7f Core. No P2 harness repair is claimed.
+- **P1 next:** fix first-item mobile drawer focus in `AghbariApp.tsx`, preserving Escape/route-close/focus-return; then mount the six P3 intelligence components only on real P2 tenant-safe DTOs.
+- **P2 next:** deliver full-period aggregate DTO/RPC, atomic DecisionOutcome persistence/idempotency/audit, zero-paid AI privacy/quota/fallback, live health evidence and canonical server RBAC. Hosted tenant proof remains absent.
+- Matrix integrity remains 143 unique task IDs / 16 REF / 18 DLV groups / no duplicates. All 16 REF remain P1/P2 dependent; no DLV roll-up closed. Release **NO-GO** pending hosted tenant, real integrations, production operations and owner approval.
+- **Exact next command:** poll the Core run triggered by this documentation-only cursor; then wait for a bounded P1 mobile-focus patch or P2 aggregate/outcome patch and integrate only tested owned paths using expected-main-SHA CAS.
+
 
 ## LIVE RESULT CORRECTION — 2026-10-30 — P2 FINAL ON CODE SHA `9f76ead3`
 **Supersedes the previous line in this file that called P2 run 41020479040 IN_PROGRESS.**

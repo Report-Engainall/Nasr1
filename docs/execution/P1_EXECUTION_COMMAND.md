@@ -1,5 +1,13 @@
 # P1 LIVE SESSION COMMAND — 2026-10-30 — MOBILE FOCUS + INTELLIGENCE WORKSPACE
 
+## P1 LIVE OVERRIDE — 2026-10-30 — RECONFIRMED FIRST-ITEM FOCUS FAILURE
+- Code SHA `da7f7af886ab6c6b0ec42c10c0778c215da7fb4e` has exact Core [41021594088 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41021594088); P3 engine changes do not alter P1 routes.
+- Exact P2 [41021594114 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41021594114): auth/public smoke, local migrations, order persistence + cross-tenant denial, returns/review/receipt/credit memo and audited Onyx XLSX all PASS. Finance/task print fails on first attempt and retry at `e2e/finance-task-print.spec.ts:69`; first button in nav `التنقل الإداري` does not receive focus in 20s. Print assertions are not reached. Hosted tenant, customer-manager and device-session suites are SKIPPED.
+- Prior P2 [41020479040 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479040) on 9f76 had same focus failure. No production fix has landed.
+- Fix in `src/components/AghbariApp.tsx`: after drawer opens and its contents are visible, focus the first visible/enabled navigation action. Preserve accessible nav name, Escape close, route-change close and restoration of focus to trigger. Do not relax the P2 assertion.
+- Re-run at 360px after patch and prove initial focus, Escape, route close, focus restoration and finance/task print. Only then mount P3 ActionCard/EvidencePassport/LiquiditySummary/CashflowForecastCard/DeadStockCard/ReplenishmentCard against real P2 DTOs; no fixture/fake amounts/zero sentinels/browser tenant or role.
+
+
 ## P1 RESULT UPDATE — 2026-10-30 — FOCUS FAILURE RECONFIRMED ON CURRENT CODE
 - Exact Core on code SHA `9f76ead379fe52711bc8b9ed58a66605317bb68f`: [41020479004 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479004). Core price-visibility Chromium passed; this does not cover mobile drawer keyboard focus.
 - P2 [41020479040 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479040) on code SHA 9f76ead3: auth gate/public smoke, local Supabase migration, authenticated order persistence/cross-tenant denial, returns/review/receipt/credit memo and audited Onyx XLSX all PASSED. Finance/task print acceptance FAILED twice at `e2e/finance-task-print.spec.ts:69`: first `التنقل الإداري` button did not receive focus within 20 seconds. Invoice/statement/credit-memo/operational-task print assertions were NOT reached. Hosted customer/order/tenant is SKIPPED.

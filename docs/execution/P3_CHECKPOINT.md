@@ -1,5 +1,18 @@
 # P3 LIVE CHECKPOINT — 2026-10-30 — INTELLIGENCE DISPLAY BATCH INTEGRATED
 
+## P3 LIVE OVERRIDE — 2026-10-30 — CURRENT CODE SHA `da7f7af886ab6c6b0ec42c10c0778c215da7fb4e`
+- Exact Core [41021594088 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41021594088) on this SHA. Unit, PG17 acceptance/migrations, backup/restore, lint, build, preview/dev smoke and price-visibility all PASS.
+- P3 commits:
+  - `5c1c3e63`: empty unsourced dead-stock population produces UNAVAILABLE with explicit warning.
+  - `3451e9be`: CURRENCY_PER_UNIT currency isolation, metric period compatibility, invalid cashflow due-date -> NEEDS_REVIEW, dead-stock severity rollup.
+  - `193c8141` + `9f76ead3`: evidence passport source/metric as-of, source timestamp/period checks; missing schedule currency withholds forecast; test assertion fixed.
+  - `da7f7af8`: liquidity arithmetic overflow -> NEEDS_REVIEW, preserve UNVERIFIED on duplicate currency position, require currency for CURRENCY_PER_UNIT measured decision outcomes.
+- Exact P2 [41021594114 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41021594114) on da7f: authentication/public smoke, local migrations, order persistence/cross-tenant, returns/receipt/credit memo and Onyx XLSX PASS; mobile finance/task print fails twice at focus assertion; hosted tenant and optional customer-manager/device-session paths SKIPPED.
+- P1 focus fix and P2 aggregate/outcome/AI/health/RBAC remain unintegrated. No P1/P2 owner commit exists to merge. All REF code is present; DLV rollups stay open.
+- Matrix: 143 unique populated IDs, 16 REF, 18 DLV groups, no duplicates. Release NO-GO pending hosted proof and operations.
+- exact_next_command: poll Core on this next documentation cursor; then accept only a bounded P1/P2 patch with its base/result SHA and proof, integrate by expected-SHA CAS.
+
+
 ## P3 LIVE RESULT UPDATE — 2026-10-30 — P2 FINALIZED ON CODE SHA 9f76ead3
 - Exact main code SHA: `9f76ead379fe52711bc8b9ed58a66605317bb68f`; global docs cursor at time of update: `16511cd55776237df47871341e5337d4634c6460`.
 - Core [41020479004 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41020479004) on 9f76ead3: unit, PostgreSQL 17 acceptance/migrations, exact RPC inventory, backup/restore, lint, build, production/dev smoke and price-visibility Chromium all PASS.
