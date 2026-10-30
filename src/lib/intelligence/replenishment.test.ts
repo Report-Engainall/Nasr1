@@ -9,9 +9,9 @@ const build=(overrides:Partial<{atp:MetricSnapshot;rop:MetricSnapshot;sold:Metri
  return buildReplenishmentRecommendations({id:"r",asOf,period,evidenceRecords:[evidence("atp"),evidence("rop"),evidence("sold"),evidence("lead")],products:[{productRef:"SKU-1",availableToPromise:rows.atp,reorderPoint:rows.rop,soldQuantityWindow:rows.sold,supplierLeadTimeDays:rows.lead,quantityUnit:"EA"}]});
 };
 describe("replenishment recommendations",()=>{
- it("calculates demand and target using ATP, reorder point, movements and supplier lead time",()=>{
+ it("calculates demand from the full inclusive lookback period and preserves the lead-time basis",()=>{
   const result=build(),r=result.recommendations[0];
-  expect(r).toMatchObject({status:"VERIFIED",action:"RECOMMEND",availableToPromise:5,reorderPoint:20,dailyDemand:1,leadTimeDemand:15,targetStock:20,recommendedQuantity:15,automaticPurchase:false});
+  expect(r).toMatchObject({status:"VERIFIED",action:"RECOMMEND",availableToPromise:5,reorderPoint:20,dailyDemand:1/3,leadTimeDemand:5,targetStock:20,recommendedQuantity:15,automaticPurchase:false});
  });
  it("withholds when a required evidence field is unverified",()=>{
   const lead={...metric("lead",15,"DAYS",null),status:"UNVERIFIED" as const};
@@ -22,8 +22,9 @@ describe("replenishment recommendations",()=>{
   const result=build({atp:metric("atp",50,"QUANTITY")});
   expect(result.recommendations[0]).toMatchObject({action:"NO_ACTION",recommendedQuantity:0,automaticPurchase:false});
  });
- it("withholds missing supplier lead time instead of inventing zero days",()=>{
-  const input=build({lead:metric("lead",15,"DAYS",null)});
-  expect(input.recommendations[0].leadTimeDemand).toBe(15);
+ it("withholds a missing supplier lead time instead of inventing zero days",()=>{
+  const missingLead={...metric("lead",15,"DAYS",null),status:"UNAVAILABLE" as const};
+  const r=build({lead:missingLead}).recommendations[0];
+  expect(r).toMatchObject({status:"UNAVAILABLE",action:"WITHHELD",leadTimeDemand:null,recommendedQuantity:null,automaticPurchase:false});
  });
 });
