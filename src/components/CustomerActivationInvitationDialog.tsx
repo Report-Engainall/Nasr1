@@ -45,7 +45,13 @@ export function CustomerActivationInvitationDialog({
   const [notice, setNotice] = useState("");
   const createInFlightRef = useRef(false);
   const loadRequestIdRef = useRef(0);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const busyRef = useRef(busy);
+  const onCloseRef = useRef(onClose);
   const currentWorkspace = workspaceCustomerId === customer.id ? workspace : null;
+
+  busyRef.current = busy;
+  onCloseRef.current = onClose;
 
   const load = useCallback(async () => {
     const requestId = ++loadRequestIdRef.current;
@@ -81,6 +87,67 @@ export function CustomerActivationInvitationDialog({
     void load();
     return () => { loadRequestIdRef.current += 1; };
   }, [load]);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusableSelector = [
+      'a[href]',
+      'button:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(", ");
+    const dialog = dialogRef.current;
+
+    const getFocusableElements = () =>
+      Array.from(dialog?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+        .filter((element) => !element.closest('[hidden], [aria-hidden="true"]'));
+
+    const firstFocusable = getFocusableElements()[0];
+    (firstFocusable ?? dialog)?.focus({ preventScroll: true });
+
+    function handleDialogKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        if (!busyRef.current) {
+          event.preventDefault();
+          onCloseRef.current();
+        }
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        dialog?.focus({ preventScroll: true });
+        return;
+      }
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement;
+      const focusIsOutsideDialog = !dialog?.contains(activeElement);
+
+      if (event.shiftKey && (activeElement === first || focusIsOutsideDialog)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (activeElement === last || focusIsOutsideDialog)) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleDialogKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleDialogKeyDown);
+      if (previouslyFocused?.isConnected && !previouslyFocused.hasAttribute("disabled")) {
+        previouslyFocused.focus({ preventScroll: true });
+      }
+    };
+  }, []);
 
   async function createInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -146,9 +213,11 @@ export function CustomerActivationInvitationDialog({
       style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", placeItems: "center", padding: 14, background: "rgba(15,23,42,.55)" }}
     >
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="customer-activation-title"
+        tabIndex={-1}
         dir="rtl"
         style={{ width: "min(760px, 100%)", maxHeight: "min(88vh, 900px)", overflow: "auto", background: "var(--card, #fff)", color: "var(--foreground, #152b2b)", border: "1px solid var(--border, #d9e3e2)", borderRadius: 16, boxShadow: "0 24px 80px rgba(0,0,0,.26)", padding: 22 }}
       >

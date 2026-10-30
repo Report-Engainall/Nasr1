@@ -201,4 +201,34 @@ describe("customer activation invitation dialog", () => {
     expect(mocks.createInvite).not.toHaveBeenCalled();
   });
 
+
+  it("traps keyboard focus, closes with Escape, and restores focus to the opener", async () => {
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.textContent = "فتح دعوة العميل";
+    document.body.appendChild(trigger);
+    trigger.focus();
+    const onClose = vi.fn();
+
+    const view = render(<CustomerActivationInvitationDialog customer={CUSTOMER} onClose={onClose} />);
+    const closeButton = await screen.findByRole("button", { name: "إغلاق نافذة دعوة التفعيل" });
+    const revokeButton = await screen.findByRole("button", { name: "إلغاء الدعوة" });
+
+    expect(document.activeElement).toBe(closeButton);
+
+    fireEvent.keyDown(closeButton, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(revokeButton);
+
+    fireEvent.keyDown(revokeButton, { key: "Tab" });
+    expect(document.activeElement).toBe(closeButton);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    view.unmount();
+    expect(document.activeElement).toBe(trigger);
+    trigger.remove();
+  });
+
+
 });
