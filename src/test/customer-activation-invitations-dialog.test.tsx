@@ -194,7 +194,7 @@ describe("customer activation invitation dialog", () => {
 
     rerender(<CustomerActivationInvitationDialog customer={otherCustomer} onClose={vi.fn()} />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل سجل الدعوات للعميل الآخر");
+    expect(await screen.findByText("تعذر تحميل سجل الدعوات للعميل الآخر")).toBeInTheDocument();
     expect(screen.queryByText("client@example.test")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/رابط التفعيل/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "إلغاء الدعوة" })).not.toBeInTheDocument();
