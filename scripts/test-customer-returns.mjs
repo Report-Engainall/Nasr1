@@ -23,6 +23,7 @@ async function expectFailure(label, action, pattern) {
   try { await action(); } catch (error) { caught = error; }
   assert.ok(caught, label + " should fail");
   if (pattern) assert.match(String(caught.message), pattern, label + " should fail for the expected reason");
+  return caught;
 }
 
 function asJson(value) {
@@ -2192,6 +2193,72 @@ async function main() {
     "select count(*)::integer as count from public.inventory_movements where reference_type='customer_return_request' and reference_id=$1::uuid",
     [firstRequest.request_id],
   ))[0].count;
+
+  // DLV-015 / AUTHZ-RETURN-CREDIT-REVERSAL-FOREIGN-TENANT-001:
+  // a manager with legitimate finance privileges in another organization must not discover
+  // or reverse this tenant's posted credit memo, and the denied call must be side-effect free.
+  const foreignDenialKey=randomUUID();
+  const snapshotForeignReversalBoundary=async()=>{
+    const memo=await db.unsafe(
+      "select m.status,m.reversal_journal_entry_id::text as reversal_journal_entry_id,"+
+      "m.reversal_reason,m.reversed_by_profile_id::text as reversed_by_profile_id,m.reversed_at::text as reversed_at,"+
+      "je.status as original_journal_status,c.current_balance::text as customer_balance "+
+      "from public.customer_return_credit_memos m "+
+      "join public.accounting_return_credit_memo_postings sp on sp.organization_id=m.organization_id and sp.credit_memo_id=m.id "+
+      "join public.accounting_journal_entries je on je.organization_id=sp.organization_id and je.id=sp.journal_entry_id "+
+      "join public.customers c on c.organization_id=m.organization_id and c.id=m.customer_id "+
+      "where m.organization_id=$1::uuid and m.id=$2::uuid",
+      [organizationId,preparedCredit.credit_memo_id],
+    );
+    const reversals=await db.unsafe(
+      "select count(*)::integer as count from public.accounting_return_credit_memo_reversals "+
+      "where organization_id=$1::uuid and credit_memo_id=$2::uuid",
+      [organizationId,preparedCredit.credit_memo_id],
+    );
+    const audits=await db.unsafe(
+      "select count(*)::integer as count from public.audit_logs where organization_id=$1::uuid "+
+      "and entity_type='customer_return_credit_memo' and entity_id=$2::uuid "+
+      "and action='accounting.customer_return_credit_memo_reversed'",
+      [organizationId,preparedCredit.credit_memo_id],
+    );
+    const deniedEntries=await db.unsafe(
+      "select count(*)::integer as count from public.accounting_journal_entries "+
+      "where organization_id=$1::uuid and idempotency_key=$2::uuid",
+      [organizationId,foreignDenialKey],
+    );
+    assert.equal(memo.length,1,"foreign-tenant denial fixture must point at an existing owner-tenant memo");
+    return {
+      memo:memo[0],
+      reversalCount:Number(reversals[0].count),
+      reversalAuditCount:Number(audits[0].count),
+      deniedKeyEntryCount:Number(deniedEntries[0].count),
+    };
+  };
+  const foreignDenialBaseline=await snapshotForeignReversalBoundary();
+  assert.equal(foreignDenialBaseline.memo.status,"posted");
+  assert.equal(foreignDenialBaseline.memo.original_journal_status,"posted");
+  assert.equal(foreignDenialBaseline.memo.reversal_journal_entry_id,null);
+  assert.equal(foreignDenialBaseline.reversalCount,0);
+  assert.equal(foreignDenialBaseline.reversalAuditCount,0);
+  assert.equal(foreignDenialBaseline.deniedKeyEntryCount,0);
+  await setIdentity(foreignFinanceAuthId,foreignFinanceEmail);
+  await db.unsafe("set role authenticated");
+  const foreignReversalError=await expectFailure(
+    "foreign-tenant finance manager cannot reverse or discover another organization's posted credit memo",
+    ()=>db.unsafe(
+      "select public.reverse_customer_return_credit_memo($1::uuid,$2::text,$3::uuid)",
+      [preparedCredit.credit_memo_id,"Foreign tenant reversal denial",foreignDenialKey],
+    ),
+    /return credit memo not found in this organization/i,
+  );
+  assert.equal(foreignReversalError.code,"P0002",
+    "foreign-tenant credit-memo reversal denial must use opaque SQLSTATE P0002");
+  await db.unsafe("reset role");
+  assert.deepEqual(
+    await snapshotForeignReversalBoundary(),
+    foreignDenialBaseline,
+    "foreign-tenant denial preserves memo/source journal, customer balance, reversal rows, audit and rejected idempotency key",
+  );
 
   await setIdentity(customerOneAuthId,"ci-customer-one@example.test");
   await db.unsafe("set role authenticated");
