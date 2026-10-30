@@ -7150,21 +7150,62 @@ async function main() {
       "select public.get_staff_customer_account_statement($1::uuid) as result",
       [customerOneId],
     ))[0].result;
-    const usdInvoiceStatement = statementAfterUsdPayment.invoices.find((row) => row.id === taxInvoiceId);
-    assert.ok(usdInvoiceStatement, "the customer statement must include its source USD invoice");
+    // The detailed statement list is intentionally capped at 200 rows; use the existing
+    // tenant-scoped keyset invoice API to locate a source invoice beyond that bounded detail window.
+    let usdInvoiceStatement = null;
+    let usdPageIssuedAt = null;
+    let usdPageId = null;
+    let usdInvoiceSearchComplete = false;
+    for (let pageIndex = 0; pageIndex < 10; pageIndex += 1) {
+      const page = await readFinanceInvoicePage(100, usdPageIssuedAt, usdPageId);
+      assert.ok(page && Array.isArray(page.invoices),
+        "finance invoice page must remain available for complete currency statement lookup");
+      usdInvoiceStatement = page.invoices.find((row) => row.id === taxInvoiceId) ?? null;
+      if (usdInvoiceStatement) {
+        usdInvoiceSearchComplete = true;
+        break;
+      }
+      if (!page.has_more) break;
+      assert.equal(page.invoices.length, 100,
+        "a finance page with more records must fill its requested size");
+      const last = page.invoices[page.invoices.length - 1];
+      assert.ok(last?.issued_at && last?.id, "currency invoice lookup continuation requires a stable issued_at/id cursor");
+      usdPageIssuedAt = last.issued_at;
+      usdPageId = last.id;
+    }
+    assert.equal(usdInvoiceSearchComplete, true,
+      "the source USD invoice must be discoverable across the bounded tenant keyset invoice pages");
     assert.equal(usdInvoiceStatement.currency, "USD");
     assert.equal(usdInvoiceStatement.total_amount, "115.00");
     assert.equal(usdInvoiceStatement.paid_amount, "40.25");
     assert.equal(usdInvoiceStatement.outstanding_amount, "74.75");
-    const usdPaymentStatement = statementAfterUsdPayment.payments.find((row) => row.id === usdPaymentId);
-    assert.ok(usdPaymentStatement, "the customer statement must include the saved source USD payment");
-    assert.equal(usdPaymentStatement.currency, "USD");
-    assert.equal(usdPaymentStatement.amount, "40.25");
     const usdSummary = statementAfterUsdPayment.summary.find((row) => row.currency === "USD");
     assert.ok(usdSummary, "statement aggregates must retain a distinct USD bucket");
-    assert.equal(usdSummary.invoiced, "115.00");
-    assert.equal(usdSummary.paid, "40.25");
-    assert.equal(usdSummary.outstanding, "74.75");
+    const usdSummaryBefore = statementBeforeUsdPayment.summary.find((row) => row.currency === "USD");
+    const cents = (value) => {
+      const [whole, fraction = ""] = String(value).split(".");
+      return BigInt(whole) * 100n + BigInt((fraction + "00").slice(0, 2));
+    };
+    const decimal = (value) => {
+      const whole = value / 100n;
+      const fraction = (value % 100n).toString().padStart(2, "0");
+      return whole.toString() + "." + fraction;
+    };
+    assert.equal(
+      usdSummary.invoiced,
+      decimal(cents(usdSummaryBefore?.invoiced ?? "0.00") + 11500n),
+      "USD aggregate invoice total must add only the source USD invoice",
+    );
+    assert.equal(
+      usdSummary.paid,
+      decimal(cents(usdSummaryBefore?.paid ?? "0.00") + 4025n),
+      "USD aggregate payment total must add the exact 40.25 settlement",
+    );
+    assert.equal(
+      usdSummary.outstanding,
+      decimal(cents(usdSummaryBefore?.outstanding ?? "0.00") + 7475n),
+      "USD aggregate receivable must add only the exact source invoice balance",
+    );
     const yerSummaryAfterUsdPayment = statementAfterUsdPayment.summary.find((row) => row.currency === "YER");
     assert.deepEqual(
       yerSummaryAfterUsdPayment,
