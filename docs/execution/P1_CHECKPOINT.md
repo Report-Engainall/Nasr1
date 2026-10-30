@@ -1,3 +1,28 @@
+# P1 LIVE CHECKPOINT — 2026-10-30 — MERGED LATEST MAIN INTO DLV-002 WORK BRANCH
+
+- task_id: `DLV-002 / ROUTES-001 — mobile drawer initial focus + route-remount focus restore`.
+- status: `IMPLEMENTED_PENDING_FINAL_BASE_EXACT_SHA_CI`.
+- latest_main_sha: `9a0facd1f394126f6f2ede232784e6db5e69183d`.
+- previous_p1_head: `53d59b4f3b8b684145f278e2e7d5f1ac70e6b27b`.
+- merge_commit: `8cf451ee5ca0b929aad59b5a787abed3070afa1a` (parents: P1 head `53d59b4f` + latest main `9a0facd1`; non-forced fast-forward branch update).
+- Main-only intervening paths merged into this feature branch (no overlap with P1 changes):
+  - `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`
+  - `src/lib/intelligence/customer-retention.test.ts`
+  - `src/lib/intelligence/customer-retention.ts`
+  - `src/lib/intelligence/dead-stock.test.ts`
+  - `src/lib/intelligence/dead-stock.ts`
+- P1 paths remain: `src/components/AghbariApp.tsx`, `src/test/admin-mobile-navigation-acceptance.test.tsx`, `src/test/storefront-admin-navigation-access.test.ts`, `docs/execution/P1_CHECKPOINT.md`.
+- Route-remount regression: `admin-mobile-navigation-acceptance.test.tsx` replaces the old menu trigger to model the destination route's newly mounted trigger before the navigation promise resolves; asserts the replacement receives focus. The implementation returns focus to the current route's visible mobile trigger after router navigation resolves, not to the detached old node.
+- Old-head exact evidence is not transferable:
+  - Core `41025563359` SUCCESS on `e27cedc` (before route-remount fix).
+  - P2 `41025563411` was running on `e27cedc`; it is predecessor evidence only.
+  - P2 `41025182161` FAILURE on `7970e4d`, caused by focus staying on the old trigger which was removed during route remount; initial focus into the drawer did pass.
+  - Core `41025181975` FAILURE on `7970e4d` was due one stale test assertion requiring the deleted immediate-focus source string; corrected on branch.
+- exact_next_command: update this checkpoint with its resulting commit SHA, then poll new Core and P2 runs after branch merge commit + checkpoint update. Exact final-head checks must include the mobile drawer initial focus, Escape restoration, route-change new-trigger restoration, desktop resize, and finance/task print/browser authorization paths. Keep `e2e/**` unchanged; do not accept hosted SKIPPED as PASS.
+- no changes to main, local workspace, `e2e/**`, backend/API/auth, P3 engine ownership, or shared global state/matrix/log.
+
+---
+
 # P1 LIVE CHECKPOINT — 2026-10-30 — DLV-002 MOBILE DRAWER FOCUS + ROUTE REMOUNT
 
 - task_id: `DLV-002 / ROUTES-001 — mobile admin drawer initial focus and route-change focus restoration`.
