@@ -4089,6 +4089,33 @@ async function main() {
   assert.equal(submittedRule.requires_approval, true, "ordinary staff-created rule must require managerial approval");
   assert.equal(submittedRule.approved_at, null);
   assert.equal(submittedRule.submitted_by, operationsStaffProfileId, "submission identity must be server-derived");
+
+  // DLV-015: approval is a destructive monetary boundary. Every denied attempt must
+  // preserve the pending rule and its audit history, not merely return an authorization error.
+  const readPricingApprovalBoundary = async () => {
+    await db.unsafe("reset role");
+    const ruleRows = await db.unsafe(
+      "select organization_id::text as organization_id,submitted_by::text as submitted_by," +
+        "approved_by::text as approved_by,approved_at::text as approved_at,approval_note," +
+        "requires_approval,manually_locked,is_active,version,updated_at::text as updated_at " +
+        "from public.pricing_rules where id=$1::uuid",
+      [submittedRule.id],
+    );
+    const auditRows = await db.unsafe(
+      "select count(*)::integer as count from public.audit_logs " +
+        "where organization_id=$1::uuid and entity_type='pricing_rule' and entity_id=$2::uuid " +
+        "and action='pricing_rule.updated'",
+      [organizationId, submittedRule.id],
+    );
+    assert.equal(ruleRows.length, 1, "submitted pricing rule remains addressable in its tenant");
+    return { rule: ruleRows[0], approvalAuditCount: Number(auditRows[0].count) };
+  };
+  const pendingApprovalBaseline = await readPricingApprovalBoundary();
+  assert.equal(pendingApprovalBaseline.rule.approved_at, null);
+  assert.equal(pendingApprovalBaseline.rule.requires_approval, true);
+
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
   await expectFailure(
     "ordinary staff cannot forge pricing-rule approval state",
     () => db.unsafe("update public.pricing_rules set approved_at=now(),approved_by=$1 where id=$2", [operationsStaffProfileId, submittedRule.id]),
@@ -4108,7 +4135,73 @@ async function main() {
     "ordinary staff cannot approve submitted pricing rule",
     () => db.unsafe("select public.approve_pricing_rule($1::uuid,$2)", [submittedRule.id, "staff must not approve"]),
     /pricing approval requires admin or manager/i,
+    "42501",
   );
+  assert.deepEqual(
+    await readPricingApprovalBoundary(),
+    pendingApprovalBaseline,
+    "ordinary staff approval and direct-write denials leave the pending rule and audit history unchanged",
+  );
+
+  await setIdentity(staffAuthUserId, "admin@aghbari.ye");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "manager cannot approve a submitted pricing rule without a meaningful rationale",
+    () => db.unsafe("select public.approve_pricing_rule($1::uuid,$2)", [submittedRule.id, "x"]),
+    /approval rationale is required/i,
+    "22023",
+  );
+  assert.deepEqual(
+    await readPricingApprovalBoundary(),
+    pendingApprovalBaseline,
+    "invalid approval rationale leaves approval metadata, active pricing and audit unchanged",
+  );
+
+  // A manager in another organization must receive an opaque not-found result and must
+  // not be able to change or audit this tenant's pending pricing rule.
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'manager') on conflict(profile_id,role) do nothing",
+    [foreignProfileId],
+  );
+  await setIdentity(foreignAuthUserId, "foreign-ci-profile@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "foreign-tenant manager cannot approve another organization's pricing rule",
+    () => db.unsafe("select public.approve_pricing_rule($1::uuid,$2)", [submittedRule.id, "foreign tenant approval attempt"]),
+    /pricing rule not found in active organization/i,
+    "P0002",
+  );
+  assert.deepEqual(
+    await readPricingApprovalBoundary(),
+    pendingApprovalBaseline,
+    "foreign-tenant manager denial preserves the pending rule and emits no approval audit",
+  );
+  await db.unsafe("delete from public.user_roles where profile_id=$1 and role='manager'", [foreignProfileId]);
+
+  // Temporarily grant manager capability to the submitting identity to exercise the
+  // distinct-submitter rule; remove the fixture capability before continuing.
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'manager') on conflict(profile_id,role) do nothing",
+    [operationsStaffProfileId],
+  );
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "a manager cannot approve the pricing rule submitted by the same identity",
+    () => db.unsafe("select public.approve_pricing_rule($1::uuid,$2)", [submittedRule.id, "self approval attempt"]),
+    /someone other than the submitter/i,
+    "42501",
+  );
+  assert.deepEqual(
+    await readPricingApprovalBoundary(),
+    pendingApprovalBaseline,
+    "self-approval denial leaves the submitted rule and audit history unchanged",
+  );
+  await db.unsafe("delete from public.user_roles where profile_id=$1 and role='manager'", [operationsStaffProfileId]);
+
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+
   const previewBeforeApprovalRows = await db.unsafe(
     "select public.preview_customer_tier_price($1::uuid,$2::uuid,$3::numeric) as result",
     [retailCustomerId, previewProductId, 3],
@@ -4132,6 +4225,24 @@ async function main() {
   );
   assert.equal(Number(previewAfterApprovalRows[0].result.unit_price), 1050, "approved product-specific 5% rule must outrank global/legacy rules via the shared resolver");
   assert.equal(Number(previewAfterApprovalRows[0].result.line_total), 3150);
+  const approvalAuditCountBeforeReplay = Number((await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+      "where organization_id=$1::uuid and entity_type='pricing_rule' and entity_id=$2::uuid and action='pricing_rule.updated'",
+    [organizationId, submittedRule.id],
+  ))[0].count);
+  const approvedRuleReplay = await db.unsafe(
+    "select public.approve_pricing_rule($1::uuid,$2) as result",
+    [submittedRule.id, "CI: approved after reviewing scope, margin and tier impact"],
+  );
+  assert.equal(approvedRuleReplay[0].result.already_approved, true,
+    "retry after a lost approval response must return the already-approved result");
+  const approvalAuditCountAfterReplay = Number((await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs " +
+      "where organization_id=$1::uuid and entity_type='pricing_rule' and entity_id=$2::uuid and action='pricing_rule.updated'",
+    [organizationId, submittedRule.id],
+  ))[0].count);
+  assert.equal(approvalAuditCountAfterReplay, approvalAuditCountBeforeReplay,
+    "idempotent approval replay must not duplicate the audit event");
   const approvalAuditRows = await db.unsafe(
     "select action,new_value from public.audit_logs where organization_id=$1 and entity_type='pricing_rule' and entity_id=$2",
     [organizationId, submittedRule.id],
