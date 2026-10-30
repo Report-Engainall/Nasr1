@@ -1,23 +1,33 @@
 # CURRENT EXECUTION STATE — 2026-10-30
 
-**Sole live resume cursor.** Read this file first, then verify the live GitHub `main` ref and exact-SHA Actions before doing work. The detailed chronology is in `docs/bolt-source-reconciliation/EXECUTION_LOG.md` and `docs/execution/NASR1_CONTINUOUS_EXECUTION_REPORT.md`; requirement definitions live in `docs/canonical/AGHBARI-REQUIREMENT-REGISTRY.md`; acceptance status lives only in `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
+**Sole live resume cursor.** Read this file first. Follow docs/execution/CONTINUOUS_PARALLEL_EXECUTION_PROTOCOL.md; P1/P2 instructions are in P1_EXECUTION_COMMAND.md and P2_EXECUTION_COMMAND.md. Do not perform a repository-wide rescan on resume. The detailed chronology is in `docs/bolt-source-reconciliation/EXECUTION_LOG.md` and `docs/execution/NASR1_CONTINUOUS_EXECUTION_REPORT.md`; requirement definitions live in `docs/canonical/AGHBARI-REQUIREMENT-REGISTRY.md`; acceptance status lives only in `REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
+
+## Parallel execution protocol — active for this batch
+
+- P1/P2 contract: docs/execution/CONTINUOUS_PARALLEL_EXECUTION_PROTOCOL.md.
+- P1 copy/paste order: docs/execution/P1_EXECUTION_COMMAND.md; P2 copy/paste order: docs/execution/P2_EXECUTION_COMMAND.md.
+- P1 subordinate checkpoint: docs/execution/P1_CHECKPOINT.md; this file remains the only global resume cursor.
+- Timebox: 180 minutes. Shared target: at least three existing detailed CSV acceptance rows closed with exact-SHA evidence.
+- Code-bearing main SHA at checkpoint creation: ee1b84303e5fc18b46bed0b37a880a306e06d5d8. Last verified code SHA: eb83f6cd8824449ef3a1cbf2b5b55c823fdf517d. Delta is unverified until exact-SHA tests finish.
+- P1 verifies the known PWA/cache/cart changes; P2 works independently on DLV-007. P2 coordinates shared CI to avoid duplicate runs.
 
 - repository: `Report-Engainall/Nasr1`
 - branch: `main` only; do not create branches or PRs.
-- current_main_sha: `eb83f6cd8824449ef3a1cbf2b5b55c823fdf517d` (code head reconciled and exact-SHA verified; this checkpoint updates only canonical state/evidence files).
+- current_main_code_sha_before_control_checkpoint: `ee1b84303e5fc18b46bed0b37a880a306e06d5d8` (latest code-bearing main commit at checkpoint creation; exact-SHA verification is NOT RUN on this SHA. This control-doc commit changes documentation only).
 - last_verified_code_sha: `eb83f6cd8824449ef3a1cbf2b5b55c823fdf517d`
-- state update base: `eb83f6cd8824449ef3a1cbf2b5b55c823fdf517d`; next checkpoint requires fresh-ref compare-and-swap.
-- active_task_id: `DLV-011-FINANCE-PRINT-RPC-ALLOWLIST-001` — COMPLETE / TESTED_EXACT_SHA on `eb83f6cd8824449ef3a1cbf2b5b55c823fdf517d`. Exact JSON key sets were asserted at root and nested rows for finance selector, invoice PDF, account statement and credit-memo PDF RPCs across admin/manager/accountant. A real source-linked credit memo was posted inside the test transaction so the account-statement credits row was non-empty, then `ROLLBACK` restored draft state.
-- next_task_id: `DLV-007-REORDER-POINT-STAFF-DENIAL-001` — prove ordinary same-tenant staff cannot mutate reorder point, inventory balance, purchasing task or audit history.
-- next action: in `scripts/test-database-migrations.mjs`, after existing `set_inventory_reorder_point` negative/cross-tenant cases, resolve `operationsStaffProfileId` to its `auth_user_id` from the privileged fixture connection (the earlier role tests restore that profile to `staff`). Capture privileged before snapshots for target `inventory_balances` (reorder_point/on-hand/reserved/available/updated_at), the purchasing `ai_tasks` row keyed by `stockKey`, and all `inventory.reorder_point.updated` audit entries. Authenticate as this ordinary staff user and invoke `set_inventory_reorder_point(...,30,'unauthorized staff policy change')`; require SQLSTATE `42501` and compare all snapshots byte-for-byte. Restore admin identity. Do not repeat manager success/no-op, accountant denial, negative-bound or foreign-tenant tests. No SQL migration unless the regression proves a server guard defect; run Core PostgreSQL 17.
-- owner: P2 (inventory RPC authorization, database fixtures and PostgreSQL 17 acceptance).
-- reserved_files: `scripts/test-database-migrations.mjs` only; central state/matrix/log remain P2-exclusive; no migration reserved unless the regression proves a defect.
+- state update base: `ee1b84303e5fc18b46bed0b37a880a306e06d5d8`; re-read live main before every write and use fast-forward/CAS only.
+- active_task_id: `VERIFY-PWA-CACHE-AND-CART-SCOPE-EE1B843` — IMPLEMENTED / NOT RUN. Verify the known tenant/profile-scoped offline catalog and cart-draft preservation changes on exact code SHA `ee1b84303e5fc18b46bed0b37a880a306e06d5d8`, including outgoing and incoming profile cache invalidation while offline. Do not broadly refactor PWA. DLV-011 finance-print proofs remain historically complete on `eb83f6c` only.
+- next_task_id: `DLV-007-REORDER-POINT-STAFF-DENIAL-001` — P2: prove ordinary same-tenant staff cannot mutate reorder point, inventory balance, purchasing task or audit history.
+- next action (P1, immediate): verify exact code SHA `ee1b84303e5fc18b46bed0b37a880a306e06d5d8` using focused offline-catalog/session/cart tests in P1_EXECUTION_COMMAND.md; check existing exact-SHA CI before starting anything. Fix only a proven regression in P1-owned files. P2 proceeds with DLV-007 independently.
+- P2 DLV-007 exact action: in `scripts/test-database-migrations.mjs` after existing `set_inventory_reorder_point` negative/cross-tenant cases, resolve `operationsStaffProfileId` to `auth_user_id` from the privileged fixture connection (the earlier role tests restore the profile to `staff`). Capture privileged before snapshots for `inventory_balances` (reorder_point/on_hand/reserved/available/updated_at), purchasing `ai_tasks` row keyed by `stockKey`, and all `inventory.reorder_point.updated` audit entries. Authenticate as same-tenant ordinary staff and invoke `set_inventory_reorder_point(...,30,'unauthorized staff policy change')`; require SQLSTATE `42501` and compare all snapshots byte-for-byte. Restore admin identity. Do not repeat manager success/no-op, accountant denial, negative-bound or foreign-tenant tests. No SQL migration unless a real server-guard defect is proven; run Core PostgreSQL 17.
+- owner: P1 owns the current PWA verification; P2 owns DLV-007 and central integration/checkpoints.
+- reserved_files: P1 verifies the existing PWA files/tests only; P2 reserves `scripts/test-database-migrations.mjs` for DLV-007. P2 alone edits central state/matrix/log; no migration reserved unless a regression proves a defect.
 - write_lease_holder: none.
 - expected_main_sha: none; reread live `main` and acquire exact-SHA CAS before next write.
-- last actual code change on main: `scripts/test-database-migrations.mjs`, commit `eb83f6c` (`test/security: prove role assignment denials are side-effect free`; concurrent repository writer, not authored in this session). Adds no-side-effect proofs for self-role change, cross-tenant target, incompatible customer/accountant roles, unsupported elevated role and duplicate roles; profile/roles/audit snapshots are unchanged after rejection. Our preceding code commits were `eac7e0e` (finance RPC exact key allowlists) and `f929b15` (real source-linked posted-credit statement row inside a test transaction with mandatory rollback).
+- last code changes on main before this control-doc checkpoint: `81716e9` (tenant/profile/warehouse-scoped offline catalog cache), `15269cb` (preserve scoped offline cart drafts), and `ee1b843` (clear outgoing and incoming profile catalogs on offline account switch). None has exact-SHA PASS recorded in the prior cursor. Earlier finance/role proofs on `eb83f6c` do not verify these newer code changes.
 - earlier test correction: `9061d6d` added customer-denied journal-posting/no-side-effect acceptance; `b96b7cd` corrected the test to read RLS-protected state from the privileged fixture role. Do not repeat absent regression.
 
-## Exact-SHA verification
+## Historical exact-SHA verification — code SHA eb83f6c only
 
 All runs below test the same code SHA `eb83f6cd8824449ef3a1cbf2b5b55c823fdf517d`:
 
