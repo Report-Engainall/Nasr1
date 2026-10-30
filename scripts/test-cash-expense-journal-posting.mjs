@@ -290,7 +290,7 @@ async function main() {
         assert.equal(postOutcome.status, "rejected", "posting must not win over a completed source cancellation");
         const reversals = await db.unsafe("select id from public.accounting_source_postings where organization_id=$1::uuid and source_id=$2::uuid and posting_kind='reversal'", [organizationId, raceExpense.expense_id]);
         assert.equal(reversals.length, 0, "a void draft has no posted journal to reverse");
-        assert.match(String(postOutcome.reason?.message ?? ""), /cash expense changed or was voided|journal cannot be posted|check constraint/i);
+        assert.match(String(postOutcome.reason?.message ?? ""), /cash expense changed or was voided|only draft journal entries can be posted|journal cannot be posted|check constraint/i);
       }
       const voidReplay = await voidExpense(raceVoidClient, raceExpense.expense_id, "P2 concurrent source cancellation");
       assert.equal(voidReplay.replayed, true, "repeating source void must not generate another reversal");
