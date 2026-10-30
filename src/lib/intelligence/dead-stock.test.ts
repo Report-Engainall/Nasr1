@@ -26,4 +26,11 @@ describe("dead-stock engine",()=>{
   const r=buildDeadStockReport({id:"d",asOf,period,evidenceRecords:[evidence("mv"),evidence("qty")],products:[p],rule});
   expect(r.items[0].classification).toBe("ZERO_MOVEMENT");
  });
+ it("does not mark an empty unsourced population as verified",()=>{
+  const r=buildDeadStockReport({id:"d",asOf,period,evidenceRecords:[],products:[],rule});
+  expect(r.status).toBe("UNAVAILABLE");
+  expect(r.items).toEqual([]);
+  expect(r.totalsByCurrency).toEqual([]);
+  expect(r.warnings).toContain("NO_PRODUCT_POPULATION_EVIDENCE");
+ });
 });

@@ -124,6 +124,8 @@ export function buildDeadStockReport(input:{
   const group=items.filter(item=>item.currency===currency),unknown=group.some(item=>item.financialExposure===null);
   return {currency,exposure:unknown?null:group.reduce((sum,item)=>sum+(item.financialExposure??0),0),verifiedItems:group.filter(item=>item.exposureStatus==="VERIFIED").length,withheldItems:group.filter(item=>item.exposureStatus!=="VERIFIED").length};
  });
- const warnings=[...new Set(items.flatMap(item=>item.warnings))];
- return {id:input.id,asOf:input.asOf,period:input.period,ruleId:rule.id,ruleVersion:rule.version,status:items.every(item=>item.movementStatus==="VERIFIED")?"VERIFIED":"NEEDS_REVIEW",items,totalsByCurrency,warnings};
+ const noPopulationEvidence=items.length===0;
+ const warnings=[...new Set([...items.flatMap(item=>item.warnings),...(noPopulationEvidence?["NO_PRODUCT_POPULATION_EVIDENCE"]:[])])];
+ const status:EvidenceStatus=noPopulationEvidence?"UNAVAILABLE":items.every(item=>item.movementStatus==="VERIFIED")?"VERIFIED":"NEEDS_REVIEW";
+ return {id:input.id,asOf:input.asOf,period:input.period,ruleId:rule.id,ruleVersion:rule.version,status,items,totalsByCurrency,warnings};
 }
