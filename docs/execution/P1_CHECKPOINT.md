@@ -1,3 +1,21 @@
+# P1 LIVE CHECKPOINT — 2026-10-30 — DLV-002 MOBILE DRAWER FOCUS
+
+- task_id: `DLV-002 / ROUTES-001 — mobile admin drawer first-action focus`.
+- status: `IMPLEMENTED_PENDING_EXACT_SHA_CI`.
+- observed_main_head: `d26a2ad735d6610836d2aeb06889ad9f9c19dcf1`.
+- branch: `p1/dlv-002-mobile-drawer-focus-20261030`.
+- code_commit_sha: `624236346d2535eeec75ec62ddc5719e66fe8316` (includes UI code and focused regression test; no local working copy edited).
+- base_sha: `d26a2ad735d6610836d2aeb06889ad9f9c19dcf1`.
+- changed_paths:
+  - `src/components/AghbariApp.tsx`: replace immediate focus with visibility/opacity and Web Animations API transition-aware focus; schedule frame checks with 2-second bound; cancel pending checks on close/unmount; retain Escape close and trigger focus restoration.
+  - `src/test/admin-mobile-navigation-acceptance.test.tsx`: add regression proving focus stays on the trigger while drawer animation is active and moves to first navigation action only after motion completes; preserve existing Escape and destination-close/return-focus checks.
+- exact tests: `admin mobile navigation runtime acceptance` (existing coverage + delayed-transition regression); command `npm test -- --run src/test/admin-mobile-navigation-acceptance.test.tsx` — `PENDING_GITHUB_ACTIONS`.
+- P2/Core candidate workflows `41024527658` and `41024527683` run on `1500b2592b8bdb6d7c2b75b3818a3e18cf5c9eb2`, not this P1 SHA; do not transfer their results.
+- ownership: only P1-owned component and `src/test/**`; did not modify `e2e/**`, API/backend, P3 intelligence files or central state/matrix/log.
+- exact_next_command: open PR for `p1/dlv-002-mobile-drawer-focus-20261030` against `main`; inspect PR checks on the exact head `624236346d2535eeec75ec62ddc5719e66fe8316`; fix only failures in P1-owned paths and retain P2 browser assertions unchanged. Then deliver PR, SHA, check URLs and changed files to P3 for merge.
+
+---
+
 # LIVE RESUME OVERRIDE — 2026-10-30 — SUPERSEDES ALL OLDER P1 NEXT ACTIONS
 - Resume base: main `353588f5df5f36cfb6b7caaef5d067bd28371251`. Current-main Core run `41007651137` is IN_PROGRESS on this exact SHA; poll this run, do not duplicate it. One-main cleanup `41007651120` is SUCCESS on the same SHA.
 - The saved P1 Customer 360 source-lineage work already passed Core on `9f5d3af8e4f57bd758f3eb779cb6971be0a7d829`; do not re-run/poll it. It is integrated. DLV-010 stays PARTIAL overall.
