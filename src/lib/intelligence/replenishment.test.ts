@@ -44,4 +44,9 @@ describe("replenishment recommendations",()=>{
   const r=build({sold:missingPeriod}).recommendations[0];
   expect(r).toMatchObject({status:"NEEDS_REVIEW",action:"WITHHELD",recommendedQuantity:null});
  });
+ it("withholds quantity recommendations when the product UOM is absent",()=>{
+  const r=build({},"   ").recommendations[0];
+  expect(r).toMatchObject({status:"NEEDS_REVIEW",action:"WITHHELD",quantityUnit:null,recommendedQuantity:null});
+  expect(r.warnings).toContain("QUANTITY_UOM_MISSING");
+ });
 });

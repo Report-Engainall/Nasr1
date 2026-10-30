@@ -32,17 +32,17 @@ export function buildReplenishmentRecommendations(input:{
  const counts=new Map<string,number>();for(const m of passport.metrics)counts.set(m.id,(counts.get(m.id)??0)+1);
  const index=new Map<string,MetricSnapshot>();for(const m of passport.metrics)if(counts.get(m.id)===1)index.set(m.id,m);
  const recommendations=input.products.map(product=>{
-  const warnings:string[]=[],evidenceIds=[...new Set(metrics.filter(m=>[product.availableToPromise.id,product.reorderPoint.id,product.soldQuantityWindow.id,product.supplierLeadTimeDays.id,product.minimumOrderQuantity?.id,product.orderMultiple?.id].includes(m.id)).flatMap(m=>m.lineage.evidenceIds))];
+  const warnings:string[]=[],expectedQuantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"",evidenceIds=[...new Set(metrics.filter(m=>[product.availableToPromise.id,product.reorderPoint.id,product.soldQuantityWindow.id,product.supplierLeadTimeDays.id,product.minimumOrderQuantity?.id,product.orderMultiple?.id].includes(m.id)).flatMap(m=>m.lineage.evidenceIds))];
   const read=(metric:MetricSnapshot,unit:string):{value:number|null;status:EvidenceStatus;metric:MetricSnapshot|null}=>{
    const source=index.get(metric.id);if(!source)return {value:null,status:"UNVERIFIED",metric:null};
    if(source.status!=="VERIFIED"||source.completeness!=="COMPLETE"||source.quality!=="ACCEPTABLE"||source.asOf!==input.asOf||source.unit!==unit||!source.lineage.evidenceIds.length)
     return {value:null,status:source.status==="VERIFIED"?"NEEDS_REVIEW":source.status,metric:source};
    if(unit==="QUANTITY"){
-    if(!product.quantityUnit.trim()||!source.unitOfMeasure?.trim()){
+    if(!expectedQuantityUnit||!source.unitOfMeasure?.trim()){
      warnings.push("QUANTITY_UOM_MISSING");
      return {value:null,status:"NEEDS_REVIEW",metric:source};
     }
-    if(source.unitOfMeasure.trim()!==product.quantityUnit.trim()){
+    if(source.unitOfMeasure.trim()!==expectedQuantityUnit){
      warnings.push("QUANTITY_UOM_MISMATCH");
      return {value:null,status:"UNVERIFIED",metric:source};
     }
@@ -76,7 +76,7 @@ export function buildReplenishmentRecommendations(input:{
   }}
   return {
    productRef:product.productRef,status:"VERIFIED",action:recommended>0?"RECOMMEND":"NO_ACTION",
-   quantityUnit:product.quantityUnit.trim(),availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand,leadTimeDemand:leadDemand,targetStock:target,recommendedQuantity:recommended,
+   quantityUnit:expectedQuantityUnit,availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand,leadTimeDemand:leadDemand,targetStock:target,recommendedQuantity:recommended,
    formulaId:FORMULA_ID,formulaVersion:FORMULA_VERSION,evidenceIds,warnings,automaticPurchase:false,
   };
  });
