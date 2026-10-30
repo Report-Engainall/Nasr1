@@ -1,15 +1,14 @@
-# P2 LIVE SESSION COMMAND — 2026-10-30 — REFRESHED
-Current main SHA: `68fccfaff3192f934661a2bdc8d48aed155b0457`. Core [41014174530 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174530) is proven only on ancestor SHA `643d2821ab0483acc12ef21abc453a0c745f2865`. P2 run [41014174609 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174609) on that same ancestor: auth infrastructure/public UI smoke and earlier local Supabase stages passed; the browser test failed in mobile navigation because a CSS-hidden sidebar was queried by role before finance/print assertions executed. Fix is already on main in [68fccf](https://github.com/Report-Engainall/Nasr1/commit/68fccfaff3192f934661a2bdc8d48aed155b0457): stable `#admin-sidebar` locator plus aria-label assertion. No exact-head CI rerun is evidenced. Hosted customer/order/tenant remains SKIPPED.
+# P2 LIVE SESSION COMMAND — 2026-10-30 — FOCUS FAILURE AFTER LOCATOR REPAIR
+P2 code/test head: 68fccfaff3192f934661a2bdc8d48aed155b0457; P3 docs base: e99c56b6c509a8a7d2e87cd207bcc228c0d5a4c5. Core 41014864610 SUCCESS on 68fccf. P2 41014864616 FAILURE on 68fccf. Infrastructure/public smoke passed; local Supabase/Chromium database/order/tenant/returns/Onyx stages passed. Sidebar ID/label/visibility fix worked. Remaining failure is e2e/finance-task-print.spec.ts:69: first navigation button is not focused after drawer opens. Finance document/task print assertions were not reached. Hosted tenant, customer-manager and device-session checks remain SKIPPED.
 
-## تنفيذ P2 المطلوب الآن — exact-head browser then backend contract
-1. On current main `68fccfaff3192f934661a2bdc8d48aed155b0457`, run the focused `e2e/finance-task-print.spec.ts` and the P2 local Supabase/Chromium workflow. Preserve closed/open CSS visibility, accessible label, first-item focus, Escape and focus restoration. Record exact SHA and results. Do not reuse the failed 643d282 run as evidence for 68fccf.
-2. Implement `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`: server-derived tenant/actor/role/capability; request may contain only requestId/metricKeys/period/asOf/optional currency; full unpaginated aggregates and source lineage; currency-separated values; unknown null; completeness/quality/warnings/safe SQLSTATE; sideEffects NONE.
-3. Implement atomic DecisionOutcome persistence with version, idempotency key, immutable evidence refs and audit in one transaction; replay same payload returns existing event; conflicting payload conflicts; denied paths leave domain/outcome/idempotency/audit unchanged.
-4. Extend the existing AI gateway only: paidSpendLimit=0, official free provider/quota evidence, atomic reservation, 429/cooldown, sanitized question-only egress, no PII/secrets/private commercial data, deterministic fallback.
-5. Supply actual fresh health probes and the server canonical RBAC catalogue. Do not accept client-supplied tenant, actor, role or capabilities; DB/RLS remains authoritative.
-6. Deliver one bounded P2 owner patch at a time with exact base SHA, changed files, PG17 focused tests, no-side-effect snapshots, CI URLs and exact next command. P2 does not push main; P3 integrates via fast-forward/CAS only after evidence.
+## تنفيذ P2 المطلوب الآن — preserve proof and continue backend
+1. Keep current focus assertion, Escape-close, return-focus and route-close checks. Do not weaken/remove them. Production UI correction belongs to P1 in src/components/AghbariApp.tsx; coordinate and rerun this same P2 workflow after P1's fix on the exact new SHA.
+2. Record steps separately: local Supabase PostgreSQL 17; order persistence/cross-tenant denial; returns/credit memo; Onyx export; mobile keyboard/focus; finance document printing; operational-task printing; hosted tenant. SKIPPED is never PASS.
+3. Continue server-derived aggregate: client sends requestId/metricKeys/period/asOf/optional currency only; server resolves tenant/actor/role/capabilities. Return full unpaginated source aggregates, lineage, formula/version, currency, as-of, completeness/quality, warnings and no-side-effect denial.
+4. Implement atomic DecisionOutcome persistence + idempotency/audit, no-PII free-AI quota/privacy with paidSpendLimit=0, actual health probes and server canonical RBAC. Provide PostgreSQL 17 and no-side-effect denial tests.
+5. Deliver bounded owner patches with exact base/result SHA, file list, test commands/results and CI run IDs. P2 does not push main; P3 integrates by CAS only.
 
-**Exact next command:** run the focused browser test on current main `68fccfaff3192f934661a2bdc8d48aed155b0457`; after it passes, deliver the first small aggregate service/RPC + PostgreSQL 17 proof patch.
+**Exact next command:** coordinate P1's AghbariApp focus repair, then rerun P2 Playwright against the exact repaired SHA without changing the accessibility assertion.
 
 ---
 

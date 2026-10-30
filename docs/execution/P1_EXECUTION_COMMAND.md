@@ -1,15 +1,14 @@
-# P1 LIVE SESSION COMMAND — 2026-10-30 — REFRESHED
-Current main SHA: `68fccfaff3192f934661a2bdc8d48aed155b0457`. The last complete Core run [41014174530 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174530) is on parent SHA `643d2821ab0483acc12ef21abc453a0c745f2865`, not the current head. P2 run [41014174609 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174609) also ran on 643d282; its mobile navigation helper was corrected by P2 commit [68fccf](https://github.com/Report-Engainall/Nasr1/commit/68fccfaff3192f934661a2bdc8d48aed155b0457), but no exact-head rerun is evidenced. Hosted customer/order/tenant remains SKIPPED.
+# P1 LIVE SESSION COMMAND — 2026-10-30 — MOBILE FOCUS + INTELLIGENCE UI
+Current P3 docs base: e99c56b6c509a8a7d2e87cd207bcc228c0d5a4c5; application/test code head: 68fccfaff3192f934661a2bdc8d48aed155b0457. Core 41014864610 SUCCESS passed on 68fccf. P2 41014864616 FAILURE on the same SHA reached the open drawer but failed because its first nav button was not focused.
 
-## تنفيذ P1 المطلوب الآن — intelligence workspace integration
-1. Read the current global cursor and P1 checkpoint; inspect only P1-owned routes/components changed after the saved base.
-2. Use `ActionCard` and `EvidencePassport` from `@/components/intelligence` with public props. Keep loading, empty, error+retry, unavailable and ready states.
-3. Prepare the P1-owned workspace/route composition for `IntelligenceAggregateResponse`, but do not invent the RPC name or request tenantId/actor/role/capabilities from the browser.
-4. Until P2's server aggregate and command contract are delivered, keep live business views explicitly UNAVAILABLE and do not render legacy or fixture metrics as verified. Amount/currency stay optional; separate currency groups; What-if remains SIMULATED.
-5. Do not modify `src/components/intelligence/**`, `src/lib/intelligence/**`, P2 API/RPC/e2e paths or central P3 files. Add focused UI tests for the unavailable/no-mock path and any independent P1 acceptance leaf. Deliver commit SHA, paths, tests and exact next command to P3; do not push main.
-6. P3 still owes additional reusable component contracts (liquidity, forecast, dead stock and replenishment). Do not implement those inside P3-reserved paths; consume them after delivery.
+## تنفيذ P1 المطلوب الآن — P1 UI ownership
+1. Fix the actual mobile admin drawer focus in src/components/AghbariApp.tsx. Current code calls firstMobileNavItemRef.current?.focus() in useEffect([mobileNav]), but browser test observes the drawer visible and the first button still inactive. Inspect timing/target after the .sidebar.open render; schedule focus after the visible commit (layout/rAF approach as appropriate, with animation-frame cleanup) and prove document.activeElement is the first visible nav button.
+2. Keep accessibility behavior complete: menu trigger has aria-expanded/controls, first item receives focus on open, Escape closes and returns focus to trigger, and selecting a route closes the drawer and restores focus. Do NOT remove toBeFocused or change the E2E expectation to a weaker visibility check.
+3. Add focused UI regression for opening/closing the drawer at 360px. Deliver paths, commit SHA, targeted test/CI, screenshot or trace evidence and exact next command to P3; do not push main.
+4. Intelligence route/workspace remains a separate open P1 slice. Use only P3's exported ActionCard and EvidencePassport until more P3 components are published. Keep real aggregate-backed metrics UNAVAILABLE until P2 publishes the server DTO; no mock/fixture business values.
+5. Do not modify P3 intelligence paths, e2e/**, P2 backend/API or central P3 files.
 
-**Exact next command:** implement the P1-owned intelligence workspace state shell and a no-mock UNAVAILABLE regression test; mount actual DTO values only after P2's server-backed response is published.
+**Exact next command:** repair post-open focus of the first mobile admin nav button in AghbariApp.tsx; keep P2 Playwright accessibility assertions unchanged and attach a focused regression result.
 
 ---
 

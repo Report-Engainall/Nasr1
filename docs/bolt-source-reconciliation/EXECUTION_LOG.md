@@ -1,3 +1,15 @@
+## P3 evidence reconciliation — 2026-10-30 — exact-head P2 focus failure
+- Main base read before this update: e99c56b6c509a8a7d2e87cd207bcc228c0d5a4c5; P2 E2E code SHA: 68fccfaff3192f934661a2bdc8d48aed155b0457.
+- Exact Core PASS: [41014864610](https://github.com/Report-Engainall/Nasr1/actions/runs/41014864610) on 68fccf; docs-head Core PASS: [41016302836](https://github.com/Report-Engainall/Nasr1/actions/runs/41016302836) on e99c56b. Cleanup PASS: [41014864572](https://github.com/Report-Engainall/Nasr1/actions/runs/41014864572) on 68fccf and [41016302630](https://github.com/Report-Engainall/Nasr1/actions/runs/41016302630) on e99c56b.
+- P2 [41014864616 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41014864616) on 68fccf, failed job 123929100573. Failure: expect(firstItem).toBeFocused() at e2e/finance-task-print.spec.ts:69. ID locator, aria-label, expanded state and CSS visibility gates now pass; drawer is open but first nav item remains inactive. Browser stops before finance/task-print assertions. This is actual focus/accessibility failure, not proof that finance print or tenant isolation failed.
+- P2 run auth gate/public smoke, local PostgreSQL 17 startup/migrations, endpoint guard, atomic price/expense/receipt, order persistence/cross-tenant denial, returns/credit memo and Onyx XLSX stages passed. Hosted tenant/customer-manager/device-session suites were skipped.
+- Screenshot/error context/trace retained in artifact p2-local-authenticated-e2e-41014864616-68fccfaff3192f934661a2bdc8d48aed155b0457. AghbariApp.tsx has a useEffect focus call but actual browser does not retain focus; P1 owns production fix, P2 keeps and reruns test unchanged.
+- P3 component barrel still exports only ActionCard/EvidencePassport; liquidity/forecast/dead-stock/replenishment presentation APIs and focused tests remain P3 work. P1 intelligence route and P2 aggregate/outcome/AI/health/RBAC backend remain open.
+- Matrix remains 16 REF rows, all P3_IMPLEMENTED / CI_PENDING / P1_P2_PENDING; no DLV roll-up closed; release NO-GO.
+- exact_next_command: P1 repairs first-item focus; P2 reruns unchanged mobile focus/finance/task-print Playwright suite; P3 implements tests for missing intelligence display components and continues to reconcile the first P2 backend patch.
+
+---
+
 ## P3 cursor reconciliation — 2026-10-30 — P2 navigation correction observed on main
 - Observed remote main: `68fccfaff3192f934661a2bdc8d48aed155b0457`; comparison from `643d2821ab0483acc12ef21abc453a0c745f2865` is exactly 2 commits ahead / 0 behind. Only application/test path changed is P2-owned `e2e/finance-task-print.spec.ts`; intervening commit `8f6e5c8` updates governance docs.
 - P2 run [41014174609 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174609) on 643d282. Failed job `123927039686` hit the hidden sidebar role locator in the mobile-nav helper before finance/task-print assertions. Auth infra, public smoke, earlier local Supabase order/tenant/returns/Onyx stages passed; hosted tenant job SKIPPED.
