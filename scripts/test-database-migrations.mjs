@@ -2037,8 +2037,9 @@ async function main() {
       "finance invoice pages must preserve issued_at DESC, id ASC ordering across page boundaries");
   }
 
-  // Compare every returned balance with an independently aggregated source-of-truth query.
-  // This catches page-boundary correctness that still returns wrong totals, credits or currency.
+  // Read the independent source-of-truth aggregate as the privileged isolated-fixture
+  // connection, not as the authenticated accountant whose RLS boundary is under test.
+  await db.unsafe("reset role");
   const invoiceBalanceOracle = await db.unsafe(
     "select ci.id::text as id,ci.currency," +
       "ci.total_amount::numeric(15,2)::text as total_amount," +
@@ -2072,6 +2073,10 @@ async function main() {
         "invoice " + row.id + " " + field + " must match the saved invoice/payment/posted-credit source aggregate");
     }
   }
+
+  // Restore the role-scoped accountant session before exercising malformed pagination calls.
+  await setIdentity(accountantAuthUserId, "ci-accountant@example.test");
+  await db.unsafe("set role authenticated");
 
   const invalidFinanceInvoiceRequests = [
     ["null limit", null, null, null],
