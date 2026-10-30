@@ -49,3 +49,15 @@
 - Matrix rows updated to IMPLEMENTED / CI_PENDING / P1_P2_PENDING. No DLV roll-up closed.
 - P1 must mount the component contracts and prove actual route/UI state against P2 DTOs. P2 must deliver server-derived tenant aggregates, transactional decision outcome persistence, provider quota reservation/privacy controls, live probes and canonical RBAC, with no-side-effect denial proof.
 - exact_next_command: `gh run list --branch main --commit e0915690c25f579d80bda0fcc7c41b4b92e7559a --limit 10 --json databaseId,name,status,conclusion,headSha`.
+
+
+## Exact-head verification cursor — 2026-10-30
+- Main SHA immediately before this documentation update: `2761904cfa661ac4fd221d9b2ff801cd970aaad8`.
+- Core workflow for this exact SHA: NOT_FOUND — no exact-head Core run returned.
+- Exact-head PASS is recorded only when run conclusion is `success`; previous ancestor runs are historical and cannot close the current SHA.
+- Acceptance status for the 16 P3 intelligence references: `P3_IMPLEMENTED / CI_PENDING / P1_P2_PENDING`.
+- P1 integration remains pending delivery of actual route usage, loading/empty/error/retry states and UI tests/screenshots on exact SHA.
+- P2 integration remains pending service/RPC commit, PostgreSQL 17 tenant/role tests, full aggregate lineage, transactional outcome/idempotency/audit, AI egress/quota enforcement, health probes and canonical RBAC evidence.
+- Hosted customer/tenant isolation was previously `SKIPPED`; it is not PASS until a real authorized hosted run exists.
+- No DLV roll-up or production/release gate is closed.
+- exact_next_command: `gh run list --branch main --commit 2761904cfa661ac4fd221d9b2ff801cd970aaad8 --limit 10 --json databaseId,name,status,conclusion,headSha`.

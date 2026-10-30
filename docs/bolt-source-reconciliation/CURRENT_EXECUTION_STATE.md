@@ -1,4 +1,6 @@
 # CURRENT EXECUTION STATE — 2026-10-30 — AUTHORITATIVE RESUME SNAPSHOT
+> **P3 current execution cursor (2026-10-30):** live `main` = `2761904cfa661ac4fd221d9b2ff801cd970aaad8`. Exact-head Core: no Core workflow returned for this exact SHA. This status applies only to the exact SHA above; ancestor PASS results are not transferable. P3 source engines are implemented; P1 route mounting and P2 authenticated tenant aggregate/persistence remain separate acceptance dependencies. No DLV roll-up is closed.
+
 
 > **P3 live cursor:** application code reviewed against main `e0915690c25f579d80bda0fcc7c41b4b92e7559a`. Exact-head Actions observed at cursor: One-main-branch cleanup #41013287453 completed/success; Aghbari Commerce checks #41013287473 in_progress/PENDING; P2 Playwright Critical Paths #41013287475 in_progress/PENDING. Do not transfer PASS from ancestor SHAs. P3 REF engines exist; all listed rows remain open for current-head CI and P1/P2 integration. This note is a cursor refresh, not a release gate.
 
