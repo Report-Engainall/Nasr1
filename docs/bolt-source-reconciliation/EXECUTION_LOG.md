@@ -1,3 +1,12 @@
+## P2 run 41017608501 final result — 2026-10-30 — exact SHA b52271629f054f5d9750e2d4dbf247e22c90f8c7
+- [P2 Playwright Critical Paths 41017608501 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41017608501). Authenticated infrastructure and public UI smoke passed; local PostgreSQL/Supabase path passed order persistence and cross-tenant denial, returns/credit memo, and audited Onyx XLSX export.
+- The Chromium test failed at `e2e/finance-task-print.spec.ts:69`: after the admin drawer opened and passed label/expanded/visibility checks, the first navigation button remained inactive; `toBeFocused()` timed out at 20s. The failure occurred in the helper invoked by the finance print test. The invoice/statement/task print-specific assertions were not reached and must not be marked pass or fail.
+- Hosted customer/order/tenant job was SKIPPED. P1 owns the production focus fix in `src/components/AghbariApp.tsx`; P2 must retain the keyboard focus/Escape/restore assertions.
+- The same source SHA's Core 41017608436 failed earlier in the P2-owned PG17 receipt-race harness at scripts/test-database-migrations.mjs:3105; Unit tests passed. Current Core on previous docs SHA 47865 was [41018275584 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41018275584) at last observation.
+- exact_next_command: P1 fix first nav focus and deliver patch; P2 repair race test setup/readiness without weakening lock/idempotency proof; then rerun targeted P2 and Core at exact result SHA.
+ 
+---
+ 
 ## P3 component delivery and P2 PG17 evidence — 2026-10-30 — main b52271629f054f5d9750e2d4dbf247e22c90f8c7
 - P3 UI batch integrated on main: `32c2fe451bb783af2a76388e9811ffb52ec28e7f`; accessible labels/locale-aware assertions `8ccc68aaf8ea65718b35c1fc9f5b23c54a6988ce`; cashflow horizon test `b52271629f054f5d9750e2d4dbf247e22c90f8c7`. Exports: LiquiditySummary, CashflowForecastCard, DeadStockCard, ReplenishmentCard and shared state/evidence components. Contract: docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md.
 - Component tests reached/passed Core Unit tests on exact SHA b522716; overall Core [41017608436 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41017608436) was later blocked by PG17 database acceptance at scripts/test-database-migrations.mjs:3105.
