@@ -70,10 +70,23 @@ async function snapshotExpenseVoidBoundary(expenseId) {
       "where organization_id=$1::uuid and source_type='cash_expense' and source_id=$2::uuid",
     [organizationId, expenseId],
   );
+  const fullState = await db.unsafe(
+    "select jsonb_build_object(" +
+      "'expense',(select to_jsonb(e) from public.cash_expenses e where e.organization_id=$1::uuid and e.id=$2::uuid)," +
+      "'source_postings',coalesce((select jsonb_agg(to_jsonb(p) order by p.id::text) from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid),'[]'::jsonb)," +
+      "'journals',coalesce((select jsonb_agg(to_jsonb(j) order by j.id::text) from public.accounting_journal_entries j where j.organization_id=$1::uuid and j.id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid)),'[]'::jsonb)," +
+      "'journal_lines',coalesce((select jsonb_agg(to_jsonb(l) order by l.journal_entry_id::text,l.line_number) from public.accounting_journal_lines l where l.organization_id=$1::uuid and l.journal_entry_id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid)),'[]'::jsonb)," +
+      "'reversals',coalesce((select jsonb_agg(to_jsonb(r) order by r.id::text) from public.accounting_journal_reversals r where r.organization_id=$1::uuid and (r.original_journal_entry_id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid) or r.reversal_journal_entry_id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid))),'[]'::jsonb)," +
+      "'audit',coalesce((select jsonb_agg(to_jsonb(a) order by a.id::text) from public.audit_logs a where a.organization_id=$1::uuid and ((a.entity_type='cash_expense' and a.entity_id=$2::uuid) or (a.entity_type='accounting_journal_entry' and a.entity_id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid)) or (a.entity_type='accounting_journal_reversal' and a.entity_id in (select r.id from public.accounting_journal_reversals r where r.organization_id=$1::uuid and (r.original_journal_entry_id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid) or r.reversal_journal_entry_id in (select p.journal_entry_id from public.accounting_source_postings p where p.organization_id=$1::uuid and p.source_type='cash_expense' and p.source_id=$2::uuid))))),'[]'::jsonb)" +
+    ")::text as snapshot",
+    [organizationId, expenseId],
+  );
+  assert.equal(fullState.length, 1, "privileged expense-void oracle must return a complete linked-state snapshot");
   return {
     source: source[0],
     voidAuditCount: Number(audits[0]?.count ?? 0),
     sourcePostingCount: Number(links[0]?.count ?? 0),
+    completeState: fullState[0].snapshot,
   };
 }
 
@@ -85,6 +98,20 @@ async function main() {
   const customerRows = customerEmail ? await db.unsafe("select id,auth_user_id,email from public.profiles where organization_id=$1::uuid and lower(email)=lower($2) and is_active=true", [organizationId, customerEmail]) : [];
   assert.equal(customerRows.length, 1, "local fixture must contain the paired customer for role-denial acceptance");
   const customer = customerRows[0];
+  const staffAuthId = randomUUID();
+  const staffProfileId = randomUUID();
+  const staffEmail = "ci-cash-expense-staff-" + staffAuthId + "@example.test";
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,$2,now()) on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at",
+    [staffAuthId, staffEmail],
+  );
+  await db.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Cash Expense Ordinary Staff',$4,true)",
+    [staffProfileId, staffAuthId, organizationId, staffEmail],
+  );
+  await db.unsafe("insert into public.user_roles(profile_id,role) values($1,'staff')", [staffProfileId]);
+  const staffRoles = await db.unsafe("select role from public.user_roles where profile_id=$1::uuid order by role", [staffProfileId]);
+  assert.deepEqual(staffRoles.map((row) => row.role), ["staff"], "void-denial fixture must have only ordinary staff role");
   const suffix = randomUUID().replaceAll("-", "").slice(-12).toUpperCase();
   const expenseAccount = await createAccount("P2-E2E-EXP-" + suffix, "P2 E2E Operating Expense " + suffix, "expense");
   const settlementAccount = await createAccount("P2-E2E-CASH-" + suffix, "P2 E2E Cash " + suffix, "asset");
@@ -94,6 +121,7 @@ async function main() {
   const concurrentB = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const customerDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   const foreignManagerDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
+  const staffDb = postgres(connectionString, { max: 1, prepare: false, idle_timeout: 5 });
   try {
     await setIdentity(managerDb, manager.auth_user_id, manager.email);
     await setIdentity(concurrentA, manager.auth_user_id, manager.email);
@@ -226,6 +254,19 @@ async function main() {
       updated_at: deniedVoidBaseline.source.updated_at,
     }, "fresh void-boundary source starts posted and unvoided");
 
+    await setIdentity(staffDb, staffAuthId, staffEmail);
+    const staffVoidError = await expectFailure(
+      "same-tenant ordinary staff cannot void a cash expense",
+      () => voidExpense(staffDb, deniedVoidExpense.expense_id, "ordinary staff unauthorized void"),
+      /administrator or manager permission required to void cash expense/i,
+    );
+    assert.equal(staffVoidError.code, "42501", "ordinary-staff cash-expense void denial uses SQLSTATE 42501");
+    assert.deepEqual(
+      await snapshotExpenseVoidBoundary(deniedVoidExpense.expense_id),
+      deniedVoidBaseline,
+      "ordinary-staff denial preserves complete expense/source-posting/journal/lines/reversal/audit state byte-for-byte",
+    );
+
     const customerVoidError = await expectFailure(
       "customer cannot void a cash expense",
       () => voidExpense(customerDb, deniedVoidExpense.expense_id, "customer unauthorized void"),
@@ -247,6 +288,7 @@ async function main() {
 
     process.stdout.write("PASS cash-expense source posting: PostgreSQL journal draft, immutable source link, balanced exact amounts, source/account mapping guard, concurrent draft idempotency, posted-ledger visibility, audit attribution, customer denial and post/void compensation race\n");
   } finally {
+    await staffDb.end({ timeout: 5 }).catch(() => {});
     await foreignManagerDb.end({ timeout: 5 }).catch(() => {});
     await customerDb.end({ timeout: 5 }).catch(() => {});
     await concurrentB.end({ timeout: 5 }).catch(() => {});
