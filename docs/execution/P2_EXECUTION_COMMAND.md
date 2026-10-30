@@ -48,3 +48,7 @@ P1/P3 يرسلان طلب خدمة منظم في checkpoints. أجبهم بال�
 حدّث `docs/execution/P2_CHECKPOINT.md` كل 10 دقائق أو بعد commit/failure: UTC, task, base/result SHA, paths, migration/RPC, tests, CI IDs, root cause, retry, blocker, local commit, integration status, next exact command.
 استخدم detached local worktree عند توافره؛ commit محلياً ولا تدفع main. P3 وحده يدمج ويسوق CI/post-merge.
 لا production writes أو paid calls أو secrets في المستودع. محاولتان لنفس root cause ثم البديل الآمن والانتقال. لا 330-RPC inventory ثانية ولا full scan ولا force/reset/clean.
+
+ 
+## P3 aggregate/governance contract — mandatory P2 implementation
+Read docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md and src/lib/intelligence/aggregate-contract.ts. Implement the full server-derived tenant aggregate with all pages/history, evidence/formula/version/currency/completeness, cashflow schedule, inventory movements and full customer retention count. Implement decision outcome persistence with atomic idempotency/audit and canonical capability checks. Implement live health probes and canonical RBAC response from existing auth/RLS. The same contract requires free-only AI with atomic quota reservation, privacy filtering, safe telemetry, 429/cooldown and local deterministic fallback. Do not accept tenantId, actor, roles or capabilities from the client. Do not update main; give P3 a patch/base SHA, test outputs and P2 checkpoint entry for integration.

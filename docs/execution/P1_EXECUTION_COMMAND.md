@@ -48,3 +48,8 @@ Read the first 80 lines of `docs/bolt-source-reconciliation/CURRENT_EXECUTION_ST
 ## منع الدوران والإغلاق
 لا تعِد inventory أو full scan أو tests مقبولة بلا regression/dependency change. محاولتان لنفس السبب ثم حل آمن/بديل وانتقل.
 سلّم P3: acceptance IDs، paths، local commit SHA، tests، browser/runtime proof status، طلب P2، blocker، وNEXT EXACT COMMAND. لا تستخدم COMPLETE بلا دليل exact SHA.
+
+ 
+## P3 intelligence integration addendum — current contracts
+Import ActionCard and EvidencePassport from @/components/intelligence. P3 pure modules are exported from @/lib/intelligence. P1 owns routes, navigation, state orchestration and event callbacks. Do not change AghbariApp.tsx from P3.
+Mount the P2 tenant-safe DTO only. Display separate currency cards; show no total across currencies. Preserve all evidence states and null values. Scenario outputs must be visibly labeled SIMULATED and must not look like ledger values. Decision lifecycle events call P2 persistence, never local state mutation. Learning compares only verified same-unit/currency/period values. AI UI shows provider availability/fallback reason but no keys, prompts, or raw commercial data. Health cards show per-probe evidence/freshness. RBAC views are explanatory and use the server canonical permission catalog only.
