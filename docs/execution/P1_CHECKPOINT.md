@@ -4,15 +4,19 @@
 - status: `IMPLEMENTED_PENDING_EXACT_SHA_CI`.
 - observed_main_head: `d26a2ad735d6610836d2aeb06889ad9f9c19dcf1`.
 - branch: `p1/dlv-002-mobile-drawer-focus-20261030`.
-- code_commit_sha: `624236346d2535eeec75ec62ddc5719e66fe8316` (includes UI code and focused regression test; no local working copy edited).
+- code_commit_sha: `4be7c18ddfce3204bc8bceb2fa818c7960a51dce` (adds transition-aware focus regression assertion; UI code remains `8cd88895dc3477a17987b152ceb31c9818d0378f`; no local working copy edited).
 - base_sha: `d26a2ad735d6610836d2aeb06889ad9f9c19dcf1`.
 - changed_paths:
   - `src/components/AghbariApp.tsx`: replace immediate focus with visibility/opacity and Web Animations API transition-aware focus; schedule frame checks with 2-second bound; cancel pending checks on close/unmount; retain Escape close and trigger focus restoration.
-  - `src/test/admin-mobile-navigation-acceptance.test.tsx`: add regression proving focus stays on the trigger while drawer animation is active and moves to first navigation action only after motion completes; preserve existing Escape and destination-close/return-focus checks.
-- exact tests: `admin mobile navigation runtime acceptance` (existing coverage + delayed-transition regression); command `npm test -- --run src/test/admin-mobile-navigation-acceptance.test.tsx` — `PENDING_GITHUB_ACTIONS`.
+  - `src/test/admin-mobile-navigation-acceptance.test.tsx`: regression proves focus stays on the trigger while drawer animation is active and moves to first navigation action only after motion completes; preserve existing Escape and destination-close/return-focus checks.
+  - `src/test/storefront-admin-navigation-access.test.ts`: replace brittle source-string assertion for the removed one-shot focus call with checks for visibility, active-motion gating, cancellable polling and focus target.
+
+- exact tests: `admin mobile navigation runtime acceptance` (3/3 PASS on first head `7970e4d`; included delayed-transition regression); whole Core unit run failed 237/238 files, 1540/1541 tests solely because `storefront-admin-navigation-access.test.ts` required the obsolete immediate-focus source string. That assertion is now changed to verify transition-aware implementation invariants. Exact-head CI on updated commit `4be7c18d` is pending; no full-suite PASS claimed.
 - P2/Core candidate workflows `41024527658` and `41024527683` run on `1500b2592b8bdb6d7c2b75b3818a3e18cf5c9eb2`, not this P1 SHA; do not transfer their results.
 - ownership: only P1-owned component and `src/test/**`; did not modify `e2e/**`, API/backend, P3 intelligence files or central state/matrix/log.
-- exact_next_command: open PR for `p1/dlv-002-mobile-drawer-focus-20261030` against `main`; inspect PR checks on the exact head `624236346d2535eeec75ec62ddc5719e66fe8316`; fix only failures in P1-owned paths and retain P2 browser assertions unchanged. Then deliver PR, SHA, check URLs and changed files to P3 for merge.
+- initial PR head `7970e4d6739e8aecae9019c7753050bf36561d20` Core `41025181975` FAILURE: 237/238 files and 1540/1541 tests passed; only stale static assertion in `storefront-admin-navigation-access.test.ts` failed because it expected the deleted one-shot focus line. Focused runtime suite on that head passed all 3 tests. Fix commit `4be7c18ddfce3204bc8bceb2fa818c7960a51dce` updates that P1-owned assertion without editing P2 E2E.
+- initial P2 `41025182161` is still running on old head `7970e4d`; local Supabase job started and will not be transferred to the updated head. Public UI smoke PASS, external hosted infrastructure path SKIPPED. Re-run the exact PR P2 workflow for the updated head.
+- exact_next_command: poll Core/P2 exact-head workflows triggered by `4be7c18d` (after checkpoint-only commit, use final branch HEAD); repair only failures in P1-owned paths and retain P2 browser assertions unchanged. Then hand off exact SHA, PR, files, and evidence to P3 for merge.
 
 ---
 
