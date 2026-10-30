@@ -29,6 +29,9 @@ type OrganizationSession = {
 type SessionRpcResult = { data: unknown; error: { message?: string } | null };
 type SessionRpc = (name: string, args?: Record<string, unknown>) => PromiseLike<SessionRpcResult>;
 
+// The server allows at most 200 session summaries per request and exposes no paging cursor yet.
+const ORGANIZATION_SESSION_LIST_LIMIT = 200;
+
 // Session RPCs are introduced by the independently reviewed P2 migration. Keep the
 // name boundary typed locally so this frontend can be merged without pretending the
 // server endpoint already exists on main. Resolve the Supabase client lazily so routes
@@ -152,7 +155,7 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
     setSessionsLoading(true);
     setSessionsError('');
     try {
-      const { data, error: rpcError } = await callSessionRpc('list_organization_sessions', { p_limit: 100 });
+      const { data, error: rpcError } = await callSessionRpc('list_organization_sessions', { p_limit: ORGANIZATION_SESSION_LIST_LIMIT });
       if (rpcError) {
         throw new Error(rpcError.message || 'تعذر تأكيد استجابة الخادم.');
       }
@@ -371,7 +374,13 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
       ) : organizationSessions.length === 0 ? (
         <div role="status" className="privacy-note" style={{ marginTop: 14 }}>لم يُرجع الخادم جلسات نشطة ضمن النطاق المصرح به.</div>
       ) : (
-        <div style={{ display: 'grid', gap: 10, marginTop: 14 }}>
+        <>
+          {organizationSessions.length >= ORGANIZATION_SESSION_LIST_LIMIT && (
+            <div role="status" className="privacy-note" style={{ marginTop: 14, lineHeight: 1.8 }}>
+              يعرض الخادم حتى {ORGANIZATION_SESSION_LIST_LIMIT} جلسة نشطة في هذا الطلب. قد توجد جلسات أخرى لم تظهر؛ لا تعتبر هذه القائمة جردًا كاملًا عند بلوغ الحد.
+            </div>
+          )}
+          <div style={{ display: 'grid', gap: 10, marginTop: 14 }}>
           {organizationSessions.map((item) => (
             <article key={item.session_id} style={{ border: '1px solid var(--border, #dcebed)', borderRadius: 12, padding: 14 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -403,7 +412,8 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
               </dl>
             </article>
           ))}
-        </div>
+          </div>
+        </>
       )}
     </section>
 
