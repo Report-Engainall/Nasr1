@@ -19,10 +19,14 @@ const sameTenantCustomerEmail = "ci-finalizer-same-tenant-customer-" + sameTenan
 const sameTenantEmployeeProfileId = randomUUID();
 const sameTenantEmployeeAuthUserId = randomUUID();
 const sameTenantEmployeeEmail = "ci-finalizer-same-tenant-employee-" + sameTenantEmployeeProfileId + "@example.test";
+const sameTenantManagerProfileId = randomUUID();
+const sameTenantManagerAuthUserId = randomUUID();
+const sameTenantManagerEmail = "ci-finalizer-same-tenant-manager-" + sameTenantManagerProfileId + "@example.test";
 const staffSessionId = randomUUID();
 const foreignSessionId = randomUUID();
 const sameTenantCustomerSessionId = randomUUID();
 const sameTenantEmployeeSessionId = randomUUID();
+const sameTenantManagerSessionId = randomUUID();
 const requestKey = randomUUID();
 const fileName = "ci-finalizer-" + randomUUID() + ".csv";
 const fileHash = createHash("sha256").update(randomUUID()).digest("hex");
@@ -31,6 +35,7 @@ const staff = postgres(connectionString, { max: 1, prepare: false });
 const foreign = postgres(connectionString, { max: 1, prepare: false });
 const sameTenantCustomer = postgres(connectionString, { max: 1, prepare: false });
 const sameTenantEmployee = postgres(connectionString, { max: 1, prepare: false });
+const sameTenantManager = postgres(connectionString, { max: 1, prepare: false });
 let jobId = null;
 
 async function setIdentity(db, authUserId, email, sessionId, assumeAuthenticatedRole = true) {
@@ -61,9 +66,9 @@ async function cleanup() {
     await admin.unsafe("delete from public.audit_logs where entity_id=$1::uuid", [jobId]).catch(() => {});
     await admin.unsafe("delete from public.import_jobs where id=$1::uuid", [jobId]).catch(() => {});
   }
-  await admin.unsafe("delete from auth.sessions where id=any($1::uuid[])", [[staffSessionId, foreignSessionId, sameTenantCustomerSessionId, sameTenantEmployeeSessionId]]).catch(() => {});
-  await admin.unsafe("delete from public.user_roles where profile_id=any($1::uuid[])", [[foreignProfileId, sameTenantCustomerProfileId, sameTenantEmployeeProfileId]]).catch(() => {});
-  await admin.unsafe("delete from public.profiles where id=any($1::uuid[])", [[foreignProfileId, sameTenantCustomerProfileId, sameTenantEmployeeProfileId]]).catch(() => {});
+  await admin.unsafe("delete from auth.sessions where id=any($1::uuid[])", [[staffSessionId, foreignSessionId, sameTenantCustomerSessionId, sameTenantEmployeeSessionId, sameTenantManagerSessionId]]).catch(() => {});
+  await admin.unsafe("delete from public.user_roles where profile_id=any($1::uuid[])", [[foreignProfileId, sameTenantCustomerProfileId, sameTenantEmployeeProfileId, sameTenantManagerProfileId]]).catch(() => {});
+  await admin.unsafe("delete from public.profiles where id=any($1::uuid[])", [[foreignProfileId, sameTenantCustomerProfileId, sameTenantEmployeeProfileId, sameTenantManagerProfileId]]).catch(() => {});
   await admin.unsafe("delete from public.organizations where id=$1::uuid and name='CI Import Finalizer Foreign Tenant'", [foreignOrganizationId]).catch(() => {});
 }
 
@@ -124,6 +129,23 @@ async function main() {
   );
   assert.deepEqual(sameTenantEmployeeRoles.map(({ role }) => role), ["staff"],
     "same-tenant employee fixture must have only the ordinary staff role, not admin or manager");
+
+  await admin.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
+      "values($1::uuid,$2::uuid,$3::uuid,'CI Import Finalizer Same-Tenant Manager',$4,true) " +
+      "on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,is_active=true,email=excluded.email",
+    [sameTenantManagerProfileId, sameTenantManagerAuthUserId, organizationId, sameTenantManagerEmail],
+  );
+  await admin.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1::uuid,'manager') on conflict(profile_id,role) do nothing",
+    [sameTenantManagerProfileId],
+  );
+  const sameTenantManagerRoles = await admin.unsafe(
+    "select role from public.user_roles where profile_id=$1::uuid order by role",
+    [sameTenantManagerProfileId],
+  );
+  assert.deepEqual(sameTenantManagerRoles.map(({ role }) => role), ["manager"],
+    "same-tenant manager fixture must have only the manager role");
 
   const owner = await admin.unsafe(
     "select p.id,p.organization_id,p.is_active,exists(select 1 from public.user_roles r where r.profile_id=p.id and r.role='admin') as is_admin " +
@@ -357,7 +379,44 @@ async function main() {
     "same-tenant ordinary-staff denial must preserve complete import/upload/staging/snapshot/audit state byte-for-byte",
   );
 
-  console.log("PASS import finalizer semantic authorization: foreign tenant gets opaque not-found; same-tenant customer and ordinary staff get 42501; complete import/upload/staging/snapshot/audit snapshots remain byte-for-byte unchanged");
+  // Positive authorization: admin and manager must pass the role guard and reach the
+  // later upload-manifest validation. This fixture intentionally has no upload session,
+  // so 22023 is expected; complete persisted state must still remain unchanged.
+  await setIdentity(staff, staffAuthUserId, staffEmail, staffSessionId);
+  const adminIdentity = await staff.unsafe("select public.current_profile_id()::text as profile_id");
+  assert.equal(adminIdentity.length, 1);
+  assert.equal(adminIdentity[0].profile_id, staffProfileId,
+    "the positive admin session must resolve to the active source-tenant admin profile");
+  const adminApprovalSnapshotBefore = await captureFinalizerState();
+  await assert.rejects(
+    () => staff.unsafe("select public.finalize_import_job($1::uuid) as result", [jobId]),
+    (error) =>
+      error?.code === "22023" &&
+      /دفعة الاستيراد تفتقر إلى جلسة رفع وهوية ملف موثقتين/.test(String(error.message)),
+    "admin must pass authorization and reach deterministic missing-upload-manifest validation",
+  );
+  const adminApprovalSnapshotAfter = await captureFinalizerState();
+  assert.equal(adminApprovalSnapshotAfter, adminApprovalSnapshotBefore,
+    "admin's accepted role followed by manifest rejection must not mutate import state");
+
+  await setIdentity(sameTenantManager, sameTenantManagerAuthUserId, sameTenantManagerEmail, sameTenantManagerSessionId);
+  const managerIdentity = await sameTenantManager.unsafe("select public.current_profile_id()::text as profile_id");
+  assert.equal(managerIdentity.length, 1);
+  assert.equal(managerIdentity[0].profile_id, sameTenantManagerProfileId,
+    "the positive manager session must resolve to the active source-tenant manager profile");
+  const managerApprovalSnapshotBefore = await captureFinalizerState();
+  await assert.rejects(
+    () => sameTenantManager.unsafe("select public.finalize_import_job($1::uuid) as result", [jobId]),
+    (error) =>
+      error?.code === "22023" &&
+      /دفعة الاستيراد تفتقر إلى جلسة رفع وهوية ملف موثقتين/.test(String(error.message)),
+    "manager must pass authorization and reach deterministic missing-upload-manifest validation",
+  );
+  const managerApprovalSnapshotAfter = await captureFinalizerState();
+  assert.equal(managerApprovalSnapshotAfter, managerApprovalSnapshotBefore,
+    "manager's accepted role followed by manifest rejection must not mutate import state");
+
+  console.log("PASS import finalizer authorization matrix: admin and manager pass role guard; same-tenant customer and ordinary staff receive 42501; foreign tenant gets opaque not-found; complete snapshots remain byte-for-byte unchanged");
 }
 
 main().catch((error) => {
@@ -365,5 +424,5 @@ main().catch((error) => {
   process.exitCode = 1;
 }).finally(async () => {
   await cleanup();
-  await Promise.all([admin.end(), staff.end(), foreign.end(), sameTenantCustomer.end(), sameTenantEmployee.end()]);
+  await Promise.all([admin.end(), staff.end(), foreign.end(), sameTenantCustomer.end(), sameTenantEmployee.end(), sameTenantManager.end()]);
 });
