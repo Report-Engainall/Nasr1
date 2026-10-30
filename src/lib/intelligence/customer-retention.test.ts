@@ -38,4 +38,32 @@ describe("customer retention full aggregate",()=>{
   const r=buildCustomerRetentionReport(data([customer("C2",0,1,"2026-06-01T00:00:00Z")],[sale("C2","YER",0)]));
   expect(r.customers[0].activity).toBe("INACTIVE");expect(JSON.stringify(r)).not.toMatch(/reason|cause|سبب/);
  });
+ it("withholds customer retention when sales rows contain a customer outside the verified population",()=>{
+  const input=data([customer("C1",2,1,"2026-10-20T00:00:00Z")],[sale("C1","YER",100),sale("FOREIGN","YER",900)]);
+  const result=buildCustomerRetentionReport(input);
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.population.total).toBeNull();
+  expect(result.focusByCurrency[0].totalSales).toBeNull();
+  expect(result.warnings).toContain("FULL_CUSTOMER_AGGREGATE_NOT_VERIFIED");
+ });
+ it("rejects duplicate coverage evidence IDs and duplicate source records",()=>{
+  const input=data([customer("C1",2,1,"2026-10-20T00:00:00Z")],[sale("C1","YER",100)]);
+  const id=input.coverage.evidenceIds[0];
+  input.coverage.evidenceIds=[id,id];
+  const result=buildCustomerRetentionReport(input);
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.population.total).toBeNull();
+ });
+ it("does not call a customer with verified orders a no-order-date customer",()=>{
+  const result=buildCustomerRetentionReport(data([customer("C1",1,0,null)],[sale("C1","YER",50)]));
+  expect(result.customers[0].activity).toBe("UNKNOWN");
+  expect(result.customers[0].status).toBe("NEEDS_REVIEW");
+  expect(result.status).toBe("NEEDS_REVIEW");
+  expect(result.activity.noOrderDate).toBeNull();
+ });
+ it("labels a customer with zero current and previous orders and no timestamp as no-order-date",()=>{
+  const result=buildCustomerRetentionReport(data([customer("C0",0,0,null)],[sale("C0","YER",0)]));
+  expect(result.customers[0].activity).toBe("NO_ORDER_DATE");
+  expect(result.customers[0].status).toBe("VERIFIED");
+ });
 });
