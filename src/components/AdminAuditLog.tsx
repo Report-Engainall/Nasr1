@@ -110,7 +110,7 @@ export function AdminAuditLog() {
       <Button variant="outline" onClick={() => window.print()} disabled={!canReadAudit || loading || filtered.length === 0}><Printer size={16} /> طباعة النتائج الحالية</Button>
     </div>}>
     {!canReadAudit ? <section className="panel" role="alert"><ShieldCheck size={24} /><h2>الصلاحية غير متاحة</h2><p>تقتصر قراءة سجل التدقيق على مدير المؤسسة ومدير النظام، ويفرض الخادم النطاق نفسه بواسطة RLS.</p></section> : <>
-      <section className="panel no-print" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(180px, 260px)', gap: 12, marginBottom: 16 }}>
+      <section className="panel no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginBottom: 16 }}>
         <label style={{ display: 'grid', gap: 6 }}><span><Search size={14} style={{ verticalAlign: 'middle' }} /> بحث في الإجراء أو الكيان أو المعرّف</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="بحث داخل سجلات الصفحة الحالية" /></label>
         <label style={{ display: 'grid', gap: 6 }}><span>نوع الإجراء</span><select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}><option value="all">كل الإجراءات</option>{actions.map((action) => <option value={action} key={action}>{actionLabels[action] ?? action}</option>)}</select></label>
       </section>

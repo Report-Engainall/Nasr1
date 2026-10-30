@@ -187,6 +187,11 @@ describe("admin audit actual deep route acceptance", () => {
 
     expect(await screen.findByRole("heading", { name: "سجل التدقيق" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "إعادة تسمية تصنيف" })).toBeInTheDocument();
+    const filterPanel = screen.getByRole("main").querySelector(".panel.no-print");
+    expect(filterPanel).not.toBeNull();
+    expect((filterPanel as HTMLElement).style.gridTemplateColumns).toBe(
+      "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
+    );
     expect(screen.getByRole("main")).toHaveAttribute("dir", "rtl");
     expect(mocks.from).toHaveBeenCalledWith("audit_logs");
     expect(mocks.requests[0].filters).toContainEqual({
