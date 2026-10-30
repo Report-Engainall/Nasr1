@@ -1640,3 +1640,9 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 ## 2026-10-30 — documentation CI correction
 - Docs-only SHA 4c0918c Core 41022861275 completed SUCCESS on exact SHA; current docs cursor observed bf5a5023d4e9870c23c2b546069a4aad230510b9 had Core 41023269485 IN_PROGRESS (Unit tests active) and cleanup 41023269477 SUCCESS.
 - App code remains SHA 7c7d28cb16d125462bf6a6e3a7870a6fcf2a532b with Core 41022452845 SUCCESS; P2 41022452961 FAILURE on mobile initial focus. No P1/P2 code delivery; no DLV close.
+
+## 2026-10-30 — P3 liquidity evidence granularity and replenishment UOM hardening — code SHA 1500b259
+- b8ced781 added per-field liquidity evidence statuses and UI labels. Exact Core 41024068742 failed two LiquiditySummary DOM assertions (237 test files/1,534 passed); liquidity engine tests passed. Corrected nested-text matching in 43d111bd.
+- 24c4ece1 enforces source UOM for ATP/reorder/sold/MOQ/order-multiple, exact match to the product UOM, exact sold-period coverage and displays only the validated unit; missing UOM => NEEDS_REVIEW, mismatch => UNVERIFIED.
+- 1500b259 adds runtime handling for blank/non-string product UOM. Core 41024527658 IN_PROGRESS on exact SHA; P2 41024527683 pending. Do not transfer previous-head results.
+- REF-LIQUIDITY and REF-REPLENISHMENT remain P2 aggregate/P1 mounting dependent. No DLV roll-up closed; release NO-GO.
