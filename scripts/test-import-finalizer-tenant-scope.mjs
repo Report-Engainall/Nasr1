@@ -13,14 +13,19 @@ const foreignOrganizationId = randomUUID();
 const foreignProfileId = randomUUID();
 const foreignAuthUserId = randomUUID();
 const foreignEmail = "ci-finalizer-foreign-" + foreignProfileId + "@example.test";
+const sameTenantCustomerProfileId = randomUUID();
+const sameTenantCustomerAuthUserId = randomUUID();
+const sameTenantCustomerEmail = "ci-finalizer-same-tenant-customer-" + sameTenantCustomerProfileId + "@example.test";
 const staffSessionId = randomUUID();
 const foreignSessionId = randomUUID();
+const sameTenantCustomerSessionId = randomUUID();
 const requestKey = randomUUID();
 const fileName = "ci-finalizer-" + randomUUID() + ".csv";
 const fileHash = createHash("sha256").update(randomUUID()).digest("hex");
 const admin = postgres(connectionString, { max: 1, prepare: false });
 const staff = postgres(connectionString, { max: 1, prepare: false });
 const foreign = postgres(connectionString, { max: 1, prepare: false });
+const sameTenantCustomer = postgres(connectionString, { max: 1, prepare: false });
 let jobId = null;
 
 async function setIdentity(db, authUserId, email, sessionId, assumeAuthenticatedRole = true) {
@@ -51,9 +56,9 @@ async function cleanup() {
     await admin.unsafe("delete from public.audit_logs where entity_id=$1::uuid", [jobId]).catch(() => {});
     await admin.unsafe("delete from public.import_jobs where id=$1::uuid", [jobId]).catch(() => {});
   }
-  await admin.unsafe("delete from auth.sessions where id=any($1::uuid[])", [[staffSessionId, foreignSessionId]]).catch(() => {});
-  await admin.unsafe("delete from public.user_roles where profile_id=$1::uuid", [foreignProfileId]).catch(() => {});
-  await admin.unsafe("delete from public.profiles where id=$1::uuid", [foreignProfileId]).catch(() => {});
+  await admin.unsafe("delete from auth.sessions where id=any($1::uuid[])", [[staffSessionId, foreignSessionId, sameTenantCustomerSessionId]]).catch(() => {});
+  await admin.unsafe("delete from public.user_roles where profile_id=any($1::uuid[])", [[foreignProfileId, sameTenantCustomerProfileId]]).catch(() => {});
+  await admin.unsafe("delete from public.profiles where id=any($1::uuid[])", [[foreignProfileId, sameTenantCustomerProfileId]]).catch(() => {});
   await admin.unsafe("delete from public.organizations where id=$1::uuid and name='CI Import Finalizer Foreign Tenant'", [foreignOrganizationId]).catch(() => {});
 }
 
@@ -85,6 +90,19 @@ async function main() {
     "insert into public.user_roles(profile_id,role) values($1::uuid,'admin') on conflict(profile_id,role) do nothing",
     [foreignProfileId],
   );
+  await admin.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) " +
+      "values($1::uuid,$2::uuid,$3::uuid,'CI Import Finalizer Same-Tenant Customer',$4,true) " +
+      "on conflict(id) do update set auth_user_id=excluded.auth_user_id,organization_id=excluded.organization_id,is_active=true,email=excluded.email",
+    [sameTenantCustomerProfileId, sameTenantCustomerAuthUserId, organizationId, sameTenantCustomerEmail],
+  );
+  const sameTenantCustomerRoles = await admin.unsafe(
+    "select role from public.user_roles where profile_id=$1::uuid order by role",
+    [sameTenantCustomerProfileId],
+  );
+  assert.equal(sameTenantCustomerRoles.length, 0,
+    "same-tenant customer fixture must have no staff/finance role assignments");
+
   const owner = await admin.unsafe(
     "select p.id,p.organization_id,p.is_active,exists(select 1 from public.user_roles r where r.profile_id=p.id and r.role='admin') as is_admin " +
       "from public.profiles p where p.id=$1::uuid and p.auth_user_id=$2::uuid",
@@ -207,6 +225,27 @@ async function main() {
     [jobId],
   );
 
+  // Compare complete server-owned state, not only row counts. This oracle covers the job,
+  // staging rows, idempotency claim, upload session/chunks, snapshots/snapshot rows, and audit.
+  const captureFinalizerState = async () => {
+    const rows = await admin.unsafe(
+      "select jsonb_build_object(" +
+        "'job',(select to_jsonb(j) from public.import_jobs j where j.id=$1::uuid and j.organization_id=$2::uuid)," +
+        "'rows',coalesce((select jsonb_agg(to_jsonb(r) order by to_jsonb(r)::text) from public.import_job_rows r where r.import_job_id=$1::uuid),'[]'::jsonb)," +
+        "'request_keys',coalesce((select jsonb_agg(to_jsonb(k) order by to_jsonb(k)::text) from public.import_job_request_keys k where k.organization_id=$2::uuid and (k.import_job_id=$1::uuid or k.request_key=$3::uuid)),'[]'::jsonb)," +
+        "'upload_sessions',coalesce((select jsonb_agg(to_jsonb(u) order by to_jsonb(u)::text) from public.import_upload_sessions u where u.organization_id=$2::uuid and u.import_job_id=$1::uuid),'[]'::jsonb)," +
+        "'upload_chunks',coalesce((select jsonb_agg(to_jsonb(c) order by to_jsonb(c)::text) from public.import_upload_chunks c where c.organization_id=$2::uuid and c.session_id in (select u.id from public.import_upload_sessions u where u.organization_id=$2::uuid and u.import_job_id=$1::uuid)),'[]'::jsonb)," +
+        "'snapshots',coalesce((select jsonb_agg(to_jsonb(x) order by to_jsonb(x)::text) from public.onyx_snapshots x where x.organization_id=$2::uuid and x.source_import_job_id=$1::uuid),'[]'::jsonb)," +
+        "'snapshot_rows',coalesce((select jsonb_agg(to_jsonb(sr) order by to_jsonb(sr)::text) from public.onyx_snapshot_rows sr where sr.snapshot_id in (select x.id from public.onyx_snapshots x where x.organization_id=$2::uuid and x.source_import_job_id=$1::uuid)),'[]'::jsonb)," +
+        "'audit',coalesce((select jsonb_agg(to_jsonb(a) order by to_jsonb(a)::text) from public.audit_logs a where a.organization_id=$2::uuid and (a.entity_id=$1::uuid or a.entity_id in (select x.id from public.onyx_snapshots x where x.organization_id=$2::uuid and x.source_import_job_id=$1::uuid))),'[]'::jsonb)" +
+      ")::text as snapshot",
+      [jobId, organizationId, requestKey],
+    );
+    assert.equal(rows.length, 1, "privileged import state oracle must return exactly one snapshot");
+    return rows[0].snapshot;
+  };
+
+  const foreignTenantSnapshotBefore = await captureFinalizerState();
   await assert.rejects(
     () => foreign.unsafe("select public.finalize_import_job($1::uuid) as result", [jobId]),
     (error) =>
@@ -243,8 +282,37 @@ async function main() {
   );
   assert.equal(afterAuditCount[0].count, initialAuditCount[0].count,
     "a rejected foreign-tenant request cannot create or remove audit records for the job");
+  const foreignTenantSnapshotAfter = await captureFinalizerState();
+  assert.equal(
+    foreignTenantSnapshotAfter,
+    foreignTenantSnapshotBefore,
+    "foreign-tenant denial must preserve the complete import/upload/staging/snapshot/audit state byte-for-byte",
+  );
 
-  console.log("PASS import finalizer tenant scope: compatibility overload delegates to scoped contract; foreign tenant sees not-found and causes no state/snapshot mutation");
+  // Same-tenant customers must not gain importer privileges merely from organization membership.
+  await setIdentity(sameTenantCustomer, sameTenantCustomerAuthUserId, sameTenantCustomerEmail, sameTenantCustomerSessionId);
+  const sameTenantIdentity = await sameTenantCustomer.unsafe(
+    "select public.current_profile_id()::text as profile_id",
+  );
+  assert.equal(sameTenantIdentity.length, 1);
+  assert.equal(sameTenantIdentity[0].profile_id, sameTenantCustomerProfileId,
+    "same-tenant non-staff JWT must resolve to its own active profile");
+  const sameTenantSnapshotBefore = await captureFinalizerState();
+  await assert.rejects(
+    () => sameTenantCustomer.unsafe("select public.finalize_import_job($1::uuid) as result", [jobId]),
+    (error) =>
+      error?.code === "42501" &&
+      /غير مصرح بإنهاء الاستيراد/.test(String(error.message)),
+    "same-tenant customer must receive SQLSTATE 42501 before finalizer data lookup or mutation",
+  );
+  const sameTenantSnapshotAfter = await captureFinalizerState();
+  assert.equal(
+    sameTenantSnapshotAfter,
+    sameTenantSnapshotBefore,
+    "same-tenant non-staff denial must preserve the complete import/upload/staging/snapshot/audit state byte-for-byte",
+  );
+
+  console.log("PASS import finalizer semantic authorization: foreign tenant gets opaque not-found; same-tenant customer gets 42501; complete import/upload/staging/snapshot/audit snapshots remain byte-for-byte unchanged");
 }
 
 main().catch((error) => {
@@ -252,5 +320,5 @@ main().catch((error) => {
   process.exitCode = 1;
 }).finally(async () => {
   await cleanup();
-  await Promise.all([admin.end(), staff.end(), foreign.end()]);
+  await Promise.all([admin.end(), staff.end(), foreign.end(), sameTenantCustomer.end()]);
 });
