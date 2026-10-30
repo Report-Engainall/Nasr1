@@ -2093,7 +2093,7 @@ async function main() {
   process.stdout.write("PASS finance invoice pagination: all rows once across keyset pages, stable ordering, limit/cursor rejection, finance-role denial and tenant isolation\\n");
 
   const cappedPayments = await db.unsafe(`
-    `INSERT INTO public.customer_payments(
+    INSERT INTO public.customer_payments(
        organization_id,customer_id,invoice_id,amount,payment_method,reference,paid_at
      )
      SELECT $1,$2,$3,0.01,'transfer',
