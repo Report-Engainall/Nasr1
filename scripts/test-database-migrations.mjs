@@ -4152,12 +4152,41 @@ async function main() {
   await db.unsafe("reset role");
   await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
   await db.unsafe("set role authenticated");
+  const captureImportRollbackDenialState = async () => {
+    await db.unsafe("reset role");
+    try {
+      const rows = await db.unsafe(
+        "select jsonb_build_object(" +
+          "'job',(select to_jsonb(j) from public.import_jobs j where j.id=$1::uuid and j.organization_id=$2::uuid)," +
+          "'rows',coalesce((select jsonb_agg(to_jsonb(r) order by to_jsonb(r)::text) from public.import_job_rows r where r.import_job_id=$1::uuid),'[]'::jsonb)," +
+          "'request_keys',coalesce((select jsonb_agg(to_jsonb(k) order by to_jsonb(k)::text) from public.import_job_request_keys k where k.organization_id=$2::uuid and k.import_job_id=$1::uuid),'[]'::jsonb)," +
+          "'upload_sessions',coalesce((select jsonb_agg(to_jsonb(u) order by to_jsonb(u)::text) from public.import_upload_sessions u where u.organization_id=$2::uuid and u.import_job_id=$1::uuid),'[]'::jsonb)," +
+          "'upload_chunks',coalesce((select jsonb_agg(to_jsonb(c) order by to_jsonb(c)::text) from public.import_upload_chunks c where c.organization_id=$2::uuid and c.session_id in (select u.id from public.import_upload_sessions u where u.organization_id=$2::uuid and u.import_job_id=$1::uuid)),'[]'::jsonb)," +
+          "'snapshots',coalesce((select jsonb_agg(to_jsonb(x) order by to_jsonb(x)::text) from public.onyx_snapshots x where x.organization_id=$2::uuid and x.source_import_job_id=$1::uuid),'[]'::jsonb)," +
+          "'snapshot_rows',coalesce((select jsonb_agg(to_jsonb(sr) order by to_jsonb(sr)::text) from public.onyx_snapshot_rows sr where sr.snapshot_id in (select x.id from public.onyx_snapshots x where x.organization_id=$2::uuid and x.source_import_job_id=$1::uuid)),'[]'::jsonb)," +
+          "'audit',coalesce((select jsonb_agg(to_jsonb(a) order by to_jsonb(a)::text) from public.audit_logs a where a.organization_id=$2::uuid and (a.entity_id=$1::uuid or a.entity_id in (select x.id from public.onyx_snapshots x where x.organization_id=$2::uuid and x.source_import_job_id=$1::uuid))),'[]'::jsonb)" +
+        ")::text as snapshot",
+        [partialMergeJob.id, organizationId],
+      );
+      assert.equal(rows.length, 1, "privileged import rollback oracle must return one full-state snapshot");
+      return rows[0].snapshot;
+    } finally {
+      await db.unsafe("set role authenticated");
+    }
+  };
+  const importRollbackStateBeforeDeniedStaffRequest = await captureImportRollbackDenialState();
   await expectFailure(
     "staff role cannot roll back a published import snapshot",
     () => db.unsafe("select public.rollback_import_snapshot($1::uuid,$2) as result",
       [partialMergeJob.id, "staff is not authorized to roll back a snapshot"]),
     /التراجع عن لقطة الاستيراد متاح للمدير أو مدير النظام فقط/i,
     "42501",
+  );
+  const importRollbackStateAfterDeniedStaffRequest = await captureImportRollbackDenialState();
+  assert.equal(
+    importRollbackStateAfterDeniedStaffRequest,
+    importRollbackStateBeforeDeniedStaffRequest,
+    "same-tenant staff rollback denial must preserve the complete import job, staged rows, request keys, upload sessions/chunks, snapshots/snapshot rows and audit entries byte-for-byte",
   );
   await db.unsafe("reset role");
   await setIdentity(staffAuthUserId, "admin@aghbari.ye");
@@ -7931,6 +7960,7 @@ async function main() {
     organizationId,
     otherOrganizationId,
     staffAuthUserId,
+    operationsStaffAuthUserId,
     customerAuthUserId: authUserId,
     foreignAuthUserId,
     foreignProfileId,

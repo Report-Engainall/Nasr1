@@ -28,6 +28,7 @@ export async function runGeneralLedgerReversalAcceptance({
   organizationId,
   otherOrganizationId,
   staffAuthUserId,
+  operationsStaffAuthUserId,
   customerAuthUserId,
   foreignAuthUserId,
   foreignProfileId,
@@ -77,6 +78,27 @@ export async function runGeneralLedgerReversalAcceptance({
       "select public.reverse_general_journal_entry($1::uuid,$2::text,$3::uuid) as result",
       [id, reason, key],
     ))[0].result);
+  }
+
+  async function captureJournalReversalDenialState(originalId, reversalId) {
+    await db.unsafe("reset role");
+    try {
+      const rows = await db.unsafe(
+        "select jsonb_build_object(" +
+          "'original_entry',(select to_jsonb(e) from public.accounting_journal_entries e where e.organization_id=$1::uuid and e.id=$2::uuid)," +
+          "'reversal_entry',(select to_jsonb(e) from public.accounting_journal_entries e where e.organization_id=$1::uuid and e.id=$3::uuid)," +
+          "'original_lines',coalesce((select jsonb_agg(to_jsonb(l) order by to_jsonb(l)::text) from public.accounting_journal_lines l where l.organization_id=$1::uuid and l.journal_entry_id=$2::uuid),'[]'::jsonb)," +
+          "'reversal_lines',coalesce((select jsonb_agg(to_jsonb(l) order by to_jsonb(l)::text) from public.accounting_journal_lines l where l.organization_id=$1::uuid and l.journal_entry_id=$3::uuid),'[]'::jsonb)," +
+          "'reversal_mapping',coalesce((select jsonb_agg(to_jsonb(r) order by to_jsonb(r)::text) from public.accounting_journal_reversals r where r.organization_id=$1::uuid and r.original_journal_entry_id=$2::uuid),'[]'::jsonb)," +
+          "'audit',coalesce((select jsonb_agg(to_jsonb(a) order by to_jsonb(a)::text) from public.audit_logs a where a.organization_id=$1::uuid and ((a.entity_type='accounting_journal_entry' and a.entity_id in ($2::uuid,$3::uuid)) or (a.entity_type='accounting_journal_reversal' and a.entity_id in (select r.id from public.accounting_journal_reversals r where r.organization_id=$1::uuid and r.original_journal_entry_id=$2::uuid)))),'[]'::jsonb)" +
+        ")::text as snapshot",
+        [organizationId, originalId, reversalId],
+      );
+      assert.equal(rows.length, 1, "privileged ledger reversal oracle must return one full-state snapshot");
+      return rows[0].snapshot;
+    } finally {
+      await db.unsafe("set role authenticated");
+    }
   }
   async function waitForReversalLockContenders(applicationPrefix, expectedCount, description) {
     await db.unsafe("reset role");
@@ -238,6 +260,30 @@ export async function runGeneralLedgerReversalAcceptance({
     "ordinary customer cannot reverse a posted journal",
     () => reverse(db, originalDraft.id, "Unauthorized customer reversal attempt", randomUUID()),
     /administrator or manager permission required/i,
+    "42501",
+  );
+
+  await db.unsafe("reset role");
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  const journalStateBeforeDeniedStaffReversal = await captureJournalReversalDenialState(
+    originalDraft.id,
+    reversal.reversal_journal_entry_id,
+  );
+  await expectFailure(
+    "same-tenant ordinary staff cannot reverse a posted general journal",
+    () => reverse(db, originalDraft.id, "Unauthorized staff reversal attempt", randomUUID()),
+    /administrator or manager permission required/i,
+    "42501",
+  );
+  const journalStateAfterDeniedStaffReversal = await captureJournalReversalDenialState(
+    originalDraft.id,
+    reversal.reversal_journal_entry_id,
+  );
+  assert.equal(
+    journalStateAfterDeniedStaffReversal,
+    journalStateBeforeDeniedStaffReversal,
+    "ordinary-staff denial must preserve the original/reversal journal entries, lines, mapping and audit rows byte-for-byte",
   );
 
   await db.unsafe("reset role");
