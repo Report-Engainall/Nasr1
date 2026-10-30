@@ -155,6 +155,35 @@ describe("admin mobile navigation runtime acceptance", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it("waits for the mobile drawer transition to finish before focusing its first action", async () => {
+    render(<AdminApp initialView="settings" />);
+
+    const trigger = screen.getByRole("button", { name: "فتح القائمة الإدارية" });
+    const sidebar = screen.getByRole("complementary", { name: "القائمة الإدارية" });
+    const nav = screen.getByRole("navigation", { name: "التنقل الإداري" });
+    const firstItem = nav.querySelector("button");
+    expect(firstItem).not.toBeNull();
+
+    let transitionRunning = true;
+    let animationChecks = 0;
+    Object.defineProperty(sidebar, "getAnimations", {
+      configurable: true,
+      value: () => {
+        animationChecks += 1;
+        return transitionRunning ? [{ playState: "running" } as Animation] : [];
+      },
+    });
+
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    await waitFor(() => expect(animationChecks).toBeGreaterThan(0));
+    expect(document.activeElement).toBe(trigger);
+
+    transitionRunning = false;
+    await waitFor(() => expect(document.activeElement).toBe(firstItem));
+  });
+
   it("closes the drawer and returns focus after selecting a navigation destination", async () => {
     render(<AdminApp initialView="settings" />);
 
