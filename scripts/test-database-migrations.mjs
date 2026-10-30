@@ -2513,10 +2513,64 @@ async function main() {
     () => db.unsafe("select public.fetch_staff_finance_data()"),
     /finance permission required/i,
   );
+  // DLV-015-STAFF-PAYMENT-DENIAL-001: staff has no financial write capability.
+  // Compare complete source rows and all linked audit records; an authorization error alone is insufficient.
+  const readOrdinaryStaffPaymentDenialSnapshots = async () => {
+    await db.unsafe("reset role");
+    const invoiceRows = await db.unsafe(
+      "select to_jsonb(source_invoice)::text as snapshot from public.customer_invoices source_invoice " +
+        "where source_invoice.organization_id=$1::uuid and source_invoice.id=$2::uuid",
+      [organizationId, invoice.id],
+    );
+    const customerRows = await db.unsafe(
+      "select to_jsonb(source_customer)::text as snapshot from public.customers source_customer " +
+        "where source_customer.organization_id=$1::uuid and source_customer.id=$2::uuid",
+      [organizationId, invoice.customer_id],
+    );
+    const paymentRows = await db.unsafe(
+      "select to_jsonb(source_payment)::text as snapshot from public.customer_payments source_payment " +
+        "where source_payment.organization_id=$1::uuid and source_payment.invoice_id=$2::uuid " +
+        "order by source_payment.id",
+      [organizationId, invoice.id],
+    );
+    const auditRows = await db.unsafe(
+      "select to_jsonb(source_audit)::text as snapshot from public.audit_logs source_audit " +
+        "where source_audit.organization_id=$1::uuid and (" +
+          "source_audit.entity_id=any($2::uuid[]) or " +
+          "(source_audit.new_value->>'invoice_id'=$3::text or source_audit.old_value->>'invoice_id'=$3::text)" +
+        ") order by source_audit.created_at,source_audit.id",
+      [organizationId, [invoice.id, invoice.customer_id], invoice.id],
+    );
+    assert.equal(invoiceRows.length, 1, "the protected invoice must remain present in the active tenant");
+    assert.equal(customerRows.length, 1, "the protected customer must remain present in the active tenant");
+    return {
+      invoice: invoiceRows[0].snapshot,
+      customer: customerRows[0].snapshot,
+      payments: paymentRows.map((row) => row.snapshot),
+      audits: auditRows.map((row) => row.snapshot),
+    };
+  };
+  const ordinaryStaffPaymentBefore = await readOrdinaryStaffPaymentDenialSnapshots();
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
   await expectFailure(
     "ordinary staff cannot record customer payments",
-    () => db.unsafe("select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)", [invoice.id, 1, "cash", randomUUID(), "CI-STAFF-PAY", "must be denied"]),
+    () => db.unsafe(
+      "select public.record_customer_payment($1::uuid,$2::numeric,$3,$4::uuid,$5,$6)",
+      [invoice.id, 1, "cash", randomUUID(), "CI-STAFF-PAY", "must be denied"],
+    ),
     /finance permission required/i,
+    "42501",
+  );
+  const ordinaryStaffPaymentAfter = await readOrdinaryStaffPaymentDenialSnapshots();
+  assert.deepEqual(
+    ordinaryStaffPaymentAfter,
+    ordinaryStaffPaymentBefore,
+    "ordinary staff payment denial leaves the full invoice/customer rows, every payment row and all linked audit records byte-for-byte unchanged",
+  );
+  await db.unsafe("set role authenticated");
+  process.stdout.write(
+    "PASS DLV-015-STAFF-PAYMENT-DENIAL-001: ordinary staff receives SQLSTATE 42501; full invoice/customer/payment/audit snapshots remain byte-for-byte unchanged\\n",
   );
   await expectFailure(
     "ordinary staff cannot update invoices directly",
