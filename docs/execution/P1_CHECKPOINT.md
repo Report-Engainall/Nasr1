@@ -1,3 +1,17 @@
+# P1 LIVE CHECKPOINT — 2026-10-30 — P3 FREE-AI POLICY REGRESSION FOUND AND SYNCED
+
+- task_id: `DLV-002 / ROUTES-001 — mobile drawer focus lifecycle`.
+- status: `P1_IMPLEMENTED; LOCAL_P2_BROWSER_PASS_ON_CODE_SHA; FINAL_CORE_BLOCKED_BY_P3_TEST_BEFORE_FIX; REVERIFY_AFTER_P3_SYNC`.
+- P1 source/test head before P3 correction: `851c82a80ff8969fb43db9b8680c67ada6c70335`.
+- Core run `41026514614` on `851c82a`: Unit tests FAILED 1/238 files; 1,553/1,554 tests passed. The only failure was P3-owned `src/lib/intelligence/free-ai-policy.test.ts:29` (`fails closed when duplicate records claim the same provider/model quota`): second attempted provider reason expected `DUPLICATE_PROVIDER_QUOTA_RECORD`, actual `QUOTA_EXHAUSTED`. P1 tests and remaining 237 files passed. P1 did not modify P3-owned source/tests.
+- P3 then merged main commit `00cfbe8f0791b3872d733a9653fe660de29eee53`, changing only `src/lib/intelligence/free-ai-policy.ts` (duplicate quota record handling). P1 feature branch incorporated this latest-main change via non-forced merge commit `06325f48abae290ecd4683d267f94775153f768a`, parented by previous P1 head `851c82a` and main `00cfbe8f`.
+- P2 local Chromium workflow `41026090788` completed SUCCESS on code head `53d59b4f3b8b684145f278e2e7d5f1ac70e6b27b`; the local Supabase/Chromium job passed order/cross-tenant denial, customer returns/credit memo, audited Onyx XLSX, finance document/task print, customer-manager authorization/financial privacy/audit, and device-session immediate-revocation. Public smoke and infrastructure gate passed; hosted authenticated cross-tenant journey was SKIPPED, not PASS.
+- P2 run `41026514290` on pre-P3-correction head `851c82a` was running; treat it as predecessor only after this new branch head.
+- Core run `41026067495` on source/test SHA `59a9af7180491bca1b3d7f87c36d62454e59a5ab` passed 238/238 files and 1,550/1,550 tests; it includes transition-aware and route-remount focus regressions, but predates main sync.
+- Exact next action: read branch HEAD after this checkpoint commit and poll Core + P2 triggered by this exact SHA. Verify P3 free-AI quota duplicate regression is fixed in the merged P3 code; P1 owns only UI/tests and must not edit `src/lib/intelligence/**`. P2 must pass again on the exact final head.
+- P1 boundaries maintained: do not modify `e2e/**`, `supabase/**`, `scripts/**`, API/auth, P3 files, central matrix/global state, production, secrets, or local workspace.
+
+---
 # P1 LIVE CHECKPOINT — 2026-10-30 — CURRENT MAIN SYNC FOR DLV-002
 
 - task_id: `DLV-002 / ROUTES-001 — mobile admin drawer focus across open, route remount and close`.
