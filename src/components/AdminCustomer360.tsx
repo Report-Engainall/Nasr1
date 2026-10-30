@@ -114,7 +114,9 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
               <strong>{recommendation.title}</strong><span className="badge">{recommendation.priority === 'high' ? 'أولوية عالية' : recommendation.priority === 'medium' ? 'أولوية متوسطة' : 'أولوية منخفضة'}</span>
             </div>
             <p>{recommendation.description}</p>
-            {recommendation.currency && recommendation.overdue_outstanding !== undefined && <p><strong>المبلغ المتأخر: {formatCustomer360Money(recommendation.overdue_outstanding, recommendation.currency)}</strong> · فواتير: {formatNumber(recommendation.overdue_invoice_count ?? 0)}</p>}
+            {recommendation.currency && recommendation.overdue_outstanding !== undefined && <p><strong>المبلغ المتأخر: {formatCustomer360Money(recommendation.overdue_outstanding, recommendation.currency)}</strong> · فواتير: {recommendation.overdue_invoice_count === undefined
+              ? 'غير متاح'
+              : formatNumber(recommendation.overdue_invoice_count)}</p>}
             {recommendation.pending_order_count !== undefined && <p>الطلبات المعلقة: {formatNumber(recommendation.pending_order_count)}</p>}
             {recommendation.days_since_last_order !== undefined && <p>الأيام منذ آخر طلب: {formatNumber(recommendation.days_since_last_order)}</p>}
             <small>{recommendation.action}</small>

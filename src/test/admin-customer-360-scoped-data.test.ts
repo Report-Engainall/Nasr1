@@ -21,4 +21,10 @@ describe('Admin Customer 360 data boundary', () => {
     expect(source.indexOf("if (!scopedCustomer || scopedCustomer.id !== customer.id)"))
       .toBeLessThan(source.indexOf('fetchStaffCustomer360Summary(customer.id)'));
   });
+
+  it('does not turn an omitted overdue invoice count in a recommendation into zero', () => {
+    expect(source).toContain("recommendation.overdue_invoice_count === undefined");
+    expect(source).toContain("'غير متاح'");
+    expect(source).not.toContain('recommendation.overdue_invoice_count ?? 0');
+  });
 });
