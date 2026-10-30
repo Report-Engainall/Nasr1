@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 export type IntelligenceViewState = "loading" | "empty" | "error" | "unavailable" | "ready";
 
 export interface IntelligenceStatePanelProps {

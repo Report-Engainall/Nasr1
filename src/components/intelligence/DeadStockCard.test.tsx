@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { DeadStockCard } from "./DeadStockCard";
+import { formatEvidenceNumber } from "./shared";
 import type { DeadStockReport } from "@/lib/intelligence/dead-stock";
 
 const report: DeadStockReport = {
@@ -22,9 +23,9 @@ describe("DeadStockCard", () => {
     render(<DeadStockCard report={report} />);
     const known = screen.getByRole("article", { name: "SKU-1" });
     const unknown = screen.getByRole("article", { name: "SKU-2" });
-    expect(within(known).getByText(/50 YER/)).toBeInTheDocument();
-    expect(within(unknown).getByText("غير متاح")).toBeInTheDocument();
+    expect(within(known).getByText(formatEvidenceNumber(50) + " YER")).toBeInTheDocument();
+    expect(within(unknown).getAllByText("غير متاح").length).toBeGreaterThan(0);
     expect(within(unknown).getByText("غير معروف")).toBeInTheDocument();
-    expect(screen.getByText(/غير متاح/, { selector: "span" })).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "إجمالي التعرض المالي حسب العملة" })).getByText("غير متاح")).toBeInTheDocument();
   });
 });

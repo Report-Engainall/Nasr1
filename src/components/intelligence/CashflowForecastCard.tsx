@@ -30,7 +30,7 @@ export function CashflowForecastCard({ forecast, state = "ready", onRetry }: Cas
       <p className="text-xs text-muted-foreground">يعرض الاستحقاقات والتحصيلات المجدولة فقط؛ لا يفترض نسب تحصيل أو مبيعات مستقبلية.</p>
       {currencies.map((currency) => {
         const points = horizons.map((horizon) => forecast.points.find((point) => point.currency === currency && point.horizonDays === horizon)).filter((point) => point !== undefined);
-        return <article key={currency} className="rounded-xl border bg-card p-4 text-card-foreground">
+        return <article key={currency} aria-label={currency} className="rounded-xl border bg-card p-4 text-card-foreground">
           <h4 className="font-semibold">{currency}</h4>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[620px] text-sm">

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { LiquiditySummary } from "./LiquiditySummary";
+import { formatEvidenceNumber } from "./shared";
 import type { LiquiditySnapshot } from "@/lib/intelligence/liquidity";
 
 const snapshot: LiquiditySnapshot = {
@@ -21,10 +22,10 @@ describe("LiquiditySummary", () => {
     render(<LiquiditySummary snapshot={snapshot} />);
     const yer = screen.getByRole("article", { name: "YER" });
     const usd = screen.getByRole("article", { name: "USD" });
-    expect(within(yer).getByText(/90/)).toBeInTheDocument();
+    expect(within(yer).getByText(formatEvidenceNumber(90) + " YER")).toBeInTheDocument();
     expect(within(yer).getByText(/تكلفة المخزون الراكد/)).toBeInTheDocument();
     expect(within(usd).getAllByText("غير متاح").length).toBeGreaterThan(0);
-    expect(screen.queryByText(/190/)).not.toBeInTheDocument();
+    expect(screen.queryByText(formatEvidenceNumber(190) + " YER")).not.toBeInTheDocument();
   });
 
   it("does not turn a missing snapshot into an empty numeric report", () => {

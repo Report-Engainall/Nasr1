@@ -25,7 +25,7 @@ export function LiquiditySummary({ snapshot, state = "ready", onRetry }: Liquidi
         <span className="text-xs text-muted-foreground">حتى {snapshot.asOf}</span>
       </header>
       {snapshot.positions.map((position, index) => (
-        <article key={position.currency + ":" + index} className="rounded-xl border bg-card p-4 text-card-foreground">
+        <article key={position.currency + ":" + index} aria-label={position.currency} className="rounded-xl border bg-card p-4 text-card-foreground">
           <header className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="font-semibold">{position.currency}</h4>
             <span className="text-xs">الحالة: <EvidenceStatusLabel status={position.status} /> · الاكتمال: {position.completeness}</span>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { CashflowForecastCard } from "./CashflowForecastCard";
+import { formatEvidenceNumber } from "./shared";
 import type { CashflowForecast } from "@/lib/intelligence/cashflow-forecast";
 
 const forecast: CashflowForecast = {
@@ -20,8 +21,8 @@ describe("CashflowForecastCard", () => {
     const yer = screen.getByRole("article", { name: "YER" });
     const usd = screen.getByRole("article", { name: "USD" });
     expect(within(yer).getAllByText("7 يومًا")).toHaveLength(1);
-    expect(within(yer).getByText(/110/)).toBeInTheDocument();
+    expect(within(yer).getByText(formatEvidenceNumber(110) + " YER")).toBeInTheDocument();
     expect(within(usd).getAllByText("غير متاح").length).toBeGreaterThan(0);
-    expect(screen.queryByText(/210/)).not.toBeInTheDocument();
+    expect(screen.queryByText(formatEvidenceNumber(210) + " YER")).not.toBeInTheDocument();
   });
 });

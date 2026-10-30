@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { ReplenishmentCard } from "./ReplenishmentCard";
+import { formatEvidenceNumber } from "./shared";
 import type { ReplenishmentRecommendation } from "@/lib/intelligence/replenishment";
 
 const recommendations: ReplenishmentRecommendation[] = [
@@ -15,8 +16,9 @@ describe("ReplenishmentCard", () => {
     render(<ReplenishmentCard recommendations={recommendations} />);
     const known = screen.getByRole("article", { name: "SKU-LOW" });
     const unknown = screen.getByRole("article", { name: "SKU-UNKNOWN" });
-    expect(within(known).getByText(/6/)).toBeInTheDocument();
-    expect(within(unknown).getByText("غير متاح")).toBeInTheDocument();
+    const recommendedLabel = within(known).getByText(/الكمية الموصى بها/);
+    expect(recommendedLabel.parentElement).toHaveTextContent(formatEvidenceNumber(6));
+    expect(within(unknown).getAllByText("غير متاح").length).toBeGreaterThan(0);
     expect(screen.getByText(/لا ينشئ هذا العرض أمر شراء/)).toBeInTheDocument();
   });
 });

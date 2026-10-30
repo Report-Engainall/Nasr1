@@ -24,7 +24,7 @@ export function ReplenishmentCard({ recommendations, state = "ready", onRetry }:
       </header>
       <div className="grid gap-3 md:grid-cols-2">
         {recommendations.map((item) => (
-          <article key={item.productRef} className="rounded-xl border bg-card p-4 text-card-foreground">
+          <article key={item.productRef} aria-label={item.productRef} className="rounded-xl border bg-card p-4 text-card-foreground">
             <header className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="font-semibold">{item.productRef}</h4>
               <span className="text-xs"><EvidenceStatusLabel status={item.status} /></span>

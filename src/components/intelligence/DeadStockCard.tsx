@@ -32,7 +32,7 @@ export function DeadStockCard({ report, state = "ready", onRetry }: DeadStockCar
       </header>
       <div className="grid gap-3 md:grid-cols-2">
         {report.items.map((item) => (
-          <article key={item.productRef} className="rounded-xl border bg-card p-4 text-card-foreground">
+          <article key={item.productRef} aria-label={item.productRef} className="rounded-xl border bg-card p-4 text-card-foreground">
             <header className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="font-semibold">{item.productRef}</h4>
               <span className="text-xs">{classes[item.classification]}</span>
@@ -56,7 +56,7 @@ export function DeadStockCard({ report, state = "ready", onRetry }: DeadStockCar
           </article>
         ))}
       </div>
-      {report.totalsByCurrency.length ? <div className="rounded-xl border p-4">
+      {report.totalsByCurrency.length ? <div role="region" aria-label="إجمالي التعرض المالي حسب العملة" className="rounded-xl border p-4">
         <h4 className="font-semibold">التعرض الإجمالي حسب العملة — دون تحويل</h4>
         <ul className="mt-2 grid gap-2 md:grid-cols-2">
           {report.totalsByCurrency.map((total) => <li key={total.currency} className="flex items-center justify-between gap-3 text-sm">
