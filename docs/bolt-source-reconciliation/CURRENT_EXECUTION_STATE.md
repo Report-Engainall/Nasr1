@@ -2,12 +2,12 @@
 
 ## 1) Live repository snapshot
 - Repository: `Report-Engainall/Nasr1`; remote branch: `main` only. GitHub returned no open pull requests.
-- **Latest main SHA observed before this cursor refresh:** `af0d73aa50a73ebc6c86fb02977296f3e106d2e0` (P1/P2/P3 checkpoints and execution commands were reconciled on this SHA; product code base is unchanged from `cf4418bd6bb5ea1b901663bfef3cc430ce6e049f`).
-- Latest Core workflow: [41007817600 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41007817600) on exact SHA `af0d73aa50a73ebc6c86fb02977296f3e106d2e0`; poll this run, do not duplicate it.
-- Latest one-main cleanup: [41007817667 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41007817667) on exact SHA `af0d73aa50a73ebc6c86fb02977296f3e106d2e0`; poll this run, do not duplicate it.
+- **Current code-bearing main SHA:** `a23c0b5cea98730f59093aa2f3e8f658509eddb4` (P3 evidence/decision engine batch; verify this exact SHA for code acceptance).
+- P3 batch Core workflow: [41010611128 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41010611128) on exact code SHA `a23c0b5cea98730f59093aa2f3e8f658509eddb4`; poll this run, do not duplicate it.
+- Prior one-main cleanup: [41007817667 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41007817667) on ancestor SHA `af0d73aa50a73ebc6c86fb02977296f3e106d2e0`; it is not a check of the P3 code batch.
 - Prior code/doc head `cf4418bd6bb5ea1b901663bfef3cc430ce6e049f` passed Core [41006802574](https://github.com/Report-Engainall/Nasr1/actions/runs/41006802574) and cleanup [41006802669](https://github.com/Report-Engainall/Nasr1/actions/runs/41006802669).
-- The current main commit adds three-agent governance, the free-only AI policy and the permanent visual reference gallery. It is a documentation/reference update; it does **not** claim new application behavior or release readiness.
-- GitHub reports `main` as the only branch. Do not create remote branches/PRs, force-push, reset, or delete another programmer's work.
+- P3 code commit `a23c0b5cea98730f59093aa2f3e8f658509eddb4` adds typed provenance/decision contracts, deterministic rules, focused tests and composable intelligence components. This is IMPLEMENTED / CI_PENDING until run 41010611128 completes.
+- GitHub reports `main` as the only branch and no open PRs at the P3 batch integration check. Do not create remote branches/PRs, force-push, reset, or delete another programmer's work.
 
 ## 2) Exact evidence and unresolved blocker
 - P1's Customer 360 source-lineage UI slice is included in main. Its Core run [41004028451 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41004028451) proves SHA `9f5d3af8e4f57bd758f3eb779cb6971be0a7d829`; do not poll or rerun that completed workflow. Current-main Core 41006802574 is also green.
@@ -20,7 +20,7 @@
 ## 3) Active work allocation — these are the only live next tasks
 - **P1 — UI/product journeys:** continue the first uncovered P1-owned acceptance leaf under DLV-002 / DLV-003, beginning with a route-level customer/admin state gap (loading, empty, error, retry or unauthorized) found in the existing focused tests and screen. Add a direct regression test and improve the real UI only where needed. The P1 Customer 360 slice already passed Core; do not repeat it or edit `e2e/**`, backend files or P3-reserved intelligence components.
 - **P2 — backend/database/security/browser integration:** own DLV-017's failed P2 browser acceptance first. In `e2e/finance-task-print.spec.ts`, replace the hidden sidebar role lookup with the stable `#admin-sidebar` locator; assert `aria-label="القائمة الإدارية"`, closed `visibility:hidden`, opened `visibility:visible`, keyboard focus/Escape and return focus. Do not weaken the assertion or change the live UI merely to satisfy the test. Then rerun P2 Playwright on the exact resulting SHA. After it passes, respond to P3's secure aggregate request and continue the highest-risk OPEN P2 row from the existing CSV (tenant/security → finance/ledger → inventory/atomic orders → import/Onyx → health/backup).
-- **P3 — business intelligence / integration captain:** implement `REF-DAILY-DECISIONS-001` and `REF-EVIDENCE-PASSPORT-001` first as typed, deterministic, tested capabilities. Use verified signals/source fields only; never invent money, stock, customer causes, confidence or outcomes. Request a tenant-safe aggregate DTO/RPC from P2 and send a stable Action Card props/import contract to P1. Then continue the remaining REF-* requirements in dependency order.
+- **P3 — business intelligence / integration captain:** first batch is IMPLEMENTED / CI_PENDING on `a23c0b5`. Read `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md` for the P2 server-side aggregate/RPC request and `docs/execution/contracts/P3_INTELLIGENCE_P1_COMPONENT_CONTRACT.md` for P1's import/props contract. P3 owns `src/lib/intelligence/**` and `src/components/intelligence/**`. Only verified, complete, acceptable, lineage-backed signals can trigger decisions; unknown remains null; currency groups never combine without an approved FX source.
 - W01–W10 remain parallel workstreams, not ten separate branches. P1 owns UI, P2 owns backend/data/security and `e2e/**`, P3 owns intelligence and global integration/governance.
 
 ## 4) Automatic resume / change-detection algorithm (mandatory)
