@@ -44,6 +44,8 @@ async function printPopup(page: Page, printButton: Locator, expectedText: string
 test("authorized finance documents and operational-task print remain tenant-scoped in the real UI", async ({ browser }) => {
   const managerEmail = requiredEnv("E2E_MANAGER_EMAIL");
   const managerPassword = requiredEnv("E2E_MANAGER_PASSWORD");
+  const accountantEmail = requiredEnv("E2E_ACCOUNTANT_EMAIL");
+  const accountantPassword = requiredEnv("E2E_ACCOUNTANT_PASSWORD");
   const customerEmail = requiredEnv("E2E_EMAIL");
   const customerPassword = requiredEnv("E2E_PASSWORD");
   const orderNumber = requiredEnv("E2E_RETURN_ORDER_NUMBER");
@@ -138,7 +140,78 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await managerContext.close();
   }
 
-  const customerContext = await browser.newContext();
+
+  const accountantContext = await browser.newContext();
+  const accountant = await accountantContext.newPage();
+  await accountantContext.addInitScript(() => {
+    window.print = () => { document.documentElement.dataset.e2ePrintInvoked = "true"; };
+    window.close = () => {};
+  });
+
+  try {
+    await signIn(accountant, accountantEmail, accountantPassword);
+    await accountant.goto("/admin/finance");
+    await expect(accountant.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
+    await expect(accountant.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
+
+    const accountantKind = accountant.getByLabel("نوع المستند المالي").first();
+    const accountantSource = accountant.getByLabel("مصدر المستند المالي").first();
+    const accountantPrintButton = accountant.getByRole("button", { name: "فتح نافذة الطباعة / حفظ PDF", exact: true }).first();
+    await expect(accountantSource).toBeEnabled();
+
+    await accountantKind.selectOption("invoice");
+    const accountantInvoiceOption = accountantSource.locator("option").filter({ hasText: invoiceNumber }).first();
+    await expect(accountantInvoiceOption).toBeAttached();
+    const accountantInvoiceId = await accountantInvoiceOption.getAttribute("value");
+    expect(accountantInvoiceId).toBeTruthy();
+    await accountantSource.selectOption(accountantInvoiceId!);
+    await expect(accountantPrintButton).toBeEnabled();
+    await printPopup(accountant, accountantPrintButton, [invoiceNumber, "P2-RET-001", itemName]);
+
+    await accountantKind.selectOption("statement");
+    await expect(accountantSource.locator("option").filter({ hasText: "P2 Local E2E Customer A" }).first()).toBeAttached();
+    const accountantStatementOptions = await accountantSource.locator("option").allTextContents();
+    expect(accountantStatementOptions.some((value) => value.includes("P2 Local E2E Customer B"))).toBe(false);
+    const accountantCustomerOption = accountantSource.locator("option").filter({ hasText: "P2 Local E2E Customer A" }).first();
+    const accountantCustomerId = await accountantCustomerOption.getAttribute("value");
+    expect(accountantCustomerId).toBeTruthy();
+    await accountantSource.selectOption(accountantCustomerId!);
+    await printPopup(accountant, accountantPrintButton, ["P2 Local E2E Customer A", invoiceNumber]);
+
+    await accountantKind.selectOption("credit_memo");
+    const accountantMemoOption = accountantSource.locator("option").filter({ hasText: invoiceNumber }).first();
+    await expect(accountantMemoOption).toBeAttached({ timeout: 15_000 });
+    const accountantMemoId = await accountantMemoOption.getAttribute("value");
+    expect(accountantMemoId).toBeTruthy();
+    await accountantSource.selectOption(accountantMemoId!);
+    await printPopup(accountant, accountantPrintButton, [
+      invoiceNumber,
+      "P2 Local E2E Customer A",
+      "معكوس ماليًا",
+      "رقم قيد العكس",
+      "Playwright UI reversal acceptance after posted credit.",
+      "لا يمثل رصيدًا دائنًا قائمًا",
+    ]);
+
+    await test.info().attach("finance-accountant-print-browser-proof.json", {
+      body: JSON.stringify({
+        result: "BROWSER_PROVEN",
+        sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+        role: "accountant",
+        isolatedLocalOnly: true,
+        invoicePdf: true,
+        fullStatementPdf: true,
+        reversedCreditMemoPdf: true,
+        foreignTenantCustomerAbsentFromStatementOptions: true,
+        noProductionWrites: true,
+      }, null, 2),
+      contentType: "application/json",
+    });
+  } finally {
+    await accountantContext.close();
+  }
+
+    const customerContext = await browser.newContext();
   const customer = await customerContext.newPage();
   try {
     await signIn(customer, customerEmail, customerPassword);

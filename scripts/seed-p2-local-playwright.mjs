@@ -31,10 +31,12 @@ const runKey = (process.env.GITHUB_RUN_ID || "local") + "-" + randomUUID().slice
 const passwordA = randomUUID().replaceAll("-", "") + "Aa1!";
 const passwordB = randomUUID().replaceAll("-", "") + "Bb2!";
 const managerPassword = randomUUID().replaceAll("-", "") + "Mm3!";
+const accountantPassword = randomUUID().replaceAll("-", "") + "Ac4!";
 const customerManagerPassword = randomUUID().replaceAll("-", "") + "Cm4!";
 const emailA = "p2.local.e2e.a." + runKey + "@example.test";
 const emailB = "p2.local.e2e.b." + runKey + "@example.test";
 const managerEmail = "p2.local.e2e.manager." + runKey + "@example.test";
+const accountantEmail = "p2.local.e2e.accountant." + runKey + "@example.test";
 const customerManagerEmail = "p2.local.e2e.customer-manager." + runKey + "@example.test";
 const customerManagerTargetName = "P2 Local E2E Invite Target";
 const customerManagerTargetEmail = "p2.local.e2e.invite." + runKey + "@example.test";
@@ -73,17 +75,19 @@ async function createConfirmedUser(email, password, fullName) {
 
 async function main() {
   // Mask every ephemeral identity/credential before the next Actions step echoes inherited env.
-  for (const value of [emailA, passwordA, emailB, passwordB, managerEmail, managerPassword, customerManagerEmail, customerManagerPassword, customerManagerTargetEmail, companyMemberEmail, companyMemberPassword, expiredInvitationToken, apiUrl, publishableKey, serviceRoleKey, connectionString]) {
+  for (const value of [emailA, passwordA, emailB, passwordB, managerEmail, managerPassword, accountantEmail, accountantPassword, customerManagerEmail, customerManagerPassword, customerManagerTargetEmail, companyMemberEmail, companyMemberPassword, expiredInvitationToken, apiUrl, publishableKey, serviceRoleKey, connectionString]) {
     process.stdout.write("::add-mask::" + value + String.fromCharCode(10));
   }
   const userAId = await createConfirmedUser(emailA, passwordA, "P2 Local E2E Customer A");
   const userBId = await createConfirmedUser(emailB, passwordB, "P2 Local E2E Customer B");
   const managerUserId = await createConfirmedUser(managerEmail, managerPassword, "P2 Local E2E Manager");
+  const accountantUserId = await createConfirmedUser(accountantEmail, accountantPassword, "P2 Local E2E Accountant");
   const companyMemberUserId = await createConfirmedUser(companyMemberEmail, companyMemberPassword, "P2 Local E2E Company Member");
   const customerManagerUserId = await createConfirmedUser(customerManagerEmail, customerManagerPassword, "P2 Local E2E Customer Manager");
   let profileAId;
   let profileBId;
   let managerProfileId;
+  let accountantProfileId;
   let companyMemberProfileId;
   let customerManagerProfileId;
   let returnReceivableAccountId;
@@ -127,12 +131,13 @@ async function main() {
     profileAId = await upsertProfile(userAId, organizationId, "P2 Local E2E Customer A", emailA);
     profileBId = await upsertProfile(userBId, foreignOrganizationId, "P2 Local E2E Customer B", emailB);
     managerProfileId = await upsertProfile(managerUserId, organizationId, "P2 Local E2E Manager", managerEmail);
+    accountantProfileId = await upsertProfile(accountantUserId, organizationId, "P2 Local E2E Accountant", accountantEmail);
     companyMemberProfileId = await upsertProfile(companyMemberUserId, organizationId, "P2 Local E2E Company Member", companyMemberEmail);
     customerManagerProfileId = await upsertProfile(customerManagerUserId, organizationId, "P2 Local E2E Customer Manager", customerManagerEmail);
     await tx.unsafe(
-      "insert into public.user_roles(profile_id,role) values($1::uuid,'customer'),($2::uuid,'customer'),($3::uuid,'manager'),($4::uuid,'customer'),($5::uuid,'customer_manager') " +
+      "insert into public.user_roles(profile_id,role) values($1::uuid,'customer'),($2::uuid,'customer'),($3::uuid,'manager'),($4::uuid,'customer'),($5::uuid,'customer_manager'),($6::uuid,'accountant') " +
       "on conflict(profile_id,role) do nothing",
-      [profileAId, profileBId, managerProfileId, companyMemberProfileId, customerManagerProfileId],
+      [profileAId, profileBId, managerProfileId, companyMemberProfileId, customerManagerProfileId, accountantProfileId],
     );
     await tx.unsafe(
       "insert into public.customers(" +
@@ -263,6 +268,8 @@ async function main() {
     "E2E_CUSTOMER_NAME=P2 Local E2E Customer A",
     "E2E_MANAGER_EMAIL=" + managerEmail,
     "E2E_MANAGER_PASSWORD=" + managerPassword,
+    "E2E_ACCOUNTANT_EMAIL=" + accountantEmail,
+    "E2E_ACCOUNTANT_PASSWORD=" + accountantPassword,
     "E2E_CUSTOMER_MANAGER_EMAIL=" + customerManagerEmail,
     "E2E_CUSTOMER_MANAGER_PASSWORD=" + customerManagerPassword,
     "E2E_CUSTOMER_MANAGER_PROFILE_ID=" + customerManagerProfileId,
@@ -287,7 +294,7 @@ async function main() {
   process.stdout.write(
     "P2_LOCAL_E2E_FIXTURES_READY organizationA=" + organizationId +
     " organizationB=" + foreignOrganizationId +
-    " confirmedUsers=5 customerManagerSeeded=true inviteTargetSeeded=true expiredCompanyInvitationSeeded=true customerReturnOrder=" + returnOrderNumber +
+    " confirmedUsers=6 accountantSeeded=true customerManagerSeeded=true inviteTargetSeeded=true expiredCompanyInvitationSeeded=true customerReturnOrder=" + returnOrderNumber +
     " catalogProduct=" + productId + " stock=100 localOnly=true\n",
   );
 }
