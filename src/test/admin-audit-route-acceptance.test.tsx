@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   createMemoryHistory,
-  createRootRoute,
+  createRootRouteWithContext,
   createRoute,
   createRouter,
   Outlet,
@@ -141,7 +141,7 @@ const auditRouteComponent = (AdminAuditFileRoute as unknown as RouteWithComponen
 
 async function mountAuditDeepLink(role: string[] = ["manager"]) {
   mocks.user = { roles: role };
-  const root = createRootRoute()({ component: () => <Outlet /> });
+  const root = createRootRouteWithContext<Record<string, never>>()({ component: () => <Outlet /> });
   const audit = createRoute({
     getParentRoute: () => root,
     path: "/admin/audit",
@@ -150,6 +150,7 @@ async function mountAuditDeepLink(role: string[] = ["manager"]) {
   const router = createRouter({
     routeTree: root.addChildren([audit]),
     history: createMemoryHistory({ initialEntries: ["/admin/audit"] }),
+    context: {},
   });
   await router.load();
   const view = render(<RouterProvider router={router} />);
