@@ -128,7 +128,58 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
 
   useEffect(() => {
     if (!mobileNav) return;
-    firstMobileNavItemRef.current?.focus();
+
+    let cancelled = false;
+    let scheduledFrame: number | null = null;
+    let attempts = 0;
+
+    const requestFrame = (callback: FrameRequestCallback) => {
+      if (typeof window.requestAnimationFrame === 'function') {
+        return window.requestAnimationFrame(callback);
+      }
+      return window.setTimeout(() => callback(window.performance.now()), 16);
+    };
+
+    const cancelFrame = (frameId: number) => {
+      if (typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(frameId);
+      } else {
+        window.clearTimeout(frameId);
+      }
+    };
+
+    const focusWhenDrawerIsReady = () => {
+      scheduledFrame = null;
+      if (cancelled) return;
+
+      const firstItem = firstMobileNavItemRef.current;
+      const sidebar = firstItem?.closest<HTMLElement>('#admin-sidebar');
+      if (!firstItem || !sidebar || !sidebar.isConnected || firstItem.disabled) return;
+
+      const sidebarStyle = window.getComputedStyle(sidebar);
+      const isVisible = sidebarStyle.display !== 'none' &&
+        sidebarStyle.visibility !== 'hidden' &&
+        Number(sidebarStyle.opacity || '1') > 0;
+      const hasActiveMotion = typeof sidebar.getAnimations === 'function' &&
+        sidebar.getAnimations({ subtree: true }).some(
+          (animation) => animation.playState === 'running' || animation.playState === 'pending',
+        );
+
+      if (isVisible && !hasActiveMotion) {
+        firstItem.focus({ preventScroll: true });
+        if (document.activeElement === firstItem) return;
+      }
+
+      // A drawer transition can temporarily reject focus. Recheck after the
+      // browser has applied visibility/layout changes; stop after two seconds.
+      if (attempts < 120) {
+        attempts += 1;
+        scheduledFrame = requestFrame(focusWhenDrawerIsReady);
+      }
+    };
+
+    scheduledFrame = requestFrame(focusWhenDrawerIsReady);
+
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
@@ -136,7 +187,11 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
       mobileMenuButtonRef.current?.focus();
     };
     window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
+    return () => {
+      cancelled = true;
+      if (scheduledFrame !== null) cancelFrame(scheduledFrame);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
   }, [mobileNav]);
 
   useEffect(() => {
