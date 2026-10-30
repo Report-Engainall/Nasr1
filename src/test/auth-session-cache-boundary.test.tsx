@@ -68,7 +68,11 @@ const ProbeRoute = createRoute({
 const testRouteTree = TestRootRoute.addChildren([ProbeRoute]);
 
 describe("authentication-scoped query cache boundary", () => {
+  let originalOnlineDescriptor: PropertyDescriptor | undefined;
+
   beforeEach(() => {
+    originalOnlineDescriptor = Object.getOwnPropertyDescriptor(window.navigator, "onLine");
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: true });
     window.localStorage.clear();
     authMocks.currentUserId = "auth-user-a";
     authMocks.roles = ["customer"];
@@ -95,6 +99,9 @@ describe("authentication-scoped query cache boundary", () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
+    if (originalOnlineDescriptor) {
+      Object.defineProperty(window.navigator, "onLine", originalOnlineDescriptor);
+    }
   });
 
   async function mountWithPrivateCache() {
@@ -301,6 +308,40 @@ describe("authentication-scoped query cache boundary", () => {
 
     await waitFor(() => expect(queryClient.getQueryData(["private-finance"])).toBeUndefined());
     await screen.findByText("auth-user-a:customer");
+  });
+
+
+  it("clears both outgoing and incoming profile catalogs when switching accounts offline", async () => {
+    await mountWithPrivateCache();
+    const outgoingKeys = offlineCatalogCacheKeys("profile-auth-user-a")!;
+    const incomingKeys = offlineCatalogCacheKeys("profile-auth-user-b")!;
+    for (const [key, value] of [
+      [outgoingKeys.catalogKey, "outgoing-catalog"],
+      [outgoingKeys.lastServerSyncKey, "outgoing-freshness"],
+      [outgoingKeys.scopeKey, "outgoing-scope"],
+      [incomingKeys.catalogKey, "incoming-catalog"],
+      [incomingKeys.lastServerSyncKey, "incoming-freshness"],
+      [incomingKeys.scopeKey, "incoming-scope"],
+    ] as const) {
+      window.localStorage.setItem(key, value);
+    }
+
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: false });
+    authMocks.currentUserId = "auth-user-b";
+    authMocks.roles = ["manager"];
+    await act(async () => {
+      authMocks.listener?.("SIGNED_IN");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    await screen.findByText("auth-user-b:manager");
+    for (const key of [
+      outgoingKeys.catalogKey, outgoingKeys.lastServerSyncKey, outgoingKeys.scopeKey,
+      incomingKeys.catalogKey, incomingKeys.lastServerSyncKey, incomingKeys.scopeKey,
+    ]) {
+      expect(window.localStorage.getItem(key)).toBeNull();
+    }
   });
 
 });

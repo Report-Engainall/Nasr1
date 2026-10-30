@@ -181,6 +181,11 @@ export function AuthScopedOutlet() {
       if (departingProfileId) {
         clearOfflineCatalogCache(window.localStorage, departingProfileId);
       }
+      // Neither the departing nor the incoming profile's previously cached catalog
+      // can be re-authorized while offline after an identity/session boundary.
+      if (!navigator.onLine && user?.profileId) {
+        clearOfflineCatalogCache(window.localStorage, user.profileId);
+      }
     }
 
     // TanStack Query data and mutation state may contain tenant-specific finance or inventory results.
