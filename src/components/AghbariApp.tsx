@@ -109,15 +109,35 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const navigate = useNavigate();
   const [view, setView] = useState<View>(initialView);
   const [mobileNav, setMobileNav] = useState(false);
+  const firstMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [orderDetailId, setOrderDetailId] = useState<string | null>(null);
   const [navigationBlocked, setNavigationBlocked] = useState(false);
   const showNotice = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(null), 2800); };
+  const closeMobileNav = () => {
+    setMobileNav(false);
+    mobileMenuButtonRef.current?.focus();
+  };
   const setMode = (_m: 'storefront') => {
     if (navigationBlocked) { showNotice('اعتمد كميات وأسعار الطلب أو ألغِ المسودة قبل مغادرة مراجعة الطلب.'); return; }
+    closeMobileNav();
     void navigate({ to: '/' });
   };
+
+  useEffect(() => {
+    if (!mobileNav) return;
+    firstMobileNavItemRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setMobileNav(false);
+      mobileMenuButtonRef.current?.focus();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [mobileNav]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -164,14 +184,14 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
 
   return (
     <div className="app-shell" dir="rtl">
-      <aside className={`sidebar ${mobileNav ? 'open' : ''}`}>
+      <aside id="admin-sidebar" aria-label="القائمة الإدارية" className={`sidebar ${mobileNav ? 'open' : ''}`}>
         <div className="brand" onClick={() => setMode('storefront')} style={{ cursor: 'pointer' }}><div className="brand-icon"><Activity size={22} /></div><div><strong>الأغبري</strong><span>منصة التوزيع الذكية</span></div></div>
         <div className="user-card"><div className="avatar">{user.name.charAt(0)}</div><div><strong>{user.name}</strong><span>{isCustomerManagerOnly ? 'مسؤول العملاء' : isFinanceOnly ? 'المحاسبة' : user.roles.includes('admin') ? 'مدير النظام' : user.roles.includes('manager') ? 'مدير' : 'فريق الأغبري'}</span></div><span className="online-dot" /></div>
-        <nav>{visibleNav.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? 'active' : ''} aria-disabled={navigationBlocked || undefined} onClick={() => { if (navigationBlocked) { showNotice('اعتمد كميات وأسعار الطلب أو ألغِ المسودة قبل الانتقال إلى قسم آخر.'); return; } setView(id); setOrderDetailId(null); setMobileNav(false); void navigate({ to: adminPaths[id] as never }); }}><Icon size={18} /><span>{label}</span></button>)}</nav>
+        <nav aria-label="التنقل الإداري">{visibleNav.map(({ id, label, icon: Icon }, index) => <button type="button" ref={index === 0 ? firstMobileNavItemRef : undefined} key={id} className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined} aria-disabled={navigationBlocked || undefined} onClick={() => { if (navigationBlocked) { showNotice('اعتمد كميات وأسعار الطلب أو ألغِ المسودة قبل الانتقال إلى قسم آخر.'); return; } setView(id); setOrderDetailId(null); closeMobileNav(); void navigate({ to: adminPaths[id] as never }); }}><Icon size={18} /><span>{label}</span></button>)}</nav>
         <div className="sidebar-bottom"><button onClick={() => setMode('storefront')}><Store size={18} /> عرض المتجر</button><button onClick={() => { if (navigationBlocked) { showNotice('لا يمكن تسجيل الخروج قبل اعتماد تغييرات الطلب أو إلغائها.'); return; } void signOut(); }}><LogOut size={18} /> خروج</button><div className="secure"><span /> النظام متصل وآمن</div></div>
       </aside>
       <main className="main">
-        <header className="topbar"><button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)}><Menu size={20} /></button><div className="topbar-title"><span className="live" /> {isFinanceOnly ? 'المحاسبة — الأغبري' : 'مركز تشغيل الأغبري'} <small>{isFinanceOnly ? 'الفواتير والتحصيل وكشف الحساب' : 'الطلبات والمخزون والأسعار والعملاء'}</small></div><div className="top-actions"><button type="button" className="search-button" aria-haspopup="dialog" aria-label="بحث سريع (Ctrl K)" onClick={() => setCommandOpen(true)}><Search size={16} /> بحث سريع <kbd>Ctrl K</kbd></button><button className="notification" aria-label="فتح التنبيهات" onClick={() => runAdminCommand('notifications')}><Bell size={18} /></button></div></header>
+        <header className="topbar"><button type="button" ref={mobileMenuButtonRef} className="mobile-menu" aria-label={mobileNav ? "إغلاق القائمة الإدارية" : "فتح القائمة الإدارية"} aria-expanded={mobileNav} aria-controls="admin-sidebar" onClick={() => { if (mobileNav) closeMobileNav(); else setMobileNav(true); }}><Menu size={20} /></button><div className="topbar-title"><span className="live" /> {isFinanceOnly ? 'المحاسبة — الأغبري' : 'مركز تشغيل الأغبري'} <small>{isFinanceOnly ? 'الفواتير والتحصيل وكشف الحساب' : 'الطلبات والمخزون والأسعار والعملاء'}</small></div><div className="top-actions"><button type="button" className="search-button" aria-haspopup="dialog" aria-label="بحث سريع (Ctrl K)" onClick={() => setCommandOpen(true)}><Search size={16} /> بحث سريع <kbd>Ctrl K</kbd></button><button className="notification" aria-label="فتح التنبيهات" onClick={() => runAdminCommand('notifications')}><Bell size={18} /></button></div></header>
         <div className="page-wrap">
           {isCustomerManagerOnly && view !== 'customers' ? (
             <section className="panel" role="status" style={{ padding: 24 }}><h1>مساحة مسؤول العملاء</h1><p>هذا الدور مخصص لدليل العملاء واعتماد الحسابات وتغيير شرائح الأسعار وحالات الحساب. لا يتيح الوصول إلى البيانات المالية أو وحدات المخزون والطلبات.</p><button className="btn primary" onClick={() => runAdminCommand('customers')}>فتح إدارة العملاء</button></section>
