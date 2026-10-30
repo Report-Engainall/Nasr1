@@ -7191,20 +7191,22 @@ async function main() {
       const fraction = (value % 100n).toString().padStart(2, "0");
       return whole.toString() + "." + fraction;
     };
+    assert.ok(usdSummaryBefore,
+      "baseline statement must already include the temporarily USD-denominated source invoice");
     assert.equal(
       usdSummary.invoiced,
-      decimal(cents(usdSummaryBefore?.invoiced ?? "0.00") + 11500n),
-      "USD aggregate invoice total must add only the source USD invoice",
+      decimal(cents(usdSummaryBefore.invoiced)),
+      "recording a payment must not change the USD invoice total",
     );
     assert.equal(
       usdSummary.paid,
-      decimal(cents(usdSummaryBefore?.paid ?? "0.00") + 4025n),
-      "USD aggregate payment total must add the exact 40.25 settlement",
+      decimal(cents(usdSummaryBefore.paid) + 4025n),
+      "USD aggregate payment total must increase by the exact 40.25 settlement",
     );
     assert.equal(
       usdSummary.outstanding,
-      decimal(cents(usdSummaryBefore?.outstanding ?? "0.00") + 7475n),
-      "USD aggregate receivable must add only the exact source invoice balance",
+      decimal(cents(usdSummaryBefore.outstanding) - 4025n),
+      "USD aggregate receivable must decrease by the exact 40.25 settlement",
     );
     const yerSummaryAfterUsdPayment = statementAfterUsdPayment.summary.find((row) => row.currency === "YER");
     assert.deepEqual(
