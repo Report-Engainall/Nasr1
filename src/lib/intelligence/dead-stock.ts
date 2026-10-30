@@ -36,22 +36,30 @@ function metricIndex(metrics:MetricSnapshot[]):Map<string,MetricSnapshot> {
  const counts=new Map<string,number>();for(const m of metrics)counts.set(m.id,(counts.get(m.id)??0)+1);
  const out=new Map<string,MetricSnapshot>();for(const m of metrics)if(counts.get(m.id)===1)out.set(m.id,m);return out;
 }
-function checkMetric(metric:MetricSnapshot|null,index:Map<string,MetricSnapshot>,unit:string,asOf:string,period?:EvidencePeriod):{metric:MetricSnapshot|null;value:number|null;status:EvidenceStatus} {
+function checkMetric(metric:MetricSnapshot|null,index:Map<string,MetricSnapshot>,unit:string,asOf:string,period?:EvidencePeriod,quantityUnit?:string):{metric:MetricSnapshot|null;value:number|null;status:EvidenceStatus} {
  if(!metric)return {metric:null,value:null,status:"UNAVAILABLE"};
  const source=index.get(metric.id);if(!source)return {metric:null,value:null,status:"UNVERIFIED"};
  if(source.status!=="VERIFIED"||source.completeness!=="COMPLETE"||source.quality!=="ACCEPTABLE"||source.unit!==unit||source.asOf!==asOf||!source.lineage.evidenceIds.length)
   return {metric:source,value:null,status:source.status==="VERIFIED"?"NEEDS_REVIEW":source.status};
+ if(unit==="QUANTITY"||unit==="CURRENCY_PER_UNIT"){
+  if(!quantityUnit?.trim()||!source.unitOfMeasure?.trim())return {metric:source,value:null,status:"NEEDS_REVIEW"};
+  if(source.unitOfMeasure.trim()!==quantityUnit.trim())return {metric:source,value:null,status:"UNVERIFIED"};
+ }
  if(period&&(!source.period||source.period.from!==period.from||source.period.to!==period.to))return {metric:source,value:null,status:"NEEDS_REVIEW"};
  const value=numberValue(source.value);if(value===null||value<0)return {metric:source,value:null,status:"NEEDS_REVIEW"};
  return {metric:source,value,status:"VERIFIED"};
 }
 function coverageValid(item:DeadStockProductInput,asOf:string,days:number,evidence:Map<string,EvidenceRecord>):boolean {
  const end=isoDay(asOf.slice(0,10)),from=isoDay(item.movementCoverage.period.from),to=isoDay(item.movementCoverage.period.to);
- if(end===null||from===null||to===null||to<end||from>end-(days-1)*86400000)return false;
- if(item.movementCoverage.status!=="VERIFIED"||item.movementCoverage.completeness!=="COMPLETE"||item.movementCoverage.quality!=="ACCEPTABLE"||!item.movementCoverage.evidenceIds.length)return false;
- return item.movementCoverage.evidenceIds.every(id=>{
-  const record=evidence.get(id);
-  return Boolean(record&&record.status==="VERIFIED"&&record.completeness==="COMPLETE"&&record.quality==="ACCEPTABLE"&&record.asOf===asOf);
+ if(end===null||from===null||to===null||to!==end||from>end-(days-1)*86400000)return false;
+ const ids=item.movementCoverage.evidenceIds,asOfTime=Date.parse(asOf);
+ if(item.movementCoverage.status!=="VERIFIED"||item.movementCoverage.completeness!=="COMPLETE"||item.movementCoverage.quality!=="ACCEPTABLE"||
+  !ids.length||new Set(ids).size!==ids.length||!Number.isFinite(asOfTime))return false;
+ return ids.every(id=>{
+  const record=evidence.get(id),sourceTime=record?Date.parse(record.sourceTimestamp):NaN;
+  return Boolean(record&&record.status==="VERIFIED"&&record.completeness==="COMPLETE"&&record.quality==="ACCEPTABLE"&&
+   record.asOf===asOf&&Number.isFinite(sourceTime)&&sourceTime<=asOfTime&&
+   record.period?.from===item.movementCoverage.period.from&&record.period?.to===item.movementCoverage.period.to);
  });
 }
 /** Movement classification is never made from a partial movement window; cost exposure is independently evidence-gated. */
@@ -70,11 +78,11 @@ export function buildDeadStockReport(input:{
  for(const record of input.evidenceRecords)if(!evidence.has(record.id))evidence.set(record.id,record);
  const items=input.products.map(product=>{
   const warnings:string[]=[],historyOkay=coverageValid(product,input.asOf,rule.turnoverWindowDays,evidence);
-  const current=isoDay(input.asOf.slice(0,10)),movement=product.lastMovementAt?Date.parse(product.lastMovementAt):null;
+  const current=isoDay(input.asOf.slice(0,10)),asOfTime=Date.parse(input.asOf),movement=product.lastMovementAt?Date.parse(product.lastMovementAt):null;
   let classification:DeadStockClass="UNKNOWN",daysSinceMovement:number|null=null,movementStatus:EvidenceStatus=historyOkay?"VERIFIED":"NEEDS_REVIEW";
   if(!historyOkay)warnings.push("MOVEMENT_HISTORY_NOT_COMPLETE_OR_VERIFIED");
   else if(product.lastMovementAt===null){classification="ZERO_MOVEMENT";}
-  else if(movement===null||!Number.isFinite(movement)||movement> (current??0)+86400000){
+  else if(movement===null||!Number.isFinite(movement)||!Number.isFinite(asOfTime)||movement>asOfTime){
    movementStatus="UNVERIFIED";warnings.push("LAST_MOVEMENT_TIMESTAMP_INVALID");
   }else{
    const movementDay=isoDay(product.lastMovementAt.slice(0,10));
@@ -84,27 +92,30 @@ export function buildDeadStockReport(input:{
     classification=daysSinceMovement<=rule.activeWithinDays?"ACTIVE":daysSinceMovement<rule.stagnantAfterDays?"SLOW_MOVING":"STAGNANT";
    }
   }
-  const sold=checkMetric(product.soldQuantityWindow,index,"QUANTITY",input.asOf,input.period);
-  const average=checkMetric(product.averageInventoryWindow,index,"QUANTITY",input.asOf,input.period);
+  const quantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"";
+  const sold=checkMetric(product.soldQuantityWindow,index,"QUANTITY",input.asOf,input.period,quantityUnit);
+  const average=checkMetric(product.averageInventoryWindow,index,"QUANTITY",input.asOf,input.period,quantityUnit);
   let turnoverRatio:number|null=null,lowTurnover:boolean|null=null;
   if(sold.status==="VERIFIED"&&average.status==="VERIFIED"&&average.value!==null&&sold.value!==null&&average.value>0){
    turnoverRatio=sold.value/average.value;
    if(Number.isFinite(turnoverRatio)){lowTurnover=turnoverRatio<rule.lowTurnoverRatio;}
    else warnings.push("TURNOVER_RATIO_OVERFLOW");
   }else warnings.push("TURNOVER_RATIO_UNAVAILABLE");
-  const qty=checkMetric(product.availableQuantity,index,"QUANTITY",input.asOf,input.period);
-  const cost=checkMetric(product.unitCost,index,"CURRENCY_PER_UNIT",input.asOf,input.period);
+  const qty=checkMetric(product.availableQuantity,index,"QUANTITY",input.asOf,input.period,quantityUnit);
+  const cost=checkMetric(product.unitCost,index,"CURRENCY_PER_UNIT",input.asOf,input.period,quantityUnit);
   let exposure:number|null=null,exposureStatus:EvidenceStatus="UNAVAILABLE",currency:string|null=null,unitCost:number|null=null;
   if(product.unitCost){
-   const source=cost.metric;
-   if(qty.status==="VERIFIED"&&cost.status==="VERIFIED"&&source?.currency&&source.currency.trim()&&product.costQuantityUnit===product.quantityUnit&&qty.value!==null&&cost.value!==null){
+   const source=cost.metric,legacyCostUnitConflict=Boolean(product.costQuantityUnit&&product.costQuantityUnit.trim()!==quantityUnit);
+   if(qty.status==="VERIFIED"&&cost.status==="VERIFIED"&&source?.currency&&source.currency.trim()&&!legacyCostUnitConflict&&qty.value!==null&&cost.value!==null){
     const calculated=qty.value*cost.value;
     if(Number.isFinite(calculated)&&Math.abs(calculated)<=Number.MAX_SAFE_INTEGER){
      exposure=calculated;exposureStatus="VERIFIED";currency=source.currency;unitCost=cost.value;
     }else{exposureStatus="NEEDS_REVIEW";warnings.push("EXPOSURE_OVERFLOW");}
    }else{
-    exposureStatus=qty.status==="UNVERIFIED"||cost.status==="UNVERIFIED"?"UNVERIFIED":"NEEDS_REVIEW";
-    warnings.push(product.costQuantityUnit!==product.quantityUnit?"COST_QUANTITY_UNIT_MISMATCH":"VERIFIED_COST_OR_QUANTITY_UNAVAILABLE");
+    exposureStatus=qty.status==="UNVERIFIED"||cost.status==="UNVERIFIED"||legacyCostUnitConflict?"UNVERIFIED":"NEEDS_REVIEW";
+    warnings.push(legacyCostUnitConflict?"COST_QUANTITY_UNIT_MISMATCH":
+     !quantityUnit||!source?.unitOfMeasure?.trim()?"COST_UOM_MISSING":
+     source.unitOfMeasure.trim()!==quantityUnit?"COST_QUANTITY_UNIT_MISMATCH":"VERIFIED_COST_OR_QUANTITY_UNAVAILABLE");
    }
   }else warnings.push("UNIT_COST_NOT_AVAILABLE");
   const evidenceIds=[...new Set([
