@@ -1128,17 +1128,36 @@ type CheckoutValidation = {
 const CHECKOUT_ATTEMPT_STORAGE_KEY = 'aghbari:checkout-attempt:v1';
 type StoredCheckoutAttempt = { signature: string; key: string };
 
+function checkoutAttemptStorageKey(profileId: string | undefined): string | null {
+  return profileId ? CHECKOUT_ATTEMPT_STORAGE_KEY + ':' + encodeURIComponent(profileId) : null;
+}
+
 function readStoredCheckoutAttempt(profileId: string | undefined): StoredCheckoutAttempt | null {
   if (!profileId || typeof window === 'undefined') return null;
   try {
-    const saved = JSON.parse(window.sessionStorage.getItem(CHECKOUT_ATTEMPT_STORAGE_KEY) || 'null') as {
+    const scopedKey = checkoutAttemptStorageKey(profileId);
+    if (!scopedKey) return null;
+    let raw = window.sessionStorage.getItem(scopedKey);
+    let isLegacyKey = false;
+    if (!raw) {
+      raw = window.sessionStorage.getItem(CHECKOUT_ATTEMPT_STORAGE_KEY);
+      isLegacyKey = raw !== null;
+    }
+    const saved = JSON.parse(raw || 'null') as {
       signature?: unknown;
       key?: unknown;
     } | null;
     if (!saved || typeof saved.signature !== 'string' || typeof saved.key !== 'string' ||
       !/^[A-Za-z0-9_-]{16,128}$/.test(saved.key)) return null;
     const signature = JSON.parse(saved.signature) as { profile_id?: unknown };
-    return signature.profile_id === profileId ? { signature: saved.signature, key: saved.key } : null;
+    if (signature.profile_id !== profileId) return null;
+    if (isLegacyKey) {
+      window.sessionStorage.setItem(scopedKey, JSON.stringify(saved));
+      if (window.sessionStorage.getItem(CHECKOUT_ATTEMPT_STORAGE_KEY) === raw) {
+        window.sessionStorage.removeItem(CHECKOUT_ATTEMPT_STORAGE_KEY);
+      }
+    }
+    return { signature: saved.signature, key: saved.key };
   } catch {
     return null;
   }
@@ -1244,9 +1263,22 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     return () => { active = false; };
   }, [checkoutItems, user?.profileId, previewRetry]);
 
-  function getIdempotencyKey(): string | null {
+  function checkoutSignature(): string {
     const items = cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity })).sort((a, b) => a.product_id.localeCompare(b.product_id));
-    const signature = JSON.stringify({ profile_id: user?.profileId, payment_terms: paymentTerms, items, contact_name: name.trim(), business_name: business.trim(), phone: phone.trim(), notes: notes.trim(), delivery_address_id: deliveryAddressId || null });
+    return JSON.stringify({ profile_id: user?.profileId, payment_terms: paymentTerms, items, contact_name: name.trim(), business_name: business.trim(), phone: phone.trim(), notes: notes.trim(), delivery_address_id: deliveryAddressId || null });
+  }
+
+  function hasConflictingPendingAttempt(): boolean {
+    const signature = checkoutSignature();
+    const pending = idempotencyRef.current ?? readStoredCheckoutAttempt(user?.profileId);
+    if (!pending || pending.signature === signature) return false;
+    setRecoveringAttempt(true);
+    setError('توجد محاولة طلب سابقة لم تصل نتيجة تأكيدها. أعد بياناتها نفسها أولًا؛ لن نغيّر السلة المحفوظة أو نرسل طلبًا مختلفًا قبل حسم المحاولة.');
+    return true;
+  }
+
+  function getIdempotencyKey(): string | null {
+    const signature = checkoutSignature();
     const activeAttempt = idempotencyRef.current;
     if (activeAttempt) {
       if (activeAttempt.signature === signature) return activeAttempt.key;
@@ -1270,7 +1302,8 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
       ? crypto.randomUUID()
       : 'checkout_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2);
     idempotencyRef.current = { signature, key };
-    try { window.sessionStorage.setItem(CHECKOUT_ATTEMPT_STORAGE_KEY, JSON.stringify({ signature, key })); } catch { /* in-page ref still protects retries when session storage is unavailable */ }
+    const storageKey = checkoutAttemptStorageKey(user?.profileId);
+    try { if (storageKey) window.sessionStorage.setItem(storageKey, JSON.stringify({ signature, key })); } catch { /* in-page ref still protects retries when session storage is unavailable */ }
     return key;
   }
 
@@ -1280,6 +1313,7 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
     if (!user) { setError('سجّل الدخول أو أنشئ حساباً لإتمام الطلب'); return; }
     if (name.trim().length < 2 || phone.trim().length < 6) { setError('الاسم ورقم الهاتف مطلوبان'); return; }
     if (previewLoading || !cartValidation) { setError('لا يمكن تسجيل الطلب حتى ينجح التحقق من أصناف السلة وسياسة التسعير. أعد المحاولة.'); return; }
+    if (hasConflictingPendingAttempt()) return;
     submitInFlightRef.current = true;
     setSubmitting(true); setError('');
     let requestWasSent = false;
@@ -1317,8 +1351,11 @@ function Checkout({ cart, priceVisibilityPolicy, onBack, onComplete }: { cart: C
         return;
       }
       try {
-        const saved = JSON.parse(window.sessionStorage.getItem(CHECKOUT_ATTEMPT_STORAGE_KEY) || 'null') as { key?: unknown } | null;
-        if (saved?.key === requestKey) window.sessionStorage.removeItem(CHECKOUT_ATTEMPT_STORAGE_KEY);
+        const storageKey = checkoutAttemptStorageKey(user?.profileId);
+        const saved = storageKey
+          ? JSON.parse(window.sessionStorage.getItem(storageKey) || 'null') as { key?: unknown } | null
+          : null;
+        if (storageKey && saved?.key === requestKey) window.sessionStorage.removeItem(storageKey);
       } catch { /* request is already confirmed; cleanup is best-effort */ }
       idempotencyRef.current = null;
       setAmbiguousSubmit(false);

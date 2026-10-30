@@ -423,9 +423,11 @@ describe("customer cart and checkout real route acceptance", () => {
       fireEvent.change(recoveredPhone!, { target: { value: "771111111" } });
     });
     await flush();
+    const savesBeforeDifferentPayload = vi.mocked(saveCustomerCart).mock.calls.length;
     await clickButtonContaining("تأكيد الطلب");
 
     expect(mocks.submitCalls).toHaveLength(1);
+    expect(vi.mocked(saveCustomerCart).mock.calls).toHaveLength(savesBeforeDifferentPayload);
     expect(host?.textContent).toContain("أدخل بيانات الطلب السابق نفسها");
     expect(host?.textContent).not.toContain("SO-TEST-001");
 
