@@ -36,6 +36,6 @@ describe("scheduled cash-flow forecast",()=>{
   const unscoped={...entry("unscoped","INFLOW","2026-11-02",20),amount:{...metric("unscoped","unclassified",20,"YER"),currency:undefined}};
   const r=buildCashflowForecast(base([unscoped]));
   expect(r.points.every(p=>p.projectedBalance===null&&p.status==="NEEDS_REVIEW")).toBe(true);
-  expect(r.points.every(p=>p.warnings).every(w=>w.includes("UNSCOPED_SCHEDULE_CURRENCY"))).toBe(true);
+  expect(r.points.every(p=>p.warnings.includes("UNSCOPED_SCHEDULE_CURRENCY"))).toBe(true);
  });
 });
