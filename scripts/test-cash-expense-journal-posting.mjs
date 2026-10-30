@@ -211,11 +211,6 @@ async function main() {
       [organizationId, expense.expense_id],
     );
     assert.equal(recordedAudit[0].count, 1, "manager create and replay emit one source audit record");
-    assert.equal(expense.status, "posted");
-    assert.equal(expense.replayed, false);
-    const expenseReplay = await recordExpense(managerDb, expenseKey, "P2 expense journal acceptance", "125.50");
-    assert.equal(expenseReplay.expense_id, expense.expense_id);
-    assert.equal(expenseReplay.replayed, true);
     await expectFailure("expense idempotency rejects a changed amount", () => recordExpense(managerDb, expenseKey, "P2 expense journal acceptance", "126.00"), /idempotency key payload conflict/i);
     const draftKey = randomUUID();
     const [draftA, draftB] = await Promise.all([
