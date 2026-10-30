@@ -35,6 +35,8 @@ export function CustomerActivationInvitationDialog({
   onClose: () => void;
 }) {
   const [workspace, setWorkspace] = useState<CustomerActivationWorkspace | null>(null);
+  const [workspaceCustomerId, setWorkspaceCustomerId] = useState<string | null>(null);
+  const [workspaceLoadFailed, setWorkspaceLoadFailed] = useState(false);
   const [email, setEmail] = useState(customer.email?.trim() ?? "");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -42,24 +44,47 @@ export function CustomerActivationInvitationDialog({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const createInFlightRef = useRef(false);
+  const loadRequestIdRef = useRef(0);
+  const currentWorkspace = workspaceCustomerId === customer.id ? workspace : null;
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current;
     setLoading(true);
     setError("");
+    setWorkspaceLoadFailed(false);
     try {
-      setWorkspace(await fetchCustomerActivationWorkspace(customer.id));
+      const nextWorkspace = await fetchCustomerActivationWorkspace(customer.id);
+      if (requestId !== loadRequestIdRef.current) return;
+      if (nextWorkspace.customer_id !== customer.id) {
+        throw new Error("تعذر التحقق من تطابق سجل الدعوات مع العميل المحدد.");
+      }
+      setWorkspace(nextWorkspace);
+      setWorkspaceCustomerId(customer.id);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر تحميل سجل الدعوات.");
+      if (requestId === loadRequestIdRef.current) {
+        setWorkspaceLoadFailed(true);
+        setError(cause instanceof Error ? cause.message : "تعذر تحميل سجل الدعوات.");
+      }
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestIdRef.current) setLoading(false);
     }
   }, [customer.id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    setEmail(customer.email?.trim() ?? "");
+    setInviteUrl("");
+    setError("");
+    setNotice("");
+  }, [customer.id, customer.email]);
+
+  useEffect(() => {
+    void load();
+    return () => { loadRequestIdRef.current += 1; };
+  }, [load]);
 
   async function createInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (createInFlightRef.current || busy || loading || workspace?.is_linked) return;
+    if (createInFlightRef.current || busy || loading || !currentWorkspace || currentWorkspace.is_linked || workspaceLoadFailed) return;
     createInFlightRef.current = true;
     setBusy(true);
     setError("");
@@ -89,7 +114,13 @@ export function CustomerActivationInvitationDialog({
   }
 
   async function revoke(invitation: CustomerActivationInvitation) {
-    if (busy || !window.confirm("إلغاء رابط التفعيل المعلق إلى " + invitation.invited_email + "؟")) return;
+    if (
+      busy ||
+      loading ||
+      workspaceLoadFailed ||
+      !currentWorkspace?.invitations.some((row) => row.invitation_id === invitation.invitation_id) ||
+      !window.confirm("إلغاء رابط التفعيل المعلق إلى " + invitation.invited_email + "؟")
+    ) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -105,7 +136,8 @@ export function CustomerActivationInvitationDialog({
     }
   }
 
-  const canInvite = customer.status === "approved" && workspace !== null && !workspace.is_linked && !error;
+  const canInvite = customer.status === "approved" && currentWorkspace !== null &&
+    !currentWorkspace.is_linked && !workspaceLoadFailed && !error;
 
   return (
     <div
@@ -139,14 +171,14 @@ export function CustomerActivationInvitationDialog({
 
         {loading ? (
           <p role="status" style={{ display: "flex", alignItems: "center", gap: 8 }}><RefreshCw size={16} /> جارٍ تحميل سجل دعوات العميل...</p>
-        ) : !workspace ? (
+        ) : !currentWorkspace ? (
           <div role="alert" style={{ padding: 14, border: "1px solid #e8b5b5", borderRadius: 11 }}>
             تعذر التحقق من حالة ربط حساب العميل. لن يُسمح بإنشاء دعوة حتى يُحمّل سجل الدعوات بنجاح.
             <button type="button" onClick={() => void load()} disabled={loading || busy} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginInlineStart: 10, border: "1px solid var(--border, #d5e1df)", borderRadius: 8, padding: "7px 9px", background: "transparent", cursor: "pointer" }}>
               <RefreshCw size={14} /> إعادة المحاولة
             </button>
           </div>
-        ) : workspace.is_linked ? (
+        ) : currentWorkspace.is_linked ? (
           <div role="status" style={{ padding: 14, border: "1px solid #b8d8c8", borderRadius: 11 }}>هذا السجل مرتبط بالفعل بحساب مستخدم. لا يمكن إنشاء دعوة تفعيل ثانية.</div>
         ) : (
           <form onSubmit={createInvite} style={{ display: "grid", gap: 12, padding: 16, border: "1px solid var(--border, #d9e3e2)", borderRadius: 12 }}>
@@ -191,9 +223,13 @@ export function CustomerActivationInvitationDialog({
             <h3 style={{ margin: 0, fontSize: 17 }}>سجل الدعوات</h3>
             <button type="button" onClick={() => void load()} disabled={loading || busy} style={{ border: "1px solid var(--border, #d5e1df)", borderRadius: 8, padding: "7px 9px", background: "transparent", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><RefreshCw size={14} /> تحديث</button>
           </header>
-          {!workspace?.invitations.length ? <p style={{ margin: 0, color: "var(--muted-foreground, #61736f)" }}>لا توجد دعوات محفوظة لهذا السجل.</p> : (
+          {loading ? (
+            <p role="status" style={{ margin: 0, color: "var(--muted-foreground, #61736f)" }}>جارٍ تحديث سجل الدعوات؛ لن نعرض النتائج السابقة قبل اكتمال التحقق.</p>
+          ) : workspaceLoadFailed || !currentWorkspace ? (
+            <p role="status" style={{ margin: 0, color: "var(--muted-foreground, #61736f)" }}>تعذر تأكيد سجل الدعوات الحالي؛ أُخفي السجل السابق. اضغط تحديث لإعادة المحاولة.</p>
+          ) : !currentWorkspace.invitations.length ? <p style={{ margin: 0, color: "var(--muted-foreground, #61736f)" }}>لا توجد دعوات محفوظة لهذا السجل.</p> : (
             <div style={{ display: "grid", gap: 9 }}>
-              {workspace.invitations.map((invitation) => (
+              {currentWorkspace.invitations.map((invitation) => (
                 <article key={invitation.invitation_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", borderTop: "1px solid var(--border, #e6ecea)", paddingTop: 10 }}>
                   <div>
                     <strong dir="ltr" style={{ display: "block", overflowWrap: "anywhere" }}>{invitation.invited_email}</strong>

@@ -146,4 +146,59 @@ describe("customer activation invitation dialog", () => {
     expect(await screen.findByText("هذا السجل مرتبط بالفعل بحساب مستخدم. لا يمكن إنشاء دعوة تفعيل ثانية.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "إنشاء رابط تفعيل صالح 72 ساعة" })).not.toBeInTheDocument();
   });
+
+  it("hides the old pending invitation when revocation succeeds but the follow-up list refresh fails", async () => {
+    const revokedWorkspace = {
+      ...workspace,
+      invitations: [{ ...invitation, status: "revoked" as const }],
+    };
+    mocks.fetchWorkspace
+      .mockReset()
+      .mockResolvedValueOnce(workspace)
+      .mockRejectedValueOnce(new Error("تعذر تحديث سجل الدعوات"))
+      .mockResolvedValueOnce(revokedWorkspace);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<CustomerActivationInvitationDialog customer={CUSTOMER} onClose={vi.fn()} />);
+    expect(await screen.findByText("بانتظار التفعيل")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "إلغاء الدعوة" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحديث سجل الدعوات");
+    expect(screen.getByText("أُلغي رابط التفعيل في الخادم.")).toBeInTheDocument();
+    expect(screen.queryByText("بانتظار التفعيل")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "إلغاء الدعوة" })).not.toBeInTheDocument();
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(mocks.revokeInvite).toHaveBeenCalledWith(INVITATION_ID);
+
+    fireEvent.click(screen.getByRole("button", { name: "تحديث" }));
+    expect(await screen.findByText("ملغاة")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "إلغاء الدعوة" })).not.toBeInTheDocument();
+    expect(mocks.fetchWorkspace).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not expose the previous customer's invitation while a different customer workspace is loading or unavailable", async () => {
+    const otherCustomer = {
+      ...CUSTOMER,
+      id: "33333333-3333-4333-8333-333333333333",
+      business_name: "متجر عميل آخر",
+      email: "other@example.test",
+    };
+    mocks.fetchWorkspace
+      .mockReset()
+      .mockResolvedValueOnce(workspace)
+      .mockRejectedValueOnce(new Error("تعذر تحميل سجل الدعوات للعميل الآخر"));
+
+    const { rerender } = render(<CustomerActivationInvitationDialog customer={CUSTOMER} onClose={vi.fn()} />);
+    expect(await screen.findByText("client@example.test")).toBeInTheDocument();
+
+    rerender(<CustomerActivationInvitationDialog customer={otherCustomer} onClose={vi.fn()} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل سجل الدعوات للعميل الآخر");
+    expect(screen.queryByText("client@example.test")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/رابط التفعيل/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "إلغاء الدعوة" })).not.toBeInTheDocument();
+    expect(mocks.createInvite).not.toHaveBeenCalled();
+  });
+
 });
