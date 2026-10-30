@@ -1,20 +1,22 @@
-# CURRENT DELIVERY OVERRIDE — 2026-10-29 — CUSTOMER 360 XLSX ACCEPTED / MAIN-ONLY / SINGLE LEDGER
+# REQUIREMENT REGISTRY — CURRENT DELIVERY INDEX — 2026-10-30
 
-This is the current verified override. All entries below the next heading are historical and cannot supersede the live execution report.
+This file is the canonical **requirement definition registry**, not the current resume cursor and not the execution history. The sole live resume pointer is `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`; the acceptance state is in `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`; execution chronology is in `docs/bolt-source-reconciliation/EXECUTION_LOG.md` and `docs/execution/NASR1_CONTINUOUS_EXECUTION_REPORT.md`. Older checkpoints below are historical and must not override those files.
 
-- **Repository/product:** `Report-Engainall/Nasr1` — متجر الأغبري | Aghbari Commerce. **Only integration branch:** `main`.
-- **Exact tested runtime/code SHA:** `088e42450dc2fe7dc72cc8f4a1b3ff3cd79af46b`. [Aghbari Commerce run 40919660544 — terminal SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40919660544) passed **209/209 test files and 1370/1370 tests**. PostgreSQL 17 migrations/workflows, tenant/role authorization, RPC inventory, finance/concurrency/idempotency, export/import, backup/restore, lint, build, preview/dev smoke and Chromium price-visibility acceptance all passed. [One-main cleanup run 40919660696 — SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40919660696) on the same SHA.
-- **New accepted output:** `src/components/AdminCustomer360.tsx` exposes Customer 360 Excel; `src/lib/customer-360-xlsx.ts` builds eight worksheets from the existing authorized `get_staff_customer_360()` response. `src/lib/customer-360-xlsx.test.ts` validates full per-currency aggregate separation from the latest 20 details, unknown-as-blank, text identifiers, formula injection, no cost/margin leakage, and the bounded-detail contract.
-- **Failure transparency:** Core run 40919501907 failed on SHA `c10c0f4` due one mismatched Arabic assertion string. The string and reload error state were fixed in `088e42450dc2fe7dc72cc8f4a1b3ff3cd79af46b`; exact-head run 40919660544 is fully green.
-- **Acceptance:** `DLV-003` PARTIALLY VERIFIED; `DLV-005` PARTIAL; `DLV-007` PARTIAL; `DLV-010` PARTIAL; `DLV-011` OPEN. Customer 360 XLSX and product activity XLSX are accepted locally, but complete role-by-output acceptance and hosted UAT remain open.
-- **Sole ledger / sole matrix:** `docs/execution/NASR1_CONTINUOUS_EXECUTION_REPORT.md` is the only live checkpoint and NEXT_ACTION. `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md` is a redirect only. The only matrix is `docs/bolt-source-reconciliation/REMAINING_SCREEN_ACCEPTANCE_MATRIX_2026-10-22.csv`.
-- **Roll-up:** 118 populated unique IDs, zero duplicates, 18 delivery groups, zero fully release-closed. Overall completion percentage is NOT COMPUTABLE until leaf/group evidence reconciles. Full production release remains **NO-GO**.
-- **External gates:** authenticated hosted customer/tenant E2E, actual Onyx target-version round-trip, official WhatsApp delivery receipts, live AI-provider operation, production migration/deploy/rollback/restore evidence, and owner sign-off remain `BLOCKED_EXTERNAL` or `UNVERIFIED`.
-- **NEXT ACTION:** follow the latest live report checkpoint. Continue on the first uncovered DLV-005/DLV-011 direct API/RPC role/tenant/tier/session boundary or output role/template not already covered. Do not repeat accepted Customer 360 workbook tests or infer production readiness from CI.
+- **Product/repository:** متجر الأغبري | Aghbari Commerce — `Report-Engainall/Nasr1`.
+- **Only branch:** `main`; at the current code reconciliation the code-bearing main SHA is `5d3ed3c032d957e8880c600506d9949234145236`. A documentation-only checkpoint follows; always re-read live main on resume.
+- **Latest code delivery:** `supabase/migrations/20261030010000_general_journal_post_draft_only.sql` restricts `post_general_journal_entry(uuid)` to balanced draft journals; posted replay remains idempotent, void/non-draft posting rejects with SQLSTATE 22023 and no mutation. The exact denial and state regressions are in `scripts/test-database-migrations.mjs`.
+- **Exact-SHA evidence:** Core 40981597874, isolated PostgreSQL 17 40981597786, P2 local Supabase/Chromium 40981598078, and cleanup 40981597789 all SUCCESS on code SHA 5d3ed3c. See the linked run records in CURRENT_EXECUTION_STATE.md.
+- **Latest inventory:** artifact 12945281688 reports 330 public functions/procedures, 330 matched, 0 unmatched across 174 migrations. Mapping is not semantic authorization sign-off.
+- **Acceptance:** DLV-004/007/008/009/011/014/015 gained targeted exact-SHA evidence but remain PARTIAL where the full requirement is still open. The CSV matrix is authoritative for each leaf status.
+- **Cardinality/release:** 123 unique populated acceptance IDs, 18 DLV roll-up groups, 0/18 fully release-closed. Overall completion percentage is NOT COMPUTABLE until every leaf requirement is reconciled. Full production release remains **NO-GO**.
+- **External gates:** hosted authenticated customer/order/tenant E2E is SKIPPED; real Onyx target-version round-trip, official WhatsApp delivery receipt, live AI-provider response, production deploy/rollback/restore and owner sign-off remain BLOCKED_EXTERNAL or UNVERIFIED.
+- **Next task:** read `CURRENT_EXECUTION_STATE.md`; do not infer a next task from this registry.
+
 ---
----
 
-## Current verified checkpoint after PR #296 — 2026-10-27
+## Historical registry snapshots — retained for traceability
+
+## HISTORICAL SNAPSHOT — PR #296 (2026-10-27) — 2026-10-27
 
 - Main is at `9427e116cf28b039ec1ff02e0f57070c83de3943` after PR #296; PR #295 remains merged at `f90439c0b8c926600d9fff98b04c302553396000`.
 - PR #295 makes `preview_customer_order_pricing(jsonb,text)` serialize with member revocation and re-check authorization after lock waits; legacy `preview_order_pricing(jsonb)` is not directly executable by browser roles, while the safe checkout validator remains available without monetary/tier output.

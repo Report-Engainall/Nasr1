@@ -1,15 +1,31 @@
-## LIVE CHECKPOINT — 2026-10-30 — import rollback authorization test passed its focused step; latest-main verification pending
+# NASR1 — execution history and verified delivery details
+
+> This is the detailed chronological execution record, not the live resume cursor. The only current task pointer is [docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md](../bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md). Historical `NEXT ACTION` entries below must not be used to resume.
+
+## VERIFIED CODE CHECKPOINT — 2026-10-30 — exact main code SHA 5d3ed3c
+
+- Repository: `Report-Engainall/Nasr1`; code SHA: `5d3ed3c032d957e8880c600506d9949234145236`; branch: `main` only.
+- Implemented journal posting state guard in `supabase/migrations/20261030010000_general_journal_post_draft_only.sql`; acceptance in `scripts/test-database-migrations.mjs`. Customer-post denial/no-side-effect proof was added in `9061d6d`, corrected in `b96b7cd`, and rerun on the current code.
+- Exact-head Core [40981597874 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40981597874); isolated PostgreSQL 17 [40981597786 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40981597786); local Supabase/Chromium P2 [40981598078 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40981598078); one-main cleanup [40981597789 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40981597789).
+- Inventory artifact [12945281688](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/12945281688/zip): 330 runtime functions, 330 matched, 0 unmatched, 174 migration files. The source map is not a semantic security pass for all functions.
+- P2 proves local order/tenant, customer-return/credit-memo, print, Onyx XLSX, customer-manager privacy and device-session flows on exact code SHA. The separate hosted order/tenant job was `SKIPPED`; no hosted or production proof is claimed.
+- Current acceptance remains partial for DLV-004, DLV-007, DLV-008, DLV-011 and DLV-015; the matrix contains 123 unique IDs and 18 DLV roll-ups, 0/18 fully release-closed. Global percentage is not computable.
+- Production release: **NO-GO** while hosted E2E, live external integrations, production operations and owner approval remain unproven.
+
+---
+
+## HISTORICAL CHECKPOINT — 2026-10-30 — import rollback authorization test passed its focused step; latest-main verification pending
 
 - **Focused proof:** test step 23, “Verify inventory import snapshot contract without implicit stock mutation,” completed SUCCESS in Core run 40974837711 on exact code SHA e68db07266c74c30cae36c9088c3ef993b4c9ac1: https://github.com/Report-Engainall/Nasr1/actions/runs/40974837711. That run's aggregate Core status was still IN_PROGRESS, and P2 run 40974837758 was CANCELLED when main advanced.
 - **Latest main:** 2670bf7e69db2efe419cd386478b33e0b0656053 (includes the code SHA plus a separate PWA test commit). Current Core 40975098596 IN_PROGRESS with step 23 pending, P2 40975098653 PENDING, cleanup 40975098593 SUCCESS. Links: https://github.com/Report-Engainall/Nasr1/actions/runs/40975098596, https://github.com/Report-Engainall/Nasr1/actions/runs/40975098653, https://github.com/Report-Engainall/Nasr1/actions/runs/40975098593.
 - **Test contract:** ordinary staff receives 42501; foreign-tenant manager receives opaque P0002 from public.rollback_import_snapshot; both denials preserve job status/error_summary/created_at, ready snapshot metadata, stored snapshot-row count and rollback audit count.
 - **Development corrections:** the first candidate queried a nonexistent import_jobs.updated_at; the second correction exposed that expectFailure did not return the caught error. Both test-only causes were corrected; focused test step subsequently passed on e68.
 - **Inventory:** retained artifact 12940762864, 330/330 runtime functions source-mapped across 173 migrations. No inventory regeneration.
-- **Next action:** verify the rollback test on the latest main SHA and terminal Core/P2 checks; fix any concrete failure, then choose the next uncovered destructive RPC.
+- **Historical next action (superseded):** verify the rollback test on the latest main SHA and terminal Core/P2 checks; fix any concrete failure, then choose the next uncovered destructive RPC.
 - **Release decision:** NO-GO until the overall required acceptance groups and external/production gates are evidenced.
 
 ---
-## LIVE CHECKPOINT — 2026-10-30 — import rollback authorization regression corrected; CI pending
+## HISTORICAL CHECKPOINT — 2026-10-30 — import rollback authorization regression corrected; CI pending
 
 - **Current code SHA:** e68db07266c74c30cae36c9088c3ef993b4c9ac1 — https://github.com/Report-Engainall/Nasr1/commit/e68db07266c74c30cae36c9088c3ef993b4c9ac1
 - **Observed failure 1:** Core 40974044403 on 7bef9e1229e1c5ea814a5f1fdcc1448642fe0cce reported nonexistent import_jobs.updated_at; fixed to created_at in 7a28f88c73ec229be1d0455e6b4d3b48ab20110d.
@@ -17,22 +33,22 @@
 - **Current candidate CI:** Core 40974837711 IN_PROGRESS (https://github.com/Report-Engainall/Nasr1/actions/runs/40974837711), P2 40974837758 PENDING (https://github.com/Report-Engainall/Nasr1/actions/runs/40974837758), cleanup 40974837686 SUCCESS (https://github.com/Report-Engainall/Nasr1/actions/runs/40974837686). Do not promote to TESTED_EXACT_SHA until terminal success.
 - **Test:** ordinary staff must receive 42501; foreign-tenant manager opaque P0002; both denials preserve job status/metadata/created_at, ready snapshot metadata, stored row count and rollback audit count. Isolated PostgreSQL 17 only.
 - **Inventory:** artifact 12940762864 retained; 330/330 runtime functions map to source across 173 migration files. No inventory regeneration.
-- **Next action:** verify exact-SHA Core/P2 for e68db07266c74c30cae36c9088c3ef993b4c9ac1, fix any real failure, then choose next uncovered high-risk destructive RPC.
+- **Historical next action (superseded):** verify exact-SHA Core/P2 for e68db07266c74c30cae36c9088c3ef993b4c9ac1, fix any real failure, then choose next uncovered high-risk destructive RPC.
 - **Release:** full production release remains NO-GO while hosted E2E, live integrations, production deploy/restore and owner sign-off are unproven.
 
 ---
-## LIVE CHECKPOINT — 2026-10-30 — rollback denial test corrected; exact-SHA CI pending
+## HISTORICAL CHECKPOINT — 2026-10-30 — rollback denial test corrected; exact-SHA CI pending
 
 - **Corrected code SHA:** 7a28f88c73ec229be1d0455e6b4d3b48ab20110d — https://github.com/Report-Engainall/Nasr1/commit/7a28f88c73ec229be1d0455e6b4d3b48ab20110d
 - **Failure and root cause:** code SHA 7bef9e1229e1c5ea814a5f1fdcc1448642fe0cce failed Core 40974044403 at the import-inventory snapshot acceptance because test helper snapshotImportRollbackBoundary queried import_jobs.updated_at, a column not present in that table. The test-only query is fixed to use created_at. No production schema or data was changed by this failure or fix.
 - **Regression still being verified:** public.rollback_import_snapshot role/tenant denial (ordinary staff 42501; foreign-tenant manager opaque P0002) plus pre/post state comparison for job metadata/creation time, ready snapshot metadata, persisted rows and rollback audit.
 - **Corrected candidate checks:** Core 40974514133 IN_PROGRESS, P2 40974514139 PENDING, cleanup 40974514142 SUCCESS on exact code SHA 7a28f88c73ec229be1d0455e6b4d3b48ab20110d. URLs: https://github.com/Report-Engainall/Nasr1/actions/runs/40974514133, https://github.com/Report-Engainall/Nasr1/actions/runs/40974514139, https://github.com/Report-Engainall/Nasr1/actions/runs/40974514142.
 - **Inventory:** retained artifact 12940762864 remains the source list; 330/330 functions source-mapped across 173 migration files. No inventory regeneration was performed.
-- **Next action:** check corrected exact-SHA Core/P2 terminal states, repair the first concrete failure, then select the next uncovered high-risk destructive RPC.
+- **Historical next action (superseded):** check corrected exact-SHA Core/P2 terminal states, repair the first concrete failure, then select the next uncovered high-risk destructive RPC.
 - **Release decision:** full production release remains NO-GO while hosted customer/order/tenant E2E, live external integrations, production deploy/restore and owner sign-off are unproven.
 
 ---
-## LIVE CHECKPOINT — 2026-10-30 — purchase-order cancellation verified; cash-expense void authorization pending
+## HISTORICAL CHECKPOINT — 2026-10-30 — purchase-order cancellation verified; cash-expense void authorization pending
 
 - **Base SHA:** 14e9cb703846708419c47ade22aa54ac3c7cdffd.
 - **Purchase-order cancellation proof:** Core 40972096292 SUCCESS on d8735de8f2cbb58df2d8e68c5452f972ae0df091, 35/35 steps including PostgreSQL 17: https://github.com/Report-Engainall/Nasr1/actions/runs/40972096292. Ordinary staff receives SQLSTATE 42501; foreign-tenant manager gets opaque 42501; order/cancellation fields, audit, receipts, movements and on-hand quantity remain unchanged.
@@ -42,11 +58,11 @@
 - **Earlier server proofs:** cancel_stock_count TESTED_EXACT_SHA on c5 via Core 40971449141 SUCCESS; cancel_purchase_order TESTED_EXACT_SHA on d873 via Core 40972096292 SUCCESS. DLV-007 and DLV-008 remain PARTIAL.
 - **Print/export:** unnamed customer selector/PDF fallback and targeted authorization/tenant checks passed on c9838d8; full role/template PDF/XLSX/print matrix remains OPEN.
 - **RPC inventory:** retain artifact 12940762864: https://github.com/Report-Engainall/Nasr1/actions/artifacts/12940762864. Source mapping is not semantic security proof.
-- **Next action:** publish this checkpoint only if main remains at the base; verify Core/P2 on the exact resulting SHA for cash-expense denials. Hosted E2E, live integrations, production operations and owner sign-off are unproven; release remains NO-GO.
+- **Historical next action (superseded):** publish this checkpoint only if main remains at the base; verify Core/P2 on the exact resulting SHA for cash-expense denials. Hosted E2E, live integrations, production operations and owner sign-off are unproven; release remains NO-GO.
 
 ---
 
-## LIVE CHECKPOINT — 2026-10-30 — stock-count boundary verified; purchase-order cancellation next
+## HISTORICAL CHECKPOINT — 2026-10-30 — stock-count boundary verified; purchase-order cancellation next
 
 - **Latest verified Core SHA:** `c5e35963dcb8afa1d04eb692a89ef6bc25e25d84`; Core [40971449141 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40971449141), 35/35 steps. The run includes the isolated PostgreSQL 17 stock-count start/cancel audit test (step 20 SUCCESS), lint, build, production preview smoke, dev server smoke and browser price acceptance. It proves the tested cancellation-denial scenarios only; it does not close the whole inventory lifecycle.
 - **P2 on c5:** [40971449064](https://github.com/Report-Engainall/Nasr1/actions/runs/40971449064) public smoke SUCCESS, authenticated infrastructure gate SUCCESS, hosted customer/order/tenant E2E SKIPPED, local Supabase authenticated test still IN_PROGRESS when last observed (credit memo/return scenario). Cleanup [40971449096](https://github.com/Report-Engainall/Nasr1/actions/runs/40971449096) SUCCESS.
@@ -56,11 +72,11 @@
 - **Finance/print reconciliation:** unnamed-customer selector/PDF fallback, admin/manager/accountant permissions, ordinary-staff/customer denial, and foreign-tenant isolation already existed and passed Core on c9838d8 (run [40945751611](https://github.com/Report-Engainall/Nasr1/actions/runs/40945751611)). DLV-011 remains OPEN for the full role/template PDF/XLSX/print output matrix and hosted journey proof.
 - **Existing inventory:** RPC source artifact [12929127056](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/12929127056/zip) maps 330/330 functions across 173 migrations; this does not establish semantic authorization proof.
 - **Acceptance now:** DLV-007 PARTIAL; DLV-008 PARTIAL; DLV-011 OPEN; DLV-015 PARTIAL. Hosted E2E, Onyx, WhatsApp, live AI, production operations and owner release approval remain unproven. Release NO-GO.
-- **Next action:** run Core on the exact new candidate and verify the purchase-order cancellation denials; get P2 and cleanup terminal results on the exact SHA. Then pick one next untested destructive RPC from the existing inventory.
+- **Historical next action (superseded):** run Core on the exact new candidate and verify the purchase-order cancellation denials; get P2 and cleanup terminal results on the exact SHA. Then pick one next untested destructive RPC from the existing inventory.
 
 ---
 
-## LIVE CHECKPOINT — 2026-10-30 — stock-count cancellation security boundary (candidate verification pending)
+## HISTORICAL CHECKPOINT — 2026-10-30 — stock-count cancellation security boundary (candidate verification pending)
 
 - **Repository/branch:** `Report-Engainall/Nasr1` / `main` only.
 - **Base SHA observed before the corrective batch:** `97213c3e0a9348d40ee30906eda75bfe020baec4`; no results transfer to the candidate commit.
@@ -69,11 +85,11 @@
 - **Reconciliation correction:** the runtime tests for unnamed finance selector/PDF fallback (`عميل غير مسمى`), admin/manager/accountant access, ordinary-staff/customer denial and foreign-tenant isolation already exist in `scripts/test-database-migrations.mjs` and ran on c9838d8’s full Core SUCCESS. The stale DLV-011 next action has been removed; do not repeat those tests without a regression.
 - **Last fully verified code SHA:** `c9838d8ced1869b2fdbeee735160197edc81a16b`; Core [40945751611 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40945751611), import-finalizer [40945751576 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40945751576), cleanup [40945751427 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/40945751427). RPC inventory [artifact 12929127056](https://api.github.com/repos/Report-Engainall/Nasr1/actions/artifacts/12929127056/zip) contains 330/330 source matches across 173 migrations; it is not a semantic-security pass.
 - **Acceptance:** DLV-007 PARTIAL; DLV-008 PARTIAL; DLV-011 OPEN (targeted runtime selector authorization tests already present; full output/template matrix remains open); DLV-015 PARTIAL (cancellation-denial acceptance awaits exact candidate CI). Hosted authenticated E2E, real Onyx/WhatsApp/AI, production operations and owner approval remain unproven. Release stays NO-GO.
-- **Next action:** verify current base workflow terminal results; publish the prepared candidate only if main still matches its expected parent; then use exact candidate Actions to prove the new DB regression before changing status to TESTED_EXACT_SHA.
+- **Historical next action (superseded):** verify current base workflow terminal results; publish the prepared candidate only if main still matches its expected parent; then use exact candidate Actions to prove the new DB regression before changing status to TESTED_EXACT_SHA.
 
 ---
 
-## LIVE CHECKPOINT — 2026-10-29 (purchase receipt concurrency diagnostics repaired; exact-head CI green)
+## HISTORICAL CHECKPOINT — 2026-10-29 (purchase receipt concurrency diagnostics repaired; exact-head CI green)
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Integration branch:** `main` only  
@@ -103,15 +119,14 @@
 - `DLV-015`: 330/330 runtime RPC functions match migration source on c9838d8; semantic role/tenant/no-side-effect/idempotency evidence is not complete for every callable function.
 - Official WhatsApp delivery receipts, live AI provider operation, hosted production journeys, production deployment/rollback/restore and owner approval are not proven by this code CI. Release stays NO-GO until those real gates are closed or explicitly excluded under the approved pilot policy.
 
-### NEXT ACTION
-
+### HISTORICAL NEXT ACTION — superseded by CURRENT_EXECUTION_STATE.md
 1. This checkpoint update is documentation-only and will create a new `main` SHA. Verify the Aghbari workflow triggered by that exact checkpoint SHA; do not transfer c9838d8 results to another SHA without checking its own run.
 2. Then close a specific remaining `DLV-011` runtime gap: extend PostgreSQL acceptance for `get_finance_document_print_options` to prove the invoice/credit-memo selector uses `عميل غير مسمى` for a customer lacking printable business/contact names, and proves an ordinary customer or foreign-tenant request cannot obtain those staff selector values. Keep `DLV-011` open until every applicable role/template path has evidence.
 3. Do not repeat the already-passing purchase receipt accounting, transfer-race, stock-count balance-set, membership-revocation, statement missing-array, or credit-memo UUID-renderer tests unless a future code change affects them.
 
 ---
 
-## LIVE CHECKPOINT — 2026-10-29 (exact-head price-race, returns, RPC inventory and finance-print privacy passed)
+## HISTORICAL CHECKPOINT — 2026-10-29 (exact-head price-race, returns, RPC inventory and finance-print privacy passed)
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Integration branch:** `main` only  
@@ -149,14 +164,13 @@
 - `DLV-015`: callable RPC inventory is fully source-matched for this candidate; semantic auth/tenant/idempotency review is still PARTIAL.
 - Actual Onyx Pro target round-trip, official WhatsApp receipt, live AI-provider operation, hosted authenticated production journeys, deployment/rollback/restore evidence, and owner approval remain external release gates. No live-provider success is claimed.
 
-### NEXT ACTION
-
+### HISTORICAL NEXT ACTION — superseded by CURRENT_EXECUTION_STATE.md
 1. Resolve current-main Aghbari run [40944598797](https://github.com/Report-Engainall/Nasr1/actions/runs/40944598797) for exact docs HEAD 7445f9ddfd070001927fea8409cfb97d0920b99e; record its terminal outcome without transferring cc02dbf's result.
 2. After current-head validation, continue the next *unproven* callable authorization boundary from `DLV-015` or the remaining stock movement/reservation lifecycle in `DLV-007`, not another generic review. Do not repeat the already-passing price race, return receipt snapshot, finance-PDF payload, or UUID-label fixes.
 
 ---
 
-## LIVE CHECKPOINT — 2026-10-29 (statement payload fail-closed + finance-print UUID privacy)
+## HISTORICAL CHECKPOINT — 2026-10-29 (statement payload fail-closed + finance-print UUID privacy)
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Integration branch:** `main` only  
@@ -183,14 +197,13 @@
 - Return receipt reprint code and assigned-warehouse authorization assertions passed on exact SHA `0ead2b082439944403616793c611a4f8859ca5fd` in [run 40942315137](https://github.com/Report-Engainall/Nasr1/actions/runs/40942315137); the latest overall CI for cc02dbf is still pending, so this checkpoint does not close the entire return/print roll-up.
 - Full release remains NO-GO while live Onyx Pro round-trip, official WhatsApp delivery receipts, production AI provider operation, hosted authenticated E2E, deployment/rollback/restore proof and owner approval remain unevidenced.
 
-### NEXT ACTION
-
+### HISTORICAL NEXT ACTION — superseded by CURRENT_EXECUTION_STATE.md
 1. Resolve [Aghbari run 40944042923](https://github.com/Report-Engainall/Nasr1/actions/runs/40944042923) for exact SHA `cc02dbf47e518e38f04516857a05274f2d460af6`; inspect and repair only a concrete failed step if one appears.
 2. When the test result is available, record the actual terminal result against that SHA, then continue the next uncovered direct RPC authorization boundary in `DLV-005`/`DLV-015` or remaining role-template gap in `DLV-011`. Do not rebuild reports, receipt printing, or already-implemented finance PDF engines.
 
 ---
 
-## LIVE CHECKPOINT — 2026-10-29 (statement PDF rejects incomplete RPC payloads)
+## HISTORICAL CHECKPOINT — 2026-10-29 (statement PDF rejects incomplete RPC payloads)
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Integration branch:** `main` only  
@@ -213,14 +226,13 @@
 - The central acceptance matrix currently contains 122 unique populated task IDs, 18 delivery groups, and 0/18 fully release-closed groups. An overall completion percentage remains not computable until all required specification leaves are mapped to candidate-specific evidence.
 - `RET-PRINT-001` and `DLV-011` remain open pending the current exact-head result and the remaining role/template coverage. Full production release remains NO-GO: live Onyx Pro round-trip, official WhatsApp receipts, live AI operation, production deployment/rollback/restore, hosted authenticated customer/tenant journeys, and owner approval are not evidenced by this commit.
 
-### NEXT ACTION
-
+### HISTORICAL NEXT ACTION — superseded by CURRENT_EXECUTION_STATE.md
 1. Read the terminal result for [Aghbari run 40943206938](https://github.com/Report-Engainall/Nasr1/actions/runs/40943206938), which targets exactly `66ed055031f8fa9f6d1da0ab2ebe0a996f849221`. If it fails, inspect the failed job and fix only the demonstrated cause; otherwise record this focused PDF contract fix as tested without closing the full document/security roll-up.
 2. Then continue on `main` to the next uncovered role/template output or server-side authorization boundary in `DLV-011`/`DLV-015`. Do not rebuild previously implemented finance PDFs, export engines, receipt printing, or executive XLSX reports.
 
 ---
 
-## LIVE CHECKPOINT — 2026-10-29 (warehouse return receipt reprints read persisted evidence)
+## HISTORICAL CHECKPOINT — 2026-10-29 (warehouse return receipt reprints read persisted evidence)
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Execution branch:** `main` only  
@@ -243,13 +255,12 @@
 - `DLV-005` remains **PARTIAL**. Delivery groups remain **0/18 fully release-closed**. The matrix now has **122 populated unique IDs**, and a global completion percentage remains uncomputed.
 - Full production release remains **NO-GO** pending hosted authenticated E2E, actual Onyx Pro round-trip, official WhatsApp delivery receipts, live AI-provider operation, production deploy/rollback/restore evidence and owner approval.
 
-### NEXT ACTION
-
+### HISTORICAL NEXT ACTION — superseded by CURRENT_EXECUTION_STATE.md
 Use the terminal result for the exact new main candidate; fix any reported regression before progressing. Then continue directly to the next uncovered role/template or server authorization gap. Do not rebuild completed exports or print routes, and do not turn missing hosted/external evidence into PASS.
 
 ---
 
-## LIVE CHECKPOINT — 2026-10-29 (financial print UUID fallback removed)
+## HISTORICAL CHECKPOINT — 2026-10-29 (financial print UUID fallback removed)
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Execution branch:** `main` only  
@@ -271,13 +282,12 @@ Use the terminal result for the exact new main candidate; fix any reported regre
 - Delivery groups remain **0/18 fully release-closed**. A global completion percentage is not asserted.
 - Production release remains **NO-GO** while hosted authenticated E2E, actual Onyx Pro round-trip, official WhatsApp delivery receipts, live AI-provider operation, production deployment/rollback/restore evidence and owner approval remain unproven.
 
-### NEXT ACTION
-
+### HISTORICAL NEXT ACTION — superseded by CURRENT_EXECUTION_STATE.md
 Continue directly on `main` with the next uncovered role/template output or server-side authorization boundary. Do not reimplement the completed export/print routes. Keep CI and hosted evidence tied to the exact candidate SHA; do not claim this candidate passed tests until its checks report terminal success.
 
 ---
 
-## LIVE CHECKPOINT — 2026-10-29 (warehouse return receipt and reversal evidence printing added)
+## HISTORICAL CHECKPOINT — 2026-10-29 (warehouse return receipt and reversal evidence printing added)
 
 **Repository:** `Report-Engainall/Nasr1`  
 **Execution branch:** `main` only  
@@ -299,8 +309,7 @@ Continue directly on `main` with the next uncovered role/template output or serv
 - The acceptance CSV retains **121 unique populated IDs, 0 duplicates, 18 delivery groups, and 0/18 fully release-closed groups**. A global completion percentage is still not computable until all mandatory canonical specification leaves are mapped to evidence.
 - Production release remains **NO-GO** pending hosted E2E, target-native Onyx, official WhatsApp receipts, live AI-provider operation, production deployment/rollback/restore evidence and owner approval.
 
-### NEXT ACTION
-
+### HISTORICAL NEXT ACTION — superseded by CURRENT_EXECUTION_STATE.md
 Continue direct implementation on `main` from `7ddfbd8f66c7e2e7e4123bd694a89abfe34152de`; prioritize uncovered role/template outputs or direct server authorization boundaries. Do not repeat completed print/export paths, and do not claim a CI result for this current SHA.
 
 ---
@@ -330,8 +339,7 @@ Continue direct implementation on `main` from `7ddfbd8f66c7e2e7e4123bd694a89abfe
 - The acceptance matrix currently has **121 populated task IDs, 121 unique, 0 duplicates, 18 delivery roll-up groups, and 0/18 groups fully release-closed**. A global completion percentage is **not computable** until every mandatory canonical specification leaf is mapped to candidate-specific evidence.
 - Production release remains **NO-GO** until hosted authenticated E2E, target-native Onyx acceptance, official WhatsApp delivery receipts, live AI-provider operation, production deploy/rollback/restore evidence and owner sign-off are supplied.
 
-### NEXT ACTION
-
+### HISTORICAL NEXT ACTION — superseded by CURRENT_EXECUTION_STATE.md
 Continue code changes on `main` from `80bc97ab4dadddaa5b223b29ae5960489588e9e3`. Do not repeat already implemented stock-count XLSX, product-activity XLSX, customer 360 XLSX, executive analytics XLSX or inventory-transfer XLSX. Next prioritize uncovered `DLV-005` direct API/RPC authorization/session/revocation boundaries or missing `DLV-011` role/template outputs. Do not wait on, repeatedly poll or overstate GitHub Actions status.
 
 ---
@@ -366,8 +374,7 @@ Continue code changes on `main` from `80bc97ab4dadddaa5b223b29ae5960489588e9e3`.
 - The central acceptance CSV currently contains **121 populated unique task IDs and 0 duplicates**. The 18 delivery groups have **0/18 fully release-closed**; an overall completion percentage remains **not computable** until mandatory specification leaves are mapped to candidate-specific evidence.
 - Full production release remains **NO-GO**. Hosted authenticated customer/tenant E2E, target-native Onyx acceptance, official WhatsApp delivery receipts, live AI-provider operation, production migration/deploy/rollback and restore evidence, and owner sign-off remain blocked or unverified.
 
-### NEXT ACTION
-
+### HISTORICAL NEXT ACTION — superseded by CURRENT_EXECUTION_STATE.md
 Continue at the first uncovered `DLV-005` direct API/RPC role/tenant/tier/session boundary or `DLV-011` role/template output without equivalent artifact-level proof. Do not repeat the already accepted stock-count XLSX, purchase-order XLSX, Customer 360 XLSX, or previous statement/credit-memo PDF/print cases. Record new evidence here and in the existing matrix; do not create a parallel tracker.
 
 
@@ -504,7 +511,7 @@ Keep migration versions unique and preserve dependency order:
 
 ## Archived checkpoint — previously live section (superseded; retained for history)
 
-## LIVE CHECKPOINT — 2026-10-28
+## HISTORICAL CHECKPOINT — 2026-10-28
 
 - **Exclusive target:** `Report-Engainall/Nasr1` / `main` only. No side branches or duplicate repositories.
 - **Latest fully verified baseline SHA:** `c412d2df9e58a670461168252d271629be6bcbb4`. [Aghbari Commerce checks #2784 / run 40743164520](https://github.com/Report-Engainall/Nasr1/actions/runs/40743164520) completed **SUCCESS** on this exact SHA.
