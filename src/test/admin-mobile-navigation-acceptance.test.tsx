@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -20,7 +21,7 @@ vi.mock("@/lib/auth", () => ({
     configurationError: null,
     signOut: vi.fn(),
   }),
-  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
+  AuthProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -73,54 +74,53 @@ vi.mock("@/lib/product-image", () => ({
 }));
 vi.mock("@/lib/customer-input", () => ({ validateCustomerInput: vi.fn() }));
 
-const EmptyComponent = () => null;
-vi.mock("@/components/Login", () => ({ Login: EmptyComponent }));
-vi.mock("@/components/DashboardLoadError", () => ({ DashboardLoadError: EmptyComponent }));
+vi.mock("@/components/Login", () => ({ Login: () => null }));
+vi.mock("@/components/DashboardLoadError", () => ({ DashboardLoadError: () => null }));
 vi.mock("@/components/AdminPages", () => ({
-  AiCenter: EmptyComponent,
-  Field: EmptyComponent,
-  Loading: EmptyComponent,
-  ErrorBox: EmptyComponent,
-  Empty: EmptyComponent,
-  Button: EmptyComponent,
-  TableWrap: EmptyComponent,
-  Modal: EmptyComponent,
-  Notifications: EmptyComponent,
-  OrderDetail: EmptyComponent,
-  SettingsPage: EmptyComponent,
-  Suppliers: EmptyComponent,
+  AiCenter: () => null,
+  Field: () => null,
+  Loading: () => null,
+  ErrorBox: () => null,
+  Empty: () => null,
+  Button: () => null,
+  TableWrap: () => null,
+  Modal: () => null,
+  Notifications: () => null,
+  OrderDetail: () => null,
+  SettingsPage: () => null,
+  Suppliers: () => null,
 }));
-vi.mock("@/components/OperationsCenter", () => ({ OperationsCenter: EmptyComponent }));
-vi.mock("@/components/PricingGrid", () => ({ PricingGrid: EmptyComponent }));
-vi.mock("@/components/AdminAuditLog", () => ({ AdminAuditLog: EmptyComponent }));
-vi.mock("@/components/AdminCustomer360", () => ({ AdminCustomer360: EmptyComponent }));
-vi.mock("@/components/CustomerActivationInvitationDialog", () => ({ CustomerActivationInvitationDialog: EmptyComponent }));
-vi.mock("@/components/CustomerManagerRoleAssignment", () => ({ CustomerManagerRoleAssignment: EmptyComponent }));
-vi.mock("@/components/DeviceManagement", () => ({ DeviceManagement: EmptyComponent }));
-vi.mock("@/components/TaskCenter", () => ({ TaskCenter: EmptyComponent }));
-vi.mock("@/components/InventoryStockCountPage", () => ({ InventoryStockCountPage: EmptyComponent }));
-vi.mock("@/components/InventoryTransferHistoryPage", () => ({ InventoryTransferHistoryPage: EmptyComponent }));
-vi.mock("@/components/PurchaseOrdersPage", () => ({ PurchaseOrdersPage: EmptyComponent }));
-vi.mock("@/components/UnifiedImportEngine", () => ({ UnifiedImportEngine: EmptyComponent }));
-vi.mock("@/components/OnyxSnapshotCenter", () => ({ OnyxSnapshotCenter: EmptyComponent }));
-vi.mock("@/components/UnifiedOnyxAnalysisPanel", () => ({ UnifiedOnyxAnalysisPanel: EmptyComponent }));
-vi.mock("@/components/ExecutiveStoreAnalytics", () => ({ ExecutiveStoreAnalytics: EmptyComponent }));
-vi.mock("@/components/PromotionManager", () => ({ PromotionManager: EmptyComponent }));
+vi.mock("@/components/OperationsCenter", () => ({ OperationsCenter: () => null }));
+vi.mock("@/components/PricingGrid", () => ({ PricingGrid: () => null }));
+vi.mock("@/components/AdminAuditLog", () => ({ AdminAuditLog: () => null }));
+vi.mock("@/components/AdminCustomer360", () => ({ AdminCustomer360: () => null }));
+vi.mock("@/components/CustomerActivationInvitationDialog", () => ({ CustomerActivationInvitationDialog: () => null }));
+vi.mock("@/components/CustomerManagerRoleAssignment", () => ({ CustomerManagerRoleAssignment: () => null }));
+vi.mock("@/components/DeviceManagement", () => ({ DeviceManagement: () => null }));
+vi.mock("@/components/TaskCenter", () => ({ TaskCenter: () => null }));
+vi.mock("@/components/InventoryStockCountPage", () => ({ InventoryStockCountPage: () => null }));
+vi.mock("@/components/InventoryTransferHistoryPage", () => ({ InventoryTransferHistoryPage: () => null }));
+vi.mock("@/components/PurchaseOrdersPage", () => ({ PurchaseOrdersPage: () => null }));
+vi.mock("@/components/UnifiedImportEngine", () => ({ UnifiedImportEngine: () => null }));
+vi.mock("@/components/OnyxSnapshotCenter", () => ({ OnyxSnapshotCenter: () => null }));
+vi.mock("@/components/UnifiedOnyxAnalysisPanel", () => ({ UnifiedOnyxAnalysisPanel: () => null }));
+vi.mock("@/components/ExecutiveStoreAnalytics", () => ({ ExecutiveStoreAnalytics: () => null }));
+vi.mock("@/components/PromotionManager", () => ({ PromotionManager: () => null }));
 vi.mock("@/components/CustomerWorkflows", () => ({
-  StaffQuotesPage: EmptyComponent,
-  StaffFinancePage: EmptyComponent,
+  StaffQuotesPage: () => null,
+  StaffFinancePage: () => null,
 }));
 vi.mock("@/components/ui/command", () => ({
-  CommandDialog: EmptyComponent,
-  CommandInput: EmptyComponent,
-  CommandList: EmptyComponent,
-  CommandEmpty: EmptyComponent,
-  CommandGroup: EmptyComponent,
-  CommandItem: EmptyComponent,
+  CommandDialog: () => null,
+  CommandInput: () => null,
+  CommandList: () => null,
+  CommandEmpty: () => null,
+  CommandGroup: () => null,
+  CommandItem: () => null,
 }));
 vi.mock("@/components/ui/dialog", () => ({
-  DialogDescription: EmptyComponent,
-  DialogTitle: EmptyComponent,
+  DialogDescription: () => null,
+  DialogTitle: () => null,
 }));
 
 import { AdminApp } from "@/components/AghbariApp";

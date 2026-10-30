@@ -241,10 +241,11 @@ describe("public storefront product route acceptance", () => {
 
     const detailActions = host?.querySelector(".sf-detail-actions");
     expect(detailActions).not.toBeNull();
-    const findWishlistButton = () => Array.from(detailActions?.querySelectorAll<HTMLButtonElement>("button") ?? [])
-      .find((button) => button.textContent?.includes("أضف للمفضلة") || button.textContent?.includes("في المفضلة"));
-    const findCompareButton = () => Array.from(detailActions?.querySelectorAll<HTMLButtonElement>("button") ?? [])
-      .find((button) => button.textContent?.includes("مقارنة") || button.textContent?.includes("في المقارنة"));
+    const getDetailToggleButtons = () =>
+      Array.from(detailActions?.querySelectorAll<HTMLButtonElement>("button.sf-icon-action") ?? []);
+    const findWishlistButton = () => getDetailToggleButtons()[0];
+    const findCompareButton = () => getDetailToggleButtons()[1];
+    expect(getDetailToggleButtons()).toHaveLength(2);
 
     expect(findWishlistButton()?.getAttribute("aria-pressed")).toBe("false");
     expect(findCompareButton()?.getAttribute("aria-pressed")).toBe("false");
