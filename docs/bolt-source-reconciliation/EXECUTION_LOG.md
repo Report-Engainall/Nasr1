@@ -1,3 +1,15 @@
+## P3 cursor reconciliation — 2026-10-30 — P2 navigation correction observed on main
+- Observed remote main: `68fccfaff3192f934661a2bdc8d48aed155b0457`; comparison from `643d2821ab0483acc12ef21abc453a0c745f2865` is exactly 2 commits ahead / 0 behind. Only application/test path changed is P2-owned `e2e/finance-task-print.spec.ts`; intervening commit `8f6e5c8` updates governance docs.
+- P2 run [41014174609 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174609) on 643d282. Failed job `123927039686` hit the hidden sidebar role locator in the mobile-nav helper before finance/task-print assertions. Auth infra, public smoke, earlier local Supabase order/tenant/returns/Onyx stages passed; hosted tenant job SKIPPED.
+- P2 fix [68fccfaff3192f934661a2bdc8d48aed155b0457](https://github.com/Report-Engainall/Nasr1/commit/68fccfaff3192f934661a2bdc8d48aed155b0457) is already integrated into main. It changes only the P2 test path to `#admin-sidebar` and asserts the Arabic aria-label while keeping navigation checks. Its exact-head test remains NOT EVIDENCED.
+- Last Core/cleanup PASS remain on 643d282 only: [41014174530](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174530), [41014174522](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174522). Do not carry PASS to 68fccf.
+- P3 engines remain present; P1 UI composition and P2 tenant-safe aggregate/persistence/AI/health/RBAC integrations remain pending. P3-owned UI component gap: barrel currently exports ActionCard and EvidencePassport only; liquidity/forecast/dead-stock/replenishment views and contracts + focused tests remain to implement before claiming component contract parity.
+- Matrix refreshed in the same cursor update: all 16 REF evidence cells now record run 41014174609 failure on 643d282, P2 correction on 68fccf, and current-head rerun NOT EVIDENCED; statuses remain `P3_IMPLEMENTED / CI_PENDING / P1_P2_PENDING`. No DLV roll-up closed.
+- Release remains NO-GO: hosted tenant path, target Onyx, official WhatsApp, live AI, production operations and owner sign-off are unproven.
+- `exact_next_command`: implement/test P3 liquidity/forecast/dead-stock/replenishment presentation components; in parallel P2 runs focused/current-head P2 checks and ships the first server aggregate slice; P1 adds the workspace unavailable state with no synthetic data.
+ 
+---
+ 
 ## P3 integration record — 2026-10-30 — exact-head intelligence hardening and Core acceptance
 - Main/base/result SHA: `643d2821ab0483acc12ef21abc453a0c745f2865` (CAS fast-forward from `bd19b04e41e1d65e0f4d7427fb086f74bf457378`; remote main re-read confirmed).
 - Code deltas:

@@ -1,20 +1,15 @@
-# P1 LIVE SESSION COMMAND — 2026-10-30
-Current main base: `643d2821ab0483acc12ef21abc453a0c745f2865`. Exact Core [41014174530 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174530) and cleanup [41014174522 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174522) are on this exact SHA. P2 [41014174609 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174609) is on this exact SHA; do not duplicate it. Hosted customer/order/tenant is SKIPPED and must not be represented as PASS.
+# P1 LIVE SESSION COMMAND — 2026-10-30 — REFRESHED
+Current main SHA: `68fccfaff3192f934661a2bdc8d48aed155b0457`. The last complete Core run [41014174530 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174530) is on parent SHA `643d2821ab0483acc12ef21abc453a0c745f2865`, not the current head. P2 run [41014174609 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41014174609) also ran on 643d282; its mobile navigation helper was corrected by P2 commit [68fccf](https://github.com/Report-Engainall/Nasr1/commit/68fccfaff3192f934661a2bdc8d48aed155b0457), but no exact-head rerun is evidenced. Hosted customer/order/tenant remains SKIPPED.
 
-## التنفيذ المطلوب الآن — REF UI integration
-1. Read only the first 80 lines of `docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md`, this command, and `docs/execution/P1_CHECKPOINT.md`; verify main and inspect only changed P1 paths.
-2. Use existing P3 components:
-   `import { ActionCard, EvidencePassport } from "@/components/intelligence";`
-   and the public types:
-   `ActionCardProps, EvidencePassportProps`.
-3. Build/mount the P1-owned intelligence workspace/route composition against the P2 response contract `src/lib/intelligence/aggregate-contract.ts` and `docs/execution/contracts/P3_INTELLIGENCE_AGGREGATE_CONTRACT.md`. It must preserve loading, empty, error+retry, unavailable and ready states. Do not fabricate an RPC name or send tenantId/role/capability from browser.
-4. Render only server-returned verified/partial evidence and actual decision candidates. Keep amounts/currency optional, display each currency separately, null as “غير متاح”, What-if as SIMULATED with assumptions/constraints/baseline, and do not locally mutate decision lifecycle or grant RBAC. CTAs call only the P2-published command.
-5. Add direct route/component regression tests for state transitions, missing DTO, null impact/currency, evidence states and no client-side fabricated values. Run targeted tests; record exact code SHA and screenshots/runtime proof. Do not rerun Customer 360 work or scan the reference gallery.
-6. If P2 aggregate service is not yet merged, finish the reusable UI composition with an explicit UNAVAILABLE state and strict typed props; do not connect legacy dashboard aggregates that lack full source/formula lineage as if they were verified intelligence.
+## تنفيذ P1 المطلوب الآن — intelligence workspace integration
+1. Read the current global cursor and P1 checkpoint; inspect only P1-owned routes/components changed after the saved base.
+2. Use `ActionCard` and `EvidencePassport` from `@/components/intelligence` with public props. Keep loading, empty, error+retry, unavailable and ready states.
+3. Prepare the P1-owned workspace/route composition for `IntelligenceAggregateResponse`, but do not invent the RPC name or request tenantId/actor/role/capabilities from the browser.
+4. Until P2's server aggregate and command contract are delivered, keep live business views explicitly UNAVAILABLE and do not render legacy or fixture metrics as verified. Amount/currency stay optional; separate currency groups; What-if remains SIMULATED.
+5. Do not modify `src/components/intelligence/**`, `src/lib/intelligence/**`, P2 API/RPC/e2e paths or central P3 files. Add focused UI tests for the unavailable/no-mock path and any independent P1 acceptance leaf. Deliver commit SHA, paths, tests and exact next command to P3; do not push main.
+6. P3 still owes additional reusable component contracts (liquidity, forecast, dead stock and replenishment). Do not implement those inside P3-reserved paths; consume them after delivery.
 
-P1 ownership: `src/components/**`, `src/routes/**`, `src/styles.css`, `AghbariApp.tsx`, UI tests under `src/test/**`, except P3-reserved intelligence components and P2-owned service/e2e paths. Do not push main. Commit locally and report Task ID, base/result SHA, changed paths, targeted test results, blocker, and exact next command to P3.
-
-**Exact next command:** implement the P1-owned intelligence workspace component using ActionCard/EvidencePassport imports and the typed `IntelligenceAggregateResponse`; create the first route mount only when the server DTO is available, otherwise preserve UNAVAILABLE and add the focused no-mock state test.
+**Exact next command:** implement the P1-owned intelligence workspace state shell and a no-mock UNAVAILABLE regression test; mount actual DTO values only after P2's server-backed response is published.
 
 ---
 
