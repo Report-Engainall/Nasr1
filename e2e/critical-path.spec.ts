@@ -212,11 +212,11 @@ test("catalog → cart → order → refresh, then cross-organization read denia
         const quotedCard = pageA.locator("article").filter({ hasText: quoteNumber }).first();
         await expect(quotedCard).toContainText("تم التسعير", { timeout: 30_000 });
         await pageA.evaluate(() => { window.print = () => { document.documentElement.dataset.e2eQuotePrintInvoked = "true"; }; });
-        const quotePrintButton = quotedCard.getByRole("button", { name: "طباعة العرض", exact: true });
+        const quotePrintButton = quotedCard.getByRole("button", { name: "طباعة عرض السعر", exact: true });
         await expect(quotePrintButton).toBeEnabled();
         await quotePrintButton.click();
         await expect.poll(() => pageA.evaluate(() => document.documentElement.dataset.e2eQuotePrintInvoked)).toBe("true");
-        const quotePrint = pageA.locator(".customer-quote-print-document");
+        const quotePrint = pageA.getByTestId("customer-quote-print-document");
         await expect(quotePrint).toBeAttached();
         // The quote sheet is intentionally display:none on screen; test the actual print stylesheet after invoking print.
         await pageA.emulateMedia({ media: "print" });
