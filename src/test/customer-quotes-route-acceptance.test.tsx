@@ -4,6 +4,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent } from "@testing-library/react";
+import { formatCurrency } from "@/lib/format";
 import { routeTree } from "@/routeTree.gen";
 
 type TestUser = {
@@ -338,7 +339,7 @@ describe("customer quotes real route acceptance", () => {
     expect(printDocument?.textContent).toContain("سكر");
     expect(printDocument?.textContent).toContain("ملاحظة العميل");
     expect(printDocument?.textContent).toContain("العرض صالح حتى الموعد المحدد");
-    expect(printDocument?.textContent).toContain("125.5");
+    expect(printDocument?.textContent).toContain(formatCurrency(125.5));
     for (const privateValue of [
       "PRIVATE-TENANT-ID", "PRIVATE-ACTOR-ID", "PRIVATE-INTERNAL-NOTE",
       "PRIVATE-LINE-ID", "PRIVATE-PRODUCT-ID", "987654", "12345", "99",
