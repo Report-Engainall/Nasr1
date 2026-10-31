@@ -282,4 +282,22 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 900px) { .import-layout { grid-template-columns: 1fr; }.onyx-insight-grid { grid-template-columns: 1fr; } }
 @media (max-width: 650px) { .operation-tabs { grid-template-columns: repeat(2, 1fr); }.pipeline { grid-template-columns: repeat(2, 1fr); }.onyx-kpis, .reconcile-stats { grid-template-columns: repeat(2, 1fr); }.onyx-banner, .reconcile-hero, .action-card { align-items: flex-start; flex-direction: column; }.dictionary-grid { grid-template-columns: 1fr; }.import-jobs-panel .table-wrap { margin-inline: -22px; } }
 
-@media print { .no-print, .sf-header { display: none !important; } body { background: var(--aghbari-surface); } }
+@media print {
+  .no-print, .sf-header { display: none !important; }
+  body { background: var(--aghbari-surface); }
+  html.print-receivables-aging body * { visibility: hidden !important; }
+  html.print-receivables-aging .receivables-aging-report,
+  html.print-receivables-aging .receivables-aging-report * { visibility: visible !important; }
+  html.print-receivables-aging .receivables-aging-report {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    left: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    break-inside: auto !important;
+  }
+  html.print-receivables-aging .receivables-aging-print-controls { display: none !important; }
+}
