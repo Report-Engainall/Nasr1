@@ -317,7 +317,7 @@ describe("customer quotes real route acceptance", () => {
       target_unit_price: 987654,
       quoted_unit_price: 125.5,
       cost_price: 12345,
-      margin: 99,
+      margin: 7654321,
     }];
     const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
 
@@ -342,9 +342,16 @@ describe("customer quotes real route acceptance", () => {
     expect(printDocument?.textContent).toContain(formatCurrency(125.5));
     for (const privateValue of [
       "PRIVATE-TENANT-ID", "PRIVATE-ACTOR-ID", "PRIVATE-INTERNAL-NOTE",
-      "PRIVATE-LINE-ID", "PRIVATE-PRODUCT-ID", "987654", "12345", "99",
-      "target_unit_price", "cost_price", "margin",
+      "PRIVATE-LINE-ID", "PRIVATE-PRODUCT-ID", "987654", "12345", "7654321",
+      "target_unit_price", "cost_price", "profit_margin",
     ]) expect(printDocument?.innerHTML).not.toContain(privateValue);
+    const forbiddenAttributeNames = new Set([
+      "organization_id", "customer_id", "product_id", "quote_id", "created_by",
+      "internal_notes", "target_unit_price", "cost_price", "margin", "profit_margin",
+    ]);
+    const renderedAttributeNames = Array.from(printDocument?.querySelectorAll("*") ?? [])
+      .flatMap((element) => Array.from(element.attributes, (attribute) => attribute.name));
+    expect(renderedAttributeNames.some((name) => forbiddenAttributeNames.has(name))).toBe(false);
     printSpy.mockRestore();
   });
 
