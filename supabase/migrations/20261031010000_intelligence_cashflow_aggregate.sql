@@ -265,11 +265,18 @@ BEGIN
         FROM (
           SELECT s.currency,
                  pg_catalog.sum(s.outstanding)::numeric(15,2) AS total_outstanding,
-                 pg_catalog.array_agg(DISTINCT evidence_id ORDER BY evidence_id) AS evidence_ids
+                 (
+                   SELECT pg_catalog.array_agg(DISTINCT evidence_id ORDER BY evidence_id)
+                     FROM scheduled evidence_schedule
+                     CROSS JOIN LATERAL pg_catalog.unnest(
+                       pg_catalog.array_prepend(
+                         'invoice:'||evidence_schedule.id::text,
+                         evidence_schedule.payment_evidence_ids
+                       )
+                     ) AS evidence_id
+                    WHERE evidence_schedule.currency=s.currency
+                 ) AS evidence_ids
             FROM scheduled s
-            CROSS JOIN LATERAL pg_catalog.unnest(
-              pg_catalog.array_prepend('invoice:'||s.id::text,s.payment_evidence_ids)
-            ) AS evidence_id
            GROUP BY s.currency
         ) g;
 
