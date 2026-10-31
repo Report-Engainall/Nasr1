@@ -4,7 +4,6 @@ import type { StoreProductActivityReport } from "@/lib/product-activity-report";
 
 const mocks = vi.hoisted(() => ({
   downloadActivity: vi.fn(),
-  report: null as unknown,
 }));
 
 vi.mock("@/lib/useFetch", async (importOriginal) => {
@@ -87,7 +86,6 @@ function reportFixture(): StoreProductActivityReport & {
 }
 
 beforeEach(() => {
-  mocks.report = reportFixture();
   mocks.downloadActivity.mockReset();
 });
 
@@ -98,7 +96,7 @@ afterEach(() => {
 
 describe("product activity report interactive screen", () => {
   it("searches and sorts the current view, paginates 25 rows, and exports the full report", () => {
-    render(<ProductActivityReport />);
+    render(<ProductActivityReport reportOverride={reportFixture()} />);
 
     expect(screen.getByRole("heading", { name: "حركة الأصناف والركود" })).toBeInTheDocument();
     expect(screen.getByText("صنف 01")).toBeInTheDocument();
