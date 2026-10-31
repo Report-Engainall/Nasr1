@@ -159,7 +159,8 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
 
   const measured = await page.evaluate(() => {
     const viewportWidth = window.innerWidth;
-    const overflowingElements = Array.from(document.body.querySelectorAll("*"))
+    const candidates = [document.documentElement, document.body, ...Array.from(document.body.querySelectorAll("*"))];
+    const overflowingElements = candidates
       .map((element) => {
         const rect = element.getBoundingClientRect();
         const style = getComputedStyle(element);
@@ -174,6 +175,7 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
           width: Math.round(rect.width),
           scrollWidth: element.scrollWidth,
           clientWidth: element.clientWidth,
+          scrollDelta: element.scrollWidth - element.clientWidth,
           display: style.display,
           position: style.position,
           overflowX: style.overflowX,
@@ -182,14 +184,18 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
       .filter((element) =>
         element.width > viewportWidth + 1 ||
         element.left < -1 ||
-        (element.right > viewportWidth + 1 && element.position !== "fixed")
+        (element.right > viewportWidth + 1 && element.position !== "fixed") ||
+        element.scrollDelta > 1
       )
-      .sort((a, b) => b.right - a.right || b.width - a.width)
-      .slice(0, 12);
+      .sort((a, b) => b.scrollDelta - a.scrollDelta || b.right - a.right || b.width - a.width)
+      .slice(0, 20);
     return {
       lang: document.documentElement.lang.toLowerCase(),
       direction: getComputedStyle(document.documentElement).direction,
       viewportWidth,
+      documentElementScrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      bodyClientWidth: document.body.clientWidth,
       documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
       overflowingElements,
     };
