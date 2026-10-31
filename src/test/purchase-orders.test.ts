@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePurchaseOrder, parsePurchaseOrders } from '@/lib/purchase-orders';
+import { isPurchaseOrderUuid, parsePurchaseOrder, parsePurchaseOrders } from '@/lib/purchase-orders';
 
 const validOrder = {
   id: 'po-1', organization_id: 'org-1', purchase_order_number: 'PO-20261019-000001',
@@ -16,6 +16,16 @@ const validOrder = {
 };
 
 describe('purchase order payload validation', () => {
+  it('accepts PostgreSQL UUID values without imposing RFC 4122 version or variant bits', () => {
+    expect(isPurchaseOrderUuid('a2000000-0000-0000-0000-000000000002')).toBe(true);
+    expect(isPurchaseOrderUuid('d0000000-0000-0000-0000-000000000001')).toBe(true);
+    expect(isPurchaseOrderUuid('a1000000-0000-0000-0000-000000000002')).toBe(true);
+  });
+  it('rejects malformed UUID text without relying on database casts', () => {
+    expect(isPurchaseOrderUuid('SUP-002')).toBe(false);
+    expect(isPurchaseOrderUuid('')).toBe(false);
+    expect(isPurchaseOrderUuid(null)).toBe(false);
+  });
   it('preserves leading-zero item codes and unknown cost as null', () => {
     const parsed = parsePurchaseOrder(validOrder);
     expect(parsed.items[0].item_code).toBe('0000125');
