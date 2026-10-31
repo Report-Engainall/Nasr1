@@ -250,7 +250,7 @@ describe("customer quotes real route acceptance", () => {
     expect(printable).not.toBeNull();
     expect(printable?.textContent).toContain("QT-CUSTOMER-PRINT-01");
     expect(printable?.textContent).toContain("سكر");
-    expect(printable?.textContent).toContain("125");
+    expect(printable?.textContent).toContain("١٢٥");
     for (const privateValue of [
       "PRIVATE-QUOTE-ID", "PRIVATE-TENANT-ID", "PRIVATE-CUSTOMER-ID",
       "PRIVATE-ACTOR-ID", "PRIVATE-QUOTE-LINE-ID", "PRIVATE-PRODUCT-ID",

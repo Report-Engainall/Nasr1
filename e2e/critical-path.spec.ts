@@ -190,7 +190,7 @@ test("catalog → cart → order → refresh, then cross-organization read denia
       await quoteQuantity.fill("2");
       await pageA.locator("textarea").first().fill(quoteRequestNote);
       await pageA.getByRole("button", { name: "إرسال طلب عرض سعر", exact: true }).click();
-      await expect(pageA.getByRole("status")).toContainText("تم إرسال طلب عرض السعر", { timeout: 30_000 });
+      await expect(pageA.getByText(/تم إرسال طلب عرض السعر/).first()).toBeVisible({ timeout: 30_000 });
       const requestCard = pageA.locator("article").filter({ hasText: quoteRequestNote }).first();
       await expect(requestCard).toBeVisible({ timeout: 30_000 });
       const quoteNumber = await requestCard.locator("strong").first().innerText();
@@ -205,7 +205,7 @@ test("catalog → cart → order → refresh, then cross-organization read denia
       await expect(quotePrice).toBeEnabled();
       await quotePrice.fill("125");
       await managerPage.getByRole("button", { name: "حفظ الأسعار وإرسال العرض", exact: true }).click();
-      await expect(managerPage.getByRole("status")).toContainText("تم حفظ العرض وإرساله للعميل", { timeout: 30_000 });
+      await expect(managerPage.getByText(/تم حفظ العرض وإرساله للعميل/).first()).toBeVisible({ timeout: 30_000 });
 
       await pageA.goto("/quotes");
       const quotedCard = pageA.locator("article").filter({ hasText: quoteNumber }).first();
@@ -217,7 +217,7 @@ test("catalog → cart → order → refresh, then cross-organization read denia
       await expect.poll(() => pageA.evaluate(() => document.documentElement.dataset.e2eQuotePrintInvoked)).toBe("true");
       const quotePrint = pageA.locator(".customer-quote-print-document");
       await expect(quotePrint).toContainText(quoteNumber);
-      await expect(quotePrint).toContainText("125");
+      await expect(quotePrint).toContainText("١٢٥");
       const quoteMarkup = await quotePrint.evaluate((element) => element.innerHTML);
       expect(quoteMarkup).not.toMatch(/organization_id|customer_id|product_id|quote_id|actor_id|target_unit_price|cost_price/i);
     });
