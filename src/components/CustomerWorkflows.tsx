@@ -272,6 +272,10 @@ const card: React.CSSProperties = {
   border: "1px solid #e0ecee",
   borderRadius: 16,
   padding: 18,
+  width: "100%",
+  minWidth: 0,
+  maxWidth: "100%",
+  boxSizing: "border-box",
 };
 const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collapse", fontSize: 13 };
 const quiet: React.CSSProperties = { color: "#71868a", fontSize: 13 };
