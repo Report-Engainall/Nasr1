@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent } from "@testing-library/react";
 import { formatCurrency } from "@/lib/format";
+import { StaffQuotesPage } from "@/components/CustomerWorkflows";
 import { routeTree } from "@/routeTree.gen";
 
 type TestUser = {
@@ -183,6 +184,17 @@ describe("customer quotes real route acceptance", () => {
     });
     await flush();
     expect(router.state.location.pathname).toBe("/quotes");
+  }
+
+  async function mountStaffQuotesPage() {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(<StaffQuotesPage />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await flush();
   }
 
   async function setFieldValue(selector: string, value: string) {
@@ -376,4 +388,104 @@ describe("customer quotes real route acceptance", () => {
     expect(Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
       .some((button) => button.textContent?.includes("طباعة عرض السعر"))).toBe(false);
   });
+
+  it("staff quote print uses persisted server pricing, never unsaved review drafts", async () => {
+    mocks.user = { ...CUSTOMER, roles: ["admin"], isStaff: true, name: "مدير الاختبار" };
+    mocks.quoteRows = [{
+      id: "33333333-3333-4333-8333-333333333333",
+      quote_number: "QT-STAFF-PRINT-001",
+      status: "quoted",
+      notes: "ملاحظة العميل",
+      response_note: "تم اعتماد السعر.",
+      created_at: "2026-10-31T09:00:00.000Z",
+      quoted_at: "2026-10-31T09:15:00.000Z",
+      valid_until: "2026-11-07T23:59:59.000Z",
+      organization_id: "PRIVATE-TENANT-ID",
+      created_by: "PRIVATE-ACTOR-ID",
+      internal_notes: "PRIVATE-INTERNAL-NOTE",
+    }];
+    mocks.quoteItemRows = [{
+      id: "PRIVATE-LINE-ID",
+      quote_id: "33333333-3333-4333-8333-333333333333",
+      product_id: "PRIVATE-PRODUCT-ID",
+      item_code: "000041",
+      product_name_snapshot: "سكر",
+      unit_snapshot: "كرتون",
+      requested_quantity: 5,
+      target_unit_price: 987654,
+      quoted_unit_price: 125.5,
+      cost_price: 12345,
+      margin: 7654321,
+    }];
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    await mountStaffQuotesPage();
+
+    const openButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("فتح / تسعير"));
+    expect(openButton).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(openButton!);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await flush();
+
+    const draftPrice = host?.querySelector<HTMLInputElement>('input[type="number"]');
+    expect(draftPrice).toBeTruthy();
+    await act(async () => fireEvent.change(draftPrice!, { target: { value: "777" } }));
+
+    const printButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("طباعة الأسعار المحفوظة"));
+    expect(printButton).toBeTruthy();
+    await act(async () => fireEvent.click(printButton!));
+    await flush();
+
+    expect(printSpy).toHaveBeenCalledTimes(1);
+    const document = host?.querySelector<HTMLElement>('[data-testid="staff-quote-print-document"]');
+    expect(document).not.toBeNull();
+    expect(document?.textContent).toContain("QT-STAFF-PRINT-001");
+    expect(document?.textContent).toContain(formatCurrency(125.5));
+    expect(document?.textContent).not.toContain("777");
+    for (const value of [
+      "PRIVATE-TENANT-ID", "PRIVATE-ACTOR-ID", "PRIVATE-INTERNAL-NOTE",
+      "PRIVATE-LINE-ID", "PRIVATE-PRODUCT-ID", "987654", "12345", "7654321",
+    ]) expect(document?.innerHTML).not.toContain(value);
+    const forbidden = new Set([
+      "organization_id", "customer_id", "product_id", "quote_id", "created_by",
+      "internal_notes", "target_unit_price", "cost_price", "margin", "profit_margin",
+    ]);
+    const attributeNames = Array.from(document?.querySelectorAll("*") ?? [])
+      .flatMap((element) => Array.from(element.attributes, (attribute) => attribute.name));
+    expect(attributeNames.some((name) => forbidden.has(name))).toBe(false);
+    printSpy.mockRestore();
+  });
+
+  it("staff cannot print a requested quote or a quote with incomplete server prices", async () => {
+    mocks.user = { ...CUSTOMER, roles: ["admin"], isStaff: true };
+    mocks.quoteRows = [{
+      id: "33333333-3333-4333-8333-333333333333",
+      quote_number: "QT-STAFF-PENDING-001",
+      status: "requested",
+      notes: null, response_note: null,
+      created_at: "2026-10-31T09:00:00.000Z",
+      quoted_at: null, valid_until: null,
+    }];
+    mocks.quoteItemRows = [{
+      id: "PRIVATE-LINE-ID", quote_id: "33333333-3333-4333-8333-333333333333",
+      product_id: PRODUCT_ID, item_code: "000041", product_name_snapshot: "سكر",
+      unit_snapshot: "كرتون", requested_quantity: 5, target_unit_price: 500,
+      quoted_unit_price: null,
+    }];
+    await mountStaffQuotesPage();
+    const openButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("فتح / تسعير"));
+    expect(openButton).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(openButton!);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await flush();
+    expect(Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .some((button) => button.textContent?.includes("طباعة الأسعار المحفوظة"))).toBe(false);
+  });
+
 });
