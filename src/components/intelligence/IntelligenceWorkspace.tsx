@@ -153,6 +153,7 @@ export function IntelligenceWorkspace() {
   }, [loadOutcomes, refreshKey]);
 
   const data = result?.ok ? result.data : null;
+  const cashflowDenied = Boolean(result && !result.ok && result.status === "DENIED");
   const inventoryData = inventoryResult?.ok ? inventoryResult.data : null;
   const cashflowMetrics = useMemo<MetricSnapshot[]>(() => {
     if (!data) return [];
@@ -623,7 +624,7 @@ export function IntelligenceWorkspace() {
             <div className="grid gap-3 lg:grid-cols-2">
               <EvidencePassport
                 passport={evidencePassport}
-                state={loading ? "loading" : evidencePassport ? (evidencePassport.metrics.length ? "ready" : "empty") : result?.status === "DENIED" ? "error" : "unavailable"}
+                state={loading ? "loading" : evidencePassport ? (evidencePassport.metrics.length ? "ready" : "empty") : cashflowDenied ? "error" : "unavailable"}
                 errorMessage={result && !result.ok ? result.message : undefined}
                 onRetry={() => setRefreshKey((value) => value + 1)}
               />
@@ -634,8 +635,8 @@ export function IntelligenceWorkspace() {
               />
               <CashflowForecastCard
                 forecast={cashflowForecast}
-                state={loading ? "loading" : cashflowForecast ? (cashflowForecast.points.length ? "ready" : "empty") : result?.status === "DENIED" ? "error" : "unavailable"}
-                onRetry={() => setRefreshKey((value) => setRefreshKey(value + 1))}
+                state={loading ? "loading" : cashflowForecast ? (cashflowForecast.points.length ? "ready" : "empty") : cashflowDenied ? "error" : "unavailable"}
+                onRetry={() => setRefreshKey((value) => value + 1)}
               />
               <div className="space-y-3">
                 {evidenceBackedActions.length ? evidenceBackedActions.map(({ decision, proof }) => (
@@ -648,7 +649,7 @@ export function IntelligenceWorkspace() {
                   />
                 )) : (
                   <ActionCard
-                    state={loading ? "loading" : data ? "empty" : result?.status === "DENIED" ? "error" : "unavailable"}
+                    state={loading ? "loading" : data ? "empty" : cashflowDenied ? "error" : "unavailable"}
                     errorMessage={result && !result.ok ? result.message : undefined}
                     onRetry={() => setRefreshKey((value) => value + 1)}
                   />
