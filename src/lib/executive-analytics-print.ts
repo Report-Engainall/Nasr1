@@ -59,7 +59,7 @@ function requireText(value: string, label: string): string {
 function requireIsoDay(value: string, label: string): string {
   if (
     typeof value !== "string" ||
-    !/^\\d{4}-\\d{2}-\\d{2}$/.test(value) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
     !Number.isFinite(Date.parse(value + "T00:00:00.000Z")) ||
     new Date(value + "T00:00:00.000Z").toISOString().slice(0, 10) !== value
   ) {
