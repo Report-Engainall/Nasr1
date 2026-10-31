@@ -7,8 +7,8 @@ const quiet: CSSProperties = { margin: 0, color: 'var(--muted-foreground, #64748
 const field: CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #cbd5e1)', background: 'var(--background, #fff)', font: 'inherit' };
 import {
   AlertTriangle, Bell, Bot, Check, ChevronLeft, Database,
-  Package, Plus, RefreshCw, Search, Settings, Smartphone,
-  X, ExternalLink, Save, Download,
+  Package, Plus, RefreshCw, Search, Settings,
+  X, Save, Download,
 } from 'lucide-react';
 import {
   fetchAiAlerts, fetchAiTasks, fetchNotifications, fetchOrders, fetchOrderItems,
@@ -25,9 +25,10 @@ import type { AiAlert, AiTask, Notification, Supplier, AdminSetting, OrderItem, 
 import { buildOnyxOrderWorkbook, onyxOrderWorkbookFilename } from '@/lib/onyx-export';
 
 import type { LucideIcon } from 'lucide-react';
-import { getCurrentTenantScope, supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { CustomerManagerRoleAssignment } from '@/components/CustomerManagerRoleAssignment';
+import { DeviceManagement } from '@/components/DeviceManagement';
 type IconType = LucideIcon;
 
 export function Notifications({ onNotice }: { onNotice: (m: string) => void }) {
@@ -795,13 +796,7 @@ function SupplierModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
 }
 
 export function Devices({ onNotice }: { onNotice: (m: string) => void }) {
-  const { data: customers } = useFetch(async () => { const { organizationId } = await getCurrentTenantScope(); const { data, error } = await supabase.from('customers').select('*').eq('organization_id', organizationId).order('created_at', { ascending: false }); if (error) throw error; return data ?? []; });
-  const [query, setQuery] = useState('');
-  const rows = (customers ?? []).filter((c: { business_name: string; customer_code: string; phone: string | null }) => `${c.business_name} ${c.customer_code} ${c.phone ?? ''}`.includes(query));
-  return <AdminPage eyebrow="المبيعات والعملاء" title="أجهزة العملاء" description="متابعة أجهزة البيع لدى العملاء" icon={Smartphone} note={`${customers?.length ?? 0} جهاز مسجل`} toolbar={<Button variant="secondary" onClick={() => onNotice('تم تحديث الحالة')}><RefreshCw size={16} /> تحديث</Button>}>
-    <div className="table-head"><h2>قائمة الأجهزة</h2><label className="search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="بحث..." /></label></div>
-    <TableWrap><table><thead><tr><th>العميل</th><th>الكود</th><th>الهاتف</th><th>الحالة</th><th /></tr></thead><tbody>{rows.map((c: { id: string; business_name: string; customer_code: string; phone: string | null; status: string }) => <tr key={c.id}><td><strong>{c.business_name}</strong></td><td><code>{c.customer_code}</code></td><td>{c.phone ?? '—'}</td><td><span className={`badge ${c.status === 'approved' ? 'success' : 'warning'}`}>{c.status}</span></td><td><button className="row-action"><ExternalLink size={15} /></button></td></tr>)}</tbody></table></TableWrap>
-  </AdminPage>;
+  return <DeviceManagement onNotice={onNotice} />;
 }
 
 export function SettingsPage({ onNotice }: { onNotice: (m: string) => void }) {
