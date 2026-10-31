@@ -101,12 +101,12 @@ describe("product activity report interactive screen", () => {
     expect(screen.getByRole("heading", { name: "حركة الأصناف والركود" })).toBeInTheDocument();
     expect(screen.getByText("صنف 30")).toBeInTheDocument();
     expect(screen.queryByText("صنف 05")).not.toBeInTheDocument();
-    expect(screen.getByText("صفحة 1 من 2")).toBeInTheDocument();
+    expect(screen.getByText("صفحة ١ من ٢")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "التالي" }));
     expect(screen.getByText("صنف 05")).toBeInTheDocument();
     expect(screen.queryByText("صنف 30")).not.toBeInTheDocument();
-    expect(screen.getByText("صفحة 2 من 2")).toBeInTheDocument();
+    expect(screen.getByText("صفحة ٢ من ٢")).toBeInTheDocument();
 
     const search = screen.getByRole("searchbox", { name: "البحث في تقرير حركة الأصناف" });
     fireEvent.change(search, { target: { value: "00030" } });
