@@ -6516,7 +6516,7 @@ async function main() {
     "(select count(*)::integer from public.accounting_journal_lines l " +
     " join target_entries e on e.id=l.journal_entry_id where l.organization_id=$1::uuid) as line_count, " +
     "(select count(*)::integer from public.audit_logs a " +
-    " join target_entries e on e.id=a.entity_id where a.organization_id=$1::uuid) as audit_count";
+    " where a.organization_id=$1::uuid and a.action='accounting.journal_draft_created') as audit_count";
   const deniedStaffJournalBefore = (await db.unsafe(
     deniedStaffJournalSnapshotSql,
     [organizationId, deniedStaffJournalKey],
