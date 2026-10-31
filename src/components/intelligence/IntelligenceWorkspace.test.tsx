@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { EvidencePeriod, EvidenceRecord, MetricSnapshot } from "@/lib/intelligence/types";
 import type { InventoryIntelligenceData } from "@/lib/intelligence/inventory-intelligence-client";
 
@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   fetchCashflow: vi.fn(),
   fetchOutcomes: vi.fn(),
   fetchInventory: vi.fn(),
+  createProposal: vi.fn(),
   asOf: "2026-10-31T09:00:00.000Z",
   period: { from: "2026-08-01", to: "2026-10-31" },
 }));
@@ -28,7 +29,7 @@ vi.mock("@/lib/intelligence/inventory-intelligence-client", () => ({
 }));
 vi.mock("@/lib/intelligence/decision-outcome-client", () => ({
   fetchDecisionOutcomes: mocks.fetchOutcomes,
-  createDecisionOutcomeProposal: vi.fn(),
+  createDecisionOutcomeProposal: mocks.createProposal,
   commandDecisionOutcome: vi.fn(),
 }));
 
@@ -89,7 +90,32 @@ function cashflowFixture() {
       effectiveRole: "admin",
       completeness: "COMPLETE" as const,
       quality: "ACCEPTABLE" as const,
-      schedule: { status: "VERIFIED" as const, completeness: "COMPLETE" as const, quality: "ACCEPTABLE" as const, entries: [], warnings: [] },
+      schedule: {
+        status: "VERIFIED" as const,
+        completeness: "COMPLETE" as const,
+        quality: "ACCEPTABLE" as const,
+        entries: [{
+          id: "scheduled-invoice-1",
+          direction: "INFLOW" as const,
+          dueDate: "2026-11-01",
+          amount: {
+            id: "scheduled-amount:invoice-1",
+            key: "cashflow.scheduled_invoice",
+            value: 375,
+            currency: "YER",
+            status: "VERIFIED" as const,
+            completeness: "COMPLETE" as const,
+            quality: "ACCEPTABLE" as const,
+            asOf,
+            lineage: {
+              evidenceIds: ["invoice:invoice-1"],
+              formulaId: "nasr1.scheduled-invoice",
+              formulaVersion: "1",
+            },
+          },
+        }],
+        warnings: [],
+      },
       evidenceCount: 2,
       evidenceRecords: [
         evidence("invoice:invoice-1", "customer_invoices", asOf, { from: "2026-10-31", to: "2026-11-30" }),
@@ -168,6 +194,7 @@ describe("production intelligence workspace inventory screens", () => {
       ok: false, status: "UNAVAILABLE", message: "cashflow fixture deliberately unavailable",
     });
     mocks.fetchOutcomes.mockReset().mockResolvedValue({ ok: true, items: [], total: 0 });
+    mocks.createProposal.mockReset().mockResolvedValue({ ok: true, duplicate: false });
     mocks.fetchInventory.mockReset().mockResolvedValue({ ok: true, data: inventoryFixture() });
   });
   afterEach(() => cleanup());
@@ -198,15 +225,34 @@ describe("production intelligence workspace inventory screens", () => {
   });
 
 
-  it("shows verified expected collections but withholds net liquidity without a cash opening balance", async () => {
+  it("renders the server evidence passport, scheduled cashflows and an actionable verified collection decision without inventing liquidity", async () => {
     mocks.fetchCashflow.mockResolvedValue(cashflowFixture());
     render(<IntelligenceWorkspace />);
+
     const liquidity = await screen.findByRole("region", { name: "ملخص السيولة حسب العملة" });
     expect(liquidity).toHaveTextContent("الرصيد المتاح");
     expect(liquidity).toHaveTextContent("التحصيلات المتوقعة");
     expect(liquidity.textContent).toMatch(/(?:٣٧٥|375)\s*YER/);
     expect(liquidity).toHaveTextContent("صافي السيولة المتاحة");
     expect(liquidity).toHaveTextContent("غير متاح");
+
+    expect(await screen.findByRole("heading", { name: "جواز الأدلة" })).toBeInTheDocument();
+    const forecast = screen.getByRole("region", { name: "توقع التدفق النقدي" });
+    expect(forecast.textContent).toMatch(/(?:٣٧٥|375)/);
+    expect(forecast).toHaveTextContent("الرصيد المتوقع");
+    expect(forecast).toHaveTextContent("غير متاح");
+    expect(forecast).toHaveTextContent("غير متاح"); // No verified opening balance: projection remains withheld.
+
+    expect(await screen.findByRole("heading", { name: "متابعة التحصيلات المجدولة" })).toBeInTheDocument();
+    const persist = screen.getByRole("button", { name: "حفظ الإجراء في دورة القرارات" });
+    fireEvent.click(persist);
+    await waitFor(() => expect(mocks.createProposal).toHaveBeenCalledWith(expect.objectContaining({
+      candidateId: "cashflow.expected_collections:YER:2026-10-31:2026-11-30",
+      ruleId: "cashflow.collection.followup",
+      ruleVersion: "1.0.0",
+      ownerProfileId: "admin-profile",
+      expectedOutcome: "تسجيل المتابعة ونتيجة التحصيل من مستندات المؤسسة.",
+    })));
   });
 
   it("does not render inventory figures for an ordinary staff role", async () => {
