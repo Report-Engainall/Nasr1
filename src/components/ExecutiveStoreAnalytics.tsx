@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { BarChart3, FileSpreadsheet, Package, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
 import { Empty, ErrorBox, Loading } from '@/components/AdminPages';
 import { fetchStoreExecutiveAnalytics, fetchStoreProductActivityReport } from '@/lib/api';
 import { StaffDashboardMetrics } from '@/components/StaffDashboardMetrics';
 import { buildSalesForecast, calculateWhatIfSales } from '@/lib/sales-forecast';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
-import { PRODUCT_ACTIVITY_STATUS_LABELS, type ProductActivityStatus } from '@/lib/product-activity-report';
+import { PRODUCT_ACTIVITY_STATUS_LABELS, filterProductActivityRows, paginateProductActivityRows, sortProductActivityRows, type ProductActivityStatus, type ProductActivityRowsSort } from '@/lib/product-activity-report';
 import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx';
 import { downloadExecutiveAnalyticsWorkbookXlsx } from '@/lib/executive-analytics-xlsx';
 import { useFetch } from '@/lib/useFetch';
@@ -249,8 +249,22 @@ export function ExecutiveStoreAnalytics() {
 function ProductActivityReport() {
   const { data, loading, error, refetch } = useFetch(fetchStoreProductActivityReport);
   const [filter, setFilter] = useState<ProductActivityStatus | 'all'>('stagnant_over_90_days');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<ProductActivityRowsSort>('days_since_sale_desc');
+  const [page, setPage] = useState(1);
   const [exportError, setExportError] = useState<string | null>(null);
-  const visibleRows = data?.products.filter((product) => filter === 'all' || product.activity_status === filter) ?? [];
+  const filteredRows = useMemo(
+    () => filterProductActivityRows(data?.products ?? [], filter, search),
+    [data?.products, filter, search],
+  );
+  const sortedRows = useMemo(
+    () => sortProductActivityRows(filteredRows, sort),
+    [filteredRows, sort],
+  );
+  const pagination = useMemo(
+    () => paginateProductActivityRows(sortedRows, page, 25),
+    [sortedRows, page],
+  );
   const quantity = (value: number) => new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 3 }).format(value);
 
   function exportWorkbook() {
@@ -261,6 +275,21 @@ function ProductActivityReport() {
     } catch (cause) {
       setExportError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف Excel.');
     }
+  }
+
+  function updateFilter(value: ProductActivityStatus | 'all') {
+    setFilter(value);
+    setPage(1);
+  }
+
+  function updateSearch(value: string) {
+    setSearch(value);
+    setPage(1);
+  }
+
+  function updateSort(value: ProductActivityRowsSort) {
+    setSort(value);
+    setPage(1);
   }
 
   return (
@@ -275,7 +304,7 @@ function ProductActivityReport() {
             <RefreshCw size={16} /> تحديث
           </button>
           <button className="btn primary" type="button" onClick={exportWorkbook} disabled={loading || !data || data.products.length === 0 || data.truncated}>
-            تنزيل Excel (.xlsx)
+            تنزيل Excel كامل (.xlsx)
           </button>
         </div>
       </div>
@@ -291,9 +320,20 @@ function ProductActivityReport() {
           </div>
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap', marginTop: 16 }}>
-            <label style={{ display: 'grid', gap: 6, minWidth: 240 }}>
-              <span>تصفية تقرير الحركة</span>
-              <select value={filter} onChange={(event) => setFilter(event.currentTarget.value as ProductActivityStatus | 'all')} style={{ minHeight: 40, padding: '8px 10px', border: '1px solid var(--border, #d6dfe4)', borderRadius: 8 }}>
+            <label style={{ display: 'grid', gap: 6, flex: '1 1 260px', minWidth: 0 }}>
+              <span>البحث بالاسم أو كود الصنف أو الوحدة</span>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => updateSearch(event.currentTarget.value)}
+                placeholder="ابحث عن صنف..."
+                aria-label="البحث في تقرير حركة الأصناف"
+                style={{ minHeight: 40, padding: '8px 10px', border: '1px solid var(--border, #d6dfe4)', borderRadius: 8, width: '100%', boxSizing: 'border-box' }}
+              />
+            </label>
+            <label style={{ display: 'grid', gap: 6, flex: '1 1 210px', minWidth: 0 }}>
+              <span>حالة الحركة</span>
+              <select value={filter} onChange={(event) => updateFilter(event.currentTarget.value as ProductActivityStatus | 'all')} style={{ minHeight: 40, padding: '8px 10px', border: '1px solid var(--border, #d6dfe4)', borderRadius: 8, width: '100%', boxSizing: 'border-box' }}>
                 <option value="all">كل الأصناف</option>
                 <option value="stagnant_over_90_days">الراكدة — أكثر من 90 يومًا</option>
                 <option value="never_sold">لم تُبع سابقًا</option>
@@ -301,36 +341,54 @@ function ProductActivityReport() {
                 <option value="active_last_30_days">نشطة — آخر 30 يومًا</option>
               </select>
             </label>
-            <p className="report-note" style={{ margin: 0 }}>
-              {data.truncated
-                ? <>المعروض عينة من التقرير تصل إلى {formatNumber(data.returned_products)} صفًا من إجمالي {formatNumber(data.total_products)} صنفًا. لا يتاح تصدير Excel كامل من هذه العينة.</>
-                : <>المعروض {formatNumber(visibleRows.length)} من {formatNumber(data.total_products)} صنفًا؛ ملف Excel يشمل التقرير الكامل.</>}
-            </p>
+            <label style={{ display: 'grid', gap: 6, flex: '1 1 210px', minWidth: 0 }}>
+              <span>ترتيب النتائج</span>
+              <select value={sort} onChange={(event) => updateSort(event.currentTarget.value as ProductActivityRowsSort)} style={{ minHeight: 40, padding: '8px 10px', border: '1px solid var(--border, #d6dfe4)', borderRadius: 8, width: '100%', boxSizing: 'border-box' }}>
+                <option value="days_since_sale_desc">الأطول منذ آخر بيع</option>
+                <option value="sold_30_asc">الأقل مبيعًا آخر 30 يومًا</option>
+                <option value="sold_30_desc">الأعلى مبيعًا آخر 30 يومًا</option>
+                <option value="stock_asc">الأقل مخزونًا (المجهول أخيرًا)</option>
+                <option value="name_asc">اسم الصنف أبجديًا</option>
+              </select>
+            </label>
           </div>
+          <p role="status" aria-live="polite" style={{ margin: '12px 0 8px' }}>
+            نتائج العرض: {formatNumber(pagination.totalRows)} صنفًا — {pagination.from === 0 ? 'لا توجد صفوف' : 'من ' + formatNumber(pagination.from) + ' إلى ' + formatNumber(pagination.to)}
+            {' '}من إجمالي {formatNumber(data.total_products)} صنفًا في التقرير.
+          </p>
 
           {data.truncated ? <p className="report-note" role="alert" style={{ marginTop: 12 }}>تجاوز العدد حد التقرير البالغ 5000 صنف؛ عُطّل التصدير حتى لا ينتج ملف جزئي على أنه كامل.</p> : null}
           {exportError ? <ErrorBox message={exportError} /> : null}
 
-          <div style={{ overflowX: 'auto', marginTop: 12 }}>
-            <table>
-              <thead><tr><th>كود الصنف</th><th>الصنف</th><th>حالة الحركة</th><th>مباع آخر 30 يومًا</th><th>مباع آخر 90 يومًا</th><th>آخر بيع</th><th>أيام منذ البيع</th><th>المتاح بالمخازن النشطة</th></tr></thead>
-              <tbody>{visibleRows.map((product) => (
-                <tr key={product.product_id}>
-                  <td>{product.item_code || 'دون رمز'}</td>
-                  <td><strong>{product.product_name}</strong><small style={{ display: 'block' }}>{product.unit} · {product.catalog_status === 'active' ? 'نشط بالكتالوج' : product.catalog_status === 'inactive' ? 'موقوف بالكتالوج' : product.catalog_status}</small></td>
-                  <td>{PRODUCT_ACTIVITY_STATUS_LABELS[product.activity_status]}</td>
-                  <td>{quantity(product.sold_quantity_last_30_days)}</td>
-                  <td>{quantity(product.sold_quantity_last_90_days)}</td>
-                  <td>{product.last_sold_at ? formatDateShort(product.last_sold_at) : 'لم يُسجل بيع'}</td>
-                  <td>{product.days_since_last_sale === null ? '—' : formatNumber(product.days_since_last_sale)}</td>
-                  <td>{product.available_quantity === null ? 'غير متاح' : quantity(product.available_quantity)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-          {visibleRows.length === 0 ? <Empty text="لا توجد أصناف ضمن حالة الحركة المحددة." /> : null}
+          {pagination.rows.length === 0 ? <Empty text="لا توجد أصناف مطابقة للبحث وحالة الحركة المحددة." /> : (
+            <div style={{ overflowX: 'auto', maxWidth: '100%', minWidth: 0, marginTop: 12 }}>
+              <table>
+                <thead><tr><th>كود الصنف</th><th>الصنف</th><th>حالة الحركة</th><th>مباع آخر 30 يومًا</th><th>مباع آخر 90 يومًا</th><th>آخر بيع</th><th>أيام منذ البيع</th><th>المتاح بالمخازن النشطة</th></tr></thead>
+                <tbody>{pagination.rows.map((product) => (
+                  <tr key={product.product_id}>
+                    <td>{product.item_code || 'دون رمز'}</td>
+                    <td><strong>{product.product_name}</strong><small style={{ display: 'block' }}>{product.unit} · {product.catalog_status === 'active' ? 'نشط بالكتالوج' : product.catalog_status === 'inactive' ? 'موقوف بالكتالوج' : product.catalog_status}</small></td>
+                    <td>{PRODUCT_ACTIVITY_STATUS_LABELS[product.activity_status]}</td>
+                    <td>{quantity(product.sold_quantity_last_30_days)}</td>
+                    <td>{quantity(product.sold_quantity_last_90_days)}</td>
+                    <td>{product.last_sold_at ? formatDateShort(product.last_sold_at) : 'لم يُسجل بيع'}</td>
+                    <td>{product.days_since_last_sale === null ? '—' : formatNumber(product.days_since_last_sale)}</td>
+                    <td>{product.available_quantity === null ? 'غير متاح' : quantity(product.available_quantity)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+          {pagination.totalPages > 1 ? (
+            <nav aria-label="ترقيم صفحات تقرير حركة الأصناف" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 14 }}>
+              <button className="btn secondary" type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={pagination.page <= 1}>السابق</button>
+              <span>صفحة {formatNumber(pagination.page)} من {formatNumber(pagination.totalPages)}</span>
+              <button className="btn secondary" type="button" onClick={() => setPage((current) => Math.min(pagination.totalPages, current + 1))} disabled={pagination.page >= pagination.totalPages}>التالي</button>
+            </nav>
+          ) : null}
           <p className="report-note" style={{ marginTop: 12 }}>
-            آخر تحديث: {formatDateShort(data.generated_at)}. المصدر هو بنود الطلبات المرتبطة بمعرّف الصنف؛ الطلبات الملغاة والمرفوضة لا تدخل في الحساب.
+            ملف Excel الكامل لا يتأثر بالبحث أو التصفية أو صفحة العرض؛ يُصدّر جميع صفوف التقرير الخادمي. آخر تحديث: {formatDateShort(data.generated_at)}.
+            المصدر هو بنود الطلبات المرتبطة بمعرّف الصنف؛ الطلبات الملغاة والمرفوضة لا تدخل في الحساب.
             الرصيد يُجمع من المخازن النشطة بالمؤسسة؛ «غير متاح» لا يعني صفرًا. البنود التاريخية بلا معرّف صنف لا تُطابق تخمينيًا.
           </p>
         </>
