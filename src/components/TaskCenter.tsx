@@ -6,7 +6,7 @@ import {
 import { createOperationalTask, fetchOperationalTaskAssignees, fetchOperationalTasks, refreshOperationalTasks, setOperationalTaskStatus } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { OperationalTask, OperationalTaskAssignee, OperationalTaskRole, OperationalTaskStatus } from '@/lib/types';
-import { filterTasksForPrint, operationalTaskPrintTitle } from '@/lib/task-print';
+import { filterTasksForPrint, operationalTaskPrintTitle, projectOperationalTaskPrintRow } from '@/lib/task-print';
 import { CustomerReturnReviewQueue } from '@/components/CustomerReturnReviewQueue';
 import { CustomerReturnReceiptQueue } from '@/components/CustomerReturnReceiptQueue';
 import { CustomerReturnCreditMemoQueue } from '@/components/CustomerReturnCreditMemoQueue';
@@ -150,8 +150,9 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     [filteredWithoutRole,roleFilter],
   );
   const printable = useMemo(
-    () => filterTasksForPrint(filteredWithoutRole,printScope,allowedRoles,filtered),
-    [filteredWithoutRole,filtered,printScope,allowedRoles],
+    () => filterTasksForPrint(filteredWithoutRole,printScope,allowedRoles,filtered)
+      .map((task) => projectOperationalTaskPrintRow(task, assignedLabel(task))),
+    [filteredWithoutRole,filtered,printScope,allowedRoles,assigneeById,user?.profileId],
   );
   const printScopeLabel = printScope === 'filtered'
     ? 'النتائج المفلترة الحالية'
@@ -303,7 +304,7 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
       <table><thead><tr><th>#</th><th>المهمة والإجراء</th><th>الدور</th><th>الأولوية</th><th>الحالة</th><th>الموعد المسجل</th><th>المصدر</th><th>المسؤول</th></tr></thead>
         <tbody>{printable.map((task,index) => <tr key={task.id}><td>{index+1}</td><td><strong>{task.title}</strong><br/>{task.description??'—'}{task.resolution_note?<><br/>النتيجة: {task.resolution_note}</>:null}</td>
           <td>{roleLabels[task.task_role]}</td><td>{priorityLabels[task.priority]??task.priority}</td><td>{statusLabels[task.status]??task.status}</td><td>{dateText(task.due_at)}</td>
-          <td>{task.source_entity_type?entityLabels[task.source_entity_type]??task.source_entity_type:'يدوية'}</td><td>{assignedLabel(task)}</td></tr>)}</tbody>
+          <td>{task.source_entity_type?entityLabels[task.source_entity_type]??task.source_entity_type:'يدوية'}</td><td>{task.assigned_label}</td></tr>)}</tbody>
       </table>
       <footer>تعرض هذه القائمة سجلات التشغيل الحالية؛ لا تُنشأ مواعيد غير مسجلة في المصدر.</footer>
     </div>
