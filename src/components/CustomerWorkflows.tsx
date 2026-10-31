@@ -2547,7 +2547,7 @@ export function StaffQuotesPage() {
     setBusy(false);
   }
   return (
-    <section style={{ display: "grid", gap: 14 }}>
+    <section style={{ display: "grid", gap: 14, width: "100%", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}>
       <header>
         <h1 style={{ fontSize: 24, margin: 0 }}>إدارة عروض الأسعار</h1>
         <p style={quiet}>

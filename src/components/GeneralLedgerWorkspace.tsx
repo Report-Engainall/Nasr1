@@ -267,7 +267,7 @@ export function GeneralLedgerWorkspace() {
   if (!canUseFinance) return <section style={card}><h3 style={{ margin: 0 }}>دفتر الأستاذ العام</h3><p style={muted}>هذه المساحة متاحة للمحاسب والمسؤول والمدير المخوّلين فقط.</p></section>;
 
   return (
-    <section style={{ display: "grid", gap: 16, marginTop: 18 }} aria-label="دفتر الأستاذ العام">
+    <section style={{ display: "grid", gap: 16, marginTop: 18, width: "100%", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }} aria-label="دفتر الأستاذ العام">
       <header style={card}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div>
