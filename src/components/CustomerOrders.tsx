@@ -6,6 +6,7 @@ import { useFetch } from '@/lib/useFetch';
 import { useAuth } from '@/lib/auth';
 import { formatDate, formatNumber } from '@/lib/format';
 import type { Order, OrderItem } from '@/lib/types';
+import { projectCustomerOrderPrintDocument } from '@/lib/customer-order-print';
 
 const CUSTOMER_ORDERS_PAGE_SIZE = 25;
 
@@ -192,6 +193,7 @@ function OrderInvoiceInner({ id }: { id: string }) {
   if (error) return <Shell><div style={card} role="alert">{error} <button type="button" className="sf-link" aria-label="إعادة تحميل تفاصيل الطلب" onClick={() => void refetch()}>إعادة المحاولة</button></div></Shell>;
   if (!data?.order) return <Shell><div style={card}>الطلب غير موجود أو لا تملك صلاحية عرضه. <Link to="/orders" className="sf-link">طلباتي</Link></div></Shell>;
   const { order, items, history, customer } = data;
+  const printDocument = projectCustomerOrderPrintDocument(order, items, history, customer, user?.name ?? null);
 
   async function saveAsReorderTemplate() {
     if (templateSaveInFlightRef.current || templateSaving || templateSaved) return;
@@ -302,21 +304,21 @@ function OrderInvoiceInner({ id }: { id: string }) {
           )}
         </div>
       )}
-      <article style={card} className="print-area">
+      <article style={card} className="print-area" data-testid="customer-order-print-document" dir="rtl">
         <header style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '2px solid #0b97a5', paddingBottom: 14 }}>
           <div><h1 style={{ margin: 0, color: '#0b7b89', fontSize: 24 }}>الأغبري</h1><small>شركة الأغبري للمواد الغذائية — صنعاء، اليمن</small></div>
-          <div style={{ textAlign: 'left' }}><strong>تأكيد طلب</strong><div>{order.order_number}</div><small>{formatDate(order.created_at)}</small></div>
+          <div style={{ textAlign: 'left' }}><strong>تأكيد طلب</strong><div>{printDocument.orderNumber}</div><small>{formatDate(printDocument.createdAt)}</small></div>
         </header>
-        <p style={{ margin: '14px 0' }}>رقم العميل: <strong>{customer?.customer_code ?? '—'}</strong> — العميل: <strong>{customer?.business_name ?? customer?.contact_name ?? user?.name ?? '—'}</strong> — الحالة: <strong>{STATUS_LABELS[order.status] ?? order.status}</strong></p>
+        <p style={{ margin: '14px 0' }}>رقم العميل: <strong>{printDocument.customer.code}</strong> — العميل: <strong>{printDocument.customer.name}</strong> — الحالة: <strong>{printDocument.statusLabel}</strong></p>
 
-        {order.delivery_address_snapshot && <section style={{ marginTop: 16, padding: 14, border: '1px solid #dce9e9', borderRadius: 12 }}>
+        {printDocument.deliveryAddress && <section style={{ marginTop: 16, padding: 14, border: '1px solid #dce9e9', borderRadius: 12 }}>
           <h2 style={{ margin: '0 0 8px', fontSize: 16 }}>عنوان التوصيل المسجل مع الطلب</h2>
-          <strong>{order.delivery_address_snapshot.label}</strong>
-          <p style={{ margin: '7px 0 3px', fontWeight: 750 }}>{order.delivery_address_snapshot.recipient_name}</p>
-          <p dir="auto" style={{ margin: '0 0 5px' }}>{order.delivery_address_snapshot.phone}</p>
-          <p style={{ margin: '0 0 5px' }}>{order.delivery_address_snapshot.address_line1}{order.delivery_address_snapshot.address_line2 ? '، ' + order.delivery_address_snapshot.address_line2 : ''}</p>
-          <p style={{ margin: '0 0 5px', color: '#536b70' }}>{[order.delivery_address_snapshot.city, order.delivery_address_snapshot.region, order.delivery_address_snapshot.postal_code].filter(Boolean).join('، ')} — {order.delivery_address_snapshot.country}</p>
-          {order.delivery_address_snapshot.delivery_instructions && <p style={{ margin: '7px 0 0', color: '#536b70' }}>تعليمات التوصيل: {order.delivery_address_snapshot.delivery_instructions}</p>}
+          {printDocument.deliveryAddress.label && <strong>{printDocument.deliveryAddress.label}</strong>}
+          {printDocument.deliveryAddress.recipientName && <p style={{ margin: '7px 0 3px', fontWeight: 750 }}>{printDocument.deliveryAddress.recipientName}</p>}
+          {printDocument.deliveryAddress.phone && <p dir="auto" style={{ margin: '0 0 5px' }}>{printDocument.deliveryAddress.phone}</p>}
+          <p style={{ margin: '0 0 5px' }}>{printDocument.deliveryAddress.addressLine1}{printDocument.deliveryAddress.addressLine2 ? '، ' + printDocument.deliveryAddress.addressLine2 : ''}</p>
+          <p style={{ margin: '0 0 5px', color: '#536b70' }}>{[printDocument.deliveryAddress.city, printDocument.deliveryAddress.region, printDocument.deliveryAddress.postalCode].filter(Boolean).join('، ')}{printDocument.deliveryAddress.country ? ' — ' + printDocument.deliveryAddress.country : ''}</p>
+          {printDocument.deliveryAddress.deliveryInstructions && <p style={{ margin: '7px 0 0', color: '#536b70' }}>تعليمات التوصيل: {printDocument.deliveryAddress.deliveryInstructions}</p>}
         </section>}
 
         <div style={{ margin: '16px 0', padding: 12, borderRadius: 10, background: '#f4f8f9', color: '#536b70' }}>
@@ -324,20 +326,18 @@ function OrderInvoiceInner({ id }: { id: string }) {
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead><tr style={{ background: '#f4f8f9', textAlign: 'right' }}><th style={{ padding: 8 }}>الصنف</th><th>الرمز</th><th>الوحدة</th><th>الكمية</th><th>حالة الكمية</th></tr></thead>
-          <tbody>{items.map((it) => {
-            const requested = Number(it.requested_quantity ?? it.quantity);
-            const approved = Number(it.approved_quantity ?? it.quantity);
-            const adjusted = it.approved_quantity != null && requested !== approved;
-            return <tr key={it.id} style={{ borderTop: '1px solid #edf2f3' }}>
-              <td style={{ padding: 8 }}>{it.product_name_snapshot}</td><td>{it.item_code}</td><td>{it.unit_snapshot}</td><td>{formatNumber(approved)}</td>
-              <td>{adjusted ? <strong style={{ color: '#9a5b13' }}>عُدّلت من {formatNumber(requested)}</strong> : 'كما طُلب'}</td>
-            </tr>;
-          })}</tbody>
+          <tbody>{printDocument.items.map((item, index) => (
+            <tr key={item.itemCode + '-' + item.productName + '-' + index} style={{ borderTop: '1px solid #edf2f3' }}>
+              <td style={{ padding: 8 }}>{item.productName}</td><td>{item.itemCode ?? '—'}</td><td>{item.unit ?? '—'}</td>
+              <td>{item.approvedQuantity === null ? 'غير مسجل' : formatNumber(item.approvedQuantity)}</td>
+              <td>{item.adjusted && item.requestedQuantity !== null ? <strong style={{ color: '#9a5b13' }}>عُدّلت من {formatNumber(item.requestedQuantity)}</strong> : 'كما طُلب'}</td>
+            </tr>
+          ))}</tbody>
         </table>
-        {order.quantity_review_required && <p role="alert" style={{ marginTop: 14, fontWeight: 800, color: '#9a5b13' }}>تنبيه: تم تعديل الأصناف/الكميات بحسب الكميات المتوفرة.</p>}
-        {order.customer_adjustment_note && <p role="status" style={{ marginTop: 8, fontWeight: 700 }}>{order.customer_adjustment_note}</p>}
-        {order.customer_payment_requested_at && order.payment_request_status === 'requested' && <p role="status" style={{ marginTop: 14, padding: 12, borderRadius: 10, background: '#edf9f2', color: '#17684d', fontWeight: 800 }}>تم تأكيد الطلب من جهة الإدارة. يرجى إرسال المبلغ وفق تعليمات الشركة؛ هذا ليس إشعارًا باستلام الدفع.</p>}
-        {order.notes && <p style={{ marginTop: 14 }}>ملاحظات: {order.notes}</p>}
+        {printDocument.quantityReviewRequired && <p role="alert" style={{ marginTop: 14, fontWeight: 800, color: '#9a5b13' }}>تنبيه: تم تعديل الأصناف/الكميات بحسب الكميات المتوفرة.</p>}
+        {printDocument.adjustmentNote && <p role="status" style={{ marginTop: 8, fontWeight: 700 }}>{printDocument.adjustmentNote}</p>}
+        {printDocument.paymentRequested && <p role="status" style={{ marginTop: 14, padding: 12, borderRadius: 10, background: '#edf9f2', color: '#17684d', fontWeight: 800 }}>تم تأكيد الطلب من جهة الإدارة. يرجى إرسال المبلغ وفق تعليمات الشركة؛ هذا ليس إشعارًا باستلام الدفع.</p>}
+        {printDocument.customerNotes && <p style={{ marginTop: 14 }}>ملاحظات: {printDocument.customerNotes}</p>}
         <section style={{ marginTop: 18 }}>
           <h3 style={{ fontSize: 15 }}>متابعة الطلب</h3>
           <div aria-label="مسار حالة الطلب" style={{ display: 'grid', gridTemplateColumns: 'repeat(5,minmax(0,1fr))', gap: 6, margin: '14px 0' }}>
@@ -348,15 +348,15 @@ function OrderInvoiceInner({ id }: { id: string }) {
               ['shipped','تم الشحن'],
               ['delivered','تم التسليم'],
             ].map(([status,label], index, all) => {
-              const current = all.findIndex((item) => item[0] === order.status);
-              const complete = current >= index || order.status === 'delivered';
+              const current = all.findIndex((item) => item[0] === printDocument.status);
+              const complete = current >= index || printDocument.status === 'delivered';
               return <div key={status} style={{ textAlign: 'center', color: complete ? '#087f8d' : '#9aabad', fontSize: 11 }}>
                 <div aria-label={complete ? 'مكتمل' : 'لم يكتمل'} style={{ width: 25, height: 25, borderRadius: 999, margin: '0 auto 6px', display: 'grid', placeItems: 'center', background: complete ? '#dff5ed' : '#edf1f2', color: complete ? '#087f8d' : '#84979b', fontWeight: 900 }}>{complete ? '✓' : index + 1}</div>
                 <span>{label}</span>
               </div>;
             })}
           </div>
-          {history.length > 0 && <ol>{history.map((h) => <li key={h.id}>{STATUS_LABELS[h.to_status] ?? h.to_status} — {formatDate(h.created_at)}</li>)}</ol>}
+          {printDocument.history.length > 0 && <ol>{printDocument.history.map((entry, index) => <li key={entry.status + '-' + entry.createdAt + '-' + index}>{entry.statusLabel} — {formatDate(entry.createdAt)}</li>)}</ol>}
         </section>
       </article>
       <div className="no-print">
