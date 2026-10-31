@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react';
-import { BarChart3, FileSpreadsheet, Package, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { BarChart3, FileSpreadsheet, Package, Printer, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
 import { Empty, ErrorBox, Loading } from '@/components/AdminPages';
 import { fetchStoreExecutiveAnalytics, fetchStoreProductActivityReport } from '@/lib/api';
+import type { StoreExecutiveAnalytics } from '@/lib/executive-analytics';
+import { projectExecutiveAnalyticsPrintDocument } from '@/lib/executive-analytics-print';
 import { StaffDashboardMetrics } from '@/components/StaffDashboardMetrics';
 import { buildSalesForecast, calculateWhatIfSales } from '@/lib/sales-forecast';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
@@ -106,9 +108,27 @@ function SalesForecastPanel({ points }: { points: ReadonlyArray<{ day: string; o
   );
 }
 
-export function ExecutiveStoreAnalytics() {
-  const { data, loading, error, refetch } = useFetch(fetchStoreExecutiveAnalytics);
+export type ExecutiveStoreAnalyticsProps = {
+  /** Optional exact analytics payload for deterministic component acceptance tests. */
+  analyticsOverride?: StoreExecutiveAnalytics | null;
+};
+
+export function ExecutiveStoreAnalytics({ analyticsOverride }: ExecutiveStoreAnalyticsProps = {}) {
+  const fetched = useFetch(fetchStoreExecutiveAnalytics);
+  const data = analyticsOverride === undefined ? fetched.data : analyticsOverride;
+  const loading = analyticsOverride === undefined ? fetched.loading : false;
+  const error = analyticsOverride === undefined ? fetched.error : null;
+  const refetch = fetched.refetch;
   const [exportError, setExportError] = useState<string | null>(null);
+  const [printRequested, setPrintRequested] = useState(false);
+  const printableData = useMemo(
+    () => data ? projectExecutiveAnalyticsPrintDocument(data) : null,
+    [data],
+  );
+  const printForecast = useMemo(
+    () => printableData ? buildSalesForecast(printableData.salesTrend) : null,
+    [printableData],
+  );
   const maxDaySales = Math.max(1, ...(data?.sales_trend.map((day) => day.sales) ?? [0]));
 
   function exportExecutiveWorkbook() {
@@ -128,6 +148,20 @@ export function ExecutiveStoreAnalytics() {
     }
   }
 
+  useEffect(() => {
+    if (!printRequested || !printableData) return;
+    const clearAfterPrint = () => setPrintRequested(false);
+    window.addEventListener('afterprint', clearAfterPrint, { once: true });
+    window.print();
+    return () => window.removeEventListener('afterprint', clearAfterPrint);
+  }, [printRequested, printableData]);
+
+  function printExecutiveReport() {
+    if (!printableData) return;
+    setExportError(null);
+    setPrintRequested(true);
+  }
+
   return (
     <section className="panel" style={{ marginTop: 16 }}>
       <div className="panel-head">
@@ -141,6 +175,9 @@ export function ExecutiveStoreAnalytics() {
           </button>
           <button className="btn primary" type="button" onClick={exportExecutiveWorkbook} disabled={loading || !data}>
             <FileSpreadsheet size={16} /> تنزيل التحليل التنفيذي Excel
+          </button>
+          <button className="btn secondary" type="button" onClick={printExecutiveReport} disabled={loading || !printableData}>
+            <Printer size={16} /> طباعة التحليل التنفيذي PDF
           </button>
         </div>
       </div>
@@ -237,6 +274,131 @@ export function ExecutiveStoreAnalytics() {
           <p className="report-note" style={{ marginTop: 12 }}>
             آخر تحديث: {formatDateShort(data.generated_at)}. مصدر الأرقام هو سجل الطلبات وبنوده في المؤسسة الحالية؛ اتجاه المبيعات يستبعد الحالات الملغاة والمرفوضة ولا يقدّر البيانات المفقودة.
           </p>
+        </>
+      )}
+
+      {printRequested && printableData && (
+        <>
+          <style>{`
+            @page { size: A4 portrait; margin: 12mm; }
+            .executive-analytics-print-sheet { display: none; }
+            @media print {
+              body * { visibility: hidden !important; }
+              .executive-analytics-print-sheet,
+              .executive-analytics-print-sheet * { visibility: visible !important; }
+              .executive-analytics-print-sheet {
+                display: block !important; position: fixed; inset: 0; width: 100%;
+                box-sizing: border-box; padding: 0; background: #fff !important;
+                color: #111 !important; direction: rtl; font-family: Tahoma, Arial, sans-serif;
+              }
+              .executive-analytics-print-sheet h1,
+              .executive-analytics-print-sheet h2 { color: #145c4c !important; }
+              .executive-analytics-print-sheet section { margin: 0 0 14px; break-inside: avoid; }
+              .executive-analytics-print-sheet table {
+                width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 8px;
+              }
+              .executive-analytics-print-sheet th,
+              .executive-analytics-print-sheet td {
+                border: 1px solid #999 !important; padding: 5px;
+                text-align: right; color: #111 !important;
+              }
+              .executive-analytics-print-sheet thead { display: table-header-group; }
+              .executive-analytics-print-sheet tr { break-inside: avoid; page-break-inside: avoid; }
+              .executive-analytics-print-sheet .print-kpi-grid {
+                display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px;
+              }
+              .executive-analytics-print-sheet .print-kpi {
+                border: 1px solid #bbb; padding: 7px; break-inside: avoid;
+              }
+              .executive-analytics-print-sheet .print-kpi strong { display: block; margin-top: 4px; }
+            }
+          `}</style>
+          <article className="executive-analytics-print-sheet" data-testid="executive-analytics-print-document" dir="rtl">
+            <header style={{ borderBottom: '2px solid #176b55', paddingBottom: 10, marginBottom: 14 }}>
+              <h1 style={{ margin: 0, fontSize: 21 }}>متجر الأغبري | التحليل التنفيذي للمبيعات</h1>
+              <p style={{ margin: '5px 0' }}>مستخرج من التجميعات الخادمية للمؤسسة الحالية فقط</p>
+              <small>وقت إنشاء التقرير: {formatDateShort(printableData.generatedAt)}</small>
+            </header>
+            <section>
+              <h2>المؤشرات التنفيذية</h2>
+              <div className="print-kpi-grid">
+                {[
+                  ['المبيعات غير الملغاة', formatCurrency(printableData.kpis.eligibleSales)],
+                  ['إجمالي الطلبات', formatNumber(printableData.kpis.totalOrders)],
+                  ['الطلبات قيد المعالجة', formatNumber(printableData.kpis.pendingOrders)],
+                  ['مبيعات آخر 30 يومًا', formatCurrency(printableData.kpis.salesLast30Days)],
+                  ['طلبات آخر 30 يومًا', formatNumber(printableData.kpis.ordersLast30Days)],
+                  ['عملاء آخر 30 يومًا', formatNumber(printableData.kpis.customersLast30Days)],
+                  ['الأصناف النشطة', formatNumber(printableData.kpis.activeProducts)],
+                ].map(([label, value]) => (
+                  <div className="print-kpi" key={label}>
+                    <span>{label}</span><strong>{value}</strong>
+                  </div>
+                ))}
+              </div>
+            </section>
+            <section>
+              <h2>اتجاه المبيعات اليومي — كامل الفترة المعادة من الخادم</h2>
+              <table>
+                <thead><tr><th>التاريخ</th><th>عدد الطلبات</th><th>المبيعات المؤهلة</th></tr></thead>
+                <tbody>{printableData.salesTrend.map((day) => (
+                  <tr key={day.day}>
+                    <td>{formatDateShort(day.day)}</td><td>{formatNumber(day.orders)}</td><td>{formatCurrency(day.sales)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </section>
+            <section>
+              <h2>أعلى الأصناف مبيعًا</h2>
+              <table>
+                <thead><tr><th>كود الصنف</th><th>الصنف</th><th>الكمية</th><th>المبيعات</th></tr></thead>
+                <tbody>{printableData.topProducts.length ? printableData.topProducts.map((item) => (
+                  <tr key={item.itemCode + item.productName}>
+                    <td>{item.itemCode || '—'}</td><td>{item.productName}</td>
+                    <td>{formatNumber(item.quantity)}</td><td>{formatCurrency(item.sales)}</td>
+                  </tr>
+                )) : <tr><td colSpan={4}>لا توجد بيانات أصناف صالحة للترتيب.</td></tr>}</tbody>
+              </table>
+            </section>
+            <section>
+              <h2>أعلى العملاء قيمةً</h2>
+              <table>
+                <thead><tr><th>العميل</th><th>عدد الطلبات</th><th>المبيعات المؤهلة</th></tr></thead>
+                <tbody>{printableData.topCustomers.length ? printableData.topCustomers.map((customer) => (
+                  <tr key={customer.customerName}>
+                    <td>{customer.customerName}</td><td>{formatNumber(customer.orderCount)}</td>
+                    <td>{formatCurrency(customer.sales)}</td>
+                  </tr>
+                )) : <tr><td colSpan={3}>لا توجد بيانات عملاء صالحة للترتيب.</td></tr>}</tbody>
+              </table>
+            </section>
+            <section>
+              <h2>التخطيط التنبؤي — سبعة أيام</h2>
+              {printForecast?.ready ? (
+                <>
+                  <table>
+                    <tbody>
+                      <tr><th>التقدير الأساسي</th><td>{formatCurrency(printForecast.expectedTotal)}</td></tr>
+                      <tr><th>سيناريو تخطيطي أقل</th><td>{formatCurrency(printForecast.lowerScenario)}</td></tr>
+                      <tr><th>سيناريو تخطيطي أعلى</th><td>{formatCurrency(printForecast.upperScenario)}</td></tr>
+                      <tr><th>متوسط الخطأ المطلق في الاختبار</th><td>{formatCurrency(printForecast.meanAbsoluteError)}</td></tr>
+                    </tbody>
+                  </table>
+                  <p>هذا نطاق تخطيطي حتمي مبني على متوسط متحرك واختبار تاريخي، وليس نطاق ثقة إحصائيًا أو وعدًا بالإيراد.</p>
+                </>
+              ) : (
+                <p>التقدير غير متاح: {printForecast?.reason === 'insufficient_history'
+                  ? 'يلزم 21 يومًا متتاليًا على الأقل.'
+                  : printForecast?.reason === 'missing_days'
+                    ? 'السلسلة التاريخية تحتوي فجوات؛ لم تُعامل الأيام المفقودة كمبيعات صفرية.'
+                    : 'بيانات التاريخ أو المبالغ غير صالحة؛ لم تُنشأ قيم افتراضية.'}</p>
+              )}
+            </section>
+            <footer style={{ borderTop: '1px solid #999', paddingTop: 8, fontSize: 10 }}>
+              لا يحتوي هذا المستند على معرفات العملاء الداخلية أو بيانات المؤسسة التقنية أو التكلفة أو الهوامش.
+              الحالات الملغاة والمرفوضة مستبعدة من إجماليات المبيعات المؤهلة.
+            </footer>
+          </article>
         </>
       )}
       <ProductActivityReport />
