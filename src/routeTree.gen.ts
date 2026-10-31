@@ -57,6 +57,7 @@ import { Route as AdminSuppliersRouteImport } from './routes/admin_.suppliers'
 import { Route as AdminStockCountRouteImport } from './routes/admin_.stock-count'
 import { Route as AdminPurchaseOrdersRouteImport } from './routes/admin_.purchase-orders'
 import { Route as AdminInventoryTransfersRouteImport } from './routes/admin_.inventory-transfers'
+import { Route as AdminIntelligenceRouteImport } from './routes/admin_.intelligence'
 import { Route as AdminTasksRouteImport } from './routes/admin_.tasks'
 import { Route as ApiStatementPdfRouteImport } from './routes/api.statement-pdf'
 import { Route as CompanyAcceptInvitationRouteImport } from './routes/company.accept-invitation'
@@ -266,6 +267,11 @@ const AdminInventoryTransfersRoute = AdminInventoryTransfersRouteImport.update({
   path: '/admin/inventory-transfers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminIntelligenceRoute = AdminIntelligenceRouteImport.update({
+  id: '/admin_/intelligence',
+  path: '/admin/intelligence',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminTasksRoute = AdminTasksRouteImport.update({
   id: '/admin_/tasks',
   path: '/admin/tasks',
@@ -411,6 +417,7 @@ export interface FileRoutesByFullPath {
   '/admin/stock-count': typeof AdminStockCountRoute
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/inventory-transfers': typeof AdminInventoryTransfersRoute
+  '/admin/intelligence': typeof AdminIntelligenceRoute
   '/admin/tasks': typeof AdminTasksRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
@@ -472,6 +479,7 @@ export interface FileRoutesByTo {
   '/admin/stock-count': typeof AdminStockCountRoute
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/inventory-transfers': typeof AdminInventoryTransfersRoute
+  '/admin/intelligence': typeof AdminIntelligenceRoute
   '/admin/tasks': typeof AdminTasksRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
@@ -535,6 +543,7 @@ export interface FileRoutesById {
   '/admin_/stock-count': typeof AdminStockCountRoute
   '/admin_/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin_/inventory-transfers': typeof AdminInventoryTransfersRoute
+  '/admin_/intelligence': typeof AdminIntelligenceRoute
   '/admin_/tasks': typeof AdminTasksRoute
   '/api/statement-pdf': typeof ApiStatementPdfRoute
   '/company/accept-invitation': typeof CompanyAcceptInvitationRoute
@@ -598,6 +607,7 @@ export interface FileRouteTypes {
     | '/admin/stock-count'
     | '/admin/purchase-orders'
     | '/admin/inventory-transfers'
+    | '/admin/intelligence'
     | '/api/statement-pdf'
     | '/company/accept-invitation'
     | '/company/contacts'
@@ -655,6 +665,7 @@ export interface FileRouteTypes {
     | '/admin/stock-count'
     | '/admin/purchase-orders'
     | '/admin/inventory-transfers'
+    | '/admin/intelligence'
     | '/api/statement-pdf'
     | '/company/accept-invitation'
     | '/company/contacts'
@@ -775,6 +786,7 @@ export interface RootRouteChildren {
   AdminStockCountRoute: typeof AdminStockCountRoute
   AdminPurchaseOrdersRoute: typeof AdminPurchaseOrdersRoute
   AdminInventoryTransfersRoute: typeof AdminInventoryTransfersRoute
+  AdminIntelligenceRoute: typeof AdminIntelligenceRoute
   AdminTasksRoute: typeof AdminTasksRoute
   ApiStatementPdfRoute: typeof ApiStatementPdfRoute
   CompanyAcceptInvitationRoute: typeof CompanyAcceptInvitationRoute
@@ -1073,6 +1085,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminInventoryTransfersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/intelligence': {
+      id: '/admin_/intelligence'
+      path: '/admin/intelligence'
+      fullPath: '/admin/intelligence'
+      preLoaderRoute: typeof AdminIntelligenceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/tasks': {
       id: '/admin_/tasks'
       path: '/admin/tasks'
@@ -1280,6 +1299,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminStockCountRoute: AdminStockCountRoute,
   AdminPurchaseOrdersRoute: AdminPurchaseOrdersRoute,
   AdminInventoryTransfersRoute: AdminInventoryTransfersRoute,
+  AdminIntelligenceRoute: AdminIntelligenceRoute,
   AdminTasksRoute: AdminTasksRoute,
   ApiStatementPdfRoute: ApiStatementPdfRoute,
   CompanyAcceptInvitationRoute: CompanyAcceptInvitationRoute,

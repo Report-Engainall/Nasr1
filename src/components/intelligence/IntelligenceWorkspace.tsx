@@ -6,7 +6,7 @@ type Horizon = 7 | 30 | 90;
 const formatDay = (value: string) => new Date(value + "T00:00:00.000Z").toLocaleDateString("ar-YE", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
 const formatMoney = (value: number, currency: string) => new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 2 }).format(value) + " " + currency;
 
-export default function AdminIntelligence() {
+export function IntelligenceWorkspace() {
   const [horizon, setHorizon] = useState<Horizon>(30);
   const [refreshKey, setRefreshKey] = useState(0);
   const [result, setResult] = useState<CashflowScheduleResult | null>(null);

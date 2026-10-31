@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Box, Calculator, Check, ChevronLeft, ClipboardList, PackageCheck,
+  Activity, AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, BrainCircuit, Box, Calculator, Check, ChevronLeft, ClipboardList, PackageCheck,
   CircleDollarSign, Database, FileText, LayoutDashboard, LogOut, Menu, Package,
   Pencil, Plus, RefreshCw, ScrollText, Search, Settings, ShoppingCart, SlidersHorizontal,
   Smartphone, Store, Tag, Trash2, TrendingUp, Users, Zap,
@@ -53,8 +53,9 @@ import {
   CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem,
 } from '@/components/ui/command';
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { IntelligenceWorkspace } from '@/components/intelligence/IntelligenceWorkspace';
 
-type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders';
+type View = 'dashboard' | 'products' | 'customers' | 'orders' | 'pricing' | 'offers' | 'reports' | 'data' | 'operations' | 'notifications' | 'ai' | 'suppliers' | 'devices' | 'settings' | 'quotes' | 'finance' | 'tasks' | 'audit' | 'stock-count' | 'inventory-transfers' | 'purchase-orders' | 'intelligence';
 type IconType = typeof LayoutDashboard;
 
 const nav: { id: View; label: string; icon: IconType }[] = [
@@ -70,6 +71,7 @@ const nav: { id: View; label: string; icon: IconType }[] = [
   { id: 'purchase-orders', label: 'أوامر الشراء والاستلام', icon: PackageCheck },
   { id: 'devices', label: 'الأجهزة والجلسات', icon: Smartphone },
   { id: 'reports', label: 'التقارير الذكية', icon: BarChart3 },
+  { id: 'intelligence', label: 'ذكاء الأعمال والتحصيلات', icon: BrainCircuit },
   { id: 'ai', label: 'مركز الذكاء', icon: Bot },
   { id: 'notifications', label: 'التنبيهات', icon: Bell },
   { id: 'data', label: 'مركز البيانات', icon: Database },
@@ -89,7 +91,7 @@ const adminPaths: Record<View, string> = {
   quotes: '/admin/quotes', finance: '/admin/finance', tasks: '/admin/tasks', audit: '/admin/audit',
   'stock-count': '/admin/stock-count',
   'inventory-transfers': '/admin/inventory-transfers',
-  'purchase-orders': '/admin/purchase-orders',
+  'purchase-orders': '/admin/purchase-orders', intelligence: '/admin/intelligence',
 };
 
 function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
@@ -102,7 +104,8 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const canManageAudit = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const visibleNav = nav.filter(({ id }) => isCustomerManagerOnly
     ? id === 'customers'
-    : (isFinanceOnly ? id === 'finance' || id === 'tasks' : id !== 'finance' || canManageFinance) &&
+    : (isFinanceOnly ? id === 'finance' || id === 'tasks' || id === 'intelligence' : id !== 'finance' || canManageFinance) &&
+      (id !== 'intelligence' || canManageFinance) &&
       (id !== 'audit' || canManageAudit) &&
       (id !== 'purchase-orders' || user?.roles.some((role) => role === 'admin' || role === 'manager'))
   );
@@ -276,7 +279,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
         <div className="page-wrap">
           {isCustomerManagerOnly && view !== 'customers' ? (
             <section className="panel" role="status" style={{ padding: 24 }}><h1>مساحة مسؤول العملاء</h1><p>هذا الدور مخصص لدليل العملاء واعتماد الحسابات وتغيير شرائح الأسعار وحالات الحساب. لا يتيح الوصول إلى البيانات المالية أو وحدات المخزون والطلبات.</p><button className="btn primary" onClick={() => runAdminCommand('customers')}>فتح إدارة العملاء</button></section>
-          ) : isFinanceOnly && view !== 'finance' && view !== 'tasks' ? (
+          ) : isFinanceOnly && view !== 'finance' && view !== 'tasks' && view !== 'intelligence' ? (
             <section className="panel" role="status" style={{ padding: 24 }}>
               <h1 style={{ marginTop: 0 }}>بوابة المحاسبة</h1>
               <p>هذا الحساب مخصص للفواتير والتحصيل فقط، ولا يملك صلاحيات إدارة الطلبات أو المنتجات أو النظام.</p>
@@ -295,6 +298,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
           {view === 'purchase-orders' && <PurchaseOrdersPage />}
           {view === 'devices' && <DeviceManagement onNotice={showNotice} />}
           {view === 'reports' && <Reports />}
+          {view === 'intelligence' && <IntelligenceWorkspace />}
           {view === 'ai' && <AiCenter onNotice={showNotice} />}
           {view === 'notifications' && <Notifications onNotice={showNotice} />}
           {view === 'data' && <DataCenter onNotice={showNotice} />}

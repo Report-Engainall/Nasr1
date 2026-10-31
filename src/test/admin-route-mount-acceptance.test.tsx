@@ -94,6 +94,7 @@ describe("admin routes mount the intended screen through the generated route tre
     { path: "/admin/customers", view: "customers" },
     { path: "/admin/devices", view: "devices" },
     { path: "/admin/inventory-transfers", view: "inventory-transfers" },
+    { path: "/admin/intelligence", view: "intelligence" },
     { path: "/admin/notifications", view: "notifications" },
     { path: "/admin/offers", view: "offers" },
     { path: "/admin/operations", view: "operations" },
