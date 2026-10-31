@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { BrainCircuit, CalendarClock, RefreshCw, ShieldCheck, Workflow } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { buildDeadStockReport } from "@/lib/intelligence/dead-stock";
+import { buildReplenishmentRecommendations } from "@/lib/intelligence/replenishment";
+import {
+  createInventoryIntelligencePeriod,
+  fetchInventoryIntelligence,
+  type InventoryIntelligenceResult,
+} from "@/lib/intelligence/inventory-intelligence-client";
 import {
   createCashflowScheduleRequest,
   fetchCashflowSchedule,
@@ -54,6 +61,8 @@ export function IntelligenceWorkspace() {
   const [proposalCurrency, setProposalCurrency] = useState("");
   const [proposalExpected, setProposalExpected] = useState("متابعة التحصيل وفق الفواتير المثبتة في الفترة المحددة");
   const [proposalReason, setProposalReason] = useState("");
+  const [inventoryResult, setInventoryResult] = useState<InventoryIntelligenceResult | null>(null);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
 
   const loadCashflow = useCallback(async (active: () => boolean) => {
     if (!canManage) {
@@ -75,6 +84,24 @@ export function IntelligenceWorkspace() {
     }
   }, [canManage, horizon]);
 
+  const loadInventory = useCallback(async (active: () => boolean) => {
+    if (!canManage) {
+      setInventoryResult({ ok: false, status: "DENIED", message: "تتطلب قراءة بيانات المخزون صلاحية المدير أو مدير المؤسسة المالية." });
+      setInventoryLoading(false);
+      return;
+    }
+    setInventoryLoading(true);
+    try {
+      const request = createInventoryIntelligencePeriod(new Date(), 92);
+      const response = await fetchInventoryIntelligence(request.period, request.asOf);
+      if (active()) setInventoryResult(response);
+    } catch {
+      if (active()) setInventoryResult({ ok: false, status: "ERROR", message: "تعذر إنشاء طلب أدلة المخزون." });
+    } finally {
+      if (active()) setInventoryLoading(false);
+    }
+  }, [canManage]);
+
   const loadOutcomes = useCallback(async () => {
     if (!canManage) {
       setOutcomeResult({ ok: false, status: "DENIED", message: "إدارة القرارات متاحة للمدير ومدير المؤسسة المالية فقط." });
@@ -94,10 +121,52 @@ export function IntelligenceWorkspace() {
   }, [loadCashflow, refreshKey]);
 
   useEffect(() => {
+    let mounted = true;
+    void loadInventory(() => mounted);
+    return () => { mounted = false; };
+  }, [loadInventory, refreshKey]);
+
+  useEffect(() => {
     void loadOutcomes();
   }, [loadOutcomes, refreshKey]);
 
   const data = result?.ok ? result.data : null;
+  const inventoryData = inventoryResult?.ok ? inventoryResult.data : null;
+  const deadStockReport = useMemo(() => {
+    if (!inventoryData) return null;
+    return buildDeadStockReport({
+      id: "dead-stock:" + inventoryData.asOf,
+      asOf: inventoryData.asOf,
+      period: inventoryData.period,
+      evidenceRecords: inventoryData.evidenceRecords,
+      products: inventoryData.deadStockProducts,
+      rule: {
+        id: "dead-stock-days",
+        version: "1.0.0",
+        activeWithinDays: 30,
+        stagnantAfterDays: 90,
+        lowTurnoverRatio: 0.1,
+        turnoverWindowDays: 92,
+      },
+    });
+  }, [inventoryData]);
+  const replenishmentReport = useMemo(() => {
+    if (!inventoryData) return null;
+    return buildReplenishmentRecommendations({
+      id: "replenishment:" + inventoryData.asOf,
+      asOf: inventoryData.asOf,
+      period: inventoryData.period,
+      evidenceRecords: inventoryData.evidenceRecords,
+      products: inventoryData.replenishmentProducts,
+    });
+  }, [inventoryData]);
+  const inventoryViewState = inventoryLoading
+    ? "loading"
+    : inventoryResult?.ok
+      ? "ready"
+      : inventoryResult?.status === "UNAVAILABLE"
+        ? "unavailable"
+        : "error";
   const verified = Boolean(
     data &&
     data.status === "OK" &&
@@ -199,7 +268,7 @@ export function IntelligenceWorkspace() {
                 <div className="flex items-center gap-2"><BrainCircuit size={22} /><h1>ذكاء الأعمال والتحصيلات والقرارات</h1></div>
                 <p className="report-note">يعرض الاستحقاقات من سجلات المؤسسة، ويحفظ دورة القرار وأحداثها في قاعدة البيانات.</p>
               </div>
-              <button type="button" className="btn secondary" onClick={() => setRefreshKey((value) => value + 1)} disabled={loading || outcomesLoading}>
+              <button type="button" className="btn secondary" onClick={() => setRefreshKey((value) => value + 1)} disabled={loading || outcomesLoading || inventoryLoading}>
                 <RefreshCw size={16} /> تحديث
               </button>
             </div>
@@ -358,14 +427,29 @@ export function IntelligenceWorkspace() {
           <p className="report-note">وقت الاحتساب: {data?.asOf ?? "غير متاح"} · مصدر الهوية والصلاحية والنطاق: الخادم. لا يرسل المتصفح معرّف المؤسسة أو الدور في طلبات البيانات.</p>
 
           <section className="panel space-y-3">
-            <h2>محركات ذكاء الأعمال الأخرى</h2>
-            <p className="report-note">هذه البطاقات لا تعرض أرقاماً تقديرية. لن تُفتح إلا عند وصول DTO موثق من مصدر المؤسسة.</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><h2>تحليل المخزون والاحتياج للتوريد</h2><p className="report-note">نافذة الحركة والمبيعات 92 يوماً حتى تاريخ الاحتساب؛ الكميات الحالية لقطات مخزون وليست متوسطات تاريخية.</p></div>
+              <span className="text-xs text-muted-foreground">{inventoryData ? inventoryData.totalProducts + " منتجاً · " + inventoryData.evidenceRecords.length + " دليلاً" : "مصدر المؤسسة"}</span>
+            </div>
+            {!inventoryLoading && inventoryResult && !inventoryResult.ok ? (
+              <div role="alert" className="rounded-lg border p-3 text-sm">
+                <p>{inventoryResult.message}</p>
+                <button type="button" className="btn secondary mt-2" onClick={() => setRefreshKey((value) => value + 1)}>إعادة تحميل المخزون</button>
+              </div>
+            ) : null}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <DeadStockCard report={deadStockReport} state={inventoryViewState} onRetry={() => setRefreshKey((value) => value + 1)} />
+              <ReplenishmentCard recommendations={replenishmentReport?.recommendations ?? null} state={inventoryViewState} onRetry={() => setRefreshKey((value) => value + 1)} />
+            </div>
+            <p className="report-note">التعرض المالي للمخزون غير متاح لأن سجلات تكلفة الشراء لا تحتوي رمز عملة موثقاً، ومتوسط المخزون التاريخي غير متاح لعدم وجود لقطات أرصدة يومية. مهلة التوريد لا تُحسب إلا من تواريخ أوامر الشراء والاستلام الفعلية؛ لا ينشئ النظام أمراً تلقائياً.</p>
+          </section>
+          <section className="panel space-y-3">
+            <h2>السيولة والأدلة والقرارات المقترحة الأخرى</h2>
+            <p className="report-note">محركات السيولة والتوصيات العامة لا تزال محجوبة حتى إتاحة أرصدة نقدية ومصادر أدلة موثقة لها.</p>
             <div className="grid gap-3 lg:grid-cols-2">
               <EvidencePassport state="unavailable" />
               <LiquiditySummary state="unavailable" />
               <CashflowForecastCard state="unavailable" />
-              <DeadStockCard state="unavailable" />
-              <ReplenishmentCard state="unavailable" />
               <ActionCard state="unavailable" />
             </div>
           </section>
