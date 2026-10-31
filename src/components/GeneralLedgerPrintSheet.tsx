@@ -2,10 +2,6 @@ import { formatLedgerMoney } from "@/lib/general-ledger";
 import { formatStatementCents } from "@/lib/financial-statements";
 import type { GeneralLedgerPrintDocument } from "@/lib/general-journal-print";
 
-function statusTitle(status: "draft" | "posted" | "void"): string {
-  return status === "posted" ? "قيد مرحلة" : status === "draft" ? "مسودة غير مرحلة" : "قيد ملغى";
-}
-
 export function GeneralLedgerPrintSheet({ document }: { document: GeneralLedgerPrintDocument }) {
   const generatedAt = new Intl.DateTimeFormat("ar-YE", { dateStyle: "medium", timeStyle: "short" }).format(new Date());
 
