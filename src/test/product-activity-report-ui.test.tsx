@@ -3,28 +3,15 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import type { StoreProductActivityReport } from "@/lib/product-activity-report";
 
 const mocks = vi.hoisted(() => ({
-  fetchExecutive: vi.fn(),
-  fetchActivity: vi.fn(),
   downloadActivity: vi.fn(),
   report: null as unknown,
 }));
-
-vi.mock("@/lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api")>();
-  return {
-    ...actual,
-    fetchStoreExecutiveAnalytics: mocks.fetchExecutive,
-    fetchStoreProductActivityReport: mocks.fetchActivity,
-  };
-});
 
 vi.mock("@/lib/useFetch", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/useFetch")>();
   return {
     ...actual,
-    useFetch: (fetcher: unknown) => fetcher === mocks.fetchExecutive
-      ? { data: null, loading: false, error: null, refetch: vi.fn() }
-      : { data: mocks.report, loading: false, error: null, refetch: vi.fn() },
+    useFetch: () => ({ data: mocks.report, loading: false, error: null, refetch: vi.fn() }),
   };
 });
 
@@ -37,7 +24,20 @@ vi.mock("@/components/StaffDashboardMetrics", () => ({ StaffDashboardMetrics: ()
 
 import { ExecutiveStoreAnalytics } from "@/components/ExecutiveStoreAnalytics";
 
-function reportFixture(): StoreProductActivityReport {
+function reportFixture(): StoreProductActivityReport & {
+  kpis: {
+    total_orders: number;
+    eligible_sales: number;
+    pending_orders: number;
+    orders_last_30_days: number;
+    sales_last_30_days: number;
+    customers_last_30_days: number;
+    active_products: number;
+  };
+  sales_trend: Array<{ day: string; orders: number; sales: number }>;
+  top_products: Array<{ item_code: string; product_name: string; quantity: number; sales: number }>;
+  top_customers: Array<{ customer_id: string; customer_name: string; order_count: number; sales: number }>;
+} {
   const products = Array.from({ length: 30 }, (_, index) => ({
     product_id: "product-" + (index + 1),
     item_code: String(index + 1).padStart(5, "0"),
@@ -66,6 +66,18 @@ function reportFixture(): StoreProductActivityReport {
       stock_unknown_count: 1,
     },
     products,
+    kpis: {
+      total_orders: 0,
+      eligible_sales: 0,
+      pending_orders: 0,
+      orders_last_30_days: 0,
+      sales_last_30_days: 0,
+      customers_last_30_days: 0,
+      active_products: products.length,
+    },
+    sales_trend: [],
+    top_products: [],
+    top_customers: [],
   };
 }
 
