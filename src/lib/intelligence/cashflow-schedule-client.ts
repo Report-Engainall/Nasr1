@@ -39,8 +39,24 @@ export interface CashflowScheduleSnapshot {
     warnings: string[];
   };
   evidenceCount: number;
+  measurementMetrics: CashflowMeasurementProof[];
   warnings: string[];
 }
+export interface CashflowMeasurementProof {
+  metricKey: "cashflow.expected_collections";
+  value: number;
+  unit: "CURRENCY";
+  currency: string;
+  status: "VERIFIED";
+  completeness: "COMPLETE";
+  quality: "ACCEPTABLE";
+  period: { from: string; to: string };
+  asOf: string;
+  formulaId: string;
+  formulaVersion: string;
+  evidenceIds: string[];
+}
+
 export type CashflowScheduleResult =
   | { ok: true; data: CashflowScheduleSnapshot }
   | { ok: false; status: "DENIED" | "UNAVAILABLE" | "ERROR"; message: string };
@@ -179,6 +195,60 @@ function parseAmount(value: unknown, asOf: string): CashflowScheduleAmount | nul
   };
 }
 
+function parseMeasurementMetrics(value: unknown, request: IntelligenceAggregateRequest): {
+  metrics: CashflowMeasurementProof[];
+  withheld: boolean;
+} {
+  if (!Array.isArray(value) || value.length > 100) return { metrics: [], withheld: true };
+  const metrics: CashflowMeasurementProof[] = [];
+  let withheld = false;
+  const seen = new Set<string>();
+  for (const item of value) {
+    const raw = record(item);
+    if (raw?.key !== "cashflow.expected_collections") continue;
+    const lineage = record(raw.lineage);
+    const period = record(raw.period);
+    const evidenceIds = stringList(lineage?.evidenceIds, 500);
+    const amount = typeof raw.value === "number" ? raw.value
+      : typeof raw.value === "string" && raw.value.trim() ? Number(raw.value) : Number.NaN;
+    const currency = raw.currency;
+    if (
+      !raw || !lineage || !period ||
+      raw.unit !== "CURRENCY" ||
+      !nonEmptyString(currency, 3) || !ISO_CURRENCY.test(currency) ||
+      !Number.isFinite(amount) || amount < 0 ||
+      raw.status !== "VERIFIED" || raw.completeness !== "COMPLETE" || raw.quality !== "ACCEPTABLE" ||
+      raw.asOf !== request.asOf ||
+      !isoDay(period.from) || !isoDay(period.to) ||
+      period.from !== request.period.from || period.to !== request.period.to ||
+      !nonEmptyString(lineage.formulaId, 150) ||
+      !nonEmptyString(lineage.formulaVersion, 80) ||
+      !evidenceIds || evidenceIds.length === 0 ||
+      new Set(evidenceIds).size !== evidenceIds.length ||
+      seen.has(currency)
+    ) {
+      withheld = true;
+      continue;
+    }
+    seen.add(currency);
+    metrics.push({
+      metricKey: "cashflow.expected_collections",
+      value: amount,
+      unit: "CURRENCY",
+      currency,
+      status: "VERIFIED",
+      completeness: "COMPLETE",
+      quality: "ACCEPTABLE",
+      period: { from: period.from, to: period.to },
+      asOf: request.asOf,
+      formulaId: lineage.formulaId,
+      formulaVersion: lineage.formulaVersion,
+      evidenceIds,
+    });
+  }
+  return { metrics, withheld };
+}
+
 export function parseCashflowScheduleResponse(
   value: unknown,
   request: IntelligenceAggregateRequest,
@@ -190,6 +260,7 @@ export function parseCashflowScheduleResponse(
   const scheduleWarnings = warnings(schedule?.warnings);
   const topWarnings = warnings(raw?.warnings);
   const evidenceRecords = raw?.evidenceRecords;
+  const measurement = parseMeasurementMetrics(raw?.metrics, request);
   if (
     !raw ||
     (raw.status !== "OK" && raw.status !== "PARTIAL") ||
@@ -253,7 +324,8 @@ export function parseCashflowScheduleResponse(
         warnings: scheduleWarnings,
       },
       evidenceCount: evidenceRecords.length,
-      warnings: topWarnings,
+      measurementMetrics: measurement.metrics,
+      warnings: measurement.withheld ? [...topWarnings, "MEASUREMENT_METRIC_WITHHELD"] : topWarnings,
     },
   };
 }

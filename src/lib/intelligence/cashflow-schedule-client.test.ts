@@ -16,7 +16,20 @@ function response(overrides: Record<string, unknown> = {}) {
     authorization: { tenantScope: "SERVER_RESOLVED_AUTHENTICATED_TENANT", effectiveRole: "admin", capabilities: ["can_manage_finance"] },
     sourceTables: ["customer_invoices", "customer_payments"],
     evidenceRecords: [{ id: evidenceIds[0], source: { kind: "TABLE", name: "customer_invoices" } }, { id: evidenceIds[1], source: { kind: "TABLE", name: "customer_payments" } }],
-    metrics: [],
+    metrics: [{
+      id: "metric:cashflow:YER",
+      key: "cashflow.expected_collections",
+      value: 375,
+      unit: "CURRENCY",
+      currency: "YER",
+      status: "VERIFIED",
+      completeness: "COMPLETE",
+      quality: "ACCEPTABLE",
+      period: { from: "2026-10-31", to: "2026-11-30" },
+      asOf,
+      lineage: { evidenceIds, calculatedAt: asOf, formulaId: "nasr1.receivables-outstanding", formulaVersion: "1" },
+      warnings: [],
+    }],
     formulaVersions: ["nasr1.receivables-outstanding:1"],
     completeness: "COMPLETE",
     quality: "ACCEPTABLE",
@@ -85,6 +98,7 @@ describe("tenant-bound cashflow aggregate client", () => {
     expect(result.data.schedule.entries[0].amount.value).toBe(375);
     expect(JSON.stringify(result.data)).not.toContain("should-not-escape@example.test");
     expect(result.data.evidenceCount).toBe(2);
+    expect(result.data.measurementMetrics).toMatchObject([{ value: 375, currency: "YER", status: "VERIFIED" }]);
   });
 
   it("converts SQLSTATE 42501 to a safe financial permission denial", async () => {
@@ -104,5 +118,23 @@ describe("tenant-bound cashflow aggregate client", () => {
     rpc.mockResolvedValue({ data: malformed, error: null });
     const result = await fetchCashflowSchedule(request());
     expect(result).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
+  it("withholds measurement commands when the server metric evidence is incomplete", async () => {
+    const malformed = response({
+      metrics: [{
+        id: "metric:cashflow:YER", key: "cashflow.expected_collections", value: 375,
+        unit: "CURRENCY", currency: "YER", status: "VERIFIED", completeness: "COMPLETE",
+        quality: "ACCEPTABLE", period: { from: "2026-10-31", to: "2026-11-30" },
+        asOf: "2026-10-31T09:00:00.000Z",
+        lineage: { evidenceIds: [], calculatedAt: "2026-10-31T09:00:00.000Z", formulaId: "nasr1.receivables-outstanding", formulaVersion: "1" },
+      }],
+    });
+    rpc.mockResolvedValue({ data: malformed, error: null });
+    const result = await fetchCashflowSchedule(request());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.measurementMetrics).toEqual([]);
+    expect(result.data.warnings).toContain("MEASUREMENT_METRIC_WITHHELD");
   });
 });
