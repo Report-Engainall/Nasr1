@@ -6502,6 +6502,67 @@ async function main() {
     /finance permission required/i,
   );
   await db.unsafe("reset role");
+
+  // FIN-LEDGER-STAFF-DRAFT-DENIAL-001: ordinary same-tenant staff may reach
+  // the authenticated RPC grant, but cannot create a journal draft or any side effect.
+  const deniedStaffJournalKey = randomUUID();
+  const deniedStaffJournalSnapshotSql =
+    "with target_entries as (" +
+    "select e.id from public.accounting_journal_entries e " +
+    "where e.organization_id=$1::uuid and e.idempotency_key=$2::uuid" +
+    ") select " +
+    "(select count(*)::integer from public.accounting_journal_entries e " +
+    " where e.organization_id=$1::uuid and e.idempotency_key=$2::uuid) as entry_count, " +
+    "(select count(*)::integer from public.accounting_journal_lines l " +
+    " join target_entries e on e.id=l.journal_entry_id where l.organization_id=$1::uuid) as line_count, " +
+    "(select count(*)::integer from public.audit_logs a " +
+    " where a.organization_id=$1::uuid and a.action='accounting.journal_draft_created') as audit_count";
+  const deniedStaffJournalBefore = (await db.unsafe(
+    deniedStaffJournalSnapshotSql,
+    [organizationId, deniedStaffJournalKey],
+  ))[0];
+  assert.equal(deniedStaffJournalBefore.entry_count, 0,
+    "the fresh idempotency key must not already identify a journal");
+  assert.equal(deniedStaffJournalBefore.line_count, 0,
+    "the fresh idempotency key must not already identify journal lines");
+  // Existing journal-draft audit events from the earlier acceptance fixtures
+  // are valid; compare their tenant-wide count before and after this denial.
+  const ordinaryStaffRoles = await db.unsafe(
+    "select role from public.user_roles where profile_id=$1::uuid order by role",
+    [operationsStaffProfileId],
+  );
+  assert.deepEqual(ordinaryStaffRoles.map((row) => row.role), ["staff"],
+    "the denial fixture must be an ordinary staff account without finance elevation");
+  const journalDraftExecutePrivileges = (await db.unsafe(
+    "select has_function_privilege('anon','public.create_general_journal_draft(uuid,date,text,jsonb,text)','EXECUTE') as anon_can_execute, " +
+    "has_function_privilege('authenticated','public.create_general_journal_draft(uuid,date,text,jsonb,text)','EXECUTE') as authenticated_can_execute",
+  ))[0];
+  assert.equal(journalDraftExecutePrivileges.anon_can_execute, false);
+  assert.equal(journalDraftExecutePrivileges.authenticated_can_execute, true,
+    "authenticated staff must reach the server-side role guard rather than relying on a missing function grant");
+
+  await setIdentity(operationsStaffAuthUserId, "ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "ordinary same-tenant staff cannot create a balanced journal draft",
+    () => db.unsafe(
+      "select public.create_general_journal_draft($1::uuid,$2::date,$3::text,$4::jsonb,$5::text)",
+      [deniedStaffJournalKey,"2026-10-18","CI ordinary-staff denied journal",ledgerLines,"CI-GL-STAFF-DENIED"],
+    ),
+    /finance permission required to create a journal entry/i,
+    "42501",
+  );
+  await db.unsafe("reset role");
+  const deniedStaffJournalAfter = (await db.unsafe(
+    deniedStaffJournalSnapshotSql,
+    [organizationId, deniedStaffJournalKey],
+  ))[0];
+  assert.deepEqual(deniedStaffJournalAfter, deniedStaffJournalBefore,
+    "ordinary-staff journal denial must leave journal header, lines and audit history unchanged");
+  process.stdout.write(
+    "PASS FIN-LEDGER-STAFF-DRAFT-DENIAL-001: ordinary same-tenant staff receives SQLSTATE 42501; no journal, line or audit rows are created\\n",
+  );
+
   process.stdout.write("PASS general ledger: chart idempotency, exact two-decimal amounts, balanced draft/post, replay safety, audited draft cancellation, trial balance and tenant/role isolation\\n");
 
   // NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006:
