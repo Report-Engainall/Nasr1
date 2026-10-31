@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { PurchaseReceiptAccountingWorkspace } from '@/components/PurchaseReceiptAccountingWorkspace';
 import { downloadPurchaseOrdersWorkbookXlsx } from '@/lib/purchase-orders-xlsx';
+import { projectPurchaseOrdersForPrint } from '@/lib/purchase-orders-print';
 
 type WarehouseOption = { id: string; name: string; code: string | null };
 type DraftLine = { productId: string; quantity: string; unitCost: string };
@@ -95,6 +96,13 @@ export function PurchaseOrdersPage() {
     () => orders.find((order) => order.id === selectedId) ?? null,
     [orders,selectedId],
   );
+  const printOrders = useMemo(() => {
+    if (!printMode) return [];
+    const source = printMode === 'results'
+      ? visibleOrders
+      : selectedOrder ? [selectedOrder] : [];
+    return projectPurchaseOrdersForPrint(source, user?.roles ?? []);
+  }, [printMode,visibleOrders,selectedOrder,user?.roles]);
   const activeSuppliers = useMemo(
     () => suppliers.filter((supplier) => (supplier.status ?? 'active') === 'active'),
     [suppliers],
@@ -225,6 +233,7 @@ export function PurchaseOrdersPage() {
   return <section className={'purchase-orders' + (printMode ? ' print-' + printMode : '')} dir="rtl">
     <style>{`
       .purchase-orders{display:grid;gap:16px;min-width:0}
+      .purchase-orders .po-print-document{display:none}
       .purchase-orders .po-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
       .purchase-orders .po-layout{display:grid;grid-template-columns:minmax(280px,0.9fr) minmax(0,1.4fr);gap:16px;align-items:start}
       .purchase-orders .po-card{border:1px solid var(--border,#d9e1e5);border-radius:12px;padding:14px;display:grid;gap:8px;background:var(--card,#fff)}
@@ -251,15 +260,55 @@ export function PurchaseOrdersPage() {
       @media(max-width:850px){.purchase-orders .po-layout{grid-template-columns:1fr}.purchase-orders .po-line{grid-template-columns:1fr 1fr}.purchase-orders .po-line .wide{grid-column:1/-1}}
       @media(max-width:480px){.purchase-orders .po-summary,.purchase-orders .po-create-grid{grid-template-columns:1fr}.purchase-orders .po-line{grid-template-columns:1fr}}
       @media print{
+        @page{size:A4;margin:14mm}
         body *{visibility:hidden!important}.purchase-orders,.purchase-orders *{visibility:visible!important}
         .purchase-orders{position:absolute;inset:0;width:100%;color:#000!important;background:#fff!important}
-        .purchase-orders .no-print{display:none!important}.purchase-orders .po-layout{display:block}
-        .purchase-orders.print-results .po-selected-order{display:none!important}
-        .purchase-orders.print-order .po-results-list,.purchase-orders.print-order .po-results-header{display:none!important}
-        .purchase-orders .po-card,.purchase-orders .panel{break-inside:avoid}
-        .purchase-orders .po-table-wrap th,.purchase-orders .po-table-wrap td{color:#000!important;border-color:#999!important}
+        .purchase-orders > :not(.po-print-document){display:none!important}
+        .purchase-orders > .po-print-document{display:block!important;position:static;width:100%;padding:0;background:#fff;color:#000}
+        .purchase-orders .po-print-order{break-inside:avoid;page-break-inside:avoid;margin:0 0 18px;padding:0 0 12px;border-bottom:1px solid #999}
+        .purchase-orders .po-print-order-head{display:flex;justify-content:space-between;gap:12px;align-items:center}
+        .purchase-orders .po-print-order-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px;margin:10px 0}
+        .purchase-orders .po-print-table{width:100%;border-collapse:collapse;font-size:11px}
+        .purchase-orders .po-print-table th,.purchase-orders .po-print-table td{padding:6px;border:1px solid #999;text-align:right;color:#000}
+        .purchase-orders .po-print-total{margin-top:8px;font-weight:800}
       }
     `}</style>
+    <div className="po-print-document" dir="rtl">
+      <header>
+        <h1>متجر الأغبري | Aghbari Commerce</h1>
+        <p>{printMode === 'results' ? 'كشف أوامر الشراء الظاهرة' : 'مستند أمر شراء'}</p>
+        <small>تاريخ الطباعة: {formatDateShort(new Date().toISOString())}</small>
+      </header>
+      {printOrders.map((order) => (
+        <article className="po-print-order" key={order.purchaseOrderNumber}>
+          <div className="po-print-order-head">
+            <h2>أمر الشراء {order.purchaseOrderNumber}</h2>
+            <strong>{order.statusLabel}</strong>
+          </div>
+          <div className="po-print-order-meta">
+            <span><strong>المورد:</strong> {order.supplierName} · {order.supplierCode}</span>
+            <span><strong>المخزن:</strong> {order.warehouseName}</span>
+            <span><strong>تاريخ الإنشاء:</strong> {formatDateShort(order.createdAt)}</span>
+            <span><strong>تاريخ الاعتماد:</strong> {order.submittedAt ? formatDateShort(order.submittedAt) : 'غير معتمد'}</span>
+          </div>
+          <table className="po-print-table">
+            <thead><tr>
+              <th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th><th>المطلوب</th>
+              <th>المستلم</th><th>المتبقي</th><th>تكلفة الوحدة</th><th>قيمة البند</th>
+            </tr></thead>
+            <tbody>{order.items.map((item, index) => (
+              <tr key={order.purchaseOrderNumber + '-' + item.itemCode + '-' + index}>
+                <td>{item.itemCode}</td><td>{item.productName}</td><td>{item.unit ?? 'غير محدد'}</td>
+                <td>{numberText(item.quantityOrdered)}</td><td>{numberText(item.quantityReceived)}</td>
+                <td>{numberText(item.remainingQuantity)}</td><td>{moneyText(item.unitCost)}</td><td>{moneyText(item.lineTotal)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+          <p className="po-print-total">إجمالي التكلفة المسجلة: {moneyText(order.totalCost)}</p>
+        </article>
+      ))}
+      {printOrders.length === 0 && <p>لا توجد بيانات مصرح بها للطباعة.</p>}
+    </div>
     <header className="heading">
       <div className="heading-icon"><PackageCheck size={24}/></div>
       <div><span>التوريد والمخزون</span><h1>أوامر الشراء والاستلام</h1>
