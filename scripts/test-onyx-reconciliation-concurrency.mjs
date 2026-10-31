@@ -1,4 +1,3 @@
-import { logError, logInfo } from "./diagnostic-logger.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
@@ -294,14 +293,14 @@ async function main() {
   );
   assert.equal(auditRows[0].count, 1, "one committed apply must produce one audit record");
 
-  logInfo(
+  console.log(
     "PASS Onyx reconciliation two-session concurrency: both callers observed waiting; one apply, one idempotent replay, one movement, one audit, reservations preserved",
   );
 }
 
 main()
   .catch((error) => {
-    logError("DATABASE_ACCEPTANCE_FAILED onyx reconciliation concurrency:", error);
+    console.error("DATABASE_ACCEPTANCE_FAILED onyx reconciliation concurrency:", error);
     process.exitCode = 1;
   })
   .finally(async () => {
@@ -309,7 +308,7 @@ main()
     try {
       await removeFixture();
     } catch (error) {
-      logError("DATABASE_ACCEPTANCE_CLEANUP_FAILED onyx reconciliation concurrency:", error);
+      console.error("DATABASE_ACCEPTANCE_CLEANUP_FAILED onyx reconciliation concurrency:", error);
       process.exitCode = 1;
     }
     await Promise.all([
