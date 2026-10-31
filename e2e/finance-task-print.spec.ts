@@ -119,8 +119,26 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
     await menuButton.click();
     await expect(page.getByRole("button", { name: "إغلاق القائمة الإدارية" })).toBeVisible();
     await expect(sidebar).toBeVisible();
-    const openWidth = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth));
-    expect(openWidth).toBeLessThanOrEqual(361);
+    const openMetrics = await page.evaluate(() => ({
+      documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      viewportWidth: window.innerWidth,
+      offenders: Array.from(document.body.querySelectorAll("*")).map((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          tag: element.tagName.toLowerCase(),
+          id: element.id || null,
+          className: typeof element.className === "string" ? element.className : null,
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+          position: style.position,
+          overflowX: style.overflowX,
+        };
+      }).filter((element) => element.width > window.innerWidth + 1 || (element.right > window.innerWidth + 1 && element.position !== "fixed"))
+        .sort((a, b) => b.right - a.right).slice(0, 12),
+    }));
+    expect(openMetrics.documentWidth, "opened admin drawer viewport offenders: " + JSON.stringify(openMetrics.offenders))
+      .toBeLessThanOrEqual(openMetrics.viewportWidth + 1);
     await page.getByRole("button", { name: "إغلاق القائمة الإدارية" }).click();
     await expect(sidebar).toBeHidden();
 
