@@ -109,6 +109,21 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
   }
 
   if (route === "/admin/finance" && width <= 360) {
+    const menuButton = page.getByRole("button", { name: "فتح القائمة الإدارية" });
+    const sidebar = page.locator("#admin-sidebar");
+    const hiddenBounds = await sidebar.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, width: rect.width, viewport: window.innerWidth };
+    });
+    expect(hiddenBounds.right).toBeLessThanOrEqual(hiddenBounds.viewport + 1);
+    await menuButton.click();
+    await expect(page.getByRole("button", { name: "إغلاق القائمة الإدارية" })).toBeVisible();
+    await expect(sidebar).toBeVisible();
+    const openWidth = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth));
+    expect(openWidth).toBeLessThanOrEqual(361);
+    await page.getByRole("button", { name: "إغلاق القائمة الإدارية" }).click();
+    await expect(sidebar).toBeHidden();
+
     const journalLineScroller = page.getByRole("region", { name: "حقول سطر قيد اليومية 1" });
     await expect(journalLineScroller).toBeVisible();
     const scrollMetrics = await journalLineScroller.evaluate((element) => ({
