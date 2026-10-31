@@ -14,6 +14,27 @@ describe("per-currency liquidity",()=>{
   ]});
   expect(r.positions.map(p=>[p.currency,p.netAvailableLiquidity])).toEqual([["YER",9000],["USD",70]]);
  });
+
+ it("preserves verified receivables while withholding cash and net liquidity without a cash source",()=>{
+  const collections=metric("collections","cashflow.expected_collections",375,"YER");
+  const result=buildLiquiditySnapshot({
+   id:"receivables-only",generatedAt:asOf,asOf,period,
+   evidenceRecords:[evidence("collections","YER")],
+   currencies:[{currency:"YER",availableBalance:null,expectedCollections:collections,dueObligations:null}],
+  });
+  expect(result.positions[0]).toMatchObject({
+   currency:"YER",
+   availableBalance:null,
+   availableBalanceStatus:"UNAVAILABLE",
+   expectedCollections:375,
+   expectedCollectionsStatus:"VERIFIED",
+   dueObligations:null,
+   dueObligationsStatus:"UNAVAILABLE",
+   netAvailableLiquidity:null,
+   status:"UNAVAILABLE",
+   completeness:"PARTIAL",
+  });
+ });
  it("withholds net liquidity when a mandatory source is absent",()=>{
   const a=metric("a","cash",50,"YER"),b=metric("b","collections",10,"YER");
   const r=buildLiquiditySnapshot({id:"l",generatedAt:asOf,asOf,period,evidenceRecords:[evidence("a","YER"),evidence("b","YER")],currencies:[{currency:"YER",availableBalance:a,expectedCollections:b,dueObligations:null}]});
