@@ -167,7 +167,10 @@ describe("product activity report interactive screen", () => {
     expect(JSON.stringify(projected)).not.toContain("product_id");
     expect(JSON.stringify(projected)).not.toContain("product-1");
 
-    const truncated = { ...report, total_products: 31, truncated: true };
+    const incomplete = { ...report, total_products: 31, truncated: false };
+    expect(() => projectProductActivityPrintDocument(incomplete)).toThrow(/غير مكتمل/);
+
+    const truncated = { ...report, total_products: 5001, truncated: true };
     render(<ProductActivityReport reportOverride={truncated} />);
     const button = screen.getByRole("button", { name: "طباعة التقرير الكامل / PDF" });
     expect(button).toBeDisabled();
