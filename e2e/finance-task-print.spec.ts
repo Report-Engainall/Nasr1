@@ -353,7 +353,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
     const privatePurchaseNote = "E2E_PRIVATE_PO_NOTE_" + Date.now();
     await manager.getByLabel("ملاحظات داخلية للشراء/المخزن").fill(privatePurchaseNote);
     await manager.getByRole("button", { name: "حفظ مسودة أمر الشراء" }).click();
-    await expect(manager.getByRole("status")).toContainText("حُفظت مسودة أمر الشراء", { timeout: 20_000 });
+    await expect(manager.getByText(/حُفظت مسودة أمر الشراء من البيانات الحالية/)).toBeVisible({ timeout: 20_000 });
 
     const purchaseOrderPrintButton = manager.getByRole("button", { name: "طباعة الأمر", exact: true });
     await expect(purchaseOrderPrintButton).toBeEnabled({ timeout: 20_000 });
