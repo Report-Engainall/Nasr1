@@ -537,3 +537,47 @@
   .product-activity-print-sheet tr { break-inside: avoid; page-break-inside: avoid; }
   .product-activity-print-footer { margin-top: 8px; padding-top: 5px; border-top: 1px solid #cbd5cf; color: #526057 !important; font-size: 6.5pt; }
 }
+
+
+/* General journal and complete financial statements print output. */
+.general-ledger-print-sheet { display: none; page: aghbariGeneralLedger; }
+@page aghbariGeneralLedger { size: A4 portrait; margin: 12mm; }
+@media print {
+  body[data-print-mode="general-ledger"] > :not(.general-ledger-print-sheet) { display: none !important; }
+  body[data-print-mode="general-ledger"] * { visibility: hidden !important; }
+  body[data-print-mode="general-ledger"] .general-ledger-print-sheet,
+  body[data-print-mode="general-ledger"] .general-ledger-print-sheet * { visibility: visible !important; }
+  body[data-print-mode="general-ledger"] .general-ledger-print-sheet {
+    display: block !important;
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #18231d !important;
+    background: #fff !important;
+    direction: rtl !important;
+    text-align: right !important;
+    font-family: Arial, sans-serif !important;
+    font-size: 9pt !important;
+    line-height: 1.65 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .general-ledger-print-header { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding-bottom: 9px; border-bottom: 2px solid #b58b31; }
+  .general-ledger-print-header h1 { margin: 0 0 4px; color: #174a37 !important; font-size: 16pt; }
+  .general-ledger-print-header h2 { margin: 4px 0; color: #174a37 !important; font-size: 11pt; }
+  .general-ledger-print-header p { margin: 3px 0; color: #333 !important; }
+  .general-ledger-print-generated { display: grid; gap: 2px; text-align: left; font-size: 8pt; white-space: nowrap; }
+  .general-ledger-print-section { margin-top: 12px; break-inside: auto; }
+  .general-ledger-print-section h3 { margin: 7px 0 5px; color: #174a37 !important; font-size: 10pt; break-after: avoid; }
+  .general-ledger-print-sheet table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 8pt; }
+  .general-ledger-print-sheet thead { display: table-header-group; }
+  .general-ledger-print-sheet th,
+  .general-ledger-print-sheet td { padding: 5px 6px; border: 1px solid #cbd5cf; text-align: right; vertical-align: top; overflow-wrap: anywhere; }
+  .general-ledger-print-sheet thead th { color: #174a37 !important; background: #edf4ef !important; font-weight: 800; }
+  .general-ledger-print-sheet tfoot th { background: #f2f4f3 !important; }
+  .general-ledger-print-sheet tr { break-inside: avoid; page-break-inside: avoid; }
+  .general-ledger-print-note { margin: 7px 0; color: #526057 !important; font-size: 8pt; }
+  .general-ledger-print-footer { margin-top: 14px; padding-top: 7px; border-top: 1px solid #cbd5cf; color: #526057 !important; font-size: 7.5pt; }
+}
