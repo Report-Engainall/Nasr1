@@ -517,6 +517,77 @@ describe("public storefront product route acceptance", () => {
     expect(host?.querySelector(".sf-cart-qty span")?.textContent).toBe("7");
   });
 
+  it("lets customers choose an exact product-detail quantity within minimum, multiple and available stock", async () => {
+    mocks.fetchProducts.mockResolvedValue([{
+      ...PRODUCT,
+      min_order_quantity: 2,
+      order_quantity_multiple: 3,
+      inventory: { ...PRODUCT.inventory, quantity_available: 7 },
+    }]);
+    await mountRoute(`/product/${PRODUCT_ID}`);
+
+    const quantityInput = host?.querySelector<HTMLInputElement>('input[aria-label="كمية الطلب"]');
+    expect(quantityInput?.value).toBe("2");
+    expect(quantityInput?.min).toBe("2");
+    expect(quantityInput?.max).toBe("7");
+    expect(quantityInput?.step).toBe("3");
+
+    const increase = host?.querySelector<HTMLButtonElement>('button[aria-label="زيادة كمية الطلب"]');
+    const decrease = host?.querySelector<HTMLButtonElement>('button[aria-label="تقليل كمية الطلب"]');
+    expect(increase?.disabled).toBe(false);
+    expect(decrease?.disabled).toBe(true);
+
+    await act(async () => {
+      fireEvent.click(increase!);
+    });
+    await flush();
+
+    expect(quantityInput?.value).toBe("5");
+    expect(increase?.disabled).toBe(true);
+    expect(host?.textContent).toContain("الحد الأدنى ٢، والزيادة بمضاعف ٣، والمتاح ٧.");
+
+    const addButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("إضافة إلى السلة"));
+    expect(addButton?.disabled).toBe(false);
+    await act(async () => {
+      fireEvent.click(addButton!);
+    });
+    await flush();
+
+    expect(host?.querySelector(".sf-cart-btn")?.textContent).toContain("5");
+  });
+
+  it("restores the current cart-line quantity on product detail and updates that line to the newly selected amount", async () => {
+    mocks.fetchProducts.mockResolvedValue([{
+      ...PRODUCT,
+      min_order_quantity: 2,
+      order_quantity_multiple: 3,
+      inventory: { ...PRODUCT.inventory, quantity_available: 7 },
+    }]);
+    vi.mocked(loadOfflineCartDraft).mockReturnValue([{ product_id: PRODUCT_ID, quantity: 5 }]);
+
+    await mountRoute(`/product/${PRODUCT_ID}`);
+
+    const quantityInput = host?.querySelector<HTMLInputElement>('input[aria-label="كمية الطلب"]');
+    expect(quantityInput?.value).toBe("5");
+
+    const decrease = host?.querySelector<HTMLButtonElement>('button[aria-label="تقليل كمية الطلب"]');
+    await act(async () => {
+      fireEvent.click(decrease!);
+    });
+    await flush();
+
+    expect(quantityInput?.value).toBe("2");
+    const addButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("إضافة إلى السلة"));
+    await act(async () => {
+      fireEvent.click(addButton!);
+    });
+    await flush();
+
+    expect(host?.querySelector(".sf-cart-btn")?.textContent).toContain("2");
+  });
+
   it("shows a not-available state for an unknown deep-linked product ID", async () => {
     mocks.fetchProducts.mockResolvedValue([{ ...PRODUCT, id: "55555555-5555-4555-8555-555555555555" }]);
     await mountRoute(`/product/${PRODUCT_ID}`);
