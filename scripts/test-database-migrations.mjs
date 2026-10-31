@@ -7022,6 +7022,9 @@ async function main() {
   assert.equal(inventoryAggregate.evidenceRecords.some((e) => e.id==="purchase-receipt-item:"+inventoryReceiptItemId),true);
   assert.equal(inventoryAggregate.evidenceRecords.some((e) => e.id==="movement-window:"+inventoryForeignProductId),false);
   // A current balance/order row updated after the requested as-of instant must not leak into the historical read.
+  // Mutate the fixture through the privileged setup connection, then restore the
+  // authenticated tenant role before invoking the read RPC.
+  await db.unsafe("reset role");
   const laterInventorySourceTimestamp=new Date(Date.parse(inventoryAsOf.as_of)+1000).toISOString();
   await db.unsafe(
     "update public.inventory_balances set updated_at=$3::timestamptz where product_id=$1 and warehouse_id=$2",
@@ -7031,6 +7034,7 @@ async function main() {
     "update public.orders set updated_at=$2::timestamptz where id=$1",
     [inventorySaleOrderId,laterInventorySourceTimestamp],
   );
+  await db.unsafe("set role authenticated");
   const historicalInventoryAggregate=(await db.unsafe(
     "select public.get_inventory_intelligence_aggregate($1::date,$2::date,$3::timestamptz) as result",
     [inventoryAsOf.from_day,inventoryAsOf.to_day,inventoryAsOf.as_of],

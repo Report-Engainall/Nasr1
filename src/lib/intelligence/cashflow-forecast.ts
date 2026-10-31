@@ -57,11 +57,19 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
  for(const entry of input.entries){if(seen.has(entry.id))duplicateEntryIds.add(entry.id);seen.add(entry.id)}
  const scheduleStatus=statusOf(input.scheduleStatus,input.scheduleCompleteness,input.scheduleQuality);
  const result:CashflowForecastPoint[]=[],topWarnings:string[]=[];
- for(const [currency,opening] of openingCurrencies){
-  const openingValue=numeric(opening.value);
-  const openingValid=!duplicateOpening.has(currency)&&opening.status==="VERIFIED"&&opening.unit==="CURRENCY"&&opening.currency===currency&&
-   opening.asOf===input.asOf&&opening.completeness==="COMPLETE"&&opening.quality==="ACCEPTABLE"&&opening.lineage.evidenceIds.length>0&&openingValue!==null;
-  const scoped=validEntries.filter(x=>x.metric?.currency===currency);
+ // Scheduled evidence may be displayed without a cash opening balance. The currency
+ // is still sourced from a validated schedule metric; no opening or projected balance
+ // is synthesized when the bank/cash source is absent.
+ const currencies=new Set<string>([
+  ...openingCurrencies.keys(),
+  ...validEntries.flatMap(item=>item.valid&&item.metric?.currency?[item.metric.currency]:[]),
+ ]);
+ for(const currency of [...currencies].sort()){
+  const opening=openingCurrencies.get(currency);
+  const openingValue=opening?numeric(opening.value):null;
+  const openingValid=Boolean(opening&&!duplicateOpening.has(currency)&&opening.status==="VERIFIED"&&opening.unit==="CURRENCY"&&opening.currency===currency&&
+   opening.asOf===input.asOf&&opening.completeness==="COMPLETE"&&opening.quality==="ACCEPTABLE"&&opening.lineage.evidenceIds.length>0&&openingValue!==null);
+  const scoped=validEntries.filter(x=>(x.metric?.currency??x.entry.amount.currency)===currency);
   const badScoped=validEntries.some(x=>x.entry.amount.currency===currency&&!x.valid);
   const duplicateScoped=input.entries.some(e=>duplicateEntryIds.has(e.id)&&e.amount.currency===currency);
   const dateCoverageValid=!input.entries.some(e=>!parseDay(e.dueDate)&&(!e.amount.currency||e.amount.currency===currency));
@@ -82,9 +90,10 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
    const hasKnownEvents=window.some(x=>x.valid);
    const projected=complete&&openingValid?(openingValue as number)+knownInflow-knownOutflow:null;
    let status:EvidenceStatus="VERIFIED";
-   if(!openingValid)status=opening.status==="UNVERIFIED"?"UNVERIFIED":opening.status==="UNAVAILABLE"?"UNAVAILABLE":"NEEDS_REVIEW";
+   if(!opening)status=complete?"UNAVAILABLE":scheduleStatus==="UNVERIFIED"?"UNVERIFIED":scheduleStatus==="UNAVAILABLE"?"UNAVAILABLE":"NEEDS_REVIEW";
+   else if(!openingValid)status=opening.status==="UNVERIFIED"?"UNVERIFIED":opening.status==="UNAVAILABLE"?"UNAVAILABLE":"NEEDS_REVIEW";
    else if(!complete)status=scheduleStatus==="VERIFIED"?"NEEDS_REVIEW":scheduleStatus;
-   const sources=[opening,...window.flatMap(x=>x.metric?[x.metric]:[])];
+   const sources=[...(opening?[opening]:[]),...window.flatMap(x=>x.metric?[x.metric]:[])];
    const evidenceIds=[...new Set(sources.flatMap(m=>m.lineage.evidenceIds))];
    const formulaVersions=[...new Set(sources.map(m=>m.lineage.formulaId+"@"+m.lineage.formulaVersion))];
    result.push({
