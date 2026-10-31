@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { BookOpenCheck, Plus, RefreshCw, Printer, Send, Trash2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -8,6 +9,8 @@ import { CashExpenseJournalLinker } from "@/components/CashExpenseJournalLinker"
 import { CustomerInvoicePaymentJournalLinker } from "@/components/CustomerInvoicePaymentJournalLinker";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
 import { GeneralJournalReversalAction } from "@/components/GeneralJournalReversalAction";
+import { GeneralLedgerPrintSheet } from "@/components/GeneralLedgerPrintSheet";
+import { projectFinancialStatementsPrintDocument, projectGeneralJournalPrintDocument, type GeneralLedgerPrintDocument } from "@/lib/general-journal-print";
 
 type Account = { id: string; code: string; name: string; account_type: LedgerAccountType; is_active: boolean; debit_total: string; credit_total: string };
 type JournalLine = { line_number: number; account_id: string; account_code: string; account_name: string; debit: string; credit: string; memo: string | null };
@@ -90,6 +93,61 @@ export function GeneralLedgerWorkspace() {
   const [statements, setStatements] = useState<FinancialStatementsReport | null>(null);
   const [statementsLoading, setStatementsLoading] = useState(false);
   const [statementsError, setStatementsError] = useState("");
+  const [printDocument, setPrintDocument] = useState<GeneralLedgerPrintDocument | null>(null);
+  const [printError, setPrintError] = useState("");
+
+  useEffect(() => {
+    if (!printDocument || typeof window === "undefined" || typeof document === "undefined" || typeof window.print !== "function") return;
+    const body = document.body;
+    const previousMode = body.getAttribute("data-print-mode");
+    body.setAttribute("data-print-mode", "general-ledger");
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      if (previousMode === null) body.removeAttribute("data-print-mode");
+      else body.setAttribute("data-print-mode", previousMode);
+      window.removeEventListener("afterprint", restore);
+      setPrintDocument(null);
+    };
+    window.addEventListener("afterprint", restore, { once: true });
+    const timer = window.setTimeout(() => {
+      try {
+        window.print();
+      } catch {
+        setPrintError("تعذر فتح نافذة الطباعة في هذا المتصفح.");
+        restore();
+      }
+    }, 80);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("afterprint", restore);
+      if (!restored && body.getAttribute("data-print-mode") === "general-ledger") {
+        if (previousMode === null) body.removeAttribute("data-print-mode");
+        else body.setAttribute("data-print-mode", previousMode);
+      }
+    };
+  }, [printDocument]);
+
+  function printJournalEntry(entry: JournalEntry) {
+    const projected = projectGeneralJournalPrintDocument(entry);
+    if (!projected) {
+      setPrintError("تعذر طباعة القيد؛ بياناته أو توازنه لا تطابق عقد الطباعة الآمن.");
+      return;
+    }
+    setPrintError("");
+    setPrintDocument(projected);
+  }
+
+  function printFinancialStatements() {
+    const projected = projectFinancialStatementsPrintDocument(statements);
+    if (!projected) {
+      setPrintError("تعذر طباعة القوائم؛ تعذرت مطابقة مجاميع قائمة الدخل والمركز المالي مع تفاصيل الحسابات.");
+      return;
+    }
+    setPrintError("");
+    setPrintDocument(projected);
+  }
 
   const refresh = useCallback(async () => {
     if (!ready || !canUseFinance) return;
@@ -276,7 +334,6 @@ export function GeneralLedgerWorkspace() {
           </div>
           <div className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="button" style={button} onClick={() => void refresh()} disabled={loading || saving}><RefreshCw size={15} /> تحديث</button>
-            <button type="button" style={button} onClick={() => window.print()}><Printer size={15} /> طباعة النتائج المعروضة</button>
             <button type="button" style={primary} onClick={() => setShowAccountForm((shown) => !shown)}><Plus size={15} /> حساب جديد</button>
           </div>
         </div>
@@ -333,7 +390,10 @@ export function GeneralLedgerWorkspace() {
       <section style={card} aria-label="القوائم المالية المبسطة">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
           <div><h3 style={{ margin: 0 }}>قائمة الدخل والمركز المالي</h3><p style={muted}>تجميع من القيود المرحلة في الأستاذ؛ مستقل عن عدد القيود المعروضة في الصفحة.</p></div>
-          <button className="no-print" type="button" style={button} onClick={() => void refreshStatements()} disabled={statementsLoading}><RefreshCw size={14} /> تحديث القوائم</button>
+          <div className="no-print" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button type="button" style={button} onClick={printFinancialStatements} disabled={statementsLoading || !statements}><Printer size={14} /> طباعة القوائم المالية</button>
+            <button type="button" style={button} onClick={() => void refreshStatements()} disabled={statementsLoading}><RefreshCw size={14} /> تحديث القوائم</button>
+          </div>
         </div>
         <form className="no-print" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }} onSubmit={(event) => {
           event.preventDefault();
@@ -347,6 +407,7 @@ export function GeneralLedgerWorkspace() {
           <label>إلى تاريخ القائمة<input aria-label="إلى تاريخ القائمة المالية" type="date" required style={{ ...field, display: "block", marginTop: 5 }} value={statementRangeDraft.to} onChange={(event) => setStatementRangeDraft((v) => ({ ...v, to: event.target.value }))} /></label>
           <div style={{ display: "flex", alignItems: "end" }}><button type="submit" style={primary}>تطبيق الفترة</button></div>
         </form>
+        {printError ? <p className="no-print" role="alert" style={{ ...muted, color: "#9b2828" }}>{printError}</p> : null}
         {statementsLoading ? <p role="status" style={muted}>جارٍ احتساب القوائم من دفتر الأستاذ...</p> : statementsError ? <p role="alert" style={{ ...muted, color: "#9b2828" }}>{statementsError}</p> : statements ? (
           <>
             <p style={muted}>فترة الدخل: {statements.periodFrom} إلى {statements.periodTo} · القيود المرحلة في الفترة: {statements.postedEntryCount}</p>
@@ -449,6 +510,7 @@ export function GeneralLedgerWorkspace() {
                   <div><strong>قيد #{entry.entry_number}</strong><div style={muted}>{entry.entry_date} · {entry.description}</div>{entry.source_reference && <div style={muted}>المرجع: {entry.source_reference}</div>}</div>
                   <div><strong>{entry.status === "posted" ? "مرحّل" : entry.status === "void" ? "ملغاة" : "مسودة"}</strong><div style={muted}>مدين {formatLedgerMoney(entry.debit_total)} · دائن {formatLedgerMoney(entry.credit_total)}</div>{entry.void_reason && <div style={muted}>سبب الإلغاء: {entry.void_reason}</div>}</div>
                 </header>
+                <div className="no-print" style={{ display: "flex", justifyContent: "flex-start" }}><button type="button" style={button} onClick={() => printJournalEntry(entry)} disabled={saving || loading}><Printer size={14} /> طباعة القيد</button></div>
                 <div style={{ overflowX: "auto", marginTop: 8 }}><table style={table}><thead><tr style={{ background: "var(--muted, #f4f7f8)" }}><th style={{ padding: 7 }}>الحساب</th><th>البيان</th><th>مدين</th><th>دائن</th></tr></thead><tbody>
                   {entry.lines.map((line) => <tr key={line.line_number} style={{ borderTop: "1px solid var(--border, #e3e9ec)" }}><td style={{ padding: 7 }}>{line.account_code} — {line.account_name}</td><td>{line.memo || "—"}</td><td>{formatLedgerMoney(line.debit)}</td><td>{formatLedgerMoney(line.credit)}</td></tr>)}
                 </tbody></table></div>
@@ -466,5 +528,6 @@ export function GeneralLedgerWorkspace() {
         </footer>
       </section>
     </section>
+      {printDocument && typeof document !== "undefined" ? createPortal(<GeneralLedgerPrintSheet document={printDocument} />, document.body) : null}
   );
 }
