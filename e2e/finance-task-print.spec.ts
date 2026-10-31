@@ -108,6 +108,22 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
     else await expect(menu).toBeHidden();
   }
 
+  if (route === "/admin/finance" && width <= 360) {
+    const journalLineScroller = page.getByRole("region", { name: "حقول سطر قيد اليومية 1" });
+    await expect(journalLineScroller).toBeVisible();
+    const scrollMetrics = await journalLineScroller.evaluate((element) => ({
+      viewportWidth: window.innerWidth,
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      right: element.getBoundingClientRect().right,
+      left: element.getBoundingClientRect().left,
+    }));
+    expect(scrollMetrics.clientWidth).toBeLessThanOrEqual(scrollMetrics.viewportWidth);
+    expect(scrollMetrics.right).toBeLessThanOrEqual(scrollMetrics.viewportWidth + 1);
+    expect(scrollMetrics.left).toBeGreaterThanOrEqual(-1);
+    expect(scrollMetrics.scrollWidth).toBeGreaterThan(scrollMetrics.clientWidth);
+  }
+
   const measured = await page.evaluate(() => ({
     lang: document.documentElement.lang.toLowerCase(),
     direction: getComputedStyle(document.documentElement).direction,
