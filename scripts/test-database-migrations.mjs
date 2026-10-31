@@ -6708,6 +6708,30 @@ async function main() {
   assert.equal(intelSerialized.includes("Confidential Intelligence Customer"),false,
     "aggregate must not expose customer display name");
 
+  // A later payment must not rewrite a snapshot taken before its paid_at timestamp.
+  const intelFuturePaymentId = randomUUID();
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "insert into public.customer_payments(id,organization_id,customer_id,invoice_id,amount,payment_method,paid_at,created_by) values($1,$2,$3,$4,50,'cash',$5::timestamptz+interval '1 hour',$6)",
+    [intelFuturePaymentId,intelOrganizationId,intelCustomerId,intelInvoiceId,intelAsOf.as_of,intelProfileId],
+  );
+  await setIdentity(intelAuthUserId,"ci-intelligence-admin@example.test");
+  await db.unsafe("set role authenticated");
+  const intelHistoricalReplay = (await db.unsafe(
+    "select public.get_intelligence_aggregate($1::jsonb) as result",
+    [db.json({...intelRequest,requestId:randomUUID()})],
+  ))[0].result;
+  assert.equal(Number(intelHistoricalReplay.cashflowSchedule.entries[0].amount.value),375,
+    "a payment after asOf must not reduce the historical receivable");
+  assert.equal(Number(intelHistoricalReplay.metrics[0].value),375,
+    "the currency total must use the same asOf cutoff as each invoice entry");
+  assert.deepEqual(
+    intelHistoricalReplay.cashflowSchedule.entries[0].amount.lineage.evidenceIds.sort(),
+    ["invoice:"+intelInvoiceId,"payment:"+intelPaymentId].sort(),
+    "future payment must not enter historical evidence lineage",
+  );
+  assert.equal(intelHistoricalReplay.evidenceRecords.length,2);
+
   await expectFailure(
     "client cannot override intelligence aggregate tenant scope",
     () => db.unsafe("select public.get_intelligence_aggregate($1::jsonb)",[

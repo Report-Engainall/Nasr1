@@ -140,6 +140,7 @@ BEGIN
       SELECT p.invoice_id, pg_catalog.sum(p.amount)::numeric(15,2) AS paid_amount
         FROM public.customer_payments p
        WHERE p.organization_id=v_org
+         AND p.paid_at<=v_as_of
        GROUP BY p.invoice_id
     )
     SELECT pg_catalog.count(*)::integer
@@ -148,6 +149,7 @@ BEGIN
       LEFT JOIN paid p ON p.invoice_id=i.id
      WHERE i.organization_id=v_org
        AND i.status IN ('issued','partially_paid')
+       AND i.issued_at<=v_as_of
        AND i.total_amount > coalesce(p.paid_amount,0)
        AND (v_currency IS NULL OR pg_catalog.upper(i.currency)=v_currency)
        AND (
@@ -169,6 +171,7 @@ BEGIN
                pg_catalog.array_agg('payment:'||p.id::text ORDER BY p.paid_at,p.id) AS evidence_ids
           FROM public.customer_payments p
          WHERE p.organization_id=v_org
+           AND p.paid_at<=v_as_of
          GROUP BY p.invoice_id
       ),
       scheduled AS (
@@ -179,6 +182,7 @@ BEGIN
           LEFT JOIN paid p ON p.invoice_id=i.id
          WHERE i.organization_id=v_org
            AND i.status IN ('issued','partially_paid')
+           AND i.issued_at<=v_as_of
            AND i.total_amount > coalesce(p.paid_amount,0)
            AND (v_currency IS NULL OR pg_catalog.upper(i.currency)=v_currency)
            AND (i.due_at AT TIME ZONE 'UTC')::date BETWEEN v_period_from AND v_period_to
@@ -222,6 +226,7 @@ BEGIN
                pg_catalog.array_agg('payment:'||p.id::text ORDER BY p.paid_at,p.id) AS evidence_ids
           FROM public.customer_payments p
          WHERE p.organization_id=v_org
+           AND p.paid_at<=v_as_of
          GROUP BY p.invoice_id
       ),
       scheduled AS (
@@ -232,6 +237,7 @@ BEGIN
           LEFT JOIN paid p ON p.invoice_id=i.id
          WHERE i.organization_id=v_org
            AND i.status IN ('issued','partially_paid')
+           AND i.issued_at<=v_as_of
            AND i.total_amount > coalesce(p.paid_amount,0)
            AND (v_currency IS NULL OR pg_catalog.upper(i.currency)=v_currency)
            AND (i.due_at AT TIME ZONE 'UTC')::date BETWEEN v_period_from AND v_period_to
@@ -290,10 +296,11 @@ BEGIN
           FROM public.customer_invoices i
          WHERE i.organization_id=v_org
            AND i.status IN ('issued','partially_paid')
+           AND i.issued_at<=v_as_of
            AND i.total_amount > coalesce((
              SELECT pg_catalog.sum(p2.amount)
                FROM public.customer_payments p2
-              WHERE p2.organization_id=v_org AND p2.invoice_id=i.id
+              WHERE p2.organization_id=v_org AND p2.invoice_id=i.id AND p2.paid_at<=v_as_of
            ),0)
            AND (v_currency IS NULL OR pg_catalog.upper(i.currency)=v_currency)
            AND (i.due_at AT TIME ZONE 'UTC')::date BETWEEN v_period_from AND v_period_to
@@ -303,7 +310,7 @@ BEGIN
                pg_catalog.jsonb_build_object(
                  'id','invoice:'||i.id::text,
                  'source',pg_catalog.jsonb_build_object('kind','TABLE','name','customer_invoices','recordId',i.id::text),
-                 'sourceTimestamp',i.created_at,
+                 'sourceTimestamp',i.issued_at,
                  'asOf',v_as_of,
                  'period',v_period,
                  'currency',i.currency,
@@ -331,7 +338,7 @@ BEGIN
           FROM public.customer_payments p
           JOIN public.customer_invoices i ON i.id=p.invoice_id AND i.organization_id=p.organization_id
           JOIN scheduled_ids s ON s.id=i.id
-         WHERE p.organization_id=v_org
+         WHERE p.organization_id=v_org AND p.paid_at<=v_as_of
       )
       SELECT coalesce(pg_catalog.jsonb_agg(e.payload ORDER BY e.id),'[]'::jsonb)
         INTO v_evidence
