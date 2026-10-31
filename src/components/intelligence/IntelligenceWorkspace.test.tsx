@@ -76,6 +76,44 @@ function metric(
     warnings: [],
   };
 }
+
+function cashflowFixture() {
+  return {
+    ok: true as const,
+    data: {
+      status: "OK" as const,
+      requestId: "req-cashflow",
+      asOf,
+      period: { from: "2026-10-31", to: "2026-11-30" },
+      currency: "YER",
+      effectiveRole: "admin",
+      completeness: "COMPLETE" as const,
+      quality: "ACCEPTABLE" as const,
+      schedule: { status: "VERIFIED" as const, completeness: "COMPLETE" as const, quality: "ACCEPTABLE" as const, entries: [], warnings: [] },
+      evidenceCount: 2,
+      evidenceRecords: [
+        evidence("invoice:invoice-1", "customer_invoices", asOf, { from: "2026-10-31", to: "2026-11-30" }),
+        evidence("payment:payment-1", "customer_payments", asOf, { from: "2026-10-31", to: "2026-11-30" }),
+      ].map((item) => ({ ...item, currency: "YER" })),
+      measurementMetrics: [{
+        metricKey: "cashflow.expected_collections" as const,
+        value: 375,
+        unit: "CURRENCY" as const,
+        currency: "YER",
+        status: "VERIFIED" as const,
+        completeness: "COMPLETE" as const,
+        quality: "ACCEPTABLE" as const,
+        period: { from: "2026-10-31", to: "2026-11-30" },
+        asOf,
+        formulaId: "nasr1.receivables-outstanding",
+        formulaVersion: "1",
+        evidenceIds: ["invoice:invoice-1", "payment:payment-1"],
+      }],
+      warnings: [],
+    },
+  };
+}
+
 function inventoryFixture(): InventoryIntelligenceData {
   const evidenceRecords = [
     evidence("movement-window:p1", "inventory.movement_history"),
@@ -157,6 +195,18 @@ describe("production intelligence workspace inventory screens", () => {
     expect(mocks.fetchInventory.mock.calls[0][1]).toBe(asOf);
     expect(mocks.fetchCashflow).toHaveBeenCalledTimes(1);
     expect(mocks.fetchOutcomes).toHaveBeenCalledTimes(1);
+  });
+
+
+  it("shows verified expected collections but withholds net liquidity without a cash opening balance", async () => {
+    mocks.fetchCashflow.mockResolvedValue(cashflowFixture());
+    render(<IntelligenceWorkspace />);
+    const liquidity = await screen.findByRole("region", { name: "ملخص السيولة حسب العملة" });
+    expect(liquidity).toHaveTextContent("الرصيد المتاح");
+    expect(liquidity).toHaveTextContent("التحصيلات المتوقعة");
+    expect(liquidity).toHaveTextContent("٣٧٥ YER");
+    expect(liquidity).toHaveTextContent("صافي السيولة المتاحة");
+    expect(liquidity).toHaveTextContent("غير متاح");
   });
 
   it("does not render inventory figures for an ordinary staff role", async () => {

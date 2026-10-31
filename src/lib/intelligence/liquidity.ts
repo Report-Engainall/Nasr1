@@ -3,7 +3,7 @@ import type {DataCompleteness,EvidencePeriod,EvidenceRecord,EvidenceStatus,Metri
 
 export interface LiquidityAgingBucketInput {bucket:string;amount:MetricSnapshot}
 export interface LiquidityCurrencyInput {
- currency:string;availableBalance:MetricSnapshot;expectedCollections:MetricSnapshot;dueObligations:MetricSnapshot|null;
+ currency:string;availableBalance:MetricSnapshot|null;expectedCollections:MetricSnapshot|null;dueObligations:MetricSnapshot|null;
  overdueReceivables?:MetricSnapshot|null;stagnantStockCost?:MetricSnapshot|null;receivableAging?:LiquidityAgingBucketInput[];
 }
 export interface BuildLiquidityInput {id:string;generatedAt:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];currencies:LiquidityCurrencyInput[]}
@@ -49,8 +49,8 @@ function statusOf(values:MetricValue[]):EvidenceStatus {
  return "VERIFIED";
 }
 function allMetricInputs(p:LiquidityCurrencyInput):MetricSnapshot[] {
- return [p.availableBalance,p.expectedCollections,...(p.dueObligations?[p.dueObligations]:[]),
-  ...(p.overdueReceivables?[p.overdueReceivables]:[]),...(p.stagnantStockCost?[p.stagnantStockCost]:[]),...(p.receivableAging??[]).map(x=>x.amount)];
+ return [p.availableBalance,p.expectedCollections,p.dueObligations,p.overdueReceivables,p.stagnantStockCost,...(p.receivableAging??[]).map(x=>x.amount)]
+  .filter((metric):metric is MetricSnapshot=>metric!==null&&metric!==undefined);
 }
 /** Computes reconciled liquidity independently by currency; this engine contains no FX conversion. */
 export function buildLiquiditySnapshot(input:BuildLiquidityInput):LiquiditySnapshot {

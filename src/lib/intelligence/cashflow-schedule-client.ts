@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { IntelligenceAggregateRequest } from "./aggregate-contract";
+import type { EvidenceRecord, EvidenceSourceKind } from "./types";
 
 export type IntelligenceEvidenceStatus = "VERIFIED" | "NEEDS_REVIEW" | "UNVERIFIED" | "UNAVAILABLE";
 export type IntelligenceCompleteness = "COMPLETE" | "PARTIAL" | "UNKNOWN";
@@ -39,6 +40,7 @@ export interface CashflowScheduleSnapshot {
     warnings: string[];
   };
   evidenceCount: number;
+  evidenceRecords: EvidenceRecord[];
   measurementMetrics: CashflowMeasurementProof[];
   warnings: string[];
 }
@@ -160,6 +162,50 @@ function warnings(value: unknown): string[] | null {
   const list = stringList(value, 100);
   return list?.map((item) => item.slice(0, 300)) ?? null;
 }
+const evidenceSourceKinds = new Set<EvidenceSourceKind>([
+  "TABLE", "RPC", "IMPORT_SNAPSHOT", "LEDGER", "MOVEMENT", "SYSTEM_PROBE", "MANUAL",
+]);
+function parseEvidenceRecord(value: unknown, expectedAsOf: string): EvidenceRecord | null {
+  const raw = record(value);
+  const source = record(raw?.source);
+  const period = raw?.period === null ? null : record(raw?.period);
+  const currency = raw?.currency;
+  if (
+    !raw || !source ||
+    !nonEmptyString(raw.id, 500) ||
+    !nonEmptyString(source.name, 150) ||
+    typeof source.kind !== "string" || !evidenceSourceKinds.has(source.kind as EvidenceSourceKind) ||
+    !isoTimestamp(raw.sourceTimestamp) || Date.parse(raw.sourceTimestamp) > Date.parse(expectedAsOf) ||
+    raw.asOf !== expectedAsOf ||
+    (raw.period !== null && (
+      !period || !isoDay(period.from) || !isoDay(period.to) || period.from > period.to
+    )) ||
+    !nonEmptyString(currency, 3) || !ISO_CURRENCY.test(currency) ||
+    !evidenceStatus(raw.status) ||
+    !completeness(raw.completeness) ||
+    !quality(raw.quality)
+  ) return null;
+  const recordWarnings = warnings(raw.warnings);
+  if (!recordWarnings) return null;
+  return {
+    id: raw.id,
+    source: {
+      kind: source.kind as EvidenceSourceKind,
+      name: source.name,
+      ...(nonEmptyString(source.recordId, 200) ? { recordId: source.recordId } : {}),
+      ...(nonEmptyString(source.version, 80) ? { version: source.version } : {}),
+    },
+    sourceTimestamp: raw.sourceTimestamp,
+    asOf: expectedAsOf,
+    period: raw.period === null ? null : { from: period!.from as string, to: period!.to as string },
+    currency,
+    status: raw.status,
+    completeness: raw.completeness,
+    quality: raw.quality,
+    warnings: recordWarnings,
+  };
+}
+
 function parseAmount(value: unknown, asOf: string, sourceEvidenceIds: Set<string>): CashflowScheduleAmount | null {
   const raw = record(value);
   const lineage = record(raw?.lineage);
@@ -286,13 +332,17 @@ export function parseCashflowScheduleResponse(
   ) {
     return { ok: false, status: "ERROR", message: "لم تُرجع قاعدة البيانات حزمة تدفق نقدي مكتملة وآمنة؛ أُوقف العرض." };
   }
+  const parsedEvidenceRecords = evidenceRecords.map((item) => parseEvidenceRecord(item, request.asOf));
+  if (parsedEvidenceRecords.some((item) => item === null)) {
+    return { ok: false, status: "ERROR", message: "تحتوي أدلة التحصيل على مصدر أو تاريخ أو عملة غير موثقة؛ أُوقف العرض." };
+  }
+  const safeEvidenceRecords = parsedEvidenceRecords as EvidenceRecord[];
   const sourceEvidenceIds = new Set<string>();
-  for (const evidence of evidenceRecords) {
-    const evidenceRecord = record(evidence);
-    if (!evidenceRecord || !nonEmptyString(evidenceRecord.id, 500) || sourceEvidenceIds.has(evidenceRecord.id)) {
-      return { ok: false, status: "ERROR", message: "يحتوي سجل المصدر على مرجع دليل مفقود أو مكرر؛ أُوقف العرض." };
+  for (const evidence of safeEvidenceRecords) {
+    if (sourceEvidenceIds.has(evidence.id)) {
+      return { ok: false, status: "ERROR", message: "يحتوي سجل المصدر على مرجع دليل مكرر؛ أُوقف العرض." };
     }
-    sourceEvidenceIds.add(evidenceRecord.id);
+    sourceEvidenceIds.add(evidence.id);
   }
   const measurement = parseMeasurementMetrics(raw.metrics, request, sourceEvidenceIds);
   const entries: CashflowScheduleRow[] = [];
@@ -334,6 +384,7 @@ export function parseCashflowScheduleResponse(
         warnings: scheduleWarnings,
       },
       evidenceCount: evidenceRecords.length,
+      evidenceRecords: safeEvidenceRecords,
       measurementMetrics: measurement.metrics,
       warnings: measurement.withheld ? [...topWarnings, "MEASUREMENT_METRIC_WITHHELD"] : topWarnings,
     },

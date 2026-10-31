@@ -3,6 +3,7 @@ import { BrainCircuit, CalendarClock, RefreshCw, ShieldCheck, Workflow } from "l
 import { useAuth } from "@/lib/auth";
 import { buildDeadStockReport } from "@/lib/intelligence/dead-stock";
 import { buildReplenishmentRecommendations } from "@/lib/intelligence/replenishment";
+import { buildLiquiditySnapshot } from "@/lib/intelligence/liquidity";
 import {
   createInventoryIntelligencePeriod,
   fetchInventoryIntelligence,
@@ -132,6 +133,43 @@ export function IntelligenceWorkspace() {
 
   const data = result?.ok ? result.data : null;
   const inventoryData = inventoryResult?.ok ? inventoryResult.data : null;
+  const liquiditySnapshot = useMemo(() => {
+    if (!data?.evidenceRecords.length || !data.measurementMetrics.length) return null;
+    const currencies = data.measurementMetrics.map((proof) => ({
+      currency: proof.currency,
+      // The current source contract contains receivables, not a verified cash/bank opening balance.
+      availableBalance: null,
+      expectedCollections: {
+        id: "metric:liquidity.expected-collections:" + proof.currency,
+        key: "cashflow.expected_collections",
+        value: proof.value,
+        unit: "CURRENCY" as const,
+        currency: proof.currency,
+        status: proof.status,
+        completeness: proof.completeness,
+        quality: proof.quality,
+        period: proof.period,
+        asOf: proof.asOf,
+        lineage: {
+          evidenceIds: proof.evidenceIds,
+          calculatedAt: proof.asOf,
+          formulaId: proof.formulaId,
+          formulaVersion: proof.formulaVersion,
+          transformations: ["same-tenant scheduled invoices less recorded payments"],
+        },
+        warnings: [],
+      },
+      dueObligations: null,
+    }));
+    return buildLiquiditySnapshot({
+      id: "liquidity:" + data.asOf,
+      generatedAt: data.asOf,
+      asOf: data.asOf,
+      period: data.period,
+      evidenceRecords: data.evidenceRecords,
+      currencies,
+    });
+  }, [data]);
   const deadStockReport = useMemo(() => {
     if (!inventoryData) return null;
     return buildDeadStockReport({
@@ -445,10 +483,10 @@ export function IntelligenceWorkspace() {
           </section>
           <section className="panel space-y-3">
             <h2>السيولة والأدلة والقرارات المقترحة الأخرى</h2>
-            <p className="report-note">محركات السيولة والتوصيات العامة لا تزال محجوبة حتى إتاحة أرصدة نقدية ومصادر أدلة موثقة لها.</p>
+            <p className="report-note">التحصيلات المجدولة تظهر فقط بأدلتها. الرصيد النقدي الافتتاحي والالتزامات النقدية/الموردية غير متاحين في مصدر موحد موثق؛ لذلك يبقى صافي السيولة محجوباً ولا تُحسبه الشاشة من الذمم.</p>
             <div className="grid gap-3 lg:grid-cols-2">
               <EvidencePassport state="unavailable" />
-              <LiquiditySummary state="unavailable" />
+              <LiquiditySummary snapshot={liquiditySnapshot} state={liquiditySnapshot ? "ready" : "unavailable"} />
               <CashflowForecastCard state="unavailable" />
               <ActionCard state="unavailable" />
             </div>

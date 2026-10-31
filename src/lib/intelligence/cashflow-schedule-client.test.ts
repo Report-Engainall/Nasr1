@@ -15,7 +15,10 @@ function response(overrides: Record<string, unknown> = {}) {
     currency: "YER",
     authorization: { tenantScope: "SERVER_RESOLVED_AUTHENTICATED_TENANT", effectiveRole: "admin", capabilities: ["can_manage_finance"] },
     sourceTables: ["customer_invoices", "customer_payments"],
-    evidenceRecords: [{ id: evidenceIds[0], source: { kind: "TABLE", name: "customer_invoices" } }, { id: evidenceIds[1], source: { kind: "TABLE", name: "customer_payments" } }],
+    evidenceRecords: [
+      { id: evidenceIds[0], source: { kind: "TABLE", name: "customer_invoices", recordId: "11111111-1111-4111-8111-111111111111" }, sourceTimestamp: asOf, asOf, period: { from: "2026-10-31", to: "2026-11-30" }, currency: "YER", status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
+      { id: evidenceIds[1], source: { kind: "TABLE", name: "customer_payments", recordId: "22222222-2222-4222-8222-222222222222" }, sourceTimestamp: asOf, asOf, period: { from: "2026-10-31", to: "2026-11-30" }, currency: "YER", status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
+    ],
     metrics: [{
       id: "metric:cashflow:YER",
       key: "cashflow.expected_collections",
@@ -98,6 +101,8 @@ describe("tenant-bound cashflow aggregate client", () => {
     expect(result.data.schedule.entries[0].amount.value).toBe(375);
     expect(JSON.stringify(result.data)).not.toContain("should-not-escape@example.test");
     expect(result.data.evidenceCount).toBe(2);
+    expect(result.data.evidenceRecords).toHaveLength(2);
+    expect(result.data.evidenceRecords[0]).toMatchObject({ source: { name: "customer_invoices" }, currency: "YER", status: "VERIFIED" });
     expect(result.data.measurementMetrics).toMatchObject([{ value: 375, currency: "YER", status: "VERIFIED" }]);
   });
 
@@ -154,4 +159,18 @@ describe("tenant-bound cashflow aggregate client", () => {
     expect(result.data.warnings).toContain("MEASUREMENT_METRIC_WITHHELD");
     expect(result.data.schedule.entries[0].amount.value).toBe(375);
   });
+
+  it("rejects evidence with missing currency or a source timestamp after asOf", async () => {
+    const malformed = response();
+    (malformed.evidenceRecords[0] as Record<string, unknown>).currency = null;
+    rpc.mockResolvedValue({ data: malformed, error: null });
+    expect(await fetchCashflowSchedule(request())).toMatchObject({ ok: false, status: "ERROR" });
+
+    const futureSource = response();
+    (futureSource.evidenceRecords[0] as Record<string, unknown>).currency = "YER";
+    (futureSource.evidenceRecords[0] as Record<string, unknown>).sourceTimestamp = "2026-11-01T00:00:00.000Z";
+    rpc.mockResolvedValue({ data: futureSource, error: null });
+    expect(await fetchCashflowSchedule(request())).toMatchObject({ ok: false, status: "ERROR" });
+  });
+
 });
