@@ -119,9 +119,18 @@ async function createPersistedOrder(page: Page): Promise<{ orderNumber: string; 
   const printArea = page.locator('[data-testid="customer-order-print-document"]');
   await expect(printArea).toContainText(orderNumber);
   await expect(printArea).toContainText(runLabel);
-  const printableHtml = await printArea.evaluate((element) => element.innerHTML);
-  expect(printableHtml).not.toContain(orderId!);
-  expect(printableHtml).not.toMatch(/customer_id|organization_id|product_id|actor_id|admin_notes|unit_price|line_total|cost_price|margin/i);
+  const printableMarkup = await printArea.evaluate((element) => ({
+    html: element.innerHTML,
+    attributes: Array.from(element.querySelectorAll("*")).flatMap((node) =>
+      Array.from(node.attributes).map((attribute) => attribute.name + "=" + attribute.value),
+    ).join(" "),
+  }));
+  expect(printableMarkup.html).not.toContain(orderId!);
+  // CSS layout declarations such as "margin: 14px" are not a financial margin field.
+  // Check exact database-field identifiers rather than substring matching generic CSS properties.
+  expect(printableMarkup.html + " " + printableMarkup.attributes).not.toMatch(
+    /\b(customer_id|organization_id|product_id|actor_id|admin_notes|unit_price|line_total|cost_price)\b/i,
+  );
   return { orderNumber, detailPath };
 }
 
