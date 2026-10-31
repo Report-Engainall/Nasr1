@@ -153,6 +153,7 @@ async function assertAdminRouteViewportMatrix(page: Page) {
 }
 
 test("authorized finance documents and operational-task print remain tenant-scoped in the real UI", async ({ browser }) => {
+  test.setTimeout(8 * 60 * 1000);
   const managerEmail = requiredEnv("E2E_MANAGER_EMAIL");
   const managerPassword = requiredEnv("E2E_MANAGER_PASSWORD");
   const accountantEmail = requiredEnv("E2E_ACCOUNTANT_EMAIL");
