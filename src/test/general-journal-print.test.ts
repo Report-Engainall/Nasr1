@@ -73,7 +73,14 @@ describe("general journal and financial statement print projections", () => {
       sourceLabel: "قيد يدوي",
       debitTotal: "125.50",
       creditTotal: "125.50",
-      lines: [{ lineNumber: 1, accountCode: "5000", debit: "125.50", credit: "0.00" }],
+    });
+    expect(projected?.lines).toHaveLength(2);
+    expect(projected?.lines[0]).toMatchObject({
+      lineNumber: 1,
+      accountCode: "5000",
+      accountName: "مصروفات تشغيل",
+      debit: "125.50",
+      credit: "0.00",
     });
     const serialized = JSON.stringify(projected);
     for (const secret of [
@@ -95,7 +102,11 @@ describe("general journal and financial statement print projections", () => {
     expect(projectGeneralJournalPrintDocument({ ...journalEntry, hasReversal: true })?.reversalLabel).toBe("مرتبط بقيد عكس");
     const voided = projectGeneralJournalPrintDocument({ ...journalEntry, status: "void" });
     expect(voided?.statusLabel).toBe("ملغى");
-    expect(JSON.stringify(voided)).not.toContain("id");
+    const serialized = JSON.stringify(voided);
+    for (const secret of ["internal-journal-uuid-001", "internal-tenant-uuid-001", "private-source-row-uuid"]) {
+      expect(serialized).not.toContain(secret);
+    }
+    expect(serialized).not.toMatch(/"(?:id|tenant_id|account_id|created_by|source_reference)"\\s*:/);
   });
 
   it("rejects unbalanced headers, unbalanced lines, duplicate line order and oversized entries", () => {
