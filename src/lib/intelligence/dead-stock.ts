@@ -101,8 +101,8 @@ export function buildDeadStockReport(input:{
    if(Number.isFinite(turnoverRatio)){lowTurnover=turnoverRatio<rule.lowTurnoverRatio;}
    else warnings.push("TURNOVER_RATIO_OVERFLOW");
   }else warnings.push("TURNOVER_RATIO_UNAVAILABLE");
-  const qty=checkMetric(product.availableQuantity,index,"QUANTITY",input.asOf,input.period,quantityUnit);
-  const cost=checkMetric(product.unitCost,index,"CURRENCY_PER_UNIT",input.asOf,input.period,quantityUnit);
+  const qty=checkMetric(product.availableQuantity,index,"QUANTITY",input.asOf,undefined,quantityUnit);
+  const cost=checkMetric(product.unitCost,index,"CURRENCY_PER_UNIT",input.asOf,undefined,quantityUnit);
   let exposure:number|null=null,exposureStatus:EvidenceStatus="UNAVAILABLE",currency:string|null=null,unitCost:number|null=null;
   if(product.unitCost){
    const source=cost.metric,legacyCostUnitConflict=Boolean(product.costQuantityUnit&&product.costQuantityUnit.trim()!==quantityUnit);
