@@ -55,7 +55,18 @@ export function EvidenceReferences({ ids }: { ids: string[] }) {
 
 export function EvidenceWarnings({ warnings }: { warnings: string[] }) {
   if (!warnings.length) return null;
-  return <ul className="mt-2 list-disc space-y-1 pr-5 text-xs" aria-label="تحذيرات المصدر">
-    {warnings.map((warning, index) => <li key={warning + ":" + index}>{warning}</li>)}
+  return <ul
+    className="mt-2 list-disc space-y-1 pr-5 text-xs"
+    aria-label="تحذيرات المصدر"
+    style={{ minWidth: 0, maxWidth: "100%", overflowWrap: "anywhere" }}
+  >
+    {warnings.map((warning, index) => (
+      <li
+        key={warning + ":" + index}
+        style={{ minWidth: 0, overflowWrap: "anywhere" }}
+      >
+        {warning}
+      </li>
+    ))}
   </ul>;
 }

@@ -91,7 +91,155 @@ async function assertAdminMobileNavigation(page: Page): Promise<void> {
   expect(desktopFit.documentWidth, "The admin product route must not overflow at 1280px.").toBeLessThanOrEqual(desktopFit.viewportWidth + 1);
 }
 
+
+const ADMIN_SCREEN_PATHS = ["/admin","/admin/products","/admin/customers","/admin/orders","/admin/pricing","/admin/stock-count","/admin/inventory-transfers","/admin/offers","/admin/suppliers","/admin/purchase-orders","/admin/devices","/admin/reports","/admin/intelligence","/admin/ai","/admin/notifications","/admin/data","/admin/operations","/admin/settings","/admin/quotes","/admin/finance","/admin/tasks","/admin/audit"] as const;
+
+async function assertRouteViewport(page: Page, route: string, width: number) {
+  await page.setViewportSize({ width, height: 800 });
+  await page.goto(route, { waitUntil: "domcontentloaded" });
+
+  if (route === "/admin/exports") {
+    await expect(page.getByRole("heading", { name: "تصدير الطلبات غير المتزامن" })).toBeVisible({ timeout: 20_000 });
+  } else {
+    await expect(page.locator("#admin-sidebar")).toBeAttached({ timeout: 20_000 });
+    await expect(page.locator("h1").first()).toBeVisible({ timeout: 20_000 });
+    const menu = page.locator(".mobile-menu");
+    if (width < 1024) await expect(menu).toBeVisible();
+    else await expect(menu).toBeHidden();
+  }
+
+  if (route === "/admin/finance" && width <= 360) {
+    const menuButton = page.getByRole("button", { name: "فتح القائمة الإدارية" });
+    const sidebar = page.locator("#admin-sidebar");
+    const hiddenBounds = await sidebar.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, width: rect.width, viewport: window.innerWidth };
+    });
+    expect(hiddenBounds.right).toBeLessThanOrEqual(hiddenBounds.viewport + 1);
+    await menuButton.click();
+    await expect(page.getByRole("button", { name: "إغلاق القائمة الإدارية" })).toBeVisible();
+    await expect(sidebar).toBeVisible();
+    const openMetrics = await page.evaluate(() => ({
+      documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      viewportWidth: window.innerWidth,
+      offenders: Array.from(document.body.querySelectorAll("*")).map((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          tag: element.tagName.toLowerCase(),
+          id: element.id || null,
+          className: typeof element.className === "string" ? element.className : null,
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+          position: style.position,
+          overflowX: style.overflowX,
+        };
+      }).filter((element) => element.width > window.innerWidth + 1 || element.left < -1 || (element.right > window.innerWidth + 1 && element.position !== "fixed"))
+        .sort((a, b) => Math.max(Math.abs(b.left), Math.abs(b.right - window.innerWidth)) - Math.max(Math.abs(a.left), Math.abs(a.right - window.innerWidth))).slice(0, 12),
+    }));
+    expect(openMetrics.documentWidth, "opened admin drawer viewport offenders: " + JSON.stringify(openMetrics.offenders))
+      .toBeLessThanOrEqual(openMetrics.viewportWidth + 1);
+    await page.getByRole("button", { name: "إغلاق القائمة الإدارية" }).click();
+    await expect(sidebar).toBeHidden();
+
+    const journalLineScroller = page.getByRole("region", { name: "حقول سطر قيد اليومية 1" });
+    await expect(journalLineScroller).toBeVisible();
+    const scrollMetrics = await journalLineScroller.evaluate((element) => ({
+      viewportWidth: window.innerWidth,
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      right: element.getBoundingClientRect().right,
+      left: element.getBoundingClientRect().left,
+    }));
+    expect(scrollMetrics.clientWidth).toBeLessThanOrEqual(scrollMetrics.viewportWidth);
+    expect(scrollMetrics.right).toBeLessThanOrEqual(scrollMetrics.viewportWidth + 1);
+    expect(scrollMetrics.left).toBeGreaterThanOrEqual(-1);
+    expect(scrollMetrics.scrollWidth).toBeGreaterThan(scrollMetrics.clientWidth);
+  }
+
+  const measured = await page.evaluate(() => {
+    const viewportWidth = window.innerWidth;
+    const candidates = [document.documentElement, document.body, ...Array.from(document.body.querySelectorAll("*"))];
+    const overflowingElements = candidates
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          tag: element.tagName.toLowerCase(),
+          id: element.id || null,
+          className: typeof element.className === "string" ? element.className : null,
+          role: element.getAttribute("role"),
+          ariaLabel: element.getAttribute("aria-label"),
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+          scrollWidth: element.scrollWidth,
+          clientWidth: element.clientWidth,
+          scrollDelta: element.scrollWidth - element.clientWidth,
+          display: style.display,
+          position: style.position,
+          overflowX: style.overflowX,
+        };
+      })
+      .filter((element) =>
+        element.width > viewportWidth + 1 ||
+        element.left < -1 ||
+        (element.right > viewportWidth + 1 && element.position !== "fixed") ||
+        element.scrollDelta > 1
+      )
+      .sort((a, b) => b.scrollDelta - a.scrollDelta || b.right - a.right || b.width - a.width)
+      .slice(0, 20);
+    return {
+      lang: document.documentElement.lang.toLowerCase(),
+      direction: getComputedStyle(document.documentElement).direction,
+      viewportWidth,
+      documentElementScrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      bodyClientWidth: document.body.clientWidth,
+      documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      overflowingElements,
+    };
+  });
+  expect(measured.lang, route + " must declare Arabic document language").toMatch(/^ar(?:-|$)/);
+  expect(measured.direction, route + " must render RTL").toBe("rtl");
+  expect(
+    measured.documentWidth,
+    route + " must not cause document-level horizontal overflow at " + width + "px; offenders: " + JSON.stringify(measured.overflowingElements),
+  ).toBeLessThanOrEqual(measured.viewportWidth + 1);
+  return { route, width, ...measured, overflow: false };
+}
+
+async function assertAdminRouteViewportMatrix(page: Page) {
+  const results: Array<{
+    route: string;
+    width: number;
+    lang: string;
+    direction: string;
+    viewportWidth: number;
+    documentWidth: number;
+    overflow: boolean;
+  }> = [];
+  for (const width of [360, 1280]) {
+    for (const route of [...ADMIN_SCREEN_PATHS, "/admin/exports"]) {
+      results.push(await assertRouteViewport(page, route, width));
+    }
+  }
+  await test.info().attach("admin-route-responsive-rtl-matrix.json", {
+    body: JSON.stringify({
+      result: "BROWSER_PROVEN",
+      sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+      viewportWidths: [360, 1280],
+      routeCount: results.length / 2,
+      checkedRoutes: results,
+      documentOverflow: false,
+    }, null, 2),
+    contentType: "application/json",
+  });
+  return results;
+}
+
 test("authorized finance documents and operational-task print remain tenant-scoped in the real UI", async ({ browser }) => {
+  test.setTimeout(8 * 60 * 1000);
   const managerEmail = requiredEnv("E2E_MANAGER_EMAIL");
   const managerPassword = requiredEnv("E2E_MANAGER_PASSWORD");
   const accountantEmail = requiredEnv("E2E_ACCOUNTANT_EMAIL");
@@ -115,6 +263,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
   try {
     await signIn(manager, managerEmail, managerPassword);
     await assertAdminMobileNavigation(manager);
+    await assertAdminRouteViewportMatrix(manager);
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();

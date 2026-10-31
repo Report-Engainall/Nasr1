@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { IntelligenceStatePanel } from "./shared";
+import { EvidenceWarnings, IntelligenceStatePanel } from "./shared";
 
 describe("intelligence state panel", () => {
   it("keeps unavailable distinct from empty and does not render a value", () => {
@@ -14,5 +14,18 @@ describe("intelligence state panel", () => {
     render(<IntelligenceStatePanel state="error" onRetry={onRetry} />);
     fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة" }));
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("wraps long evidence warning tokens inside narrow intelligence cards", () => {
+    const longWarning = "SOURCE_EVIDENCE_" + "a".repeat(220);
+    render(<EvidenceWarnings warnings={[longWarning]} />);
+    const list = screen.getByRole("list", { name: "تحذيرات المصدر" });
+    const item = list.querySelector("li");
+    expect(item).not.toBeNull();
+    expect(list.style.minWidth).toBe("0");
+    expect(list.style.maxWidth).toBe("100%");
+    expect(list.style.overflowWrap).toBe("anywhere");
+    expect(item?.style.minWidth).toBe("0");
+    expect(item?.style.overflowWrap).toBe("anywhere");
   });
 });

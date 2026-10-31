@@ -22,7 +22,7 @@ const ACCOUNT_TYPES: { value: LedgerAccountType; label: string }[] = [
   { value: "expense", label: "المصروفات" },
 ];
 const field: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "9px 10px", border: "1px solid var(--border, #d6dfe4)", borderRadius: 8, background: "var(--card, #fff)", color: "var(--foreground, #17242a)", font: "inherit" };
-const card: React.CSSProperties = { border: "1px solid var(--border, #d6dfe4)", borderRadius: 12, padding: 16, background: "var(--card, #fff)", display: "grid", gap: 12 };
+const card: React.CSSProperties = { border: "1px solid var(--border, #d6dfe4)", borderRadius: 12, padding: 16, background: "var(--card, #fff)", display: "grid", gap: 12, width: "100%", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" };
 const muted: React.CSSProperties = { color: "var(--muted-foreground, #66757b)", margin: 0, lineHeight: 1.7 };
 const button: React.CSSProperties = { border: "1px solid var(--border, #d6dfe4)", borderRadius: 8, padding: "8px 11px", cursor: "pointer", font: "inherit", background: "var(--card, #fff)", color: "var(--foreground, #17242a)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7 };
 const primary: React.CSSProperties = { ...button, background: "var(--primary, #155e4a)", color: "#fff", borderColor: "transparent", fontWeight: 700 };
@@ -267,7 +267,7 @@ export function GeneralLedgerWorkspace() {
   if (!canUseFinance) return <section style={card}><h3 style={{ margin: 0 }}>دفتر الأستاذ العام</h3><p style={muted}>هذه المساحة متاحة للمحاسب والمسؤول والمدير المخوّلين فقط.</p></section>;
 
   return (
-    <section style={{ display: "grid", gap: 16, marginTop: 18 }} aria-label="دفتر الأستاذ العام">
+    <section style={{ display: "grid", gap: 16, marginTop: 18, width: "100%", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }} aria-label="دفتر الأستاذ العام">
       <header style={card}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div>
@@ -403,14 +403,29 @@ export function GeneralLedgerWorkspace() {
           <label>وصف القيد<input required minLength={3} maxLength={240} style={{ ...field, display: "block", marginTop: 5 }} value={entryDescription} onChange={(event) => setEntryDescription(event.target.value)} /></label>
           <label>مرجع خارجي (اختياري)<input maxLength={200} style={{ ...field, display: "block", marginTop: 5 }} value={sourceReference} onChange={(event) => setSourceReference(event.target.value)} /></label>
         </div>
-        <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ display: "grid", gap: 10, minWidth: 0, maxWidth: "100%" }}>
           {draftLines.map((line, index) => (
-            <div key={index} style={{ display: "grid", gridTemplateColumns: "minmax(170px,2fr) repeat(2,minmax(130px,1fr)) minmax(150px,2fr) auto", gap: 8, alignItems: "end", overflowX: "auto" }}>
-              <label>الحساب<select required style={{ ...field, display: "block", marginTop: 5 }} value={line.account_id} onChange={(event) => updateLine(index, { account_id: event.target.value })}><option value="">اختر حسابًا</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} — {account.name}</option>)}</select></label>
-              <label>مدين<input inputMode="decimal" placeholder="0.00" style={{ ...field, display: "block", marginTop: 5 }} value={line.debit} onChange={(event) => updateLine(index, { debit: event.target.value, credit: event.target.value.trim() ? "" : line.credit })} /></label>
-              <label>دائن<input inputMode="decimal" placeholder="0.00" style={{ ...field, display: "block", marginTop: 5 }} value={line.credit} onChange={(event) => updateLine(index, { credit: event.target.value, debit: event.target.value.trim() ? "" : line.debit })} /></label>
-              <label>البيان<input maxLength={300} style={{ ...field, display: "block", marginTop: 5 }} value={line.memo} onChange={(event) => updateLine(index, { memo: event.target.value })} /></label>
-              <button type="button" style={button} aria-label={"حذف السطر " + (index + 1)} disabled={draftLines.length <= 2} onClick={() => setDraftLines((current) => current.filter((_, i) => i !== index))}><Trash2 size={14} /></button>
+            <div
+              key={index}
+              role="region"
+              aria-label={"حقول سطر قيد اليومية " + (index + 1)}
+              tabIndex={0}
+              style={{
+                width: "100%",
+                minWidth: 0,
+                maxWidth: "100%",
+                boxSizing: "border-box",
+                overflowX: "auto",
+                overscrollBehaviorX: "contain",
+              }}
+            >
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(170px,2fr) repeat(2,minmax(130px,1fr)) minmax(150px,2fr) auto", minWidth: 650, gap: 8, alignItems: "end" }}>
+                <label>الحساب<select required style={{ ...field, display: "block", marginTop: 5 }} value={line.account_id} onChange={(event) => updateLine(index, { account_id: event.target.value })}><option value="">اختر حسابًا</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} — {account.name}</option>)}</select></label>
+                <label>مدين<input inputMode="decimal" placeholder="0.00" style={{ ...field, display: "block", marginTop: 5 }} value={line.debit} onChange={(event) => updateLine(index, { debit: event.target.value, credit: event.target.value.trim() ? "" : line.credit })} /></label>
+                <label>دائن<input inputMode="decimal" placeholder="0.00" style={{ ...field, display: "block", marginTop: 5 }} value={line.credit} onChange={(event) => updateLine(index, { credit: event.target.value, debit: event.target.value.trim() ? "" : line.debit })} /></label>
+                <label>البيان<input maxLength={300} style={{ ...field, display: "block", marginTop: 5 }} value={line.memo} onChange={(event) => updateLine(index, { memo: event.target.value })} /></label>
+                <button type="button" style={button} aria-label={"حذف السطر " + (index + 1)} disabled={draftLines.length <= 2} onClick={() => setDraftLines((current) => current.filter((_, i) => i !== index))}><Trash2 size={14} /></button>
+              </div>
             </div>
           ))}
           <div className="no-print"><button type="button" style={button} onClick={() => setDraftLines((current) => current.length < 100 ? [...current, emptyLine()] : current)} disabled={draftLines.length >= 100}><Plus size={14} /> إضافة سطر</button></div>
