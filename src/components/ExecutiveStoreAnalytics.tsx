@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BarChart3, FileSpreadsheet, Package, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
+import { BarChart3, FileSpreadsheet, Package, Printer, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
 import { Empty, ErrorBox, Loading } from '@/components/AdminPages';
 import { fetchStoreExecutiveAnalytics, fetchStoreProductActivityReport } from '@/lib/api';
 import { StaffDashboardMetrics } from '@/components/StaffDashboardMetrics';
@@ -8,6 +8,8 @@ import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { PRODUCT_ACTIVITY_STATUS_LABELS, filterProductActivityRows, paginateProductActivityRows, sortProductActivityRows, type ProductActivityStatus, type ProductActivityRowsSort } from '@/lib/product-activity-report';
 import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx';
 import { downloadExecutiveAnalyticsWorkbookXlsx } from '@/lib/executive-analytics-xlsx';
+import { projectExecutiveAnalyticsPrintDocument } from '@/lib/executive-analytics-print';
+import { ExecutiveAnalyticsPrintSheet } from '@/components/ExecutiveAnalyticsPrintSheet';
 import { useFetch } from '@/lib/useFetch';
 
 function SalesForecastPanel({ points }: { points: ReadonlyArray<{ day: string; orders: number; sales: number }> }) {
@@ -110,6 +112,10 @@ export function ExecutiveStoreAnalytics() {
   const { data, loading, error, refetch } = useFetch(fetchStoreExecutiveAnalytics);
   const [exportError, setExportError] = useState<string | null>(null);
   const maxDaySales = Math.max(1, ...(data?.sales_trend.map((day) => day.sales) ?? [0]));
+  const printDocument = useMemo(
+    () => data ? projectExecutiveAnalyticsPrintDocument(data) : null,
+    [data],
+  );
 
   function exportExecutiveWorkbook() {
     if (!data) return;
@@ -128,6 +134,11 @@ export function ExecutiveStoreAnalytics() {
     }
   }
 
+  function printExecutiveReport() {
+    if (!data || !printDocument || typeof window === "undefined" || typeof window.print !== "function") return;
+    window.print();
+  }
+
   return (
     <section className="panel" style={{ marginTop: 16 }}>
       <div className="panel-head">
@@ -141,6 +152,9 @@ export function ExecutiveStoreAnalytics() {
           </button>
           <button className="btn primary" type="button" onClick={exportExecutiveWorkbook} disabled={loading || !data}>
             <FileSpreadsheet size={16} /> تنزيل التحليل التنفيذي Excel
+          </button>
+          <button className="btn secondary" type="button" onClick={printExecutiveReport} disabled={loading || !printDocument}>
+            <Printer size={16} /> طباعة التقرير التنفيذي / PDF
           </button>
         </div>
       </div>
@@ -241,6 +255,7 @@ export function ExecutiveStoreAnalytics() {
       )}
       <ProductActivityReport />
       <StaffDashboardMetrics />
+      {printDocument ? <ExecutiveAnalyticsPrintSheet document={printDocument} /> : null}
     </section>
   );
 }

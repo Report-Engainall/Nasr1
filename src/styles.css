@@ -408,3 +408,45 @@
   --aghbari-deep-surface: var(--primary-foreground);
   --aghbari-on-brand-surface: var(--primary);
 }
+
+
+/* Executive management print sheet — browser print / Save as PDF, A4 and Arabic RTL. */
+.executive-analytics-print-sheet { display: none; page: aghbariExecutiveAnalytics; }
+@page aghbariExecutiveAnalytics { size: A4 portrait; margin: 12mm; }
+@media print {
+  html, body { background: #fff !important; }
+  body * { visibility: hidden !important; }
+  .executive-analytics-print-sheet,
+  .executive-analytics-print-sheet * { visibility: visible !important; }
+  .executive-analytics-print-sheet {
+    display: block !important;
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #18231d !important;
+    background: #fff !important;
+    direction: rtl !important;
+    text-align: right !important;
+    font-family: "Noto Sans Arabic", sans-serif !important;
+    font-size: 9pt !important;
+    line-height: 1.65 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .executive-analytics-print-sheet h1 { margin: 0 0 4px; color: #174a37 !important; font-size: 17pt; }
+  .executive-analytics-print-sheet h2 { margin: 12px 0 6px; color: #174a37 !important; font-size: 11pt; break-after: avoid; }
+  .executive-analytics-print-header { display: flex; justify-content: space-between; gap: 12px; align-items: start; padding-bottom: 10px; border-bottom: 2px solid #b58b31; }
+  .executive-analytics-print-header p { margin: 0; color: #56645c; }
+  .executive-analytics-print-date { display: grid; gap: 2px; text-align: left; font-size: 8pt; }
+  .executive-analytics-print-sheet table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 8pt; }
+  .executive-analytics-print-sheet thead { display: table-header-group; }
+  .executive-analytics-print-sheet th,
+  .executive-analytics-print-sheet td { padding: 4px 6px; border: 1px solid #cbd5cf; text-align: right; vertical-align: top; }
+  .executive-analytics-print-sheet thead th { color: #174a37 !important; background: #edf4ef !important; font-weight: 800; }
+  .executive-analytics-print-section { margin-top: 8px; break-inside: auto; }
+  .executive-analytics-print-section tr { break-inside: avoid; }
+  .executive-analytics-print-note { margin: 6px 0 0; color: #526057; font-size: 8pt; }
+  .executive-analytics-print-footer { margin-top: 12px; padding-top: 6px; border-top: 1px solid #cbd5cf; color: #526057; font-size: 8pt; }
+}
