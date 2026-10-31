@@ -1646,3 +1646,12 @@ Next action only: after P1 confirms its Storefront path is ready for integration
 - 24c4ece1 enforces source UOM for ATP/reorder/sold/MOQ/order-multiple, exact match to the product UOM, exact sold-period coverage and displays only the validated unit; missing UOM => NEEDS_REVIEW, mismatch => UNVERIFIED.
 - 1500b259 adds runtime handling for blank/non-string product UOM. Core 41024527658 IN_PROGRESS on exact SHA; P2 41024527683 pending. Do not transfer previous-head results.
 - REF-LIQUIDITY and REF-REPLENISHMENT remain P2 aggregate/P1 mounting dependent. No DLV roll-up closed; release NO-GO.
+
+## 2026-11-01 — CodeInspector quality hardening and archive persistence repair
+
+- Reviewed the 239 CodeInspector records against the current `main` tree. The 18 critical TS0004/TS0009 records are duplicate heuristic detections of fabricated test-only tokens/credentials; no production secret was found in those inspected lines.
+- Committed `db88ff6718094f4814d8e4282e08825d066fdb77`: visible cleanup failure reporting in AI/Onyx/catalog DB acceptance scripts; guarded Service Worker async fallback; structured Python logs for archive reconciliation exceptions.
+- Exact SHA workflows: source-release snapshot audit 41247667193 SUCCESS; PostgreSQL 17 import-finalizer 41247667243 SUCCESS; one-main-branch cleanup 41247667216 SUCCESS. Core 41247667204 and P2 41247667220 were IN_PROGRESS at last observation; hosted tenant E2E is SKIPPED.
+- Bolt archive run 41247667305 completed both ZIP verifications and the 717-member inventory (340 identical / 18 changed / 1 before-only), but persistence failed because `persist-bolt-reconciliation-evidence.py` required legacy headings absent from the live state schema. No archive member was executed and no SQL was applied.
+- Corrected the persistence helper to append bounded evidence when legacy markers are absent, preserving the existing checkpoint; extended its self-test for this fallback. Remaining CodeInspector findings are not declared closed: 170 nesting warnings, 3 oversized JS/TS functions, 3 long Python main functions and 2 nested Python flows require controlled refactoring and an exact rescan.
+- Release remains NO-GO; hosted customer/tenant proof and external production operations remain unverified.

@@ -18,12 +18,16 @@ def write_csv(p,fields,rows):
         for row in rows: w.writerow({k:row.get(k,"") for k in fields})
 def replace_region(text,start,end,replacement):
     a=text.find(start); b=text.find(end,a+len(start)) if a>=0 else -1
-    if a<0 or b<0: raise ValueError("missing documentation marker: "+start)
-    return text[:a]+replacement.rstrip()+"\n\n"+text[b:]
+    if a>=0 and b>=0:
+        return text[:a]+replacement.rstrip()+"\n\n"+text[b:]
+    # Current execution state no longer uses these legacy section markers.
+    # Preserve the canonical document and append the archive evidence instead.
+    return text.rstrip()+"\n\n"+replacement.rstrip()+"\n"
 def main():
     parser=argparse.ArgumentParser(); parser.add_argument("--self-test",action="store_true"); args=parser.parse_args()
     if args.self_test:
         assert replace_region("a\nB\nold\nE\nz","B","E","B\nnew")=="a\nB\nnew\n\nE\nz"
+        assert replace_region("canonical checkpoint","legacy resume","evidence boundary","archive result")=="canonical checkpoint\n\narchive result\n"
         print("PERSISTENCE_SELF_TEST PASS"); return 0
     summary=json.loads((OUT/"reconciliation-summary.json").read_text(encoding="utf-8"))
     for name in ("ARCHIVE_MEMBERS.csv","ARCHIVE_PAIR_DIFF.csv","READY_TO_REUSE_FILE_AUDIT.csv"):

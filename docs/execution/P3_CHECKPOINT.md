@@ -1,3 +1,12 @@
+## P3 LIVE CHECKPOINT — 2026-11-01 — CODEINSPECTOR TRIAGE + PERSISTENCE REPAIR
+- Base main SHA: `12496925453ea8656177de36e064d0998346f126`; code quality patch: `db88ff6718094f4814d8e4282e08825d066fdb77`.
+- Implemented cleanup failure diagnostics in AI/Onyx/catalog database acceptance scripts, guarded Service Worker async paths, and logging in both archive reconciliation utilities.
+- CodeInspector report: 239 records. The 18 TS0004/TS0009 records are test-only dummy credentials/tokens confirmed by source inspection; retain self-contained fixtures. Remaining measured hotspots: TS0003 170 records, TS0002 3, PY0002 3, PY0003 2. Do not claim full clearance.
+- Exact code SHA 41247667193 source-release audit SUCCESS; 41247667243 PostgreSQL 17 import-finalizer SUCCESS; 41247667216 branch cleanup SUCCESS; Core 41247667204 and P2 41247667220 were IN_PROGRESS at last observation. Hosted customer/order/tenant job SKIPPED.
+- Bolt recovery run 41247667305 verified both pinned ZIPs and 717 members but failed persistence because the helper expected legacy headings in CURRENT_EXECUTION_STATE.md. Fixed the helper to preserve the modern state and append evidence when old markers are absent; added fallback self-test.
+- NEXT: exact-SHA test the persistence fix, verify Core/P2 status, then refactor the highest-risk production nesting/long functions in bounded changes; re-run CodeInspector and update only evidence-backed counts. Production remains NO-GO.
+---
+
 ## P3 LIVE IMPLEMENTATION UPDATE — 2026-10-30 — LIQUIDITY FIELD EVIDENCE + REPLENISHMENT UOM
 - Current code candidate: `1500b2592b8bdb6d7c2b75b3818a3e18cf5c9eb2`; parent `43d111bd736e496e61d0c627776e5c081b2375bf`; main-only branch; writes are direct to GitHub main using expected-SHA CAS and force=false.
 - `b8ced781`: liquidity DTO separates net-liquidity status from per-field evidence statuses for available balance, expected collections, overdue receivables, obligations and stagnant-stock exposure. Each amount is labeled independently; a VERIFIED net calculation no longer implies supplemental data is VERIFIED.
