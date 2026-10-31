@@ -222,7 +222,7 @@ describe("production intelligence workspace inventory screens", () => {
     });
     render(<IntelligenceWorkspace />);
     expect(await screen.findByText("لا توجد منتجات نشطة موثقة في هذه المؤسسة.")).toBeInTheDocument();
-    expect(screen.getAllByText(/المصدر غير متاح/)).toHaveLength(2);
+    expect(screen.getAllByText(/المصدر غير متاح/)).toHaveLength(4);
     expect(screen.queryByText("0 EA")).not.toBeInTheDocument();
   });
 });
