@@ -6761,6 +6761,7 @@ async function main() {
   assert.equal(decisionCreateReplay.duplicate,true);
   assert.equal(decisionCreateReplay.outcome.id,decisionOutcomeId);
 
+  await db.unsafe("reset role");
   const decisionEventBefore = (await db.unsafe(
     "select count(*)::integer as count from public.decision_outcome_events where organization_id=$1",
     [intelOrganizationId],
@@ -6769,6 +6770,8 @@ async function main() {
     "select count(*)::integer as count from public.audit_logs where organization_id=$1",
     [intelOrganizationId],
   ))[0].count;
+  await setIdentity(intelAuthUserId,"ci-intelligence-admin@example.test");
+  await db.unsafe("set role authenticated");
   await expectFailure(
     "decision outcome refuses a skipped approval transition",
     () => db.unsafe(
@@ -6788,6 +6791,7 @@ async function main() {
     /decision outcome idempotency key payload conflict/i,
     "23505",
   );
+  await db.unsafe("reset role");
   const decisionEventAfterDenied = (await db.unsafe(
     "select count(*)::integer as count from public.decision_outcome_events where organization_id=$1",
     [intelOrganizationId],
@@ -6798,6 +6802,9 @@ async function main() {
   ))[0].count;
   assert.equal(decisionEventAfterDenied,decisionEventBefore,"denied transition and idempotency conflict must not append events");
   assert.equal(decisionAuditAfterDenied,decisionAuditBefore,"denied transition and idempotency conflict must not append audit rows");
+
+  await setIdentity(intelAuthUserId,"ci-intelligence-admin@example.test");
+  await db.unsafe("set role authenticated");
 
   const runDecisionCommand = async (
     version,
@@ -6838,6 +6845,7 @@ async function main() {
     measuredAt:decisionMeasuredAt,
     evidenceIds:intelComplete.metrics[0].lineage.evidenceIds,
   };
+  await db.unsafe("reset role");
   const decisionEventFinalBefore = (await db.unsafe(
     "select count(*)::integer as count from public.decision_outcome_events where organization_id=$1",
     [intelOrganizationId],
@@ -6847,12 +6855,15 @@ async function main() {
     [intelOrganizationId],
   ))[0].count;
   const foreignEvidenceMeasurement = {...decisionMeasured,evidenceIds:["invoice:"+intelForeignInvoiceId]};
+  await setIdentity(intelAuthUserId,"ci-intelligence-admin@example.test");
+  await db.unsafe("set role authenticated");
   await expectFailure(
     "decision MEASURE rejects foreign-tenant source evidence",
     () => runDecisionCommand(6,"MEASURE",null,null,foreignEvidenceMeasurement),
     /measurement evidence does not cover the complete same-tenant invoice\/payment source set/i,
     "22023",
   );
+  await db.unsafe("reset role");
   const decisionEventAfterForeign = (await db.unsafe(
     "select count(*)::integer as count from public.decision_outcome_events where organization_id=$1",
     [intelOrganizationId],
@@ -6864,6 +6875,8 @@ async function main() {
   assert.equal(decisionEventAfterForeign,decisionEventFinalBefore);
   assert.equal(decisionAuditAfterForeign,decisionAuditFinalBefore);
 
+  await setIdentity(intelAuthUserId,"ci-intelligence-admin@example.test");
+  await db.unsafe("set role authenticated");
   const decisionMeasuredKey=randomUUID();
   const decisionMeasuredResult=await runDecisionCommand(6,"MEASURE",null,null,decisionMeasured,decisionMeasuredKey);
   assert.equal(decisionMeasuredResult.outcome.state,"MEASURED");
