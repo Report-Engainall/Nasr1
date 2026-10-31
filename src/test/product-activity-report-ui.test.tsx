@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { fetchStoreProductActivityReport } from "@/lib/api";
 import type { StoreProductActivityReport } from "@/lib/product-activity-report";
 
 const mocks = vi.hoisted(() => ({
@@ -12,24 +11,8 @@ vi.mock("@/lib/useFetch", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/useFetch")>();
   return {
     ...actual,
-    useFetch: (fetcher: unknown) => ({
-      data: fetcher === fetchStoreProductActivityReport
-        ? mocks.report
-        : {
-            generated_at: "2026-10-31T10:00:00.000Z",
-            kpis: {
-              total_orders: 0,
-              eligible_sales: 0,
-              pending_orders: 0,
-              orders_last_30_days: 0,
-              sales_last_30_days: 0,
-              customers_last_30_days: 0,
-              active_products: 0,
-            },
-            sales_trend: [],
-            top_products: [],
-            top_customers: [],
-          },
+    useFetch: () => ({
+      data: mocks.report,
       loading: false,
       error: null,
       refetch: vi.fn(),
