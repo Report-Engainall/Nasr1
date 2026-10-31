@@ -124,17 +124,47 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
     expect(scrollMetrics.scrollWidth).toBeGreaterThan(scrollMetrics.clientWidth);
   }
 
-  const measured = await page.evaluate(() => ({
-    lang: document.documentElement.lang.toLowerCase(),
-    direction: getComputedStyle(document.documentElement).direction,
-    viewportWidth: window.innerWidth,
-    documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
-  }));
+  const measured = await page.evaluate(() => {
+    const viewportWidth = window.innerWidth;
+    const overflowingElements = Array.from(document.body.querySelectorAll("*"))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          tag: element.tagName.toLowerCase(),
+          id: element.id || null,
+          className: typeof element.className === "string" ? element.className : null,
+          role: element.getAttribute("role"),
+          ariaLabel: element.getAttribute("aria-label"),
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+          scrollWidth: element.scrollWidth,
+          clientWidth: element.clientWidth,
+          display: style.display,
+          position: style.position,
+          overflowX: style.overflowX,
+        };
+      })
+      .filter((element) =>
+        element.width > viewportWidth + 1 ||
+        (element.right > viewportWidth + 1 && element.position !== "fixed")
+      )
+      .sort((a, b) => b.right - a.right || b.width - a.width)
+      .slice(0, 12);
+    return {
+      lang: document.documentElement.lang.toLowerCase(),
+      direction: getComputedStyle(document.documentElement).direction,
+      viewportWidth,
+      documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      overflowingElements,
+    };
+  });
   expect(measured.lang, route + " must declare Arabic document language").toMatch(/^ar(?:-|$)/);
   expect(measured.direction, route + " must render RTL").toBe("rtl");
   expect(
     measured.documentWidth,
-    route + " must not cause document-level horizontal overflow at " + width + "px",
+    route + " must not cause document-level horizontal overflow at " + width + "px; offenders: " + JSON.stringify(measured.overflowingElements),
   ).toBeLessThanOrEqual(measured.viewportWidth + 1);
   return { route, width, ...measured, overflow: false };
 }
