@@ -1,5 +1,15 @@
 export type PurchaseOrderStatus = 'draft' | 'submitted' | 'partially_received' | 'received' | 'cancelled';
 
+/**
+ * PostgreSQL's uuid type stores a 128-bit value and does not require RFC 4122
+ * version/variant bits. Validate the canonical UUID shape only; tenant ownership
+ * and resource existence are enforced by the server-side purchase-order RPC.
+ */
+export function isPurchaseOrderUuid(value: unknown): value is string {
+  return typeof value === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 export type PurchaseOrderItem = {
   id: string;
   product_id: string;
