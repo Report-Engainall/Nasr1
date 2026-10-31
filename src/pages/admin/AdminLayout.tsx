@@ -1,9 +1,10 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Store } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Store, BrainCircuit } from 'lucide-react'
 import { useAuthStore } from '../../lib/authStore'
 
 const navItems = [
   { to: '/admin', label: 'لوحة المعلومات', icon: LayoutDashboard, end: true },
+  { to: '/admin/intelligence', label: 'ذكاء الأعمال', icon: BrainCircuit, end: false },
   { to: '/admin/products', label: 'المنتجات', icon: Package, end: false },
   { to: '/admin/orders', label: 'الطلبات', icon: ShoppingCart, end: false },
   { to: '/admin/customers', label: 'العملاء', icon: Users, end: false },

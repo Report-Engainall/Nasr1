@@ -16,6 +16,7 @@ import RegisterPage from './pages/auth/RegisterPage'
 import PendingApprovalPage from './pages/auth/PendingApprovalPage'
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminDashboard from './pages/admin/AdminDashboard'
+import AdminIntelligence from './pages/admin/AdminIntelligence'
 import AdminProducts from './pages/admin/AdminProducts'
 import AdminOrders from './pages/admin/AdminOrders'
 import AdminCustomers from './pages/admin/AdminCustomers'
@@ -62,7 +63,7 @@ export default function App() {
       <Route path="/orders" element={<ProtectedRoute><Shell><OrdersPage /></Shell></ProtectedRoute>} />
       <Route path="/orders/:id" element={<ProtectedRoute><Shell><OrderDetailPage /></Shell></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminLayout /></ProtectedRoute>}>
-        <Route index element={<AdminDashboard />} /><Route path="products" element={<AdminProducts />} />
+        <Route index element={<AdminDashboard />} /><Route path="intelligence" element={<AdminIntelligence />} /><Route path="products" element={<AdminProducts />} />
         <Route path="orders" element={<AdminOrders />} /><Route path="customers" element={<AdminCustomers />} />
         <Route path="settings" element={<AdminSettings />} />
       </Route>
