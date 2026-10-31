@@ -179,7 +179,7 @@ describe("product activity report interactive screen", () => {
     })).toThrow(/5000 صنف/);
     expect(() => projectProductActivityPrintDocument({
       ...report, summary: { ...report.summary, stagnant_over_90_days: report.summary.stagnant_over_90_days - 1 },
-    })).toThrow(/لا يتطابق/);
+    })).toThrow(/لا يطابق/);
 
     const truncated = { ...report, total_products: 5001, truncated: true };
     render(<ProductActivityReport reportOverride={truncated} />);
