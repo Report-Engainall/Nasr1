@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarClock, CreditCard, Download, Printer, RefreshCw, ShoppingBag, Wallet } from 'lucide-react';
 import { Button, Empty, ErrorBox, Loading, Modal, TableWrap } from '@/components/AdminPages';
 import { fetchStaffCustomer360Summary } from '@/lib/api';
@@ -171,6 +172,6 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         </section>
       </>}
     </div>
-    {printDocument ? <Customer360PrintSheet document={printDocument} /> : null}
+    {printDocument && typeof document !== 'undefined' ? createPortal(<Customer360PrintSheet document={printDocument} />, document.body) : null}
   </Modal>;
 }
