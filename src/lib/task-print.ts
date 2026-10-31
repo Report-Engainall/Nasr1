@@ -1,4 +1,4 @@
-import type { OperationalTaskRole } from '@/lib/types';
+import type { OperationalTask, OperationalTaskRole } from '@/lib/types';
 import { BUSINESS_BRAND_NAME } from '@/lib/brand';
 
 type HasTaskRole = { task_role: OperationalTaskRole };
@@ -27,4 +27,44 @@ export function filterTasksForPrint<T extends HasTaskRole>(
   return tasks.filter((task) =>
     allowedRoles.includes(task.task_role) && (scope === 'all' || task.task_role === scope),
   );
+}
+
+
+/**
+ * Projects an authorized task into the exact data contract permitted in a printable register.
+ * Keep tenant, source, assignment and internal workflow identifiers out of rendered documents.
+ */
+export type OperationalTaskPrintRow = Pick<
+  OperationalTask,
+  | 'id'
+  | 'title'
+  | 'description'
+  | 'task_role'
+  | 'priority'
+  | 'status'
+  | 'due_at'
+  | 'source_entity_type'
+  | 'created_at'
+  | 'completed_at'
+  | 'resolution_note'
+> & { assigned_label: string };
+
+export function projectOperationalTaskPrintRow(
+  task: OperationalTask,
+  assignedLabel: string,
+): OperationalTaskPrintRow {
+  return {
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    task_role: task.task_role,
+    priority: task.priority,
+    status: task.status,
+    due_at: task.due_at,
+    source_entity_type: task.source_entity_type,
+    created_at: task.created_at,
+    completed_at: task.completed_at,
+    resolution_note: task.resolution_note,
+    assigned_label: assignedLabel,
+  };
 }
