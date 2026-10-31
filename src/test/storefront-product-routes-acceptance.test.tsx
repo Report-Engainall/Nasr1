@@ -544,7 +544,7 @@ describe("public storefront product route acceptance", () => {
 
     expect(quantityInput?.value).toBe("5");
     expect(increase?.disabled).toBe(true);
-    expect(host?.textContent).toContain("الحد الأدنى 2، والزيادة بمضاعف 3، والمتاح 7.");
+    expect(host?.textContent).toContain("الحد الأدنى ٢، والزيادة بمضاعف ٣، والمتاح ٧.");
 
     const addButton = Array.from(host?.querySelectorAll<HTMLButtonElement>("button") ?? [])
       .find((button) => button.textContent?.includes("إضافة إلى السلة"));
