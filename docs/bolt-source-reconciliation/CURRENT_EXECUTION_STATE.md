@@ -1,3 +1,41 @@
+# LIVE EXECUTION CHECKPOINT — 2026-10-31 — CUSTOMER 360 PRINT MERGED; PRODUCT ACTIVITY PRINT PR OPEN
+
+- CURRENT_MAIN_SHA: `f201cbbf3a05dd012224d61eeb4aa4db9a90b7db` (current main ref before this checkpoint-only commit; latest product-code merge is `605e212ddc9c58e0e2601ecf48fe325c7f15987a`).
+- LAST_COMPLETED_TASK_ID: `DLV-011-CUSTOMER360-PRINT`
+- LAST_COMPLETED_TASK: PR #332 merged by squash at `605e212ddc9c58e0e2601ecf48fe325c7f15987a`. Added a staff-only Arabic RTL A4 Customer 360 report using an explicit allowlist projection and a body-level portal outside the modal. The projection removes customer/contact PII, tenant metadata, internal customer/order/invoice/payment IDs, cost and margin. It preserves full order aggregates and per-currency ledger totals separately from latest-20 detail rows; payment amount/currency is withheld when the linked invoice is outside that detail window. The existing eight-sheet Customer 360 XLSX is unchanged.
+- ACTIVE_TASK_ID: `DLV-011-PRODUCT-ACTIVITY-PRINT`
+- ACTIVE_TASK_STATUS: `PR #333 OPEN — Core IN_PROGRESS (run 41240956851); P2 PENDING (run 41240956836); both target exact head 54e6e669af87a1c086689fcd599813d4d8006ffb`
+- BASE_SHA: `605e212ddc9c58e0e2601ecf48fe325c7f15987a`
+- HEAD_SHA: `54e6e669af87a1c086689fcd599813d4d8006ffb`
+- FILES_CHANGED (last completed unit PR #332):
+  - `src/components/AdminCustomer360.tsx`
+  - `src/components/Customer360PrintSheet.tsx`
+  - `src/lib/customer-360-print.ts`
+  - `src/styles.css`
+  - `src/test/admin-customer-360-display.test.tsx`
+- ACTIVE_FILES_CHANGED (PR #333):
+  - `src/components/ExecutiveStoreAnalytics.tsx`
+  - `src/components/ProductActivityPrintSheet.tsx`
+  - `src/lib/product-activity-print.ts`
+  - `src/styles.css`
+  - `src/test/product-activity-report-ui.test.tsx`
+- IMPLEMENTATION_RESULT: PR #332 is merged and DLV-011 remains PARTIAL. PR #333 adds a print-only allowlist projection from the existing complete `StoreProductActivityReport`, a landscape A4 Arabic RTL report sheet, and body-portal print isolation. It prints every server-returned product independent of UI filter/search/sort/page, omits product UUID and unknown raw fields, keeps unknown stock as unavailable, rejects truncated/incomplete reports and counts above 5000, and leaves the existing product-activity XLSX unchanged.
+- TESTS_RUN_WITH_RESULTS:
+  - PR #332 exact head `254b2c2b430f91cabb418b9166f0241e8323f43c`: Core [41240011959 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011959); P2 [41240011938 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011938). Local Supabase/Chromium acceptance included order persistence and cross-tenant denial, returns/credit memo, Onyx XLSX, finance/task print, customer-manager authorization/privacy/audit and device-session immediate revocation.
+  - PR #332 merge SHA `605e212ddc9c58e0e2601ecf48fe325c7f15987a`: post-merge Core [41240395534 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395534), P2 [41240395532 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395532), cleanup [41240395555 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395555). Core 35/35 steps; P2 local Supabase/Chromium 40/40 steps. Hosted customer/order/tenant P2 was SKIPPED.
+  - PR #333 current exact head `54e6e669af87a1c086689fcd599813d4d8006ffb`: Core [41240956851 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240956851); P2 [41240956836 PENDING](https://github.com/Report-Engainall/Nasr1/actions/runs/41240956836). No result from the earlier head `27fca278` is transferable.
+- FAILED_OR_SKIPPED:
+  - PR #332 hosted customer/order/tenant acceptance was `SKIPPED`; local authenticated Chromium/Supabase passed. Hosted tenant isolation is not proven.
+  - PR #333 has no failed checks recorded; Core is still running and P2 is pending on the exact current head.
+  - Live Onyx Pro target-version import, official WhatsApp delivery receipt, live free-AI provider response, hosted customer/tenant flow, production deploy/rollback/restore and owner sign-off remain external/unverified.
+- MERGE_STATUS: `PR #332 MERGED at 605e212; post-merge Core/P2/cleanup SUCCESS. PR #333 OPEN at head 54e6e669; Core IN_PROGRESS and P2 PENDING.`
+- BLOCKERS: DLV-011 remains PARTIAL. Do not merge PR #333 until Core and P2 both pass on its exact current head. Hosted customer/order/tenant proof and external integration/production evidence remain unproven.
+- NEXT_TASK_ID: `DLV-011-PRODUCT-ACTIVITY-PRINT`
+- NEXT_ACTION: Poll Core run `41240956851` and P2 run `41240956836` for exact head `54e6e669af87a1c086689fcd599813d4d8006ffb`. If either fails, inspect only its failing job/log and fix the root cause on PR #333; rerun required gates on the new exact head. If both succeed, verify PR #333 still has the expected head and is based on current main ancestry (main changes after base were documentation-only), then squash-merge with expected-head SHA. Verify post-merge Core, P2 and one-main-branch cleanup on the exact merge SHA. Update this checkpoint and DLV-011 matrix row; then continue the next uncovered role/template, without repeating PRs #318, #324, #326, #327, #328, #329, #331 or #332.
+- UPDATED_AT: `2026-10-31T20:55:21.754Z`
+
+---
+
 # LIVE EXECUTION CHECKPOINT — 2026-10-31 — CUSTOMER 360 PRINT MERGED; PRODUCT ACTIVITY PRINT ACTIVE
 
 - CURRENT_MAIN_SHA: `8ec0f0d0f656aaef4b382170c78e46dd7e4ec0c6` (current main ref immediately before this checkpoint-only update; latest product-code merge SHA is `605e212ddc9c58e0e2601ecf48fe325c7f15987a`).
