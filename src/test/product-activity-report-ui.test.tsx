@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { StoreProductActivityReport } from "@/lib/product-activity-report";
+import { projectProductActivityPrintDocument } from "@/lib/product-activity-print";
 
 const mocks = vi.hoisted(() => ({
   downloadActivity: vi.fn(),
@@ -91,6 +92,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
@@ -126,4 +128,61 @@ describe("product activity report interactive screen", () => {
     expect(mocks.downloadActivity).toHaveBeenCalledTimes(1);
     expect((mocks.downloadActivity.mock.calls[0][0] as StoreProductActivityReport).products).toHaveLength(30);
   });
+
+  it("prints every authorized product row, not only the current filtered or paginated view", () => {
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => {
+      expect(document.body.getAttribute("data-print-mode")).toBe("product-activity");
+    });
+    render(<ProductActivityReport reportOverride={reportFixture()} />);
+
+    fireEvent.change(screen.getByLabelText("حالة الحركة"), { target: { value: "active_last_30_days" } });
+    fireEvent.change(screen.getByRole("searchbox", { name: "البحث في تقرير حركة الأصناف" }), { target: { value: "not-a-match" } });
+    expect(screen.getByText("لا توجد أصناف مطابقة للبحث وحالة الحركة المحددة.")).toBeInTheDocument();
+
+    const button = screen.getByRole("button", { name: "طباعة التقرير الكامل / PDF" });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(printSpy).toHaveBeenCalledTimes(1);
+
+    const sheet = screen.getByTestId("product-activity-print-document");
+    expect(sheet.textContent).toContain("كامل — ٣٠ من ٣٠ صنفًا");
+    expect(sheet.textContent).toContain("نشط آخر 30 يومًا");
+    expect(sheet.textContent).toContain("راكد أكثر من 90 يومًا");
+    expect(sheet.textContent).toContain("صنف 01");
+    expect(sheet.textContent).toContain("صنف 30");
+    expect(sheet.textContent).toContain("00001");
+    expect(sheet.textContent).toContain("غير متاح");
+    expect(sheet.querySelectorAll('[data-testid="product-activity-print-row"]')).toHaveLength(30);
+    expect(sheet.innerHTML).not.toContain("product-1");
+    expect(sheet.innerHTML).not.toContain("product_id");
+    fireEvent(window, new Event("afterprint"));
+    expect(document.body.hasAttribute("data-print-mode")).toBe(false);
+  });
+
+  it("keeps unknown stock as unknown and rejects a truncated report from printable output", () => {
+    const report = reportFixture();
+    const projected = projectProductActivityPrintDocument(report);
+    expect(projected.products[4].availableQuantity).toBeNull();
+    expect(projected.summary.stockUnknownCount).toBe(1);
+    expect(JSON.stringify(projected)).not.toContain("product_id");
+    expect(JSON.stringify(projected)).not.toContain("product-1");
+
+    const truncated = { ...report, total_products: 31, truncated: true };
+    render(<ProductActivityReport reportOverride={truncated} />);
+    const button = screen.getByRole("button", { name: "طباعة التقرير الكامل / PDF" });
+    expect(button).toBeDisabled();
+    expect(screen.getByText(/تجاوز العدد حد التقرير البالغ 5000 صنف/)).toBeInTheDocument();
+    expect(screen.queryByTestId("product-activity-print-document")).not.toBeInTheDocument();
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    fireEvent.click(button);
+    expect(printSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not expose a print action as ready before report data is available", () => {
+    render(<ProductActivityReport reportOverride={null} />);
+    const button = screen.getByRole("button", { name: "طباعة التقرير الكامل / PDF" });
+    expect(button).toBeDisabled();
+    expect(screen.queryByTestId("product-activity-print-document")).not.toBeInTheDocument();
+  });
+
 });
