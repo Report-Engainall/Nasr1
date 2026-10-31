@@ -67,6 +67,12 @@ export function projectProductActivityPrintDocument(
   const slowDays = safeCount(source.slow_days, "حد الركود");
   const totalProducts = safeCount(source.total_products, "إجمالي أصناف المؤسسة");
   const returnedProducts = safeCount(source.returned_products, "عدد الصفوف المعادة");
+  if (recentDays !== 30 || slowDays !== 90) {
+    throw new Error("نافذة تقرير حركة الأصناف لا تطابق حدود التحليل المعتمدة.");
+  }
+  if (totalProducts > 5000 || returnedProducts > 5000) {
+    throw new Error("لا يمكن طباعة أكثر من 5000 صنف في تقرير واحد.");
+  }
   if (source.truncated) {
     throw new Error("لا يمكن طباعة تقرير جزئي على أنه تقرير كامل؛ تجاوز التقرير حد الصفوف.");
   }
