@@ -102,10 +102,11 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const isCustomerManagerOnly = Boolean(user?.roles.includes('customer_manager') &&
     !user.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff' || role === 'accountant'));
   const canManageAudit = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
+  const canManageIntelligence = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager'));
   const visibleNav = nav.filter(({ id }) => isCustomerManagerOnly
     ? id === 'customers'
-    : (isFinanceOnly ? id === 'finance' || id === 'tasks' || id === 'intelligence' : id !== 'finance' || canManageFinance) &&
-      (id !== 'intelligence' || canManageFinance) &&
+    : (isFinanceOnly ? id === 'finance' || id === 'tasks' : id !== 'finance' || canManageFinance) &&
+      (id !== 'intelligence' || canManageIntelligence) &&
       (id !== 'audit' || canManageAudit) &&
       (id !== 'purchase-orders' || user?.roles.some((role) => role === 'admin' || role === 'manager'))
   );
@@ -279,7 +280,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
         <div className="page-wrap">
           {isCustomerManagerOnly && view !== 'customers' ? (
             <section className="panel" role="status" style={{ padding: 24 }}><h1>مساحة مسؤول العملاء</h1><p>هذا الدور مخصص لدليل العملاء واعتماد الحسابات وتغيير شرائح الأسعار وحالات الحساب. لا يتيح الوصول إلى البيانات المالية أو وحدات المخزون والطلبات.</p><button className="btn primary" onClick={() => runAdminCommand('customers')}>فتح إدارة العملاء</button></section>
-          ) : isFinanceOnly && view !== 'finance' && view !== 'tasks' && view !== 'intelligence' ? (
+          ) : isFinanceOnly && view !== 'finance' && view !== 'tasks' ? (
             <section className="panel" role="status" style={{ padding: 24 }}>
               <h1 style={{ marginTop: 0 }}>بوابة المحاسبة</h1>
               <p>هذا الحساب مخصص للفواتير والتحصيل فقط، ولا يملك صلاحيات إدارة الطلبات أو المنتجات أو النظام.</p>
