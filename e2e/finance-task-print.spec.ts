@@ -91,6 +91,67 @@ async function assertAdminMobileNavigation(page: Page): Promise<void> {
   expect(desktopFit.documentWidth, "The admin product route must not overflow at 1280px.").toBeLessThanOrEqual(desktopFit.viewportWidth + 1);
 }
 
+
+const ADMIN_SCREEN_PATHS = ["/admin","/admin/products","/admin/customers","/admin/orders","/admin/pricing","/admin/stock-count","/admin/inventory-transfers","/admin/offers","/admin/suppliers","/admin/purchase-orders","/admin/devices","/admin/reports","/admin/intelligence","/admin/ai","/admin/notifications","/admin/data","/admin/operations","/admin/settings","/admin/quotes","/admin/finance","/admin/tasks","/admin/audit"] as const;
+
+async function assertRouteViewport(page: Page, route: string, width: number) {
+  await page.setViewportSize({ width, height: 800 });
+  await page.goto(route, { waitUntil: "domcontentloaded" });
+
+  if (route === "/admin/exports") {
+    await expect(page.getByRole("heading", { name: "تصدير الطلبات غير المتزامن" })).toBeVisible({ timeout: 20_000 });
+  } else {
+    await expect(page.locator("#admin-sidebar")).toBeAttached({ timeout: 20_000 });
+    await expect(page.locator("h1").first()).toBeVisible({ timeout: 20_000 });
+    const menu = page.locator(".mobile-menu");
+    if (width < 1024) await expect(menu).toBeVisible();
+    else await expect(menu).toBeHidden();
+  }
+
+  const measured = await page.evaluate(() => ({
+    lang: document.documentElement.lang.toLowerCase(),
+    direction: getComputedStyle(document.documentElement).direction,
+    viewportWidth: window.innerWidth,
+    documentWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+  }));
+  expect(measured.lang, route + " must declare Arabic document language").toMatch(/^ar(?:-|$)/);
+  expect(measured.direction, route + " must render RTL").toBe("rtl");
+  expect(
+    measured.documentWidth,
+    route + " must not cause document-level horizontal overflow at " + width + "px",
+  ).toBeLessThanOrEqual(measured.viewportWidth + 1);
+  return { route, width, ...measured, overflow: false };
+}
+
+async function assertAdminRouteViewportMatrix(page: Page) {
+  const results: Array<{
+    route: string;
+    width: number;
+    lang: string;
+    direction: string;
+    viewportWidth: number;
+    documentWidth: number;
+    overflow: boolean;
+  }> = [];
+  for (const width of [360, 1280]) {
+    for (const route of [...ADMIN_SCREEN_PATHS, "/admin/exports"]) {
+      results.push(await assertRouteViewport(page, route, width));
+    }
+  }
+  await test.info().attach("admin-route-responsive-rtl-matrix.json", {
+    body: JSON.stringify({
+      result: "BROWSER_PROVEN",
+      sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+      viewportWidths: [360, 1280],
+      routeCount: results.length / 2,
+      checkedRoutes: results,
+      documentOverflow: false,
+    }, null, 2),
+    contentType: "application/json",
+  });
+  return results;
+}
+
 test("authorized finance documents and operational-task print remain tenant-scoped in the real UI", async ({ browser }) => {
   const managerEmail = requiredEnv("E2E_MANAGER_EMAIL");
   const managerPassword = requiredEnv("E2E_MANAGER_PASSWORD");
@@ -114,7 +175,8 @@ test("authorized finance documents and operational-task print remain tenant-scop
 
   try {
     await signIn(manager, managerEmail, managerPassword);
-    await assertAdminMobileNavigation(manager);\n    await assertAdminRouteViewportMatrix(manager);
+    await assertAdminMobileNavigation(manager);
+    await assertAdminRouteViewportMatrix(manager);
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
