@@ -374,6 +374,25 @@ test("authorized finance documents and operational-task print remain tenant-scop
     expect(resultsPrintText).toContain("سجل أوامر الشراء");
     expect(resultsPrintText).not.toContain(privatePurchaseNote);
 
+    // Stock-count printing must use a print-only allowlist and omit session notes.
+    await manager.goto("/admin/stock-count");
+    await expect(manager.getByRole("heading", { name: "الجرد الفعلي" })).toBeVisible();
+    const stockCountStart = manager.getByRole("button", { name: "بدء جلسة جرد فعلية", exact: true });
+    await expect(stockCountStart).toBeEnabled({ timeout: 20_000 });
+    const stockCountPrivateNote = "E2E_PRIVATE_STOCK_COUNT_NOTE_" + Date.now();
+    await manager.getByLabel("ملاحظات بداية الجرد (اختياري)").fill(stockCountPrivateNote);
+    await stockCountStart.click();
+    await expect(manager.getByRole("heading", { name: "جلسة الجرد المفتوحة" })).toBeVisible({ timeout: 20_000 });
+    const stockCountPrintButton = manager.getByRole("button", { name: "طباعة ورقة الجرد", exact: true });
+    await expect(stockCountPrintButton).toBeEnabled();
+    await manager.evaluate(() => { delete document.documentElement.dataset.e2ePrintInvoked; });
+    await stockCountPrintButton.click();
+    await expect.poll(() => manager.evaluate(() => document.documentElement.dataset.e2ePrintInvoked)).toBe("true");
+    const stockCountPrintText = await manager.locator(".stock-count-print-document").textContent() ?? "";
+    expect(stockCountPrintText).toContain("ورقة الجرد الفعلي");
+    expect(stockCountPrintText).not.toContain(stockCountPrivateNote);
+    expect(stockCountPrintText).not.toContain("PRIVATE-");
+
     await test.info().attach("finance-task-print-browser-proof.json", {
       body: JSON.stringify({
         result: "BROWSER_PROVEN",
@@ -395,6 +414,9 @@ test("authorized finance documents and operational-task print remain tenant-scop
         purchaseOrderPrintExcludedInternalNote: true,
         purchaseOrderUnknownCostsRemainUnrecorded: true,
         customerPurchaseOrderRouteDeniedBeforePrintMount: true,
+        stockCountPrintInvoked: true,
+        stockCountPrintExcludedSessionNote: true,
+        stockCountPrintUsesPersistedCountsOnly: true,
         noProductionWrites: true,
       }, null, 2),
       contentType: "application/json",

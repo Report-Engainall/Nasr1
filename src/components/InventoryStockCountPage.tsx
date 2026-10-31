@@ -4,6 +4,7 @@ import { cancelStockCount, completeStockCount, fetchActiveInventoryWarehouses, f
 import type { ActiveInventoryWarehouse, InventoryStockCountLine, InventoryStockCountSession } from '@/lib/api';
 import { downloadStockCountWorkbookXlsx } from '@/lib/stock-count-xlsx';
 import { useAuth } from '@/lib/auth';
+import { projectStockCountPrintDocument } from '@/lib/stock-count-print';
 const q = (v: number | null | undefined) => v == null || !Number.isFinite(Number(v)) ? '—' : new Intl.NumberFormat('ar-YE', { maximumFractionDigits: 3 }).format(Number(v));
 const idempotencyKey = () => 'stock-count-' + crypto.randomUUID().replace(/-/g, '');
 export function InventoryStockCountPage() {
@@ -48,6 +49,11 @@ export function InventoryStockCountPage() {
   }, [warehouseId, refreshKey]);
   const counted = useMemo(() => lines.filter((line) => line.counted_quantity !== null).length, [lines]);
   const netVariance = useMemo(() => lines.reduce((sum, line) => sum + (line.variance ?? 0), 0), [lines]);
+  const printDocument = useMemo(() => {
+    if (!session) return null;
+    const warehouse = warehouses.find((item) => item.id === session.warehouse_id);
+    return projectStockCountPrintDocument(session, lines, warehouse?.name ?? null, Boolean(user?.isStaff));
+  }, [session, lines, warehouses, user?.isStaff]);
   async function begin() {
     if (!warehouseId || busy) return;
     const signature = JSON.stringify([warehouseId, notes.trim() || null]);
@@ -123,14 +129,32 @@ export function InventoryStockCountPage() {
 
   return <section className="stock-count-page" dir="rtl">
     <style>{`
+      .stock-count-print-document { display:none; }
       @media print {
+        @page { size:A4 landscape; margin:10mm; }
         body * { visibility:hidden !important; }
-        .stock-count-print, .stock-count-print * { visibility:visible !important; }
-        .stock-count-print { position:absolute; inset:0; width:100%; color:#000 !important; background:#fff !important; }
+        .stock-count-print-document, .stock-count-print-document * { visibility:visible !important; }
+        .stock-count-print-document {
+          display:block !important; position:absolute; inset:0; width:100%;
+          padding:0; direction:rtl; font-family:Arial,sans-serif;
+          color:#000 !important; background:#fff !important;
+        }
         .stock-count-no-print { display:none !important; }
-        .stock-count-print table { width:100%; border-collapse:collapse; font-size:10px; }
-        .stock-count-print th, .stock-count-print td { border:1px solid #999 !important; padding:5px; color:#000 !important; text-align:right; }
-        .stock-count-print input { border:0 !important; padding:0 !important; color:#000 !important; }
+        .stock-count-print-document header { margin-bottom:12px; }
+        .stock-count-print-document h1 { margin:0 0 5px; font-size:18pt; }
+        .stock-count-print-document h2 { margin:0 0 8px; font-size:13pt; }
+        .stock-count-print-document .print-meta {
+          display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+          gap:6px 18px; margin:10px 0 14px;
+        }
+        .stock-count-print-document table { width:100%; border-collapse:collapse; font-size:10px; }
+        .stock-count-print-document thead { display:table-header-group; }
+        .stock-count-print-document tr { break-inside:avoid; page-break-inside:avoid; }
+        .stock-count-print-document th,.stock-count-print-document td {
+          border:1px solid #999 !important; padding:5px;
+          color:#000 !important; text-align:right; white-space:normal;
+        }
+        .stock-count-print-document .print-footer { margin-top:10px; font-size:9px; }
       }
     `}</style>
     <header className="heading"><div className="heading-icon"><ClipboardCheck size={24} /></div><div><span>الأصناف والمخزون</span><h1>الجرد الفعلي</h1><p>لقطة محفوظة، عدّ لكل صنف، واعتماد إداري للفروقات دون الكتابة فوق حركة مخزون أحدث.</p></div></header>
@@ -141,7 +165,7 @@ export function InventoryStockCountPage() {
         <div className="toolbar-actions stock-count-no-print">
           <button className="btn outline" onClick={() => setRefreshKey((v) => v + 1)} disabled={loading || busy}><RefreshCw size={16} /> تحديث</button>
           {session && <button className="btn secondary stock-count-no-print" onClick={() => void exportWorkbook()} disabled={busy || savingLine !== null || !lines.length}><FileSpreadsheet size={16} /> تصدير الجرد إلى Excel</button>}
-          {session && <button className="btn outline" onClick={() => window.print()} disabled={busy}><Printer size={16} /> طباعة ورقة الجرد</button>}
+          {session && printDocument && <button className="btn outline" onClick={() => window.print()} disabled={busy}><Printer size={16} /> طباعة ورقة الجرد</button>}
           {!session && <button className="btn primary" onClick={() => void begin()} disabled={loading || !warehouseId || busy}><ClipboardCheck size={16} /> بدء جلسة جرد فعلية</button>}
         </div>
       </div>
@@ -152,7 +176,7 @@ export function InventoryStockCountPage() {
     {loading && <section className="panel">جار تحميل بيانات الجرد المحفوظة…</section>}
     {!loading && !warehouses.length && <section className="panel">لا توجد مستودعات نشطة متاحة لهذا الحساب ضمن المؤسسة الحالية.</section>}
     {!loading && warehouseId && !session && warehouses.length > 0 && <section className="panel"><ShieldCheck size={22} /><h2>لا توجد جلسة جرد مفتوحة</h2><p className="text-muted">ابدأ جلسة لحفظ لقطة النظام ثم أدخل الكمية المعدودة لكل صنف؛ اعتماد الفروقات يحتاج صلاحية المدير.</p></section>}
-    {session && <section className="panel stock-count-print">
+    {session && <section className="panel stock-count-no-print">
       <div className="panel-head"><div><h2>جلسة الجرد المفتوحة</h2><p className="text-muted">بدأت: {new Date(session.started_at).toLocaleString('ar-YE')}</p></div><span className="badge warning">بانتظار الاعتماد</span></div>
       <div className="report-grid"><article className="report-metric"><span>أصناف اللقطة</span><strong>{q(session.total_lines)}</strong></article><article className="report-metric"><span>تم حفظ عدها</span><strong>{q(counted)} / {q(lines.length)}</strong></article><article className="report-metric"><span>صافي الفروقات المسجلة</span><strong>{q(netVariance)}</strong></article></div>
       <p className="text-muted">رصيد اللقطة يمثل كمية النظام عند البداية. إذا تغيرت الأرصدة أو الحجوزات بعد اللقطة، سيرفض الخادم الإقفال بدل الكتابة فوق حركة أحدث.</p>
@@ -167,6 +191,34 @@ export function InventoryStockCountPage() {
       {!lines.length && <p className="text-muted">لا توجد أصناف في لقطة الجرد؛ لا تُستخدم بيانات تجريبية.</p>}
       <div className="toolbar-actions stock-count-no-print" style={{ marginTop: 16 }}><button className="btn primary" onClick={() => void finalize()} disabled={busy || !canFinalize || !lines.length || counted !== lines.length}><ShieldCheck size={16} /> {canFinalize ? 'اعتماد الجرد وتطبيق الفروقات' : 'بانتظار اعتماد المدير'}</button>{!canFinalize && <span className="text-muted">يمكنك إدخال العد؛ الإقفال النهائي محصور بالمدير أو مدير النظام.</span>}</div>
       {canFinalize && <div className="form-grid stock-count-no-print" style={{ marginTop: 12 }}><label>سبب إلغاء الجلسة<input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} maxLength={1000} placeholder="سبب موثق؛ مطلوب للإلغاء" disabled={busy} /></label><button className="btn outline" onClick={() => void cancel()} disabled={busy || cancelReason.trim().length < 3}>إلغاء الجلسة دون تعديل الرصيد</button></div>}
+    </section>}
+    {printDocument && <section className="stock-count-print-document" dir="rtl" aria-label="ورقة الجرد المطبوعة">
+      <header>
+        <h1>متجر الأغبري | Aghbari Commerce</h1>
+        <h2>ورقة الجرد الفعلي</h2>
+        <div className="print-meta">
+          <span><strong>المستودع:</strong> {printDocument.warehouseName}</span>
+          <span><strong>حالة الجلسة:</strong> {printDocument.statusLabel}</span>
+          <span><strong>وقت بدء الجرد:</strong> {new Date(printDocument.startedAt).toLocaleString('ar-YE')}</span>
+          <span><strong>الأصناف المعدودة:</strong> {q(printDocument.countedLines)} / {q(printDocument.totalLines)}</span>
+        </div>
+      </header>
+      <table>
+        <thead><tr>
+          <th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th><th>رصيد اللقطة</th>
+          <th>المحجوز</th><th>العد المحفوظ</th><th>الفرق المحفوظ</th>
+        </tr></thead>
+        <tbody>{printDocument.items.map((item) => (
+          <tr key={item.itemCode + '-' + item.productName}>
+            <td>{item.itemCode}</td><td>{item.productName}</td><td>{item.unit ?? '—'}</td>
+            <td>{q(item.expectedQuantity)}</td><td>{q(item.reservedQuantity)}</td>
+            <td>{item.countedQuantity === null ? 'غير معدود' : q(item.countedQuantity)}</td>
+            <td>{item.variance === null ? '—' : (item.variance > 0 ? '+' : '') + q(item.variance)}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+      {!printDocument.items.length && <p>لا توجد أصناف في لقطة الجرد.</p>}
+      <p className="print-footer">تتضمن هذه الورقة القيم المحفوظة لدى الخادم فقط؛ التعديلات غير المحفوظة في شاشة العد غير مدرجة.</p>
     </section>}
   </section>;
 }

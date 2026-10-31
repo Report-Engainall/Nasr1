@@ -117,7 +117,7 @@ describe('inventory stock-count retry safety', () => {
     expect(first).toEqual([warehouseId, expect.stringMatching(/^[A-Za-z0-9_-]{16,128}$/), 'جرد الرفوف']);
     expect(retry).toEqual(first);
     expect(screen.getByRole('status')).toHaveTextContent('استُعيدت الجلسة نفسها دون تكرارها.');
-    expect(screen.getByText('SKU-001')).toBeInTheDocument();
+    expect(screen.getAllByText('SKU-001')).toHaveLength(2);
   });
   it('keeps internal session and product identifiers out of the operator-facing printable sheet', async () => {
     const savedLine = { ...line, counted_quantity: 2, variance: -2, counted_at: '2026-10-19T10:10:00.000Z' };
@@ -126,10 +126,16 @@ describe('inventory stock-count retry safety', () => {
     mocks.fetchStockCountLines.mockResolvedValueOnce([savedLine]);
     const { container } = render(<InventoryStockCountPage />);
     expect(await screen.findByText('جلسة الجرد المفتوحة')).toBeInTheDocument();
-    // These raw UUIDs were displayed in the print-visible region, unlike the XLSX export.
-    expect(container.textContent).not.toContain(sessionId);
-    expect(container.textContent).not.toContain(productId);
-    expect(screen.getByText('SKU-001')).toBeInTheDocument();
+    const printable = container.querySelector('.stock-count-print-document');
+    expect(printable).not.toBeNull();
+    expect(printable?.textContent).toContain('ورقة الجرد الفعلي');
+    expect(printable?.textContent).toContain('المستودع الرئيسي');
+    expect(printable?.textContent).toContain('SKU-001');
+    expect(printable?.textContent).not.toContain('جرد الرفوف');
+    // Internal UUIDs remain outside the explicit print projection.
+    expect(printable?.textContent).not.toContain(sessionId);
+    expect(printable?.textContent).not.toContain(productId);
+    expect(screen.getAllByText('SKU-001')).toHaveLength(2);
   });
 
   it('exports the saved stock-count snapshot via the Excel action', async () => {
