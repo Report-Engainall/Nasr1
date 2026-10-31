@@ -44,8 +44,8 @@ describe("storefront dashboard navigation access", () => {
     expect(adminApp).toContain("'.mobile-menu[aria-controls=\"admin-sidebar\"]'");
     expect(adminApp).toContain("Promise.resolve(navigation).then(() =>");
     expect(adminApp).toContain("const restoreMobileFocus = closeMobileNav()");
-    expect(adminStyles).toContain("visibility: hidden; transition: transform .25s ease, visibility 0s linear .25s;");
-    expect(adminStyles).toContain(".sidebar.open { transform: translateX(0); visibility: visible;");
+    expect(adminStyles).toContain("transform: none; clip-path: inset(0 0 0 100%); visibility: hidden; transition: clip-path .25s ease, visibility 0s linear .25s;");
+    expect(adminStyles).toContain(".sidebar.open { transform: none; clip-path: inset(0); visibility: visible; transition: clip-path .25s ease, visibility 0s;");
   });
 
 });
