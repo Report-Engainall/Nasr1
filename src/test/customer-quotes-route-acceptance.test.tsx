@@ -345,8 +345,9 @@ describe("customer quotes real route acceptance", () => {
     await flush();
 
     expect(printSpy).toHaveBeenCalledTimes(1);
-    const printDocument = host?.querySelector<HTMLElement>('[data-testid="customer-quote-print-document"]');
+    const printDocument = document.body.querySelector<HTMLElement>('[data-testid="customer-quote-print-document"]');
     expect(printDocument).not.toBeNull();
+    expect(printDocument?.parentElement).toBe(document.body);
     expect(printDocument?.textContent).toContain("QT-PRINT-001");
     expect(printDocument?.textContent).toContain("سكر");
     expect(printDocument?.textContent).toContain("ملاحظة العميل");
@@ -364,6 +365,12 @@ describe("customer quotes real route acceptance", () => {
     const renderedAttributeNames = Array.from(printDocument?.querySelectorAll("*") ?? [])
       .flatMap((element) => Array.from(element.attributes, (attribute) => attribute.name));
     expect(renderedAttributeNames.some((name) => forbiddenAttributeNames.has(name))).toBe(false);
+    await act(async () => {
+      window.dispatchEvent(new Event("afterprint"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await flush();
+    expect(document.body.querySelector('[data-testid="customer-quote-print-document"]')).toBeNull();
     printSpy.mockRestore();
   });
 
