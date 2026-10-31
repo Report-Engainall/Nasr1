@@ -47,8 +47,8 @@ describe('admin sales order print allowlist', () => {
       approved_unit_price: 30,
       proposed_unit_price: 999,
       line_total: 90,
-      cost_price: 10,
-      margin: 70,
+      cost_price: 'PRIVATE-COST-SENTINEL',
+      margin: 'PRIVATE-MARGIN-SENTINEL',
     }], true);
     expect(document).not.toBeNull();
     expect(Object.keys(document!).sort()).toEqual([
@@ -69,7 +69,8 @@ describe('admin sales order print allowlist', () => {
     for (const privateValue of [
       'PRIVATE-ORDER-ID','PRIVATE-TENANT-ID','PRIVATE-CUSTOMER-ID','PRIVATE-ACTOR-ID',
       'PRIVATE-CUSTOMER-ROW-ID','PRIVATE-ACCOUNT-PHONE','PRIVATE-ADMIN-NOTE','PRIVATE-ADDRESS-ID',
-      'PRIVATE-LINE-ID','PRIVATE-PRODUCT-ID','PRIVATE-RAW-OBJECT','999','10',
+      'PRIVATE-LINE-ID','PRIVATE-PRODUCT-ID','PRIVATE-RAW-OBJECT','PRIVATE-COST-SENTINEL',
+      'PRIVATE-MARGIN-SENTINEL','999',
     ]) expect(serialized).not.toContain(privateValue);
   });
 
