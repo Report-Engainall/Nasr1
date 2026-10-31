@@ -322,6 +322,58 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await printTasksButton.click();
     await expect.poll(() => manager.evaluate(() => document.documentElement.dataset.e2ePrintInvoked)).toBe("true");
 
+    // The purchasing page must print from the role-safe projection, not the internal order model.
+    await manager.goto("/admin/purchase-orders");
+    await expect(manager.getByRole("heading", { name: "أوامر الشراء والاستلام" })).toBeVisible({ timeout: 20_000 });
+    await manager.getByRole("button", { name: "إنشاء مسودة أمر شراء" }).click();
+
+    const supplierSelect = manager.getByLabel("المورد");
+    const warehouseSelect = manager.getByLabel("المخزن المستلم");
+    const productSelect = manager.getByLabel("الصنف").first();
+    await expect(supplierSelect).toBeEnabled({ timeout: 20_000 });
+    await expect(warehouseSelect).toBeEnabled({ timeout: 20_000 });
+    await expect(productSelect).toBeEnabled({ timeout: 20_000 });
+    const supplierId = await supplierSelect.locator("option").evaluateAll((options) =>
+      options.find((option) => (option as HTMLOptionElement).value)?.getAttribute("value") ?? "",
+    );
+    const warehouseId = await warehouseSelect.locator("option").evaluateAll((options) =>
+      options.find((option) => (option as HTMLOptionElement).value)?.getAttribute("value") ?? "",
+    );
+    const productId = await productSelect.locator("option").evaluateAll((options) =>
+      options.find((option) => (option as HTMLOptionElement).value)?.getAttribute("value") ?? "",
+    );
+    expect(supplierId).toBeTruthy();
+    expect(warehouseId).toBeTruthy();
+    expect(productId).toBeTruthy();
+    await supplierSelect.selectOption(supplierId);
+    await warehouseSelect.selectOption(warehouseId);
+    await productSelect.selectOption(productId);
+    await manager.getByLabel("الكمية المطلوبة").first().fill("2");
+    await manager.getByLabel("تكلفة الوحدة (اختياري)").first().fill("");
+    const privatePurchaseNote = "E2E_PRIVATE_PO_NOTE_" + Date.now();
+    await manager.getByLabel("ملاحظات داخلية للشراء/المخزن").fill(privatePurchaseNote);
+    await manager.getByRole("button", { name: "حفظ مسودة أمر الشراء" }).click();
+    await expect(manager.getByRole("status")).toContainText("حُفظت مسودة أمر الشراء", { timeout: 20_000 });
+
+    const purchaseOrderPrintButton = manager.getByRole("button", { name: "طباعة الأمر", exact: true });
+    await expect(purchaseOrderPrintButton).toBeEnabled({ timeout: 20_000 });
+    await manager.evaluate(() => { delete document.documentElement.dataset.e2ePrintInvoked; });
+    await purchaseOrderPrintButton.click();
+    await expect.poll(() => manager.evaluate(() => document.documentElement.dataset.e2ePrintInvoked)).toBe("true");
+    const orderPrintText = await manager.locator(".po-print-only").textContent() ?? "";
+    expect(orderPrintText).toContain("أمر شراء");
+    expect(orderPrintText).toContain("غير مسجل");
+    expect(orderPrintText).not.toContain(privatePurchaseNote);
+
+    const purchaseResultsPrintButton = manager.getByRole("button", { name: "طباعة النتائج", exact: true });
+    await expect(purchaseResultsPrintButton).toBeEnabled();
+    await manager.evaluate(() => { delete document.documentElement.dataset.e2ePrintInvoked; });
+    await purchaseResultsPrintButton.click();
+    await expect.poll(() => manager.evaluate(() => document.documentElement.dataset.e2ePrintInvoked)).toBe("true");
+    const resultsPrintText = await manager.locator(".po-print-only").textContent() ?? "";
+    expect(resultsPrintText).toContain("سجل أوامر الشراء");
+    expect(resultsPrintText).not.toContain(privatePurchaseNote);
+
     await test.info().attach("finance-task-print-browser-proof.json", {
       body: JSON.stringify({
         result: "BROWSER_PROVEN",
@@ -338,6 +390,10 @@ test("authorized finance documents and operational-task print remain tenant-scop
         postedOrReversedCreditMemoPrintAttempted: true,
         foreignTenantCustomerAbsentFromStatementOptions: true,
         operationalTaskPrintInvoked: true,
+        purchaseOrderPrintInvoked: true,
+        purchaseOrderResultPrintInvoked: true,
+        purchaseOrderPrintExcludedInternalNote: true,
+        purchaseOrderUnknownCostsRemainUnrecorded: true,
         noProductionWrites: true,
       }, null, 2),
       contentType: "application/json",
