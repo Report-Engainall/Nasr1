@@ -75,24 +75,32 @@ describe('purchase orders page',()=>{
     const root=container.querySelector('.purchase-orders');
     expect(root).not.toBeNull();
     const style=container.querySelector('style')?.textContent??'';
-    expect(style).toContain('.purchase-orders.print-results .po-selected-order{display:none!important}');
-    expect(style).toContain('.purchase-orders.print-order .po-results-list,.purchase-orders.print-order .po-results-header{display:none!important}');
+    expect(style).toContain('.purchase-orders>*{display:none!important}');
+    expect(style).toContain('.purchase-orders>.po-print-only{display:block!important');
     const resultList=container.querySelector('.po-results-list');
     const orderDetail=container.querySelector('.po-selected-order');
+    const printOnly=container.querySelector('.po-print-only');
     expect(resultList).not.toBeNull();
     expect(orderDetail).not.toBeNull();
+    expect(printOnly).not.toBeNull();
     expect(resultList?.closest('.no-print')).toBeNull();
     expect(screen.getByLabelText('الحالة').closest('label')).toHaveClass('no-print');
 
     fireEvent.click(screen.getByRole('button',{name:/طباعة النتائج/}));
     await waitFor(()=>expect(print).toHaveBeenCalledTimes(1));
     expect(root).toHaveClass('print-results');
+    expect(printOnly?.textContent).toContain('سجل أوامر الشراء');
+    expect(printOnly?.textContent).toContain('PO-20261019-000001');
+    expect(printOnly?.textContent).not.toContain('org-1');
 
     fireEvent.click(screen.getByRole('button',{name:/PO-20261019-000001/}));
     expect(await screen.findByRole('button',{name:/طباعة الأمر/})).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:/طباعة الأمر/}));
     await waitFor(()=>expect(print).toHaveBeenCalledTimes(2));
     expect(root).toHaveClass('print-order');
+    await waitFor(()=>expect(printOnly?.textContent).toContain('أمر شراء'));
+    expect(printOnly?.textContent).toContain('مورد موثوق');
+    expect(printOnly?.textContent).not.toContain('org-1');
   });
 
   it('does not call purchase APIs for an account without the manager/admin role',()=>{

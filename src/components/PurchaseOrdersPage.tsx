@@ -14,6 +14,10 @@ import { useAuth } from '@/lib/auth';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { PurchaseReceiptAccountingWorkspace } from '@/components/PurchaseReceiptAccountingWorkspace';
 import { downloadPurchaseOrdersWorkbookXlsx } from '@/lib/purchase-orders-xlsx';
+import {
+  projectPurchaseOrderPrintDocument,
+  projectPurchaseOrderPrintResults,
+} from '@/lib/purchase-orders-print';
 
 type WarehouseOption = { id: string; name: string; code: string | null };
 type DraftLine = { productId: string; quantity: string; unitCost: string };
@@ -102,6 +106,15 @@ export function PurchaseOrdersPage() {
   const totalOpen = orders.filter((order) => ['submitted','partially_received'].includes(order.status)).length;
   const totalDraft = orders.filter((order) => order.status === 'draft').length;
   const totalReceived = orders.filter((order) => order.status === 'received').length;
+  const printRoles = user?.roles ?? [];
+  const printOrderDocument = selectedOrder
+    ? projectPurchaseOrderPrintDocument(selectedOrder, printRoles)
+    : null;
+  const printResultsDocument = projectPurchaseOrderPrintResults(
+    visibleOrders,
+    statusFilter === 'all' ? 'كل الحالات' : statusLabel[statusFilter],
+    printRoles,
+  );
 
   async function createDraft() {
     if (!supplierId || !warehouseId) { setError('اختر موردًا نشطًا ومخزنًا نشطًا.'); return; }
@@ -225,6 +238,7 @@ export function PurchaseOrdersPage() {
   return <section className={'purchase-orders' + (printMode ? ' print-' + printMode : '')} dir="rtl">
     <style>{`
       .purchase-orders{display:grid;gap:16px;min-width:0}
+      .purchase-orders .po-print-only{display:none}
       .purchase-orders .po-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
       .purchase-orders .po-layout{display:grid;grid-template-columns:minmax(280px,0.9fr) minmax(0,1.4fr);gap:16px;align-items:start}
       .purchase-orders .po-card{border:1px solid var(--border,#d9e1e5);border-radius:12px;padding:14px;display:grid;gap:8px;background:var(--card,#fff)}
@@ -251,13 +265,21 @@ export function PurchaseOrdersPage() {
       @media(max-width:850px){.purchase-orders .po-layout{grid-template-columns:1fr}.purchase-orders .po-line{grid-template-columns:1fr 1fr}.purchase-orders .po-line .wide{grid-column:1/-1}}
       @media(max-width:480px){.purchase-orders .po-summary,.purchase-orders .po-create-grid{grid-template-columns:1fr}.purchase-orders .po-line{grid-template-columns:1fr}}
       @media print{
-        body *{visibility:hidden!important}.purchase-orders,.purchase-orders *{visibility:visible!important}
+        @page{size:A4;margin:12mm}
+        body *{visibility:hidden!important}
+        .purchase-orders,.purchase-orders *{visibility:visible!important}
         .purchase-orders{position:absolute;inset:0;width:100%;color:#000!important;background:#fff!important}
-        .purchase-orders .no-print{display:none!important}.purchase-orders .po-layout{display:block}
-        .purchase-orders.print-results .po-selected-order{display:none!important}
-        .purchase-orders.print-order .po-results-list,.purchase-orders.print-order .po-results-header{display:none!important}
-        .purchase-orders .po-card,.purchase-orders .panel{break-inside:avoid}
-        .purchase-orders .po-table-wrap th,.purchase-orders .po-table-wrap td{color:#000!important;border-color:#999!important}
+        .purchase-orders>*{display:none!important}
+        .purchase-orders>.po-print-only{display:block!important;position:absolute;inset:0;padding:0;background:#fff!important;color:#000!important}
+        .purchase-orders>.po-print-only *{visibility:visible!important}
+        .purchase-orders .po-print-document{direction:rtl;color:#000;font-family:Arial,sans-serif;font-size:11pt}
+        .purchase-orders .po-print-document h1{font-size:18pt;margin:0 0 12px}
+        .purchase-orders .po-print-document .po-print-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 20px;margin:12px 0 18px}
+        .purchase-orders .po-print-document table{width:100%;border-collapse:collapse}
+        .purchase-orders .po-print-document th,.purchase-orders .po-print-document td{border:1px solid #999;padding:7px;text-align:right;white-space:normal}
+        .purchase-orders .po-print-document thead{display:table-header-group}
+        .purchase-orders .po-print-document tr{break-inside:avoid}
+        .purchase-orders .po-print-document .po-print-total{margin-top:14px;font-weight:700}
       }
     `}</style>
     <header className="heading">
@@ -356,6 +378,53 @@ export function PurchaseOrdersPage() {
             }
           </div>
         </div>}
+    </div>
+    <div className="po-print-only" dir="rtl" aria-label="مخرجات طباعة أوامر الشراء">
+      {printMode === 'order' && printOrderDocument && (
+        <article className="po-print-document" aria-label="مستند أمر الشراء">
+          <h1>أمر شراء — {printOrderDocument.purchase_order_number}</h1>
+          <div className="po-print-meta">
+            <div><strong>المورد:</strong> {printOrderDocument.supplier_name}</div>
+            <div><strong>المخزن:</strong> {printOrderDocument.warehouse_name}</div>
+            <div><strong>الحالة:</strong> {statusLabel[printOrderDocument.status]}</div>
+            <div><strong>تاريخ الإنشاء:</strong> {formatDateShort(printOrderDocument.created_at)}</div>
+          </div>
+          <table>
+            <thead><tr>
+              <th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th><th>المطلوب</th>
+              <th>المستلم</th><th>المتبقي</th><th>تكلفة الوحدة</th><th>قيمة البند</th>
+            </tr></thead>
+            <tbody>{printOrderDocument.items.map((item, index) => (
+              <tr key={index}>
+                <td>{item.item_code}</td><td>{item.product_name}</td><td>{item.unit ?? '—'}</td>
+                <td>{numberText(item.quantity_ordered)}</td><td>{numberText(item.quantity_received)}</td>
+                <td>{numberText(item.remaining_quantity)}</td><td>{moneyText(item.unit_cost)}</td><td>{moneyText(item.line_total)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+          <p className="po-print-total">إجمالي الأمر: {moneyText(printOrderDocument.total_cost)}</p>
+        </article>
+      )}
+      {printMode === 'results' && printResultsDocument && (
+        <article className="po-print-document" aria-label="نتائج أوامر الشراء">
+          <h1>سجل أوامر الشراء</h1>
+          <p>فلتر الحالة: {printResultsDocument.filter_label}</p>
+          <table>
+            <thead><tr>
+              <th>رقم الأمر</th><th>المورد</th><th>المخزن</th><th>الحالة</th>
+              <th>تاريخ الإنشاء</th><th>عدد الأصناف</th><th>الإجمالي</th>
+            </tr></thead>
+            <tbody>{printResultsDocument.orders.map((order, index) => (
+              <tr key={index}>
+                <td>{order.purchase_order_number}</td><td>{order.supplier_name}</td><td>{order.warehouse_name}</td>
+                <td>{statusLabel[order.status]}</td><td>{formatDateShort(order.created_at)}</td>
+                <td>{formatNumber(order.item_count)}</td><td>{moneyText(order.total_cost)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+          <p className="po-print-total">عدد الأوامر المطبوعة: {formatNumber(printResultsDocument.orders.length)}</p>
+        </article>
+      )}
     </div>
   </section>;
 }
