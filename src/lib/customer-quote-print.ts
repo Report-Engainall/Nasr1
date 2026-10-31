@@ -64,7 +64,7 @@ export function projectCustomerQuotePrintDocument(
 ): CustomerQuotePrintDocument | null {
   const status = textOrNull(quote.status);
   const quoteNumber = textOrNull(quote.quote_number);
-  if (!quoteNumber || !status || !(status in STATUS_LABELS) || sourceLines.length === 0) return null;
+  if (!quoteNumber || !status || !Object.prototype.hasOwnProperty.call(STATUS_LABELS, status) || sourceLines.length === 0) return null;
 
   const items: CustomerQuotePrintItem[] = [];
   for (const line of sourceLines) {
