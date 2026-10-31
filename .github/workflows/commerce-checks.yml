@@ -172,7 +172,7 @@ jobs:
           SUPABASE_URL: https://ci-placeholder.supabase.co
           SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
         run: |
-          npx wrangler dev --config .output/server/wrangler.json --local --ip 127.0.0.1 --port 4173 > /tmp/aghbari-preview.log 2>&1 &
+          npx wrangler dev --config .output/server/wrangler.json --compatibility-date 2026-10-30 --local --ip 127.0.0.1 --port 4173 > /tmp/aghbari-preview.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" >/dev/null 2>&1 || true' EXIT
           if [ ! -f .output/server/index.mjs ] || [ ! -f .output/server/wrangler.json ] || [ ! -f .output/public/manifest.webmanifest ]; then
@@ -195,6 +195,7 @@ jobs:
           done
           if [ "$ready" -ne 1 ]; then
             echo "Production preview did not serve the built Arabic storefront at HTTP 200."
+            echo "Local CI preview uses the latest compatibility date supported by its bundled workerd binary (2026-10-30); built application compatibility metadata is unchanged and this is not production-runtime evidence."
             cat /tmp/aghbari-preview.log
             exit 1
           fi
