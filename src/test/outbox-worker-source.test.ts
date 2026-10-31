@@ -21,6 +21,6 @@ describe("outbox worker source wiring", () => {
     expect(handlerSource).toContain('import {');
     expect(handlerSource).toContain('outboxFailureMessage(error)');
     expect(handlerSource).toContain('classifyOutboxProcessResult(data)');
-    expect(handlerSource).not.toMatch(/\\bsafeErrorMessage\\s*\\(/);
+    expect(handlerSource).not.toMatch(/\bsafeErrorMessage\s*\(/);
   });
 });
