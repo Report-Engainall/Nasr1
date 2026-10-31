@@ -78,7 +78,7 @@ describe('inventory transfer XLSX role-safe template', () => {
   });
 
   it('rejects invalid dates and incomplete source bounds before producing a workbook', () => {
-    expect(() => buildInventoryTransferHistoryWorkbookXlsx([unsafe], { ...filters, generated_at: 'invalid' })).toThrow(/وقت إنشاء الملف/);
+    expect(() => buildInventoryTransferHistoryWorkbookXlsx([unsafe], { ...filters, generated_at: 'invalid' })).toThrow(/وقت إنشاء ملف التحويلات غير صالح/);
     expect(() => buildInventoryTransferHistoryWorkbookXlsx([unsafe], { ...filters, source_limit: 0 })).toThrow(/عدد صفوف التحويلات/);
   });
 });
