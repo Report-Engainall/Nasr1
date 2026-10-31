@@ -1,32 +1,32 @@
-# LIVE EXECUTION CHECKPOINT — 2026-10-31 — DLV-011 PURCHASE ORDER PRINT MERGED; STOCK COUNT PRINT ACTIVE
+# LIVE EXECUTION CHECKPOINT — 2026-10-31 — DLV-011 STOCK COUNT PRINT MERGED; CUSTOMER ORDER PRINT ACTIVE
 
-- CURRENT_MAIN_SHA (code-bearing main SHA): `07b535610b6cfa2609f60a4d9e8f68c2658b84b4`
-- LAST_COMPLETED_TASK_ID: `DLV-011-PURCHASE-ORDER-PRINT-PROJECTION`
-- LAST_COMPLETED_TASK: Merged PR #324. Added strict manager/admin-only DTO projections for individual purchase-order print and filtered results; raw PurchaseOrder objects are no longer rendered in the print surface. The explicit order/item allowlists omit tenant/order/supplier/warehouse/product/line/actor identifiers, supplier code, internal notes and cancellation reasons. Unknown order/line costs remain null and display as `غير مسجل`. Existing purchase-order XLSX exporter/tests were unchanged. The same PR corrected PostgreSQL UUID shape validation to avoid incorrectly requiring RFC 4122 version/variant bits while leaving tenant/resource enforcement server-side.
-- ACTIVE_TASK_ID: `DLV-011-STOCK-COUNT-PRINT-PROJECTION`
-- ACTIVE_TASK_STATUS: `IMPLEMENTED — PR #326 OPEN; exact-head Core/P2 IN_PROGRESS`
-- BASE_SHA: `07b535610b6cfa2609f60a4d9e8f68c2658b84b4` (main code SHA immediately before PR #326)
-- HEAD_SHA: `9d4624b675b99e192c16e2f0dd9543fb05f07e26` (PR #326 exact implementation head)
+- CURRENT_MAIN_SHA (code-bearing main SHA): `a69b9cd6a82353df86fe38d59dd0714fd5be0dfc`
+- LAST_COMPLETED_TASK_ID: `DLV-011-STOCK-COUNT-PRINT-PROJECTION`
+- LAST_COMPLETED_TASK: Merged PR #326 by squash at `a69b9cd6a82353df86fe38d59dd0714fd5be0dfc`. The stock-count screen now prints a dedicated staff-authorized A4 landscape RTL DTO instead of the live interactive form. Printed values include warehouse display name, session status/start time, item display code/name/unit, snapshot quantity, reserved quantity, persisted counted quantity and variance only. Session/tenant/warehouse/product/line/actor IDs, idempotency key, notes, cancellation reason and financial data are omitted. Unsaved drafts never print; missing counts stay null and render as `غير معدود`. Existing stock-count XLSX output and tests were not modified.
+- ACTIVE_TASK_ID: `DLV-011-CUSTOMER-ORDER-PRINT-PROJECTION`
+- ACTIVE_TASK_STATUS: `IMPLEMENTED — PR #327 OPEN; exact-head Core/P2 IN_PROGRESS`
+- BASE_SHA: `10d11529372a99e977c11832f043cf84dedec228` (main SHA from which PR #327 branch was created)
+- HEAD_SHA: `1daaee5e1e23500493e74e49a0d5f23bf4f275cc`
 - FILES_CHANGED:
-  - `src/components/InventoryStockCountPage.tsx`
-  - `src/lib/stock-count-print.ts`
-  - `src/lib/stock-count-print.test.ts`
-  - `src/test/inventory-stock-count-page.test.tsx`
-  - `e2e/finance-task-print.spec.ts`
-- IMPLEMENTATION_RESULT: Current PR #326 introduces a dedicated staff-authorized stock-count print projection and an isolated A4 landscape RTL printable document. Only warehouse label, session status/start time, product code/name/unit, snapshot quantity, reserved quantity, persisted counted quantity and persisted variance are projected. Session/tenant/warehouse/product/line/actor IDs, idempotency key, session notes, cancellation reason and financial data are excluded. Unsaved UI drafts are never printed; an uncounted saved value remains null and is rendered as `غير معدود`. The existing stock-count XLSX path remains untouched.
+  - `src/components/CustomerOrders.tsx`
+  - `src/lib/customer-order-print.ts`
+  - `src/lib/customer-order-print.test.ts`
+  - `src/test/customer-order-detail-route-acceptance.test.tsx`
+  - `e2e/critical-path.spec.ts`
+- IMPLEMENTATION_RESULT: PR #327 converts the customer order confirmation into a strict customer-visible DTO. It projects order number/status/date, customer display name/code, the saved delivery snapshot, item code/name/unit, requested/approved quantities, review state, customer-facing adjustment/payment notices, customer notes and status timestamps. It does not copy order/customer/tenant/product/line/history/actor IDs, admin notes, history notes, customer account contact fields outside the delivery snapshot, unit prices, line totals, costs or margins. Missing quantities remain null. The existing return-request and reorder-template flows remain unchanged.
 - TESTS_RUN_WITH_RESULTS:
-  - PR #324 exact head `ea16797652f0dbedead1499d18672815f16f7b4a`: Core [41233076842 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41233076842); P2 [41233076841 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41233076841). The authenticated local Supabase/Chromium job [124631342676 SUCCESS] covered purchase-order print and filtered-results print, internal-note exclusion, null cost rendering and customer route denial.
-  - PR #324 merge: [PR #324 merged](https://github.com/Report-Engainall/Nasr1/pull/324) by squash to `07b535610b6cfa2609f60a4d9e8f68c2658b84b4`.
-  - Post-merge exact SHA `07b535610b6cfa2609f60a4d9e8f68c2658b84b4`: Core [41233495338 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41233495338); P2 [41233495387 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41233495387); One-main cleanup [41233495336 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41233495336).
-  - PR #326 exact head: Core [41233825228](https://github.com/Report-Engainall/Nasr1/actions/runs/41233825228) and P2 [41233825340](https://github.com/Report-Engainall/Nasr1/actions/runs/41233825340) were launched on `9d4624b675b99e192c16e2f0dd9543fb05f07e26`; latest observed state is IN_PROGRESS. P2 authenticated infrastructure gate passed; public UI and local Supabase/Chromium work are pending.
+  - PR #326 exact head `db3ab20984e259a79ac36aaa8f44d5eaac959366`: Core [41234062233 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41234062233); P2 [41234062280 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41234062280). P2 local Supabase/Chromium proved start of a stock-count session from verified existing warehouse balances, print invocation and exclusion of the session-note sentinel. Hosted customer/order/tenant job was SKIPPED, not PASS.
+  - PR #326 merge: [PR #326 merged](https://github.com/Report-Engainall/Nasr1/pull/326) to `a69b9cd6a82353df86fe38d59dd0714fd5be0dfc`.
+  - Post-merge exact SHA `a69b9cd6a82353df86fe38d59dd0714fd5be0dfc`: Core [41234819377](https://github.com/Report-Engainall/Nasr1/actions/runs/41234819377) IN_PROGRESS; P2 [41234819172](https://github.com/Report-Engainall/Nasr1/actions/runs/41234819172) IN_PROGRESS; One-main cleanup [41234819186 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41234819186).
+  - PR #327 exact head `1daaee5e1e23500493e74e49a0d5f23bf4f275cc`: Core [41234777805](https://github.com/Report-Engainall/Nasr1/actions/runs/41234777805) IN_PROGRESS in Unit Tests; P2 [41234777898](https://github.com/Report-Engainall/Nasr1/actions/runs/41234777898) IN_PROGRESS in public Storefront smoke after authenticated infrastructure gate SUCCESS.
 - FAILED_OR_SKIPPED:
-  - Hosted customer/order/tenant Playwright job [124632375571] was SKIPPED on the post-merge P2 run 41233495387. This is not hosted proof; local Supabase/Chromium passed.
-  - Actual Onyx Pro target-version import/round-trip, official WhatsApp delivery receipt, live free-AI provider response, production deploy/rollback/restore and owner sign-off remain external/unverified.
-- MERGE_STATUS: `PR #324 MERGED`; `PR #326 OPEN — no merge attempted`.
-- BLOCKERS: Hosted authenticated customer/second-tenant acceptance remains unproven because the job is skipped; actual Onyx Pro target access/receipt, official WhatsApp provider receipt, live free-AI provider credentials/response, production deployment/rollback/restore access and owner sign-off remain external/unverified. DLV-011 remains PARTIAL until the remaining sales/accounting/warehouse/purchasing/admin role×template outputs and hosted acceptance are proven. Do not claim full DLV-011 completion or production release.
-- NEXT_TASK_ID: `DLV-011-STOCK-COUNT-PRINT-PROJECTION`
-- NEXT_ACTION: Complete PR #326 on branch `fix/stock-count-print-projection-20261031`, exact head `9d4624b675b99e192c16e2f0dd9543fb05f07e26`: (1) pass `src/lib/stock-count-print.test.ts` and `src/test/inventory-stock-count-page.test.tsx`; (2) run the existing stock-count XLSX test unchanged and verify its exporter/test files have no diff; (3) pass the authenticated local Supabase/Chromium stock-count flow that starts a session from a warehouse with verified inventory balances, invokes `طباعة ورقة الجرد`, and proves the session-note sentinel is absent; (4) pass Core and P2 on this exact SHA; fix only reproduced implementation or fixture defects, and if the isolated fixture lacks an eligible inventory balance, seed one through the existing local-only test setup rather than weakening `start_stock_count`'s server rejection; (5) merge PR #326 only after exact-head gates pass, verify the resulting main SHA and post-merge Core/P2/cleanup, update this checkpoint and the DLV-011 matrix row, then continue the next uncovered role×template document template.
-- UPDATED_AT: `2026-10-31T19:22:44.673Z`
+  - PR #326 hosted customer/order/tenant Playwright job was SKIPPED. Local authenticated Chromium passed; this does not establish HOSTED_PROVEN.
+  - Actual Onyx Pro target-version import/round-trip, official WhatsApp delivery receipt, live free-AI provider response, production deployment/rollback/restore, owner sign-off and hosted customer/tenant acceptance remain external/unverified.
+- MERGE_STATUS: `PR #326 MERGED`; `PR #327 OPEN — no merge attempted`.
+- BLOCKERS: DLV-011 remains PARTIAL. Remaining role×template coverage for sales, accounting, invoices/statements/credit memos, warehouse documents, receiving/purchasing and administration still requires implemented field allowlists and evidence. Hosted role×template acceptance is separate from local browser proof. External Onyx/WhatsApp/AI and production deployment evidence remains unavailable/unverified.
+- NEXT_TASK_ID: `DLV-011-CUSTOMER-ORDER-PRINT-PROJECTION`
+- NEXT_ACTION: Complete PR #327 on branch `fix/customer-order-print-projection-20261031`, exact head `1daaee5e1e23500493e74e49a0d5f23bf4f275cc`: (1) fix any exact-head TypeScript/Unit/Core failures in the customer print DTO/component/route tests; (2) pass the route print-action acceptance proving customer notes and approved quantities are shown while order/tenant/customer/product/line/history/actor identifiers, admin/history notes and all prices/totals/cost/margin sentinels are absent; (3) pass P2 authenticated local catalog→cart→persisted order→customer print and existing cross-tenant denial on the same SHA; (4) verify the e2e attachment records customerOrderPrintInvoked and strict DOM field exclusions; (5) merge PR #327 only after Core and P2 SUCCESS on its exact head; (6) verify resulting main SHA and post-merge Core/P2/cleanup, then update this checkpoint and the DLV-011 matrix row; (7) continue the next uncovered role×template print/export path without reopening #318/#324/#326.
+- UPDATED_AT: `2026-10-31T19:34:46.382Z`
 
 ---
 
