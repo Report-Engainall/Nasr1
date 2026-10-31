@@ -11,6 +11,7 @@ import {
 } from '@/lib/inventory-transfer-batch';
 import { useAuth } from '@/lib/auth';
 import { downloadInventoryTransferHistoryWorkbookXlsx } from '@/lib/inventory-transfer-history-xlsx';
+import { projectInventoryTransferPrintRow } from '@/lib/inventory-transfer-history-print';
 
 type DraftLine = { productId: string; quantity: string };
 type TransferPreview = { signature: string; draft: ReturnType<typeof normalizeInventoryTransferBatchDraft> };
@@ -241,14 +242,16 @@ export function InventoryTransferHistoryPage() {
         <div className="inventory-transfer-print" dir="rtl">
           <div><h2>سجل تحويلات المخزون</h2><p>عدد الحركات المطابقة للفلاتر: {filteredHistory.length} — وقت الطباعة: {dateText(new Date().toISOString())}</p></div>
           <div style={{ overflowX: 'auto' }}><table aria-label="سجل تحويلات المخزون"><thead><tr>
-            <th>التاريخ</th><th>رمز الصنف</th><th>الصنف</th><th>من مستودع</th><th>إلى مستودع</th><th>الكمية</th><th>نوع التحويل</th><th>السبب</th><th>المنفذ</th>
+            <th>التاريخ</th><th>رمز الصنف</th><th>الصنف</th><th>من مستودع</th><th>إلى مستودع</th><th>الكمية</th><th>نوع التحويل</th><th>السبب</th>
           </tr></thead><tbody>
-            {filteredHistory.map((row: InventoryTransferHistoryRow) => <tr key={row.id}>
-              <td>{dateText(row.created_at)}</td><td>{row.item_code ?? '—'}</td><td>{row.product_name ?? 'صنف غير متاح'}{row.unit ? ' (' + row.unit + ')' : ''}</td>
-              <td>{row.source_warehouse_name ?? 'مستودع غير متاح'}</td><td>{row.destination_warehouse_name ?? 'مستودع غير متاح'}</td>
-              <td>{quantityText(row.quantity)}</td><td>{row.batch_id ? 'دفعة متعددة (' + quantityText(row.batch_line_count ?? 1) + ' أصناف)' : 'تحويل مفرد'}</td>
-              <td>{row.reason}</td><td title={row.created_by ?? ''}>{row.created_by ? row.created_by.slice(0, 8) : '—'}</td>
-            </tr>)}
+            {filteredHistory.map((sourceRow: InventoryTransferHistoryRow) => {
+              const row = projectInventoryTransferPrintRow(sourceRow);
+              return <tr key={sourceRow.id}>
+                <td>{dateText(row.created_at)}</td><td>{row.item_code ?? '—'}</td><td>{row.product_name ?? 'صنف غير متاح'}{row.unit ? ' (' + row.unit + ')' : ''}</td>
+                <td>{row.source_warehouse_name ?? 'مستودع غير متاح'}</td><td>{row.destination_warehouse_name ?? 'مستودع غير متاح'}</td>
+                <td>{quantityText(row.quantity)}</td><td>{row.transfer_type}</td><td>{row.reason}</td>
+              </tr>;
+            })}
           </tbody></table></div>
           {!historyLoading && !historyError && !filteredHistory.length && <p className="text-muted">لا توجد حركات تحويل تطابق الفلاتر. لا تُنشأ بيانات تجريبية.</p>}
         </div>
