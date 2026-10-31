@@ -285,27 +285,45 @@ def audit_snapshot(
             row["uncompressed_bytes"] = total
             row["integrity_status"] = "HEADER_PATH_RATIO_LIMITS_PASS"
             for info in infos:
-                    if info.is_dir() or info.filename.endswith("/"):
-                        continue
-                    raw = safe_name(info.filename).as_posix()
-                    destination = extraction_destination(raw, info.file_size, snapshot_root, selected_total)
-                    try:
-                        selected, selected_total = append_member_result(
-                            archive, spec, info, destination, snapshot_root, selected_total,
-                            by_path, members, errors,
+                if info.is_dir() or info.filename.endswith("/"):
+                    continue
+                raw = safe_name(info.filename).as_posix()
+                destination = extraction_destination(raw, info.file_size, snapshot_root, selected_total)
+                try:
+                    selected, selected_total = append_member_result(
+                        archive,
+                        spec,
+                        info,
+                        destination,
+                        snapshot_root,
+                        selected_total,
+                        by_path,
+                        members,
+                        errors,
+                    )
+                    if selected:
+                        row["selected_source_extract_count"] = (
+                            int(row["selected_source_extract_count"] or 0) + selected
                         )
-                        if selected:
-                            row["selected_source_extract_count"] = int(row["selected_source_extract_count"] or 0) + selected
-                    except Exception as error:
-                        logging.warning("Snapshot member validation failed for %s/%s: %s", spec["id"], raw, error, exc_info=True)
-                        detail = f"{type(error).__name__}: {error}"
-                        errors.append(f"{spec['id']} member {raw}: {detail}")
-                        members.append({
-                            "snapshot_id": spec["id"], "tag": spec["tag"], "member_path": raw,
-                            "size_bytes": info.file_size, "sha256": "",
-                            "selected_source_extracted": "NO",
-                            "member_status": "READ_OR_CRC_FAILED:" + detail,
-                        })
+                except Exception as error:
+                    logging.warning(
+                        "Snapshot member validation failed for %s/%s: %s",
+                        spec["id"],
+                        raw,
+                        error,
+                        exc_info=True,
+                    )
+                    detail = f"{type(error).__name__}: {error}"
+                    errors.append(f"{spec['id']} member {raw}: {detail}")
+                    members.append({
+                        "snapshot_id": spec["id"],
+                        "tag": spec["tag"],
+                        "member_path": raw,
+                        "size_bytes": info.file_size,
+                        "sha256": "",
+                        "selected_source_extracted": "NO",
+                        "member_status": "READ_OR_CRC_FAILED:" + detail,
+                    })
         member_errors = any(error.startswith(str(spec["id"]) + " member ") for error in errors)
         row["integrity_status"] = (
             "MEMBER_DECOMPRESSION_OR_CRC_FAILED"
