@@ -90,6 +90,14 @@ describe("general journal and financial statement print projections", () => {
     ]) expect(serialized).not.toContain(secret);
   });
 
+  it("labels original and reversal entries without exposing the linked entry ID", () => {
+    expect(projectGeneralJournalPrintDocument({ ...journalEntry, isReversal: true })?.reversalLabel).toBe("قيد عكس");
+    expect(projectGeneralJournalPrintDocument({ ...journalEntry, hasReversal: true })?.reversalLabel).toBe("مرتبط بقيد عكس");
+    const voided = projectGeneralJournalPrintDocument({ ...journalEntry, status: "void" });
+    expect(voided?.statusLabel).toBe("ملغى");
+    expect(JSON.stringify(voided)).not.toContain("id");
+  });
+
   it("rejects unbalanced headers, unbalanced lines, duplicate line order and oversized entries", () => {
     expect(projectGeneralJournalPrintDocument({ ...journalEntry, credit_total: "125.49" })).toBeNull();
     expect(projectGeneralJournalPrintDocument({
