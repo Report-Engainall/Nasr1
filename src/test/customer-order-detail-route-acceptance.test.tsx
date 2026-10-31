@@ -160,6 +160,63 @@ describe("customer order detail real route acceptance", () => {
     expect(host?.textContent).not.toContain("تأكيد طلب");
   });
 
+  it("prints the order through an explicit customer-visible projection", async () => {
+    mocks.user = CUSTOMER;
+    const orderId = "33333333-3333-4333-8333-333333333333";
+    mocks.results = {
+      orders: { data: [{
+        id: orderId, order_number: "SO-PRINT-001", customer_id: CUSTOMER.profileId,
+        organization_id: "PRIVATE-TENANT-ID", status: "confirmed", total_items: 1,
+        notes: "ملاحظة العميل الظاهرة", admin_notes: "PRIVATE-ADMIN-NOTE",
+        created_at: "2026-10-31T09:00:00.000Z", quantity_review_required: true,
+        customer_adjustment_note: "تم تعديل الكمية.",
+        customer_payment_requested_at: "2026-10-31T09:10:00.000Z",
+        customer_confirmed_at: "2026-10-31T09:00:00.000Z", payment_request_status: "requested",
+        delivery_address_snapshot: {
+          label: "عنوان العميل", recipient_name: "مستلم الطلب", phone: "777000111",
+          address_line1: "شارع التجارة", address_line2: null, city: "صنعاء",
+          region: "الأمانة", postal_code: null, country: "اليمن",
+          delivery_instructions: "الاتصال قبل الوصول",
+        },
+      }], error: null },
+      order_items: { data: [{
+        id: "PRIVATE-LINE-ID", product_id: "PRIVATE-PRODUCT-ID", item_code: "000041",
+        product_name_snapshot: "سكر", unit_snapshot: "كرتون", quantity: 3,
+        requested_quantity: 5, approved_quantity: 3, unit_price: 987654,
+        line_total: 2962962, cost_price: 12345, margin: 99,
+      }], error: null },
+      order_status_history: { data: [{
+        id: "PRIVATE-HISTORY-ID", to_status: "confirmed", created_at: "2026-10-31T09:00:00.000Z",
+        notes: "PRIVATE-HISTORY-NOTE", actor_id: "PRIVATE-HISTORY-ACTOR",
+      }], error: null },
+      customers: { data: [{
+        id: "PRIVATE-CUSTOMER-ROW-ID", customer_code: "C-PRINT-001",
+        business_name: "شركة العميل", contact_name: "مسؤول الحساب",
+        phone: "PRIVATE-ACCOUNT-PHONE", notes: "PRIVATE-CUSTOMER-NOTE",
+      }], error: null },
+    };
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    await mountOrderRoute();
+    const printButton = host?.querySelector<HTMLButtonElement>('button.sf-btn-primary');
+    expect(printButton?.textContent).toContain("طباعة / حفظ PDF");
+    await act(async () => { printButton?.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(printSpy).toHaveBeenCalledTimes(1);
+    const printable = host?.querySelector<HTMLElement>('[data-testid="customer-order-print-document"]');
+    expect(printable).not.toBeNull();
+    expect(printable?.textContent).toContain("SO-PRINT-001");
+    expect(printable?.textContent).toContain("شركة العميل");
+    expect(printable?.textContent).toContain("تم تعديل الكمية.");
+    expect(printable?.textContent).toContain("ملاحظة العميل الظاهرة");
+    expect(printable?.textContent).toContain("000041");
+    expect(printable?.textContent).not.toContain(orderId);
+    for (const privateValue of [
+      "PRIVATE-TENANT-ID", "PRIVATE-ADMIN-NOTE", "PRIVATE-LINE-ID", "PRIVATE-PRODUCT-ID",
+      "PRIVATE-HISTORY-ID", "PRIVATE-HISTORY-NOTE", "PRIVATE-HISTORY-ACTOR",
+      "PRIVATE-CUSTOMER-ROW-ID", "PRIVATE-ACCOUNT-PHONE", "PRIVATE-CUSTOMER-NOTE",
+      "987654", "2962962", "12345",
+    ]) expect(printable?.textContent).not.toContain(privateValue);
+  });
+
   it("re-reads persisted order status when the customer refreshes order details", async () => {
     mocks.user = CUSTOMER;
     const orderId = "33333333-3333-4333-8333-333333333333";

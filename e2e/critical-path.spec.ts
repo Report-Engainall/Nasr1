@@ -107,6 +107,21 @@ async function createPersistedOrder(page: Page): Promise<{ orderNumber: string; 
   await expect(page.getByText(orderNumber, { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText(orderNumber, { exact: true })).toBeVisible({ timeout: 30_000 });
+  const orderId = detailPath.split("/").filter(Boolean).at(-1);
+  expect(orderId).toMatch(/^[0-9a-f-]{36}$/i);
+  await page.evaluate(() => {
+    window.print = () => { document.documentElement.dataset.e2ePrintInvoked = "true"; };
+  });
+  const printButton = page.getByRole("button", { name: "طباعة / حفظ PDF", exact: true });
+  await expect(printButton).toBeEnabled();
+  await printButton.click();
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.e2ePrintInvoked)).toBe("true");
+  const printArea = page.locator('[data-testid="customer-order-print-document"]');
+  await expect(printArea).toContainText(orderNumber);
+  await expect(printArea).toContainText(runLabel);
+  const printableHtml = await printArea.evaluate((element) => element.innerHTML);
+  expect(printableHtml).not.toContain(orderId!);
+  expect(printableHtml).not.toMatch(/customer_id|organization_id|product_id|actor_id|admin_notes|unit_price|line_total|cost_price|margin/i);
   return { orderNumber, detailPath };
 }
 
@@ -330,6 +345,8 @@ test("catalog → cart → order → refresh, then cross-organization read denia
         criticalPath: "catalog -> cart -> server-validated order -> admin transactional approval -> customer server readback",
         orderNumber: order.orderNumber,
         resourcePath: order.detailPath,
+        customerOrderPrintInvoked: await pageA.evaluate(() => document.documentElement.dataset.e2ePrintInvoked === "true"),
+        customerOrderPrintExcludesInternalAndFinancialFields: true,
         adminTransition: managerTransitionProven ? "pending -> confirmed" : "NOT_RUN / BLOCKED_EXTERNAL",
         customerReadbackAfterAdminTransition: managerTransitionProven,
         sameOrderDatabaseReadback: databaseReadbackProven,
