@@ -21,9 +21,9 @@ function sampleOrder(): PurchaseOrder {
     created_by: 'PRIVATE-CREATOR-ID',
     submitted_by: 'PRIVATE-SUBMITTER-ID',
     submitted_at: '2026-10-31T09:00:00.000Z',
-    cancelled_by: null,
-    cancelled_at: null,
-    cancellation_reason: null,
+    cancelled_by: 'PRIVATE-CANCELLED-BY',
+    cancelled_at: '2026-10-31T10:00:00.000Z',
+    cancellation_reason: 'PRIVATE-CANCELLATION-REASON',
     created_at: '2026-10-31T08:00:00.000Z',
     updated_at: '2026-10-31T09:00:00.000Z',
     items: [{
@@ -79,6 +79,8 @@ describe('purchase-order print field allowlists', () => {
       'PRIVATE-PRODUCT-ID',
       'PRIVATE-CREATOR-ID',
       'PRIVATE-SUBMITTER-ID',
+      'PRIVATE-CANCELLED-BY',
+      'PRIVATE-CANCELLATION-REASON',
       'PRIVATE-INTERNAL-NOTE',
     ]) {
       expect(document).not.toContain(privateValue);
@@ -114,5 +116,16 @@ describe('purchase-order print field allowlists', () => {
     ].sort());
     expect(results?.orders[0].item_count).toBe(1);
     expect(results?.orders[0].total_cost).toBeNull();
+    const serialized = JSON.stringify(results);
+    for (const privateValue of [
+      'PRIVATE-ORDER-ID',
+      'PRIVATE-TENANT-ID',
+      'PRIVATE-SUPPLIER-ID',
+      'PRIVATE-WAREHOUSE-ID',
+      'PRIVATE-CREATOR-ID',
+      'PRIVATE-CANCELLED-BY',
+      'PRIVATE-CANCELLATION-REASON',
+      'PRIVATE-INTERNAL-NOTE',
+    ]) expect(serialized).not.toContain(privateValue);
   });
 });
