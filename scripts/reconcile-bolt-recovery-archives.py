@@ -751,6 +751,7 @@ def main():
         self_test()
         return 0
 
+    OUT.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
         prefix="nasr1-bolt-recovery-",
         dir=os.environ.get("RUNNER_TEMP"),
