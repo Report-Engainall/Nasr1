@@ -457,7 +457,7 @@
 @page aghbariCustomer360 { size: A4 portrait; margin: 10mm; }
 @media print {
   html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
-  body > *:not(.customer-360-print-sheet) { display: none !important; }
+  body > *:not(.customer-360-print-sheet):not(.product-activity-print-sheet) { display: none !important; }
   body * { visibility: hidden !important; }
   .customer-360-print-sheet,
   .customer-360-print-sheet * { visibility: visible !important; }
