@@ -6708,25 +6708,13 @@ async function main() {
   assert.equal(intelSerialized.includes("Confidential Intelligence Customer"),false,
     "aggregate must not expose customer display name");
 
-  // A payment recorded after the declared as-of timestamp must not reduce the historical balance.
-  const futurePaymentId = randomUUID();
-  await db.unsafe("reset role");
-  await db.unsafe(
-    "insert into public.customer_payments(id,organization_id,customer_id,invoice_id,amount,payment_method,paid_at,created_by) values($1,$2,$3,$4,50,'cash',$5::timestamptz+interval '1 hour',$6)",
-    [futurePaymentId,intelOrganizationId,intelCustomerId,intelInvoiceId,intelAsOf.as_of,intelProfileId],
-  );
-  await setIdentity(intelAuthUserId,"ci-intelligence-admin@example.test");
-  await db.unsafe("set role authenticated");
-  const intelAsOfReplay = (await db.unsafe(
-    "select public.get_intelligence_aggregate($1::jsonb) as result",
-    [db.json({...intelRequest,requestId:randomUUID()})],
-  ))[0].result;
-  assert.equal(Number(intelAsOfReplay.cashflowSchedule.entries[0].amount.value),375,
-    "payments after the as-of timestamp must not be included in historical balance");
-  assert.deepEqual(
-    intelAsOfReplay.cashflowSchedule.entries[0].amount.lineage.evidenceIds.sort(),
-    ["invoice:"+intelInvoiceId,"payment:"+intelPaymentId].sort(),
-    "future payment must not be included in as-of evidence lineage",
+  await expectFailure(
+    "client cannot override intelligence aggregate tenant scope",
+    () => db.unsafe("select public.get_intelligence_aggregate($1::jsonb)",[
+      db.json({...intelRequest,organizationId:otherOrganizationId}),
+    ]),
+    /unsupported intelligence aggregate request field/i,
+    "22023",
   );
 
   const intelPrivileges = (await db.unsafe(

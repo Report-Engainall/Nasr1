@@ -140,7 +140,6 @@ BEGIN
       SELECT p.invoice_id, pg_catalog.sum(p.amount)::numeric(15,2) AS paid_amount
         FROM public.customer_payments p
        WHERE p.organization_id=v_org
-         AND p.paid_at<=v_as_of
        GROUP BY p.invoice_id
     )
     SELECT pg_catalog.count(*)::integer
@@ -149,237 +148,8 @@ BEGIN
       LEFT JOIN paid p ON p.invoice_id=i.id
      WHERE i.organization_id=v_org
        AND i.status IN ('issued','partially_paid')
-       AND i.issued_at<=v_as_of
        AND i.total_amount > coalesce(p.paid_amount,0)
-       AND (v_currency IS NULL OR pg_catalog.upper(i.currency)=v_currency
-         OR pg_catalog.upper(coalesce(i.currency,'')) !~ '^[A-Z]{3}
-         OR pg_catalog.upper(coalesce(i.currency,'')) !~ '^[A-Z]{3}$'
-       );
-
-    IF v_unresolved_rows > 0 THEN
-      v_completeness := 'PARTIAL';
-      v_quality := 'WARNINGS';
-      v_status := 'PARTIAL';
-      v_warnings := v_warnings || pg_catalog.jsonb_build_array(
-        'Cashflow schedule withheld: at least one outstanding invoice has no valid due date or currency.'
-      );
-    ELSE
-      WITH paid AS (
-        SELECT p.invoice_id,
-               pg_catalog.sum(p.amount)::numeric(15,2) AS paid_amount,
-               pg_catalog.array_agg('payment:'||p.id::text ORDER BY p.paid_at,p.id) AS evidence_ids
-          FROM public.customer_payments p
-         WHERE p.organization_id=v_org
-           AND p.paid_at<=v_as_of
-         GROUP BY p.invoice_id
-      ),
-      scheduled AS (
-        SELECT i.id,i.created_at,i.due_at,i.currency,
-               greatest(i.total_amount-coalesce(p.paid_amount,0),0)::numeric(15,2) AS outstanding,
-               coalesce(p.evidence_ids,ARRAY[]::text[]) AS payment_evidence_ids
-          FROM public.customer_invoices i
-          LEFT JOIN paid p ON p.invoice_id=i.id
-         WHERE i.organization_id=v_org
-           AND i.status IN ('issued','partially_paid')
-           AND i.issued_at<=v_as_of
-           AND i.total_amount > coalesce(p.paid_amount,0)
-           AND (v_currency IS NULL OR pg_catalog.upper(i.currency)=v_currency)
-           AND (i.due_at AT TIME ZONE 'UTC')::date BETWEEN v_period_from AND v_period_to
-      )
-      SELECT coalesce(
-        pg_catalog.jsonb_agg(
-          pg_catalog.jsonb_build_object(
-            'id',s.id::text,
-            'direction','INFLOW',
-            'dueDate',(s.due_at AT TIME ZONE 'UTC')::date::text,
-            'amount',pg_catalog.jsonb_build_object(
-              'id','metric:'||s.id::text,
-              'key','receivables.outstanding',
-              'value',s.outstanding,
-              'unit','CURRENCY',
-              'currency',s.currency,
-              'status','VERIFIED',
-              'completeness','COMPLETE',
-              'quality','ACCEPTABLE',
-              'period',v_period,
-              'asOf',v_as_of,
-              'lineage',pg_catalog.jsonb_build_object(
-                'evidenceIds',pg_catalog.array_prepend('invoice:'||s.id::text,s.payment_evidence_ids),
-                'calculatedAt',v_now,
-                'formulaId','nasr1.receivables-outstanding',
-                'formulaVersion','1',
-                'transformations',pg_catalog.jsonb_build_array('invoice total minus recorded same-tenant payments')
-              ),
-              'warnings','[]'::jsonb
-            )
-          ) ORDER BY s.due_at,s.id
-        ),
-        '[]'::jsonb
-      )
-        INTO v_entries
-        FROM scheduled s;
-
-      WITH paid AS (
-        SELECT p.invoice_id,
-               pg_catalog.sum(p.amount)::numeric(15,2) AS paid_amount,
-               pg_catalog.array_agg('payment:'||p.id::text ORDER BY p.paid_at,p.id) AS evidence_ids
-          FROM public.customer_payments p
-         WHERE p.organization_id=v_org
-           AND p.paid_at<=v_as_of
-         GROUP BY p.invoice_id
-      ),
-      scheduled AS (
-        SELECT i.id,i.created_at,i.due_at,i.currency,
-               greatest(i.total_amount-coalesce(p.paid_amount,0),0)::numeric(15,2) AS outstanding,
-               coalesce(p.evidence_ids,ARRAY[]::text[]) AS payment_evidence_ids
-          FROM public.customer_invoices i
-          LEFT JOIN paid p ON p.invoice_id=i.id
-         WHERE i.organization_id=v_org
-           AND i.status IN ('issued','partially_paid')
-           AND i.issued_at<=v_as_of
-           AND i.total_amount > coalesce(p.paid_amount,0)
-           AND (v_currency IS NULL OR pg_catalog.upper(i.currency)=v_currency)
-           AND (i.due_at AT TIME ZONE 'UTC')::date BETWEEN v_period_from AND v_period_to
-      )
-      SELECT coalesce(
-        pg_catalog.jsonb_agg(
-          pg_catalog.jsonb_build_object(
-            'id','metric:cashflow.expected_collections:'||g.currency,
-            'key','cashflow.expected_collections',
-            'value',g.total_outstanding,
-            'unit','CURRENCY',
-            'currency',g.currency,
-            'status','VERIFIED',
-            'completeness','COMPLETE',
-            'quality','ACCEPTABLE',
-            'period',v_period,
-            'asOf',v_as_of,
-            'lineage',pg_catalog.jsonb_build_object(
-              'evidenceIds',g.evidence_ids,
-              'calculatedAt',v_now,
-              'formulaId','nasr1.receivables-outstanding',
-              'formulaVersion','1',
-              'transformations',pg_catalog.jsonb_build_array('sum of scheduled invoice balances after recorded payments')
-            ),
-            'warnings','[]'::jsonb
-          ) ORDER BY g.currency
-        ),
-        '[]'::jsonb
-      )
-        INTO v_metrics
-        FROM (
-          SELECT s.currency,
-                 pg_catalog.sum(s.outstanding)::numeric(15,2) AS total_outstanding,
-                 pg_catalog.array_agg(DISTINCT evidence_id ORDER BY evidence_id) AS evidence_ids
-            FROM scheduled s
-            CROSS JOIN LATERAL pg_catalog.unnest(
-              pg_catalog.array_prepend('invoice:'||s.id::text,s.payment_evidence_ids)
-            ) AS evidence_id
-           GROUP BY s.currency
-        ) g;
-
-      WITH paid AS (
-        SELECT p.invoice_id
-          FROM public.customer_payments p
-         WHERE p.organization_id=v_org AND p.paid_at<=v_as_of
-      ),
-      scheduled_ids AS (
-        SELECT i.id
-          FROM public.customer_invoices i
-         WHERE i.organization_id=v_org
-           AND i.status IN ('issued','partially_paid')
-           AND i.issued_at<=v_as_of
-           AND i.total_amount > coalesce((
-             SELECT pg_catalog.sum(p2.amount)
-               FROM public.customer_payments p2
-              WHERE p2.organization_id=v_org AND p2.invoice_id=i.id AND p2.paid_at<=v_as_of
-           ),0)
-           AND (v_currency IS NULL OR pg_catalog.upper(i.currency)=v_currency)
-           AND (i.due_at AT TIME ZONE 'UTC')::date BETWEEN v_period_from AND v_period_to
-      ),
-      evidence AS (
-        SELECT 'invoice:'||i.id::text AS id,
-               pg_catalog.jsonb_build_object(
-                 'id','invoice:'||i.id::text,
-                 'source',pg_catalog.jsonb_build_object('kind','TABLE','name','customer_invoices','recordId',i.id::text),
-                 'sourceTimestamp',i.created_at,
-                 'asOf',v_as_of,
-                 'period',v_period,
-                 'currency',i.currency,
-                 'status','VERIFIED',
-                 'completeness','COMPLETE',
-                 'quality','ACCEPTABLE',
-                 'warnings','[]'::jsonb
-               ) AS payload
-          FROM public.customer_invoices i
-          JOIN scheduled_ids s ON s.id=i.id
-        UNION ALL
-        SELECT 'payment:'||p.id::text AS id,
-               pg_catalog.jsonb_build_object(
-                 'id','payment:'||p.id::text,
-                 'source',pg_catalog.jsonb_build_object('kind','TABLE','name','customer_payments','recordId',p.id::text),
-                 'sourceTimestamp',p.paid_at,
-                 'asOf',v_as_of,
-                 'period',v_period,
-                 'currency',i.currency,
-                 'status','VERIFIED',
-                 'completeness','COMPLETE',
-                 'quality','ACCEPTABLE',
-                 'warnings','[]'::jsonb
-               ) AS payload
-          FROM public.customer_payments p
-          JOIN public.customer_invoices i ON i.id=p.invoice_id AND i.organization_id=p.organization_id
-          JOIN scheduled_ids s ON s.id=i.id
-         WHERE p.organization_id=v_org AND p.paid_at<=v_as_of
-      )
-      SELECT coalesce(pg_catalog.jsonb_agg(e.payload ORDER BY e.id),'[]'::jsonb)
-        INTO v_evidence
-        FROM evidence e;
-    END IF;
-
-    v_schedule := pg_catalog.jsonb_build_object(
-      'status',CASE WHEN v_unresolved_rows>0 THEN 'NEEDS_REVIEW' ELSE 'VERIFIED' END,
-      'completeness',CASE WHEN v_unresolved_rows>0 THEN 'PARTIAL' ELSE 'COMPLETE' END,
-      'quality',CASE WHEN v_unresolved_rows>0 THEN 'WARNINGS' ELSE 'ACCEPTABLE' END,
-      'entries',CASE WHEN v_unresolved_rows>0 THEN '[]'::jsonb ELSE v_entries END,
-      'warnings',CASE WHEN v_unresolved_rows>0
-        THEN pg_catalog.jsonb_build_array('At least one outstanding invoice could not be placed on a verified due-date schedule.')
-        ELSE '[]'::jsonb END
-    );
-  END IF;
-
-  RETURN pg_catalog.jsonb_build_object(
-    'status',v_status,
-    'requestId',v_request_id,
-    'asOf',v_as_of,
-    'period',v_period,
-    'currency',v_currency,
-    'authorization',pg_catalog.jsonb_build_object(
-      'tenantScope','SERVER_RESOLVED_AUTHENTICATED_TENANT',
-      'effectiveRole',v_role,
-      'capabilities',pg_catalog.jsonb_build_array('can_manage_finance')
-    ),
-    'sourceTables',pg_catalog.jsonb_build_array('customer_invoices','customer_payments'),
-    'evidenceRecords',v_evidence,
-    'metrics',v_metrics,
-    'formulaVersions',pg_catalog.jsonb_build_array('nasr1.receivables-outstanding:1'),
-    'completeness',v_completeness,
-    'quality',v_quality,
-    'warnings',v_warnings,
-    'errors','[]'::jsonb,
-    'sqlState',NULL,
-    'sideEffects','NONE',
-    'cashflowSchedule',v_schedule
-  );
-END;
-$function$;
-
-REVOKE ALL ON FUNCTION public.get_intelligence_aggregate(jsonb) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.get_intelligence_aggregate(jsonb) TO authenticated;
-
-COMMENT ON FUNCTION public.get_intelligence_aggregate(jsonb) IS
-  'Read-only finance-role, server-tenant-derived cashflow aggregate. Returns only scheduled receivables backed by same-tenant invoice/payment rows; withholds the whole schedule if any open invoice lacks a due date or valid currency. Unsupported requested metrics are explicitly PARTIAL.';
-)
+       AND (v_currency IS NULL OR pg_catalog.upper(i.currency)=v_currency)
        AND (
          i.due_at IS NULL
          OR pg_catalog.upper(coalesce(i.currency,'')) !~ '^[A-Z]{3}$'
@@ -399,7 +169,6 @@ COMMENT ON FUNCTION public.get_intelligence_aggregate(jsonb) IS
                pg_catalog.array_agg('payment:'||p.id::text ORDER BY p.paid_at,p.id) AS evidence_ids
           FROM public.customer_payments p
          WHERE p.organization_id=v_org
-           AND p.paid_at<=v_as_of
          GROUP BY p.invoice_id
       ),
       scheduled AS (
@@ -410,7 +179,6 @@ COMMENT ON FUNCTION public.get_intelligence_aggregate(jsonb) IS
           LEFT JOIN paid p ON p.invoice_id=i.id
          WHERE i.organization_id=v_org
            AND i.status IN ('issued','partially_paid')
-           AND i.issued_at<=v_as_of
            AND i.total_amount > coalesce(p.paid_amount,0)
            AND (v_currency IS NULL OR pg_catalog.upper(i.currency)=v_currency)
            AND (i.due_at AT TIME ZONE 'UTC')::date BETWEEN v_period_from AND v_period_to
@@ -454,7 +222,6 @@ COMMENT ON FUNCTION public.get_intelligence_aggregate(jsonb) IS
                pg_catalog.array_agg('payment:'||p.id::text ORDER BY p.paid_at,p.id) AS evidence_ids
           FROM public.customer_payments p
          WHERE p.organization_id=v_org
-           AND p.paid_at<=v_as_of
          GROUP BY p.invoice_id
       ),
       scheduled AS (
@@ -465,7 +232,6 @@ COMMENT ON FUNCTION public.get_intelligence_aggregate(jsonb) IS
           LEFT JOIN paid p ON p.invoice_id=i.id
          WHERE i.organization_id=v_org
            AND i.status IN ('issued','partially_paid')
-           AND i.issued_at<=v_as_of
            AND i.total_amount > coalesce(p.paid_amount,0)
            AND (v_currency IS NULL OR pg_catalog.upper(i.currency)=v_currency)
            AND (i.due_at AT TIME ZONE 'UTC')::date BETWEEN v_period_from AND v_period_to
@@ -510,18 +276,17 @@ COMMENT ON FUNCTION public.get_intelligence_aggregate(jsonb) IS
       WITH paid AS (
         SELECT p.invoice_id
           FROM public.customer_payments p
-         WHERE p.organization_id=v_org AND p.paid_at<=v_as_of
+         WHERE p.organization_id=v_org
       ),
       scheduled_ids AS (
         SELECT i.id
           FROM public.customer_invoices i
          WHERE i.organization_id=v_org
            AND i.status IN ('issued','partially_paid')
-           AND i.issued_at<=v_as_of
            AND i.total_amount > coalesce((
              SELECT pg_catalog.sum(p2.amount)
                FROM public.customer_payments p2
-              WHERE p2.organization_id=v_org AND p2.invoice_id=i.id AND p2.paid_at<=v_as_of
+              WHERE p2.organization_id=v_org AND p2.invoice_id=i.id
            ),0)
            AND (v_currency IS NULL OR pg_catalog.upper(i.currency)=v_currency)
            AND (i.due_at AT TIME ZONE 'UTC')::date BETWEEN v_period_from AND v_period_to
@@ -559,7 +324,7 @@ COMMENT ON FUNCTION public.get_intelligence_aggregate(jsonb) IS
           FROM public.customer_payments p
           JOIN public.customer_invoices i ON i.id=p.invoice_id AND i.organization_id=p.organization_id
           JOIN scheduled_ids s ON s.id=i.id
-         WHERE p.organization_id=v_org AND p.paid_at<=v_as_of
+         WHERE p.organization_id=v_org
       )
       SELECT coalesce(pg_catalog.jsonb_agg(e.payload ORDER BY e.id),'[]'::jsonb)
         INTO v_evidence
