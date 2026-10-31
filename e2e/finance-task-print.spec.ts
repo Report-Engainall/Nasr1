@@ -530,3 +530,117 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await customerContext.close();
   }
 });
+
+test("general journal voucher and full financial statements print in authorized manager and accountant UI", async ({ browser }) => {
+  test.setTimeout(4 * 60 * 1000);
+  const managerContext = await browser.newContext();
+  const manager = await managerContext.newPage();
+  const printSetup = () => {
+    window.print = () => { document.documentElement.dataset.e2ePrintInvoked = "true"; };
+  };
+  await managerContext.addInitScript(printSetup);
+
+  async function ensureJournalRow(page: Page): Promise<void> {
+    const printButton = page.getByRole("button", { name: "طباعة القيد", exact: true }).first();
+    if (await printButton.count() > 0) {
+      await expect(printButton).toBeEnabled({ timeout: 30_000 });
+      return;
+    }
+
+    // The P2 environment is isolated local Supabase. Create a balanced draft only when
+    // the preceding return/credit-memo journey did not already create a printable entry.
+    const firstRegion = page.getByRole("region", { name: "حقول سطر قيد اليومية 1" });
+    const secondRegion = page.getByRole("region", { name: "حقول سطر قيد اليومية 2" });
+    await expect(firstRegion).toBeVisible({ timeout: 30_000 });
+    await expect(secondRegion).toBeVisible({ timeout: 30_000 });
+    const firstAccount = firstRegion.getByLabel("الحساب");
+    const options = await firstAccount.locator("option").evaluateAll((items) =>
+      items
+        .map((item) => (item as HTMLOptionElement).value)
+        .filter((value) => value.length > 0),
+    );
+    expect(options.length, "The isolated tenant must expose at least two active ledger accounts.").toBeGreaterThan(1);
+
+    await firstAccount.selectOption(options[0]);
+    await secondRegion.getByLabel("الحساب").selectOption(options[1]);
+    await firstRegion.getByLabel("مدين").fill("7.25");
+    await secondRegion.getByLabel("دائن").fill("7.25");
+    await page.getByLabel("وصف القيد").fill("P2 browser journal print acceptance");
+    await page.getByRole("button", { name: "حفظ مسودة القيد", exact: true }).click();
+    await expect(page.getByText("تم حفظ مسودة القيد. لن تؤثر في ميزان المراجعة قبل الترحيل.", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(printButton).toBeEnabled({ timeout: 30_000 });
+  }
+
+  async function assertPrintDocument(page: Page, buttonName: string, heading: string, requiredText: string[]): Promise<void> {
+    await page.evaluate(() => { delete document.documentElement.dataset.e2ePrintInvoked; });
+    await page.getByRole("button", { name: buttonName, exact: true }).first().click();
+    const sheet = page.getByTestId("general-ledger-print-document");
+    await expect(sheet).toBeVisible({ timeout: 15_000 });
+    await expect(sheet).toHaveAttribute("dir", "rtl");
+    await expect(sheet).toHaveAttribute("lang", "ar");
+    await expect(sheet.locator("h2")).toHaveText(heading);
+    for (const value of requiredText) await expect(sheet).toContainText(value);
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.e2ePrintInvoked)).toBe("true");
+    const html = await sheet.evaluate((element) => element.innerHTML);
+    expect(html).not.toMatch(/tenant_id|organization_id|account_id|source_reference|created_by|journal_entry_id/i);
+    expect(html).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
+    await expect(sheet).toHaveCount(0);
+    await expect(page.locator("body")).not.toHaveAttribute("data-print-mode", "general-ledger");
+  }
+
+  try {
+    await signIn(manager, requiredEnv("E2E_MANAGER_EMAIL"), requiredEnv("E2E_MANAGER_PASSWORD"));
+    await manager.goto("/admin/finance");
+    await expect(manager.getByRole("heading", { name: "دفتر الأستاذ العام وقيود اليومية" })).toBeVisible({ timeout: 30_000 });
+    await expect(manager.getByRole("button", { name: "طباعة القوائم المالية", exact: true })).toBeEnabled({ timeout: 30_000 });
+    await ensureJournalRow(manager);
+    await assertPrintDocument(manager, "طباعة القيد", "مستند قيد اليومية", ["تفاصيل القيد المزدوج", "الإجمالي المتوازن", "مدين", "دائن"]);
+    await assertPrintDocument(manager, "طباعة القوائم المالية", "القوائم المالية — قائمة الدخل والمركز المالي", ["ملخص قائمة الدخل", "ملخص المركز المالي", "فرق معادلة الميزانية"]);
+    await test.info().attach("general-journal-print-manager-proof.json", {
+      body: JSON.stringify({
+        result: "BROWSER_PROVEN",
+        role: "manager",
+        isolatedLocalOnly: true,
+        journalVoucherPrint: true,
+        fullFinancialStatementsPrint: true,
+        rtl: true,
+        internalIdentifiersAbsent: true,
+        printModeRestoredAfterEachDocument: true,
+        noProductionWrites: true,
+      }, null, 2),
+      contentType: "application/json",
+    });
+  } finally {
+    await managerContext.close();
+  }
+
+  const accountantContext = await browser.newContext();
+  const accountant = await accountantContext.newPage();
+  await accountantContext.addInitScript(printSetup);
+  try {
+    await signIn(accountant, requiredEnv("E2E_ACCOUNTANT_EMAIL"), requiredEnv("E2E_ACCOUNTANT_PASSWORD"));
+    await accountant.goto("/admin/finance");
+    await expect(accountant.getByRole("heading", { name: "دفتر الأستاذ العام وقيود اليومية" })).toBeVisible({ timeout: 30_000 });
+    await expect(accountant.getByRole("button", { name: "طباعة القوائم المالية", exact: true })).toBeEnabled({ timeout: 30_000 });
+    await expect(accountant.getByRole("button", { name: "طباعة القيد", exact: true }).first()).toBeEnabled({ timeout: 30_000 });
+    await assertPrintDocument(accountant, "طباعة القيد", "مستند قيد اليومية", ["تفاصيل القيد المزدوج", "الإجمالي المتوازن", "مدين", "دائن"]);
+    await assertPrintDocument(accountant, "طباعة القوائم المالية", "القوائم المالية — قائمة الدخل والمركز المالي", ["ملخص قائمة الدخل", "ملخص المركز المالي", "فرق معادلة الميزانية"]);
+    await test.info().attach("general-journal-print-accountant-proof.json", {
+      body: JSON.stringify({
+        result: "BROWSER_PROVEN",
+        role: "accountant",
+        isolatedLocalOnly: true,
+        journalVoucherPrint: true,
+        fullFinancialStatementsPrint: true,
+        rtl: true,
+        internalIdentifiersAbsent: true,
+        printModeRestoredAfterEachDocument: true,
+        noProductionWrites: true,
+      }, null, 2),
+      contentType: "application/json",
+    });
+  } finally {
+    await accountantContext.close();
+  }
+});
