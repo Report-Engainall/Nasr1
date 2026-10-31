@@ -41,6 +41,7 @@ import {
 } from "@/lib/commerce-utils";
 import { fetchProducts, fetchResolvedProductPrices } from "@/lib/api";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
+import { projectCustomerQuotePrintDocument, type CustomerQuotePrintDocument } from "@/lib/customer-quote-print";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
 import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
@@ -1186,6 +1187,7 @@ function Quotes() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [printingQuoteId, setPrintingQuoteId] = useState<string | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -1250,6 +1252,21 @@ function Quotes() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!printingQuoteId) return;
+    const clearAfterPrint = () => setPrintingQuoteId(null);
+    window.addEventListener("afterprint", clearAfterPrint, { once: true });
+    window.print();
+    return () => window.removeEventListener("afterprint", clearAfterPrint);
+  }, [printingQuoteId]);
+
+  const printableQuote = printingQuoteId
+    ? quotes.find((quote) => quote.id === printingQuoteId) ?? null
+    : null;
+  const printableDocument = printableQuote
+    ? projectCustomerQuotePrintDocument(printableQuote, quoteItems[printableQuote.id] ?? [])
+    : null;
   const visible = products.filter((p) => matchesArabicCatalogSearch(p, query));
   async function request(e: FormEvent) {
     e.preventDefault();
@@ -1303,6 +1320,34 @@ function Quotes() {
       title="عروض الأسعار"
       subtitle="اطلب تسعيرًا تجاريًا موثقًا، ثم راجع رد فريق الأغبري."
     >
+
+      <style>{`
+        @page { size: A4 portrait; margin: 14mm; }
+        @media print {
+          body * { visibility: hidden !important; }
+          .customer-quote-print-sheet,
+          .customer-quote-print-sheet * { visibility: visible !important; }
+          .customer-quote-print-sheet {
+            display: block !important; position: fixed; inset: 0; width: 100%;
+            box-sizing: border-box; padding: 0; background: #fff !important;
+            color: #111 !important; direction: rtl; font-family: Tahoma, Arial, sans-serif;
+          }
+          .customer-quote-print-sheet header {
+            display: flex; justify-content: space-between; gap: 16px;
+            border-bottom: 2px solid #176b55; padding-bottom: 12px; margin-bottom: 14px;
+          }
+          .customer-quote-print-sheet table {
+            width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 14px;
+          }
+          .customer-quote-print-sheet th,
+          .customer-quote-print-sheet td {
+            border: 1px solid #999 !important; padding: 7px; text-align: right;
+            color: #111 !important;
+          }
+          .customer-quote-print-sheet thead { display: table-header-group; }
+          .customer-quote-print-sheet tr { break-inside: avoid; page-break-inside: avoid; }
+        }
+      `}</style>
       {notice && (
         <div role="status" style={{ ...card, borderColor: "#a8d8c6", marginBottom: 12 }}>
           {notice}
@@ -1447,6 +1492,16 @@ function Quotes() {
               {q.response_note && (
                 <p style={{ ...card, background: "#f8fbfb" }}>{q.response_note}</p>
               )}
+              {projectCustomerQuotePrintDocument(q, quoteItems[q.id] ?? []) && (
+                <button
+                  className="customer-quote-print-trigger"
+                  style={secondary}
+                  disabled={busy}
+                  onClick={() => setPrintingQuoteId(q.id)}
+                >
+                  <Printer size={16} /> طباعة عرض السعر
+                </button>
+              )}
               {q.status === "quoted" && (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button disabled={busy} style={primary} onClick={() => void answer(q.id, true)}>
@@ -1464,6 +1519,51 @@ function Quotes() {
             </article>
           ))}
         </div>
+      )}
+      {printableDocument && (
+        <article
+          className="customer-quote-print-sheet"
+          data-testid="customer-quote-print-document"
+          dir="rtl"
+        >
+          <header>
+            <div>
+              <h1 style={{ margin: 0, fontSize: 21 }}>متجر الأغبري | Aghbari Commerce</h1>
+              <small>عرض سعر للعميل</small>
+            </div>
+            <div>
+              <strong>رقم العرض: {printableDocument.quoteNumber}</strong>
+              <p style={{ margin: "5px 0" }}>الحالة: {printableDocument.statusLabel}</p>
+              <small>تاريخ الطلب: {printableDocument.createdAt ? formatDate(printableDocument.createdAt) : "—"}</small>
+            </div>
+          </header>
+          {printableDocument.quotedAt && <p>تاريخ التسعير: {formatDate(printableDocument.quotedAt)}</p>}
+          {printableDocument.validUntil && <p>صالح حتى: {formatDateShort(printableDocument.validUntil)}</p>}
+          {printableDocument.customerNotes && <p>ملاحظات العميل: {printableDocument.customerNotes}</p>}
+          {printableDocument.responseNote && <p>رد الأغبري: {printableDocument.responseNote}</p>}
+          <table>
+            <thead>
+              <tr>
+                <th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th>
+                <th>الكمية المطلوبة</th><th>سعر الوحدة المعتمد في العرض</th>
+              </tr>
+            </thead>
+            <tbody>
+              {printableDocument.items.map((item, index) => (
+                <tr key={item.itemCode + "-" + item.productName + "-" + index}>
+                  <td>{item.itemCode ?? "—"}</td>
+                  <td>{item.productName}</td>
+                  <td>{item.unit ?? "—"}</td>
+                  <td>{formatNumber(item.quantity)}</td>
+                  <td>{formatCurrency(item.quotedUnitPrice)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p style={{ marginTop: 18, fontSize: 11 }}>
+            يعرض هذا المستند أسعار العرض التي اعتمدها الخادم فقط، ولا يمثل أمر بيع أو إثبات استلام دفعة.
+          </p>
+        </article>
       )}
     </WorkspaceShell>
   );
@@ -2470,6 +2570,7 @@ export function StaffQuotesPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [printDocument, setPrintDocument] = useState<CustomerQuotePrintDocument | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -2485,6 +2586,25 @@ export function StaffQuotesPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!printDocument) return;
+    const clearAfterPrint = () => setPrintDocument(null);
+    window.addEventListener("afterprint", clearAfterPrint, { once: true });
+    window.print();
+    return () => window.removeEventListener("afterprint", clearAfterPrint);
+  }, [printDocument]);
+
+  function printSavedQuote() {
+    if (!chosen) return;
+    const document = projectCustomerQuotePrintDocument(chosen, lines);
+    if (!document) {
+      setError("لا يمكن طباعة العرض قبل اعتماد سعر الخادم لجميع البنود.");
+      return;
+    }
+    setError("");
+    setPrintDocument(document);
+  }
   async function open(q: Quote) {
     setChosen(q);
     setLines([]);
@@ -2672,11 +2792,80 @@ export function StaffQuotesPage() {
               onChange={(e) => setValid(e.target.value)}
             />
           </label>
+          {projectCustomerQuotePrintDocument(chosen, lines) && (
+            <button type="button" style={secondary} disabled={busy} onClick={printSavedQuote}>
+              <Printer size={16} /> طباعة الأسعار المحفوظة
+            </button>
+          )}
           <button style={primary} disabled={busy} onClick={() => void send()}>
             <Save size={16} />
             {busy ? "جارٍ الحفظ..." : "حفظ الأسعار وإرسال العرض"}
           </button>
         </section>
+      )}
+      {printDocument && (
+        <>
+          <style>{`
+            @page { size: A4 portrait; margin: 14mm; }
+            .staff-quote-print-sheet { display: none; }
+            @media print {
+              body * { visibility: hidden !important; }
+              .staff-quote-print-sheet,
+              .staff-quote-print-sheet * { visibility: visible !important; }
+              .staff-quote-print-sheet {
+                display: block !important; position: fixed; inset: 0; width: 100%;
+                box-sizing: border-box; padding: 0; background: #fff !important;
+                color: #111 !important; direction: rtl; font-family: Tahoma, Arial, sans-serif;
+              }
+              .staff-quote-print-sheet header {
+                display: flex; justify-content: space-between; gap: 16px;
+                border-bottom: 2px solid #176b55; padding-bottom: 12px; margin-bottom: 14px;
+              }
+              .staff-quote-print-sheet table {
+                width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 14px;
+              }
+              .staff-quote-print-sheet th,
+              .staff-quote-print-sheet td {
+                border: 1px solid #999 !important; padding: 7px; text-align: right;
+                color: #111 !important;
+              }
+              .staff-quote-print-sheet thead { display: table-header-group; }
+              .staff-quote-print-sheet tr { break-inside: avoid; page-break-inside: avoid; }
+            }
+          `}</style>
+          <article className="staff-quote-print-sheet" data-testid="staff-quote-print-document" dir="rtl">
+            <header>
+              <div>
+                <h1 style={{ margin: 0, fontSize: 21 }}>متجر الأغبري | Aghbari Commerce</h1>
+                <small>نسخة عرض سعر محفوظة للعميل</small>
+              </div>
+              <div>
+                <strong>رقم العرض: {printDocument.quoteNumber}</strong>
+                <p style={{ margin: "5px 0" }}>الحالة: {printDocument.statusLabel}</p>
+                <small>تاريخ الطلب: {printDocument.createdAt ? formatDate(printDocument.createdAt) : "—"}</small>
+              </div>
+            </header>
+            {printDocument.quotedAt && <p>تاريخ التسعير: {formatDate(printDocument.quotedAt)}</p>}
+            {printDocument.validUntil && <p>صالح حتى: {formatDateShort(printDocument.validUntil)}</p>}
+            {printDocument.customerNotes && <p>ملاحظات العميل: {printDocument.customerNotes}</p>}
+            {printDocument.responseNote && <p>رد الأغبري: {printDocument.responseNote}</p>}
+            <table>
+              <thead><tr>
+                <th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th>
+                <th>الكمية المطلوبة</th><th>سعر الوحدة المعتمد في العرض</th>
+              </tr></thead>
+              <tbody>{printDocument.items.map((item, index) => (
+                <tr key={item.itemCode + "-" + item.productName + "-" + index}>
+                  <td>{item.itemCode ?? "—"}</td><td>{item.productName}</td><td>{item.unit ?? "—"}</td>
+                  <td>{formatNumber(item.quantity)}</td><td>{formatCurrency(item.quotedUnitPrice)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+            <p style={{ marginTop: 18, fontSize: 11 }}>
+              هذه النسخة تعكس الأسعار المحفوظة والمعتمدة لدى الخادم، ولا تعرض مسودات التسعير غير المحفوظة.
+            </p>
+          </article>
+        </>
       )}
     </section>
   );
