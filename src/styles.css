@@ -456,14 +456,17 @@
 .customer-360-print-sheet { display: none; page: aghbariCustomer360; }
 @page aghbariCustomer360 { size: A4 portrait; margin: 10mm; }
 @media print {
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  body > *:not(.customer-360-print-sheet) { display: none !important; }
   body * { visibility: hidden !important; }
   .customer-360-print-sheet,
   .customer-360-print-sheet * { visibility: visible !important; }
   .customer-360-print-sheet {
     display: block !important;
-    position: absolute !important;
-    inset: 0 auto auto 0 !important;
-    width: 100% !important;
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
     direction: rtl !important;
