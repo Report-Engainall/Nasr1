@@ -6741,6 +6741,164 @@ async function main() {
     "22023",
   );
 
+  // REF-DECISION-OUTCOME-001 — persisted, versioned, idempotent and evidence-resolved lifecycle.
+  const decisionCreateKey = randomUUID();
+  const decisionCreated = (await db.unsafe(
+    "select public.create_decision_outcome_proposal($1::text,$2::text,$3::text,$4::uuid,$5::text,$6::text,$7::text) as result",
+    ["CI-CASHFLOW-FOLLOWUP","cashflow.collection.followup","1.0.0",intelProfileId,
+      "متابعة تحصيل الفاتورة المستحقة","مقترح تجريبي لعقد قبول التدفق النقدي",decisionCreateKey],
+  ))[0].result;
+  assert.equal(decisionCreated.ok,true);
+  assert.equal(decisionCreated.duplicate,false);
+  assert.equal(decisionCreated.outcome.state,"PROPOSED");
+  assert.equal(decisionCreated.outcome.version,1);
+  const decisionOutcomeId = decisionCreated.outcome.id;
+  const decisionCreateReplay = (await db.unsafe(
+    "select public.create_decision_outcome_proposal($1::text,$2::text,$3::text,$4::uuid,$5::text,$6::text,$7::text) as result",
+    ["CI-CASHFLOW-FOLLOWUP","cashflow.collection.followup","1.0.0",intelProfileId,
+      "متابعة تحصيل الفاتورة المستحقة","مقترح تجريبي لعقد قبول التدفق النقدي",decisionCreateKey],
+  ))[0].result;
+  assert.equal(decisionCreateReplay.duplicate,true);
+  assert.equal(decisionCreateReplay.outcome.id,decisionOutcomeId);
+
+  const decisionEventBefore = (await db.unsafe(
+    "select count(*)::integer as count from public.decision_outcome_events where organization_id=$1",
+    [intelOrganizationId],
+  ))[0].count;
+  const decisionAuditBefore = (await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1",
+    [intelOrganizationId],
+  ))[0].count;
+  await expectFailure(
+    "decision outcome refuses a skipped approval transition",
+    () => db.unsafe(
+      "select public.command_decision_outcome($1::uuid,$2::text,$3::text,$4::integer,$5::text,$6::text,$7::uuid,$8::jsonb)",
+      [decisionOutcomeId,randomUUID(),randomUUID(),1,"APPROVE","غير مسموح قبل المراجعة",null,null],
+    ),
+    /invalid decision outcome state transition/i,
+    "22023",
+  );
+  await expectFailure(
+    "decision outcome idempotency key cannot be reused with a different payload",
+    () => db.unsafe(
+      "select public.create_decision_outcome_proposal($1::text,$2::text,$3::text,$4::uuid,$5::text,$6::text,$7::text)",
+      ["CI-CASHFLOW-FOLLOWUP","cashflow.collection.followup","1.0.0",intelProfileId,
+        "نص مختلف عن الحمولة الأصلية","مقترح تجريبي لعقد قبول التدفق النقدي",decisionCreateKey],
+    ),
+    /decision outcome idempotency key payload conflict/i,
+    "23505",
+  );
+  const decisionEventAfterDenied = (await db.unsafe(
+    "select count(*)::integer as count from public.decision_outcome_events where organization_id=$1",
+    [intelOrganizationId],
+  ))[0].count;
+  const decisionAuditAfterDenied = (await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1",
+    [intelOrganizationId],
+  ))[0].count;
+  assert.equal(decisionEventAfterDenied,decisionEventBefore,"denied transition and idempotency conflict must not append events");
+  assert.equal(decisionAuditAfterDenied,decisionAuditBefore,"denied transition and idempotency conflict must not append audit rows");
+
+  const runDecisionCommand = async (
+    version:number,
+    type:string,
+    reason:string|null=null,
+    owner:string|null=null,
+    measured:Record<string,unknown>|null=null,
+    key=randomUUID(),
+  ) => (await db.unsafe(
+    "select public.command_decision_outcome($1::uuid,$2::text,$3::text,$4::integer,$5::text,$6::text,$7::uuid,$8::jsonb) as result",
+    [decisionOutcomeId,randomUUID(),key,version,type,reason,owner,measured?db.json(measured):null],
+  ))[0].result;
+
+  const decisionReview = await runDecisionCommand(1,"SUBMIT_FOR_REVIEW");
+  assert.equal(decisionReview.outcome.state,"IN_REVIEW");
+  const decisionApproved = await runDecisionCommand(2,"APPROVE","اعتماد بعد مراجعة الدليل");
+  assert.equal(decisionApproved.outcome.state,"APPROVED");
+  const decisionAssigned = await runDecisionCommand(3,"ASSIGN",null,intelProfileId);
+  assert.equal(decisionAssigned.outcome.state,"ASSIGNED");
+  const decisionStarted = await runDecisionCommand(4,"START_EXECUTION");
+  assert.equal(decisionStarted.outcome.state,"EXECUTING");
+  const decisionExecuted = await runDecisionCommand(5,"COMPLETE_EXECUTION");
+  assert.equal(decisionExecuted.outcome.state,"EXECUTED");
+
+  const decisionMeasuredAt = (await db.unsafe("select now()::text as measured_at"))[0].measured_at;
+  const decisionMeasured = {
+    metricKey:"cashflow.expected_collections",
+    value:Number(intelComplete.metrics[0].value),
+    unit:"CURRENCY",
+    currency:"YER",
+    status:"VERIFIED",
+    completeness:"COMPLETE",
+    quality:"ACCEPTABLE",
+    period:intelRequest.period,
+    asOf:intelRequest.asOf,
+    formulaId:"nasr1.receivables-outstanding",
+    formulaVersion:"1",
+    measuredAt:decisionMeasuredAt,
+    evidenceIds:intelComplete.metrics[0].lineage.evidenceIds,
+  };
+  const decisionEventFinalBefore = (await db.unsafe(
+    "select count(*)::integer as count from public.decision_outcome_events where organization_id=$1",
+    [intelOrganizationId],
+  ))[0].count;
+  const decisionAuditFinalBefore = (await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1",
+    [intelOrganizationId],
+  ))[0].count;
+  const foreignEvidenceMeasurement = {...decisionMeasured,evidenceIds:["invoice:"+intelForeignInvoiceId]};
+  await expectFailure(
+    "decision MEASURE rejects foreign-tenant source evidence",
+    () => runDecisionCommand(6,"MEASURE",null,null,foreignEvidenceMeasurement),
+    /measurement evidence does not cover the complete same-tenant invoice\/payment source set/i,
+    "22023",
+  );
+  const decisionEventAfterForeign = (await db.unsafe(
+    "select count(*)::integer as count from public.decision_outcome_events where organization_id=$1",
+    [intelOrganizationId],
+  ))[0].count;
+  const decisionAuditAfterForeign = (await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1",
+    [intelOrganizationId],
+  ))[0].count;
+  assert.equal(decisionEventAfterForeign,decisionEventFinalBefore);
+  assert.equal(decisionAuditAfterForeign,decisionAuditFinalBefore);
+
+  const decisionMeasuredKey=randomUUID();
+  const decisionMeasuredResult=await runDecisionCommand(6,"MEASURE",null,null,decisionMeasured,decisionMeasuredKey);
+  assert.equal(decisionMeasuredResult.outcome.state,"MEASURED");
+  assert.equal(decisionMeasuredResult.outcome.version,7);
+  assert.equal(Number(decisionMeasuredResult.outcome.measuredOutcome.value),375);
+  assert.equal(decisionMeasuredResult.outcome.measuredOutcome.currency,"YER");
+  const decisionMeasureReplay=await runDecisionCommand(6,"MEASURE",null,null,decisionMeasured,decisionMeasuredKey);
+  assert.equal(decisionMeasureReplay.duplicate,true);
+  assert.equal(decisionMeasureReplay.outcome.version,7);
+  const decisionListed=(await db.unsafe("select public.fetch_decision_outcomes(20,0) as result"))[0].result;
+  assert.equal(decisionListed.total,1);
+  assert.equal(decisionListed.items[0].id,decisionOutcomeId);
+  assert.equal(decisionListed.items[0].state,"MEASURED");
+  assert.equal(decisionListed.items[0].history.length,7);
+
+  const decisionPrivileges=(await db.unsafe(
+    "select has_table_privilege('authenticated','public.decision_outcomes','SELECT') as direct_read, has_table_privilege('authenticated','public.decision_outcome_events','INSERT') as direct_event_write, has_function_privilege('authenticated','public.fetch_decision_outcomes(integer,integer)','EXECUTE') as can_fetch",
+  ))[0];
+  assert.equal(decisionPrivileges.direct_read,false);
+  assert.equal(decisionPrivileges.direct_event_write,false);
+  assert.equal(decisionPrivileges.can_fetch,true);
+  await db.unsafe("reset role");
+  await setIdentity(authUserId,"ci-customer-one@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "customer cannot read private decision outcomes",
+    () => db.unsafe("select public.fetch_decision_outcomes(20,0)"),
+    /finance permission required to read decision outcomes/i,
+    "42501",
+  );
+  await db.unsafe("reset role");
+  await setIdentity(intelAuthUserId,"ci-intelligence-admin@example.test");
+  await db.unsafe("set role authenticated");
+  process.stdout.write("PASS REF-DECISION-OUTCOME-001: tenant-scoped proposal, event lifecycle, optimistic versions, idempotent replay/conflict, same-tenant complete evidence MEASURE verification, audit atomicity, direct-table denial and customer read denial\n");
+
   const intelPrivileges = (await db.unsafe(
     "select has_function_privilege('anon','public.get_intelligence_aggregate(jsonb)','EXECUTE') as anon_can_execute, has_function_privilege('authenticated','public.get_intelligence_aggregate(jsonb)','EXECUTE') as authenticated_can_execute",
   ))[0];
