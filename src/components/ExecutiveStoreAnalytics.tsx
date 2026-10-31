@@ -246,8 +246,17 @@ export function ExecutiveStoreAnalytics() {
 }
 
 
-export function ProductActivityReport() {
-  const { data, loading, error, refetch } = useFetch(fetchStoreProductActivityReport);
+export type ProductActivityReportProps = {
+  /** Optional server report injection for deterministic component acceptance tests. */
+  reportOverride?: StoreProductActivityReport | null;
+};
+
+export function ProductActivityReport({ reportOverride }: ProductActivityReportProps = {}) {
+  const fetched = useFetch(fetchStoreProductActivityReport);
+  const data = reportOverride === undefined ? fetched.data : reportOverride;
+  const loading = reportOverride === undefined ? fetched.loading : false;
+  const error = reportOverride === undefined ? fetched.error : null;
+  const refetch = fetched.refetch;
   const [filter, setFilter] = useState<ProductActivityStatus | 'all'>('stagnant_over_90_days');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<ProductActivityRowsSort>('days_since_sale_desc');
