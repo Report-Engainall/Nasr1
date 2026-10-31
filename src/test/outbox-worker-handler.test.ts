@@ -53,8 +53,9 @@ function authorizedRequest(body = "{}"): Request {
   });
 }
 
-async function responseBody(response: Response): Promise<Record<string, unknown>> {
-  return await response.json() as Record<string, unknown>;
+async function responseBody(response: Response): Promise<unknown> {
+  const value: unknown = await response.json();
+  return value;
 }
 
 describe("outbox worker HTTP boundary", () => {
