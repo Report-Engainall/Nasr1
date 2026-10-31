@@ -98,33 +98,36 @@ afterEach(() => {
 
 describe("product activity report interactive screen", () => {
   it("searches and sorts the current view, paginates 25 rows, and exports the full report", () => {
-    render(<ProductActivityReport reportOverride={reportFixture()} />);
+    const { container } = render(<ProductActivityReport reportOverride={reportFixture()} />);
+    const reportPanel = container.querySelector('section[aria-labelledby="product-activity-title"]');
+    expect(reportPanel).not.toBeNull();
+    const view = within(reportPanel as HTMLElement);
 
-    expect(screen.getByRole("heading", { name: "حركة الأصناف والركود" })).toBeInTheDocument();
-    expect(screen.getByText("صنف 30")).toBeInTheDocument();
-    expect(screen.queryByText("صنف 05")).not.toBeInTheDocument();
-    expect(screen.getByText("صفحة ١ من ٢")).toBeInTheDocument();
+    expect(view.getByRole("heading", { name: "حركة الأصناف والركود" })).toBeInTheDocument();
+    expect(view.getByText("صنف 30")).toBeInTheDocument();
+    expect(view.queryByText("صنف 05")).not.toBeInTheDocument();
+    expect(view.getByText("صفحة ١ من ٢")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "التالي" }));
-    expect(screen.getByText("صنف 05")).toBeInTheDocument();
-    expect(screen.queryByText("صنف 30")).not.toBeInTheDocument();
-    expect(screen.getByText("صفحة ٢ من ٢")).toBeInTheDocument();
+    fireEvent.click(view.getByRole("button", { name: "التالي" }));
+    expect(view.getByText("صنف 05")).toBeInTheDocument();
+    expect(view.queryByText("صنف 30")).not.toBeInTheDocument();
+    expect(view.getByText("صفحة ٢ من ٢")).toBeInTheDocument();
 
-    const search = screen.getByRole("searchbox", { name: "البحث في تقرير حركة الأصناف" });
+    const search = view.getByRole("searchbox", { name: "البحث في تقرير حركة الأصناف" });
     fireEvent.change(search, { target: { value: "00030" } });
-    expect(screen.getByText("صنف 30")).toBeInTheDocument();
-    expect(screen.queryByText("صنف 26")).not.toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "ترقيم صفحات تقرير حركة الأصناف" })).not.toBeInTheDocument();
+    expect(view.getByText("صنف 30")).toBeInTheDocument();
+    expect(view.queryByText("صنف 26")).not.toBeInTheDocument();
+    expect(view.queryByRole("navigation", { name: "ترقيم صفحات تقرير حركة الأصناف" })).not.toBeInTheDocument();
 
     fireEvent.change(search, { target: { value: "" } });
-    const sort = screen.getByLabelText("ترتيب النتائج");
+    const sort = view.getByLabelText("ترتيب النتائج");
     fireEvent.change(sort, { target: { value: "sold_30_desc" } });
-    const table = screen.getByRole("table");
+    const table = view.getByRole("table");
     const firstRow = within(table).getAllByRole("row")[1];
     expect(within(firstRow).getByText("صنف 30")).toBeInTheDocument();
 
     fireEvent.change(search, { target: { value: "صنف 30" } });
-    fireEvent.click(screen.getByRole("button", { name: "تنزيل Excel كامل (.xlsx)" }));
+    fireEvent.click(view.getByRole("button", { name: "تنزيل Excel كامل (.xlsx)" }));
     expect(mocks.downloadActivity).toHaveBeenCalledTimes(1);
     expect((mocks.downloadActivity.mock.calls[0][0] as StoreProductActivityReport).products).toHaveLength(30);
   });
