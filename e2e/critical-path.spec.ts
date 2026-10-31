@@ -220,6 +220,9 @@ test("catalog → cart → order → refresh, then cross-organization read denia
       await expect(quotePrint).toContainText("١٢٥");
       const quoteMarkup = await quotePrint.evaluate((element) => element.innerHTML);
       expect(quoteMarkup).not.toMatch(/organization_id|customer_id|product_id|quote_id|actor_id|target_unit_price|cost_price/i);
+      // Return to the original order detail before the next acceptance step rereads its status.
+      await pageA.goto(order.detailPath);
+      await expect(pageA.getByText(order.orderNumber, { exact: true })).toBeVisible({ timeout: 30_000 });
     });
 
 
