@@ -1255,8 +1255,10 @@ function Quotes() {
 
   useEffect(() => {
     if (!printingQuoteId) return;
+    const clearAfterPrint = () => setPrintingQuoteId(null);
+    window.addEventListener("afterprint", clearAfterPrint, { once: true });
     window.print();
-    setPrintingQuoteId(null);
+    return () => window.removeEventListener("afterprint", clearAfterPrint);
   }, [printingQuoteId]);
 
   const printableQuote = printingQuoteId
