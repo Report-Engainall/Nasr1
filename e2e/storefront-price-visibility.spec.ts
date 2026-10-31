@@ -291,10 +291,6 @@ async function installPricingPreviewRoutes(
 }
 
 
-async function expectNoHiddenPriceLeak  });
-}
-
-
 async function expectNoHiddenPriceLeak(page: Page) {
   const body = page.locator("body");
   const visibleText = await body.innerText();

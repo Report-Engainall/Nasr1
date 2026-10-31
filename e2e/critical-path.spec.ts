@@ -350,7 +350,6 @@ test("catalog → cart → order → refresh, then cross-organization read denia
           databaseReadbackProven = true;
         });
       } else {
-        await test.info().attach("order-database-proof-boundary.json", {      } else {
         await test.info().attach("order-database-proof-boundary.json", {
           body: JSON.stringify({
             result: "NOT_RUN / BLOCKED_EXTERNAL",
