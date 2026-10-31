@@ -262,6 +262,23 @@ test("authorized finance documents and operational-task print remain tenant-scop
 
   try {
     await signIn(manager, managerEmail, managerPassword);
+    // Admin sales-order print must show only persisted order values, never editable draft values.
+    await manager.goto("/admin/orders");
+    await expect(manager.getByRole("heading", { name: "الطلبات", exact: true })).toBeVisible({ timeout: 30_000 });
+    const salesOrderRow = manager.getByRole("row").filter({ hasText: orderNumber }).first();
+    await expect(salesOrderRow).toBeVisible({ timeout: 30_000 });
+    await salesOrderRow.getByRole("button", { name: "تفاصيل", exact: true }).click();
+    await expect(manager.getByRole("heading", { name: "الطلب #" + orderNumber, exact: true })).toBeVisible({ timeout: 30_000 });
+    const salesOrderPrintButton = manager.getByRole("button", { name: "طباعة أمر البيع", exact: true });
+    await expect(salesOrderPrintButton).toBeEnabled();
+    await manager.evaluate(() => { delete document.documentElement.dataset.e2ePrintInvoked; });
+    await salesOrderPrintButton.click();
+    await expect.poll(() => manager.evaluate(() => document.documentElement.dataset.e2ePrintInvoked)).toBe("true");
+    const salesOrderPrint = manager.locator(".admin-sales-order-print-document");
+    await expect(salesOrderPrint).toContainText(orderNumber);
+    const salesOrderPrintHtml = await salesOrderPrint.evaluate((element) => element.innerHTML);
+    expect(salesOrderPrintHtml).not.toMatch(/organization_id|customer_id|product_id|order_id|item_id|created_by|admin_notes|cost_price|proposed_quantity|proposed_unit_price/i);
+
     await assertAdminMobileNavigation(manager);
     await assertAdminRouteViewportMatrix(manager);
     await manager.goto("/admin/finance");

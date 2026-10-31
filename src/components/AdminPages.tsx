@@ -8,7 +8,7 @@ const field: CSSProperties = { width: '100%', padding: '8px 10px', borderRadius:
 import {
   AlertTriangle, Bell, Bot, Check, ChevronLeft, Database,
   Package, Plus, RefreshCw, Search, Settings, Smartphone,
-  X, ExternalLink, Save, Download,
+  X, ExternalLink, Save, Download, Printer,
 } from 'lucide-react';
 import {
   fetchAiAlerts, fetchAiTasks, fetchNotifications, fetchOrders, fetchOrderItems,
@@ -23,6 +23,7 @@ import { useFetch } from '@/lib/useFetch';
 import { formatCurrency, formatDateShort, formatNumber, timeAgo } from '@/lib/format';
 import type { AiAlert, AiTask, Notification, Supplier, AdminSetting, OrderItem, StorefrontAnnouncement, StorefrontAnnouncementAudience, StorefrontAnnouncementInput } from '@/lib/types';
 import { buildOnyxOrderWorkbook, onyxOrderWorkbookFilename } from '@/lib/onyx-export';
+import { projectAdminSalesOrderPrintDocument } from '@/lib/admin-sales-order-print';
 
 import type { LucideIcon } from 'lucide-react';
 import { getCurrentTenantScope, supabase } from '@/lib/supabase';
@@ -257,9 +258,14 @@ export function AiCenter({ onNotice }: { onNotice: (m: string) => void }) {
 type OrderReviewDraft = { quantity: string; unitPrice: string; reason: string };
 
 export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { orderId: string; onBack: () => void; onNotice: (m: string) => void; onBlockedChange: (blocked: boolean) => void }) {
+  const { user } = useAuth();
   const { data: orders, loading: ordersLoading, error: ordersError, refetch: refetchOrders } = useFetch(fetchOrders);
   const { data: items, loading, error, refetch } = useFetch(() => fetchOrderItems(orderId), [orderId]);
   const order = orders?.find((o) => o.id === orderId);
+  const printDocument = useMemo(
+    () => projectAdminSalesOrderPrintDocument(order, items ?? [], Boolean(user?.isStaff)),
+    [order, items, user?.isStaff],
+  );
   const canExportOnyxOrder = Boolean(
     order && ['confirmed', 'processing', 'shipped', 'delivered'].includes(order.status) &&
     !order.quantity_review_required && !loading && !error && items?.length,
@@ -562,8 +568,64 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
     description="راجع البنود والكميات والأسعار، ثم احفظ المسودة واعتمدها في معاملة واحدة قبل تأكيد الطلب."
     icon={Package} note="" toolbar={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       <Button variant="secondary" onClick={goBack} disabled={blocked || busy}><ChevronLeft size={16} /> رجوع</Button>
+      <Button variant="secondary" onClick={() => window.print()} disabled={!printDocument || loading || busy || blocked}><Printer size={16} /> طباعة أمر البيع</Button>
       <Button disabled={!canExportOnyxOrder || exportBusy || exportSnapshotsLoading || Boolean(exportSnapshotsError)} onClick={downloadOnyxWorkbook}><Download size={16} /> {exportBusy ? 'جارٍ تسجيل حدث التصدير...' : 'تنزيل XLSX للأونكس'}</Button>
     </div>}>
+    <style>{`
+      .admin-sales-order-print-document { display:none; }
+      @media print {
+        @page { size:A4; margin:14mm; }
+        body * { visibility:hidden !important; }
+        .admin-sales-order-print-document,.admin-sales-order-print-document * { visibility:visible !important; }
+        .admin-sales-order-print-document {
+          display:block !important; position:absolute; inset:0; width:100%;
+          padding:0; color:#000 !important; background:#fff !important;
+          direction:rtl; font-family:Tahoma,Arial,sans-serif;
+        }
+        .admin-sales-order-print-document header { display:flex; justify-content:space-between; gap:16px; border-bottom:2px solid #176b55; padding-bottom:12px; margin-bottom:14px; }
+        .admin-sales-order-print-document h1 { margin:0; font-size:20px; }
+        .admin-sales-order-print-document .print-meta { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px 16px; margin:12px 0; }
+        .admin-sales-order-print-document table { width:100%; border-collapse:collapse; font-size:10px; margin-top:12px; }
+        .admin-sales-order-print-document th,.admin-sales-order-print-document td { border:1px solid #999 !important; padding:6px; text-align:right; color:#000 !important; }
+        .admin-sales-order-print-document thead { display:table-header-group; }
+        .admin-sales-order-print-document tr { break-inside:avoid; page-break-inside:avoid; }
+        .admin-sales-order-print-document .print-total { margin-top:12px; text-align:left; font-size:15px; font-weight:800; }
+      }
+    `}</style>
+    {printDocument && <section className="admin-sales-order-print-document" data-testid="admin-sales-order-print-document" dir="rtl">
+      <header>
+        <div><h1>متجر الأغبري | Aghbari Commerce</h1><small>مستند مبيعات داخلي</small></div>
+        <div><strong>أمر البيع {printDocument.orderNumber}</strong><p>{formatDateShort(printDocument.createdAt)}</p></div>
+      </header>
+      <div className="print-meta">
+        <span><strong>العميل:</strong> {printDocument.customerName}</span>
+        <span><strong>رمز العميل:</strong> {printDocument.customerCode}</span>
+        <span><strong>الحالة:</strong> {printDocument.statusLabel}</span>
+        <span><strong>عدد البنود:</strong> {printDocument.totalItems === null ? 'غير متاح' : formatNumber(printDocument.totalItems)}</span>
+      </div>
+      {printDocument.deliveryAddress && <section>
+        <strong>عنوان التوصيل المحفوظ</strong>
+        {printDocument.deliveryAddress.recipientName && <p>{printDocument.deliveryAddress.recipientName}</p>}
+        {printDocument.deliveryAddress.phone && <p dir="auto">{printDocument.deliveryAddress.phone}</p>}
+        <p>{printDocument.deliveryAddress.addressLine1}{printDocument.deliveryAddress.addressLine2 ? '، ' + printDocument.deliveryAddress.addressLine2 : ''}</p>
+        <p>{[printDocument.deliveryAddress.city, printDocument.deliveryAddress.region, printDocument.deliveryAddress.postalCode].filter(Boolean).join('، ')}{printDocument.deliveryAddress.country ? ' — ' + printDocument.deliveryAddress.country : ''}</p>
+      </section>}
+      <table>
+        <thead><tr><th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th><th>الكمية المحفوظة</th><th>سعر الوحدة المحفوظ</th><th>قيمة البند المحفوظة</th></tr></thead>
+        <tbody>{printDocument.items.map((item, index) => (
+          <tr key={item.itemCode + '-' + item.productName + '-' + index}>
+            <td>{item.itemCode ?? '—'}</td><td>{item.productName}</td><td>{item.unit ?? '—'}</td>
+            <td>{item.quantity === null ? 'غير مسجل' : formatNumber(item.quantity)}</td>
+            <td>{item.unitPrice === null ? 'غير مسجل' : formatCurrency(item.unitPrice)}</td>
+            <td>{item.lineTotal === null ? 'غير مسجل' : formatCurrency(item.lineTotal)}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+      {printDocument.totalAmount === null
+        ? <p className="print-total">إجمالي الطلب: غير متاح</p>
+        : <p className="print-total">إجمالي الطلب المحفوظ: {formatCurrency(printDocument.totalAmount)}</p>}
+      <small>هذا المستند يعكس بيانات الخادم المحفوظة، ولا يتضمن تعديلات شاشة المراجعة غير المعتمدة.</small>
+    </section>}
     {ordersLoading && !orders ? <Loading /> : ordersError ? <ErrorBox message={ordersError} /> : !orders ? <Empty text="تعذر التحقق من بيانات الطلب؛ أعد المحاولة." /> : !order ? <Empty text="لم يتم العثور على الطلب المطلوب ضمن المؤسسة الحالية." /> : null}
     {(ordersError || (!ordersLoading && !orders)) && <Button variant="secondary" onClick={() => { void refetchOrders(); }}>إعادة تحميل الطلب</Button>}
     {order && <section className="panel" style={{ marginTop: 12, padding: 14 }}>
