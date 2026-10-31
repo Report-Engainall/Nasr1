@@ -106,7 +106,8 @@ BEGIN
       FROM public.inventory_balances ib
       JOIN public.warehouses w
         ON w.id=ib.warehouse_id AND w.organization_id=v_org
-     WHERE ib.product_id=v_product.id;
+     WHERE ib.product_id=v_product.id
+       AND ib.updated_at<=p_as_of;
 
     SELECT pg_catalog.max(m.created_at)
       INTO v_last_movement
@@ -125,7 +126,8 @@ BEGIN
        AND o.status IN ('delivered','invoiced')
        AND o.created_at>=p_period_from::timestamp
        AND o.created_at<(p_period_to+1)::timestamp
-       AND o.created_at<=p_as_of;
+       AND o.created_at<=p_as_of
+       AND o.updated_at<=p_as_of;
 
     SELECT pg_catalog.count(*)::integer
       INTO v_lead_rows

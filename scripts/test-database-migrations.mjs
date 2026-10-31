@@ -7021,6 +7021,28 @@ async function main() {
   assert.equal(inventoryReplenishment.supplierLeadTimeDays.period,null);
   assert.equal(inventoryAggregate.evidenceRecords.some((e) => e.id==="purchase-receipt-item:"+inventoryReceiptItemId),true);
   assert.equal(inventoryAggregate.evidenceRecords.some((e) => e.id==="movement-window:"+inventoryForeignProductId),false);
+  // A current balance/order row updated after the requested as-of instant must not leak into the historical read.
+  const laterInventorySourceTimestamp=new Date(Date.parse(inventoryAsOf.as_of)+1000).toISOString();
+  await db.unsafe(
+    "update public.inventory_balances set updated_at=$3::timestamptz where product_id=$1 and warehouse_id=$2",
+    [inventoryProductId,inventoryWarehouseId,laterInventorySourceTimestamp],
+  );
+  await db.unsafe(
+    "update public.orders set updated_at=$2::timestamptz where id=$1",
+    [inventorySaleOrderId,laterInventorySourceTimestamp],
+  );
+  const historicalInventoryAggregate=(await db.unsafe(
+    "select public.get_inventory_intelligence_aggregate($1::date,$2::date,$3::timestamptz) as result",
+    [inventoryAsOf.from_day,inventoryAsOf.to_day,inventoryAsOf.as_of],
+  ))[0].result;
+  const historicalDead=historicalInventoryAggregate.deadStockProducts[0];
+  const historicalReplenishment=historicalInventoryAggregate.replenishmentProducts[0];
+  assert.equal(historicalDead.availableQuantity.status,"UNAVAILABLE",
+    "a balance snapshot updated after asOf must be withheld, not backdated");
+  assert.equal(historicalDead.availableQuantity.value,null);
+  assert.equal(historicalReplenishment.availableToPromise.status,"UNAVAILABLE");
+  assert.equal(Number(historicalReplenishment.soldQuantityWindow.value),0,
+    "an order whose status changed after asOf must not count as historically fulfilled sales");
   const inventoryAuditAfter=(await db.unsafe(
     "select count(*)::integer as count from public.audit_logs where organization_id=$1",
     [intelOrganizationId],
