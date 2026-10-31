@@ -22,10 +22,10 @@ describe("intelligence state panel", () => {
     const list = screen.getByRole("list", { name: "تحذيرات المصدر" });
     const item = list.querySelector("li");
     expect(item).not.toBeNull();
-    expect(list.style.minWidth).toBe("0px");
+    expect(list.style.minWidth).toBe("0");
     expect(list.style.maxWidth).toBe("100%");
     expect(list.style.overflowWrap).toBe("anywhere");
-    expect(item?.style.minWidth).toBe("0px");
+    expect(item?.style.minWidth).toBe("0");
     expect(item?.style.overflowWrap).toBe("anywhere");
   });
 });
