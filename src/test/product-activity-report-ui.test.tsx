@@ -145,6 +145,7 @@ describe("product activity report interactive screen", () => {
     expect(printSpy).toHaveBeenCalledTimes(1);
 
     const sheet = screen.getByTestId("product-activity-print-document");
+    expect(sheet.parentElement).toBe(document.body);
     expect(sheet.textContent).toContain("كامل — ٣٠ من ٣٠ صنفًا");
     expect(sheet.textContent).toContain("نشط آخر 30 يومًا");
     expect(sheet.textContent).toContain("راكد أكثر من 90 يومًا");
