@@ -464,7 +464,7 @@ export function ProductActivityReport({ reportOverride }: ProductActivityReportP
           </p>
         </>
       )}
-      {printDocument ? createPortal(<ProductActivityPrintSheet document={printDocument} />, document.body) : null}
+      {printDocument && typeof document !== 'undefined' ? createPortal(<ProductActivityPrintSheet document={printDocument} />, document.body) : null}
     </section>
   );
 }
