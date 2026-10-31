@@ -6521,11 +6521,12 @@ async function main() {
     deniedStaffJournalSnapshotSql,
     [organizationId, deniedStaffJournalKey],
   ))[0];
-  assert.deepEqual(deniedStaffJournalBefore, {
-    entry_count: 0,
-    line_count: 0,
-    audit_count: 0,
-  });
+  assert.equal(deniedStaffJournalBefore.entry_count, 0,
+    "the fresh idempotency key must not already identify a journal");
+  assert.equal(deniedStaffJournalBefore.line_count, 0,
+    "the fresh idempotency key must not already identify journal lines");
+  // Existing journal-draft audit events from the earlier acceptance fixtures
+  // are valid; compare their tenant-wide count before and after this denial.
   const ordinaryStaffRoles = await db.unsafe(
     "select role from public.user_roles where profile_id=$1::uuid order by role",
     [operationsStaffProfileId],
