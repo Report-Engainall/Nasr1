@@ -527,7 +527,7 @@ export function GeneralLedgerWorkspace() {
           <button type="button" style={button} disabled={!payload?.has_more || loading} onClick={() => setPage((v) => v + 1)}>التالي</button>
         </footer>
       </section>
-    </section>
       {printDocument && typeof document !== "undefined" ? createPortal(<GeneralLedgerPrintSheet document={printDocument} />, document.body) : null}
+    </section>
   );
 }
