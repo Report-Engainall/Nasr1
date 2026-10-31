@@ -114,7 +114,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
 
   try {
     await signIn(manager, managerEmail, managerPassword);
-    await assertAdminMobileNavigation(manager);
+    await assertAdminMobileNavigation(manager);\n    await assertAdminRouteViewportMatrix(manager);
     await manager.goto("/admin/finance");
     await expect(manager.getByRole("heading", { name: "الفواتير والتحصيل" })).toBeVisible();
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
