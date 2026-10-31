@@ -394,6 +394,7 @@ test("authorized finance documents and operational-task print remain tenant-scop
         purchaseOrderResultPrintInvoked: true,
         purchaseOrderPrintExcludedInternalNote: true,
         purchaseOrderUnknownCostsRemainUnrecorded: true,
+        customerPurchaseOrderPrintDenied: true,
         noProductionWrites: true,
       }, null, 2),
       contentType: "application/json",
@@ -480,6 +481,9 @@ test("authorized finance documents and operational-task print remain tenant-scop
     await customer.goto("/admin/finance");
     await expect(customer.getByRole("button", { name: "فتح نافذة الطباعة / حفظ PDF", exact: true })).toHaveCount(0);
     await expect(customer.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" })).toHaveCount(0);
+    await customer.goto("/admin/purchase-orders");
+    await expect(customer.getByRole("heading", { name: "صلاحية إدارة المشتريات مطلوبة" })).toBeVisible();
+    await expect(customer.getByRole("button", { name: /طباعة/ })).toHaveCount(0);
   } finally {
     await customerContext.close();
   }
