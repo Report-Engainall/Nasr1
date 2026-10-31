@@ -11,7 +11,7 @@ vi.mock("@/lib/useFetch", async (importOriginal) => {
   return {
     ...actual,
     useFetch: () => ({
-      data: mocks.report,
+      data: null,
       loading: false,
       error: null,
       refetch: vi.fn(),
