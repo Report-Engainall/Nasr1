@@ -208,6 +208,7 @@ def extraction_destination(
 
 
 def append_member_result(
+    archive: zipfile.ZipFile,
     spec: dict[str, object],
     info: zipfile.ZipInfo,
     destination: Path | None,
@@ -218,9 +219,7 @@ def append_member_result(
     errors: list[str],
 ) -> tuple[int, int]:
     raw = safe_name(info.filename).as_posix()
-    digest, size = stream_member(
-        _active_archive_context[0], info, destination, snapshot_root
-    )
+    digest, size = stream_member(archive, info, destination, snapshot_root)
     selected = 1 if destination is not None else 0
     status = (
         "SELECTED_SOURCE_EXTRACTED_TO_TEMP"
@@ -238,10 +237,6 @@ def append_member_result(
         "member_status": status,
     })
     return selected, selected_total + (size if destination is not None else 0)
-
-
-# The archive object is set only within audit_snapshot and never escapes that call.
-_active_archive_context: list[zipfile.ZipFile] = []
 
 
 def audit_snapshot(
@@ -289,16 +284,14 @@ def audit_snapshot(
             row["member_count"] = len(infos)
             row["uncompressed_bytes"] = total
             row["integrity_status"] = "HEADER_PATH_RATIO_LIMITS_PASS"
-            _active_archive_context[:] = [archive]
-            try:
-                for info in infos:
+            for info in infos:
                     if info.is_dir() or info.filename.endswith("/"):
                         continue
                     raw = safe_name(info.filename).as_posix()
                     destination = extraction_destination(raw, info.file_size, snapshot_root, selected_total)
                     try:
                         selected, selected_total = append_member_result(
-                            spec, info, destination, snapshot_root, selected_total,
+                            archive, spec, info, destination, snapshot_root, selected_total,
                             by_path, members, errors,
                         )
                         if selected:
@@ -313,9 +306,6 @@ def audit_snapshot(
                             "selected_source_extracted": "NO",
                             "member_status": "READ_OR_CRC_FAILED:" + detail,
                         })
-            finally:
-                _active_archive_context.clear()
-
         member_errors = any(error.startswith(str(spec["id"]) + " member ") for error in errors)
         row["integrity_status"] = (
             "MEMBER_DECOMPRESSION_OR_CRC_FAILED"
@@ -477,7 +467,7 @@ def main() -> int:
                 spec, temp_root, selected_total, members, errors
             )
             manifest.append(row)
-            if by_path:
+            if row["download_status"] == "DOWNLOADED":
                 all_hashes[str(spec["id"])] = by_path
 
     pair_diff = build_pair_diffs(all_hashes)
