@@ -532,7 +532,8 @@ test("authorized finance documents and operational-task print remain tenant-scop
 });
 
 test("general journal voucher and full financial statements print in authorized manager and accountant UI", async ({ browser }) => {
-  test.setTimeout(4 * 60 * 1000);
+  // Both authorized roles sign in separately and each renders two print documents against local Supabase.
+  test.setTimeout(10 * 60 * 1000);
   const managerContext = await browser.newContext();
   const manager = await managerContext.newPage();
   const printSetup = () => {
