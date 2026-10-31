@@ -246,7 +246,7 @@ export function ExecutiveStoreAnalytics() {
 }
 
 
-function ProductActivityReport() {
+export function ProductActivityReport() {
   const { data, loading, error, refetch } = useFetch(fetchStoreProductActivityReport);
   const [filter, setFilter] = useState<ProductActivityStatus | 'all'>('stagnant_over_90_days');
   const [search, setSearch] = useState('');
