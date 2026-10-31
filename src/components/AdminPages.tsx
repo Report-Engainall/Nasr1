@@ -694,6 +694,23 @@ export function OrderDetail({ orderId, onBack, onNotice, onBlockedChange }: { or
 export function Suppliers({ onNotice }: { onNotice: (m: string) => void }) {
   const { data, loading, error, refetch } = useFetch(fetchSuppliers);
   const [modal, setModal] = useState(false);
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const visibleSuppliers = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase('ar');
+    return (data ?? []).filter((supplier) => {
+      const searchable = [
+        supplier.name,
+        supplier.supplier_code,
+        supplier.contact_name,
+        supplier.phone,
+        supplier.email,
+      ].filter(Boolean).join(' ').toLocaleLowerCase('ar');
+      const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
+      const matchesStatus = statusFilter === 'all' || supplier.status === statusFilter;
+      return matchesQuery && matchesStatus;
+    });
+  }, [data, query, statusFilter]);
   return <AdminPage
     eyebrow="إدارة البيانات"
     title="الموردون"
@@ -704,8 +721,33 @@ export function Suppliers({ onNotice }: { onNotice: (m: string) => void }) {
   >
     {loading ? <Loading /> : error ? <ErrorBox message={error} /> : !data ?
       <Empty text="تعذر التحقق من دليل الموردين؛ حدّث البيانات." /> :
-      data.length === 0 ? <Empty text="لا يوجد موردون مسجلون حتى الآن." /> :
-      <TableWrap><table><thead><tr><th>المورد</th><th>جهة الاتصال</th><th>الهاتف</th><th>البريد</th><th>الحالة</th></tr></thead><tbody>{data.map((s: Supplier) => <tr key={s.id}><td><strong>{s.name}</strong><small>{s.supplier_code ?? '—'}</small></td><td>{s.contact_name ?? '—'}</td><td>{s.phone ?? '—'}</td><td>{s.email ?? '—'}</td><td><span className={`badge ${s.status === 'active' ? 'success' : 'warning'}`}>{s.status}</span></td></tr>)}</tbody></table></TableWrap>}
+      <>
+        <div className="table-head" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <h2>دليل الموردين</h2>
+          <label className="search-field" style={{ flex: '1 1 240px', minWidth: 0 }}>
+            <Search size={16} />
+            <input
+              type="search"
+              aria-label="البحث في دليل الموردين"
+              placeholder="اسم المورد أو الكود أو جهة الاتصال أو الهاتف..."
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
+          <div role="group" aria-label="تصفية الموردين حسب الحالة" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <button type="button" className="btn outline" aria-pressed={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>الكل</button>
+            <button type="button" className="btn outline" aria-pressed={statusFilter === 'active'} onClick={() => setStatusFilter('active')}>نشط</button>
+            <button type="button" className="btn outline" aria-pressed={statusFilter === 'inactive'} onClick={() => setStatusFilter('inactive')}>غير نشط</button>
+          </div>
+        </div>
+        <p role="status" aria-live="polite" style={{ margin: '8px 0 12px', color: 'var(--muted-foreground, #64748b)', fontSize: 13 }}>
+          عرض {visibleSuppliers.length} من {data.length} مورد
+        </p>
+        {data.length === 0 ? <Empty text="لا يوجد موردون مسجلون حتى الآن." /> :
+          visibleSuppliers.length === 0 ? <Empty text="لا توجد نتائج مطابقة لمعايير البحث أو التصفية." /> :
+          <TableWrap><table><thead><tr><th>المورد</th><th>جهة الاتصال</th><th>الهاتف</th><th>البريد</th><th>الحالة</th></tr></thead><tbody>{visibleSuppliers.map((s: Supplier) => <tr key={s.id}><td><strong>{s.name}</strong><small>{s.supplier_code ?? '—'}</small></td><td>{s.contact_name ?? '—'}</td><td>{s.phone ?? '—'}</td><td>{s.email ?? '—'}</td><td><span className={`badge ${s.status === 'active' ? 'success' : 'warning'}`}>{s.status}</span></td></tr>)}</tbody></table></TableWrap>}
+      </>
+    }
     {modal && <SupplierModal onClose={() => setModal(false)} onSaved={() => { setModal(false); void refetch(); onNotice('تمت إضافة المورد'); }} />}
   </AdminPage>;
 }

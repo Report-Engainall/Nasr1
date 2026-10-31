@@ -1,6 +1,7 @@
 import { ClientOnly, createFileRoute } from "@tanstack/react-router";
 import { AdminApp } from "@/components/AghbariApp";
 
+import { AdminRouteFallback } from "@/components/AdminRouteFallback";
 export const Route = createFileRoute("/admin_/intelligence")({
   head: () => ({
     meta: [
@@ -8,5 +9,5 @@ export const Route = createFileRoute("/admin_/intelligence")({
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: () => <ClientOnly fallback={null}><AdminApp initialView="intelligence" /></ClientOnly>,
+  component: () => <ClientOnly fallback={<AdminRouteFallback />}><AdminApp initialView="intelligence" /></ClientOnly>,
 });
