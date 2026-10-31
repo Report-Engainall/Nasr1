@@ -1,32 +1,40 @@
-# LIVE EXECUTION CHECKPOINT — 2026-10-31 — PRODUCT ACTIVITY PRINT PR OPEN
+# LIVE EXECUTION CHECKPOINT — 2026-10-31 — CUSTOMER 360 MERGED; PRODUCT ACTIVITY PRINT PR #333 ACTIVE
 
-- CURRENT_MAIN_SHA: `e284b9b80691cbb445d0e856ae60e556634defa6` (main immediately before this checkpoint-only update; last verified product-code merge is `605e212ddc9c58e0e2601ecf48fe325c7f15987a`).
+- CURRENT_MAIN_SHA: `54c647e9fbffa664d534b578352b2fa87f8c0d8c` (checkpoint/matrix commits only after product merge `605e212ddc9c58e0e2601ecf48fe325c7f15987a`).
 - LAST_COMPLETED_TASK_ID: `DLV-011-CUSTOMER360-PRINT`
-- LAST_COMPLETED_TASK: PR #332 merged by squash at `605e212ddc9c58e0e2601ecf48fe325c7f15987a`. Replaced direct Customer 360 modal printing with a dedicated staff A4/RTL print sheet and explicit allowlist DTO. The output preserves full server order aggregates and complete per-currency ledger totals while stating latest-20 limits for detail rows; payment amount/currency is withheld when its invoice is outside the returned recent-invoice window. The projection removes customer/contact PII, tenant metadata, internal customer/order/invoice/payment IDs, cost and margin. Existing Customer 360 XLSX remains unchanged.
+- LAST_COMPLETED_TASK: PR #332 merged at `605e212ddc9c58e0e2601ecf48fe325c7f15987a`. Staff Customer 360 A4/RTL output uses a dedicated body portal and allowlist; customer/contact PII, tenant data, internal IDs, cost and margin are excluded. Full order aggregates and per-currency ledger totals are preserved; latest-20 detail limits are disclosed; payment currency/amount is withheld outside the invoice detail window. Existing eight-sheet XLSX is unchanged.
 - ACTIVE_TASK_ID: `DLV-011-PRODUCT-ACTIVITY-PRINT`
-- ACTIVE_TASK_STATUS: `PR #333 OPEN — latest reported head 0846bbacb2af938e977e401b0532917ff248c6c8; CI results for this exact head not yet recorded as PASS`
+- ACTIVE_TASK_STATUS: `PR #333 OPEN — Core 41241449045 IN_PROGRESS; P2 41241448987 IN_PROGRESS; exact head 17425e75d6f67f4af6f570f91bc9ce510b062bb5`
 - BASE_SHA: `605e212ddc9c58e0e2601ecf48fe325c7f15987a`
-- HEAD_SHA: `0846bbacb2af938e977e401b0532917ff248c6c8`
+- HEAD_SHA: `17425e75d6f67f4af6f570f91bc9ce510b062bb5`
+- LAST_COMPLETED_FILES:
+  - `src/components/AdminCustomer360.tsx`
+  - `src/components/Customer360PrintSheet.tsx`
+  - `src/lib/customer-360-print.ts`
+  - `src/styles.css`
+  - `src/test/admin-customer-360-display.test.tsx`
 - ACTIVE_FILES_CHANGED:
   - `src/components/ExecutiveStoreAnalytics.tsx`
   - `src/components/ProductActivityPrintSheet.tsx`
   - `src/lib/product-activity-print.ts`
   - `src/styles.css`
   - `src/test/product-activity-report-ui.test.tsx`
-- IMPLEMENTATION_RESULT: DLV-011 remains PARTIAL. PR #331 (executive analytics print) and PR #332 (staff Customer 360 print) are merged and post-merge verified. PR #333 adds an Arabic RTL A4-landscape full product-activity print report from an explicit allowlist. It prints all server-returned product rows independently of current UI filtering/search/pagination, excludes internal product UUID/raw fields, preserves unknown stock as unavailable, and disables output for truncated/incomplete reports, non-reconciled summary counts, mismatched 30/90-day windows, or more than 5,000 rows. The existing product-activity XLSX implementation is untouched. A4 is scoped to this page and print mode hides the app root to prevent blank pages.
+- IMPLEMENTATION_RESULT: PR #333 supplies landscape A4 Arabic RTL print/PDF using the existing complete `StoreProductActivityReport`; all authorized server rows print independently of search/filter/sort/pagination. The print allowlist excludes product UUID/raw fields, cost, margin and tenant metadata; unknown stock remains unavailable; report window, four activity totals, unknown-stock count, row completeness and 5000 ceiling are validated; existing XLSX output is unchanged.
 - TESTS_RUN_WITH_RESULTS:
-  - PR #331 exact head `f845750e4a6a50d4e7c43a5f2d45a62883f0d52f`: Core [41238642737 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41238642737); P2 [41238642699 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41238642699). Merge SHA `64cb1abebaee6dd547cbb4b5b7818b76e20f3813`: post-merge Core [41239115663 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41239115663), P2 [41239115645 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41239115645), cleanup [41239115683 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41239115683).
-  - PR #332 exact head `254b2c2b430f91cabb418b9166f0241e8323f43c`: Core [41240011959 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011959); P2 [41240011938 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011938). Merge SHA `605e212ddc9c58e0e2601ecf48fe325c7f15987a`: post-merge Core [41240395534 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395534), P2 [41240395532 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395532), cleanup [41240395555 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395555). Local Supabase/Chromium passed. Hosted customer/order/tenant tests were SKIPPED.
-  - PR #333 reported head `0846bbacb2af938e977e401b0532917ff248c6c8`: Core/P2 run IDs and final conclusions have not yet been verified in this checkpoint. No PASS is claimed.
+  - PR #332 exact head `254b2c2b430f91cabb418b9166f0241e8323f43c`: Core [41240011959 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011959), P2 [41240011938 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011938).
+  - PR #332 merge SHA `605e212ddc9c58e0e2601ecf48fe325c7f15987a`: post-merge Core [41240395534 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395534), P2 [41240395532 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395532), cleanup [41240395555 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395555). Core 35/35; P2 local Supabase/Chromium 40/40. Hosted tenant test skipped.
+  - PR #333 head `54e6e669af87a1c086689fcd599813d4d8006ffb`: Core [41240956851 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41240956851), P2 [41240956836 CANCELLED](https://github.com/Report-Engainall/Nasr1/actions/runs/41240956836). The Core failure was an old screen assertion finding the same product text in the UI and the body portal. Fixed by scoping existing screen assertions to the Product Activity panel.
+  - PR #333 intermediate head `eeb415d797b0fd169eb4060e44ddfa65ecc327a1`: Core [41241221732 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41241221732), caused only by an assertion regex expecting `لا يتطابق` while the implemented validation correctly returns `لا يطابق`. The regex was corrected; no production validation was weakened. P2 on that head was cancelled by the subsequent test-only branch update.
+  - PR #333 current exact head `17425e75d6f67f4af6f570f91bc9ce510b062bb5`: Core [41241449045 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41241449045); P2 [41241448987 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41241448987). No failures recorded on this head.
 - FAILED_OR_SKIPPED:
-  - Hosted customer/order/tenant P2 jobs for #331 and #332 were `SKIPPED` due missing hosted test credentials; local Supabase/Chromium acceptance passed. Hosted auth/tenant acceptance is not proven.
-  - Actual Onyx Pro target-version import, official WhatsApp delivery receipt, live free-AI provider response, production deploy/rollback/restore and owner sign-off remain external/unverified.
-- MERGE_STATUS: `PR #331 MERGED at 64cb1ab; PR #332 MERGED at 605e212; post-merge Core/P2/cleanup on 605e212 SUCCESS; PR #333 OPEN`.
-- BLOCKERS: DLV-011 remains PARTIAL. Hosted customer/order/tenant proof and external integration/production evidence remain unproven. PR #333 requires Core and P2 SUCCESS on its exact current head.
+  - PR #332 hosted customer/order/tenant job was `SKIPPED`; local Supabase/Chromium passed. Hosted auth/tenant proof is not established.
+  - Earlier PR #333 heads failed as detailed above; both causes were test-only and fixed on current head. Do not carry their status forward.
+  - Live Onyx Pro import, official WhatsApp receipt, real free-AI provider response, hosted customer/tenant acceptance, production deploy/rollback/restore and owner acceptance remain unverified external requirements.
+- MERGE_STATUS: `PR #332 MERGED at 605e212; post-merge Core/P2/cleanup SUCCESS. PR #333 OPEN at 17425e75; Core/P2 IN_PROGRESS.`
+- BLOCKERS: DLV-011 remains PARTIAL. No merge of PR #333 until both gates are green on this exact head. Hosted tenant proof and external production integration evidence remain open.
 - NEXT_TASK_ID: `DLV-011-PRODUCT-ACTIVITY-PRINT`
-- NEXT_ACTION: Retrieve PR #333's current head SHA and the Core/P2 Actions runs associated with exactly that SHA. Confirm the five-file diff contains only the full-report print projection, A4 RTL sheet, ProductActivityReport print action/portal, scoped print-mode CSS, and acceptance tests. If a CI failure exists, inspect the exact failing job/log and repair the defect/test without suppressing the acceptance criterion; rerun Core and P2 on the newly updated exact head. Do not merge if either check is pending, cancelled, skipped as the entire workflow, or failed. When both are SUCCESS, verify the PR is based on the current main ancestry, squash-merge with the exact expected head SHA, then verify post-merge Core/P2/cleanup on the merge SHA. Update DLV-011 row and this checkpoint with exact evidence; continue the next uncovered role/template.
-- UPDATED_AT: `2026-10-31T20:57:54.535Z`
-
+- NEXT_ACTION: Poll Core `41241449045` and P2 `41241448987` on exact head `17425e75d6f67f4af6f570f91bc9ce510b062bb5`. If either fails, inspect only the failed job/log and repair its root cause on the PR branch; rerun the required gates on the new exact head. If both pass, confirm PR #333 exact head and base ancestry, squash-merge with expected-head SHA, verify post-merge Core/P2/cleanup on the merge SHA, and update this checkpoint plus the DLV-011 matrix row. Then move to the next uncovered role/template. Do not repeat closed PRs #318, #324, #326, #327, #328, #329, #331 or #332.
+- UPDATED_AT: `2026-10-31T21:02:13.918Z`
 
 ---
 
