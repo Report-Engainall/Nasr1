@@ -79,6 +79,30 @@ describe("admin suppliers live screen acceptance", () => {
     expect(screen.getByText("مسؤول المبيعات")).toBeInTheDocument();
   });
 
+  it("filters the supplier list by search fields and active state", () => {
+    const inactiveSupplier: Supplier = {
+      ...supplier,
+      id: "supplier-002",
+      name: "مورد آخر",
+      supplier_code: "SUP-00002",
+      contact_name: "جهة ثانية",
+      status: "inactive",
+    };
+    state([supplier, inactiveSupplier]);
+    render(<Suppliers onNotice={vi.fn()} />);
+
+    const search = screen.getByRole("searchbox", { name: "البحث في دليل الموردين" });
+    fireEvent.change(search, { target: { value: "SUP-00001" } });
+    expect(screen.getByText("مورد الاختبار")).toBeInTheDocument();
+    expect(screen.queryByText("مورد آخر")).not.toBeInTheDocument();
+    expect(screen.getByText("عرض 1 من 2 مورد")).toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "غير نشط" }));
+    expect(screen.getByText("مورد آخر")).toBeInTheDocument();
+    expect(screen.queryByText("مورد الاختبار")).not.toBeInTheDocument();
+  });
+
   it("normalizes supplier fields, blocks duplicate saves and reports API failures", async () => {
     state([]);
     let release: ((value: Supplier) => void) | undefined;
