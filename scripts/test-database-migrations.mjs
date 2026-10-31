@@ -6800,12 +6800,12 @@ async function main() {
   assert.equal(decisionAuditAfterDenied,decisionAuditBefore,"denied transition and idempotency conflict must not append audit rows");
 
   const runDecisionCommand = async (
-    version:number,
-    type:string,
-    reason:string|null=null,
-    owner:string|null=null,
-    measured:Record<string,unknown>|null=null,
-    key=randomUUID(),
+    version,
+    type,
+    reason = null,
+    owner = null,
+    measured = null,
+    key = randomUUID(),
   ) => (await db.unsafe(
     "select public.command_decision_outcome($1::uuid,$2::text,$3::text,$4::integer,$5::text,$6::text,$7::uuid,$8::jsonb) as result",
     [decisionOutcomeId,randomUUID(),key,version,type,reason,owner,measured?db.json(measured):null],
