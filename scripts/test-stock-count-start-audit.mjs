@@ -1,4 +1,3 @@
-import { logError, logInfo } from "./diagnostic-logger.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
@@ -587,7 +586,7 @@ try {
   await main();
   passed = true;
 } catch (error) {
-  logError("STOCK_COUNT_START_AUDIT_FAILED", error);
+  console.error("STOCK_COUNT_START_AUDIT_FAILED", error);
   process.exitCode = 1;
 } finally {
   if (transactionOpen) {
@@ -595,7 +594,7 @@ try {
       await commandDb.unsafe("rollback");
       transactionOpen = false;
     } catch (error) {
-      logError("stock-count variance acceptance rollback failed", error);
+      console.error("stock-count variance acceptance rollback failed", error);
       process.exitCode = 1;
       passed = false;
     }
@@ -604,7 +603,7 @@ try {
     try {
       await connection.end();
     } catch (error) {
-      logError("stock-count acceptance connection cleanup failed", error);
+      console.error("stock-count acceptance connection cleanup failed", error);
       process.exitCode = 1;
       passed = false;
     }
@@ -612,7 +611,7 @@ try {
 }
 
 if (passed && process.exitCode !== 1) {
-  logInfo(
+  console.log(
     "PASS stock-count audit and cancellation boundaries: tenant/profile-bound idempotent start; same-tenant staff and foreign-tenant manager cancellation denials leave session, audit, and movement state unchanged; stale snapshot rejects with SQLSTATE 40001 and leaves inventory unchanged; non-zero variance creates one task, zero variance creates none; transaction rollback leaves no fixture changes",
   );
 }
