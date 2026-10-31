@@ -217,10 +217,18 @@ test("catalog → cart → order → refresh, then cross-organization read denia
         await quotePrintButton.click();
         await expect.poll(() => pageA.evaluate(() => document.documentElement.dataset.e2eQuotePrintInvoked)).toBe("true");
         const quotePrint = pageA.locator(".customer-quote-print-document");
+        await expect(quotePrint).toBeAttached();
+        // The quote sheet is intentionally display:none on screen; test the actual print stylesheet after invoking print.
+        await pageA.emulateMedia({ media: "print" });
+        await expect(quotePrint).toBeVisible();
+        await expect(quotePrint).toHaveAttribute("dir", "rtl");
         await expect(quotePrint).toContainText(quoteNumber);
         await expect(quotePrint).toContainText("١٢٥");
         const quoteMarkup = await quotePrint.evaluate((element) => element.innerHTML);
         expect(quoteMarkup).not.toMatch(/organization_id|customer_id|product_id|quote_id|actor_id|target_unit_price|cost_price/i);
+        await pageA.evaluate(() => window.dispatchEvent(new Event("afterprint")));
+        await expect(quotePrint).toHaveCount(0);
+        await pageA.emulateMedia({ media: "screen" });
         await pageA.goto(order.detailPath);
         await expect(pageA.getByText(order.orderNumber, { exact: true })).toBeVisible({ timeout: 30_000 });
       });
