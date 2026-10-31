@@ -8561,6 +8561,7 @@ async function main() {
     foreignAuthUserId,
     foreignProfileId,
   });
+  process.stdout.write("PASS FIN-LEDGER-001 ordinary-staff general-journal-draft denial: SQLSTATE 42501, byte-identical entry/line/reversal/audit snapshots, and successful admin create+idempotent replay after denial\\n");
   // Distinct invitation rows accepted concurrently by one profile must still produce
   // a single active company membership. The helper uses two real PostgreSQL sessions.
   await runCustomerCompanyInvitationRaceAcceptance({ db, connectionString, organizationId });
