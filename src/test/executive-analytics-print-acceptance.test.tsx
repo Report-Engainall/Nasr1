@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StoreExecutiveAnalytics } from "@/lib/executive-analytics";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatNumber } from "@/lib/format";
 import { ExecutiveStoreAnalytics } from "@/components/ExecutiveStoreAnalytics";
 
 const mocks = vi.hoisted(() => ({
@@ -151,7 +151,7 @@ describe("executive analytics print acceptance", () => {
     const unavailable = screen.getByTestId("executive-analytics-forecast-unavailable");
     expect(printSpy).toHaveBeenCalledTimes(1);
     expect(unavailable.textContent).toContain("insufficient_history");
-    expect(unavailable.textContent).toContain("3");
+    expect(unavailable.textContent).toContain(formatNumber(3));
     expect(unavailable.textContent).not.toContain("خط أساس تخطيطي:");
     expect(sheet.querySelectorAll('[data-testid="executive-analytics-forecast-row"]')).toHaveLength(0);
   });
