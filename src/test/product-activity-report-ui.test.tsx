@@ -170,6 +170,13 @@ describe("product activity report interactive screen", () => {
 
     const incomplete = { ...report, total_products: 31, truncated: false };
     expect(() => projectProductActivityPrintDocument(incomplete)).toThrow(/غير مكتمل/);
+    expect(() => projectProductActivityPrintDocument({ ...report, recent_days: 29 })).toThrow(/حدود التحليل/);
+    expect(() => projectProductActivityPrintDocument({
+      ...report, total_products: 5001, returned_products: 5001, truncated: false,
+    })).toThrow(/5000 صنف/);
+    expect(() => projectProductActivityPrintDocument({
+      ...report, summary: { ...report.summary, stagnant_over_90_days: report.summary.stagnant_over_90_days - 1 },
+    })).toThrow(/لا يتطابق/);
 
     const truncated = { ...report, total_products: 5001, truncated: true };
     render(<ProductActivityReport reportOverride={truncated} />);
