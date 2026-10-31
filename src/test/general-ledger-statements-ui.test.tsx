@@ -117,6 +117,11 @@ describe("general ledger financial-statement UI", () => {
   });
 
   it("prints complete income and balance sheet statements only after the authorized ledger summary loads", async () => {
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "fetch_general_journal_reversal_links") return { data: [], error: null };
+      if (name === "fetch_cash_expense_accounting_inbox") return { data: { items: [], total_count: 0, has_more: false, limit: 50, offset: 0 }, error: null };
+      return { data: payload, error: null };
+    });
     const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
     render(<GeneralLedgerWorkspace />);
     const button = await screen.findByRole("button", { name: "طباعة القوائم المالية" });
