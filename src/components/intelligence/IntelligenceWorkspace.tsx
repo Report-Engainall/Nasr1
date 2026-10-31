@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { BrainCircuit, CalendarClock, RefreshCw, ShieldCheck, Workflow } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -122,7 +122,7 @@ export function IntelligenceWorkspace() {
     }
   }, [data, proposalCurrency]);
 
-  const createProposal = async (event: React.FormEvent<HTMLFormElement>) => {
+  const createProposal = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!data || !user?.profileId || !proposalCurrency || !proposalExpected.trim()) return;
     const proof = data.measurementMetrics.find((item) => item.currency === proposalCurrency);
@@ -366,7 +366,7 @@ export function IntelligenceWorkspace() {
               <CashflowForecastCard state="unavailable" />
               <DeadStockCard state="unavailable" />
               <ReplenishmentCard state="unavailable" />
-              <ActionCard state="empty" />
+              <ActionCard state="unavailable" />
             </div>
           </section>
         </>

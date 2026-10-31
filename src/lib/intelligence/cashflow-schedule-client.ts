@@ -222,8 +222,8 @@ function parseMeasurementMetrics(value: unknown, request: IntelligenceAggregateR
       raw.asOf !== request.asOf ||
       !isoDay(period.from) || !isoDay(period.to) ||
       period.from !== request.period.from || period.to !== request.period.to ||
-      !nonEmptyString(lineage.formulaId, 150) ||
-      !nonEmptyString(lineage.formulaVersion, 80) ||
+      lineage.formulaId !== "nasr1.receivables-outstanding" ||
+      lineage.formulaVersion !== "1" ||
       !evidenceIds || evidenceIds.length === 0 ||
       new Set(evidenceIds).size !== evidenceIds.length ||
       evidenceIds.some((id) => !sourceEvidenceIds.has(id)) ||
