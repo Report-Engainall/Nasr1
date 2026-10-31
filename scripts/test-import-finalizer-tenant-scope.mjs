@@ -1,4 +1,3 @@
-import { logError, logInfo } from "./diagnostic-logger.mjs";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import postgres from "postgres";
@@ -417,11 +416,11 @@ async function main() {
   assert.equal(managerApprovalSnapshotAfter, managerApprovalSnapshotBefore,
     "manager's accepted role followed by manifest rejection must not mutate import state");
 
-  logInfo("PASS import finalizer authorization matrix: admin and manager pass role guard; same-tenant customer and ordinary staff receive 42501; foreign tenant gets opaque not-found; complete snapshots remain byte-for-byte unchanged");
+  console.log("PASS import finalizer authorization matrix: admin and manager pass role guard; same-tenant customer and ordinary staff receive 42501; foreign tenant gets opaque not-found; complete snapshots remain byte-for-byte unchanged");
 }
 
 main().catch((error) => {
-  logError("IMPORT_FINALIZER_TENANT_SCOPE_FAILED:", error?.message ?? error);
+  console.error("IMPORT_FINALIZER_TENANT_SCOPE_FAILED:", error?.message ?? error);
   process.exitCode = 1;
 }).finally(async () => {
   await cleanup();

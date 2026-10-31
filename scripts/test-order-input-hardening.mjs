@@ -1,3 +1,4 @@
+import { logError, logInfo } from "./diagnostic-logger.mjs";
 import assert from "node:assert/strict";
 
 const customerProfileId = "f1111111-1111-4111-8111-111111111111";
@@ -334,7 +335,7 @@ export async function runOrderInputHardeningAcceptance({
     );
     assert.equal(persisted[0].count, 0, "invalid customer/staff order payloads must roll back orders and not persist retry keys");
 
-    console.log(
+    logInfo(
       "PASS order input hardening: customer+staff reject 28 invalid payloads (shape, row count, IDs, missing/fractional/out-of-range quantities, MOQ/pack multiple, aggregate cap, inactive/cross-tenant products, and payment terms) with no persisted orders",
     );
   } finally {
