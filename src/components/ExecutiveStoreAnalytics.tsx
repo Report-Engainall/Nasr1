@@ -339,7 +339,7 @@ export function ExecutiveStoreAnalytics({ analyticsOverride }: ExecutiveStoreAna
             </section>
             <section>
               <h2>اتجاه المبيعات اليومي — كامل الفترة المعادة من الخادم</h2>
-              <table>
+              <table data-testid="executive-print-sales-trend">
                 <thead><tr><th>التاريخ</th><th>عدد الطلبات</th><th>المبيعات المؤهلة</th></tr></thead>
                 <tbody>{printableData.salesTrend.map((day) => (
                   <tr key={day.day}>
