@@ -114,7 +114,7 @@ describe("executive analytics print acceptance", () => {
     expect(sheet.textContent).toContain(formatCurrency(654321.25));
     expect(sheet.querySelectorAll('[data-testid="executive-analytics-sales-row"]')).toHaveLength(30);
     expect(sheet.querySelectorAll('[data-testid="executive-analytics-forecast-row"]')).toHaveLength(7);
-    expect(sheet.textContent).toContain("insufficient_history") === false;
+    expect(sheet.textContent).not.toContain("insufficient_history");
 
     for (const secret of [
       "PRIVATE-PRODUCT-ID", "PRIVATE-CUSTOMER-ID", "PRIVATE-ORG-ID",
