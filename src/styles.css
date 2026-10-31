@@ -450,3 +450,47 @@
   .executive-analytics-print-note { margin: 6px 0 0; color: #526057; font-size: 8pt; }
   .executive-analytics-print-footer { margin-top: 12px; padding-top: 6px; border-top: 1px solid #cbd5cf; color: #526057; font-size: 8pt; }
 }
+
+
+/* Staff Customer 360 print output — explicit DTO allowlist, Arabic RTL, scoped A4. */
+.customer-360-print-sheet { display: none; page: aghbariCustomer360; }
+@page aghbariCustomer360 { size: A4 portrait; margin: 10mm; }
+@media print {
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  body > *:not(.customer-360-print-sheet) { display: none !important; }
+  body * { visibility: hidden !important; }
+  .customer-360-print-sheet,
+  .customer-360-print-sheet * { visibility: visible !important; }
+  .customer-360-print-sheet {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    direction: rtl !important;
+    text-align: right !important;
+    background: #fff !important;
+    color: #17221c !important;
+    font-family: "Noto Sans Arabic", Arial, sans-serif !important;
+    font-size: 8pt !important;
+    line-height: 1.55 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .customer-360-print-header { display: flex; justify-content: space-between; gap: 12px; align-items: start; padding-bottom: 8px; border-bottom: 2px solid #b58b31; }
+  .customer-360-print-header h1 { margin: 0 0 3px; color: #174a37 !important; font-size: 16pt; }
+  .customer-360-print-header p { margin: 2px 0; }
+  .customer-360-print-generated { display: grid; gap: 2px; text-align: left; font-size: 7.5pt; }
+  .customer-360-print-section { margin-top: 9px; break-inside: auto; }
+  .customer-360-print-section h2 { margin: 8px 0 4px; color: #174a37 !important; font-size: 10pt; break-after: avoid; }
+  .customer-360-print-section h3 { margin: 7px 0 3px; font-size: 9pt; break-after: avoid; }
+  .customer-360-print-sheet table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 7pt; }
+  .customer-360-print-sheet thead { display: table-header-group; }
+  .customer-360-print-sheet th, .customer-360-print-sheet td { padding: 3px 4px; border: 1px solid #cbd5cf; text-align: right; vertical-align: top; overflow-wrap: anywhere; }
+  .customer-360-print-sheet thead th { background: #edf4ef !important; color: #174a37 !important; font-weight: 800; }
+  .customer-360-print-sheet tr { break-inside: avoid; page-break-inside: avoid; }
+  .customer-360-print-note { margin: 4px 0; color: #526057 !important; font-size: 7pt; }
+  .customer-360-print-footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid #cbd5cf; color: #526057 !important; font-size: 7pt; }
+}
