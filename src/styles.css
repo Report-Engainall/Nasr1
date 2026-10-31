@@ -411,8 +411,8 @@
 
 
 /* Executive management print sheet — browser print / Save as PDF, A4 and Arabic RTL. */
-.executive-analytics-print-sheet { display: none; }
-@page { size: A4; margin: 12mm; }
+.executive-analytics-print-sheet { display: none; page: aghbariExecutiveAnalytics; }
+@page aghbariExecutiveAnalytics { size: A4 portrait; margin: 12mm; }
 @media print {
   html, body { background: #fff !important; }
   body * { visibility: hidden !important; }
