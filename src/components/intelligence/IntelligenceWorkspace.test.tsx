@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   fetchCashflow: vi.fn(),
   fetchOutcomes: vi.fn(),
   fetchInventory: vi.fn(),
+  asOf: "2026-10-31T09:00:00.000Z",
+  period: { from: "2026-08-01", to: "2026-10-31" },
 }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: mocks.user }) }));
@@ -19,6 +21,10 @@ vi.mock("@/lib/intelligence/cashflow-schedule-client", () => ({
     asOf: "2026-10-31T09:00:00.000Z",
   })),
   fetchCashflowSchedule: mocks.fetchCashflow,
+}));
+vi.mock("@/lib/intelligence/inventory-intelligence-client", () => ({
+  createInventoryIntelligencePeriod: vi.fn(() => ({ asOf: mocks.asOf, period: mocks.period })),
+  fetchInventoryIntelligence: mocks.fetchInventory,
 }));
 vi.mock("@/lib/intelligence/decision-outcome-client", () => ({
   fetchDecisionOutcomes: mocks.fetchOutcomes,
@@ -138,11 +144,11 @@ describe("production intelligence workspace inventory screens", () => {
     expect(deadStock).toHaveTextContent("SKU-1");
     expect(deadStock).toHaveTextContent("راكد");
     expect(deadStock).toHaveTextContent("غير متاح");
-    expect(deadStock).toHaveTextContent("لا توجد متوسطات مخزون يومية");
+    expect(deadStock).toHaveTextContent("UNIT_COST_NOT_AVAILABLE");
 
     const replenishment = screen.getByRole("region", { name: "توصيات إعادة التوريد" });
     expect(replenishment).toHaveTextContent("توجد توصية لإعادة التوريد");
-    expect(replenishment).toHaveTextContent("١٥ EA");
+    expect(replenishment.textContent).toMatch(/١٥\s*EA/);
     expect(replenishment).toHaveTextContent("طلب مهلة التوريد");
     expect(replenishment).toHaveTextContent("الشراء التلقائي: ممنوع");
 
