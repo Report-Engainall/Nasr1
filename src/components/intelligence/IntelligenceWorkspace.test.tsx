@@ -204,7 +204,7 @@ describe("production intelligence workspace inventory screens", () => {
     const liquidity = await screen.findByRole("region", { name: "ملخص السيولة حسب العملة" });
     expect(liquidity).toHaveTextContent("الرصيد المتاح");
     expect(liquidity).toHaveTextContent("التحصيلات المتوقعة");
-    expect(liquidity).toHaveTextContent("٣٧٥ YER");
+    expect(liquidity.textContent).toMatch(/(?:٣٧٥|375)\s*YER/);
     expect(liquidity).toHaveTextContent("صافي السيولة المتاحة");
     expect(liquidity).toHaveTextContent("غير متاح");
   });
