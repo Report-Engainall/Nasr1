@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), roles: ["accountant"] as string[] }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: mocks.rpc } }));
@@ -70,4 +70,71 @@ describe("general ledger financial-statement UI", () => {
     await screen.findByText("لهذا القيد مسودة عكس أو عكس مرحّل؛ مُنع التكرار.");
     expect(screen.queryByRole("button",{name:/إنشاء مسودة عكس/})).not.toBeInTheDocument();
   });
+  it("prints a tenant-scoped journal voucher through a body portal without internal identifiers", async () => {
+    const entry = {
+      id: "journal-internal-uuid",
+      tenant_id: "tenant-internal-uuid",
+      entry_number: "JV-2026-0042",
+      entry_date: "2026-10-30",
+      description: "تسوية مصروفات التشغيل",
+      source_type: "manual",
+      source_reference: "private-source-reference",
+      status: "posted",
+      created_at: "2026-10-30T10:00:00Z",
+      posted_at: "2026-10-30T10:01:00Z",
+      debit_total: "125.50",
+      credit_total: "125.50",
+      lines: [
+        { line_number: 1, account_id: "expense-account-uuid", account_code: "5000", account_name: "مصروفات تشغيل", debit: "125.50", credit: "0.00", memo: "فاتورة تشغيل" },
+        { line_number: 2, account_id: "cash-account-uuid", account_code: "1000", account_name: "النقدية", debit: "0.00", credit: "125.50", memo: null },
+      ],
+    };
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === "fetch_general_ledger") return { data: { ...payload, entries: [entry], entry_count: 1, has_more: false }, error: null };
+      if (name === "fetch_general_journal_reversal_links") return { data: [], error: null };
+      if (name === "fetch_cash_expense_accounting_inbox") return { data: { items: [], total_count: 0, has_more: false, limit: 50, offset: 0 }, error: null };
+      return { data: payload, error: null };
+    });
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    render(<GeneralLedgerWorkspace />);
+    const button = await screen.findByRole("button", { name: "طباعة القيد" });
+    fireEvent.click(button);
+
+    const sheet = await screen.findByTestId("general-ledger-print-document");
+    expect(sheet.parentElement).toBe(document.body);
+    expect(sheet).toHaveTextContent("JV-2026-0042");
+    expect(sheet).toHaveTextContent("5000");
+    expect(sheet).toHaveTextContent("125.50");
+    for (const internal of ["journal-internal-uuid", "tenant-internal-uuid", "private-source-reference", "expense-account-uuid", "cash-account-uuid"]) {
+      expect(sheet.textContent).not.toContain(internal);
+    }
+    await waitFor(() => expect(printSpy).toHaveBeenCalledTimes(1));
+    expect(document.body.getAttribute("data-print-mode")).toBe("general-ledger");
+
+    act(() => window.dispatchEvent(new Event("afterprint")));
+    await waitFor(() => expect(screen.queryByTestId("general-ledger-print-document")).not.toBeInTheDocument());
+    expect(document.body.getAttribute("data-print-mode")).toBeNull();
+  });
+
+  it("prints complete income and balance sheet statements only after the authorized ledger summary loads", async () => {
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    render(<GeneralLedgerWorkspace />);
+    const button = await screen.findByRole("button", { name: "طباعة القوائم المالية" });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+
+    const sheet = await screen.findByTestId("general-ledger-print-document");
+    expect(sheet.parentElement).toBe(document.body);
+    expect(sheet).toHaveTextContent("قائمة الدخل والمركز المالي");
+    expect(sheet).toHaveTextContent("الإيرادات");
+    expect(sheet).toHaveTextContent("رأس المال");
+    expect(sheet).toHaveTextContent("900.00 ر.ي");
+    expect(sheet.textContent).not.toContain("cash");
+    expect(sheet.textContent).not.toContain("capital");
+    await waitFor(() => expect(printSpy).toHaveBeenCalledTimes(1));
+
+    act(() => window.dispatchEvent(new Event("afterprint")));
+    await waitFor(() => expect(screen.queryByTestId("general-ledger-print-document")).not.toBeInTheDocument());
+  });
+
 });
