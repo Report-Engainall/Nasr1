@@ -137,4 +137,21 @@ describe("tenant-bound cashflow aggregate client", () => {
     expect(result.data.measurementMetrics).toEqual([]);
     expect(result.data.warnings).toContain("MEASUREMENT_METRIC_WITHHELD");
   });
+
+  it("withholds a measurement metric whose lineage IDs do not resolve to response evidence", async () => {
+    const malformed = response();
+    (malformed.metrics[0] as Record<string, unknown>).lineage = {
+      evidenceIds: ["invoice:not-in-response"],
+      calculatedAt: malformed.asOf,
+      formulaId: "nasr1.receivables-outstanding",
+      formulaVersion: "1",
+    };
+    rpc.mockResolvedValue({ data: malformed, error: null });
+    const result = await fetchCashflowSchedule(request());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.measurementMetrics).toEqual([]);
+    expect(result.data.warnings).toContain("MEASUREMENT_METRIC_WITHHELD");
+    expect(result.data.schedule.entries[0].amount.value).toBe(375);
+  });
 });

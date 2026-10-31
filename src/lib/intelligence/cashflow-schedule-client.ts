@@ -160,7 +160,7 @@ function warnings(value: unknown): string[] | null {
   const list = stringList(value, 100);
   return list?.map((item) => item.slice(0, 300)) ?? null;
 }
-function parseAmount(value: unknown, asOf: string): CashflowScheduleAmount | null {
+function parseAmount(value: unknown, asOf: string, sourceEvidenceIds: Set<string>): CashflowScheduleAmount | null {
   const raw = record(value);
   const lineage = record(raw?.lineage);
   const evidenceIds = stringList(lineage?.evidenceIds, 100);
@@ -179,6 +179,7 @@ function parseAmount(value: unknown, asOf: string): CashflowScheduleAmount | nul
     raw.asOf !== asOf ||
     !evidenceIds || evidenceIds.length === 0 ||
     new Set(evidenceIds).size !== evidenceIds.length ||
+    evidenceIds.some((id) => !sourceEvidenceIds.has(id)) ||
     !nonEmptyString(lineage.formulaId, 150) ||
     !nonEmptyString(lineage.formulaVersion, 80)
   ) return null;
@@ -195,7 +196,7 @@ function parseAmount(value: unknown, asOf: string): CashflowScheduleAmount | nul
   };
 }
 
-function parseMeasurementMetrics(value: unknown, request: IntelligenceAggregateRequest): {
+function parseMeasurementMetrics(value: unknown, request: IntelligenceAggregateRequest, sourceEvidenceIds: Set<string>): {
   metrics: CashflowMeasurementProof[];
   withheld: boolean;
 } {
@@ -225,6 +226,7 @@ function parseMeasurementMetrics(value: unknown, request: IntelligenceAggregateR
       !nonEmptyString(lineage.formulaVersion, 80) ||
       !evidenceIds || evidenceIds.length === 0 ||
       new Set(evidenceIds).size !== evidenceIds.length ||
+      evidenceIds.some((id) => !sourceEvidenceIds.has(id)) ||
       seen.has(currency)
     ) {
       withheld = true;
@@ -260,7 +262,6 @@ export function parseCashflowScheduleResponse(
   const scheduleWarnings = warnings(schedule?.warnings);
   const topWarnings = warnings(raw?.warnings);
   const evidenceRecords = raw?.evidenceRecords;
-  const measurement = parseMeasurementMetrics(raw?.metrics, request);
   if (
     !raw ||
     (raw.status !== "OK" && raw.status !== "PARTIAL") ||
@@ -285,11 +286,20 @@ export function parseCashflowScheduleResponse(
   ) {
     return { ok: false, status: "ERROR", message: "لم تُرجع قاعدة البيانات حزمة تدفق نقدي مكتملة وآمنة؛ أُوقف العرض." };
   }
+  const sourceEvidenceIds = new Set<string>();
+  for (const evidence of evidenceRecords) {
+    const evidenceRecord = record(evidence);
+    if (!evidenceRecord || !nonEmptyString(evidenceRecord.id, 500) || sourceEvidenceIds.has(evidenceRecord.id)) {
+      return { ok: false, status: "ERROR", message: "يحتوي سجل المصدر على مرجع دليل مفقود أو مكرر؛ أُوقف العرض." };
+    }
+    sourceEvidenceIds.add(evidenceRecord.id);
+  }
+  const measurement = parseMeasurementMetrics(raw.metrics, request, sourceEvidenceIds);
   const entries: CashflowScheduleRow[] = [];
   const ids = new Set<string>();
   for (const item of schedule.entries) {
     const row = record(item);
-    const amount = parseAmount(row?.amount, request.asOf);
+    const amount = parseAmount(row?.amount, request.asOf, sourceEvidenceIds);
     if (
       !row ||
       !nonEmptyString(row.id, 150) ||
