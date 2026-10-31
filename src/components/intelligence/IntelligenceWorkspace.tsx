@@ -4,6 +4,10 @@ import { useAuth } from "@/lib/auth";
 import { buildDeadStockReport } from "@/lib/intelligence/dead-stock";
 import { buildReplenishmentRecommendations } from "@/lib/intelligence/replenishment";
 import { buildLiquiditySnapshot } from "@/lib/intelligence/liquidity";
+import { buildCashflowForecast } from "@/lib/intelligence/cashflow-forecast";
+import { buildDailyDecisions, type DecisionRule } from "@/lib/intelligence/daily-decisions";
+import { buildEvidencePassport } from "@/lib/intelligence/evidence-passport";
+import type { DecisionCandidate, EvidencePassport as EvidencePassportData, MetricSnapshot } from "@/lib/intelligence/types";
 import {
   createInventoryIntelligencePeriod,
   fetchInventoryIntelligence,
@@ -46,6 +50,23 @@ function currencyFromCandidate(candidateId: string): string | null {
 function candidateIdFor(currency: string, period: { from: string; to: string }): string {
   return "cashflow.expected_collections:" + currency + ":" + period.from + ":" + period.to;
 }
+
+const collectionFollowupRules: DecisionRule[] = [{
+  id: "cashflow.collection.followup",
+  version: "1.0.0",
+  metricKey: "cashflow.expected_collections",
+  operator: "GT",
+  threshold: 0,
+  priority: "P2",
+  what: "متابعة التحصيلات المجدولة",
+  why: "يوجد إجمالي تحصيل مثبت ضمن الفترة المحددة.",
+  soWhat: "تلزم مراجعة المستحقات وتوثيق إجراءات المتابعة.",
+  whatNext: "افحص الفواتير القريبة من الاستحقاق أو المتأخرة ووثّق إجراء المتابعة.",
+  owner: "مدير المالية",
+  expectedOutcome: "تسجيل المتابعة ونتيجة التحصيل من مستندات المؤسسة.",
+}];
+
+type EvidenceBackedAction = { decision: DecisionCandidate; proof: CashflowMeasurementProof };
 
 export function IntelligenceWorkspace() {
   const { user } = useAuth();
@@ -133,6 +154,98 @@ export function IntelligenceWorkspace() {
 
   const data = result?.ok ? result.data : null;
   const inventoryData = inventoryResult?.ok ? inventoryResult.data : null;
+  const cashflowMetrics = useMemo<MetricSnapshot[]>(() => {
+    if (!data) return [];
+    const scheduledMetrics: MetricSnapshot[] = data.schedule.entries.map((entry) => ({
+      id: entry.amount.id,
+      key: entry.amount.key,
+      value: entry.amount.value,
+      unit: "CURRENCY",
+      currency: entry.amount.currency,
+      status: entry.amount.status,
+      completeness: entry.amount.completeness,
+      quality: entry.amount.quality,
+      period: null,
+      asOf: entry.amount.asOf,
+      lineage: {
+        evidenceIds: entry.amount.lineage.evidenceIds,
+        calculatedAt: entry.amount.asOf,
+        formulaId: entry.amount.lineage.formulaId,
+        formulaVersion: entry.amount.lineage.formulaVersion,
+        transformations: ["server-sourced scheduled movement", entry.direction, "due date " + entry.dueDate],
+      },
+      warnings: [],
+    }));
+    const collectionMetrics: MetricSnapshot[] = data.measurementMetrics.map((proof) => ({
+      id: "metric:cashflow.expected-collections:" + proof.currency + ":" + proof.period.from + ":" + proof.period.to,
+      key: proof.metricKey,
+      value: proof.value,
+      unit: proof.unit,
+      currency: proof.currency,
+      status: proof.status,
+      completeness: proof.completeness,
+      quality: proof.quality,
+      period: proof.period,
+      asOf: proof.asOf,
+      lineage: {
+        evidenceIds: proof.evidenceIds,
+        calculatedAt: proof.asOf,
+        formulaId: proof.formulaId,
+        formulaVersion: proof.formulaVersion,
+        transformations: ["same-tenant scheduled invoices less recorded payments"],
+      },
+      warnings: [],
+    }));
+    return [...scheduledMetrics, ...collectionMetrics];
+  }, [data]);
+  const evidencePassport = useMemo<EvidencePassportData | null>(() => {
+    if (!data) return null;
+    return buildEvidencePassport({
+      id: "cashflow-evidence:" + data.asOf,
+      generatedAt: data.asOf,
+      asOf: data.asOf,
+      evidenceRecords: data.evidenceRecords,
+      metrics: cashflowMetrics,
+    });
+  }, [data, cashflowMetrics]);
+  const cashflowForecast = useMemo(() => {
+    if (!data) return null;
+    const metricsById = new Map(cashflowMetrics.map((metric) => [metric.id, metric]));
+    return buildCashflowForecast({
+      id: "cashflow-forecast:" + data.asOf,
+      generatedAt: data.asOf,
+      asOf: data.asOf,
+      evidenceRecords: data.evidenceRecords,
+      openingBalances: [],
+      entries: data.schedule.entries.flatMap((entry) => {
+        const amount = metricsById.get(entry.amount.id);
+        return amount ? [{ id: entry.id, direction: entry.direction, dueDate: entry.dueDate, amount }] : [];
+      }),
+      scheduleStatus: data.schedule.status,
+      scheduleCompleteness: data.schedule.completeness,
+      scheduleQuality: data.schedule.quality,
+    });
+  }, [data, cashflowMetrics]);
+  const evidenceBackedActions = useMemo<EvidenceBackedAction[]>(() => {
+    if (!data || !evidencePassport) return [];
+    return data.measurementMetrics.flatMap((proof) => {
+      const metric = evidencePassport.metrics.find((item) =>
+        item.key === proof.metricKey &&
+        item.currency === proof.currency &&
+        item.period?.from === proof.period.from &&
+        item.period?.to === proof.period.to,
+      );
+      if (!metric) return [];
+      const decisions = buildDailyDecisions({
+        generatedAt: data.asOf,
+        asOf: data.asOf,
+        evidenceRecords: evidencePassport.evidenceRecords,
+        metrics: [metric],
+        rules: collectionFollowupRules,
+      });
+      return decisions.candidates.map((decision) => ({ decision, proof }));
+    });
+  }, [data, evidencePassport]);
   const liquiditySnapshot = useMemo(() => {
     if (!data?.evidenceRecords.length || !data.measurementMetrics.length) return null;
     const currencies = data.measurementMetrics.map((proof) => ({
@@ -254,6 +367,29 @@ export function IntelligenceWorkspace() {
     }
     setProposalReason("");
     setOutcomeMessage(created.duplicate ? "هذا المقترح محفوظ مسبقاً؛ تم استرجاع نسخته الحالية." : "تم حفظ المقترح وسجل حدثه على الخادم.");
+    await loadOutcomes();
+  };
+
+  const persistEvidenceBackedAction = async (decision: DecisionCandidate, proof: CashflowMeasurementProof) => {
+    if (!data || !user?.profileId || outcomeBusyId !== null) return;
+    setOutcomeBusyId("candidate:" + proof.currency);
+    setOutcomeMessage(null);
+    const created = await createDecisionOutcomeProposal({
+      candidateId: candidateIdFor(proof.currency, proof.period),
+      ruleId: decision.ruleId,
+      ruleVersion: decision.ruleVersion,
+      ownerProfileId: user.profileId,
+      expectedOutcome: decision.expectedOutcome,
+      reason: decision.why.slice(0, 2000),
+    });
+    setOutcomeBusyId(null);
+    if (!created.ok) {
+      setOutcomeMessage(created.message);
+      return;
+    }
+    setOutcomeMessage(created.duplicate
+      ? "هذا الإجراء محفوظ مسبقاً؛ تم استرجاع نسخته الحالية."
+      : "تم حفظ الإجراء المقترح وسجل حدثه على الخادم.");
     await loadOutcomes();
   };
 
@@ -485,10 +621,39 @@ export function IntelligenceWorkspace() {
             <h2>السيولة والأدلة والقرارات المقترحة الأخرى</h2>
             <p className="report-note">التحصيلات المجدولة تظهر فقط بأدلتها. الرصيد النقدي الافتتاحي والالتزامات النقدية/الموردية غير متاحين في مصدر موحد موثق؛ لذلك يبقى صافي السيولة محجوباً ولا تُحسبه الشاشة من الذمم.</p>
             <div className="grid gap-3 lg:grid-cols-2">
-              <EvidencePassport state="unavailable" />
-              <LiquiditySummary snapshot={liquiditySnapshot} state={liquiditySnapshot ? "ready" : "unavailable"} />
-              <CashflowForecastCard state="unavailable" />
-              <ActionCard state="unavailable" />
+              <EvidencePassport
+                passport={evidencePassport}
+                state={loading ? "loading" : evidencePassport ? (evidencePassport.metrics.length ? "ready" : "empty") : result?.status === "DENIED" ? "error" : "unavailable"}
+                errorMessage={result && !result.ok ? result.message : undefined}
+                onRetry={() => setRefreshKey((value) => value + 1)}
+              />
+              <LiquiditySummary
+                snapshot={liquiditySnapshot}
+                state={liquiditySnapshot ? "ready" : loading ? "loading" : "unavailable"}
+                onRetry={() => setRefreshKey((value) => value + 1)}
+              />
+              <CashflowForecastCard
+                forecast={cashflowForecast}
+                state={loading ? "loading" : cashflowForecast ? (cashflowForecast.points.length ? "ready" : "empty") : result?.status === "DENIED" ? "error" : "unavailable"}
+                onRetry={() => setRefreshKey((value) => setRefreshKey(value + 1))}
+              />
+              <div className="space-y-3">
+                {evidenceBackedActions.length ? evidenceBackedActions.map(({ decision, proof }) => (
+                  <ActionCard
+                    key={decision.id}
+                    decision={decision}
+                    state="ready"
+                    ctaLabel="حفظ الإجراء في دورة القرارات"
+                    onContinue={(candidate) => void persistEvidenceBackedAction(candidate, proof)}
+                  />
+                )) : (
+                  <ActionCard
+                    state={loading ? "loading" : data ? "empty" : result?.status === "DENIED" ? "error" : "unavailable"}
+                    errorMessage={result && !result.ok ? result.message : undefined}
+                    onRetry={() => setRefreshKey((value) => value + 1)}
+                  />
+                )}
+              </div>
             </div>
           </section>
         </>
