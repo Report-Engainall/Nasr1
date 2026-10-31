@@ -1,30 +1,33 @@
-# LIVE EXECUTION CHECKPOINT — 2026-10-31 — CUSTOMER + STAFF QUOTE PRINT MERGED
+# LIVE EXECUTION CHECKPOINT — 2026-10-31 — EXECUTIVE ANALYTICS PRINT MERGED; CUSTOMER 360 PRINT ACTIVE
 
-- CURRENT_MAIN_SHA: `ce8d46f5ea770eaeb21905b4649ab01543bad7ec`
-- LAST_COMPLETED_TASK_ID: `DLV-011-CUSTOMER-AND-STAFF-QUOTE-PRINT`
-- LAST_COMPLETED_TASK: PR #329 merged by squash at `ce8d46f5ea770eaeb21905b4649ab01543bad7ec`. Customer quote printing and staff quote printing now share the same fail-closed DTO projection. Customer output is Arabic RTL/A4 and only prints quotes in quoted/accepted state when every line has a valid server-issued `quoted_unit_price`; no target-price fallback or zero sentinel is permitted. The staff print action reads the persisted `lines` snapshot, not the editable `prices` state, so unsaved pricing drafts are never printed. Both projections omit tenant/customer/product/quote/line/actor identifiers, internal notes, target prices, cost, margin and raw rows. The print sheet remains mounted until `afterprint`.
-- ACTIVE_TASK_ID: `DLV-011-ADMIN-EXECUTIVE-REPORT-PRINT`
-- ACTIVE_TASK_STATUS: `NEXT_ACTION_READY — no open PR`
-- BASE_SHA: `ce8d46f5ea770eaeb21905b4649ab01543bad7ec`
-- HEAD_SHA: `ce8d46f5ea770eaeb21905b4649ab01543bad7ec`
-- FILES_CHANGED (last completed unit):
-  - `src/components/CustomerWorkflows.tsx`
-  - `src/lib/customer-quote-print.ts`
-  - `src/lib/customer-quote-print.test.ts`
-  - `src/test/customer-quotes-route-acceptance.test.tsx`
-- IMPLEMENTATION_RESULT: PR #329 added the customer-facing and staff-facing quote print templates. The same allowlist handles both roles; staff print explicitly uses persisted server-returned item prices and ignores unsaved draft input values. Pending quotes and partially priced offers cannot print. This closes the two quote print role/template pairs for this unit only; DLV-011 remains PARTIAL overall.
+- CURRENT_MAIN_SHA: `e117488ae220fad1952558eba53e38ae688790e3` (latest main commit before this checkpoint-only update; verified product-code merge SHA remains `64cb1abebaee6dd547cbb4b5b7818b76e20f3813`).
+- LAST_COMPLETED_TASK_ID: `DLV-011-ADMIN-EXECUTIVE-REPORT-PRINT`
+- LAST_COMPLETED_TASK: PR #331 merged by squash at `64cb1abebaee6dd547cbb4b5b7818b76e20f3813`. Added an Arabic RTL A4 browser-print/PDF report for the existing tenant-scoped `fetchStoreExecutiveAnalytics` result. The explicit DTO includes all returned KPIs, every returned sales-trend day, top product display values, top customer display name/order count/sales, and only the deterministic 7-day forecast when available; otherwise it prints the exact unavailable reason. It excludes raw IDs, tenant metadata, cost and margin. Page-size rules are scoped to this report, preserving existing landscape print templates. The five-sheet executive XLSX and product-activity XLSX remain unchanged. DLV-011 remains PARTIAL overall.
+- ACTIVE_TASK_ID: `DLV-011-CUSTOMER360-PRINT`
+- ACTIVE_TASK_STATUS: `PR #332 OPEN — Core IN_PROGRESS; P2 IN_PROGRESS — both on exact head 85d903a2af8092885057c80d98c4b7b2b82f5824`
+- BASE_SHA: `64cb1abebaee6dd547cbb4b5b7818b76e20f3813`
+- HEAD_SHA: `85d903a2af8092885057c80d98c4b7b2b82f5824`
+- FILES_CHANGED (last completed unit PR #331):
+  - `src/components/ExecutiveStoreAnalytics.tsx`
+  - `src/components/ExecutiveAnalyticsPrintSheet.tsx`
+  - `src/lib/executive-analytics-print.ts`
+  - `src/styles.css`
+  - `src/test/executive-analytics-print-acceptance.test.tsx`
+- IMPLEMENTATION_RESULT: PR #331 is merged and verified. The following unit is now implemented on PR #332: replace direct printing of the Customer 360 modal DOM with an explicit staff allowlist DTO and A4/RTL print sheet. The new projection strips customer UUID, internal order/invoice/payment IDs, organization metadata, phone, email, contact name, cost and margin. It preserves full per-currency ledger aggregates separately from latest-20 detail lists; payment currency is shown only when linked to an invoice within the returned recent-invoice window. The existing Customer 360 eight-sheet XLSX is unchanged.
 - TESTS_RUN_WITH_RESULTS:
-  - PR #329 exact head `2a1b47259341da8a89a16b13310e08ca512243c3`: Core [41236994766 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41236994766); P2 [41236994922 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41236994922). Core unit/route tests, PostgreSQL 17 migrations and contract tests, lint, build, production preview, browser price-visibility acceptance all passed. P2 authenticated local Supabase/Chromium passed order persistence and cross-tenant denial, returns/receipts/credit memos, audited Onyx XLSX export, finance/task print, customer-manager financial privacy/audit, device-session authorization and immediate revocation.
-  - Post-merge exact SHA `ce8d46f5ea770eaeb21905b4649ab01543bad7ec`: Core [41237431621 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41237431621); P2 [41237431589 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41237431589); one-main-branch cleanup [41237431594 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41237431594). The P2 local Supabase/Chromium job completed all acceptance steps, including device-session immediate revocation.
-  - Earlier print units retained: PR #327 merge `244e967245231ee8861a07cf5c18670dad968ca1` with post-merge Core/P2/cleanup SUCCESS; PR #328 merge `63f3be1c8faaf830360c9264a14a8d79340b6c1f` with post-merge Core/P2/cleanup SUCCESS.
+  - PR #331 exact head `f845750e4a6a50d4e7c43a5f2d45a62883f0d52f`: Core [41238642737 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41238642737); P2 [41238642699 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41238642699).
+  - PR #331 post-merge exact SHA `64cb1abebaee6dd547cbb4b5b7818b76e20f3813`: Core [41239115663 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41239115663); P2 [41239115645 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41239115645); cleanup [41239115683 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41239115683). P2 local Supabase/Chromium job passed. These are exact merge-SHA results.
+  - PR #332: head `85d903a2af8092885057c80d98c4b7b2b82f5824`; Core [41239645052 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41239645052); P2 [41239645058 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41239645058). Do not transfer a PASS from another SHA.
 - FAILED_OR_SKIPPED:
-  - P2 hosted customer/order/tenant acceptance remains `SKIPPED` in the exact-head and post-merge workflows. Local authenticated Chromium is proven; hosted authentication/tenant isolation is not.
-  - Real Onyx Pro target-version import/round-trip, official WhatsApp delivery receipt, live free-AI provider response, production deployment/rollback/restore and owner sign-off remain external/unverified.
-- MERGE_STATUS: `PR #321, #327, #328 and #329 MERGED. No active branch/PR after cleanup.`
-- BLOCKERS: DLV-011 remains PARTIAL. Remaining role/template output coverage is not complete. Hosted customer/order/tenant acceptance and external integration/production evidence remain unproven.
-- NEXT_TASK_ID: `DLV-011-ADMIN-EXECUTIVE-REPORT-PRINT`
-- NEXT_ACTION: Create one branch from current `main` SHA `ce8d46f5ea770eaeb21905b4649ab01543bad7ec`. Implement an A4/RTL browser-print/PDF sheet for the existing server-backed `ExecutiveStoreAnalytics` in `src/components/ExecutiveStoreAnalytics.tsx`, reusing `fetchStoreExecutiveAnalytics` and its tenant-scoped full aggregate without adding another RPC or export pipeline. Project the report through an explicit printable allowlist: generated timestamp; all executive KPI fields; every returned sales-trend day; top product name/code/quantity/sales; top customer display name/order count/sales (never `customer_id`); and the existing deterministic 7-day forecast only when `buildSalesForecast` returns ready, otherwise print the exact unavailable reason and do not fabricate forecast values. Do not print IDs, cost, margin, credentials, raw Supabase rows or organization metadata. Add a real component acceptance test that clicks the print control, checks the full-period aggregate rows and key values, verifies sensitive fields are absent, verifies no print action without loaded data, and proves unavailable forecast remains unavailable. Preserve the existing five-sheet executive XLSX export and the product-activity XLSX export unchanged. Run focused tests, Core and P2 on the same PR head; fix failures, squash-merge only after both SUCCESS; verify post-merge Core/P2/cleanup on the merge SHA; update this checkpoint and the DLV-011 matrix, then continue with the next unclosed role/template without repeating finance, task, transfer, purchase-order, stock-count, customer-order, admin sales-order or customer/staff quote templates.
-- UPDATED_AT: `2026-10-31T20:13:00Z`
+  - PR #331 hosted customer/order/tenant P2 job was `SKIPPED`; local authenticated Supabase/Chromium acceptance passed. Hosted authentication/tenant isolation is not proven.
+  - PR #332 hosted customer/order/tenant acceptance remains environment-gated and is not a PASS.
+  - Actual Onyx Pro target-version import, official WhatsApp delivery receipt, live free-AI provider response, production deploy/rollback/restore and owner sign-off remain external/unverified.
+- MERGE_STATUS: `PR #331 MERGED at 64cb1ab; PR #332 OPEN; branch cleanup 41239115683 SUCCESS.`
+- BLOCKERS: DLV-011 remains PARTIAL. Hosted customer/order/tenant proof and external integration/production evidence remain unproven. PR #332 must pass Core and P2 on its exact head before merge.
+- NEXT_TASK_ID: `DLV-011-CUSTOMER360-PRINT`
+- NEXT_ACTION: Poll Core run `41239645052` and P2 run `41239645058` for exact head `85d903a2af8092885057c80d98c4b7b2b82f5824`. If either fails, inspect only the failing job/log, fix the underlying defect or assertion, and rerun the required gates on the new exact head. If both are SUCCESS, verify PR #332 remains based on the current main ancestry and squash-merge using expected-head SHA; then verify post-merge Core, P2 and one-main-branch cleanup on the merge SHA. Update this checkpoint and the DLV-011 acceptance row with that evidence, then continue the next still-unclosed role/template without repeating completed finance, task, transfer, purchase-order, stock-count, customer-order, admin sales-order, customer/staff quote or executive analytics print templates.
+- UPDATED_AT: `2026-10-31T20:37:15.817Z`
+
 
 ---
 
