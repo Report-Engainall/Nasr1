@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "project": "Aghbari Commerce",
+  "repository": "Report-Engainall/Nasr1",
+  "report": {
+    "product": "CodeInspector",
+    "generated_at_utc": "2026-10-31T22:02:00Z",
+    "report_path": null,
+    "report_sha": null,
+    "scanner_version": null,
+    "scan_input_sha": null,
+    "availability": "NOT_FOUND_IN_REPOSITORY_OR_SEARCHED_LIBRARY",
+    "source_checkpoint": "docs/bolt-source-reconciliation/CURRENT_EXECUTION_STATE.md"
+  },
+  "measured_scan_totals": {
+    "files": 703,
+    "lines_of_code": 127555,
+    "reported_findings": 239
+  },
+  "confirmed_rule_counts": {
+    "TS0003": {
+      "reported_total": 170,
+      "p2_operational_scope_expected_from_task": 114,
+      "exact_p2_records_recovered": 0,
+      "status": "BLOCKED_EXTERNAL_REPORT_REQUIRED"
+    },
+    "TS0002": {
+      "reported_total": 3,
+      "p2_target": "supabase/functions/outbox-worker/index.ts:31",
+      "target_status": "REFACTORED_PENDING_EXACT_SHA_TESTS"
+    },
+    "PY0002": {
+      "reported_total": 3
+    },
+    "PY0003": {
+      "reported_total": 2
+    },
+    "TS0004_TS0009": {
+      "critical_records": 18,
+      "disposition_from_global_checkpoint": "DUPLICATE_HEURISTIC_DETECTIONS_IN_TEST_FIXTURES"
+    }
+  },
+  "scope": {
+    "p1_excluded_TS0003_files": 5,
+    "p1_paths_received": false,
+    "p3_test_and_spec_files_excluded": true,
+    "p3_exact_paths_received": false
+  },
+  "exact_findings": {
+    "TS0003_P2_operational_114": {
+      "status": "BLOCKED_EXTERNAL_REPORT_REQUIRED",
+      "records": [],
+      "reason": "Original CodeInspector export was not found in the checked-in repository tree or the searched Library results; no connected scanner runtime is available to reproduce the records. Do not fabricate paths, lines, codes, or duplicate classifications."
+    },
+    "TS0002": [
+      {
+        "path": "supabase/functions/outbox-worker/index.ts",
+        "line": 31,
+        "base_blob_sha": "57a9d9f4e98692e615ae742acf070ce0acea25e4",
+        "scope": "Edge request handler callback to end of file (~115 lines)",
+        "status": "IMPLEMENTED_PENDING_CI",
+        "refactor_path": "supabase/functions/outbox-worker/handler.ts"
+      }
+    ],
+    "TS0010": [
+      {
+        "path": "src/components/InventoryTransferHistoryPage.tsx",
+        "reported_location": 1,
+        "current_blob_sha": "653f28ed7dcd082ba02a8fe61efce2f0d24018b3",
+        "page_any_token_count": 0,
+        "row_model": "InventoryTransferHistoryRow",
+        "model_definition": "src/lib/api.ts:1630-1647",
+        "status": "FALSE_POSITIVE_CANDIDATE_NOT_CLOSED",
+        "next_step": "Compare against the original analyzer record before final false-positive classification."
+      }
+    ]
+  },
+  "sha_context": {
+    "main_at_task_start": "46f2fce34c09f64284fdbbe4182bd0f2b7ab36dc",
+    "checkpoint_parent_sha": "12496925453ea8656177de36e064d0998346f126",
+    "scan_input_sha": "NOT_RECORDED"
+  },
+  "evidence_policy": {
+    "old_sha_pass_not_transferable": true,
+    "in_progress_skipped_blocked_not_pass": true,
+    "false_positive_requires_original_record": true,
+    "no_schema_rls_changes_for_code_style": true
+  }
+}
