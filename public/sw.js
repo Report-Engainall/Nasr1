@@ -63,10 +63,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-async function cachedShellOrError(networkError) {
-  if (networkError) {
-    console.warn('[aghbari-sw] navigation network request failed; trying cached shell', networkError);
-  }
+async function cachedShellOrError() {
   try {
     return (await caches.match('/')) || Response.error();
   } catch (error) {
@@ -92,11 +89,9 @@ self.addEventListener('fetch', (event) => {
           // An SPA/SSR error page must not poison the offline shell cache.
           if (isHtmlResponse(response)) {
             const homeResponse = response.clone();
-            const cacheWrite = caches.open(CACHE_NAME)
-              .then((cache) => cache.put('/', homeResponse));
-            event.waitUntil(cacheWrite.catch((error) => {
-              console.warn('[aghbari-sw] navigation shell cache write failed', { url: request.url, error });
-            }));
+            void caches.open(CACHE_NAME)
+              .then((cache) => cache.put('/', homeResponse))
+              .catch(() => undefined);
           }
         }
         return response;
@@ -116,32 +111,19 @@ self.addEventListener('fetch', (event) => {
           hasExpectedStaticAssetMimeType(url.pathname, response.headers.get('content-type'))
         ) {
           // A missing JS asset can fall back to index.html with HTTP 200; never persist it as JS.
-          const cacheWrite = caches.open(CACHE_NAME)
-            .then((cache) => cache.put(request, response.clone()));
-          event.waitUntil(cacheWrite.catch((error) => {
-            console.warn('[aghbari-sw] static asset cache write failed', { url: request.url, error });
-          }));
+          void caches.open(CACHE_NAME)
+            .then((cache) => cache.put(request, response.clone()))
+            .catch(() => undefined);
         }
         return response;
       });
       if (cached) {
         // The network promise is a background refresh; handle failure without
         // turning an offline refresh into an unhandled rejection.
-        event.waitUntil(network.then(() => undefined).catch((error) => {
-          console.warn('[aghbari-sw] background asset refresh failed; serving cached response', {
-            url: request.url,
-            error,
-          });
-        }));
+        void network.catch(() => undefined);
         return cached;
       }
-      return network.catch((error) => {
-        console.error('[aghbari-sw] static asset request failed with no cached response', {
-          url: request.url,
-          error,
-        });
-        return Response.error();
-      });
+      return network.catch(() => Response.error());
     }),
   );
 });

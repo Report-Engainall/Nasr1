@@ -1,4 +1,3 @@
-import { logError, logInfo } from "./diagnostic-logger.mjs";
 import assert from "node:assert/strict";
 import postgres from "postgres";
 
@@ -428,13 +427,13 @@ async function main() {
     [org, actor, created.job_id],
   );
   assert.deepEqual(auditRows.map((r) => r.action).sort(), ["async_export.queued", "async_export.ready"]);
-  logInfo("PASS async export jobs: idempotency, filter allowlist, role/tenant isolation, RPC-only writes, worker lease ownership, retry cap, artifact expiry, one-time download authorization and audit");
+  console.log("PASS async export jobs: idempotency, filter allowlist, role/tenant isolation, RPC-only writes, worker lease ownership, retry cap, artifact expiry, one-time download authorization and audit");
 }
 main().finally(async () => {
   await cleanup();
   await Promise.all([admin.end(), first.end(), foreign.end(), customer.end(), raceWorker.end(),
     cancelRaceGatePool.end(), cancelRaceUserPool.end(), cancelRaceWorkerPool.end(), cancelClaimFirstPool.end()]);
 }).catch((error) => {
-  logError("ASYNC_EXPORT_JOBS_FAILED:", error?.message ?? error);
+  console.error("ASYNC_EXPORT_JOBS_FAILED:", error?.message ?? error);
   process.exitCode = 1;
 });

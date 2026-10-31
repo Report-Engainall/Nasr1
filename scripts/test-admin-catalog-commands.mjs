@@ -1,4 +1,3 @@
-import { logError, logInfo } from "./diagnostic-logger.mjs";
 import assert from "node:assert/strict";
 import postgres from "postgres";
 import { runOrderInputHardeningAcceptance } from "./test-order-input-hardening.mjs";
@@ -1157,7 +1156,7 @@ async function main() {
     assert.equal(managerAudit[0].actor_id, managerProfileId);
     assert.equal(managerAudit[0].old_value.tier, "wholesale");
     assert.equal(managerAudit[0].new_value.tier, "vip");
-    logInfo("PASS customer_manager security: non-financial RPC allowlist, tenant isolation, direct financial-read denial, audited authorized command, ordinary-user denial, and role-administration denial");
+    console.log("PASS customer_manager security: non-financial RPC allowlist, tenant isolation, direct financial-read denial, audited authorized command, ordinary-user denial, and role-administration denial");
   } finally {
     await root.unsafe("delete from public.user_roles where profile_id=$1", [managerProfileId]);
     for (const entry of originalManagerRoles) {
@@ -1171,7 +1170,7 @@ async function main() {
   await admin.unsafe("reset role");
   await customer.unsafe("reset role");
   await cleanup();
-  logInfo(
+  console.log(
     "PASS admin catalog + finance dashboard: category create/rename/no-op/duplicate/archive, strict price writes, audit/RBAC/tenant/DML boundaries, dashboard KPI mapping, finance aggregates and unknown-stock/multi-currency safety",
   );
 }
@@ -1179,7 +1178,7 @@ async function main() {
 try {
   await main();
 } catch (error) {
-  logError("ADMIN_CATALOG_COMMANDS_FAILED", error);
+  console.error("ADMIN_CATALOG_COMMANDS_FAILED", error);
   process.exitCode = 1;
 } finally {
   for (const connection of [admin, customer, ...raceConnections]) {
@@ -1187,7 +1186,7 @@ try {
     await connection.end();
   }
   try { await cleanup(); } catch (error) {
-    logError("catalog cleanup failed", error);
+    console.error("catalog cleanup failed", error);
     process.exitCode = 1;
   }
   await root.end();
