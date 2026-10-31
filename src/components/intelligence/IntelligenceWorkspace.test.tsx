@@ -186,7 +186,7 @@ describe("production intelligence workspace inventory screens", () => {
 
     const replenishment = screen.getByRole("region", { name: "توصيات إعادة التوريد" });
     expect(replenishment).toHaveTextContent("توجد توصية لإعادة التوريد");
-    expect(replenishment.textContent).toMatch(/١٥\s*EA/);
+    expect(replenishment.textContent).toMatch(/15\s*EA/);
     expect(replenishment).toHaveTextContent("طلب مهلة التوريد");
     expect(replenishment).toHaveTextContent("الشراء التلقائي: ممنوع");
 
@@ -222,7 +222,7 @@ describe("production intelligence workspace inventory screens", () => {
     });
     render(<IntelligenceWorkspace />);
     expect(await screen.findByText("لا توجد منتجات نشطة موثقة في هذه المؤسسة.")).toBeInTheDocument();
-    expect(screen.getByText(/المصدر غير متاح/)).toBeInTheDocument();
+    expect(screen.getAllByText(/المصدر غير متاح/)).toHaveLength(2);
     expect(screen.queryByText("0 EA")).not.toBeInTheDocument();
   });
 });
