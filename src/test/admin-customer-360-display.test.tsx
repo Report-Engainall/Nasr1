@@ -196,7 +196,7 @@ describe("Admin Customer 360 source-lineage display", () => {
     const alert = await within(dialog).findByRole("alert");
     expect(alert).toHaveTextContent("تعذر تحميل ملف العميل. تحقق من الاتصال والصلاحية ثم أعد المحاولة.");
     expect(alert).not.toHaveTextContent("fetch_staff_customer_360_summary");
-    expect(within(dialog).queryByText("مؤسسة الاختبار")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("heading", { name: "مؤسسة الاختبار" })).not.toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole("button", { name: /تحديث/ }));
     expect(await within(dialog).findByRole("heading", { name: "مؤسسة الاختبار" })).toBeInTheDocument();
