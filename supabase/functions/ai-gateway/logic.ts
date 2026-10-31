@@ -25,6 +25,46 @@ function boundedCount(value: unknown, maximum: number): number | null {
   return number;
 }
 
+function hasValidPaymentCardNumber(value: string): boolean {
+  const candidates = value.match(/\b(?:\d[ -]?){12,18}\d\b/g) ?? [];
+  return candidates.some((candidate) => {
+    const digits = candidate.replace(/\D/g, "");
+    if (digits.length < 13 || digits.length > 19) return false;
+    let sum = 0;
+    let doubleDigit = false;
+    for (let index = digits.length - 1; index >= 0; index -= 1) {
+      let digit = Number(digits[index]);
+      if (doubleDigit) {
+        digit *= 2;
+        if (digit > 9) digit -= 9;
+      }
+      sum += digit;
+      doubleDigit = !doubleDigit;
+    }
+    return sum % 10 === 0;
+  });
+}
+
+function containsCredentialOrToken(value: string): boolean {
+  const patterns = [
+    /\bBearer\s+[A-Za-z0-9._~+/-]{16,}\b/i,
+    /\bsk-(?:proj|live|test|svcacct)?-?[A-Za-z0-9_-]{16,}\b/i,
+    /\bAIza[0-9A-Za-z_-]{30,}\b/,
+    /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/,
+    /\b(?:api[_ -]?key|service[_ -]?role|secret|password|passcode|access[_ -]?token)\s*[:=]\s*["']?[A-Za-z0-9._~+/-]{8,}/i,
+    /(?:مفتاح(?:\s+(?:الخدمة|الواجهة|التطبيق))?|كلمة\s+المرور|رمز\s+(?:الوصول|سري))\s*[:=]\s*\S{8,}/i,
+    /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+  ];
+  return patterns.some((pattern) => pattern.test(value));
+}
+
+function containsSensitiveFinancialValue(value: string): boolean {
+  const currencyAmount = /(?:[$€£﷼]|\b(?:YER|SAR|USD|AED|EUR|GBP)\b|ريال(?:\s+يمني)?|دولار(?:\s+أمريكي)?|ر\.?\s*ي)\s*[:=]?\s*\d{1,15}(?:[.,]\d{1,4})?\b|\b\d{1,15}(?:[.,]\d{1,4})?\s*(?:YER|SAR|USD|AED|EUR|GBP)\b|\b\d{1,15}(?:[.,]\d{1,4})?\s*(?:ريال(?:\s+يمني)?|دولار(?:\s+أمريكي)?|ر\.?\s*ي|﷼)/i;
+  const accountOrFinanceContext = /(?:رصيد(?:\s+(?:العميل|الحساب))?|كشف\s+حساب|مديونية|مستحق(?:ات)?|فاتورة|قيمة\s+(?:الطلب|الفاتورة)|تكلفة(?:\s+(?:الوحدة|الشراء))?|هامش\s+الربح|سعر(?:\s+(?:العميل|الشراء|الجملة))?|invoice|customer\s+account|account\s+balance|receivable|payable|balance|debt|cost|margin|payment|price)/i;
+  const explicitAmount = /(?:رصيد(?:\s+(?:العميل|الحساب))?|كشف\s+حساب|مديونية|مستحق(?:ات)?|فاتورة|قيمة\s+(?:الطلب|الفاتورة)|تكلفة(?:\s+(?:الوحدة|الشراء))?|هامش\s+الربح|سعر(?:\s+(?:العميل|الشراء|الجملة))?|invoice|customer\s+account|account\s+balance|receivable|payable|balance|debt|cost|margin|payment|price)[^\d%]{0,32}\d{2,15}(?:[.,]\d{1,4})?(?!\s*%)/i;
+  return currencyAmount.test(value) || (accountOrFinanceContext.test(value) && explicitAmount.test(value));
+}
+
 /** Reject injection markers and obvious PII before provider egress. Never persist the source prompt. */
 export function sanitizeAiQuestion(value: unknown): { ok: true; question: string } | { ok: false; reason: string } {
   if (typeof value !== "string") return { ok: false, reason: "question_must_be_text" };
@@ -58,6 +98,18 @@ export function sanitizeAiQuestion(value: unknown): { ok: true; question: string
   }
   if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(privacyCheckText)) {
     return { ok: false, reason: "personal_email_rejected" };
+  }
+  if (containsCredentialOrToken(privacyCheckText)) {
+    return { ok: false, reason: "credential_or_secret_rejected" };
+  }
+  if (/\b[A-Z]{2}\d{2}(?:[ -]?[A-Z0-9]){11,30}\b/i.test(privacyCheckText)) {
+    return { ok: false, reason: "bank_account_or_iban_rejected" };
+  }
+  if (hasValidPaymentCardNumber(privacyCheckText)) {
+    return { ok: false, reason: "payment_card_rejected" };
+  }
+  if (containsSensitiveFinancialValue(privacyCheckText)) {
+    return { ok: false, reason: "sensitive_financial_value_rejected" };
   }
   if (/\b\+?\d(?:[\s().-]*\d){7,14}\b/.test(privacyCheckText)) {
     return { ok: false, reason: "personal_phone_or_identifier_rejected" };
