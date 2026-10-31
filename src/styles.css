@@ -500,6 +500,7 @@
 .product-activity-print-sheet { display: none; page: aghbariProductActivity; }
 @page aghbariProductActivity { size: A4 landscape; margin: 9mm; }
 @media print {
+  body[data-print-mode="product-activity"] > :not(.product-activity-print-sheet) { display: none !important; }
   body[data-print-mode="product-activity"] * { visibility: hidden !important; }
   body[data-print-mode="product-activity"] .product-activity-print-sheet,
   body[data-print-mode="product-activity"] .product-activity-print-sheet * { visibility: visible !important; }
