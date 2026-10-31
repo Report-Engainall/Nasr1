@@ -33,6 +33,8 @@ const mocks = vi.hoisted(() => ({
   getCurrentTenantScope: vi.fn(),
   failProductReads: 0,
   priceRows: [] as Array<{ product_id: string; unit_price: number }>,
+  quoteRows: [] as Array<Record<string, unknown>>,
+  quoteItemRows: [] as Array<Record<string, unknown>>,
   requestFailures: 0,
   requestCalls: [] as Array<{ name: string; args: Record<string, unknown> }>,
 }));
@@ -99,9 +101,9 @@ function makeQuery(table: string) {
       } else if (table === "products") {
         result = { data: [PRODUCT], error: null };
       } else if (table === "sales_quotes") {
-        result = { data: [], error: null };
+        result = { data: mocks.quoteRows, error: null };
       } else if (table === "sales_quote_items") {
-        result = { data: [], error: null };
+        result = { data: mocks.quoteItemRows, error: null };
       } else {
         result = { data: null, error: { message: "Unexpected query table: " + table } };
       }
@@ -120,6 +122,8 @@ describe("customer quotes real route acceptance", () => {
     mocks.user = null;
     mocks.failProductReads = 0;
     mocks.priceRows = [{ product_id: PRODUCT_ID, unit_price: 125 }];
+    mocks.quoteRows = [];
+    mocks.quoteItemRows = [];
     mocks.requestFailures = 0;
     mocks.requestCalls = [];
     mocks.getCurrentTenantScope.mockReset().mockResolvedValue({
@@ -199,6 +203,60 @@ describe("customer quotes real route acceptance", () => {
     });
     await flush();
   }
+
+  it("prints a customer-owned saved quote without exposing target prices or internal identifiers", async () => {
+    mocks.user = CUSTOMER;
+    mocks.quoteRows = [{
+      id: "PRIVATE-QUOTE-ID",
+      quote_number: "QT-CUSTOMER-PRINT-01",
+      status: "quoted",
+      notes: "توريد شهري",
+      response_note: "الأسعار صالحة حتى التاريخ المحدد.",
+      created_at: "2026-10-30T10:00:00.000Z",
+      quoted_at: "2026-10-31T09:00:00.000Z",
+      valid_until: "2026-11-15T23:59:59.000Z",
+      organization_id: "PRIVATE-TENANT-ID",
+      customer_id: "PRIVATE-CUSTOMER-ID",
+      created_by: "PRIVATE-ACTOR-ID",
+    }];
+    mocks.quoteItemRows = [{
+      id: "PRIVATE-QUOTE-LINE-ID",
+      quote_id: "PRIVATE-QUOTE-ID",
+      product_id: "PRIVATE-PRODUCT-ID",
+      item_code: "000041",
+      product_name_snapshot: "سكر",
+      unit_snapshot: "كرتون",
+      requested_quantity: 3,
+      target_unit_price: 9999,
+      quoted_unit_price: 125,
+      cost_price: "PRIVATE-COST-SENTINEL",
+      margin: "PRIVATE-MARGIN-SENTINEL",
+    }];
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    await mountQuotesRoute();
+    const quoteCard = Array.from(host?.querySelectorAll<HTMLElement>("article") ?? [])
+      .find((element) => element.textContent?.includes("QT-CUSTOMER-PRINT-01"));
+    expect(quoteCard).toBeTruthy();
+    const printButton = Array.from(quoteCard?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((button) => button.textContent?.includes("طباعة العرض"));
+    expect(printButton).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(printButton!);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await flush();
+    expect(printSpy).toHaveBeenCalledTimes(1);
+    const printable = host?.querySelector<HTMLElement>('[data-testid="customer-quote-print-document"]');
+    expect(printable).not.toBeNull();
+    expect(printable?.textContent).toContain("QT-CUSTOMER-PRINT-01");
+    expect(printable?.textContent).toContain("سكر");
+    expect(printable?.textContent).toContain("١٢٥");
+    for (const privateValue of [
+      "PRIVATE-QUOTE-ID", "PRIVATE-TENANT-ID", "PRIVATE-CUSTOMER-ID",
+      "PRIVATE-ACTOR-ID", "PRIVATE-QUOTE-LINE-ID", "PRIVATE-PRODUCT-ID",
+      "PRIVATE-COST-SENTINEL", "PRIVATE-MARGIN-SENTINEL", "9999", "target_unit_price",
+    ]) expect(printable?.innerHTML).not.toContain(privateValue);
+  });
 
   it("gates guests before resolving tenant scope, querying products, or calling RPCs", async () => {
     await mountQuotesRoute();

@@ -41,6 +41,7 @@ import {
 } from "@/lib/commerce-utils";
 import { fetchProducts, fetchResolvedProductPrices } from "@/lib/api";
 import { FinanceDocumentPrintActions } from "@/components/FinanceDocumentPrintActions";
+import { projectCustomerQuotePrintDocument } from "@/lib/customer-quote-print";
 import { validateCustomerPaymentInput } from "@/lib/finance-input";
 import { CashExpenseLedger } from "@/components/CashExpenseLedger";
 import { GeneralLedgerWorkspace } from "@/components/GeneralLedgerWorkspace";
@@ -1186,6 +1187,8 @@ function Quotes() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [printQuoteId, setPrintQuoteId] = useState<string | null>(null);
+  const [printRequest, setPrintRequest] = useState(0);
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -1250,6 +1253,19 @@ function Quotes() {
   useEffect(() => {
     void load();
   }, [load]);
+  const printDocument = useMemo(() => {
+    if (!printQuoteId) return null;
+    const quote = quotes.find((row) => row.id === printQuoteId);
+    return quote ? projectCustomerQuotePrintDocument(quote, quoteItems[quote.id] ?? []) : null;
+  }, [printQuoteId, quotes, quoteItems]);
+  useEffect(() => {
+    if (printRequest > 0 && printDocument) window.print();
+  }, [printRequest, printDocument]);
+  useEffect(() => {
+    const finishPrint = () => setPrintQuoteId(null);
+    window.addEventListener("afterprint", finishPrint);
+    return () => window.removeEventListener("afterprint", finishPrint);
+  }, []);
   const visible = products.filter((p) => matchesArabicCatalogSearch(p, query));
   async function request(e: FormEvent) {
     e.preventDefault();
@@ -1303,6 +1319,41 @@ function Quotes() {
       title="عروض الأسعار"
       subtitle="اطلب تسعيرًا تجاريًا موثقًا، ثم راجع رد فريق الأغبري."
     >
+      <style>{`
+        .customer-quote-print-document { display:none; }
+        @media print {
+          @page { size:A4; margin:14mm; }
+          body * { visibility:hidden !important; }
+          .customer-quote-print-document,.customer-quote-print-document * { visibility:visible !important; }
+          .customer-quote-print-document {
+            display:block !important; position:absolute; inset:0; width:100%;
+            padding:0; background:#fff !important; color:#17242a !important;
+            direction:rtl; font-family:Tahoma,Arial,sans-serif;
+          }
+          .customer-quote-print-document header {
+            display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap;
+            border-bottom:3px solid #176b55; padding-bottom:14px; margin-bottom:16px;
+          }
+          .customer-quote-print-document h1 { margin:0 0 5px; font-size:22px; }
+          .customer-quote-print-document .quote-meta {
+            display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+            gap:7px 16px; margin:12px 0;
+          }
+          .customer-quote-print-document table { width:100%; border-collapse:collapse; font-size:11px; margin-top:14px; }
+          .customer-quote-print-document th,.customer-quote-print-document td {
+            border:1px solid #cfdcda !important; padding:7px; text-align:right; color:#17242a !important;
+          }
+          .customer-quote-print-document thead { display:table-header-group; }
+          .customer-quote-print-document tr { break-inside:avoid; page-break-inside:avoid; }
+          .customer-quote-print-document .quote-total {
+            margin-top:14px; padding-top:10px; border-top:2px solid #176b55;
+            text-align:left; font-size:16px; font-weight:900;
+          }
+          .customer-quote-print-document .quote-note {
+            margin-top:12px; padding:10px; border:1px solid #dce7e5; border-radius:8px;
+          }
+        }
+      `}</style>
       {notice && (
         <div role="status" style={{ ...card, borderColor: "#a8d8c6", marginBottom: 12 }}>
           {notice}
@@ -1447,6 +1498,18 @@ function Quotes() {
               {q.response_note && (
                 <p style={{ ...card, background: "#f8fbfb" }}>{q.response_note}</p>
               )}
+              {projectCustomerQuotePrintDocument(q, quoteItems[q.id] ?? []) && (
+                <button
+                  style={secondary}
+                  disabled={busy || loading}
+                  onClick={() => {
+                    setPrintQuoteId(q.id);
+                    setPrintRequest((count) => count + 1);
+                  }}
+                >
+                  <Printer size={16} /> طباعة العرض
+                </button>
+              )}
               {q.status === "quoted" && (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button disabled={busy} style={primary} onClick={() => void answer(q.id, true)}>
@@ -1465,6 +1528,43 @@ function Quotes() {
           ))}
         </div>
       )}
+      {printDocument && <section
+        className="customer-quote-print-document"
+        data-testid="customer-quote-print-document"
+        dir="rtl"
+      >
+        <header>
+          <div>
+            <h1>متجر الأغبري | Aghbari Commerce</h1>
+            <small>عرض سعر تجاري للعميل</small>
+          </div>
+          <div>
+            <strong>رقم العرض: {printDocument.quoteNumber}</strong>
+            <p>{formatDate(printDocument.createdAt)}</p>
+          </div>
+        </header>
+        <div className="quote-meta">
+          <span><strong>حالة العرض:</strong> {printDocument.statusLabel}</span>
+          <span><strong>تاريخ التسعير:</strong> {printDocument.quotedAt ? formatDate(printDocument.quotedAt) : "—"}</span>
+          <span><strong>صالح حتى:</strong> {printDocument.validUntil ? formatDateShort(printDocument.validUntil) : "غير محدد"}</span>
+          <span><strong>عدد البنود:</strong> {formatNumber(printDocument.items.length)}</span>
+        </div>
+        <table>
+          <thead><tr>
+            <th>رمز الصنف</th><th>الصنف</th><th>الوحدة</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th>
+          </tr></thead>
+          <tbody>{printDocument.items.map((item, index) => (
+            <tr key={item.itemCode + "-" + item.productName + "-" + index}>
+              <td>{item.itemCode ?? "—"}</td><td>{item.productName}</td><td>{item.unit ?? "—"}</td>
+              <td>{formatNumber(item.quantity)}</td><td>{formatCurrency(item.unitPrice)}</td><td>{formatCurrency(item.lineTotal)}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+        <p className="quote-total">إجمالي العرض: {formatCurrency(printDocument.totalAmount)}</p>
+        {printDocument.customerNote && <p className="quote-note"><strong>طلب العميل:</strong> {printDocument.customerNote}</p>}
+        {printDocument.responseNote && <p className="quote-note"><strong>رسالة الأغبري:</strong> {printDocument.responseNote}</p>}
+        <small>الأسعار الواردة تخص هذا العرض المحفوظ فقط. لا يُنشئ هذا المستند طلب بيع أو إثبات دفع.</small>
+      </section>}
     </WorkspaceShell>
   );
 }
