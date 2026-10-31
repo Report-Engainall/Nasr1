@@ -572,6 +572,9 @@ test("general journal voucher and full financial statements print in authorized 
   }
 
   async function assertPrintDocument(page: Page, buttonName: string, heading: string, requiredText: string[]): Promise<void> {
+    // The stylesheet intentionally hides print-only content on screen. Emulate the browser's
+    // print media before opening the portal so visibility assertions exercise the real @media print rules.
+    await page.emulateMedia({ media: "print" });
     await page.evaluate(() => { delete document.documentElement.dataset.e2ePrintInvoked; });
     await page.getByRole("button", { name: buttonName, exact: true }).first().click();
     const sheet = page.getByTestId("general-ledger-print-document");
@@ -587,6 +590,7 @@ test("general journal voucher and full financial statements print in authorized 
     await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
     await expect(sheet).toHaveCount(0);
     await expect(page.locator("body")).not.toHaveAttribute("data-print-mode", "general-ledger");
+    await page.emulateMedia({ media: "screen" });
   }
 
   try {
