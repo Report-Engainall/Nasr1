@@ -27,7 +27,7 @@ vi.mock("@/lib/product-activity-xlsx", async (importOriginal) => {
 
 vi.mock("@/components/StaffDashboardMetrics", () => ({ StaffDashboardMetrics: () => null }));
 
-import { ExecutiveStoreAnalytics } from "@/components/ExecutiveStoreAnalytics";
+import { ProductActivityReport } from "@/components/ExecutiveStoreAnalytics";
 
 function reportFixture(): StoreProductActivityReport & {
   kpis: {
@@ -98,7 +98,7 @@ afterEach(() => {
 
 describe("product activity report interactive screen", () => {
   it("searches and sorts the current view, paginates 25 rows, and exports the full report", () => {
-    render(<ExecutiveStoreAnalytics />);
+    render(<ProductActivityReport />);
 
     expect(screen.getByRole("heading", { name: "حركة الأصناف والركود" })).toBeInTheDocument();
     expect(screen.getByText("صنف 01")).toBeInTheDocument();
