@@ -182,6 +182,49 @@ test("catalog → cart → order → refresh, then cross-organization read denia
       });
       managerTransitionProven = true;
 
+      await test.step("customer A: request, receive and print a server-priced quote", async () => {
+        await pageA.goto("/quotes");
+        await expect(pageA.getByRole("heading", { name: "عروض الأسعار" })).toBeVisible({ timeout: 30_000 });
+        const quoteRequestNote = "P2_QUOTE_PRINT_" + (process.env.GITHUB_RUN_ID ?? "local");
+        const quoteQuantity = pageA.getByRole("spinbutton").first();
+        await expect(quoteQuantity).toBeEnabled({ timeout: 20_000 });
+        await quoteQuantity.fill("2");
+        await pageA.locator("textarea").first().fill(quoteRequestNote);
+        await pageA.getByRole("button", { name: "إرسال طلب عرض سعر", exact: true }).click();
+        await expect(pageA.getByText(/تم إرسال طلب عرض السعر/).first()).toBeVisible({ timeout: 30_000 });
+        const requestCard = pageA.locator("article").filter({ hasText: quoteRequestNote }).first();
+        await expect(requestCard).toBeVisible({ timeout: 30_000 });
+        const quoteNumber = await requestCard.locator("strong").first().innerText();
+
+        await managerPage.goto("/admin/quotes");
+        await expect(managerPage.getByRole("heading", { name: "إدارة عروض الأسعار" })).toBeVisible({ timeout: 30_000 });
+        const staffQuoteCard = managerPage.locator("article").filter({ hasText: quoteNumber }).first();
+        await expect(staffQuoteCard).toBeVisible({ timeout: 30_000 });
+        await staffQuoteCard.getByRole("button", { name: "فتح / تسعير", exact: true }).click();
+        await expect(managerPage.getByRole("dialog", { name: "تسعير عرض" })).toBeVisible();
+        const quotePrice = managerPage.locator('input[type="number"]').first();
+        await expect(quotePrice).toBeEnabled();
+        await quotePrice.fill("125");
+        await managerPage.getByRole("button", { name: "حفظ الأسعار وإرسال العرض", exact: true }).click();
+        await expect(managerPage.getByText(/تم حفظ العرض وإرساله للعميل/).first()).toBeVisible({ timeout: 30_000 });
+
+        await pageA.goto("/quotes");
+        const quotedCard = pageA.locator("article").filter({ hasText: quoteNumber }).first();
+        await expect(quotedCard).toContainText("تم التسعير", { timeout: 30_000 });
+        await pageA.evaluate(() => { window.print = () => { document.documentElement.dataset.e2eQuotePrintInvoked = "true"; }; });
+        const quotePrintButton = quotedCard.getByRole("button", { name: "طباعة العرض", exact: true });
+        await expect(quotePrintButton).toBeEnabled();
+        await quotePrintButton.click();
+        await expect.poll(() => pageA.evaluate(() => document.documentElement.dataset.e2eQuotePrintInvoked)).toBe("true");
+        const quotePrint = pageA.locator(".customer-quote-print-document");
+        await expect(quotePrint).toContainText(quoteNumber);
+        await expect(quotePrint).toContainText("١٢٥");
+        const quoteMarkup = await quotePrint.evaluate((element) => element.innerHTML);
+        expect(quoteMarkup).not.toMatch(/organization_id|customer_id|product_id|quote_id|actor_id|target_unit_price|cost_price/i);
+        await pageA.goto(order.detailPath);
+        await expect(pageA.getByText(order.orderNumber, { exact: true })).toBeVisible({ timeout: 30_000 });
+      });
+
       await test.step("customer A: reread the saved status after manager approval", async () => {
         const refresh = pageA.getByRole("button", { name: "تحديث حالة الطلب من الخادم", exact: true });
         await expect(refresh).toBeVisible();
@@ -356,6 +399,8 @@ test("catalog → cart → order → refresh, then cross-organization read denia
         resourcePath: order.detailPath,
         customerOrderPrintInvoked: await pageA.evaluate(() => document.documentElement.dataset.e2ePrintInvoked === "true"),
         customerOrderPrintExcludesInternalAndFinancialFields: true,
+        customerQuotePrintInvoked: await pageA.evaluate(() => document.documentElement.dataset.e2eQuotePrintInvoked === "true"),
+        customerQuotePrintExcludesInternalTargetPriceAndTenantFields: true,
         adminTransition: managerTransitionProven ? "pending -> confirmed" : "NOT_RUN / BLOCKED_EXTERNAL",
         customerReadbackAfterAdminTransition: managerTransitionProven,
         sameOrderDatabaseReadback: databaseReadbackProven,
