@@ -296,6 +296,7 @@ describe("Admin Customer 360 source-lineage display", () => {
     expect(printSpy).toHaveBeenCalledTimes(1);
 
     const sheet = screen.getByTestId("customer-360-print-document");
+    expect(sheet.parentElement).toBe(document.body);
     expect(sheet.textContent).toContain("مؤسسة الأفق");
     expect(sheet.textContent).toContain("000125");
     expect(sheet.textContent).toContain("إجمالي الطلبات");
