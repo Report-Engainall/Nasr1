@@ -577,6 +577,12 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/critical-path.spec.ts"
+      - name: Prove checkout replay after a committed response is lost
+        timeout-minutes: 12
+        env:
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: "$RUNNER_TEMP/pw-local/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/checkout-lost-response-replay.spec.ts"
       - name: Run customer return request, review, receipt and credit memo in Chromium
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
