@@ -2,7 +2,7 @@ import { getCurrentTenantScope, getStorefrontDataScope, supabase } from './supab
 import { parseStoreExecutiveAnalytics, type StoreExecutiveAnalytics } from './executive-analytics';
 import { parseStoreProductActivityReport, type StoreProductActivityReport } from './product-activity-report';
 import { parseStaffCustomer360Summary, type StaffCustomer360Summary } from './customer-360-summary';
-import { parsePurchaseOrder, parsePurchaseOrders, type PurchaseOrder } from './purchase-orders';
+import { isPurchaseOrderUuid, parsePurchaseOrder, parsePurchaseOrders, type PurchaseOrder } from './purchase-orders';
 import { countLowStockBalances } from './inventory-metrics';
 import { summarizeDashboardOrders } from './dashboard-metrics';
 import { retryRead } from './retry';
@@ -2152,7 +2152,6 @@ export async function fetchStaffCustomer360Summary(customerId: string): Promise<
 
 
 // ─── Purchase orders and atomic inventory receiving ───
-const purchaseOrderUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const purchaseIdempotencyKey = /^[A-Za-z0-9_-]{16,128}$/;
 export type PurchaseOrderLineCommand = { product_id: string; quantity: number; unit_cost: number | null };
 export type PurchaseReceiptLineCommand = { item_id: string; quantity: number };
@@ -2164,7 +2163,7 @@ export type PurchaseReceiptCommandResult = {
 };
 
 function assertPurchaseUuid(value: string, label: string): void {
-  if (!purchaseOrderUuid.test(value)) throw new Error(label + ' غير صالح.');
+  if (!isPurchaseOrderUuid(value)) throw new Error(label + ' غير صالح.');
 }
 function assertPurchaseKey(value: string, label: string): void {
   if (!purchaseIdempotencyKey.test(value)) throw new Error(label + ' غير صالح.');
