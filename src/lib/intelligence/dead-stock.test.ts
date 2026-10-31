@@ -6,6 +6,13 @@ const evidence=(id:string,currency?:string):EvidenceRecord=>({id,source:{kind:"R
 const metric=(id:string,unit:MetricSnapshot["unit"],value:number,currency?:string,uom:string|null="EA"):MetricSnapshot=>({id,key:id,value,unit,currency,...((unit==="QUANTITY"||unit==="CURRENCY_PER_UNIT")&&uom?{unitOfMeasure:uom}:{}),status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",period,asOf,lineage:{evidenceIds:[id],calculatedAt:asOf,formulaId:id+".formula",formulaVersion:"1",transformations:[]},warnings:[]});
 const rule={id:"dead-stock-days",version:"1.0",activeWithinDays:30,stagnantAfterDays:90,lowTurnoverRatio:0.1,turnoverWindowDays:92};
 describe("dead-stock engine",()=>{
+ it("accepts point-in-time available quantity separately from the historical movement window",()=>{
+  const p={productRef:"P-SNAPSHOT",lastMovementAt:"2026-06-01T00:00:00Z",movementCoverage:{status:"VERIFIED" as const,period,completeness:"COMPLETE" as const,quality:"ACCEPTABLE" as const,evidenceIds:["mv"]},
+   availableQuantity:{...metric("qty","QUANTITY",10),period:null},quantityUnit:"EA",unitCost:null,soldQuantityWindow:null,averageInventoryWindow:null};
+  const records=[evidence("mv"),{...evidence("qty"),period:null}];
+  const result=buildDeadStockReport({id:"d",asOf,period,evidenceRecords:records,products:[p],rule});
+  expect(result.items[0]).toMatchObject({classification:"STAGNANT",availableQuantity:10,financialExposure:null});
+ });
  it("classifies stale movement and calculates exposure only with verified unit cost",()=>{
   const p={productRef:"P-001",lastMovementAt:"2026-06-01T00:00:00Z",movementCoverage:{status:"VERIFIED" as const,period,completeness:"COMPLETE" as const,quality:"ACCEPTABLE" as const,evidenceIds:["mv"]},availableQuantity:metric("qty","QUANTITY",10),quantityUnit:"EA",unitCost:metric("cost","CURRENCY_PER_UNIT",4,"YER"),costQuantityUnit:"EA",soldQuantityWindow:metric("sold","QUANTITY",1),averageInventoryWindow:metric("avg","QUANTITY",20)};
   const r=buildDeadStockReport({id:"d",asOf,period,evidenceRecords:[evidence("mv"),evidence("qty"),evidence("cost","YER"),evidence("sold"),evidence("avg")],products:[p],rule});

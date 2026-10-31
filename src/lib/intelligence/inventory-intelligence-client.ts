@@ -136,11 +136,11 @@ function safeError(error: unknown): { status: "DENIED" | "UNAVAILABLE" | "ERROR"
   return { status: "UNAVAILABLE", message: "تعذر تحميل بيانات المخزون من قاعدة البيانات؛ لم تُعرض تقديرات بديلة." };
 }
 
-function parsePayload(value: unknown, asOf: string, period: EvidencePeriod): InventoryIntelligenceData | null {
+function parsePayload(value: unknown, requestedAsOf: string, period: EvidencePeriod): InventoryIntelligenceData | null {
   const raw = record(value), authorization = record(raw?.authorization);
   if (
     !raw || raw.status !== "OK" || raw.sideEffects !== "NONE" ||
-    raw.asOf !== asOf ||
+    !isoTimestamp(raw.asOf) || Date.parse(raw.asOf) !== Date.parse(requestedAsOf) ||
     authorization?.tenantScope !== "SERVER_RESOLVED_AUTHENTICATED_TENANT" ||
     (authorization.effectiveRole !== "admin" && authorization.effectiveRole !== "manager") ||
     !Number.isInteger(raw.totalProducts) || (raw.totalProducts as number) < 1 ||
@@ -149,9 +149,10 @@ function parsePayload(value: unknown, asOf: string, period: EvidencePeriod): Inv
     !Array.isArray(raw.replenishmentProducts) || raw.replenishmentProducts.length !== raw.totalProducts ||
     !Array.isArray(raw.evidenceRecords) || raw.evidenceRecords.length > 100000
   ) return null;
+  const serverAsOf = raw.asOf as string;
   const returnedPeriod = parsePeriod(raw.period);
   if (!returnedPeriod || returnedPeriod.from !== period.from || returnedPeriod.to !== period.to) return null;
-  const evidence = raw.evidenceRecords.map(item => parseEvidence(item, asOf));
+  const evidence = raw.evidenceRecords.map(item => parseEvidence(item, serverAsOf));
   if (evidence.some(item => item === null)) return null;
   const evidenceRecords = evidence as EvidenceRecord[];
   const evidenceIds = new Set<string>();
@@ -170,8 +171,8 @@ function parsePayload(value: unknown, asOf: string, period: EvidencePeriod): Inv
   for (const item of raw.deadStockProducts) {
     const row = record(item), coverage = record(row?.movementCoverage);
     const coveragePeriod = parsePeriod(coverage?.period);
-    const availableQuantity = parseMetric(row?.availableQuantity, asOf, "QUANTITY", null);
-    const soldQuantityWindow = parseMetric(row?.soldQuantityWindow, asOf, "QUANTITY", period);
+    const availableQuantity = parseMetric(row?.availableQuantity, serverAsOf, "QUANTITY", null);
+    const soldQuantityWindow = parseMetric(row?.soldQuantityWindow, serverAsOf, "QUANTITY", period);
     const coverageEvidence = stringList(coverage?.evidenceIds, 100);
     if (
       !row || !textValue(row.productRef, 200) || deadRefs.has(row.productRef) ||
@@ -206,10 +207,10 @@ function parsePayload(value: unknown, asOf: string, period: EvidencePeriod): Inv
 
   for (const item of raw.replenishmentProducts) {
     const row = record(item);
-    const availableToPromise = parseMetric(row?.availableToPromise, asOf, "QUANTITY", null);
-    const reorderPoint = parseMetric(row?.reorderPoint, asOf, "QUANTITY", null);
-    const soldQuantityWindow = parseMetric(row?.soldQuantityWindow, asOf, "QUANTITY", period);
-    const supplierLeadTimeDays = parseMetric(row?.supplierLeadTimeDays, asOf, "DAYS", null);
+    const availableToPromise = parseMetric(row?.availableToPromise, serverAsOf, "QUANTITY", null);
+    const reorderPoint = parseMetric(row?.reorderPoint, serverAsOf, "QUANTITY", null);
+    const soldQuantityWindow = parseMetric(row?.soldQuantityWindow, serverAsOf, "QUANTITY", period);
+    const supplierLeadTimeDays = parseMetric(row?.supplierLeadTimeDays, serverAsOf, "DAYS", null);
     if (
       !row || !textValue(row.productRef, 200) || replenishRefs.has(row.productRef) ||
       !textValue(row.quantityUnit, 80) ||
@@ -231,7 +232,7 @@ function parsePayload(value: unknown, asOf: string, period: EvidencePeriod): Inv
   }
   if (deadRefs.size !== replenishRefs.size || [...deadRefs].some(id => !replenishRefs.has(id))) return null;
   return {
-    asOf,
+    asOf: serverAsOf,
     period,
     totalProducts: raw.totalProducts as number,
     returnedProducts: raw.returnedProducts as number,

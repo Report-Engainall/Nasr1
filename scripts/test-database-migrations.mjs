@@ -6912,6 +6912,143 @@ async function main() {
   await db.unsafe("set role authenticated");
   process.stdout.write("PASS REF-DECISION-OUTCOME-001: tenant-scoped proposal, event lifecycle, optimistic versions, idempotent replay/conflict, same-tenant complete evidence MEASURE verification, audit atomicity, direct-table denial and customer read denial\n");
 
+  // REF-INVENTORY-INTELLIGENCE-001 — server-derived ATP, reorder point, sales window and observed receipt lead time.
+  await db.unsafe("reset role");
+  const inventoryProductId=randomUUID();
+  const inventoryWarehouseId=randomUUID();
+  const inventorySupplierId=randomUUID();
+  const inventoryPurchaseOrderId=randomUUID();
+  const inventoryPurchaseOrderItemId=randomUUID();
+  const inventoryReceiptId=randomUUID();
+  const inventoryReceiptItemId=randomUUID();
+  const inventorySaleOrderId=randomUUID();
+  const inventorySaleOrderItemId=randomUUID();
+  const inventoryPurchaseMovementId=randomUUID();
+  const inventorySaleMovementId=randomUUID();
+  const inventoryForeignProductId=randomUUID();
+  const inventoryItemCode="CI-INV-"+randomUUID().slice(0,8);
+  const inventoryForeignProductCode="CI-FOREIGN-"+randomUUID().slice(0,8);
+
+  await db.unsafe(
+    "insert into public.products(id,organization_id,name,item_code,unit,base_price,cost_price,min_stock,status) values($1,$2,'CI Inventory Test Product',$3,'EA',10,null,20,'active')",
+    [inventoryProductId,intelOrganizationId,inventoryItemCode],
+  );
+  await db.unsafe(
+    "insert into public.warehouses(id,organization_id,name,code,is_active) values($1,$2,'CI Inventory Warehouse',$3,true)",
+    [inventoryWarehouseId,intelOrganizationId,"CI-WH-"+randomUUID().slice(0,8)],
+  );
+  await db.unsafe(
+    "insert into public.suppliers(id,organization_id,supplier_code,name,status) values($1,$2,$3,'CI Observed Lead Supplier','active')",
+    [inventorySupplierId,intelOrganizationId,"CI-SUP-"+randomUUID().slice(0,8)],
+  );
+  await db.unsafe(
+    "insert into public.purchase_orders(id,organization_id,purchase_order_number,supplier_id,warehouse_id,status,idempotency_key,payload_fingerprint,created_by,submitted_by,submitted_at,created_at,updated_at) values($1,$2,$3,$4,$5,'received',$6,$7,$8,$8,now()-interval '130 days',now()-interval '131 days',now()-interval '120 days')",
+    [inventoryPurchaseOrderId,intelOrganizationId,"CI-PO-"+randomUUID().slice(0,8),inventorySupplierId,inventoryWarehouseId,
+      "CI-INV-"+randomUUID().slice(0,20),randomUUID().replace(/-/g,""),intelProfileId],
+  );
+  await db.unsafe(
+    "insert into public.purchase_order_items(id,organization_id,purchase_order_id,product_id,item_code_snapshot,product_name_snapshot,unit_snapshot,quantity_ordered,quantity_received,unit_cost,line_total) values($1,$2,$3,$4,$5,'CI Inventory Test Product','EA',1,1,null,null)",
+    [inventoryPurchaseOrderItemId,intelOrganizationId,inventoryPurchaseOrderId,inventoryProductId,inventoryItemCode],
+  );
+  await db.unsafe(
+    "insert into public.purchase_receipts(id,organization_id,purchase_order_id,receipt_number,warehouse_id,notes,received_cost,idempotency_key,payload_fingerprint,received_by,received_at) values($1,$2,$3,$4,$5,'CI observed historical receipt',null,$6,$7,$8,now()-interval '120 days')",
+    [inventoryReceiptId,intelOrganizationId,inventoryPurchaseOrderId,"CI-PR-"+randomUUID().slice(0,8),inventoryWarehouseId,
+      "CI-RCPT-"+randomUUID().slice(0,20),randomUUID().replace(/-/g,""),intelProfileId],
+  );
+  await db.unsafe(
+    "insert into public.purchase_receipt_items(id,organization_id,receipt_id,purchase_order_item_id,product_id,quantity_received,unit_cost,line_total) values($1,$2,$3,$4,$5,1,null,null)",
+    [inventoryReceiptItemId,intelOrganizationId,inventoryReceiptId,inventoryPurchaseOrderItemId,inventoryProductId],
+  );
+  await db.unsafe(
+    "insert into public.inventory_balances(product_id,warehouse_id,quantity_on_hand,quantity_reserved,reorder_point,last_movement_at) values($1,$2,5,0,20,now()-interval '50 days')",
+    [inventoryProductId,inventoryWarehouseId],
+  );
+  await db.unsafe(
+    "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,created_by,created_at) values($1,$2,$3,$4,'delivered',30,30,$5,now()-interval '50 days')",
+    [inventorySaleOrderId,intelOrganizationId,intelCustomerId,"CI-INV-SALE-"+randomUUID().slice(0,8),intelProfileId],
+  );
+  await db.unsafe(
+    "insert into public.order_items(id,order_id,product_id,item_code,product_name_snapshot,unit_snapshot,quantity,unit_price_snapshot,discount_snapshot,line_total,created_at) values($1,$2,$3,$4,'CI Inventory Test Product','EA',30,1,0,30,now()-interval '50 days')",
+    [inventorySaleOrderItemId,inventorySaleOrderId,inventoryProductId,inventoryItemCode],
+  );
+  await db.unsafe(
+    "insert into public.inventory_movements(id,product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,created_at) values($1,$2,$3,'purchase_receipt',1,5,'purchase_receipt',$4,'historical purchase receipt',$5,now()-interval '120 days')",
+    [inventoryPurchaseMovementId,inventoryProductId,inventoryWarehouseId,inventoryReceiptId,intelProfileId],
+  );
+  await db.unsafe(
+    "insert into public.inventory_movements(id,product_id,warehouse_id,movement_type,quantity,balance_after,reference_type,reference_id,reason,created_by,created_at) values($1,$2,$3,'sale',-30,5,'order',$4,'fulfilled sales movement',$5,now()-interval '50 days')",
+    [inventorySaleMovementId,inventoryProductId,inventoryWarehouseId,inventorySaleOrderId,intelProfileId],
+  );
+  await db.unsafe(
+    "insert into public.products(id,organization_id,name,item_code,unit,status) values($1,$2,'Foreign Product Must Not Appear',$3,'EA','active')",
+    [inventoryForeignProductId,otherOrganizationId,inventoryForeignProductCode],
+  );
+
+  const inventoryAsOf=(await db.unsafe(
+    "select now()::text as as_of,((now() at time zone 'UTC')::date-91)::text as from_day,(now() at time zone 'UTC')::date::text as to_day",
+  ))[0];
+  const inventoryAuditBefore=(await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1",
+    [intelOrganizationId],
+  ))[0].count;
+  await setIdentity(intelAuthUserId,"ci-intelligence-admin@example.test");
+  await db.unsafe("set role authenticated");
+  const inventoryAggregate=(await db.unsafe(
+    "select public.get_inventory_intelligence_aggregate($1::date,$2::date,$3::timestamptz) as result",
+    [inventoryAsOf.from_day,inventoryAsOf.to_day,inventoryAsOf.as_of],
+  ))[0].result;
+  assert.equal(inventoryAggregate.status,"OK");
+  assert.equal(inventoryAggregate.sideEffects,"NONE");
+  assert.equal(inventoryAggregate.authorization.tenantScope,"SERVER_RESOLVED_AUTHENTICATED_TENANT");
+  assert.equal(inventoryAggregate.authorization.effectiveRole,"admin");
+  assert.equal(inventoryAggregate.totalProducts,1);
+  assert.equal(inventoryAggregate.returnedProducts,1);
+  assert.equal(inventoryAggregate.deadStockProducts.length,1);
+  assert.equal(inventoryAggregate.replenishmentProducts.length,1);
+  const inventoryDead=inventoryAggregate.deadStockProducts[0];
+  assert.equal(inventoryDead.productRef,inventoryItemCode);
+  assert.equal(inventoryDead.movementCoverage.status,"VERIFIED");
+  assert.equal(inventoryDead.movementCoverage.completeness,"COMPLETE");
+  assert.ok(Date.parse(inventoryDead.lastMovementAt)<Date.parse(inventoryAsOf.as_of));
+  assert.equal(Number(inventoryDead.availableQuantity.value),5);
+  assert.equal(inventoryDead.availableQuantity.period,null,
+    "current available quantity is a point-in-time snapshot, not a fabricated historical period");
+  const inventoryReplenishment=inventoryAggregate.replenishmentProducts[0];
+  assert.equal(Number(inventoryReplenishment.availableToPromise.value),5);
+  assert.equal(Number(inventoryReplenishment.reorderPoint.value),20);
+  assert.equal(Number(inventoryReplenishment.soldQuantityWindow.value),30);
+  assert.equal(Number(inventoryReplenishment.supplierLeadTimeDays.value),10);
+  assert.equal(inventoryReplenishment.supplierLeadTimeDays.period,null);
+  assert.equal(inventoryAggregate.evidenceRecords.some((e) => e.id==="purchase-receipt-item:"+inventoryReceiptItemId),true);
+  assert.equal(inventoryAggregate.evidenceRecords.some((e) => e.id==="movement-window:"+inventoryForeignProductId),false);
+  const inventoryAuditAfter=(await db.unsafe(
+    "select count(*)::integer as count from public.audit_logs where organization_id=$1",
+    [intelOrganizationId],
+  ))[0].count;
+  assert.equal(inventoryAuditAfter,inventoryAuditBefore,"inventory intelligence reads must not append audit rows");
+  const inventoryPrivileges=(await db.unsafe(
+    "select has_function_privilege('anon','public.get_inventory_intelligence_aggregate(date,date,timestamptz)','EXECUTE') as anon_can_execute,has_function_privilege('authenticated','public.get_inventory_intelligence_aggregate(date,date,timestamptz)','EXECUTE') as authenticated_can_execute",
+  ))[0];
+  assert.equal(inventoryPrivileges.anon_can_execute,false);
+  assert.equal(inventoryPrivileges.authenticated_can_execute,true);
+  await db.unsafe("reset role");
+  await setIdentity(operationsStaffAuthUserId,"ci-operations-staff@example.test");
+  await db.unsafe("set role authenticated");
+  await expectFailure(
+    "ordinary staff cannot read manager-only inventory intelligence",
+    () => db.unsafe(
+      "select public.get_inventory_intelligence_aggregate($1::date,$2::date,$3::timestamptz)",
+      [inventoryAsOf.from_day,inventoryAsOf.to_day,inventoryAsOf.as_of],
+    ),
+    /finance manager permission required for inventory intelligence/i,
+    "42501",
+  );
+  await db.unsafe("reset role");
+  await setIdentity(intelAuthUserId,"ci-intelligence-admin@example.test");
+  await db.unsafe("set role authenticated");
+  process.stdout.write("PASS REF-INVENTORY-INTELLIGENCE-001: complete tenant population, ATP/reorder/sales metrics, observed receipt lead time, resolved evidence lineage, point-in-time stock semantics, read-only side effects and role denial\n");
+
+
   const intelPrivileges = (await db.unsafe(
     "select has_function_privilege('anon','public.get_intelligence_aggregate(jsonb)','EXECUTE') as anon_can_execute, has_function_privilege('authenticated','public.get_intelligence_aggregate(jsonb)','EXECUTE') as authenticated_can_execute",
   ))[0];

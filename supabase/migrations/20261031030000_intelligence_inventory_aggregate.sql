@@ -45,10 +45,14 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='finance manager permission required for inventory intelligence';
   END IF;
 
-  SELECT p.organization_id
-    INTO v_org
+  SELECT p.organization_id,r.role
+    INTO v_org,v_role
     FROM public.profiles p
-   WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active;
+    JOIN public.user_roles r ON r.profile_id=p.id
+   WHERE p.id=v_actor AND p.auth_user_id=auth.uid() AND p.is_active
+     AND r.role IN ('admin','manager')
+   ORDER BY CASE r.role WHEN 'admin' THEN 0 ELSE 1 END
+   LIMIT 1;
   IF v_actor IS NULL OR v_org IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='active inventory organization required';
   END IF;
@@ -71,7 +75,7 @@ BEGIN
   IF v_product_count=0 THEN
     RETURN pg_catalog.jsonb_build_object(
       'status','UNAVAILABLE','asOf',p_as_of,'period',v_period,
-      'authorization',pg_catalog.jsonb_build_object('tenantScope','SERVER_RESOLVED_AUTHENTICATED_TENANT','effectiveRole','finance_manager'),
+      'authorization',pg_catalog.jsonb_build_object('tenantScope','SERVER_RESOLVED_AUTHENTICATED_TENANT','effectiveRole',v_role),
       'totalProducts',0,'returnedProducts',0,'deadStockProducts','[]'::jsonb,
       'replenishmentProducts','[]'::jsonb,'evidenceRecords','[]'::jsonb,
       'sideEffects','NONE','warnings',pg_catalog.jsonb_build_array('NO_ACTIVE_PRODUCT_POPULATION')
@@ -82,7 +86,7 @@ BEGIN
   IF v_product_count>2000 THEN
     RETURN pg_catalog.jsonb_build_object(
       'status','PARTIAL','asOf',p_as_of,'period',v_period,
-      'authorization',pg_catalog.jsonb_build_object('tenantScope','SERVER_RESOLVED_AUTHENTICATED_TENANT','effectiveRole','finance_manager'),
+      'authorization',pg_catalog.jsonb_build_object('tenantScope','SERVER_RESOLVED_AUTHENTICATED_TENANT','effectiveRole',v_role),
       'totalProducts',v_product_count,'returnedProducts',0,'deadStockProducts','[]'::jsonb,
       'replenishmentProducts','[]'::jsonb,'evidenceRecords','[]'::jsonb,
       'sideEffects','NONE','warnings',pg_catalog.jsonb_build_array('PRODUCT_POPULATION_EXCEEDS_COMPLETE_REPORT_BOUND')
@@ -221,7 +225,7 @@ BEGIN
     v_lead_days:=NULL;
     IF v_lead_rows>0 AND v_lead_rows<=500 THEN
       SELECT
-        (pg_catalog.sum(pg_catalog.extract(epoch FROM (pr.received_at-po.submitted_at))/86400*pri.quantity_received)
+        (pg_catalog.sum(pg_catalog.date_part('epoch',pr.received_at-po.submitted_at)/86400*pri.quantity_received)
           /NULLIF(pg_catalog.sum(pri.quantity_received),0))::numeric(12,3),
         pg_catalog.array_agg('purchase-receipt-item:'||pri.id::text ORDER BY pr.received_at,pri.id),
         coalesce(pg_catalog.jsonb_agg(
@@ -295,7 +299,7 @@ BEGIN
   RETURN pg_catalog.jsonb_build_object(
     'status','OK','asOf',p_as_of,'period',v_period,
     'authorization',pg_catalog.jsonb_build_object(
-      'tenantScope','SERVER_RESOLVED_AUTHENTICATED_TENANT','effectiveRole','finance_manager'
+      'tenantScope','SERVER_RESOLVED_AUTHENTICATED_TENANT','effectiveRole',v_role
     ),
     'totalProducts',v_product_count,'returnedProducts',v_product_count,
     'deadStockProducts',v_dead_stock_products,
