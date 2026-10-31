@@ -1,3 +1,37 @@
+# LIVE EXECUTION CHECKPOINT — 2026-10-31 — PR #321 RESPONSIVE / INTELLIGENCE OVERFLOW CLOSED
+
+- CURRENT_MAIN_SHA (code-bearing main SHA at this checkpoint): `6d20b116051a0fe8784d97dbbe313e4ca8665056`
+- LAST_COMPLETED_TASK_ID: `DLV-017-ADMIN-RESPONSIVE-INTELLIGENCE-OVERFLOW-321`
+- LAST_COMPLETED_TASK: Fixed the measured mobile drawer/document overflow and the `/admin/intelligence` 1280px overflow by constraining long evidence-warning tokens within their cards, keeping the drawer inside its viewport, and preserving the ledger-line inner scroller. The prior failing measurement was 1337px against a 1281px maximum.
+- ACTIVE_TASK_ID: `DLV-011-PURCHASE-ORDER-PRINT-PROJECTION`
+- ACTIVE_TASK_STATUS: `READY — next executable implementation unit`
+- BASE_SHA: `d7521c08cbeca1a34b9b40968a7ce02fb536b942` (main immediately before PR #321 merge)
+- HEAD_SHA: `5055e4cbc00966939b36863004654138082acc18` (PR #321 tested head); merged main SHA: `6d20b116051a0fe8784d97dbbe313e4ca8665056`
+- FILES_CHANGED:
+  - `e2e/finance-task-print.spec.ts`
+  - `src/aghbari.css`
+  - `src/components/CustomerWorkflows.tsx`
+  - `src/components/GeneralLedgerWorkspace.tsx`
+  - `src/components/intelligence/shared.test.tsx`
+  - `src/components/intelligence/shared.tsx`
+  - `src/test/storefront-admin-navigation-access.test.ts`
+- IMPLEMENTATION_RESULT: `EvidenceWarnings` wraps long evidence tokens using `minWidth:0`, `maxWidth:100%`, and `overflowWrap:anywhere`; narrow admin shell/drawer remains inside the viewport; journal-line fields remain horizontally scrollable inside their own region. Added focused unit/regression and browser route-matrix assertions.
+- TESTS_RUN_WITH_RESULTS:
+  - PR-head Core [41229123036 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41229123036) on exact SHA `5055e4cbc00966939b36863004654138082acc18`.
+  - PR-head P2 [41229123019 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41229123019) on exact SHA `5055e4cbc00966939b36863004654138082acc18`. The authenticated local Supabase/Chromium job passed order persistence/tenant denial, returns/credit memo, audited Onyx XLSX, finance/task print (including 23 admin routes at 360px and 1280px with Arabic RTL), customer-manager privacy/audit, and immediate device-session revocation.
+  - One-main cleanup [41229652988 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41229652988) on merge SHA `6d20b116051a0fe8784d97dbbe313e4ca8665056`.
+  - Post-merge Core [41229652994](https://github.com/Report-Engainall/Nasr1/actions/runs/41229652994) and P2 [41229652995](https://github.com/Report-Engainall/Nasr1/actions/runs/41229652995) were started on exact merge SHA `6d20b116051a0fe8784d97dbbe313e4ca8665056`; latest observed state at checkpoint update: both `IN_PROGRESS`, no failed steps observed yet. Poll these exact runs; do not transfer PR-head success as post-merge proof.
+- FAILED_OR_SKIPPED:
+  - Historical P2 failure [41227661578](https://github.com/Report-Engainall/Nasr1/actions/runs/41227661578) was on stale SHA `da7b85fa244db35a752b92e136deee352a8a086c`; it measured `/admin/intelligence` document width 1337px. Fixed and passed on PR head `5055e4c`; do not reopen absent regression.
+  - Hosted customer/order/tenant workflow job was `SKIPPED` on PR-head and post-merge P2 runs. This is not hosted proof.
+- MERGE_STATUS: `MERGED`; PR #321 [merged](https://github.com/Report-Engainall/Nasr1/pull/321) by squash; GitHub merge SHA `6d20b116051a0fe8784d97dbbe313e4ca8665056`.
+- BLOCKERS: Hosted authenticated tenant/customer/order acceptance remains unproven because its job is skipped; actual Onyx Pro target-version round-trip, official WhatsApp delivery receipt, live free-AI provider response, production deploy/rollback/restore and owner sign-off remain external/unverified. Continue independent code tasks; do not claim these integrations complete.
+- NEXT_TASK_ID: `DLV-011-PURCHASE-ORDER-PRINT-PROJECTION`
+- NEXT_ACTION: Implement a separate strict print-only projection for `PurchaseOrdersPage` in new `src/lib/purchase-orders-print.ts` with focused tests in `src/lib/purchase-orders-print.test.ts`; wire the `print-order` and `print-results` views in `src/components/PurchaseOrdersPage.tsx` to render only that projection, never raw `PurchaseOrder` objects. Keep the XLSX implementation and its existing tests untouched. Enforce the current server-backed `admin/manager` authorization boundary; return no print document for unauthorized roles; define an explicit allowlist for displayed order/item fields, exclude organization/order/supplier/warehouse/product/line/user/actor IDs and internal-only notes/reasons, preserve unknown costs as null/“غير مسجل” rather than zero, and do not introduce new financial disclosure to a lower role. Add sentinel tests proving exact output keys and absence of internal-ID/actor/tenant sentinels, plus tests for unauthorized roles and null monetary values. Run the focused Vitest files including existing purchase-orders XLSX tests (do not alter their passing behavior), run the relevant purchase-order/print browser acceptance, then Core and P2 on the same exact head SHA; fix any real failure, commit, open PR to main, merge only after gates pass, verify post-merge SHA and CI, and update this same checkpoint.
+- UPDATED_AT: `2026-10-31T18:31:50.507Z`
+
+---
+
 ## LIVE EXECUTION CHECKPOINT — 2026-10-31 — TASK PRINT FIELD ALLOWLIST
 - merged_main_sha: `e7a24c67a4422a68a32dea8ac41cd9a8ef0750b8`; PR #318: [security(print): explicit operational task print field allowlist](https://github.com/Report-Engainall/Nasr1/pull/318).
 - tested_head_sha: `1790e309eaec6235a9735f3584fbb5d236c78b69`; exact-head Core [41225137019 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41225137019); exact-head P2 [41225136994 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41225136994).
