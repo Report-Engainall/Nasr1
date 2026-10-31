@@ -1,32 +1,38 @@
 # LIVE EXECUTION CHECKPOINT — 2026-10-31 — CUSTOMER 360 PRINT MERGED; PRODUCT ACTIVITY PRINT ACTIVE
 
-- CURRENT_MAIN_SHA: `605e212ddc9c58e0e2601ecf48fe325c7f15987a` (latest product-code merge; the following checkpoint/matrix update is a documentation-only commit).
+- CURRENT_MAIN_SHA: `8ec0f0d0f656aaef4b382170c78e46dd7e4ec0c6` (current main ref immediately before this checkpoint-only update; latest product-code merge SHA is `605e212ddc9c58e0e2601ecf48fe325c7f15987a`).
 - LAST_COMPLETED_TASK_ID: `DLV-011-CUSTOMER360-PRINT`
-- LAST_COMPLETED_TASK: PR #332 merged by squash at `605e212ddc9c58e0e2601ecf48fe325c7f15987a`. Added a staff-only Arabic RTL A4 Customer 360 print sheet, mounted through a body portal outside the modal viewport. The print allowlist excludes customer UUID, internal order/invoice/payment IDs, organization metadata, contact name, phone, email, cost and margin. Full per-currency ledger aggregates remain separate from bounded latest-20 detail rows; payment amounts are withheld when their linked invoice is outside the returned detail window. Existing eight-sheet Customer 360 XLSX is unchanged. The print layout no longer inherits modal clipping.
+- LAST_COMPLETED_TASK: PR #332 merged by squash at `605e212ddc9c58e0e2601ecf48fe325c7f15987a`. Replaced direct Customer 360 modal printing with a dedicated staff A4/RTL print sheet and explicit allowlist DTO. The output preserves full server order aggregates and complete per-currency ledger totals while stating latest-20 limits for detail rows; payment amount/currency is withheld when its invoice is outside the returned recent-invoice window. The projection removes customer/contact PII, tenant metadata, internal customer/order/invoice/payment IDs, cost and margin. Existing Customer 360 eight-sheet XLSX remains unchanged.
 - ACTIVE_TASK_ID: `DLV-011-PRODUCT-ACTIVITY-PRINT`
-- ACTIVE_TASK_STATUS: `PR #333 OPEN — Core IN_PROGRESS; P2 QUEUED on exact head 27fca27853493381ca94e1634472c3edef764e18`
+- ACTIVE_TASK_STATUS: `IMPLEMENTED ON BRANCH — PRE-PR REVIEW; BRANCH HEAD 54e6e669af87a1c086689fcd599813d4d8006ffb; NO PR YET`
 - BASE_SHA: `605e212ddc9c58e0e2601ecf48fe325c7f15987a`
-- HEAD_SHA: `27fca27853493381ca94e1634472c3edef764e18`
-- FILES_CHANGED (PR #332):
+- HEAD_SHA: `54e6e669af87a1c086689fcd599813d4d8006ffb`
+- FILES_CHANGED (last completed unit PR #332):
   - `src/components/AdminCustomer360.tsx`
   - `src/components/Customer360PrintSheet.tsx`
   - `src/lib/customer-360-print.ts`
   - `src/styles.css`
   - `src/test/admin-customer-360-display.test.tsx`
-- IMPLEMENTATION_RESULT: Customer 360 printing is a separate explicit allowlisted document, not a print of the modal DOM. The sheet is portalled to document.body to avoid modal clipping. Tenant-scoped server aggregates and currency boundaries are preserved. The Customer 360 XLSX export remains unchanged. DLV-011 remains PARTIAL overall.
+- ACTIVE_FILES_CHANGED (product activity print branch):
+  - `src/components/ExecutiveStoreAnalytics.tsx`
+  - `src/components/ProductActivityPrintSheet.tsx`
+  - `src/lib/product-activity-print.ts`
+  - `src/styles.css`
+  - `src/test/product-activity-report-ui.test.tsx`
+- IMPLEMENTATION_RESULT: DLV-011 remains PARTIAL. PR #331 and #332 are merged. Product activity print work is implemented on branch `feat/dlv-011-product-activity-print`: full-report allowlist projection, A4 landscape Arabic RTL template, body print-mode isolation, disabled print for loading/truncated/inconsistent data, all source rows regardless of UI filter/sort/page, and unknown stock preserved as unknown. The existing product-activity Excel implementation is untouched. This branch has 10 commits ahead of the merge base due file-per-commit updates; it has not yet passed CI and has no PR.
 - TESTS_RUN_WITH_RESULTS:
-  - PR #332 exact head `254b2c2b430f91cabb418b9166f0241e8323f43c`: Core [41240011959 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011959); P2 [41240011938 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011938). P2 local Supabase/Chromium acceptance passed order persistence and cross-tenant denial, returns/credit memo, Onyx XLSX, finance/task print, customer-manager authorization/privacy/audit, and device-session immediate revocation.
-  - PR #332 merge SHA `605e212ddc9c58e0e2601ecf48fe325c7f15987a`: post-merge Core [41240395534 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395534) (35/35 steps); P2 [41240395532 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395532) (local Supabase/Chromium 40/40 steps; public UI smoke and authenticated E2E infrastructure PASS); branch cleanup [41240395555 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395555).
-  - PR #333 exact head `27fca27853493381ca94e1634472c3edef764e18`: Core [41240921259](https://github.com/Report-Engainall/Nasr1/actions/runs/41240921259) IN_PROGRESS; P2 [41240921279](https://github.com/Report-Engainall/Nasr1/actions/runs/41240921279) QUEUED. Do not merge until both pass on that exact head.
+  - PR #331: exact head `f845750e4a6a50d4e7c43a5f2d45a62883f0d52f`: Core [41238642737 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41238642737), P2 [41238642699 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41238642699). Merge SHA `64cb1abebaee6dd547cbb4b5b7818b76e20f3813`: post-merge Core [41239115663 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41239115663), P2 [41239115645 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41239115645), cleanup [41239115683 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41239115683).
+  - PR #332 exact head `254b2c2b430f91cabb418b9166f0241e8323f43c`: Core [41240011959 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011959), P2 [41240011938 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011938). Merge SHA `605e212ddc9c58e0e2601ecf48fe325c7f15987a`: post-merge Core [41240395534 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395534), P2 [41240395532 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395532), cleanup [41240395555 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395555). The P2 local Supabase/Chromium job completed successfully.
+  - Product activity branch head `54e6e669af87a1c086689fcd599813d4d8006ffb`: no CI has been launched yet; run focused Core + P2 only after final review and PR creation.
 - FAILED_OR_SKIPPED:
-  - PR #332 P2 hosted customer/order/tenant job was `SKIPPED`; local authenticated Chromium/Supabase proof passed. Hosted customer/order/tenant isolation is not proven.
-  - PR #333 gates are pending; no PASS is transferable from PR #332.
-  - Actual Onyx Pro target-version import, official WhatsApp delivery receipt, live free-AI provider response, production deploy/rollback/restore and owner sign-off remain external/unverified.
-- MERGE_STATUS: `PR #332 MERGED at 605e212ddc9c58e0e2601ecf48fe325c7f15987a; post-merge Core/P2/cleanup SUCCESS. PR #333 OPEN.`
-- BLOCKERS: DLV-011 remains PARTIAL. Hosted customer/order/tenant proof, live external integration receipts and production/owner acceptance evidence remain unproven.
+  - PR #331 and #332 hosted customer/order/tenant P2 job was `SKIPPED` due unavailable hosted test credentials. Local Supabase/Chromium acceptance passed. Hosted auth/tenant acceptance is not proven.
+  - Actual Onyx Pro target-version import, official WhatsApp delivery receipt, live free-AI provider response, production deploy/rollback/restore, and owner sign-off remain external/unverified.
+- MERGE_STATUS: `PR #331 MERGED at 64cb1ab; PR #332 MERGED at 605e212; post-merge Core/P2/cleanup on 605e212 SUCCESS; Product Activity branch pending PR`.
+- BLOCKERS: DLV-011 remains PARTIAL. Hosted customer/order/tenant proof and external integration/production evidence remain unproven. Product Activity print branch must pass Core and P2 on its exact PR head before merge.
 - NEXT_TASK_ID: `DLV-011-PRODUCT-ACTIVITY-PRINT`
-- NEXT_ACTION: Poll Core run `41240921259` and P2 run `41240921279` on exact head `27fca27853493381ca94e1634472c3edef764e18`. If either fails, inspect only the failing job/log and repair the root cause on the PR branch. If both pass, confirm PR #333 still targets current main ancestry, squash-merge with expected head SHA, then verify post-merge Core, P2 and cleanup on the exact merge SHA. The product-activity print unit must use the existing `StoreProductActivityReport`, print all rows independent of filter/search/pagination, reject truncated or count-inconsistent reports, preserve unknown inventory as unavailable, omit product IDs/cost/margin/tenant metadata, retain the existing XLSX unchanged, and render A4 landscape RTL with repeated table headings. Update this checkpoint and the DLV-011 matrix row after the merge, then continue the next uncovered DLV-011 role/template without repeating closed templates.
-- UPDATED_AT: `2026-10-31T20:53:08.974Z`
+- NEXT_ACTION: Review `src/lib/product-activity-print.ts` against the authoritative summary reconciliation in `src/lib/product-activity-report.ts`; confirm all four activity classes sum to `total_products`, unknown-stock count equals the complete returned rows, 30/90-day bounds match the server contract, and `truncated` or any incomplete result disables print. Inspect `src/components/ExecutiveStoreAnalytics.tsx` to confirm `printProjection`, `printFullReport`, and the portal exist only inside `ProductActivityReport`; verify the portal is a direct child of body, body print mode hides the app root to avoid blank pages, and `afterprint` restores any prior mode. Run/validate the exact Product Activity UI tests for every row despite UI filtering/pagination, IDs excluded, null stock preserved, truncated report disabled, no report disabled, and print-mode restoration. Compare branch `54e6e669af87a1c086689fcd599813d4d8006ffb` with base `605e212ddc9c58e0e2601ecf48fe325c7f15987a`; open a PR only after the five-file diff is coherent. Require Core and P2 SUCCESS on the exact PR head; repair only evidenced failures and rerun on the new exact head. Squash-merge with expected-head SHA only after both pass; verify post-merge Core/P2/cleanup on merge SHA; update this checkpoint and DLV-011 matrix row, then continue the next uncovered role/template.
+- UPDATED_AT: `2026-10-31T20:53:47.484Z`
+
 
 ---
 
