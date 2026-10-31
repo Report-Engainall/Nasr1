@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { BarChart3, FileSpreadsheet, Package, Printer, RefreshCw, ShoppingCart, TrendingUp, Users } from 'lucide-react';
 import { Empty, ErrorBox, Loading } from '@/components/AdminPages';
 import { fetchStoreExecutiveAnalytics, fetchStoreProductActivityReport } from '@/lib/api';
@@ -7,6 +8,8 @@ import { buildSalesForecast, calculateWhatIfSales } from '@/lib/sales-forecast';
 import { formatCurrency, formatDateShort, formatNumber } from '@/lib/format';
 import { PRODUCT_ACTIVITY_STATUS_LABELS, filterProductActivityRows, paginateProductActivityRows, sortProductActivityRows, type ProductActivityStatus, type ProductActivityRowsSort } from '@/lib/product-activity-report';
 import { downloadProductActivityWorkbookXlsx } from '@/lib/product-activity-xlsx';
+import { projectProductActivityPrintDocument } from '@/lib/product-activity-print';
+import { ProductActivityPrintSheet } from '@/components/ProductActivityPrintSheet';
 import { downloadExecutiveAnalyticsWorkbookXlsx } from '@/lib/executive-analytics-xlsx';
 import { projectExecutiveAnalyticsPrintDocument } from '@/lib/executive-analytics-print';
 import { ExecutiveAnalyticsPrintSheet } from '@/components/ExecutiveAnalyticsPrintSheet';
@@ -277,6 +280,19 @@ export function ProductActivityReport({ reportOverride }: ProductActivityReportP
   const [sort, setSort] = useState<ProductActivityRowsSort>('days_since_sale_desc');
   const [page, setPage] = useState(1);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
+  const printProjection = useMemo(() => {
+    if (!data || data.truncated) return { document: null, error: null };
+    try {
+      return { document: projectProductActivityPrintDocument(data), error: null };
+    } catch (cause) {
+      return {
+        document: null,
+        error: cause instanceof Error ? cause.message : 'تعذر تجهيز تقرير حركة الأصناف للطباعة.',
+      };
+    }
+  }, [data]);
+  const printDocument = printProjection.document;
   const filteredRows = useMemo(
     () => filterProductActivityRows(data?.products ?? [], filter, search),
     [data?.products, filter, search],
@@ -298,6 +314,32 @@ export function ProductActivityReport({ reportOverride }: ProductActivityReportP
       downloadProductActivityWorkbookXlsx(data);
     } catch (cause) {
       setExportError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف Excel.');
+    }
+  }
+
+  function printFullReport() {
+    if (!data || !printDocument || typeof window === 'undefined' || typeof document === 'undefined' || typeof window.print !== 'function') {
+      setPrintError('الطباعة غير متاحة؛ يجب تحميل تقرير كامل وصالح أولاً.');
+      return;
+    }
+    setPrintError(null);
+    const body = document.body;
+    const previousMode = body.getAttribute('data-print-mode');
+    body.setAttribute('data-print-mode', 'product-activity');
+    let restored = false;
+    const restorePrintMode = () => {
+      if (restored) return;
+      restored = true;
+      if (previousMode === null) body.removeAttribute('data-print-mode');
+      else body.setAttribute('data-print-mode', previousMode);
+      window.removeEventListener('afterprint', restorePrintMode);
+    };
+    window.addEventListener('afterprint', restorePrintMode, { once: true });
+    try {
+      window.print();
+    } catch {
+      restorePrintMode();
+      setPrintError('تعذر فتح نافذة الطباعة في هذا المتصفح.');
     }
   }
 
@@ -329,6 +371,9 @@ export function ProductActivityReport({ reportOverride }: ProductActivityReportP
           </button>
           <button className="btn primary" type="button" onClick={exportWorkbook} disabled={loading || !data || data.products.length === 0 || data.truncated}>
             تنزيل Excel كامل (.xlsx)
+          </button>
+          <button className="btn secondary" type="button" onClick={printFullReport} disabled={loading || !data || !printDocument}>
+            <Printer size={16} /> طباعة التقرير الكامل / PDF
           </button>
         </div>
       </div>
@@ -383,6 +428,8 @@ export function ProductActivityReport({ reportOverride }: ProductActivityReportP
 
           {data.truncated ? <p className="report-note" role="alert" style={{ marginTop: 12 }}>تجاوز العدد حد التقرير البالغ 5000 صنف؛ عُطّل التصدير حتى لا ينتج ملف جزئي على أنه كامل.</p> : null}
           {exportError ? <ErrorBox message={exportError} /> : null}
+          {printProjection.error ? <ErrorBox message={printProjection.error} /> : null}
+          {printError ? <ErrorBox message={printError} /> : null}
 
           {pagination.rows.length === 0 ? <Empty text="لا توجد أصناف مطابقة للبحث وحالة الحركة المحددة." /> : (
             <div style={{ overflowX: 'auto', maxWidth: '100%', minWidth: 0, marginTop: 12 }}>
@@ -417,6 +464,7 @@ export function ProductActivityReport({ reportOverride }: ProductActivityReportP
           </p>
         </>
       )}
+      {printDocument && typeof document !== 'undefined' ? createPortal(<ProductActivityPrintSheet document={printDocument} />, document.body) : null}
     </section>
   );
 }
