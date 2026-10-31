@@ -145,14 +145,18 @@ describe("Admin Customer 360 source-lineage display", () => {
     mocks.fetchSummary.mockReset().mockResolvedValue(summary);
   });
 
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it("does not invent invoice numbers or currencies for payments outside the recent-20 invoice window", async () => {
     render(<AdminCustomer360 customer={customer} onClose={vi.fn()} />);
 
     const dialog = await screen.findByRole("dialog", { name: /ملف العميل 360/ });
-    const unknownAmount = await within(dialog).findByText("غير متاح — عملة الفاتورة خارج أحدث 20 فاتورة");
-    const paymentRow = unknownAmount.closest("tr");
+    const unknownAmounts = await within(dialog).findAllByText("غير متاح — عملة الفاتورة خارج أحدث 20 فاتورة");
+    const unknownAmount = unknownAmounts.find((element) => !element.closest(".customer-360-print-sheet"));
+    const paymentRow = unknownAmount?.closest("tr");
 
     expect(paymentRow).not.toBeNull();
     expect(paymentRow).toHaveTextContent("خارج أحدث 20 فاتورة");
@@ -176,7 +180,7 @@ describe("Admin Customer 360 source-lineage display", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "ملف العميل 360" });
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("العميل غير موجود في المؤسسة الحالية؛ تم إيقاف عرض ملفه.");
-    expect(within(dialog).queryByText("مؤسسة الاختبار")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("heading", { name: "مؤسسة الاختبار" })).not.toBeInTheDocument();
     expect(within(dialog).queryByText("اسم جهة الاتصال السري")).not.toBeInTheDocument();
     expect(within(dialog).queryByText("777000111")).not.toBeInTheDocument();
     expect(mocks.fetchSummary).not.toHaveBeenCalled();
@@ -195,7 +199,7 @@ describe("Admin Customer 360 source-lineage display", () => {
     expect(within(dialog).queryByText("مؤسسة الاختبار")).not.toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole("button", { name: /تحديث/ }));
-    expect(await within(dialog).findByText("مؤسسة الاختبار")).toBeInTheDocument();
+    expect(await within(dialog).findByRole("heading", { name: "مؤسسة الاختبار" })).toBeInTheDocument();
     expect(mocks.fetchSummary).toHaveBeenCalledTimes(2);
   });
 
