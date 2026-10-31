@@ -37,7 +37,8 @@ describe("scheduled cash-flow forecast",()=>{
   const r=buildCashflowForecast(base([unscoped]));
   expect(r.points.every(p=>p.projectedBalance===null&&p.status==="NEEDS_REVIEW")).toBe(true);
   expect(r.points.every(p=>p.warnings.includes("UNSCOPED_SCHEDULE_CURRENCY"))).toBe(true);
-  it("shows verified scheduled movements without inventing an opening or projected balance",()=>{
+ });
+ it("shows verified scheduled movements without inventing an opening or projected balance",()=>{
   const result=buildCashflowForecast({...base([entry("unfunded-in","INFLOW","2026-11-01",20)]),openingBalances:[]});
   const point=result.points.find(item=>item.currency==="YER"&&item.horizonDays===7);
   expect(point).toMatchObject({
@@ -48,5 +49,4 @@ describe("scheduled cash-flow forecast",()=>{
   expect(point?.warnings).toContain("PROJECTED_BALANCE_WITHHELD");
   expect(result.warnings).toContain("SCHEDULE_CURRENCY_WITHOUT_OPENING_BALANCE:YER");
  });
-});
 });
