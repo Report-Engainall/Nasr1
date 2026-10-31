@@ -134,8 +134,8 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
           position: style.position,
           overflowX: style.overflowX,
         };
-      }).filter((element) => element.width > window.innerWidth + 1 || (element.right > window.innerWidth + 1 && element.position !== "fixed"))
-        .sort((a, b) => b.right - a.right).slice(0, 12),
+      }).filter((element) => element.width > window.innerWidth + 1 || element.left < -1 || (element.right > window.innerWidth + 1 && element.position !== "fixed"))
+        .sort((a, b) => Math.max(Math.abs(b.left), Math.abs(b.right - window.innerWidth)) - Math.max(Math.abs(a.left), Math.abs(a.right - window.innerWidth))).slice(0, 12),
     }));
     expect(openMetrics.documentWidth, "opened admin drawer viewport offenders: " + JSON.stringify(openMetrics.offenders))
       .toBeLessThanOrEqual(openMetrics.viewportWidth + 1);
@@ -181,6 +181,7 @@ async function assertRouteViewport(page: Page, route: string, width: number) {
       })
       .filter((element) =>
         element.width > viewportWidth + 1 ||
+        element.left < -1 ||
         (element.right > viewportWidth + 1 && element.position !== "fixed")
       )
       .sort((a, b) => b.right - a.right || b.width - a.width)
