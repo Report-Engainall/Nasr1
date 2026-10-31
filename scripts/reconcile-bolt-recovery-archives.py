@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Audit the published Bolt recovery ZIPs in an isolated GitHub Actions runner."""
 from __future__ import annotations
-import argparse, csv, difflib, hashlib, io, json, os, re, stat, tempfile, time, urllib.request
+import argparse, csv, difflib, hashlib, io, json, logging, os, re, stat, tempfile, time, urllib.request
 import zipfile
 from collections import Counter
 from pathlib import Path, PurePosixPath
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "artifacts" / "bolt-recovery-reconciliation"
@@ -141,6 +143,7 @@ def download(spec):
                     name, response.status, len(data), response.headers.get("Content-Type", "")), flush=True)
             return data, url, ""
         except Exception as exc:
+            logging.warning("Archive download attempt failed for %s: %s", name, exc, exc_info=True)
             last = "{}: {}".format(type(exc).__name__, exc)
             print("DOWNLOAD_ERROR archive={} attempt={} url={} error={}".format(name, attempt, url, last), flush=True)
             if attempt < 3: time.sleep(attempt)
@@ -311,6 +314,7 @@ def main():
                     print("ZIP_VALIDATION_PASS name={} members={} total_uncompressed_bytes={}".format(
                         name, member_count, sum(i.file_size for i in infos)), flush=True)
             except Exception as exc:
+                logging.warning("Archive validation or safe extraction failed for %s: %s", name, exc, exc_info=True)
                 row["status"] = "INTEGRITY_OR_SAFE_EXTRACTION_FAILED"
                 row["exact_error"] = "{}: {}".format(type(exc).__name__, exc)
                 row["notes"] = row["exact_error"]
@@ -353,7 +357,7 @@ def main():
         for filename in files:
             p = Path(current) / filename
             try: current_map[p.relative_to(ROOT).as_posix()] = p.read_bytes()
-            except OSError: pass
+            except OSError as exc: logging.debug("Skipping unreadable target file %s: %s", p, exc)
     manifest_path = ROOT / "docs/bolt-source-reconciliation/READY_TO_REUSE/PROVENANCE_MANIFEST.csv"
     ready_rows = []
     if manifest_path.is_file():

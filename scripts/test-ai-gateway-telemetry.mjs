@@ -2,9 +2,16 @@ import assert from "node:assert/strict";
 import postgres from "postgres";
 const connectionString=process.env.TEST_DATABASE_URL;if(!connectionString)throw new Error("TEST_DATABASE_URL is required for AI gateway telemetry acceptance.");
 const db=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
+async function reportCleanupFailure(label, action) {
+ try { await action(); }
+ catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write("AI_GATEWAY_CLEANUP_WARNING " + JSON.stringify({label,error:message}) + "\n");
+ }
+}
 async function expectFailure(label,action,pattern){
  await db.unsafe("SAVEPOINT expect_failure");let caught;try{await action();}catch(e){caught=e;}
- try{await db.unsafe("ROLLBACK TO SAVEPOINT expect_failure");await db.unsafe("RELEASE SAVEPOINT expect_failure");}catch{}
+ await reportCleanupFailure("expect_failure_savepoint", async () => { await db.unsafe("ROLLBACK TO SAVEPOINT expect_failure"); await db.unsafe("RELEASE SAVEPOINT expect_failure"); });
  assert.ok(caught,label+" should fail");if(pattern)assert.match(String(caught.message),pattern);
 }
 async function main(){
@@ -113,6 +120,6 @@ async function main(){
   );
   await db.unsafe("reset role");
   process.stdout.write("PASS AI usage telemetry: measured/partial/unknown, no-provider, idempotency, quota denial, service-only RPCs, and live-session revocation\\n");
- }finally{try{await db.unsafe("RESET ROLE");}catch{}try{await db.unsafe("ROLLBACK");}catch{}try{await db.unsafe("select set_config('request.jwt.claim.sub','',false)");}catch{}try{await db.unsafe("select set_config('request.jwt.claims','',false)");}catch{}}
+ }finally{await reportCleanupFailure("reset_role",()=>db.unsafe("RESET ROLE"));await reportCleanupFailure("rollback_transaction",()=>db.unsafe("ROLLBACK"));await reportCleanupFailure("clear_jwt_subject",()=>db.unsafe("select set_config('request.jwt.claim.sub','',false)"));await reportCleanupFailure("clear_jwt_claims",()=>db.unsafe("select set_config('request.jwt.claims','',false)"));}
 }
 try{await main();}catch(cause){const e=cause&&typeof cause==="object"?cause:{message:String(cause)};process.stderr.write("AI_GATEWAY_USAGE_TELEMETRY_ACCEPTANCE_FAILED "+JSON.stringify({name:e.name,message:e.message,code:e.code,detail:e.detail,hint:e.hint,where:e.where,constraint:e.constraint})+"\\n");throw cause;}finally{await db.end({timeout:5});}

@@ -29,7 +29,7 @@ const raceConnections = Array.from({ length: 4 }, () => postgres(url, { max: 1, 
 async function ident(connection, id, email) {
   // This helper is called between role-scoped commands. Seed the test session only
   // while using the privileged fixture role; application roles never write auth.sessions.
-  await connection.unsafe("reset role").catch(() => {});
+  await connection.unsafe("reset role").catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await connection.unsafe(
     "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI admin catalog session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
     [id],
@@ -49,87 +49,87 @@ async function cleanup() {
     "delete from public.audit_logs where organization_id=$1 and entity_id in " +
       "(select id from public.orders where organization_id=$1 and idempotency_key=$2)",
     [org, concurrentOrderKey],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.outbox_events where aggregate_id in " +
       "(select id from public.orders where organization_id=$1 and idempotency_key=$2)",
     [org, concurrentOrderKey],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.order_status_history where order_id in " +
       "(select id from public.orders where organization_id=$1 and idempotency_key=$2)",
     [org, concurrentOrderKey],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.order_items where order_id in " +
       "(select id from public.orders where organization_id=$1 and idempotency_key=$2)",
     [org, concurrentOrderKey],
-  ).catch(() => {});
-  await root.unsafe("delete from public.orders where organization_id=$1 and idempotency_key=$2", [org, concurrentOrderKey]).catch(() => {});
-  await root.unsafe("delete from public.customer_invoices where organization_id=$1 and invoice_number=any($2::text[])", [org, metricsInvoiceNumbers]).catch(() => {});
-  await root.unsafe("delete from public.products where organization_id=$1 and item_code=$2", [org, metricsUnknownStockCode]).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
+  await root.unsafe("delete from public.orders where organization_id=$1 and idempotency_key=$2", [org, concurrentOrderKey]).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
+  await root.unsafe("delete from public.customer_invoices where organization_id=$1 and invoice_number=any($2::text[])", [org, metricsInvoiceNumbers]).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
+  await root.unsafe("delete from public.products where organization_id=$1 and item_code=$2", [org, metricsUnknownStockCode]).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.orders where (organization_id=$1 and order_number=any($2::text[])) " +
       "or (organization_id=$3 and order_number=any($4::text[]))",
     [org, metricsOrderNumbers, otherOrg, [metricsForeignOrderNumber]],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.audit_logs where organization_id=$1 and entity_id in " +
       "(select id from public.products where organization_id=$1 and item_code = any($2::text[]))",
     [org, paginationCodes],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.products where organization_id=$1 and item_code = any($2::text[])",
     [org, paginationCodes],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
 
   await root.unsafe(
     "delete from public.audit_logs where organization_id=$1 and entity_id in " +
       "(select id from public.products where organization_id=$1 and item_code=$2 " +
       "union all select id from public.categories where organization_id=$1 and name=any($3::text[]))",
     [org, code, [name, renamedName, collisionName]],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.audit_logs where organization_id=$1 and entity_id in " +
       "(select id from public.products where organization_id=$1 and item_code=$2 " +
       "union all select id from public.categories where organization_id=$1 and name=$3)",
     [otherOrg, foreignCode, foreignName],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.products where (organization_id=$1 and item_code=$2) " +
       "or (organization_id=$3 and item_code=$4)",
     [org, code, otherOrg, foreignCode],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.categories where (organization_id=$1 and name=any($2::text[])) " +
       "or (organization_id=$3 and name=$4)",
     [org, [name, renamedName, collisionName], otherOrg, foreignName],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.audit_logs where organization_id=$1 and action in ('customer.tier_changed','customer.status_changed') and entity_id in " +
       "(select id from public.customers where organization_id=$1 and customer_code='CI-P1-CATALOG-LOCAL-CUSTOMER')",
     [org],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.customers where organization_id=$1 and customer_code='CI-P1-CATALOG-LOCAL-CUSTOMER'",
     [org],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.warehouses where organization_id=$1 and name='CI P1 Catalog Local Tenant Warehouse'",
     [org],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.profiles where email='ci-p1-foreign-profile@example.test'",
     [],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.warehouses where organization_id=$1 and name='CI P1 Cross Tenant Warehouse'",
     [otherOrg],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
   await root.unsafe(
     "delete from public.organizations where id=$1 and name='CI P1 Catalog Foreign Tenant'",
     [otherOrg],
-  ).catch(() => {});
+  ).catch((cleanupError) => { process.stderr.write("[admin-catalog-commands] fixture cleanup failed: " + String(cleanupError) + "\n"); });
 }
 
 async function main() {
@@ -1182,7 +1182,7 @@ try {
   process.exitCode = 1;
 } finally {
   for (const connection of [admin, customer, ...raceConnections]) {
-    try { await connection.unsafe("reset role"); } catch {}
+    try { await connection.unsafe("reset role"); } catch (cleanupError) { process.stderr.write("[admin-catalog-commands] reset role cleanup failed: " + String(cleanupError) + "\n"); }
     await connection.end();
   }
   try { await cleanup(); } catch (error) {

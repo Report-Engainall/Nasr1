@@ -488,10 +488,10 @@ async function main() {
       "PASS Onyx source evidence: tenant-scoped RPC/grants, source hash match and mismatch, unlinked snapshots, bounded external IDs, truncation flags, no invented sync proof, staff/customer/inactive/foreign-tenant denial.\n",
     );
   } finally {
-    try { await db.unsafe("reset role"); } catch {}
-    try { await db.unsafe("rollback"); } catch {}
-    try { await db.unsafe("select set_config('request.jwt.claim.sub','',false)"); } catch {}
-    try { await db.unsafe("select set_config('request.jwt.claims','',false)"); } catch {}
+    try { await db.unsafe("reset role"); } catch (cleanupError) { process.stderr.write("[onyx-source-evidence] reset role cleanup failed: " + String(cleanupError) + "\n"); }
+    try { await db.unsafe("rollback"); } catch (cleanupError) { process.stderr.write("[onyx-source-evidence] rollback cleanup failed: " + String(cleanupError) + "\n"); }
+    try { await db.unsafe("select set_config('request.jwt.claim.sub','',false)"); } catch (cleanupError) { process.stderr.write("[onyx-source-evidence] clear JWT subject failed: " + String(cleanupError) + "\n"); }
+    try { await db.unsafe("select set_config('request.jwt.claims','',false)"); } catch (cleanupError) { process.stderr.write("[onyx-source-evidence] clear JWT claims failed: " + String(cleanupError) + "\n"); }
   }
 }
 

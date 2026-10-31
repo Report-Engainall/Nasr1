@@ -40,19 +40,17 @@ function isExpectedShellMimeType(pathname, response) {
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(async (cache) => {
-        // Precache each asset independently: a missing optional manifest must not
-        // cancel caching the usable offline document and favicon.
-        await Promise.all(SHELL.map(async (url) => {
+      .then((cache) =>
+        Promise.all(SHELL.map(async (url) => {
           try {
             const response = await fetch(url);
             if (!response.ok || response.type !== 'basic' || !isExpectedShellMimeType(url, response)) return;
             await cache.put(url, response);
-          } catch {
-            // A missing or unexpected shell asset is non-fatal; other assets remain cached.
+          } catch (error) {
+            console.warn('[aghbari-sw] optional shell asset was not cached', { url, error });
           }
-        }));
-      })
+        })),
+      )
       .then(() => self.skipWaiting()),
   );
 });
@@ -64,6 +62,15 @@ self.addEventListener('activate', (event) => {
       .then(() => self.clients.claim()),
   );
 });
+
+async function cachedShellOrError() {
+  try {
+    return (await caches.match('/')) || Response.error();
+  } catch (error) {
+    console.error('[aghbari-sw] cached shell lookup failed', error);
+    return Response.error();
+  }
+}
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
@@ -88,7 +95,7 @@ self.addEventListener('fetch', (event) => {
           }
         }
         return response;
-      }).catch(async () => (await caches.match('/')) || Response.error()),
+      }).catch(cachedShellOrError),
     );
     return;
   }

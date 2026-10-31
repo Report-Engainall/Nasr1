@@ -395,8 +395,8 @@ async function main() {
     await db.unsafe("reset role");
     process.stdout.write("PASS Onyx inventory reconciliation: warehouse-scope gate, tenant isolation, manager boundary, preview no-write, preview/apply/rollback idempotency, reservation guard, atomic stale apply, audit movements, successful compensating rollback, and later-movement rollback refusal.\n");
   } finally {
-    try { await db.unsafe("RESET ROLE"); } catch {}
-    try { await db.unsafe("ROLLBACK"); } catch {}
+    try { await db.unsafe("RESET ROLE"); } catch (cleanupError) { process.stderr.write("[onyx-reconciliation] reset role cleanup failed: " + String(cleanupError) + "\n"); }
+    try { await db.unsafe("ROLLBACK"); } catch (cleanupError) { process.stderr.write("[onyx-reconciliation] rollback cleanup failed: " + String(cleanupError) + "\n"); }
   }
 }
 

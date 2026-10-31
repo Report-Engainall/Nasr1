@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Hash-check, CRC-check, and safely inspect published commerce source-release ZIP snapshots."""
 from __future__ import annotations
-import csv, hashlib, json, os, re, stat, tempfile, time, urllib.request, zipfile
+import csv, hashlib, json, logging, os, re, stat, tempfile, time, urllib.request, zipfile
 from collections import Counter
 from pathlib import Path, PurePosixPath
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "artifacts" / "source-release-snapshot-audit"
@@ -72,6 +74,7 @@ def download(spec):
                 print(f"DOWNLOAD_RESPONSE id={spec['id']} status={response.status} bytes={len(data)} content_type={response.headers.get('Content-Type','')}",flush=True)
             return data,url
         except Exception as error:
+            logging.warning("Source snapshot download attempt failed for %s: %s", spec["id"], error, exc_info=True)
             last=f"{type(error).__name__}: {error}"
             print(f"DOWNLOAD_ERROR id={spec['id']} attempt={attempt} url={url} error={last}",flush=True)
             if attempt<3: time.sleep(attempt*2)
@@ -131,7 +134,7 @@ def main():
         for name in files:
             p=Path(current)/name
             try: active[p.relative_to(ROOT).as_posix()]=sha256(p.read_bytes())
-            except OSError: pass
+            except OSError as error: logging.debug("Skipping unreadable active target file %s: %s", p, error)
 
     manifest=[]; members=[]; pair_diff=[]; target_diff=[]; errors=[]
     all_hashes={}; selected_total=0
@@ -167,6 +170,7 @@ def main():
                             by_path[raw]={"sha256":digest,"size":size,"status":status}
                             members.append({"snapshot_id":spec["id"],"tag":spec["tag"],"member_path":raw,"size_bytes":size,"sha256":digest,"selected_source_extracted":"YES" if dest is not None else "NO","member_status":status})
                         except Exception as error:
+                            logging.warning("Snapshot member validation failed for %s/%s: %s", spec["id"], raw, error, exc_info=True)
                             detail=f"{type(error).__name__}: {error}"
                             errors.append(f"{spec['id']} member {raw}: {detail}")
                             members.append({"snapshot_id":spec["id"],"tag":spec["tag"],"member_path":raw,"size_bytes":info.file_size,"sha256":"","selected_source_extracted":"NO","member_status":"READ_OR_CRC_FAILED:"+detail})
@@ -176,6 +180,7 @@ def main():
                     all_hashes[spec["id"]]=by_path
                     print(f"SNAPSHOT_ZIP_VALIDATION id={spec['id']} members={len(infos)} uncompressed_bytes={total} extracted_source={selected} status={row['status']}",flush=True)
             except Exception as error:
+                logging.warning("Snapshot archive validation failed for %s: %s", spec["id"], error, exc_info=True)
                 detail=f"{type(error).__name__}: {error}"
                 errors.append(f"{spec['id']}: {detail}")
                 row["status"]="DOWNLOAD_OR_INTEGRITY_FAILED"; row["exact_error"]=detail
