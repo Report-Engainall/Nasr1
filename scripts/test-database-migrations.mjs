@@ -6566,12 +6566,75 @@ async function main() {
   process.stdout.write("PASS general ledger: chart idempotency, exact two-decimal amounts, balanced draft/post, replay safety, audited draft cancellation, trial balance and tenant/role isolation\\n");
 
 
-  // REF-CASHFLOW-AGGREGATE-001 — exact tenant-bound scheduled receivables contract.
+  // REF-CASHFLOW-AGGREGATE-001 — isolated tenant fixture, as-of cutoff and fail-closed schedule.
+  const intelOrganizationId = randomUUID();
+  const intelAuthUserId = randomUUID();
+  const intelProfileId = randomUUID();
+  const intelCustomerId = randomUUID();
   const intelOrderId = randomUUID();
   const intelInvoiceId = randomUUID();
   const intelPaymentId = randomUUID();
   const intelMissingDueOrderId = randomUUID();
   const intelMissingDueInvoiceId = randomUUID();
+  const intelForeignCustomerId = randomUUID();
+  const intelForeignOrderId = randomUUID();
+  const intelForeignInvoiceId = randomUUID();
+
+  await db.unsafe(
+    "insert into public.organizations(id,name,currency) values($1,'CI Intelligence Tenant','YER')",
+    [intelOrganizationId],
+  );
+  await db.unsafe(
+    "insert into auth.users(id,email,email_confirmed_at) values($1,'ci-intelligence-admin@example.test',now())",
+    [intelAuthUserId],
+  );
+  await db.unsafe(
+    "insert into public.profiles(id,auth_user_id,organization_id,full_name,email,is_active) values($1,$2,$3,'CI Intelligence Admin','ci-intelligence-admin@example.test',true)",
+    [intelProfileId,intelAuthUserId,intelOrganizationId],
+  );
+  await db.unsafe(
+    "insert into public.user_roles(profile_id,role) values($1,'admin')",
+    [intelProfileId],
+  );
+  await db.unsafe(
+    "insert into public.customers(id,organization_id,profile_id,customer_code,business_name,contact_name,phone,email,tier,credit_limit,current_balance,status,approved_at) values($1,$2,$3,'CI-INTEL-CUSTOMER','Confidential Intelligence Customer','Private Contact','7778889999','private-intel-customer@example.test','retail',100000,0,'approved',now())",
+    [intelCustomerId,intelOrganizationId,intelProfileId],
+  );
+  await db.unsafe(
+    "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,created_by) values($1,$2,$3,$4,'approved',500,1,$5)",
+    [intelOrderId,intelOrganizationId,intelCustomerId,"CI-INTEL-"+randomUUID(),intelProfileId],
+  );
+  await db.unsafe(
+    "insert into public.customer_invoices(id,organization_id,customer_id,order_id,invoice_number,status,issued_at,due_at,currency,subtotal,tax_amount,total_amount) values($1,$2,$3,$4,$5,'partially_paid',now()-interval '2 minutes',now()+interval '10 days','YER',500,0,500)",
+    [intelInvoiceId,intelOrganizationId,intelCustomerId,intelOrderId,"CI-INTEL-"+randomUUID()],
+  );
+  await db.unsafe(
+    "insert into public.customer_payments(id,organization_id,customer_id,invoice_id,amount,payment_method,paid_at,created_by) values($1,$2,$3,$4,125,'transfer',now()-interval '1 minute',$5)",
+    [intelPaymentId,intelOrganizationId,intelCustomerId,intelInvoiceId,intelProfileId],
+  );
+  await db.unsafe(
+    "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,created_by) values($1,$2,$3,$4,'approved',100,1,$5)",
+    [intelMissingDueOrderId,intelOrganizationId,intelCustomerId,"CI-INTEL-"+randomUUID(),intelProfileId],
+  );
+  await db.unsafe(
+    "insert into public.customer_invoices(id,organization_id,customer_id,order_id,invoice_number,status,issued_at,due_at,currency,subtotal,tax_amount,total_amount) values($1,$2,$3,$4,$5,'issued',now()-interval '2 minutes',null,'YER',100,0,100)",
+    [intelMissingDueInvoiceId,intelOrganizationId,intelCustomerId,intelMissingDueOrderId,"CI-INTEL-"+randomUUID()],
+  );
+
+  // Same-shaped foreign-tenant invoice must never enter this tenant's schedule.
+  await db.unsafe(
+    "insert into public.customers(id,organization_id,profile_id,customer_code,business_name,tier,status) values($1,$2,$3,'CI-INTEL-FOREIGN','Foreign Intelligence Customer','retail','approved')",
+    [intelForeignCustomerId,otherOrganizationId,foreignProfileId],
+  );
+  await db.unsafe(
+    "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,created_by) values($1,$2,$3,$4,'approved',999,1,$5)",
+    [intelForeignOrderId,otherOrganizationId,intelForeignCustomerId,"CI-INTEL-FOREIGN-"+randomUUID(),foreignProfileId],
+  );
+  await db.unsafe(
+    "insert into public.customer_invoices(id,organization_id,customer_id,order_id,invoice_number,status,issued_at,due_at,currency,subtotal,tax_amount,total_amount) values($1,$2,$3,$4,$5,'issued',now()-interval '2 minutes',now()+interval '8 days','YER',999,0,999)",
+    [intelForeignInvoiceId,otherOrganizationId,intelForeignCustomerId,intelForeignOrderId,"CI-INTEL-FOREIGN-"+randomUUID()],
+  );
+
   const intelAsOf = (await db.unsafe(
     "select now()::text as as_of, current_date::text as from_day, (current_date+30)::text as to_day",
   ))[0];
@@ -6582,60 +6645,40 @@ async function main() {
     asOf: intelAsOf.as_of,
     currency: "YER",
   };
-  await db.unsafe(
-    "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,created_by) values($1,$2,$3,$4,'approved',500,1,$5)",
-    [intelOrderId,organizationId,customerOneId,"CI-INTEL-"+randomUUID(),staffProfileId],
-  );
-  await db.unsafe(
-    "insert into public.customer_invoices(id,organization_id,customer_id,order_id,invoice_number,status,issued_at,due_at,currency,subtotal,tax_amount,total_amount) values($1,$2,$3,$4,$5,'partially_paid',now(),now()+interval '10 days','YER',500,0,500)",
-    [intelInvoiceId,organizationId,customerOneId,intelOrderId,"CI-INTEL-"+randomUUID()],
-  );
-  await db.unsafe(
-    "insert into public.customer_payments(id,organization_id,customer_id,invoice_id,amount,payment_method,paid_at,created_by) values($1,$2,$3,$4,125,'transfer',now(),$5)",
-    [intelPaymentId,organizationId,customerOneId,intelInvoiceId,staffProfileId],
-  );
-  await db.unsafe(
-    "insert into public.orders(id,organization_id,customer_id,order_number,status,total_amount,total_items,created_by) values($1,$2,$3,$4,'approved',100,1,$5)",
-    [intelMissingDueOrderId,organizationId,customerOneId,"CI-INTEL-"+randomUUID(),staffProfileId],
-  );
-  await db.unsafe(
-    "insert into public.customer_invoices(id,organization_id,customer_id,order_id,invoice_number,status,issued_at,due_at,currency,subtotal,tax_amount,total_amount) values($1,$2,$3,$4,$5,'issued',now(),null,'YER',100,0,100)",
-    [intelMissingDueInvoiceId,organizationId,customerOneId,intelMissingDueOrderId,"CI-INTEL-"+randomUUID()],
-  );
-
   const intelAuditBefore = (await db.unsafe(
     "select count(*)::integer as count from public.audit_logs where organization_id=$1",
-    [organizationId],
+    [intelOrganizationId],
   ))[0].count;
+
   await db.unsafe("reset role");
-  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await setIdentity(intelAuthUserId,"ci-intelligence-admin@example.test");
   await db.unsafe("set role authenticated");
   const intelResult = (await db.unsafe(
     "select public.get_intelligence_aggregate($1::jsonb) as result",
     [db.json(intelRequest)],
   ))[0].result;
   assert.equal(intelResult.status,"PARTIAL",
-    "the aggregate must disclose that the second outstanding invoice has no due date");
+    "the aggregate must disclose the outstanding invoice with no due date");
   assert.equal(intelResult.sideEffects,"NONE");
   assert.equal(intelResult.authorization.tenantScope,"SERVER_RESOLVED_AUTHENTICATED_TENANT");
   assert.equal(intelResult.authorization.effectiveRole,"admin");
   assert.equal(intelResult.cashflowSchedule.status,"NEEDS_REVIEW");
   assert.deepEqual(intelResult.cashflowSchedule.entries,[],
-    "one unplaced outstanding invoice must suppress the entire schedule rather than silently omit it");
+    "one unplaced outstanding invoice must suppress the whole schedule");
   assert.equal(intelResult.metrics.length,0);
   assert.equal(intelResult.evidenceRecords.length,0,
     "withheld schedule must not emit a misleading partial evidence passport");
   const intelAuditAfter = (await db.unsafe(
     "select count(*)::integer as count from public.audit_logs where organization_id=$1",
-    [organizationId],
+    [intelOrganizationId],
   ))[0].count;
-  assert.equal(intelAuditAfter,intelAuditBefore,"aggregate RPC is read-only and must not create audit side effects");
+  assert.equal(intelAuditAfter,intelAuditBefore,"aggregate RPC must not create audit side effects");
 
-  // Remove only the deliberately incomplete fixture, then verify the complete schedule math and lineage.
+  // Remove only the deliberately incomplete invoice and verify the isolated complete tenant.
   await db.unsafe("reset role");
   await db.unsafe("delete from public.customer_invoices where id=$1",[intelMissingDueInvoiceId]);
   await db.unsafe("delete from public.orders where id=$1",[intelMissingDueOrderId]);
-  await setIdentity(staffAuthUserId,"admin@aghbari.ye");
+  await setIdentity(intelAuthUserId,"ci-intelligence-admin@example.test");
   await db.unsafe("set role authenticated");
   const intelComplete = (await db.unsafe(
     "select public.get_intelligence_aggregate($1::jsonb) as result",
@@ -6658,23 +6701,44 @@ async function main() {
   assert.equal(Number(intelComplete.metrics[0].value),375);
   assert.equal(intelComplete.evidenceRecords.length,2);
   const intelSerialized = JSON.stringify(intelComplete);
-  assert.equal(intelSerialized.includes("ci-customer-one@example.test"),false,
-    "intelligence aggregate must not expose customer email");
-  assert.equal(intelSerialized.includes("7771111111"),false,
-    "intelligence aggregate must not expose customer phone");
-  assert.equal(intelSerialized.includes("CI Customer One"),false,
-    "intelligence aggregate must not expose customer display name");
+  assert.equal(intelSerialized.includes("private-intel-customer@example.test"),false,
+    "aggregate must not expose customer email");
+  assert.equal(intelSerialized.includes("7778889999"),false,
+    "aggregate must not expose customer phone");
+  assert.equal(intelSerialized.includes("Confidential Intelligence Customer"),false,
+    "aggregate must not expose customer display name");
+
+  // A payment recorded after the declared as-of timestamp must not reduce the historical balance.
+  const futurePaymentId = randomUUID();
+  await db.unsafe("reset role");
+  await db.unsafe(
+    "insert into public.customer_payments(id,organization_id,customer_id,invoice_id,amount,payment_method,paid_at,created_by) values($1,$2,$3,$4,50,'cash',$5::timestamptz+interval '1 hour',$6)",
+    [futurePaymentId,intelOrganizationId,intelCustomerId,intelInvoiceId,intelAsOf.as_of,intelProfileId],
+  );
+  await setIdentity(intelAuthUserId,"ci-intelligence-admin@example.test");
+  await db.unsafe("set role authenticated");
+  const intelAsOfReplay = (await db.unsafe(
+    "select public.get_intelligence_aggregate($1::jsonb) as result",
+    [db.json({...intelRequest,requestId:randomUUID()})],
+  ))[0].result;
+  assert.equal(Number(intelAsOfReplay.cashflowSchedule.entries[0].amount.value),375,
+    "payments after the as-of timestamp must not be included in historical balance");
+  assert.deepEqual(
+    intelAsOfReplay.cashflowSchedule.entries[0].amount.lineage.evidenceIds.sort(),
+    ["invoice:"+intelInvoiceId,"payment:"+intelPaymentId].sort(),
+    "future payment must not be included in as-of evidence lineage",
+  );
+
   const intelPrivileges = (await db.unsafe(
     "select has_function_privilege('anon','public.get_intelligence_aggregate(jsonb)','EXECUTE') as anon_can_execute, has_function_privilege('authenticated','public.get_intelligence_aggregate(jsonb)','EXECUTE') as authenticated_can_execute",
   ))[0];
   assert.equal(intelPrivileges.anon_can_execute,false);
   assert.equal(intelPrivileges.authenticated_can_execute,true);
-
   await db.unsafe("reset role");
   await setIdentity(operationsStaffAuthUserId,"ci-operations-staff@example.test");
   await db.unsafe("set role authenticated");
   await expectFailure(
-    "ordinary same-tenant staff cannot read finance intelligence aggregates",
+    "ordinary staff cannot read finance intelligence aggregates",
     () => db.unsafe("select public.get_intelligence_aggregate($1::jsonb)",[db.json(intelRequest)]),
     /finance permission required for intelligence aggregates/i,
     "42501",
@@ -6689,7 +6753,7 @@ async function main() {
     "42501",
   );
   await db.unsafe("reset role");
-  process.stdout.write("PASS REF-CASHFLOW-AGGREGATE-001: server-derived tenant/role, due-date completeness fail-closed, same-tenant payment netting, evidence lineage, PII exclusion, no side effects and staff/customer denial\n");
+  process.stdout.write("PASS REF-CASHFLOW-AGGREGATE-001: isolated tenant, as-of cutoff, future-payment exclusion, fail-closed completeness, foreign-tenant exclusion, evidence lineage, PII exclusion, no side effects and role denial\n");
 
   // NASR1-ORIGINAL-SPEC-ACCOUNTING-SOURCE-POSTING-INVOICES-PAYMENTS-006:
   // Verify source-driven journals, replay safety, balanced-line/source guards, tenant role boundaries and recorded tax.
