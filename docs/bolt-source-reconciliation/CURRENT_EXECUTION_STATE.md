@@ -1,40 +1,39 @@
-# LIVE EXECUTION CHECKPOINT — 2026-10-31 — CUSTOMER 360 MERGED; PRODUCT ACTIVITY PRINT PR #333 ACTIVE
+# LIVE EXECUTION CHECKPOINT — 2026-10-31 — PRODUCT ACTIVITY PRINT MERGED; GENERAL JOURNAL PRINT ACTIVE
 
-- CURRENT_MAIN_SHA: `54c647e9fbffa664d534b578352b2fa87f8c0d8c` (checkpoint/matrix commits only after product merge `605e212ddc9c58e0e2601ecf48fe325c7f15987a`).
-- LAST_COMPLETED_TASK_ID: `DLV-011-CUSTOMER360-PRINT`
-- LAST_COMPLETED_TASK: PR #332 merged at `605e212ddc9c58e0e2601ecf48fe325c7f15987a`. Staff Customer 360 A4/RTL output uses a dedicated body portal and allowlist; customer/contact PII, tenant data, internal IDs, cost and margin are excluded. Full order aggregates and per-currency ledger totals are preserved; latest-20 detail limits are disclosed; payment currency/amount is withheld outside the invoice detail window. Existing eight-sheet XLSX is unchanged.
-- ACTIVE_TASK_ID: `DLV-011-PRODUCT-ACTIVITY-PRINT`
-- ACTIVE_TASK_STATUS: `PR #333 OPEN — Core 41241449045 IN_PROGRESS; P2 41241448987 IN_PROGRESS; exact head 17425e75d6f67f4af6f570f91bc9ce510b062bb5`
-- BASE_SHA: `605e212ddc9c58e0e2601ecf48fe325c7f15987a`
-- HEAD_SHA: `17425e75d6f67f4af6f570f91bc9ce510b062bb5`
-- LAST_COMPLETED_FILES:
-  - `src/components/AdminCustomer360.tsx`
-  - `src/components/Customer360PrintSheet.tsx`
-  - `src/lib/customer-360-print.ts`
-  - `src/styles.css`
-  - `src/test/admin-customer-360-display.test.tsx`
+- CURRENT_MAIN_SHA: `f0d1f60ae9c8cd922379268a7c2c5a43fd684438` (latest product merge; PR #333 merged here).
+- LAST_COMPLETED_TASK_ID: `DLV-011-PRODUCT-ACTIVITY-PRINT`
+- LAST_COMPLETED_TASK: PR #333 merged by squash at `f0d1f60ae9c8cd922379268a7c2c5a43fd684438`. Added complete Product Activity/Dead Stock A4 landscape Arabic RTL print from existing server `StoreProductActivityReport`, independent of UI filtering/search/sort/pagination. Safe allowlist excludes product UUID/raw fields/tenant metadata/cost/margin, unknown stock remains unavailable, reporting windows and totals/row count/unknown-stock count validated; truncated/incomplete and >5000 rows rejected. Existing XLSX unchanged.
+- PREVIOUS_COMPLETED_TASK: PR #332 merged at `605e212ddc9c58e0e2601ecf48fe325c7f15987a`. Customer 360 staff A4/RTL print uses dedicated body portal and allowlist; contact/tenant/internal IDs/cost/margin excluded; full order and per-currency aggregates retained, bounded detail disclosed, payment values suppressed outside latest-20 invoice window. Existing XLSX unchanged.
+- ACTIVE_TASK_ID: `DLV-011-GENERAL-JOURNAL-PRINT`
+- ACTIVE_TASK_STATUS: `PR #334 OPEN — Core 41242957112 IN_PROGRESS (7/34 steps); P2 41242957086 IN_PROGRESS; exact head d7f052d1562a4e03808433146116c4a0bd6dc31d`
+- BASE_SHA: `f0d1f60ae9c8cd922379268a7c2c5a43fd684438`
+- HEAD_SHA: `d7f052d1562a4e03808433146116c4a0bd6dc31d`
 - ACTIVE_FILES_CHANGED:
-  - `src/components/ExecutiveStoreAnalytics.tsx`
-  - `src/components/ProductActivityPrintSheet.tsx`
-  - `src/lib/product-activity-print.ts`
+  - `src/components/GeneralLedgerWorkspace.tsx`
+  - `src/components/GeneralLedgerPrintSheet.tsx`
+  - `src/lib/general-journal-print.ts`
   - `src/styles.css`
-  - `src/test/product-activity-report-ui.test.tsx`
-- IMPLEMENTATION_RESULT: PR #333 supplies landscape A4 Arabic RTL print/PDF using the existing complete `StoreProductActivityReport`; all authorized server rows print independently of search/filter/sort/pagination. The print allowlist excludes product UUID/raw fields, cost, margin and tenant metadata; unknown stock remains unavailable; report window, four activity totals, unknown-stock count, row completeness and 5000 ceiling are validated; existing XLSX output is unchanged.
+  - `src/test/general-journal-print.test.ts`
+  - `src/test/general-ledger-statements-ui.test.tsx`
+- IMPLEMENTATION_RESULT: PR #334 adds individual journal voucher print (original/reversal/void) and complete income statement + balance sheet print. Uses existing finance permissions and tenant-scoped ledger/statement sources; no new RPC or write. Allowlist excludes entry/account/tenant UUIDs, source refs and actor metadata; validates dates/money/line counts, debit-credit balance and per-line sums; validates full account detail against income/balance totals and the accounting equation. Removes generic page print to avoid printing forms/workspace. Body Portal isolates print mode and restores afterprint.
 - TESTS_RUN_WITH_RESULTS:
-  - PR #332 exact head `254b2c2b430f91cabb418b9166f0241e8323f43c`: Core [41240011959 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011959), P2 [41240011938 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011938).
-  - PR #332 merge SHA `605e212ddc9c58e0e2601ecf48fe325c7f15987a`: post-merge Core [41240395534 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395534), P2 [41240395532 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395532), cleanup [41240395555 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395555). Core 35/35; P2 local Supabase/Chromium 40/40. Hosted tenant test skipped.
-  - PR #333 head `54e6e669af87a1c086689fcd599813d4d8006ffb`: Core [41240956851 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41240956851), P2 [41240956836 CANCELLED](https://github.com/Report-Engainall/Nasr1/actions/runs/41240956836). The Core failure was an old screen assertion finding the same product text in the UI and the body portal. Fixed by scoping existing screen assertions to the Product Activity panel.
-  - PR #333 intermediate head `eeb415d797b0fd169eb4060e44ddfa65ecc327a1`: Core [41241221732 FAILURE](https://github.com/Report-Engainall/Nasr1/actions/runs/41241221732), caused only by an assertion regex expecting `لا يتطابق` while the implemented validation correctly returns `لا يطابق`. The regex was corrected; no production validation was weakened. P2 on that head was cancelled by the subsequent test-only branch update.
-  - PR #333 current exact head `17425e75d6f67f4af6f570f91bc9ce510b062bb5`: Core [41241449045 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41241449045); P2 [41241448987 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41241448987). No failures recorded on this head.
+  - PR #332 exact head `254b2c2b430f91cabb418b9166f0241e8323f43c`: Core [41240011959 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011959); P2 [41240011938 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240011938).
+  - PR #332 merge SHA `605e212ddc9c58e0e2601ecf48fe325c7f15987a`: post-merge Core [41240395534 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395534; 35/35), P2 [41240395532 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395532; local Supabase/Chromium 40/40), cleanup [41240395555 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41240395555).
+  - PR #333 exact head `17425e75d6f67f4af6f570f91bc9ce510b062bb5`: Core [41241449045 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41241449045; 35/35), P2 [41241448987 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41241448987; local Supabase/Chromium 40/40); hosted acceptance skipped.
+  - PR #333 merge SHA `f0d1f60ae9c8cd922379268a7c2c5a43fd684438`: post-merge Core [41242012594 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41242012594; 35/35), P2 [41242012714 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41242012714; 40/40), cleanup [41242012572 SUCCESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41242012572).
+  - PR #334 initial head `6d5389fd7d255619448dc3de973b96309764d6e8`: P2 smoke build failed due Portal sibling outside root. Repaired by nesting Portal node inside workspace root while keeping body portal target.
+  - PR #334 exact current head `d7f052d1562a4e03808433146116c4a0bd6dc31d`: Core [41242957112 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41242957112); P2 [41242957086 IN_PROGRESS](https://github.com/Report-Engainall/Nasr1/actions/runs/41242957086). Core 7/34 steps, P2 public UI smoke 11/19, authenticated E2E infrastructure PASS 3/3; hosted tenant job SKIPPED. No current-head failure recorded.
 - FAILED_OR_SKIPPED:
-  - PR #332 hosted customer/order/tenant job was `SKIPPED`; local Supabase/Chromium passed. Hosted auth/tenant proof is not established.
-  - Earlier PR #333 heads failed as detailed above; both causes were test-only and fixed on current head. Do not carry their status forward.
-  - Live Onyx Pro import, official WhatsApp receipt, real free-AI provider response, hosted customer/tenant acceptance, production deploy/rollback/restore and owner acceptance remain unverified external requirements.
-- MERGE_STATUS: `PR #332 MERGED at 605e212; post-merge Core/P2/cleanup SUCCESS. PR #333 OPEN at 17425e75; Core/P2 IN_PROGRESS.`
-- BLOCKERS: DLV-011 remains PARTIAL. No merge of PR #333 until both gates are green on this exact head. Hosted tenant proof and external production integration evidence remain open.
-- NEXT_TASK_ID: `DLV-011-PRODUCT-ACTIVITY-PRINT`
-- NEXT_ACTION: Poll Core `41241449045` and P2 `41241448987` on exact head `17425e75d6f67f4af6f570f91bc9ce510b062bb5`. If either fails, inspect only the failed job/log and repair its root cause on the PR branch; rerun the required gates on the new exact head. If both pass, confirm PR #333 exact head and base ancestry, squash-merge with expected-head SHA, verify post-merge Core/P2/cleanup on the merge SHA, and update this checkpoint plus the DLV-011 matrix row. Then move to the next uncovered role/template. Do not repeat closed PRs #318, #324, #326, #327, #328, #329, #331 or #332.
-- UPDATED_AT: `2026-10-31T21:02:13.918Z`
+  - PR #334 prior head `6d5389f` failed smoke build for JSX Portal sibling; fixed in current head; do not transfer previous failure to current SHA.
+  - Hosted customer/order/tenant acceptance remains SKIPPED; no hosted tenant proof.
+  - Live Onyx Pro import, official WhatsApp receipt, real free-AI response, production deploy/rollback/restore and owner acceptance remain external/unverified.
+- MERGE_STATUS: `PR #332 and #333 MERGED. PR #334 OPEN at d7f052d; Core/P2 IN_PROGRESS.`
+- BLOCKERS: DLV-011 remains PARTIAL. Do not merge PR #334 until Core and P2 both pass on exact current head. Hosted tenant and external production proof remain open.
+- NEXT_TASK_ID: `DLV-011-GENERAL-JOURNAL-PRINT`
+- NEXT_ACTION: Poll Core `41242957112` and P2 `41242957086` for exact head `d7f052d1562a4e03808433146116c4a0bd6dc31d`. If either fails, inspect only that job log and fix root cause on PR branch, then rerun required gates on new exact head. If both pass, verify PR #334 head/base ancestry, squash-merge with expected-head SHA, then verify post-merge Core/P2/cleanup on merge SHA and update this checkpoint and DLV-011 matrix row. Continue next uncovered role/template without reopening PRs #318, #324, #326, #327, #328, #329, #331, #332 or #333.
+- UPDATED_AT: `2026-10-31`
+
+---
 
 ---
 
