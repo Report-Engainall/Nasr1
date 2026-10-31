@@ -103,7 +103,7 @@ export function Customer360PrintSheet({ document }: { document: Customer360Print
         <h2>آخر الطلبات ({formatNumber(document.recentOrders.length)} من {formatNumber(document.orderSummary.orderCount)})</h2>
         <p className="customer-360-print-note">التفاصيل أدناه لأحدث 20 طلبًا فقط؛ إجمالي الطلبات محسوب من سجل العميل الكامل.</p>
         <table><thead><tr><th>رقم الطلب</th><th>التاريخ</th><th>الحالة</th><th>الأصناف</th><th>الإجمالي</th></tr></thead><tbody>
-          {document.recentOrders.map((row, index) => <tr key={row.orderNumber + "-" + index}><td>{row.orderNumber}</td><td>{date(row.createdAt)}</td><td>{row.status}</td><td>{number(row.totalItems)}</td><td>{money(row.totalAmount, "YER")}</td></tr>)}
+          {document.recentOrders.map((row, index) => <tr key={row.orderNumber + "-" + index} data-testid="customer-360-print-order-row"><td>{row.orderNumber}</td><td>{date(row.createdAt)}</td><td>{row.status}</td><td>{number(row.totalItems)}</td><td>{money(row.totalAmount, "YER")}</td></tr>)}
           {document.recentOrders.length === 0 ? <tr><td colSpan={5}>لا توجد طلبات حديثة.</td></tr> : null}
         </tbody></table>
       </section>
