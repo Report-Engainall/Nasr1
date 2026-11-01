@@ -1,3 +1,27 @@
+# LIVE RESUME — 2026-11-01 (after P2 batch 10 exact-head acceptance)
+> This live snapshot supersedes the earlier resume block. Earlier session logs remain below for audit.
+
+- Repository: `Report-Engainall/Nasr1`; integration target `main`; product `متجر الأغبري | Aghbari Commerce`.
+- Current main SHA: `06aaccb0f8172f3f1b682c38885650ce136d0b90`.
+- Verified P2 merges: #338, #341, #342, #343, #344, #346, #347, #348, #349, #352. P1 #339 and P3 #340 are merged.
+- P2 PR #353 (batch 10): exact tested head `cb9ef2472ab09b940a9fd097b315ccde3273a5fe`; Core `41266413355`, P2 Playwright/local Supabase `41266413312`, Secret Scan `41266414257` all SUCCESS. Hosted tenant E2E SKIPPED/BLOCKED_EXTERNAL. P2 review COMMENT recorded; independent reviewer request `adnanabderab2016-sys` remains pending. The PR is ready to move to Ready for Review after the documentation-only acceptance record commit and exact-head reruns.
+- P2 PR #354 (batch 11 — LiquiditySummary): head `a5c4409325d3c4d09a91d701b340ebd32762f6bf`, Draft/open. Core `41266756061` and Playwright/local Supabase `41266756088` running; Secret Scan `41266756046` SUCCESS. Keep finding open until Core, Playwright and review finish; fresh scanner still required.
+- P2 PR #355 (batch 12 — CustomerActivationInvitationPage): head `301d12d58252cf84b955e5dfac9db7151076b895`, Draft/open. Core `41266906047`, Playwright `41266906134` running; Secret Scan `41266906046` SUCCESS. Keep finding open until exact-head gates finish.
+- P1 follow-up #350: head `b07bccf09a4c577fdc9b268dfbff8153b63bd062`, zero commits behind current main. Core `41266135010`, P2 Playwright `41266134959`, P1 targeted TS `41266134980`, full-history Gitleaks `41266134962`, P3 tooling `41266134976` all SUCCESS. Gitleaks 8.30.1 used full history (3,045/3,333 commits, 11 remote branch refs) and deleted-secret canary. P2 integration COMMENT recorded, but all allowlisted fingerprints still require independent reviewer confirmation; requested reviewer `adnanabderab2016-sys` has not approved. Do not merge yet.
+- P3 follow-up #351: Draft/open; branch head `23137b0618a4c5b652b7e72684126f6032d97a27`, base current main; latest stable run set was on a preceding head and cannot transfer. The latest observed P3 state is active branch churn; keep Draft until a quiet head has Core, P2 Playwright/local Supabase, PG17, tooling and Secret Scan terminal SUCCESS, then review the test helper changes and P3 ledger.
+- P2 baseline after #353 exact acceptance: TS0002 pending scan 1; TS0003 pending scan 25; active TS0003 open 79; archived reference scope-review 10; TS0010 not reproduced/not closed. Total baseline 239. No finding is called CLOSED without a fresh official CodeInspector scan.
+- Original CodeInspector PDF (21 pages) matched the 239 baseline rows one-to-one; its input SHA is absent, so `ORIGINAL_SCAN_SHA=UNKNOWN`. Fresh official scanner access is still pending. Repository-local TypeScript/CI checks do not substitute for CodeInspector.
+- No force push, history rewrite, branch-protection bypass, weakened assertion, or DB/RLS workaround was used. Hosted tenant E2E remains SKIPPED wherever the dedicated external test tenant is unavailable; never count it as PASS.
+
+## Immediate resume cursor
+1. Record the batch10 completion above and rerun exact-head gates on the documentation-updated PR #353 head before merging.
+2. Poll #354 and #355 exact-head Core/P2/Gitleaks; review and synchronize any branch that becomes behind after a merge; merge only after all gates and review.
+3. Keep #350 open until the independent security reviewer confirms all exact Gitleaks ignore fingerprints.
+4. Keep #351 Draft while the P3 head changes; after it stabilizes, run and verify all exact-head jobs, review the test-helper diff and P3 closeout CSV, then integrate.
+5. Continue the next P2 rows from BASELINE; run the official CodeInspector scanner when authorized access is available, preserving the original scan SHA as UNKNOWN.
+
+---
+
 # LIVE RESUME — 2026-11-01T02:44Z
 > This operational snapshot supersedes all earlier status paragraphs below. Historical entries are retained for audit only.
 

@@ -153,7 +153,8 @@
     "P2_batch_06_source": "081af02074061da2c35f1fdf7c5f293536794642",
     "P2_batch_07": "9be5ce76d3f264bb5e5c0e59412f675d485a8b2e",
     "P2_batch_10_source": "b3d7284bcf1b5cf380affca14a58347e79a5c8b4",
-    "P2_batch_10_test": "55e30e0af477e043086f4eb493a67b126504dd6f"
+    "P2_batch_10_test": "55e30e0af477e043086f4eb493a67b126504dd6f",
+    "P2_batch_10_tested_head": "cb9ef2472ab09b940a9fd097b315ccde3273a5fe"
   },
   "verification_policy": {
     "old_sha_pass_not_transferable": true,
@@ -2427,11 +2428,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_PENDING_EXACT_SHA_TESTS",
-      "test": "Existing dialog lifecycle/authorization/duplicate-submit tests retained; added confirmed-empty invitation history and expired-pending no-revoke tests. Exact-head Core/Vitest/P2/Secret Scan pending.",
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Retained original authorization, duplicate-submit, stale-customer, focus-trap and retry tests; added server-confirmed empty history and expired pending invitation no-revoke cases. Exact current-head Core 41266413355, P2 Playwright 41266413312 (including local Supabase order/tenant and local browser acceptance), and Secret Scan 41266414257 all SUCCESS. Hosted tenant E2E SKIPPED; fresh CodeInspector required.",
       "implementation_branch_sha": "b3d7284bcf1b5cf380affca14a58347e79a5c8b4",
-      "fixed_by_sha": null,
-      "evidence": "PR #353 opened from main 06aaccb0f8172f3f1b682c38885650ce136d0b90; source commit b3d7284bcf1b5cf380affca14a58347e79a5c8b4; test commit 55e30e0af477e043086f4eb493a67b126504dd6f. Not closed; exact SHA checks and fresh CodeInspector required.",
+      "fixed_by_sha": "b3d7284bcf1b5cf380affca14a58347e79a5c8b4",
+      "evidence": "PR #353 exact tested head cb9ef2472ab09b940a9fd097b315ccde3273a5fe. Core SUCCESS; public UI and local Supabase Playwright SUCCESS; Secret Scan SUCCESS. Hosted tenant E2E SKIPPED. This is pending fresh official CodeInspector confirmation, not CLOSED.",
       "occurrence": 1
     },
     {
@@ -5431,8 +5432,8 @@
     "as_of": "2026-11-01",
     "P2": {
       "TS0002_implemented_pending_fresh_scan": 1,
-      "TS0003_implemented_pending_fresh_scan": 24,
-      "TS0003_active_open": 80,
+      "TS0003_implemented_pending_fresh_scan": 25,
+      "TS0003_active_open": 79,
       "TS0003_archived_scope_review": 10,
       "TS0010": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
       "merged_pr": 338,
@@ -5441,7 +5442,9 @@
       "latest_code_commit": "b3d7284bcf1b5cf380affca14a58347e79a5c8b4",
       "latest_pr": 353,
       "latest_merged_pr": 352,
-      "TS0003_in_progress": 1
+      "TS0003_in_progress": 0,
+      "latest_tested_head": "cb9ef2472ab09b940a9fd097b315ccde3273a5fe",
+      "main_sha": "06aaccb0f8172f3f1b682c38885650ce136d0b90"
     },
     "verification": {
       "P2_core_run": 41257995450,
@@ -5459,7 +5462,11 @@
       "P2_batch_09_playwright_run": 41265432048,
       "P2_batch_09_secret_run": 41265432192,
       "P2_batch_09_hosted_tenant_e2e": "SKIPPED",
-      "P2_batch_10": "PENDING_EXACT_SHA"
+      "P2_batch_10": "PENDING_EXACT_SHA",
+      "P2_batch_10_core_run": 41266413355,
+      "P2_batch_10_playwright_run": 41266413312,
+      "P2_batch_10_secret_run": 41266414257,
+      "P2_batch_10_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL"
     },
     "main_sha": "06aaccb0f8172f3f1b682c38885650ce136d0b90"
   },
@@ -5508,6 +5515,14 @@
       "source_commit": "b3d7284bcf1b5cf380affca14a58347e79a5c8b4",
       "test_commit": "55e30e0af477e043086f4eb493a67b126504dd6f",
       "note": "CustomerActivationInvitationDialog TS0003 refactor submitted for exact-head validation; not closed."
+    },
+    {
+      "event": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "pr": 353,
+      "source_commit": "b3d7284bcf1b5cf380affca14a58347e79a5c8b4",
+      "test_commit": "55e30e0af477e043086f4eb493a67b126504dd6f",
+      "tested_head": "cb9ef2472ab09b940a9fd097b315ccde3273a5fe",
+      "note": "CustomerActivationInvitationDialog TS0003 refactor passed exact-head Core, P2 Playwright local Supabase and Secret Scan. Hosted tenant E2E was skipped. Keep finding pending fresh CodeInspector."
     }
   ],
   "main_sha": "06aaccb0f8172f3f1b682c38885650ce136d0b90"

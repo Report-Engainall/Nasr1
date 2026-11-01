@@ -234,3 +234,13 @@ Original CodeInspector scan SHA UNKNOWN. Main SHA 46f2fce34c09f64284fdbbe4182bd0
 - PR #350 exact P1 head `b07bccf09a4c577fdc9b268dfbff8153b63bd062`: P1 targeted TypeScript `41266134980` PASS, Gitleaks `41266134962` PASS, P3 tooling `41266134976` PASS; Core `41266135010` and P2 Playwright `41266134959` IN_PROGRESS.
 - PR #351 current head `318fb401ff14eb7192a769f25680d2a12b932874`: no exact-head full workflow set observed yet; prior-head checks remain non-transferable.
 - `ORIGINAL_SCAN_SHA=UNKNOWN`; fresh CodeInspector run remains PENDING. The 239-row manifest remains the authoritative historical baseline; do not equate CI with scanner verification.
+
+
+## P2 batch 10 exact-head completion — 2026-11-01
+
+- PR #353 exact tested head: `cb9ef2472ab09b940a9fd097b315ccde3273a5fe`.
+- Core `41266413355`: SUCCESS (unit tests, focused TypeScript, PostgreSQL 17 core acceptance, lint and build).
+- P2 Playwright `41266413312`: SUCCESS; local Supabase authenticated acceptance and local Chromium business paths completed. Hosted tenant E2E SKIPPED/BLOCKED_EXTERNAL, not PASS.
+- Secret Scan `41266414257`: SUCCESS.
+- Finding `CI31-TS0003-469733ea-1` moved from `IN_PROGRESS_PENDING_EXACT_SHA_TESTS` to `IMPLEMENTED_PENDING_FRESH_SCAN`; no finding is CLOSED pending official CodeInspector confirmation.
+- P2 totals after this implementation: 1 TS0002 pending scan; 25 TS0003 pending scan; 79 active TS0003 open; 10 archived scope-review; TS0010 not reproduced/not closed.
