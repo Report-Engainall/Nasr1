@@ -61,33 +61,41 @@ const ChartContainer = React.forwardRef<
 });
 ChartContainer.displayName = "Chart";
 
-const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
-  const colorConfig = Object.entries(config).filter(([, config]) => config.theme || config.color);
+type ChartColorConfigEntry = [string, ChartConfig[string]];
 
-  if (!colorConfig.length) {
-    return null;
-  }
-
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
-${colorConfig
-  .map(([key, itemConfig]) => {
-    const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color;
-    return color ? `  --color-${key}: ${color};` : null;
-  })
-  .join("\n")}
+function chartThemeVariable(
+  entry: ChartColorConfigEntry,
+  theme: keyof typeof THEMES,
+): string | null {
+  const [key, itemConfig] = entry;
+  const color = itemConfig.theme?.[theme] || itemConfig.color;
+  return color ? `  --color-${key}: ${color};` : null;
 }
-`,
-          )
-          .join("\n"),
-      }}
-    />
-  );
+
+function chartThemeBlock(
+  id: string,
+  theme: keyof typeof THEMES,
+  prefix: string,
+  colorConfig: ChartColorConfigEntry[],
+): string {
+  const variables = colorConfig
+    .map((entry) => chartThemeVariable(entry, theme))
+    .filter((value): value is string => value !== null);
+  return `${prefix} [data-chart=${id}] {
+${variables.join("\n")}
+}
+`;
+}
+
+function buildChartThemeCss(id: string, colorConfig: ChartColorConfigEntry[]): string {
+  const themes = Object.entries(THEMES) as Array<[keyof typeof THEMES, string]>;
+  return themes.map(([theme, prefix]) => chartThemeBlock(id, theme, prefix, colorConfig)).join("\n");
+}
+
+const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
+  const colorConfig = Object.entries(config).filter(([, itemConfig]) => itemConfig.theme || itemConfig.color) as ChartColorConfigEntry[];
+  if (!colorConfig.length) return null;
+  return <style dangerouslySetInnerHTML={{ __html: buildChartThemeCss(id, colorConfig) }} />;
 };
 
 const ChartTooltip = RechartsPrimitive.Tooltip;
