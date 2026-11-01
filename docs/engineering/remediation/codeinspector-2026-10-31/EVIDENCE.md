@@ -195,3 +195,13 @@ Original CodeInspector scan SHA UNKNOWN. Main SHA 46f2fce34c09f64284fdbbe4182bd0
 - P2 baseline totals remain 239. P2 status now: 1 TS0002 pending scan; 21 TS0003 pending scan; 83 active TS0003 open; 10 archived scope review; TS0010 not reproduced/not closed.
 - Latest branch head checks for #347 were newly launched after synchronization; historical checks must not be transferred. Fresh CodeInspector is pending; ORIGINAL_SCAN_SHA remains UNKNOWN.
 
+
+
+## Original CodeInspector report recovered — 2026-11-01
+
+- Source artifact: `scan-5a0dd3e4-941c-45bc-98df-05e0e9aa19f4.pdf`, 21 pages, Library file id `libfile_b4aa3a84ea948191b7ef481dd36ba6fd`.
+- Scanner timestamp: `2026-10-31T22:02:18.5552070Z`; reported branch: `main`; reported files: 703; LOC: 127,555; findings: 239.
+- Full extraction returned exactly 239 finding headers. Cross-check against BASELINE: exact counts by Rule ID and one-to-one match by rule + original line + normalized reported basename: 239/239; no unmatched/extra rows.
+- PDF distributions: severity Critical 18 / High 15 / Medium 177 / Low 29; TypeScript 192 / JavaScript 40 / Python 7.
+- Scanner input commit SHA is absent from the source PDF. `ORIGINAL_SCAN_SHA=UNKNOWN` remains explicitly preserved; no current or historical repo SHA is substituted.
+- Original report recovered is distinct from fresh scan; fresh CodeInspector execution and closing findings by fresh rule evidence remain pending.

@@ -5,12 +5,59 @@
   "report": {
     "product": "CodeInspector",
     "report_file": "scan-5a0dd3e4-941c-45bc-98df-05e0e9aa19f4.pdf",
-    "report_library_reference": "turn253file1",
+    "report_library_reference": "Library file scan-5a0dd3e4-941c-45bc-98df-05e0e9aa19f4.pdf",
     "generated_at_utc": "2026-10-31T22:02:18.5552070Z",
     "reported_branch": "main",
     "scanner_version": "NOT_STATED_IN_PDF",
     "scan_input_sha": "UNKNOWN",
-    "source_sha_policy": "Original input SHA is absent in the recovered PDF; do not infer it from current Git refs."
+    "source_sha_policy": "Original input SHA is absent in the recovered PDF; do not infer it from current Git refs.",
+    "library_file_id": "libfile_b4aa3a84ea948191b7ef481dd36ba6fd",
+    "recovery_validation": {
+      "recovered_from_library": true,
+      "extracted_pdf_pages": 21,
+      "extracted_finding_headers": 239,
+      "baseline_finding_rows": 239,
+      "matched_records_by_rule_original_line_and_normalized_reported_basename": 239,
+      "unmatched_pdf_records": 0,
+      "unmatched_baseline_records": 0,
+      "rule_counts": {
+        "TS0004": 9,
+        "TS0009": 9,
+        "TS0002": 3,
+        "JS0001": 12,
+        "JS0007": 26,
+        "PY0005": 2,
+        "TS0010": 1,
+        "TS0003": 170,
+        "JS0005": 2,
+        "PY0002": 3,
+        "PY0003": 2
+      },
+      "severity_counts": {
+        "Critical": 18,
+        "High": 15,
+        "Medium": 177,
+        "Low": 29
+      },
+      "language_summary": {
+        "JavaScript": {
+          "files": 48,
+          "loc": 28782,
+          "issues": 40
+        },
+        "Python": {
+          "files": 3,
+          "loc": 886,
+          "issues": 7
+        },
+        "TypeScript": {
+          "files": 652,
+          "loc": 97887,
+          "issues": 192
+        }
+      },
+      "validation_note": "All 239 PDF headers were extracted; each was matched one-to-one to the 239 baseline rows by rule id, original line and normalized reported filename. Original input commit SHA is not present in the PDF and remains UNKNOWN."
+    }
   },
   "measured_scan_totals": {
     "files": 703,

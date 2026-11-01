@@ -266,3 +266,14 @@ Read live P2 branch head; open PR to \`main\`; poll Core and P2 for that exact P
 - Exact latest-head checks for the synchronized #347 branch are launched by the new branch commit; do not transfer results from older heads.
 - PR #348/#349 have new branch heads and have exact-head checks running; PR #350 P1 and PR #351 P3 are also awaiting their latest Playwright/Supabase job terminal states. See EVIDENCE.md for run IDs.
 
+
+
+## Original CodeInspector artifact recovered — verified 2026-11-01
+
+- Recovered the complete 21-page PDF from the Library: `scan-5a0dd3e4-941c-45bc-98df-05e0e9aa19f4.pdf`.
+- Scan timestamp: `2026-10-31T22:02:18.5552070Z`; branch reported by scanner: `main`.
+- PDF totals: 703 files, 127,555 LOC, 239 findings. Language split: TypeScript 192, JavaScript 40, Python 7. Severity split: Critical 18, High 15, Medium 177, Low 29.
+- Parsed all 239 finding headers from all 21 pages and matched them one-to-one to the 239 BASELINE rows by rule ID, original line and normalized reported basename: 239 matched, 0 unmatched PDF, 0 unmatched manifest.
+- Rule counts: TS0004 9, TS0009 9, TS0002 3, JS0001 12, JS0007 26, PY0005 2, TS0010 1, TS0003 170, JS0005 2, PY0002 3, PY0003 2.
+- The report does not state the input Git commit SHA. `ORIGINAL_SCAN_SHA=UNKNOWN` remains correct; the prior value `46f2fce...` is a path-resolution checkpoint only and must not be represented as the scanner input.
+- Recovery of the original PDF does not equal a fresh CodeInspector rerun. Fresh scan remains pending; no issue becomes CLOSED on extraction alone.
