@@ -14,6 +14,13 @@ vi.mock("@/lib/api", () => ({
   fetchStaffCustomer360Summary: mocks.fetchSummary,
 }));
 
+function customerScopeLookupResult(customerId: string | null) {
+  return {
+    data: customerId ? { id: customerId } : null,
+    error: null,
+  };
+}
+
 vi.mock("@/lib/supabase", () => ({
   getCurrentTenantScope: vi.fn(async () => ({ organizationId: "org-customer-360" })),
   supabase: {
@@ -21,10 +28,7 @@ vi.mock("@/lib/supabase", () => ({
       const query = {
         select: vi.fn(),
         eq: vi.fn(),
-        maybeSingle: vi.fn(async () => ({
-          data: mocks.scopedCustomerId ? { id: mocks.scopedCustomerId } : null,
-          error: null,
-        })),
+        maybeSingle: vi.fn(async () => customerScopeLookupResult(mocks.scopedCustomerId)),
       };
       query.select.mockReturnValue(query);
       query.eq.mockReturnValue(query);
