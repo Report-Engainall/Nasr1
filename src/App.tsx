@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import { useAuthStore, loadCustomerProfile } from './lib/authStore'
+import { synchronizeSession } from './lib/app-auth-bootstrap'
 import StoreHeader from './components/store/StoreHeader'
 import StoreFooter from './components/store/StoreFooter'
 import BannerSlider from './components/store/BannerSlider'
@@ -20,35 +21,6 @@ import AdminProducts from './pages/admin/AdminProducts'
 import AdminOrders from './pages/admin/AdminOrders'
 import AdminCustomers from './pages/admin/AdminCustomers'
 import AdminSettings from './pages/admin/AdminSettings'
-
-type AuthSession = Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']
-type AppAuthActions = Pick<
-  ReturnType<typeof useAuthStore>,
-  'setSession' | 'setCustomer' | 'setAdmin' | 'setLoading'
->
-
-async function synchronizeSession(
-  session: AuthSession,
-  actions: AppAuthActions,
-  isMounted: () => boolean,
-): Promise<void> {
-  if (!isMounted()) return
-
-  actions.setSession(session)
-  if (!session?.user) {
-    actions.setCustomer(null)
-    actions.setAdmin(false)
-    actions.setLoading(false)
-    return
-  }
-
-  const { customer, isAdmin } = await loadCustomerProfile(session.user.id)
-  if (!isMounted()) return
-
-  actions.setCustomer(customer)
-  actions.setAdmin(isAdmin)
-  actions.setLoading(false)
-}
 
 function StoreShell({ children }: { children: React.ReactNode }) {
   return (
@@ -85,11 +57,11 @@ export default function App() {
     }
 
     void supabase.auth.getSession()
-      .then(({ data: { session } }) => synchronizeSession(session, actions, isMounted))
+      .then(({ data: { session } }) => synchronizeSession(session, actions, loadCustomerProfile, isMounted))
       .catch(finishFailedHydration)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      void synchronizeSession(session, actions, isMounted).catch(finishFailedHydration)
+      void synchronizeSession(session, actions, loadCustomerProfile, isMounted).catch(finishFailedHydration)
     })
 
     return () => {
