@@ -15,18 +15,37 @@ function record(error: unknown) {
 const CAUSE_DEPTH_LIMIT = 5;
 const DESCRIPTION_LENGTH_LIMIT = 8_000;
 
+type ErrorDescriptionLayer = {
+  text: string;
+  cause: unknown;
+  followsCause: boolean;
+};
+
+function describeErrorLayer(value: unknown, depth: number): ErrorDescriptionLayer {
+  if (!(value instanceof Error)) {
+    return {
+      text: typeof value === "string" ? value : safeStringify(value),
+      cause: undefined,
+      followsCause: false,
+    };
+  }
+  const label = depth === 0 ? "" : "caused by: ";
+  const detail = value.stack ?? `${value.name}: ${value.message}`;
+  return {
+    text: `${label}${detail}${describeStatus(value)}`,
+    cause: value.cause,
+    followsCause: true,
+  };
+}
+
 export function describeError(error: unknown): string {
   const parts: string[] = [];
   let current: unknown = error;
   for (let depth = 0; depth < CAUSE_DEPTH_LIMIT && current != null; depth++) {
-    if (!(current instanceof Error)) {
-      parts.push(typeof current === "string" ? current : safeStringify(current));
-      break;
-    }
-    const label = depth === 0 ? "" : "caused by: ";
-    const status = describeStatus(current);
-    parts.push(`${label}${current.stack ?? `${current.name}: ${current.message}`}${status}`);
-    current = current.cause;
+    const layer = describeErrorLayer(current, depth);
+    parts.push(layer.text);
+    if (!layer.followsCause) break;
+    current = layer.cause;
   }
   return parts.join("\n").slice(0, DESCRIPTION_LENGTH_LIMIT);
 }
