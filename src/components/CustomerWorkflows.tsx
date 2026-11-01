@@ -1547,6 +1547,7 @@ function Quotes() {
         ),
         document.body,
       )}
+    </WorkspaceShell>
   );
 }
 
