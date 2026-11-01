@@ -194,11 +194,24 @@ describe("unified import safety contracts", () => {
     expect(row.data.description).toBeUndefined();
   });
 
-  it("rejects executable or unsafe declarative profile rules", () => {
+  it("rejects unsupported and oversized declarative profile rules without changing accepted contracts", () => {
     expect(() => validateImportProfileRules([{ field: "item_code", operation: "eval" }], [])).toThrow("قاعدة تحويل");
+    expect(() => validateImportProfileRules([{ field: "Item Code", operation: "trim" }], [])).toThrow("قاعدة تحويل");
+    expect(() => validateImportProfileRules([{ field: "item_code", operation: "replace_literal", from: "x".repeat(201), to: "y" }], [])).toThrow("replace_literal");
+
     expect(() => validateImportProfileRules([], [{ field: "item_code", rule: "safe_pattern", value: "(a+)+$" }])).toThrow("غير آمن");
+    expect(() => validateImportProfileRules([], [{ field: "item_code", rule: "safe_pattern", value: "(".repeat(121) }])).toThrow("غير آمن");
+    expect(() => validateImportProfileRules([], [{ field: "item_code", rule: "safe_pattern", value: "(" }])).toThrow("ليس تعبيرًا صالحًا");
     expect(() => validateImportProfileRules([], [{ field: "item_code", rule: "enum", values: Array(101).fill("x") }])).toThrow("قائمة نصية");
-    expect(() => validateImportProfileRules([{ field: "item_code", operation: "trim" }], [{ field: "quantity", rule: "numeric" }])).not.toThrow();
+    expect(() => validateImportProfileRules([], [{ field: "item_code", rule: "enum", values: ["x".repeat(201)] }])).toThrow("قائمة نصية");
+    expect(() => validateImportProfileRules([], [{ field: "quantity", rule: "min", value: -1 }])).toThrow("قيمة الحد");
+    expect(() => validateImportProfileRules([], [{ field: "quantity", rule: "max", value: 1_000_000_001 }])).toThrow("قيمة الحد");
+    expect(() => validateImportProfileRules([], [{ field: "quantity", rule: "min_length", value: Number.NaN }])).toThrow("قيمة الحد");
+
+    expect(() => validateImportProfileRules(
+      [{ field: "item_code", operation: "trim" }, { field: "name", operation: "replace_literal", from: "old", to: "new" }],
+      [{ field: "quantity", rule: "numeric" }, { field: "item_code", rule: "safe_pattern", value: "^[A-Z0-9_-]{1,40}$" }],
+    )).not.toThrow();
   });
 
   it("keeps deterministic fingerprints and verified-chunk replay behavior", () => {
