@@ -1,3 +1,4 @@
+import { logError, logInfo } from "./diagnostic-logger.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
@@ -522,7 +523,7 @@ try {
     );
     await admin.unsafe("delete from auth.users where id=$1::uuid", [foreignManagerAuthUserId]);
   } catch (error) {
-    console.error("CLEANUP_FAILED journal reversal acceptance fixtures:", String(error));
+    logError("CLEANUP_FAILED journal reversal acceptance fixtures:", String(error));
     process.exitCode = 1;
   }
   await Promise.all([

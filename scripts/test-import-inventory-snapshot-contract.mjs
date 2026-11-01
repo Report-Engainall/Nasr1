@@ -1,3 +1,4 @@
+import { logError, logInfo } from "./diagnostic-logger.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
@@ -659,6 +660,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("IMPORT_INVENTORY_SNAPSHOT_CONTRACT_FAILED:", error);
+  logError("IMPORT_INVENTORY_SNAPSHOT_CONTRACT_FAILED:", error);
   process.exitCode = 1;
 });
