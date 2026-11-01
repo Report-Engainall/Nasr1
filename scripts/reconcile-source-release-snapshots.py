@@ -11,14 +11,17 @@ import logging
 import os
 import re
 import stat
+import struct
 import tempfile
 import time
 import urllib.request
 import zipfile
+from contextlib import redirect_stdout
 from collections import Counter
 from pathlib import Path, PurePosixPath
+from diagnostic_logging import configure_diagnostic_logging, redact_diagnostic_text, safe_print
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+configure_diagnostic_logging()
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "artifacts" / "source-release-snapshot-audit"
@@ -97,23 +100,24 @@ def inspect_headers(archive: zipfile.ZipFile) -> tuple[list[zipfile.ZipInfo], in
 
 
 def download(spec: dict[str, object]) -> tuple[bytes, str]:
-    url = str(spec.get("url") or f"https://github.com/{SOURCE}/releases/download/{spec['tag']}/{spec['name']}")
+    request_url = str(spec.get("url") or f"https://github.com/{SOURCE}/releases/download/{spec['tag']}/{spec['name']}")
+    safe_url = redact_diagnostic_text(request_url)
     last_error = ""
     for attempt in range(1, 4):
-        print(f"DOWNLOAD_ATTEMPT id={spec['id']} attempt={attempt} url={url}", flush=True)
+        safe_print(f"DOWNLOAD_ATTEMPT id={spec['id']} attempt={attempt} url={safe_url}", flush=True)
         try:
-            request = urllib.request.Request(url, headers={"User-Agent": "Nasr1-Source-Release-Audit/1.0"})
+            request = urllib.request.Request(request_url, headers={"User-Agent": "Nasr1-Source-Release-Audit/1.0"})
             with urllib.request.urlopen(request, timeout=90) as response:
                 data = response.read()
-                print(f"DOWNLOAD_RESPONSE id={spec['id']} status={response.status} bytes={len(data)} content_type={response.headers.get('Content-Type', '')}", flush=True)
-            return data, url
+                safe_print(f"DOWNLOAD_RESPONSE id={spec['id']} status={response.status} bytes={len(data)} content_type={response.headers.get('Content-Type', '')}", flush=True)
+            return data, safe_url
         except Exception as error:
             logging.warning("Source snapshot download attempt failed for %s: %s", spec["id"], error, exc_info=True)
-            last_error = f"{type(error).__name__}: {error}"
-            print(f"DOWNLOAD_ERROR id={spec['id']} attempt={attempt} url={url} error={last_error}", flush=True)
+            last_error = redact_diagnostic_text(f"{type(error).__name__}: {error}")
+            safe_print(f"DOWNLOAD_ERROR id={spec['id']} attempt={attempt} url={safe_url} error={last_error}", flush=True)
             if attempt < 3:
                 time.sleep(attempt * 2)
-    raise RuntimeError(f"download failed for {url}: {last_error}")
+    raise RuntimeError(f"download failed for {safe_url}: {last_error}")
 
 
 def stream_member(
@@ -125,6 +129,7 @@ def stream_member(
     digest = hashlib.sha256()
     count = 0
     handle = None
+    created = False
     if destination is not None:
         root = extraction_root.resolve()
         target = destination.resolve()
@@ -132,6 +137,7 @@ def stream_member(
             raise ValueError("resolved extraction target escapes temporary root: " + info.filename)
         destination.parent.mkdir(parents=True, exist_ok=True)
         handle = destination.open("xb")
+        created = True
     try:
         with archive.open(info, "r") as source:
             while chunk := source.read(1024 * 1024):
@@ -139,11 +145,18 @@ def stream_member(
                 digest.update(chunk)
                 if handle is not None:
                     handle.write(chunk)
-    finally:
+        if count != info.file_size:
+            raise ValueError(f"member size mismatch: {info.filename}:{count}!={info.file_size}")
+    except BaseException:
         if handle is not None:
             handle.close()
-    if count != info.file_size:
-        raise ValueError(f"member size mismatch: {info.filename}:{count}!={info.file_size}")
+        if created and destination is not None:
+            # Remove only the partial artifact created by this invocation.
+            destination.unlink(missing_ok=True)
+        raise
+    else:
+        if handle is not None:
+            handle.close()
     return digest.hexdigest(), count
 
 
@@ -255,7 +268,7 @@ def record_snapshot_member_failure(
         error,
         exc_info=True,
     )
-    detail = f"{type(error).__name__}: {error}"
+    detail = redact_diagnostic_text(f"{type(error).__name__}: {error}")
     errors.append(f"{spec['id']} member {raw}: {detail}")
     members.append({
         "snapshot_id": spec["id"],
@@ -307,7 +320,7 @@ def inspect_snapshot_members(
         else "ALL_MEMBER_DECOMPRESSION_AND_CRC_PASS"
     )
     status = "MEMBER_INTEGRITY_FAILED" if member_errors else SNAPSHOT_PASS
-    print(
+    safe_print(
         f"SNAPSHOT_ZIP_VALIDATION id={spec['id']} members={len(infos)} "
         f"uncompressed_bytes={total} extracted_source={selected_count} status={status}",
         flush=True,
@@ -325,7 +338,7 @@ def build_snapshot_audit_row(spec: dict[str, object], url: str) -> dict[str, obj
         "actual_bytes": "",
         "expected_sha256": spec["sha256"],
         "actual_sha256": "",
-        "source_url": url,
+        "source_url": redact_diagnostic_text(url),
         "download_status": "NOT RUN",
         "integrity_status": "NOT RUN",
         "member_count": "",
@@ -340,7 +353,7 @@ def record_snapshot_download(spec: dict[str, object], data: bytes, row: dict[str
     row["actual_bytes"] = len(data)
     row["actual_sha256"] = sha256(data)
     row["download_status"] = "DOWNLOADED"
-    print(
+    safe_print(
         f"SNAPSHOT_BYTES id={spec['id']} actual_bytes={len(data)} sha256={row['actual_sha256']}",
         flush=True,
     )
@@ -363,12 +376,14 @@ def record_snapshot_audit_failure(
     spec: dict[str, object], url: str, error: Exception,
     row: dict[str, object], errors: list[str],
 ) -> None:
+    safe_url = redact_diagnostic_text(url)
+    detail = redact_diagnostic_text(f"{type(error).__name__}: {error}")
     logging.warning("Snapshot archive validation failed for %s: %s", spec["id"], error, exc_info=True)
-    detail = f"{type(error).__name__}: {error}"
     errors.append(f"{spec['id']}: {detail}")
+    row["source_url"] = safe_url
     row["status"] = "DOWNLOAD_OR_INTEGRITY_FAILED"
     row["exact_error"] = detail
-    print(f"SNAPSHOT_ERROR id={spec['id']} url={url} error={detail}", flush=True)
+    safe_print(f"SNAPSHOT_ERROR id={spec['id']} url={safe_url} error={detail}", flush=True)
 
 
 def audit_snapshot(
@@ -509,8 +524,8 @@ def persist_audit_outputs(
     report = build_report(summary, pair_diff, target_diff)
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
         handle.write(report + "\n")
-    print("SOURCE_RELEASE_AUDIT_SUMMARY=" + json.dumps(summary, ensure_ascii=False, sort_keys=True), flush=True)
-    print("SOURCE_RELEASE_AUDIT_DIRECTORY=" + str(OUT), flush=True)
+    safe_print("SOURCE_RELEASE_AUDIT_SUMMARY=" + json.dumps(summary, ensure_ascii=False, sort_keys=True), flush=True)
+    safe_print("SOURCE_RELEASE_AUDIT_DIRECTORY=" + str(OUT), flush=True)
 
 
 def self_test() -> int:
@@ -528,11 +543,52 @@ def self_test() -> int:
     with zipfile.ZipFile(archive_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("project/src/ok.ts", payload)
     with tempfile.TemporaryDirectory(prefix="nasr1-source-self-test-") as directory:
+        root = Path(directory)
         with zipfile.ZipFile(io.BytesIO(archive_buffer.getvalue())) as archive:
             infos, total = inspect_headers(archive)
             assert len(infos) == 1 and total == len(payload)
-            digest, size = stream_member(archive, infos[0], None, Path(directory))
+            destination = root / "restored/project/src/main.ts"
+            digest, size = stream_member(archive, infos[0], destination, root)
             assert digest == sha256(payload) and size == len(payload)
+            assert destination.read_bytes() == payload
+
+            try:
+                stream_member(archive, infos[0], destination, root)
+            except FileExistsError:
+                pass
+            else:
+                raise AssertionError("snapshot restore overwrote an existing source file")
+            assert destination.read_bytes() == payload
+
+            blocked_parent = root / "blocked-parent"
+            blocked_parent.write_text("preserve blocker", encoding="utf-8")
+            try:
+                stream_member(archive, infos[0], blocked_parent / "file.ts", root)
+            except OSError:
+                pass
+            else:
+                raise AssertionError("snapshot restore accepted a non-directory destination")
+            assert blocked_parent.read_text(encoding="utf-8") == "preserve blocker"
+
+        stored = io.BytesIO()
+        with zipfile.ZipFile(stored, "w", compression=zipfile.ZIP_STORED) as archive:
+            archive.writestr("project/corrupt.ts", b"CRC sentinel")
+        corrupted = bytearray(stored.getvalue())
+        with zipfile.ZipFile(io.BytesIO(corrupted)) as archive:
+            corrupt_info = archive.getinfo("project/corrupt.ts")
+            name_size, extra_size = struct.unpack_from("<HH", corrupted, corrupt_info.header_offset + 26)
+            data_offset = corrupt_info.header_offset + 30 + name_size + extra_size
+        corrupted[data_offset] ^= 0x01
+        with zipfile.ZipFile(io.BytesIO(corrupted)) as archive:
+            corrupt_info = archive.getinfo("project/corrupt.ts")
+            partial = root / "corrupt-output.ts"
+            try:
+                stream_member(archive, corrupt_info, partial, root)
+            except zipfile.BadZipFile:
+                pass
+            else:
+                raise AssertionError("corrupt member CRC was accepted")
+            assert not partial.exists(), "incomplete restored member was left behind"
     sample_bytes = archive_buffer.getvalue()
     sample_spec = {
         "id": "self-test",
@@ -549,7 +605,28 @@ def self_test() -> int:
     summary = build_snapshot_audit_summary([], [], [], [], [])
     assert summary["target_branch"] == "main"
     assert summary["member_rows"] == 0 and summary["errors"] == []
-    print("SOURCE_RELEASE_SELF_TEST PASS: path safety, ZIP header limits, bounded member read and SHA-256", flush=True)
+
+    unsafe_url = "https://example.invalid/snapshot.zip?access_token=fixture-url-token"
+    failure_row = build_snapshot_audit_row(sample_spec, unsafe_url)
+    failure_errors: list[str] = []
+    captured = io.StringIO()
+    try:
+        raise RuntimeError("download failed token=fixture-error-token")
+    except RuntimeError as error:
+        with redirect_stdout(captured):
+            record_snapshot_audit_failure(
+                sample_spec, unsafe_url, error, failure_row, failure_errors
+            )
+    failure_evidence = json.dumps(
+        {"row": failure_row, "errors": failure_errors, "stdout": captured.getvalue()},
+        sort_keys=True,
+    )
+    assert "fixture-url-token" not in failure_evidence
+    assert "fixture-error-token" not in failure_evidence
+    assert "[REDACTED]" in str(failure_row["source_url"])
+    assert "[REDACTED]" in str(failure_row["exact_error"])
+
+    safe_print("SOURCE_RELEASE_SELF_TEST PASS: path safety, atomic partial-file cleanup, no-overwrite restore, CRC checks, URL/error redaction and SHA-256", flush=True)
     return 0
 
 
@@ -625,4 +702,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except Exception:
+        logging.exception("SOURCE_RELEASE_SNAPSHOT_RECONCILIATION_UNHANDLED_FAILURE")
+        raise SystemExit(1)
