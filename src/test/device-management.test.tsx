@@ -29,6 +29,29 @@ function accessToken(sessionId = CURRENT_SESSION_ID) {
   return 'header.' + payload + '.signature';
 }
 
+function revokeOrganizationSession(
+  currentSessions: ReturnType<typeof makeSession>[],
+  requestedSessionId: unknown,
+) {
+  if (
+    typeof requestedSessionId !== "string"
+    || !currentSessions.some((row) => row.session_id === requestedSessionId)
+  ) {
+    return {
+      sessions: currentSessions,
+      response: { data: null, error: { message: "session not found" } },
+    };
+  }
+
+  return {
+    sessions: currentSessions.filter((row) => row.session_id !== requestedSessionId),
+    response: {
+      data: { session_id: requestedSessionId, revoked: true, revoked_at: "2026-10-23T10:16:00.000Z" },
+      error: null,
+    },
+  };
+}
+
 function makeSession(id: string, displayName: string, current: boolean) {
   return {
     session_id: id,
@@ -60,12 +83,9 @@ describe('central device and session management', () => {
     if (name !== 'revoke_organization_session') {
       return { data: null, error: { message: 'unexpected RPC' } };
     }
-    const id = args?.p_session_id;
-    if (typeof id !== 'string' || !sessions.some((row) => row.session_id === id)) {
-      return { data: null, error: { message: 'session not found' } };
-    }
-    sessions = sessions.filter((row) => row.session_id !== id);
-    return { data: { session_id: id, revoked: true, revoked_at: '2026-10-23T10:16:00.000Z' }, error: null };
+    const outcome = revokeOrganizationSession(sessions, args?.p_session_id);
+    sessions = outcome.sessions;
+    return outcome.response;
   }
 
   beforeEach(() => {
