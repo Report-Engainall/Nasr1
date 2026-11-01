@@ -30,12 +30,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout exact pull-request head
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
       - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
       - name: Compile all scoped Python utilities
@@ -57,12 +57,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout exact pull-request head
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
       - name: Set up Node 22
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: 22
       - name: Syntax-check changed JavaScript utilities and service worker
@@ -126,7 +126,7 @@ jobs:
               { service_role_key: "fixture-service-role-secret", apiKey: "fixture-api-key" },
               "customer-fixture@example.test",
               "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
-              "eyJaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb.cccccccccccccc",
+              "eyJ" + "a".repeat(16) + "." + "b".repeat(16) + "." + "c".repeat(12),
             );
             const sensitiveError = new Error(
               "callback failed https://auth.example.test/callback?access_token=fixture-access-token&refresh_token=fixture-refresh-token&client_secret=fixture-client-secret&code=fixture-oauth-code",
