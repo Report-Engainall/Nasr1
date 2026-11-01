@@ -546,39 +546,39 @@ def self_test() -> int:
     record_snapshot_download(sample_spec, sample_bytes, audit_row)
     assert audit_row["download_status"] == "DOWNLOADED"
     assert audit_row["actual_bytes"] == sample_spec["bytes"]
+    summary = build_snapshot_audit_summary([], [], [], [], [])
+    assert summary["target_branch"] == "main"
+    assert summary["member_rows"] == 0 and summary["errors"] == []
     print("SOURCE_RELEASE_SELF_TEST PASS: path safety, ZIP header limits, bounded member read and SHA-256", flush=True)
     return 0
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--self-test", action="store_true")
-    args = parser.parse_args()
-    if args.self_test:
-        return self_test()
-    OUT.mkdir(parents=True, exist_ok=True)
-    active = collect_active_hashes()
+def collect_snapshot_audits(
+    temp_root: Path,
+    members: list[dict[str, object]],
+    errors: list[str],
+) -> tuple[list[dict[str, object]], dict[str, dict[str, dict[str, object]]]]:
     manifest: list[dict[str, object]] = []
-    members: list[dict[str, object]] = []
-    errors: list[str] = []
     all_hashes: dict[str, dict[str, dict[str, object]]] = {}
     selected_total = 0
+    for spec in SNAPSHOTS:
+        row, by_path, selected_total = audit_snapshot(
+            spec, temp_root, selected_total, members, errors
+        )
+        manifest.append(row)
+        if row["download_status"] == "DOWNLOADED":
+            all_hashes[str(spec["id"])] = by_path
+    return manifest, all_hashes
 
-    with tempfile.TemporaryDirectory(
-        prefix="nasr1-source-release-", dir=os.environ.get("RUNNER_TEMP")
-    ) as temp_name:
-        temp_root = Path(temp_name)
-        for spec in SNAPSHOTS:
-            row, by_path, selected_total = audit_snapshot(
-                spec, temp_root, selected_total, members, errors
-            )
-            manifest.append(row)
-            if row["download_status"] == "DOWNLOADED":
-                all_hashes[str(spec["id"])] = by_path
 
-    pair_diff = build_pair_diffs(all_hashes)
-    target_diff = build_target_comparisons(all_hashes, active)
-    summary: dict[str, object] = {
+def build_snapshot_audit_summary(
+    manifest: list[dict[str, object]],
+    members: list[dict[str, object]],
+    pair_diff: list[dict[str, object]],
+    target_diff: list[dict[str, object]],
+    errors: list[str],
+) -> dict[str, object]:
+    return {
         "target_repository": "Report-Engainall/Nasr1",
         "target_branch": "main",
         "target_sha": os.environ.get("GITHUB_SHA", "unknown"),
@@ -601,6 +601,25 @@ def main() -> int:
             "to temporary runner storage. No code or SQL is executed/applied."
         ),
     }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--self-test", action="store_true")
+    args = parser.parse_args()
+    if args.self_test:
+        return self_test()
+    OUT.mkdir(parents=True, exist_ok=True)
+    active = collect_active_hashes()
+    members: list[dict[str, object]] = []
+    errors: list[str] = []
+    with tempfile.TemporaryDirectory(
+        prefix="nasr1-source-release-", dir=os.environ.get("RUNNER_TEMP")
+    ) as temp_name:
+        manifest, all_hashes = collect_snapshot_audits(Path(temp_name), members, errors)
+    pair_diff = build_pair_diffs(all_hashes)
+    target_diff = build_target_comparisons(all_hashes, active)
+    summary = build_snapshot_audit_summary(manifest, members, pair_diff, target_diff, errors)
     persist_audit_outputs(summary, manifest, members, pair_diff, target_diff)
     return 1 if errors or any(row["status"] != SNAPSHOT_PASS for row in manifest) else 0
 
