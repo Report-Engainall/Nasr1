@@ -12,8 +12,8 @@ on:
       - "src/test/service-worker-mime-cache-acceptance.test.ts"
       - "docs/engineering/remediation/codeinspector-2026-10-31/P3.md"
       - "src/lib/intelligence/free-ai-policy.test.ts"
+      - "src/lib/intelligence/daily-decisions.test.ts"
       - "docs/bolt-source-reconciliation/tools/*.mjs"
-      - "docs/engineering/remediation/codeinspector-2026-10-31/P3.md"
       - ".github/workflows/p3-tooling-validation.yml"
 
 permissions:
