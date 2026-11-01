@@ -28,6 +28,15 @@ function isHtmlResponse(response) {
   return mimeType === 'text/html' || mimeType === 'application/xhtml+xml';
 }
 
+// Never emit Error.message or Error.stack from a browser request/cache path:
+// either may contain a credential-bearing URL or provider response text.
+function diagnosticErrorType(error) {
+  const tag = Object.prototype.toString.call(error);
+  if (error instanceof TypeError || tag === '[object TypeError]') return 'TypeError';
+  if (error instanceof Error || tag === '[object Error]') return 'Error';
+  return 'UnknownError';
+}
+
 function isExpectedShellMimeType(pathname, response) {
   if (pathname === '/') return isHtmlResponse(response);
   if (pathname === '/manifest.webmanifest') {
@@ -47,7 +56,7 @@ self.addEventListener('install', (event) => {
             if (!response.ok || response.type !== 'basic' || !isExpectedShellMimeType(url, response)) return;
             await cache.put(url, response);
           } catch (error) {
-            console.warn('[aghbari-sw] optional shell asset was not cached', { url, error });
+            console.warn('[aghbari-sw] optional shell asset was not cached', { url, errorType: diagnosticErrorType(error) });
           }
         })),
       )
@@ -63,11 +72,14 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-async function cachedShellOrError() {
+async function cachedShellOrError(networkError) {
+  if (networkError) {
+    console.warn('[aghbari-sw] navigation network request failed; trying cached shell', { errorType: diagnosticErrorType(networkError) });
+  }
   try {
     return (await caches.match('/')) || Response.error();
   } catch (error) {
-    console.error('[aghbari-sw] cached shell lookup failed', error);
+    console.error('[aghbari-sw] cached shell lookup failed', { errorType: diagnosticErrorType(error) });
     return Response.error();
   }
 }
@@ -89,9 +101,11 @@ self.addEventListener('fetch', (event) => {
           // An SPA/SSR error page must not poison the offline shell cache.
           if (isHtmlResponse(response)) {
             const homeResponse = response.clone();
-            void caches.open(CACHE_NAME)
-              .then((cache) => cache.put('/', homeResponse))
-              .catch(() => undefined);
+            const cacheWrite = caches.open(CACHE_NAME)
+              .then((cache) => cache.put('/', homeResponse));
+            event.waitUntil(cacheWrite.catch((error) => {
+              console.warn('[aghbari-sw] navigation shell cache write failed', { url: url.pathname, errorType: diagnosticErrorType(error) });
+            }));
           }
         }
         return response;
@@ -111,19 +125,32 @@ self.addEventListener('fetch', (event) => {
           hasExpectedStaticAssetMimeType(url.pathname, response.headers.get('content-type'))
         ) {
           // A missing JS asset can fall back to index.html with HTTP 200; never persist it as JS.
-          void caches.open(CACHE_NAME)
-            .then((cache) => cache.put(request, response.clone()))
-            .catch(() => undefined);
+          const cacheWrite = caches.open(CACHE_NAME)
+            .then((cache) => cache.put(request, response.clone()));
+          event.waitUntil(cacheWrite.catch((error) => {
+            console.warn('[aghbari-sw] static asset cache write failed', { url: url.pathname, errorType: diagnosticErrorType(error) });
+          }));
         }
         return response;
       });
       if (cached) {
         // The network promise is a background refresh; handle failure without
         // turning an offline refresh into an unhandled rejection.
-        void network.catch(() => undefined);
+        event.waitUntil(network.then(() => undefined).catch((error) => {
+          console.warn('[aghbari-sw] background asset refresh failed; serving cached response', {
+            url: url.pathname,
+            errorType: diagnosticErrorType(error),
+          });
+        }));
         return cached;
       }
-      return network.catch(() => Response.error());
+      return network.catch((error) => {
+        console.error('[aghbari-sw] static asset request failed with no cached response', {
+          url: url.pathname,
+          errorType: diagnosticErrorType(error),
+        });
+        return Response.error();
+      });
     }),
   );
 });

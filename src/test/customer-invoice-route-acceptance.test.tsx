@@ -30,6 +30,11 @@ type InvoiceRow = {
 type PayloadResult = { data: unknown; error: { message: string } | null };
 type ListResult = { data: InvoiceRow[] | null; error: { message: string } | null };
 
+const INVOICE_READ_FAILURE: ListResult = {
+  data: null,
+  error: { message: "synthetic invoice read failure" },
+};
+
 const mocks = vi.hoisted(() => ({
   user: null as TestUser | null,
   from: vi.fn(),
@@ -122,7 +127,7 @@ function makeInvoiceQuery() {
       let result: ListResult;
       if (mocks.invoiceReadFailures > 0) {
         mocks.invoiceReadFailures -= 1;
-        result = { data: null, error: { message: "synthetic invoice read failure" } };
+        result = INVOICE_READ_FAILURE;
       } else {
         const cursorId = cursorFilter?.match(/id\.gt\.([0-9a-f-]{36})/i)?.[1];
         const cursorIndex = cursorId ? mocks.invoices.findIndex((invoice) => invoice.id === cursorId) : -1;
