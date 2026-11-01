@@ -70,6 +70,8 @@ jobs:
           for file in \
             public/sw.js \
             scripts/diagnostic-logger.mjs \
+            scripts/critical-cleanup.mjs \
+            scripts/test-critical-cleanup.mjs \
             scripts/test-admin-catalog-commands.mjs \
             scripts/test-async-export-jobs.mjs \
             scripts/test-customer-address-concurrency.mjs \
@@ -86,6 +88,8 @@ jobs:
             docs/bolt-source-reconciliation/tools/collect-source-inputs.mjs; do
             node --check "$file"
           done
+      - name: Verify critical database cleanup fails closed
+        run: node scripts/test-critical-cleanup.mjs
       - name: Verify structured logger redacts diagnostic secrets
         shell: bash
         run: |
