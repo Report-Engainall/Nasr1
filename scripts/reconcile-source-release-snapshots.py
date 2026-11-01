@@ -240,6 +240,81 @@ def append_member_result(
     return selected, selected_total + (size if destination is not None else 0)
 
 
+def record_snapshot_member_failure(
+    spec: dict[str, object],
+    raw: str,
+    info: zipfile.ZipInfo,
+    error: Exception,
+    members: list[dict[str, object]],
+    errors: list[str],
+) -> None:
+    logging.warning(
+        "Snapshot member validation failed for %s/%s: %s",
+        spec["id"],
+        raw,
+        error,
+        exc_info=True,
+    )
+    detail = f"{type(error).__name__}: {error}"
+    errors.append(f"{spec['id']} member {raw}: {detail}")
+    members.append({
+        "snapshot_id": spec["id"],
+        "tag": spec["tag"],
+        "member_path": raw,
+        "size_bytes": info.file_size,
+        "sha256": "",
+        "selected_source_extracted": "NO",
+        "member_status": "READ_OR_CRC_FAILED:" + detail,
+    })
+
+
+def inspect_snapshot_members(
+    archive: zipfile.ZipFile,
+    spec: dict[str, object],
+    snapshot_root: Path,
+    selected_total: int,
+    by_path: dict[str, dict[str, object]],
+    members: list[dict[str, object]],
+    errors: list[str],
+) -> tuple[int, int, int, str, str, int]:
+    infos, total = inspect_headers(archive)
+    selected_count = 0
+    for info in infos:
+        if info.is_dir() or info.filename.endswith("/"):
+            continue
+        raw = safe_name(info.filename).as_posix()
+        destination = extraction_destination(raw, info.file_size, snapshot_root, selected_total)
+        try:
+            selected, selected_total = append_member_result(
+                archive,
+                spec,
+                info,
+                destination,
+                snapshot_root,
+                selected_total,
+                by_path,
+                members,
+                errors,
+            )
+            selected_count += selected
+        except Exception as error:
+            record_snapshot_member_failure(spec, raw, info, error, members, errors)
+
+    member_errors = any(error.startswith(str(spec["id"]) + " member ") for error in errors)
+    integrity_status = (
+        "MEMBER_DECOMPRESSION_OR_CRC_FAILED"
+        if member_errors
+        else "ALL_MEMBER_DECOMPRESSION_AND_CRC_PASS"
+    )
+    status = "MEMBER_INTEGRITY_FAILED" if member_errors else SNAPSHOT_PASS
+    print(
+        f"SNAPSHOT_ZIP_VALIDATION id={spec['id']} members={len(infos)} "
+        f"uncompressed_bytes={total} extracted_source={selected_count} status={status}",
+        flush=True,
+    )
+    return len(infos), total, selected_count, integrity_status, status, selected_total
+
+
 def audit_snapshot(
     spec: dict[str, object],
     temp_root: Path,
@@ -281,67 +356,16 @@ def audit_snapshot(
 
         snapshot_root = temp_root / str(spec["id"])
         with zipfile.ZipFile(io.BytesIO(data), "r") as archive:
-            infos, total = inspect_headers(archive)
-            row["member_count"] = len(infos)
-            row["uncompressed_bytes"] = total
-            row["integrity_status"] = "HEADER_PATH_RATIO_LIMITS_PASS"
-            for info in infos:
-                if info.is_dir() or info.filename.endswith("/"):
-                    continue
-                raw = safe_name(info.filename).as_posix()
-                destination = extraction_destination(raw, info.file_size, snapshot_root, selected_total)
-                try:
-                    selected, selected_total = append_member_result(
-                        archive,
-                        spec,
-                        info,
-                        destination,
-                        snapshot_root,
-                        selected_total,
-                        by_path,
-                        members,
-                        errors,
-                    )
-                    if selected:
-                        row["selected_source_extract_count"] = (
-                            int(row["selected_source_extract_count"] or 0) + selected
-                        )
-                except Exception as error:
-                    logging.warning(
-                        "Snapshot member validation failed for %s/%s: %s",
-                        spec["id"],
-                        raw,
-                        error,
-                        exc_info=True,
-                    )
-                    detail = f"{type(error).__name__}: {error}"
-                    errors.append(f"{spec['id']} member {raw}: {detail}")
-                    members.append({
-                        "snapshot_id": spec["id"],
-                        "tag": spec["tag"],
-                        "member_path": raw,
-                        "size_bytes": info.file_size,
-                        "sha256": "",
-                        "selected_source_extracted": "NO",
-                        "member_status": "READ_OR_CRC_FAILED:" + detail,
-                    })
-        member_errors = any(error.startswith(str(spec["id"]) + " member ") for error in errors)
-        row["integrity_status"] = (
-            "MEMBER_DECOMPRESSION_OR_CRC_FAILED"
-            if member_errors
-            else "ALL_MEMBER_DECOMPRESSION_AND_CRC_PASS"
-        )
-        row["status"] = (
-            "MEMBER_INTEGRITY_FAILED"
-            if member_errors
-            else SNAPSHOT_PASS
-        )
-        print(
-            f"SNAPSHOT_ZIP_VALIDATION id={spec['id']} members={row['member_count']} "
-            f"uncompressed_bytes={row['uncompressed_bytes']} "
-            f"extracted_source={row['selected_source_extract_count']} status={row['status']}",
-            flush=True,
-        )
+            member_count, uncompressed_bytes, selected_count, integrity_status, status, selected_total = (
+                inspect_snapshot_members(
+                    archive, spec, snapshot_root, selected_total, by_path, members, errors
+                )
+            )
+        row["member_count"] = member_count
+        row["uncompressed_bytes"] = uncompressed_bytes
+        row["integrity_status"] = integrity_status
+        row["status"] = status
+        row["selected_source_extract_count"] = selected_count
     except Exception as error:
         logging.warning("Snapshot archive validation failed for %s: %s", spec["id"], error, exc_info=True)
         detail = f"{type(error).__name__}: {error}"
