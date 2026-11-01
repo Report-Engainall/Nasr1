@@ -277,3 +277,12 @@ Read live P2 branch head; open PR to \`main\`; poll Core and P2 for that exact P
 - Rule counts: TS0004 9, TS0009 9, TS0002 3, JS0001 12, JS0007 26, PY0005 2, TS0010 1, TS0003 170, JS0005 2, PY0002 3, PY0003 2.
 - The report does not state the input Git commit SHA. `ORIGINAL_SCAN_SHA=UNKNOWN` remains correct; the prior value `46f2fce...` is a path-resolution checkpoint only and must not be represented as the scanner input.
 - Recovery of the original PDF does not equal a fresh CodeInspector rerun. Fresh scan remains pending; no issue becomes CLOSED on extraction alone.
+
+
+## Live merge checkpoint — 2026-11-01 — P2 batch 07
+
+- Latest main after merge: `ab8bb1804230925858903344606ba6721fd16faa`.
+- PR #348 CashflowForecastCard was merged at that SHA. Exact source-head Core 41263937229 SUCCESS; Secret Scan 41263937233 SUCCESS; Playwright 41263937251 public UI/auth/local Supabase order persistence and tenant isolation SUCCESS; hosted tenant E2E SKIPPED, not PASS.
+- The stable baseline row `CI31-TS0003-755abde8-1` for `src/components/intelligence/CashflowForecastCard.tsx:53` is now `IMPLEMENTED_PENDING_FRESH_SCAN`; no finding is marked CLOSED until fresh CodeInspector.
+- P2 counts after #348: 1 TS0002 + 22 TS0003 implemented pending fresh scan; 82 active current-tree TS0003 OPEN; 10 archive-only scope-review; TS0010 not reproduced/not closed. All 239 original rows retained.
+- #347 ActionCard branch must be synchronized/retested against this main and then reviewed/merged; #349/#350/#351/#352 also require latest-main sync before merge.

@@ -136,7 +136,7 @@
     "disposition": "P1 triaged as synthetic test fixtures; preserve report rows pending fresh scan."
   },
   "sha_context": {
-    "main": "8f5b843ddfb4000c5aee9e9e8ef4f0a5731d1158",
+    "main": "ab8bb1804230925858903344606ba6721fd16faa",
     "P1": "37d0c058f4a7a943eb1b1cd2e2812ef4874b818a",
     "P2": "7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6",
     "P3": "c7a4391fd13ae64895d93245358d09898a85a036",
@@ -150,7 +150,8 @@
     "P2_batch_04_branch_head": "3eb735a7462d59e1d7b74aa90d91374578ff7d61",
     "P2_batch_05": "7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6",
     "P2_batch_05_branch_head": "213e886f16f0e3843f067ef368dfc41cdc8662b0",
-    "P2_batch_06_source": "081af02074061da2c35f1fdf7c5f293536794642"
+    "P2_batch_06_source": "081af02074061da2c35f1fdf7c5f293536794642",
+    "P2_batch_07": "9be5ce76d3f264bb5e5c0e59412f675d485a8b2e"
   },
   "verification_policy": {
     "old_sha_pass_not_transferable": true,
@@ -2930,11 +2931,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "CashflowForecastCard.test.tsx verifies 7/30/90-day horizons, currencies remain separately grouped, evidence IDs, row/status continuity and incomplete-schedule warnings; exact-head Core/Playwright/local Supabase/Secret Scan passed on 9be5ce76; fresh CodeInspector rerun remains required.",
+      "implementation_branch_sha": "9be5ce76d3f264bb5e5c0e59412f675d485a8b2e",
+      "fixed_by_sha": "9be5ce76d3f264bb5e5c0e59412f675d485a8b2e",
+      "evidence": "PR #348 merged at ab8bb1804230925858903344606ba6721fd16faa; source head 9be5ce76d3f264bb5e5c0e59412f675d485a8b2e; Core 41263937229 PASS; P2 41263937251 public/auth/local Supabase PASS; Secret Scan 41263937233 PASS; hosted tenant E2E SKIPPED.",
       "occurrence": 1
     },
     {
@@ -5428,15 +5429,16 @@
     "as_of": "2026-11-01",
     "P2": {
       "TS0002_implemented_pending_fresh_scan": 1,
-      "TS0003_implemented_pending_fresh_scan": 21,
-      "TS0003_active_open": 83,
+      "TS0003_implemented_pending_fresh_scan": 22,
+      "TS0003_active_open": 82,
       "TS0003_archived_scope_review": 10,
       "TS0010": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
       "merged_pr": 338,
       "merged_code_sha": "c3552f9c1a34504bb2c61f78649a5a75e6165a18",
       "post_merge_documentation_commit": "c85601a7d3213d7782c15fed93d0cd373d783025",
-      "latest_code_commit": "081af02074061da2c35f1fdf7c5f293536794642",
-      "latest_pr": 347
+      "latest_code_commit": "9be5ce76d3f264bb5e5c0e59412f675d485a8b2e",
+      "latest_pr": 348,
+      "latest_merged_pr": 348
     },
     "verification": {
       "P2_core_run": 41257995450,
@@ -5447,7 +5449,7 @@
       "P2_batch_06_latest_main_playwright": "PENDING",
       "P2_batch_06_latest_main_gitleaks": "PENDING"
     },
-    "main_sha": "8f5b843ddfb4000c5aee9e9e8ef4f0a5731d1158"
+    "main_sha": "ab8bb1804230925858903344606ba6721fd16faa"
   },
   "integration_history": [
     {
@@ -5466,6 +5468,13 @@
       "main_sha": "8f5b843ddfb4000c5aee9e9e8ef4f0a5731d1158",
       "merged_at": null,
       "note": "Preserved ActionCard source/test on the current main tree after PR #346 merged. Two-parent branch synchronization; latest-main checks required. ActionCard remains IMPLEMENTED_PENDING_FRESH_SCAN, not closed."
+    },
+    {
+      "event": "MERGED",
+      "pr": 348,
+      "source_commit": "9be5ce76d3f264bb5e5c0e59412f675d485a8b2e",
+      "merge_commit": "ab8bb1804230925858903344606ba6721fd16faa",
+      "note": "CashflowForecastCard TS0003 row moved from OPEN_ASSIGNED_P2 to IMPLEMENTED_PENDING_FRESH_SCAN after exact-head Core, P2/local Supabase and Secret Scan success. Hosted tenant E2E skipped; fresh CodeInspector scan still required."
     }
   ]
 }

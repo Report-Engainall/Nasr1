@@ -205,3 +205,11 @@ Original CodeInspector scan SHA UNKNOWN. Main SHA 46f2fce34c09f64284fdbbe4182bd0
 - PDF distributions: severity Critical 18 / High 15 / Medium 177 / Low 29; TypeScript 192 / JavaScript 40 / Python 7.
 - Scanner input commit SHA is absent from the source PDF. `ORIGINAL_SCAN_SHA=UNKNOWN` remains explicitly preserved; no current or historical repo SHA is substituted.
 - Original report recovered is distinct from fresh scan; fresh CodeInspector execution and closing findings by fresh rule evidence remain pending.
+
+
+## P2 batch 07 merge proof — 2026-11-01
+
+- PR #348 merge commit: `ab8bb1804230925858903344606ba6721fd16faa`.
+- Source SHA: `9be5ce76d3f264bb5e5c0e59412f675d485a8b2e`.
+- Exact checks: Core 41263937229 SUCCESS; Gitleaks 41263937233 SUCCESS; Playwright 41263937251 public/auth/local Supabase order+tenant SUCCESS; hosted tenant job SKIPPED.
+- Original CodeInspector finding `CI31-TS0003-755abde8-1` is recorded as IMPLEMENTED_PENDING_FRESH_SCAN. Fresh scan remains required.
