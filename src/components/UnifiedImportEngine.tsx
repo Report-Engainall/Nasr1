@@ -52,6 +52,30 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function describeReconciledImportStatus(
+  reconciled: Awaited<ReturnType<typeof failImportJobSafely>>,
+): string {
+  const snapshotText = reconciled.snapshotId ? " • Snapshot " + reconciled.snapshotId : "";
+  if (reconciled.status === "completed" || reconciled.status === "completed_with_warnings") {
+    return "أكد الخادم أن الدفعة انتهت بالفعل بالحالة " + reconciled.status + snapshotText + ". لم تُعد العملية ولم تُكرر آثارها.";
+  }
+  return "أكد الخادم الحالة النهائية " + reconciled.status + " لهذه الدفعة. لم تتم إعادة اعتمادها تلقائيًا.";
+}
+
+function formatOptionalRowCount(value: number | null): string {
+  return value === null ? "غير متاح" : formatNumber(value);
+}
+
+function describeRetryableImportStatus(
+  reconciled: Awaited<ReturnType<typeof failImportJobSafely>>,
+): string {
+  return "حُفظ الفشل كحالة قابلة للاستئناف، وصالح الخادم عدد الصفوف المحفوظة: " +
+    formatOptionalRowCount(reconciled.processedRows) +
+    "، والمرفوض: " +
+    formatOptionalRowCount(reconciled.failedRows) +
+    ". استخدم الملف الأصلي نفسه للاستئناف.";
+}
+
 export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice: (message: string) => void; refreshVersion?: number }) {
   const { user } = useAuth();
   const canRollbackImport = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
@@ -100,6 +124,53 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
     pausedRef.current = next;
     setPaused(next);
     setStatusMessage(next ? "تم الإيقاف المؤقت؛ آخر شريحة معتمدة محفوظة ويمكن الاستئناف بإعادة اختيار الملف نفسه." : "استؤنفت المعالجة.");
+  }
+
+  async function handleImportFailure(
+    cause: unknown,
+    job: ImportJob | null,
+    processingConfigFingerprint: string | null,
+    checkpointFingerprintPersisted: boolean,
+  ): Promise<void> {
+    const message = cause instanceof Error ? cause.message : "تعذر معالجة الملف.";
+    setStage(null);
+    if (!job) {
+      setErrorMessage(message);
+      await refetch();
+      return;
+    }
+
+    const failureSummary: Record<string, unknown> = {
+      code: "IMPORT_PROCESSING_FAILED",
+      message,
+      resumable: true,
+      no_raw_file_retained: true,
+    };
+    if (checkpointFingerprintPersisted && processingConfigFingerprint) {
+      failureSummary.processing_config_fingerprint = processingConfigFingerprint;
+    }
+
+    try {
+      const reconciled = await failImportJobSafely(job.id, failureSummary);
+      if (reconciled.terminal) {
+        // The finalize/cancel RPC may have committed while its response was lost.
+        // Keep the server's terminal result; never mark it failed or create another snapshot.
+        setErrorMessage("");
+        setStatusMessage(describeReconciledImportStatus(reconciled));
+        onNotice("حُفظت الحالة النهائية الموجودة للدفعة؛ لم تُحوّل إلى فشل ولم يُكرر الاعتماد.");
+      } else {
+        setErrorMessage(message);
+        setStatusMessage(describeRetryableImportStatus(reconciled));
+      }
+    } catch (reconcileError) {
+      setErrorMessage(message);
+      setStatusMessage(
+        "تعذر تأكيد حالة الدفعة بعد الفشل: " +
+        (reconcileError instanceof Error ? reconcileError.message : "خطأ غير معروف") +
+        ". لا تبدأ نسخة بديلة قبل تحديث سجل الدفعات والتحقق من الحالة على الخادم.",
+      );
+    }
+    await refetch();
   }
 
   async function processFile(
@@ -490,53 +561,12 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
       await refetch();
       onNotice(result.status === "completed" ? "اكتمل الاستيراد بجودة " + result.data_quality_score + "/100" : "انتهت الدفعة بالحالة: " + result.status);
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "تعذر معالجة الملف.";
-      setStage(null);
-      if (job) {
-        try {
-          const failureSummary: Record<string, unknown> = {
-            code: "IMPORT_PROCESSING_FAILED",
-            message,
-            resumable: true,
-            no_raw_file_retained: true,
-          };
-          if (checkpointFingerprintPersisted && processingConfigFingerprint) {
-            failureSummary.processing_config_fingerprint = processingConfigFingerprint;
-          }
-          const reconciled = await failImportJobSafely(job.id, failureSummary);
-          if (reconciled.terminal) {
-            // The finalize/cancel RPC may have committed while its response was lost.
-            // Keep the server's terminal result; never mark it failed or create another snapshot.
-            setErrorMessage("");
-            const snapshotText = reconciled.snapshotId ? " • Snapshot " + reconciled.snapshotId : "";
-            setStatusMessage(
-              reconciled.status === "completed" || reconciled.status === "completed_with_warnings"
-                ? "أكد الخادم أن الدفعة انتهت بالفعل بالحالة " + reconciled.status + snapshotText + ". لم تُعد العملية ولم تُكرر آثارها."
-                : "أكد الخادم الحالة النهائية " + reconciled.status + " لهذه الدفعة. لم تتم إعادة اعتمادها تلقائيًا.",
-            );
-            onNotice("حُفظت الحالة النهائية الموجودة للدفعة؛ لم تُحوّل إلى فشل ولم يُكرر الاعتماد.");
-          } else {
-            setErrorMessage(message);
-            setStatusMessage(
-              "حُفظ الفشل كحالة قابلة للاستئناف، وصالح الخادم عدد الصفوف المحفوظة: " +
-              (reconciled.processedRows === null ? "غير متاح" : formatNumber(reconciled.processedRows)) +
-              "، والمرفوض: " +
-              (reconciled.failedRows === null ? "غير متاح" : formatNumber(reconciled.failedRows)) +
-              ". استخدم الملف الأصلي نفسه للاستئناف.",
-            );
-          }
-        } catch (reconcileError) {
-          setErrorMessage(message);
-          setStatusMessage(
-            "تعذر تأكيد حالة الدفعة بعد الفشل: " +
-            (reconcileError instanceof Error ? reconcileError.message : "خطأ غير معروف") +
-            ". لا تبدأ نسخة بديلة قبل تحديث سجل الدفعات والتحقق من الحالة على الخادم.",
-          );
-        }
-      } else {
-        setErrorMessage(message);
-      }
-      await refetch();
+      await handleImportFailure(
+        cause,
+        job,
+        processingConfigFingerprint,
+        checkpointFingerprintPersisted,
+      );
     } finally {
       runningRef.current = false;
       pausedRef.current = false;

@@ -195,29 +195,40 @@ export function filterProductActivityRows(
   });
 }
 
+type IndexedProductActivityRow = { row: StoreProductActivityRow; index: number };
+
+function compareProductActivityRows(
+  a: IndexedProductActivityRow,
+  b: IndexedProductActivityRow,
+  sort: ProductActivityRowsSort,
+): number {
+  switch (sort) {
+    case 'days_since_sale_desc':
+      return (b.row.days_since_last_sale ?? -1) - (a.row.days_since_last_sale ?? -1);
+    case 'sold_30_desc':
+      return b.row.sold_quantity_last_30_days - a.row.sold_quantity_last_30_days;
+    case 'sold_30_asc':
+      return a.row.sold_quantity_last_30_days - b.row.sold_quantity_last_30_days;
+    case 'name_asc':
+      return a.row.product_name.localeCompare(b.row.product_name, 'ar');
+    case 'stock_asc': {
+      const aUnknown = a.row.available_quantity === null;
+      const bUnknown = b.row.available_quantity === null;
+      if (aUnknown !== bUnknown) return aUnknown ? 1 : -1;
+      return (a.row.available_quantity ?? 0) - (b.row.available_quantity ?? 0);
+    }
+  }
+}
+
 /** Deterministic sorting; unknown sale dates and stock stay last, never become zero. */
 export function sortProductActivityRows(
   rows: readonly StoreProductActivityRow[],
   sort: ProductActivityRowsSort,
 ): StoreProductActivityRow[] {
-  return rows.map((row, index) => ({ row, index })).sort((a, b) => {
-    let result = 0;
-    if (sort === 'days_since_sale_desc') {
-      result = (b.row.days_since_last_sale ?? -1) - (a.row.days_since_last_sale ?? -1);
-    } else if (sort === 'sold_30_desc') {
-      result = b.row.sold_quantity_last_30_days - a.row.sold_quantity_last_30_days;
-    } else if (sort === 'sold_30_asc') {
-      result = a.row.sold_quantity_last_30_days - b.row.sold_quantity_last_30_days;
-    } else if (sort === 'name_asc') {
-      result = a.row.product_name.localeCompare(b.row.product_name, 'ar');
-    } else if (sort === 'stock_asc') {
-      const aUnknown = a.row.available_quantity === null;
-      const bUnknown = b.row.available_quantity === null;
-      if (aUnknown !== bUnknown) return aUnknown ? 1 : -1;
-      result = (a.row.available_quantity ?? 0) - (b.row.available_quantity ?? 0);
-    }
-    return result || a.index - b.index;
-  }).map(({ row }) => row);
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => compareProductActivityRows(a, b, sort) || a.index - b.index)
+    .map(({ row }) => row);
 }
 
 /** Clamp the requested page so filtering/refetching cannot render an empty out-of-range page. */
