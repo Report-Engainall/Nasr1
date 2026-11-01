@@ -244,3 +244,12 @@ Read live P2 branch head; open PR to \`main\`; poll Core and P2 for that exact P
 - Two P2 TS0003 findings in OrdersPage are now `IMPLEMENTED_PENDING_FRESH_SCAN`; P2 total is 1 TS0002 + 19 TS0003 pending fresh scan, 85 active TS0003 OPEN, 10 archived scope-review. TS0010 remains not reproduced and not closed.
 - P2 batch 05 PR #346 is open and separately tracks Customer 360 recent-order print rendering; its finding is not included in this main-branch count until merge.
 - Next: run exact-head Core/P2 checks on PR #344's synchronized head, merge only after terminal success, then integrate P2 batch 05 and continue the remaining 85 active TS0003 rows.
+
+
+## Live execution update — 2026-11-01 — P2 batch 05
+
+- Current main: `85d39603d658bacced1d2b866b7189564d921048`. P2 batch 04 PR #344 merged with two legacy OrdersPage TS0003 refactors; P2 batch 05 branch synchronized with that merge at `213e886f16f0e3843f067ef368dfc41cdc8662b0`.
+- P2 batch 05 source commit `7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6`: extracted Customer 360 recent-order row renderer and section into focused typed components with an early empty-state return. Preserved the existing 20-row limit, order number/date/status/item/amount rendering, and complete-vs-recent summary wording.
+- Test commits `43ab6774c337baf475a1ec4dc58b88cf800332a1` and `90ce35bca0dcd0f99aeb5a190cc4f42326c8f70d` add UI tests for populated rows, row ordering and the empty state.
+- P2 baseline on this branch: 1 TS0002 + 20 TS0003 implemented pending fresh scan; 84 active TS0003 remain OPEN; 10 archived scope-review items. The Customer360PrintSheet finding is not CLOSED until a fresh CodeInspector scan confirms it.
+- No DTO allowlist, financial projection, tenant scope, RLS, accounting or pricing policy changed. Exact-head Core/P2 reruns are required after this synchronization and ledger update.

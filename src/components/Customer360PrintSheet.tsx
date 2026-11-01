@@ -38,6 +38,60 @@ function invoiceStatus(value: string): string {
   return invoiceStatusLabels[value] ?? value;
 }
 
+function RecentOrderRows({
+  rows,
+}: {
+  rows: Customer360PrintDocument["recentOrders"];
+}) {
+  if (rows.length === 0) {
+    return <tr><td colSpan={5}>لا توجد طلبات حديثة.</td></tr>;
+  }
+
+  return (
+    <>
+      {rows.map((row, index) => (
+        <tr
+          key={row.orderNumber + "-" + index}
+          data-testid="customer-360-print-order-row"
+        >
+          <td>{row.orderNumber}</td>
+          <td>{date(row.createdAt)}</td>
+          <td>{row.status}</td>
+          <td>{number(row.totalItems)}</td>
+          <td>{money(row.totalAmount, "YER")}</td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
+function RecentOrdersSection({
+  document,
+}: {
+  document: Customer360PrintDocument;
+}) {
+  return (
+    <section className="customer-360-print-section">
+      <h2>آخر الطلبات ({formatNumber(document.recentOrders.length)} من {formatNumber(document.orderSummary.orderCount)})</h2>
+      <p className="customer-360-print-note">التفاصيل أدناه لأحدث 20 طلبًا فقط؛ إجمالي الطلبات محسوب من سجل العميل الكامل.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>رقم الطلب</th>
+            <th>التاريخ</th>
+            <th>الحالة</th>
+            <th>الأصناف</th>
+            <th>الإجمالي</th>
+          </tr>
+        </thead>
+        <tbody>
+          <RecentOrderRows rows={document.recentOrders} />
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
 export function Customer360PrintSheet({ document }: { document: Customer360PrintDocument }) {
   const generatedAt = new Intl.DateTimeFormat("ar-YE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(document.generatedAt));
   return (
@@ -99,14 +153,7 @@ export function Customer360PrintSheet({ document }: { document: Customer360Print
         {document.financeByCurrency.some((row) => row.invalidTotalAmountCount > 0) ? <p className="customer-360-print-note">توجد {formatNumber(document.financeByCurrency.reduce((sum, row) => sum + row.invalidTotalAmountCount, 0))} إجماليات فواتير غير صالحة؛ بقيت المجاميع غير المؤكدة «غير متاحة» ولم تُحوّل إلى أصفار.</p> : null}
       </section>
 
-      <section className="customer-360-print-section">
-        <h2>آخر الطلبات ({formatNumber(document.recentOrders.length)} من {formatNumber(document.orderSummary.orderCount)})</h2>
-        <p className="customer-360-print-note">التفاصيل أدناه لأحدث 20 طلبًا فقط؛ إجمالي الطلبات محسوب من سجل العميل الكامل.</p>
-        <table><thead><tr><th>رقم الطلب</th><th>التاريخ</th><th>الحالة</th><th>الأصناف</th><th>الإجمالي</th></tr></thead><tbody>
-          {document.recentOrders.map((row, index) => <tr key={row.orderNumber + "-" + index} data-testid="customer-360-print-order-row"><td>{row.orderNumber}</td><td>{date(row.createdAt)}</td><td>{row.status}</td><td>{number(row.totalItems)}</td><td>{money(row.totalAmount, "YER")}</td></tr>)}
-          {document.recentOrders.length === 0 ? <tr><td colSpan={5}>لا توجد طلبات حديثة.</td></tr> : null}
-        </tbody></table>
-      </section>
+      <RecentOrdersSection document={document} />
 
       <section className="customer-360-print-section">
         <h2>آخر الفواتير ({formatNumber(document.recentInvoices.length)} معروضة)</h2>
