@@ -4,7 +4,167 @@ import { useAuth } from '@/lib/auth';
 
 type Mode = 'login' | 'register' | 'forgot';
 
-export function Login({ onDone, initialMode = 'login' }: { onDone?: () => void; initialMode?: Mode }) {
+function LoginBrand() {
+  return (
+    <div className="login-brand">
+      <div className="login-brand-icon"><Activity size={28} /></div>
+      <div><strong>الأغبري</strong><span>Aghbari Commerce</span></div>
+    </div>
+  );
+}
+
+function LoginMarketingPanel() {
+  return (
+    <div className="login-left">
+      <LoginBrand />
+      <div className="login-hero">
+        <h2>منصة تجارة الجملة والتوزيع الذكية</h2>
+        <p>اطلب بالجملة، تابع طلباتك، وأدر عملياتك التجارية من مكان واحد.</p>
+      </div>
+      <div className="login-features">
+        <div className="login-feature"><ShieldCheck size={20} /> <span>دخول آمن وصلاحيات حسب الدور</span></div>
+        <div className="login-feature"><Activity size={20} /> <span>أسعار ومخزون محدّث مباشرة</span></div>
+        <div className="login-feature"><Lock size={20} /> <span>بياناتك التجارية محمية</span></div>
+      </div>
+    </div>
+  );
+}
+
+function LoginNameField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="login-field">
+      <span>الاسم الكامل</span>
+      <div className="login-input-wrap">
+        <User size={18} />
+        <input value={value} onChange={(event) => onChange(event.target.value)} autoComplete="name" required />
+      </div>
+    </label>
+  );
+}
+
+function LoginEmailField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="login-field">
+      <span>البريد الإلكتروني</span>
+      <div className="login-input-wrap">
+        <Mail size={18} />
+        <input
+          type="email"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          autoComplete="email"
+          dir="ltr"
+          required
+        />
+      </div>
+    </label>
+  );
+}
+
+function LoginPasswordField({
+  value,
+  visible,
+  mode,
+  onChange,
+  onToggleVisibility,
+}: {
+  value: string;
+  visible: boolean;
+  mode: Exclude<Mode, 'forgot'>;
+  onChange: (value: string) => void;
+  onToggleVisibility: () => void;
+}) {
+  return (
+    <label className="login-field">
+      <span>كلمة المرور</span>
+      <div className="login-input-wrap">
+        <Lock size={18} />
+        <input
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+          required
+        />
+        <button
+          type="button"
+          aria-label={visible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+          onClick={onToggleVisibility}
+        >
+          {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      </div>
+    </label>
+  );
+}
+
+function LoginFormIntro({ mode, title }: { mode: Mode; title: string }) {
+  const description = mode === 'register'
+    ? 'أنشئ حسابك للطلب من متجر الأغبري'
+    : mode === 'forgot'
+      ? 'سنرسل لك رابطاً لتعيين كلمة مرور جديدة'
+      : 'أدخل بياناتك للمتابعة';
+
+  return (
+    <>
+      <h1>{title}</h1>
+      <p>{description}</p>
+    </>
+  );
+}
+
+function LoginFeedback({ error, info }: { error: string; info: string }) {
+  return (
+    <>
+      {error ? <div className="login-error" role="alert">{error}</div> : null}
+      {info ? <div className="login-hint" role="status">{info}</div> : null}
+    </>
+  );
+}
+
+function LoginModeActions({ mode, onModeChange }: { mode: Mode; onModeChange: (mode: Mode) => void }) {
+  return (
+    <div className="login-hint" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+      {mode !== 'login' ? (
+        <button type="button" className="sf-link" onClick={() => onModeChange('login')}>
+          لديك حساب؟ سجّل الدخول
+        </button>
+      ) : null}
+      {mode !== 'register' ? (
+        <button type="button" className="sf-link" onClick={() => onModeChange('register')}>
+          إنشاء حساب جديد
+        </button>
+      ) : null}
+      {mode === 'login' ? (
+        <button type="button" className="sf-link" onClick={() => onModeChange('forgot')}>
+          نسيت كلمة المرور؟
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function loginTitle(mode: Mode): string {
+  if (mode === 'login') return 'تسجيل الدخول';
+  if (mode === 'register') return 'إنشاء حساب تجاري';
+  return 'استعادة كلمة المرور';
+}
+
+function validateLoginInput(mode: Mode, name: string, email: string, password: string): string {
+  if (!/^\S+@\S+\.\S+$/.test(email.trim())) return 'أدخل بريداً إلكترونياً صحيحاً';
+  if (mode === 'forgot') return '';
+  if (password.length < 8) return 'كلمة المرور يجب أن تكون 8 أحرف على الأقل';
+  if (mode === 'register' && name.trim().length < 2) return 'أدخل الاسم الكامل';
+  return '';
+}
+
+export function Login({
+  onDone,
+  initialMode = 'login',
+}: {
+  onDone?: () => void;
+  initialMode?: Mode;
+}) {
   const { signIn, signUp, resetPassword, loading } = useAuth();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [name, setName] = useState('');
@@ -14,50 +174,63 @@ export function Login({ onDone, initialMode = 'login' }: { onDone?: () => void; 
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(''); setInfo('');
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setError('أدخل بريداً إلكترونياً صحيحاً'); return; }
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError('');
+    setInfo('');
+
+    const validationError = validateLoginInput(mode, name, email, password);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     try {
-      if (mode === 'forgot') { await resetPassword(email); setInfo('أرسلنا رابط إعادة تعيين كلمة المرور إلى بريدك'); return; }
-      if (password.length < 8) { setError('كلمة المرور يجب أن تكون 8 أحرف على الأقل'); return; }
+      if (mode === 'forgot') {
+        await resetPassword(email);
+        setInfo('أرسلنا رابط إعادة تعيين كلمة المرور إلى بريدك');
+        return;
+      }
+
       if (mode === 'register') {
-        if (name.trim().length < 2) { setError('أدخل الاسم الكامل'); return; }
         const { needsConfirmation } = await signUp(email, password, name);
-        if (needsConfirmation) { setInfo('تم إنشاء الحساب. افتح بريدك واضغط رابط التفعيل ثم سجّل الدخول.'); setMode('login'); return; }
+        if (needsConfirmation) {
+          setInfo('تم إنشاء الحساب. افتح بريدك واضغط رابط التفعيل ثم سجّل الدخول.');
+          setMode('login');
+          return;
+        }
       } else {
         await signIn(email, password);
       }
+
       onDone?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'تعذر إكمال العملية');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'تعذر إكمال العملية');
     }
   }
 
-  const title = mode === 'login' ? 'تسجيل الدخول' : mode === 'register' ? 'إنشاء حساب تجاري' : 'استعادة كلمة المرور';
-
   return (
     <div className="login-screen" dir="rtl">
-      <div className="login-left">
-        <div className="login-brand"><div className="login-brand-icon"><Activity size={28} /></div><div><strong>الأغبري</strong><span>Aghbari Commerce</span></div></div>
-        <div className="login-hero"><h2>منصة تجارة الجملة والتوزيع الذكية</h2><p>اطلب بالجملة، تابع طلباتك، وأدر عملياتك التجارية من مكان واحد.</p></div>
-        <div className="login-features"><div className="login-feature"><ShieldCheck size={20} /> <span>دخول آمن وصلاحيات حسب الدور</span></div><div className="login-feature"><Activity size={20} /> <span>أسعار ومخزون محدّث مباشرة</span></div><div className="login-feature"><Lock size={20} /> <span>بياناتك التجارية محمية</span></div></div>
-      </div>
+      <LoginMarketingPanel />
       <div className="login-right">
         <form className="login-form" onSubmit={handleSubmit} noValidate>
-          <h1>{title}</h1>
-          <p>{mode === 'register' ? 'أنشئ حسابك للطلب من متجر الأغبري' : mode === 'forgot' ? 'سنرسل لك رابطاً لتعيين كلمة مرور جديدة' : 'أدخل بياناتك للمتابعة'}</p>
-          {mode === 'register' && <label className="login-field"><span>الاسم الكامل</span><div className="login-input-wrap"><User size={18} /><input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required /></div></label>}
-          <label className="login-field"><span>البريد الإلكتروني</span><div className="login-input-wrap"><Mail size={18} /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" dir="ltr" required /></div></label>
-          {mode !== 'forgot' && <label className="login-field"><span>كلمة المرور</span><div className="login-input-wrap"><Lock size={18} /><input type={show ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} required /><button type="button" aria-label={show ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} onClick={() => setShow(!show)}>{show ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>}
-          {error && <div className="login-error" role="alert">{error}</div>}
-          {info && <div className="login-hint" role="status">{info}</div>}
-          <button className="login-submit" type="submit" disabled={loading}>{loading ? 'جارٍ المعالجة...' : mode === 'login' ? 'دخول' : mode === 'register' ? 'إنشاء الحساب' : 'إرسال الرابط'}</button>
-          <div className="login-hint" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            {mode !== 'login' && <button type="button" className="sf-link" onClick={() => setMode('login')}>لديك حساب؟ سجّل الدخول</button>}
-            {mode !== 'register' && <button type="button" className="sf-link" onClick={() => setMode('register')}>إنشاء حساب جديد</button>}
-            {mode === 'login' && <button type="button" className="sf-link" onClick={() => setMode('forgot')}>نسيت كلمة المرور؟</button>}
-          </div>
+          <LoginFormIntro mode={mode} title={loginTitle(mode)} />
+          {mode === 'register' ? <LoginNameField value={name} onChange={setName} /> : null}
+          <LoginEmailField value={email} onChange={setEmail} />
+          {mode !== 'forgot' ? (
+            <LoginPasswordField
+              value={password}
+              visible={show}
+              mode={mode}
+              onChange={setPassword}
+              onToggleVisibility={() => setShow((value) => !value)}
+            />
+          ) : null}
+          <LoginFeedback error={error} info={info} />
+          <button className="login-submit" type="submit" disabled={loading}>
+            {loading ? 'جارٍ المعالجة...' : mode === 'login' ? 'دخول' : mode === 'register' ? 'إنشاء الحساب' : 'إرسال الرابط'}
+          </button>
+          <LoginModeActions mode={mode} onModeChange={setMode} />
         </form>
       </div>
     </div>
