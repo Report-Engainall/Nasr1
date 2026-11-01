@@ -312,7 +312,6 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
       if (rpcError) throw new Error(rpcError.message || "تعذر تحميل بيانات الطباعة؛ يلزم دور المحاسبة.");
       const payload = readPrintableReturnCreditMemo(data);
       const doc = openedWindow.document;
-      const doc = openedWindow.document;
       renderReturnCreditMemoDocument(doc, payload);
       openedWindow.focus();openedWindow.onafterprint=()=>openedWindow.close();window.setTimeout(()=>openedWindow.print(),200);
       onNotice("تم تجهيز نسخة الطباعة من المصدر المحاسبي بعد تحقق صلاحية المحاسبة.");
