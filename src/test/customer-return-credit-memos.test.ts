@@ -7,6 +7,11 @@ import {
   readPrintableReturnCreditMemo,
 } from "@/lib/customer-return-credit-memos";
 
+const CREDIT_MEMO_IDEMPOTENCY_UUID_V4 = new RegExp(
+  "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+  "i",
+);
+
 const queueFixture = () => ({
   accounts: [
     { id: "ar1", code: "AR-001", name: "ذمم العملاء", account_type: "asset" },
@@ -87,7 +92,7 @@ describe("return credit memo server contracts", () => {
   });
 
   it("creates a UUID idempotency key suitable for the server accounting contract", () => {
-    expect(createCreditMemoIdempotencyKey()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(createCreditMemoIdempotencyKey()).toMatch(CREDIT_MEMO_IDEMPOTENCY_UUID_V4);
   });
   it("validates the finance-scoped print payload and refuses inconsistent totals", () => {
     const valid = {

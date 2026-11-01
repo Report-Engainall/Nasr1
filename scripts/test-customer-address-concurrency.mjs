@@ -1,3 +1,4 @@
+import { logError, logInfo } from "./diagnostic-logger.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
@@ -703,7 +704,7 @@ async function main() {
 try {
   await main();
 } catch (error) {
-  console.error("CUSTOMER_ADDRESS_CONCURRENCY_ACCEPTANCE_FAILED", error);
+  logError("CUSTOMER_ADDRESS_CONCURRENCY_ACCEPTANCE_FAILED", error);
   process.exitCode = 1;
 } finally {
   await Promise.all([

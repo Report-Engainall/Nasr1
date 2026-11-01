@@ -7,6 +7,7 @@ type WorkerEvent = { waitUntil: (promise: Promise<unknown>) => void };
 type FetchWorkerEvent = {
   request: Request;
   respondWith: (promise: Promise<Response>) => void;
+  waitUntil?: (promise: Promise<unknown>) => void;
 };
 type Listener = (event: WorkerEvent | FetchWorkerEvent) => void;
 
@@ -17,16 +18,47 @@ function sameOriginResponse(body: BodyInit | null, init?: ResponseInit): Respons
   return response;
 }
 
+const DIAGNOSTIC_SECRET_VALUES = [
+  "sw-access-token-fixture",
+  "sw-refresh-token-fixture",
+  "sw-client-secret-fixture",
+  "sw-oauth-code-fixture",
+];
+
+function createSensitiveDiagnosticFailure(label: string): Error {
+  const query = new URLSearchParams({
+    access_token: DIAGNOSTIC_SECRET_VALUES[0],
+    refresh_token: DIAGNOSTIC_SECRET_VALUES[1],
+    client_secret: DIAGNOSTIC_SECRET_VALUES[2],
+    code: DIAGNOSTIC_SECRET_VALUES[3],
+  });
+  const url = "https://aghbari.example/assets/app.js?" + query.toString()
+    + "#refresh_token=" + DIAGNOSTIC_SECRET_VALUES[1];
+  const error = new Error(label + ": " + url);
+  error.stack = error.name + ": " + label + "\\n    at fetch (" + url + ")";
+  return error;
+}
+
+function expectNoDiagnosticSecrets(calls: unknown): void {
+  const output = JSON.stringify(calls);
+  for (const secret of DIAGNOSTIC_SECRET_VALUES) {
+    expect(output).not.toContain(secret);
+  }
+}
+
 async function loadServiceWorker(overrides: {
   cacheAdd?: (url: string) => Promise<void>;
   cacheNames?: string[];
   cacheMatch?: (request: Request | string) => Promise<Response | null>;
   fetcher?: (request: Request | string) => Promise<Response>;
+  cachePut?: (request: Request | string, response: Response) => Promise<void>;
 } = {}) {
   const source = await readFile(resolve(process.cwd(), "public/sw.js"), "utf8");
   const listeners = new Map<string, Listener>();
   const cacheAdd = vi.fn(async (url: string) => overrides.cacheAdd?.(url));
-  const cachePut = vi.fn(async (_request: Request | string, _response: Response) => undefined);
+  const cachePut = vi.fn(async (request: Request | string, response: Response) => {
+    await overrides.cachePut?.(request, response);
+  });
   const cache = { add: cacheAdd, put: cachePut };
   const cacheDelete = vi.fn(async () => true);
   const cacheNames = overrides.cacheNames ?? [];
@@ -185,11 +217,14 @@ describe("Aghbari PWA offline shell", () => {
 
   it("serves a cached asset without an unhandled rejection when the background refresh is offline", async () => {
     const cachedResponse = new Response("cached asset", { status: 200 });
+    const networkError = createSensitiveDiagnosticFailure("offline");
     const worker = await loadServiceWorker({
       cacheMatch: async () => cachedResponse,
-      fetcher: async () => { throw new Error("offline"); },
+      fetcher: async () => { throw networkError; },
     });
     const pending: Promise<Response>[] = [];
+    const lifecycle: Promise<unknown>[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     worker.listeners.get("fetch")?.({
       request: {
         method: "GET",
@@ -197,9 +232,50 @@ describe("Aghbari PWA offline shell", () => {
         mode: "cors",
       } as Request,
       respondWith: (promise: Promise<Response>) => pending.push(promise as Promise<Response>),
+      waitUntil: (promise: Promise<unknown>) => lifecycle.push(promise),
     } as unknown as WorkerEvent & { request: Request; respondWith: (promise: Promise<Response>) => void });
 
     await expect(Promise.all(pending)).resolves.toEqual([cachedResponse]);
+    await expect(Promise.all(lifecycle)).resolves.toBeDefined();
+    expect(warn).toHaveBeenCalledWith(
+      "[aghbari-sw] background asset refresh failed; serving cached response",
+      expect.objectContaining({ url: "/assets/app.js", errorType: "Error" }),
+    );
+    expectNoDiagnosticSecrets(warn.mock.calls);
+    warn.mockRestore();
+  });
+
+
+  it("omits URL query parameters from diagnostics when an asset cache write fails", async () => {
+    const requestUrl = "https://aghbari.example/assets/app.js?access_token=do-not-log-this";
+    const pending: Promise<Response>[] = [];
+    const lifecycle: Promise<unknown>[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const worker = await loadServiceWorker({
+      fetcher: async () => sameOriginResponse("export const ok = true;", {
+        status: 200,
+        headers: { "Content-Type": "application/javascript" },
+      }),
+      cachePut: async () => {
+        throw createSensitiveDiagnosticFailure("cache storage unavailable");
+      },
+    });
+
+    worker.listeners.get("fetch")?.({
+      request: { method: "GET", url: requestUrl, mode: "cors" } as Request,
+      respondWith: (promise) => pending.push(promise as Promise<Response>),
+      waitUntil: (promise) => lifecycle.push(promise),
+    });
+
+    await expect(Promise.all(pending)).resolves.toHaveLength(1);
+    await expect(Promise.all(lifecycle)).resolves.toBeDefined();
+    expect(warn).toHaveBeenCalledWith(
+      "[aghbari-sw] static asset cache write failed",
+      expect.objectContaining({ url: "/assets/app.js", errorType: "Error" }),
+    );
+    expectNoDiagnosticSecrets(warn.mock.calls);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("do-not-log-this");
+    warn.mockRestore();
   });
 
   it("removes previous shell cache versions during activation", async () => {
