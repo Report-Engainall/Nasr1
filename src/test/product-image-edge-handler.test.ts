@@ -22,6 +22,13 @@ type SetupOptions = {
   removeError?: unknown | null;
 };
 
+function authUserResult(options: SetupOptions) {
+  return {
+    data: { user: options.authUser === undefined ? { id: USER_ID } : options.authUser },
+    error: options.authError ?? null,
+  };
+}
+
 function setup(options: SetupOptions = {}) {
   const env = options.env ?? {
     SUPABASE_URL: "https://supabase.example.test",
@@ -30,10 +37,7 @@ function setup(options: SetupOptions = {}) {
   };
   const authClient = {
     auth: {
-      getUser: vi.fn(async (_token: string) => ({
-        data: { user: options.authUser === undefined ? { id: USER_ID } : options.authUser },
-        error: options.authError ?? null,
-      })),
+      getUser: vi.fn(async (_token: string) => authUserResult(options)),
     },
   };
   const adminClient = {
