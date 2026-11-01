@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
@@ -1327,33 +1328,6 @@ function Quotes() {
       subtitle="اطلب تسعيرًا تجاريًا موثقًا، ثم راجع رد فريق الأغبري."
     >
 
-      <style>{`
-        @page { size: A4 portrait; margin: 14mm; }
-        @media print {
-          body * { visibility: hidden !important; }
-          .customer-quote-print-sheet,
-          .customer-quote-print-sheet * { visibility: visible !important; }
-          .customer-quote-print-sheet {
-            display: block !important; position: fixed; inset: 0; width: 100%;
-            box-sizing: border-box; padding: 0; background: #fff !important;
-            color: #111 !important; direction: rtl; font-family: Tahoma, Arial, sans-serif;
-          }
-          .customer-quote-print-sheet header {
-            display: flex; justify-content: space-between; gap: 16px;
-            border-bottom: 2px solid #176b55; padding-bottom: 12px; margin-bottom: 14px;
-          }
-          .customer-quote-print-sheet table {
-            width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 14px;
-          }
-          .customer-quote-print-sheet th,
-          .customer-quote-print-sheet td {
-            border: 1px solid #999 !important; padding: 7px; text-align: right;
-            color: #111 !important;
-          }
-          .customer-quote-print-sheet thead { display: table-header-group; }
-          .customer-quote-print-sheet tr { break-inside: avoid; page-break-inside: avoid; }
-        }
-      `}</style>
       {notice && (
         <div role="status" style={{ ...card, borderColor: "#a8d8c6", marginBottom: 12 }}>
           {notice}
@@ -1526,7 +1500,7 @@ function Quotes() {
           ))}
         </div>
       )}
-      {printableDocument && (
+      {printableDocument && createPortal((
         <article
           className="customer-quote-print-sheet"
           data-testid="customer-quote-print-document"
@@ -1570,8 +1544,9 @@ function Quotes() {
             يعرض هذا المستند أسعار العرض التي اعتمدها الخادم فقط، ولا يمثل أمر بيع أو إثبات استلام دفعة.
           </p>
         </article>
+        ),
+        document.body,
       )}
-    </WorkspaceShell>
   );
 }
 

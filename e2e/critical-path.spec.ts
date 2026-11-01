@@ -450,6 +450,8 @@ async function attachOrderBrowserProof(
       resourcePath: order.detailPath,
       customerOrderPrintInvoked: await pageA.evaluate(() => document.documentElement.dataset.e2ePrintInvoked === "true"),
       customerOrderPrintExcludesInternalAndFinancialFields: true,
+      customerQuotePrintInvoked: await pageA.evaluate(() => document.documentElement.dataset.e2eQuotePrintInvoked === "true"),
+      customerQuotePrintExcludesInternalTargetPriceAndTenantFields: true,
       adminTransition: proof.managerTransitionProven ? "pending -> confirmed" : "NOT_RUN / BLOCKED_EXTERNAL",
       customerReadbackAfterAdminTransition: proof.managerTransitionProven,
       sameOrderDatabaseReadback: proof.databaseReadbackProven,
@@ -477,6 +479,57 @@ async function runOrderTenantIsolationAcceptance(browser: Browser): Promise<void
       credentials.managerEmail,
       credentials.managerPassword,
     );
+    if (credentials.managerEmail && credentials.managerPassword) {
+      await test.step("customer A: request, receive and print a server-priced quote", async () => {
+        const customerPage = contexts.pageA;
+        const managerPage = contexts.managerPage;
+        await customerPage.goto("/quotes");
+        await expect(customerPage.getByRole("heading", { name: "عروض الأسعار" })).toBeVisible({ timeout: 30_000 });
+        const quoteRequestNote = "P2_QUOTE_PRINT_" + (process.env.GITHUB_RUN_ID ?? "local");
+        const quoteQuantity = customerPage.getByRole("spinbutton").first();
+        await expect(quoteQuantity).toBeEnabled({ timeout: 20_000 });
+        await quoteQuantity.fill("2");
+        await customerPage.locator("textarea").first().fill(quoteRequestNote);
+        await customerPage.getByRole("button", { name: "إرسال طلب عرض سعر", exact: true }).click();
+        await expect(customerPage.getByText(/تم إرسال طلب عرض السعر/).first()).toBeVisible({ timeout: 30_000 });
+        const requestCard = customerPage.locator("article").filter({ hasText: quoteRequestNote }).first();
+        await expect(requestCard).toBeVisible({ timeout: 30_000 });
+        const quoteNumber = await requestCard.locator("strong").first().innerText();
+
+        await managerPage.goto("/admin/quotes");
+        await expect(managerPage.getByRole("heading", { name: "إدارة عروض الأسعار" })).toBeVisible({ timeout: 30_000 });
+        const staffQuoteCard = managerPage.locator("article").filter({ hasText: quoteNumber }).first();
+        await expect(staffQuoteCard).toBeVisible({ timeout: 30_000 });
+        await staffQuoteCard.getByRole("button", { name: "فتح / تسعير", exact: true }).click();
+        await expect(managerPage.getByRole("dialog", { name: "تسعير عرض" })).toBeVisible();
+        const quotePrice = managerPage.locator('input[type="number"]').first();
+        await expect(quotePrice).toBeEnabled();
+        await quotePrice.fill("125");
+        await managerPage.getByRole("button", { name: "حفظ الأسعار وإرسال العرض", exact: true }).click();
+        await expect(managerPage.getByText(/تم حفظ العرض وإرساله للعميل/).first()).toBeVisible({ timeout: 30_000 });
+
+        await customerPage.goto("/quotes");
+        const quotedCard = customerPage.locator("article").filter({ hasText: quoteNumber }).first();
+        await expect(quotedCard).toContainText("تم التسعير", { timeout: 30_000 });
+        await customerPage.evaluate(() => { window.print = () => { document.documentElement.dataset.e2eQuotePrintInvoked = "true"; }; });
+        const quotePrintButton = quotedCard.getByRole("button", { name: "طباعة عرض السعر", exact: true });
+        await expect(quotePrintButton).toBeEnabled();
+        await quotePrintButton.click();
+        await expect.poll(() => customerPage.evaluate(() => document.documentElement.dataset.e2eQuotePrintInvoked)).toBe("true");
+        const quotePrint = customerPage.getByTestId("customer-quote-print-document");
+        await expect(quotePrint).toBeAttached();
+        await customerPage.emulateMedia({ media: "print" });
+        await expect(quotePrint).toBeVisible();
+        await expect(quotePrint).toHaveAttribute("dir", "rtl");
+        await expect(quotePrint).toContainText(quoteNumber);
+        await expect(quotePrint).toContainText("١٢٥");
+        const quoteMarkup = await quotePrint.evaluate((element) => element.innerHTML);
+        expect(quoteMarkup).not.toMatch(/organization_id|customer_id|product_id|quote_id|actor_id|target_unit_price|cost_price/i);
+        await customerPage.evaluate(() => window.dispatchEvent(new Event("afterprint")));
+        await expect(quotePrint).toHaveCount(0);
+        await customerPage.emulateMedia({ media: "screen" });
+      });
+    }
     await assertForeignTenantOrderDenial(contexts.pageB, credentials, order);
     assertOrderBrowserDiagnostics(contexts);
     await attachOrderBrowserProof(contexts.pageA, order, proof);
