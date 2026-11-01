@@ -66,6 +66,63 @@ function roleLabel(role: string): string {
   return found?.label ?? role;
 }
 
+
+function TrialBalancePanel({ payload, loading }: { payload: LedgerPayload | null; loading: boolean }) {
+  return (
+    <section style={card}>
+      <h3 style={{ margin: 0 }}>ميزان المراجعة للفترة المحددة</h3>
+      {loading ? <p role="status" style={muted}>جارٍ تحميل الملخص...</p> : <TrialBalanceContent payload={payload} />}
+    </section>
+  );
+}
+
+function TrialBalanceContent({ payload }: { payload: LedgerPayload | null }) {
+  const summary = payload?.summary ?? { posted_entry_count: 0, debit_total: "0.00", credit_total: "0.00" };
+  const isBalanced = summary.debit_total === summary.credit_total;
+  return (
+    <>
+      <TrialBalanceTotals summary={summary} />
+      {payload && !isBalanced && <p role="alert" style={{ color: "#9b2828" }}>تحذير: ميزان المراجعة غير متوازن. أوقف الترحيل وافحص قيود الفترة.</p>}
+      <TrialBalanceAccounts accounts={payload?.accounts ?? []} />
+    </>
+  );
+}
+
+function TrialBalanceTotals({ summary }: { summary: LedgerPayload["summary"] }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+      <article style={{ ...card, boxShadow: "none" }}><span style={muted}>عدد القيود المرحلة</span><strong style={{ fontSize: 22 }}>{summary.posted_entry_count}</strong></article>
+      <article style={{ ...card, boxShadow: "none" }}><span style={muted}>إجمالي المدين</span><strong>{formatLedgerMoney(summary.debit_total)}</strong></article>
+      <article style={{ ...card, boxShadow: "none" }}><span style={muted}>إجمالي الدائن</span><strong>{formatLedgerMoney(summary.credit_total)}</strong></article>
+    </div>
+  );
+}
+
+function TrialBalanceAccounts({ accounts }: { accounts: Account[] }) {
+  if (accounts.length === 0) return <p style={muted}>لا توجد حسابات مسجلة في دليل المؤسسة. أضف الحسابات المطلوبة دون إنشاء أرصدة افتراضية.</p>;
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={table}>
+        <thead><tr style={{ background: "var(--muted, #f4f7f8)" }}><th style={{ padding: 9 }}>رمز الحساب</th><th>الحساب</th><th>النوع</th><th>مدين</th><th>دائن</th><th>صافي الحركة (مدين − دائن)</th></tr></thead>
+        <tbody>{accounts.map((account) => <TrialBalanceAccountRow key={account.id} account={account} />)}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function TrialBalanceAccountRow({ account }: { account: Account }) {
+  return (
+    <tr style={{ borderTop: "1px solid var(--border, #e3e9ec)" }}>
+      <td style={{ padding: 9, whiteSpace: "nowrap" }}>{account.code}</td>
+      <td>{account.name}</td>
+      <td>{roleLabel(account.account_type)}</td>
+      <td>{formatLedgerMoney(account.debit_total)}</td>
+      <td>{formatLedgerMoney(account.credit_total)}</td>
+      <td>{formatLedgerBalance(account.debit_total, account.credit_total)}</td>
+    </tr>
+  );
+}
+
 export function GeneralLedgerWorkspace() {
   const { user, ready } = useAuth();
   const canUseFinance = Boolean(user?.roles.some((role) => ["admin", "manager", "accountant"].includes(role)));
@@ -95,18 +152,30 @@ export function GeneralLedgerWorkspace() {
   const [statementsError, setStatementsError] = useState("");
   const [printDocument, setPrintDocument] = useState<GeneralLedgerPrintDocument | null>(null);
   const [printError, setPrintError] = useState("");
+  const previousPrintMode = useRef<string | null>(null);
+
+  function activatePrintMode() {
+    if (typeof document === "undefined") return;
+    previousPrintMode.current = document.body.getAttribute("data-print-mode");
+    document.body.setAttribute("data-print-mode", "general-ledger");
+  }
+
+  function restorePreviousPrintMode() {
+    if (typeof document === "undefined") return;
+    const previousMode = previousPrintMode.current;
+    if (previousMode === null) document.body.removeAttribute("data-print-mode");
+    else if (previousMode !== undefined) document.body.setAttribute("data-print-mode", previousMode);
+    previousPrintMode.current = null;
+  }
 
   useEffect(() => {
     if (!printDocument || typeof window === "undefined" || typeof document === "undefined" || typeof window.print !== "function") return;
     const body = document.body;
-    const previousMode = body.getAttribute("data-print-mode");
-    body.setAttribute("data-print-mode", "general-ledger");
     let restored = false;
     const restore = () => {
       if (restored) return;
       restored = true;
-      if (previousMode === null) body.removeAttribute("data-print-mode");
-      else body.setAttribute("data-print-mode", previousMode);
+      restorePreviousPrintMode();
       window.removeEventListener("afterprint", restore);
       setPrintDocument(null);
     };
@@ -122,12 +191,14 @@ export function GeneralLedgerWorkspace() {
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener("afterprint", restore);
-      if (!restored && body.getAttribute("data-print-mode") === "general-ledger") {
-        if (previousMode === null) body.removeAttribute("data-print-mode");
-        else body.setAttribute("data-print-mode", previousMode);
-      }
+      if (!restored && body.getAttribute("data-print-mode") === "general-ledger") restorePreviousPrintMode();
     };
   }, [printDocument]);
+
+  function queuePrintDocument(projected: GeneralLedgerPrintDocument) {
+    activatePrintMode();
+    setPrintDocument(projected);
+  }
 
   function printJournalEntry(entry: JournalEntry) {
     const projected = projectGeneralJournalPrintDocument(entry);
@@ -136,7 +207,7 @@ export function GeneralLedgerWorkspace() {
       return;
     }
     setPrintError("");
-    setPrintDocument(projected);
+    queuePrintDocument(projected);
   }
 
   function printFinancialStatements() {
@@ -146,7 +217,7 @@ export function GeneralLedgerWorkspace() {
       return;
     }
     setPrintError("");
-    setPrintDocument(projected);
+    queuePrintDocument(projected);
   }
 
   const refresh = useCallback(async () => {
@@ -360,32 +431,7 @@ export function GeneralLedgerWorkspace() {
         </form>
       )}
 
-      <section style={card}>
-        <h3 style={{ margin: 0 }}>ميزان المراجعة للفترة المحددة</h3>
-        {loading ? <p role="status" style={muted}>جارٍ تحميل الملخص...</p> : (
-          <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
-              <article style={{ ...card, boxShadow: "none" }}><span style={muted}>عدد القيود المرحلة</span><strong style={{ fontSize: 22 }}>{payload?.summary.posted_entry_count ?? 0}</strong></article>
-              <article style={{ ...card, boxShadow: "none" }}><span style={muted}>إجمالي المدين</span><strong>{formatLedgerMoney(payload?.summary.debit_total ?? "0.00")}</strong></article>
-              <article style={{ ...card, boxShadow: "none" }}><span style={muted}>إجمالي الدائن</span><strong>{formatLedgerMoney(payload?.summary.credit_total ?? "0.00")}</strong></article>
-            </div>
-            {payload && payload.summary.debit_total !== payload.summary.credit_total && <p role="alert" style={{ color: "#9b2828" }}>تحذير: ميزان المراجعة غير متوازن. أوقف الترحيل وافحص قيود الفترة.</p>}
-            <div style={{ overflowX: "auto" }}>
-              <table style={table}>
-                <thead><tr style={{ background: "var(--muted, #f4f7f8)" }}><th style={{ padding: 9 }}>رمز الحساب</th><th>الحساب</th><th>النوع</th><th>مدين</th><th>دائن</th><th>صافي الحركة (مدين − دائن)</th></tr></thead>
-                <tbody>{(payload?.accounts ?? []).map((account) => (
-                  <tr key={account.id} style={{ borderTop: "1px solid var(--border, #e3e9ec)" }}>
-                    <td style={{ padding: 9, whiteSpace: "nowrap" }}>{account.code}</td><td>{account.name}</td><td>{roleLabel(account.account_type)}</td>
-                    <td>{formatLedgerMoney(account.debit_total)}</td><td>{formatLedgerMoney(account.credit_total)}</td>
-                    <td>{formatLedgerBalance(account.debit_total, account.credit_total)}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-              {!payload?.accounts.length && <p style={muted}>لا توجد حسابات مسجلة في دليل المؤسسة. أضف الحسابات المطلوبة دون إنشاء أرصدة افتراضية.</p>}
-            </div>
-          </>
-        )}
-      </section>
+      <TrialBalancePanel payload={payload} loading={loading} />
 
       <section style={card} aria-label="القوائم المالية المبسطة">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>

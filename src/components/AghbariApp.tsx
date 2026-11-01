@@ -94,6 +94,161 @@ const adminPaths: Record<View, string> = {
   'purchase-orders': '/admin/purchase-orders', intelligence: '/admin/intelligence',
 };
 
+
+
+type AdminSessionUser = NonNullable<ReturnType<typeof useAuth>["user"]>;
+
+type AdminWorkspaceContentProps = {
+  view: View;
+  user: AdminSessionUser;
+  orderDetailId: string | null;
+  navigationBlocked: boolean;
+  onNavigate: (view: View) => void;
+  onNotice: (message: string) => void;
+  onOrderDetailChange: (orderId: string | null) => void;
+  onNavigationBlockedChange: (blocked: boolean) => void;
+};
+
+function AdminWorkspaceContent({
+  view,
+  user,
+  orderDetailId,
+  navigationBlocked,
+  onNavigate,
+  onNotice,
+  onOrderDetailChange,
+  onNavigationBlockedChange,
+}: AdminWorkspaceContentProps) {
+  switch (view) {
+    case "dashboard":
+      return <Dashboard onNavigate={onNavigate} />;
+    case "products":
+      return <Products onNotice={onNotice} />;
+    case "customers":
+      return <Customers onNotice={onNotice} />;
+    case "orders":
+      if (!orderDetailId) return <Orders onViewDetail={onOrderDetailChange} />;
+      return (
+        <OrderDetail
+          orderId={orderDetailId}
+          onBack={() => {
+            if (navigationBlocked) {
+              onNotice("اعتمد كميات وأسعار الطلب أو ألغِ المسودة قبل الرجوع.");
+              return;
+            }
+            onOrderDetailChange(null);
+          }}
+          onNotice={onNotice}
+          onBlockedChange={onNavigationBlockedChange}
+        />
+      );
+    case "pricing":
+      return <Pricing onNotice={onNotice} />;
+    case "offers":
+      return <Offers onNotice={onNotice} />;
+    case "suppliers":
+      return <Suppliers onNotice={onNotice} />;
+    case "purchase-orders":
+      return <PurchaseOrdersPage />;
+    case "devices":
+      return <DeviceManagement onNotice={onNotice} />;
+    case "reports":
+      return <Reports />;
+    case "intelligence":
+      return <IntelligenceWorkspace />;
+    case "ai":
+      return <AiCenter onNotice={onNotice} />;
+    case "notifications":
+      return <Notifications onNotice={onNotice} />;
+    case "data":
+      return <DataCenter onNotice={onNotice} />;
+    case "operations":
+      return <OperationsCenter onNotice={onNotice} />;
+    case "settings":
+      return (
+        <>
+          <SettingsPage onNotice={onNotice} />
+          {user.roles.includes("admin") && (
+            <CustomerManagerRoleAssignment currentProfileId={user.profileId} onNotice={onNotice} />
+          )}
+        </>
+      );
+    case "quotes":
+      return <StaffQuotesPage />;
+    case "finance":
+      return <StaffFinancePage />;
+    case "tasks":
+      return <TaskCenter onNotice={onNotice} />;
+    case "audit":
+      return <AdminAuditLog />;
+    case "stock-count":
+      return <InventoryStockCountPage />;
+    case "inventory-transfers":
+      return <InventoryTransferHistoryPage />;
+    default:
+      return null;
+  }
+}
+
+function CustomerManagerAccessPanel({ onOpen }: { onOpen: () => void }) {
+  return (
+    <section className="panel" role="status" style={{ padding: 24 }}>
+      <h1>مساحة مسؤول العملاء</h1>
+      <p>هذا الدور مخصص لدليل العملاء واعتماد الحسابات وتغيير شرائح الأسعار وحالات الحساب. لا يتيح الوصول إلى البيانات المالية أو وحدات المخزون والطلبات.</p>
+      <button className="btn primary" onClick={onOpen}>فتح إدارة العملاء</button>
+    </section>
+  );
+}
+
+function FinanceAccessPanel({ onOpen }: { onOpen: () => void }) {
+  return (
+    <section className="panel" role="status" style={{ padding: 24 }}>
+      <h1 style={{ marginTop: 0 }}>بوابة المحاسبة</h1>
+      <p>هذا الحساب مخصص للفواتير والتحصيل فقط، ولا يملك صلاحيات إدارة الطلبات أو المنتجات أو النظام.</p>
+      <button className="btn primary" onClick={onOpen}>فتح الفواتير والتحصيل</button>
+    </section>
+  );
+}
+
+function AdminWorkspaceAccess({
+  isCustomerManagerOnly,
+  isFinanceOnly,
+  view,
+  user,
+  orderDetailId,
+  navigationBlocked,
+  onNavigate,
+  onNotice,
+  onOrderDetailChange,
+  onNavigationBlockedChange,
+  onOpenCustomers,
+  onOpenFinance,
+}: AdminWorkspaceContentProps & {
+  isCustomerManagerOnly: boolean;
+  isFinanceOnly: boolean;
+  onOpenCustomers: () => void;
+  onOpenFinance: () => void;
+}) {
+  if (isCustomerManagerOnly && view !== "customers") {
+    return <CustomerManagerAccessPanel onOpen={onOpenCustomers} />;
+  }
+  if (isFinanceOnly && view !== "finance" && view !== "tasks") {
+    return <FinanceAccessPanel onOpen={onOpenFinance} />;
+  }
+  return (
+    <AdminWorkspaceContent
+      view={view}
+      user={user}
+      orderDetailId={orderDetailId}
+      navigationBlocked={navigationBlocked}
+      onNavigate={onNavigate}
+      onNotice={onNotice}
+      onOrderDetailChange={onOrderDetailChange}
+      onNavigationBlockedChange={onNavigationBlockedChange}
+    />
+  );
+}
+
 function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
   const { user, ready, signOut } = useAuth();
   const canOperateAdmin = Boolean(user?.roles.some((role) => role === 'admin' || role === 'manager' || role === 'staff'));
@@ -267,75 +422,7 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
     </div></div></div>
   );
 
-  const renderWorkspace = () => {
-    if (isCustomerManagerOnly && view !== 'customers') {
-      return (
-        <section className="panel" role="status" style={{ padding: 24 }}>
-          <h1>مساحة مسؤول العملاء</h1>
-          <p>هذا الدور مخصص لدليل العملاء واعتماد الحسابات وتغيير شرائح الأسعار وحالات الحساب. لا يتيح الوصول إلى البيانات المالية أو وحدات المخزون والطلبات.</p>
-          <button className="btn primary" onClick={() => runAdminCommand('customers')}>فتح إدارة العملاء</button>
-        </section>
-      );
-    }
 
-    if (isFinanceOnly && view !== 'finance' && view !== 'tasks') {
-      return (
-        <section className="panel" role="status" style={{ padding: 24 }}>
-          <h1 style={{ marginTop: 0 }}>بوابة المحاسبة</h1>
-          <p>هذا الحساب مخصص للفواتير والتحصيل فقط، ولا يملك صلاحيات إدارة الطلبات أو المنتجات أو النظام.</p>
-          <button className="btn primary" onClick={() => runAdminCommand('finance')}>فتح الفواتير والتحصيل</button>
-        </section>
-      );
-    }
-
-    return (
-      <>
-        {view === 'dashboard' && <Dashboard onNavigate={setView} />}
-        {view === 'products' && <Products onNotice={showNotice} />}
-        {view === 'customers' && <Customers onNotice={showNotice} />}
-        {view === 'orders' && !orderDetailId && <Orders onViewDetail={setOrderDetailId} />}
-        {view === 'orders' && orderDetailId && (
-          <OrderDetail
-            orderId={orderDetailId}
-            onBack={() => {
-              if (navigationBlocked) {
-                showNotice('اعتمد كميات وأسعار الطلب أو ألغِ المسودة قبل الرجوع.');
-                return;
-              }
-              setOrderDetailId(null);
-            }}
-            onNotice={showNotice}
-            onBlockedChange={setNavigationBlocked}
-          />
-        )}
-        {view === 'pricing' && <Pricing onNotice={showNotice} />}
-        {view === 'offers' && <Offers onNotice={showNotice} />}
-        {view === 'suppliers' && <Suppliers onNotice={showNotice} />}
-        {view === 'purchase-orders' && <PurchaseOrdersPage />}
-        {view === 'devices' && <DeviceManagement onNotice={showNotice} />}
-        {view === 'reports' && <Reports />}
-        {view === 'intelligence' && <IntelligenceWorkspace />}
-        {view === 'ai' && <AiCenter onNotice={showNotice} />}
-        {view === 'notifications' && <Notifications onNotice={showNotice} />}
-        {view === 'data' && <DataCenter onNotice={showNotice} />}
-        {view === 'operations' && <OperationsCenter onNotice={showNotice} />}
-        {view === 'settings' && (
-          <>
-            <SettingsPage onNotice={showNotice} />
-            {user.roles.includes('admin') && (
-              <CustomerManagerRoleAssignment currentProfileId={user.profileId} onNotice={showNotice} />
-            )}
-          </>
-        )}
-        {view === 'quotes' && <StaffQuotesPage />}
-        {view === 'finance' && <StaffFinancePage />}
-        {view === 'tasks' && <TaskCenter onNotice={showNotice} />}
-        {view === 'audit' && <AdminAuditLog />}
-        {view === 'stock-count' && <InventoryStockCountPage />}
-        {view === 'inventory-transfers' && <InventoryTransferHistoryPage />}
-      </>
-    );
-  };
 
   return (
     <div className="app-shell" dir="rtl">
@@ -347,7 +434,22 @@ function AppContent({ initialView = 'dashboard' }: { initialView?: View }) {
       </aside>
       <main className="main">
         <header className="topbar"><button type="button" ref={mobileMenuButtonRef} className="mobile-menu" aria-label={mobileNav ? "إغلاق القائمة الإدارية" : "فتح القائمة الإدارية"} aria-expanded={mobileNav} aria-controls="admin-sidebar" onClick={() => { if (mobileNav) closeMobileNav(); else setMobileNav(true); }}><Menu size={20} /></button><div className="topbar-title"><span className="live" /> {isFinanceOnly ? 'المحاسبة — الأغبري' : 'مركز تشغيل الأغبري'} <small>{isFinanceOnly ? 'الفواتير والتحصيل وكشف الحساب' : 'الطلبات والمخزون والأسعار والعملاء'}</small></div><div className="top-actions"><button type="button" className="search-button" aria-haspopup="dialog" aria-label="بحث سريع (Ctrl K)" onClick={() => setCommandOpen(true)}><Search size={16} /> بحث سريع <kbd>Ctrl K</kbd></button><button className="notification" aria-label="فتح التنبيهات" onClick={() => runAdminCommand('notifications')}><Bell size={18} /></button></div></header>
-        <div className="page-wrap">{renderWorkspace()}</div>
+        <div className="page-wrap">
+          <AdminWorkspaceAccess
+            isCustomerManagerOnly={isCustomerManagerOnly}
+            isFinanceOnly={isFinanceOnly}
+            view={view}
+            user={user}
+            orderDetailId={orderDetailId}
+            navigationBlocked={navigationBlocked}
+            onNavigate={setView}
+            onNotice={showNotice}
+            onOrderDetailChange={setOrderDetailId}
+            onNavigationBlockedChange={setNavigationBlocked}
+            onOpenCustomers={() => runAdminCommand("customers")}
+            onOpenFinance={() => runAdminCommand("finance")}
+          />
+        </div>
       </main>
       <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
         <DialogTitle className="sr-only">التنقل السريع في لوحة الأغبري</DialogTitle>

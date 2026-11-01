@@ -9,6 +9,84 @@ import { useCartStore } from '../../lib/cartStore'
 import { getPriceForTier, getAvailableStock, isOutOfStock, formatPrice } from '../../lib/pricing'
 import ProductCard from '../../components/store/ProductCard'
 
+
+function ProductImageView({ product }: { product: Product }) {
+  return (
+    <div style={{ aspectRatio: '1', background: 'var(--color-bg-alt)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {product.image_url ? <img src={product.image_url} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Package size={80} color="var(--color-text-light)" />}
+    </div>
+  );
+}
+
+function ProductMetadataBadges({ product }: { product: Product }) {
+  return (
+    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+      <span className="badge badge-neutral">{product.item_code}</span>
+      {product.sku && <span className="badge badge-neutral">SKU: {product.sku}</span>}
+      <span className="badge badge-neutral">{product.unit}</span>
+    </div>
+  );
+}
+
+function ProductStockStatus({ product, outOfStock }: { product: Product; outOfStock: boolean }) {
+  if (outOfStock) return <span className="badge badge-error">نفد المخزون</span>;
+  if (getAvailableStock(product) <= product.min_stock_level) return <span className="badge badge-warning">متوفر — كمية محدودة</span>;
+  return <span className="badge badge-success"><Check size={14} /> متوفر</span>;
+}
+
+function ProductQuantitySelector({ quantity, onChange }: { quantity: number; onChange: (value: number) => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+      <button type="button" aria-label="تقليل الكمية" onClick={() => onChange(Math.max(1, quantity - 1))} style={{ padding: '10px 14px', background: 'var(--color-bg-alt)' }}><Minus size={16} /></button>
+      <input aria-label="الكمية" type="number" min="1" value={quantity} onChange={(event) => onChange(Math.max(1, Number.parseInt(event.target.value, 10) || 1))} style={{ width: '60px', textAlign: 'center', border: 'none', outline: 'none', padding: '10px 0', fontSize: '16px' }} />
+      <button type="button" aria-label="زيادة الكمية" onClick={() => onChange(quantity + 1)} style={{ padding: '10px 14px', background: 'var(--color-bg-alt)' }}><Plus size={16} /></button>
+    </div>
+  );
+}
+
+function ProductAddButton({ added, onAdd }: { added: boolean; onAdd: () => void }) {
+  return <button type="button" onClick={onAdd} className={'btn ' + (added ? 'btn-accent' : 'btn-primary') + ' btn-lg'}>{added ? 'تمت الإضافة ✓' : <><ShoppingCart size={18} /> إضافة للسلة</>}</button>;
+}
+
+function ProductPurchaseControls({ quantity, onQuantityChange, added, onAdd }: {
+  quantity: number; onQuantityChange: (value: number) => void; added: boolean; onAdd: () => void;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+      <ProductQuantitySelector quantity={quantity} onChange={onQuantityChange} />
+      <ProductAddButton added={added} onAdd={onAdd} />
+    </div>
+  );
+}
+
+function ProductInformation({ product, price, showPrice, currency, outOfStock, quantity, onQuantityChange, added, onAdd }: {
+  product: Product; price: number; showPrice: boolean; currency: string; outOfStock: boolean;
+  quantity: number; onQuantityChange: (value: number) => void; added: boolean; onAdd: () => void;
+}) {
+  return (
+    <section>
+      <h1 style={{ fontSize: '22px', marginBottom: '12px' }}>{product.name}</h1>
+      <ProductMetadataBadges product={product} />
+      {product.description && <p className="text-muted" style={{ marginBottom: '20px', lineHeight: '1.8' }}>{product.description}</p>}
+      {showPrice && !outOfStock && <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--color-primary)', marginBottom: '20px' }}>{formatPrice(price, currency)}</div>}
+      <div style={{ marginBottom: '20px' }}><ProductStockStatus product={product} outOfStock={outOfStock} /></div>
+      {!outOfStock && <ProductPurchaseControls quantity={quantity} onQuantityChange={onQuantityChange} added={added} onAdd={onAdd} />}
+    </section>
+  );
+}
+
+function RelatedProductGrid({ products, tier, showPrice }: { products: Product[]; tier: 1 | 2 | 3; showPrice: boolean }) {
+  if (products.length === 0) return null;
+  return (
+    <section className="mt-8" aria-label="منتجات مشابهة">
+      <h2 style={{ fontSize: '18px', marginBottom: '16px' }}>منتجات مشابهة</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
+        {products.map((product) => <ProductCard key={product.id} product={product} tier={tier} showPrice={showPrice} />)}
+      </div>
+    </section>
+  );
+}
+
 export default function ProductDetailPage() {
   const { id } = useParams()
   const { customer } = useAuthStore()
@@ -42,46 +120,13 @@ export default function ProductDetailPage() {
   const handleAdd = () => { if (outOfStock || qty <= 0) return; addItem(product, qty, price); setAdded(true); setTimeout(() => setAdded(false), 1500) }
 
   return (
-    <div className="animate-fadeIn" style={{ padding: '24px 0' }}>
+    <main className="animate-fadeIn" style={{ padding: '24px 0' }}>
       <Link to="/products" className="text-muted" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginBottom: '16px', fontSize: '14px' }}><ArrowRight size={16} /> العودة للمنتجات</Link>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
-        <div style={{ aspectRatio: '1', background: 'var(--color-bg-alt)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {product.image_url ? <img src={product.image_url} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Package size={80} color="var(--color-text-light)" />}
-        </div>
-        <div>
-          <h1 style={{ fontSize: '22px', marginBottom: '12px' }}>{product.name}</h1>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
-            <span className="badge badge-neutral">{product.item_code}</span>
-            {product.sku && <span className="badge badge-neutral">SKU: {product.sku}</span>}
-            <span className="badge badge-neutral">{product.unit}</span>
-          </div>
-          {product.description && <p className="text-muted" style={{ marginBottom: '20px', lineHeight: '1.8' }}>{product.description}</p>}
-          {showPrice && !outOfStock && <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--color-primary)', marginBottom: '20px' }}>{formatPrice(price, currency)}</div>}
-          <div style={{ marginBottom: '20px' }}>
-            {outOfStock ? <span className="badge badge-error">نفد المخزون</span> :
-             getAvailableStock(product) <= product.min_stock_level ? <span className="badge badge-warning">متوفر — كمية محدودة</span> :
-             <span className="badge badge-success"><Check size={14} /> متوفر</span>}
-          </div>
-          {!outOfStock && (
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                <button onClick={() => setQty((q) => Math.max(1, q - 1))} style={{ padding: '10px 14px', background: 'var(--color-bg-alt)' }}><Minus size={16} /></button>
-                <input type="number" value={qty} onChange={(e) => setQty(Math.max(1, parseInt(e.target.value) || 1))} style={{ width: '60px', textAlign: 'center', border: 'none', outline: 'none', padding: '10px 0', fontSize: '16px' }} />
-                <button onClick={() => setQty((q) => q + 1)} style={{ padding: '10px 14px', background: 'var(--color-bg-alt)' }}><Plus size={16} /></button>
-              </div>
-              <button onClick={handleAdd} className={`btn ${added ? 'btn-accent' : 'btn-primary'} btn-lg`}>{added ? 'تمت الإضافة ✓' : <><ShoppingCart size={18} /> إضافة للسلة</>}</button>
-            </div>
-          )}
-        </div>
+        <ProductImageView product={product} />
+        <ProductInformation product={product} price={price} showPrice={showPrice} currency={currency} outOfStock={outOfStock} quantity={qty} onQuantityChange={setQty} added={added} onAdd={handleAdd} />
       </div>
-      {related.length > 0 && (
-        <div className="mt-8">
-          <h2 style={{ fontSize: '18px', marginBottom: '16px' }}>منتجات مشابهة</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
-            {related.map((p) => <ProductCard key={p.id} product={p} tier={tier} showPrice={showPrice} />)}
-          </div>
-        </div>
-      )}
-    </div>
+      <RelatedProductGrid products={related} tier={tier} showPrice={showPrice} />
+    </main>
   )
 }

@@ -62,6 +62,133 @@ function coverageValid(item:DeadStockProductInput,asOf:string,days:number,eviden
    record.period?.from===item.movementCoverage.period.from&&record.period?.to===item.movementCoverage.period.to);
  });
 }
+
+type MovementClassification = {
+  classification: DeadStockClass;
+  daysSinceMovement: number | null;
+  movementStatus: EvidenceStatus;
+  warnings: string[];
+};
+
+function classifyProductMovement(
+  product: DeadStockProductInput,
+  asOf: string,
+  rule: DeadStockRule,
+  historyOkay: boolean,
+): MovementClassification {
+  const warnings: string[] = [];
+  const current = isoDay(asOf.slice(0, 10));
+  const asOfTime = Date.parse(asOf);
+  const movement = product.lastMovementAt ? Date.parse(product.lastMovementAt) : null;
+  let classification: DeadStockClass = "UNKNOWN";
+  let daysSinceMovement: number | null = null;
+  const movementStatus: EvidenceStatus = historyOkay ? "VERIFIED" : "NEEDS_REVIEW";
+
+  if (!historyOkay) {
+    warnings.push("MOVEMENT_HISTORY_NOT_COMPLETE_OR_VERIFIED");
+    return { classification, daysSinceMovement, movementStatus, warnings };
+  }
+  if (product.lastMovementAt === null) {
+    return { classification: "ZERO_MOVEMENT", daysSinceMovement, movementStatus, warnings };
+  }
+  if (movement === null || !Number.isFinite(movement) || !Number.isFinite(asOfTime) || movement > asOfTime) {
+    warnings.push("LAST_MOVEMENT_TIMESTAMP_INVALID");
+    return { classification, daysSinceMovement, movementStatus: "UNVERIFIED", warnings };
+  }
+
+  const movementDay = isoDay(product.lastMovementAt.slice(0, 10));
+  if (movementDay === null || current === null || movementDay > current) {
+    warnings.push("LAST_MOVEMENT_TIMESTAMP_INVALID");
+    return { classification, daysSinceMovement, movementStatus: "UNVERIFIED", warnings };
+  }
+
+  daysSinceMovement = Math.floor((current - movementDay) / 86400000);
+  classification = daysSinceMovement <= rule.activeWithinDays
+    ? "ACTIVE"
+    : daysSinceMovement < rule.stagnantAfterDays ? "SLOW_MOVING" : "STAGNANT";
+  return { classification, daysSinceMovement, movementStatus, warnings };
+}
+
+type DeadStockExposure = {
+  exposure: number | null;
+  exposureStatus: EvidenceStatus;
+  currency: string | null;
+  unitCost: number | null;
+  warnings: string[];
+};
+
+function calculateDeadStockExposure(args: {
+  product: DeadStockProductInput;
+  quantityUnit: string;
+  quantity: ReturnType<typeof checkMetric>;
+  cost: ReturnType<typeof checkMetric>;
+}): DeadStockExposure {
+  const { product, quantityUnit, quantity, cost } = args;
+  if (!product.unitCost) {
+    return {
+      exposure: null,
+      exposureStatus: "UNAVAILABLE",
+      currency: null,
+      unitCost: null,
+      warnings: ["UNIT_COST_NOT_AVAILABLE"],
+    };
+  }
+
+  const source = cost.metric;
+  const legacyCostUnitConflict = Boolean(
+    product.costQuantityUnit && product.costQuantityUnit.trim() !== quantityUnit,
+  );
+  const sourceCurrency = source?.currency;
+  const canCalculate =
+    quantity.status === "VERIFIED" &&
+    cost.status === "VERIFIED" &&
+    Boolean(sourceCurrency && sourceCurrency.trim()) &&
+    !legacyCostUnitConflict &&
+    quantity.value !== null &&
+    cost.value !== null;
+
+  if (canCalculate) {
+    const calculated = (quantity.value as number) * (cost.value as number);
+    if (Number.isFinite(calculated) && Math.abs(calculated) <= Number.MAX_SAFE_INTEGER) {
+      return {
+        exposure: calculated,
+        exposureStatus: "VERIFIED",
+        currency: sourceCurrency as string,
+        unitCost: cost.value,
+        warnings: [],
+      };
+    }
+    return {
+      exposure: null,
+      exposureStatus: "NEEDS_REVIEW",
+      currency: null,
+      unitCost: null,
+      warnings: ["EXPOSURE_OVERFLOW"],
+    };
+  }
+
+  const warnings = [
+    legacyCostUnitConflict
+      ? "COST_QUANTITY_UNIT_MISMATCH"
+      : !quantityUnit || !source?.unitOfMeasure?.trim()
+        ? "COST_UOM_MISSING"
+        : source.unitOfMeasure.trim() !== quantityUnit
+          ? "COST_QUANTITY_UNIT_MISMATCH"
+          : "VERIFIED_COST_OR_QUANTITY_UNAVAILABLE",
+  ];
+  return {
+    exposure: null,
+    exposureStatus:
+      quantity.status === "UNVERIFIED" || cost.status === "UNVERIFIED" || legacyCostUnitConflict
+        ? "UNVERIFIED"
+        : "NEEDS_REVIEW",
+    currency: null,
+    unitCost: null,
+    warnings,
+  };
+}
+
+
 /** Movement classification is never made from a partial movement window; cost exposure is independently evidence-gated. */
 export function buildDeadStockReport(input:{
  id:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];products:DeadStockProductInput[];rule:DeadStockRule;
@@ -77,21 +204,11 @@ export function buildDeadStockReport(input:{
  const index=metricIndex(passport.metrics),evidence=new Map<string,EvidenceRecord>();
  for(const record of input.evidenceRecords)if(!evidence.has(record.id))evidence.set(record.id,record);
  const items=input.products.map(product=>{
-  const warnings:string[]=[],historyOkay=coverageValid(product,input.asOf,rule.turnoverWindowDays,evidence);
-  const current=isoDay(input.asOf.slice(0,10)),asOfTime=Date.parse(input.asOf),movement=product.lastMovementAt?Date.parse(product.lastMovementAt):null;
-  let classification:DeadStockClass="UNKNOWN",daysSinceMovement:number|null=null,movementStatus:EvidenceStatus=historyOkay?"VERIFIED":"NEEDS_REVIEW";
-  if(!historyOkay)warnings.push("MOVEMENT_HISTORY_NOT_COMPLETE_OR_VERIFIED");
-  else if(product.lastMovementAt===null){classification="ZERO_MOVEMENT";}
-  else if(movement===null||!Number.isFinite(movement)||!Number.isFinite(asOfTime)||movement>asOfTime){
-   movementStatus="UNVERIFIED";warnings.push("LAST_MOVEMENT_TIMESTAMP_INVALID");
-  }else{
-   const movementDay=isoDay(product.lastMovementAt.slice(0,10));
-   if(movementDay===null||current===null||movementDay>current){movementStatus="UNVERIFIED";warnings.push("LAST_MOVEMENT_TIMESTAMP_INVALID");}
-   else{
-    daysSinceMovement=Math.floor((current-movementDay)/86400000);
-    classification=daysSinceMovement<=rule.activeWithinDays?"ACTIVE":daysSinceMovement<rule.stagnantAfterDays?"SLOW_MOVING":"STAGNANT";
-   }
-  }
+  const warnings: string[] = [];
+  const historyOkay = coverageValid(product, input.asOf, rule.turnoverWindowDays, evidence);
+  const movement = classifyProductMovement(product, input.asOf, rule, historyOkay);
+  const { classification, daysSinceMovement, movementStatus } = movement;
+  warnings.push(...movement.warnings);
   const quantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"";
   const sold=checkMetric(product.soldQuantityWindow,index,"QUANTITY",input.asOf,input.period,quantityUnit);
   const average=checkMetric(product.averageInventoryWindow,index,"QUANTITY",input.asOf,input.period,quantityUnit);
@@ -103,27 +220,19 @@ export function buildDeadStockReport(input:{
   }else warnings.push("TURNOVER_RATIO_UNAVAILABLE");
   const qty=checkMetric(product.availableQuantity,index,"QUANTITY",input.asOf,undefined,quantityUnit);
   const cost=checkMetric(product.unitCost,index,"CURRENCY_PER_UNIT",input.asOf,undefined,quantityUnit);
-  let exposure:number|null=null,exposureStatus:EvidenceStatus="UNAVAILABLE",currency:string|null=null,unitCost:number|null=null;
-  if(product.unitCost){
-   const source=cost.metric,legacyCostUnitConflict=Boolean(product.costQuantityUnit&&product.costQuantityUnit.trim()!==quantityUnit);
-   if(qty.status==="VERIFIED"&&cost.status==="VERIFIED"&&source?.currency&&source.currency.trim()&&!legacyCostUnitConflict&&qty.value!==null&&cost.value!==null){
-    const calculated=qty.value*cost.value;
-    if(Number.isFinite(calculated)&&Math.abs(calculated)<=Number.MAX_SAFE_INTEGER){
-     exposure=calculated;exposureStatus="VERIFIED";currency=source.currency;unitCost=cost.value;
-    }else{exposureStatus="NEEDS_REVIEW";warnings.push("EXPOSURE_OVERFLOW");}
-   }else{
-    exposureStatus=qty.status==="UNVERIFIED"||cost.status==="UNVERIFIED"||legacyCostUnitConflict?"UNVERIFIED":"NEEDS_REVIEW";
-    warnings.push(legacyCostUnitConflict?"COST_QUANTITY_UNIT_MISMATCH":
-     !quantityUnit||!source?.unitOfMeasure?.trim()?"COST_UOM_MISSING":
-     source.unitOfMeasure.trim()!==quantityUnit?"COST_QUANTITY_UNIT_MISMATCH":"VERIFIED_COST_OR_QUANTITY_UNAVAILABLE");
-   }
-  }else warnings.push("UNIT_COST_NOT_AVAILABLE");
+  const exposureResult = calculateDeadStockExposure({
+   product,
+   quantityUnit,
+   quantity: qty,
+   cost,
+  });
+  const { exposure, exposureStatus, currency, unitCost } = exposureResult;
+  warnings.push(...exposureResult.warnings);
   const evidenceIds=[...new Set([
    ...product.movementCoverage.evidenceIds,...product.availableQuantity.lineage.evidenceIds,
    ...(product.unitCost?.lineage.evidenceIds??[]),...(product.soldQuantityWindow?.lineage.evidenceIds??[]),
    ...(product.averageInventoryWindow?.lineage.evidenceIds??[]),
   ])];
-  if(!historyOkay)classification="UNKNOWN";
   return {
    productRef:product.productRef,classification,daysSinceMovement,lowTurnover,turnoverRatio,
    availableQuantity:qty.value,unitCost,currency,financialExposure:exposure,exposureStatus,movementStatus,

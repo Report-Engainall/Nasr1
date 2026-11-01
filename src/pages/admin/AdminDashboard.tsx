@@ -3,6 +3,63 @@ import { ShoppingCart, Package, Users, TriangleAlert as AlertTriangle, Clock } f
 import { supabase } from '../../lib/supabase'
 import { ORDER_STATUS_LABELS, type Order } from '../../lib/types'
 
+
+type AdminDashboardCard = { label: string; value: number; icon: typeof ShoppingCart; color: string };
+
+function AdminDashboardStatCard({ card }: { card: AdminDashboardCard }) {
+  const Icon = card.icon;
+  return (
+    <article className="card" style={{ padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ width: "48px", height: "48px", borderRadius: "var(--radius-md)", background: card.color + "15", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon size={24} color={card.color} />
+        </div>
+        <div><div style={{ fontSize: "28px", fontWeight: 700 }}>{card.value}</div><div className="text-muted" style={{ fontSize: "13px" }}>{card.label}</div></div>
+      </div>
+    </article>
+  );
+}
+
+function AdminDashboardStats({ cards }: { cards: AdminDashboardCard[] }) {
+  return (
+    <section aria-label="ملخص مؤشرات الإدارة" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "16px", marginBottom: "32px" }}>
+      {cards.map((card) => <AdminDashboardStatCard key={card.label} card={card} />)}
+    </section>
+  );
+}
+
+function AdminRecentOrderRow({ order }: { order: Order }) {
+  return (
+    <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
+      <td style={{ padding: "12px 10px", fontSize: "14px", fontWeight: 600 }}>{order.order_code}</td>
+      <td style={{ padding: "12px 10px", fontSize: "13px" }} className="text-muted">{new Date(order.created_at).toLocaleDateString("ar", { month: "short", day: "numeric" })}</td>
+      <td style={{ padding: "12px 10px", fontSize: "14px" }}>{order.total_items}</td>
+      <td style={{ padding: "12px 10px" }}><span className="badge badge-info">{ORDER_STATUS_LABELS[order.status] || order.status}</span></td>
+    </tr>
+  );
+}
+
+function AdminRecentOrders({ orders }: { orders: Order[] }) {
+  return (
+    <section className="card" style={{ padding: "20px" }}>
+      <h2 style={{ fontSize: "16px", marginBottom: "16px" }}>أحدث الطلبات</h2>
+      {orders.length === 0 ? <p className="text-muted text-center" style={{ padding: "20px" }}>لا توجد طلبات جديدة</p> : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr style={{ borderBottom: "2px solid var(--color-border)" }}>
+              <th style={{ textAlign: "right", padding: "10px", fontSize: "13px", color: "var(--color-text-muted)" }}>رقم الطلب</th>
+              <th style={{ textAlign: "right", padding: "10px", fontSize: "13px", color: "var(--color-text-muted)" }}>التاريخ</th>
+              <th style={{ textAlign: "right", padding: "10px", fontSize: "13px", color: "var(--color-text-muted)" }}>الأصناف</th>
+              <th style={{ textAlign: "right", padding: "10px", fontSize: "13px", color: "var(--color-text-muted)" }}>الحالة</th>
+            </tr></thead>
+            <tbody>{orders.map((order) => <AdminRecentOrderRow key={order.id} order={order} />)}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ totalOrders: 0, newOrders: 0, totalProducts: 0, totalCustomers: 0, pendingCustomers: 0 })
   const [recentOrders, setRecentOrders] = useState<Order[]>([])
@@ -41,41 +98,8 @@ export default function AdminDashboard() {
   return (
     <div className="animate-fadeIn">
       <h1 style={{ fontSize: '22px', marginBottom: '24px' }}>لوحة المعلومات</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
-        {cards.map((card) => (
-          <div key={card.label} className="card" style={{ padding: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', background: `${card.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><card.icon size={24} color={card.color} /></div>
-              <div><div style={{ fontSize: '28px', fontWeight: 700 }}>{card.value}</div><div className="text-muted" style={{ fontSize: '13px' }}>{card.label}</div></div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="card" style={{ padding: '20px' }}>
-        <h2 style={{ fontSize: '16px', marginBottom: '16px' }}>أحدث الطلبات</h2>
-        {recentOrders.length === 0 ? <p className="text-muted text-center" style={{ padding: '20px' }}>لا توجد طلبات جديدة</p> : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                <th style={{ textAlign: 'right', padding: '10px', fontSize: '13px', color: 'var(--color-text-muted)' }}>رقم الطلب</th>
-                <th style={{ textAlign: 'right', padding: '10px', fontSize: '13px', color: 'var(--color-text-muted)' }}>التاريخ</th>
-                <th style={{ textAlign: 'right', padding: '10px', fontSize: '13px', color: 'var(--color-text-muted)' }}>الأصناف</th>
-                <th style={{ textAlign: 'right', padding: '10px', fontSize: '13px', color: 'var(--color-text-muted)' }}>الحالة</th>
-              </tr></thead>
-              <tbody>
-                {recentOrders.map((o) => (
-                  <tr key={o.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td style={{ padding: '12px 10px', fontSize: '14px', fontWeight: 600 }}>{o.order_code}</td>
-                    <td style={{ padding: '12px 10px', fontSize: '13px' }} className="text-muted">{new Date(o.created_at).toLocaleDateString('ar', { month: 'short', day: 'numeric' })}</td>
-                    <td style={{ padding: '12px 10px', fontSize: '14px' }}>{o.total_items}</td>
-                    <td style={{ padding: '12px 10px' }}><span className="badge badge-info">{ORDER_STATUS_LABELS[o.status] || o.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <AdminDashboardStats cards={cards} />
+      <AdminRecentOrders orders={recentOrders} />
     </div>
   )
 }

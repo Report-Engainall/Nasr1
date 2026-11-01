@@ -8,6 +8,77 @@ import { supabase } from '../../lib/supabase'
 import { formatPrice } from '../../lib/pricing'
 import { TIER_LABELS } from '../../lib/types'
 
+type CartItem = ReturnType<typeof useCartStore.getState>['items'][number];
+type CartUpdater = ReturnType<typeof useCartStore.getState>['updateQuantity'];
+type CartRemover = ReturnType<typeof useCartStore.getState>['removeItem'];
+
+function CartProductThumbnail({ item }: { item: CartItem }) {
+  if (!item.product.image_url) {
+    return <span style={{ fontSize: '11px', color: 'var(--color-text-light)' }}>{item.product.item_code}</span>;
+  }
+  return <img src={item.product.image_url} alt={item.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius-md)' }} />;
+}
+
+function CartQuantityControl({ item, updateQuantity }: { item: CartItem; updateQuantity: CartUpdater }) {
+  const label = 'كمية ' + item.product.name;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+      <button type="button" aria-label={'تقليل ' + label} onClick={() => updateQuantity(item.product.id, item.quantity - 1)} style={{ padding: '6px 10px', background: 'var(--color-bg-alt)' }}><Minus size={14} /></button>
+      <input aria-label={label} type="number" min="0" value={item.quantity} onChange={(event) => updateQuantity(item.product.id, Number.parseInt(event.target.value, 10) || 0)} style={{ width: '50px', textAlign: 'center', border: 'none', outline: 'none', padding: '6px 0', fontSize: '14px' }} />
+      <button type="button" aria-label={'زيادة ' + label} onClick={() => updateQuantity(item.product.id, item.quantity + 1)} style={{ padding: '6px 10px', background: 'var(--color-bg-alt)' }}><Plus size={14} /></button>
+    </div>
+  );
+}
+
+
+function CartCustomerBanner({ customer }: { customer: NonNullable<ReturnType<typeof useAuthStore.getState>['customer']> }) {
+  return <div className="card mb-4" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}><span className="badge badge-info">{TIER_LABELS[customer.customer_tier] || 'تجزئة'}</span><span className="text-muted" style={{ fontSize: '14px' }}>العميل: {customer.full_name}</span></div>;
+}
+
+function CartSummaryPanel({ itemCount, showPrices, total, currency, notes, onNotesChange, error, submitting, customerStatus, onSubmit }: {
+  itemCount: number; showPrices: boolean; total: number; currency: string; notes: string;
+  onNotesChange: (value: string) => void; error: string; submitting: boolean; customerStatus: string | undefined; onSubmit: () => void;
+}) {
+  return (
+    <aside className="card" style={{ padding: '20px', height: 'fit-content', position: 'sticky', top: '80px' }}>
+      <h3 style={{ fontSize: '16px', marginBottom: '16px' }}>ملخص الطلب</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}><span className="text-muted">عدد الأصناف</span><span className="font-semibold">{itemCount}</span></div>
+      {showPrices && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '14px' }}><span className="text-muted">الإجمالي</span><span className="font-bold" style={{ fontSize: '18px', color: 'var(--color-primary)' }}>{formatPrice(total, currency)}</span></div>}
+      <label className="mb-4 block"><span className="label">ملاحظات (اختياري)</span><textarea className="input" rows={3} value={notes} onChange={(event) => onNotesChange(event.target.value)} placeholder="أضف ملاحظاتك..." /></label>
+      {error && <div role="alert" className="badge badge-error mb-4" style={{ display: 'flex', gap: '6px', padding: '10px', alignItems: 'flex-start' }}><AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} /><span>{error}</span></div>}
+      <button type="button" onClick={onSubmit} className="btn btn-primary btn-lg w-full" disabled={submitting || customerStatus !== 'approved'}>{submitting ? 'جارٍ الإرسال...' : <><Send size={18} /> إرسال الطلب</>}</button>
+      {customerStatus !== 'approved' && <p className="text-muted text-center mt-2" style={{ fontSize: '12px' }}>حسابك بانتظار موافقة الإدارة</p>}
+    </aside>
+  );
+}
+
+function CartItemRow({ item, showPrices, currency, updateQuantity, removeItem }: {
+  item: CartItem;
+  showPrices: boolean;
+  currency: string;
+  updateQuantity: CartUpdater;
+  removeItem: CartRemover;
+}) {
+  return (
+    <article className="card" style={{ padding: '16px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+      <div style={{ width: '64px', height: '64px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-alt)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <CartProductThumbnail item={item} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <Link to={'/product/' + item.product.id} style={{ fontWeight: 600, fontSize: '15px' }}>{item.product.name}</Link>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+          <span className="text-muted" style={{ fontSize: '12px' }}>{item.product.item_code}</span>
+          <span className="text-muted" style={{ fontSize: '12px' }}>{item.product.unit}</span>
+        </div>
+      </div>
+      <CartQuantityControl item={item} updateQuantity={updateQuantity} />
+      {showPrices && <div style={{ fontWeight: 700, minWidth: '100px', textAlign: 'center' }}>{formatPrice(item.quantity * item.unitPrice, currency)}</div>}
+      <button type="button" onClick={() => removeItem(item.product.id)} className="btn btn-ghost" aria-label={'إزالة ' + item.product.name + ' من السلة'} style={{ color: 'var(--color-error)' }}><Trash2 size={18} /></button>
+    </article>
+  );
+}
+
+
 export default function CartPage() {
   const navigate = useNavigate()
   const { items, updateQuantity, removeItem, clearCart, getTotalAmount } = useCartStore()
@@ -50,38 +121,13 @@ export default function CartPage() {
   return (
     <div className="animate-fadeIn" style={{ padding: '24px 0' }}>
       <h1 style={{ fontSize: '22px', marginBottom: '20px' }}>سلة التسوق</h1>
-      {customer && <div className="card mb-4" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}><span className="badge badge-info">{TIER_LABELS[customer.customer_tier] || 'تجزئة'}</span><span className="text-muted" style={{ fontSize: '14px' }}>العميل: {customer.full_name}</span></div>}
+      {customer && <CartCustomerBanner customer={customer} />}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '20px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {items.map((item) => (
-            <div key={item.product.id} className="card" style={{ padding: '16px', display: 'flex', gap: '16px', alignItems: 'center' }}>
-              <div style={{ width: '64px', height: '64px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-alt)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {item.product.image_url ? <img src={item.product.image_url} alt={item.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius-md)' }} /> : <span style={{ fontSize: '11px', color: 'var(--color-text-light)' }}>{item.product.item_code}</span>}
-              </div>
-              <div style={{ flex: 1 }}>
-                <Link to={`/product/${item.product.id}`} style={{ fontWeight: 600, fontSize: '15px' }}>{item.product.name}</Link>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}><span className="text-muted" style={{ fontSize: '12px' }}>{item.product.item_code}</span><span className="text-muted" style={{ fontSize: '12px' }}>{item.product.unit}</span></div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-                <button onClick={() => updateQuantity(item.product.id, item.quantity - 1)} style={{ padding: '6px 10px', background: 'var(--color-bg-alt)' }}><Minus size={14} /></button>
-                <input type="number" value={item.quantity} onChange={(e) => updateQuantity(item.product.id, parseInt(e.target.value) || 0)} style={{ width: '50px', textAlign: 'center', border: 'none', outline: 'none', padding: '6px 0', fontSize: '14px' }} />
-                <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)} style={{ padding: '6px 10px', background: 'var(--color-bg-alt)' }}><Plus size={14} /></button>
-              </div>
-              {showPrices && <div style={{ fontWeight: 700, minWidth: '100px', textAlign: 'center' }}>{formatPrice(item.quantity * item.unitPrice, currency)}</div>}
-              <button onClick={() => removeItem(item.product.id)} className="btn btn-ghost" style={{ color: 'var(--color-error)' }}><Trash2 size={18} /></button>
-            </div>
-          ))}
+          {items.map((item) => <CartItemRow key={item.product.id} item={item} showPrices={showPrices} currency={currency} updateQuantity={updateQuantity} removeItem={removeItem} />)}
           <button onClick={clearCart} className="btn btn-ghost" style={{ color: 'var(--color-error)', justifyContent: 'flex-start' }}><Trash2 size={16} /> إفراغ السلة</button>
         </div>
-        <div className="card" style={{ padding: '20px', height: 'fit-content', position: 'sticky', top: '80px' }}>
-          <h3 style={{ fontSize: '16px', marginBottom: '16px' }}>ملخص الطلب</h3>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}><span className="text-muted">عدد الأصناف</span><span className="font-semibold">{items.length}</span></div>
-          {showPrices && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '14px' }}><span className="text-muted">الإجمالي</span><span className="font-bold" style={{ fontSize: '18px', color: 'var(--color-primary)' }}>{formatPrice(total, currency)}</span></div>}
-          <div className="mb-4"><label className="label">ملاحظات (اختياري)</label><textarea className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="أضف ملاحظاتك..." /></div>
-          {error && <div className="badge badge-error mb-4" style={{ display: 'flex', gap: '6px', padding: '10px', alignItems: 'flex-start' }}><AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} /><span>{error}</span></div>}
-          <button onClick={handleSubmitOrder} className="btn btn-primary btn-lg w-full" disabled={submitting || customer?.status !== 'approved'}>{submitting ? 'جارٍ الإرسال...' : <><Send size={18} /> إرسال الطلب</>}</button>
-          {customer?.status !== 'approved' && <p className="text-muted text-center mt-2" style={{ fontSize: '12px' }}>حسابك بانتظار موافقة الإدارة</p>}
-        </div>
+        <CartSummaryPanel itemCount={items.length} showPrices={showPrices} total={total} currency={currency} notes={notes} onNotesChange={setNotes} error={error} submitting={submitting} customerStatus={customer?.status} onSubmit={() => void handleSubmitOrder()} />
       </div>
     </div>
   )
