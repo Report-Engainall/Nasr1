@@ -1,3 +1,18 @@
+# LIVE RESUME — 2026-11-01T01:16Z
+> This snapshot supersedes older status paragraphs below. Historical checkpoints are retained for audit only.
+
+- Repository: `Report-Engainall/Nasr1`; integration target: `main`.
+- **Current main:** `71de0500aab508cc4cd4d41265304c397a4f3345` (P1 merge commit; ancestry includes P2 batch 02 merge `1cd6625b1ac802b78eda61e2768b2ea006b001f4`).
+- **Merged remediation PRs:** #338 P2 Outbox, #341 P2 control checkpoint, #342 P2 TS0003 batch 02, #339 P1 security/critical acceptance. GitHub reports all four merged.
+- **Open remediation PR:** #340 P3, currently Draft, head `c7a4391fd13ae64895d93245358d09898a85a036`. Privacy fix implemented; keep Draft until all current-head gates finish. PR API currently reports mergeable=true; that is not a test result or approval.
+- **P2 batch 03:** branch `fix/codeinspector-p2-ts0003-batch-03`, head `7bc14715711e72da3aaabf74d93a910a7cd7f01b`; no PR yet at this checkpoint. Changes cover `src/App.tsx`, `src/lib/app-auth-bootstrap.ts`, `src/components/AdminAuditLog.tsx`, and `src/test/app-auth-bootstrap.test.ts`. Exact-head CI is still required.
+- **CodeInspector baseline:** 239 records / 703 files / 127,555 LOC; original input SHA remains UNKNOWN. Current tracked P2 disposition: 16 `IMPLEMENTED_PENDING_FRESH_SCAN` (1 TS0002 + 15 TS0003), 89 active TS0003 open, 10 archived TS0003 scope-review, and 1 TS0010 not reproduced/not closed. No findings are declared closed without a fresh CodeInspector scan.
+- **main SHA `71de050` checks:** Core `41260256558` IN_PROGRESS; P2 Playwright `41260256543` IN_PROGRESS; P1 Secret Scan `41260256551` SUCCESS; one-main-branch cleanup `41260256562` SUCCESS.
+- **P3 exact-head `c7a4391` checks:** tooling `41260382158` SUCCESS (Python and JS logger/SW redaction jobs both pass); Gitleaks `41260382157` SUCCESS; Core `41260382121`, P2 Playwright `41260382104`, Import Finalizer PG17 `41260382124`, and Async Export PG17 `41260382090` were still running/pending at last poll. Hosted tenant E2E is SKIPPED/BLOCKED_EXTERNAL, never PASS.
+- **Next:** finish exact-head P3 and main checks; open P2 batch 03; then process the next active P2 TS0003 files without repeating the 239-row extraction. Run a fresh CodeInspector scan before changing any finding to CLOSED.
+
+---
+
 # CONTROL — CodeInspector remediation / live control snapshot
 ## Live execution update — 2026-11-01
 
