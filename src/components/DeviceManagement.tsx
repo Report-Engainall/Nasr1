@@ -636,4 +636,3 @@ export function DeviceManagement({ onNotice }: { onNotice: (message: string) => 
     </section>
   );
 }
-}
