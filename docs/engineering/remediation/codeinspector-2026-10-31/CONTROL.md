@@ -1,4 +1,56 @@
-# LIVE RESUME — 2026-11-01 after PR #398 merge
+# LIVE RESUME — 2026-11-01 after PR #402 merge
+
+> Current operational checkpoint. Previous snapshots are retained below as historical records.
+
+- Repository: Report-Engainall/Nasr1; product متجر الأغبري | Aghbari Commerce; target main.
+- Current main/code SHA: `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc` (PR #402 merge). Latest code integrations: PR #400 Python tooling at `453afeebfc76f7c685792a7885115ce4ccabb7f3`; PR #402 P3 TypeScript test helpers at `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc`.
+- Merged post-scan sequence: #396 `f9daf09d1e5aa152aaefa4ac628c6074d4721fb0`; #397 `eed901bb4802fae9ad8c36407344c7199a2ac64d`; #398 `0dc6f75d3767fe15d472ed28284332273061bb81`; #399 `91728da2c76933dbf2c79eceac5a6865483ea5a4`; #400 `453afeebfc76f7c685792a7885115ce4ccabb7f3`; #402 `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc`.
+- PR #400 verification: Core 41342335810 SUCCESS; Gitleaks 41342335816 SUCCESS; P1 TypeScript/AST/Vitest 41342335851 SUCCESS; recovery/persistence self-tests 41342335822 SUCCESS; source-release audit 41342335817 SUCCESS.
+- PR #402 exact-main status at last poll: P1 Targeted TypeScript 41343175864 SUCCESS; full-history Gitleaks 41343175952 SUCCESS; branch cleanup 41343175904 SUCCESS; public UI Playwright 41343175851 SUCCESS; authenticated E2E infrastructure PASS; local Supabase Playwright still IN_PROGRESS; Core run 41343175987 still IN_PROGRESS; hosted tenant isolation SKIPPED/BLOCKED_EXTERNAL.
+- PR #402 corrected two residual test helpers in `src/test/quick-order-quantity-controls.test.tsx` and `src/test/storefront-saved-products.test.ts`; both map to P3 TS0003 baseline rows and remain IMPLEMENTED_PENDING_FRESH_SCAN.
+- P1: 2 TS0002 + 5 TS0003 IMPLEMENTED_PENDING_FRESH_SCAN; 18 TS0004/TS0009 fixture signals triaged pending scan. P2: 116-row allocation unchanged. P3: all 98 findings remain IMPLEMENTED_PENDING_FRESH_SCAN; no baseline finding is CLOSED.
+- User-supplied CodeInspector summary (17:38:11 UTC): 718 files, 139,571 LOC, 118 findings (TS=115, JS=3, Python=0), but no input SHA or detailed rows. It predates PR #396–#402 and is not a current-main scan.
+- Fresh official CodeInspector scan of `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc` remains PENDING. CI and code refactors do not substitute for exact analyzer results.
+- PR #351 remains OPEN, 73 ahead / 45 behind, merge base `6cb364193285840b6d68a620d0db69eadb5d6ef1`; do not merge wholesale.
+- Hosted tenant E2E remains SKIPPED where the external write-enabled tenant is unavailable; never call it PASS.
+
+## Immediate resume cursor
+
+1. Finish and inspect exact-main Core 41343175987 and Playwright/local Supabase 41343175851; update their terminal results.
+2. Run P3 tooling and the other relevant workflows on the new documentation PR head based on `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc`.
+3. Obtain the authorized CodeInspector run on `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc` plus raw 118 finding rows and exact scanner input SHA.
+4. Close findings only after fresh official rule/path confirmation; preserve NOT_REPRODUCED and archived-scope states without relabeling them CLOSED.
+5. Leave PR #351 unmerged until a fresh three-way source review proves each residual change.
+
+---
+
+## Previous checkpoint — after PR #400 (superseded by PR #402)
+
+> This snapshot supersedes the earlier PR #398 checkpoint below. Historical entries are retained for audit.
+
+- Repository: Report-Engainall/Nasr1; product متجر الأغبري | Aghbari Commerce; target main.
+- Current main: `91728da2c76933dbf2c79eceac5a6865483ea5a4` (PR #399 documentation-only merge); its parent/source-code head remains `0dc6f75d3767fe15d472ed28284332273061bb81`.
+- Merged sequence: #396 `f9daf09d1e5aa152aaefa4ac628c6074d4721fb0`; #397 `eed901bb4802fae9ad8c36407344c7199a2ac64d`; #398 `0dc6f75d3767fe15d472ed28284332273061bb81`; #399 `91728da2c76933dbf2c79eceac5a6865483ea5a4`.
+- Exact main-head workflows on `91728da2c76933dbf2c79eceac5a6865483ea5a4`: Core run 41341535268 SUCCESS (completed 2026-11-01T19:28:36Z), including unit tests, focused P2 TypeScript, all migrations on isolated PostgreSQL 17, finance/journal reversal/purchase receipt/invitation/address/analytics/quote/stock-count/export/import/favourites/backup-restore checks, lint, build, production preview smoke, dev-server smoke, and Chromium price-visibility acceptance. Full-history Gitleaks run 41341535276 SUCCESS; P1 targeted TypeScript run 41341535316 SUCCESS; branch-cleanup run 41341535239 SUCCESS.
+- All observed required push checks on this exact main SHA are terminal SUCCESS; this does not replace a fresh CodeInspector scan or hosted-tenant E2E.
+- Recovered historical CodeInspector baseline: 239 findings (P1=25, P2=116, P3=98); original scan SHA UNKNOWN. P1: 2 TS0002 + 5 TS0003 refactors now IMPLEMENTED_PENDING_FRESH_SCAN; 18 TS0004/TS0009 fixture records remain NOT_APPLICABLE/triaged pending official scan. P2: 78 TS0003 implemented/pending scan, 26 not reproduced/not closed, 10 archived scope, one TS0002 pending, one TS0010 not reproduced/not closed. P3: 98 implemented/pending scan. No finding is CLOSED.
+- User-supplied CodeInspector follow-up at 2026-11-01T17:38:11.0353760Z: 718 files, 139,571 LOC, 118 findings (TS=115, JS=3, Python=0); no full row table or input SHA was supplied. Its timestamp precedes #396 (18:59:48Z), #397 (19:08:27Z), #398 (19:16:25Z) and #399 (19:23:59Z). It is not evidence about current main `91728da2c76933dbf2c79eceac5a6865483ea5a4`; do not merge its 118 counts into the 239-row historical baseline.
+- Fresh authorized CodeInspector scan on `91728da2c76933dbf2c79eceac5a6865483ea5a4` remains PENDING. Preserve scanner version, exact input SHA, and full raw rule/path/line/severity export before reconciliation. No CI result substitutes for CodeInspector.
+- PR #351 remains OPEN and unmerged. Current comparison against main: 73 commits ahead / 42 behind, merge base `6cb364193285840b6d68a620d0db69eadb5d6ef1`. Do not merge the stale branch wholesale; selectively merged successors #383, #396 and #398 already supersede identified portions.
+- Main branch API reports branch protection disabled and no required status checks. No protection was changed or bypassed.
+- P1 exact-main targeted workflow 41341535316 SUCCESS on this SHA: all five P1-owned files passed strict TypeScript; the supplemental TypeScript AST structural budget passed; both P1-owned Vitest suites passed. This is implementation evidence, not official CodeInspector closure.
+
+## Immediate resume cursor
+
+1. Finish and verify exact-head Core run 41341535268 on `91728da2c76933dbf2c79eceac5a6865483ea5a4`; capture terminal states for preview, dev smoke and Chromium price visibility.
+2. Run the authorized CodeInspector scan on `91728da2c76933dbf2c79eceac5a6865483ea5a4`; obtain raw 118-result detail if the existing report is intended to be remediated row-by-row.
+3. Match by rule + exact path + source context; verify each changed finding with current source/tests and only close rows absent/below threshold on that exact scan.
+4. Keep #351 unmerged; do not replay old P3 branch changes without a new source-level three-way review.
+5. Keep hosted tenant E2E and CodeRabbit recorded as SKIPPED when unavailable; never count them as PASS or approval.
+
+---
+
+## Previous snapshot — after PR #398 merge (superseded by PR #399)
 
 > This current snapshot supersedes earlier operational summaries below; older entries remain historical evidence.
 
