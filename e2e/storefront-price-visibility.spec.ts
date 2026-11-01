@@ -16,7 +16,7 @@ test("Chromium verifies fail-closed product card and detail price visibility", a
   // This local-only fixture imports the real exported ProductGrid/ProductDetail components.
   // It deliberately never mounts Storefront's auth/cart lifecycle or writes to a backend.
   await page.route("https://ci-placeholder.supabase.co/**", (route) => route.abort("blockedbyclient"));
-  const response = await page.goto("/e2e/fixtures/storefront-price-visibility.html");
+  const response = await page.goto(priceVisibilityFixtureUrl());
   await page.waitForTimeout(1500);
   const readyCount = await page.getByTestId("fixture-ready").count();
   if (readyCount !== 1) {
@@ -84,6 +84,15 @@ type PricingPreviewMode =
   | "missing-line-total"
   | "missing-total"
   | "error";
+
+const priceVisibilityFixturePath = "/e2e/fixtures/storefront-price-visibility.html";
+
+function priceVisibilityFixtureUrl(): string {
+  const fixtureBaseUrl = process.env.E2E_PRICE_FIXTURE_BASE_URL;
+  return fixtureBaseUrl
+    ? new URL(priceVisibilityFixturePath, fixtureBaseUrl).toString()
+    : priceVisibilityFixturePath;
+}
 
 const previewProductId = "a1000000-0000-0000-0000-000000000011";
 const previewUnitPrice = 43210;
@@ -323,7 +332,7 @@ test("Chromium displays cart and order-review amounts only from complete server 
   const mode: PricingPreviewMode = "visible";
   const requests: unknown[] = [];
   await installPricingPreviewRoutes(page, () => mode, (payload) => requests.push(payload));
-  const response = await page.goto("/e2e/fixtures/storefront-price-visibility.html");
+  const response = await page.goto(priceVisibilityFixtureUrl());
   await expect(page.getByTestId("fixture-ready")).toBeVisible();
   if (!response || response.status() >= 400) throw new Error("Could not load the isolated price preview fixture.");
 
@@ -353,7 +362,7 @@ test("Chromium suppresses monetary fields when the server preview is hidden, mal
   let mode: PricingPreviewMode = "hidden";
   const requests: unknown[] = [];
   await installPricingPreviewRoutes(page, () => mode, (payload) => requests.push(payload));
-  await page.goto("/e2e/fixtures/storefront-price-visibility.html");
+  await page.goto(priceVisibilityFixtureUrl());
   await expect(page.getByTestId("fixture-ready")).toBeVisible();
 
   const cart = page.getByTestId("cart-preview");
@@ -402,7 +411,7 @@ test("Chromium suppresses monetary fields when the server preview is hidden, mal
 test("Chromium retries failed server price previews without showing local or stale monetary values", async ({ page }) => {
   let mode: PricingPreviewMode = "error";
   await installPricingPreviewRoutes(page, () => mode);
-  await page.goto("/e2e/fixtures/storefront-price-visibility.html");
+  await page.goto(priceVisibilityFixtureUrl());
   await expect(page.getByTestId("fixture-ready")).toBeVisible();
 
   const cart = page.getByTestId("cart-preview");
@@ -425,7 +434,7 @@ test("Chromium removes previously visible prices when the next approved preview 
   let mode: PricingPreviewMode = "visible";
   const requests: unknown[] = [];
   await installPricingPreviewRoutes(page, () => mode, (payload) => requests.push(payload));
-  await page.goto("/e2e/fixtures/storefront-price-visibility.html");
+  await page.goto(priceVisibilityFixtureUrl());
   await expect(page.getByTestId("fixture-ready")).toBeVisible();
 
   const cart = page.getByTestId("cart-preview");

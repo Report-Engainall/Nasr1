@@ -304,9 +304,38 @@ jobs:
           done
           if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/p2-public-ui-preview.log"; exit 1; fi
           echo "Exact source SHA: ${{ github.event.pull_request.head.sha || github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Launch Vite source server for component-only price visibility harness
+        shell: bash
+        env:
+          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+        run: |
+          set -euo pipefail
+          bun run dev -- --host 127.0.0.1 --port 5174 > "$RUNNER_TEMP/p2-price-fixture-vite.log" 2>&1 &
+          server_pid=$!
+          echo "$server_pid" > "$RUNNER_TEMP/p2-price-fixture-vite.pid"
+          ready=0
+          for attempt in $(seq 1 45); do
+            status="$(curl --silent --connect-timeout 2 --max-time 5 --output "$RUNNER_TEMP/p2-price-fixture.html" --write-out '%{http_code}' http://127.0.0.1:5174/e2e/fixtures/storefront-price-visibility.html || true)"
+            if [ "$status" = "200" ] && grep -q "storefront-price-visibility-harness.tsx" "$RUNNER_TEMP/p2-price-fixture.html"; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/p2-price-fixture-vite.log"
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat "$RUNNER_TEMP/p2-price-fixture-vite.log"
+            exit 1
+          fi
+          echo "Vite-only component harness is ready at 127.0.0.1:5174; backend hostname is non-routable."
       - name: Run read-only public Storefront browser assertions
         env:
           E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_PRICE_FIXTURE_BASE_URL: http://127.0.0.1:5174
           E2E_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: "$RUNNER_TEMP/pw-public/node_modules/.bin/playwright test --config=playwright.config.ts --reporter=list e2e/public-storefront-smoke.spec.ts e2e/storefront-price-visibility.spec.ts"
       - name: Record narrow proof boundary
@@ -325,6 +354,7 @@ jobs:
         shell: bash
         run: |
           if [ -f "$RUNNER_TEMP/p2-public-ui-preview.pid" ]; then kill "$(cat "$RUNNER_TEMP/p2-public-ui-preview.pid")" >/dev/null 2>&1 || true; fi
+          if [ -f "$RUNNER_TEMP/p2-price-fixture-vite.pid" ]; then kill "$(cat "$RUNNER_TEMP/p2-price-fixture-vite.pid")" >/dev/null 2>&1 || true; fi
       - name: Upload public UI smoke artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -334,6 +364,7 @@ jobs:
             playwright-report/
             test-results/
             ${{ runner.temp }}/p2-public-ui-preview.log
+            ${{ runner.temp }}/p2-price-fixture-vite.log
           if-no-files-found: ignore
 
 
