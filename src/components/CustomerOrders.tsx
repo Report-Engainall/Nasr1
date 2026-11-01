@@ -62,6 +62,194 @@ export function MyOrders() {
   return <Gate><MyOrdersInner /></Gate>;
 }
 
+
+function MyOrdersStatusFilter({
+  status,
+  disabled,
+  onChange,
+}: {
+  status: string;
+  disabled: boolean;
+  onChange: (status: string) => void;
+}) {
+  return (
+    <div className="no-print" style={{ ...card, marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+      <label htmlFor="customer-orders-status-filter" style={{ fontWeight: 700 }}>تصفية حسب الحالة</label>
+      <select
+        id="customer-orders-status-filter"
+        aria-label="تصفية طلباتي حسب الحالة"
+        value={status}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        style={{ minWidth: 220, padding: 10, border: '1px solid #cbdad9', borderRadius: 9, background: '#fff' }}
+      >
+        <option value="all">كل الحالات</option>
+        {Object.entries(STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function MyOrdersCountNotice({ count, status }: { count: number; status: string }) {
+  return (
+    <p role="status" aria-label="إجمالي نتائج الطلبات">
+      {'إجمالي النتائج: ' + formatNumber(count) + (status === 'all' ? ' طلب' : ' طلب بهذه الحالة')}
+    </p>
+  );
+}
+
+function MyOrdersErrorState({ error, onRetry }: { error: string; onRetry: () => void }) {
+  return (
+    <div style={card} role="alert">
+      {error} <button type="button" className="sf-link" onClick={onRetry}>إعادة المحاولة</button>
+    </div>
+  );
+}
+
+function MyOrdersEmptyState({ status }: { status: string }) {
+  return (
+    <div style={{ ...card, textAlign: 'center' }}>
+      <FileText size={32} />
+      <p>{status === 'all' ? 'لا توجد طلبات بعد.' : 'لا توجد طلبات بهذه الحالة.'}</p>
+      <Link to="/" className="sf-btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '10px 18px' }}>ابدأ التسوق</Link>
+    </div>
+  );
+}
+
+function CustomerOrderStatusCell({ order }: { order: CustomerOrderSummary }) {
+  const needsQuantityReview = order.quantity_review_required === true;
+  const paymentRequested = Boolean(order.customer_payment_requested_at) && order.payment_request_status === 'requested';
+
+  return (
+    <td>
+      <span className="sf-detail-category">{STATUS_LABELS[order.status] ?? order.status}</span>
+      {needsQuantityReview ? (
+        <strong style={{ display: 'block', color: '#9a5b13', marginTop: 5 }}>تنبيه: الطلب بانتظار اعتماد التعديلات.</strong>
+      ) : null}
+      {paymentRequested ? (
+        <small style={{ display: 'block', color: '#17684d', marginTop: 5 }}>يرجى متابعة تعليمات السداد في تفاصيل الطلب.</small>
+      ) : null}
+    </td>
+  );
+}
+
+function CustomerOrderTableRow({ order }: { order: CustomerOrderSummary }) {
+  return (
+    <tr style={{ borderTop: '1px solid #edf2f3' }}>
+      <td style={{ padding: 12, fontWeight: 700 }}>{order.order_number}</td>
+      <td>{formatDate(order.created_at)}</td>
+      <td>{formatNumber(order.total_items)}</td>
+      <CustomerOrderStatusCell order={order} />
+      <td>
+        <Link to="/orders/$id" params={{ id: order.id }} className="sf-link" aria-label={'تفاصيل الطلب ' + order.order_number}>
+          التفاصيل
+        </Link>
+      </td>
+    </tr>
+  );
+}
+
+function MyOrdersPagination({
+  page,
+  pageCount,
+  totalCount,
+  loading,
+  onPageChange,
+}: {
+  page: number;
+  pageCount: number;
+  totalCount: number;
+  loading: boolean;
+  onPageChange: (page: number) => void;
+}) {
+  if (pageCount <= 1) return null;
+  return (
+    <nav aria-label="صفحات الطلبات" style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center', padding: 12, flexWrap: 'wrap' }}>
+      <button type="button" className="sf-link" aria-label="صفحة الطلبات السابقة" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={loading || page <= 1}>السابق</button>
+      <span role="status" aria-label="صفحة الطلبات الحالية">{'صفحة ' + page + ' من ' + pageCount + ' — إجمالي النتائج: ' + totalCount}</span>
+      <button type="button" className="sf-link" aria-label="صفحة الطلبات التالية" onClick={() => onPageChange(Math.min(pageCount, page + 1))} disabled={loading || page >= pageCount}>التالي</button>
+    </nav>
+  );
+}
+
+function MyOrdersTable({
+  orders,
+  page,
+  pageCount,
+  totalCount,
+  loading,
+  onPageChange,
+}: {
+  orders: CustomerOrderSummary[];
+  page: number;
+  pageCount: number;
+  totalCount: number;
+  loading: boolean;
+  onPageChange: (page: number) => void;
+}) {
+  return (
+    <div style={{ ...card, padding: 0, overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: '#f4f8f9', textAlign: 'right' }}>
+            <th style={{ padding: 12 }}>رقم الطلب</th><th>التاريخ</th><th>الأصناف</th><th>الحالة</th><th />
+          </tr>
+        </thead>
+        <tbody>{orders.map((order) => <CustomerOrderTableRow key={order.id} order={order} />)}</tbody>
+      </table>
+      <MyOrdersPagination
+        page={page}
+        pageCount={pageCount}
+        totalCount={totalCount}
+        loading={loading}
+        onPageChange={onPageChange}
+      />
+    </div>
+  );
+}
+
+function MyOrdersResults({
+  data,
+  loading,
+  error,
+  totalCount,
+  statusFilter,
+  page,
+  pageCount,
+  onRetry,
+  onPageChange,
+}: {
+  data: CustomerOrderSummary[] | null;
+  loading: boolean;
+  error: string;
+  totalCount: number | null;
+  statusFilter: string;
+  page: number;
+  pageCount: number;
+  onRetry: () => void;
+  onPageChange: (page: number) => void;
+}) {
+  if (loading) return <p role="status">جارٍ تحميل الطلبات...</p>;
+  if (error) return <MyOrdersErrorState error={error} onRetry={onRetry} />;
+
+  return (
+    <>
+      {totalCount !== null ? <MyOrdersCountNotice count={totalCount} status={statusFilter} /> : null}
+      {data && data.length === 0 && totalCount === 0 ? <MyOrdersEmptyState status={statusFilter} /> : null}
+      {data && data.length > 0 ? (
+        <MyOrdersTable
+          orders={data}
+          page={page}
+          pageCount={pageCount}
+          totalCount={totalCount ?? 0}
+          loading={loading}
+          onPageChange={onPageChange}
+        />
+      ) : null}
+    </>
+  );
+}
+
 function MyOrdersInner() {
   const [data, setData] = useState<CustomerOrderSummary[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,53 +298,30 @@ function MyOrdersInner() {
     <Shell>
       <h1 style={{ fontSize: 26, margin: '0 0 6px' }}>طلباتي</h1>
       <p style={{ color: '#7a9398', margin: '0 0 20px' }}>كل الطلبات المرسلة من حسابك وحالتها الحالية</p>
-      <div className="no-print" style={{ ...card, marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <label htmlFor="customer-orders-status-filter" style={{ fontWeight: 700 }}>تصفية حسب الحالة</label>
-        <select
-          id="customer-orders-status-filter"
-          aria-label="تصفية طلباتي حسب الحالة"
-          value={statusFilter}
-          disabled={loading}
-          onChange={(event) => {
-            setData(null);
-            setTotalCount(null);
-            setPage(1);
-            setStatusFilter(event.target.value);
-          }}
-          style={{ minWidth: 220, padding: 10, border: '1px solid #cbdad9', borderRadius: 9, background: '#fff' }}
-        >
-          <option value="all">كل الحالات</option>
-          {Object.entries(STATUS_LABELS).map(([status, label]) => <option key={status} value={status}>{label}</option>)}
-        </select>
-      </div>
-      {loading && <p role="status">جارٍ تحميل الطلبات...</p>}
-      {!loading && !error && totalCount !== null && (
-        <p role="status" aria-label="إجمالي نتائج الطلبات">
-          {'إجمالي النتائج: ' + formatNumber(totalCount) + (statusFilter === 'all' ? ' طلب' : ' طلب بهذه الحالة')}
-        </p>
-      )}
-      {error && <div style={card} role="alert">{error} <button type="button" className="sf-link" onClick={() => void load()}>إعادة المحاولة</button></div>}
-      {data && data.length === 0 && totalCount === 0 && !loading && !error && <div style={{ ...card, textAlign: 'center' }}><FileText size={32} /><p>{statusFilter === 'all' ? 'لا توجد طلبات بعد.' : 'لا توجد طلبات بهذه الحالة.'}</p><Link to="/" className="sf-btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', padding: '10px 18px' }}>ابدأ التسوق</Link></div>}
-      {data && data.length > 0 && !error && (
-        <div style={{ ...card, padding: 0, overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead><tr style={{ background: '#f4f8f9', textAlign: 'right' }}><th style={{ padding: 12 }}>رقم الطلب</th><th>التاريخ</th><th>الأصناف</th><th>الحالة</th><th /></tr></thead>
-            <tbody>{data.map((o) => (
-              <tr key={o.id} style={{ borderTop: '1px solid #edf2f3' }}>
-                <td style={{ padding: 12, fontWeight: 700 }}>{o.order_number}</td>
-                <td>{formatDate(o.created_at)}</td>
-                <td>{formatNumber(o.total_items)}</td>
-                <td><span className="sf-detail-category">{STATUS_LABELS[o.status] ?? o.status}</span>{o.quantity_review_required && <strong style={{ display: 'block', color: '#9a5b13', marginTop: 5 }}>تنبيه: الطلب بانتظار اعتماد التعديلات.</strong>}{o.customer_payment_requested_at && o.payment_request_status === 'requested' && <small style={{ display: 'block', color: '#17684d', marginTop: 5 }}>يرجى متابعة تعليمات السداد في تفاصيل الطلب.</small>}</td>
-                <td><Link to="/orders/$id" params={{ id: o.id }} className="sf-link" aria-label={`تفاصيل الطلب ${o.order_number}`}>التفاصيل</Link></td>
-              </tr>))}</tbody>
-          </table>
-          {pageCount > 1 && <nav aria-label="صفحات الطلبات" style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center', padding: 12, flexWrap: 'wrap' }}>
-            <button type="button" className="sf-link" aria-label="صفحة الطلبات السابقة" onClick={() => { setData(null); setPage((value) => Math.max(1, value - 1)); }} disabled={loading || page <= 1}>السابق</button>
-            <span role="status" aria-label="صفحة الطلبات الحالية">{'صفحة ' + page + ' من ' + pageCount + ' — إجمالي النتائج: ' + totalCount}</span>
-            <button type="button" className="sf-link" aria-label="صفحة الطلبات التالية" onClick={() => { setData(null); setPage((value) => Math.min(pageCount, value + 1)); }} disabled={loading || page >= pageCount}>التالي</button>
-          </nav>}
-        </div>
-      )}
+      <MyOrdersStatusFilter
+        status={statusFilter}
+        disabled={loading}
+        onChange={(value) => {
+          setData(null);
+          setTotalCount(null);
+          setPage(1);
+          setStatusFilter(value);
+        }}
+      />
+      <MyOrdersResults
+        data={data}
+        loading={loading}
+        error={error}
+        totalCount={totalCount}
+        statusFilter={statusFilter}
+        page={page}
+        pageCount={pageCount}
+        onRetry={() => void load()}
+        onPageChange={(nextPage) => {
+          setData(null);
+          setPage(nextPage);
+        }}
+      />
     </Shell>
   );
 }
