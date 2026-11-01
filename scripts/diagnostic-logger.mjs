@@ -3,7 +3,10 @@ import { format } from "node:util";
 const redact = (value) => value
   .replace(/\b(postgres(?:ql)?:\/\/)[^\s/@]+@/gi, "$1[REDACTED]@")
   .replace(/\b(Bearer\s+)[A-Za-z0-9._~+\/-]+=*/gi, "$1[REDACTED]")
-  .replace(/\b(password|passwd|token|secret|api[_-]?key|service[_-]?role[_-]?key)(\s*[:=]\s*)([^\s,;]+)/gi, "$1$2[REDACTED]");
+  .replace(/\b(password|passwd|token|secret|api[_-]?key|service[_-]?role[_-]?key)(\s*[:=]\s*)([^\s,;]+)/gi, "$1$2[REDACTED]")
+  .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{25,}|github_pat_[A-Za-z0-9_]{25,}|sb_secret_[A-Za-z0-9_=-]{20,}|sk-[A-Za-z0-9_-]{25,})\b/g, "[REDACTED_TOKEN]")
+  .replace(/\beyJ[A-Za-z0-9_-]{15,}\.eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{10,}\b/g, "[REDACTED_JWT]")
+  .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]");
 
 function writeRecord(level, values) {
   const message = redact(format(...values));

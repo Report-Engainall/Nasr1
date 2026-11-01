@@ -110,6 +110,9 @@ jobs:
               "postgresql://ci-user:fixture-db-password@db.example.test/app",
               "Bearer fixture-bearer-token",
               { service_role_key: "fixture-service-role-secret", apiKey: "fixture-api-key" },
+              "customer-fixture@example.test",
+              "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+              "eyJaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb.cccccccccccccc",
             );
             logError(new Error("password=fixture-error-password"));
           } finally {
@@ -129,6 +132,12 @@ jobs:
             "fixture-service-role-secret",
             "fixture-api-key",
             "fixture-error-password",
+            "customer-fixture@example.test",
+            "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+            "eyJaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb.cccccccccccccc",
           ]) assert.equal(output.includes(secret), false, "logger leaked " + secret);
           assert.match(output, /\[REDACTED\]/);
+          assert.match(output, /\[REDACTED_EMAIL\]/);
+          assert.match(output, /\[REDACTED_TOKEN\]/);
+          assert.match(output, /\[REDACTED_JWT\]/);
           NODE
