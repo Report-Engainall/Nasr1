@@ -1,5 +1,54 @@
 # CONTROL — CodeInspector remediation 2026-10-31
 
+## Live snapshot — 2026-11-01
+
+Repository: Report-Engainall/Nasr1; target main; current main SHA 46f2fce34c09f64284fdbbe4182bd0f2b7ab36dc. No merge has occurred.
+Recovered report: scan-5a0dd3e4-941c-45bc-98df-05e0e9aa19f4.pdf; original scan input SHA UNKNOWN; report time 2026-10-31T22:02:18.5552070Z.
+Baseline: 239 findings / 703 files / 127,555 LOC.
+Rule totals: TS0004=9, TS0009=9, TS0002=3, JS0001=12, JS0007=26, PY0005=2, TS0010=1, TS0003=170, JS0005=2, PY0002=3, PY0003=2.
+Ownership: P1=25; P2=116 (114 TS0003 + 1 TS0002 + 1 TS0010); P3=98.
+P2 TS0003: 104 active current-tree rows, 10 archived READY_TO_REUSE rows. Archive rows remain tracked but are not live application edit targets.
+Path resolution: 229 exact active tree paths + 10 archive-only paths. No unresolved file names after OCR normalization and contextual resolution.
+TS0004/TS0009: 18 paired detector rows at 9 fixture locations; P1 triaged them as test-only values, pending fresh scanner verification.
+
+## Current branches / pull requests
+
+| Role | Branch SHA | PR | State | Exact-head checks |
+|---|---|---:|---|---|
+| P1 | 1e51d807f48da02be4e21375769f26bb793d8efd | #339 | Ready/open | Core PASS; Gitleaks PASS; local Supabase Playwright PASS; hosted tenant E2E SKIPPED |
+| P2 | 0bb0f017cbfe283d2cd1d93e651a855fe4ba76d6 | #338 | Ready/open | Previous code head Core PASS; current docs-only head CI running |
+| P3 | c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688 | #340 | Draft/open | Core PASS; tooling PASS; PG17 import/export PASS; Playwright CANCELLED |
+
+No PR in this remediation stream has been merged. Formal independent approval is not recorded. P2's review suggestion to pin the 4096-byte Outbox body cap and content-length handoff is implemented in the source test.
+
+## Evidence links
+
+- P2 Core on code/test head 767744ef: run 41255608732 SUCCESS. Docs/manifest commit 0bb0f017 triggers new Core 41256346720 (IN_PROGRESS) and Playwright 41256346732 (IN_PROGRESS).
+- P2 Playwright 41255608752 remains IN_PROGRESS on code/test head 767744ef; public smoke and infrastructure gate pass, hosted tenant test skipped, local Supabase job was still running at last poll.
+- P1 Core 41255917802 SUCCESS; Gitleaks 41255917793 SUCCESS; Playwright 41255917900 SUCCESS on exact head 1e51d807. Its local Supabase order persistence/tenant isolation passed, but hosted customer-order/tenant test was SKIPPED.
+- P3 Core 41255986179 SUCCESS; tooling 41255986180 SUCCESS; PG17 import 41255986181 SUCCESS; PG17 export 41255986177 SUCCESS on exact head c8aa51c7. Playwright 41255986229 CANCELLED.
+
+## Implementation notes
+
+P2 Outbox extraction preserves POST/auth checks, 4096-byte bounded request body, default batch 20, bounds 1–50, lease 300 seconds, RPC names and parameter keys, sequential processing and sanitized failure persistence. No DB/RLS/migration/accounting/inventory modification.
+P2 TS0010 current source uses InventoryTransferHistoryRow and contains no any token. Keep NOT_REPRODUCED / NOT_CLOSED because original scan SHA is unknown.
+P1 changes are limited to security/test helper refactoring and Gitleaks gate in the reviewed PR diff; no production auth/RLS/migration change was found.
+P3 touches Service Worker MIME cache behavior, diagnostic logger, JS/Python tools and tests. Earlier test double omitted FetchEvent.waitUntil; fixture now captures/awaits lifecycle promises. Production service worker was not weakened.
+No force-push, bypass, branch-protection weakening, or database/RLS workaround used.
+
+## Resume cursor
+
+1. Finish current P2 docs-head Core and Playwright 41256346720/41256346732. Do not merge #338 until exact current head and review acceptance are satisfied.
+2. P1 checks pass on 1e51d807; review and rebase after P2 merge, then rerun after any new SHA.
+3. P3 checks pass except Playwright is CANCELLED; rerun it on current head before making #340 ready.
+4. Run fresh CodeInspector with scanner version. Keep ORIGINAL_SCAN_SHA=UNKNOWN until a real source SHA is proven.
+
+---
+
+## Historical initialization notes (superseded by the live state above)
+
+# CONTROL — CodeInspector remediation 2026-10-31
+
 ## Source of truth
 - Product: Aghbari Commerce
 - Repository: \`Report-Engainall/Nasr1\`
