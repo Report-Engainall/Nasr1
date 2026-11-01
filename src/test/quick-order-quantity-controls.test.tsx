@@ -62,6 +62,17 @@ function renderMatrix(quantities: Record<string, string>, onQuantityChange = vi.
   return { ...view, onQuantityChange };
 }
 
+function policyMatrixElement(
+  policyProduct: ProductWithInventory,
+  quantities: Record<string, string>,
+  onQuantityChange: (productId: string, quantity: string) => void,
+) {
+  return (
+    <QuickOrderMatrix products={[policyProduct]} quantities={quantities} feedback={null}
+      onQuantityChange={onQuantityChange} onAddSelected={vi.fn()} onBack={vi.fn()} onCart={vi.fn()} />
+  );
+}
+
 describe("QuickOrderMatrix quantity controls", () => {
   afterEach(() => cleanup());
 
@@ -105,10 +116,7 @@ describe("QuickOrderMatrix quantity controls", () => {
   it("steps from the configured minimum by the configured pack multiple", () => {
     const policyProduct = createPolicyProduct();
     const onQuantityChange = vi.fn();
-    const view = render(
-      <QuickOrderMatrix products={[policyProduct]} quantities={{}} feedback={null}
-        onQuantityChange={onQuantityChange} onAddSelected={vi.fn()} onBack={vi.fn()} onCart={vi.fn()} />,
-    );
+    const view = render(policyMatrixElement(policyProduct, {}, onQuantityChange));
     const input = screen.getByRole("spinbutton", { name: "كمية صنف تجريبي" });
     const increase = screen.getByRole("button", { name: "زيادة كمية صنف تجريبي" });
     expect(input).toHaveAttribute("min", "3");
@@ -116,10 +124,7 @@ describe("QuickOrderMatrix quantity controls", () => {
     fireEvent.click(increase);
     expect(onQuantityChange).toHaveBeenLastCalledWith("product-1", "3");
 
-    view.rerender(
-      <QuickOrderMatrix products={[policyProduct]} quantities={{ "product-1": "3" }} feedback={null}
-        onQuantityChange={onQuantityChange} onAddSelected={vi.fn()} onBack={vi.fn()} onCart={vi.fn()} />,
-    );
+    view.rerender(policyMatrixElement(policyProduct, { "product-1": "3" }, onQuantityChange));
     fireEvent.click(screen.getByRole("button", { name: "زيادة كمية صنف تجريبي" }));
     expect(onQuantityChange).toHaveBeenLastCalledWith("product-1", "5");
     fireEvent.click(screen.getByRole("button", { name: "تقليل كمية صنف تجريبي" }));
