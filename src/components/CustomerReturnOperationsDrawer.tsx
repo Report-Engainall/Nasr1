@@ -76,6 +76,59 @@ const mutedStyle: React.CSSProperties = {
   lineHeight: 1.7,
 };
 
+function ReturnWorkflowTabs({
+  workflow,
+  activeTab,
+  onSelect,
+}: {
+  workflow: Workflow;
+  activeTab: ReturnTab;
+  onSelect: (tab: ReturnTab) => void;
+}) {
+  const select = (tab: ReturnTab) => onSelect(tab);
+  if (workflow === "orders") {
+    return (
+      <nav role="tablist" aria-label="خطوات المرتجع" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        <button type="button" role="tab" aria-selected={activeTab === "review"} style={activeTab === "review" ? selectedTabStyle : tabStyle} onClick={() => select("review")}>
+          <ClipboardCheck size={16} /> مراجعة المرتجعات
+        </button>
+        <button type="button" role="tab" aria-selected={activeTab === "receipt"} style={activeTab === "receipt" ? selectedTabStyle : tabStyle} onClick={() => select("receipt")}>
+          <PackageCheck size={16} /> الاستلام والفحص
+        </button>
+      </nav>
+    );
+  }
+
+  return (
+    <nav role="tablist" aria-label="خطوات المرتجع" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+      <button type="button" role="tab" aria-selected={activeTab === "credit"} style={activeTab === "credit" ? selectedTabStyle : tabStyle} onClick={() => select("credit")}>
+        <FileCheck2 size={16} /> الإشعارات الدائنة
+      </button>
+    </nav>
+  );
+}
+
+function ReturnWorkflowPanel({
+  workflow,
+  activeTab,
+  onNotice,
+}: {
+  workflow: Workflow;
+  activeTab: ReturnTab;
+  onNotice: (message: string) => void;
+}) {
+  if (workflow === "orders" && activeTab === "review") {
+    return <div role="tabpanel"><CustomerReturnReviewQueue onNotice={onNotice} /></div>;
+  }
+  if (workflow === "orders" && activeTab === "receipt") {
+    return <div role="tabpanel"><CustomerReturnReceiptQueue onNotice={onNotice} /></div>;
+  }
+  if (workflow === "finance" && activeTab === "credit") {
+    return <div role="tabpanel"><CustomerReturnCreditMemoQueue onNotice={onNotice} /></div>;
+  }
+  return <div role="tabpanel" />;
+}
+
 export function CustomerReturnOperationsDrawer({ workflow }: { workflow: Workflow }) {
   const { user, ready } = useAuth();
   const [open, setOpen] = useState(false);
@@ -146,43 +199,14 @@ export function CustomerReturnOperationsDrawer({ workflow }: { workflow: Workflo
               </button>
             </header>
 
-            <nav role="tablist" aria-label="خطوات المرتجع" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-              {workflow === "orders" ? (
-                <>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === "review"}
-                    style={activeTab === "review" ? selectedTabStyle : tabStyle}
-                    onClick={() => { setNotice(""); setActiveTab("review"); }}
-                  >
-                    <ClipboardCheck size={16} />
-                    مراجعة المرتجعات
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === "receipt"}
-                    style={activeTab === "receipt" ? selectedTabStyle : tabStyle}
-                    onClick={() => { setNotice(""); setActiveTab("receipt"); }}
-                  >
-                    <PackageCheck size={16} />
-                    الاستلام والفحص
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === "credit"}
-                  style={activeTab === "credit" ? selectedTabStyle : tabStyle}
-                  onClick={() => { setNotice(""); setActiveTab("credit"); }}
-                >
-                  <FileCheck2 size={16} />
-                  الإشعارات الدائنة
-                </button>
-              )}
-            </nav>
+            <ReturnWorkflowTabs
+              workflow={workflow}
+              activeTab={activeTab}
+              onSelect={(tab) => {
+                setNotice("");
+                setActiveTab(tab);
+              }}
+            />
 
             {notice && (
               <div role="status" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, padding: 10, marginBottom: 12, borderRadius: 9, background: "#edf6f1", color: "#145c4a" }}>
@@ -193,11 +217,7 @@ export function CustomerReturnOperationsDrawer({ workflow }: { workflow: Workflo
               </div>
             )}
 
-            <div role="tabpanel">
-              {workflow === "orders" && activeTab === "review" && <CustomerReturnReviewQueue onNotice={setNotice} />}
-              {workflow === "orders" && activeTab === "receipt" && <CustomerReturnReceiptQueue onNotice={setNotice} />}
-              {workflow === "finance" && activeTab === "credit" && <CustomerReturnCreditMemoQueue onNotice={setNotice} />}
-            </div>
+            <ReturnWorkflowPanel workflow={workflow} activeTab={activeTab} onNotice={setNotice} />
           </section>
         </div>
       )}

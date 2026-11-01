@@ -37,6 +37,79 @@ function selectForType(accounts: ReturnCreditAccount[], type: ReturnCreditAccoun
   return accounts.find((account) => account.account_type === type)?.id ?? "";
 }
 
+type PrintableReturnCreditMemo = ReturnType<typeof readPrintableReturnCreditMemo>;
+
+function renderReturnCreditMemoDocument(doc: Document, payload: PrintableReturnCreditMemo): void {
+      doc.title = payload.memo.memo_number;
+      doc.documentElement.lang = "ar";
+      doc.documentElement.dir = "rtl";
+      doc.body.replaceChildren();
+      const style = doc.createElement("style");
+      style.textContent = `
+        @page { size:A4; margin:15mm } * { box-sizing:border-box }
+        body { margin:0;color:#203b3d;font-family:Tahoma,Arial,sans-serif;direction:rtl }
+        main { max-width:900px;margin:auto;padding:24px }
+        header { display:flex;justify-content:space-between;gap:16px;border-bottom:3px solid #176b55;padding-bottom:14px;margin-bottom:18px }
+        h1 { margin:0 0 7px;font-size:23px } h2 { margin:18px 0 8px;font-size:16px }
+        p { margin:5px 0;font-size:12px;line-height:1.7 }
+        .number { font-size:16px;font-weight:800;color:#176b55 }
+        .status { border:1px solid #b9d6ca;background:#eff8f2;color:#176b55;padding:6px 10px;border-radius:18px;font-size:12px;font-weight:800;height:fit-content }
+        .draft { border-color:#dfc78f;background:#fff7e8;color:#805413 }
+        .meta { display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;padding:12px;border:1px solid #dce7e8;border-radius:9px }
+        table { width:100%;border-collapse:collapse;margin-top:9px;font-size:11px }
+        th { background:#edf4f2;text-align:right } td,th { border:1px solid #d9e3e1;padding:8px 7px;vertical-align:top }
+        .totals { width:min(100%,360px);margin:18px 0 0 auto;border:1px solid #dce7e8;border-radius:9px;padding:12px }
+        .grand { font-size:16px;font-weight:900;color:#176b55;border-top:1px solid #dce7e8;padding-top:8px }
+        footer { border-top:1px solid #dce7e8;margin-top:22px;padding-top:10px;color:#5e7373;font-size:10px;line-height:1.7 }
+        @media print { main { max-width:none;padding:0 } header,.meta,tr { break-inside:avoid } }
+      `;
+      doc.head.appendChild(style);
+      const main=doc.createElement("main");
+      const header=doc.createElement("header");
+      const titleGroup=doc.createElement("div");
+      const title=doc.createElement("h1"); title.textContent="إشعار دائن للمرتجعات"; titleGroup.appendChild(title);
+      const number=doc.createElement("p"); number.className="number"; number.textContent=payload.memo.memo_number; titleGroup.appendChild(number);
+      const status=doc.createElement("span");
+      status.className=payload.memo.status==="draft"?"status draft":"status";
+      status.textContent=payload.memo.status==="draft"?"مسودة — غير مُرحّلة":"مُرحّل محاسبيًا";
+      header.append(titleGroup,status); main.appendChild(header);
+      const meta=doc.createElement("section"); meta.className="meta";
+      const metaRows:Array<[string,string]>=[
+        ["العميل",payload.customer.name],["الطلب",payload.invoice.order_number],
+        ["الفاتورة الأصلية",payload.invoice.invoice_number],["طلب المرتجع",payload.return_request.request_number],
+        ["تاريخ الإعداد",new Date(payload.memo.created_at).toLocaleString("ar-YE")],
+        ["رقم القيد",payload.journal.entry_number],["حالة القيد",payload.journal.status==="posted"?"مُرحّل":"مسودة"],
+        ["تاريخ الفاتورة",new Date(payload.invoice.issued_at).toLocaleDateString("ar-YE")],
+      ];
+      for(const [label,value] of metaRows){const p=doc.createElement("p");const strong=doc.createElement("strong");strong.textContent=label+": ";p.append(strong,doc.createTextNode(value));meta.appendChild(p);}
+      main.appendChild(meta);
+      const h2=doc.createElement("h2");h2.textContent="تفاصيل البنود المرتجعة";main.appendChild(h2);
+      const table=doc.createElement("table"),thead=doc.createElement("thead"),hr=doc.createElement("tr");
+      for(const label of ["الصنف والرمز","الكمية المرتجعة","كمية الفاتورة","قيمة السطر الأصلي","القيمة الدائنة"]){const th=doc.createElement("th");th.textContent=label;hr.appendChild(th);}
+      thead.appendChild(hr);table.appendChild(thead);
+      const tbody=doc.createElement("tbody");
+      const quantity=(n:number)=>new Intl.NumberFormat("ar-YE",{maximumFractionDigits:3}).format(n);
+      for(const line of payload.lines){
+        const tr=doc.createElement("tr"),name=doc.createElement("td"),strong=doc.createElement("strong");
+        strong.textContent=line.description;name.appendChild(strong);
+        const detail=doc.createElement("p");detail.textContent=(line.item_code?"الرمز: "+line.item_code:"بدون رمز")+(line.unit?" · الوحدة: "+line.unit:"");name.appendChild(detail);tr.appendChild(name);
+        for(const val of [quantity(line.returned_quantity),quantity(line.invoice_quantity),money(line.invoice_line_total,payload.invoice.currency),money(line.credited_subtotal,payload.memo.currency)]){
+          const td=doc.createElement("td");td.textContent=val;tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);main.appendChild(table);
+      const totals=doc.createElement("section");totals.className="totals";
+      for(const [label,amount] of [["المجموع قبل الضريبة",payload.memo.subtotal_amount],["الضريبة",payload.memo.tax_amount]] as Array<[string,number]>){
+        const p=doc.createElement("p"),strong=doc.createElement("strong");strong.textContent=label+": ";p.append(strong,doc.createTextNode(money(amount,payload.memo.currency)));totals.appendChild(p);
+      }
+      const grand=doc.createElement("p");grand.className="grand";grand.textContent="الإجمالي الدائن: "+money(payload.memo.total_amount,payload.memo.currency);totals.appendChild(grand);main.appendChild(totals);
+      const footer=doc.createElement("footer");
+      footer.textContent=payload.memo.status==="draft"
+        ?"هذه مسودة غير مُرحّلة ولا تغير ذمم العميل أو السجلات المحاسبية. لا يُعد هذا المستند إثبات استرداد نقدي."
+        :"تم ترحيل الإشعار والقيد المزدوج المرتبط به. هذا المستند لا يمثل إثبات استرداد نقدي.";
+      main.appendChild(footer);doc.body.appendChild(main);
+}
 export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message: string) => void }) {
   const [queue, setQueue] = useState<ReturnCreditQueue>({ accounts: [], requests: [] });
   const [receivableAccountId, setReceivableAccountId] = useState("");
@@ -239,75 +312,7 @@ export function CustomerReturnCreditMemoQueue({ onNotice }: { onNotice: (message
       if (rpcError) throw new Error(rpcError.message || "تعذر تحميل بيانات الطباعة؛ يلزم دور المحاسبة.");
       const payload = readPrintableReturnCreditMemo(data);
       const doc = openedWindow.document;
-      doc.title = payload.memo.memo_number;
-      doc.documentElement.lang = "ar";
-      doc.documentElement.dir = "rtl";
-      doc.body.replaceChildren();
-      const style = doc.createElement("style");
-      style.textContent = `
-        @page { size:A4; margin:15mm } * { box-sizing:border-box }
-        body { margin:0;color:#203b3d;font-family:Tahoma,Arial,sans-serif;direction:rtl }
-        main { max-width:900px;margin:auto;padding:24px }
-        header { display:flex;justify-content:space-between;gap:16px;border-bottom:3px solid #176b55;padding-bottom:14px;margin-bottom:18px }
-        h1 { margin:0 0 7px;font-size:23px } h2 { margin:18px 0 8px;font-size:16px }
-        p { margin:5px 0;font-size:12px;line-height:1.7 }
-        .number { font-size:16px;font-weight:800;color:#176b55 }
-        .status { border:1px solid #b9d6ca;background:#eff8f2;color:#176b55;padding:6px 10px;border-radius:18px;font-size:12px;font-weight:800;height:fit-content }
-        .draft { border-color:#dfc78f;background:#fff7e8;color:#805413 }
-        .meta { display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;padding:12px;border:1px solid #dce7e8;border-radius:9px }
-        table { width:100%;border-collapse:collapse;margin-top:9px;font-size:11px }
-        th { background:#edf4f2;text-align:right } td,th { border:1px solid #d9e3e1;padding:8px 7px;vertical-align:top }
-        .totals { width:min(100%,360px);margin:18px 0 0 auto;border:1px solid #dce7e8;border-radius:9px;padding:12px }
-        .grand { font-size:16px;font-weight:900;color:#176b55;border-top:1px solid #dce7e8;padding-top:8px }
-        footer { border-top:1px solid #dce7e8;margin-top:22px;padding-top:10px;color:#5e7373;font-size:10px;line-height:1.7 }
-        @media print { main { max-width:none;padding:0 } header,.meta,tr { break-inside:avoid } }
-      `;
-      doc.head.appendChild(style);
-      const main=doc.createElement("main");
-      const header=doc.createElement("header");
-      const titleGroup=doc.createElement("div");
-      const title=doc.createElement("h1"); title.textContent="إشعار دائن للمرتجعات"; titleGroup.appendChild(title);
-      const number=doc.createElement("p"); number.className="number"; number.textContent=payload.memo.memo_number; titleGroup.appendChild(number);
-      const status=doc.createElement("span");
-      status.className=payload.memo.status==="draft"?"status draft":"status";
-      status.textContent=payload.memo.status==="draft"?"مسودة — غير مُرحّلة":"مُرحّل محاسبيًا";
-      header.append(titleGroup,status); main.appendChild(header);
-      const meta=doc.createElement("section"); meta.className="meta";
-      const metaRows:Array<[string,string]>=[
-        ["العميل",payload.customer.name],["الطلب",payload.invoice.order_number],
-        ["الفاتورة الأصلية",payload.invoice.invoice_number],["طلب المرتجع",payload.return_request.request_number],
-        ["تاريخ الإعداد",new Date(payload.memo.created_at).toLocaleString("ar-YE")],
-        ["رقم القيد",payload.journal.entry_number],["حالة القيد",payload.journal.status==="posted"?"مُرحّل":"مسودة"],
-        ["تاريخ الفاتورة",new Date(payload.invoice.issued_at).toLocaleDateString("ar-YE")],
-      ];
-      for(const [label,value] of metaRows){const p=doc.createElement("p");const strong=doc.createElement("strong");strong.textContent=label+": ";p.append(strong,doc.createTextNode(value));meta.appendChild(p);}
-      main.appendChild(meta);
-      const h2=doc.createElement("h2");h2.textContent="تفاصيل البنود المرتجعة";main.appendChild(h2);
-      const table=doc.createElement("table"),thead=doc.createElement("thead"),hr=doc.createElement("tr");
-      for(const label of ["الصنف والرمز","الكمية المرتجعة","كمية الفاتورة","قيمة السطر الأصلي","القيمة الدائنة"]){const th=doc.createElement("th");th.textContent=label;hr.appendChild(th);}
-      thead.appendChild(hr);table.appendChild(thead);
-      const tbody=doc.createElement("tbody");
-      const quantity=(n:number)=>new Intl.NumberFormat("ar-YE",{maximumFractionDigits:3}).format(n);
-      for(const line of payload.lines){
-        const tr=doc.createElement("tr"),name=doc.createElement("td"),strong=doc.createElement("strong");
-        strong.textContent=line.description;name.appendChild(strong);
-        const detail=doc.createElement("p");detail.textContent=(line.item_code?"الرمز: "+line.item_code:"بدون رمز")+(line.unit?" · الوحدة: "+line.unit:"");name.appendChild(detail);tr.appendChild(name);
-        for(const val of [quantity(line.returned_quantity),quantity(line.invoice_quantity),money(line.invoice_line_total,payload.invoice.currency),money(line.credited_subtotal,payload.memo.currency)]){
-          const td=doc.createElement("td");td.textContent=val;tr.appendChild(td);
-        }
-        tbody.appendChild(tr);
-      }
-      table.appendChild(tbody);main.appendChild(table);
-      const totals=doc.createElement("section");totals.className="totals";
-      for(const [label,amount] of [["المجموع قبل الضريبة",payload.memo.subtotal_amount],["الضريبة",payload.memo.tax_amount]] as Array<[string,number]>){
-        const p=doc.createElement("p"),strong=doc.createElement("strong");strong.textContent=label+": ";p.append(strong,doc.createTextNode(money(amount,payload.memo.currency)));totals.appendChild(p);
-      }
-      const grand=doc.createElement("p");grand.className="grand";grand.textContent="الإجمالي الدائن: "+money(payload.memo.total_amount,payload.memo.currency);totals.appendChild(grand);main.appendChild(totals);
-      const footer=doc.createElement("footer");
-      footer.textContent=payload.memo.status==="draft"
-        ?"هذه مسودة غير مُرحّلة ولا تغير ذمم العميل أو السجلات المحاسبية. لا يُعد هذا المستند إثبات استرداد نقدي."
-        :"تم ترحيل الإشعار والقيد المزدوج المرتبط به. هذا المستند لا يمثل إثبات استرداد نقدي.";
-      main.appendChild(footer);doc.body.appendChild(main);
+      renderReturnCreditMemoDocument(doc, payload);
       openedWindow.focus();openedWindow.onafterprint=()=>openedWindow.close();window.setTimeout(()=>openedWindow.print(),200);
       onNotice("تم تجهيز نسخة الطباعة من المصدر المحاسبي بعد تحقق صلاحية المحاسبة.");
     } catch(cause) {
