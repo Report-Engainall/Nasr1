@@ -5,9 +5,15 @@ const evidence=(id="ev-1"):EvidenceRecord=>({id,source:{kind:"RPC",name:"analyti
 const metric=(overrides:Partial<MetricSnapshot>={}):MetricSnapshot=>({id:"m-1",key:"orders.pending",value:7,unit:"COUNT",status:"VERIFIED",completeness:"COMPLETE",quality:"ACCEPTABLE",period:{from:"2026-10-01",to:"2026-10-30"},asOf:"2026-10-30T07:00:00Z",lineage:{evidenceIds:["ev-1"],calculatedAt:"2026-10-30T07:05:00Z",formulaId:"pending.count",formulaVersion:"1.0",transformations:[]},warnings:[],...overrides});
 const rule=(overrides:Partial<DecisionRule>={}):DecisionRule=>({id:"pending",version:"1.0",metricKey:"orders.pending",operator:"GTE",threshold:5,priority:"P1",what:"مراجعة الطلبات المتراكمة",why:"تجاوز العدد الحد المحدد.",soWhat:"قد تتأخر المعالجة.",whatNext:"راجع الطلبات المفتوحة وسجلاتها.",owner:"operations_manager",expectedOutcome:"معالجة الطلبات المتأخرة المثبتة.",...overrides});
 const input=(overrides:{evidenceRecords?:EvidenceRecord[];metrics?:MetricSnapshot[];rules?:DecisionRule[]}={})=>({generatedAt:"2026-10-30T07:10:00Z",asOf:"2026-10-30T07:00:00Z",evidenceRecords:overrides.evidenceRecords??[evidence()],metrics:overrides.metrics??[metric()],rules:overrides.rules??[rule()]});
+const metricWithoutEvidenceLineage = metric({ lineage: { ...metric().lineage, evidenceIds: [] } });
 describe("daily decision engine",()=>{
  it("emits a deterministic fully traceable rule-based card",()=>{const r=buildDailyDecisions(input());expect(r.modelMode).toBe("RULE_BASED");expect(r.candidates[0]).toMatchObject({owner:"operations_manager",expectedOutcome:"معالجة الطلبات المتأخرة المثبتة.",impact:null,impactStatus:"NOT_CONFIGURED",proof:{evidenceIds:["ev-1"]}})});
- it("withholds a missing metric or missing lineage",()=>{expect(buildDailyDecisions(input({metrics:[]})).withheld[0].reason).toBe("NO_SOURCE");expect(buildDailyDecisions(input({metrics:[metric({lineage:{...metric().lineage,evidenceIds:[]}})]})).withheld[0].reason).toBe("NO_SOURCE")});
+ it("withholds a missing metric or missing lineage", () => {
+  const withoutMetric = buildDailyDecisions(input({ metrics: [] }));
+  const withoutLineage = buildDailyDecisions(input({ metrics: [metricWithoutEvidenceLineage] }));
+  expect(withoutMetric.withheld[0].reason).toBe("NO_SOURCE");
+  expect(withoutLineage.withheld[0].reason).toBe("NO_SOURCE");
+ });
  it.each(["UNVERIFIED","NEEDS_REVIEW","UNAVAILABLE"] as const)(
   "withholds decision for metric status %s",
   (status) => {
