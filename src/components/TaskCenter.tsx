@@ -52,6 +52,29 @@ function canAssignToRole(userRoles: string[], taskRole: OperationalTaskRole): bo
   return userRoles.some((role) => ['admin','manager','staff'].includes(role));
 }
 
+function matchesTaskSearch(task: OperationalTask, search: string): boolean {
+  const needle = search.trim().toLocaleLowerCase();
+  if (!needle) return true;
+  const searchableValues = [
+    task.title,
+    task.description ?? '',
+    task.source_entity_id ?? '',
+    task.resolution_note ?? '',
+  ];
+  return searchableValues.some((value) => value.toLocaleLowerCase().includes(needle));
+}
+
+function matchesTaskCreationRange(
+  task: OperationalTask,
+  createdFrom: string,
+  createdTo: string,
+): boolean {
+  const createdAt = new Date(task.created_at).getTime();
+  if (createdFrom && createdAt < new Date(`${createdFrom}T00:00:00`).getTime()) return false;
+  if (createdTo && createdAt >= new Date(`${createdTo}T23:59:59.999`).getTime() + 1) return false;
+  return true;
+}
+
 type TaskCreateFormProps = {
   title: string;
   description: string;
@@ -189,13 +212,8 @@ export function TaskCenter({ onNotice }: { onNotice: (message: string) => void }
     if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
     if (assigneeFilter === 'unassigned' && task.assigned_to) return false;
     if (assigneeFilter !== 'all' && assigneeFilter !== 'unassigned' && task.assigned_to !== assigneeFilter) return false;
-    const createdAt = new Date(task.created_at).getTime();
-    if (createdFrom && createdAt < new Date(`${createdFrom}T00:00:00`).getTime()) return false;
-    if (createdTo && createdAt >= new Date(`${createdTo}T23:59:59.999`).getTime() + 1) return false;
-    const needle = search.trim().toLocaleLowerCase();
-    if (needle && ![task.title,task.description ?? '',task.source_entity_id ?? '',task.resolution_note ?? '']
-      .some((value) => value.toLocaleLowerCase().includes(needle))) return false;
-    return true;
+    if (!matchesTaskCreationRange(task, createdFrom, createdTo)) return false;
+    return matchesTaskSearch(task, search);
   }, [statusFilter,priorityFilter,assigneeFilter,createdFrom,createdTo,search]);
 
   // Apply the same authorized role scope to cards, print output and every summary metric.
