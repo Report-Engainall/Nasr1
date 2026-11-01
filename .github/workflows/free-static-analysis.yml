@@ -1,0 +1,105 @@
+name: Free Static Analysis
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "23 3 * * 1"
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+concurrency:
+  group: free-static-analysis-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  codeql:
+    name: CodeQL ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            category: /language:javascript-typescript
+          - language: python
+            category: /language:python
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - name: Run CodeQL analysis and upload SARIF
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: ${{ matrix.category }}
+
+  semgrep-community:
+    name: Semgrep Community Edition (no login)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install open-source Semgrep CLI
+        run: python -m pip install --disable-pip-version-check --no-cache-dir semgrep
+      - name: Scan active source and write JSON report
+        shell: bash
+        run: |
+          set -euo pipefail
+          semgrep scan --config=auto \
+            --exclude 'docs/bolt-source-reconciliation/READY_TO_REUSE/**' \
+            --json --output semgrep-results.json .
+      - name: Upload Semgrep report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-community-${{ github.sha }}
+          path: semgrep-results.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  typescript-structural-proxy:
+    name: TypeScript AST structural proxy (supplemental)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
+      - name: Install frozen dependency graph
+        run: bun install --frozen-lockfile --registry=https://registry.npmjs.org
+      - name: Run repository-wide TypeScript AST audit
+        run: node scripts/free-ts-structural-audit.mjs
+      - name: Upload structural proxy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typescript-structural-proxy-${{ github.sha }}
+          path: artifacts/free-static-audit/
+          if-no-files-found: warn
+          retention-days: 14
