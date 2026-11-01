@@ -18,3 +18,10 @@
 - Diagnostic messages now emit only a fixed resource category (`shell`, `navigation`, or `static_asset`) instead of a raw pathname. No request path, query, fragment, exception message or stack is sent to window clients.
 - Updated existing diagnostic assertions and added a regression injecting a cryptographically generated reset-path token, forcing navigation failure, and verifying the token and synthetic query/fragment secrets are absent from the structured message.
 - Exact-head Core, P3 tooling, P2 Playwright/local Supabase, full-history Gitleaks and official fresh CodeInspector must be rerun. Status: `IMPLEMENTED_PENDING_EXACT_SHA_CI`.
+
+### Follow-up root-shell boundary guard — 2026-11-01
+
+- Kept diagnostic payload path-free by replacing the path argument with a boolean `isHomeNavigation`; only the fetch dispatcher derives it from `url.pathname === '/'`.
+- The helper now explicitly refuses to cache any deep navigation, even if it returns HTTP 200 HTML, preserving the public-home-only offline shell contract.
+- Added a regression that requests a private reset-password deep path containing a synthetic token, returns HTML 200, and asserts no cache open/write occurs. No path segment is copied into diagnostics.
+- Status: `IMPLEMENTED_PENDING_EXACT_SHA_CI`.

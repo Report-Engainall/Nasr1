@@ -19,7 +19,7 @@ describe("PWA service-worker cache boundary", () => {
 
   it("caches only the public root document for navigation and falls back to that shell offline", () => {
     expect(workerSource).toContain("function cachePublicHomeResponse(event, response, pathname)");
-    expect(workerSource).toContain("pathname !== '/' || !isHtmlResponse(response)");
+    expect(workerSource).toContain("!isHomeNavigation || !response.ok || !isHtmlResponse(response)");
     expect(workerSource).toContain("cache.put('/', homeResponse)");
     expect(workerSource).toContain("(await caches.match('/')) || Response.error()");
     expect(workerSource).not.toContain("cache.put(event.request, response.clone())");

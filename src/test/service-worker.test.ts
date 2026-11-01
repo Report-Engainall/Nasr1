@@ -131,6 +131,28 @@ describe("Aghbari PWA offline shell", () => {
     expect(worker.skipWaiting).toHaveBeenCalledOnce();
   });
 
+  it("does not cache successful HTML returned for a private deep navigation", async () => {
+    const worker = await loadServiceWorker({
+      fetcher: async () => sameOriginResponse("<!doctype html><main>private route</main>", {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      }),
+    });
+    const pending: Promise<Response>[] = [];
+    worker.listeners.get("fetch")?.({
+      request: {
+        method: "GET",
+        url: "https://aghbari.example/reset-password/private-token-fixture",
+        mode: "navigate",
+      } as Request,
+      respondWith: (promise) => pending.push(promise),
+    });
+
+    await expect(Promise.all(pending)).resolves.toHaveLength(1);
+    expect(worker.cachesMock.open).not.toHaveBeenCalled();
+    expect(worker.cachePut).not.toHaveBeenCalled();
+  });
+
   it("does not cache account, invoice or admin navigation responses", async () => {
     const worker = await loadServiceWorker({
       fetcher: async () => new Response("private route shell", { status: 200 }),

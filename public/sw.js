@@ -98,8 +98,8 @@ async function cachedShellOrError(networkError) {
   }
 }
 
-function cachePublicHomeResponse(event, response) {
-  if (!response.ok || !isHtmlResponse(response)) return;
+function cachePublicHomeResponse(event, response, isHomeNavigation) {
+  if (!isHomeNavigation || !response.ok || !isHtmlResponse(response)) return;
   const homeResponse = response.clone();
   const cacheWrite = caches.open(CACHE_NAME)
     .then((cache) => cache.put('/', homeResponse))
@@ -111,7 +111,7 @@ function handleNavigationFetch(event, request, url) {
   const navigationResponse = fetch(request)
     .then((response) => {
       // Only the public home shell is cached; identity-bound deep routes stay network-only.
-      cachePublicHomeResponse(event, response);
+      cachePublicHomeResponse(event, response, url.pathname === '/');
       return response;
     })
     .catch((error) => cachedShellOrError(error));
