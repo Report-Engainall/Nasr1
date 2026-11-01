@@ -12,6 +12,34 @@ export interface AiRouteDecision {
  mode:AiExecutionMode;provider:AiProvider|null;model:string|null;reason:"FREE_PROVIDER_AVAILABLE"|"ALL_FREE_QUOTAS_UNAVAILABLE"|"NO_RULE_ENGINE"|"UNSAFE_QUESTION";
  attemptedProviders:Array<{provider:AiProvider;model:string;reason:string}>;paidSpendLimit:0;question:string|null;
 }
+function freeProviderEligibilityReason(
+ provider:FreeProviderQuota,
+ now:number,
+ providerCounts:Map<string,number>,
+ evidenceById:Map<string,FreeQuotaEvidence[]>,
+):string {
+ const key=JSON.stringify([provider.provider,provider.model]);
+ if((providerCounts.get(key)??0)!==1)return "DUPLICATE_PROVIDER_QUOTA_RECORD";
+ if(provider.quotaStatus!=="AVAILABLE")return "QUOTA_"+provider.quotaStatus;
+ if(!provider.freeTierConfirmed)return "FREE_TIER_NOT_CONFIRMED";
+ if(!provider.zeroCostConfirmed||provider.inputRate!==0||provider.outputRate!==0)return "COST_NOT_ZERO";
+ if(!provider.privacyReviewed||!provider.privacyAllowsQuestionOnly)return "PRIVACY_NOT_APPROVED";
+ if(provider.quotaRemaining===null||!Number.isSafeInteger(provider.quotaRemaining)||provider.quotaRemaining<=0)
+  return "QUOTA_REMAINING_UNKNOWN_OR_EMPTY";
+ if(typeof provider.model!=="string"||!provider.model.trim()||typeof provider.sourceEvidenceId!=="string"||!provider.sourceEvidenceId.trim())
+  return "MODEL_OR_EVIDENCE_MISSING";
+ const evidenceRows=evidenceById.get(provider.sourceEvidenceId)??[];
+ if(evidenceRows.length>1)return "QUOTA_EVIDENCE_AMBIGUOUS";
+ const evidence=evidenceRows[0];
+ if(!evidence||evidence.status!=="VERIFIED"||evidence.completeness!=="COMPLETE"||evidence.quality!=="ACCEPTABLE"||evidence.asOf!==provider.verifiedAt)
+  return "FREE_QUOTA_EVIDENCE_NOT_VERIFIED";
+ const verifiedAt=Date.parse(provider.verifiedAt);
+ if(!Number.isFinite(verifiedAt)||now-verifiedAt>86400000||verifiedAt>now)return "PROVIDER_VERIFICATION_STALE";
+ if(provider.cooldownUntil!==null&&!Number.isFinite(Date.parse(provider.cooldownUntil)))return "PROVIDER_COOLDOWN_INVALID";
+ if(provider.cooldownUntil&&Date.parse(provider.cooldownUntil)>now)return "PROVIDER_COOLDOWN";
+ return "ELIGIBLE";
+}
+
 /** The only provider payload is the sanitized question; no customer, ledger, stock, margin or tenant DTO is accepted here. */
 export function chooseFreeAiRoute(input:{
  question:unknown;sanitize:(question:unknown)=>SanitizedQuestion;asOf:string;providers:FreeProviderQuota[];
@@ -28,27 +56,7 @@ export function chooseFreeAiRoute(input:{
  const evidenceById=new Map<string,FreeQuotaEvidence[]>();
  for(const record of input.quotaEvidence){const rows=evidenceById.get(record.id)??[];rows.push(record);evidenceById.set(record.id,rows);}
  const selected=[...input.providers].sort((a,b)=>a.provider.localeCompare(b.provider)||a.model.localeCompare(b.model)).find(provider=>{
-  let reason="ELIGIBLE";
-  if((providerCounts.get(providerKey(provider))??0)!==1)reason="DUPLICATE_PROVIDER_QUOTA_RECORD";
-  else if(provider.quotaStatus!=="AVAILABLE")reason="QUOTA_"+provider.quotaStatus;
-  else if(!provider.freeTierConfirmed)reason="FREE_TIER_NOT_CONFIRMED";
-  else if(!provider.zeroCostConfirmed||provider.inputRate!==0||provider.outputRate!==0)reason="COST_NOT_ZERO";
-  else if(!provider.privacyReviewed||!provider.privacyAllowsQuestionOnly)reason="PRIVACY_NOT_APPROVED";
-  else if(provider.quotaRemaining===null||!Number.isSafeInteger(provider.quotaRemaining)||provider.quotaRemaining<=0)reason="QUOTA_REMAINING_UNKNOWN_OR_EMPTY";
-  else if(typeof provider.model!=="string"||!provider.model.trim()||typeof provider.sourceEvidenceId!=="string"||!provider.sourceEvidenceId.trim())
-   reason="MODEL_OR_EVIDENCE_MISSING";
-  else {
-   const evidenceRows=evidenceById.get(provider.sourceEvidenceId)??[];
-   if(evidenceRows.length>1)reason="QUOTA_EVIDENCE_AMBIGUOUS";
-   else {
-    const evidence=evidenceRows[0];
-    if(!evidence||evidence.status!=="VERIFIED"||evidence.completeness!=="COMPLETE"||evidence.quality!=="ACCEPTABLE"||evidence.asOf!==provider.verifiedAt)
-     reason="FREE_QUOTA_EVIDENCE_NOT_VERIFIED";
-   }
-  }
-  if(reason==="ELIGIBLE"&&(!Number.isFinite(Date.parse(provider.verifiedAt))||now-Date.parse(provider.verifiedAt)>86400000||Date.parse(provider.verifiedAt)>now))reason="PROVIDER_VERIFICATION_STALE";
-  else if(reason==="ELIGIBLE"&&provider.cooldownUntil!==null&&!Number.isFinite(Date.parse(provider.cooldownUntil)))reason="PROVIDER_COOLDOWN_INVALID";
-  else if(reason==="ELIGIBLE"&&provider.cooldownUntil&&Date.parse(provider.cooldownUntil)>now)reason="PROVIDER_COOLDOWN";
+  const reason=freeProviderEligibilityReason(provider,now,providerCounts,evidenceById);
   attemptedProviders.push({provider:provider.provider,model:provider.model,reason});
   return reason==="ELIGIBLE";
  });

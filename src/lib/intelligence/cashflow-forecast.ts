@@ -29,6 +29,27 @@ function statusOf(status:EvidenceStatus,completeness:DataCompleteness,quality:Da
  if(status==="NEEDS_REVIEW"||completeness!=="COMPLETE"||quality!=="ACCEPTABLE")return "NEEDS_REVIEW";
  return "VERIFIED";
 }
+function resolveCashflowPointStatus(
+ opening:MetricSnapshot|undefined,
+ openingValid:boolean,
+ complete:boolean,
+ scheduleStatus:EvidenceStatus,
+):EvidenceStatus {
+ if(!opening){
+  if(complete)return "UNAVAILABLE";
+  if(scheduleStatus==="UNVERIFIED")return "UNVERIFIED";
+  if(scheduleStatus==="UNAVAILABLE")return "UNAVAILABLE";
+  return "NEEDS_REVIEW";
+ }
+ if(!openingValid){
+  if(opening.status==="UNVERIFIED")return "UNVERIFIED";
+  if(opening.status==="UNAVAILABLE")return "UNAVAILABLE";
+  return "NEEDS_REVIEW";
+ }
+ if(!complete)return scheduleStatus==="VERIFIED"?"NEEDS_REVIEW":scheduleStatus;
+ return "VERIFIED";
+}
+
 /** Forecasts scheduled movements only; no probability, sales extrapolation or assumed collection rate. */
 export function buildCashflowForecast(input:BuildCashflowForecastInput):CashflowForecast {
  if(!Number.isFinite(Date.parse(input.generatedAt))||!Number.isFinite(Date.parse(input.asOf)))throw new Error("generatedAt and asOf must be valid timestamps");
@@ -89,10 +110,7 @@ export function buildCashflowForecast(input:BuildCashflowForecastInput):Cashflow
    const knownOutflow=window.filter(x=>x.valid&&x.entry.direction==="OUTFLOW").reduce((sum,x)=>sum+(x.amount??0),0);
    const hasKnownEvents=window.some(x=>x.valid);
    const projected=complete&&openingValid?(openingValue as number)+knownInflow-knownOutflow:null;
-   let status:EvidenceStatus="VERIFIED";
-   if(!opening)status=complete?"UNAVAILABLE":scheduleStatus==="UNVERIFIED"?"UNVERIFIED":scheduleStatus==="UNAVAILABLE"?"UNAVAILABLE":"NEEDS_REVIEW";
-   else if(!openingValid)status=opening.status==="UNVERIFIED"?"UNVERIFIED":opening.status==="UNAVAILABLE"?"UNAVAILABLE":"NEEDS_REVIEW";
-   else if(!complete)status=scheduleStatus==="VERIFIED"?"NEEDS_REVIEW":scheduleStatus;
+   const status=resolveCashflowPointStatus(opening,openingValid,complete,scheduleStatus);
    const sources=[...(opening?[opening]:[]),...window.flatMap(x=>x.metric?[x.metric]:[])];
    const evidenceIds=[...new Set(sources.flatMap(m=>m.lineage.evidenceIds))];
    const formulaVersions=[...new Set(sources.map(m=>m.lineage.formulaId+"@"+m.lineage.formulaVersion))];

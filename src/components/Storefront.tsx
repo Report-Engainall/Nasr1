@@ -82,6 +82,18 @@ export function Storefront(props: StorefrontProps) {
   return <StorefrontSession key={identityKey} {...props} />;
 }
 
+function describeCustomerCartSyncState(state: string, isOnline: boolean): string {
+  if (state === 'loading') return 'جار مزامنة سلة حسابك الآمنة مع الخادم...';
+  if (state === 'synced') return 'تم حفظ سلتك في حسابك؛ ستظهر عند الدخول من جهاز آخر.';
+  if (state === 'error') return 'تعذر استرجاع السلة المحفوظة؛ بقيت مسودتك المحلية دون استبدال.';
+  if (state === 'pending') {
+    return isOnline
+      ? 'السلة المحلية محفوظة، لكن تأكيد المزامنة مع الخادم ما زال معلقًا.'
+      : 'أنت غير متصل؛ تُحفظ التغييرات محليًا وستُعاد المزامنة عند الاتصال.';
+  }
+  return 'سلة الحساب تُزامن تلقائيًا عند فتحها أو تعديلها.';
+}
+
 function StorefrontSession({ onExit, initialView = 'shop', initialProductId, initialQuery, initialCategoryId, initialAvailableOnly }: StorefrontProps) {
   const { user, ready: authReady } = useAuth();
   const effectiveRoles = Array.isArray(user?.roles) ? [...user.roles].sort() : [];
@@ -837,15 +849,7 @@ function StorefrontSession({ onExit, initialView = 'shop', initialProductId, ini
             <h2>سلة المشتريات</h2>
             {persistentCartProfileId && (
               <div role="status" aria-live="polite" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', margin: '10px 0', padding: 12, borderRadius: 10, border: '1px solid #d8e6e8', background: '#f7fafb', color: '#344b52', fontSize: 12 }}>
-                <span>{customerCartSyncState === 'loading'
-                  ? 'جار مزامنة سلة حسابك الآمنة مع الخادم...'
-                  : customerCartSyncState === 'synced'
-                    ? 'تم حفظ سلتك في حسابك؛ ستظهر عند الدخول من جهاز آخر.'
-                    : customerCartSyncState === 'error'
-                      ? 'تعذر استرجاع السلة المحفوظة؛ بقيت مسودتك المحلية دون استبدال.'
-                      : customerCartSyncState === 'pending'
-                        ? (!isOnline ? 'أنت غير متصل؛ تُحفظ التغييرات محليًا وستُعاد المزامنة عند الاتصال.' : 'السلة المحلية محفوظة، لكن تأكيد المزامنة مع الخادم ما زال معلقًا.')
-                        : 'سلة الحساب تُزامن تلقائيًا عند فتحها أو تعديلها.'}</span>
+                <span>{describeCustomerCartSyncState(customerCartSyncState, isOnline)}</span>
                 {(customerCartSyncState === 'pending' || customerCartSyncState === 'error') && (
                   <button type="button" className="sf-btn-secondary" disabled={!isOnline} onClick={() => {
                     setCustomerCartHydratedFor('');

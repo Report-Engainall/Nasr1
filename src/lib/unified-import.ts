@@ -307,20 +307,36 @@ function validateImportTransformationRule(
   throw new Error('قاعدة replace_literal تحتاج from وto نصيين لا يتجاوز كل منهما 200 حرف.');
 }
 
-function validateSafeImportPattern(pattern: unknown, field: string): void {
-  // Permit bounded, simple validation patterns; reject constructs commonly used for ReDoS.
+const SAFE_IMPORT_PATTERN_CACHE = new Map<string, RegExp>();
+const MAX_SAFE_IMPORT_PATTERN_INPUT_LENGTH = 2048;
+
+function compileSafeImportPattern(pattern: unknown, field: string): RegExp {
+  // Keep user-configurable expressions bounded and reject common exponential-backtracking forms.
   if (typeof pattern !== 'string' || pattern.length > 120 ||
-    /\\[1-9]|\(\?[=!<:]|\([^)]*[+*{][^)]*\)[+*{]|(?:\.\*){2,}/.test(pattern)) {
+    /\\[1-9]|\(\?[=!<:]|\([^)]*[+*{][^)]*\)[+*{]|\([^)]*\|[^)]*\)[+*{]|(?:\.\*){2,}/.test(pattern)) {
     throw new Error('نمط التحقق غير آمن أو طويل؛ استخدم نمطًا بسيطًا محدودًا.');
   }
 
+  const cached = SAFE_IMPORT_PATTERN_CACHE.get(pattern);
+  if (cached) return cached;
   try {
-    new RegExp(pattern, 'u');
+    // The pattern is length-bounded and screened above; this is the only allowed dynamic RegExp compilation path.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+    const compiled = new RegExp(pattern, 'u');
+    if (SAFE_IMPORT_PATTERN_CACHE.size >= 256) {
+      const oldest = SAFE_IMPORT_PATTERN_CACHE.keys().next().value;
+      if (oldest !== undefined) SAFE_IMPORT_PATTERN_CACHE.delete(oldest);
+    }
+    SAFE_IMPORT_PATTERN_CACHE.set(pattern, compiled);
+    return compiled;
   } catch {
     throw new Error('نمط التحقق ليس تعبيرًا صالحًا للحقل ' + field + '.');
   }
 }
 
+function validateSafeImportPattern(pattern: unknown, field: string): void {
+  compileSafeImportPattern(pattern, field);
+}
 function validateImportValidationRule(
   value: unknown,
   index: number,
@@ -456,7 +472,7 @@ function importValidationFailed(value: string, rule: ImportValidationRule): bool
     case 'max_length':
       return value.length > Number(rule.value);
     case 'safe_pattern':
-      return value !== '' && !(new RegExp(String(rule.value), 'u')).test(value);
+      return value !== '' && (value.length > MAX_SAFE_IMPORT_PATTERN_INPUT_LENGTH || !compileSafeImportPattern(rule.value, rule.field).test(value));
     default:
       return false;
   }
@@ -725,12 +741,17 @@ function decodeXlsxXmlText(value: string): string {
 }
 
 function xlsxAttribute(attributes: string, name: string): string | null {
-  const match = new RegExp('(?:^|\\s)' + name + '\\s*=\\s*"([^"]*)"').exec(attributes);
-  return match ? decodeXlsxXmlText(match[1]) : null;
+  const pattern = /(?:^|\s)([A-Za-z_][A-Za-z0-9_.:-]*)\s*=\s*"([^"]*)"/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(attributes))) {
+    if (match[1] === name) return decodeXlsxXmlText(match[2]);
+  }
+  return null;
 }
 
 function xlsxElementText(xml: string, tagName: string): string | null {
-  const match = new RegExp('<' + tagName + '\\b[^>]*>([\\s\\S]*?)<\\/' + tagName + '\\s*>', 'i').exec(xml);
+  if (tagName !== 'v') return null;
+  const match = /<v\b[^>]*>([\s\S]*?)<\/v\s*>/i.exec(xml);
   return match ? decodeXlsxXmlText(match[1].replace(/<[^>]*>/g, '')) : null;
 }
 
@@ -912,6 +933,38 @@ async function readXlsxZipDirectory(file: Blob): Promise<Map<string, XlsxZipEntr
   return entries;
 }
 
+function parseXlsxCellValue(
+  kind: string,
+  inner: string,
+  styleIndex: number,
+  sharedStrings: readonly string[],
+  styles: XlsxStyles,
+  date1904: boolean,
+): string {
+  if (kind === "inlineStr") {
+    const inline = /<is\b[^>]*>([\s\S]*?)<\/is\s*>/i.exec(inner)?.[1] ?? inner;
+    return xlsxTextRuns(inline);
+  }
+
+  const raw = xlsxElementText(inner, "v") ?? "";
+  switch (kind) {
+    case "s": {
+      const sharedIndex = Number(raw);
+      return Number.isInteger(sharedIndex) && sharedIndex >= 0
+        ? (sharedStrings[sharedIndex] ?? "")
+        : "";
+    }
+    case "b":
+      return raw === "1" ? "TRUE" : raw === "0" ? "FALSE" : raw;
+    case "e":
+      return raw ? "#ERROR:" + raw : "";
+    case "d":
+      return raw;
+    default:
+      return formatXlsxNumber(raw, Number.isInteger(styleIndex) ? styleIndex : 0, styles, date1904);
+  }
+}
+
 /**
  * Reads the first visible XLSX worksheet and emits rows incrementally to the consumer.
  * The raw archive and accumulated data rows are never retained; inflated XML is strictly bounded.
@@ -1051,22 +1104,14 @@ export async function parseXlsxFirstWorksheet(
       seenColumns.add(column);
       const kind = xlsxAttribute(attributes, 't') ?? 'n';
       const styleIndex = Number(xlsxAttribute(attributes, 's') ?? 0);
-      const inner = cell[2] ?? '';
-      let value = '';
-      if (kind === 'inlineStr') {
-        const inline = /<is\b[^>]*>([\s\S]*?)<\/is\s*>/i.exec(inner)?.[1] ?? inner;
-        value = xlsxTextRuns(inline);
-      } else {
-        const raw = xlsxElementText(inner, 'v') ?? '';
-        if (kind === 's') {
-          const sharedIndex = Number(raw);
-          value = Number.isInteger(sharedIndex) && sharedIndex >= 0 ? (sharedStrings[sharedIndex] ?? '') : '';
-        } else if (kind === 'b') value = raw === '1' ? 'TRUE' : raw === '0' ? 'FALSE' : raw;
-        else if (kind === 'e') value = raw ? '#ERROR:' + raw : '';
-        else if (kind === 'd') value = raw;
-        else value = formatXlsxNumber(raw, Number.isInteger(styleIndex) ? styleIndex : 0, styles, date1904);
-      }
-      values[column] = value;
+      values[column] = parseXlsxCellValue(
+        kind,
+        cell[2] ?? '',
+        styleIndex,
+        sharedStrings,
+        styles,
+        date1904,
+      );
     }
     await onRow(Array.from({ length: values.length }, (_value, index) => values[index] ?? ''));
   }

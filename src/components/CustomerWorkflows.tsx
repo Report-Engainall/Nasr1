@@ -2005,6 +2005,98 @@ export function CommerceAssistantPage() {
     </Gate>
   );
 }
+async function loadAssistantOrderStatus(): Promise<string> {
+  const response = await supabase
+    .from("orders")
+    .select("order_number,status,created_at")
+    .order("created_at", { ascending: false })
+    .limit(5);
+  if (response.error) throw response.error;
+  return summarizeCustomerOrderStatuses((response.data ?? []) as AssistantOrderRow[], formatDateShort);
+}
+
+async function loadAssistantInvoiceStatus(): Promise<string> {
+  const response = await supabase
+    .from("customer_invoices")
+    .select("invoice_number,status,issued_at")
+    .order("issued_at", { ascending: false })
+    .limit(100);
+  if (response.error) throw new Error("تعذر الوصول إلى الفواتير. تحقق من نشر مخطط المالية.");
+  return summarizeCustomerInvoiceStatuses(
+    (response.data ?? []) as AssistantInvoiceStatusRow[],
+    formatDateShort,
+  );
+}
+
+async function searchAssistantCatalog(question: string): Promise<string> {
+  const { organizationId } = await getCurrentTenantScope();
+  const response = await supabase
+    .from("products")
+    .select("id,name,item_code,barcode,unit,status")
+    .eq("organization_id", organizationId)
+    .eq("status", "active")
+    .order("name")
+    .limit(300);
+  if (response.error) throw response.error;
+
+  const tokens = question
+    .split(/\s+/)
+    .filter((word) =>
+      word.length > 2 &&
+      !/^(هل|يوجد|عندي|عندكم|من|في|على|ما|هو|هي|ابحث|لي|عن|سعر|كم|الرجاء|اريد|أريد)$/.test(word),
+    );
+  const matches = ((response.data ?? []) as Array<Omit<AssistantProductRow, "base_price">>)
+    .filter((product) =>
+      tokens.some((token) =>
+        (product.name + " " + product.item_code + " " + (product.barcode ?? ""))
+          .toLocaleLowerCase("ar")
+          .includes(token.toLocaleLowerCase("ar")),
+      ),
+    )
+    .slice(0, 8);
+  const priceMap = await fetchResolvedProductPrices(matches.map((product) => product.id));
+  const hits = matches.map((product) =>
+    withResolvedProductPrice(product, priceMap.get(product.id)),
+  ) as AssistantProductRow[];
+  if (!hits.length) return "لم أعثر على صنف مطابق في الكتالوج الحالي.";
+  return "نتائج من الكتالوج:\n" + hits
+    .map((product) =>
+      product.name + " (" + product.item_code + ") — " +
+      resolvedProductPriceLabel(product.base_price) + "/" + product.unit,
+    )
+    .join("\n");
+}
+
+async function requestGeneralAssistant(question: string): Promise<string> {
+  try {
+    const { data, error } = await supabase.functions.invoke("ai-gateway", {
+      body: { action: "ask", question },
+    });
+    const result = data as { answer?: unknown } | null;
+    return !error && typeof result?.answer === "string"
+      ? result.answer
+      : "المساعد الخارجي غير متاح أو تجاوز حدود الاستخدام. لا تزال بيانات الحساب الفعلية متاحة من شاشات الطلبات والفواتير والكتالوج.";
+  } catch {
+    return "المساعد الخارجي غير متاح الآن. يمكنك متابعة الطلبات والفواتير والأسعار من الشاشات الموثقة داخل المتجر.";
+  }
+}
+
+async function resolveAssistantAnswer(question: string): Promise<string> {
+  switch (classifyAssistantIntent(question)) {
+    case "offline_help":
+      return "افتح صفحة «دون اتصال» لعرض الكتالوج المخزن سابقًا ومسودة السلة. إرسال الطلب وتأكيد السعر يحتاجان اتصالًا بالخادم.";
+    case "order_status":
+      return loadAssistantOrderStatus();
+    case "invoice_help":
+      return loadAssistantInvoiceStatus();
+    case "catalog_search":
+      return searchAssistantCatalog(question);
+    default:
+      // Verified account data remains on deterministic, tenant-scoped paths above.
+      return requestGeneralAssistant(question);
+  }
+}
+
 function Assistant() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
@@ -2021,98 +2113,7 @@ function Assistant() {
     setError("");
     setAnswer("");
     try {
-      const intent = classifyAssistantIntent(q);
-      if (intent === "offline_help")
-        setAnswer(
-          "افتح صفحة «دون اتصال» لعرض الكتالوج المخزن سابقًا ومسودة السلة. إرسال الطلب وتأكيد السعر يحتاجان اتصالًا بالخادم.",
-        );
-      else if (intent === "order_status") {
-        const r = await supabase
-          .from("orders")
-          .select("order_number,status,created_at")
-          .order("created_at", { ascending: false })
-          .limit(5);
-        if (r.error) throw r.error;
-        setAnswer(
-          summarizeCustomerOrderStatuses((r.data ?? []) as AssistantOrderRow[], formatDateShort),
-        );
-      } else if (intent === "invoice_help") {
-        const r = await supabase
-          .from("customer_invoices")
-          .select("invoice_number,status,issued_at")
-          .order("issued_at", { ascending: false })
-          .limit(100);
-        if (r.error) throw new Error("تعذر الوصول إلى الفواتير. تحقق من نشر مخطط المالية.");
-        setAnswer(
-          summarizeCustomerInvoiceStatuses(
-            (r.data ?? []) as AssistantInvoiceStatusRow[],
-            formatDateShort,
-          ),
-        );
-      } else if (intent === "catalog_search") {
-        const { organizationId: orgId } = await getCurrentTenantScope();
-        const r = await supabase
-          .from("products")
-          .select("id,name,item_code,barcode,unit,status")
-          .eq("organization_id", orgId)
-          .eq("status", "active")
-          .order("name")
-          .limit(300);
-        if (r.error) throw r.error;
-        const tokens = q
-          .split(/\s+/)
-          .filter(
-            (w) =>
-              w.length > 2 &&
-              !/^(هل|يوجد|عندي|عندكم|من|في|على|ما|هو|هي|ابحث|لي|عن|سعر|كم|الرجاء|اريد|أريد)$/.test(
-                w,
-              ),
-          );
-        const matches = ((r.data ?? []) as Array<Omit<AssistantProductRow, "base_price">>)
-          .filter((p) =>
-            tokens.some((t) =>
-              (p.name + " " + p.item_code + " " + (p.barcode ?? ""))
-                .toLocaleLowerCase("ar")
-                .includes(t.toLocaleLowerCase("ar")),
-            ),
-          )
-          .slice(0, 8);
-        const priceMap = await fetchResolvedProductPrices(matches.map((product) => product.id));
-        const hits = matches.map((product) =>
-          withResolvedProductPrice(product, priceMap.get(product.id)),
-        ) as AssistantProductRow[];
-        setAnswer(
-          hits.length
-            ? "نتائج من الكتالوج:\n" +
-                hits
-                  .map(
-                    (p: AssistantProductRow) =>
-                      p.name +
-                      " (" +
-                      p.item_code +
-                      ") — " +
-                      resolvedProductPriceLabel(p.base_price) +
-                      "/" +
-                      p.unit,
-                  )
-                  .join("\n")
-            : "لم أعثر على صنف مطابق في الكتالوج الحالي.",
-        );
-      } else {
-        // Verified orders, invoices and prices remain on deterministic, account-scoped paths above.
-        // Only general guidance reaches the model, and the gateway applies privacy/quota gates again.
-        try {
-          const { data, error: gatewayError } = await supabase.functions.invoke("ai-gateway", {
-            body: { action: "ask", question: q },
-          });
-          const result = data as { answer?: unknown } | null;
-          setAnswer(!gatewayError && typeof result?.answer === "string"
-            ? result.answer
-            : "المساعد الخارجي غير متاح أو تجاوز حدود الاستخدام. لا تزال بيانات الحساب الفعلية متاحة من شاشات الطلبات والفواتير والكتالوج.");
-        } catch {
-          setAnswer("المساعد الخارجي غير متاح الآن. يمكنك متابعة الطلبات والفواتير والأسعار من الشاشات الموثقة داخل المتجر.");
-        }
-      }
+      setAnswer(await resolveAssistantAnswer(q));
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذر استرجاع بيانات موثوقة.");
     } finally {
