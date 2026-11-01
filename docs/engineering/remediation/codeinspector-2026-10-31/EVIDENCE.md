@@ -1,3 +1,16 @@
+## Current integration snapshot — 2026-11-01T19:00Z
+
+- Current main: f9daf09d1e5aa152aaefa4ac628c6074d4721fb0.
+- PR #391 merged at e433062acbe27b419f53c3b7f5288f39a5f616a2; tested head a2670ac947959ea4ce9e40350a87ecb71c84ab6d. Core 41329802794, full-history Gitleaks 41329802865, PostgreSQL 17 Import Finalizer 41329802778 and P2 local Supabase/Playwright 41329802872 succeeded. Hosted tenant E2E and CodeRabbit skipped.
+- PR #395 merged at 6b1f85ef7a62f6be79c5d76c4ee14e27b199186c; tested head 68e6cf2833b3e43bc97b144817a984d0c9839cdd. Core 41333817859, full-history Gitleaks 41333817863 and Playwright 41333817737 succeeded for local/public/infrastructure paths. Hosted tenant E2E and CodeRabbit skipped.
+- PR #396 merged at f9daf09d1e5aa152aaefa4ac628c6074d4721fb0; tested head 2fe37004d34283b84642ca50c46001167942566e. Core/test-and-build 41338965333, full-history Gitleaks 41338965377, strict TypeScript 41338965256, public UI smoke and local Supabase/PostgreSQL 17 Playwright 41338965339 succeeded. Hosted tenant E2E and CodeRabbit skipped.
+- P2 historical 239-row disposition: 78 TS0003 implementation pending fresh scan; 26 TS0003 not reproduced/not closed; 10 archived-only scope rows; one TS0002 pending fresh scan; one TS0010 not reproduced/not closed. Two P2 TS0003 records formerly OPEN_ASSIGNED_P2 were changed to IMPLEMENTED_PENDING_FRESH_SCAN after #391; none closed.
+- P3 historical 98-row disposition: all 98 IMPLEMENTED_PENDING_FRESH_SCAN; PR #396 integrates six test-only refactors; none closed.
+- User-supplied 118-row CodeInspector excerpt: timestamp 2026-11-01T17:38:11.0353760Z; 718 files, 139,571 LOC; JavaScript 3, Python 0, TypeScript 115. The actual finding table, scanner version and input SHA were not supplied. This is separate from the recovered 239-row PDF and earlier 181-row report.
+- Post-merge main-head workflows were queued when this snapshot was written; exact PR-head results above remain attached only to their named tested heads.
+- Fresh official CodeInspector scan on current main f9daf09d1e5aa152aaefa4ac628c6074d4721fb0 is PENDING. No row is CLOSED without a fresh rule-level analyzer result.
+
+---
 # EVIDENCE — CodeInspector remediation / current checkpoint
 
 ## Recovered scan source
