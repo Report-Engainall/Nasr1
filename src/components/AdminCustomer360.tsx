@@ -22,6 +22,42 @@ const invoiceStatusLabel: Record<string, string> = {
   void: 'ملغاة',
 };
 
+type Customer360HeaderProps = {
+  summary: StaffCustomer360Summary | null;
+  loading: boolean;
+  exportError: string;
+  printError: string;
+  onReload: () => void;
+  onExport: () => void;
+  onPrint: () => void;
+};
+
+function Customer360Header({
+  summary, loading, exportError, printError, onReload, onExport, onPrint,
+}: Customer360HeaderProps) {
+  return (
+    <section className="panel">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h2 style={{ margin: 0 }}>{summary?.customer.business_name ?? 'ملف العميل 360'}</h2>
+          {summary && <>
+            <p>{summary.customer.customer_code} · {summary.customer.contact_name || 'جهة الاتصال غير محددة'}</p>
+            <p>{summary.customer.phone || 'لا يوجد هاتف'} · {summary.customer.email || 'لا يوجد بريد'}</p>
+          </>}
+        </div>
+        <div className="no-print" style={{ display: 'flex', gap: 6 }}>
+          <Button variant="secondary" onClick={onReload} disabled={loading}><RefreshCw size={15} /> تحديث</Button>
+          <Button variant="outline" onClick={onExport} disabled={loading || !summary}><Download size={15} /> تصدير Excel</Button>
+          <Button variant="outline" onClick={onPrint} disabled={loading || !summary}><Printer size={15} /> طباعة / PDF</Button>
+        </div>
+      </div>
+      {exportError && <p className="form-error" role="alert">{exportError}</p>}
+      {printError && <p className="form-error" role="alert">{printError}</p>}
+      <p className="report-note">الرصيد والحد الائتماني أدناه هما القيم المسجلة في بطاقة العميل. إجماليات الطلبات والفوترة والتحصيل أدناه مجاميع خادمية كاملة؛ الجداول التفصيلية تعرض أحدث الحركات فقط، ولا تُنشأ فواتير أو دفعات تاريخية افتراضية.</p>
+    </section>
+  );
+}
+
 export function AdminCustomer360({ customer, onClose }: { customer: Customer; onClose: () => void }) {
   const [summary, setSummary] = useState<StaffCustomer360Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,6 +108,16 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
     }
   }, [summary]);
 
+  function exportCustomer360() {
+    if (!summary) return;
+    setExportError('');
+    try {
+      downloadStaffCustomer360WorkbookXlsx(summary);
+    } catch (cause) {
+      setExportError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف العميل 360.');
+    }
+  }
+
   function printCustomer360() {
     if (!printDocument || typeof window === 'undefined' || typeof window.print !== 'function') {
       setPrintError('تعذر تجهيز نسخة الطباعة من بيانات العميل الحالية.');
@@ -82,15 +128,15 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
   }
   return <Modal title={summary ? 'ملف العميل 360 — ' + summary.customer.business_name : 'ملف العميل 360'} onClose={onClose}>
     <div style={{ display: 'grid', gap: 14, maxHeight: '75vh', overflowY: 'auto', padding: 2 }}>
-      <section className="panel">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-          {summary ? <div><h2 style={{ margin: 0 }}>{summary.customer.business_name}</h2><p>{summary.customer.customer_code} · {summary.customer.contact_name || 'جهة الاتصال غير محددة'}</p><p>{summary.customer.phone || 'لا يوجد هاتف'} · {summary.customer.email || 'لا يوجد بريد'}</p></div> : <div><h2 style={{ margin: 0 }}>ملف العميل 360</h2></div>}
-          <div className="no-print" style={{ display: 'flex', gap: 6 }}><Button variant="secondary" onClick={() => void reload()} disabled={loading}><RefreshCw size={15} /> تحديث</Button><Button variant="outline" onClick={() => { if (!summary) return; setExportError(''); try { downloadStaffCustomer360WorkbookXlsx(summary); } catch (cause) { setExportError(cause instanceof Error ? cause.message : 'تعذر إنشاء ملف العميل 360.'); } }} disabled={loading || !summary}><Download size={15} /> تصدير Excel</Button><Button variant="outline" onClick={printCustomer360} disabled={loading || !printDocument}><Printer size={15} /> طباعة / PDF</Button></div>
-        </div>
-        {exportError && <p className="form-error" role="alert">{exportError}</p>}
-        {printError && <p className="form-error" role="alert">{printError}</p>}
-        <p className="report-note">الرصيد والحد الائتماني أدناه هما القيم المسجلة في بطاقة العميل. إجماليات الطلبات والفوترة والتحصيل أدناه مجاميع خادمية كاملة؛ الجداول التفصيلية تعرض أحدث الحركات فقط، ولا تُنشأ فواتير أو دفعات تاريخية افتراضية.</p>
-      </section>
+      <Customer360Header
+        summary={summary}
+        loading={loading}
+        exportError={exportError}
+        printError={printError}
+        onReload={() => { void reload(); }}
+        onExport={exportCustomer360}
+        onPrint={printCustomer360}
+      />
       {loading ? <Loading /> : error ? <ErrorBox message={error} /> : summary && <>
         <section className="report-grid">
           <article className="report-metric"><ShoppingBag size={20} /><span>إجمالي الطلبات</span><strong>{formatNumber(summary.order_summary.order_count)}</strong></article>
