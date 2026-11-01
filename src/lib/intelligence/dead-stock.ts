@@ -233,7 +233,6 @@ export function buildDeadStockReport(input:{
    ...(product.unitCost?.lineage.evidenceIds??[]),...(product.soldQuantityWindow?.lineage.evidenceIds??[]),
    ...(product.averageInventoryWindow?.lineage.evidenceIds??[]),
   ])];
-  if(!historyOkay)classification="UNKNOWN";
   return {
    productRef:product.productRef,classification,daysSinceMovement,lowTurnover,turnoverRatio,
    availableQuantity:qty.value,unitCost,currency,financialExposure:exposure,exposureStatus,movementStatus,
