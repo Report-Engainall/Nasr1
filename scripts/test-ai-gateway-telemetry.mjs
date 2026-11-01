@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import postgres from "postgres";
 import { logError } from "./diagnostic-logger.mjs";
+import { runCriticalCleanup } from "./critical-cleanup.mjs";
+import { cleanupAiGatewayTelemetry } from "./ai-gateway-telemetry-cleanup.mjs";
 const connectionString=process.env.TEST_DATABASE_URL;if(!connectionString)throw new Error("TEST_DATABASE_URL is required for AI gateway telemetry acceptance.");
 const db=postgres(connectionString,{max:1,prepare:false,idle_timeout:5});
 async function reportCleanupFailure(label, action) {
- try { await action(); }
- catch (error) {
-  logError("AI_GATEWAY_CLEANUP_WARNING " + label, error);
- }
+ await runCriticalCleanup("AI gateway telemetry", [{ name: label, run: action }],
+  (message, error) => logError(message, error));
 }
 async function expectFailure(label,action,pattern){
  await db.unsafe("SAVEPOINT expect_failure");let caught;try{await action();}catch(e){caught=e;}
@@ -120,6 +120,6 @@ async function main(){
   );
   await db.unsafe("reset role");
   process.stdout.write("PASS AI usage telemetry: measured/partial/unknown, no-provider, idempotency, quota denial, service-only RPCs, and live-session revocation\\n");
- }finally{await reportCleanupFailure("reset_role",()=>db.unsafe("RESET ROLE"));await reportCleanupFailure("rollback_transaction",()=>db.unsafe("ROLLBACK"));await reportCleanupFailure("clear_jwt_subject",()=>db.unsafe("select set_config('request.jwt.claim.sub','',false)"));await reportCleanupFailure("clear_jwt_claims",()=>db.unsafe("select set_config('request.jwt.claims','',false)"));}
+ }finally{await cleanupAiGatewayTelemetry(db, (message, error) => logError(message, error));}
 }
-try{await main();}catch(cause){const e=cause&&typeof cause==="object"?cause:{message:String(cause)};process.stderr.write("AI_GATEWAY_USAGE_TELEMETRY_ACCEPTANCE_FAILED "+JSON.stringify({name:e.name,message:e.message,code:e.code,detail:e.detail,hint:e.hint,where:e.where,constraint:e.constraint})+"\\n");throw cause;}finally{await db.end({timeout:5});}
+try{await main();}catch(cause){logError("AI_GATEWAY_USAGE_TELEMETRY_ACCEPTANCE_FAILED",cause);throw cause;}finally{await db.end({timeout:5});}

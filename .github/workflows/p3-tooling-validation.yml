@@ -80,6 +80,8 @@ jobs:
             scripts/test-onyx-reconciliation-concurrency.mjs \
             scripts/test-onyx-source-evidence.mjs \
             scripts/test-ai-gateway-telemetry.mjs \
+            scripts/ai-gateway-telemetry-cleanup.mjs \
+            scripts/test-ai-gateway-telemetry-cleanup.mjs \
             scripts/test-order-input-hardening.mjs \
             scripts/test-stock-count-start-audit.mjs \
             scripts/test-store-executive-analytics.mjs \
@@ -88,6 +90,8 @@ jobs:
           done
       - name: Verify critical database cleanup fails closed
         run: node scripts/test-critical-cleanup.mjs
+      - name: Verify AI gateway telemetry cleanup fails closed
+        run: node scripts/test-ai-gateway-telemetry-cleanup.mjs
       - name: Verify structured logger redacts diagnostic secrets
         shell: bash
         run: |
