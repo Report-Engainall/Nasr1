@@ -126,7 +126,7 @@ jobs:
               { service_role_key: "fixture-service-role-secret", apiKey: "fixture-api-key" },
               "customer-fixture@example.test",
               "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
-              "eyJaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb.cccccccccccccc",
+              "eyJ" + "a".repeat(16) + "." + "b".repeat(16) + "." + "c".repeat(12),
             );
             const sensitiveError = new Error(
               "callback failed https://auth.example.test/callback?access_token=fixture-access-token&refresh_token=fixture-refresh-token&client_secret=fixture-client-secret&code=fixture-oauth-code",
