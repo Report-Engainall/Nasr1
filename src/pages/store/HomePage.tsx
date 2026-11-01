@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Product, Category } from '../../lib/types'
@@ -20,7 +20,7 @@ function HomeHero({ welcome }: { welcome: string }) {
 }
 
 function HomeCategoryCard({ category }: { category: Category }) {
-  const handleHover = (event: React.MouseEvent<HTMLAnchorElement>, active: boolean) => {
+  const handleHover = (event: MouseEvent<HTMLAnchorElement>, active: boolean) => {
     event.currentTarget.style.borderColor = active ? 'var(--color-primary-light)' : 'var(--color-border)';
     event.currentTarget.style.transform = active ? 'translateY(-2px)' : 'translateY(0)';
     event.currentTarget.style.boxShadow = active ? 'var(--shadow-md)' : 'none';
