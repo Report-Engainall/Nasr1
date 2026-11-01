@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 test("Chromium verifies fail-closed product card and detail price visibility", async ({ page }) => {
@@ -102,11 +103,11 @@ function previewSession() {
     exp: now + 3600,
   })).toString("base64url");
   return {
-    access_token: header + "." + claims + ".fixture-only-signature",
+    access_token: header + "." + claims + "." + randomBytes(32).toString("base64url"),
     token_type: "bearer",
     expires_in: 3600,
     expires_at: now + 3600,
-    refresh_token: "fixture-only-refresh-token",
+    refresh_token: randomBytes(32).toString("base64url"),
     user: {
       id: "a1000000-0000-0000-0000-000000000101",
       aud: "authenticated",

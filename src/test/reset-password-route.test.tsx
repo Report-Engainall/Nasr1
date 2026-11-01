@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { act, createElement, type ComponentType } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,10 +26,12 @@ function renderResetPasswordPage() {
   return render(createElement(component));
 }
 
-function fillValidPassword() {
+function fillValidPassword(): string {
+  const password = `Aa9!${randomUUID()}`;
   fireEvent.change(screen.getByLabelText("كلمة المرور الجديدة"), {
-    target: { value: "ValidPass123" },
+    target: { value: password },
   });
+  return password;
 }
 
 describe("reset-password route submission states", () => {
@@ -55,12 +58,12 @@ describe("reset-password route submission states", () => {
   it("shows a recoverable error when the server rejects an expired recovery session", async () => {
     mocks.updateUser.mockResolvedValueOnce({ error: { message: "expired recovery session" } });
     renderResetPasswordPage();
-    fillValidPassword();
+    const password = fillValidPassword();
 
     fireEvent.click(screen.getByRole("button", { name: "حفظ" }));
 
+    expect(mocks.updateUser).toHaveBeenCalledWith({ password });
     expect(await screen.findByRole("alert")).toHaveTextContent("انتهت صلاحية الرابط أو حدث خطأ");
-    expect(mocks.updateUser).toHaveBeenCalledWith({ password: "ValidPass123" });
     expect(mocks.navigate).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "حفظ" })).toBeEnabled();
   });
@@ -68,10 +71,11 @@ describe("reset-password route submission states", () => {
   it("reports network rejection and unlocks the form for retry", async () => {
     mocks.updateUser.mockRejectedValueOnce(new Error("network unavailable"));
     renderResetPasswordPage();
-    fillValidPassword();
+    const password = fillValidPassword();
 
     fireEvent.click(screen.getByRole("button", { name: "حفظ" }));
 
+    expect(mocks.updateUser).toHaveBeenCalledWith({ password });
     expect(await screen.findByRole("alert")).toHaveTextContent("تعذر الاتصال بالخادم");
     expect(mocks.navigate).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "حفظ" })).toBeEnabled();
@@ -84,10 +88,11 @@ describe("reset-password route submission states", () => {
     });
     mocks.updateUser.mockReturnValueOnce(pendingUpdate);
     renderResetPasswordPage();
-    fillValidPassword();
+    const password = fillValidPassword();
 
     fireEvent.click(screen.getByRole("button", { name: "حفظ" }));
 
+    expect(mocks.updateUser).toHaveBeenCalledWith({ password });
     expect(mocks.updateUser).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "جارٍ الحفظ..." })).toBeDisabled();
     expect(mocks.navigate).not.toHaveBeenCalled();
@@ -107,12 +112,13 @@ describe("reset-password route submission states", () => {
     });
     mocks.updateUser.mockReturnValueOnce(pendingUpdate);
     renderResetPasswordPage();
-    fillValidPassword();
+    const password = fillValidPassword();
     const submit = screen.getByRole("button", { name: "حفظ" });
 
     fireEvent.click(submit);
     fireEvent.click(submit);
 
+    expect(mocks.updateUser).toHaveBeenCalledWith({ password });
     expect(mocks.updateUser).toHaveBeenCalledTimes(1);
     expect(submit).toBeDisabled();
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   projectCustomerOrderPrintDocument,
@@ -46,31 +47,38 @@ describe('customer order print projection', () => {
     expect(document.deliveryAddress?.phone).toBe('777000111');
   });
   it('never projects internal identifiers, actor data, admin notes, private history or monetary fields', () => {
+    const makeSentinel = (label: string) => `${label}-${randomUUID()}`;
+    const sentinels = {
+      orderId: makeSentinel('private-order'), customerId: makeSentinel('private-customer'),
+      tenantId: makeSentinel('private-tenant'), adminNote: makeSentinel('private-admin-note'),
+      actorId: makeSentinel('private-actor'), rawObject: makeSentinel('private-payload'),
+      lineId: makeSentinel('private-line'), productId: makeSentinel('private-product'),
+      historyId: makeSentinel('private-history'), historyNote: makeSentinel('private-history-note'),
+      historyActor: makeSentinel('private-history-actor'), customerRowId: makeSentinel('private-customer-row'),
+      profileId: makeSentinel('private-profile'), accountPhone: makeSentinel('private-account-phone'),
+      customerNote: makeSentinel('private-customer-note'),
+    };
     const rawOrder = {
-      ...order, id: 'PRIVATE-ORDER-ID', customer_id: 'PRIVATE-CUSTOMER-ID',
-      organization_id: 'PRIVATE-TENANT-ID', admin_notes: 'PRIVATE-ADMIN-NOTE',
-      created_by: 'PRIVATE-ACTOR-ID', unit_price: 7654321, line_total: 38271605,
-      cost_price: 12345, margin: 98, internal_payload: { secret: 'PRIVATE-RAW-OBJECT' },
+      ...order, id: sentinels.orderId, customer_id: sentinels.customerId,
+      organization_id: sentinels.tenantId, admin_notes: sentinels.adminNote,
+      created_by: sentinels.actorId, unit_price: 7654321, line_total: 38271605,
+      cost_price: 12345, margin: 98, internal_payload: { privatePayloadMarker: sentinels.rawObject },
     } as CustomerOrderPrintOrderSource;
     const rawLines = [{
-      ...lines[0], id: 'PRIVATE-LINE-ID', product_id: 'PRIVATE-PRODUCT-ID',
+      ...lines[0], id: sentinels.lineId, product_id: sentinels.productId,
       unit_price: 7654321, line_total: 38271605, cost_price: 12345, margin: 98,
     }] as CustomerOrderPrintLineSource[];
     const rawHistory = [{
-      ...history[0], id: 'PRIVATE-HISTORY-ID', notes: 'PRIVATE-HISTORY-NOTE', actor_id: 'PRIVATE-HISTORY-ACTOR',
+      ...history[0], id: sentinels.historyId, notes: sentinels.historyNote, actor_id: sentinels.historyActor,
     }] as CustomerOrderPrintHistorySource[];
     const rawCustomer = {
-      ...customer, id: 'PRIVATE-CUSTOMER-ROW-ID', profile_id: 'PRIVATE-PROFILE-ID',
-      phone: 'PRIVATE-ACCOUNT-PHONE', notes: 'PRIVATE-CUSTOMER-NOTE',
+      ...customer, id: sentinels.customerRowId, profile_id: sentinels.profileId,
+      phone: sentinels.accountPhone, notes: sentinels.customerNote,
     } as CustomerOrderPrintCustomerSource;
     const serialized = JSON.stringify(projectCustomerOrderPrintDocument(rawOrder, rawLines, rawHistory, rawCustomer, 'fallback'));
-    for (const sentinel of [
-      'PRIVATE-ORDER-ID', 'PRIVATE-CUSTOMER-ID', 'PRIVATE-TENANT-ID', 'PRIVATE-ADMIN-NOTE',
-      'PRIVATE-ACTOR-ID', 'PRIVATE-RAW-OBJECT', 'PRIVATE-LINE-ID', 'PRIVATE-PRODUCT-ID',
-      'PRIVATE-HISTORY-ID', 'PRIVATE-HISTORY-NOTE', 'PRIVATE-HISTORY-ACTOR',
-      'PRIVATE-CUSTOMER-ROW-ID', 'PRIVATE-PROFILE-ID', 'PRIVATE-ACCOUNT-PHONE', 'PRIVATE-CUSTOMER-NOTE',
-      '7654321', '38271605', '12345',
-    ]) expect(serialized).not.toContain(sentinel);
+    for (const sentinel of [...Object.values(sentinels), '7654321', '38271605', '12345']) {
+      expect(serialized).not.toContain(sentinel);
+    }
   });
   it('keeps unavailable quantities null rather than using zero as a sentinel', () => {
     const document = projectCustomerOrderPrintDocument(order, [{

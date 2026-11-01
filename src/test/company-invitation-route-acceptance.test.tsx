@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient } from "@tanstack/react-query";
@@ -15,7 +16,7 @@ type TestUser = {
   isStaff: boolean;
 };
 
-const TOKEN = "a".repeat(64);
+const TOKEN = randomBytes(32).toString("hex");
 
 const mocks = vi.hoisted(() => ({
   user: null as TestUser | null,
@@ -178,7 +179,7 @@ describe("company invitation real route acceptance", () => {
   );
 
   it("surfaces a malformed route token as a clear rejection without claiming success", async () => {
-    const malformedToken = "not-a-valid-token";
+    const malformedToken = randomBytes(12).toString("hex");
     mocks.acceptInvitation.mockRejectedValueOnce(new Error("رابط الدعوة غير صالح."));
 
     await mountInvitationRoute(`/invite/${malformedToken}`);
