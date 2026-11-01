@@ -135,6 +135,14 @@ describe("customer addresses real route acceptance", () => {
     return input;
   }
 
+  function fillAddressFields(values: Array<[string, string]>) {
+    act(() => {
+      values.forEach(([label, value]) => {
+        fireEvent.change(inputForLabel(label), { target: { value } });
+      });
+    });
+  }
+
   it("does not load customer addresses before guest authentication", async () => {
     await mountAddressesRoute();
 
@@ -194,11 +202,7 @@ describe("customer addresses real route acceptance", () => {
       ["المدينة", "صنعاء"],
       ["العنوان التفصيلي", "شارع الاختبار، مبنى 12"],
     ];
-    act(() => {
-      for (const [label, value] of values) {
-        fireEvent.change(inputForLabel(label), { target: { value } });
-      }
-    });
+    fillAddressFields(values);
 
     const country = inputForLabel("رمز الدولة");
     act(() => fireEvent.change(country, { target: { value: "YE" } }));
