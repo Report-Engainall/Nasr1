@@ -52,6 +52,9 @@ async function loadServiceWorker(overrides: {
   cacheMatch?: (request: Request | string) => Promise<Response | null>;
   fetcher?: (request: Request | string) => Promise<Response>;
   cachePut?: (request: Request | string, response: Response) => Promise<void>;
+  cacheOpenFails?: boolean;
+  cacheKeysFail?: boolean;
+  cacheMatchFails?: boolean;
 } = {}) {
   const source = await readFile(resolve(process.cwd(), "public/sw.js"), "utf8");
   const listeners = new Map<string, Listener>();
@@ -63,10 +66,19 @@ async function loadServiceWorker(overrides: {
   const cacheDelete = vi.fn(async () => true);
   const cacheNames = overrides.cacheNames ?? [];
   const cachesMock = {
-    open: vi.fn(async () => cache),
-    keys: vi.fn(async () => cacheNames),
+    open: vi.fn(async () => {
+      if (overrides.cacheOpenFails) throw new Error("cache storage unavailable");
+      return cache;
+    }),
+    keys: vi.fn(async () => {
+      if (overrides.cacheKeysFail) throw new Error("cache index unavailable");
+      return cacheNames;
+    }),
     delete: cacheDelete,
-    match: vi.fn(async (request: Request | string) => overrides.cacheMatch?.(request) ?? null),
+    match: vi.fn(async (request: Request | string) => {
+      if (overrides.cacheMatchFails) throw new Error("cache lookup unavailable");
+      return overrides.cacheMatch?.(request) ?? null;
+    }),
   };
   const skipWaiting = vi.fn(async () => undefined);
   const claim = vi.fn(async () => undefined);
@@ -275,6 +287,62 @@ describe("Aghbari PWA offline shell", () => {
     );
     expectNoDiagnosticSecrets(warn.mock.calls);
     expect(JSON.stringify(warn.mock.calls)).not.toContain("do-not-log-this");
+    warn.mockRestore();
+  });
+
+  it("handles install and activation cache API failures without rejecting lifecycle work", async () => {
+    const worker = await loadServiceWorker({
+      cacheOpenFails: true,
+      cacheKeysFail: true,
+    });
+    const pending: Promise<unknown>[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    worker.listeners.get("install")?.({
+      waitUntil: (promise) => pending.push(promise),
+    });
+    worker.listeners.get("activate")?.({
+      waitUntil: (promise) => pending.push(promise),
+    });
+
+    await expect(Promise.all(pending)).resolves.toHaveLength(2);
+    expect(worker.skipWaiting).toHaveBeenCalledOnce();
+    expect(worker.claim).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(
+      "[aghbari-sw] shell installation cache failed",
+      expect.objectContaining({ errorType: "Error" }),
+    );
+    expect(warn).toHaveBeenCalledWith(
+      "[aghbari-sw] shell cache cleanup failed",
+      expect.objectContaining({ errorType: "Error" }),
+    );
+    warn.mockRestore();
+  });
+
+  it("falls back to the network when the asset cache lookup rejects", async () => {
+    const response = new Response("network asset", { status: 200 });
+    const worker = await loadServiceWorker({
+      cacheMatchFails: true,
+      fetcher: async () => response,
+    });
+    const pending: Promise<Response>[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    worker.listeners.get("fetch")?.({
+      request: {
+        method: "GET",
+        url: "https://aghbari.example/assets/app.js",
+        mode: "cors",
+      } as Request,
+      respondWith: (promise) => pending.push(promise as Promise<Response>),
+      waitUntil: () => undefined,
+    });
+
+    await expect(Promise.all(pending)).resolves.toEqual([response]);
+    expect(warn).toHaveBeenCalledWith(
+      "[aghbari-sw] static asset cache lookup failed",
+      expect.objectContaining({ url: "/assets/app.js", errorType: "Error" }),
+    );
     warn.mockRestore();
   });
 
