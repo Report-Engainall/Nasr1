@@ -286,51 +286,83 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isImportProfileFieldName(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-z][a-z0-9_]{0,79}$/.test(value);
+}
+
+function validateImportTransformationRule(
+  value: unknown,
+  index: number,
+  supportedOperations: ReadonlySet<ImportTransformation['operation']>,
+): void {
+  if (!isPlainObject(value) || !isImportProfileFieldName(value.field) ||
+    typeof value.operation !== 'string' ||
+    !supportedOperations.has(value.operation as ImportTransformation['operation'])) {
+    throw new Error('قاعدة تحويل رقم ' + (index + 1) + ' غير مدعومة. استخدم field وoperation من قائمة التحويلات المسموحة.');
+  }
+
+  if (value.operation !== 'replace_literal') return;
+  if (typeof value.from === 'string' && value.from.length <= 200 &&
+    typeof value.to === 'string' && value.to.length <= 200) return;
+  throw new Error('قاعدة replace_literal تحتاج from وto نصيين لا يتجاوز كل منهما 200 حرف.');
+}
+
+function validateSafeImportPattern(pattern: unknown, field: string): void {
+  // Permit bounded, simple validation patterns; reject constructs commonly used for ReDoS.
+  if (typeof pattern !== 'string' || pattern.length > 120 ||
+    /\\[1-9]|\(\?[=!<:]|\([^)]*[+*{][^)]*\)[+*{]|(?:\.\*){2,}/.test(pattern)) {
+    throw new Error('نمط التحقق غير آمن أو طويل؛ استخدم نمطًا بسيطًا محدودًا.');
+  }
+
+  try {
+    new RegExp(pattern, 'u');
+  } catch {
+    throw new Error('نمط التحقق ليس تعبيرًا صالحًا للحقل ' + field + '.');
+  }
+}
+
+function validateImportValidationRule(
+  value: unknown,
+  index: number,
+  supportedRules: ReadonlySet<ImportValidationRule['rule']>,
+): void {
+  if (!isPlainObject(value) || !isImportProfileFieldName(value.field) ||
+    typeof value.rule !== 'string' || !supportedRules.has(value.rule as ImportValidationRule['rule'])) {
+    throw new Error('قاعدة تحقق رقم ' + (index + 1) + ' غير مدعومة. استخدم field وrule من قائمة التحقق المسموحة.');
+  }
+
+  if (['min', 'max', 'min_length', 'max_length'].includes(value.rule)) {
+    const limit = value.value;
+    if (typeof limit !== 'number' || !Number.isFinite(limit) || limit < 0 || limit > 1_000_000_000) {
+      throw new Error('قيمة الحد في قاعدة ' + value.rule + ' غير صالحة للحقل ' + value.field + '.');
+    }
+  }
+
+  if (value.rule === 'enum') {
+    const validValues = Array.isArray(value.values) && value.values.length <= 100 &&
+      value.values.every((item) => typeof item === 'string' && item.length <= 200);
+    if (!validValues) {
+      throw new Error('قاعدة enum تحتاج قائمة نصية لا تتجاوز 100 قيمة.');
+    }
+  }
+
+  if (value.rule === 'safe_pattern') validateSafeImportPattern(value.value, value.field);
+}
+
 /**
  * Validate a profile's declarative rules before processing any data.
  * These rules are data, never JavaScript expressions or executable code.
  */
 export function validateImportProfileRules(transformations: unknown[], validations: unknown[]): void {
-  const operations = new Set<ImportTransformation['operation']>([
-    'trim','lowercase','uppercase','remove_spaces','normalize_arabic','replace_literal','to_number','date_iso',
+  const supportedOperations = new Set<ImportTransformation['operation']>([
+    'trim', 'lowercase', 'uppercase', 'remove_spaces', 'normalize_arabic', 'replace_literal', 'to_number', 'date_iso',
   ]);
-  for (const [index, rule] of transformations.entries()) {
-    if (!isPlainObject(rule) || typeof rule.field !== 'string' || !/^[a-z][a-z0-9_]{0,79}$/.test(rule.field) ||
-      typeof rule.operation !== 'string' || !operations.has(rule.operation as ImportTransformation['operation'])) {
-      throw new Error('قاعدة تحويل رقم ' + (index + 1) + ' غير مدعومة. استخدم field وoperation من قائمة التحويلات المسموحة.');
-    }
-    if (rule.operation === 'replace_literal' &&
-      (typeof rule.from !== 'string' || rule.from.length > 200 || typeof rule.to !== 'string' || rule.to.length > 200)) {
-      throw new Error('قاعدة replace_literal تحتاج from وto نصيين لا يتجاوز كل منهما 200 حرف.');
-    }
-  }
+  transformations.forEach((rule, index) => validateImportTransformationRule(rule, index, supportedOperations));
 
-  const supported = new Set<ImportValidationRule['rule']>([
-    'required','numeric','integer','min','max','enum','min_length','max_length','safe_pattern',
+  const supportedRules = new Set<ImportValidationRule['rule']>([
+    'required', 'numeric', 'integer', 'min', 'max', 'enum', 'min_length', 'max_length', 'safe_pattern',
   ]);
-  for (const [index, rule] of validations.entries()) {
-    if (!isPlainObject(rule) || typeof rule.field !== 'string' || !/^[a-z][a-z0-9_]{0,79}$/.test(rule.field) ||
-      typeof rule.rule !== 'string' || !supported.has(rule.rule as ImportValidationRule['rule'])) {
-      throw new Error('قاعدة تحقق رقم ' + (index + 1) + ' غير مدعومة. استخدم field وrule من قائمة التحقق المسموحة.');
-    }
-    if (['min','max','min_length','max_length'].includes(String(rule.rule)) &&
-      (typeof rule.value !== 'number' || !Number.isFinite(rule.value) || rule.value < 0 || rule.value > 1_000_000_000)) {
-      throw new Error('قيمة الحد في قاعدة ' + rule.rule + ' غير صالحة للحقل ' + rule.field + '.');
-    }
-    if (rule.rule === 'enum' &&
-      (!Array.isArray(rule.values) || rule.values.length > 100 || rule.values.some((value) => typeof value !== 'string' || value.length > 200))) {
-      throw new Error('قاعدة enum تحتاج قائمة نصية لا تتجاوز 100 قيمة.');
-    }
-    if (rule.rule === 'safe_pattern') {
-      const pattern = rule.value;
-      // Permit bounded, simple validation patterns; reject constructs commonly used for ReDoS.
-      if (typeof pattern !== 'string' || pattern.length > 120 ||
-        /\\[1-9]|\(\?[=!<:]|\([^)]*[+*{][^)]*\)[+*{]|(?:\.\*){2,}/.test(pattern)) {
-        throw new Error('نمط التحقق غير آمن أو طويل؛ استخدم نمطًا بسيطًا محدودًا.');
-      }
-      try { new RegExp(pattern, 'u'); } catch { throw new Error('نمط التحقق ليس تعبيرًا صالحًا للحقل ' + rule.field + '.'); }
-    }
-  }
+  validations.forEach((rule, index) => validateImportValidationRule(rule, index, supportedRules));
 }
 
 function normalizeArabicValue(value: string): string {

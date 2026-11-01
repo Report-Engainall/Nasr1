@@ -113,6 +113,28 @@ type ReceivablesAgingReport = {
 const RECEIVABLES_AGING_PAGE_SIZE = 200;
 const STAFF_FINANCE_INVOICE_PAGE_SIZE = 200;
 const CUSTOMER_INVOICE_PAGE_SIZE = 100;
+
+type CustomerInvoiceCursor = Pick<Invoice, "id" | "issued_at">;
+
+async function fetchCustomerInvoicePage(cursor?: CustomerInvoiceCursor): Promise<Invoice[] | null> {
+  const query = supabase
+    .from("customer_invoices")
+    .select("id,invoice_number,order_id,customer_id,status,issued_at,due_at,currency");
+  const pageQuery = cursor
+    ? query.or(`issued_at.lt.${cursor.issued_at},and(issued_at.eq.${cursor.issued_at},id.gt.${cursor.id})`)
+    : query;
+  const result = await pageQuery
+    .order("issued_at", { ascending: false })
+    .order("id", { ascending: true })
+    .limit(CUSTOMER_INVOICE_PAGE_SIZE + 1);
+
+  return result.error ? null : (result.data ?? []) as Invoice[];
+}
+
+function appendUniqueInvoiceRows(current: Invoice[], nextPage: Invoice[]): Invoice[] {
+  const knownIds = new Set(current.map((invoice) => invoice.id));
+  return [...current, ...nextPage.filter((invoice) => !knownIds.has(invoice.id))];
+}
 const RECEIVABLES_AGING_BUCKET_LABELS: Record<ReceivablesAgingBucket, string> = {
   current: "غير متأخرة / مستحقة حاليًا",
   days_1_30: "1–30 يومًا",
@@ -467,17 +489,11 @@ function Invoices() {
     setError("");
     setOlderInvoicesError("");
     try {
-      const r = await supabase
-        .from("customer_invoices")
-        .select("id,invoice_number,order_id,customer_id,status,issued_at,due_at,currency")
-        .order("issued_at", { ascending: false })
-        .order("id", { ascending: true })
-        .limit(CUSTOMER_INVOICE_PAGE_SIZE + 1);
-      if (r.error) {
+      const page = await fetchCustomerInvoicePage();
+      if (!page) {
         setError("تعذر تحميل الفواتير. تأكد من نشر ترحيل قاعدة البيانات.");
         return;
       }
-      const page = (r.data ?? []) as Invoice[];
       setRows(page.slice(0, CUSTOMER_INVOICE_PAGE_SIZE));
       setHasMoreInvoices(page.length > CUSTOMER_INVOICE_PAGE_SIZE);
     } catch {
@@ -497,23 +513,13 @@ function Invoices() {
     setLoadingOlderInvoices(true);
     setOlderInvoicesError("");
     try {
-      const r = await supabase
-        .from("customer_invoices")
-        .select("id,invoice_number,order_id,customer_id,status,issued_at,due_at,currency")
-        .or(`issued_at.lt.${cursor.issued_at},and(issued_at.eq.${cursor.issued_at},id.gt.${cursor.id})`)
-        .order("issued_at", { ascending: false })
-        .order("id", { ascending: true })
-        .limit(CUSTOMER_INVOICE_PAGE_SIZE + 1);
-      if (r.error) {
+      const page = await fetchCustomerInvoicePage(cursor);
+      if (!page) {
         setOlderInvoicesError("تعذر تحميل الفواتير الأقدم. احتفظنا بالقائمة الحالية؛ أعد المحاولة.");
         return;
       }
-      const page = (r.data ?? []) as Invoice[];
       const nextPage = page.slice(0, CUSTOMER_INVOICE_PAGE_SIZE);
-      setRows((current) => {
-        const knownIds = new Set(current.map((invoice) => invoice.id));
-        return [...current, ...nextPage.filter((invoice) => !knownIds.has(invoice.id))];
-      });
+      setRows((current) => appendUniqueInvoiceRows(current, nextPage));
       setHasMoreInvoices(page.length > CUSTOMER_INVOICE_PAGE_SIZE);
     } catch {
       setOlderInvoicesError("تعذر تحميل الفواتير الأقدم. احتفظنا بالقائمة الحالية؛ أعد المحاولة.");

@@ -3,21 +3,26 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // Vitest's transformed import.meta.url is not guaranteed to be a file: URL.
-const workerSourcePath = join(
-  process.cwd(),
-  "supabase",
-  "functions",
-  "outbox-worker",
-  "index.ts",
-);
-const workerSource = readFileSync(workerSourcePath, "utf8");
+const workerDirectory = join(process.cwd(), "supabase", "functions", "outbox-worker");
+const workerSource = readFileSync(join(workerDirectory, "index.ts"), "utf8");
+const handlerSource = readFileSync(join(workerDirectory, "handler.ts"), "utf8");
 
 describe("outbox worker source wiring", () => {
-  it("imports and uses the defined sanitized failure-message helper", () => {
-    expect(workerSource).toContain(
-      'import { classifyOutboxProcessResult, outboxFailureMessage } from "./logic.ts";',
+  it("keeps the Edge entrypoint limited to runtime adapters and handler registration", () => {
+    expect(workerSource).toContain('import { createOutboxWorkerHandler } from "./handler.ts";');
+    expect(workerSource).toContain("runtime.serve(createOutboxWorkerHandler(");
+    expect(workerSource).toMatch(
+      /readBoundedTextBody\(\s*request\.body,\s*4096,\s*request\.headers\.get\(["']content-length["']\)\s*,\s*\)/,
     );
-    expect(workerSource).toContain("p_error_message: outboxFailureMessage(error)");
-    expect(workerSource).not.toMatch(/\bsafeErrorMessage\s*\(/);
+    expect(workerSource).not.toContain('rpc("claim_outbox_events"');
+    expect(workerSource).not.toContain('rpc("process_outbox_event"');
+    expect(workerSource).not.toContain('rpc("fail_outbox_event"');
+  });
+
+  it("keeps the existing sanitized failure-message helper in the extracted handler", () => {
+    expect(handlerSource).toContain('import {');
+    expect(handlerSource).toContain('outboxFailureMessage(error)');
+    expect(handlerSource).toContain('classifyOutboxProcessResult(data)');
+    expect(handlerSource).not.toMatch(/\bsafeErrorMessage\s*\(/);
   });
 });
