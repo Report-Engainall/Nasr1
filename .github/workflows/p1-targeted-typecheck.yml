@@ -62,6 +62,13 @@ jobs:
           printf 'Testing SHA: %s\n' "$(git rev-parse HEAD)"
           bun run tsc --noEmit --project tsconfig.p1-typecheck.json
 
+      - name: Verify P1 structural budgets with TypeScript AST (supplemental; not CodeInspector)
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'Testing SHA: %s\\n' "$(git rev-parse HEAD)"
+          bun scripts/test-p1-structural-budget.mjs
+
       - name: Re-run the two P1-owned Vitest suites
         shell: bash
         run: |
