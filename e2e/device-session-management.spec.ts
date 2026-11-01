@@ -29,23 +29,33 @@ async function signIn(page: Page, email: string, password: string) {
 
 async function currentSessionId(page: Page): Promise<string> {
   const id = await page.evaluate(() => {
-    for (const [key, value] of Object.entries(window.localStorage)) {
-      if (!key.endsWith("-auth-token")) continue;
+    const accessTokenFromEntry = ([key, value]: [string, string]): string | null => {
+      if (!key.endsWith("-auth-token")) return null;
       try {
         const record = JSON.parse(value) as { access_token?: unknown };
-        if (typeof record.access_token !== "string") continue;
-        const payload = record.access_token.split(".")[1];
-        if (!payload) continue;
-        const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+        return typeof record.access_token === "string" ? record.access_token : null;
+      } catch {
+        // Ignore malformed or unrelated local Supabase storage entries.
+        return null;
+      }
+    };
+    const sessionIdFromToken = (token: string): string | null => {
+      const payload = token.split(".")[1];
+      if (!payload) return null;
+      const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+      try {
         const claims = JSON.parse(window.atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="))) as {
           session_id?: unknown;
         };
-        if (typeof claims.session_id === "string") return claims.session_id;
+        return typeof claims.session_id === "string" ? claims.session_id : null;
       } catch {
-        // Continue through local Supabase storage entries; never return or log the token.
+        return null;
       }
-    }
-    return null;
+    };
+    const token = Object.entries(window.localStorage)
+      .map(accessTokenFromEntry)
+      .find((candidate): candidate is string => candidate !== null);
+    return token ? sessionIdFromToken(token) : null;
   });
   expect(id, "Supabase must issue a session_id claim for the authenticated browser.").toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
