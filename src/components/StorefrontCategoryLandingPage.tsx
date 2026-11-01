@@ -15,12 +15,13 @@ function CategoryLoadingState() {
   );
 }
 
-function CategoryErrorState({ error }: { error: string }) {
+function CategoryErrorState({ error, onRetry }: { error: string; onRetry: () => void }) {
   return (
     <main className="storefront" dir="rtl" style={{ minHeight: "100vh", padding: 24 }}>
       <div className="sf-empty" role="alert">
         <strong>تعذر تحميل التصنيف</strong>
         <small>{error}</small>
+        <button type="button" className="sf-btn-secondary" onClick={onRetry}>إعادة المحاولة</button>
         <Link to="/categories">العودة إلى التصنيفات</Link>
       </div>
     </main>
@@ -133,7 +134,7 @@ export function StorefrontCategoryLandingPage({
   const children = parent ? categories.filter((category) => category.parent_id === parent.id) : [];
 
   if (categoriesQuery.loading) return <CategoryLoadingState />;
-  if (categoriesQuery.error) return <CategoryErrorState error={categoriesQuery.error} />;
+  if (categoriesQuery.error) return <CategoryErrorState error={categoriesQuery.error} onRetry={() => void categoriesQuery.refetch()} />;
   if (!parent || !active || !validChild) return <CategoryNotFoundState />;
 
   return (
