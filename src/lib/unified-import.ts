@@ -391,6 +391,88 @@ function toIsoDate(value: string): string | null {
   return date.toISOString().slice(0, 10);
 }
 
+
+
+function applyImportTransformation(data: Record<string, unknown>, errors: string[], rule: ImportTransformation): void {
+  if (!(rule.field in data) || data[rule.field] == null || data[rule.field] === '') return;
+  const value = String(data[rule.field]);
+  switch (rule.operation) {
+    case 'trim':
+      data[rule.field] = value.trim();
+      return;
+    case 'lowercase':
+      data[rule.field] = value.toLocaleLowerCase('ar');
+      return;
+    case 'uppercase':
+      data[rule.field] = value.toLocaleUpperCase('ar');
+      return;
+    case 'remove_spaces':
+      data[rule.field] = value.replace(/\s+/g, '');
+      return;
+    case 'normalize_arabic':
+      data[rule.field] = normalizeArabicValue(value);
+      return;
+    case 'replace_literal':
+      data[rule.field] = value.split(rule.from ?? '').join(rule.to ?? '');
+      return;
+    case 'to_number': {
+      const normalized = value.replace(/,/g, '').trim();
+      if (!/^-?[0-9]+(?:\.[0-9]+)?$/.test(normalized)) {
+        errors.push('تعذر تحويل الحقل ' + rule.field + ' إلى رقم صالح');
+        return;
+      }
+      data[rule.field] = normalized;
+      return;
+    }
+    case 'date_iso': {
+      const normalized = toIsoDate(value);
+      if (!normalized) {
+        errors.push('تعذر توحيد التاريخ في الحقل ' + rule.field + '؛ استخدم YYYY-MM-DD أو DD/MM/YYYY');
+        return;
+      }
+      data[rule.field] = normalized;
+      return;
+    }
+  }
+}
+
+function importValidationFailed(value: string, rule: ImportValidationRule): boolean {
+  const numeric = value !== '' ? Number(value) : Number.NaN;
+  switch (rule.rule) {
+    case 'required':
+      return value.length === 0;
+    case 'numeric':
+      return value !== '' && (!Number.isFinite(numeric) || !/^-?[0-9]+(?:\.[0-9]+)?$/.test(value));
+    case 'integer':
+      return value !== '' && (!Number.isInteger(numeric) || !Number.isFinite(numeric));
+    case 'min':
+      return value !== '' && (!Number.isFinite(numeric) || numeric < Number(rule.value));
+    case 'max':
+      return value !== '' && (!Number.isFinite(numeric) || numeric > Number(rule.value));
+    case 'enum':
+      return value !== '' && !(rule.values ?? []).includes(value);
+    case 'min_length':
+      return value !== '' && value.length < Number(rule.value);
+    case 'max_length':
+      return value.length > Number(rule.value);
+    case 'safe_pattern':
+      return value !== '' && !(new RegExp(String(rule.value), 'u')).test(value);
+    default:
+      return false;
+  }
+}
+
+function appendImportValidationErrors(data: Record<string, unknown>, errors: string[], rules: unknown[]): void {
+  for (const raw of rules) {
+    const rule = raw as ImportValidationRule;
+    const rawValue = data[rule.field];
+    const value = rawValue == null ? '' : String(rawValue).trim();
+    if (importValidationFailed(value, rule)) {
+      errors.push(rule.message?.slice(0, 240) || ('قاعدة التحقق ' + rule.rule + ' فشلت للحقل ' + rule.field));
+    }
+  }
+}
+
 export function applyImportProfileRules(
   row: ParsedImportRow,
   transformations: unknown[] = [],
@@ -400,53 +482,10 @@ export function applyImportProfileRules(
   const errors = [...row.errors];
 
   for (const raw of transformations) {
-    const rule = raw as ImportTransformation;
-    if (!(rule.field in data) || data[rule.field] == null || data[rule.field] === '') continue;
-    const value = String(data[rule.field]);
-    switch (rule.operation) {
-      case 'trim': data[rule.field] = value.trim(); break;
-      case 'lowercase': data[rule.field] = value.toLocaleLowerCase('ar'); break;
-      case 'uppercase': data[rule.field] = value.toLocaleUpperCase('ar'); break;
-      case 'remove_spaces': data[rule.field] = value.replace(/\s+/g, ''); break;
-      case 'normalize_arabic': data[rule.field] = normalizeArabicValue(value); break;
-      case 'replace_literal': data[rule.field] = value.split(rule.from ?? '').join(rule.to ?? ''); break;
-      case 'to_number': {
-        const normalized = value.replace(/,/g, '').trim();
-        if (!/^-?[0-9]+(?:\.[0-9]+)?$/.test(normalized)) {
-          errors.push('تعذر تحويل الحقل ' + rule.field + ' إلى رقم صالح');
-        } else {
-          data[rule.field] = normalized;
-        }
-        break;
-      }
-      case 'date_iso': {
-        const normalized = toIsoDate(value);
-        if (!normalized) errors.push('تعذر توحيد التاريخ في الحقل ' + rule.field + '؛ استخدم YYYY-MM-DD أو DD/MM/YYYY');
-        else data[rule.field] = normalized;
-        break;
-      }
-    }
+    applyImportTransformation(data, errors, raw as ImportTransformation);
   }
 
-  for (const raw of validations) {
-    const rule = raw as ImportValidationRule;
-    const rawValue = data[rule.field];
-    const value = rawValue == null ? '' : String(rawValue).trim();
-    const numeric = value !== '' ? Number(value) : Number.NaN;
-    let failed = false;
-    switch (rule.rule) {
-      case 'required': failed = value.length === 0; break;
-      case 'numeric': failed = value !== '' && (!Number.isFinite(numeric) || !/^-?[0-9]+(?:\.[0-9]+)?$/.test(value)); break;
-      case 'integer': failed = value !== '' && (!Number.isInteger(numeric) || !Number.isFinite(numeric)); break;
-      case 'min': failed = value !== '' && (!Number.isFinite(numeric) || numeric < Number(rule.value)); break;
-      case 'max': failed = value !== '' && (!Number.isFinite(numeric) || numeric > Number(rule.value)); break;
-      case 'enum': failed = value !== '' && !(rule.values ?? []).includes(value); break;
-      case 'min_length': failed = value !== '' && value.length < Number(rule.value); break;
-      case 'max_length': failed = value.length > Number(rule.value); break;
-      case 'safe_pattern': failed = value !== '' && !(new RegExp(String(rule.value), 'u')).test(value); break;
-    }
-    if (failed) errors.push(rule.message?.slice(0, 240) || ('قاعدة التحقق ' + rule.rule + ' فشلت للحقل ' + rule.field));
-  }
+  appendImportValidationErrors(data, errors, validations);
 
   const uniqueErrors = [...new Set(errors)];
   return {
