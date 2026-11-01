@@ -1,3 +1,18 @@
+# LIVE RESUME — 2026-11-01T01:16Z
+> This snapshot supersedes older status paragraphs below. Historical checkpoints are retained for audit only.
+
+- Repository: `Report-Engainall/Nasr1`; integration target: `main`.
+- **Current main:** `71de0500aab508cc4cd4d41265304c397a4f3345` (P1 merge commit; ancestry includes P2 batch 02 merge `1cd6625b1ac802b78eda61e2768b2ea006b001f4`).
+- **Merged remediation PRs:** #338 P2 Outbox, #341 P2 control checkpoint, #342 P2 TS0003 batch 02, #339 P1 security/critical acceptance. GitHub reports all four merged.
+- **Open remediation PR:** #340 P3, currently Draft, head `c7a4391fd13ae64895d93245358d09898a85a036`. Privacy fix implemented; keep Draft until all current-head gates finish. PR API currently reports mergeable=true; that is not a test result or approval.
+- **P2 batch 03:** branch `fix/codeinspector-p2-ts0003-batch-03`, head `7bc14715711e72da3aaabf74d93a910a7cd7f01b`; no PR yet at this checkpoint. Changes cover `src/App.tsx`, `src/lib/app-auth-bootstrap.ts`, `src/components/AdminAuditLog.tsx`, and `src/test/app-auth-bootstrap.test.ts`. Exact-head CI is still required.
+- **CodeInspector baseline:** 239 records / 703 files / 127,555 LOC; original input SHA remains UNKNOWN. Current tracked P2 disposition: 16 `IMPLEMENTED_PENDING_FRESH_SCAN` (1 TS0002 + 15 TS0003), 89 active TS0003 open, 10 archived TS0003 scope-review, and 1 TS0010 not reproduced/not closed. No findings are declared closed without a fresh CodeInspector scan.
+- **main SHA `71de050` checks:** Core `41260256558` IN_PROGRESS; P2 Playwright `41260256543` IN_PROGRESS; P1 Secret Scan `41260256551` SUCCESS; one-main-branch cleanup `41260256562` SUCCESS.
+- **P3 exact-head `c7a4391` checks:** tooling `41260382158` SUCCESS (Python and JS logger/SW redaction jobs both pass); Gitleaks `41260382157` SUCCESS; Core `41260382121`, P2 Playwright `41260382104`, Import Finalizer PG17 `41260382124`, and Async Export PG17 `41260382090` were still running/pending at last poll. Hosted tenant E2E is SKIPPED/BLOCKED_EXTERNAL, never PASS.
+- **Next:** finish exact-head P3 and main checks; open P2 batch 03; then process the next active P2 TS0003 files without repeating the 239-row extraction. Run a fresh CodeInspector scan before changing any finding to CLOSED.
+
+---
+
 # CONTROL — CodeInspector remediation / live control snapshot
 ## Live execution update — 2026-11-01
 
@@ -197,3 +212,13 @@ Read live P2 branch head; open PR to \`main\`; poll Core and P2 for that exact P
 - P3 branch head `15ae8ddfb16c10183b09eabd769d8ac022c06d70`, synchronized with main. Core [41259039131](https://github.com/Report-Engainall/Nasr1/actions/runs/41259039131), P3 tooling [41259039020](https://github.com/Report-Engainall/Nasr1/actions/runs/41259039020), Import Finalizer [41259038935](https://github.com/Report-Engainall/Nasr1/actions/runs/41259038935), and Async Export [41259038964](https://github.com/Report-Engainall/Nasr1/actions/runs/41259038964) SUCCESS; P2 Playwright [41259038949](https://github.com/Report-Engainall/Nasr1/actions/runs/41259038949) still running at this checkpoint. PR #340 remains Draft because privacy finding 6551351663 (raw Service Worker Error logs and access/refresh-token redaction) is unresolved.
 - Hosted authenticated tenant E2E remains SKIPPED/BLOCKED_EXTERNAL for the P1/P2/P3 runs; it is not PASS. Main has no branch protection configured; none was changed or bypassed.
 - Next: poll PR #342 exact-head CI, then continue P2's 89 active TS0003 records; merge P1 after exact current-head gates; keep P3 Draft until its privacy blocker is fixed and retested.
+
+
+## Live execution update — 2026-11-01 — P2 batch 03
+
+- Current main: `71de0500aab508cc4cd4d41265304c397a4f3345`. Merged PRs: #338 (P2 Outbox/first TS0003 batch), #341 (P2 control ledger), #342 (P2 TS0003 batch 02), #339 (P1 security acceptance and Gitleaks).
+- P2 batch 03 source head: `03dcbfd30a9fd1fe176ed504c5efc67a9387bb73` on `fix/codeinspector-p2-ts0003-batch-03`; five source/test files. Extracted the legacy App auth hydration routine into a typed helper and added generation-aware stale-session rejection; added tests for sign-out, successful hydration, unmount cancellation and out-of-order auth-profile resolution. Decomposed AdminAuditLog filters/table/pagination/access views and preserved the original distinction between filtered result count and loaded page count; added a regression test for this behavior.
+- The earlier App.tsx-only session helper was not merged alone. This final batch adds the race guard and its regression test. No authorization/RLS policy or data access query scope was changed.
+- P2 findings: 1 TS0002 + 18 TS0003 are `IMPLEMENTED_PENDING_FRESH_SCAN`; 87 active TS0003 remain OPEN; 10 archived TS0003 remain scope-review items; TS0010 remains not reproduced and not closed. Fresh CodeInspector scan is still required; none of these are called CLOSED.
+- P3 branch current head: `c7a4391fd13ae64895d93245358d09898a85a036`; PR #340 remains Draft pending exact-head CI after privacy fixes and main synchronization. The P3 tooling privacy/logger gate passed on the prior code head; current synchronized head requires current-head verification. Hosted tenant E2E remains SKIPPED/BLOCKED_EXTERNAL.
+- Next: open PR #343 from this branch, run exact-head Core/P2/Build/Playwright, review and merge only after success; complete P3 current-head gates and resolve any remaining failures; continue the remaining 87 active P2 TS0003 rows.
