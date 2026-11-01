@@ -91,96 +91,124 @@ function currencyCode(value: unknown, label: string): string {
   return text;
 }
 
+type Customer360StatusRow = StaffCustomer360Summary["order_summary"]["status_distribution"][number];
+type Customer360OrderRow = StaffCustomer360Summary["recent_orders"][number];
+type Customer360InvoiceRow = StaffCustomer360Summary["recent_invoices"][number];
+type Customer360PaymentRow = StaffCustomer360Summary["recent_payments"][number];
+type Customer360FinanceRow = StaffCustomer360Summary["finance_by_currency"][number];
+type Customer360ProductRow = StaffCustomer360Summary["top_products"][number];
+type Customer360Recommendation = StaffCustomer360Summary["recommendations"][number];
+
+function parseCustomer360StatusRow(raw: unknown, index: number): Customer360StatusRow {
+  const row = asObject(raw, `حالة الطلب ${index + 1}`);
+  return { status: asText(row.status, 'حالة الطلب'), count: asInt(row.count, 'عدد الطلبات حسب الحالة') };
+}
+
+function parseCustomer360OrderRow(raw: unknown, index: number): Customer360OrderRow {
+  const row = asObject(raw, `الطلب الأخير ${index + 1}`);
+  return {
+    id: asText(row.id, 'معرّف الطلب الأخير'),
+    order_number: asText(row.order_number, 'رقم الطلب الأخير'),
+    status: asText(row.status, 'حالة الطلب الأخير'),
+    total_amount: nullableMoney(row.total_amount, 'إجمالي الطلب الأخير'),
+    total_items: nullableInt(row.total_items, 'عدد أصناف الطلب الأخير'),
+    created_at: requiredDate(row.created_at, 'تاريخ الطلب الأخير'),
+  };
+}
+
+function parseCustomer360InvoiceRow(raw: unknown, index: number): Customer360InvoiceRow {
+  const row = asObject(raw, `الفاتورة الأخيرة ${index + 1}`);
+  return {
+    id: asText(row.id, 'معرّف الفاتورة الأخيرة'),
+    invoice_number: asText(row.invoice_number, 'رقم الفاتورة الأخيرة'),
+    status: asText(row.status, 'حالة الفاتورة الأخيرة'),
+    issued_at: nullableDate(row.issued_at, 'تاريخ إصدار الفاتورة الأخيرة'),
+    due_at: nullableDate(row.due_at, 'تاريخ استحقاق الفاتورة الأخيرة'),
+    currency: currencyCode(row.currency, `عملة الفاتورة الأخيرة ${index + 1}`),
+    total_amount: nullableMoney(row.total_amount, 'إجمالي الفاتورة الأخيرة'),
+    paid_amount: asMoney(row.paid_amount, 'مدفوع الفاتورة الأخيرة'),
+    credit_memo_amount: asMoney(row.credit_memo_amount, 'الإشعارات الدائنة للفاتورة الأخيرة'),
+    outstanding_amount: nullableMoney(row.outstanding_amount, 'متبقي الفاتورة الأخيرة'),
+  };
+}
+
+function parseCustomer360PaymentRow(raw: unknown): Customer360PaymentRow {
+  const row = asObject(raw, 'الدفعة الأخيرة');
+  return {
+    id: asText(row.id, 'معرّف الدفعة الأخيرة'),
+    invoice_id: asText(row.invoice_id, 'فاتورة الدفعة الأخيرة'),
+    amount: asMoney(row.amount, 'مبلغ الدفعة الأخيرة'),
+    paid_at: requiredDate(row.paid_at, 'تاريخ الدفعة الأخيرة'),
+    payment_method: nullableText(row.payment_method, 'طريقة الدفع الأخيرة'),
+  };
+}
+
+function parseCustomer360FinanceRow(raw: unknown, index: number): Customer360FinanceRow {
+  const row = asObject(raw, `ملخص العملة ${index + 1}`);
+  return {
+    currency: currencyCode(row.currency, `العملة ${index + 1}`),
+    invoice_count: asInt(row.invoice_count, 'عدد الفواتير'),
+    invoiced_total: nullableMoney(row.invoiced_total, 'إجمالي الفواتير'),
+    paid_total: nullableMoney(row.paid_total, 'إجمالي المدفوع'),
+    credit_memo_total: asMoney(row.credit_memo_total, 'إجمالي الإشعارات الدائنة'),
+    outstanding_total: nullableMoney(row.outstanding_total, 'المبلغ المتبقي'),
+    overdue_invoice_count: asInt(row.overdue_invoice_count, 'عدد الفواتير المتأخرة'),
+    overdue_outstanding: nullableMoney(row.overdue_outstanding, 'المبالغ المتأخرة'),
+    unknown_due_date_invoice_count: asInt(row.unknown_due_date_invoice_count, 'عدد الفواتير دون استحقاق'),
+    unknown_due_date_outstanding: nullableMoney(row.unknown_due_date_outstanding, 'المبالغ ذات الاستحقاق غير المعروف'),
+    invalid_total_amount_count: asInt(row.invalid_total_amount_count, 'عدد إجماليات الفواتير غير الصالحة'),
+  };
+}
+
+function parseCustomer360ProductRow(raw: unknown): Customer360ProductRow {
+  const row = asObject(raw, 'الصنف');
+  return {
+    item_code: typeof row.item_code === 'string' ? row.item_code : '',
+    product_name: asText(row.product_name, 'اسم الصنف'),
+    quantity: asMoney(row.quantity, 'كمية الصنف'),
+    sales: nullableMoney(row.sales, 'مبيعات الصنف'),
+    last_purchased_at: nullableDate(row.last_purchased_at, 'آخر شراء للصنف'),
+  };
+}
+
+function parseCustomer360Recommendation(raw: unknown): Customer360Recommendation {
+  const row = asObject(raw, 'التوصية التشغيلية');
+  if (!['high', 'medium', 'low'].includes(String(row.priority))) {
+    throw new Error('أولوية التوصية غير صالحة.');
+  }
+  return {
+    type: asText(row.type, 'نوع التوصية'),
+    priority: row.priority as 'high' | 'medium' | 'low',
+    title: asText(row.title, 'عنوان التوصية'),
+    description: asText(row.description, 'وصف التوصية'),
+    action: asText(row.action, 'إجراء التوصية'),
+    ...(row.currency === undefined ? {} : { currency: currencyCode(row.currency, 'عملة التوصية') }),
+    ...(row.overdue_invoice_count === undefined ? {} : { overdue_invoice_count: asInt(row.overdue_invoice_count, 'عدد الفواتير المتأخرة') }),
+    ...(row.overdue_outstanding === undefined ? {} : { overdue_outstanding: nullableMoney(row.overdue_outstanding, 'مبلغ الفواتير المتأخرة') }),
+    ...(row.pending_order_count === undefined ? {} : { pending_order_count: asInt(row.pending_order_count, 'الطلبات المعلقة') }),
+    ...(row.days_since_last_order === undefined ? {} : { days_since_last_order: asInt(row.days_since_last_order, 'الأيام منذ آخر طلب') }),
+    ...(row.last_order_at === undefined ? {} : { last_order_at: nullableDate(row.last_order_at, 'تاريخ آخر طلب') }),
+  };
+}
+
 /** Parse and validate data-backed customer aggregates; unknown values remain unknown. */
 export function parseStaffCustomer360Summary(value: unknown): StaffCustomer360Summary {
   const root = asObject(value, 'ملخص العميل 360');
   const customer = asObject(root.customer, 'بيانات العميل');
   const rawOrders = asObject(root.order_summary, 'مؤشرات الطلبات');
-  const statusDistribution = asArray(rawOrders.status_distribution, 'توزيع حالات الطلبات').map((raw, index) => {
-    const row = asObject(raw, `حالة الطلب ${index + 1}`);
-    return { status: asText(row.status, 'حالة الطلب'), count: asInt(row.count, 'عدد الطلبات حسب الحالة') };
-  });
-  const recentOrders = asArray(root.recent_orders, 'آخر الطلبات').map((raw, index) => {
-    const row = asObject(raw, `الطلب الأخير ${index + 1}`);
-    return {
-      id: asText(row.id, 'معرّف الطلب الأخير'),
-      order_number: asText(row.order_number, 'رقم الطلب الأخير'),
-      status: asText(row.status, 'حالة الطلب الأخير'),
-      total_amount: nullableMoney(row.total_amount, 'إجمالي الطلب الأخير'),
-      total_items: nullableInt(row.total_items, 'عدد أصناف الطلب الأخير'),
-      created_at: requiredDate(row.created_at, 'تاريخ الطلب الأخير'),
-    };
-  });
-  const recentInvoices = asArray(root.recent_invoices, 'آخر الفواتير').map((raw, index) => {
-    const row = asObject(raw, `الفاتورة الأخيرة ${index + 1}`);
-    return {
-      id: asText(row.id, 'معرّف الفاتورة الأخيرة'),
-      invoice_number: asText(row.invoice_number, 'رقم الفاتورة الأخيرة'),
-      status: asText(row.status, 'حالة الفاتورة الأخيرة'),
-      issued_at: nullableDate(row.issued_at, 'تاريخ إصدار الفاتورة الأخيرة'),
-      due_at: nullableDate(row.due_at, 'تاريخ استحقاق الفاتورة الأخيرة'),
-      currency: currencyCode(row.currency, `عملة الفاتورة الأخيرة ${index + 1}`),
-      total_amount: nullableMoney(row.total_amount, 'إجمالي الفاتورة الأخيرة'),
-      paid_amount: asMoney(row.paid_amount, 'مدفوع الفاتورة الأخيرة'),
-      credit_memo_amount: asMoney(row.credit_memo_amount, 'الإشعارات الدائنة للفاتورة الأخيرة'),
-      outstanding_amount: nullableMoney(row.outstanding_amount, 'متبقي الفاتورة الأخيرة'),
-    };
-  });
-  const recentPayments = asArray(root.recent_payments, 'آخر الدفعات').map((raw, index) => {
-    const row = asObject(raw, `الدفعة الأخيرة ${index + 1}`);
-    return {
-      id: asText(row.id, 'معرّف الدفعة الأخيرة'),
-      invoice_id: asText(row.invoice_id, 'فاتورة الدفعة الأخيرة'),
-      amount: asMoney(row.amount, 'مبلغ الدفعة الأخيرة'),
-      paid_at: requiredDate(row.paid_at, 'تاريخ الدفعة الأخيرة'),
-      payment_method: nullableText(row.payment_method, 'طريقة الدفع الأخيرة'),
-    };
-  });
-  const finance = asArray(root.finance_by_currency, 'ملخص الفواتير بالعملة').map((raw, index) => {
-    const row = asObject(raw, `ملخص العملة ${index + 1}`);
-    return {
-      currency: currencyCode(row.currency, `العملة ${index + 1}`),
-      invoice_count: asInt(row.invoice_count, 'عدد الفواتير'),
-      invoiced_total: nullableMoney(row.invoiced_total, 'إجمالي الفواتير'),
-      paid_total: nullableMoney(row.paid_total, 'إجمالي المدفوع'),
-      credit_memo_total: asMoney(row.credit_memo_total, 'إجمالي الإشعارات الدائنة'),
-      outstanding_total: nullableMoney(row.outstanding_total, 'المبلغ المتبقي'),
-      overdue_invoice_count: asInt(row.overdue_invoice_count, 'عدد الفواتير المتأخرة'),
-      overdue_outstanding: nullableMoney(row.overdue_outstanding, 'المبالغ المتأخرة'),
-      unknown_due_date_invoice_count: asInt(row.unknown_due_date_invoice_count, 'عدد الفواتير دون استحقاق'),
-      unknown_due_date_outstanding: nullableMoney(row.unknown_due_date_outstanding, 'المبالغ ذات الاستحقاق غير المعروف'),
-      invalid_total_amount_count: asInt(row.invalid_total_amount_count, 'عدد إجماليات الفواتير غير الصالحة'),
-    };
-  });
-  const topProducts = asArray(root.top_products, 'أكثر منتجات العميل شراءً').map((raw, index) => {
-    const row = asObject(raw, `الصنف ${index + 1}`);
-    return {
-      item_code: typeof row.item_code === 'string' ? row.item_code : '',
-      product_name: asText(row.product_name, 'اسم الصنف'),
-      quantity: asMoney(row.quantity, 'كمية الصنف'),
-      sales: nullableMoney(row.sales, 'مبيعات الصنف'),
-      last_purchased_at: nullableDate(row.last_purchased_at, 'آخر شراء للصنف'),
-    };
-  });
-  const recommendations = asArray(root.recommendations, 'التوصيات التشغيلية').map((raw, index) => {
-    const row = asObject(raw, `التوصية ${index + 1}`);
-    if (!['high', 'medium', 'low'].includes(String(row.priority))) throw new Error('أولوية التوصية غير صالحة.');
-    return {
-      type: asText(row.type, 'نوع التوصية'),
-      priority: row.priority as 'high' | 'medium' | 'low',
-      title: asText(row.title, 'عنوان التوصية'),
-      description: asText(row.description, 'وصف التوصية'),
-      action: asText(row.action, 'إجراء التوصية'),
-      ...(row.currency === undefined ? {} : { currency: currencyCode(row.currency, `عملة التوصية ${index + 1}`) }),
-      ...(row.overdue_invoice_count === undefined ? {} : { overdue_invoice_count: asInt(row.overdue_invoice_count, 'عدد الفواتير المتأخرة') }),
-      ...(row.overdue_outstanding === undefined ? {} : { overdue_outstanding: nullableMoney(row.overdue_outstanding, 'مبلغ الفواتير المتأخرة') }),
-      ...(row.pending_order_count === undefined ? {} : { pending_order_count: asInt(row.pending_order_count, 'الطلبات المعلقة') }),
-      ...(row.days_since_last_order === undefined ? {} : { days_since_last_order: asInt(row.days_since_last_order, 'الأيام منذ آخر طلب') }),
-      ...(row.last_order_at === undefined ? {} : { last_order_at: nullableDate(row.last_order_at, 'تاريخ آخر طلب') }),
-    };
-  });
+  const statusDistribution = asArray(rawOrders.status_distribution, 'توزيع حالات الطلبات')
+    .map(parseCustomer360StatusRow);
+  const recentOrders = asArray(root.recent_orders, 'آخر الطلبات').map(parseCustomer360OrderRow);
+  const recentInvoices = asArray(root.recent_invoices, 'آخر الفواتير').map(parseCustomer360InvoiceRow);
+  const recentPayments = asArray(root.recent_payments, 'آخر الدفعات').map(parseCustomer360PaymentRow);
+  const finance = asArray(root.finance_by_currency, 'ملخص الفواتير بالعملة').map(parseCustomer360FinanceRow);
+  const topProducts = asArray(root.top_products, 'أكثر منتجات العميل شراءً').map(parseCustomer360ProductRow);
+  const recommendations = asArray(root.recommendations, 'التوصيات التشغيلية').map(parseCustomer360Recommendation);
+  const generatedAt = nullableDate(root.generated_at, 'وقت إنشاء التقرير');
+  if (generatedAt === null) throw new Error('وقت إنشاء التقرير مفقود.');
+
   return {
-    generated_at: nullableDate(root.generated_at, 'وقت إنشاء التقرير') ?? (() => { throw new Error('وقت إنشاء التقرير مفقود.'); })(),
+    generated_at: generatedAt,
     customer: {
       id: asText(customer.id, 'معرّف العميل'),
       customer_code: asText(customer.customer_code, 'رمز العميل'),
