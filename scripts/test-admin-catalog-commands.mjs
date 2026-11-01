@@ -1183,7 +1183,10 @@ try {
   process.exitCode = 1;
 } finally {
   for (const connection of [admin, customer, ...raceConnections]) {
-    try { await connection.unsafe("reset role"); } catch (cleanupError) { process.stderr.write("[admin-catalog-commands] reset role cleanup failed: " + String(cleanupError) + "\n"); }
+    try { await connection.unsafe("reset role"); } catch (cleanupError) {
+      logError("[admin-catalog-commands] reset role cleanup failed; connection will not be reused", cleanupError);
+      process.exitCode = 1;
+    }
     await connection.end();
   }
   try { await cleanup(); } catch (error) {
