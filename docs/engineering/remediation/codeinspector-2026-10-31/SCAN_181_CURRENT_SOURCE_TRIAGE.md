@@ -51,9 +51,23 @@ These historical locations were also compared with current-main source blobs. Th
 | Rule | Report location | Current-main source | Current evidence |
 |---|---|---|---|
 | JS0007 (7) | `public/sw.js`, lines 59, 77, 82, 107, 131, 140, 148 | blob `8f9e3066661b32975bc82f0c8a5b049c8d364ec2` | Current worker has zero `console.*` occurrences and uses `reportServiceWorkerDiagnostic` for diagnostics. |
-| JS0002 / JS0003 / JS0005 | `public/sw.js`, historical arrow at line 87 | same blob | The historical long arrow-function block is no longer present; current behavior is decomposed into named helpers such as `installShell`, `activateShell`, `handleNavigationFetch` and `handleStaticAssetFetch`. This is a source recheck, not a new analyzer measurement. |
+| JS0002 / JS0003 | `public/sw.js`, historical arrow at line 87 | same blob | The historical long arrow-function block is no longer present; current behavior is decomposed into named helpers such as `installShell`, `activateShell`, `handleNavigationFetch` and `handleStaticAssetFetch`. This is a source recheck, not a new analyzer measurement. |
+| JS0005 (original 181-report occurrence) | `public/sw.js`, line 67 | same blob | The original line-67 asynchronous pattern is not the same location as the later three JS0005 findings. Keep the original row separate from the later scan. |
 | TS0010 | `InventoryTransferHistoryPage.tsx`, line 1 | blob `7b1225649a5a3c00b24602b17e62e82e3600e4c7` | Current file contains no `any` type occurrence. |
 | PY0002 | `scripts/reconcile-bolt-recovery-archives.py`, `review_path` line 615 and `self_test` line 197 | blob `b7b29c2456a8911d5d4d39cb8d2a8d0ef74c9a7b` | Current `review_path` is 11 lines and `self_test` is 10 lines; the reported 57/54-line functions are no longer present. |
+
+### Later CodeInspector follow-up scan — 2026-11-01 17:38:11 UTC
+
+A separate later CodeInspector scan (its input SHA is also UNKNOWN) reported **three JS0005 findings** in `public/sw.js` at lines 170, 193 and 202. These three rows are additional follow-up evidence and are **not added to the original 181-finding totals** above.
+
+PR [#394](https://github.com/Report-Engainall/Nasr1/pull/394), current head `175a870f44a95974c6ad7e048e7550e9dd0971a6`, is the targeted implementation:
+- Handles static-asset fetch rejection with explicit `async/await` and `try/catch`.
+- Handles uncached network failure with `Response.error()`.
+- Handles cache-lookup rejection while keeping `event.respondWith()` synchronous in the fetch callback.
+- Keeps cached-asset refresh attached to `event.waitUntil()` and redacts diagnostic output.
+- Adds an acceptance test for an uncached fetch rejection, synchronous `respondWith`, `Response.error()`, and credential-free diagnostics.
+
+**Status:** `OPEN_IMPLEMENTED_PENDING_TEST_AND_FRESH_SCAN`. At this documentation update, Core `test-and-build` and local Supabase/Playwright were still in progress on the exact PR #394 head; the service-worker/JavaScript, Python, Gitleaks and public UI checks had succeeded. Do not mark these three newer findings closed until PR #394 is integrated and an authorized fresh CodeInspector scan is tied to a named current-main SHA.
 
 ## 4. TS0003 — 148 findings
 
