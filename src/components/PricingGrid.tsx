@@ -26,6 +26,113 @@ function formatQuantity(value: number | null, decimals: 0 | 3 = 3): string {
   return value.toLocaleString('ar-YE', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
 }
 
+
+function PriceGridPreview({ preview }: { preview: ReviewRow[] }) {
+  return (
+    <div className="price-grid-preview" aria-label="معاينة التغييرات قبل الحفظ">
+      <div className="price-grid-preview-title"><Eye size={17} /><strong>معاينة قبل الاعتماد</strong><span>{preview.length} صنفًا — لن يُكتب شيء قبل الضغط على «اعتماد وحفظ الدفعة»</span></div>
+      <div className="price-grid-table-scroll"><table className="price-grid-table price-grid-review">
+        <thead><tr><th>الصنف</th>{PRICE_FIELDS.map((field) => <th key={field.source}>{field.label}: قبل ← بعد</th>)}</tr></thead>
+        <tbody>{preview.map((item) => <PriceGridReviewRow key={item.id} item={item} />)}</tbody>
+      </table></div>
+    </div>
+  );
+}
+
+function PriceGridReviewRow({ item }: { item: ReviewRow }) {
+  return (
+    <tr>
+      <th scope="row">{item.name}<small>{item.itemCode}</small></th>
+      {PRICE_FIELDS.map((field) => (
+        <td key={field.source}>
+          {item.before[field.source] === item.after[field.source]
+            ? <span className="price-grid-unchanged">{formatPrice(item.before[field.source])}</span>
+            : <strong><span className="price-grid-old">{formatPrice(item.before[field.source])}</span> <ChevronRight size={13} /> <span className="price-grid-new">{formatPrice(item.after[field.source])}</span></strong>}
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+type PriceGridCells = { current: Map<string, HTMLInputElement> };
+
+function PriceGridEditorTable({ rows, editable, drafts, cells, onCellChange, onCellKeyDown }: {
+  rows: ProductPriceGridRow[];
+  editable: boolean;
+  drafts: Record<string, PriceDraft>;
+  cells: PriceGridCells;
+  onCellChange: (productId: string, field: DraftKey, value: string) => void;
+  onCellKeyDown: (event: KeyboardEvent<HTMLInputElement>, productIndex: number, fieldIndex: number) => void;
+}) {
+  return (
+    <div className="price-grid-table-scroll"><table className="price-grid-table">
+      <thead><tr><th>الصنف</th><th>الوحدة</th>{PRICE_FIELDS.map((field) => <th key={field.source}>{field.label}</th>)}<th>الرصيد الفعلي</th><th>المحجوز</th><th>المتاح للبيع</th><th>حد إعادة الطلب الإجمالي</th><th>مخازن بها رصيد</th><th>الحالة</th></tr></thead>
+      <tbody>{rows.map((row, productIndex) => <PriceGridEditorRow key={row.id} row={row} productIndex={productIndex} editable={editable} drafts={drafts} cells={cells} onCellChange={onCellChange} onCellKeyDown={onCellKeyDown} />)}</tbody>
+    </table></div>
+  );
+}
+
+function PriceGridEditorRow({ row, productIndex, editable, drafts, cells, onCellChange, onCellKeyDown }: {
+  row: ProductPriceGridRow;
+  productIndex: number;
+  editable: boolean;
+  drafts: Record<string, PriceDraft>;
+  cells: PriceGridCells;
+  onCellChange: (productId: string, field: DraftKey, value: string) => void;
+  onCellKeyDown: (event: KeyboardEvent<HTMLInputElement>, productIndex: number, fieldIndex: number) => void;
+}) {
+  return (
+    <tr>
+      <th scope="row">{row.name}<small>{row.item_code}</small></th>
+      <td>{row.unit}</td>
+      {PRICE_FIELDS.map((field, fieldIndex) => {
+        const draftValue = drafts[row.id]?.[field.draft];
+        const isDirty = draftValue !== undefined && Number(draftValue) !== Number(row[field.source]);
+        const refKey = row.id + ":" + field.draft;
+        return (
+          <td key={field.source}>
+            <input type="number" min="0" step="0.01" inputMode="decimal" value={draftValue ?? String(Number(row[field.source] ?? 0))}
+              aria-label={row.name + " — " + field.label}
+              ref={(element) => { if (element) cells.current.set(refKey, element); else cells.current.delete(refKey); }}
+              disabled={!editable}
+              onChange={(event) => onCellChange(row.id, field.draft, event.target.value)}
+              onKeyDown={(event) => onCellKeyDown(event, productIndex, fieldIndex)}
+              className={isDirty ? "price-grid-input is-dirty" : "price-grid-input"}
+            />
+          </td>
+        );
+      })}
+      <td title="مجموع الأرصدة المسجلة في مخازن المؤسسة النشطة">{formatQuantity(row.quantity_on_hand_total)}</td>
+      <td>{formatQuantity(row.quantity_reserved_total)}</td>
+      <td>{formatQuantity(row.quantity_available_total)}</td>
+      <td>{formatQuantity(row.reorder_point_total, 0)}</td>
+      <td>{formatQuantity(row.inventory_warehouse_count, 0)}</td>
+      <td><span className={row.is_active ? "price-grid-status active" : "price-grid-status inactive"}>{row.is_active ? "نشط" : "موقوف"}</span></td>
+    </tr>
+  );
+}
+
+function PriceGridResults({ loading, error, rows, editable, drafts, cells, onCellChange, onCellKeyDown }: {
+  loading: boolean;
+  error: string | null;
+  rows: ProductPriceGridRow[];
+  editable: boolean;
+  drafts: Record<string, PriceDraft>;
+  cells: PriceGridCells;
+  onCellChange: (productId: string, field: DraftKey, value: string) => void;
+  onCellKeyDown: (event: KeyboardEvent<HTMLInputElement>, productIndex: number, fieldIndex: number) => void;
+}) {
+  if (loading) return <p className="price-grid-muted">جارٍ تحميل أسعار المنتجات بصلاحية الموظف المخوّل...</p>;
+  if (error) return <p className="price-grid-error" role="alert">{error}</p>;
+  if (rows.length === 0) return <p className="price-grid-muted">لا توجد أصناف لعرضها.</p>;
+  return (
+    <>
+      <PriceGridEditorTable rows={rows} editable={editable} drafts={drafts} cells={cells} onCellChange={onCellChange} onCellKeyDown={onCellKeyDown} />
+      <p className="price-grid-muted">Enter ينقل إلى الخلية التالية ثم السطر التالي. الحد الأقصى 200 صنف؛ يتحقق الخادم من القيم الأصلية لمنع الكتابة فوق تغيير متزامن. تصديرا CSV وXLSX يعكسان الأسعار المحفوظة وملخص المخزون للقراءة فقط؛ الأرصدة غير المسجلة تُترك فارغة ولا تُحوّل إلى صفر.</p>
+    </>
+  );
+}
+
 export function PricingGrid({ onNotice }: { onNotice: (message: string) => void }) {
   const { data: products, loading, error, refetch } = useFetch(fetchAdminProductPriceGrid);
   const [drafts, setDrafts] = useState<Record<string, PriceDraft>>({});
@@ -190,44 +297,16 @@ export function PricingGrid({ onNotice }: { onNotice: (message: string) => void 
       </div>
     </div>
     {formError && <p className="price-grid-error" role="alert">{formError}</p>}
-    {preview && <div className="price-grid-preview" aria-label="معاينة التغييرات قبل الحفظ">
-      <div className="price-grid-preview-title"><Eye size={17} /><strong>معاينة قبل الاعتماد</strong><span>{preview.length} صنفًا — لن يُكتب شيء قبل الضغط على «اعتماد وحفظ الدفعة»</span></div>
-      <div className="price-grid-table-scroll"><table className="price-grid-table price-grid-review">
-        <thead><tr><th>الصنف</th>{PRICE_FIELDS.map((field) => <th key={field.source}>{field.label}: قبل ← بعد</th>)}</tr></thead>
-        <tbody>{preview.map((item) => <tr key={item.id}>
-          <th scope="row">{item.name}<small>{item.itemCode}</small></th>
-          {PRICE_FIELDS.map((field) => <td key={field.source}>
-            {item.before[field.source] === item.after[field.source] ? <span className="price-grid-unchanged">{formatPrice(item.before[field.source])}</span> :
-              <strong><span className="price-grid-old">{formatPrice(item.before[field.source])}</span> <ChevronRight size={13} /> <span className="price-grid-new">{formatPrice(item.after[field.source])}</span></strong>}
-          </td>)}
-        </tr>)}</tbody>
-      </table></div>
-    </div>}
-    {loading ? <p className="price-grid-muted">جارٍ تحميل أسعار المنتجات بصلاحية الموظف المخوّل...</p> : error ? <p className="price-grid-error" role="alert">{error}</p> : !rows.length ? <p className="price-grid-muted">لا توجد أصناف لعرضها.</p> : <>
-      <div className="price-grid-table-scroll"><table className="price-grid-table">
-        <thead><tr><th>الصنف</th><th>الوحدة</th>{PRICE_FIELDS.map((field) => <th key={field.source}>{field.label}</th>)}<th>الرصيد الفعلي</th><th>المحجوز</th><th>المتاح للبيع</th><th>حد إعادة الطلب الإجمالي</th><th>مخازن بها رصيد</th><th>الحالة</th></tr></thead>
-        <tbody>{rows.map((row, productIndex) => <tr key={row.id}>
-          <th scope="row">{row.name}<small>{row.item_code}</small></th>
-          <td>{row.unit}</td>
-          {PRICE_FIELDS.map((field, fieldIndex) => <td key={field.source}>
-            <input type="number" min="0" step="0.01" inputMode="decimal" value={rawValue(row, field)}
-              aria-label={row.name + ' — ' + field.label}
-              ref={(element) => { const key = row.id + ':' + field.draft; if (element) cells.current.set(key, element); else cells.current.delete(key); }}
-              disabled={!editable}
-              onChange={(event) => updateCell(row.id, field.draft, event.target.value)}
-              onKeyDown={(event) => onCellKeyDown(event, productIndex, fieldIndex)}
-              className={drafts[row.id]?.[field.draft] !== undefined && Number(drafts[row.id]?.[field.draft]) !== Number(row[field.source]) ? 'price-grid-input is-dirty' : 'price-grid-input'}
-            />
-          </td>)}
-          <td title="مجموع الأرصدة المسجلة في مخازن المؤسسة النشطة">{formatQuantity(row.quantity_on_hand_total)}</td>
-          <td>{formatQuantity(row.quantity_reserved_total)}</td>
-          <td>{formatQuantity(row.quantity_available_total)}</td>
-          <td>{formatQuantity(row.reorder_point_total, 0)}</td>
-          <td>{formatQuantity(row.inventory_warehouse_count, 0)}</td>
-          <td><span className={row.is_active ? 'price-grid-status active' : 'price-grid-status inactive'}>{row.is_active ? 'نشط' : 'موقوف'}</span></td>
-        </tr>)}</tbody>
-      </table></div>
-      <p className="price-grid-muted">Enter ينقل إلى الخلية التالية ثم السطر التالي. الحد الأقصى 200 صنف؛ يتحقق الخادم من القيم الأصلية لمنع الكتابة فوق تغيير متزامن. تصديرا CSV وXLSX يعكسان الأسعار المحفوظة وملخص المخزون للقراءة فقط؛ الأرصدة غير المسجلة تُترك فارغة ولا تُحوّل إلى صفر.</p>
-    </>}
+    {preview && <PriceGridPreview preview={preview} />}
+    <PriceGridResults
+      loading={loading}
+      error={error}
+      rows={rows}
+      editable={editable}
+      drafts={drafts}
+      cells={cells}
+      onCellChange={updateCell}
+      onCellKeyDown={onCellKeyDown}
+    />
   </section>;
 }
