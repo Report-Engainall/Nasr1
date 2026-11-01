@@ -91,6 +91,21 @@ async function defaultFinanceRpcImplementation(name: string) {
   return { data: null, error: { message: "Unexpected RPC in test" } };
 }
 
+
+function firstInvoicePageResponse() {
+  return {
+    data: { ...FINANCE_DATA, total_invoices: 2, has_more: true },
+    error: null,
+  };
+}
+
+function nextInvoicePageResponse(secondInvoice: typeof FINANCE_DATA.invoices[number]) {
+  return {
+    data: { invoices: [secondInvoice], total_invoices: 2, limit: 200, has_more: false },
+    error: null,
+  };
+}
+
 let container: HTMLDivElement;
 let root: Root;
 
@@ -164,16 +179,9 @@ describe("StaffFinancePage payment amount guard", () => {
     const defaultImplementation = rpcMock.getMockImplementation();
     rpcMock.mockImplementation(async (name: string, args?: Record<string, unknown>) => {
       if (name === "fetch_staff_finance_invoice_page") {
-        if (args?.p_before_id == null) {
-          return {
-            data: { ...FINANCE_DATA, total_invoices: 2, has_more: true },
-            error: null,
-          };
-        }
-        return {
-          data: { invoices: [secondInvoice], total_invoices: 2, limit: 200, has_more: false },
-          error: null,
-        };
+        return args?.p_before_id == null
+          ? firstInvoicePageResponse()
+          : nextInvoicePageResponse(secondInvoice);
       }
       return defaultImplementation
         ? defaultImplementation(name)
