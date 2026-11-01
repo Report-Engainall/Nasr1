@@ -1,3 +1,4 @@
+import { logError, logInfo } from "./diagnostic-logger.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
@@ -384,7 +385,7 @@ async function main() {
   assert.equal(customerCustomer360Denied, true, "customer-role callers cannot invoke staff Customer 360");
   await db.unsafe("reset role");
 
-  console.log("PASS tenant-scoped executive analytics; exact 30-day boundaries; cancellation exclusions; order/item/customer aggregates; role denial");
+  logInfo("PASS tenant-scoped executive analytics; exact 30-day boundaries; cancellation exclusions; order/item/customer aggregates; role denial");
 }
 
 try {

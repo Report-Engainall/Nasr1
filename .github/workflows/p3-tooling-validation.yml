@@ -1,0 +1,149 @@
+name: P3 tooling validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "scripts/*.mjs"
+      - "scripts/*.py"
+      - "public/sw.js"
+      - "src/test/service-worker.test.ts"
+      - "src/test/service-worker-mime-cache-acceptance.test.ts"
+      - "docs/engineering/remediation/codeinspector-2026-10-31/P3.md"
+      - "src/lib/intelligence/free-ai-policy.test.ts"
+      - "src/lib/intelligence/daily-decisions.test.ts"
+      - "docs/bolt-source-reconciliation/tools/*.mjs"
+      - ".github/workflows/p3-tooling-validation.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p3-tooling-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  python-tooling:
+    name: Python syntax and tooling self-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile all scoped Python utilities
+        run: |
+          python -m py_compile scripts/persist-bolt-reconciliation-evidence.py
+          python -m py_compile scripts/reconcile-bolt-recovery-archives.py
+          python -m py_compile scripts/reconcile-source-release-snapshots.py
+      - name: Run archive and persistence self-tests
+        run: |
+          python scripts/persist-bolt-reconciliation-evidence.py --self-test
+          python scripts/reconcile-bolt-recovery-archives.py --self-test
+          python scripts/reconcile-source-release-snapshots.py --self-test
+
+  javascript-tooling:
+    name: JavaScript syntax, service-worker and logger redaction checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - name: Set up Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Syntax-check changed JavaScript utilities and service worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            public/sw.js \
+            scripts/diagnostic-logger.mjs \
+            scripts/test-admin-catalog-commands.mjs \
+            scripts/test-async-export-jobs.mjs \
+            scripts/test-customer-address-concurrency.mjs \
+            scripts/test-general-journal-reversal-concurrency.mjs \
+            scripts/test-import-finalizer-tenant-scope.mjs \
+            scripts/test-import-inventory-snapshot-contract.mjs \
+            scripts/test-onyx-reconciliation.mjs \
+            scripts/test-onyx-reconciliation-concurrency.mjs \
+            scripts/test-onyx-source-evidence.mjs \
+            scripts/test-ai-gateway-telemetry.mjs \
+            scripts/test-order-input-hardening.mjs \
+            scripts/test-stock-count-start-audit.mjs \
+            scripts/test-store-executive-analytics.mjs \
+            docs/bolt-source-reconciliation/tools/collect-source-inputs.mjs; do
+            node --check "$file"
+          done
+      - name: Verify structured logger redacts diagnostic secrets
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { logError, logInfo } from "./scripts/diagnostic-logger.mjs";
+
+          let stdout = "";
+          let stderr = "";
+          const originalStdout = process.stdout.write.bind(process.stdout);
+          const originalStderr = process.stderr.write.bind(process.stderr);
+
+          process.stdout.write = (chunk, encoding, callback) => {
+            stdout += Buffer.isBuffer(chunk) ? chunk.toString() : String(chunk);
+            if (typeof encoding === "function") encoding();
+            else if (typeof callback === "function") callback();
+            return true;
+          };
+          process.stderr.write = (chunk, encoding, callback) => {
+            stderr += Buffer.isBuffer(chunk) ? chunk.toString() : String(chunk);
+            if (typeof encoding === "function") encoding();
+            else if (typeof callback === "function") callback();
+            return true;
+          };
+
+          try {
+            logInfo(
+              "postgresql://ci-user:fixture-db-password@db.example.test/app",
+              "Bearer fixture-bearer-token",
+              { service_role_key: "fixture-service-role-secret", apiKey: "fixture-api-key" },
+              "customer-fixture@example.test",
+              "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+              "eyJaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb.cccccccccccccc",
+            );
+            logError(new Error("password=fixture-error-password"));
+          } finally {
+            process.stdout.write = originalStdout;
+            process.stderr.write = originalStderr;
+          }
+
+          const info = JSON.parse(stdout.trim());
+          const error = JSON.parse(stderr.trim());
+          assert.equal(info.level, "INFO");
+          assert.equal(error.level, "ERROR");
+          assert.equal(error.errors.length, 1);
+          const output = stdout + stderr;
+          for (const secret of [
+            "fixture-db-password",
+            "fixture-bearer-token",
+            "fixture-service-role-secret",
+            "fixture-api-key",
+            "fixture-error-password",
+            "customer-fixture@example.test",
+            "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+            "eyJaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb.cccccccccccccc",
+          ]) assert.equal(output.includes(secret), false, "logger leaked " + secret);
+          assert.match(output, /\[REDACTED\]/);
+          assert.match(output, /\[REDACTED_EMAIL\]/);
+          assert.match(output, /\[REDACTED_TOKEN\]/);
+          assert.match(output, /\[REDACTED_JWT\]/);
+          NODE

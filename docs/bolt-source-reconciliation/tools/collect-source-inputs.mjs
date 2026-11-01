@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { logError, logInfo } from "../../../scripts/diagnostic-logger.mjs";
 /**
  * Collects read-only working snapshots and Git refs for Aghbari Commerce donors.
  * It does NOT merge files, change databases, push commits, or change source repos.
@@ -156,7 +157,7 @@ for (const repository of repositories) {
     }
   }
   report.repositories.push(item);
-  console.log(repository + ": " + item.state + "; branches=" + item.branches.length + "; tags=" + item.tags.length + "; PR-head-refs=" + item.pullRequestHeadRefs.length);
+  logInfo(repository + ": " + item.state + "; branches=" + item.branches.length + "; tags=" + item.tags.length + "; PR-head-refs=" + item.pullRequestHeadRefs.length);
 }
 
 const candidateFiles = [];
@@ -219,8 +220,8 @@ const readme = [
 
 await writeFile(path.join(root, "COLLECTION_MANIFEST.json"), JSON.stringify(report, null, 2) + "\n", "utf8");
 await writeFile(path.join(root, "COLLECTION_REPORT.md"), readme + "\n", "utf8");
-console.log("\nSource intake collection finished.");
-console.log("Workspace: " + root);
-console.log("Manifest: " + path.join(root, "COLLECTION_MANIFEST.json"));
-console.log("Report: " + path.join(root, "COLLECTION_REPORT.md"));
-console.log("No files were merged into Nasr1 and no database was changed.");
+logInfo("\nSource intake collection finished.");
+logInfo("Workspace: " + root);
+logInfo("Manifest: " + path.join(root, "COLLECTION_MANIFEST.json"));
+logInfo("Report: " + path.join(root, "COLLECTION_REPORT.md"));
+logInfo("No files were merged into Nasr1 and no database was changed.");

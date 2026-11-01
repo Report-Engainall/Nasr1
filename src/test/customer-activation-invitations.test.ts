@@ -15,6 +15,7 @@ const CUSTOMER_ID = "11111111-1111-4111-8111-111111111111";
 const INVITATION_ID = "22222222-2222-4222-8222-222222222222";
 const TOKEN = "a".repeat(64);
 const EXPIRES = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+const INVALID_INVITATION_ROWS = Array.from({ length: 21 }, () => ({}));
 
 describe("customer activation invitation RPC adapter", () => {
   beforeEach(() => {
@@ -126,7 +127,7 @@ describe("customer activation invitation RPC adapter", () => {
       data: {
         customer_id: CUSTOMER_ID, customer_email: null,
         customer_status: "approved", is_linked: false,
-        invitations: Array.from({ length: 21 }, () => ({})),
+        invitations: INVALID_INVITATION_ROWS,
       },
       error: null,
     });

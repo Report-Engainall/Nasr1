@@ -24,6 +24,7 @@ const CUSTOMER = {
   email: "client@example.test",
   profile_id: null,
 };
+const PENDING_CUSTOMER = { ...CUSTOMER, status: "pending" };
 const INVITATION_ID = "22222222-2222-4222-8222-222222222222";
 const invitation = {
   invitation_id: INVITATION_ID,
@@ -137,7 +138,7 @@ describe("customer activation invitation dialog", () => {
 
   it("does not permit invitations for unapproved or already linked records", async () => {
     const otherId = "33333333-3333-4333-8333-333333333333";
-    const { rerender } = render(<CustomerActivationInvitationDialog customer={{ ...CUSTOMER, status: "pending" }} onClose={vi.fn()} />);
+    const { rerender } = render(<CustomerActivationInvitationDialog customer={PENDING_CUSTOMER} onClose={vi.fn()} />);
     expect(await screen.findByText("اعتمد سجل العميل أولًا؛ التفعيل متاح للعملاء المعتمدين فقط.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "إنشاء رابط تفعيل صالح 72 ساعة" })).toBeDisabled();
 

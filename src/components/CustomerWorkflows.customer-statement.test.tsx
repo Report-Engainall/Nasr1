@@ -40,55 +40,61 @@ vi.mock("@/lib/customer-company-contacts", () => ({
   deleteCustomerCompanyContact: vi.fn(),
 }));
 
+const customerStatementResponse = {
+  invoices: [{
+    id: "invoice-credit-1",
+    invoice_number: "INV-CREDIT-001",
+    order_id: "order-1",
+    customer_id: "customer-1",
+    status: "issued",
+    issued_at: "2026-10-01T00:00:00.000Z",
+    due_at: "2026-10-10T00:00:00.000Z",
+    currency: "YER",
+    total_amount: "500.00",
+    paid_amount: "100.00",
+    credit_memo_amount: "125.00",
+    outstanding_amount: "275.00",
+  }],
+  payments: [{
+    id: "payment-1",
+    invoice_id: "invoice-credit-1",
+    amount: "100.00",
+    paid_at: "2026-10-05T00:00:00.000Z",
+  }],
+  credits: [{
+    id: "credit-1",
+    invoice_id: "invoice-credit-1",
+    invoice_number: "INV-CREDIT-001",
+    memo_number: "CRM-001",
+    currency: "YER",
+    total_amount: "125.00",
+    posted_at: "2026-10-15T00:00:00.000Z",
+  }],
+  summary: [{
+    currency: "YER",
+    invoiced: "1500.00",
+    paid: "200.00",
+    credited: "125.00",
+    outstanding: "1175.00",
+    overdue_invoice_count: 1,
+    overdue_outstanding: "275.00",
+    unknown_due_date_invoice_count: 0,
+    unknown_due_date_outstanding: "0.00",
+  }],
+  summary_as_of_utc: "2026-10-19T00:00:00.000Z",
+};
+
+function customerStatementRpc(name: string) {
+  if (name === "get_customer_account_statement") {
+    return Promise.resolve({ data: customerStatementResponse, error: null });
+  }
+  return Promise.resolve({ data: null, error: { message: "unexpected RPC" } });
+}
+
 describe("customer statement full-ledger and posted-credit integration", () => {
   beforeEach(() => {
     mocks.rpc.mockReset();
-    mocks.rpc.mockImplementation((name: string) => {
-      if (name === "get_customer_account_statement") {
-        return Promise.resolve({
-          data: {
-            invoices: [{
-              id: "invoice-credit-1",
-              invoice_number: "INV-CREDIT-001",
-              order_id: "order-1",
-              customer_id: "customer-1",
-              status: "issued",
-              issued_at: "2026-10-01T00:00:00.000Z",
-              due_at: "2026-10-10T00:00:00.000Z",
-              currency: "YER",
-              total_amount: "500.00",
-              paid_amount: "100.00",
-              credit_memo_amount: "125.00",
-              outstanding_amount: "275.00",
-            }],
-            payments: [{ id: "payment-1", invoice_id: "invoice-credit-1", amount: "100.00", paid_at: "2026-10-05T00:00:00.000Z" }],
-            credits: [{
-              id: "credit-1",
-              invoice_id: "invoice-credit-1",
-              invoice_number: "INV-CREDIT-001",
-              memo_number: "CRM-001",
-              currency: "YER",
-              total_amount: "125.00",
-              posted_at: "2026-10-15T00:00:00.000Z",
-            }],
-            summary: [{
-              currency: "YER",
-              invoiced: "1500.00",
-              paid: "200.00",
-              credited: "125.00",
-              outstanding: "1175.00",
-              overdue_invoice_count: 1,
-              overdue_outstanding: "275.00",
-              unknown_due_date_invoice_count: 0,
-              unknown_due_date_outstanding: "0.00",
-            }],
-            summary_as_of_utc: "2026-10-19T00:00:00.000Z",
-          },
-          error: null,
-        });
-      }
-      return Promise.resolve({ data: null, error: { message: "unexpected RPC" } });
-    });
+    mocks.rpc.mockImplementation(customerStatementRpc);
   });
 
   afterEach(() => {

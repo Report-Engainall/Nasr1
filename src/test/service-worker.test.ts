@@ -7,6 +7,7 @@ type WorkerEvent = { waitUntil: (promise: Promise<unknown>) => void };
 type FetchWorkerEvent = {
   request: Request;
   respondWith: (promise: Promise<Response>) => void;
+  waitUntil?: (promise: Promise<unknown>) => void;
 };
 type Listener = (event: WorkerEvent | FetchWorkerEvent) => void;
 
@@ -22,11 +23,14 @@ async function loadServiceWorker(overrides: {
   cacheNames?: string[];
   cacheMatch?: (request: Request | string) => Promise<Response | null>;
   fetcher?: (request: Request | string) => Promise<Response>;
+  cachePut?: (request: Request | string, response: Response) => Promise<void>;
 } = {}) {
   const source = await readFile(resolve(process.cwd(), "public/sw.js"), "utf8");
   const listeners = new Map<string, Listener>();
   const cacheAdd = vi.fn(async (url: string) => overrides.cacheAdd?.(url));
-  const cachePut = vi.fn(async (_request: Request | string, _response: Response) => undefined);
+  const cachePut = vi.fn(async (request: Request | string, response: Response) => {
+    await overrides.cachePut?.(request, response);
+  });
   const cache = { add: cacheAdd, put: cachePut };
   const cacheDelete = vi.fn(async () => true);
   const cacheNames = overrides.cacheNames ?? [];
@@ -190,6 +194,8 @@ describe("Aghbari PWA offline shell", () => {
       fetcher: async () => { throw new Error("offline"); },
     });
     const pending: Promise<Response>[] = [];
+    const lifecycle: Promise<unknown>[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     worker.listeners.get("fetch")?.({
       request: {
         method: "GET",
@@ -197,9 +203,48 @@ describe("Aghbari PWA offline shell", () => {
         mode: "cors",
       } as Request,
       respondWith: (promise: Promise<Response>) => pending.push(promise as Promise<Response>),
+      waitUntil: (promise: Promise<unknown>) => lifecycle.push(promise),
     } as unknown as WorkerEvent & { request: Request; respondWith: (promise: Promise<Response>) => void });
 
     await expect(Promise.all(pending)).resolves.toEqual([cachedResponse]);
+    await expect(Promise.all(lifecycle)).resolves.toBeDefined();
+    expect(warn).toHaveBeenCalledWith(
+      "[aghbari-sw] background asset refresh failed; serving cached response",
+      expect.objectContaining({ url: "/assets/app.js", error: expect.any(Error) }),
+    );
+    warn.mockRestore();
+  });
+
+
+  it("omits URL query parameters from diagnostics when an asset cache write fails", async () => {
+    const requestUrl = "https://aghbari.example/assets/app.js?access_token=do-not-log-this";
+    const pending: Promise<Response>[] = [];
+    const lifecycle: Promise<unknown>[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const worker = await loadServiceWorker({
+      fetcher: async () => sameOriginResponse("export const ok = true;", {
+        status: 200,
+        headers: { "Content-Type": "application/javascript" },
+      }),
+      cachePut: async () => {
+        throw new Error("cache storage unavailable");
+      },
+    });
+
+    worker.listeners.get("fetch")?.({
+      request: { method: "GET", url: requestUrl, mode: "cors" } as Request,
+      respondWith: (promise) => pending.push(promise as Promise<Response>),
+      waitUntil: (promise) => lifecycle.push(promise),
+    });
+
+    await expect(Promise.all(pending)).resolves.toHaveLength(1);
+    await expect(Promise.all(lifecycle)).resolves.toBeDefined();
+    expect(warn).toHaveBeenCalledWith(
+      "[aghbari-sw] static asset cache write failed",
+      expect.objectContaining({ url: "/assets/app.js", error: expect.any(Error) }),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("do-not-log-this");
+    warn.mockRestore();
   });
 
   it("removes previous shell cache versions during activation", async () => {
