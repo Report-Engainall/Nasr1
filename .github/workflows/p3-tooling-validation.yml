@@ -73,7 +73,10 @@ jobs:
             scripts/test-general-journal-reversal-concurrency.mjs \
             scripts/test-import-finalizer-tenant-scope.mjs \
             scripts/test-import-inventory-snapshot-contract.mjs \
+            scripts/test-onyx-reconciliation.mjs \
             scripts/test-onyx-reconciliation-concurrency.mjs \
+            scripts/test-onyx-source-evidence.mjs \
+            scripts/test-ai-gateway-telemetry.mjs \
             scripts/test-order-input-hardening.mjs \
             scripts/test-stock-count-start-audit.mjs \
             scripts/test-store-executive-analytics.mjs \
