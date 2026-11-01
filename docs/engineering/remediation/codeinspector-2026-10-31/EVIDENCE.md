@@ -6,6 +6,7 @@
 - Full-history Gitleaks run 41341535276 SUCCESS; P1 targeted TypeScript run 41341535316 SUCCESS; branch cleanup run 41341535239 SUCCESS.
 - The supplied 118-finding CodeInspector excerpt is timestamped 17:38:11 UTC, before merges #396–#399; its input SHA is UNKNOWN and per-finding rows were not supplied. Keep it separate from the recovered 239-row manifest.
 - Fresh official CodeInspector scan on exact main `91728da2c76933dbf2c79eceac5a6865483ea5a4` has NOT been run; no findings are marked CLOSED based on CI.
+- P1 status on the recovered 239-row baseline: two TS0002 and five TS0003 records now IMPLEMENTED_PENDING_FRESH_SCAN following merged PR #339 and PR #350 structural guard; all five P1 files passed the exact-main targeted TypeScript + AST + Vitest workflow 41341535316. The 18 TS0004/TS0009 records remain fixture-only NOT_APPLICABLE triage pending fresh scanner confirmation.
 - PR #351 remains OPEN/unmerged, divergent 73 ahead / 42 behind; do not merge wholesale.
 
 ---
