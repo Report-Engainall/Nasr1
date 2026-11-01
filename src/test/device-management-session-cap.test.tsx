@@ -32,6 +32,20 @@ const CURRENT_SESSION_ID = "30000000-0000-4000-8000-000000000001";
 const CURRENT_PROFILE_ID = "10000000-0000-4000-8000-000000000001";
 const OTHER_PROFILE_ID = "10000000-0000-4000-8000-000000000002";
 
+function createAdminSessionResponse(payload: string) {
+  const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+  return {
+    data: {
+      session: {
+        access_token: `header.${payload}.signature`,
+        expires_at: expiresAt,
+        user: { email: "admin@example.test" },
+      },
+    },
+    error: null,
+  };
+}
+
 function makeSessions(count: number) {
   return Array.from({ length: count }, (_, index) => ({
     session_id: `30000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
@@ -53,16 +67,7 @@ describe("device-session inventory result limit", () => {
       session_id: CURRENT_SESSION_ID,
       exp: Math.floor(Date.now() / 1000) + 3600,
     }));
-    authMocks.getSession.mockReset().mockResolvedValue({
-      data: {
-        session: {
-          access_token: `header.${payload}.signature`,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-          user: { email: "admin@example.test" },
-        },
-      },
-      error: null,
-    });
+    authMocks.getSession.mockReset().mockResolvedValue(createAdminSessionResponse(payload));
     authMocks.rpc.mockReset().mockResolvedValue({
       data: makeSessions(2),
       error: null,

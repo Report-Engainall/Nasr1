@@ -86,6 +86,18 @@ const PRODUCT: ProductRow = {
   status: "active",
 };
 
+function resolveReorderQueryResult(table: string): QueryResult {
+  if (table === "products" && mocks.failProductReads > 0) {
+    mocks.failProductReads -= 1;
+    return PRODUCT_READ_FAILURE;
+  }
+  if (table === "products") return { data: [PRODUCT], error: null };
+  if (table === "reorder_templates" || table === "reorder_template_items") {
+    return { data: [], error: null };
+  }
+  return { data: null, error: { message: "Unexpected query table: " + table } };
+}
+
 function makeQuery(table: string) {
   const query = {
     select: vi.fn(() => query),
@@ -96,20 +108,7 @@ function makeQuery(table: string) {
     then: (
       resolve?: (value: QueryResult) => unknown,
       reject?: (reason: unknown) => unknown,
-    ) => {
-      let result: QueryResult;
-      if (table === "products" && mocks.failProductReads > 0) {
-        mocks.failProductReads -= 1;
-        result = PRODUCT_READ_FAILURE;
-      } else if (table === "products") {
-        result = { data: [PRODUCT], error: null };
-      } else if (table === "reorder_templates" || table === "reorder_template_items") {
-        result = { data: [], error: null };
-      } else {
-        result = { data: null, error: { message: "Unexpected query table: " + table } };
-      }
-      return Promise.resolve(result).then(resolve, reject);
-    },
+    ) => Promise.resolve(resolveReorderQueryResult(table)).then(resolve, reject),
   };
   return query;
 }

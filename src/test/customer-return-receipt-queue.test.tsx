@@ -85,19 +85,28 @@ const persistedPrintSnapshot = {
   }],
 };
 
+let receiptQueueCalls = 0;
+
+async function resolveCustomerReturnReceiptRpc(name: string, args?: Record<string, unknown>) {
+  if (name === "list_customer_return_receipt_print_history") {
+    return { data: { receipts: [], has_more: false, limit: 50, offset: Number(args?.p_offset ?? 0) }, error: null };
+  }
+  if (name === "list_customer_return_receipt_queue") {
+    receiptQueueCalls += 1;
+    const nextQueue = receiptQueueCalls === 1
+      ? queue
+      : { warehouses: queue.warehouses, requests: [] };
+    return { data: nextQueue, error: null };
+  }
+  if (name === "receive_customer_return") return { data: mutationResult, error: null };
+  if (name === "get_customer_return_receipt_print_data") return { data: persistedPrintSnapshot, error: null };
+  return { data: null, error: { message: "unexpected RPC " + name } };
+}
+
 describe("warehouse return receipt printing", () => {
   beforeEach(() => {
-    let queueCalls = 0;
-    mocks.rpc.mockReset().mockImplementation(async (name: string, args?: Record<string, unknown>) => {
-      if (name === "list_customer_return_receipt_print_history") return { data: { receipts: [], has_more: false, limit: 50, offset: Number(args?.p_offset ?? 0) }, error: null };
-      if (name === "list_customer_return_receipt_queue") {
-        queueCalls += 1;
-        return { data: queueCalls === 1 ? queue : { warehouses: queue.warehouses, requests: [] }, error: null };
-      }
-      if (name === "receive_customer_return") return { data: mutationResult, error: null };
-      if (name === "get_customer_return_receipt_print_data") return { data: persistedPrintSnapshot, error: null };
-      return { data: null, error: { message: "unexpected RPC " + name } };
-    });
+    receiptQueueCalls = 0;
+    mocks.rpc.mockReset().mockImplementation(resolveCustomerReturnReceiptRpc);
   });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 

@@ -6,6 +6,14 @@ import {
   type VerifiedImportChunk, type XlsxStyles,
 } from "@/lib/unified-import";
 
+function expectInvalidImportRules(
+  mappingRules: Parameters<typeof validateImportProfileRules>[0],
+  fieldRules: Parameters<typeof validateImportProfileRules>[1],
+  message: string,
+) {
+  expect(() => validateImportProfileRules(mappingRules, fieldRules)).toThrow(message);
+}
+
 describe("unified import safety contracts", () => {
   it("matches PostgreSQL DQS when cost is not a scored numeric field", () => {
     const quality = new DataQualityAccumulator(["item_code"], "item_code");
@@ -195,18 +203,18 @@ describe("unified import safety contracts", () => {
   });
 
   it("rejects unsupported and oversized declarative profile rules without changing accepted contracts", () => {
-    expect(() => validateImportProfileRules([{ field: "item_code", operation: "eval" }], [])).toThrow("قاعدة تحويل");
-    expect(() => validateImportProfileRules([{ field: "Item Code", operation: "trim" }], [])).toThrow("قاعدة تحويل");
-    expect(() => validateImportProfileRules([{ field: "item_code", operation: "replace_literal", from: "x".repeat(201), to: "y" }], [])).toThrow("replace_literal");
+    expectInvalidImportRules([{ field: "item_code", operation: "eval" }], [], "قاعدة تحويل");
+    expectInvalidImportRules([{ field: "Item Code", operation: "trim" }], [], "قاعدة تحويل");
+    expectInvalidImportRules([{ field: "item_code", operation: "replace_literal", from: "x".repeat(201), to: "y" }], [], "replace_literal");
 
-    expect(() => validateImportProfileRules([], [{ field: "item_code", rule: "safe_pattern", value: "(a+)+$" }])).toThrow("غير آمن");
-    expect(() => validateImportProfileRules([], [{ field: "item_code", rule: "safe_pattern", value: "(".repeat(121) }])).toThrow("غير آمن");
-    expect(() => validateImportProfileRules([], [{ field: "item_code", rule: "safe_pattern", value: "(" }])).toThrow("ليس تعبيرًا صالحًا");
-    expect(() => validateImportProfileRules([], [{ field: "item_code", rule: "enum", values: Array(101).fill("x") }])).toThrow("قائمة نصية");
-    expect(() => validateImportProfileRules([], [{ field: "item_code", rule: "enum", values: ["x".repeat(201)] }])).toThrow("قائمة نصية");
-    expect(() => validateImportProfileRules([], [{ field: "quantity", rule: "min", value: -1 }])).toThrow("قيمة الحد");
-    expect(() => validateImportProfileRules([], [{ field: "quantity", rule: "max", value: 1_000_000_001 }])).toThrow("قيمة الحد");
-    expect(() => validateImportProfileRules([], [{ field: "quantity", rule: "min_length", value: Number.NaN }])).toThrow("قيمة الحد");
+    expectInvalidImportRules([], [{ field: "item_code", rule: "safe_pattern", value: "(a+)+$" }], "غير آمن");
+    expectInvalidImportRules([], [{ field: "item_code", rule: "safe_pattern", value: "(".repeat(121) }], "غير آمن");
+    expectInvalidImportRules([], [{ field: "item_code", rule: "safe_pattern", value: "(" }], "ليس تعبيرًا صالحًا");
+    expectInvalidImportRules([], [{ field: "item_code", rule: "enum", values: Array(101).fill("x") }], "قائمة نصية");
+    expectInvalidImportRules([], [{ field: "item_code", rule: "enum", values: ["x".repeat(201)] }], "قائمة نصية");
+    expectInvalidImportRules([], [{ field: "quantity", rule: "min", value: -1 }], "قيمة الحد");
+    expectInvalidImportRules([], [{ field: "quantity", rule: "max", value: 1_000_000_001 }], "قيمة الحد");
+    expectInvalidImportRules([], [{ field: "quantity", rule: "min_length", value: Number.NaN }], "قيمة الحد");
 
     expect(() => validateImportProfileRules(
       [{ field: "item_code", operation: "trim" }, { field: "name", operation: "replace_literal", from: "old", to: "new" }],
