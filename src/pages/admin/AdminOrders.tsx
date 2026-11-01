@@ -97,9 +97,9 @@ function AdminOrderCard({ order, selected, items, saving, onViewDetails, onStatu
   );
 }
 
-function AdminOrdersList({ loading, orders, filtered, selectedOrder, orderItems, savingOrderId, transitionError, onViewDetails, onStatusChange }: {
+function AdminOrdersList({ loading, orders, filtered, selectedOrder, orderItems, savingOrderId, onViewDetails, onStatusChange }: {
   loading: boolean; orders: AdminOrderRecord[]; filtered: AdminOrderRecord[]; selectedOrder: string | null;
-  orderItems: OrderItem[]; savingOrderId: string | null; transitionError: string | null;
+  orderItems: OrderItem[]; savingOrderId: string | null;
   onViewDetails: (orderId: string) => void; onStatusChange: (orderId: string, status: string) => void;
 }) {
   if (loading) return <div className="text-muted text-center">جارٍ التحميل...</div>;
@@ -216,7 +216,6 @@ export default function AdminOrders() {
         selectedOrder={selectedOrder}
         orderItems={orderItems}
         savingOrderId={savingOrderId}
-        transitionError={transitionError}
         onViewDetails={(orderId) => void viewDetails(orderId)}
         onStatusChange={(orderId, status) => void handleStatusChange(orderId, status)}
       />
