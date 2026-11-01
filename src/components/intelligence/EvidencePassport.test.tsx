@@ -105,7 +105,7 @@ describe("EvidencePassport", () => {
     expect(within(cards[1]).getByText(/لا يوجد مصدر/)).toBeInTheDocument();
     expect(within(cards[1]).getByText(/SOURCE_VALUE_MISSING/)).toBeInTheDocument();
 
-    expect(screen.getByText("الحالة: يرقب المراجعة")).toBeInTheDocument();
+    expect(screen.getByText("الحالة: يحتاج مراجعة")).toBeInTheDocument();
     expect(screen.getByText(/general_ledger/)).toBeInTheDocument();
   });
 
