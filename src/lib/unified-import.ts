@@ -307,20 +307,35 @@ function validateImportTransformationRule(
   throw new Error('قاعدة replace_literal تحتاج from وto نصيين لا يتجاوز كل منهما 200 حرف.');
 }
 
-function validateSafeImportPattern(pattern: unknown, field: string): void {
-  // Permit bounded, simple validation patterns; reject constructs commonly used for ReDoS.
+const SAFE_IMPORT_PATTERN_CACHE = new Map<string, RegExp>();
+
+function compileSafeImportPattern(pattern: unknown, field: string): RegExp {
+  // Keep user-configurable expressions bounded and reject common exponential-backtracking forms.
   if (typeof pattern !== 'string' || pattern.length > 120 ||
-    /\\[1-9]|\(\?[=!<:]|\([^)]*[+*{][^)]*\)[+*{]|(?:\.\*){2,}/.test(pattern)) {
+    /\\[1-9]|\(\?[=!<:]|\([^)]*[+*{][^)]*\)[+*{]|\([^)]*\|[^)]*\)[+*{]|(?:\.\*){2,}/.test(pattern)) {
     throw new Error('نمط التحقق غير آمن أو طويل؛ استخدم نمطًا بسيطًا محدودًا.');
   }
 
+  const cached = SAFE_IMPORT_PATTERN_CACHE.get(pattern);
+  if (cached) return cached;
   try {
-    new RegExp(pattern, 'u');
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+    // The pattern is length-bounded and screened above; this is the only allowed dynamic RegExp compilation path.
+    const compiled = new RegExp(pattern, 'u');
+    if (SAFE_IMPORT_PATTERN_CACHE.size >= 256) {
+      const oldest = SAFE_IMPORT_PATTERN_CACHE.keys().next().value;
+      if (oldest !== undefined) SAFE_IMPORT_PATTERN_CACHE.delete(oldest);
+    }
+    SAFE_IMPORT_PATTERN_CACHE.set(pattern, compiled);
+    return compiled;
   } catch {
     throw new Error('نمط التحقق ليس تعبيرًا صالحًا للحقل ' + field + '.');
   }
 }
 
+function validateSafeImportPattern(pattern: unknown, field: string): void {
+  compileSafeImportPattern(pattern, field);
+}
 function validateImportValidationRule(
   value: unknown,
   index: number,
@@ -456,7 +471,7 @@ function importValidationFailed(value: string, rule: ImportValidationRule): bool
     case 'max_length':
       return value.length > Number(rule.value);
     case 'safe_pattern':
-      return value !== '' && !(new RegExp(String(rule.value), 'u')).test(value);
+      return value !== '' && !compileSafeImportPattern(rule.value, rule.field).test(value);
     default:
       return false;
   }
@@ -725,12 +740,17 @@ function decodeXlsxXmlText(value: string): string {
 }
 
 function xlsxAttribute(attributes: string, name: string): string | null {
-  const match = new RegExp('(?:^|\\s)' + name + '\\s*=\\s*"([^"]*)"').exec(attributes);
-  return match ? decodeXlsxXmlText(match[1]) : null;
+  const pattern = /(?:^|\s)([A-Za-z_][A-Za-z0-9_.:-]*)\s*=\s*"([^"]*)"/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(attributes))) {
+    if (match[1] === name) return decodeXlsxXmlText(match[2]);
+  }
+  return null;
 }
 
 function xlsxElementText(xml: string, tagName: string): string | null {
-  const match = new RegExp('<' + tagName + '\\b[^>]*>([\\s\\S]*?)<\\/' + tagName + '\\s*>', 'i').exec(xml);
+  if (tagName !== 'v') return null;
+  const match = /<v\b[^>]*>([\s\S]*?)<\/v\s*>/i.exec(xml);
   return match ? decodeXlsxXmlText(match[1].replace(/<[^>]*>/g, '')) : null;
 }
 
