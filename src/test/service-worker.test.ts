@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
@@ -52,6 +53,11 @@ async function loadServiceWorker(overrides: {
   cacheMatch?: (request: Request | string) => Promise<Response | null>;
   fetcher?: (request: Request | string) => Promise<Response>;
   cachePut?: (request: Request | string, response: Response) => Promise<void>;
+  cacheOpenFails?: boolean;
+  cacheKeysFail?: boolean;
+  cacheMatchFails?: boolean;
+  skipWaitingFails?: boolean;
+  claimFails?: boolean;
 } = {}) {
   const source = await readFile(resolve(process.cwd(), "public/sw.js"), "utf8");
   const listeners = new Map<string, Listener>();
@@ -68,13 +74,26 @@ async function loadServiceWorker(overrides: {
     return Promise.reject(new Error("unexpected network request"));
   };
   const cachesMock = {
-    open: vi.fn(async () => cache),
-    keys: vi.fn(async () => cacheNames),
+    open: vi.fn(async () => {
+      if (overrides.cacheOpenFails) throw new Error("cache storage unavailable");
+      return cache;
+    }),
+    keys: vi.fn(async () => {
+      if (overrides.cacheKeysFail) throw new Error("cache index unavailable");
+      return cacheNames;
+    }),
     delete: cacheDelete,
-    match: vi.fn(matchCachedRequest),
+    match: vi.fn(async (request: Request | string) => {
+      if (overrides.cacheMatchFails) throw new Error("cache lookup unavailable");
+      return matchCachedRequest(request);
+    }),
   };
-  const skipWaiting = vi.fn(async () => undefined);
-  const claim = vi.fn(async () => undefined);
+  const skipWaiting = vi.fn(async () => {
+    if (overrides.skipWaitingFails) throw new Error("skipWaiting unavailable");
+  });
+  const claim = vi.fn(async () => {
+    if (overrides.claimFails) throw new Error("client claim unavailable");
+  });
   const diagnosticMessages: unknown[] = [];
   const diagnosticClient = { postMessage: (message: unknown) => diagnosticMessages.push(message) };
   const matchAll = vi.fn(async () => [diagnosticClient]);
@@ -343,6 +362,76 @@ describe("Aghbari PWA offline shell", () => {
     });
     expect(JSON.stringify(worker.diagnosticMessages)).not.toContain(pathToken);
     expectNoDiagnosticSecrets(worker.diagnosticMessages);
+  });
+
+  it("contains install and activation lifecycle failures without unhandled rejections", async () => {
+    const worker = await loadServiceWorker({
+      cacheOpenFails: true,
+      cacheKeysFail: true,
+      skipWaitingFails: true,
+      claimFails: true,
+    });
+    const pending: Promise<unknown>[] = [];
+
+    worker.listeners.get("install")?.({ waitUntil: (promise) => pending.push(promise) });
+    worker.listeners.get("activate")?.({ waitUntil: (promise) => pending.push(promise) });
+
+    await expect(Promise.all(pending)).resolves.toHaveLength(2);
+    expect(worker.skipWaiting).toHaveBeenCalledOnce();
+    expect(worker.claim).toHaveBeenCalledOnce();
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "error",
+      code: "shell-install-cache-failed",
+      resource: "shell",
+      errorType: "Error",
+    });
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "error",
+      code: "service-worker-skip-waiting-failed",
+      resource: "lifecycle",
+      errorType: "Error",
+    });
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "error",
+      code: "shell-activation-cache-cleanup-failed",
+      resource: "lifecycle",
+      errorType: "Error",
+    });
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "error",
+      code: "service-worker-client-claim-failed",
+      resource: "lifecycle",
+      errorType: "Error",
+    });
+  });
+
+  it("returns a safe error response when the Cache API lookup rejects", async () => {
+    const worker = await loadServiceWorker({ cacheMatchFails: true });
+    const pending: Promise<Response>[] = [];
+
+    worker.listeners.get("fetch")?.({
+      request: {
+        method: "GET",
+        url: "https://aghbari.example/assets/app.js",
+        mode: "cors",
+      } as Request,
+      respondWith: (promise: Promise<Response>) => pending.push(promise),
+    });
+
+    const responses = await Promise.all(pending);
+    expect(responses).toHaveLength(1);
+    expect(responses[0]?.type).toBe("error");
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "error",
+      code: "static-asset-cache-lookup-failed",
+      resource: "static_asset",
+      errorType: "Error",
+    });
   });
 
   it("removes previous shell cache versions during activation", async () => {

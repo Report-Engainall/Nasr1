@@ -1,27 +1,38 @@
-# P3 Service Worker checkpoint — 2026-11-01
+# P3 Service Worker integration checkpoint — 2026-11-01
 
 - Repository: `Report-Engainall/Nasr1`
-- Base main SHA: `3312d571dbb31af3e776cd3f774ba4e725a20492`
-- Branch: `fix/p3-service-worker-diagnostics-and-fetch-split-20261101`
-- Scope: `public/sw.js`, `src/test/service-worker.test.ts`, `src/test/service-worker-mime-cache-acceptance.test.ts`.
-- Split the former long fetch-event callback into named navigation, cache, refresh and static-asset handlers. The top-level fetch callback now only validates method/origin/path and dispatches.
-- Removed all browser Service Worker `console.warn/error/log` calls. Failures now emit structured `postMessage` diagnostics to window clients with fixed event code, pathname only and generic error type. Error messages/stacks, query strings, fragments, tokens and provider response text are never emitted.
-- Preserved: GET-only interception; same-origin restriction; no interception/cache of auth, API, RPC, storage, function or non-GET requests; MIME validation; public root-shell-only caching; deep-route fallback to cached root; background refresh; `event.waitUntil`; response behavior.
-- Added/updated tests for console-free diagnostics, structured message contents, sensitive URL/error redaction, background refresh error behavior, cache write failure, MIME behavior, private route exclusion and offline fallback.
-- No production DB, RLS, Supabase credentials, deployment, live integration, paid tool or runtime service was changed.
-- Required exact-head checks: Core unit/typecheck/lint/build; P2 Playwright public + local Supabase; both Service Worker suites; P3 tooling validation; PG17 as required by the current gates; full-history secret scan; official fresh CodeInspector.
-- Status: `IMPLEMENTED_PENDING_EXACT_SHA_CI_AND_FRESH_CODEINSPECTOR`. No JS0002/JS0007 finding is marked CLOSED until an authorized current-source scan confirms disappearance. P3 owns integration and merge authority.
+- Current authoritative main SHA: `8aebe738bcf1c22096d31d0276eebb46bf630c09`
+- P3 implementation integration: main commit `8aebe738bcf1c22096d31d0276eebb46bf630c09` (`refactor(tests): flatten device, storefront and customer 360 fixtures`) includes the stronger follow-up Service Worker and regression-test implementation.
+- Source path: `public/sw.js`; tests: `src/test/service-worker.test.ts`, `src/test/service-worker-cache-boundary.test.ts`, `src/test/service-worker-mime-cache-acceptance.test.ts`.
 
-## Follow-up hardening — redact paths as well as query strings — 2026-11-01
+## Verified source properties on main
 
-- A security review identified that reset/invitation tokens may appear in URL path segments rather than query parameters.
-- Diagnostic messages now emit only a fixed resource category (`shell`, `navigation`, or `static_asset`) instead of a raw pathname. No request path, query, fragment, exception message or stack is sent to window clients.
-- Updated existing diagnostic assertions and added a regression injecting a cryptographically generated reset-path token, forcing navigation failure, and verifying the token and synthetic query/fragment secrets are absent from the structured message.
-- Exact-head Core, P3 tooling, P2 Playwright/local Supabase, full-history Gitleaks and official fresh CodeInspector must be rerun. Status: `IMPLEMENTED_PENDING_EXACT_SHA_CI`.
+- No `console.log`, `console.warn`, or `console.error` calls remain in the Service Worker.
+- Diagnostic `postMessage` payloads contain only fixed event code, severity, fixed resource category (`shell`, `navigation`, `static_asset`, `lifecycle`, or `cache`) and generic error type. No raw URL/path, query, fragment, `Error.message`, `Error.stack`, token, or provider response data is emitted.
+- Home-shell cache writes require the explicit boolean `isHomeNavigation`, successful HTML response, and use the fixed `/` cache key. Deep routes cannot populate the offline shell even if the server returns HTTP 200 HTML.
+- GET-only + same-origin interception remains enforced. Auth, REST, API, RPC, Storage and Functions traffic remains network-authoritative; non-GET business mutations are not intercepted.
+- Static asset caching remains restricted to same-origin `/assets/` allowlisted extensions and verified MIME type with `basic` response type.
+- Installation and activation lifecycle errors, cache lookup/write failures, background asset refresh failures and failed navigation emit safe diagnostics without raw exception details.
 
-### Follow-up root-shell boundary guard — 2026-11-01
+## Regression evidence in current main source
 
-- Kept diagnostic payload path-free by replacing the path argument with a boolean `isHomeNavigation`; only the fetch dispatcher derives it from `url.pathname === '/'`.
-- The helper now explicitly refuses to cache any deep navigation, even if it returns HTTP 200 HTML, preserving the public-home-only offline shell contract.
-- Added a regression that requests a private reset-password deep path containing a synthetic token, returns HTML 200, and asserts no cache open/write occurs. No path segment is copied into diagnostics.
-- Status: `IMPLEMENTED_PENDING_EXACT_SHA_CI`.
+- `src/test/service-worker.test.ts` asserts no console logging and no Error message/stack source access.
+- It tests that successful HTML for a credential-bearing private deep route is not cached.
+- It tests background refresh and cache-write diagnostics, path-token redaction using a randomly generated reset path segment, and lifecycle/cache failure diagnostics.
+- `src/test/service-worker-cache-boundary.test.ts` asserts GET + same-origin only, API/auth exclusion, root-only HTML caching, offline root fallback, and asset MIME allowlist.
+- `src/test/service-worker-mime-cache-acceptance.test.ts` verifies MIME mismatch handling and the public root/manifest/favicon shell contract.
+
+## Exact-main verification
+
+- Core run `41271904062` for `8aebe738bcf1c22096d31d0276eebb46bf630c09`: SUCCESS (Unit Tests, isolated PostgreSQL 17 migrations/transactional business checks, lint, build, preview/dev smoke, in-Core Chromium price visibility acceptance).
+- P2 Playwright run `41271904423` for the same SHA: PENDING at checkpoint creation; public/hosted/local browser acceptance must be read from its terminal current run before claiming pass.
+- P1 Secret Scan `41271904060`: SUCCESS. The normal configured job uses PR changed-commit scan scope; do not label it full-repository history evidence without reading its actual command/output.
+- P3 tooling validation: run for earlier Service Worker heads succeeded, but no P3-specific tooling SUCCESS is carried forward unless it is rerun on this exact current main SHA.
+- Hosted authenticated tenant E2E may remain SKIPPED/BLOCKED_EXTERNAL without dedicated test-only hosted credentials; it is not PASS.
+
+## Ownership and acceptance status
+
+- P3 Service Worker source changes are already superseded by the stronger current-main implementation above. This checkpoint PR retains the P3 audit record only; it must not reintroduce the older branch copy of `public/sw.js` or its test files.
+- Original CodeInspector JS0002 (long `arrow` handler) and JS0007 (console diagnostics) remain `IMPLEMENTED_PENDING_FRESH_CODEINSPECTOR`, not CLOSED. Only a fresh official CodeInspector scan can close them.
+- No production deployment, external integration, live Supabase credential, database migration, or paid service was changed by this P3 scope.
+- Status: `IMPLEMENTED_IN_MAIN_PENDING_EXACT_MAIN_PLAYWRIGHT_AND_OFFICIAL_CODEINSPECTOR`.

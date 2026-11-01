@@ -1,8 +1,49 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Route } from "@playwright/test";
 import { registerCustomerOrdersKeyboardAcceptance } from "./helpers/customer-orders-keyboard-test";
 
 registerCustomerOrdersKeyboardAcceptance();
 import { storefrontCategorySlug } from "../src/lib/storefront-slugs";
+
+type StorefrontFixtureHeaders = Record<string, string>;
+type AdvancedSearchFixtureState = { categoryReads: number; allowCategorySuccess: boolean };
+
+async function routeAdvancedSearchFixture(
+  route: Route,
+  headers: StorefrontFixtureHeaders,
+  state: AdvancedSearchFixtureState,
+): Promise<void> {
+  const request = route.request();
+  const pathname = new URL(request.url()).pathname;
+  if (request.method() === "OPTIONS") {
+    await route.fulfill({ status: 200, headers });
+    return;
+  }
+  if (pathname === "/rest/v1/rpc/get_public_storefront_context") {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers,
+      body: JSON.stringify({
+        organization_id: "11111111-1111-4111-8111-111111111111",
+        warehouse_id: null,
+      }),
+    });
+    return;
+  }
+  if (pathname === "/rest/v1/categories") {
+    state.categoryReads += 1;
+    const success = state.allowCategorySuccess;
+    await route.fulfill({
+      status: success ? 200 : 503,
+      contentType: "application/json",
+      headers: success ? { ...headers, "content-range": "0-0/*" } : headers,
+      body: success ? "[]" : JSON.stringify({ message: "synthetic category outage" }),
+    });
+    return;
+  }
+  await route.abort("blockedbyclient");
+}
+
 
 test("public storefront and login routes render without external backend writes", async ({ page }) => {
   const pageErrors: string[] = [];
@@ -137,8 +178,7 @@ test("advanced search recovers from a category-source failure", async ({ page })
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
-  let categoryReads = 0;
-  let allowCategorySuccess = false;
+  const fixtureState: AdvancedSearchFixtureState = { categoryReads: 0, allowCategorySuccess: false };
   const headers = {
     "access-control-allow-origin": "*",
     "access-control-allow-headers":
@@ -146,53 +186,10 @@ test("advanced search recovers from a category-source failure", async ({ page })
     "access-control-allow-methods": "GET,POST,OPTIONS",
   };
 
-  // Use one dispatcher for the placeholder origin so the catch-all abort cannot
-  // shadow the two deterministic API fixtures below.
-  await page.route("https://ci-placeholder.supabase.co/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-
-    if (request.method() === "OPTIONS") {
-      await route.fulfill({ status: 200, headers });
-      return;
-    }
-
-    if (url.pathname === "/rest/v1/rpc/get_public_storefront_context") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        headers,
-        body: JSON.stringify({
-          organization_id: "11111111-1111-4111-8111-111111111111",
-          warehouse_id: null,
-        }),
-      });
-      return;
-    }
-
-    if (url.pathname === "/rest/v1/categories") {
-      categoryReads += 1;
-      if (!allowCategorySuccess) {
-        await route.fulfill({
-          status: 503,
-          contentType: "application/json",
-          headers,
-          body: JSON.stringify({ message: "synthetic category outage" }),
-        });
-        return;
-      }
-
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        headers: { ...headers, "content-range": "0-0/*" },
-        body: "[]",
-      });
-      return;
-    }
-
-    await route.abort("blockedbyclient");
-  });
+  // A named dispatcher keeps route conditions shallow and preserves a no-write fixture.
+  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+    routeAdvancedSearchFixture(route, headers, fixtureState),
+  );
 
   await page.goto("/search/advanced");
   await expect(page).toHaveURL(/\/search\/advanced$/);
@@ -205,14 +202,14 @@ test("advanced search recovers from a category-source failure", async ({ page })
   await expect(categoryError).toBeVisible();
   await expect(categorySelect).toBeDisabled();
   // Prove the category endpoint itself was hit for all automatic transient retries.
-  expect(categoryReads).toBeGreaterThanOrEqual(3);
+  expect(fixtureState.categoryReads).toBeGreaterThanOrEqual(3);
 
-  allowCategorySuccess = true;
+  fixtureState.allowCategorySuccess = true;
   await page.getByRole("button", { name: "إعادة تحميل التصنيفات" }).click();
   await expect(categorySelect).toBeEnabled();
   await expect(categoryError).toHaveCount(0);
 
-  expect(categoryReads).toBeGreaterThanOrEqual(4);
+  expect(fixtureState.categoryReads).toBeGreaterThanOrEqual(4);
   expect(pageErrors).toEqual([]);
 });
 

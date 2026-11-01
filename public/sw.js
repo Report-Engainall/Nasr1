@@ -70,20 +70,53 @@ async function cacheShellAsset(url, cache) {
   }
 }
 
+async function installShell() {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    await Promise.all(SHELL.map((url) => cacheShellAsset(url, cache)));
+  } catch (error) {
+    await reportServiceWorkerDiagnostic('error', 'shell-install-cache-failed', 'shell', error);
+  }
+
+  try {
+    await self.skipWaiting();
+  } catch (error) {
+    await reportServiceWorkerDiagnostic('error', 'service-worker-skip-waiting-failed', 'lifecycle', error);
+  }
+}
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => Promise.all(SHELL.map((url) => cacheShellAsset(url, cache))))
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil(installShell());
 });
 
+async function removeObsoleteShellCaches() {
+  const keys = await caches.keys();
+  const obsolete = keys.filter((key) => key.startsWith('aghbari-shell-') && key !== CACHE_NAME);
+  await Promise.all(obsolete.map(async (cacheName) => {
+    try {
+      await caches.delete(cacheName);
+    } catch (error) {
+      await reportServiceWorkerDiagnostic('warning', 'obsolete-shell-cache-removal-failed', 'cache', error);
+    }
+  }));
+}
+
+async function activateShell() {
+  try {
+    await removeObsoleteShellCaches();
+  } catch (error) {
+    await reportServiceWorkerDiagnostic('error', 'shell-activation-cache-cleanup-failed', 'lifecycle', error);
+  }
+
+  try {
+    await self.clients.claim();
+  } catch (error) {
+    await reportServiceWorkerDiagnostic('error', 'service-worker-client-claim-failed', 'lifecycle', error);
+  }
+}
+
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key.startsWith('aghbari-shell-') && key !== CACHE_NAME).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim()),
-  );
+  event.waitUntil(activateShell());
 });
 
 async function cachedShellOrError(networkError) {
@@ -150,19 +183,26 @@ function refreshCachedAssetInBackground(event, networkResponse) {
   );
 }
 
+function respondWithCachedOrNetworkAsset(cached, event, request, url) {
+  const networkResponse = fetchStaticAsset(request, url, event);
+  if (cached) {
+    // Serve the cache immediately while keeping refresh failures observable and handled.
+    refreshCachedAssetInBackground(event, networkResponse);
+    return cached;
+  }
+  return networkResponse.catch((error) =>
+    reportServiceWorkerDiagnostic('error', 'static-asset-request-failed', 'static_asset', error)
+      .then(() => Response.error()),
+  );
+}
+
 function handleStaticAssetFetch(event, request, url) {
-  const assetResponse = caches.match(request).then((cached) => {
-    const networkResponse = fetchStaticAsset(request, url, event);
-    if (cached) {
-      // Serve the cache immediately while keeping refresh failures observable and handled.
-      refreshCachedAssetInBackground(event, networkResponse);
-      return cached;
-    }
-    return networkResponse.catch((error) =>
-      reportServiceWorkerDiagnostic('error', 'static-asset-request-failed', 'static_asset', error)
+  const assetResponse = caches.match(request)
+    .then((cached) => respondWithCachedOrNetworkAsset(cached, event, request, url))
+    .catch((error) =>
+      reportServiceWorkerDiagnostic('error', 'static-asset-cache-lookup-failed', 'static_asset', error)
         .then(() => Response.error()),
     );
-  });
   event.respondWith(assetResponse);
 }
 
