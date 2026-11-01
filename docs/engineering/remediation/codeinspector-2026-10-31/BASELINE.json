@@ -136,7 +136,7 @@
     "disposition": "P1 triaged as synthetic test fixtures; preserve report rows pending fresh scan."
   },
   "sha_context": {
-    "main": "ab8bb1804230925858903344606ba6721fd16faa",
+    "main": "06aaccb0f8172f3f1b682c38885650ce136d0b90",
     "P1": "37d0c058f4a7a943eb1b1cd2e2812ef4874b818a",
     "P2": "7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6",
     "P3": "c7a4391fd13ae64895d93245358d09898a85a036",
@@ -151,7 +151,9 @@
     "P2_batch_05": "7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6",
     "P2_batch_05_branch_head": "213e886f16f0e3843f067ef368dfc41cdc8662b0",
     "P2_batch_06_source": "081af02074061da2c35f1fdf7c5f293536794642",
-    "P2_batch_07": "9be5ce76d3f264bb5e5c0e59412f675d485a8b2e"
+    "P2_batch_07": "9be5ce76d3f264bb5e5c0e59412f675d485a8b2e",
+    "P2_batch_10_source": "b3d7284bcf1b5cf380affca14a58347e79a5c8b4",
+    "P2_batch_10_test": "55e30e0af477e043086f4eb493a67b126504dd6f"
   },
   "verification_policy": {
     "old_sha_pass_not_transferable": true,
@@ -2271,11 +2273,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "AdminPages notification acceptance test verifies row rendering, unread state, read-one/read-all actions, refetch, keyboard interaction and missing-response unavailable state; exact synchronized-head Core 41265432096, P2 Playwright/local Supabase 41265432048, Secret Scan 41265432192 passed.",
+      "implementation_branch_sha": "7099be751ba05cdd50e6d13e8d9634dbd2f18bc7",
+      "fixed_by_sha": "7099be751ba05cdd50e6d13e8d9634dbd2f18bc7",
+      "evidence": "PR #352 merged at 06aaccb0f8172f3f1b682c38885650ce136d0b90; hosted tenant E2E SKIPPED.",
       "occurrence": 1
     },
     {
@@ -2425,11 +2427,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
+      "status": "IN_PROGRESS_PENDING_EXACT_SHA_TESTS",
+      "test": "Existing dialog lifecycle/authorization/duplicate-submit tests retained; added confirmed-empty invitation history and expired-pending no-revoke tests. Exact-head Core/Vitest/P2/Secret Scan pending.",
+      "implementation_branch_sha": "b3d7284bcf1b5cf380affca14a58347e79a5c8b4",
       "fixed_by_sha": null,
-      "evidence": null,
+      "evidence": "PR #353 opened from main 06aaccb0f8172f3f1b682c38885650ce136d0b90; source commit b3d7284bcf1b5cf380affca14a58347e79a5c8b4; test commit 55e30e0af477e043086f4eb493a67b126504dd6f. Not closed; exact SHA checks and fresh CodeInspector required.",
       "occurrence": 1
     },
     {
@@ -2954,10 +2956,10 @@
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
       "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
-      "test": "EvidencePassport.test.tsx verifies unavailable versus empty states, metric values, evidence lineage/source rows and nested status text; exact synchronized-head Core 41264989329, P2 41264989433 (public/auth/local Supabase), and Secret Scan 41264989609 all passed; fresh CodeInspector rerun still required.",
+      "test": "EvidencePassport focused component test validates loading/empty/unavailable/error/retry, explicit missing state, typed metric rendering, value/lineage/source evidence, and no fabricated source list; exact Core 41264989329, P2 Playwright/local Supabase 41264989433, Secret Scan 41264989609 passed.",
       "implementation_branch_sha": "61ec2e77f780f1bfda163f80b9891f9dc567b7de",
       "fixed_by_sha": "61ec2e77f780f1bfda163f80b9891f9dc567b7de",
-      "evidence": "PR #349 merged at 15eb044c0651dafc7ef279d6253431e777d5f097; implementation commit 61ec2e77f780f1bfda163f80b9891f9dc567b7de; exact-head Core/P2 local Supabase/Secret Scan all SUCCESS; hosted tenant E2E SKIPPED.",
+      "evidence": "PR #349 merged at 15eb044c0651dafc7ef279d6253431e777d5f097; hosted tenant E2E SKIPPED.",
       "occurrence": 1
     },
     {
@@ -5436,9 +5438,10 @@
       "merged_pr": 338,
       "merged_code_sha": "c3552f9c1a34504bb2c61f78649a5a75e6165a18",
       "post_merge_documentation_commit": "c85601a7d3213d7782c15fed93d0cd373d783025",
-      "latest_code_commit": "61ec2e77f780f1bfda163f80b9891f9dc567b7de",
-      "latest_pr": 349,
-      "latest_merged_pr": 349
+      "latest_code_commit": "b3d7284bcf1b5cf380affca14a58347e79a5c8b4",
+      "latest_pr": 353,
+      "latest_merged_pr": 352,
+      "TS0003_in_progress": 1
     },
     "verification": {
       "P2_core_run": 41257995450,
@@ -5451,9 +5454,14 @@
       "P2_batch_08_core_run": 41264989329,
       "P2_batch_08_playwright_run": 41264989433,
       "P2_batch_08_secret_run": 41264989609,
-      "P2_batch_08_hosted_tenant_e2e": "SKIPPED"
+      "P2_batch_08_hosted_tenant_e2e": "SKIPPED",
+      "P2_batch_09_core_run": 41265432096,
+      "P2_batch_09_playwright_run": 41265432048,
+      "P2_batch_09_secret_run": 41265432192,
+      "P2_batch_09_hosted_tenant_e2e": "SKIPPED",
+      "P2_batch_10": "PENDING_EXACT_SHA"
     },
-    "main_sha": "15eb044c0651dafc7ef279d6253431e777d5f097"
+    "main_sha": "06aaccb0f8172f3f1b682c38885650ce136d0b90"
   },
   "integration_history": [
     {
@@ -5486,6 +5494,20 @@
       "source_commit": "61ec2e77f780f1bfda163f80b9891f9dc567b7de",
       "merge_commit": "15eb044c0651dafc7ef279d6253431e777d5f097",
       "note": "EvidencePassport TS0003 finding moved to IMPLEMENTED_PENDING_FRESH_SCAN after exact-head Core, P2 public/auth/local Supabase and Secret Scan success. Hosted tenant E2E skipped."
+    },
+    {
+      "event": "MERGED",
+      "pr": 352,
+      "source_commit": "7099be751ba05cdd50e6d13e8d9634dbd2f18bc7",
+      "merge_commit": "06aaccb0f8172f3f1b682c38885650ce136d0b90",
+      "note": "AdminPages notification TS0003 moved to IMPLEMENTED_PENDING_FRESH_SCAN after exact-head Core, Secret Scan and local Supabase/Playwright success; hosted tenant E2E skipped."
+    },
+    {
+      "event": "OPENED_PENDING_EXACT_SHA_TESTS",
+      "pr": 353,
+      "source_commit": "b3d7284bcf1b5cf380affca14a58347e79a5c8b4",
+      "test_commit": "55e30e0af477e043086f4eb493a67b126504dd6f",
+      "note": "CustomerActivationInvitationDialog TS0003 refactor submitted for exact-head validation; not closed."
     }
   ],
   "main_sha": "15eb044c0651dafc7ef279d6253431e777d5f097"
