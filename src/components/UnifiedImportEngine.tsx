@@ -126,6 +126,53 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
     setStatusMessage(next ? "تم الإيقاف المؤقت؛ آخر شريحة معتمدة محفوظة ويمكن الاستئناف بإعادة اختيار الملف نفسه." : "استؤنفت المعالجة.");
   }
 
+  async function handleImportFailure(
+    cause: unknown,
+    job: ImportJob | null,
+    processingConfigFingerprint: string | null,
+    checkpointFingerprintPersisted: boolean,
+  ): Promise<void> {
+    const message = cause instanceof Error ? cause.message : "تعذر معالجة الملف.";
+    setStage(null);
+    if (!job) {
+      setErrorMessage(message);
+      await refetch();
+      return;
+    }
+
+    const failureSummary: Record<string, unknown> = {
+      code: "IMPORT_PROCESSING_FAILED",
+      message,
+      resumable: true,
+      no_raw_file_retained: true,
+    };
+    if (checkpointFingerprintPersisted && processingConfigFingerprint) {
+      failureSummary.processing_config_fingerprint = processingConfigFingerprint;
+    }
+
+    try {
+      const reconciled = await failImportJobSafely(job.id, failureSummary);
+      if (reconciled.terminal) {
+        // The finalize/cancel RPC may have committed while its response was lost.
+        // Keep the server's terminal result; never mark it failed or create another snapshot.
+        setErrorMessage("");
+        setStatusMessage(describeReconciledImportStatus(reconciled));
+        onNotice("حُفظت الحالة النهائية الموجودة للدفعة؛ لم تُحوّل إلى فشل ولم يُكرر الاعتماد.");
+      } else {
+        setErrorMessage(message);
+        setStatusMessage(describeRetryableImportStatus(reconciled));
+      }
+    } catch (reconcileError) {
+      setErrorMessage(message);
+      setStatusMessage(
+        "تعذر تأكيد حالة الدفعة بعد الفشل: " +
+        (reconcileError instanceof Error ? reconcileError.message : "خطأ غير معروف") +
+        ". لا تبدأ نسخة بديلة قبل تحديث سجل الدفعات والتحقق من الحالة على الخادم.",
+      );
+    }
+    await refetch();
+  }
+
   async function processFile(
     file: File,
     fileHash: string,
@@ -514,42 +561,12 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
       await refetch();
       onNotice(result.status === "completed" ? "اكتمل الاستيراد بجودة " + result.data_quality_score + "/100" : "انتهت الدفعة بالحالة: " + result.status);
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "تعذر معالجة الملف.";
-      setStage(null);
-      if (job) {
-        try {
-          const failureSummary: Record<string, unknown> = {
-            code: "IMPORT_PROCESSING_FAILED",
-            message,
-            resumable: true,
-            no_raw_file_retained: true,
-          };
-          if (checkpointFingerprintPersisted && processingConfigFingerprint) {
-            failureSummary.processing_config_fingerprint = processingConfigFingerprint;
-          }
-          const reconciled = await failImportJobSafely(job.id, failureSummary);
-          if (reconciled.terminal) {
-            // The finalize/cancel RPC may have committed while its response was lost.
-            // Keep the server's terminal result; never mark it failed or create another snapshot.
-            setErrorMessage("");
-            setStatusMessage(describeReconciledImportStatus(reconciled));
-            onNotice("حُفظت الحالة النهائية الموجودة للدفعة؛ لم تُحوّل إلى فشل ولم يُكرر الاعتماد.");
-          } else {
-            setErrorMessage(message);
-            setStatusMessage(describeRetryableImportStatus(reconciled));
-          }
-        } catch (reconcileError) {
-          setErrorMessage(message);
-          setStatusMessage(
-            "تعذر تأكيد حالة الدفعة بعد الفشل: " +
-            (reconcileError instanceof Error ? reconcileError.message : "خطأ غير معروف") +
-            ". لا تبدأ نسخة بديلة قبل تحديث سجل الدفعات والتحقق من الحالة على الخادم.",
-          );
-        }
-      } else {
-        setErrorMessage(message);
-      }
-      await refetch();
+      await handleImportFailure(
+        cause,
+        job,
+        processingConfigFingerprint,
+        checkpointFingerprintPersisted,
+      );
     } finally {
       runningRef.current = false;
       pausedRef.current = false;
