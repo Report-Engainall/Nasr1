@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "scripts/persist-bolt-reconciliation-evidence.py"
+      - "scripts/reconcile-bolt-recovery-archives.py"
       - ".github/workflows/p3-tooling-validation.yml"
 
 permissions:
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   python-tooling:
-    name: Python syntax and persistence self-test
+    name: Python syntax and archive reconciliation self-test
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -30,7 +30,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Compile the persistence utility
-        run: python -m py_compile scripts/persist-bolt-reconciliation-evidence.py
-      - name: Run persistence helper self-tests
-        run: python scripts/persist-bolt-reconciliation-evidence.py --self-test
+      - name: Compile the archive reconciliation utility
+        run: python -m py_compile scripts/reconcile-bolt-recovery-archives.py
+      - name: Run archive reconciliation self-tests
+        run: python scripts/reconcile-bolt-recovery-archives.py --self-test
