@@ -2,6 +2,7 @@ import { logError, logInfo } from "./diagnostic-logger.mjs";
 import assert from "node:assert/strict";
 import postgres from "postgres";
 import { runOrderInputHardeningAcceptance } from "./test-order-input-hardening.mjs";
+import { runCriticalCleanup } from "./critical-cleanup.mjs";
 
 const url = process.env.TEST_DATABASE_URL;
 if (!url) throw new Error("TEST_DATABASE_URL required");
@@ -1183,8 +1184,19 @@ try {
   process.exitCode = 1;
 } finally {
   for (const connection of [admin, customer, ...raceConnections]) {
-    try { await connection.unsafe("reset role"); } catch (cleanupError) { process.stderr.write("[admin-catalog-commands] reset role cleanup failed: " + String(cleanupError) + "\n"); }
-    await connection.end();
+    try {
+      await runCriticalCleanup("admin-catalog-commands", [
+        { name: "RESET ROLE", run: () => connection.unsafe("RESET ROLE") },
+      ], (message, error) => logError(message, error));
+    } catch {
+      process.exitCode = 1;
+    } finally {
+      try { await connection.end({ timeout: 5 }); }
+      catch (closeError) {
+        logError("[admin-catalog-commands] connection close failed", closeError);
+        process.exitCode = 1;
+      }
+    }
   }
   try { await cleanup(); } catch (error) {
     logError("catalog cleanup failed", error);

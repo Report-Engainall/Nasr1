@@ -86,6 +86,8 @@ jobs:
             docs/bolt-source-reconciliation/tools/collect-source-inputs.mjs; do
             node --check "$file"
           done
+      - name: Verify critical database cleanup fails closed
+        run: node scripts/test-critical-cleanup.mjs
       - name: Verify structured logger redacts diagnostic secrets
         shell: bash
         run: |
