@@ -16,7 +16,7 @@
 
 ## Immediate resume cursor
 
-1. Finish and inspect exact-main Core 41343175987 and Playwright/local Supabase 41343175851; update their terminal results.
+1. Core 41343175987 and Playwright/local Supabase 41343175851 are terminal SUCCESS. Hosted tenant E2E remains SKIPPED/BLOCKED_EXTERNAL.
 2. Run P3 tooling and the other relevant workflows on the new documentation PR head based on `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc`.
 3. Obtain the authorized CodeInspector run on `bdfce9922b91f19fb5f6c620e3e9a33f20d534cc` plus raw 118 finding rows and exact scanner input SHA.
 4. Close findings only after fresh official rule/path confirmation; preserve NOT_REPRODUCED and archived-scope states without relabeling them CLOSED.
