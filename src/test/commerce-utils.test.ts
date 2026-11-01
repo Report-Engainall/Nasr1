@@ -397,7 +397,13 @@ describe('commerce completion utilities', () => {
   it('bounds input length before running safe import patterns', () => {
     const raw = validateCsvRow(['a'.repeat(2049)], ['name'], 2);
     const result = applyImportProfileRules(raw, [], [
-      { field: 'name', rule: 'safe_pattern', value: '^a+
+      { field: 'name', rule: 'safe_pattern', value: '^a+$' },
+    ]);
+    expect(result.status).toBe('rejected');
+    expect(result.errors).toContain('قاعدة التحقق safe_pattern فشلت للحقل name');
+  });
+
+  it('normalizes Arabic diacritics, tatweel, alef forms and alif maqsura', () => {
     expect(normalizeArabicSearchText('إِبْرَاهِيمـ ى')).toBe('ابراهيم ي');
     expect(normalizeArabicSearchText('آلـرُزّ')).toBe('الرز');
   });
