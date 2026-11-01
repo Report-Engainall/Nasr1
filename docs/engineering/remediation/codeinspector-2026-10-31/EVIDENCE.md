@@ -32,3 +32,20 @@
 - Fresh CodeInspector scan with scanner version and exact input SHA.
 - Complete 114-row TS0003 inventory and evidence-based classification.
 - P1/P3 exact commits, path-conflict review and integration evidence.
+
+## Current exact-SHA evidence — 2026-11-01
+
+| Gate | SHA | Result | Run |
+|---|---|---|---|
+| P1 Core | 1e51d807f48da02be4e21375769f26bb793d8efd | PASS | 41255917802 |
+| P1 Gitleaks | 1e51d807f48da02be4e21375769f26bb793d8efd | PASS | 41255917793 |
+| P1 Playwright | 1e51d807f48da02be4e21375769f26bb793d8efd | PASS; hosted tenant subtest SKIPPED | 41255917900 |
+| P2 code-head Core | 767744ef57e6f24e7b3f707d8b9cd0ae1e257762 | PASS | 41255608732 |
+| P2 current docs-head Core | 0bb0f017cbfe283d2cd1d93e651a855fe4ba76d6 | IN_PROGRESS | 41256346720 |
+| P2 current docs-head Playwright | 0bb0f017cbfe283d2cd1d93e651a855fe4ba76d6 | IN_PROGRESS | 41256346732 |
+| P3 Core | c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688 | PASS | 41255986179 |
+| P3 tooling | c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688 | PASS | 41255986180 |
+| P3 PG17 import / export | c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688 | PASS / PASS | 41255986181 / 41255986177 |
+| P3 Playwright | c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688 | CANCELLED | 41255986229 |
+
+Original CodeInspector scan SHA UNKNOWN. Main SHA 46f2fce34c09f64284fdbbe4182bd0f2b7ab36dc. No merge claimed.
