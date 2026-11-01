@@ -5504,8 +5504,10 @@
         "latest_main_gitleaks_run": 41319622139,
         "latest_main_p2_playwright_run": 41319622246,
         "latest_main_public_ui_smoke": "SUCCESS",
-        "latest_main_local_supabase_order_tenant": "IN_PROGRESS",
-        "latest_main_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL"
+        "latest_main_local_supabase_order_tenant": "SUCCESS",
+        "latest_main_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
+        "latest_main_local_supabase_job_id": 124888150619,
+        "latest_main_playwright_public_ui": "SUCCESS"
       }
     },
     "verification": {
