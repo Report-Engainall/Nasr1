@@ -237,7 +237,7 @@ describe("TaskCenter role-boundary and print integration", () => {
     fireEvent.change(screen.getByLabelText("التفاصيل"), { target: { value: "مطابقة مستندات التحصيل" } });
 
     const roleSelect = screen.getByLabelText("الدور المستهدف") as HTMLSelectElement;
-    const assigneeSelect = screen.getByLabelText("الموظف المسؤول") as HTMLSelectElement;
+    const assigneeSelect = screen.getByLabelText(/الموظف المسؤول/) as HTMLSelectElement;
     fireEvent.change(assigneeSelect, { target: { value: "profile-sales" } });
     expect(assigneeSelect.value).toBe("profile-sales");
 
