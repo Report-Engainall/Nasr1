@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   auth: { ready: true, user: null as null | { email: string; isStaff: boolean } },
@@ -97,4 +97,41 @@ describe("customer activation invitation page", () => {
     expect(window.location.search).toBe("");
     expect(mocks.accept).toHaveBeenCalledWith(TOKEN);
   });
+
+  it("waits for session hydration before exposing registration or acceptance actions", () => {
+    mocks.auth = { ready: false, user: null };
+    render(<CustomerActivationInvitationPage token={TOKEN} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("جارٍ التحقق من جلسة الحساب...");
+    expect(screen.queryByTestId("login-form")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /التحقق من الدعوة/ })).not.toBeInTheDocument();
+    expect(mocks.accept).not.toHaveBeenCalled();
+  });
+
+  it("prevents repeated acceptance while the first server request is pending and removes URL fragments", async () => {
+    let resolveAcceptance!: (value: { business_name: string; email: string }) => void;
+    mocks.accept.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveAcceptance = resolve;
+    }));
+    window.history.replaceState(null, "", "/activate?invite=" + TOKEN + "#" + TOKEN);
+    render(<CustomerActivationInvitationPage token={TOKEN} />);
+
+    const action = screen.getByRole("button", { name: "التحقق من الدعوة وتفعيل الحساب" });
+    fireEvent.click(action);
+    await waitFor(() => expect(action).toBeDisabled());
+
+    fireEvent.click(action);
+    expect(mocks.accept).toHaveBeenCalledTimes(1);
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.pathname + window.location.search + window.location.hash).not.toContain(TOKEN);
+    expect(window.location.search).toBe("");
+    expect(window.location.hash).toBe("");
+
+    await act(async () => {
+      resolveAcceptance({ business_name: "متجر العميل", email: "client@example.test" });
+    });
+    expect(await screen.findByText("تم تفعيل حساب العميل")).toBeInTheDocument();
+    expect(mocks.accept).toHaveBeenCalledTimes(1);
+  });
+
 });
