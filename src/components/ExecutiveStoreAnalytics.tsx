@@ -111,6 +111,109 @@ function SalesForecastPanel({ points }: { points: ReadonlyArray<{ day: string; o
   );
 }
 
+
+type ExecutiveAnalyticsData = Awaited<ReturnType<typeof fetchStoreExecutiveAnalytics>>;
+type SalesTrendPoint = ExecutiveAnalyticsData["sales_trend"][number];
+type TopProductRow = ExecutiveAnalyticsData["top_products"][number];
+type TopCustomerRow = ExecutiveAnalyticsData["top_customers"][number];
+
+function ExecutiveSalesTrendRow({ day, maximum }: { day: SalesTrendPoint; maximum: number }) {
+  const width = Math.min(100, (day.sales / maximum) * 100);
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "78px minmax(40px, 1fr) auto", alignItems: "center", gap: 8, paddingBlock: 5 }}>
+      <small>{formatDateShort(day.day)}</small>
+      <div aria-label={"مبيعات " + day.day} role="img" style={{ height: 8, background: "var(--muted, #e2e8f0)", borderRadius: 999, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: width + "%", background: "var(--primary, #0f766e)", borderRadius: 999 }} />
+      </div>
+      <span style={{ minWidth: 78, textAlign: "end", fontVariantNumeric: "tabular-nums" }}>{formatCurrency(day.sales)}</span>
+    </div>
+  );
+}
+
+function ExecutiveSalesTrendSection({
+  days,
+  maximum,
+}: {
+  days: SalesTrendPoint[];
+  maximum: number;
+}) {
+  return (
+    <section>
+      <h3>اتجاه المبيعات — 30 يومًا</h3>
+      <p className="report-note">المبالغ لا تشمل الطلبات الملغاة أو المرفوضة.</p>
+      <div style={{ maxHeight: 320, overflowY: "auto", paddingInlineEnd: 4 }}>
+        {days.map((day) => <ExecutiveSalesTrendRow key={day.day} day={day} maximum={maximum} />)}
+      </div>
+    </section>
+  );
+}
+
+function ExecutiveTopProductsTable({ products }: { products: TopProductRow[] }) {
+  if (products.length === 0) return <Empty text="لا توجد بنود طلبات قابلة للترتيب." />;
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table>
+        <thead><tr><th>الصنف</th><th>الكمية</th><th>المبيعات</th></tr></thead>
+        <tbody>
+          {products.map((product) => (
+            <tr key={product.item_code + ":" + product.product_name}>
+              <td><strong>{product.product_name}</strong><small style={{ display: "block" }}>{product.item_code || "دون رمز صنف"}</small></td>
+              <td>{formatNumber(product.quantity)}</td>
+              <td>{formatCurrency(product.sales)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ExecutiveTopCustomersTable({ customers }: { customers: TopCustomerRow[] }) {
+  if (customers.length === 0) return <Empty text="لا توجد طلبات مرتبطة بعملاء داخل المؤسسة." />;
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table>
+        <thead><tr><th>العميل</th><th>الطلبات</th><th>المبيعات</th></tr></thead>
+        <tbody>
+          {customers.map((customer) => (
+            <tr key={customer.customer_id}>
+              <td>{customer.customer_name}</td>
+              <td>{formatNumber(customer.order_count)}</td>
+              <td>{formatCurrency(customer.sales)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ExecutiveSalesRankings({ data }: { data: ExecutiveAnalyticsData }) {
+  return (
+    <section>
+      <h3>أعلى الأصناف مبيعًا</h3>
+      <ExecutiveTopProductsTable products={data.top_products} />
+      <h3 style={{ marginTop: 18 }}>أعلى العملاء قيمةً</h3>
+      <ExecutiveTopCustomersTable customers={data.top_customers} />
+    </section>
+  );
+}
+
+function ExecutiveSalesDetails({
+  data,
+  maximum,
+}: {
+  data: ExecutiveAnalyticsData;
+  maximum: number;
+}) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 16, marginTop: 16 }}>
+      <ExecutiveSalesTrendSection days={data.sales_trend} maximum={maximum} />
+      <ExecutiveSalesRankings data={data} />
+    </div>
+  );
+}
+
 export function ExecutiveStoreAnalytics() {
   const { data, loading, error, refetch } = useFetch(fetchStoreExecutiveAnalytics);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -199,57 +302,7 @@ export function ExecutiveStoreAnalytics() {
             </article>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: 16, marginTop: 16 }}>
-            <section>
-              <h3>اتجاه المبيعات — 30 يومًا</h3>
-              <p className="report-note">المبالغ لا تشمل الطلبات الملغاة أو المرفوضة.</p>
-              <div style={{ maxHeight: 320, overflowY: 'auto', paddingInlineEnd: 4 }}>
-                {data.sales_trend.map((day) => (
-                  <div key={day.day} style={{ display: 'grid', gridTemplateColumns: '78px minmax(40px, 1fr) auto', alignItems: 'center', gap: 8, paddingBlock: 5 }}>
-                    <small>{formatDateShort(day.day)}</small>
-                    <div aria-label={`مبيعات ${day.day}`} role="img" style={{ height: 8, background: 'var(--muted, #e2e8f0)', borderRadius: 999, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${Math.min(100, (day.sales / maxDaySales) * 100)}%`, background: 'var(--primary, #0f766e)', borderRadius: 999 }} />
-                    </div>
-                    <span style={{ minWidth: 78, textAlign: 'end', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(day.sales)}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section>
-              <h3>أعلى الأصناف مبيعًا</h3>
-              {data.top_products.length === 0 ? <Empty text="لا توجد بنود طلبات قابلة للترتيب." /> : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table>
-                    <thead><tr><th>الصنف</th><th>الكمية</th><th>المبيعات</th></tr></thead>
-                    <tbody>{data.top_products.map((product) => (
-                      <tr key={product.item_code + ':' + product.product_name}>
-                        <td><strong>{product.product_name}</strong><small style={{ display: 'block' }}>{product.item_code || 'دون رمز صنف'}</small></td>
-                        <td>{formatNumber(product.quantity)}</td>
-                        <td>{formatCurrency(product.sales)}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              )}
-
-              <h3 style={{ marginTop: 18 }}>أعلى العملاء قيمةً</h3>
-              {data.top_customers.length === 0 ? <Empty text="لا توجد طلبات مرتبطة بعملاء داخل المؤسسة." /> : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table>
-                    <thead><tr><th>العميل</th><th>الطلبات</th><th>المبيعات</th></tr></thead>
-                    <tbody>{data.top_customers.map((customer) => (
-                      <tr key={customer.customer_id}>
-                        <td>{customer.customer_name}</td>
-                        <td>{formatNumber(customer.order_count)}</td>
-                        <td>{formatCurrency(customer.sales)}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-          </div>
+          <ExecutiveSalesDetails data={data} maximum={maxDaySales} />
           <SalesForecastPanel points={data.sales_trend} />
           <p className="report-note" style={{ marginTop: 12 }}>
             آخر تحديث: {formatDateShort(data.generated_at)}. مصدر الأرقام هو سجل الطلبات وبنوده في المؤسسة الحالية؛ اتجاه المبيعات يستبعد الحالات الملغاة والمرفوضة ولا يقدّر البيانات المفقودة.

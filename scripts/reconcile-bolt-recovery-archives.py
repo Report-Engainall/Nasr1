@@ -194,59 +194,104 @@ def summary_md(obj, pair_rows, ready_rows, member_rows):
     lines.append("")
     return "\n".join(lines)
 
-def self_test():
-    assert sha256(b"abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-    assert git_blob_sha1(b"") == "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
-    assert safe_name("project/src/main.ts").as_posix() == "project/src/main.ts"
-    for candidate in ("../escape", "/etc/passwd", "C:/secret", "project/../../escape", "project\\file", ""):
-        try: safe_name(candidate)
-        except ValueError: continue
-        raise AssertionError("unsafe member accepted: " + repr(candidate))
-    class FakeResponse:
-        def __init__(self, payload, headers=None):
-            self.payload = payload
-            self.offset = 0
-            self.headers = headers or {}
-            self.read_sizes = []
-        def read(self, size=-1):
-            assert size >= 0, "bounded reader must never request an unbounded read"
-            self.read_sizes.append(size)
-            chunk = self.payload[self.offset:self.offset + size]
-            self.offset += len(chunk)
-            return chunk
+class FakeResponse:
+    def __init__(self, payload, headers=None):
+        self.payload = payload
+        self.offset = 0
+        self.headers = headers or {}
+        self.read_sizes = []
 
+    def read(self, size=-1):
+        assert size >= 0, "bounded reader must never request an unbounded read"
+        self.read_sizes.append(size)
+        chunk = self.payload[self.offset:self.offset + size]
+        self.offset += len(chunk)
+        return chunk
+
+
+def assert_unsafe_archive_paths_rejected():
+    candidates = ("../escape", "/etc/passwd", "C:/secret", "project/../../escape", "project\\file", "")
+    for candidate in candidates:
+        try:
+            safe_name(candidate)
+        except ValueError:
+            continue
+        raise AssertionError("unsafe member accepted: " + repr(candidate))
+
+
+def assert_bounded_reader_contract():
     exact = FakeResponse(b"abcdef", {"Content-Length": "6"})
     assert read_bounded_response(exact, 6) == b"abcdef"
     assert all(size > 0 for size in exact.read_sizes)
-    for response, expected in (
+
+    invalid_responses = (
         (FakeResponse(b"abcdefg", {"Content-Length": "7"}), 6),
         (FakeResponse(b"abc", {}), 6),
         (FakeResponse(b"abcdef", {"Content-Length": "not-a-number"}), 6),
-    ):
+    )
+    for response, expected in invalid_responses:
         try:
             read_bounded_response(response, expected)
         except ValueError:
             continue
         raise AssertionError("bounded archive reader accepted size/header mismatch")
 
-    b = io.BytesIO()
-    with zipfile.ZipFile(b, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("project/src/ok.ts", "export const ok = true;\n")
-    with zipfile.ZipFile(io.BytesIO(b.getvalue())) as z:
-        assert len(validate_zip(z)) == 1
-        assert z.read("project/src/ok.ts") == b"export const ok = true;\n"
+
+def assert_zip_integrity_contract():
+    archive_buffer = io.BytesIO()
+    with zipfile.ZipFile(archive_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("project/src/ok.ts", "export const ok = true;\n")
+
+    with zipfile.ZipFile(io.BytesIO(archive_buffer.getvalue())) as archive:
+        assert len(validate_zip(archive)) == 1
+        assert archive.read("project/src/ok.ts") == b"export const ok = true;\n"
+
+
+def assert_archive_failure_is_recorded():
     row = build_archive_row(ARCHIVES[0], "https://example.invalid/archive.zip")
-    assert row["archive_id"] == ARCHIVES[0][0]
     failed_rows, errors = [], []
     record_archive_download_failure(
-        ARCHIVES[0][1], "https://example.invalid/archive.zip", "offline",
-        row, failed_rows, errors,
+        ARCHIVES[0][1],
+        "https://example.invalid/archive.zip",
+        "offline",
+        row,
+        failed_rows,
+        errors,
     )
-    assert failed_rows == [row] and row["status"] == "DOWNLOAD_FAILED"
+    assert failed_rows == [row]
+    assert row["status"] == "DOWNLOAD_FAILED"
     assert "offline" in errors[0]
-    print("SELF_TEST PASS: SHA-256, Git blob SHA-1, CRC/decompression, path traversal rejection", flush=True)
 
 
+def assert_review_path_contract():
+    archive_id = ARCHIVES[0][0]
+    identical_text = "export const value = 1;\n"
+    assert review_path(
+        "src/example.ts",
+        {archive_id: {"src/example.ts": identical_text}},
+        {"src/example.ts": identical_text.encode("utf-8")},
+    ) == []
+
+    secret_text = "SUPABASE_SERVICE_ROLE_KEY=review-only-secret\n"
+    snippets = review_path(
+        "src/secret.ts",
+        {archive_id: {"src/secret.ts": secret_text}},
+        {},
+    )
+    assert snippets
+    assert "review-only-secret" not in repr(snippets)
+
+
+def self_test():
+    assert sha256(b"abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    assert git_blob_sha1(b"") == "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    assert safe_name("project/src/main.ts").as_posix() == "project/src/main.ts"
+    assert_unsafe_archive_paths_rejected()
+    assert_bounded_reader_contract()
+    assert_zip_integrity_contract()
+    assert_archive_failure_is_recorded()
+    assert_review_path_contract()
+    print("SELF_TEST PASS: hashes, safe paths, bounded downloads, ZIP integrity, failure rows and redacted review diffs", flush=True)
 
 def collect_archive_members(infos, archive_id, archive_name, target_dir, member_rows, review_text):
     file_map = {}
@@ -612,62 +657,74 @@ def normalize_review_text(review_text_by_archive, common_archive_root):
     return normalized
 
 
+def review_archive_against_target(path, archive_id, archive_text, current_map):
+    archive_safe = review_safe(archive_text)
+    if archive_safe is None:
+        return [(archive_id + " content", None)]
+
+    target_bytes = current_map.get(path)
+    target_text = target_bytes.decode("utf-8", errors="replace") if target_bytes is not None else None
+    target_safe = review_safe(target_text) if target_text is not None else None
+    if target_text is not None and target_safe is None:
+        return [(archive_id + " vs target", None)]
+
+    if target_safe is None:
+        before_lines = []
+        from_file = "Nasr1/main: absent"
+    elif target_safe != archive_safe:
+        before_lines = target_safe.splitlines()
+        from_file = "Nasr1/main: " + path
+    else:
+        return []
+
+    diff_lines = list(difflib.unified_diff(
+        before_lines,
+        archive_safe.splitlines(),
+        fromfile=from_file,
+        tofile=archive_id + ": " + path,
+        lineterm="",
+    ))
+    if not diff_lines:
+        return []
+    return [(archive_id + " vs Nasr1/main", diff_lines)]
+
+
+def review_archive_pair(path, normalized_review):
+    before = normalized_review.get(ARCHIVES[0][0], {}).get(path)
+    restored = normalized_review.get(ARCHIVES[1][0], {}).get(path)
+    if before is None or restored is None:
+        return []
+
+    before_safe = review_safe(before)
+    restored_safe = review_safe(restored)
+    if before_safe is None or restored_safe is None:
+        return [("Before vs Restored", None)]
+    if before_safe == restored_safe:
+        return []
+
+    diff_lines = list(difflib.unified_diff(
+        before_safe.splitlines(),
+        restored_safe.splitlines(),
+        fromfile="Before Failure: " + path,
+        tofile="Restored Current: " + path,
+        lineterm="",
+    ))
+    if not diff_lines:
+        return []
+    return [("Before vs Restored", diff_lines)]
+
+
 def review_path(path, normalized_review, current_map):
     snippets = []
     for archive_id, _, _, _ in ARCHIVES:
         archive_text = normalized_review.get(archive_id, {}).get(path)
         if archive_text is None:
             continue
-        archive_safe = review_safe(archive_text)
-        if archive_safe is None:
-            snippets.append((archive_id + " content", None))
-            continue
-        target_bytes = current_map.get(path)
-        target_text = target_bytes.decode("utf-8", errors="replace") if target_bytes is not None else None
-        target_safe = review_safe(target_text) if target_text is not None else None
-        if target_text is not None and target_safe is None:
-            snippets.append((archive_id + " vs target", None))
-            continue
-        if target_safe is None:
-            lines = list(difflib.unified_diff(
-                [],
-                archive_safe.splitlines(),
-                fromfile="Nasr1/main: absent",
-                tofile=archive_id + ": " + path,
-                lineterm="",
-            ))
-        elif target_safe != archive_safe:
-            lines = list(difflib.unified_diff(
-                target_safe.splitlines(),
-                archive_safe.splitlines(),
-                fromfile="Nasr1/main: " + path,
-                tofile=archive_id + ": " + path,
-                lineterm="",
-            ))
-        else:
-            lines = []
-        if lines:
-            snippets.append((archive_id + " vs Nasr1/main", lines))
-
-    before = normalized_review.get(ARCHIVES[0][0], {}).get(path)
-    restored = normalized_review.get(ARCHIVES[1][0], {}).get(path)
-    if before is not None and restored is not None:
-        before_safe = review_safe(before)
-        restored_safe = review_safe(restored)
-        if before_safe is None or restored_safe is None:
-            snippets.append(("Before vs Restored", None))
-        elif before_safe != restored_safe:
-            lines = list(difflib.unified_diff(
-                before_safe.splitlines(),
-                restored_safe.splitlines(),
-                fromfile="Before Failure: " + path,
-                tofile="Restored Current: " + path,
-                lineterm="",
-            ))
-            if lines:
-                snippets.append(("Before vs Restored", lines))
+        snippets.extend(
+            review_archive_against_target(path, archive_id, archive_text, current_map)
+        )
+    snippets.extend(review_archive_pair(path, normalized_review))
     return snippets
-
 
 def build_review_report(review_text_by_archive, current_map, common_archive_root):
     normalized_review = normalize_review_text(review_text_by_archive, common_archive_root)

@@ -85,6 +85,19 @@ describe("customer company membership screens", () => {
     expect(screen.getByText(/لا تعتبر القائمة سجلًا تاريخيًا كاملًا/)).toBeInTheDocument();
   });
 
+  it("keeps the invitation history cap disclosure visible when the history is empty", async () => {
+    mocks.fetchWorkspace.mockResolvedValueOnce({
+      ...workspace,
+      invitations: [],
+    });
+    const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");
+    render(<CustomerCompanyMembersPage />);
+
+    expect(await screen.findByText("لا توجد دعوات محفوظة.")).toBeInTheDocument();
+    expect(screen.getByText(/يعرض هذا القسم آخر 100 دعوة فقط/)).toBeInTheDocument();
+    expect(screen.getByText("سجل الدعوات")).toBeInTheDocument();
+  });
+
   it("blocks staff from the customer membership workspace before any membership read", async () => {
     mocks.auth = { ready: true, user: { isStaff: true } };
     const { CustomerCompanyMembersPage } = await import("@/components/CustomerCompanyMembers");

@@ -61,6 +61,275 @@ function statusLabel(value: ExpenseStatus): string {
   return value === "posted" ? "مسجل" : "ملغى مع حفظ الأثر";
 }
 
+type DraftUpdate = <K extends keyof CashExpenseDraft>(key: K, value: CashExpenseDraft[K]) => void;
+type FilterUpdate = <K extends keyof ExpenseFilters>(key: K, value: ExpenseFilters[K]) => void;
+
+function CashExpenseHeader({
+  loading,
+  hasPayload,
+  onPrint,
+  onRefresh,
+}: {
+  loading: boolean;
+  hasPayload: boolean;
+  onPrint: () => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <header style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
+      <div>
+        <h2 style={{ fontSize: 21, margin: 0 }}>سجل المصروفات الفعلية</h2>
+        <p style={muted}>يسجل النظام المصروفات الجديدة فقط. لا تُنشأ قيود تاريخية افتراضية، ولا تظهر الأرقام إلا من قاعدة البيانات.</p>
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} onClick={onPrint} disabled={!hasPayload || loading}>
+          <Printer size={15} style={{ verticalAlign: "middle", marginLeft: 6 }} /> طباعة الصفحة المعروضة
+        </button>
+        <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} onClick={onRefresh} disabled={loading}>
+          <RefreshCw size={15} style={{ verticalAlign: "middle", marginLeft: 6 }} /> تحديث
+        </button>
+      </div>
+    </header>
+  );
+}
+
+function CashExpenseFeedback({ notice, error }: { notice: string; error: string }) {
+  return (
+    <>
+      {notice ? <div role="status" style={{ ...cardStyle, borderColor: "#86c7a2" }}>{notice}</div> : null}
+      {error ? <div role="alert" style={{ ...cardStyle, borderColor: "#e0a0a0", color: "#9b2626" }}>{error}</div> : null}
+    </>
+  );
+}
+
+function CashExpenseEntryForm({
+  draft,
+  saving,
+  onDraftChange,
+  onSubmit,
+}: {
+  draft: CashExpenseDraft;
+  saving: boolean;
+  onDraftChange: DraftUpdate;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form onSubmit={onSubmit} style={cardStyle}>
+      <h3 style={{ margin: 0, fontSize: 17 }}>تسجيل مصروف جديد</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12 }}>
+        <label>التصنيف
+          <input style={inputStyle} value={draft.category} onChange={(event) => onDraftChange("category", event.target.value)} minLength={2} maxLength={80} placeholder="مثال: إيجار أو نقل" required />
+        </label>
+        <label>المبلغ
+          <input style={inputStyle} dir="ltr" inputMode="decimal" value={draft.amount} onChange={(event) => onDraftChange("amount", event.target.value)} placeholder="0.00" maxLength={24} required />
+        </label>
+        <label>العملة (3 أحرف)
+          <input style={inputStyle} dir="ltr" value={draft.currency} onChange={(event) => onDraftChange("currency", event.target.value)} minLength={3} maxLength={3} required />
+        </label>
+        <label>طريقة الدفع
+          <select style={inputStyle} value={draft.payment_method} onChange={(event) => onDraftChange("payment_method", event.target.value)} required>
+            <option value="cash">نقداً</option><option value="transfer">تحويل</option><option value="card">بطاقة</option><option value="other">أخرى</option>
+          </select>
+        </label>
+        <label>تاريخ المصروف
+          <input style={inputStyle} type="date" value={draft.expense_date} onChange={(event) => onDraftChange("expense_date", event.target.value)} required />
+        </label>
+        <label>مرجع / رقم إيصال
+          <input style={inputStyle} value={draft.reference} onChange={(event) => onDraftChange("reference", event.target.value)} maxLength={200} />
+        </label>
+      </div>
+      <label>الوصف
+        <textarea style={{ ...inputStyle, minHeight: 76, resize: "vertical" }} value={draft.description} onChange={(event) => onDraftChange("description", event.target.value)} minLength={2} maxLength={600} required />
+      </label>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <button type="submit" disabled={saving} style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: saving ? "wait" : "pointer", fontWeight: 750 }}>
+          <Banknote size={15} style={{ verticalAlign: "middle", marginLeft: 6 }} /> {saving ? "جارٍ الحفظ..." : "حفظ المصروف"}
+        </button>
+        <span style={muted}><ShieldCheck size={14} style={{ verticalAlign: "middle", marginLeft: 4 }} /> الحفظ خادمي، ومنع التكرار والتدقيق مفعلان.</span>
+      </div>
+    </form>
+  );
+}
+
+function CashExpenseFilters({
+  draft,
+  payload,
+  onUpdate,
+  onApply,
+  onClear,
+}: {
+  draft: ExpenseFilters;
+  payload: ExpensePayload | null;
+  onUpdate: FilterUpdate;
+  onApply: (event: FormEvent<HTMLFormElement>) => void;
+  onClear: () => void;
+}) {
+  return (
+    <section style={cardStyle}>
+      <h3 style={{ margin: 0, fontSize: 17 }}>بحث وتصفية السجل</h3>
+      <form onSubmit={onApply} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10 }}>
+        <label>بحث بالتصنيف أو الوصف أو المرجع
+          <input style={inputStyle} value={draft.search} onChange={(event) => onUpdate("search", event.target.value)} maxLength={200} />
+        </label>
+        <label>من تاريخ
+          <input style={inputStyle} type="date" value={draft.from} onChange={(event) => onUpdate("from", event.target.value)} />
+        </label>
+        <label>إلى تاريخ
+          <input style={inputStyle} type="date" value={draft.to} onChange={(event) => onUpdate("to", event.target.value)} />
+        </label>
+        <label>الحالة
+          <select style={inputStyle} value={draft.status} onChange={(event) => onUpdate("status", event.target.value as ExpenseFilters["status"])}>
+            <option value="all">الكل</option><option value="posted">المسجل</option><option value="void">الملغى</option>
+          </select>
+        </label>
+        <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
+          <button type="submit" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }}>تطبيق الفلاتر</button>
+          <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} onClick={onClear}>مسح الفلاتر</button>
+        </div>
+      </form>
+      {payload ? (
+        <p style={muted}>
+          وقت قراءة الخادم: {payload.as_of_utc} — عدد النتائج المطابقة للفلاتر: {payload.total_count.toLocaleString("ar-YE")} — الصفحة {Math.floor(payload.offset / payload.limit) + 1}
+        </p>
+      ) : null}
+      <CashExpenseSummaryCards summaries={payload?.summary_by_currency ?? []} />
+    </section>
+  );
+}
+
+function CashExpenseSummaryCards({ summaries }: { summaries: ExpenseSummary[] }) {
+  if (summaries.length === 0) return null;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 10 }}>
+      {summaries.map((summary) => (
+        <article key={summary.currency} style={{ ...cardStyle, gap: 4 }}>
+          <span style={muted}>المصروفات المسجلة — {summary.currency}</span>
+          <strong dir="ltr" style={{ fontSize: 22, fontVariantNumeric: "tabular-nums" }}>{exactMoney(summary.posted_amount)} {summary.currency}</strong>
+          <span style={muted}>{summary.posted_count} مسجل · {summary.void_count} ملغى (مستبعد من المجموع)</span>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function CashExpenseItemRow({
+  item,
+  canVoid,
+  onVoid,
+}: {
+  item: ExpenseItem;
+  canVoid: boolean;
+  onVoid: (item: ExpenseItem) => void;
+}) {
+  const voidAction = item.status === "posted" && canVoid;
+  return (
+    <tr style={{ borderTop: "1px solid var(--border, #e4eaee)" }}>
+      <td style={{ padding: 11, whiteSpace: "nowrap" }}>#{item.expense_number}<br />{formatDateShort(item.expense_date)}</td>
+      <td><strong>{item.category}</strong><p style={{ margin: "4px 0" }}>{item.description}</p></td>
+      <td dir="ltr" style={{ whiteSpace: "nowrap", textAlign: "right" }}>{exactMoney(item.amount)} {item.currency}</td>
+      <td>{paymentLabel(item.payment_method)}<br />{item.reference || "—"}</td>
+      <td>{statusLabel(item.status)}{item.void_reason ? <p style={{ margin: "4px 0", ...muted }}>سبب الإلغاء: {item.void_reason}</p> : null}</td>
+      <td>
+        {voidAction ? (
+          <button type="button" style={{ ...inputStyle, width: "auto", margin: 0, color: "#9b2626", cursor: "pointer" }} onClick={() => onVoid(item)}>
+            إلغاء مع سبب
+          </button>
+        ) : "—"}
+      </td>
+    </tr>
+  );
+}
+
+function CashExpenseRecordsTable({
+  items,
+  canVoid,
+  onVoid,
+}: {
+  items: ExpenseItem[];
+  canVoid: boolean;
+  onVoid: (item: ExpenseItem) => void;
+}) {
+  return (
+    <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
+      <table style={tableStyle}>
+        <thead>
+          <tr style={{ background: "var(--muted, #f4f7f9)" }}>
+            <th style={{ padding: 11 }}>رقم / تاريخ</th><th>التصنيف والوصف</th><th>المبلغ</th><th>الدفع والمرجع</th><th>الحالة والأثر</th><th>الإجراء</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <CashExpenseItemRow key={item.id} item={item} canVoid={canVoid} onVoid={onVoid} />
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+function CashExpensePagination({
+  payload,
+  loading,
+  page,
+  onPageChange,
+}: {
+  payload: ExpensePayload | null;
+  loading: boolean;
+  page: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (!payload || (payload.offset <= 0 && !payload.has_more)) return null;
+  return (
+    <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
+      <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} disabled={loading || page === 0} onClick={() => onPageChange(Math.max(0, page - 1))}>
+        <ChevronRight size={15} style={{ verticalAlign: "middle" }} /> السابقة
+      </button>
+      <span style={muted}>تُطبع الصفحة المعروضة فقط، وتُطبق عليها الفلاتر الحالية.</span>
+      <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} disabled={loading || !payload.has_more} onClick={() => onPageChange(page + 1)}>
+        التالية <ChevronLeft size={15} style={{ verticalAlign: "middle" }} />
+      </button>
+    </div>
+  );
+}
+
+function CashExpensePrintSheet({ payload, filters }: { payload: ExpensePayload; filters: ExpenseFilters }) {
+  return (
+    <div className="operational-task-print">
+      <header>
+        <h1>سجل المصروفات الفعلية — متجر الأغبري</h1>
+        <p>وقت قراءة الخادم UTC: {payload.as_of_utc}</p>
+        <p>الفلاتر: {filters.search || "دون بحث"} | من {filters.from || "بلا حد"} إلى {filters.to || "بلا حد"} | الحالة: {filters.status}</p>
+        <p>عدد النتائج المطابقة للفلاتر: {payload.total_count} — المعروض في هذه الصفحة: {payload.items.length}</p>
+      </header>
+      {payload.summary_by_currency.length > 0 ? (
+        <table>
+          <thead><tr><th>العملة</th><th>المصروفات المسجلة</th><th>عدد المسجل</th><th>عدد الملغى</th></tr></thead>
+          <tbody>
+            {payload.summary_by_currency.map((summary) => (
+              <tr key={summary.currency}>
+                <td>{summary.currency}</td><td>{exactMoney(summary.posted_amount)}</td><td>{summary.posted_count}</td><td>{summary.void_count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+      <table>
+        <thead><tr><th>رقم المصروف</th><th>التاريخ</th><th>التصنيف</th><th>الوصف</th><th>المبلغ</th><th>العملة</th><th>طريقة الدفع</th><th>المرجع</th><th>الحالة</th><th>سبب الإلغاء</th></tr></thead>
+        <tbody>
+          {payload.items.map((item) => (
+            <tr key={item.id}>
+              <td>{item.expense_number}</td><td>{item.expense_date}</td><td>{item.category}</td><td>{item.description}</td>
+              <td>{exactMoney(item.amount)}</td><td>{item.currency}</td><td>{paymentLabel(item.payment_method)}</td>
+              <td>{item.reference || "—"}</td><td>{statusLabel(item.status)}</td><td>{item.void_reason || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <footer>المصدر: سجل المصروفات المحفوظ في قاعدة بيانات المتجر. التقرير لا يشمل صفحات أخرى من النتائج إلا عند طباعتها على حدة.</footer>
+    </div>
+  );
+}
+
 export function CashExpenseLedger() {
   const { user } = useAuth();
   const canManageFinance = Boolean(user?.roles.some((role) => ["admin", "manager", "accountant"].includes(role)));
@@ -185,140 +454,47 @@ export function CashExpenseLedger() {
 
   return (
     <section className="cash-expense-ledger" style={{ display: "grid", gap: 14, marginTop: 18 }} dir="rtl">
-      <header style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: 21, margin: 0 }}>سجل المصروفات الفعلية</h2>
-          <p style={muted}>يسجل النظام المصروفات الجديدة فقط. لا تُنشأ قيود تاريخية افتراضية، ولا تظهر الأرقام إلا من قاعدة البيانات.</p>
+      <CashExpenseHeader
+        loading={loading}
+        hasPayload={Boolean(payload)}
+        onPrint={printCurrentPage}
+        onRefresh={() => void load()}
+      />
+      <CashExpenseFeedback notice={notice} error={error} />
+      <CashExpenseEntryForm draft={draft} saving={saving} onDraftChange={updateDraft} onSubmit={submit} />
+      <CashExpenseFilters
+        draft={filterDraft}
+        payload={payload}
+        onUpdate={updateFilter}
+        onApply={(event) => {
+          event.preventDefault();
+          setPage(0);
+          setFilters({ ...filterDraft, search: filterDraft.search.trim() });
+        }}
+        onClear={() => {
+          const next: ExpenseFilters = { search: "", from: "", to: "", status: "all" };
+          setFilterDraft(next);
+          setFilters(next);
+          setPage(0);
+        }}
+      />
+      {loading ? <p role="status">جارٍ تحميل المصروفات من الخادم...</p> : null}
+      {!loading && payload && payload.items.length === 0 ? (
+        <div style={cardStyle}>
+          <strong>لا توجد مصروفات في السجل ضمن الفلاتر الحالية.</strong>
+          <p style={muted}>لا يتم إدخال سجلات افتراضية لملء الجدول.</p>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} onClick={printCurrentPage} disabled={!payload || loading}>
-            <Printer size={15} style={{ verticalAlign: "middle", marginLeft: 6 }} /> طباعة الصفحة المعروضة
-          </button>
-          <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} onClick={() => void load()} disabled={loading}>
-            <RefreshCw size={15} style={{ verticalAlign: "middle", marginLeft: 6 }} /> تحديث
-          </button>
-        </div>
-      </header>
-
-      {notice && <div role="status" style={{ ...cardStyle, borderColor: "#86c7a2" }}>{notice}</div>}
-      {error && <div role="alert" style={{ ...cardStyle, borderColor: "#e0a0a0", color: "#9b2626" }}>{error}</div>}
-
-      <form onSubmit={submit} style={cardStyle}>
-        <h3 style={{ margin: 0, fontSize: 17 }}>تسجيل مصروف جديد</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12 }}>
-          <label>التصنيف
-            <input style={inputStyle} value={draft.category} onChange={(e) => updateDraft("category", e.target.value)} minLength={2} maxLength={80} placeholder="مثال: إيجار أو نقل" required />
-          </label>
-          <label>المبلغ
-            <input style={inputStyle} dir="ltr" inputMode="decimal" value={draft.amount} onChange={(e) => updateDraft("amount", e.target.value)} placeholder="0.00" maxLength={24} required />
-          </label>
-          <label>العملة (3 أحرف)
-            <input style={inputStyle} dir="ltr" value={draft.currency} onChange={(e) => updateDraft("currency", e.target.value)} minLength={3} maxLength={3} required />
-          </label>
-          <label>طريقة الدفع
-            <select style={inputStyle} value={draft.payment_method} onChange={(e) => updateDraft("payment_method", e.target.value)} required>
-              <option value="cash">نقداً</option><option value="transfer">تحويل</option><option value="card">بطاقة</option><option value="other">أخرى</option>
-            </select>
-          </label>
-          <label>تاريخ المصروف
-            <input style={inputStyle} type="date" value={draft.expense_date} onChange={(e) => updateDraft("expense_date", e.target.value)} required />
-          </label>
-          <label>مرجع / رقم إيصال
-            <input style={inputStyle} value={draft.reference} onChange={(e) => updateDraft("reference", e.target.value)} maxLength={200} />
-          </label>
-        </div>
-        <label>الوصف
-          <textarea style={{ ...inputStyle, minHeight: 76, resize: "vertical" }} value={draft.description} onChange={(e) => updateDraft("description", e.target.value)} minLength={2} maxLength={600} required />
-        </label>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <button type="submit" disabled={saving} style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: saving ? "wait" : "pointer", fontWeight: 750 }}>
-            <Banknote size={15} style={{ verticalAlign: "middle", marginLeft: 6 }} /> {saving ? "جارٍ الحفظ..." : "حفظ المصروف"}
-          </button>
-          <span style={muted}><ShieldCheck size={14} style={{ verticalAlign: "middle", marginLeft: 4 }} /> الحفظ خادمي، ومنع التكرار والتدقيق مفعلان.</span>
-        </div>
-      </form>
-
-      <section style={cardStyle}>
-        <h3 style={{ margin: 0, fontSize: 17 }}>بحث وتصفية السجل</h3>
-        <form onSubmit={(event) => { event.preventDefault(); setPage(0); setFilters({ ...filterDraft, search: filterDraft.search.trim() }); }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10 }}>
-          <label>بحث بالتصنيف أو الوصف أو المرجع
-            <input style={inputStyle} value={filterDraft.search} onChange={(e) => updateFilter("search", e.target.value)} maxLength={200} />
-          </label>
-          <label>من تاريخ
-            <input style={inputStyle} type="date" value={filterDraft.from} onChange={(e) => updateFilter("from", e.target.value)} />
-          </label>
-          <label>إلى تاريخ
-            <input style={inputStyle} type="date" value={filterDraft.to} onChange={(e) => updateFilter("to", e.target.value)} />
-          </label>
-          <label>الحالة
-            <select style={inputStyle} value={filterDraft.status} onChange={(e) => updateFilter("status", e.target.value as ExpenseFilters["status"])}>
-              <option value="all">الكل</option><option value="posted">المسجل</option><option value="void">الملغى</option>
-            </select>
-          </label>
-          <div style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
-            <button type="submit" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }}>تطبيق الفلاتر</button>
-            <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} onClick={() => { const next = { search: "", from: "", to: "", status: "all" as const }; setFilterDraft(next); setFilters(next); setPage(0); }}>مسح الفلاتر</button>
-          </div>
-        </form>
-        {payload && <p style={muted}>وقت قراءة الخادم: {payload.as_of_utc} — عدد النتائج المطابقة للفلاتر: {payload.total_count.toLocaleString("ar-YE")} — الصفحة {Math.floor(payload.offset / payload.limit) + 1}</p>}
-        {payload && payload.summary_by_currency.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 10 }}>
-            {payload.summary_by_currency.map((summary) => (
-              <article key={summary.currency} style={{ ...cardStyle, gap: 4 }}>
-                <span style={muted}>المصروفات المسجلة — {summary.currency}</span>
-                <strong dir="ltr" style={{ fontSize: 22, fontVariantNumeric: "tabular-nums" }}>{exactMoney(summary.posted_amount)} {summary.currency}</strong>
-                <span style={muted}>{summary.posted_count} مسجل · {summary.void_count} ملغى (مستبعد من المجموع)</span>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {loading && <p role="status">جارٍ تحميل المصروفات من الخادم...</p>}
-      {!loading && payload && payload.items.length === 0 && <div style={cardStyle}><strong>لا توجد مصروفات في السجل ضمن الفلاتر الحالية.</strong><p style={muted}>لا يتم إدخال سجلات افتراضية لملء الجدول.</p></div>}
-      {!loading && payload && payload.items.length > 0 && (
-        <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-          <table style={tableStyle}>
-            <thead><tr style={{ background: "var(--muted, #f4f7f9)" }}>
-              <th style={{ padding: 11 }}>رقم / تاريخ</th><th>التصنيف والوصف</th><th>المبلغ</th><th>الدفع والمرجع</th><th>الحالة والأثر</th><th>الإجراء</th>
-            </tr></thead>
-            <tbody>{payload.items.map((item) => (
-              <tr key={item.id} style={{ borderTop: "1px solid var(--border, #e4eaee)" }}>
-                <td style={{ padding: 11, whiteSpace: "nowrap" }}>#{item.expense_number}<br />{formatDateShort(item.expense_date)}</td>
-                <td><strong>{item.category}</strong><p style={{ margin: "4px 0" }}>{item.description}</p></td>
-                <td dir="ltr" style={{ whiteSpace: "nowrap", textAlign: "right" }}>{exactMoney(item.amount)} {item.currency}</td>
-                <td>{paymentLabel(item.payment_method)}<br />{item.reference || "—"}</td>
-                <td>{statusLabel(item.status)}{item.void_reason && <p style={{ margin: "4px 0", ...muted }}>سبب الإلغاء: {item.void_reason}</p>}</td>
-                <td>{item.status === "posted" && canVoid ? <button type="button" style={{ ...inputStyle, width: "auto", margin: 0, color: "#9b2626", cursor: "pointer" }} onClick={() => void voidExpense(item)}>إلغاء مع سبب</button> : "—"}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </section>
-      )}
-
-      {payload && (payload.offset > 0 || payload.has_more) && (
-        <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-          <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} disabled={loading || page === 0} onClick={() => setPage((current) => Math.max(0,current-1))}><ChevronRight size={15} style={{ verticalAlign: "middle" }} /> السابقة</button>
-          <span style={muted}>تُطبع الصفحة المعروضة فقط، وتُطبق عليها الفلاتر الحالية.</span>
-          <button type="button" style={{ ...inputStyle, width: "auto", marginTop: 0, cursor: "pointer" }} disabled={loading || !payload.has_more} onClick={() => setPage((current) => current+1)}>التالية <ChevronLeft size={15} style={{ verticalAlign: "middle" }} /></button>
-        </div>
-      )}
-
-      {payload && (
-        <div className="operational-task-print">
-          <header><h1>سجل المصروفات الفعلية — متجر الأغبري</h1>
-            <p>وقت قراءة الخادم UTC: {payload.as_of_utc}</p>
-            <p>الفلاتر: {filters.search || "دون بحث"} | من {filters.from || "بلا حد"} إلى {filters.to || "بلا حد"} | الحالة: {filters.status}</p>
-            <p>عدد النتائج المطابقة للفلاتر: {payload.total_count} — المعروض في هذه الصفحة: {payload.items.length}</p>
-          </header>
-          {payload.summary_by_currency.length > 0 && <table><thead><tr><th>العملة</th><th>المصروفات المسجلة</th><th>عدد المسجل</th><th>عدد الملغى</th></tr></thead>
-            <tbody>{payload.summary_by_currency.map((s) => <tr key={s.currency}><td>{s.currency}</td><td>{exactMoney(s.posted_amount)}</td><td>{s.posted_count}</td><td>{s.void_count}</td></tr>)}</tbody></table>}
-          <table><thead><tr><th>رقم المصروف</th><th>التاريخ</th><th>التصنيف</th><th>الوصف</th><th>المبلغ</th><th>العملة</th><th>طريقة الدفع</th><th>المرجع</th><th>الحالة</th><th>سبب الإلغاء</th></tr></thead>
-            <tbody>{payload.items.map((item) => <tr key={item.id}><td>{item.expense_number}</td><td>{item.expense_date}</td><td>{item.category}</td><td>{item.description}</td><td>{exactMoney(item.amount)}</td><td>{item.currency}</td><td>{paymentLabel(item.payment_method)}</td><td>{item.reference || "—"}</td><td>{statusLabel(item.status)}</td><td>{item.void_reason || "—"}</td></tr>)}</tbody>
-          </table>
-          <footer>المصدر: سجل المصروفات المحفوظ في قاعدة بيانات المتجر. التقرير لا يشمل صفحات أخرى من النتائج إلا عند طباعتها على حدة.</footer>
-        </div>
-      )}
+      ) : null}
+      {!loading && payload && payload.items.length > 0 ? (
+        <CashExpenseRecordsTable items={payload.items} canVoid={canVoid} onVoid={(item) => void voidExpense(item)} />
+      ) : null}
+      <CashExpensePagination
+        payload={payload}
+        loading={loading}
+        page={page}
+        onPageChange={setPage}
+      />
+      {payload ? <CashExpensePrintSheet payload={payload} filters={filters} /> : null}
     </section>
-  );
+  );;
 }
