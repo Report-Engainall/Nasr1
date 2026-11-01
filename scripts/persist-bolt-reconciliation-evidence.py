@@ -83,7 +83,7 @@ def run_self_test() -> int:
     update_source_ledger_test_evidence(ledger_row, sample, "self-test")
     assert ledger_row["status"] == "TESTED_SOURCE_ARCHIVE"
     assert ledger_row["source_blob_sha"] == "blob"
-    assert "IDENTICAL_CONTENT=2" in ledger_row["reason"]
+    assert "identical=2" in ledger_row["reason"]
     assert "self-test" in ledger_row["test_command"]
     print("PERSISTENCE_SELF_TEST PASS")
     return 0
@@ -283,7 +283,7 @@ def update_current_execution_state_headers(state: str) -> str:
     state = re.sub(
         r"^\*\*آخر SHA حي فُحص قبل دفعة الإقلاع:\*\*.*$",
         "**آخر SHA كود اجتاز CI كاملًا:** "
-        "\`bb08320b690203f7f9b1ce65287e389e847c2dea\` — "
+        "`bb08320b690203f7f9b1ce65287e389e847c2dea` — "
         "[commit](https://github.com/Report-Engainall/Nasr1/commit/"
         "bb08320b690203f7f9b1ce65287e389e847c2dea).",
         state,
@@ -293,7 +293,7 @@ def update_current_execution_state_headers(state: str) -> str:
         r"^\*\*CI المطابق:\*\*.*$",
         "**CI المطابق للكود:** [Actions 39154450426 — SUCCESS]"
         "(https://github.com/Report-Engainall/Nasr1/actions/runs/39154450426), "
-        "SHA \`bb08320b690203f7f9b1ce65287e389e847c2dea\`; unit, PostgreSQL 17 RLS "
+        "SHA `bb08320b690203f7f9b1ce65287e389e847c2dea`; unit, PostgreSQL 17 RLS "
         "acceptance, lint, build, preview/dev smoke PASS.",
         state,
         flags=re.M,
