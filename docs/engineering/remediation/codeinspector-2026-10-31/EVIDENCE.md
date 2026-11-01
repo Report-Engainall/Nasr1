@@ -222,3 +222,33 @@ Original CodeInspector scan SHA UNKNOWN. Main SHA 46f2fce34c09f64284fdbbe4182bd0
 - Original TS0003 finding `CI31-TS0003-bc02df01-1` for EvidencePassport is IMPLEMENTED_PENDING_FRESH_SCAN.
 - Main commit post-merge validation runs 41265344644 / 41265344647 / 41265344638 were still in progress at the checkpoint; poll current-head results before final status.
 
+
+
+## Live execution evidence — P2 batches 08–10 — 2026-11-01
+
+- Main SHA: `06aaccb0f8172f3f1b682c38885650ce136d0b90`.
+- PR #349 merge: `15eb044c0651dafc7ef279d6253431e777d5f097`; exact Core `41264989329` PASS, Secret Scan `41264989609` PASS, P2 Playwright `41264989433` PASS including local Supabase persistence/tenant isolation; hosted tenant E2E SKIPPED.
+- PR #352 merge: `06aaccb0f8172f3f1b682c38885650ce136d0b90`; exact Core `41265432096` PASS, Secret Scan `41265432192` PASS, P2 Playwright `41265432048` PASS including local Supabase persistence/tenant isolation; hosted tenant E2E SKIPPED.
+- Post-merge `main` workflows on `06aaccb`: Core `41265827008` PASS; Secret Scan `41265827112` PASS; P2 Playwright `41265826982` PASS for public and local authenticated acceptance; hosted tenant E2E SKIPPED; one-main-branch cleanup `41265827092` PASS.
+- PR #353 source commit `b3d7284bcf1b5cf380affca14a58347e79a5c8b4`, test commit `55e30e0af477e043086f4eb493a67b126504dd6f`. Exact-head checks pending at snapshot time; do not mark finding closed.
+- PR #350 exact P1 head `b07bccf09a4c577fdc9b268dfbff8153b63bd062`: P1 targeted TypeScript `41266134980` PASS, Gitleaks `41266134962` PASS, P3 tooling `41266134976` PASS; Core `41266135010` and P2 Playwright `41266134959` IN_PROGRESS.
+- PR #351 current head `318fb401ff14eb7192a769f25680d2a12b932874`: no exact-head full workflow set observed yet; prior-head checks remain non-transferable.
+- `ORIGINAL_SCAN_SHA=UNKNOWN`; fresh CodeInspector run remains PENDING. The 239-row manifest remains the authoritative historical baseline; do not equate CI with scanner verification.
+
+
+## P2 batch 10 exact-head completion — 2026-11-01
+
+- PR #353 exact tested head: `cb9ef2472ab09b940a9fd097b315ccde3273a5fe`.
+- Core `41266413355`: SUCCESS (unit tests, focused TypeScript, PostgreSQL 17 core acceptance, lint and build).
+- P2 Playwright `41266413312`: SUCCESS; local Supabase authenticated acceptance and local Chromium business paths completed. Hosted tenant E2E SKIPPED/BLOCKED_EXTERNAL, not PASS.
+- Secret Scan `41266414257`: SUCCESS.
+- Finding `CI31-TS0003-469733ea-1` moved from `IN_PROGRESS_PENDING_EXACT_SHA_TESTS` to `IMPLEMENTED_PENDING_FRESH_SCAN`; no finding is CLOSED pending official CodeInspector confirmation.
+- P2 totals after this implementation: 1 TS0002 pending scan; 25 TS0003 pending scan; 79 active TS0003 open; 10 archived scope-review; TS0010 not reproduced/not closed.
+
+
+## P2 batch 11 merge evidence — 2026-11-01
+- PR #354 merge commit/current main: `c241f189c6e0c52c18728e27a7395c77f01d5303`.
+- Tested head `a5c4409325d3c4d09a91d701b340ebd32762f6bf`.
+- Core `41266756061` SUCCESS; P2 Playwright `41266756088` SUCCESS including local Supabase; Secret Scan `41266756046` SUCCESS.
+- Hosted external tenant E2E SKIPPED; not PASS.
+- Finding `CI31-TS0003-4b8527a7-1` moved to IMPLEMENTED_PENDING_FRESH_SCAN; not CLOSED.
