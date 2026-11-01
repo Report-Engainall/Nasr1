@@ -5515,6 +5515,25 @@
         "records": 26,
         "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
         "fresh_codeinspector_scan": "PENDING"
+      },
+      "pending_pr_391": {
+        "head": "723f18742fa0e1456b1a13f175019a9f1775255c",
+        "base": "806799c17c633f714296e409e805024726f3c78d",
+        "state": "READY_FOR_REVIEW_UNMERGED",
+        "independent_review_requested": "adnanabderab2016-sys",
+        "independent_review_status": "PENDING",
+        "verification": {
+          "core_run": 41328599685,
+          "gitleaks_run": 41328599680,
+          "p3_javascript_python_run": 41328599684,
+          "import_finalizer_postgres17_run": 41328599686,
+          "p2_playwright_run": 41328599676,
+          "public_ui_smoke": "SUCCESS",
+          "local_supabase_order_tenant_isolation": "SUCCESS",
+          "hosted_external_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
+          "coderabbit": "SKIPPED_PROVIDER_QUOTA",
+          "purchase_receipt_concurrency": "SUCCESS_EXACTLY_ONE_CANONICAL_RECEIPT_AND_REPLAY"
+        }
       }
     },
     "verification": {
