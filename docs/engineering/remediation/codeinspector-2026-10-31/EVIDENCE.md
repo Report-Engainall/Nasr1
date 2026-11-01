@@ -1,3 +1,15 @@
+## Current main checkpoint — 2026-11-01T19:24Z
+
+- Current main: `91728da2c76933dbf2c79eceac5a6865483ea5a4` (PR #399 documentation-only merge; parent source-code SHA `0dc6f75d3767fe15d472ed28284332273061bb81`).
+- PR #396 merged at `f9daf09d1e5aa152aaefa4ac628c6074d4721fb0`; #397 at `eed901bb4802fae9ad8c36407344c7199a2ac64d`; #398 at `0dc6f75d3767fe15d472ed28284332273061bb81`; #399 at `91728da2c76933dbf2c79eceac5a6865483ea5a4`.
+- Main-head CI run 41341535268: unit tests, focused P2 TypeScript, PostgreSQL 17 migrations and targeted finance/inventory/import/export/tenant-concurrency/backup tests, lint and build completed SUCCESS. Production preview smoke was IN_PROGRESS at last poll; dev smoke and Chromium price visibility acceptance were PENDING. The overall Core run was not yet terminal.
+- Full-history Gitleaks run 41341535276 SUCCESS; P1 targeted TypeScript run 41341535316 SUCCESS; branch cleanup run 41341535239 SUCCESS.
+- The supplied 118-finding CodeInspector excerpt is timestamped 17:38:11 UTC, before merges #396–#399; its input SHA is UNKNOWN and per-finding rows were not supplied. Keep it separate from the recovered 239-row manifest.
+- Fresh official CodeInspector scan on exact main `91728da2c76933dbf2c79eceac5a6865483ea5a4` has NOT been run; no findings are marked CLOSED based on CI.
+- PR #351 remains OPEN/unmerged, divergent 73 ahead / 42 behind; do not merge wholesale.
+
+---
+
 ## Current integration snapshot — 2026-11-01T19:17Z
 
 - Current source main: 0dc6f75d3767fe15d472ed28284332273061bb81.
