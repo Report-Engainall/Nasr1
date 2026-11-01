@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Browser, type Page } from "@playwright/test";
 import postgres from "postgres";
 
 test.describe.configure({ retries: 0 });
@@ -134,17 +134,204 @@ async function createPersistedOrder(page: Page): Promise<{ orderNumber: string; 
   return { orderNumber, detailPath };
 }
 
-test("catalog → cart → order → refresh, then cross-organization read denial", async ({ browser }) => {
+
+type OrderAcceptanceDatabase = ReturnType<typeof postgres>;
+
+async function approveCustomerOrderAsManager(
+  page: Page,
+  email: string,
+  password: string,
+  orderNumber: string,
+): Promise<void> {
+  await signIn(page, email, password);
+  await page.goto("/admin/orders");
+  await expect(page.getByRole("heading", { name: "الطلبات", exact: true })).toBeVisible({ timeout: 30_000 });
+  const orderRow = page.getByRole("row").filter({ hasText: orderNumber });
+  await expect(orderRow, "The order submitted by customer A must be returned by the staff order query in the same tenant.").toBeVisible({ timeout: 30_000 });
+  await orderRow.getByRole("button", { name: "تفاصيل", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "الطلب #" + orderNumber, exact: true })).toBeVisible({ timeout: 30_000 });
+
+  const approve = page.getByRole("button", { name: "اعتماد الكميات وتأكيد الطلب", exact: true });
+  await expect(approve, "Staff must use the controlled transactional order-review action rather than a direct optimistic status edit.").toBeEnabled({ timeout: 30_000 });
+  await approve.click();
+  await expect(page.getByText(/تم اعتماد الطلب ذريًا/)).toBeVisible({ timeout: 45_000 });
+}
+
+async function assertOrderPersistenceAndInventory(
+  db: OrderAcceptanceDatabase,
+  orderId: string,
+): Promise<string> {
+  const orders = await db.unsafe(
+    "select id::text,status,total_items,idempotency_key,created_by::text,organization_id::text,payment_request_status from public.orders where id=$1::uuid",
+    [orderId],
+  );
+  expect(orders, "Exactly one durable order row must exist for the browser-created UUID.").toHaveLength(1);
+  expect(orders[0].status).toBe("confirmed");
+  expect(orders[0].idempotency_key).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
+  expect(orders[0].payment_request_status).toBe("requested");
+
+  const lines = await db.unsafe(
+    "select count(*)::int as line_count, count(distinct product_id)::int as distinct_products, coalesce(sum(quantity),0)::numeric::text as total_quantity from public.order_items where order_id=$1::uuid",
+    [orderId],
+  );
+  expect(lines[0].line_count).toBe(1);
+  expect(lines[0].distinct_products).toBe(1);
+  expect(Number(lines[0].total_quantity)).toBeGreaterThan(0);
+
+  const reservations = await db.unsafe(
+    "select count(*)::int as movement_count, coalesce(sum(quantity),0)::numeric::text as total_quantity from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type='reserve'",
+    [orderId],
+  );
+  expect(reservations[0].movement_count).toBeGreaterThan(0);
+  expect(Number(reservations[0].total_quantity)).toBeCloseTo(Number(lines[0].total_quantity), 3);
+
+  const invoices = await db.unsafe(
+    "select count(*)::int as count from public.customer_invoices where order_id=$1::uuid",
+    [orderId],
+  );
+  expect(invoices[0].count, "Confirmation must issue exactly one invoice for the same order.").toBe(1);
+
+  const carts = await db.unsafe(
+    "select count(*)::int as count from public.customer_carts c join public.orders o on o.organization_id=c.organization_id and o.created_by=c.profile_id where o.id=$1::uuid and c.status='checked_out'",
+    [orderId],
+  );
+  expect(carts[0].count, "The source persistent customer cart must be atomically converted after order lines are saved.").toBe(1);
+
+  const confirmedHistory = await db.unsafe(
+    "select count(*)::int as count from public.order_status_history where order_id=$1::uuid and to_status='confirmed'",
+    [orderId],
+  );
+  expect(confirmedHistory[0].count).toBe(1);
+
+  const approvalAudit = await db.unsafe(
+    "select count(*)::int as count from public.audit_logs where entity_type='order' and entity_id=$1::uuid and action='order.review.approved'",
+    [orderId],
+  );
+  expect(approvalAudit[0].count).toBe(1);
+
+  const events = await db.unsafe(
+    "select id::text,event_type,status,idempotency_key from public.outbox_events where organization_id=(select organization_id from public.orders where id=$1::uuid) and aggregate_id=$1::uuid and event_type='OrderCreated'",
+    [orderId],
+  );
+  expect(events, "The same browser order must enqueue exactly one OrderCreated business event.").toHaveLength(1);
+  expect(events[0].idempotency_key).toBe("order-created:" + orderId);
+  return events[0].id;
+}
+
+async function assertOutboxDeliveryIsExactlyOnce(
+  db: OrderAcceptanceDatabase,
+  orderId: string,
+  eventId: string,
+  managerEmail: string,
+  workerName: string,
+): Promise<void> {
+  const claimed = await db.unsafe(
+    "select id::text from public.claim_outbox_events($1::text,10,300,$2::uuid)",
+    [workerName, eventId],
+  );
+  expect(claimed, "The local trusted worker must claim the exact order event before processing it.").toHaveLength(1);
+
+  const processed = await db.unsafe(
+    "select public.process_outbox_event($1::uuid,$2::text) as result",
+    [eventId, workerName],
+  );
+  expect(processed[0].result.status).toBe("processed");
+  expect(Number(processed[0].result.notifications_created)).toBeGreaterThan(0);
+
+  const notificationCounts = await db.unsafe(
+    "select n.profile_id::text,count(*)::int as count from public.notifications n join public.orders o on o.organization_id=n.organization_id where o.id=$1::uuid and n.type='order' and n.title='طلب جديد' and n.body like '%'||o.order_number||'%' group by n.profile_id",
+    [orderId],
+  );
+  expect(notificationCounts.length, "The accepted order must notify at least one authorized staff recipient.").toBeGreaterThan(0);
+  expect(notificationCounts.every((row) => row.count === 1), "Each staff recipient must get at most one notification for this order.").toBe(true);
+
+  const managerNotifications = await db.unsafe(
+    "select n.id::text from public.notifications n join public.profiles p on p.id=n.profile_id join public.orders o on o.organization_id=n.organization_id where o.id=$1::uuid and p.email=$2 and n.type='order' and n.title='طلب جديد' and n.body like '%'||o.order_number||'%'",
+    [orderId, managerEmail],
+  );
+  expect(managerNotifications, "The same-tenant manager must receive the order-created notification.").toHaveLength(1);
+
+  const duplicateProcess = await db.unsafe(
+    "select public.process_outbox_event($1::uuid,$2::text) as result",
+    [eventId, workerName],
+  );
+  expect(duplicateProcess[0].result.status).toBe("already_processed");
+
+  const deliveryReceipts = await db.unsafe(
+    "select count(*)::int as count from public.outbox_event_deliveries where event_id=$1::uuid and consumer_key='in_app_order_created'",
+    [eventId],
+  );
+  expect(deliveryReceipts[0].count).toBe(1);
+
+  const notificationCountsAfterReplay = await db.unsafe(
+    "select n.profile_id::text,count(*)::int as count from public.notifications n join public.orders o on o.organization_id=n.organization_id where o.id=$1::uuid and n.type='order' and n.title='طلب جديد' and n.body like '%'||o.order_number||'%' group by n.profile_id",
+    [orderId],
+  );
+  expect(notificationCountsAfterReplay).toEqual(notificationCounts);
+}
+
+function resolveOrderId(detailPath: string): string {
+  const orderId = detailPath.split("/").filter(Boolean).at(-1);
+  if (!orderId || !/^[0-9a-f-]{36}$/i.test(orderId)) {
+    throw new Error("Could not resolve the persisted order UUID from the customer order detail route.");
+  }
+  return orderId;
+}
+
+async function verifyIsolatedOrderDatabaseProof(
+  databaseUrl: string,
+  detailPath: string,
+  managerEmail: string,
+): Promise<void> {
+  const databaseHost = new URL(databaseUrl).hostname;
+  if (databaseHost !== "localhost" && databaseHost !== "127.0.0.1") {
+    throw new Error("Direct SQL acceptance is allowed only against the isolated loopback PostgreSQL fixture.");
+  }
+
+  const orderId = resolveOrderId(detailPath);
+  const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
+  try {
+    const eventId = await assertOrderPersistenceAndInventory(db, orderId);
+    const workerName = "p2-browser-e2e-" + (process.env.GITHUB_RUN_ID ?? "local");
+    await assertOutboxDeliveryIsExactlyOnce(db, orderId, eventId, managerEmail, workerName);
+  } finally {
+    await db.end({ timeout: 5 });
+  }
+}
+
+type OrderAcceptanceCredentials = {
+  emailA: string;
+  passwordA: string;
+  emailB: string;
+  passwordB: string;
+  managerEmail?: string;
+  managerPassword?: string;
+};
+
+type OrderAcceptanceProof = {
+  managerTransitionProven: boolean;
+  databaseReadbackProven: boolean;
+};
+
+function requireOrderAcceptanceCredentials(): OrderAcceptanceCredentials {
   const emailA = process.env.E2E_EMAIL;
   const passwordA = process.env.E2E_PASSWORD;
   const emailB = process.env.E2E_EMAIL_B;
   const passwordB = process.env.E2E_PASSWORD_B;
-  const managerEmail = process.env.E2E_MANAGER_EMAIL;
-  const managerPassword = process.env.E2E_MANAGER_PASSWORD;
   if (!emailA || !passwordA || !emailB || !passwordB) {
     throw new Error("Both dedicated customer accounts are required. Runtime E2E must be recorded NOT RUN/BLOCKED_EXTERNAL when secrets are absent, never silently skipped.");
   }
+  return {
+    emailA,
+    passwordA,
+    emailB,
+    passwordB,
+    managerEmail: process.env.E2E_MANAGER_EMAIL,
+    managerPassword: process.env.E2E_MANAGER_PASSWORD,
+  };
+}
 
+async function createOrderAcceptanceContexts(browser: Browser) {
   const contextA = await browser.newContext();
   const pageA = await contextA.newPage();
   const diagnosticsA = captureBrowserDiagnostics(pageA);
@@ -154,221 +341,154 @@ test("catalog → cart → order → refresh, then cross-organization read denia
   const managerContext = await browser.newContext();
   const managerPage = await managerContext.newPage();
   const managerDiagnostics = captureBrowserDiagnostics(managerPage);
+  return {
+    contextA,
+    pageA,
+    diagnosticsA,
+    contextB,
+    pageB,
+    diagnosticsB,
+    managerContext,
+    managerPage,
+    managerDiagnostics,
+  };
+}
 
+async function attachMissingManagerProofBoundary(): Promise<void> {
+  await test.info().attach("admin-status-readback-proof-boundary.json", {
+    body: JSON.stringify({
+      result: "NOT_RUN / BLOCKED_EXTERNAL",
+      missing: ["E2E_MANAGER_EMAIL", "E2E_MANAGER_PASSWORD"],
+      detail: "Hosted customer/tenant E2E credentials do not provision a manager identity; the separate isolated-local harness is the required proof for the admin-to-customer status transition.",
+      sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+    }),
+    contentType: "application/json",
+  });
+}
+
+async function attachMissingDatabaseProofBoundary(): Promise<void> {
+  await test.info().attach("order-database-proof-boundary.json", {
+    body: JSON.stringify({
+      result: "NOT_RUN / BLOCKED_EXTERNAL",
+      missing: "TEST_DATABASE_URL for an authorized direct connection to the isolated PostgreSQL fixture",
+      sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+    }),
+    contentType: "application/json",
+  });
+}
+
+async function completeManagerApprovalProof(
+  managerPage: Page,
+  customerPage: Page,
+  order: { orderNumber: string; detailPath: string },
+  managerEmail?: string,
+  managerPassword?: string,
+): Promise<OrderAcceptanceProof> {
+  if (!managerEmail || !managerPassword) {
+    if (process.env.TEST_DATABASE_URL) {
+      throw new Error("The local PostgreSQL harness must provide its seeded E2E_MANAGER_EMAIL and E2E_MANAGER_PASSWORD for the integrated admin transition.");
+    }
+    await attachMissingManagerProofBoundary();
+    return { managerTransitionProven: false, databaseReadbackProven: false };
+  }
+
+  await test.step("manager: approve the persisted customer order in the authorized admin workspace", async () => {
+    await approveCustomerOrderAsManager(managerPage, managerEmail, managerPassword, order.orderNumber);
+  });
+  await test.step("customer A: reread the saved status after manager approval", async () => {
+    const refresh = customerPage.getByRole("button", { name: "تحديث حالة الطلب من الخادم", exact: true });
+    await expect(refresh).toBeVisible();
+    await refresh.click();
+    await expect(customerPage.getByText(/الحالة:\s*مؤكد/)).toBeVisible({ timeout: 30_000 });
+    await expect(customerPage.getByText("مؤكد", { exact: true })).toBeVisible();
+  });
+
+  if (!process.env.TEST_DATABASE_URL) {
+    await attachMissingDatabaseProofBoundary();
+    return { managerTransitionProven: true, databaseReadbackProven: false };
+  }
+
+  await test.step("isolated PostgreSQL: assert the same browser order, invoice, reservation, cart and status history", async () => {
+    await verifyIsolatedOrderDatabaseProof(process.env.TEST_DATABASE_URL!, order.detailPath, managerEmail);
+  });
+  return { managerTransitionProven: true, databaseReadbackProven: true };
+}
+
+async function assertForeignTenantOrderDenial(
+  pageB: Page,
+  credentials: OrderAcceptanceCredentials,
+  order: { orderNumber: string; detailPath: string },
+): Promise<void> {
+  await test.step("customer B: a separate organization's session cannot open customer A's order", async () => {
+    await signIn(pageB, credentials.emailB, credentials.passwordB);
+    await pageB.goto(order.detailPath);
+    await expect(pageB.getByText("الطلب غير موجود أو لا تملك صلاحية عرضه.", { exact: false })).toBeVisible({ timeout: 30_000 });
+    await expect(pageB.getByText(order.orderNumber, { exact: true })).toHaveCount(0);
+  });
+}
+
+function assertOrderBrowserDiagnostics(contexts: Awaited<ReturnType<typeof createOrderAcceptanceContexts>>): void {
+  expect(contexts.diagnosticsA.pageErrors, "Uncaught browser exceptions for customer A.").toEqual([]);
+  expect(contexts.diagnosticsA.criticalHttpErrors, "Customer A authentication/order API failures.").toEqual([]);
+  expect(contexts.diagnosticsB.pageErrors, "Uncaught browser exceptions for customer B.").toEqual([]);
+  expect(contexts.diagnosticsB.criticalHttpErrors, "Customer B authentication/order API failures.").toEqual([]);
+  expect(contexts.managerDiagnostics.pageErrors, "Uncaught browser exceptions in the authorized admin workflow.").toEqual([]);
+  expect(contexts.managerDiagnostics.criticalHttpErrors, "Admin order read/review RPC failures.").toEqual([]);
+}
+
+async function attachOrderBrowserProof(
+  pageA: Page,
+  order: { orderNumber: string; detailPath: string },
+  proof: OrderAcceptanceProof,
+): Promise<void> {
+  await test.info().attach("p2-browser-proof.json", {
+    body: JSON.stringify({
+      result: "BROWSER_PROVEN",
+      sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
+      criticalPath: "catalog -> cart -> server-validated order -> admin transactional approval -> customer server readback",
+      orderNumber: order.orderNumber,
+      resourcePath: order.detailPath,
+      customerOrderPrintInvoked: await pageA.evaluate(() => document.documentElement.dataset.e2ePrintInvoked === "true"),
+      customerOrderPrintExcludesInternalAndFinancialFields: true,
+      adminTransition: proof.managerTransitionProven ? "pending -> confirmed" : "NOT_RUN / BLOCKED_EXTERNAL",
+      customerReadbackAfterAdminTransition: proof.managerTransitionProven,
+      sameOrderDatabaseReadback: proof.databaseReadbackProven,
+      outboxNotificationExactlyOnceProven: proof.databaseReadbackProven,
+      tenantBVisibleOrderNumber: false,
+    }),
+    contentType: "application/json",
+  });
+}
+
+async function runOrderTenantIsolationAcceptance(browser: Browser): Promise<void> {
+  const credentials = requireOrderAcceptanceCredentials();
+  const contexts = await createOrderAcceptanceContexts(browser);
   try {
     await test.step("customer A: authenticate and create order through the real catalog and cart", async () => {
-      await signIn(pageA, emailA, passwordA);
+      await signIn(contexts.pageA, credentials.emailA, credentials.passwordA);
     });
     const order = await test.step("customer A: persist order and verify it after a browser refresh", async () => {
-      return createPersistedOrder(pageA);
+      return createPersistedOrder(contexts.pageA);
     });
-
-    let managerTransitionProven = false;
-    let databaseReadbackProven = false;
-    if (managerEmail && managerPassword) {
-      await test.step("manager: approve the persisted customer order in the authorized admin workspace", async () => {
-        await signIn(managerPage, managerEmail, managerPassword);
-        await managerPage.goto("/admin/orders");
-        await expect(managerPage.getByRole("heading", { name: "الطلبات", exact: true })).toBeVisible({ timeout: 30_000 });
-        const orderRow = managerPage.getByRole("row").filter({ hasText: order.orderNumber });
-        await expect(orderRow, "The order submitted by customer A must be returned by the staff order query in the same tenant.").toBeVisible({ timeout: 30_000 });
-        await orderRow.getByRole("button", { name: "تفاصيل", exact: true }).click();
-        await expect(managerPage.getByRole("heading", { name: "الطلب #" + order.orderNumber, exact: true })).toBeVisible({ timeout: 30_000 });
-
-        const approve = managerPage.getByRole("button", { name: "اعتماد الكميات وتأكيد الطلب", exact: true });
-        await expect(approve, "Staff must use the controlled transactional order-review action rather than a direct optimistic status edit.").toBeEnabled({ timeout: 30_000 });
-        await approve.click();
-        await expect(managerPage.getByText(/تم اعتماد الطلب ذريًا/)).toBeVisible({ timeout: 45_000 });
-      });
-      managerTransitionProven = true;
-
-      await test.step("customer A: reread the saved status after manager approval", async () => {
-        const refresh = pageA.getByRole("button", { name: "تحديث حالة الطلب من الخادم", exact: true });
-        await expect(refresh).toBeVisible();
-        await refresh.click();
-        await expect(pageA.getByText(/الحالة:\s*مؤكد/)).toBeVisible({ timeout: 30_000 });
-        await expect(pageA.getByText("مؤكد", { exact: true })).toBeVisible();
-      });
-
-      if (process.env.TEST_DATABASE_URL) {
-        await test.step("isolated PostgreSQL: assert the same browser order, invoice, reservation, cart and status history", async () => {
-          const databaseUrl = process.env.TEST_DATABASE_URL!;
-          const databaseHost = new URL(databaseUrl).hostname;
-          if (!["localhost", "127.0.0.1"].includes(databaseHost)) {
-            throw new Error("Direct SQL acceptance is allowed only against the isolated loopback PostgreSQL fixture.");
-          }
-          const orderId = order.detailPath.split("/").filter(Boolean).at(-1);
-          if (!orderId || !/^[0-9a-f-]{36}$/i.test(orderId)) {
-            throw new Error("Could not resolve the persisted order UUID from the customer order detail route.");
-          }
-
-          const db = postgres(databaseUrl, { max: 1, prepare: false, idle_timeout: 5 });
-          try {
-            const orders = await db.unsafe(
-              "select id::text,status,total_items,idempotency_key,created_by::text,organization_id::text,payment_request_status from public.orders where id=$1::uuid",
-              [orderId],
-            );
-            expect(orders, "Exactly one durable order row must exist for the browser-created UUID.").toHaveLength(1);
-            expect(orders[0].status).toBe("confirmed");
-            expect(orders[0].idempotency_key).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
-            expect(orders[0].payment_request_status).toBe("requested");
-
-            const lines = await db.unsafe(
-              "select count(*)::int as line_count, count(distinct product_id)::int as distinct_products, coalesce(sum(quantity),0)::numeric::text as total_quantity from public.order_items where order_id=$1::uuid",
-              [orderId],
-            );
-            expect(lines[0].line_count).toBe(1);
-            expect(lines[0].distinct_products).toBe(1);
-            expect(Number(lines[0].total_quantity)).toBeGreaterThan(0);
-
-            const reservations = await db.unsafe(
-              "select count(*)::int as movement_count, coalesce(sum(quantity),0)::numeric::text as total_quantity from public.inventory_movements where reference_type='order' and reference_id=$1::uuid and movement_type='reserve'",
-              [orderId],
-            );
-            expect(reservations[0].movement_count).toBeGreaterThan(0);
-            expect(Number(reservations[0].total_quantity)).toBeCloseTo(Number(lines[0].total_quantity), 3);
-
-            const invoices = await db.unsafe(
-              "select count(*)::int as count from public.customer_invoices where order_id=$1::uuid",
-              [orderId],
-            );
-            expect(invoices[0].count, "Confirmation must issue exactly one invoice for the same order.").toBe(1);
-
-            const carts = await db.unsafe(
-              "select count(*)::int as count from public.customer_carts c join public.orders o on o.organization_id=c.organization_id and o.created_by=c.profile_id where o.id=$1::uuid and c.status='checked_out'",
-              [orderId],
-            );
-            expect(carts[0].count, "The source persistent customer cart must be atomically converted after order lines are saved.").toBe(1);
-
-            const confirmedHistory = await db.unsafe(
-              "select count(*)::int as count from public.order_status_history where order_id=$1::uuid and to_status='confirmed'",
-              [orderId],
-            );
-            expect(confirmedHistory[0].count).toBe(1);
-
-            const approvalAudit = await db.unsafe(
-              "select count(*)::int as count from public.audit_logs where entity_type='order' and entity_id=$1::uuid and action='order.review.approved'",
-              [orderId],
-            );
-            expect(approvalAudit[0].count).toBe(1);
-
-            const events = await db.unsafe(
-              "select id::text,event_type,status,idempotency_key from public.outbox_events where organization_id=(select organization_id from public.orders where id=$1::uuid) and aggregate_id=$1::uuid and event_type='OrderCreated'",
-              [orderId],
-            );
-            expect(events, "The same browser order must enqueue exactly one OrderCreated business event.").toHaveLength(1);
-            expect(events[0].idempotency_key).toBe("order-created:" + orderId);
-
-            const workerName = "p2-browser-e2e-" + (process.env.GITHUB_RUN_ID ?? "local");
-            const claimed = await db.unsafe(
-              "select id::text from public.claim_outbox_events($1::text,10,300,$2::uuid)",
-              [workerName, events[0].id],
-            );
-            expect(claimed, "The local trusted worker must claim the exact order event before processing it.").toHaveLength(1);
-
-            const processed = await db.unsafe(
-              "select public.process_outbox_event($1::uuid,$2::text) as result",
-              [events[0].id, workerName],
-            );
-            expect(processed[0].result.status).toBe("processed");
-            expect(Number(processed[0].result.notifications_created)).toBeGreaterThan(0);
-
-            const notificationCounts = await db.unsafe(
-              "select n.profile_id::text,count(*)::int as count from public.notifications n join public.orders o on o.organization_id=n.organization_id where o.id=$1::uuid and n.type='order' and n.title='طلب جديد' and n.body like '%'||o.order_number||'%' group by n.profile_id",
-              [orderId],
-            );
-            expect(notificationCounts.length, "The accepted order must notify at least one authorized staff recipient.").toBeGreaterThan(0);
-            expect(notificationCounts.every((row) => row.count === 1), "Each staff recipient must get at most one notification for this order.").toBe(true);
-
-            const managerNotifications = await db.unsafe(
-              "select n.id::text from public.notifications n join public.profiles p on p.id=n.profile_id join public.orders o on o.organization_id=n.organization_id where o.id=$1::uuid and p.email=$2 and n.type='order' and n.title='طلب جديد' and n.body like '%'||o.order_number||'%'",
-              [orderId, managerEmail!],
-            );
-            expect(managerNotifications, "The same-tenant manager must receive the order-created notification.").toHaveLength(1);
-
-            const duplicateProcess = await db.unsafe(
-              "select public.process_outbox_event($1::uuid,$2::text) as result",
-              [events[0].id, workerName],
-            );
-            expect(duplicateProcess[0].result.status).toBe("already_processed");
-
-            const deliveryReceipts = await db.unsafe(
-              "select count(*)::int as count from public.outbox_event_deliveries where event_id=$1::uuid and consumer_key='in_app_order_created'",
-              [events[0].id],
-            );
-            expect(deliveryReceipts[0].count).toBe(1);
-
-            const notificationCountsAfterReplay = await db.unsafe(
-              "select n.profile_id::text,count(*)::int as count from public.notifications n join public.orders o on o.organization_id=n.organization_id where o.id=$1::uuid and n.type='order' and n.title='طلب جديد' and n.body like '%'||o.order_number||'%' group by n.profile_id",
-              [orderId],
-            );
-            expect(notificationCountsAfterReplay).toEqual(notificationCounts);
-            databaseReadbackProven = true;
-          } finally {
-            await db.end({ timeout: 5 });
-          }
-        });
-      } else {
-        await test.info().attach("order-database-proof-boundary.json", {
-          body: JSON.stringify({
-            result: "NOT_RUN / BLOCKED_EXTERNAL",
-            missing: "TEST_DATABASE_URL for an authorized direct connection to the isolated PostgreSQL fixture",
-            sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
-          }),
-          contentType: "application/json",
-        });
-      }
-    } else {
-      if (process.env.TEST_DATABASE_URL) {
-        throw new Error("The local PostgreSQL harness must provide its seeded E2E_MANAGER_EMAIL and E2E_MANAGER_PASSWORD for the integrated admin transition.");
-      }
-      await test.info().attach("admin-status-readback-proof-boundary.json", {
-        body: JSON.stringify({
-          result: "NOT_RUN / BLOCKED_EXTERNAL",
-          missing: ["E2E_MANAGER_EMAIL", "E2E_MANAGER_PASSWORD"],
-          detail: "Hosted customer/tenant E2E credentials do not provision a manager identity; the separate isolated-local harness is the required proof for the admin-to-customer status transition.",
-          sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
-        }),
-        contentType: "application/json",
-      });
-    }
-
-    await test.step("customer B: a separate organization's session cannot open customer A's order", async () => {
-      await signIn(pageB, emailB, passwordB);
-      await pageB.goto(order.detailPath);
-      await expect(pageB.getByText("الطلب غير موجود أو لا تملك صلاحية عرضه.", { exact: false })).toBeVisible({ timeout: 30_000 });
-      await expect(pageB.getByText(order.orderNumber, { exact: true })).toHaveCount(0);
-    });
-
-    expect(diagnosticsA.pageErrors, "Uncaught browser exceptions for customer A.").toEqual([]);
-    expect(diagnosticsA.criticalHttpErrors, "Customer A authentication/order API failures.").toEqual([]);
-    expect(diagnosticsB.pageErrors, "Uncaught browser exceptions for customer B.").toEqual([]);
-    expect(diagnosticsB.criticalHttpErrors, "Customer B authentication/order API failures.").toEqual([]);
-    expect(managerDiagnostics.pageErrors, "Uncaught browser exceptions in the authorized admin workflow.").toEqual([]);
-    expect(managerDiagnostics.criticalHttpErrors, "Admin order read/review RPC failures.").toEqual([]);
-
-    await test.info().attach("p2-browser-proof.json", {
-      body: JSON.stringify({
-        result: "BROWSER_PROVEN",
-        sourceSha: process.env.E2E_SOURCE_SHA ?? "not-provided",
-        criticalPath: "catalog -> cart -> server-validated order -> admin transactional approval -> customer server readback",
-        orderNumber: order.orderNumber,
-        resourcePath: order.detailPath,
-        customerOrderPrintInvoked: await pageA.evaluate(() => document.documentElement.dataset.e2ePrintInvoked === "true"),
-        customerOrderPrintExcludesInternalAndFinancialFields: true,
-        adminTransition: managerTransitionProven ? "pending -> confirmed" : "NOT_RUN / BLOCKED_EXTERNAL",
-        customerReadbackAfterAdminTransition: managerTransitionProven,
-        sameOrderDatabaseReadback: databaseReadbackProven,
-        outboxNotificationExactlyOnceProven: databaseReadbackProven,
-        tenantBVisibleOrderNumber: false,
-      }),
-      contentType: "application/json",
-    });
+    const proof = await completeManagerApprovalProof(
+      contexts.managerPage,
+      contexts.pageA,
+      order,
+      credentials.managerEmail,
+      credentials.managerPassword,
+    );
+    await assertForeignTenantOrderDenial(contexts.pageB, credentials, order);
+    assertOrderBrowserDiagnostics(contexts);
+    await attachOrderBrowserProof(contexts.pageA, order, proof);
   } finally {
-    await managerContext.close();
-    await contextB.close();
-    await contextA.close();
+    await contexts.managerContext.close();
+    await contexts.contextB.close();
+    await contexts.contextA.close();
   }
+}
+
+test("catalog → cart → order → refresh, then cross-organization read denial", async ({ browser }) => {
+  await runOrderTenantIsolationAcceptance(browser);
 });
 
 test("expired company invitation is denied in Chromium and shown as expired in the owner workspace", async ({ browser }) => {

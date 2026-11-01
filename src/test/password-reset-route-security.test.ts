@@ -15,6 +15,17 @@ const routeTree = readFileSync(
   "utf8",
 );
 
+
+const resetRouteTryPattern = /try\s*\{[\s\S]*?supabase\.auth\.updateUser\(\{ password \}\)/;
+const resetRouteCatchPattern = /catch\s*\{[\s\S]*?setMsg\("تعذر الاتصال بالخادم/;
+const resetRouteFinallyPattern = /finally\s*\{\s*setBusy\(false\);\s*\}/;
+
+function expectResetRouteTransportFailureHandling(): void {
+  expect(resetRoute).toMatch(resetRouteTryPattern);
+  expect(resetRoute).toMatch(resetRouteCatchPattern);
+  expect(resetRoute).toMatch(resetRouteFinallyPattern);
+}
+
 describe("password recovery and reset route security", () => {
   it("keeps recovery and reset pages out of search indexing and suppresses referrer disclosure", () => {
     for (const source of [forgotRoute, resetRoute]) {
@@ -37,8 +48,6 @@ describe("password recovery and reset route security", () => {
   });
 
   it("catches thrown transport failures and always clears the busy state", () => {
-    expect(resetRoute).toMatch(/try\s*\{[\s\S]*?supabase\.auth\.updateUser\(\{ password \}\)/);
-    expect(resetRoute).toMatch(/catch\s*\{[\s\S]*?setMsg\("تعذر الاتصال بالخادم/);
-    expect(resetRoute).toMatch(/finally\s*\{\s*setBusy\(false\);\s*\}/);
+    expectResetRouteTransportFailureHandling();
   });
 });
