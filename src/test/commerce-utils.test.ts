@@ -395,7 +395,7 @@ describe('commerce completion utilities', () => {
   });
 
   it('bounds input length before running safe import patterns', () => {
-    const raw = validateCsvRow(['a'.repeat(4097)], ['name'], 2);
+    const raw = validateCsvRow(['a'.repeat(2049)], ['name'], 2);
     const result = applyImportProfileRules(raw, [], [
       { field: 'name', rule: 'safe_pattern', value: '^a+
     expect(normalizeArabicSearchText('إِبْرَاهِيمـ ى')).toBe('ابراهيم ي');
