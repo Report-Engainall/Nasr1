@@ -1,30 +1,31 @@
-# LIVE RESUME — 2026-11-01 after PR #396 merge
+# LIVE RESUME — 2026-11-01 after PR #398 merge
 
 > This current snapshot supersedes earlier operational summaries below; older entries remain historical evidence.
 
 - Repository: Report-Engainall/Nasr1; product متجر الأغبري | Aghbari Commerce; target main.
-- Current main: f9daf09d1e5aa152aaefa4ac628c6074d4721fb0 (PR #396 merge).
+- Current source main: 0dc6f75d3767fe15d472ed28284332273061bb81 (PR #398 merge).
 - Recent verified integrations:
   - P1 security PR #350: 4d95a6ed39387555bc29698b510b607b45498549.
   - P3 fail-closed cleanup successor PR #383: 548bc7c3272ed9d0855d7f73486b06cd06455afe.
   - P2 source PR #391: e433062acbe27b419f53c3b7f5288f39a5f616a2; tested head a2670ac947959ea4ce9e40350a87ecb71c84ab6d.
   - P2 targeted admin navigation PR #395: 6b1f85ef7a62f6be79c5d76c4ee14e27b199186c; tested head 68e6cf2833b3e43bc97b144817a984d0c9839cdd.
   - P3 six-file test helper PR #396: f9daf09d1e5aa152aaefa4ac628c6074d4721fb0; tested head 2fe37004d34283b84642ca50c46001167942566e.
-- P2 historical 239-row baseline: 78 TS0003 IMPLEMENTED_PENDING_FRESH_SCAN; 26 NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED; 10 archived-only scope-review; one TS0002 pending fresh scan; one TS0010 not reproduced/not closed. Two P2 TS0003 rows formerly open were integrated via #391. No baseline row is CLOSED.
-- P3 historical 98-row baseline: all 98 IMPLEMENTED_PENDING_FRESH_SCAN; zero open/in-progress; zero CLOSED. PR #396 added six reviewed test-only refactors.
-- User-supplied latest scan excerpt: 2026-11-01 17:38:11 UTC, 718 files, 139,571 LOC, 118 issues (TS=115, JS=3, Python=0). The detailed findings and input SHA were not supplied; this report is separate from the 239-row PDF and earlier 181-row follow-up.
-- Exact-head #396 CI: Core 41338965333 SUCCESS; Gitleaks 41338965377 SUCCESS; strict TypeScript 41338965256 SUCCESS; public UI, authenticated infrastructure and local Supabase/PostgreSQL 17 tenant/order Playwright 41338965339 SUCCESS. Hosted tenant E2E and CodeRabbit SKIPPED, not PASS.
-- PR #351 remains OPEN but stale/divergent; compare is 73 ahead / 38 behind from its historical base. Do not merge wholesale. #383 is the narrow fail-closed cleanup successor; #396 carries six selectively reviewed test changes.
-- Fresh authorized CodeInspector scan on recorded current main f9daf09d1e5aa152aaefa4ac628c6074d4721fb0 remains PENDING. Preserve original report SHA UNKNOWN; do not infer it. No finding is CLOSED before fresh rule-level confirmation.
-- No force push, history rewrite, branch-protection bypass, production DB workaround or assertion weakening was used.
+  - P3 AI telemetry fail-closed PR #398: 0dc6f75d3767fe15d472ed28284332273061bb81; tested head 9c72e0e7d1dfe42c8131a57c31a39bb27afdb85e.
+- P2 historical baseline: 78 TS0003 IMPLEMENTED_PENDING_FRESH_SCAN; 26 NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED; 10 archived-only scope-review; one TS0002 pending scan; one TS0010 not reproduced/not closed. No P2 finding is CLOSED.
+- P3 historical baseline: 98 findings; all 98 IMPLEMENTED_PENDING_FRESH_SCAN; zero open/in-progress; zero CLOSED. PR #398 updated five telemetry JS0001 evidence records without closing them.
+- PR #398 exact-head checks: Core/PostgreSQL 17 41340426614 SUCCESS; Gitleaks full history 41340426638 SUCCESS; strict TypeScript 41340426615 SUCCESS; P3 JS/Python tooling 41340426654 SUCCESS; public UI + local Supabase/PostgreSQL 17 Playwright 41340426607 SUCCESS. Hosted tenant E2E and CodeRabbit SKIPPED.
+- PR #351 remains OPEN and divergent: 73 commits ahead / 41 behind current main from its historical base. Do not merge wholesale.
+- User-supplied CodeInspector excerpt: 2026-11-01T17:38:11Z, 718 files, 139,571 LOC, 118 issues (TS=115, JS=3, Python=0). Detailed findings and input SHA were not supplied; this excerpt is separate from the recovered 239-row baseline.
+- Fresh authorized CodeInspector scan on source main 0dc6f75d3767fe15d472ed28284332273061bb81 remains PENDING. The original source SHA remains UNKNOWN. No finding is CLOSED before fresh rule-level confirmation.
+- Post-merge main-head workflows triggered after #398 were still running at last poll; exact PR-head checks above remain attached to tested head 9c72e0e7d1dfe42c8131a57c31a39bb27afdb85e and are not transferred to the merge SHA.
 
 ## Immediate resume cursor
 
-1. Obtain the complete 118-finding raw report (all rule/path/line/severity rows) and its scanner input SHA; keep it separate from the 239 historical rows until mapped.
-2. Run authorized CodeInspector against main f9daf09d1e5aa152aaefa4ac628c6074d4721fb0; preserve scanner version and raw export.
-3. Reconcile by rule, exact path and source context; close only rows absent/below threshold in the fresh scan.
-4. Revisit only remaining findings that reproduce on current source. Do not replay stale #351 or repeat merged fixes.
-5. Recheck post-merge main-head CI on f9daf09d1e5aa152aaefa4ac628c6074d4721fb0 before treating this SHA as fully green.
+1. Verify post-merge main-head CI for 0dc6f75d3767fe15d472ed28284332273061bb81 reaches terminal SUCCESS; hosted tenant E2E remains blocked external and must be kept SKIPPED.
+2. Obtain the complete 118-finding raw export (rule/path/line/severity) and its scanner input SHA; keep it distinct until matched to current source.
+3. Run authorized CodeInspector against source main 0dc6f75d3767fe15d472ed28284332273061bb81; preserve scanner version and raw report.
+4. Reconcile by rule, exact path and source context; close only findings absent/below threshold in the fresh official scan.
+5. Continue only current-source findings. Do not replay stale #351 or duplicate changes already merged in #383/#396/#398.
 ---
 
 # LIVE RESUME — 2026-11-01 (after P2 batch 10 exact-head acceptance)
