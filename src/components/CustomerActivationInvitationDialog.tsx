@@ -180,6 +180,26 @@ function InvitationCreationForm({
   );
 }
 
+
+function InvitationWorkspaceLoading() {
+  return <p role="status" style={{ display: "flex", alignItems: "center", gap: 8 }}><RefreshCw size={16} /> جارٍ تحميل حالة ربط العميل وسجل الدعوات...</p>;
+}
+
+function InvitationWorkspaceLoadError({ loading, busy, onRetry }: { loading: boolean; busy: boolean; onRetry: () => void }) {
+  return (
+    <div role="alert" style={{ padding: 14, border: "1px solid #e8b5b5", borderRadius: 11 }}>
+      تعذر التحقق من حالة ربط حساب العميل. لن يُسمح بإنشاء دعوة حتى يُحمّل سجل الدعوات بنجاح.
+      <button type="button" onClick={onRetry} disabled={loading || busy} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginInlineStart: 10, border: "1px solid var(--border, #d5e1df)", borderRadius: 8, padding: "7px 9px", background: "transparent", cursor: "pointer" }}>
+        <RefreshCw size={14} /> إعادة المحاولة
+      </button>
+    </div>
+  );
+}
+
+function InvitationAlreadyLinkedNotice() {
+  return <div role="status" style={{ padding: 14, border: "1px solid #b8d8c8", borderRadius: 11 }}>هذا السجل مرتبط بالفعل بحساب مستخدم. لا يمكن إنشاء دعوة تفعيل ثانية.</div>;
+}
+
 function InvitationWorkspaceView({
   customer,
   currentWorkspace,
@@ -205,37 +225,11 @@ function InvitationWorkspaceView({
   onCopy: () => void;
   onRetry: () => void;
 }) {
-  if (loading) {
-    return (
-      <p role="status" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <RefreshCw size={16} /> جارٍ تحميل سجل دعوات العميل...
-      </p>
-    );
-  }
+  if (loading) return <InvitationWorkspaceLoading />;
 
-  if (!currentWorkspace) {
-    return (
-      <div role="alert" style={{ padding: 14, border: "1px solid #e8b5b5", borderRadius: 11 }}>
-        تعذر التحقق من حالة ربط حساب العميل. لن يُسمح بإنشاء دعوة حتى يُحمّل سجل الدعوات بنجاح.
-        <button
-          type="button"
-          onClick={onRetry}
-          disabled={loading || busy}
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, marginInlineStart: 10, border: "1px solid var(--border, #d5e1df)", borderRadius: 8, padding: "7px 9px", background: "transparent", cursor: "pointer" }}
-        >
-          <RefreshCw size={14} /> إعادة المحاولة
-        </button>
-      </div>
-    );
-  }
+  if (!currentWorkspace) return <InvitationWorkspaceLoadError loading={loading} busy={busy} onRetry={onRetry} />;
 
-  if (currentWorkspace.is_linked) {
-    return (
-      <div role="status" style={{ padding: 14, border: "1px solid #b8d8c8", borderRadius: 11 }}>
-        هذا السجل مرتبط بالفعل بحساب مستخدم. لا يمكن إنشاء دعوة تفعيل ثانية.
-      </div>
-    );
-  }
+  if (currentWorkspace.is_linked) return <InvitationAlreadyLinkedNotice />;
 
   return (
     <InvitationCreationForm

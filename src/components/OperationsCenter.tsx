@@ -31,21 +31,45 @@ function qualityLabel(score: number): string {
 }
 
 
+
+type OperationTabDefinition = { id: OperationTab; label: string; icon: typeof Upload };
+
+const OPERATION_TABS: OperationTabDefinition[] = [
+  { id: 'imports', label: 'محرك الاستيراد الذكي', icon: Upload },
+  { id: 'onyx', label: 'مزامنة أونكس برو', icon: Activity },
+  { id: 'reconcile', label: 'مطابقة المخزون', icon: Gauge },
+  { id: 'dictionary', label: 'قاموس المرادفات', icon: FileText },
+];
+
+function OperationsTabNavigation({ selected, onSelect }: { selected: OperationTab; onSelect: (tab: OperationTab) => void }) {
+  return (
+    <nav className="operation-tabs" aria-label="أقسام مركز العمليات">
+      {OPERATION_TABS.map(({ id, label, icon: Icon }) => (
+        <button type="button" key={id} className={selected === id ? 'active' : ''} aria-current={selected === id ? 'page' : undefined} onClick={() => onSelect(id)}>
+          <Icon size={16} />{label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function OperationsTabContent({ tab, onNotice, refreshVersion }: {
+  tab: OperationTab; onNotice: (message: string) => void; refreshVersion: number;
+}) {
+  switch (tab) {
+    case 'imports': return <ImportEngine onNotice={onNotice} refreshVersion={refreshVersion} />;
+    case 'onyx': return <OnyxDashboard onNotice={onNotice} refreshVersion={refreshVersion} />;
+    case 'reconcile': return <InventoryReconciliation onNotice={onNotice} refreshVersion={refreshVersion} />;
+    case 'dictionary': return <SynonymDictionary refreshVersion={refreshVersion} />;
+  }
+}
+
 export function OperationsCenter({ onNotice }: { onNotice: (message: string) => void }) {
   const [tab, setTab] = useState<OperationTab>('imports');
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const tabs: Array<{ id: OperationTab; label: string; icon: typeof Upload }> = [
-    { id: 'imports', label: 'محرك الاستيراد الذكي', icon: Upload },
-    { id: 'onyx', label: 'مزامنة أونكس برو', icon: Activity },
-    { id: 'reconcile', label: 'مطابقة المخزون', icon: Gauge },
-    { id: 'dictionary', label: 'قاموس المرادفات', icon: FileText },
-  ];
   return <AdminPage eyebrow="البيانات والذكاء" title="مركز العمليات الذكي" description="استيراد ومزامنة ومطابقة موحدة مع حفظ مصدر البيانات وأثر التغييرات" icon={Zap} note="تظهر بيانات المتجر وأونكس ضمن سياق واحد، مع حفظ المصدر ومنع التعديل دون اعتماد" toolbar={<Button variant="secondary" onClick={() => setRefreshVersion((version) => version + 1)}><RefreshCw size={16} /> تحديث البيانات</Button>}>
-    <div className="operation-tabs">{tabs.map(({ id, label, icon: Icon }) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><Icon size={16} />{label}</button>)}</div>
-    {tab === 'imports' && <ImportEngine onNotice={onNotice} refreshVersion={refreshVersion} />}
-    {tab === 'onyx' && <OnyxDashboard onNotice={onNotice} refreshVersion={refreshVersion} />}
-    {tab === 'reconcile' && <InventoryReconciliation onNotice={onNotice} refreshVersion={refreshVersion} />}
-    {tab === 'dictionary' && <SynonymDictionary refreshVersion={refreshVersion} />}
+    <OperationsTabNavigation selected={tab} onSelect={setTab} />
+    <OperationsTabContent tab={tab} onNotice={onNotice} refreshVersion={refreshVersion} />
   </AdminPage>;
 }
 

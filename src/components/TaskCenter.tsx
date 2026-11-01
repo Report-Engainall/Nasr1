@@ -97,6 +97,41 @@ type TaskCreateFormProps = {
   onDueAtChange: (value: string) => void;
 };
 
+
+
+function TaskCreateFields({ allowedRoles, newRole, onRoleChange, eligibleAssignees, assignedTo, assigneesLoading, assigneesError, onAssigneeChange, priority, onPriorityChange, dueAt, onDueAtChange }: Pick<TaskCreateFormProps, 'allowedRoles' | 'newRole' | 'onRoleChange' | 'eligibleAssignees' | 'assignedTo' | 'assigneesLoading' | 'assigneesError' | 'onAssigneeChange' | 'priority' | 'onPriorityChange' | 'dueAt' | 'onDueAtChange'>) {
+  return (
+    <div className="task-create-grid">
+      <label>الدور المستهدف<select value={newRole} onChange={(event) => onRoleChange(event.target.value as OperationalTaskRole)}>
+        {allowedRoles.map((role) => <option value={role} key={role}>{roleLabels[role]}</option>)}
+      </select></label>
+      <label>الموظف المسؤول
+        <select value={assignedTo} onChange={(event) => onAssigneeChange(event.target.value)} disabled={assigneesLoading || Boolean(assigneesError)}>
+          <option value="">تبقى في قائمة الدور حتى يستلمها موظف</option>
+          {eligibleAssignees.map((assignee) => <option key={assignee.profile_id} value={assignee.profile_id}>{assignee.full_name}{assignee.email ? ' — ' + assignee.email : ''}</option>)}
+        </select>
+        {assigneesLoading && <small>جارٍ تحميل موظفي المؤسسة المصرح لهم…</small>}
+        {assigneesError && <small role="status">{assigneesError} يمكنك حفظ المهمة غير مسندة؛ يتحقق الخادم من أي إسناد لاحق.</small>}
+        {!assigneesLoading && !assigneesError && eligibleAssignees.length === 0 && <small>لا يوجد موظف نشط بدور متوافق؛ ستبقى المهمة في قائمة الدور.</small>}
+      </label>
+      <label>الأولوية<select value={priority} onChange={(event) => onPriorityChange(event.target.value as TaskCreateFormProps['priority'])}>
+        <option value="low">منخفضة</option><option value="medium">متوسطة</option><option value="high">مرتفعة</option><option value="critical">حرجة</option>
+      </select></label>
+      <label>الموعد (اختياري)<input type="datetime-local" value={dueAt} onChange={(event) => onDueAtChange(event.target.value)} /></label>
+    </div>
+  );
+}
+
+function TaskCreateActions({ busy, title, onClose }: { busy: boolean; title: string; onClose: () => void }) {
+  return (
+    <div className="task-form-actions">
+      <button type="submit" className="btn primary" disabled={busy || !title.trim()}>{busy ? 'جارٍ الحفظ…' : 'حفظ المهمة'}</button>
+      <button type="button" className="btn secondary" onClick={onClose}>إلغاء</button>
+    </div>
+  );
+}
+
+
 function TaskCreateForm({
   title, description, newRole, allowedRoles, eligibleAssignees, assignedTo,
   assigneesLoading, assigneesError, priority, dueAt, busy, onSubmit, onClose,
@@ -111,28 +146,21 @@ function TaskCreateForm({
       </div>
       <label>عنوان المهمة<input required maxLength={240} value={title} onChange={(event) => onTitleChange(event.target.value)} placeholder="اكتب الإجراء المطلوب" /></label>
       <label>التفاصيل<textarea maxLength={2000} rows={3} value={description} onChange={(event) => onDescriptionChange(event.target.value)} placeholder="الإجراء أو المرجع التشغيلي" /></label>
-      <div className="task-create-grid">
-        <label>الدور المستهدف<select value={newRole} onChange={(event) => onRoleChange(event.target.value as OperationalTaskRole)}>
-          {allowedRoles.map((role) => <option value={role} key={role}>{roleLabels[role]}</option>)}
-        </select></label>
-        <label>الموظف المسؤول
-          <select value={assignedTo} onChange={(event) => onAssigneeChange(event.target.value)} disabled={assigneesLoading || Boolean(assigneesError)}>
-            <option value="">تبقى في قائمة الدور حتى يستلمها موظف</option>
-            {eligibleAssignees.map((assignee) => <option key={assignee.profile_id} value={assignee.profile_id}>{assignee.full_name}{assignee.email ? ' — '+assignee.email : ''}</option>)}
-          </select>
-          {assigneesLoading && <small>جارٍ تحميل موظفي المؤسسة المصرح لهم…</small>}
-          {assigneesError && <small role="status">{assigneesError} يمكنك حفظ المهمة غير مسندة؛ يتحقق الخادم من أي إسناد لاحق.</small>}
-          {!assigneesLoading && !assigneesError && eligibleAssignees.length===0 && <small>لا يوجد موظف نشط بدور متوافق؛ ستبقى المهمة في قائمة الدور.</small>}
-        </label>
-        <label>الأولوية<select value={priority} onChange={(event) => onPriorityChange(event.target.value as TaskCreateFormProps['priority'])}>
-          <option value="low">منخفضة</option><option value="medium">متوسطة</option><option value="high">مرتفعة</option><option value="critical">حرجة</option>
-        </select></label>
-        <label>الموعد (اختياري)<input type="datetime-local" value={dueAt} onChange={(event) => onDueAtChange(event.target.value)} /></label>
-      </div>
-      <div className="task-form-actions">
-        <button type="submit" className="btn primary" disabled={busy||!title.trim()}>{busy?'جارٍ الحفظ…':'حفظ المهمة'}</button>
-        <button type="button" className="btn secondary" onClick={onClose}>إلغاء</button>
-      </div>
+      <TaskCreateFields
+        allowedRoles={allowedRoles}
+        newRole={newRole}
+        onRoleChange={onRoleChange}
+        eligibleAssignees={eligibleAssignees}
+        assignedTo={assignedTo}
+        assigneesLoading={assigneesLoading}
+        assigneesError={assigneesError}
+        onAssigneeChange={onAssigneeChange}
+        priority={priority}
+        onPriorityChange={onPriorityChange}
+        dueAt={dueAt}
+        onDueAtChange={onDueAtChange}
+      />
+      <TaskCreateActions busy={busy} title={title} onClose={onClose} />
     </form>
   );
 }

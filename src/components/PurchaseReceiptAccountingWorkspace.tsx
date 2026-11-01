@@ -59,6 +59,119 @@ function dateText(value: string): string {
   return Number.isNaN(date.getTime()) ? "تاريخ غير صالح" : date.toLocaleString("ar-YE");
 }
 
+
+function PurchaseReceiptJournalState({ receipt }: { receipt: ReceiptOption }) {
+  if (receipt.journal_entry_id) {
+    return (
+      <p role="status" style={{ margin: 0 }}>
+        <ShieldCheck size={15} style={{ verticalAlign: "middle", marginInlineEnd: 5 }} />
+        قيد {receipt.journal_entry_number || receipt.journal_entry_id} — الحالة: {receipt.journal_status === "posted" ? "مرحل" : receipt.journal_status === "draft" ? "مسودة" : "ملغى"}.
+        {receipt.journal_status === "draft" ? " افتح دفتر الأستاذ لمراجعته وترحيله بصلاحية محاسبية." : " لن يُنشأ قيد ثانٍ لهذا الإيصال تلقائيًا."}
+      </p>
+    );
+  }
+  if (!receipt.costs_complete || receipt.received_cost === null || receipt.received_cost <= 0 || receipt.currency !== "YER") {
+    return (
+      <p role="alert" style={{ margin: 0, color: "#92400e" }}>
+        <AlertTriangle size={15} style={{ verticalAlign: "middle", marginInlineEnd: 5 }} />
+        لا يمكن إنشاء القيد: التكاليف المصدرية ناقصة أو لا تتطابق، أو العملة ليست الريال اليمني، أو المبلغ غير موجب. أصلح المصدر أولًا.
+      </p>
+    );
+  }
+  return null;
+}
+
+function PurchaseReceiptAccountSelectors({ receipt, assetAccounts, payableAccounts, inventoryAccountId, payableAccountId, disabled, onInventoryChange, onPayableChange }: {
+  receipt: ReceiptOption; assetAccounts: AccountOption[]; payableAccounts: AccountOption[];
+  inventoryAccountId: string; payableAccountId: string; disabled: boolean;
+  onInventoryChange: (accountId: string) => void; onPayableChange: (accountId: string) => void;
+}) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+      <label style={{ display: "grid", gap: 5 }}>حساب المخزون (مدين)
+        <select aria-label={"حساب المخزون " + receipt.receipt_number} value={inventoryAccountId} onChange={(event) => onInventoryChange(event.target.value)} disabled={disabled}>
+          <option value="">اختر حساب أصل</option>{assetAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} — {account.name}</option>)}
+        </select>
+      </label>
+      <label style={{ display: "grid", gap: 5 }}>حساب المورد (دائن)
+        <select aria-label={"حساب المورد " + receipt.receipt_number} value={payableAccountId} onChange={(event) => onPayableChange(event.target.value)} disabled={disabled}>
+          <option value="">اختر حساب التزام</option>{payableAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} — {account.name}</option>)}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function PurchaseReceiptAccountingCard({ receipt, assetAccounts, payableAccounts, inventoryAccountId, payableAccountId, busyReceiptId, onInventoryChange, onPayableChange, onPrepare }: {
+  receipt: ReceiptOption; assetAccounts: AccountOption[]; payableAccounts: AccountOption[];
+  inventoryAccountId: string; payableAccountId: string; busyReceiptId: string | null;
+  onInventoryChange: (accountId: string) => void; onPayableChange: (accountId: string) => void;
+  onPrepare: (receipt: ReceiptOption) => void;
+}) {
+  const hasJournal = Boolean(receipt.journal_entry_id);
+  const sourceReady = receipt.costs_complete && receipt.received_cost !== null && receipt.received_cost > 0 && receipt.currency === "YER";
+  const busy = busyReceiptId === receipt.receipt_id;
+  return (
+    <article style={{ border: "1px solid var(--border, #e2e8f0)", borderRadius: 10, padding: 12, display: "grid", gap: 10 }}>
+      <header style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <strong>{receipt.receipt_number}</strong>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground, #64748b)" }}>{receipt.supplier_name} · {receipt.warehouse_name}</div>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground, #64748b)" }}>{dateText(receipt.received_at)} · {receipt.purchase_order_number}</div>
+        </div>
+        <div style={{ fontWeight: 800 }}>{money(receipt.received_cost, receipt.currency)}</div>
+      </header>
+      <PurchaseReceiptJournalState receipt={receipt} />
+      {!hasJournal && sourceReady && (
+        <>
+          <PurchaseReceiptAccountSelectors
+            receipt={receipt}
+            assetAccounts={assetAccounts}
+            payableAccounts={payableAccounts}
+            inventoryAccountId={inventoryAccountId}
+            payableAccountId={payableAccountId}
+            disabled={busy}
+            onInventoryChange={onInventoryChange}
+            onPayableChange={onPayableChange}
+          />
+          <button className="btn primary" type="button" onClick={() => onPrepare(receipt)} disabled={busyReceiptId !== null || !assetAccounts.length || !payableAccounts.length}>
+            {busy ? "جار إنشاء المسودة…" : "إعداد مسودة القيد"}
+          </button>
+          {(!assetAccounts.length || !payableAccounts.length) && <p role="alert" style={{ margin: 0 }}>يلزم إنشاء حساب أصل وحساب التزام نشطين في دليل المؤسسة أولًا.</p>}
+        </>
+      )}
+    </article>
+  );
+}
+
+function PurchaseReceiptAccountingQueue({ receipts, assetAccounts, payableAccounts, inventoryAccountsByReceipt, payableAccountsByReceipt, busyReceiptId, onInventoryChange, onPayableChange, onPrepare }: {
+  receipts: ReceiptOption[]; assetAccounts: AccountOption[]; payableAccounts: AccountOption[];
+  inventoryAccountsByReceipt: Record<string, string>; payableAccountsByReceipt: Record<string, string>; busyReceiptId: string | null;
+  onInventoryChange: (receiptId: string, accountId: string) => void;
+  onPayableChange: (receiptId: string, accountId: string) => void;
+  onPrepare: (receipt: ReceiptOption) => void;
+}) {
+  if (receipts.length === 0) return <p>لا توجد إيصالات مسجلة لهذا الأمر بعد.</p>;
+  return (
+    <div className="purchase-receipt-accounting-list" style={{ display: "grid", gap: 10 }}>
+      {receipts.map((receipt) => (
+        <PurchaseReceiptAccountingCard
+          key={receipt.receipt_id}
+          receipt={receipt}
+          assetAccounts={assetAccounts}
+          payableAccounts={payableAccounts}
+          inventoryAccountId={inventoryAccountsByReceipt[receipt.receipt_id] || ""}
+          payableAccountId={payableAccountsByReceipt[receipt.receipt_id] || ""}
+          busyReceiptId={busyReceiptId}
+          onInventoryChange={(accountId) => onInventoryChange(receipt.receipt_id, accountId)}
+          onPayableChange={(accountId) => onPayableChange(receipt.receipt_id, accountId)}
+          onPrepare={onPrepare}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function PurchaseReceiptAccountingWorkspace({ purchaseOrderId }: { purchaseOrderId: string }) {
   const [queue, setQueue] = useState<Queue>({ accounts: [], receipts: [] });
   const [inventoryAccountsByReceipt, setInventoryAccountsByReceipt] = useState<Record<string, string>>({});
@@ -137,42 +250,19 @@ export function PurchaseReceiptAccountingWorkspace({ purchaseOrderId }: { purcha
       </div>
       {error && <p role="alert" style={{ margin: 0, padding: 10, borderRadius: 8, background: "#fef2f2", color: "#991b1b" }}>{error}</p>}
       {notice && <p role="status" style={{ margin: 0, padding: 10, borderRadius: 8, background: "#ecfdf5", color: "#166534" }}><CheckCircle2 size={15} style={{ verticalAlign: "middle", marginInlineEnd: 5 }} />{notice}</p>}
-      {loading ? <p role="status">جار تحميل إيصالات الاستلام…</p> : queue.receipts.length === 0 ? <p>لا توجد إيصالات مسجلة لهذا الأمر بعد.</p> :
-        queue.receipts.map((receipt) => {
-          const hasJournal = Boolean(receipt.journal_entry_id);
-          const sourceReady = receipt.costs_complete && receipt.received_cost !== null && receipt.received_cost > 0 && receipt.currency === "YER";
-          return <article key={receipt.receipt_id} style={{ border: "1px solid var(--border, #e2e8f0)", borderRadius: 10, padding: 12, display: "grid", gap: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <div><strong>{receipt.receipt_number}</strong>
-                <div style={{ fontSize: 12, color: "var(--muted-foreground, #64748b)" }}>{receipt.supplier_name} · {receipt.warehouse_name}</div>
-                <div style={{ fontSize: 12, color: "var(--muted-foreground, #64748b)" }}>{dateText(receipt.received_at)} · {receipt.purchase_order_number}</div></div>
-              <div style={{ fontWeight: 800 }}>{money(receipt.received_cost, receipt.currency)}</div>
-            </div>
-            {hasJournal ? <p role="status" style={{ margin: 0 }}><ShieldCheck size={15} style={{ verticalAlign: "middle", marginInlineEnd: 5 }} />
-              قيد {receipt.journal_entry_number || receipt.journal_entry_id} — الحالة: {receipt.journal_status === "posted" ? "مرحل" : receipt.journal_status === "draft" ? "مسودة" : "ملغى"}.
-              {receipt.journal_status === "draft" ? " افتح دفتر الأستاذ لمراجعته وترحيله بصلاحية محاسبية." : " لن يُنشأ قيد ثانٍ لهذا الإيصال تلقائيًا."}</p>
-              : !sourceReady ? <p role="alert" style={{ margin: 0, color: "#92400e" }}><AlertTriangle size={15} style={{ verticalAlign: "middle", marginInlineEnd: 5 }} />
-                لا يمكن إنشاء القيد: التكاليف المصدرية ناقصة أو لا تتطابق، أو العملة ليست الريال اليمني، أو المبلغ غير موجب. أصلح المصدر أولًا.</p>
-              : <>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
-                  <label style={{ display: "grid", gap: 5 }}>حساب المخزون (مدين)
-                    <select aria-label={"حساب المخزون " + receipt.receipt_number} value={inventoryAccountsByReceipt[receipt.receipt_id] || ""} onChange={(event) => setInventoryAccountsByReceipt((current) => ({ ...current, [receipt.receipt_id]: event.target.value }))} disabled={busyReceiptId === receipt.receipt_id}>
-                      <option value="">اختر حساب أصل</option>{assetAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} — {account.name}</option>)}
-                    </select>
-                  </label>
-                  <label style={{ display: "grid", gap: 5 }}>حساب المورد (دائن)
-                    <select aria-label={"حساب المورد " + receipt.receipt_number} value={payableAccountsByReceipt[receipt.receipt_id] || ""} onChange={(event) => setPayableAccountsByReceipt((current) => ({ ...current, [receipt.receipt_id]: event.target.value }))} disabled={busyReceiptId === receipt.receipt_id}>
-                      <option value="">اختر حساب التزام</option>{payableAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} — {account.name}</option>)}
-                    </select>
-                  </label>
-                </div>
-                <button className="btn primary" type="button" onClick={() => void prepare(receipt)} disabled={busyReceiptId !== null || !assetAccounts.length || !payableAccounts.length}>
-                  {busyReceiptId === receipt.receipt_id ? "جار إنشاء المسودة…" : "إعداد مسودة القيد"}
-                </button>
-                {(!assetAccounts.length || !payableAccounts.length) && <p role="alert" style={{ margin: 0 }}>يلزم إنشاء حساب أصل وحساب التزام نشطين في دليل المؤسسة أولًا.</p>}
-              </>}
-          </article>;
-        })}
+      {loading ? <p role="status">جار تحميل إيصالات الاستلام…</p> : (
+        <PurchaseReceiptAccountingQueue
+          receipts={queue.receipts}
+          assetAccounts={assetAccounts}
+          payableAccounts={payableAccounts}
+          inventoryAccountsByReceipt={inventoryAccountsByReceipt}
+          payableAccountsByReceipt={payableAccountsByReceipt}
+          busyReceiptId={busyReceiptId}
+          onInventoryChange={(receiptId, accountId) => setInventoryAccountsByReceipt((current) => ({ ...current, [receiptId]: accountId }))}
+          onPayableChange={(receiptId, accountId) => setPayableAccountsByReceipt((current) => ({ ...current, [receiptId]: accountId }))}
+          onPrepare={(receipt) => void prepare(receipt)}
+        />
+      )}
     </section>
   );
 }
