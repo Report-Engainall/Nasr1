@@ -627,6 +627,40 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
     } catch (e) { setThresholdError(e instanceof Error ? e.message : 'تعذر حفظ حد إعادة الطلب.'); }
     finally { setThresholdSaving(false); }
   }
+
+  function renderTransferModal() {
+    if (!transferProduct) return null;
+    return (
+      <Modal title={'نقل مخزون — ' + transferProduct.name} onClose={() => { if (!transferSaving) setTransferProduct(null); }}>
+      <p style={{ marginTop: 0, color: 'var(--muted-foreground, #64748b)' }}>يُنفَّذ النقل بمعاملة واحدة، ولا تُنقل الكميات المحجوزة للطلبات. إعادة المحاولة بنفس المفتاح لا تكرر الحركة.</p>
+      {warehousesLoading ? <Loading /> : warehousesError ? <ErrorBox message={warehousesError} /> : (warehouses ?? []).length < 2 ? <ErrorBox message="يلزم وجود مستودعين نشطين على الأقل داخل المؤسسة لإجراء النقل." /> : <>
+        <Field label="مستودع المصدر"><select value={transferSource} onChange={(e) => setTransferSource(e.target.value)}><option value="">اختر المستودع المصدر</option>{(warehouses ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ' — ' + w.code : ''}</option>)}</select></Field>
+        <Field label="المستودع المستلم"><select value={transferDestination} onChange={(e) => setTransferDestination(e.target.value)}><option value="">اختر المستودع المستلم</option>{(warehouses ?? []).filter((w) => w.id !== transferSource).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ' — ' + w.code : ''}</option>)}</select></Field>
+        <div className="form-grid"><Field label="الكمية المراد نقلها (يُتحقق الخادم من المتاح بعد الحجوزات)"><input type="number" min="0.001" max="999999999999.999" step="0.001" value={transferQuantity} onChange={(e) => setTransferQuantity(e.target.value)} /></Field><Field label="سبب النقل"><input maxLength={1000} value={transferReason} onChange={(e) => setTransferReason(e.target.value)} /></Field></div>
+        {transferError && <div className="form-error" role="alert">{transferError}</div>}
+        <div className="modal-actions"><Button variant="outline" onClick={() => setTransferProduct(null)} disabled={transferSaving}>إلغاء</Button><Button onClick={submitTransfer} disabled={transferSaving || !transferSource || !transferDestination || transferSource === transferDestination || !transferQuantity || !transferReason.trim()}>{transferSaving ? 'جارٍ تسجيل حركة النقل...' : 'تنفيذ النقل'}</Button></div>
+      </>}
+    </Modal>
+    );
+  }
+
+  function renderThresholdModal() {
+    if (!thresholdProduct) return null;
+    return (
+      <Modal title={'حد إعادة الطلب — ' + thresholdProduct.name} onClose={closeThreshold}>
+      <p style={{ marginTop: 0, color: 'var(--muted-foreground, #64748b)' }}>يُحفظ الحد حسب الصنف والمستودع. تغيير الحد يحدّث مهمة إعادة الطلب تلقائيًا ويسجل السبب والمستخدم؛ لا يُنشأ رصيد مفقود افتراضيًا.</p>
+      {warehousesLoading ? <Loading /> : warehousesError ? <ErrorBox message={warehousesError} /> : (warehouses ?? []).length === 0 ? <ErrorBox message="لا يوجد مستودع نشط داخل المؤسسة." /> : <>
+        <Field label="المستودع"><select value={thresholdWarehouse} onChange={(e) => { const id = e.target.value; setThresholdWarehouse(id); if (id) void loadThresholdSnapshot(thresholdProduct.id, id); }}>{(warehouses ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ' — ' + w.code : ''}</option>)}</select></Field>
+        {thresholdLoading ? <Loading /> : thresholdCurrent ? <p style={{ margin: 0, color: 'var(--muted-foreground, #64748b)' }}>المتاح المسجل: {formatNumber(thresholdCurrent.quantity_available)} — الحد الحالي: {thresholdCurrent.reorder_point === null ? 'غير مضبوط' : formatNumber(thresholdCurrent.reorder_point)}</p> : null}
+        <Field label="حد إعادة الطلب بوحدات الصنف"><input type="number" min="0" max="1000000000" step="1" value={thresholdValue} onChange={(e) => setThresholdValue(e.target.value)} placeholder="أدخل عددًا صحيحًا" /></Field>
+        <Field label="سبب تغيير الحد"><input maxLength={1000} value={thresholdReason} onChange={(e) => setThresholdReason(e.target.value)} /></Field>
+        {thresholdError && <div className="form-error" role="alert">{thresholdError}</div>}
+        <div className="modal-actions"><Button variant="outline" onClick={closeThreshold} disabled={thresholdSaving}>إلغاء</Button><Button onClick={submitThreshold} disabled={thresholdSaving || thresholdLoading || !thresholdCurrent || thresholdValue.trim() === '' || !Number.isSafeInteger(Number(thresholdValue)) || Number(thresholdValue) < 0 || Number(thresholdValue) > 1000000000 || !thresholdReason.trim()}>{thresholdSaving ? 'جارٍ حفظ الحد...' : 'حفظ حد إعادة الطلب'}</Button></div>
+      </>}
+    </Modal>
+    );
+  }
+
   return <>
     <Heading eyebrow="الأصناف والمخزون" title="إدارة المنتجات" description="تحكم كامل في الكتالوج والأسعار وحدود المخزون" icon={Box} />
     <div className="toolbar"><span className="toolbar-note">{data?.length ?? 0} منتج في الكتالوج</span><div className="toolbar-actions"><Button variant="secondary" onClick={refetch}><RefreshCw size={16} /> تحديث</Button><Button onClick={() => { setEditing(null); setModal(true); }}><Plus size={17} /> إضافة منتج</Button></div></div>
@@ -648,27 +682,8 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
       </table>{!rows.length && <Empty text="لا توجد منتجات مطابقة" />}</TableWrap>}
     </section>
     {modal && <ProductModal product={editing} onClose={() => setModal(false)} onSaved={(message) => { setModal(false); refetch(); onNotice(message ?? (editing ? 'تم تحديث المنتج' : 'تمت إضافة المنتج')); }} />}
-    {transferProduct && <Modal title={'نقل مخزون — ' + transferProduct.name} onClose={() => { if (!transferSaving) setTransferProduct(null); }}>
-      <p style={{ marginTop: 0, color: 'var(--muted-foreground, #64748b)' }}>يُنفَّذ النقل بمعاملة واحدة، ولا تُنقل الكميات المحجوزة للطلبات. إعادة المحاولة بنفس المفتاح لا تكرر الحركة.</p>
-      {warehousesLoading ? <Loading /> : warehousesError ? <ErrorBox message={warehousesError} /> : (warehouses ?? []).length < 2 ? <ErrorBox message="يلزم وجود مستودعين نشطين على الأقل داخل المؤسسة لإجراء النقل." /> : <>
-        <Field label="مستودع المصدر"><select value={transferSource} onChange={(e) => setTransferSource(e.target.value)}><option value="">اختر المستودع المصدر</option>{(warehouses ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ' — ' + w.code : ''}</option>)}</select></Field>
-        <Field label="المستودع المستلم"><select value={transferDestination} onChange={(e) => setTransferDestination(e.target.value)}><option value="">اختر المستودع المستلم</option>{(warehouses ?? []).filter((w) => w.id !== transferSource).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ' — ' + w.code : ''}</option>)}</select></Field>
-        <div className="form-grid"><Field label="الكمية المراد نقلها (يُتحقق الخادم من المتاح بعد الحجوزات)"><input type="number" min="0.001" max="999999999999.999" step="0.001" value={transferQuantity} onChange={(e) => setTransferQuantity(e.target.value)} /></Field><Field label="سبب النقل"><input maxLength={1000} value={transferReason} onChange={(e) => setTransferReason(e.target.value)} /></Field></div>
-        {transferError && <div className="form-error" role="alert">{transferError}</div>}
-        <div className="modal-actions"><Button variant="outline" onClick={() => setTransferProduct(null)} disabled={transferSaving}>إلغاء</Button><Button onClick={submitTransfer} disabled={transferSaving || !transferSource || !transferDestination || transferSource === transferDestination || !transferQuantity || !transferReason.trim()}>{transferSaving ? 'جارٍ تسجيل حركة النقل...' : 'تنفيذ النقل'}</Button></div>
-      </>}
-    </Modal>}
-    {thresholdProduct && <Modal title={'حد إعادة الطلب — ' + thresholdProduct.name} onClose={closeThreshold}>
-      <p style={{ marginTop: 0, color: 'var(--muted-foreground, #64748b)' }}>يُحفظ الحد حسب الصنف والمستودع. تغيير الحد يحدّث مهمة إعادة الطلب تلقائيًا ويسجل السبب والمستخدم؛ لا يُنشأ رصيد مفقود افتراضيًا.</p>
-      {warehousesLoading ? <Loading /> : warehousesError ? <ErrorBox message={warehousesError} /> : (warehouses ?? []).length === 0 ? <ErrorBox message="لا يوجد مستودع نشط داخل المؤسسة." /> : <>
-        <Field label="المستودع"><select value={thresholdWarehouse} onChange={(e) => { const id = e.target.value; setThresholdWarehouse(id); if (id) void loadThresholdSnapshot(thresholdProduct.id, id); }}>{(warehouses ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ' — ' + w.code : ''}</option>)}</select></Field>
-        {thresholdLoading ? <Loading /> : thresholdCurrent ? <p style={{ margin: 0, color: 'var(--muted-foreground, #64748b)' }}>المتاح المسجل: {formatNumber(thresholdCurrent.quantity_available)} — الحد الحالي: {thresholdCurrent.reorder_point === null ? 'غير مضبوط' : formatNumber(thresholdCurrent.reorder_point)}</p> : null}
-        <Field label="حد إعادة الطلب بوحدات الصنف"><input type="number" min="0" max="1000000000" step="1" value={thresholdValue} onChange={(e) => setThresholdValue(e.target.value)} placeholder="أدخل عددًا صحيحًا" /></Field>
-        <Field label="سبب تغيير الحد"><input maxLength={1000} value={thresholdReason} onChange={(e) => setThresholdReason(e.target.value)} /></Field>
-        {thresholdError && <div className="form-error" role="alert">{thresholdError}</div>}
-        <div className="modal-actions"><Button variant="outline" onClick={closeThreshold} disabled={thresholdSaving}>إلغاء</Button><Button onClick={submitThreshold} disabled={thresholdSaving || thresholdLoading || !thresholdCurrent || thresholdValue.trim() === '' || !Number.isSafeInteger(Number(thresholdValue)) || Number(thresholdValue) < 0 || Number(thresholdValue) > 1000000000 || !thresholdReason.trim()}>{thresholdSaving ? 'جارٍ حفظ الحد...' : 'حفظ حد إعادة الطلب'}</Button></div>
-      </>}
-    </Modal>}
+    {renderTransferModal()}
+    {renderThresholdModal()}
   </>;
 }
 export function ProductModal({
