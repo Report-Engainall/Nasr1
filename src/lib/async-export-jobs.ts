@@ -23,6 +23,17 @@ function uuid(value: unknown): value is string {
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
+function readRequestedJobId(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const jobId = (data as Record<string, unknown>).job_id;
+  return uuid(jobId) ? jobId : null;
+}
+
+function workerAccepted(data: unknown, error: unknown): boolean {
+  if (error || !data || typeof data !== "object") return false;
+  return (data as Record<string, unknown>).accepted === true;
+}
+
 export async function requestAsyncOrdersCsvExport(
   filtersInput: unknown,
   idempotencyKey: string,
@@ -36,23 +47,21 @@ export async function requestAsyncOrdersCsvExport(
     p_filters: filters,
     p_idempotency_key: idempotencyKey,
   });
-  if (error || !data || typeof data !== "object" || !uuid((data as Record<string, unknown>).job_id)) {
+  const result = data && typeof data === "object" ? data as Record<string, unknown> : null;
+  const jobId = readRequestedJobId(data);
+  if (error || !result || !jobId) {
     throw new Error("تعذر إنشاء طلب التصدير. تحقق من صلاحيات المستخدم وفترة الطلب.");
   }
-  const result = data as Record<string, unknown>;
-  let workerAccepted = false;
   const kicked = await supabase.functions.invoke("async-export-worker", {
-    body: { job_id: result.job_id },
+    body: { job_id: jobId },
   });
   // The queued job is durable even if the worker endpoint is not yet deployed.
   // Do not throw away its ID; the user can safely retry the same idempotency key.
-  workerAccepted = !kicked.error && Boolean(kicked.data && typeof kicked.data === "object"
-    && (kicked.data as Record<string, unknown>).accepted === true);
   return {
-    jobId: result.job_id as string,
+    jobId,
     status: typeof result.status === "string" ? result.status : "queued",
     alreadyRequested: result.already_requested === true,
-    workerAccepted,
+    workerAccepted: workerAccepted(kicked.data, kicked.error),
   };
 }
 
