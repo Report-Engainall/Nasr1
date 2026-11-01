@@ -85,6 +85,11 @@ const persistedPrintSnapshot = {
   }],
 };
 
+function receiptQueueResponse(callNumber: number) {
+  const currentQueue = callNumber === 1 ? queue : { warehouses: queue.warehouses, requests: [] };
+  return { data: currentQueue, error: null };
+}
+
 let receiptQueueCalls = 0;
 
 async function resolveCustomerReturnReceiptRpc(name: string, args?: Record<string, unknown>) {
@@ -93,10 +98,7 @@ async function resolveCustomerReturnReceiptRpc(name: string, args?: Record<strin
   }
   if (name === "list_customer_return_receipt_queue") {
     receiptQueueCalls += 1;
-    const nextQueue = receiptQueueCalls === 1
-      ? queue
-      : { warehouses: queue.warehouses, requests: [] };
-    return { data: nextQueue, error: null };
+    return receiptQueueResponse(receiptQueueCalls);
   }
   if (name === "receive_customer_return") return { data: mutationResult, error: null };
   if (name === "get_customer_return_receipt_print_data") return { data: persistedPrintSnapshot, error: null };

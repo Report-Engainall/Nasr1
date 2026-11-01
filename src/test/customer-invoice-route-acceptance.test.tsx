@@ -102,6 +102,18 @@ function makeInvoice(overrides: Partial<InvoiceRow> = {}): InvoiceRow {
   };
 }
 
+function invoiceListQueryResult(cursorFilter: string | null, rowLimit: number): ListResult {
+  if (mocks.invoiceReadFailures > 0) {
+    mocks.invoiceReadFailures -= 1;
+    return INVOICE_READ_FAILURE;
+  }
+
+  const cursorId = cursorFilter?.match(/id\.gt\.([0-9a-f-]{36})/i)?.[1];
+  const cursorIndex = cursorId ? mocks.invoices.findIndex((invoice) => invoice.id === cursorId) : -1;
+  const start = cursorId && cursorIndex >= 0 ? cursorIndex + 1 : 0;
+  return { data: mocks.invoices.slice(start, start + rowLimit), error: null };
+}
+
 function makeInvoiceQuery() {
   let rowLimit = 0;
   let cursorFilter: string | null = null;
@@ -124,17 +136,7 @@ function makeInvoiceQuery() {
       resolve?: (value: ListResult) => unknown,
       reject?: (reason: unknown) => unknown,
     ) => {
-      let result: ListResult;
-      if (mocks.invoiceReadFailures > 0) {
-        mocks.invoiceReadFailures -= 1;
-        result = INVOICE_READ_FAILURE;
-      } else {
-        const cursorId = cursorFilter?.match(/id\.gt\.([0-9a-f-]{36})/i)?.[1];
-        const cursorIndex = cursorId ? mocks.invoices.findIndex((invoice) => invoice.id === cursorId) : -1;
-        const start = cursorId && cursorIndex >= 0 ? cursorIndex + 1 : 0;
-        result = { data: mocks.invoices.slice(start, start + rowLimit), error: null };
-      }
-      return Promise.resolve(result).then(resolve, reject);
+      return Promise.resolve(invoiceListQueryResult(cursorFilter, rowLimit)).then(resolve, reject);
     },
   };
   return query;

@@ -43,6 +43,7 @@ jobs:
           python -m py_compile scripts/persist-bolt-reconciliation-evidence.py
           python -m py_compile scripts/reconcile-bolt-recovery-archives.py
           python -m py_compile scripts/reconcile-source-release-snapshots.py
+          python -m py_compile scripts/diagnostic_logging.py
       - name: Run archive and persistence self-tests
         run: |
           python scripts/persist-bolt-reconciliation-evidence.py --self-test
