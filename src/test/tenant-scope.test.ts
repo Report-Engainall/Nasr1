@@ -26,6 +26,21 @@ const ORGANIZATION_ID = "a0000000-0000-0000-0000-000000000001";
 const OTHER_ORGANIZATION_ID = "a1111111-1111-4111-8111-111111111111";
 const WAREHOUSE_ID = "d0000000-0000-0000-0000-000000000001";
 
+const AUTHENTICATED_SESSION = {
+  data: { session: { user: { id: USER_ID } } },
+  error: null,
+};
+const AUTH_STATE_SUBSCRIPTION = {
+  data: { subscription: { unsubscribe: vi.fn() } },
+};
+
+function captureAuthStateListener(
+  callback: (event: string, session: unknown) => void,
+) {
+  mocks.authListener = callback;
+  return AUTH_STATE_SUBSCRIPTION;
+}
+
 function tenantPayload(
   profileId = PROFILE_ID,
   organizationId = ORGANIZATION_ID,
@@ -55,16 +70,8 @@ describe("server-derived tenant scope", () => {
     vi.resetModules();
     vi.clearAllMocks();
     mocks.authListener = null;
-    mocks.onAuthStateChange.mockImplementation(
-      (callback: (event: string, session: unknown) => void) => {
-        mocks.authListener = callback;
-        return { data: { subscription: { unsubscribe: vi.fn() } } };
-      },
-    );
-    mocks.getSession.mockResolvedValue({
-      data: { session: { user: { id: USER_ID } } },
-      error: null,
-    });
+    mocks.onAuthStateChange.mockImplementation(captureAuthStateListener);
+    mocks.getSession.mockResolvedValue(AUTHENTICATED_SESSION);
     mocks.rpc.mockResolvedValue({
       data: tenantPayload(),
       error: null,
