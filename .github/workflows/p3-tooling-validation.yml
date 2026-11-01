@@ -139,7 +139,7 @@ jobs:
           const error = JSON.parse(stderr.trim());
           assert.equal(info.level, "INFO");
           assert.equal(error.level, "ERROR");
-          assert.equal(error.errors.length, 1);
+          assert.equal(error.errors.length, 2);
           const output = stdout + stderr;
           for (const secret of [
             "fixture-db-password",

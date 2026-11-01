@@ -3,7 +3,7 @@ import { format } from "node:util";
 const redact = (value) => value
   .replace(/\b(postgres(?:ql)?:\/\/)[^\s/@]+@/gi, "$1[REDACTED]@")
   .replace(/\b(Bearer\s+)[A-Za-z0-9._~+\/-]+=*/gi, "$1[REDACTED]")
-  .replace(/\b(access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|token|secret|api[_-]?key|service[_-]?role[_-]?key|code)(\s*[:=]\s*)(["']?)([^\s,;'"&?#]+)/gi, "$1$2$3[REDACTED]")
+  .replace(/\b(access[_-]?token|refresh[_-]?token|id[_-]?token|provider[_-]?token|client[_-]?secret|oauth[_-]?code|authorization[_-]?code|password|passwd|token|secret|api[_-]?key|service[_-]?role[_-]?key|code)(\s*[:=]\s*)(["']?)([^\s,;'"&?#]+)/gi, "$1$2$3[REDACTED]")
   // Redact every URL query/fragment value, including unknown provider-specific credential keys.
   .replace(/([?&#])([^=?&#\s"'<>]+)=([^&#\s"'<>]*)/g, "$1$2=[REDACTED]")
   .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{25,}|github_pat_[A-Za-z0-9_]{25,}|sb_secret_[A-Za-z0-9_=-]{20,}|sk-[A-Za-z0-9_-]{25,})\b/g, "[REDACTED_TOKEN]")
