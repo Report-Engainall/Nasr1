@@ -77,29 +77,33 @@ function array(value: unknown, label: string): unknown[] {
   return value;
 }
 
+function parsePurchaseOrderItem(raw: unknown, index: number): PurchaseOrderItem {
+  const item = object(raw, `بند أمر الشراء ${index + 1}`);
+  const ordered = number(item.quantity_ordered, 'الكمية المطلوبة');
+  const received = number(item.quantity_received, 'الكمية المستلمة');
+  const remaining = number(item.remaining_quantity, 'الكمية المتبقية');
+  if (received > ordered || Math.abs(ordered - received - remaining) > 0.0005) {
+    throw new Error('كميات بند أمر الشراء غير متسقة.');
+  }
+  return {
+    id: text(item.id, 'معرّف بند أمر الشراء'),
+    product_id: text(item.product_id, 'معرّف الصنف'),
+    item_code: text(item.item_code, 'رمز الصنف'),
+    product_name: text(item.product_name, 'اسم الصنف'),
+    unit: nullableText(item.unit, 'وحدة الصنف'),
+    quantity_ordered: ordered,
+    quantity_received: received,
+    remaining_quantity: remaining,
+    unit_cost: nullableMoney(item.unit_cost, 'تكلفة الوحدة'),
+    line_total: nullableMoney(item.line_total, 'إجمالي البند'),
+  };
+}
+
 export function parsePurchaseOrder(value: unknown): PurchaseOrder {
   const row = object(value, 'أمر الشراء');
   const validStatuses: PurchaseOrderStatus[] = ['draft', 'submitted', 'partially_received', 'received', 'cancelled'];
   if (!validStatuses.includes(row.status as PurchaseOrderStatus)) throw new Error('حالة أمر الشراء غير معروفة.');
-  const items = array(row.items, 'بنود أمر الشراء').map((raw, index): PurchaseOrderItem => {
-    const item = object(raw, `بند أمر الشراء ${index + 1}`);
-    const ordered = number(item.quantity_ordered, 'الكمية المطلوبة');
-    const received = number(item.quantity_received, 'الكمية المستلمة');
-    const remaining = number(item.remaining_quantity, 'الكمية المتبقية');
-    if (received > ordered || Math.abs(ordered - received - remaining) > 0.0005) throw new Error('كميات بند أمر الشراء غير متسقة.');
-    return {
-      id: text(item.id, 'معرّف بند أمر الشراء'),
-      product_id: text(item.product_id, 'معرّف الصنف'),
-      item_code: text(item.item_code, 'رمز الصنف'),
-      product_name: text(item.product_name, 'اسم الصنف'),
-      unit: nullableText(item.unit, 'وحدة الصنف'),
-      quantity_ordered: ordered,
-      quantity_received: received,
-      remaining_quantity: remaining,
-      unit_cost: nullableMoney(item.unit_cost, 'تكلفة الوحدة'),
-      line_total: nullableMoney(item.line_total, 'إجمالي البند'),
-    };
-  });
+  const items = array(row.items, 'بنود أمر الشراء').map(parsePurchaseOrderItem);
   return {
     id: text(row.id, 'معرّف أمر الشراء'),
     organization_id: text(row.organization_id, 'المؤسسة'),
