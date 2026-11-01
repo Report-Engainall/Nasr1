@@ -149,6 +149,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
           PORT: "4173"
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
           set -euo pipefail
           npx wrangler dev --config .output/server/wrangler.json --compatibility-date 2026-10-30 --local --ip 127.0.0.1 --port 4173 > "$RUNNER_TEMP/p2-e2e-preview.log" 2>&1 &
@@ -162,7 +163,7 @@ jobs:
             sleep 1
           done
           if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/p2-e2e-preview.log"; exit 1; fi
-          echo "Built application is ready for source SHA ${{ steps.source.outputs.sha }}."
+          echo "Built application is ready for source SHA $SOURCE_SHA."
       - name: Run Playwright critical paths and tenant isolation
         shell: bash
         env:
@@ -290,6 +291,7 @@ jobs:
           SUPABASE_URL: https://ci-placeholder.supabase.co
           SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
           PORT: "4173"
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           npx wrangler dev --config .output/server/wrangler.json --compatibility-date 2026-10-30 --local --ip 127.0.0.1 --port 4173 > "$RUNNER_TEMP/p2-public-ui-preview.log" 2>&1 &
@@ -303,7 +305,7 @@ jobs:
             sleep 1
           done
           if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/p2-public-ui-preview.log"; exit 1; fi
-          echo "Exact source SHA: ${{ github.event.pull_request.head.sha || github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Exact source SHA: $SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
       - name: Launch Vite source server for component-only price visibility harness
         shell: bash
         env:
