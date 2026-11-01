@@ -11,7 +11,9 @@ describe("outbox worker source wiring", () => {
   it("keeps the Edge entrypoint limited to runtime adapters and handler registration", () => {
     expect(workerSource).toContain('import { createOutboxWorkerHandler } from "./handler.ts";');
     expect(workerSource).toContain("runtime.serve(createOutboxWorkerHandler(");
-    expect(workerSource).toContain("readBoundedTextBody(");
+    expect(workerSource).toMatch(
+      /readBoundedTextBody\\(\\s*request\\.body,\\s*4096,\\s*request\\.headers\\.get\\(["']content-length["']\\)\\s*,\\s*\\)/,
+    );
     expect(workerSource).not.toContain('rpc("claim_outbox_events"');
     expect(workerSource).not.toContain('rpc("process_outbox_event"');
     expect(workerSource).not.toContain('rpc("fail_outbox_event"');
