@@ -59,4 +59,26 @@ describe("LiquiditySummary", () => {
     render(<LiquiditySummary state="unavailable" />);
     expect(screen.getByRole("note")).toHaveTextContent("المصدر غير متاح");
   });
+
+
+  it("renders receivable-aging buckets with their own amount and evidence state", () => {
+    const agingSnapshot: LiquiditySnapshot = {
+      ...snapshot,
+      positions: [{
+        ...snapshot.positions[0],
+        receivableAging: [
+          { bucket: "1–30 يوم", amount: 12, status: "VERIFIED" },
+          { bucket: "31–60 يوم", amount: null, status: "UNAVAILABLE" },
+        ],
+      }],
+    };
+
+    render(<LiquiditySummary snapshot={agingSnapshot} />);
+
+    const yer = screen.getByRole("article", { name: "YER" });
+    expect(within(yer).getByRole("heading", { name: "أعمار الذمم" })).toBeInTheDocument();
+    expect(within(yer).getByText(/12 YER/)).toBeInTheDocument();
+    expect(within(yer).getByText("غير متاح")).toBeInTheDocument();
+  });
+
 });
