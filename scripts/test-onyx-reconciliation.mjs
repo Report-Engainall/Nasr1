@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
+import { logError } from "./diagnostic-logger.mjs";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) throw new Error("TEST_DATABASE_URL is required for Onyx reconciliation database acceptance.");
@@ -35,7 +36,7 @@ function asJson(value) {
   return value;
 }
 async function setIdentity(authUserId, email) {
-  await db.unsafe("reset role").catch(() => {});
+  await db.unsafe("reset role");
   await db.unsafe(
     "insert into auth.sessions(id,user_id,created_at,updated_at,refreshed_at,not_after,user_agent,ip) values($1,$1,now(),now(),now(),null,'CI Onyx source reconciliation session','127.0.0.1'::inet) on conflict(id) do update set user_id=excluded.user_id,updated_at=now(),refreshed_at=now(),not_after=null",
     [authUserId],
@@ -395,8 +396,8 @@ async function main() {
     await db.unsafe("reset role");
     process.stdout.write("PASS Onyx inventory reconciliation: warehouse-scope gate, tenant isolation, manager boundary, preview no-write, preview/apply/rollback idempotency, reservation guard, atomic stale apply, audit movements, successful compensating rollback, and later-movement rollback refusal.\n");
   } finally {
-    try { await db.unsafe("RESET ROLE"); } catch (cleanupError) { process.stderr.write("[onyx-reconciliation] reset role cleanup failed: " + String(cleanupError) + "\n"); }
-    try { await db.unsafe("ROLLBACK"); } catch (cleanupError) { process.stderr.write("[onyx-reconciliation] rollback cleanup failed: " + String(cleanupError) + "\n"); }
+    try { await db.unsafe("RESET ROLE"); } catch (cleanupError) { logError("[onyx-reconciliation] reset role cleanup failed", cleanupError); }
+    try { await db.unsafe("ROLLBACK"); } catch (cleanupError) { logError("[onyx-reconciliation] rollback cleanup failed", cleanupError); }
   }
 }
 
