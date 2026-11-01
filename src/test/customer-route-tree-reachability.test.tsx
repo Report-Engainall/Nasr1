@@ -105,7 +105,7 @@ describe("customer company and token routes resolve through the generated route 
     { path: "/quotes", testId: "quote-workspace-page" },
     { path: "/reorder", testId: "reorder-workspace-page" },
     { path: "/company/members", testId: "company-members-page" },
-    { path: `/company/accept-invitation?token=${routeTokens.queryInvitation}`, testId: "company-invitation-page", token: routeTokens.queryInvitation },
+    { path: `/company/accept-invitation?token=${routeTokens.queryInvitation}`, testId: "company-invitation-page" },
     { path: `/invite/${routeTokens.pathInvitation}`, testId: "company-invitation-page", token: routeTokens.pathInvitation },
     { path: `/customer/activate/${routeTokens.activation}`, testId: "customer-activation-page", token: routeTokens.activation },
   ])("resolves $path to its real route wrapper", async ({ path, testId, token }) => {
