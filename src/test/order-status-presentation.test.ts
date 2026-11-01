@@ -16,5 +16,6 @@ describe('getOrderStatusBadgeClass', () => {
   })
   it('uses the safe fallback for unrecognized server status text', () => {
     expect(getOrderStatusBadgeClass('<img src=x onerror=alert(1)>')).toBe('badge-info')
+    expect(getOrderStatusBadgeClass('')).toBe('badge-info')
   })
 })
