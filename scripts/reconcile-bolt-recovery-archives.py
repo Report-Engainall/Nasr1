@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Audit the published Bolt recovery ZIPs in an isolated GitHub Actions runner."""
 from __future__ import annotations
-import argparse, csv, difflib, hashlib, io, json, logging, os, re, stat, tempfile, time, urllib.request
+import argparse, csv, difflib, hashlib, io, json, logging, os, re, stat, struct, tempfile, time, urllib.request
 import zipfile
 from collections import Counter
 from pathlib import Path, PurePosixPath
@@ -87,15 +87,25 @@ def safe_extract(zf, infos, destination):
             target.mkdir(parents=True, exist_ok=True)
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
-        with zf.open(info) as source, target.open("xb") as output:
-            count = 0
-            while True:
-                chunk = source.read(1024 * 1024)
-                if not chunk: break
-                count += len(chunk)
-                output.write(chunk)
-        if count != info.file_size:
-            raise ValueError("extracted size mismatch: " + info.filename)
+        created = False
+        try:
+            with zf.open(info) as source:
+                with target.open("xb") as output:
+                    created = True
+                    count = 0
+                    while True:
+                        chunk = source.read(1024 * 1024)
+                        if not chunk: break
+                        count += len(chunk)
+                        output.write(chunk)
+            if count != info.file_size:
+                raise ValueError("extracted size mismatch: " + info.filename)
+        except BaseException:
+            # target.open("xb") proves this was created by this invocation.
+            # Never remove a pre-existing file after its open was rejected.
+            if created:
+                target.unlink(missing_ok=True)
+            raise
 
 def read_bounded_response(response, expected_size):
     """Read at most expected_size + 1 bytes and require the pinned ZIP size."""
@@ -235,6 +245,50 @@ def self_test():
     with zipfile.ZipFile(io.BytesIO(b.getvalue())) as z:
         assert len(validate_zip(z)) == 1
         assert z.read("project/src/ok.ts") == b"export const ok = true;\n"
+    with tempfile.TemporaryDirectory(prefix="nasr1-archive-restore-self-test-") as directory:
+        root = Path(directory)
+        with zipfile.ZipFile(io.BytesIO(b.getvalue())) as z:
+            infos = validate_zip(z)
+            assert len(infos) == 1
+            safe_extract(z, infos, root / "restored")
+            restored = root / "restored/project/src/ok.ts"
+            expected = b"export const ok = true;\n"
+            assert restored.read_bytes() == expected
+            try:
+                safe_extract(z, infos, root / "restored")
+            except FileExistsError:
+                pass
+            else:
+                raise AssertionError("restore overwrote an existing evidence file")
+            assert restored.read_bytes() == expected
+
+            blocked_parent = root / "blocked-parent"
+            blocked_parent.write_text("preserve blocker", encoding="utf-8")
+            try:
+                safe_extract(z, infos, blocked_parent / "out")
+            except OSError:
+                pass
+            else:
+                raise AssertionError("restore accepted a non-directory destination")
+            assert blocked_parent.read_text(encoding="utf-8") == "preserve blocker"
+
+        stored = io.BytesIO()
+        with zipfile.ZipFile(stored, "w", compression=zipfile.ZIP_STORED) as z:
+            z.writestr("project/corrupt.txt", b"integrity sentinel")
+        corrupted = bytearray(stored.getvalue())
+        with zipfile.ZipFile(io.BytesIO(corrupted)) as z:
+            info = z.getinfo("project/corrupt.txt")
+            name_size, extra_size = struct.unpack_from("<HH", corrupted, info.header_offset + 26)
+            data_offset = info.header_offset + 30 + name_size + extra_size
+        corrupted[data_offset] ^= 0x01
+        with zipfile.ZipFile(io.BytesIO(corrupted)) as z:
+            try:
+                validate_zip(z)
+            except ValueError as error:
+                assert "CRC/decompression" in str(error)
+            else:
+                raise AssertionError("corrupt archive CRC was accepted")
+
     row = build_archive_row(ARCHIVES[0], "https://example.invalid/archive.zip")
     assert row["archive_id"] == ARCHIVES[0][0]
     failed_rows, errors = [], []
