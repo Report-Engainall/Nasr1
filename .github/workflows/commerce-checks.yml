@@ -68,6 +68,16 @@ jobs:
       # Full-tree tsc is not a valid gate yet: legacy recovery files under src/ are not part of the active TanStack app and have unresolved React Router/Zustand dependencies. Unit tests, lint, build and route smoke checks remain the acceptance gates until that legacy tree is separated.
       - name: Unit tests
         run: npm test
+      - name: Focused TypeScript check for P2 Outbox handler and tests
+        run: >-
+          npx tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext
+          --moduleResolution bundler --allowImportingTsExtensions
+          --lib ES2022,DOM --types node
+          supabase/functions/_shared/bounded-body.ts
+          supabase/functions/outbox-worker/logic.ts
+          supabase/functions/outbox-worker/handler.ts
+          src/test/outbox-worker-handler.test.ts
+          src/test/outbox-worker-source.test.ts
       - name: Apply all migrations to isolated PostgreSQL 17 and verify core workflows
         shell: bash
         run: |
