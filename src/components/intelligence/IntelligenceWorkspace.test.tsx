@@ -78,6 +78,65 @@ function metric(
   };
 }
 
+function scheduledInvoiceEntry() {
+  const amount = {
+    id: "scheduled-amount:invoice-1",
+    key: "cashflow.scheduled_invoice",
+    value: 375,
+    currency: "YER",
+    status: "VERIFIED" as const,
+    completeness: "COMPLETE" as const,
+    quality: "ACCEPTABLE" as const,
+    asOf,
+    lineage: {
+      evidenceIds: ["invoice:invoice-1"],
+      formulaId: "nasr1.scheduled-invoice",
+      formulaVersion: "1",
+    },
+  };
+  return {
+    id: "scheduled-invoice-1",
+    direction: "INFLOW" as const,
+    dueDate: "2026-11-01",
+    amount,
+  };
+}
+
+function verifiedCashflowSchedule() {
+  return {
+    status: "VERIFIED" as const,
+    completeness: "COMPLETE" as const,
+    quality: "ACCEPTABLE" as const,
+    entries: [scheduledInvoiceEntry()],
+    warnings: [],
+  };
+}
+
+function cashflowEvidenceRecords() {
+  const periodRange = { from: "2026-10-31", to: "2026-11-30" };
+  return [
+    evidence("invoice:invoice-1", "customer_invoices", asOf, periodRange),
+    evidence("payment:payment-1", "customer_payments", asOf, periodRange),
+  ].map((item) => ({ ...item, currency: "YER" }));
+}
+
+function expectedCollectionsMetric() {
+  return {
+    metricKey: "cashflow.expected_collections" as const,
+    value: 375,
+    unit: "CURRENCY" as const,
+    currency: "YER",
+    status: "VERIFIED" as const,
+    completeness: "COMPLETE" as const,
+    quality: "ACCEPTABLE" as const,
+    period: { from: "2026-10-31", to: "2026-11-30" },
+    asOf,
+    formulaId: "nasr1.receivables-outstanding",
+    formulaVersion: "1",
+    evidenceIds: ["invoice:invoice-1", "payment:payment-1"],
+  };
+}
+
 function cashflowFixture() {
   return {
     ok: true as const,
@@ -90,51 +149,10 @@ function cashflowFixture() {
       effectiveRole: "admin",
       completeness: "COMPLETE" as const,
       quality: "ACCEPTABLE" as const,
-      schedule: {
-        status: "VERIFIED" as const,
-        completeness: "COMPLETE" as const,
-        quality: "ACCEPTABLE" as const,
-        entries: [{
-          id: "scheduled-invoice-1",
-          direction: "INFLOW" as const,
-          dueDate: "2026-11-01",
-          amount: {
-            id: "scheduled-amount:invoice-1",
-            key: "cashflow.scheduled_invoice",
-            value: 375,
-            currency: "YER",
-            status: "VERIFIED" as const,
-            completeness: "COMPLETE" as const,
-            quality: "ACCEPTABLE" as const,
-            asOf,
-            lineage: {
-              evidenceIds: ["invoice:invoice-1"],
-              formulaId: "nasr1.scheduled-invoice",
-              formulaVersion: "1",
-            },
-          },
-        }],
-        warnings: [],
-      },
+      schedule: verifiedCashflowSchedule(),
       evidenceCount: 2,
-      evidenceRecords: [
-        evidence("invoice:invoice-1", "customer_invoices", asOf, { from: "2026-10-31", to: "2026-11-30" }),
-        evidence("payment:payment-1", "customer_payments", asOf, { from: "2026-10-31", to: "2026-11-30" }),
-      ].map((item) => ({ ...item, currency: "YER" })),
-      measurementMetrics: [{
-        metricKey: "cashflow.expected_collections" as const,
-        value: 375,
-        unit: "CURRENCY" as const,
-        currency: "YER",
-        status: "VERIFIED" as const,
-        completeness: "COMPLETE" as const,
-        quality: "ACCEPTABLE" as const,
-        period: { from: "2026-10-31", to: "2026-11-30" },
-        asOf,
-        formulaId: "nasr1.receivables-outstanding",
-        formulaVersion: "1",
-        evidenceIds: ["invoice:invoice-1", "payment:payment-1"],
-      }],
+      evidenceRecords: cashflowEvidenceRecords(),
+      measurementMetrics: [expectedCollectionsMetric()],
       warnings: [],
     },
   };
