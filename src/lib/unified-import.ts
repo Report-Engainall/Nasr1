@@ -1051,22 +1051,14 @@ export async function parseXlsxFirstWorksheet(
       seenColumns.add(column);
       const kind = xlsxAttribute(attributes, 't') ?? 'n';
       const styleIndex = Number(xlsxAttribute(attributes, 's') ?? 0);
-      const inner = cell[2] ?? '';
-      let value = '';
-      if (kind === 'inlineStr') {
-        const inline = /<is\b[^>]*>([\s\S]*?)<\/is\s*>/i.exec(inner)?.[1] ?? inner;
-        value = xlsxTextRuns(inline);
-      } else {
-        const raw = xlsxElementText(inner, 'v') ?? '';
-        if (kind === 's') {
-          const sharedIndex = Number(raw);
-          value = Number.isInteger(sharedIndex) && sharedIndex >= 0 ? (sharedStrings[sharedIndex] ?? '') : '';
-        } else if (kind === 'b') value = raw === '1' ? 'TRUE' : raw === '0' ? 'FALSE' : raw;
-        else if (kind === 'e') value = raw ? '#ERROR:' + raw : '';
-        else if (kind === 'd') value = raw;
-        else value = formatXlsxNumber(raw, Number.isInteger(styleIndex) ? styleIndex : 0, styles, date1904);
-      }
-      values[column] = value;
+      values[column] = parseXlsxCellValue(
+        kind,
+        cell[2] ?? '',
+        styleIndex,
+        sharedStrings,
+        styles,
+        date1904,
+      );
     }
     await onRow(Array.from({ length: values.length }, (_value, index) => values[index] ?? ''));
   }
