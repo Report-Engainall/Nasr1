@@ -688,11 +688,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -710,11 +710,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -2035,11 +2035,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -2079,11 +2079,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -2145,11 +2145,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -4719,11 +4719,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -5181,11 +5181,11 @@
       "owner": "P1",
       "owner_pr": 339,
       "reference_sha": "UNKNOWN",
-      "status": "IN_PROGRESS_P1",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "1e51d807f48da02be4e21375769f26bb793d8efd",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #350 structural-budget guard; exact-main P1 targeted workflow 41341535316 SUCCESS (strict TS on all five P1 files, AST structural budgets, and P1 Vitest suites); Core 41341535268 SUCCESS on main 91728da. Fresh CodeInspector rule-level confirmation is still required.",
+      "implementation_branch_sha": "fe0912a6fad19d6906b949129bbb4e144b0de487",
+      "fixed_by_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "evidence": "P1 source refactor merged in PR #339 at 71de0500aab508cc4cd4d41265304c397a4f3345; PR #350 added scripts/test-p1-structural-budget.mjs and the p1-targeted-typecheck workflow. Exact current-main SHA 91728da2c76933dbf2c79eceac5a6865483ea5a4: P1 Targeted TypeScript Assurance run 41341535316 SUCCESS (strict typecheck for all five P1 files, AST structural budget check, and both P1-owned Vitest suites); Core run 41341535268 SUCCESS. Finding stays IMPLEMENTED_PENDING_FRESH_SCAN and is not CLOSED.",
       "occurrence": 1
     },
     {
@@ -5755,6 +5755,25 @@
           "active": 0
         }
       }
+    },
+    "P1": {
+      "status": "IMPLEMENTATION_COMPLETE_PENDING_OFFICIAL_CODEINSPECTOR_SCAN",
+      "main_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
+      "TS0002_implemented_pending_fresh_scan": 2,
+      "TS0003_implemented_pending_fresh_scan": 5,
+      "fixture_detector_records_triaged_not_applicable": 18,
+      "active_implementation_open": 0,
+      "closed": 0,
+      "source_merge_pr": 339,
+      "source_merge_sha": "71de0500aab508cc4cd4d41265304c397a4f3345",
+      "structural_guard_pr": 350,
+      "structural_guard_merge_sha": "4d95a6ed39387555bc29698b510b607b45498549",
+      "exact_main_core_run": 41341535268,
+      "exact_main_core_status": "SUCCESS",
+      "exact_main_targeted_typecheck_run": 41341535316,
+      "exact_main_targeted_typecheck_status": "SUCCESS",
+      "fresh_codeinspector_scan": "PENDING",
+      "note": "The 7 P1 TS0002/TS0003 implementation rows have exact-main TypeScript, AST structural-budget, P1 Vitest and Core success evidence. The 18 TS0004/TS0009 records remain triaged as test fixtures; neither group is CLOSED until fresh official CodeInspector results are captured."
     }
   },
   "integration_history": [
@@ -6121,6 +6140,19 @@
       "behind_by": 42,
       "merge_base": "6cb364193285840b6d68a620d0db69eadb5d6ef1",
       "disposition": "DO_NOT_MERGE_WHOLE_BRANCH; selectively integrated successors #383/#396/#398 supersede known portions"
+    },
+    "P1": {
+      "TS0002_implemented_pending_fresh_scan": 2,
+      "TS0003_implemented_pending_fresh_scan": 5,
+      "fixture_detector_records_triaged_not_applicable": 18,
+      "active_implementation_open": 0,
+      "closed": 0,
+      "source_merge_pr": 339,
+      "structural_budget_guard_pr": 350,
+      "exact_main_targeted_run": 41341535316,
+      "exact_main_targeted_status": "SUCCESS",
+      "exact_main_core_run": 41341535268,
+      "exact_main_core_status": "SUCCESS"
     }
   }
 }
