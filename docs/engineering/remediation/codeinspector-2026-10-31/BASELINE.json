@@ -88,6 +88,41 @@
           }
         },
         "note": "Separate from the recovered 239-row baseline. The report does not identify its input commit SHA. Do not merge these counts into the historical baseline or treat them as a current-main scan."
+      },
+      {
+        "product": "CodeInspector",
+        "generated_at_utc": "2026-11-01T17:38:11.0353760Z",
+        "reported_branch": "main",
+        "scan_input_sha": "UNKNOWN",
+        "source": "User-supplied report excerpt; detailed finding rows were not supplied",
+        "totals": {
+          "files": 718,
+          "lines_of_code": 139571,
+          "reported_findings": 118
+        },
+        "languages": {
+          "JavaScript": {
+            "files": 51,
+            "lines_of_code": 28992,
+            "issues": 3
+          },
+          "Python": {
+            "files": 3,
+            "lines_of_code": 1957,
+            "issues": 0
+          },
+          "TypeScript": {
+            "files": 664,
+            "lines_of_code": 108622,
+            "issues": 115
+          }
+        },
+        "solid_analysis": {
+          "single_responsibility": 0,
+          "open_closed": 0,
+          "liskov_substitution": "TRUNCATED_IN_SUPPLIED_EXCERPT"
+        },
+        "note": "Separate from the recovered 239-row baseline and earlier 181-finding follow-up. No individual findings or source SHA were provided. Do not merge these counts into the historical baseline or infer that its rows map to these findings."
       }
     ]
   },
@@ -168,7 +203,7 @@
     "disposition": "P1 triaged as synthetic test fixtures; preserve report rows pending fresh scan."
   },
   "sha_context": {
-    "main": "346495270e60d4e1a690a3d1a41cecb9d286a7bb",
+    "main": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
     "P1": "37d0c058f4a7a943eb1b1cd2e2812ef4874b818a",
     "P2": "7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6",
     "P3": "c7a4391fd13ae64895d93245358d09898a85a036",
@@ -193,8 +228,14 @@
     "P3_batch_12_tested_head": "63fbdfa84187e5ad9e8b6432f70b899cdfa0a2a3",
     "P3_batch_12_merge": "346495270e60d4e1a690a3d1a41cecb9d286a7bb",
     "P3_batch_12_pr": 360,
-    "last_reconciled_main": "806799c17c633f714296e409e805024726f3c78d",
-    "P2_last_validated_source": "a024e18e31de1d0a1cb18fd27e3efcf86f471137"
+    "last_reconciled_main": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+    "P2_last_validated_source": "a024e18e31de1d0a1cb18fd27e3efcf86f471137",
+    "P2_last_merged_head": "a2670ac947959ea4ce9e40350a87ecb71c84ab6d",
+    "P2_last_merge": "e433062acbe27b419f53c3b7f5288f39a5f616a2",
+    "P2_last_targeted_merge_head": "68e6cf2833b3e43bc97b144817a984d0c9839cdd",
+    "P2_last_targeted_merge": "6b1f85ef7a62f6be79c5d76c4ee14e27b199186c",
+    "P3_latest_tested_head": "2fe37004d34283b84642ca50c46001167942566e",
+    "P3_latest_merge": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0"
   },
   "verification_policy": {
     "old_sha_pass_not_transferable": true,
@@ -3568,11 +3609,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact PR #391 head a2670ac947959ea4ce9e40350a87ecb71c84ab6d passed Core/test-and-build, full-history Gitleaks, PostgreSQL 17 Import Finalizer, public UI and local Supabase order/tenant acceptance. Hosted tenant E2E and CodeRabbit were skipped; fresh CodeInspector scan remains required.",
+      "implementation_branch_sha": "a2670ac947959ea4ce9e40350a87ecb71c84ab6d",
+      "fixed_by_sha": "e433062acbe27b419f53c3b7f5288f39a5f616a2",
+      "evidence": "PR #391 merged at e433062acbe27b419f53c3b7f5288f39a5f616a2. Core 41329802794; Gitleaks 41329802865; Import Finalizer PG17 41329802778; P2 Playwright 41329802872. Fresh CodeInspector confirmation required before CLOSED.",
       "occurrence": 1
     },
     {
@@ -3745,10 +3786,10 @@
       "owner_pr": 340,
       "reference_sha": "UNKNOWN",
       "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
-      "test": "Implementation integrated; exact PR #375 head 9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8 passed P3 tooling run 41272702875, Core run 41272702905, P2 local/public Playwright run 41272702881, and secret scan 41272702873. Fresh official CodeInspector scan is still required before CLOSED.",
-      "implementation_branch_sha": "c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "test": "Exact PR #396 head 2fe37004d34283b84642ca50c46001167942566e passed Core/test-and-build 41338965333, full-history Gitleaks 41338965377, strict TypeScript 41338965256, public UI and authenticated infrastructure, plus local Supabase/PostgreSQL 17 Playwright 41338965339. Hosted tenant E2E and CodeRabbit were skipped. Fresh CodeInspector scan remains required.",
+      "implementation_branch_sha": "2fe37004d34283b84642ca50c46001167942566e",
+      "fixed_by_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+      "evidence": "PR #396 merged at f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
       "occurrence": 1
     },
     {
@@ -3921,10 +3962,10 @@
       "owner_pr": 340,
       "reference_sha": "UNKNOWN",
       "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
-      "test": "Implementation integrated; exact PR #375 head 9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8 passed P3 tooling run 41272702875, Core run 41272702905, P2 local/public Playwright run 41272702881, and secret scan 41272702873. Fresh official CodeInspector scan is still required before CLOSED.",
-      "implementation_branch_sha": "c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "test": "Exact PR #396 head 2fe37004d34283b84642ca50c46001167942566e passed Core/test-and-build 41338965333, full-history Gitleaks 41338965377, strict TypeScript 41338965256, public UI and authenticated infrastructure, plus local Supabase/PostgreSQL 17 Playwright 41338965339. Hosted tenant E2E and CodeRabbit were skipped. Fresh CodeInspector scan remains required.",
+      "implementation_branch_sha": "2fe37004d34283b84642ca50c46001167942566e",
+      "fixed_by_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+      "evidence": "PR #396 merged at f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
       "occurrence": 1
     },
     {
@@ -3965,10 +4006,10 @@
       "owner_pr": 340,
       "reference_sha": "UNKNOWN",
       "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
-      "test": "Implementation integrated; exact PR #375 head 9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8 passed P3 tooling run 41272702875, Core run 41272702905, P2 local/public Playwright run 41272702881, and secret scan 41272702873. Fresh official CodeInspector scan is still required before CLOSED.",
-      "implementation_branch_sha": "c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "test": "Exact PR #396 head 2fe37004d34283b84642ca50c46001167942566e passed Core/test-and-build 41338965333, full-history Gitleaks 41338965377, strict TypeScript 41338965256, public UI and authenticated infrastructure, plus local Supabase/PostgreSQL 17 Playwright 41338965339. Hosted tenant E2E and CodeRabbit were skipped. Fresh CodeInspector scan remains required.",
+      "implementation_branch_sha": "2fe37004d34283b84642ca50c46001167942566e",
+      "fixed_by_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+      "evidence": "PR #396 merged at f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
       "occurrence": 1
     },
     {
@@ -4206,11 +4247,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact PR #391 head a2670ac947959ea4ce9e40350a87ecb71c84ab6d passed Core/test-and-build, full-history Gitleaks, PostgreSQL 17 Import Finalizer, public UI and local Supabase order/tenant acceptance. Hosted tenant E2E and CodeRabbit were skipped; fresh CodeInspector scan remains required.",
+      "implementation_branch_sha": "a2670ac947959ea4ce9e40350a87ecb71c84ab6d",
+      "fixed_by_sha": "e433062acbe27b419f53c3b7f5288f39a5f616a2",
+      "evidence": "PR #391 merged at e433062acbe27b419f53c3b7f5288f39a5f616a2. Core 41329802794; Gitleaks 41329802865; Import Finalizer PG17 41329802778; P2 Playwright 41329802872. Fresh CodeInspector confirmation required before CLOSED.",
       "occurrence": 1
     },
     {
@@ -4779,10 +4820,10 @@
       "owner_pr": 340,
       "reference_sha": "UNKNOWN",
       "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
-      "test": "Implementation integrated; exact PR #375 head 9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8 passed P3 tooling run 41272702875, Core run 41272702905, P2 local/public Playwright run 41272702881, and secret scan 41272702873. Fresh official CodeInspector scan is still required before CLOSED.",
-      "implementation_branch_sha": "c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "test": "Exact PR #396 head 2fe37004d34283b84642ca50c46001167942566e passed Core/test-and-build 41338965333, full-history Gitleaks 41338965377, strict TypeScript 41338965256, public UI and authenticated infrastructure, plus local Supabase/PostgreSQL 17 Playwright 41338965339. Hosted tenant E2E and CodeRabbit were skipped. Fresh CodeInspector scan remains required.",
+      "implementation_branch_sha": "2fe37004d34283b84642ca50c46001167942566e",
+      "fixed_by_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+      "evidence": "PR #396 merged at f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
       "occurrence": 1
     },
     {
@@ -4845,10 +4886,10 @@
       "owner_pr": 340,
       "reference_sha": "UNKNOWN",
       "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
-      "test": "Implementation integrated; exact PR #375 head 9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8 passed P3 tooling run 41272702875, Core run 41272702905, P2 local/public Playwright run 41272702881, and secret scan 41272702873. Fresh official CodeInspector scan is still required before CLOSED.",
-      "implementation_branch_sha": "c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "test": "Exact PR #396 head 2fe37004d34283b84642ca50c46001167942566e passed Core/test-and-build 41338965333, full-history Gitleaks 41338965377, strict TypeScript 41338965256, public UI and authenticated infrastructure, plus local Supabase/PostgreSQL 17 Playwright 41338965339. Hosted tenant E2E and CodeRabbit were skipped. Fresh CodeInspector scan remains required.",
+      "implementation_branch_sha": "2fe37004d34283b84642ca50c46001167942566e",
+      "fixed_by_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+      "evidence": "PR #396 merged at f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
       "occurrence": 1
     },
     {
@@ -4889,10 +4930,10 @@
       "owner_pr": 340,
       "reference_sha": "UNKNOWN",
       "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
-      "test": "Implementation integrated; exact PR #375 head 9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8 passed P3 tooling run 41272702875, Core run 41272702905, P2 local/public Playwright run 41272702881, and secret scan 41272702873. Fresh official CodeInspector scan is still required before CLOSED.",
-      "implementation_branch_sha": "c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "test": "Exact PR #396 head 2fe37004d34283b84642ca50c46001167942566e passed Core/test-and-build 41338965333, full-history Gitleaks 41338965377, strict TypeScript 41338965256, public UI and authenticated infrastructure, plus local Supabase/PostgreSQL 17 Playwright 41338965339. Hosted tenant E2E and CodeRabbit were skipped. Fresh CodeInspector scan remains required.",
+      "implementation_branch_sha": "2fe37004d34283b84642ca50c46001167942566e",
+      "fixed_by_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+      "evidence": "PR #396 merged at f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
       "occurrence": 1
     },
     {
@@ -5472,22 +5513,22 @@
     "as_of": "2026-11-01",
     "P2": {
       "TS0002_implemented_pending_fresh_scan": 1,
-      "TS0003_implemented_pending_fresh_scan": 76,
-      "TS0003_active_open": 2,
+      "TS0003_implemented_pending_fresh_scan": 78,
+      "TS0003_active_open": 0,
       "TS0003_archived_scope_review": 10,
       "TS0010": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
       "merged_pr": 338,
       "merged_code_sha": "c3552f9c1a34504bb2c61f78649a5a75e6165a18",
       "post_merge_documentation_commit": "c85601a7d3213d7782c15fed93d0cd373d783025",
-      "latest_code_commit": "a024e18e31de1d0a1cb18fd27e3efcf86f471137",
-      "latest_pr": 389,
-      "latest_merged_pr": 389,
+      "latest_code_commit": "68e6cf2833b3e43bc97b144817a984d0c9839cdd",
+      "latest_pr": 395,
+      "latest_merged_pr": 395,
       "TS0003_in_progress": 0,
-      "latest_tested_head": "a024e18e31de1d0a1cb18fd27e3efcf86f471137",
-      "main_sha": "806799c17c633f714296e409e805024726f3c78d",
+      "latest_tested_head": "68e6cf2833b3e43bc97b144817a984d0c9839cdd",
+      "main_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
       "verification": {
         "fresh_codeinspector_scan": "PENDING",
-        "current_main_sha": "d1bdf2f79ffa7caf0c8d186611b1f3378780e517",
+        "current_main_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
         "PR384_core_run": 41318647101,
         "PR384_playwright_run": 41318647093,
         "PR384_gitleaks_run": 41318647094,
@@ -5507,7 +5548,22 @@
         "latest_main_local_supabase_order_tenant": "SUCCESS",
         "latest_main_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
         "latest_main_local_supabase_job_id": 124888150619,
-        "latest_main_playwright_public_ui": "SUCCESS"
+        "latest_main_playwright_public_ui": "SUCCESS",
+        "PR391_tested_head": "a2670ac947959ea4ce9e40350a87ecb71c84ab6d",
+        "PR391_merge_sha": "e433062acbe27b419f53c3b7f5288f39a5f616a2",
+        "PR391_core_run": 41329802794,
+        "PR391_gitleaks_run": 41329802865,
+        "PR391_import_finalizer_pg17_run": 41329802778,
+        "PR391_p2_playwright_run": 41329802872,
+        "PR391_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
+        "PR391_coderabbit": "SKIPPED",
+        "PR395_tested_head": "68e6cf2833b3e43bc97b144817a984d0c9839cdd",
+        "PR395_merge_sha": "6b1f85ef7a62f6be79c5d76c4ee14e27b199186c",
+        "PR395_core_run": 41333817859,
+        "PR395_gitleaks_run": 41333817863,
+        "PR395_p2_playwright_run": 41333817737,
+        "PR395_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
+        "PR396_merge_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0"
       },
       "TS0003_not_reproduced_current_source_not_closed": 26,
       "last_source_recheck": {
@@ -5516,24 +5572,33 @@
         "status": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
         "fresh_codeinspector_scan": "PENDING"
       },
-      "pending_pr_391": {
-        "head": "723f18742fa0e1456b1a13f175019a9f1775255c",
-        "base": "806799c17c633f714296e409e805024726f3c78d",
-        "state": "READY_FOR_REVIEW_UNMERGED",
-        "independent_review_requested": "adnanabderab2016-sys",
-        "independent_review_status": "PENDING",
+      "merged_pr_391": {
+        "head": "a2670ac947959ea4ce9e40350a87ecb71c84ab6d",
+        "merge_sha": "e433062acbe27b419f53c3b7f5288f39a5f616a2",
+        "state": "MERGED",
         "verification": {
-          "core_run": 41328599685,
-          "gitleaks_run": 41328599680,
-          "p3_javascript_python_run": 41328599684,
-          "import_finalizer_postgres17_run": 41328599686,
-          "p2_playwright_run": 41328599676,
-          "public_ui_smoke": "SUCCESS",
-          "local_supabase_order_tenant_isolation": "SUCCESS",
-          "hosted_external_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
-          "coderabbit": "SKIPPED_PROVIDER_QUOTA",
-          "purchase_receipt_concurrency": "SUCCESS_EXACTLY_ONE_CANONICAL_RECEIPT_AND_REPLAY"
-        }
+          "core": 41329802794,
+          "gitleaks_full_history": 41329802865,
+          "import_finalizer_pg17": 41329802778,
+          "p2_playwright": 41329802872,
+          "hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
+          "coderabbit": "SKIPPED"
+        },
+        "findings_moved_to": "IMPLEMENTED_PENDING_FRESH_SCAN",
+        "note": "Two formerly OPEN_ASSIGNED_P2 TS0003 rows in chart.tsx and AdminSettings.tsx now have integrated source changes. No finding is CLOSED."
+      },
+      "merged_pr_395": {
+        "head": "68e6cf2833b3e43bc97b144817a984d0c9839cdd",
+        "merge_sha": "6b1f85ef7a62f6be79c5d76c4ee14e27b199186c",
+        "state": "MERGED",
+        "verification": {
+          "core": 41333817859,
+          "gitleaks_full_history": 41333817863,
+          "p2_playwright": 41333817737,
+          "hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
+          "coderabbit": "SKIPPED"
+        },
+        "note": "Targeted AghbariApp admin navigation refactor; mapping to the supplied 118-finding scan is unverified because that scan's detailed rows and input SHA were not provided."
       }
     },
     "verification": {
@@ -5567,10 +5632,10 @@
       "TS0003_implemented_pending_fresh_scan": 51,
       "TS0003_active_open_or_in_progress": 0,
       "TS0003_total_original": 51,
-      "latest_pr": 375,
-      "latest_tested_head": "9bfe44d3378a86c0d3d2fd2cc96581edb037c2f8",
-      "latest_merge_sha": "d1b60b502905c1528bc450ba4759c30192de96d1",
-      "main_sha": "d1b60b502905c1528bc450ba4759c30192de96d1",
+      "latest_pr": 396,
+      "latest_tested_head": "2fe37004d34283b84642ca50c46001167942566e",
+      "latest_merge_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+      "main_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
       "extra_test_cleanup_not_in_recovered_239_row_manifest": [
         "src/test/outbox-worker-handler.test.ts"
       ],
@@ -5591,7 +5656,14 @@
         "P3_batch_13_public_ui_smoke": "SUCCESS",
         "P3_batch_13_local_supabase_order_tenant_isolation": "SUCCESS",
         "P3_batch_13_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
-        "P3_batch_13_coderabbit": "SKIPPED_FREE_REVIEW_QUOTA"
+        "P3_batch_13_coderabbit": "SKIPPED_FREE_REVIEW_QUOTA",
+        "current_main_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+        "PR396_core_run": 41338965333,
+        "PR396_gitleaks_run": 41338965377,
+        "PR396_typescript_run": 41338965256,
+        "PR396_playwright_run": 41338965339,
+        "PR396_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
+        "PR396_coderabbit": "SKIPPED"
       },
       "total_p3_findings": 98,
       "implemented_pending_fresh_scan": 98,
@@ -5636,6 +5708,33 @@
     }
   },
   "integration_history": [
+    {
+      "event": "MERGED",
+      "pr": 396,
+      "source_commit": "2fe37004d34283b84642ca50c46001167942566e",
+      "tested_head": "2fe37004d34283b84642ca50c46001167942566e",
+      "merge_commit": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+      "merged_at": "2026-11-01T18:59:48Z",
+      "note": "Six P3-owned TS0003 test helper refactors selectively ported from stale P3 branch to current main. Exact-head Core, full-history Gitleaks, strict TypeScript, public UI smoke, authenticated infrastructure and local Supabase/PostgreSQL 17 Playwright succeeded. Hosted tenant E2E and CodeRabbit skipped. Six rows remain IMPLEMENTED_PENDING_FRESH_SCAN, not CLOSED."
+    },
+    {
+      "event": "MERGED",
+      "pr": 395,
+      "source_commit": "68e6cf2833b3e43bc97b144817a984d0c9839cdd",
+      "tested_head": "68e6cf2833b3e43bc97b144817a984d0c9839cdd",
+      "merge_commit": "6b1f85ef7a62f6be79c5d76c4ee14e27b199186c",
+      "merged_at": "2026-11-01T18:01:00Z",
+      "note": "AghbariApp admin navigation callback now reuses the existing runAdminCommand handler. Exact-head Core, Gitleaks, public UI smoke, authenticated E2E infra and local Supabase/tenant Playwright succeeded; hosted tenant E2E and CodeRabbit skipped."
+    },
+    {
+      "event": "MERGED",
+      "pr": 391,
+      "source_commit": "a2670ac947959ea4ce9e40350a87ecb71c84ab6d",
+      "tested_head": "a2670ac947959ea4ce9e40350a87ecb71c84ab6d",
+      "merge_commit": "e433062acbe27b419f53c3b7f5288f39a5f616a2",
+      "merged_at": "2026-11-01T18:00:35Z",
+      "note": "Extracted return receipt UI, Intelligence decision-cycle panel, chart tooltip/theme helpers and AdminSettings settings renderers; corrected PG17 receipt concurrency assertions. Two P2 TS0003 rows moved to IMPLEMENTED_PENDING_FRESH_SCAN, not CLOSED. Exact-head Core, full-history Gitleaks, PG17 Import Finalizer, local Supabase/Playwright and public UI succeeded; hosted E2E and CodeRabbit skipped."
+    },
     {
       "event": "MERGED",
       "pr": 338,
@@ -5893,6 +5992,6 @@
       "note": "Exact current-main file blobs were inspected. The historical TS0003 nesting pattern was not reproduced at these source locations. Original CodeInspector input SHA is UNKNOWN; these rows are NOT_CLOSED and require a fresh authorized CodeInspector scan."
     }
   ],
-  "main_sha": "346495270e60d4e1a690a3d1a41cecb9d286a7bb",
-  "last_reconciled_main_sha": "806799c17c633f714296e409e805024726f3c78d"
+  "main_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+  "last_reconciled_main_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0"
 }

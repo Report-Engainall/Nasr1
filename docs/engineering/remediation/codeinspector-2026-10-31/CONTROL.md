@@ -1,24 +1,30 @@
-# LIVE RESUME — 2026-11-01 (after P2 batch 11 merge)
-> This snapshot supersedes older operational summaries below; historical entries remain for audit.
+# LIVE RESUME — 2026-11-01 after PR #396 merge
 
-- Repository: `Report-Engainall/Nasr1`; target `main`; product `متجر الأغبري | Aghbari Commerce`.
-- Current main SHA: `c241f189c6e0c52c18728e27a7395c77f01d5303` (PR #354 merge).
-- Verified P2 merges: #338, #341, #342, #343, #344, #346, #347, #348, #349, #352, #354. P1 #339 and P3 #340 merged.
-- P2 PR #353 batch 10 branch `fix/codeinspector-p2-ts0003-batch-10`: pre-sync head `d993373aabee4caf1a6a9190367ad0e2d2e285bf`; code/test head `cb9ef2472ab09b940a9fd097b315ccde3273a5fe` passed Core `41266413355`, P2 Playwright `41266413312` and Secret Scan `41266414257`; hosted tenant E2E SKIPPED. This branch carries the batch10 implementation and cumulative ledger; after syncing with #354, exact-head CI must rerun.
-- P2 PR #354 (batch 11) merged at `c241f189c6e0c52c18728e27a7395c77f01d5303`; exact Core `41266756061`, P2 Playwright/local Supabase `41266756088`, Secret Scan `41266756046` SUCCESS; hosted tenant E2E SKIPPED.
-- P2 PR #355 (batch 12) head `301d12d58252cf84b955e5dfac9db7151076b895`, Draft/open; Core `41266906047` and Playwright `41266906134` were running at last poll; Secret Scan `41266906046` SUCCESS. Re-sync after #354 before final checks.
-- P1 follow-up #350 head `b07bccf09a4c577fdc9b268dfbff8153b63bd062`; Core `41266135010`, P2 Playwright `41266134959`, P1 targeted TS `41266134980`, Gitleaks `41266134962`, P3 tooling `41266134976` SUCCESS. Full-history Gitleaks 8.30.1: 3,045/3,333 commits scanned, 11 remote branches, deletion canary PASS. P2 COMMENT exists; independent reviewer validation of every exact-fingerprint ignore remains outstanding; no APPROVE recorded. Hold merge.
-- P3 follow-up #351: Draft/open, branch active; last head known `23137b0618a4c5b652b7e72684126f6032d97a27`. Recheck latest head/runs before integration. Older-head PASS values are not transferable.
-- P2 disposition after #354: TS0002 pending 1; TS0003 pending fresh scan 26; active TS0003 open 78; archived scope review 10; TS0010 not reproduced/not closed. Total baseline 239; `ORIGINAL_SCAN_SHA=UNKNOWN`.
-- No finding is CLOSED without fresh rule-level CodeInspector confirmation. Hosted tenant E2E SKIPPED is not PASS. No force push, history rewrite, protection bypass or DB/RLS workaround.
+> This current snapshot supersedes earlier operational summaries below; older entries remain historical evidence.
 
-## Resume cursor
-1. Synchronize PR #353 to current main with a non-force two-parent merge, overlay its four docs and two invitation files, then rerun exact-head Core/P2/Gitleaks before Ready/merge.
-2. Reconcile PR #355 against post-#354 main and rerun exact-head Core/P2/Gitleaks.
-3. Hold #350 until independent security review approves every exact-fingerprint allowlist disposition.
-4. Re-poll current #351 head and exact CI; synchronize only after P3 churn settles.
-5. Continue remaining P2 TS0003 rows and official fresh CodeInspector when authorized scanner access is available.
+- Repository: Report-Engainall/Nasr1; product متجر الأغبري | Aghbari Commerce; target main.
+- Current main: f9daf09d1e5aa152aaefa4ac628c6074d4721fb0 (PR #396 merge).
+- Recent verified integrations:
+  - P1 security PR #350: 4d95a6ed39387555bc29698b510b607b45498549.
+  - P3 fail-closed cleanup successor PR #383: 548bc7c3272ed9d0855d7f73486b06cd06455afe.
+  - P2 source PR #391: e433062acbe27b419f53c3b7f5288f39a5f616a2; tested head a2670ac947959ea4ce9e40350a87ecb71c84ab6d.
+  - P2 targeted admin navigation PR #395: 6b1f85ef7a62f6be79c5d76c4ee14e27b199186c; tested head 68e6cf2833b3e43bc97b144817a984d0c9839cdd.
+  - P3 six-file test helper PR #396: f9daf09d1e5aa152aaefa4ac628c6074d4721fb0; tested head 2fe37004d34283b84642ca50c46001167942566e.
+- P2 historical 239-row baseline: 78 TS0003 IMPLEMENTED_PENDING_FRESH_SCAN; 26 NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED; 10 archived-only scope-review; one TS0002 pending fresh scan; one TS0010 not reproduced/not closed. Two P2 TS0003 rows formerly open were integrated via #391. No baseline row is CLOSED.
+- P3 historical 98-row baseline: all 98 IMPLEMENTED_PENDING_FRESH_SCAN; zero open/in-progress; zero CLOSED. PR #396 added six reviewed test-only refactors.
+- User-supplied latest scan excerpt: 2026-11-01 17:38:11 UTC, 718 files, 139,571 LOC, 118 issues (TS=115, JS=3, Python=0). The detailed findings and input SHA were not supplied; this report is separate from the 239-row PDF and earlier 181-row follow-up.
+- Exact-head #396 CI: Core 41338965333 SUCCESS; Gitleaks 41338965377 SUCCESS; strict TypeScript 41338965256 SUCCESS; public UI, authenticated infrastructure and local Supabase/PostgreSQL 17 tenant/order Playwright 41338965339 SUCCESS. Hosted tenant E2E and CodeRabbit SKIPPED, not PASS.
+- PR #351 remains OPEN but stale/divergent; compare is 73 ahead / 38 behind from its historical base. Do not merge wholesale. #383 is the narrow fail-closed cleanup successor; #396 carries six selectively reviewed test changes.
+- Fresh authorized CodeInspector scan on recorded current main f9daf09d1e5aa152aaefa4ac628c6074d4721fb0 remains PENDING. Preserve original report SHA UNKNOWN; do not infer it. No finding is CLOSED before fresh rule-level confirmation.
+- No force push, history rewrite, branch-protection bypass, production DB workaround or assertion weakening was used.
 
+## Immediate resume cursor
+
+1. Obtain the complete 118-finding raw report (all rule/path/line/severity rows) and its scanner input SHA; keep it separate from the 239 historical rows until mapped.
+2. Run authorized CodeInspector against main f9daf09d1e5aa152aaefa4ac628c6074d4721fb0; preserve scanner version and raw export.
+3. Reconcile by rule, exact path and source context; close only rows absent/below threshold in the fresh scan.
+4. Revisit only remaining findings that reproduce on current source. Do not replay stale #351 or repeat merged fixes.
+5. Recheck post-merge main-head CI on f9daf09d1e5aa152aaefa4ac628c6074d4721fb0 before treating this SHA as fully green.
 ---
 
 # LIVE RESUME — 2026-11-01 (after P2 batch 10 exact-head acceptance)
