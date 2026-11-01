@@ -59,6 +59,292 @@ function Customer360Header({
   );
 }
 
+
+function Customer360InitialMetrics({ summary }: { summary: StaffCustomer360Summary }) {
+  return (
+    <>
+      <section className="report-grid">
+        <article className="report-metric"><ShoppingBag size={20} /><span>إجمالي الطلبات</span><strong>{formatNumber(summary.order_summary.order_count)}</strong></article>
+        <article className="report-metric"><CalendarClock size={20} /><span>طلبات قيد المعالجة</span><strong>{formatNumber(summary.order_summary.pending_order_count)}</strong></article>
+        <article className="report-metric"><Wallet size={20} /><span>الرصيد المسجل بالبطاقة</span><strong>{formatCustomer360Money(summary.customer.current_balance, 'YER')}</strong></article>
+        <article className="report-metric"><CreditCard size={20} /><span>الحد الائتماني المسجل</span><strong>{formatCustomer360Money(summary.customer.credit_limit, 'YER')}</strong></article>
+      </section>
+      <p className="report-note" role="status">
+        تفاصيل الجداول أدناه تقتصر على أحدث 20 حركة لهذا العميل؛ إجماليات الفوترة والتحصيل والمتأخرات محسوبة خادميًا من دفتر العميل الكامل.
+      </p>
+    </>
+  );
+}
+
+function Customer360OrderOverview({
+  summary,
+  overdueInvoiceCount,
+}: {
+  summary: StaffCustomer360Summary;
+  overdueInvoiceCount: number;
+}) {
+  const amount = summary.order_summary.non_cancelled_order_value;
+  return (
+    <section className="panel">
+      <h3>ملخص الحركات المعروضة</h3>
+      <p>
+        قيمة الطلبات غير الملغاة من سجل العميل الكامل:{" "}
+        <strong>{amount === null ? 'غير متاحة بسبب مبلغ غير صالح أو تجاوز دقة الحساب' : formatCurrency(amount)}</strong>
+      </p>
+      <p>
+        طلبات منفذة: {formatNumber(summary.order_summary.fulfilled_order_count)} ·
+        ملغاة: {formatNumber(summary.order_summary.cancelled_order_count)} ·
+        فواتير متأخرة من الدفتر الكامل: {formatNumber(overdueInvoiceCount)}
+      </p>
+      {summary.order_summary.invalid_order_amount_count > 0 ? (
+        <p className="form-error">
+          بعض مبالغ الطلبات غير صالحة؛ تم تعطيل جمع إجمالي قيمة الطلبات بدل اعتبار القيم غير المعروفة أصفارًا.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function Customer360FullOrderMetrics({ summary }: { summary: StaffCustomer360Summary }) {
+  const order = summary.order_summary;
+  return (
+    <div className="report-grid">
+      <article className="report-metric"><ShoppingBag size={20} /><span>إجمالي الطلبات</span><strong>{formatNumber(order.order_count)}</strong><small>من سجل العميل الكامل</small></article>
+      <article className="report-metric"><Wallet size={20} /><span>قيمة الطلبات غير الملغاة</span><strong>{order.non_cancelled_order_value === null ? 'غير متاح' : formatCurrency(order.non_cancelled_order_value)}</strong><small>المبالغ غير الصالحة: {formatNumber(order.invalid_order_amount_count)}</small></article>
+      <article className="report-metric"><CalendarClock size={20} /><span>متوسط قيمة الطلب</span><strong>{order.average_order_value === null ? 'غير متاح' : formatCurrency(order.average_order_value)}</strong><small>بحسب الطلبات غير الملغاة</small></article>
+      <article className="report-metric"><ShoppingBag size={20} /><span>آخر طلب</span><strong>{order.last_order_at ? formatDateShort(order.last_order_at) : 'لا يوجد'}</strong><small>{order.days_since_last_order === null ? 'الفترة غير متاحة' : 'منذ ' + formatNumber(order.days_since_last_order) + ' يومًا'}</small></article>
+      <article className="report-metric"><CalendarClock size={20} /><span>متوسط المدة بين الطلبات</span><strong>{order.average_days_between_orders === null ? 'غير متاح' : formatNumber(order.average_days_between_orders) + ' يوم'}</strong><small>يحسب من تواريخ الطلبات المسجلة</small></article>
+      <article className="report-metric"><CreditCard size={20} /><span>طلبات معلقة / منفذة</span><strong>{formatNumber(order.pending_order_count)} / {formatNumber(order.fulfilled_order_count)}</strong><small>الملغاة أو المرفوضة: {formatNumber(order.cancelled_order_count)}</small></article>
+    </div>
+  );
+}
+
+function Customer360FinanceByCurrency({ summary }: { summary: StaffCustomer360Summary }) {
+  if (summary.finance_by_currency.length === 0) {
+    return <Empty text="لا توجد فواتير مسجلة لهذا العميل." />;
+  }
+  return (
+    <TableWrap>
+      <table>
+        <thead>
+          <tr>
+            <th>العملة</th><th>الفواتير</th><th>إجمالي الفواتير</th><th>المسدّد</th>
+            <th>الإشعارات الدائنة المرحلة</th><th>المتبقي</th><th>فواتير متأخرة</th><th>متأخرات</th>
+          </tr>
+        </thead>
+        <tbody>
+          {summary.finance_by_currency.map((row) => (
+            <tr key={row.currency}>
+              <td>{row.currency}</td><td>{formatNumber(row.invoice_count)}</td>
+              <td>{formatCustomer360Money(row.invoiced_total, row.currency)}</td>
+              <td>{formatCustomer360Money(row.paid_total, row.currency)}</td>
+              <td>{formatCustomer360Money(row.credit_memo_total, row.currency)}</td>
+              <td>{formatCustomer360Money(row.outstanding_total, row.currency)}</td>
+              <td>{formatNumber(row.overdue_invoice_count)}</td>
+              <td>{formatCustomer360Money(row.overdue_outstanding, row.currency)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableWrap>
+  );
+}
+
+function Customer360TopProducts({ summary }: { summary: StaffCustomer360Summary }) {
+  if (summary.top_products.length === 0) {
+    return <Empty text="لا توجد بنود طلبات قابلة للترتيب لهذا العميل." />;
+  }
+  return (
+    <TableWrap>
+      <table>
+        <thead><tr><th>الصنف</th><th>الكمية</th><th>قيمة البنود</th><th>آخر شراء</th></tr></thead>
+        <tbody>
+          {summary.top_products.map((product) => (
+            <tr key={product.item_code + ':' + product.product_name}>
+              <td><strong>{product.product_name}</strong><small style={{ display: 'block' }}>{product.item_code || 'دون رمز صنف'}</small></td>
+              <td>{formatNumber(product.quantity)}</td>
+              <td>{formatCustomer360Money(product.sales, 'YER')}</td>
+              <td>{product.last_purchased_at ? formatDateShort(product.last_purchased_at) : 'غير متاح'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableWrap>
+  );
+}
+
+function Customer360RecommendationCard({
+  recommendation,
+}: {
+  recommendation: StaffCustomer360Summary["recommendations"][number];
+}) {
+  const priority = recommendation.priority === 'high'
+    ? 'أولوية عالية'
+    : recommendation.priority === 'medium' ? 'أولوية متوسطة' : 'أولوية منخفضة';
+
+  return (
+    <article style={{ border: '1px solid var(--border, #d7e1e0)', borderRadius: 10, padding: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <strong>{recommendation.title}</strong>
+        <span className="badge">{priority}</span>
+      </div>
+      <p>{recommendation.description}</p>
+      {recommendation.currency && recommendation.overdue_outstanding !== undefined ? (
+        <p>
+          <strong>المبلغ المتأخر: {formatCustomer360Money(recommendation.overdue_outstanding, recommendation.currency)}</strong>
+          {" · "}فواتير: {recommendation.overdue_invoice_count === undefined ? 'غير متاح' : formatNumber(recommendation.overdue_invoice_count)}
+        </p>
+      ) : null}
+      {recommendation.pending_order_count !== undefined ? <p>الطلبات المعلقة: {formatNumber(recommendation.pending_order_count)}</p> : null}
+      {recommendation.days_since_last_order !== undefined ? <p>الأيام منذ آخر طلب: {formatNumber(recommendation.days_since_last_order)}</p> : null}
+      <small>{recommendation.action}</small>
+    </article>
+  );
+}
+
+function Customer360Recommendations({ summary }: { summary: StaffCustomer360Summary }) {
+  if (summary.recommendations.length === 0) {
+    return (
+      <p className="report-note">
+        لا توجد توصية ضمن قواعد التنبيه الحالية (متأخرات مسجلة، طلبات معلقة، أو انقطاع طلبات 30 يومًا). لا يعني ذلك غياب جميع المخاطر.
+      </p>
+    );
+  }
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      {summary.recommendations.map((recommendation, index) => (
+        <Customer360RecommendationCard key={recommendation.type + ':' + index} recommendation={recommendation} />
+      ))}
+    </div>
+  );
+}
+
+function Customer360FullAnalysis({ summary }: { summary: StaffCustomer360Summary }) {
+  return (
+    <section className="panel">
+      <h3>التحليل الكامل لملف العميل</h3>
+      <p className="report-note">
+        المؤشرات أدناه محسوبة في قاعدة البيانات من سجل المؤسسة كاملًا. تفاصيل الجداول الأخرى محدودة بآخر 20 حركة؛ القيم غير الصالحة تبقى «غير متاحة».
+      </p>
+      <Customer360FullOrderMetrics summary={summary} />
+      <h3 style={{ marginTop: 18 }}>ملخص الفواتير والتحصيل الكامل حسب العملة</h3>
+      <Customer360FinanceByCurrency summary={summary} />
+      <h3 style={{ marginTop: 18 }}>المنتجات الأكثر شراءً من العميل</h3>
+      <Customer360TopProducts summary={summary} />
+      <h3 style={{ marginTop: 18 }}>إشارات المتابعة المبنية على السجل</h3>
+      <Customer360Recommendations summary={summary} />
+      <p className="report-note" style={{ marginTop: 12 }}>
+        آخر احتساب: {formatDateShort(summary.generated_at)}. هذه إشارات تشغيلية حتمية وليست توصيات مولدة بالذكاء الاصطناعي.
+      </p>
+    </section>
+  );
+}
+
+function Customer360RecentOrders({ summary }: { summary: StaffCustomer360Summary }) {
+  if (summary.recent_orders.length === 0) return <Empty text="لا توجد طلبات لهذا العميل." />;
+  return (
+    <TableWrap>
+      <table>
+        <thead><tr><th>رقم الطلب</th><th>التاريخ</th><th>الحالة</th><th>الأصناف</th><th>الإجمالي</th></tr></thead>
+        <tbody>
+          {summary.recent_orders.map((order) => (
+            <tr key={order.id}>
+              <td>{order.order_number}</td><td>{formatDateShort(order.created_at)}</td><td>{order.status}</td>
+              <td>{order.total_items === null ? '—' : formatNumber(order.total_items)}</td>
+              <td>{order.total_amount === null ? 'غير متاح' : formatCurrency(order.total_amount)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableWrap>
+  );
+}
+
+function Customer360RecentInvoices({ summary }: { summary: StaffCustomer360Summary }) {
+  if (summary.recent_invoices.length === 0) return <Empty text="لا توجد فواتير مسجلة لهذا العميل." />;
+  return (
+    <TableWrap>
+      <table>
+        <thead><tr><th>الفاتورة</th><th>الإصدار</th><th>الاستحقاق</th><th>الحالة</th><th>الإجمالي</th><th>المسدّد</th><th>الإشعار الدائن المرحّل</th><th>المتبقي</th></tr></thead>
+        <tbody>
+          {summary.recent_invoices.map((invoice) => (
+            <tr key={invoice.id}>
+              <td>{invoice.invoice_number}</td>
+              <td>{invoice.issued_at ? formatDateShort(invoice.issued_at) : 'غير محدد'}</td>
+              <td>{invoice.due_at ? formatDateShort(invoice.due_at) : 'غير محدد'}</td>
+              <td>{invoiceStatusLabel[invoice.status] ?? invoice.status}</td>
+              <td>{formatCustomer360Money(invoice.total_amount, invoice.currency)}</td>
+              <td>{formatCustomer360Money(invoice.paid_amount, invoice.currency)}</td>
+              <td>{formatCustomer360Money(invoice.credit_memo_amount, invoice.currency)}</td>
+              <td>{formatCustomer360Money(invoice.outstanding_amount, invoice.currency)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableWrap>
+  );
+}
+
+function Customer360RecentPayments({ summary }: { summary: StaffCustomer360Summary }) {
+  if (summary.recent_payments.length === 0) return <Empty text="لا توجد دفعات مسجلة لهذا العميل." />;
+  return (
+    <TableWrap>
+      <table>
+        <thead><tr><th>التاريخ</th><th>الفاتورة</th><th>طريقة الدفع</th><th>المبلغ</th></tr></thead>
+        <tbody>
+          {summary.recent_payments.map((payment) => {
+            const relatedInvoice = summary.recent_invoices.find((invoice) => invoice.id === payment.invoice_id);
+            return (
+              <tr key={payment.id}>
+                <td>{formatDateShort(payment.paid_at)}</td>
+                <td>{relatedInvoice?.invoice_number ?? 'خارج أحدث 20 فاتورة'}</td>
+                <td>{payment.payment_method ?? 'غير محددة'}</td>
+                <td>{relatedInvoice ? formatCustomer360Money(payment.amount, relatedInvoice.currency) : 'غير متاح — عملة الفاتورة خارج أحدث 20 فاتورة'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </TableWrap>
+  );
+}
+
+function Customer360RecentActivity({ summary }: { summary: StaffCustomer360Summary }) {
+  return (
+    <>
+      <section className="panel">
+        <h3>آخر الطلبات ({formatNumber(summary.recent_orders.length)} معروضة من {formatNumber(summary.order_summary.order_count)} طلب)</h3>
+        <Customer360RecentOrders summary={summary} />
+      </section>
+      <section className="panel">
+        <h3>آخر الفواتير ({formatNumber(summary.recent_invoices.length)} معروضة)</h3>
+        <Customer360RecentInvoices summary={summary} />
+      </section>
+      <section className="panel">
+        <h3>آخر الدفعات ({formatNumber(summary.recent_payments.length)} معروضة)</h3>
+        <Customer360RecentPayments summary={summary} />
+      </section>
+    </>
+  );
+}
+
+function Customer360LoadedView({
+  summary,
+  overdueInvoiceCount,
+}: {
+  summary: StaffCustomer360Summary;
+  overdueInvoiceCount: number;
+}) {
+  return (
+    <>
+      <Customer360InitialMetrics summary={summary} />
+      <Customer360OrderOverview summary={summary} overdueInvoiceCount={overdueInvoiceCount} />
+      <Customer360FullAnalysis summary={summary} />
+      <Customer360RecentActivity summary={summary} />
+    </>
+  );
+}
+
 export function AdminCustomer360({ customer, onClose }: { customer: Customer; onClose: () => void }) {
   const [summary, setSummary] = useState<StaffCustomer360Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,87 +425,12 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         onExport={exportCustomer360}
         onPrint={printCustomer360}
       />
-      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : summary && <>
-        <section className="report-grid">
-          <article className="report-metric"><ShoppingBag size={20} /><span>إجمالي الطلبات</span><strong>{formatNumber(summary.order_summary.order_count)}</strong></article>
-          <article className="report-metric"><CalendarClock size={20} /><span>طلبات قيد المعالجة</span><strong>{formatNumber(summary.order_summary.pending_order_count)}</strong></article>
-          <article className="report-metric"><Wallet size={20} /><span>الرصيد المسجل بالبطاقة</span><strong>{formatCustomer360Money(summary.customer.current_balance, 'YER')}</strong></article>
-          <article className="report-metric"><CreditCard size={20} /><span>الحد الائتماني المسجل</span><strong>{formatCustomer360Money(summary.customer.credit_limit, 'YER')}</strong></article>
-        </section>
-        <p className="report-note" role="status">تفاصيل الجداول أدناه تقتصر على أحدث 20 حركة لهذا العميل؛ إجماليات الفوترة والتحصيل والمتأخرات محسوبة خادميًا من دفتر العميل الكامل.</p>
-        <section className="panel">
-          <h3>ملخص الحركات المعروضة</h3>
-          <p>قيمة الطلبات غير الملغاة من سجل العميل الكامل: <strong>{summary.order_summary.non_cancelled_order_value === null ? 'غير متاحة بسبب مبلغ غير صالح أو تجاوز دقة الحساب' : formatCurrency(summary.order_summary.non_cancelled_order_value)}</strong></p>
-          <p>طلبات منفذة: {formatNumber(summary.order_summary.fulfilled_order_count)} · ملغاة: {formatNumber(summary.order_summary.cancelled_order_count)} · فواتير متأخرة من الدفتر الكامل: {formatNumber(overdueInvoiceCount)}</p>
-          {summary.order_summary.invalid_order_amount_count > 0 && <p className="form-error">بعض مبالغ الطلبات غير صالحة؛ تم تعطيل جمع إجمالي قيمة الطلبات بدل اعتبار القيم غير المعروفة أصفارًا.</p>}
-        </section>
-        {summary && <section className="panel">
-        <h3>التحليل الكامل لملف العميل</h3>
-        <p className="report-note">المؤشرات أدناه محسوبة في قاعدة البيانات من سجل المؤسسة كاملًا. تفاصيل الجداول الأخرى محدودة بآخر 20 حركة؛ القيم غير الصالحة تبقى «غير متاحة».</p>
-        <div className="report-grid">
-          <article className="report-metric"><ShoppingBag size={20} /><span>إجمالي الطلبات</span><strong>{formatNumber(summary.order_summary.order_count)}</strong><small>من سجل العميل الكامل</small></article>
-          <article className="report-metric"><Wallet size={20} /><span>قيمة الطلبات غير الملغاة</span><strong>{summary.order_summary.non_cancelled_order_value === null ? 'غير متاح' : formatCurrency(summary.order_summary.non_cancelled_order_value)}</strong><small>المبالغ غير الصالحة: {formatNumber(summary.order_summary.invalid_order_amount_count)}</small></article>
-          <article className="report-metric"><CalendarClock size={20} /><span>متوسط قيمة الطلب</span><strong>{summary.order_summary.average_order_value === null ? 'غير متاح' : formatCurrency(summary.order_summary.average_order_value)}</strong><small>بحسب الطلبات غير الملغاة</small></article>
-          <article className="report-metric"><ShoppingBag size={20} /><span>آخر طلب</span><strong>{summary.order_summary.last_order_at ? formatDateShort(summary.order_summary.last_order_at) : 'لا يوجد'}</strong><small>{summary.order_summary.days_since_last_order === null ? 'الفترة غير متاحة' : 'منذ ' + formatNumber(summary.order_summary.days_since_last_order) + ' يومًا'}</small></article>
-          <article className="report-metric"><CalendarClock size={20} /><span>متوسط المدة بين الطلبات</span><strong>{summary.order_summary.average_days_between_orders === null ? 'غير متاح' : formatNumber(summary.order_summary.average_days_between_orders) + ' يوم'}</strong><small>يحسب من تواريخ الطلبات المسجلة</small></article>
-          <article className="report-metric"><CreditCard size={20} /><span>طلبات معلقة / منفذة</span><strong>{formatNumber(summary.order_summary.pending_order_count)} / {formatNumber(summary.order_summary.fulfilled_order_count)}</strong><small>الملغاة أو المرفوضة: {formatNumber(summary.order_summary.cancelled_order_count)}</small></article>
-        </div>
-
-        <h3 style={{ marginTop: 18 }}>ملخص الفواتير والتحصيل الكامل حسب العملة</h3>
-        {!summary.finance_by_currency.length ? <Empty text="لا توجد فواتير مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>العملة</th><th>الفواتير</th><th>إجمالي الفواتير</th><th>المسدّد</th><th>الإشعارات الدائنة المرحلة</th><th>المتبقي</th><th>فواتير متأخرة</th><th>متأخرات</th></tr></thead><tbody>{summary.finance_by_currency.map((row) => <tr key={row.currency}>
-          <td>{row.currency}</td><td>{formatNumber(row.invoice_count)}</td>
-          <td>{formatCustomer360Money(row.invoiced_total, row.currency)}</td><td>{formatCustomer360Money(row.paid_total, row.currency)}</td>
-          <td>{formatCustomer360Money(row.credit_memo_total, row.currency)}</td>
-          <td>{formatCustomer360Money(row.outstanding_total, row.currency)}</td><td>{formatNumber(row.overdue_invoice_count)}</td>
-          <td>{formatCustomer360Money(row.overdue_outstanding, row.currency)}</td>
-        </tr>)}</tbody></table></TableWrap>}
-
-        <h3 style={{ marginTop: 18 }}>المنتجات الأكثر شراءً من العميل</h3>
-        {!summary.top_products.length ? <Empty text="لا توجد بنود طلبات قابلة للترتيب لهذا العميل." /> : <TableWrap><table><thead><tr><th>الصنف</th><th>الكمية</th><th>قيمة البنود</th><th>آخر شراء</th></tr></thead><tbody>{summary.top_products.map((product) => <tr key={product.item_code + ':' + product.product_name}>
-          <td><strong>{product.product_name}</strong><small style={{ display: 'block' }}>{product.item_code || 'دون رمز صنف'}</small></td>
-          <td>{formatNumber(product.quantity)}</td><td>{formatCustomer360Money(product.sales, 'YER')}</td>
-          <td>{product.last_purchased_at ? formatDateShort(product.last_purchased_at) : 'غير متاح'}</td>
-        </tr>)}</tbody></table></TableWrap>}
-
-        <h3 style={{ marginTop: 18 }}>إشارات المتابعة المبنية على السجل</h3>
-        {!summary.recommendations.length ? <p className="report-note">لا توجد توصية ضمن قواعد التنبيه الحالية (متأخرات مسجلة، طلبات معلقة، أو انقطاع طلبات 30 يومًا). لا يعني ذلك غياب جميع المخاطر.</p> : <div style={{ display: 'grid', gap: 8 }}>
-          {summary.recommendations.map((recommendation, index) => <article key={recommendation.type + ':' + index} style={{ border: '1px solid var(--border, #d7e1e0)', borderRadius: 10, padding: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <strong>{recommendation.title}</strong><span className="badge">{recommendation.priority === 'high' ? 'أولوية عالية' : recommendation.priority === 'medium' ? 'أولوية متوسطة' : 'أولوية منخفضة'}</span>
-            </div>
-            <p>{recommendation.description}</p>
-            {recommendation.currency && recommendation.overdue_outstanding !== undefined && <p><strong>المبلغ المتأخر: {formatCustomer360Money(recommendation.overdue_outstanding, recommendation.currency)}</strong> · فواتير: {recommendation.overdue_invoice_count === undefined
-              ? 'غير متاح'
-              : formatNumber(recommendation.overdue_invoice_count)}</p>}
-            {recommendation.pending_order_count !== undefined && <p>الطلبات المعلقة: {formatNumber(recommendation.pending_order_count)}</p>}
-            {recommendation.days_since_last_order !== undefined && <p>الأيام منذ آخر طلب: {formatNumber(recommendation.days_since_last_order)}</p>}
-            <small>{recommendation.action}</small>
-          </article>)}
-        </div>}
-        <p className="report-note" style={{ marginTop: 12 }}>آخر احتساب: {formatDateShort(summary.generated_at)}. هذه إشارات تشغيلية حتمية وليست توصيات مولدة بالذكاء الاصطناعي.</p>
-      </section>}
-      <section className="panel">
-          <h3>آخر الطلبات ({formatNumber(summary.recent_orders.length)} معروضة من {formatNumber(summary.order_summary.order_count)} طلب)</h3>
-          {!summary.recent_orders.length ? <Empty text="لا توجد طلبات لهذا العميل." /> : <TableWrap><table><thead><tr><th>رقم الطلب</th><th>التاريخ</th><th>الحالة</th><th>الأصناف</th><th>الإجمالي</th></tr></thead><tbody>{summary.recent_orders.map((order) => <tr key={order.id}><td>{order.order_number}</td><td>{formatDateShort(order.created_at)}</td><td>{order.status}</td><td>{order.total_items === null ? '—' : formatNumber(order.total_items)}</td><td>{order.total_amount === null ? 'غير متاح' : formatCurrency(order.total_amount)}</td></tr>)}</tbody></table></TableWrap>}
-        </section>
-        <section className="panel">
-          <h3>آخر الفواتير ({formatNumber(summary.recent_invoices.length)} معروضة)</h3>
-          {!summary.recent_invoices.length ? <Empty text="لا توجد فواتير مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>الفاتورة</th><th>الإصدار</th><th>الاستحقاق</th><th>الحالة</th><th>الإجمالي</th><th>المسدّد</th><th>الإشعار الدائن المرحّل</th><th>المتبقي</th></tr></thead><tbody>{summary.recent_invoices.map((invoice) => <tr key={invoice.id}><td>{invoice.invoice_number}</td><td>{invoice.issued_at ? formatDateShort(invoice.issued_at) : 'غير محدد'}</td><td>{invoice.due_at ? formatDateShort(invoice.due_at) : 'غير محدد'}</td><td>{invoiceStatusLabel[invoice.status] ?? invoice.status}</td><td>{formatCustomer360Money(invoice.total_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.paid_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.credit_memo_amount, invoice.currency)}</td><td>{formatCustomer360Money(invoice.outstanding_amount, invoice.currency)}</td></tr>)}</tbody></table></TableWrap>}
-        </section>
-        <section className="panel">
-          <h3>آخر الدفعات ({formatNumber(summary.recent_payments.length)} معروضة)</h3>
-          {!summary.recent_payments.length ? <Empty text="لا توجد دفعات مسجلة لهذا العميل." /> : <TableWrap><table><thead><tr><th>التاريخ</th><th>الفاتورة</th><th>طريقة الدفع</th><th>المبلغ</th></tr></thead><tbody>{summary.recent_payments.map((payment) => {
-            const relatedInvoice = summary.recent_invoices.find((invoice) => invoice.id === payment.invoice_id);
-            return <tr key={payment.id}>
-              <td>{formatDateShort(payment.paid_at)}</td>
-              <td>{relatedInvoice?.invoice_number ?? 'خارج أحدث 20 فاتورة'}</td>
-              <td>{payment.payment_method ?? 'غير محددة'}</td>
-              <td>{relatedInvoice ? formatCustomer360Money(payment.amount, relatedInvoice.currency) : 'غير متاح — عملة الفاتورة خارج أحدث 20 فاتورة'}</td>
-            </tr>;
-          })}</tbody></table></TableWrap>}
-        </section>
-      </>}
-    </div>
+      {loading ? <Loading /> : error ? <ErrorBox message={error} /> : summary ? (
+        <Customer360LoadedView
+          summary={summary}
+          overdueInvoiceCount={overdueInvoiceCount}
+        />
+      ) : null}   </div>
     {printDocument && typeof document !== 'undefined' ? createPortal(<Customer360PrintSheet document={printDocument} />, document.body) : null}
   </Modal>;
 }
