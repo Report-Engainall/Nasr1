@@ -82,7 +82,7 @@ function classifyProductMovement(
   const movement = product.lastMovementAt ? Date.parse(product.lastMovementAt) : null;
   let classification: DeadStockClass = "UNKNOWN";
   let daysSinceMovement: number | null = null;
-  let movementStatus: EvidenceStatus = historyOkay ? "VERIFIED" : "NEEDS_REVIEW";
+  const movementStatus: EvidenceStatus = historyOkay ? "VERIFIED" : "NEEDS_REVIEW";
 
   if (!historyOkay) {
     warnings.push("MOVEMENT_HISTORY_NOT_COMPLETE_OR_VERIFIED");
@@ -207,7 +207,7 @@ export function buildDeadStockReport(input:{
   const warnings: string[] = [];
   const historyOkay = coverageValid(product, input.asOf, rule.turnoverWindowDays, evidence);
   const movement = classifyProductMovement(product, input.asOf, rule, historyOkay);
-  let { classification, daysSinceMovement, movementStatus } = movement;
+  const { classification, daysSinceMovement, movementStatus } = movement;
   warnings.push(...movement.warnings);
   const quantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"";
   const sold=checkMetric(product.soldQuantityWindow,index,"QUANTITY",input.asOf,input.period,quantityUnit);
