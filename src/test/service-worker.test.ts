@@ -18,6 +18,34 @@ function sameOriginResponse(body: BodyInit | null, init?: ResponseInit): Respons
   return response;
 }
 
+const DIAGNOSTIC_SECRET_VALUES = [
+  "sw-access-token-fixture",
+  "sw-refresh-token-fixture",
+  "sw-client-secret-fixture",
+  "sw-oauth-code-fixture",
+];
+
+function createSensitiveDiagnosticFailure(label: string): Error {
+  const query = new URLSearchParams({
+    access_token: DIAGNOSTIC_SECRET_VALUES[0],
+    refresh_token: DIAGNOSTIC_SECRET_VALUES[1],
+    client_secret: DIAGNOSTIC_SECRET_VALUES[2],
+    code: DIAGNOSTIC_SECRET_VALUES[3],
+  });
+  const url = "https://aghbari.example/assets/app.js?" + query.toString()
+    + "#refresh_token=" + DIAGNOSTIC_SECRET_VALUES[1];
+  const error = new Error(label + ": " + url);
+  error.stack = error.name + ": " + label + "\\n    at fetch (" + url + ")";
+  return error;
+}
+
+function expectNoDiagnosticSecrets(calls: unknown): void {
+  const output = JSON.stringify(calls);
+  for (const secret of DIAGNOSTIC_SECRET_VALUES) {
+    expect(output).not.toContain(secret);
+  }
+}
+
 async function loadServiceWorker(overrides: {
   cacheAdd?: (url: string) => Promise<void>;
   cacheNames?: string[];
@@ -189,9 +217,10 @@ describe("Aghbari PWA offline shell", () => {
 
   it("serves a cached asset without an unhandled rejection when the background refresh is offline", async () => {
     const cachedResponse = new Response("cached asset", { status: 200 });
+    const networkError = createSensitiveDiagnosticFailure("offline");
     const worker = await loadServiceWorker({
       cacheMatch: async () => cachedResponse,
-      fetcher: async () => { throw new Error("offline"); },
+      fetcher: async () => { throw networkError; },
     });
     const pending: Promise<Response>[] = [];
     const lifecycle: Promise<unknown>[] = [];
@@ -210,8 +239,9 @@ describe("Aghbari PWA offline shell", () => {
     await expect(Promise.all(lifecycle)).resolves.toBeDefined();
     expect(warn).toHaveBeenCalledWith(
       "[aghbari-sw] background asset refresh failed; serving cached response",
-      expect.objectContaining({ url: "/assets/app.js", error: expect.any(Error) }),
+      expect.objectContaining({ url: "/assets/app.js", errorType: "Error" }),
     );
+    expectNoDiagnosticSecrets(warn.mock.calls);
     warn.mockRestore();
   });
 
@@ -227,7 +257,7 @@ describe("Aghbari PWA offline shell", () => {
         headers: { "Content-Type": "application/javascript" },
       }),
       cachePut: async () => {
-        throw new Error("cache storage unavailable");
+        throw createSensitiveDiagnosticFailure("cache storage unavailable");
       },
     });
 
@@ -241,8 +271,9 @@ describe("Aghbari PWA offline shell", () => {
     await expect(Promise.all(lifecycle)).resolves.toBeDefined();
     expect(warn).toHaveBeenCalledWith(
       "[aghbari-sw] static asset cache write failed",
-      expect.objectContaining({ url: "/assets/app.js", error: expect.any(Error) }),
+      expect.objectContaining({ url: "/assets/app.js", errorType: "Error" }),
     );
+    expectNoDiagnosticSecrets(warn.mock.calls);
     expect(JSON.stringify(warn.mock.calls)).not.toContain("do-not-log-this");
     warn.mockRestore();
   });

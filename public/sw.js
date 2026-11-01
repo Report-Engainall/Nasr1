@@ -28,6 +28,15 @@ function isHtmlResponse(response) {
   return mimeType === 'text/html' || mimeType === 'application/xhtml+xml';
 }
 
+// Never emit Error.message or Error.stack from a browser request/cache path:
+// either may contain a credential-bearing URL or provider response text.
+function diagnosticErrorType(error) {
+  const tag = Object.prototype.toString.call(error);
+  if (error instanceof TypeError || tag === '[object TypeError]') return 'TypeError';
+  if (error instanceof Error || tag === '[object Error]') return 'Error';
+  return 'UnknownError';
+}
+
 function isExpectedShellMimeType(pathname, response) {
   if (pathname === '/') return isHtmlResponse(response);
   if (pathname === '/manifest.webmanifest') {
@@ -47,7 +56,7 @@ self.addEventListener('install', (event) => {
             if (!response.ok || response.type !== 'basic' || !isExpectedShellMimeType(url, response)) return;
             await cache.put(url, response);
           } catch (error) {
-            console.warn('[aghbari-sw] optional shell asset was not cached', { url, error });
+            console.warn('[aghbari-sw] optional shell asset was not cached', { url, errorType: diagnosticErrorType(error) });
           }
         })),
       )
@@ -65,12 +74,12 @@ self.addEventListener('activate', (event) => {
 
 async function cachedShellOrError(networkError) {
   if (networkError) {
-    console.warn('[aghbari-sw] navigation network request failed; trying cached shell', networkError);
+    console.warn('[aghbari-sw] navigation network request failed; trying cached shell', { errorType: diagnosticErrorType(networkError) });
   }
   try {
     return (await caches.match('/')) || Response.error();
   } catch (error) {
-    console.error('[aghbari-sw] cached shell lookup failed', error);
+    console.error('[aghbari-sw] cached shell lookup failed', { errorType: diagnosticErrorType(error) });
     return Response.error();
   }
 }
@@ -95,7 +104,7 @@ self.addEventListener('fetch', (event) => {
             const cacheWrite = caches.open(CACHE_NAME)
               .then((cache) => cache.put('/', homeResponse));
             event.waitUntil(cacheWrite.catch((error) => {
-              console.warn('[aghbari-sw] navigation shell cache write failed', { url: url.pathname, error });
+              console.warn('[aghbari-sw] navigation shell cache write failed', { url: url.pathname, errorType: diagnosticErrorType(error) });
             }));
           }
         }
@@ -119,7 +128,7 @@ self.addEventListener('fetch', (event) => {
           const cacheWrite = caches.open(CACHE_NAME)
             .then((cache) => cache.put(request, response.clone()));
           event.waitUntil(cacheWrite.catch((error) => {
-            console.warn('[aghbari-sw] static asset cache write failed', { url: url.pathname, error });
+            console.warn('[aghbari-sw] static asset cache write failed', { url: url.pathname, errorType: diagnosticErrorType(error) });
           }));
         }
         return response;
@@ -130,7 +139,7 @@ self.addEventListener('fetch', (event) => {
         event.waitUntil(network.then(() => undefined).catch((error) => {
           console.warn('[aghbari-sw] background asset refresh failed; serving cached response', {
             url: url.pathname,
-            error,
+            errorType: diagnosticErrorType(error),
           });
         }));
         return cached;
@@ -138,7 +147,7 @@ self.addEventListener('fetch', (event) => {
       return network.catch((error) => {
         console.error('[aghbari-sw] static asset request failed with no cached response', {
           url: url.pathname,
-          error,
+          errorType: diagnosticErrorType(error),
         });
         return Response.error();
       });

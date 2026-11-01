@@ -118,9 +118,18 @@ jobs:
               { service_role_key: "fixture-service-role-secret", apiKey: "fixture-api-key" },
               "customer-fixture@example.test",
               "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
-              "eyJaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb.cccccccccccccc",
+              "eyJaaaaaaaaaaaaaaaa.bbbbbbbbbbbb.cccccccccccccc",
             );
+            const sensitiveError = new Error(
+              "callback failed https://auth.example.test/callback?access_token=fixture-access-token&refresh_token=fixture-refresh-token&client_secret=fixture-client-secret&code=fixture-oauth-code",
+            );
+            sensitiveError.stack =
+              "Error: callback failed at https://auth.example.test/callback?access_token=fixture-stack-access-token&refresh_token=fixture-stack-refresh-token&client_secret=fixture-stack-client-secret&code=fixture-stack-oauth-code";
             logError(new Error("password=fixture-error-password"));
+            logError(sensitiveError);
+            logInfo(
+              "redirect https://auth.example.test/callback?access_token=fixture-query-access-token&refresh_token=fixture-query-refresh-token&client_secret=fixture-query-client-secret&code=fixture-query-oauth-code#access_token=fixture-fragment-token",
+            );
           } finally {
             process.stdout.write = originalStdout;
             process.stderr.write = originalStderr;
@@ -140,8 +149,27 @@ jobs:
             "fixture-error-password",
             "customer-fixture@example.test",
             "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
-            "eyJaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb.cccccccccccccc",
+            "eyJaaaaaaaaaaaaaaaa.bbbbbbbbbbbb.cccccccccccccc",
+            "fixture-access-token",
+            "fixture-refresh-token",
+            "fixture-client-secret",
+            "fixture-oauth-code",
+            "fixture-stack-access-token",
+            "fixture-stack-refresh-token",
+            "fixture-stack-client-secret",
+            "fixture-stack-oauth-code",
+            "fixture-query-access-token",
+            "fixture-query-refresh-token",
+            "fixture-query-client-secret",
+            "fixture-query-oauth-code",
+            "fixture-fragment-token",
           ]) assert.equal(output.includes(secret), false, "logger leaked " + secret);
+          assert.match(error.errors[1].message, /\[REDACTED\]/);
+          assert.match(error.errors[1].stack, /\[REDACTED\]/);
+          assert.match(output, /access_token=\[REDACTED\]/);
+          assert.match(output, /refresh_token=\[REDACTED\]/);
+          assert.match(output, /client_secret=\[REDACTED\]/);
+          assert.match(output, /code=\[REDACTED\]/);
           assert.match(output, /\[REDACTED\]/);
           assert.match(output, /\[REDACTED_EMAIL\]/);
           assert.match(output, /\[REDACTED_TOKEN\]/);
