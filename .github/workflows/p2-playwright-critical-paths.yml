@@ -95,16 +95,16 @@ jobs:
           echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "Source SHA selected for build/test: $source_sha" >> "$GITHUB_STEP_SUMMARY"
       - name: Checkout the exact tested source
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ steps.source.outputs.sha }}
           fetch-depth: 1
       - name: Setup Node 22
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: 22
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
       - name: Install app dependencies from the verified Bun lockfile
         shell: bash
         run: |
@@ -182,7 +182,7 @@ jobs:
           if [ -f "$RUNNER_TEMP/p2-e2e-preview.pid" ]; then kill "$(cat "$RUNNER_TEMP/p2-e2e-preview.pid")" >/dev/null 2>&1 || true; fi
       - name: Upload Playwright traces, report, screenshots and server logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: p2-playwright-${{ github.run_id }}-${{ steps.source.outputs.sha }}
           path: |
@@ -197,16 +197,16 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout the exact tested source
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
       - name: Setup Node 22
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: 22
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
       - name: Install app dependencies from the verified Bun lockfile
         shell: bash
         run: |
@@ -238,7 +238,7 @@ jobs:
           ln -s "$RUNNER_TEMP/pw-public/node_modules/@playwright/test" node_modules/@playwright/test
       - name: Cache pinned Playwright Chromium
         id: chromium-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-chromium-1.63.0-v1
@@ -357,7 +357,7 @@ jobs:
           if [ -f "$RUNNER_TEMP/p2-price-fixture-vite.pid" ]; then kill "$(cat "$RUNNER_TEMP/p2-price-fixture-vite.pid")" >/dev/null 2>&1 || true; fi
       - name: Upload public UI smoke artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: p2-public-ui-smoke-${{ github.run_id }}-${{ github.sha }}
           path: |
@@ -387,16 +387,16 @@ jobs:
           echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "## Local authenticated E2E source SHA: $source_sha" >> "$GITHUB_STEP_SUMMARY"
       - name: Checkout exact tested source
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ steps.source.outputs.sha }}
           fetch-depth: 1
       - name: Setup Node 22
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: 22
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
       - name: Install app dependencies from the verified Bun lockfile
         shell: bash
         run: |
@@ -420,7 +420,7 @@ jobs:
             sleep "$delay"
           done
       - name: Install pinned Supabase CLI
-        uses: supabase/setup-cli@v3
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359
         with:
           version: 2.84.2
       - name: Install pinned Playwright runner outside the project lockfile
@@ -432,7 +432,7 @@ jobs:
           ln -s "$RUNNER_TEMP/pw-local/node_modules/@playwright/test" node_modules/@playwright/test
       - name: Cache pinned Playwright Chromium
         id: chromium-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-chromium-1.63.0-v1
@@ -668,7 +668,7 @@ jobs:
           if [ -d "$RUNNER_TEMP/p2-local-supabase" ]; then (cd "$RUNNER_TEMP/p2-local-supabase" && supabase stop --no-backup >/dev/null 2>&1) || true; fi
       - name: Upload authenticated E2E traces, report and server log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: p2-local-authenticated-e2e-${{ github.run_id }}-${{ steps.source.outputs.sha }}
           path: |
