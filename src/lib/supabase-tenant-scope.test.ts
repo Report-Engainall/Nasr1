@@ -22,26 +22,34 @@ const USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const PROFILE_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const ORG_A = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const ORG_B = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const AUTHENTICATED_SESSION = {
+  data: { session: { user: { id: USER_ID } } },
+  error: null,
+};
+
+function authStateSubscription() {
+  return { data: { subscription: { unsubscribe: vi.fn() } } };
+}
+
+function tenantScopeResponse(organizationId: string) {
+  return {
+    data: {
+      profile_id: PROFILE_ID,
+      organization_id: organizationId,
+      warehouse_id: null,
+      is_staff: false,
+      can_manage_customers: false,
+    },
+    error: null,
+  };
+}
+
 
 describe("server tenant scope refresh", () => {
   beforeEach(() => {
-    mocks.getSession.mockReset().mockResolvedValue({
-      data: { session: { user: { id: USER_ID } } },
-      error: null,
-    });
-    mocks.onAuthStateChange.mockReset().mockReturnValue({
-      data: { subscription: { unsubscribe: vi.fn() } },
-    });
-    mocks.rpc.mockReset().mockImplementation(async () => ({
-      data: {
-        profile_id: PROFILE_ID,
-        organization_id: ORG_A,
-        warehouse_id: null,
-        is_staff: false,
-        can_manage_customers: false,
-      },
-      error: null,
-    }));
+    mocks.getSession.mockReset().mockResolvedValue(AUTHENTICATED_SESSION);
+    mocks.onAuthStateChange.mockReset().mockReturnValue(authStateSubscription());
+    mocks.rpc.mockReset().mockResolvedValue(tenantScopeResponse(ORG_A));
   });
 
   it("bypasses the per-user memoized scope for explicit revalidation and caches the new result", async () => {
@@ -49,16 +57,7 @@ describe("server tenant scope refresh", () => {
     expect(first.organizationId).toBe(ORG_A);
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
 
-    mocks.rpc.mockResolvedValueOnce({
-      data: {
-        profile_id: PROFILE_ID,
-        organization_id: ORG_B,
-        warehouse_id: null,
-        is_staff: false,
-        can_manage_customers: false,
-      },
-      error: null,
-    });
+    mocks.rpc.mockResolvedValueOnce(tenantScopeResponse(ORG_B));
 
     const refreshed = await getCurrentTenantScope({ forceRefresh: true });
     expect(refreshed.organizationId).toBe(ORG_B);
