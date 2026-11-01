@@ -2,106 +2,126 @@ import { describe, expect, it } from "vitest";
 import type { StaffCustomer360Summary } from "@/lib/customer-360-summary";
 import { buildStaffCustomer360WorkbookXlsx } from "@/lib/customer-360-xlsx";
 
+const CUSTOMER_FIXTURE: StaffCustomer360Summary["customer"] = {
+  id: "11111111-1111-4111-8111-111111111111",
+  customer_code: "000125",
+  business_name: '=HYPERLINK("https://evil.invalid","open")',
+  contact_name: "مسؤول المشتريات",
+  phone: null,
+  email: null,
+  tier: "wholesale",
+  status: "approved",
+  current_balance: 375,
+  credit_limit: 1000,
+};
+
+const ORDER_SUMMARY_FIXTURE: StaffCustomer360Summary["order_summary"] = {
+  order_count: 40,
+  pending_order_count: 2,
+  fulfilled_order_count: 34,
+  cancelled_order_count: 4,
+  non_cancelled_order_value: 8500,
+  average_order_value: 212.5,
+  invalid_order_amount_count: 1,
+  last_order_at: "2026-10-28T12:00:00.000Z",
+  days_since_last_order: 1,
+  average_days_between_orders: 8.5,
+  status_distribution: [
+    { status: "delivered", count: 34 },
+    { status: "pending", count: 2 },
+    { status: "cancelled", count: 4 },
+  ],
+};
+
+const RECENT_ORDERS_FIXTURE: StaffCustomer360Summary["recent_orders"] = [{
+  id: "order-1",
+  order_number: "SO-0007",
+  status: "delivered",
+  total_amount: 500,
+  total_items: 3,
+  created_at: "2026-10-28T12:00:00.000Z",
+}];
+
+const RECENT_INVOICES_FIXTURE: StaffCustomer360Summary["recent_invoices"] = [{
+  id: "invoice-1",
+  invoice_number: "INV-0009",
+  status: "issued",
+  issued_at: "2026-10-28T12:00:00.000Z",
+  due_at: null,
+  currency: "YER",
+  total_amount: 600,
+  paid_amount: 250,
+  credit_memo_amount: 25,
+  outstanding_amount: 325,
+}];
+
+const RECENT_PAYMENTS_FIXTURE: StaffCustomer360Summary["recent_payments"] = [{
+  id: "payment-1",
+  invoice_id: "invoice-1",
+  amount: 250,
+  paid_at: "2026-10-28T13:00:00.000Z",
+  payment_method: "cash",
+}];
+
+const FINANCE_BY_CURRENCY_FIXTURE: StaffCustomer360Summary["finance_by_currency"] = [
+  {
+    currency: "YER",
+    invoice_count: 29,
+    invoiced_total: 15000,
+    paid_total: 10000,
+    credit_memo_total: 125,
+    outstanding_total: 4875,
+    overdue_invoice_count: 4,
+    overdue_outstanding: 900,
+    unknown_due_date_invoice_count: 1,
+    unknown_due_date_outstanding: 250,
+    invalid_total_amount_count: 1,
+  },
+  {
+    currency: "USD",
+    invoice_count: 3,
+    invoiced_total: null,
+    paid_total: 0,
+    credit_memo_total: 0,
+    outstanding_total: null,
+    overdue_invoice_count: 1,
+    overdue_outstanding: null,
+    unknown_due_date_invoice_count: 1,
+    unknown_due_date_outstanding: null,
+    invalid_total_amount_count: 1,
+  },
+];
+
+const TOP_PRODUCTS_FIXTURE: StaffCustomer360Summary["top_products"] = [{
+  item_code: "000125",
+  product_name: "+CMD|payload",
+  quantity: 6,
+  sales: 600,
+  last_purchased_at: "2026-10-28T12:00:00.000Z",
+}];
+
+const RECOMMENDATIONS_FIXTURE: StaffCustomer360Summary["recommendations"] = [{
+  type: "overdue_follow_up",
+  priority: "high",
+  title: "متابعة التحصيل",
+  description: "فواتير متأخرة بحسب بيانات السجل",
+  action: "مراجعة كشف الحساب",
+  currency: "YER",
+  overdue_invoice_count: 4,
+  overdue_outstanding: 900,
+}];
+
 function sample(): StaffCustomer360Summary {
   return {
     generated_at: "2026-10-29T12:00:00.000Z",
-    customer: {
-      id: "11111111-1111-4111-8111-111111111111",
-      customer_code: "000125",
-      business_name: '=HYPERLINK("https://evil.invalid","open")',
-      contact_name: "مسؤول المشتريات",
-      phone: null,
-      email: null,
-      tier: "wholesale",
-      status: "approved",
-      current_balance: 375,
-      credit_limit: 1000,
-    },
-    order_summary: {
-      order_count: 40,
-      pending_order_count: 2,
-      fulfilled_order_count: 34,
-      cancelled_order_count: 4,
-      non_cancelled_order_value: 8500,
-      average_order_value: 212.5,
-      invalid_order_amount_count: 1,
-      last_order_at: "2026-10-28T12:00:00.000Z",
-      days_since_last_order: 1,
-      average_days_between_orders: 8.5,
-      status_distribution: [{ status: "delivered", count: 34 }, { status: "pending", count: 2 }, { status: "cancelled", count: 4 }],
-    },
-    recent_orders: [{
-      id: "order-1",
-      order_number: "SO-0007",
-      status: "delivered",
-      total_amount: 500,
-      total_items: 3,
-      created_at: "2026-10-28T12:00:00.000Z",
-    }],
-    recent_invoices: [{
-      id: "invoice-1",
-      invoice_number: "INV-0009",
-      status: "issued",
-      issued_at: "2026-10-28T12:00:00.000Z",
-      due_at: null,
-      currency: "YER",
-      total_amount: 600,
-      paid_amount: 250,
-      credit_memo_amount: 25,
-      outstanding_amount: 325,
-    }],
-    recent_payments: [{
-      id: "payment-1",
-      invoice_id: "invoice-1",
-      amount: 250,
-      paid_at: "2026-10-28T13:00:00.000Z",
-      payment_method: "cash",
-    }],
-    finance_by_currency: [
-      {
-        currency: "YER",
-        invoice_count: 29,
-        invoiced_total: 15000,
-        paid_total: 10000,
-        credit_memo_total: 125,
-        outstanding_total: 4875,
-        overdue_invoice_count: 4,
-        overdue_outstanding: 900,
-        unknown_due_date_invoice_count: 1,
-        unknown_due_date_outstanding: 250,
-        invalid_total_amount_count: 1,
-      },
-      {
-        currency: "USD",
-        invoice_count: 3,
-        invoiced_total: null,
-        paid_total: 0,
-        credit_memo_total: 0,
-        outstanding_total: null,
-        overdue_invoice_count: 1,
-        overdue_outstanding: null,
-        unknown_due_date_invoice_count: 1,
-        unknown_due_date_outstanding: null,
-        invalid_total_amount_count: 1,
-      },
-    ],
-    top_products: [{
-      item_code: "000125",
-      product_name: "+CMD|payload",
-      quantity: 6,
-      sales: 600,
-      last_purchased_at: "2026-10-28T12:00:00.000Z",
-    }],
-    recommendations: [{
-      type: "overdue_follow_up",
-      priority: "high",
-      title: "متابعة التحصيل",
-      description: "فواتير متأخرة بحسب بيانات السجل",
-      action: "مراجعة كشف الحساب",
-      currency: "YER",
-      overdue_invoice_count: 4,
-      overdue_outstanding: 900,
-    }],
+    customer: CUSTOMER_FIXTURE,
+    order_summary: ORDER_SUMMARY_FIXTURE,
+    recent_orders: RECENT_ORDERS_FIXTURE,
+    recent_invoices: RECENT_INVOICES_FIXTURE,
+    recent_payments: RECENT_PAYMENTS_FIXTURE,
+    finance_by_currency: FINANCE_BY_CURRENCY_FIXTURE,
+    top_products: TOP_PRODUCTS_FIXTURE,
+    recommendations: RECOMMENDATIONS_FIXTURE,
   };
 }
 
