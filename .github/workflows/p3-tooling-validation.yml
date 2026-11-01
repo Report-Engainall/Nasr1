@@ -9,6 +9,8 @@ on:
       - "scripts/*.py"
       - "public/sw.js"
       - "src/test/service-worker.test.ts"
+      - "src/test/service-worker-mime-cache-acceptance.test.ts"
+      - "docs/engineering/remediation/codeinspector-2026-10-31/P3.md"
       - "src/lib/intelligence/free-ai-policy.test.ts"
       - "docs/bolt-source-reconciliation/tools/*.mjs"
       - ".github/workflows/p3-tooling-validation.yml"
