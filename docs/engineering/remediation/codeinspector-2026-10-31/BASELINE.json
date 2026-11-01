@@ -57,7 +57,39 @@
         }
       },
       "validation_note": "All 239 PDF headers were extracted; each was matched one-to-one to the 239 baseline rows by rule id, original line and normalized reported filename. Original input commit SHA is not present in the PDF and remains UNKNOWN."
-    }
+    },
+    "follow_up_scans": [
+      {
+        "product": "CodeInspector",
+        "generated_at_utc": "2026-11-01T03:01:06.5014910Z",
+        "reported_branch": "main",
+        "scan_input_sha": "UNKNOWN",
+        "source": "User-supplied 16-page report extract",
+        "totals": {
+          "files": 715,
+          "lines_of_code": 131377,
+          "reported_findings": 181
+        },
+        "languages": {
+          "JavaScript": {
+            "files": 49,
+            "lines_of_code": 28869,
+            "issues": 10
+          },
+          "Python": {
+            "files": 3,
+            "lines_of_code": 1900,
+            "issues": 2
+          },
+          "TypeScript": {
+            "files": 663,
+            "lines_of_code": 100608,
+            "issues": 169
+          }
+        },
+        "note": "Separate from the recovered 239-row baseline. The report does not identify its input commit SHA. Do not merge these counts into the historical baseline or treat them as a current-main scan."
+      }
+    ]
   },
   "measured_scan_totals": {
     "files": 703,
@@ -160,7 +192,9 @@
     "P2_batch_11_merge": "c241f189c6e0c52c18728e27a7395c77f01d5303",
     "P3_batch_12_tested_head": "63fbdfa84187e5ad9e8b6432f70b899cdfa0a2a3",
     "P3_batch_12_merge": "346495270e60d4e1a690a3d1a41cecb9d286a7bb",
-    "P3_batch_12_pr": 360
+    "P3_batch_12_pr": 360,
+    "last_reconciled_main": "d1bdf2f79ffa7caf0c8d186611b1f3378780e517",
+    "P2_last_validated_source": "a024e18e31de1d0a1cb18fd27e3efcf86f471137"
   },
   "verification_policy": {
     "old_sha_pass_not_transferable": true,
@@ -2324,11 +2358,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -2368,11 +2402,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #370 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "72cfe06ece0b3fcd6f52bd016599b8aaa67a8819",
+      "fixed_by_sha": "654020301386c7af44fd8eb5bdcf3ec60fc32996",
+      "evidence": "PR #370 merged at 654020301386c7af44fd8eb5bdcf3ec60fc32996; tested head 72cfe06ece0b3fcd6f52bd016599b8aaa67a8819. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED.",
       "occurrence": 1
     },
     {
@@ -2390,11 +2424,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #369 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "69bdc8faea1efb7080a788b308a2cc0c50c1a886",
+      "fixed_by_sha": "edc47a05065ff0d54b29bb036d264b85c08bc1ef",
+      "evidence": "PR #369 merged at edc47a05065ff0d54b29bb036d264b85c08bc1ef; tested head 69bdc8faea1efb7080a788b308a2cc0c50c1a886. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED.",
       "occurrence": 1
     },
     {
@@ -2478,11 +2512,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #357 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "7236ef2fe64bf326a080f9b272674c1caa551a2d",
+      "fixed_by_sha": "45cee412a84ec384b298458d9ef491160db346f4",
+      "evidence": "PR #357 merged at 45cee412a84ec384b298458d9ef491160db346f4; tested head 7236ef2fe64bf326a080f9b272674c1caa551a2d. Core 41269363307; P2 Playwright 41269363256; Gitleaks 41269363284.",
       "occurrence": 1
     },
     {
@@ -2500,11 +2534,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #378 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae",
+      "fixed_by_sha": "8f661fe4f68b2bd53dbbf699db023c2d12842011",
+      "evidence": "PR #378 merged at 8f661fe4f68b2bd53dbbf699db023c2d12842011; tested head ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED.",
       "occurrence": 1
     },
     {
@@ -2522,11 +2556,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #364 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "5399d0e0ffc86d16ac8d22e71f27dd06a80fb3c2",
+      "fixed_by_sha": "8bfacef267492698d0f4eb7c0033f2b3c2ebf643",
+      "evidence": "PR #364 merged at 8bfacef267492698d0f4eb7c0033f2b3c2ebf643; tested head 5399d0e0ffc86d16ac8d22e71f27dd06a80fb3c2. Core 41270048496; P2 Playwright 41270048501; Gitleaks 41270048489.",
       "occurrence": 1
     },
     {
@@ -2544,11 +2578,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #364 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "5399d0e0ffc86d16ac8d22e71f27dd06a80fb3c2",
+      "fixed_by_sha": "8bfacef267492698d0f4eb7c0033f2b3c2ebf643",
+      "evidence": "PR #364 merged at 8bfacef267492698d0f4eb7c0033f2b3c2ebf643; tested head 5399d0e0ffc86d16ac8d22e71f27dd06a80fb3c2. Core 41270048496; P2 Playwright 41270048501; Gitleaks 41270048489.",
       "occurrence": 1
     },
     {
@@ -2566,11 +2600,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #373 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "fff561f8e9b07bf46265c2bb3d7f13e13c07161a",
+      "fixed_by_sha": "9ef93c4e1ac083ecb9d36db4fb4355345e7b8fcc",
+      "evidence": "PR #373 merged at 9ef93c4e1ac083ecb9d36db4fb4355345e7b8fcc; tested head fff561f8e9b07bf46265c2bb3d7f13e13c07161a. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED.",
       "occurrence": 1
     },
     {
@@ -2588,11 +2622,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #378 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae",
+      "fixed_by_sha": "8f661fe4f68b2bd53dbbf699db023c2d12842011",
+      "evidence": "PR #378 merged at 8f661fe4f68b2bd53dbbf699db023c2d12842011; tested head ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED.",
       "occurrence": 1
     },
     {
@@ -2610,11 +2644,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #378 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae",
+      "fixed_by_sha": "8f661fe4f68b2bd53dbbf699db023c2d12842011",
+      "evidence": "PR #378 merged at 8f661fe4f68b2bd53dbbf699db023c2d12842011; tested head ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED.",
       "occurrence": 1
     },
     {
@@ -2654,11 +2688,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #362 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "19b0cb5fd94a42cb464242dba2323966885de0f3",
+      "fixed_by_sha": "d0bbcb05bdad0d2627470cefad4990304e212dbf",
+      "evidence": "PR #362 merged at d0bbcb05bdad0d2627470cefad4990304e212dbf; tested head 19b0cb5fd94a42cb464242dba2323966885de0f3. Core 41269462469; P2 Playwright 41269462489; Gitleaks 41269462468.",
       "occurrence": 1
     },
     {
@@ -2676,11 +2710,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #378 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae",
+      "fixed_by_sha": "8f661fe4f68b2bd53dbbf699db023c2d12842011",
+      "evidence": "PR #378 merged at 8f661fe4f68b2bd53dbbf699db023c2d12842011; tested head ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED.",
       "occurrence": 1
     },
     {
@@ -2786,11 +2820,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #366 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "dca9c73c309a316f1d0b43a6696f0473951c741d",
+      "fixed_by_sha": "c2758be48e71141990170cc6b22fe02cc60dddf5",
+      "evidence": "PR #366 merged at c2758be48e71141990170cc6b22fe02cc60dddf5; tested head dca9c73c309a316f1d0b43a6696f0473951c741d. Exact-head test-and-build, P2 Playwright, local Supabase acceptance and Gitleaks all SUCCESS.",
       "occurrence": 1
     },
     {
@@ -2808,11 +2842,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #371 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "7ead78023866fc54ecf29ccdcf67ad08541842cf",
+      "fixed_by_sha": "3267939a9cf8d23f9f5d4ec3fbea42b06ca31c5d",
+      "evidence": "PR #371 merged at 3267939a9cf8d23f9f5d4ec3fbea42b06ca31c5d; tested head 7ead78023866fc54ecf29ccdcf67ad08541842cf. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED.",
       "occurrence": 1
     },
     {
@@ -2830,11 +2864,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #367 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "d1adfccbf1815afd233e9433d9a81a198475f1d6",
+      "fixed_by_sha": "edcfcdcb371dcce450315511a77d4b0a4296ec01",
+      "evidence": "PR #367 merged at edcfcdcb371dcce450315511a77d4b0a4296ec01; tested head d1adfccbf1815afd233e9433d9a81a198475f1d6. Exact-head test-and-build, P2 Playwright, local Supabase acceptance and Gitleaks all SUCCESS.",
       "occurrence": 1
     },
     {
@@ -2852,11 +2886,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #378 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae",
+      "fixed_by_sha": "8f661fe4f68b2bd53dbbf699db023c2d12842011",
+      "evidence": "PR #378 merged at 8f661fe4f68b2bd53dbbf699db023c2d12842011; tested head ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED.",
       "occurrence": 1
     },
     {
@@ -2874,11 +2908,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #378 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae",
+      "fixed_by_sha": "8f661fe4f68b2bd53dbbf699db023c2d12842011",
+      "evidence": "PR #378 merged at 8f661fe4f68b2bd53dbbf699db023c2d12842011; tested head ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED.",
       "occurrence": 1
     },
     {
@@ -3094,11 +3128,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #365 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "0313cd23d5011c0d44a58a90124606e637667a47",
+      "fixed_by_sha": "da4b84c5466133eb2c4d25284c2bced39aa2dbaf",
+      "evidence": "PR #365 merged at da4b84c5466133eb2c4d25284c2bced39aa2dbaf; tested head 0313cd23d5011c0d44a58a90124606e637667a47. Core 41270129497; P2 Playwright 41270129468; Gitleaks 41270129428.",
       "occurrence": 1
     },
     {
@@ -3138,11 +3172,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -3182,11 +3216,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -3204,11 +3238,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -3226,11 +3260,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -3292,11 +3326,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -3314,11 +3348,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #363 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "a4367402864cbc768a510a05a785eeb90b2710ee",
+      "fixed_by_sha": "f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842",
+      "evidence": "PR #363 merged at f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842; tested head a4367402864cbc768a510a05a785eeb90b2710ee. Core 41270266447; P2 Playwright 41270266550; Gitleaks 41270266470.",
       "occurrence": 1
     },
     {
@@ -3336,11 +3370,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #363 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "a4367402864cbc768a510a05a785eeb90b2710ee",
+      "fixed_by_sha": "f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842",
+      "evidence": "PR #363 merged at f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842; tested head a4367402864cbc768a510a05a785eeb90b2710ee. Core 41270266447; P2 Playwright 41270266550; Gitleaks 41270266470.",
       "occurrence": 1
     },
     {
@@ -3358,11 +3392,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #363 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "a4367402864cbc768a510a05a785eeb90b2710ee",
+      "fixed_by_sha": "f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842",
+      "evidence": "PR #363 merged at f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842; tested head a4367402864cbc768a510a05a785eeb90b2710ee. Core 41270266447; P2 Playwright 41270266550; Gitleaks 41270266470.",
       "occurrence": 1
     },
     {
@@ -3380,11 +3414,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #363 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "a4367402864cbc768a510a05a785eeb90b2710ee",
+      "fixed_by_sha": "f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842",
+      "evidence": "PR #363 merged at f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842; tested head a4367402864cbc768a510a05a785eeb90b2710ee. Core 41270266447; P2 Playwright 41270266550; Gitleaks 41270266470.",
       "occurrence": 1
     },
     {
@@ -3424,11 +3458,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #363 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "a4367402864cbc768a510a05a785eeb90b2710ee",
+      "fixed_by_sha": "f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842",
+      "evidence": "PR #363 merged at f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842; tested head a4367402864cbc768a510a05a785eeb90b2710ee. Core 41270266447; P2 Playwright 41270266550; Gitleaks 41270266470.",
       "occurrence": 1
     },
     {
@@ -3446,11 +3480,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #363 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "a4367402864cbc768a510a05a785eeb90b2710ee",
+      "fixed_by_sha": "f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842",
+      "evidence": "PR #363 merged at f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842; tested head a4367402864cbc768a510a05a785eeb90b2710ee. Core 41270266447; P2 Playwright 41270266550; Gitleaks 41270266470.",
       "occurrence": 1
     },
     {
@@ -3468,11 +3502,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #363 exact-head test-and-build, public UI smoke, local Supabase order/tenant acceptance and full-history Gitleaks SUCCESS; hosted external tenant E2E and CodeRabbit SKIPPED; fresh CodeInspector scan required.",
+      "implementation_branch_sha": "a4367402864cbc768a510a05a785eeb90b2710ee",
+      "fixed_by_sha": "f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842",
+      "evidence": "PR #363 merged at f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842; tested head a4367402864cbc768a510a05a785eeb90b2710ee. Core 41270266447; P2 Playwright 41270266550; Gitleaks 41270266470.",
       "occurrence": 1
     },
     {
@@ -3578,11 +3612,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -3644,11 +3678,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #388 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "e660767b456ba2abb33477b67c2cc015f15380af",
+      "fixed_by_sha": "a56616376861c5fff0d1156d8852449f5cbb8686",
+      "evidence": "PR #388 merged at a56616376861c5fff0d1156d8852449f5cbb8686; tested source head e660767b456ba2abb33477b67c2cc015f15380af. Core run 41319004154 SUCCESS; P2 Playwright run 41319004284 SUCCESS (local Supabase job 124885397472 SUCCESS); Gitleaks run 41319004136 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -3688,11 +3722,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #389 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "a024e18e31de1d0a1cb18fd27e3efcf86f471137",
+      "fixed_by_sha": "d1bdf2f79ffa7caf0c8d186611b1f3378780e517",
+      "evidence": "PR #389 merged at d1bdf2f79ffa7caf0c8d186611b1f3378780e517; tested source head a024e18e31de1d0a1cb18fd27e3efcf86f471137. Core run 41319142344 SUCCESS; P2 Playwright run 41319142378 SUCCESS (local Supabase job 124885812565 SUCCESS); Gitleaks run 41319142360 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -3732,11 +3766,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #388 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "e660767b456ba2abb33477b67c2cc015f15380af",
+      "fixed_by_sha": "a56616376861c5fff0d1156d8852449f5cbb8686",
+      "evidence": "PR #388 merged at a56616376861c5fff0d1156d8852449f5cbb8686; tested source head e660767b456ba2abb33477b67c2cc015f15380af. Core run 41319004154 SUCCESS; P2 Playwright run 41319004284 SUCCESS (local Supabase job 124885397472 SUCCESS); Gitleaks run 41319004136 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -3754,11 +3788,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #388 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "e660767b456ba2abb33477b67c2cc015f15380af",
+      "fixed_by_sha": "a56616376861c5fff0d1156d8852449f5cbb8686",
+      "evidence": "PR #388 merged at a56616376861c5fff0d1156d8852449f5cbb8686; tested source head e660767b456ba2abb33477b67c2cc015f15380af. Core run 41319004154 SUCCESS; P2 Playwright run 41319004284 SUCCESS (local Supabase job 124885397472 SUCCESS); Gitleaks run 41319004136 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -3842,11 +3876,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -3908,11 +3942,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -3952,11 +3986,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #389 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "a024e18e31de1d0a1cb18fd27e3efcf86f471137",
+      "fixed_by_sha": "d1bdf2f79ffa7caf0c8d186611b1f3378780e517",
+      "evidence": "PR #389 merged at d1bdf2f79ffa7caf0c8d186611b1f3378780e517; tested source head a024e18e31de1d0a1cb18fd27e3efcf86f471137. Core run 41319142344 SUCCESS; P2 Playwright run 41319142378 SUCCESS (local Supabase job 124885812565 SUCCESS); Gitleaks run 41319142360 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -4084,11 +4118,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -4106,11 +4140,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -4128,11 +4162,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -4194,11 +4228,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -4238,11 +4272,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -4260,11 +4294,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -4282,11 +4316,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -4326,11 +4360,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -4392,11 +4426,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #387 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "fbd32d0b3b6b69f408af7670fdf5c743f77c6439",
+      "fixed_by_sha": "4bdbc6c623cae1c6ce34b390cc766263ef43b443",
+      "evidence": "PR #387 merged at 4bdbc6c623cae1c6ce34b390cc766263ef43b443; tested source head fbd32d0b3b6b69f408af7670fdf5c743f77c6439. Core run 41318194596 SUCCESS; P2 Playwright run 41318194590 SUCCESS (local Supabase job 124882962753 SUCCESS); Gitleaks run 41318194578 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -4414,11 +4448,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #388 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "e660767b456ba2abb33477b67c2cc015f15380af",
+      "fixed_by_sha": "a56616376861c5fff0d1156d8852449f5cbb8686",
+      "evidence": "PR #388 merged at a56616376861c5fff0d1156d8852449f5cbb8686; tested source head e660767b456ba2abb33477b67c2cc015f15380af. Core run 41319004154 SUCCESS; P2 Playwright run 41319004284 SUCCESS (local Supabase job 124885397472 SUCCESS); Gitleaks run 41319004136 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -4436,11 +4470,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #387 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "fbd32d0b3b6b69f408af7670fdf5c743f77c6439",
+      "fixed_by_sha": "4bdbc6c623cae1c6ce34b390cc766263ef43b443",
+      "evidence": "PR #387 merged at 4bdbc6c623cae1c6ce34b390cc766263ef43b443; tested source head fbd32d0b3b6b69f408af7670fdf5c743f77c6439. Core run 41318194596 SUCCESS; P2 Playwright run 41318194590 SUCCESS (local Supabase job 124882962753 SUCCESS); Gitleaks run 41318194578 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -4458,11 +4492,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "PR #384 exact-head test-and-build, public Playwright smoke, local Supabase order/tenant acceptance, and full-history Gitleaks succeeded; hosted external tenant E2E was SKIPPED; fresh CodeInspector confirmation pending.",
+      "implementation_branch_sha": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "fixed_by_sha": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "evidence": "PR #384 merged at 3a5a6021b7a189f470cdabbee41969f225530632; tested source head 15f00e859bd89aed5a7f325633e79478eb5051d3. Core run 41318647101 SUCCESS; P2 Playwright run 41318647093 SUCCESS (local Supabase job 124885404127 SUCCESS); Gitleaks run 41318647094 SUCCESS.",
       "occurrence": 1
     },
     {
@@ -5438,19 +5472,43 @@
     "as_of": "2026-11-01",
     "P2": {
       "TS0002_implemented_pending_fresh_scan": 1,
-      "TS0003_implemented_pending_fresh_scan": 26,
-      "TS0003_active_open": 78,
+      "TS0003_implemented_pending_fresh_scan": 76,
+      "TS0003_active_open": 28,
       "TS0003_archived_scope_review": 10,
       "TS0010": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
       "merged_pr": 338,
       "merged_code_sha": "c3552f9c1a34504bb2c61f78649a5a75e6165a18",
       "post_merge_documentation_commit": "c85601a7d3213d7782c15fed93d0cd373d783025",
-      "latest_code_commit": "4f2007665f91843c804423eba95516cc6c5e43a0",
-      "latest_pr": 354,
-      "latest_merged_pr": 354,
+      "latest_code_commit": "a024e18e31de1d0a1cb18fd27e3efcf86f471137",
+      "latest_pr": 389,
+      "latest_merged_pr": 389,
       "TS0003_in_progress": 0,
-      "latest_tested_head": "a5c4409325d3c4d09a91d701b340ebd32762f6bf",
-      "main_sha": "c241f189c6e0c52c18728e27a7395c77f01d5303"
+      "latest_tested_head": "a024e18e31de1d0a1cb18fd27e3efcf86f471137",
+      "main_sha": "d1bdf2f79ffa7caf0c8d186611b1f3378780e517",
+      "verification": {
+        "fresh_codeinspector_scan": "PENDING",
+        "current_main_sha": "d1bdf2f79ffa7caf0c8d186611b1f3378780e517",
+        "PR384_core_run": 41318647101,
+        "PR384_playwright_run": 41318647093,
+        "PR384_gitleaks_run": 41318647094,
+        "PR387_core_run": 41318194596,
+        "PR387_playwright_run": 41318194590,
+        "PR387_gitleaks_run": 41318194578,
+        "PR388_core_run": 41319004154,
+        "PR388_playwright_run": 41319004284,
+        "PR388_gitleaks_run": 41319004136,
+        "PR389_core_run": 41319142344,
+        "PR389_playwright_run": 41319142378,
+        "PR389_gitleaks_run": 41319142360,
+        "latest_main_core_run": 41319622163,
+        "latest_main_gitleaks_run": 41319622139,
+        "latest_main_p2_playwright_run": 41319622246,
+        "latest_main_public_ui_smoke": "SUCCESS",
+        "latest_main_local_supabase_order_tenant": "SUCCESS",
+        "latest_main_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
+        "latest_main_local_supabase_job_id": 124888150619,
+        "latest_main_playwright_public_ui": "SUCCESS"
+      }
     },
     "verification": {
       "P2_core_run": 41257995450,
@@ -5637,7 +5695,144 @@
       "closed_at": "2026-11-01T04:15:32Z",
       "merged": false,
       "note": "Stale Service Worker branch closed without merge; current main already contained the newer safe diagnostics, promise-handling and tests, verified by Core run 41271904062."
+    },
+    {
+      "event": "MERGED",
+      "pr": 384,
+      "source_commit": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "tested_head": "15f00e859bd89aed5a7f325633e79478eb5051d3",
+      "merge_commit": "3a5a6021b7a189f470cdabbee41969f225530632",
+      "note": "P2 TS0003 refactor. Exact-head Core, P2 public UI/local Supabase order and tenant acceptance, and full-history Gitleaks succeeded (runs 41318647101, 41318647093, 41318647094); hosted external tenant E2E and CodeRabbit were skipped. Matching exact-source P2 TS0003 row(s) are IMPLEMENTED_PENDING_FRESH_SCAN only; fresh CodeInspector confirmation remains required."
+    },
+    {
+      "event": "MERGED",
+      "pr": 387,
+      "source_commit": "fbd32d0b3b6b69f408af7670fdf5c743f77c6439",
+      "tested_head": "fbd32d0b3b6b69f408af7670fdf5c743f77c6439",
+      "merge_commit": "4bdbc6c623cae1c6ce34b390cc766263ef43b443",
+      "note": "P2 TS0003 refactor. Exact-head Core, P2 public UI/local Supabase order and tenant acceptance, and full-history Gitleaks succeeded (runs 41318194596, 41318194590, 41318194578); hosted external tenant E2E and CodeRabbit were skipped. Matching exact-source P2 TS0003 row(s) are IMPLEMENTED_PENDING_FRESH_SCAN only; fresh CodeInspector confirmation remains required."
+    },
+    {
+      "event": "MERGED",
+      "pr": 388,
+      "source_commit": "e660767b456ba2abb33477b67c2cc015f15380af",
+      "tested_head": "e660767b456ba2abb33477b67c2cc015f15380af",
+      "merge_commit": "a56616376861c5fff0d1156d8852449f5cbb8686",
+      "note": "P2 TS0003 refactor. Exact-head Core, P2 public UI/local Supabase order and tenant acceptance, and full-history Gitleaks succeeded (runs 41319004154, 41319004284, 41319004136); hosted external tenant E2E and CodeRabbit were skipped. Matching exact-source P2 TS0003 row(s) are IMPLEMENTED_PENDING_FRESH_SCAN only; fresh CodeInspector confirmation remains required."
+    },
+    {
+      "event": "MERGED",
+      "pr": 389,
+      "source_commit": "a024e18e31de1d0a1cb18fd27e3efcf86f471137",
+      "tested_head": "a024e18e31de1d0a1cb18fd27e3efcf86f471137",
+      "merge_commit": "d1bdf2f79ffa7caf0c8d186611b1f3378780e517",
+      "note": "P2 TS0003 refactor. Exact-head Core, P2 public UI/local Supabase order and tenant acceptance, and full-history Gitleaks succeeded (runs 41319142344, 41319142378, 41319142360); hosted external tenant E2E and CodeRabbit were skipped. Matching exact-source P2 TS0003 row(s) are IMPLEMENTED_PENDING_FRESH_SCAN only; fresh CodeInspector confirmation remains required."
+    },
+    {
+      "event": "MERGED",
+      "pr": 357,
+      "source_commit": "7236ef2fe64bf326a080f9b272674c1caa551a2d",
+      "tested_head": "7236ef2fe64bf326a080f9b272674c1caa551a2d",
+      "merge_commit": "45cee412a84ec384b298458d9ef491160db346f4",
+      "note": "P2 TS0003 structural refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings on the changed lines are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Core 41269363307; P2 Playwright 41269363256; Gitleaks 41269363284."
+    },
+    {
+      "event": "MERGED",
+      "pr": 362,
+      "source_commit": "19b0cb5fd94a42cb464242dba2323966885de0f3",
+      "tested_head": "19b0cb5fd94a42cb464242dba2323966885de0f3",
+      "merge_commit": "d0bbcb05bdad0d2627470cefad4990304e212dbf",
+      "note": "P2 TS0003 structural refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings on the changed lines are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Core 41269462469; P2 Playwright 41269462489; Gitleaks 41269462468."
+    },
+    {
+      "event": "MERGED",
+      "pr": 363,
+      "source_commit": "a4367402864cbc768a510a05a785eeb90b2710ee",
+      "tested_head": "a4367402864cbc768a510a05a785eeb90b2710ee",
+      "merge_commit": "f26a2abb1f8c4e1f2fae142d1e868ebeca3f3842",
+      "note": "P2 TS0003 structural refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings on the changed lines are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Core 41270266447; P2 Playwright 41270266550; Gitleaks 41270266470."
+    },
+    {
+      "event": "MERGED",
+      "pr": 364,
+      "source_commit": "5399d0e0ffc86d16ac8d22e71f27dd06a80fb3c2",
+      "tested_head": "5399d0e0ffc86d16ac8d22e71f27dd06a80fb3c2",
+      "merge_commit": "8bfacef267492698d0f4eb7c0033f2b3c2ebf643",
+      "note": "P2 TS0003 structural refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings on the changed lines are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Core 41270048496; P2 Playwright 41270048501; Gitleaks 41270048489."
+    },
+    {
+      "event": "MERGED",
+      "pr": 365,
+      "source_commit": "0313cd23d5011c0d44a58a90124606e637667a47",
+      "tested_head": "0313cd23d5011c0d44a58a90124606e637667a47",
+      "merge_commit": "da4b84c5466133eb2c4d25284c2bced39aa2dbaf",
+      "note": "P2 TS0003 structural refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings on the changed lines are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Core 41270129497; P2 Playwright 41270129468; Gitleaks 41270129428."
+    },
+    {
+      "event": "MERGED",
+      "pr": 366,
+      "source_commit": "dca9c73c309a316f1d0b43a6696f0473951c741d",
+      "tested_head": "dca9c73c309a316f1d0b43a6696f0473951c741d",
+      "merge_commit": "c2758be48e71141990170cc6b22fe02cc60dddf5",
+      "note": "P2 TS0003 structural refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings on the changed lines are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Exact-head test-and-build, P2 Playwright, local Supabase acceptance and Gitleaks all SUCCESS."
+    },
+    {
+      "event": "MERGED",
+      "pr": 367,
+      "source_commit": "d1adfccbf1815afd233e9433d9a81a198475f1d6",
+      "tested_head": "d1adfccbf1815afd233e9433d9a81a198475f1d6",
+      "merge_commit": "edcfcdcb371dcce450315511a77d4b0a4296ec01",
+      "note": "P2 TS0003 structural refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings on the changed lines are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Exact-head test-and-build, P2 Playwright, local Supabase acceptance and Gitleaks all SUCCESS."
+    },
+    {
+      "event": "MERGED",
+      "pr": 369,
+      "source_commit": "69bdc8faea1efb7080a788b308a2cc0c50c1a886",
+      "tested_head": "69bdc8faea1efb7080a788b308a2cc0c50c1a886",
+      "merge_commit": "edc47a05065ff0d54b29bb036d264b85c08bc1ef",
+      "note": "P2 TS0003 source refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings at matching original source coordinates are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED."
+    },
+    {
+      "event": "MERGED",
+      "pr": 370,
+      "source_commit": "72cfe06ece0b3fcd6f52bd016599b8aaa67a8819",
+      "tested_head": "72cfe06ece0b3fcd6f52bd016599b8aaa67a8819",
+      "merge_commit": "654020301386c7af44fd8eb5bdcf3ec60fc32996",
+      "note": "P2 TS0003 source refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings at matching original source coordinates are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED."
+    },
+    {
+      "event": "MERGED",
+      "pr": 371,
+      "source_commit": "7ead78023866fc54ecf29ccdcf67ad08541842cf",
+      "tested_head": "7ead78023866fc54ecf29ccdcf67ad08541842cf",
+      "merge_commit": "3267939a9cf8d23f9f5d4ec3fbea42b06ca31c5d",
+      "note": "P2 TS0003 source refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings at matching original source coordinates are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED."
+    },
+    {
+      "event": "MERGED",
+      "pr": 372,
+      "source_commit": "425c09be3c9e7587a449dd8ade58ef2d2b3865f8",
+      "tested_head": "425c09be3c9e7587a449dd8ade58ef2d2b3865f8",
+      "merge_commit": "430a7737156a414fcf808fa3264feb19020331f6",
+      "note": "P2 TS0003 source refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings at matching original source coordinates are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED."
+    },
+    {
+      "event": "MERGED",
+      "pr": 373,
+      "source_commit": "fff561f8e9b07bf46265c2bb3d7f13e13c07161a",
+      "tested_head": "fff561f8e9b07bf46265c2bb3d7f13e13c07161a",
+      "merge_commit": "9ef93c4e1ac083ecb9d36db4fb4355345e7b8fcc",
+      "note": "P2 TS0003 source refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings at matching original source coordinates are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED."
+    },
+    {
+      "event": "MERGED",
+      "pr": 378,
+      "source_commit": "ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae",
+      "tested_head": "ee7edbfd0cac4cc1881675bec3b9c38ab946b6ae",
+      "merge_commit": "8f661fe4f68b2bd53dbbf699db023c2d12842011",
+      "note": "P2 TS0003 source refactor. Exact-head Core/test-and-build, public UI Playwright, local Supabase order/tenant acceptance and Gitleaks SUCCESS. Hosted external tenant E2E and CodeRabbit SKIPPED. Findings at matching original source coordinates are IMPLEMENTED_PENDING_FRESH_SCAN, not closed. Exact-head test-and-build, public UI smoke, local Supabase acceptance and full-history Gitleaks all SUCCESS; hosted tenant and CodeRabbit SKIPPED."
     }
   ],
-  "main_sha": "346495270e60d4e1a690a3d1a41cecb9d286a7bb"
+  "main_sha": "346495270e60d4e1a690a3d1a41cecb9d286a7bb",
+  "last_reconciled_main_sha": "d1bdf2f79ffa7caf0c8d186611b1f3378780e517"
 }
