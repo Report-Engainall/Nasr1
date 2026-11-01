@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 test("Chromium verifies fail-closed product card and detail price visibility", async ({ page }) => {
   const pageErrors: string[] = [];
@@ -187,6 +187,92 @@ function serverPreview(surface: "cart" | "orders", mode: PricingPreviewMode): Re
   return response;
 }
 
+
+type PricingPreviewRequestBody = { p_surface?: unknown; p_items?: unknown };
+
+const pricePreviewProfileFixture = {
+  profile_id: "a1000000-0000-0000-0000-000000000101",
+  full_name: "مشتري اختبار سياسة السعر",
+  email: "price-preview-buyer@example.test",
+  roles: ["buyer"],
+};
+
+const pricingPreviewUnavailableFixture = {
+  code: "P0001",
+  message: "pricing preview unavailable in isolated browser fixture",
+  details: null,
+  hint: null,
+};
+
+const pricingPreviewInvalidSurfaceFixture = {
+  code: "22023",
+  message: "invalid preview surface",
+};
+
+function readPricingPreviewRequest(route: Route): PricingPreviewRequestBody {
+  try {
+    return route.request().postDataJSON() as PricingPreviewRequestBody;
+  } catch {
+    // Request assertions prove the client sends identity and quantity only.
+    return {};
+  }
+}
+
+async function fulfillFixtureJson(route: Route, status: number, payload: unknown): Promise<void> {
+  await route.fulfill({
+    status,
+    contentType: "application/json",
+    body: JSON.stringify(payload),
+  });
+}
+
+async function handlePricingPreviewRpc(
+  route: Route,
+  getMode: () => PricingPreviewMode,
+  recordRequest?: (payload: unknown) => void,
+): Promise<void> {
+  const requestBody = readPricingPreviewRequest(route);
+  const mode = getMode();
+
+  if (mode === "error") {
+    await fulfillFixtureJson(route, 400, pricingPreviewUnavailableFixture);
+    // Count only after the fixture has returned the RPC response, not when the request arrives.
+    recordRequest?.(requestBody);
+    return;
+  }
+
+  const surface = requestBody.p_surface;
+  if (surface !== "cart" && surface !== "orders") {
+    await fulfillFixtureJson(route, 400, pricingPreviewInvalidSurfaceFixture);
+    recordRequest?.(requestBody);
+    return;
+  }
+
+  await fulfillFixtureJson(route, 200, serverPreview(surface, mode));
+  recordRequest?.(requestBody);
+}
+
+async function handlePricingPreviewFixtureRequest(
+  route: Route,
+  getMode: () => PricingPreviewMode,
+  recordRequest?: (payload: unknown) => void,
+): Promise<void> {
+  const pathname = new URL(route.request().url()).pathname;
+
+  if (pathname === "/rest/v1/rpc/ensure_profile") {
+    await fulfillFixtureJson(route, 200, pricePreviewProfileFixture);
+    return;
+  }
+
+  if (pathname === "/rest/v1/rpc/preview_customer_order_pricing") {
+    await handlePricingPreviewRpc(route, getMode, recordRequest);
+    return;
+  }
+
+  // Never allow this fixture to reach any unmocked backend endpoint.
+  await route.abort("blockedbyclient");
+}
+
 async function installPricingPreviewRoutes(
   page: Page,
   getMode: () => PricingPreviewMode,
@@ -199,65 +285,9 @@ async function installPricingPreviewRoutes(
     session: previewSession(),
   });
 
-  await page.route("https://ci-placeholder.supabase.co/**", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname === "/rest/v1/rpc/ensure_profile") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          profile_id: "a1000000-0000-0000-0000-000000000101",
-          full_name: "مشتري اختبار سياسة السعر",
-          email: "price-preview-buyer@example.test",
-          roles: ["buyer"],
-        }),
-      });
-      return;
-    }
-
-    if (url.pathname === "/rest/v1/rpc/preview_customer_order_pricing") {
-      let requestBody: { p_surface?: unknown; p_items?: unknown } = {};
-      try {
-        requestBody = route.request().postDataJSON() as typeof requestBody;
-      } catch {
-        // Request assertions prove the client sends identity and quantity only.
-      }
-      if (getMode() === "error") {
-        await route.fulfill({
-          status: 400,
-          contentType: "application/json",
-          body: JSON.stringify({
-            code: "P0001",
-            message: "pricing preview unavailable in isolated browser fixture",
-            details: null,
-            hint: null,
-          }),
-        });
-        // Count only after the fixture has returned the RPC response, not when the request arrives.
-        recordRequest?.(requestBody);
-        return;
-      }
-      if (requestBody.p_surface !== "cart" && requestBody.p_surface !== "orders") {
-        await route.fulfill({
-          status: 400,
-          contentType: "application/json",
-          body: JSON.stringify({ code: "22023", message: "invalid preview surface" }),
-        });
-        recordRequest?.(requestBody);
-        return;
-      }
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(serverPreview(requestBody.p_surface, getMode())),
-      });
-      recordRequest?.(requestBody);
-      return;
-    }
-
-    // Never allow this fixture to reach any unmocked backend endpoint.
-    await route.abort("blockedbyclient");
-  });
+  await page.route("https://ci-placeholder.supabase.co/**", (route) =>
+    handlePricingPreviewFixtureRequest(route, getMode, recordRequest),
+  );
 }
 
 

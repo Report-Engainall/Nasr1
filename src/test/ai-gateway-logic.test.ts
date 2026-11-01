@@ -12,6 +12,15 @@ import {
   type ProviderAttemptTelemetry,
 } from "../../supabase/functions/ai-gateway/logic";
 
+
+const geminiResponseParts = [{ text: "إجابة " }, { text: "عربية" }];
+const geminiResponseContent = { parts: geminiResponseParts };
+const geminiResponseCandidate = { content: geminiResponseContent };
+const geminiResponseFixture = {
+  candidates: [geminiResponseCandidate],
+  usageMetadata: { promptTokenCount: 80, candidatesTokenCount: 21 },
+};
+
 describe("AI gateway privacy, provider parsing and quota math", () => {
   it("normalizes harmless question text and strips control characters", () => {
     expect(sanitizeAiQuestion("  ما أفضل طريقة\u0001 لتنظيم المشتريات؟  ")).toEqual({
@@ -97,10 +106,10 @@ describe("AI gateway privacy, provider parsing and quota math", () => {
   });
 
   it("parses Gemini content and measured token usage", () => {
-    expect(parseProviderResponse("gemini", {
-      candidates: [{ content: { parts: [{ text: "إجابة " }, { text: "عربية" }] } }],
-      usageMetadata: { promptTokenCount: 80, candidatesTokenCount: 21 },
-    })).toEqual({ text: "إجابة عربية", usage: { inputTokens: 80, outputTokens: 21 } });
+    expect(parseProviderResponse("gemini", geminiResponseFixture)).toEqual({
+      text: "إجابة عربية",
+      usage: { inputTokens: 80, outputTokens: 21 },
+    });
   });
 
   it("rejects provider payloads that lack real usage fields or answer text", () => {

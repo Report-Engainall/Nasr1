@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Route } from "@playwright/test";
 
 const orderRows = [
   {
@@ -60,6 +60,47 @@ function signedInCustomerFixtureSession() {
   };
 }
 
+
+const customerProfileFixture = {
+  profile_id: "a1000000-0000-0000-0000-000000000202",
+  full_name: "مشتري اختبار لوحة المفاتيح",
+  email: "customer-orders-keyboard@example.test",
+  roles: ["customer"],
+};
+
+const customerOrdersFixtureHeaders = {
+  "content-range": "0-1/2",
+  "accept-ranges": "items",
+  // Match PostgREST's browser-visible exact-count headers across the intercepted origin.
+  "access-control-allow-origin": "*",
+  "access-control-expose-headers": "content-range, range",
+};
+
+async function handleCustomerOrdersFixtureRequest(route: Route): Promise<void> {
+  const pathname = new URL(route.request().url()).pathname;
+  if (pathname === "/rest/v1/rpc/ensure_profile") {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(customerProfileFixture),
+    });
+    return;
+  }
+
+  if (pathname === "/rest/v1/orders") {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: customerOrdersFixtureHeaders,
+      body: JSON.stringify(orderRows),
+    });
+    return;
+  }
+
+  // Keep this browser acceptance read-only and isolated from all real services.
+  await route.abort("blockedbyclient");
+}
+
 /**
  * Register this in the read-only public Chromium smoke job so keyboard traversal is
  * exercised in the actual routed customer-order table, without production credentials or writes.
@@ -76,42 +117,7 @@ export function registerCustomerOrdersKeyboardAcceptance() {
       session: signedInCustomerFixtureSession(),
     });
 
-    await page.route("https://ci-placeholder.supabase.co/**", async (route) => {
-      const url = new URL(route.request().url());
-      if (url.pathname === "/rest/v1/rpc/ensure_profile") {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            profile_id: "a1000000-0000-0000-0000-000000000202",
-            full_name: "مشتري اختبار لوحة المفاتيح",
-            email: "customer-orders-keyboard@example.test",
-            roles: ["customer"],
-          }),
-        });
-        return;
-      }
-
-      if (url.pathname === "/rest/v1/orders") {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          headers: {
-            "content-range": "0-1/2",
-            "accept-ranges": "items",
-            // The app origin differs from the intercepted Supabase origin. Expose the exact-count
-            // header to browser JavaScript, as PostgREST does, or supabase-js will report count=null.
-            "access-control-allow-origin": "*",
-            "access-control-expose-headers": "content-range, range",
-          },
-          body: JSON.stringify(orderRows),
-        });
-        return;
-      }
-
-      // Keep this browser acceptance read-only and isolated from all real services.
-      await route.abort("blockedbyclient");
-    });
+    await page.route("https://ci-placeholder.supabase.co/**", handleCustomerOrdersFixtureRequest);
 
     const response = await page.goto("/orders");
     expect(response?.status(), "Direct navigation to the real customer order route must resolve.").toBe(200);
