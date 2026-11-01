@@ -1,0 +1,36 @@
+name: P3 tooling validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "scripts/persist-bolt-reconciliation-evidence.py"
+      - ".github/workflows/p3-tooling-validation.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p3-tooling-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  python-tooling:
+    name: Python syntax and persistence self-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile the persistence utility
+        run: python -m py_compile scripts/persist-bolt-reconciliation-evidence.py
+      - name: Run persistence helper self-tests
+        run: python scripts/persist-bolt-reconciliation-evidence.py --self-test
