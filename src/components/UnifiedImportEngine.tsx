@@ -532,7 +532,6 @@ export function UnifiedImportEngine({ onNotice, refreshVersion = 0 }: { onNotice
             // The finalize/cancel RPC may have committed while its response was lost.
             // Keep the server's terminal result; never mark it failed or create another snapshot.
             setErrorMessage("");
-            const snapshotText = reconciled.snapshotId ? " • Snapshot " + reconciled.snapshotId : "";
             setStatusMessage(describeReconciledImportStatus(reconciled));
             onNotice("حُفظت الحالة النهائية الموجودة للدفعة؛ لم تُحوّل إلى فشل ولم يُكرر الاعتماد.");
           } else {
