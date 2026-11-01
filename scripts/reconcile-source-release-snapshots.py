@@ -116,7 +116,9 @@ def download(spec: dict[str, object]) -> tuple[bytes, str]:
         safe_print(f"DOWNLOAD_ATTEMPT id={spec['id']} attempt={attempt} url={safe_url}", flush=True)
         try:
             request = urllib.request.Request(request_url, headers={"User-Agent": "Nasr1-Source-Release-Audit/1.0"})
-            # SNAPSHOTS is a repository-owned constant list; the URL is also scheme/host allowlisted above.\n            # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected\n            with urllib.request.urlopen(request, timeout=90) as response:
+            # SNAPSHOTS is a repository-owned constant list; the URL is also scheme/host allowlisted above.
+            # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+            with urllib.request.urlopen(request, timeout=90) as response:
                 data = response.read()
                 safe_print(f"DOWNLOAD_RESPONSE id={spec['id']} status={response.status} bytes={len(data)} content_type={response.headers.get('Content-Type', '')}", flush=True)
             return data, safe_url
