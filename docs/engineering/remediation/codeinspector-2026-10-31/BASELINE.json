@@ -5597,11 +5597,12 @@
         "PR395_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
         "PR396_merge_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
         "latest_main_post_pr399_core_run": 41341535268,
-        "latest_main_post_pr399_core_status": "IN_PROGRESS_AT_LAST_POLL",
+        "latest_main_post_pr399_core_status": "SUCCESS",
         "latest_main_post_pr399_gitleaks_run": 41341535276,
         "latest_main_post_pr399_gitleaks_status": "SUCCESS",
         "latest_main_post_pr399_p1_typescript_run": 41341535316,
-        "latest_main_post_pr399_p1_typescript_status": "SUCCESS"
+        "latest_main_post_pr399_p1_typescript_status": "SUCCESS",
+        "latest_main_post_pr399_core_completed_at_utc": "2026-11-01T19:28:36Z"
       },
       "TS0003_not_reproduced_current_source_not_closed": 26,
       "last_source_recheck": {
@@ -5710,7 +5711,9 @@
         "PR398_public_ui_smoke": "SUCCESS",
         "PR398_authenticated_e2e_infrastructure": "SUCCESS",
         "PR398_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
-        "PR398_coderabbit": "SKIPPED"
+        "PR398_coderabbit": "SKIPPED",
+        "latest_main_post_pr399_core_run": 41341535268,
+        "latest_main_post_pr399_core_status": "SUCCESS"
       },
       "total_p3_findings": 98,
       "implemented_pending_fresh_scan": 98,
@@ -6060,13 +6063,13 @@
   "main_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
   "last_reconciled_main_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
   "latest_main_checkpoint": {
-    "observed_at_utc": "2026-11-01T19:24:02Z",
+    "observed_at_utc": "2026-11-01T19:28:36Z",
     "main_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
     "source_commit_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
     "source_commit_relation": "PR #399 is documentation-only; no application source changes since PR #398",
     "post_merge_ci": {
       "core_run": 41341535268,
-      "core_status": "IN_PROGRESS_AT_LAST_POLL",
+      "core_status": "SUCCESS",
       "completed_success_steps": [
         "unit tests",
         "focused P2 Outbox TypeScript check",
@@ -6086,13 +6089,12 @@
         "tenant-safe persistent storefront favourites",
         "isolated PostgreSQL 17 backup/restore",
         "lint",
-        "build"
-      ],
-      "still_running_or_pending": [
+        "build",
         "production build preview smoke",
         "dev server smoke",
         "Chromium price visibility acceptance"
       ],
+      "still_running_or_pending": [],
       "other_checks": {
         "full_history_gitleaks_run": 41341535276,
         "full_history_gitleaks": "SUCCESS",
