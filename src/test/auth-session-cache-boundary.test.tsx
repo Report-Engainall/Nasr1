@@ -16,6 +16,7 @@ const authMocks = vi.hoisted(() => ({
   listener: undefined as ((event: string) => void) | undefined,
   getSession: vi.fn(),
   rpc: vi.fn(),
+  subscriptionResult: () => ({ data: { subscription: { unsubscribe: vi.fn() } } }),
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -24,7 +25,7 @@ vi.mock("@/lib/supabase", () => ({
       getSession: authMocks.getSession,
       onAuthStateChange: (callback: (event: string) => void) => {
         authMocks.listener = callback;
-        return { data: { subscription: { unsubscribe: vi.fn() } } };
+        return authMocks.subscriptionResult();
       },
     },
     rpc: authMocks.rpc,

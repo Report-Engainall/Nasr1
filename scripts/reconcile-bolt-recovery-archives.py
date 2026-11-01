@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Audit the published Bolt recovery ZIPs in an isolated GitHub Actions runner."""
 from __future__ import annotations
-import argparse, csv, difflib, hashlib, io, json, logging, os, re, stat, tempfile, time, urllib.request
+import argparse, csv, difflib, hashlib, io, json, logging, os, re, stat, struct, tempfile, time, urllib.request
 import zipfile
 from collections import Counter
 from pathlib import Path, PurePosixPath
+from diagnostic_logging import configure_diagnostic_logging, redact_diagnostic_text, safe_print
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+configure_diagnostic_logging()
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "artifacts" / "bolt-recovery-reconciliation"
@@ -87,15 +88,25 @@ def safe_extract(zf, infos, destination):
             target.mkdir(parents=True, exist_ok=True)
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
-        with zf.open(info) as source, target.open("xb") as output:
-            count = 0
-            while True:
-                chunk = source.read(1024 * 1024)
-                if not chunk: break
-                count += len(chunk)
-                output.write(chunk)
-        if count != info.file_size:
-            raise ValueError("extracted size mismatch: " + info.filename)
+        created = False
+        try:
+            with zf.open(info) as source:
+                with target.open("xb") as output:
+                    created = True
+                    count = 0
+                    while True:
+                        chunk = source.read(1024 * 1024)
+                        if not chunk: break
+                        count += len(chunk)
+                        output.write(chunk)
+            if count != info.file_size:
+                raise ValueError("extracted size mismatch: " + info.filename)
+        except BaseException:
+            # target.open("xb") proves this was created by this invocation.
+            # Never remove a pre-existing file after its open was rejected.
+            if created:
+                target.unlink(missing_ok=True)
+            raise
 
 def read_bounded_response(response, expected_size):
     """Read at most expected_size + 1 bytes and require the pinned ZIP size."""
@@ -134,20 +145,20 @@ def download(spec):
     )
     last = ""
     for attempt in range(1, 4):
-        print("DOWNLOAD_ATTEMPT archive={} attempt={} url={}".format(name, attempt, url), flush=True)
+        safe_print("DOWNLOAD_ATTEMPT archive={} attempt={} url={}".format(name, attempt, url), flush=True)
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Nasr1-Bolt-Reconciliation/1.0"})
             with urllib.request.urlopen(req, timeout=45) as response:
                 data = read_bounded_response(response, size)
-                print("DOWNLOAD_RESPONSE archive={} status={} bytes={} content_type={}".format(
+                safe_print("DOWNLOAD_RESPONSE archive={} status={} bytes={} content_type={}".format(
                     name, response.status, len(data), response.headers.get("Content-Type", "")), flush=True)
-            return data, url, ""
+            return data, redact_diagnostic_text(url), ""
         except Exception as exc:
             logging.warning("Archive download attempt failed for %s: %s", name, exc, exc_info=True)
-            last = "{}: {}".format(type(exc).__name__, exc)
-            print("DOWNLOAD_ERROR archive={} attempt={} url={} error={}".format(name, attempt, url, last), flush=True)
+            last = redact_diagnostic_text("{}: {}".format(type(exc).__name__, exc))
+            safe_print("DOWNLOAD_ERROR archive={} attempt={} url={} error={}".format(name, attempt, url, last), flush=True)
             if attempt < 3: time.sleep(attempt)
-    return None, url, last
+    return None, redact_diagnostic_text(url), redact_diagnostic_text(last)
 
 def write_csv(path, fields, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -235,6 +246,50 @@ def self_test():
     with zipfile.ZipFile(io.BytesIO(b.getvalue())) as z:
         assert len(validate_zip(z)) == 1
         assert z.read("project/src/ok.ts") == b"export const ok = true;\n"
+    with tempfile.TemporaryDirectory(prefix="nasr1-archive-restore-self-test-") as directory:
+        root = Path(directory)
+        with zipfile.ZipFile(io.BytesIO(b.getvalue())) as z:
+            infos = validate_zip(z)
+            assert len(infos) == 1
+            safe_extract(z, infos, root / "restored")
+            restored = root / "restored/project/src/ok.ts"
+            expected = b"export const ok = true;\n"
+            assert restored.read_bytes() == expected
+            try:
+                safe_extract(z, infos, root / "restored")
+            except FileExistsError:
+                pass
+            else:
+                raise AssertionError("restore overwrote an existing evidence file")
+            assert restored.read_bytes() == expected
+
+            blocked_parent = root / "blocked-parent"
+            blocked_parent.write_text("preserve blocker", encoding="utf-8")
+            try:
+                safe_extract(z, infos, blocked_parent / "out")
+            except OSError:
+                pass
+            else:
+                raise AssertionError("restore accepted a non-directory destination")
+            assert blocked_parent.read_text(encoding="utf-8") == "preserve blocker"
+
+        stored = io.BytesIO()
+        with zipfile.ZipFile(stored, "w", compression=zipfile.ZIP_STORED) as z:
+            z.writestr("project/corrupt.txt", b"integrity sentinel")
+        corrupted = bytearray(stored.getvalue())
+        with zipfile.ZipFile(io.BytesIO(corrupted)) as z:
+            info = z.getinfo("project/corrupt.txt")
+            name_size, extra_size = struct.unpack_from("<HH", corrupted, info.header_offset + 26)
+            data_offset = info.header_offset + 30 + name_size + extra_size
+        corrupted[data_offset] ^= 0x01
+        with zipfile.ZipFile(io.BytesIO(corrupted)) as z:
+            try:
+                validate_zip(z)
+            except ValueError as error:
+                assert "CRC/decompression" in str(error)
+            else:
+                raise AssertionError("corrupt archive CRC was accepted")
+
     row = build_archive_row(ARCHIVES[0], "https://example.invalid/archive.zip")
     assert row["archive_id"] == ARCHIVES[0][0]
     failed_rows, errors = [], []
@@ -244,7 +299,7 @@ def self_test():
     )
     assert failed_rows == [row] and row["status"] == "DOWNLOAD_FAILED"
     assert "offline" in errors[0]
-    print("SELF_TEST PASS: SHA-256, Git blob SHA-1, CRC/decompression, path traversal rejection", flush=True)
+    safe_print("SELF_TEST PASS: SHA-256, Git blob SHA-1, CRC/decompression, path traversal rejection", flush=True)
 
 
 
@@ -293,7 +348,7 @@ def record_archive_download_metadata(spec, data, row, errors):
     actual_blob = git_blob_sha1(data)
     row["reported_bytes"] = actual_size
     row["sha256"] = actual_hash
-    print(
+    safe_print(
         "ARCHIVE_BYTES name={} actual_bytes={} sha256={} git_blob_sha1={}".format(
             name, actual_size, actual_hash, actual_blob
         ),
@@ -316,7 +371,7 @@ def record_archive_validation_success(row, name, infos, actual_size, actual_hash
     row["actual_bytes"] = actual_size
     row["actual_blob_sha1"] = actual_blob
     row["members"] = member_count
-    print(
+    safe_print(
         "ZIP_VALIDATION_PASS name={} members={} total_uncompressed_bytes={}".format(
             name, member_count, sum(info.file_size for info in infos)
         ),
@@ -332,10 +387,10 @@ def record_archive_validation_failure(name, error, row, errors):
         exc_info=True,
     )
     row["status"] = "INTEGRITY_OR_SAFE_EXTRACTION_FAILED"
-    row["exact_error"] = "{}: {}".format(type(error).__name__, error)
+    row["exact_error"] = redact_diagnostic_text("{}: {}".format(type(error).__name__, error))
     row["notes"] = row["exact_error"]
     errors.append(name + " validation failed: " + row["exact_error"])
-    print(
+    safe_print(
         "ZIP_VALIDATION_ERROR name={} error={}".format(name, row["exact_error"]),
         flush=True,
     )
@@ -763,8 +818,8 @@ def write_reconciliation_outputs(
     report = summary_md(result, pair_rows, ready_rows, member_rows)
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
         handle.write(report + "\n")
-    print("RECONCILIATION_SUMMARY=" + json.dumps(result, ensure_ascii=False, sort_keys=True), flush=True)
-    print("REPORT_DIRECTORY=" + str(OUT), flush=True)
+    safe_print("RECONCILIATION_SUMMARY=" + json.dumps(result, ensure_ascii=False, sort_keys=True), flush=True)
+    safe_print("REPORT_DIRECTORY=" + str(OUT), flush=True)
     return result
 
 
@@ -792,7 +847,7 @@ def main():
             "\n".join(review_lines) + "\n",
             encoding="utf-8",
         )
-        print(
+        safe_print(
             "SOURCE_REVIEW_SECTIONS=" + str(sum(line.startswith("## ") for line in review_lines)),
             flush=True,
         )
@@ -807,4 +862,10 @@ def main():
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except Exception:
+        logging.exception("BOLT_RECOVERY_RECONCILIATION_UNHANDLED_FAILURE")
+        raise SystemExit(1)

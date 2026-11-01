@@ -6,6 +6,14 @@ vi.mock("@/lib/supabase", () => ({ supabase: { rpc } }));
 
 const period = { from: "2026-08-01", to: "2026-10-31" };
 const asOf = "2026-10-31T09:00:00.000Z";
+const expectedInventorySummary = {
+  ok: true,
+  data: {
+    totalProducts: 1,
+    deadStockProducts: [{ productRef: "SKU-1" }],
+    replenishmentProducts: [{ productRef: "SKU-1" }],
+  },
+};
 function payload() {
   const evidence = [
     { id: "movement-window:p1", source: { kind: "RPC", name: "inventory.movement_history", recordId: "p1", version: "v1" }, sourceTimestamp: asOf, asOf, period, status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
@@ -52,7 +60,7 @@ describe("tenant-safe inventory intelligence client", () => {
       p_period_from: period.from, p_period_to: period.to, p_as_of: asOf,
     });
     expect(rpc.mock.calls[0][1]).not.toHaveProperty("p_organization_id");
-    expect(result).toMatchObject({ ok: true, data: { totalProducts: 1, deadStockProducts: [{ productRef: "SKU-1" }], replenishmentProducts: [{ productRef: "SKU-1" }] } });
+    expect(result).toMatchObject(expectedInventorySummary);
   });
   it("withholds a product whose movement coverage or evidence does not resolve", async () => {
     const malformed = payload();

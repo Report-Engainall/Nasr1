@@ -13,6 +13,17 @@ const payload = {
   ],
   entries:[],entry_count:0,has_more:false,summary:{posted_entry_count:2,debit_total:"1100.00",credit_total:"1100.00"},
 };
+const reversalDraftResponse = {
+  data: {
+    original_journal_entry_id: "manual-journal-1",
+    reversal_journal_entry_id: "reversal-journal-1",
+    entry_number: "124",
+    status: "draft",
+    replayed: false,
+  },
+  error: null,
+};
+
 describe("general ledger financial-statement UI", () => {
   beforeEach(() => { mocks.roles=["accountant"]; mocks.rpc.mockReset().mockImplementation((name: string) => Promise.resolve({data:name==="fetch_cash_expense_accounting_inbox"?{items:[],total_count:0,has_more:false,limit:50,offset:0}:payload,error:null})); });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
@@ -49,7 +60,7 @@ describe("general ledger financial-statement UI", () => {
       if (name === "fetch_general_journal_reversal_links") return {data:reversalLinks,error:null};
       if (name === "reverse_general_journal_entry") {
         reversalLinks=[{original_journal_entry_id:"manual-journal-1",reversal_journal_entry_id:"reversal-journal-1"}];
-        return {data:{original_journal_entry_id:"manual-journal-1",reversal_journal_entry_id:"reversal-journal-1",entry_number:"124",status:"draft",replayed:false},error:null};
+        return reversalDraftResponse;
       }
       if (name === "fetch_cash_expense_accounting_inbox") return {data:{items:[],total_count:0,has_more:false,limit:50,offset:0},error:null};
       return {data:payload,error:null};

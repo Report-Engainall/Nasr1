@@ -85,6 +85,11 @@ const persistedPrintSnapshot = {
   }],
 };
 
+function receiptQueueResponse(callNumber: number) {
+  const currentQueue = callNumber === 1 ? queue : { warehouses: queue.warehouses, requests: [] };
+  return { data: currentQueue, error: null };
+}
+
 describe("warehouse return receipt printing", () => {
   beforeEach(() => {
     let queueCalls = 0;
@@ -92,7 +97,7 @@ describe("warehouse return receipt printing", () => {
       if (name === "list_customer_return_receipt_print_history") return { data: { receipts: [], has_more: false, limit: 50, offset: Number(args?.p_offset ?? 0) }, error: null };
       if (name === "list_customer_return_receipt_queue") {
         queueCalls += 1;
-        return { data: queueCalls === 1 ? queue : { warehouses: queue.warehouses, requests: [] }, error: null };
+        return receiptQueueResponse(queueCalls);
       }
       if (name === "receive_customer_return") return { data: mutationResult, error: null };
       if (name === "get_customer_return_receipt_print_data") return { data: persistedPrintSnapshot, error: null };

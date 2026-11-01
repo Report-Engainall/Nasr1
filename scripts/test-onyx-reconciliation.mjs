@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 import { logError } from "./diagnostic-logger.mjs";
+import { runCriticalCleanup } from "./critical-cleanup.mjs";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString) throw new Error("TEST_DATABASE_URL is required for Onyx reconciliation database acceptance.");
@@ -396,8 +397,10 @@ async function main() {
     await db.unsafe("reset role");
     process.stdout.write("PASS Onyx inventory reconciliation: warehouse-scope gate, tenant isolation, manager boundary, preview no-write, preview/apply/rollback idempotency, reservation guard, atomic stale apply, audit movements, successful compensating rollback, and later-movement rollback refusal.\n");
   } finally {
-    try { await db.unsafe("RESET ROLE"); } catch (cleanupError) { logError("[onyx-reconciliation] reset role cleanup failed", cleanupError); }
-    try { await db.unsafe("ROLLBACK"); } catch (cleanupError) { logError("[onyx-reconciliation] rollback cleanup failed", cleanupError); }
+    await runCriticalCleanup("onyx-reconciliation", [
+      { name: "RESET ROLE", run: () => db.unsafe("RESET ROLE") },
+      { name: "ROLLBACK", run: () => db.unsafe("ROLLBACK") },
+    ], (message, error) => logError(message, error));
   }
 }
 
@@ -405,9 +408,7 @@ try {
   await main();
 } catch (cause) {
   const error = cause && typeof cause === "object" ? cause : { message: String(cause) };
-  process.stderr.write("ONYX_RECONCILIATION_ACCEPTANCE_FAILED " + JSON.stringify({
-    name:error.name,message:error.message,code:error.code,detail:error.detail,hint:error.hint,where:error.where,table:error.table,constraint:error.constraint,stack:error.stack,
-  }) + "\n");
+  logError("ONYX_RECONCILIATION_ACCEPTANCE_FAILED", cause);
   throw cause;
 } finally {
   await db.end({ timeout: 5 });

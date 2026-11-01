@@ -184,6 +184,13 @@ const VERIFIED_CHECKOUT = {
   }],
 };
 
+function checkoutSessionResult(userId: string | null) {
+  return {
+    data: { session: userId ? { user: { id: userId } } : null },
+    error: null,
+  };
+}
+
 describe("customer cart and checkout real route acceptance", () => {
   let root: Root | undefined;
   let host: HTMLDivElement | undefined;
@@ -191,10 +198,7 @@ describe("customer cart and checkout real route acceptance", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.user = null;
-    mocks.getSession.mockReset().mockImplementation(async () => ({
-      data: { session: mocks.user ? { user: { id: mocks.user.id } } : null },
-      error: null,
-    }));
+    mocks.getSession.mockReset().mockImplementation(async () => checkoutSessionResult(mocks.user?.id ?? null));
     mocks.cartLines = [];
     mocks.saveCartFailures = 0;
     mocks.productReadFailures = 0;

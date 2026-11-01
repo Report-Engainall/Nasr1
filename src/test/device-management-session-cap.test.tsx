@@ -47,22 +47,26 @@ function makeSessions(count: number) {
   }));
 }
 
+function sessionResult(accessToken: string) {
+  return {
+    data: {
+      session: {
+        access_token: accessToken,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        user: { email: "admin@example.test" },
+      },
+    },
+    error: null,
+  };
+}
+
 describe("device-session inventory result limit", () => {
   beforeEach(() => {
     const payload = window.btoa(JSON.stringify({
       session_id: CURRENT_SESSION_ID,
       exp: Math.floor(Date.now() / 1000) + 3600,
     }));
-    authMocks.getSession.mockReset().mockResolvedValue({
-      data: {
-        session: {
-          access_token: `header.${payload}.signature`,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-          user: { email: "admin@example.test" },
-        },
-      },
-      error: null,
-    });
+    authMocks.getSession.mockReset().mockResolvedValue(sessionResult(`header.${payload}.signature`));
     authMocks.rpc.mockReset().mockResolvedValue({
       data: makeSessions(2),
       error: null,

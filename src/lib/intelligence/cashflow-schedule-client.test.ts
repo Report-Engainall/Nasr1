@@ -4,6 +4,8 @@ import { createCashflowScheduleRequest, fetchCashflowSchedule } from "./cashflow
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc } }));
 
+const schedulePeriod = { from: "2026-10-31", to: "2026-11-30" };
+
 function response(overrides: Record<string, unknown> = {}) {
   const asOf = "2026-10-31T09:00:00.000Z";
   const evidenceIds = ["invoice:11111111-1111-4111-8111-111111111111", "payment:22222222-2222-4222-8222-222222222222"];
@@ -11,13 +13,13 @@ function response(overrides: Record<string, unknown> = {}) {
     status: "OK",
     requestId: "req-1",
     asOf,
-    period: { from: "2026-10-31", to: "2026-11-30" },
+    period: schedulePeriod,
     currency: "YER",
     authorization: { tenantScope: "SERVER_RESOLVED_AUTHENTICATED_TENANT", effectiveRole: "admin", capabilities: ["can_manage_finance"] },
     sourceTables: ["customer_invoices", "customer_payments"],
     evidenceRecords: [
-      { id: evidenceIds[0], source: { kind: "TABLE", name: "customer_invoices", recordId: "11111111-1111-4111-8111-111111111111" }, sourceTimestamp: asOf, asOf, period: { from: "2026-10-31", to: "2026-11-30" }, currency: "YER", status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
-      { id: evidenceIds[1], source: { kind: "TABLE", name: "customer_payments", recordId: "22222222-2222-4222-8222-222222222222" }, sourceTimestamp: asOf, asOf, period: { from: "2026-10-31", to: "2026-11-30" }, currency: "YER", status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
+      { id: evidenceIds[0], source: { kind: "TABLE", name: "customer_invoices", recordId: "11111111-1111-4111-8111-111111111111" }, sourceTimestamp: asOf, asOf, period: schedulePeriod, currency: "YER", status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
+      { id: evidenceIds[1], source: { kind: "TABLE", name: "customer_payments", recordId: "22222222-2222-4222-8222-222222222222" }, sourceTimestamp: asOf, asOf, period: schedulePeriod, currency: "YER", status: "VERIFIED", completeness: "COMPLETE", quality: "ACCEPTABLE", warnings: [] },
     ],
     metrics: [{
       id: "metric:cashflow:YER",
@@ -28,7 +30,7 @@ function response(overrides: Record<string, unknown> = {}) {
       status: "VERIFIED",
       completeness: "COMPLETE",
       quality: "ACCEPTABLE",
-      period: { from: "2026-10-31", to: "2026-11-30" },
+      period: schedulePeriod,
       asOf,
       lineage: { evidenceIds, calculatedAt: asOf, formulaId: "nasr1.receivables-outstanding", formulaVersion: "1" },
       warnings: [],
@@ -59,7 +61,7 @@ function response(overrides: Record<string, unknown> = {}) {
           status: "VERIFIED",
           completeness: "COMPLETE",
           quality: "ACCEPTABLE",
-          period: { from: "2026-10-31", to: "2026-11-30" },
+          period: schedulePeriod,
           asOf,
           lineage: { evidenceIds, calculatedAt: asOf, formulaId: "nasr1.receivables-outstanding", formulaVersion: "1", transformations: ["invoice total minus same-tenant payments"] },
           warnings: [],
@@ -72,7 +74,7 @@ function response(overrides: Record<string, unknown> = {}) {
 const request = () => ({
   requestId: "req-1",
   metricKeys: ["cashflow.schedule"],
-  period: { from: "2026-10-31", to: "2026-11-30" },
+  period: schedulePeriod,
   asOf: "2026-10-31T09:00:00.000Z",
   currency: "YER",
 });
@@ -130,7 +132,7 @@ describe("tenant-bound cashflow aggregate client", () => {
       metrics: [{
         id: "metric:cashflow:YER", key: "cashflow.expected_collections", value: 375,
         unit: "CURRENCY", currency: "YER", status: "VERIFIED", completeness: "COMPLETE",
-        quality: "ACCEPTABLE", period: { from: "2026-10-31", to: "2026-11-30" },
+        quality: "ACCEPTABLE", period: schedulePeriod,
         asOf: "2026-10-31T09:00:00.000Z",
         lineage: { evidenceIds: [], calculatedAt: "2026-10-31T09:00:00.000Z", formulaId: "nasr1.receivables-outstanding", formulaVersion: "1" },
       }],

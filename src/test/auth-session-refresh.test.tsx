@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   listener: undefined as ((event: string) => void) | undefined,
   role: "customer",
+  subscriptionResult: () => ({ data: { subscription: { unsubscribe: vi.fn() } } }),
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -15,7 +16,7 @@ vi.mock("@/lib/supabase", () => ({
       getSession: mocks.getSession,
       onAuthStateChange: (callback: (event: string) => void) => {
         mocks.listener = callback;
-        return { data: { subscription: { unsubscribe: vi.fn() } } };
+        return mocks.subscriptionResult();
       },
     },
     rpc: mocks.rpc,

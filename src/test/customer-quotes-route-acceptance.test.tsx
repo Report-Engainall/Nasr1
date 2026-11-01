@@ -90,6 +90,17 @@ const PRODUCT: ProductRow = {
   status: "active",
 };
 
+function quoteTableQueryResult(table: string): QueryResult {
+  if (table === "products" && mocks.failProductReads > 0) {
+    mocks.failProductReads -= 1;
+    return PRODUCT_READ_FAILURE;
+  }
+  if (table === "products") return { data: [PRODUCT], error: null };
+  if (table === "sales_quotes") return { data: mocks.quoteRows, error: null };
+  if (table === "sales_quote_items") return { data: mocks.quoteItemRows, error: null };
+  return { data: null, error: { message: "Unexpected query table: " + table } };
+}
+
 function makeQuery(table: string) {
   const query = {
     select: vi.fn(() => query),
@@ -101,20 +112,7 @@ function makeQuery(table: string) {
       resolve?: (value: QueryResult) => unknown,
       reject?: (reason: unknown) => unknown,
     ) => {
-      let result: QueryResult;
-      if (table === "products" && mocks.failProductReads > 0) {
-        mocks.failProductReads -= 1;
-        result = PRODUCT_READ_FAILURE;
-      } else if (table === "products") {
-        result = { data: [PRODUCT], error: null };
-      } else if (table === "sales_quotes") {
-        result = { data: mocks.quoteRows, error: null };
-      } else if (table === "sales_quote_items") {
-        result = { data: mocks.quoteItemRows, error: null };
-      } else {
-        result = { data: null, error: { message: "Unexpected query table: " + table } };
-      }
-      return Promise.resolve(result).then(resolve, reject);
+      return Promise.resolve(quoteTableQueryResult(table)).then(resolve, reject);
     },
   };
   return query;
