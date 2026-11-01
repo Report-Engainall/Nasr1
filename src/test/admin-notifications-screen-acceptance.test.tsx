@@ -86,6 +86,14 @@ describe("admin notifications live screen acceptance", () => {
     expect(screen.queryByRole("button", { name: "تعليم الكل كمقروء" })).not.toBeInTheDocument();
   });
 
+  it("does not convert a missing notification response into an empty list", () => {
+    showState(null);
+    render(<Notifications onNotice={vi.fn()} />);
+    expect(screen.getByText("تعذر التحقق من التنبيهات؛ حدّث البيانات.")).toBeInTheDocument();
+    expect(screen.getByText("عدد التنبيهات غير متاح")).toBeInTheDocument();
+    expect(screen.queryByText("لا توجد تنبيهات حالياً.")).not.toBeInTheDocument();
+  });
+
   it("marks a single unread notification as read with mouse or keyboard and reports failures", async () => {
     showState([unreadNotice, readNotice]);
     const onNotice = vi.fn();

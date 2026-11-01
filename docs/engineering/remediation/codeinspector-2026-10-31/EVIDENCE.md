@@ -187,10 +187,44 @@ Original CodeInspector scan SHA UNKNOWN. Main SHA 46f2fce34c09f64284fdbbe4182bd0
 - No DTO allowlist, financial projection, tenant scope, RLS, accounting or pricing policy changed. Exact-head Core/P2 reruns are required after this synchronization and ledger update.
 
 
-## P1 security workflow evidence — 2026-11-01 — PR #350
+## Merge and synchronization evidence — 2026-11-01 — after PR #346
 
-- Review on exact source head `5f3dd3687139ee33856f98eb892918d1199889fc`: Gitleaks full history 41262952634 SUCCESS; strict P1 TypeScript 41262952776 SUCCESS; Core 41262952777 SUCCESS; P2 Playwright 41262952629 local Supabase persistence/tenant pass, public/auth pass, hosted tenant SKIPPED.
-- The earlier failed scan `41262942456` on `49f086f...` returned one remaining historical match: rule generic-api-key at `scripts/test-database-migrations.mjs:2420`, commit `c5596c51bc253ff330948556b2969178c0672722`. Context identifies the value as a 36-character test auth-user UUID, not an API credential. The branch added exact commit:path:rule:line fingerprints, not a global rule/path suppression.
-- Independent reviewer verification of each allowlisted historical fingerprint remains outstanding. P1 review submitted by integration owner is COMMENT, not APPROVE.
-- PR #350 has been synchronized to current main `8f5b843ddfb4000c5aee9e9e8ef4f0a5731d1158`; all new exact-head checks must run before merge. Prior SHA results are not transferable.
+- PR #346 merged to main at `8f5b843ddfb4000c5aee9e9e8ef4f0a5731d1158`. Exact-head Core 41262839862 SUCCESS, Gitleaks 41262839835 SUCCESS, Playwright 41262839859 public/auth and local Supabase SUCCESS; hosted tenant E2E SKIPPED.
+- Main post-merge check runs at this observation: Core 41263444461 IN_PROGRESS; P2 Playwright 41263444463 IN_PROGRESS; Secret Scan 41263444466 IN_PROGRESS; One-main-branch cleanup 41263444448 SUCCESS.
+- P2 batch06 stable finding `CI31-TS0003-6ae06bf7-1`: source fix `081af02074061da2c35f1fdf7c5f293536794642`; branch synchronized onto main `8f5b843...` using a two-parent merge and fast-forward-only ref update. Ledger reconciliation is based on latest main plus this stable finding, preserving the Customer360 finding already merged in #346.
+- P2 baseline totals remain 239. P2 status now: 1 TS0002 pending scan; 21 TS0003 pending scan; 83 active TS0003 open; 10 archived scope review; TS0010 not reproduced/not closed.
+- Latest branch head checks for #347 were newly launched after synchronization; historical checks must not be transferred. Fresh CodeInspector is pending; ORIGINAL_SCAN_SHA remains UNKNOWN.
 
+
+
+## Original CodeInspector report recovered — 2026-11-01
+
+- Source artifact: `scan-5a0dd3e4-941c-45bc-98df-05e0e9aa19f4.pdf`, 21 pages, Library file id `libfile_b4aa3a84ea948191b7ef481dd36ba6fd`.
+- Scanner timestamp: `2026-10-31T22:02:18.5552070Z`; reported branch: `main`; reported files: 703; LOC: 127,555; findings: 239.
+- Full extraction returned exactly 239 finding headers. Cross-check against BASELINE: exact counts by Rule ID and one-to-one match by rule + original line + normalized reported basename: 239/239; no unmatched/extra rows.
+- PDF distributions: severity Critical 18 / High 15 / Medium 177 / Low 29; TypeScript 192 / JavaScript 40 / Python 7.
+- Scanner input commit SHA is absent from the source PDF. `ORIGINAL_SCAN_SHA=UNKNOWN` remains explicitly preserved; no current or historical repo SHA is substituted.
+- Original report recovered is distinct from fresh scan; fresh CodeInspector execution and closing findings by fresh rule evidence remain pending.
+
+
+## P2 batch 07 merge proof — 2026-11-01
+
+- PR #348 merge commit: `ab8bb1804230925858903344606ba6721fd16faa`.
+- Source SHA: `9be5ce76d3f264bb5e5c0e59412f675d485a8b2e`.
+- Exact checks: Core 41263937229 SUCCESS; Gitleaks 41263937233 SUCCESS; Playwright 41263937251 public/auth/local Supabase order+tenant SUCCESS; hosted tenant job SKIPPED.
+- Original CodeInspector finding `CI31-TS0003-755abde8-1` is recorded as IMPLEMENTED_PENDING_FRESH_SCAN. Fresh scan remains required.
+
+
+## P2 batch 08 merge proof — 2026-11-01
+
+- PR #349 merge SHA: `15eb044c0651dafc7ef279d6253431e777d5f097`; implementation source commit `61ec2e77f780f1bfda163f80b9891f9dc567b7de`.
+- Exact head Core 41264989329 SUCCESS; Secret Scan 41264989609 SUCCESS; Playwright 41264989433 public/auth/local Supabase persistence and tenant isolation SUCCESS; hosted tenant E2E SKIPPED.
+- Original TS0003 finding `CI31-TS0003-bc02df01-1` for EvidencePassport is IMPLEMENTED_PENDING_FRESH_SCAN.
+- Main commit post-merge validation runs 41265344644 / 41265344647 / 41265344638 were still in progress at the checkpoint; poll current-head results before final status.
+
+
+
+## P2 batch 09 merge evidence — 2026-11-01
+- PR #352 merge commit `06aaccb0f8172f3f1b682c38885650ce136d0b90`; source commit `7099be751ba05cdd50e6d13e8d9634dbd2f18bc7`.
+- Exact-head Core 41265432096, Secret Scan 41265432192 and Playwright 41265432048 terminal SUCCESS. Local Supabase proof on source SHA `ac2930cd539ca0aa6db157d9869a03de3b2e07fe` returned HTTP 403 / SQLSTATE 42501 for cross-tenant denial and confirmed foreign customer tier unchanged; artifact 13067028494. Hosted tenant E2E SKIPPED.
+- Finding `CI31-TS0003-58c0ab79-1` is IMPLEMENTED_PENDING_FRESH_SCAN; fresh CodeInspector required.
