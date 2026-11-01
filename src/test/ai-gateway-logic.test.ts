@@ -60,13 +60,20 @@ describe("AI gateway privacy, provider parsing and quota math", () => {
     expect(sanitizeAiQuestion("حساب التحويل GB82 WEST 1234 5698 7654 3210 98")).toEqual({
       ok: false, reason: "bank_account_or_iban_rejected",
     });
-    expect(sanitizeAiQuestion("Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345")).toEqual({
+    const bearerFixture = randomBytes(32).toString("base64url");
+    const providerKeyFixture = ["sk", "proj", randomBytes(32).toString("hex")].join("-");
+    const jwtFixture = [
+      Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url"),
+      Buffer.from(JSON.stringify({ sub: randomBytes(12).toString("hex") })).toString("base64url"),
+      randomBytes(32).toString("base64url"),
+    ].join(".");
+    expect(sanitizeAiQuestion(["Authorization:", "Bearer", bearerFixture].join(" "))).toEqual({
       ok: false, reason: "credential_or_secret_rejected",
     });
-    expect(sanitizeAiQuestion("API_KEY=sk-proj-123456789012345678901234567890")).toEqual({
+    expect(sanitizeAiQuestion(["API_KEY", providerKeyFixture].join("="))).toEqual({
       ok: false, reason: "credential_or_secret_rejected",
     });
-    expect(sanitizeAiQuestion("SUPABASE_TOKEN=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.signaturepart123456")).toEqual({
+    expect(sanitizeAiQuestion(["SUPABASE_TOKEN", jwtFixture].join("="))).toEqual({
       ok: false, reason: "credential_or_secret_rejected",
     });
   });
@@ -110,18 +117,20 @@ describe("AI gateway privacy, provider parsing and quota math", () => {
   });
 
   it("rejects unsafe Gemini URLs or missing credentials before building a request", () => {
-    expect(() => buildGeminiRequestConfig("http://generativelanguage.googleapis.com/v1beta", "gemini-2.0-flash", "test-key"))
+    const fixtureApiKey = randomBytes(32).toString("base64url");
+    expect(() => buildGeminiRequestConfig("http://generativelanguage.googleapis.com/v1beta", "gemini-2.0-flash", fixtureApiKey))
       .toThrow("invalid_gemini_provider_config");
-    expect(() => buildGeminiRequestConfig("https://generativelanguage.googleapis.com/v1beta", " ", "test-key"))
+    expect(() => buildGeminiRequestConfig("https://generativelanguage.googleapis.com/v1beta", " ", fixtureApiKey))
       .toThrow("invalid_gemini_provider_config");
     expect(() => buildGeminiRequestConfig("https://generativelanguage.googleapis.com/v1beta", "gemini-2.0-flash", " "))
       .toThrow("invalid_gemini_provider_config");
   });
   it("blocks HTTP, userinfo, localhost and private IP provider endpoints", () => {
+    const fixtureCredential = randomBytes(24).toString("hex");
     for (const url of [
-      "http://api.example.com/v1", "https://user:secret@api.openai.com/v1",
+      "http://api.example.com/v1", `https://user:${fixtureCredential}@api.openai.com/v1`,
       "https://localhost:8443/v1", "https://192.168.1.10/v1",
-      "https://service.internal/v1", "https://api.example.com/v1?key=secret",
+      "https://service.internal/v1", `https://api.example.com/v1?key=${fixtureCredential}`,
       "https://api.example.com/v1", "https://api.openai.com:8443/v1",
     ]) expect(isSafeProviderBaseUrl(url)).toBe(false);
     expect(isSafeProviderBaseUrl("https://api.openai.com/v1", "openai_compatible")).toBe(true);
