@@ -89,7 +89,7 @@
     "disposition": "P1 triaged as synthetic test fixtures; preserve report rows pending fresh scan."
   },
   "sha_context": {
-    "main": "1e39260a4f3302d43addcff2779f294b933de947",
+    "main": "85d39603d658bacced1d2b866b7189564d921048",
     "P1": "37d0c058f4a7a943eb1b1cd2e2812ef4874b818a",
     "P2": "1c36f783cbc8da37948c3f879fb3d9fcf0bf53a6",
     "P3": "c7a4391fd13ae64895d93245358d09898a85a036",
@@ -100,7 +100,9 @@
     "P2_branch_head": "072219144df1ebb365b5c8d933eaef7aaa90312f",
     "P3_merge": "ad0c6e4f8edf81481cebd10cd42fbabec78f6c03",
     "P2_batch_04": "1c36f783cbc8da37948c3f879fb3d9fcf0bf53a6",
-    "P2_batch_04_branch_head": "3eb735a7462d59e1d7b74aa90d91374578ff7d61"
+    "P2_batch_04_branch_head": "3eb735a7462d59e1d7b74aa90d91374578ff7d61",
+    "P2_batch_06_source": "081af02074061da2c35f1fdf7c5f293536794642",
+    "P2_batch_06_sync": "a2dd6e051139b95cc425dbcb7b99593db66e6feb"
   },
   "verification_policy": {
     "old_sha_pass_not_transferable": true,
@@ -2858,11 +2860,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "ActionCard.test.tsx covers loading, empty, unavailable, error/retry, proof/evidence, decision actions and impact states; pre-sync exact-head Core/P2 passed; post-sync verification pending; fresh CodeInspector rerun required.",
+      "implementation_branch_sha": "081af02074061da2c35f1fdf7c5f293536794642",
+      "fixed_by_sha": "081af02074061da2c35f1fdf7c5f293536794642",
+      "evidence": "PR #347 source commit 081af02074061da2c35f1fdf7c5f293536794642; feature synchronization commit a2dd6e051139b95cc425dbcb7b99593db66e6feb includes current main 85d39603d658bacced1d2b866b7189564d921048 as second parent; exact post-sync checks pending.",
       "occurrence": 1
     },
     {
@@ -5378,23 +5380,28 @@
     "as_of": "2026-11-01",
     "P2": {
       "TS0002_implemented_pending_fresh_scan": 1,
-      "TS0003_implemented_pending_fresh_scan": 19,
-      "TS0003_active_open": 85,
+      "TS0003_implemented_pending_fresh_scan": 20,
+      "TS0003_active_open": 84,
       "TS0003_archived_scope_review": 10,
       "TS0010": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
       "merged_pr": 338,
       "merged_code_sha": "c3552f9c1a34504bb2c61f78649a5a75e6165a18",
       "post_merge_documentation_commit": "c85601a7d3213d7782c15fed93d0cd373d783025",
-      "latest_code_commit": "1c36f783cbc8da37948c3f879fb3d9fcf0bf53a6",
-      "latest_pr": 344
+      "latest_code_commit": "081af02074061da2c35f1fdf7c5f293536794642",
+      "latest_pr": 347,
+      "latest_branch_head": "a2dd6e051139b95cc425dbcb7b99593db66e6feb"
     },
     "verification": {
       "P2_core_run": 41257995450,
       "P2_playwright_run": 41257995451,
       "hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
-      "fresh_codeinspector_scan": "PENDING"
+      "fresh_codeinspector_scan": "PENDING",
+      "P2_batch_06_pre_sync_core_run": 41262700975,
+      "P2_batch_06_pre_sync_playwright_run": 41262700979,
+      "P2_batch_06_post_sync_core_run": "PENDING",
+      "P2_batch_06_post_sync_playwright_run": "PENDING"
     },
-    "main_sha": "1e39260a4f3302d43addcff2779f294b933de947"
+    "main_sha": "85d39603d658bacced1d2b866b7189564d921048"
   },
   "integration_history": [
     {
@@ -5405,6 +5412,15 @@
       "merged_at": "2026-11-01T00:49:37Z",
       "merged_by": "Report-Engainall",
       "note": "The four-file P2 documentation checkpoint c85601a was created after this merge and is carried by the follow-up documentation PR."
+    },
+    {
+      "event": "SYNCED_FOR_REVIEW",
+      "pr": 347,
+      "source_commit": "081af02074061da2c35f1fdf7c5f293536794642",
+      "head": "a2dd6e051139b95cc425dbcb7b99593db66e6feb",
+      "main_sha": "85d39603d658bacced1d2b866b7189564d921048",
+      "merged_at": null,
+      "note": "Resolved the stale-base conflict by a two-parent feature-branch merge commit. The ActionCard source and tests were retained on the latest main tree. The ActionCard finding is IMPLEMENTED_PENDING_FRESH_SCAN; post-sync Core and P2 checks are pending, so this is not a main merge."
     }
   ]
 }
