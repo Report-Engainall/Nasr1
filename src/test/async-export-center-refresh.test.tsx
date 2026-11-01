@@ -37,6 +37,15 @@ const readyJob = {
   expires_at: '2026-10-31T17:00:00.000Z',
 };
 
+const queuedJob = {
+  ...readyJob,
+  job_id: '22222222-2222-4222-8222-222222222222',
+  status: 'queued' as const,
+  file_name: null,
+  byte_size: null,
+  completed_at: null,
+};
+
 describe('async export screen refresh failure', () => {
   beforeEach(() => {
     mocks.list.mockReset();
@@ -66,4 +75,17 @@ describe('async export screen refresh failure', () => {
     expect(screen.queryByText('جاهز للتنزيل')).not.toBeInTheDocument();
     expect(mocks.list).toHaveBeenCalledTimes(2);
   });
+  
+  it('keeps retry and cancel actions bound to the selected queued export row', async () => {
+    mocks.list.mockResolvedValue([queuedJob]);
+    mocks.retry.mockResolvedValue(true);
+
+    render(<AsyncExportCenter />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'تنبيه العامل' }));
+
+    expect(await screen.findByText('أُرسل الطلب الحالي إلى العامل.')).toBeInTheDocument();
+    expect(mocks.retry).toHaveBeenCalledWith(queuedJob.job_id);
+  });
+
 });

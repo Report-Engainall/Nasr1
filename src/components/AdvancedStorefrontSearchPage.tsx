@@ -5,6 +5,61 @@ import { fetchCategories } from "@/lib/api";
 import { MAX_CATALOG_SEARCH_LENGTH, normalizeCatalogSearchQuery } from "@/lib/commerce-utils";
 import { useFetch } from "@/lib/useFetch";
 
+type SearchCategoryOption = {
+  id: string;
+  name: string;
+  parent_id?: string | null;
+};
+
+function SearchCategorySelect({
+  categories,
+  value,
+  disabled,
+  onChange,
+}: {
+  categories: SearchCategoryOption[];
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label style={{ display: "grid", gap: 6 }}>التصنيف
+      <select id="advanced-storefront-category" value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled} style={{ width: "100%", padding: 12, border: "1px solid #cbdad9", borderRadius: 9 }}>
+        <option value="">كل التصنيفات</option>
+        {categories.map((category) => (
+          <option key={category.id} value={category.id}>
+            {category.parent_id ? "↳ " : ""}{category.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CategoryQueryNotice({
+  loading,
+  error,
+  onRetry,
+}: {
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  if (loading) return <p role="status">جار تحميل التصنيفات...</p>;
+  if (!error) return null;
+
+  return (
+    <div role="alert" style={{ display: "grid", gap: 8 }}>
+      <p style={{ margin: 0 }}>
+        تعذر تحميل التصنيفات: {error}. يمكنك البحث بالاسم أو الرمز.
+      </p>
+      <button type="button" className="sf-btn-secondary" onClick={onRetry}>
+        إعادة تحميل التصنيفات
+      </button>
+    </div>
+  );
+}
+
 export function AdvancedStorefrontSearchPage() {
   const navigate = useNavigate();
   const categoryQuery = useFetch(fetchCategories);
@@ -12,7 +67,6 @@ export function AdvancedStorefrontSearchPage() {
   const [categoryId, setCategoryId] = useState("");
   const [availableOnly, setAvailableOnly] = useState(false);
   const [formError, setFormError] = useState("");
-  const categories = (categoryQuery.data ?? []).filter((category) => category.is_active !== false);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const q = normalizeCatalogSearchQuery(query).trim();
@@ -37,31 +91,17 @@ export function AdvancedStorefrontSearchPage() {
       <label style={{ display: "grid", gap: 6 }}>اسم الصنف أو رمزه أو الباركود
         <input value={query} onChange={(e) => setQuery(normalizeCatalogSearchQuery(e.target.value))} maxLength={MAX_CATALOG_SEARCH_LENGTH} autoComplete="off" placeholder="مثال: سكر أو SKU-002" style={{ width: "100%", boxSizing: "border-box", padding: 12, border: "1px solid #cbdad9", borderRadius: 9 }} />
       </label>
-      <label style={{ display: "grid", gap: 6 }}>التصنيف
-        <select id="advanced-storefront-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={categoryQuery.loading || Boolean(categoryQuery.error)} style={{ width: "100%", padding: 12, border: "1px solid #cbdad9", borderRadius: 9 }}>
-          <option value="">كل التصنيفات</option>
-          {categories.map(category => <option key={category.id} value={category.id}>{category.parent_id ? "↳ " : ""}{category.name}</option>)}
-        </select>
-      </label>
-      {categoryQuery.loading && (
-        <p role="status">جار تحميل التصنيفات...</p>
-      )}
-      {categoryQuery.error && (
-        <div role="alert" style={{ display: "grid", gap: 8 }}>
-          <p style={{ margin: 0 }}>
-            تعذر تحميل التصنيفات: {categoryQuery.error}. يمكنك البحث بالاسم أو الرمز.
-          </p>
-          <button
-            type="button"
-            className="sf-btn-secondary"
-            onClick={() => {
-              void categoryQuery.refetch();
-            }}
-          >
-            إعادة تحميل التصنيفات
-          </button>
-        </div>
-      )}
+      <SearchCategorySelect
+        categories={(categoryQuery.data ?? []).filter((category) => category.is_active !== false)}
+        value={categoryId}
+        disabled={categoryQuery.loading || Boolean(categoryQuery.error)}
+        onChange={setCategoryId}
+      />
+      <CategoryQueryNotice
+        loading={categoryQuery.loading}
+        error={categoryQuery.error}
+        onRetry={() => { void categoryQuery.refetch(); }}
+      />
       <label style={{ display: "flex", alignItems: "center", gap: 9 }}><input type="checkbox" checked={availableOnly} onChange={(e) => setAvailableOnly(e.target.checked)} /> عرض الأصناف ذات الرصيد المتاح المعروف فقط</label>
       {formError && <p role="alert">{formError}</p>}
       <button type="submit" className="sf-btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: 8, justifyContent: "center" }}><Search size={17}/> عرض النتائج</button>
