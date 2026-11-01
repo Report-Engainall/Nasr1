@@ -644,20 +644,59 @@ function Products({ onNotice }: { onNotice: (m: string) => void }) {
     );
   }
 
+  function renderThresholdSnapshot() {
+    if (thresholdLoading) return <Loading />;
+    if (!thresholdCurrent) return null;
+    return (
+      <p style={{ margin: 0, color: 'var(--muted-foreground, #64748b)' }}>
+        المتاح المسجل: {formatNumber(thresholdCurrent.quantity_available)} — الحد الحالي: {thresholdCurrent.reorder_point === null ? 'غير مضبوط' : formatNumber(thresholdCurrent.reorder_point)}
+      </p>
+    );
+  }
+
+  function renderThresholdFormContent() {
+    if (warehousesLoading) return <Loading />;
+    if (warehousesError) return <ErrorBox message={warehousesError} />;
+    if ((warehouses ?? []).length === 0) return <ErrorBox message="لا يوجد مستودع نشط داخل المؤسسة." />;
+
+    return (
+      <>
+        <Field label="المستودع">
+          <select value={thresholdWarehouse} onChange={(e) => {
+            const id = e.target.value;
+            setThresholdWarehouse(id);
+            if (id) void loadThresholdSnapshot(thresholdProduct!.id, id);
+          }}>
+            {(warehouses ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ' — ' + w.code : ''}</option>)}
+          </select>
+        </Field>
+        {renderThresholdSnapshot()}
+        <Field label="حد إعادة الطلب بوحدات الصنف">
+          <input type="number" min="0" max="1000000000" step="1" value={thresholdValue} onChange={(e) => setThresholdValue(e.target.value)} placeholder="أدخل عددًا صحيحًا" />
+        </Field>
+        <Field label="سبب تغيير الحد">
+          <input maxLength={1000} value={thresholdReason} onChange={(e) => setThresholdReason(e.target.value)} />
+        </Field>
+        {thresholdError && <div className="form-error" role="alert">{thresholdError}</div>}
+        <div className="modal-actions">
+          <Button variant="outline" onClick={closeThreshold} disabled={thresholdSaving}>إلغاء</Button>
+          <Button onClick={submitThreshold} disabled={thresholdSaving || thresholdLoading || !thresholdCurrent || thresholdValue.trim() === '' || !Number.isSafeInteger(Number(thresholdValue)) || Number(thresholdValue) < 0 || Number(thresholdValue) > 1000000000 || !thresholdReason.trim()}>
+            {thresholdSaving ? 'جارٍ حفظ الحد...' : 'حفظ حد إعادة الطلب'}
+          </Button>
+        </div>
+      </>
+    );
+  }
+
   function renderThresholdModal() {
     if (!thresholdProduct) return null;
     return (
       <Modal title={'حد إعادة الطلب — ' + thresholdProduct.name} onClose={closeThreshold}>
-      <p style={{ marginTop: 0, color: 'var(--muted-foreground, #64748b)' }}>يُحفظ الحد حسب الصنف والمستودع. تغيير الحد يحدّث مهمة إعادة الطلب تلقائيًا ويسجل السبب والمستخدم؛ لا يُنشأ رصيد مفقود افتراضيًا.</p>
-      {warehousesLoading ? <Loading /> : warehousesError ? <ErrorBox message={warehousesError} /> : (warehouses ?? []).length === 0 ? <ErrorBox message="لا يوجد مستودع نشط داخل المؤسسة." /> : <>
-        <Field label="المستودع"><select value={thresholdWarehouse} onChange={(e) => { const id = e.target.value; setThresholdWarehouse(id); if (id) void loadThresholdSnapshot(thresholdProduct.id, id); }}>{(warehouses ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}{w.code ? ' — ' + w.code : ''}</option>)}</select></Field>
-        {thresholdLoading ? <Loading /> : thresholdCurrent ? <p style={{ margin: 0, color: 'var(--muted-foreground, #64748b)' }}>المتاح المسجل: {formatNumber(thresholdCurrent.quantity_available)} — الحد الحالي: {thresholdCurrent.reorder_point === null ? 'غير مضبوط' : formatNumber(thresholdCurrent.reorder_point)}</p> : null}
-        <Field label="حد إعادة الطلب بوحدات الصنف"><input type="number" min="0" max="1000000000" step="1" value={thresholdValue} onChange={(e) => setThresholdValue(e.target.value)} placeholder="أدخل عددًا صحيحًا" /></Field>
-        <Field label="سبب تغيير الحد"><input maxLength={1000} value={thresholdReason} onChange={(e) => setThresholdReason(e.target.value)} /></Field>
-        {thresholdError && <div className="form-error" role="alert">{thresholdError}</div>}
-        <div className="modal-actions"><Button variant="outline" onClick={closeThreshold} disabled={thresholdSaving}>إلغاء</Button><Button onClick={submitThreshold} disabled={thresholdSaving || thresholdLoading || !thresholdCurrent || thresholdValue.trim() === '' || !Number.isSafeInteger(Number(thresholdValue)) || Number(thresholdValue) < 0 || Number(thresholdValue) > 1000000000 || !thresholdReason.trim()}>{thresholdSaving ? 'جارٍ حفظ الحد...' : 'حفظ حد إعادة الطلب'}</Button></div>
-      </>}
-    </Modal>
+        <p style={{ marginTop: 0, color: 'var(--muted-foreground, #64748b)' }}>
+          يُحفظ الحد حسب الصنف والمستودع. تغيير الحد يحدّث مهمة إعادة الطلب تلقائيًا ويسجل السبب والمستخدم؛ لا يُنشأ رصيد مفقود افتراضيًا.
+        </p>
+        {renderThresholdFormContent()}
+      </Modal>
     );
   }
 
