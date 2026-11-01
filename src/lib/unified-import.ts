@@ -308,7 +308,7 @@ function validateImportTransformationRule(
 }
 
 const SAFE_IMPORT_PATTERN_CACHE = new Map<string, RegExp>();
-const MAX_SAFE_IMPORT_PATTERN_INPUT_LENGTH = 4096;
+const MAX_SAFE_IMPORT_PATTERN_INPUT_LENGTH = 2048;
 
 function compileSafeImportPattern(pattern: unknown, field: string): RegExp {
   // Keep user-configurable expressions bounded and reject common exponential-backtracking forms.
