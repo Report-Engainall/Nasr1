@@ -12,7 +12,7 @@ describe("outbox worker source wiring", () => {
     expect(workerSource).toContain('import { createOutboxWorkerHandler } from "./handler.ts";');
     expect(workerSource).toContain("runtime.serve(createOutboxWorkerHandler(");
     expect(workerSource).toMatch(
-      /readBoundedTextBody\\(\\s*request\\.body,\\s*4096,\\s*request\\.headers\\.get\\(["']content-length["']\\)\\s*,\\s*\\)/,
+      /readBoundedTextBody\(\s*request\.body,\s*4096,\s*request\.headers\.get\(["']content-length["']\)\s*,\s*\)/,
     );
     expect(workerSource).not.toContain('rpc("claim_outbox_events"');
     expect(workerSource).not.toContain('rpc("process_outbox_event"');
