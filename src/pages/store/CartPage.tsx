@@ -30,6 +30,28 @@ function CartQuantityControl({ item, updateQuantity }: { item: CartItem; updateQ
   );
 }
 
+
+function CartCustomerBanner({ customer }: { customer: NonNullable<ReturnType<typeof useAuthStore.getState>['customer']> }) {
+  return <div className="card mb-4" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}><span className="badge badge-info">{TIER_LABELS[customer.customer_tier] || 'تجزئة'}</span><span className="text-muted" style={{ fontSize: '14px' }}>العميل: {customer.full_name}</span></div>;
+}
+
+function CartSummaryPanel({ itemCount, showPrices, total, currency, notes, onNotesChange, error, submitting, customerStatus, onSubmit }: {
+  itemCount: number; showPrices: boolean; total: number; currency: string; notes: string;
+  onNotesChange: (value: string) => void; error: string; submitting: boolean; customerStatus: string | undefined; onSubmit: () => void;
+}) {
+  return (
+    <aside className="card" style={{ padding: '20px', height: 'fit-content', position: 'sticky', top: '80px' }}>
+      <h3 style={{ fontSize: '16px', marginBottom: '16px' }}>ملخص الطلب</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}><span className="text-muted">عدد الأصناف</span><span className="font-semibold">{itemCount}</span></div>
+      {showPrices && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '14px' }}><span className="text-muted">الإجمالي</span><span className="font-bold" style={{ fontSize: '18px', color: 'var(--color-primary)' }}>{formatPrice(total, currency)}</span></div>}
+      <label className="mb-4 block"><span className="label">ملاحظات (اختياري)</span><textarea className="input" rows={3} value={notes} onChange={(event) => onNotesChange(event.target.value)} placeholder="أضف ملاحظاتك..." /></label>
+      {error && <div role="alert" className="badge badge-error mb-4" style={{ display: 'flex', gap: '6px', padding: '10px', alignItems: 'flex-start' }}><AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} /><span>{error}</span></div>}
+      <button type="button" onClick={onSubmit} className="btn btn-primary btn-lg w-full" disabled={submitting || customerStatus !== 'approved'}>{submitting ? 'جارٍ الإرسال...' : <><Send size={18} /> إرسال الطلب</>}</button>
+      {customerStatus !== 'approved' && <p className="text-muted text-center mt-2" style={{ fontSize: '12px' }}>حسابك بانتظار موافقة الإدارة</p>}
+    </aside>
+  );
+}
+
 function CartItemRow({ item, showPrices, currency, updateQuantity, removeItem }: {
   item: CartItem;
   showPrices: boolean;
@@ -99,21 +121,13 @@ export default function CartPage() {
   return (
     <div className="animate-fadeIn" style={{ padding: '24px 0' }}>
       <h1 style={{ fontSize: '22px', marginBottom: '20px' }}>سلة التسوق</h1>
-      {customer && <div className="card mb-4" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}><span className="badge badge-info">{TIER_LABELS[customer.customer_tier] || 'تجزئة'}</span><span className="text-muted" style={{ fontSize: '14px' }}>العميل: {customer.full_name}</span></div>}
+      {customer && <CartCustomerBanner customer={customer} />}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '20px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {items.map((item) => <CartItemRow key={item.product.id} item={item} showPrices={showPrices} currency={currency} updateQuantity={updateQuantity} removeItem={removeItem} />)}
           <button onClick={clearCart} className="btn btn-ghost" style={{ color: 'var(--color-error)', justifyContent: 'flex-start' }}><Trash2 size={16} /> إفراغ السلة</button>
         </div>
-        <div className="card" style={{ padding: '20px', height: 'fit-content', position: 'sticky', top: '80px' }}>
-          <h3 style={{ fontSize: '16px', marginBottom: '16px' }}>ملخص الطلب</h3>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}><span className="text-muted">عدد الأصناف</span><span className="font-semibold">{items.length}</span></div>
-          {showPrices && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '14px' }}><span className="text-muted">الإجمالي</span><span className="font-bold" style={{ fontSize: '18px', color: 'var(--color-primary)' }}>{formatPrice(total, currency)}</span></div>}
-          <div className="mb-4"><label className="label">ملاحظات (اختياري)</label><textarea className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="أضف ملاحظاتك..." /></div>
-          {error && <div className="badge badge-error mb-4" style={{ display: 'flex', gap: '6px', padding: '10px', alignItems: 'flex-start' }}><AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} /><span>{error}</span></div>}
-          <button onClick={handleSubmitOrder} className="btn btn-primary btn-lg w-full" disabled={submitting || customer?.status !== 'approved'}>{submitting ? 'جارٍ الإرسال...' : <><Send size={18} /> إرسال الطلب</>}</button>
-          {customer?.status !== 'approved' && <p className="text-muted text-center mt-2" style={{ fontSize: '12px' }}>حسابك بانتظار موافقة الإدارة</p>}
-        </div>
+        <CartSummaryPanel itemCount={items.length} showPrices={showPrices} total={total} currency={currency} notes={notes} onNotesChange={setNotes} error={error} submitting={submitting} customerStatus={customer?.status} onSubmit={() => void handleSubmitOrder()} />
       </div>
     </div>
   )
