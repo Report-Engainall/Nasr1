@@ -122,7 +122,33 @@
           "open_closed": 0,
           "liskov_substitution": "TRUNCATED_IN_SUPPLIED_EXCERPT"
         },
-        "note": "Separate from the recovered 239-row baseline and earlier 181-finding follow-up. No individual findings or source SHA were provided. Do not merge these counts into the historical baseline or infer that its rows map to these findings."
+        "note": "Separate from the recovered 239-row baseline and earlier 181-finding follow-up. No individual findings or source SHA were provided. Do not merge these counts into the historical baseline or infer that its rows map to these findings.",
+        "post_scan_merges": [
+          {
+            "pr": 396,
+            "merged_at_utc": "2026-11-01T18:59:48Z",
+            "merge_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+            "scope": "six P3 test fixture refactors"
+          },
+          {
+            "pr": 397,
+            "merged_at_utc": "2026-11-01T19:08:27Z",
+            "merge_sha": "eed901bb4802fae9ad8c36407344c7199a2ac64d",
+            "scope": "documentation/ledger reconciliation"
+          },
+          {
+            "pr": 398,
+            "merged_at_utc": "2026-11-01T19:16:25Z",
+            "merge_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
+            "scope": "AI telemetry fail-closed test cleanup"
+          },
+          {
+            "pr": 399,
+            "merged_at_utc": "2026-11-01T19:23:59Z",
+            "merge_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
+            "scope": "documentation/ledger reconciliation"
+          }
+        ]
       }
     ]
   },
@@ -203,7 +229,7 @@
     "disposition": "P1 triaged as synthetic test fixtures; preserve report rows pending fresh scan."
   },
   "sha_context": {
-    "main": "0dc6f75d3767fe15d472ed28284332273061bb81",
+    "main": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
     "P1": "37d0c058f4a7a943eb1b1cd2e2812ef4874b818a",
     "P2": "7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6",
     "P3": "c7a4391fd13ae64895d93245358d09898a85a036",
@@ -228,7 +254,7 @@
     "P3_batch_12_tested_head": "63fbdfa84187e5ad9e8b6432f70b899cdfa0a2a3",
     "P3_batch_12_merge": "346495270e60d4e1a690a3d1a41cecb9d286a7bb",
     "P3_batch_12_pr": 360,
-    "last_reconciled_main": "0dc6f75d3767fe15d472ed28284332273061bb81",
+    "last_reconciled_main": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
     "P2_last_validated_source": "a024e18e31de1d0a1cb18fd27e3efcf86f471137",
     "P2_last_merged_head": "a2670ac947959ea4ce9e40350a87ecb71c84ab6d",
     "P2_last_merge": "e433062acbe27b419f53c3b7f5288f39a5f616a2",
@@ -5531,10 +5557,10 @@
       "latest_merged_pr": 395,
       "TS0003_in_progress": 0,
       "latest_tested_head": "68e6cf2833b3e43bc97b144817a984d0c9839cdd",
-      "main_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
+      "main_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
       "verification": {
         "fresh_codeinspector_scan": "PENDING",
-        "current_main_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
+        "current_main_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
         "PR384_core_run": 41318647101,
         "PR384_playwright_run": 41318647093,
         "PR384_gitleaks_run": 41318647094,
@@ -5569,7 +5595,13 @@
         "PR395_gitleaks_run": 41333817863,
         "PR395_p2_playwright_run": 41333817737,
         "PR395_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
-        "PR396_merge_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0"
+        "PR396_merge_sha": "f9daf09d1e5aa152aaefa4ac628c6074d4721fb0",
+        "latest_main_post_pr399_core_run": 41341535268,
+        "latest_main_post_pr399_core_status": "IN_PROGRESS_AT_LAST_POLL",
+        "latest_main_post_pr399_gitleaks_run": 41341535276,
+        "latest_main_post_pr399_gitleaks_status": "SUCCESS",
+        "latest_main_post_pr399_p1_typescript_run": 41341535316,
+        "latest_main_post_pr399_p1_typescript_status": "SUCCESS"
       },
       "TS0003_not_reproduced_current_source_not_closed": 26,
       "last_source_recheck": {
@@ -5641,7 +5673,7 @@
       "latest_pr": 398,
       "latest_tested_head": "9c72e0e7d1dfe42c8131a57c31a39bb27afdb85e",
       "latest_merge_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
-      "main_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
+      "main_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
       "extra_test_cleanup_not_in_recovered_239_row_manifest": [
         "src/test/outbox-worker-handler.test.ts"
       ],
@@ -5663,7 +5695,7 @@
         "P3_batch_13_local_supabase_order_tenant_isolation": "SUCCESS",
         "P3_batch_13_hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
         "P3_batch_13_coderabbit": "SKIPPED_FREE_REVIEW_QUOTA",
-        "current_main_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
+        "current_main_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
         "PR396_core_run": 41338965333,
         "PR396_gitleaks_run": 41338965377,
         "PR396_typescript_run": 41338965256,
@@ -5723,6 +5755,15 @@
     }
   },
   "integration_history": [
+    {
+      "event": "MERGED",
+      "pr": 399,
+      "source_commit": "02384a6b5564d7c238f14511deeb4d3bdd0f7052",
+      "tested_head": "02384a6b5564d7c238f14511deeb4d3bdd0f7052",
+      "merge_commit": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
+      "merged_at": "2026-11-01T19:23:59Z",
+      "note": "Documentation-only reconciliation after PR #398. No application source files changed; main SHA advanced to the merge commit. The 118-finding scan excerpt remains separate and predates PRs #396-#399; no baseline finding is CLOSED."
+    },
     {
       "event": "MERGED",
       "pr": 398,
@@ -6016,6 +6057,68 @@
       "note": "Exact current-main file blobs were inspected. The historical TS0003 nesting pattern was not reproduced at these source locations. Original CodeInspector input SHA is UNKNOWN; these rows are NOT_CLOSED and require a fresh authorized CodeInspector scan."
     }
   ],
-  "main_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
-  "last_reconciled_main_sha": "0dc6f75d3767fe15d472ed28284332273061bb81"
+  "main_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
+  "last_reconciled_main_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
+  "latest_main_checkpoint": {
+    "observed_at_utc": "2026-11-01T19:24:02Z",
+    "main_sha": "91728da2c76933dbf2c79eceac5a6865483ea5a4",
+    "source_commit_sha": "0dc6f75d3767fe15d472ed28284332273061bb81",
+    "source_commit_relation": "PR #399 is documentation-only; no application source changes since PR #398",
+    "post_merge_ci": {
+      "core_run": 41341535268,
+      "core_status": "IN_PROGRESS_AT_LAST_POLL",
+      "completed_success_steps": [
+        "unit tests",
+        "focused P2 Outbox TypeScript check",
+        "all migrations on isolated PostgreSQL 17",
+        "cash-expense source journal and post/void concurrency",
+        "generic journal reversal idempotency",
+        "purchase receipt source-cost and balanced accounting",
+        "customer/company invitation acceptance concurrency",
+        "customer address default concurrency and tenant ownership",
+        "tenant-scoped executive analytics",
+        "explicit customer quote decision",
+        "company invitation expiry audit",
+        "stock-count exactly-once audit",
+        "tenant-scoped asynchronous export lifecycle",
+        "target-native import idempotency",
+        "inventory import snapshot contract",
+        "tenant-safe persistent storefront favourites",
+        "isolated PostgreSQL 17 backup/restore",
+        "lint",
+        "build"
+      ],
+      "still_running_or_pending": [
+        "production build preview smoke",
+        "dev server smoke",
+        "Chromium price visibility acceptance"
+      ],
+      "other_checks": {
+        "full_history_gitleaks_run": 41341535276,
+        "full_history_gitleaks": "SUCCESS",
+        "p1_targeted_typescript_run": 41341535316,
+        "p1_targeted_typescript": "SUCCESS",
+        "branch_cleanup_run": 41341535239,
+        "branch_cleanup": "SUCCESS"
+      },
+      "codeinspector": "NOT_RUN"
+    },
+    "codeinspector_latest_supplied_scan": {
+      "generated_at_utc": "2026-11-01T17:38:11.0353760Z",
+      "reported_findings": 118,
+      "scan_input_sha": "UNKNOWN",
+      "detailed_findings": "NOT_PROVIDED",
+      "temporal_boundary": "Predates PR #396 merge at 18:59:48Z, #397 at 19:08:27Z, #398 at 19:16:25Z, and #399 at 19:23:59Z UTC; it is not a scan of the current main SHA.",
+      "status": "FOLLOW_UP_SUMMARY_ONLY_REQUIRES_FULL_RAW_EXPORT_AND_FRESH_SCAN"
+    },
+    "stale_pr_351": {
+      "state": "OPEN",
+      "merged": false,
+      "branch": "fix/p3-reset-role-fail-closed-20261101",
+      "ahead_by": 73,
+      "behind_by": 42,
+      "merge_base": "6cb364193285840b6d68a620d0db69eadb5d6ef1",
+      "disposition": "DO_NOT_MERGE_WHOLE_BRANCH; selectively integrated successors #383/#396/#398 supersede known portions"
+    }
+  }
 }
