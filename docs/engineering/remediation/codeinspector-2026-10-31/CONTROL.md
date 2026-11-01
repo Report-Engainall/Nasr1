@@ -246,16 +246,23 @@ Read live P2 branch head; open PR to \`main\`; poll Core and P2 for that exact P
 - Next: run exact-head Core/P2 checks on PR #344's synchronized head, merge only after terminal success, then integrate P2 batch 05 and continue the remaining 85 active TS0003 rows.
 
 
-## Live integration checkpoint — 2026-11-01 — after P2 batch 06 base reconciliation
+## Live execution update — 2026-11-01 — P2 batch 05
 
-- Verified current `main`: `85d39603d658bacced1d2b866b7189564d921048` (PR #344 merge commit).
-- PR #344 is MERGED. Exact-head Core run 41262110559 SUCCESS; P2 run 41262110483 public UI smoke SUCCESS and local Supabase order persistence/tenant isolation SUCCESS; hosted tenant E2E SKIPPED; full-history Gitleaks 41262110511 SUCCESS.
-- PR #347 originally diverged from main and GitHub reported `mergeable_state=dirty`. Preserved its source/test blobs for `ActionCard.tsx` and `ActionCard.test.tsx`, overlaid them on the latest main tree, and created a two-parent synchronization commit `a2dd6e051139b95cc425dbcb7b99593db66e6feb` (first parent old feature head `6dad440d60542f141172d52819feb76a7e36b47c`, second parent main `85d39603d658bacced1d2b866b7189564d921048`). Updated the feature ref with a fast-forward lease (`force=false`, expected old head); no force push or history rewrite.
-- Reconciled the P2 finding ledger from current main plus the ActionCard finding. All 239 baseline rows remain. P2 count: 1 TS0002 and 20 TS0003 are IMPLEMENTED_PENDING_FRESH_SCAN; 84 active current-tree TS0003 remain OPEN; 10 archive-only items remain SCOPE_REVIEW. TS0010 remains NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED. ORIGINAL_SCAN_SHA remains UNKNOWN; no finding is CLOSED without a fresh CodeInspector scan.
-- ActionCard stable finding `CI31-TS0003-6ae06bf7-1` maps to `src/components/intelligence/ActionCard.tsx`; source fix `081af02074061da2c35f1fdf7c5f293536794642`; disposition IMPLEMENTED_PENDING_FRESH_SCAN, not CLOSED.
-- Current PR #347 head after baseline/doc updates: `bcdb21468997fa08b1056ba2fad83d4959f0343c`. Exact-head Secret Scan 41263220948 SUCCESS; Core 41263220951 IN_PROGRESS; P2 Playwright 41263220955 PENDING. Earlier pre-sync source-head checks are not transferable. Hosted tenant E2E remains SKIPPED, not PASS.
-- PR #346 batch 05 head `b5de0b97dc95c442d04a3818957dc504bc54e57d`: Core 41262839862 SUCCESS; Secret Scan 41262839835 SUCCESS; P2 Playwright 41262839859 has public/auth smoke SUCCESS, local Supabase tenant/order acceptance IN_PROGRESS, hosted tenant job SKIPPED. Await terminal local result.
-- PR #348 batch 07 head `c5e4ff9c276a4bfae26c7d101dc04a137ce286ec`: Core 41262558778 SUCCESS; P2 41262558809 local Supabase SUCCESS, hosted tenant SKIPPED; Gitleaks 41262558780 SUCCESS. PR is Ready for Review and independent reviewer `adnanabderab2016-sys` requested. Its base is behind latest main; synchronize and revalidate before merge.
-- PR #349 batch 08 head `80e8a1602033b7c31763fc48d6c1a0a75fa906a0`: Core 41262892754 SUCCESS; P2 41262892799 public UI and local Supabase SUCCESS, hosted tenant SKIPPED; Secret Scan 41262892823 SUCCESS. It remains Draft pending promotion and independent review; reviewer `adnanabderab2016-sys` requested.
-- PR #350 P1 security head `5f3dd3687139ee33856f98eb892918d1199889fc`: Core 41262952777 SUCCESS; P1 typecheck 41262952776 SUCCESS; Secret Scan 41262952634 SUCCESS; P2 41262952629 public/auth gates SUCCESS, hosted tenant SKIPPED, local Supabase still IN_PROGRESS at last poll.
-- Fresh CodeInspector scan remains PENDING. Historical finding triage/fingerprint-scoped Gitleaks allowlist does not replace a clean fresh CodeInspector scan or live-credential rotation when applicable.
+- Current main: `85d39603d658bacced1d2b866b7189564d921048`. P2 batch 04 PR #344 merged with two legacy OrdersPage TS0003 refactors; P2 batch 05 branch synchronized with that merge at `213e886f16f0e3843f067ef368dfc41cdc8662b0`.
+- P2 batch 05 source commit `7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6`: extracted Customer 360 recent-order row renderer and section into focused typed components with an early empty-state return. Preserved the existing 20-row limit, order number/date/status/item/amount rendering, and complete-vs-recent summary wording.
+- Test commits `43ab6774c337baf475a1ec4dc58b88cf800332a1` and `90ce35bca0dcd0f99aeb5a190cc4f42326c8f70d` add UI tests for populated rows, row ordering and the empty state.
+- P2 baseline on this branch: 1 TS0002 + 20 TS0003 implemented pending fresh scan; 84 active TS0003 remain OPEN; 10 archived scope-review items. The Customer360PrintSheet finding is not CLOSED until a fresh CodeInspector scan confirms it.
+- No DTO allowlist, financial projection, tenant scope, RLS, accounting or pricing policy changed. Exact-head Core/P2 reruns are required after this synchronization and ledger update.
+
+
+## Current integration checkpoint — 2026-11-01 — P2 batch 06 after PR #346 merge
+
+- Current main SHA: `8f5b843ddfb4000c5aee9e9e8ef4f0a5731d1158`.
+- PR #346 (Customer 360 recent-order print decomposition) is MERGED at `8f5b843ddfb4000c5aee9e9e8ef4f0a5731d1158`. Its exact-head branch checks: Core 41262839862 SUCCESS; Gitleaks 41262839835 SUCCESS; Playwright 41262839859 public/auth gates SUCCESS and local Supabase order/tenant acceptance SUCCESS. Hosted tenant E2E was SKIPPED, not PASS.
+- Post-merge main workflows on `8f5b843...`: Core 41263444461 and P2 Playwright 41263444463 were IN_PROGRESS at last observation; Secret Scan 41263444466 was IN_PROGRESS at last observation; One-main-branch cleanup 41263444448 SUCCESS. Verify these exact-main checks before treating post-merge validation as complete.
+- P2 batch 06 stable finding `CI31-TS0003-6ae06bf7-1` is implemented in `src/components/intelligence/ActionCard.tsx` by source commit `081af02074061da2c35f1fdf7c5f293536794642`. It remains IMPLEMENTED_PENDING_FRESH_SCAN, not CLOSED.
+- P2 branch `fix/codeinspector-p2-ts0003-batch-06` was synchronized to latest main after PR #346 by preserving the ActionCard source/test blobs on the current main tree and creating a two-parent merge commit; baseline reconciliation is based on main's latest 239-row ledger. This is not a main merge.
+- Current reconciled P2 counts: 1 TS0002 + 21 TS0003 IMPLEMENTED_PENDING_FRESH_SCAN; 83 active current-tree TS0003 OPEN; 10 archived TS0003 SCOPE_REVIEW; TS0010 NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED. All 239 original rows retained. ORIGINAL_SCAN_SHA=UNKNOWN. Fresh CodeInspector scan remains PENDING.
+- Exact latest-head checks for the synchronized #347 branch are launched by the new branch commit; do not transfer results from older heads.
+- PR #348/#349 have new branch heads and have exact-head checks running; PR #350 P1 and PR #351 P3 are also awaiting their latest Playwright/Supabase job terminal states. See EVIDENCE.md for run IDs.
+

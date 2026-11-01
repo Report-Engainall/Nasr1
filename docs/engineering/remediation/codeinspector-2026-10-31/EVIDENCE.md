@@ -178,24 +178,20 @@ Original CodeInspector scan SHA UNKNOWN. Main SHA 46f2fce34c09f64284fdbbe4182bd0
 - Next: run exact-head Core/P2 checks on PR #344's synchronized head, merge only after terminal success, then integrate P2 batch 05 and continue the remaining 85 active TS0003 rows.
 
 
-## Exact integration evidence — 2026-11-01 — P2 current batches
+## Live execution update — 2026-11-01 — P2 batch 05
 
-### PR #347 base synchronization
-- Old branch commit: `6dad440d60542f141172d52819feb76a7e36b47c`.
-- Main commit used for sync: `85d39603d658bacced1d2b866b7189564d921048`.
-- Two-parent sync commit: `a2dd6e051139b95cc425dbcb7b99593db66e6feb`; tree built from main with only ActionCard source/test blobs preserved from feature branch. Remote branch update used expected old SHA and `force=false`.
-- Baseline reconciliation commit: `bcdb21468997fa08b1056ba2fad83d4959f0343c`, preserving 239 findings and applying only the ActionCard status/fix evidence on top of main's #344 ledger.
-- Exact current head after this docs update will trigger fresh Core/P2/SecretScan; the immediately preceding snapshot showed Core 41263220951 IN_PROGRESS, P2 41263220955 PENDING, Secret Scan 41263220948 SUCCESS. Do not transfer runs from prior head `a2dd6e...`.
+- Current main: `85d39603d658bacced1d2b866b7189564d921048`. P2 batch 04 PR #344 merged with two legacy OrdersPage TS0003 refactors; P2 batch 05 branch synchronized with that merge at `213e886f16f0e3843f067ef368dfc41cdc8662b0`.
+- P2 batch 05 source commit `7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6`: extracted Customer 360 recent-order row renderer and section into focused typed components with an early empty-state return. Preserved the existing 20-row limit, order number/date/status/item/amount rendering, and complete-vs-recent summary wording.
+- Test commits `43ab6774c337baf475a1ec4dc58b88cf800332a1` and `90ce35bca0dcd0f99aeb5a190cc4f42326c8f70d` add UI tests for populated rows, row ordering and the empty state.
+- P2 baseline on this branch: 1 TS0002 + 20 TS0003 implemented pending fresh scan; 84 active TS0003 remain OPEN; 10 archived scope-review items. The Customer360PrintSheet finding is not CLOSED until a fresh CodeInspector scan confirms it.
+- No DTO allowlist, financial projection, tenant scope, RLS, accounting or pricing policy changed. Exact-head Core/P2 reruns are required after this synchronization and ledger update.
 
-### Workflow evidence at this snapshot
-| PR / SHA | Core | P2 Playwright | Secret / Gitleaks | Boundary |
-| --- | --- | --- | --- | --- |
-| #346 / `b5de0b9` | 41262839862 SUCCESS | 41262839859 local Supabase IN_PROGRESS; public/auth SUCCESS | 41262839835 SUCCESS | Hosted tenant SKIPPED |
-| #347 / `bcdb214` | 41263220951 IN_PROGRESS | 41263220955 PENDING | 41263220948 SUCCESS | Exact-head revalidation required |
-| #348 / `c5e4ff9` | 41262558778 SUCCESS | 41262558809 local Supabase SUCCESS; public/auth SUCCESS | 41262558780 SUCCESS | Hosted tenant SKIPPED; base stale |
-| #349 / `80e8a16` | 41262892754 SUCCESS | 41262892799 local Supabase SUCCESS; public/auth SUCCESS | 41262892823 SUCCESS | Hosted tenant SKIPPED |
-| #350 / `5f3dd36` | 41262952777 SUCCESS | 41262952629 local Supabase IN_PROGRESS; public/auth SUCCESS | 41262952634 SUCCESS; P1 TS 41262952776 SUCCESS | Hosted tenant SKIPPED |
 
-- A skipped hosted test is not PASS. Local Supabase persistence/tenant tests are separate evidence and are not described as hosted acceptance.
-- Fresh CodeInspector scan: PENDING. ORIGINAL_SCAN_SHA: UNKNOWN. No TypeScript finding is marked CLOSED based only on this source refactor or CI.
+## Merge and synchronization evidence — 2026-11-01 — after PR #346
+
+- PR #346 merged to main at `8f5b843ddfb4000c5aee9e9e8ef4f0a5731d1158`. Exact-head Core 41262839862 SUCCESS, Gitleaks 41262839835 SUCCESS, Playwright 41262839859 public/auth and local Supabase SUCCESS; hosted tenant E2E SKIPPED.
+- Main post-merge check runs at this observation: Core 41263444461 IN_PROGRESS; P2 Playwright 41263444463 IN_PROGRESS; Secret Scan 41263444466 IN_PROGRESS; One-main-branch cleanup 41263444448 SUCCESS.
+- P2 batch06 stable finding `CI31-TS0003-6ae06bf7-1`: source fix `081af02074061da2c35f1fdf7c5f293536794642`; branch synchronized onto main `8f5b843...` using a two-parent merge and fast-forward-only ref update. Ledger reconciliation is based on latest main plus this stable finding, preserving the Customer360 finding already merged in #346.
+- P2 baseline totals remain 239. P2 status now: 1 TS0002 pending scan; 21 TS0003 pending scan; 83 active TS0003 open; 10 archived scope review; TS0010 not reproduced/not closed.
+- Latest branch head checks for #347 were newly launched after synchronization; historical checks must not be transferred. Fresh CodeInspector is pending; ORIGINAL_SCAN_SHA remains UNKNOWN.
 
