@@ -113,9 +113,10 @@ function queryFor(table: string) {
   return query;
 }
 
-function createCustomerInvoicePdfPayload(invoiceId: string) {
+function customerInvoicePdfResponse(invoiceId: string) {
   return {
-    invoice: {
+    data: {
+      invoice: {
       id: invoiceId,
       invoice_number: "INV-UI-001",
       currency: "YER",
@@ -138,7 +139,9 @@ function createCustomerInvoicePdfPayload(invoiceId: string) {
       contact_name: null,
     },
     financial_details_visible: true,
-    customer_tier_visible: false,
+      customer_tier_visible: false,
+    },
+    error: null,
   };
 }
 
@@ -548,7 +551,7 @@ describe("customer quote workspace tenant boundary", () => {
     mocks.rpc.mockImplementation(async (name: string, args: { p_invoice_id?: string }) => {
       if (name !== "get_customer_invoice_pdf") return { data: null, error: null };
       expect(args).toEqual({ p_invoice_id: invoiceId });
-      return { data: createCustomerInvoicePdfPayload(invoiceId), error: null };
+      return customerInvoicePdfResponse(invoiceId);
     });
 
     await mountQuoteWorkspace("/invoices");
