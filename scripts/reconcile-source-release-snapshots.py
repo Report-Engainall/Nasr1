@@ -2,6 +2,7 @@
 """Hash-check, CRC-check, and safely inspect published commerce source-release ZIP snapshots."""
 from __future__ import annotations
 
+import argparse
 import csv
 import hashlib
 import io
@@ -467,7 +468,36 @@ def persist_audit_outputs(
     print("SOURCE_RELEASE_AUDIT_DIRECTORY=" + str(OUT), flush=True)
 
 
+def self_test() -> int:
+    assert safe_name("project/src/main.ts").as_posix() == "project/src/main.ts"
+    unsafe_names = ("../escape", "/etc/passwd", "C:/secret", "project/../../escape", "project\\\\file", "")
+    for candidate in unsafe_names:
+        try:
+            safe_name(candidate)
+        except ValueError:
+            continue
+        raise AssertionError("unsafe member accepted: " + repr(candidate))
+
+    payload = b"export const ok = true;\\n"
+    archive_buffer = io.BytesIO()
+    with zipfile.ZipFile(archive_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("project/src/ok.ts", payload)
+    with tempfile.TemporaryDirectory(prefix="nasr1-source-self-test-") as directory:
+        with zipfile.ZipFile(io.BytesIO(archive_buffer.getvalue())) as archive:
+            infos, total = inspect_headers(archive)
+            assert len(infos) == 1 and total == len(payload)
+            digest, size = stream_member(archive, infos[0], None, Path(directory))
+            assert digest == sha256(payload) and size == len(payload)
+    print("SOURCE_RELEASE_SELF_TEST PASS: path safety, ZIP header limits, bounded member read and SHA-256", flush=True)
+    return 0
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--self-test", action="store_true")
+    args = parser.parse_args()
+    if args.self_test:
+        return self_test()
     OUT.mkdir(parents=True, exist_ok=True)
     active = collect_active_hashes()
     manifest: list[dict[str, object]] = []
