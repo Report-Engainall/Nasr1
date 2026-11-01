@@ -22,6 +22,56 @@ function dayCount(period:EvidencePeriod):number {
  if(!Number.isFinite(from)||!Number.isFinite(to)||to<from)return 0;
  return Math.floor((to-from)/86400000)+1;
 }
+
+type ReplenishmentMetricRead = { value: number | null; status: EvidenceStatus; metric: MetricSnapshot | null };
+
+function readReplenishmentMetric(args: {
+  metric: MetricSnapshot;
+  unit: string;
+  expectedQuantityUnit: string;
+  asOf: string;
+  period: EvidencePeriod;
+  soldQuantityMetricId: string;
+  index: Map<string, MetricSnapshot>;
+  warnings: string[];
+}): ReplenishmentMetricRead {
+  const { metric, unit, expectedQuantityUnit, asOf, period, soldQuantityMetricId, index, warnings } = args;
+  const source = index.get(metric.id);
+  if (!source) return { value: null, status: "UNVERIFIED", metric: null };
+  if (
+    source.status !== "VERIFIED" ||
+    source.completeness !== "COMPLETE" ||
+    source.quality !== "ACCEPTABLE" ||
+    source.asOf !== asOf ||
+    source.unit !== unit ||
+    !source.lineage.evidenceIds.length
+  ) {
+    return { value: null, status: source.status === "VERIFIED" ? "NEEDS_REVIEW" : source.status, metric: source };
+  }
+  if (unit === "QUANTITY") {
+    if (!expectedQuantityUnit || !source.unitOfMeasure?.trim()) {
+      warnings.push("QUANTITY_UOM_MISSING");
+      return { value: null, status: "NEEDS_REVIEW", metric: source };
+    }
+    if (source.unitOfMeasure.trim() !== expectedQuantityUnit) {
+      warnings.push("QUANTITY_UOM_MISMATCH");
+      return { value: null, status: "UNVERIFIED", metric: source };
+    }
+  }
+  const hasWrongSoldPeriod = metric.id === soldQuantityMetricId &&
+    (!source.period || source.period.from !== period.from || source.period.to !== period.to);
+  const hasWrongQuantityPeriod = unit === "QUANTITY" && Boolean(source.period) &&
+    (source.period!.from !== period.from || source.period!.to !== period.to);
+  const hasPeriodOnDayMetric = unit === "DAYS" && source.period !== null;
+  if (hasWrongSoldPeriod || hasWrongQuantityPeriod || hasPeriodOnDayMetric) {
+    return { value: null, status: "NEEDS_REVIEW", metric: source };
+  }
+  const value = numeric(source.value);
+  return value === null || value < 0
+    ? { value: null, status: "NEEDS_REVIEW", metric: source }
+    : { value, status: "VERIFIED", metric: source };
+}
+
 export function buildReplenishmentRecommendations(input:{
  id:string;asOf:string;period:EvidencePeriod;evidenceRecords:EvidenceRecord[];products:ReplenishmentProductInput[];
 }):{id:string;asOf:string;period:EvidencePeriod;recommendations:ReplenishmentRecommendation[]} {
@@ -33,28 +83,24 @@ export function buildReplenishmentRecommendations(input:{
  const index=new Map<string,MetricSnapshot>();for(const m of passport.metrics)if(counts.get(m.id)===1)index.set(m.id,m);
  const recommendations=input.products.map(product=>{
   const warnings:string[]=[],expectedQuantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"",evidenceIds=[...new Set(metrics.filter(m=>[product.availableToPromise.id,product.reorderPoint.id,product.soldQuantityWindow.id,product.supplierLeadTimeDays.id,product.minimumOrderQuantity?.id,product.orderMultiple?.id].includes(m.id)).flatMap(m=>m.lineage.evidenceIds))];
-  const read=(metric:MetricSnapshot,unit:string):{value:number|null;status:EvidenceStatus;metric:MetricSnapshot|null}=>{
-   const source=index.get(metric.id);if(!source)return {value:null,status:"UNVERIFIED",metric:null};
-   if(source.status!=="VERIFIED"||source.completeness!=="COMPLETE"||source.quality!=="ACCEPTABLE"||source.asOf!==input.asOf||source.unit!==unit||!source.lineage.evidenceIds.length)
-    return {value:null,status:source.status==="VERIFIED"?"NEEDS_REVIEW":source.status,metric:source};
-   if(unit==="QUANTITY"){
-    if(!expectedQuantityUnit||!source.unitOfMeasure?.trim()){
-     warnings.push("QUANTITY_UOM_MISSING");
-     return {value:null,status:"NEEDS_REVIEW",metric:source};
-    }
-    if(source.unitOfMeasure.trim()!==expectedQuantityUnit){
-     warnings.push("QUANTITY_UOM_MISMATCH");
-     return {value:null,status:"UNVERIFIED",metric:source};
-    }
-   }
-   if((metric.id===product.soldQuantityWindow.id&&
-       (!source.period||source.period.from!==input.period.from||source.period.to!==input.period.to))||
-      (unit==="QUANTITY"&&source.period&&(source.period.from!==input.period.from||source.period.to!==input.period.to))||
-      (unit==="DAYS"&&source.period!==null))return {value:null,status:"NEEDS_REVIEW",metric:source};
-   const value=numeric(source.value);return value===null||value<0?{value:null,status:"NEEDS_REVIEW",metric:source}:{value,status:"VERIFIED",metric:source};
-  };
-  const atp=read(product.availableToPromise,"QUANTITY"),rop=read(product.reorderPoint,"QUANTITY"),sold=read(product.soldQuantityWindow,"QUANTITY"),lead=read(product.supplierLeadTimeDays,"DAYS");
-  const optional=[product.minimumOrderQuantity?read(product.minimumOrderQuantity,"QUANTITY"):null,product.orderMultiple?read(product.orderMultiple,"QUANTITY"):null];
+  const read = (metric: MetricSnapshot, unit: string) => readReplenishmentMetric({
+    metric,
+    unit,
+    expectedQuantityUnit,
+    asOf: input.asOf,
+    period: input.period,
+    soldQuantityMetricId: product.soldQuantityWindow.id,
+    index,
+    warnings,
+  });
+  const atp = read(product.availableToPromise, "QUANTITY");
+  const rop = read(product.reorderPoint, "QUANTITY");
+  const sold = read(product.soldQuantityWindow, "QUANTITY");
+  const lead = read(product.supplierLeadTimeDays, "DAYS");
+  const optional = [
+    product.minimumOrderQuantity ? read(product.minimumOrderQuantity, "QUANTITY") : null,
+    product.orderMultiple ? read(product.orderMultiple, "QUANTITY") : null,
+  ];
   const required=[atp,rop,sold,lead],bad=required.find(r=>r.status!=="VERIFIED")??optional.find(r=>r&&r.status!=="VERIFIED");
   if(bad){warnings.push("REQUIRED_OR_CONFIGURED_INPUT_NOT_VERIFIED");return {
    productRef:product.productRef,status:bad.status,action:"WITHHELD",quantityUnit:null,availableToPromise:atp.value,reorderPoint:rop.value,dailyDemand:null,leadTimeDemand:null,targetStock:null,
