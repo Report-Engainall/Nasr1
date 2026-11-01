@@ -79,10 +79,13 @@ const STAFF: TestUser = {
   isStaff: true,
 };
 
-function fillAddressFields(values: Array<[string, string]>) {
+function fillAddressFields(
+  resolveInputForLabel: (label: string) => HTMLInputElement | HTMLTextAreaElement,
+  values: Array<[string, string]>,
+) {
   act(() => {
     for (const [label, value] of values) {
-      fireEvent.change(inputForLabel(label), { target: { value } });
+      fireEvent.change(resolveInputForLabel(label), { target: { value } });
     }
   });
 }
@@ -202,7 +205,7 @@ describe("customer addresses real route acceptance", () => {
       ["المدينة", "صنعاء"],
       ["العنوان التفصيلي", "شارع الاختبار، مبنى 12"],
     ];
-    fillAddressFields(values);
+    fillAddressFields(inputForLabel, values);
 
     const country = inputForLabel("رمز الدولة");
     act(() => fireEvent.change(country, { target: { value: "YE" } }));
