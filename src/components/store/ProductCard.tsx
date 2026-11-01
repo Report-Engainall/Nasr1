@@ -14,7 +14,7 @@ interface Props {
 
 function ProductImageLink({ product, out }: { product: Product; out: boolean }) {
   return (
-    <Link to={\`/product/\${product.id}\`} style={{ display: 'block', aspectRatio: '1', background: 'var(--color-bg-alt)', position: 'relative', overflow: 'hidden' }}>
+    <Link to={'/product/' + product.id} style={{ display: 'block', aspectRatio: '1', background: 'var(--color-bg-alt)', position: 'relative', overflow: 'hidden' }}>
       {product.image_url ? (
         <img src={product.image_url} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : (
@@ -61,7 +61,7 @@ function ProductQuantityControls({
 
 function ProductAddButton({ added, onAdd }: { added: boolean; onAdd: () => void }) {
   return (
-    <button onClick={onAdd} className={\`btn \${added ? 'btn-accent' : 'btn-primary'} btn-sm\`} style={{ flex: 1 }}>
+    <button onClick={onAdd} className={'btn ' + (added ? 'btn-accent' : 'btn-primary') + ' btn-sm'} style={{ flex: 1 }}>
       {added ? 'تمت الإضافة ✓' : <><ShoppingCart size={16} /> إضافة</>}
     </button>
   );
@@ -90,7 +90,7 @@ function ProductCardDetails({
 }) {
   return (
     <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-      <Link to={\`/product/\${product.id}\`}>
+      <Link to={'/product/' + product.id}>
         <h3 style={{ fontSize: '15px', fontWeight: 600, lineHeight: '1.4', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
           {product.name}
         </h3>

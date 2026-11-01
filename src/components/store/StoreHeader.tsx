@@ -204,7 +204,7 @@ export default function StoreHeader() {
     event.preventDefault();
     const query = search.trim();
     if (!query) return;
-    navigate(\`/products?q=\${encodeURIComponent(query)}\`);
+    navigate('/products?q=' + encodeURIComponent(query));
   };
 
   const handleSignOut = () => {

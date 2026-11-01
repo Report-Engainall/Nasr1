@@ -172,10 +172,10 @@ export function StorefrontOffersPage() {
   const error = promotionsQuery.error || productsQuery.error;
   const errorTitle = promotionsQuery.error && productsQuery.error
     ? "تعذر تحميل العروض والكتالوج"
-    : promotionsQuery.error ? "تعذر تحميل العروض" : "تعذر تحميل كتالوج المنتجات";
+    promotionsQuery.error ? "العروض: " + promotionsQuery.error : null,
   const errorDetails = [
-    promotionsQuery.error ? \`العروض: \${promotionsQuery.error}\` : null,
-    productsQuery.error ? \`الكتالوج: \${productsQuery.error}\` : null,
+    promotionsQuery.error ? "العروض: " + promotionsQuery.error : null,
+    productsQuery.error ? "الكتالوج: " + productsQuery.error : null,
   ].filter((detail): detail is string => detail !== null).join(" — ");
   const refresh = () => {
     void promotionsQuery.refetch();

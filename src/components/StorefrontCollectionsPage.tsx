@@ -107,10 +107,10 @@ export function StorefrontCollectionsPage() {
   const error = categoriesQuery.error || productsQuery.error;
   const errorTitle = categoriesQuery.error && productsQuery.error
     ? "تعذر تحميل التصنيفات والكتالوج"
-    : categoriesQuery.error ? "تعذر تحميل التصنيفات" : "تعذر تحميل كتالوج المنتجات";
+    categoriesQuery.error ? "التصنيفات: " + categoriesQuery.error : null,
   const errorDetails = [
-    categoriesQuery.error ? \`التصنيفات: \${categoriesQuery.error}\` : null,
-    productsQuery.error ? \`الكتالوج: \${productsQuery.error}\` : null,
+    categoriesQuery.error ? "التصنيفات: " + categoriesQuery.error : null,
+    productsQuery.error ? "الكتالوج: " + productsQuery.error : null,
   ].filter((detail): detail is string => detail !== null).join(" — ");
 
   const productCounts = products.reduce<Record<string, number>>((counts, product) => {

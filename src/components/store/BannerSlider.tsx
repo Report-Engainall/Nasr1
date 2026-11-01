@@ -7,7 +7,7 @@ function BannerSlide({ banner }: { banner: Banner }) {
     <div
       style={{
         minWidth: '100%',
-        background: \`linear-gradient(135deg, \${banner.color}22, \${banner.color}44)\`,
+        background: 'linear-gradient(135deg, ' + banner.color + '22, ' + banner.color + '44)',
         padding: '12px 24px',
         textAlign: 'center',
       }}
@@ -25,7 +25,7 @@ function BannerTrack({ banners, current }: { banners: Banner[]; current: number 
       style={{
         display: 'flex',
         transition: 'transform 0.5s ease',
-        transform: \`translateX(\${current * 100}%)\`,
+        transform: 'translateX(' + current * 100 + '%)',
         direction: 'ltr',
       }}
     >
@@ -53,7 +53,7 @@ function BannerIndicators({
         position: 'absolute',
         bottom: '4px',
         left: '50%',
-        transform: 'translateX(-50%)',
+        transform: 'translateX(' + current * 100 + '%)',
         display: 'flex',
         gap: '6px',
       }}
@@ -62,7 +62,7 @@ function BannerIndicators({
         <button
           key={index}
           type="button"
-          aria-label={\`الشريحة \${index + 1}\`}
+          aria-label={'الشريحة ' + (index + 1)}
           aria-pressed={index === current}
           onClick={() => onSelect(index)}
           style={{
