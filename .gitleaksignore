@@ -39,3 +39,7 @@ f9dd35d198c50336ee88b03f272210bbf98770f4:docs/bolt-source-reconciliation/SOURCE_
 dfe1964fc6b28036e51563a7d29c04cacad1ec7a:docs/bolt-source-reconciliation/READY_TO_REUSE/PROVENANCE_MANIFEST.csv:generic-api-key:8
 3030fa0637b45b6cf43150d69c561275b9a4f1e7:docs/bolt-source-reconciliation/READY_TO_REUSE/Report-Engainall--aghbari-commerce/src/services/inventory.input.test.ts:generic-api-key:8
 0e0462db2bbca340c5db9160421bc05a5012d49b:docs/bolt-source-reconciliation/READY_TO_REUSE/Report-Engainall--aghbari-commerce/src/domain/order.test.ts:generic-api-key:7
+# Exact historical fingerprints for synthetic negative-input fixtures in the AI gateway sanitizer test.
+# The current-main test uses generated fixture values; these scoped historical occurrences are not live credentials.
+ef7d290a5ae9bd53ff035513f2c7fca700bfb875:src/test/ai-gateway-logic.test.ts:generic-api-key:66
+ef7d290a5ae9bd53ff035513f2c7fca700bfb875:src/test/ai-gateway-logic.test.ts:jwt:69
