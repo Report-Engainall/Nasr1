@@ -106,11 +106,12 @@ describe("customer activation invitation page", () => {
     expect(mocks.accept).not.toHaveBeenCalled();
   });
 
-  it("prevents repeated acceptance while the first server request is pending", async () => {
+  it("prevents repeated acceptance while the first server request is pending and removes URL fragments", async () => {
     let resolveAcceptance!: (value: { business_name: string; email: string }) => void;
     mocks.accept.mockImplementationOnce(() => new Promise((resolve) => {
       resolveAcceptance = resolve;
     }));
+    window.history.replaceState(null, "", "/activate?invite=" + TOKEN + "#" + TOKEN);
     render(<CustomerActivationInvitationPage token={TOKEN} />);
 
     const action = screen.getByRole("button", { name: "التحقق من الدعوة وتفعيل الحساب" });
@@ -120,7 +121,9 @@ describe("customer activation invitation page", () => {
     fireEvent.click(action);
     expect(mocks.accept).toHaveBeenCalledTimes(1);
     expect(window.location.pathname).toBe("/");
-    expect(window.location.pathname).not.toContain(TOKEN);
+    expect(window.location.pathname + window.location.search + window.location.hash).not.toContain(TOKEN);
+    expect(window.location.search).toBe("");
+    expect(window.location.hash).toBe("");
 
     await act(async () => {
       resolveAcceptance({ business_name: "متجر العميل", email: "client@example.test" });
