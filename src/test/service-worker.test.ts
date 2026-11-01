@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
@@ -52,6 +53,11 @@ async function loadServiceWorker(overrides: {
   cacheMatch?: (request: Request | string) => Promise<Response | null>;
   fetcher?: (request: Request | string) => Promise<Response>;
   cachePut?: (request: Request | string, response: Response) => Promise<void>;
+  cacheOpenFails?: boolean;
+  cacheKeysFail?: boolean;
+  cacheMatchFails?: boolean;
+  skipWaitingFails?: boolean;
+  claimFails?: boolean;
 } = {}) {
   const source = await readFile(resolve(process.cwd(), "public/sw.js"), "utf8");
   const listeners = new Map<string, Listener>();
@@ -68,17 +74,33 @@ async function loadServiceWorker(overrides: {
     return Promise.reject(new Error("unexpected network request"));
   };
   const cachesMock = {
-    open: vi.fn(async () => cache),
-    keys: vi.fn(async () => cacheNames),
+    open: vi.fn(async () => {
+      if (overrides.cacheOpenFails) throw new Error("cache storage unavailable");
+      return cache;
+    }),
+    keys: vi.fn(async () => {
+      if (overrides.cacheKeysFail) throw new Error("cache index unavailable");
+      return cacheNames;
+    }),
     delete: cacheDelete,
-    match: vi.fn(matchCachedRequest),
+    match: vi.fn(async (request: Request | string) => {
+      if (overrides.cacheMatchFails) throw new Error("cache lookup unavailable");
+      return matchCachedRequest(request);
+    }),
   };
-  const skipWaiting = vi.fn(async () => undefined);
-  const claim = vi.fn(async () => undefined);
+  const skipWaiting = vi.fn(async () => {
+    if (overrides.skipWaitingFails) throw new Error("skipWaiting unavailable");
+  });
+  const claim = vi.fn(async () => {
+    if (overrides.claimFails) throw new Error("client claim unavailable");
+  });
+  const diagnosticMessages: unknown[] = [];
+  const diagnosticClient = { postMessage: (message: unknown) => diagnosticMessages.push(message) };
+  const matchAll = vi.fn(async () => [diagnosticClient]);
   const selfMock = {
     addEventListener: (name: string, listener: Listener) => listeners.set(name, listener),
     skipWaiting,
-    clients: { claim },
+    clients: { claim, matchAll },
     location: { origin: "https://aghbari.example" },
   };
 
@@ -89,13 +111,19 @@ async function loadServiceWorker(overrides: {
     Promise,
     Response,
     fetch: vi.fn(fetchRequest),
-    console,
   });
 
-  return { listeners, cacheAdd, cachePut, cachesMock, cacheDelete, skipWaiting, claim };
+  return { listeners, cacheAdd, cachePut, cachesMock, cacheDelete, skipWaiting, claim, diagnosticMessages, matchAll };
 }
 
 describe("Aghbari PWA offline shell", () => {
+  it("uses structured, redacted client diagnostics instead of console logging", async () => {
+    const source = await readFile(resolve(process.cwd(), "public/sw.js"), "utf8");
+    expect(source).toContain("aghbari:service-worker-diagnostic");
+    expect(source).not.toMatch(/\bconsole\.(?:log|warn|error)\s*\(/);
+    expect(source).not.toMatch(/\bError\.(?:message|stack)/);
+  });
+
   it("precaches MIME-valid shell assets while skipping an optional asset with the wrong MIME", async () => {
     const worker = await loadServiceWorker({
       fetcher: async (url) => {
@@ -120,6 +148,28 @@ describe("Aghbari PWA offline shell", () => {
     expect(worker.cacheAdd).not.toHaveBeenCalled();
     expect(worker.cachePut.mock.calls.map(([url]) => url)).toEqual(["/", "/favicon.ico"]);
     expect(worker.skipWaiting).toHaveBeenCalledOnce();
+  });
+
+  it("does not cache successful HTML returned for a private deep navigation", async () => {
+    const worker = await loadServiceWorker({
+      fetcher: async () => sameOriginResponse("<!doctype html><main>private route</main>", {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      }),
+    });
+    const pending: Promise<Response>[] = [];
+    worker.listeners.get("fetch")?.({
+      request: {
+        method: "GET",
+        url: "https://aghbari.example/reset-password/private-token-fixture",
+        mode: "navigate",
+      } as Request,
+      respondWith: (promise) => pending.push(promise),
+    });
+
+    await expect(Promise.all(pending)).resolves.toHaveLength(1);
+    expect(worker.cachesMock.open).not.toHaveBeenCalled();
+    expect(worker.cachePut).not.toHaveBeenCalled();
   });
 
   it("does not cache account, invoice or admin navigation responses", async () => {
@@ -227,7 +277,6 @@ describe("Aghbari PWA offline shell", () => {
     });
     const pending: Promise<Response>[] = [];
     const lifecycle: Promise<unknown>[] = [];
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     worker.listeners.get("fetch")?.({
       request: {
         method: "GET",
@@ -240,12 +289,14 @@ describe("Aghbari PWA offline shell", () => {
 
     await expect(Promise.all(pending)).resolves.toEqual([cachedResponse]);
     await expect(Promise.all(lifecycle)).resolves.toBeDefined();
-    expect(warn).toHaveBeenCalledWith(
-      "[aghbari-sw] background asset refresh failed; serving cached response",
-      expect.objectContaining({ url: "/assets/app.js", errorType: "Error" }),
-    );
-    expectNoDiagnosticSecrets(warn.mock.calls);
-    warn.mockRestore();
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "warning",
+      code: "background-asset-refresh-failed",
+      resource: "static_asset",
+      errorType: "Error",
+    });
+    expectNoDiagnosticSecrets(worker.diagnosticMessages);
   });
 
 
@@ -253,7 +304,6 @@ describe("Aghbari PWA offline shell", () => {
     const requestUrl = "https://aghbari.example/assets/app.js?access_token=do-not-log-this";
     const pending: Promise<Response>[] = [];
     const lifecycle: Promise<unknown>[] = [];
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const worker = await loadServiceWorker({
       fetcher: async () => sameOriginResponse("export const ok = true;", {
         status: 200,
@@ -272,13 +322,116 @@ describe("Aghbari PWA offline shell", () => {
 
     await expect(Promise.all(pending)).resolves.toHaveLength(1);
     await expect(Promise.all(lifecycle)).resolves.toBeDefined();
-    expect(warn).toHaveBeenCalledWith(
-      "[aghbari-sw] static asset cache write failed",
-      expect.objectContaining({ url: "/assets/app.js", errorType: "Error" }),
-    );
-    expectNoDiagnosticSecrets(warn.mock.calls);
-    expect(JSON.stringify(warn.mock.calls)).not.toContain("do-not-log-this");
-    warn.mockRestore();
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "warning",
+      code: "static-asset-cache-write-failed",
+      resource: "static_asset",
+      errorType: "Error",
+    });
+    expectNoDiagnosticSecrets(worker.diagnosticMessages);
+    expect(JSON.stringify(worker.diagnosticMessages)).not.toContain("do-not-log-this");
+  });
+
+  it("never echoes credential-bearing navigation path segments into client diagnostics", async () => {
+    const pathToken = randomBytes(32).toString("hex");
+    const pending: Promise<Response>[] = [];
+    const lifecycle: Promise<unknown>[] = [];
+    const worker = await loadServiceWorker({
+      fetcher: async () => { throw createSensitiveDiagnosticFailure("offline navigation"); },
+    });
+
+    worker.listeners.get("fetch")?.({
+      request: {
+        method: "GET",
+        url: `https://aghbari.example/reset-password/${pathToken}`,
+        mode: "navigate",
+      } as Request,
+      respondWith: (promise) => pending.push(promise as Promise<Response>),
+      waitUntil: (promise) => lifecycle.push(promise),
+    });
+
+    await expect(Promise.all(pending)).resolves.toHaveLength(1);
+    await expect(Promise.all(lifecycle)).resolves.toBeDefined();
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "warning",
+      code: "navigation-network-failed",
+      resource: "navigation",
+      errorType: "Error",
+    });
+    expect(JSON.stringify(worker.diagnosticMessages)).not.toContain(pathToken);
+    expectNoDiagnosticSecrets(worker.diagnosticMessages);
+  });
+
+  it("contains install and activation lifecycle failures without unhandled rejections", async () => {
+    const worker = await loadServiceWorker({
+      cacheOpenFails: true,
+      cacheKeysFail: true,
+      skipWaitingFails: true,
+      claimFails: true,
+    });
+    const pending: Promise<unknown>[] = [];
+
+    worker.listeners.get("install")?.({ waitUntil: (promise) => pending.push(promise) });
+    worker.listeners.get("activate")?.({ waitUntil: (promise) => pending.push(promise) });
+
+    await expect(Promise.all(pending)).resolves.toHaveLength(2);
+    expect(worker.skipWaiting).toHaveBeenCalledOnce();
+    expect(worker.claim).toHaveBeenCalledOnce();
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "error",
+      code: "shell-install-cache-failed",
+      resource: "shell",
+      errorType: "Error",
+    });
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "error",
+      code: "service-worker-skip-waiting-failed",
+      resource: "lifecycle",
+      errorType: "Error",
+    });
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "error",
+      code: "shell-activation-cache-cleanup-failed",
+      resource: "lifecycle",
+      errorType: "Error",
+    });
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "error",
+      code: "service-worker-client-claim-failed",
+      resource: "lifecycle",
+      errorType: "Error",
+    });
+  });
+
+  it("returns a safe error response when the Cache API lookup rejects", async () => {
+    const worker = await loadServiceWorker({ cacheMatchFails: true });
+    const pending: Promise<Response>[] = [];
+
+    worker.listeners.get("fetch")?.({
+      request: {
+        method: "GET",
+        url: "https://aghbari.example/assets/app.js",
+        mode: "cors",
+      } as Request,
+      respondWith: (promise: Promise<Response>) => pending.push(promise),
+    });
+
+    const responses = await Promise.all(pending);
+    expect(responses).toHaveLength(1);
+    expect(responses[0]?.type).toBe("error");
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "error",
+      code: "static-asset-cache-lookup-failed",
+      resource: "static_asset",
+      errorType: "Error",
+    });
   });
 
   it("removes previous shell cache versions during activation", async () => {
