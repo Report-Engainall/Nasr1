@@ -247,7 +247,9 @@ describe("TaskCenter role-boundary and print integration", () => {
     expect(within(assigneeSelect).getByRole("option", { name: "محاسب — accountant@example.test" })).toBeInTheDocument();
 
     fireEvent.change(assigneeSelect, { target: { value: "profile-accountant" } });
-    fireEvent.change(screen.getByLabelText("الأولوية"), { target: { value: "critical" } });
+    const manualTaskForm = screen.getByRole("button", { name: "حفظ المهمة" }).closest("form");
+    expect(manualTaskForm).not.toBeNull();
+    fireEvent.change(within(manualTaskForm as HTMLFormElement).getByLabelText("الأولوية"), { target: { value: "critical" } });
     const dueAt = "2026-11-05T13:30";
     fireEvent.change(screen.getByLabelText("الموعد (اختياري)"), { target: { value: dueAt } });
     fireEvent.click(screen.getByRole("button", { name: "حفظ المهمة" }));
