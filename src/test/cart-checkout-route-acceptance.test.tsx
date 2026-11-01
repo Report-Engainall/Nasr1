@@ -184,6 +184,35 @@ const VERIFIED_CHECKOUT = {
   }],
 };
 
+function consumeCheckoutFailure(counter: "validationFailures" | "submitFailures") {
+  if (mocks[counter] <= 0) return false;
+  mocks[counter] -= 1;
+  return true;
+}
+
+function checkoutRpcResponse(name: string, args: Record<string, unknown>): Promise<RpcResult> | RpcResult {
+  if (name === "validate_checkout_cart") {
+    if (consumeCheckoutFailure("validationFailures")) {
+      return { data: null, error: { message: "synthetic cart validation refusal" } };
+    }
+    return { data: VERIFIED_CHECKOUT, error: null };
+  }
+
+  if (name === "submit_customer_order") {
+    mocks.submitCalls.push({ name, args });
+    if (consumeCheckoutFailure("submitFailures")) {
+      return { data: null, error: { message: "synthetic order submission refusal" } };
+    }
+    return { data: { id: ORDER_ID, order_number: "SO-TEST-001", status: "pending" }, error: null };
+  }
+
+  return { data: null, error: { message: "Unexpected RPC: " + name } };
+}
+
+async function handleCheckoutRpc(name: string, args: Record<string, unknown>): Promise<RpcResult> {
+  return checkoutRpcResponse(name, args);
+}
+
 describe("customer cart and checkout real route acceptance", () => {
   let root: Root | undefined;
   let host: HTMLDivElement | undefined;
@@ -223,24 +252,7 @@ describe("customer cart and checkout real route acceptance", () => {
       page: 1,
       pageSize: 24,
     });
-    mocks.rpc.mockReset().mockImplementation(async (name: string, args: Record<string, unknown>): Promise<RpcResult> => {
-      if (name === "validate_checkout_cart") {
-        if (mocks.validationFailures > 0) {
-          mocks.validationFailures -= 1;
-          return { data: null, error: { message: "synthetic cart validation refusal" } };
-        }
-        return { data: VERIFIED_CHECKOUT, error: null };
-      }
-      if (name === "submit_customer_order") {
-        mocks.submitCalls.push({ name, args });
-        if (mocks.submitFailures > 0) {
-          mocks.submitFailures -= 1;
-          return { data: null, error: { message: "synthetic order submission refusal" } };
-        }
-        return { data: { id: ORDER_ID, order_number: "SO-TEST-001", status: "pending" }, error: null };
-      }
-      return { data: null, error: { message: "Unexpected RPC: " + name } };
-    });
+    mocks.rpc.mockReset().mockImplementation(handleCheckoutRpc);
   });
 
   afterEach(async () => {
