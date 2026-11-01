@@ -132,8 +132,8 @@ function parseCustomer360InvoiceRow(raw: unknown, index: number): Customer360Inv
   };
 }
 
-function parseCustomer360PaymentRow(raw: unknown): Customer360PaymentRow {
-  const row = asObject(raw, 'الدفعة الأخيرة');
+function parseCustomer360PaymentRow(raw: unknown, index: number): Customer360PaymentRow {
+  const row = asObject(raw, `الدفعة الأخيرة ${index + 1}`);
   return {
     id: asText(row.id, 'معرّف الدفعة الأخيرة'),
     invoice_id: asText(row.invoice_id, 'فاتورة الدفعة الأخيرة'),
@@ -160,8 +160,8 @@ function parseCustomer360FinanceRow(raw: unknown, index: number): Customer360Fin
   };
 }
 
-function parseCustomer360ProductRow(raw: unknown): Customer360ProductRow {
-  const row = asObject(raw, 'الصنف');
+function parseCustomer360ProductRow(raw: unknown, index: number): Customer360ProductRow {
+  const row = asObject(raw, `الصنف ${index + 1}`);
   return {
     item_code: typeof row.item_code === 'string' ? row.item_code : '',
     product_name: asText(row.product_name, 'اسم الصنف'),
@@ -171,8 +171,8 @@ function parseCustomer360ProductRow(raw: unknown): Customer360ProductRow {
   };
 }
 
-function parseCustomer360Recommendation(raw: unknown): Customer360Recommendation {
-  const row = asObject(raw, 'التوصية التشغيلية');
+function parseCustomer360Recommendation(raw: unknown, index: number): Customer360Recommendation {
+  const row = asObject(raw, `التوصية ${index + 1}`);
   if (!['high', 'medium', 'low'].includes(String(row.priority))) {
     throw new Error('أولوية التوصية غير صالحة.');
   }
@@ -182,7 +182,7 @@ function parseCustomer360Recommendation(raw: unknown): Customer360Recommendation
     title: asText(row.title, 'عنوان التوصية'),
     description: asText(row.description, 'وصف التوصية'),
     action: asText(row.action, 'إجراء التوصية'),
-    ...(row.currency === undefined ? {} : { currency: currencyCode(row.currency, 'عملة التوصية') }),
+    ...(row.currency === undefined ? {} : { currency: currencyCode(row.currency, `عملة التوصية ${index + 1}`) }),
     ...(row.overdue_invoice_count === undefined ? {} : { overdue_invoice_count: asInt(row.overdue_invoice_count, 'عدد الفواتير المتأخرة') }),
     ...(row.overdue_outstanding === undefined ? {} : { overdue_outstanding: nullableMoney(row.overdue_outstanding, 'مبلغ الفواتير المتأخرة') }),
     ...(row.pending_order_count === undefined ? {} : { pending_order_count: asInt(row.pending_order_count, 'الطلبات المعلقة') }),
