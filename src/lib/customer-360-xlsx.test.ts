@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { StaffCustomer360Summary } from "@/lib/customer-360-summary";
 import { buildStaffCustomer360WorkbookXlsx } from "@/lib/customer-360-xlsx";
 
+const statusDistribution = [
+  { status: "delivered", count: 34 },
+  { status: "pending", count: 2 },
+  { status: "cancelled", count: 4 },
+];
+
 function sample(): StaffCustomer360Summary {
   return {
     generated_at: "2026-10-29T12:00:00.000Z",
@@ -28,7 +34,7 @@ function sample(): StaffCustomer360Summary {
       last_order_at: "2026-10-28T12:00:00.000Z",
       days_since_last_order: 1,
       average_days_between_orders: 8.5,
-      status_distribution: [{ status: "delivered", count: 34 }, { status: "pending", count: 2 }, { status: "cancelled", count: 4 }],
+      status_distribution: statusDistribution,
     },
     recent_orders: [{
       id: "order-1",
