@@ -1,3 +1,26 @@
+# LIVE RESUME — 2026-11-01T02:44Z
+> This operational snapshot supersedes all earlier status paragraphs below. Historical entries are retained for audit only.
+
+- Repository: `Report-Engainall/Nasr1`; target `main`; product `متجر الأغبري | Aghbari Commerce`.
+- Current `main`: `06aaccb0f8172f3f1b682c38885650ce136d0b90` (PR #352 merge).
+- Verified P2 merges: #338, #341, #342, #343, #344, #346, #347, #348, #349, #352. P1 #339 and P3 #340 also merged.
+- P2 latest active PR: #353, branch `fix/codeinspector-p2-ts0003-batch-10`, head `55e30e0af477e043086f4eb493a67b126504dd6f`, Draft/open, pending exact-head CI and review.
+- P1 follow-up #350: branch synchronized to current main (0 behind), current head `b07bccf09a4c577fdc9b268dfbff8153b63bd062`. Secret Scan `41266134962`, targeted P1 TypeScript `41266134980`, and P3 tooling `41266134976` SUCCESS; Core `41266135010` and P2 Playwright `41266134959` were IN_PROGRESS at last poll. Independent security review of all allowlisted historical fingerprints is still outstanding; do not merge until current-head checks and independent reviewer acceptance.
+- P3 follow-up #351: Draft/open; current branch head `318fb401ff14eb7192a769f25680d2a12b932874`; branch remains 7 commits behind main, mergeable=false. Latest-head CI for this head was not yet present in Actions at last poll. Prior-head checks are not transferable. Keep Draft; synchronize after branch activity settles, then rerun Core, P2 Playwright/local Supabase, PG17 and tooling.
+- Main post-#352 CI on exact `06aaccb`: Core run `41265827008` SUCCESS; Gitleaks `41265827112` SUCCESS; P2 Playwright `41265826982` SUCCESS for public UI and local Supabase order/tenant, returns/credit memo, audited Onyx XLSX, finance/task print, manager privacy/audit, and device-session revocation. Hosted customer-order/tenant E2E was SKIPPED; not PASS. Branch cleanup `41265827092` SUCCESS.
+- P2 finding disposition: 1 TS0002 pending fresh scan; 24 TS0003 pending fresh scan; 80 active TS0003 open; 10 archived TS0003 scope-review; TS0010 NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED; one additional TS0003 on PR #353 is IN_PROGRESS_PENDING_EXACT_SHA_TESTS. Total original findings 239.
+- Original CodeInspector PDF recovery is verified (239/239 rows matched); `ORIGINAL_SCAN_SHA=UNKNOWN`. Fresh official CodeInspector scan is still pending. No finding is marked CLOSED from refactor count, CI, or PDF recovery alone.
+- Hosted tenant E2E remains external/blocked where noted; never relabel SKIPPED as PASS. No branch protection was disabled; no force push or history rewrite was used.
+
+## Immediate resume cursor
+1. Poll PR #353 exact-head Core, P2 Playwright and Secret Scan; inspect job-level outcomes, then review and merge only after gates pass.
+2. Poll PR #350 Core/Playwright on exact head `b07bccf`; keep the security approval gate open for independent verification of each exact-fingerprint ignore.
+3. Wait for P3 branch activity to settle, synchronize PR #351 with current `main` using a non-force two-parent merge, verify diff ownership, and rerun all exact-head gates.
+4. Update P2 baseline and evidence after every accepted merge; continue the next owned TS0003 from the manifest, not by repeating report discovery.
+5. Run a fresh authorized CodeInspector scan when scanner access is available; preserve UNKNOWN original SHA and do not mark findings closed before rule-level confirmation.
+
+---
+
 # LIVE RESUME — 2026-11-01T01:16Z
 > This snapshot supersedes older status paragraphs below. Historical checkpoints are retained for audit only.
 
