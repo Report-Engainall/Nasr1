@@ -10,22 +10,27 @@ import {
 } from "@tanstack/react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const authMocks = vi.hoisted(() => ({
-  currentUserId: "auth-user-a" as string | null,
-  roles: ["customer"] as string[],
-  listener: undefined as ((event: string) => void) | undefined,
-  getSession: vi.fn(),
-  rpc: vi.fn(),
-}));
+const authMocks = vi.hoisted(() => {
+  let listener: ((event: string) => void) | undefined;
+  return {
+    currentUserId: "auth-user-a" as string | null,
+    roles: ["customer"] as string[],
+    get listener() { return listener; },
+    set listener(value: ((event: string) => void) | undefined) { listener = value; },
+    subscribe(callback: (event: string) => void) {
+      listener = callback;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    },
+    getSession: vi.fn(),
+    rpc: vi.fn(),
+  };
+});
 
 vi.mock("@/lib/supabase", () => ({
   supabase: {
     auth: {
       getSession: authMocks.getSession,
-      onAuthStateChange: (callback: (event: string) => void) => {
-        authMocks.listener = callback;
-        return { data: { subscription: { unsubscribe: vi.fn() } } };
-      },
+      onAuthStateChange: authMocks.subscribe,
     },
     rpc: authMocks.rpc,
   },

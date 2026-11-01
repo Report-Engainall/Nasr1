@@ -157,6 +157,11 @@ const PRODUCT: ProductRow = {
 
 const PAGE: CatalogResult = { items: [PRODUCT], totalCount: 1, totalPages: 1, page: 1, pageSize: 24 };
 
+const UNRESOLVED_AUTH_SESSION = {
+  data: { session: { user: { id: "auth-user-unresolved" } } },
+  error: null,
+};
+
 describe("public storefront product route acceptance", () => {
   let root: Root | undefined;
   let host: HTMLDivElement | undefined;
@@ -310,10 +315,7 @@ describe("public storefront product route acceptance", () => {
 
   it("fails closed when Supabase has a live session but the auth context has no resolved identity", async () => {
     mocks.user = null;
-    mocks.getSession.mockResolvedValue({
-      data: { session: { user: { id: "auth-user-unresolved" } } },
-      error: null,
-    });
+    mocks.getSession.mockResolvedValue(UNRESOLVED_AUTH_SESSION);
     mocks.fetchProducts.mockResolvedValue([{ ...PRODUCT, name: "LIVE-SESSION-PRIVATE-CATALOG-SENTINEL" }]);
 
     await mountRoute(`/product/${PRODUCT_ID}`);

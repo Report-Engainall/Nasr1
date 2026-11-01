@@ -26,16 +26,17 @@ const OTHER_USER_ID = "22222222-2222-4222-8222-222222222222";
 const PRODUCT_ID = "a1000000-0000-0000-0000-000000000001";
 const SECOND_PRODUCT_ID = "a1000000-0000-0000-0000-000000000002";
 
+function createCurrentUserSession() {
+  return { data: { session: { user: { id: USER_ID } } }, error: null };
+}
+
 describe("storefront saved products client", () => {
   beforeEach(() => {
     localStorage.clear();
     Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
     mocks.rpc.mockReset();
     mocks.getSession.mockReset();
-    mocks.getSession.mockResolvedValue({
-      data: { session: { user: { id: USER_ID } } },
-      error: null,
-    });
+    mocks.getSession.mockResolvedValue(createCurrentUserSession());
   });
 
   afterEach(() => {

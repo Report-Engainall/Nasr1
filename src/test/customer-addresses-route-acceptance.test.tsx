@@ -124,6 +124,12 @@ describe("customer addresses real route acceptance", () => {
     return host?.textContent ?? "";
   }
 
+  function fillAddressFields(values: Array<[string, string]>) {
+    for (const [label, value] of values) {
+      fireEvent.change(inputForLabel(label), { target: { value } });
+    }
+  }
+
   function inputForLabel(labelText: string): HTMLInputElement | HTMLTextAreaElement {
     const label = Array.from(host!.querySelectorAll("form label")).find((node) =>
       node.textContent?.trim().startsWith(labelText),
@@ -194,11 +200,7 @@ describe("customer addresses real route acceptance", () => {
       ["المدينة", "صنعاء"],
       ["العنوان التفصيلي", "شارع الاختبار، مبنى 12"],
     ];
-    act(() => {
-      for (const [label, value] of values) {
-        fireEvent.change(inputForLabel(label), { target: { value } });
-      }
-    });
+    act(() => fillAddressFields(values));
 
     const country = inputForLabel("رمز الدولة");
     act(() => fireEvent.change(country, { target: { value: "YE" } }));

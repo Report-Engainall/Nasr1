@@ -2,21 +2,26 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  getSession: vi.fn(),
-  rpc: vi.fn(),
-  listener: undefined as ((event: string) => void) | undefined,
-  role: "customer",
-}));
+const mocks = vi.hoisted(() => {
+  let listener: ((event: string) => void) | undefined;
+  return {
+    getSession: vi.fn(),
+    rpc: vi.fn(),
+    get listener() { return listener; },
+    set listener(value: ((event: string) => void) | undefined) { listener = value; },
+    subscribe(callback: (event: string) => void) {
+      listener = callback;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    },
+    role: "customer",
+  };
+});
 
 vi.mock("@/lib/supabase", () => ({
   supabase: {
     auth: {
       getSession: mocks.getSession,
-      onAuthStateChange: (callback: (event: string) => void) => {
-        mocks.listener = callback;
-        return { data: { subscription: { unsubscribe: vi.fn() } } };
-      },
+      onAuthStateChange: mocks.subscribe,
     },
     rpc: mocks.rpc,
   },

@@ -86,6 +86,20 @@ function popupWindow() {
   return fake as unknown as Window & { print: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> };
 }
 
+function resolveStaleFinancePrintOptions(name: string) {
+  if (name !== "get_finance_document_print_options") {
+    return { data: null, error: { message: "unexpected RPC " + name } };
+  }
+  return {
+    data: {
+      ...options,
+      invoices: options.invoices.map((row) => ({ ...row, customer_name: customerId })),
+      credit_memos: options.credit_memos.map((row) => ({ ...row, customer_name: customerId })),
+    },
+    error: null,
+  };
+}
+
 describe("finance document printing UI", () => {
   let popup: ReturnType<typeof popupWindow>;
   beforeEach(() => {
@@ -102,17 +116,7 @@ describe("finance document printing UI", () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
   it("masks internal UUIDs from stale invoice and credit-memo selector payloads", async () => {
-    mocks.rpc.mockImplementation(async (name: string) => {
-      if (name === "get_finance_document_print_options") return {
-        data: {
-          ...options,
-          invoices: options.invoices.map((row) => ({ ...row, customer_name: customerId })),
-          credit_memos: options.credit_memos.map((row) => ({ ...row, customer_name: customerId })),
-        },
-        error: null,
-      };
-      return { data: null, error: { message: "unexpected RPC " + name } };
-    });
+    mocks.rpc.mockImplementation(resolveStaleFinancePrintOptions);
 
     render(<FinanceDocumentPrintActions />);
 

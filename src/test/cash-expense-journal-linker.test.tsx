@@ -14,14 +14,24 @@ const inbox={
  items:[{id:"expense-uuid",expense_number:"17",category:"نقل",description:"نقل شحنة فعلية",amount:"250.00",currency:"YER",payment_method:"cash",reference:null,expense_date:"2026-10-19",source_status:"posted",created_at:"2026-10-19T10:00:00Z",journal_entry_id:null,journal_status:null,journal_entry_number:null,expense_account_id:null,settlement_account_id:null,reversal_status:null,reversal_entry_number:null}],
  total_count:1,has_more:false,limit:50,offset:0,
 };
+function resolveCashExpenseRpc(name:string) {
+ if(name==="fetch_cash_expense_accounting_inbox") return Promise.resolve({data:inbox,error:null});
+ if(name==="create_cash_expense_journal_draft") {
+  return Promise.resolve({data:{journal_entry_id:"entry-uuid",journal_entry_number:"24",status:"draft",source_id:"expense-uuid",amount:"250.00",currency:"YER",replayed:false},error:null});
+ }
+ return Promise.resolve({data:{id:"entry-uuid",status:"posted",replayed:false},error:null});
+}
+
+function resolveForeignCurrencyInboxRpc(name:string) {
+ if(name!=="fetch_cash_expense_accounting_inbox") return Promise.resolve({data:{},error:null});
+ const foreignInbox={...inbox,items:inbox.items.map(item=>({...item,currency:"USD"}))};
+ return Promise.resolve({data:foreignInbox,error:null});
+}
+
 describe("cash expense source journal integration",()=>{
  beforeEach(()=>{
   mocks.roles=["accountant"];
-  mocks.rpc.mockReset().mockImplementation((name:string)=>Promise.resolve({
-    data:name==="fetch_cash_expense_accounting_inbox"?inbox:
-      name==="create_cash_expense_journal_draft"?{journal_entry_id:"entry-uuid",journal_entry_number:"24",status:"draft",source_id:"expense-uuid",amount:"250.00",currency:"YER",replayed:false}:
-      {id:"entry-uuid",status:"posted",replayed:false},error:null,
-  }));
+  mocks.rpc.mockReset().mockImplementation(resolveCashExpenseRpc);
  });
  afterEach(()=>{cleanup();vi.restoreAllMocks();});
  it("uses source id and selected tenant chart accounts, then refreshes the ledger views",async()=>{
@@ -39,9 +49,7 @@ describe("cash expense source journal integration",()=>{
   expect(onRefresh).toHaveBeenCalledTimes(1);
  });
  it("refuses to draft a non-YER source instead of silently converting it",async()=>{
-  mocks.rpc.mockImplementation((name:string)=>Promise.resolve({
-   data:name==="fetch_cash_expense_accounting_inbox"?{...inbox,items:inbox.items.map(i=>({...i,currency:"USD"}))}:{},error:null,
-  }));
+  mocks.rpc.mockImplementation(resolveForeignCurrencyInboxRpc);
   render(<CashExpenseJournalLinker accounts={accounts} onRefresh={vi.fn().mockResolvedValue(undefined)}/>);
   expect(await screen.findByText(/المبلغ بعملة أجنبية/)).toBeInTheDocument();
   expect(screen.queryByRole("button",{name:/إنشاء مسودة قيد/})).not.toBeInTheDocument();
