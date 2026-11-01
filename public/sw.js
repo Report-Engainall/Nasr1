@@ -95,7 +95,7 @@ self.addEventListener('fetch', (event) => {
             const cacheWrite = caches.open(CACHE_NAME)
               .then((cache) => cache.put('/', homeResponse));
             event.waitUntil(cacheWrite.catch((error) => {
-              console.warn('[aghbari-sw] navigation shell cache write failed', { url: request.url, error });
+              console.warn('[aghbari-sw] navigation shell cache write failed', { url: url.pathname, error });
             }));
           }
         }
@@ -119,7 +119,7 @@ self.addEventListener('fetch', (event) => {
           const cacheWrite = caches.open(CACHE_NAME)
             .then((cache) => cache.put(request, response.clone()));
           event.waitUntil(cacheWrite.catch((error) => {
-            console.warn('[aghbari-sw] static asset cache write failed', { url: request.url, error });
+            console.warn('[aghbari-sw] static asset cache write failed', { url: url.pathname, error });
           }));
         }
         return response;
@@ -129,7 +129,7 @@ self.addEventListener('fetch', (event) => {
         // turning an offline refresh into an unhandled rejection.
         event.waitUntil(network.then(() => undefined).catch((error) => {
           console.warn('[aghbari-sw] background asset refresh failed; serving cached response', {
-            url: request.url,
+            url: url.pathname,
             error,
           });
         }));
@@ -137,7 +137,7 @@ self.addEventListener('fetch', (event) => {
       }
       return network.catch((error) => {
         console.error('[aghbari-sw] static asset request failed with no cached response', {
-          url: request.url,
+          url: url.pathname,
           error,
         });
         return Response.error();
