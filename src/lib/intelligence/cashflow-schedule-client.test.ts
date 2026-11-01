@@ -4,6 +4,47 @@ import { createCashflowScheduleRequest, fetchCashflowSchedule } from "./cashflow
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc } }));
 
+function cashflowScheduleAmount(asOf: string, evidenceIds: string[]) {
+  return {
+    id: "metric:11111111-1111-4111-8111-111111111111",
+    key: "receivables.outstanding",
+    value: 375,
+    unit: "CURRENCY",
+    currency: "YER",
+    status: "VERIFIED",
+    completeness: "COMPLETE",
+    quality: "ACCEPTABLE",
+    period: { from: "2026-10-31", to: "2026-11-30" },
+    asOf,
+    lineage: {
+      evidenceIds,
+      calculatedAt: asOf,
+      formulaId: "nasr1.receivables-outstanding",
+      formulaVersion: "1",
+      transformations: ["invoice total minus same-tenant payments"],
+    },
+    warnings: [],
+  };
+}
+
+function cashflowScheduleFixture(asOf: string, evidenceIds: string[]) {
+  const amount = cashflowScheduleAmount(asOf, evidenceIds);
+  const entry = {
+    id: "11111111-1111-4111-8111-111111111111",
+    direction: "INFLOW",
+    dueDate: "2026-11-10",
+    customerEmail: "should-not-escape@example.test",
+    amount,
+  };
+  return {
+    status: "VERIFIED",
+    completeness: "COMPLETE",
+    quality: "ACCEPTABLE",
+    warnings: [],
+    entries: [entry],
+  };
+}
+
 function response(overrides: Record<string, unknown> = {}) {
   const asOf = "2026-10-31T09:00:00.000Z";
   const evidenceIds = ["invoice:11111111-1111-4111-8111-111111111111", "payment:22222222-2222-4222-8222-222222222222"];
@@ -40,32 +81,7 @@ function response(overrides: Record<string, unknown> = {}) {
     errors: [],
     sqlState: null,
     sideEffects: "NONE",
-    cashflowSchedule: {
-      status: "VERIFIED",
-      completeness: "COMPLETE",
-      quality: "ACCEPTABLE",
-      warnings: [],
-      entries: [{
-        id: "11111111-1111-4111-8111-111111111111",
-        direction: "INFLOW",
-        dueDate: "2026-11-10",
-        customerEmail: "should-not-escape@example.test",
-        amount: {
-          id: "metric:11111111-1111-4111-8111-111111111111",
-          key: "receivables.outstanding",
-          value: 375,
-          unit: "CURRENCY",
-          currency: "YER",
-          status: "VERIFIED",
-          completeness: "COMPLETE",
-          quality: "ACCEPTABLE",
-          period: { from: "2026-10-31", to: "2026-11-30" },
-          asOf,
-          lineage: { evidenceIds, calculatedAt: asOf, formulaId: "nasr1.receivables-outstanding", formulaVersion: "1", transformations: ["invoice total minus same-tenant payments"] },
-          warnings: [],
-        },
-      }],
-    },
+    cashflowSchedule: cashflowScheduleFixture(asOf, evidenceIds),
     ...overrides,
   };
 }
