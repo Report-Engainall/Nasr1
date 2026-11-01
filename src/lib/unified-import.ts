@@ -932,6 +932,38 @@ async function readXlsxZipDirectory(file: Blob): Promise<Map<string, XlsxZipEntr
   return entries;
 }
 
+function parseXlsxCellValue(
+  kind: string,
+  inner: string,
+  styleIndex: number,
+  sharedStrings: readonly string[],
+  styles: XlsxStyles,
+  date1904: boolean,
+): string {
+  if (kind === "inlineStr") {
+    const inline = /<is\b[^>]*>([\s\S]*?)<\/is\s*>/i.exec(inner)?.[1] ?? inner;
+    return xlsxTextRuns(inline);
+  }
+
+  const raw = xlsxElementText(inner, "v") ?? "";
+  switch (kind) {
+    case "s": {
+      const sharedIndex = Number(raw);
+      return Number.isInteger(sharedIndex) && sharedIndex >= 0
+        ? (sharedStrings[sharedIndex] ?? "")
+        : "";
+    }
+    case "b":
+      return raw === "1" ? "TRUE" : raw === "0" ? "FALSE" : raw;
+    case "e":
+      return raw ? "#ERROR:" + raw : "";
+    case "d":
+      return raw;
+    default:
+      return formatXlsxNumber(raw, Number.isInteger(styleIndex) ? styleIndex : 0, styles, date1904);
+  }
+}
+
 /**
  * Reads the first visible XLSX worksheet and emits rows incrementally to the consumer.
  * The raw archive and accumulated data rows are never retained; inflated XML is strictly bounded.
