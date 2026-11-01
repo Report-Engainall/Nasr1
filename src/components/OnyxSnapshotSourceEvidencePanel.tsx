@@ -26,6 +26,111 @@ function sourceSystemLabel(value: string | null): string {
   return value;
 }
 
+
+function OnyxSourceMetadata({ evidence }: { evidence: OnyxSnapshotSourceEvidence }) {
+  const identity = evidence.source_identity;
+  return (
+    <div className="onyx-source-metadata">
+      <span><strong>المؤسسة الفعالة من قاعدة البيانات:</strong> <span data-testid="onyx-evidence-organization-name">{evidence.organization.name}</span> · <code>{evidence.organization.id}</code></span>
+      <span><strong>حالة إثبات المنشأ:</strong> {provenanceLabels[identity.provenance_status]}</span>
+      <span><strong>نظام المصدر المسجل:</strong> {sourceSystemLabel(identity.source_system)}</span>
+      <span><strong>معرّف سجل المصدر الخارجي:</strong> <code>{identity.source_record_id || "غير متاح"}</code></span>
+      <span><strong>صفوف المصدر المقروءة:</strong> {identity.source_row_count}</span>
+      <span><strong>صفوف بها حقول معرّف خارجي مرشحة:</strong> {identity.rows_with_external_id}</span>
+      <span><strong>حقول المعرّف الخارجي المكتشفة:</strong> {identity.external_id_fields_found.length ? identity.external_id_fields_found.join("، ") : "لم يُكتشف حقل معرّف خارجي صريح"}</span>
+    </div>
+  );
+}
+
+function OnyxExternalIdsEvidence({ evidence }: { evidence: OnyxSnapshotSourceEvidence["source_identity"] }) {
+  const examples = evidence.external_id_examples;
+  return (
+    <section aria-label="عينات معرّفات المصدر الخارجية" style={{ marginTop: 10, padding: 12, border: "1px solid var(--border, #d8e0e0)", borderRadius: 10 }}>
+      <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>قيم المعرّفات الخارجية المحفوظة في صفوف المصدر</h3>
+      {examples.length === 0 ? <p style={{ margin: 0 }}>لم تُحفظ قيم معرّفات خارجية مع صفوف هذه اللقطة.</p> : <ol style={{ display: "grid", gap: 8, paddingInlineStart: 22, margin: 0 }}>
+        {examples.map((row) => <OnyxExternalIdRow key={row.row_number} row={row} />)}
+      </ol>}
+      {evidence.external_id_examples_truncated && <p role="note" style={{ margin: "8px 0 0" }}>تُعرض أول 20 صفًا فقط؛ توجد صفوف إضافية بها معرّفات خارجية.</p>}
+    </section>
+  );
+}
+
+function OnyxExternalIdRow({ row }: { row: OnyxSnapshotSourceEvidence["source_identity"]["external_id_examples"][number] }) {
+  return (
+    <li>
+      <span>صف المصدر {row.row_number} · المفتاح: <code dir="ltr">{row.canonical_key}</code>{row.canonical_key_truncated ? " (المفتاح معروض بشكل مقتطع)" : ""}</span>
+      <ul style={{ marginBlock: 4 }}>
+        {Object.entries(row.external_ids).map(([field, value]) => <li key={field}><code dir="ltr">{field}</code>: <code dir="ltr">{value}</code></li>)}
+      </ul>
+      {row.value_truncated && <p style={{ margin: 0 }}>قيمة معرّف واحدة أو أكثر في هذا الصف مقتطعة إلى 256 محرفًا.</p>}
+    </li>
+  );
+}
+
+function OnyxImportJobEvidence({ job }: { job: NonNullable<OnyxSnapshotSourceEvidence["import_job"]> }) {
+  return (
+    <div className="onyx-source-metadata" style={{ marginTop: 10 }}>
+      <span><strong>دفعة الاستيراد:</strong> <code>{job.id}</code></span>
+      <span><strong>ملف الدفعة:</strong> {job.file_name || "اسم الملف غير مسجل"}</span>
+      <span><strong>نوع الدفعة:</strong> {job.job_type || "غير مسجل"}</span>
+      <span><strong>حالة الدفعة:</strong> {job.status}</span>
+      <span><strong>وقت إنشاء الدفعة:</strong> {dateText(job.created_at)}</span>
+      <span><strong>آخر تحديث للدفعة:</strong> {dateText(job.updated_at)}</span>
+      <span><strong>تطابق بصمة الملف:</strong> {job.file_hash_matches_snapshot ? <><CheckCircle2 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />متطابقة</> : <><AlertTriangle size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />غير متطابقة</>}</span>
+      <span><strong>رمز خطأ الاستيراد المسجل:</strong> {job.error_code || "لا يوجد رمز خطأ محفوظ"}</span>
+    </div>
+  );
+}
+
+function OnyxLiveSyncEvidence({ evidence }: { evidence: OnyxSnapshotSourceEvidence }) {
+  const sync = evidence.live_sync_evidence;
+  const attempt = sync.last_sync_attempt;
+  return (
+    <div style={{ display: "grid", gap: 6, marginTop: 12, padding: 12, border: "1px solid var(--border, #d8e0e0)", borderRadius: 10 }}>
+      <strong><Database size={15} style={{ verticalAlign: "middle", marginInlineEnd: 5 }} />حالة الاتصال والمزامنة الحية</strong>
+      <span><strong>حالة اتصال Onyx المسجلة تاريخيًا:</strong> {sync.live_connection_proven ? "يوجد رد ناجح مسجل من الخدمة" : "غير مثبتة بأدلة هذا السجل"}</span>
+      <span><strong>هل ارتبط رد ناجح بهذه اللقطة تحديدًا؟</strong> {sync.snapshot_sync_proven ? "نعم — توجد محاولة ناجحة موثقة لهذه اللقطة" : "لا — لا يوجد إثبات نجاح مرتبط بهذه اللقطة"}</span>
+      <span><strong>آخر محاولة مزامنة مرتبطة باللقطة:</strong> {attempt ? attempt.status : "لا توجد محاولة مسجلة"}</span>
+      {attempt && <OnyxSyncAttemptEvidence attempt={attempt} />}
+      <span>{sync.live_connection_proven ? "توجد استجابة ناجحة مسجلة تاريخيًا؛ لا يثبت ذلك الحالة الصحية الحالية للخدمة." : "وجود لقطة أو دفعة استيراد محفوظة لا يثبت اتصالًا حيًا أو اكتمال مزامنة من واجهة Onyx API."}</span>
+      <span><Clock3 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />وقت آخر استجابة ناجحة مسجلة: {dateText(sync.latest_successful_connection?.completed_at)}</span>
+      <span><Fingerprint size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />بصمة اللقطة: <code>{evidence.snapshot.source_file_hash}</code></span>
+      <span><Link2 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />وقت حفظ اللقطة: {dateText(evidence.snapshot.created_at)} · الإصدار {evidence.snapshot.snapshot_version}</span>
+    </div>
+  );
+}
+
+function OnyxSyncAttemptEvidence({ attempt }: { attempt: NonNullable<OnyxSnapshotSourceEvidence["live_sync_evidence"]["last_sync_attempt"]> }) {
+  return (
+    <>
+      <span><Clock3 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />بدء المحاولة: {dateText(attempt.started_at)} · الاكتمال: {dateText(attempt.completed_at)}</span>
+      <span>عملية: <code dir="ltr">{attempt.operation}</code> · HTTP: {attempt.http_status ?? "غير مسجل"} · معرّف الطلب الخارجي: <code dir="ltr">{attempt.external_request_id ?? "غير مسجل"}</code></span>
+      {attempt.error_code && <span role="alert">رمز الخطأ: <code dir="ltr">{attempt.error_code}</code> — {attempt.error_summary ?? "لا يوجد ملخص خطأ محفوظ"}</span>}
+    </>
+  );
+}
+
+function OnyxSourceEvidenceContent({ evidence, exportMessage, onExport }: {
+  evidence: OnyxSnapshotSourceEvidence;
+  exportMessage: string;
+  onExport: () => void;
+}) {
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBlock: 10 }}>
+        <button type="button" className="btn secondary" data-testid="onyx-source-evidence-export" onClick={onExport}>
+          <Download size={15} aria-hidden="true" /> تصدير أدلة المصدر CSV
+        </button>
+        {exportMessage && <p role="status" style={{ margin: 0 }}>{exportMessage}</p>}
+      </div>
+      <OnyxSourceMetadata evidence={evidence} />
+      <OnyxExternalIdsEvidence evidence={evidence.source_identity} />
+      {evidence.import_job ? <OnyxImportJobEvidence job={evidence.import_job} /> : <p role="status">لا يوجد مرجع دفعة استيراد متاح لهذه اللقطة. لا يُفترض مصدر بديل.</p>}
+      <OnyxLiveSyncEvidence evidence={evidence} />
+    </>
+  );
+}
+
 export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: string }) {
   const [evidence, setEvidence] = useState<OnyxSnapshotSourceEvidence | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,82 +186,10 @@ export function OnyxSnapshotSourceEvidencePanel({ snapshotId }: { snapshotId: st
       </header>
       {loading ? <p role="status">جار قراءة سجل مصدر اللقطة من قاعدة البيانات…</p> : null}
       {error ? <p role="alert" style={{ color: "var(--destructive, #b42318)" }}><AlertTriangle size={15} style={{ verticalAlign: "middle", marginInlineEnd: 5 }} />{error}</p> : null}
-      {!loading && !error && evidence ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBlock: 10 }}>
-          <button
-            type="button"
-            className="btn secondary"
-            data-testid="onyx-source-evidence-export"
-            onClick={exportEvidence}
-          >
-            <Download size={15} aria-hidden="true" /> تصدير أدلة المصدر CSV
-          </button>
-          {exportMessage ? <p role="status" style={{ margin: 0 }}>{exportMessage}</p> : null}
-        </div>
-      ) : null}
-      {!loading && !error && evidence ? (
-        <>
-          <div className="onyx-source-metadata">
-            <span><strong>المؤسسة الفعالة من قاعدة البيانات:</strong> <span data-testid="onyx-evidence-organization-name">{evidence.organization.name}</span> · <code>{evidence.organization.id}</code></span>
-            <span><strong>حالة إثبات المنشأ:</strong> {provenanceLabels[evidence.source_identity.provenance_status]}</span>
-            <span><strong>نظام المصدر المسجل:</strong> {sourceSystemLabel(evidence.source_identity.source_system)}</span>
-            <span><strong>معرّف سجل المصدر الخارجي:</strong> <code>{evidence.source_identity.source_record_id || "غير متاح"}</code></span>
-            <span><strong>صفوف المصدر المقروءة:</strong> {evidence.source_identity.source_row_count}</span>
-            <span><strong>صفوف بها حقول معرّف خارجي مرشحة:</strong> {evidence.source_identity.rows_with_external_id}</span>
-            <span><strong>حقول المعرّف الخارجي المكتشفة:</strong> {evidence.source_identity.external_id_fields_found.length ? evidence.source_identity.external_id_fields_found.join("، ") : "لم يُكتشف حقل معرّف خارجي صريح"}</span>
-          </div>
-          <section aria-label="عينات معرّفات المصدر الخارجية" style={{ marginTop: 10, padding: 12, border: "1px solid var(--border, #d8e0e0)", borderRadius: 10 }}>
-            <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>قيم المعرّفات الخارجية المحفوظة في صفوف المصدر</h3>
-            {evidence.source_identity.external_id_examples.length ? (
-              <ol style={{ display: "grid", gap: 8, paddingInlineStart: 22, margin: 0 }}>
-                {evidence.source_identity.external_id_examples.map((row) => (
-                  <li key={row.row_number}>
-                    <span>صف المصدر {row.row_number} · المفتاح: <code dir="ltr">{row.canonical_key}</code>{row.canonical_key_truncated ? " (المفتاح معروض بشكل مقتطع)" : ""}</span>
-                    <ul style={{ marginBlock: 4 }}>
-                      {Object.entries(row.external_ids).map(([field, value]) => (
-                        <li key={field}><code dir="ltr">{field}</code>: <code dir="ltr">{value}</code></li>
-                      ))}
-                    </ul>
-                    {row.value_truncated ? <p style={{ margin: 0 }}>قيمة معرّف واحدة أو أكثر في هذا الصف مقتطعة إلى 256 محرفًا.</p> : null}
-                  </li>
-                ))}
-              </ol>
-            ) : <p style={{ margin: 0 }}>لم تُحفظ قيم معرّفات خارجية مع صفوف هذه اللقطة.</p>}
-            {evidence.source_identity.external_id_examples_truncated ? <p role="note" style={{ margin: "8px 0 0" }}>تُعرض أول 20 صفًا فقط؛ توجد صفوف إضافية بها معرّفات خارجية.</p> : null}
-          </section>
-          {evidence.import_job ? (
-            <div className="onyx-source-metadata" style={{ marginTop: 10 }}>
-              <span><strong>دفعة الاستيراد:</strong> <code>{evidence.import_job.id}</code></span>
-              <span><strong>ملف الدفعة:</strong> {evidence.import_job.file_name || "اسم الملف غير مسجل"}</span>
-              <span><strong>نوع الدفعة:</strong> {evidence.import_job.job_type || "غير مسجل"}</span>
-              <span><strong>حالة الدفعة:</strong> {evidence.import_job.status}</span>
-              <span><strong>وقت إنشاء الدفعة:</strong> {dateText(evidence.import_job.created_at)}</span>
-              <span><strong>آخر تحديث للدفعة:</strong> {dateText(evidence.import_job.updated_at)}</span>
-              <span><strong>تطابق بصمة الملف:</strong> {evidence.import_job.file_hash_matches_snapshot ? <><CheckCircle2 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />متطابقة</> : <><AlertTriangle size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />غير متطابقة</>}</span>
-              <span><strong>رمز خطأ الاستيراد المسجل:</strong> {evidence.import_job.error_code || "لا يوجد رمز خطأ محفوظ"}</span>
-            </div>
-          ) : (
-            <p role="status">لا يوجد مرجع دفعة استيراد متاح لهذه اللقطة. لا يُفترض مصدر بديل.</p>
-          )}
-          <div style={{ display: "grid", gap: 6, marginTop: 12, padding: 12, border: "1px solid var(--border, #d8e0e0)", borderRadius: 10 }}>
-            <strong><Database size={15} style={{ verticalAlign: "middle", marginInlineEnd: 5 }} />حالة الاتصال والمزامنة الحية</strong>
-            <span><strong>حالة اتصال Onyx المسجلة تاريخيًا:</strong> {evidence.live_sync_evidence.live_connection_proven ? "يوجد رد ناجح مسجل من الخدمة" : "غير مثبتة بأدلة هذا السجل"}</span>
-            <span><strong>هل ارتبط رد ناجح بهذه اللقطة تحديدًا؟</strong> {evidence.live_sync_evidence.snapshot_sync_proven ? "نعم — توجد محاولة ناجحة موثقة لهذه اللقطة" : "لا — لا يوجد إثبات نجاح مرتبط بهذه اللقطة"}</span>
-            <span><strong>آخر محاولة مزامنة مرتبطة باللقطة:</strong> {evidence.live_sync_evidence.last_sync_attempt ? evidence.live_sync_evidence.last_sync_attempt.status : "لا توجد محاولة مسجلة"}</span>
-            {evidence.live_sync_evidence.last_sync_attempt ? <>
-              <span><Clock3 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />بدء المحاولة: {dateText(evidence.live_sync_evidence.last_sync_attempt.started_at)} · الاكتمال: {dateText(evidence.live_sync_evidence.last_sync_attempt.completed_at)}</span>
-              <span>عملية: <code dir="ltr">{evidence.live_sync_evidence.last_sync_attempt.operation}</code> · HTTP: {evidence.live_sync_evidence.last_sync_attempt.http_status ?? "غير مسجل"} · معرّف الطلب الخارجي: <code dir="ltr">{evidence.live_sync_evidence.last_sync_attempt.external_request_id ?? "غير مسجل"}</code></span>
-              {evidence.live_sync_evidence.last_sync_attempt.error_code ? <span role="alert">رمز الخطأ: <code dir="ltr">{evidence.live_sync_evidence.last_sync_attempt.error_code}</code> — {evidence.live_sync_evidence.last_sync_attempt.error_summary ?? "لا يوجد ملخص خطأ محفوظ"}</span> : null}
-            </> : null}
-            <span>{evidence.live_sync_evidence.live_connection_proven
-              ? "توجد استجابة ناجحة مسجلة تاريخيًا؛ لا يثبت ذلك الحالة الصحية الحالية للخدمة."
-              : "وجود لقطة أو دفعة استيراد محفوظة لا يثبت اتصالًا حيًا أو اكتمال مزامنة من واجهة Onyx API."}</span>
-            <span><Clock3 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />وقت آخر استجابة ناجحة مسجلة: {dateText(evidence.live_sync_evidence.latest_successful_connection?.completed_at)}</span>
-            <span><Fingerprint size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />بصمة اللقطة: <code>{evidence.snapshot.source_file_hash}</code></span>
-            <span><Link2 size={14} style={{ verticalAlign: "middle", marginInlineEnd: 4 }} />وقت حفظ اللقطة: {dateText(evidence.snapshot.created_at)} · الإصدار {evidence.snapshot.snapshot_version}</span>
-          </div>
-        </>
-      ) : null}
+
+      {!loading && !error && evidence && (
+        <OnyxSourceEvidenceContent evidence={evidence} exportMessage={exportMessage} onExport={exportEvidence} />
+      )}
     </section>
   );
 }
