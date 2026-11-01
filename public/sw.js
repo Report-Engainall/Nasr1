@@ -36,12 +36,12 @@ function diagnosticErrorType(error) {
   return 'UnknownError';
 }
 
-function reportServiceWorkerDiagnostic(level, code, pathname, error) {
+function reportServiceWorkerDiagnostic(level, code, resource, error) {
   const message = {
     type: 'aghbari:service-worker-diagnostic',
     level,
     code,
-    ...(pathname ? { pathname } : {}),
+    resource,
     ...(error ? { errorType: diagnosticErrorType(error) } : {}),
   };
   return self.clients.matchAll({ type: 'window', includeUncontrolled: true })
@@ -66,7 +66,7 @@ async function cacheShellAsset(url, cache) {
     if (!response.ok || response.type !== 'basic' || !isExpectedShellMimeType(url, response)) return;
     await cache.put(url, response);
   } catch (error) {
-    await reportServiceWorkerDiagnostic('warning', 'optional-shell-asset-not-cached', url, error);
+    await reportServiceWorkerDiagnostic('warning', 'optional-shell-asset-not-cached', 'shell', error);
   }
 }
 
@@ -86,24 +86,24 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-async function cachedShellOrError(networkError, pathname) {
+async function cachedShellOrError(networkError) {
   if (networkError) {
-    await reportServiceWorkerDiagnostic('warning', 'navigation-network-failed', pathname, networkError);
+    await reportServiceWorkerDiagnostic('warning', 'navigation-network-failed', 'navigation', networkError);
   }
   try {
     return (await caches.match('/')) || Response.error();
   } catch (error) {
-    await reportServiceWorkerDiagnostic('error', 'cached-shell-lookup-failed', pathname, error);
+    await reportServiceWorkerDiagnostic('error', 'cached-shell-lookup-failed', 'navigation', error);
     return Response.error();
   }
 }
 
-function cachePublicHomeResponse(event, response, pathname) {
-  if (!response.ok || pathname !== '/' || !isHtmlResponse(response)) return;
+function cachePublicHomeResponse(event, response) {
+  if (!response.ok || !isHtmlResponse(response)) return;
   const homeResponse = response.clone();
   const cacheWrite = caches.open(CACHE_NAME)
     .then((cache) => cache.put('/', homeResponse))
-    .catch((error) => reportServiceWorkerDiagnostic('warning', 'navigation-shell-cache-write-failed', pathname, error));
+    .catch((error) => reportServiceWorkerDiagnostic('warning', 'navigation-shell-cache-write-failed', 'navigation', error));
   event.waitUntil(cacheWrite);
 }
 
@@ -111,10 +111,10 @@ function handleNavigationFetch(event, request, url) {
   const navigationResponse = fetch(request)
     .then((response) => {
       // Only the public home shell is cached; identity-bound deep routes stay network-only.
-      cachePublicHomeResponse(event, response, url.pathname);
+      cachePublicHomeResponse(event, response);
       return response;
     })
-    .catch((error) => cachedShellOrError(error, url.pathname));
+    .catch((error) => cachedShellOrError(error));
   event.respondWith(navigationResponse);
 }
 
@@ -130,7 +130,7 @@ function cacheStaticAssetResponse(event, request, response, url) {
   if (!isCacheableStaticAsset(url, response)) return;
   const cacheWrite = caches.open(CACHE_NAME)
     .then((cache) => cache.put(request, response.clone()))
-    .catch((error) => reportServiceWorkerDiagnostic('warning', 'static-asset-cache-write-failed', url.pathname, error));
+    .catch((error) => reportServiceWorkerDiagnostic('warning', 'static-asset-cache-write-failed', 'static_asset', error));
   event.waitUntil(cacheWrite);
 }
 
@@ -142,10 +142,10 @@ function fetchStaticAsset(request, url, event) {
   });
 }
 
-function refreshCachedAssetInBackground(event, networkResponse, pathname) {
+function refreshCachedAssetInBackground(event, networkResponse) {
   event.waitUntil(
     networkResponse.then(() => undefined).catch((error) =>
-      reportServiceWorkerDiagnostic('warning', 'background-asset-refresh-failed', pathname, error),
+      reportServiceWorkerDiagnostic('warning', 'background-asset-refresh-failed', 'static_asset', error),
     ),
   );
 }
@@ -155,11 +155,11 @@ function handleStaticAssetFetch(event, request, url) {
     const networkResponse = fetchStaticAsset(request, url, event);
     if (cached) {
       // Serve the cache immediately while keeping refresh failures observable and handled.
-      refreshCachedAssetInBackground(event, networkResponse, url.pathname);
+      refreshCachedAssetInBackground(event, networkResponse);
       return cached;
     }
     return networkResponse.catch((error) =>
-      reportServiceWorkerDiagnostic('error', 'static-asset-request-failed', url.pathname, error)
+      reportServiceWorkerDiagnostic('error', 'static-asset-request-failed', 'static_asset', error)
         .then(() => Response.error()),
     );
   });

@@ -252,7 +252,7 @@ describe("Aghbari PWA offline shell", () => {
       type: "aghbari:service-worker-diagnostic",
       level: "warning",
       code: "background-asset-refresh-failed",
-      pathname: "/assets/app.js",
+      resource: "static_asset",
       errorType: "Error",
     });
     expectNoDiagnosticSecrets(worker.diagnosticMessages);
@@ -285,11 +285,42 @@ describe("Aghbari PWA offline shell", () => {
       type: "aghbari:service-worker-diagnostic",
       level: "warning",
       code: "static-asset-cache-write-failed",
-      pathname: "/assets/app.js",
+      resource: "static_asset",
       errorType: "Error",
     });
     expectNoDiagnosticSecrets(worker.diagnosticMessages);
     expect(JSON.stringify(worker.diagnosticMessages)).not.toContain("do-not-log-this");
+  });
+
+  it("never echoes credential-bearing navigation path segments into client diagnostics", async () => {
+    const pathToken = randomBytes(32).toString("hex");
+    const pending: Promise<Response>[] = [];
+    const lifecycle: Promise<unknown>[] = [];
+    const worker = await loadServiceWorker({
+      fetcher: async () => { throw createSensitiveDiagnosticFailure("offline navigation"); },
+    });
+
+    worker.listeners.get("fetch")?.({
+      request: {
+        method: "GET",
+        url: `https://aghbari.example/reset-password/${pathToken}`,
+        mode: "navigate",
+      } as Request,
+      respondWith: (promise) => pending.push(promise as Promise<Response>),
+      waitUntil: (promise) => lifecycle.push(promise),
+    });
+
+    await expect(Promise.all(pending)).resolves.toHaveLength(1);
+    await expect(Promise.all(lifecycle)).resolves.toBeDefined();
+    expect(worker.diagnosticMessages).toContainEqual({
+      type: "aghbari:service-worker-diagnostic",
+      level: "warning",
+      code: "navigation-network-failed",
+      resource: "navigation",
+      errorType: "Error",
+    });
+    expect(JSON.stringify(worker.diagnosticMessages)).not.toContain(pathToken);
+    expectNoDiagnosticSecrets(worker.diagnosticMessages);
   });
 
   it("removes previous shell cache versions during activation", async () => {

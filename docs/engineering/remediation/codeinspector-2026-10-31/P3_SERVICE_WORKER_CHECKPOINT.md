@@ -11,3 +11,10 @@
 - No production DB, RLS, Supabase credentials, deployment, live integration, paid tool or runtime service was changed.
 - Required exact-head checks: Core unit/typecheck/lint/build; P2 Playwright public + local Supabase; both Service Worker suites; P3 tooling validation; PG17 as required by the current gates; full-history secret scan; official fresh CodeInspector.
 - Status: `IMPLEMENTED_PENDING_EXACT_SHA_CI_AND_FRESH_CODEINSPECTOR`. No JS0002/JS0007 finding is marked CLOSED until an authorized current-source scan confirms disappearance. P3 owns integration and merge authority.
+
+## Follow-up hardening — redact paths as well as query strings — 2026-11-01
+
+- A security review identified that reset/invitation tokens may appear in URL path segments rather than query parameters.
+- Diagnostic messages now emit only a fixed resource category (`shell`, `navigation`, or `static_asset`) instead of a raw pathname. No request path, query, fragment, exception message or stack is sent to window clients.
+- Updated existing diagnostic assertions and added a regression injecting a cryptographically generated reset-path token, forcing navigation failure, and verifying the token and synthetic query/fragment secrets are absent from the structured message.
+- Exact-head Core, P3 tooling, P2 Playwright/local Supabase, full-history Gitleaks and official fresh CodeInspector must be rerun. Status: `IMPLEMENTED_PENDING_EXACT_SHA_CI`.
