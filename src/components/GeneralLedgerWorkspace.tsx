@@ -152,18 +152,30 @@ export function GeneralLedgerWorkspace() {
   const [statementsError, setStatementsError] = useState("");
   const [printDocument, setPrintDocument] = useState<GeneralLedgerPrintDocument | null>(null);
   const [printError, setPrintError] = useState("");
+  const previousPrintMode = useRef<string | null>(null);
+
+  function activatePrintMode() {
+    if (typeof document === "undefined") return;
+    previousPrintMode.current = document.body.getAttribute("data-print-mode");
+    document.body.setAttribute("data-print-mode", "general-ledger");
+  }
+
+  function restorePreviousPrintMode() {
+    if (typeof document === "undefined") return;
+    const previousMode = previousPrintMode.current;
+    if (previousMode === null) document.body.removeAttribute("data-print-mode");
+    else if (previousMode !== undefined) document.body.setAttribute("data-print-mode", previousMode);
+    previousPrintMode.current = null;
+  }
 
   useEffect(() => {
     if (!printDocument || typeof window === "undefined" || typeof document === "undefined" || typeof window.print !== "function") return;
     const body = document.body;
-    const previousMode = body.getAttribute("data-print-mode");
-    body.setAttribute("data-print-mode", "general-ledger");
     let restored = false;
     const restore = () => {
       if (restored) return;
       restored = true;
-      if (previousMode === null) body.removeAttribute("data-print-mode");
-      else body.setAttribute("data-print-mode", previousMode);
+      restorePreviousPrintMode();
       window.removeEventListener("afterprint", restore);
       setPrintDocument(null);
     };
@@ -179,12 +191,14 @@ export function GeneralLedgerWorkspace() {
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener("afterprint", restore);
-      if (!restored && body.getAttribute("data-print-mode") === "general-ledger") {
-        if (previousMode === null) body.removeAttribute("data-print-mode");
-        else body.setAttribute("data-print-mode", previousMode);
-      }
+      if (!restored && body.getAttribute("data-print-mode") === "general-ledger") restorePreviousPrintMode();
     };
   }, [printDocument]);
+
+  function queuePrintDocument(projected: GeneralLedgerPrintDocument) {
+    activatePrintMode();
+    setPrintDocument(projected);
+  }
 
   function printJournalEntry(entry: JournalEntry) {
     const projected = projectGeneralJournalPrintDocument(entry);
@@ -193,7 +207,7 @@ export function GeneralLedgerWorkspace() {
       return;
     }
     setPrintError("");
-    setPrintDocument(projected);
+    queuePrintDocument(projected);
   }
 
   function printFinancialStatements() {
@@ -203,7 +217,7 @@ export function GeneralLedgerWorkspace() {
       return;
     }
     setPrintError("");
-    setPrintDocument(projected);
+    queuePrintDocument(projected);
   }
 
   const refresh = useCallback(async () => {
