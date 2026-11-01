@@ -198,6 +198,61 @@ function DecisionOutcomeActions({
   return <div className="mt-3">{busy ? <span role="status" className="text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
 }
 
+
+function DecisionCyclePanel({
+  outcomeResult,
+  outcomesLoading,
+  outcomeReasons,
+  outcomeBusyId,
+  measurementMetrics,
+  profileId,
+  onReasonChange,
+  onTransition,
+}: {
+  outcomeResult: DecisionOutcomeListResult | null;
+  outcomesLoading: boolean;
+  outcomeReasons: Record<string, string>;
+  outcomeBusyId: string | null;
+  measurementMetrics: CashflowMeasurementProof[];
+  profileId: string | undefined;
+  onReasonChange: (id: string, value: string) => void;
+  onTransition: DecisionTransitionHandler;
+}) {
+  const outcomes = outcomeResult?.ok ? outcomeResult.items : [];
+  const showError = !outcomesLoading && outcomeResult !== null && !outcomeResult.ok;
+  const showEmpty = !outcomesLoading && outcomeResult?.ok === true && outcomeResult.items.length === 0;
+
+  return (
+    <section className="panel space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2"><ShieldCheck size={18} /><h2>دورة القرارات المحفوظة</h2></div>
+        <span className="text-xs text-muted-foreground">{outcomeResult?.ok ? outcomeResult.total + " قرار" : ""}</span>
+      </div>
+      <p className="report-note">كل انتقال يحفظ بإصدار متوقع ومفتاح منع تكرار وسجل تدقيق ذري. لا يتغير وضع القرار محلياً قبل استجابة الخادم.</p>
+      {outcomesLoading ? <p role="status" className="text-sm">جارٍ تحميل القرارات...</p> : null}
+      {showError && outcomeResult && !outcomeResult.ok ? <div role="alert" className="rounded-lg border p-3 text-sm">{outcomeResult.message}</div> : null}
+      {showEmpty ? <p role="status" className="text-sm">لا توجد قرارات محفوظة لهذه المؤسسة.</p> : null}
+      {outcomes.length > 0 ? (
+        <div className="space-y-3">
+          {outcomes.map((outcome) => (
+            <DecisionOutcomeCard
+              key={outcome.id}
+              outcome={outcome}
+              measurementMetrics={measurementMetrics}
+              actionReason={outcomeReasons[outcome.id] ?? ""}
+              busy={outcomeBusyId === outcome.id}
+              anyBusy={outcomeBusyId !== null}
+              profileId={profileId}
+              onReasonChange={onReasonChange}
+              onTransition={onTransition}
+            />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export function IntelligenceWorkspace() {
   const { user } = useAuth();
   const canManage = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
@@ -666,30 +721,16 @@ export function IntelligenceWorkspace() {
             </>
           ) : null}
 
-          <section className="panel space-y-3">
-            <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><ShieldCheck size={18} /><h2>دورة القرارات المحفوظة</h2></div><span className="text-xs text-muted-foreground">{outcomeResult?.ok ? outcomeResult.total + " قرار" : ""}</span></div>
-            <p className="report-note">كل انتقال يحفظ بإصدار متوقع ومفتاح منع تكرار وسجل تدقيق ذري. لا يتغير وضع القرار محلياً قبل استجابة الخادم.</p>
-            {outcomesLoading ? <p role="status" className="text-sm">جارٍ تحميل القرارات...</p> : null}
-            {!outcomesLoading && outcomeResult && !outcomeResult.ok ? <div role="alert" className="rounded-lg border p-3 text-sm">{outcomeResult.message}</div> : null}
-            {!outcomesLoading && outcomeResult?.ok && outcomeResult.items.length === 0 ? <p role="status" className="text-sm">لا توجد قرارات محفوظة لهذه المؤسسة.</p> : null}
-            {!outcomesLoading && outcomeResult?.ok ? (
-              <div className="space-y-3">
-                {outcomeResult.items.map((outcome) => (
-                  <DecisionOutcomeCard
-                    key={outcome.id}
-                    outcome={outcome}
-                    measurementMetrics={data?.measurementMetrics ?? []}
-                    actionReason={outcomeReasons[outcome.id] ?? ""}
-                    busy={outcomeBusyId === outcome.id}
-                    anyBusy={outcomeBusyId !== null}
-                    profileId={user?.profileId}
-                    onReasonChange={(id, value) => setOutcomeReasons((current) => ({ ...current, [id]: value }))}
-                    onTransition={runTransition}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </section>
+                    <DecisionCyclePanel
+            outcomeResult={outcomeResult}
+            outcomesLoading={outcomesLoading}
+            outcomeReasons={outcomeReasons}
+            outcomeBusyId={outcomeBusyId}
+            measurementMetrics={data?.measurementMetrics ?? []}
+            profileId={user?.profileId}
+            onReasonChange={(id, value) => setOutcomeReasons((current) => ({ ...current, [id]: value }))}
+            onTransition={runTransition}
+          />
 
           {outcomeMessage ? <div className="panel" role="status">{outcomeMessage}</div> : null}
           {[...data?.warnings ?? [], ...data?.schedule.warnings ?? []].length ? (
