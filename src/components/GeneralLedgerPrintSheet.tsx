@@ -2,11 +2,14 @@ import { formatLedgerMoney } from "@/lib/general-ledger";
 import { formatStatementCents } from "@/lib/financial-statements";
 import type { GeneralLedgerPrintDocument } from "@/lib/general-journal-print";
 
-export function GeneralLedgerPrintSheet({ document }: { document: GeneralLedgerPrintDocument }) {
-  const generatedAt = new Intl.DateTimeFormat("ar-YE", { dateStyle: "medium", timeStyle: "short" }).format(new Date());
-
+function GeneralLedgerPrintHeader({
+  document,
+  generatedAt,
+}: {
+  document: GeneralLedgerPrintDocument;
+  generatedAt: string;
+}) {
   return (
-    <article className="general-ledger-print-sheet" dir="rtl" lang="ar" data-testid="general-ledger-print-document">
       <header className="general-ledger-print-header">
         <div>
           <h1>متجر الأغبري | Aghbari Commerce</h1>
@@ -26,9 +29,11 @@ export function GeneralLedgerPrintSheet({ document }: { document: GeneralLedgerP
         </div>
         <div className="general-ledger-print-generated"><strong>وقت الاستخراج</strong><span>{generatedAt}</span></div>
       </header>
+  );
+}
 
-      {document.kind === "journal" ? (
-        <>
+function JournalPrintBody({ document }: { document: Extract<GeneralLedgerPrintDocument, { kind: "journal" }> }) {
+  return (
           <section className="general-ledger-print-section">
             <h3>تفاصيل القيد المزدوج</h3>
             <table>
@@ -47,9 +52,12 @@ export function GeneralLedgerPrintSheet({ document }: { document: GeneralLedgerP
                   "هذا القيد مرحّل من دفتر الأستاذ العام. لا يمثل المستند بحد ذاته إيصال دفع أو إثبات تسوية خارجية."}
             </p>
           </section>
-        </>
-      ) : (
-        <>
+  );
+}
+
+function FinancialStatementsPrintBody({ document }: { document: Extract<GeneralLedgerPrintDocument, { kind: "statements" }> }) {
+  return (
+    <>
           <section className="general-ledger-print-section">
             <h3>ملخص قائمة الدخل</h3>
             <table>
@@ -92,7 +100,20 @@ export function GeneralLedgerPrintSheet({ document }: { document: GeneralLedgerP
               {document.balanceDifferenceCents === 0n ? "معادلة الميزانية متوازنة ضمن البيانات المحاسبية المرحلة." : "تنبيه: يوجد فرق في معادلة الميزانية. لا تعتمد هذه القائمة قبل التحقيق المحاسبي."}
             </p>
           </section>
-        </>
+    </>
+  );
+}
+export function GeneralLedgerPrintSheet({ document }: { document: GeneralLedgerPrintDocument }) {
+  const generatedAt = new Intl.DateTimeFormat("ar-YE", { dateStyle: "medium", timeStyle: "short" }).format(new Date());
+
+  return (
+    <article className="general-ledger-print-sheet" dir="rtl" lang="ar" data-testid="general-ledger-print-document">
+      <GeneralLedgerPrintHeader document={document} generatedAt={generatedAt} />
+
+      {document.kind === "journal" ? (
+        <JournalPrintBody document={document} />
+      ) : (
+        <FinancialStatementsPrintBody document={document} />
       )}
 
       <footer className="general-ledger-print-footer">

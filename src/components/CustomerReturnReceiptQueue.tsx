@@ -77,6 +77,31 @@ type SavedReturnReceipt = {
   }>;
 };
 
+async function loadValidatedReturnReceipt(
+  receiptId: string,
+  expected: ReturnType<typeof readReturnReceiptMutationResult>,
+): Promise<ReturnType<typeof readCustomerReturnReceiptPrintData>> {
+  const { data, error } = await supabase.rpc("get_customer_return_receipt_print_data", {
+    p_receipt_id: receiptId,
+  });
+  if (error) throw new Error(error.message || "تعذر قراءة نسخة الإيصال المحفوظة.");
+
+  const persisted = readCustomerReturnReceiptPrintData(data);
+  const sameQuantity = (left: number, right: number) =>
+    Math.round(left * 1000) === Math.round(right * 1000);
+  const matchesMutation =
+    persisted.receipt_number === expected.receipt_number &&
+    persisted.received_line_count === expected.received_line_count &&
+    sameQuantity(persisted.received_quantity, expected.received_quantity) &&
+    sameQuantity(persisted.restockable_quantity, expected.restockable_quantity) &&
+    sameQuantity(persisted.defective_quantity, expected.defective_quantity);
+
+  if (!matchesMutation) {
+    throw new Error("ملخص نسخة الإيصال لا يطابق تأكيد عملية الاستلام؛ تم منع الطباعة.");
+  }
+  return persisted;
+}
+
 export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: string) => void }) {
   const [queue, setQueue] = useState<CustomerReturnReceiptQueue>({ warehouses: [], requests: [] });
   const [warehouseId, setWarehouseId] = useState("");
@@ -220,22 +245,7 @@ export function CustomerReturnReceiptQueue({ onNotice }: { onNotice: (message: s
       void loadReceiptHistory(0);
       let persistedReceipt: ReturnType<typeof readCustomerReturnReceiptPrintData>;
       try {
-        const { data: printData, error: printDataError } = await supabase.rpc(
-          "get_customer_return_receipt_print_data",
-          { p_receipt_id: result.receipt_id },
-        );
-        if (printDataError) throw new Error(printDataError.message || "تعذر قراءة نسخة الإيصال المحفوظة.");
-        persistedReceipt = readCustomerReturnReceiptPrintData(printData);
-        const sameQuantity = (left: number, right: number) => Math.round(left * 1000) === Math.round(right * 1000);
-        if (
-          persistedReceipt.receipt_number !== result.receipt_number ||
-          persistedReceipt.received_line_count !== result.received_line_count ||
-          !sameQuantity(persistedReceipt.received_quantity, result.received_quantity) ||
-          !sameQuantity(persistedReceipt.restockable_quantity, result.restockable_quantity) ||
-          !sameQuantity(persistedReceipt.defective_quantity, result.defective_quantity)
-        ) {
-          throw new Error("ملخص نسخة الإيصال لا يطابق تأكيد عملية الاستلام؛ تم منع الطباعة.");
-        }
+        persistedReceipt = await loadValidatedReturnReceipt(result.receipt_id, result);
       } catch {
         const message = "تم حفظ الاستلام " + result.receipt_number +
           " في الخادم، لكن تعذر تحميل تفاصيل الإيصال المحفوظة للطباعة. أعد المحاولة بالمفتاح نفسه؛ لا تنشئ عملية استلام جديدة.";

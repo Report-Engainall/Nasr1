@@ -68,6 +68,136 @@ const collectionFollowupRules: DecisionRule[] = [{
 
 type EvidenceBackedAction = { decision: DecisionCandidate; proof: CashflowMeasurementProof };
 
+type DecisionTransitionOptions = {
+  reason?: string;
+  ownerProfileId?: string;
+  proof?: CashflowMeasurementProof;
+};
+
+type DecisionTransitionHandler = (
+  outcome: DecisionOutcomeView,
+  eventType: DecisionOutcomeEventType,
+  options?: DecisionTransitionOptions,
+) => void;
+
+function DecisionOutcomeCard({
+  outcome,
+  measurementMetrics,
+  actionReason,
+  busy,
+  anyBusy,
+  profileId,
+  onReasonChange,
+  onTransition,
+}: {
+  outcome: DecisionOutcomeView;
+  measurementMetrics: CashflowMeasurementProof[];
+  actionReason: string;
+  busy: boolean;
+  anyBusy: boolean;
+  profileId: string | undefined;
+  onReasonChange: (id: string, value: string) => void;
+  onTransition: DecisionTransitionHandler;
+}) {
+  const currency = currencyFromCandidate(outcome.candidateId);
+  const candidatePeriod = outcome.candidateId.split(":").slice(2).join(":");
+  const proof = measurementMetrics.find((item) =>
+    item.currency === currency && item.period.from + ":" + item.period.to === candidatePeriod,
+  );
+
+  return (
+    <article className="rounded-xl border p-4" aria-label={"قرار " + outcome.id}>
+      <header className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="font-semibold">{outcome.expectedOutcome}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">{outcome.ruleId}@{outcome.ruleVersion} · المالك: {outcome.ownerLabel}</p>
+        </div>
+        <span className="rounded-full border px-3 py-1 text-xs">{stateLabels[outcome.state]} · v{outcome.version}</span>
+      </header>
+      <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+        <p>النطاق: {currency ?? "غير محدد"} · {candidatePeriod.split(":").join(" — ")}</p>
+        <p>الأحداث المحفوظة: {outcome.eventCount} · آخر تحديث: {formatDay(outcome.updatedAt.slice(0, 10))}</p>
+        {outcome.measuredOutcome ? <p className="font-semibold">النتيجة المقاسة: {formatMoney(outcome.measuredOutcome.value, outcome.measuredOutcome.currency)} · {outcome.measuredOutcome.asOf}</p> : null}
+        {outcome.reason ? <p>السبب: {outcome.reason}</p> : null}
+      </div>
+      {outcome.state === "IN_REVIEW" ? (
+        <label className="mt-3 grid gap-1 text-sm">سبب الاعتماد أو الرفض
+          <input className="rounded-lg border bg-background p-2" value={actionReason} maxLength={2000} onChange={(event) => onReasonChange(outcome.id, event.target.value)} />
+        </label>
+      ) : null}
+      <DecisionOutcomeActions
+        outcome={outcome}
+        proof={proof}
+        currency={currency}
+        busy={busy}
+        anyBusy={anyBusy}
+        profileId={profileId}
+        actionReason={actionReason}
+        onTransition={onTransition}
+      />
+      {outcome.state === "EXECUTED" && !proof ? <p className="mt-2 text-xs text-muted-foreground">القياس محجوب: لا توجد حزمة إثبات كاملة للعملة والفترة المطابقتين تماماً.</p> : null}
+      <footer className="mt-3 border-t pt-2 text-xs text-muted-foreground">
+        {outcome.history.map((event) => <span key={event.id} className="me-3">{event.version}. {event.type} · {event.actorRole} · {formatDay(event.at.slice(0, 10))}</span>)}
+      </footer>
+    </article>
+  );
+}
+
+function DecisionOutcomeActions({
+  outcome,
+  proof,
+  currency,
+  busy,
+  anyBusy,
+  profileId,
+  actionReason,
+  onTransition,
+}: {
+  outcome: DecisionOutcomeView;
+  proof: CashflowMeasurementProof | undefined;
+  currency: string | null;
+  busy: boolean;
+  anyBusy: boolean;
+  profileId: string | undefined;
+  actionReason: string;
+  onTransition: DecisionTransitionHandler;
+}) {
+  const disabled = busy || anyBusy;
+  if (outcome.state === "PROPOSED") {
+    return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "SUBMIT_FOR_REVIEW")}>إرسال للمراجعة</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
+  }
+  if (outcome.state === "IN_REVIEW") {
+    const missingReason = !actionReason.trim();
+    return (
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button className="btn primary" type="button" disabled={disabled || missingReason} onClick={() => onTransition(outcome, "APPROVE", { reason: actionReason })}>اعتماد</button>
+        <button className="btn secondary" type="button" disabled={disabled || missingReason} onClick={() => onTransition(outcome, "REJECT", { reason: actionReason })}>رفض مع السبب</button>
+        {busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}
+      </div>
+    );
+  }
+  if (outcome.state === "APPROVED") {
+    return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled || !profileId} onClick={() => profileId && onTransition(outcome, "ASSIGN", { ownerProfileId: profileId })}>تعيين لنفسي</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
+  }
+  if (outcome.state === "ASSIGNED") {
+    return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "START_EXECUTION")}>بدء التنفيذ</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
+  }
+  if (outcome.state === "EXECUTING") {
+    return <div className="mt-3 flex flex-wrap gap-2"><button className="btn primary" type="button" disabled={disabled} onClick={() => onTransition(outcome, "COMPLETE_EXECUTION")}>إتمام التنفيذ</button>{busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
+  }
+  if (outcome.state === "EXECUTED") {
+    return (
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button className="btn primary" type="button" disabled={disabled || !proof} onClick={() => proof && onTransition(outcome, "MEASURE", { proof })}>
+          قياس من مصدر {currency ?? "غير متاح"}
+        </button>
+        {busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}
+      </div>
+    );
+  }
+  return <div className="mt-3">{busy ? <span role="status" className="text-xs">جارٍ تسجيل الحدث...</span> : null}</div>;
+}
+
 export function IntelligenceWorkspace() {
   const { user } = useAuth();
   const canManage = Boolean(user?.roles.some((role) => role === "admin" || role === "manager"));
@@ -544,53 +674,19 @@ export function IntelligenceWorkspace() {
             {!outcomesLoading && outcomeResult?.ok && outcomeResult.items.length === 0 ? <p role="status" className="text-sm">لا توجد قرارات محفوظة لهذه المؤسسة.</p> : null}
             {!outcomesLoading && outcomeResult?.ok ? (
               <div className="space-y-3">
-                {outcomeResult.items.map((outcome) => {
-                  const currency = currencyFromCandidate(outcome.candidateId);
-                  const proof = currency ? data?.measurementMetrics.find((item) => item.currency === currency && item.period.from + ":" + item.period.to === outcome.candidateId.split(":").slice(2).join(":")) : undefined;
-                  const actionReason = outcomeReasons[outcome.id] ?? "";
-                  const busy = outcomeBusyId === outcome.id;
-                  return (
-                    <article key={outcome.id} className="rounded-xl border p-4" aria-label={"قرار " + outcome.id}>
-                      <header className="flex flex-wrap items-start justify-between gap-2">
-                        <div><h3 className="font-semibold">{outcome.expectedOutcome}</h3><p className="mt-1 text-xs text-muted-foreground">{outcome.ruleId}@{outcome.ruleVersion} · المالك: {outcome.ownerLabel}</p></div>
-                        <span className="rounded-full border px-3 py-1 text-xs">{stateLabels[outcome.state]} · v{outcome.version}</span>
-                      </header>
-                      <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-                        <p>النطاق: {currency ?? "غير محدد"} · {outcome.candidateId.split(":").slice(2).join(" — ")}</p>
-                        <p>الأحداث المحفوظة: {outcome.eventCount} · آخر تحديث: {formatDay(outcome.updatedAt.slice(0, 10))}</p>
-                        {outcome.measuredOutcome ? <p className="font-semibold">النتيجة المقاسة: {formatMoney(outcome.measuredOutcome.value, outcome.measuredOutcome.currency)} · {outcome.measuredOutcome.asOf}</p> : null}
-                        {outcome.reason ? <p>السبب: {outcome.reason}</p> : null}
-                      </div>
-                      {outcome.state === "IN_REVIEW" ? (
-                        <label className="mt-3 grid gap-1 text-sm">سبب الاعتماد أو الرفض
-                          <input className="rounded-lg border bg-background p-2" value={actionReason} maxLength={2000} onChange={(event) => setOutcomeReasons((current) => ({ ...current, [outcome.id]: event.target.value }))} />
-                        </label>
-                      ) : null}
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {outcome.state === "PROPOSED" ? <button className="btn primary" type="button" disabled={busy || outcomeBusyId !== null} onClick={() => void runTransition(outcome, "SUBMIT_FOR_REVIEW")}>إرسال للمراجعة</button> : null}
-                        {outcome.state === "IN_REVIEW" ? (
-                          <>
-                            <button className="btn primary" type="button" disabled={busy || outcomeBusyId !== null || !actionReason.trim()} onClick={() => void runTransition(outcome, "APPROVE", { reason: actionReason })}>اعتماد</button>
-                            <button className="btn secondary" type="button" disabled={busy || outcomeBusyId !== null || !actionReason.trim()} onClick={() => void runTransition(outcome, "REJECT", { reason: actionReason })}>رفض مع السبب</button>
-                          </>
-                        ) : null}
-                        {outcome.state === "APPROVED" ? <button className="btn primary" type="button" disabled={busy || outcomeBusyId !== null || !user?.profileId} onClick={() => user?.profileId && void runTransition(outcome, "ASSIGN", { ownerProfileId: user.profileId })}>تعيين لنفسي</button> : null}
-                        {outcome.state === "ASSIGNED" ? <button className="btn primary" type="button" disabled={busy || outcomeBusyId !== null} onClick={() => void runTransition(outcome, "START_EXECUTION")}>بدء التنفيذ</button> : null}
-                        {outcome.state === "EXECUTING" ? <button className="btn primary" type="button" disabled={busy || outcomeBusyId !== null} onClick={() => void runTransition(outcome, "COMPLETE_EXECUTION")}>إتمام التنفيذ</button> : null}
-                        {outcome.state === "EXECUTED" ? (
-                          <button className="btn primary" type="button" disabled={busy || outcomeBusyId !== null || !proof} onClick={() => proof && void runTransition(outcome, "MEASURE", { proof })}>
-                            قياس من مصدر {currency ?? "غير متاح"}
-                          </button>
-                        ) : null}
-                        {busy ? <span role="status" className="self-center text-xs">جارٍ تسجيل الحدث...</span> : null}
-                      </div>
-                      {outcome.state === "EXECUTED" && !proof ? <p className="mt-2 text-xs text-muted-foreground">القياس محجوب: لا توجد حزمة إثبات كاملة للعملة والفترة المطابقتين تماماً.</p> : null}
-                      <footer className="mt-3 border-t pt-2 text-xs text-muted-foreground">
-                        {outcome.history.map((event) => <span key={event.id} className="me-3">{event.version}. {event.type} · {event.actorRole} · {formatDay(event.at.slice(0, 10))}</span>)}
-                      </footer>
-                    </article>
-                  );
-                })}
+                {outcomeResult.items.map((outcome) => (
+                  <DecisionOutcomeCard
+                    key={outcome.id}
+                    outcome={outcome}
+                    measurementMetrics={data?.measurementMetrics ?? []}
+                    actionReason={outcomeReasons[outcome.id] ?? ""}
+                    busy={outcomeBusyId === outcome.id}
+                    anyBusy={outcomeBusyId !== null}
+                    profileId={user?.profileId}
+                    onReasonChange={(id, value) => setOutcomeReasons((current) => ({ ...current, [id]: value }))}
+                    onTransition={runTransition}
+                  />
+                ))}
               </div>
             ) : null}
           </section>
