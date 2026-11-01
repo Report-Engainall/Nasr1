@@ -366,3 +366,9 @@ Read live P2 branch head; open PR to \`main\`; poll Core and P2 for that exact P
 - Updated P2 counts: 1 TS0002 + 23 TS0003 IMPLEMENTED_PENDING_FRESH_SCAN; 81 active TS0003 OPEN; 10 archived scope-review; TS0010 not reproduced/not closed. All 239 original findings remain.
 - Post-#349 main runs at this checkpoint: Core 41265344644 IN_PROGRESS; P2 Playwright 41265344647 IN_PROGRESS; Secret Scan 41265344638 IN_PROGRESS; branch cleanup 41265344707 IN_PROGRESS. Exact current-main verification is not yet complete.
 - #352 admin notifications, #350 P1 security and #351 P3 tooling are synchronized/revalidation ongoing against latest main; their prior-head checks do not transfer.
+
+
+## Sync verification — P2 batch 10 after PR #354
+- PR #353 branch was synchronized with `main` after PR #354 using a non-force, two-parent merge commit `ec771164884ff8fcc260d336522d8cdccbb47b99` (main first parent `c241f189c6e0c52c18728e27a7395c77f01d5303`; prior P2 branch head as second parent).
+- Compare against main: 9 commits ahead, 0 behind; the six changed paths are exactly the four P2 ledger documents and the two batch-10 invitation component/test files.
+- New exact-head CI must run on the final documentation-inclusive branch tip before PR #353 can leave Draft.
