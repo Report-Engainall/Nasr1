@@ -3,14 +3,12 @@ set -euo pipefail
 
 GITLEAKS_BIN="${GITLEAKS_BIN:-gitleaks}"
 temporary_root="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
-repository="$(mktemp -d "$temporary_root/gitleaks-history-canary.XXXXXX")"
-report="$(mktemp "$temporary_root/gitleaks-history-canary-report.XXXXXX.json")"
-log="$(mktemp "$temporary_root/gitleaks-history-canary-log.XXXXXX.txt")"
-cleanup() {
-  rm -rf "$repository"
-  rm -f "$report" "$log"
-}
-trap cleanup EXIT
+temporary_directory="$(mktemp -d "$temporary_root/gitleaks-history-canary.XXXXXX")"
+repository="$temporary_directory/repository"
+report="$temporary_directory/report.json"
+log="$temporary_directory/scan.log"
+mkdir -p "$repository"
+trap 'rm -rf "$temporary_directory"' EXIT
 
 # Compose a synthetic AWS-shaped test value only at runtime. The complete value
 # is never present in this script, command arguments, or workflow logs.
@@ -30,6 +28,10 @@ git -C "$repository" commit --quiet --allow-empty -m "test: remove synthetic leg
 
 if git -C "$repository" cat-file -e "HEAD:legacy-fixture.txt" 2>/dev/null; then
   echo "Canary setup failed: synthetic credential remains in the latest tree."
+  exit 1
+fi
+if [ "$(git -C "$repository" rev-list --all --count)" -ne 2 ]; then
+  echo "Canary setup failed: expected exactly two synthetic history commits."
   exit 1
 fi
 
