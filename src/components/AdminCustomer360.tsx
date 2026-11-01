@@ -27,19 +27,20 @@ type Customer360HeaderProps = {
   loading: boolean;
   exportError: string;
   printError: string;
+  printDisabled: boolean;
   onReload: () => void;
   onExport: () => void;
   onPrint: () => void;
 };
 
 function Customer360Header({
-  summary, loading, exportError, printError, onReload, onExport, onPrint,
+  summary, loading, exportError, printError, printDisabled, onReload, onExport, onPrint,
 }: Customer360HeaderProps) {
   return (
     <section className="panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ margin: 0 }}>{summary?.customer.business_name ?? 'ملف العميل 360'}</h2>
+          <h2 style={{ margin: 0 }}>{summary ? summary.customer.business_name : 'ملف العميل 360'}</h2>
           {summary && <>
             <p>{summary.customer.customer_code} · {summary.customer.contact_name || 'جهة الاتصال غير محددة'}</p>
             <p>{summary.customer.phone || 'لا يوجد هاتف'} · {summary.customer.email || 'لا يوجد بريد'}</p>
@@ -48,7 +49,7 @@ function Customer360Header({
         <div className="no-print" style={{ display: 'flex', gap: 6 }}>
           <Button variant="secondary" onClick={onReload} disabled={loading}><RefreshCw size={15} /> تحديث</Button>
           <Button variant="outline" onClick={onExport} disabled={loading || !summary}><Download size={15} /> تصدير Excel</Button>
-          <Button variant="outline" onClick={onPrint} disabled={loading || !summary}><Printer size={15} /> طباعة / PDF</Button>
+          <Button variant="outline" onClick={onPrint} disabled={loading || printDisabled}><Printer size={15} /> طباعة / PDF</Button>
         </div>
       </div>
       {exportError && <p className="form-error" role="alert">{exportError}</p>}
@@ -133,6 +134,7 @@ export function AdminCustomer360({ customer, onClose }: { customer: Customer; on
         loading={loading}
         exportError={exportError}
         printError={printError}
+        printDisabled={!printDocument}
         onReload={() => { void reload(); }}
         onExport={exportCustomer360}
         onPrint={printCustomer360}
