@@ -93,6 +93,15 @@ function makeOrder(index: number): OrderRow {
   };
 }
 
+function orderListQueryResult(start: number, end: number): QueryResult {
+  if (mocks.failReads > 0) {
+    mocks.failReads -= 1;
+    return ORDER_READ_FAILURE;
+  }
+  const count = mocks.countOverride === undefined ? mocks.rows.length : mocks.countOverride;
+  return { data: mocks.rows.slice(start, end + 1), error: null, count };
+}
+
 function makeQuery() {
   let start = 0;
   let end = 24;
@@ -113,19 +122,7 @@ function makeQuery() {
       resolve?: (value: QueryResult) => unknown,
       reject?: (reason: unknown) => unknown,
     ) => {
-      let result: QueryResult;
-      if (mocks.failReads > 0) {
-        mocks.failReads -= 1;
-        result = ORDER_READ_FAILURE;
-      } else {
-        const count = mocks.countOverride === undefined ? mocks.rows.length : mocks.countOverride;
-        result = {
-          data: mocks.rows.slice(start, end + 1),
-          error: null,
-          count,
-        };
-      }
-      return Promise.resolve(result).then(resolve, reject);
+      return Promise.resolve(orderListQueryResult(start, end)).then(resolve, reject);
     },
   };
   return query;
