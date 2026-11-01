@@ -234,7 +234,7 @@ function clickButton(host: HTMLElement, selector: string, index = 0) {
   act(() => button.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 }
 
-function rejectCustomerPricingRpc(name: string) {
+async function rejectCustomerPricingRpc(name: string) {
   if (name === "preview_customer_order_pricing") {
     return { data: null, error: { message: "pricing unavailable" } };
   }

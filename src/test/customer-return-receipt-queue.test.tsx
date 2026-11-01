@@ -87,7 +87,7 @@ const persistedPrintSnapshot = {
 
 let receiptQueueCalls = 0;
 
-function resolveCustomerReturnReceiptRpc(name: string, args?: Record<string, unknown>) {
+async function resolveCustomerReturnReceiptRpc(name: string, args?: Record<string, unknown>) {
   if (name === "list_customer_return_receipt_print_history") {
     return { data: { receipts: [], has_more: false, limit: 50, offset: Number(args?.p_offset ?? 0) }, error: null };
   }

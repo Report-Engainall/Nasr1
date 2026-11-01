@@ -128,7 +128,7 @@ function clickButton(host: HTMLElement, selector: string, index: number) {
   });
 }
 
-function resolveOfflineCheckoutValidationRpc(name: string) {
+async function resolveOfflineCheckoutValidationRpc(name: string) {
   if (name === "validate_checkout_cart") return { data: null, error: { message: "offline" } };
   return { data: null, error: null };
 }

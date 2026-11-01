@@ -62,7 +62,7 @@ async function loadServiceWorker(overrides: {
   const cache = { add: cacheAdd, put: cachePut };
   const cacheDelete = vi.fn(async () => true);
   const cacheNames = overrides.cacheNames ?? [];
-  const matchCachedRequest = (request: Request | string) => overrides.cacheMatch?.(request) ?? null;
+  const matchCachedRequest = async (request: Request | string) => overrides.cacheMatch?.(request) ?? null;
   const fetchRequest = (request: Request | string) => {
     if (overrides.fetcher) return overrides.fetcher(request);
     return Promise.reject(new Error("unexpected network request"));
