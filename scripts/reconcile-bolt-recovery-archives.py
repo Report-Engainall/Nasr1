@@ -238,32 +238,20 @@ def self_test():
     print("SELF_TEST PASS: SHA-256, Git blob SHA-1, CRC/decompression, path traversal rejection", flush=True)
 
 
-def inspect_archive_member(archive_id, info, target_dir, member_rows, review_text):
-    raw = safe_name(info.filename).as_posix()
-    if info.is_dir() or raw.endswith("/"):
-        return None
-    path = target_dir.joinpath(*PurePosixPath(raw).parts)
-    payload = path.read_bytes()
-    digest = sha256(payload)
-    extensions = {
-        ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json",
-        ".md", ".mdx", ".css", ".html", ".sql", ".yml", ".yaml",
-        ".toml", ".txt", ".csv", ".svg", ".sh", ".ps1", ".py",
-    }
-    kind = (
-        "EXCLUDED_SECURITY" if sensitive(raw)
-        else "SOURCE_OR_TEXT" if path.suffix.lower() in extensions
-        else "BINARY_OR_ASSET"
-    )
-    member_rows.append({
-        "archive_id": archive_id, "member_path": raw, "size_bytes": len(payload),
-        "sha256": digest, "kind": kind,
-        "extraction_status": "EXTRACTED_TO_TEMP_OUTSIDE_APP",
-        "target_decision": "PENDING", "notes": "Member not executed; payload not committed.",
-    })
-    if kind == "SOURCE_OR_TEXT" and len(payload) <= 300000:
-        review_text[raw] = payload.decode("utf-8", errors="replace")
-    return raw, payload, digest, kind
+
+def collect_archive_members(infos, archive_id, archive_name, target_dir, member_rows, review_text):
+    file_map = {}
+    member_count = 0
+    for info in infos:
+        member = inspect_archive_member(
+            archive_id, archive_name, info, target_dir, member_rows, review_text
+        )
+        if member is None:
+            continue
+        raw, payload, digest, kind = member
+        file_map[raw] = {"sha256": digest, "size": len(payload), "kind": kind}
+        member_count += 1
+    return file_map, member_count
 
 
 def process_archive(
@@ -317,18 +305,15 @@ def process_archive(
         with zipfile.ZipFile(io.BytesIO(data), "r") as archive:
             infos = validate_zip(archive)
             safe_extract(archive, infos, target_dir)
-            file_map, member_count = {}, 0
             review_text_by_archive[archive_id] = {}
-            for info in infos:
-                member = inspect_archive_member(
-                    archive_id, name, info, target_dir, member_rows,
-                    review_text_by_archive[archive_id],
-                )
-                if member is None:
-                    continue
-                raw, payload, digest, kind = member
-                file_map[raw] = {"sha256": digest, "size": len(payload), "kind": kind}
-                member_count += 1
+            file_map, member_count = collect_archive_members(
+                infos,
+                archive_id,
+                name,
+                target_dir,
+                member_rows,
+                review_text_by_archive[archive_id],
+            )
             content_by_archive[archive_id] = file_map
             row["status"] = "DOWNLOADED_SHA256_CRC_AND_SAFE_EXTRACTION_PASS"
             row["extraction_directory"] = "Temporary runner directory outside app; deleted at job end"
