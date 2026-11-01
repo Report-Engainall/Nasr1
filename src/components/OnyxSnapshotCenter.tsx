@@ -57,6 +57,181 @@ function valueFromRow(row: OnyxSnapshotRow, keys: string[]): string {
   return row.canonical_key ?? "غير محدد في المصدر";
 }
 
+
+type SnapshotMetrics = NonNullable<OnyxSnapshotAnalytics["metrics"]>;
+
+function OnyxSnapshotMetricsGrid({ metrics }: { metrics: SnapshotMetrics }) {
+  return (
+    <section className="onyx-metric-grid" aria-label="مؤشرات اللقطة المحددة">
+      <article className="panel onyx-metric"><span><Database size={16} /> إجمالي الصفوف</span><strong>{amountText(metrics.row_count, 0)}</strong></article>
+      <article className="panel onyx-metric"><span><CheckCircle2 size={16} /> الصفوف الصالحة</span><strong>{amountText(metrics.valid_rows, 0)}</strong></article>
+      <article className="panel onyx-metric"><span><AlertTriangle size={16} /> الصفوف المرفوضة</span><strong>{amountText(metrics.rejected_rows, 0)}</strong></article>
+      <article className="panel onyx-metric"><span><Gauge size={16} /> درجة الجودة المحسوبة</span><strong>{amountText(metrics.dqs, 0)}/100</strong></article>
+      <article className="panel onyx-metric"><span><Package size={16} /> الأصناف المميزة</span><strong>{amountText(metrics.item_count, 0)}</strong></article>
+      <article className="panel onyx-metric"><span><Clock3 size={16} /> العملاء في المصدر</span><strong>{amountText(metrics.customer_count, 0)}</strong></article>
+    </section>
+  );
+}
+
+function OnyxStatusDistribution({ distribution }: { distribution: OnyxSnapshotAnalytics["status_distribution"] }) {
+  if (distribution.length === 0) return <p>لا يوجد توزيع مسجل في هذه اللقطة.</p>;
+  return (
+    <div className="onyx-status-list">
+      {distribution.map((item) => <div key={item.status}><span>{qualityText(item.status)}</span><strong>{amountText(item.count, 0)}</strong></div>)}
+    </div>
+  );
+}
+
+function OnyxReconciliationPanel({ selectedId, detailLoading, reconciling, reconciliation, reconciliationError, onReconcile }: {
+  selectedId: string;
+  detailLoading: boolean;
+  reconciling: boolean;
+  reconciliation: ReconciliationResult | null;
+  reconciliationError: string;
+  onReconcile: () => void;
+}) {
+  return (
+    <article className="panel onyx-reconciliation">
+      <h2>مطابقة المصدر مع المخزون الفعلي</h2>
+      <p>تُحفظ نتيجة المقارنة وسجل التدقيق فقط. لا تُعدّل هذه العملية كمية المخزون أو الأسعار.</p>
+      <button type="button" className="btn primary" onClick={onReconcile} disabled={!selectedId || reconciling || detailLoading}>
+        <Scale size={16} /> {reconciling ? "جارٍ حساب المطابقة…" : "تنفيذ المطابقة مع المخزون الحالي"}
+      </button>
+      {reconciliationError && <div className="onyx-alert compact" role="alert">{reconciliationError}</div>}
+      {reconciliation && <OnyxReconciliationResult reconciliation={reconciliation} />}
+    </article>
+  );
+}
+
+function OnyxReconciliationResult({ reconciliation }: { reconciliation: ReconciliationResult }) {
+  return (
+    <div className="onyx-reconciliation-result" role="status">
+      <strong>اكتملت المطابقة — رقم التشغيل {reconciliation.run_id}</strong>
+      <div><span>صفوف المصدر</span><b>{amountText(reconciliation.source_row_count, 0)}</b></div>
+      <div><span>متطابقة</span><b>{amountText(reconciliation.matched_count, 0)}</b></div>
+      <div><span>تغيّرت عن المخزون</span><b>{amountText(reconciliation.changed_count, 0)}</b></div>
+      <div><span>أصناف جديدة</span><b>{amountText(reconciliation.new_count, 0)}</b></div>
+      <div><span>غير صالحة</span><b>{amountText(reconciliation.invalid_count, 0)}</b></div>
+    </div>
+  );
+}
+
+function OnyxTopItemsPanel({ items }: { items: OnyxSnapshotAnalytics["top_items"] }) {
+  return (
+    <section className="panel">
+      <div className="onyx-section-heading"><div><h2>أعلى الأصناف حسب بيانات المصدر</h2><p>القيم كما أعادتها تحليلات قاعدة البيانات؛ ليست تقرير مبيعات Onyx الخارجي المباشر.</p></div></div>
+      {items.length === 0 ? <p>لا توجد أصناف كافية لعرض ترتيب.</p> : (
+        <div className="onyx-table-wrap"><table>
+          <thead><tr><th>رمز الصنف</th><th>الاسم</th><th>الكمية</th><th>قيمة المصدر</th></tr></thead>
+          <tbody>{items.map((item, index) => <tr key={item.item_code + ":" + index}><td>{item.item_code}</td><td>{item.name || "غير مسجل"}</td><td>{amountText(item.quantity)}</td><td>{amountText(item.revenue, 2)}</td></tr>)}</tbody>
+        </table></div>
+      )}
+    </section>
+  );
+}
+
+function OnyxSourceRowsPanel({ rows }: { rows: OnyxSnapshotRow[] }) {
+  return (
+    <section className="panel">
+      <h2>معاينة الصفوف المصدرية (حد أقصى 100 صف)</h2>
+      <p>الصفوف تعرض المصدر المحفوظ فقط. العدد الأكبر يبقى محفوظًا في اللقطة ولا يُحمّل كاملًا إلى المتصفح.</p>
+      {rows.length === 0 ? <p>لا توجد صفوف متاحة للمعاينة.</p> : (
+        <div className="onyx-table-wrap"><table>
+          <thead><tr><th>رقم الصف</th><th>رمز المصدر</th><th>الاسم</th><th>الكمية المصدرية</th><th>الحالة</th><th>الملاحظات</th></tr></thead>
+          <tbody>{rows.map((row) => <OnyxSourceRow key={row.id} row={row} />)}</tbody>
+        </table></div>
+      )}
+    </section>
+  );
+}
+
+function OnyxSourceRow({ row }: { row: OnyxSnapshotRow }) {
+  const errors = Array.isArray(row.errors)
+    ? row.errors.slice(0, 2).map((error) => typeof error === "string" ? error : JSON.stringify(error)).join("؛ ") || "—"
+    : "—";
+  return (
+    <tr>
+      <td>{amountText(row.row_number, 0)}</td>
+      <td><code>{valueFromRow(row, ["item_code", "sku", "product_code"])}</code></td>
+      <td>{valueFromRow(row, ["name", "item_name", "product_name", "description"])}</td>
+      <td>{valueFromRow(row, ["quantity", "qty", "on_hand"])}</td>
+      <td>{qualityText(row.status)}</td>
+      <td>{errors}</td>
+    </tr>
+  );
+}
+
+function OnyxForecastPanel({ analytics }: { analytics: OnyxSnapshotAnalytics }) {
+  return (
+    <section className="panel onyx-forecast">
+      <h2>حالة التحليل التنبؤي</h2>
+      <p><strong>{analytics.forecast_status || "غير متاح"}:</strong> {analytics.forecast_reason || "لا يوجد سبب مسجل في المصدر."}</p>
+      <p>لا يُعرض توقع رقمي إلا إذا أعادت خدمة التحليل حالة قابلة للتنبؤ من البيانات المتاحة.</p>
+    </section>
+  );
+}
+
+function OnyxSnapshotAnalyticsView({ analytics, rows, selectedId, detailLoading, reconciling, reconciliation, reconciliationError, onReconcile }: {
+  analytics: OnyxSnapshotAnalytics;
+  rows: OnyxSnapshotRow[];
+  selectedId: string;
+  detailLoading: boolean;
+  reconciling: boolean;
+  reconciliation: ReconciliationResult | null;
+  reconciliationError: string;
+  onReconcile: () => void;
+}) {
+  return (
+    <>
+      <OnyxSnapshotMetricsGrid metrics={analytics.metrics} />
+      <section className="onyx-detail-grid">
+        <article className="panel">
+          <h2>توزيع حالة الصفوف</h2>
+          <OnyxStatusDistribution distribution={analytics.status_distribution} />
+        </article>
+        <OnyxReconciliationPanel selectedId={selectedId} detailLoading={detailLoading} reconciling={reconciling} reconciliation={reconciliation} reconciliationError={reconciliationError} onReconcile={onReconcile} />
+      </section>
+      <OnyxInventoryReconciliationActions snapshotId={selectedId} />
+      <OnyxTopItemsPanel items={analytics.top_items} />
+      <OnyxSourceRowsPanel rows={rows} />
+      <OnyxForecastPanel analytics={analytics} />
+    </>
+  );
+}
+
+function OnyxAnalyticsPrint({ selected, analytics, rows }: {
+  selected: OnyxSnapshotSummary | null;
+  analytics: OnyxSnapshotAnalytics | null;
+  rows: OnyxSnapshotRow[];
+}) {
+  const metrics = analytics?.metrics;
+  return (
+    <div className="onyx-analytics-print" dir="rtl" aria-hidden="true">
+      <header><h1>تقرير اللقطة والتحليلات — متجر الأغبري</h1><p>وقت الطباعة: {new Date().toLocaleString("ar-YE")}</p>
+        <p>المصدر: {selected?.source_file_name || "اسم الملف غير مسجل"} — نوع التقرير: {selected?.report_type || "غير محدد"}</p>
+        <p>SHA-256: {selected?.source_file_hash || "غير متاح"} — وقت اللقطة: {selected ? dateText(selected.created_at) : "غير متاح"}</p>
+      </header>
+      {analytics && <OnyxAnalyticsPrintTables analytics={analytics} metrics={metrics} rows={rows} />}
+      <footer>المصدر: لقطة أونكس المحفوظة في قاعدة بيانات المؤسسة. لا تؤكد هذه الورقة اتصالاً بالنظام الخارجي أو قبول الملف فيه.</footer>
+    </div>
+  );
+}
+
+function OnyxAnalyticsPrintTables({ analytics, metrics, rows }: {
+  analytics: OnyxSnapshotAnalytics;
+  metrics: SnapshotMetrics;
+  rows: OnyxSnapshotRow[];
+}) {
+  return (
+    <>
+      <p>الصفوف: {amountText(metrics.row_count, 0)} | صالحة: {amountText(metrics.valid_rows, 0)} | مرفوضة: {amountText(metrics.rejected_rows, 0)} | DQS: {amountText(metrics.dqs, 0)}/100</p>
+      <p>التنبؤ: {analytics.forecast_status} — {analytics.forecast_reason}</p>
+      <table><thead><tr><th>رمز الصنف</th><th>الاسم</th><th>الكمية</th><th>قيمة المصدر</th></tr></thead><tbody>{analytics.top_items.map((item, index) => <tr key={item.item_code + ":" + index}><td>{item.item_code}</td><td>{item.name || "غير مسجل"}</td><td>{amountText(item.quantity)}</td><td>{amountText(item.revenue, 2)}</td></tr>)}</tbody></table>
+      <table><thead><tr><th>الصف</th><th>رمز</th><th>الاسم</th><th>الكمية المصدرية</th><th>الحالة</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td>{row.row_number}</td><td>{valueFromRow(row, ["item_code", "sku", "product_code"])}</td><td>{valueFromRow(row, ["name", "item_name", "product_name", "description"])}</td><td>{valueFromRow(row, ["quantity", "qty", "on_hand"])}</td><td>{qualityText(row.status)}</td></tr>)}</tbody></table>
+    </>
+  );
+}
+
 export function OnyxSnapshotCenter({ onBack }: { onBack?: () => void }) {
   const { user } = useAuth();
   const canAccess = Boolean(user?.isStaff);
@@ -202,85 +377,18 @@ export function OnyxSnapshotCenter({ onBack }: { onBack?: () => void }) {
 
           {detailError && <div className="onyx-alert" role="alert"><AlertTriangle size={18} /> {detailError}</div>}
           {detailLoading ? <div className="panel onyx-empty" role="status">جارٍ تحليل اللقطة المحددة…</div> : analytics && metrics ? (
-            <>
-              <section className="onyx-metric-grid" aria-label="مؤشرات اللقطة المحددة">
-                <article className="panel onyx-metric"><span><Database size={16} /> إجمالي الصفوف</span><strong>{amountText(metrics.row_count, 0)}</strong></article>
-                <article className="panel onyx-metric"><span><CheckCircle2 size={16} /> الصفوف الصالحة</span><strong>{amountText(metrics.valid_rows, 0)}</strong></article>
-                <article className="panel onyx-metric"><span><AlertTriangle size={16} /> الصفوف المرفوضة</span><strong>{amountText(metrics.rejected_rows, 0)}</strong></article>
-                <article className="panel onyx-metric"><span><Gauge size={16} /> درجة الجودة المحسوبة</span><strong>{amountText(metrics.dqs, 0)}/100</strong></article>
-                <article className="panel onyx-metric"><span><Package size={16} /> الأصناف المميزة</span><strong>{amountText(metrics.item_count, 0)}</strong></article>
-                <article className="panel onyx-metric"><span><Clock3 size={16} /> العملاء في المصدر</span><strong>{amountText(metrics.customer_count, 0)}</strong></article>
-              </section>
-
-              <section className="onyx-detail-grid">
-                <article className="panel">
-                  <h2>توزيع حالة الصفوف</h2>
-                  {analytics.status_distribution.length === 0 ? <p>لا يوجد توزيع مسجل في هذه اللقطة.</p> : <div className="onyx-status-list">
-                    {analytics.status_distribution.map((item) => <div key={item.status}><span>{qualityText(item.status)}</span><strong>{amountText(item.count, 0)}</strong></div>)}
-                  </div>}
-                </article>
-                <article className="panel onyx-reconciliation">
-                  <h2>مطابقة المصدر مع المخزون الفعلي</h2>
-                  <p>تُحفظ نتيجة المقارنة وسجل التدقيق فقط. لا تُعدّل هذه العملية كمية المخزون أو الأسعار.</p>
-                  <button type="button" className="btn primary" onClick={() => void reconcile()} disabled={!selectedId || reconciling || detailLoading}>
-                    <Scale size={16} /> {reconciling ? "جارٍ حساب المطابقة…" : "تنفيذ المطابقة مع المخزون الحالي"}
-                  </button>
-                  {reconciliationError && <div className="onyx-alert compact" role="alert">{reconciliationError}</div>}
-                  {reconciliation && <div className="onyx-reconciliation-result" role="status">
-                    <strong>اكتملت المطابقة — رقم التشغيل {reconciliation.run_id}</strong>
-                    <div><span>صفوف المصدر</span><b>{amountText(reconciliation.source_row_count, 0)}</b></div>
-                    <div><span>متطابقة</span><b>{amountText(reconciliation.matched_count, 0)}</b></div>
-                    <div><span>تغيّرت عن المخزون</span><b>{amountText(reconciliation.changed_count, 0)}</b></div>
-                    <div><span>أصناف جديدة</span><b>{amountText(reconciliation.new_count, 0)}</b></div>
-                    <div><span>غير صالحة</span><b>{amountText(reconciliation.invalid_count, 0)}</b></div>
-                  </div>}
-                </article>
-              </section>
-
-              <OnyxInventoryReconciliationActions snapshotId={selectedId} />
-
-              <section className="panel">
-                <div className="onyx-section-heading"><div><h2>أعلى الأصناف حسب بيانات المصدر</h2><p>القيم كما أعادتها تحليلات قاعدة البيانات؛ ليست تقرير مبيعات Onyx الخارجي المباشر.</p></div></div>
-                {analytics.top_items.length === 0 ? <p>لا توجد أصناف كافية لعرض ترتيب.</p> : <div className="onyx-table-wrap"><table>
-                  <thead><tr><th>رمز الصنف</th><th>الاسم</th><th>الكمية</th><th>قيمة المصدر</th></tr></thead>
-                  <tbody>{analytics.top_items.map((item, index) => <tr key={item.item_code + ":" + index}><td>{item.item_code}</td><td>{item.name || "غير مسجل"}</td><td>{amountText(item.quantity)}</td><td>{amountText(item.revenue, 2)}</td></tr>)}</tbody>
-                </table></div>}
-              </section>
-
-              <section className="panel">
-                <h2>معاينة الصفوف المصدرية (حد أقصى 100 صف)</h2>
-                <p>الصفوف تعرض المصدر المحفوظ فقط. العدد الأكبر يبقى محفوظًا في اللقطة ولا يُحمّل كاملًا إلى المتصفح.</p>
-                {rows.length === 0 ? <p>لا توجد صفوف متاحة للمعاينة.</p> : <div className="onyx-table-wrap"><table>
-                  <thead><tr><th>رقم الصف</th><th>رمز المصدر</th><th>الاسم</th><th>الكمية المصدرية</th><th>الحالة</th><th>الملاحظات</th></tr></thead>
-                  <tbody>{rows.map((row) => <tr key={row.id}>
-                    <td>{amountText(row.row_number, 0)}</td>
-                    <td><code>{valueFromRow(row, ["item_code","sku","product_code"])}</code></td>
-                    <td>{valueFromRow(row, ["name","item_name","product_name","description"])}</td>
-                    <td>{valueFromRow(row, ["quantity","qty","on_hand"])}</td>
-                    <td>{qualityText(row.status)}</td>
-                    <td>{Array.isArray(row.errors) ? row.errors.slice(0,2).map((error) => typeof error === "string" ? error : JSON.stringify(error)).join("؛ ") || "—" : "—"}</td>
-                  </tr>)}</tbody>
-                </table></div>}
-              </section>
-
-              <section className="panel onyx-forecast">
-                <h2>حالة التحليل التنبؤي</h2>
-                <p><strong>{analytics.forecast_status || "غير متاح"}:</strong> {analytics.forecast_reason || "لا يوجد سبب مسجل في المصدر."}</p>
-                <p>لا يُعرض توقع رقمي إلا إذا أعادت خدمة التحليل حالة قابلة للتنبؤ من البيانات المتاحة.</p>
-              </section>
-            </>
+            <OnyxSnapshotAnalyticsView
+              analytics={analytics}
+              rows={rows}
+              selectedId={selectedId}
+              detailLoading={detailLoading}
+              reconciling={reconciling}
+              reconciliation={reconciliation}
+              reconciliationError={reconciliationError}
+              onReconcile={() => void reconcile()}
+            />
           ) : !detailError && <div className="panel onyx-empty">لا توجد نتائج تحليل للّقطة المحددة.</div>}
-          <div className="onyx-analytics-print" dir="rtl" aria-hidden="true">
-            <header><h1>تقرير اللقطة والتحليلات — متجر الأغبري</h1><p>وقت الطباعة: {new Date().toLocaleString("ar-YE")}</p>
-              <p>المصدر: {selected?.source_file_name || "اسم الملف غير مسجل"} — نوع التقرير: {selected?.report_type || "غير محدد"}</p>
-              <p>SHA-256: {selected?.source_file_hash || "غير متاح"} — وقت اللقطة: {selected ? dateText(selected.created_at) : "غير متاح"}</p>
-            </header>
-            {analytics && <><p>الصفوف: {amountText(metrics?.row_count,0)} | صالحة: {amountText(metrics?.valid_rows,0)} | مرفوضة: {amountText(metrics?.rejected_rows,0)} | DQS: {amountText(metrics?.dqs,0)}/100</p>
-              <p>التنبؤ: {analytics.forecast_status} — {analytics.forecast_reason}</p>
-              <table><thead><tr><th>رمز الصنف</th><th>الاسم</th><th>الكمية</th><th>قيمة المصدر</th></tr></thead><tbody>{analytics.top_items.map((item,index)=><tr key={item.item_code+":"+index}><td>{item.item_code}</td><td>{item.name||"غير مسجل"}</td><td>{amountText(item.quantity)}</td><td>{amountText(item.revenue,2)}</td></tr>)}</tbody></table>
-              <table><thead><tr><th>الصف</th><th>رمز</th><th>الاسم</th><th>الكمية المصدرية</th><th>الحالة</th></tr></thead><tbody>{rows.map((row)=><tr key={row.id}><td>{row.row_number}</td><td>{valueFromRow(row,["item_code","sku","product_code"])}</td><td>{valueFromRow(row,["name","item_name","product_name","description"])}</td><td>{valueFromRow(row,["quantity","qty","on_hand"])}</td><td>{qualityText(row.status)}</td></tr>)}</tbody></table></>}
-            <footer>المصدر: لقطة أونكس المحفوظة في قاعدة بيانات المؤسسة. لا تؤكد هذه الورقة اتصالاً بالنظام الخارجي أو قبول الملف فيه.</footer>
-          </div>
+          <OnyxAnalyticsPrint selected={selected} analytics={analytics} rows={rows} />
         </>
       )}
     </section>
