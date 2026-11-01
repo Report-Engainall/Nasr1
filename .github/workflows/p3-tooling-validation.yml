@@ -13,6 +13,7 @@ on:
       - "docs/engineering/remediation/codeinspector-2026-10-31/P3.md"
       - "src/lib/intelligence/free-ai-policy.test.ts"
       - "docs/bolt-source-reconciliation/tools/*.mjs"
+      - "docs/engineering/remediation/codeinspector-2026-10-31/P3.md"
       - ".github/workflows/p3-tooling-validation.yml"
 
 permissions:
