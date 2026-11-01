@@ -1,3 +1,29 @@
+## Current main checkpoint — 2026-11-01 after PR #400
+
+- Current main pointer: `ef825892641b9a821e59ad0896babc827f95dee2`; latest code-bearing merge SHA `453afeebfc76f7c685792a7885115ce4ccabb7f3` (PR #400 tested head `cc5ae37ae87e0c7bff051ca7ff0742c1abf68555`).
+- PR #400 merged 2026-11-01T19:33:30Z. It added Python diagnostic redaction, atomic CSV evidence persistence and source-release ZIP integrity-safe extraction.
+- PR #400 Core 41342335810 SUCCESS; full-history Gitleaks 41342335816 SUCCESS; P1 TypeScript/AST/Vitest 41342335851 SUCCESS; archive/persistence self-tests 41342335822 SUCCESS; source-release snapshot audit 41342335817 SUCCESS; branch cleanup 41342335828 SUCCESS.
+- Recovery archive/persistence logs prove prior evidence survives failed atomic publication and no temp file remains. Two recovery ZIPs: 717 members; full hash/CRC checks passed. Source-release audit: five ZIP assets, 12,994 member rows, no errors; only bounded source extraction, no code/SQL execution.
+- User-supplied 118-finding excerpt at 17:38:11 UTC predates #396–#400, has no input SHA/detail rows and remains separate from the 239-row original inventory.
+- P1 7 structural rows remain IMPLEMENTED_PENDING_FRESH_SCAN; 18 fixture signals stay triaged. P2 116 and P3 98 dispositions remain non-CLOSED in BASELINE.json.
+- Fresh official CodeInspector on source SHA `453afeebfc76f7c685792a7885115ce4ccabb7f3` remains PENDING; CI does not close findings.
+- PR #351 remains OPEN/unmerged, 73 ahead / 44 behind; do not merge wholesale.
+
+---
+
+## Current main checkpoint — 2026-11-01T19:24Z
+
+- Current main: `91728da2c76933dbf2c79eceac5a6865483ea5a4` (PR #399 documentation-only merge; parent source-code SHA `0dc6f75d3767fe15d472ed28284332273061bb81`).
+- PR #396 merged at `f9daf09d1e5aa152aaefa4ac628c6074d4721fb0`; #397 at `eed901bb4802fae9ad8c36407344c7199a2ac64d`; #398 at `0dc6f75d3767fe15d472ed28284332273061bb81`; #399 at `91728da2c76933dbf2c79eceac5a6865483ea5a4`.
+- Main-head Core run 41341535268 SUCCESS (completed 2026-11-01T19:28:36Z): unit tests, focused P2 TypeScript, PostgreSQL 17 migrations and finance/inventory/import/export/tenant-concurrency/backup tests, lint, build, production preview smoke, dev-server smoke and Chromium price-visibility acceptance all passed.
+- Full-history Gitleaks run 41341535276 SUCCESS; P1 targeted TypeScript run 41341535316 SUCCESS; branch cleanup run 41341535239 SUCCESS.
+- The supplied 118-finding CodeInspector excerpt is timestamped 17:38:11 UTC, before merges #396–#399; its input SHA is UNKNOWN and per-finding rows were not supplied. Keep it separate from the recovered 239-row manifest.
+- Fresh official CodeInspector scan on exact main `91728da2c76933dbf2c79eceac5a6865483ea5a4` has NOT been run; no findings are marked CLOSED based on CI.
+- P1 status on the recovered 239-row baseline: two TS0002 and five TS0003 records now IMPLEMENTED_PENDING_FRESH_SCAN following merged PR #339 and PR #350 structural guard; all five P1 files passed the exact-main targeted TypeScript + AST + Vitest workflow 41341535316. The 18 TS0004/TS0009 records remain fixture-only NOT_APPLICABLE triage pending fresh scanner confirmation.
+- PR #351 remains OPEN/unmerged, divergent 73 ahead / 42 behind; do not merge wholesale.
+
+---
+
 ## Current integration snapshot — 2026-11-01T19:17Z
 
 - Current source main: 0dc6f75d3767fe15d472ed28284332273061bb81.
