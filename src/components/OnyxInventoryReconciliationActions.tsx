@@ -25,6 +25,42 @@ const statusLabels: Record<OnyxReconciliationCommand["status"], string> = {
   cancelled: "ملغاة",
 };
 
+
+function OnyxCommandSummary({ command }: { command: OnyxReconciliationCommand }) {
+  return (
+    <div className="onyx-command-summary" role="status">
+      <div><span>الحالة</span><strong>{statusLabels[command.status]}</strong></div>
+      <div><span>الصفوف المثبتة</span><strong>{command.source_row_count}</strong></div>
+      <div><span>الحركات التي غيّرت الرصيد</span><strong>{command.adjusted_lines}</strong></div>
+      <div><span>معرّف الأمر</span><code>{command.command_id}</code></div>
+      {command.reason && <p>السبب: {command.reason}</p>}
+    </div>
+  );
+}
+
+function OnyxApplyPreviewButton({ busy, onApply }: { busy: boolean; onApply: () => void }) {
+  return (
+    <button type="button" className="btn primary" onClick={onApply} disabled={busy}>
+      {busy ? <LoaderCircle className="spin" size={16} /> : <CheckCircle2 size={16} />}
+      {busy ? "جارٍ التحقق والقفل والتطبيق الذري…" : "2. اعتماد المعاينة وتطبيق الكميات"}
+    </button>
+  );
+}
+
+function OnyxRollbackControls({ reason, onReasonChange, busy, onRollback }: {
+  reason: string; onReasonChange: (value: string) => void; busy: boolean; onRollback: () => void;
+}) {
+  return (
+    <div className="onyx-rollback-controls">
+      <label>سبب التراجع التعويضي<input value={reason} onChange={(event) => onReasonChange(event.target.value)} maxLength={1000} disabled={busy} /></label>
+      <button type="button" className="btn outline" onClick={onRollback} disabled={busy || !reason.trim()}>
+        {busy ? <LoaderCircle className="spin" size={16} /> : <RotateCcw size={16} />}
+        {busy ? "جارٍ فحص الحركات اللاحقة…" : "3. تنفيذ تراجع تعويضي آمن"}
+      </button>
+    </div>
+  );
+}
+
 export function OnyxInventoryReconciliationActions({ snapshotId }: { snapshotId: string }) {
   const [warehouses, setWarehouses] = useState<OnyxReconciliationWarehouse[]>([]);
   const [commands, setCommands] = useState<OnyxReconciliationCommand[]>([]);
@@ -207,37 +243,13 @@ export function OnyxInventoryReconciliationActions({ snapshotId }: { snapshotId:
                   ))}
                 </select>
               </label>
-              {activeCommand && (
-                <div className="onyx-command-summary" role="status">
-                  <div><span>الحالة</span><strong>{statusLabels[activeCommand.status]}</strong></div>
-                  <div><span>الصفوف المثبتة</span><strong>{activeCommand.source_row_count}</strong></div>
-                  <div><span>الحركات التي غيّرت الرصيد</span><strong>{activeCommand.adjusted_lines}</strong></div>
-                  <div><span>معرّف الأمر</span><code>{activeCommand.command_id}</code></div>
-                  {activeCommand.reason && <p>السبب: {activeCommand.reason}</p>}
-                </div>
-              )}
+              {activeCommand && <OnyxCommandSummary command={activeCommand} />}
             </div>
           )}
 
-          {activeCommand?.status === "previewed" && (
-            <button type="button" className="btn primary" onClick={() => void applyPreview()} disabled={busy !== ""}>
-              {busy === "apply" ? <LoaderCircle className="spin" size={16} /> : <CheckCircle2 size={16} />}
-              {busy === "apply" ? "جارٍ التحقق والقفل والتطبيق الذري…" : "2. اعتماد المعاينة وتطبيق الكميات"}
-            </button>
-          )}
+          {activeCommand?.status === "previewed" && <OnyxApplyPreviewButton busy={busy !== ""} onApply={() => void applyPreview()} />}
 
-          {activeCommand?.status === "applied" && (
-            <div className="onyx-rollback-controls">
-              <label>
-                سبب التراجع التعويضي
-                <input value={rollbackReason} onChange={(event) => setRollbackReason(event.target.value)} maxLength={1000} disabled={busy !== ""} />
-              </label>
-              <button type="button" className="btn outline" onClick={() => void rollbackApplied()} disabled={busy !== "" || !rollbackReason.trim()}>
-                {busy === "rollback" ? <LoaderCircle className="spin" size={16} /> : <RotateCcw size={16} />}
-                {busy === "rollback" ? "جارٍ فحص الحركات اللاحقة…" : "3. تنفيذ تراجع تعويضي آمن"}
-              </button>
-            </div>
-          )}
+          {activeCommand?.status === "applied" && <OnyxRollbackControls reason={rollbackReason} onReasonChange={setRollbackReason} busy={busy !== ""} onRollback={() => void rollbackApplied()} />}
 
           <p className="onyx-apply-footnote">شروط التنفيذ: صلاحية مسؤول/مدير من المؤسسة نفسها، لقطة مخزون جاهزة ومقيدة بمخزن واحد، أكواد أصناف غير مكررة، أرصدة وحجوزات لم تتغير منذ المعاينة. أي تعارض يرفض الأمر كله دون تطبيق جزئي.</p>
         </>
