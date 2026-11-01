@@ -78,6 +78,24 @@ function metric(
   };
 }
 
+function scheduledAmountFixture() {
+  return {
+    id: "scheduled-amount:invoice-1",
+    key: "cashflow.scheduled_invoice",
+    value: 375,
+    currency: "YER",
+    status: "VERIFIED" as const,
+    completeness: "COMPLETE" as const,
+    quality: "ACCEPTABLE" as const,
+    asOf,
+    lineage: {
+      evidenceIds: ["invoice:invoice-1"],
+      formulaId: "nasr1.scheduled-invoice",
+      formulaVersion: "1",
+    },
+  };
+}
+
 function cashflowFixture() {
   return {
     ok: true as const,
@@ -98,21 +116,7 @@ function cashflowFixture() {
           id: "scheduled-invoice-1",
           direction: "INFLOW" as const,
           dueDate: "2026-11-01",
-          amount: {
-            id: "scheduled-amount:invoice-1",
-            key: "cashflow.scheduled_invoice",
-            value: 375,
-            currency: "YER",
-            status: "VERIFIED" as const,
-            completeness: "COMPLETE" as const,
-            quality: "ACCEPTABLE" as const,
-            asOf,
-            lineage: {
-              evidenceIds: ["invoice:invoice-1"],
-              formulaId: "nasr1.scheduled-invoice",
-              formulaVersion: "1",
-            },
-          },
+          amount: scheduledAmountFixture(),
         }],
         warnings: [],
       },
