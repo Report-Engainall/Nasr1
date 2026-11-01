@@ -172,7 +172,7 @@ export function StorefrontOffersPage() {
   const error = promotionsQuery.error || productsQuery.error;
   const errorTitle = promotionsQuery.error && productsQuery.error
     ? "تعذر تحميل العروض والكتالوج"
-    promotionsQuery.error ? "العروض: " + promotionsQuery.error : null,
+    : promotionsQuery.error ? "تعذر تحميل العروض" : "تعذر تحميل كتالوج المنتجات";
   const errorDetails = [
     promotionsQuery.error ? "العروض: " + promotionsQuery.error : null,
     productsQuery.error ? "الكتالوج: " + productsQuery.error : null,
