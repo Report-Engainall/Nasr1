@@ -89,10 +89,10 @@
     "disposition": "P1 triaged as synthetic test fixtures; preserve report rows pending fresh scan."
   },
   "sha_context": {
-    "main": "46f2fce34c09f64284fdbbe4182bd0f2b7ab36dc",
-    "P1": "1e51d807f48da02be4e21375769f26bb793d8efd",
-    "P2": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-    "P3": "c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688",
+    "main": "09747cb6b509a5da5c6c2138dee44c24be194e4f",
+    "P1": "103bc18018a569582208261d16f3f7a2b7e9716f",
+    "P2": "c85601a7d3213d7782c15fed93d0cd373d783025",
+    "P3": "1275602301d0b86857b659ddf76e25cdbe66ade3",
     "original_scan_sha": "UNKNOWN"
   },
   "verification_policy": {
@@ -827,11 +827,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "IMPLEMENTED_PENDING_FINAL_EXACT_HEAD_TESTS",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "df638a3aeec409cfcd7cd84a86d31b8e476acb46",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact-head Core 41257995450 PASS; P2 Playwright 41257995451 PASS (public + local Supabase); hosted tenant E2E SKIPPED.",
+      "implementation_branch_sha": "c3552f9c1a34504bb2c61f78649a5a75e6165a18",
+      "fixed_by_sha": "b0694352a4f3edf3336fb6caa0d6440957a993db",
+      "evidence": "Verified on exact PR head c3552f9c1a34504bb2c61f78649a5a75e6165a18: Core run 41257995450 SUCCESS; P2 Playwright run 41257995451 SUCCESS including public UI and local Supabase/PostgreSQL tenant/order acceptance. Hosted customer-order/tenant job SKIPPED/BLOCKED_EXTERNAL and is not PASS. Fresh CodeInspector scan is still required; finding remains open until the rule is re-run.",
       "occurrence": 1
     },
     {
@@ -1619,11 +1619,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact-head Core 41257995450 PASS; P2 Playwright 41257995451 PASS (public + local Supabase); fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "55fe8cf7681a2975a98fe6e3c58ad7adfcfaf43a",
+      "fixed_by_sha": "55fe8cf7681a2975a98fe6e3c58ad7adfcfaf43a",
+      "evidence": "Verified on exact PR head c3552f9c1a34504bb2c61f78649a5a75e6165a18: Core run 41257995450 SUCCESS; P2 Playwright run 41257995451 SUCCESS including public UI and local Supabase/PostgreSQL tenant/order acceptance. Hosted customer-order/tenant job SKIPPED/BLOCKED_EXTERNAL and is not PASS. Fresh CodeInspector scan is still required; finding remains open until the rule is re-run.",
       "occurrence": 1
     },
     {
@@ -1707,11 +1707,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact-head Core 41257995450 PASS; P2 Playwright 41257995451 PASS (public + local Supabase); fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "d15cdeff1fc4c9a31944323ad4cf4d0d740ac64e",
+      "fixed_by_sha": "d15cdeff1fc4c9a31944323ad4cf4d0d740ac64e",
+      "evidence": "Verified on exact PR head c3552f9c1a34504bb2c61f78649a5a75e6165a18: Core run 41257995450 SUCCESS; P2 Playwright run 41257995451 SUCCESS including public UI and local Supabase/PostgreSQL tenant/order acceptance. Hosted customer-order/tenant job SKIPPED/BLOCKED_EXTERNAL and is not PASS. Fresh CodeInspector scan is still required; finding remains open until the rule is re-run.",
       "occurrence": 1
     },
     {
@@ -1729,11 +1729,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact-head Core 41257995450 PASS; P2 Playwright 41257995451 PASS (public + local Supabase); fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "e79eedfd567337f3f9cb4356eb9ab9deb639b45e",
+      "fixed_by_sha": "e79eedfd567337f3f9cb4356eb9ab9deb639b45e",
+      "evidence": "Verified on exact PR head c3552f9c1a34504bb2c61f78649a5a75e6165a18: Core run 41257995450 SUCCESS; P2 Playwright run 41257995451 SUCCESS including public UI and local Supabase/PostgreSQL tenant/order acceptance. Hosted customer-order/tenant job SKIPPED/BLOCKED_EXTERNAL and is not PASS. Fresh CodeInspector scan is still required; finding remains open until the rule is re-run.",
       "occurrence": 1
     },
     {
@@ -2191,11 +2191,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact-head Core 41257995450 PASS; P2 Playwright 41257995451 PASS (public + local Supabase); fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "6bfc15974619dd9cf91809874b225e598baeacfb",
+      "fixed_by_sha": "6bfc15974619dd9cf91809874b225e598baeacfb",
+      "evidence": "Verified on exact PR head c3552f9c1a34504bb2c61f78649a5a75e6165a18: Core run 41257995450 SUCCESS; P2 Playwright run 41257995451 SUCCESS including public UI and local Supabase/PostgreSQL tenant/order acceptance. Hosted customer-order/tenant job SKIPPED/BLOCKED_EXTERNAL and is not PASS. Fresh CodeInspector scan is still required; finding remains open until the rule is re-run.",
       "occurrence": 1
     },
     {
@@ -2697,11 +2697,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact-head Core 41257995450 PASS; P2 Playwright 41257995451 PASS (public + local Supabase); fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "d15cdeff1fc4c9a31944323ad4cf4d0d740ac64e",
+      "fixed_by_sha": "d15cdeff1fc4c9a31944323ad4cf4d0d740ac64e",
+      "evidence": "Verified on exact PR head c3552f9c1a34504bb2c61f78649a5a75e6165a18: Core run 41257995450 SUCCESS; P2 Playwright run 41257995451 SUCCESS including public UI and local Supabase/PostgreSQL tenant/order acceptance. Hosted customer-order/tenant job SKIPPED/BLOCKED_EXTERNAL and is not PASS. Fresh CodeInspector scan is still required; finding remains open until the rule is re-run.",
       "occurrence": 1
     },
     {
@@ -3423,11 +3423,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact-head Core 41257995450 PASS; P2 Playwright 41257995451 PASS (public + local Supabase); fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "e79eedfd567337f3f9cb4356eb9ab9deb639b45e",
+      "fixed_by_sha": "e79eedfd567337f3f9cb4356eb9ab9deb639b45e",
+      "evidence": "Verified on exact PR head c3552f9c1a34504bb2c61f78649a5a75e6165a18: Core run 41257995450 SUCCESS; P2 Playwright run 41257995451 SUCCESS including public UI and local Supabase/PostgreSQL tenant/order acceptance. Hosted customer-order/tenant job SKIPPED/BLOCKED_EXTERNAL and is not PASS. Fresh CodeInspector scan is still required; finding remains open until the rule is re-run.",
       "occurrence": 1
     },
     {
@@ -3973,11 +3973,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact-head Core 41257995450 PASS; P2 Playwright 41257995451 PASS (public + local Supabase); fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "55fe8cf7681a2975a98fe6e3c58ad7adfcfaf43a",
+      "fixed_by_sha": "55fe8cf7681a2975a98fe6e3c58ad7adfcfaf43a",
+      "evidence": "Verified on exact PR head c3552f9c1a34504bb2c61f78649a5a75e6165a18: Core run 41257995450 SUCCESS; P2 Playwright run 41257995451 SUCCESS including public UI and local Supabase/PostgreSQL tenant/order acceptance. Hosted customer-order/tenant job SKIPPED/BLOCKED_EXTERNAL and is not PASS. Fresh CodeInspector scan is still required; finding remains open until the rule is re-run.",
       "occurrence": 1
     },
     {
@@ -5227,11 +5227,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact-head Core 41257995450 PASS; P2 Playwright 41257995451 PASS (public + local Supabase); fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "b0694352a4f3edf3336fb6caa0d6440957a993db",
+      "fixed_by_sha": "b0694352a4f3edf3336fb6caa0d6440957a993db",
+      "evidence": "Verified on exact PR head c3552f9c1a34504bb2c61f78649a5a75e6165a18: Core run 41257995450 SUCCESS; P2 Playwright run 41257995451 SUCCESS including public UI and local Supabase/PostgreSQL tenant/order acceptance. Hosted customer-order/tenant job SKIPPED/BLOCKED_EXTERNAL and is not PASS. Fresh CodeInspector scan is still required; finding remains open until the rule is re-run.",
       "occurrence": 1
     },
     {
@@ -5249,11 +5249,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact-head Core 41257995450 PASS; P2 Playwright 41257995451 PASS (public + local Supabase); fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "b0694352a4f3edf3336fb6caa0d6440957a993db",
+      "fixed_by_sha": "b0694352a4f3edf3336fb6caa0d6440957a993db",
+      "evidence": "Verified on exact PR head c3552f9c1a34504bb2c61f78649a5a75e6165a18: Core run 41257995450 SUCCESS; P2 Playwright run 41257995451 SUCCESS including public UI and local Supabase/PostgreSQL tenant/order acceptance. Hosted customer-order/tenant job SKIPPED/BLOCKED_EXTERNAL and is not PASS. Fresh CodeInspector scan is still required; finding remains open until the rule is re-run.",
       "occurrence": 1
     },
     {
@@ -5271,11 +5271,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact-head Core 41257995450 PASS; P2 Playwright 41257995451 PASS (public + local Supabase); fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "b0694352a4f3edf3336fb6caa0d6440957a993db",
+      "fixed_by_sha": "b0694352a4f3edf3336fb6caa0d6440957a993db",
+      "evidence": "Verified on exact PR head c3552f9c1a34504bb2c61f78649a5a75e6165a18: Core run 41257995450 SUCCESS; P2 Playwright run 41257995451 SUCCESS including public UI and local Supabase/PostgreSQL tenant/order acceptance. Hosted customer-order/tenant job SKIPPED/BLOCKED_EXTERNAL and is not PASS. Fresh CodeInspector scan is still required; finding remains open until the rule is re-run.",
       "occurrence": 1
     },
     {
@@ -5293,11 +5293,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "Exact-head Core 41257995450 PASS; P2 Playwright 41257995451 PASS (public + local Supabase); fresh CodeInspector rule rerun required.",
+      "implementation_branch_sha": "b0694352a4f3edf3336fb6caa0d6440957a993db",
+      "fixed_by_sha": "b0694352a4f3edf3336fb6caa0d6440957a993db",
+      "evidence": "Verified on exact PR head c3552f9c1a34504bb2c61f78649a5a75e6165a18: Core run 41257995450 SUCCESS; P2 Playwright run 41257995451 SUCCESS including public UI and local Supabase/PostgreSQL tenant/order acceptance. Hosted customer-order/tenant job SKIPPED/BLOCKED_EXTERNAL and is not PASS. Fresh CodeInspector scan is still required; finding remains open until the rule is re-run.",
       "occurrence": 1
     },
     {
@@ -5365,6 +5365,37 @@
       "fixed_by_sha": null,
       "evidence": null,
       "occurrence": 1
+    }
+  ],
+  "remediation_progress": {
+    "as_of": "2026-11-01",
+    "P2": {
+      "TS0002_implemented_pending_fresh_scan": 1,
+      "TS0003_implemented_pending_fresh_scan": 11,
+      "TS0003_active_open": 93,
+      "TS0003_archived_scope_review": 10,
+      "TS0010": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
+      "merged_pr": 338,
+      "merged_code_sha": "c3552f9c1a34504bb2c61f78649a5a75e6165a18",
+      "post_merge_documentation_commit": "c85601a7d3213d7782c15fed93d0cd373d783025"
+    },
+    "verification": {
+      "P2_core_run": 41257995450,
+      "P2_playwright_run": 41257995451,
+      "hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
+      "fresh_codeinspector_scan": "PENDING"
+    },
+    "main_sha": "09747cb6b509a5da5c6c2138dee44c24be194e4f"
+  },
+  "integration_history": [
+    {
+      "event": "MERGED",
+      "pr": 338,
+      "head": "c3552f9c1a34504bb2c61f78649a5a75e6165a18",
+      "merge_commit": "09747cb6b509a5da5c6c2138dee44c24be194e4f",
+      "merged_at": "2026-11-01T00:49:37Z",
+      "merged_by": "Report-Engainall",
+      "note": "The four-file P2 documentation checkpoint c85601a was created after this merge and is carried by the follow-up documentation PR."
     }
   ]
 }

@@ -100,3 +100,25 @@
 | P3 Playwright | c8aa51c7d1f5bcd71e0b77d69bf763b34a5fa688 | CANCELLED | 41255986229 |
 
 Original CodeInspector scan SHA UNKNOWN. Main SHA 46f2fce34c09f64284fdbbe4182bd0f2b7ab36dc. No merge claimed.
+## Live execution update — 2026-11-01
+
+- Latest verified main SHA: `46f2fce34c09f64284fdbbe4182bd0f2b7ab36dc` (unchanged; no PR in this remediation stream is merged).
+- P2 branch / PR #338 exact head: `c3552f9c1a34504bb2c61f78649a5a75e6165a18`; Ready for Review, open, mergeable, unmerged. Current-head Core run [41257995450](https://github.com/Report-Engainall/Nasr1/actions/runs/41257995450) SUCCESS; P2 Playwright run [41257995451](https://github.com/Report-Engainall/Nasr1/actions/runs/41257995451) SUCCESS for public UI and local Supabase/PostgreSQL order + tenant acceptance. Hosted customer-order/tenant job is SKIPPED / BLOCKED_EXTERNAL, not PASS.
+- P2 TS0002 Outbox implementation is now `IMPLEMENTED_PENDING_FRESH_SCAN` after exact-head Core/P2 success. P2 TS0003: 11 records across Outbox entrypoint, CustomerWorkflows, TaskCenter, AdminCustomer360 and unified-import are `IMPLEMENTED_PENDING_FRESH_SCAN`; 93 active TS0003 records remain OPEN; 10 archive-only records remain scope-review items. None are called CLOSED without fresh CodeInspector evidence.
+- P2 TS0010 InventoryTransferHistoryPage remains `NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED`; original scan SHA remains UNKNOWN.
+- P1 latest head: `103bc18018a569582208261d16f3f7a2b7e9716f`; Gitleaks run [41258345426](https://github.com/Report-Engainall/Nasr1/actions/runs/41258345426) SUCCESS; current-head Core [41258345224](https://github.com/Report-Engainall/Nasr1/actions/runs/41258345224) and Playwright [41258345211](https://github.com/Report-Engainall/Nasr1/actions/runs/41258345211) were still running at this checkpoint. P2 submitted an exact-source integration COMMENT on predecessor source head; it is not an APPROVE or independent approval. Review request sent to `adnanabderab2016-sys`.
+- P3 latest head: `deafd77df5983aeadf85b82c66dc4e5d2f51221d`; Core run [41257851901](https://github.com/Report-Engainall/Nasr1/actions/runs/41257851901), tooling run [41257851787](https://github.com/Report-Engainall/Nasr1/actions/runs/41257851787), PostgreSQL import [41257851893](https://github.com/Report-Engainall/Nasr1/actions/runs/41257851893) and async export [41257851826](https://github.com/Report-Engainall/Nasr1/actions/runs/41257851826) SUCCESS; P2 Playwright [41257851751](https://github.com/Report-Engainall/Nasr1/actions/runs/41257851751) still running. PR #340 remains Draft due a P2 privacy finding on raw Service Worker Error logging and incomplete access/refresh-token redaction (comment 6551351663).
+- Integration: P1/P2/P3 PRs remain unmerged. Independent review is still pending; P2 review comment is not a substitute. GitHub currently reports `main` as unprotected; no protection was altered or bypassed. Do not merge until exact-head checks and review gates are satisfied.
+- Next action: poll the latest P1/P3 runs; obtain reviewer feedback; merge #338 only after requested review/merge gates are met; then rebase/revalidate #339 and #340 against the new main. Continue the remaining 93 active P2 TS0003 files without repeating the recovered 239-row inventory.
+
+
+## Post-merge integration update — 2026-11-01
+
+- PR #338 is merged into `main`: merge commit `09747cb6b509a5da5c6c2138dee44c24be194e4f`; merged head `c3552f9c1a34504bb2c61f78649a5a75e6165a18`; GitHub records merge time `2026-11-01T00:49:37Z` and merger `Report-Engainall`.
+- The P2 follow-up checkpoint `c85601a7d3213d7782c15fed93d0cd373d783025` was created after #338 merged. This branch is based directly on the new main and carries only the four P2 remediation documents; it does not reintroduce P2 source changes.
+- P2 finding status: 1 TS0002 and 11 TS0003 are `IMPLEMENTED_PENDING_FRESH_SCAN`; 93 active TS0003 remain `OPEN_ASSIGNED_P2`; 10 archived TS0003 remain scope-review items; TS0010 remains not reproduced and not closed. No finding is called closed without fresh CodeInspector evidence.
+- P1 remains PR #339, latest head `103bc18018a569582208261d16f3f7a2b7e9716f`; current-head Core/P2 reruns were still in progress after the main merge. P1 Gitleaks succeeded on that head.
+- P3 remains PR #340 Draft, latest head `1275602301d0b86857b659ddf76e25cdbe66ade3`; tooling validation succeeded, current Core/P2/PG17 checks were still running. The raw Service Worker error logging / query-token redaction blocker remains outstanding.
+- Independent reviewer request `adnanabderab2016-sys` was sent for PRs #338 and #339. P2's formal COMMENTED review on #339 is not an APPROVE. PR #338 was merged by the repository owner; do not claim an independent approval.
+- Current main is unprotected according to the GitHub branch API. No branch-protection settings were changed; no force push or protection bypass was used.
+- Next: complete this docs-only checkpoint PR, re-run exact-head P1/P3 CI against the post-#338 main, resolve the P3 privacy finding, and continue the 93 active P2 TS0003 findings.
