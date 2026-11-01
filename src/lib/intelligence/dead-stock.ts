@@ -207,7 +207,7 @@ export function buildDeadStockReport(input:{
   const warnings: string[] = [];
   const historyOkay = coverageValid(product, input.asOf, rule.turnoverWindowDays, evidence);
   const movement = classifyProductMovement(product, input.asOf, rule, historyOkay);
-  const { classification, daysSinceMovement, movementStatus } = movement;
+  let { classification, daysSinceMovement, movementStatus } = movement;
   warnings.push(...movement.warnings);
   const quantityUnit=typeof product.quantityUnit==="string"?product.quantityUnit.trim():"";
   const sold=checkMetric(product.soldQuantityWindow,index,"QUANTITY",input.asOf,input.period,quantityUnit);
