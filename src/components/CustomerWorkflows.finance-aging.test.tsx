@@ -121,6 +121,10 @@ describe("finance receivables aging UI", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /طباعة كشف أعمار الذمم/ }));
     expect(window.print).toHaveBeenCalledTimes(1);
+    expect(document.documentElement).toHaveClass("print-receivables-aging");
+    expect(document.querySelector(".receivables-aging-report")).not.toBeNull();
+    window.dispatchEvent(new Event("afterprint"));
+    expect(document.documentElement).not.toHaveClass("print-receivables-aging");
     expect(mocks.rpc).toHaveBeenCalledWith("fetch_staff_receivables_aging", {
       p_limit: 200,
       p_offset: 0,

@@ -325,6 +325,31 @@ test("authorized finance documents and operational-task print remain tenant-scop
       "Playwright UI reversal acceptance after posted credit.",
       "لا يمثل رصيدًا دائنًا قائمًا",
     ]);
+    const agingPrintButton = manager.getByRole("button", {
+      name: "طباعة كشف أعمار الذمم (الملخص والصفحة المعروضة)",
+      exact: true,
+    });
+    await expect(agingPrintButton).toBeEnabled({ timeout: 15_000 });
+    await agingPrintButton.click();
+    await expect(manager.locator("html")).toHaveClass(/print-receivables-aging/);
+    await manager.emulateMedia({ media: "print" });
+    const agingPrintMetrics = await manager.evaluate(() => {
+      const report = document.querySelector(".receivables-aging-report");
+      const controls = document.querySelector(".receivables-aging-print-controls");
+      const sidebar = document.querySelector("#admin-sidebar");
+      if (!report || !controls || !sidebar) throw new Error("Finance aging print scope is missing a required page element.");
+      return {
+        reportVisibility: getComputedStyle(report).visibility,
+        controlsDisplay: getComputedStyle(controls).display,
+        unrelatedSidebarVisibility: getComputedStyle(sidebar).visibility,
+      };
+    });
+    expect(agingPrintMetrics.reportVisibility).toBe("visible");
+    expect(agingPrintMetrics.controlsDisplay).toBe("none");
+    expect(agingPrintMetrics.unrelatedSidebarVisibility).toBe("hidden");
+    await manager.evaluate(() => window.dispatchEvent(new Event("afterprint")));
+    await expect.poll(() => manager.locator("html").evaluate((element) => element.classList.contains("print-receivables-aging"))).toBe(false);
+    await manager.emulateMedia({ media: "screen" });
     await expect(manager.getByRole("heading", { name: "طباعة المستندات المالية حسب الصلاحية" }).first()).toBeVisible();
 
     await manager.goto("/admin/tasks");
@@ -424,6 +449,8 @@ test("authorized finance documents and operational-task print remain tenant-scop
         invoicePrinted: true,
         fullStatementPrinted: true,
         postedOrReversedCreditMemoPrintAttempted: true,
+        receivablesAgingPrintIsolatedToVisibleReport: true,
+        receivablesAgingPrintRestoresScreenAfterAfterPrint: true,
         foreignTenantCustomerAbsentFromStatementOptions: true,
         operationalTaskPrintInvoked: true,
         purchaseOrderPrintInvoked: true,

@@ -2901,6 +2901,22 @@ export function StaffFinancePage() {
   const [agingOffset, setAgingOffset] = useState(0);
   const [agingLoading, setAgingLoading] = useState(false);
   const [agingError, setAgingError] = useState("");
+
+  function printReceivablesAgingReport() {
+    const root = document.documentElement;
+    root.classList.add("print-receivables-aging");
+    const restore = () => {
+      root.classList.remove("print-receivables-aging");
+      window.removeEventListener("afterprint", restore);
+    };
+    window.addEventListener("afterprint", restore, { once: true });
+    try {
+      window.print();
+    } catch (cause) {
+      restore();
+      throw cause;
+    }
+  }
   const loadInvoices = useCallback(async (
     beforeIssuedAt: string | null,
     beforeId: string | null,
@@ -3248,7 +3264,7 @@ export function StaffFinancePage() {
               type="button"
               style={secondary}
               disabled={agingLoading || !agingReport || Boolean(agingError)}
-              onClick={() => window.print()}
+              onClick={printReceivablesAgingReport}
             >طباعة كشف أعمار الذمم (الملخص والصفحة المعروضة)</button>
           </div>
           {agingReport && (
