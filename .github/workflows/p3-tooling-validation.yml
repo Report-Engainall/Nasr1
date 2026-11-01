@@ -41,10 +41,12 @@ jobs:
       - name: Compile all scoped Python utilities
         run: |
           python -m py_compile scripts/persist-bolt-reconciliation-evidence.py
+          python -m py_compile scripts/diagnostic_logging.py
           python -m py_compile scripts/reconcile-bolt-recovery-archives.py
           python -m py_compile scripts/reconcile-source-release-snapshots.py
       - name: Run archive and persistence self-tests
         run: |
+          python scripts/diagnostic_logging.py --self-test
           python scripts/persist-bolt-reconciliation-evidence.py --self-test
           python scripts/reconcile-bolt-recovery-archives.py --self-test
           python scripts/reconcile-source-release-snapshots.py --self-test
