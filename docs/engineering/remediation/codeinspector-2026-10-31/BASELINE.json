@@ -90,12 +90,12 @@
   },
   "sha_context": {
     "main": "71de0500aab508cc4cd4d41265304c397a4f3345",
-    "P1": "4c58d1a47b8ffef6d14d63fe3000104e95a42f93",
-    "P2": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
-    "P3": "15ae8ddfb16c10183b09eabd769d8ac022c06d70",
+    "P1": "37d0c058f4a7a943eb1b1cd2e2812ef4874b818a",
+    "P2": "03dcbfd30a9fd1fe176ed504c5efc67a9387bb73",
+    "P3": "c7a4391fd13ae64895d93245358d09898a85a036",
     "original_scan_sha": "UNKNOWN",
     "P1_merge": "71de0500aab508cc4cd4d41265304c397a4f3345",
-    "P2_batch_03": "7bc14715711e72da3aaabf74d93a910a7cd7f01b",
+    "P2_batch_03": "03dcbfd30a9fd1fe176ed504c5efc67a9387bb73",
     "P3_pr_head": "c7a4391fd13ae64895d93245358d09898a85a036"
   },
   "verification_policy": {
@@ -2150,11 +2150,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "app-auth-bootstrap.test.ts verifies signed-out state, successful hydration, unmount cancellation and stale-profile race rejection; exact-head Core/P2 pending.",
+      "implementation_branch_sha": "03dcbfd30a9fd1fe176ed504c5efc67a9387bb73",
+      "fixed_by_sha": "03dcbfd30a9fd1fe176ed504c5efc67a9387bb73",
+      "evidence": "P2 batch03 branch commit 03dcbfd30a9fd1fe176ed504c5efc67a9387bb73; fresh CodeInspector scan pending; PR creation pending.",
       "occurrence": 1
     },
     {
@@ -2172,11 +2172,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "admin-audit-log.test.tsx verifies tenant scope, pagination, role gating, failed count handling and filtered-vs-loaded count; exact-head Core/P2 pending.",
+      "implementation_branch_sha": "03dcbfd30a9fd1fe176ed504c5efc67a9387bb73",
+      "fixed_by_sha": "03dcbfd30a9fd1fe176ed504c5efc67a9387bb73",
+      "evidence": "P2 batch03 branch commit 03dcbfd30a9fd1fe176ed504c5efc67a9387bb73; fresh CodeInspector scan pending; PR creation pending.",
       "occurrence": 1
     },
     {
@@ -5374,15 +5374,15 @@
     "as_of": "2026-11-01",
     "P2": {
       "TS0002_implemented_pending_fresh_scan": 1,
-      "TS0003_implemented_pending_fresh_scan": 15,
-      "TS0003_active_open": 89,
+      "TS0003_implemented_pending_fresh_scan": 18,
+      "TS0003_active_open": 87,
       "TS0003_archived_scope_review": 10,
       "TS0010": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
       "merged_pr": 338,
       "merged_code_sha": "c3552f9c1a34504bb2c61f78649a5a75e6165a18",
       "post_merge_documentation_commit": "c85601a7d3213d7782c15fed93d0cd373d783025",
-      "latest_code_commit": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
-      "latest_pr": 342
+      "latest_code_commit": "03dcbfd30a9fd1fe176ed504c5efc67a9387bb73",
+      "latest_pr": "pending-create"
     },
     "verification": {
       "P2_core_run": 41257995450,
@@ -5390,7 +5390,7 @@
       "hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
       "fresh_codeinspector_scan": "PENDING"
     },
-    "main_sha": "eda843b1932887a2a5219916109ac851b8dfde9f"
+    "main_sha": "71de0500aab508cc4cd4d41265304c397a4f3345"
   },
   "integration_history": [
     {
