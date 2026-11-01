@@ -8,6 +8,55 @@ import { supabase } from '../../lib/supabase'
 import { formatPrice } from '../../lib/pricing'
 import { TIER_LABELS } from '../../lib/types'
 
+type CartItem = ReturnType<typeof useCartStore.getState>['items'][number];
+type CartUpdater = ReturnType<typeof useCartStore.getState>['updateQuantity'];
+type CartRemover = ReturnType<typeof useCartStore.getState>['removeItem'];
+
+function CartProductThumbnail({ item }: { item: CartItem }) {
+  if (!item.product.image_url) {
+    return <span style={{ fontSize: '11px', color: 'var(--color-text-light)' }}>{item.product.item_code}</span>;
+  }
+  return <img src={item.product.image_url} alt={item.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius-md)' }} />;
+}
+
+function CartQuantityControl({ item, updateQuantity }: { item: CartItem; updateQuantity: CartUpdater }) {
+  const label = 'كمية ' + item.product.name;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+      <button type="button" aria-label={'تقليل ' + label} onClick={() => updateQuantity(item.product.id, item.quantity - 1)} style={{ padding: '6px 10px', background: 'var(--color-bg-alt)' }}><Minus size={14} /></button>
+      <input aria-label={label} type="number" min="0" value={item.quantity} onChange={(event) => updateQuantity(item.product.id, Number.parseInt(event.target.value, 10) || 0)} style={{ width: '50px', textAlign: 'center', border: 'none', outline: 'none', padding: '6px 0', fontSize: '14px' }} />
+      <button type="button" aria-label={'زيادة ' + label} onClick={() => updateQuantity(item.product.id, item.quantity + 1)} style={{ padding: '6px 10px', background: 'var(--color-bg-alt)' }}><Plus size={14} /></button>
+    </div>
+  );
+}
+
+function CartItemRow({ item, showPrices, currency, updateQuantity, removeItem }: {
+  item: CartItem;
+  showPrices: boolean;
+  currency: string;
+  updateQuantity: CartUpdater;
+  removeItem: CartRemover;
+}) {
+  return (
+    <article className="card" style={{ padding: '16px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+      <div style={{ width: '64px', height: '64px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-alt)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <CartProductThumbnail item={item} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <Link to={'/product/' + item.product.id} style={{ fontWeight: 600, fontSize: '15px' }}>{item.product.name}</Link>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+          <span className="text-muted" style={{ fontSize: '12px' }}>{item.product.item_code}</span>
+          <span className="text-muted" style={{ fontSize: '12px' }}>{item.product.unit}</span>
+        </div>
+      </div>
+      <CartQuantityControl item={item} updateQuantity={updateQuantity} />
+      {showPrices && <div style={{ fontWeight: 700, minWidth: '100px', textAlign: 'center' }}>{formatPrice(item.quantity * item.unitPrice, currency)}</div>}
+      <button type="button" onClick={() => removeItem(item.product.id)} className="btn btn-ghost" aria-label={'إزالة ' + item.product.name + ' من السلة'} style={{ color: 'var(--color-error)' }}><Trash2 size={18} /></button>
+    </article>
+  );
+}
+
+
 export default function CartPage() {
   const navigate = useNavigate()
   const { items, updateQuantity, removeItem, clearCart, getTotalAmount } = useCartStore()
@@ -53,24 +102,7 @@ export default function CartPage() {
       {customer && <div className="card mb-4" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}><span className="badge badge-info">{TIER_LABELS[customer.customer_tier] || 'تجزئة'}</span><span className="text-muted" style={{ fontSize: '14px' }}>العميل: {customer.full_name}</span></div>}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '20px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {items.map((item) => (
-            <div key={item.product.id} className="card" style={{ padding: '16px', display: 'flex', gap: '16px', alignItems: 'center' }}>
-              <div style={{ width: '64px', height: '64px', borderRadius: 'var(--radius-md)', background: 'var(--color-bg-alt)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {item.product.image_url ? <img src={item.product.image_url} alt={item.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius-md)' }} /> : <span style={{ fontSize: '11px', color: 'var(--color-text-light)' }}>{item.product.item_code}</span>}
-              </div>
-              <div style={{ flex: 1 }}>
-                <Link to={`/product/${item.product.id}`} style={{ fontWeight: 600, fontSize: '15px' }}>{item.product.name}</Link>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}><span className="text-muted" style={{ fontSize: '12px' }}>{item.product.item_code}</span><span className="text-muted" style={{ fontSize: '12px' }}>{item.product.unit}</span></div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-                <button onClick={() => updateQuantity(item.product.id, item.quantity - 1)} style={{ padding: '6px 10px', background: 'var(--color-bg-alt)' }}><Minus size={14} /></button>
-                <input type="number" value={item.quantity} onChange={(e) => updateQuantity(item.product.id, parseInt(e.target.value) || 0)} style={{ width: '50px', textAlign: 'center', border: 'none', outline: 'none', padding: '6px 0', fontSize: '14px' }} />
-                <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)} style={{ padding: '6px 10px', background: 'var(--color-bg-alt)' }}><Plus size={14} /></button>
-              </div>
-              {showPrices && <div style={{ fontWeight: 700, minWidth: '100px', textAlign: 'center' }}>{formatPrice(item.quantity * item.unitPrice, currency)}</div>}
-              <button onClick={() => removeItem(item.product.id)} className="btn btn-ghost" style={{ color: 'var(--color-error)' }}><Trash2 size={18} /></button>
-            </div>
-          ))}
+          {items.map((item) => <CartItemRow key={item.product.id} item={item} showPrices={showPrices} currency={currency} updateQuantity={updateQuantity} removeItem={removeItem} />)}
           <button onClick={clearCart} className="btn btn-ghost" style={{ color: 'var(--color-error)', justifyContent: 'flex-start' }}><Trash2 size={16} /> إفراغ السلة</button>
         </div>
         <div className="card" style={{ padding: '20px', height: 'fit-content', position: 'sticky', top: '80px' }}>
