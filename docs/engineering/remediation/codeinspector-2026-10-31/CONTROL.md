@@ -1,3 +1,59 @@
+# CONTROL — CodeInspector remediation / live control snapshot
+
+## Source of truth
+- Repository: `Report-Engainall/Nasr1`
+- Product: متجر الأغبري | Aghbari Commerce
+- Integration target: `main`
+- Last verified `main` SHA: `46f2fce34c09f64284fdbbe4182bd0f2b7ab36dc`
+- No PR from this remediation stream has been merged as of this checkpoint.
+- Original report: `scan-5a0dd3e4-941c-45bc-98df-05e0e9aa19f4.pdf`, recovered from Library ref `turn43file0`; report time `2026-10-31T22:02:18.5552070Z`.
+- `ORIGINAL_SCAN_SHA=UNKNOWN`; scanner version not stated in the PDF.
+
+## Baseline / ownership
+- 239 findings across 703 files and 127,555 LOC.
+- Rule totals: TS0003=170, TS0002=3, TS0010=1, TS0004=9, TS0009=9, JS0001=12, JS0007=26, JS0005=2, PY0002=3, PY0003=2, PY0005=2.
+- Severity: Critical=18, High=15, Medium=177, Low=29.
+- Ownership: P1=25; P2=116 (114 TS0003 + 1 TS0002 + 1 TS0010); P3=98.
+- P2 TS0003 split: 104 current-tree active paths + 10 READY_TO_REUSE archived reference paths. The archived ten are not active runtime edit targets.
+- All 239 records are present in `BASELINE.json`; path resolution records 229 exact current-tree paths and 10 archive-only paths.
+- Confirmed duplicate findings: 0. Confirmed false positives: 0. The 18 TS0004/TS0009 rows are P1 fixture-only triage candidates pending fresh analyzer verification; do not count as closed.
+
+## Live PR / branch / CI status at checkpoint
+| Role | PR | Branch SHA at last check | PR state | Exact-head evidence |
+|---|---:|---|---|---|
+| P1 | #339 | `da9b1ad36a287ee9107e69a28bffc2cd2b6ced7d` | Ready / open | Gitleaks run 41256370447 PASS; Core 41256370438 and Playwright 41256370536 IN_PROGRESS |
+| P2 | #338 | `9ae3101d91bbedb63cfb24e7cdd3425b1f3f6593` | Ready / open | Core 41256411384 IN_PROGRESS; Playwright 41256411365 PENDING |
+| P3 | #340 | `fba12d40e428974b2640ce358c498f1c04155154` | Draft / open | Core 41256077892 PASS; tooling 41256077934 PASS; PG17 export 41256077957 PASS; PG17 import 41256078039 PASS; Playwright 41256077918 IN_PROGRESS |
+
+Historical PASS results are SHA-bound and are not substituted for later PR heads. P2 Core and local Playwright both passed on code/test SHA `767744ef57e6f24e7b3f707d8b9cd0ae1e257762`; those results do not replace the runs required for the documentation-inclusive P2 head. On that earlier P2 run the hosted customer-order / tenant E2E job was SKIPPED because the hosted non-production tenant environment and write approval were unavailable; local isolated Supabase tenant-denial and order-persistence acceptance passed.
+
+## P2 technical status
+- TS0002 `supabase/functions/outbox-worker/index.ts:31`: refactored into typed `handler.ts`; preserves POST/auth validation, 4096-byte bounded body with content-length hint, batch default 20/range 1–50, 300-second lease, RPC names/parameters, sequential processing, and sanitized failure persistence.
+- Exact source boundary assertion verifies the 4096 cap and `content-length` forwarding. Focused TypeScript and Core CI passed on code/test SHA `767744e`; P2 local authenticated Playwright passed on that SHA.
+- No DB migration, RLS, accounting, inventory, or production integration changes in the Outbox refactor.
+- TS0010 page currently has zero `any` tokens and uses `InventoryTransferHistoryRow`; leave `NOT_REPRODUCED / NOT_CLOSED` until the original input SHA is identified.
+- The 114 operational TS0003 records are now enumerated. They are OPEN; 10 correspond to archived reference snapshots, not active runtime paths. Do not mass-refactor files without per-path ownership and behavioral evidence.
+
+## Integration hazards / controls
+- P2 initially included placeholder `P1.md` and `P3.md` files, while PR #339 and #340 own those same paths. This checkpoint removes those two files from P2 so their owner PRs add the canonical logs without Add/Add conflicts. P2 retains `CONTROL.md`, `BASELINE.json`, `P2.md`, and `EVIDENCE.md`.
+- Formal independent human approvals are not recorded at this checkpoint. A self-review by the PR author is not an independent approval.
+- Branch-protection endpoint returned HTTP 403 to the connected integration; required-review rules could not be inspected. Do not bypass protections or merge around a required review.
+- No force push, ruleset weakening, workflow skipping, or DB/RLS workaround.
+
+## Resume cursor
+1. Re-read live branch refs and PR heads; this document records a checkpoint, not a substitute for GitHub's live SHA.
+2. Finish Core and P2 Playwright for the current P2 PR head; require both terminal SUCCESS on the same SHA.
+3. Resolve the independent review / repository protection gate, then merge #338 using expected-head SHA and verify the merge commit on `main`.
+4. P1 #339 must finish Core and local P2 Playwright on its latest head; integrate after #338 with fresh exact-head checks.
+5. P3 #340 must finish Core and Playwright on its latest head; move Draft to Ready only after review and exact-head gates.
+6. Run a fresh CodeInspector scan when an authorized scanner workspace is available. Keep the original scan SHA UNKNOWN until supported by evidence; do not claim the 114 TS0003 issues closed from a manifest alone.
+7. After every merge, update `main` SHA, rebase/retarget remaining work without force-push, and rerun the affected CI.
+
+
+---
+
+## Historical log preserved — superseded by the live snapshot above
+
 # CONTROL — CodeInspector remediation 2026-10-31
 
 ## Live snapshot — 2026-11-01

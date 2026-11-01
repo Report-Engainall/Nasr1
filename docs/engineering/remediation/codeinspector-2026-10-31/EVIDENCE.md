@@ -1,3 +1,54 @@
+# EVIDENCE — CodeInspector remediation / current checkpoint
+
+## Recovered scan source
+- Library attachment: `scan-5a0dd3e4-941c-45bc-98df-05e0e9aa19f4.pdf` (21 pages; Files ref `turn43file0`).
+- Report timestamp: `2026-10-31T22:02:18.5552070Z`.
+- Totals: 703 files, 127,555 LOC, 239 findings.
+- Original scan input SHA: `UNKNOWN`; scanner version: not stated in the PDF.
+- Complete finding inventory: `BASELINE.json` (239 records, stable IDs, ownership and path-resolution states).
+
+## Verified baseline distribution
+- Rule IDs: TS0003=170; TS0002=3; TS0010=1; TS0004=9; TS0009=9; JS0001=12; JS0007=26; JS0005=2; PY0002=3; PY0003=2; PY0005=2.
+- Severity: Critical=18; High=15; Medium=177; Low=29.
+- Ownership: P1=25; P2=116; P3=98.
+- P2 TS0003: 114 total; 104 current active-tree paths, 10 archived reference snapshots. Do not edit archived code as live application code.
+- Duplicate disposition: no duplicates confirmed; repeated same-rule/basename/line records remain candidates until source path identity is proven.
+- False-positive disposition: none closed. P1's 18 paired TS0004/TS0009 fixture findings are triaged as fixture-only but stay open pending analyzer verification. TS0010 is not reproduced on inspected main, but remains open because the scan SHA is unknown.
+
+## P2 Outbox — exact code/test evidence
+- Code/test SHA: `767744ef57e6f24e7b3f707d8b9cd0ae1e257762`.
+- Core / Aghbari Commerce run [41255608732](https://github.com/Report-Engainall/Nasr1/actions/runs/41255608732): SUCCESS. Includes unit tests, focused strict TypeScript check, isolated PostgreSQL 17 acceptance, lint/build and browser price visibility.
+- P2 Playwright run [41255608752](https://github.com/Report-Engainall/Nasr1/actions/runs/41255608752): local Supabase authenticated E2E job SUCCESS; public UI smoke SUCCESS. Hosted customer-order/tenant isolation job SKIPPED because dedicated hosted test tenants/write access were not available. SKIPPED is not PASS.
+- The 4096-byte boundary and `content-length` handoff are pinned by `src/test/outbox-worker-source.test.ts`; the bounded reader also enforces streamed byte count in `supabase/functions/_shared/bounded-body.ts`.
+- No database/RLS/migration changes in the Outbox refactor.
+
+## P1 evidence — exact-head status
+- PR #339 latest head at checkpoint: `da9b1ad36a287ee9107e69a28bffc2cd2b6ced7d`.
+- Gitleaks full-history scan [41256370447](https://github.com/Report-Engainall/Nasr1/actions/runs/41256370447): SUCCESS on that head.
+- Core [41256370438](https://github.com/Report-Engainall/Nasr1/actions/runs/41256370438): IN_PROGRESS at last poll.
+- P2 Playwright [41256370536](https://github.com/Report-Engainall/Nasr1/actions/runs/41256370536): local Supabase job IN_PROGRESS at last poll; hosted test SKIPPED.
+- Previous results on SHA `1e51d` are not transferred to `da9b1ad`.
+
+## P3 evidence — exact-head status
+- PR #340 latest head at checkpoint: `fba12d40e428974b2640ce358c498f1c04155154`; Draft/open.
+- Core [41256077892](https://github.com/Report-Engainall/Nasr1/actions/runs/41256077892): SUCCESS.
+- Tooling [41256077934](https://github.com/Report-Engainall/Nasr1/actions/runs/41256077934): SUCCESS (Python 3.12 compile/self-tests; Node 22 syntax, Service Worker and logger redaction checks).
+- PostgreSQL 17 async export [41256077957](https://github.com/Report-Engainall/Nasr1/actions/runs/41256077957): SUCCESS.
+- PostgreSQL 17 import finalizer [41256078039](https://github.com/Report-Engainall/Nasr1/actions/runs/41256078039): SUCCESS.
+- P2 Playwright [41256077918](https://github.com/Report-Engainall/Nasr1/actions/runs/41256077918): IN_PROGRESS at last poll; do not promote Draft until terminal and reviewed.
+
+## Integration state
+- Latest observed `main` SHA: `46f2fce34c09f64284fdbbe4182bd0f2b7ab36dc`; no merge yet.
+- P2 documentation-inclusive head at last poll: `9ae3101d91bbedb63cfb24e7cdd3425b1f3f6593`; Core run 41256411384 IN_PROGRESS; Playwright run 41256411365 PENDING.
+- Formal independent approval was not recorded. Branch-protection GET returned 403 to this integration, so the exact required-review setting could not be read; no protection is bypassed.
+- Every PASS above is attached to the SHA shown; no PASS is transferred to later heads.
+- Fresh CodeInspector scan has not been run; do not label findings fixed from refactor count alone.
+
+
+---
+
+## Historical log preserved — superseded by the live snapshot above
+
 # EVIDENCE — CodeInspector remediation
 
 ## Baseline
