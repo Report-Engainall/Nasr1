@@ -176,3 +176,26 @@ Original CodeInspector scan SHA UNKNOWN. Main SHA 46f2fce34c09f64284fdbbe4182bd0
 - Two P2 TS0003 findings in OrdersPage are now `IMPLEMENTED_PENDING_FRESH_SCAN`; P2 total is 1 TS0002 + 19 TS0003 pending fresh scan, 85 active TS0003 OPEN, 10 archived scope-review. TS0010 remains not reproduced and not closed.
 - P2 batch 05 PR #346 is open and separately tracks Customer 360 recent-order print rendering; its finding is not included in this main-branch count until merge.
 - Next: run exact-head Core/P2 checks on PR #344's synchronized head, merge only after terminal success, then integrate P2 batch 05 and continue the remaining 85 active TS0003 rows.
+
+
+## Exact integration evidence — 2026-11-01 — P2 current batches
+
+### PR #347 base synchronization
+- Old branch commit: `6dad440d60542f141172d52819feb76a7e36b47c`.
+- Main commit used for sync: `85d39603d658bacced1d2b866b7189564d921048`.
+- Two-parent sync commit: `a2dd6e051139b95cc425dbcb7b99593db66e6feb`; tree built from main with only ActionCard source/test blobs preserved from feature branch. Remote branch update used expected old SHA and `force=false`.
+- Baseline reconciliation commit: `bcdb21468997fa08b1056ba2fad83d4959f0343c`, preserving 239 findings and applying only the ActionCard status/fix evidence on top of main's #344 ledger.
+- Exact current head after this docs update will trigger fresh Core/P2/SecretScan; the immediately preceding snapshot showed Core 41263220951 IN_PROGRESS, P2 41263220955 PENDING, Secret Scan 41263220948 SUCCESS. Do not transfer runs from prior head `a2dd6e...`.
+
+### Workflow evidence at this snapshot
+| PR / SHA | Core | P2 Playwright | Secret / Gitleaks | Boundary |
+| --- | --- | --- | --- | --- |
+| #346 / `b5de0b9` | 41262839862 SUCCESS | 41262839859 local Supabase IN_PROGRESS; public/auth SUCCESS | 41262839835 SUCCESS | Hosted tenant SKIPPED |
+| #347 / `bcdb214` | 41263220951 IN_PROGRESS | 41263220955 PENDING | 41263220948 SUCCESS | Exact-head revalidation required |
+| #348 / `c5e4ff9` | 41262558778 SUCCESS | 41262558809 local Supabase SUCCESS; public/auth SUCCESS | 41262558780 SUCCESS | Hosted tenant SKIPPED; base stale |
+| #349 / `80e8a16` | 41262892754 SUCCESS | 41262892799 local Supabase SUCCESS; public/auth SUCCESS | 41262892823 SUCCESS | Hosted tenant SKIPPED |
+| #350 / `5f3dd36` | 41262952777 SUCCESS | 41262952629 local Supabase IN_PROGRESS; public/auth SUCCESS | 41262952634 SUCCESS; P1 TS 41262952776 SUCCESS | Hosted tenant SKIPPED |
+
+- A skipped hosted test is not PASS. Local Supabase persistence/tenant tests are separate evidence and are not described as hosted acceptance.
+- Fresh CodeInspector scan: PENDING. ORIGINAL_SCAN_SHA: UNKNOWN. No TypeScript finding is marked CLOSED based only on this source refactor or CI.
+
