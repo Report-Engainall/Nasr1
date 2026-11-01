@@ -61,8 +61,10 @@ describe("Customer360PrintSheet recent order rows", () => {
       />,
     );
 
-    expect(screen.getAllByTestId("customer-360-print-order-row")).toHaveLength(2);
-    expect(screen.getByText("ORD-001")).toBeInTheDocument();
+    const rows = screen.getAllByTestId("customer-360-print-order-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("ORD-001");
+    expect(rows[1]).toHaveTextContent("ORD-002");
     expect(screen.getByText("ORD-002")).toBeInTheDocument();
   });
 
