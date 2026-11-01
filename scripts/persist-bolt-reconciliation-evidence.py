@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -43,15 +44,32 @@ def read_csv(path: Path) -> tuple[list[str], list[dict[str, str]]]:
 
 
 def write_csv(path: Path, fields: list[str], rows: list[dict[str, Any]]) -> None:
-    with path.open("w", encoding="utf-8-sig", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=fields,
-            extrasaction="ignore",
-            quoting=csv.QUOTE_ALL,
-        )
-        writer.writeheader()
-        writer.writerows({key: row.get(key, "") for key in fields} for row in rows)
+    """Publish CSV atomically so a failed write cannot truncate historical evidence."""
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8-sig",
+            newline="",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary_path = Path(handle.name)
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=fields,
+                extrasaction="ignore",
+                quoting=csv.QUOTE_ALL,
+            )
+            writer.writeheader()
+            writer.writerows({key: row.get(key, "") for key in fields} for row in rows)
+        os.replace(temporary_path, path)
+    except BaseException:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise
 
 
 def replace_region(text: str, start: str, end: str, replacement: str) -> str:
@@ -85,7 +103,65 @@ def run_self_test() -> int:
     assert ledger_row["source_blob_sha"] == "blob"
     assert "identical=2" in ledger_row["reason"]
     assert "self-test" in ledger_row["test_command"]
-    print("PERSISTENCE_SELF_TEST PASS")
+
+    with tempfile.TemporaryDirectory(prefix="nasr1-persist-self-test-") as directory:
+        temp_root = Path(directory)
+        try:
+            read_csv(temp_root / "missing.csv")
+        except FileNotFoundError:
+            pass
+        else:
+            raise AssertionError("missing evidence input was accepted")
+
+        corrupt_input = temp_root / "corrupt.csv"
+        corrupt_input.write_bytes(b"\xff\xff")
+        try:
+            read_csv(corrupt_input)
+        except UnicodeDecodeError:
+            pass
+        else:
+            raise AssertionError("invalid UTF-8 evidence input was accepted")
+
+        evidence_file = temp_root / "evidence.csv"
+        evidence_file.write_text("historical evidence must survive\n", encoding="utf-8")
+        original_replace = os.replace
+
+        def deny_atomic_publish(source, target):
+            raise PermissionError("synthetic destination permission denial")
+
+        try:
+            os.replace = deny_atomic_publish
+            try:
+                write_csv(evidence_file, ["archive_id"], [{"archive_id": "new"}])
+            except PermissionError:
+                pass
+            else:
+                raise AssertionError("failed atomic publication was reported as success")
+        finally:
+            os.replace = original_replace
+
+        assert evidence_file.read_text(encoding="utf-8") == "historical evidence must survive\n"
+        assert not list(temp_root.glob(".evidence.csv.*.tmp")), "failed publication left a temporary file"
+
+        write_csv(evidence_file, ["archive_id"], [{"archive_id": "restored"}])
+        fields, restored_rows = read_csv(evidence_file)
+        assert fields == ["archive_id"] and restored_rows == [{"archive_id": "restored"}]
+
+        if hasattr(os, "geteuid") and os.geteuid() != 0:
+            read_only = temp_root / "read-only"
+            read_only.mkdir()
+            read_only.chmod(0o500)
+            try:
+                try:
+                    write_csv(read_only / "denied.csv", ["id"], [{"id": "blocked"}])
+                except PermissionError:
+                    pass
+                else:
+                    raise AssertionError("read-only output directory accepted a write")
+            finally:
+                read_only.chmod(0o700)
+
+    print("PERSISTENCE_SELF_TEST PASS: missing/corrupt input, atomic write failure, historical-file preservation and successful restore")
     return 0
 
 

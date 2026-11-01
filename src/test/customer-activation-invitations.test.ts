@@ -17,6 +17,19 @@ const TOKEN = "a".repeat(64);
 const EXPIRES = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 const INVALID_INVITATION_ROWS = Array.from({ length: 21 }, () => ({}));
 
+function invalidActivationWorkspaceResponse() {
+  return {
+    data: {
+      customer_id: CUSTOMER_ID,
+      customer_email: null,
+      customer_status: "approved",
+      is_linked: false,
+      invitations: INVALID_INVITATION_ROWS,
+    },
+    error: null,
+  };
+}
+
 describe("customer activation invitation RPC adapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -123,14 +136,7 @@ describe("customer activation invitation RPC adapter", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("list_customer_activation_invitations", { p_customer_id: CUSTOMER_ID });
     expect(workspace.invitations[0].status).toBe("pending");
 
-    mocks.rpc.mockResolvedValueOnce({
-      data: {
-        customer_id: CUSTOMER_ID, customer_email: null,
-        customer_status: "approved", is_linked: false,
-        invitations: INVALID_INVITATION_ROWS,
-      },
-      error: null,
-    });
+    mocks.rpc.mockResolvedValueOnce(invalidActivationWorkspaceResponse());
     await expect(fetchCustomerActivationWorkspace(CUSTOMER_ID)).rejects.toThrow(/غير صالحة/);
   });
 
