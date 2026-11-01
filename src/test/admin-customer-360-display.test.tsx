@@ -8,6 +8,19 @@ import type { Customer } from "@/lib/types";
 const mocks = vi.hoisted(() => ({
   fetchSummary: vi.fn(),
   scopedCustomerId: "customer-360-1" as string | null,
+  createQuery: (scopedCustomerId: string | null) => {
+    const query = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      maybeSingle: vi.fn(async () => ({
+        data: scopedCustomerId ? { id: scopedCustomerId } : null,
+        error: null,
+      })),
+    };
+    query.select.mockReturnValue(query);
+    query.eq.mockReturnValue(query);
+    return query;
+  },
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -16,21 +29,7 @@ vi.mock("@/lib/api", () => ({
 
 vi.mock("@/lib/supabase", () => ({
   getCurrentTenantScope: vi.fn(async () => ({ organizationId: "org-customer-360" })),
-  supabase: {
-    from: vi.fn(() => {
-      const query = {
-        select: vi.fn(),
-        eq: vi.fn(),
-        maybeSingle: vi.fn(async () => ({
-          data: mocks.scopedCustomerId ? { id: mocks.scopedCustomerId } : null,
-          error: null,
-        })),
-      };
-      query.select.mockReturnValue(query);
-      query.eq.mockReturnValue(query);
-      return query;
-    }),
-  },
+  supabase: { from: vi.fn(() => mocks.createQuery(mocks.scopedCustomerId)) },
 }));
 
 vi.mock("@/lib/format", () => ({
