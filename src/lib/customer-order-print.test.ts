@@ -47,16 +47,16 @@ describe('customer order print projection', () => {
     expect(document.deliveryAddress?.phone).toBe('777000111');
   });
   it('never projects internal identifiers, actor data, admin notes, private history or monetary fields', () => {
-    const makeSentinel = (label: string) => `${label}-${randomUUID()}`;
+    const makeSentinel = () => randomUUID();
     const sentinels = {
-      orderId: makeSentinel('private-order'), customerId: makeSentinel('private-customer'),
-      tenantId: makeSentinel('private-tenant'), adminNote: makeSentinel('private-admin-note'),
-      actorId: makeSentinel('private-actor'), rawObject: makeSentinel('private-payload'),
-      lineId: makeSentinel('private-line'), productId: makeSentinel('private-product'),
-      historyId: makeSentinel('private-history'), historyNote: makeSentinel('private-history-note'),
-      historyActor: makeSentinel('private-history-actor'), customerRowId: makeSentinel('private-customer-row'),
-      profileId: makeSentinel('private-profile'), accountPhone: makeSentinel('private-account-phone'),
-      customerNote: makeSentinel('private-customer-note'),
+      orderId: makeSentinel(), customerId: makeSentinel(),
+      tenantId: makeSentinel(), adminNote: makeSentinel(),
+      actorId: makeSentinel(), rawObject: makeSentinel(),
+      lineId: makeSentinel(), productId: makeSentinel(),
+      historyId: makeSentinel(), historyNote: makeSentinel(),
+      historyActor: makeSentinel(), customerRowId: makeSentinel(),
+      profileId: makeSentinel(), accountPhone: makeSentinel(),
+      customerNote: makeSentinel(),
     };
     const rawOrder = {
       ...order, id: sentinels.orderId, customer_id: sentinels.customerId,

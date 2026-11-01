@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { act, createElement, type ComponentType } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -26,8 +26,25 @@ function renderResetPasswordPage() {
   return render(createElement(component));
 }
 
+function randomCharacter(characters: string): string {
+  const randomByte = randomBytes(1)[0] ?? 0;
+  return characters[randomByte % characters.length] ?? characters[0] ?? "";
+}
+
 function fillValidPassword(): string {
-  const password = `Aa9!${randomUUID()}`;
+  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lowercase = "abcdefghijklmnopqrstuvwxyz";
+  const digits = "0123456789";
+  const symbols = "!#$%&*+-=?@^_";
+  const alphabet = uppercase + lowercase + digits + symbols;
+  const randomTail = Array.from(randomBytes(20), (value) => alphabet[value % alphabet.length] ?? "");
+  const password = [
+    randomCharacter(uppercase),
+    randomCharacter(lowercase),
+    randomCharacter(digits),
+    randomCharacter(symbols),
+    ...randomTail,
+  ].join("");
   fireEvent.change(screen.getByLabelText("كلمة المرور الجديدة"), {
     target: { value: password },
   });
