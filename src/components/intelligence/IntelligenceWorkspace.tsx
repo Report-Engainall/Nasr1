@@ -221,6 +221,7 @@ function DecisionCyclePanel({
   const outcomes = outcomeResult?.ok ? outcomeResult.items : [];
   const showError = !outcomesLoading && outcomeResult !== null && !outcomeResult.ok;
   const showEmpty = !outcomesLoading && outcomeResult?.ok === true && outcomeResult.items.length === 0;
+  const showItems = !outcomesLoading && outcomes.length > 0;
 
   return (
     <section className="panel space-y-3">
@@ -232,7 +233,7 @@ function DecisionCyclePanel({
       {outcomesLoading ? <p role="status" className="text-sm">جارٍ تحميل القرارات...</p> : null}
       {showError && outcomeResult && !outcomeResult.ok ? <div role="alert" className="rounded-lg border p-3 text-sm">{outcomeResult.message}</div> : null}
       {showEmpty ? <p role="status" className="text-sm">لا توجد قرارات محفوظة لهذه المؤسسة.</p> : null}
-      {outcomes.length > 0 ? (
+      {showItems ? (
         <div className="space-y-3">
           {outcomes.map((outcome) => (
             <DecisionOutcomeCard
