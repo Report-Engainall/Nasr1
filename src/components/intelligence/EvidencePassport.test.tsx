@@ -101,7 +101,7 @@ describe("EvidencePassport", () => {
     expect(within(cards[0]).getByText(/cash.available \/ 1.0.0/)).toBeInTheDocument();
 
     expect(within(cards[1]).getByText("inventory.unverified_value")).toBeInTheDocument();
-    expect(within(cards[1]).getByText("غير متاح")).toBeInTheDocument();
+    expect(within(cards[1]).getAllByText("غير متاح")).toHaveLength(2);
     expect(within(cards[1]).getByText(/لا يوجد مصدر/)).toBeInTheDocument();
     expect(within(cards[1]).getByText(/SOURCE_VALUE_MISSING/)).toBeInTheDocument();
 
