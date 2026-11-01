@@ -3,6 +3,23 @@ import { registerCustomerOrdersKeyboardAcceptance } from "./helpers/customer-ord
 
 registerCustomerOrdersKeyboardAcceptance();
 import { storefrontCategorySlug } from "../src/lib/storefront-slugs";
+function checkoutValidationBody(productId: string) {
+  const item = {
+    product_id: productId,
+    name: "أرز اختبار",
+    item_code: "SKU-001",
+    unit: "كرتون",
+    quantity: 2,
+  };
+  return {
+    valid: true,
+    items: [item],
+    item_count: 1,
+    currency: "YER",
+    pricing_verified: true,
+  };
+}
+
 
 type StorefrontFixtureHeaders = Record<string, string>;
 type AdvancedSearchFixtureState = { categoryReads: number; allowCategorySuccess: boolean };
@@ -314,13 +331,7 @@ test("cart and checkout ignore browser-stored money without an authorized server
         status: 200,
         contentType: "application/json",
         headers,
-        body: JSON.stringify({
-          valid: true,
-          items: [{ product_id: productId, name: "أرز اختبار", item_code: "SKU-001", unit: "كرتون", quantity: 2 }],
-          item_count: 1,
-          currency: "YER",
-          pricing_verified: true,
-        }),
+        body: JSON.stringify(checkoutValidationBody(productId)),
       });
       return;
     }
