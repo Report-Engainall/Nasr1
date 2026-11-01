@@ -22,45 +22,67 @@ type SetupOptions = {
   removeError?: unknown | null;
 };
 
+function resolveAuthUser(options: SetupOptions) {
+  return async (_token: string) => ({
+    data: { user: options.authUser === undefined ? { id: USER_ID } : options.authUser },
+    error: options.authError ?? null,
+  });
+}
+
+function resolveProfile(options: SetupOptions) {
+  return async (_authUserId: string) => ({
+    data: options.profile === undefined
+      ? { id: PROFILE_ID, organization_id: ORG, is_active: true }
+      : options.profile,
+    error: options.profileError ?? null,
+  });
+}
+
+function resolveRoles(options: SetupOptions) {
+  return async (_profileId: string) => ({
+    data: options.roles === undefined ? [{ role: "manager" }] : options.roles,
+    error: options.roleError ?? null,
+  });
+}
+
+function resolveProduct(options: SetupOptions) {
+  return async (_productId: string, _organizationId: string) => ({
+    data: options.product === undefined ? { id: PRODUCT } : options.product,
+    error: options.productError ?? null,
+  });
+}
+
+function uploadImage(options: SetupOptions) {
+  return async (
+    _objectPath: string,
+    _bytes: Uint8Array,
+    _uploadOptions: { contentType: "image/webp"; cacheControl: string; upsert: false },
+  ) => ({ error: options.uploadError ?? null });
+}
+
+function removeImage(options: SetupOptions) {
+  return async (_paths: string[]) => ({ error: options.removeError ?? null });
+}
+
+function resolvePublicImageUrl(objectPath: string) {
+  return { data: { publicUrl: "https://assets.example.test/" + objectPath } };
+}
+
 function setup(options: SetupOptions = {}) {
   const env = options.env ?? {
     SUPABASE_URL: "https://supabase.example.test",
     SUPABASE_ANON_KEY: "test-anon-key",
     SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
   };
-  const authClient = {
-    auth: {
-      getUser: vi.fn(async (_token: string) => ({
-        data: { user: options.authUser === undefined ? { id: USER_ID } : options.authUser },
-        error: options.authError ?? null,
-      })),
-    },
-  };
+  const authClient = { auth: { getUser: vi.fn(resolveAuthUser(options)) } };
   const adminClient = {
-    getProfileByAuthUserId: vi.fn(async (_authUserId: string) => ({
-      data: options.profile === undefined
-        ? { id: PROFILE_ID, organization_id: ORG, is_active: true }
-        : options.profile,
-      error: options.profileError ?? null,
-    })),
-    getRoles: vi.fn(async (_profileId: string) => ({
-      data: options.roles === undefined ? [{ role: "manager" }] : options.roles,
-      error: options.roleError ?? null,
-    })),
-    productExists: vi.fn(async (_productId: string, _organizationId: string) => ({
-      data: options.product === undefined ? { id: PRODUCT } : options.product,
-      error: options.productError ?? null,
-    })),
+    getProfileByAuthUserId: vi.fn(resolveProfile(options)),
+    getRoles: vi.fn(resolveRoles(options)),
+    productExists: vi.fn(resolveProduct(options)),
     storage: {
-      upload: vi.fn(async (
-        _objectPath: string,
-        _bytes: Uint8Array,
-        _options: { contentType: "image/webp"; cacheControl: string; upsert: false },
-      ) => ({ error: options.uploadError ?? null })),
-      remove: vi.fn(async (_paths: string[]) => ({ error: options.removeError ?? null })),
-      getPublicUrl: vi.fn((objectPath: string) => ({
-        data: { publicUrl: "https://assets.example.test/" + objectPath },
-      })),
+      upload: vi.fn(uploadImage(options)),
+      remove: vi.fn(removeImage(options)),
+      getPublicUrl: vi.fn(resolvePublicImageUrl),
     },
   };
   const dependencies = {

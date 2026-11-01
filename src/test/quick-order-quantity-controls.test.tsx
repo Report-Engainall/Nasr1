@@ -36,6 +36,16 @@ const product: ProductWithInventory = {
   },
 };
 
+function createPolicyProduct() {
+  return {
+    ...product,
+    stock_quantity: 9,
+    min_order_quantity: 3,
+    order_quantity_multiple: 2,
+    inventory: { ...product.inventory!, quantity_on_hand: 9, quantity_available: 9 },
+  };
+}
+
 function renderMatrix(quantities: Record<string, string>, onQuantityChange = vi.fn(), alreadyInCart: Record<string, number> = {}) {
   const view = render(
     <QuickOrderMatrix
@@ -93,7 +103,7 @@ describe("QuickOrderMatrix quantity controls", () => {
   });
 
   it("steps from the configured minimum by the configured pack multiple", () => {
-    const policyProduct = { ...product, stock_quantity: 9, min_order_quantity: 3, order_quantity_multiple: 2, inventory: { ...product.inventory!, quantity_on_hand: 9, quantity_available: 9 } };
+    const policyProduct = createPolicyProduct();
     const onQuantityChange = vi.fn();
     const view = render(
       <QuickOrderMatrix products={[policyProduct]} quantities={{}} feedback={null}
