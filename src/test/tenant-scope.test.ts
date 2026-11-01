@@ -65,18 +65,20 @@ function expectedScope(
   return { profileId, organizationId, warehouseId, isStaff, canManageCustomers };
 }
 
-describe("server-derived tenant scope", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    mocks.authListener = null;
-    mocks.onAuthStateChange.mockImplementation(captureAuthStateListener);
-    mocks.getSession.mockResolvedValue(AUTHENTICATED_SESSION);
-    mocks.rpc.mockResolvedValue({
-      data: tenantPayload(),
-      error: null,
-    });
+function resetTenantScopeMocks(): void {
+  vi.resetModules();
+  vi.clearAllMocks();
+  mocks.authListener = null;
+  mocks.onAuthStateChange.mockImplementation(captureAuthStateListener);
+  mocks.getSession.mockResolvedValue(AUTHENTICATED_SESSION);
+  mocks.rpc.mockResolvedValue({
+    data: tenantPayload(),
+    error: null,
   });
+}
+
+describe("server-derived tenant scope", () => {
+  beforeEach(resetTenantScopeMocks);
 
   it("maps authenticated identity and tenant scope from the trusted RPC and caches only for the same user", async () => {
     const tenantApi = await import("@/lib/supabase");

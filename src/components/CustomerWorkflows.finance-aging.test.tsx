@@ -81,24 +81,28 @@ const agingReport = {
   }],
 };
 
-describe("finance receivables aging UI", () => {
-  beforeEach(() => {
-    mocks.roles = ["accountant"];
-    mocks.rpc.mockReset();
-    mocks.rpc.mockImplementation((name: string) => {
-      if (name === "fetch_staff_finance_data") {
-        return Promise.resolve({ data: emptyStaffFinanceData, error: null });
-      }
-      if (name === "get_finance_document_print_options") {
-        return Promise.resolve({ data: emptyFinancePrintOptions, error: null });
-      }
-      if (name === "fetch_staff_receivables_aging") {
-        return Promise.resolve({ data: agingReport, error: null });
-      }
+function resolveFinanceAgingRpc(name: string) {
+  switch (name) {
+    case "fetch_staff_finance_data":
+      return Promise.resolve({ data: emptyStaffFinanceData, error: null });
+    case "get_finance_document_print_options":
+      return Promise.resolve({ data: emptyFinancePrintOptions, error: null });
+    case "fetch_staff_receivables_aging":
+      return Promise.resolve({ data: agingReport, error: null });
+    default:
       return Promise.resolve({ data: null, error: { message: "unexpected RPC" } });
-    });
-    Object.defineProperty(window, "print", { configurable: true, writable: true, value: vi.fn() });
-  });
+  }
+}
+
+function prepareFinanceAgingTest(): void {
+  mocks.roles = ["accountant"];
+  mocks.rpc.mockReset();
+  mocks.rpc.mockImplementation(resolveFinanceAgingRpc);
+  Object.defineProperty(window, "print", { configurable: true, writable: true, value: vi.fn() });
+}
+
+describe("finance receivables aging UI", () => {
+  beforeEach(prepareFinanceAgingTest);
 
   afterEach(() => {
     cleanup();
