@@ -93,6 +93,8 @@ describe('synchronizeSession', () => {
     expect(actions.setCustomer).toHaveBeenCalledWith(newerCustomer);
     expect(actions.setAdmin).toHaveBeenCalledTimes(1);
     expect(actions.setAdmin).toHaveBeenCalledWith(true);
+    expect(actions.setSession).toHaveBeenLastCalledWith(newerSession);
+    expect(actions.setLoading).toHaveBeenCalledTimes(1);
   });
 
 });
