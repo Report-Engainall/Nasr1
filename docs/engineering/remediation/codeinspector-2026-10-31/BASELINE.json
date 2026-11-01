@@ -89,11 +89,12 @@
     "disposition": "P1 triaged as synthetic test fixtures; preserve report rows pending fresh scan."
   },
   "sha_context": {
-    "main": "eda843b1932887a2a5219916109ac851b8dfde9f",
-    "P1": "4c58d1a47b8ffef6d14d63fe3000104e95a42f93",
-    "P2": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
-    "P3": "15ae8ddfb16c10183b09eabd769d8ac022c06d70",
-    "original_scan_sha": "UNKNOWN"
+    "main": "4251b801a1670f1c4a26f66fe2a80d798a3150a4",
+    "P1": "37d0c058f4a7a943eb1b1cd2e2812ef4874b818a",
+    "P2": "43ab6774c337baf475a1ec4dc58b88cf800332a1",
+    "P3": "c7a4391fd13ae64895d93245358d09898a85a036",
+    "original_scan_sha": "UNKNOWN",
+    "P2_batch_05": "43ab6774c337baf475a1ec4dc58b88cf800332a1"
   },
   "verification_policy": {
     "old_sha_pass_not_transferable": true,
@@ -2345,11 +2346,11 @@
       "owner": "P2",
       "owner_pr": 338,
       "reference_sha": "UNKNOWN",
-      "status": "OPEN_ASSIGNED_P2",
-      "test": "Fresh CodeInspector rule rerun and exact-source regression test required",
-      "implementation_branch_sha": "767744ef57e6f24e7b3f707d8b9cd0ae1e257762",
-      "fixed_by_sha": null,
-      "evidence": null,
+      "status": "IMPLEMENTED_PENDING_FRESH_SCAN",
+      "test": "customer-360-print-sheet.test.tsx verifies all recent-order rows and the empty state; exact-head Core/P2 pending; fresh CodeInspector rerun required.",
+      "implementation_branch_sha": "7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6",
+      "fixed_by_sha": "7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6",
+      "evidence": "PR #346 source commit 7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6; focused UI tests commit 43ab6774c337baf475a1ec4dc58b88cf800332a1; CodeInspector rerun pending.",
       "occurrence": 1
     },
     {
@@ -5371,15 +5372,15 @@
     "as_of": "2026-11-01",
     "P2": {
       "TS0002_implemented_pending_fresh_scan": 1,
-      "TS0003_implemented_pending_fresh_scan": 15,
-      "TS0003_active_open": 89,
+      "TS0003_implemented_pending_fresh_scan": 19,
+      "TS0003_active_open": 86,
       "TS0003_archived_scope_review": 10,
       "TS0010": "NOT_REPRODUCED_CURRENT_SOURCE_NOT_CLOSED",
       "merged_pr": 338,
       "merged_code_sha": "c3552f9c1a34504bb2c61f78649a5a75e6165a18",
       "post_merge_documentation_commit": "c85601a7d3213d7782c15fed93d0cd373d783025",
-      "latest_code_commit": "51ea48b8fc78ad4f90a66173966599681bb21ea5",
-      "latest_pr": 342
+      "latest_code_commit": "7dddd59b8b82b49c72d67eb761ef5bbe8b9290b6",
+      "latest_pr": 346
     },
     "verification": {
       "P2_core_run": 41257995450,
@@ -5387,7 +5388,7 @@
       "hosted_tenant_e2e": "SKIPPED_BLOCKED_EXTERNAL",
       "fresh_codeinspector_scan": "PENDING"
     },
-    "main_sha": "eda843b1932887a2a5219916109ac851b8dfde9f"
+    "main_sha": "4251b801a1670f1c4a26f66fe2a80d798a3150a4"
   },
   "integration_history": [
     {
