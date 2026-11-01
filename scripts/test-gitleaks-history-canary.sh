@@ -24,7 +24,8 @@ git -C "$repository" commit --quiet -m "test: introduce synthetic legacy credent
 legacy_commit="$(git -C "$repository" rev-parse HEAD)"
 
 rm "$repository/legacy-fixture.txt"
-git -C "$repository" commit --quiet --allow-empty -m "test: remove synthetic legacy credential"
+git -C "$repository" add -u -- legacy-fixture.txt
+git -C "$repository" commit --quiet -m "test: remove synthetic legacy credential"
 
 if git -C "$repository" cat-file -e "HEAD:legacy-fixture.txt" 2>/dev/null; then
   echo "Canary setup failed: synthetic credential remains in the latest tree."
