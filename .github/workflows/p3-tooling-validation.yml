@@ -43,11 +43,13 @@ jobs:
           python -m py_compile scripts/persist-bolt-reconciliation-evidence.py
           python -m py_compile scripts/reconcile-bolt-recovery-archives.py
           python -m py_compile scripts/reconcile-source-release-snapshots.py
+          python -m py_compile scripts/diagnostic_logging.py
       - name: Run archive and persistence self-tests
         run: |
           python scripts/persist-bolt-reconciliation-evidence.py --self-test
           python scripts/reconcile-bolt-recovery-archives.py --self-test
           python scripts/reconcile-source-release-snapshots.py --self-test
+          python scripts/diagnostic_logging.py --self-test
 
   javascript-tooling:
     name: JavaScript syntax, service-worker and logger redaction checks
