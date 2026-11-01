@@ -495,16 +495,7 @@ describe('commerce completion utilities', () => {
     expect(() => parseCustomerStatementCreditMemos([{ ...credit, total_amount: '-1.00' }])).toThrow(/بيانات مالية غير صالحة/);
     expect(() => parseCustomerStatementCreditMemos({ credits: [credit] })).toThrow(/قائمة الإشعارات/);
     expect(isCustomerStatementPossiblyPartial(0, 0, 500)).toBe(true);
-  });
-
-});
- },
-    ]);
-    expect(result.status).toBe('rejected');
-    expect(result.errors).toContain('قاعدة التحقق safe_pattern فشلت للحقل name');
-  });
-
-  it('normalizes Arabic diacritics, tatweel, alef forms and alif maqsura', () => {
+  });  it('normalizes Arabic diacritics, tatweel, alef forms and alif maqsura', () => {
     expect(normalizeArabicSearchText('إِبْرَاهِيمـ ى')).toBe('ابراهيم ي');
     expect(normalizeArabicSearchText('آلـرُزّ')).toBe('الرز');
   });
